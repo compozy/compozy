@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/streaming"
 	taskdomain "github.com/compozy/compozy/engine/task"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/pkg/config"
@@ -34,6 +35,7 @@ const (
 	completeEvent           = "complete"
 	errorEvent              = "error"
 	llmChunkEvent           = "llm_chunk"
+	taskReplayLimit         = 500
 )
 
 type taskStreamMode int
@@ -67,6 +69,7 @@ type taskStreamConfig struct {
 	heartbeat     time.Duration
 	events        map[string]struct{}
 	channelPrefix string
+	publisher     streaming.Publisher
 }
 
 type taskStreamTunables struct {
@@ -244,6 +247,7 @@ func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID
 	}
 	log := logger.FromContext(ctx)
 	metrics := router.ResolveStreamingMetrics(c, deps.state)
+	publisher, _ := deps.state.StreamPublisher()
 	return &taskStreamConfig{
 		execID:        execID,
 		repo:          deps.repo,
@@ -257,6 +261,7 @@ func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID
 		heartbeat:     tunables.heartbeat,
 		events:        events,
 		channelPrefix: tunables.channelPrefix,
+		publisher:     publisher,
 	}, true
 }
 
@@ -495,15 +500,50 @@ func resolveTaskPubSubDependency(c *gin.Context, state *appstate.State, mode tas
 func runTaskStream(ctx context.Context, cfg *taskStreamConfig, stream *router.SSEStream) {
 	ctx, telemetry, closeInfo, finalize := initTaskTelemetry(ctx, cfg)
 	defer finalize()
-	switch cfg.mode {
-	case streamModeStructured:
-		runTaskStructuredStream(ctx, cfg, stream, telemetry, closeInfo)
-	default:
-		runTaskTextStream(ctx, cfg, stream, telemetry, closeInfo)
+	if cfg.publisher == nil {
+		switch cfg.mode {
+		case streamModeStructured:
+			runTaskStructuredStream(ctx, cfg, stream, telemetry, closeInfo)
+		default:
+			runTaskTextStream(ctx, cfg, stream, telemetry, closeInfo)
+		}
+	} else {
+		runTaskEventStream(ctx, cfg, stream, telemetry, closeInfo)
 	}
 	if closeInfo.Reason == router.StreamReasonInitializing {
 		closeInfo.Reason = router.StreamReasonCompleted
 	}
+}
+
+func runTaskEventStream(
+	ctx context.Context,
+	cfg *taskStreamConfig,
+	stream *router.SSEStream,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+) {
+	if cfg.pubsub == nil {
+		runTaskStructuredStream(ctx, cfg, stream, telemetry, closeInfo)
+		return
+	}
+	nextID, cont := emitTaskInitialEvents(stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
+	if !cont {
+		if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
+			closeInfo.Reason = router.StreamReasonTerminal
+		}
+		return
+	}
+	updatedID, ok := emitTaskReplayEvents(ctx, cfg, stream, telemetry, closeInfo, nextID)
+	if !ok {
+		return
+	}
+	subscription, err := cfg.pubsub.Subscribe(ctx, cfg.publisher.Channel(cfg.execID))
+	if err != nil {
+		logTaskStreamError(cfg, "subscribe", err, closeInfo)
+		return
+	}
+	defer subscription.Close()
+	taskEventLoop(ctx, cfg, telemetry, closeInfo, stream, subscription, updatedID)
 }
 
 func runTaskStructuredStream(
@@ -592,7 +632,7 @@ func taskTextStreamLoop(
 		select {
 		case <-ctx.Done():
 			if closeInfo != nil {
-				closeInfo.Reason = "context_canceled"
+				closeInfo.Reason = router.StreamReasonContextCanceled
 				closeInfo.Error = nil
 			}
 			logTaskCancellation(cfg)
@@ -663,29 +703,116 @@ func emitTaskInitialEvents(
 		logTaskStreamError(cfg, "status", err, closeInfo)
 		return lastID, false
 	}
-	if closeInfo != nil {
-		if nextID != lastID {
+	if !isTerminalStatus(state.Status) {
+		if closeInfo != nil {
 			closeInfo.LastEventID = nextID
+			closeInfo.Status = state.Status
 		}
-		closeInfo.Status = state.Status
+		return nextID, true
 	}
-	if isTerminalStatus(state.Status) {
-		updatedID, termErr := emitTaskTerminal(stream, telemetry, cfg, state, nextID)
-		if termErr != nil {
-			logTaskStreamError(cfg, "terminal", termErr, closeInfo)
+	updatedID, err := emitTaskTerminal(stream, telemetry, cfg, state, nextID)
+	if err != nil {
+		logTaskStreamError(cfg, "terminal", err, closeInfo)
+		return nextID, false
+	}
+	if closeInfo != nil {
+		closeInfo.LastEventID = updatedID
+		closeInfo.Status = state.Status
+		closeInfo.Reason = router.StreamReasonTerminal
+	}
+	logTaskCompletion(cfg, updatedID, state.Status)
+	return updatedID, false
+}
+
+func emitTaskReplayEvents(
+	ctx context.Context,
+	cfg *taskStreamConfig,
+	stream *router.SSEStream,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	lastID int64,
+) (int64, bool) {
+	if cfg.publisher == nil {
+		return lastID, true
+	}
+	envelopes, err := cfg.publisher.Replay(ctx, cfg.execID, lastID, taskReplayLimit)
+	if err != nil {
+		logTaskStreamError(cfg, "replay", err, closeInfo)
+		return lastID, false
+	}
+	nextID := lastID
+	for _, env := range envelopes {
+		if env.ID <= nextID {
+			continue
+		}
+		eventType := string(env.Type)
+		if !shouldEmit(cfg, eventType) {
+			nextID = env.ID
+			updateTaskStreamCloseInfo(closeInfo, &env)
+			continue
+		}
+		if err := stream.WriteEvent(env.ID, eventType, env.Data); err != nil {
+			logTaskStreamError(cfg, "replay", err, closeInfo)
 			return nextID, false
 		}
-		if closeInfo != nil {
-			if updatedID != nextID {
-				closeInfo.LastEventID = updatedID
-			}
-			closeInfo.Status = state.Status
-			closeInfo.Reason = router.StreamReasonTerminal
+		if telemetry != nil {
+			telemetry.RecordEvent(eventType, true)
 		}
-		logTaskCompletion(cfg, updatedID, state.Status)
-		return updatedID, false
+		nextID = env.ID
+		updateTaskStreamCloseInfo(closeInfo, &env)
 	}
 	return nextID, true
+}
+
+func taskEventLoop(
+	ctx context.Context,
+	cfg *taskStreamConfig,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	stream *router.SSEStream,
+	subscription pubsub.Subscription,
+	startID int64,
+) {
+	ticker := time.NewTicker(cfg.pollInterval)
+	heartbeat := time.NewTicker(cfg.heartbeat)
+	defer ticker.Stop()
+	defer heartbeat.Stop()
+	nextID := startID
+	lastStatus := cfg.initial.Status
+	lastUpdated := cfg.initial.UpdatedAt
+	messages := subscription.Messages()
+	for {
+		select {
+		case <-ctx.Done():
+			if closeInfo != nil {
+				closeInfo.Reason = router.StreamReasonContextCanceled
+				closeInfo.Error = nil
+			}
+			logTaskCancellation(cfg)
+			return
+		case <-heartbeat.C:
+			if !taskStreamHeartbeatTick(stream, telemetry, cfg, closeInfo) {
+				return
+			}
+		case msg, ok := <-messages:
+			updatedID, ok := handleTaskEvent(stream, cfg, telemetry, closeInfo, nextID, msg, ok)
+			if !ok {
+				return
+			}
+			nextID = updatedID
+		case <-ticker.C:
+			updatedID, ok := handleTaskPoll(ctx, stream, cfg, telemetry, closeInfo, nextID, &lastStatus, &lastUpdated)
+			if !ok {
+				return
+			}
+			nextID = updatedID
+		case <-subscription.Done():
+			if err := subscription.Err(); err != nil {
+				logTaskStreamError(cfg, "pubsub", err, closeInfo)
+			}
+			return
+		}
+	}
 }
 
 func emitTaskStatus(
@@ -706,7 +833,7 @@ func emitTaskStatus(
 	if !shouldEmit(cfg, taskStatusEvent) {
 		return lastID, nil
 	}
-	nextID := lastID + 1
+	nextID := lastID
 	if err := stream.WriteEvent(nextID, taskStatusEvent, data); err != nil {
 		return lastID, err
 	}
@@ -830,6 +957,87 @@ func handleTaskChunk(
 		closeInfo.LastEventID = nextID
 	}
 	return nextID, true
+}
+
+func decodeStreamStatus(data json.RawMessage) (core.StatusType, bool) {
+	if len(data) == 0 {
+		return "", false
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return "", false
+	}
+	if value, ok := payload["status"].(string); ok {
+		return core.StatusType(value), true
+	}
+	return "", false
+}
+
+func decodeEnvelope(payload []byte) (streaming.Envelope, error) {
+	var envelope streaming.Envelope
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return streaming.Envelope{}, err
+	}
+	return envelope, nil
+}
+
+func handleTaskEvent(
+	stream *router.SSEStream,
+	cfg *taskStreamConfig,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	lastID int64,
+	msg pubsub.Message,
+	ok bool,
+) (int64, bool) {
+	if !ok {
+		logTaskStreamError(cfg, "pubsub", errors.New("message channel closed"), closeInfo)
+		return lastID, false
+	}
+	envelope, err := decodeEnvelope(msg.Payload)
+	if err != nil {
+		logTaskStreamError(cfg, "decode", err, closeInfo)
+		return lastID, true
+	}
+	if envelope.ID <= lastID {
+		updateTaskStreamCloseInfo(closeInfo, &envelope)
+		return lastID, true
+	}
+	eventType := string(envelope.Type)
+	if !shouldEmit(cfg, eventType) {
+		updateTaskStreamCloseInfo(closeInfo, &envelope)
+		return envelope.ID, true
+	}
+	if err := stream.WriteEvent(envelope.ID, eventType, envelope.Data); err != nil {
+		logTaskStreamError(cfg, "event", err, closeInfo)
+		return lastID, false
+	}
+	if telemetry != nil {
+		telemetry.RecordEvent(eventType, true)
+	}
+	updateTaskStreamCloseInfo(closeInfo, &envelope)
+	return envelope.ID, true
+}
+
+func updateTaskStreamCloseInfo(info *router.StreamCloseInfo, env *streaming.Envelope) {
+	if info == nil || env == nil {
+		return
+	}
+	info.LastEventID = env.ID
+	if status, ok := decodeStreamStatus(env.Data); ok {
+		info.Status = status
+		if isTerminalStatus(status) && info.Reason == router.StreamReasonInitializing {
+			info.Reason = router.StreamReasonTerminal
+		}
+	}
+	switch env.Type {
+	case streaming.EventTypeComplete:
+		if info.Reason == router.StreamReasonInitializing {
+			info.Reason = router.StreamReasonTerminal
+		}
+	case streaming.EventTypeError:
+		info.Reason = router.StreamReasonStreamError
+	}
 }
 
 func handleTaskPoll(

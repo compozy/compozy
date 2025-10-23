@@ -21,6 +21,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/router"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -36,6 +37,7 @@ const (
 	errorEvent                  = "error"
 	llmChunkEvent               = "llm_chunk"
 	promptActionID              = "__prompt__"
+	agentReplayLimit            = 500
 )
 
 type agentStreamTunables struct {
@@ -74,6 +76,7 @@ type agentStreamConfig struct {
 	mode         streamMode
 	metrics      *monitoring.StreamingMetrics
 	events       map[string]struct{}
+	publisher    streaming.Publisher
 }
 
 type agentStreamDeps struct {
@@ -191,6 +194,7 @@ func prepareAgentStreamConfig(ctx context.Context, c *gin.Context, execID core.I
 		return nil, false
 	}
 	metrics := router.ResolveStreamingMetrics(c, deps.state)
+	publisher, _ := deps.state.StreamPublisher()
 	return &agentStreamConfig{
 		execID:       execID,
 		repo:         deps.repo,
@@ -202,6 +206,7 @@ func prepareAgentStreamConfig(ctx context.Context, c *gin.Context, execID core.I
 		mode:         mode,
 		metrics:      metrics,
 		events:       params.events,
+		publisher:    publisher,
 	}, true
 }
 
@@ -261,7 +266,7 @@ func parseAgentExecID(c *gin.Context) (core.ID, bool) {
 
 func (l *agentLoop) cancel() {
 	if l.closeInfo != nil {
-		l.closeInfo.Reason = "context_canceled"
+		l.closeInfo.Reason = router.StreamReasonContextCanceled
 		l.closeInfo.Error = nil
 	}
 	logAgentCancellation(l.ctx, l.cfg)
@@ -280,6 +285,10 @@ func (l *agentLoop) handleHeartbeat() bool {
 
 func (l *agentLoop) handlePoll(nextID int64, lastStatus *core.StatusType, lastUpdated *time.Time) (int64, bool) {
 	return handleAgentPoll(l.ctx, l.stream, l.cfg, l.telemetry, l.closeInfo, nextID, lastStatus, lastUpdated)
+}
+
+func (l *agentLoop) handleEvent(lastID int64, msg pubsub.Message, ok bool) (int64, bool) {
+	return handleAgentEvent(l.ctx, l.stream, l.cfg, l.telemetry, l.closeInfo, lastID, msg, ok)
 }
 
 func (l *agentLoop) handleChunk(lastID int64, msg pubsub.Message, ok bool) (int64, bool) {
@@ -507,15 +516,50 @@ func resolveAgentPubSubDependency(
 func runAgentStream(ctx context.Context, cfg *agentStreamConfig, stream *router.SSEStream) {
 	ctx, telemetry, closeInfo, finalize := initAgentTelemetry(ctx, cfg)
 	defer finalize()
-	switch cfg.mode {
-	case streamModeStructured:
-		runAgentStructuredStream(ctx, cfg, stream, telemetry, closeInfo)
-	default:
-		runAgentTextStream(ctx, cfg, stream, telemetry, closeInfo)
+	if cfg.publisher == nil {
+		switch cfg.mode {
+		case streamModeStructured:
+			runAgentStructuredStream(ctx, cfg, stream, telemetry, closeInfo)
+		default:
+			runAgentTextStream(ctx, cfg, stream, telemetry, closeInfo)
+		}
+	} else {
+		runAgentEventStream(ctx, cfg, stream, telemetry, closeInfo)
 	}
 	if closeInfo.Reason == router.StreamReasonInitializing {
-		closeInfo.Reason = "completed"
+		closeInfo.Reason = router.StreamReasonCompleted
 	}
+}
+
+func runAgentEventStream(
+	ctx context.Context,
+	cfg *agentStreamConfig,
+	stream *router.SSEStream,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+) {
+	if cfg.pubsub == nil {
+		runAgentStructuredStream(ctx, cfg, stream, telemetry, closeInfo)
+		return
+	}
+	nextID, cont := emitAgentInitialEvents(ctx, stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
+	if !cont {
+		if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
+			closeInfo.Reason = router.StreamReasonTerminal
+		}
+		return
+	}
+	updatedID, ok := emitAgentReplayEvents(ctx, cfg, stream, telemetry, closeInfo, nextID)
+	if !ok {
+		return
+	}
+	subscription, err := cfg.pubsub.Subscribe(ctx, cfg.publisher.Channel(cfg.execID))
+	if err != nil {
+		logAgentStreamError(ctx, cfg, "subscribe", err, closeInfo)
+		return
+	}
+	defer subscription.Close()
+	agentEventLoop(ctx, cfg, telemetry, closeInfo, stream, subscription, updatedID)
 }
 
 func runAgentStructuredStream(
@@ -674,6 +718,94 @@ func emitAgentInitialEvents(
 	return nextID, false
 }
 
+func emitAgentReplayEvents(
+	ctx context.Context,
+	cfg *agentStreamConfig,
+	stream *router.SSEStream,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	lastID int64,
+) (int64, bool) {
+	if cfg.publisher == nil {
+		return lastID, true
+	}
+	envelopes, err := cfg.publisher.Replay(ctx, cfg.execID, lastID, agentReplayLimit)
+	if err != nil {
+		logAgentStreamError(ctx, cfg, "replay", err, closeInfo)
+		return lastID, false
+	}
+	nextID := lastID
+	for _, env := range envelopes {
+		if env.ID <= nextID {
+			continue
+		}
+		eventType := string(env.Type)
+		if !shouldEmit(cfg, eventType) {
+			nextID = env.ID
+			updateAgentStreamCloseInfo(closeInfo, &env)
+			continue
+		}
+		if err := stream.WriteEvent(env.ID, eventType, env.Data); err != nil {
+			logAgentStreamError(ctx, cfg, "replay", err, closeInfo)
+			return nextID, false
+		}
+		if telemetry != nil {
+			telemetry.RecordEvent(eventType, true)
+		}
+		nextID = env.ID
+		updateAgentStreamCloseInfo(closeInfo, &env)
+	}
+	return nextID, true
+}
+
+func agentEventLoop(
+	ctx context.Context,
+	cfg *agentStreamConfig,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	stream *router.SSEStream,
+	subscription pubsub.Subscription,
+	startID int64,
+) {
+	loop := agentLoop{ctx: ctx, cfg: cfg, stream: stream, telemetry: telemetry, closeInfo: closeInfo}
+	ticker := time.NewTicker(cfg.pollInterval)
+	heartbeat := time.NewTicker(cfg.heartbeat)
+	defer ticker.Stop()
+	defer heartbeat.Stop()
+	nextID := startID
+	lastStatus := cfg.initial.Status
+	lastUpdated := cfg.initial.UpdatedAt
+	messages := subscription.Messages()
+	for {
+		select {
+		case <-ctx.Done():
+			loop.cancel()
+			return
+		case <-heartbeat.C:
+			if !loop.handleHeartbeat() {
+				return
+			}
+		case msg, ok := <-messages:
+			updatedID, ok := loop.handleEvent(nextID, msg, ok)
+			if !ok {
+				return
+			}
+			nextID = updatedID
+		case <-ticker.C:
+			updatedID, ok := loop.handlePoll(nextID, &lastStatus, &lastUpdated)
+			if !ok {
+				return
+			}
+			nextID = updatedID
+		case <-subscription.Done():
+			if err := subscription.Err(); err != nil {
+				logAgentStreamError(ctx, cfg, "pubsub", err, closeInfo)
+			}
+			return
+		}
+	}
+}
+
 func emitAgentStatus(
 	stream *router.SSEStream,
 	telemetry router.StreamTelemetry,
@@ -688,7 +820,7 @@ func emitAgentStatus(
 	if err != nil {
 		return lastID, err
 	}
-	nextID := lastID + 1
+	nextID := lastID
 	if err := stream.WriteEvent(nextID, agentStatusEvent, data); err != nil {
 		return lastID, err
 	}
@@ -739,12 +871,12 @@ func logAgentStreamError(
 			"agent stream terminated with error",
 			"exec_id", cfg.execID,
 			"phase", phase,
-			"error", err,
+			"error", core.RedactError(err),
 		)
 	}
 	if closeInfo != nil && err != nil && closeInfo.Error == nil {
 		closeInfo.Reason = fmt.Sprintf("%s_error", phase)
-		closeInfo.Error = err
+		closeInfo.Error = fmt.Errorf("%s", core.RedactError(err))
 	}
 }
 
@@ -786,7 +918,7 @@ func buildAgentFinalize(log logger.Logger, started time.Time, execID core.ID, in
 			fields = append(fields, info.ExtraFields...)
 		}
 		if info.Error != nil {
-			log.Warn("agent stream terminated", append(fields, "error", info.Error)...)
+			log.Warn("agent stream terminated", append(fields, "error", core.RedactError(info.Error))...)
 			return
 		}
 		log.Info("Agent stream disconnected", fields...)
@@ -856,6 +988,88 @@ func handleAgentChunk(
 		closeInfo.LastEventID = nextID
 	}
 	return nextID, true
+}
+
+func handleAgentEvent(
+	ctx context.Context,
+	stream *router.SSEStream,
+	cfg *agentStreamConfig,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	lastID int64,
+	msg pubsub.Message,
+	ok bool,
+) (int64, bool) {
+	if !ok {
+		logAgentStreamError(ctx, cfg, "pubsub", errors.New("message channel closed"), closeInfo)
+		return lastID, false
+	}
+	envelope, err := decodeEnvelope(msg.Payload)
+	if err != nil {
+		logAgentStreamError(ctx, cfg, "decode", err, closeInfo)
+		return lastID, true
+	}
+	if envelope.ID <= lastID {
+		updateAgentStreamCloseInfo(closeInfo, &envelope)
+		return lastID, true
+	}
+	eventType := string(envelope.Type)
+	if !shouldEmit(cfg, eventType) {
+		updateAgentStreamCloseInfo(closeInfo, &envelope)
+		return envelope.ID, true
+	}
+	if err := stream.WriteEvent(envelope.ID, eventType, envelope.Data); err != nil {
+		logAgentStreamError(ctx, cfg, "event", err, closeInfo)
+		return lastID, false
+	}
+	if telemetry != nil {
+		telemetry.RecordEvent(eventType, true)
+	}
+	updateAgentStreamCloseInfo(closeInfo, &envelope)
+	return envelope.ID, true
+}
+
+func decodeEnvelope(payload []byte) (streaming.Envelope, error) {
+	var envelope streaming.Envelope
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return streaming.Envelope{}, err
+	}
+	return envelope, nil
+}
+
+func updateAgentStreamCloseInfo(info *router.StreamCloseInfo, env *streaming.Envelope) {
+	if info == nil || env == nil {
+		return
+	}
+	info.LastEventID = env.ID
+	if status, ok := decodeStreamStatus(env.Data); ok {
+		info.Status = status
+		if isTerminalStatus(status) && info.Reason == router.StreamReasonInitializing {
+			info.Reason = router.StreamReasonTerminal
+		}
+	}
+	switch env.Type {
+	case streaming.EventTypeComplete:
+		if info.Reason == router.StreamReasonInitializing {
+			info.Reason = router.StreamReasonTerminal
+		}
+	case streaming.EventTypeError:
+		info.Reason = router.StreamReasonStreamError
+	}
+}
+
+func decodeStreamStatus(data json.RawMessage) (core.StatusType, bool) {
+	if len(data) == 0 {
+		return "", false
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return "", false
+	}
+	if value, ok := payload["status"].(string); ok {
+		return core.StatusType(value), true
+	}
+	return "", false
 }
 
 func handleAgentPoll(
