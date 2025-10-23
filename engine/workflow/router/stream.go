@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	"github.com/compozy/compozy/engine/infra/server/router"
 	wf "github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -28,6 +30,14 @@ const (
 	workflowStreamHeartbeatFreq = 15 * time.Second
 	workflowStreamQueryTimeout  = 5 * time.Second
 )
+
+type workflowStreamTunables struct {
+	defaultPoll  time.Duration
+	minPoll      time.Duration
+	maxPoll      time.Duration
+	heartbeat    time.Duration
+	queryTimeout time.Duration
+}
 
 type workflowQueryClient interface {
 	QueryWorkflow(
@@ -69,8 +79,8 @@ func parseWorkflowExecID(c *gin.Context) (core.ID, bool) {
 	return execID, true
 }
 
-func parseWorkflowPollIntervalParam(c *gin.Context) (time.Duration, bool) {
-	interval, err := parseWorkflowPollInterval(c.Query("poll_ms"))
+func parseWorkflowPollIntervalParam(c *gin.Context, tunables workflowStreamTunables) (time.Duration, bool) {
+	interval, err := parseWorkflowPollInterval(c.Query("poll_ms"), tunables)
 	if err != nil {
 		reqErr := router.NewRequestError(http.StatusBadRequest, "invalid poll interval", err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
@@ -87,6 +97,36 @@ func parseLastEventIDHeader(c *gin.Context) (int64, bool) {
 		return 0, false
 	}
 	return lastID, true
+}
+
+func parseWorkflowEventsParam(c *gin.Context) (map[string]struct{}, bool) {
+	raw := strings.TrimSpace(c.Query("events"))
+	if raw == "" {
+		return nil, true
+	}
+	allowed := map[string]struct{}{
+		wf.StreamEventWorkflowStart:  {},
+		wf.StreamEventWorkflowStatus: {},
+		wf.StreamEventComplete:       {},
+		wf.StreamEventError:          {},
+	}
+	set := make(map[string]struct{}, len(allowed))
+	for _, token := range strings.Split(raw, ",") {
+		event := strings.TrimSpace(token)
+		if event == "" {
+			continue
+		}
+		if _, ok := allowed[event]; !ok {
+			reqErr := router.NewRequestError(http.StatusBadRequest, "unknown event type", fmt.Errorf("%s", event))
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return nil, false
+		}
+		set[event] = struct{}{}
+	}
+	if len(set) == 0 {
+		return nil, true
+	}
+	return set, true
 }
 
 func resolveWorkflowStreamContext(
@@ -133,7 +173,8 @@ func streamWorkflowExecution(c *gin.Context) {
 	if !ok {
 		return
 	}
-	pollInterval, ok := parseWorkflowPollIntervalParam(c)
+	tunables := resolveWorkflowStreamTunables(c.Request.Context())
+	pollInterval, ok := parseWorkflowPollIntervalParam(c, tunables)
 	if !ok {
 		return
 	}
@@ -141,11 +182,15 @@ func streamWorkflowExecution(c *gin.Context) {
 	if !ok {
 		return
 	}
+	events, ok := parseWorkflowEventsParam(c)
+	if !ok {
+		return
+	}
 	queryClient, ctx, log, metrics, ok := resolveWorkflowStreamContext(c)
 	if !ok {
 		return
 	}
-	processWorkflowStream(ctx, c, execID, queryClient, pollInterval, lastEventID, log, metrics)
+	processWorkflowStream(ctx, c, execID, queryClient, pollInterval, lastEventID, events, tunables, log, metrics)
 }
 
 func prepareWorkflowStream(
@@ -153,8 +198,9 @@ func prepareWorkflowStream(
 	c *gin.Context,
 	execID core.ID,
 	client workflowQueryClient,
+	queryTimeout time.Duration,
 ) (*wf.StreamState, core.StatusType, *router.SSEStream, bool) {
-	snapshot, status, err := fetchWorkflowStreamState(ctx, client, execID.String())
+	snapshot, status, err := fetchWorkflowStreamState(ctx, client, execID.String(), queryTimeout)
 	if err != nil {
 		respondWorkflowQueryError(c, err)
 		return nil, core.StatusPending, nil, false
@@ -202,27 +248,39 @@ func initWorkflowTelemetry(
 			"poll_interval", pollInterval,
 		)
 	}
-	finalize := func() {
+	return ctx, nil, closeInfo, buildWorkflowFinalize(log, execID, started, closeInfo)
+}
+
+func buildWorkflowFinalize(
+	log logger.Logger,
+	execID core.ID,
+	started time.Time,
+	closeInfo *router.StreamCloseInfo,
+) func() {
+	return func() {
 		if log == nil {
 			return
 		}
 		duration := time.Since(started)
+		info := closeInfo
+		if info == nil {
+			info = &router.StreamCloseInfo{Reason: "unknown"}
+		}
 		fields := []any{
 			"exec_id", execID,
 			"duration", duration,
-			"last_event_id", closeInfo.LastEventID,
-			"reason", closeInfo.Reason,
+			"last_event_id", info.LastEventID,
+			"reason", info.Reason,
 		}
-		if closeInfo.Status != nil {
-			fields = append(fields, "status", closeInfo.Status)
+		if info.Status != nil {
+			fields = append(fields, "status", info.Status)
 		}
-		if closeInfo.Error != nil {
-			log.Warn("workflow stream terminated", append(fields, "error", closeInfo.Error)...)
+		if info.Error != nil {
+			log.Warn("workflow stream terminated", append(fields, "error", info.Error)...)
 			return
 		}
 		log.Info("Workflow stream disconnected", fields...)
 	}
-	return ctx, nil, closeInfo, finalize
 }
 
 func processWorkflowStream(
@@ -232,10 +290,12 @@ func processWorkflowStream(
 	queryClient workflowQueryClient,
 	pollInterval time.Duration,
 	lastEventID int64,
+	allowedEvents map[string]struct{},
+	tunables workflowStreamTunables,
 	log logger.Logger,
 	metrics *monitoring.StreamingMetrics,
 ) {
-	snapshot, status, stream, ok := prepareWorkflowStream(ctx, c, execID, queryClient)
+	snapshot, status, stream, ok := prepareWorkflowStream(ctx, c, execID, queryClient, tunables.queryTimeout)
 	if !ok {
 		return
 	}
@@ -261,6 +321,8 @@ func processWorkflowStream(
 		closeInfo,
 		log,
 		execID,
+		allowedEvents,
+		tunables,
 	)
 }
 
@@ -276,8 +338,19 @@ func workflowStreamLifecycle(
 	closeInfo *router.StreamCloseInfo,
 	log logger.Logger,
 	execID core.ID,
+	allowedEvents map[string]struct{},
+	tunables workflowStreamTunables,
 ) {
-	updatedID, cont, snapErr := writeInitialSnapshot(stream, telemetry, log, execID, snapshot, status, lastEventID)
+	updatedID, cont, snapErr := writeInitialSnapshot(
+		stream,
+		telemetry,
+		log,
+		execID,
+		snapshot,
+		status,
+		lastEventID,
+		allowedEvents,
+	)
 	if handleWorkflowSnapshotResult(closeInfo, snapErr, cont, updatedID) {
 		return
 	}
@@ -289,6 +362,8 @@ func workflowStreamLifecycle(
 		pollInterval,
 		&updatedID,
 		telemetry,
+		allowedEvents,
+		tunables,
 	)
 	finalizeWorkflowResult(closeInfo, finalStatus, loopErr, updatedID)
 }
@@ -356,8 +431,9 @@ func writeInitialSnapshot(
 	snapshot *wf.StreamState,
 	status core.StatusType,
 	lastEventID int64,
+	allowedEvents map[string]struct{},
 ) (int64, bool, error) {
-	updatedID, err := emitWorkflowEvents(stream, snapshot, lastEventID, telemetry)
+	updatedID, err := emitWorkflowEvents(stream, snapshot, lastEventID, telemetry, allowedEvents)
 	if err != nil {
 		if log != nil {
 			log.Warn("workflow stream write failed", "exec_id", execID, "error", err)
@@ -389,8 +465,13 @@ func fetchWorkflowStreamState(
 	ctx context.Context,
 	client workflowQueryClient,
 	workflowID string,
+	timeout time.Duration,
 ) (*wf.StreamState, core.StatusType, error) {
-	queryCtx, cancel := context.WithTimeout(ctx, workflowStreamQueryTimeout)
+	queryTimeout := timeout
+	if queryTimeout <= 0 {
+		queryTimeout = workflowStreamQueryTimeout
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 	value, err := client.QueryWorkflow(queryCtx, workflowID, "", wf.StreamQueryName)
 	if err != nil {
@@ -411,8 +492,14 @@ func runWorkflowStreamLoop(
 	pollInterval time.Duration,
 	lastEventID *int64,
 	telemetry router.StreamTelemetry,
+	allowedEvents map[string]struct{},
+	tunables workflowStreamTunables,
 ) (core.StatusType, error) {
-	heartbeatTicker := time.NewTicker(workflowStreamHeartbeatFreq)
+	heartbeatInterval := tunables.heartbeat
+	if heartbeatInterval <= 0 {
+		heartbeatInterval = workflowStreamHeartbeatFreq
+	}
+	heartbeatTicker := time.NewTicker(heartbeatInterval)
 	pollTicker := time.NewTicker(pollInterval)
 	defer heartbeatTicker.Stop()
 	defer pollTicker.Stop()
@@ -429,15 +516,19 @@ func runWorkflowStreamLoop(
 				telemetry.RecordHeartbeat()
 			}
 		case <-pollTicker.C:
-			snapshot, currentStatus, err := fetchWorkflowStreamState(ctx, client, execID.String())
+			currentStatus, err := processWorkflowPoll(
+				ctx,
+				stream,
+				execID,
+				client,
+				lastEventID,
+				telemetry,
+				allowedEvents,
+				tunables,
+			)
 			if err != nil {
 				return status, err
 			}
-			updatedID, writeErr := emitWorkflowEvents(stream, snapshot, *lastEventID, telemetry)
-			if writeErr != nil {
-				return status, writeErr
-			}
-			*lastEventID = updatedID
 			status = currentStatus
 			if isWorkflowTerminalStatus(currentStatus) {
 				return status, nil
@@ -446,17 +537,48 @@ func runWorkflowStreamLoop(
 	}
 }
 
+func processWorkflowPoll(
+	ctx context.Context,
+	stream *router.SSEStream,
+	execID core.ID,
+	client workflowQueryClient,
+	lastEventID *int64,
+	telemetry router.StreamTelemetry,
+	allowedEvents map[string]struct{},
+	tunables workflowStreamTunables,
+) (core.StatusType, error) {
+	snapshot, currentStatus, err := fetchWorkflowStreamState(
+		ctx,
+		client,
+		execID.String(),
+		tunables.queryTimeout,
+	)
+	if err != nil {
+		return currentStatus, err
+	}
+	updatedID, writeErr := emitWorkflowEvents(stream, snapshot, *lastEventID, telemetry, allowedEvents)
+	if writeErr != nil {
+		return currentStatus, writeErr
+	}
+	*lastEventID = updatedID
+	return currentStatus, nil
+}
+
 func emitWorkflowEvents(
 	stream *router.SSEStream,
 	state *wf.StreamState,
 	lastID int64,
 	telemetry router.StreamTelemetry,
+	allowedEvents map[string]struct{},
 ) (int64, error) {
 	if stream == nil || state == nil {
 		return lastID, nil
 	}
 	for _, event := range state.Events {
 		if event.ID <= lastID {
+			continue
+		}
+		if !shouldEmitWorkflowEvent(allowedEvents, event.Type) {
 			continue
 		}
 		if err := stream.WriteEvent(event.ID, event.Type, event.Data); err != nil {
@@ -470,21 +592,84 @@ func emitWorkflowEvents(
 	return lastID, nil
 }
 
-func parseWorkflowPollInterval(raw string) (time.Duration, error) {
+func shouldEmitWorkflowEvent(allowed map[string]struct{}, event string) bool {
+	if len(allowed) == 0 {
+		return true
+	}
+	_, ok := allowed[event]
+	return ok
+}
+
+func parseWorkflowPollInterval(raw string, tunables workflowStreamTunables) (time.Duration, error) {
 	if raw == "" {
-		return workflowStreamDefaultPoll, nil
+		return tunables.defaultPoll, nil
 	}
 	ms, err := strconv.Atoi(raw)
 	if err != nil {
 		return 0, fmt.Errorf("invalid poll_ms: %w", err)
 	}
-	if ms < int(workflowStreamMinPoll/time.Millisecond) {
-		return 0, fmt.Errorf("poll_ms must be >= %d", workflowStreamMinPoll/time.Millisecond)
+	minMillis := int(tunables.minPoll / time.Millisecond)
+	if ms < minMillis {
+		return 0, fmt.Errorf("poll_ms must be >= %d", minMillis)
 	}
-	if ms > int(workflowStreamMaxPoll/time.Millisecond) {
-		return 0, fmt.Errorf("poll_ms must be <= %d", workflowStreamMaxPoll/time.Millisecond)
+	maxMillis := int(tunables.maxPoll / time.Millisecond)
+	if ms > maxMillis {
+		return 0, fmt.Errorf("poll_ms must be <= %d", maxMillis)
 	}
 	return time.Duration(ms) * time.Millisecond, nil
+}
+
+func resolveWorkflowStreamTunables(ctx context.Context) workflowStreamTunables {
+	values := workflowStreamTunables{
+		defaultPoll:  workflowStreamDefaultPoll,
+		minPoll:      workflowStreamMinPoll,
+		maxPoll:      workflowStreamMaxPoll,
+		heartbeat:    workflowStreamHeartbeatFreq,
+		queryTimeout: workflowStreamQueryTimeout,
+	}
+	cfg := config.FromContext(ctx)
+	if cfg != nil {
+		if poll := cfg.Stream.Workflow.DefaultPoll; poll > 0 {
+			values.defaultPoll = poll
+		}
+		if minPoll := cfg.Stream.Workflow.MinPoll; minPoll > 0 {
+			values.minPoll = minPoll
+		}
+		if maxPoll := cfg.Stream.Workflow.MaxPoll; maxPoll > 0 {
+			values.maxPoll = maxPoll
+		}
+		if hb := cfg.Stream.Workflow.HeartbeatFrequency; hb > 0 {
+			values.heartbeat = hb
+		}
+		if timeout := cfg.Stream.Workflow.QueryTimeout; timeout > 0 {
+			values.queryTimeout = timeout
+		}
+	}
+	if values.minPoll <= 0 {
+		values.minPoll = workflowStreamMinPoll
+	}
+	if values.maxPoll <= 0 {
+		values.maxPoll = workflowStreamMaxPoll
+	}
+	if values.defaultPoll <= 0 {
+		values.defaultPoll = workflowStreamDefaultPoll
+	}
+	if values.heartbeat <= 0 {
+		values.heartbeat = workflowStreamHeartbeatFreq
+	}
+	if values.queryTimeout <= 0 {
+		values.queryTimeout = workflowStreamQueryTimeout
+	}
+	if values.minPoll > values.maxPoll {
+		values.minPoll = values.maxPoll
+	}
+	if values.defaultPoll < values.minPoll {
+		values.defaultPoll = values.minPoll
+	}
+	if values.defaultPoll > values.maxPoll {
+		values.defaultPoll = values.maxPoll
+	}
+	return values
 }
 
 func respondWorkflowQueryError(c *gin.Context, err error) {

@@ -529,7 +529,9 @@ type RuntimeConfig struct {
 
 // StreamConfig holds defaults for streaming endpoints.
 type StreamConfig struct {
-	Agent AgentStreamConfig `koanf:"agent" json:"agent" yaml:"agent" mapstructure:"agent"`
+	Agent    AgentStreamConfig        `koanf:"agent"    json:"agent"    yaml:"agent"    mapstructure:"agent"`
+	Task     TaskStreamEndpointConfig `koanf:"task"     json:"task"     yaml:"task"     mapstructure:"task"`
+	Workflow WorkflowStreamConfig     `koanf:"workflow" json:"workflow" yaml:"workflow" mapstructure:"workflow"`
 }
 
 // AgentStreamConfig defines tunables for agent execution streaming.
@@ -538,6 +540,31 @@ type AgentStreamConfig struct {
 	MinPoll            time.Duration `koanf:"min_poll"            env:"STREAM_AGENT_MIN_POLL"            json:"min_poll"            yaml:"min_poll"            mapstructure:"min_poll"            validate:"min=0"`
 	MaxPoll            time.Duration `koanf:"max_poll"            env:"STREAM_AGENT_MAX_POLL"            json:"max_poll"            yaml:"max_poll"            mapstructure:"max_poll"            validate:"min=0"`
 	HeartbeatFrequency time.Duration `koanf:"heartbeat_frequency" env:"STREAM_AGENT_HEARTBEAT_FREQUENCY" json:"heartbeat_frequency" yaml:"heartbeat_frequency" mapstructure:"heartbeat_frequency" validate:"min=0"`
+}
+
+// TaskStreamEndpointConfig defines tunables for task streaming endpoints.
+type TaskStreamEndpointConfig struct {
+	DefaultPoll        time.Duration        `koanf:"default_poll"         env:"STREAM_TASK_DEFAULT_POLL"         json:"default_poll"         yaml:"default_poll"         mapstructure:"default_poll"         validate:"min=0"`
+	MinPoll            time.Duration        `koanf:"min_poll"             env:"STREAM_TASK_MIN_POLL"             json:"min_poll"             yaml:"min_poll"             mapstructure:"min_poll"             validate:"min=0"`
+	MaxPoll            time.Duration        `koanf:"max_poll"             env:"STREAM_TASK_MAX_POLL"             json:"max_poll"             yaml:"max_poll"             mapstructure:"max_poll"             validate:"min=0"`
+	HeartbeatFrequency time.Duration        `koanf:"heartbeat_frequency"  env:"STREAM_TASK_HEARTBEAT_FREQUENCY"  json:"heartbeat_frequency"  yaml:"heartbeat_frequency"  mapstructure:"heartbeat_frequency"  validate:"min=0"`
+	RedisChannelPrefix string               `koanf:"redis_channel_prefix" env:"STREAM_TASK_REDIS_CHANNEL_PREFIX" json:"redis_channel_prefix" yaml:"redis_channel_prefix" mapstructure:"redis_channel_prefix"`
+	Text               TaskTextStreamConfig `koanf:"text"                                                        json:"text"                 yaml:"text"                 mapstructure:"text"`
+}
+
+// TaskTextStreamConfig defines tunables for plain-text task streaming.
+type TaskTextStreamConfig struct {
+	MaxSegmentRunes int           `koanf:"max_segment_runes" env:"STREAM_TASK_TEXT_MAX_SEGMENT_RUNES" json:"max_segment_runes" yaml:"max_segment_runes" mapstructure:"max_segment_runes" validate:"min=0"`
+	PublishTimeout  time.Duration `koanf:"publish_timeout"   env:"STREAM_TASK_TEXT_PUBLISH_TIMEOUT"   json:"publish_timeout"   yaml:"publish_timeout"   mapstructure:"publish_timeout"   validate:"min=0"`
+}
+
+// WorkflowStreamConfig defines tunables for workflow execution streaming.
+type WorkflowStreamConfig struct {
+	DefaultPoll        time.Duration `koanf:"default_poll"        env:"STREAM_WORKFLOW_DEFAULT_POLL"        json:"default_poll"        yaml:"default_poll"        mapstructure:"default_poll"        validate:"min=0"`
+	MinPoll            time.Duration `koanf:"min_poll"            env:"STREAM_WORKFLOW_MIN_POLL"            json:"min_poll"            yaml:"min_poll"            mapstructure:"min_poll"            validate:"min=0"`
+	MaxPoll            time.Duration `koanf:"max_poll"            env:"STREAM_WORKFLOW_MAX_POLL"            json:"max_poll"            yaml:"max_poll"            mapstructure:"max_poll"            validate:"min=0"`
+	HeartbeatFrequency time.Duration `koanf:"heartbeat_frequency" env:"STREAM_WORKFLOW_HEARTBEAT_FREQUENCY" json:"heartbeat_frequency" yaml:"heartbeat_frequency" mapstructure:"heartbeat_frequency" validate:"min=0"`
+	QueryTimeout       time.Duration `koanf:"query_timeout"       env:"STREAM_WORKFLOW_QUERY_TIMEOUT"       json:"query_timeout"       yaml:"query_timeout"       mapstructure:"query_timeout"       validate:"min=0"`
 }
 
 // TasksConfig aggregates task execution tunables.
@@ -1780,6 +1807,24 @@ func buildStreamConfig(registry *definition.Registry) StreamConfig {
 			MinPoll:            getDuration(registry, "stream.agent.min_poll"),
 			MaxPoll:            getDuration(registry, "stream.agent.max_poll"),
 			HeartbeatFrequency: getDuration(registry, "stream.agent.heartbeat_frequency"),
+		},
+		Task: TaskStreamEndpointConfig{
+			DefaultPoll:        getDuration(registry, "stream.task.default_poll"),
+			MinPoll:            getDuration(registry, "stream.task.min_poll"),
+			MaxPoll:            getDuration(registry, "stream.task.max_poll"),
+			HeartbeatFrequency: getDuration(registry, "stream.task.heartbeat_frequency"),
+			RedisChannelPrefix: getString(registry, "stream.task.redis_channel_prefix"),
+			Text: TaskTextStreamConfig{
+				MaxSegmentRunes: getInt(registry, "stream.task.text.max_segment_runes"),
+				PublishTimeout:  getDuration(registry, "stream.task.text.publish_timeout"),
+			},
+		},
+		Workflow: WorkflowStreamConfig{
+			DefaultPoll:        getDuration(registry, "stream.workflow.default_poll"),
+			MinPoll:            getDuration(registry, "stream.workflow.min_poll"),
+			MaxPoll:            getDuration(registry, "stream.workflow.max_poll"),
+			HeartbeatFrequency: getDuration(registry, "stream.workflow.heartbeat_frequency"),
+			QueryTimeout:       getDuration(registry, "stream.workflow.query_timeout"),
 		},
 	}
 }

@@ -19,7 +19,6 @@ func newWorkflowStreamTracker(ctx workflow.Context, input WorkflowInput) (*workf
 	}); err != nil {
 		return nil, err
 	}
-	state.SetStatus(core.StatusRunning)
 	if err := tracker.append(ctx, wf.StreamEventWorkflowStart, map[string]any{
 		"workflow_id":  input.WorkflowID,
 		"execution_id": input.WorkflowExecID,

@@ -10,13 +10,14 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 const (
-	streamChannelPattern = "stream:tokens:%s"
-	maxSegmentRunes      = 200
-	publishTimeout       = 2 * time.Second
+	defaultTaskStreamChannelPrefix = "stream:tokens:"
+	defaultMaxSegmentRunes         = 200
+	defaultPublishTimeout          = 2 * time.Second
 )
 
 type contextKey int
@@ -41,6 +42,28 @@ func streamChunkLimitFromContext(ctx context.Context) int {
 	return 0
 }
 
+func resolveTextStreamTunables(ctx context.Context) textStreamTunables {
+	values := textStreamTunables{
+		channelPrefix:  defaultTaskStreamChannelPrefix,
+		segmentLimit:   defaultMaxSegmentRunes,
+		publishTimeout: defaultPublishTimeout,
+	}
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return values
+	}
+	if prefix := strings.TrimSpace(cfg.Stream.Task.RedisChannelPrefix); prefix != "" {
+		values.channelPrefix = prefix
+	}
+	if limit := cfg.Stream.Task.Text.MaxSegmentRunes; limit > 0 {
+		values.segmentLimit = limit
+	}
+	if timeout := cfg.Stream.Task.Text.PublishTimeout; timeout > 0 {
+		values.publishTimeout = timeout
+	}
+	return values
+}
+
 // StreamPublisher publishes task output chunks to streaming subscribers.
 type StreamPublisher interface {
 	Publish(ctx context.Context, cfg *task.Config, state *task.State)
@@ -49,6 +72,12 @@ type StreamPublisher interface {
 // TextStreamPublisher delivers plain-text task output over the configured pub/sub provider.
 type TextStreamPublisher struct {
 	provider pubsub.Provider
+}
+
+type textStreamTunables struct {
+	channelPrefix  string
+	segmentLimit   int
+	publishTimeout time.Duration
 }
 
 // NewTextStreamPublisher constructs a text stream publisher backed by the given provider.
@@ -74,11 +103,21 @@ func (p *TextStreamPublisher) Publish(ctx context.Context, cfg *task.Config, sta
 	if text == "" {
 		return
 	}
-	channel := fmt.Sprintf(streamChannelPattern, state.TaskExecID.String())
+	tunables := resolveTextStreamTunables(ctx)
+	channel := fmt.Sprintf("%s%s", tunables.channelPrefix, state.TaskExecID.String())
 	lines := splitLines(text)
 	limit := streamChunkLimitFromContext(ctx)
 	log := logger.FromContext(ctx)
-	p.publishChunks(ctx, channel, state.TaskExecID.String(), lines, limit, log)
+	p.publishChunks(
+		ctx,
+		channel,
+		state.TaskExecID.String(),
+		lines,
+		limit,
+		tunables.segmentLimit,
+		tunables.publishTimeout,
+		log,
+	)
 }
 
 func (p *TextStreamPublisher) publishChunks(
@@ -87,6 +126,8 @@ func (p *TextStreamPublisher) publishChunks(
 	taskExecID string,
 	lines []string,
 	limit int,
+	segmentLimit int,
+	timeout time.Duration,
 	log logger.Logger,
 ) {
 	emitted := 0
@@ -97,18 +138,18 @@ func (p *TextStreamPublisher) publishChunks(
 		if ctx.Err() != nil {
 			return
 		}
-		for _, segment := range segmentLine(line, maxSegmentRunes) {
+		for _, segment := range segmentLine(line, segmentLimit) {
 			if limit > 0 && emitted >= limit {
 				return
 			}
 			if ctx.Err() != nil {
 				return
 			}
-			sanitized := strings.TrimSpace(core.RedactString(segment))
-			if sanitized == "" {
+			sanitized := core.RedactString(segment)
+			if strings.TrimSpace(sanitized) == "" {
 				continue
 			}
-			pubCtx, cancel := context.WithTimeout(ctx, publishTimeout)
+			pubCtx, cancel := context.WithTimeout(ctx, timeout)
 			err := p.provider.Publish(pubCtx, channel, []byte(sanitized))
 			cancel()
 			if err != nil {

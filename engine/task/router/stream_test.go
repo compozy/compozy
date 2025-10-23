@@ -46,126 +46,166 @@ func newTaskStreamRouter(t *testing.T, repo taskdomain.Repository, state *appsta
 }
 
 func TestStreamTask_InvalidLastEventID(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	resourceStore := routertest.NewResourceStore(state)
-	repo := routertest.NewStubTaskRepo()
-	storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newStructuredTaskConfig())
-	r := newTaskStreamRouter(t, repo, state)
-	execID := core.MustNewID()
-	repo.AddState(newRunningTaskState(execID, core.MustNewID(), "demo-task"))
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String()+"/stream", http.NoBody)
-	req.Header.Set("Last-Event-ID", "invalid")
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	require.Equal(t, http.StatusBadRequest, res.Code)
-	require.Contains(t, res.Body.String(), "Last-Event-ID")
+	t.Run("Should reject invalid Last-Event-ID header", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		resourceStore := routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newStructuredTaskConfig())
+		r := newTaskStreamRouter(t, repo, state)
+		execID := core.MustNewID()
+		repo.AddState(newRunningTaskState(execID, core.MustNewID(), "demo-task"))
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String()+"/stream", http.NoBody)
+		req.Header.Set("Last-Event-ID", "invalid")
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		require.Equal(t, http.StatusBadRequest, res.Code)
+		require.Contains(t, res.Body.String(), "Last-Event-ID")
+	})
 }
 
 func TestStreamTask_StructuredStream(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	resourceStore := routertest.NewResourceStore(state)
-	repo := routertest.NewStubTaskRepo()
-	storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newStructuredTaskConfig())
-	r := newTaskStreamRouter(t, repo, state)
+	t.Run("Should stream structured status and completion", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		resourceStore := routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newStructuredTaskConfig())
+		r := newTaskStreamRouter(t, repo, state)
 
-	execID := core.MustNewID()
-	workflowExecID := core.MustNewID()
-	running := newRunningTaskState(execID, workflowExecID, "demo-task")
-	repo.AddState(running)
-	success := *running
-	success.Status = core.StatusSuccess
-	success.Output = &core.Output{"result": "ok"}
-	success.UpdatedAt = time.Unix(5, 0).UTC()
+		execID := core.MustNewID()
+		workflowExecID := core.MustNewID()
+		running := newRunningTaskState(execID, workflowExecID, "demo-task")
+		repo.AddState(running)
+		success := *running
+		success.Status = core.StatusSuccess
+		success.Output = &core.Output{"result": "ok"}
+		success.UpdatedAt = time.Unix(5, 0).UTC()
 
-	time.AfterFunc(80*time.Millisecond, func() {
-		repo.AddState(&success)
+		time.AfterFunc(80*time.Millisecond, func() {
+			repo.AddState(&success)
+		})
+
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
+			http.NoBody,
+		)
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		if res.Code != http.StatusOK {
+			t.Logf("response: %d %s", res.Code, res.Body.String())
+		}
+		require.Equal(t, http.StatusOK, res.Code)
+		body := res.Body.String()
+		require.Contains(t, body, "event: task_status")
+		require.Contains(t, body, "\"status\":\"RUNNING\"")
+		require.Contains(t, body, "event: complete")
+		require.Contains(t, body, "\"status\":\"SUCCESS\"")
+		require.Contains(t, body, "\"result\":\"ok\"")
 	})
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
-		http.NoBody,
-	)
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	if res.Code != http.StatusOK {
-		t.Logf("response: %d %s", res.Code, res.Body.String())
-	}
-	require.Equal(t, http.StatusOK, res.Code)
-	body := res.Body.String()
-	require.Contains(t, body, "event: task_status")
-	require.Contains(t, body, "\"status\":\"RUNNING\"")
-	require.Contains(t, body, "event: complete")
-	require.Contains(t, body, "\"status\":\"SUCCESS\"")
-	require.Contains(t, body, "\"result\":\"ok\"")
 }
 
 func TestStreamTask_TextStream(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	resourceStore := routertest.NewResourceStore(state)
-	repo := routertest.NewStubTaskRepo()
-	storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newTextTaskConfig())
-	redisHelper := helpers.NewRedisHelper(t)
-	defer redisHelper.Cleanup(t)
-	provider, err := pubsub.NewRedisProvider(redisHelper.GetClient())
-	require.NoError(t, err)
-	state.SetPubSubProvider(provider)
-	r := newTaskStreamRouter(t, repo, state)
-
-	execID := core.MustNewID()
-	workflowExecID := core.MustNewID()
-	running := newRunningTaskState(execID, workflowExecID, "demo-task")
-	repo.AddState(running)
-	success := *running
-	success.Status = core.StatusSuccess
-	success.Output = &core.Output{"final": "text"}
-	success.UpdatedAt = time.Unix(3, 0).UTC()
-
-	errCh := make(chan error, 1)
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		channel := redisTokenChannel(execID)
-		err := redisHelper.GetClient().Publish(context.Background(), channel, "chunk").Err()
-		if err == nil {
-			repo.AddState(&success)
-		}
-		errCh <- err
-	}()
-
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
-		http.NoBody,
-	)
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	require.NoError(t, <-errCh)
-	if res.Code != http.StatusOK {
-		t.Logf("response: %d %s", res.Code, res.Body.String())
+	setup := func(t *testing.T) (*gin.Engine, *routertest.StubTaskRepo, *helpers.RedisHelper, core.ID, *taskdomain.State) {
+		state := routertest.NewTestAppState(t)
+		resourceStore := routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newTextTaskConfig())
+		redisHelper := helpers.NewRedisHelper(t)
+		provider, err := pubsub.NewRedisProvider(redisHelper.GetClient())
+		require.NoError(t, err)
+		state.SetPubSubProvider(provider)
+		r := newTaskStreamRouter(t, repo, state)
+		execID := core.MustNewID()
+		workflowExecID := core.MustNewID()
+		running := newRunningTaskState(execID, workflowExecID, "demo-task")
+		repo.AddState(running)
+		success := *running
+		success.Status = core.StatusSuccess
+		success.Output = &core.Output{"final": "text"}
+		success.UpdatedAt = time.Unix(3, 0).UTC()
+		return r, repo, redisHelper, execID, &success
 	}
-	require.Equal(t, http.StatusOK, res.Code)
-	body := res.Body.String()
-	require.Contains(t, body, "event: task_status")
-	require.Contains(t, body, "event: llm_chunk")
-	require.Contains(t, body, "chunk")
-	require.Contains(t, body, "event: complete")
-	require.Contains(t, body, "\"status\":\"SUCCESS\"")
+
+	t.Run("Should stream text chunks and completion", func(t *testing.T) {
+		r, repo, redisHelper, execID, success := setup(t)
+		t.Cleanup(func() { redisHelper.Cleanup(t) })
+		errCh := make(chan error, 1)
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			channel := redisTokenChannel(defaultTaskRedisChannelPrefix, execID)
+			err := redisHelper.GetClient().Publish(t.Context(), channel, "chunk").Err()
+			if err == nil {
+				repo.AddState(success)
+			}
+			errCh <- err
+		}()
+
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250",
+			http.NoBody,
+		)
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		require.NoError(t, <-errCh)
+		if res.Code != http.StatusOK {
+			t.Logf("response: %d %s", res.Code, res.Body.String())
+		}
+		require.Equal(t, http.StatusOK, res.Code)
+		body := res.Body.String()
+		require.Contains(t, body, "event: task_status")
+		require.Contains(t, body, "event: llm_chunk")
+		require.Contains(t, body, "chunk")
+		require.Contains(t, body, "event: complete")
+		require.Contains(t, body, "\"status\":\"SUCCESS\"")
+	})
+
+	t.Run("Should filter events per query parameter", func(t *testing.T) {
+		r, repo, redisHelper, execID, success := setup(t)
+		t.Cleanup(func() { redisHelper.Cleanup(t) })
+		errCh := make(chan error, 1)
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			channel := redisTokenChannel(defaultTaskRedisChannelPrefix, execID)
+			err := redisHelper.GetClient().Publish(t.Context(), channel, "chunk").Err()
+			if err == nil {
+				repo.AddState(success)
+			}
+			errCh <- err
+		}()
+
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/tasks/"+execID.String()+"/stream?poll_ms=250&events="+taskStatusEvent,
+			http.NoBody,
+		)
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		require.NoError(t, <-errCh)
+		require.Equal(t, http.StatusOK, res.Code)
+		body := res.Body.String()
+		require.Contains(t, body, "event: task_status")
+		require.NotContains(t, body, "event: llm_chunk")
+		require.NotContains(t, body, "event: complete")
+	})
 }
 
 func TestStreamTask_TextStreamMissingRedis(t *testing.T) {
-	state := routertest.NewTestAppState(t)
-	resourceStore := routertest.NewResourceStore(state)
-	repo := routertest.NewStubTaskRepo()
-	storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newTextTaskConfig())
-	r := newTaskStreamRouter(t, repo, state)
+	t.Run("Should return service unavailable when Redis missing", func(t *testing.T) {
+		state := routertest.NewTestAppState(t)
+		resourceStore := routertest.NewResourceStore(state)
+		repo := routertest.NewStubTaskRepo()
+		storeTaskConfig(t, resourceStore, state.ProjectConfig.Name, newTextTaskConfig())
+		r := newTaskStreamRouter(t, repo, state)
 
-	execID := core.MustNewID()
-	repo.AddState(newRunningTaskState(execID, core.MustNewID(), "demo-task"))
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String()+"/stream", http.NoBody)
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	require.Equal(t, http.StatusServiceUnavailable, res.Code)
-	require.Contains(t, res.Body.String(), "pubsub")
+		execID := core.MustNewID()
+		repo.AddState(newRunningTaskState(execID, core.MustNewID(), "demo-task"))
+		req := httptest.NewRequest(http.MethodGet, "/api/v0/executions/tasks/"+execID.String()+"/stream", http.NoBody)
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		require.Equal(t, http.StatusServiceUnavailable, res.Code)
+		require.Contains(t, res.Body.String(), "pubsub")
+	})
 }
 
 func storeTaskConfig(t *testing.T, store resources.ResourceStore, project string, cfg *taskdomain.Config) {

@@ -66,7 +66,7 @@ func TestTextStreamPublisherPublishesRedactedLines(t *testing.T) {
 	publisher.Publish(context.Background(), cfg, state)
 	require.Len(t, provider.channels, 2)
 	for _, channel := range provider.channels {
-		require.Equal(t, fmt.Sprintf(streamChannelPattern, state.TaskExecID.String()), channel)
+		require.Equal(t, fmt.Sprintf("%s%s", defaultTaskStreamChannelPrefix, state.TaskExecID.String()), channel)
 	}
 	require.Equal(t, "hello", provider.payloads[0])
 	require.Equal(t, "Bearer [REDACTED]", provider.payloads[1])
@@ -86,13 +86,13 @@ func TestTextStreamPublisherSkipsStructuredOutput(t *testing.T) {
 func TestTextStreamPublisherSegmentsLongLines(t *testing.T) {
 	provider := &stubProvider{}
 	publisher := NewTextStreamPublisher(provider)
-	longLine := strings.Repeat("a", maxSegmentRunes*2+50)
+	longLine := strings.Repeat("a", defaultMaxSegmentRunes*2+50)
 	output := core.Output{"response": longLine}
 	state := &task.State{TaskExecID: core.MustNewID(), Output: &output}
 	publisher.Publish(context.Background(), &task.Config{}, state)
 	require.Len(t, provider.payloads, 3)
-	require.Equal(t, maxSegmentRunes, utf8.RuneCountInString(provider.payloads[0]))
-	require.Equal(t, maxSegmentRunes, utf8.RuneCountInString(provider.payloads[1]))
+	require.Equal(t, defaultMaxSegmentRunes, utf8.RuneCountInString(provider.payloads[0]))
+	require.Equal(t, defaultMaxSegmentRunes, utf8.RuneCountInString(provider.payloads[1]))
 	require.Equal(t, 50, utf8.RuneCountInString(provider.payloads[2]))
 }
 

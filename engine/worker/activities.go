@@ -199,7 +199,12 @@ func (a *Activities) initStreamPublisher(ctx context.Context, redisCache *cache.
 	if redisCache == nil || redisCache.Redis == nil {
 		return
 	}
-	provider, err := pubsub.NewRedisProvider(redisCache.Redis.Client())
+	client := redisCache.Redis.Client()
+	if client == nil {
+		logger.FromContext(ctx).Debug("activities: redis client missing; stream publisher disabled")
+		return
+	}
+	provider, err := pubsub.NewRedisProvider(client)
 	if err != nil {
 		logger.FromContext(ctx).Warn("activities: failed to initialize stream publisher", "error", err)
 		return

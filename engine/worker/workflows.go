@@ -22,7 +22,9 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (res *wf.State, 
 			tracker.Fail(ctx, err)
 			return
 		}
-		tracker.Success(ctx, res)
+		if res != nil {
+			tracker.Success(ctx, res)
+		}
 	}()
 	manager, err := InitManager(ctx, input)
 	if err != nil {

@@ -21,18 +21,20 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	taskdomain "github.com/compozy/compozy/engine/task"
 	taskuc "github.com/compozy/compozy/engine/task/uc"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
 const (
-	taskStreamDefaultPoll   = 500 * time.Millisecond
-	taskStreamMinPoll       = 250 * time.Millisecond
-	taskStreamMaxPoll       = 2000 * time.Millisecond
-	taskStreamHeartbeatFreq = 15 * time.Second
-	taskStatusEvent         = "task_status"
-	completeEvent           = "complete"
-	errorEvent              = "error"
-	llmChunkEvent           = "llm_chunk"
+	taskStreamDefaultPoll         = 500 * time.Millisecond
+	taskStreamMinPoll             = 250 * time.Millisecond
+	taskStreamMaxPoll             = 2000 * time.Millisecond
+	taskStreamHeartbeatFreq       = 15 * time.Second
+	defaultTaskRedisChannelPrefix = "stream:tokens:"
+	taskStatusEvent               = "task_status"
+	completeEvent                 = "complete"
+	errorEvent                    = "error"
+	llmChunkEvent                 = "llm_chunk"
 )
 
 type taskStreamMode int
@@ -54,15 +56,33 @@ func (m taskStreamMode) String() string {
 }
 
 type taskStreamConfig struct {
-	execID       core.ID
-	repo         taskdomain.Repository
-	pubsub       pubsub.Provider
-	initial      *taskdomain.State
-	pollInterval time.Duration
-	lastEventID  int64
-	mode         taskStreamMode
-	log          logger.Logger
-	metrics      *monitoring.StreamingMetrics
+	execID        core.ID
+	repo          taskdomain.Repository
+	pubsub        pubsub.Provider
+	initial       *taskdomain.State
+	pollInterval  time.Duration
+	lastEventID   int64
+	mode          taskStreamMode
+	log           logger.Logger
+	metrics       *monitoring.StreamingMetrics
+	heartbeat     time.Duration
+	events        map[string]struct{}
+	channelPrefix string
+}
+
+type taskStreamTunables struct {
+	defaultPoll   time.Duration
+	minPoll       time.Duration
+	maxPoll       time.Duration
+	heartbeat     time.Duration
+	channelPrefix string
+}
+
+type taskStreamDeps struct {
+	state         *appstate.State
+	repo          taskdomain.Repository
+	resourceStore resources.ResourceStore
+	execState     *taskdomain.State
 }
 
 // streamTaskExecution streams Server-Sent Events for task executions.
@@ -157,7 +177,7 @@ func initTaskTelemetry(
 	return ctx, nil, closeInfo, finalize
 }
 
-func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID) (*taskStreamConfig, bool) {
+func resolveTaskStreamDependencies(ctx context.Context, c *gin.Context, execID core.ID) (*taskStreamDeps, bool) {
 	state := router.GetAppState(c)
 	if state == nil {
 		return nil, false
@@ -176,7 +196,21 @@ func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID
 	if !ok {
 		return nil, false
 	}
-	pollInterval, ok := parseTaskPollIntervalParam(c)
+	return &taskStreamDeps{
+		state:         state,
+		repo:          repo,
+		resourceStore: resourceStore,
+		execState:     execState,
+	}, true
+}
+
+func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID) (*taskStreamConfig, bool) {
+	deps, ok := resolveTaskStreamDependencies(ctx, c, execID)
+	if !ok {
+		return nil, false
+	}
+	tunables := resolveTaskStreamTunables(ctx)
+	pollInterval, ok := parseTaskPollIntervalParam(c, tunables)
 	if !ok {
 		return nil, false
 	}
@@ -184,28 +218,35 @@ func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID
 	if !ok {
 		return nil, false
 	}
-	mode, err := determineTaskStreamMode(ctx, state, resourceStore, execState)
+	events, ok := parseTaskEventsParam(c)
+	if !ok {
+		return nil, false
+	}
+	mode, err := determineTaskStreamMode(ctx, deps.state, deps.resourceStore, deps.execState)
 	if err != nil {
 		reqErr := router.NewRequestError(http.StatusInternalServerError, "failed to resolve task stream mode", err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
 		return nil, false
 	}
-	pubsubProvider, ok := resolveTaskPubSubDependency(c, state, mode)
+	pubsubProvider, ok := resolveTaskPubSubDependency(c, deps.state, mode)
 	if !ok {
 		return nil, false
 	}
 	log := logger.FromContext(ctx)
-	metrics := router.ResolveStreamingMetrics(c, state)
+	metrics := router.ResolveStreamingMetrics(c, deps.state)
 	return &taskStreamConfig{
-		execID:       execID,
-		repo:         repo,
-		pubsub:       pubsubProvider,
-		initial:      execState,
-		pollInterval: pollInterval,
-		lastEventID:  lastEventID,
-		mode:         mode,
-		log:          log,
-		metrics:      metrics,
+		execID:        execID,
+		repo:          deps.repo,
+		pubsub:        pubsubProvider,
+		initial:       deps.execState,
+		pollInterval:  pollInterval,
+		lastEventID:   lastEventID,
+		mode:          mode,
+		log:           log,
+		metrics:       metrics,
+		heartbeat:     tunables.heartbeat,
+		events:        events,
+		channelPrefix: tunables.channelPrefix,
 	}, true
 }
 
@@ -229,8 +270,8 @@ func fetchTaskExecutionState(
 	return state, true
 }
 
-func parseTaskPollIntervalParam(c *gin.Context) (time.Duration, bool) {
-	interval, err := parseTaskPollInterval(c.Query("poll_ms"))
+func parseTaskPollIntervalParam(c *gin.Context, tunables taskStreamTunables) (time.Duration, bool) {
+	interval, err := parseTaskPollInterval(c.Query("poll_ms"), tunables)
 	if err != nil {
 		reqErr := router.NewRequestError(http.StatusBadRequest, "invalid poll interval", err)
 		router.RespondWithError(c, reqErr.StatusCode, reqErr)
@@ -239,21 +280,117 @@ func parseTaskPollIntervalParam(c *gin.Context) (time.Duration, bool) {
 	return interval, true
 }
 
-func parseTaskPollInterval(raw string) (time.Duration, error) {
+func parseTaskEventsParam(c *gin.Context) (map[string]struct{}, bool) {
+	raw := strings.TrimSpace(c.Query("events"))
 	if raw == "" {
-		return taskStreamDefaultPoll, nil
+		return nil, true
+	}
+	allowed := map[string]struct{}{
+		taskStatusEvent: {},
+		llmChunkEvent:   {},
+		completeEvent:   {},
+		errorEvent:      {},
+	}
+	set := make(map[string]struct{}, len(allowed))
+	for _, token := range strings.Split(raw, ",") {
+		event := strings.TrimSpace(token)
+		if event == "" {
+			continue
+		}
+		if _, ok := allowed[event]; !ok {
+			reqErr := router.NewRequestError(http.StatusBadRequest, "unknown event type", fmt.Errorf("%s", event))
+			router.RespondWithError(c, reqErr.StatusCode, reqErr)
+			return nil, false
+		}
+		set[event] = struct{}{}
+	}
+	if len(set) == 0 {
+		return nil, true
+	}
+	return set, true
+}
+
+func parseTaskPollInterval(raw string, tunables taskStreamTunables) (time.Duration, error) {
+	if raw == "" {
+		return tunables.defaultPoll, nil
 	}
 	ms, err := strconv.Atoi(raw)
 	if err != nil {
 		return 0, fmt.Errorf("invalid poll_ms: %w", err)
 	}
-	if ms < int(taskStreamMinPoll/time.Millisecond) {
-		return 0, fmt.Errorf("poll_ms must be >= %d", taskStreamMinPoll/time.Millisecond)
+	minMillis := int(tunables.minPoll / time.Millisecond)
+	if ms < minMillis {
+		return 0, fmt.Errorf("poll_ms must be >= %d", minMillis)
 	}
-	if ms > int(taskStreamMaxPoll/time.Millisecond) {
-		return 0, fmt.Errorf("poll_ms must be <= %d", taskStreamMaxPoll/time.Millisecond)
+	maxMillis := int(tunables.maxPoll / time.Millisecond)
+	if ms > maxMillis {
+		return 0, fmt.Errorf("poll_ms must be <= %d", maxMillis)
 	}
 	return time.Duration(ms) * time.Millisecond, nil
+}
+
+func resolveTaskStreamTunables(ctx context.Context) taskStreamTunables {
+	values := taskStreamTunables{
+		defaultPoll:   taskStreamDefaultPoll,
+		minPoll:       taskStreamMinPoll,
+		maxPoll:       taskStreamMaxPoll,
+		heartbeat:     taskStreamHeartbeatFreq,
+		channelPrefix: defaultTaskRedisChannelPrefix,
+	}
+	cfg := config.FromContext(ctx)
+	if cfg != nil {
+		if poll := cfg.Stream.Task.DefaultPoll; poll > 0 {
+			values.defaultPoll = poll
+		}
+		if minPoll := cfg.Stream.Task.MinPoll; minPoll > 0 {
+			values.minPoll = minPoll
+		}
+		if maxPoll := cfg.Stream.Task.MaxPoll; maxPoll > 0 {
+			values.maxPoll = maxPoll
+		}
+		if hb := cfg.Stream.Task.HeartbeatFrequency; hb > 0 {
+			values.heartbeat = hb
+		}
+		if prefix := strings.TrimSpace(cfg.Stream.Task.RedisChannelPrefix); prefix != "" {
+			values.channelPrefix = prefix
+		}
+	}
+	if values.minPoll <= 0 {
+		values.minPoll = taskStreamMinPoll
+	}
+	if values.maxPoll <= 0 {
+		values.maxPoll = taskStreamMaxPoll
+	}
+	if values.defaultPoll <= 0 {
+		values.defaultPoll = taskStreamDefaultPoll
+	}
+	if values.heartbeat <= 0 {
+		values.heartbeat = taskStreamHeartbeatFreq
+	}
+	if strings.TrimSpace(values.channelPrefix) == "" {
+		values.channelPrefix = defaultTaskRedisChannelPrefix
+	}
+	if values.minPoll > values.maxPoll {
+		values.minPoll = values.maxPoll
+	}
+	if values.defaultPoll < values.minPoll {
+		values.defaultPoll = values.minPoll
+	}
+	if values.defaultPoll > values.maxPoll {
+		values.defaultPoll = values.maxPoll
+	}
+	return values
+}
+
+func shouldEmit(cfg *taskStreamConfig, event string) bool {
+	if cfg == nil {
+		return true
+	}
+	if len(cfg.events) == 0 {
+		return true
+	}
+	_, ok := cfg.events[event]
+	return ok
 }
 
 func parseTaskLastEventID(c *gin.Context) (int64, bool) {
@@ -374,7 +511,7 @@ func runTaskStructuredStream(
 		return
 	}
 	ticker := time.NewTicker(cfg.pollInterval)
-	heartbeat := time.NewTicker(taskStreamHeartbeatFreq)
+	heartbeat := time.NewTicker(cfg.heartbeat)
 	defer ticker.Stop()
 	defer heartbeat.Stop()
 	lastStatus := cfg.initial.Status
@@ -413,7 +550,7 @@ func runTaskTextStream(
 	telemetry router.StreamTelemetry,
 	closeInfo *router.StreamCloseInfo,
 ) {
-	subscription, err := cfg.pubsub.Subscribe(ctx, redisTokenChannel(cfg.execID))
+	subscription, err := cfg.pubsub.Subscribe(ctx, redisTokenChannel(cfg.channelPrefix, cfg.execID))
 	if err != nil {
 		logTaskStreamError(cfg, "subscribe", err, closeInfo)
 		return
@@ -439,7 +576,7 @@ func taskTextStreamLoop(
 	startID int64,
 ) {
 	ticker := time.NewTicker(cfg.pollInterval)
-	heartbeat := time.NewTicker(taskStreamHeartbeatFreq)
+	heartbeat := time.NewTicker(cfg.heartbeat)
 	defer ticker.Stop()
 	defer heartbeat.Stop()
 	lastStatus := cfg.initial.Status
@@ -486,23 +623,27 @@ func emitTaskInitialEvents(
 	lastID int64,
 	closeInfo *router.StreamCloseInfo,
 ) (int64, bool) {
-	nextID, err := emitTaskStatus(stream, telemetry, state, lastID)
+	nextID, err := emitTaskStatus(stream, telemetry, cfg, state, lastID)
 	if err != nil {
 		logTaskStreamError(cfg, "status", err, closeInfo)
 		return lastID, false
 	}
 	if closeInfo != nil {
-		closeInfo.LastEventID = nextID
+		if nextID != lastID {
+			closeInfo.LastEventID = nextID
+		}
 		closeInfo.Status = state.Status
 	}
 	if isTerminalStatus(state.Status) {
-		updatedID, termErr := emitTaskTerminal(stream, telemetry, state, nextID)
+		updatedID, termErr := emitTaskTerminal(stream, telemetry, cfg, state, nextID)
 		if termErr != nil {
 			logTaskStreamError(cfg, "terminal", termErr, closeInfo)
 			return nextID, false
 		}
 		if closeInfo != nil {
-			closeInfo.LastEventID = updatedID
+			if updatedID != nextID {
+				closeInfo.LastEventID = updatedID
+			}
 			closeInfo.Status = state.Status
 			closeInfo.Reason = router.StreamReasonTerminal
 		}
@@ -515,6 +656,7 @@ func emitTaskInitialEvents(
 func emitTaskStatus(
 	stream *router.SSEStream,
 	telemetry router.StreamTelemetry,
+	cfg *taskStreamConfig,
 	state *taskdomain.State,
 	lastID int64,
 ) (int64, error) {
@@ -525,6 +667,9 @@ func emitTaskStatus(
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return lastID, err
+	}
+	if !shouldEmit(cfg, taskStatusEvent) {
+		return lastID, nil
 	}
 	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, taskStatusEvent, data); err != nil {
@@ -539,6 +684,7 @@ func emitTaskStatus(
 func emitTaskTerminal(
 	stream *router.SSEStream,
 	telemetry router.StreamTelemetry,
+	cfg *taskStreamConfig,
 	state *taskdomain.State,
 	lastID int64,
 ) (int64, error) {
@@ -556,6 +702,9 @@ func emitTaskTerminal(
 	eventType := completeEvent
 	if state.Status != core.StatusSuccess {
 		eventType = errorEvent
+	}
+	if !shouldEmit(cfg, eventType) {
+		return lastID, nil
 	}
 	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, eventType, data); err != nil {
@@ -611,8 +760,8 @@ func isTerminalStatus(status core.StatusType) bool {
 	}
 }
 
-func redisTokenChannel(execID core.ID) string {
-	return fmt.Sprintf("stream:tokens:%s", execID.String())
+func redisTokenChannel(prefix string, execID core.ID) string {
+	return fmt.Sprintf("%s%s", prefix, execID.String())
 }
 
 func handleTaskChunk(
@@ -627,6 +776,12 @@ func handleTaskChunk(
 	if !ok {
 		logTaskStreamError(cfg, "pubsub", errors.New("message channel closed"), closeInfo)
 		return lastID, false
+	}
+	if !shouldEmit(cfg, llmChunkEvent) {
+		if closeInfo != nil {
+			closeInfo.LastEventID = lastID
+		}
+		return lastID, true
 	}
 	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, llmChunkEvent, msg.Payload); err != nil {
@@ -659,7 +814,7 @@ func handleTaskPoll(
 	}
 	updatedID := lastID
 	if state.Status != *lastStatus || state.UpdatedAt.After(*lastUpdated) {
-		updatedID, err = emitTaskStatus(stream, telemetry, state, lastID)
+		updatedID, err = emitTaskStatus(stream, telemetry, cfg, state, lastID)
 		if err != nil {
 			logTaskStreamError(cfg, "status", err, closeInfo)
 			return lastID, false
@@ -667,18 +822,22 @@ func handleTaskPoll(
 		*lastStatus = state.Status
 		*lastUpdated = state.UpdatedAt
 		if closeInfo != nil {
-			closeInfo.LastEventID = updatedID
+			if updatedID != lastID {
+				closeInfo.LastEventID = updatedID
+			}
 			closeInfo.Status = state.Status
 		}
 	}
 	if isTerminalStatus(state.Status) {
-		updatedID, err = emitTaskTerminal(stream, telemetry, state, updatedID)
+		updatedID, err = emitTaskTerminal(stream, telemetry, cfg, state, updatedID)
 		if err != nil {
 			logTaskStreamError(cfg, "terminal", err, closeInfo)
 			return lastID, false
 		}
 		if closeInfo != nil {
-			closeInfo.LastEventID = updatedID
+			if updatedID != lastID {
+				closeInfo.LastEventID = updatedID
+			}
 			closeInfo.Status = state.Status
 			closeInfo.Reason = router.StreamReasonTerminal
 		}

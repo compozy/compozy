@@ -44,6 +44,12 @@ func registerFieldDefs(registry *Registry, defs ...FieldDef) {
 }
 
 func registerStreamFields(registry *Registry) {
+	registerAgentStreamFields(registry)
+	registerTaskStreamFields(registry)
+	registerWorkflowStreamFields(registry)
+}
+
+func registerAgentStreamFields(registry *Registry) {
 	registerFieldDefs(
 		registry,
 		FieldDef{
@@ -73,6 +79,113 @@ func registerStreamFields(registry *Registry) {
 			EnvVar:  "STREAM_AGENT_HEARTBEAT_FREQUENCY",
 			Type:    durationType,
 			Help:    "Frequency for emitting heartbeat frames on agent streams",
+		},
+	)
+}
+
+func registerTaskStreamFields(registry *Registry) {
+	registerTaskPollFields(registry)
+	registerTaskTextFields(registry)
+}
+
+func registerTaskPollFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.task.default_poll",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "STREAM_TASK_DEFAULT_POLL",
+			Type:    durationType,
+			Help:    "Default polling interval for task streaming when poll_ms is omitted",
+		},
+		FieldDef{
+			Path:    "stream.task.min_poll",
+			Default: 250 * time.Millisecond,
+			EnvVar:  "STREAM_TASK_MIN_POLL",
+			Type:    durationType,
+			Help:    "Minimum allowed polling interval for task streaming",
+		},
+		FieldDef{
+			Path:    "stream.task.max_poll",
+			Default: 2000 * time.Millisecond,
+			EnvVar:  "STREAM_TASK_MAX_POLL",
+			Type:    durationType,
+			Help:    "Maximum allowed polling interval for task streaming",
+		},
+		FieldDef{
+			Path:    "stream.task.heartbeat_frequency",
+			Default: 15 * time.Second,
+			EnvVar:  "STREAM_TASK_HEARTBEAT_FREQUENCY",
+			Type:    durationType,
+			Help:    "Frequency for emitting heartbeat frames on task streams",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_channel_prefix",
+			Default: "stream:tokens:",
+			EnvVar:  "STREAM_TASK_REDIS_CHANNEL_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Redis channel prefix for task text streaming",
+		},
+	)
+}
+
+func registerTaskTextFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.task.text.max_segment_runes",
+			Default: 200,
+			EnvVar:  "STREAM_TASK_TEXT_MAX_SEGMENT_RUNES",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum runes per published task text segment",
+		},
+		FieldDef{
+			Path:    "stream.task.text.publish_timeout",
+			Default: 2 * time.Second,
+			EnvVar:  "STREAM_TASK_TEXT_PUBLISH_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout waiting for Redis publish acknowledgement per chunk",
+		},
+	)
+}
+
+func registerWorkflowStreamFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.workflow.default_poll",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "STREAM_WORKFLOW_DEFAULT_POLL",
+			Type:    durationType,
+			Help:    "Default polling interval for workflow streaming when poll_ms is omitted",
+		},
+		FieldDef{
+			Path:    "stream.workflow.min_poll",
+			Default: 250 * time.Millisecond,
+			EnvVar:  "STREAM_WORKFLOW_MIN_POLL",
+			Type:    durationType,
+			Help:    "Minimum allowed polling interval for workflow streaming",
+		},
+		FieldDef{
+			Path:    "stream.workflow.max_poll",
+			Default: 2000 * time.Millisecond,
+			EnvVar:  "STREAM_WORKFLOW_MAX_POLL",
+			Type:    durationType,
+			Help:    "Maximum allowed polling interval for workflow streaming",
+		},
+		FieldDef{
+			Path:    "stream.workflow.heartbeat_frequency",
+			Default: 15 * time.Second,
+			EnvVar:  "STREAM_WORKFLOW_HEARTBEAT_FREQUENCY",
+			Type:    durationType,
+			Help:    "Frequency for emitting heartbeat frames on workflow streams",
+		},
+		FieldDef{
+			Path:    "stream.workflow.query_timeout",
+			Default: 5 * time.Second,
+			EnvVar:  "STREAM_WORKFLOW_QUERY_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for Temporal workflow stream queries",
 		},
 	)
 }

@@ -129,7 +129,7 @@ func TestStreamWorkflow_InvalidPollInterval(t *testing.T) {
 	require.Contains(t, res.Body.String(), "poll_ms")
 }
 
-func TestStreamWorkflow_EmitsOnlyNewEventsAndCompletes(t *testing.T) {
+func TestStreamWorkflow_StreamBehaviors(t *testing.T) {
 	stateRunning := buildStreamState(t, core.StatusRunning,
 		struct {
 			Type string
@@ -154,18 +154,40 @@ func TestStreamWorkflow_EmitsOnlyNewEventsAndCompletes(t *testing.T) {
 			Data any
 		}{Type: wf.StreamEventComplete, Data: map[string]any{"status": core.StatusSuccess}},
 	)
-	client := &stubWorkflowQueryClient{responses: []*wf.StreamState{stateRunning, stateSuccess}}
-	r := newWorkflowStreamTestRouter(t, client)
-	execID := core.MustNewID()
-	req := httptest.NewRequest(
-		http.MethodGet,
-		"/api/v0/executions/workflows/"+execID.String()+"/stream?poll_ms=250",
-		http.NoBody,
-	)
-	req.Header.Set("Last-Event-ID", "1")
-	res := httptest.NewRecorder()
-	r.ServeHTTP(res, req)
-	require.Equal(t, http.StatusOK, res.Code)
-	expected := "id: 2\nevent: workflow_status\ndata: {\"status\":\"RUNNING\"}\n\nid: 3\nevent: complete\ndata: {\"status\":\"SUCCESS\"}\n\n"
-	require.Equal(t, expected, res.Body.String())
+
+	t.Run("Should emit only new events and complete", func(t *testing.T) {
+		client := &stubWorkflowQueryClient{responses: []*wf.StreamState{stateRunning, stateSuccess}}
+		r := newWorkflowStreamTestRouter(t, client)
+		execID := core.MustNewID()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/workflows/"+execID.String()+"/stream?poll_ms=250",
+			http.NoBody,
+		)
+		req.Header.Set("Last-Event-ID", "1")
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		require.Equal(t, http.StatusOK, res.Code)
+		expected := "id: 2\nevent: workflow_status\ndata: {\"status\":\"RUNNING\"}\n\nid: 3\nevent: complete\ndata: {\"status\":\"SUCCESS\"}\n\n"
+		require.Equal(t, expected, res.Body.String())
+	})
+
+	t.Run("Should honor events filter parameter", func(t *testing.T) {
+		client := &stubWorkflowQueryClient{responses: []*wf.StreamState{stateRunning, stateSuccess}}
+		r := newWorkflowStreamTestRouter(t, client)
+		execID := core.MustNewID()
+		req := httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/executions/workflows/"+execID.String()+"/stream?poll_ms=250&events="+wf.StreamEventWorkflowStatus,
+			http.NoBody,
+		)
+		req.Header.Set("Last-Event-ID", "1")
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+		require.Equal(t, http.StatusOK, res.Code)
+		body := res.Body.String()
+		require.Contains(t, body, "event: workflow_status")
+		require.NotContains(t, body, "event: complete")
+		require.NotContains(t, body, "event: error")
+	})
 }
