@@ -43,8 +43,8 @@ const (
 //	@Failure		500	{object}	router.Response{error=router.ErrorInfo}	"Failed to load execution"
 //	@Router			/executions/tasks/{exec_id} [get]
 func getTaskExecutionStatus(c *gin.Context) {
-	execID := router.GetTaskExecID(c)
-	if execID == "" {
+	execID, ok := parseTaskExecID(c)
+	if !ok {
 		return
 	}
 	state := router.GetAppState(c)

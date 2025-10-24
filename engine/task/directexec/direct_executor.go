@@ -589,6 +589,7 @@ func (d *directExecutor) executeOnce(
 		nil,
 		d.providerMetrics,
 		d.toolEnvironment,
+		nil,
 	)
 	wfState := d.buildWorkflowState(plan.meta, state.WorkflowExecID, plan.config)
 	input := &uc.ExecuteTaskInput{
@@ -596,6 +597,7 @@ func (d *directExecutor) executeOnce(
 		WorkflowState:  wfState,
 		WorkflowConfig: plan.workflowConfig,
 		ProjectConfig:  d.projectConfig,
+		TaskState:      state,
 	}
 	output, execErr := ucExec.Execute(ctx, input)
 	if execErr != nil {

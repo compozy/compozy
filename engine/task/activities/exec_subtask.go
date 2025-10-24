@@ -16,12 +16,14 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
 	"github.com/compozy/compozy/engine/task2"
 	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/sethvargo/go-retry"
@@ -29,6 +31,13 @@ import (
 )
 
 const ExecuteSubtaskLabel = "ExecuteSubtask"
+
+const (
+	defaultChildStateRetryMax  uint64        = 5
+	defaultChildStateRetryBase time.Duration = 50 * time.Millisecond
+	defaultSiblingPollInterval               = 200 * time.Millisecond
+	defaultSiblingPollTimeout                = 30 * time.Second
+)
 
 type ExecuteSubtaskInput struct {
 	WorkflowID     string  `json:"workflow_id"`
@@ -38,15 +47,16 @@ type ExecuteSubtaskInput struct {
 }
 
 type ExecuteSubtask struct {
-	loadWorkflowUC *uc.LoadWorkflow
-	executeTaskUC  *uc.ExecuteTask
-	task2Factory   task2.Factory
-	templateEngine *tplengine.TemplateEngine
-	workflowRepo   workflow.Repository
-	taskRepo       task.Repository
-	configStore    services.ConfigStore
-	projectConfig  *project.Config
-	usageMetrics   usage.Metrics
+	loadWorkflowUC  *uc.LoadWorkflow
+	executeTaskUC   *uc.ExecuteTask
+	task2Factory    task2.Factory
+	templateEngine  *tplengine.TemplateEngine
+	workflowRepo    workflow.Repository
+	taskRepo        task.Repository
+	configStore     services.ConfigStore
+	projectConfig   *project.Config
+	usageMetrics    usage.Metrics
+	streamPublisher streaming.Publisher
 }
 
 // NewExecuteSubtask creates and returns an ExecuteSubtask wired with the provided dependencies.
@@ -65,6 +75,7 @@ func NewExecuteSubtask(
 	usageMetrics usage.Metrics,
 	providerMetrics providermetrics.Recorder,
 	toolEnvironment toolenv.Environment,
+	streamPublisher streaming.Publisher,
 ) *ExecuteSubtask {
 	return &ExecuteSubtask{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
@@ -76,14 +87,16 @@ func NewExecuteSubtask(
 			nil,
 			providerMetrics,
 			toolEnvironment,
+			streamPublisher,
 		),
-		task2Factory:   task2Factory,
-		templateEngine: templateEngine,
-		workflowRepo:   workflowRepo,
-		taskRepo:       taskRepo,
-		configStore:    configStore,
-		projectConfig:  projectConfig,
-		usageMetrics:   usageMetrics,
+		task2Factory:    task2Factory,
+		templateEngine:  templateEngine,
+		workflowRepo:    workflowRepo,
+		taskRepo:        taskRepo,
+		configStore:     configStore,
+		projectConfig:   projectConfig,
+		usageMetrics:    usageMetrics,
+		streamPublisher: streamPublisher,
 	}
 }
 
@@ -184,6 +197,7 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
+		TaskState:      taskState,
 	})
 	status, err = a.applySubtaskExecutionResult(ctx, taskState, output, executionError)
 	if err != nil {
@@ -198,8 +212,10 @@ func (a *ExecuteSubtask) executeAndHandleResponse(
 	}
 	subtaskResponse := a.buildSubtaskResponse(result)
 	if executionError != nil {
+		services.PublishError(ctx, a.streamPublisher, taskState, executionError)
 		return subtaskResponse, executionError
 	}
+	services.PublishComplete(ctx, a.streamPublisher, taskState, subtaskResponse)
 	return subtaskResponse, nil
 }
 
@@ -316,9 +332,10 @@ func (a *ExecuteSubtask) getChildStateWithRetry(
 	taskID string,
 ) (*task.State, error) {
 	var taskState *task.State
+	maxRetries, baseBackoff := resolveChildStateRetry(ctx)
 	err := retry.Do(
 		ctx,
-		retry.WithMaxRetries(5, retry.NewExponential(50*time.Millisecond)),
+		retry.WithMaxRetries(maxRetries, retry.NewExponential(baseBackoff)),
 		func(ctx context.Context) error {
 			var err error
 			taskState, err = a.getChildState(ctx, parentStateID, taskID)
@@ -476,10 +493,7 @@ func (a *ExecuteSubtask) waitOnSiblingSequence(
 	currentTaskID string,
 	priorSiblingIDs []string,
 ) error {
-	const (
-		pollInterval = 200 * time.Millisecond
-		pollTimeout  = 30 * time.Second
-	)
+	pollInterval, pollTimeout := resolveSiblingWaitSettings(ctx)
 	for _, siblingID := range priorSiblingIDs {
 		if err := a.waitForSingleSibling(
 			ctx,
@@ -568,4 +582,32 @@ func (a *ExecuteSubtask) waitForNextPoll(
 	case <-time.After(pollInterval + jitter):
 		return nil
 	}
+}
+
+func resolveChildStateRetry(ctx context.Context) (uint64, time.Duration) {
+	attempts := defaultChildStateRetryMax
+	base := defaultChildStateRetryBase
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if value := cfg.Tasks.Retry.ChildState.MaxAttempts; value > 0 {
+			attempts = uint64(value)
+		}
+		if value := cfg.Tasks.Retry.ChildState.BaseBackoff; value > 0 {
+			base = value
+		}
+	}
+	return attempts, base
+}
+
+func resolveSiblingWaitSettings(ctx context.Context) (time.Duration, time.Duration) {
+	interval := defaultSiblingPollInterval
+	timeout := defaultSiblingPollTimeout
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if value := cfg.Tasks.Wait.Siblings.PollInterval; value > 0 {
+			interval = value
+		}
+		if value := cfg.Tasks.Wait.Siblings.Timeout; value > 0 {
+			timeout = value
+		}
+	}
+	return interval, timeout
 }

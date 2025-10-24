@@ -3,6 +3,7 @@
   "description": "Monitoring and metrics",
   "icon": "ChartBar",
   "pages": [
-    "monitor-usage"
+    "monitor-usage",
+    "streaming-telemetry"
   ]
 }

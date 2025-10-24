@@ -60,7 +60,7 @@ The Compozy REST API serves as the **central management interface** for the work
   />
   <FeatureCard
     title="Monitor Operations"
-    description="Access real-time execution status, comprehensive metrics, and detailed health information for production environments"
+    description="Access real-time execution status, comprehensive metrics (including [streaming telemetry](/docs/core/metrics/streaming-telemetry)), and detailed health information for production environments"
     icon={Eye}
   />
   <FeatureCard
@@ -263,6 +263,64 @@ curl -X GET http://localhost:5001/api/v0/executions/workflows/{execution_id}/out
 </Step>
 </Steps>
 
+## Streaming Executions
+
+Server-Sent Events (SSE) endpoints provide live updates for workflows, agents, and tasks. Streams emit ordered events with `id`, `event`, `ts`, and `data` fields and support automatic reconnection via the `Last-Event-ID` header.
+
+- `GET /executions/workflows/{exec_id}/stream` &mdash; durable JSON events with resume support.
+- `GET /executions/agents/{exec_id}/stream` &mdash; structured JSON when the agent declares an output schema, otherwise progressive `llm_chunk` text lines.
+- `GET /executions/tasks/{exec_id}/stream` &mdash; mirrors the agent behavior for task executions.
+
+Use query parameters to tailor delivery:
+
+- `poll_ms` sets the polling cadence for durable stores (default `500`, min `250`, max `2000` milliseconds).
+- `events` lets clients provide a comma-separated allowlist (for example `workflow_status,tool_call,llm_chunk`).
+- `Last-Event-ID` resumes workflow and structured streams from the last confirmed event.
+
+<Tabs items={["JavaScript", "curl"]}>
+<Tab>
+
+```javascript
+const execId = "01JZP6D1XSYQ1JR2QH9AZ2T0TB";
+const stream = new EventSource(
+  `/api/v0/executions/workflows/${execId}/stream?poll_ms=500`,
+  { withCredentials: false }
+);
+
+stream.addEventListener("workflow_status", event => {
+  const payload = JSON.parse(event.data);
+  renderStatus(payload);
+});
+
+stream.addEventListener("tool_call", event => {
+  console.info("Tool call:", JSON.parse(event.data));
+});
+
+stream.addEventListener("llm_chunk", event => {
+  appendConsoleLine(event.data);
+});
+
+stream.addEventListener("complete", () => {
+  stream.close();
+});
+```
+
+</Tab>
+
+<Tab>
+
+```bash
+curl -N "http://localhost:5001/api/v0/executions/agents/${AGENT_EXEC_ID}/stream?events=agent_status,llm_chunk" \
+  -H "Authorization: Bearer ${COMPOZY_API_KEY}" \
+  -H "Accept: text/event-stream" \
+  -H "Last-Event-ID: 42"
+```
+
+</Tab>
+</Tabs>
+
+For event field definitions and payload formats, see the [Execution Stream Events schema](/docs/schema/execution-stream-events).
+
 ## Response Format Standards
 
 <Tabs items={["Success Response", "Error Response", "Execution Status", "Streaming Response"]}>
@@ -392,6 +450,12 @@ data: {"exec_id": "exec_123", "status": "completed", "outputs": "..."}
     description="Understand task execution patterns, monitoring, and coordination strategies"
     href="/docs/api/tasks"
     icon={Layers}
+  />
+  <ReferenceCard
+    title="Execution Stream Events"
+    description="Detailed event catalog for workflow, agent, and task streaming endpoints."
+    href="/docs/schema/execution-stream-events"
+    icon={Activity}
   />
   <ReferenceCard
     title="Memory Systems"

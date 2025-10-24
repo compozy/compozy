@@ -19,7 +19,8 @@ func Register(apiBase *gin.RouterGroup) {
 	execGroup := apiBase.Group("/executions")
 	{
 		agentExecGroup := execGroup.Group("/agents")
-		agentExecGroup.GET("/:agent_exec_id", getAgentExecutionStatus)
+		agentExecGroup.GET("/:exec_id", getAgentExecutionStatus)
+		agentExecGroup.GET("/:exec_id/stream", streamAgentExecution)
 	}
 	workflowsGroup := apiBase.Group("/workflows/:workflow_id")
 	{

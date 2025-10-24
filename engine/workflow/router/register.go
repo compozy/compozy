@@ -38,6 +38,7 @@ func registerWorkflowExecutionRoutes(group *gin.RouterGroup) {
 	workflowExec := group.Group("/workflows")
 	workflowExec.GET("", listAllExecutions)
 	workflowExec.GET("/:exec_id", getExecution)
+	workflowExec.GET("/:exec_id/stream", streamWorkflowExecution)
 	workflowExec.POST("/:exec_id/pause", pauseExecution)
 	workflowExec.POST("/:exec_id/resume", resumeExecution)
 	workflowExec.POST("/:exec_id/cancel", cancelExecution)

@@ -12,12 +12,25 @@ const CompozyWorkflowName = "CompozyWorkflow"
 
 type WorkflowInput = wfacts.TriggerInput
 
-func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, error) {
-	manager, err := InitManager(ctx, input)
-	defer manager.CancelCleanup(ctx)
+func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (res *wf.State, err error) {
+	tracker, err := newWorkflowStreamTracker(ctx, input)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			tracker.Fail(ctx, err)
+			return
+		}
+		if res != nil {
+			tracker.Success(ctx, res)
+		}
+	}()
+	manager, err := InitManager(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	defer manager.CancelCleanup(ctx)
 	ctx = manager.BuildBaseContext(ctx)
 	errHandler := manager.BuildErrHandler(ctx)
 	triggerFn := manager.TriggerWorkflow()
@@ -32,8 +45,9 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 	}
 	for output.GetNextTask() != nil {
 		taskFn := manager.ExecuteTasks(output)
-		nextTask, err := actHandler(errHandler, taskFn)(ctx)
-		if err != nil {
+		nextTask, nextErr := actHandler(errHandler, taskFn)(ctx)
+		if nextErr != nil {
+			err = nextErr
 			return nil, err
 		}
 		if nextTask == nil {
@@ -42,9 +56,6 @@ func CompozyWorkflow(ctx workflow.Context, input WorkflowInput) (*wf.State, erro
 		output = nextTask
 	}
 	completeFn := manager.CompleteWorkflow()
-	wState, err := actHandler(errHandler, completeFn)(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return wState, nil
+	res, err = actHandler(errHandler, completeFn)(ctx)
+	return res, err
 }

@@ -19,6 +19,8 @@ func CreateRegistry() *Registry {
 	registerDatabaseFields(registry)
 	registerTemporalFields(registry)
 	registerRuntimeFields(registry)
+	registerStreamFields(registry)
+	registerTasksFields(registry)
 	registerLimitsFields(registry)
 	registerAttachmentsFields(registry)
 	registerMemoryFields(registry)
@@ -39,6 +41,257 @@ func registerFieldDefs(registry *Registry, defs ...FieldDef) {
 		def := defs[i]
 		registry.Register(&def)
 	}
+}
+
+func registerStreamFields(registry *Registry) {
+	registerAgentStreamFields(registry)
+	registerTaskStreamFields(registry)
+	registerLLMStreamFields(registry)
+	registerWorkflowStreamFields(registry)
+}
+
+func registerAgentStreamFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.agent.default_poll",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "STREAM_AGENT_DEFAULT_POLL",
+			Type:    durationType,
+			Help:    "Default polling interval for agent streaming when poll_ms is omitted",
+		},
+		FieldDef{
+			Path:    "stream.agent.min_poll",
+			Default: 250 * time.Millisecond,
+			EnvVar:  "STREAM_AGENT_MIN_POLL",
+			Type:    durationType,
+			Help:    "Minimum allowed polling interval for agent streaming",
+		},
+		FieldDef{
+			Path:    "stream.agent.max_poll",
+			Default: 2000 * time.Millisecond,
+			EnvVar:  "STREAM_AGENT_MAX_POLL",
+			Type:    durationType,
+			Help:    "Maximum allowed polling interval for agent streaming",
+		},
+		FieldDef{
+			Path:    "stream.agent.heartbeat_frequency",
+			Default: 15 * time.Second,
+			EnvVar:  "STREAM_AGENT_HEARTBEAT_FREQUENCY",
+			Type:    durationType,
+			Help:    "Frequency for emitting heartbeat frames on agent streams",
+		},
+		FieldDef{
+			Path:    "stream.agent.replay_limit",
+			Default: 500,
+			EnvVar:  "STREAM_AGENT_REPLAY_LIMIT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum events to replay when resuming an agent stream",
+		},
+	)
+}
+
+func registerTaskStreamFields(registry *Registry) {
+	registerTaskPollFields(registry)
+	registerTaskRedisFields(registry)
+	registerTaskTextFields(registry)
+}
+
+func registerTaskPollFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.task.default_poll",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "STREAM_TASK_DEFAULT_POLL",
+			Type:    durationType,
+			Help:    "Default polling interval for task streaming when poll_ms is omitted",
+		},
+		FieldDef{
+			Path:    "stream.task.min_poll",
+			Default: 250 * time.Millisecond,
+			EnvVar:  "STREAM_TASK_MIN_POLL",
+			Type:    durationType,
+			Help:    "Minimum allowed polling interval for task streaming",
+		},
+		FieldDef{
+			Path:    "stream.task.max_poll",
+			Default: 2000 * time.Millisecond,
+			EnvVar:  "STREAM_TASK_MAX_POLL",
+			Type:    durationType,
+			Help:    "Maximum allowed polling interval for task streaming",
+		},
+		FieldDef{
+			Path:    "stream.task.heartbeat_frequency",
+			Default: 15 * time.Second,
+			EnvVar:  "STREAM_TASK_HEARTBEAT_FREQUENCY",
+			Type:    durationType,
+			Help:    "Frequency for emitting heartbeat frames on task streams",
+		},
+	)
+}
+
+func registerTaskRedisFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.task.redis_channel_prefix",
+			Default: "stream:tokens:",
+			EnvVar:  "STREAM_TASK_REDIS_CHANNEL_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Redis channel prefix for task text streaming",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_log_prefix",
+			Default: "stream:events:log:",
+			EnvVar:  "STREAM_TASK_REDIS_LOG_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Redis list key prefix for task stream event backlog",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_seq_prefix",
+			Default: "stream:events:seq:",
+			EnvVar:  "STREAM_TASK_REDIS_SEQ_PREFIX",
+			Type:    reflect.TypeOf(""),
+			Help:    "Redis key prefix for task stream sequence counters",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_max_entries",
+			Default: int64(500),
+			EnvVar:  "STREAM_TASK_REDIS_MAX_ENTRIES",
+			Type:    reflect.TypeOf(int64(0)),
+			Help:    "Maximum backlog entries to retain per task stream",
+		},
+		FieldDef{
+			Path:    "stream.task.redis_ttl",
+			Default: 24 * time.Hour,
+			EnvVar:  "STREAM_TASK_REDIS_TTL",
+			Type:    durationType,
+			Help:    "Time-to-live for task stream backlog keys",
+		},
+		FieldDef{
+			Path:    "stream.task.replay_limit",
+			Default: 500,
+			EnvVar:  "STREAM_TASK_REPLAY_LIMIT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum events to replay when resuming a task stream",
+		},
+	)
+}
+
+func registerLLMStreamFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.llm.fallback_segment_limit",
+			Default: 200,
+			EnvVar:  "STREAM_LLM_FALLBACK_SEGMENT_LIMIT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum runes per fallback text segment when chunking streamed output.",
+		},
+	)
+}
+
+func registerTaskTextFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.task.text.max_segment_runes",
+			Default: 200,
+			EnvVar:  "STREAM_TASK_TEXT_MAX_SEGMENT_RUNES",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum runes per published task text segment",
+		},
+		FieldDef{
+			Path:    "stream.task.text.publish_timeout",
+			Default: 2 * time.Second,
+			EnvVar:  "STREAM_TASK_TEXT_PUBLISH_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout waiting for Redis publish acknowledgement per chunk",
+		},
+	)
+}
+
+func registerWorkflowStreamFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.workflow.default_poll",
+			Default: 500 * time.Millisecond,
+			EnvVar:  "STREAM_WORKFLOW_DEFAULT_POLL",
+			Type:    durationType,
+			Help:    "Default polling interval for workflow streaming when poll_ms is omitted",
+		},
+		FieldDef{
+			Path:    "stream.workflow.min_poll",
+			Default: 250 * time.Millisecond,
+			EnvVar:  "STREAM_WORKFLOW_MIN_POLL",
+			Type:    durationType,
+			Help:    "Minimum allowed polling interval for workflow streaming",
+		},
+		FieldDef{
+			Path:    "stream.workflow.max_poll",
+			Default: 2000 * time.Millisecond,
+			EnvVar:  "STREAM_WORKFLOW_MAX_POLL",
+			Type:    durationType,
+			Help:    "Maximum allowed polling interval for workflow streaming",
+		},
+		FieldDef{
+			Path:    "stream.workflow.heartbeat_frequency",
+			Default: 15 * time.Second,
+			EnvVar:  "STREAM_WORKFLOW_HEARTBEAT_FREQUENCY",
+			Type:    durationType,
+			Help:    "Frequency for emitting heartbeat frames on workflow streams",
+		},
+		FieldDef{
+			Path:    "stream.workflow.query_timeout",
+			Default: 5 * time.Second,
+			EnvVar:  "STREAM_WORKFLOW_QUERY_TIMEOUT",
+			Type:    durationType,
+			Help:    "Timeout for Temporal workflow stream queries",
+		},
+	)
+}
+
+func registerTasksFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "tasks.retry.child_state.max_attempts",
+			Default: 5,
+			EnvVar:  "TASKS_RETRY_CHILD_MAX_ATTEMPTS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum attempts to fetch child task state before failing",
+		},
+		FieldDef{
+			Path:    "tasks.retry.child_state.base_backoff",
+			Default: 50 * time.Millisecond,
+			EnvVar:  "TASKS_RETRY_CHILD_BASE_BACKOFF",
+			Type:    durationType,
+			Help:    "Base exponential backoff used between child state fetch retries",
+		},
+		FieldDef{
+			Path:    "tasks.wait.siblings.poll_interval",
+			Default: 200 * time.Millisecond,
+			EnvVar:  "TASKS_WAIT_SIBLINGS_POLL_INTERVAL",
+			Type:    durationType,
+			Help:    "Polling interval when waiting for prior sibling tasks to complete",
+		},
+		FieldDef{
+			Path:    "tasks.wait.siblings.timeout",
+			Default: 30 * time.Second,
+			EnvVar:  "TASKS_WAIT_SIBLINGS_TIMEOUT",
+			Type:    durationType,
+			Help:    "Maximum time to wait for prior sibling tasks to finish",
+		},
+		FieldDef{
+			Path:    "tasks.stream.max_chunks",
+			Default: 100,
+			EnvVar:  "TASKS_STREAM_MAX_CHUNKS",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum text chunks to publish per task output stream (0 disables)",
+		},
+	)
 }
 
 func registerKnowledgeFields(registry *Registry) {

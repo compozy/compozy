@@ -7,8 +7,10 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
+	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/project"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/webhook"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
@@ -27,12 +29,15 @@ const (
 type ExtensionKey string
 
 const (
-	extensionScheduleManagerKey   ExtensionKey = "scheduleManager"
-	extensionWebhookRegistryKey   ExtensionKey = "webhook.registry"
-	extensionResourceStoreKey     ExtensionKey = "resource.store"
-	extensionConfigRegistryKey    ExtensionKey = "config.registry"
-	extensionAPIIdempotencyKey    ExtensionKey = "api.idempotency"
-	extensionMonitoringServiceKey ExtensionKey = "monitoring.service"
+	extensionScheduleManagerKey     ExtensionKey = "scheduleManager"
+	extensionWebhookRegistryKey     ExtensionKey = "webhook.registry"
+	extensionResourceStoreKey       ExtensionKey = "resource.store"
+	extensionConfigRegistryKey      ExtensionKey = "config.registry"
+	extensionAPIIdempotencyKey      ExtensionKey = "api.idempotency"
+	extensionMonitoringServiceKey   ExtensionKey = "monitoring.service"
+	extensionWorkflowQueryClientKey ExtensionKey = "workflow.query.client"
+	extensionPubSubProviderKey      ExtensionKey = "pubsub.provider"
+	extensionStreamPublisherKey     ExtensionKey = "stream.publisher"
 )
 
 type BaseDeps struct {
@@ -157,6 +162,16 @@ func (s *State) ScheduleManager() (any, bool) {
 	return v, ok
 }
 
+// SetWorkflowQueryClient stores the workflow query client adapter in extensions.
+func (s *State) SetWorkflowQueryClient(v any) {
+	s.SetExtension(extensionWorkflowQueryClientKey, v)
+}
+
+// WorkflowQueryClient retrieves the stored workflow query client adapter if present.
+func (s *State) WorkflowQueryClient() (any, bool) {
+	return s.Extension(extensionWorkflowQueryClientKey)
+}
+
 // SetResourceStore stores the resources.ResourceStore in extensions with type safety
 func (s *State) SetResourceStore(v any) {
 	s.mu.Lock()
@@ -243,6 +258,50 @@ func (s *State) GetWorkflows() []*workflow.Config {
 	out := make([]*workflow.Config, len(s.Workflows))
 	copy(out, s.Workflows)
 	return out
+}
+
+// SetPubSubProvider registers the pub/sub provider used by API handlers.
+func (s *State) SetPubSubProvider(provider pubsub.Provider) {
+	if provider == nil {
+		s.SetExtension(extensionPubSubProviderKey, nil)
+		return
+	}
+	s.SetExtension(extensionPubSubProviderKey, provider)
+}
+
+// PubSubProvider retrieves the configured pub/sub provider when available.
+func (s *State) PubSubProvider() (pubsub.Provider, bool) {
+	v, ok := s.Extension(extensionPubSubProviderKey)
+	if !ok || v == nil {
+		return nil, false
+	}
+	provider, ok := v.(pubsub.Provider)
+	if !ok {
+		return nil, false
+	}
+	return provider, true
+}
+
+// SetStreamPublisher stores the execution event publisher for API handlers.
+func (s *State) SetStreamPublisher(publisher streaming.Publisher) {
+	if publisher == nil {
+		s.SetExtension(extensionStreamPublisherKey, nil)
+		return
+	}
+	s.SetExtension(extensionStreamPublisherKey, publisher)
+}
+
+// StreamPublisher retrieves the configured execution event publisher.
+func (s *State) StreamPublisher() (streaming.Publisher, bool) {
+	v, ok := s.Extension(extensionStreamPublisherKey)
+	if !ok || v == nil {
+		return nil, false
+	}
+	publisher, ok := v.(streaming.Publisher)
+	if !ok {
+		return nil, false
+	}
+	return publisher, true
 }
 
 func StateMiddleware(state *State) gin.HandlerFunc {

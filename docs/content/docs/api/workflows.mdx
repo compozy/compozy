@@ -38,4 +38,17 @@ _openapi:
 
 Workflow management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/workflows","method":"get"},{"path":"/workflows/export","method":"post"},{"path":"/workflows/import","method":"post"},{"path":"/workflows/{workflow_id}","method":"get"},{"path":"/workflows/{workflow_id}","method":"delete"},{"path":"/workflows/{workflow_id}","method":"put"},{"path":"/workflows/{workflow_id}/agents","method":"get"},{"path":"/workflows/{workflow_id}/agents/{agent_id}","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"post"},{"path":"/workflows/{workflow_id}/executions/sync","method":"post"},{"path":"/workflows/{workflow_id}/tasks","method":"get"},{"path":"/workflows/{workflow_id}/tasks/{task_id}","method":"get"},{"path":"/workflows/{workflow_id}/tools","method":"get"},{"path":"/workflows/{workflow_id}/tools/{tool_id}","method":"get"}]} webhooks={[]} hasHead={true} />
+## Streaming Endpoint
+
+`GET /executions/workflows/{exec_id}/stream` delivers a durable Server-Sent Events feed for workflow executions. Clients receive ordered events (`workflow_status`, `tool_call`, `complete`, `error`, and more) with monotonically increasing IDs and can resume after interruptions by sending the `Last-Event-ID` header.
+
+| Parameter | Location | Details |
+| --- | --- | --- |
+| `exec_id` | Path | Workflow execution identifier. |
+| `Last-Event-ID` | Header | Resume from the last processed event ID. |
+| `poll_ms` | Query | Polling cadence for Temporal snapshots (default `500`, min `250`, max `2000`). |
+| `events` | Query | Comma-separated allowlist of event types to emit (default: all). |
+
+The stream sets `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`, and emits heartbeats every 15 seconds to keep intermediaries aware of the open connection. Refer to the [Execution Stream Events schema](/docs/schema/execution-stream-events) for complete payload definitions.
+
+<APIPage document={"swagger.json"} operations={[{"path":"/workflows","method":"get"},{"path":"/workflows/export","method":"post"},{"path":"/workflows/import","method":"post"},{"path":"/workflows/{workflow_id}","method":"get"},{"path":"/workflows/{workflow_id}","method":"delete"},{"path":"/workflows/{workflow_id}","method":"put"},{"path":"/workflows/{workflow_id}/agents","method":"get"},{"path":"/workflows/{workflow_id}/agents/{agent_id}","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"get"},{"path":"/workflows/{workflow_id}/executions","method":"post"},{"path":"/workflows/{workflow_id}/executions/sync","method":"post"},{"path":"/executions/workflows/{exec_id}/stream","method":"get"},{"path":"/workflows/{workflow_id}/tasks","method":"get"},{"path":"/workflows/{workflow_id}/tasks/{task_id}","method":"get"},{"path":"/workflows/{workflow_id}/tools","method":"get"},{"path":"/workflows/{workflow_id}/tools/{tool_id}","method":"get"}]} webhooks={[]} hasHead={true} />

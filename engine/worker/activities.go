@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
@@ -43,6 +44,7 @@ type Activities struct {
 	templateEngine   *tplengine.TemplateEngine
 	task2Factory     task2.Factory
 	toolEnvironment  toolenv.Environment
+	streamPublisher  streaming.Publisher
 	// Cached cache adapter contracts to avoid per-call instantiation
 	cacheKV   cache.KV
 	cacheKeys cache.KeysProvider
@@ -97,7 +99,7 @@ func NewActivities(
 		toolEnv,
 		config.ManagerFromContext(ctx),
 	)
-	if err := acts.initCacheAdapters(redisCache); err != nil {
+	if err := acts.initializeCache(ctx, redisCache); err != nil {
 		return nil, err
 	}
 	return acts, nil
@@ -190,6 +192,46 @@ func (a *Activities) initCacheAdapters(redisCache *cache.Cache) error {
 	}
 	a.cacheKV = adapter
 	a.cacheKeys = adapter
+	return nil
+}
+
+func (a *Activities) initStreamPublisher(ctx context.Context, redisCache *cache.Cache) {
+	if redisCache == nil || redisCache.Redis == nil {
+		return
+	}
+	client := redisCache.Redis.Client()
+	log := logger.FromContext(ctx)
+	if client == nil {
+		if log != nil {
+			log.Debug("activities: redis client missing; stream publisher disabled")
+		}
+		return
+	}
+	var opts *streaming.RedisOptions
+	if cfg := config.FromContext(ctx); cfg != nil {
+		opts = &streaming.RedisOptions{
+			ChannelPrefix: cfg.Stream.Task.RedisChannelPrefix,
+			LogPrefix:     cfg.Stream.Task.RedisLogPrefix,
+			SeqPrefix:     cfg.Stream.Task.RedisSeqPrefix,
+			MaxEntries:    cfg.Stream.Task.RedisMaxEntries,
+			TTL:           cfg.Stream.Task.RedisTTL,
+		}
+	}
+	publisher, err := streaming.NewRedisPublisher(client, opts)
+	if err != nil {
+		if log != nil {
+			log.Warn("activities: failed to initialize event publisher", "error", err)
+		}
+		return
+	}
+	a.streamPublisher = publisher
+}
+
+func (a *Activities) initializeCache(ctx context.Context, redisCache *cache.Cache) error {
+	if err := a.initCacheAdapters(redisCache); err != nil {
+		return err
+	}
+	a.initStreamPublisher(ctx, redisCache)
 	return nil
 }
 
@@ -332,6 +374,7 @@ func (a *Activities) ExecuteBasicTask(
 		a.projectConfig,
 		a.task2Factory,
 		a.toolEnvironment,
+		a.streamPublisher,
 	)
 	if err != nil {
 		return nil, err
@@ -403,6 +446,7 @@ func (a *Activities) ExecuteSubtask(
 		a.usageMetrics,
 		a.providerMetrics,
 		a.toolEnvironment,
+		a.streamPublisher,
 	)
 	return act.Run(ctx, input)
 }

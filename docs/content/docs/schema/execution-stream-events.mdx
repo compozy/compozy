@@ -1,0 +1,74 @@
+---
+title: Execution Stream Events
+description: Event catalog for workflow, agent, and task streaming endpoints
+icon: Activity
+---
+
+## Overview
+
+Execution streams emit Server-Sent Events (SSE) with a consistent structure across workflows, agents, and tasks. Each frame includes:
+
+- `id` — monotonically increasing integer.
+- `event` — event type token.
+- `data` — JSON object for structured streams or plain text for `llm_chunk`.
+
+Heartbeats are sent every 15 seconds as comment frames (`: ping`) to keep intermediaries aware of the open connection.
+
+```text
+id: 42
+event: workflow_status
+data: {"status":"RUNNING","step":"agent_start","ts":"2025-10-22T16:05:31.431Z"}
+```
+
+## Event Catalog
+
+| Event | Component | Data Shape | Notes |
+| --- | --- | --- | --- |
+| `workflow_start` | Workflow | JSON `{ exec_id, ts, workflow_id }` | Emitted once when the workflow begins. |
+| `workflow_status` | Workflow | JSON `{ status, step?, usage?, ts }` | Durable status transitions with optional usage deltas. |
+| `agent_start` | Workflow/Agent | JSON `{ agent_id, ts, step? }` | Signals the start of an agent step within a workflow. |
+| `tool_call` | Workflow/Agent | JSON `{ tool_name, args, ts }` | Records structured tool invocations. |
+| `agent_status` | Agent | JSON `{ status, ts, component }` | High-level agent status updates. |
+| `task_status` | Task | JSON `{ status, ts, component }` | High-level task status updates. |
+| `structured_delta` | Agent/Task | JSON `{ partial, ts }` | Optional structured partial outputs when schemas are present. |
+| `llm_chunk` | Agent/Task | Text line | Progressive text chunks; best-effort delivery. |
+| `complete` | All | JSON `{ status, result?, usage?, duration_ms? }` | Terminal success payload. |
+| `error` | All | JSON `{ message, code?, ts }` | Terminal failure payload. |
+
+> Structured mode events (`workflow_*`, `agent_status`, `task_status`, `structured_delta`, `complete`, `error`) support resumption via `Last-Event-ID`. Text-mode `llm_chunk` events are not replayed on reconnect; rely on the final completion event for durability.
+
+## Resume Semantics
+
+- **Durable streams (workflows and structured agent/task)** cache the last event ID. Provide `Last-Event-ID` on reconnect to receive only newer events.
+- **Text-mode streams** (`llm_chunk`) resume from “now” when reconnecting. Persist the accumulated output client-side if you need a complete transcript.
+- The `poll_ms` query parameter (default `500`, allowed `250`-`2000`) tunes Temporal/repository polling for durable streams. Use the `events` query parameter to reduce traffic to specific event types.
+
+## Client Checklists
+
+- Always set `Accept: text/event-stream` and disable HTTP buffering proxies (for example, `curl -N`).
+- Persist the last processed `id` for durable streams to resume cleanly.
+- Expect periodic heartbeats (`: ping`) and ignore them in parsers.
+- Close the stream after receiving `complete` or `error` to free server resources.
+
+## Related Documentation
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="API Overview — Streaming"
+    description="Understand how to consume SSE endpoints, including examples and parameters."
+    href="/docs/api/overview#streaming-executions"
+    icon="Globe"
+  />
+  <ReferenceCard
+    title="Workflow API"
+    description="Endpoint reference for managing workflows and streaming execution updates."
+    href="/docs/api/workflows#streaming-endpoint"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="CLI Executions"
+    description="Learn when to use CLI polling versus REST streaming and how to combine them."
+    href="/docs/cli/executions#streaming-from-the-api"
+    icon="Terminal"
+  />
+</ReferenceCardList>

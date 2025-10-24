@@ -525,7 +525,7 @@ const docTemplate = `{
                             "builder"
                         ],
                         "type": "string",
-                        "description": "Reload source (repo|builder). Aliases: yaml-\u003erepo, store-\u003ebuilder. Defaults to 'repo'.",
+                        "description": "Reload source. yaml-\u003erepo, store-\u003ebuilder. Default repo.",
                         "name": "source",
                         "in": "query"
                     }
@@ -1867,7 +1867,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -1965,6 +1965,132 @@ const docTemplate = `{
                 }
             }
         },
+        "/executions/agents/{exec_id}/stream": {
+            "get": {
+                "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema.",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Stream agent execution events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
+                        "description": "Agent execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"42\"",
+                        "description": "Resume the stream from the provided event id",
+                        "name": "Last-Event-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 500,
+                        "description": "Polling interval (milliseconds). Default 500, min 250, max 2000.",
+                        "name": "poll_ms",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"agent_status,llm_chunk,complete\"",
+                        "description": "Comma-separated list of event types to emit (default: all events).",
+                        "name": "events",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Streaming infrastructure unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/executions/tasks/{exec_id}": {
             "get": {
                 "description": "Retrieve the latest status for a direct task execution. The response includes a usage field containing aggregated LLM token counts grouped by provider and model.",
@@ -2043,6 +2169,132 @@ const docTemplate = `{
                 }
             }
         },
+        "/executions/tasks/{exec_id}/stream": {
+            "get": {
+                "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema.",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Stream task execution events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
+                        "description": "Task execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"42\"",
+                        "description": "Resume the stream from the provided event id",
+                        "name": "Last-Event-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 500,
+                        "description": "Polling interval (milliseconds). Default 500, min 250, max 2000.",
+                        "name": "poll_ms",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"task_status,llm_chunk,complete\"",
+                        "description": "Comma-separated list of event types to emit (default: all events).",
+                        "name": "events",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Streaming infrastructure unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/executions/workflows": {
             "get": {
                 "description": "Retrieve a list of all workflow executions across all workflows. Each execution includes a usage field containing aggregated LLM token counts grouped by provider and model.",
@@ -2102,7 +2354,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2219,7 +2471,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2318,7 +2570,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2417,7 +2669,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2516,7 +2768,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2642,7 +2894,133 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/executions/workflows/{exec_id}/stream": {
+            "get": {
+                "description": "Streams workflow progress over Server-Sent Events with Last-Event-ID resume support and configurable polling.",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "executions"
+                ],
+                "summary": "Stream workflow execution events",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "example": "\"2Z4PVTL6K27XVT4A3NPKMDD5BG\"",
+                        "description": "Workflow execution ID",
+                        "name": "exec_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"42\"",
+                        "description": "Resume the stream from the provided event id",
+                        "name": "Last-Event-ID",
+                        "in": "header"
+                    },
+                    {
+                        "type": "integer",
+                        "example": 500,
+                        "description": "Polling interval (milliseconds). Default 500, min 250, max 2000.",
+                        "name": "poll_ms",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "example": "\"workflow_start,workflow_status,complete,error\"",
+                        "description": "Comma-separated list of event types to emit (default: all events).",
+                        "name": "events",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "SSE stream",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Execution not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/router.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "$ref": "#/definitions/router.ErrorInfo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10275,7 +10653,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10411,7 +10789,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10579,7 +10957,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Streaming infrastructure unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -11843,9 +12221,13 @@ const docTemplate = `{
                     "type": "string",
                     "example": "invalid_cursor"
                 },
-                "detail": {
+                "details": {
                     "type": "string",
                     "example": "Invalid cursor parameter"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "Bad Request"
                 },
                 "instance": {
                     "type": "string",
@@ -11854,10 +12236,6 @@ const docTemplate = `{
                 "status": {
                     "type": "integer",
                     "example": 400
-                },
-                "title": {
-                    "type": "string",
-                    "example": "Bad Request"
                 },
                 "type": {
                     "type": "string",
@@ -12050,6 +12428,10 @@ const docTemplate = `{
                 "queue_size": {
                     "type": "integer",
                     "minimum": 0
+                },
+                "release_slot_before_token_wait": {
+                    "description": "ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true; nil inherits defaults.",
+                    "type": "boolean"
                 },
                 "request_burst": {
                     "type": "integer",

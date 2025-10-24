@@ -64,6 +64,12 @@ type Config struct {
 	// $ref: schema://application#runtime
 	Runtime RuntimeConfig `koanf:"runtime" json:"runtime" yaml:"runtime" mapstructure:"runtime" validate:"required"`
 
+	// Stream configures real-time streaming defaults.
+	Stream StreamConfig `koanf:"stream" json:"stream" yaml:"stream" mapstructure:"stream"`
+
+	// Tasks configures task execution tunables.
+	Tasks TasksConfig `koanf:"tasks" json:"tasks" yaml:"tasks" mapstructure:"tasks"`
+
 	// Limits defines system resource limits and constraints.
 	//
 	// $ref: schema://application#limits
@@ -519,6 +525,92 @@ type RuntimeConfig struct {
 
 	// NativeTools configures native cp__ tool behavior and guards.
 	NativeTools NativeToolsConfig `koanf:"native_tools" json:"native_tools" yaml:"native_tools" mapstructure:"native_tools"`
+}
+
+// StreamConfig holds defaults for streaming endpoints.
+type StreamConfig struct {
+	Agent    AgentStreamConfig        `koanf:"agent"    json:"agent"    yaml:"agent"    mapstructure:"agent"`
+	Task     TaskStreamEndpointConfig `koanf:"task"     json:"task"     yaml:"task"     mapstructure:"task"`
+	LLM      LLMStreamConfig          `koanf:"llm"      json:"llm"      yaml:"llm"      mapstructure:"llm"`
+	Workflow WorkflowStreamConfig     `koanf:"workflow" json:"workflow" yaml:"workflow" mapstructure:"workflow"`
+}
+
+// AgentStreamConfig defines tunables for agent execution streaming.
+type AgentStreamConfig struct {
+	DefaultPoll        time.Duration `koanf:"default_poll"        env:"STREAM_AGENT_DEFAULT_POLL"        json:"default_poll"        yaml:"default_poll"        mapstructure:"default_poll"        validate:"min=0"`
+	MinPoll            time.Duration `koanf:"min_poll"            env:"STREAM_AGENT_MIN_POLL"            json:"min_poll"            yaml:"min_poll"            mapstructure:"min_poll"            validate:"min=0"`
+	MaxPoll            time.Duration `koanf:"max_poll"            env:"STREAM_AGENT_MAX_POLL"            json:"max_poll"            yaml:"max_poll"            mapstructure:"max_poll"            validate:"min=0"`
+	HeartbeatFrequency time.Duration `koanf:"heartbeat_frequency" env:"STREAM_AGENT_HEARTBEAT_FREQUENCY" json:"heartbeat_frequency" yaml:"heartbeat_frequency" mapstructure:"heartbeat_frequency" validate:"min=0"`
+	ReplayLimit        int           `koanf:"replay_limit"        env:"STREAM_AGENT_REPLAY_LIMIT"        json:"replay_limit"        yaml:"replay_limit"        mapstructure:"replay_limit"        validate:"min=0"`
+}
+
+// TaskStreamEndpointConfig defines tunables for task streaming endpoints.
+type TaskStreamEndpointConfig struct {
+	DefaultPoll        time.Duration        `koanf:"default_poll"         env:"STREAM_TASK_DEFAULT_POLL"         json:"default_poll"         yaml:"default_poll"         mapstructure:"default_poll"         validate:"min=0"`
+	MinPoll            time.Duration        `koanf:"min_poll"             env:"STREAM_TASK_MIN_POLL"             json:"min_poll"             yaml:"min_poll"             mapstructure:"min_poll"             validate:"min=0"`
+	MaxPoll            time.Duration        `koanf:"max_poll"             env:"STREAM_TASK_MAX_POLL"             json:"max_poll"             yaml:"max_poll"             mapstructure:"max_poll"             validate:"min=0"`
+	HeartbeatFrequency time.Duration        `koanf:"heartbeat_frequency"  env:"STREAM_TASK_HEARTBEAT_FREQUENCY"  json:"heartbeat_frequency"  yaml:"heartbeat_frequency"  mapstructure:"heartbeat_frequency"  validate:"min=0"`
+	RedisChannelPrefix string               `koanf:"redis_channel_prefix" env:"STREAM_TASK_REDIS_CHANNEL_PREFIX" json:"redis_channel_prefix" yaml:"redis_channel_prefix" mapstructure:"redis_channel_prefix"`
+	RedisLogPrefix     string               `koanf:"redis_log_prefix"     env:"STREAM_TASK_REDIS_LOG_PREFIX"     json:"redis_log_prefix"     yaml:"redis_log_prefix"     mapstructure:"redis_log_prefix"`
+	RedisSeqPrefix     string               `koanf:"redis_seq_prefix"     env:"STREAM_TASK_REDIS_SEQ_PREFIX"     json:"redis_seq_prefix"     yaml:"redis_seq_prefix"     mapstructure:"redis_seq_prefix"`
+	RedisMaxEntries    int64                `koanf:"redis_max_entries"    env:"STREAM_TASK_REDIS_MAX_ENTRIES"    json:"redis_max_entries"    yaml:"redis_max_entries"    mapstructure:"redis_max_entries"    validate:"min=0"`
+	RedisTTL           time.Duration        `koanf:"redis_ttl"            env:"STREAM_TASK_REDIS_TTL"            json:"redis_ttl"            yaml:"redis_ttl"            mapstructure:"redis_ttl"`
+	ReplayLimit        int                  `koanf:"replay_limit"         env:"STREAM_TASK_REPLAY_LIMIT"         json:"replay_limit"         yaml:"replay_limit"         mapstructure:"replay_limit"         validate:"min=0"`
+	Text               TaskTextStreamConfig `koanf:"text"                                                        json:"text"                 yaml:"text"                 mapstructure:"text"`
+}
+
+// LLMStreamConfig defines tunables for LLM fallback streaming behavior.
+type LLMStreamConfig struct {
+	FallbackSegmentLimit int `koanf:"fallback_segment_limit" env:"STREAM_LLM_FALLBACK_SEGMENT_LIMIT" json:"fallback_segment_limit" yaml:"fallback_segment_limit" mapstructure:"fallback_segment_limit" validate:"min=0"`
+}
+
+// TaskTextStreamConfig defines tunables for plain-text task streaming.
+type TaskTextStreamConfig struct {
+	MaxSegmentRunes int           `koanf:"max_segment_runes" env:"STREAM_TASK_TEXT_MAX_SEGMENT_RUNES" json:"max_segment_runes" yaml:"max_segment_runes" mapstructure:"max_segment_runes" validate:"min=0"`
+	PublishTimeout  time.Duration `koanf:"publish_timeout"   env:"STREAM_TASK_TEXT_PUBLISH_TIMEOUT"   json:"publish_timeout"   yaml:"publish_timeout"   mapstructure:"publish_timeout"   validate:"min=0"`
+}
+
+// WorkflowStreamConfig defines tunables for workflow execution streaming.
+type WorkflowStreamConfig struct {
+	DefaultPoll        time.Duration `koanf:"default_poll"        env:"STREAM_WORKFLOW_DEFAULT_POLL"        json:"default_poll"        yaml:"default_poll"        mapstructure:"default_poll"        validate:"min=0"`
+	MinPoll            time.Duration `koanf:"min_poll"            env:"STREAM_WORKFLOW_MIN_POLL"            json:"min_poll"            yaml:"min_poll"            mapstructure:"min_poll"            validate:"min=0"`
+	MaxPoll            time.Duration `koanf:"max_poll"            env:"STREAM_WORKFLOW_MAX_POLL"            json:"max_poll"            yaml:"max_poll"            mapstructure:"max_poll"            validate:"min=0"`
+	HeartbeatFrequency time.Duration `koanf:"heartbeat_frequency" env:"STREAM_WORKFLOW_HEARTBEAT_FREQUENCY" json:"heartbeat_frequency" yaml:"heartbeat_frequency" mapstructure:"heartbeat_frequency" validate:"min=0"`
+	QueryTimeout       time.Duration `koanf:"query_timeout"       env:"STREAM_WORKFLOW_QUERY_TIMEOUT"       json:"query_timeout"       yaml:"query_timeout"       mapstructure:"query_timeout"       validate:"min=0"`
+}
+
+// TasksConfig aggregates task execution tunables.
+type TasksConfig struct {
+	Retry  TaskRetryConfig  `koanf:"retry"  json:"retry"  yaml:"retry"  mapstructure:"retry"`
+	Wait   TaskWaitConfig   `koanf:"wait"   json:"wait"   yaml:"wait"   mapstructure:"wait"`
+	Stream TaskStreamConfig `koanf:"stream" json:"stream" yaml:"stream" mapstructure:"stream"`
+}
+
+// TaskRetryConfig captures retry behavior for dependent lookups.
+type TaskRetryConfig struct {
+	ChildState TaskChildStateRetryConfig `koanf:"child_state" json:"child_state" yaml:"child_state" mapstructure:"child_state"`
+}
+
+// TaskChildStateRetryConfig defines retry strategy for child state lookups.
+type TaskChildStateRetryConfig struct {
+	MaxAttempts int           `koanf:"max_attempts" env:"TASKS_RETRY_CHILD_MAX_ATTEMPTS" json:"max_attempts" yaml:"max_attempts" mapstructure:"max_attempts" validate:"min=1"`
+	BaseBackoff time.Duration `koanf:"base_backoff" env:"TASKS_RETRY_CHILD_BASE_BACKOFF" json:"base_backoff" yaml:"base_backoff" mapstructure:"base_backoff" validate:"min=0"`
+}
+
+// TaskWaitConfig captures sibling wait tunables.
+type TaskWaitConfig struct {
+	Siblings TaskSiblingWaitConfig `koanf:"siblings" json:"siblings" yaml:"siblings" mapstructure:"siblings"`
+}
+
+// TaskSiblingWaitConfig tunes sibling polling behavior.
+type TaskSiblingWaitConfig struct {
+	PollInterval time.Duration `koanf:"poll_interval" env:"TASKS_WAIT_SIBLINGS_POLL_INTERVAL" json:"poll_interval" yaml:"poll_interval" mapstructure:"poll_interval" validate:"min=0"`
+	Timeout      time.Duration `koanf:"timeout"       env:"TASKS_WAIT_SIBLINGS_TIMEOUT"       json:"timeout"       yaml:"timeout"       mapstructure:"timeout"       validate:"min=0"`
+}
+
+// TaskStreamConfig limits stream chunk publication.
+type TaskStreamConfig struct {
+	MaxChunks int `koanf:"max_chunks" env:"TASKS_STREAM_MAX_CHUNKS" json:"max_chunks" yaml:"max_chunks" mapstructure:"max_chunks"`
 }
 
 // LimitsConfig contains system limits and constraints.
@@ -1703,6 +1795,8 @@ func defaultFromRegistry() *Config {
 		Database:    buildDatabaseConfig(registry),
 		Temporal:    buildTemporalConfig(registry),
 		Runtime:     buildRuntimeConfig(registry),
+		Stream:      buildStreamConfig(registry),
+		Tasks:       buildTasksConfig(registry),
 		Limits:      buildLimitsConfig(registry),
 		Attachments: buildAttachmentsConfig(registry),
 		Memory:      buildMemoryConfig(registry),
@@ -1715,6 +1809,64 @@ func defaultFromRegistry() *Config {
 		Worker:      buildWorkerConfig(registry),
 		MCPProxy:    buildMCPProxyConfig(registry),
 		Webhooks:    buildWebhooksConfig(registry),
+	}
+}
+
+func buildStreamConfig(registry *definition.Registry) StreamConfig {
+	return StreamConfig{
+		Agent: AgentStreamConfig{
+			DefaultPoll:        getDuration(registry, "stream.agent.default_poll"),
+			MinPoll:            getDuration(registry, "stream.agent.min_poll"),
+			MaxPoll:            getDuration(registry, "stream.agent.max_poll"),
+			HeartbeatFrequency: getDuration(registry, "stream.agent.heartbeat_frequency"),
+			ReplayLimit:        getInt(registry, "stream.agent.replay_limit"),
+		},
+		Task: TaskStreamEndpointConfig{
+			DefaultPoll:        getDuration(registry, "stream.task.default_poll"),
+			MinPoll:            getDuration(registry, "stream.task.min_poll"),
+			MaxPoll:            getDuration(registry, "stream.task.max_poll"),
+			HeartbeatFrequency: getDuration(registry, "stream.task.heartbeat_frequency"),
+			RedisChannelPrefix: getString(registry, "stream.task.redis_channel_prefix"),
+			RedisLogPrefix:     getString(registry, "stream.task.redis_log_prefix"),
+			RedisSeqPrefix:     getString(registry, "stream.task.redis_seq_prefix"),
+			RedisMaxEntries:    getInt64(registry, "stream.task.redis_max_entries"),
+			RedisTTL:           getDuration(registry, "stream.task.redis_ttl"),
+			ReplayLimit:        getInt(registry, "stream.task.replay_limit"),
+			Text: TaskTextStreamConfig{
+				MaxSegmentRunes: getInt(registry, "stream.task.text.max_segment_runes"),
+				PublishTimeout:  getDuration(registry, "stream.task.text.publish_timeout"),
+			},
+		},
+		LLM: LLMStreamConfig{
+			FallbackSegmentLimit: getInt(registry, "stream.llm.fallback_segment_limit"),
+		},
+		Workflow: WorkflowStreamConfig{
+			DefaultPoll:        getDuration(registry, "stream.workflow.default_poll"),
+			MinPoll:            getDuration(registry, "stream.workflow.min_poll"),
+			MaxPoll:            getDuration(registry, "stream.workflow.max_poll"),
+			HeartbeatFrequency: getDuration(registry, "stream.workflow.heartbeat_frequency"),
+			QueryTimeout:       getDuration(registry, "stream.workflow.query_timeout"),
+		},
+	}
+}
+
+func buildTasksConfig(registry *definition.Registry) TasksConfig {
+	return TasksConfig{
+		Retry: TaskRetryConfig{
+			ChildState: TaskChildStateRetryConfig{
+				MaxAttempts: getInt(registry, "tasks.retry.child_state.max_attempts"),
+				BaseBackoff: getDuration(registry, "tasks.retry.child_state.base_backoff"),
+			},
+		},
+		Wait: TaskWaitConfig{
+			Siblings: TaskSiblingWaitConfig{
+				PollInterval: getDuration(registry, "tasks.wait.siblings.poll_interval"),
+				Timeout:      getDuration(registry, "tasks.wait.siblings.timeout"),
+			},
+		},
+		Stream: TaskStreamConfig{
+			MaxChunks: getInt(registry, "tasks.stream.max_chunks"),
+		},
 	}
 }
 

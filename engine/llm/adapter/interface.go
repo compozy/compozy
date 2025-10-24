@@ -137,6 +137,7 @@ type CallOptions struct {
 	MaxLength         int
 	MinLength         int
 	Metadata          map[string]any
+	StreamingHandler  func(ctx context.Context, chunk []byte) error
 }
 
 // LLMResponse represents the response from the LLM

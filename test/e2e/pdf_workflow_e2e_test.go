@@ -217,6 +217,7 @@ func TestPDFKnowledgeWorkflowEndToEnd(t *testing.T) {
 		nil,
 		providermetrics.Nop(),
 		nil,
+		nil,
 	)
 	input := &uc.ExecuteTaskInput{
 		TaskConfig:     taskCfg,

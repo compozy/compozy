@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	"github.com/compozy/compozy/engine/task/uc"
@@ -42,6 +43,7 @@ type ExecuteBasic struct {
 	memoryManager   memcore.ManagerInterface
 	templateEngine  *tplengine.TemplateEngine
 	projectConfig   *project.Config
+	streamPublisher streaming.Publisher
 }
 
 // NewExecuteBasic creates and returns a configured ExecuteBasic activity.
@@ -64,6 +66,7 @@ func NewExecuteBasic(
 	projectConfig *project.Config,
 	task2Factory task2.Factory,
 	toolEnvironment toolenv.Environment,
+	streamPublisher streaming.Publisher,
 ) (*ExecuteBasic, error) {
 	if toolEnvironment == nil {
 		return nil, fmt.Errorf("tool environment is required for execute basic activity")
@@ -79,6 +82,7 @@ func NewExecuteBasic(
 			nil,
 			providerMetrics,
 			toolEnvironment,
+			streamPublisher,
 		),
 		task2Factory:    task2Factory,
 		workflowRepo:    workflowRepo,
@@ -88,6 +92,7 @@ func NewExecuteBasic(
 		memoryManager:   memoryManager,
 		templateEngine:  templateEngine,
 		projectConfig:   projectConfig,
+		streamPublisher: streamPublisher,
 	}, nil
 }
 
@@ -140,15 +145,17 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 ) (*basicExecutionResult, error) {
 	ctx, finalizeUsage := a.attachUsageCollector(ctx, taskState)
 	status := core.StatusFailed
-	defer func() {
-		finalizeUsage(status)
-	}()
+	var mainResponse *task.MainTaskResponse
+	var execErr error
+	defer a.finalizeBasicExecution(ctx, taskState, finalizeUsage, &status, &mainResponse, &execErr)
 	output, executionError := a.executeUC.Execute(ctx, &uc.ExecuteTaskInput{
 		TaskConfig:     normalizedConfig,
 		WorkflowState:  workflowState,
 		WorkflowConfig: workflowConfig,
 		ProjectConfig:  a.projectConfig,
+		TaskState:      taskState,
 	})
+	execErr = executionError
 	if executionError == nil {
 		status = core.StatusSuccess
 	}
@@ -165,10 +172,43 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 	if taskState.Status != "" {
 		status = taskState.Status
 	}
+	mainResponse = a.convertToMainTaskResponse(result)
 	return &basicExecutionResult{
-		response:     a.convertToMainTaskResponse(result),
+		response:     mainResponse,
 		executionErr: executionError,
 	}, nil
+}
+
+func (a *ExecuteBasic) finalizeBasicExecution(
+	ctx context.Context,
+	taskState *task.State,
+	finalizeUsage func(core.StatusType),
+	status *core.StatusType,
+	response **task.MainTaskResponse,
+	execErr *error,
+) {
+	if finalizeUsage != nil && status != nil {
+		finalizeUsage(*status)
+	}
+	if a.streamPublisher == nil || taskState == nil {
+		return
+	}
+	var errVal error
+	if execErr != nil {
+		errVal = *execErr
+	}
+	var respVal *task.MainTaskResponse
+	if response != nil {
+		respVal = *response
+	}
+	if errVal == nil && respVal == nil {
+		return
+	}
+	if errVal != nil {
+		services.PublishError(ctx, a.streamPublisher, taskState, errVal)
+		return
+	}
+	services.PublishComplete(ctx, a.streamPublisher, taskState, respVal)
 }
 
 func (a *ExecuteBasic) attachUsageCollector(

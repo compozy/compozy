@@ -27,4 +27,17 @@ _openapi:
 
 Agent management operations
 
-<APIPage document={"swagger.json"} operations={[{"path":"/agents","method":"get"},{"path":"/agents/export","method":"post"},{"path":"/agents/import","method":"post"},{"path":"/agents/{agent_id}","method":"get"},{"path":"/agents/{agent_id}","method":"delete"},{"path":"/agents/{agent_id}","method":"put"},{"path":"/agents/{agent_id}/executions","method":"post"},{"path":"/agents/{agent_id}/executions/sync","method":"post"}]} webhooks={[]} hasHead={true} />
+## Streaming Endpoint
+
+`GET /executions/agents/{exec_id}/stream` provides live agent execution updates over Server-Sent Events. When an agent declares an output schema the stream emits structured JSON events; otherwise the handler forwards progressive `llm_chunk` text sourced from the worker publisher.
+
+| Parameter | Location | Details |
+| --- | --- | --- |
+| `exec_id` | Path | Agent execution identifier. |
+| `Last-Event-ID` | Header | Resume structured streams from the last delivered event ID. |
+| `poll_ms` | Query | Polling interval for repository snapshots (default `500`, min `250`, max `2000`). |
+| `events` | Query | Comma-separated allowlist to reduce event types (default: all). |
+
+In text mode, reconnects begin streaming from “now” while final completion events remain durable. Structured mode supports full resumption semantics. See the [Execution Stream Events schema](/docs/schema/execution-stream-events) for event catalog details.
+
+<APIPage document={"swagger.json"} operations={[{"path":"/agents","method":"get"},{"path":"/agents/export","method":"post"},{"path":"/agents/import","method":"post"},{"path":"/agents/{agent_id}","method":"get"},{"path":"/agents/{agent_id}","method":"delete"},{"path":"/agents/{agent_id}","method":"put"},{"path":"/agents/{agent_id}/executions","method":"post"},{"path":"/agents/{agent_id}/executions/sync","method":"post"},{"path":"/executions/agents/{exec_id}/stream","method":"get"}]} webhooks={[]} hasHead={true} />
