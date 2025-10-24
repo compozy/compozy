@@ -4,9 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## Unreleased
 
+### 🎉 Features
 
-## 0.0.19 - 2025-10-20
+- *(repo)* Add support for streams ([#297](https://github.com/compozy/compozy/issues/297))
+
+### 📚 Documentation
+
+- *(repo)* Update CHANGELOG.md
+
+## 0.0.19 - 2025-10-21
 
 ### ♻️  Refactoring
 
@@ -23,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 CI/CD
 
+- *(release)* Release v0.0.19 ([#295](https://github.com/compozy/compozy/issues/295))
 - *(repo)* Fix release
 
 ## 0.0.18 - 2025-10-17
@@ -408,6 +417,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(repo)* Fix testcontainer timeouts
 - *(server)* Add basic tests for server
 
+[0.0.19]: https://github.com/compozy/compozy/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/compozy/compozy/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/compozy/compozy/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/compozy/compozy/compare/v0.0.15...v0.0.16
