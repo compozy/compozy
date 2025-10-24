@@ -150,17 +150,6 @@ func buildAgentPlans(
 			map[string]any{errorKeyHint: "Add at least one agent configuration to the \"agents\" array."},
 		)
 	}
-	if cfg.MaxConcurrent > 0 && len(requests) > cfg.MaxConcurrent {
-		return nil, builtin.CodeInvalidArgument, builtin.InvalidArgument(
-			fmt.Errorf("agents count %d exceeds max_concurrent limit %d", len(requests), cfg.MaxConcurrent),
-			map[string]any{
-				errorKeyHint: fmt.Sprintf(
-					"Reduce the number of agents or update runtime.native_tools.call_agents.max_concurrent to at least %d.",
-					len(requests),
-				),
-			},
-		)
-	}
 	plans := make([]agentPlan, len(requests))
 	for index, raw := range requests {
 		plan, code, err := buildSinglePlan(raw, cfg, index)

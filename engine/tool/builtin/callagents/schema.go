@@ -55,7 +55,7 @@ var outputSchema = schema.Schema{
 				"required": []any{"success", "agent_id", "duration_ms"},
 				"properties": map[string]any{
 					"success":   map[string]any{"type": "boolean"},
-					"agent_id":  map[string]any{"type": "string"},
+					"agent_id":  map[string]any{"type": "string", "minLength": 1},
 					"action_id": map[string]any{"type": "string"},
 					"exec_id":   map[string]any{"type": "string"},
 					"response": map[string]any{

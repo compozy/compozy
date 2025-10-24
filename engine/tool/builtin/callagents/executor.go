@@ -161,9 +161,6 @@ func handleAgentPanic(
 
 func applySemaphoreFailure(result *AgentExecutionResult, err error) AgentExecutionResult {
 	code := builtin.CodeInternal
-	if errors.Is(err, context.Canceled) {
-		code = builtin.CodePermissionDenied
-	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 	}

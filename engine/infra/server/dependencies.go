@@ -264,7 +264,7 @@ func (s *Server) buildAppState(
 	}
 	state.SetMonitoringService(s.monitoring)
 	state.SetResourceStore(resourceStore)
-	if err := s.buildAndStoreToolEnvironment(state, projectConfig, workflows); err != nil {
+	if err := s.buildAndStoreToolEnvironment(state, resourceStore, projectConfig, workflows); err != nil {
 		return nil, err
 	}
 	logger.FromContext(s.ctx).Debug("Tool environment initialized and stored")
@@ -282,6 +282,7 @@ func (s *Server) buildAppState(
 
 func (s *Server) buildAndStoreToolEnvironment(
 	state *appstate.State,
+	resourceStore resources.ResourceStore,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 ) error {
@@ -290,14 +291,6 @@ func (s *Server) buildAndStoreToolEnvironment(
 	}
 	workflowRepo := state.Store.NewWorkflowRepo()
 	taskRepo := state.Store.NewTaskRepo()
-	resourceStoreValue, ok := state.ResourceStore()
-	if !ok || resourceStoreValue == nil {
-		return fmt.Errorf("resource store not available for tool environment")
-	}
-	resourceStore, castOK := resourceStoreValue.(resources.ResourceStore)
-	if !castOK {
-		return fmt.Errorf("resource store has unexpected type %T", resourceStoreValue)
-	}
 	toolEnv, err := buildToolEnvironment(s.ctx, projectConfig, workflows, workflowRepo, taskRepo, resourceStore)
 	if err != nil {
 		return fmt.Errorf("failed to build tool environment for app state: %w", err)

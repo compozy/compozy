@@ -93,18 +93,24 @@ func TestHandlerEnforcesAgentCountLimit(t *testing.T) {
 		cfg.Runtime.NativeTools.CallAgents.MaxConcurrent = 1
 	}
 	ctx := attachConfig(t, override)
-	env := &stubEnvironment{executor: &stubAgentExecutor{}}
+	exec := &stubAgentExecutor{
+		responses: map[string]*toolenv.AgentResult{
+			"alpha": {ExecID: core.MustNewID()},
+			"beta":  {ExecID: core.MustNewID()},
+		},
+	}
+	env := &stubEnvironment{executor: exec}
 	handler := Definition(env).Handler
-	_, err := handler(ctx, map[string]any{
+	result, err := handler(ctx, map[string]any{
 		"agents": []any{
 			map[string]any{"agent_id": "alpha", "prompt": "first"},
 			map[string]any{"agent_id": "beta", "prompt": "second"},
 		},
 	})
-	require.Error(t, err)
-	var cerr *core.Error
-	require.True(t, errors.As(err, &cerr))
-	assert.Equal(t, builtin.CodeInvalidArgument, cerr.Code)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 2, result["total_count"])
+	assert.Equal(t, 2, result["success_count"])
 }
 
 func TestHandlerExecutesAgentsAndAggregatesResults(t *testing.T) {
