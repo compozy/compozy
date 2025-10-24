@@ -27,15 +27,17 @@ import (
 )
 
 const (
-	taskStreamDefaultPoll   = 500 * time.Millisecond
-	taskStreamMinPoll       = 250 * time.Millisecond
-	taskStreamMaxPoll       = 2000 * time.Millisecond
-	taskStreamHeartbeatFreq = 15 * time.Second
-	taskStatusEvent         = "task_status"
-	completeEvent           = "complete"
-	errorEvent              = "error"
-	llmChunkEvent           = "llm_chunk"
-	defaultTaskReplayLimit  = 500
+	taskStreamDefaultPoll    = 500 * time.Millisecond
+	taskStreamMinPoll        = 250 * time.Millisecond
+	taskStreamMaxPoll        = 2000 * time.Millisecond
+	taskStreamHeartbeatFreq  = 15 * time.Second
+	taskStatusEvent          = "task_status"
+	completeEvent            = "complete"
+	errorEvent               = "error"
+	llmChunkEvent            = "llm_chunk"
+	defaultTaskReplayLimit   = 500
+	taskStreamDrainMinWindow = 50 * time.Millisecond
+	taskStreamDrainMaxWindow = 500 * time.Millisecond
 )
 
 type taskStreamMode int
@@ -679,6 +681,7 @@ func taskTextStreamLoop(
 		case <-ticker.C:
 			updatedID, ok := handleTaskPoll(ctx, stream, cfg, telemetry, closeInfo, nextID, &lastStatus, &lastUpdated)
 			if !ok {
+				drainTaskSubscription(ctx, cfg, stream, telemetry, closeInfo, sub, updatedID, handleTaskChunk)
 				return
 			}
 			nextID = updatedID
@@ -840,6 +843,7 @@ func taskEventLoop(
 		case <-ticker.C:
 			updatedID, ok := handleTaskPoll(ctx, stream, cfg, telemetry, closeInfo, nextID, &lastStatus, &lastUpdated)
 			if !ok {
+				drainTaskSubscription(ctx, cfg, stream, telemetry, closeInfo, subscription, updatedID, handleTaskEvent)
 				return
 			}
 			nextID = updatedID
@@ -850,6 +854,88 @@ func taskEventLoop(
 			return
 		}
 	}
+}
+
+type taskStreamMessageHandler func(
+	ctx context.Context,
+	stream *router.SSEStream,
+	cfg *taskStreamConfig,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	lastID int64,
+	msg pubsub.Message,
+	ok bool,
+) (int64, bool)
+
+func drainTaskSubscription(
+	ctx context.Context,
+	cfg *taskStreamConfig,
+	stream *router.SSEStream,
+	telemetry router.StreamTelemetry,
+	closeInfo *router.StreamCloseInfo,
+	sub pubsub.Subscription,
+	lastID int64,
+	handler taskStreamMessageHandler,
+) {
+	timeout := taskStreamDrainTimeout(cfg)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	currentID := lastID
+	for {
+		select {
+		case <-ctx.Done():
+			if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
+				closeInfo.Reason = router.StreamReasonContextCanceled
+				closeInfo.Error = nil
+			}
+			if closeInfo == nil || closeInfo.Reason == router.StreamReasonContextCanceled {
+				logTaskCancellation(ctx, cfg)
+			}
+			return
+		case <-sub.Done():
+			taskStreamHandleSubscriptionDone(ctx, sub, cfg, closeInfo)
+			return
+		case msg, ok := <-sub.Messages():
+			updatedID, cont := handler(ctx, stream, cfg, telemetry, closeInfo, currentID, msg, ok)
+			if !cont {
+				return
+			}
+			currentID = updatedID
+			resetTaskStreamTimer(timer, timeout)
+		case <-timer.C:
+			return
+		}
+	}
+}
+
+func taskStreamDrainTimeout(cfg *taskStreamConfig) time.Duration {
+	if cfg == nil {
+		return taskStreamDrainMinWindow
+	}
+	window := cfg.pollInterval
+	if window <= 0 {
+		window = taskStreamDefaultPoll
+	}
+	if window < taskStreamDrainMinWindow {
+		return taskStreamDrainMinWindow
+	}
+	if window > taskStreamDrainMaxWindow {
+		return taskStreamDrainMaxWindow
+	}
+	return window
+}
+
+func resetTaskStreamTimer(timer *time.Timer, d time.Duration) {
+	if timer == nil {
+		return
+	}
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	timer.Reset(d)
 }
 
 func emitTaskStatus(
