@@ -103,7 +103,7 @@ func processRequest(
 		"agent_count", len(plans),
 		"max_concurrent", agentsCfg.MaxConcurrent,
 	)
-	results := executeAgentsParallel(ctx, env, plans, agentsCfg, log)
+	results := executeAgentsParallel(ctx, env, plans, agentsCfg.MaxConcurrent)
 	summary := summarizeResults(results, time.Since(start).Milliseconds())
 	output := buildHandlerOutput(results, summary)
 	log.Info(
@@ -233,7 +233,10 @@ func makeAgentRequest(
 	req AgentExecutionRequest,
 	cfg config.NativeCallAgentsConfig,
 ) (toolenv.AgentRequest, string, error) {
-	timeout := max(cfg.DefaultTimeout, 0)
+	timeout := cfg.DefaultTimeout
+	if timeout < 0 {
+		timeout = time.Duration(0)
+	}
 	if req.TimeoutMs > 0 {
 		timeout = time.Duration(req.TimeoutMs) * time.Millisecond
 	}

@@ -267,6 +267,7 @@ func (s *Server) buildAppState(
 	if err := s.buildAndStoreToolEnvironment(state, projectConfig, workflows); err != nil {
 		return nil, err
 	}
+	logger.FromContext(s.ctx).Debug("Tool environment initialized and stored")
 	if err := s.seedAndIngestKnowledge(state, resourceStore, projectConfig, workflows); err != nil {
 		return nil, err
 	}

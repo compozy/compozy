@@ -10,7 +10,6 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool/builtin"
-	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/semaphore"
@@ -26,19 +25,18 @@ func executeAgentsParallel(
 	ctx context.Context,
 	env toolenv.Environment,
 	plans []agentPlan,
-	cfg config.NativeCallAgentsConfig,
-	log logger.Logger,
+	maxConcurrent int,
 ) []AgentExecutionResult {
 	if len(plans) == 0 {
 		return nil
 	}
 	results := make([]AgentExecutionResult, len(plans))
-	sem := semaphore.NewWeighted(int64(effectiveMaxConcurrent(cfg.MaxConcurrent)))
+	sem := semaphore.NewWeighted(int64(effectiveMaxConcurrent(maxConcurrent)))
 	var wg sync.WaitGroup
 	for i := range plans {
 		plan := &plans[i]
 		wg.Go(func() {
-			executePlan(ctx, env, sem, plan, results, log)
+			executePlan(ctx, env, sem, plan, results)
 		})
 	}
 	wg.Wait()
@@ -58,15 +56,15 @@ func executePlan(
 	sem *semaphore.Weighted,
 	plan *agentPlan,
 	results []AgentExecutionResult,
-	log logger.Logger,
 ) {
+	log := logger.FromContext(ctx)
 	start := time.Now()
 	log.Info(
 		"Agent execution starting",
 		"agent_id", plan.userConfig.AgentID,
 		"action_id", plan.userConfig.ActionID,
 	)
-	result := runAgent(ctx, env, sem, plan, log)
+	result := runAgent(ctx, env, sem, plan)
 	results[plan.index] = result
 	recordAgentStep(ctx, plan.userConfig, &result, time.Since(start))
 	log.Info(
@@ -105,14 +103,13 @@ func runAgent(
 	env toolenv.Environment,
 	sem *semaphore.Weighted,
 	plan *agentPlan,
-	log logger.Logger,
 ) AgentExecutionResult {
 	result := AgentExecutionResult{
 		AgentID:  plan.userConfig.AgentID,
 		ActionID: plan.userConfig.ActionID,
 	}
 	start := time.Now()
-	defer handleAgentPanic(log, plan.userConfig, start, &result)
+	defer handleAgentPanic(ctx, plan.userConfig, start, &result)
 	if err := sem.Acquire(ctx, 1); err != nil {
 		return applySemaphoreFailure(&result, err)
 	}
@@ -140,12 +137,13 @@ func deriveAgentContext(parent context.Context, timeout time.Duration) (context.
 }
 
 func handleAgentPanic(
-	log logger.Logger,
+	ctx context.Context,
 	config AgentExecutionRequest,
 	start time.Time,
 	result *AgentExecutionResult,
 ) {
 	if r := recover(); r != nil {
+		log := logger.FromContext(ctx)
 		result.Success = false
 		result.Error = &ErrorDetails{
 			Message: fmt.Sprintf("panic: %v", r),
@@ -212,8 +210,8 @@ func populateSuccess(result *AgentExecutionResult, res *toolenv.AgentResult, dur
 	if res.Output == nil {
 		return
 	}
-	if clone, err := res.Output.Clone(); err == nil && clone != nil {
-		result.Response = *clone
+	if copied, err := core.DeepCopy(*res.Output); err == nil {
+		result.Response = copied
 		return
 	}
 	result.Response = *res.Output

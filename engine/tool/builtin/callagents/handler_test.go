@@ -12,58 +12,63 @@ import (
 	"github.com/compozy/compozy/engine/tool/builtin"
 	"github.com/compozy/compozy/engine/tool/native"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestDefinitionRegisters(t *testing.T) {
+func TestCallAgentsDefinition(t *testing.T) {
 	t.Parallel()
-	env := &stubEnvironment{}
-	def := Definition(env)
-	assert.Equal(t, toolID, def.ID)
-	defs := native.Definitions(env)
-	found := false
-	for _, d := range defs {
-		if d.ID == toolID {
-			found = true
+
+	t.Run("Should register definition", func(t *testing.T) {
+		t.Parallel()
+		env := &stubEnvironment{}
+		def := Definition(env)
+		assert.Equal(t, toolID, def.ID)
+		defs := native.Definitions(env)
+		found := false
+		for _, d := range defs {
+			if d.ID == toolID {
+				found = true
+			}
 		}
-	}
-	assert.True(t, found, "cp__call_agents should be discoverable via native definitions")
-}
-
-func TestHandlerRequiresExecutor(t *testing.T) {
-	t.Parallel()
-	ctx := attachConfig(t, nil)
-	env := &stubEnvironment{}
-	handler := Definition(env).Handler
-	_, err := handler(ctx, map[string]any{
-		"agents": []any{
-			map[string]any{"agent_id": "alpha", "prompt": "hello"},
-		},
+		assert.True(t, found, "cp__call_agents should be discoverable via native definitions")
 	})
-	require.Error(t, err)
-	var cerr *core.Error
-	require.True(t, errors.As(err, &cerr))
-	assert.Equal(t, builtin.CodeInternal, cerr.Code)
-}
 
-func TestHandlerRejectsDisabled(t *testing.T) {
-	t.Parallel()
-	override := func(cfg *config.Config) {
-		cfg.Runtime.NativeTools.CallAgents.Enabled = false
-	}
-	ctx := attachConfig(t, override)
-	env := &stubEnvironment{executor: &stubAgentExecutor{}}
-	handler := Definition(env).Handler
-	_, err := handler(ctx, map[string]any{
-		"agents": []any{
-			map[string]any{"agent_id": "alpha", "prompt": "hello"},
-		},
+	t.Run("Should require executor", func(t *testing.T) {
+		t.Parallel()
+		ctx := attachConfig(t, nil)
+		env := &stubEnvironment{}
+		handler := Definition(env).Handler
+		_, err := handler(ctx, map[string]any{
+			"agents": []any{
+				map[string]any{"agent_id": "alpha", "prompt": "hello"},
+			},
+		})
+		require.Error(t, err)
+		var cerr *core.Error
+		require.True(t, errors.As(err, &cerr))
+		assert.Equal(t, builtin.CodeInternal, cerr.Code)
 	})
-	require.Error(t, err)
-	var cerr *core.Error
-	require.True(t, errors.As(err, &cerr))
-	assert.Equal(t, builtin.CodePermissionDenied, cerr.Code)
+
+	t.Run("Should reject when disabled", func(t *testing.T) {
+		t.Parallel()
+		override := func(cfg *config.Config) {
+			cfg.Runtime.NativeTools.CallAgents.Enabled = false
+		}
+		ctx := attachConfig(t, override)
+		env := &stubEnvironment{executor: &stubAgentExecutor{}}
+		handler := Definition(env).Handler
+		_, err := handler(ctx, map[string]any{
+			"agents": []any{
+				map[string]any{"agent_id": "alpha", "prompt": "hello"},
+			},
+		})
+		require.Error(t, err)
+		var cerr *core.Error
+		require.True(t, errors.As(err, &cerr))
+		assert.Equal(t, builtin.CodePermissionDenied, cerr.Code)
+	})
 }
 
 func TestHandlerValidatesAgents(t *testing.T) {
@@ -150,7 +155,8 @@ func TestHandlerExecutesAgentsAndAggregatesResults(t *testing.T) {
 	require.Len(t, exec.requests, 3)
 	alphaReq, ok := findRequest(exec.requests, "alpha")
 	require.True(t, ok)
-	assert.Equal(t, 60*time.Second, alphaReq.Timeout)
+	defaultCfg := config.DefaultNativeToolsConfig()
+	assert.Equal(t, defaultCfg.CallAgents.DefaultTimeout, alphaReq.Timeout)
 	gammaReq, ok := findRequest(exec.requests, "gamma")
 	require.True(t, ok)
 	assert.Equal(t, 2500*time.Millisecond, gammaReq.Timeout)
@@ -188,6 +194,8 @@ func findRequest(requests []toolenv.AgentRequest, agentID string) (toolenv.Agent
 func attachConfig(t *testing.T, mutate func(*config.Config)) context.Context {
 	t.Helper()
 	ctx := t.Context()
+	log := logger.NewForTests()
+	ctx = logger.ContextWithLogger(ctx, log)
 	manager := config.NewManager(ctx, config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
