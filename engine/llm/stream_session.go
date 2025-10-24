@@ -71,11 +71,19 @@ func (s *streamSession) finalize(ctx context.Context, output *core.Output) {
 	if s == nil {
 		return
 	}
+	currentSeq := s.sequence()
 	if s.opts.Structured {
-		s.publishStructuredSnapshot(ctx, s.sequence(), true)
-		return
+		snapshot := s.snapshotStructured()
+		if snapshot != "" {
+			seq := s.nextSequence()
+			s.publishStructuredContent(ctx, seq, snapshot, true)
+			return
+		}
+		if currentSeq > 0 {
+			return
+		}
 	}
-	if s.sequence() > 0 {
+	if !s.opts.Structured && currentSeq > 0 {
 		return
 	}
 	fallback := extractTextFromOutput(output)
@@ -165,16 +173,20 @@ func (s *streamSession) publishChunkEvent(ctx context.Context, seq int64, raw st
 }
 
 func (s *streamSession) publishStructuredSnapshot(ctx context.Context, seq int64, complete bool) {
+	s.publishStructuredContent(ctx, seq, s.snapshotStructured(), complete)
+}
+
+func (s *streamSession) publishStructuredContent(ctx context.Context, seq int64, content string, complete bool) {
 	if s == nil || !s.opts.Structured {
 		return
 	}
-	snapshot := s.snapshotStructured()
-	if strings.TrimSpace(snapshot) == "" {
+	sanitized := strings.TrimSpace(content)
+	if sanitized == "" {
 		return
 	}
 	data := s.baseData()
 	data["sequence"] = seq
-	data["content"] = snapshot
+	data["content"] = sanitized
 	data["complete"] = complete
 	s.tryPublish(ctx, streaming.EventTypeStructuredDelta, data)
 }

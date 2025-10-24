@@ -712,25 +712,30 @@ func emitTaskInitialEvents(
 	lastID int64,
 	closeInfo *router.StreamCloseInfo,
 ) (int64, bool) {
-	nextID, err := emitTaskStatus(stream, telemetry, cfg, state, lastID)
+	nextID, emitted, err := emitTaskStatus(stream, telemetry, cfg, state, lastID)
 	if err != nil {
 		logTaskStreamError(cfg, "status", err, closeInfo)
 		return lastID, false
 	}
 	if !isTerminalStatus(state.Status) {
 		if closeInfo != nil {
-			closeInfo.LastEventID = nextID
+			if emitted {
+				closeInfo.LastEventID = nextID
+			}
 			closeInfo.Status = state.Status
 		}
 		return nextID, true
 	}
+	prevID := nextID
 	updatedID, err := emitTaskTerminal(stream, telemetry, cfg, state, nextID)
 	if err != nil {
 		logTaskStreamError(cfg, "terminal", err, closeInfo)
 		return nextID, false
 	}
 	if closeInfo != nil {
-		closeInfo.LastEventID = updatedID
+		if updatedID != prevID {
+			closeInfo.LastEventID = updatedID
+		}
 		closeInfo.Status = state.Status
 		closeInfo.Reason = router.StreamReasonTerminal
 	}
@@ -766,7 +771,6 @@ func emitTaskReplayEvents(
 		eventType := string(env.Type)
 		if !shouldEmit(cfg, eventType) {
 			nextID = env.ID
-			updateTaskStreamCloseInfo(closeInfo, &env)
 			continue
 		}
 		if err := stream.WriteEvent(env.ID, eventType, env.Data); err != nil {
@@ -839,26 +843,26 @@ func emitTaskStatus(
 	cfg *taskStreamConfig,
 	state *taskdomain.State,
 	lastID int64,
-) (int64, error) {
+) (int64, bool, error) {
 	payload := taskStatusPayload{
 		Status:    state.Status,
 		UpdatedAt: state.UpdatedAt.UTC(),
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return lastID, err
+		return lastID, false, err
 	}
 	if !shouldEmit(cfg, taskStatusEvent) {
-		return lastID, nil
+		return lastID, false, nil
 	}
 	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, taskStatusEvent, data); err != nil {
-		return lastID, err
+		return lastID, false, err
 	}
 	if telemetry != nil {
 		telemetry.RecordEvent(taskStatusEvent, true)
 	}
-	return nextID, nil
+	return nextID, true, nil
 }
 
 func emitTaskTerminal(
@@ -1023,7 +1027,6 @@ func handleTaskEvent(
 	}
 	eventType := string(envelope.Type)
 	if !shouldEmit(cfg, eventType) {
-		updateTaskStreamCloseInfo(closeInfo, &envelope)
 		return envelope.ID, true
 	}
 	if err := stream.WriteEvent(envelope.ID, eventType, envelope.Data); err != nil {
@@ -1075,7 +1078,8 @@ func handleTaskPoll(
 	}
 	updatedID := lastID
 	if state.Status != *lastStatus || state.UpdatedAt.After(*lastUpdated) {
-		updatedID, err = emitTaskStatus(stream, telemetry, cfg, state, lastID)
+		var emitted bool
+		updatedID, emitted, err = emitTaskStatus(stream, telemetry, cfg, state, lastID)
 		if err != nil {
 			logTaskStreamError(cfg, "status", err, closeInfo)
 			return lastID, false
@@ -1083,20 +1087,21 @@ func handleTaskPoll(
 		*lastStatus = state.Status
 		*lastUpdated = state.UpdatedAt
 		if closeInfo != nil {
-			if updatedID != lastID {
+			if emitted {
 				closeInfo.LastEventID = updatedID
 			}
 			closeInfo.Status = state.Status
 		}
 	}
 	if isTerminalStatus(state.Status) {
+		prevID := updatedID
 		updatedID, err = emitTaskTerminal(stream, telemetry, cfg, state, updatedID)
 		if err != nil {
 			logTaskStreamError(cfg, "terminal", err, closeInfo)
 			return lastID, false
 		}
 		if closeInfo != nil {
-			if updatedID != lastID {
+			if updatedID != prevID {
 				closeInfo.LastEventID = updatedID
 			}
 			closeInfo.Status = state.Status

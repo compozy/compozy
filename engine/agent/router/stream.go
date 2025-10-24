@@ -772,7 +772,6 @@ func emitAgentReplayEvents(
 		eventType := string(env.Type)
 		if !shouldEmit(cfg, eventType) {
 			nextID = env.ID
-			updateAgentStreamCloseInfo(closeInfo, &env)
 			continue
 		}
 		if err := stream.WriteEvent(env.ID, eventType, env.Data); err != nil {
@@ -850,7 +849,7 @@ func emitAgentStatus(
 	if err != nil {
 		return lastID, err
 	}
-	nextID := lastID
+	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, agentStatusEvent, data); err != nil {
 		return lastID, err
 	}
@@ -1046,7 +1045,6 @@ func handleAgentEvent(
 	}
 	eventType := string(envelope.Type)
 	if !shouldEmit(cfg, eventType) {
-		updateAgentStreamCloseInfo(closeInfo, &envelope)
 		return envelope.ID, true
 	}
 	if err := stream.WriteEvent(envelope.ID, eventType, envelope.Data); err != nil {
