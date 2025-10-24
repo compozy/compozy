@@ -13,10 +13,12 @@ var inputSchema = schema.Schema{
 				"properties": map[string]any{
 					"agent_id": map[string]any{
 						"type":        "string",
+						"minLength":   1,
 						"description": "Identifier of the agent to execute. Call cp__list_agents to discover available IDs.",
 					},
 					"action_id": map[string]any{
 						"type":        "string",
+						"minLength":   1,
 						"description": "Optional action identifier for the agent. Required when the agent defines multiple actions.",
 					},
 					"prompt": map[string]any{
@@ -69,15 +71,30 @@ var outputSchema = schema.Schema{
 						"required":             []any{"message", "code"},
 						"additionalProperties": false,
 					},
-					"duration_ms": map[string]any{"type": "integer"},
+					"duration_ms": map[string]any{
+						"type":    "integer",
+						"minimum": 0,
+					},
 				},
 				"additionalProperties": false,
 			},
 		},
-		"total_count":       map[string]any{"type": "integer"},
-		"success_count":     map[string]any{"type": "integer"},
-		"failure_count":     map[string]any{"type": "integer"},
-		"total_duration_ms": map[string]any{"type": "integer"},
+		"total_count": map[string]any{
+			"type":    "integer",
+			"minimum": 0,
+		},
+		"success_count": map[string]any{
+			"type":    "integer",
+			"minimum": 0,
+		},
+		"failure_count": map[string]any{
+			"type":    "integer",
+			"minimum": 0,
+		},
+		"total_duration_ms": map[string]any{
+			"type":    "integer",
+			"minimum": 0,
+		},
 	},
 	"required":             []any{"results", "total_count", "success_count", "failure_count", "total_duration_ms"},
 	"additionalProperties": false,
