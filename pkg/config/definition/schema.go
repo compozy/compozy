@@ -46,6 +46,7 @@ func registerFieldDefs(registry *Registry, defs ...FieldDef) {
 func registerStreamFields(registry *Registry) {
 	registerAgentStreamFields(registry)
 	registerTaskStreamFields(registry)
+	registerLLMStreamFields(registry)
 	registerWorkflowStreamFields(registry)
 }
 
@@ -174,6 +175,19 @@ func registerTaskRedisFields(registry *Registry) {
 			EnvVar:  "STREAM_TASK_REPLAY_LIMIT",
 			Type:    reflect.TypeOf(0),
 			Help:    "Maximum events to replay when resuming a task stream",
+		},
+	)
+}
+
+func registerLLMStreamFields(registry *Registry) {
+	registerFieldDefs(
+		registry,
+		FieldDef{
+			Path:    "stream.llm.fallback_segment_limit",
+			Default: 200,
+			EnvVar:  "STREAM_LLM_FALLBACK_SEGMENT_LIMIT",
+			Type:    reflect.TypeOf(0),
+			Help:    "Maximum runes per fallback text segment when chunking streamed output.",
 		},
 	)
 }

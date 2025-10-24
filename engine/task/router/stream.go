@@ -64,7 +64,6 @@ type taskStreamConfig struct {
 	pollInterval  time.Duration
 	lastEventID   int64
 	mode          taskStreamMode
-	log           logger.Logger
 	metrics       *monitoring.StreamingMetrics
 	heartbeat     time.Duration
 	events        map[string]struct{}
@@ -92,7 +91,7 @@ type taskStreamDeps struct {
 // streamTaskExecution streams Server-Sent Events for task executions.
 //
 //	@Summary		Stream task execution events
-//	@Description	Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema.
+//	@Description	Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema. Served under routes.Base() (e.g., /api/v0/executions/tasks/{exec_id}/stream).
 //	@Tags			executions
 //	@Accept			*/*
 //	@Produce		text/event-stream
@@ -107,8 +106,8 @@ type taskStreamDeps struct {
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
 //	@Router			/executions/tasks/{exec_id}/stream [get]
 func streamTaskExecution(c *gin.Context) {
-	execID := router.GetTaskExecID(c)
-	if execID == "" {
+	execID, ok := parseTaskExecID(c)
+	if !ok {
 		return
 	}
 	ctx := c.Request.Context()
@@ -247,7 +246,6 @@ func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID
 	if !ok {
 		return nil, false
 	}
-	log := logger.FromContext(ctx)
 	metrics := router.ResolveStreamingMetrics(c, deps.state)
 	publisher, _ := deps.state.StreamPublisher()
 	return &taskStreamConfig{
@@ -258,7 +256,6 @@ func prepareTaskStreamConfig(ctx context.Context, c *gin.Context, execID core.ID
 		pollInterval:  pollInterval,
 		lastEventID:   lastEventID,
 		mode:          mode,
-		log:           log,
 		metrics:       metrics,
 		heartbeat:     tunables.heartbeat,
 		events:        events,
@@ -422,6 +419,21 @@ func shouldEmit(cfg *taskStreamConfig, event string) bool {
 	return ok
 }
 
+func parseTaskExecID(c *gin.Context) (core.ID, bool) {
+	execID := router.GetTaskExecID(c)
+	if execID == "" {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "missing execution id", nil)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return "", false
+	}
+	if _, err := core.ParseID(execID.String()); err != nil {
+		reqErr := router.NewRequestError(http.StatusBadRequest, "invalid execution id", err)
+		router.RespondWithError(c, reqErr.StatusCode, reqErr)
+		return "", false
+	}
+	return execID, true
+}
+
 func parseTaskLastEventID(c *gin.Context) (int64, bool) {
 	lastID, _, err := router.LastEventID(c.Request)
 	if err != nil {
@@ -540,7 +552,7 @@ func runTaskEventStream(
 		runTaskStructuredStream(ctx, cfg, stream, telemetry, closeInfo)
 		return
 	}
-	nextID, cont := emitTaskInitialEvents(stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
+	nextID, cont := emitTaskInitialEvents(ctx, stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
 	if !cont {
 		if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
 			closeInfo.Reason = router.StreamReasonTerminal
@@ -553,7 +565,7 @@ func runTaskEventStream(
 	}
 	subscription, err := cfg.pubsub.Subscribe(ctx, cfg.publisher.Channel(cfg.execID))
 	if err != nil {
-		logTaskStreamError(cfg, "subscribe", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "subscribe", err, closeInfo)
 		return
 	}
 	defer subscription.Close()
@@ -567,7 +579,7 @@ func runTaskStructuredStream(
 	telemetry router.StreamTelemetry,
 	closeInfo *router.StreamCloseInfo,
 ) {
-	nextID, cont := emitTaskInitialEvents(stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
+	nextID, cont := emitTaskInitialEvents(ctx, stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
 	if !cont {
 		if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
 			closeInfo.Reason = router.StreamReasonTerminal
@@ -587,10 +599,10 @@ func runTaskStructuredStream(
 				closeInfo.Reason = router.StreamReasonContextCanceled
 				closeInfo.Error = nil
 			}
-			logTaskCancellation(cfg)
+			logTaskCancellation(ctx, cfg)
 			return
 		case <-heartbeat.C:
-			if !taskStreamHeartbeatTick(stream, telemetry, cfg, closeInfo) {
+			if !taskStreamHeartbeatTick(ctx, stream, telemetry, cfg, closeInfo) {
 				return
 			}
 		case <-ticker.C:
@@ -612,11 +624,11 @@ func runTaskTextStream(
 ) {
 	subscription, err := cfg.pubsub.Subscribe(ctx, redisTokenChannel(cfg.channelPrefix, cfg.execID))
 	if err != nil {
-		logTaskStreamError(cfg, "subscribe", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "subscribe", err, closeInfo)
 		return
 	}
 	defer subscription.Close()
-	nextID, cont := emitTaskInitialEvents(stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
+	nextID, cont := emitTaskInitialEvents(ctx, stream, telemetry, cfg, cfg.initial, cfg.lastEventID, closeInfo)
 	if !cont {
 		if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
 			closeInfo.Reason = router.StreamReasonTerminal
@@ -649,17 +661,17 @@ func taskTextStreamLoop(
 				closeInfo.Reason = router.StreamReasonContextCanceled
 				closeInfo.Error = nil
 			}
-			logTaskCancellation(cfg)
+			logTaskCancellation(ctx, cfg)
 			return
 		case <-heartbeat.C:
-			if !taskStreamHeartbeatTick(stream, telemetry, cfg, closeInfo) {
+			if !taskStreamHeartbeatTick(ctx, stream, telemetry, cfg, closeInfo) {
 				return
 			}
 		case <-sub.Done():
-			taskStreamHandleSubscriptionDone(sub, cfg, closeInfo)
+			taskStreamHandleSubscriptionDone(ctx, sub, cfg, closeInfo)
 			return
 		case msg, ok := <-sub.Messages():
-			updatedID, ok := handleTaskChunk(stream, cfg, telemetry, closeInfo, nextID, msg, ok)
+			updatedID, ok := handleTaskChunk(ctx, stream, cfg, telemetry, closeInfo, nextID, msg, ok)
 			if !ok {
 				return
 			}
@@ -675,13 +687,14 @@ func taskTextStreamLoop(
 }
 
 func taskStreamHeartbeatTick(
+	ctx context.Context,
 	stream *router.SSEStream,
 	telemetry router.StreamTelemetry,
 	cfg *taskStreamConfig,
 	closeInfo *router.StreamCloseInfo,
 ) bool {
 	if err := stream.WriteHeartbeat(); err != nil {
-		logTaskStreamError(cfg, "heartbeat", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "heartbeat", err, closeInfo)
 		return false
 	}
 	if telemetry != nil {
@@ -691,12 +704,13 @@ func taskStreamHeartbeatTick(
 }
 
 func taskStreamHandleSubscriptionDone(
+	ctx context.Context,
 	sub pubsub.Subscription,
 	cfg *taskStreamConfig,
 	closeInfo *router.StreamCloseInfo,
 ) {
 	if err := sub.Err(); err != nil {
-		logTaskStreamError(cfg, "pubsub", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "pubsub", err, closeInfo)
 		return
 	}
 	if closeInfo != nil && closeInfo.Reason == router.StreamReasonInitializing {
@@ -705,6 +719,7 @@ func taskStreamHandleSubscriptionDone(
 }
 
 func emitTaskInitialEvents(
+	ctx context.Context,
 	stream *router.SSEStream,
 	telemetry router.StreamTelemetry,
 	cfg *taskStreamConfig,
@@ -714,7 +729,7 @@ func emitTaskInitialEvents(
 ) (int64, bool) {
 	nextID, emitted, err := emitTaskStatus(stream, telemetry, cfg, state, lastID)
 	if err != nil {
-		logTaskStreamError(cfg, "status", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "status", err, closeInfo)
 		return lastID, false
 	}
 	if !isTerminalStatus(state.Status) {
@@ -729,7 +744,7 @@ func emitTaskInitialEvents(
 	prevID := nextID
 	updatedID, err := emitTaskTerminal(stream, telemetry, cfg, state, nextID)
 	if err != nil {
-		logTaskStreamError(cfg, "terminal", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "terminal", err, closeInfo)
 		return nextID, false
 	}
 	if closeInfo != nil {
@@ -739,7 +754,7 @@ func emitTaskInitialEvents(
 		closeInfo.Status = state.Status
 		closeInfo.Reason = router.StreamReasonTerminal
 	}
-	logTaskCompletion(cfg, updatedID, state.Status)
+	logTaskCompletion(ctx, cfg, updatedID, state.Status)
 	return updatedID, false
 }
 
@@ -760,7 +775,7 @@ func emitTaskReplayEvents(
 	}
 	envelopes, err := cfg.publisher.Replay(ctx, cfg.execID, lastID, limit)
 	if err != nil {
-		logTaskStreamError(cfg, "replay", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "replay", err, closeInfo)
 		return lastID, false
 	}
 	nextID := lastID
@@ -774,7 +789,7 @@ func emitTaskReplayEvents(
 			continue
 		}
 		if err := stream.WriteEvent(env.ID, eventType, env.Data); err != nil {
-			logTaskStreamError(cfg, "replay", err, closeInfo)
+			logTaskStreamError(ctx, cfg, "replay", err, closeInfo)
 			return nextID, false
 		}
 		if telemetry != nil {
@@ -810,14 +825,14 @@ func taskEventLoop(
 				closeInfo.Reason = router.StreamReasonContextCanceled
 				closeInfo.Error = nil
 			}
-			logTaskCancellation(cfg)
+			logTaskCancellation(ctx, cfg)
 			return
 		case <-heartbeat.C:
-			if !taskStreamHeartbeatTick(stream, telemetry, cfg, closeInfo) {
+			if !taskStreamHeartbeatTick(ctx, stream, telemetry, cfg, closeInfo) {
 				return
 			}
 		case msg, ok := <-messages:
-			updatedID, ok := handleTaskEvent(stream, cfg, telemetry, closeInfo, nextID, msg, ok)
+			updatedID, ok := handleTaskEvent(ctx, stream, cfg, telemetry, closeInfo, nextID, msg, ok)
 			if !ok {
 				return
 			}
@@ -830,7 +845,7 @@ func taskEventLoop(
 			nextID = updatedID
 		case <-subscription.Done():
 			if err := subscription.Err(); err != nil {
-				logTaskStreamError(cfg, "pubsub", err, closeInfo)
+				logTaskStreamError(ctx, cfg, "pubsub", err, closeInfo)
 			}
 			return
 		}
@@ -900,27 +915,34 @@ func emitTaskTerminal(
 	return nextID, nil
 }
 
-func logTaskStreamError(cfg *taskStreamConfig, phase string, err error, closeInfo *router.StreamCloseInfo) {
-	if cfg.log == nil {
-		return
+func logTaskStreamError(
+	ctx context.Context,
+	cfg *taskStreamConfig,
+	phase string,
+	err error,
+	closeInfo *router.StreamCloseInfo,
+) {
+	log := logger.FromContext(ctx)
+	if log != nil {
+		log.Warn(
+			"task stream terminated with error",
+			"exec_id", cfg.execID,
+			"phase", phase,
+			"error", core.RedactError(err),
+		)
 	}
-	cfg.log.Warn(
-		"task stream terminated with error",
-		"exec_id", cfg.execID,
-		"phase", phase,
-		"error", core.RedactError(err),
-	)
 	if closeInfo != nil && err != nil && closeInfo.Error == nil {
 		closeInfo.Reason = fmt.Sprintf("%s_error", phase)
 		closeInfo.Error = fmt.Errorf("%s", core.RedactError(err))
 	}
 }
 
-func logTaskCompletion(cfg *taskStreamConfig, lastID int64, status core.StatusType) {
-	if cfg.log == nil {
+func logTaskCompletion(ctx context.Context, cfg *taskStreamConfig, lastID int64, status core.StatusType) {
+	log := logger.FromContext(ctx)
+	if log == nil {
 		return
 	}
-	cfg.log.Info(
+	log.Info(
 		"Task stream disconnected",
 		"exec_id", cfg.execID,
 		"last_event_id", lastID,
@@ -928,11 +950,11 @@ func logTaskCompletion(cfg *taskStreamConfig, lastID int64, status core.StatusTy
 	)
 }
 
-func logTaskCancellation(cfg *taskStreamConfig) {
-	if cfg.log == nil {
-		return
+func logTaskCancellation(ctx context.Context, cfg *taskStreamConfig) {
+	log := logger.FromContext(ctx)
+	if log != nil {
+		log.Info("Task stream canceled", "exec_id", cfg.execID)
 	}
-	cfg.log.Info("Task stream canceled", "exec_id", cfg.execID)
 }
 
 func isTerminalStatus(status core.StatusType) bool {
@@ -949,6 +971,7 @@ func redisTokenChannel(prefix string, execID core.ID) string {
 }
 
 func handleTaskChunk(
+	ctx context.Context,
 	stream *router.SSEStream,
 	cfg *taskStreamConfig,
 	telemetry router.StreamTelemetry,
@@ -958,7 +981,7 @@ func handleTaskChunk(
 	ok bool,
 ) (int64, bool) {
 	if !ok {
-		logTaskStreamError(cfg, "pubsub", errors.New("message channel closed"), closeInfo)
+		logTaskStreamError(ctx, cfg, "pubsub", errors.New("message channel closed"), closeInfo)
 		return lastID, false
 	}
 	if !shouldEmit(cfg, llmChunkEvent) {
@@ -969,7 +992,7 @@ func handleTaskChunk(
 	}
 	nextID := lastID + 1
 	if err := stream.WriteEvent(nextID, llmChunkEvent, msg.Payload); err != nil {
-		logTaskStreamError(cfg, "chunk", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "chunk", err, closeInfo)
 		return lastID, false
 	}
 	if telemetry != nil {
@@ -1004,6 +1027,7 @@ func decodeEnvelope(payload []byte) (streaming.Envelope, error) {
 }
 
 func handleTaskEvent(
+	ctx context.Context,
 	stream *router.SSEStream,
 	cfg *taskStreamConfig,
 	telemetry router.StreamTelemetry,
@@ -1013,12 +1037,12 @@ func handleTaskEvent(
 	ok bool,
 ) (int64, bool) {
 	if !ok {
-		logTaskStreamError(cfg, "pubsub", errors.New("message channel closed"), closeInfo)
+		logTaskStreamError(ctx, cfg, "pubsub", errors.New("message channel closed"), closeInfo)
 		return lastID, false
 	}
 	envelope, err := decodeEnvelope(msg.Payload)
 	if err != nil {
-		logTaskStreamError(cfg, "decode", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "decode", err, closeInfo)
 		return lastID, true
 	}
 	if envelope.ID <= lastID {
@@ -1030,7 +1054,7 @@ func handleTaskEvent(
 		return envelope.ID, true
 	}
 	if err := stream.WriteEvent(envelope.ID, eventType, envelope.Data); err != nil {
-		logTaskStreamError(cfg, "event", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "event", err, closeInfo)
 		return lastID, false
 	}
 	if telemetry != nil {
@@ -1073,7 +1097,7 @@ func handleTaskPoll(
 ) (int64, bool) {
 	state, err := cfg.repo.GetState(ctx, cfg.execID)
 	if err != nil {
-		logTaskStreamError(cfg, "poll", err, closeInfo)
+		logTaskStreamError(ctx, cfg, "poll", err, closeInfo)
 		return lastID, false
 	}
 	updatedID := lastID
@@ -1081,7 +1105,7 @@ func handleTaskPoll(
 		var emitted bool
 		updatedID, emitted, err = emitTaskStatus(stream, telemetry, cfg, state, lastID)
 		if err != nil {
-			logTaskStreamError(cfg, "status", err, closeInfo)
+			logTaskStreamError(ctx, cfg, "status", err, closeInfo)
 			return lastID, false
 		}
 		*lastStatus = state.Status
@@ -1097,7 +1121,7 @@ func handleTaskPoll(
 		prevID := updatedID
 		updatedID, err = emitTaskTerminal(stream, telemetry, cfg, state, updatedID)
 		if err != nil {
-			logTaskStreamError(cfg, "terminal", err, closeInfo)
+			logTaskStreamError(ctx, cfg, "terminal", err, closeInfo)
 			return lastID, false
 		}
 		if closeInfo != nil {
@@ -1107,7 +1131,7 @@ func handleTaskPoll(
 			closeInfo.Status = state.Status
 			closeInfo.Reason = router.StreamReasonTerminal
 		}
-		logTaskCompletion(cfg, updatedID, state.Status)
+		logTaskCompletion(ctx, cfg, updatedID, state.Status)
 		return updatedID, false
 	}
 	return updatedID, true

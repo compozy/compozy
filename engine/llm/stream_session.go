@@ -149,13 +149,13 @@ func (s *streamSession) publishTool(ctx context.Context, entry *telemetry.ToolLo
 		data["metadata"] = entry.Metadata
 	}
 	if entry.Input != "" {
-		data["input"] = entry.Input
+		data["input"] = core.RedactString(entry.Input)
 	}
 	if entry.Output != "" {
-		data["output"] = entry.Output
+		data["output"] = core.RedactString(entry.Output)
 	}
 	if entry.Error != "" {
-		data["error"] = entry.Error
+		data["error"] = core.RedactString(entry.Error)
 	}
 	data["redacted"] = entry.Redacted
 	s.tryPublish(ctx, streaming.EventTypeToolCall, data)
@@ -192,12 +192,20 @@ func (s *streamSession) publishStructuredContent(ctx context.Context, seq int64,
 }
 
 func (s *streamSession) publishFallbackChunks(ctx context.Context, text string) {
+	limit := s.fallbackSegmentLimit()
 	for _, line := range splitLines(text) {
-		for _, segment := range segmentLine(line, fallbackSegmentLimit) {
+		for _, segment := range segmentLine(line, limit) {
 			seq := s.nextSequence()
 			s.publishChunkEvent(ctx, seq, segment)
 		}
 	}
+}
+
+func (s *streamSession) fallbackSegmentLimit() int {
+	if s == nil || s.opts == nil || s.opts.FallbackSegmentLimit <= 0 {
+		return defaultFallbackSegmentLimit
+	}
+	return s.opts.FallbackSegmentLimit
 }
 
 func (s *streamSession) nextSequence() int64 {
@@ -259,7 +267,7 @@ func (s *streamSession) tryPublish(ctx context.Context, eventType streaming.Even
 	}
 }
 
-const fallbackSegmentLimit = 200
+const defaultFallbackSegmentLimit = 200
 
 func splitLines(text string) []string {
 	if text == "" {

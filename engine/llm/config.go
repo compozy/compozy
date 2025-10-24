@@ -165,12 +165,13 @@ func DefaultConfig() *Config {
 
 // StreamOptions configures execution streaming behavior.
 type StreamOptions struct {
-	Publisher      streaming.Publisher
-	ExecID         core.ID
-	WorkflowExecID core.ID
-	TaskID         string
-	Component      core.ComponentType
-	Structured     bool
+	Publisher            streaming.Publisher
+	ExecID               core.ID
+	WorkflowExecID       core.ID
+	TaskID               string
+	Component            core.ComponentType
+	Structured           bool
+	FallbackSegmentLimit int
 }
 
 func (o *StreamOptions) clone() *StreamOptions {

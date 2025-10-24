@@ -531,6 +531,7 @@ type RuntimeConfig struct {
 type StreamConfig struct {
 	Agent    AgentStreamConfig        `koanf:"agent"    json:"agent"    yaml:"agent"    mapstructure:"agent"`
 	Task     TaskStreamEndpointConfig `koanf:"task"     json:"task"     yaml:"task"     mapstructure:"task"`
+	LLM      LLMStreamConfig          `koanf:"llm"      json:"llm"      yaml:"llm"      mapstructure:"llm"`
 	Workflow WorkflowStreamConfig     `koanf:"workflow" json:"workflow" yaml:"workflow" mapstructure:"workflow"`
 }
 
@@ -556,6 +557,11 @@ type TaskStreamEndpointConfig struct {
 	RedisTTL           time.Duration        `koanf:"redis_ttl"            env:"STREAM_TASK_REDIS_TTL"            json:"redis_ttl"            yaml:"redis_ttl"            mapstructure:"redis_ttl"`
 	ReplayLimit        int                  `koanf:"replay_limit"         env:"STREAM_TASK_REPLAY_LIMIT"         json:"replay_limit"         yaml:"replay_limit"         mapstructure:"replay_limit"         validate:"min=0"`
 	Text               TaskTextStreamConfig `koanf:"text"                                                        json:"text"                 yaml:"text"                 mapstructure:"text"`
+}
+
+// LLMStreamConfig defines tunables for LLM fallback streaming behavior.
+type LLMStreamConfig struct {
+	FallbackSegmentLimit int `koanf:"fallback_segment_limit" env:"STREAM_LLM_FALLBACK_SEGMENT_LIMIT" json:"fallback_segment_limit" yaml:"fallback_segment_limit" mapstructure:"fallback_segment_limit" validate:"min=0"`
 }
 
 // TaskTextStreamConfig defines tunables for plain-text task streaming.
@@ -1830,6 +1836,9 @@ func buildStreamConfig(registry *definition.Registry) StreamConfig {
 				MaxSegmentRunes: getInt(registry, "stream.task.text.max_segment_runes"),
 				PublishTimeout:  getDuration(registry, "stream.task.text.publish_timeout"),
 			},
+		},
+		LLM: LLMStreamConfig{
+			FallbackSegmentLimit: getInt(registry, "stream.llm.fallback_segment_limit"),
 		},
 		Workflow: WorkflowStreamConfig{
 			DefaultPoll:        getDuration(registry, "stream.workflow.default_poll"),

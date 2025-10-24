@@ -574,7 +574,7 @@ func (uc *ExecuteTask) createLLMService(
 		return nil, err
 	}
 	llmOpts = uc.appendToolEnvironment(llmOpts)
-	llmOpts = uc.appendStreamOptions(llmOpts, input)
+	llmOpts = uc.appendStreamOptions(ctx, llmOpts, input)
 	llmService, err := llm.NewService(ctx, uc.runtime, agentConfig, llmOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM service: %w", err)
@@ -658,7 +658,11 @@ func (uc *ExecuteTask) appendToolEnvironment(opts []llm.Option) []llm.Option {
 	return opts
 }
 
-func (uc *ExecuteTask) appendStreamOptions(opts []llm.Option, input *ExecuteTaskInput) []llm.Option {
+func (uc *ExecuteTask) appendStreamOptions(
+	ctx context.Context,
+	opts []llm.Option,
+	input *ExecuteTaskInput,
+) []llm.Option {
 	if uc.streamPublisher == nil || input == nil || input.TaskState == nil {
 		return opts
 	}
@@ -667,13 +671,20 @@ func (uc *ExecuteTask) appendStreamOptions(opts []llm.Option, input *ExecuteTask
 		return opts
 	}
 	structured := input.TaskConfig != nil && input.TaskConfig.OutputSchema != nil
+	fallbackLimit := 0
+	if cfg := config.FromContext(ctx); cfg != nil {
+		if cfg.Stream.LLM.FallbackSegmentLimit > 0 {
+			fallbackLimit = cfg.Stream.LLM.FallbackSegmentLimit
+		}
+	}
 	options := &llm.StreamOptions{
-		Publisher:      uc.streamPublisher,
-		ExecID:         execID,
-		WorkflowExecID: input.TaskState.WorkflowExecID,
-		TaskID:         input.TaskState.TaskID,
-		Component:      input.TaskState.Component,
-		Structured:     structured,
+		Publisher:            uc.streamPublisher,
+		ExecID:               execID,
+		WorkflowExecID:       input.TaskState.WorkflowExecID,
+		TaskID:               input.TaskState.TaskID,
+		Component:            input.TaskState.Component,
+		Structured:           structured,
+		FallbackSegmentLimit: fallbackLimit,
 	}
 	return append(opts, llm.WithStreamOptions(options))
 }

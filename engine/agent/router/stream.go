@@ -105,7 +105,7 @@ type agentLoop struct {
 // streamAgentExecution streams Server-Sent Events for agent executions.
 //
 //	@Summary		Stream agent execution events
-//	@Description	Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema.
+//	@Description	Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema. Served under routes.Base() (e.g., /api/v0/executions/agents/{exec_id}/stream).
 //	@Tags			executions
 //	@Accept			*/*
 //	@Produce		text/event-stream
