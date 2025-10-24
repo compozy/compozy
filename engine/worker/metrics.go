@@ -14,8 +14,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	enumspb "go.temporal.io/api/enums/v1"
+	taskqueuepb "go.temporal.io/api/taskqueue/v1"
+	workflowservice "go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/activity"
-	temporalclient "go.temporal.io/sdk/client"
 	temporalinterceptor "go.temporal.io/sdk/interceptor"
 	temporal "go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -405,27 +407,83 @@ func runTaskQueueSampler(ctx context.Context, client *Client, queue string) {
 }
 
 func fetchTaskQueueDepth(ctx context.Context, client *Client, queue string) (int64, error) {
-	desc, err := client.DescribeTaskQueueEnhanced(ctx, temporalclient.DescribeTaskQueueEnhancedOptions{
-		TaskQueue: queue,
-		TaskQueueTypes: []temporalclient.TaskQueueType{
-			temporalclient.TaskQueueTypeWorkflow,
-			temporalclient.TaskQueueTypeActivity,
-		},
-		ReportStats: true,
-	})
-	if err != nil {
-		return 0, err
+	if client == nil {
+		return 0, errors.New("temporal client is nil")
 	}
+
+	cfg := client.Config()
+	namespace := ""
+	if cfg != nil {
+		namespace = strings.TrimSpace(cfg.Namespace)
+	}
+	if namespace == "" {
+		return 0, errors.New("temporal namespace is not configured")
+	}
+
+	service := client.WorkflowService()
+	if service == nil {
+		return 0, errors.New("temporal workflow service is unavailable")
+	}
+
 	var total int64
-	//lint:ignore SA1019 The Temporal Go SDK continues to expose VersionsInfo as the only way to obtain backlog statistics.
-	for _, versionInfo := range desc.VersionsInfo {
-		for _, typeInfo := range versionInfo.TypesInfo {
-			if typeInfo.Stats != nil {
-				total += typeInfo.Stats.ApproximateBacklogCount
-			}
+	var errs []error
+
+	for _, taskQueueType := range []enumspb.TaskQueueType{
+		enumspb.TASK_QUEUE_TYPE_WORKFLOW,
+		enumspb.TASK_QUEUE_TYPE_ACTIVITY,
+	} {
+		depth, err := describeTaskQueueDepth(ctx, service, namespace, queue, taskQueueType)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		total += depth
+	}
+
+	if len(errs) > 0 {
+		return total, errors.Join(errs...)
+	}
+	return total, nil
+}
+
+func describeTaskQueueDepth(
+	ctx context.Context,
+	service workflowservice.WorkflowServiceClient,
+	namespace string,
+	queue string,
+	taskQueueType enumspb.TaskQueueType,
+) (int64, error) {
+	req := &workflowservice.DescribeTaskQueueRequest{
+		Namespace: namespace,
+		TaskQueue: &taskqueuepb.TaskQueue{
+			Name: queue,
+			Kind: enumspb.TASK_QUEUE_KIND_NORMAL,
+		},
+		TaskQueueType: taskQueueType,
+		ReportStats:   true,
+	}
+
+	resp, err := service.DescribeTaskQueue(ctx, req)
+	if err != nil {
+		return 0, fmt.Errorf("describe %s task queue: %w", queueTypeLabel(taskQueueType), err)
+	}
+
+	if stats := resp.GetStats(); stats != nil {
+		return stats.GetApproximateBacklogCount(), nil
+	}
+
+	var total int64
+	for _, stats := range resp.GetStatsByPriorityKey() {
+		if stats != nil {
+			total += stats.GetApproximateBacklogCount()
 		}
 	}
 	return total, nil
+}
+
+func queueTypeLabel(taskQueueType enumspb.TaskQueueType) string {
+	label := strings.TrimPrefix(taskQueueType.String(), "TASK_QUEUE_TYPE_")
+	return strings.ToLower(label)
 }
 
 func (w *Worker) startQueueDepthMonitor(ctx context.Context) {

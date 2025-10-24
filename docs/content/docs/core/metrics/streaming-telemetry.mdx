@@ -52,7 +52,7 @@ Use the following PromQL fragments as starting points for alerting rules.
 
 Trigger when more than 5% of streams close with errors over a 5-minute window.
 
-```promql
+```text
 sum(increase(compozy_stream_errors_total{kind="workflow"}[5m]))
   /
 sum(increase(compozy_stream_events_total{kind="workflow",event_type="complete"}[5m])) > 0.05
@@ -64,7 +64,7 @@ Apply the same ratio for `kind="agent"` and `kind="task"`.
 
 Alert when `subscribe_error`, `pubsub_error`, or `heartbeat_error` reasons breach a threshold.
 
-```promql
+```text
 sum(increase(compozy_stream_errors_total{reason=~"(subscribe|pubsub|heartbeat)_error"}[1m])) > 3
 ```
 
@@ -72,7 +72,7 @@ sum(increase(compozy_stream_errors_total{reason=~"(subscribe|pubsub|heartbeat)_e
 
 Warn when the 95th percentile TTFE exceeds 1 second for workflows.
 
-```promql
+```text
 histogram_quantile(
   0.95,
   sum(rate(compozy_stream_time_to_first_event_seconds_bucket{kind="workflow"}[5m]))
@@ -84,7 +84,7 @@ histogram_quantile(
 
 Detect streams that emit heartbeats but no data events for more than 30 seconds.
 
-```promql
+```text
 sum(increase(compozy_stream_events_total{event_type="heartbeat",kind="agent"}[30s])) > 0
 and
 sum(increase(compozy_stream_events_total{event_type!="heartbeat",kind="agent"}[30s])) == 0
