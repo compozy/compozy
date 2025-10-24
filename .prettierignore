@@ -4,6 +4,7 @@ node_modules
 .pnp.js
 *.mdc
 .venv-crawl
+tasks/**/*.md
 
 # Build outputs
 .next

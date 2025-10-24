@@ -5,6 +5,7 @@
   "pages": [
     "overview",
     "call-agent",
+    "call-agents",
     "runtime-environment",
     "typescript-development"
   ]

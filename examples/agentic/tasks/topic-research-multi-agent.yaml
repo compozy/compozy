@@ -1,0 +1,63 @@
+resource: task
+id: topic-research-multi-agent
+name: Multi-agent topic research
+description: Prompt-driven delegation that uses cp__call_agents to gather academic, industry, and web
+  perspectives.
+type: basic
+final: true
+timeout: 180s
+
+input:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: Topic that each agent should investigate.
+  required:
+    - topic
+
+with:
+  topic: "{{ .with.topic }}"
+
+prompt: |
+  Use the cp__call_agents builtin to execute three agents in parallel:
+
+  - research-academic (action: research_topic)
+  - research-industry  (action: research_topic)
+  - research-web       (action: research_topic)
+
+  Invoke the tool with this payload:
+  {
+    "agents": [
+      {
+        "agent_id": "research-academic",
+        "action_id": "research_topic",
+        "with": { "topic": "{{ .with.topic }}" }
+      },
+      {
+        "agent_id": "research-industry",
+        "action_id": "research_topic",
+        "with": { "topic": "{{ .with.topic }}" }
+      },
+      {
+        "agent_id": "research-web",
+        "action_id": "research_topic",
+        "with": { "topic": "{{ .with.topic }}" }
+      }
+    ]
+  }
+
+  Return the JSON response from cp__call_agents exactly as received. Do not add commentary.
+
+outputs:
+  total_count: "{{ fromJson .output | get \"total_count\" }}"
+  success_count: "{{ fromJson .output | get \"success_count\" }}"
+  failure_count: "{{ fromJson .output | get \"failure_count\" }}"
+  results: "{{ fromJson .output | get \"results\" }}"
+  synthesized_summary: |-
+    {{- $payload := fromJson .output -}}
+    {{- range $index, $result := $payload.results }}
+    ### Agent {{ add $index 1 }} ({{ $result.agent_id }})
+    {{ $result.response }}
+
+    {{- end }}

@@ -30,6 +30,7 @@ func setupWorker(
 	ctx context.Context,
 	deps appstate.BaseDeps,
 	monitoringService *monitoring.Service,
+	resourceStore resources.ResourceStore,
 	configRegistry *autoload.ConfigRegistry,
 ) (*worker.Worker, error) {
 	log := logger.FromContext(ctx)
@@ -41,15 +42,7 @@ func setupWorker(
 		MonitoringService: monitoringService,
 		ResourceRegistry:  configRegistry,
 	}
-	workflowRepo := workerConfig.WorkflowRepo()
-	if workflowRepo == nil {
-		return nil, fmt.Errorf("failed to resolve workflow repository")
-	}
-	taskRepo := workerConfig.TaskRepo()
-	if taskRepo == nil {
-		return nil, fmt.Errorf("failed to resolve task repository")
-	}
-	toolEnv, err := buildToolEnvironment(ctx, deps.ProjectConfig, deps.Workflows, workflowRepo, taskRepo)
+	toolEnv, err := resolveToolEnvironment(ctx, deps, workerConfig, resourceStore)
 	if err != nil {
 		log.Error("Failed to build tool environment", "error", err)
 		return nil, fmt.Errorf("failed to build tool environment: %w", err)
@@ -73,12 +66,40 @@ func setupWorker(
 	return worker, nil
 }
 
+func resolveToolEnvironment(
+	ctx context.Context,
+	deps appstate.BaseDeps,
+	workerConfig *worker.Config,
+	resourceStore resources.ResourceStore,
+) (toolenv.Environment, error) {
+	if workerConfig == nil {
+		return nil, fmt.Errorf("worker config is required for tool environment")
+	}
+	workflowRepo := workerConfig.WorkflowRepo()
+	if workflowRepo == nil {
+		return nil, fmt.Errorf("failed to resolve workflow repository")
+	}
+	taskRepo := workerConfig.TaskRepo()
+	if taskRepo == nil {
+		return nil, fmt.Errorf("failed to resolve task repository")
+	}
+	return buildToolEnvironment(
+		ctx,
+		deps.ProjectConfig,
+		deps.Workflows,
+		workflowRepo,
+		taskRepo,
+		resourceStore,
+	)
+}
+
 func buildToolEnvironment(
 	ctx context.Context,
 	projectConfig *project.Config,
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
+	existingStore resources.ResourceStore,
 ) (toolenv.Environment, error) {
 	if projectConfig == nil {
 		return nil, fmt.Errorf("project config is required for tool environment")
@@ -89,16 +110,19 @@ func buildToolEnvironment(
 	if taskRepo == nil {
 		return nil, fmt.Errorf("task repository is required for tool environment")
 	}
-	store := resources.NewMemoryResourceStore()
-	if err := projectConfig.IndexToResourceStore(ctx, store); err != nil {
-		return nil, fmt.Errorf("index project resources: %w", err)
-	}
-	for _, wf := range workflows {
-		if wf == nil {
-			continue
+	store := existingStore
+	if store == nil {
+		store = resources.NewMemoryResourceStore()
+		if err := projectConfig.IndexToResourceStore(ctx, store); err != nil {
+			return nil, fmt.Errorf("index project resources: %w", err)
 		}
-		if err := wf.IndexToResourceStore(ctx, projectConfig.Name, store); err != nil {
-			return nil, fmt.Errorf("index workflow %s resources: %w", wf.ID, err)
+		for _, wf := range workflows {
+			if wf == nil {
+				continue
+			}
+			if err := wf.IndexToResourceStore(ctx, projectConfig.Name, store); err != nil {
+				return nil, fmt.Errorf("index workflow %s resources: %w", wf.ID, err)
+			}
 		}
 	}
 	env, err := builder.Build(projectConfig, workflows, workflowRepo, taskRepo, store)
@@ -110,6 +134,7 @@ func buildToolEnvironment(
 
 func (s *Server) maybeStartWorker(
 	deps appstate.BaseDeps,
+	resourceStore resources.ResourceStore,
 	cfg *config.Config,
 	configRegistry *autoload.ConfigRegistry,
 ) (*worker.Worker, func(), error) {
@@ -120,7 +145,7 @@ func (s *Server) maybeStartWorker(
 	s.setTemporalReady(true)
 	s.onReadinessMaybeChanged("temporal_reachable")
 	start := time.Now()
-	w, err := setupWorker(s.ctx, deps, s.monitoring, configRegistry)
+	w, err := setupWorker(s.ctx, deps, s.monitoring, resourceStore, configRegistry)
 	if err != nil {
 		return nil, nil, err
 	}

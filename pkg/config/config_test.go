@@ -74,6 +74,9 @@ func TestConfig_Default(t *testing.T) {
 		)
 		assert.True(t, cfg.Runtime.NativeTools.CallAgent.Enabled)
 		assert.Equal(t, 60*time.Second, cfg.Runtime.NativeTools.CallAgent.DefaultTimeout)
+		assert.True(t, cfg.Runtime.NativeTools.CallAgents.Enabled)
+		assert.Equal(t, 60*time.Second, cfg.Runtime.NativeTools.CallAgents.DefaultTimeout)
+		assert.Equal(t, 10, cfg.Runtime.NativeTools.CallAgents.MaxConcurrent)
 
 		// Limits defaults
 		assert.Equal(t, 20, cfg.Limits.MaxNestingDepth)
@@ -137,6 +140,9 @@ func TestDefaultNativeToolsConfig(t *testing.T) {
 		assert.Equal(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, config.Fetch.AllowedMethods)
 		assert.True(t, config.CallAgent.Enabled)
 		assert.Equal(t, 60*time.Second, config.CallAgent.DefaultTimeout)
+		assert.True(t, config.CallAgents.Enabled)
+		assert.Equal(t, 60*time.Second, config.CallAgents.DefaultTimeout)
+		assert.Equal(t, 10, config.CallAgents.MaxConcurrent)
 	})
 }
 

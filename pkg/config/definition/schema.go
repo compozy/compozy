@@ -1079,6 +1079,7 @@ func registerRuntimeNativeToolsFields(registry *Registry) {
 	registerRuntimeNativeToolsExecFields(registry)
 	registerRuntimeNativeToolsFetchFields(registry)
 	registerRuntimeNativeToolsCallAgentFields(registry)
+	registerRuntimeNativeToolsCallAgentsFields(registry)
 }
 
 func registerRuntimeNativeToolsCoreFields(registry *Registry) {
@@ -1185,6 +1186,30 @@ func registerRuntimeNativeToolsCallAgentFields(registry *Registry) {
 		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_AGENT_DEFAULT_TIMEOUT",
 		Type:    durationType,
 		Help:    "Default timeout applied to cp__call_agent executions when not specified",
+	})
+}
+
+func registerRuntimeNativeToolsCallAgentsFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_agents.enabled",
+		Default: true,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_AGENTS_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable cp__call_agents builtin for parallel execution",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_agents.default_timeout",
+		Default: 60 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_AGENTS_DEFAULT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default timeout per agent executed by cp__call_agents",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_agents.max_concurrent",
+		Default: 10,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_AGENTS_MAX_CONCURRENT",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent agents the cp__call_agents builtin may execute",
 	})
 }
 

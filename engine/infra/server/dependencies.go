@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/infra/server/reconciler"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
@@ -183,7 +184,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 		return nil, cleanupFuncs, err
 	}
 	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, newTemporalConfig(cfg))
-	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, cfg, configRegistry)
+	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, cfg, configRegistry)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -263,6 +264,9 @@ func (s *Server) buildAppState(
 	}
 	state.SetMonitoringService(s.monitoring)
 	state.SetResourceStore(resourceStore)
+	if err := s.buildAndStoreToolEnvironment(state, projectConfig, workflows); err != nil {
+		return nil, err
+	}
 	if err := s.seedAndIngestKnowledge(state, resourceStore, projectConfig, workflows); err != nil {
 		return nil, err
 	}
@@ -273,6 +277,32 @@ func (s *Server) buildAppState(
 		s.initializeScheduleManager(state, w, workflows)
 	}
 	return state, nil
+}
+
+func (s *Server) buildAndStoreToolEnvironment(
+	state *appstate.State,
+	projectConfig *project.Config,
+	workflows []*workflow.Config,
+) error {
+	if state == nil || state.Store == nil {
+		return fmt.Errorf("app state or store not available for tool environment")
+	}
+	workflowRepo := state.Store.NewWorkflowRepo()
+	taskRepo := state.Store.NewTaskRepo()
+	resourceStoreValue, ok := state.ResourceStore()
+	if !ok || resourceStoreValue == nil {
+		return fmt.Errorf("resource store not available for tool environment")
+	}
+	resourceStore, castOK := resourceStoreValue.(resources.ResourceStore)
+	if !castOK {
+		return fmt.Errorf("resource store has unexpected type %T", resourceStoreValue)
+	}
+	toolEnv, err := buildToolEnvironment(s.ctx, projectConfig, workflows, workflowRepo, taskRepo, resourceStore)
+	if err != nil {
+		return fmt.Errorf("failed to build tool environment for app state: %w", err)
+	}
+	toolenvstate.Store(state, toolEnv)
+	return nil
 }
 
 func (s *Server) seedAndIngestKnowledge(
