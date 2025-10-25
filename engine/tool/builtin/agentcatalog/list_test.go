@@ -5,7 +5,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +13,7 @@ func TestListHandlerReturnsAgents(t *testing.T) {
 	seedAgentResource(t, store, "demo", "agent.writer", "default", "edit")
 	seedAgentResource(t, store, "demo", "agent.researcher", "default")
 
-	env := toolenv.New(nil, nil, nil, nil, store)
+	env := newTestEnvironment(store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	output, err := listHandler(env)(ctx, map[string]any{})
@@ -33,7 +32,7 @@ func TestListHandlerReturnsAgents(t *testing.T) {
 
 func TestListHandlerRequiresProject(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	env := toolenv.New(nil, nil, nil, nil, store)
+	env := newTestEnvironment(store)
 
 	_, err := listHandler(env)(t.Context(), map[string]any{})
 	require.Error(t, err)

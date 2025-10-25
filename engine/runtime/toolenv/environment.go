@@ -2,6 +2,8 @@ package toolenv
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -47,22 +49,41 @@ type environment struct {
 	store    resources.ResourceStore
 }
 
-// New constructs an Environment using the supplied agent executor, repository,
-// and resource store. Callers are responsible for ensuring dependencies are non-nil.
+// New constructs an Environment using the supplied dependencies.
+// All dependencies must be non-nil, otherwise an error is returned describing the missing values.
 func New(
 	agent AgentExecutor,
 	taskExec TaskExecutor,
 	workflowExec WorkflowExecutor,
 	repo task.Repository,
 	store resources.ResourceStore,
-) Environment {
+) (Environment, error) {
+	missing := make([]string, 0, 5)
+	if agent == nil {
+		missing = append(missing, "agent executor")
+	}
+	if taskExec == nil {
+		missing = append(missing, "task executor")
+	}
+	if workflowExec == nil {
+		missing = append(missing, "workflow executor")
+	}
+	if repo == nil {
+		missing = append(missing, "task repository")
+	}
+	if store == nil {
+		missing = append(missing, "resource store")
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("tool environment: missing dependencies: %s", strings.Join(missing, ", "))
+	}
 	return &environment{
 		agent:    agent,
 		task:     taskExec,
 		workflow: workflowExec,
 		repo:     repo,
 		store:    store,
-	}
+	}, nil
 }
 
 func (e *environment) AgentExecutor() AgentExecutor {

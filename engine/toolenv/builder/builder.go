@@ -68,9 +68,9 @@ func Build(
 	}
 	taskRunner := taskexec.NewRunner(state, repo, store)
 	workflowRunner := workflowexec.NewRunner(state, workflowRepo, state.Worker)
-	env := toolenv.New(executor, taskRunner, workflowRunner, repo, store)
-	if env == nil {
-		return nil, fmt.Errorf("tool environment: initialization failed")
+	env, err := toolenv.New(executor, taskRunner, workflowRunner, repo, store)
+	if err != nil {
+		return nil, fmt.Errorf("tool environment: initialization failed: %w", err)
 	}
 	toolenvstate.Store(state, env)
 	return env, nil

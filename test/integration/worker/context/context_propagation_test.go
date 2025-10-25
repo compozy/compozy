@@ -6,7 +6,9 @@ import (
 	"time"
 
 	providermetrics "github.com/compozy/compozy/engine/llm/provider/metrics"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/config"
@@ -29,7 +31,7 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
 		tple := tplengine.NewEngine(tplengine.FormatJSON)
-		toolEnv := toolenv.New(nil, nil, nil, nil, nil)
+		toolEnv := &noopEnvironment{}
 		acts, err := worker.NewActivities(
 			ctx,
 			nil, // projectConfig
@@ -55,6 +57,28 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		assert.Equal(t, "sentinel", val)
 		_ = mgr.Close(ctx)
 	})
+}
+
+type noopEnvironment struct{}
+
+func (n *noopEnvironment) AgentExecutor() toolenv.AgentExecutor {
+	return toolenv.NoopAgentExecutor()
+}
+
+func (n *noopEnvironment) TaskExecutor() toolenv.TaskExecutor {
+	return toolenv.NoopTaskExecutor()
+}
+
+func (n *noopEnvironment) WorkflowExecutor() toolenv.WorkflowExecutor {
+	return toolenv.NoopWorkflowExecutor()
+}
+
+func (n *noopEnvironment) TaskRepository() task.Repository {
+	return nil
+}
+
+func (n *noopEnvironment) ResourceStore() resources.ResourceStore {
+	return nil
 }
 
 // readRuntimeEnvActivity returns cfg.Runtime.Environment from activity context

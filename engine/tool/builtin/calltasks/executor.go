@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -16,9 +17,7 @@ import (
 )
 
 const (
-	stepTypeTask   = "task_execution"
-	errorKeyHint   = "remediation_hint"
-	errorKeyTaskID = "task_id"
+	stepTypeTask = "task_execution"
 )
 
 type taskPlan struct {
@@ -37,7 +36,8 @@ func executeTasksParallel(
 		return nil
 	}
 	results := make([]TaskExecutionResult, len(plans))
-	sem := semaphore.NewWeighted(int64(effectiveMaxConcurrent(maxConcurrent)))
+	effective := effectiveMaxConcurrent(maxConcurrent, len(plans))
+	sem := semaphore.NewWeighted(int64(effective))
 	var wg sync.WaitGroup
 	for i := range plans {
 		plan := &plans[i]
@@ -49,9 +49,15 @@ func executeTasksParallel(
 	return results
 }
 
-func effectiveMaxConcurrent(limit int) int {
+func effectiveMaxConcurrent(limit int, planCount int) int {
+	if planCount <= 0 {
+		return 0
+	}
 	if limit <= 0 {
 		return 1
+	}
+	if limit > planCount {
+		return planCount
 	}
 	return limit
 }
@@ -111,7 +117,8 @@ func runTask(
 	start := time.Now()
 	defer handleTaskPanic(ctx, plan.userConfig, start, &result)
 	if err := sem.Acquire(ctx, 1); err != nil {
-		return applySemaphoreFailure(&result, err)
+		elapsed := time.Since(start).Milliseconds()
+		return applySemaphoreFailure(&result, err, elapsed)
 	}
 	defer sem.Release(1)
 	executor := env.TaskExecutor()
@@ -144,9 +151,10 @@ func handleTaskPanic(
 ) {
 	if r := recover(); r != nil {
 		log := logger.FromContext(ctx)
+		stack := debug.Stack()
 		result.Success = false
 		result.Error = &ErrorDetails{
-			Message: fmt.Sprintf("panic: %v", r),
+			Message: fmt.Sprintf("panic: %v; stack: %s", r, stack),
 			Code:    builtin.CodeInternal,
 		}
 		result.DurationMs = time.Since(start).Milliseconds()
@@ -154,17 +162,18 @@ func handleTaskPanic(
 			"Recovered panic while executing task",
 			"task_id", config.TaskID,
 			"error", r,
+			"stack", string(stack),
 		)
 	}
 }
 
-func applySemaphoreFailure(result *TaskExecutionResult, err error) TaskExecutionResult {
+func applySemaphoreFailure(result *TaskExecutionResult, err error, duration int64) TaskExecutionResult {
 	code := builtin.CodeInternal
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 	}
 	result.Error = &ErrorDetails{Message: err.Error(), Code: code}
-	result.DurationMs = 0
+	result.DurationMs = duration
 	return *result
 }
 

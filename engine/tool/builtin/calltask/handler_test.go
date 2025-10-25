@@ -10,66 +10,81 @@ import (
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/require"
 )
 
 func TestHandlerExecutesTask(t *testing.T) {
-	ctx := attachConfig(t, nil)
-	stub := &recordingTaskExecutor{}
-	env := &stubEnvironment{taskExec: stub}
-	payload := map[string]any{
-		"task_id": "data-clean",
-		"with": map[string]any{
-			"dataset": "users",
-		},
-	}
-	output, err := newHandler(env)(ctx, payload)
-	require.NoError(t, err)
-	require.NotNil(t, output)
-	stub.requireCalled(t)
-	require.Equal(t, "data-clean", output["task_id"])
-	require.Equal(t, true, output["success"])
-	require.NotEmpty(t, output["exec_id"])
+	t.Run("Should execute task", func(t *testing.T) {
+		t.Parallel()
+		ctx := attachConfig(t, nil)
+		stub := &recordingTaskExecutor{}
+		env := &stubEnvironment{taskExec: stub}
+		payload := map[string]any{
+			"task_id": "data-clean",
+			"with": map[string]any{
+				"dataset": "users",
+			},
+		}
+		output, err := newHandler(env)(ctx, payload)
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		stub.requireCalled(t)
+		require.Equal(t, "data-clean", output["task_id"])
+		require.Equal(t, true, output["success"])
+		require.NotEmpty(t, output["exec_id"])
+	})
 }
 
 func TestHandlerValidatesTaskID(t *testing.T) {
-	ctx := attachConfig(t, nil)
-	env := &stubEnvironment{taskExec: &recordingTaskExecutor{}}
-	_, err := newHandler(env)(ctx, map[string]any{})
-	require.Error(t, err)
+	t.Run("Should require task id", func(t *testing.T) {
+		t.Parallel()
+		ctx := attachConfig(t, nil)
+		env := &stubEnvironment{taskExec: &recordingTaskExecutor{}}
+		_, err := newHandler(env)(ctx, map[string]any{})
+		require.Error(t, err)
+	})
 }
 
 func TestHandlerDisablesWhenConfigured(t *testing.T) {
-	cfg := config.DefaultNativeToolsConfig()
-	cfg.CallTask.Enabled = false
-	ctx := attachConfig(t, &cfg)
-	env := &stubEnvironment{taskExec: &recordingTaskExecutor{}}
-	_, err := newHandler(env)(ctx, map[string]any{"task_id": "noop"})
-	require.Error(t, err)
+	t.Run("Should reject when disabled", func(t *testing.T) {
+		t.Parallel()
+		cfg := config.DefaultNativeToolsConfig()
+		cfg.CallTask.Enabled = false
+		ctx := attachConfig(t, &cfg)
+		env := &stubEnvironment{taskExec: &recordingTaskExecutor{}}
+		_, err := newHandler(env)(ctx, map[string]any{"task_id": "noop"})
+		require.Error(t, err)
+	})
 }
 
 func TestHandlerUsesTimeoutOverride(t *testing.T) {
-	ctx := attachConfig(t, nil)
-	stub := &recordingTaskExecutor{}
-	env := &stubEnvironment{taskExec: stub}
-	payload := map[string]any{
-		"task_id":    "batch",
-		"timeout_ms": 1200,
-	}
-	_, err := newHandler(env)(ctx, payload)
-	require.NoError(t, err)
-	require.Len(t, stub.requests, 1)
-	require.Equal(t, 1200*time.Millisecond, stub.requests[0].Timeout)
+	t.Run("Should honor timeout override", func(t *testing.T) {
+		t.Parallel()
+		ctx := attachConfig(t, nil)
+		stub := &recordingTaskExecutor{}
+		env := &stubEnvironment{taskExec: stub}
+		payload := map[string]any{
+			"task_id":    "batch",
+			"timeout_ms": 1200,
+		}
+		_, err := newHandler(env)(ctx, payload)
+		require.NoError(t, err)
+		require.Len(t, stub.requests, 1)
+		require.Equal(t, 1200*time.Millisecond, stub.requests[0].Timeout)
+	})
 }
 
 func attachConfig(t *testing.T, override *config.NativeToolsConfig) context.Context {
-	manager := config.NewManager(t.Context(), config.NewService())
-	cfg, err := manager.Load(t.Context(), config.NewDefaultProvider())
+	t.Helper()
+	base := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	manager := config.NewManager(base, config.NewService())
+	cfg, err := manager.Load(base, config.NewDefaultProvider())
 	require.NoError(t, err)
 	if override != nil {
 		cfg.Runtime.NativeTools = *override
 	}
-	return config.ContextWithManager(t.Context(), manager)
+	return config.ContextWithManager(base, manager)
 }
 
 type recordingTaskExecutor struct {

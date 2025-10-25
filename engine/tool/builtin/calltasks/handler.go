@@ -72,11 +72,7 @@ func processRequest(
 		return nil, status, 0, builtin.CodeInternal, builtin.Internal(errors.New("task executor unavailable"), nil)
 	}
 	log := logger.FromContext(ctx)
-	nativeCfg := config.DefaultNativeToolsConfig()
-	if appCfg := config.FromContext(ctx); appCfg != nil {
-		nativeCfg = appCfg.Runtime.NativeTools
-	}
-	batchCfg := nativeCfg.CallTasks
+	batchCfg := resolveCallTasksConfig(ctx).CallTasks
 	if !batchCfg.Enabled {
 		return nil, status, 0, builtin.CodePermissionDenied, builtin.PermissionDenied(
 			errors.New("call tasks tool disabled"),
@@ -91,12 +87,14 @@ func processRequest(
 	if err != nil {
 		return nil, status, 0, code, err
 	}
+	effective := effectiveMaxConcurrent(batchCfg.MaxConcurrent, len(plans))
 	log.Info(
 		"Parallel task execution requested",
 		"task_count", len(plans),
-		"max_concurrent", batchCfg.MaxConcurrent,
+		"max_concurrent_requested", batchCfg.MaxConcurrent,
+		"max_concurrent_effective", effective,
 	)
-	results := executeTasksParallel(ctx, env, plans, batchCfg.MaxConcurrent)
+	results := executeTasksParallel(ctx, env, plans, effective)
 	summary := summarizeResults(results, time.Since(start).Milliseconds())
 	output := buildHandlerOutput(results, summary)
 	log.Info(
@@ -144,4 +142,12 @@ func buildHandlerOutput(results []TaskExecutionResult, summary executionSummary)
 		"failure_count":     summary.FailureCount,
 		"total_duration_ms": summary.TotalDuration,
 	}
+}
+
+func resolveCallTasksConfig(ctx context.Context) config.NativeToolsConfig {
+	cfg := config.DefaultNativeToolsConfig()
+	if appCfg := config.FromContext(ctx); appCfg != nil {
+		return appCfg.Runtime.NativeTools
+	}
+	return cfg
 }

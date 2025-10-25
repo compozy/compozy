@@ -13,6 +13,8 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
+const errorKeyHint = "remediation_hint"
+
 func decodeHandlerInput(payload map[string]any) (handlerInput, string, error) {
 	var input handlerInput
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{

@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router/routertest"
 	"github.com/compozy/compozy/engine/llm/usage"
+	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/task"
@@ -16,6 +17,28 @@ import (
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/require"
 )
+
+type noopEnvironment struct{}
+
+func (n *noopEnvironment) AgentExecutor() toolenv.AgentExecutor {
+	return toolenv.NoopAgentExecutor()
+}
+
+func (n *noopEnvironment) TaskExecutor() toolenv.TaskExecutor {
+	return toolenv.NoopTaskExecutor()
+}
+
+func (n *noopEnvironment) WorkflowExecutor() toolenv.WorkflowExecutor {
+	return toolenv.NoopWorkflowExecutor()
+}
+
+func (n *noopEnvironment) TaskRepository() task.Repository {
+	return nil
+}
+
+func (n *noopEnvironment) ResourceStore() resources.ResourceStore {
+	return nil
+}
 
 type stubWorkflowRepo struct {
 	mu     sync.RWMutex
@@ -104,7 +127,7 @@ func (s *stubWorkflowRepo) MergeUsage(_ context.Context, execID core.ID, summary
 func TestPrepareExecutionPlanNormalizesAgentInput(t *testing.T) {
 	ctx := t.Context()
 	state := routertest.NewTestAppState(t)
-	toolenvstate.Store(state, toolenv.New(nil, nil, nil, nil, nil))
+	toolenvstate.Store(state, &noopEnvironment{})
 	taskRepo := testutil.NewInMemoryRepo()
 	workflowRepo := newStubWorkflowRepo()
 	executor, err := NewDirectExecutor(ctx, state, taskRepo, workflowRepo)

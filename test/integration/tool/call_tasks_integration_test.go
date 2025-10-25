@@ -81,7 +81,7 @@ type parallelTaskExecutor struct {
 	count atomic.Int64
 }
 
-func (p *parallelTaskExecutor) ExecuteTask(_ context.Context, req toolenv.TaskRequest) (*toolenv.TaskResult, error) {
+func (p *parallelTaskExecutor) ExecuteTask(_ context.Context, _ toolenv.TaskRequest) (*toolenv.TaskResult, error) {
 	p.count.Add(1)
 	return &toolenv.TaskResult{
 		ExecID: core.MustNewID(),

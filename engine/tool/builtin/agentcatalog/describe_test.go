@@ -5,7 +5,6 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/resources"
-	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +21,7 @@ func TestDescribeHandlerReturnsAgentDetails(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	env := toolenv.New(nil, nil, nil, nil, store)
+	env := newTestEnvironment(store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	output, err := describeHandler(env)(ctx, map[string]any{"agent_id": "agent.writer"})
@@ -38,7 +37,7 @@ func TestDescribeHandlerReturnsAgentDetails(t *testing.T) {
 
 func TestDescribeHandlerValidatesInput(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	env := toolenv.New(nil, nil, nil, nil, store)
+	env := newTestEnvironment(store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	_, err := describeHandler(env)(ctx, map[string]any{})
@@ -47,7 +46,7 @@ func TestDescribeHandlerValidatesInput(t *testing.T) {
 
 func TestDescribeHandlerRequiresExistingAgent(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	env := toolenv.New(nil, nil, nil, nil, store)
+	env := newTestEnvironment(store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	_, err := describeHandler(env)(ctx, map[string]any{"agent_id": "missing"})

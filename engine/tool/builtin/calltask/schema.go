@@ -42,7 +42,8 @@ var outputSchema = schema.Schema{
 			"additionalProperties": map[string]any{},
 		},
 		"duration_ms": map[string]any{
-			"type": "integer",
+			"type":    "integer",
+			"minimum": 0,
 		},
 	},
 	"additionalProperties": true,

@@ -76,7 +76,10 @@ func NewRunner(state *appstate.State, repo task.Repository, store resources.Reso
 		store: store,
 	}
 	if state != nil && repo != nil && store != nil {
-		env := toolenv.New(runner, nil, nil, repo, store)
+		env, err := toolenv.New(runner, toolenv.NoopTaskExecutor(), toolenv.NoopWorkflowExecutor(), repo, store)
+		if err != nil {
+			panic(fmt.Sprintf("tool environment initialization failed: %v", err))
+		}
 		toolenvstate.Store(state, env)
 	}
 	return runner
@@ -211,7 +214,11 @@ func buildExecMetadata(req ExecuteRequest, cfg *task.Config) tkrouter.ExecMetada
 // NewEnvironment constructs a tool execution environment backed by the runner.
 func NewEnvironment(state *appstate.State, repo task.Repository, store resources.ResourceStore) toolenv.Environment {
 	runner := NewRunner(state, repo, store)
-	return toolenv.New(runner, nil, nil, repo, store)
+	env, err := toolenv.New(runner, toolenv.NoopTaskExecutor(), toolenv.NoopWorkflowExecutor(), repo, store)
+	if err != nil {
+		panic(fmt.Sprintf("tool environment initialization failed: %v", err))
+	}
+	return env
 }
 
 func (r *Runner) loadAgentConfig(ctx context.Context, projectName, agentID string) (*agent.Config, error) {

@@ -64,7 +64,7 @@ type recordingParallelExecutor struct {
 
 func (r *recordingParallelExecutor) ExecuteWorkflow(
 	_ context.Context,
-	req toolenv.WorkflowRequest,
+	_ toolenv.WorkflowRequest,
 ) (*toolenv.WorkflowResult, error) {
 	r.count.Add(1)
 	return &toolenv.WorkflowResult{

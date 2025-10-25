@@ -82,7 +82,7 @@ type parallelWorkflowExecutor struct {
 
 func (p *parallelWorkflowExecutor) ExecuteWorkflow(
 	_ context.Context,
-	req toolenv.WorkflowRequest,
+	_ toolenv.WorkflowRequest,
 ) (*toolenv.WorkflowResult, error) {
 	p.count.Add(1)
 	return &toolenv.WorkflowResult{
