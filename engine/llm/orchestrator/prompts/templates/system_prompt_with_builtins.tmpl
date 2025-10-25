@@ -81,6 +81,90 @@ Executes a single agent synchronously. Supply the agent ID, optionally an action
 
 ---
 
+## Task Execution
+
+### cp__call_task
+Runs a single task synchronously using the same execution path as manual task dispatch.
+
+**Input fields:**
+- `task_id` (required): Identifier from your project task catalog.
+- `with` (optional): Structured inputs that satisfy the task schema.
+- `timeout_ms` (optional): Override for the task timeout in milliseconds.
+
+**Usage pattern:**
+```json
+{
+  "task_id": "data.normalize",
+  "with": {
+    "dataset_id": "customers",
+    "sanitize": true
+  }
+}
+```
+
+### cp__call_tasks
+Executes multiple tasks in parallel with semaphore-bounded concurrency and per-task telemetry.
+
+**Input fields:**
+- `tasks` (required): Array of task requests mirroring `cp__call_task` (task_id, optional with, optional timeout_ms).
+- Tasks share the configured `runtime.native_tools.call_tasks.max_concurrent` limit; set `timeout_ms` per entry when needed.
+
+**Usage pattern:**
+```json
+{
+  "tasks": [
+    { "task_id": "validate.email", "with": { "value": "user@example.com" } },
+    { "task_id": "validate.phone", "with": { "value": "+1-555-0100" } }
+  ]
+}
+```
+
+---
+
+## Workflow Orchestration
+
+### cp__call_workflow
+Triggers a workflow and waits for completion, returning the final status, exec ID, and output map.
+
+**Input fields:**
+- `workflow_id` (required): Workflow identifier from the project catalog.
+- `input` (optional): JSON object passed to the workflow run.
+- `initial_task_id` (optional): Resume execution from a specific task checkpoint.
+- `timeout_ms` (optional): Override for the synchronous wait duration.
+
+**Usage pattern:**
+```json
+{
+  "workflow_id": "onboarding.pipeline",
+  "input": {
+    "user": {
+      "id": "user-123",
+      "plan": "pro"
+    }
+  },
+  "timeout_ms": 180000
+}
+```
+
+### cp__call_workflows
+Fans out to multiple workflows concurrently, constrained by `runtime.native_tools.call_workflows.max_concurrent`.
+
+**Input fields:**
+- `workflows` (required): Array of workflow payloads mirroring `cp__call_workflow`.
+- Each entry may include `input`, `initial_task_id`, and `timeout_ms`.
+
+**Usage pattern:**
+```json
+{
+  "workflows": [
+    { "workflow_id": "jobs.process_region", "input": { "region": "us-east-1" } },
+    { "workflow_id": "jobs.process_region", "input": { "region": "eu-west-1" } }
+  ]
+}
+```
+
+---
+
 ## File Operations
 
 Use these tools for reading, writing, and managing files within the sandboxed filesystem:

@@ -101,6 +101,10 @@ type recordingExecutor struct {
 
 func (r *recordingExecutor) AgentExecutor() toolenv.AgentExecutor { return r }
 
+func (r *recordingExecutor) TaskExecutor() toolenv.TaskExecutor { return nil }
+
+func (r *recordingExecutor) WorkflowExecutor() toolenv.WorkflowExecutor { return nil }
+
 func (r *recordingExecutor) ExecuteAgent(_ context.Context, req toolenv.AgentRequest) (*toolenv.AgentResult, error) {
 	if r.delay > 0 {
 		time.Sleep(r.delay)

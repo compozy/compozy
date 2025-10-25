@@ -1,0 +1,42 @@
+---
+title: "cp__call_tasks"
+description: "Execute multiple tasks in parallel with the cp__call_tasks builtin"
+---
+
+The **cp__call_tasks** builtin fans out to multiple tasks concurrently with semaphore-bound execution and aggregated telemetry. Use it to validate or enrich data across several tasks inside a single workflow step.
+
+## Input fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `tasks` (required) | array | Ordered list of task configurations mirroring `cp__call_task`. Each entry accepts `task_id`, optional `with`, and optional `timeout_ms`. |
+
+## Usage example
+
+```json
+{
+  "tasks": [
+    {
+      "task_id": "validate.email",
+      "with": { "value": "user@example.com" }
+    },
+    {
+      "task_id": "validate.phone",
+      "with": { "value": "+1-555-0100" }
+    },
+    {
+      "task_id": "enrich.profile",
+      "timeout_ms": 60000
+    }
+  ]
+}
+```
+
+The builtin enforces `runtime.native_tools.call_tasks.max_concurrent`. Set the config to increase or decrease fan-out parallelism.
+
+## Remediation hints
+
+- Provide at least one entry in the `tasks` array.
+- Ensure every task configuration includes `task_id` and respects schema requirements.
+- Use per-task `timeout_ms` for long-running operations; negative values are rejected.
+- Inspect per-result `error` objects to determine which task failed and why.

@@ -168,6 +168,14 @@ func (s *stubEnvironment) AgentExecutor() toolenv.AgentExecutor {
 	return s.executor
 }
 
+func (s *stubEnvironment) TaskExecutor() toolenv.TaskExecutor {
+	return nil
+}
+
+func (s *stubEnvironment) WorkflowExecutor() toolenv.WorkflowExecutor {
+	return nil
+}
+
 func (s *stubEnvironment) TaskRepository() task.Repository {
 	return nil
 }
