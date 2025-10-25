@@ -1,0 +1,146 @@
+---
+title: "cp__call_agents"
+description: "Execute multiple agents in parallel with per-agent results and aggregate metrics"
+---
+
+The **cp__call_agents** builtin fan-outs a list of agent executions, runs them concurrently, and returns both per-agent results and execution summaries (counts, duration). Use it when you have independent agent calls that do not depend on each other's output.
+
+## Input fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `agents` (required) | array | Ordered list of agent execution requests. Each entry mirrors `cp__call_agent` input fields. |
+| `agents[].agent_id` (required) | string | Identifier returned by `cp__list_agents`. |
+| `agents[].action_id` | string | Optional action ID when the agent exposes multiple actions. Provide either `action_id` or `prompt`. |
+| `agents[].prompt` | string | Free-form instructions sent to the agent. Provide either `prompt` or `action_id`. |
+| `agents[].with` | object | Structured payload that must satisfy the agent action schema. |
+| `agents[].timeout_ms` | integer | Optional per-agent timeout override in milliseconds. |
+
+The handler enforces the `max_concurrent` limit from configuration; requests exceeding the limit are rejected with `InvalidArgument`.
+
+## Execution behavior
+
+- Agents are executed concurrently up to `max_concurrent` using a semaphore.
+- Each agent inherits the caller's context and optional `timeout_ms` override.
+- Failures do **not** stop remaining agents. All results are returned in input order.
+- The response contains:
+  - `results`: array of `{success, agent_id, action_id, exec_id, response, error, duration_ms}` objects.
+  - `total_count`, `success_count`, `failure_count`, `total_duration_ms`.
+
+## Configuration
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `runtime.native_tools.call_agents.enabled` | `true` | Enables the builtin. |
+| `runtime.native_tools.call_agents.default_timeout` | `60s` | Used when `timeout_ms` is omitted. |
+| `runtime.native_tools.call_agents.max_concurrent` | `10` | Maximum parallel executions and upper bound on `agents` length. |
+
+Tune `max_concurrent` based on downstream service capacity. A value equal to the number of agents provides full parallelism; smaller values throttle concurrency while still completing the batch.
+
+## Usage examples
+
+**Two-agent summary**
+
+```json
+{
+  "agents": [
+    {
+      "agent_id": "researcher.web",
+      "prompt": "Collect the three most recent articles about federated learning"
+    },
+    {
+      "agent_id": "researcher.academic",
+      "action_id": "summarize",
+      "with": {"topic": "federated learning", "depth": "brief"}
+    }
+  ]
+}
+```
+
+**Five-agent multimodal analysis**
+
+```json
+{
+  "agents": [
+    {"agent_id": "analyzer.sentiment", "prompt": "Analyse sentiment", "with": {"content": "{{article}}"}},
+    {"agent_id": "analyzer.entities", "prompt": "Extract entities", "with": {"content": "{{article}}"}},
+    {"agent_id": "analyzer.summary", "action_id": "summarize", "with": {"content": "{{article}}", "max_length": 250}},
+    {"agent_id": "analyzer.keywords", "prompt": "List 10 keywords", "timeout_ms": 15000},
+    {"agent_id": "analyzer.bias", "prompt": "Detect bias", "with": {"content": "{{article}}"}}
+  ]
+}
+```
+
+**Handling partial failures**
+
+Response snippet when one agent times out:
+
+```json
+{
+  "results": [
+    {
+      "success": true,
+      "agent_id": "agent.summary",
+      "duration_ms": 2100,
+      "response": {"summary": "..."}
+    },
+    {
+      "success": false,
+      "agent_id": "agent.reports",
+      "error": {"message": "context deadline exceeded", "code": "DeadlineExceeded"},
+      "duration_ms": 60000
+    }
+  ],
+  "total_count": 2,
+  "success_count": 1,
+  "failure_count": 1,
+  "total_duration_ms": 60000
+}
+```
+
+**Configuration tuning**
+
+```yaml
+# config.yaml
+runtime:
+  native_tools:
+    call_agents:
+      enabled: true
+      max_concurrent: 20
+      default_timeout: 90s
+```
+
+**Workflow YAML**
+
+```yaml
+tasks:
+  - id: parallel_research
+    type: native
+    tool: cp__call_agents
+    input:
+      agents:
+        - agent_id: researcher.web
+          prompt: "Fetch latest press releases about {{workflow.input.topic}}"
+        - agent_id: researcher.academic
+          action_id: search_papers
+          with:
+            topic: "{{workflow.input.topic}}"
+            years: [2023, 2024, 2025]
+        - agent_id: researcher.news
+          prompt: "Summarize notable news stories"
+```
+
+## Migration guide
+
+- **When to keep `cp__call_agent`:** use the single-agent builtin for sequential flows or when you need to stop on first failure.
+- **When to adopt `cp__call_agents`:** batch independent agent calls where latency matters more than ordered chaining.
+- **Upgrading sequential flows:** replace multiple `cp__call_agent` steps with one `cp__call_agents` configured with the same agent entries; aggregate the returned `results` array for downstream logic.
+- **Configuration tips:** start with `max_concurrent` equal to the number of agents you typically dispatch, then adjust based on API rate limits and CPU saturation. Increase `default_timeout` if agents regularly hit deadlines.
+- **Performance expectations:** total duration approaches the slowest agent rather than the sum of all durations, delivering near-O(1) latency for N agents (bounded by `max_concurrent`).
+
+## Troubleshooting
+
+- **Timeouts (`DeadlineExceeded`)**: raise `agents[].timeout_ms` or the global `default_timeout`. Verify the downstream agent action can complete within the configured deadline.
+- **`InvalidArgument` errors**: ensure each entry includes `agent_id` and either `action_id` or `prompt`, and that the number of agents does not exceed `max_concurrent`.
+- **Resource pressure**: lower `max_concurrent` if external APIs throttle or local CPU usage spikes; retry with staggered batches.
+- **Debugging failures**: inspect `results[*].error.code` and `error.message`. Successful agents remain in the array even when others fail, allowing partial progress to persist.

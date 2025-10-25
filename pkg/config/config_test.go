@@ -74,6 +74,9 @@ func TestConfig_Default(t *testing.T) {
 		)
 		assert.True(t, cfg.Runtime.NativeTools.CallAgent.Enabled)
 		assert.Equal(t, 60*time.Second, cfg.Runtime.NativeTools.CallAgent.DefaultTimeout)
+		assert.True(t, cfg.Runtime.NativeTools.CallAgents.Enabled)
+		assert.Equal(t, 60*time.Second, cfg.Runtime.NativeTools.CallAgents.DefaultTimeout)
+		assert.Equal(t, DefaultCallAgentsMaxConcurrent, cfg.Runtime.NativeTools.CallAgents.MaxConcurrent)
 
 		// Limits defaults
 		assert.Equal(t, 20, cfg.Limits.MaxNestingDepth)
@@ -137,6 +140,9 @@ func TestDefaultNativeToolsConfig(t *testing.T) {
 		assert.Equal(t, []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"}, config.Fetch.AllowedMethods)
 		assert.True(t, config.CallAgent.Enabled)
 		assert.Equal(t, 60*time.Second, config.CallAgent.DefaultTimeout)
+		assert.True(t, config.CallAgents.Enabled)
+		assert.Equal(t, 60*time.Second, config.CallAgents.DefaultTimeout)
+		assert.Equal(t, DefaultCallAgentsMaxConcurrent, config.CallAgents.MaxConcurrent)
 	})
 }
 
@@ -222,6 +228,60 @@ func TestConfig_Validation(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				cfg := Default()
 				cfg.Runtime.LogLevel = tt.logLevel
+
+				svc := NewService()
+				err := svc.Validate(cfg)
+
+				if tt.wantErr {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), "validation failed")
+				} else {
+					assert.NoError(t, err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should validate call agents boundaries", func(t *testing.T) {
+		tests := []struct {
+			name    string
+			modify  func(*Config)
+			wantErr bool
+		}{
+			{
+				name: "allows sequential fallback with zero max concurrent",
+				modify: func(cfg *Config) {
+					cfg.Runtime.NativeTools.CallAgents.MaxConcurrent = 0
+				},
+				wantErr: false,
+			},
+			{
+				name: "allows zero timeout to defer to per-request deadlines",
+				modify: func(cfg *Config) {
+					cfg.Runtime.NativeTools.CallAgents.DefaultTimeout = 0
+				},
+				wantErr: false,
+			},
+			{
+				name: "rejects negative max concurrent",
+				modify: func(cfg *Config) {
+					cfg.Runtime.NativeTools.CallAgents.MaxConcurrent = -1
+				},
+				wantErr: true,
+			},
+			{
+				name: "rejects negative default timeout",
+				modify: func(cfg *Config) {
+					cfg.Runtime.NativeTools.CallAgents.DefaultTimeout = -1 * time.Second
+				},
+				wantErr: true,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				cfg := Default()
+				tt.modify(cfg)
 
 				svc := NewService()
 				err := svc.Validate(cfg)

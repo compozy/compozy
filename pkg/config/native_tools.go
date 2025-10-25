@@ -2,14 +2,19 @@ package config
 
 import "time"
 
+const DefaultCallAgentsMaxConcurrent = 10
+
 // NativeToolsConfig controls cp__ builtin enablement and sandbox settings.
 type NativeToolsConfig struct {
-	Enabled         bool                  `koanf:"enabled"          json:"enabled"          yaml:"enabled"          mapstructure:"enabled"`
-	RootDir         string                `koanf:"root_dir"         json:"root_dir"         yaml:"root_dir"         mapstructure:"root_dir"`
-	AdditionalRoots []string              `koanf:"additional_roots" json:"additional_roots" yaml:"additional_roots" mapstructure:"additional_roots"`
-	Exec            NativeExecConfig      `koanf:"exec"             json:"exec"             yaml:"exec"             mapstructure:"exec"`
-	Fetch           NativeFetchConfig     `koanf:"fetch"            json:"fetch"            yaml:"fetch"            mapstructure:"fetch"`
-	CallAgent       NativeCallAgentConfig `koanf:"call_agent"       json:"call_agent"       yaml:"call_agent"       mapstructure:"call_agent"`
+	Enabled         bool              `koanf:"enabled"          json:"enabled"          yaml:"enabled"          mapstructure:"enabled"`
+	RootDir         string            `koanf:"root_dir"         json:"root_dir"         yaml:"root_dir"         mapstructure:"root_dir"`
+	AdditionalRoots []string          `koanf:"additional_roots" json:"additional_roots" yaml:"additional_roots" mapstructure:"additional_roots"`
+	Exec            NativeExecConfig  `koanf:"exec"             json:"exec"             yaml:"exec"             mapstructure:"exec"`
+	Fetch           NativeFetchConfig `koanf:"fetch"            json:"fetch"            yaml:"fetch"            mapstructure:"fetch"`
+	// CallAgent configures single agent execution through cp__call_agent.
+	CallAgent NativeCallAgentConfig `koanf:"call_agent"       json:"call_agent"       yaml:"call_agent"       mapstructure:"call_agent"`
+	// CallAgents governs multi-agent orchestration for cp__call_agents.
+	CallAgents NativeCallAgentsConfig `koanf:"call_agents"      json:"call_agents"      yaml:"call_agents"      mapstructure:"call_agents"`
 }
 
 // NativeExecConfig holds cp__exec configuration knobs.
@@ -52,6 +57,15 @@ type NativeCallAgentConfig struct {
 	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
 }
 
+// NativeCallAgentsConfig configures cp__call_agents behavior.
+// MaxConcurrent values of 0 or less fall back to sequential execution.
+type NativeCallAgentsConfig struct {
+	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`
+	// MaxConcurrent limits concurrent agent executions; 0 selects sequential execution, negative values are invalid.
+	MaxConcurrent int `koanf:"max_concurrent"  json:"max_concurrent"  yaml:"max_concurrent"  mapstructure:"max_concurrent"  validate:"min=0"`
+}
+
 // DefaultNativeToolsConfig returns safe defaults for native tool execution.
 func DefaultNativeToolsConfig() NativeToolsConfig {
 	return NativeToolsConfig{
@@ -73,6 +87,11 @@ func DefaultNativeToolsConfig() NativeToolsConfig {
 		CallAgent: NativeCallAgentConfig{
 			Enabled:        true,
 			DefaultTimeout: 60 * time.Second,
+		},
+		CallAgents: NativeCallAgentsConfig{
+			Enabled:        true,
+			DefaultTimeout: 60 * time.Second,
+			MaxConcurrent:  DefaultCallAgentsMaxConcurrent,
 		},
 	}
 }

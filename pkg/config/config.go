@@ -2178,6 +2178,11 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 				Enabled:        getBool(registry, "runtime.native_tools.call_agent.enabled"),
 				DefaultTimeout: getDuration(registry, "runtime.native_tools.call_agent.default_timeout"),
 			},
+			CallAgents: NativeCallAgentsConfig{
+				Enabled:        getBool(registry, "runtime.native_tools.call_agents.enabled"),
+				DefaultTimeout: getDuration(registry, "runtime.native_tools.call_agents.default_timeout"),
+				MaxConcurrent:  getInt(registry, "runtime.native_tools.call_agents.max_concurrent"),
+			},
 		},
 	}
 }

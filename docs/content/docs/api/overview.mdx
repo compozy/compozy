@@ -4,34 +4,6 @@ description: Compozy provides a comprehensive **REST API** that enables programm
 icon: Globe
 ---
 
-import {
-  Workflow,
-  Layers,
-  Users,
-  Wrench,
-  Calendar,
-  Database,
-  Activity,
-  Globe,
-  Code,
-  Zap,
-  Shield,
-  BarChart3,
-  BookOpen,
-  Rocket,
-  Settings,
-  Package,
-  CheckCircle,
-  ArrowRightLeft,
-  Lock,
-  Eye,
-  GitBranch,
-  CheckSquare,
-  Bot,
-  Brain,
-} from "lucide-react";
-import { FeatureCard, FeatureCardList } from "@/components/ui/feature-card";
-import { ReferenceCard, ReferenceCardList } from "@/components/ui/reference-card";
 
 ## About the API
 
@@ -41,32 +13,32 @@ The Compozy REST API serves as the **central management interface** for the work
   <FeatureCard
     title="RESTful Design"
     description="Standard HTTP methods, status codes, and consistent JSON communication patterns"
-    icon={Globe}
+    icon="Globe"
   />
   <FeatureCard
     title="OpenAPI Specification"
     description="Complete Swagger documentation with interactive testing and code generation"
-    icon={BookOpen}
+    icon="BookOpen"
   />
   <FeatureCard
     title="Orchestration"
     description="Create, execute, and monitor complex AI agent workflows with sophisticated task coordination and state management"
-    icon={Workflow}
+    icon="Workflow"
   />
   <FeatureCard
     title="Manage Resources"
     description="Configure agents, tasks, tools, and schedules programmatically with full CRUD operations and validation"
-    icon={Settings}
+    icon="Settings"
   />
   <FeatureCard
     title="Monitor Operations"
     description="Access real-time execution status, comprehensive metrics (including [streaming telemetry](/docs/core/metrics/streaming-telemetry)), and detailed health information for production environments"
-    icon={Eye}
+    icon="Eye"
   />
   <FeatureCard
     title="Integrate Systems"
     description="Connect external applications and services seamlessly to Compozy workflows with standardized interfaces"
-    icon={ArrowRightLeft}
+    icon="ArrowRightLeft"
   />
 </FeatureCardList>
 
@@ -77,49 +49,49 @@ The Compozy REST API serves as the **central management interface** for the work
   <ReferenceCard
     title="Workflows"
     description="Manage workflow definitions and executions. Create, start, pause, resume, and cancel AI-powered workflows with complex orchestration patterns."
-    icon={Workflow}
+    icon="Workflow"
     href="/docs/api/workflows"
   />
   <ReferenceCard
     title="Tasks"
     description="Access task configurations within workflows. Retrieve task definitions, parameters, and execution requirements for workflow components."
-    icon={Layers}
+    icon="Layers"
     href="/docs/api/tasks"
   />
   <ReferenceCard
     title="Agents"
     description="Discover and configure AI agents. Access agent definitions, LLM configurations, instructions, and available actions for workflow execution."
-    icon={Users}
+    icon="Users"
     href="/docs/api/agents"
   />
   <ReferenceCard
     title="Tools"
     description="Manage external tool integrations. Retrieve tool definitions, schemas, and configurations for extending agent capabilities."
-    icon={Wrench}
+    icon="Wrench"
     href="/docs/api/tools"
   />
   <ReferenceCard
     title="Schedules"
     description="Control scheduled workflow executions. Manage cron-based schedules, enable/disable recurring workflows, and configure timing parameters."
-    icon={Calendar}
+    icon="Calendar"
     href="/docs/api/schedules"
   />
   <ReferenceCard
     title="Memory"
     description="Manage persistent agent memory. Store, retrieve, and manage conversation context, agent state, and workflow memory across executions."
-    icon={Database}
+    icon="Database"
     href="/docs/api/memory"
   />
   <ReferenceCard
     title="Knowledge Bases"
     description="CRUD operations, ingestion, and query APIs for reusable knowledge bases."
-    icon={BookOpen}
+    icon="BookOpen"
     href="/docs/api/knowledge"
   />
   <ReferenceCard
     title="Operations"
     description="Monitor system health and metrics. Access Prometheus metrics, health checks, and operational data for production monitoring."
-    icon={Activity}
+    icon="Activity"
     href="/docs/api/operations"
   />
 </ReferenceCardList>
@@ -416,16 +388,16 @@ data: {"exec_id": "exec_123", "status": "completed", "outputs": "..."}
 ## Authentication & Security
 
 <List>
-  <ListItem title="API Key Authentication" icon={Lock}>
+  <ListItem title="API Key Authentication" icon="Lock">
     Use Bearer tokens in the Authorization header for secure API access
   </ListItem>
-  <ListItem title="Role-Based Access" icon={Shield}>
+  <ListItem title="Role-Based Access" icon="Shield">
     Different endpoints require different permission levels (read, write, admin)
   </ListItem>
-  <ListItem title="Rate Limiting" icon={Activity}>
+  <ListItem title="Rate Limiting" icon="Activity">
     Built-in rate limiting to prevent abuse and ensure fair resource usage
   </ListItem>
-  <ListItem title="Request Validation" icon={CheckCircle}>
+  <ListItem title="Request Validation" icon="CheckCircle">
     All inputs validated against JSON schemas before processing
   </ListItem>
 </List>
@@ -437,30 +409,30 @@ data: {"exec_id": "exec_123", "status": "completed", "outputs": "..."}
     title="Workflow Execution"
     description="Learn how to create, execute, and monitor workflows via the REST API"
     href="/docs/api/workflows"
-    icon={Workflow}
+    icon="Workflow"
   />
   <ReferenceCard
     title="Agent Configuration"
     description="Configure AI agents with custom instructions, tools, and provider settings"
     href="/docs/api/agents"
-    icon={Users}
+    icon="Users"
   />
   <ReferenceCard
     title="Task Management"
     description="Understand task execution patterns, monitoring, and coordination strategies"
     href="/docs/api/tasks"
-    icon={Layers}
+    icon="Layers"
   />
   <ReferenceCard
     title="Execution Stream Events"
     description="Detailed event catalog for workflow, agent, and task streaming endpoints."
     href="/docs/schema/execution-stream-events"
-    icon={Activity}
+    icon="Activity"
   />
   <ReferenceCard
     title="Memory Systems"
     description="Manage persistent context and conversation history across executions"
     href="/docs/api/memory"
-    icon={Database}
+    icon="Database"
   />
 </ReferenceCardList>

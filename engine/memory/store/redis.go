@@ -277,8 +277,15 @@ func (s *RedisMemoryStore) IncrementTokenCount(ctx context.Context, key string, 
 		return nil
 	}
 	metaKey := s.metadataKey(key)
-	if err := s.client.HIncrBy(ctx, metaKey, metadataTokenCountField, int64(delta)).Err(); err != nil {
+	updated := s.client.HIncrBy(ctx, metaKey, metadataTokenCountField, int64(delta))
+	newValue, err := updated.Result()
+	if err != nil {
 		return fmt.Errorf("failed to increment token count for key %s: %w", key, err)
+	}
+	if newValue < 0 {
+		if err := s.client.HSet(ctx, metaKey, metadataTokenCountField, 0).Err(); err != nil {
+			return fmt.Errorf("failed to clamp token count for key %s: %w", key, err)
+		}
 	}
 	return nil
 }

@@ -1390,6 +1390,22 @@
       },
       "type": "object"
     },
+    "config_NativeCallAgentsConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallAgentsConfig configures cp__call_agents behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_concurrent": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "config_NativeExecArgumentConfig": {
       "additionalProperties": false,
       "description": "NativeExecArgumentConfig enforces validation for a single argument position.",
@@ -1496,6 +1512,9 @@
         },
         "call_agent": {
           "$ref": "#/$defs/config_NativeCallAgentConfig"
+        },
+        "call_agents": {
+          "$ref": "#/$defs/config_NativeCallAgentsConfig"
         },
         "enabled": {
           "type": "boolean"

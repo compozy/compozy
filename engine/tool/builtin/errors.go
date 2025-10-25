@@ -9,6 +9,7 @@ const (
 	CodeFileNotFound      = "FileNotFound"
 	CodeCommandNotAllowed = "CommandNotAllowed"
 	CodeInternal          = "Internal"
+	CodeDeadlineExceeded  = "DeadlineExceeded"
 )
 
 func newError(code string, err error, details map[string]any) *core.Error {
@@ -38,4 +39,9 @@ func CommandNotAllowed(err error, details map[string]any) *core.Error {
 // Internal signals unexpected builtin failures.
 func Internal(err error, details map[string]any) *core.Error {
 	return newError(CodeInternal, err, details)
+}
+
+// DeadlineExceeded reports timeout conditions surfaced by builtin handlers.
+func DeadlineExceeded(err error, details map[string]any) *core.Error {
+	return newError(CodeDeadlineExceeded, err, details)
 }
