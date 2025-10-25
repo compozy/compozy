@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -66,44 +67,86 @@ func processRequest(
 	env toolenv.Environment,
 	payload map[string]any,
 ) (core.Output, string, int, string, error) {
-	status := builtin.StatusFailure
-	if env == nil || env.WorkflowExecutor() == nil {
-		return nil, status, 0, builtin.CodeInternal, builtin.Internal(errors.New("workflow executor unavailable"), nil)
+	executor, code, err := workflowExecutorFromEnv(env)
+	if err != nil {
+		return nil, builtin.StatusFailure, 0, code, err
 	}
-	nativeCfg := config.DefaultNativeToolsConfig()
-	if appCfg := config.FromContext(ctx); appCfg != nil {
-		nativeCfg = appCfg.Runtime.NativeTools
-	}
-	workflowCfg := nativeCfg.CallWorkflow
+	workflowCfg := resolveCallWorkflowConfig(ctx)
 	if !workflowCfg.Enabled {
-		return nil, status, 0, builtin.CodePermissionDenied, builtin.PermissionDenied(
+		return nil, builtin.StatusFailure, 0, builtin.CodePermissionDenied, builtin.PermissionDenied(
 			errors.New("call workflow tool disabled"),
 			nil,
 		)
 	}
 	input, code, err := decodeHandlerInput(payload)
 	if err != nil {
-		return nil, status, 0, code, err
+		return nil, builtin.StatusFailure, 0, code, err
 	}
 	req, code, err := buildWorkflowRequest(workflowCfg, input)
 	if err != nil {
-		return nil, status, 0, code, err
+		return nil, builtin.StatusFailure, 0, code, err
 	}
-	executor := env.WorkflowExecutor()
-	execStart := time.Now()
-	result, execErr := executor.ExecuteWorkflow(ctx, req)
-	duration := time.Since(execStart)
-	if execErr != nil {
-		code, err := resolveExecutionError(execErr)
-		return nil, status, 0, code, err
+	result, duration, code, err := performWorkflowExecution(ctx, executor, workflowCfg, req)
+	if err != nil {
+		return nil, builtin.StatusFailure, 0, code, err
 	}
 	output := buildHandlerOutput(req, result, duration)
 	encoded, err := json.Marshal(output)
 	if err != nil {
-		logger.FromContext(ctx).Warn("Failed to encode call_workflow output", "error", err)
-		return output, builtin.StatusSuccess, 0, "", nil
+		logger.FromContext(ctx).Error("Failed to encode call_workflow output", "error", err)
+		return nil,
+			builtin.StatusFailure,
+			0,
+			builtin.CodeInternal,
+			builtin.Internal(
+				fmt.Errorf("failed to encode call_workflow output: %w", err),
+				nil,
+			)
 	}
 	return output, builtin.StatusSuccess, len(encoded), "", nil
+}
+
+func workflowExecutorFromEnv(env toolenv.Environment) (toolenv.WorkflowExecutor, string, error) {
+	if env == nil || env.WorkflowExecutor() == nil {
+		return nil, builtin.CodeInternal, builtin.Internal(errors.New("workflow executor unavailable"), nil)
+	}
+	return env.WorkflowExecutor(), "", nil
+}
+
+func resolveCallWorkflowConfig(ctx context.Context) config.NativeCallWorkflowConfig {
+	cfg := config.DefaultNativeToolsConfig()
+	if appCfg := config.FromContext(ctx); appCfg != nil {
+		return appCfg.Runtime.NativeTools.CallWorkflow
+	}
+	return cfg.CallWorkflow
+}
+
+func performWorkflowExecution(
+	ctx context.Context,
+	executor toolenv.WorkflowExecutor,
+	cfg config.NativeCallWorkflowConfig,
+	req toolenv.WorkflowRequest,
+) (*toolenv.WorkflowResult, time.Duration, string, error) {
+	timeout := req.Timeout
+	if timeout <= 0 && cfg.DefaultTimeout > 0 {
+		timeout = cfg.DefaultTimeout
+	}
+	execCtx, cancel := deriveHandlerExecutionContext(ctx, timeout)
+	defer cancel()
+	start := time.Now()
+	result, execErr := executor.ExecuteWorkflow(execCtx, req)
+	if execErr != nil {
+		code, err := resolveExecutionError(execErr)
+		return nil, 0, code, err
+	}
+	return result, time.Since(start), "", nil
+}
+
+func deriveHandlerExecutionContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout > 0 {
+		return context.WithTimeout(ctx, timeout)
+	}
+	return context.WithCancel(ctx)
 }
 
 func resolveExecutionError(execErr error) (string, error) {

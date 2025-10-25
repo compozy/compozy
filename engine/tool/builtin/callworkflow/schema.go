@@ -37,7 +37,7 @@ var outputSchema = schema.Schema{
 		"workflow_exec_id": map[string]any{"type": "string"},
 		"status": map[string]any{
 			"type": "string",
-			"enum": []any{"SUCCESS", "FAILED", "TIMED_OUT", "CANCELED", ""},
+			"enum": []any{"SUCCESS", "FAILED", "TIMED_OUT", "CANCELED"},
 		},
 		"output": map[string]any{
 			"type":                 "object",

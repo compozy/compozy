@@ -153,7 +153,7 @@ func handleTaskPanic(
 		log := logger.FromContext(ctx)
 		stack := debug.Stack()
 		result.Success = false
-		result.Error = &ErrorDetails{
+		result.Error = &builtin.ErrorDetails{
 			Message: fmt.Sprintf("panic: %v; stack: %s", r, stack),
 			Code:    builtin.CodeInternal,
 		}
@@ -172,13 +172,13 @@ func applySemaphoreFailure(result *TaskExecutionResult, err error, duration int6
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 	}
-	result.Error = &ErrorDetails{Message: err.Error(), Code: code}
+	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: code}
 	result.DurationMs = duration
 	return *result
 }
 
 func applyInternalFailure(result *TaskExecutionResult, err error) TaskExecutionResult {
-	result.Error = &ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
+	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
 	return *result
 }
 
@@ -200,7 +200,7 @@ func applyExecutionFailure(
 	if errors.Is(execErr, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 	}
-	result.Error = &ErrorDetails{Message: execErr.Error(), Code: code}
+	result.Error = &builtin.ErrorDetails{Message: execErr.Error(), Code: code}
 	result.DurationMs = duration
 	return *result
 }
@@ -216,10 +216,11 @@ func populateSuccess(result *TaskExecutionResult, res *toolenv.TaskResult, durat
 		return
 	}
 	if clone, err := res.Output.Clone(); err == nil && clone != nil {
-		result.Output = *clone
+		result.Output = clone
 		return
 	}
-	result.Output = *res.Output
+	outputCopy := *res.Output
+	result.Output = &outputCopy
 }
 
 func errorCodeForResult(result *TaskExecutionResult) string {

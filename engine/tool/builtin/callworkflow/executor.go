@@ -12,7 +12,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-const errorKeyHint = "remediation_hint"
+const errorKeyHint = builtin.RemediationHintKey
 
 func decodeHandlerInput(payload map[string]any) (handlerInput, string, error) {
 	var input handlerInput
@@ -55,11 +55,19 @@ func buildWorkflowRequest(
 		)
 	}
 	timeout := cfg.DefaultTimeout
-	if timeout < 0 {
-		timeout = 0
-	}
 	if input.TimeoutMs > 0 {
 		timeout = time.Duration(input.TimeoutMs) * time.Millisecond
+	} else if timeout < 0 {
+		return request, builtin.CodeInvalidArgument, builtin.InvalidArgument(
+			fmt.Errorf("call_workflow default timeout must be non-negative"),
+			map[string]any{
+				errorKeyHint: "Update runtime.native_tools.call_workflow.default_timeout " +
+					"or supply a non-negative timeout_ms value.",
+			},
+		)
+	}
+	if timeout < 0 {
+		timeout = 0
 	}
 	request = toolenv.WorkflowRequest{
 		WorkflowID:    workflowID,

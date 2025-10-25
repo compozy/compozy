@@ -1,6 +1,9 @@
 package callworkflows
 
-import "github.com/compozy/compozy/engine/core"
+import (
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/tool/builtin"
+)
 
 // WorkflowExecutionRequest captures user-provided workflow parameters.
 type WorkflowExecutionRequest struct {
@@ -15,19 +18,13 @@ type handlerInput struct {
 	Workflows []WorkflowExecutionRequest `json:"workflows" mapstructure:"workflows"`
 }
 
-// ErrorDetails reports information for a failed workflow execution.
-type ErrorDetails struct {
-	Message string `json:"message"`
-	Code    string `json:"code"`
-}
-
 // WorkflowExecutionResult describes the outcome of an individual workflow invocation.
 type WorkflowExecutionResult struct {
-	Success        bool          `json:"success"`
-	WorkflowID     string        `json:"workflow_id"`
-	WorkflowExecID string        `json:"workflow_exec_id,omitempty"`
-	Status         string        `json:"status"`
-	Output         core.Output   `json:"output,omitempty"`
-	Error          *ErrorDetails `json:"error,omitempty"`
-	DurationMs     int64         `json:"duration_ms"`
+	Success        bool                  `json:"success"`
+	WorkflowID     string                `json:"workflow_id"`
+	WorkflowExecID string                `json:"workflow_exec_id,omitempty"`
+	Status         string                `json:"status"`
+	Output         core.Output           `json:"output,omitempty"`
+	Error          *builtin.ErrorDetails `json:"error,omitempty"`
+	DurationMs     int64                 `json:"duration_ms"`
 }

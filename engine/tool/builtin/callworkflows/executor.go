@@ -24,7 +24,7 @@ func executeWorkflowsParallel(
 	maxConcurrent int,
 ) []WorkflowExecutionResult {
 	if len(plans) == 0 {
-		return nil
+		return []WorkflowExecutionResult{}
 	}
 	results := make([]WorkflowExecutionResult, len(plans))
 	sem := semaphore.NewWeighted(int64(effectiveMaxConcurrent(maxConcurrent)))
@@ -101,16 +101,17 @@ func runWorkflow(
 	result := WorkflowExecutionResult{WorkflowID: plan.userConfig.WorkflowID, Status: string(core.StatusFailed)}
 	start := time.Now()
 	defer handleWorkflowPanic(ctx, plan.userConfig, start, &result)
-	if err := sem.Acquire(ctx, 1); err != nil {
-		return applySemaphoreFailure(&result, err)
+	execCtx, cancel := deriveWorkflowContext(ctx, plan.request.Timeout)
+	defer cancel()
+	if err := sem.Acquire(execCtx, 1); err != nil {
+		elapsed := time.Since(start).Milliseconds()
+		return applySemaphoreFailure(&result, err, elapsed)
 	}
 	defer sem.Release(1)
 	executor := env.WorkflowExecutor()
 	if executor == nil {
 		return applyInternalFailure(&result, errors.New("workflow executor unavailable"))
 	}
-	execCtx, cancel := deriveWorkflowContext(ctx, plan.request.Timeout)
-	defer cancel()
 	res, err := executor.ExecuteWorkflow(execCtx, plan.request)
 	duration := time.Since(start).Milliseconds()
 	if err != nil {
@@ -137,7 +138,7 @@ func handleWorkflowPanic(
 		log := logger.FromContext(ctx)
 		result.Success = false
 		result.Status = string(core.StatusFailed)
-		result.Error = &ErrorDetails{Message: fmt.Sprintf("panic: %v", r), Code: builtin.CodeInternal}
+		result.Error = &builtin.ErrorDetails{Message: fmt.Sprintf("panic: %v", r), Code: builtin.CodeInternal}
 		result.DurationMs = time.Since(start).Milliseconds()
 		log.Error(
 			"Recovered panic while executing workflow",
@@ -147,21 +148,21 @@ func handleWorkflowPanic(
 	}
 }
 
-func applySemaphoreFailure(result *WorkflowExecutionResult, err error) WorkflowExecutionResult {
+func applySemaphoreFailure(result *WorkflowExecutionResult, err error, duration int64) WorkflowExecutionResult {
 	code := builtin.CodeInternal
 	status := string(core.StatusFailed)
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 		status = string(core.StatusTimedOut)
 	}
-	result.Error = &ErrorDetails{Message: err.Error(), Code: code}
+	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: code}
 	result.Status = status
-	result.DurationMs = 0
+	result.DurationMs = duration
 	return *result
 }
 
 func applyInternalFailure(result *WorkflowExecutionResult, err error) WorkflowExecutionResult {
-	result.Error = &ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
+	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
 	result.Status = string(core.StatusFailed)
 	return *result
 }
@@ -187,7 +188,7 @@ func applyExecutionFailure(
 			code = cerr.Code
 		}
 	}
-	result.Error = &ErrorDetails{Message: execErr.Error(), Code: code}
+	result.Error = &builtin.ErrorDetails{Message: execErr.Error(), Code: code}
 	result.Status = status
 	result.DurationMs = duration
 	result.Success = false
