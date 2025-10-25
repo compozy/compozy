@@ -13,10 +13,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-const (
-	errorKeyHint       = "remediation_hint"
-	errorKeyWorkflowID = "workflow_id"
-)
+const errorKeyHint = "remediation_hint"
 
 type workflowPlan struct {
 	index      int

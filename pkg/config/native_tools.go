@@ -85,6 +85,7 @@ type NativeCallTaskConfig struct {
 }
 
 // NativeCallTasksConfig configures cp__call_tasks behavior.
+// MaxConcurrent values of 0 or less fall back to sequential execution.
 type NativeCallTasksConfig struct {
 	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
 	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`
@@ -98,6 +99,7 @@ type NativeCallWorkflowConfig struct {
 }
 
 // NativeCallWorkflowsConfig configures cp__call_workflows behavior.
+// MaxConcurrent values of 0 or less fall back to sequential execution.
 type NativeCallWorkflowsConfig struct {
 	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
 	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`

@@ -131,7 +131,6 @@ func (r *Runner) ExecutePrepared(ctx context.Context, prepared *PreparedExecutio
 	if err != nil {
 		return nil, fmt.Errorf("failed to trigger workflow %s: %w", prepared.Request.WorkflowID, err)
 	}
-	start := time.Now()
 	state, timedOut, pollErr := waitForWorkflowCompletion(ctx, r.repo, triggered.WorkflowExecID, prepared.Timeout)
 	if pollErr != nil {
 		return nil, fmt.Errorf("failed to monitor workflow %s: %w", prepared.Request.WorkflowID, pollErr)
@@ -149,11 +148,13 @@ func (r *Runner) ExecutePrepared(ctx context.Context, prepared *PreparedExecutio
 	if state != nil && state.Output != nil {
 		if clone, err := state.Output.Clone(); err == nil && clone != nil {
 			output = clone
+		} else if copied, err := core.DeepCopyOutput(*state.Output, core.Output{}); err == nil && copied != nil {
+			output = &copied
 		} else {
-			output = state.Output
+			fallback := core.Output(core.CloneMap(map[string]any(*state.Output)))
+			output = &fallback
 		}
 	}
-	_ = start // retained for future metrics
 	return &ExecuteResult{
 		ExecID: triggered.WorkflowExecID,
 		Status: status,
@@ -175,8 +176,12 @@ func workflowInputPointer(input core.Input) *core.Input {
 	if input == nil {
 		return nil
 	}
-	cloned := input
-	return &cloned
+	clone, err := core.DeepCopyInput(input, core.Input{})
+	if err == nil {
+		return &clone
+	}
+	shallow := core.Input(core.CloneMap(map[string]any(input)))
+	return &shallow
 }
 
 func resolveWorkflowTimeout(ctx context.Context, requested time.Duration) (time.Duration, error) {

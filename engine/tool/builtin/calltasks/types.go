@@ -2,7 +2,7 @@ package calltasks
 
 import (
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/tool/builtin"
+	"github.com/compozy/compozy/engine/tool/builtin/shared"
 )
 
 // TaskExecutionRequest captures user-provided task execution parameters.
@@ -19,10 +19,10 @@ type handlerInput struct {
 
 // TaskExecutionResult describes the outcome of an individual task invocation.
 type TaskExecutionResult struct {
-	Success    bool                  `json:"success"`
-	TaskID     string                `json:"task_id"`
-	ExecID     string                `json:"exec_id,omitempty"`
-	Output     *core.Output          `json:"output,omitempty"`
-	Error      *builtin.ErrorDetails `json:"error,omitempty"`
-	DurationMs int64                 `json:"duration_ms"`
+	Success    bool                 `json:"success"`
+	TaskID     string               `json:"task_id"`
+	ExecID     string               `json:"exec_id,omitempty"`
+	Output     *core.Output         `json:"output,omitempty"`
+	Error      *shared.ErrorDetails `json:"error,omitempty"`
+	DurationMs int64                `json:"duration_ms"`
 }

@@ -72,11 +72,7 @@ func processRequest(
 		return nil, status, 0, builtin.CodeInternal, builtin.Internal(errors.New("workflow executor unavailable"), nil)
 	}
 	log := logger.FromContext(ctx)
-	nativeCfg := config.DefaultNativeToolsConfig()
-	if appCfg := config.FromContext(ctx); appCfg != nil {
-		nativeCfg = appCfg.Runtime.NativeTools
-	}
-	batchCfg := nativeCfg.CallWorkflows
+	batchCfg := resolveCallWorkflowsConfig(ctx)
 	if !batchCfg.Enabled {
 		return nil, status, 0, builtin.CodePermissionDenied, builtin.PermissionDenied(
 			errors.New("call workflows tool disabled"),
@@ -91,25 +87,44 @@ func processRequest(
 	if err != nil {
 		return nil, status, 0, code, err
 	}
-	log.Info(
-		"Parallel workflow execution requested",
-		"workflow_count", len(plans),
-		"max_concurrent", batchCfg.MaxConcurrent,
-	)
+	requestID := builtin.RequestIDFromContext(ctx)
+	logParallelWorkflowStart(log, requestID, len(plans), batchCfg.MaxConcurrent)
 	results := executeWorkflowsParallel(ctx, env, plans, batchCfg.MaxConcurrent)
 	summary := summarizeResults(results, time.Since(start).Milliseconds())
 	output := buildHandlerOutput(results, summary)
+	logParallelWorkflowComplete(log, requestID, summary)
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		log.Warn("Failed to encode call_workflows output", "request_id", requestID, "error", err)
+		return output, builtin.StatusSuccess, 0, "", nil
+	}
+	return output, builtin.StatusSuccess, len(encoded), "", nil
+}
+
+func resolveCallWorkflowsConfig(ctx context.Context) config.NativeCallWorkflowsConfig {
+	defaults := config.DefaultNativeToolsConfig()
+	if appCfg := config.FromContext(ctx); appCfg != nil {
+		return appCfg.Runtime.NativeTools.CallWorkflows
+	}
+	return defaults.CallWorkflows
+}
+
+func logParallelWorkflowStart(log logger.Logger, requestID string, workflowCount, maxConcurrent int) {
+	log.Info(
+		"Parallel workflow execution requested",
+		"request_id", requestID,
+		"workflow_count", workflowCount,
+		"max_concurrent", maxConcurrent,
+	)
+}
+
+func logParallelWorkflowComplete(log logger.Logger, requestID string, summary executionSummary) {
 	log.Info(
 		"Parallel workflow execution complete",
+		"request_id", requestID,
 		"total", summary.TotalCount,
 		"success", summary.SuccessCount,
 		"failed", summary.FailureCount,
 		"duration_ms", summary.TotalDuration,
 	)
-	encoded, err := json.Marshal(output)
-	if err != nil {
-		log.Warn("Failed to encode call_workflows output", "error", err)
-		return output, builtin.StatusSuccess, 0, "", nil
-	}
-	return output, builtin.StatusSuccess, len(encoded), "", nil
 }

@@ -10,52 +10,57 @@ import (
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandlerExecutesWorkflows(t *testing.T) {
-	ctx := attachConfig(t, nil)
-	exec := &recordingParallelExecutor{}
-	env := &stubEnvironment{workflowExec: exec}
-	payload := map[string]any{
-		"workflows": []any{
-			map[string]any{"workflow_id": "onboard"},
-			map[string]any{"workflow_id": "provision"},
-		},
-	}
-	output, err := newHandler(env)(ctx, payload)
-	require.NoError(t, err)
-	require.NotNil(t, output)
-	total, ok := output["total_count"].(int)
-	require.True(t, ok)
-	require.Equal(t, 2, total)
-	require.Equal(t, int64(2), exec.count.Load())
-}
+func TestHandler(t *testing.T) {
+	t.Run("Should execute multiple workflows and aggregate results", func(t *testing.T) {
+		ctx := attachConfig(t, nil)
+		exec := &recordingParallelExecutor{}
+		env := &stubEnvironment{workflowExec: exec}
+		payload := map[string]any{
+			"workflows": []any{
+				map[string]any{"workflow_id": "onboard"},
+				map[string]any{"workflow_id": "provision"},
+			},
+		}
+		output, err := newHandler(env)(ctx, payload)
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		total, ok := output["total_count"].(int)
+		require.True(t, ok)
+		require.Equal(t, 2, total)
+		require.Equal(t, int64(2), exec.count.Load())
+	})
 
-func TestHandlerValidatesWorkflowsArray(t *testing.T) {
-	ctx := attachConfig(t, nil)
-	env := &stubEnvironment{workflowExec: &recordingParallelExecutor{}}
-	_, err := newHandler(env)(ctx, map[string]any{"workflows": []any{}})
-	require.Error(t, err)
-}
+	t.Run("Should reject empty workflows array", func(t *testing.T) {
+		ctx := attachConfig(t, nil)
+		env := &stubEnvironment{workflowExec: &recordingParallelExecutor{}}
+		_, err := newHandler(env)(ctx, map[string]any{"workflows": []any{}})
+		require.Error(t, err)
+	})
 
-func TestHandlerDisabled(t *testing.T) {
-	cfg := config.DefaultNativeToolsConfig()
-	cfg.CallWorkflows.Enabled = false
-	ctx := attachConfig(t, &cfg)
-	env := &stubEnvironment{workflowExec: &recordingParallelExecutor{}}
-	_, err := newHandler(env)(ctx, map[string]any{"workflows": []any{map[string]any{"workflow_id": "noop"}}})
-	require.Error(t, err)
+	t.Run("Should fail when tool is disabled", func(t *testing.T) {
+		cfg := config.DefaultNativeToolsConfig()
+		cfg.CallWorkflows.Enabled = false
+		ctx := attachConfig(t, &cfg)
+		env := &stubEnvironment{workflowExec: &recordingParallelExecutor{}}
+		_, err := newHandler(env)(ctx, map[string]any{"workflows": []any{map[string]any{"workflow_id": "noop"}}})
+		require.Error(t, err)
+	})
 }
 
 func attachConfig(t *testing.T, override *config.NativeToolsConfig) context.Context {
-	manager := config.NewManager(t.Context(), config.NewService())
-	cfg, err := manager.Load(t.Context(), config.NewDefaultProvider())
+	t.Helper()
+	baseCtx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	manager := config.NewManager(baseCtx, config.NewService())
+	cfg, err := manager.Load(baseCtx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	if override != nil {
 		cfg.Runtime.NativeTools = *override
 	}
-	return config.ContextWithManager(t.Context(), manager)
+	return config.ContextWithManager(baseCtx, manager)
 }
 
 type recordingParallelExecutor struct {

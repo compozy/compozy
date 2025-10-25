@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool/builtin"
+	"github.com/compozy/compozy/engine/tool/builtin/shared"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/semaphore"
@@ -153,7 +154,7 @@ func handleTaskPanic(
 		log := logger.FromContext(ctx)
 		stack := debug.Stack()
 		result.Success = false
-		result.Error = &builtin.ErrorDetails{
+		result.Error = &shared.ErrorDetails{
 			Message: fmt.Sprintf("panic: %v; stack: %s", r, stack),
 			Code:    builtin.CodeInternal,
 		}
@@ -172,13 +173,13 @@ func applySemaphoreFailure(result *TaskExecutionResult, err error, duration int6
 	if errors.Is(err, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 	}
-	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: code}
+	result.Error = &shared.ErrorDetails{Message: err.Error(), Code: code}
 	result.DurationMs = duration
 	return *result
 }
 
 func applyInternalFailure(result *TaskExecutionResult, err error) TaskExecutionResult {
-	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
+	result.Error = &shared.ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
 	return *result
 }
 
@@ -200,7 +201,7 @@ func applyExecutionFailure(
 	if errors.Is(execErr, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 	}
-	result.Error = &builtin.ErrorDetails{Message: execErr.Error(), Code: code}
+	result.Error = &shared.ErrorDetails{Message: execErr.Error(), Code: code}
 	result.DurationMs = duration
 	return *result
 }

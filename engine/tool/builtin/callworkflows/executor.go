@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/tool/builtin"
+	"github.com/compozy/compozy/engine/tool/builtin/shared"
 	"github.com/compozy/compozy/pkg/logger"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/semaphore"
@@ -138,7 +139,7 @@ func handleWorkflowPanic(
 		log := logger.FromContext(ctx)
 		result.Success = false
 		result.Status = string(core.StatusFailed)
-		result.Error = &builtin.ErrorDetails{Message: fmt.Sprintf("panic: %v", r), Code: builtin.CodeInternal}
+		result.Error = &shared.ErrorDetails{Message: fmt.Sprintf("panic: %v", r), Code: builtin.CodeInternal}
 		result.DurationMs = time.Since(start).Milliseconds()
 		log.Error(
 			"Recovered panic while executing workflow",
@@ -155,14 +156,14 @@ func applySemaphoreFailure(result *WorkflowExecutionResult, err error, duration 
 		code = builtin.CodeDeadlineExceeded
 		status = string(core.StatusTimedOut)
 	}
-	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: code}
+	result.Error = &shared.ErrorDetails{Message: err.Error(), Code: code}
 	result.Status = status
 	result.DurationMs = duration
 	return *result
 }
 
 func applyInternalFailure(result *WorkflowExecutionResult, err error) WorkflowExecutionResult {
-	result.Error = &builtin.ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
+	result.Error = &shared.ErrorDetails{Message: err.Error(), Code: builtin.CodeInternal}
 	result.Status = string(core.StatusFailed)
 	return *result
 }
@@ -188,7 +189,7 @@ func applyExecutionFailure(
 			code = cerr.Code
 		}
 	}
-	result.Error = &builtin.ErrorDetails{Message: execErr.Error(), Code: code}
+	result.Error = &shared.ErrorDetails{Message: execErr.Error(), Code: code}
 	result.Status = status
 	result.DurationMs = duration
 	result.Success = false
@@ -216,7 +217,11 @@ func populateSuccess(result *WorkflowExecutionResult, res *toolenv.WorkflowResul
 		result.Output = *clone
 		return
 	}
-	result.Output = *res.Output
+	if copied, err := core.DeepCopyOutput(*res.Output, core.Output{}); err == nil && copied != nil {
+		result.Output = copied
+		return
+	}
+	result.Output = core.Output(core.CloneMap(map[string]any(*res.Output)))
 }
 
 func errorCodeForResult(result *WorkflowExecutionResult) string {

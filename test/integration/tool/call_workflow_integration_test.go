@@ -21,53 +21,56 @@ import (
 )
 
 func TestCallWorkflowIntegration(t *testing.T) {
-	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
-	project := "demo"
-	ctx = core.WithProjectName(ctx, project)
-	manager := config.NewManager(t.Context(), config.NewService())
-	_, err := manager.Load(ctx, config.NewDefaultProvider())
-	require.NoError(t, err)
-	cfg := manager.Get()
-	cfg.Runtime.NativeTools.Enabled = true
-	cfg.Runtime.NativeTools.CallWorkflow.Enabled = true
-	ctx = config.ContextWithManager(ctx, manager)
-	executor := &recordingWorkflowExecutor{}
-	env := &workflowEnvironment{workflowExec: executor, store: resources.NewMemoryResourceStore()}
-	payload := map[string]any{
-		"workflow_id": "user.onboarding",
-	}
-	callArgs, err := json.Marshal(payload)
-	require.NoError(t, err)
-	script := newScriptedLLM([]*llmadapter.LLMResponse{
-		{
-			Content: "",
-			ToolCalls: []llmadapter.ToolCall{
-				{ID: "call-workflow", Name: "cp__call_workflow", Arguments: callArgs},
+	const testTimeout = 5 * time.Second
+	t.Run("Should execute a workflow via tool call and return content", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		project := "demo"
+		ctx = core.WithProjectName(ctx, project)
+		manager := config.NewManager(t.Context(), config.NewService())
+		_, err := manager.Load(ctx, config.NewDefaultProvider())
+		require.NoError(t, err)
+		cfg := manager.Get()
+		cfg.Runtime.NativeTools.Enabled = true
+		cfg.Runtime.NativeTools.CallWorkflow.Enabled = true
+		ctx = config.ContextWithManager(ctx, manager)
+		executor := &recordingWorkflowExecutor{}
+		env := &workflowEnvironment{workflowExec: executor, store: resources.NewMemoryResourceStore()}
+		payload := map[string]any{
+			"workflow_id": "user.onboarding",
+		}
+		callArgs, err := json.Marshal(payload)
+		require.NoError(t, err)
+		script := newScriptedLLM([]*llmadapter.LLMResponse{
+			{
+				Content: "",
+				ToolCalls: []llmadapter.ToolCall{
+					{ID: "call-workflow", Name: "cp__call_workflow", Arguments: callArgs},
+				},
 			},
-		},
-		{Content: "Workflow complete"},
+			{Content: "Workflow complete"},
+		})
+		factory := scriptedFactory{client: script}
+		agentCfg := CreateTestAgentConfig(nil)
+		runtimeMgr := CreateMockRuntime(ctx, t)
+		service, err := llm.NewService(ctx, runtimeMgr, agentCfg,
+			llm.WithLLMFactory(factory),
+			llm.WithToolEnvironment(env),
+			llm.WithTimeout(testTimeout),
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = service.Close() })
+		output, err := service.GenerateContent(ctx, agentCfg, nil, "", "call workflow", nil)
+		require.NoError(t, err)
+		require.NotNil(t, output)
+		assert.Equal(t, "Workflow complete", output.Prop("response"))
+		require.Len(t, executor.requests, 1)
+		assert.Equal(t, "user.onboarding", executor.requests[0].WorkflowID)
+		requests := script.Requests()
+		require.Len(t, requests, 2)
+		result, ok := findToolResult(requests[1].Messages, "cp__call_workflow")
+		require.True(t, ok)
+		require.NotEmpty(t, result.JSONContent)
 	})
-	factory := scriptedFactory{client: script}
-	agentCfg := CreateTestAgentConfig(nil)
-	runtimeMgr := CreateMockRuntime(ctx, t)
-	service, err := llm.NewService(ctx, runtimeMgr, agentCfg,
-		llm.WithLLMFactory(factory),
-		llm.WithToolEnvironment(env),
-		llm.WithTimeout(5*time.Second),
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = service.Close() })
-	output, err := service.GenerateContent(ctx, agentCfg, nil, "", "call workflow", nil)
-	require.NoError(t, err)
-	require.NotNil(t, output)
-	assert.Equal(t, "Workflow complete", output.Prop("response"))
-	require.Len(t, executor.requests, 1)
-	assert.Equal(t, "user.onboarding", executor.requests[0].WorkflowID)
-	requests := script.Requests()
-	require.Len(t, requests, 2)
-	result, ok := findToolResult(requests[1].Messages, "cp__call_workflow")
-	require.True(t, ok)
-	require.NotEmpty(t, result.JSONContent)
 }
 
 type workflowEnvironment struct {
