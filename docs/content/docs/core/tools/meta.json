@@ -6,6 +6,10 @@
     "overview",
     "call-agent",
     "call-agents",
+    "call-task",
+    "call-tasks",
+    "call-workflow",
+    "call-workflows",
     "runtime-environment",
     "typescript-development"
   ]

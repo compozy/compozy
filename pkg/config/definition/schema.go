@@ -1080,6 +1080,10 @@ func registerRuntimeNativeToolsFields(registry *Registry) {
 	registerRuntimeNativeToolsFetchFields(registry)
 	registerRuntimeNativeToolsCallAgentFields(registry)
 	registerRuntimeNativeToolsCallAgentsFields(registry)
+	registerRuntimeNativeToolsCallTaskFields(registry)
+	registerRuntimeNativeToolsCallTasksFields(registry)
+	registerRuntimeNativeToolsCallWorkflowFields(registry)
+	registerRuntimeNativeToolsCallWorkflowsFields(registry)
 }
 
 func registerRuntimeNativeToolsCoreFields(registry *Registry) {
@@ -1210,6 +1214,88 @@ func registerRuntimeNativeToolsCallAgentsFields(registry *Registry) {
 		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_AGENTS_MAX_CONCURRENT",
 		Type:    reflect.TypeOf(0),
 		Help:    "Maximum concurrent agents the cp__call_agents builtin may execute",
+	})
+}
+
+func registerRuntimeNativeToolsCallTaskFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_task.enabled",
+		Default: true,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_TASK_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable cp__call_task builtin",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_task.default_timeout",
+		Default: 60 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_TASK_DEFAULT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default timeout applied to cp__call_task executions when not specified",
+	})
+}
+
+func registerRuntimeNativeToolsCallTasksFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_tasks.enabled",
+		Default: true,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_TASKS_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable cp__call_tasks builtin for parallel task execution",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_tasks.default_timeout",
+		Default: 60 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_TASKS_DEFAULT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default timeout per task executed by cp__call_tasks",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_tasks.max_concurrent",
+		Default: 10,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_TASKS_MAX_CONCURRENT",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent tasks the cp__call_tasks builtin may execute",
+	})
+}
+
+func registerRuntimeNativeToolsCallWorkflowFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_workflow.enabled",
+		Default: true,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_WORKFLOW_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable cp__call_workflow builtin",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_workflow.default_timeout",
+		Default: 300 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_WORKFLOW_DEFAULT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default timeout applied to cp__call_workflow executions when not specified",
+	})
+}
+
+func registerRuntimeNativeToolsCallWorkflowsFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_workflows.enabled",
+		Default: true,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_WORKFLOWS_ENABLED",
+		Type:    reflect.TypeOf(true),
+		Help:    "Enable cp__call_workflows builtin for parallel workflow execution",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_workflows.default_timeout",
+		Default: 300 * time.Second,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_WORKFLOWS_DEFAULT_TIMEOUT",
+		Type:    durationType,
+		Help:    "Default timeout per workflow executed by cp__call_workflows",
+	})
+	registry.Register(&FieldDef{
+		Path:    "runtime.native_tools.call_workflows.max_concurrent",
+		Default: 10,
+		EnvVar:  "RUNTIME_NATIVE_TOOLS_CALL_WORKFLOWS_MAX_CONCURRENT",
+		Type:    reflect.TypeOf(0),
+		Help:    "Maximum concurrent workflows the cp__call_workflows builtin may execute",
 	})
 }
 

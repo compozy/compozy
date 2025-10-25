@@ -2158,32 +2158,86 @@ func buildRuntimeConfig(registry *definition.Registry) RuntimeConfig {
 		RuntimeType:                 getString(registry, "runtime.runtime_type"),
 		EntrypointPath:              getString(registry, "runtime.entrypoint_path"),
 		BunPermissions:              getStringSlice(registry, "runtime.bun_permissions"),
-		NativeTools: NativeToolsConfig{
-			Enabled:         getBool(registry, "runtime.native_tools.enabled"),
-			RootDir:         getString(registry, "runtime.native_tools.root_dir"),
-			AdditionalRoots: getStringSlice(registry, "runtime.native_tools.additional_roots"),
-			Exec: NativeExecConfig{
-				Timeout:        getDuration(registry, "runtime.native_tools.exec.timeout"),
-				MaxStdoutBytes: getInt64(registry, "runtime.native_tools.exec.max_stdout_bytes"),
-				MaxStderrBytes: getInt64(registry, "runtime.native_tools.exec.max_stderr_bytes"),
-				Allowlist:      buildNativeExecAllowlist(registry),
-			},
-			Fetch: NativeFetchConfig{
-				Timeout:        getDuration(registry, "runtime.native_tools.fetch.timeout"),
-				MaxBodyBytes:   getInt64(registry, "runtime.native_tools.fetch.max_body_bytes"),
-				MaxRedirects:   getInt(registry, "runtime.native_tools.fetch.max_redirects"),
-				AllowedMethods: getStringSlice(registry, "runtime.native_tools.fetch.allowed_methods"),
-			},
-			CallAgent: NativeCallAgentConfig{
-				Enabled:        getBool(registry, "runtime.native_tools.call_agent.enabled"),
-				DefaultTimeout: getDuration(registry, "runtime.native_tools.call_agent.default_timeout"),
-			},
-			CallAgents: NativeCallAgentsConfig{
-				Enabled:        getBool(registry, "runtime.native_tools.call_agents.enabled"),
-				DefaultTimeout: getDuration(registry, "runtime.native_tools.call_agents.default_timeout"),
-				MaxConcurrent:  getInt(registry, "runtime.native_tools.call_agents.max_concurrent"),
-			},
-		},
+		NativeTools:                 buildNativeToolsConfig(registry),
+	}
+}
+
+func buildNativeToolsConfig(registry *definition.Registry) NativeToolsConfig {
+	return NativeToolsConfig{
+		Enabled:         getBool(registry, "runtime.native_tools.enabled"),
+		RootDir:         getString(registry, "runtime.native_tools.root_dir"),
+		AdditionalRoots: getStringSlice(registry, "runtime.native_tools.additional_roots"),
+		Exec:            buildNativeExecConfig(registry),
+		Fetch:           buildNativeFetchConfig(registry),
+		CallAgent:       buildNativeCallAgentConfig(registry),
+		CallAgents:      buildNativeCallAgentsConfig(registry),
+		CallTask:        buildNativeCallTaskConfig(registry),
+		CallTasks:       buildNativeCallTasksConfig(registry),
+		CallWorkflow:    buildNativeCallWorkflowConfig(registry),
+		CallWorkflows:   buildNativeCallWorkflowsConfig(registry),
+	}
+}
+
+func buildNativeExecConfig(registry *definition.Registry) NativeExecConfig {
+	return NativeExecConfig{
+		Timeout:        getDuration(registry, "runtime.native_tools.exec.timeout"),
+		MaxStdoutBytes: getInt64(registry, "runtime.native_tools.exec.max_stdout_bytes"),
+		MaxStderrBytes: getInt64(registry, "runtime.native_tools.exec.max_stderr_bytes"),
+		Allowlist:      buildNativeExecAllowlist(registry),
+	}
+}
+
+func buildNativeFetchConfig(registry *definition.Registry) NativeFetchConfig {
+	return NativeFetchConfig{
+		Timeout:        getDuration(registry, "runtime.native_tools.fetch.timeout"),
+		MaxBodyBytes:   getInt64(registry, "runtime.native_tools.fetch.max_body_bytes"),
+		MaxRedirects:   getInt(registry, "runtime.native_tools.fetch.max_redirects"),
+		AllowedMethods: getStringSlice(registry, "runtime.native_tools.fetch.allowed_methods"),
+	}
+}
+
+func buildNativeCallAgentConfig(registry *definition.Registry) NativeCallAgentConfig {
+	return NativeCallAgentConfig{
+		Enabled:        getBool(registry, "runtime.native_tools.call_agent.enabled"),
+		DefaultTimeout: getDuration(registry, "runtime.native_tools.call_agent.default_timeout"),
+	}
+}
+
+func buildNativeCallAgentsConfig(registry *definition.Registry) NativeCallAgentsConfig {
+	return NativeCallAgentsConfig{
+		Enabled:        getBool(registry, "runtime.native_tools.call_agents.enabled"),
+		DefaultTimeout: getDuration(registry, "runtime.native_tools.call_agents.default_timeout"),
+		MaxConcurrent:  getInt(registry, "runtime.native_tools.call_agents.max_concurrent"),
+	}
+}
+
+func buildNativeCallTaskConfig(registry *definition.Registry) NativeCallTaskConfig {
+	return NativeCallTaskConfig{
+		Enabled:        getBool(registry, "runtime.native_tools.call_task.enabled"),
+		DefaultTimeout: getDuration(registry, "runtime.native_tools.call_task.default_timeout"),
+	}
+}
+
+func buildNativeCallTasksConfig(registry *definition.Registry) NativeCallTasksConfig {
+	return NativeCallTasksConfig{
+		Enabled:        getBool(registry, "runtime.native_tools.call_tasks.enabled"),
+		DefaultTimeout: getDuration(registry, "runtime.native_tools.call_tasks.default_timeout"),
+		MaxConcurrent:  getInt(registry, "runtime.native_tools.call_tasks.max_concurrent"),
+	}
+}
+
+func buildNativeCallWorkflowConfig(registry *definition.Registry) NativeCallWorkflowConfig {
+	return NativeCallWorkflowConfig{
+		Enabled:        getBool(registry, "runtime.native_tools.call_workflow.enabled"),
+		DefaultTimeout: getDuration(registry, "runtime.native_tools.call_workflow.default_timeout"),
+	}
+}
+
+func buildNativeCallWorkflowsConfig(registry *definition.Registry) NativeCallWorkflowsConfig {
+	return NativeCallWorkflowsConfig{
+		Enabled:        getBool(registry, "runtime.native_tools.call_workflows.enabled"),
+		DefaultTimeout: getDuration(registry, "runtime.native_tools.call_workflows.default_timeout"),
+		MaxConcurrent:  getInt(registry, "runtime.native_tools.call_workflows.max_concurrent"),
 	}
 }
 

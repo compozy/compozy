@@ -16,7 +16,9 @@ import (
 	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/directexec"
+	taskexec "github.com/compozy/compozy/engine/task/exec"
 	"github.com/compozy/compozy/engine/workflow"
+	workflowexec "github.com/compozy/compozy/engine/workflow/exec"
 )
 
 const (
@@ -64,7 +66,9 @@ func Build(
 		workflowRepo: workflowRepo,
 		store:        store,
 	}
-	env := toolenv.New(executor, repo, store)
+	taskRunner := taskexec.NewRunner(state, repo, store)
+	workflowRunner := workflowexec.NewRunner(state, workflowRepo, state.Worker)
+	env := toolenv.New(executor, taskRunner, workflowRunner, repo, store)
 	if env == nil {
 		return nil, fmt.Errorf("tool environment: initialization failed")
 	}

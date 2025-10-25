@@ -22,7 +22,7 @@ func TestDescribeHandlerReturnsAgentDetails(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	env := toolenv.New(nil, nil, store)
+	env := toolenv.New(nil, nil, nil, nil, store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	output, err := describeHandler(env)(ctx, map[string]any{"agent_id": "agent.writer"})
@@ -38,7 +38,7 @@ func TestDescribeHandlerReturnsAgentDetails(t *testing.T) {
 
 func TestDescribeHandlerValidatesInput(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	env := toolenv.New(nil, nil, store)
+	env := toolenv.New(nil, nil, nil, nil, store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	_, err := describeHandler(env)(ctx, map[string]any{})
@@ -47,7 +47,7 @@ func TestDescribeHandlerValidatesInput(t *testing.T) {
 
 func TestDescribeHandlerRequiresExistingAgent(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	env := toolenv.New(nil, nil, store)
+	env := toolenv.New(nil, nil, nil, nil, store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	_, err := describeHandler(env)(ctx, map[string]any{"agent_id": "missing"})

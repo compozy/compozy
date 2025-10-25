@@ -33,28 +33,48 @@ type AgentExecutor interface {
 // coupling them to concrete implementations that might introduce package cycles.
 type Environment interface {
 	AgentExecutor() AgentExecutor
+	TaskExecutor() TaskExecutor
+	WorkflowExecutor() WorkflowExecutor
 	TaskRepository() task.Repository
 	ResourceStore() resources.ResourceStore
 }
 
 type environment struct {
-	agent AgentExecutor
-	repo  task.Repository
-	store resources.ResourceStore
+	agent    AgentExecutor
+	task     TaskExecutor
+	workflow WorkflowExecutor
+	repo     task.Repository
+	store    resources.ResourceStore
 }
 
 // New constructs an Environment using the supplied agent executor, repository,
 // and resource store. Callers are responsible for ensuring dependencies are non-nil.
-func New(agent AgentExecutor, repo task.Repository, store resources.ResourceStore) Environment {
+func New(
+	agent AgentExecutor,
+	taskExec TaskExecutor,
+	workflowExec WorkflowExecutor,
+	repo task.Repository,
+	store resources.ResourceStore,
+) Environment {
 	return &environment{
-		agent: agent,
-		repo:  repo,
-		store: store,
+		agent:    agent,
+		task:     taskExec,
+		workflow: workflowExec,
+		repo:     repo,
+		store:    store,
 	}
 }
 
 func (e *environment) AgentExecutor() AgentExecutor {
 	return e.agent
+}
+
+func (e *environment) TaskExecutor() TaskExecutor {
+	return e.task
+}
+
+func (e *environment) WorkflowExecutor() WorkflowExecutor {
+	return e.workflow
 }
 
 func (e *environment) TaskRepository() task.Repository {

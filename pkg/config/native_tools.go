@@ -2,7 +2,11 @@ package config
 
 import "time"
 
-const DefaultCallAgentsMaxConcurrent = 10
+const (
+	DefaultCallAgentsMaxConcurrent    = 10
+	DefaultCallTasksMaxConcurrent     = 10
+	DefaultCallWorkflowsMaxConcurrent = 10
+)
 
 // NativeToolsConfig controls cp__ builtin enablement and sandbox settings.
 type NativeToolsConfig struct {
@@ -15,6 +19,14 @@ type NativeToolsConfig struct {
 	CallAgent NativeCallAgentConfig `koanf:"call_agent"       json:"call_agent"       yaml:"call_agent"       mapstructure:"call_agent"`
 	// CallAgents governs multi-agent orchestration for cp__call_agents.
 	CallAgents NativeCallAgentsConfig `koanf:"call_agents"      json:"call_agents"      yaml:"call_agents"      mapstructure:"call_agents"`
+	// CallTask configures single task execution through cp__call_task.
+	CallTask NativeCallTaskConfig `koanf:"call_task"        json:"call_task"        yaml:"call_task"        mapstructure:"call_task"`
+	// CallTasks governs parallel task execution for cp__call_tasks.
+	CallTasks NativeCallTasksConfig `koanf:"call_tasks"       json:"call_tasks"       yaml:"call_tasks"       mapstructure:"call_tasks"`
+	// CallWorkflow configures single workflow execution via cp__call_workflow.
+	CallWorkflow NativeCallWorkflowConfig `koanf:"call_workflow"    json:"call_workflow"    yaml:"call_workflow"    mapstructure:"call_workflow"`
+	// CallWorkflows governs parallel workflow execution via cp__call_workflows.
+	CallWorkflows NativeCallWorkflowsConfig `koanf:"call_workflows"   json:"call_workflows"   yaml:"call_workflows"   mapstructure:"call_workflows"`
 }
 
 // NativeExecConfig holds cp__exec configuration knobs.
@@ -66,6 +78,32 @@ type NativeCallAgentsConfig struct {
 	MaxConcurrent int `koanf:"max_concurrent"  json:"max_concurrent"  yaml:"max_concurrent"  mapstructure:"max_concurrent"  validate:"min=0"`
 }
 
+// NativeCallTaskConfig configures cp__call_task behavior.
+type NativeCallTaskConfig struct {
+	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
+}
+
+// NativeCallTasksConfig configures cp__call_tasks behavior.
+type NativeCallTasksConfig struct {
+	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`
+	MaxConcurrent  int           `koanf:"max_concurrent"  json:"max_concurrent"  yaml:"max_concurrent"  mapstructure:"max_concurrent"  validate:"min=0"`
+}
+
+// NativeCallWorkflowConfig configures cp__call_workflow behavior.
+type NativeCallWorkflowConfig struct {
+	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
+}
+
+// NativeCallWorkflowsConfig configures cp__call_workflows behavior.
+type NativeCallWorkflowsConfig struct {
+	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`
+	MaxConcurrent  int           `koanf:"max_concurrent"  json:"max_concurrent"  yaml:"max_concurrent"  mapstructure:"max_concurrent"  validate:"min=0"`
+}
+
 // DefaultNativeToolsConfig returns safe defaults for native tool execution.
 func DefaultNativeToolsConfig() NativeToolsConfig {
 	return NativeToolsConfig{
@@ -92,6 +130,24 @@ func DefaultNativeToolsConfig() NativeToolsConfig {
 			Enabled:        true,
 			DefaultTimeout: 60 * time.Second,
 			MaxConcurrent:  DefaultCallAgentsMaxConcurrent,
+		},
+		CallTask: NativeCallTaskConfig{
+			Enabled:        true,
+			DefaultTimeout: 60 * time.Second,
+		},
+		CallTasks: NativeCallTasksConfig{
+			Enabled:        true,
+			DefaultTimeout: 60 * time.Second,
+			MaxConcurrent:  DefaultCallTasksMaxConcurrent,
+		},
+		CallWorkflow: NativeCallWorkflowConfig{
+			Enabled:        true,
+			DefaultTimeout: 300 * time.Second,
+		},
+		CallWorkflows: NativeCallWorkflowsConfig{
+			Enabled:        true,
+			DefaultTimeout: 300 * time.Second,
+			MaxConcurrent:  DefaultCallWorkflowsMaxConcurrent,
 		},
 	}
 }

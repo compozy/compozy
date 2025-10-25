@@ -29,7 +29,7 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
 		tple := tplengine.NewEngine(tplengine.FormatJSON)
-		toolEnv := toolenv.New(nil, nil, nil)
+		toolEnv := toolenv.New(nil, nil, nil, nil, nil)
 		acts, err := worker.NewActivities(
 			ctx,
 			nil, // projectConfig

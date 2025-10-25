@@ -225,6 +225,14 @@ func (e *staticEnvironment) AgentExecutor() toolenv.AgentExecutor {
 	return e.executor
 }
 
+func (e *staticEnvironment) TaskExecutor() toolenv.TaskExecutor {
+	return nil
+}
+
+func (e *staticEnvironment) WorkflowExecutor() toolenv.WorkflowExecutor {
+	return nil
+}
+
 func (e *staticEnvironment) TaskRepository() task.Repository {
 	return nil
 }

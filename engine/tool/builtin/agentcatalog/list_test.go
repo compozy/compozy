@@ -14,7 +14,7 @@ func TestListHandlerReturnsAgents(t *testing.T) {
 	seedAgentResource(t, store, "demo", "agent.writer", "default", "edit")
 	seedAgentResource(t, store, "demo", "agent.researcher", "default")
 
-	env := toolenv.New(nil, nil, store)
+	env := toolenv.New(nil, nil, nil, nil, store)
 	ctx := core.WithProjectName(t.Context(), "demo")
 
 	output, err := listHandler(env)(ctx, map[string]any{})
@@ -33,7 +33,7 @@ func TestListHandlerReturnsAgents(t *testing.T) {
 
 func TestListHandlerRequiresProject(t *testing.T) {
 	store := resources.NewMemoryResourceStore()
-	env := toolenv.New(nil, nil, store)
+	env := toolenv.New(nil, nil, nil, nil, store)
 
 	_, err := listHandler(env)(t.Context(), map[string]any{})
 	require.Error(t, err)
