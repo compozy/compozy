@@ -34,7 +34,7 @@ func executeTasksParallel(
 	maxConcurrent int,
 ) []TaskExecutionResult {
 	if len(plans) == 0 {
-		return nil
+		return []TaskExecutionResult{}
 	}
 	results := make([]TaskExecutionResult, len(plans))
 	effective := effectiveMaxConcurrent(maxConcurrent, len(plans))
@@ -117,7 +117,9 @@ func runTask(
 	result := TaskExecutionResult{TaskID: plan.userConfig.TaskID}
 	start := time.Now()
 	defer handleTaskPanic(ctx, plan.userConfig, start, &result)
-	if err := sem.Acquire(ctx, 1); err != nil {
+	taskCtx, cancel := deriveTaskContext(ctx, plan.request.Timeout)
+	defer cancel()
+	if err := sem.Acquire(taskCtx, 1); err != nil {
 		elapsed := time.Since(start).Milliseconds()
 		return applySemaphoreFailure(&result, err, elapsed)
 	}
@@ -126,8 +128,6 @@ func runTask(
 	if executor == nil {
 		return applyInternalFailure(&result, errors.New("task executor unavailable"))
 	}
-	taskCtx, cancel := deriveTaskContext(ctx, plan.request.Timeout)
-	defer cancel()
 	res, err := executor.ExecuteTask(taskCtx, plan.request)
 	duration := time.Since(start).Milliseconds()
 	if err != nil {
@@ -220,8 +220,16 @@ func populateSuccess(result *TaskExecutionResult, res *toolenv.TaskResult, durat
 		result.Output = clone
 		return
 	}
-	outputCopy := *res.Output
-	result.Output = &outputCopy
+	if copied, err := core.DeepCopyOutputPtr(res.Output, (*core.Output)(nil)); err == nil && copied != nil {
+		result.Output = copied
+		return
+	}
+	if copied, err := core.DeepCopyOutput(*res.Output, core.Output{}); err == nil {
+		result.Output = &copied
+		return
+	}
+	fallback := core.Output(core.CloneMap(map[string]any(*res.Output)))
+	result.Output = &fallback
 }
 
 func errorCodeForResult(result *TaskExecutionResult) string {

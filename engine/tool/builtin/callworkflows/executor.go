@@ -214,14 +214,19 @@ func populateSuccess(result *WorkflowExecutionResult, res *toolenv.WorkflowResul
 		return
 	}
 	if clone, err := res.Output.Clone(); err == nil && clone != nil {
-		result.Output = *clone
+		result.Output = clone
 		return
 	}
-	if copied, err := core.DeepCopyOutput(*res.Output, core.Output{}); err == nil && copied != nil {
+	if copied, err := core.DeepCopyOutputPtr(res.Output, (*core.Output)(nil)); err == nil && copied != nil {
 		result.Output = copied
 		return
 	}
-	result.Output = core.Output(core.CloneMap(map[string]any(*res.Output)))
+	if copied, err := core.DeepCopyOutput(*res.Output, core.Output{}); err == nil {
+		result.Output = &copied
+		return
+	}
+	fallback := core.Output(core.CloneMap(map[string]any(*res.Output)))
+	result.Output = &fallback
 }
 
 func errorCodeForResult(result *WorkflowExecutionResult) string {

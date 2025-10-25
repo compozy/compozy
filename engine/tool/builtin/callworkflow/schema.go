@@ -7,6 +7,7 @@ var inputSchema = schema.Schema{
 	"properties": map[string]any{
 		"workflow_id": map[string]any{
 			"type":        "string",
+			"minLength":   1,
 			"description": "Identifier of the workflow to execute.",
 		},
 		"input": map[string]any{
@@ -43,7 +44,10 @@ var outputSchema = schema.Schema{
 			"type":                 "object",
 			"additionalProperties": map[string]any{},
 		},
-		"duration_ms": map[string]any{"type": "integer"},
+		"duration_ms": map[string]any{
+			"type":    "integer",
+			"minimum": 0,
+		},
 	},
 	"additionalProperties": true,
 }

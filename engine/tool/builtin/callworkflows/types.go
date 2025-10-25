@@ -24,7 +24,7 @@ type WorkflowExecutionResult struct {
 	WorkflowID     string               `json:"workflow_id"`
 	WorkflowExecID string               `json:"workflow_exec_id,omitempty"`
 	Status         string               `json:"status"`
-	Output         core.Output          `json:"output,omitempty"`
+	Output         *core.Output         `json:"output,omitempty"`
 	Error          *shared.ErrorDetails `json:"error,omitempty"`
 	DurationMs     int64                `json:"duration_ms"`
 }

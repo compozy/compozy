@@ -135,14 +135,14 @@ func (r *Runner) ExecutePrepared(ctx context.Context, prepared *PreparedExecutio
 	if pollErr != nil {
 		return nil, fmt.Errorf("failed to monitor workflow %s: %w", prepared.Request.WorkflowID, pollErr)
 	}
-	status := core.StatusTimedOut
-	if state != nil {
-		status = state.Status
-	} else if !timedOut {
-		status = core.StatusSuccess
-	}
-	if timedOut {
+	var status core.StatusType
+	switch {
+	case timedOut:
 		status = core.StatusTimedOut
+	case state != nil:
+		status = state.Status
+	default:
+		status = core.StatusSuccess
 	}
 	var output *core.Output
 	if state != nil && state.Output != nil {

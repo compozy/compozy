@@ -66,9 +66,6 @@ func buildWorkflowRequest(
 			},
 		)
 	}
-	if timeout < 0 {
-		timeout = 0
-	}
 	request = toolenv.WorkflowRequest{
 		WorkflowID:    workflowID,
 		InitialTaskID: strings.TrimSpace(input.InitialTaskID),
