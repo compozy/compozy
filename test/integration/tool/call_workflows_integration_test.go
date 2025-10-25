@@ -24,7 +24,7 @@ func TestCallWorkflowsIntegration(t *testing.T) {
 	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	project := "demo"
 	ctx = core.WithProjectName(ctx, project)
-	manager := config.NewManager(t.Context(), config.NewService())
+	manager := config.NewManager(ctx, config.NewService())
 	_, err := manager.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := manager.Get()

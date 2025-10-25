@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -19,9 +20,11 @@ import (
 	taskexec "github.com/compozy/compozy/engine/task/exec"
 	"github.com/compozy/compozy/engine/workflow"
 	workflowexec "github.com/compozy/compozy/engine/workflow/exec"
+	"github.com/compozy/compozy/pkg/config"
 )
 
 const (
+	// Fallbacks only; prefer configured values from config.Runtime.NativeTools.CallAgent.
 	defaultAgentTimeout = 60 * time.Second
 	maxAgentTimeout     = 300 * time.Second
 	promptActionID      = "__prompt__"
@@ -81,6 +84,9 @@ type directAgentExecutor struct {
 	taskRepo     task.Repository
 	workflowRepo workflow.Repository
 	store        resources.ResourceStore
+	executorOnce sync.Once
+	executor     directexec.DirectExecutor
+	executorErr  error
 }
 
 func (e *directAgentExecutor) ExecuteAgent(
@@ -96,7 +102,7 @@ func (e *directAgentExecutor) ExecuteAgent(
 	if req.Action == "" && req.Prompt == "" {
 		return nil, errActionOrPrompt
 	}
-	timeout, err := normalizeTimeout(req.Timeout)
+	timeout, err := normalizeTimeout(ctx, req.Timeout)
 	if err != nil {
 		return nil, err
 	}
@@ -115,9 +121,9 @@ func (e *directAgentExecutor) ExecuteAgent(
 		return nil, err
 	}
 	execCfg := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
-	executor, err := directexec.NewDirectExecutor(ctx, e.state, e.taskRepo, e.workflowRepo)
+	executor, err := e.resolveExecutor(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("tool environment: resolve direct executor: %w", err)
+		return nil, err
 	}
 	meta := directexec.ExecMetadata{
 		Component: core.ComponentAgent,
@@ -195,15 +201,36 @@ func resolveActionID(req toolenv.AgentRequest, cfg *task.Config) string {
 	return ""
 }
 
-func normalizeTimeout(raw time.Duration) (time.Duration, error) {
+func (e *directAgentExecutor) resolveExecutor(ctx context.Context) (directexec.DirectExecutor, error) {
+	e.executorOnce.Do(func() {
+		e.executor, e.executorErr = directexec.NewDirectExecutor(ctx, e.state, e.taskRepo, e.workflowRepo)
+		if e.executorErr != nil {
+			e.executorErr = fmt.Errorf("tool environment: resolve direct executor: %w", e.executorErr)
+		}
+	})
+	return e.executor, e.executorErr
+}
+
+func normalizeTimeout(ctx context.Context, raw time.Duration) (time.Duration, error) {
 	if raw < 0 {
 		return 0, errNegativeTimeout
 	}
-	if raw == 0 {
-		return defaultAgentTimeout, nil
+	cfg := config.FromContext(ctx)
+	defaultTimeout := defaultAgentTimeout
+	if cfg != nil {
+		configured := cfg.Runtime.NativeTools.CallAgent.DefaultTimeout
+		if configured >= 0 {
+			defaultTimeout = configured
+		} else {
+			defaultTimeout = 0
+		}
 	}
-	if raw > maxAgentTimeout {
+	timeout := raw
+	if raw == 0 {
+		timeout = defaultTimeout
+	}
+	if timeout > maxAgentTimeout {
 		return 0, errTimeoutTooLarge
 	}
-	return raw, nil
+	return timeout, nil
 }
