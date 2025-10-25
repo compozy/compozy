@@ -2,7 +2,16 @@ package toolenv
 
 import (
 	"context"
-	"fmt"
+	"errors"
+)
+
+var (
+	// ErrAgentExecutorNotConfigured indicates that a test attempted to run without wiring an agent executor.
+	ErrAgentExecutorNotConfigured = errors.New("tool environment: agent executor not configured")
+	// ErrTaskExecutorNotConfigured indicates that a test attempted to run without wiring a task executor.
+	ErrTaskExecutorNotConfigured = errors.New("tool environment: task executor not configured")
+	// ErrWorkflowExecutorNotConfigured indicates that a test attempted to run without wiring a workflow executor.
+	ErrWorkflowExecutorNotConfigured = errors.New("tool environment: workflow executor not configured")
 )
 
 type noopAgentExecutor struct{}
@@ -13,7 +22,7 @@ func NoopAgentExecutor() AgentExecutor { //nolint:ireturn // helper returns inte
 }
 
 func (noopAgentExecutor) ExecuteAgent(context.Context, AgentRequest) (*AgentResult, error) {
-	return nil, fmt.Errorf("tool environment: agent executor not configured")
+	return nil, ErrAgentExecutorNotConfigured
 }
 
 type noopTaskExecutor struct{}
@@ -24,7 +33,7 @@ func NoopTaskExecutor() TaskExecutor { //nolint:ireturn // helper returns interf
 }
 
 func (noopTaskExecutor) ExecuteTask(context.Context, TaskRequest) (*TaskResult, error) {
-	return nil, fmt.Errorf("tool environment: task executor not configured")
+	return nil, ErrTaskExecutorNotConfigured
 }
 
 type noopWorkflowExecutor struct{}
@@ -35,5 +44,5 @@ func NoopWorkflowExecutor() WorkflowExecutor { //nolint:ireturn // helper return
 }
 
 func (noopWorkflowExecutor) ExecuteWorkflow(context.Context, WorkflowRequest) (*WorkflowResult, error) {
-	return nil, fmt.Errorf("tool environment: workflow executor not configured")
+	return nil, ErrWorkflowExecutorNotConfigured
 }

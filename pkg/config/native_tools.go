@@ -73,7 +73,7 @@ type NativeCallAgentConfig struct {
 // MaxConcurrent values of 0 or less fall back to sequential execution.
 type NativeCallAgentsConfig struct {
 	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
-	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
 	// MaxConcurrent limits concurrent agent executions; 0 selects sequential execution, negative values are invalid.
 	MaxConcurrent int `koanf:"max_concurrent"  json:"max_concurrent"  yaml:"max_concurrent"  mapstructure:"max_concurrent"  validate:"min=0"`
 }
@@ -88,7 +88,7 @@ type NativeCallTaskConfig struct {
 // MaxConcurrent values of 0 or less fall back to sequential execution.
 type NativeCallTasksConfig struct {
 	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
-	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
 	MaxConcurrent  int           `koanf:"max_concurrent"  json:"max_concurrent"  yaml:"max_concurrent"  mapstructure:"max_concurrent"  validate:"min=0"`
 }
 
@@ -102,7 +102,7 @@ type NativeCallWorkflowConfig struct {
 // MaxConcurrent values of 0 or less fall back to sequential execution.
 type NativeCallWorkflowsConfig struct {
 	Enabled        bool          `koanf:"enabled"         json:"enabled"         yaml:"enabled"         mapstructure:"enabled"`
-	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout" validate:"min=0"`
+	DefaultTimeout time.Duration `koanf:"default_timeout" json:"default_timeout" yaml:"default_timeout" mapstructure:"default_timeout"`
 	MaxConcurrent  int           `koanf:"max_concurrent"  json:"max_concurrent"  yaml:"max_concurrent"  mapstructure:"max_concurrent"  validate:"min=0"`
 }
 
