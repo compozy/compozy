@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -29,13 +29,13 @@ Implement CollectionBuilder for iterating over collections (arrays) and executin
 
 ## Subtasks
 
-- [ ] 15.1 Create sdk/task/collection.go
-- [ ] 15.2 Implement CollectionBuilder struct and constructor
-- [ ] 15.3 Add WithCollection method for source
-- [ ] 15.4 Add WithTask method for iteration task
-- [ ] 15.5 Add WithItemVar method for variable naming
-- [ ] 15.6 Implement Build(ctx) with validation
-- [ ] 15.7 Write unit tests
+- [x] 15.1 Create sdk/task/collection.go
+- [x] 15.2 Implement CollectionBuilder struct and constructor
+- [x] 15.3 Add WithCollection method for source
+- [x] 15.4 Add WithTask method for iteration task
+- [x] 15.5 Add WithItemVar method for variable naming
+- [x] 15.6 Implement Build(ctx) with validation
+- [x] 15.7 Write unit tests
 
 ## Implementation Details
 
@@ -73,13 +73,13 @@ func (b *CollectionBuilder) Build(ctx context.Context) (*task.Config, error)
 ## Tests
 
 Unit tests from `_tests.md`:
-- [ ] Collection task with default item var
-- [ ] Collection task with custom item var
-- [ ] Collection source from template
-- [ ] Error: missing collection source
-- [ ] Error: missing task
-- [ ] Error: empty task ID
-- [ ] BuildError aggregation
+- [x] Collection task with default item var
+- [x] Collection task with custom item var
+- [x] Collection source from template
+- [x] Error: missing collection source
+- [x] Error: missing task
+- [x] Error: empty task ID
+- [x] BuildError aggregation
 
 ## Success Criteria
 

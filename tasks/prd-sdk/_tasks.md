@@ -38,7 +38,7 @@
 - [ ] 12.0 Compozy Lifecycle (M)
 - [x] 13.0 Task: Basic (S)
 - [x] 14.0 Task: Parallel (S)
-- [ ] 15.0 Task: Collection (S)
+- [x] 15.0 Task: Collection (S)
 - [ ] 16.0 Task: Router (S)
 - [ ] 17.0 Task: Wait (S)
 - [ ] 18.0 Task: Aggregate (S)
