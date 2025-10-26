@@ -7,6 +7,10 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
@@ -84,6 +88,27 @@ func (c *Compozy) loadProjectIntoEngine(ctx context.Context, proj *project.Confi
 			toolsRegistered++
 		}
 	}
+	knowledgeRegistered := 0
+	for i := range proj.KnowledgeBases {
+		if err := c.RegisterKnowledgeBase(ctx, &proj.KnowledgeBases[i]); err != nil {
+			return err
+		}
+		knowledgeRegistered++
+	}
+	memoriesRegistered := 0
+	for i := range proj.Memories {
+		if err := c.RegisterMemory(ctx, &proj.Memories[i]); err != nil {
+			return err
+		}
+		memoriesRegistered++
+	}
+	mcpsRegistered := 0
+	for i := range proj.MCPs {
+		if err := c.RegisterMCP(ctx, &proj.MCPs[i]); err != nil {
+			return err
+		}
+		mcpsRegistered++
+	}
 	schemasRegistered := 0
 	for i := range proj.Schemas {
 		if err := c.RegisterSchema(ctx, &proj.Schemas[i]); err != nil {
@@ -115,6 +140,12 @@ func (c *Compozy) loadProjectIntoEngine(ctx context.Context, proj *project.Confi
 		agentsRegistered,
 		"tools",
 		toolsRegistered,
+		"knowledge_bases",
+		knowledgeRegistered,
+		"memories",
+		memoriesRegistered,
+		"mcps",
+		mcpsRegistered,
 		"schemas",
 		schemasRegistered,
 	)
@@ -348,4 +379,280 @@ func (c *Compozy) RegisterSchema(ctx context.Context, schemaCfg *schema.Schema) 
 	}
 	logger.FromContext(ctx).Info("schema registered", "project", projectName, "schema", id)
 	return nil
+}
+
+// RegisterKnowledgeBase validates and registers a knowledge base configuration in the resource store.
+func (c *Compozy) RegisterKnowledgeBase(ctx context.Context, kb *knowledge.BaseConfig) error {
+	if c == nil {
+		return fmt.Errorf("compozy instance is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	if kb == nil {
+		return fmt.Errorf("knowledge base config is required")
+	}
+	store := c.ResourceStore()
+	if store == nil {
+		return fmt.Errorf("resource store is not configured")
+	}
+	c.mu.RLock()
+	projectName := ""
+	if c.project != nil {
+		projectName = strings.TrimSpace(c.project.Name)
+	}
+	c.mu.RUnlock()
+	if projectName == "" {
+		return fmt.Errorf("project name is required for knowledge base registration")
+	}
+	id := strings.TrimSpace(kb.ID)
+	if id == "" {
+		return fmt.Errorf("knowledge base id is required for registration")
+	}
+	kb.ID = id
+	kb.Embedder = strings.TrimSpace(kb.Embedder)
+	kb.VectorDB = strings.TrimSpace(kb.VectorDB)
+	if kb.Embedder == "" {
+		return fmt.Errorf("knowledge base %s requires embedder reference", id)
+	}
+	if kb.VectorDB == "" {
+		return fmt.Errorf("knowledge base %s requires vector_db reference", id)
+	}
+	embedderCfg, err := loadKnowledgeEmbedder(ctx, store, projectName, kb.Embedder)
+	if err != nil {
+		return fmt.Errorf("knowledge base %s: %w", id, err)
+	}
+	if embedderCfg == nil {
+		return fmt.Errorf("knowledge base %s references missing embedder %s", id, kb.Embedder)
+	}
+	vectorCfg, err := loadKnowledgeVector(ctx, store, projectName, kb.VectorDB)
+	if err != nil {
+		return fmt.Errorf("knowledge base %s: %w", id, err)
+	}
+	if vectorCfg == nil {
+		return fmt.Errorf("knowledge base %s references missing vector_db %s", id, kb.VectorDB)
+	}
+	kbCopyAny, err := core.DeepCopy(kb)
+	if err != nil {
+		return fmt.Errorf("knowledge base %s copy failed: %w", id, err)
+	}
+	kbCopy, ok := kbCopyAny.(*knowledge.BaseConfig)
+	if !ok {
+		return fmt.Errorf("knowledge base %s copy unexpected type %T", id, kbCopyAny)
+	}
+	embedderCopyAny, err := core.DeepCopy(embedderCfg)
+	if err != nil {
+		return fmt.Errorf("knowledge base %s embedder copy failed: %w", id, err)
+	}
+	embedderCopy, ok := embedderCopyAny.(*knowledge.EmbedderConfig)
+	if !ok {
+		return fmt.Errorf("knowledge base %s embedder copy unexpected type %T", id, embedderCopyAny)
+	}
+	vectorCopyAny, err := core.DeepCopy(vectorCfg)
+	if err != nil {
+		return fmt.Errorf("knowledge base %s vector copy failed: %w", id, err)
+	}
+	vectorCopy, ok := vectorCopyAny.(*knowledge.VectorDBConfig)
+	if !ok {
+		return fmt.Errorf("knowledge base %s vector copy unexpected type %T", id, vectorCopyAny)
+	}
+	defs := knowledge.Definitions{
+		Embedders:      []knowledge.EmbedderConfig{*embedderCopy},
+		VectorDBs:      []knowledge.VectorDBConfig{*vectorCopy},
+		KnowledgeBases: []knowledge.BaseConfig{*kbCopy},
+	}
+	defs.NormalizeWithDefaults(knowledge.DefaultDefaults())
+	if err := defs.Validate(ctx); err != nil {
+		return fmt.Errorf("knowledge base %s validation failed: %w", id, err)
+	}
+	if kb.Ingest == "" {
+		kb.Ingest = knowledge.IngestManual
+	}
+	key := resources.ResourceKey{Project: projectName, Type: resources.ResourceKnowledgeBase, ID: id}
+	if _, _, err := store.Get(ctx, key); err == nil {
+		return fmt.Errorf("knowledge base %s already registered", id)
+	} else if err != nil && !errors.Is(err, resources.ErrNotFound) {
+		return fmt.Errorf("inspect knowledge base %s registration state: %w", id, err)
+	}
+	if _, err := store.Put(ctx, key, kb); err != nil {
+		return fmt.Errorf("store knowledge base %s: %w", id, err)
+	}
+	if err := resources.WriteMeta(ctx, store, projectName, resources.ResourceKnowledgeBase, id, sdkMetaSource, "sdk"); err != nil {
+		return fmt.Errorf("write knowledge base %s metadata: %w", id, err)
+	}
+	logger.FromContext(ctx).Info(
+		"knowledge base registered",
+		"project",
+		projectName,
+		"knowledge_base",
+		id,
+		"embedder",
+		kb.Embedder,
+		"vector_db",
+		kb.VectorDB,
+	)
+	return nil
+}
+
+// RegisterMemory validates and registers a memory configuration in the resource store.
+func (c *Compozy) RegisterMemory(ctx context.Context, memCfg *memory.Config) error {
+	if c == nil {
+		return fmt.Errorf("compozy instance is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	if memCfg == nil {
+		return fmt.Errorf("memory config is required")
+	}
+	store := c.ResourceStore()
+	if store == nil {
+		return fmt.Errorf("resource store is not configured")
+	}
+	c.mu.RLock()
+	projectName := ""
+	if c.project != nil {
+		projectName = strings.TrimSpace(c.project.Name)
+	}
+	c.mu.RUnlock()
+	if projectName == "" {
+		return fmt.Errorf("project name is required for memory registration")
+	}
+	id := strings.TrimSpace(memCfg.ID)
+	if id == "" {
+		return fmt.Errorf("memory id is required for registration")
+	}
+	memCfg.ID = id
+	if strings.TrimSpace(memCfg.Resource) == "" {
+		memCfg.Resource = string(resources.ResourceMemory)
+	}
+	if err := memCfg.Validate(ctx); err != nil {
+		return fmt.Errorf("memory %s validation failed: %w", id, err)
+	}
+	key := resources.ResourceKey{Project: projectName, Type: resources.ResourceMemory, ID: id}
+	if _, _, err := store.Get(ctx, key); err == nil {
+		return fmt.Errorf("memory %s already registered", id)
+	} else if err != nil && !errors.Is(err, resources.ErrNotFound) {
+		return fmt.Errorf("inspect memory %s registration state: %w", id, err)
+	}
+	if _, err := store.Put(ctx, key, memCfg); err != nil {
+		return fmt.Errorf("store memory %s: %w", id, err)
+	}
+	if err := resources.WriteMeta(ctx, store, projectName, resources.ResourceMemory, id, sdkMetaSource, "sdk"); err != nil {
+		return fmt.Errorf("write memory %s metadata: %w", id, err)
+	}
+	logger.FromContext(ctx).Info(
+		"memory registered",
+		"project",
+		projectName,
+		"memory",
+		id,
+		"persistence",
+		string(memCfg.Persistence.Type),
+	)
+	return nil
+}
+
+// RegisterMCP validates and registers an MCP server configuration in the resource store.
+func (c *Compozy) RegisterMCP(ctx context.Context, mcpCfg *mcp.Config) error {
+	if c == nil {
+		return fmt.Errorf("compozy instance is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	if mcpCfg == nil {
+		return fmt.Errorf("mcp config is required")
+	}
+	store := c.ResourceStore()
+	if store == nil {
+		return fmt.Errorf("resource store is not configured")
+	}
+	c.mu.RLock()
+	projectName := ""
+	if c.project != nil {
+		projectName = strings.TrimSpace(c.project.Name)
+	}
+	c.mu.RUnlock()
+	if projectName == "" {
+		return fmt.Errorf("project name is required for mcp registration")
+	}
+	id := strings.TrimSpace(mcpCfg.ID)
+	if id == "" {
+		return fmt.Errorf("mcp id is required for registration")
+	}
+	mcpCfg.ID = id
+	if err := mcpCfg.Validate(ctx); err != nil {
+		return fmt.Errorf("mcp %s validation failed: %w", id, err)
+	}
+	key := resources.ResourceKey{Project: projectName, Type: resources.ResourceMCP, ID: id}
+	if _, _, err := store.Get(ctx, key); err == nil {
+		return fmt.Errorf("mcp %s already registered", id)
+	} else if err != nil && !errors.Is(err, resources.ErrNotFound) {
+		return fmt.Errorf("inspect mcp %s registration state: %w", id, err)
+	}
+	if _, err := store.Put(ctx, key, mcpCfg); err != nil {
+		return fmt.Errorf("store mcp %s: %w", id, err)
+	}
+	if err := resources.WriteMeta(ctx, store, projectName, resources.ResourceMCP, id, sdkMetaSource, "sdk"); err != nil {
+		return fmt.Errorf("write mcp %s metadata: %w", id, err)
+	}
+	logger.FromContext(ctx).Info(
+		"mcp registered",
+		"project",
+		projectName,
+		"mcp",
+		id,
+		"transport",
+		string(mcpCfg.Transport),
+	)
+	return nil
+}
+
+func loadKnowledgeEmbedder(
+	ctx context.Context,
+	store resources.ResourceStore,
+	projectName string,
+	embedderID string,
+) (*knowledge.EmbedderConfig, error) {
+	key := resources.ResourceKey{Project: projectName, Type: resources.ResourceEmbedder, ID: embedderID}
+	value, _, err := store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load embedder %s: %w", embedderID, err)
+	}
+	switch typed := value.(type) {
+	case *knowledge.EmbedderConfig:
+		return typed, nil
+	case knowledge.EmbedderConfig:
+		return &typed, nil
+	default:
+		return nil, fmt.Errorf("embedder %s has unexpected type %T", embedderID, value)
+	}
+}
+
+func loadKnowledgeVector(
+	ctx context.Context,
+	store resources.ResourceStore,
+	projectName string,
+	vectorID string,
+) (*knowledge.VectorDBConfig, error) {
+	key := resources.ResourceKey{Project: projectName, Type: resources.ResourceVectorDB, ID: vectorID}
+	value, _, err := store.Get(ctx, key)
+	if err != nil {
+		if errors.Is(err, resources.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("load vector_db %s: %w", vectorID, err)
+	}
+	switch typed := value.(type) {
+	case *knowledge.VectorDBConfig:
+		return typed, nil
+	case knowledge.VectorDBConfig:
+		return &typed, nil
+	default:
+		return nil, fmt.Errorf("vector_db %s has unexpected type %T", vectorID, value)
+	}
 }

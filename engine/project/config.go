@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
@@ -447,6 +448,9 @@ type Config struct {
 	KnowledgeBases []knowledge.BaseConfig `json:"knowledge_bases,omitempty" yaml:"knowledge_bases,omitempty" mapstructure:"knowledge_bases,omitempty"`
 	// Knowledge defines the default binding for tasks or agents within the project scope (MVP single binding).
 	Knowledge []core.KnowledgeBinding `json:"knowledge,omitempty"       yaml:"knowledge,omitempty"       mapstructure:"knowledge,omitempty"`
+
+	// MCPs declares project-scoped MCP server definitions accessible to workflows and agents.
+	MCPs []mcp.Config `json:"mcps,omitempty" yaml:"mcps,omitempty" mapstructure:"mcps,omitempty"`
 
 	// Memories declares project-scoped memory resources that agents and tasks can reference
 	// by ID. These are indexed into the ResourceStore under the current project and can be

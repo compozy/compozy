@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/compozy</domain>
@@ -31,11 +31,11 @@ Implement SDK-built knowledge base, memory config, and MCP server registration i
 
 ## Subtasks
 
-- [ ] 24.1 Implement RegisterKnowledgeBase(ctx, *knowledge.BaseConfig)
-- [ ] 24.2 Implement RegisterMemory(ctx, *memory.Config)
-- [ ] 24.3 Implement RegisterMCP(ctx, *mcp.Config)
-- [ ] 24.4 Add validation for external dependencies (embedders, vector DBs)
-- [ ] 24.5 Add unit and integration tests for all paths
+- [x] 24.1 Implement RegisterKnowledgeBase(ctx, *knowledge.BaseConfig)
+- [x] 24.2 Implement RegisterMemory(ctx, *memory.Config)
+- [x] 24.3 Implement RegisterMCP(ctx, *mcp.Config)
+- [x] 24.4 Add validation for external dependencies (embedders, vector DBs)
+- [x] 24.5 Add unit and integration tests for all paths
 
 ## Implementation Details
 
@@ -91,18 +91,18 @@ for _, mcp := range proj.MCPs {
 
 Integration tests from _tests.md:
 
-- [ ] Valid knowledge base with embedder and vectorDB registers successfully
-- [ ] Knowledge base missing embedder returns validation error
-- [ ] Knowledge base missing vectorDB returns validation error
-- [ ] Valid memory config with Redis backend registers successfully
-- [ ] Memory config validation failure includes memory ID
-- [ ] Valid MCP with stdio transport registers successfully
-- [ ] Valid MCP with SSE transport registers successfully
-- [ ] MCP validation failure includes MCP ID and transport type
-- [ ] Duplicate knowledge base IDs are rejected
-- [ ] Duplicate memory IDs are rejected
-- [ ] Duplicate MCP IDs are rejected
-- [ ] logger.FromContext(ctx) used for all logging
+- [x] Valid knowledge base with embedder and vectorDB registers successfully
+- [x] Knowledge base missing embedder returns validation error
+- [x] Knowledge base missing vectorDB returns validation error
+- [x] Valid memory config with Redis backend registers successfully
+- [x] Memory config validation failure includes memory ID
+- [x] Valid MCP with stdio transport registers successfully
+- [x] Valid MCP with SSE transport registers successfully
+- [x] MCP validation failure includes MCP ID and transport type
+- [x] Duplicate knowledge base IDs are rejected
+- [x] Duplicate memory IDs are rejected
+- [x] Duplicate MCP IDs are rejected
+- [x] logger.FromContext(ctx) used for all logging
 
 ## Success Criteria
 

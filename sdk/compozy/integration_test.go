@@ -2,12 +2,17 @@ package compozy
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/agent"
+	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/memory"
+	memcore "github.com/compozy/compozy/engine/memory/core"
 	engineproject "github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
 	engineschema "github.com/compozy/compozy/engine/schema"
@@ -15,6 +20,7 @@ import (
 	enginetool "github.com/compozy/compozy/engine/tool"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
+	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
 	projectbuilder "github.com/compozy/compozy/sdk/project"
 	workflowbuilder "github.com/compozy/compozy/sdk/workflow"
@@ -328,6 +334,156 @@ func TestRegisterSchemaDuplicateIDRejected(t *testing.T) {
 	require.Contains(t, err.Error(), "already registered")
 }
 
+func TestRegisterKnowledgeBaseRegistersSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	store := resources.NewMemoryResourceStore()
+	projectName := "demo"
+	embedderID, vectorID := seedKnowledgeDependencies(t, ctx, store, projectName, 1536)
+	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
+	kbCfg := sampleKnowledgeBaseConfig(t, "kb-success", embedderID, vectorID)
+	require.NoError(t, instance.RegisterKnowledgeBase(ctx, kbCfg))
+	key := resources.ResourceKey{Project: projectName, Type: resources.ResourceKnowledgeBase, ID: kbCfg.ID}
+	value, _, err := store.Get(ctx, key)
+	require.NoError(t, err)
+	require.IsType(t, &knowledge.BaseConfig{}, value)
+}
+
+func TestRegisterKnowledgeBaseMissingEmbedder(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	store := resources.NewMemoryResourceStore()
+	projectName := "demo"
+	_, vectorID := seedKnowledgeDependencies(t, ctx, store, projectName, 1024)
+	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
+	kbCfg := sampleKnowledgeBaseConfig(t, "kb-missing-embedder", "missing-embedder", vectorID)
+	err := instance.RegisterKnowledgeBase(ctx, kbCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "knowledge base "+kbCfg.ID)
+	require.Contains(t, err.Error(), "missing embedder")
+}
+
+func TestRegisterKnowledgeBaseMissingVectorDB(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	store := resources.NewMemoryResourceStore()
+	projectName := "demo"
+	embedderID, _ := seedKnowledgeDependencies(t, ctx, store, projectName, 768)
+	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
+	kbCfg := sampleKnowledgeBaseConfig(t, "kb-missing-vector", embedderID, "missing-vector")
+	err := instance.RegisterKnowledgeBase(ctx, kbCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "knowledge base "+kbCfg.ID)
+	require.Contains(t, err.Error(), "missing vector_db")
+}
+
+func TestRegisterKnowledgeBaseDuplicateIDRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	store := resources.NewMemoryResourceStore()
+	projectName := "demo"
+	embedderID, vectorID := seedKnowledgeDependencies(t, ctx, store, projectName, 1536)
+	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
+	kbCfg := sampleKnowledgeBaseConfig(t, "kb-dup", embedderID, vectorID)
+	require.NoError(t, instance.RegisterKnowledgeBase(ctx, kbCfg))
+	err := instance.RegisterKnowledgeBase(ctx, kbCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+}
+
+func TestRegisterMemoryRegistersSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	memCfg := sampleMemoryConfig("memory-success")
+	require.NoError(t, instance.RegisterMemory(ctx, memCfg))
+	key := resources.ResourceKey{Project: "demo", Type: resources.ResourceMemory, ID: memCfg.ID}
+	value, _, err := instance.store.Get(ctx, key)
+	require.NoError(t, err)
+	require.IsType(t, &memory.Config{}, value)
+}
+
+func TestRegisterMemoryValidationFailureIncludesID(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	memCfg := sampleMemoryConfig("memory-invalid")
+	memCfg.Persistence.TTL = ""
+	memCfg.Persistence.Type = memcore.RedisPersistence
+	err := instance.RegisterMemory(ctx, memCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "memory "+memCfg.ID+" validation failed")
+}
+
+func TestRegisterMemoryDuplicateIDRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	memCfg := sampleMemoryConfig("memory-dup")
+	require.NoError(t, instance.RegisterMemory(ctx, memCfg))
+	err := instance.RegisterMemory(ctx, memCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+}
+
+func TestRegisterMCPStdioRegistersSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	t.Setenv("MCP_PROXY_URL", "http://localhost:3030")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	mcpCfg := sampleStdIOMCPConfig("mcp-stdio")
+	require.NoError(t, instance.RegisterMCP(ctx, mcpCfg))
+	key := resources.ResourceKey{Project: "demo", Type: resources.ResourceMCP, ID: mcpCfg.ID}
+	value, _, err := instance.store.Get(ctx, key)
+	require.NoError(t, err)
+	require.IsType(t, &mcp.Config{}, value)
+}
+
+func TestRegisterMCPSSERegistersSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	t.Setenv("MCP_PROXY_URL", "http://localhost:4040")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	mcpCfg := sampleSSEMCPConfig("mcp-sse")
+	require.NoError(t, instance.RegisterMCP(ctx, mcpCfg))
+}
+
+func TestRegisterMCPValidationFailureIncludesIDAndTransport(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	t.Setenv("MCP_PROXY_URL", "http://localhost:5050")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	mcpCfg := sampleStdIOMCPConfig("mcp-invalid")
+	mcpCfg.Command = ""
+	err := instance.RegisterMCP(ctx, mcpCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "mcp "+mcpCfg.ID+" validation failed")
+	require.Contains(t, err.Error(), "stdio")
+}
+
+func TestRegisterMCPDuplicateIDRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	t.Setenv("MCP_PROXY_URL", "http://localhost:6060")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	mcpCfg := sampleStdIOMCPConfig("mcp-dup")
+	require.NoError(t, instance.RegisterMCP(ctx, mcpCfg))
+	err := instance.RegisterMCP(ctx, mcpCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+}
+
 func TestLoadProjectRegistersResourcesInOrder(t *testing.T) {
 	t.Parallel()
 
@@ -363,6 +519,37 @@ func TestLoadProjectRegistersResourcesInOrder(t *testing.T) {
 	require.Less(t, workflowIdx, agentIdx)
 	require.Less(t, agentIdx, toolIdx)
 	require.Less(t, toolIdx, schemaIdx)
+}
+
+func TestLoadProjectRegistersKnowledgeMemoryMCP(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	t.Setenv("MCP_PROXY_URL", "http://localhost:7070")
+	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	store := resources.NewMemoryResourceStore()
+	embedderID, vectorID := seedKnowledgeDependencies(t, ctx, store, projectCfg.Name, 1536)
+	kbValue := sampleKnowledgeBaseConfig(t, "kb-load", embedderID, vectorID)
+	projectCfg.KnowledgeBases = append(projectCfg.KnowledgeBases, *kbValue)
+	memValue := sampleMemoryConfig("memory-load")
+	projectCfg.Memories = append(projectCfg.Memories, *memValue)
+	mcpValue := sampleStdIOMCPConfig("mcp-load")
+	projectCfg.MCPs = append(projectCfg.MCPs, *mcpValue)
+	instance := &Compozy{
+		store:         store,
+		workflowByID:  map[string]*engineworkflow.Config{workflowCfg.ID: workflowCfg},
+		workflowOrder: []string{workflowCfg.ID},
+	}
+	require.NoError(t, instance.loadProjectIntoEngine(ctx, projectCfg))
+	kbKey := resources.ResourceKey{Project: projectCfg.Name, Type: resources.ResourceKnowledgeBase, ID: kbValue.ID}
+	_, _, err := store.Get(ctx, kbKey)
+	require.NoError(t, err)
+	memKey := resources.ResourceKey{Project: projectCfg.Name, Type: resources.ResourceMemory, ID: memValue.ID}
+	_, _, err = store.Get(ctx, memKey)
+	require.NoError(t, err)
+	mcpKey := resources.ResourceKey{Project: projectCfg.Name, Type: resources.ResourceMCP, ID: mcpValue.ID}
+	_, _, err = store.Get(ctx, mcpKey)
+	require.NoError(t, err)
 }
 
 func TestHybridProjectSupportsYAML(t *testing.T) {
@@ -576,6 +763,100 @@ func sampleToolConfig(t *testing.T, id string) *enginetool.Config {
 func sampleSchema(id string) *engineschema.Schema {
 	schemaCfg := engineschema.Schema{"id": id, "type": "object", "properties": map[string]any{}}
 	return &schemaCfg
+}
+
+func sampleKnowledgeBaseConfig(t *testing.T, id string, embedderID string, vectorID string) *knowledge.BaseConfig {
+	t.Helper()
+	return &knowledge.BaseConfig{
+		ID:       id,
+		Embedder: embedderID,
+		VectorDB: vectorID,
+		Ingest:   knowledge.IngestManual,
+		Sources: []knowledge.SourceConfig{{
+			Type:  knowledge.SourceTypeMarkdownGlob,
+			Paths: []string{"docs/*.md"},
+		}},
+	}
+}
+
+func seedKnowledgeDependencies(
+	t *testing.T,
+	ctx context.Context,
+	store resources.ResourceStore,
+	project string,
+	dimension int,
+) (string, string) {
+	t.Helper()
+	embedderID := fmt.Sprintf("embedder-%d", dimension)
+	embedder := &knowledge.EmbedderConfig{
+		ID:       embedderID,
+		Provider: "openai",
+		Model:    "text-embedding-3-small",
+		Config: knowledge.EmbedderRuntimeConfig{
+			Dimension: dimension,
+			BatchSize: 1,
+		},
+	}
+	_, err := store.Put(
+		ctx,
+		resources.ResourceKey{Project: project, Type: resources.ResourceEmbedder, ID: embedderID},
+		embedder,
+	)
+	require.NoError(t, err)
+	vectorID := fmt.Sprintf("vector-%d", dimension)
+	vector := &knowledge.VectorDBConfig{
+		ID:   vectorID,
+		Type: knowledge.VectorDBTypeFilesystem,
+		Config: knowledge.VectorDBConnConfig{
+			Path:      t.TempDir(),
+			Dimension: dimension,
+		},
+	}
+	_, err = store.Put(
+		ctx,
+		resources.ResourceKey{Project: project, Type: resources.ResourceVectorDB, ID: vectorID},
+		vector,
+	)
+	require.NoError(t, err)
+	return embedderID, vectorID
+}
+
+func sampleMemoryConfig(id string) *memory.Config {
+	return &memory.Config{
+		Resource:  string(resources.ResourceMemory),
+		ID:        id,
+		Type:      memcore.TokenBasedMemory,
+		MaxTokens: 4000,
+		Persistence: memcore.PersistenceConfig{
+			Type: memcore.RedisPersistence,
+			TTL:  "24h",
+		},
+	}
+}
+
+func sampleStdIOMCPConfig(id string) *mcp.Config {
+	return &mcp.Config{
+		Resource:     id,
+		ID:           id,
+		Transport:    mcpproxy.TransportStdio,
+		Command:      "mcp-" + id,
+		StartTimeout: 5 * time.Second,
+		Env: map[string]string{
+			"LOG_LEVEL": "info",
+		},
+	}
+}
+
+func sampleSSEMCPConfig(id string) *mcp.Config {
+	return &mcp.Config{
+		Resource:  id,
+		ID:        id,
+		Transport: mcpproxy.TransportSSE,
+		URL:       fmt.Sprintf("http://localhost:9000/%s", id),
+		Headers: map[string]string{
+			"Authorization": "Bearer token",
+		},
+	}
 }
 
 func indexOf(items []string, target string) int {
