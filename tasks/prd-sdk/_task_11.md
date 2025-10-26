@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/client</domain>
@@ -30,13 +30,13 @@ Implement the HTTP client builder for interacting with a running Compozy server.
 
 ## Subtasks
 
-- [ ] 11.1 Create sdk/client package structure
-- [ ] 11.2 Implement Builder with endpoint/auth/timeout configuration
-- [ ] 11.3 Implement Client struct with HTTP methods
-- [ ] 11.4 Add DeployProject, ExecuteWorkflow, GetWorkflowStatus methods
-- [ ] 11.5 Implement error handling and response parsing
-- [ ] 11.6 Write unit tests for Builder and Client
-- [ ] 11.7 Add integration test with mock server
+- [x] 11.1 Create sdk/client package structure
+- [x] 11.2 Implement Builder with endpoint/auth/timeout configuration
+- [x] 11.3 Implement Client struct with HTTP methods
+- [x] 11.4 Add DeployProject, ExecuteWorkflow, GetWorkflowStatus methods
+- [x] 11.5 Implement error handling and response parsing
+- [x] 11.6 Write unit tests for Builder and Client
+- [x] 11.7 Add integration test with mock server
 
 ## Implementation Details
 
