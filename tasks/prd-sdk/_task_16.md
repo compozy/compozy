@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -30,13 +30,13 @@ Implement RouterBuilder for conditional routing (switch logic) to execute differ
 
 ## Subtasks
 
-- [ ] 16.1 Create sdk/task/router.go
-- [ ] 16.2 Implement RouterBuilder struct and constructor
-- [ ] 16.3 Add WithCondition method
-- [ ] 16.4 Add AddRoute method for conditional branches
-- [ ] 16.5 Add WithDefault method for fallback
-- [ ] 16.6 Implement Build(ctx) with validation
-- [ ] 16.7 Write unit tests
+- [x] 16.1 Create sdk/task/router.go
+- [x] 16.2 Implement RouterBuilder struct and constructor
+- [x] 16.3 Add WithCondition method
+- [x] 16.4 Add AddRoute method for conditional branches
+- [x] 16.5 Add WithDefault method for fallback
+- [x] 16.6 Implement Build(ctx) with validation
+- [x] 16.7 Write unit tests
 
 ## Implementation Details
 
@@ -74,13 +74,13 @@ func (b *RouterBuilder) Build(ctx context.Context) (*task.Config, error)
 ## Tests
 
 Unit tests from `_tests.md`:
-- [ ] Router task with multiple routes
-- [ ] Router task with default route
-- [ ] Adding routes incrementally
-- [ ] Error: no routes specified
-- [ ] Error: empty task ID in route
-- [ ] Error: duplicate conditions
-- [ ] BuildError aggregation
+- [x] Router task with multiple routes
+- [x] Router task with default route
+- [x] Adding routes incrementally
+- [x] Error: no routes specified
+- [x] Error: empty task ID in route
+- [x] Error: duplicate conditions
+- [x] BuildError aggregation
 
 ## Success Criteria
 

@@ -39,7 +39,7 @@
 - [x] 13.0 Task: Basic (S)
 - [x] 14.0 Task: Parallel (S)
 - [x] 15.0 Task: Collection (S)
-- [ ] 16.0 Task: Router (S)
+- [x] 16.0 Task: Router (S)
 - [ ] 17.0 Task: Wait (S)
 - [ ] 18.0 Task: Aggregate (S)
 - [ ] 19.0 Task: Composite (S)
