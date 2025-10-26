@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/project</domain>
@@ -34,16 +34,16 @@ Implement the Project builder - the top-level SDK entity that contains all resou
 
 ## Subtasks
 
-- [ ] 04.1 Create sdk/project/builder.go with Builder struct
-- [ ] 04.2 Implement New(name) constructor
-- [ ] 04.3 Implement WithVersion(version) *Builder
-- [ ] 04.4 Implement WithDescription(desc) *Builder
-- [ ] 04.5 Implement WithAuthor(name, email, org) *Builder
-- [ ] 04.6 Implement AddModel(model) *Builder
-- [ ] 04.7 Implement AddWorkflow(wf) *Builder
-- [ ] 04.8 Implement AddAgent(agent) *Builder
-- [ ] 04.9 Implement Build(ctx context.Context) (*project.Config, error)
-- [ ] 04.10 Add comprehensive unit tests
+- [x] 04.1 Create sdk/project/builder.go with Builder struct
+- [x] 04.2 Implement New(name) constructor
+- [x] 04.3 Implement WithVersion(version) *Builder
+- [x] 04.4 Implement WithDescription(desc) *Builder
+- [x] 04.5 Implement WithAuthor(name, email, org) *Builder
+- [x] 04.6 Implement AddModel(model) *Builder
+- [x] 04.7 Implement AddWorkflow(wf) *Builder
+- [x] 04.8 Implement AddAgent(agent) *Builder
+- [x] 04.9 Implement Build(ctx context.Context) (*project.Config, error)
+- [x] 04.10 Add comprehensive unit tests
 
 ## Implementation Details
 
@@ -102,19 +102,19 @@ func (b *Builder) Build(ctx context.Context) (*project.Config, error)
 Reference: tasks/prd-sdk/_tests.md
 
 - Unit tests for Project builder:
-  - [ ] Test New() creates valid builder
-  - [ ] Test WithVersion() validates semver format
-  - [ ] Test WithDescription() accepts non-empty strings
-  - [ ] Test WithAuthor() validates email format
-  - [ ] Test AddModel() accumulates models
-  - [ ] Test AddWorkflow() accumulates workflows
-  - [ ] Test AddAgent() accumulates agents
-  - [ ] Test Build() with valid config succeeds
-  - [ ] Test Build() with empty name fails
-  - [ ] Test Build() with invalid version fails
-  - [ ] Test Build() with no workflows fails
-  - [ ] Test Build() accumulates multiple errors
-  - [ ] Test context propagation to logger
+  - [x] Test New() creates valid builder
+  - [x] Test WithVersion() validates semver format
+  - [x] Test WithDescription() accepts non-empty strings
+  - [x] Test WithAuthor() validates email format
+  - [x] Test AddModel() accumulates models
+  - [x] Test AddWorkflow() accumulates workflows
+  - [x] Test AddAgent() accumulates agents
+  - [x] Test Build() with valid config succeeds
+  - [x] Test Build() with empty name fails
+  - [x] Test Build() with invalid version fails
+  - [x] Test Build() with no workflows fails
+  - [x] Test Build() accumulates multiple errors
+  - [x] Test context propagation to logger
 
 ## Success Criteria
 
