@@ -41,6 +41,15 @@ const (
 	thinkPromptLow             = "Think concisely and act quickly. Prefer direct solutions."
 	thinkPromptHighDescription = "Ultrathink deeply and comprehensively before taking action. " +
 		"Consider edge cases, alternatives, and long-term implications. Show your reasoning process."
+	modeCodeReview = "pr-review"
+	modePRDTasks   = "prd-tasks"
+)
+
+type executionMode string
+
+const (
+	ExecutionModePRReview executionMode = modeCodeReview
+	ExecutionModePRDTasks executionMode = modePRDTasks
 )
 
 // Port of scripts/solve-pr-issues.ts with concurrency and non-streamed logging.
@@ -64,16 +73,18 @@ const (
 //   (default: medium, options: low/medium/high).
 
 type cliArgs struct {
-	pr              string
-	issuesDir       string
-	dryRun          bool
-	concurrent      int
-	batchSize       int
-	ide             string
-	model           string
-	grouped         bool
-	tailLines       int
-	reasoningEffort string
+	pr               string
+	issuesDir        string
+	dryRun           bool
+	concurrent       int
+	batchSize        int
+	ide              string
+	model            string
+	grouped          bool
+	tailLines        int
+	reasoningEffort  string
+	mode             string
+	includeCompleted bool
 }
 
 type issueEntry struct {
@@ -81,6 +92,18 @@ type issueEntry struct {
 	absPath  string
 	content  string
 	codeFile string // repository-relative code file or "__unknown__:<filename>"
+}
+
+type taskEntry struct {
+	name         string
+	absPath      string
+	content      string
+	status       string
+	domain       string
+	taskType     string
+	scope        string
+	complexity   string
+	dependencies []string
 }
 
 func main() {
@@ -130,17 +153,19 @@ Behavior:
 }
 
 var (
-	pr              string
-	issuesDir       string
-	dryRun          bool
-	concurrent      int
-	batchSize       int
-	ide             string
-	model           string
-	grouped         bool
-	tailLines       int
-	reasoningEffort string
-	useForm         bool
+	pr               string
+	issuesDir        string
+	dryRun           bool
+	concurrent       int
+	batchSize        int
+	ide              string
+	model            string
+	grouped          bool
+	tailLines        int
+	reasoningEffort  string
+	useForm          bool
+	mode             string
+	includeCompleted bool
 )
 
 var _ = buildZenMCPGuidance
@@ -168,6 +193,10 @@ func setupFlags() {
 		"Reasoning effort for codex/claude/droid (low, medium, high)",
 	)
 	rootCmd.Flags().BoolVar(&useForm, "form", false, "Use interactive form to collect parameters")
+	rootCmd.Flags().
+		StringVar(&mode, "mode", modeCodeReview, "Execution mode: pr-review (CodeRabbit issues) or prd-tasks (PRD task files)")
+	rootCmd.Flags().
+		BoolVar(&includeCompleted, "include-completed", false, "Include completed tasks (only applies to prd-tasks mode)")
 
 	// Note: PR is usually required, but we handle this dynamically in runSolveIssues
 }
@@ -195,6 +224,7 @@ type formInputs struct {
 	model           string
 	tailLines       string
 	reasoningEffort string
+	mode            string
 }
 
 func newFormInputs() *formInputs {
@@ -203,6 +233,7 @@ func newFormInputs() *formInputs {
 
 // register wires the interactive fields into the provided builder.
 func (fi *formInputs) register(builder *formBuilder) {
+	builder.addModeField(&fi.mode)
 	builder.addPRField(&fi.pr)
 	builder.addOptionalPathField("issues-dir", &fi.issuesDir)
 	builder.addConcurrentField(&fi.concurrent)
@@ -223,10 +254,12 @@ func (fi *formInputs) register(builder *formBuilder) {
 		"Create grouped issue summaries in issues/grouped/",
 		&grouped,
 	)
+	builder.addIncludeCompletedField(&includeCompleted)
 }
 
 // apply updates CLI flags and globals with collected form values.
 func (fi *formInputs) apply(cmd *cobra.Command) {
+	applyStringInput(cmd, "mode", fi.mode, func(val string) { mode = val })
 	applyStringInput(cmd, "pr", fi.pr, func(val string) { pr = val })
 	applyStringInput(cmd, "issues-dir", fi.issuesDir, func(val string) { issuesDir = val })
 	applyIntInput(cmd, "concurrent", fi.concurrent, func(val int) { concurrent = val })
@@ -258,6 +291,19 @@ func (fb *formBuilder) addField(flag string, build func() huh.Field) {
 		return
 	}
 	fb.fields = append(fb.fields, build())
+}
+
+func (fb *formBuilder) addModeField(target *string) {
+	fb.addField("mode", func() huh.Field {
+		return huh.NewSelect[string]().
+			Title("Execution Mode").
+			Description("Choose what to process").
+			Options(
+				huh.NewOption("PR Review Issues (CodeRabbit)", modeCodeReview),
+				huh.NewOption("PRD Task Files", modePRDTasks),
+			).
+			Value(target)
+	})
 }
 
 func (fb *formBuilder) addPRField(target *string) {
@@ -302,6 +348,10 @@ func (fb *formBuilder) addConcurrentField(target *string) {
 
 func (fb *formBuilder) addBatchSizeField(target *string) {
 	fb.addField("batch-size", func() huh.Field {
+		if mode == modePRDTasks {
+			*target = "1"
+			return nil
+		}
 		return numericInput(
 			"Batch Size",
 			"1",
@@ -371,6 +421,18 @@ func (fb *formBuilder) addConfirmField(flag, title, description string, target *
 		return huh.NewConfirm().
 			Title(title).
 			Description(description).
+			Value(target)
+	})
+}
+
+func (fb *formBuilder) addIncludeCompletedField(target *bool) {
+	fb.addField("include-completed", func() huh.Field {
+		if mode != modePRDTasks {
+			return nil
+		}
+		return huh.NewConfirm().
+			Title("Include Completed Tasks?").
+			Description("Process tasks marked as completed").
 			Value(target)
 	})
 }
@@ -460,20 +522,30 @@ func ensurePRProvided() error {
 
 func buildCLIArgs() *cliArgs {
 	return &cliArgs{
-		pr:              pr,
-		issuesDir:       issuesDir,
-		dryRun:          dryRun,
-		concurrent:      concurrent,
-		batchSize:       batchSize,
-		ide:             ide,
-		model:           model,
-		grouped:         grouped,
-		tailLines:       tailLines,
-		reasoningEffort: reasoningEffort,
+		pr:               pr,
+		issuesDir:        issuesDir,
+		dryRun:           dryRun,
+		concurrent:       concurrent,
+		batchSize:        batchSize,
+		ide:              ide,
+		model:            model,
+		grouped:          grouped,
+		tailLines:        tailLines,
+		reasoningEffort:  reasoningEffort,
+		mode:             mode,
+		includeCompleted: includeCompleted,
 	}
 }
 
 func (c *cliArgs) validate() error {
+	if c.mode != modeCodeReview && c.mode != modePRDTasks {
+		return fmt.Errorf(
+			"invalid --mode value '%s': must be '%s' or '%s'",
+			c.mode,
+			modeCodeReview,
+			modePRDTasks,
+		)
+	}
 	if c.ide != ideClaude && c.ide != ideCodex && c.ide != ideDroid {
 		return fmt.Errorf(
 			"invalid --ide value '%s': must be '%s', '%s', or '%s'",
@@ -481,6 +553,12 @@ func (c *cliArgs) validate() error {
 			ideClaude,
 			ideCodex,
 			ideDroid,
+		)
+	}
+	if c.mode == modePRDTasks && c.batchSize != 1 {
+		return fmt.Errorf(
+			"batch size must be 1 for prd-tasks mode (got %d)",
+			c.batchSize,
 		)
 	}
 	return nil
@@ -526,18 +604,24 @@ func prepareSolveIssues(args *cliArgs) (*solvePreparation, error) {
 	if err := ensureCLI(args); err != nil {
 		return nil, err
 	}
-	entries, err := readIssueEntries(prep.issuesDirPath)
+	entries, err := readIssueEntries(prep.issuesDirPath, executionMode(args.mode), args.includeCompleted)
 	if err != nil {
 		return nil, err
 	}
 	if len(entries) == 0 {
-		fmt.Println("No issue files found.")
+		if executionMode(args.mode) == ExecutionModePRDTasks {
+			fmt.Println("No task files found.")
+		} else {
+			fmt.Println("No issue files found.")
+		}
 		return nil, errNoIssues
 	}
-	entries = filterUnresolved(entries)
-	if len(entries) == 0 {
-		fmt.Println("All issues are already resolved. Nothing to do.")
-		return nil, errNoIssues
+	if executionMode(args.mode) == ExecutionModePRReview {
+		entries = filterUnresolved(entries)
+		if len(entries) == 0 {
+			fmt.Println("All issues are already resolved. Nothing to do.")
+			return nil, errNoIssues
+		}
 	}
 	groups := groupIssues(entries)
 	if args.grouped {
@@ -550,7 +634,14 @@ func prepareSolveIssues(args *cliArgs) (*solvePreparation, error) {
 	if err != nil {
 		return nil, err
 	}
-	prep.jobs, err = prepareJobs(prep.resolvedPr, groups, promptRoot, args.batchSize, args.grouped)
+	prep.jobs, err = prepareJobs(
+		prep.resolvedPr,
+		groups,
+		promptRoot,
+		args.batchSize,
+		args.grouped,
+		executionMode(args.mode),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -642,7 +733,12 @@ func prepareJobs(
 	promptRoot string,
 	batchSize int,
 	grouped bool,
+	mode executionMode,
 ) ([]job, error) {
+	if mode == ExecutionModePRDTasks {
+		batchSize = 1
+		grouped = false
+	}
 	allIssues := flattenAndSortIssues(groups)
 	if batchSize <= 0 {
 		batchSize = 1
@@ -650,7 +746,7 @@ func prepareJobs(
 	issueBatches := createIssueBatches(allIssues, batchSize)
 	jobs := make([]job, 0, len(issueBatches))
 	for batchIdx, batchIssues := range issueBatches {
-		jb, err := buildBatchJob(pr, promptRoot, grouped, batchIdx, batchIssues)
+		jb, err := buildBatchJob(pr, promptRoot, grouped, batchIdx, batchIssues, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -666,13 +762,15 @@ func buildBatchJob(
 	grouped bool,
 	batchIdx int,
 	batchIssues []issueEntry,
+	mode executionMode,
 ) (job, error) {
 	batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
-	safeName := determineBatchName(batchIdx, batchFiles)
+	safeName := determineBatchName(batchIdx, batchFiles, mode)
 	promptStr := buildBatchedIssuesPrompt(buildBatchedIssuesParams{
 		PR:          pr,
 		BatchGroups: batchGroups,
 		Grouped:     grouped,
+		Mode:        mode,
 	})
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(promptRoot, safeName, promptStr)
 	if err != nil {
@@ -690,7 +788,13 @@ func buildBatchJob(
 }
 
 // determineBatchName picks a human-readable name for the generated batch artifacts.
-func determineBatchName(batchIdx int, batchFiles []string) string {
+func determineBatchName(batchIdx int, batchFiles []string, mode executionMode) string {
+	if mode == ExecutionModePRDTasks {
+		if len(batchFiles) == 1 {
+			return safeFileName(batchFiles[0])
+		}
+		return fmt.Sprintf("task_%03d", batchIdx+1)
+	}
 	if len(batchFiles) == 1 {
 		filename := batchFiles[0]
 		if strings.HasPrefix(filename, "__unknown__") {
@@ -2381,7 +2485,92 @@ func assertExecSupported(ide string) error {
 	return nil
 }
 
-func readIssueEntries(resolvedIssuesDir string) ([]issueEntry, error) {
+func parseTaskFile(content string) (taskEntry, error) {
+	task := taskEntry{content: content}
+	statusRe := regexp.MustCompile(`(?m)^##\s*status:\s*(\w+)`)
+	if m := statusRe.FindStringSubmatch(content); len(m) > 1 {
+		task.status = strings.TrimSpace(m[1])
+	}
+	contextStart := strings.Index(content, "<task_context>")
+	contextEnd := strings.Index(content, "</task_context>")
+	if contextStart > 0 && contextEnd > contextStart {
+		contextBlock := content[contextStart : contextEnd+15]
+		task.domain = extractXMLTag(contextBlock, "domain")
+		task.taskType = extractXMLTag(contextBlock, "type")
+		task.scope = extractXMLTag(contextBlock, "scope")
+		task.complexity = extractXMLTag(contextBlock, "complexity")
+		if deps := extractXMLTag(contextBlock, "dependencies"); deps != "none" {
+			task.dependencies = strings.Split(deps, ",")
+			for i := range task.dependencies {
+				task.dependencies[i] = strings.TrimSpace(task.dependencies[i])
+			}
+		}
+	}
+	return task, nil
+}
+
+func extractXMLTag(content, tag string) string {
+	re := regexp.MustCompile(fmt.Sprintf(`<%s>(.*?)</%s>`, tag, tag))
+	if m := re.FindStringSubmatch(content); len(m) > 1 {
+		return strings.TrimSpace(m[1])
+	}
+	return ""
+}
+
+func isTaskCompleted(task taskEntry) bool {
+	status := strings.ToLower(task.status)
+	return status == "completed" || status == "done" || status == "finished"
+}
+
+func readIssueEntries(resolvedIssuesDir string, mode executionMode, includeCompleted bool) ([]issueEntry, error) {
+	if mode == ExecutionModePRDTasks {
+		return readTaskEntries(resolvedIssuesDir, includeCompleted)
+	}
+	return readCodeRabbitIssues(resolvedIssuesDir)
+}
+
+func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, error) {
+	entries := []issueEntry{}
+	files, err := os.ReadDir(tasksDir)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(files))
+	for _, f := range files {
+		if !f.Type().IsRegular() || !strings.HasSuffix(f.Name(), ".md") {
+			continue
+		}
+		if strings.HasPrefix(f.Name(), "_") && !strings.HasPrefix(f.Name(), "_task_") {
+			continue
+		}
+		names = append(names, f.Name())
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		absPath := filepath.Join(tasksDir, name)
+		b, err := os.ReadFile(absPath)
+		if err != nil {
+			return nil, err
+		}
+		content := string(b)
+		task, err := parseTaskFile(content)
+		if err != nil {
+			continue
+		}
+		if !includeCompleted && isTaskCompleted(task) {
+			continue
+		}
+		entries = append(entries, issueEntry{
+			name:     name,
+			absPath:  absPath,
+			content:  content,
+			codeFile: task.domain,
+		})
+	}
+	return entries, nil
+}
+
+func readCodeRabbitIssues(resolvedIssuesDir string) ([]issueEntry, error) {
 	entries := []issueEntry{}
 	files, err := os.ReadDir(resolvedIssuesDir)
 	if err != nil {
@@ -2603,9 +2792,28 @@ type buildBatchedIssuesParams struct {
 	PR          string
 	BatchGroups map[string][]issueEntry
 	Grouped     bool
+	Mode        executionMode
 }
 
 func buildBatchedIssuesPrompt(p buildBatchedIssuesParams) string {
+	if p.Mode == ExecutionModePRDTasks {
+		return buildPRDTasksPrompt(p)
+	}
+	return buildCodeReviewPrompt(p)
+}
+
+func buildPRDTasksPrompt(p buildBatchedIssuesParams) string {
+	var taskEntry issueEntry
+	for _, items := range p.BatchGroups {
+		if len(items) > 0 {
+			taskEntry = items[0]
+			break
+		}
+	}
+	return buildPRDTaskPrompt(taskEntry)
+}
+
+func buildCodeReviewPrompt(p buildBatchedIssuesParams) string {
 	codeFiles := sortCodeFiles(p.BatchGroups)
 	helperCommands := buildHelperCommands(p.PR, p.BatchGroups)
 	header := buildBatchHeader(p.PR, codeFiles, p.BatchGroups)
@@ -2618,6 +2826,47 @@ func buildBatchedIssuesPrompt(p buildBatchedIssuesParams) string {
 	composed := strings.Join([]string{helperCommands, header, critical, batchNotice,
 		issueGroups, task, testingReqs, checklist}, "\n\n")
 	return composed
+}
+
+func buildPRDTaskPrompt(task issueEntry) string {
+	taskData, _ := parseTaskFile(task.content)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# Implementation Task: %s\n\n", task.name))
+	sb.WriteString("## Task Context\n\n")
+	sb.WriteString(fmt.Sprintf("- **Domain**: %s\n", taskData.domain))
+	sb.WriteString(fmt.Sprintf("- **Type**: %s\n", taskData.taskType))
+	sb.WriteString(fmt.Sprintf("- **Scope**: %s\n", taskData.scope))
+	sb.WriteString(fmt.Sprintf("- **Complexity**: %s\n", taskData.complexity))
+	if len(taskData.dependencies) > 0 {
+		sb.WriteString(fmt.Sprintf("- **Dependencies**: %s\n", strings.Join(taskData.dependencies, ", ")))
+	}
+	sb.WriteString("\n")
+	sb.WriteString("## Task Specification\n\n")
+	sb.WriteString(task.content)
+	sb.WriteString("\n\n")
+	sb.WriteString("## Implementation Instructions\n\n")
+	sb.WriteString("<critical>\n")
+	sb.WriteString("**MANDATORY READ BEFORE STARTING**:\n")
+	sb.WriteString("- @.cursor/rules/go-coding-standards.mdc\n")
+	sb.WriteString("- @.cursor/rules/architecture.mdc\n")
+	sb.WriteString("- @.cursor/rules/test-standards.mdc\n")
+	sb.WriteString("</critical>\n\n")
+	sb.WriteString("**Requirements**:\n")
+	sb.WriteString("- All functions must be < 50 lines\n")
+	sb.WriteString("- Must pass `make lint` and `make test`\n")
+	sb.WriteString("- Use context-first APIs: `logger.FromContext(ctx)`, `config.FromContext(ctx)`\n")
+	sb.WriteString("- No `context.Background()` in runtime code (use `t.Context()` in tests)\n")
+	sb.WriteString("- Proper error wrapping with `fmt.Errorf` and `%w`\n")
+	sb.WriteString("- Follow SOLID principles and clean architecture patterns\n\n")
+	sb.WriteString("## Completion Criteria\n\n")
+	sb.WriteString("After implementation:\n")
+	sb.WriteString("1. All subtasks in the task file are completed\n")
+	sb.WriteString("2. All deliverables are produced\n")
+	sb.WriteString("3. All tests pass: `make test`\n")
+	sb.WriteString("4. Code passes linting: `make lint`\n")
+	sb.WriteString(fmt.Sprintf("5. Update task status in `%s` to `completed`\n", task.absPath))
+	sb.WriteString("6. Commit changes with descriptive message referencing the task number\n\n")
+	return sb.String()
 }
 
 func buildHelperCommands(pr string, batchGroups map[string][]issueEntry) string {

@@ -353,6 +353,9 @@ func (l *loader) validateCustom(config *Config) error {
 	if err := validateTaskExecutionTimeouts(config); err != nil {
 		return err
 	}
+	if err := validateNativeToolTimeouts(config); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -437,6 +440,47 @@ func validateMCPProxy(cfg *Config) error {
 func validateCache(cfg *Config) error {
 	if cfg.Cache.KeyScanCount <= 0 {
 		return fmt.Errorf("cache.key_scan_count must be > 0")
+	}
+	return nil
+}
+
+func validateNativeToolTimeouts(cfg *Config) error {
+	tools := cfg.Runtime.NativeTools
+	if tools.CallAgent.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_agent.default_timeout must be >= 0, got: %s",
+			tools.CallAgent.DefaultTimeout,
+		)
+	}
+	if tools.CallAgents.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_agents.default_timeout must be >= 0, got: %s",
+			tools.CallAgents.DefaultTimeout,
+		)
+	}
+	if tools.CallTask.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_task.default_timeout must be >= 0, got: %s",
+			tools.CallTask.DefaultTimeout,
+		)
+	}
+	if tools.CallTasks.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_tasks.default_timeout must be >= 0, got: %s",
+			tools.CallTasks.DefaultTimeout,
+		)
+	}
+	if tools.CallWorkflow.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_workflow.default_timeout must be >= 0, got: %s",
+			tools.CallWorkflow.DefaultTimeout,
+		)
+	}
+	if tools.CallWorkflows.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_workflows.default_timeout must be >= 0, got: %s",
+			tools.CallWorkflows.DefaultTimeout,
+		)
 	}
 	return nil
 }

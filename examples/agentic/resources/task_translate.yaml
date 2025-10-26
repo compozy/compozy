@@ -1,0 +1,5 @@
+resource: task
+id: translate
+type: basic
+prompt: |-
+  You need to call the agent_translate in parallel for all these languages: {{ .input.languages }}

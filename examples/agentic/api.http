@@ -1,55 +1,30 @@
 @baseUrl = http://localhost:5001/api/v0
-@singleTaskId = topic-research
-@multiTaskId = topic-research-multi-agent
+@agentId = agent_translator
+@taskId = translate
 
-### ----------------------------------------------------------------------------- 
-### Execute single-agent research task (synchronous)
-### -----------------------------------------------------------------------------
-# @name runSingleTaskSync
-POST {{baseUrl}}/tasks/{{singleTaskId}}/executions/sync
+### Execute agent synchronously
+# @name runAgentSync
+POST {{baseUrl}}/agents/{{agentId}}/executions/sync
 Content-Type: application/json
 Accept: application/json
 
 {
+  "prompt": "Do a new translate",
   "with": {
-    "topic": "Edge caching for e-commerce"
-  },
-  "timeout": 120
-}
-
-### ----------------------------------------------------------------------------- 
-### Execute multi-agent research task (synchronous)
-### -----------------------------------------------------------------------------
-# @name runMultiTaskSync
-POST {{baseUrl}}/tasks/{{multiTaskId}}/executions/sync
-Content-Type: application/json
-Accept: application/json
-
-{
-  "with": {
-    "topic": "Edge caching for e-commerce"
-  },
-  "timeout": 180
-}
-
-### ----------------------------------------------------------------------------- 
-### Kick off multi-agent research task asynchronously
-### -----------------------------------------------------------------------------
-# @name runMultiTaskAsync
-POST {{baseUrl}}/tasks/{{multiTaskId}}/executions
-Content-Type: application/json
-Accept: application/json
-
-{
-  "with": {
-    "topic": "Edge caching for e-commerce"
+    "text": "Olá, tudo bom?",
+    "from": "Portuguese",
+    "to": "English"
   }
 }
 
-### Capture async execution ID for polling
-@multiExecId = {{runMultiTaskAsync.response.body.data.exec_id}}
-
-### Check async task execution status
-# @name getMultiTaskExecutionStatus
-GET {{baseUrl}}/executions/tasks/{{multiExecId}}
+### Execute agent synchronously
+# @name runTaskSync
+POST {{baseUrl}}/tasks/{{taskId}}/executions/sync
+Content-Type: application/json
 Accept: application/json
+
+{
+  "with": {
+    "languages": "portugues, english and spanish"
+  }
+}

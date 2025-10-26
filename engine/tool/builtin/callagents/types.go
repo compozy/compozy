@@ -1,6 +1,9 @@
 package callagents
 
-import "github.com/compozy/compozy/engine/core"
+import (
+	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/tool/builtin/shared"
+)
 
 // AgentExecutionRequest captures the user input needed to execute an agent.
 type AgentExecutionRequest struct {
@@ -16,11 +19,8 @@ type handlerInput struct {
 	Agents []AgentExecutionRequest `json:"agents" mapstructure:"agents"`
 }
 
-// ErrorDetails describes a failure returned for a single agent execution.
-type ErrorDetails struct {
-	Message string `json:"message"`
-	Code    string `json:"code"`
-}
+// ErrorDetails aliases the shared builtin error contract for backward compatibility.
+type ErrorDetails = shared.ErrorDetails
 
 // AgentExecutionResult reports the outcome of a single agent invocation.
 type AgentExecutionResult struct {

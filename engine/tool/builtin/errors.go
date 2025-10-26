@@ -12,6 +12,9 @@ const (
 	CodeDeadlineExceeded  = "DeadlineExceeded"
 )
 
+// RemediationHintKey standardizes the key for human-friendly fix guidance.
+const RemediationHintKey = "remediation_hint"
+
 func newError(code string, err error, details map[string]any) *core.Error {
 	return core.NewError(err, code, details)
 }

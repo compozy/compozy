@@ -1,0 +1,50 @@
+---
+title: "cp__call_task"
+description: "Execute a single task synchronously with the cp__call_task builtin"
+---
+
+The **cp__call_task** builtin executes a standalone task using the same pipeline as direct task dispatch. Use it when a workflow or agent needs to call reusable task logic inline.
+
+## Input fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `task_id` (required) | string | Identifier from the project task catalog. |
+| `with` | object | Structured payload that must satisfy the task schema. |
+| `timeout_ms` | integer | Optional timeout override in milliseconds. |
+
+## Usage examples
+
+**Simple task invocation**
+
+```json
+{
+  "task_id": "data.normalize",
+  "with": {
+    "dataset_id": "customers",
+    "sanitize": true
+  }
+}
+```
+
+**Override the default timeout**
+
+```json
+{
+  "task_id": "long-running-export",
+  "with": {
+    "range": {
+      "start": "2025-09-01",
+      "end": "2025-09-30"
+    }
+  },
+  "timeout_ms": 180000
+}
+```
+
+## Remediation hints
+
+- Verify the `task_id` exists via the task catalog before invoking.
+- Ensure the `with` object respects the task input schema (required fields and types).
+- Increase `timeout_ms` for large batch tasks; keep it non-negative.
+- Review task execution logs when the builtin returns an error code.

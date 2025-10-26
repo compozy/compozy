@@ -76,7 +76,7 @@ func NewRunner(state *appstate.State, repo task.Repository, store resources.Reso
 		store: store,
 	}
 	if state != nil && repo != nil && store != nil {
-		env := toolenv.New(runner, repo, store)
+		env := mustCreateEnvironment(runner, repo, store)
 		toolenvstate.Store(state, env)
 	}
 	return runner
@@ -152,7 +152,10 @@ func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExec
 	if err := validateAgentAction(agentConfig, req.Action); err != nil {
 		return nil, err
 	}
-	taskCfg := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
+	taskCfg, err := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build task config: %w", err)
+	}
 	executor, err := tkrouter.ResolveDirectExecutor(ctx, r.state, r.repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize executor: %w", err)
@@ -211,7 +214,20 @@ func buildExecMetadata(req ExecuteRequest, cfg *task.Config) tkrouter.ExecMetada
 // NewEnvironment constructs a tool execution environment backed by the runner.
 func NewEnvironment(state *appstate.State, repo task.Repository, store resources.ResourceStore) toolenv.Environment {
 	runner := NewRunner(state, repo, store)
-	return toolenv.New(runner, repo, store)
+	return mustCreateEnvironment(runner, repo, store)
+}
+
+// mustCreateEnvironment panics when the tool environment cannot be initialized.
+func mustCreateEnvironment(
+	agent toolenv.AgentExecutor,
+	repo task.Repository,
+	store resources.ResourceStore,
+) toolenv.Environment {
+	env, err := toolenv.New(agent, toolenv.NoopTaskExecutor(), toolenv.NoopWorkflowExecutor(), repo, store)
+	if err != nil {
+		panic(fmt.Sprintf("tool environment initialization failed: %v", err))
+	}
+	return env
 }
 
 func (r *Runner) loadAgentConfig(ctx context.Context, projectName, agentID string) (*agent.Config, error) {
@@ -242,7 +258,7 @@ func buildTaskConfig(
 	agentConfig *agent.Config,
 	req ExecuteRequest,
 	timeout time.Duration,
-) *task.Config {
+) (*task.Config, error) {
 	cfg := &task.Config{
 		BaseConfig: task.BaseConfig{
 			ID:    fmt.Sprintf("agent:%s", agentID),
@@ -257,11 +273,14 @@ func buildTaskConfig(
 		cfg.Prompt = req.Prompt
 	}
 	if len(req.With) > 0 {
-		withCopy := req.With
-		cfg.With = &withCopy
+		copied, err := core.DeepCopy(req.With)
+		if err != nil {
+			return nil, fmt.Errorf("failed to copy input: %w", err)
+		}
+		cfg.With = &copied
 	}
 	cfg.Timeout = timeout.String()
-	return cfg
+	return cfg, nil
 }
 
 func resolveAgentActionID(req ExecuteRequest, cfg *task.Config) string {

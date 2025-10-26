@@ -9,11 +9,12 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/server/router/routertest"
 	"github.com/compozy/compozy/engine/llm/usage"
-	"github.com/compozy/compozy/engine/runtime/toolenv"
+	"github.com/compozy/compozy/engine/runtime/toolenv/toolenvtest"
 	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/testutil"
 	wf "github.com/compozy/compozy/engine/workflow"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/stretchr/testify/require"
 )
 
@@ -102,43 +103,47 @@ func (s *stubWorkflowRepo) MergeUsage(_ context.Context, execID core.ID, summary
 }
 
 func TestPrepareExecutionPlanNormalizesAgentInput(t *testing.T) {
-	ctx := t.Context()
-	state := routertest.NewTestAppState(t)
-	toolenvstate.Store(state, toolenv.New(nil, nil, nil))
-	taskRepo := testutil.NewInMemoryRepo()
-	workflowRepo := newStubWorkflowRepo()
-	executor, err := NewDirectExecutor(ctx, state, taskRepo, workflowRepo)
-	require.NoError(t, err)
-	impl, ok := executor.(*directExecutor)
-	require.True(t, ok)
-	cfgMap := map[string]any{
-		"id":   "direct-task",
-		"type": task.TaskTypeBasic,
-		"agent": map[string]any{
-			"id": "echo-agent",
+	t.Run("Should normalize agent input", func(t *testing.T) {
+		ctx := t.Context()
+		log := logger.NewForTests()
+		ctx = logger.ContextWithLogger(ctx, log)
+		state := routertest.NewTestAppState(t)
+		toolenvstate.Store(state, toolenvtest.NewNoopEnvironment())
+		taskRepo := testutil.NewInMemoryRepo()
+		workflowRepo := newStubWorkflowRepo()
+		executor, err := NewDirectExecutor(ctx, state, taskRepo, workflowRepo)
+		require.NoError(t, err)
+		impl, ok := executor.(*directExecutor)
+		require.True(t, ok)
+		cfgMap := map[string]any{
+			"id":   "direct-task",
+			"type": task.TaskTypeBasic,
+			"agent": map[string]any{
+				"id": "echo-agent",
+				"with": map[string]any{
+					"echo": "{{ .input.message }}",
+				},
+				"actions": []any{
+					map[string]any{"id": "acknowledge"},
+				},
+			},
+			"action": "acknowledge",
 			"with": map[string]any{
-				"echo": "{{ .input.message }}",
+				"message": "Hello",
 			},
-			"actions": []any{
-				map[string]any{"id": "acknowledge"},
-			},
-		},
-		"action": "acknowledge",
-		"with": map[string]any{
-			"message": "Hello",
-		},
-	}
-	taskCfg := &task.Config{}
-	require.NoError(t, taskCfg.FromMap(cfgMap))
-	execID := core.MustNewID()
-	plan, err := impl.prepareExecutionPlan(ctx, taskCfg, &ExecMetadata{Component: core.ComponentAgent}, execID)
-	require.NoError(t, err)
-	require.NotNil(t, plan)
-	require.NotNil(t, plan.config.Agent)
-	require.NotNil(t, plan.config.Agent.With)
-	resolved, ok := (*plan.config.Agent.With)["echo"].(string)
-	require.True(t, ok)
-	require.Equal(t, "Hello", resolved)
-	require.NotNil(t, plan.workflowConfig)
-	require.Equal(t, plan.meta.WorkflowID, plan.workflowConfig.ID)
+		}
+		taskCfg := &task.Config{}
+		require.NoError(t, taskCfg.FromMap(cfgMap))
+		execID := core.MustNewID()
+		plan, err := impl.prepareExecutionPlan(ctx, taskCfg, &ExecMetadata{Component: core.ComponentAgent}, execID)
+		require.NoError(t, err)
+		require.NotNil(t, plan)
+		require.NotNil(t, plan.config.Agent)
+		require.NotNil(t, plan.config.Agent.With)
+		resolved, ok := (*plan.config.Agent.With)["echo"].(string)
+		require.True(t, ok)
+		require.Equal(t, "Hello", resolved)
+		require.NotNil(t, plan.workflowConfig)
+		require.Equal(t, plan.meta.WorkflowID, plan.workflowConfig.ID)
+	})
 }

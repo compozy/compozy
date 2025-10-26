@@ -1,0 +1,48 @@
+---
+title: "cp__call_workflow"
+description: "Trigger a workflow synchronously with the cp__call_workflow builtin"
+---
+
+The **cp__call_workflow** builtin executes a workflow and waits for completion, returning the final status, execution ID, and output map. It enables workflow-to-workflow orchestration without leaving the current run.
+
+## Input fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `workflow_id` (required) | string | Identifier from the workflow catalog. |
+| `input` | object | JSON payload forwarded to the workflow run. |
+| `initial_task_id` | string | Optional task ID to resume from instead of the first task. |
+| `timeout_ms` | integer | Optional timeout override for the synchronous wait. |
+
+## Usage examples
+
+**Standard workflow invocation**
+
+```json
+{
+  "workflow_id": "user.onboarding",
+  "input": {
+    "user": {
+      "id": "123",
+      "plan": "pro"
+    }
+  }
+}
+```
+
+**Resume from a checkpoint with a custom timeout**
+
+```json
+{
+  "workflow_id": "data.pipeline",
+  "initial_task_id": "resume-stage-3",
+  "timeout_ms": 240000
+}
+```
+
+## Remediation hints
+
+- Confirm the workflow exists and is published before calling.
+- Provide only object data in `input`; other JSON types should be wrapped accordingly.
+- Increase `timeout_ms` when downstream activities run longer than the default.
+- Inspect the returned `status` field to determine whether the workflow succeeded, failed, or timed out.

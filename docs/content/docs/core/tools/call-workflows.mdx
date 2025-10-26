@@ -1,0 +1,39 @@
+---
+title: "cp__call_workflows"
+description: "Execute multiple workflows in parallel with the cp__call_workflows builtin"
+---
+
+The **cp__call_workflows** builtin dispatches several workflows concurrently, enforcing the configured concurrency ceiling and emitting detailed per-workflow results. Use it for regional fan-out, tenant processing, or staged orchestration.
+
+## Input fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `workflows` (required) | array | Ordered list of workflow configurations mirroring `cp__call_workflow`. Each entry supports `workflow_id`, optional `input`, optional `initial_task_id`, and optional `timeout_ms`. |
+
+## Usage example
+
+```json
+{
+  "workflows": [
+    {
+      "workflow_id": "process.region",
+      "input": { "region": "us-east-1" }
+    },
+    {
+      "workflow_id": "process.region",
+      "input": { "region": "eu-west-1" },
+      "timeout_ms": 180000
+    }
+  ]
+}
+```
+
+The builtin limits concurrency to `runtime.native_tools.call_workflows.max_concurrent`. Adjust the configuration to tune throughput.
+
+## Remediation hints
+
+- Provide at least one entry in the `workflows` array.
+- Ensure every entry includes a valid `workflow_id` and satisfies schema expectations.
+- Use per-workflow `timeout_ms` values for long-running regions instead of relying on the default.
+- Inspect `results[n].error` for remediation hints when a workflow fails.

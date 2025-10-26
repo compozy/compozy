@@ -1,0 +1,4 @@
+resource: agent
+id: agent_translator
+instructions: |-
+  Your job is to translate the phrase {{ .input.text }} from {{ .input.from }} to {{ .input.to }}
