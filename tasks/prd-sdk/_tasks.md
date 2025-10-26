@@ -45,7 +45,7 @@
 - [x] 19.0 Task: Composite (S)
 - [x] 20.0 Task: Signal (Unified) (M)
 - [x] 21.0 Task: Memory (S)
-- [ ] 22.0 Registration: Projects/Workflows (S)
+- [x] 22.0 Registration: Projects/Workflows (S)
 - [ ] 23.0 Registration: Agents/Tools/Schemas (S)
 - [ ] 24.0 Registration: Knowledge/Memory/MCP (S)
 - [ ] 25.0 Validation & Linking Orchestration (S)

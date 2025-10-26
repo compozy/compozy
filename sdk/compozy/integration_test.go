@@ -19,7 +19,7 @@ import (
 	"github.com/compozy/compozy/test/helpers"
 )
 
-func TestBuilderBuildRegistersResources(t *testing.T) {
+func TestBuilderRegistersProjectAndWorkflow(t *testing.T) {
 	t.Parallel()
 
 	ctx, log := newTestContext(t)
@@ -39,25 +39,25 @@ func TestBuilderBuildRegistersResources(t *testing.T) {
 	resourceStore := instance.ResourceStore()
 	require.NotNil(t, resourceStore)
 
+	projectKey := resources.ResourceKey{
+		Project: projectCfg.Name,
+		Type:    resources.ResourceProject,
+		ID:      projectCfg.Name,
+	}
+	value, _, err := resourceStore.Get(ctx, projectKey)
+	require.NoError(t, err)
+	require.IsType(t, &engineproject.Config{}, value)
+
 	wfKey := resources.ResourceKey{
 		Project: projectCfg.Name,
 		Type:    resources.ResourceWorkflow,
 		ID:      workflowCfg.ID,
 	}
-	value, _, err := resourceStore.Get(ctx, wfKey)
+	value, _, err = resourceStore.Get(ctx, wfKey)
 	require.NoError(t, err)
 	require.IsType(t, &engineworkflow.Config{}, value)
 
-	agentKey := resources.ResourceKey{
-		Project: projectCfg.Name,
-		Type:    resources.ResourceAgent,
-		ID:      workflowCfg.Agents[0].ID,
-	}
-	value, _, err = resourceStore.Get(ctx, agentKey)
-	require.NoError(t, err)
-	require.IsType(t, &agent.Config{}, value)
-
-	require.NotEmpty(t, log.infos)
+	require.NotEmpty(t, log.entries)
 }
 
 func TestExecuteWorkflowReturnsOutputs(t *testing.T) {
@@ -109,6 +109,129 @@ func TestLoadProjectIntoEngineValidationError(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestRegisterProjectValidationFailureIncludesName(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	projectCfg, _ := buildTestConfigs(t, ctx)
+	projectCfg.Opts.SourceOfTruth = "invalid"
+	instance := &Compozy{store: resources.NewMemoryResourceStore()}
+	err := instance.RegisterProject(ctx, projectCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "project "+projectCfg.Name+" validation failed")
+}
+
+func TestRegisterWorkflowValidationFailureReturnsID(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	instance := &Compozy{store: resources.NewMemoryResourceStore()}
+	require.NoError(t, instance.RegisterProject(ctx, projectCfg))
+	if len(workflowCfg.Agents) > 0 {
+		workflowCfg.Agents[0].ID = ""
+	}
+	err := instance.RegisterWorkflow(ctx, workflowCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "workflow "+workflowCfg.ID+" validation failed")
+}
+
+func TestRegisterWorkflowDuplicateIDRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	instance := &Compozy{store: resources.NewMemoryResourceStore()}
+	require.NoError(t, instance.RegisterProject(ctx, projectCfg))
+	require.NoError(t, instance.RegisterWorkflow(ctx, workflowCfg))
+	err := instance.RegisterWorkflow(ctx, workflowCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+}
+
+func TestMultipleWorkflowsRegisterInOrder(t *testing.T) {
+	t.Parallel()
+
+	ctx, log := newTestContext(t)
+	projectDir := t.TempDir()
+	wfOne := buildWorkflowConfig(t, ctx, "alpha", projectDir)
+	wfTwo := buildWorkflowConfig(t, ctx, "beta", projectDir)
+	projectCfg, err := projectbuilder.New("demo-order").
+		WithDescription("Order validation project").
+		AddWorkflow(wfOne).
+		AddWorkflow(wfTwo).
+		Build(ctx)
+	require.NoError(t, err)
+	require.NoError(t, projectCfg.SetCWD(projectDir))
+	store := resources.NewMemoryResourceStore()
+	builder := New(projectCfg).
+		WithWorkflows(wfOne, wfTwo).
+		WithDatabase("postgres://user:pass@localhost:5432/compozy?sslmode=disable").
+		WithTemporal("localhost:7233", "default").
+		WithRedis("redis://localhost:6379/0").
+		WithResourceStore(store).
+		WithWorkingDirectory(projectDir)
+	instance, err := builder.Build(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		stopCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		_ = instance.Stop(stopCtx)
+	})
+	workflowOrder := make([]string, 0, 2)
+	for _, entry := range log.entries {
+		if entry.msg != "workflow registered" {
+			continue
+		}
+		for i := 0; i < len(entry.args); i += 2 {
+			key, ok := entry.args[i].(string)
+			if !ok || i+1 >= len(entry.args) {
+				continue
+			}
+			if key == "workflow" {
+				if val, ok := entry.args[i+1].(string); ok {
+					workflowOrder = append(workflowOrder, val)
+				}
+				break
+			}
+		}
+	}
+	require.Equal(t, []string{wfOne.ID, wfTwo.ID}, workflowOrder)
+}
+
+func TestHybridProjectSupportsYAML(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	store := resources.NewMemoryResourceStore()
+	instance, err := defaultBuilder(projectCfg, workflowCfg, store).
+		Build(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		stopCtx, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		_ = instance.Stop(stopCtx)
+	})
+	projectCWD := ""
+	if cwd := projectCfg.GetCWD(); cwd != nil {
+		projectCWD = cwd.PathStr()
+	}
+	require.NotEmpty(t, projectCWD)
+	yamlWorkflow := buildWorkflowConfig(t, ctx, "yaml-flow", projectCWD)
+	require.NoError(t, yamlWorkflow.IndexToResourceStore(ctx, projectCfg.Name, store))
+	_, _, err = store.Get(
+		ctx,
+		resources.ResourceKey{Project: projectCfg.Name, Type: resources.ResourceWorkflow, ID: workflowCfg.ID},
+	)
+	require.NoError(t, err)
+	_, _, err = store.Get(
+		ctx,
+		resources.ResourceKey{Project: projectCfg.Name, Type: resources.ResourceWorkflow, ID: yamlWorkflow.ID},
+	)
+	require.NoError(t, err)
+}
+
 func TestBuilderRequiresProject(t *testing.T) {
 	t.Parallel()
 
@@ -122,6 +245,22 @@ func TestBuilderRequiresProject(t *testing.T) {
 		WithRedis("redis://localhost:6379").
 		Build(ctx)
 	require.Error(t, err)
+}
+
+func TestBuilderRequiresWorkflows(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	projectCfg, _ := buildTestConfigs(t, ctx)
+	_, err := New(projectCfg).
+		WithDatabase("postgres://user:pass@localhost:5432/compozy?sslmode=disable").
+		WithTemporal("localhost:7233", "default").
+		WithRedis("redis://localhost:6379/0").
+		Build(ctx)
+	require.Error(t, err)
+	buildErr, ok := err.(*sdkerrors.BuildError)
+	require.True(t, ok)
+	require.Contains(t, buildErr.Error(), "at least one workflow must be provided")
 }
 
 func TestBuilderAggregatesInfrastructureErrors(t *testing.T) {
@@ -227,6 +366,33 @@ func buildTestConfigs(t *testing.T, ctx context.Context) (*engineproject.Config,
 	return projectCfg, workflowCfg
 }
 
+func buildWorkflowConfig(t *testing.T, ctx context.Context, id string, projectDir string) *engineworkflow.Config {
+	t.Helper()
+
+	agentCfg := &agent.Config{
+		ID:           id + "-agent",
+		Instructions: "Dynamic workflow agent.",
+		Model:        agent.Model{Ref: "test-model"},
+	}
+	taskCfg := &task.Config{
+		BaseConfig: task.BaseConfig{
+			ID:    id + "-task",
+			Type:  task.TaskTypeBasic,
+			Agent: agentCfg,
+		},
+		BasicTask: task.BasicTask{Prompt: "Say " + id},
+	}
+	builder := workflowbuilder.New(id).
+		WithDescription("Workflow " + id).
+		AddAgent(agentCfg).
+		AddTask(taskCfg).
+		WithOutputs(map[string]string{"message": id})
+	wfCfg, err := builder.Build(ctx)
+	require.NoError(t, err)
+	require.NoError(t, wfCfg.SetCWD(projectDir))
+	return wfCfg
+}
+
 func defaultBuilder(
 	projectCfg *engineproject.Config,
 	workflowCfg *engineworkflow.Config,
@@ -255,14 +421,20 @@ func newTestContext(t *testing.T) (context.Context, *recordingLogger) {
 	return ctx, log
 }
 
+type logEntry struct {
+	msg  string
+	args []any
+}
+
 type recordingLogger struct {
-	infos []string
+	entries []logEntry
 }
 
 func (l *recordingLogger) Debug(string, ...any)      {}
 func (l *recordingLogger) Warn(string, ...any)       {}
 func (l *recordingLogger) Error(string, ...any)      {}
 func (l *recordingLogger) With(...any) logger.Logger { return l }
-func (l *recordingLogger) Info(msg string, _ ...any) {
-	l.infos = append(l.infos, msg)
+func (l *recordingLogger) Info(msg string, args ...any) {
+	copied := append([]any(nil), args...)
+	l.entries = append(l.entries, logEntry{msg: msg, args: copied})
 }

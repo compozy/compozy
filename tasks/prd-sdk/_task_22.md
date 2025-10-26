@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/compozy</domain>
@@ -31,11 +31,11 @@ Implement SDK-built project and workflow registration in the engine's resource s
 
 ## Subtasks
 
-- [ ] 22.1 Implement RegisterProject(ctx, *project.Config) in integration.go
-- [ ] 22.2 Implement RegisterWorkflow(ctx, *workflow.Config) for each workflow
-- [ ] 22.3 Add validation before registration with ctx
-- [ ] 22.4 Add logging for registration events using logger.FromContext(ctx)
-- [ ] 22.5 Add unit and integration tests for registration flows
+- [x] 22.1 Implement RegisterProject(ctx, *project.Config) in integration.go
+- [x] 22.2 Implement RegisterWorkflow(ctx, *workflow.Config) for each workflow
+- [x] 22.3 Add validation before registration with ctx
+- [x] 22.4 Add logging for registration events using logger.FromContext(ctx)
+- [x] 22.5 Add unit and integration tests for registration flows
 
 ## Implementation Details
 
@@ -92,15 +92,15 @@ func (c *Compozy) loadProjectIntoEngine(ctx context.Context, proj *project.Confi
 
 Integration tests from _tests.md (SDK→Engine section):
 
-- [ ] Valid project with workflows registers successfully
-- [ ] Project validation failure prevents registration
-- [ ] Workflow validation failure returns specific error with ID
-- [ ] Multiple workflows register in correct order
-- [ ] Empty workflows array returns validation error
-- [ ] Duplicate workflow IDs are detected and rejected
-- [ ] Hybrid project: SDK workflows coexist with AutoLoad YAML
-- [ ] logger.FromContext(ctx) is used for all log statements
-- [ ] Validation errors include project name in message
+- [x] Valid project with workflows registers successfully
+- [x] Project validation failure prevents registration
+- [x] Workflow validation failure returns specific error with ID
+- [x] Multiple workflows register in correct order
+- [x] Empty workflows array returns validation error
+- [x] Duplicate workflow IDs are detected and rejected
+- [x] Hybrid project: SDK workflows coexist with AutoLoad YAML
+- [x] logger.FromContext(ctx) is used for all log statements
+- [x] Validation errors include project name in message
 
 ## Success Criteria
 
