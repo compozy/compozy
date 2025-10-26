@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -30,14 +30,14 @@ Implement BasicBuilder for creating single-step agent or tool execution tasks. M
 
 ## Subtasks
 
-- [ ] 13.1 Create sdk/task/basic.go
-- [ ] 13.2 Implement BasicBuilder struct and constructor
-- [ ] 13.3 Add agent execution methods (WithAgent, WithAction)
-- [ ] 13.4 Add tool execution method (WithTool)
-- [ ] 13.5 Add input/output methods
-- [ ] 13.6 Add control flow methods (WithCondition, WithFinal)
-- [ ] 13.7 Implement Build(ctx) with validation
-- [ ] 13.8 Write unit tests
+- [x] 13.1 Create sdk/task/basic.go
+- [x] 13.2 Implement BasicBuilder struct and constructor
+- [x] 13.3 Add agent execution methods (WithAgent, WithAction)
+- [x] 13.4 Add tool execution method (WithTool)
+- [x] 13.5 Add input/output methods
+- [x] 13.6 Add control flow methods (WithCondition, WithFinal)
+- [x] 13.7 Implement Build(ctx) with validation
+- [x] 13.8 Write unit tests
 
 ## Implementation Details
 
