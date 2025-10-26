@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/agent</domain>
@@ -35,26 +35,26 @@ Implement the Agent builder and ActionBuilder for defining AI agents with instru
 
 ## Subtasks
 
-- [ ] 08.1 Create sdk/agent/builder.go with AgentBuilder struct
-- [ ] 08.2 Implement New(id) constructor
-- [ ] 08.3 Implement WithModel(provider, model) *Builder
-- [ ] 08.4 Implement WithModelRef(modelID) *Builder
-- [ ] 08.5 Implement WithInstructions(instructions) *Builder
-- [ ] 08.6 Implement WithKnowledge(binding) *Builder
-- [ ] 08.7 Implement WithMemory(ref) *Builder
-- [ ] 08.8 Implement AddAction(action) *Builder
-- [ ] 08.9 Implement AddTool(toolID) *Builder
-- [ ] 08.10 Implement AddMCP(mcpID) *Builder
-- [ ] 08.11 Create sdk/agent/action.go with ActionBuilder
-- [ ] 08.12 Implement NewAction(id) constructor
-- [ ] 08.13 Implement WithPrompt(prompt) for actions
-- [ ] 08.14 Implement WithOutput(schema) for actions
-- [ ] 08.15 Implement AddTool(toolID) for actions
-- [ ] 08.16 Implement WithSuccessTransition(taskID) for actions
-- [ ] 08.17 Implement WithErrorTransition(taskID) for actions
-- [ ] 08.18 Implement WithRetry(maxAttempts, backoff) for actions
-- [ ] 08.19 Implement WithTimeout(timeout) for actions
-- [ ] 08.20 Add comprehensive unit tests for both builders
+- [x] 08.1 Create sdk/agent/builder.go with AgentBuilder struct
+- [x] 08.2 Implement New(id) constructor
+- [x] 08.3 Implement WithModel(provider, model) *Builder
+- [x] 08.4 Implement WithModelRef(modelID) *Builder
+- [x] 08.5 Implement WithInstructions(instructions) *Builder
+- [x] 08.6 Implement WithKnowledge(binding) *Builder
+- [x] 08.7 Implement WithMemory(ref) *Builder
+- [x] 08.8 Implement AddAction(action) *Builder
+- [x] 08.9 Implement AddTool(toolID) *Builder
+- [x] 08.10 Implement AddMCP(mcpID) *Builder
+- [x] 08.11 Create sdk/agent/action.go with ActionBuilder
+- [x] 08.12 Implement NewAction(id) constructor
+- [x] 08.13 Implement WithPrompt(prompt) for actions
+- [x] 08.14 Implement WithOutput(schema) for actions
+- [x] 08.15 Implement AddTool(toolID) for actions
+- [x] 08.16 Implement WithSuccessTransition(taskID) for actions
+- [x] 08.17 Implement WithErrorTransition(taskID) for actions
+- [x] 08.18 Implement WithRetry(maxAttempts, backoff) for actions
+- [x] 08.19 Implement WithTimeout(timeout) for actions
+- [x] 08.20 Add comprehensive unit tests for both builders
 
 ## Implementation Details
 

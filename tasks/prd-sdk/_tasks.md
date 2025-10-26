@@ -31,7 +31,7 @@
 - [x] 05.0 Minimal Workflow Builder + Unit Test (M)
 - [x] 06.0 Prototype Integration Path (M)
 - [x] 07.0 Model Builder (S)
-- [ ] 08.0 Agent Builder (M)
+- [x] 08.0 Agent Builder (M)
 - [ ] 09.0 Action Builder (S)
 - [ ] 10.0 Schema + Property Builders (M)
 - [ ] 11.0 Client Builder (S)
