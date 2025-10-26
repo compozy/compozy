@@ -32,7 +32,7 @@
 - [x] 06.0 Prototype Integration Path (M)
 - [x] 07.0 Model Builder (S)
 - [x] 08.0 Agent Builder (M)
-- [ ] 09.0 Action Builder (S)
+- [x] 09.0 Action Builder (S)
 - [ ] 10.0 Schema + Property Builders (M)
 - [ ] 11.0 Client Builder (S)
 - [ ] 12.0 Compozy Lifecycle (M)

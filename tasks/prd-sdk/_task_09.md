@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/tool</domain>
@@ -33,16 +33,16 @@ Implement the Tool builder for defining custom tools with input/output schemas a
 
 ## Subtasks
 
-- [ ] 09.1 Create sdk/tool/builder.go with Builder struct
-- [ ] 09.2 Implement New(id) constructor
-- [ ] 09.3 Implement WithName(name) *Builder
-- [ ] 09.4 Implement WithDescription(desc) *Builder
-- [ ] 09.5 Implement WithRuntime(runtime) *Builder
-- [ ] 09.6 Implement WithCode(code) *Builder
-- [ ] 09.7 Implement WithInput(schema) *Builder
-- [ ] 09.8 Implement WithOutput(schema) *Builder
-- [ ] 09.9 Implement Build(ctx context.Context) (*tool.Config, error)
-- [ ] 09.10 Add comprehensive unit tests
+- [x] 09.1 Create sdk/tool/builder.go with Builder struct
+- [x] 09.2 Implement New(id) constructor
+- [x] 09.3 Implement WithName(name) *Builder
+- [x] 09.4 Implement WithDescription(desc) *Builder
+- [x] 09.5 Implement WithRuntime(runtime) *Builder
+- [x] 09.6 Implement WithCode(code) *Builder
+- [x] 09.7 Implement WithInput(schema) *Builder
+- [x] 09.8 Implement WithOutput(schema) *Builder
+- [x] 09.9 Implement Build(ctx context.Context) (*tool.Config, error)
+- [x] 09.10 Add comprehensive unit tests
 
 ## Implementation Details
 
@@ -101,19 +101,19 @@ func (b *Builder) Build(ctx context.Context) (*tool.Config, error)
 Reference: tasks/prd-sdk/_tests.md
 
 - Unit tests for Tool builder:
-  - [ ] Test New() creates valid builder
-  - [ ] Test WithName() validates non-empty
-  - [ ] Test WithDescription() accepts description
-  - [ ] Test WithRuntime() validates runtime type
-  - [ ] Test WithCode() validates non-empty code
-  - [ ] Test WithInput() sets input schema
-  - [ ] Test WithOutput() sets output schema
-  - [ ] Test Build() with valid config succeeds
-  - [ ] Test Build() with empty ID fails
-  - [ ] Test Build() with empty name fails
-  - [ ] Test Build() with invalid runtime fails
-  - [ ] Test Build() with empty code fails
-  - [ ] Test context propagation
+  - [x] Test New() creates valid builder
+  - [x] Test WithName() validates non-empty
+  - [x] Test WithDescription() accepts description
+  - [x] Test WithRuntime() validates runtime type
+  - [x] Test WithCode() validates non-empty code
+  - [x] Test WithInput() sets input schema
+  - [x] Test WithOutput() sets output schema
+  - [x] Test Build() with valid config succeeds
+  - [x] Test Build() with empty ID fails
+  - [x] Test Build() with empty name fails
+  - [x] Test Build() with invalid runtime fails
+  - [x] Test Build() with empty code fails
+  - [x] Test context propagation
 
 ## Success Criteria
 

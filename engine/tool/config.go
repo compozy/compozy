@@ -105,6 +105,10 @@ type Config struct {
 	// - **Examples:** `"file-reader"`, `"api-client"`, `"data-processor"`
 	// - **Naming:** Use kebab-case for consistency with other Compozy identifiers
 	ID string `json:"id,omitempty"          yaml:"id,omitempty"          mapstructure:"id,omitempty"`
+	// Name provides a concise, human-readable label for the tool shown in UIs and logs.
+	// Unlike the identifier, the name may include spaces and capitalization to improve readability.
+	// When omitted, UIs should fall back to using the identifier.
+	Name string `json:"name,omitempty"        yaml:"name,omitempty"        mapstructure:"name,omitempty"`
 	// Human-readable description of the tool's functionality and purpose.
 	// This description is used by AI agents to understand when and how to use the tool.
 	// Should clearly explain capabilities, limitations, and expected use cases.
@@ -112,6 +116,13 @@ type Config struct {
 	// - **Best practices:** Be specific about what the tool does and its constraints
 	// - **Example:** `"Read and parse various file formats including JSON, YAML, and CSV with size limits"`
 	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	// Runtime selects the execution environment for custom tool implementations.
+	// Supported runtimes include `"bun"`, `"node"`, and `"deno"` for JavaScript/TypeScript execution.
+	// When empty, the project runtime defaults are applied.
+	Runtime string `json:"runtime,omitempty"     yaml:"runtime,omitempty"     mapstructure:"runtime,omitempty"`
+	// Code contains inline source executed by the selected runtime when the tool runs.
+	// Builders may supply either inline JavaScript/TypeScript code or references resolved at runtime.
+	Code string `json:"code,omitempty"        yaml:"code,omitempty"        mapstructure:"code,omitempty"`
 	// Maximum execution time for the tool in Go duration format.
 	// If not specified, uses the global tool timeout from project configuration.
 	// This timeout applies to the entire tool execution lifecycle.

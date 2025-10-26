@@ -13,7 +13,10 @@ import (
 type ToolDTO struct {
 	Resource     string         `json:"resource,omitempty"`
 	ID           string         `json:"id"`
+	Name         string         `json:"name,omitempty"`
 	Description  string         `json:"description,omitempty"`
+	Runtime      string         `json:"runtime,omitempty"`
+	Code         string         `json:"code,omitempty"`
 	Timeout      string         `json:"timeout,omitempty"`
 	InputSchema  *schema.Schema `json:"input,omitempty"`
 	OutputSchema *schema.Schema `json:"output,omitempty"`
@@ -52,7 +55,10 @@ func ConvertToolConfigToDTO(cfg *tool.Config) (ToolDTO, error) {
 	return ToolDTO{
 		Resource:     clone.Resource,
 		ID:           clone.ID,
+		Name:         clone.Name,
 		Description:  clone.Description,
+		Runtime:      clone.Runtime,
+		Code:         clone.Code,
 		Timeout:      clone.Timeout,
 		InputSchema:  clone.InputSchema,
 		OutputSchema: clone.OutputSchema,
