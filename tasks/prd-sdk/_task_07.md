@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/model</domain>
@@ -33,18 +33,18 @@ Implement the Model builder for configuring LLM providers and models. Supports O
 
 ## Subtasks
 
-- [ ] 07.1 Create sdk/model/builder.go with Builder struct
-- [ ] 07.2 Implement New(provider, model) constructor
-- [ ] 07.3 Implement WithAPIKey(key) *Builder
-- [ ] 07.4 Implement WithAPIURL(url) *Builder
-- [ ] 07.5 Implement WithTemperature(temp) *Builder
-- [ ] 07.6 Implement WithMaxTokens(max) *Builder
-- [ ] 07.7 Implement WithTopP(topP) *Builder
-- [ ] 07.8 Implement WithFrequencyPenalty(penalty) *Builder
-- [ ] 07.9 Implement WithPresencePenalty(penalty) *Builder
-- [ ] 07.10 Implement WithDefault(isDefault) *Builder
-- [ ] 07.11 Implement Build(ctx context.Context) (*core.ProviderConfig, error)
-- [ ] 07.12 Add comprehensive unit tests
+- [x] 07.1 Create sdk/model/builder.go with Builder struct
+- [x] 07.2 Implement New(provider, model) constructor
+- [x] 07.3 Implement WithAPIKey(key) *Builder
+- [x] 07.4 Implement WithAPIURL(url) *Builder
+- [x] 07.5 Implement WithTemperature(temp) *Builder
+- [x] 07.6 Implement WithMaxTokens(max) *Builder
+- [x] 07.7 Implement WithTopP(topP) *Builder
+- [x] 07.8 Implement WithFrequencyPenalty(penalty) *Builder
+- [x] 07.9 Implement WithPresencePenalty(penalty) *Builder
+- [x] 07.10 Implement WithDefault(isDefault) *Builder
+- [x] 07.11 Implement Build(ctx context.Context) (*core.ProviderConfig, error)
+- [x] 07.12 Add comprehensive unit tests
 
 ## Implementation Details
 
@@ -101,18 +101,18 @@ func (b *Builder) Build(ctx context.Context) (*core.ProviderConfig, error)
 Reference: tasks/prd-sdk/_tests.md
 
 - Unit tests for Model builder:
-  - [ ] Test New() with all supported providers
-  - [ ] Test WithAPIKey() sets API key
-  - [ ] Test WithAPIURL() for custom endpoints
-  - [ ] Test WithTemperature() validates range (0-2)
-  - [ ] Test WithMaxTokens() validates positive values
-  - [ ] Test WithTopP() validates range (0-1)
-  - [ ] Test WithDefault() sets default flag
-  - [ ] Test Build() with valid config succeeds
-  - [ ] Test Build() with empty provider fails
-  - [ ] Test Build() with empty model fails
-  - [ ] Test Build() with invalid temperature fails
-  - [ ] Test context propagation
+  - [x] Test New() with all supported providers
+  - [x] Test WithAPIKey() sets API key
+  - [x] Test WithAPIURL() for custom endpoints
+  - [x] Test WithTemperature() validates range (0-2)
+  - [x] Test WithMaxTokens() validates positive values
+  - [x] Test WithTopP() validates range (0-1)
+  - [x] Test WithDefault() sets default flag
+  - [x] Test Build() with valid config succeeds
+  - [x] Test Build() with empty provider fails
+  - [x] Test Build() with empty model fails
+  - [x] Test Build() with invalid temperature fails
+  - [x] Test context propagation
 
 ## Success Criteria
 
