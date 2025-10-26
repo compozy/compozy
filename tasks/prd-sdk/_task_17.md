@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -30,13 +30,13 @@ Implement WaitBuilder for delaying workflow execution by duration or until a con
 
 ## Subtasks
 
-- [ ] 17.1 Create sdk/task/wait.go
-- [ ] 17.2 Implement WaitBuilder struct and constructor
-- [ ] 17.3 Add WithDuration method for fixed delay
-- [ ] 17.4 Add WithCondition method for conditional wait
-- [ ] 17.5 Add WithTimeout method for max wait time
-- [ ] 17.6 Implement Build(ctx) with validation
-- [ ] 17.7 Write unit tests
+- [x] 17.1 Create sdk/task/wait.go
+- [x] 17.2 Implement WaitBuilder struct and constructor
+- [x] 17.3 Add WithDuration method for fixed delay
+- [x] 17.4 Add WithCondition method for conditional wait
+- [x] 17.5 Add WithTimeout method for max wait time
+- [x] 17.6 Implement Build(ctx) with validation
+- [x] 17.7 Write unit tests
 
 ## Implementation Details
 

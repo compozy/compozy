@@ -40,7 +40,7 @@
 - [x] 14.0 Task: Parallel (S)
 - [x] 15.0 Task: Collection (S)
 - [x] 16.0 Task: Router (S)
-- [ ] 17.0 Task: Wait (S)
+- [x] 17.0 Task: Wait (S)
 - [ ] 18.0 Task: Aggregate (S)
 - [ ] 19.0 Task: Composite (S)
 - [ ] 20.0 Task: Signal (Unified) (M)
