@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/compozy</domain>
@@ -34,15 +34,15 @@ Implement the main Compozy embedded engine package for hosting projects programm
 
 ## Subtasks
 
-- [ ] 12.1 Create sdk/compozy package structure
-- [ ] 12.2 Implement Compozy struct and Builder
-- [ ] 12.3 Implement server/infrastructure configuration methods
-- [ ] 12.4 Implement integration.go (SDK → Engine registration)
-- [ ] 12.5 Implement lifecycle methods (Start, Stop, Wait)
-- [ ] 12.6 Implement ExecuteWorkflow for direct execution
-- [ ] 12.7 Add accessor methods (Server, Router, Config)
-- [ ] 12.8 Write unit tests for Builder
-- [ ] 12.9 Write integration tests for full lifecycle
+- [x] 12.1 Create sdk/compozy package structure
+- [x] 12.2 Implement Compozy struct and Builder
+- [x] 12.3 Implement server/infrastructure configuration methods
+- [x] 12.4 Implement integration.go (SDK → Engine registration)
+- [x] 12.5 Implement lifecycle methods (Start, Stop, Wait)
+- [x] 12.6 Implement ExecuteWorkflow for direct execution
+- [x] 12.7 Add accessor methods (Server, Router, Config)
+- [x] 12.8 Write unit tests for Builder
+- [x] 12.9 Write integration tests for full lifecycle
 
 ## Implementation Details
 

@@ -35,7 +35,7 @@
 - [x] 09.0 Action Builder (S)
 - [x] 10.0 Schema + Property Builders (M)
 - [x] 11.0 Client Builder (S)
-- [ ] 12.0 Compozy Lifecycle (M)
+- [x] 12.0 Compozy Lifecycle (M)
 - [x] 13.0 Task: Basic (S)
 - [x] 14.0 Task: Parallel (S)
 - [x] 15.0 Task: Collection (S)
