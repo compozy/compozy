@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/internal/validate</domain>
@@ -33,14 +33,14 @@ Create validation helper functions used across all builders for common validatio
 
 ## Subtasks
 
-- [ ] 03.1 Create sdk/internal/validate/validate.go
-- [ ] 03.2 Implement ValidateRequired(ctx, name, value) error
-- [ ] 03.3 Implement ValidateID(ctx, id) error
-- [ ] 03.4 Implement ValidateNonEmpty(ctx, name, value) error
-- [ ] 03.5 Implement ValidateURL(ctx, url) error
-- [ ] 03.6 Implement ValidateDuration(ctx, d) error
-- [ ] 03.7 Implement ValidateRange(ctx, name, val, min, max) error
-- [ ] 03.8 Add comprehensive unit tests
+- [x] 03.1 Create sdk/internal/validate/validate.go
+- [x] 03.2 Implement ValidateRequired(ctx, name, value) error
+- [x] 03.3 Implement ValidateID(ctx, id) error
+- [x] 03.4 Implement ValidateNonEmpty(ctx, name, value) error
+- [x] 03.5 Implement ValidateURL(ctx, url) error
+- [x] 03.6 Implement ValidateDuration(ctx, d) error
+- [x] 03.7 Implement ValidateRange(ctx, name, val, min, max) error
+- [x] 03.8 Add comprehensive unit tests
 
 ## Implementation Details
 
@@ -95,14 +95,14 @@ func ValidateRange(ctx context.Context, name string, val, min, max int) error
 Reference: tasks/prd-sdk/_tests.md
 
 - Unit tests for validation helpers:
-  - [ ] Test ValidateRequired with nil, empty, and valid values
-  - [ ] Test ValidateID with valid and invalid IDs
-  - [ ] Test ValidateNonEmpty with empty and non-empty strings
-  - [ ] Test ValidateURL with valid and invalid URLs
-  - [ ] Test ValidateDuration with negative, zero, and positive durations
-  - [ ] Test ValidateRange with values inside and outside range
-  - [ ] Test error messages are clear and actionable
-  - [ ] Test all functions accept context.Context
+  - [x] Test ValidateRequired with nil, empty, and valid values
+  - [x] Test ValidateID with valid and invalid IDs
+  - [x] Test ValidateNonEmpty with empty and non-empty strings
+  - [x] Test ValidateURL with valid and invalid URLs
+  - [x] Test ValidateDuration with negative, zero, and positive durations
+  - [x] Test ValidateRange with values inside and outside range
+  - [x] Test error messages are clear and actionable
+  - [x] Test all functions accept context.Context
 
 ## Success Criteria
 
