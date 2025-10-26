@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/compozy</domain>
@@ -31,11 +31,11 @@ Implement SDK-built agent, tool, and schema registration in the engine's resourc
 
 ## Subtasks
 
-- [ ] 23.1 Implement RegisterAgent(ctx, *agent.Config) in integration.go
-- [ ] 23.2 Implement RegisterTool(ctx, *tool.Config) in integration.go
-- [ ] 23.3 Implement RegisterSchema(ctx, *schema.Schema) in integration.go
-- [ ] 23.4 Add validation for each resource type before registration
-- [ ] 23.5 Add unit and integration tests for all registration paths
+- [x] 23.1 Implement RegisterAgent(ctx, *agent.Config) in integration.go
+- [x] 23.2 Implement RegisterTool(ctx, *tool.Config) in integration.go
+- [x] 23.3 Implement RegisterSchema(ctx, *schema.Schema) in integration.go
+- [x] 23.4 Add validation for each resource type before registration
+- [x] 23.5 Add unit and integration tests for all registration paths
 
 ## Implementation Details
 
@@ -92,17 +92,17 @@ for _, schema := range proj.Schemas {
 
 Integration tests from _tests.md:
 
-- [ ] Valid agent with actions registers successfully
-- [ ] Agent validation failure returns error with agent ID
-- [ ] Multiple agents register without conflicts
-- [ ] Valid tool with runtime registers successfully
-- [ ] Tool validation failure returns error with tool ID
-- [ ] Valid schema with properties registers successfully
-- [ ] Schema validation failure includes schema details
-- [ ] Duplicate agent IDs are detected and rejected
-- [ ] Duplicate tool IDs are detected and rejected
-- [ ] logger.FromContext(ctx) used for all logging
-- [ ] Registration order: workflows → agents → tools → schemas
+- [x] Valid agent with actions registers successfully
+- [x] Agent validation failure returns error with agent ID
+- [x] Multiple agents register without conflicts
+- [x] Valid tool with runtime registers successfully
+- [x] Tool validation failure returns error with tool ID
+- [x] Valid schema with properties registers successfully
+- [x] Schema validation failure includes schema details
+- [x] Duplicate agent IDs are detected and rejected
+- [x] Duplicate tool IDs are detected and rejected
+- [x] logger.FromContext(ctx) used for all logging
+- [x] Registration order: workflows → agents → tools → schemas
 
 ## Success Criteria
 

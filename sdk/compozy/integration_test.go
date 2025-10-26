@@ -10,7 +10,9 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	engineproject "github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/resources"
+	engineschema "github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/task"
+	enginetool "github.com/compozy/compozy/engine/tool"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
@@ -197,6 +199,170 @@ func TestMultipleWorkflowsRegisterInOrder(t *testing.T) {
 		}
 	}
 	require.Equal(t, []string{wfOne.ID, wfTwo.ID}, workflowOrder)
+}
+
+func TestRegisterAgentRegistersSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	agentCfg := sampleAgentConfig(t, "agent-success")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	require.NoError(t, instance.RegisterAgent(ctx, agentCfg))
+	key := resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: agentCfg.ID}
+	value, _, err := instance.store.Get(ctx, key)
+	require.NoError(t, err)
+	require.IsType(t, &agent.Config{}, value)
+}
+
+func TestRegisterAgentValidationFailureIncludesID(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	agentCfg := sampleAgentConfig(t, "agent-invalid")
+	agentCfg.Instructions = ""
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	err := instance.RegisterAgent(ctx, agentCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "agent "+agentCfg.ID+" validation failed")
+}
+
+func TestRegisterAgentDuplicateIDRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	agentCfg := sampleAgentConfig(t, "agent-dup")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	require.NoError(t, instance.RegisterAgent(ctx, agentCfg))
+	err := instance.RegisterAgent(ctx, agentCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+}
+
+func TestRegisterMultipleAgentsNoConflict(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	agentOne := sampleAgentConfig(t, "agent-one")
+	agentTwo := sampleAgentConfig(t, "agent-two")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	require.NoError(t, instance.RegisterAgent(ctx, agentOne))
+	require.NoError(t, instance.RegisterAgent(ctx, agentTwo))
+	keyOne := resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: agentOne.ID}
+	keyTwo := resources.ResourceKey{Project: "demo", Type: resources.ResourceAgent, ID: agentTwo.ID}
+	_, _, err := instance.store.Get(ctx, keyOne)
+	require.NoError(t, err)
+	_, _, err = instance.store.Get(ctx, keyTwo)
+	require.NoError(t, err)
+}
+
+func TestRegisterToolRegistersSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	toolCfg := sampleToolConfig(t, "tool-success")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	require.NoError(t, instance.RegisterTool(ctx, toolCfg))
+	key := resources.ResourceKey{Project: "demo", Type: resources.ResourceTool, ID: toolCfg.ID}
+	value, _, err := instance.store.Get(ctx, key)
+	require.NoError(t, err)
+	require.IsType(t, &enginetool.Config{}, value)
+}
+
+func TestRegisterToolValidationFailureIncludesID(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	toolCfg := sampleToolConfig(t, "tool-invalid")
+	toolCfg.Timeout = "invalid"
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	err := instance.RegisterTool(ctx, toolCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "tool "+toolCfg.ID+" validation failed")
+}
+
+func TestRegisterToolDuplicateIDRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	toolCfg := sampleToolConfig(t, "tool-dup")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	require.NoError(t, instance.RegisterTool(ctx, toolCfg))
+	err := instance.RegisterTool(ctx, toolCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+}
+
+func TestRegisterSchemaRegistersSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	schemaCfg := sampleSchema("schema-success")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	require.NoError(t, instance.RegisterSchema(ctx, schemaCfg))
+	key := resources.ResourceKey{Project: "demo", Type: resources.ResourceSchema, ID: engineschema.GetID(schemaCfg)}
+	value, _, err := instance.store.Get(ctx, key)
+	require.NoError(t, err)
+	require.IsType(t, &engineschema.Schema{}, value)
+}
+
+func TestRegisterSchemaValidationFailureIncludesID(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	schemaCfg := &engineschema.Schema{"id": "schema-invalid", "type": map[string]any{"unexpected": true}}
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	err := instance.RegisterSchema(ctx, schemaCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "schema "+engineschema.GetID(schemaCfg)+" validation failed")
+}
+
+func TestRegisterSchemaDuplicateIDRejected(t *testing.T) {
+	t.Parallel()
+
+	ctx, _ := newTestContext(t)
+	schemaCfg := sampleSchema("schema-dup")
+	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
+	require.NoError(t, instance.RegisterSchema(ctx, schemaCfg))
+	err := instance.RegisterSchema(ctx, schemaCfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already registered")
+}
+
+func TestLoadProjectRegistersResourcesInOrder(t *testing.T) {
+	t.Parallel()
+
+	ctx, log := newTestContext(t)
+	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	dir := projectCfg.GetCWD().PathStr()
+	projTool := sampleToolConfig(t, "proj-tool")
+	require.NoError(t, projTool.SetCWD(dir))
+	projectCfg.Tools = append(projectCfg.Tools, *projTool)
+	wfTool := sampleToolConfig(t, "wf-tool")
+	require.NoError(t, wfTool.SetCWD(dir))
+	workflowCfg.Tools = append(workflowCfg.Tools, *wfTool)
+	projectCfg.Schemas = append(projectCfg.Schemas, *sampleSchema("proj-schema"))
+	workflowCfg.Schemas = append(workflowCfg.Schemas, *sampleSchema("wf-schema"))
+	instance := &Compozy{
+		store:         resources.NewMemoryResourceStore(),
+		workflowByID:  map[string]*engineworkflow.Config{workflowCfg.ID: workflowCfg},
+		workflowOrder: []string{workflowCfg.ID},
+	}
+	require.NoError(t, instance.loadProjectIntoEngine(ctx, projectCfg))
+	logMsgs := make([]string, len(log.entries))
+	for i := range log.entries {
+		logMsgs[i] = log.entries[i].msg
+	}
+	workflowIdx := indexOf(logMsgs, "workflow registered")
+	agentIdx := indexOf(logMsgs, "agent registered")
+	toolIdx := indexOf(logMsgs, "tool registered")
+	schemaIdx := indexOf(logMsgs, "schema registered")
+	require.NotEqual(t, -1, workflowIdx)
+	require.NotEqual(t, -1, agentIdx)
+	require.NotEqual(t, -1, toolIdx)
+	require.NotEqual(t, -1, schemaIdx)
+	require.Less(t, workflowIdx, agentIdx)
+	require.Less(t, agentIdx, toolIdx)
+	require.Less(t, toolIdx, schemaIdx)
 }
 
 func TestHybridProjectSupportsYAML(t *testing.T) {
@@ -391,6 +557,34 @@ func buildWorkflowConfig(t *testing.T, ctx context.Context, id string, projectDi
 	require.NoError(t, err)
 	require.NoError(t, wfCfg.SetCWD(projectDir))
 	return wfCfg
+}
+
+func sampleAgentConfig(t *testing.T, id string) *agent.Config {
+	t.Helper()
+	cfg := &agent.Config{ID: id, Instructions: "Test agent instructions.", Model: agent.Model{Ref: "test-model"}}
+	require.NoError(t, cfg.SetCWD(t.TempDir()))
+	return cfg
+}
+
+func sampleToolConfig(t *testing.T, id string) *enginetool.Config {
+	t.Helper()
+	cfg := &enginetool.Config{ID: id, Description: "Test tool"}
+	require.NoError(t, cfg.SetCWD(t.TempDir()))
+	return cfg
+}
+
+func sampleSchema(id string) *engineschema.Schema {
+	schemaCfg := engineschema.Schema{"id": id, "type": "object", "properties": map[string]any{}}
+	return &schemaCfg
+}
+
+func indexOf(items []string, target string) int {
+	for idx := range items {
+		if items[idx] == target {
+			return idx
+		}
+	}
+	return -1
 }
 
 func defaultBuilder(
