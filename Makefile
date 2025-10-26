@@ -37,7 +37,7 @@ LDFLAGS := -X github.com/compozy/compozy/pkg/version.Version=$(VERSION) -X githu
 SWAGGER_DIR=./docs
 SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 
-.PHONY: all test lint fmt modernize clean build dev deps schemagen schemagen-watch help integration-test
+.PHONY: all test lint fmt modernize clean build dev deps schemagen schemagen-watch help integration-test typecheck
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve check-go-version setup clean-go-cache
 .PHONY: check-func-length create-func-issues solve-func-length
@@ -89,6 +89,11 @@ lint:
 	@./scripts/check-driver-imports.sh
 	@echo "Running modernize analyzer for min/max suggestions..."
 	@echo "Linting completed successfully"
+
+typecheck:
+	@echo "Running Go type checks..."
+	$(GOCMD) vet ./...
+	@echo "Type checking completed successfully"
 
 fmt:
 	@echo "Formatting code..."

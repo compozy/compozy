@@ -25,7 +25,7 @@
 ## Tasks
 
 - [ ] 01.0 Workspace + Module Scaffolding (S)
-- [ ] 02.0 Error Aggregation Infra (S)
+- [x] 02.0 Error Aggregation Infra (S)
 - [ ] 03.0 Validation Helpers (S)
 - [ ] 04.0 Minimal Project Builder + Unit Test (M)
 - [ ] 05.0 Minimal Workflow Builder + Unit Test (M)

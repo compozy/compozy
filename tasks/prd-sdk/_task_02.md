@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/internal/errors</domain>
@@ -30,12 +30,12 @@ Implement BuildError infrastructure for accumulating multiple builder errors and
 
 ## Subtasks
 
-- [ ] 02.1 Create sdk/internal/errors/build_error.go
-- [ ] 02.2 Implement BuildError struct with Errors []error field
-- [ ] 02.3 Implement Error() method with formatted output
-- [ ] 02.4 Implement Unwrap() method for compatibility
-- [ ] 02.5 Add unit tests for all error aggregation scenarios
-- [ ] 02.6 Test errors.Is and errors.As integration
+- [x] 02.1 Create sdk/internal/errors/build_error.go
+- [x] 02.2 Implement BuildError struct with Errors []error field
+- [x] 02.3 Implement Error() method with formatted output
+- [x] 02.4 Implement Unwrap() method for compatibility
+- [x] 02.5 Add unit tests for all error aggregation scenarios
+- [x] 02.6 Test errors.Is and errors.As integration
 
 ## Implementation Details
 
@@ -82,13 +82,13 @@ func (e *BuildError) Unwrap() error
 Reference: tasks/prd-sdk/_tests.md
 
 - Unit tests for BuildError:
-  - [ ] Test single error formatting
-  - [ ] Test multiple errors formatting
-  - [ ] Test empty errors list
-  - [ ] Test errors.Is integration
-  - [ ] Test errors.As integration
-  - [ ] Test Unwrap returns first error
-  - [ ] Test error message clarity and readability
+- [x] Test single error formatting
+- [x] Test multiple errors formatting
+- [x] Test empty errors list
+- [x] Test errors.Is integration
+- [x] Test errors.As integration
+- [x] Test Unwrap returns first error
+- [x] Test error message clarity and readability
 
 ## Success Criteria
 
