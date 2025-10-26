@@ -37,7 +37,7 @@ const (
 	ideClaude                  = "claude"
 	ideDroid                   = "droid"
 	defaultCodexModel          = "gpt-5-codex"
-	defaultClaudeModel         = "sonnet[1m]"
+	defaultClaudeModel         = "claude-sonnet-4-5-20250929"
 	thinkPromptMedium          = "Think hard through problems carefully before acting. Balance speed with thoroughness."
 	thinkPromptLow             = "Think concisely and act quickly. Prefer direct solutions."
 	thinkPromptHighDescription = "Ultrathink deeply and comprehensively before taking action. " +
