@@ -26,6 +26,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sethvargo/go-retry"
 	"github.com/spf13/cobra"
 	"github.com/tidwall/pretty"
 )
@@ -73,19 +74,21 @@ const (
 //   (default: medium, options: low/medium/high).
 
 type cliArgs struct {
-	pr               string
-	issuesDir        string
-	dryRun           bool
-	concurrent       int
-	batchSize        int
-	ide              string
-	model            string
-	grouped          bool
-	tailLines        int
-	reasoningEffort  string
-	mode             string
-	includeCompleted bool
-	timeout          time.Duration
+	pr                     string
+	issuesDir              string
+	dryRun                 bool
+	concurrent             int
+	batchSize              int
+	ide                    string
+	model                  string
+	grouped                bool
+	tailLines              int
+	reasoningEffort        string
+	mode                   string
+	includeCompleted       bool
+	timeout                time.Duration
+	maxRetries             int
+	retryBackoffMultiplier float64
 }
 
 type issueEntry struct {
@@ -152,20 +155,22 @@ Behavior:
 }
 
 var (
-	pr               string
-	issuesDir        string
-	dryRun           bool
-	concurrent       int
-	batchSize        int
-	ide              string
-	model            string
-	grouped          bool
-	tailLines        int
-	reasoningEffort  string
-	useForm          bool
-	mode             string
-	includeCompleted bool
-	timeout          string
+	pr                     string
+	issuesDir              string
+	dryRun                 bool
+	concurrent             int
+	batchSize              int
+	ide                    string
+	model                  string
+	grouped                bool
+	tailLines              int
+	reasoningEffort        string
+	useForm                bool
+	mode                   string
+	includeCompleted       bool
+	timeout                string
+	maxRetries             int
+	retryBackoffMultiplier float64
 )
 
 var _ = buildZenMCPGuidance
@@ -204,6 +209,18 @@ func setupFlags() {
 		"timeout",
 		"10m",
 		"Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period.",
+	)
+	rootCmd.Flags().IntVar(
+		&maxRetries,
+		"max-retries",
+		3,
+		"Maximum number of retry attempts on timeout (0 = no retry, default: 3)",
+	)
+	rootCmd.Flags().Float64Var(
+		&retryBackoffMultiplier,
+		"retry-backoff-multiplier",
+		2.0,
+		"Timeout multiplier for each retry attempt (default: 2.0 = 2x timeout on each retry)",
 	)
 
 	// Note: PR is usually required, but we handle this dynamically in runSolveIssues
@@ -580,19 +597,21 @@ func buildCLIArgs() *cliArgs {
 		}
 	}
 	return &cliArgs{
-		pr:               pr,
-		issuesDir:        issuesDir,
-		dryRun:           dryRun,
-		concurrent:       concurrent,
-		batchSize:        batchSize,
-		ide:              ide,
-		model:            model,
-		grouped:          grouped,
-		tailLines:        tailLines,
-		reasoningEffort:  reasoningEffort,
-		mode:             mode,
-		includeCompleted: includeCompleted,
-		timeout:          timeoutDuration,
+		pr:                     pr,
+		issuesDir:              issuesDir,
+		dryRun:                 dryRun,
+		concurrent:             concurrent,
+		batchSize:              batchSize,
+		ide:                    ide,
+		model:                  model,
+		grouped:                grouped,
+		tailLines:              tailLines,
+		reasoningEffort:        reasoningEffort,
+		mode:                   mode,
+		includeCompleted:       includeCompleted,
+		timeout:                timeoutDuration,
+		maxRetries:             maxRetries,
+		retryBackoffMultiplier: retryBackoffMultiplier,
 	}
 }
 
@@ -1134,13 +1153,13 @@ func runOneJob(
 		}
 		return
 	}
-	executeJobWithTimeout(
+	executeJobWithRetry(
 		ctx, args, j, cwd, useUI, uiCh, index,
 		failed, failuresMu, failures, aggregateUsage, aggregateMu,
 	)
 }
 
-func executeJobWithTimeout(
+func executeJobWithRetry(
 	ctx context.Context,
 	args *cliArgs,
 	j *job,
@@ -1154,13 +1173,115 @@ func executeJobWithTimeout(
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
 ) {
+	currentTimeout := args.timeout
+	attempt := 0
+	maxRetries := uint64(0)
+	if args.maxRetries > 0 {
+		// #nosec G115 - maxRetries is validated to be non-negative and reasonable
+		maxRetries = uint64(args.maxRetries)
+	}
+	backoff := retry.WithMaxRetries(maxRetries, retry.NewConstant(1*time.Millisecond))
+	err := retry.Do(ctx, backoff, func(ctx context.Context) error {
+		attempt++
+		currentTimeout = calculateRetryTimeout(
+			currentTimeout,
+			attempt,
+			args.retryBackoffMultiplier,
+			args.maxRetries,
+			index,
+			j,
+		)
+		return executeJobAttempt(
+			ctx, args, j, cwd, useUI, uiCh, index, currentTimeout,
+			failed, failuresMu, failures, aggregateUsage, aggregateMu,
+		)
+	})
+	logRetryCompletion(err, attempt, index, j)
+}
+
+func calculateRetryTimeout(
+	currentTimeout time.Duration,
+	attempt int,
+	multiplier float64,
+	maxRetries int,
+	index int,
+	j *job,
+) time.Duration {
+	if attempt > 1 {
+		currentTimeout = time.Duration(float64(currentTimeout) * multiplier)
+		fmt.Fprintf(
+			os.Stderr,
+			"\n🔄 Retry attempt %d/%d for job %d (%s) with timeout %v\n",
+			attempt-1,
+			maxRetries,
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+			currentTimeout,
+		)
+	}
+	return currentTimeout
+}
+
+func executeJobAttempt(
+	ctx context.Context,
+	args *cliArgs,
+	j *job,
+	cwd string,
+	useUI bool,
+	uiCh chan uiMsg,
+	index int,
+	currentTimeout time.Duration,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) error {
+	argsWithTimeout := *args
+	argsWithTimeout.timeout = currentTimeout
+	success, exitCode := executeJobWithTimeoutAndResult(
+		ctx, &argsWithTimeout, j, cwd, useUI, uiCh,
+		index, failed, failuresMu, failures, aggregateUsage, aggregateMu,
+	)
+	if !success && exitCode == -2 {
+		return retry.RetryableError(fmt.Errorf("timeout"))
+	}
+	return nil
+}
+
+func logRetryCompletion(err error, attempt int, index int, j *job) {
+	if err != nil && attempt > 1 {
+		fmt.Fprintf(
+			os.Stderr,
+			"\n❌ Job %d (%s) failed after %d retry attempts\n",
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+			attempt-1,
+		)
+	}
+}
+
+func executeJobWithTimeoutAndResult(
+	ctx context.Context,
+	args *cliArgs,
+	j *job,
+	cwd string,
+	useUI bool,
+	uiCh chan uiMsg,
+	index int,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) (bool, int) {
 	cmd, outF, errF, monitor := setupCommandExecution(
 		ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu,
 	)
 	if cmd == nil {
-		return
+		return false, -1
 	}
-	executeCommandAndHandleResult(
+	return executeCommandAndHandleResultWithStatus(
 		ctx, args.timeout, monitor, cmd, outF, errF, j,
 		index, useUI, uiCh, failed, failuresMu, failures,
 	)
@@ -1526,7 +1647,7 @@ func createLogFile(path, _ string) (*os.File, error) {
 	return file, nil
 }
 
-func executeCommandAndHandleResult(
+func executeCommandAndHandleResultWithStatus(
 	ctx context.Context,
 	timeout time.Duration,
 	monitor *activityMonitor,
@@ -1540,7 +1661,7 @@ func executeCommandAndHandleResult(
 	failed *int32,
 	failuresMu *sync.Mutex,
 	failures *[]failInfo,
-) {
+) (bool, int) {
 	defer func() {
 		if outF != nil {
 			outF.Close()
@@ -1554,14 +1675,26 @@ func executeCommandAndHandleResult(
 		cmdDone <- cmd.Run()
 	}()
 	activityTimeout := startActivityWatchdog(ctx, monitor, timeout, cmdDone)
+	type result struct {
+		success  bool
+		exitCode int
+	}
+	resultCh := make(chan result, 1)
 	select {
 	case err := <-cmdDone:
-		handleCommandCompletion(err, j, index, useUI, uiCh, failed, failuresMu, failures)
+		success, exitCode := handleCommandCompletionWithResult(
+			err, j, index, useUI, uiCh, failed, failuresMu, failures,
+		)
+		resultCh <- result{success, exitCode}
 	case <-activityTimeout:
 		handleActivityTimeout(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures, timeout)
+		resultCh <- result{false, -2}
 	case <-ctx.Done():
 		handleCommandCancellation(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures)
+		resultCh <- result{false, -1}
 	}
+	res := <-resultCh
+	return res.success, res.exitCode
 }
 
 func startActivityWatchdog(
@@ -1593,7 +1726,7 @@ func startActivityWatchdog(
 	return activityTimeout
 }
 
-func handleCommandCompletion(
+func handleCommandCompletionWithResult(
 	err error,
 	j *job,
 	index int,
@@ -1602,7 +1735,7 @@ func handleCommandCompletion(
 	failed *int32,
 	failuresMu *sync.Mutex,
 	failures *[]failInfo,
-) {
+) (bool, int) {
 	if err != nil {
 		ec := exitCodeOf(err)
 		atomic.AddInt32(failed, 1)
@@ -1615,11 +1748,12 @@ func handleCommandCompletion(
 		if useUI {
 			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: ec}
 		}
-		return
+		return false, ec
 	}
 	if useUI {
 		uiCh <- jobFinishedMsg{Index: index, Success: true, ExitCode: 0}
 	}
+	return true, 0
 }
 
 func handleCommandCancellation(

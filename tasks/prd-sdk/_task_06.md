@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/compozy</domain>
@@ -34,15 +34,15 @@ Implement the integration layer that loads SDK-built projects into the engine. T
 
 ## Subtasks
 
-- [ ] 06.1 Create sdk/compozy/compozy.go with Compozy struct
-- [ ] 06.2 Create sdk/compozy/integration.go with loadProjectIntoEngine
-- [ ] 06.3 Implement resource registration for projects
-- [ ] 06.4 Implement resource registration for workflows
-- [ ] 06.5 Implement resource registration for agents
-- [ ] 06.6 Create minimal builder for Compozy initialization
-- [ ] 06.7 Add integration test for SDK → Engine loading
-- [ ] 06.8 Add integration test for workflow execution
-- [ ] 06.9 Validate prototype succeeds (GATE)
+- [x] 06.1 Create sdk/compozy/compozy.go with Compozy struct
+- [x] 06.2 Create sdk/compozy/integration.go with loadProjectIntoEngine
+- [x] 06.3 Implement resource registration for projects
+- [x] 06.4 Implement resource registration for workflows
+- [x] 06.5 Implement resource registration for agents
+- [x] 06.6 Create minimal builder for Compozy initialization
+- [x] 06.7 Add integration test for SDK → Engine loading
+- [x] 06.8 Add integration test for workflow execution
+- [x] 06.9 Validate prototype succeeds (GATE)
 
 ## Implementation Details
 
@@ -103,14 +103,19 @@ func (c *Compozy) loadProjectIntoEngine(ctx context.Context, proj *project.Confi
 Reference: tasks/prd-sdk/_tests.md
 
 - Integration tests for SDK → Engine:
-  - [ ] Test project registration in resource store
-  - [ ] Test workflow registration works
-  - [ ] Test agent registration works
-  - [ ] Test resource lookup by ID works
-  - [ ] Test simple workflow execution end-to-end
-  - [ ] Test error handling for invalid configs
-  - [ ] Test context propagation through integration layer
-  - [ ] Test logger.FromContext works in integration
+  - [x] Test project registration in resource store
+  - [x] Test workflow registration works
+  - [x] Test agent registration works
+  - [x] Test resource lookup by ID works
+  - [x] Test simple workflow execution end-to-end
+  - [x] Test error handling for invalid configs
+  - [x] Test context propagation through integration layer
+  - [x] Test logger.FromContext works in integration
+
+## Validation Report
+
+- Prototype loads SDK project and workflows into memory-backed resource store
+- Integration tests exercise registration, execution, logging, and error handling
 
 ## Success Criteria
 
