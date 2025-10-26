@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -28,12 +28,12 @@ Implement ParallelBuilder for executing multiple tasks concurrently. Supports wa
 
 ## Subtasks
 
-- [ ] 14.1 Create sdk/task/parallel.go
-- [ ] 14.2 Implement ParallelBuilder struct and constructor
-- [ ] 14.3 Add AddTask method for task registration
-- [ ] 14.4 Add WithWaitAll method
-- [ ] 14.5 Implement Build(ctx) with validation
-- [ ] 14.6 Write unit tests
+- [x] 14.1 Create sdk/task/parallel.go
+- [x] 14.2 Implement ParallelBuilder struct and constructor
+- [x] 14.3 Add AddTask method for task registration
+- [x] 14.4 Add WithWaitAll method
+- [x] 14.5 Implement Build(ctx) with validation
+- [x] 14.6 Write unit tests
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ func (b *ParallelBuilder) Build(ctx context.Context) (*task.Config, error)
 ## Tests
 
 Unit tests from `_tests.md`:
-- [ ] Parallel task with multiple tasks (wait-all)
-- [ ] Parallel task with wait-first semantics
-- [ ] Adding tasks incrementally
-- [ ] Error: no tasks specified
-- [ ] Error: empty task ID
-- [ ] Error: duplicate task IDs
-- [ ] BuildError aggregation
+- [x] Parallel task with multiple tasks (wait-all)
+- [x] Parallel task with wait-first semantics
+- [x] Adding tasks incrementally
+- [x] Error: no tasks specified
+- [x] Error: empty task ID
+- [x] Error: duplicate task IDs
+- [x] BuildError aggregation
 
 ## Success Criteria
 
