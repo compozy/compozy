@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -30,13 +30,13 @@ Implement AggregateBuilder for combining results from multiple tasks using aggre
 
 ## Subtasks
 
-- [ ] 18.1 Create sdk/task/aggregate.go
-- [ ] 18.2 Implement AggregateBuilder struct and constructor
-- [ ] 18.3 Add AddTask method for task registration
-- [ ] 18.4 Add WithStrategy method for aggregation mode
-- [ ] 18.5 Add WithFunction method for custom functions
-- [ ] 18.6 Implement Build(ctx) with validation
-- [ ] 18.7 Write unit tests
+- [x] 18.1 Create sdk/task/aggregate.go
+- [x] 18.2 Implement AggregateBuilder struct and constructor
+- [x] 18.3 Add AddTask method for task registration
+- [x] 18.4 Add WithStrategy method for aggregation mode
+- [x] 18.5 Add WithFunction method for custom functions
+- [x] 18.6 Implement Build(ctx) with validation
+- [x] 18.7 Write unit tests
 
 ## Implementation Details
 

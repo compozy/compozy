@@ -41,7 +41,7 @@
 - [x] 15.0 Task: Collection (S)
 - [x] 16.0 Task: Router (S)
 - [x] 17.0 Task: Wait (S)
-- [ ] 18.0 Task: Aggregate (S)
+- [x] 18.0 Task: Aggregate (S)
 - [ ] 19.0 Task: Composite (S)
 - [ ] 20.0 Task: Signal (Unified) (M)
 - [ ] 21.0 Task: Memory (S)
