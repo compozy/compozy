@@ -190,16 +190,15 @@ func applyExecutionFailure(
 	duration int64,
 ) TaskExecutionResult {
 	code := builtin.CodeInternal
-	if ctxErr != nil && errors.Is(ctxErr, context.DeadlineExceeded) {
+	// Prioritize deadline exceeded regardless of source (context or executor)
+	if (ctxErr != nil && errors.Is(ctxErr, context.DeadlineExceeded)) ||
+		errors.Is(execErr, context.DeadlineExceeded) {
 		code = builtin.CodeDeadlineExceeded
 	} else {
 		var cerr *core.Error
 		if errors.As(execErr, &cerr) {
 			code = cerr.Code
 		}
-	}
-	if errors.Is(execErr, context.DeadlineExceeded) {
-		code = builtin.CodeDeadlineExceeded
 	}
 	result.Error = &shared.ErrorDetails{Message: execErr.Error(), Code: code}
 	result.DurationMs = duration

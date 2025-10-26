@@ -32,6 +32,33 @@ func WithResourceStore(store resources.ResourceStore) Option {
 	}
 }
 
+// WithAgentExecutor overrides the agent executor.
+func WithAgentExecutor(exec toolenv.AgentExecutor) Option {
+	return func(env *NoopEnvironment) {
+		if exec != nil {
+			env.agent = exec
+		}
+	}
+}
+
+// WithTaskExecutor overrides the task executor.
+func WithTaskExecutor(exec toolenv.TaskExecutor) Option {
+	return func(env *NoopEnvironment) {
+		if exec != nil {
+			env.task = exec
+		}
+	}
+}
+
+// WithWorkflowExecutor overrides the workflow executor.
+func WithWorkflowExecutor(exec toolenv.WorkflowExecutor) Option {
+	return func(env *NoopEnvironment) {
+		if exec != nil {
+			env.workflow = exec
+		}
+	}
+}
+
 // NewNoopEnvironment builds a noop environment using the provided options.
 func NewNoopEnvironment(options ...Option) toolenv.Environment {
 	env := &NoopEnvironment{

@@ -17,6 +17,7 @@ var inputSchema = schema.Schema{
 		},
 		"initial_task_id": map[string]any{
 			"type":        "string",
+			"minLength":   1,
 			"description": "Optional task ID to resume execution from.",
 		},
 		"timeout_ms": map[string]any{
@@ -34,8 +35,8 @@ var outputSchema = schema.Schema{
 	"required": []any{"success", "workflow_id", "workflow_exec_id"},
 	"properties": map[string]any{
 		"success":          map[string]any{"type": "boolean"},
-		"workflow_id":      map[string]any{"type": "string"},
-		"workflow_exec_id": map[string]any{"type": "string"},
+		"workflow_id":      map[string]any{"type": "string", "minLength": 1},
+		"workflow_exec_id": map[string]any{"type": "string", "minLength": 1},
 		"status": map[string]any{
 			"type": "string",
 			"enum": []any{"SUCCESS", "FAILED", "TIMED_OUT", "CANCELED"},

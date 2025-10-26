@@ -152,7 +152,10 @@ func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExec
 	if err := validateAgentAction(agentConfig, req.Action); err != nil {
 		return nil, err
 	}
-	taskCfg := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
+	taskCfg, err := buildTaskConfig(req.AgentID, agentConfig, req, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build task config: %w", err)
+	}
 	executor, err := tkrouter.ResolveDirectExecutor(ctx, r.state, r.repo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize executor: %w", err)
@@ -255,7 +258,7 @@ func buildTaskConfig(
 	agentConfig *agent.Config,
 	req ExecuteRequest,
 	timeout time.Duration,
-) *task.Config {
+) (*task.Config, error) {
 	cfg := &task.Config{
 		BaseConfig: task.BaseConfig{
 			ID:    fmt.Sprintf("agent:%s", agentID),
@@ -270,11 +273,14 @@ func buildTaskConfig(
 		cfg.Prompt = req.Prompt
 	}
 	if len(req.With) > 0 {
-		withCopy := req.With
-		cfg.With = &withCopy
+		copied, err := core.DeepCopy(req.With)
+		if err != nil {
+			return nil, fmt.Errorf("failed to copy input: %w", err)
+		}
+		cfg.With = &copied
 	}
 	cfg.Timeout = timeout.String()
-	return cfg
+	return cfg, nil
 }
 
 func resolveAgentActionID(req ExecuteRequest, cfg *task.Config) string {

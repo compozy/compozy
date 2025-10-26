@@ -458,10 +458,22 @@ func validateNativeToolTimeouts(cfg *Config) error {
 			tools.CallAgents.DefaultTimeout,
 		)
 	}
+	if tools.CallTask.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_task.default_timeout must be >= 0, got: %s",
+			tools.CallTask.DefaultTimeout,
+		)
+	}
 	if tools.CallTasks.DefaultTimeout < 0 {
 		return fmt.Errorf(
 			"runtime.native_tools.call_tasks.default_timeout must be >= 0, got: %s",
 			tools.CallTasks.DefaultTimeout,
+		)
+	}
+	if tools.CallWorkflow.DefaultTimeout < 0 {
+		return fmt.Errorf(
+			"runtime.native_tools.call_workflow.default_timeout must be >= 0, got: %s",
+			tools.CallWorkflow.DefaultTimeout,
 		)
 	}
 	if tools.CallWorkflows.DefaultTimeout < 0 {

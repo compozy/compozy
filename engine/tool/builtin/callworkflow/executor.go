@@ -111,8 +111,11 @@ func buildHandlerOutput(
 	if res.Output != nil {
 		if clone, err := res.Output.Clone(); err == nil && clone != nil {
 			output["output"] = *clone
-		} else if res.Output != nil {
-			output["output"] = *res.Output
+		} else if copied, err := core.DeepCopyOutputPtr(res.Output, (*core.Output)(nil)); err == nil && copied != nil {
+			output["output"] = *copied
+		} else {
+			// last-resort shallow clone of map to avoid aliasing
+			output["output"] = core.Output(core.CloneMap(map[string]any(*res.Output)))
 		}
 	}
 	return output

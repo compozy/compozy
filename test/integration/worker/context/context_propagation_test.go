@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
 	"github.com/compozy/compozy/test/integration/worker/helpers"
 	"github.com/stretchr/testify/assert"
@@ -28,6 +29,8 @@ func TestWorker_ContextPropagation_E2E(t *testing.T) {
 		_, err := mgr.Load(base, config.NewDefaultProvider())
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
+		log := logger.NewForTests()
+		ctx = logger.ContextWithLogger(ctx, log)
 		tple := tplengine.NewEngine(tplengine.FormatJSON)
 		toolEnv := toolenvtest.NewNoopEnvironment()
 		acts, err := worker.NewActivities(
@@ -82,6 +85,8 @@ func TestWorker_GlobalConfigConsistency_Temporal(t *testing.T) {
 		_, err := mgr.Load(base, config.NewDefaultProvider(), config.NewEnvProvider())
 		require.NoError(t, err)
 		ctx := config.ContextWithManager(base, mgr)
+		log := logger.NewForTests()
+		ctx = logger.ContextWithLogger(ctx, log)
 		suite := &testsuite.WorkflowTestSuite{}
 		helper := helpers.NewTemporalHelper(t, suite, "test-task-queue")
 		defer helper.Cleanup(t)
