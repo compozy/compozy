@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -33,16 +33,16 @@ Implement unified SignalBuilder supporting both send and wait operations for wor
 
 ## Subtasks
 
-- [ ] 20.1 Create sdk/task/signal.go
-- [ ] 20.2 Define SignalMode type (send, wait)
-- [ ] 20.3 Implement SignalBuilder struct and constructor
-- [ ] 20.4 Add WithSignalID method
-- [ ] 20.5 Add WithMode method for send/wait selection
-- [ ] 20.6 Add WithData method for send payload
-- [ ] 20.7 Add WithTimeout method for wait timeout
-- [ ] 20.8 Add OnSuccess/OnError transition methods
-- [ ] 20.9 Implement Build(ctx) with mode-specific validation
-- [ ] 20.10 Write unit tests for both modes
+- [x] 20.1 Create sdk/task/signal.go
+- [x] 20.2 Define SignalMode type (send, wait)
+- [x] 20.3 Implement SignalBuilder struct and constructor
+- [x] 20.4 Add WithSignalID method
+- [x] 20.5 Add WithMode method for send/wait selection
+- [x] 20.6 Add WithData method for send payload
+- [x] 20.7 Add WithTimeout method for wait timeout
+- [x] 20.8 Add OnSuccess/OnError transition methods
+- [x] 20.9 Implement Build(ctx) with mode-specific validation
+- [x] 20.10 Write unit tests for both modes
 
 ## Implementation Details
 
