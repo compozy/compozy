@@ -80,8 +80,6 @@ func CreateTestProjectConfig(_ *TestFixture, projectName string) *project.Config
 	}
 }
 
-// CreateTestConfigManager removed - ConfigManager has been replaced by task2.Factory
-
 // FindInitialTaskID finds the initial task ID from fixture
 func FindInitialTaskID(fixture *TestFixture) string {
 	if len(fixture.Workflow.Tasks) > 0 {

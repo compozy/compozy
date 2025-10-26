@@ -37,7 +37,7 @@ compozy/
 ├── engine/                          # UNCHANGED: All existing code (100+ packages)
 │   ├── core/                       # Core domain types
 │   ├── agent/                      # Agent execution
-│   ├── task2/                      # Task execution system (9 types)
+│   ├── task/                       # Task execution system (9 types)
 │   ├── workflow/                   # Workflow orchestration
 │   ├── project/                    # Project configuration
 │   ├── knowledge/                  # Knowledge/RAG system
@@ -487,7 +487,7 @@ if err != nil {
 ### Engine Task Types (Authoritative)
 
 ```go
-// From engine/task2/shared/validation.go
+// From engine/task
 const (
     TaskTypeBasic      task.Type = "basic"       // Single agent/tool execution
     TaskTypeParallel   task.Type = "parallel"    // Parallel task execution

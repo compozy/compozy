@@ -17,9 +17,9 @@ import (
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -55,7 +55,7 @@ type directExecutor struct {
 	projectConfig      *project.Config
 	memoryManager      memcore.ManagerInterface
 	templateEngine     *tplengine.TemplateEngine
-	configOrchestrator *task2.ConfigOrchestrator
+	configOrchestrator *tasks.ConfigOrchestrator
 	runtimeFactory     runtime.Factory
 	runtimeOnce        sync.Once
 	runtime            runtime.Runtime
@@ -182,7 +182,7 @@ func (d *directExecutor) normalizeComponents(
 		return err
 	}
 	restoreDirectInput(preparedCfg, directInputCopy)
-	taskConfigs := task2.BuildTaskConfigsMap(wfConfig.Tasks)
+	taskConfigs := tasks.BuildTaskConfigsMap(wfConfig.Tasks)
 	taskConfigs[preparedCfg.ID] = preparedCfg
 	if err := d.normalizeAgentComponent(ctx, wfState, wfConfig, preparedCfg, taskConfigs); err != nil {
 		return err
@@ -234,10 +234,10 @@ func setupConfigOrchestrator(
 	ctx context.Context,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-) (*task2.ConfigOrchestrator, *tplengine.TemplateEngine, error) {
+) (*tasks.ConfigOrchestrator, *tplengine.TemplateEngine, error) {
 	tplEng := tplengine.NewEngine(tplengine.FormatJSON)
-	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
+	envMerger := taskscore.NewEnvMerger()
+	factory, err := tasks.NewFactory(ctx, &tasks.FactoryConfig{
 		TemplateEngine: tplEng,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,
@@ -246,7 +246,7 @@ func setupConfigOrchestrator(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create task normalizer factory: %w", err)
 	}
-	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
+	orchestrator, err := tasks.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create task config orchestrator: %w", err)
 	}

@@ -7,9 +7,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -21,27 +21,27 @@ type GetCompositeResponseInput struct {
 	WorkflowConfig *workflow.Config `json:"workflow_config"`
 }
 
-// GetCompositeResponse handles composite response using task2 integration
+// GetCompositeResponse handles composite response using tasks integration
 type GetCompositeResponse struct {
 	workflowRepo workflow.Repository
 	taskRepo     task.Repository
-	task2Factory task2.Factory
+	tasksFactory tasks.Factory
 	configStore  services.ConfigStore
 	cwd          *core.PathCWD
 }
 
-// NewGetCompositeResponse creates a new GetCompositeResponse activity with task2 integration
+// NewGetCompositeResponse creates a new GetCompositeResponse activity with tasks integration
 func NewGetCompositeResponse(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	cwd *core.PathCWD,
 ) *GetCompositeResponse {
 	return &GetCompositeResponse{
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
-		task2Factory: task2Factory,
+		tasksFactory: tasksFactory,
 		configStore:  configStore,
 		cwd:          cwd,
 	}
@@ -63,7 +63,7 @@ func (a *GetCompositeResponse) Run(
 		return nil, fmt.Errorf("failed to get workflow state: %w", err)
 	}
 	executionError := processParentTask(ctx, a.taskRepo, input.ParentState, taskConfig, task.TaskTypeComposite)
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeComposite)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeComposite)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create composite response handler: %w", err)
 	}
@@ -99,13 +99,13 @@ func (a *GetCompositeResponse) convertToMainTaskResponse(
 		mainTaskResponse = &task.MainTaskResponse{
 			State: result.State,
 		}
-		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
+		configRepo, err := a.tasksFactory.CreateTaskConfigRepository(a.configStore, a.cwd)
 		if err != nil {
 			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)
 		} else {
 			metadata, err := configRepo.LoadCompositeMetadata(ctx, result.State.TaskExecID)
 			if err == nil && metadata != nil {
-				if compositeMetadata, ok := metadata.(*task2core.CompositeTaskMetadata); ok {
+				if compositeMetadata, ok := metadata.(*taskscore.CompositeTaskMetadata); ok {
 					if result.State.Output == nil {
 						output := make(core.Output)
 						result.State.Output = &output

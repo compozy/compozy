@@ -19,9 +19,9 @@ import (
 	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -49,7 +49,7 @@ type ExecuteSubtaskInput struct {
 type ExecuteSubtask struct {
 	loadWorkflowUC  *uc.LoadWorkflow
 	executeTaskUC   *uc.ExecuteTask
-	task2Factory    task2.Factory
+	tasksFactory    tasks.Factory
 	templateEngine  *tplengine.TemplateEngine
 	workflowRepo    workflow.Repository
 	taskRepo        task.Repository
@@ -69,7 +69,7 @@ func NewExecuteSubtask(
 	taskRepo task.Repository,
 	runtime runtime.Runtime,
 	configStore services.ConfigStore,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
 	usageMetrics usage.Metrics,
@@ -89,7 +89,7 @@ func NewExecuteSubtask(
 			toolEnvironment,
 			streamPublisher,
 		),
-		task2Factory:    task2Factory,
+		tasksFactory:    tasksFactory,
 		templateEngine:  templateEngine,
 		workflowRepo:    workflowRepo,
 		taskRepo:        taskRepo,
@@ -157,7 +157,7 @@ func (a *ExecuteSubtask) normalizeTask(
 	workflowConfig *workflow.Config,
 	parentStateID *core.ID,
 ) error {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, taskConfig.Type)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, taskConfig.Type)
 	if err != nil {
 		return fmt.Errorf("failed to create subtask normalizer: %w", err)
 	}
@@ -303,7 +303,7 @@ func (a *ExecuteSubtask) handleSubtaskResponse(
 	taskState *task.State,
 	executionError error,
 ) (*shared.ResponseOutput, error) {
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, taskConfig.Type)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, taskConfig.Type)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create subtask response handler: %w", err)
 	}

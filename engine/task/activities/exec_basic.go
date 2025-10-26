@@ -14,9 +14,9 @@ import (
 	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -30,12 +30,12 @@ type ExecuteBasicInput struct {
 	TaskConfig     *task.Config `json:"task_config"`
 }
 
-// ExecuteBasic handles basic task execution with task2 integration
+// ExecuteBasic handles basic task execution with tasks integration
 type ExecuteBasic struct {
 	loadWorkflowUC  *uc.LoadWorkflow
 	createStateUC   *uc.CreateState
 	executeUC       *uc.ExecuteTask
-	task2Factory    task2.Factory
+	tasksFactory    tasks.Factory
 	workflowRepo    workflow.Repository
 	taskRepo        task.Repository
 	usageMetrics    usage.Metrics
@@ -49,7 +49,7 @@ type ExecuteBasic struct {
 // NewExecuteBasic creates and returns a configured ExecuteBasic activity.
 //
 // The constructed ExecuteBasic wires the provided repositories, runtime, memory
-// manager, template engine, project and app configs, and task2 factory into
+// manager, template engine, project and app configs, and tasks factory into
 // its internal use-cases. It initializes use-cases for loading workflows,
 // creating task state, and executing tasks (ExecuteTask is constructed with the
 // workflow repository), and returns the ready-to-use ExecuteBasic or an error.
@@ -64,7 +64,7 @@ func NewExecuteBasic(
 	memoryManager memcore.ManagerInterface,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	toolEnvironment toolenv.Environment,
 	streamPublisher streaming.Publisher,
 ) (*ExecuteBasic, error) {
@@ -84,7 +84,7 @@ func NewExecuteBasic(
 			toolEnvironment,
 			streamPublisher,
 		),
-		task2Factory:    task2Factory,
+		tasksFactory:    tasksFactory,
 		workflowRepo:    workflowRepo,
 		taskRepo:        taskRepo,
 		usageMetrics:    usageMetrics,
@@ -160,7 +160,7 @@ func (a *ExecuteBasic) executeBasicWithResponse(
 		status = core.StatusSuccess
 	}
 	taskState.Output = output
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeBasic)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeBasic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create basic response handler: %w", err)
 	}
@@ -284,7 +284,7 @@ func (a *ExecuteBasic) normalizeBasicConfig(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) (*task.Config, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeBasic)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, task.TaskTypeBasic)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create basic normalizer: %w", err)
 	}

@@ -7,10 +7,10 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -23,28 +23,28 @@ type CreateCompositeStateInput struct {
 	TaskConfig     *task.Config `json:"task_config"`
 }
 
-// CreateCompositeState handles composite state creation with task2 integration
+// CreateCompositeState handles composite state creation with tasks integration
 type CreateCompositeState struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	taskRepo       task.Repository
-	task2Factory   task2.Factory
+	tasksFactory   tasks.Factory
 	configStore    services.ConfigStore
 	cwd            *core.PathCWD
 }
 
-// NewCreateCompositeState creates a new CreateCompositeState activity with task2 integration
+// NewCreateCompositeState creates a new CreateCompositeState activity with tasks integration
 func NewCreateCompositeState(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 ) (*CreateCompositeState, error) {
 	return &CreateCompositeState{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		taskRepo:       taskRepo,
-		task2Factory:   task2Factory,
+		tasksFactory:   tasksFactory,
 		configStore:    configStore,
 		cwd:            cwd,
 	}, nil
@@ -96,7 +96,7 @@ func (a *CreateCompositeState) normalizeCompositeConfig(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) (*task.Config, []*task.Config, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeComposite)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, task.TaskTypeComposite)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create composite normalizer: %w", err)
 	}
@@ -143,7 +143,7 @@ func (a *CreateCompositeState) createCompositeState(
 		if err := a.storeCompositeArtifacts(ctx, state, normalizedConfig, childConfigs); err != nil {
 			return err
 		}
-		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.task2Factory, a.cwd)
+		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.tasksFactory, a.cwd)
 		if err := createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
 			ParentStateID:  state.TaskExecID,
 			WorkflowExecID: input.WorkflowExecID,
@@ -165,11 +165,11 @@ func (a *CreateCompositeState) storeCompositeArtifacts(
 	config *task.Config,
 	childConfigs []*task.Config,
 ) error {
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
+	configRepo, err := a.tasksFactory.CreateTaskConfigRepository(a.configStore, a.cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
-	metadata := &task2core.CompositeTaskMetadata{
+	metadata := &taskscore.CompositeTaskMetadata{
 		ParentStateID: state.TaskExecID,
 		ChildConfigs:  childConfigs,
 		Strategy:      string(config.GetStrategy()),

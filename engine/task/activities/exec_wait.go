@@ -8,9 +8,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -26,7 +26,7 @@ type ExecuteWaitInput struct {
 type ExecuteWait struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	createStateUC  *uc.CreateState
-	task2Factory   task2.Factory
+	tasksFactory   tasks.Factory
 	templateEngine *tplengine.TemplateEngine
 }
 
@@ -37,13 +37,13 @@ func NewExecuteWait(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	_ *core.PathCWD,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	templateEngine *tplengine.TemplateEngine,
 ) (*ExecuteWait, error) {
 	return &ExecuteWait{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		task2Factory:   task2Factory,
+		tasksFactory:   tasksFactory,
 		templateEngine: templateEngine,
 	}, nil
 }
@@ -97,14 +97,14 @@ func (a *ExecuteWait) loadWorkflowContext(
 	return workflowState, workflowConfig, nil
 }
 
-// normalizeWaitTask prepares the wait configuration using the task2 normalizer.
+// normalizeWaitTask prepares the wait configuration using the tasks normalizer.
 func (a *ExecuteWait) normalizeWaitTask(
 	ctx context.Context,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 	cfg *task.Config,
 ) (*task.Config, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeWait)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, task.TaskTypeWait)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create wait normalizer: %w", err)
 	}
@@ -175,7 +175,7 @@ func (a *ExecuteWait) handleWaitResponse(
 	ctx context.Context,
 	responseInput *shared.ResponseInput,
 ) (*task.MainTaskResponse, error) {
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeWait)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeWait)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create wait response handler: %w", err)
 	}

@@ -8,7 +8,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 )
 
 func TestResponseConverter_ConvertToMainTaskResponse(t *testing.T) {

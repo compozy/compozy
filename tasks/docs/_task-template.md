@@ -16,7 +16,10 @@
 
 [Brief description of task]
 
-<critical>**MUST READ BEFORE STARTING** @.cursor/rules/critical-validation.mdc</critical>
+<critical>
+- **ALWAYS READ** @.cursor/rules/critical-validation.mdc before start
+- **ALWAYS READ** the technicals docs from this PRD before start
+</critical>
 
 <requirements>
 [List of mandatory requirements]

@@ -6,9 +6,9 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
 	wf "github.com/compozy/compozy/engine/workflow"
 )
 
@@ -111,7 +111,7 @@ func (a *LoadCompositeConfigs) Run(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load composite metadata: %w", err)
 	}
-	compositeMetadata, ok := metadata.(*task2core.CompositeTaskMetadata)
+	compositeMetadata, ok := metadata.(*taskscore.CompositeTaskMetadata)
 	if !ok {
 		return nil, fmt.Errorf("invalid metadata type: expected *CompositeTaskMetadata, got %T", metadata)
 	}
@@ -171,7 +171,7 @@ func (a *LoadCollectionConfigs) Run(
 	if err != nil {
 		return nil, fmt.Errorf("failed to load collection metadata: %w", err)
 	}
-	collectionMetadata, ok := metadata.(*task2core.CollectionTaskMetadata)
+	collectionMetadata, ok := metadata.(*taskscore.CollectionTaskMetadata)
 	if !ok {
 		return nil, fmt.Errorf("invalid metadata type: expected *CollectionTaskMetadata, got %T", metadata)
 	}

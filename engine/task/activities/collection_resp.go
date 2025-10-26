@@ -7,8 +7,8 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -19,27 +19,27 @@ type GetCollectionResponseInput struct {
 	WorkflowConfig *workflow.Config `json:"workflow_config"`
 }
 
-// GetCollectionResponse handles collection response using task2 integration
+// GetCollectionResponse handles collection response using tasks integration
 type GetCollectionResponse struct {
 	workflowRepo workflow.Repository
 	taskRepo     task.Repository
-	task2Factory task2.Factory
+	tasksFactory tasks.Factory
 	configStore  services.ConfigStore
 	cwd          *core.PathCWD
 }
 
-// NewGetCollectionResponse creates a new GetCollectionResponse activity with task2 integration
+// NewGetCollectionResponse creates a new GetCollectionResponse activity with tasks integration
 func NewGetCollectionResponse(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	cwd *core.PathCWD,
 ) *GetCollectionResponse {
 	return &GetCollectionResponse{
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
-		task2Factory: task2Factory,
+		tasksFactory: tasksFactory,
 		configStore:  configStore,
 		cwd:          cwd,
 	}
@@ -58,7 +58,7 @@ func (a *GetCollectionResponse) Run(
 		return nil, err
 	}
 	executionError := a.processCollectionTask(ctx, input, taskConfig)
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeCollection)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeCollection)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection response handler: %w", err)
 	}
@@ -98,7 +98,7 @@ func (a *GetCollectionResponse) convertToCollectionResponse(
 	result *shared.ResponseOutput,
 ) *task.CollectionResponse {
 	converter := NewResponseConverter()
-	return converter.ConvertToCollectionResponse(ctx, result, a.configStore, a.task2Factory, a.cwd)
+	return converter.ConvertToCollectionResponse(ctx, result, a.configStore, a.tasksFactory, a.cwd)
 }
 
 // loadCollectionTaskConfig loads the stored task configuration for the parent state.
@@ -128,7 +128,7 @@ func (a *GetCollectionResponse) loadCollectionWorkflowState(
 	return workflowState, nil
 }
 
-// buildCollectionResponseInput prepares the shared response input for the task2 handler.
+// buildCollectionResponseInput prepares the shared response input for the tasks handler.
 func (a *GetCollectionResponse) buildCollectionResponseInput(
 	input *GetCollectionResponseInput,
 	workflowState *workflow.State,

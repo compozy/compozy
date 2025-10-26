@@ -6,8 +6,8 @@ import (
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/core"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -24,20 +24,20 @@ type NormalizeConfigInput struct {
 }
 
 type NormalizeConfig struct {
-	orchestrator *task2.ConfigOrchestrator
+	orchestrator *tasks.ConfigOrchestrator
 }
 
 func NewNormalizeConfig(ctx context.Context) (*NormalizeConfig, error) {
 	tplEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	envMerger := core.NewEnvMerger()
-	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
+	factory, err := tasks.NewFactory(ctx, &tasks.FactoryConfig{
 		TemplateEngine: tplEngine,
 		EnvMerger:      envMerger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}
-	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
+	orchestrator, err := tasks.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
 	}
@@ -47,7 +47,7 @@ func NewNormalizeConfig(ctx context.Context) (*NormalizeConfig, error) {
 }
 
 func (uc *NormalizeConfig) Execute(ctx context.Context, input *NormalizeConfigInput) error {
-	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
+	taskConfigs := tasks.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
 	taskConfig := input.TaskConfig
 	err := uc.orchestrator.NormalizeTask(ctx,
 		input.WorkflowState,

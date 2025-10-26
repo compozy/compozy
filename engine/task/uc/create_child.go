@@ -8,8 +8,8 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -24,20 +24,20 @@ type CreateChildTasksInput struct {
 type CreateChildTasks struct {
 	taskRepo     task.Repository
 	configStore  services.ConfigStore
-	task2Factory task2.Factory
+	tasksFactory tasks.Factory
 	defaultCWD   *core.PathCWD
 }
 
 func NewCreateChildTasksUC(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	defaultCWD *core.PathCWD,
 ) *CreateChildTasks {
 	return &CreateChildTasks{
 		taskRepo:     taskRepo,
 		configStore:  configStore,
-		task2Factory: task2Factory,
+		tasksFactory: tasksFactory,
 		defaultCWD:   defaultCWD,
 	}
 }
@@ -75,7 +75,7 @@ func (uc *CreateChildTasks) createParallelChildren(
 	if cwd == nil {
 		cwd = uc.defaultCWD
 	}
-	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore, cwd)
+	configRepo, err := uc.tasksFactory.CreateTaskConfigRepository(uc.configStore, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -83,7 +83,7 @@ func (uc *CreateChildTasks) createParallelChildren(
 	if err != nil {
 		return err
 	}
-	metadata, ok := metadataAny.(*task2core.ParallelTaskMetadata)
+	metadata, ok := metadataAny.(*taskscore.ParallelTaskMetadata)
 	if !ok {
 		return fmt.Errorf(
 			"invalid metadata type for parallel task: expected *ParallelTaskMetadata, got %T",
@@ -105,7 +105,7 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	if cwd == nil {
 		cwd = uc.defaultCWD
 	}
-	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore, cwd)
+	configRepo, err := uc.tasksFactory.CreateTaskConfigRepository(uc.configStore, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -113,7 +113,7 @@ func (uc *CreateChildTasks) createCollectionChildren(
 	if err != nil {
 		return err
 	}
-	metadata, ok := metadataAny.(*task2core.CollectionTaskMetadata)
+	metadata, ok := metadataAny.(*taskscore.CollectionTaskMetadata)
 	if !ok {
 		return fmt.Errorf(
 			"invalid metadata type for collection task: expected *CollectionTaskMetadata, got %T",
@@ -135,7 +135,7 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	if cwd == nil {
 		cwd = uc.defaultCWD
 	}
-	configRepo, err := uc.task2Factory.CreateTaskConfigRepository(uc.configStore, cwd)
+	configRepo, err := uc.tasksFactory.CreateTaskConfigRepository(uc.configStore, cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -143,7 +143,7 @@ func (uc *CreateChildTasks) createCompositeChildren(
 	if err != nil {
 		return err
 	}
-	metadata, ok := metadataAny.(*task2core.CompositeTaskMetadata)
+	metadata, ok := metadataAny.(*taskscore.CompositeTaskMetadata)
 	if !ok {
 		return fmt.Errorf(
 			"invalid metadata type for composite task: expected *CompositeTaskMetadata, got %T",

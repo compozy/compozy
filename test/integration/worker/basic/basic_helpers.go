@@ -321,10 +321,7 @@ func createTestConfigStore() services.ConfigStore {
 	}
 }
 
-// createTestConfigManager removed - ConfigManager has been replaced by task2.Factory
-
 // Verification functions that check actual database state
-
 func verifyBasicTaskExecution(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying basic task execution from database state")
 	basicTasks := collectBasicTaskStates(result)

@@ -20,8 +20,8 @@ import (
 	"github.com/compozy/compozy/engine/memory/privacy"
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
@@ -31,8 +31,8 @@ func TestExecuteMemory_Factory(t *testing.T) {
 	t.Run("Should create memory normalizer without error", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		envMerger := task2core.NewEnvMerger()
-		factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		envMerger := taskscore.NewEnvMerger()
+		factory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      envMerger,
 		})
@@ -49,8 +49,8 @@ func TestExecuteMemory_Factory(t *testing.T) {
 	t.Run("Should create memory response handler without error", func(t *testing.T) {
 		// Arrange
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		envMerger := task2core.NewEnvMerger()
-		factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		envMerger := taskscore.NewEnvMerger()
+		factory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
 			EnvMerger:      envMerger,
 		})
@@ -798,14 +798,14 @@ func setupMemoryManager(
 	return memoryManager
 }
 
-// setupTask2Factory creates a Task2 factory for testing
-func setupTask2Factory(t *testing.T, workflowRepo workflow.Repository, taskRepo task.Repository) task2.Factory {
+// setuptasksFactory creates a tasks factory for testing
+func setuptasksFactory(t *testing.T, workflowRepo workflow.Repository, taskRepo task.Repository) tasks.Factory {
 	t.Helper()
 
 	templateEngine := tplengine.NewEngine(tplengine.FormatText)
-	envMerger := task2core.NewEnvMerger()
+	envMerger := taskscore.NewEnvMerger()
 
-	task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+	tasksFactory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,
@@ -813,7 +813,7 @@ func setupTask2Factory(t *testing.T, workflowRepo workflow.Repository, taskRepo 
 	})
 	require.NoError(t, err)
 
-	return task2Factory
+	return tasksFactory
 }
 
 // setupTestWorkflows creates test workflow configs
@@ -878,8 +878,8 @@ func createTestMemoryActivity(t *testing.T) (*ExecuteMemory, map[string]core.ID)
 	// Setup memory manager
 	memoryManager := setupMemoryManager(t, redisClient, lockManager, configRegistry)
 
-	// Setup Task2 factory
-	task2Factory := setupTask2Factory(t, workflowRepo, taskRepo)
+	// Setup tasks factory
+	tasksFactory := setuptasksFactory(t, workflowRepo, taskRepo)
 
 	// Setup config store
 	configStore := newTestConfigStore()
@@ -909,7 +909,7 @@ func createTestMemoryActivity(t *testing.T) (*ExecuteMemory, map[string]core.ID)
 		nil, // pathCWD not needed for tests
 		templateEngine,
 		projectConfig,
-		task2Factory,
+		tasksFactory,
 	)
 	require.NoError(t, err)
 

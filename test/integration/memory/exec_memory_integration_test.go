@@ -21,8 +21,8 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/activities"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
@@ -105,7 +105,7 @@ func createTestMemoryActivity(t *testing.T) (*activities.ExecuteMemory, map[stri
 	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
 	t.Cleanup(cleanup)
 	memoryManager := setupMemoryManager(t, redisClient, lockManager, configRegistry)
-	task2Factory := setupTask2Factory(t, workflowRepo, taskRepo)
+	tasksFactory := setuptasksFactory(t, workflowRepo, taskRepo)
 	configStore := newTestConfigStore()
 	testWorkflows := setupTestWorkflows()
 	workflowExecIDs := setupWorkflowStates(ctx, t, workflowRepo, testWorkflows)
@@ -120,7 +120,7 @@ func createTestMemoryActivity(t *testing.T) (*activities.ExecuteMemory, map[stri
 		nil,
 		templateEngine,
 		projectConfig,
-		task2Factory,
+		tasksFactory,
 	)
 	require.NoError(t, err)
 	return activity, workflowExecIDs
@@ -186,11 +186,11 @@ func setupMemoryManager(
 	return memoryManager
 }
 
-func setupTask2Factory(t *testing.T, workflowRepo workflow.Repository, taskRepo task.Repository) task2.Factory {
+func setuptasksFactory(t *testing.T, workflowRepo workflow.Repository, taskRepo task.Repository) tasks.Factory {
 	t.Helper()
 	templateEngine := tplengine.NewEngine(tplengine.FormatText)
-	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+	envMerger := taskscore.NewEnvMerger()
+	factory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,

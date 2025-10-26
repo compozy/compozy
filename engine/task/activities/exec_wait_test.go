@@ -10,8 +10,8 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 	utils "github.com/compozy/compozy/test/helpers"
@@ -71,11 +71,11 @@ func TestExecuteWait_Run(t *testing.T) {
 			},
 		}
 
-		// Create task2 factory
+		// Create tasks factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		tasksFactory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
-			EnvMerger:      task2core.NewEnvMerger(),
+			EnvMerger:      taskscore.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
 			TaskRepo:       taskRepo,
 		})
@@ -88,7 +88,7 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
-			task2Factory,
+			tasksFactory,
 			templateEngine,
 		)
 		require.NoError(t, err)
@@ -192,9 +192,9 @@ func TestExecuteWait_Run(t *testing.T) {
 		require.NoError(t, (&waitConfigCopy).Validate(ctx))
 
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		tasksFactory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
-			EnvMerger:      task2core.NewEnvMerger(),
+			EnvMerger:      taskscore.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
 			TaskRepo:       taskRepo,
 		})
@@ -206,7 +206,7 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
-			task2Factory,
+			tasksFactory,
 			templateEngine,
 		)
 		require.NoError(t, err)
@@ -242,11 +242,11 @@ func TestExecuteWait_Run(t *testing.T) {
 		workflowExecID := core.MustNewID()
 		cwd, _ := core.CWDFromPath("/tmp")
 
-		// Create task2 factory
+		// Create tasks factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		tasksFactory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
-			EnvMerger:      task2core.NewEnvMerger(),
+			EnvMerger:      taskscore.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
 			TaskRepo:       taskRepo,
 		})
@@ -259,7 +259,7 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
-			task2Factory,
+			tasksFactory,
 			templateEngine,
 		)
 		require.NoError(t, err)
@@ -303,11 +303,11 @@ func TestExecuteWait_Run(t *testing.T) {
 			},
 		}
 
-		// Create task2 factory
+		// Create tasks factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		tasksFactory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
-			EnvMerger:      task2core.NewEnvMerger(),
+			EnvMerger:      taskscore.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
 			TaskRepo:       taskRepo,
 		})
@@ -320,7 +320,7 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
-			task2Factory,
+			tasksFactory,
 			templateEngine,
 		)
 		require.NoError(t, err)
@@ -384,11 +384,11 @@ func TestExecuteWait_Run(t *testing.T) {
 			},
 		}
 
-		// Create task2 factory
+		// Create tasks factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		tasksFactory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
-			EnvMerger:      task2core.NewEnvMerger(),
+			EnvMerger:      taskscore.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
 			TaskRepo:       taskRepo,
 		})
@@ -401,7 +401,7 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
-			task2Factory,
+			tasksFactory,
 			templateEngine,
 		)
 		require.NoError(t, err)
@@ -485,11 +485,11 @@ func TestExecuteWait_Run(t *testing.T) {
 			},
 		}
 
-		// Create task2 factory
+		// Create tasks factory
 		templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
-		task2Factory, err := task2.NewFactory(t.Context(), &task2.FactoryConfig{
+		tasksFactory, err := tasks.NewFactory(t.Context(), &tasks.FactoryConfig{
 			TemplateEngine: templateEngine,
-			EnvMerger:      task2core.NewEnvMerger(),
+			EnvMerger:      taskscore.NewEnvMerger(),
 			WorkflowRepo:   workflowRepo,
 			TaskRepo:       taskRepo,
 		})
@@ -502,7 +502,7 @@ func TestExecuteWait_Run(t *testing.T) {
 			taskRepo,
 			configStore,
 			cwd,
-			task2Factory,
+			tasksFactory,
 			templateEngine,
 		)
 		require.NoError(t, err)

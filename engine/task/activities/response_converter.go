@@ -5,8 +5,8 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
@@ -49,9 +49,9 @@ func (rc *ResponseConverter) ConvertToMainTaskResponse(result *shared.ResponseOu
 func (rc *ResponseConverter) ConvertToCollectionResponse(
 	ctx context.Context,
 	result *shared.ResponseOutput,
-	configStore task2core.ConfigStore,
-	task2Factory interface {
-		CreateTaskConfigRepository(store task2core.ConfigStore, cwd *core.PathCWD) (shared.TaskConfigRepository, error)
+	configStore taskscore.ConfigStore,
+	tasksFactory interface {
+		CreateTaskConfigRepository(store taskscore.ConfigStore, cwd *core.PathCWD) (shared.TaskConfigRepository, error)
 	},
 	cwd *core.PathCWD,
 ) *task.CollectionResponse {
@@ -76,14 +76,14 @@ func (rc *ResponseConverter) ConvertToCollectionResponse(
 			}
 		}
 	}
-	if configStore != nil && task2Factory != nil && result.State != nil {
-		configRepo, err := task2Factory.CreateTaskConfigRepository(configStore, cwd)
+	if configStore != nil && tasksFactory != nil && result.State != nil {
+		configRepo, err := tasksFactory.CreateTaskConfigRepository(configStore, cwd)
 		if err != nil {
 			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)
 		} else {
 			metadata, err := configRepo.LoadCollectionMetadata(ctx, result.State.TaskExecID)
 			if err == nil && metadata != nil {
-				if collectionMetadata, ok := metadata.(*task2core.CollectionTaskMetadata); ok {
+				if collectionMetadata, ok := metadata.(*taskscore.CollectionTaskMetadata); ok {
 					response.ItemCount = collectionMetadata.ItemCount
 					response.SkippedCount = collectionMetadata.SkippedCount
 				}
