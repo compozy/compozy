@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -30,11 +30,11 @@ Implement the MemoryTaskBuilder in `sdk/task/memory.go` to provide SDK support f
 
 ## Subtasks
 
-- [ ] 21.1 Create sdk/task/memory.go with MemoryTaskBuilder struct
-- [ ] 21.2 Implement constructor NewMemoryTask(id string)
-- [ ] 21.3 Implement WithOperation, WithMemory, WithContent methods
-- [ ] 21.4 Implement Build(ctx) with validation and error aggregation
-- [ ] 21.5 Add unit tests for all methods and error cases
+- [x] 21.1 Create sdk/task/memory.go with MemoryTaskBuilder struct
+- [x] 21.2 Implement constructor NewMemoryTask(id string)
+- [x] 21.3 Implement WithOperation, WithMemory, WithContent methods
+- [x] 21.4 Implement Build(ctx) with validation and error aggregation
+- [x] 21.5 Add unit tests for all methods and error cases
 
 ## Implementation Details
 
@@ -80,14 +80,14 @@ Context-first pattern enforcement:
 
 Unit tests from _tests.md (Task builder section):
 
-- [ ] Valid memory task with all fields builds successfully
-- [ ] Memory task with empty operation returns BuildError
-- [ ] Memory task with empty memoryID returns BuildError
-- [ ] Append operation without content returns BuildError
-- [ ] Clear operation ignores content field
-- [ ] Build(ctx) propagates context to validation
-- [ ] Error accumulation for multiple validation failures
-- [ ] TaskTypeMemory is set correctly in config
+- [x] Valid memory task with all fields builds successfully
+- [x] Memory task with empty operation returns BuildError
+- [x] Memory task with empty memoryID returns BuildError
+- [x] Append operation without content returns BuildError
+- [x] Clear operation ignores content field
+- [x] Build(ctx) propagates context to validation
+- [x] Error accumulation for multiple validation failures
+- [x] TaskTypeMemory is set correctly in config
 
 ## Success Criteria
 
