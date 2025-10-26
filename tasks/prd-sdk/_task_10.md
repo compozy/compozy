@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/schema</domain>
@@ -35,20 +35,20 @@ Implement Schema and Property builders for defining JSON schemas with validation
 
 ## Subtasks
 
-- [ ] 10.1 Create sdk/schema/builder.go with SchemaBuilder struct
-- [ ] 10.2 Implement type constructors (NewObject, NewString, etc.)
-- [ ] 10.3 Implement string constraints (WithMinLength, WithMaxLength, WithPattern, WithEnum)
-- [ ] 10.4 Implement number constraints (WithMinimum, WithMaximum)
-- [ ] 10.5 Implement array constraints (WithMinItems, WithMaxItems)
-- [ ] 10.6 Implement object methods (AddProperty, RequireProperty)
-- [ ] 10.7 Implement WithDefault() and WithDescription()
-- [ ] 10.8 Implement WithRef() for schema references
-- [ ] 10.9 Implement ValidateSchema(ctx) for validation
-- [ ] 10.10 Implement TestAgainstSample(ctx, sample) for testing
-- [ ] 10.11 Create sdk/schema/property.go with PropertyBuilder
-- [ ] 10.12 Implement property builder methods
-- [ ] 10.13 Implement Build(ctx) for both builders
-- [ ] 10.14 Add comprehensive unit tests
+- [x] 10.1 Create sdk/schema/builder.go with SchemaBuilder struct
+- [x] 10.2 Implement type constructors (NewObject, NewString, etc.)
+- [x] 10.3 Implement string constraints (WithMinLength, WithMaxLength, WithPattern, WithEnum)
+- [x] 10.4 Implement number constraints (WithMinimum, WithMaximum)
+- [x] 10.5 Implement array constraints (WithMinItems, WithMaxItems)
+- [x] 10.6 Implement object methods (AddProperty, RequireProperty)
+- [x] 10.7 Implement WithDefault() and WithDescription()
+- [x] 10.8 Implement WithRef() for schema references
+- [x] 10.9 Implement ValidateSchema(ctx) for validation
+- [x] 10.10 Implement TestAgainstSample(ctx, sample) for testing
+- [x] 10.11 Create sdk/schema/property.go with PropertyBuilder
+- [x] 10.12 Implement property builder methods
+- [x] 10.13 Implement Build(ctx) for both builders
+- [x] 10.14 Add comprehensive unit tests
 
 ## Implementation Details
 
@@ -148,33 +148,33 @@ func (b *PropertyBuilder) Build(ctx context.Context) (*schema.Property, error)
 Reference: tasks/prd-sdk/_tests.md
 
 - Unit tests for Schema builder:
-  - [ ] Test NewObject() creates object schema
-  - [ ] Test NewString() creates string schema
-  - [ ] Test NewNumber() creates number schema
-  - [ ] Test NewInteger() creates integer schema
-  - [ ] Test NewBoolean() creates boolean schema
-  - [ ] Test NewArray() creates array schema
-  - [ ] Test AddProperty() adds object properties
-  - [ ] Test RequireProperty() marks properties required
-  - [ ] Test WithMinLength() validates string length
-  - [ ] Test WithPattern() validates string pattern
-  - [ ] Test WithEnum() restricts string values
-  - [ ] Test WithMinimum() validates number range
-  - [ ] Test WithMinItems() validates array length
-  - [ ] Test WithDefault() sets default value
-  - [ ] Test WithRef() creates schema reference
-  - [ ] Test ValidateSchema() validates schema structure
-  - [ ] Test TestAgainstSample() validates sample data
-  - [ ] Test nested schemas (object with object properties)
-  - [ ] Test array of objects
+  - [x] Test NewObject() creates object schema
+  - [x] Test NewString() creates string schema
+  - [x] Test NewNumber() creates number schema
+  - [x] Test NewInteger() creates integer schema
+  - [x] Test NewBoolean() creates boolean schema
+  - [x] Test NewArray() creates array schema
+  - [x] Test AddProperty() adds object properties
+  - [x] Test RequireProperty() marks properties required
+  - [x] Test WithMinLength() validates string length
+  - [x] Test WithPattern() validates string pattern
+  - [x] Test WithEnum() restricts string values
+  - [x] Test WithMinimum() validates number range
+  - [x] Test WithMinItems() validates array length
+  - [x] Test WithDefault() sets default value
+  - [x] Test WithRef() creates schema reference
+  - [x] Test ValidateSchema() validates schema structure
+  - [x] Test TestAgainstSample() validates sample data
+  - [x] Test nested schemas (object with object properties)
+  - [x] Test array of objects
 
 - Unit tests for Property builder:
-  - [ ] Test NewProperty() creates property
-  - [ ] Test WithType() sets property type
-  - [ ] Test WithDescription() sets description
-  - [ ] Test WithDefault() sets default value
-  - [ ] Test Required() marks property required
-  - [ ] Test Build() with valid property succeeds
+  - [x] Test NewProperty() creates property
+  - [x] Test WithType() sets property type
+  - [x] Test WithDescription() sets description
+  - [x] Test WithDefault() sets default value
+  - [x] Test Required() marks property required
+  - [x] Test Build() with valid property succeeds
 
 ## Success Criteria
 
