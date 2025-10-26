@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/task</domain>
@@ -29,12 +29,12 @@ Implement CompositeBuilder for nesting workflows as tasks, enabling workflow com
 
 ## Subtasks
 
-- [ ] 19.1 Create sdk/task/composite.go
-- [ ] 19.2 Implement CompositeBuilder struct and constructor
-- [ ] 19.3 Add WithWorkflow method for workflow reference
-- [ ] 19.4 Add WithInput method for input mapping
-- [ ] 19.5 Implement Build(ctx) with validation
-- [ ] 19.6 Write unit tests
+- [x] 19.1 Create sdk/task/composite.go
+- [x] 19.2 Implement CompositeBuilder struct and constructor
+- [x] 19.3 Add WithWorkflow method for workflow reference
+- [x] 19.4 Add WithInput method for input mapping
+- [x] 19.5 Implement Build(ctx) with validation
+- [x] 19.6 Write unit tests
 
 ## Implementation Details
 
@@ -70,12 +70,12 @@ func (b *CompositeBuilder) Build(ctx context.Context) (*task.Config, error)
 ## Tests
 
 Unit tests from `_tests.md`:
-- [ ] Composite task with workflow reference
-- [ ] Composite task with input mapping
-- [ ] Input mapping with templates
-- [ ] Error: missing workflow ID
-- [ ] Error: empty workflow ID
-- [ ] BuildError aggregation
+- [x] Composite task with workflow reference
+- [x] Composite task with input mapping
+- [x] Input mapping with templates
+- [x] Error: missing workflow ID
+- [x] Error: empty workflow ID
+- [x] BuildError aggregation
 
 ## Success Criteria
 

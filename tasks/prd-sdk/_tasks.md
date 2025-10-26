@@ -42,7 +42,7 @@
 - [x] 16.0 Task: Router (S)
 - [x] 17.0 Task: Wait (S)
 - [x] 18.0 Task: Aggregate (S)
-- [ ] 19.0 Task: Composite (S)
+- [x] 19.0 Task: Composite (S)
 - [ ] 20.0 Task: Signal (Unified) (M)
 - [ ] 21.0 Task: Memory (S)
 - [ ] 22.0 Registration: Projects/Workflows (S)
