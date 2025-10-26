@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/workflow</domain>
@@ -35,15 +35,15 @@ Implement the Workflow builder for constructing workflows with agents and tasks.
 
 ## Subtasks
 
-- [ ] 05.1 Create sdk/workflow/builder.go with Builder struct
-- [ ] 05.2 Implement New(id) constructor
-- [ ] 05.3 Implement WithDescription(desc) *Builder
-- [ ] 05.4 Implement AddAgent(agent) *Builder
-- [ ] 05.5 Implement AddTask(task) *Builder
-- [ ] 05.6 Implement WithInput(schema) *Builder
-- [ ] 05.7 Implement WithOutputs(outputs) *Builder
-- [ ] 05.8 Implement Build(ctx context.Context) (*workflow.Config, error)
-- [ ] 05.9 Add comprehensive unit tests
+- [x] 05.1 Create sdk/workflow/builder.go with Builder struct
+- [x] 05.2 Implement New(id) constructor
+- [x] 05.3 Implement WithDescription(desc) *Builder
+- [x] 05.4 Implement AddAgent(agent) *Builder
+- [x] 05.5 Implement AddTask(task) *Builder
+- [x] 05.6 Implement WithInput(schema) *Builder
+- [x] 05.7 Implement WithOutputs(outputs) *Builder
+- [x] 05.8 Implement Build(ctx context.Context) (*workflow.Config, error)
+- [x] 05.9 Add comprehensive unit tests
 
 ## Implementation Details
 
@@ -101,18 +101,18 @@ func (b *Builder) Build(ctx context.Context) (*workflow.Config, error)
 Reference: tasks/prd-sdk/_tests.md
 
 - Unit tests for Workflow builder:
-  - [ ] Test New() creates valid builder
-  - [ ] Test WithDescription() accepts non-empty strings
-  - [ ] Test AddAgent() accumulates agents
-  - [ ] Test AddTask() accumulates tasks
-  - [ ] Test WithInput() sets input schema
-  - [ ] Test WithOutputs() sets output mapping
-  - [ ] Test Build() with valid config succeeds
-  - [ ] Test Build() with empty ID fails
-  - [ ] Test Build() with no tasks fails
-  - [ ] Test Build() with duplicate task IDs fails
-  - [ ] Test Build() accumulates multiple errors
-  - [ ] Test context propagation to logger
+  - [x] Test New() creates valid builder
+  - [x] Test WithDescription() accepts non-empty strings
+  - [x] Test AddAgent() accumulates agents
+  - [x] Test AddTask() accumulates tasks
+  - [x] Test WithInput() sets input schema
+  - [x] Test WithOutputs() sets output mapping
+  - [x] Test Build() with valid config succeeds
+  - [x] Test Build() with empty ID fails
+  - [x] Test Build() with no tasks fails
+  - [x] Test Build() with duplicate task IDs fails
+  - [x] Test Build() accumulates multiple errors
+  - [x] Test context propagation to logger
 
 ## Success Criteria
 

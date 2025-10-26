@@ -85,6 +85,7 @@ type cliArgs struct {
 	reasoningEffort  string
 	mode             string
 	includeCompleted bool
+	timeout          time.Duration
 }
 
 type issueEntry struct {
@@ -164,6 +165,7 @@ var (
 	useForm          bool
 	mode             string
 	includeCompleted bool
+	timeout          string
 )
 
 var _ = buildZenMCPGuidance
@@ -197,6 +199,12 @@ func setupFlags() {
 	)
 	rootCmd.Flags().
 		BoolVar(&includeCompleted, "include-completed", false, "Include completed tasks (only applies to prd-tasks mode)")
+	rootCmd.Flags().StringVar(
+		&timeout,
+		"timeout",
+		"10m",
+		"Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period.",
+	)
 
 	// Note: PR is usually required, but we handle this dynamically in runSolveIssues
 }
@@ -225,6 +233,7 @@ type formInputs struct {
 	tailLines       string
 	reasoningEffort string
 	mode            string
+	timeout         string
 }
 
 func newFormInputs() *formInputs {
@@ -242,6 +251,7 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addModelField(&fi.model)
 	builder.addTailLinesField(&fi.tailLines)
 	builder.addReasoningEffortField(&fi.reasoningEffort)
+	builder.addTimeoutField(&fi.timeout)
 	builder.addConfirmField(
 		"dry-run",
 		"Dry Run?",
@@ -270,6 +280,7 @@ func (fi *formInputs) apply(cmd *cobra.Command) {
 	applyStringInput(cmd, "reasoning-effort", fi.reasoningEffort, func(val string) {
 		reasoningEffort = val
 	})
+	applyStringInput(cmd, "timeout", fi.timeout, func(val string) { timeout = val })
 }
 
 type formBuilder struct {
@@ -437,6 +448,26 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 	})
 }
 
+func (fb *formBuilder) addTimeoutField(target *string) {
+	fb.addField("timeout", func() huh.Field {
+		return huh.NewInput().
+			Title("Activity Timeout").
+			Placeholder("10m").
+			Description("Cancel job if no output received within this period (e.g., 5m, 30s)").
+			Value(target).
+			Validate(func(str string) error {
+				if str == "" {
+					return nil
+				}
+				_, err := time.ParseDuration(str)
+				if err != nil {
+					return errors.New("invalid duration format (e.g., 5m, 30s, 1h)")
+				}
+				return nil
+			})
+	})
+}
+
 func (fb *formBuilder) addConfirmField(flag, title, description string, target *bool) {
 	fb.addField(flag, func() huh.Field {
 		return huh.NewConfirm().
@@ -542,6 +573,12 @@ func ensurePRProvided() error {
 }
 
 func buildCLIArgs() *cliArgs {
+	timeoutDuration := 10 * time.Minute
+	if timeout != "" {
+		if parsed, err := time.ParseDuration(timeout); err == nil {
+			timeoutDuration = parsed
+		}
+	}
 	return &cliArgs{
 		pr:               pr,
 		issuesDir:        issuesDir,
@@ -555,6 +592,7 @@ func buildCLIArgs() *cliArgs {
 		reasoningEffort:  reasoningEffort,
 		mode:             mode,
 		includeCompleted: includeCompleted,
+		timeout:          timeoutDuration,
 	}
 }
 
@@ -1096,11 +1134,36 @@ func runOneJob(
 		}
 		return
 	}
-	cmd, outF, errF := setupCommandExecution(ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu)
+	executeJobWithTimeout(
+		ctx, args, j, cwd, useUI, uiCh, index,
+		failed, failuresMu, failures, aggregateUsage, aggregateMu,
+	)
+}
+
+func executeJobWithTimeout(
+	ctx context.Context,
+	args *cliArgs,
+	j *job,
+	cwd string,
+	useUI bool,
+	uiCh chan uiMsg,
+	index int,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) {
+	cmd, outF, errF, monitor := setupCommandExecution(
+		ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu,
+	)
 	if cmd == nil {
 		return
 	}
-	executeCommandAndHandleResult(ctx, cmd, outF, errF, j, index, useUI, uiCh, failed, failuresMu, failures)
+	executeCommandAndHandleResult(
+		ctx, args.timeout, monitor, cmd, outF, errF, j,
+		index, useUI, uiCh, failed, failuresMu, failures,
+	)
 }
 
 func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, j *job, ide string, model string, reasoningEffort string) {
@@ -1302,17 +1365,18 @@ func setupCommandIO(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) (*os.File, *os.File, error) {
+) (*os.File, *os.File, *activityMonitor, error) {
 	configureCommandEnvironment(cmd, cwd, j.prompt)
 	outF, err := createLogFile(j.outLog, "out")
 	if err != nil {
-		return nil, nil, fmt.Errorf("create out log: %w", err)
+		return nil, nil, nil, fmt.Errorf("create out log: %w", err)
 	}
 	errF, err := createLogFile(j.errLog, "err")
 	if err != nil {
 		outF.Close()
-		return nil, nil, fmt.Errorf("create err log: %w", err)
+		return nil, nil, nil, fmt.Errorf("create err log: %w", err)
 	}
+	monitor := newActivityMonitor()
 	outTap, errTap := buildCommandTaps(
 		outF,
 		errF,
@@ -1323,10 +1387,11 @@ func setupCommandIO(
 		ideType,
 		aggregateUsage,
 		aggregateMu,
+		monitor,
 	)
 	cmd.Stdout = outTap
 	cmd.Stderr = errTap
-	return outF, errF, nil
+	return outF, errF, monitor, nil
 }
 
 // configureCommandEnvironment applies working directory, stdin, and color env vars.
@@ -1350,13 +1415,14 @@ func buildCommandTaps(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
+	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
 	outRing := newLineRing(tailLines)
 	errRing := newLineRing(tailLines)
 	if useUI {
-		return buildUITaps(outF, errF, outRing, errRing, uiCh, index, ideType, aggregateUsage, aggregateMu)
+		return buildUITaps(outF, errF, outRing, errRing, uiCh, index, ideType, aggregateUsage, aggregateMu, monitor)
 	}
-	return buildCLITaps(outF, errF, ideType, aggregateUsage, aggregateMu)
+	return buildCLITaps(outF, errF, ideType, aggregateUsage, aggregateMu, monitor)
 }
 
 // buildUITaps creates stdout/stderr writers when the interactive UI is enabled.
@@ -1368,8 +1434,9 @@ func buildUITaps(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
+	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
-	uiTap := newUILogTap(index, false, outRing, errRing, uiCh)
+	uiTap := newUILogTap(index, false, outRing, errRing, uiCh, monitor)
 	var outTap io.Writer
 	if ideType == ideClaude {
 		usageCallback := func(usage TokenUsage) {
@@ -1382,11 +1449,11 @@ func buildUITaps(
 				aggregateMu.Unlock()
 			}
 		}
-		outTap = io.MultiWriter(outF, newJSONFormatterWithCallback(uiTap, usageCallback))
+		outTap = io.MultiWriter(outF, newJSONFormatterWithCallbackAndMonitor(uiTap, usageCallback, monitor))
 	} else {
 		outTap = io.MultiWriter(outF, uiTap)
 	}
-	errTap := io.MultiWriter(errF, newUILogTap(index, true, outRing, errRing, uiCh))
+	errTap := io.MultiWriter(errF, newUILogTap(index, true, outRing, errRing, uiCh, monitor))
 	return outTap, errTap
 }
 
@@ -1396,6 +1463,7 @@ func buildCLITaps(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
+	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
 	if ideType == ideClaude {
 		usageCallback := func(usage TokenUsage) {
@@ -1407,7 +1475,7 @@ func buildCLITaps(
 		}
 		return io.MultiWriter(
 				outF,
-				newJSONFormatterWithCallback(os.Stdout, usageCallback),
+				newJSONFormatterWithCallbackAndMonitor(os.Stdout, usageCallback, monitor),
 			), io.MultiWriter(
 				errF,
 				os.Stderr,
@@ -1426,12 +1494,12 @@ func setupCommandExecution(
 	index int,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) (*exec.Cmd, *os.File, *os.File) {
+) (*exec.Cmd, *os.File, *os.File, *activityMonitor) {
 	cmd := createIDECommand(ctx, args)
 	if cmd == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
-	outF, errF, err := setupCommandIO(
+	outF, errF, monitor, err := setupCommandIO(
 		cmd,
 		j,
 		cwd,
@@ -1445,9 +1513,9 @@ func setupCommandExecution(
 	)
 	if err != nil {
 		recordFailureWithContext(nil, j, nil, err, -1)
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
-	return cmd, outF, errF
+	return cmd, outF, errF, monitor
 }
 
 func createLogFile(path, _ string) (*os.File, error) {
@@ -1460,6 +1528,8 @@ func createLogFile(path, _ string) (*os.File, error) {
 
 func executeCommandAndHandleResult(
 	ctx context.Context,
+	timeout time.Duration,
+	monitor *activityMonitor,
 	cmd *exec.Cmd,
 	outF *os.File,
 	errF *os.File,
@@ -1483,12 +1553,44 @@ func executeCommandAndHandleResult(
 	go func() {
 		cmdDone <- cmd.Run()
 	}()
+	activityTimeout := startActivityWatchdog(ctx, monitor, timeout, cmdDone)
 	select {
 	case err := <-cmdDone:
 		handleCommandCompletion(err, j, index, useUI, uiCh, failed, failuresMu, failures)
+	case <-activityTimeout:
+		handleActivityTimeout(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures, timeout)
 	case <-ctx.Done():
 		handleCommandCancellation(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures)
 	}
+}
+
+func startActivityWatchdog(
+	ctx context.Context,
+	monitor *activityMonitor,
+	timeout time.Duration,
+	cmdDone <-chan error,
+) <-chan struct{} {
+	activityTimeout := make(chan struct{})
+	if monitor != nil && timeout > 0 {
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					if monitor.timeSinceLastActivity() > timeout {
+						close(activityTimeout)
+						return
+					}
+				case <-cmdDone:
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+	return activityTimeout
 }
 
 func handleCommandCompletion(
@@ -1557,6 +1659,59 @@ func handleCommandCancellation(
 	}
 	if useUI {
 		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+	}
+}
+
+func handleActivityTimeout(
+	_ context.Context,
+	cmd *exec.Cmd,
+	cmdDone <-chan error,
+	j *job,
+	index int,
+	useUI bool,
+	uiCh chan uiMsg,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	timeout time.Duration,
+) {
+	fmt.Fprintf(
+		os.Stderr,
+		"\nJob %d (%s) timed out after %v of inactivity\n",
+		index+1,
+		strings.Join(j.codeFiles, ", "),
+		timeout,
+	)
+	atomic.AddInt32(failed, 1)
+	if cmd.Process != nil {
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to send SIGTERM to process: %v\n", err)
+		}
+		select {
+		case <-cmdDone:
+			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully after timeout\n", index+1)
+		case <-time.After(5 * time.Second):
+			fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
+			if err := cmd.Process.Kill(); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
+			}
+		}
+	}
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
+	recordFailure(
+		failuresMu,
+		failures,
+		failInfo{
+			codeFile: codeFileLabel,
+			exitCode: -2,
+			outLog:   j.outLog,
+			errLog:   j.errLog,
+			err:      timeoutErr,
+		},
+	)
+	if useUI {
+		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -2}
 	}
 }
 
@@ -3262,22 +3417,66 @@ func (r *lineRing) snapshot() []string {
 	return out
 }
 
+// activityMonitor tracks the last time output was received from a process.
+// It enables activity-based timeout detection, where a job is considered
+// stuck if no output is received within the configured timeout period.
+type activityMonitor struct {
+	mu           sync.Mutex
+	lastActivity time.Time
+}
+
+func newActivityMonitor() *activityMonitor {
+	return &activityMonitor{
+		lastActivity: time.Now(),
+	}
+}
+
+func (a *activityMonitor) recordActivity() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastActivity = time.Now()
+}
+
+func (a *activityMonitor) timeSinceLastActivity() time.Duration {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return time.Since(a.lastActivity)
+}
+
 // uiLogTap is an io.Writer that splits by newlines, appends to a ring buffer
 // and emits UI updates with the newest snapshots.
 type uiLogTap struct {
-	idx   int
-	isErr bool
-	out   *lineRing
-	err   *lineRing
-	ch    chan<- uiMsg
-	buf   []byte
+	idx             int
+	isErr           bool
+	out             *lineRing
+	err             *lineRing
+	ch              chan<- uiMsg
+	buf             []byte
+	activityMonitor *activityMonitor
 }
 
-func newUILogTap(idx int, isErr bool, outRing, errRing *lineRing, ch chan<- uiMsg) *uiLogTap {
-	return &uiLogTap{idx: idx, isErr: isErr, out: outRing, err: errRing, ch: ch, buf: make([]byte, 0, 1024)}
+func newUILogTap(
+	idx int,
+	isErr bool,
+	outRing, errRing *lineRing,
+	ch chan<- uiMsg,
+	monitor *activityMonitor,
+) *uiLogTap {
+	return &uiLogTap{
+		idx:             idx,
+		isErr:           isErr,
+		out:             outRing,
+		err:             errRing,
+		ch:              ch,
+		buf:             make([]byte, 0, 1024),
+		activityMonitor: monitor,
+	}
 }
 
 func (t *uiLogTap) Write(p []byte) (int, error) {
+	if len(p) > 0 && t.activityMonitor != nil {
+		t.activityMonitor.recordActivity()
+	}
 	cleaned := bytes.ReplaceAll(p, []byte{'\r'}, []byte{'\n'})
 	t.buf = append(t.buf, cleaned...)
 	for {
@@ -3304,16 +3503,29 @@ func (t *uiLogTap) Write(p []byte) (int, error) {
 // Non-JSON lines are passed through unchanged.
 // For Claude messages, it can optionally parse and report token usage via callback.
 type jsonFormatter struct {
-	w             io.Writer
-	buf           []byte
-	usageCallback func(TokenUsage) // Called when Claude usage data is parsed
+	w               io.Writer
+	buf             []byte
+	usageCallback   func(TokenUsage) // Called when Claude usage data is parsed
+	activityMonitor *activityMonitor
 }
 
-func newJSONFormatterWithCallback(w io.Writer, callback func(TokenUsage)) *jsonFormatter {
-	return &jsonFormatter{w: w, buf: make([]byte, 0, 4096), usageCallback: callback}
+func newJSONFormatterWithCallbackAndMonitor(
+	w io.Writer,
+	callback func(TokenUsage),
+	monitor *activityMonitor,
+) *jsonFormatter {
+	return &jsonFormatter{
+		w:               w,
+		buf:             make([]byte, 0, 4096),
+		usageCallback:   callback,
+		activityMonitor: monitor,
+	}
 }
 
 func (f *jsonFormatter) Write(p []byte) (int, error) {
+	if len(p) > 0 && f.activityMonitor != nil {
+		f.activityMonitor.recordActivity()
+	}
 	f.buf = append(f.buf, p...)
 	for {
 		i := bytes.IndexByte(f.buf, '\n')
