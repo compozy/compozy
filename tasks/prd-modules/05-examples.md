@@ -644,7 +644,7 @@ func main() {
             runtime.NewNativeTools().
                 WithCallAgents().      // Enable call_agents native tool
                 WithCallWorkflows().   // Enable call_workflows native tool
-                        Build(),
+                Build(ctx),
                 ).
         WithMaxMemoryMB(512).
         Build(ctx)
@@ -996,7 +996,7 @@ func main() {
             runtime.NewNativeTools().
                 WithCallAgents().
                 WithCallWorkflows().
-                Build(),
+                Build(ctx),
         ).
         Build(ctx)
     

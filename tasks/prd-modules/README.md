@@ -36,7 +36,7 @@ YAML-only configuration for Compozy workflows lacks:
 ### Key Features
 
 - ✅ **Context-First Architecture** - Logger and config from context (mandatory pattern)
-- ✅ **Complete Entity Coverage** - 30 builder types across 14 packages
+- ✅ **Complete Entity Coverage** - 30 builder types across 16 categories
 - ✅ **9 Task Types** - Full engine task type support (Basic, Parallel, Collection, Router, Wait, Aggregate, Composite, Signal, Memory)
 - ✅ **Full Memory System** - Flush strategies, privacy, persistence, distributed locking
 - ✅ **Complete MCP Integration** - URL/command-based, all transports, headers, sessions

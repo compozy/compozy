@@ -151,7 +151,7 @@ compozy/
 - 8-12 week timeline
 
 **Comprehensive Analysis (January 25, 2025):**
-- Identified **15 entity categories**, **28 builder types**
+- Identified **16 entity categories**, **30 builder types**
 - Analyzed **50+ example files** across all use cases
 - Go workspace approach
 - 4-6 week timeline
@@ -172,11 +172,12 @@ compozy/
 | 10 | **Tool** | 1 | High | All projects |
 | 11 | **Schema** | 2 (schema, property) | Medium | `examples/github/`, `examples/memory/` |
 | 12 | **Schedule** | 1 | Medium | `examples/schedules/` |
-| 13 | **Signal** | 2 (send, wait) | Medium | `examples/signals/` |
+| 13 | **Signal** | 1 (unified) | Medium | `examples/signals/` |
 | 14 | **Monitoring** | 1 | Low | Production deployments |
 | 15 | **Compozy** | 1 | Critical | Embedded engine |
+| 16 | **Client** | 1 | Medium | Server communication |
 
-**Total:** 28 builder types across 14 modules
+**Total:** 30 builder types across 16 packages
 
 ### New Entities Discovered
 
@@ -188,7 +189,7 @@ The following **8 categories** were missing from the original proposal:
 4. ✅ **MCP Integration** - External tool protocols (GitHub MCP example)
 5. ✅ **Runtime Configuration** (2 builders) - JavaScript runtime + native tools (call_agents, call_workflows)
 6. ✅ **Schedules** - Cron-based workflow triggers
-7. ✅ **Signals** (2 builders) - Inter-workflow communication
+7. ✅ **Signal** (unified builder) - Inter-workflow communication
 8. ✅ **Client** - HTTP client for server communication
 
 ---
@@ -367,7 +368,7 @@ status, err := client.GetWorkflowStatus(ctx, executionID)
 - ✅ `v2/model/builder.go`
 - ✅ `v2/workflow/builder.go`
 - ✅ `v2/agent/builder.go` + `action_builder.go`
-- ✅ `v2/task/` (basic, loop, parallel, switch)
+- ✅ `v2/task/` (basic, parallel, collection, router, wait, aggregate, composite, signal, memory)
 - ✅ Example: parallel task execution
 
 **Test Coverage:** 100%
@@ -425,11 +426,12 @@ status, err := client.GetWorkflowStatus(ctx, executionID)
 
 **Deliverables:**
 - ✅ Complete godoc documentation
-- ✅ API reference (all 28 builders)
+- ✅ API reference (all 30 builders)
 - ✅ Migration guide (YAML → Go)
 - ✅ Tutorial series (5+ tutorials)
 - ✅ Example gallery (10+ examples)
 - ✅ Performance benchmarks
+ - ✅ NEW Docs section: “SDK” top-level alongside Core/CLI/Schema/API (see docs plan: tasks/prd-modules/_docs.md)
 
 ---
 

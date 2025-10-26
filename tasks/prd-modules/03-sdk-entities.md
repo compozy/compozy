@@ -34,6 +34,8 @@ This document provides the complete API reference for all builders in the Compoz
 12. Schedule Configuration (`v2/schedule`)
 13. Monitoring Configuration (`v2/monitoring`)
 14. Compozy Embedded Engine (`v2/compozy`)
+15. Signal System (unified) (`v2/task.Signal`)
+16. Client SDK (`v2/client`)
 
 ---
 
@@ -854,6 +856,77 @@ mcpRemote, err := mcp.New("github-api").
     WithMaxSessions(10).
     Build(ctx)
 ```
+
+---
+
+## 15. Signal System (Unified)
+
+### Package: `v2/task` (SignalBuilder)
+
+The Signal system is exposed via a unified SignalBuilder under `v2/task`. It supports both send and wait modes.
+
+```go
+// v2/task/signal.go
+package task
+
+type SignalMode string
+const (
+    SignalModeSend SignalMode = "send"
+    SignalModeWait SignalMode = "wait"
+)
+
+type SignalBuilder struct {
+    config *task.Config
+    errors []error
+}
+
+func NewSignal(id string) *SignalBuilder
+func (b *SignalBuilder) WithSignalID(id string) *SignalBuilder
+func (b *SignalBuilder) WithMode(mode SignalMode) *SignalBuilder // send | wait
+func (b *SignalBuilder) WithTimeout(d time.Duration) *SignalBuilder // wait mode
+func (b *SignalBuilder) WithData(values map[string]interface{}) *SignalBuilder // send mode
+func (b *SignalBuilder) OnSuccess(taskID string) *SignalBuilder
+func (b *SignalBuilder) OnError(taskID string) *SignalBuilder
+func (b *SignalBuilder) Build(ctx context.Context) (*task.Config, error)
+```
+
+---
+
+## 16. Client SDK
+
+### Package: `v2/client`
+
+Provides a simple HTTP client to interact with a running Compozy server (deploy projects, execute workflows, query status).
+
+```go
+package client
+
+import (
+    "context"
+    "time"
+)
+
+type Builder struct {
+    endpoint string
+    apiKey   string
+    timeout  time.Duration
+    errors   []error
+}
+
+func New(endpoint string) *Builder
+func (b *Builder) WithAPIKey(key string) *Builder
+func (b *Builder) WithTimeout(d time.Duration) *Builder
+func (b *Builder) Build(ctx context.Context) (*Client, error)
+
+type Client struct { /* ... */ }
+
+// Common operations (names illustrative for PRD)
+func (c *Client) DeployProject(ctx context.Context, proj *project.Config) error
+func (c *Client) ExecuteWorkflow(ctx context.Context, workflowID string, input map[string]interface{}) (*ExecutionResult, error)
+func (c *Client) GetWorkflowStatus(ctx context.Context, executionID string) (*WorkflowStatus, error)
+```
+
+Usage example appears in 01-executive-summary and 06-migration-guide.
 
 ---
 

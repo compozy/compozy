@@ -1,6 +1,7 @@
 name: agentic
 version: 0.1.0
-description: Demonstrates cp__agent_orchestrate coordinating sequential and parallel agent calls
+description: Demonstrates comprehensive orchestration with agents, tasks, and workflows using built-in
+  tools
 
 models:
   - provider: groq
@@ -16,13 +17,8 @@ runtime:
     - --allow-net
   native_tools:
     root_dir: ../..
-    call_agents:
-      enabled: true
-      max_concurrent: 3
-      default_timeout: 120s
 
 autoload:
   enabled: true
   include:
-    - "agents/*.yaml"
-    - "tasks/*.yaml"
+    - "resources/*.yaml"

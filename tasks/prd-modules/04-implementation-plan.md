@@ -354,6 +354,10 @@ go run v2/examples/09_runtime_native_tools.go
 - Document error handling patterns
 - Create performance benchmarks
 - Document concurrency safety
+ - Plan SDK docs section (top-level) alongside Core/CLI/Schema/API — do not change docs/ in this PR; create plan in `tasks/prd-modules/_docs.md`
+   - New folder: `docs/content/docs/sdk/*`
+   - Root nav: add `sdk` to `docs/content/docs/meta.json` (follow-up PR in docs site)
+   - Pages: overview, getting-started, architecture, entities, builders/*, examples, migration, testing, troubleshooting
 
 **Week 8: Testing & Validation**
 - Integration tests: SDK → Engine → Execution
@@ -363,6 +367,7 @@ go run v2/examples/09_runtime_native_tools.go
 - Edge case testing
 - Concurrency testing
 - Error message quality review
+ - Docs readiness review: SDK section appears in local docs build once applied on docs site repo; cross-links validated
 
 ### Deliverables
 - ✅ Complete GoDoc for all packages
