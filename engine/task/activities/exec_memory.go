@@ -9,9 +9,9 @@ import (
 	"github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -28,7 +28,7 @@ type ExecuteMemoryInput struct {
 type ExecuteMemory struct {
 	loadWorkflowUC        *uc.LoadWorkflow
 	createStateUC         *uc.CreateState
-	task2Factory          task2.Factory
+	tasksFactory          tasks.Factory
 	execMemoryOperationUC *uc.ExecuteMemoryOperation
 	templateEngine        *tplengine.TemplateEngine
 	projectConfig         *project.Config
@@ -44,7 +44,7 @@ func NewExecuteMemory(
 	_ *core.PathCWD,
 	templateEngine *tplengine.TemplateEngine,
 	projectConfig *project.Config,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 ) (*ExecuteMemory, error) {
 	execMemoryOperationUC, err := uc.NewExecuteMemoryOperation(memoryManager, templateEngine)
 	if err != nil {
@@ -53,7 +53,7 @@ func NewExecuteMemory(
 	return &ExecuteMemory{
 		loadWorkflowUC:        uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:         uc.NewCreateState(taskRepo, configStore),
-		task2Factory:          task2Factory,
+		tasksFactory:          tasksFactory,
 		execMemoryOperationUC: execMemoryOperationUC,
 		templateEngine:        templateEngine,
 		projectConfig:         projectConfig,
@@ -91,7 +91,7 @@ func (a *ExecuteMemory) Run(ctx context.Context, input *ExecuteMemoryInput) (*ta
 	if executionError == nil {
 		state.Output = output
 	}
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeMemory)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeMemory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory response handler: %w", err)
 	}
@@ -120,7 +120,7 @@ func (a *ExecuteMemory) normalizeMemoryConfig(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) (*task.Config, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeMemory)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, task.TaskTypeMemory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create memory normalizer: %w", err)
 	}

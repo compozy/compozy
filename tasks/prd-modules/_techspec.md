@@ -20,7 +20,7 @@ This Tech Spec formalizes the implementation approach for the Compozy v2 Go SDK.
 Follow the domain mapping and module boundaries defined here: tasks/prd-modules/02-architecture.md
 
 Key engine domains and their ownership (summarized; details in Architecture doc):
-- agent, task2, workflow, tool, runtime, knowledge, memory, mcp, schema, project, infra, core (see Architecture “Go Workspace Structure” and “Module Dependencies & Integration”): tasks/prd-modules/02-architecture.md
+- agent, task, workflow, tool, runtime, knowledge, memory, mcp, schema, project, infra, core (see Architecture “Go Workspace Structure” and “Module Dependencies & Integration”): tasks/prd-modules/02-architecture.md
 - v2 SDK package layout and one-way import rules (v2 → engine only): tasks/prd-modules/02-architecture.md
 
 ### Component Overview
@@ -75,7 +75,7 @@ Impacted areas, risks, and mitigations are captured across the review, architect
 
 | Affected Component | Type of Impact | Reference |
 | --- | --- | --- |
-| engine/task2 (all 9 types) | API conformance and validation alignment | tasks/prd-modules/02-architecture.md; tasks/prd-modules/03-sdk-entities.md |
+| engine/task (all 9 types) | API conformance and validation alignment | tasks/prd-modules/02-architecture.md; tasks/prd-modules/03-sdk-entities.md |
 | engine/infra/server, resource store | Registration, validation, hybrid SDK+YAML | tasks/prd-modules/02-architecture.md |
 | knowledge/memory/mcp | Full-surface configuration exposure | tasks/prd-modules/03-sdk-entities.md |
 | docs + examples | Updates and runnable scenarios | tasks/prd-modules/05-examples.md |

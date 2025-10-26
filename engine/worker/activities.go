@@ -17,8 +17,8 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	tkfacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/core"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/core"
 	wkacts "github.com/compozy/compozy/engine/worker/activities"
 	"github.com/compozy/compozy/engine/workflow"
 	wfacts "github.com/compozy/compozy/engine/workflow/activities"
@@ -42,7 +42,7 @@ type Activities struct {
 	memoryManager    *memory.Manager
 	memoryActivities *memacts.MemoryActivities
 	templateEngine   *tplengine.TemplateEngine
-	task2Factory     task2.Factory
+	tasksFactory     tasks.Factory
 	toolEnvironment  toolenv.Environment
 	streamPublisher  streaming.Publisher
 	// Cached cache adapter contracts to avoid per-call instantiation
@@ -70,7 +70,7 @@ func NewActivities(
 ) (*Activities, error) {
 	log := logger.FromContext(ctx)
 	logWorkflowInitialization(log, workflows)
-	celEvaluator, task2Factory, recorder, err := buildActivityDependencies(
+	celEvaluator, tasksFactory, recorder, err := buildActivityDependencies(
 		ctx,
 		templateEngine,
 		workflowRepo,
@@ -95,7 +95,7 @@ func NewActivities(
 		celEvaluator,
 		memoryManager,
 		templateEngine,
-		task2Factory,
+		tasksFactory,
 		toolEnv,
 		config.ManagerFromContext(ctx),
 	)
@@ -113,12 +113,12 @@ func buildActivityDependencies(
 	taskRepo task.Repository,
 	providerMetrics providermetrics.Recorder,
 	toolEnv toolenv.Environment,
-) (*task.CELEvaluator, task2.Factory, providermetrics.Recorder, error) {
+) (*task.CELEvaluator, tasks.Factory, providermetrics.Recorder, error) {
 	celEvaluator, err := newCELEvaluator()
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	task2Factory, err := buildTaskFactory(ctx, templateEngine, workflowRepo, taskRepo)
+	tasksFactory, err := buildtasksFactory(ctx, templateEngine, workflowRepo, taskRepo)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -126,7 +126,7 @@ func buildActivityDependencies(
 		return nil, nil, nil, fmt.Errorf("activities: %w", err)
 	}
 	recorder := ensureProviderRecorder(providerMetrics)
-	return celEvaluator, task2Factory, recorder, nil
+	return celEvaluator, tasksFactory, recorder, nil
 }
 
 // logWorkflowInitialization records workflow identifiers for diagnostics.
@@ -153,22 +153,22 @@ func newCELEvaluator() (*task.CELEvaluator, error) {
 	return evaluator, nil
 }
 
-// buildTaskFactory constructs the task2 factory with shared dependencies.
-func buildTaskFactory(
+// buildtasksFactory constructs the tasks factory with shared dependencies.
+func buildtasksFactory(
 	ctx context.Context,
 	templateEngine *tplengine.TemplateEngine,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
-) (task2.Factory, error) {
+) (tasks.Factory, error) {
 	envMerger := core.NewEnvMerger()
-	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
+	factory, err := tasks.NewFactory(ctx, &tasks.FactoryConfig{
 		TemplateEngine: templateEngine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   workflowRepo,
 		TaskRepo:       taskRepo,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("activities: create task2 factory: %w", err)
+		return nil, fmt.Errorf("activities: create tasks factory: %w", err)
 	}
 	return factory, nil
 }
@@ -250,7 +250,7 @@ func newActivitiesInstance(
 	celEvaluator *task.CELEvaluator,
 	memoryManager *memory.Manager,
 	templateEngine *tplengine.TemplateEngine,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	toolEnv toolenv.Environment,
 	cfgManager *config.Manager,
 ) *Activities {
@@ -269,7 +269,7 @@ func newActivitiesInstance(
 		memoryManager:    memoryManager,
 		memoryActivities: memacts.NewMemoryActivities(memoryManager),
 		templateEngine:   templateEngine,
-		task2Factory:     task2Factory,
+		tasksFactory:     tasksFactory,
 		toolEnvironment:  toolEnv,
 		cfgManager:       cfgManager,
 	}
@@ -372,7 +372,7 @@ func (a *Activities) ExecuteBasicTask(
 		memcore.ManagerInterface(a.memoryManager),
 		a.templateEngine,
 		a.projectConfig,
-		a.task2Factory,
+		a.tasksFactory,
 		a.toolEnvironment,
 		a.streamPublisher,
 	)
@@ -395,7 +395,7 @@ func (a *Activities) ExecuteRouterTask(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
-		a.task2Factory,
+		a.tasksFactory,
 		a.templateEngine,
 		a.celEvaluator,
 	)
@@ -418,7 +418,7 @@ func (a *Activities) CreateParallelState(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
-		a.task2Factory,
+		a.tasksFactory,
 	)
 	if err != nil {
 		return nil, err
@@ -440,7 +440,7 @@ func (a *Activities) ExecuteSubtask(
 		a.taskRepo,
 		a.runtime,
 		a.configStore,
-		a.task2Factory,
+		a.tasksFactory,
 		a.templateEngine,
 		a.projectConfig,
 		a.usageMetrics,
@@ -462,7 +462,7 @@ func (a *Activities) GetParallelResponse(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
-		a.task2Factory,
+		a.tasksFactory,
 		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
@@ -514,7 +514,7 @@ func (a *Activities) CreateCollectionState(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
-		a.task2Factory,
+		a.tasksFactory,
 	)
 	if err != nil {
 		return nil, err
@@ -533,7 +533,7 @@ func (a *Activities) GetCollectionResponse(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
-		a.task2Factory,
+		a.tasksFactory,
 		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
@@ -563,7 +563,7 @@ func (a *Activities) ExecuteAggregateTask(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
-		a.task2Factory,
+		a.tasksFactory,
 		a.templateEngine,
 	)
 	if err != nil {
@@ -585,7 +585,7 @@ func (a *Activities) CreateCompositeState(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
-		a.task2Factory,
+		a.tasksFactory,
 	)
 	if err != nil {
 		return nil, err
@@ -604,7 +604,7 @@ func (a *Activities) GetCompositeResponse(
 		a.workflowRepo,
 		a.taskRepo,
 		a.configStore,
-		a.task2Factory,
+		a.tasksFactory,
 		a.projectConfig.CWD,
 	)
 	return act.Run(ctx, input)
@@ -639,7 +639,7 @@ func (a *Activities) LoadCompositeConfigsActivity(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
+	configRepo, err := a.tasksFactory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -654,7 +654,7 @@ func (a *Activities) LoadCollectionConfigsActivity(
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
+	configRepo, err := a.tasksFactory.CreateTaskConfigRepository(a.configStore, a.projectConfig.CWD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task config repository: %w", err)
 	}
@@ -675,7 +675,7 @@ func (a *Activities) ExecuteSignalTask(
 		a.taskRepo,
 		a.configStore,
 		a.signalDispatcher,
-		a.task2Factory,
+		a.tasksFactory,
 		a.templateEngine,
 	)
 	if err != nil {
@@ -697,7 +697,7 @@ func (a *Activities) ExecuteWaitTask(
 		a.taskRepo,
 		a.configStore,
 		a.projectConfig.CWD,
-		a.task2Factory,
+		a.tasksFactory,
 		a.templateEngine,
 	)
 	if err != nil {
@@ -722,7 +722,7 @@ func (a *Activities) ExecuteMemoryTask(
 		a.projectConfig.CWD,
 		a.templateEngine,
 		a.projectConfig,
-		a.task2Factory,
+		a.tasksFactory,
 	)
 	if err != nil {
 		return nil, err

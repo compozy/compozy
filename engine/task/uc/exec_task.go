@@ -20,8 +20,8 @@ import (
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/task"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/engine/tool/resolver"
 	"github.com/compozy/compozy/engine/workflow"
@@ -111,7 +111,7 @@ func (uc *ExecuteTask) resolveModelConfig(input *ExecuteTaskInput) error {
 
 // normalizeProviderConfigWithEnv resolves template expressions inside a ProviderConfig
 // (e.g., api_key: "{{ .env.OPENAI_API_KEY }}") using the available environment context.
-// It merges environment sources using task2core.EnvMerger.MergeWorkflowToTask:
+// It merges environment sources using taskscore.EnvMerger.MergeWorkflowToTask:
 // - Workflow config env (preferred)
 // - Task-level env (merged)
 // Ensure project-level env is included by the merger if required by spec.
@@ -155,7 +155,7 @@ func (uc *ExecuteTask) buildNormalizationContext(
 		taskConfig = input.TaskConfig
 	}
 	normCtx := contextBuilder.BuildContext(ctx, workflowState, workflowConfig, taskConfig)
-	envMerger := task2core.NewEnvMerger()
+	envMerger := taskscore.NewEnvMerger()
 	merged := envMerger.MergeWorkflowToTask(workflowConfig, taskConfig)
 	if input != nil && input.ProjectConfig != nil {
 		projectEnv := input.ProjectConfig.GetEnv()
@@ -266,7 +266,7 @@ func (uc *ExecuteTask) reparseAgentConfig(
 	if err := populateRuntimeVariables(ctx, normCtx, state, input); err != nil {
 		return err
 	}
-	agentNormalizer := task2core.NewAgentNormalizer(task2core.NewEnvMerger())
+	agentNormalizer := taskscore.NewAgentNormalizer(taskscore.NewEnvMerger())
 	if err := agentNormalizer.ReparseInput(agentConfig, normCtx, actionID); err != nil {
 		return fmt.Errorf("runtime template parse failed: %w", err)
 	}
@@ -596,7 +596,7 @@ func (uc *ExecuteTask) appendResolvedTools(
 	if len(resolvedTools) == 0 {
 		return opts, nil
 	}
-	envMerger := task2core.NewEnvMerger()
+	envMerger := taskscore.NewEnvMerger()
 	baseEnv := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
 	baseWithAgent := envMerger.MergeForComponent(baseEnv, agentConfig.Env)
 	for i := range resolvedTools {
@@ -1020,7 +1020,7 @@ func (uc *ExecuteTask) executeTool(
 	input *ExecuteTaskInput,
 	toolConfig *tool.Config,
 ) (*core.Output, error) {
-	envMerger := task2core.NewEnvMerger()
+	envMerger := taskscore.NewEnvMerger()
 	baseEnv := envMerger.MergeWorkflowToTask(input.WorkflowConfig, input.TaskConfig)
 	mergedEnv := envMerger.MergeForComponent(baseEnv, toolConfig.Env)
 	if input.ProjectConfig != nil && input.ProjectConfig.Name != "" {

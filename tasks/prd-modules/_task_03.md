@@ -1,0 +1,114 @@
+## status: pending
+
+<task_context>
+<domain>v2/internal/validate</domain>
+<type>implementation</type>
+<scope>core_infrastructure</scope>
+<complexity>low</complexity>
+<dependencies>none</dependencies>
+</task_context>
+
+# Task 03.0: Validation Helpers (S)
+
+## Overview
+
+Create validation helper functions used across all builders for common validation patterns: required fields, ID format, non-empty strings, URL validation, etc.
+
+<critical>
+- **ALWAYS READ** .cursor/rules/go-coding-standards.mdc
+- **MUST** use context.Context for all validation functions
+- **MUST** return clear, actionable error messages
+- **NEVER** use panic or global state
+</critical>
+
+<requirements>
+- Create validation helpers for required fields
+- Validate ID formats (alphanumeric + hyphens)
+- Validate non-empty strings
+- Validate URL formats
+- Validate time durations
+- Validate numeric ranges
+- All validators accept context.Context
+</requirements>
+
+## Subtasks
+
+- [ ] 03.1 Create v2/internal/validate/validate.go
+- [ ] 03.2 Implement ValidateRequired(ctx, name, value) error
+- [ ] 03.3 Implement ValidateID(ctx, id) error
+- [ ] 03.4 Implement ValidateNonEmpty(ctx, name, value) error
+- [ ] 03.5 Implement ValidateURL(ctx, url) error
+- [ ] 03.6 Implement ValidateDuration(ctx, d) error
+- [ ] 03.7 Implement ValidateRange(ctx, name, val, min, max) error
+- [ ] 03.8 Add comprehensive unit tests
+
+## Implementation Details
+
+Reference: tasks/prd-modules/02-architecture.md (Context-First Architecture)
+
+### Validation Functions
+
+```go
+// v2/internal/validate/validate.go
+package validate
+
+import "context"
+
+// ValidateRequired checks if a required field is set
+func ValidateRequired(ctx context.Context, name string, value interface{}) error
+
+// ValidateID checks if an ID follows the required format (alphanumeric + hyphens)
+func ValidateID(ctx context.Context, id string) error
+
+// ValidateNonEmpty checks if a string is not empty
+func ValidateNonEmpty(ctx context.Context, name, value string) error
+
+// ValidateURL checks if a URL is valid
+func ValidateURL(ctx context.Context, url string) error
+
+// ValidateDuration checks if a duration is positive
+func ValidateDuration(ctx context.Context, d time.Duration) error
+
+// ValidateRange checks if a value is within a range
+func ValidateRange(ctx context.Context, name string, val, min, max int) error
+```
+
+### Relevant Files
+
+- `v2/internal/validate/validate.go` (NEW)
+- `v2/internal/validate/validate_test.go` (NEW)
+
+### Dependent Files
+
+- All builder packages will import this
+
+## Deliverables
+
+- ✅ `v2/internal/validate/validate.go` with all helper functions
+- ✅ All validators accept context.Context as first parameter
+- ✅ Clear, actionable error messages for each validator
+- ✅ Unit tests with 95%+ coverage
+- ✅ Examples in tests showing usage patterns
+
+## Tests
+
+Reference: tasks/prd-modules/_tests.md
+
+- Unit tests for validation helpers:
+  - [ ] Test ValidateRequired with nil, empty, and valid values
+  - [ ] Test ValidateID with valid and invalid IDs
+  - [ ] Test ValidateNonEmpty with empty and non-empty strings
+  - [ ] Test ValidateURL with valid and invalid URLs
+  - [ ] Test ValidateDuration with negative, zero, and positive durations
+  - [ ] Test ValidateRange with values inside and outside range
+  - [ ] Test error messages are clear and actionable
+  - [ ] Test all functions accept context.Context
+
+## Success Criteria
+
+- All validation functions accept context.Context
+- Error messages clearly indicate what failed and why
+- ID validation matches pattern: alphanumeric + hyphens
+- URL validation uses standard library
+- All tests pass with 95%+ coverage
+- Functions are reusable across all builders

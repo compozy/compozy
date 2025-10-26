@@ -48,7 +48,7 @@ func (uc *CreateState) Execute(ctx context.Context, input *CreateStateInput) (*t
 		}
 		return nil, err
 	}
-	// Note: Child config preparation is now handled by task2 infrastructure
+	// Note: Child config preparation is now handled by tasks infrastructure
 	return state, nil
 }
 

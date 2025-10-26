@@ -7,9 +7,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 )
@@ -21,27 +21,27 @@ type GetParallelResponseInput struct {
 	WorkflowConfig *workflow.Config `json:"workflow_config"`
 }
 
-// GetParallelResponse handles parallel response using task2 integration
+// GetParallelResponse handles parallel response using tasks integration
 type GetParallelResponse struct {
 	workflowRepo workflow.Repository
 	taskRepo     task.Repository
-	task2Factory task2.Factory
+	tasksFactory tasks.Factory
 	configStore  services.ConfigStore
 	cwd          *core.PathCWD
 }
 
-// NewGetParallelResponse creates a new GetParallelResponse activity with task2 integration
+// NewGetParallelResponse creates a new GetParallelResponse activity with tasks integration
 func NewGetParallelResponse(
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	cwd *core.PathCWD,
 ) *GetParallelResponse {
 	return &GetParallelResponse{
 		workflowRepo: workflowRepo,
 		taskRepo:     taskRepo,
-		task2Factory: task2Factory,
+		tasksFactory: tasksFactory,
 		configStore:  configStore,
 		cwd:          cwd,
 	}
@@ -107,7 +107,7 @@ func (a *GetParallelResponse) loadWorkflowState(
 
 // createParallelResponseHandler returns the response handler for parallel tasks.
 func (a *GetParallelResponse) createParallelResponseHandler(ctx context.Context) (shared.TaskResponseHandler, error) {
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeParallel)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeParallel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create parallel response handler: %w", err)
 	}
@@ -175,13 +175,13 @@ func (a *GetParallelResponse) convertToMainTaskResponse(
 		mainTaskResponse = &task.MainTaskResponse{
 			State: result.State,
 		}
-		configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
+		configRepo, err := a.tasksFactory.CreateTaskConfigRepository(a.configStore, a.cwd)
 		if err != nil {
 			logger.FromContext(ctx).Error("failed to create task config repository", "error", err)
 		} else {
 			metadata, err := configRepo.LoadParallelMetadata(ctx, result.State.TaskExecID)
 			if err == nil && metadata != nil {
-				if parallelMetadata, ok := metadata.(*task2core.ParallelTaskMetadata); ok {
+				if parallelMetadata, ok := metadata.(*taskscore.ParallelTaskMetadata); ok {
 					if result.State.Output == nil {
 						output := make(core.Output)
 						result.State.Output = &output

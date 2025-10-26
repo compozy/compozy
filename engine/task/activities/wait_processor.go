@@ -6,10 +6,10 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -59,8 +59,8 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 		return nil, fmt.Errorf("failed to inherit task config: %w", err)
 	}
 	engine := tplengine.NewEngine(tplengine.FormatJSON)
-	envMerger := task2core.NewEnvMerger()
-	factory, err := task2.NewFactory(ctx, &task2.FactoryConfig{
+	envMerger := taskscore.NewEnvMerger()
+	factory, err := tasks.NewFactory(ctx, &tasks.FactoryConfig{
 		TemplateEngine: engine,
 		EnvMerger:      envMerger,
 		WorkflowRepo:   a.workflowRepo,
@@ -69,7 +69,7 @@ func (a *NormalizeWaitProcessor) Run(ctx context.Context, input *NormalizeWaitPr
 	if err != nil {
 		return nil, fmt.Errorf("failed to create normalizer factory: %w", err)
 	}
-	orchestrator, err := task2.NewConfigOrchestrator(ctx, factory)
+	orchestrator, err := tasks.NewConfigOrchestrator(ctx, factory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config orchestrator: %w", err)
 	}

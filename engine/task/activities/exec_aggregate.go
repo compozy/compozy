@@ -8,10 +8,10 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -27,7 +27,7 @@ type ExecuteAggregateInput struct {
 type ExecuteAggregate struct {
 	loadWorkflowUC *uc.LoadWorkflow
 	createStateUC  *uc.CreateState
-	task2Factory   task2.Factory
+	tasksFactory   tasks.Factory
 	templateEngine *tplengine.TemplateEngine
 }
 
@@ -37,13 +37,13 @@ func NewExecuteAggregate(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	_ *core.PathCWD,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	templateEngine *tplengine.TemplateEngine,
 ) (*ExecuteAggregate, error) {
 	return &ExecuteAggregate{
 		loadWorkflowUC: uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:  uc.NewCreateState(taskRepo, configStore),
-		task2Factory:   task2Factory,
+		tasksFactory:   tasksFactory,
 		templateEngine: templateEngine,
 	}, nil
 }
@@ -73,7 +73,7 @@ func (a *ExecuteAggregate) Run(ctx context.Context, input *ExecuteAggregateInput
 	}
 	output, executionError := a.executeAggregateWithTimeout(ctx, normalizedConfig, workflowState, workflowConfig)
 	taskState.Output = output
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeAggregate)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeAggregate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create aggregate response handler: %w", err)
 	}
@@ -139,8 +139,8 @@ func (a *ExecuteAggregate) executeAggregate(
 		return nil, fmt.Errorf("aggregate task has no outputs defined")
 	}
 	emptyOutput := &core.Output{}
-	outputTransformer := task2core.NewOutputTransformer(a.templateEngine)
-	taskConfigs := task2.BuildTaskConfigsMap(workflowConfig.Tasks)
+	outputTransformer := taskscore.NewOutputTransformer(a.templateEngine)
+	taskConfigs := tasks.BuildTaskConfigsMap(workflowConfig.Tasks)
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create context builder: %w", err)
@@ -183,7 +183,7 @@ func (a *ExecuteAggregate) normalizeAggregateConfig(
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 ) (*task.Config, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeAggregate)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, task.TaskTypeAggregate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create aggregate normalizer: %w", err)
 	}

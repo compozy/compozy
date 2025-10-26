@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
 	toolcfg "github.com/compozy/compozy/engine/tool"
-	"github.com/compozy/compozy/engine/toolenv/builder"
+	"github.com/compozy/compozy/engine/tool/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"

@@ -95,8 +95,6 @@ type issueEntry struct {
 }
 
 type taskEntry struct {
-	name         string
-	absPath      string
 	content      string
 	status       string
 	domain       string
@@ -193,8 +191,10 @@ func setupFlags() {
 		"Reasoning effort for codex/claude/droid (low, medium, high)",
 	)
 	rootCmd.Flags().BoolVar(&useForm, "form", false, "Use interactive form to collect parameters")
-	rootCmd.Flags().
-		StringVar(&mode, "mode", modeCodeReview, "Execution mode: pr-review (CodeRabbit issues) or prd-tasks (PRD task files)")
+	rootCmd.Flags().StringVar(
+		&mode, "mode", modeCodeReview,
+		"Execution mode: pr-review (CodeRabbit issues) or prd-tasks (PRD task files)",
+	)
 	rootCmd.Flags().
 		BoolVar(&includeCompleted, "include-completed", false, "Include completed tasks (only applies to prd-tasks mode)")
 
@@ -594,6 +594,25 @@ type solvePreparation struct {
 	groupedSummarized bool
 }
 
+func validateAndFilterEntries(entries []issueEntry, mode executionMode) ([]issueEntry, error) {
+	if len(entries) == 0 {
+		if mode == ExecutionModePRDTasks {
+			fmt.Println("No task files found.")
+		} else {
+			fmt.Println("No issue files found.")
+		}
+		return nil, errNoIssues
+	}
+	if mode == ExecutionModePRReview {
+		entries = filterUnresolved(entries)
+		if len(entries) == 0 {
+			fmt.Println("All issues are already resolved. Nothing to do.")
+			return nil, errNoIssues
+		}
+	}
+	return entries, nil
+}
+
 func prepareSolveIssues(args *cliArgs) (*solvePreparation, error) {
 	prep := &solvePreparation{}
 	var err error
@@ -608,20 +627,9 @@ func prepareSolveIssues(args *cliArgs) (*solvePreparation, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(entries) == 0 {
-		if executionMode(args.mode) == ExecutionModePRDTasks {
-			fmt.Println("No task files found.")
-		} else {
-			fmt.Println("No issue files found.")
-		}
-		return nil, errNoIssues
-	}
-	if executionMode(args.mode) == ExecutionModePRReview {
-		entries = filterUnresolved(entries)
-		if len(entries) == 0 {
-			fmt.Println("All issues are already resolved. Nothing to do.")
-			return nil, errNoIssues
-		}
+	entries, err = validateAndFilterEntries(entries, executionMode(args.mode))
+	if err != nil {
+		return nil, err
 	}
 	groups := groupIssues(entries)
 	if args.grouped {
@@ -2485,7 +2493,7 @@ func assertExecSupported(ide string) error {
 	return nil
 }
 
-func parseTaskFile(content string) (taskEntry, error) {
+func parseTaskFile(content string) taskEntry {
 	task := taskEntry{content: content}
 	statusRe := regexp.MustCompile(`(?m)^##\s*status:\s*(\w+)`)
 	if m := statusRe.FindStringSubmatch(content); len(m) > 1 {
@@ -2506,7 +2514,7 @@ func parseTaskFile(content string) (taskEntry, error) {
 			}
 		}
 	}
-	return task, nil
+	return task
 }
 
 func extractXMLTag(content, tag string) string {
@@ -2517,7 +2525,7 @@ func extractXMLTag(content, tag string) string {
 	return ""
 }
 
-func isTaskCompleted(task taskEntry) bool {
+func isTaskCompleted(task *taskEntry) bool {
 	status := strings.ToLower(task.status)
 	return status == "completed" || status == "done" || status == "finished"
 }
@@ -2553,11 +2561,8 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 			return nil, err
 		}
 		content := string(b)
-		task, err := parseTaskFile(content)
-		if err != nil {
-			continue
-		}
-		if !includeCompleted && isTaskCompleted(task) {
+		task := parseTaskFile(content)
+		if !includeCompleted && isTaskCompleted(&task) {
 			continue
 		}
 		entries = append(entries, issueEntry{
@@ -2829,7 +2834,7 @@ func buildCodeReviewPrompt(p buildBatchedIssuesParams) string {
 }
 
 func buildPRDTaskPrompt(task issueEntry) string {
-	taskData, _ := parseTaskFile(task.content)
+	taskData := parseTaskFile(task.content)
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("# Implementation Task: %s\n\n", task.name))
 	sb.WriteString("## Task Context\n\n")

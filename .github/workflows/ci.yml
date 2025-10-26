@@ -56,7 +56,6 @@ jobs:
             agent
             auth
             task
-            task2
             workflow
             memory
             llm

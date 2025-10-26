@@ -7,9 +7,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -26,7 +26,7 @@ type ExecuteSignalInput struct {
 type ExecuteSignal struct {
 	loadWorkflowUC   *uc.LoadWorkflow
 	createStateUC    *uc.CreateState
-	task2Factory     task2.Factory
+	tasksFactory     tasks.Factory
 	templateEngine   *tplengine.TemplateEngine
 	signalDispatcher services.SignalDispatcher
 }
@@ -38,13 +38,13 @@ func NewExecuteSignal(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	signalDispatcher services.SignalDispatcher,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	templateEngine *tplengine.TemplateEngine,
 ) (*ExecuteSignal, error) {
 	return &ExecuteSignal{
 		loadWorkflowUC:   uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:    uc.NewCreateState(taskRepo, configStore),
-		task2Factory:     task2Factory,
+		tasksFactory:     tasksFactory,
 		templateEngine:   templateEngine,
 		signalDispatcher: signalDispatcher,
 	}, nil
@@ -111,7 +111,7 @@ func (a *ExecuteSignal) dispatchAndHandleSignal(
 			"signal_id":         taskConfig.Signal.ID,
 		}
 	}
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeSignal)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeSignal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create signal response handler: %w", err)
 	}
@@ -164,7 +164,7 @@ func (a *ExecuteSignal) normalizeSignalConfig(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) (*task.Config, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeSignal)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, task.TaskTypeSignal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create signal normalizer: %w", err)
 	}

@@ -9,7 +9,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/store"
 	"github.com/compozy/compozy/engine/project"
-	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	wf "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"

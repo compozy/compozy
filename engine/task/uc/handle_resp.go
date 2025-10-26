@@ -8,9 +8,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskscore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -32,9 +32,9 @@ type HandleResponse struct {
 	workflowRepo                workflow.Repository
 	taskRepo                    task.Repository
 	parentStatusUpdater         *services.ParentStatusUpdater
-	successTransitionNormalizer *task2core.SuccessTransitionNormalizer
-	errorTransitionNormalizer   *task2core.ErrorTransitionNormalizer
-	outputTransformer           *task2core.OutputTransformer
+	successTransitionNormalizer *taskscore.SuccessTransitionNormalizer
+	errorTransitionNormalizer   *taskscore.ErrorTransitionNormalizer
+	outputTransformer           *taskscore.OutputTransformer
 }
 
 func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repository) *HandleResponse {
@@ -43,9 +43,9 @@ func NewHandleResponse(workflowRepo workflow.Repository, taskRepo task.Repositor
 		workflowRepo:                workflowRepo,
 		taskRepo:                    taskRepo,
 		parentStatusUpdater:         services.NewParentStatusUpdater(taskRepo),
-		successTransitionNormalizer: task2core.NewSuccessTransitionNormalizer(tplEngine),
-		errorTransitionNormalizer:   task2core.NewErrorTransitionNormalizer(tplEngine),
-		outputTransformer:           task2core.NewOutputTransformer(tplEngine),
+		successTransitionNormalizer: taskscore.NewSuccessTransitionNormalizer(tplEngine),
+		errorTransitionNormalizer:   taskscore.NewErrorTransitionNormalizer(tplEngine),
+		outputTransformer:           taskscore.NewOutputTransformer(tplEngine),
 	}
 }
 
@@ -139,7 +139,7 @@ func (uc *HandleResponse) applyOutputTransformation(ctx context.Context, input *
 	if err != nil {
 		return fmt.Errorf("failed to get workflow state for output transformation: %w", err)
 	}
-	taskConfigs := task2.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
+	taskConfigs := tasks.BuildTaskConfigsMap(input.WorkflowConfig.Tasks)
 	contextBuilder, err := shared.NewContextBuilderWithContext(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create context builder: %w", err)

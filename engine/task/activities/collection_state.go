@@ -7,10 +7,10 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	taskcore "github.com/compozy/compozy/engine/task/tasks/core"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	task2core "github.com/compozy/compozy/engine/task2/core"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
@@ -29,31 +29,31 @@ type CreateCollectionStateInput struct {
 	TaskConfig     *task.Config `json:"task_config"`
 }
 
-// CreateCollectionState handles collection state creation with task2 integration
+// CreateCollectionState handles collection state creation with tasks integration
 type CreateCollectionState struct {
 	loadWorkflowUC     *uc.LoadWorkflow
 	createStateUC      *uc.CreateState
 	createChildTasksUC *uc.CreateChildTasks
-	task2Factory       task2.Factory
+	tasksFactory       tasks.Factory
 	configStore        services.ConfigStore
 	taskRepo           task.Repository
 	cwd                *core.PathCWD
 }
 
-// NewCreateCollectionState creates a new CreateCollectionState activity with task2 integration
+// NewCreateCollectionState creates a new CreateCollectionState activity with tasks integration
 func NewCreateCollectionState(
 	workflows []*workflow.Config,
 	workflowRepo workflow.Repository,
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	cwd *core.PathCWD,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 ) (*CreateCollectionState, error) {
 	return &CreateCollectionState{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configStore),
-		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, task2Factory, cwd),
-		task2Factory:       task2Factory,
+		createChildTasksUC: uc.NewCreateChildTasksUC(taskRepo, configStore, tasksFactory, cwd),
+		tasksFactory:       tasksFactory,
 		configStore:        configStore,
 		taskRepo:           taskRepo,
 		cwd:                cwd,
@@ -101,14 +101,14 @@ func validateCollectionStateInput(input *CreateCollectionStateInput) error {
 	return nil
 }
 
-// expandCollectionItems runs the task2 expander and validates the resulting metadata.
+// expandCollectionItems runs the tasks expander and validates the resulting metadata.
 func (a *CreateCollectionState) expandCollectionItems(
 	ctx context.Context,
 	taskConfig *task.Config,
 	workflowState *workflow.State,
 	workflowConfig *workflow.Config,
 ) (*shared.ExpansionResult, error) {
-	expander := a.task2Factory.CreateCollectionExpander(ctx)
+	expander := a.tasksFactory.CreateCollectionExpander(ctx)
 	expansionResult, err := expander.ExpandItems(ctx, taskConfig, workflowState, workflowConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to expand collection items: %w", err)
@@ -139,7 +139,7 @@ func (a *CreateCollectionState) createCollectionState(
 		if err := repo.UpsertState(ctx, state); err != nil {
 			return fmt.Errorf("failed to update state with collection metadata: %w", err)
 		}
-		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.task2Factory, a.cwd)
+		createChildTasksUC := uc.NewCreateChildTasksUC(repo, a.configStore, a.tasksFactory, a.cwd)
 		if err := createChildTasksUC.Execute(ctx, &uc.CreateChildTasksInput{
 			ParentStateID:  state.TaskExecID,
 			WorkflowExecID: input.WorkflowExecID,
@@ -182,11 +182,11 @@ func (a *CreateCollectionState) storeCollectionArtifacts(
 	taskConfig *task.Config,
 	expansionResult *shared.ExpansionResult,
 ) error {
-	configRepo, err := a.task2Factory.CreateTaskConfigRepository(a.configStore, a.cwd)
+	configRepo, err := a.tasksFactory.CreateTaskConfigRepository(a.configStore, a.cwd)
 	if err != nil {
 		return fmt.Errorf("failed to create task config repository: %w", err)
 	}
-	collectionMetadata := &task2core.CollectionTaskMetadata{
+	collectionMetadata := &taskcore.CollectionTaskMetadata{
 		ParentStateID: state.TaskExecID,
 		ChildConfigs:  expansionResult.ChildConfigs,
 		Strategy:      string(taskConfig.GetStrategy()),

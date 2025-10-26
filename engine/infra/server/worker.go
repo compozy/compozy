@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/runtime/toolenv"
 	"github.com/compozy/compozy/engine/task"
-	"github.com/compozy/compozy/engine/toolenv/builder"
+	"github.com/compozy/compozy/engine/tool/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/engine/workflow/schedule"

@@ -393,7 +393,7 @@ POST /api/v0/workflows/review/executions
 POST /api/v0/workflows/review/executions
 {
   "input": {
-    "directory": "engine/task2",
+    "directory": "engine/task/tasks",
     "review_type": "testing"
   }
 }
@@ -519,7 +519,7 @@ POST /api/v0/workflows/review-batch/executions
     "directories": [
       "engine/agent",
       "engine/workflow",
-      "engine/task2"
+      "engine/task/tasks"
     ],
     "analysis_type": "per_dir",
     "review_type": "architecture"

@@ -25,7 +25,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/toolenv/builder"
+	"github.com/compozy/compozy/engine/tool/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
@@ -321,10 +321,7 @@ func createTestConfigStore() services.ConfigStore {
 	}
 }
 
-// createTestConfigManager removed - ConfigManager has been replaced by task2.Factory
-
 // Verification functions that check actual database state
-
 func verifyBasicTaskExecution(t *testing.T, fixture *helpers.TestFixture, result *workflow.State) {
 	t.Log("Verifying basic task execution from database state")
 	basicTasks := collectBasicTaskStates(result)

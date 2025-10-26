@@ -9,9 +9,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/task/services"
+	"github.com/compozy/compozy/engine/task/tasks"
+	"github.com/compozy/compozy/engine/task/tasks/shared"
 	"github.com/compozy/compozy/engine/task/uc"
-	"github.com/compozy/compozy/engine/task2"
-	"github.com/compozy/compozy/engine/task2/shared"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/tplengine"
 )
@@ -27,7 +27,7 @@ type ExecuteRouterInput struct {
 type ExecuteRouter struct {
 	loadWorkflowUC     *uc.LoadWorkflow
 	createStateUC      *uc.CreateState
-	task2Factory       task2.Factory
+	tasksFactory       tasks.Factory
 	templateEngine     *tplengine.TemplateEngine
 	conditionEvaluator *task.CELEvaluator
 }
@@ -39,7 +39,7 @@ func NewExecuteRouter(
 	taskRepo task.Repository,
 	configStore services.ConfigStore,
 	_ *core.PathCWD,
-	task2Factory task2.Factory,
+	tasksFactory tasks.Factory,
 	templateEngine *tplengine.TemplateEngine,
 	evaluator *task.CELEvaluator,
 ) (*ExecuteRouter, error) {
@@ -49,7 +49,7 @@ func NewExecuteRouter(
 	return &ExecuteRouter{
 		loadWorkflowUC:     uc.NewLoadWorkflow(workflows, workflowRepo),
 		createStateUC:      uc.NewCreateState(taskRepo, configStore),
-		task2Factory:       task2Factory,
+		tasksFactory:       tasksFactory,
 		templateEngine:     templateEngine,
 		conditionEvaluator: evaluator,
 	}, nil
@@ -96,7 +96,7 @@ type routerEvaluationResult struct {
 	executionErr error
 }
 
-// buildRouterResponse renders the final task response using task2 handlers.
+// buildRouterResponse renders the final task response using tasks handlers.
 func (a *ExecuteRouter) buildRouterResponse(
 	ctx context.Context,
 	taskConfig *task.Config,
@@ -105,7 +105,7 @@ func (a *ExecuteRouter) buildRouterResponse(
 	taskState *task.State,
 	evaluation *routerEvaluationResult,
 ) (*task.MainTaskResponse, error) {
-	handler, err := a.task2Factory.CreateResponseHandler(ctx, task.TaskTypeRouter)
+	handler, err := a.tasksFactory.CreateResponseHandler(ctx, task.TaskTypeRouter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create router response handler: %w", err)
 	}
@@ -339,7 +339,7 @@ func (a *ExecuteRouter) normalizeRouterConfig(
 	workflowConfig *workflow.Config,
 	taskConfig *task.Config,
 ) (*task.Config, *shared.NormalizationContext, error) {
-	normalizer, err := a.task2Factory.CreateNormalizer(ctx, task.TaskTypeRouter)
+	normalizer, err := a.tasksFactory.CreateNormalizer(ctx, task.TaskTypeRouter)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create router normalizer: %w", err)
 	}

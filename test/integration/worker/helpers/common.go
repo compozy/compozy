@@ -22,7 +22,7 @@ import (
 	"github.com/compozy/compozy/engine/task"
 	tkacts "github.com/compozy/compozy/engine/task/activities"
 	"github.com/compozy/compozy/engine/task/services"
-	"github.com/compozy/compozy/engine/toolenv/builder"
+	"github.com/compozy/compozy/engine/tool/builder"
 	"github.com/compozy/compozy/engine/worker"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
@@ -79,8 +79,6 @@ func CreateTestProjectConfig(_ *TestFixture, projectName string) *project.Config
 		CWD:  cwd,
 	}
 }
-
-// CreateTestConfigManager removed - ConfigManager has been replaced by task2.Factory
 
 // FindInitialTaskID finds the initial task ID from fixture
 func FindInitialTaskID(fixture *TestFixture) string {
