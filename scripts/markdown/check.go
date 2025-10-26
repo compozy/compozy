@@ -290,7 +290,10 @@ func (fb *formBuilder) addField(flag string, build func() huh.Field) {
 	if fb.cmd.Flags().Changed(flag) {
 		return
 	}
-	fb.fields = append(fb.fields, build())
+	field := build()
+	if field != nil {
+		fb.fields = append(fb.fields, field)
+	}
 }
 
 func (fb *formBuilder) addModeField(target *string) {
@@ -308,14 +311,24 @@ func (fb *formBuilder) addModeField(target *string) {
 
 func (fb *formBuilder) addPRField(target *string) {
 	fb.addField("pr", func() huh.Field {
+		title := "PR Number"
+		placeholder := "259"
+		description := "Required: Pull request number or identifier to process"
+		errorMsg := "PR number is required"
+		if mode == modePRDTasks {
+			title = "Task Identifier"
+			placeholder = "multi-repo"
+			description = "Required: Task name/identifier (e.g., 'multi-repo' for tasks/prd-multi-repo)"
+			errorMsg = "Task identifier is required"
+		}
 		return huh.NewInput().
-			Title("PR Number").
-			Placeholder("259").
-			Description("Required: Pull request number or identifier to process").
+			Title(title).
+			Placeholder(placeholder).
+			Description(description).
 			Value(target).
 			Validate(func(str string) error {
 				if str == "" {
-					return errors.New("PR number is required")
+					return errors.New(errorMsg)
 				}
 				return nil
 			})
@@ -324,10 +337,18 @@ func (fb *formBuilder) addPRField(target *string) {
 
 func (fb *formBuilder) addOptionalPathField(flag string, target *string) {
 	fb.addField(flag, func() huh.Field {
+		title := "Issues Directory (optional)"
+		placeholder := "ai-docs/reviews-pr-<PR>/issues"
+		description := "Leave empty to auto-generate from PR number"
+		if mode == modePRDTasks {
+			title = "Tasks Directory (optional)"
+			placeholder = "tasks/prd-<name>"
+			description = "Leave empty to auto-generate from task identifier"
+		}
 		return huh.NewInput().
-			Title("Issues Directory (optional)").
-			Placeholder("ai-docs/reviews-pr-<PR>/issues").
-			Description("Leave empty to auto-generate from PR number").
+			Title(title).
+			Placeholder(placeholder).
+			Description(description).
 			Value(target)
 	})
 }
@@ -688,7 +709,11 @@ func resolveInputs(args *cliArgs) (string, string, string, error) {
 		}
 	}
 	if issuesDir == "" {
-		issuesDir = fmt.Sprintf("ai-docs/reviews-pr-%s/issues", pr)
+		if args.mode == modePRDTasks {
+			issuesDir = fmt.Sprintf("tasks/prd-%s", pr)
+		} else {
+			issuesDir = fmt.Sprintf("ai-docs/reviews-pr-%s/issues", pr)
+		}
 	}
 	resolvedIssuesDir, err := filepath.Abs(issuesDir)
 	if err != nil {
@@ -2548,7 +2573,7 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 		if !f.Type().IsRegular() || !strings.HasSuffix(f.Name(), ".md") {
 			continue
 		}
-		if strings.HasPrefix(f.Name(), "_") && !strings.HasPrefix(f.Name(), "_task_") {
+		if !reTaskFile.MatchString(f.Name()) {
 			continue
 		}
 		names = append(names, f.Name())
@@ -2569,7 +2594,7 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 			name:     name,
 			absPath:  absPath,
 			content:  content,
-			codeFile: task.domain,
+			codeFile: strings.TrimSuffix(name, ".md"),
 		})
 	}
 	return entries, nil
@@ -2629,6 +2654,7 @@ func filterUnresolved(all []issueEntry) []issueEntry {
 var (
 	reResolvedStatus = regexp.MustCompile(`(?mi)^\s*(status|state)\s*:\s*resolved\b`)
 	reResolvedTask   = regexp.MustCompile(`(?mi)^\s*-\s*\[(x|X)\]\s*resolved\b`)
+	reTaskFile       = regexp.MustCompile(`^_task_\d+\.md$`)
 )
 
 func isIssueResolved(content string) bool {
@@ -2835,8 +2861,19 @@ func buildCodeReviewPrompt(p buildBatchedIssuesParams) string {
 
 func buildPRDTaskPrompt(task issueEntry) string {
 	taskData := parseTaskFile(task.content)
+	prdDir := filepath.Dir(task.absPath)
+	tasksFile := filepath.Join(prdDir, "_tasks.md")
+	header := fmt.Sprintf("# Implementation Task: %s\n\n", task.name)
+	contextSection := buildTaskContextSection(&taskData)
+	criticalSection := buildCriticalExecutionSection()
+	specSection := fmt.Sprintf("## Task Specification\n\n%s\n\n", task.content)
+	implSection := buildImplementationInstructionsSection(prdDir)
+	completionSection := buildCompletionCriteriaSection(task.absPath, tasksFile, task.name)
+	return header + contextSection + criticalSection + specSection + implSection + completionSection
+}
+
+func buildTaskContextSection(taskData *taskEntry) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("# Implementation Task: %s\n\n", task.name))
 	sb.WriteString("## Task Context\n\n")
 	sb.WriteString(fmt.Sprintf("- **Domain**: %s\n", taskData.domain))
 	sb.WriteString(fmt.Sprintf("- **Type**: %s\n", taskData.taskType))
@@ -2846,31 +2883,81 @@ func buildPRDTaskPrompt(task issueEntry) string {
 		sb.WriteString(fmt.Sprintf("- **Dependencies**: %s\n", strings.Join(taskData.dependencies, ", ")))
 	}
 	sb.WriteString("\n")
-	sb.WriteString("## Task Specification\n\n")
-	sb.WriteString(task.content)
-	sb.WriteString("\n\n")
+	return sb.String()
+}
+
+func buildCriticalExecutionSection() string {
+	var sb strings.Builder
+	sb.WriteString("<CRITICAL>\n")
+	sb.WriteString("**EXECUTION MODE: ONE-SHOT DIRECT IMPLEMENTATION**\n\n")
+	sb.WriteString("You MUST complete this task in ONE continuous execution from beginning to end:\n\n")
+	sb.WriteString("- **NO ASKING**: Do not ask for clarification, confirmation, or approval\n")
+	sb.WriteString("- **NO PLANNING MODE**: Execute directly without presenting plans\n")
+	sb.WriteString("- **NO PARTIAL WORK**: Complete ALL requirements, subtasks, and deliverables\n")
+	sb.WriteString("- **FOLLOW ALL STANDARDS**: Adhere to ALL project rules in `.cursor/rules/`\n")
+	sb.WriteString("- **BEST PRACTICES ONLY**: No workarounds, hacks, or shortcuts\n")
+	sb.WriteString("- **PROPER SOLUTIONS**: Implement production-ready, maintainable code\n\n")
+	sb.WriteString("**VALIDATION REQUIREMENTS**:\n")
+	sb.WriteString("- All tests MUST pass (`make test`)\n")
+	sb.WriteString("- All linting MUST pass (`make lint`)\n")
+	sb.WriteString("- All type checking MUST pass (`make typecheck`)\n")
+	sb.WriteString("- All subtasks MUST be marked complete\n")
+	sb.WriteString("- Task status MUST be updated to 'completed'\n\n")
+	sb.WriteString("⚠️  **WORK WILL BE INVALIDATED** if:\n")
+	sb.WriteString("- Any requirement is incomplete\n")
+	sb.WriteString("- Tests/linting/typecheck fail\n")
+	sb.WriteString("- Project standards are violated\n")
+	sb.WriteString("- Workarounds are used instead of proper solutions\n")
+	sb.WriteString("- Task completion steps are skipped\n")
+	sb.WriteString("</CRITICAL>\n\n")
+	return sb.String()
+}
+
+func buildImplementationInstructionsSection(prdDir string) string {
+	var sb strings.Builder
 	sb.WriteString("## Implementation Instructions\n\n")
 	sb.WriteString("<critical>\n")
 	sb.WriteString("**MANDATORY READ BEFORE STARTING**:\n")
-	sb.WriteString("- @.cursor/rules/go-coding-standards.mdc\n")
-	sb.WriteString("- @.cursor/rules/architecture.mdc\n")
-	sb.WriteString("- @.cursor/rules/test-standards.mdc\n")
+	sb.WriteString("- @.cursor/rules/critical-validation.mdc\n")
+	sb.WriteString(fmt.Sprintf("- All documents from this PRD directory: `%s`\n", prdDir))
+	sb.WriteString("  - Especially review `_techspec.md` and `_tasks.md` for full context\n")
 	sb.WriteString("</critical>\n\n")
-	sb.WriteString("**Requirements**:\n")
-	sb.WriteString("- All functions must be < 50 lines\n")
-	sb.WriteString("- Must pass `make lint` and `make test`\n")
-	sb.WriteString("- Use context-first APIs: `logger.FromContext(ctx)`, `config.FromContext(ctx)`\n")
-	sb.WriteString("- No `context.Background()` in runtime code (use `t.Context()` in tests)\n")
-	sb.WriteString("- Proper error wrapping with `fmt.Errorf` and `%w`\n")
-	sb.WriteString("- Follow SOLID principles and clean architecture patterns\n\n")
+	return sb.String()
+}
+
+func buildCompletionCriteriaSection(taskAbsPath, tasksFile, taskName string) string {
+	var sb strings.Builder
 	sb.WriteString("## Completion Criteria\n\n")
-	sb.WriteString("After implementation:\n")
-	sb.WriteString("1. All subtasks in the task file are completed\n")
-	sb.WriteString("2. All deliverables are produced\n")
-	sb.WriteString("3. All tests pass: `make test`\n")
-	sb.WriteString("4. Code passes linting: `make lint`\n")
-	sb.WriteString(fmt.Sprintf("5. Update task status in `%s` to `completed`\n", task.absPath))
-	sb.WriteString("6. Commit changes with descriptive message referencing the task number\n\n")
+	sb.WriteString("After implementation, you MUST complete ALL of the following steps:\n\n")
+	sb.WriteString("1. **Verify Implementation**:\n")
+	sb.WriteString("   - All subtasks in this task file are completed\n")
+	sb.WriteString("   - All deliverables specified are produced\n")
+	sb.WriteString("   - All tests pass: `make test`\n")
+	sb.WriteString("   - Code passes linting: `make lint`\n\n")
+	sb.WriteString("2. **Mark Subtasks Complete**:\n")
+	sb.WriteString(fmt.Sprintf("   - In `%s`, check all `[ ]` boxes to `[x]` for completed subtasks\n\n", taskAbsPath))
+	sb.WriteString("3. **Update Task Status**:\n")
+	sb.WriteString(fmt.Sprintf("   - In `%s`, change the status line from:\n", taskAbsPath))
+	sb.WriteString("     ```\n")
+	sb.WriteString("     ## status: pending\n")
+	sb.WriteString("     ```\n")
+	sb.WriteString("     to:\n")
+	sb.WriteString("     ```\n")
+	sb.WriteString("     ## status: completed\n")
+	sb.WriteString("     ```\n\n")
+	sb.WriteString("4. **Update Master Tasks List**:\n")
+	sb.WriteString(fmt.Sprintf("   - In `%s`, check the corresponding task checkbox for `%s`\n\n", tasksFile, taskName))
+	sb.WriteString("5. **Commit Changes**:\n")
+	sb.WriteString(
+		fmt.Sprintf("   - Commit all changes with a descriptive message like: `feat: complete %s`\n\n", taskName),
+	)
+	sb.WriteString("<critical>\n")
+	sb.WriteString("**DO NOT SKIP ANY COMPLETION STEPS**\n")
+	sb.WriteString("Your task is NOT complete until ALL steps above are done, including:\n")
+	sb.WriteString("- All subtask checkboxes marked\n")
+	sb.WriteString("- Status changed to 'completed'\n")
+	sb.WriteString("- Master tasks list updated\n")
+	sb.WriteString("</critical>\n\n")
 	return sb.String()
 }
 

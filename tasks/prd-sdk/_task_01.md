@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/workspace</domain>
@@ -32,12 +32,12 @@ Create the Go workspace structure and SDK module foundation. Establish go.work, 
 
 ## Subtasks
 
-- [ ] 01.1 Create go.work in repository root with both modules
-- [ ] 01.2 Create sdk/go.mod with github.com/compozy/compozy/sdk module path
-- [ ] 01.3 Create directory structure for all packages (project, model, workflow, agent, task, etc.)
-- [ ] 01.4 Create sdk/doc.go with SDK package documentation
-- [ ] 01.5 Create sdk/internal/errors and sdk/internal/validate packages
-- [ ] 01.6 Run go work sync and verify module resolution
+- [x] 01.1 Create go.work in repository root with both modules
+- [x] 01.2 Create sdk/go.mod with github.com/compozy/compozy/sdk module path
+- [x] 01.3 Create directory structure for all packages (project, model, workflow, agent, task, etc.)
+- [x] 01.4 Create sdk/doc.go with SDK package documentation
+- [x] 01.5 Create sdk/internal/errors and sdk/internal/validate packages
+- [x] 01.6 Run go work sync and verify module resolution
 
 ## Implementation Details
 
@@ -109,3 +109,11 @@ Reference: tasks/prd-sdk/_tests.md
 - sdk module can import engine packages
 - No circular dependencies detected
 - Documentation in sdk/doc.go describes SDK purpose
+
+## Completion
+- [x] 1.0 Task 01.0: Workspace + Module Scaffolding ✅ COMPLETED
+  - [x] 1.1 Implementation completed
+  - [x] 1.2 Task definition, PRD, and tech spec validated
+  - [x] 1.3 Rules analysis and compliance verified
+  - [x] 1.4 Code review completed with Zen MCP
+  - [x] 1.5 Ready for deployment
