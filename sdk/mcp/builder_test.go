@@ -3,6 +3,7 @@ package mcp
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -82,6 +83,72 @@ func TestWithTransportInvalidAddsError(t *testing.T) {
 	require.NotEmpty(t, builder.errors)
 }
 
+func TestWithHeadersStoresHeaders(t *testing.T) {
+	t.Parallel()
+
+	headers := map[string]string{
+		"Authorization": "Bearer {{ .env.GITHUB_TOKEN }}",
+		"X-Trace":       "abc123",
+	}
+	builder := New("github").WithHeaders(headers)
+	require.Equal(t, headers, builder.config.Headers)
+	headers["Authorization"] = "mutated"
+	require.NotEqual(t, headers["Authorization"], builder.config.Headers["Authorization"])
+}
+
+func TestWithHeaderAddsSingleHeader(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithHeader("Authorization", "Bearer token")
+	require.Equal(t, "Bearer token", builder.config.Headers["Authorization"])
+	builder = builder.WithHeader("Content-Type", "application/json")
+	require.Equal(t, "application/json", builder.config.Headers["Content-Type"])
+}
+
+func TestWithHeaderEmptyKeyAddsError(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithHeader(" ", "value")
+	require.NotEmpty(t, builder.errors)
+}
+
+func TestWithEnvStoresEnv(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		"ROOT_DIR": "/data",
+		"TOKEN":    "{{ .env.API_TOKEN }}",
+	}
+	builder := New("filesystem").WithEnv(env)
+	require.Equal(t, env, builder.config.Env)
+	env["ROOT_DIR"] = "/other"
+	require.NotEqual(t, env["ROOT_DIR"], builder.config.Env["ROOT_DIR"])
+}
+
+func TestWithEnvVarAddsSingleVar(t *testing.T) {
+	t.Parallel()
+
+	builder := New("filesystem").WithEnvVar("ROOT_DIR", "/data")
+	require.Equal(t, "/data", builder.config.Env["ROOT_DIR"])
+	builder = builder.WithEnvVar("LOG_LEVEL", "debug")
+	require.Equal(t, "debug", builder.config.Env["LOG_LEVEL"])
+}
+
+func TestWithEnvVarEmptyKeyAddsError(t *testing.T) {
+	t.Parallel()
+
+	builder := New("filesystem").WithEnvVar(" ", "value")
+	require.NotEmpty(t, builder.errors)
+}
+
+func TestWithStartTimeoutSetsValue(t *testing.T) {
+	t.Parallel()
+
+	timeout := 15 * time.Second
+	builder := New("filesystem").WithStartTimeout(timeout)
+	require.Equal(t, timeout, builder.config.StartTimeout)
+}
+
 func TestBuildReturnsCommandConfig(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +185,34 @@ func TestBuildReturnsExplicitHTTPTransport(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	require.Equal(t, mcpproxy.TransportStreamableHTTP, cfg.Transport)
+}
+
+func TestBuildIncludesHeadersForURLBasedMCP(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").
+		WithURL("https://example.com/mcp").
+		WithHeader("Authorization", "Bearer {{ .env.GITHUB_TOKEN }}")
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, "Bearer {{ .env.GITHUB_TOKEN }}", cfg.Headers["Authorization"])
+}
+
+func TestBuildIncludesEnvForCommandBasedMCP(t *testing.T) {
+	t.Parallel()
+
+	builder := New("filesystem").
+		WithCommand("mcp-server-filesystem").
+		WithEnvVar("ROOT_DIR", "/data").
+		WithStartTimeout(20 * time.Second)
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, "/data", cfg.Env["ROOT_DIR"])
+	require.Equal(t, 20*time.Second, cfg.StartTimeout)
 }
 
 func TestBuildFailsWithoutCommandOrURL(t *testing.T) {
@@ -162,6 +257,78 @@ func TestBuildFailsWhenHTTPTransportWithCommand(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, cfg)
 	require.ErrorContains(t, err, "transport cannot be used with command configuration")
+}
+
+func TestBuildFailsWhenHeadersWithoutURL(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithHeader("Authorization", "token")
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "headers require a configured url")
+}
+
+func TestBuildFailsWhenHeadersWithCommand(t *testing.T) {
+	t.Parallel()
+
+	builder := New("filesystem").
+		WithCommand("mcp-server").
+		WithHeader("Authorization", "token")
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "headers are only supported for url-based MCP servers")
+}
+
+func TestBuildFailsWhenEnvWithoutCommand(t *testing.T) {
+	t.Parallel()
+
+	builder := New("filesystem").WithEnvVar("ROOT_DIR", "/data")
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "environment variables require a configured command")
+}
+
+func TestBuildFailsWhenEnvWithURL(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").
+		WithURL("https://example.com").
+		WithEnvVar("ROOT_DIR", "/data")
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "environment variables are only supported for command-based MCP servers")
+}
+
+func TestBuildFailsWhenStartTimeoutWithoutCommand(t *testing.T) {
+	t.Parallel()
+
+	builder := New("filesystem").WithStartTimeout(10 * time.Second)
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "start timeout requires a configured command")
+}
+
+func TestBuildFailsWhenStartTimeoutWithURL(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").
+		WithURL("https://example.com").
+		WithStartTimeout(10 * time.Second)
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "start timeout is only supported for command-based MCP servers")
 }
 
 func TestBuildAggregatesErrors(t *testing.T) {

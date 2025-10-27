@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	enginemcp "github.com/compozy/compozy/engine/mcp"
@@ -90,6 +91,75 @@ func (b *Builder) WithTransport(transport mcpproxy.TransportType) *Builder {
 	return b
 }
 
+// WithHeaders configures HTTP headers for URL-based MCP servers.
+func (b *Builder) WithHeaders(headers map[string]string) *Builder {
+	if b == nil {
+		return nil
+	}
+	if len(headers) == 0 {
+		return b
+	}
+	b.config.Headers = core.CopyMaps(b.config.Headers, headers)
+	return b
+}
+
+// WithHeader adds a single HTTP header entry for URL-based MCP servers.
+func (b *Builder) WithHeader(key, value string) *Builder {
+	if b == nil {
+		return nil
+	}
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" {
+		b.errors = append(b.errors, fmt.Errorf("header key cannot be empty"))
+		return b
+	}
+	copied := core.CopyMaps(b.config.Headers)
+	copied[trimmedKey] = value
+	b.config.Headers = copied
+	return b
+}
+
+// WithEnv configures environment variables for command-based MCP servers.
+func (b *Builder) WithEnv(env map[string]string) *Builder {
+	if b == nil {
+		return nil
+	}
+	if len(env) == 0 {
+		return b
+	}
+	b.config.Env = core.CopyMaps(b.config.Env, env)
+	return b
+}
+
+// WithEnvVar adds a single environment variable for command-based MCP servers.
+func (b *Builder) WithEnvVar(key, value string) *Builder {
+	if b == nil {
+		return nil
+	}
+	trimmedKey := strings.TrimSpace(key)
+	if trimmedKey == "" {
+		b.errors = append(b.errors, fmt.Errorf("env variable key cannot be empty"))
+		return b
+	}
+	copied := core.CopyMaps(b.config.Env)
+	copied[trimmedKey] = value
+	b.config.Env = copied
+	return b
+}
+
+// WithStartTimeout sets the startup timeout for command-based MCP servers.
+func (b *Builder) WithStartTimeout(timeout time.Duration) *Builder {
+	if b == nil {
+		return nil
+	}
+	if timeout < 0 {
+		b.errors = append(b.errors, fmt.Errorf("start timeout cannot be negative"))
+		return b
+	}
+	b.config.StartTimeout = timeout
+	return b
+}
+
 // Build validates the MCP configuration and returns a deep-copied engine config.
 func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 	if b == nil {
@@ -101,7 +171,7 @@ func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("building MCP configuration", "mcp", b.config.ID)
 
-	collected := make([]error, 0, len(b.errors)+4)
+	collected := make([]error, 0, len(b.errors)+8)
 	collected = append(collected, b.errors...)
 	if err := b.validateID(ctx); err != nil {
 		collected = append(collected, err)
@@ -116,6 +186,15 @@ func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 		collected = append(collected, err)
 	}
 	if err := b.validateTransport(ctx); err != nil {
+		collected = append(collected, err)
+	}
+	if err := b.validateHeaders(ctx); err != nil {
+		collected = append(collected, err)
+	}
+	if err := b.validateEnv(ctx); err != nil {
+		collected = append(collected, err)
+	}
+	if err := b.validateStartTimeout(ctx); err != nil {
 		collected = append(collected, err)
 	}
 
@@ -216,6 +295,54 @@ func (b *Builder) validateTransport(_ context.Context) error {
 		}
 	default:
 		return fmt.Errorf("invalid transport type %q", transport)
+	}
+	return nil
+}
+
+func (b *Builder) validateHeaders(_ context.Context) error {
+	if len(b.config.Headers) == 0 {
+		return nil
+	}
+	hasURL := strings.TrimSpace(b.config.URL) != ""
+	hasCommand := strings.TrimSpace(b.config.Command) != ""
+	if hasCommand {
+		return fmt.Errorf("headers are only supported for url-based MCP servers")
+	}
+	if !hasURL {
+		return fmt.Errorf("headers require a configured url")
+	}
+	return nil
+}
+
+func (b *Builder) validateEnv(_ context.Context) error {
+	if len(b.config.Env) == 0 {
+		return nil
+	}
+	hasURL := strings.TrimSpace(b.config.URL) != ""
+	hasCommand := strings.TrimSpace(b.config.Command) != ""
+	if hasURL {
+		return fmt.Errorf("environment variables are only supported for command-based MCP servers")
+	}
+	if !hasCommand {
+		return fmt.Errorf("environment variables require a configured command")
+	}
+	return nil
+}
+
+func (b *Builder) validateStartTimeout(_ context.Context) error {
+	if b.config.StartTimeout == 0 {
+		return nil
+	}
+	if b.config.StartTimeout < 0 {
+		return fmt.Errorf("start timeout cannot be negative")
+	}
+	hasURL := strings.TrimSpace(b.config.URL) != ""
+	hasCommand := strings.TrimSpace(b.config.Command) != ""
+	if hasURL {
+		return fmt.Errorf("start timeout is only supported for command-based MCP servers")
+	}
+	if !hasCommand {
+		return fmt.Errorf("start timeout requires a configured command")
 	}
 	return nil
 }

@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/mcp</domain>
@@ -28,13 +28,13 @@ Extend MCP builder with HTTP headers, environment variables, and timeout configu
 
 ## Subtasks
 
-- [ ] 38.1 Add WithHeaders(headers map[string]string) method
-- [ ] 38.2 Add WithHeader(key, value string) method
-- [ ] 38.3 Add WithEnv(env map[string]string) method
-- [ ] 38.4 Add WithEnvVar(key, value string) method
-- [ ] 38.5 Add WithStartTimeout(timeout time.Duration) method
-- [ ] 38.6 Update Build(ctx) validation for headers/env usage
-- [ ] 38.7 Add unit tests for headers, env, and timeouts
+- [x] 38.1 Add WithHeaders(headers map[string]string) method
+- [x] 38.2 Add WithHeader(key, value string) method
+- [x] 38.3 Add WithEnv(env map[string]string) method
+- [x] 38.4 Add WithEnvVar(key, value string) method
+- [x] 38.5 Add WithStartTimeout(timeout time.Duration) method
+- [x] 38.6 Update Build(ctx) validation for headers/env usage
+- [x] 38.7 Add unit tests for headers, env, and timeouts
 
 ## Implementation Details
 
@@ -92,15 +92,15 @@ mcp.New("filesystem").
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] WithHeaders sets headers map correctly
-- [ ] WithHeader adds individual headers
-- [ ] WithEnv sets environment variables map
-- [ ] WithEnvVar adds individual env vars
-- [ ] WithStartTimeout sets timeout duration
-- [ ] Build(ctx) validates headers only with URL
-- [ ] Build(ctx) validates env only with command
-- [ ] Error cases: headers with command, env with URL
-- [ ] Edge cases: template vars in headers/env values
+- [x] WithHeaders sets headers map correctly
+- [x] WithHeader adds individual headers
+- [x] WithEnv sets environment variables map
+- [x] WithEnvVar adds individual env vars
+- [x] WithStartTimeout sets timeout duration
+- [x] Build(ctx) validates headers only with URL
+- [x] Build(ctx) validates env only with command
+- [x] Error cases: headers with command, env with URL
+- [x] Edge cases: template vars in headers/env values
 
 ## Success Criteria
 
