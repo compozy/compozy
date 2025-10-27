@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -31,26 +31,26 @@ Create comprehensive MCP example demonstrating both remote (URL-based with SSE) 
 
 ## Subtasks
 
-- [ ] 48.1 Create sdk/examples/05_mcp_integration.go
-- [ ] 48.2 Build remote MCP with SSE transport (GitHub API example):
-  - [ ] URL configuration
-  - [ ] SSE transport
-  - [ ] Authorization header
-  - [ ] Protocol version
-  - [ ] Max sessions
-- [ ] 48.3 Build local MCP with stdio (filesystem example):
-  - [ ] Command configuration
-  - [ ] Environment variables
-  - [ ] Start timeout
-- [ ] 48.4 Build Docker-based MCP (database example):
-  - [ ] Docker run command
-  - [ ] Environment variables
-  - [ ] Start timeout
-- [ ] 48.5 Create agent with MCP access
-- [ ] 48.6 Build project with all MCP configs
-- [ ] 48.7 Add comments explaining MCP patterns
-- [ ] 48.8 Update README.md with MCP example
-- [ ] 48.9 Test example runs successfully
+- [x] 48.1 Create sdk/examples/05_mcp_integration.go
+- [x] 48.2 Build remote MCP with SSE transport (GitHub API example):
+  - [x] URL configuration
+  - [x] SSE transport
+  - [x] Authorization header
+  - [x] Protocol version
+  - [x] Max sessions
+- [x] 48.3 Build local MCP with stdio (filesystem example):
+  - [x] Command configuration
+  - [x] Environment variables
+  - [x] Start timeout
+- [x] 48.4 Build Docker-based MCP (database example):
+  - [x] Docker run command
+  - [x] Environment variables
+  - [x] Start timeout
+- [x] 48.5 Create agent with MCP access
+- [x] 48.6 Build project with all MCP configs
+- [x] 48.7 Add comments explaining MCP patterns
+- [x] 48.8 Update README.md with MCP example
+- [x] 48.9 Test example runs successfully
 
 ## Implementation Details
 
@@ -106,30 +106,30 @@ devAgent, err := agent.New("developer-assistant").
 
 ## Deliverables
 
-- [ ] sdk/examples/05_mcp_integration.go (runnable)
-- [ ] Updated README.md with MCP example section
-- [ ] Comments explaining:
+- [x] sdk/examples/05_mcp_integration.go (runnable)
+- [x] Updated README.md with MCP example section
+- [x] Comments explaining:
   - Remote vs local MCP patterns
   - Transport types (SSE vs stdio)
   - Authentication with headers
   - Environment variable injection
   - Session management
-- [ ] All 3 MCP types demonstrated
-- [ ] Verified example runs successfully
+- [x] All 3 MCP types demonstrated
+- [x] Verified example runs successfully
 
 ## Tests
 
 From _tests.md:
 
 - Example validation:
-  - [ ] Code compiles without errors
-  - [ ] Remote MCP config with SSE transport
-  - [ ] Local MCP config with stdio
-  - [ ] Docker MCP config with command args
-  - [ ] Headers validated (key-value pairs)
-  - [ ] Env vars propagated correctly
-  - [ ] Timeouts validated (positive durations)
-  - [ ] Agent MCP integration works
+  - [x] Code compiles without errors
+  - [x] Remote MCP config with SSE transport
+  - [x] Local MCP config with stdio
+  - [x] Docker MCP config with command args
+  - [x] Headers validated (key-value pairs)
+  - [x] Env vars propagated correctly
+  - [x] Timeouts validated (positive durations)
+  - [x] Agent MCP integration works
 
 ## Success Criteria
 

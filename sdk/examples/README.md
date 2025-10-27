@@ -101,3 +101,28 @@ go run ./sdk/examples/04_memory_conversation.go
 ```
 
 The program emits a summary covering the memory resource, privacy scope, expiration window, and distributed locking state so you can validate that all advanced features are enabled.
+
+## 05. MCP Integration
+
+The file `05_mcp_integration.go` configures three MCP transports side-by-side to illustrate how remote HTTP (SSE), local stdio, and containerized stdio servers coexist inside an SDK project. The example demonstrates how to:
+
+- Bootstrap MCP definitions with headers, auth tokens, protocol selection, and session caps for a remote GitHub server
+- Launch a filesystem MCP over stdio with environment variables and tight startup timeouts
+- Run a PostgreSQL MCP inside Docker while still exposing stdio transport to the SDK
+- Register all MCP servers on an agent, attach the agent to a workflow, and aggregate the configuration into a runnable project
+
+### Prerequisites
+
+```bash
+export GITHUB_TOKEN="ghp-..."
+export MCP_FS_ROOT="/path/to/workspace"
+export POSTGRES_DSN="postgres://postgres:postgres@localhost:5432/compozy?sslmode=disable"
+```
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/05_mcp_integration.go
+```
+
+The program prints a summary of each MCP configuration, including transport type, headers, environment variables, and startup timeouts so you can confirm every integration path is wired correctly.

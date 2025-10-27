@@ -70,7 +70,7 @@
 - [x] 45.0 Example: Parallel Tasks (S)
 - [x] 46.0 Example: Knowledge (RAG) (S)
 - [x] 47.0 Example: Memory Conversation (S)
-- [ ] 48.0 Example: MCP Integration (S)
+- [x] 48.0 Example: MCP Integration (S)
 - [ ] 49.0 Example: Runtime + Native Tools (S)
 - [ ] 50.0 Example: Schedules (S)
 - [ ] 51.0 Example: Signals (Unified) (S)
