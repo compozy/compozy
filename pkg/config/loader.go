@@ -20,8 +20,9 @@ import (
 )
 
 const (
-	maxTCPPort          = 65535
-	temporalServiceSpan = 3 // Temporal reserves FrontendPort through FrontendPort+3
+	maxTCPPort             = 65535
+	temporalServiceSpan    = 3 // Temporal reserves FrontendPort through FrontendPort+3
+	temporalModeStandalone = "standalone"
 )
 
 // loader implements the Service interface for configuration management.
@@ -379,17 +380,17 @@ func validateDatabase(cfg *Config) error {
 }
 
 func validateTemporal(cfg *Config) error {
-	if cfg.Temporal.HostPort == "" {
-		return fmt.Errorf("temporal host_port is required")
-	}
-	mode := cfg.Temporal.Mode
+	mode := strings.TrimSpace(cfg.Temporal.Mode)
 	if mode == "" {
 		return fmt.Errorf("temporal.mode is required")
 	}
 	switch mode {
 	case "remote":
+		if cfg.Temporal.HostPort == "" {
+			return fmt.Errorf("temporal.host_port is required in remote mode")
+		}
 		return nil
-	case mcpProxyModeStandalone:
+	case temporalModeStandalone:
 		return validateStandaloneTemporalConfig(cfg)
 	default:
 		return fmt.Errorf("temporal.mode must be one of [remote standalone], got %q", mode)

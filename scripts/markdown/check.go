@@ -43,6 +43,9 @@ const (
 	exitCodeCanceled              = -1
 	activityCheckInterval         = 5 * time.Second
 	processTerminationGracePeriod = 5 * time.Second
+	gracefulShutdownTimeout       = 30 * time.Second
+	uiMessageDrainDelay           = 80 * time.Millisecond
+	uiTickInterval                = 120 * time.Millisecond
 	thinkPromptMedium             = "Think hard through problems carefully before acting. " +
 		"Balance speed with thoroughness."
 	thinkPromptLow             = "Think concisely and act quickly. Prefer direct solutions."
@@ -645,6 +648,12 @@ func (c *cliArgs) validate() error {
 			c.batchSize,
 		)
 	}
+	if c.maxRetries < 0 {
+		return fmt.Errorf("max-retries cannot be negative (got %d)", c.maxRetries)
+	}
+	if c.retryBackoffMultiplier <= 0 {
+		return fmt.Errorf("retry-backoff-multiplier must be positive (got %.2f)", c.retryBackoffMultiplier)
+	}
 	return nil
 }
 
@@ -998,7 +1007,7 @@ func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jo
 func (j *jobExecutionContext) cleanup() {
 	if j.uiProg != nil {
 		close(j.uiCh)
-		time.Sleep(80 * time.Millisecond)
+		time.Sleep(uiMessageDrainDelay)
 		j.uiProg.Quit()
 	}
 }
@@ -1070,7 +1079,7 @@ func (j *jobExecutionContext) reportAggregateUsage() {
 }
 
 func (j *jobExecutionContext) awaitShutdownAfterCancel(done <-chan struct{}) (int32, []failInfo, int, error) {
-	shutdownTimeout := 30 * time.Second
+	shutdownTimeout := gracefulShutdownTimeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 	select {
@@ -2151,7 +2160,7 @@ func (m *uiModel) waitEvent() tea.Cmd {
 }
 
 func (m *uiModel) tick() tea.Cmd {
-	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{} })
+	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

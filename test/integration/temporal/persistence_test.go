@@ -35,6 +35,7 @@ func TestStandalonePersistence(t *testing.T) {
 		restartCfg.DatabaseFile = dbPath
 		restartCfg.EnableUI = false
 		restartCfg.FrontendPort = findAvailablePortRange(restartCtx, t, 4)
+		restartCfg.Namespace = cfg.Namespace
 		restarted := startStandaloneServer(restartCtx, t, restartCfg)
 		resp, err := describeWorkflow(
 			restartCtx,

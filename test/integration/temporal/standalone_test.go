@@ -264,6 +264,7 @@ func findAvailablePortRange(ctx context.Context, t *testing.T, size int) int {
 		if !portsAvailable(ctx, port, size) {
 			continue
 		}
+		// Ensure auxiliary port at +1000 offset is available for Temporal UI when enabled
 		if !portAvailable(ctx, port+1000) {
 			continue
 		}
