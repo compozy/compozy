@@ -62,7 +62,7 @@ func NewTestWorkflow(id string) *workflow.Config {
 		BasicTask: task.BasicTask{Prompt: "Summarize the workflow input."},
 	}
 	if cwd, err := core.CWDFromPath(repoRoot); err == nil {
-		taskCfg.BaseConfig.CWD = cwd
+		taskCfg.CWD = cwd
 	}
 	wf := &workflow.Config{
 		ID:      trimmedID,

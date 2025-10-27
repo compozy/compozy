@@ -68,10 +68,10 @@ func (b *ParallelBuilder) WithWaitAll(waitAll bool) *ParallelBuilder {
 		return nil
 	}
 	if waitAll {
-		b.config.ParallelTask.Strategy = enginetask.StrategyWaitAll
+		b.config.Strategy = enginetask.StrategyWaitAll
 		return b
 	}
-	b.config.ParallelTask.Strategy = enginetask.StrategyRace
+	b.config.Strategy = enginetask.StrategyRace
 	return b
 }
 

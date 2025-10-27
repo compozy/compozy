@@ -19,6 +19,10 @@ type Builder struct {
 	errors []error
 }
 
+var cloneRuntimeConfig = func(cfg *engineruntime.Config) (*engineruntime.Config, error) {
+	return core.DeepCopy(cfg)
+}
+
 // NewBun creates a Builder preconfigured for the Bun runtime using the engine defaults.
 func NewBun() *Builder {
 	cfg := engineruntime.DefaultConfig()
@@ -151,7 +155,7 @@ func (b *Builder) Build(ctx context.Context) (*engineruntime.Config, error) {
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
-	cloned, err := core.DeepCopy(b.config)
+	cloned, err := cloneRuntimeConfig(b.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone runtime config: %w", err)
 	}

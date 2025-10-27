@@ -41,6 +41,8 @@ SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
 .PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
 .PHONY: swagger swagger-deps swagger-gen swagger-serve check-go-version setup clean-go-cache
 .PHONY: check-func-length create-func-issues solve-func-length
+.PHONY: lint-main lint-sdk typecheck-main typecheck-sdk fmt-main fmt-sdk modernize-main modernize-sdk
+.PHONY: test-main test-sdk test-coverage-main test-coverage-sdk test-nocache-main test-nocache-sdk
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -82,27 +84,64 @@ build: check-go-version swagger
 # -----------------------------------------------------------------------------
 # Code Quality & Formatting
 # -----------------------------------------------------------------------------
-lint:
+
+# Lint individual modules
+lint-main:
+	@echo "Linting main module..."
+	$(LINTCMD) run --fix --allow-parallel-runners ./...
+
+lint-sdk:
+	@echo "Linting sdk module..."
+	@cd sdk && $(LINTCMD) run --fix --allow-parallel-runners ./...
+
+# Lint all modules
+lint: lint-main lint-sdk
 	$(BUNCMD) run lint
-	$(LINTCMD) run --fix --allow-parallel-runners
 	@echo "Running static driver import guard..."
 	@./scripts/check-driver-imports.sh
 	@echo "Running modernize analyzer for min/max suggestions..."
-	@echo "Linting completed successfully"
+	@echo "$(GREEN)✓ Linting completed successfully$(NC)"
 
-typecheck:
-	@echo "Running Go type checks..."
+# Type check individual modules
+typecheck-main:
+	@echo "Type checking main module..."
 	$(GOCMD) vet ./...
-	@echo "Type checking completed successfully"
 
-fmt:
+typecheck-sdk:
+	@echo "Type checking sdk module..."
+	@cd sdk && $(GOCMD) vet ./...
+
+# Type check all modules
+typecheck: typecheck-main typecheck-sdk
+	@echo "$(GREEN)✓ Type checking completed successfully$(NC)"
+
+# Format individual modules
+fmt-main:
+	@echo "Formatting main module..."
+	$(LINTCMD) fmt
+
+fmt-sdk:
+	@echo "Formatting sdk module..."
+	@cd sdk && $(LINTCMD) fmt
+
+# Format all modules
+fmt: fmt-main fmt-sdk
 	@echo "Formatting code..."
 	$(BUNCMD) run format
-	$(LINTCMD) fmt
-	@echo "Formatting completed successfully"
+	@echo "$(GREEN)✓ Formatting completed successfully$(NC)"
 
-modernize:
+# Modernize individual modules
+modernize-main:
+	@echo "Modernizing main module..."
 	$(GOCMD) run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
+
+modernize-sdk:
+	@echo "Modernizing sdk module..."
+	@cd sdk && $(GOCMD) run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
+
+# Modernize all modules
+modernize: modernize-main modernize-sdk
+	@echo "$(GREEN)✓ Modernization completed successfully$(NC)"
 
 # -----------------------------------------------------------------------------
 # Development & Dependencies
@@ -170,17 +209,47 @@ schemagen-watch:
 # Testing
 # -----------------------------------------------------------------------------
 
-test:
-	@bun run test
-	@gotestsum --format pkgname  -- -race -parallel=4 ./...
+# Test individual modules
+test-main:
+	@echo "Testing main module..."
+	@gotestsum --format pkgname -- -race -parallel=4 ./...
 
-test-coverage:
+test-sdk:
+	@echo "Testing sdk module..."
+	@cd sdk && gotestsum --format pkgname -- -race -parallel=4 ./...
+
+# Test all modules
+test: test-main test-sdk
 	@bun run test
+	@echo "$(GREEN)✓ All tests passed$(NC)"
+
+# Test with coverage - individual modules
+test-coverage-main:
+	@echo "Testing main module with coverage..."
 	@gotestsum --format pkgname -- -race -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
 
-test-nocache:
+test-coverage-sdk:
+	@echo "Testing sdk module with coverage..."
+	@cd sdk && gotestsum --format pkgname -- -race -parallel=4 -coverprofile=coverage-sdk.out -covermode=atomic ./...
+
+# Test all modules with coverage
+test-coverage: test-coverage-main test-coverage-sdk
 	@bun run test
+	@echo "$(GREEN)✓ All tests with coverage completed$(NC)"
+
+# Test without cache - individual modules
+test-nocache-main:
+	@echo "Testing main module (no cache)..."
 	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
+
+test-nocache-sdk:
+	@echo "Testing sdk module (no cache)..."
+	@cd sdk && gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
+
+# Test all modules without cache
+test-nocache: test-nocache-main test-nocache-sdk
+	@bun run test
+	@echo "$(GREEN)✓ All tests (no cache) completed$(NC)"
 
 # -----------------------------------------------------------------------------
 # Docker & Database Management
@@ -267,9 +336,18 @@ help:
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  make dev            - Run in development mode with hot reload"
-		@echo "  make test           - Run all tests"
-		@echo "  make lint           - Run linters and fix issues"
-		@echo "  make fmt            - Format code"
+	@echo "  make test           - Run all tests (main + sdk)"
+	@echo "  make test-main      - Run tests for main module only"
+	@echo "  make test-sdk       - Run tests for sdk module only"
+	@echo "  make lint           - Run linters and fix issues (main + sdk)"
+	@echo "  make lint-main      - Lint main module only"
+	@echo "  make lint-sdk       - Lint sdk module only"
+	@echo "  make fmt            - Format code (main + sdk)"
+	@echo "  make fmt-main       - Format main module only"
+	@echo "  make fmt-sdk        - Format sdk module only"
+	@echo "  make modernize      - Modernize code patterns (main + sdk)"
+	@echo "  make modernize-main - Modernize main module only"
+	@echo "  make modernize-sdk  - Modernize sdk module only"
 	@echo ""
 	@echo "$(YELLOW)Docker & Database:$(NC)"
 	@echo "  make start-docker   - Start Docker services"

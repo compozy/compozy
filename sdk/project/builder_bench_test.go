@@ -18,7 +18,11 @@ func BenchmarkProjectBuilderSimple(b *testing.B) {
 	workflows, agents := buildProjectWorkflows(b, 1)
 	models := buildProjectModels(1)
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := New("project-simple").WithVersion("1.0.0").WithDescription("Simple benchmark project").WithAuthor("Bench Bot", "bench@example.com", "Compozy")
+		builder := New(
+			"project-simple",
+		).WithVersion("1.0.0").
+			WithDescription("Simple benchmark project").
+			WithAuthor("Bench Bot", "bench@example.com", "Compozy")
 		for _, model := range models {
 			builder.AddModel(model)
 		}
@@ -38,7 +42,11 @@ func BenchmarkProjectBuilderMedium(b *testing.B) {
 	setupCtx := testutil.NewBenchmarkContext(b)
 	schedules := buildProjectSchedules(b, setupCtx, workflows, 2)
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := New("project-medium").WithVersion("1.2.0").WithDescription("Medium benchmark project").WithAuthor("Bench Bot", "bench@example.com", "Compozy")
+		builder := New(
+			"project-medium",
+		).WithVersion("1.2.0").
+			WithDescription("Medium benchmark project").
+			WithAuthor("Bench Bot", "bench@example.com", "Compozy")
 		for _, model := range models {
 			builder.AddModel(model)
 		}
@@ -61,7 +69,11 @@ func BenchmarkProjectBuilderComplex(b *testing.B) {
 	setupCtx := testutil.NewBenchmarkContext(b)
 	schedules := buildProjectSchedules(b, setupCtx, workflows, 4)
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := New("project-complex").WithVersion("2.0.0").WithDescription("Complex benchmark project").WithAuthor("Bench Bot", "bench@example.com", "Compozy")
+		builder := New(
+			"project-complex",
+		).WithVersion("2.0.0").
+			WithDescription("Complex benchmark project").
+			WithAuthor("Bench Bot", "bench@example.com", "Compozy")
 		for _, model := range models {
 			builder.AddModel(model)
 		}
@@ -82,7 +94,11 @@ func BenchmarkProjectBuilderParallel(b *testing.B) {
 	workflows, agents := buildProjectWorkflows(b, 2)
 	models := buildProjectModels(1)
 	testutil.RunParallelBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := New("project-parallel").WithVersion("1.1.0").WithDescription("Parallel benchmark project").WithAuthor("Bench Bot", "bench@example.com", "Compozy")
+		builder := New(
+			"project-parallel",
+		).WithVersion("1.1.0").
+			WithDescription("Parallel benchmark project").
+			WithAuthor("Bench Bot", "bench@example.com", "Compozy")
 		for _, model := range models {
 			builder.AddModel(model)
 		}
@@ -117,12 +133,21 @@ func buildProjectWorkflows(b *testing.B, count int) ([]*engineworkflow.Config, [
 	return workflows, agents
 }
 
-func buildProjectSchedules(b *testing.B, ctx context.Context, workflows []*engineworkflow.Config, count int) []*engineschedule.Config {
+func buildProjectSchedules(
+	b *testing.B,
+	ctx context.Context,
+	workflows []*engineworkflow.Config,
+	count int,
+) []*engineschedule.Config {
 	b.Helper()
 	schedules := make([]*engineschedule.Config, count)
 	for i := 0; i < count; i++ {
 		workflowID := workflows[i%len(workflows)].ID
-		builder := schedule.New(testutil.BenchmarkID("schedule", i)).WithWorkflow(workflowID).WithCron("0 * * * *").WithTimezone("UTC").WithDescription("hourly run")
+		builder := schedule.New(testutil.BenchmarkID("schedule", i)).
+			WithWorkflow(workflowID).
+			WithCron("0 * * * *").
+			WithTimezone("UTC").
+			WithDescription("hourly run")
 		if i%2 == 0 {
 			builder = builder.WithRetry(3, time.Minute)
 		}

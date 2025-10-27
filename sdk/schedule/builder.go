@@ -76,7 +76,7 @@ func (b *Builder) WithInput(input map[string]any) *Builder {
 	return b
 }
 
-// WithRetry configures retry behaviour for failed scheduled executions.
+// WithRetry configures retry behavior for failed scheduled executions.
 func (b *Builder) WithRetry(maxAttempts int, backoff time.Duration) *Builder {
 	if b == nil {
 		return nil

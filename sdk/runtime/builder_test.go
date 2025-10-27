@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	engineruntime "github.com/compozy/compozy/engine/runtime"
 	"github.com/compozy/compozy/pkg/logger"
 	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
+	"github.com/compozy/compozy/sdk/internal/testutil"
 )
 
 type recordingLogger struct {
@@ -28,61 +30,58 @@ func (l *recordingLogger) With(...any) logger.Logger {
 }
 
 func TestNewBunInitializesConfig(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun()
 	require.NotNil(t, builder)
 	require.Equal(t, engineruntime.RuntimeTypeBun, builder.config.RuntimeType)
 	require.NotEmpty(t, builder.config.BunPermissions)
 }
 
-func TestWithEntrypointTrimsValue(t *testing.T) {
-	t.Parallel()
+func TestNilBuilderFluentMethods(t *testing.T) {
+	var builder *Builder
+	require.Nil(t, builder.WithEntrypoint("./main.ts"))
+	require.Nil(t, builder.WithBunPermissions("--allow-read"))
+	require.Nil(t, builder.WithToolTimeout(time.Second))
+	require.Nil(t, builder.WithNativeTools(&engineruntime.NativeToolsConfig{}))
+	require.Nil(t, builder.WithMaxMemoryMB(128))
+	cfg, err := builder.Build(testutil.NewTestContext(t))
+	require.Nil(t, cfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "runtime builder is required")
+}
 
+func TestWithEntrypointTrimsValue(t *testing.T) {
 	builder := NewBun().WithEntrypoint("  ./tools/main.ts  ")
 	require.Equal(t, "./tools/main.ts", builder.config.EntrypointPath)
 }
 
 func TestWithEntrypointEmptyAddsError(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithEntrypoint("  ")
 	require.NotEmpty(t, builder.errors)
 }
 
 func TestWithBunPermissionsStoresNormalizedValues(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithBunPermissions(" --allow-read ", "--ALLOW-NET", "--allow-read")
 	require.Equal(t, []string{"--allow-read", "--allow-net"}, builder.config.BunPermissions)
 }
 
 func TestWithBunPermissionsPreservesScopeValues(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithBunPermissions("--allow-env=API_KEY,API_SECRET")
 	require.Equal(t, []string{"--allow-env=API_KEY,API_SECRET"}, builder.config.BunPermissions)
 }
 
 func TestWithBunPermissionsInvalidAddsError(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithBunPermissions("--allow-read", "invalid")
 	require.NotEmpty(t, builder.errors)
 	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "invalid bun permission")
 }
 
 func TestWithBunPermissionsRejectsEmptyScopes(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithBunPermissions("--allow-net=")
 	require.NotEmpty(t, builder.errors)
 	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "invalid bun permission")
 }
 
 func TestWithBunPermissionsValidatesRuntimeType(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun()
 	builder.config.RuntimeType = engineruntime.RuntimeTypeNode
 	builder = builder.WithBunPermissions("--allow-read")
@@ -91,48 +90,48 @@ func TestWithBunPermissionsValidatesRuntimeType(t *testing.T) {
 }
 
 func TestWithBunPermissionsAggregatesErrors(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithBunPermissions(" ", "--allow-net=", "--allow-env")
 	require.GreaterOrEqual(t, len(builder.errors), 2)
 }
 
-func TestWithMaxMemoryMBStoresValue(t *testing.T) {
-	t.Parallel()
+func TestWithBunPermissionsRequiresValues(t *testing.T) {
+	builder := NewBun().WithBunPermissions()
+	require.NotEmpty(t, builder.errors)
+	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "at least one bun permission must be provided")
+}
 
+func TestWithMaxMemoryMBStoresValue(t *testing.T) {
 	builder := NewBun().WithMaxMemoryMB(512)
 	require.Equal(t, 512, builder.config.MaxMemoryMB)
 }
 
 func TestWithMaxMemoryMBInvalidAddsError(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithMaxMemoryMB(0)
 	require.NotEmpty(t, builder.errors)
 	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "max memory must be positive")
 }
 
 func TestWithToolTimeoutStoresValue(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithToolTimeout(45 * time.Second)
 	require.Equal(t, 45*time.Second, builder.config.ToolExecutionTimeout)
 }
 
 func TestWithToolTimeoutInvalidAddsError(t *testing.T) {
-	t.Parallel()
-
 	builder := NewBun().WithToolTimeout(0)
 	require.NotEmpty(t, builder.errors)
 	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "tool timeout must be positive")
 	require.NotZero(t, builder.config.ToolExecutionTimeout)
 }
 
-func TestBuildReturnsClonedConfig(t *testing.T) {
-	t.Parallel()
+func TestWithNativeToolsNilClearsConfig(t *testing.T) {
+	builder := NewBun().WithNativeTools(&engineruntime.NativeToolsConfig{CallAgents: true})
+	builder.WithNativeTools(nil)
+	require.Nil(t, builder.config.NativeTools)
+}
 
+func TestBuildReturnsClonedConfig(t *testing.T) {
 	recLogger := &recordingLogger{}
-	ctx := logger.ContextWithLogger(t.Context(), recLogger)
+	ctx := logger.ContextWithLogger(testutil.NewTestContext(t), recLogger)
 	builder := NewBun().
 		WithEntrypoint("./tools/main.ts").
 		WithBunPermissions("--allow-read", "--allow-env").
@@ -149,9 +148,7 @@ func TestBuildReturnsClonedConfig(t *testing.T) {
 }
 
 func TestBuildFailsWhenEntrypointMissing(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 	builder := NewBun().WithMaxMemoryMB(128)
 	config, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -162,9 +159,7 @@ func TestBuildFailsWhenEntrypointMissing(t *testing.T) {
 }
 
 func TestBuildFailsForInvalidPermissions(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 	builder := NewBun().
 		WithEntrypoint("./tools/main.ts").
 		WithBunPermissions("invalid")
@@ -177,9 +172,7 @@ func TestBuildFailsForInvalidPermissions(t *testing.T) {
 }
 
 func TestBuildFailsForInvalidMemory(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 	builder := NewBun().
 		WithEntrypoint("./tools/main.ts").
 		WithMaxMemoryMB(-32)
@@ -189,9 +182,7 @@ func TestBuildFailsForInvalidMemory(t *testing.T) {
 }
 
 func TestBuildFailsForInvalidToolTimeout(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 	builder := NewBun().WithEntrypoint("./tools/main.ts")
 	builder.config.ToolExecutionTimeout = 0
 	config, err := builder.Build(ctx)
@@ -199,10 +190,18 @@ func TestBuildFailsForInvalidToolTimeout(t *testing.T) {
 	require.Nil(t, config)
 }
 
-func TestBuildFailsWhenPermissionsMismatchRuntimeType(t *testing.T) {
-	t.Parallel()
+func TestBuildFailsWhenPermissionsMissing(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
+	builder := NewBun().WithEntrypoint("./tools/main.ts")
+	builder.config.BunPermissions = nil
+	config, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, config)
+	require.Contains(t, err.Error(), "at least one bun permission is required")
+}
 
-	ctx := t.Context()
+func TestBuildFailsWhenPermissionsMismatchRuntimeType(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
 	builder := NewBun().WithEntrypoint("./tools/main.ts")
 	builder.config.RuntimeType = engineruntime.RuntimeTypeNode
 	builder.config.BunPermissions = []string{"--allow-read"}
@@ -212,9 +211,7 @@ func TestBuildFailsWhenPermissionsMismatchRuntimeType(t *testing.T) {
 }
 
 func TestWithNativeToolsConfiguresRuntime(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 	tools := &engineruntime.NativeToolsConfig{CallAgents: true, CallWorkflows: true}
 	builder := NewBun().
 		WithEntrypoint("./tools/main.ts").
@@ -229,9 +226,7 @@ func TestWithNativeToolsConfiguresRuntime(t *testing.T) {
 }
 
 func TestRuntimeBuilderIntegrationWithEngineConfig(t *testing.T) {
-	t.Parallel()
-
-	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(testutil.NewTestContext(t), logger.NewForTests())
 	builder := NewBun().
 		WithEntrypoint("./tools/main.ts").
 		WithBunPermissions("--allow-read", "--allow-net=api.example.com").
@@ -245,4 +240,28 @@ func TestRuntimeBuilderIntegrationWithEngineConfig(t *testing.T) {
 	require.Equal(t, config.BunPermissions, merged.BunPermissions)
 	require.Equal(t, config.ToolExecutionTimeout, merged.ToolExecutionTimeout)
 	require.Equal(t, config.EntrypointPath, merged.EntrypointPath)
+}
+
+func TestBuildCloneFailure(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
+	builder := NewBun().WithEntrypoint("./tools/main.ts")
+	original := cloneRuntimeConfig
+	cloneRuntimeConfig = func(*engineruntime.Config) (*engineruntime.Config, error) {
+		return nil, fmt.Errorf("clone failed")
+	}
+	t.Cleanup(func() {
+		cloneRuntimeConfig = original
+	})
+	cfg, err := builder.Build(ctx)
+	require.Nil(t, cfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to clone runtime config")
+}
+
+func TestBuildRequiresContext(t *testing.T) {
+	builder := NewBun().WithEntrypoint("./tools/main.ts")
+	cfg, err := builder.Build(nil)
+	require.Nil(t, cfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "context is required")
 }

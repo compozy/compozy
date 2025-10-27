@@ -17,7 +17,11 @@ func BenchmarkKnowledgeBaseBuilderSimple(b *testing.B) {
 	setupCtx := testutil.NewBenchmarkContext(b)
 	fileSource := mustBuildSource(b, setupCtx, NewFileSource(doc))
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := NewBase("kb-simple").WithDescription("Simple knowledge base").WithEmbedder("embedder-default").WithVectorDB("vectordb-default")
+		builder := NewBase(
+			"kb-simple",
+		).WithDescription("Simple knowledge base").
+			WithEmbedder("embedder-default").
+			WithVectorDB("vectordb-default")
 		builder.AddSource(fileSource)
 		return builder.Build(ctx)
 	})
@@ -32,7 +36,15 @@ func BenchmarkKnowledgeBaseBuilderMedium(b *testing.B) {
 	urlSource := mustBuildSource(b, setupCtx, NewURLSource("https://example.com/one", "https://example.com/two"))
 	apiSource := mustBuildSource(b, setupCtx, NewAPISource("confluence"))
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := NewBase("kb-medium").WithDescription("Medium knowledge base").WithEmbedder("embedder-team").WithVectorDB("vectordb-medium").WithChunking(ChunkStrategyRecursiveTextSplitter, 512, 64).WithRetrieval(10, 0.35, 2048).WithIngestMode(IngestModeOnStart).WithPreprocess(true, true)
+		builder := NewBase(
+			"kb-medium",
+		).WithDescription("Medium knowledge base").
+			WithEmbedder("embedder-team").
+			WithVectorDB("vectordb-medium").
+			WithChunking(ChunkStrategyRecursiveTextSplitter, 512, 64).
+			WithRetrieval(10, 0.35, 2048).
+			WithIngestMode(IngestModeOnStart).
+			WithPreprocess(true, true)
 		builder.AddSource(dirSource)
 		builder.AddSource(urlSource)
 		builder.AddSource(apiSource)
@@ -49,7 +61,15 @@ func BenchmarkKnowledgeBaseBuilderComplex(b *testing.B) {
 	fileSource := mustBuildSource(b, setupCtx, NewFileSource(writeTempDoc(b, "policy.md", "policy content")))
 	urlSource := mustBuildSource(b, setupCtx, NewURLSource("https://docs.example.com/a", "https://docs.example.com/b"))
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := NewBase("kb-complex").WithDescription("Comprehensive knowledge base").WithEmbedder("embedder-pro").WithVectorDB("vectordb-pro").WithChunking(ChunkStrategyRecursiveTextSplitter, 384, 32).WithRetrieval(20, 0.25, 4096).WithIngestMode(IngestModeManual).WithPreprocess(true, false)
+		builder := NewBase(
+			"kb-complex",
+		).WithDescription("Comprehensive knowledge base").
+			WithEmbedder("embedder-pro").
+			WithVectorDB("vectordb-pro").
+			WithChunking(ChunkStrategyRecursiveTextSplitter, 384, 32).
+			WithRetrieval(20, 0.25, 4096).
+			WithIngestMode(IngestModeManual).
+			WithPreprocess(true, false)
 		builder.AddSource(directorySource)
 		builder.AddSource(fileSource)
 		builder.AddSource(urlSource)
@@ -62,7 +82,11 @@ func BenchmarkKnowledgeBaseBuilderParallel(b *testing.B) {
 	setupCtx := testutil.NewBenchmarkContext(b)
 	source := mustBuildSource(b, setupCtx, NewFileSource(doc))
 	testutil.RunParallelBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := NewBase("kb-parallel").WithEmbedder("embedder-parallel").WithVectorDB("vectordb-parallel").WithRetrieval(5, 0.4, 1024)
+		builder := NewBase(
+			"kb-parallel",
+		).WithEmbedder("embedder-parallel").
+			WithVectorDB("vectordb-parallel").
+			WithRetrieval(5, 0.4, 1024)
 		builder.AddSource(source)
 		return builder.Build(ctx)
 	})

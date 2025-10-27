@@ -87,7 +87,11 @@ func BenchmarkCompozyBuilderParallel(b *testing.B) {
 	})
 }
 
-func buildBenchmarkProject(b *testing.B, ctx context.Context, workflowCount int) (*engineproject.Config, []*engineworkflow.Config) {
+func buildBenchmarkProject(
+	b *testing.B,
+	ctx context.Context,
+	workflowCount int,
+) (*engineproject.Config, []*engineworkflow.Config) {
 	b.Helper()
 	workflows := make([]*engineworkflow.Config, workflowCount)
 	agents := make([]*agent.Config, 0, workflowCount)
@@ -99,7 +103,10 @@ func buildBenchmarkProject(b *testing.B, ctx context.Context, workflowCount int)
 			agents = append(agents, &agentCfg)
 		}
 	}
-	projectBuilder := projectsdk.New(testutil.BenchmarkID("project", workflowCount+1)).WithVersion("1.0.0").WithDescription("Benchmark project").WithAuthor("Bench Bot", "bench@example.com", "Compozy")
+	projectBuilder := projectsdk.New(testutil.BenchmarkID("project", workflowCount+1)).
+		WithVersion("1.0.0").
+		WithDescription("Benchmark project").
+		WithAuthor("Bench Bot", "bench@example.com", "Compozy")
 	projectBuilder.AddModel(testutil.NewTestModel("openai", fmt.Sprintf("gpt-4o-mini-%d", workflowCount)))
 	for _, wf := range workflows {
 		projectBuilder.AddWorkflow(wf)

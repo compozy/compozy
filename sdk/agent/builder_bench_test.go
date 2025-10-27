@@ -30,7 +30,10 @@ func BenchmarkAgentBuilderMedium(b *testing.B) {
 	memoryRefs := buildMemoryReferences(b, setupCtx, 2)
 	knowledgeBinding := buildKnowledgeBinding(b, setupCtx, testutil.BenchmarkID("kb", 1))
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := New("agent-medium").WithInstructions("Respond with detailed reasoning").WithModel("openai", "gpt-4o-mini")
+		builder := New(
+			"agent-medium",
+		).WithInstructions("Respond with detailed reasoning").
+			WithModel("openai", "gpt-4o-mini")
 		builder.AddTool("search")
 		builder.AddTool("calendar")
 		builder.AddMCP("slack")
@@ -52,7 +55,10 @@ func BenchmarkAgentBuilderComplex(b *testing.B) {
 	memoryRefs := buildMemoryReferences(b, setupCtx, 4)
 	knowledgeBinding := buildKnowledgeBinding(b, setupCtx, testutil.BenchmarkID("kb", 9))
 	testutil.RunBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := New("agent-complex").WithInstructions("Perform multi-step analysis with citations").WithModel("openai", "gpt-4o-mini")
+		builder := New(
+			"agent-complex",
+		).WithInstructions("Perform multi-step analysis with citations").
+			WithModel("openai", "gpt-4o-mini")
 		builder.AddTool("search")
 		builder.AddTool("calendar")
 		builder.AddTool("notifier")
@@ -77,7 +83,10 @@ func BenchmarkAgentBuilderParallel(b *testing.B) {
 	setupCtx := testutil.NewBenchmarkContext(b)
 	actions := buildAgentActions(b, setupCtx, 2)
 	testutil.RunParallelBuilderBenchmark(b, func(ctx context.Context) (any, error) {
-		builder := New("agent-parallel").WithInstructions("Handle concurrent requests").WithModel("openai", "gpt-4o-mini")
+		builder := New(
+			"agent-parallel",
+		).WithInstructions("Handle concurrent requests").
+			WithModel("openai", "gpt-4o-mini")
 		builder.AddTool("search")
 		for _, action := range actions {
 			builder.AddAction(action)

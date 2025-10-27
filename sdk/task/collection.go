@@ -44,7 +44,7 @@ func (b *CollectionBuilder) WithCollection(collection string) *CollectionBuilder
 		b.errors = append(b.errors, fmt.Errorf("collection source expression cannot be empty"))
 		return b
 	}
-	b.config.CollectionConfig.Items = trimmed
+	b.config.Items = trimmed
 	return b
 }
 
@@ -77,10 +77,10 @@ func (b *CollectionBuilder) WithItemVar(varName string) *CollectionBuilder {
 	trimmed := strings.TrimSpace(varName)
 	if trimmed == "" {
 		b.errors = append(b.errors, fmt.Errorf("item variable name cannot be empty"))
-		b.config.CollectionConfig.ItemVar = ""
+		b.config.ItemVar = ""
 		return b
 	}
-	b.config.CollectionConfig.ItemVar = trimmed
+	b.config.ItemVar = trimmed
 	return b
 }
 
@@ -98,7 +98,7 @@ func (b *CollectionBuilder) Build(ctx context.Context) (*enginetask.Config, erro
 		"task",
 		b.config.ID,
 		"collection",
-		b.config.CollectionConfig.Items,
+		b.config.Items,
 		"hasTask",
 		b.config.Task != nil,
 	)
@@ -119,7 +119,7 @@ func (b *CollectionBuilder) Build(ctx context.Context) (*enginetask.Config, erro
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
 
-	b.config.CollectionConfig.Default()
+	b.config.Default()
 	if b.config.Task != nil {
 		b.config.Task.Resource = string(core.ConfigTask)
 		b.config.Task.Type = ""
@@ -142,13 +142,13 @@ func (b *CollectionBuilder) validateID(ctx context.Context) error {
 }
 
 func (b *CollectionBuilder) validateCollection(ctx context.Context) error {
-	items := strings.TrimSpace(b.config.CollectionConfig.Items)
+	items := strings.TrimSpace(b.config.Items)
 	if err := validate.ValidateNonEmpty(ctx, "collection items", items); err != nil {
 		return err
 	}
-	b.config.CollectionConfig.Items = items
-	if trimmed := strings.TrimSpace(b.config.CollectionConfig.ItemVar); trimmed != "" {
-		b.config.CollectionConfig.ItemVar = trimmed
+	b.config.Items = items
+	if trimmed := strings.TrimSpace(b.config.ItemVar); trimmed != "" {
+		b.config.ItemVar = trimmed
 	}
 	return nil
 }

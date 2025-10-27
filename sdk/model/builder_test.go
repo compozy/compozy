@@ -13,7 +13,6 @@ import (
 )
 
 func TestNewNormalizesProvider(t *testing.T) {
-
 	cases := []struct {
 		name     string
 		provider string
@@ -38,6 +37,18 @@ func TestNewNormalizesProvider(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNilBuilderFluentMethods(t *testing.T) {
+	var builder *Builder
+	require.Nil(t, builder.WithAPIKey("key"))
+	require.Nil(t, builder.WithAPIURL("url"))
+	require.Nil(t, builder.WithTemperature(0.5))
+	require.Nil(t, builder.WithMaxTokens(1))
+	require.Nil(t, builder.WithTopP(0.5))
+	require.Nil(t, builder.WithFrequencyPenalty(0.1))
+	require.Nil(t, builder.WithPresencePenalty(0.1))
+	require.Nil(t, builder.WithDefault(true))
 }
 
 func TestWithAPIKeyAppliesTrimmedValue(t *testing.T) {
@@ -174,6 +185,7 @@ func TestPenaltyRangeValidation(t *testing.T) {
 func TestPenaltyInvalid(t *testing.T) {
 	builder := New("openai", "gpt-4")
 	builder.WithFrequencyPenalty(3)
+	builder.WithPresencePenalty(3)
 
 	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
@@ -181,6 +193,9 @@ func TestPenaltyInvalid(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "frequency penalty") {
 		t.Fatalf("expected frequency penalty error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "presence penalty") {
+		t.Fatalf("expected presence penalty error, got %v", err)
 	}
 }
 

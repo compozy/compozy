@@ -17,7 +17,13 @@ func BenchmarkTaskBuilders(b *testing.B) {
 		{
 			name: "basic",
 			build: func(ctx context.Context) (any, error) {
-				return NewBasic("task-basic").WithAgent("assistant").WithAction("reply").WithInput(map[string]string{"prompt": "{{ .workflow.input.prompt }}"}).WithOutput("summary={{ .task.output.summary }}").Build(ctx)
+				return NewBasic(
+					"task-basic",
+				).WithAgent("assistant").
+					WithAction("reply").
+					WithInput(map[string]string{"prompt": "{{ .workflow.input.prompt }}"}).
+					WithOutput("summary={{ .task.output.summary }}").
+					Build(ctx)
 			},
 		},
 		{
@@ -33,19 +39,34 @@ func BenchmarkTaskBuilders(b *testing.B) {
 		{
 			name: "collection",
 			build: func(ctx context.Context) (any, error) {
-				return NewCollection("task-collection").WithCollection("{{ .input.items }}").WithTask("process-item").WithItemVar("item").Build(ctx)
+				return NewCollection(
+					"task-collection",
+				).WithCollection("{{ .input.items }}").
+					WithTask("process-item").
+					WithItemVar("item").
+					Build(ctx)
 			},
 		},
 		{
 			name: "composite",
 			build: func(ctx context.Context) (any, error) {
-				return NewComposite("task-composite").WithWorkflow("child-workflow").WithInput(map[string]string{"source": "{{ .workflow.input }}"}).Build(ctx)
+				return NewComposite(
+					"task-composite",
+				).WithWorkflow("child-workflow").
+					WithInput(map[string]string{"source": "{{ .workflow.input }}"}).
+					Build(ctx)
 			},
 		},
 		{
 			name: "memory",
 			build: func(ctx context.Context) (any, error) {
-				return NewMemoryTask("task-memory").WithOperation("append").WithMemory("session-store").WithContent("{{ .workflow.input.message }}").WithKeyTemplate("{{ .workflow.id }}:{{ .task.id }}").Build(ctx)
+				return NewMemoryTask(
+					"task-memory",
+				).WithOperation("append").
+					WithMemory("session-store").
+					WithContent("{{ .workflow.input.message }}").
+					WithKeyTemplate("{{ .workflow.id }}:{{ .task.id }}").
+					Build(ctx)
 			},
 		},
 		{
@@ -72,13 +93,23 @@ func BenchmarkTaskBuilders(b *testing.B) {
 			name: "signal",
 			build: func(ctx context.Context) (any, error) {
 				payload := map[string]any{"customer": "{{ .workflow.input.customer }}", "amount": 42}
-				return NewSignal("task-signal").Send("payment-signal", payload).OnSuccess("task-next").WithTimeout(15 * time.Second).Build(ctx)
+				return NewSignal(
+					"task-signal",
+				).Send("payment-signal", payload).
+					OnSuccess("task-next").
+					WithTimeout(15 * time.Second).
+					Build(ctx)
 			},
 		},
 		{
 			name: "wait",
 			build: func(ctx context.Context) (any, error) {
-				return NewWait("task-wait").WithSignal("approval-signal").WithCondition("input.status == \"approved\"").WithTimeout(60 * time.Second).Build(ctx)
+				return NewWait(
+					"task-wait",
+				).WithSignal("approval-signal").
+					WithCondition("input.status == \"approved\"").
+					WithTimeout(60 * time.Second).
+					Build(ctx)
 			},
 		},
 	}
