@@ -1,0 +1,30 @@
+id: calculator
+version: 0.1.0
+description: Deterministic style workflow used in integration tests to verify standalone Temporal execution.
+
+schemas:
+  - id: calculator_input
+    type: object
+    properties:
+      a:
+        type: number
+        description: First operand
+        default: 40
+      b:
+        type: number
+        description: Second operand
+        default: 2
+    required:
+      - a
+      - b
+
+config:
+  input: calculator_input
+
+tasks:
+  - id: compute
+    type: basic
+    prompt: |-
+      Perform deterministic arithmetic. Add {{ .workflow.input.a }} and {{ .workflow.input.b }}.
+      Return the sum as a plain number with no prose.
+    final: true

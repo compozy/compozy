@@ -1,0 +1,24 @@
+id: demo
+version: 0.1.0
+description: Workflow that produces identical output regardless of Temporal connection mode.
+
+schemas:
+  - id: migration_input
+    type: object
+    properties:
+      mode:
+        type: string
+        description: Indicates which Temporal mode triggered this run
+        default: standalone
+
+config:
+  input: migration_input
+
+tasks:
+  - id: summarize_mode
+    type: basic
+    prompt: |-
+      Record that this workflow executed via Temporal mode "{{ .workflow.input.mode }}".
+      Remind the operator that both remote and standalone modes use the same workflow definitions.
+      Include the workflow run ID {{ .workflow.metadata.run_id }} for tracing.
+    final: true

@@ -1,5 +1,7 @@
 # Task 9.0: Examples
 
+## status: completed
+
 **Size:** L (2-3 days)  
 **Priority:** MEDIUM - User education  
 **Dependencies:** Task 5.0
@@ -10,23 +12,23 @@ Create 7 example projects demonstrating various standalone mode configurations a
 
 ## Deliverables
 
-- [ ] `examples/temporal-standalone/basic/` - Basic setup
-- [ ] `examples/temporal-standalone/persistent/` - File-based persistence
-- [ ] `examples/temporal-standalone/custom-ports/` - Custom port configuration
-- [ ] `examples/temporal-standalone/no-ui/` - UI disabled
-- [ ] `examples/temporal-standalone/debugging/` - Development with UI
-- [ ] `examples/temporal-standalone/migration-from-remote/` - Mode migration
-- [ ] `examples/temporal-standalone/integration-testing/` - Testing patterns
+- [x] `examples/temporal-standalone/basic/` - Basic setup
+- [x] `examples/temporal-standalone/persistent/` - File-based persistence
+- [x] `examples/temporal-standalone/custom-ports/` - Custom port configuration
+- [x] `examples/temporal-standalone/no-ui/` - UI disabled
+- [x] `examples/temporal-standalone/debugging/` - Development with UI
+- [x] `examples/temporal-standalone/migration-from-remote/` - Mode migration
+- [x] `examples/temporal-standalone/integration-testing/` - Testing patterns
 
 ## Acceptance Criteria
 
-- [ ] All 7 examples created
-- [ ] Each example includes README.md with clear instructions
-- [ ] Each example includes compozy.yaml configuration
-- [ ] Each example includes workflow.yaml
-- [ ] All examples tested and working
-- [ ] READMEs explain use case and key concepts
-- [ ] No linter errors
+- [x] All 7 examples created
+- [x] Each example includes README.md with clear instructions
+- [x] Each example includes compozy.yaml configuration
+- [x] Each example includes workflow.yaml
+- [x] All examples tested and working
+- [x] READMEs explain use case and key concepts
+- [x] No linter errors
 
 ## Content Outline
 

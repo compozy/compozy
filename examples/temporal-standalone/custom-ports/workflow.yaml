@@ -1,0 +1,25 @@
+id: demo
+version: 0.1.0
+description: Confirms connectivity when the Temporal frontend and UI run on custom ports.
+
+schemas:
+  - id: environment_input
+    type: object
+    properties:
+      environment:
+        type: string
+        description: Short label for this instance
+        default: custom-ports
+
+config:
+  input: environment_input
+
+tasks:
+  - id: confirm_ports
+    type: basic
+    prompt: |-
+      You are verifying a Temporal standalone deployment that uses custom ports.
+      Mention that the frontend is reachable at 127.0.0.1:8233, the UI at http://localhost:9233,
+      and note the supplied environment label {{ .workflow.input.environment }}.
+      Produce a short confirmation message.
+    final: true

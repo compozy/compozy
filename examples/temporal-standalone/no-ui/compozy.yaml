@@ -1,0 +1,27 @@
+name: temporal-standalone-no-ui
+version: 0.1.0
+description: Standalone Temporal configuration optimized for headless environments with the UI disabled.
+
+temporal:
+  mode: standalone
+  host_port: 127.0.0.1:7233
+  namespace: default
+  task_queue: headless-example
+  standalone:
+    database_file: ":memory:"
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-standalone
+    enable_ui: false
+    ui_port: 8233
+    log_level: warn
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
+
+workflows:
+  - source: ./workflow.yaml

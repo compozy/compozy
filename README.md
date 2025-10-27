@@ -80,7 +80,7 @@ Our documentation website is the best place to find comprehensive information, t
 | 🧠 **[Memory & Context](./docs/content/docs/core/memory/overview.mdx)**             | Managing agent memory and conversation context   |
 | 🔌 **[MCP Integration](./docs/content/docs/core/mcp/overview.mdx)**                 | Model Context Protocol for external tool servers |
 | 📡 **[Signal System](./docs/content/docs/core/signals/overview.mdx)**               | Event-driven communication between components    |
-| 🚀 **[Deployment](./docs/content/docs/deployment/docker.mdx)**                 | Deploy Compozy to production environments        |
+| 🚀 **[Deployment](./docs/content/docs/deployment/docker.mdx)**                      | Deploy Compozy to production environments        |
 | 💻 **[CLI Reference](./docs/content/docs/cli/overview.mdx)**                        | Command-line interface reference                 |
 | 📋 **[Schema Definition](./docs/content/docs/schema/project.mdx)**                  | YAML schema definitions for all components       |
 | 🔌 **[API Reference](./docs/content/docs/api/overview.mdx)**                        | REST API for programmatic access                 |

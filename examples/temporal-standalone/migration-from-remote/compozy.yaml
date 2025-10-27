@@ -1,0 +1,27 @@
+name: temporal-migration-standalone
+version: 0.1.0
+description: Standalone Temporal configuration used during migration testing.
+
+temporal:
+  mode: standalone
+  host_port: 127.0.0.1:7233
+  namespace: demo
+  task_queue: migration-demo
+  standalone:
+    database_file: ":memory:"
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: demo
+    cluster_name: compozy-standalone
+    enable_ui: true
+    ui_port: 8233
+    log_level: info
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
+
+workflows:
+  - source: ./workflow.yaml

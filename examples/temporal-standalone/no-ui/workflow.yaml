@@ -1,0 +1,24 @@
+id: minimal
+version: 0.1.0
+description: Runs a lightweight workflow suitable for CI environments without a Temporal UI.
+
+schemas:
+  - id: message_input
+    type: object
+    properties:
+      note:
+        type: string
+        description: Optional note to include in the log output
+        default: Running in headless mode
+
+config:
+  input: message_input
+
+tasks:
+  - id: log_note
+    type: basic
+    prompt: |-
+      Confirm that Temporal standalone is running without the Web UI.
+      Mention that monitoring happens via CLI commands and include the provided note:
+      "{{ .workflow.input.note }}".
+    final: true

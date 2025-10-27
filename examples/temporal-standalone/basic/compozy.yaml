@@ -1,0 +1,27 @@
+name: temporal-standalone-basic
+version: 0.1.0
+description: Minimal standalone Temporal configuration with in-memory persistence and Web UI enabled.
+
+temporal:
+  mode: standalone
+  host_port: 127.0.0.1:7233
+  namespace: default
+  task_queue: basic-example
+  standalone:
+    database_file: ":memory:"
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-standalone
+    enable_ui: true
+    ui_port: 8233
+    log_level: info
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
+
+workflows:
+  - source: ./workflow.yaml

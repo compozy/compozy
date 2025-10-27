@@ -1,0 +1,27 @@
+id: counter
+version: 0.1.0
+description: Writes a counter entry so you can verify persistence after restarting standalone Temporal.
+
+schemas:
+  - id: counter_input
+    type: object
+    properties:
+      increment:
+        type: integer
+        description: Amount to add to the running count in this demonstration
+        default: 1
+    required:
+      - increment
+
+config:
+  input: counter_input
+
+tasks:
+  - id: document_increment
+    type: basic
+    prompt: |-
+      You are updating a development log for a counter workflow that runs on Temporal
+      standalone mode with file persistence. Document the increment value ({{ .workflow.input.increment }})
+      and instruct the operator to check the Temporal Web UI history after a restart to see that this run
+      persists. Include the workflow run ID in your response using {{ .workflow.metadata.run_id }}.
+    final: true
