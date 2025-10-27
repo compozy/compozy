@@ -426,22 +426,22 @@ func validateStandaloneDatabase(standalone *StandaloneConfig) error {
 
 func validateStandalonePorts(standalone *StandaloneConfig) error {
 	if standalone.FrontendPort < 1 || standalone.FrontendPort > maxTCPPort {
-		return fmt.Errorf("temporal.standalone.frontend_port must be between 1 and 65535")
+		return fmt.Errorf("temporal.standalone.frontend_port must be between 1 and %d", maxTCPPort)
 	}
 	if standalone.FrontendPort+temporalServiceSpan > maxTCPPort {
 		return fmt.Errorf("temporal.standalone.frontend_port reserves out-of-range service port")
 	}
 	if standalone.EnableUI {
 		if standalone.UIPort < 1 || standalone.UIPort > maxTCPPort {
-			return fmt.Errorf("temporal.standalone.ui_port must be between 1 and 65535 when enable_ui is true")
+			return fmt.Errorf("temporal.standalone.ui_port must be between 1 and %d when enable_ui is true", maxTCPPort)
 		}
 		start := standalone.FrontendPort
 		end := standalone.FrontendPort + temporalServiceSpan
 		if standalone.UIPort >= start && standalone.UIPort <= end {
 			return fmt.Errorf("temporal.standalone.ui_port must not collide with service ports [%d-%d]", start, end)
 		}
-	} else if standalone.UIPort != 0 && (standalone.UIPort < 1 || standalone.UIPort > 65535) {
-		return fmt.Errorf("temporal.standalone.ui_port must be between 1 and 65535 when set")
+	} else if standalone.UIPort != 0 && (standalone.UIPort < 1 || standalone.UIPort > maxTCPPort) {
+		return fmt.Errorf("temporal.standalone.ui_port must be between 1 and %d when set", maxTCPPort)
 	}
 	return nil
 }
@@ -591,14 +591,14 @@ func validateNativeToolTimeouts(cfg *Config) error {
 	return nil
 }
 
-// validateTCPPort validates that a string represents a valid TCP port number (1-65535)
+// validateTCPPort validates that a string represents a valid TCP port number (1-maxTCPPort)
 func validateTCPPort(portStr, fieldName string) error {
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		return fmt.Errorf("%s must be a valid integer, got: %s", fieldName, portStr)
 	}
-	if port < 1 || port > 65535 {
-		return fmt.Errorf("%s must be between 1 and 65535, got: %d", fieldName, port)
+	if port < 1 || port > maxTCPPort {
+		return fmt.Errorf("%s must be between 1 and %d, got: %d", fieldName, maxTCPPort, port)
 	}
 	return nil
 }

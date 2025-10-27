@@ -3,6 +3,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net"
@@ -39,7 +40,9 @@ func TestStandaloneServerLifecycle(t *testing.T) {
 		require.NoError(t, srv.Stop(ctx))
 	})
 
-	require.NoError(t, srv.Start(ctx))
+	startCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	require.NoError(t, srv.Start(startCtx))
 	require.NotEmpty(t, srv.FrontendAddress())
 }
 

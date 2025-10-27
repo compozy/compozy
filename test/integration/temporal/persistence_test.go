@@ -37,6 +37,9 @@ func TestStandalonePersistence(t *testing.T) {
 		restartCfg.FrontendPort = findAvailablePortRange(restartCtx, t, 4)
 		restartCfg.Namespace = cfg.Namespace
 		restarted := startStandaloneServer(restartCtx, t, restartCfg)
+		t.Cleanup(func() {
+			stopTemporalServer(restartCtx, t, restarted)
+		})
 		resp, err := describeWorkflow(
 			restartCtx,
 			t,

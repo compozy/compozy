@@ -37,6 +37,9 @@ func TestStandaloneModeActivation(t *testing.T) {
 		cfg.Temporal.Standalone.FrontendPort = findAvailablePortRange(ctx, t, 4)
 		embeddedCfg := toEmbeddedConfig(&cfg.Temporal.Standalone)
 		server := startStandaloneServer(ctx, t, embeddedCfg)
+		t.Cleanup(func() {
+			stopTemporalServer(ctx, t, server)
+		})
 		cfg.Temporal.HostPort = server.FrontendAddress()
 		require.NotEqual(t, oldHostPort, cfg.Temporal.HostPort)
 

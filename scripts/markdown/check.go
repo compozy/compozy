@@ -1871,7 +1871,7 @@ func waitForProcessTermination(cmdDone <-chan error, cmd *exec.Cmd, index int, u
 		if !useUI {
 			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully after timeout\n", index+1)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(processTerminationGracePeriod):
 		forceKillProcess(cmd, index, useUI)
 	}
 }

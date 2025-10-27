@@ -45,15 +45,17 @@ func TestStandaloneMemoryMode(t *testing.T) {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
 
-	t.Helper()
-	ctx := helpers.NewTestContext(t)
-	cfg := newEmbeddedConfigFromDefaults()
-	cfg.DatabaseFile = ":memory:"
-	cfg.EnableUI = false
-	cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-	server := startStandaloneServer(ctx, t, cfg)
-	exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
-	require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+	t.Run("Should execute workflow using in-memory persistence", func(t *testing.T) {
+		t.Helper()
+		ctx := helpers.NewTestContext(t)
+		cfg := newEmbeddedConfigFromDefaults()
+		cfg.DatabaseFile = ":memory:"
+		cfg.EnableUI = false
+		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
+		server := startStandaloneServer(ctx, t, cfg)
+		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
+		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+	})
 }
 
 func TestStandaloneFileMode(t *testing.T) {
@@ -61,20 +63,22 @@ func TestStandaloneFileMode(t *testing.T) {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
 
-	t.Helper()
-	ctx := helpers.NewTestContext(t)
-	dbPath := filepath.Join(t.TempDir(), "temporal.db")
-	cfg := newEmbeddedConfigFromDefaults()
-	cfg.DatabaseFile = dbPath
-	cfg.EnableUI = false
-	cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-	server := startStandaloneServer(ctx, t, cfg)
-	exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
-	require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
-	require.Eventually(t, func() bool {
-		info, err := os.Stat(dbPath)
-		return err == nil && info.Size() > 0
-	}, 5*time.Second, 100*time.Millisecond)
+	t.Run("Should persist workflow results to disk", func(t *testing.T) {
+		t.Helper()
+		ctx := helpers.NewTestContext(t)
+		dbPath := filepath.Join(t.TempDir(), "temporal.db")
+		cfg := newEmbeddedConfigFromDefaults()
+		cfg.DatabaseFile = dbPath
+		cfg.EnableUI = false
+		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
+		server := startStandaloneServer(ctx, t, cfg)
+		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
+		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+		require.Eventually(t, func() bool {
+			info, err := os.Stat(dbPath)
+			return err == nil && info.Size() > 0
+		}, 5*time.Second, 100*time.Millisecond)
+	})
 }
 
 func TestStandaloneCustomPorts(t *testing.T) {
@@ -82,17 +86,19 @@ func TestStandaloneCustomPorts(t *testing.T) {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
 
-	t.Helper()
-	ctx := helpers.NewTestContext(t)
-	frontendPort := findAvailablePortRange(ctx, t, 4)
-	cfg := newEmbeddedConfigFromDefaults()
-	cfg.DatabaseFile = ":memory:"
-	cfg.FrontendPort = frontendPort
-	cfg.EnableUI = false
-	server := startStandaloneServer(ctx, t, cfg)
-	require.Equal(t, fmt.Sprintf("%s:%d", cfg.BindIP, cfg.FrontendPort), server.FrontendAddress())
-	exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
-	require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+	t.Run("Should honor custom port selection", func(t *testing.T) {
+		t.Helper()
+		ctx := helpers.NewTestContext(t)
+		frontendPort := findAvailablePortRange(ctx, t, 4)
+		cfg := newEmbeddedConfigFromDefaults()
+		cfg.DatabaseFile = ":memory:"
+		cfg.FrontendPort = frontendPort
+		cfg.EnableUI = false
+		server := startStandaloneServer(ctx, t, cfg)
+		require.Equal(t, fmt.Sprintf("%s:%d", cfg.BindIP, cfg.FrontendPort), server.FrontendAddress())
+		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
+		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+	})
 }
 
 func TestStandaloneWorkflowExecution(t *testing.T) {
@@ -100,22 +106,20 @@ func TestStandaloneWorkflowExecution(t *testing.T) {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
 
-	t.Helper()
-	ctx := helpers.NewTestContext(t)
-	cfg := newEmbeddedConfigFromDefaults()
-	cfg.DatabaseFile = ":memory:"
-	cfg.EnableUI = false
-	cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-	server := startStandaloneServer(ctx, t, cfg)
-	exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
-	require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
-	descClient := dialTemporalClient(t, server.FrontendAddress(), cfg.Namespace)
-	defer closeTemporalClient(t, descClient)
-	descCtx, cancel := context.WithTimeout(ctx, workflowTimeout)
-	defer cancel()
-	desc, err := descClient.DescribeWorkflowExecution(descCtx, exec.WorkflowID, exec.RunID)
-	require.NoError(t, err)
-	require.Equal(t, enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED, desc.WorkflowExecutionInfo.Status)
+	t.Run("Should report completed workflow execution", func(t *testing.T) {
+		t.Helper()
+		ctx := helpers.NewTestContext(t)
+		cfg := newEmbeddedConfigFromDefaults()
+		cfg.DatabaseFile = ":memory:"
+		cfg.EnableUI = false
+		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
+		server := startStandaloneServer(ctx, t, cfg)
+		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
+		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+		desc, err := describeWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace, exec.WorkflowID, exec.RunID)
+		require.NoError(t, err)
+		require.Equal(t, enumspb.WORKFLOW_EXECUTION_STATUS_COMPLETED, desc.WorkflowExecutionInfo.Status)
+	})
 }
 
 func startStandaloneServer(ctx context.Context, t *testing.T, cfg *embedded.Config) *embedded.Server {

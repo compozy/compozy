@@ -50,7 +50,7 @@ func buildTemporalConfig(cfg *Config) (*config.Config, error) {
 func calculateMetricsPort(cfg *Config) (int, error) {
 	metricsPort := cfg.FrontendPort + 1000
 	if metricsPort > maxPort {
-		return 0, fmt.Errorf("metrics port %d exceeds maximum", metricsPort)
+		return 0, fmt.Errorf("metrics port %d exceeds maximum for frontend port %d", metricsPort, cfg.FrontendPort)
 	}
 	return metricsPort, nil
 }

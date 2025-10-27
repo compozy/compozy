@@ -121,8 +121,6 @@ require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
 	github.com/apache/thrift v0.21.0 // indirect
-	// NOTE: Low-severity S3 Crypto SDK vulnerabilities (GO-2022-0635, GO-2022-0646) accepted.
-	// Codebase does not use S3 client-side encryption; verified via grep for s3crypto/s3/encryption.
 	github.com/aws/aws-sdk-go v1.55.6 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.36.3 // indirect
 	github.com/aws/smithy-go v1.22.3 // indirect
