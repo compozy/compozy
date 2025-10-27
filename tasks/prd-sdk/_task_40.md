@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/runtime</domain>
@@ -30,13 +30,13 @@ Implement the runtime builder base with Bun runtime support and core configurati
 
 ## Subtasks
 
-- [ ] 40.1 Create sdk/runtime/builder.go with Builder struct
-- [ ] 40.2 Implement NewBun() constructor
-- [ ] 40.3 Implement WithEntrypoint(path string) method
-- [ ] 40.4 Implement WithBunPermissions(permissions ...string) method
-- [ ] 40.5 Implement WithMaxMemoryMB(mb int) method
-- [ ] 40.6 Implement Build(ctx) with validation
-- [ ] 40.7 Add unit tests for runtime builder
+- [x] 40.1 Create sdk/runtime/builder.go with Builder struct
+- [x] 40.2 Implement NewBun() constructor
+- [x] 40.3 Implement WithEntrypoint(path string) method
+- [x] 40.4 Implement WithBunPermissions(permissions ...string) method
+- [x] 40.5 Implement WithMaxMemoryMB(mb int) method
+- [x] 40.6 Implement Build(ctx) with validation
+- [x] 40.7 Add unit tests for runtime builder
 
 ## Implementation Details
 
@@ -98,14 +98,14 @@ runtime.NewBun().
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] NewBun creates Bun runtime config
-- [ ] WithEntrypoint sets entrypoint path
-- [ ] WithBunPermissions stores permissions correctly
-- [ ] WithMaxMemoryMB sets memory limit
-- [ ] Build(ctx) validates entrypoint is required
-- [ ] Build(ctx) validates max memory > 0
-- [ ] Error cases: empty entrypoint, invalid permissions
-- [ ] Edge cases: multiple permission flags, relative paths
+- [x] NewBun creates Bun runtime config
+- [x] WithEntrypoint sets entrypoint path
+- [x] WithBunPermissions stores permissions correctly
+- [x] WithMaxMemoryMB sets memory limit
+- [x] Build(ctx) validates entrypoint is required
+- [x] Build(ctx) validates max memory > 0
+- [x] Error cases: empty entrypoint, invalid permissions
+- [x] Edge cases: multiple permission flags, relative paths
 
 ## Success Criteria
 

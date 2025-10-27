@@ -63,7 +63,7 @@
 - [x] 37.0 MCP: Transport (stdio/SSE) (S)
 - [x] 38.0 MCP: Headers/Env/Timeouts (S)
 - [x] 39.0 MCP: Proto + Sessions (S)
-- [ ] 40.0 Runtime: Bun (Base) (S)
+- [x] 40.0 Runtime: Bun (Base) (S)
 - [ ] 41.0 Runtime: Native Tools Builder (S)
 - [ ] 43.0 Runtime: Permissions + Tool Timeouts (S)
 - [ ] 44.0 Example: Simple Workflow (S)
