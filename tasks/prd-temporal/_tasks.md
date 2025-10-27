@@ -54,7 +54,7 @@
 
 ## Tasks
 
-- [ ] 1.0 Embedded Server Package Foundation (L - 3 days)
+- [x] 1.0 Embedded Server Package Foundation (L - 3 days)
 - [ ] 2.0 Embedded Server Lifecycle (M - 2 days)
 - [ ] 3.0 Configuration System Extension (M - 2 days)
 - [ ] 4.0 UI Server Implementation (M - 1-2 days)
@@ -130,7 +130,7 @@ PARALLEL LANES (after respective dependencies):
 
 ## Batch Plan (Grouped Commits)
 
-- [ ] **Batch 1 — Foundation:** 1.0
+- [x] **Batch 1 — Foundation:** 1.0
   - Complete embedded package with tests
   - Merge as single atomic commit
   
