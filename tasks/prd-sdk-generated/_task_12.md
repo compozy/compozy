@@ -8,7 +8,7 @@
 <dependencies>sdk2/model,sdk2/workflow</dependencies>
 </task_context>
 
-# Task 12.0: Update Example Files to Use Functional Options
+# Task 12.0: Create Consolidated Examples with Functional Options
 
 ## Overview
 
@@ -125,139 +125,158 @@ go run sdk2/examples --help
 - [ ] ✅ Collections use `WithXs()` (plural) with slices
 - [ ] ✅ Import engine packages for types
 
-## Example Files to Update
+## Example Functions to Implement
 
-**Note:** All files are in `sdk/cmd/` and will be MODIFIED (not created) to use sdk2 imports
+**Note:** All functions in single `sdk2/examples/main.go` file
 
-### 1. 01_simple_workflow/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Agent builder → functional options
-- Workflow builder → functional options
+### 1. RunSimpleWorkflow(ctx context.Context) error
+**Demonstrates:**
+- Basic agent creation with functional options
+- Simple workflow configuration
+- Model configuration
 
 **Complexity:** Simple (1 agent, 1 workflow)
 
-### 2. 02_parallel_tasks/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Agent builder → functional options
-- Parallel task builder → functional options
+### 2. RunParallelTasks(ctx context.Context) error
+**Demonstrates:**
+- Parallel task configuration
+- Multiple task execution
 
 **Complexity:** Simple (parallel tasks)
 
-### 3. 03_knowledge_rag/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Agent with knowledge → functional options
-- Knowledge base config → functional options
+### 3. RunKnowledgeRag(ctx context.Context) error
+**Demonstrates:**
+- Agent with knowledge base
+- Knowledge binding configuration
+- RAG pattern
 
 **Complexity:** Medium (knowledge integration)
 
-### 4. 04_memory_conversation/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Agent with memory → functional options
-- Memory config → functional options
+### 4. RunMemoryConversation(ctx context.Context) error
+**Demonstrates:**
+- Agent with memory
+- Memory configuration
+- Conversation persistence
 
 **Complexity:** Medium (memory integration)
 
-### 5. 06_runtime_native_tools/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Agent with runtime tools → functional options
-- Runtime config → functional options
-- Tool definitions → functional options
+### 5. RunRuntimeNativeTools(ctx context.Context) error
+**Demonstrates:**
+- Runtime configuration
+- Native tool definitions
+- Tool execution
 
 **Complexity:** Medium (runtime + tools)
 
-### 6. 07_scheduled_workflow/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Workflow → functional options
-- Schedule config → functional options
+### 6. RunScheduledWorkflow(ctx context.Context) error
+**Demonstrates:**
+- Schedule configuration
+- Cron-based execution
 
 **Complexity:** Simple (schedule integration)
 
-### 7. 08_signal_communication/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Workflow with signals → functional options
-- Signal task config → functional options
+### 7. RunSignalCommunication(ctx context.Context) error
+**Demonstrates:**
+- Signal tasks
+- Workflow communication
 
 **Complexity:** Medium (signal tasks)
 
-### 8. 10_complete_project/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Project builder → functional options
-- All nested configs → functional options
-- Multiple agents, workflows → functional options
+### 8. RunCompleteProject(ctx context.Context) error
+**Demonstrates:**
+- Full project setup
+- Multiple agents and workflows
+- Complex configuration
 
 **Complexity:** High (complete project)
 
-### 9. 11_debugging/main.go
-**Changes needed:**
-- Update imports: sdk → sdk/v2
-- Debugging config → functional options
+### 9. RunDebugging(ctx context.Context) error
+**Demonstrates:**
+- Debugging configuration
+- Error handling patterns
 
 **Complexity:** Simple (debugging features)
 
 ## Testing Each Example
 
 ```bash
-# Test pattern for each example
-cd sdk/cmd/01_simple_workflow
-go run main.go
+# Test each example via flag
+go run sdk2/examples --example simple-workflow
+go run sdk2/examples --example parallel-tasks
+go run sdk2/examples --example knowledge-rag
+go run sdk2/examples --example memory-conversation
+go run sdk2/examples --example runtime-native-tools
+go run sdk2/examples --example scheduled-workflow
+go run sdk2/examples --example signal-communication
+go run sdk2/examples --example complete-project
+go run sdk2/examples --example debugging
 
-# Expected: Example runs successfully without errors
+# Show available examples
+go run sdk2/examples --help
+
+# Expected: Each example runs successfully without errors
 # Verify: Output matches expected behavior
 ```
 
 ## Files
 
-**Update:**
-- `sdk/cmd/01_simple_workflow/main.go`
-- `sdk/cmd/02_parallel_tasks/main.go`
-- `sdk/cmd/03_knowledge_rag/main.go`
-- `sdk/cmd/04_memory_conversation/main.go`
-- `sdk/cmd/06_runtime_native_tools/main.go`
-- `sdk/cmd/07_scheduled_workflow/main.go`
-- `sdk/cmd/08_signal_communication/main.go`
-- `sdk/cmd/10_complete_project/main.go`
-- `sdk/cmd/11_debugging/main.go`
+**Create:**
+- `sdk2/examples/main.go` - Single file with all examples and CLI
+- `sdk2/examples/README.md` - Documentation on running examples
 
-**Note:** Example 05_mcp_integration already updated ✅
+**Structure:**
+```
+sdk2/examples/
+├── main.go          # Main entry point with flag parsing
+└── README.md        # Usage documentation
+```
+
+**Note:** Old examples in `sdk/cmd/` can remain for reference but will be deprecated in favor of the new consolidated approach
 
 ## Tests
 
-- [ ] Each example compiles without errors
-- [ ] Each example runs successfully
-- [ ] Output behavior unchanged from original
+- [ ] Main program compiles without errors
+- [ ] Each example function runs via --example flag
+- [ ] Help text displays all available examples
+- [ ] Invalid example name shows helpful error
+- [ ] Output behavior matches expected functionality
 - [ ] No builder pattern references remaining
-- [ ] All imports updated to sdk2
+- [ ] All imports use sdk2 (sdk/v2/*)
 - [ ] Engine types imported where needed
 - [ ] Comments explain new patterns
+- [ ] README.md provides clear usage instructions
 
 ## Success Criteria
 
-- [ ] All 9 examples updated
-- [ ] All examples compile: `go build ./sdk/cmd/*/main.go`
-- [ ] All examples run: Manual execution of each
+- [ ] sdk2/examples/main.go created with all 9 example functions
+- [ ] Program compiles: `go build sdk2/examples/main.go`
+- [ ] All examples run: Each --example flag tested
+- [ ] Help text shows all available examples
 - [ ] No old builder pattern references
 - [ ] Clean imports (no unused)
 - [ ] Updated comments reflect new API
 - [ ] Examples serve as learning resources
-- [ ] Migration complete: 100% SDK using functional options
+- [ ] README.md documents usage clearly
+- [ ] Single command execution: `go run sdk2/examples --example <name>`
+- [ ] Migration complete: Examples demonstrate sdk2 functional options
 
 ## Notes
 
 **Critical Understanding:**
-- We ARE modifying files in `sdk/cmd/` (existing examples)
-- We are NOT creating new examples from scratch
-- Purpose: Update existing examples to demonstrate the new sdk2 API
-- Import changes: `sdk/X` → `sdk/v2/X` throughout
+- We ARE creating a NEW consolidated examples program in `sdk2/examples/`
+- Single main.go file with flag-based example selection
+- Each example is an exported Run*() function
+- Old examples in `sdk/cmd/` remain as reference but are deprecated
+- Import pattern: All imports use `github.com/compozy/compozy/sdk/v2/*`
+
+**Benefits of Single File Approach:**
+- Easier for users to browse and understand all examples
+- Single command to run any example: `go run sdk2/examples --example <name>`
+- Easier maintenance (one file vs 9 directories)
+- Clear API demonstration in one place
+- Better discoverability via --help flag
 
 **Execution:** Can be done in parallel with other tasks once Phase 1 complete
 **User Impact:** High - examples are primary API documentation
-**Testing:** Manual execution required for each example
-**Documentation:** Consider adding migration guide comments in examples
+**Testing:** Manual execution required for each example via flag
+**Documentation:** README.md explains usage patterns and available examples

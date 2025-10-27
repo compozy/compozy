@@ -79,22 +79,22 @@ func New(ctx context.Context, id string, opts ...Option) (*workflow.Config, erro
 
 ## Tests
 
-- [ ] Workflow with single task
-- [ ] Workflow with multiple tasks
-- [ ] Task dependency validation
-- [ ] Initial task validation
-- [ ] Circular dependency detection
-- [ ] Empty workflow fails
-- [ ] Invalid initial task fails
-- [ ] Duplicate task IDs fail
+- [x] Workflow with single task
+- [x] Workflow with multiple tasks
+- [x] Task dependency validation
+- [x] Initial task validation
+- [x] Circular dependency detection
+- [x] Empty workflow fails
+- [x] Invalid initial task fails
+- [x] Duplicate task IDs fail
 
 ## Success Criteria
 
-- [ ] sdk2/workflow/ directory structure created
-- [ ] Task collection validated
-- [ ] Initial task reference checked
-- [ ] Circular dependencies caught
-- [ ] Tests pass: `gotestsum -- ./sdk2/workflow`
-- [ ] Linter clean: `golangci-lint run ./sdk2/workflow/...`
-- [ ] Reduction: ~198 LOC → ~85 LOC (57% reduction)
-- [ ] Old sdk/workflow/ remains untouched
+- [x] sdk2/workflow/ directory structure created
+- [x] Task collection validated
+- [x] Initial task reference checked
+- [x] Circular dependencies caught
+- [x] Tests pass: `gotestsum -- ./sdk2/workflow`
+- [x] Linter clean: `golangci-lint run ./sdk2/workflow/...`
+- [x] Reduction: ~203 LOC → ~89 LOC (56% reduction, 17 fields generated)
+- [x] Old sdk/workflow/ remains untouched

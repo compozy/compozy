@@ -64,8 +64,8 @@ Migrate all SDK packages from manual builder pattern to auto-generated functiona
 
 ### Phase 2: Components (Sequential after Phase 1)
 - [x] [_task_6.md](_task_6.md) - 6.0 Migrate tool package (M) - **COMPLETED**
-- [ ] 7.0 Migrate schema package (M) - Special case
-- [ ] 8.0 Migrate workflow package (M)
+- [x] [_task_7.md](_task_7.md) - 7.0 Migrate schema package (M) - **COMPLETED**
+- [ ] [_task_8.md](_task_8.md) - 8.0 Migrate workflow package (M) - **COMPLETED**
 - [ ] 9.0 Migrate knowledge package (M)
 
 ### Phase 3: Complex Integration (Sequential after Phase 2)
