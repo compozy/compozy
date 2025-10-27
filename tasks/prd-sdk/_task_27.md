@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/knowledge</domain>
@@ -30,11 +30,11 @@ Implement VectorDBBuilder in `sdk/knowledge/vectordb.go` to configure vector dat
 
 ## Subtasks
 
-- [ ] 27.1 Create sdk/knowledge/vectordb.go with VectorDBBuilder
-- [ ] 27.2 Implement NewVectorDB(id, dbType)
-- [ ] 27.3 Implement WithDSN, WithPath, WithCollection methods
-- [ ] 27.4 Implement PGVector-specific methods (WithPGVectorIndex, WithPGVectorPool)
-- [ ] 27.5 Add unit tests for all DB types and configurations
+- [x] 27.1 Create sdk/knowledge/vectordb.go with VectorDBBuilder
+- [x] 27.2 Implement NewVectorDB(id, dbType)
+- [x] 27.3 Implement WithDSN, WithPath, WithCollection methods
+- [x] 27.4 Implement PGVector-specific methods (WithPGVectorIndex, WithPGVectorPool)
+- [x] 27.5 Add unit tests for all DB types and configurations
 
 ## Implementation Details
 
@@ -83,17 +83,17 @@ Supported DB types: pgvector, chroma, qdrant, weaviate, milvus
 
 Unit tests from _tests.md (Knowledge section):
 
-- [ ] Valid PGVector config with DSN builds successfully
-- [ ] Valid Chroma config with path builds successfully
-- [ ] Valid Qdrant config with URL builds successfully
-- [ ] VectorDB with invalid type returns BuildError
-- [ ] PGVector without DSN returns validation error
-- [ ] Chroma without path returns validation error
-- [ ] PGVector index configuration validates lists>0
-- [ ] PGVector pool configuration validates minConns<=maxConns
-- [ ] Build(ctx) propagates context to validation
-- [ ] logger.FromContext(ctx) used in Build method
-- [ ] DB-specific validations enforce required fields
+- [x] Valid PGVector config with DSN builds successfully
+- [x] Valid Chroma config with path builds successfully
+- [x] Valid Qdrant config with URL builds successfully
+- [x] VectorDB with invalid type returns BuildError
+- [x] PGVector without DSN returns validation error
+- [x] Chroma without path returns validation error
+- [x] PGVector index configuration validates lists>0
+- [x] PGVector pool configuration validates minConns<=maxConns
+- [x] Build(ctx) propagates context to validation
+- [x] logger.FromContext(ctx) used in Build method
+- [x] DB-specific validations enforce required fields
 
 ## Success Criteria
 
