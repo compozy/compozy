@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -32,17 +32,17 @@ Create example demonstrating runtime configuration (Bun) with native tools integ
 
 ## Subtasks
 
-- [ ] 49.1 Create sdk/examples/06_runtime_native_tools.go
-- [ ] 49.2 Build Bun runtime with:
-  - [ ] Entrypoint
-  - [ ] Permissions
-  - [ ] Native tools enabled
-  - [ ] Memory limit
-- [ ] 49.5 Build native tools config (call_agents + call_workflows)
-- [ ] 49.6 Build project with runtime configuration
-- [ ] 49.7 Add comments explaining runtime choices
-- [ ] 49.8 Update README.md with runtime example
-- [ ] 49.9 Test example runs successfully
+- [x] 49.1 Create sdk/examples/06_runtime_native_tools.go
+- [x] 49.2 Build Bun runtime with:
+  - [x] Entrypoint
+  - [x] Permissions
+  - [x] Native tools enabled
+  - [x] Memory limit
+- [x] 49.5 Build native tools config (call_agents + call_workflows)
+- [x] 49.6 Build project with runtime configuration
+- [x] 49.7 Add comments explaining runtime choices
+- [x] 49.8 Update README.md with runtime example
+- [x] 49.9 Test example runs successfully
 
 ## Implementation Details
 

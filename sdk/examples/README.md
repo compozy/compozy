@@ -126,3 +126,20 @@ go run ./sdk/examples/05_mcp_integration.go
 ```
 
 The program prints a summary of each MCP configuration, including transport type, headers, environment variables, and startup timeouts so you can confirm every integration path is wired correctly.
+
+## 06. Runtime + Native Tools
+
+The file `06_runtime_native_tools.go` demonstrates how to configure Bun runtimes alongside native tool capabilities while contrasting the three runtime profiles (Bun sandbox, Node compatibility, and inherited global settings). It highlights how to:
+
+- Enable `cp__call_agents` and `cp__call_workflows` natively inside the Bun sandbox
+- Tune Bun permissions and memory ceilings to satisfy security constraints
+- Document alternative runtime types (Node and inherited global runtime) for compatibility scenarios
+- Attach the resulting runtime configuration to a project so downstream services pick it up automatically
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/06_runtime_native_tools.go
+```
+
+The example logs a structured summary for each runtime profile so operators can audit permissions, native tool availability, and memory limits before deploying real TypeScript or JavaScript entrypoints.
