@@ -8,18 +8,18 @@ This document compares the **manual builder pattern** (current) with **auto-gene
 
 ## 📊 Comparison
 
-| Aspect | Builder Pattern (Manual) | Functional Options (Generated) |
-|--------|-------------------------|-------------------------------|
-| **Lines of code per field** | ~20-30 lines | ~5-7 lines |
-| **Maintenance** | Manual - update per field | **Automatic - run `go generate`** |
-| **Generation** | N/A - all manual | **Fully automated from engine structs** |
-| **Type safety** | ✅ Yes | ✅ Yes |
-| **IDE autocomplete** | ✅ Excellent | ✅ Excellent |
-| **Validation** | In `Build()` + per-method | **Centralized in constructor** |
-| **Error accumulation** | Builder struct | Constructor validation |
-| **Nil safety** | Per-method `if b == nil` checks | Not needed (constructor-level) |
-| **Total SDK size** | ~4,000-5,000 lines | **~500-1,000 lines** |
-| **When engine changes** | Manual updates (30-40 lines) | **`go generate` (0 manual lines)** |
+| Aspect                      | Builder Pattern (Manual)        | Functional Options (Generated)          |
+| --------------------------- | ------------------------------- | --------------------------------------- |
+| **Lines of code per field** | ~20-30 lines                    | ~5-7 lines                              |
+| **Maintenance**             | Manual - update per field       | **Automatic - run `go generate`**       |
+| **Generation**              | N/A - all manual                | **Fully automated from engine structs** |
+| **Type safety**             | ✅ Yes                          | ✅ Yes                                  |
+| **IDE autocomplete**        | ✅ Excellent                    | ✅ Excellent                            |
+| **Validation**              | In `Build()` + per-method       | **Centralized in constructor**          |
+| **Error accumulation**      | Builder struct                  | Constructor validation                  |
+| **Nil safety**              | Per-method `if b == nil` checks | Not needed (constructor-level)          |
+| **Total SDK size**          | ~4,000-5,000 lines              | **~500-1,000 lines**                    |
+| **When engine changes**     | Manual updates (30-40 lines)    | **`go generate` (0 manual lines)**      |
 
 ---
 
@@ -74,6 +74,7 @@ func (b *Builder) Build(ctx context.Context) (*engineagent.Config, error) {
 ```
 
 **Usage:**
+
 ```go
 agentCfg, err := agent.New("assistant").
     WithInstructions("You are a helpful assistant").
@@ -124,6 +125,7 @@ func New(ctx context.Context, id string, opts ...Option) (*agent.Config, error) 
 ```
 
 **Usage:**
+
 ```go
 agentCfg, err := agent.New(ctx, "assistant",
     agent.WithInstructions("You are a helpful assistant"),
@@ -138,6 +140,7 @@ agentCfg, err := agent.New(ctx, "assistant",
 ### Scenario: Engine adds a new field
 
 **Engine changes:**
+
 ```go
 // engine/agent/config.go
 type Config struct {
@@ -149,7 +152,9 @@ type Config struct {
 ```
 
 ### With Builder Pattern (Current):
+
 ❌ **Manual work:**
+
 1. Add `WithTemperature()` method (~20-30 lines)
 2. Add validation (~10 lines)
 3. Update `Build()` method
@@ -161,6 +166,7 @@ type Config struct {
 ---
 
 ### With Functional Options (Generated):
+
 ✅ **Automatic:**
 
 ```bash
@@ -169,6 +175,7 @@ go generate
 ```
 
 **Output:**
+
 ```go
 // Automatically added to options_generated.go:
 func WithTemperature(temperature float64) Option {
@@ -192,7 +199,7 @@ info, err := codegen.ParseStruct("../../engine/agent/config.go", "Config")
 
 // Discovers:
 // - Field: ID (type: string)
-// - Field: Instructions (type: string)  
+// - Field: Instructions (type: string)
 // - Field: Model (type: ModelRef)
 // - Field: Actions (type: []*ActionConfig)
 // ... ALL fields automatically
@@ -213,7 +220,7 @@ codegen.GenerateOptions(info, "options_generated.go")
 ```
 
 ```bash
-go generate ./sdk/agent  # Regenerates ALL options
+go generate ./sdk/agent # Regenerates ALL options
 ```
 
 ---
@@ -223,6 +230,7 @@ go generate ./sdk/agent  # Regenerates ALL options
 **Migrate to Functional Options + Code Generation**
 
 **Why:**
+
 - ✅ **60-80% less boilerplate** to maintain
 - ✅ **Automatic sync** when engine changes
 - ✅ **More idiomatic Go** (stdlib pattern)
@@ -230,6 +238,7 @@ go generate ./sdk/agent  # Regenerates ALL options
 - ✅ **No backwards compatibility concerns** (alpha phase)
 
 **Effort:** 3-4 days total
+
 - Day 1: Generator already built ✅
 - Day 2: Port 2-3 more packages
 - Day 3: Port remaining packages
@@ -242,6 +251,7 @@ go generate ./sdk/agent  # Regenerates ALL options
 ## 📦 Generated Code Quality
 
 ### ✅ Features:
+
 - Preserves field documentation comments
 - Type-safe imports (core, attachment, tool, etc.)
 - Handles slices, pointers, maps automatically
@@ -282,13 +292,13 @@ func WithInstructions(instructions string) Option {
 
 ## 📊 Code Size Comparison
 
-| Package | Builder Pattern (Manual) | Functional Options (Generated) | Reduction |
-|---------|-------------------------|-------------------------------|-----------|
-| agent | ~270 lines | ~150 generated + ~40 manual = 190 lines | **30%** |
-| model | ~250 lines | ~120 generated + ~40 manual = 160 lines | **36%** |
-| task | ~250 lines | ~130 generated + ~40 manual = 170 lines | **32%** |
-| workflow | ~200 lines | ~100 generated + ~40 manual = 140 lines | **30%** |
-| **Total SDK** | **~4,000-5,000 lines** | **~800-1,200 lines** | **70-75%** |
+| Package       | Builder Pattern (Manual) | Functional Options (Generated)          | Reduction  |
+| ------------- | ------------------------ | --------------------------------------- | ---------- |
+| agent         | ~270 lines               | ~150 generated + ~40 manual = 190 lines | **30%**    |
+| model         | ~250 lines               | ~120 generated + ~40 manual = 160 lines | **36%**    |
+| task          | ~250 lines               | ~130 generated + ~40 manual = 170 lines | **32%**    |
+| workflow      | ~200 lines               | ~100 generated + ~40 manual = 140 lines | **30%**    |
+| **Total SDK** | **~4,000-5,000 lines**   | **~800-1,200 lines**                    | **70-75%** |
 
 ---
 
@@ -297,4 +307,3 @@ func WithInstructions(instructions string) Option {
 The proof-of-concept demonstrates that **auto-generated functional options** significantly reduce maintenance burden while maintaining type safety and developer experience.
 
 **Key Win:** When engine structs change, developers run `go generate` instead of manually writing ~50 lines per field.
-

@@ -15,7 +15,7 @@ import (
 
 func main() {
     ctx := context.Background()
-    
+
     agentCfg, err := agent.New(ctx, "assistant",
         agent.WithInstructions("You are a helpful AI assistant"),
         agent.WithModel(agent.Model{
@@ -29,7 +29,7 @@ func main() {
     if err != nil {
         panic(err)
     }
-    
+
     // Use agentCfg in your workflow
 }
 ```
@@ -37,20 +37,24 @@ func main() {
 ## Available Options
 
 ### Core Configuration
+
 - `WithInstructions(string)` - System instructions for the agent (required)
 - `WithModel(Model)` - LLM model configuration
 - `WithMaxIterations(int)` - Maximum reasoning iterations (default: 5)
 
 ### Capabilities
+
 - `WithTools([]tool.Config)` - Available tools for the agent
 - `WithMCPs([]mcp.Config)` - Model Context Protocol servers
 - `WithActions([]*ActionConfig)` - Structured actions with schemas
 
 ### Context & Memory
+
 - `WithMemory([]core.MemoryReference)` - Persistent memory access
 - `WithKnowledge([]core.KnowledgeBinding)` - Knowledge base integration
 
 ### Environment
+
 - `WithWith(*core.Input)` - Default input parameters
 - `WithEnv(*core.EnvMap)` - Environment variables
 - `WithAttachments(attachment.Attachments)` - File attachments
@@ -77,6 +81,7 @@ The `options_generated.go` file is created automatically by parsing `engine/agen
 ## Validation
 
 The constructor performs comprehensive validation:
+
 - ✅ ID must be non-empty and valid
 - ✅ Instructions are required
 - ✅ Model must have either ref or config
@@ -99,10 +104,10 @@ agentCfg, err := agent.New(ctx, "",  // Empty ID
 ## Testing
 
 Run tests:
+
 ```bash
-make test          # All project tests
+make test # All project tests
 gotestsum --format pkgname -- -race -parallel=4 ./sdk/agent
 ```
 
 All tests use the functional options pattern and validate the full configuration lifecycle.
-

@@ -137,7 +137,22 @@ func toParamName(fieldName string) string {
 	if len(fieldName) > 1 && isAllCaps(fieldName) {
 		return strings.ToLower(fieldName)
 	}
-	return strings.ToLower(fieldName[:1]) + fieldName[1:]
+	paramName := strings.ToLower(fieldName[:1]) + fieldName[1:]
+	if isGoKeyword(paramName) {
+		return paramName + "Value"
+	}
+	return paramName
+}
+
+func isGoKeyword(name string) bool {
+	keywords := map[string]bool{
+		"break": true, "case": true, "chan": true, "const": true, "continue": true,
+		"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
+		"func": true, "go": true, "goto": true, "if": true, "import": true,
+		"interface": true, "map": true, "package": true, "range": true, "return": true,
+		"select": true, "struct": true, "switch": true, "type": true, "var": true,
+	}
+	return keywords[name]
 }
 
 func isAllCaps(s string) bool {

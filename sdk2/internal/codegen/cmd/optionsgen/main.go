@@ -13,7 +13,11 @@ func main() {
 		engineFile = flag.String("engine", "", "Path to engine struct file (e.g., ../../../../engine/agent/config.go)")
 		structName = flag.String("struct", "Config", "Name of struct to generate options for")
 		output     = flag.String("output", "", "Output file path (e.g., ../../agent/options_generated.go)")
-		pkgName    = flag.String("package", "", "Package name for generated code (optional, defaults to engine package name)")
+		pkgName    = flag.String(
+			"package",
+			"",
+			"Package name for generated code (optional, defaults to engine package name)",
+		)
 	)
 	flag.Parse()
 	if *engineFile == "" || *output == "" {
