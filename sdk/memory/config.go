@@ -26,7 +26,10 @@ const (
 	FlushStrategySummarization FlushStrategyKind = "summarization"
 )
 
-const defaultSummarizeThreshold = 0.8
+const (
+	defaultSummarizeThreshold = 0.8
+	defaultPersistenceTTL     = "168h"
+)
 
 // FlushStrategy captures the flush behavior requested by the builder.
 type FlushStrategy struct {
@@ -75,6 +78,16 @@ func (b *ConfigBuilder) WithModel(model string) *ConfigBuilder {
 	if b == nil {
 		return nil
 	}
+	b.model = model
+	return b
+}
+
+// WithTokenCounter configures provider and model for token counting.
+func (b *ConfigBuilder) WithTokenCounter(provider, model string) *ConfigBuilder {
+	if b == nil {
+		return nil
+	}
+	b.provider = provider
 	b.model = model
 	return b
 }
@@ -138,6 +151,34 @@ func (b *ConfigBuilder) WithExpiration(duration time.Duration) *ConfigBuilder {
 	return b
 }
 
+// WithPersistence selects the backend used to persist memory state.
+func (b *ConfigBuilder) WithPersistence(backend PersistenceBackend) *ConfigBuilder {
+	if b == nil {
+		return nil
+	}
+	normalized := memcore.PersistenceType(strings.ToLower(strings.TrimSpace(string(backend))))
+	b.config.Persistence.Type = normalized
+	if normalized == memcore.InMemoryPersistence {
+		b.config.Persistence.TTL = ""
+		return b
+	}
+	b.config.Persistence.TTL = defaultPersistenceTTL
+	return b
+}
+
+// WithDistributedLocking toggles distributed locking for memory operations.
+func (b *ConfigBuilder) WithDistributedLocking(enabled bool) *ConfigBuilder {
+	if b == nil {
+		return nil
+	}
+	if !enabled {
+		b.config.Locking = nil
+		return b
+	}
+	b.config.Locking = &memcore.LockConfig{}
+	return b
+}
+
 // Build validates inputs, aggregates errors, and returns a memory config.
 func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error) {
 	if b == nil {
@@ -152,7 +193,7 @@ func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error)
 
 	flushConfig, flushMessages, flushErrs := b.buildFlushStrategy(ctx)
 
-	collected := make([]error, 0, len(b.errors)+7)
+	collected := make([]error, 0, len(b.errors)+9)
 	collected = append(collected, b.errors...)
 	collected = append(collected, b.validateID(ctx))
 	collected = append(collected, b.validateProvider(ctx))
@@ -161,6 +202,8 @@ func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error)
 	collected = append(collected, flushErrs...)
 	collected = append(collected, b.validatePrivacyScope())
 	collected = append(collected, b.validateExpiration())
+	collected = append(collected, b.validatePersistence(ctx))
+	collected = append(collected, b.validateDistributedLocking())
 
 	filtered := filterErrors(collected)
 	if len(filtered) > 0 {
@@ -242,6 +285,58 @@ func (b *ConfigBuilder) validateExpiration() error {
 		return nil
 	}
 	b.config.Expiration = duration.String()
+	return nil
+}
+
+func (b *ConfigBuilder) validatePersistence(ctx context.Context) error {
+	backend := strings.ToLower(strings.TrimSpace(string(b.config.Persistence.Type)))
+	if err := validate.ValidateNonEmpty(ctx, "persistence backend", backend); err != nil {
+		return err
+	}
+	switch memcore.PersistenceType(backend) {
+	case memcore.InMemoryPersistence:
+		b.config.Persistence.Type = memcore.InMemoryPersistence
+		ttl := strings.TrimSpace(b.config.Persistence.TTL)
+		if ttl == "" {
+			b.config.Persistence.TTL = ""
+			return nil
+		}
+		duration, err := core.ParseHumanDuration(ttl)
+		if err != nil {
+			return fmt.Errorf("persistence ttl must be a valid duration: %w", err)
+		}
+		if duration < 0 {
+			return fmt.Errorf("persistence ttl must be non-negative: got %s", ttl)
+		}
+		b.config.Persistence.TTL = ttl
+		return nil
+	case memcore.RedisPersistence:
+		ttl := strings.TrimSpace(b.config.Persistence.TTL)
+		if ttl == "" {
+			ttl = defaultPersistenceTTL
+		}
+		duration, err := core.ParseHumanDuration(ttl)
+		if err != nil {
+			return fmt.Errorf("persistence ttl must be a valid duration: %w", err)
+		}
+		if duration <= 0 {
+			return fmt.Errorf("persistence ttl must be greater than zero: got %s", ttl)
+		}
+		b.config.Persistence.Type = memcore.RedisPersistence
+		b.config.Persistence.TTL = ttl
+		return nil
+	default:
+		return fmt.Errorf("persistence backend '%s' is not supported", backend)
+	}
+}
+
+func (b *ConfigBuilder) validateDistributedLocking() error {
+	if b.config.Locking == nil {
+		return nil
+	}
+	if b.config.Persistence.Type == memcore.InMemoryPersistence {
+		return fmt.Errorf("distributed locking requires a persistent backend")
+	}
 	return nil
 }
 

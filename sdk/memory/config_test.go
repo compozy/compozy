@@ -60,6 +60,22 @@ func TestBuildValidConfig(t *testing.T) {
 	require.Equal(t, "gpt-4o", cfg.TokenProvider.Model)
 }
 
+func TestWithTokenCounterSetsProviderAndModel(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("token-memory").
+		WithTokenCounter("OpenAI", "gpt-4o").
+		WithMaxTokens(1600).
+		Build(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.TokenProvider)
+	require.Equal(t, "openai", cfg.TokenProvider.Provider)
+	require.Equal(t, "gpt-4o", cfg.TokenProvider.Model)
+}
+
 func TestWithFlushStrategyCopiesValue(t *testing.T) {
 	t.Parallel()
 
@@ -202,6 +218,61 @@ func TestBuildSummarizationFlushValidatesInputs(t *testing.T) {
 	require.Contains(t, buildErr.Error(), "summary tokens")
 }
 
+func TestWithPersistenceSetsBackendAndDefaultTTL(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("persistent-memory").
+		WithTokenCounter("openai", "gpt-4o").
+		WithMaxTokens(1500).
+		WithPersistence(PersistenceRedis).
+		Build(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, memcore.RedisPersistence, cfg.Persistence.Type)
+	require.Equal(t, defaultPersistenceTTL, cfg.Persistence.TTL)
+}
+
+func TestBuildInvalidPersistenceBackendReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("invalid-persistence").
+		WithTokenCounter("openai", "gpt-4o").
+		WithMaxTokens(1200).
+		WithPersistence(PersistenceBackend("postgres")).
+		Build(ctx)
+
+	require.Error(t, err)
+	require.Nil(t, cfg)
+
+	var buildErr *sdkerrors.BuildError
+	require.ErrorAs(t, err, &buildErr)
+	require.Contains(t, buildErr.Error(), "persistence backend")
+}
+
+func TestBuildInvalidPersistenceTTLFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	builder := New("invalid-ttl").
+		WithTokenCounter("openai", "gpt-4o").
+		WithMaxTokens(1200).
+		WithPersistence(PersistenceRedis)
+
+	builder.config.Persistence.TTL = "not-a-duration"
+
+	cfg, err := builder.Build(ctx)
+
+	require.Error(t, err)
+	require.Nil(t, cfg)
+
+	var buildErr *sdkerrors.BuildError
+	require.ErrorAs(t, err, &buildErr)
+	require.Contains(t, buildErr.Error(), "persistence ttl")
+}
+
 func TestSummarizationFlushOverridesPreviousStrategy(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +309,52 @@ func TestBuildUsesLoggerFromContext(t *testing.T) {
 	require.NotNil(t, cfg)
 	require.NotEmpty(t, rec.debugMessages)
 	require.Contains(t, rec.debugMessages[0], "building memory configuration")
+}
+
+func TestWithDistributedLockingTogglesLocking(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("locking-memory").
+		WithTokenCounter("openai", "gpt-4o").
+		WithMaxTokens(1800).
+		WithPersistence(PersistenceRedis).
+		WithDistributedLocking(true).
+		Build(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.NotNil(t, cfg.Locking)
+
+	cfg, err = New("locking-memory").
+		WithTokenCounter("openai", "gpt-4o").
+		WithMaxTokens(1800).
+		WithPersistence(PersistenceRedis).
+		WithDistributedLocking(true).
+		WithDistributedLocking(false).
+		Build(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Nil(t, cfg.Locking)
+}
+
+func TestBuildDistributedLockingRequiresPersistentBackend(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("locking-invalid").
+		WithTokenCounter("openai", "gpt-4o").
+		WithMaxTokens(1400).
+		WithDistributedLocking(true).
+		Build(ctx)
+
+	require.Error(t, err)
+	require.Nil(t, cfg)
+
+	var buildErr *sdkerrors.BuildError
+	require.ErrorAs(t, err, &buildErr)
+	require.Contains(t, buildErr.Error(), "distributed locking")
 }
 
 func TestBuildAggregatesMultipleErrors(t *testing.T) {

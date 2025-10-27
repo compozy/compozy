@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/memory</domain>
@@ -29,11 +29,11 @@ Extend memory ConfigBuilder with persistence backend and token counting configur
 
 ## Subtasks
 
-- [ ] 35.1 Add WithPersistence(backend memory.PersistenceBackend) method
-- [ ] 35.2 Add WithTokenCounter(provider, model string) method
-- [ ] 35.3 Add WithDistributedLocking(enabled bool) method
-- [ ] 35.4 Update Build(ctx) validation for persistence settings
-- [ ] 35.5 Add unit tests for persistence and token counting
+- [x] 35.1 Add WithPersistence(backend memory.PersistenceBackend) method
+- [x] 35.2 Add WithTokenCounter(provider, model string) method
+- [x] 35.3 Add WithDistributedLocking(enabled bool) method
+- [x] 35.4 Update Build(ctx) validation for persistence settings
+- [x] 35.5 Add unit tests for persistence and token counting
 
 ## Implementation Details
 
@@ -85,13 +85,13 @@ memory.New("customer-support").
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] WithPersistence sets backend correctly
-- [ ] WithTokenCounter sets provider/model
-- [ ] WithDistributedLocking enables/disables locking
-- [ ] Build(ctx) validates persistence backend values
-- [ ] Build(ctx) validates token counter requirements
-- [ ] Error cases: invalid backend, missing provider/model
-- [ ] Edge cases: in-memory persistence (no locking needed)
+- [x] WithPersistence sets backend correctly
+- [x] WithTokenCounter sets provider/model
+- [x] WithDistributedLocking enables/disables locking
+- [x] Build(ctx) validates persistence backend values
+- [x] Build(ctx) validates token counter requirements
+- [x] Error cases: invalid backend, missing provider/model
+- [x] Edge cases: in-memory persistence (no locking needed)
 
 ## Success Criteria
 
