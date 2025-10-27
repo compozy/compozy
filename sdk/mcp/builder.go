@@ -78,6 +78,22 @@ func (b *Builder) WithURL(url string) *Builder {
 	return b
 }
 
+// WithProto sets the MCP protocol version that the server expects.
+// Versions must follow the YYYY-MM-DD format defined by the MCP release calendar.
+func (b *Builder) WithProto(version string) *Builder {
+	if b == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(version)
+	if trimmed == "" {
+		b.errors = append(b.errors, fmt.Errorf("protocol version cannot be empty"))
+		b.config.Proto = ""
+		return b
+	}
+	b.config.Proto = trimmed
+	return b
+}
+
 // WithTransport sets the transport type explicitly for the MCP server configuration.
 func (b *Builder) WithTransport(transport mcpproxy.TransportType) *Builder {
 	if b == nil {
@@ -160,6 +176,20 @@ func (b *Builder) WithStartTimeout(timeout time.Duration) *Builder {
 	return b
 }
 
+// WithMaxSessions limits the number of concurrent sessions allowed for the MCP server.
+// Use zero to allow unlimited sessions; values must not be negative.
+func (b *Builder) WithMaxSessions(max int) *Builder {
+	if b == nil {
+		return nil
+	}
+	if max < 0 {
+		b.errors = append(b.errors, fmt.Errorf("max sessions cannot be negative"))
+		return b
+	}
+	b.config.MaxSessions = max
+	return b
+}
+
 // Build validates the MCP configuration and returns a deep-copied engine config.
 func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 	if b == nil {
@@ -195,6 +225,12 @@ func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 		collected = append(collected, err)
 	}
 	if err := b.validateStartTimeout(ctx); err != nil {
+		collected = append(collected, err)
+	}
+	if err := b.validateProto(ctx); err != nil {
+		collected = append(collected, err)
+	}
+	if err := b.validateMaxSessions(ctx); err != nil {
 		collected = append(collected, err)
 	}
 
@@ -343,6 +379,24 @@ func (b *Builder) validateStartTimeout(_ context.Context) error {
 	}
 	if !hasCommand {
 		return fmt.Errorf("start timeout requires a configured command")
+	}
+	return nil
+}
+
+func (b *Builder) validateProto(_ context.Context) error {
+	b.config.Proto = strings.TrimSpace(b.config.Proto)
+	if b.config.Proto == "" {
+		return nil
+	}
+	if _, err := time.Parse("2006-01-02", b.config.Proto); err != nil {
+		return fmt.Errorf("protocol version must follow YYYY-MM-DD format: %w", err)
+	}
+	return nil
+}
+
+func (b *Builder) validateMaxSessions(_ context.Context) error {
+	if b.config.MaxSessions < 0 {
+		return fmt.Errorf("max sessions cannot be negative")
 	}
 	return nil
 }

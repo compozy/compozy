@@ -69,6 +69,20 @@ func TestWithURLEmptyAddsError(t *testing.T) {
 	require.NotEmpty(t, builder.errors)
 }
 
+func TestWithProtoStoresVersion(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithProto(" 2025-03-26 ")
+	require.Equal(t, "2025-03-26", builder.config.Proto)
+}
+
+func TestWithProtoEmptyAddsError(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithProto(" ")
+	require.NotEmpty(t, builder.errors)
+}
+
 func TestWithTransportSetsTransport(t *testing.T) {
 	t.Parallel()
 
@@ -141,6 +155,20 @@ func TestWithEnvVarEmptyKeyAddsError(t *testing.T) {
 	require.NotEmpty(t, builder.errors)
 }
 
+func TestWithMaxSessionsStoresValue(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithMaxSessions(5)
+	require.Equal(t, 5, builder.config.MaxSessions)
+}
+
+func TestWithMaxSessionsNegativeAddsError(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithMaxSessions(-1)
+	require.NotEmpty(t, builder.errors)
+}
+
 func TestWithStartTimeoutSetsValue(t *testing.T) {
 	t.Parallel()
 
@@ -192,12 +220,16 @@ func TestBuildIncludesHeadersForURLBasedMCP(t *testing.T) {
 
 	builder := New("github").
 		WithURL("https://example.com/mcp").
-		WithHeader("Authorization", "Bearer {{ .env.GITHUB_TOKEN }}")
+		WithHeader("Authorization", "Bearer {{ .env.GITHUB_TOKEN }}").
+		WithProto("2025-03-26").
+		WithMaxSessions(10)
 	ctx := t.Context()
 	cfg, err := builder.Build(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	require.Equal(t, "Bearer {{ .env.GITHUB_TOKEN }}", cfg.Headers["Authorization"])
+	require.Equal(t, "2025-03-26", cfg.Proto)
+	require.Equal(t, 10, cfg.MaxSessions)
 }
 
 func TestBuildIncludesEnvForCommandBasedMCP(t *testing.T) {
@@ -213,6 +245,32 @@ func TestBuildIncludesEnvForCommandBasedMCP(t *testing.T) {
 	require.NotNil(t, cfg)
 	require.Equal(t, "/data", cfg.Env["ROOT_DIR"])
 	require.Equal(t, 20*time.Second, cfg.StartTimeout)
+}
+
+func TestBuildFailsWithInvalidProtoFormat(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").
+		WithURL("https://example.com/mcp").
+		WithProto("2025/03/26")
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "protocol version must follow YYYY-MM-DD format")
+}
+
+func TestBuildFailsWithNegativeMaxSessions(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").
+		WithURL("https://example.com/mcp").
+		WithMaxSessions(-1)
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "max sessions cannot be negative")
 }
 
 func TestBuildFailsWithoutCommandOrURL(t *testing.T) {

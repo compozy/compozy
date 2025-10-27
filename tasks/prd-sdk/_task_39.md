@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/mcp</domain>
@@ -28,10 +28,10 @@ Extend MCP builder with protocol version and session management configuration.
 
 ## Subtasks
 
-- [ ] 39.1 Add WithProto(version string) method
-- [ ] 39.2 Add WithMaxSessions(max int) method
-- [ ] 39.3 Update Build(ctx) validation for proto/sessions
-- [ ] 39.4 Add unit tests for proto and sessions
+- [x] 39.1 Add WithProto(version string) method
+- [x] 39.2 Add WithMaxSessions(max int) method
+- [x] 39.3 Update Build(ctx) validation for proto/sessions
+- [x] 39.4 Add unit tests for proto and sessions
 
 ## Implementation Details
 
@@ -84,13 +84,13 @@ mcp.New("github-api").
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] WithProto sets protocol version correctly
-- [ ] WithMaxSessions sets session limit
-- [ ] Build(ctx) validates proto format
-- [ ] Build(ctx) validates max sessions >= 0
-- [ ] Error cases: invalid proto format, negative max sessions
-- [ ] Edge cases: zero max sessions (unlimited)
-- [ ] Complete MCP config validation with all features
+- [x] WithProto sets protocol version correctly
+- [x] WithMaxSessions sets session limit
+- [x] Build(ctx) validates proto format
+- [x] Build(ctx) validates max sessions >= 0
+- [x] Error cases: invalid proto format, negative max sessions
+- [x] Edge cases: zero max sessions (unlimited)
+- [x] Complete MCP config validation with all features
 
 ## Success Criteria
 
