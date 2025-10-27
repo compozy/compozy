@@ -58,7 +58,7 @@ Migrate all SDK packages from manual builder pattern to auto-generated functiona
 ### Phase 1: Foundations (Parallelizable)
 - [x] [_task_1.md](_task_1.md) - 1.0 Migrate model package (S) - **COMPLETED**
 - [x] [_task_2.md](_task_2.md) - 2.0 Migrate schedule package (S) - **COMPLETED**
-- [ ] 3.0 Migrate mcp package (S)
+- [x] [_task_3.md](_task_3.md) - 3.0 Migrate mcp package (S) - **COMPLETED**
 - [ ] 4.0 Migrate runtime package (S)
 - [ ] 5.0 Migrate memory package (S)
 

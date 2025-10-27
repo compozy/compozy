@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/mcp</domain>
@@ -32,13 +32,13 @@ Migrate the `sdk/mcp` package (Model Context Protocol) from builder pattern to f
 
 ## Subtasks
 
-- [ ] 3.1 Create sdk2/mcp/ directory structure
-- [ ] 3.2 Create generate.go
-- [ ] 3.3 Generate options
-- [ ] 3.4 Create constructor with validation
-- [ ] 3.5 Create comprehensive tests
-- [ ] 3.6 Verify linter and tests
-- [ ] 3.7 Create README.md
+- [x] 3.1 Create sdk2/mcp/ directory structure
+- [x] 3.2 Create generate.go
+- [x] 3.3 Generate options
+- [x] 3.4 Create constructor with validation
+- [x] 3.5 Create comprehensive tests
+- [x] 3.6 Verify linter and tests
+- [x] 3.7 Create README.md
 
 ## Implementation Details
 
@@ -72,16 +72,16 @@ Migrate the `sdk/mcp` package (Model Context Protocol) from builder pattern to f
 **Note:** Do NOT delete or modify anything in `sdk/mcp/` - keep for reference during transition
 
 ## Tests
-- [ ] Valid stdio MCP with command
-- [ ] Valid http MCP with URL
-- [ ] Invalid transport type fails
-- [ ] Stdio without command fails
-- [ ] HTTP without URL fails
-- [ ] Invalid URL format fails
+- [x] Valid stdio MCP with command
+- [x] Valid http MCP with URL
+- [x] Invalid transport type fails
+- [x] Stdio without command fails
+- [x] HTTP without URL fails
+- [x] Invalid URL format fails
 
 ## Success Criteria
-- [ ] sdk2/mcp/ directory created with proper structure
-- [ ] Transport validation enforced
-- [ ] Tests pass: `gotestsum -- ./sdk2/mcp`
-- [ ] Linter clean: `golangci-lint run ./sdk2/mcp/...`
-- [ ] Reduction: ~117 LOC → ~50 LOC (57% reduction)
+- [x] sdk2/mcp/ directory created with proper structure
+- [x] Transport validation enforced
+- [x] Tests pass: `gotestsum -- ./sdk2/mcp`
+- [x] Linter clean: `golangci-lint run ./sdk2/mcp/...`
+- [x] Reduction: ~117 LOC → ~50 LOC (57% reduction)
