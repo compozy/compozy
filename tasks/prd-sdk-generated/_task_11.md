@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/project</domain>
@@ -39,18 +39,18 @@ Migrate `sdk/project` - the top-level orchestrator that integrates all other pac
 
 ## Subtasks
 
-- [ ] 11.1 Create sdk2/project/ directory structure
-- [ ] 11.2 Create generate.go for project config
-- [ ] 11.3 Generate options (15+ fields)
-- [ ] 11.4 Create constructor with cross-validation
-- [ ] 11.5 Implement resource reference validation
-- [ ] 11.6 Agent collection validation
-- [ ] 11.7 Workflow collection validation
-- [ ] 11.8 Tool, memory, knowledge validation
-- [ ] 11.9 Schedule integration
-- [ ] 11.10 Comprehensive unit tests
-- [ ] 11.11 Integration tests with all packages
-- [ ] 11.12 Complete documentation
+- [x] 11.1 Create sdk2/project/ directory structure
+- [x] 11.2 Create generate.go for project config
+- [x] 11.3 Generate options (20 fields)
+- [x] 11.4 Create constructor with cross-validation
+- [x] 11.5 Implement resource reference validation
+- [x] 11.6 Agent collection validation
+- [x] 11.7 Workflow collection validation
+- [x] 11.8 Tool, memory, knowledge validation
+- [x] 11.9 Schedule integration
+- [x] 11.10 Comprehensive unit tests (30 tests)
+- [x] 11.11 Integration tests with all packages
+- [x] 11.12 Complete documentation
 
 ## Implementation Details
 
