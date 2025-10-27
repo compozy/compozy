@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -31,20 +31,20 @@ Create example demonstrating the complete memory system with all advanced featur
 
 ## Subtasks
 
-- [ ] 47.1 Create sdk/examples/04_memory_conversation.go
-- [ ] 47.2 Build memory config with all features:
-  - [ ] Summarization flush strategy
-  - [ ] Privacy scoping (user-isolated)
-  - [ ] Expiration (24h auto-cleanup)
-  - [ ] Redis persistence
-  - [ ] Token counting
-  - [ ] Distributed locking
-- [ ] 47.3 Build memory reference with dynamic key template
-- [ ] 47.4 Create agent with memory integration
-- [ ] 47.5 Build project with memory resource
-- [ ] 47.6 Add comments explaining memory features
-- [ ] 47.7 Update README.md with memory example
-- [ ] 47.8 Test example runs successfully
+- [x] 47.1 Create sdk/examples/04_memory_conversation.go
+- [x] 47.2 Build memory config with all features:
+  - [x] Summarization flush strategy
+  - [x] Privacy scoping (user-isolated)
+  - [x] Expiration (24h auto-cleanup)
+  - [x] Redis persistence
+  - [x] Token counting
+  - [x] Distributed locking
+- [x] 47.3 Build memory reference with dynamic key template
+- [x] 47.4 Create agent with memory integration
+- [x] 47.5 Build project with memory resource
+- [x] 47.6 Add comments explaining memory features
+- [x] 47.7 Update README.md with memory example
+- [x] 47.8 Test example runs successfully
 
 ## Implementation Details
 
@@ -91,29 +91,29 @@ supportAgent, err := agent.New("support-agent").
 
 ## Deliverables
 
-- [ ] sdk/examples/04_memory_conversation.go (runnable)
-- [ ] Updated README.md with memory example section
-- [ ] Comments explaining each memory feature:
-  - Summarization flush (keeps memory under token limit)
-  - Privacy scoping (user isolation)
-  - Expiration (auto-cleanup)
-  - Persistence (Redis)
-  - Distributed locking (concurrent access safety)
-- [ ] All memory features demonstrated
-- [ ] Verified example runs successfully
+- [x] sdk/examples/04_memory_conversation.go (runnable)
+- [x] Updated README.md with memory example section
+- [x] Comments explaining each memory feature:
+  - [x] Summarization flush (keeps memory under token limit)
+  - [x] Privacy scoping (user isolation)
+  - [x] Expiration (auto-cleanup)
+  - [x] Persistence (Redis)
+  - [x] Distributed locking (concurrent access safety)
+- [x] All memory features demonstrated
+- [x] Verified example runs successfully
 
 ## Tests
 
 From _tests.md:
 
 - Example validation:
-  - [ ] Code compiles without errors
-  - [ ] Example runs with valid Redis connection
-  - [ ] All memory features configured correctly
-  - [ ] Dynamic key template validated
-  - [ ] Agent memory integration works
-  - [ ] Flush strategy config matches engine expectations
-  - [ ] Privacy scope enum validated
+  - [x] Code compiles without errors
+  - [x] Example runs with valid Redis connection
+  - [x] All memory features configured correctly
+  - [x] Dynamic key template validated
+  - [x] Agent memory integration works
+  - [x] Flush strategy config matches engine expectations
+  - [x] Privacy scope enum validated
 
 ## Success Criteria
 

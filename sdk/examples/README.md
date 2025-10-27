@@ -75,3 +75,29 @@ go run ./sdk/examples/03_knowledge_rag.go
 ```
 
 The program prints a summary confirming that the embedder, vector database, knowledge base, and agent binding were all constructed successfully, highlighting chunking, retrieval, and binding parameters used during ingestion.
+
+## 04. Memory Conversation
+
+The file `04_memory_conversation.go` demonstrates the full memory subsystem, wiring a support agent to durable conversation state. It highlights how to:
+
+- Configure token-aware memory with summarization flush, user-scoped privacy, 24-hour expiration, Redis persistence, and distributed locking
+- Build a dynamic memory reference so each conversation and user pair receives an isolated namespace
+- Attach the memory reference to an agent and expose the memory resource inside a runnable workflow and project
+- Summarize the resulting configuration so operators can verify persistence and locking policies before deployment
+
+### Prerequisites
+
+```bash
+export OPENAI_API_KEY="sk-..."
+export REDIS_URL="redis://localhost:6379/0"
+```
+
+Ensure the Redis instance referenced by `REDIS_URL` is reachable; the example prints the URL so you can confirm the connection target that the runtime will use.
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/04_memory_conversation.go
+```
+
+The program emits a summary covering the memory resource, privacy scope, expiration window, and distributed locking state so you can validate that all advanced features are enabled.
