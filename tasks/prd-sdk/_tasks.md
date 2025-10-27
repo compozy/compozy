@@ -65,7 +65,7 @@
 - [x] 39.0 MCP: Proto + Sessions (S)
 - [x] 40.0 Runtime: Bun (Base) (S)
 - [x] 41.0 Runtime: Native Tools Builder (S)
-- [ ] 43.0 Runtime: Permissions + Tool Timeouts (S)
+- [x] 43.0 Runtime: Permissions + Tool Timeouts (S)
 - [ ] 44.0 Example: Simple Workflow (S)
 - [ ] 45.0 Example: Parallel Tasks (S)
 - [ ] 46.0 Example: Knowledge (RAG) (S)

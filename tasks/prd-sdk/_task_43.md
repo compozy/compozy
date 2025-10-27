@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/runtime</domain>
@@ -31,11 +31,11 @@ Complete the runtime builder with permissions configuration (Bun-specific) and t
 
 ## Subtasks
 
-- [ ] 43.1 Add WithBunPermissions() method with validation
-- [ ] 43.4 Add WithToolTimeout() method (per-tool timeout configuration)
-- [ ] 43.5 Add validation for permission strings per runtime type
-- [ ] 43.6 Write unit tests for permission builders
-- [ ] 43.7 Write integration test with engine runtime config
+- [x] 43.1 Add WithBunPermissions() method with validation
+- [x] 43.4 Add WithToolTimeout() method (per-tool timeout configuration)
+- [x] 43.5 Add validation for permission strings per runtime type
+- [x] 43.6 Write unit tests for permission builders
+- [x] 43.7 Write integration test with engine runtime config
 
 ## Implementation Details
 
@@ -59,25 +59,25 @@ func (b *Builder) WithToolTimeout(timeout time.Duration) *Builder
 
 ## Deliverables
 
-- [ ] Runtime builder methods for permissions (all 3 runtime types)
-- [ ] Tool timeout configuration method
-- [ ] Validation for permission strings per runtime type
-- [ ] Unit tests covering all permission methods
-- [ ] Integration test verifying engine config compatibility
+- [x] Runtime builder methods for permissions (all 3 runtime types)
+- [x] Tool timeout configuration method
+- [x] Validation for permission strings per runtime type
+- [x] Unit tests covering all permission methods
+- [x] Integration test verifying engine config compatibility
 
 ## Tests
 
 From _tests.md:
 
 - Unit tests:
-  - [ ] WithBunPermissions() validates Bun-specific permission strings
-  - [ ] WithToolTimeout() validates timeout duration (positive)
-  - [ ] Build() fails with invalid permission combinations
-  - [ ] Error accumulation pattern for multiple invalid permissions
+  - [x] WithBunPermissions() validates Bun-specific permission strings
+  - [x] WithToolTimeout() validates timeout duration (positive)
+  - [x] Build() fails with invalid permission combinations
+  - [x] Error accumulation pattern for multiple invalid permissions
 
 - Integration tests:
-  - [ ] SDK runtime config matches engine runtime.Config structure
-  - [ ] Permissions propagate correctly to engine executor
+  - [x] SDK runtime config matches engine runtime.Config structure
+  - [x] Permissions propagate correctly to engine executor
 
 ## Success Criteria
 
