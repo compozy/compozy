@@ -3,7 +3,10 @@ package config
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"maps"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/mitchellh/mapstructure"
@@ -13,6 +16,9 @@ import (
 
 const (
 	mcpProxyModeStandalone = "standalone"
+
+	databaseDriverPostgres = "postgres"
+	databaseDriverSQLite   = "sqlite"
 )
 
 // Config represents the complete configuration for the Compozy system.
@@ -290,6 +296,15 @@ type AuthConfig struct {
 //     ssl_mode: prefer
 //     ```
 type DatabaseConfig struct {
+	// Driver selects the backing database driver implementation.
+	//
+	// Supported drivers:
+	//   - "postgres": default, full production deployment
+	//   - "sqlite": lightweight single-node deployments
+	//
+	// Defaults to "postgres" when omitted for backward compatibility.
+	Driver string `koanf:"driver" json:"driver" yaml:"driver" mapstructure:"driver" env:"DB_DRIVER" validate:"oneof=postgres sqlite"`
+
 	// ConnString provides a complete PostgreSQL connection URL.
 	//
 	// Format: `postgres://user:password@host:port/database?sslmode=mode`
@@ -355,6 +370,13 @@ type DatabaseConfig struct {
 	// Default: `5`
 	MaxIdleConns int `koanf:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns" mapstructure:"max_idle_conns" env:"DB_MAX_IDLE_CONNS"`
 
+	// Path specifies the SQLite database location or ":memory:".
+	//
+	// Values:
+	//   - ":memory:" for ephemeral in-memory databases
+	//   - Relative or absolute file path for persistent storage
+	Path string `koanf:"path" json:"path" yaml:"path" mapstructure:"path" env:"DB_PATH"`
+
 	// ConnMaxLifetime bounds how long a connection may be reused.
 	//
 	// Default: `5m`
@@ -384,6 +406,87 @@ type DatabaseConfig struct {
 	//
 	// Default: `5s`
 	ConnectTimeout time.Duration `koanf:"connect_timeout" json:"connect_timeout" yaml:"connect_timeout" mapstructure:"connect_timeout" env:"DB_CONNECT_TIMEOUT"`
+}
+
+// Validate ensures driver-specific requirements are satisfied and normalizes configuration.
+func (c *DatabaseConfig) Validate() error {
+	if c == nil {
+		return fmt.Errorf("database config is required")
+	}
+	driver := strings.TrimSpace(c.Driver)
+	if driver == "" {
+		driver = databaseDriverPostgres
+	}
+	c.Driver = driver
+	switch driver {
+	case databaseDriverPostgres:
+		return c.validatePostgres()
+	case databaseDriverSQLite:
+		return c.validateSQLite()
+	default:
+		return fmt.Errorf("unsupported database driver: %s", driver)
+	}
+}
+
+func (c *DatabaseConfig) validatePostgres() error {
+	if strings.TrimSpace(c.ConnString) != "" {
+		return nil
+	}
+	if strings.TrimSpace(c.Host) == "" {
+		return fmt.Errorf("postgres driver requires host or conn_string")
+	}
+	if strings.TrimSpace(c.Port) == "" ||
+		strings.TrimSpace(c.User) == "" ||
+		strings.TrimSpace(c.DBName) == "" {
+		return fmt.Errorf("postgres driver requires host, port, user, and name or conn_string")
+	}
+	return nil
+}
+
+func (c *DatabaseConfig) validateSQLite() error {
+	path := strings.TrimSpace(c.Path)
+	if path == "" {
+		return fmt.Errorf("sqlite driver requires path")
+	}
+	normalized, err := normalizeSQLitePath(path)
+	if err != nil {
+		return err
+	}
+	c.Path = normalized
+	return nil
+}
+
+func normalizeSQLitePath(input string) (string, error) {
+	if input == ":memory:" || strings.HasPrefix(input, "file::memory:") {
+		return input, nil
+	}
+	if strings.Contains(input, "\x00") {
+		return "", fmt.Errorf("sqlite path contains null byte")
+	}
+	if strings.ContainsRune(input, '\n') || strings.ContainsRune(input, '\r') {
+		return "", fmt.Errorf("sqlite path cannot contain newlines")
+	}
+	if strings.Contains(input, "?") {
+		return "", fmt.Errorf("sqlite path must not include query parameters")
+	}
+	cleaned := filepath.Clean(input)
+	if cleaned == "." || cleaned == string(filepath.Separator) {
+		return "", fmt.Errorf("sqlite path must reference a file, got %q", input)
+	}
+	if hasParentTraversal(cleaned) {
+		return "", fmt.Errorf("sqlite path cannot traverse directories: %q", input)
+	}
+	return cleaned, nil
+}
+
+func hasParentTraversal(path string) bool {
+	segments := strings.Split(path, string(filepath.Separator))
+	for _, segment := range segments {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 // TemporalConfig contains Temporal workflow engine configuration.
@@ -2170,6 +2273,7 @@ func buildReconcilerConfig(registry *definition.Registry) ReconcilerConfig {
 
 func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 	return DatabaseConfig{
+		Driver:           getString(registry, "database.driver"),
 		Host:             getString(registry, "database.host"),
 		Port:             getString(registry, "database.port"),
 		User:             getString(registry, "database.user"),
@@ -2178,6 +2282,21 @@ func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 		SSLMode:          getString(registry, "database.ssl_mode"),
 		AutoMigrate:      getBool(registry, "database.auto_migrate"),
 		MigrationTimeout: getDuration(registry, "database.migration_timeout"),
+		MaxOpenConns:     getInt(registry, "database.max_open_conns"),
+		MaxIdleConns:     getInt(registry, "database.max_idle_conns"),
+		ConnMaxLifetime:  getDuration(registry, "database.conn_max_lifetime"),
+		ConnMaxIdleTime:  getDuration(registry, "database.conn_max_idle_time"),
+		PingTimeout:      getDuration(registry, "database.ping_timeout"),
+		HealthCheckTimeout: getDuration(
+			registry,
+			"database.health_check_timeout",
+		),
+		HealthCheckPeriod: getDuration(
+			registry,
+			"database.health_check_period",
+		),
+		ConnectTimeout: getDuration(registry, "database.connect_timeout"),
+		Path:           getString(registry, "database.path"),
 	}
 }
 

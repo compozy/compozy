@@ -35,7 +35,7 @@
 
 ## Tasks
 
-- [ ] 1.0 SQLite Foundation Infrastructure (L)
+- [x] 1.0 SQLite Foundation Infrastructure (L)
 - [ ] 2.0 Authentication Repository (SQLite) (M)
 - [ ] 3.0 Workflow Repository (SQLite) (M)
 - [ ] 4.0 Task Repository & Factory Integration (L)
@@ -103,7 +103,7 @@ Notes on sizing:
 
 ## Batch Plan (Grouped Commits)
 
-- [ ] Batch 1 — Foundation: 1.0
+- [x] Batch 1 — Foundation: 1.0
 - [ ] Batch 2 — Repositories: 2.0, 3.0, 4.0
 - [ ] Batch 3 — Integration: 5.0
 - [ ] Batch 4 — Testing: 6.0

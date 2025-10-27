@@ -736,6 +736,14 @@ func registerDatabaseEndpointFields(registry *Registry) {
 	registerFieldDefs(
 		registry,
 		FieldDef{
+			Path:    "database.driver",
+			Default: "postgres",
+			CLIFlag: "db-driver",
+			EnvVar:  "DB_DRIVER",
+			Type:    reflect.TypeOf(""),
+			Help:    "Database driver (postgres or sqlite)",
+		},
+		FieldDef{
 			Path:    "database.host",
 			Default: "localhost",
 			CLIFlag: "db-host",
@@ -750,6 +758,14 @@ func registerDatabaseEndpointFields(registry *Registry) {
 			EnvVar:  "DB_PORT",
 			Type:    reflect.TypeOf(""),
 			Help:    "Database port",
+		},
+		FieldDef{
+			Path:    "database.path",
+			Default: ":memory:",
+			CLIFlag: "db-path",
+			EnvVar:  "DB_PATH",
+			Type:    reflect.TypeOf(""),
+			Help:    "SQLite database path (:memory: for in-memory)",
 		},
 	)
 }

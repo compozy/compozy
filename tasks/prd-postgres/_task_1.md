@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending
+## status: completed
 
 <task_context>
 <domain>engine/infra/sqlite + pkg/config</domain>
@@ -36,17 +36,17 @@ Create the foundational SQLite infrastructure including configuration system, co
 
 ## Subtasks
 
-- [ ] 1.1 Add database driver configuration to `pkg/config/config.go`
-- [ ] 1.2 Create `engine/infra/sqlite/` package structure
-- [ ] 1.3 Implement `Store` with connection management
-- [ ] 1.4 Port migration: `create_workflow_states.sql`
-- [ ] 1.5 Port migration: `create_task_states.sql`
-- [ ] 1.6 Port migration: `create_users.sql`
-- [ ] 1.7 Port migration: `create_api_keys.sql`
-- [ ] 1.8 Implement migration runner (`migrations.go`)
-- [ ] 1.9 Write unit tests for config validation
-- [ ] 1.10 Write unit tests for Store operations
-- [ ] 1.11 Write integration tests for migrations
+- [x] 1.1 Add database driver configuration to `pkg/config/config.go`
+- [x] 1.2 Create `engine/infra/sqlite/` package structure
+- [x] 1.3 Implement `Store` with connection management
+- [x] 1.4 Port migration: `create_workflow_states.sql`
+- [x] 1.5 Port migration: `create_task_states.sql`
+- [x] 1.6 Port migration: `create_users.sql`
+- [x] 1.7 Port migration: `create_api_keys.sql`
+- [x] 1.8 Implement migration runner (`migrations.go`)
+- [x] 1.9 Write unit tests for config validation
+- [x] 1.10 Write unit tests for Store operations
+- [x] 1.11 Write integration tests for migrations
 
 ## Implementation Details
 

@@ -367,12 +367,10 @@ func (l *loader) validateCustom(config *Config) error {
 }
 
 func validateDatabase(cfg *Config) error {
-	if cfg.Database.ConnString == "" {
-		if cfg.Database.Host == "" || cfg.Database.Port == "" || cfg.Database.User == "" || cfg.Database.DBName == "" {
-			return fmt.Errorf("database configuration incomplete: either conn_string or individual components required")
-		}
+	if err := cfg.Database.Validate(); err != nil {
+		return err
 	}
-	if cfg.Database.MigrationTimeout < 45*time.Second {
+	if cfg.Database.Driver == databaseDriverPostgres && cfg.Database.MigrationTimeout < 45*time.Second {
 		// NOTE: Keep migration timeout above advisory-lock window so schema changes don't deadlock.
 		return fmt.Errorf("database.migration_timeout must be >= 45s, got: %s", cfg.Database.MigrationTimeout)
 	}
