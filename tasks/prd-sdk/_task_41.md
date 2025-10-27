@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/runtime</domain>
@@ -28,13 +28,13 @@ Implement native tools builder for built-in call_agents and call_workflows tools
 
 ## Subtasks
 
-- [ ] 41.1 Create sdk/runtime/native_tools.go with NativeToolsBuilder struct
-- [ ] 41.2 Implement NewNativeTools() constructor
-- [ ] 41.3 Implement WithCallAgents() method
-- [ ] 41.4 Implement WithCallWorkflows() method
-- [ ] 41.5 Implement Build(ctx) returning *runtime.NativeToolsConfig
-- [ ] 41.6 Extend runtime Builder with WithNativeTools(tools *runtime.NativeToolsConfig) method
-- [ ] 41.7 Add unit tests for native tools builder
+- [x] 41.1 Create sdk/runtime/native_tools.go with NativeToolsBuilder struct
+- [x] 41.2 Implement NewNativeTools() constructor
+- [x] 41.3 Implement WithCallAgents() method
+- [x] 41.4 Implement WithCallWorkflows() method
+- [x] 41.5 Implement Build(ctx) returning *runtime.NativeToolsConfig
+- [x] 41.6 Extend runtime Builder with WithNativeTools(tools *runtime.NativeToolsConfig) method
+- [x] 41.7 Add unit tests for native tools builder
 
 ## Implementation Details
 
@@ -95,12 +95,12 @@ runtime.NewBun().
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] NewNativeTools creates empty config
-- [ ] WithCallAgents enables call_agents tool
-- [ ] WithCallWorkflows enables call_workflows tool
-- [ ] Build(ctx) returns valid NativeToolsConfig
-- [ ] Runtime builder WithNativeTools integrates correctly
-- [ ] Edge cases: no tools enabled, all tools enabled
+- [x] NewNativeTools creates empty config
+- [x] WithCallAgents enables call_agents tool
+- [x] WithCallWorkflows enables call_workflows tool
+- [x] Build(ctx) returns valid NativeToolsConfig
+- [x] Runtime builder WithNativeTools integrates correctly
+- [x] Edge cases: no tools enabled, all tools enabled
 
 ## Success Criteria
 

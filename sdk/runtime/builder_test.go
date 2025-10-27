@@ -138,3 +138,20 @@ func TestBuildFailsForInvalidMemory(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, config)
 }
+
+func TestWithNativeToolsConfiguresRuntime(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	tools := &engineruntime.NativeToolsConfig{CallAgents: true, CallWorkflows: true}
+	builder := NewBun().
+		WithEntrypoint("./tools/main.ts").
+		WithNativeTools(tools)
+	config, err := builder.Build(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, config)
+	require.NotNil(t, config.NativeTools)
+	require.True(t, config.NativeTools.CallAgents)
+	require.True(t, config.NativeTools.CallWorkflows)
+	require.NotSame(t, tools, config.NativeTools)
+}

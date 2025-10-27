@@ -74,6 +74,20 @@ func (b *Builder) WithBunPermissions(permissions ...string) *Builder {
 	return b
 }
 
+// WithNativeTools configures builtin native tool enablement for the runtime.
+func (b *Builder) WithNativeTools(tools *engineruntime.NativeToolsConfig) *Builder {
+	if b == nil {
+		return nil
+	}
+	if tools == nil {
+		b.config.NativeTools = nil
+		return b
+	}
+	clone := *tools
+	b.config.NativeTools = &clone
+	return b
+}
+
 // WithMaxMemoryMB sets the maximum memory allocation for the Bun runtime process in megabytes.
 func (b *Builder) WithMaxMemoryMB(mb int) *Builder {
 	if b == nil {
