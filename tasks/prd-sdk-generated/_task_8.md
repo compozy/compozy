@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/workflow</domain>
@@ -29,13 +29,13 @@ Migrate `sdk/workflow` for orchestrating multiple tasks. Workflows define execut
 
 ## Subtasks
 
-- [ ] 8.1 Create sdk2/workflow/ directory structure
-- [ ] 8.2 Create generate.go
-- [ ] 8.3 Generate options (~10 fields)
-- [ ] 8.4 Constructor with workflow validation
-- [ ] 8.5 Task collection handling
-- [ ] 8.6 Tests for workflow patterns
-- [ ] 8.7 Document and verify
+- [x] 8.1 Create sdk2/workflow/ directory structure
+- [x] 8.2 Create generate.go
+- [x] 8.3 Generate options (~10 fields)
+- [x] 8.4 Constructor with workflow validation
+- [x] 8.5 Task collection handling
+- [x] 8.6 Tests for workflow patterns
+- [x] 8.7 Document and verify
 
 ## Implementation Details
 
