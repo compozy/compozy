@@ -55,7 +55,7 @@
 - [x] 29.0 Knowledge: Base (S)
 - [x] 30.0 Knowledge: Binding (S)
 - [x] 31.0 Memory: Config — core (S)
-- [ ] 32.0 Memory: Reference (S)
+- [x] 32.0 Memory: Reference (S)
 - [ ] 33.0 Memory: Flush Strategies (S)
 - [ ] 34.0 Memory: Privacy + Expiration (S)
 - [ ] 35.0 Memory: Persistence + Token Counting (S)

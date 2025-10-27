@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/memory</domain>
@@ -28,11 +28,11 @@ Implement the memory reference builder (`sdk/memory/reference.go`) for attaching
 
 ## Subtasks
 
-- [ ] 32.1 Create sdk/memory/reference.go with ReferenceBuilder struct
-- [ ] 32.2 Implement NewReference(memoryID string) constructor
-- [ ] 32.3 Implement WithKey(keyTemplate string) method
-- [ ] 32.4 Implement Build(ctx) with validation
-- [ ] 32.5 Add unit tests for reference builder
+- [x] 32.1 Create sdk/memory/reference.go with ReferenceBuilder struct
+- [x] 32.2 Implement NewReference(memoryID string) constructor
+- [x] 32.3 Implement WithKey(keyTemplate string) method
+- [x] 32.4 Implement Build(ctx) with validation
+- [x] 32.5 Add unit tests for reference builder
 
 ## Implementation Details
 
@@ -73,12 +73,12 @@ Key template example: `"conversation-{{.conversation.id}}"`
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] NewReference validates non-empty memoryID
-- [ ] WithKey stores template correctly
-- [ ] Build(ctx) validates reference config
-- [ ] Error accumulation works across builder calls
-- [ ] Edge cases: empty key template, nil context handling
-- [ ] Build() produces valid engine memory.ReferenceConfig
+- [x] NewReference validates non-empty memoryID
+- [x] WithKey stores template correctly
+- [x] Build(ctx) validates reference config
+- [x] Error accumulation works across builder calls
+- [x] Edge cases: empty key template, nil context handling
+- [x] Build() produces valid engine memory.ReferenceConfig
 
 ## Success Criteria
 
