@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending
+## status: completed
 
 <task_context>
 <domain>engine/infra/sqlite</domain>
@@ -38,13 +38,13 @@ Implement SQLite-backed authentication repository for user and API key managemen
 
 ## Subtasks
 
-- [ ] 2.1 Create `engine/infra/sqlite/authrepo.go` structure
-- [ ] 2.2 Implement user CRUD operations
-- [ ] 2.3 Implement API key operations
-- [ ] 2.4 Add helper functions for common queries
-- [ ] 2.5 Write unit tests for user operations
-- [ ] 2.6 Write unit tests for API key operations
-- [ ] 2.7 Write integration tests for cascade deletes
+- [x] 2.1 Create `engine/infra/sqlite/authrepo.go` structure
+- [x] 2.2 Implement user CRUD operations
+- [x] 2.3 Implement API key operations
+- [x] 2.4 Add helper functions for common queries
+- [x] 2.5 Write unit tests for user operations
+- [x] 2.6 Write unit tests for API key operations
+- [x] 2.7 Write integration tests for cascade deletes
 
 ## Implementation Details
 
