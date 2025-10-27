@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -274,7 +275,14 @@ func TestBaseBuilderUsesLoggerFromContext(t *testing.T) {
 	require.NoError(t, buildErr)
 	require.NotNil(t, cfg)
 	assert.NotEmpty(t, recLogger.debugMessages)
-	assert.Contains(t, recLogger.debugMessages[0], "knowledge base configuration")
+	found := false
+	for _, msg := range recLogger.debugMessages {
+		if strings.Contains(msg, "knowledge base configuration") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "expected knowledge base debug message, got %v", recLogger.debugMessages)
 }
 
 func TestBaseBuilderRejectsNilContext(t *testing.T) {

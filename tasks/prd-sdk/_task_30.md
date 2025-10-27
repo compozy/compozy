@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/knowledge</domain>
@@ -30,11 +30,11 @@ Implement BindingBuilder in `sdk/knowledge/binding.go` to configure agent-knowle
 
 ## Subtasks
 
-- [ ] 30.1 Create sdk/knowledge/binding.go with BindingBuilder
-- [ ] 30.2 Implement NewBinding(knowledgeBaseID) constructor
-- [ ] 30.3 Implement WithTopK, WithMinScore, WithMaxTokens methods
-- [ ] 30.4 Implement Build(ctx) with validation
-- [ ] 30.5 Add unit tests for all methods and overrides
+- [x] 30.1 Create sdk/knowledge/binding.go with BindingBuilder
+- [x] 30.2 Implement NewBinding(knowledgeBaseID) constructor
+- [x] 30.3 Implement WithTopK, WithMinScore, WithMaxTokens methods
+- [x] 30.4 Implement Build(ctx) with validation
+- [x] 30.5 Add unit tests for all methods and overrides
 
 ## Implementation Details
 
@@ -88,16 +88,16 @@ Defaults:
 
 Unit tests from _tests.md (Knowledge section):
 
-- [ ] Valid binding with knowledge base ID builds successfully
-- [ ] Binding with empty knowledge base ID returns BuildError
-- [ ] Binding with topK override validates topK > 0
-- [ ] Binding with minScore override validates range [0.0, 1.0]
-- [ ] Binding with maxTokens override validates maxTokens > 0
-- [ ] Binding without overrides uses nil values (engine uses base defaults)
-- [ ] Multiple parameter overrides can be combined
-- [ ] Build(ctx) propagates context to validation
-- [ ] logger.FromContext(ctx) used in Build method
-- [ ] Error messages specify which override failed validation
+- [x] Valid binding with knowledge base ID builds successfully
+- [x] Binding with empty knowledge base ID returns BuildError
+- [x] Binding with topK override validates topK > 0
+- [x] Binding with minScore override validates range [0.0, 1.0]
+- [x] Binding with maxTokens override validates maxTokens > 0
+- [x] Binding without overrides uses nil values (engine uses base defaults)
+- [x] Multiple parameter overrides can be combined
+- [x] Build(ctx) propagates context to validation
+- [x] logger.FromContext(ctx) used in Build method
+- [x] Error messages specify which override failed validation
 
 ## Success Criteria
 
