@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/knowledge</domain>
@@ -30,11 +30,11 @@ Implement EmbedderBuilder in `sdk/knowledge/embedder.go` to configure embedding 
 
 ## Subtasks
 
-- [ ] 26.1 Create sdk/knowledge/embedder.go with EmbedderBuilder
-- [ ] 26.2 Implement NewEmbedder(id, provider, model)
-- [ ] 26.3 Implement WithAPIKey, WithDimension, WithBatchSize, WithMaxConcurrentWorkers
-- [ ] 26.4 Implement Build(ctx) with validation and error aggregation
-- [ ] 26.5 Add unit tests for all methods and error cases
+- [x] 26.1 Create sdk/knowledge/embedder.go with EmbedderBuilder
+- [x] 26.2 Implement NewEmbedder(id, provider, model)
+- [x] 26.3 Implement WithAPIKey, WithDimension, WithBatchSize, WithMaxConcurrentWorkers
+- [x] 26.4 Implement Build(ctx) with validation and error aggregation
+- [x] 26.5 Add unit tests for all methods and error cases
 
 ## Implementation Details
 
@@ -79,15 +79,15 @@ Supported providers: openai, google, azure, cohere, ollama
 
 Unit tests from _tests.md (Knowledge section):
 
-- [ ] Valid embedder with all fields builds successfully
-- [ ] Embedder with empty provider returns BuildError
-- [ ] Embedder with empty model returns BuildError
-- [ ] Embedder with invalid dimension (<0) returns error
-- [ ] Embedder with invalid batch size (<=0) returns error
-- [ ] Default values applied when optional fields omitted
-- [ ] Build(ctx) propagates context to validation
-- [ ] logger.FromContext(ctx) used in Build method
-- [ ] Multiple validation errors aggregate in BuildError
+- [x] Valid embedder with all fields builds successfully
+- [x] Embedder with empty provider returns BuildError
+- [x] Embedder with empty model returns BuildError
+- [x] Embedder with invalid dimension (<0) returns error
+- [x] Embedder with invalid batch size (<=0) returns error
+- [x] Default values applied when optional fields omitted
+- [x] Build(ctx) propagates context to validation
+- [x] logger.FromContext(ctx) used in Build method
+- [x] Multiple validation errors aggregate in BuildError
 
 ## Success Criteria
 
