@@ -53,7 +53,9 @@ func (b *Builder) WithCommand(command string, args ...string) *Builder {
 	} else {
 		b.config.Args = nil
 	}
-	b.config.Transport = mcpproxy.TransportStdio
+	if b.config.Transport == "" {
+		b.config.Transport = mcpproxy.TransportStdio
+	}
 	return b
 }
 
@@ -72,6 +74,19 @@ func (b *Builder) WithURL(url string) *Builder {
 	if b.config.Transport == "" {
 		b.config.Transport = enginemcp.DefaultTransport
 	}
+	return b
+}
+
+// WithTransport sets the transport type explicitly for the MCP server configuration.
+func (b *Builder) WithTransport(transport mcpproxy.TransportType) *Builder {
+	if b == nil {
+		return nil
+	}
+	if !transport.IsValid() {
+		b.errors = append(b.errors, fmt.Errorf("invalid transport type %q", transport))
+		return b
+	}
+	b.config.Transport = transport
 	return b
 }
 
@@ -98,6 +113,9 @@ func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 		collected = append(collected, err)
 	}
 	if err := b.validateURL(ctx); err != nil {
+		collected = append(collected, err)
+	}
+	if err := b.validateTransport(ctx); err != nil {
 		collected = append(collected, err)
 	}
 
@@ -171,6 +189,33 @@ func (b *Builder) validateURL(ctx context.Context) error {
 	}
 	if b.config.Transport == "" {
 		b.config.Transport = enginemcp.DefaultTransport
+	}
+	return nil
+}
+
+func (b *Builder) validateTransport(_ context.Context) error {
+	transport := mcpproxy.TransportType(strings.TrimSpace(string(b.config.Transport)))
+	if transport == "" {
+		return nil
+	}
+	b.config.Transport = transport
+	switch transport {
+	case mcpproxy.TransportStdio:
+		if strings.TrimSpace(b.config.URL) != "" {
+			return fmt.Errorf("stdio transport cannot be used with url configuration")
+		}
+		if strings.TrimSpace(b.config.Command) == "" {
+			return fmt.Errorf("stdio transport requires a command to be configured")
+		}
+	case mcpproxy.TransportSSE, mcpproxy.TransportStreamableHTTP:
+		if strings.TrimSpace(b.config.Command) != "" {
+			return fmt.Errorf("%s transport cannot be used with command configuration", transport)
+		}
+		if strings.TrimSpace(b.config.URL) == "" {
+			return fmt.Errorf("%s transport requires a url to be configured", transport)
+		}
+	default:
+		return fmt.Errorf("invalid transport type %q", transport)
 	}
 	return nil
 }

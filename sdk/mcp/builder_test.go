@@ -68,6 +68,20 @@ func TestWithURLEmptyAddsError(t *testing.T) {
 	require.NotEmpty(t, builder.errors)
 }
 
+func TestWithTransportSetsTransport(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithTransport(mcpproxy.TransportStreamableHTTP)
+	require.Equal(t, mcpproxy.TransportStreamableHTTP, builder.config.Transport)
+}
+
+func TestWithTransportInvalidAddsError(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithTransport(mcpproxy.TransportType("invalid"))
+	require.NotEmpty(t, builder.errors)
+}
+
 func TestBuildReturnsCommandConfig(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +109,17 @@ func TestBuildReturnsURLConfig(t *testing.T) {
 	require.Equal(t, enginemcp.DefaultTransport, cfg.Transport)
 }
 
+func TestBuildReturnsExplicitHTTPTransport(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithTransport(mcpproxy.TransportStreamableHTTP).WithURL("https://example.com/mcp")
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, mcpproxy.TransportStreamableHTTP, cfg.Transport)
+}
+
 func TestBuildFailsWithoutCommandOrURL(t *testing.T) {
 	t.Parallel()
 
@@ -115,6 +140,28 @@ func TestBuildFailsWhenBothConfigured(t *testing.T) {
 	require.Error(t, err)
 	require.Nil(t, cfg)
 	require.ErrorContains(t, err, "configure either command or url")
+}
+
+func TestBuildFailsWhenStdioTransportWithURL(t *testing.T) {
+	t.Parallel()
+
+	builder := New("github").WithURL("https://example.com/mcp").WithTransport(mcpproxy.TransportStdio)
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "stdio transport")
+}
+
+func TestBuildFailsWhenHTTPTransportWithCommand(t *testing.T) {
+	t.Parallel()
+
+	builder := New("filesystem").WithCommand("mcp-server").WithTransport(mcpproxy.TransportSSE)
+	ctx := t.Context()
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.ErrorContains(t, err, "transport cannot be used with command configuration")
 }
 
 func TestBuildAggregatesErrors(t *testing.T) {

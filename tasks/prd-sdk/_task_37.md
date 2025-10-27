@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/mcp</domain>
@@ -28,9 +28,9 @@ Extend MCP builder with transport type configuration (stdio, SSE, HTTP).
 
 ## Subtasks
 
-- [ ] 37.1 Add WithTransport(transport mcpproxy.TransportType) method
-- [ ] 37.2 Update Build(ctx) validation for transport compatibility
-- [ ] 37.3 Add unit tests for transport configuration
+- [x] 37.1 Add WithTransport(transport mcpproxy.TransportType) method
+- [x] 37.2 Update Build(ctx) validation for transport compatibility
+- [x] 37.3 Add unit tests for transport configuration
 
 ## Implementation Details
 

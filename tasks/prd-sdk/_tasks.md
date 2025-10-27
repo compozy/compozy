@@ -60,7 +60,7 @@
 - [x] 34.0 Memory: Privacy + Expiration (S)
 - [x] 35.0 Memory: Persistence + Token Counting (S)
 - [x] 36.0 MCP: Command/URL Basics (S)
-- [ ] 37.0 MCP: Transport (stdio/SSE) (S)
+- [x] 37.0 MCP: Transport (stdio/SSE) (S)
 - [ ] 38.0 MCP: Headers/Env/Timeouts (S)
 - [ ] 39.0 MCP: Proto + Sessions (S)
 - [ ] 40.0 Runtime: Bun (Base) (S)
