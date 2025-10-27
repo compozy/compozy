@@ -40,7 +40,7 @@
 - [x] 3.0 Workflow Repository (SQLite) (M)
 - [ ] 4.0 Task Repository & Factory Integration (L)
 - [x] 5.0 Server Integration & Validation (M)
-- [ ] 6.0 Multi-Driver Integration Tests (L)
+- [x] 6.0 Multi-Driver Integration Tests (L)
 - [ ] 7.0 Complete Database Documentation (L)
 - [ ] 8.0 SQLite Quickstart Example (S)
 
@@ -106,7 +106,7 @@ Notes on sizing:
 - [x] Batch 1 — Foundation: 1.0
 - [ ] Batch 2 — Repositories: 2.0, 3.0, 4.0
 - [ ] Batch 3 — Integration: 5.0
-- [ ] Batch 4 — Testing: 6.0
+- [x] Batch 4 — Testing: 6.0
 - [ ] Batch 5 — Documentation: 7.0
 - [ ] Batch 6 — Example: 8.0
 

@@ -68,26 +68,6 @@ type workflowStateRow struct {
 	updatedAt      string
 }
 
-type taskStateRow struct {
-	component      string
-	status         string
-	taskExecID     string
-	taskID         string
-	workflowID     string
-	workflowExecID string
-	executionType  string
-	usageJSON      sql.NullString
-	agentID        sql.NullString
-	toolID         sql.NullString
-	actionID       sql.NullString
-	parentStateID  sql.NullString
-	inputJSON      sql.NullString
-	outputJSON     sql.NullString
-	errorJSON      sql.NullString
-	createdAt      string
-	updatedAt      string
-}
-
 func (r *WorkflowRepo) ListStates(ctx context.Context, filter *workflow.StateFilter) ([]*workflow.State, error) {
 	query, args := buildListStatesQuery(filter)
 	rows, err := r.db.QueryContext(ctx, query, args...)
@@ -517,8 +497,8 @@ func (r *WorkflowRepo) fetchTaskStatesForExec(
 
 	result := make(map[string]map[string]*task.State)
 	for rows.Next() {
-		var row taskStateRow
-		if scanErr := scanTaskState(rows, &row); scanErr != nil {
+		row, scanErr := scanTaskStateRow(rows)
+		if scanErr != nil {
 			return nil, scanErr
 		}
 		state, convErr := row.toState()
@@ -590,8 +570,8 @@ func (r *WorkflowRepo) loadWorkflowTasks(
 
 	tasks := make(map[string]*task.State)
 	for rows.Next() {
-		var row taskStateRow
-		if scanErr := scanTaskState(rows, &row); scanErr != nil {
+		row, scanErr := scanTaskStateRow(rows)
+		if scanErr != nil {
 			return nil, scanErr
 		}
 		state, convErr := row.toState()
@@ -752,79 +732,6 @@ func (r *workflowStateRow) toState() (*workflow.State, error) {
 	if err := decodeError(r.errorJSON, &state.Error); err != nil {
 		return nil, err
 	}
-	return state, nil
-}
-
-func scanTaskState(rows *sql.Rows, dest *taskStateRow) error {
-	return rows.Scan(
-		&dest.component,
-		&dest.status,
-		&dest.taskExecID,
-		&dest.taskID,
-		&dest.workflowID,
-		&dest.workflowExecID,
-		&dest.executionType,
-		&dest.usageJSON,
-		&dest.agentID,
-		&dest.toolID,
-		&dest.actionID,
-		&dest.parentStateID,
-		&dest.inputJSON,
-		&dest.outputJSON,
-		&dest.errorJSON,
-		&dest.createdAt,
-		&dest.updatedAt,
-	)
-}
-
-func (r *taskStateRow) toState() (*task.State, error) {
-	state := &task.State{
-		Component:      core.ComponentType(r.component),
-		Status:         core.StatusType(r.status),
-		TaskExecID:     core.ID(r.taskExecID),
-		TaskID:         r.taskID,
-		WorkflowID:     r.workflowID,
-		WorkflowExecID: core.ID(r.workflowExecID),
-		ExecutionType:  task.ExecutionType(r.executionType),
-	}
-	if r.agentID.Valid {
-		id := r.agentID.String
-		state.AgentID = &id
-	}
-	if r.toolID.Valid {
-		id := r.toolID.String
-		state.ToolID = &id
-	}
-	if r.actionID.Valid {
-		id := r.actionID.String
-		state.ActionID = &id
-	}
-	if r.parentStateID.Valid && strings.TrimSpace(r.parentStateID.String) != "" {
-		parent := core.ID(r.parentStateID.String)
-		state.ParentStateID = &parent
-	}
-	if err := decodeUsage(r.usageJSON, &state.Usage); err != nil {
-		return nil, err
-	}
-	if err := decodeInput(r.inputJSON, &state.Input); err != nil {
-		return nil, err
-	}
-	if err := decodeOutput(r.outputJSON, &state.Output); err != nil {
-		return nil, err
-	}
-	if err := decodeError(r.errorJSON, &state.Error); err != nil {
-		return nil, err
-	}
-	createdAt, err := parseSQLiteTime(r.createdAt)
-	if err != nil {
-		return nil, fmt.Errorf("sqlite workflow: parse task created_at: %w", err)
-	}
-	updatedAt, err := parseSQLiteTime(r.updatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("sqlite workflow: parse task updated_at: %w", err)
-	}
-	state.CreatedAt = createdAt
-	state.UpdatedAt = updatedAt
 	return state, nil
 }
 
