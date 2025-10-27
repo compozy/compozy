@@ -1147,6 +1147,14 @@
       "additionalProperties": false,
       "description": "TemporalConfig contains Temporal workflow engine configuration.",
       "properties": {
+        "mode": {
+          "description": "Mode controls how Compozy connects to Temporal.\n\nValues:\n  - \"remote\": connect to an external Temporal deployment (default)\n  - \"standalone\": launch the embedded Temporal server for local development\n\nStandalone mode is intended for development and testing only.",
+          "enum": [
+            "remote",
+            "standalone"
+          ],
+          "type": "string"
+        },
         "host_port": {
           "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\"",
           "type": "string"
@@ -1158,6 +1166,53 @@
         "task_queue": {
           "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\"",
           "type": "string"
+        },
+        "standalone": {
+          "$ref": "#/$defs/TemporalStandaloneConfig",
+          "description": "Standalone configures the embedded Temporal server when `mode` is \"standalone\"."
+        }
+      },
+      "type": "object"
+    },
+    "TemporalStandaloneConfig": {
+      "additionalProperties": false,
+      "description": "TemporalStandaloneConfig configures the embedded Temporal server used in standalone mode.",
+      "properties": {
+        "bind_ip": {
+          "description": "BindIP determines the IP address the Temporal services listen on.\n\nDefault: \"127.0.0.1\"",
+          "type": "string"
+        },
+        "cluster_name": {
+          "description": "ClusterName customizes the Temporal cluster identifier for standalone deployments.\n\nDefault: \"compozy-standalone\"",
+          "type": "string"
+        },
+        "database_file": {
+          "description": "DatabaseFile specifies the SQLite database location for Temporal persistence.\n\nUse `\":memory:\"` for ephemeral storage or provide a file path for persistence across restarts.\nDefault: `\":memory:\"`",
+          "type": "string"
+        },
+        "enable_ui": {
+          "description": "EnableUI toggles the Temporal Web UI server for local debugging.\n\nDefault: `true`",
+          "type": "boolean"
+        },
+        "frontend_port": {
+          "description": "FrontendPort sets the Temporal frontend gRPC port.\n\nDefault: `7233`",
+          "type": "integer"
+        },
+        "log_level": {
+          "description": "LogLevel controls Temporal server logging verbosity.\n\nValues: \"debug\", \"info\", \"warn\", \"error\"\nDefault: \"warn\"",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace specifies the default namespace created when the embedded server starts.\n\nDefault: \"default\"",
+          "type": "string"
+        },
+        "start_timeout": {
+          "description": "StartTimeout defines the maximum duration to wait for the embedded Temporal server to start.\n\nDefault: `30s`",
+          "type": "integer"
+        },
+        "ui_port": {
+          "description": "UIPort sets the HTTP port for the Temporal Web UI.\n\nDefault: `8233`",
+          "type": "integer"
         }
       },
       "type": "object"

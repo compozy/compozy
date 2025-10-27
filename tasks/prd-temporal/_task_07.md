@@ -1,5 +1,7 @@
 # Task 7.0: CLI & Schema Updates
 
+## status: completed
+
 **Size:** S (half day)  
 **Priority:** MEDIUM - CLI support  
 **Dependencies:** Task 3.0
@@ -10,22 +12,22 @@ Add CLI flags for temporal mode configuration and update JSON schema.
 
 ## Deliverables
 
-- [ ] CLI flag: `--temporal-mode`
-- [ ] CLI flag: `--temporal-standalone-database`
-- [ ] CLI flag: `--temporal-standalone-frontend-port`
-- [ ] CLI flag: `--temporal-standalone-ui-port`
-- [ ] `schemas/config.json` - Add new fields
-- [ ] Documentation: `cli/help/global-flags.md`
+- [x] CLI flag: `--temporal-mode`
+- [x] CLI flag: `--temporal-standalone-database`
+- [x] CLI flag: `--temporal-standalone-frontend-port`
+- [x] CLI flag: `--temporal-standalone-ui-port`
+- [x] `schemas/config.json` - Add new fields
+- [x] Documentation: `cli/help/global-flags.md`
 
 ## Acceptance Criteria
 
-- [ ] `--temporal-mode` flag accepts "remote" or "standalone"
-- [ ] Standalone flags only relevant when mode="standalone"
-- [ ] Flags override YAML config correctly
-- [ ] JSON schema updated with new fields
-- [ ] Schema validation passes
-- [ ] Help text accurate
-- [ ] All tests pass
+- [x] `--temporal-mode` flag accepts "remote" or "standalone"
+- [x] Standalone flags only relevant when mode="standalone"
+- [x] Flags override YAML config correctly
+- [x] JSON schema updated with new fields
+- [x] Schema validation passes
+- [x] Help text accurate
+- [x] All tests pass
 
 ## Implementation Approach
 

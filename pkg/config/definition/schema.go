@@ -972,6 +972,7 @@ func registerTemporalStandaloneServerFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.database_file",
 		Default: ":memory:",
+		CLIFlag: "temporal-standalone-database",
 		EnvVar:  "TEMPORAL_STANDALONE_DATABASE_FILE",
 		Type:    reflect.TypeOf(""),
 		Help:    "SQLite database path for standalone Temporal server (:memory: for in-memory)",
@@ -979,6 +980,7 @@ func registerTemporalStandaloneServerFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.frontend_port",
 		Default: 7233,
+		CLIFlag: "temporal-standalone-frontend-port",
 		EnvVar:  "TEMPORAL_STANDALONE_FRONTEND_PORT",
 		Type:    reflect.TypeOf(0),
 		Help:    "Frontend gRPC port for standalone Temporal server",
@@ -1017,6 +1019,7 @@ func registerTemporalStandaloneRuntimeFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.ui_port",
 		Default: 8233,
+		CLIFlag: "temporal-standalone-ui-port",
 		EnvVar:  "TEMPORAL_STANDALONE_UI_PORT",
 		Type:    reflect.TypeOf(0),
 		Help:    "HTTP port for Temporal Web UI in standalone mode",
