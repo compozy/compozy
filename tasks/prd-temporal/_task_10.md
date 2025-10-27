@@ -1,5 +1,7 @@
 # Task 10.0: Advanced Integration Tests
 
+## status: completed
+
 **Size:** M (2 days)  
 **Priority:** MEDIUM - Edge case coverage  
 **Dependencies:** Task 5.0
@@ -10,20 +12,20 @@ Create advanced integration tests covering error handling, startup lifecycle, an
 
 ## Deliverables
 
-- [ ] `test/integration/temporal/errors_test.go` - Error scenarios
-- [ ] `test/integration/temporal/startup_lifecycle_test.go` - Lifecycle edge cases
+- [x] `test/integration/temporal/errors_test.go` - Error scenarios
+- [x] `test/integration/temporal/startup_lifecycle_test.go` - Lifecycle edge cases
 
 ## Acceptance Criteria
 
-- [ ] Port conflict test passes
-- [ ] Startup timeout test passes
-- [ ] Invalid config rejection test passes
-- [ ] Database corruption handling test passes
-- [ ] Graceful shutdown under load test passes
-- [ ] Concurrent startup/shutdown test passes
-- [ ] All tests use `t.Context()`
-- [ ] All tests pass
-- [ ] No linter errors
+- [x] Port conflict test passes
+- [x] Startup timeout test passes
+- [x] Invalid config rejection test passes
+- [x] Database corruption handling test passes
+- [x] Graceful shutdown under load test passes
+- [x] Concurrent startup/shutdown test passes
+- [x] All tests use `t.Context()`
+- [x] All tests pass
+- [x] No linter errors
 
 ## Implementation Approach
 

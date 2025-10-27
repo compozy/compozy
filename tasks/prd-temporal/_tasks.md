@@ -63,7 +63,7 @@
 - [x] 7.0 CLI & Schema Updates (S - half day)
 - [x] 8.0 Documentation (L - 2-3 days)
 - [x] 9.0 Examples (L - 2-3 days)
-- [ ] 10.0 Advanced Integration Tests (M - 2 days)
+- [x] 10.0 Advanced Integration Tests (M - 2 days)
 
 ## Task Sizing
 
