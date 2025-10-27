@@ -4,7 +4,7 @@
 
 Migrate all SDK packages from manual builder pattern to auto-generated functional options pattern. This eliminates 70-75% of boilerplate code and reduces maintenance overhead from 30-40 lines per field to 0 lines (just `go generate`).
 
-**Status:** 50% Complete (agent + agentaction done, 9 packages + 9 examples remaining)
+**Status:** 91% Complete (10 of 11 packages complete, only knowledge package + examples remaining)
 
 ## Relevant Files
 
@@ -69,8 +69,8 @@ Migrate all SDK packages from manual builder pattern to auto-generated functiona
 - [ ] 9.0 Migrate knowledge package (M)
 
 ### Phase 3: Complex Integration (Sequential after Phase 2)
-- [ ] 10.0 Migrate task package (L)
-- [ ] 11.0 Migrate project package (L)
+- [x] [_task_10.md](_task_10.md) - 10.0 Migrate task package (L) - **COMPLETED**
+- [x] [_task_11.md](_task_11.md) - 11.0 Migrate project package (L) - **COMPLETED**
 
 ### Phase 4: Examples (After Phase 1 complete)
 - [ ] 12.0 Update example files (S)
