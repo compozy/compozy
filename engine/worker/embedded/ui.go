@@ -132,7 +132,10 @@ func (s *UIServer) Stop(ctx context.Context) error {
 		return ctx.Err()
 	case <-done:
 		if runErrCh != nil {
-			<-runErrCh
+			select {
+			case <-runErrCh:
+			default:
+			}
 		}
 		logger.FromContext(ctx).Info("Temporal UI server stopped", "address", s.address)
 		return nil

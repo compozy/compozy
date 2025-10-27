@@ -714,6 +714,8 @@ github.com/temporalio/sqlparser v0.0.0-20231115171017-f4060bcfa6cb/go.mod h1:143
 github.com/temporalio/tchannel-go v1.22.1-0.20220818200552-1be8d8cffa5b/go.mod h1:c+V9Z/ZgkzAdyGvHrvC5AsXgN+M9Qwey04cBdKYzV7U=
 github.com/temporalio/tchannel-go v1.22.1-0.20240528171429-1db37fdea938 h1:sEJGhmDo+0FaPWM6f0v8Tjia0H5pR6/Baj6+kS78B+M=
 github.com/temporalio/tchannel-go v1.22.1-0.20240528171429-1db37fdea938/go.mod h1:ezRQRwu9KQXy8Wuuv1aaFFxoCNz5CeNbVOOkh3xctbY=
+github.com/temporalio/ui-server/v2 v2.28.0 h1:irtPsMqu5kxwL+jORqdmvco1d8MhUOO6pncZDaZnao4=
+github.com/temporalio/ui-server/v2 v2.28.0/go.mod h1:ttZpCFyLQmLyIbuaP8Zqu6kkoqSM7X4tefAXwF4NcqY=
 github.com/temporalio/ui-server/v2 v2.41.0 h1:m9F2jnFJy/dWxjk9d2oS+825r78EX4gUlipoQ1xNO6Y=
 github.com/temporalio/ui-server/v2 v2.41.0/go.mod h1:ofEKGV5/NaPbjdmEQRcUDFE6nZPprOemNjLJYLF9IX4=
 github.com/testcontainers/testcontainers-go v0.39.0 h1:uCUJ5tA+fcxbFAB0uP3pIK3EJ2IjjDUHFSZ1H1UxAts=
@@ -749,6 +751,7 @@ github.com/uber-go/tally/v4 v4.1.17 h1:C+U4BKtVDXTszuzU+WH8JVQvRVnaVKxzZrROFyDrv
 github.com/uber-go/tally/v4 v4.1.17/go.mod h1:ZdpiHRGSa3z4NIAc1VlEH4SiknR885fOIF08xmS0gaU=
 github.com/uber/jaeger-client-go v2.22.1+incompatible h1:NHcubEkVbahf9t3p75TOCR83gdUHXjRJvjoBh1yACsM=
 github.com/uber/jaeger-client-go v2.22.1+incompatible/go.mod h1:WVhlPFC8FDjOFMMWRy2pZqQJSXxYSwNYOkTr/Z6d3Kk=
+github.com/uber/jaeger-client-go v2.30.0+incompatible h1:D6wyKGCecFaSRUpo8lCVbaOOb6ThwMmTEbhRwtKR97o=
 github.com/uber/jaeger-lib v2.4.1+incompatible h1:td4jdvLcExb4cBISKIpHuGoVXh+dVKhn2Um6rjCsSsg=
 github.com/uber/jaeger-lib v2.4.1+incompatible/go.mod h1:ComeNDZlWwrWnDv8aPp0Ba6+uUTzImX/AauajbLI56U=
 github.com/ugorji/go/codec v1.3.0 h1:Qd2W2sQawAfG8XSvzwhBeoGq71zXOC/Q1E9y/wUcsUA=
@@ -843,10 +846,16 @@ go.opentelemetry.io/proto/otlp v1.7.1 h1:gTOMpGDb0WTBOP8JaO72iL3auEZhVmAQg4ipjOV
 go.opentelemetry.io/proto/otlp v1.7.1/go.mod h1:b2rVh6rfI/s2pHWNlB7ILJcRALpcNDzKhACevjI+ZnE=
 go.starlark.net v0.0.0-20230302034142-4b1e35fe2254 h1:Ss6D3hLXTM0KobyBYEAygXzFfGcjnmfEJOBgSbemCtg=
 go.starlark.net v0.0.0-20230302034142-4b1e35fe2254/go.mod h1:jxU+3+j+71eXOW14274+SmmuW82qJzl6iZSeqEtTGds=
+go.temporal.io/api v1.34.0 h1:RBQtYF+jJa252uruscL0TULgdFNqUkhk5R7Bj8PT2ko=
+go.temporal.io/api v1.34.0/go.mod h1:YN5Ty/DSp7uAdJxLxup+Y3aQLM00q+7cZuOEGFJ2Ob8=
 go.temporal.io/api v1.53.0 h1:6vAFpXaC584AIELa6pONV56MTpkm4Ha7gPWL2acNAjo=
 go.temporal.io/api v1.53.0/go.mod h1:iaxoP/9OXMJcQkETTECfwYq4cw/bj4nwov8b3ZLVnXM=
+go.temporal.io/sdk v1.27.0 h1:C5oOE/IRyLcZaFoB13kEHsjvSHEnGcwT6bNys0HFFHk=
+go.temporal.io/sdk v1.27.0/go.mod h1:PnOq5f3dWuU2NAbY+yczXkIeycsIIdBtoCO62ZE0aak=
 go.temporal.io/sdk v1.37.0 h1:RbwCkUQuqY4rfCzdrDZF9lgT7QWG/pHlxfZFq0NPpDQ=
 go.temporal.io/sdk v1.37.0/go.mod h1:tOy6vGonfAjrpCl6Bbw/8slTgQMiqvoyegRv2ZHPm5M=
+go.temporal.io/server v1.25.0-113.3 h1:TNEJ26fpkg7v0b9jCxcVp/UkgKqg58giME7cX8QnmFY=
+go.temporal.io/server v1.25.0-113.3/go.mod h1:FyvEXhbW14mfFThdo7vB3zQMJRWcR7rVVNG34BU8TqE=
 go.temporal.io/server v1.29.0 h1:BGBCvI7vcPokCjuDsfitLx2eS+8ow+yQ4frLJZcn2nQ=
 go.temporal.io/server v1.29.0/go.mod h1:pc0n6DRcN06V4WNhaxdxE3KaZIS3KSDNKdca6uu6RuU=
 go.uber.org/atomic v1.5.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=

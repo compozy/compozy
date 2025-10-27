@@ -43,6 +43,8 @@ func TestStandaloneServerLifecycle(t *testing.T) {
 	require.NotEmpty(t, srv.FrontendAddress())
 }
 
+// findOpenPortRange locates a contiguous 4-port window for Temporal standalone services.
+// The embedded server requires four consecutive ports (one per service) for CI/integration tests.
 func findOpenPortRange(t *testing.T) int {
 	t.Helper()
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
