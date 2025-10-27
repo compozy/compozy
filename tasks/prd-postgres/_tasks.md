@@ -37,7 +37,7 @@
 
 - [x] 1.0 SQLite Foundation Infrastructure (L)
 - [x] 2.0 Authentication Repository (SQLite) (M)
-- [ ] 3.0 Workflow Repository (SQLite) (M)
+- [x] 3.0 Workflow Repository (SQLite) (M)
 - [ ] 4.0 Task Repository & Factory Integration (L)
 - [ ] 5.0 Server Integration & Validation (M)
 - [ ] 6.0 Multi-Driver Integration Tests (L)
