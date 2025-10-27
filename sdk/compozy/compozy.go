@@ -314,6 +314,11 @@ func (b *Builder) Build(ctx context.Context) (*Compozy, error) {
 	}
 
 	comp := b.assembleCompozy(srvCtx, cancel, manager, cfg, projectClone, workflows, instance)
+	if err := comp.validateAndLink(srvCtx, projectClone); err != nil {
+		cancel()
+		_ = manager.Close(srvCtx)
+		return nil, err
+	}
 	if err := comp.loadProjectIntoEngine(srvCtx, projectClone); err != nil {
 		cancel()
 		_ = manager.Close(srvCtx)

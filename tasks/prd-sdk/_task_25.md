@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/compozy</domain>
@@ -31,11 +31,11 @@ Implement orchestration logic to validate and link SDK resources before engine r
 
 ## Subtasks
 
-- [ ] 25.1 Implement ValidateReferences(ctx, *project.Config) in integration.go
-- [ ] 25.2 Implement dependency graph construction for registration order
-- [ ] 25.3 Add cross-resource validation (agent→tool, workflow→agent, etc.)
-- [ ] 25.4 Add logging for validation warnings and errors
-- [ ] 25.5 Add unit tests for reference validation and dependency ordering
+- [x] 25.1 Implement ValidateReferences(ctx, *project.Config) in integration.go
+- [x] 25.2 Implement dependency graph construction for registration order
+- [x] 25.3 Add cross-resource validation (agent→tool, workflow→agent, etc.)
+- [x] 25.4 Add logging for validation warnings and errors
+- [x] 25.5 Add unit tests for reference validation and dependency ordering
 
 ## Implementation Details
 
@@ -99,18 +99,18 @@ Key validations:
 
 Unit tests from _tests.md (Validation section):
 
-- [ ] Valid project with all references passes validation
-- [ ] Workflow referencing non-existent agent returns error
-- [ ] Agent referencing non-existent tool returns error
-- [ ] Agent referencing non-existent knowledge base returns error
-- [ ] Agent referencing non-existent memory returns error
-- [ ] Knowledge base referencing non-existent embedder returns error
-- [ ] Knowledge base referencing non-existent vectorDB returns error
-- [ ] Circular workflow dependency is detected and rejected
-- [ ] Hybrid project: SDK references resolve YAML resources
-- [ ] Hybrid project: YAML references resolve SDK resources
-- [ ] logger.FromContext(ctx) used for logging
-- [ ] Error messages include full reference path (e.g., workflow.task.agent.tool)
+- [x] Valid project with all references passes validation
+- [x] Workflow referencing non-existent agent returns error
+- [x] Agent referencing non-existent tool returns error
+- [x] Agent referencing non-existent knowledge base returns error
+- [x] Agent referencing non-existent memory returns error
+- [x] Knowledge base referencing non-existent embedder returns error
+- [x] Knowledge base referencing non-existent vectorDB returns error
+- [x] Circular workflow dependency is detected and rejected
+- [x] Hybrid project: SDK references resolve YAML resources
+- [x] Hybrid project: YAML references resolve SDK resources
+- [x] logger.FromContext(ctx) used for logging
+- [x] Error messages include full reference path (e.g., workflow.task.agent.tool)
 
 ## Success Criteria
 

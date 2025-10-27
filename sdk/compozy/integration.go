@@ -152,6 +152,51 @@ func (c *Compozy) loadProjectIntoEngine(ctx context.Context, proj *project.Confi
 	return nil
 }
 
+func (c *Compozy) validateAndLink(ctx context.Context, proj *project.Config) error {
+	if c == nil {
+		return fmt.Errorf("compozy instance is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	if proj == nil {
+		return fmt.Errorf("project config is required")
+	}
+	log := logger.FromContext(ctx)
+	store := c.ResourceStore()
+	idx, err := buildResourceIndex(ctx, proj, c.workflowByID, store)
+	if err != nil {
+		log.Error("failed to build resource index", "error", err)
+		return fmt.Errorf("build resource index: %w", err)
+	}
+	graph, err := c.ValidateReferences(ctx, proj, idx)
+	if err != nil {
+		log.Error("reference validation failed", "error", err)
+		return fmt.Errorf("reference validation failed: %w", err)
+	}
+	if err := detectCircularDependencies(graph); err != nil {
+		log.Error("circular dependency detected", "error", err)
+		return fmt.Errorf("circular dependency detected: %w", err)
+	}
+	if err := c.validateDependencies(ctx, graph); err != nil {
+		log.Error("dependency validation failed", "error", err)
+		return fmt.Errorf("dependency validation failed: %w", err)
+	}
+	for _, unused := range idx.unused() {
+		log.Warn(
+			"unused resource definition",
+			"resource",
+			string(unused.kind),
+			"id",
+			unused.id,
+			"source",
+			unused.source,
+		)
+	}
+	log.Info("validation and linking complete", "resources", idx.count())
+	return nil
+}
+
 // RegisterProject validates and registers the provided project configuration in the resource store.
 func (c *Compozy) RegisterProject(ctx context.Context, proj *project.Config) error {
 	if c == nil {
@@ -432,29 +477,17 @@ func (c *Compozy) RegisterKnowledgeBase(ctx context.Context, kb *knowledge.BaseC
 	if vectorCfg == nil {
 		return fmt.Errorf("knowledge base %s references missing vector_db %s", id, kb.VectorDB)
 	}
-	kbCopyAny, err := core.DeepCopy(kb)
+	kbCopy, err := core.DeepCopy(kb)
 	if err != nil {
 		return fmt.Errorf("knowledge base %s copy failed: %w", id, err)
 	}
-	kbCopy, ok := kbCopyAny.(*knowledge.BaseConfig)
-	if !ok {
-		return fmt.Errorf("knowledge base %s copy unexpected type %T", id, kbCopyAny)
-	}
-	embedderCopyAny, err := core.DeepCopy(embedderCfg)
+	embedderCopy, err := core.DeepCopy(embedderCfg)
 	if err != nil {
 		return fmt.Errorf("knowledge base %s embedder copy failed: %w", id, err)
 	}
-	embedderCopy, ok := embedderCopyAny.(*knowledge.EmbedderConfig)
-	if !ok {
-		return fmt.Errorf("knowledge base %s embedder copy unexpected type %T", id, embedderCopyAny)
-	}
-	vectorCopyAny, err := core.DeepCopy(vectorCfg)
+	vectorCopy, err := core.DeepCopy(vectorCfg)
 	if err != nil {
 		return fmt.Errorf("knowledge base %s vector copy failed: %w", id, err)
-	}
-	vectorCopy, ok := vectorCopyAny.(*knowledge.VectorDBConfig)
-	if !ok {
-		return fmt.Errorf("knowledge base %s vector copy unexpected type %T", id, vectorCopyAny)
 	}
 	defs := knowledge.Definitions{
 		Embedders:      []knowledge.EmbedderConfig{*embedderCopy},

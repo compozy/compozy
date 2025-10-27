@@ -434,8 +434,6 @@ func TestRegisterMemoryDuplicateIDRejected(t *testing.T) {
 }
 
 func TestRegisterMCPStdioRegistersSuccessfully(t *testing.T) {
-	t.Parallel()
-
 	ctx, _ := newTestContext(t)
 	t.Setenv("MCP_PROXY_URL", "http://localhost:3030")
 	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
@@ -448,8 +446,6 @@ func TestRegisterMCPStdioRegistersSuccessfully(t *testing.T) {
 }
 
 func TestRegisterMCPSSERegistersSuccessfully(t *testing.T) {
-	t.Parallel()
-
 	ctx, _ := newTestContext(t)
 	t.Setenv("MCP_PROXY_URL", "http://localhost:4040")
 	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
@@ -458,8 +454,6 @@ func TestRegisterMCPSSERegistersSuccessfully(t *testing.T) {
 }
 
 func TestRegisterMCPValidationFailureIncludesIDAndTransport(t *testing.T) {
-	t.Parallel()
-
 	ctx, _ := newTestContext(t)
 	t.Setenv("MCP_PROXY_URL", "http://localhost:5050")
 	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
@@ -472,8 +466,6 @@ func TestRegisterMCPValidationFailureIncludesIDAndTransport(t *testing.T) {
 }
 
 func TestRegisterMCPDuplicateIDRejected(t *testing.T) {
-	t.Parallel()
-
 	ctx, _ := newTestContext(t)
 	t.Setenv("MCP_PROXY_URL", "http://localhost:6060")
 	instance := &Compozy{store: resources.NewMemoryResourceStore(), project: &engineproject.Config{Name: "demo"}}
@@ -522,13 +514,25 @@ func TestLoadProjectRegistersResourcesInOrder(t *testing.T) {
 }
 
 func TestLoadProjectRegistersKnowledgeMemoryMCP(t *testing.T) {
-	t.Parallel()
-
 	ctx, _ := newTestContext(t)
 	t.Setenv("MCP_PROXY_URL", "http://localhost:7070")
 	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
 	store := resources.NewMemoryResourceStore()
 	embedderID, vectorID := seedKnowledgeDependencies(t, ctx, store, projectCfg.Name, 1536)
+	projectCfg.Embedders = append(projectCfg.Embedders, knowledge.EmbedderConfig{
+		ID:       embedderID,
+		Provider: "openai",
+		Model:    "text-embedding-3-small",
+		Config:   knowledge.EmbedderRuntimeConfig{Dimension: 1536},
+	})
+	projectCfg.VectorDBs = append(projectCfg.VectorDBs, knowledge.VectorDBConfig{
+		ID:   vectorID,
+		Type: knowledge.VectorDBTypeFilesystem,
+		Config: knowledge.VectorDBConnConfig{
+			Path:      t.TempDir(),
+			Dimension: 1536,
+		},
+	})
 	kbValue := sampleKnowledgeBaseConfig(t, "kb-load", embedderID, vectorID)
 	projectCfg.KnowledgeBases = append(projectCfg.KnowledgeBases, *kbValue)
 	memValue := sampleMemoryConfig("memory-load")
