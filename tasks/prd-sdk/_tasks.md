@@ -68,7 +68,7 @@
 - [x] 43.0 Runtime: Permissions + Tool Timeouts (S)
 - [x] 44.0 Example: Simple Workflow (S)
 - [x] 45.0 Example: Parallel Tasks (S)
-- [ ] 46.0 Example: Knowledge (RAG) (S)
+- [x] 46.0 Example: Knowledge (RAG) (S)
 - [ ] 47.0 Example: Memory Conversation (S)
 - [ ] 48.0 Example: MCP Integration (S)
 - [ ] 49.0 Example: Runtime + Native Tools (S)

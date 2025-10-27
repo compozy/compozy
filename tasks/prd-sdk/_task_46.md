@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -32,17 +32,17 @@ Create comprehensive RAG example demonstrating the complete knowledge system wit
 
 ## Subtasks
 
-- [ ] 46.1 Create sdk/examples/03_knowledge_rag.go
-- [ ] 46.2 Build embedder configuration (OpenAI)
-- [ ] 46.3 Build vector DB configuration (PGVector)
-- [ ] 46.4 Create multiple source configs (file, directory, URL)
-- [ ] 46.5 Build knowledge base with chunking/preprocessing
-- [ ] 46.6 Build knowledge binding with retrieval params
-- [ ] 46.7 Create agent with knowledge integration
-- [ ] 46.8 Build complete project with knowledge system
-- [ ] 46.9 Add comments explaining RAG workflow
-- [ ] 46.10 Update README.md with RAG example
-- [ ] 46.11 Test example runs successfully
+- [x] 46.1 Create sdk/examples/03_knowledge_rag.go
+- [x] 46.2 Build embedder configuration (OpenAI)
+- [x] 46.3 Build vector DB configuration (PGVector)
+- [x] 46.4 Create multiple source configs (file, directory, URL)
+- [x] 46.5 Build knowledge base with chunking/preprocessing
+- [x] 46.6 Build knowledge binding with retrieval params
+- [x] 46.7 Create agent with knowledge integration
+- [x] 46.8 Build complete project with knowledge system
+- [x] 46.9 Add comments explaining RAG workflow
+- [x] 46.10 Update README.md with RAG example
+- [x] 46.11 Test example runs successfully
 
 ## Implementation Details
 
@@ -94,25 +94,25 @@ kb, err := knowledge.NewBase("product-docs").
 
 ## Deliverables
 
-- [ ] sdk/examples/03_knowledge_rag.go (runnable)
-- [ ] Updated README.md with RAG example section
-- [ ] Comments explaining RAG workflow (embed → store → retrieve)
-- [ ] All 5 knowledge builders demonstrated
-- [ ] Multiple source types shown
-- [ ] Verified example runs successfully
+- [x] sdk/examples/03_knowledge_rag.go (runnable)
+- [x] Updated README.md with RAG example section
+- [x] Comments explaining RAG workflow (embed → store → retrieve)
+- [x] All 5 knowledge builders demonstrated
+- [x] Multiple source types shown
+- [x] Verified example runs successfully
 
 ## Tests
 
 From _tests.md:
 
 - Example validation:
-  - [ ] Code compiles without errors
-  - [ ] Example runs with valid DB connection
-  - [ ] Embedder config matches engine expectations
-  - [ ] VectorDB config with PGVector indexes
-  - [ ] Source builders create valid configs
-  - [ ] Knowledge binding works with agent
-  - [ ] Retrieval parameters validated
+  - [x] Code compiles without errors
+  - [x] Example runs with valid DB connection
+  - [x] Embedder config matches engine expectations
+  - [x] VectorDB config with PGVector indexes
+  - [x] Source builders create valid configs
+  - [x] Knowledge binding works with agent
+  - [x] Retrieval parameters validated
 
 ## Success Criteria
 

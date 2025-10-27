@@ -54,3 +54,24 @@ When the program finishes it prints a summary showing how many tasks run in para
 ### What's Next
 
 Upcoming examples in this directory will introduce knowledge bases, long-term memory, MCP integrations, and more advanced orchestration scenarios. Every example continues to reinforce context-first patterns and robust error handling with `BuildError`.
+
+## 03. Knowledge RAG
+
+The file `03_knowledge_rag.go` assembles a complete retrieval augmented generation pipeline with all five knowledge builders. It walks through configuring an OpenAI embedder, provisioning a pgvector-backed collection, wiring local file and directory sources alongside remote documentation URLs, and binding the resulting knowledge base to an agent inside a runnable workflow.
+
+### Prerequisites
+
+```bash
+export OPENAI_API_KEY="sk-..."
+export PGVECTOR_DSN="postgres://postgres:postgres@localhost:5432/compozy?sslmode=disable"
+```
+
+Ensure the referenced PostgreSQL instance has the `pgvector` extension installed and reachable via the DSN above.
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/03_knowledge_rag.go
+```
+
+The program prints a summary confirming that the embedder, vector database, knowledge base, and agent binding were all constructed successfully, highlighting chunking, retrieval, and binding parameters used during ingestion.
