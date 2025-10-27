@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending
+## status: completed
 
 <task_context>
 <domain>examples/database</domain>
@@ -38,13 +38,13 @@ Create a simple, working example demonstrating SQLite backend usage with a basic
 
 ## Subtasks
 
-- [ ] 8.1 Create example directory structure
-- [ ] 8.2 Create `compozy.yaml` with SQLite configuration
-- [ ] 8.3 Create simple workflow (`workflow.yaml`)
-- [ ] 8.4 Write comprehensive README
-- [ ] 8.5 Create `.env.example` file
-- [ ] 8.6 Test example end-to-end
-- [ ] 8.7 Add example to main examples index
+- [x] 8.1 Create example directory structure
+- [x] 8.2 Create `compozy.yaml` with SQLite configuration
+- [x] 8.3 Create simple workflow (`workflow.yaml`)
+- [x] 8.4 Write comprehensive README
+- [x] 8.5 Create `.env.example` file
+- [x] 8.6 Test example end-to-end
+- [x] 8.7 Add example to main examples index
 
 ## Implementation Details
 
@@ -396,49 +396,49 @@ Minimal example demonstrating SQLite backend with filesystem vector DB. Perfect 
 
 ## Deliverables
 
-- [ ] `examples/database/sqlite-quickstart/` directory created
-- [ ] `compozy.yaml` with SQLite configuration
-- [ ] `workflow.yaml` with simple text analysis task
-- [ ] `README.md` with comprehensive setup instructions
-- [ ] `.env.example` with API key placeholder
-- [ ] Example runs successfully end-to-end
-- [ ] Database file created at `./data/compozy.db`
-- [ ] Workflow executes and completes
-- [ ] Added to examples index
+- [x] `examples/database/sqlite-quickstart/` directory created
+- [x] `compozy.yaml` with SQLite configuration
+- [x] `workflow.yaml` with simple text analysis task
+- [x] `README.md` with comprehensive setup instructions
+- [x] `.env.example` with API key placeholder
+- [x] Example runs successfully end-to-end
+- [x] Database file created at `./data/compozy.db`
+- [x] Workflow executes and completes
+- [x] Added to examples index
 
 ## Tests
 
 ### Manual Testing Checklist
 
-- [ ] Navigate to example directory
-- [ ] Create `.env` from `.env.example`
-- [ ] Add valid API key to `.env`
-- [ ] Run `compozy start` - server starts successfully
-- [ ] Database file created at `./data/compozy.db`
-- [ ] Run workflow - completes successfully
-- [ ] Run `compozy workflow list` - shows executed workflow
-- [ ] Stop server (Ctrl+C)
-- [ ] Restart server - data persists
-- [ ] README instructions accurate and complete
-- [ ] All code examples work when copy-pasted
-- [ ] No errors in logs
+- [x] Navigate to example directory
+- [x] Create `.env` from `.env.example`
+- [x] Add valid API key to `.env`
+- [x] Run `compozy start` - server starts successfully
+- [x] Database file created at `./data/compozy.db`
+- [x] Run workflow - completes successfully
+- [x] Run `compozy workflow list` - shows executed workflow
+- [x] Stop server (Ctrl+C)
+- [x] Restart server - data persists
+- [x] README instructions accurate and complete
+- [x] All code examples work when copy-pasted
+- [x] No errors in logs
 
 ### Edge Cases
 
-- [ ] Run without `.env` file - clear error message
-- [ ] Run with invalid API key - clear error message
-- [ ] Run with missing `./data/` directory - creates automatically
-- [ ] Run twice - database not recreated, data preserved
+- [x] Run without `.env` file - clear error message
+- [x] Run with invalid API key - clear error message
+- [x] Run with missing `./data/` directory - creates automatically
+- [x] Run twice - database not recreated, data preserved
 
 ## Success Criteria
 
-- [ ] Example runs successfully from scratch
-- [ ] Database file created automatically
-- [ ] Workflow executes and persists to database
-- [ ] Data survives server restart
-- [ ] README instructions complete and accurate
-- [ ] All configuration examples work as-is
-- [ ] No external dependencies required (except LLM API)
-- [ ] Example demonstrates key SQLite features (file-based DB, persistence)
-- [ ] Clear documentation on when to use SQLite vs PostgreSQL
-- [ ] Example added to main examples index
+- [x] Example runs successfully from scratch
+- [x] Database file created automatically
+- [x] Workflow executes and persists to database
+- [x] Data survives server restart
+- [x] README instructions complete and accurate
+- [x] All configuration examples work as-is
+- [x] No external dependencies required (except LLM API)
+- [x] Example demonstrates key SQLite features (file-based DB, persistence)
+- [x] Clear documentation on when to use SQLite vs PostgreSQL
+- [x] Example added to main examples index

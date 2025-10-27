@@ -42,7 +42,7 @@
 - [x] 5.0 Server Integration & Validation (M)
 - [x] 6.0 Multi-Driver Integration Tests (L)
 - [x] 7.0 Complete Database Documentation (L)
-- [ ] 8.0 SQLite Quickstart Example (S)
+- [x] 8.0 SQLite Quickstart Example (S)
 
 Notes on sizing:
 
