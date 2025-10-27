@@ -20,6 +20,10 @@ var supportedProviders = map[string]core.ProviderName{
 
 var providerList = []string{"openai", "anthropic", "google", "groq", "ollama"}
 
+var cloneProviderConfig = func(cfg *core.ProviderConfig) (*core.ProviderConfig, error) {
+	return core.DeepCopy(cfg)
+}
+
 // Builder constructs provider configurations with a fluent API while
 // collecting validation errors that are reported when Build executes.
 type Builder struct {
@@ -156,7 +160,7 @@ func (b *Builder) Build(ctx context.Context) (*core.ProviderConfig, error) {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
 
-	cloned, err := core.DeepCopy(b.config)
+	cloned, err := cloneProviderConfig(b.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone provider config: %w", err)
 	}

@@ -2,15 +2,17 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/engine/core"
 	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
+	"github.com/compozy/compozy/sdk/internal/testutil"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewNormalizesProvider(t *testing.T) {
-	t.Parallel()
 
 	cases := []struct {
 		name     string
@@ -27,7 +29,6 @@ func TestNewNormalizesProvider(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
 			builder := New(tc.provider, "model-id")
 			if builder == nil {
 				t.Fatalf("expected builder instance")
@@ -40,12 +41,10 @@ func TestNewNormalizesProvider(t *testing.T) {
 }
 
 func TestWithAPIKeyAppliesTrimmedValue(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithAPIKey("  secret-key  ")
 
-	cfg, err := builder.Build(t.Context())
+	cfg, err := builder.Build(testutil.NewTestContext(t))
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -55,12 +54,10 @@ func TestWithAPIKeyAppliesTrimmedValue(t *testing.T) {
 }
 
 func TestWithAPIURLValidatesURL(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithAPIURL("not a url")
 
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected validation error")
 	}
@@ -74,12 +71,10 @@ func TestWithAPIURLValidatesURL(t *testing.T) {
 }
 
 func TestWithTemperatureRange(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithTemperature(1.5)
 
-	cfg, err := builder.Build(t.Context())
+	cfg, err := builder.Build(testutil.NewTestContext(t))
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -92,12 +87,10 @@ func TestWithTemperatureRange(t *testing.T) {
 }
 
 func TestWithTemperatureInvalid(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithTemperature(-0.1)
 
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected build to fail")
 	}
@@ -107,12 +100,10 @@ func TestWithTemperatureInvalid(t *testing.T) {
 }
 
 func TestWithMaxTokensValidation(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithMaxTokens(4096)
 
-	cfg, err := builder.Build(t.Context())
+	cfg, err := builder.Build(testutil.NewTestContext(t))
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -125,12 +116,10 @@ func TestWithMaxTokensValidation(t *testing.T) {
 }
 
 func TestWithMaxTokensInvalid(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithMaxTokens(0)
 
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected validation failure")
 	}
@@ -140,12 +129,10 @@ func TestWithMaxTokensInvalid(t *testing.T) {
 }
 
 func TestWithTopPValidation(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithTopP(0.8)
 
-	cfg, err := builder.Build(t.Context())
+	cfg, err := builder.Build(testutil.NewTestContext(t))
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -155,12 +142,10 @@ func TestWithTopPValidation(t *testing.T) {
 }
 
 func TestWithTopPInvalid(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithTopP(1.1)
 
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected validation failure")
 	}
@@ -170,13 +155,11 @@ func TestWithTopPInvalid(t *testing.T) {
 }
 
 func TestPenaltyRangeValidation(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithFrequencyPenalty(0.5)
 	builder.WithPresencePenalty(-0.5)
 
-	cfg, err := builder.Build(t.Context())
+	cfg, err := builder.Build(testutil.NewTestContext(t))
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -189,12 +172,10 @@ func TestPenaltyRangeValidation(t *testing.T) {
 }
 
 func TestPenaltyInvalid(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithFrequencyPenalty(3)
 
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected frequency penalty validation failure")
 	}
@@ -204,12 +185,10 @@ func TestPenaltyInvalid(t *testing.T) {
 }
 
 func TestWithDefaultSetsFlag(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithDefault(true)
 
-	cfg, err := builder.Build(t.Context())
+	cfg, err := builder.Build(testutil.NewTestContext(t))
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -219,8 +198,6 @@ func TestWithDefaultSetsFlag(t *testing.T) {
 }
 
 func TestBuildValidConfiguration(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 	builder.WithAPIKey("key")
 	builder.WithAPIURL("https://api.openai.com/v1")
@@ -231,7 +208,7 @@ func TestBuildValidConfiguration(t *testing.T) {
 	builder.WithPresencePenalty(0.1)
 	builder.WithDefault(true)
 
-	cfg, err := builder.Build(t.Context())
+	cfg, err := builder.Build(testutil.NewTestContext(t))
 	if err != nil {
 		t.Fatalf("build failed: %v", err)
 	}
@@ -244,11 +221,9 @@ func TestBuildValidConfiguration(t *testing.T) {
 }
 
 func TestBuildRequiresProviderAndModel(t *testing.T) {
-	t.Parallel()
-
 	builder := New("", " ")
 
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected validation error")
 	}
@@ -262,11 +237,9 @@ func TestBuildRequiresProviderAndModel(t *testing.T) {
 }
 
 func TestBuildRejectsUnsupportedProvider(t *testing.T) {
-	t.Parallel()
-
 	builder := New("unsupported", "gpt-4")
 
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected error for unsupported provider")
 	}
@@ -276,8 +249,6 @@ func TestBuildRejectsUnsupportedProvider(t *testing.T) {
 }
 
 func TestBuildRequiresContext(t *testing.T) {
-	t.Parallel()
-
 	builder := New("openai", "gpt-4")
 
 	_, err := builder.Build(nil)
@@ -290,14 +261,54 @@ func TestBuildRequiresContext(t *testing.T) {
 }
 
 func TestBuildHandlesNilBuilder(t *testing.T) {
-	t.Parallel()
-
 	var builder *Builder
-	_, err := builder.Build(t.Context())
+	_, err := builder.Build(testutil.NewTestContext(t))
 	if err == nil {
 		t.Fatalf("expected nil builder error")
 	}
 	if !strings.Contains(err.Error(), "model builder is required") {
 		t.Fatalf("unexpected error message: %v", err)
 	}
+}
+
+func TestBuildCloneFailure(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
+	builder := New("openai", "gpt-4")
+	original := cloneProviderConfig
+	cloneProviderConfig = func(*core.ProviderConfig) (*core.ProviderConfig, error) {
+		return nil, fmt.Errorf("clone failed")
+	}
+	t.Cleanup(func() {
+		cloneProviderConfig = original
+	})
+	cfg, err := builder.Build(ctx)
+	require.Nil(t, cfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to clone provider config")
+}
+
+func TestValidateParamsDetectsMutations(t *testing.T) {
+	builder := New("openai", "gpt-4")
+	builder.config.Params.SetMaxTokens(10)
+	builder.config.Params.MaxTokens = 0
+	builder.config.Params.SetTemperature(0.5)
+	builder.config.Params.Temperature = 3
+	builder.config.Params.SetTopP(0.5)
+	builder.config.Params.TopP = -0.1
+	builder.config.Params.SetFrequencyPenalty(0.5)
+	builder.config.Params.FrequencyPenalty = 3
+	builder.config.Params.SetPresencePenalty(0.5)
+	builder.config.Params.PresencePenalty = -3
+	_, err := builder.Build(testutil.NewTestContext(t))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "max tokens")
+	require.Contains(t, err.Error(), "temperature")
+	require.Contains(t, err.Error(), "top_p")
+	require.Contains(t, err.Error(), "frequency penalty")
+	require.Contains(t, err.Error(), "presence penalty")
+}
+
+func TestFilterErrorsHandlesNil(t *testing.T) {
+	require.Nil(t, filterErrors(nil))
+	require.Empty(t, filterErrors([]error{nil}))
 }

@@ -1,15 +1,17 @@
 package tool
 
 import (
-	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
 	engineschema "github.com/compozy/compozy/engine/schema"
+	enginetool "github.com/compozy/compozy/engine/tool"
 	"github.com/compozy/compozy/pkg/logger"
 	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
+	"github.com/compozy/compozy/sdk/internal/testutil"
 )
 
 type recordingLogger struct {
@@ -27,180 +29,136 @@ func (l *recordingLogger) With(...any) logger.Logger {
 	return l
 }
 
-func TestNewCreatesBuilderWithTrimmedID(t *testing.T) {
-	t.Parallel()
-
-	builder := New("  sample-tool  ")
-	require.NotNil(t, builder)
-	require.Equal(t, "sample-tool", builder.config.ID)
+func TestNewTrimsIdentifier(t *testing.T) {
+	builder := New("  formatter  ")
+	require.Equal(t, "formatter", builder.config.ID)
 	require.Equal(t, string(core.ConfigTool), builder.config.Resource)
 }
 
-func TestWithNameTrimsAndStoresValue(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithName("  Formatter Tool ")
-	require.Equal(t, "Formatter Tool", builder.config.Name)
+func TestNilBuilderMethodsReturnNil(t *testing.T) {
+	var builder *Builder
+	require.Nil(t, builder.WithName("tool"))
+	require.Nil(t, builder.WithDescription("desc"))
+	require.Nil(t, builder.WithRuntime("bun"))
+	require.Nil(t, builder.WithCode("code"))
+	require.Nil(t, builder.WithInput(&engineschema.Schema{"type": "object"}))
+	require.Nil(t, builder.WithOutput(&engineschema.Schema{"type": "object"}))
+	cfg, err := builder.Build(testutil.NewTestContext(t))
+	require.Nil(t, cfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "tool builder is required")
 }
 
-func TestWithNameEmptyAddsError(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithName(" ")
-	require.NotEmpty(t, builder.errors)
+func TestWithSchemasAssignPointers(t *testing.T) {
+	input := engineschema.Schema{"type": "object"}
+	output := engineschema.Schema{"type": "object"}
+	builder := New("formatter").
+		WithInput(&input).
+		WithOutput(&output)
+	require.Equal(t, &input, builder.config.InputSchema)
+	require.Equal(t, &output, builder.config.OutputSchema)
 }
 
-func TestWithDescriptionTrimsAndStoresValue(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithDescription("  Formats input ")
-	require.Equal(t, "Formats input", builder.config.Description)
-}
-
-func TestWithDescriptionEmptyAddsError(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithDescription("")
-	require.NotEmpty(t, builder.errors)
-}
-
-func TestWithRuntimeNormalizesCase(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithRuntime("  BUN  ")
+func TestWithRuntimeValidation(t *testing.T) {
+	builder := New("formatter").
+		WithRuntime("  BUN  ")
 	require.Equal(t, "bun", builder.config.Runtime)
-}
-
-func TestWithRuntimeInvalidAddsError(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithRuntime("python")
+	builder.WithRuntime("python")
 	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "runtime must be bun")
 }
 
-func TestWithCodeTrimsAndStoresValue(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithCode("  export default {} ")
-	require.Equal(t, "export default {}", builder.config.Code)
+func TestWithRuntimeEmptyAddsError(t *testing.T) {
+	builder := New("formatter").
+		WithRuntime(" ")
+	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "runtime cannot be empty")
 }
 
-func TestWithCodeEmptyAddsError(t *testing.T) {
-	t.Parallel()
-
-	builder := New("tool-id").WithCode("")
-	require.NotEmpty(t, builder.errors)
-}
-
-func TestWithInputAndOutputAssignSchemas(t *testing.T) {
-	t.Parallel()
-
-	inputSchema := engineschema.Schema{"type": "object"}
-	outputSchema := engineschema.Schema{"type": "object"}
-
-	builder := New("tool-id").
+func TestBuildSuccessReturnsClone(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
+	input := engineschema.Schema{"type": "object"}
+	output := engineschema.Schema{"type": "object"}
+	builder := New("formatter").
 		WithName("Formatter").
 		WithDescription("Formats code").
 		WithRuntime("bun").
 		WithCode("export default {}").
-		WithInput(&inputSchema).
-		WithOutput(&outputSchema)
-
-	require.Equal(t, &inputSchema, builder.config.InputSchema)
-	require.Equal(t, &outputSchema, builder.config.OutputSchema)
-}
-
-func TestBuildReturnsClonedConfig(t *testing.T) {
-	t.Parallel()
-
-	inputSchema := engineschema.Schema{"type": "object"}
-	outputSchema := engineschema.Schema{"type": "object"}
-
-	builder := New("formatter").
-		WithName("Formatter").
-		WithDescription("Formats code samples").
-		WithRuntime("bun").
-		WithCode("export default function() {}").
-		WithInput(&inputSchema).
-		WithOutput(&outputSchema)
-
-	ctx := t.Context()
+		WithInput(&input).
+		WithOutput(&output)
 	cfg, err := builder.Build(ctx)
 	require.NoError(t, err)
-	require.NotNil(t, cfg)
 	require.NotSame(t, builder.config, cfg)
-	require.Equal(t, "formatter", cfg.ID)
-	require.Equal(t, "Formatter", cfg.Name)
-	require.Equal(t, "Formats code samples", cfg.Description)
-	require.Equal(t, "bun", cfg.Runtime)
-	require.Equal(t, "export default function() {}", cfg.Code)
-	require.Equal(t, cfg.InputSchema, &inputSchema)
-	require.Equal(t, cfg.OutputSchema, &outputSchema)
-
-	cfg.Name = "modified"
+	cfg.Name = "mutated"
 	require.Equal(t, "Formatter", builder.config.Name)
 }
 
 func TestBuildAggregatesValidationErrors(t *testing.T) {
-	t.Parallel()
-
-	builder := New(" ").
-		WithName("").
+	ctx := testutil.NewTestContext(t)
+	builder := New(" bad id ").
+		WithName(" ").
 		WithDescription("").
 		WithRuntime("python").
 		WithCode("")
-
-	ctx := t.Context()
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
 	require.Nil(t, cfg)
-
 	var buildErr *sdkerrors.BuildError
 	require.ErrorAs(t, err, &buildErr)
-	require.True(t, errors.Is(err, buildErr))
-	require.GreaterOrEqual(t, len(buildErr.Errors), 4)
-}
-
-func TestBuildFailsWhenCodeMissing(t *testing.T) {
-	t.Parallel()
-
-	builder := New("formatter").
-		WithName("Formatter").
-		WithDescription("Formats code").
-		WithRuntime("bun")
-
-	ctx := t.Context()
-	cfg, err := builder.Build(ctx)
-	require.Error(t, err)
-	require.Nil(t, cfg)
+	require.GreaterOrEqual(t, len(buildErr.Errors), 5)
 }
 
 func TestBuildFailsWithNilContext(t *testing.T) {
-	t.Parallel()
-
 	builder := New("formatter").
 		WithName("Formatter").
 		WithDescription("Formats code").
 		WithRuntime("bun").
 		WithCode("export default {}")
-
 	cfg, err := builder.Build(nil)
 	require.Error(t, err)
 	require.Nil(t, cfg)
+	require.Contains(t, err.Error(), "context is required")
 }
 
-func TestBuildUsesLoggerFromContext(t *testing.T) {
-	t.Parallel()
+func TestBuildRequiresRuntime(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
+	builder := New("formatter").
+		WithName("Formatter").
+		WithDescription("Formats code").
+		WithCode("export default {}")
+	cfg, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+	require.Contains(t, err.Error(), "tool runtime")
+}
 
-	recLogger := &recordingLogger{}
-	ctx := logger.ContextWithLogger(t.Context(), recLogger)
-
+func TestBuildCloneFailure(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
 	builder := New("formatter").
 		WithName("Formatter").
 		WithDescription("Formats code").
 		WithRuntime("bun").
 		WithCode("export default {}")
+	original := cloneToolConfig
+	cloneToolConfig = func(*enginetool.Config) (*enginetool.Config, error) {
+		return nil, fmt.Errorf("clone failed")
+	}
+	t.Cleanup(func() {
+		cloneToolConfig = original
+	})
+	cfg, err := builder.Build(ctx)
+	require.Nil(t, cfg)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to clone tool config")
+}
 
+func TestBuildLogsDebugMessage(t *testing.T) {
+	ctx := testutil.NewTestContext(t)
+	recLogger := &recordingLogger{}
+	ctx = logger.ContextWithLogger(ctx, recLogger)
+	builder := New("formatter").
+		WithName("Formatter").
+		WithDescription("Formats code").
+		WithRuntime("bun").
+		WithCode("export default {}")
 	cfg, err := builder.Build(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)

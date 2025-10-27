@@ -19,6 +19,10 @@ type Builder struct {
 	errors []error
 }
 
+var cloneScheduleConfig = func(cfg *engineschedule.Config) (*engineschedule.Config, error) {
+	return core.DeepCopy(cfg)
+}
+
 // New creates a schedule builder initialized with the provided identifier.
 func New(id string) *Builder {
 	trimmed := strings.TrimSpace(id)
@@ -163,7 +167,7 @@ func (b *Builder) Build(ctx context.Context) (*engineschedule.Config, error) {
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
-	cloned, err := core.DeepCopy(b.config)
+	cloned, err := cloneScheduleConfig(b.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone schedule config: %w", err)
 	}

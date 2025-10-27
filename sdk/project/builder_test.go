@@ -9,8 +9,10 @@ import (
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/workflow"
+	engineschedule "github.com/compozy/compozy/engine/workflow/schedule"
 	"github.com/compozy/compozy/pkg/logger"
 	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
+	"github.com/compozy/compozy/sdk/internal/testutil"
 )
 
 type recordingLogger struct {
@@ -65,7 +67,7 @@ func TestWithVersionValidatesSemver(t *testing.T) {
 
 	builder := New("proj").WithVersion("1.2.3")
 	builder.AddWorkflow(sampleWorkflow("wf-1"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.NoError(t, err)
@@ -77,7 +79,7 @@ func TestWithVersionInvalidProducesBuildError(t *testing.T) {
 
 	builder := New("proj").WithVersion("not-semver")
 	builder.AddWorkflow(sampleWorkflow("wf-1"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -94,7 +96,7 @@ func TestWithDescriptionStoresValue(t *testing.T) {
 
 	builder := New("proj").WithDescription("  sample description ")
 	builder.AddWorkflow(sampleWorkflow("wf-1"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.NoError(t, err)
@@ -107,7 +109,7 @@ func TestWithDescriptionEmptyAddsError(t *testing.T) {
 
 	builder := New("proj").WithDescription("")
 	builder.AddWorkflow(sampleWorkflow("wf-1"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -124,7 +126,7 @@ func TestWithAuthorValidSetsMetadata(t *testing.T) {
 	builder := New("proj").
 		WithAuthor("Jane Doe", "jane@example.com", "ACME").
 		AddWorkflow(sampleWorkflow("wf"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.NoError(t, err)
@@ -139,7 +141,7 @@ func TestWithAuthorInvalidEmailFailsBuild(t *testing.T) {
 	builder := New("proj").
 		WithAuthor("Jane Doe", "invalid-email", "ACME").
 		AddWorkflow(sampleWorkflow("wf"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -148,6 +150,32 @@ func TestWithAuthorInvalidEmailFailsBuild(t *testing.T) {
 	var buildErr *sdkerrors.BuildError
 	require.ErrorAs(t, err, &buildErr)
 	require.Contains(t, buildErr.Error(), "author email must be valid")
+}
+
+func TestWithAuthorEmptyNameFailsBuild(t *testing.T) {
+	t.Parallel()
+
+	builder := New("proj").
+		WithAuthor(" ", "jane@example.com", "ACME").
+		AddWorkflow(sampleWorkflow("wf"))
+	ctx := testutil.NewTestContext(t)
+
+	_, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "author name cannot be empty")
+}
+
+func TestWithAuthorEmptyEmailFailsBuild(t *testing.T) {
+	t.Parallel()
+
+	builder := New("proj").
+		WithAuthor("Jane Doe", " ", "ACME").
+		AddWorkflow(sampleWorkflow("wf"))
+	ctx := testutil.NewTestContext(t)
+
+	_, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "author email cannot be empty")
 }
 
 func TestAddModelAccumulatesModels(t *testing.T) {
@@ -168,7 +196,7 @@ func TestAddModelNilProducesError(t *testing.T) {
 	builder := New("proj")
 	builder.AddModel(nil)
 	builder.AddWorkflow(sampleWorkflow("wf-1"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -196,7 +224,7 @@ func TestAddWorkflowNilProducesError(t *testing.T) {
 
 	builder := New("proj")
 	builder.AddWorkflow(nil)
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -225,7 +253,7 @@ func TestAddAgentNilProducesError(t *testing.T) {
 	builder := New("proj")
 	builder.AddAgent(nil)
 	builder.AddWorkflow(sampleWorkflow("wf"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -244,7 +272,7 @@ func TestBuildWithValidConfigurationSucceeds(t *testing.T) {
 		WithAuthor("Jane Doe", "jane@example.com", "ACME").
 		AddModel(sampleModel("model-a")).
 		AddWorkflow(sampleWorkflow("wf"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.NoError(t, err)
@@ -259,7 +287,7 @@ func TestBuildWithEmptyNameFails(t *testing.T) {
 
 	builder := New("   ")
 	builder.AddWorkflow(sampleWorkflow("wf"))
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -274,7 +302,7 @@ func TestBuildWithoutWorkflowsFails(t *testing.T) {
 	t.Parallel()
 
 	builder := New("proj")
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -292,7 +320,7 @@ func TestBuildAggregatesMultipleErrors(t *testing.T) {
 		WithDescription("").
 		AddModel(nil).
 		AddWorkflow(nil)
-	ctx := t.Context()
+	ctx := testutil.NewTestContext(t)
 
 	cfg, err := builder.Build(ctx)
 	require.Error(t, err)
@@ -307,7 +335,7 @@ func TestBuildUsesLoggerFromContext(t *testing.T) {
 	t.Parallel()
 
 	recLogger := &recordingLogger{}
-	ctx := logger.ContextWithLogger(t.Context(), recLogger)
+	ctx := logger.ContextWithLogger(testutil.NewTestContext(t), recLogger)
 
 	builder := New("proj").
 		WithAuthor("Jane Doe", "jane@example.com", "ACME").
@@ -317,4 +345,171 @@ func TestBuildUsesLoggerFromContext(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, recLogger.debugMsgs)
 	require.Contains(t, recLogger.debugMsgs[0], "building project configuration")
+}
+
+func TestAddScheduleClonesAndTrimsConfig(t *testing.T) {
+	t.Parallel()
+
+	scheduleCfg := &engineschedule.Config{
+		ID:         "  weekly-report  ",
+		WorkflowID: "  analytics ",
+		Cron:       "0 9 * * 1",
+		Input: map[string]any{
+			"team": "growth",
+		},
+	}
+
+	builder := New("proj").
+		AddWorkflow(sampleWorkflow("analytics")).
+		AddSchedule(scheduleCfg)
+
+	ctx := testutil.NewTestContext(t)
+	cfg, err := builder.Build(ctx)
+	require.NoError(t, err)
+	require.Len(t, cfg.Schedules, 1)
+	require.Equal(t, "weekly-report", cfg.Schedules[0].ID)
+	require.Equal(t, "analytics", cfg.Schedules[0].WorkflowID)
+	require.Equal(t, "growth", cfg.Schedules[0].Input["team"])
+
+	scheduleCfg.ID = "changed"
+	require.Equal(t, "weekly-report", cfg.Schedules[0].ID)
+}
+
+func TestAddScheduleValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		schedule   *engineschedule.Config
+		errMessage string
+	}{
+		{
+			name:       "nil schedule",
+			schedule:   nil,
+			errMessage: "schedule cannot be nil",
+		},
+		{
+			name: "empty schedule id",
+			schedule: &engineschedule.Config{
+				ID:         "  ",
+				WorkflowID: "wf",
+				Cron:       "* * * * *",
+			},
+			errMessage: "schedule id cannot be empty",
+		},
+		{
+			name: "empty workflow id",
+			schedule: &engineschedule.Config{
+				ID:         "sched-1",
+				WorkflowID: " ",
+				Cron:       "* * * * *",
+			},
+			errMessage: "schedule workflow id cannot be empty",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			builder := New("proj").AddWorkflow(sampleWorkflow("wf"))
+			builder.AddSchedule(tc.schedule)
+			_, err := builder.Build(testutil.NewTestContext(t))
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.errMessage)
+		})
+	}
+}
+
+func TestBuildValidatesSchedules(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.NewTestContext(t)
+	builder := New("proj").AddWorkflow(sampleWorkflow("wf"))
+	builder.AddSchedule(&engineschedule.Config{ID: "sched", WorkflowID: "missing", Cron: "* * * * *"})
+	_, err := builder.Build(ctx)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "references unknown workflow")
+
+	builder = New("proj").AddWorkflow(sampleWorkflow("wf"))
+	builder.AddSchedule(&engineschedule.Config{ID: "dup", WorkflowID: "wf", Cron: "* * * * *"})
+	builder.AddSchedule(&engineschedule.Config{ID: "dup", WorkflowID: "wf", Cron: "* * * * *"})
+	_, err = builder.Build(testutil.NewTestContext(t))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate schedule ids")
+}
+
+func TestFindDuplicateScheduleIDs(t *testing.T) {
+	t.Parallel()
+
+	schedules := []*engineschedule.Config{
+		{ID: "dup"},
+		{ID: "dup"},
+		{ID: "dup"},
+		{ID: " unique "},
+		{ID: ""},
+		nil,
+	}
+
+	dupes := findDuplicateScheduleIDs(schedules)
+	require.Len(t, dupes, 1)
+	require.Equal(t, "dup", dupes[0])
+}
+
+func TestContainsString(t *testing.T) {
+	t.Parallel()
+	require.True(t, containsString([]string{"a", "b"}, "b"))
+	require.False(t, containsString([]string{"a"}, "c"))
+}
+
+func TestNilBuilderMethods(t *testing.T) {
+	t.Parallel()
+
+	var builder *Builder
+	require.Nil(t, builder.WithVersion("1.0.0"))
+	require.Nil(t, builder.WithDescription("desc"))
+	require.Nil(t, builder.WithAuthor("name", "mail@example.com", "org"))
+	require.Nil(t, builder.AddModel(&core.ProviderConfig{}))
+	require.Nil(t, builder.AddWorkflow(&workflow.Config{}))
+	require.Nil(t, builder.AddAgent(&agent.Config{}))
+	require.Nil(t, builder.AddSchedule(&engineschedule.Config{}))
+}
+
+func TestBuildNilContext(t *testing.T) {
+	t.Parallel()
+
+	builder := New("proj").AddWorkflow(sampleWorkflow("wf"))
+	cfg, err := builder.Build(nil)
+	require.Error(t, err)
+	require.Nil(t, cfg)
+}
+
+func TestBuildNilBuilder(t *testing.T) {
+	t.Parallel()
+
+	var builder *Builder
+	cfg, err := builder.Build(testutil.NewTestContext(t))
+	require.Error(t, err)
+	require.Nil(t, cfg)
+}
+
+func TestBuildRejectsInvalidProjectNameCharacters(t *testing.T) {
+	t.Parallel()
+
+	builder := New("invalid name").AddWorkflow(sampleWorkflow("wf"))
+	_, err := builder.Build(testutil.NewTestContext(t))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "alphanumeric or hyphenated")
+}
+
+func TestBuildHandlesNilCollections(t *testing.T) {
+	t.Parallel()
+
+	builder := New("proj").AddWorkflow(sampleWorkflow("wf"))
+	builder.workflows = append(builder.workflows, nil)
+	builder.schedules = append(builder.schedules, nil)
+	cfg, err := builder.Build(testutil.NewTestContext(t))
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Empty(t, cfg.Schedules)
 }

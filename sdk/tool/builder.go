@@ -23,6 +23,10 @@ type Builder struct {
 	errors []error
 }
 
+var cloneToolConfig = func(cfg *enginetool.Config) (*enginetool.Config, error) {
+	return core.DeepCopy(cfg)
+}
+
 // New creates a tool builder initialized with the provided identifier.
 func New(id string) *Builder {
 	trimmed := strings.TrimSpace(id)
@@ -142,7 +146,7 @@ func (b *Builder) Build(ctx context.Context) (*enginetool.Config, error) {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
 
-	clone, err := core.DeepCopy(b.config)
+	clone, err := cloneToolConfig(b.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone tool config: %w", err)
 	}

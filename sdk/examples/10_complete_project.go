@@ -1,3 +1,5 @@
+//go:build examples
+
 package main
 
 import (
@@ -8,16 +10,16 @@ import (
 
 	engineagent "github.com/compozy/compozy/engine/agent"
 	enginecore "github.com/compozy/compozy/engine/core"
+	enginemonitoring "github.com/compozy/compozy/engine/infra/monitoring"
 	engineknowledge "github.com/compozy/compozy/engine/knowledge"
 	enginemcp "github.com/compozy/compozy/engine/mcp"
 	enginememory "github.com/compozy/compozy/engine/memory"
 	engineproject "github.com/compozy/compozy/engine/project"
-	projectmonitoring "github.com/compozy/compozy/engine/project/monitoring"
 	engineruntime "github.com/compozy/compozy/engine/runtime"
+	enginetask "github.com/compozy/compozy/engine/task"
 	enginetool "github.com/compozy/compozy/engine/tool"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 	engineschedule "github.com/compozy/compozy/engine/workflow/schedule"
-	enginetask "github.com/compozy/compozy/engine/workflow/task"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/sdk/agent"
@@ -843,7 +845,7 @@ func assembleProject(
 		projectCfg.Runtime.NativeTools.CallWorkflows = runtimeCfg.NativeTools.CallWorkflows
 	}
 	projectCfg.Opts.SourceOfTruth = "builder"
-	projectCfg.MonitoringConfig = &projectmonitoring.Config{Enabled: true, Path: "/metrics"}
+	projectCfg.MonitoringConfig = &enginemonitoring.Config{Enabled: true, Path: "/metrics"}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("determine project cwd: %w", err)
