@@ -63,7 +63,7 @@ Migrate all SDK packages from manual builder pattern to auto-generated functiona
 - [x] [_task_5.md](_task_5.md) - 5.0 Migrate memory package (S) - **COMPLETED**
 
 ### Phase 2: Components (Sequential after Phase 1)
-- [ ] 6.0 Migrate tool package (M)
+- [x] [_task_6.md](_task_6.md) - 6.0 Migrate tool package (M) - **COMPLETED**
 - [ ] 7.0 Migrate schema package (M) - Special case
 - [ ] 8.0 Migrate workflow package (M)
 - [ ] 9.0 Migrate knowledge package (M)

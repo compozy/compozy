@@ -12,11 +12,13 @@
 
 ## Overview
 
-**SPECIAL CASE:** Hybrid migration for schema package. Keep the dynamic `PropertyBuilder` pattern for schema construction, but migrate static `Schema` configuration to functional options.
+**SPECIAL CASE:** Hybrid migration for schema package. Keep the dynamic `PropertyBuilder` pattern for schema construction, but migrate static `Schema` configuration to a simple functional option approach using `WithJsonSchema(map[string]any)`.
 
 **Estimated Time:** 2-3 hours
 
 **Dependency:** Requires Task 1.0 (model) complete
+
+**Simplified Approach:** Instead of generating multiple `With*()` methods for each JSON schema property, we use a single `WithJsonSchema()` option that accepts a `map[string]any` to avoid boilerplate.
 
 <critical>
 - **HYBRID APPROACH:** Keep PropertyBuilder, migrate Schema config only
@@ -26,9 +28,9 @@
 
 <requirements>
 - Keep existing PropertyBuilder pattern (builder.go stays)
-- Create functional options for Schema wrapper config
+- Create single WithJsonSchema() option accepting map[string]any
 - Maintain backwards compatibility for PropertyBuilder API
-- Add new functional options for schema metadata
+- No code generation needed - simple functional option approach
 - Deep copy and tests for new API only
 </requirements>
 
@@ -36,12 +38,11 @@
 
 - [ ] 7.1 Create sdk2/schema/ directory structure
 - [ ] 7.2 Analyze which parts to migrate vs keep
-- [ ] 7.3 Create generate.go for Schema wrapper only
-- [ ] 7.4 Generate options for schema metadata
-- [ ] 7.5 Constructor for schema configuration
-- [ ] 7.6 Tests for new functional options
-- [ ] 7.7 Keep PropertyBuilder unchanged (in sdk/schema/)
-- [ ] 7.8 Update README with hybrid approach
+- [ ] 7.3 Create constructor with WithJsonSchema() option
+- [ ] 7.4 Implement schema validation
+- [ ] 7.5 Tests for new functional options
+- [ ] 7.6 Keep PropertyBuilder unchanged (in sdk/schema/)
+- [ ] 7.7 Update README with hybrid approach
 
 ## Implementation Details
 
@@ -56,12 +57,15 @@ schema := schema.NewProperty("object").
 
 ### Migrate (Static Schema Configuration)
 ```go
-// Migrate this to functional options
+// Migrate this to functional options with a single WithJsonSchema()
 schemaConfig, err := schema.New(ctx, "user-schema",
-    schema.WithTitle("User Schema"),
-    schema.WithDescription("Validates user data"),
-    schema.WithVersion("1.0.0"),
-    schema.WithProperties(propertySchema), // Built with PropertyBuilder
+    schema.WithJsonSchema(map[string]any{
+        "type": "object",
+        "title": "User Schema",
+        "description": "Validates user data",
+        "properties": propertySchema, // Built with PropertyBuilder or plain map
+        "version": "1.0.0",
+    }),
 )
 ```
 
@@ -78,8 +82,7 @@ schemaConfig, err := schema.New(ctx, "user-schema",
 - `engine/schema/schema.go` - Source type for generation
 
 **To Create in sdk2/schema/:**
-- `generate.go` - go:generate directive for Schema wrapper
-- `options_generated.go` - Auto-generated metadata options
+- `options.go` - WithJsonSchema() functional option
 - `constructor.go` - Schema configuration validation
 - `constructor_test.go` - Test suite for new API
 - `README.md` - Hybrid approach documentation
@@ -89,21 +92,21 @@ schemaConfig, err := schema.New(ctx, "user-schema",
 ## Tests
 
 - [ ] PropertyBuilder still works (regression tests)
-- [ ] Schema wrapper with metadata
-- [ ] Schema with version
-- [ ] Schema with description
-- [ ] Integration: PropertyBuilder → Schema wrapper
+- [ ] Schema with WithJsonSchema() option
+- [ ] Schema with complete JSON schema (type, properties, required, etc.)
+- [ ] Schema validation for required fields
+- [ ] Integration: PropertyBuilder output → WithJsonSchema()
 - [ ] Backwards compatibility maintained
 
 ## Success Criteria
 
 - [ ] sdk2/schema/ directory created
 - [ ] PropertyBuilder API unchanged and working (in sdk/schema/)
-- [ ] New functional options for schema metadata
+- [ ] WithJsonSchema() option accepting map[string]any
 - [ ] Clear documentation of hybrid approach
 - [ ] No breaking changes to existing PropertyBuilder users
 - [ ] Tests pass: `gotestsum -- ./sdk2/schema`
 - [ ] Linter clean: `golangci-lint run ./sdk2/schema/...`
 - [ ] README explains when to use each pattern:
-  - PropertyBuilder (sdk/schema/): Dynamic schema construction
-  - Functional options (sdk2/schema/): Schema configuration/metadata
+  - PropertyBuilder (sdk/schema/): Dynamic schema construction at runtime
+  - WithJsonSchema() (sdk2/schema/): Static schema configuration via map[string]any
