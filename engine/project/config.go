@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/engine/knowledge"
 	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
+	projectschedule "github.com/compozy/compozy/engine/project/schedule"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 )
@@ -310,6 +311,10 @@ type Config struct {
 
 	// Workflows defines the list of workflow files that compose this project's AI capabilities.
 	Workflows []*WorkflowSourceConfig `json:"workflows" yaml:"workflows" mapstructure:"workflows"`
+
+	// Schedules defines automated workflow executions managed by the SDK.
+	// Each schedule references a workflow by identifier and applies cron-based execution semantics.
+	Schedules []*projectschedule.Config `json:"schedules,omitempty" yaml:"schedules,omitempty" mapstructure:"schedules,omitempty"`
 
 	// Models configures the LLM providers and model settings available to this project.
 	//

@@ -143,3 +143,20 @@ go run ./sdk/examples/06_runtime_native_tools.go
 ```
 
 The example logs a structured summary for each runtime profile so operators can audit permissions, native tool availability, and memory limits before deploying real TypeScript or JavaScript entrypoints.
+
+## 07. Scheduled Workflow
+
+The file `07_scheduled_workflow.go` shows how to attach multiple cron-based schedules to a single workflow. It covers:
+
+- Building a workflow once and referencing it from daily and weekly schedules
+- Using the schedule builder to declare cron expressions, default input payloads, and retry policies
+- Explaining cron syntax inline so operators understand the cadence at a glance
+- Registering schedules on the project builder so they ship with the compiled configuration
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/07_scheduled_workflow.go
+```
+
+The program logs each schedule with its cron expression, retry configuration, and input keys so you can confirm the automation profile the project will register.

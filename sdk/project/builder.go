@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	engineproject "github.com/compozy/compozy/engine/project"
 	"github.com/compozy/compozy/engine/workflow"
+	engineschedule "github.com/compozy/compozy/engine/workflow/schedule"
 	"github.com/compozy/compozy/pkg/logger"
 	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
 	"github.com/compozy/compozy/sdk/internal/validate"
@@ -24,6 +25,7 @@ type Builder struct {
 	errors    []error
 	workflows []*workflow.Config
 	agents    []*agent.Config
+	schedules []*engineschedule.Config
 }
 
 // New creates a project builder with the provided project name.
@@ -36,6 +38,7 @@ func New(name string) *Builder {
 		errors:    make([]error, 0),
 		workflows: make([]*workflow.Config, 0),
 		agents:    make([]*agent.Config, 0),
+		schedules: make([]*engineschedule.Config, 0),
 	}
 }
 
@@ -126,6 +129,34 @@ func (b *Builder) AddAgent(agentCfg *agent.Config) *Builder {
 	return b
 }
 
+// AddSchedule registers a workflow schedule with the project builder.
+func (b *Builder) AddSchedule(scheduleCfg *engineschedule.Config) *Builder {
+	if b == nil {
+		return nil
+	}
+	if scheduleCfg == nil {
+		b.errors = append(b.errors, fmt.Errorf("schedule cannot be nil"))
+		return b
+	}
+	id := strings.TrimSpace(scheduleCfg.ID)
+	if id == "" {
+		b.errors = append(b.errors, fmt.Errorf("schedule id cannot be empty"))
+	}
+	workflowID := strings.TrimSpace(scheduleCfg.WorkflowID)
+	if workflowID == "" {
+		b.errors = append(b.errors, fmt.Errorf("schedule workflow id cannot be empty"))
+	}
+	cloned, err := core.DeepCopy(scheduleCfg)
+	if err != nil {
+		b.errors = append(b.errors, fmt.Errorf("failed to copy schedule config: %w", err))
+		return b
+	}
+	cloned.ID = id
+	cloned.WorkflowID = workflowID
+	b.schedules = append(b.schedules, cloned)
+	return b
+}
+
 // Build validates the accumulated configuration and returns a project config.
 func (b *Builder) Build(ctx context.Context) (*engineproject.Config, error) {
 	if b == nil {
@@ -156,6 +187,43 @@ func (b *Builder) Build(ctx context.Context) (*engineproject.Config, error) {
 	if len(b.workflows) == 0 {
 		collected = append(collected, fmt.Errorf("at least one workflow must be registered"))
 	}
+	dupeSchedules := findDuplicateScheduleIDs(b.schedules)
+	if len(dupeSchedules) > 0 {
+		collected = append(collected, fmt.Errorf("duplicate schedule ids found: %s", strings.Join(dupeSchedules, ", ")))
+	}
+	if len(b.schedules) > 0 {
+		workflowIDs := make(map[string]struct{}, len(b.workflows))
+		for _, wf := range b.workflows {
+			if wf == nil {
+				continue
+			}
+			trimmed := strings.TrimSpace(wf.ID)
+			if trimmed != "" {
+				workflowIDs[trimmed] = struct{}{}
+			}
+		}
+		clonedSchedules := make([]*engineschedule.Config, 0, len(b.schedules))
+		for _, sched := range b.schedules {
+			if sched == nil {
+				continue
+			}
+			if _, exists := workflowIDs[sched.WorkflowID]; !exists {
+				collected = append(
+					collected,
+					fmt.Errorf("schedule %s references unknown workflow %s", sched.ID, sched.WorkflowID),
+				)
+			}
+			clone, err := core.DeepCopy(sched)
+			if err != nil {
+				collected = append(collected, fmt.Errorf("failed to clone schedule config: %w", err))
+				continue
+			}
+			clonedSchedules = append(clonedSchedules, clone)
+		}
+		b.config.Schedules = clonedSchedules
+	} else {
+		b.config.Schedules = nil
+	}
 
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -172,4 +240,38 @@ func (b *Builder) Build(ctx context.Context) (*engineproject.Config, error) {
 		return nil, fmt.Errorf("failed to clone project config: %w", err)
 	}
 	return cloned, nil
+}
+
+func findDuplicateScheduleIDs(schedules []*engineschedule.Config) []string {
+	if len(schedules) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(schedules))
+	dupes := make([]string, 0)
+	for _, sched := range schedules {
+		if sched == nil {
+			continue
+		}
+		id := strings.TrimSpace(sched.ID)
+		if id == "" {
+			continue
+		}
+		if seen[id] {
+			if !containsString(dupes, id) {
+				dupes = append(dupes, id)
+			}
+			continue
+		}
+		seen[id] = true
+	}
+	return dupes
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

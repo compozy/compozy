@@ -9,6 +9,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/robfig/cron/v3"
 )
 
 var idPattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
@@ -154,6 +156,21 @@ func ValidateRange(ctx context.Context, name string, val, min, max int) error {
 	}
 	if val < min || val > max {
 		return fmt.Errorf("%s must be between %d and %d inclusive: got %d", name, min, max, val)
+	}
+	return nil
+}
+
+// ValidateCron ensures the provided cron expression is valid according to cron/v3 standard parsing rules.
+func ValidateCron(ctx context.Context, expr string) error {
+	if err := ensureContext(ctx); err != nil {
+		return err
+	}
+	trimmed := strings.TrimSpace(expr)
+	if trimmed == "" {
+		return fmt.Errorf("cron expression is required")
+	}
+	if _, err := cron.ParseStandard(trimmed); err != nil {
+		return fmt.Errorf("cron expression is invalid: %w", err)
 	}
 	return nil
 }

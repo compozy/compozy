@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -32,21 +32,21 @@ Create example demonstrating workflow scheduling with cron expressions, includin
 
 ## Subtasks
 
-- [ ] 50.1 Create sdk/examples/07_scheduled_workflow.go
-- [ ] 50.2 Create workflow for scheduled execution
-- [ ] 50.3 Build daily schedule (cron: "0 9 * * *"):
-  - [ ] Cron expression
-  - [ ] Workflow reference
-  - [ ] Input mapping
-  - [ ] Retry configuration
-- [ ] 50.4 Build weekly schedule (cron: "0 10 * * 1"):
-  - [ ] Different cron pattern
-  - [ ] Same workflow, different input
-  - [ ] Retry configuration
-- [ ] 50.5 Build project with schedules
-- [ ] 50.6 Add comments explaining cron patterns
-- [ ] 50.7 Update README.md with schedule example
-- [ ] 50.8 Test example runs successfully
+- [x] 50.1 Create sdk/examples/07_scheduled_workflow.go
+- [x] 50.2 Create workflow for scheduled execution
+- [x] 50.3 Build daily schedule (cron: "0 9 * * *"):
+  - [x] Cron expression
+  - [x] Workflow reference
+  - [x] Input mapping
+  - [x] Retry configuration
+- [x] 50.4 Build weekly schedule (cron: "0 10 * * 1"):
+  - [x] Different cron pattern
+  - [x] Same workflow, different input
+  - [x] Retry configuration
+- [x] 50.5 Build project with schedules
+- [x] 50.6 Add comments explaining cron patterns
+- [x] 50.7 Update README.md with schedule example
+- [x] 50.8 Test example runs successfully
 
 ## Implementation Details
 
@@ -100,28 +100,28 @@ proj, err := project.New("scheduled-reports").
 
 ## Deliverables
 
-- [ ] sdk/examples/07_scheduled_workflow.go (runnable)
-- [ ] Updated README.md with schedule example section
-- [ ] Comments explaining:
+- [x] sdk/examples/07_scheduled_workflow.go (runnable)
+- [x] Updated README.md with schedule example section
+- [x] Comments explaining:
   - Cron expression syntax
   - Common schedule patterns (daily, weekly, monthly)
   - Retry configuration purpose
   - Input mapping for parameterized schedules
-- [ ] Multiple schedule patterns demonstrated
-- [ ] Verified example runs successfully
+- [x] Multiple schedule patterns demonstrated
+- [x] Verified example runs successfully
 
 ## Tests
 
 From _tests.md:
 
 - Example validation:
-  - [ ] Code compiles without errors
-  - [ ] Cron expressions validated (valid syntax)
-  - [ ] Workflow references validated
-  - [ ] Input mapping works
-  - [ ] Retry config validated (positive attempts, positive backoff)
-  - [ ] Multiple schedules can reference same workflow
-  - [ ] Project schedule registration works
+  - [x] Code compiles without errors
+  - [x] Cron expressions validated (valid syntax)
+  - [x] Workflow references validated
+  - [x] Input mapping works
+  - [x] Retry config validated (positive attempts, positive backoff)
+  - [x] Multiple schedules can reference same workflow
+  - [x] Project schedule registration works
 
 ## Success Criteria
 
