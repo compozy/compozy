@@ -53,7 +53,7 @@ func TestServerStartStop(t *testing.T) {
 			require.NoError(t, srv.Stop(ctx))
 		})
 
-		dialer := &net.Dialer{Timeout: time.Second}
+		dialer := &net.Dialer{Timeout: 500 * time.Millisecond}
 		conn, err := dialer.DialContext(ctx, "tcp", srv.FrontendAddress())
 		require.NoError(t, err)
 		require.NoError(t, conn.Close())

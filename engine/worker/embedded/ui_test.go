@@ -96,7 +96,9 @@ func TestUIServerPortConflict(t *testing.T) {
 	ui := newUIServer(cfg)
 	require.NotNil(t, ui)
 
-	err := ui.Start(ctx)
+	startCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	err := ui.Start(startCtx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), strconv.Itoa(port))
 }

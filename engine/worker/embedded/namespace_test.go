@@ -34,7 +34,7 @@ func TestCreateNamespace(t *testing.T) {
 	temporalCfg, err := buildTemporalConfig(cfg)
 	require.NoError(t, err)
 
-	require.NoError(t, createNamespace(temporalCfg, cfg))
+	require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
 
 	sqlCfg := temporalCfg.Persistence.DataStores[temporalCfg.Persistence.DefaultStore].SQL
 	db, err := persistenceSQL.NewSQLDB(
@@ -54,5 +54,5 @@ func TestCreateNamespace(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 
-	require.NoError(t, createNamespace(temporalCfg, cfg))
+	require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
 }

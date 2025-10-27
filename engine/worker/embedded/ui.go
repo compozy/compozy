@@ -20,6 +20,8 @@ type UIServer struct {
 	server       *uiserver.Server
 	config       *Config
 	address      string
+	bindIP       string
+	uiPort       int
 	temporalAddr string
 	runErrCh     chan error
 	started      bool
@@ -46,6 +48,8 @@ func newUIServer(cfg *Config) *UIServer {
 		server:       srv,
 		config:       cfg,
 		address:      net.JoinHostPort(cfg.BindIP, strconv.Itoa(cfg.UIPort)),
+		bindIP:       cfg.BindIP,
+		uiPort:       cfg.UIPort,
 		temporalAddr: uiCfg.TemporalGRPCAddress,
 	}
 }
@@ -57,17 +61,15 @@ func (s *UIServer) Start(ctx context.Context) error {
 	}
 
 	s.mu.Lock()
-	if s.started {
+	if s.started || s.runErrCh != nil {
 		s.mu.Unlock()
 		return errAlreadyStarted
 	}
-	if s.runErrCh != nil {
-		s.mu.Unlock()
-		return fmt.Errorf("temporal ui server is already running")
-	}
+	runErrCh := make(chan error, 1)
+	s.runErrCh = runErrCh
 	s.mu.Unlock()
 
-	if err := ensureUIPortAvailable(ctx, s.config.BindIP, s.config.UIPort); err != nil {
+	if err := ensureUIPortAvailable(ctx, s.bindIP, s.uiPort); err != nil {
 		return err
 	}
 
@@ -78,7 +80,6 @@ func (s *UIServer) Start(ctx context.Context) error {
 		"frontend_addr", s.temporalAddr,
 	)
 
-	runErrCh := make(chan error, 1)
 	go func(ch chan<- error) {
 		if err := s.server.Start(); err != nil {
 			ch <- fmt.Errorf("ui server exited: %w", err)
@@ -88,12 +89,14 @@ func (s *UIServer) Start(ctx context.Context) error {
 
 	if err := waitForHTTPReady(ctx, s.address, runErrCh); err != nil {
 		s.server.Stop()
+		s.mu.Lock()
+		s.runErrCh = nil
+		s.mu.Unlock()
 		return fmt.Errorf("wait for ui ready: %w", err)
 	}
 
 	s.mu.Lock()
 	s.started = true
-	s.runErrCh = runErrCh
 	s.mu.Unlock()
 
 	log.Info("Temporal UI server started", "address", s.address)

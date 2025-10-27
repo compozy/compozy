@@ -80,7 +80,7 @@ func buildEmbeddedTemporalServer(ctx context.Context, cfg *Config) (temporal.Ser
 	if err != nil {
 		return nil, "", fmt.Errorf("build temporal config: %w", err)
 	}
-	if err := createNamespace(serverConfig, cfg); err != nil {
+	if err := createNamespace(ctx, serverConfig, cfg); err != nil {
 		return nil, "", fmt.Errorf("create namespace: %w", err)
 	}
 
