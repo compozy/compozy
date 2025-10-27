@@ -8,22 +8,24 @@
 
 Implement optional Temporal Web UI server wrapper for local development debugging.
 
+## status: completed
+
 ## Deliverables
 
-- [ ] `engine/worker/embedded/ui.go` - UI server implementation
-- [ ] `engine/worker/embedded/ui_test.go` - UI server tests
+- [x] `engine/worker/embedded/ui.go` - UI server implementation
+- [x] `engine/worker/embedded/ui_test.go` - UI server tests
 
 ## Acceptance Criteria
 
-- [ ] `UIServer` struct created
-- [ ] `newUIServer(cfg *Config) *UIServer` constructor
-- [ ] `Start(ctx)` starts UI server on configured port
-- [ ] `Stop(ctx)` gracefully stops UI server
-- [ ] UI connects to embedded Temporal frontend
-- [ ] UI accessible at http://localhost:8233 (default)
-- [ ] UI can be disabled via config (EnableUI=false)
-- [ ] All tests pass
-- [ ] No linter errors
+- [x] `UIServer` struct created
+- [x] `newUIServer(cfg *Config) *UIServer` constructor
+- [x] `Start(ctx)` starts UI server on configured port
+- [x] `Stop(ctx)` gracefully stops UI server
+- [x] UI connects to embedded Temporal frontend
+- [x] UI accessible at http://localhost:8233 (default)
+- [x] UI can be disabled via config (EnableUI=false)
+- [x] All tests pass
+- [x] No linter errors
 
 ## Implementation Approach
 

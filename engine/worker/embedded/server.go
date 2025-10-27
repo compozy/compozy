@@ -32,6 +32,7 @@ type Server struct {
 	server       temporal.Server
 	config       *Config
 	frontendAddr string
+	uiServer     *UIServer
 	started      bool
 }
 
@@ -41,21 +42,56 @@ func NewServer(ctx context.Context, cfg *Config) (*Server, error) {
 	if ctx == nil {
 		return nil, errNilContext
 	}
+	userEnableUI := cfg.EnableUI
+	userUIPort := cfg.UIPort
 	if err := validateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 	applyDefaults(cfg)
+	if !userEnableUI {
+		cfg.EnableUI = false
+		cfg.UIPort = userUIPort
+	}
 
+	server, frontendAddr, err := buildEmbeddedTemporalServer(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	uiSrv := newUIServer(cfg)
+
+	s := &Server{
+		server:       server,
+		config:       cfg,
+		frontendAddr: frontendAddr,
+		uiServer:     uiSrv,
+	}
+
+	logger.FromContext(ctx).Debug(
+		"Embedded Temporal server prepared",
+		"frontend_addr", s.frontendAddr,
+		"database", cfg.DatabaseFile,
+		"cluster", cfg.ClusterName,
+	)
+	if uiSrv == nil {
+		logger.FromContext(ctx).Debug("Temporal UI disabled for embedded server")
+	} else {
+		logger.FromContext(ctx).Debug("Temporal UI prepared", "ui_addr", uiSrv.address)
+	}
+
+	return s, nil
+}
+
+func buildEmbeddedTemporalServer(ctx context.Context, cfg *Config) (temporal.Server, string, error) {
 	serverConfig, err := buildTemporalConfig(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("build temporal config: %w", err)
+		return nil, "", fmt.Errorf("build temporal config: %w", err)
 	}
 	if err := createNamespace(serverConfig, cfg); err != nil {
-		return nil, fmt.Errorf("create namespace: %w", err)
+		return nil, "", fmt.Errorf("create namespace: %w", err)
 	}
 
 	if err := ensurePortsAvailable(ctx, cfg.BindIP, servicePorts(cfg)); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	temporalLogger := log.NewZapLogger(log.BuildZapLogger(buildLogConfig(cfg)))
@@ -66,23 +102,10 @@ func NewServer(ctx context.Context, cfg *Config) (*Server, error) {
 		temporal.WithLogger(temporalLogger),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create temporal server: %w", err)
+		return nil, "", fmt.Errorf("create temporal server: %w", err)
 	}
 
-	s := &Server{
-		server:       server,
-		config:       cfg,
-		frontendAddr: fmt.Sprintf("%s:%d", cfg.BindIP, cfg.FrontendPort),
-	}
-
-	logger.FromContext(ctx).Debug(
-		"Embedded Temporal server prepared",
-		"frontend_addr", s.frontendAddr,
-		"database", cfg.DatabaseFile,
-		"cluster", cfg.ClusterName,
-	)
-
-	return s, nil
+	return server, fmt.Sprintf("%s:%d", cfg.BindIP, cfg.FrontendPort), nil
 }
 
 // Start boots the embedded Temporal server and waits for readiness.
@@ -124,6 +147,12 @@ func (s *Server) Start(ctx context.Context) error {
 		"duration", time.Since(startTime),
 	)
 
+	if s.uiServer != nil {
+		if err := s.uiServer.Start(ctx); err != nil {
+			logger.FromContext(ctx).Warn("Failed to start Temporal UI server", "error", err)
+		}
+	}
+
 	return nil
 }
 
@@ -143,6 +172,12 @@ func (s *Server) Stop(ctx context.Context) error {
 
 	stopStart := time.Now()
 	logger.FromContext(ctx).Info("Stopping embedded Temporal server", "frontend_addr", s.frontendAddr)
+
+	if s.uiServer != nil {
+		if err := s.uiServer.Stop(ctx); err != nil {
+			logger.FromContext(ctx).Warn("Failed to stop Temporal UI server", "error", err)
+		}
+	}
 
 	if err := s.server.Stop(); err != nil {
 		return fmt.Errorf("stop temporal server: %w", err)
