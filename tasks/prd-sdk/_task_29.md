@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/knowledge</domain>
@@ -31,11 +31,11 @@ Implement BaseBuilder in `sdk/knowledge/base.go` to configure complete knowledge
 
 ## Subtasks
 
-- [ ] 29.1 Create sdk/knowledge/base.go with BaseBuilder
-- [ ] 29.2 Implement NewBase(id) constructor
-- [ ] 29.3 Implement WithEmbedder, WithVectorDB, AddSource methods
-- [ ] 29.4 Implement WithChunking, WithPreprocess, WithIngestMode methods
-- [ ] 29.5 Implement WithRetrieval method and Build(ctx) with validation
+- [x] 29.1 Create sdk/knowledge/base.go with BaseBuilder
+- [x] 29.2 Implement NewBase(id) constructor
+- [x] 29.3 Implement WithEmbedder, WithVectorDB, AddSource methods
+- [x] 29.4 Implement WithChunking, WithPreprocess, WithIngestMode methods
+- [x] 29.5 Implement WithRetrieval method and Build(ctx) with validation
 
 ## Implementation Details
 
