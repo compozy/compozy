@@ -73,7 +73,7 @@ Migrate all SDK packages from manual builder pattern to auto-generated functiona
 - [x] [_task_11.md](_task_11.md) - 11.0 Migrate project package (L) - **COMPLETED**
 
 ### Phase 4: Examples (After Phase 1 complete)
-- [ ] 12.0 Update example files (S)
+- [x] 12.0 Update example files (S)
 
 Notes on sizing:
 - S = Small (≤ 2 hours)

@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/cmd</domain>
@@ -39,18 +39,18 @@ Create a single consolidated examples program in `sdk2/examples/` with a flag-ba
 
 ## Subtasks
 
-- [ ] 12.1 Create sdk2/examples/ directory and main.go with flag parsing
-- [ ] 12.2 Implement RunSimpleWorkflow() function
-- [ ] 12.3 Implement RunParallelTasks() function
-- [ ] 12.4 Implement RunKnowledgeRag() function
-- [ ] 12.5 Implement RunMemoryConversation() function
-- [ ] 12.6 Implement RunRuntimeNativeTools() function
-- [ ] 12.7 Implement RunScheduledWorkflow() function
-- [ ] 12.8 Implement RunSignalCommunication() function
-- [ ] 12.9 Implement RunCompleteProject() function
-- [ ] 12.10 Implement RunDebugging() function
-- [ ] 12.11 Add help text and example listing
-- [ ] 12.12 Test all examples via --example flag
+- [x] 12.1 Create sdk2/examples/ directory and main.go with flag parsing
+- [x] 12.2 Implement RunSimpleWorkflow() function
+- [x] 12.3 Implement RunParallelTasks() function
+- [x] 12.4 Implement RunKnowledgeRag() function
+- [x] 12.5 Implement RunMemoryConversation() function
+- [x] 12.6 Implement RunRuntimeNativeTools() function
+- [x] 12.7 Implement RunScheduledWorkflow() function
+- [x] 12.8 Implement RunSignalCommunication() function
+- [x] 12.9 Implement RunCompleteProject() function
+- [x] 12.10 Implement RunDebugging() function
+- [x] 12.11 Add help text and example listing
+- [x] 12.12 Test all examples via --example flag
 
 ## Structure Pattern
 
