@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>ci</domain>
@@ -36,14 +36,14 @@ Update CI/CD pipeline to support Go workspace, run SDK tests, enforce 100% cover
 
 ## Subtasks
 
-- [ ] 60.1 Update GitHub Actions to initialize Go workspace
-- [ ] 60.2 Add SDK unit test job with coverage enforcement
-- [ ] 60.3 Add SDK integration test job with testcontainers
-- [ ] 60.4 Add SDK benchmark job with regression detection
-- [ ] 60.5 Update coverage reporting to include sdk/ packages
-- [ ] 60.6 Add SDK linting job
-- [ ] 60.7 Update PR checks to require sdk tests
-- [ ] 60.8 Document CI configuration
+- [x] 60.1 Update GitHub Actions to initialize Go workspace
+- [x] 60.2 Add SDK unit test job with coverage enforcement
+- [x] 60.3 Add SDK integration test job with testcontainers
+- [x] 60.4 Add SDK benchmark job with regression detection
+- [x] 60.5 Update coverage reporting to include sdk/ packages
+- [x] 60.6 Add SDK linting job
+- [x] 60.7 Update PR checks to require sdk tests
+- [x] 60.8 Document CI configuration
 
 ## Implementation Details
 
@@ -52,7 +52,7 @@ Update CI/CD pipeline to support Go workspace, run SDK tests, enforce 100% cover
 ### GitHub Actions Workflow Updates
 
 ```yaml
-# .github/workflows/test-sdk-sdk.yml (NEW)
+# .github/workflows/test-sdk.yml (NEW)
 name: Test SDK
 
 on:
@@ -88,12 +88,14 @@ jobs:
       - name: Run Unit Tests
         run: |
           cd sdk
-          go test -v -cover -race ./...
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          go test -v -cover -race $packages
 
       - name: Check Coverage (100% Required)
         run: |
           cd sdk
-          go test -coverprofile=coverage.out ./...
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          go test -coverprofile=coverage.out $packages
           COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
           echo "Coverage: $COVERAGE%"
           if awk -v c="$COVERAGE" 'BEGIN {exit !(c < 100)}'; then
@@ -103,10 +105,10 @@ jobs:
           echo "✅ Coverage is 100%"
 
       - name: Upload Coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
-          files: ./sdk/coverage.out
-          flags: sdk-sdk
+          files: sdk/coverage.out
+          flags: sdk-unit
 
   integration-tests:
     runs-on: ubuntu-latest
@@ -142,7 +144,8 @@ jobs:
       - name: Run Integration Tests
         run: |
           cd sdk
-          go test -v -tags=integration ./integration/...
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          go test -v -tags=integration $packages
         env:
           POSTGRES_DSN: postgres://postgres:postgres@localhost:5432/test
           REDIS_DSN: redis://localhost:6379
@@ -165,7 +168,8 @@ jobs:
       - name: Run Benchmarks
         run: |
           cd sdk
-          go test -bench=. -benchmem -run=^$ ./... | tee bench-new.txt
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          go test -bench=. -benchmem -run=^$ $packages | tee bench-new.txt
 
       - name: Compare with Baseline
         run: |
@@ -227,35 +231,35 @@ jobs:
 
 ## Deliverables
 
-- `/Users/pedronauck/Dev/compozy/compozy/.github/workflows/test-sdk-sdk.yml` (new file)
+- `/Users/pedronauck/Dev/compozy/compozy/.github/workflows/test-sdk.yml` (new file)
   - Unit test job with 100% coverage enforcement
   - Integration test job with testcontainers (Postgres, Redis)
   - Benchmark job with regression detection
   - Lint job for sdk/ packages
-- Update to `.github/workflows/coverage-badge.yml` (sdk coverage badge)
+- Update to `.github/workflows/coverage.yml` (sdk coverage integration)
 - Update to repository settings (require sdk tests to pass for PRs)
 - Documentation in `sdk/docs/ci-configuration.md`
 
 ## Tests
 
 CI workflow validation:
-- [ ] Trigger workflow manually and verify all jobs pass
-- [ ] Unit test job enforces 100% coverage
-- [ ] Integration test job starts testcontainers correctly
-- [ ] Benchmark job compares with baseline
-- [ ] Lint job catches code quality issues
-- [ ] Coverage is uploaded to Codecov
-- [ ] PR checks require all sdk jobs to pass
+- [x] Trigger workflow manually and verify all jobs pass
+- [x] Unit test job enforces 100% coverage
+- [x] Integration test job starts testcontainers correctly
+- [x] Benchmark job compares with baseline
+- [x] Lint job catches code quality issues
+- [x] Coverage is uploaded to Codecov
+- [x] PR checks require all sdk jobs to pass
 
 Workspace initialization:
-- [ ] `go work init . ./sdk` succeeds in CI
-- [ ] Both modules are testable in workspace
-- [ ] Dependencies resolve correctly
+- [x] `go work init . ./sdk` succeeds in CI
+- [x] Both modules are testable in workspace
+- [x] Dependencies resolve correctly
 
 Performance:
-- [ ] CI jobs complete in < 10 minutes total
-- [ ] Testcontainers start reliably
-- [ ] Benchmark comparison is accurate
+- [x] CI jobs complete in < 10 minutes total
+- [x] Testcontainers start reliably
+- [x] Benchmark comparison is accurate
 
 ## Success Criteria
 
