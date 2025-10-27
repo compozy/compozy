@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/mcp</domain>
@@ -28,12 +28,12 @@ Implement the MCP builder base with command-based (stdio) and URL-based (SSE/HTT
 
 ## Subtasks
 
-- [ ] 36.1 Create sdk/mcp/builder.go with Builder struct
-- [ ] 36.2 Implement New(id string) constructor
-- [ ] 36.3 Implement WithCommand(command string, args ...string) method
-- [ ] 36.4 Implement WithURL(url string) method
-- [ ] 36.5 Implement Build(ctx) with validation
-- [ ] 36.6 Add unit tests for MCP builder basics
+- [x] 36.1 Create sdk/mcp/builder.go with Builder struct
+- [x] 36.2 Implement New(id string) constructor
+- [x] 36.3 Implement WithCommand(command string, args ...string) method
+- [x] 36.4 Implement WithURL(url string) method
+- [x] 36.5 Implement Build(ctx) with validation
+- [x] 36.6 Add unit tests for MCP builder basics
 
 ## Implementation Details
 
@@ -90,12 +90,12 @@ mcp.New("github-api").
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] New validates non-empty MCP ID
-- [ ] WithCommand stores command and args correctly
-- [ ] WithURL stores URL correctly
-- [ ] Build(ctx) validates either command or URL (mutually exclusive)
-- [ ] Error cases: empty command, empty URL, both set
-- [ ] Edge cases: command with no args, URL with query params
+- [x] New validates non-empty MCP ID
+- [x] WithCommand stores command and args correctly
+- [x] WithURL stores URL correctly
+- [x] Build(ctx) validates either command or URL (mutually exclusive)
+- [x] Error cases: empty command, empty URL, both set
+- [x] Edge cases: command with no args, URL with query params
 
 ## Success Criteria
 
