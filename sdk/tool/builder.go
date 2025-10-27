@@ -14,9 +14,7 @@ import (
 )
 
 var supportedRuntimes = map[string]struct{}{
-	"bun":  {},
-	"node": {},
-	"deno": {},
+	"bun": {},
 }
 
 // Builder constructs engine tool configurations using a fluent API while accumulating validation errors.
@@ -76,7 +74,7 @@ func (b *Builder) WithRuntime(runtime string) *Builder {
 		return b
 	}
 	if _, ok := supportedRuntimes[trimmed]; !ok {
-		b.errors = append(b.errors, fmt.Errorf("runtime must be one of bun, node, or deno"))
+		b.errors = append(b.errors, fmt.Errorf("runtime must be bun"))
 	}
 	b.config.Runtime = trimmed
 	return b
@@ -182,7 +180,7 @@ func (b *Builder) validateRuntime(ctx context.Context) error {
 	}
 	runtime := strings.ToLower(b.config.Runtime)
 	if _, ok := supportedRuntimes[runtime]; !ok {
-		return fmt.Errorf("tool runtime must be one of bun, node, or deno: got %s", b.config.Runtime)
+		return fmt.Errorf("tool runtime must be bun: got %s", b.config.Runtime)
 	}
 	b.config.Runtime = runtime
 	return nil

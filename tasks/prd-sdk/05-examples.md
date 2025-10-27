@@ -653,28 +653,6 @@ func main() {
         log.Fatal("Failed to build Bun runtime", "error", err)
     }
     
-    // Configure Node.js runtime
-    nodeRuntime, err := runtime.NewNode().
-        WithEntrypoint("./tools/index.js").
-        WithNodeOptions("--experimental-modules", "--enable-source-maps").
-        WithMaxMemoryMB(1024).
-        Build(ctx)
-    
-    if err != nil {
-        log.Fatal("Failed to build Node runtime", "error", err)
-    }
-    
-    // Configure Deno runtime
-    denoRuntime, err := runtime.NewDeno().
-        WithEntrypoint("./tools/mod.ts").
-        WithDenoPermissions("--allow-read", "--allow-write", "--allow-net").
-        WithMaxMemoryMB(512).
-        Build(ctx)
-    
-    if err != nil {
-        log.Fatal("Failed to build Deno runtime", "error", err)
-    }
-    
     // Build project with runtime configuration
     proj, err := project.New("runtime-demo").
         WithDescription("Runtime with native tools").
@@ -694,8 +672,6 @@ func main() {
 
 **Runtime Features Demonstrated:**
 - ✅ Bun runtime with permissions
-- ✅ Node.js runtime with options
-- ✅ Deno runtime with permissions
 - ✅ Native tools (call_agents, call_workflows)
 - ✅ Memory limits
 

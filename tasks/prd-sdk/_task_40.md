@@ -85,7 +85,6 @@ runtime.NewBun().
 ### Dependent Files
 
 - Task 41.0 (native tools builder)
-- Tasks 42-43 (Node/Deno support)
 - Future runtime examples
 
 ## Deliverables

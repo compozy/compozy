@@ -75,7 +75,7 @@ func TestWithRuntimeInvalidAddsError(t *testing.T) {
 	t.Parallel()
 
 	builder := New("tool-id").WithRuntime("python")
-	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "runtime must be one of bun, node, or deno")
+	require.Contains(t, builder.errors[len(builder.errors)-1].Error(), "runtime must be bun")
 }
 
 func TestWithCodeTrimsAndStoresValue(t *testing.T) {
@@ -119,7 +119,7 @@ func TestBuildReturnsClonedConfig(t *testing.T) {
 	builder := New("formatter").
 		WithName("Formatter").
 		WithDescription("Formats code samples").
-		WithRuntime("node").
+		WithRuntime("bun").
 		WithCode("export default function() {}").
 		WithInput(&inputSchema).
 		WithOutput(&outputSchema)
@@ -132,7 +132,7 @@ func TestBuildReturnsClonedConfig(t *testing.T) {
 	require.Equal(t, "formatter", cfg.ID)
 	require.Equal(t, "Formatter", cfg.Name)
 	require.Equal(t, "Formats code samples", cfg.Description)
-	require.Equal(t, "node", cfg.Runtime)
+	require.Equal(t, "bun", cfg.Runtime)
 	require.Equal(t, "export default function() {}", cfg.Code)
 	require.Equal(t, cfg.InputSchema, &inputSchema)
 	require.Equal(t, cfg.OutputSchema, &outputSchema)
@@ -167,7 +167,7 @@ func TestBuildFailsWhenCodeMissing(t *testing.T) {
 	builder := New("formatter").
 		WithName("Formatter").
 		WithDescription("Formats code").
-		WithRuntime("deno")
+		WithRuntime("bun")
 
 	ctx := t.Context()
 	cfg, err := builder.Build(ctx)

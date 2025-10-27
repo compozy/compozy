@@ -282,7 +282,7 @@ go run sdk/examples/05_memory_conversation.go
   - Session management
   - Environment variables
 - Implement `sdk/runtime/`:
-  - `builder.go` - Runtime builder (Bun, Node, Deno)
+  - `builder.go` - Runtime builder (bun)
   - `native_tools.go` - NativeToolsBuilder (call_agents, call_workflows)
 - Unit tests
 - Examples:

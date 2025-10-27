@@ -462,7 +462,7 @@ status, err := client.GetWorkflowStatus(ctx, executionID)
 - ✅ Full RAG support (knowledge bases with embedders and vector DBs)
 - ✅ Conversation state (memory with Redis persistence)
 - ✅ External tools (MCP protocol integration)
-- ✅ Custom JavaScript tools (Bun/Node/Deno runtime)
+- ✅ Custom JavaScript tools (Bun runtime)
 - ✅ Workflow automation (schedules with cron)
 - ✅ Inter-workflow communication (signals)
 

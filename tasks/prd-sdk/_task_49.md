@@ -12,7 +12,7 @@
 
 ## Overview
 
-Create example demonstrating runtime configuration (Bun/Node/Deno) with native tools integration (call_agents, call_workflows).
+Create example demonstrating runtime configuration (Bun) with native tools integration (call_agents, call_workflows).
 
 <critical>
 - **ALWAYS READ** @.cursor/rules/go-coding-standards.mdc before start
@@ -23,7 +23,7 @@ Create example demonstrating runtime configuration (Bun/Node/Deno) with native t
 
 <requirements>
 - Runnable example: sdk/examples/06_runtime_native_tools.go
-- Demonstrates: Bun, Node, Deno runtime configurations
+- Demonstrates: bun runtime configurations
 - Shows: Native tools (call_agents, call_workflows)
 - Permissions and options per runtime type
 - Memory limits
@@ -37,14 +37,6 @@ Create example demonstrating runtime configuration (Bun/Node/Deno) with native t
   - [ ] Entrypoint
   - [ ] Permissions
   - [ ] Native tools enabled
-  - [ ] Memory limit
-- [ ] 49.3 Build Node runtime with:
-  - [ ] Entrypoint
-  - [ ] Node options
-  - [ ] Memory limit
-- [ ] 49.4 Build Deno runtime with:
-  - [ ] Entrypoint
-  - [ ] Permissions
   - [ ] Memory limit
 - [ ] 49.5 Build native tools config (call_agents + call_workflows)
 - [ ] 49.6 Build project with runtime configuration
@@ -71,24 +63,6 @@ bunRuntime, err := runtime.NewBun().
     Build(ctx)
 ```
 
-**Node runtime:**
-```go
-nodeRuntime, err := runtime.NewNode().
-    WithEntrypoint("./tools/index.js").
-    WithNodeOptions("--experimental-modules", "--enable-source-maps").
-    WithMaxMemoryMB(1024).
-    Build(ctx)
-```
-
-**Deno runtime:**
-```go
-denoRuntime, err := runtime.NewDeno().
-    WithEntrypoint("./tools/mod.ts").
-    WithDenoPermissions("--allow-read", "--allow-write", "--allow-net").
-    WithMaxMemoryMB(512).
-    Build(ctx)
-```
-
 ### Relevant Files
 
 - `sdk/examples/06_runtime_native_tools.go` - Main example
@@ -105,11 +79,10 @@ denoRuntime, err := runtime.NewDeno().
 - [ ] sdk/examples/06_runtime_native_tools.go (runnable)
 - [ ] Updated README.md with runtime example section
 - [ ] Comments explaining:
-  - When to use Bun vs Node vs Deno
   - Native tools capabilities (call_agents, call_workflows)
   - Permission models per runtime
   - Memory limit configuration
-- [ ] All 3 runtime types demonstrated
+- [ ] Runtime types demonstrated
 - [ ] Native tools enabled on Bun example
 - [ ] Verified example runs successfully
 
@@ -120,8 +93,6 @@ From _tests.md:
 - Example validation:
   - [ ] Code compiles without errors
   - [ ] Bun runtime config with permissions
-  - [ ] Node runtime config with options
-  - [ ] Deno runtime config with permissions
   - [ ] Native tools config validated
   - [ ] Memory limits validated (positive MB)
   - [ ] Entrypoint paths validated

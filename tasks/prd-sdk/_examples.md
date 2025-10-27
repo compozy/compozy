@@ -35,7 +35,7 @@
 5. examples/sdk/06_runtime_native_tools
 - Purpose: Runtime + native tools.
 - Files: see runtime/native tools example in `tasks/prd-sdk/05-examples.md`.
-- Demonstrates: Bun/Node/Deno, call_agents/call_workflows.
+- Demonstrates: Bun, call_agents/call_workflows.
 - Walkthrough: `go run sdk/examples/06_runtime_native_tools.go`.
 
 6. examples/sdk/07_scheduled_workflow

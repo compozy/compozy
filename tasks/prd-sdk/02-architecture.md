@@ -45,7 +45,7 @@ compozy/
 │   ├── mcp/                        # MCP integration
 │   ├── llm/                        # LLM provider integration
 │   ├── tool/                       # Tool execution
-│   ├── runtime/                    # Runtime (Bun, Node, Deno)
+│   ├── runtime/                    # Runtime (bun)
 │   ├── schema/                     # Schema validation
 │   ├── infra/                      # Infrastructure (DB, HTTP, etc.)
 │   └── ... (100+ packages)

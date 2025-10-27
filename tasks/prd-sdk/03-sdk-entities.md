@@ -950,20 +950,12 @@ type Builder struct {
 
 // Constructors for different runtime types
 func NewBun() *Builder
-func NewNode() *Builder
-func NewDeno() *Builder
 
 // Entrypoint
 func (b *Builder) WithEntrypoint(path string) *Builder
 
 // Bun-specific permissions
 func (b *Builder) WithBunPermissions(permissions ...string) *Builder
-
-// Node-specific options
-func (b *Builder) WithNodeOptions(options ...string) *Builder
-
-// Deno-specific permissions
-func (b *Builder) WithDenoPermissions(permissions ...string) *Builder
 
 // Native tools integration
 func (b *Builder) WithNativeTools(tools *runtime.NativeToolsConfig) *Builder
@@ -1036,7 +1028,7 @@ func (b *Builder) WithName(name string) *Builder
 func (b *Builder) WithDescription(desc string) *Builder
 
 // Runtime
-func (b *Builder) WithRuntime(runtime string) *Builder  // "bun", "node", "deno"
+func (b *Builder) WithRuntime(runtime string) *Builder  // "bun"
 func (b *Builder) WithCode(code string) *Builder
 
 // Schemas
@@ -1395,7 +1387,6 @@ func main() {
 7. ✅ **ActionBuilder** - Full action configuration with tools, transitions, retry
 8. ✅ **Schema validation** - Compile and test schemas before runtime
 9. ✅ **Source builder** - File, directory, URL, API sources
-10. ✅ **Deno runtime support** - Bun, Node, and Deno runtimes
 11. ✅ **Monitoring configuration** - Prometheus, custom metrics, tracing
 12. ✅ **Builder immutability** - Deep cloning for independent configs
 

@@ -119,7 +119,6 @@ All issues from [PLAN_REVIEW.md](./PLAN_REVIEW.md) have been addressed:
 11. ✅ Monitoring configuration expanded
 12. ✅ AutoLoad integration documented
 13. ✅ Signal system semantics defined
-14. ✅ Deno runtime support added
 15. ✅ ActionBuilder added (complete action config)
 16. ✅ Schedule attachment documented
 17. ✅ Resource store integration defined

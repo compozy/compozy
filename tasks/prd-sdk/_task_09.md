@@ -12,13 +12,13 @@
 
 ## Overview
 
-Implement the Tool builder for defining custom tools with input/output schemas and runtime code. Tools can execute in Bun, Node, or Deno runtimes.
+Implement the Tool builder for defining custom tools with input/output schemas and runtime code. Tools can execute in Bun runtimes.
 
 <critical>
 - **ALWAYS READ** tasks/prd-sdk/03-sdk-entities.md (Tool Definition section)
 - **MUST** validate tool ID and name
 - **MUST** support input and output schemas
-- **MUST** validate runtime (bun, node, deno)
+- **MUST** validate runtime (bun)
 </critical>
 
 <requirements>
@@ -91,7 +91,7 @@ func (b *Builder) Build(ctx context.Context) (*tool.Config, error)
 ## Deliverables
 
 - ✅ `sdk/tool/builder.go` with complete Builder implementation
-- ✅ Runtime validation (bun, node, deno)
+- ✅ Runtime validation (bun)
 - ✅ Support for input and output schemas
 - ✅ Build(ctx) validates tool configuration
 - ✅ Unit tests with 95%+ coverage
@@ -117,7 +117,7 @@ Reference: tasks/prd-sdk/_tests.md
 
 ## Success Criteria
 
-- Tool builder supports all runtime types (bun, node, deno)
+- Tool builder supports all runtime types (bun)
 - Input and output schemas are properly set
 - Build(ctx) requires context.Context
 - Tests achieve 95%+ coverage

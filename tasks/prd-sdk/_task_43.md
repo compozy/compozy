@@ -12,7 +12,7 @@
 
 ## Overview
 
-Complete the runtime builder with permissions configuration (Bun/Node/Deno-specific) and tool-level timeouts. This task finalizes runtime configuration surface area beyond the core features already implemented in tasks 40-42.
+Complete the runtime builder with permissions configuration (Bun-specific) and tool-level timeouts. This task finalizes runtime configuration surface area beyond the core features already implemented in tasks 40-42.
 
 <critical>
 - **ALWAYS READ** @.cursor/rules/go-coding-standards.mdc before start
@@ -22,7 +22,7 @@ Complete the runtime builder with permissions configuration (Bun/Node/Deno-speci
 </critical>
 
 <requirements>
-- Complete permission methods for all runtime types (Bun, Node, Deno)
+- Complete permission methods for all runtime types (bun)
 - Add tool timeout configuration
 - Validate permission strings based on runtime type
 - All Build() methods require context.Context
@@ -32,8 +32,6 @@ Complete the runtime builder with permissions configuration (Bun/Node/Deno-speci
 ## Subtasks
 
 - [ ] 43.1 Add WithBunPermissions() method with validation
-- [ ] 43.2 Add WithNodeOptions() method with validation
-- [ ] 43.3 Add WithDenoPermissions() method with validation
 - [ ] 43.4 Add WithToolTimeout() method (per-tool timeout configuration)
 - [ ] 43.5 Add validation for permission strings per runtime type
 - [ ] 43.6 Write unit tests for permission builders
@@ -46,8 +44,6 @@ Per 03-sdk-entities.md section 9.1:
 ```go
 // sdk/runtime/builder.go
 func (b *Builder) WithBunPermissions(permissions ...string) *Builder
-func (b *Builder) WithNodeOptions(options ...string) *Builder
-func (b *Builder) WithDenoPermissions(permissions ...string) *Builder
 func (b *Builder) WithToolTimeout(timeout time.Duration) *Builder
 ```
 
@@ -75,8 +71,6 @@ From _tests.md:
 
 - Unit tests:
   - [ ] WithBunPermissions() validates Bun-specific permission strings
-  - [ ] WithNodeOptions() validates Node CLI options
-  - [ ] WithDenoPermissions() validates Deno permission strings
   - [ ] WithToolTimeout() validates timeout duration (positive)
   - [ ] Build() fails with invalid permission combinations
   - [ ] Error accumulation pattern for multiple invalid permissions
