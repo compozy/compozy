@@ -84,7 +84,7 @@
 - [x] 59.0 Benchmarks: Build(ctx) (S)
 - [x] 60.0 CI Updates: Workspace + Coverage (S)
 - [x] 61.0 SDK Docs Section Plan Finalization (S)
-- [ ] 62.0 Cross‑Links Map Core/API/CLI → SDK (S)
+- [x] 62.0 Cross‑Links Map Core/API/CLI → SDK (S)
 
 Notes on sizing:
 

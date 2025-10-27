@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>docs</domain>
@@ -35,14 +35,14 @@ Create comprehensive cross-linking map connecting existing documentation (Core, 
 
 ## Subtasks
 
-- [ ] 62.1 Identify all Core pages mentioning YAML configuration
-- [ ] 62.2 Map Core workflow/agent/task pages → SDK builders
-- [ ] 62.3 Map API reference pages → SDK client usage
-- [ ] 62.4 Map CLI command pages → SDK programmatic equivalents
-- [ ] 62.5 Define link insertion points in existing pages
-- [ ] 62.6 Create reverse link map (SDK → Core/API/CLI)
-- [ ] 62.7 Plan callout/info boxes for major SDK features
-- [ ] 62.8 Update search keywords and tags
+- [x] 62.1 Identify all Core pages mentioning YAML configuration
+- [x] 62.2 Map Core workflow/agent/task pages → SDK builders
+- [x] 62.3 Map API reference pages → SDK client usage
+- [x] 62.4 Map CLI command pages → SDK programmatic equivalents
+- [x] 62.5 Define link insertion points in existing pages
+- [x] 62.6 Create reverse link map (SDK → Core/API/CLI)
+- [x] 62.7 Plan callout/info boxes for major SDK features
+- [x] 62.8 Update search keywords and tags
 
 ## Implementation Details
 
@@ -224,19 +224,19 @@ keywords_by_page:
 ## Tests
 
 Cross-link validation:
-- [ ] All Core concept pages link to SDK equivalents
-- [ ] All API pages link to SDK client
-- [ ] All CLI pages link to SDK programmatic alternative
-- [ ] All SDK pages link back to conceptual docs
-- [ ] Links are bidirectional (no orphans)
-- [ ] Link text is clear and actionable
-- [ ] Callout boxes have consistent formatting
+- [x] All Core concept pages link to SDK equivalents
+- [x] All API pages link to SDK client
+- [x] All CLI pages link to SDK programmatic alternative
+- [x] All SDK pages link back to conceptual docs
+- [x] Links are bidirectional (no orphans)
+- [x] Link text is clear and actionable
+- [x] Callout boxes have consistent formatting
 
 Quality checks:
-- [ ] No broken links (all targets exist in plan)
-- [ ] Link placement is logical and non-intrusive
-- [ ] Search keywords improve discoverability
-- [ ] "See Also" sections are comprehensive
+- [x] No broken links (all targets exist in plan)
+- [x] Link placement is logical and non-intrusive
+- [x] Search keywords improve discoverability
+- [x] "See Also" sections are comprehensive
 
 ## Success Criteria
 
