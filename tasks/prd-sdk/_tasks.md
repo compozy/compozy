@@ -78,7 +78,7 @@
 - [x] 53.0 Migration: YAML → SDK Basics (S)
 - [x] 54.0 Migration: Hybrid + Advanced (S)
 - [x] 55.0 Troubleshooting Guide (S)
-- [ ] 56.0 Test Harness + Helpers (S)
+- [x] 56.0 Test Harness + Helpers (S)
 - [ ] 57.0 Unit Tests: Builders (M)
 - [ ] 58.0 Integration Tests: SDK→Engine (M)
 - [ ] 59.0 Benchmarks: Build(ctx) (S)

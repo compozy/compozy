@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>sdk/internal</domain>
@@ -33,13 +33,13 @@ Create test harness infrastructure and helper functions for SDK testing: table-d
 
 ## Subtasks
 
-- [ ] 56.1 Create sdk/internal/testutil package with doc.go
-- [ ] 56.2 Implement context helpers (NewTestContext, WithTestLogger, WithTestConfig)
-- [ ] 56.3 Implement validation helpers (RequireNoError, RequireValidationError, AssertBuildError)
-- [ ] 56.4 Create table test template generators
-- [ ] 56.5 Create mock fixtures (model configs, agent configs, task configs)
-- [ ] 56.6 Implement comparison helpers (AssertConfigEqual)
-- [ ] 56.7 Add testdata organization helpers
+- [x] 56.1 Create sdk/internal/testutil package with doc.go
+- [x] 56.2 Implement context helpers (NewTestContext, WithTestLogger, WithTestConfig)
+- [x] 56.3 Implement validation helpers (RequireNoError, RequireValidationError, AssertBuildError)
+- [x] 56.4 Create table test template generators
+- [x] 56.5 Create mock fixtures (model configs, agent configs, task configs)
+- [x] 56.6 Implement comparison helpers (AssertConfigEqual)
+- [x] 56.7 Add testdata organization helpers
 
 ## Implementation Details
 
@@ -135,21 +135,21 @@ func RunTableTests(t *testing.T, tests []TableTest)
 ## Tests
 
 Unit tests for test utilities:
-- [ ] TestNewTestContext verifies logger and config in context
-- [ ] TestNewTestContext uses t.Context() as base (not Background)
-- [ ] TestRequireNoError behavior with nil and non-nil errors
-- [ ] TestRequireValidationError detects validation errors correctly
-- [ ] TestAssertBuildError inspects BuildError.Errors() correctly
-- [ ] TestNewTestModel creates valid model config
-- [ ] TestNewTestAgent creates valid agent config
-- [ ] TestRunTableTests executes all test cases
-- [ ] All fixtures pass validation when built
+- [x] TestNewTestContext verifies logger and config in context
+- [x] TestNewTestContext uses t.Context() as base (not Background)
+- [x] TestRequireNoError behavior with nil and non-nil errors
+- [x] TestRequireValidationError detects validation errors correctly
+- [x] TestAssertBuildError inspects BuildError.Errors() correctly
+- [x] TestNewTestModel creates valid model config
+- [x] TestNewTestAgent creates valid agent config
+- [x] TestRunTableTests executes all test cases
+- [x] All fixtures pass validation when built
 
 Validation checks:
-- [ ] No use of context.Background() anywhere in package
-- [ ] All helpers call t.Helper() for proper error reporting
-- [ ] BuildError inspection works with sdk/internal/errors.BuildError
-- [ ] Fixtures match engine config structures
+- [x] No use of context.Background() anywhere in package
+- [x] All helpers call t.Helper() for proper error reporting
+- [x] BuildError inspection works with sdk/internal/errors.BuildError
+- [x] Fixtures match engine config structures
 
 ## Success Criteria
 
