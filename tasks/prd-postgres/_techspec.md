@@ -768,7 +768,427 @@ func (r *TaskRepo) UpdateWithVersion(ctx context.Context, state *task.State) err
 
 ---
 
-**Document Version:** 1.0  
+## Appendices
+
+### Appendix A: File Impact Inventory
+
+**PostgreSQL-Specific Files (To Reference/Port):**
+
+```
+engine/infra/postgres/
+├── authrepo.go          (~178 lines) - User/API key operations
+├── config.go            (~24 lines)  - PostgreSQL configuration
+├── doc.go               (~10 lines)  - Package documentation
+├── dsn.go               (~50 lines)  - Connection string builder
+├── jsonb.go             (~50 lines)  - JSONB helper functions
+├── metrics.go           (~69 lines)  - Pool metrics and observability
+├── migrations.go        (~150 lines) - Migration runner with advisory locks
+├── migrations/          (9 SQL files) - Schema definitions
+│   ├── 20250603124835_create_workflow_states.sql     (~34 lines)
+│   ├── 20250603124915_create_task_states.sql         (~115 lines)
+│   ├── 20250711163857_create_users.sql               (~17 lines)
+│   ├── 20250711163858_create_api_keys.sql            (~23 lines)
+│   ├── 20250711173300_add_api_key_fingerprint.sql    (~27 lines)
+│   ├── 20250712120000_add_task_hierarchy_indexes.sql (~20 lines)
+│   ├── 20250916090000_add_task_state_query_indexes.sql (~15 lines)
+│   ├── 20251012060000_enable_pgvector_extension.sql  (~10 lines)
+│   └── 20251016150000_add_task_states_task_exec_idx.sql (~12 lines)
+├── placeholders.go      (~39 lines)  - Query placeholder helpers
+├── queries.go           (~50 lines)  - Common query constants
+├── scan.go              (~30 lines)  - Result scanning helpers
+├── store.go             (~150 lines) - Connection pool management
+├── taskrepo.go          (~500 lines) - Task state repository (COMPLEX)
+└── workflowrepo.go      (~300 lines) - Workflow state repository
+
+engine/infra/repo/
+└── provider.go          (~34 lines)  - NEEDS UPDATE: Factory pattern
+
+engine/knowledge/vectordb/
+└── pgvector.go          (~756 lines) - REFERENCE ONLY (cannot port)
+```
+
+**Estimated Lines of Code:**
+- **Core PostgreSQL driver:** ~1,500 lines
+- **Repository implementations:** ~1,000 lines  
+- **Migration SQL:** ~300 lines
+- **Total to replicate for SQLite:** ~2,800 lines (excluding pgvector)
+
+**New Files to Create for SQLite:**
+
+```
+engine/infra/sqlite/
+├── store.go             (~150 lines) - Connection management
+├── authrepo.go          (~180 lines) - Port from postgres/authrepo.go
+├── taskrepo.go          (~520 lines) - Port from postgres/taskrepo.go (add SQLite syntax)
+├── workflowrepo.go      (~310 lines) - Port from postgres/workflowrepo.go
+├── migrations.go        (~120 lines) - SQLite migration runner (no advisory locks)
+├── migrations/          (4 SQL files) - SQLite-specific schema
+│   ├── 20250603124835_create_workflow_states.sql
+│   ├── 20250603124915_create_task_states.sql
+│   ├── 20250711163857_create_users.sql
+│   └── 20250711163858_create_api_keys.sql
+├── helpers.go           (~80 lines)  - SQLite-specific utilities
+├── config.go            (~30 lines)  - SQLite configuration
+└── doc.go               (~15 lines)  - Package documentation
+
+test/helpers/
+└── database.go          (+50 lines)  - Add SetupTestDatabase(driver) helper
+```
+
+### Appendix B: Feature Compatibility Matrix (Detailed)
+
+| PostgreSQL Feature | SQLite Equivalent | Migration Complexity | Notes |
+|-------------------|------------------|---------------------|-------|
+| **Data Types** | | | |
+| `text` | `TEXT` | ✅ Compatible | Same type |
+| `jsonb` | `TEXT` (JSON string) | 🟡 Medium | Use `json_extract()`, store as TEXT |
+| `timestamptz` | `DATETIME` or `TEXT` | 🟡 Medium | Store as ISO8601 string or Unix timestamp |
+| `bytea` | `BLOB` | ✅ Compatible | Binary data support |
+| `boolean` | `INTEGER` (0/1) | ✅ Compatible | SQLite uses 0/1 for booleans |
+| **Placeholders** | | | |
+| `$1, $2, $3` | `?, ?, ?` | 🟡 Medium | Replace in all queries |
+| **JSON Operations** | | | |
+| `usage->>'key'` | `json_extract(usage, '$.key')` | 🟡 Medium | Different syntax |
+| `jsonb_typeof()` | `json_type()` | ✅ Compatible | Similar function |
+| `jsonb` operators | JSON functions | 🟡 Medium | More verbose in SQLite |
+| **Arrays** | | | |
+| `ANY($1::uuid[])` | `IN (?, ?, ?)` | 🔴 High | Expand arrays to multiple placeholders |
+| Array operations | String splitting | 🔴 High | SQLite has no native arrays |
+| **Constraints** | | | |
+| `CHECK (...)` | `CHECK (...)` | ✅ Compatible | Same syntax |
+| `FOREIGN KEY ... CASCADE` | `FOREIGN KEY ... CASCADE` | ✅ Compatible | Enable with `PRAGMA foreign_keys = ON` |
+| `UNIQUE` | `UNIQUE` | ✅ Compatible | Same syntax |
+| **Indexes** | | | |
+| B-tree (default) | B-tree (default) | ✅ Compatible | Same |
+| `GIN (jsonb)` | Expression index | 🟡 Medium | Use `CREATE INDEX ... ON table(json_extract(...))` |
+| Partial indexes | Partial indexes | ✅ Compatible | Same `WHERE` clause syntax |
+| `lower(email)` index | `lower(email)` index | ✅ Compatible | Same expression syntax |
+| **Transactions** | | | |
+| `BEGIN/COMMIT` | `BEGIN/COMMIT` | ✅ Compatible | Same |
+| `FOR UPDATE` | ❌ Not supported | 🔴 High | Use optimistic locking with version columns |
+| Savepoints | Savepoints | ✅ Compatible | Same |
+| **Locking** | | | |
+| Row-level locking | Database-level only | 🔴 High | Fundamental difference |
+| Advisory locks | ❌ Not available | 🟡 Medium | Use file locks for migrations |
+| **Functions** | | | |
+| `now()` | `datetime('now')` or `CURRENT_TIMESTAMP` | 🟡 Medium | Different syntax |
+| `GREATEST()` | `max()` | ✅ Compatible | Similar |
+| **Upsert** | | | |
+| `ON CONFLICT ... DO UPDATE` | `ON CONFLICT ... DO UPDATE` | ✅ Compatible | Same syntax (SQLite 3.24+) |
+| **Extensions** | | | |
+| pgvector | ❌ None | 🔴 **BLOCKER** | Require external vector DB |
+
+**Legend:**
+- ✅ **Compatible:** Direct port, minimal changes
+- 🟡 **Medium:** Requires syntax changes but straightforward
+- 🔴 **High:** Significant changes or workarounds needed
+
+### Appendix C: SQL Schema Examples
+
+**PostgreSQL Migration (existing):**
+
+```sql
+-- engine/infra/postgres/migrations/20250603124835_create_workflow_states.sql
+CREATE TABLE IF NOT EXISTS workflow_states (
+    workflow_exec_id text NOT NULL PRIMARY KEY,
+    workflow_id      text NOT NULL,
+    status           text NOT NULL,
+    usage            jsonb,                           -- PostgreSQL JSONB type
+    input            jsonb,
+    output           jsonb,
+    error            jsonb,
+    created_at       timestamptz NOT NULL DEFAULT now(),  -- PostgreSQL timestamptz
+    updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE workflow_states
+    ADD CONSTRAINT chk_workflow_states_usage_json
+    CHECK (usage IS NULL OR jsonb_typeof(usage) = 'array');  -- PostgreSQL function
+
+CREATE INDEX idx_workflow_states_status ON workflow_states (status);
+```
+
+**SQLite Migration (to create):**
+
+```sql
+-- engine/infra/sqlite/migrations/20250603124835_create_workflow_states.sql
+CREATE TABLE IF NOT EXISTS workflow_states (
+    workflow_exec_id TEXT NOT NULL PRIMARY KEY,
+    workflow_id      TEXT NOT NULL,
+    status           TEXT NOT NULL,
+    usage            TEXT,                             -- Store JSON as TEXT
+    input            TEXT,
+    output           TEXT,
+    error            TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),  -- SQLite datetime
+    updated_at       TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Check constraint using SQLite's json_type()
+-- Note: SQLite doesn't have ALTER TABLE ADD CONSTRAINT, so include in CREATE TABLE
+-- or create as separate check:
+CREATE TABLE IF NOT EXISTS workflow_states (
+    -- ... (as above)
+    CHECK (usage IS NULL OR json_type(usage) = 'array')  -- SQLite function
+);
+
+CREATE INDEX idx_workflow_states_status ON workflow_states (status);
+```
+
+**PostgreSQL Task States (complex):**
+
+```sql
+-- engine/infra/postgres/migrations/20250603124915_create_task_states.sql
+CREATE TABLE IF NOT EXISTS task_states (
+    task_exec_id     text NOT NULL PRIMARY KEY,
+    workflow_exec_id text NOT NULL,
+    parent_state_id  text,
+    usage            jsonb,
+    input            jsonb,
+    output           jsonb,
+    error            jsonb,
+    -- ... other fields
+    
+    -- Foreign keys with CASCADE
+    CONSTRAINT fk_workflow
+      FOREIGN KEY (workflow_exec_id)
+      REFERENCES workflow_states (workflow_exec_id)
+      ON DELETE CASCADE,
+    
+    CONSTRAINT fk_parent_task
+      FOREIGN KEY (parent_state_id)
+      REFERENCES task_states (task_exec_id)
+      ON DELETE CASCADE,
+    
+    -- Complex CHECK constraint
+    CONSTRAINT chk_execution_type_consistency
+    CHECK (
+        (execution_type = 'basic' AND (
+            (agent_id IS NOT NULL AND action_id IS NOT NULL) OR
+            (tool_id IS NOT NULL AND agent_id IS NULL)
+        )) OR
+        (execution_type = 'router' AND agent_id IS NULL)
+        -- ... more conditions
+    )
+);
+```
+
+**SQLite Task States (ported):**
+
+```sql
+-- engine/infra/sqlite/migrations/20250603124915_create_task_states.sql
+-- Note: Enable foreign keys first with PRAGMA
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS task_states (
+    task_exec_id     TEXT NOT NULL PRIMARY KEY,
+    workflow_exec_id TEXT NOT NULL,
+    parent_state_id  TEXT,
+    usage            TEXT,  -- JSON as TEXT
+    input            TEXT,
+    output           TEXT,
+    error            TEXT,
+    -- ... other fields
+    
+    -- Foreign keys work the same in SQLite (when enabled)
+    FOREIGN KEY (workflow_exec_id)
+      REFERENCES workflow_states (workflow_exec_id)
+      ON DELETE CASCADE,
+    
+    FOREIGN KEY (parent_state_id)
+      REFERENCES task_states (task_exec_id)
+      ON DELETE CASCADE,
+    
+    -- CHECK constraints work the same
+    CHECK (
+        (execution_type = 'basic' AND (
+            (agent_id IS NOT NULL AND action_id IS NOT NULL) OR
+            (tool_id IS NOT NULL AND agent_id IS NULL)
+        )) OR
+        (execution_type = 'router' AND agent_id IS NULL)
+        -- ... same conditions
+    )
+);
+```
+
+### Appendix D: Performance Characteristics
+
+**Comparative Performance Analysis:**
+
+| Operation | PostgreSQL | SQLite | Notes |
+|-----------|-----------|--------|-------|
+| **Read Performance** | ⭐⭐⭐⭐⭐ (Excellent) | ⭐⭐⭐⭐ (Very Good) | Both I/O-bound; PostgreSQL has better caching |
+| **Write Performance** | ⭐⭐⭐⭐⭐ (Excellent) | ⭐⭐⭐ (Good) | SQLite write serialization limits throughput |
+| **Concurrent Writes** | ⭐⭐⭐⭐⭐ (25+ workflows) | ⭐⭐ (5-10 workflows) | SQLite database-level locking |
+| **Concurrent Reads** | ⭐⭐⭐⭐⭐ (Unlimited) | ⭐⭐⭐⭐⭐ (Unlimited) | Both excellent for read-heavy workloads |
+| **Complex Queries** | ⭐⭐⭐⭐⭐ (Excellent) | ⭐⭐⭐⭐ (Very Good) | PostgreSQL has query planner advantages |
+| **Vector Search** | ⭐⭐⭐⭐⭐ (pgvector built-in) | ❌ (External DB required) | **Critical difference** |
+| **JSON Operations** | ⭐⭐⭐⭐⭐ (JSONB native) | ⭐⭐⭐⭐ (JSON1 extension) | PostgreSQL more feature-rich |
+| **Deployment** | ⭐⭐⭐ (Separate service) | ⭐⭐⭐⭐⭐ (Single file) | SQLite much simpler |
+| **Horizontal Scaling** | ⭐⭐⭐⭐⭐ (Excellent) | ⭐ (Not designed for this) | PostgreSQL for distributed systems |
+| **Backup/Recovery** | ⭐⭐⭐⭐ (pg_dump, WAL) | ⭐⭐⭐⭐⭐ (File copy) | SQLite simpler but less granular |
+| **Transaction Safety** | ⭐⭐⭐⭐⭐ (ACID) | ⭐⭐⭐⭐⭐ (ACID) | Both fully ACID-compliant |
+| **Memory Footprint** | ⭐⭐⭐ (Higher) | ⭐⭐⭐⭐⭐ (Minimal) | SQLite excellent for constrained environments |
+
+**Performance Targets (SQLite):**
+
+```
+Latency Targets:
+- Read (single workflow):     p50 < 10ms, p99 < 50ms
+- Write (state update):       p50 < 20ms, p99 < 100ms
+- Hierarchical query (tasks): p50 < 30ms, p99 < 150ms
+
+Throughput Targets:
+- Concurrent workflows:       5-10 simultaneous (recommended)
+- Workflow starts/hour:       ~500 (moderate load)
+- State updates/second:       ~20-30 (write-heavy)
+
+Storage Targets:
+- Database file size:         <500MB for 1000 workflows
+- WAL size:                   <50MB typical
+- Growth rate:                ~400KB per workflow (avg)
+```
+
+### Appendix E: Dependencies
+
+**Required Dependencies (New):**
+
+```go
+// go.mod additions
+require (
+    modernc.org/sqlite v1.31.1  // Pure Go SQLite driver (primary choice)
+    // OR
+    // github.com/mattn/go-sqlite3 v1.14.22  // CGO-based (fallback)
+)
+```
+
+**Existing Dependencies (Reused):**
+
+```go
+// Already in go.mod
+github.com/pressly/goose/v3 v3.20.0      // Migrations (supports both DBs)
+github.com/Masterminds/squirrel v1.5.4   // Query builder (DB-agnostic)
+github.com/jackc/pgx/v5 v5.6.0           // PostgreSQL (keep existing)
+github.com/jackc/pgx/v5/pgxpool v5.6.0   // PostgreSQL pool (keep existing)
+```
+
+**Development Dependencies:**
+
+```go
+// Testing
+github.com/stretchr/testify v1.9.0       // Assertions (existing)
+github.com/testcontainers/testcontainers-go v0.31.0  // PostgreSQL containers (existing)
+```
+
+**Binary Size Impact:**
+
+```
+Current binary (with PostgreSQL):   ~45MB
+After adding SQLite (pure Go):      ~47MB (+2MB)
+After adding SQLite (CGO):          ~46MB (+1MB)
+```
+
+### Appendix F: Key Differences Checklist
+
+**SQL Syntax Differences to Handle:**
+
+```
+PostgreSQL → SQLite Conversions:
+
+1. Placeholders:
+   - PG: $1, $2, $3          → SQLite: ?, ?, ?
+
+2. Data Types:
+   - PG: timestamptz         → SQLite: TEXT (ISO8601) or INTEGER (unix)
+   - PG: jsonb               → SQLite: TEXT (JSON string)
+   - PG: bytea               → SQLite: BLOB
+
+3. JSON Operations:
+   - PG: usage->>'key'       → SQLite: json_extract(usage, '$.key')
+   - PG: jsonb_typeof()      → SQLite: json_type()
+   - PG: usage @> '{"k":"v"}' → SQLite: (parse and compare)
+
+4. Array Operations:
+   - PG: ANY($1::uuid[])     → SQLite: IN (?, ?, ...) with expanded params
+   - PG: array_agg()         → SQLite: group_concat() or JSON
+
+5. Date Functions:
+   - PG: now()               → SQLite: datetime('now') or CURRENT_TIMESTAMP
+   - PG: EXTRACT(YEAR ...)   → SQLite: strftime('%Y', ...)
+
+6. String Functions:
+   - PG: lower(), upper()    → SQLite: same
+   - PG: concat()            → SQLite: || operator or concat()
+
+7. Aggregates:
+   - PG: GREATEST()          → SQLite: max()
+   - PG: LEAST()             → SQLite: min()
+
+8. Indexes:
+   - PG: GIN (jsonb_col)     → SQLite: Expression index on json_extract()
+   - PG: Partial indexes     → SQLite: Same (WHERE clause)
+
+9. Constraints:
+   - PG: CHECK (inline)      → SQLite: CHECK (inline) - same
+   - PG: Foreign keys        → SQLite: Same but need PRAGMA foreign_keys = ON
+
+10. Locking:
+    - PG: FOR UPDATE         → SQLite: Not supported (use optimistic locking)
+    - PG: Advisory locks     → SQLite: Not supported (use file locks)
+```
+
+### Appendix G: Migration Effort Breakdown
+
+**Detailed Task Breakdown:**
+
+| Task | Subtasks | Estimated Hours | Complexity |
+|------|----------|----------------|------------|
+| **Phase 1: Foundation** | | **80-120 hours** | |
+| SQLite store setup | Connection, pool, health checks | 8-12h | Low |
+| Configuration | Add driver field, validation | 4-6h | Low |
+| Migration system | Port goose setup, PRAGMA handling | 8-12h | Low |
+| Test infrastructure | Helpers, parameterized tests | 12-16h | Medium |
+| **Phase 2: Auth Repo** | | **40-60 hours** | |
+| Port authrepo.go | Users, API keys | 16-24h | Low |
+| Port migrations | create_users, create_api_keys | 4-6h | Low |
+| Unit tests | All CRUD operations | 12-16h | Low |
+| Integration tests | Full auth flow | 8-12h | Medium |
+| **Phase 3: Workflow Repo** | | **60-80 hours** | |
+| Port workflowrepo.go | State management | 20-28h | Medium |
+| JSON handling | JSONB → TEXT conversion | 8-12h | Medium |
+| Port migrations | create_workflow_states | 4-6h | Low |
+| Unit tests | CRUD + JSON ops | 16-20h | Medium |
+| Integration tests | Full workflow lifecycle | 12-16h | Medium |
+| **Phase 4: Task Repo** | | **100-140 hours** | |
+| Port taskrepo.go | State management | 32-44h | **High** |
+| Hierarchical queries | Parent-child relationships | 20-28h | **High** |
+| JSON handling | Complex JSONB operations | 12-16h | Medium |
+| Array operations | ANY() → IN() conversion | 8-12h | Medium |
+| Port migrations | create_task_states (complex) | 8-12h | Medium |
+| Unit tests | CRUD + hierarchy + JSON | 24-32h | High |
+| Integration tests | Full task execution | 16-20h | High |
+| **Phase 5: Integration** | | **40-60 hours** | |
+| Provider factory | Driver selection logic | 8-12h | Low |
+| Server integration | Startup routing | 8-12h | Medium |
+| Vector DB validation | Startup checks | 4-6h | Low |
+| End-to-end tests | Full server with both drivers | 16-24h | Medium |
+| Bug fixes | Integration issues | 8-12h | Variable |
+| **Phase 6: Performance** | | **60-80 hours** | |
+| Benchmarking | Performance tests | 16-20h | Medium |
+| Optimization | Query tuning, indexes | 20-28h | High |
+| Concurrency testing | Stress tests, lock handling | 16-20h | High |
+| CI/CD setup | Matrix testing | 8-12h | Medium |
+| **Phase 7: Documentation** | | **40-60 hours** | |
+| Technical docs | Decision guide, config | 16-20h | Low |
+| Examples | 6 example projects | 16-24h | Medium |
+| Migration guide | PostgreSQL ↔ SQLite | 8-12h | Medium |
+| **Total** | | **420-600 hours** | **8-12 weeks** |
+
+**Risk Contingency:** Add 20% buffer (84-120 hours) for unforeseen issues, totaling **504-720 hours (10-14 weeks)**.
+
+---
+
+**Document Version:** 1.1  
 **Date:** 2025-01-27  
 **Author:** AI Analysis  
-**Status:** Technical Specification Complete
+**Status:** Technical Specification Complete (Enhanced with Appendices)

@@ -123,7 +123,7 @@ func TestConcurrentRequests(t *testing.T) {
 		})
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(3 * time.Second)
 
 	stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer stopCancel()
