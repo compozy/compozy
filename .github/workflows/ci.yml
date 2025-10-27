@@ -222,6 +222,23 @@ jobs:
           make test
         continue-on-error: false
 
+      - name: Run SDK benchmarks
+        run: |
+          echo "Running SDK benchmarks with memory stats..."
+          go test -run=^$ -bench=. -benchmem github.com/compozy/compozy/sdk/agent \
+            github.com/compozy/compozy/sdk/project \
+            github.com/compozy/compozy/sdk/workflow \
+            github.com/compozy/compozy/sdk/task \
+            github.com/compozy/compozy/sdk/knowledge \
+            github.com/compozy/compozy/sdk/memory \
+            github.com/compozy/compozy/sdk/compozy | tee bench.out
+        continue-on-error: false
+
+      - name: Check benchmark regressions
+        run: |
+          go run ./tools/benchcheck --baseline sdk/docs/performance-benchmarks.json --results bench.out
+        continue-on-error: false
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()

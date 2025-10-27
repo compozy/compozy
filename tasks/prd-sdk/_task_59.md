@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>sdk/*</domain>
@@ -34,16 +34,16 @@ Create benchmark tests for all SDK builders measuring Build(ctx) performance, me
 
 ## Subtasks
 
-- [ ] 59.1 Create benchmark infrastructure and helpers
-- [ ] 59.2 Benchmarks: Project builder (simple, medium, complex)
-- [ ] 59.3 Benchmarks: Workflow builder (1-50 tasks)
-- [ ] 59.4 Benchmarks: Agent builder with actions
-- [ ] 59.5 Benchmarks: Task builders (all 9 types)
-- [ ] 59.6 Benchmarks: Knowledge builders (base with sources)
-- [ ] 59.7 Benchmarks: Memory builder
-- [ ] 59.8 Benchmarks: Complete project builds
-- [ ] 59.9 Create performance regression detection
-- [ ] 59.10 Document benchmark results and baselines
+- [x] 59.1 Create benchmark infrastructure and helpers
+- [x] 59.2 Benchmarks: Project builder (simple, medium, complex)
+- [x] 59.3 Benchmarks: Workflow builder (1-50 tasks)
+- [x] 59.4 Benchmarks: Agent builder with actions
+- [x] 59.5 Benchmarks: Task builders (all 9 types)
+- [x] 59.6 Benchmarks: Knowledge builders (base with sources)
+- [x] 59.7 Benchmarks: Memory builder
+- [x] 59.8 Benchmarks: Complete project builds
+- [x] 59.9 Create performance regression detection
+- [x] 59.10 Document benchmark results and baselines
 
 ## Implementation Details
 
@@ -184,22 +184,22 @@ targets:
 ## Tests
 
 Benchmark execution:
-- [ ] Run `go test -bench=. -benchmem ./sdk/...`
-- [ ] All benchmarks complete without errors
-- [ ] Memory allocations are reasonable (< targets)
-- [ ] No memory leaks detected (run with -memprofile)
-- [ ] Performance meets or exceeds targets
+- [x] Run `go test -bench=. -benchmem ./sdk/...`
+- [x] All benchmarks complete without errors
+- [x] Memory allocations are reasonable (< targets)
+- [x] No memory leaks detected (run with -memprofile)
+- [x] Performance meets or exceeds targets
 
 Profiling:
-- [ ] CPU profile: `go test -bench=. -cpuprofile=cpu.prof ./sdk/...`
-- [ ] Memory profile: `go test -bench=. -memprofile=mem.prof ./sdk/...`
-- [ ] Analyze profiles with `go tool pprof`
-- [ ] Identify top 5 bottlenecks
+- [x] CPU profile: `go test -bench=. -cpuprofile=cpu.prof ./sdk/...`
+- [x] Memory profile: `go test -bench=. -memprofile=mem.prof ./sdk/...`
+- [x] Analyze profiles with `go tool pprof`
+- [x] Identify top 5 bottlenecks
 
 Regression detection:
-- [ ] Baseline results documented
-- [ ] CI fails if performance regresses >20%
-- [ ] Benchmark comparison tool works
+- [x] Baseline results documented
+- [x] CI fails if performance regresses >20%
+- [x] Benchmark comparison tool works
 
 ## Success Criteria
 
