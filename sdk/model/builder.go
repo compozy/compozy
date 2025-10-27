@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/compozy/compozy/engine/core"
@@ -20,9 +21,7 @@ var supportedProviders = map[string]core.ProviderName{
 
 var providerList = []string{"openai", "anthropic", "google", "groq", "ollama"}
 
-var cloneProviderConfig = func(cfg *core.ProviderConfig) (*core.ProviderConfig, error) {
-	return core.DeepCopy(cfg)
-}
+var cloneProviderConfig = core.DeepCopy[*core.ProviderConfig]
 
 // Builder constructs provider configurations with a fluent API while
 // collecting validation errors that are reported when Build executes.
@@ -77,15 +76,19 @@ func (b *Builder) WithTemperature(temp float64) *Builder {
 }
 
 // WithMaxTokens limits the maximum tokens returned by the provider.
-func (b *Builder) WithMaxTokens(max int) *Builder {
+func (b *Builder) WithMaxTokens(maxTokens int) *Builder {
 	if b == nil {
 		return nil
 	}
-	if max <= 0 {
-		b.errors = append(b.errors, fmt.Errorf("max tokens must be positive: got %d", max))
+	if maxTokens <= 0 {
+		b.errors = append(b.errors, fmt.Errorf("max tokens must be positive: got %d", maxTokens))
 		return b
 	}
-	b.config.Params.SetMaxTokens(int32(max))
+	if maxTokens > math.MaxInt32 {
+		b.errors = append(b.errors, fmt.Errorf("max tokens must be <= %d: got %d", math.MaxInt32, maxTokens))
+		return b
+	}
+	b.config.Params.SetMaxTokens(int32(maxTokens))
 	return b
 }
 
@@ -171,7 +174,7 @@ func (b *Builder) Build(ctx context.Context) (*core.ProviderConfig, error) {
 func (b *Builder) validateProvider(ctx context.Context) []error {
 	provider := strings.ToLower(strings.TrimSpace(string(b.config.Provider)))
 	errs := make([]error, 0, 1)
-	if err := validate.ValidateNonEmpty(ctx, "provider", provider); err != nil {
+	if err := validate.NonEmpty(ctx, "provider", provider); err != nil {
 		return append(errs, err)
 	}
 	mapped, ok := supportedProviders[provider]
@@ -188,7 +191,7 @@ func (b *Builder) validateProvider(ctx context.Context) []error {
 func (b *Builder) validateModel(ctx context.Context) []error {
 	model := strings.TrimSpace(b.config.Model)
 	errs := make([]error, 0, 1)
-	if err := validate.ValidateNonEmpty(ctx, "model", model); err != nil {
+	if err := validate.NonEmpty(ctx, "model", model); err != nil {
 		return append(errs, err)
 	}
 	b.config.Model = model
@@ -201,7 +204,7 @@ func (b *Builder) validateAPIURL(ctx context.Context) []error {
 	if apiURL == "" {
 		return nil
 	}
-	if err := validate.ValidateURL(ctx, apiURL); err != nil {
+	if err := validate.URL(ctx, apiURL); err != nil {
 		return []error{err}
 	}
 	return nil

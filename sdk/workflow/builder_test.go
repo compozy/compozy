@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -326,7 +327,8 @@ func TestBuildReturnsErrorWhenContextNil(t *testing.T) {
 	builder := New("wf")
 	builder.AddTask(sampleTask("task-1"))
 
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Error(t, err)
 	require.Nil(t, cfg)
 	require.False(t, errors.Is(err, &sdkerrors.BuildError{}))

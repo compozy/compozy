@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,8 @@ func TestBuildReturnsNilWhenContextMissing(t *testing.T) {
 	t.Parallel()
 
 	builder := NewNativeTools()
-	config := builder.Build(nil)
+	var missingCtx context.Context
+	config := builder.Build(missingCtx)
 	require.Nil(t, config)
 }
 

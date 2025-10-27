@@ -178,15 +178,15 @@ func (b *Builder) WithStartTimeout(timeout time.Duration) *Builder {
 
 // WithMaxSessions limits the number of concurrent sessions allowed for the MCP server.
 // Use zero to allow unlimited sessions; values must not be negative.
-func (b *Builder) WithMaxSessions(max int) *Builder {
+func (b *Builder) WithMaxSessions(limit int) *Builder {
 	if b == nil {
 		return nil
 	}
-	if max < 0 {
+	if limit < 0 {
 		b.errors = append(b.errors, fmt.Errorf("max sessions cannot be negative"))
 		return b
 	}
-	b.config.MaxSessions = max
+	b.config.MaxSessions = limit
 	return b
 }
 
@@ -201,45 +201,25 @@ func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("building MCP configuration", "mcp", b.config.ID)
 
-	collected := make([]error, 0, len(b.errors)+8)
-	collected = append(collected, b.errors...)
-	if err := b.validateID(ctx); err != nil {
-		collected = append(collected, err)
+	validators := []func(context.Context) error{
+		b.validateID,
+		b.validateSelection,
+		b.validateCommand,
+		b.validateURL,
+		b.validateTransport,
+		b.validateHeaders,
+		b.validateEnv,
+		b.validateStartTimeout,
+		b.validateProto,
+		b.validateMaxSessions,
 	}
-	if err := b.validateSelection(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateCommand(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateURL(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateTransport(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateHeaders(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateEnv(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateStartTimeout(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateProto(ctx); err != nil {
-		collected = append(collected, err)
-	}
-	if err := b.validateMaxSessions(ctx); err != nil {
-		collected = append(collected, err)
-	}
-
-	filtered := make([]error, 0, len(collected))
-	for _, err := range collected {
-		if err != nil {
-			filtered = append(filtered, err)
+	collected := append(make([]error, 0, len(b.errors)+len(validators)), b.errors...)
+	for _, validator := range validators {
+		if err := validator(ctx); err != nil {
+			collected = append(collected, err)
 		}
 	}
+	filtered := filterErrors(collected)
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
@@ -254,7 +234,7 @@ func (b *Builder) Build(ctx context.Context) (*enginemcp.Config, error) {
 
 func (b *Builder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("mcp id is invalid: %w", err)
 	}
 	return nil
@@ -278,7 +258,7 @@ func (b *Builder) validateCommand(ctx context.Context) error {
 		return nil
 	}
 	b.config.Command = strings.TrimSpace(b.config.Command)
-	if err := validate.ValidateNonEmpty(ctx, "mcp command", b.config.Command); err != nil {
+	if err := validate.NonEmpty(ctx, "mcp command", b.config.Command); err != nil {
 		return err
 	}
 	if len(b.config.Args) > 0 {
@@ -299,7 +279,7 @@ func (b *Builder) validateURL(ctx context.Context) error {
 		return nil
 	}
 	b.config.URL = strings.TrimSpace(b.config.URL)
-	if err := validate.ValidateURL(ctx, b.config.URL); err != nil {
+	if err := validate.URL(ctx, b.config.URL); err != nil {
 		return fmt.Errorf("mcp url is invalid: %w", err)
 	}
 	if b.config.Transport == "" {
@@ -399,4 +379,17 @@ func (b *Builder) validateMaxSessions(_ context.Context) error {
 		return fmt.Errorf("max sessions cannot be negative")
 	}
 	return nil
+}
+
+func filterErrors(errs []error) []error {
+	if len(errs) == 0 {
+		return nil
+	}
+	filtered := make([]error, 0, len(errs))
+	for _, err := range errs {
+		if err != nil {
+			filtered = append(filtered, err)
+		}
+	}
+	return filtered
 }

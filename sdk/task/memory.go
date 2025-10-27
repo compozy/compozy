@@ -129,15 +129,31 @@ func (b *MemoryTaskBuilder) WithKeyTemplate(template string) *MemoryTaskBuilder 
 // Build validates the accumulated configuration using the provided context and
 // returns an immutable engine task configuration.
 func (b *MemoryTaskBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
+	if err := b.ensureBuilderState(ctx); err != nil {
+		return nil, err
+	}
+	errs := b.collectBuildErrors(ctx)
+	if len(errs) > 0 {
+		return nil, &sdkerrors.BuildError{Errors: errs}
+	}
+	b.applyOperationDefaults()
+	b.config.Type = enginetask.TaskTypeMemory
+	b.config.Resource = string(core.ConfigTask)
+	cloned, err := core.DeepCopy(b.config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone memory task config: %w", err)
+	}
+	return cloned, nil
+}
+
+func (b *MemoryTaskBuilder) ensureBuilderState(ctx context.Context) error {
 	if b == nil {
-		return nil, fmt.Errorf("memory builder is required")
+		return fmt.Errorf("memory builder is required")
 	}
 	if ctx == nil {
-		return nil, fmt.Errorf("context is required")
+		return fmt.Errorf("context is required")
 	}
-
-	log := logger.FromContext(ctx)
-	log.Debug(
+	logger.FromContext(ctx).Debug(
 		"building memory task configuration",
 		"task",
 		b.config.ID,
@@ -146,44 +162,48 @@ func (b *MemoryTaskBuilder) Build(ctx context.Context) (*enginetask.Config, erro
 		"memory",
 		b.config.MemoryRef,
 	)
+	return nil
+}
 
-	collected := make([]error, 0, len(b.errors)+5)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateOperation())
-	collected = append(collected, b.validateMemoryRef(ctx))
-	collected = append(collected, b.validateKeyTemplate())
-	collected = append(collected, b.applyContent())
+func (b *MemoryTaskBuilder) collectBuildErrors(ctx context.Context) []error {
+	collected := append(make([]error, 0, len(b.errors)+5), b.errors...)
+	collected = append(
+		collected,
+		b.validateID(ctx),
+		b.validateOperation(),
+		b.validateMemoryRef(ctx),
+		b.validateKeyTemplate(),
+		b.applyContent(),
+	)
+	return filterErrors(collected)
+}
 
-	filtered := make([]error, 0, len(collected))
-	for _, err := range collected {
+func (b *MemoryTaskBuilder) applyOperationDefaults() {
+	if b.config.Operation != enginetask.MemoryOpClear {
+		return
+	}
+	if b.config.ClearConfig == nil {
+		b.config.ClearConfig = &enginetask.ClearConfig{Confirm: true}
+	}
+	b.config.Payload = nil
+}
+
+func filterErrors(errs []error) []error {
+	if len(errs) == 0 {
+		return nil
+	}
+	filtered := make([]error, 0, len(errs))
+	for _, err := range errs {
 		if err != nil {
 			filtered = append(filtered, err)
 		}
 	}
-	if len(filtered) > 0 {
-		return nil, &sdkerrors.BuildError{Errors: filtered}
-	}
-
-	if b.config.Operation == enginetask.MemoryOpClear {
-		if b.config.ClearConfig == nil {
-			b.config.ClearConfig = &enginetask.ClearConfig{Confirm: true}
-		}
-		b.config.Payload = nil
-	}
-	b.config.Type = enginetask.TaskTypeMemory
-	b.config.Resource = string(core.ConfigTask)
-
-	clone, err := core.DeepCopy(b.config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clone memory task config: %w", err)
-	}
-	return clone, nil
+	return filtered
 }
 
 func (b *MemoryTaskBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	return nil
@@ -202,7 +222,7 @@ func (b *MemoryTaskBuilder) validateOperation() error {
 
 func (b *MemoryTaskBuilder) validateMemoryRef(ctx context.Context) error {
 	b.config.MemoryRef = strings.TrimSpace(b.config.MemoryRef)
-	if err := validate.ValidateID(ctx, b.config.MemoryRef); err != nil {
+	if err := validate.ID(ctx, b.config.MemoryRef); err != nil {
 		return fmt.Errorf("memory reference id is invalid: %w", err)
 	}
 	return nil

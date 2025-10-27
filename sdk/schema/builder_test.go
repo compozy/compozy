@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -180,7 +181,8 @@ func TestBuilder_TestAgainstSampleNilSchema(t *testing.T) {
 func TestBuilder_BuildContextRequired(t *testing.T) {
 	t.Parallel()
 	builder := NewString()
-	_, err := builder.Build(nil)
+	var missingCtx context.Context
+	_, err := builder.Build(missingCtx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context is required")
 }

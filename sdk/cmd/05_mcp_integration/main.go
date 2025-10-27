@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -37,11 +35,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := run(ctx); err != nil {
 		logger.FromContext(ctx).Error("mcp integration example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 func initializeContext() (context.Context, func(), error) {

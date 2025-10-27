@@ -177,10 +177,10 @@ func (b *BasicBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
 	hasAgent := b.config.Agent != nil
 	hasTool := b.config.Tool != nil
 	log.Debug("building basic task configuration", "task", b.config.ID, "hasAgent", hasAgent, "hasTool", hasTool)
-	collected := make([]error, 0, len(b.errors)+4)
+	collected := make([]error, 0, len(b.errors)+3)
 	collected = append(collected, b.errors...)
 	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateCondition())
+	b.validateCondition()
 	collected = append(collected, b.validateExecutionMode(ctx))
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -202,15 +202,14 @@ func (b *BasicBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
 
 func (b *BasicBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	return nil
 }
 
-func (b *BasicBuilder) validateCondition() error {
+func (b *BasicBuilder) validateCondition() {
 	b.config.Condition = strings.TrimSpace(b.config.Condition)
-	return nil
 }
 
 func (b *BasicBuilder) validateExecutionMode(ctx context.Context) error {
@@ -224,7 +223,7 @@ func (b *BasicBuilder) validateExecutionMode(ctx context.Context) error {
 	}
 	if hasAgent {
 		b.config.Agent.ID = strings.TrimSpace(b.config.Agent.ID)
-		if err := validate.ValidateID(ctx, b.config.Agent.ID); err != nil {
+		if err := validate.ID(ctx, b.config.Agent.ID); err != nil {
 			return fmt.Errorf("agent id is invalid: %w", err)
 		}
 		b.config.Agent.Resource = string(core.ConfigAgent)
@@ -235,7 +234,7 @@ func (b *BasicBuilder) validateExecutionMode(ctx context.Context) error {
 	}
 	if hasTool {
 		b.config.Tool.ID = strings.TrimSpace(b.config.Tool.ID)
-		if err := validate.ValidateID(ctx, b.config.Tool.ID); err != nil {
+		if err := validate.ID(ctx, b.config.Tool.ID); err != nil {
 			return fmt.Errorf("tool id is invalid: %w", err)
 		}
 		b.config.Tool.Resource = string(core.ConfigTool)

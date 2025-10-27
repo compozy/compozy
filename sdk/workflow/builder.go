@@ -142,7 +142,7 @@ func (b *Builder) Build(ctx context.Context) (*engineworkflow.Config, error) {
 	collected := make([]error, 0, len(b.errors)+4)
 	collected = append(collected, b.errors...)
 
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		collected = append(collected, fmt.Errorf("workflow id is invalid: %w", err))
 	}
 	if len(b.config.Tasks) == 0 {
@@ -176,7 +176,8 @@ func findDuplicateTaskIDs(tasks []task.Config) []string {
 	}
 	seen := make(map[string]bool, len(tasks))
 	dupes := make([]string, 0)
-	for _, cfg := range tasks {
+	for i := range tasks {
+		cfg := &tasks[i]
 		id := strings.TrimSpace(cfg.ID)
 		if id == "" {
 			continue

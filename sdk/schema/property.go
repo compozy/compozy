@@ -115,20 +115,20 @@ func (b *PropertyBuilder) RequireProperty(name string) *PropertyBuilder {
 }
 
 // WithMinLength proxies string minimum length to the schema builder.
-func (b *PropertyBuilder) WithMinLength(min int) *PropertyBuilder {
+func (b *PropertyBuilder) WithMinLength(minValue int) *PropertyBuilder {
 	if b == nil || b.schema == nil {
 		return b
 	}
-	b.schema.WithMinLength(min)
+	b.schema.WithMinLength(minValue)
 	return b
 }
 
 // WithMaxLength proxies string maximum length to the schema builder.
-func (b *PropertyBuilder) WithMaxLength(max int) *PropertyBuilder {
+func (b *PropertyBuilder) WithMaxLength(maxValue int) *PropertyBuilder {
 	if b == nil || b.schema == nil {
 		return b
 	}
-	b.schema.WithMaxLength(max)
+	b.schema.WithMaxLength(maxValue)
 	return b
 }
 
@@ -151,38 +151,38 @@ func (b *PropertyBuilder) WithEnum(values ...string) *PropertyBuilder {
 }
 
 // WithMinimum forwards minimum configuration to number schemas.
-func (b *PropertyBuilder) WithMinimum(min float64) *PropertyBuilder {
+func (b *PropertyBuilder) WithMinimum(minValue float64) *PropertyBuilder {
 	if b == nil || b.schema == nil {
 		return b
 	}
-	b.schema.WithMinimum(min)
+	b.schema.WithMinimum(minValue)
 	return b
 }
 
 // WithMaximum forwards maximum configuration to number schemas.
-func (b *PropertyBuilder) WithMaximum(max float64) *PropertyBuilder {
+func (b *PropertyBuilder) WithMaximum(maxValue float64) *PropertyBuilder {
 	if b == nil || b.schema == nil {
 		return b
 	}
-	b.schema.WithMaximum(max)
+	b.schema.WithMaximum(maxValue)
 	return b
 }
 
 // WithMinItems forwards minimum items configuration to array schemas.
-func (b *PropertyBuilder) WithMinItems(min int) *PropertyBuilder {
+func (b *PropertyBuilder) WithMinItems(minValue int) *PropertyBuilder {
 	if b == nil || b.schema == nil {
 		return b
 	}
-	b.schema.WithMinItems(min)
+	b.schema.WithMinItems(minValue)
 	return b
 }
 
 // WithMaxItems forwards maximum items configuration to array schemas.
-func (b *PropertyBuilder) WithMaxItems(max int) *PropertyBuilder {
+func (b *PropertyBuilder) WithMaxItems(maxValue int) *PropertyBuilder {
 	if b == nil || b.schema == nil {
 		return b
 	}
-	b.schema.WithMaxItems(max)
+	b.schema.WithMaxItems(maxValue)
 	return b
 }
 
@@ -209,7 +209,7 @@ func (b *PropertyBuilder) Build(ctx context.Context) (*schema.Property, error) {
 	}
 	collected := make([]error, 0, len(b.errors)+4)
 	collected = append(collected, b.errors...)
-	if err := validate.ValidateNonEmpty(ctx, "property name", b.name); err != nil {
+	if err := validate.NonEmpty(ctx, "property name", b.name); err != nil {
 		collected = append(collected, err)
 	}
 	if !b.typeDefined || b.schema == nil {

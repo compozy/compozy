@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -292,11 +293,12 @@ func TestBaseBuilderRejectsNilContext(t *testing.T) {
 	source, err := NewURLSource("https://example.com/docs").Build(ctx)
 	require.NoError(t, err)
 
+	var missingCtx context.Context
 	cfg, buildErr := NewBase("kb").
 		WithEmbedder("embedder").
 		WithVectorDB("vector").
 		AddSource(source).
-		Build(nil)
+		Build(missingCtx)
 
 	require.Error(t, buildErr)
 	assert.Nil(t, cfg)

@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -166,7 +167,8 @@ func TestBuildFailsWithNilContext(t *testing.T) {
 	builder := NewEmbedder("embedder-1", "openai", "text-embedding-3-small").
 		WithDimension(1536)
 
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 }

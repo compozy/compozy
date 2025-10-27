@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -132,7 +133,8 @@ func TestBuildFailsWithNilContext(t *testing.T) {
 	builder := New("sched").
 		WithWorkflow("wf").
 		WithCron("0 * * * *")
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Nil(t, cfg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context is required")

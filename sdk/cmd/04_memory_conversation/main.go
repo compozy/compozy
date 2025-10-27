@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -34,11 +32,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := run(ctx); err != nil {
 		logger.FromContext(ctx).Error("memory conversation example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 func initializeContext() (context.Context, func(), error) {
@@ -96,11 +95,10 @@ func run(ctx context.Context) error {
 	if err != nil {
 		return handleBuildError(ctx, "model", err)
 	}
-	projectCfg, err := buildSupportProject(ctx, modelCfg, workflowCfg, agentCfg)
+	projectCfg, err := buildSupportProject(ctx, modelCfg, workflowCfg, agentCfg, memoryCfg)
 	if err != nil {
 		return handleBuildError(ctx, "project", err)
 	}
-	registerMemoryResource(projectCfg, memoryCfg)
 	printSummary(projectCfg, memoryCfg, memoryRef, redisURL)
 	return nil
 }
@@ -143,7 +141,8 @@ func buildSupportAction(ctx context.Context) (*engineagent.ActionConfig, error) 
 	}
 	builder := agent.NewAction("answer")
 	builder = builder.WithPrompt(
-		"You are a support agent continuing a long running conversation. Summarize the shared memory state before answering {{ .input.user_question }}.",
+		"You are a support agent continuing a long running conversation. " +
+			"Summarize the shared memory state before answering {{ .input.user_question }}.",
 	)
 	builder = builder.WithOutput(output)
 	return builder.Build(ctx)
@@ -211,6 +210,7 @@ func buildSupportProject(
 	modelCfg *core.ProviderConfig,
 	workflowCfg *engineworkflow.Config,
 	agentCfg *engineagent.Config,
+	memoryCfg *enginememory.Config,
 ) (*engineproject.Config, error) {
 	if modelCfg == nil {
 		return nil, fmt.Errorf("model config is required")
@@ -221,14 +221,8 @@ func buildSupportProject(
 	builder = builder.AddModel(modelCfg)
 	builder = builder.AddWorkflow(workflowCfg)
 	builder = builder.AddAgent(agentCfg)
+	builder = builder.AddMemory(memoryCfg)
 	return builder.Build(ctx)
-}
-
-func registerMemoryResource(projectCfg *engineproject.Config, memoryCfg *enginememory.Config) {
-	if projectCfg == nil || memoryCfg == nil {
-		return
-	}
-	projectCfg.Memories = append(projectCfg.Memories, *memoryCfg)
 }
 
 func printSummary(

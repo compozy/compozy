@@ -113,11 +113,13 @@ func (b *RouterBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
 		b.hasDefault,
 	)
 
-	collected := make([]error, 0, len(b.errors)+3)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateCondition(ctx))
-	collected = append(collected, b.validateRoutes(ctx))
+	collected := append(make([]error, 0, len(b.errors)+3), b.errors...)
+	collected = append(
+		collected,
+		b.validateID(ctx),
+		b.validateCondition(ctx),
+		b.validateRoutes(ctx),
+	)
 
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -138,7 +140,7 @@ func (b *RouterBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
 
 func (b *RouterBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	b.config.Resource = string(core.ConfigTask)
@@ -148,7 +150,7 @@ func (b *RouterBuilder) validateID(ctx context.Context) error {
 
 func (b *RouterBuilder) validateCondition(ctx context.Context) error {
 	b.config.Condition = strings.TrimSpace(b.config.Condition)
-	if err := validate.ValidateNonEmpty(ctx, "condition", b.config.Condition); err != nil {
+	if err := validate.NonEmpty(ctx, "condition", b.config.Condition); err != nil {
 		return err
 	}
 	return nil
@@ -162,17 +164,17 @@ func (b *RouterBuilder) validateRoutes(ctx context.Context) error {
 	compiled := make(map[string]any, len(b.routes)+1)
 	for key, target := range b.routes {
 		trimmedKey := strings.TrimSpace(key)
-		if err := validate.ValidateNonEmpty(ctx, "route condition", trimmedKey); err != nil {
+		if err := validate.NonEmpty(ctx, "route condition", trimmedKey); err != nil {
 			return err
 		}
-		if err := validate.ValidateID(ctx, target); err != nil {
+		if err := validate.ID(ctx, target); err != nil {
 			return fmt.Errorf("route %s has invalid task id: %w", trimmedKey, err)
 		}
 		compiled[trimmedKey] = target
 	}
 
 	if b.hasDefault {
-		if err := validate.ValidateID(ctx, b.defaultRoute); err != nil {
+		if err := validate.ID(ctx, b.defaultRoute); err != nil {
 			return fmt.Errorf("default route task id is invalid: %w", err)
 		}
 		compiled[defaultRouteKey] = b.defaultRoute

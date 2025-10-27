@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -26,11 +24,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to prepare context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := runDebugExamples(ctx); err != nil {
 		logger.FromContext(ctx).Error("debug example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 func initializeDebugContext() (context.Context, func(), error) {
@@ -146,7 +145,9 @@ func showManualValidation(ctx context.Context) error {
 	}
 	cwd, cwdErr := os.Getwd()
 	if cwdErr == nil {
-		_ = projCfg.SetCWD(cwd)
+		if err := projCfg.SetCWD(cwd); err != nil {
+			return fmt.Errorf("set project cwd: %w", err)
+		}
 	}
 	if err := projCfg.Validate(ctx); err != nil {
 		return fmt.Errorf("project validation failed: %w", err)

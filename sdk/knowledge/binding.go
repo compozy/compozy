@@ -73,15 +73,15 @@ func (b *BindingBuilder) WithMinScore(score float64) *BindingBuilder {
 }
 
 // WithMaxTokens overrides the maximum tokens injected into the agent prompt.
-func (b *BindingBuilder) WithMaxTokens(max int) *BindingBuilder {
+func (b *BindingBuilder) WithMaxTokens(maxTokens int) *BindingBuilder {
 	if b == nil {
 		return nil
 	}
-	if max <= 0 {
-		b.errors = append(b.errors, fmt.Errorf("max_tokens override must be greater than zero: got %d", max))
+	if maxTokens <= 0 {
+		b.errors = append(b.errors, fmt.Errorf("max_tokens override must be greater than zero: got %d", maxTokens))
 		return b
 	}
-	value := max
+	value := maxTokens
 	b.config.MaxTokens = &value
 	return b
 }
@@ -97,12 +97,14 @@ func (b *BindingBuilder) Build(ctx context.Context) (*enginecore.KnowledgeBindin
 	log := logger.FromContext(ctx)
 	b.config.ID = strings.TrimSpace(b.config.ID)
 	log.Debug("building knowledge binding", "knowledge_base", b.config.ID)
-	collected := make([]error, 0, len(b.errors)+4)
-	collected = append(collected, b.errors...)
-	collected = append(collected, validate.ValidateID(ctx, b.config.ID))
-	collected = append(collected, b.validateTopK())
-	collected = append(collected, b.validateMinScore())
-	collected = append(collected, b.validateMaxTokens())
+	collected := append(make([]error, 0, len(b.errors)+4), b.errors...)
+	collected = append(
+		collected,
+		validate.ID(ctx, b.config.ID),
+		b.validateTopK(),
+		b.validateMinScore(),
+		b.validateMaxTokens(),
+	)
 	filtered := filterErrors(collected)
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}

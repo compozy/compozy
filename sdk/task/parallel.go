@@ -94,10 +94,8 @@ func (b *ParallelBuilder) Build(ctx context.Context) (*enginetask.Config, error)
 		b.config.ParallelTask.GetStrategy(),
 	)
 
-	collected := make([]error, 0, len(b.errors)+2)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateTasks(ctx))
+	collected := append(make([]error, 0, len(b.errors)+2), b.errors...)
+	collected = append(collected, b.validateID(ctx), b.validateTasks(ctx))
 
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -127,7 +125,7 @@ func (b *ParallelBuilder) hasTask(id string) bool {
 
 func (b *ParallelBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	return nil
@@ -140,7 +138,7 @@ func (b *ParallelBuilder) validateTasks(ctx context.Context) error {
 	for i := range b.config.Tasks {
 		child := &b.config.Tasks[i]
 		child.ID = strings.TrimSpace(child.ID)
-		if err := validate.ValidateID(ctx, child.ID); err != nil {
+		if err := validate.ID(ctx, child.ID); err != nil {
 			return fmt.Errorf("child task id is invalid: %w", err)
 		}
 		child.Resource = string(core.ConfigTask)

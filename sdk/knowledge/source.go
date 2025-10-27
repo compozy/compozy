@@ -151,7 +151,7 @@ func (b *SourceBuilder) validateKind() error {
 func (b *SourceBuilder) validateFile(ctx context.Context) []error {
 	path := normalizePath(b.config.Path)
 	b.config.Path = path
-	if err := validate.ValidateNonEmpty(ctx, "path", path); err != nil {
+	if err := validate.NonEmpty(ctx, "path", path); err != nil {
 		return []error{err}
 	}
 	info, err := os.Stat(path)
@@ -174,7 +174,7 @@ func (b *SourceBuilder) validateFile(ctx context.Context) []error {
 func (b *SourceBuilder) validateDirectory(ctx context.Context) []error {
 	input := append([]string{b.config.Path}, b.config.Paths...)
 	paths := normalizePaths(input)
-	if err := validate.ValidateRequired(ctx, "paths", paths); err != nil {
+	if err := validate.Required(ctx, "paths", paths); err != nil {
 		return []error{err}
 	}
 	errs := make([]error, 0, len(paths))
@@ -205,12 +205,12 @@ func (b *SourceBuilder) validateDirectory(ctx context.Context) []error {
 func (b *SourceBuilder) validateURL(ctx context.Context) []error {
 	input := append([]string{b.config.Path}, b.config.URLs...)
 	urls := normalizeURLStrings(input)
-	if err := validate.ValidateRequired(ctx, "urls", urls); err != nil {
+	if err := validate.Required(ctx, "urls", urls); err != nil {
 		return []error{err}
 	}
 	errs := make([]error, 0, len(urls))
 	for _, raw := range urls {
-		if err := validate.ValidateURL(ctx, raw); err != nil {
+		if err := validate.URL(ctx, raw); err != nil {
 			errs = append(errs, fmt.Errorf("url source %q is invalid: %w", raw, err))
 		}
 	}
@@ -230,7 +230,7 @@ func (b *SourceBuilder) validateURL(ctx context.Context) []error {
 
 func (b *SourceBuilder) validateAPI(ctx context.Context) []error {
 	provider := strings.ToLower(strings.TrimSpace(b.config.Provider))
-	if err := validate.ValidateNonEmpty(ctx, "provider", provider); err != nil {
+	if err := validate.NonEmpty(ctx, "provider", provider); err != nil {
 		return []error{err}
 	}
 	if _, ok := supportedAPISourceProviders[provider]; !ok {

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -430,13 +431,15 @@ func (c *Compozy) Start() error {
 	host := c.config.Server.Host
 	port := c.config.Server.Port
 	addr := fmt.Sprintf("%s:%d", host, port)
-	listener, err := net.Listen("tcp", addr)
+	listenCfg := net.ListenConfig{}
+	listener, err := listenCfg.Listen(c.ctx, "tcp", addr)
 	if err != nil {
 		c.mu.Unlock()
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
 	httpSrv := &http.Server{
-		Handler: router,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 		BaseContext: func(net.Listener) context.Context {
 			return c.ctx
 		},

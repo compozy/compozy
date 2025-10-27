@@ -75,11 +75,11 @@ func (b *EmbedderBuilder) WithBatchSize(size int) *EmbedderBuilder {
 }
 
 // WithMaxConcurrentWorkers sets the maximum concurrent embedding workers.
-func (b *EmbedderBuilder) WithMaxConcurrentWorkers(max int) *EmbedderBuilder {
+func (b *EmbedderBuilder) WithMaxConcurrentWorkers(maxWorkers int) *EmbedderBuilder {
 	if b == nil {
 		return nil
 	}
-	b.config.Config.MaxConcurrentWorkers = max
+	b.config.Config.MaxConcurrentWorkers = maxWorkers
 	return b
 }
 
@@ -98,14 +98,16 @@ func (b *EmbedderBuilder) Build(ctx context.Context) (*engineknowledge.EmbedderC
 	cfg := appconfig.FromContext(ctx)
 	defaults := engineknowledge.DefaultsFromConfig(cfg)
 
-	collected := make([]error, 0, len(b.errors)+6)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateProvider(ctx))
-	collected = append(collected, b.validateModel(ctx))
-	collected = append(collected, b.validateDimension())
-	collected = append(collected, b.validateBatchSize(defaults))
-	collected = append(collected, b.validateMaxConcurrentWorkers())
+	collected := append(make([]error, 0, len(b.errors)+6), b.errors...)
+	collected = append(
+		collected,
+		b.validateID(ctx),
+		b.validateProvider(ctx),
+		b.validateModel(ctx),
+		b.validateDimension(),
+		b.validateBatchSize(defaults),
+		b.validateMaxConcurrentWorkers(),
+	)
 
 	filtered := filterErrors(collected)
 	if len(filtered) > 0 {
@@ -129,7 +131,7 @@ func (b *EmbedderBuilder) Build(ctx context.Context) (*engineknowledge.EmbedderC
 
 func (b *EmbedderBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("embedder id is invalid: %w", err)
 	}
 	return nil
@@ -137,7 +139,7 @@ func (b *EmbedderBuilder) validateID(ctx context.Context) error {
 
 func (b *EmbedderBuilder) validateProvider(ctx context.Context) error {
 	b.config.Provider = strings.ToLower(strings.TrimSpace(b.config.Provider))
-	if err := validate.ValidateNonEmpty(ctx, "provider", b.config.Provider); err != nil {
+	if err := validate.NonEmpty(ctx, "provider", b.config.Provider); err != nil {
 		return err
 	}
 	if _, ok := supportedEmbedderProviders[b.config.Provider]; !ok {
@@ -152,7 +154,7 @@ func (b *EmbedderBuilder) validateProvider(ctx context.Context) error {
 
 func (b *EmbedderBuilder) validateModel(ctx context.Context) error {
 	b.config.Model = strings.TrimSpace(b.config.Model)
-	if err := validate.ValidateNonEmpty(ctx, "model", b.config.Model); err != nil {
+	if err := validate.NonEmpty(ctx, "model", b.config.Model); err != nil {
 		return err
 	}
 	return nil

@@ -166,13 +166,15 @@ func (b *BaseBuilder) Build(ctx context.Context) (*engineknowledge.BaseConfig, e
 	cfg := appconfig.FromContext(ctx)
 	defaults := engineknowledge.DefaultsFromConfig(cfg)
 	b.applyDefaults(defaults)
-	collected := make([]error, 0, len(b.errors)+8)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateEmbedder(ctx))
-	collected = append(collected, b.validateVectorDB(ctx))
-	collected = append(collected, b.validateIngestMode())
-	collected = append(collected, b.validateSources())
+	collected := append(make([]error, 0, len(b.errors)+8), b.errors...)
+	collected = append(
+		collected,
+		b.validateID(ctx),
+		b.validateEmbedder(ctx),
+		b.validateVectorDB(ctx),
+		b.validateIngestMode(),
+		b.validateSources(),
+	)
 	collected = append(collected, b.validateChunking(ctx)...)
 	collected = append(collected, b.validateRetrieval()...)
 	filtered := filterErrors(collected)
@@ -246,27 +248,27 @@ func (b *BaseBuilder) normalizeRetrieval(defaults engineknowledge.Defaults) {
 }
 
 func (b *BaseBuilder) validateID(ctx context.Context) error {
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("knowledge_base id is invalid: %w", err)
 	}
 	return nil
 }
 
 func (b *BaseBuilder) validateEmbedder(ctx context.Context) error {
-	if err := validate.ValidateNonEmpty(ctx, "embedder", b.config.Embedder); err != nil {
+	if err := validate.NonEmpty(ctx, "embedder", b.config.Embedder); err != nil {
 		return fmt.Errorf("embedder id is required: %w", err)
 	}
-	if err := validate.ValidateID(ctx, b.config.Embedder); err != nil {
+	if err := validate.ID(ctx, b.config.Embedder); err != nil {
 		return fmt.Errorf("embedder id is invalid: %w", err)
 	}
 	return nil
 }
 
 func (b *BaseBuilder) validateVectorDB(ctx context.Context) error {
-	if err := validate.ValidateNonEmpty(ctx, "vector_db", b.config.VectorDB); err != nil {
+	if err := validate.NonEmpty(ctx, "vector_db", b.config.VectorDB); err != nil {
 		return fmt.Errorf("vector_db id is required: %w", err)
 	}
-	if err := validate.ValidateID(ctx, b.config.VectorDB); err != nil {
+	if err := validate.ID(ctx, b.config.VectorDB); err != nil {
 		return fmt.Errorf("vector_db id is invalid: %w", err)
 	}
 	return nil
@@ -297,7 +299,13 @@ func (b *BaseBuilder) validateChunking(ctx context.Context) []error {
 	} else if _, ok := supportedChunkStrategies[chunk.Strategy]; !ok {
 		errs = append(errs, fmt.Errorf("chunking.strategy %q is not supported", chunk.Strategy))
 	}
-	if err := validate.ValidateRange(ctx, "chunking.size", chunk.Size, engineknowledge.MinChunkSize, engineknowledge.MaxChunkSize); err != nil {
+	if err := validate.Range(
+		ctx,
+		"chunking.size",
+		chunk.Size,
+		engineknowledge.MinChunkSize,
+		engineknowledge.MaxChunkSize,
+	); err != nil {
 		errs = append(errs, err)
 	}
 	overlap := chunk.OverlapValue()
@@ -305,7 +313,7 @@ func (b *BaseBuilder) validateChunking(ctx context.Context) []error {
 	if maxOverlap < 0 {
 		maxOverlap = 0
 	}
-	if err := validate.ValidateRange(ctx, "chunking.overlap", overlap, 0, maxOverlap); err != nil {
+	if err := validate.Range(ctx, "chunking.overlap", overlap, 0, maxOverlap); err != nil {
 		errs = append(errs, err)
 	}
 	if chunk.Size <= overlap {
@@ -323,7 +331,14 @@ func (b *BaseBuilder) validateRetrieval() []error {
 	if retrieval.TopK <= 0 {
 		errs = append(errs, fmt.Errorf("retrieval.top_k must be greater than zero: got %d", retrieval.TopK))
 	} else if retrieval.TopK > maxRetrievalTopK {
-		errs = append(errs, fmt.Errorf("retrieval.top_k must be less than or equal to %d: got %d", maxRetrievalTopK, retrieval.TopK))
+		errs = append(
+			errs,
+			fmt.Errorf(
+				"retrieval.top_k must be less than or equal to %d: got %d",
+				maxRetrievalTopK,
+				retrieval.TopK,
+			),
+		)
 	}
 	minScore := retrieval.MinScoreValue()
 	if math.IsNaN(minScore) || minScore < engineknowledge.MinScoreFloor || minScore > engineknowledge.MaxScoreCeiling {

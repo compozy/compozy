@@ -471,7 +471,7 @@ type Config struct {
 	//
 	// The Resource field on memory.Config is optional in project-level definitions and will
 	// default to "memory" during validation.
-	Memories []memory.Config `json:"memories,omitempty" yaml:"memories,omitempty" mapstructure:"memories,omitempty"`
+	Memories []*memory.Config `json:"memories,omitempty" yaml:"memories,omitempty" mapstructure:"memories,omitempty"`
 
 	// MonitoringConfig enables observability and metrics collection for performance tracking.
 	//
@@ -671,20 +671,23 @@ func (p *Config) validateMemories(ctx context.Context) error {
 		return nil
 	}
 	ids := make(map[string]struct{}, len(p.Memories))
-	for i := range p.Memories {
-		if strings.TrimSpace(p.Memories[i].Resource) == "" {
-			p.Memories[i].Resource = string(core.ConfigMemory)
+	for i, mem := range p.Memories {
+		if mem == nil {
+			return fmt.Errorf("memory[%d] cannot be nil", i)
 		}
-		if p.Memories[i].ID == "" {
+		if strings.TrimSpace(mem.Resource) == "" {
+			mem.Resource = string(core.ConfigMemory)
+		}
+		if mem.ID == "" {
 			return fmt.Errorf("memory[%d] missing required ID field", i)
 		}
-		if _, ok := ids[p.Memories[i].ID]; ok {
-			return fmt.Errorf("duplicate memory ID '%s' found in project memories", p.Memories[i].ID)
+		if _, ok := ids[mem.ID]; ok {
+			return fmt.Errorf("duplicate memory ID '%s' found in project memories", mem.ID)
 		}
-		if err := p.Memories[i].Validate(ctx); err != nil {
+		if err := mem.Validate(ctx); err != nil {
 			return fmt.Errorf("memory[%d] validation failed: %w", i, err)
 		}
-		ids[p.Memories[i].ID] = struct{}{}
+		ids[mem.ID] = struct{}{}
 	}
 	return nil
 }

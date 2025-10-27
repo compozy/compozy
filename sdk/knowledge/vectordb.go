@@ -131,10 +131,8 @@ func (b *VectorDBBuilder) Build(ctx context.Context) (*engineknowledge.VectorDBC
 	log := logger.FromContext(ctx)
 	log.Debug("building vector db configuration", "vector_db", b.config.ID, "type", b.config.Type)
 
-	collected := make([]error, 0, len(b.errors)+10)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateType())
+	collected := append(make([]error, 0, len(b.errors)+10), b.errors...)
+	collected = append(collected, b.validateID(ctx), b.validateType())
 	collected = append(collected, b.validateRequirements(ctx)...)
 	collected = append(collected, b.validatePGVectorIndex()...)
 	collected = append(collected, b.validatePGVectorPool()...)
@@ -160,7 +158,7 @@ func (b *VectorDBBuilder) ensurePGVectorConfig() *engineknowledge.PGVectorConfig
 
 func (b *VectorDBBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("vector_db id is invalid: %w", err)
 	}
 	return nil
@@ -207,7 +205,7 @@ func (b *VectorDBBuilder) validatePGVector(ctx context.Context) []error {
 	dsn := strings.TrimSpace(b.config.Config.DSN)
 	b.config.Config.DSN = dsn
 	var errs []error
-	if err := validate.ValidateNonEmpty(ctx, "dsn", dsn); err != nil {
+	if err := validate.NonEmpty(ctx, "dsn", dsn); err != nil {
 		err = fmt.Errorf("pgvector requires config.dsn: %w", err)
 		errs = append(errs, err)
 	}
@@ -218,7 +216,7 @@ func (b *VectorDBBuilder) validateChroma(ctx context.Context) []error {
 	path := strings.TrimSpace(b.config.Config.Path)
 	b.config.Config.Path = path
 	var errs []error
-	if err := validate.ValidateNonEmpty(ctx, "path", path); err != nil {
+	if err := validate.NonEmpty(ctx, "path", path); err != nil {
 		err = fmt.Errorf("chroma requires config.path: %w", err)
 		errs = append(errs, err)
 	}
@@ -231,14 +229,14 @@ func (b *VectorDBBuilder) validateQdrant(ctx context.Context) []error {
 	collection := strings.TrimSpace(b.config.Config.Collection)
 	b.config.Config.Collection = collection
 	errs := make([]error, 0, 3)
-	if err := validate.ValidateNonEmpty(ctx, "dsn", dsn); err != nil {
+	if err := validate.NonEmpty(ctx, "dsn", dsn); err != nil {
 		err = fmt.Errorf("qdrant requires config.dsn: %w", err)
 		errs = append(errs, err)
-	} else if err := validate.ValidateURL(ctx, dsn); err != nil {
+	} else if err := validate.URL(ctx, dsn); err != nil {
 		err = fmt.Errorf("qdrant config.dsn must be a valid url: %w", err)
 		errs = append(errs, err)
 	}
-	if err := validate.ValidateNonEmpty(ctx, "collection", collection); err != nil {
+	if err := validate.NonEmpty(ctx, "collection", collection); err != nil {
 		err = fmt.Errorf("qdrant requires config.collection: %w", err)
 		errs = append(errs, err)
 	}
@@ -251,14 +249,14 @@ func (b *VectorDBBuilder) validateWeaviate(ctx context.Context) []error {
 	collection := strings.TrimSpace(b.config.Config.Collection)
 	b.config.Config.Collection = collection
 	errs := make([]error, 0, 3)
-	if err := validate.ValidateNonEmpty(ctx, "dsn", dsn); err != nil {
+	if err := validate.NonEmpty(ctx, "dsn", dsn); err != nil {
 		err = fmt.Errorf("weaviate requires config.dsn: %w", err)
 		errs = append(errs, err)
-	} else if err := validate.ValidateURL(ctx, dsn); err != nil {
+	} else if err := validate.URL(ctx, dsn); err != nil {
 		err = fmt.Errorf("weaviate config.dsn must be a valid url: %w", err)
 		errs = append(errs, err)
 	}
-	if err := validate.ValidateNonEmpty(ctx, "collection", collection); err != nil {
+	if err := validate.NonEmpty(ctx, "collection", collection); err != nil {
 		err = fmt.Errorf("weaviate requires config.collection: %w", err)
 		errs = append(errs, err)
 	}
@@ -271,14 +269,14 @@ func (b *VectorDBBuilder) validateMilvus(ctx context.Context) []error {
 	collection := strings.TrimSpace(b.config.Config.Collection)
 	b.config.Config.Collection = collection
 	errs := make([]error, 0, 3)
-	if err := validate.ValidateNonEmpty(ctx, "dsn", dsn); err != nil {
+	if err := validate.NonEmpty(ctx, "dsn", dsn); err != nil {
 		err = fmt.Errorf("milvus requires config.dsn: %w", err)
 		errs = append(errs, err)
-	} else if err := validate.ValidateURL(ctx, dsn); err != nil {
+	} else if err := validate.URL(ctx, dsn); err != nil {
 		err = fmt.Errorf("milvus config.dsn must be a valid url: %w", err)
 		errs = append(errs, err)
 	}
-	if err := validate.ValidateNonEmpty(ctx, "collection", collection); err != nil {
+	if err := validate.NonEmpty(ctx, "collection", collection); err != nil {
 		err = fmt.Errorf("milvus requires config.collection: %w", err)
 		errs = append(errs, err)
 	}

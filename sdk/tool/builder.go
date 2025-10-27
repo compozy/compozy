@@ -23,9 +23,7 @@ type Builder struct {
 	errors []error
 }
 
-var cloneToolConfig = func(cfg *enginetool.Config) (*enginetool.Config, error) {
-	return core.DeepCopy(cfg)
-}
+var cloneToolConfig = core.DeepCopy[*enginetool.Config]
 
 // New creates a tool builder initialized with the provided identifier.
 func New(id string) *Builder {
@@ -128,13 +126,15 @@ func (b *Builder) Build(ctx context.Context) (*enginetool.Config, error) {
 	log := logger.FromContext(ctx)
 	log.Debug("building tool configuration", "tool", b.config.ID)
 
-	collected := make([]error, 0, len(b.errors)+5)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateName(ctx))
-	collected = append(collected, b.validateDescription(ctx))
-	collected = append(collected, b.validateRuntime(ctx))
-	collected = append(collected, b.validateCode(ctx))
+	collected := append(make([]error, 0, len(b.errors)+5), b.errors...)
+	collected = append(
+		collected,
+		b.validateID(ctx),
+		b.validateName(ctx),
+		b.validateDescription(ctx),
+		b.validateRuntime(ctx),
+		b.validateCode(ctx),
+	)
 
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -155,7 +155,7 @@ func (b *Builder) Build(ctx context.Context) (*enginetool.Config, error) {
 
 func (b *Builder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("tool id is invalid: %w", err)
 	}
 	return nil
@@ -163,7 +163,7 @@ func (b *Builder) validateID(ctx context.Context) error {
 
 func (b *Builder) validateName(ctx context.Context) error {
 	b.config.Name = strings.TrimSpace(b.config.Name)
-	if err := validate.ValidateNonEmpty(ctx, "tool name", b.config.Name); err != nil {
+	if err := validate.NonEmpty(ctx, "tool name", b.config.Name); err != nil {
 		return err
 	}
 	return nil
@@ -171,7 +171,7 @@ func (b *Builder) validateName(ctx context.Context) error {
 
 func (b *Builder) validateDescription(ctx context.Context) error {
 	b.config.Description = strings.TrimSpace(b.config.Description)
-	if err := validate.ValidateNonEmpty(ctx, "tool description", b.config.Description); err != nil {
+	if err := validate.NonEmpty(ctx, "tool description", b.config.Description); err != nil {
 		return err
 	}
 	return nil
@@ -179,7 +179,7 @@ func (b *Builder) validateDescription(ctx context.Context) error {
 
 func (b *Builder) validateRuntime(ctx context.Context) error {
 	b.config.Runtime = strings.TrimSpace(b.config.Runtime)
-	if err := validate.ValidateNonEmpty(ctx, "tool runtime", b.config.Runtime); err != nil {
+	if err := validate.NonEmpty(ctx, "tool runtime", b.config.Runtime); err != nil {
 		return err
 	}
 	runtime := strings.ToLower(b.config.Runtime)
@@ -192,7 +192,7 @@ func (b *Builder) validateRuntime(ctx context.Context) error {
 
 func (b *Builder) validateCode(ctx context.Context) error {
 	b.config.Code = strings.TrimSpace(b.config.Code)
-	if err := validate.ValidateNonEmpty(ctx, "tool code", b.config.Code); err != nil {
+	if err := validate.NonEmpty(ctx, "tool code", b.config.Code); err != nil {
 		return err
 	}
 	return nil

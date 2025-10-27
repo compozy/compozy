@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -266,7 +267,8 @@ func TestBuildRejectsUnsupportedProvider(t *testing.T) {
 func TestBuildRequiresContext(t *testing.T) {
 	builder := New("openai", "gpt-4")
 
-	_, err := builder.Build(nil)
+	var missingCtx context.Context
+	_, err := builder.Build(missingCtx)
 	if err == nil {
 		t.Fatalf("expected context error")
 	}

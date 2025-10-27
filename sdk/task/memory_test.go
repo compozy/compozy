@@ -1,6 +1,7 @@
 package task
 
 import (
+	"context"
 	"testing"
 
 	enginetask "github.com/compozy/compozy/engine/task"
@@ -89,10 +90,11 @@ func TestMemoryTaskBuilderClearIgnoresContent(t *testing.T) {
 func TestMemoryTaskBuilderRequiresContext(t *testing.T) {
 	t.Parallel()
 
+	var missingCtx context.Context
 	_, err := NewMemoryTask("read-cache").
 		WithOperation("read").
 		WithMemory("cache-store").
-		Build(nil)
+		Build(missingCtx)
 	require.Error(t, err)
 	assert.Equal(t, "context is required", err.Error())
 }

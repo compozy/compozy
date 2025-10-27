@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -12,6 +10,7 @@ import (
 	engineagent "github.com/compozy/compozy/engine/agent"
 	engineproject "github.com/compozy/compozy/engine/project"
 	engineruntime "github.com/compozy/compozy/engine/runtime"
+	enginetask "github.com/compozy/compozy/engine/task"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -38,11 +37,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := run(ctx); err != nil {
 		logger.FromContext(ctx).Error("runtime + native tools example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 func initializeContext() (context.Context, func(), error) {
@@ -120,7 +120,7 @@ func buildOrchestratorAgent(ctx context.Context, action *engineagent.ActionConfi
 		Build(ctx)
 }
 
-func buildRuntimeTask(ctx context.Context, agentCfg *engineagent.Config) (*task.Config, error) {
+func buildRuntimeTask(ctx context.Context, agentCfg *engineagent.Config) (*enginetask.Config, error) {
 	return task.NewBasic(orchestratorTaskID).
 		WithAgent(agentCfg.ID).
 		WithAction(orchestratorAction).
@@ -131,7 +131,7 @@ func buildRuntimeTask(ctx context.Context, agentCfg *engineagent.Config) (*task.
 func buildRuntimeWorkflow(
 	ctx context.Context,
 	agentCfg *engineagent.Config,
-	taskCfg *task.Config,
+	taskCfg *enginetask.Config,
 ) (*engineworkflow.Config, error) {
 	return workflow.New("runtime-selection").
 		WithDescription("Decide which runtime profile to execute for downstream tools").

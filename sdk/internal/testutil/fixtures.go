@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/engine/agent"
@@ -40,7 +41,9 @@ func NewTestAgent(id string) *agent.Config {
 			Config: *model,
 		},
 	}
-	_ = cfg.SetCWD(repoRoot)
+	if err := cfg.SetCWD(repoRoot); err != nil {
+		panic(fmt.Errorf("failed to set agent cwd: %w", err))
+	}
 	return cfg
 }
 

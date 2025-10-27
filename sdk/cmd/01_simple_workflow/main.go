@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -31,11 +29,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := run(ctx); err != nil {
 		logger.FromContext(ctx).Error("simple workflow example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 func initializeContext() (context.Context, func(), error) {
@@ -115,8 +114,9 @@ func buildModel(ctx context.Context) (*core.ProviderConfig, error) {
 }
 
 func buildGreetAction(ctx context.Context) (*engineagent.ActionConfig, error) {
+	greetingProp := schema.NewString().WithDescription("Rendered greeting message").WithMinLength(1)
 	output, err := schema.NewObject().
-		AddProperty("greeting", schema.NewString().WithDescription("Rendered greeting message").WithMinLength(1).Build(ctx)).
+		AddProperty("greeting", greetingProp).
 		RequireProperty("greeting").
 		Build(ctx)
 	if err != nil {

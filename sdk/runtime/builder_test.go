@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -260,7 +261,8 @@ func TestBuildCloneFailure(t *testing.T) {
 
 func TestBuildRequiresContext(t *testing.T) {
 	builder := NewBun().WithEntrypoint("./tools/main.ts")
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Nil(t, cfg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context is required")

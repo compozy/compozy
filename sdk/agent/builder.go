@@ -180,13 +180,15 @@ func (b *Builder) Build(ctx context.Context) (*engineagent.Config, error) {
 	}
 	log := logger.FromContext(ctx)
 	log.Debug("building agent configuration", "agent", b.config.ID, "actions", len(b.config.Actions))
-	collected := make([]error, 0, len(b.errors)+8)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateInstructions(ctx))
-	collected = append(collected, b.validateModel(ctx))
-	collected = append(collected, b.validateKnowledge())
-	collected = append(collected, b.validateMemory())
+	collected := append(make([]error, 0, len(b.errors)+8), b.errors...)
+	collected = append(
+		collected,
+		b.validateID(ctx),
+		b.validateInstructions(ctx),
+		b.validateModel(ctx),
+		b.validateKnowledge(),
+		b.validateMemory(),
+	)
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
 		if err != nil {
@@ -205,7 +207,7 @@ func (b *Builder) Build(ctx context.Context) (*engineagent.Config, error) {
 
 func (b *Builder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("agent id is invalid: %w", err)
 	}
 	return nil
@@ -213,7 +215,7 @@ func (b *Builder) validateID(ctx context.Context) error {
 
 func (b *Builder) validateInstructions(ctx context.Context) error {
 	b.config.Instructions = strings.TrimSpace(b.config.Instructions)
-	if err := validate.ValidateNonEmpty(ctx, "instructions", b.config.Instructions); err != nil {
+	if err := validate.NonEmpty(ctx, "instructions", b.config.Instructions); err != nil {
 		return err
 	}
 	return nil
@@ -222,7 +224,7 @@ func (b *Builder) validateInstructions(ctx context.Context) error {
 func (b *Builder) validateModel(ctx context.Context) error {
 	if b.config.Model.HasRef() {
 		b.config.Model.Ref = strings.TrimSpace(b.config.Model.Ref)
-		if err := validate.ValidateNonEmpty(ctx, "model reference", b.config.Model.Ref); err != nil {
+		if err := validate.NonEmpty(ctx, "model reference", b.config.Model.Ref); err != nil {
 			return err
 		}
 		return nil
@@ -230,10 +232,10 @@ func (b *Builder) validateModel(ctx context.Context) error {
 	if b.config.Model.HasConfig() {
 		provider := strings.ToLower(strings.TrimSpace(string(b.config.Model.Config.Provider)))
 		modelName := strings.TrimSpace(b.config.Model.Config.Model)
-		if err := validate.ValidateNonEmpty(ctx, "model provider", provider); err != nil {
+		if err := validate.NonEmpty(ctx, "model provider", provider); err != nil {
 			return err
 		}
-		if err := validate.ValidateNonEmpty(ctx, "model name", modelName); err != nil {
+		if err := validate.NonEmpty(ctx, "model name", modelName); err != nil {
 			return err
 		}
 		b.config.Model.Config.Provider = core.ProviderName(provider)

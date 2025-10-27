@@ -53,7 +53,7 @@ type unusedEntry struct {
 	source string
 }
 
-type dependencyGraph map[string]map[string]struct{}
+type DependencyGraph map[string]map[string]struct{}
 
 func newResourceIndex(projectName string) *resourceIndex {
 	return &resourceIndex{
@@ -151,20 +151,25 @@ func buildResourceIndex(
 }
 
 func addProjectResources(idx *resourceIndex, proj *project.Config) {
-	for _, toolCfg := range proj.Tools {
+	for i := range proj.Tools {
+		toolCfg := &proj.Tools[i]
 		idx.add(kindTool, toolCfg.ID, "project.tool", false)
 	}
-	for _, mem := range proj.Memories {
-		ensureMemoryDefaults(&mem)
+	for i := range proj.Memories {
+		mem := proj.Memories[i]
+		ensureMemoryDefaults(mem)
 		idx.add(kindMemory, mem.ID, "project.memory", false)
 	}
-	for _, kb := range proj.KnowledgeBases {
+	for i := range proj.KnowledgeBases {
+		kb := &proj.KnowledgeBases[i]
 		idx.add(kindKnowledgeBase, kb.ID, "project.knowledge_base", false)
 	}
-	for _, embedder := range proj.Embedders {
+	for i := range proj.Embedders {
+		embedder := &proj.Embedders[i]
 		idx.add(kindEmbedder, embedder.ID, "project.embedder", false)
 	}
-	for _, vector := range proj.VectorDBs {
+	for i := range proj.VectorDBs {
+		vector := &proj.VectorDBs[i]
 		idx.add(kindVectorDB, vector.ID, "project.vector_db", false)
 	}
 }
@@ -175,13 +180,16 @@ func addWorkflowResources(idx *resourceIndex, workflows map[string]*workflow.Con
 			continue
 		}
 		idx.add(kindWorkflow, id, "sdk.workflow", false)
-		for _, agentCfg := range wf.Agents {
+		for i := range wf.Agents {
+			agentCfg := &wf.Agents[i]
 			idx.add(kindAgent, agentCfg.ID, "workflow.agent", false)
 		}
-		for _, toolCfg := range wf.Tools {
+		for i := range wf.Tools {
+			toolCfg := &wf.Tools[i]
 			idx.add(kindTool, toolCfg.ID, "workflow.tool", false)
 		}
-		for _, kb := range wf.KnowledgeBases {
+		for i := range wf.KnowledgeBases {
+			kb := &wf.KnowledgeBases[i]
 			idx.add(kindKnowledgeBase, kb.ID, "workflow.knowledge_base", false)
 		}
 	}
@@ -219,18 +227,20 @@ func addStoreResources(
 }
 
 func (c *Compozy) ValidateReferences(
-	ctx context.Context,
+	_ context.Context,
 	proj *project.Config,
 	idx *resourceIndex,
-) (dependencyGraph, error) {
+) (DependencyGraph, error) {
 	graph := createDependencyGraph(c.workflowByID)
 	errs := make([]error, 0)
 	errs = append(errs, validateKnowledgeBindings("project.knowledge", proj.Knowledge, idx)...)
-	for _, kb := range proj.KnowledgeBases {
+	for i := range proj.KnowledgeBases {
+		kb := &proj.KnowledgeBases[i]
 		errs = append(errs, validateKnowledgeBase(idx, kb, fmt.Sprintf("project.knowledge_base.%s", kb.ID))...)
 	}
-	for _, toolCfg := range proj.Tools {
-		errs = append(errs, validateToolReference(idx, graph, proj.Name, "project.tool", &toolCfg, toolCfg.With)...)
+	for i := range proj.Tools {
+		toolCfg := &proj.Tools[i]
+		errs = append(errs, validateToolReference(idx, graph, proj.Name, "project.tool", toolCfg, toolCfg.With)...)
 	}
 	for wfID, wfCfg := range c.workflowByID {
 		if wfCfg == nil {
@@ -247,23 +257,27 @@ func (c *Compozy) ValidateReferences(
 
 func validateWorkflow(
 	idx *resourceIndex,
-	graph dependencyGraph,
+	graph DependencyGraph,
 	wfID string,
 	wfCfg *workflow.Config,
 	wfPath string,
 ) []error {
 	errs := make([]error, 0)
 	errs = append(errs, validateKnowledgeBindings(wfPath+".knowledge", wfCfg.Knowledge, idx)...)
-	for _, kb := range wfCfg.KnowledgeBases {
+	for i := range wfCfg.KnowledgeBases {
+		kb := &wfCfg.KnowledgeBases[i]
 		errs = append(errs, validateKnowledgeBase(idx, kb, fmt.Sprintf("%s.knowledge_base.%s", wfPath, kb.ID))...)
 	}
-	for _, agentCfg := range wfCfg.Agents {
+	for i := range wfCfg.Agents {
+		agentCfg := &wfCfg.Agents[i]
 		errs = append(
 			errs,
-			validateAgent(idx, graph, wfID, &agentCfg, fmt.Sprintf("%s.agent.%s", wfPath, agentCfg.ID))...)
+			validateAgent(idx, graph, wfID, agentCfg, fmt.Sprintf("%s.agent.%s", wfPath, agentCfg.ID))...,
+		)
 	}
-	for _, toolCfg := range wfCfg.Tools {
-		errs = append(errs, validateToolReference(idx, graph, wfID, wfPath+".tool", &toolCfg, toolCfg.With)...)
+	for i := range wfCfg.Tools {
+		toolCfg := &wfCfg.Tools[i]
+		errs = append(errs, validateToolReference(idx, graph, wfID, wfPath+".tool", toolCfg, toolCfg.With)...)
 	}
 	errs = append(errs, validateTasks(idx, graph, wfID, wfCfg.Tasks, wfPath+".tasks")...)
 	return errs
@@ -271,7 +285,7 @@ func validateWorkflow(
 
 func validateTasks(
 	idx *resourceIndex,
-	graph dependencyGraph,
+	graph DependencyGraph,
 	wfID string,
 	tasks []task.Config,
 	basePath string,
@@ -287,7 +301,7 @@ func validateTasks(
 
 func validateTask(
 	idx *resourceIndex,
-	graph dependencyGraph,
+	graph DependencyGraph,
 	wfID string,
 	cfg *task.Config,
 	path string,
@@ -318,25 +332,32 @@ func validateTask(
 
 func validateAgent(
 	idx *resourceIndex,
-	graph dependencyGraph,
+	graph DependencyGraph,
 	wfID string,
 	cfg *agent.Config,
 	basePath string,
 ) []error {
 	errs := make([]error, 0)
 	errs = append(errs, validateKnowledgeBindings(basePath+".knowledge", cfg.Knowledge, idx)...)
-	for _, mem := range cfg.Memory {
+	for i := range cfg.Memory {
+		mem := &cfg.Memory[i]
 		if !idx.mark(kindMemory, mem.ID) {
 			errs = append(errs, fmt.Errorf("%s.memory references missing memory %q", basePath, mem.ID))
 		}
 	}
-	for _, toolCfg := range cfg.Tools {
-		errs = append(errs, validateToolReference(idx, graph, wfID, basePath+".tool", &toolCfg, cfg.With)...)
+	for i := range cfg.Tools {
+		toolCfg := &cfg.Tools[i]
+		errs = append(errs, validateToolReference(idx, graph, wfID, basePath+".tool", toolCfg, cfg.With)...)
 	}
-	for _, action := range cfg.Actions {
+	for i := range cfg.Actions {
+		action := cfg.Actions[i]
+		if action == nil {
+			continue
+		}
 		actionPath := fmt.Sprintf("%s.action.%s", basePath, action.ID)
-		for _, toolCfg := range action.Tools {
-			errs = append(errs, validateToolReference(idx, graph, wfID, actionPath+".tool", &toolCfg, action.With)...)
+		for j := range action.Tools {
+			toolCfg := &action.Tools[j]
+			errs = append(errs, validateToolReference(idx, graph, wfID, actionPath+".tool", toolCfg, action.With)...)
 		}
 	}
 	return errs
@@ -348,7 +369,8 @@ func validateKnowledgeBindings(
 	idx *resourceIndex,
 ) []error {
 	errs := make([]error, 0)
-	for _, binding := range bindings {
+	for i := range bindings {
+		binding := &bindings[i]
 		if !idx.mark(kindKnowledgeBase, binding.ID) {
 			errs = append(errs, fmt.Errorf("%s references missing knowledge base %q", path, binding.ID))
 		}
@@ -358,10 +380,13 @@ func validateKnowledgeBindings(
 
 func validateKnowledgeBase(
 	idx *resourceIndex,
-	kb knowledge.BaseConfig,
+	kb *knowledge.BaseConfig,
 	path string,
 ) []error {
 	errs := make([]error, 0)
+	if kb == nil {
+		return errs
+	}
 	if kb.Embedder != "" && !idx.mark(kindEmbedder, kb.Embedder) {
 		errs = append(errs, fmt.Errorf("%s.embedder references missing embedder %q", path, kb.Embedder))
 	}
@@ -373,7 +398,7 @@ func validateKnowledgeBase(
 
 func validateToolReference(
 	idx *resourceIndex,
-	graph dependencyGraph,
+	graph DependencyGraph,
 	wfID string,
 	path string,
 	cfg *tool.Config,
@@ -402,15 +427,15 @@ func validateToolReference(
 	return errs
 }
 
-func createDependencyGraph(workflows map[string]*workflow.Config) dependencyGraph {
-	graph := make(dependencyGraph)
+func createDependencyGraph(workflows map[string]*workflow.Config) DependencyGraph {
+	graph := make(DependencyGraph)
 	for id := range workflows {
 		graph[id] = make(map[string]struct{})
 	}
 	return graph
 }
 
-func addWorkflowDependency(graph dependencyGraph, from string, to string) {
+func addWorkflowDependency(graph DependencyGraph, from string, to string) {
 	if strings.TrimSpace(from) == "" || strings.TrimSpace(to) == "" {
 		return
 	}
@@ -420,7 +445,7 @@ func addWorkflowDependency(graph dependencyGraph, from string, to string) {
 	graph[from][to] = struct{}{}
 }
 
-func detectCircularDependencies(graph dependencyGraph) error {
+func detectCircularDependencies(graph DependencyGraph) error {
 	const (
 		stateUnvisited = iota
 		stateVisiting
@@ -468,8 +493,8 @@ func extractCycle(stack []string, target string) []string {
 }
 
 func (c *Compozy) validateDependencies(
-	ctx context.Context,
-	graph dependencyGraph,
+	_ context.Context,
+	graph DependencyGraph,
 ) error {
 	order, err := buildWorkflowOrder(c.workflowOrder, graph)
 	if err != nil {
@@ -484,7 +509,7 @@ func (c *Compozy) validateDependencies(
 	return nil
 }
 
-func buildWorkflowOrder(original []string, graph dependencyGraph) ([]string, error) {
+func buildWorkflowOrder(original []string, graph DependencyGraph) ([]string, error) {
 	nodes := make([]string, 0, len(graph))
 	orderIndex := make(map[string]int, len(original))
 	for idx, id := range original {

@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -55,7 +56,8 @@ func TestBuildProducesReferenceConfig(t *testing.T) {
 
 func TestBuildRequiresContext(t *testing.T) {
 	t.Parallel()
-	_, err := NewReference("memory").Build(nil)
+	var missingCtx context.Context
+	_, err := NewReference("memory").Build(missingCtx)
 	require.Error(t, err)
 	assert.EqualError(t, err, "context is required")
 }

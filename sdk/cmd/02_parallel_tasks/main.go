@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -36,11 +34,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := run(ctx); err != nil {
 		logger.FromContext(ctx).Error("parallel tasks example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 func initializeContext() (context.Context, func(), error) {
@@ -64,68 +63,120 @@ func initializeContext() (context.Context, func(), error) {
 }
 
 func run(ctx context.Context) error {
+	logEnvironment(ctx)
+	modelCfg, err := buildModel(ctx)
+	if err != nil {
+		return handleBuildError(ctx, "model", err)
+	}
+	agents, err := buildAllAgents(ctx)
+	if err != nil {
+		return err
+	}
+	tasks, err := buildAllTasks(ctx, agents)
+	if err != nil {
+		return err
+	}
+	workflowCfg, err := buildCompleteWorkflow(ctx, agents, tasks)
+	if err != nil {
+		return handleBuildError(ctx, "workflow", err)
+	}
+	projectCfg, err := buildProject(ctx, modelCfg, workflowCfg, agents.sentiment, agents.entity, agents.summary)
+	if err != nil {
+		return handleBuildError(ctx, "project", err)
+	}
+	printSummary(projectCfg, workflowCfg, tasks.parallel, tasks.aggregate)
+	return nil
+}
+
+type analysisAgents struct {
+	sentiment *engineagent.Config
+	entity    *engineagent.Config
+	summary   *engineagent.Config
+}
+
+type analysisTasks struct {
+	sentiment *enginetask.Config
+	entity    *enginetask.Config
+	summary   *enginetask.Config
+	parallel  *enginetask.Config
+	aggregate *enginetask.Config
+}
+
+func logEnvironment(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	env := "unknown"
 	if cfg := config.FromContext(ctx); cfg != nil {
 		env = cfg.Runtime.Environment
 	}
 	log.Info("running parallel analysis example", "environment", env)
-	modelCfg, err := buildModel(ctx)
-	if err != nil {
-		return handleBuildError(ctx, "model", err)
-	}
+}
+
+func buildAllAgents(ctx context.Context) (*analysisAgents, error) {
 	sentimentAgent, err := buildSentimentAgent(ctx)
 	if err != nil {
-		return handleBuildError(ctx, "sentiment agent", err)
+		return nil, handleBuildError(ctx, "sentiment agent", err)
 	}
 	entityAgent, err := buildEntityAgent(ctx)
 	if err != nil {
-		return handleBuildError(ctx, "entity agent", err)
+		return nil, handleBuildError(ctx, "entity agent", err)
 	}
 	summaryAgent, err := buildSummaryAgent(ctx)
 	if err != nil {
-		return handleBuildError(ctx, "summary agent", err)
+		return nil, handleBuildError(ctx, "summary agent", err)
 	}
-	sentimentTask, err := buildSentimentTask(ctx, sentimentAgent)
+	return &analysisAgents{
+		sentiment: sentimentAgent,
+		entity:    entityAgent,
+		summary:   summaryAgent,
+	}, nil
+}
+
+func buildAllTasks(ctx context.Context, agents *analysisAgents) (*analysisTasks, error) {
+	sentimentTask, err := buildSentimentTask(ctx, agents.sentiment)
 	if err != nil {
-		return handleBuildError(ctx, "sentiment task", err)
+		return nil, handleBuildError(ctx, "sentiment task", err)
 	}
-	entityTask, err := buildEntityTask(ctx, entityAgent)
+	entityTask, err := buildEntityTask(ctx, agents.entity)
 	if err != nil {
-		return handleBuildError(ctx, "entity task", err)
+		return nil, handleBuildError(ctx, "entity task", err)
 	}
-	summaryTask, err := buildSummaryTask(ctx, summaryAgent)
+	summaryTask, err := buildSummaryTask(ctx, agents.summary)
 	if err != nil {
-		return handleBuildError(ctx, "summary task", err)
+		return nil, handleBuildError(ctx, "summary task", err)
 	}
 	parallelTask, err := buildParallelAnalysis(ctx, sentimentTask, entityTask, summaryTask)
 	if err != nil {
-		return handleBuildError(ctx, "parallel task", err)
+		return nil, handleBuildError(ctx, "parallel task", err)
 	}
 	aggregateTask, err := buildAggregateResults(ctx, sentimentTask, entityTask, summaryTask)
 	if err != nil {
-		return handleBuildError(ctx, "aggregate task", err)
+		return nil, handleBuildError(ctx, "aggregate task", err)
 	}
-	workflowCfg, err := buildWorkflow(
+	return &analysisTasks{
+		sentiment: sentimentTask,
+		entity:    entityTask,
+		summary:   summaryTask,
+		parallel:  parallelTask,
+		aggregate: aggregateTask,
+	}, nil
+}
+
+func buildCompleteWorkflow(
+	ctx context.Context,
+	agents *analysisAgents,
+	tasks *analysisTasks,
+) (*engineworkflow.Config, error) {
+	return buildWorkflow(
 		ctx,
-		sentimentAgent,
-		entityAgent,
-		summaryAgent,
-		sentimentTask,
-		entityTask,
-		summaryTask,
-		parallelTask,
-		aggregateTask,
+		agents.sentiment,
+		agents.entity,
+		agents.summary,
+		tasks.sentiment,
+		tasks.entity,
+		tasks.summary,
+		tasks.parallel,
+		tasks.aggregate,
 	)
-	if err != nil {
-		return handleBuildError(ctx, "workflow", err)
-	}
-	projectCfg, err := buildProject(ctx, modelCfg, workflowCfg, sentimentAgent, entityAgent, summaryAgent)
-	if err != nil {
-		return handleBuildError(ctx, "project", err)
-	}
-	printSummary(projectCfg, workflowCfg, parallelTask, aggregateTask)
-	return nil
 }
 
 func buildModel(ctx context.Context) (*core.ProviderConfig, error) {

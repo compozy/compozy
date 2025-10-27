@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -112,7 +113,8 @@ func TestBuildFailsWithNilContext(t *testing.T) {
 		WithDescription("Formats code").
 		WithRuntime("bun").
 		WithCode("export default {}")
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Error(t, err)
 	require.Nil(t, cfg)
 	require.Contains(t, err.Error(), "context is required")

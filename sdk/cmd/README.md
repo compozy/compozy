@@ -1,10 +1,10 @@
 # Compozy SDK Examples
 
-This directory contains runnable Go programs demonstrating core patterns in the Compozy SDK. Each example follows the context-first approach required across the project: loggers and configuration managers are attached to `context.Context` before any builders are invoked, and all resources are constructed by calling `Build(ctx)`.
+This directory contains runnable Go programs demonstrating core patterns in the Compozy SDK. Each example is organized in its own subdirectory under `sdk/cmd/` and follows the context-first approach required across the project: loggers and configuration managers are attached to `context.Context` before any builders are invoked, and all resources are constructed by calling `Build(ctx)`.
 
 ## 01. Simple Workflow
 
-The file `01_simple_workflow.go` is the "hello world" example. It shows how to:
+Located in `sdk/cmd/01_simple_workflow/`. This is the "hello world" example that shows how to:
 
 - Bootstrap a context with logger and configuration manager
 - Configure an OpenAI model using the model builder
@@ -26,14 +26,14 @@ export OPENAI_API_KEY="sk-..."
 Execute the program from the repository root:
 
 ```bash
-go run ./sdk/examples/01_simple_workflow.go
+go run ./sdk/cmd/01_simple_workflow
 ```
 
 The program logs each build step, prints a summary of the resulting project configuration, and warns when required environment variables are missing.
 
 ## 02. Parallel Tasks
 
-The file `02_parallel_tasks.go` demonstrates how to orchestrate concurrent analysis pipelines while keeping task outputs aligned for downstream consumers. It highlights how to:
+Located in `sdk/cmd/02_parallel_tasks/`. This example demonstrates how to orchestrate concurrent analysis pipelines while keeping task outputs aligned for downstream consumers. It highlights how to:
 
 - Build three specialized agents (sentiment, entity extraction, summarization)
 - Configure individual basic tasks that share workflow input via templates
@@ -44,7 +44,7 @@ The file `02_parallel_tasks.go` demonstrates how to orchestrate concurrent analy
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/02_parallel_tasks.go
+go run ./sdk/cmd/02_parallel_tasks
 ```
 
 Use the same `OPENAI_API_KEY` export from the simple workflow example; the builders log a warning when credentials are missing.
@@ -57,7 +57,7 @@ Upcoming examples in this directory will introduce knowledge bases, long-term me
 
 ## 03. Knowledge RAG
 
-The file `03_knowledge_rag.go` assembles a complete retrieval augmented generation pipeline with all five knowledge builders. It walks through configuring an OpenAI embedder, provisioning a pgvector-backed collection, wiring local file and directory sources alongside remote documentation URLs, and binding the resulting knowledge base to an agent inside a runnable workflow.
+Located in `sdk/cmd/03_knowledge_rag/`. This example assembles a complete retrieval augmented generation pipeline with all five knowledge builders. It walks through configuring an OpenAI embedder, provisioning a pgvector-backed collection, wiring local file and directory sources alongside remote documentation URLs, and binding the resulting knowledge base to an agent inside a runnable workflow.
 
 ### Prerequisites
 
@@ -71,14 +71,14 @@ Ensure the referenced PostgreSQL instance has the `pgvector` extension installed
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/03_knowledge_rag.go
+go run ./sdk/cmd/03_knowledge_rag
 ```
 
 The program prints a summary confirming that the embedder, vector database, knowledge base, and agent binding were all constructed successfully, highlighting chunking, retrieval, and binding parameters used during ingestion.
 
 ## 04. Memory Conversation
 
-The file `04_memory_conversation.go` demonstrates the full memory subsystem, wiring a support agent to durable conversation state. It highlights how to:
+Located in `sdk/cmd/04_memory_conversation/`. This example demonstrates the full memory subsystem, wiring a support agent to durable conversation state. It highlights how to:
 
 - Configure token-aware memory with summarization flush, user-scoped privacy, 24-hour expiration, Redis persistence, and distributed locking
 - Build a dynamic memory reference so each conversation and user pair receives an isolated namespace
@@ -97,14 +97,14 @@ Ensure the Redis instance referenced by `REDIS_URL` is reachable; the example pr
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/04_memory_conversation.go
+go run ./sdk/cmd/04_memory_conversation
 ```
 
 The program emits a summary covering the memory resource, privacy scope, expiration window, and distributed locking state so you can validate that all advanced features are enabled.
 
 ## 05. MCP Integration
 
-The file `05_mcp_integration.go` configures three MCP transports side-by-side to illustrate how remote HTTP (SSE), local stdio, and containerized stdio servers coexist inside an SDK project. The example demonstrates how to:
+Located in `sdk/cmd/05_mcp_integration/`. This example configures three MCP transports side-by-side to illustrate how remote HTTP (SSE), local stdio, and containerized stdio servers coexist inside an SDK project. The example demonstrates how to:
 
 - Bootstrap MCP definitions with headers, auth tokens, protocol selection, and session caps for a remote GitHub server
 - Launch a filesystem MCP over stdio with environment variables and tight startup timeouts
@@ -122,14 +122,14 @@ export POSTGRES_DSN="postgres://postgres:postgres@localhost:5432/compozy?sslmode
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/05_mcp_integration.go
+go run ./sdk/cmd/05_mcp_integration
 ```
 
 The program prints a summary of each MCP configuration, including transport type, headers, environment variables, and startup timeouts so you can confirm every integration path is wired correctly.
 
 ## 06. Runtime + Native Tools
 
-The file `06_runtime_native_tools.go` demonstrates how to configure Bun runtimes alongside native tool capabilities while contrasting the three runtime profiles (Bun sandbox, Node compatibility, and inherited global settings). It highlights how to:
+Located in `sdk/cmd/06_runtime_native_tools/`. This example demonstrates how to configure Bun runtimes alongside native tool capabilities while contrasting the three runtime profiles (Bun sandbox, Node compatibility, and inherited global settings). It highlights how to:
 
 - Enable `cp__call_agents` and `cp__call_workflows` natively inside the Bun sandbox
 - Tune Bun permissions and memory ceilings to satisfy security constraints
@@ -139,14 +139,14 @@ The file `06_runtime_native_tools.go` demonstrates how to configure Bun runtimes
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/06_runtime_native_tools.go
+go run ./sdk/cmd/06_runtime_native_tools
 ```
 
 The example logs a structured summary for each runtime profile so operators can audit permissions, native tool availability, and memory limits before deploying real TypeScript or JavaScript entrypoints.
 
 ## 07. Scheduled Workflow
 
-The file `07_scheduled_workflow.go` shows how to attach multiple cron-based schedules to a single workflow. It covers:
+Located in `sdk/cmd/07_scheduled_workflow/`. This example shows how to attach multiple cron-based schedules to a single workflow. It covers:
 
 - Building a workflow once and referencing it from daily and weekly schedules
 - Using the schedule builder to declare cron expressions, default input payloads, and retry policies
@@ -156,14 +156,14 @@ The file `07_scheduled_workflow.go` shows how to attach multiple cron-based sche
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/07_scheduled_workflow.go
+go run ./sdk/cmd/07_scheduled_workflow
 ```
 
 The program logs each schedule with its cron expression, retry configuration, and input keys so you can confirm the automation profile the project will register.
 
 ## 08. Signal Communication
 
-The file `08_signal_communication.go` demonstrates how two workflows coordinate through the unified signal builder. It highlights how to:
+Located in `sdk/cmd/08_signal_communication/`. This example demonstrates how two workflows coordinate through the unified signal builder. It highlights how to:
 
 - Build a processing workflow that sends a readiness signal with structured payload data
 - Configure a downstream workflow that waits on the same signal with an explicit timeout window
@@ -173,14 +173,14 @@ The file `08_signal_communication.go` demonstrates how two workflows coordinate 
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/08_signal_communication.go
+go run ./sdk/cmd/08_signal_communication
 ```
 
 The program prints context-aware logs that illustrate when to use `Send()` versus `Wait()`, how payload keys propagate to receivers, and how timeouts guard against stalled upstream workflows.
 
 ## 10. Complete Project
 
-The file `10_complete_project.go` is the kitchen-sink reference: it assembles every SDK builder into a single runnable project, wires live integrations, and boots an embedded Compozy instance end-to-end. You can treat it as the canonical blueprint when you need to remember how two or more subsystems snap together.
+Located in `sdk/cmd/10_complete_project/`. This is the kitchen-sink reference: it assembles every SDK builder into a single runnable project, wires live integrations, and boots an embedded Compozy instance end-to-end. You can treat it as the canonical blueprint when you need to remember how two or more subsystems snap together.
 
 ### Prerequisites
 
@@ -193,7 +193,7 @@ The file `10_complete_project.go` is the kitchen-sink reference: it assembles ev
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/10_complete_project.go
+go run ./sdk/cmd/10_complete_project
 ```
 
 The program emits a structured summary detailing models, knowledge bases, schedules, monitoring endpoints (`http://127.0.0.1:18080/metrics`), and workflow outputs.
@@ -219,12 +219,12 @@ The program emits a structured summary detailing models, knowledge bases, schedu
 
 ## 11. Debugging Toolkit
 
-The file `11_debugging.go` focuses on troubleshooting techniques rather than orchestration. It shows how to accumulate build errors, inspect configs, validate manually, measure builder latency, and set up contextual logging.
+Located in `sdk/cmd/11_debugging/`. This example focuses on troubleshooting techniques rather than orchestration. It shows how to accumulate build errors, inspect configs, validate manually, measure builder latency, and set up contextual logging.
 
 ### Run the Example
 
 ```bash
-go run ./sdk/examples/11_debugging.go
+go run ./sdk/cmd/11_debugging
 ```
 
 ### What You’ll See

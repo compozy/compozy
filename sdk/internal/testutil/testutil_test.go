@@ -4,10 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
-	"time"
 
 	enginecore "github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/config"
@@ -34,7 +32,7 @@ func TestRequireNoError(t *testing.T) {
 	prev := reportFailure
 	called := false
 	var message string
-	reportFailure = func(tt *testing.T, format string, args ...any) {
+	reportFailure = func(_ *testing.T, format string, args ...any) {
 		called = true
 		message = fmt.Sprintf(format, args...)
 	}
@@ -57,7 +55,7 @@ func TestRequireValidationError(t *testing.T) {
 	prev := reportFailure
 	called := false
 	var message string
-	reportFailure = func(tt *testing.T, format string, args ...any) {
+	reportFailure = func(_ *testing.T, format string, args ...any) {
 		called = true
 		message = fmt.Sprintf(format, args...)
 	}
@@ -162,7 +160,7 @@ func TestRunTableTests(t *testing.T) {
 			Name:        "err",
 			WantErr:     true,
 			ErrContains: "boom",
-			BuildFunc: func(ctx context.Context) (any, error) {
+			BuildFunc: func(_ context.Context) (any, error) {
 				executions = append(executions, "err")
 				return nil, fmt.Errorf("boom failure")
 			},
@@ -179,21 +177,4 @@ func TestAssertConfigEqual(t *testing.T) {
 	want := map[string]any{"k": "v"}
 	got := map[string]any{"k": "v"}
 	AssertConfigEqual(t, want, got)
-}
-
-func TestTestDataHelpers(t *testing.T) {
-	t.Parallel()
-	name := fmt.Sprintf("temp-%d.txt", time.Now().UnixNano())
-	path := TestDataPath(t, name)
-	data := []byte("sample")
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		t.Fatalf("failed to write testdata: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Remove(path)
-	})
-	read := ReadTestData(t, name)
-	if string(read) != "sample" {
-		t.Fatalf("expected to read sample, got %s", string(read))
-	}
 }

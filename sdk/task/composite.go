@@ -91,10 +91,8 @@ func (b *CompositeBuilder) Build(ctx context.Context) (*enginetask.Config, error
 		b.config.With != nil,
 	)
 
-	collected := make([]error, 0, len(b.errors)+2)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateWorkflow(ctx))
+	collected := append(make([]error, 0, len(b.errors)+2), b.errors...)
+	collected = append(collected, b.validateID(ctx), b.validateWorkflow(ctx))
 
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -115,7 +113,7 @@ func (b *CompositeBuilder) Build(ctx context.Context) (*enginetask.Config, error
 
 func (b *CompositeBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	b.config.Resource = string(core.ConfigTask)
@@ -128,7 +126,7 @@ func (b *CompositeBuilder) validateWorkflow(ctx context.Context) error {
 	if b.config.Action == "" {
 		return fmt.Errorf("workflow id is required")
 	}
-	if err := validate.ValidateID(ctx, b.config.Action); err != nil {
+	if err := validate.ID(ctx, b.config.Action); err != nil {
 		return fmt.Errorf("workflow id is invalid: %w", err)
 	}
 	return nil

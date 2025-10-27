@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -156,7 +157,8 @@ func TestSourceBuildFailsWithNilContext(t *testing.T) {
 	t.Parallel()
 
 	builder := NewURLSource("https://example.com")
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Error(t, err)
 	assert.Nil(t, cfg)
 	assert.Contains(t, err.Error(), "context is required")

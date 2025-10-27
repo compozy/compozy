@@ -1,6 +1,7 @@
 package project
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -479,7 +480,8 @@ func TestBuildNilContext(t *testing.T) {
 	t.Parallel()
 
 	builder := New("proj").AddWorkflow(sampleWorkflow("wf"))
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Error(t, err)
 	require.Nil(t, cfg)
 }

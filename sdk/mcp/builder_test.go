@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -408,7 +409,8 @@ func TestBuildFailsWithNilContext(t *testing.T) {
 	t.Parallel()
 
 	builder := New("filesystem").WithCommand("mcp-server")
-	cfg, err := builder.Build(nil)
+	var missingCtx context.Context
+	cfg, err := builder.Build(missingCtx)
 	require.Error(t, err)
 	require.Nil(t, cfg)
 }

@@ -127,7 +127,7 @@ func (b *Builder) RequireProperty(name string) *Builder {
 }
 
 // WithMinLength sets the minimum length for string schemas.
-func (b *Builder) WithMinLength(min int) *Builder {
+func (b *Builder) WithMinLength(minValue int) *Builder {
 	if b == nil {
 		return nil
 	}
@@ -135,16 +135,16 @@ func (b *Builder) WithMinLength(min int) *Builder {
 		b.errors = append(b.errors, fmt.Errorf("minLength is only valid for string schemas"))
 		return b
 	}
-	if min < 0 {
+	if minValue < 0 {
 		b.errors = append(b.errors, fmt.Errorf("minLength must be non-negative"))
 		return b
 	}
-	b.schema["minLength"] = min
+	b.schema["minLength"] = minValue
 	return b
 }
 
 // WithMaxLength sets the maximum length for string schemas.
-func (b *Builder) WithMaxLength(max int) *Builder {
+func (b *Builder) WithMaxLength(maxValue int) *Builder {
 	if b == nil {
 		return nil
 	}
@@ -152,11 +152,11 @@ func (b *Builder) WithMaxLength(max int) *Builder {
 		b.errors = append(b.errors, fmt.Errorf("maxLength is only valid for string schemas"))
 		return b
 	}
-	if max < 0 {
+	if maxValue < 0 {
 		b.errors = append(b.errors, fmt.Errorf("maxLength must be non-negative"))
 		return b
 	}
-	b.schema["maxLength"] = max
+	b.schema["maxLength"] = maxValue
 	return b
 }
 
@@ -213,7 +213,7 @@ func (b *Builder) WithEnum(values ...string) *Builder {
 }
 
 // WithMinimum sets the minimum value for number or integer schemas.
-func (b *Builder) WithMinimum(min float64) *Builder {
+func (b *Builder) WithMinimum(minValue float64) *Builder {
 	if b == nil {
 		return nil
 	}
@@ -221,12 +221,12 @@ func (b *Builder) WithMinimum(min float64) *Builder {
 		b.errors = append(b.errors, fmt.Errorf("minimum is only valid for number or integer schemas"))
 		return b
 	}
-	b.schema["minimum"] = min
+	b.schema["minimum"] = minValue
 	return b
 }
 
 // WithMaximum sets the maximum value for number or integer schemas.
-func (b *Builder) WithMaximum(max float64) *Builder {
+func (b *Builder) WithMaximum(maxValue float64) *Builder {
 	if b == nil {
 		return nil
 	}
@@ -234,12 +234,12 @@ func (b *Builder) WithMaximum(max float64) *Builder {
 		b.errors = append(b.errors, fmt.Errorf("maximum is only valid for number or integer schemas"))
 		return b
 	}
-	b.schema["maximum"] = max
+	b.schema["maximum"] = maxValue
 	return b
 }
 
 // WithMinItems sets the minimum number of items for array schemas.
-func (b *Builder) WithMinItems(min int) *Builder {
+func (b *Builder) WithMinItems(minValue int) *Builder {
 	if b == nil {
 		return nil
 	}
@@ -247,16 +247,16 @@ func (b *Builder) WithMinItems(min int) *Builder {
 		b.errors = append(b.errors, fmt.Errorf("minItems is only valid for array schemas"))
 		return b
 	}
-	if min < 0 {
+	if minValue < 0 {
 		b.errors = append(b.errors, fmt.Errorf("minItems must be non-negative"))
 		return b
 	}
-	b.schema["minItems"] = min
+	b.schema["minItems"] = minValue
 	return b
 }
 
 // WithMaxItems sets the maximum number of items for array schemas.
-func (b *Builder) WithMaxItems(max int) *Builder {
+func (b *Builder) WithMaxItems(maxValue int) *Builder {
 	if b == nil {
 		return nil
 	}
@@ -264,11 +264,11 @@ func (b *Builder) WithMaxItems(max int) *Builder {
 		b.errors = append(b.errors, fmt.Errorf("maxItems is only valid for array schemas"))
 		return b
 	}
-	if max < 0 {
+	if maxValue < 0 {
 		b.errors = append(b.errors, fmt.Errorf("maxItems must be non-negative"))
 		return b
 	}
-	b.schema["maxItems"] = max
+	b.schema["maxItems"] = maxValue
 	return b
 }
 
@@ -328,7 +328,21 @@ func (b *Builder) WithRef(schemaID string) *Builder {
 		b.errors = append(b.errors, fmt.Errorf("schema reference ID cannot be empty"))
 		return b
 	}
-	for _, key := range []string{"type", "properties", "required", "items", "enum", "minLength", "maxLength", "pattern", "minimum", "maximum", "minItems", "maxItems"} {
+	keys := []string{
+		"type",
+		"properties",
+		"required",
+		"items",
+		"enum",
+		"minLength",
+		"maxLength",
+		"pattern",
+		"minimum",
+		"maximum",
+		"minItems",
+		"maxItems",
+	}
+	for _, key := range keys {
 		delete(b.schema, key)
 	}
 	b.schema["$ref"] = trimmed
@@ -360,8 +374,12 @@ func (b *Builder) TestAgainstSample(ctx context.Context, sample any) error {
 	if sch == nil {
 		return nil
 	}
-	_, validateErr := sch.Validate(ctx, sample)
-	return validateErr
+	result, validateErr := sch.Validate(ctx, sample)
+	if validateErr != nil {
+		return validateErr
+	}
+	_ = result
+	return nil
 }
 
 // Build finalizes the schema and returns a deep copy ready for use.
@@ -411,7 +429,7 @@ func (b *Builder) validateStructure(ctx context.Context) []error {
 		errs = append(errs, fmt.Errorf("unsupported schema type %v", b.schema["type"]))
 	}
 	if _, hasRef := b.schema["$ref"]; hasRef {
-		if err := validate.ValidateNonEmpty(ctx, "schema reference", fmt.Sprint(b.schema["$ref"])); err != nil {
+		if err := validate.NonEmpty(ctx, "schema reference", fmt.Sprint(b.schema["$ref"])); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -421,11 +439,11 @@ func (b *Builder) validateStructure(ctx context.Context) []error {
 	return errs
 }
 
-func (b *Builder) validateStringBounds(ctx context.Context) []error {
+func (b *Builder) validateStringBounds(_ context.Context) []error {
 	errs := make([]error, 0, 2)
-	min, minOK := b.schema["minLength"].(int)
-	max, maxOK := b.schema["maxLength"].(int)
-	if minOK && maxOK && min > max {
+	minValue, minOK := b.schema["minLength"].(int)
+	maxValue, maxOK := b.schema["maxLength"].(int)
+	if minOK && maxOK && minValue > maxValue {
 		errs = append(errs, fmt.Errorf("minLength cannot exceed maxLength"))
 	}
 	if enumValues, ok := b.schema["enum"].([]string); ok {
@@ -436,21 +454,21 @@ func (b *Builder) validateStringBounds(ctx context.Context) []error {
 	return errs
 }
 
-func (b *Builder) validateNumberBounds(ctx context.Context) []error {
+func (b *Builder) validateNumberBounds(_ context.Context) []error {
 	errs := make([]error, 0, 1)
-	min, minOK := b.schema["minimum"].(float64)
-	max, maxOK := b.schema["maximum"].(float64)
-	if minOK && maxOK && min > max {
+	minValue, minOK := b.schema["minimum"].(float64)
+	maxValue, maxOK := b.schema["maximum"].(float64)
+	if minOK && maxOK && minValue > maxValue {
 		errs = append(errs, fmt.Errorf("minimum cannot exceed maximum"))
 	}
 	return errs
 }
 
-func (b *Builder) validateArrayBounds(ctx context.Context) []error {
+func (b *Builder) validateArrayBounds(_ context.Context) []error {
 	errs := make([]error, 0, 2)
-	min, minOK := b.schema["minItems"].(int)
-	max, maxOK := b.schema["maxItems"].(int)
-	if minOK && maxOK && min > max {
+	minValue, minOK := b.schema["minItems"].(int)
+	maxValue, maxOK := b.schema["maxItems"].(int)
+	if minOK && maxOK && minValue > maxValue {
 		errs = append(errs, fmt.Errorf("minItems cannot exceed maxItems"))
 	}
 	if _, ok := b.schema["items"]; !ok {
@@ -467,7 +485,7 @@ func (b *Builder) validateObject(ctx context.Context) []error {
 		b.schema["properties"] = props
 	}
 	for name := range props {
-		if err := validate.ValidateNonEmpty(ctx, "property name", name); err != nil {
+		if err := validate.NonEmpty(ctx, "property name", name); err != nil {
 			errs = append(errs, err)
 		}
 	}

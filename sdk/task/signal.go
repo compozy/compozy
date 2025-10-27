@@ -179,53 +179,13 @@ func (b *SignalBuilder) Wait(signalID string) *SignalBuilder {
 
 // Build validates the accumulated configuration and returns a cloned engine task configuration.
 func (b *SignalBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
-	if b == nil {
-		return nil, fmt.Errorf("signal builder is required")
+	if err := b.ensureBuilderState(ctx); err != nil {
+		return nil, err
 	}
-	if ctx == nil {
-		return nil, fmt.Errorf("context is required")
-	}
-
-	log := logger.FromContext(ctx)
-	log.Debug(
-		"building signal task configuration",
-		"task",
-		b.config.ID,
-		"mode",
-		string(b.mode),
-		"hasPayload",
-		b.payload != nil && len(b.payload) > 0,
-		"timeoutSet",
-		b.timeoutSet,
-	)
-
-	collected := make([]error, 0, len(b.errors)+6)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.applyTaskID(ctx))
-	collected = append(collected, b.ensureSignalID(ctx))
-	collected = append(collected, b.ensureModeSelected())
-
-	switch b.mode {
-	case SignalModeSend:
-		collected = append(collected, b.applySendConfig(ctx))
-	case SignalModeWait:
-		collected = append(collected, b.applyWaitConfig(ctx))
-	default:
-		if b.modeSet {
-			collected = append(collected, fmt.Errorf("unsupported signal mode: %s", b.mode))
-		}
-	}
-
-	filtered := make([]error, 0, len(collected))
-	for _, err := range collected {
-		if err != nil {
-			filtered = append(filtered, err)
-		}
-	}
+	filtered := b.collectBuildErrors(ctx)
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
-
 	cloned, err := core.DeepCopy(b.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone signal task config: %w", err)
@@ -233,9 +193,56 @@ func (b *SignalBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
 	return cloned, nil
 }
 
+func (b *SignalBuilder) ensureBuilderState(ctx context.Context) error {
+	if b == nil {
+		return fmt.Errorf("signal builder is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	logger.FromContext(ctx).Debug(
+		"building signal task configuration",
+		"task",
+		b.config.ID,
+		"mode",
+		string(b.mode),
+		"hasPayload",
+		len(b.payload) > 0,
+		"timeoutSet",
+		b.timeoutSet,
+	)
+	return nil
+}
+
+func (b *SignalBuilder) collectBuildErrors(ctx context.Context) []error {
+	collected := append(make([]error, 0, len(b.errors)+6), b.errors...)
+	collected = append(
+		collected,
+		b.applyTaskID(ctx),
+		b.ensureSignalID(ctx),
+		b.ensureModeSelected(),
+		b.applyModeConfig(ctx),
+	)
+	return filterNonNilErrors(collected)
+}
+
+func (b *SignalBuilder) applyModeConfig(ctx context.Context) error {
+	switch b.mode {
+	case SignalModeSend:
+		return b.applySendConfig(ctx)
+	case SignalModeWait:
+		return b.applyWaitConfig(ctx)
+	default:
+		if b.modeSet {
+			return fmt.Errorf("unsupported signal mode: %s", b.mode)
+		}
+		return nil
+	}
+}
+
 func (b *SignalBuilder) applyTaskID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	b.config.Resource = string(core.ConfigTask)
@@ -244,7 +251,7 @@ func (b *SignalBuilder) applyTaskID(ctx context.Context) error {
 
 func (b *SignalBuilder) ensureSignalID(ctx context.Context) error {
 	b.signalID = strings.TrimSpace(b.signalID)
-	if err := validate.ValidateNonEmpty(ctx, "signal_id", b.signalID); err != nil {
+	if err := validate.NonEmpty(ctx, "signal_id", b.signalID); err != nil {
 		return err
 	}
 	return nil
@@ -264,7 +271,7 @@ func (b *SignalBuilder) applySendConfig(ctx context.Context) error {
 	if !b.dataProvided || b.payload == nil {
 		return fmt.Errorf("send mode requires data payload")
 	}
-	if err := validate.ValidateNonEmpty(ctx, "signal_id", b.signalID); err != nil {
+	if err := validate.NonEmpty(ctx, "signal_id", b.signalID); err != nil {
 		return err
 	}
 	cloned := core.CloneMap(b.payload)
@@ -288,7 +295,7 @@ func (b *SignalBuilder) applyWaitConfig(ctx context.Context) error {
 	if !b.timeoutSet || b.timeout == nil {
 		return fmt.Errorf("wait mode requires a timeout")
 	}
-	if err := validate.ValidateDuration(ctx, *b.timeout); err != nil {
+	if err := validate.Duration(ctx, *b.timeout); err != nil {
 		return err
 	}
 	b.config.Signal = nil
@@ -297,4 +304,14 @@ func (b *SignalBuilder) applyWaitConfig(ctx context.Context) error {
 	b.config.Timeout = timeout.String()
 	b.config.Type = enginetask.TaskTypeWait
 	return nil
+}
+
+func filterNonNilErrors(errs []error) []error {
+	result := make([]error, 0, len(errs))
+	for _, err := range errs {
+		if err != nil {
+			result = append(result, err)
+		}
+	}
+	return result
 }

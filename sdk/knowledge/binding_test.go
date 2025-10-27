@@ -1,6 +1,7 @@
 package knowledge
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -104,7 +105,8 @@ func TestBindingBuilder(t *testing.T) {
 	})
 
 	t.Run("ShouldRequireContext", func(t *testing.T) {
-		_, err := NewBinding("kb-alpha").Build(nil)
+		var missingCtx context.Context
+		_, err := NewBinding("kb-alpha").Build(missingCtx)
 		require.Error(t, err)
 		assert.EqualError(t, err, "context is required")
 	})

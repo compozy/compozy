@@ -127,11 +127,8 @@ func (b *AggregateBuilder) Build(ctx context.Context) (*enginetask.Config, error
 		b.function != "",
 	)
 
-	collected := make([]error, 0, len(b.errors)+4)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateTasks(ctx))
-	collected = append(collected, b.validateStrategy())
+	collected := append(make([]error, 0, len(b.errors)+4), b.errors...)
+	collected = append(collected, b.validateID(ctx), b.validateTasks(ctx), b.validateStrategy())
 
 	var outputs *core.Input
 	if len(b.tasks) > 0 {
@@ -169,7 +166,7 @@ func (b *AggregateBuilder) hasTask(id string) bool {
 
 func (b *AggregateBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	b.config.Resource = string(core.ConfigTask)
@@ -183,7 +180,7 @@ func (b *AggregateBuilder) validateTasks(ctx context.Context) error {
 	}
 	for idx := range b.tasks {
 		taskID := strings.TrimSpace(b.tasks[idx])
-		if err := validate.ValidateID(ctx, taskID); err != nil {
+		if err := validate.ID(ctx, taskID); err != nil {
 			return fmt.Errorf("aggregate task reference %q is invalid: %w", taskID, err)
 		}
 		b.tasks[idx] = taskID

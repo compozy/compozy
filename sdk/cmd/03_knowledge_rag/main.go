@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -34,11 +32,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := run(ctx); err != nil {
 		logger.FromContext(ctx).Error("knowledge RAG example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 func initializeContext() (context.Context, func(), error) {
@@ -61,6 +60,24 @@ func initializeContext() (context.Context, func(), error) {
 	return ctx, cleanup, nil
 }
 
+type knowledgeResources struct {
+	fileSource *engineknowledge.SourceConfig
+	dirSource  *engineknowledge.SourceConfig
+	urlSource  *engineknowledge.SourceConfig
+	embedder   *engineknowledge.EmbedderConfig
+	vectorDB   *engineknowledge.VectorDBConfig
+	base       *engineknowledge.BaseConfig
+	binding    *knowledge.BindingConfig
+}
+
+type workflowComponents struct {
+	model    *core.ProviderConfig
+	action   *engineagent.ActionConfig
+	agent    *engineagent.Config
+	task     *enginetask.Config
+	workflow *engineworkflow.Config
+}
+
 func run(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	filePath, dirPath, cleanup, err := prepareSampleContent(ctx)
@@ -68,54 +85,108 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("prepare sample content: %w", err)
 	}
 	defer cleanup()
-	fileSource, dirSource, urlSource, err := buildSources(ctx, filePath, dirPath)
+	knowledgeRes, err := buildAllKnowledgeResources(ctx, filePath, dirPath)
 	if err != nil {
 		return err
 	}
+	components, err := buildAllWorkflowComponents(ctx, knowledgeRes.binding)
+	if err != nil {
+		return err
+	}
+	projectCfg, err := assembleProject(ctx, components, knowledgeRes)
+	if err != nil {
+		return err
+	}
+	log.Info(
+		"✅ knowledge system built",
+		"knowledge_base",
+		knowledgeRes.base.ID,
+		"documents",
+		len(knowledgeRes.base.Sources),
+	)
+	printSummary(projectCfg, knowledgeRes.embedder, knowledgeRes.vectorDB, knowledgeRes.base)
+	return nil
+}
+
+func buildAllKnowledgeResources(ctx context.Context, filePath, dirPath string) (*knowledgeResources, error) {
+	fileSource, dirSource, urlSource, err := buildSources(ctx, filePath, dirPath)
+	if err != nil {
+		return nil, err
+	}
 	embedderCfg, err := buildEmbedder(ctx)
 	if err != nil {
-		return handleBuildError(ctx, "embedder", err)
+		return nil, handleBuildError(ctx, "embedder", err)
 	}
 	vectorDBCfg, err := buildVectorDB(ctx)
 	if err != nil {
-		return handleBuildError(ctx, "vector_db", err)
+		return nil, handleBuildError(ctx, "vector_db", err)
 	}
 	kbCfg, err := buildKnowledgeBase(ctx, fileSource, dirSource, urlSource)
 	if err != nil {
-		return handleBuildError(ctx, "knowledge_base", err)
+		return nil, handleBuildError(ctx, "knowledge_base", err)
 	}
 	bindingCfg, err := buildKnowledgeBinding(ctx, kbCfg.ID)
 	if err != nil {
-		return handleBuildError(ctx, "knowledge_binding", err)
+		return nil, handleBuildError(ctx, "knowledge_binding", err)
 	}
+	return &knowledgeResources{
+		fileSource: fileSource,
+		dirSource:  dirSource,
+		urlSource:  urlSource,
+		embedder:   embedderCfg,
+		vectorDB:   vectorDBCfg,
+		base:       kbCfg,
+		binding:    bindingCfg,
+	}, nil
+}
+
+func buildAllWorkflowComponents(ctx context.Context, binding *knowledge.BindingConfig) (*workflowComponents, error) {
 	modelCfg, err := buildModel(ctx)
 	if err != nil {
-		return handleBuildError(ctx, "model", err)
+		return nil, handleBuildError(ctx, "model", err)
 	}
 	actionCfg, err := buildAnswerAction(ctx)
 	if err != nil {
-		return handleBuildError(ctx, "action", err)
+		return nil, handleBuildError(ctx, "action", err)
 	}
-	agentCfg, err := buildAgent(ctx, actionCfg, bindingCfg)
+	agentCfg, err := buildAgent(ctx, actionCfg, binding)
 	if err != nil {
-		return handleBuildError(ctx, "agent", err)
+		return nil, handleBuildError(ctx, "agent", err)
 	}
 	taskCfg, err := buildKnowledgeTask(ctx, agentCfg)
 	if err != nil {
-		return handleBuildError(ctx, "task", err)
+		return nil, handleBuildError(ctx, "task", err)
 	}
 	workflowCfg, err := buildWorkflow(ctx, agentCfg, taskCfg)
 	if err != nil {
-		return handleBuildError(ctx, "workflow", err)
+		return nil, handleBuildError(ctx, "workflow", err)
 	}
-	projectCfg, err := buildProject(ctx, modelCfg, workflowCfg, agentCfg)
+	return &workflowComponents{
+		model:    modelCfg,
+		action:   actionCfg,
+		agent:    agentCfg,
+		task:     taskCfg,
+		workflow: workflowCfg,
+	}, nil
+}
+
+func assembleProject(
+	ctx context.Context,
+	components *workflowComponents,
+	knowledgeRes *knowledgeResources,
+) (*engineproject.Config, error) {
+	projectCfg, err := buildProject(ctx, components.model, components.workflow, components.agent)
 	if err != nil {
-		return handleBuildError(ctx, "project", err)
+		return nil, handleBuildError(ctx, "project", err)
 	}
-	registerKnowledgeResources(projectCfg, embedderCfg, vectorDBCfg, kbCfg, bindingCfg)
-	log.Info("✅ knowledge system built", "knowledge_base", kbCfg.ID, "documents", len(kbCfg.Sources))
-	printSummary(projectCfg, embedderCfg, vectorDBCfg, kbCfg)
-	return nil
+	registerKnowledgeResources(
+		projectCfg,
+		knowledgeRes.embedder,
+		knowledgeRes.vectorDB,
+		knowledgeRes.base,
+		knowledgeRes.binding,
+	)
+	return projectCfg, nil
 }
 
 func prepareSampleContent(ctx context.Context) (string, string, func(), error) {
@@ -237,8 +308,11 @@ func buildModel(ctx context.Context) (*core.ProviderConfig, error) {
 }
 
 func buildAnswerAction(ctx context.Context) (*engineagent.ActionConfig, error) {
+	answerProp := schema.NewString().
+		WithDescription("Concise response grounded in retrieved documents").
+		WithMinLength(1)
 	output, err := schema.NewObject().
-		AddProperty("answer", schema.NewString().WithDescription("Concise response grounded in retrieved documents").WithMinLength(1).Build(ctx)).
+		AddProperty("answer", answerProp).
 		RequireProperty("answer").
 		Build(ctx)
 	if err != nil {

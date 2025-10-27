@@ -127,15 +127,17 @@ func (b *WaitBuilder) Build(ctx context.Context) (*enginetask.Config, error) {
 		b.conditionSet,
 	)
 
-	collected := make([]error, 0, len(b.errors)+6)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.ensureMode())
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateWaitFor(ctx))
-	collected = append(collected, b.applyDuration())
-	collected = append(collected, b.validateCondition(ctx))
-	collected = append(collected, b.ensureConditionHasTimeout())
-	collected = append(collected, b.applyTimeout())
+	collected := append(make([]error, 0, len(b.errors)+6), b.errors...)
+	collected = append(
+		collected,
+		b.ensureMode(),
+		b.validateID(ctx),
+		b.validateWaitFor(ctx),
+		b.applyDuration(),
+		b.validateCondition(ctx),
+		b.ensureConditionHasTimeout(),
+	)
+	b.applyTimeout()
 
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -172,7 +174,7 @@ func (b *WaitBuilder) ensureMode() error {
 
 func (b *WaitBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	return nil
@@ -180,7 +182,7 @@ func (b *WaitBuilder) validateID(ctx context.Context) error {
 
 func (b *WaitBuilder) validateWaitFor(ctx context.Context) error {
 	trimmed := strings.TrimSpace(b.config.WaitFor)
-	if err := validate.ValidateNonEmpty(ctx, "wait_for", trimmed); err != nil {
+	if err := validate.NonEmpty(ctx, "wait_for", trimmed); err != nil {
 		return err
 	}
 	b.config.WaitFor = trimmed
@@ -205,7 +207,7 @@ func (b *WaitBuilder) validateCondition(ctx context.Context) error {
 		return nil
 	}
 	b.config.Condition = strings.TrimSpace(b.config.Condition)
-	if err := validate.ValidateNonEmpty(ctx, "condition", b.config.Condition); err != nil {
+	if err := validate.NonEmpty(ctx, "condition", b.config.Condition); err != nil {
 		return err
 	}
 	return nil
@@ -221,14 +223,13 @@ func (b *WaitBuilder) ensureConditionHasTimeout() error {
 	return nil
 }
 
-func (b *WaitBuilder) applyTimeout() error {
+func (b *WaitBuilder) applyTimeout() {
 	if b.timeout == nil {
-		return nil
+		return
 	}
 	if b.duration != nil {
-		return nil
+		return
 	}
 	timeout := *b.timeout
 	b.config.Timeout = timeout.String()
-	return nil
 }

@@ -31,7 +31,7 @@ func TestBuilderRegistersProjectAndWorkflow(t *testing.T) {
 	t.Parallel()
 
 	ctx, log := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 	store := resources.NewMemoryResourceStore()
 
 	instance, err := defaultBuilder(projectCfg, workflowCfg, store).
@@ -72,7 +72,7 @@ func TestExecuteWorkflowReturnsOutputs(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 
 	instance, err := defaultBuilder(projectCfg, workflowCfg, nil).Build(ctx)
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestExecuteWorkflowUnknownID(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 
 	instance, err := defaultBuilder(projectCfg, workflowCfg, nil).Build(ctx)
 	require.NoError(t, err)
@@ -121,7 +121,7 @@ func TestRegisterProjectValidationFailureIncludesName(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, _ := buildTestConfigs(t, ctx)
+	projectCfg, _ := buildTestConfigs(ctx, t)
 	projectCfg.Opts.SourceOfTruth = "invalid"
 	instance := &Compozy{store: resources.NewMemoryResourceStore()}
 	err := instance.RegisterProject(ctx, projectCfg)
@@ -133,7 +133,7 @@ func TestRegisterWorkflowValidationFailureReturnsID(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 	instance := &Compozy{store: resources.NewMemoryResourceStore()}
 	require.NoError(t, instance.RegisterProject(ctx, projectCfg))
 	if len(workflowCfg.Agents) > 0 {
@@ -148,7 +148,7 @@ func TestRegisterWorkflowDuplicateIDRejected(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 	instance := &Compozy{store: resources.NewMemoryResourceStore()}
 	require.NoError(t, instance.RegisterProject(ctx, projectCfg))
 	require.NoError(t, instance.RegisterWorkflow(ctx, workflowCfg))
@@ -162,8 +162,8 @@ func TestMultipleWorkflowsRegisterInOrder(t *testing.T) {
 
 	ctx, log := newTestContext(t)
 	projectDir := t.TempDir()
-	wfOne := buildWorkflowConfig(t, ctx, "alpha", projectDir)
-	wfTwo := buildWorkflowConfig(t, ctx, "beta", projectDir)
+	wfOne := buildWorkflowConfig(ctx, t, "alpha", projectDir)
+	wfTwo := buildWorkflowConfig(ctx, t, "beta", projectDir)
 	projectCfg, err := projectbuilder.New("demo-order").
 		WithDescription("Order validation project").
 		AddWorkflow(wfOne).
@@ -340,7 +340,7 @@ func TestRegisterKnowledgeBaseRegistersSuccessfully(t *testing.T) {
 	ctx, _ := newTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	projectName := "demo"
-	embedderID, vectorID := seedKnowledgeDependencies(t, ctx, store, projectName, 1536)
+	embedderID, vectorID := seedKnowledgeDependencies(ctx, t, store, projectName, 1536)
 	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
 	kbCfg := sampleKnowledgeBaseConfig(t, "kb-success", embedderID, vectorID)
 	require.NoError(t, instance.RegisterKnowledgeBase(ctx, kbCfg))
@@ -356,7 +356,7 @@ func TestRegisterKnowledgeBaseMissingEmbedder(t *testing.T) {
 	ctx, _ := newTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	projectName := "demo"
-	_, vectorID := seedKnowledgeDependencies(t, ctx, store, projectName, 1024)
+	_, vectorID := seedKnowledgeDependencies(ctx, t, store, projectName, 1024)
 	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
 	kbCfg := sampleKnowledgeBaseConfig(t, "kb-missing-embedder", "missing-embedder", vectorID)
 	err := instance.RegisterKnowledgeBase(ctx, kbCfg)
@@ -371,7 +371,7 @@ func TestRegisterKnowledgeBaseMissingVectorDB(t *testing.T) {
 	ctx, _ := newTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	projectName := "demo"
-	embedderID, _ := seedKnowledgeDependencies(t, ctx, store, projectName, 768)
+	embedderID, _ := seedKnowledgeDependencies(ctx, t, store, projectName, 768)
 	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
 	kbCfg := sampleKnowledgeBaseConfig(t, "kb-missing-vector", embedderID, "missing-vector")
 	err := instance.RegisterKnowledgeBase(ctx, kbCfg)
@@ -386,7 +386,7 @@ func TestRegisterKnowledgeBaseDuplicateIDRejected(t *testing.T) {
 	ctx, _ := newTestContext(t)
 	store := resources.NewMemoryResourceStore()
 	projectName := "demo"
-	embedderID, vectorID := seedKnowledgeDependencies(t, ctx, store, projectName, 1536)
+	embedderID, vectorID := seedKnowledgeDependencies(ctx, t, store, projectName, 1536)
 	instance := &Compozy{store: store, project: &engineproject.Config{Name: projectName}}
 	kbCfg := sampleKnowledgeBaseConfig(t, "kb-dup", embedderID, vectorID)
 	require.NoError(t, instance.RegisterKnowledgeBase(ctx, kbCfg))
@@ -480,7 +480,7 @@ func TestLoadProjectRegistersResourcesInOrder(t *testing.T) {
 	t.Parallel()
 
 	ctx, log := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 	dir := projectCfg.GetCWD().PathStr()
 	projTool := sampleToolConfig(t, "proj-tool")
 	require.NoError(t, projTool.SetCWD(dir))
@@ -516,9 +516,9 @@ func TestLoadProjectRegistersResourcesInOrder(t *testing.T) {
 func TestLoadProjectRegistersKnowledgeMemoryMCP(t *testing.T) {
 	ctx, _ := newTestContext(t)
 	t.Setenv("MCP_PROXY_URL", "http://localhost:7070")
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 	store := resources.NewMemoryResourceStore()
-	embedderID, vectorID := seedKnowledgeDependencies(t, ctx, store, projectCfg.Name, 1536)
+	embedderID, vectorID := seedKnowledgeDependencies(ctx, t, store, projectCfg.Name, 1536)
 	projectCfg.Embedders = append(projectCfg.Embedders, knowledge.EmbedderConfig{
 		ID:       embedderID,
 		Provider: "openai",
@@ -536,7 +536,16 @@ func TestLoadProjectRegistersKnowledgeMemoryMCP(t *testing.T) {
 	kbValue := sampleKnowledgeBaseConfig(t, "kb-load", embedderID, vectorID)
 	projectCfg.KnowledgeBases = append(projectCfg.KnowledgeBases, *kbValue)
 	memValue := sampleMemoryConfig("memory-load")
-	projectCfg.Memories = append(projectCfg.Memories, *memValue)
+	projectCfg.Memories = append(projectCfg.Memories, &memory.Config{
+		Resource:  memValue.Resource,
+		ID:        memValue.ID,
+		Type:      memValue.Type,
+		MaxTokens: memValue.MaxTokens,
+		Persistence: memcore.PersistenceConfig{
+			Type: memValue.Persistence.Type,
+			TTL:  memValue.Persistence.TTL,
+		},
+	})
 	mcpValue := sampleStdIOMCPConfig("mcp-load")
 	projectCfg.MCPs = append(projectCfg.MCPs, *mcpValue)
 	instance := &Compozy{
@@ -560,7 +569,7 @@ func TestHybridProjectSupportsYAML(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 	store := resources.NewMemoryResourceStore()
 	instance, err := defaultBuilder(projectCfg, workflowCfg, store).
 		Build(ctx)
@@ -575,7 +584,7 @@ func TestHybridProjectSupportsYAML(t *testing.T) {
 		projectCWD = cwd.PathStr()
 	}
 	require.NotEmpty(t, projectCWD)
-	yamlWorkflow := buildWorkflowConfig(t, ctx, "yaml-flow", projectCWD)
+	yamlWorkflow := buildWorkflowConfig(ctx, t, "yaml-flow", projectCWD)
 	require.NoError(t, yamlWorkflow.IndexToResourceStore(ctx, projectCfg.Name, store))
 	_, _, err = store.Get(
 		ctx,
@@ -593,7 +602,7 @@ func TestBuilderRequiresProject(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	_, workflowCfg := buildTestConfigs(t, ctx)
+	_, workflowCfg := buildTestConfigs(ctx, t)
 
 	_, err := New(nil).
 		WithWorkflows(workflowCfg).
@@ -608,7 +617,7 @@ func TestBuilderRequiresWorkflows(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, _ := buildTestConfigs(t, ctx)
+	projectCfg, _ := buildTestConfigs(ctx, t)
 	_, err := New(projectCfg).
 		WithDatabase("postgres://user:pass@localhost:5432/compozy?sslmode=disable").
 		WithTemporal("localhost:7233", "default").
@@ -624,7 +633,7 @@ func TestBuilderAggregatesInfrastructureErrors(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 
 	_, err := New(projectCfg).
 		WithWorkflows(workflowCfg).
@@ -639,7 +648,7 @@ func TestLifecycleStartStopWait(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 
 	instance, err := defaultBuilder(projectCfg, workflowCfg, nil).
 		WithServerHost("127.0.0.1").
@@ -664,7 +673,7 @@ func TestConfigAccessors(t *testing.T) {
 	t.Parallel()
 
 	ctx, _ := newTestContext(t)
-	projectCfg, workflowCfg := buildTestConfigs(t, ctx)
+	projectCfg, workflowCfg := buildTestConfigs(ctx, t)
 
 	host := "127.0.0.1"
 	instance, err := defaultBuilder(projectCfg, workflowCfg, nil).
@@ -685,7 +694,7 @@ func TestConfigAccessors(t *testing.T) {
 	require.Equal(t, 12345, instance.Config().Server.Port)
 }
 
-func buildTestConfigs(t *testing.T, ctx context.Context) (*engineproject.Config, *engineworkflow.Config) {
+func buildTestConfigs(ctx context.Context, t *testing.T) (*engineproject.Config, *engineworkflow.Config) {
 	t.Helper()
 
 	agentCfg := &agent.Config{
@@ -723,7 +732,7 @@ func buildTestConfigs(t *testing.T, ctx context.Context) (*engineproject.Config,
 	return projectCfg, workflowCfg
 }
 
-func buildWorkflowConfig(t *testing.T, ctx context.Context, id string, projectDir string) *engineworkflow.Config {
+func buildWorkflowConfig(ctx context.Context, t *testing.T, id string, projectDir string) *engineworkflow.Config {
 	t.Helper()
 
 	agentCfg := &agent.Config{
@@ -784,8 +793,8 @@ func sampleKnowledgeBaseConfig(t *testing.T, id string, embedderID string, vecto
 }
 
 func seedKnowledgeDependencies(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	store resources.ResourceStore,
 	project string,
 	dimension int,

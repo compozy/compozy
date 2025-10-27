@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -103,7 +104,8 @@ func TestPropertyBuilder_NameValidation(t *testing.T) {
 
 func TestPropertyBuilder_ContextRequired(t *testing.T) {
 	t.Parallel()
-	_, err := NewProperty("id").WithType("string").Build(nil)
+	var missingCtx context.Context
+	_, err := NewProperty("id").WithType("string").Build(missingCtx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "context is required")
 }

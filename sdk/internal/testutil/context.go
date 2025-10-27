@@ -12,20 +12,20 @@ import (
 func NewTestContext(tb testing.TB) context.Context {
 	tb.Helper()
 	ctx := contextFromTB(tb)
-	ctx = WithTestLogger(tb, ctx)
-	ctx = WithTestConfig(tb, ctx)
+	ctx = WithTestLogger(ctx, tb)
+	ctx = WithTestConfig(ctx, tb)
 	return ctx
 }
 
 // WithTestLogger returns a copy of ctx containing a logger configured for tests.
-func WithTestLogger(tb testing.TB, ctx context.Context) context.Context {
+func WithTestLogger(ctx context.Context, tb testing.TB) context.Context {
 	tb.Helper()
 	log := logger.NewForTests()
 	return logger.ContextWithLogger(ctx, log)
 }
 
 // WithTestConfig returns a copy of ctx containing a configuration manager loaded with defaults suitable for tests.
-func WithTestConfig(tb testing.TB, ctx context.Context) context.Context {
+func WithTestConfig(ctx context.Context, tb testing.TB) context.Context {
 	tb.Helper()
 	manager := config.NewManager(ctx, config.NewService())
 	if _, err := manager.Load(ctx, config.NewDefaultProvider()); err != nil {

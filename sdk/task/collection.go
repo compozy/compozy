@@ -103,11 +103,8 @@ func (b *CollectionBuilder) Build(ctx context.Context) (*enginetask.Config, erro
 		b.config.Task != nil,
 	)
 
-	collected := make([]error, 0, len(b.errors)+3)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateCollection(ctx))
-	collected = append(collected, b.validateTask(ctx))
+	collected := append(make([]error, 0, len(b.errors)+3), b.errors...)
+	collected = append(collected, b.validateID(ctx), b.validateCollection(ctx), b.validateTask(ctx))
 
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
@@ -133,7 +130,7 @@ func (b *CollectionBuilder) Build(ctx context.Context) (*enginetask.Config, erro
 
 func (b *CollectionBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("task id is invalid: %w", err)
 	}
 	b.config.Resource = string(core.ConfigTask)
@@ -143,7 +140,7 @@ func (b *CollectionBuilder) validateID(ctx context.Context) error {
 
 func (b *CollectionBuilder) validateCollection(ctx context.Context) error {
 	items := strings.TrimSpace(b.config.Items)
-	if err := validate.ValidateNonEmpty(ctx, "collection items", items); err != nil {
+	if err := validate.NonEmpty(ctx, "collection items", items); err != nil {
 		return err
 	}
 	b.config.Items = items
@@ -158,7 +155,7 @@ func (b *CollectionBuilder) validateTask(ctx context.Context) error {
 		return fmt.Errorf("collection task template is required")
 	}
 	b.config.Task.ID = strings.TrimSpace(b.config.Task.ID)
-	if err := validate.ValidateID(ctx, b.config.Task.ID); err != nil {
+	if err := validate.ID(ctx, b.config.Task.ID); err != nil {
 		return fmt.Errorf("collection task id is invalid: %w", err)
 	}
 	b.config.Task.Resource = string(core.ConfigTask)

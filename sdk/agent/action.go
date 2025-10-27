@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -113,6 +114,10 @@ func (a *ActionBuilder) WithRetry(maxAttempts int, backoff time.Duration) *Actio
 		a.errors = append(a.errors, fmt.Errorf("backoff must be positive"))
 		return a
 	}
+	if maxAttempts > math.MaxInt32 {
+		a.errors = append(a.errors, fmt.Errorf("max attempts must be <= %d: got %d", math.MaxInt32, maxAttempts))
+		return a
+	}
 	a.config.RetryPolicy = &core.RetryPolicyConfig{
 		MaximumAttempts:    int32(maxAttempts),
 		InitialInterval:    backoff.String(),
@@ -144,10 +149,8 @@ func (a *ActionBuilder) Build(ctx context.Context) (*engineagent.ActionConfig, e
 	}
 	log := logger.FromContext(ctx)
 	log.Debug("building agent action", "action", a.config.ID)
-	collected := make([]error, 0, len(a.errors)+4)
-	collected = append(collected, a.errors...)
-	collected = append(collected, a.validateID(ctx))
-	collected = append(collected, a.validatePrompt(ctx))
+	collected := append(make([]error, 0, len(a.errors)+4), a.errors...)
+	collected = append(collected, a.validateID(ctx), a.validatePrompt(ctx))
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
 		if err != nil {
@@ -166,7 +169,7 @@ func (a *ActionBuilder) Build(ctx context.Context) (*engineagent.ActionConfig, e
 
 func (a *ActionBuilder) validateID(ctx context.Context) error {
 	a.config.ID = strings.TrimSpace(a.config.ID)
-	if err := validate.ValidateID(ctx, a.config.ID); err != nil {
+	if err := validate.ID(ctx, a.config.ID); err != nil {
 		return fmt.Errorf("action id is invalid: %w", err)
 	}
 	return nil
@@ -174,7 +177,7 @@ func (a *ActionBuilder) validateID(ctx context.Context) error {
 
 func (a *ActionBuilder) validatePrompt(ctx context.Context) error {
 	a.config.Prompt = strings.TrimSpace(a.config.Prompt)
-	if err := validate.ValidateNonEmpty(ctx, "prompt", a.config.Prompt); err != nil {
+	if err := validate.NonEmpty(ctx, "prompt", a.config.Prompt); err != nil {
 		return err
 	}
 	return nil

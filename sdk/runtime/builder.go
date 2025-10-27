@@ -13,15 +13,13 @@ import (
 	"github.com/compozy/compozy/sdk/internal/validate"
 )
 
-// Builder constructs engine runtime configurations for the Bun runtime while accumulating validation errors until Build is invoked.
+// Builder constructs engine runtime configurations for the Bun runtime while collecting validation errors.
 type Builder struct {
 	config *engineruntime.Config
 	errors []error
 }
 
-var cloneRuntimeConfig = func(cfg *engineruntime.Config) (*engineruntime.Config, error) {
-	return core.DeepCopy(cfg)
-}
+var cloneRuntimeConfig = core.DeepCopy[*engineruntime.Config]
 
 // NewBun creates a Builder preconfigured for the Bun runtime using the engine defaults.
 func NewBun() *Builder {
@@ -140,12 +138,14 @@ func (b *Builder) Build(ctx context.Context) (*engineruntime.Config, error) {
 	}
 	log := logger.FromContext(ctx)
 	log.Debug("building runtime configuration", "runtime", b.config.RuntimeType)
-	collected := make([]error, 0, len(b.errors)+3)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateEntrypoint(ctx))
-	collected = append(collected, b.validatePermissions())
-	collected = append(collected, b.validateToolTimeout())
-	collected = append(collected, b.validateMaxMemory())
+	collected := append(make([]error, 0, len(b.errors)+4), b.errors...)
+	collected = append(
+		collected,
+		b.validateEntrypoint(ctx),
+		b.validatePermissions(),
+		b.validateToolTimeout(),
+		b.validateMaxMemory(),
+	)
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
 		if err != nil {
@@ -164,7 +164,7 @@ func (b *Builder) Build(ctx context.Context) (*engineruntime.Config, error) {
 
 func (b *Builder) validateEntrypoint(ctx context.Context) error {
 	b.config.EntrypointPath = strings.TrimSpace(b.config.EntrypointPath)
-	if err := validate.ValidateNonEmpty(ctx, "runtime entrypoint", b.config.EntrypointPath); err != nil {
+	if err := validate.NonEmpty(ctx, "runtime entrypoint", b.config.EntrypointPath); err != nil {
 		return err
 	}
 	return nil

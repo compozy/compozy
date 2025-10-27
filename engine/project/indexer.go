@@ -265,8 +265,10 @@ func (p *Config) indexProjectMemories(
 	store resources.ResourceStore,
 	metaSources *metaCache,
 ) error {
-	for i := range p.Memories {
-		memory := &p.Memories[i]
+	for i, memory := range p.Memories {
+		if memory == nil {
+			return fmt.Errorf("project memory at index %d cannot be nil", i)
+		}
 		if memory.ID == "" {
 			return fmt.Errorf("project memory at index %d missing id", i)
 		}

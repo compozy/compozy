@@ -93,11 +93,11 @@ func (b *ConfigBuilder) WithTokenCounter(provider, model string) *ConfigBuilder 
 }
 
 // WithMaxTokens defines the maximum token budget retained in memory.
-func (b *ConfigBuilder) WithMaxTokens(max int) *ConfigBuilder {
+func (b *ConfigBuilder) WithMaxTokens(maxValue int) *ConfigBuilder {
 	if b == nil {
 		return nil
 	}
-	b.config.MaxTokens = max
+	b.config.MaxTokens = maxValue
 	return b
 }
 
@@ -106,8 +106,8 @@ func (b *ConfigBuilder) WithFlushStrategy(strategy FlushStrategy) *ConfigBuilder
 	if b == nil {
 		return nil
 	}
-	copy := strategy
-	b.flushStrategy = &copy
+	strategyCopy := strategy
+	b.flushStrategy = &strategyCopy
 	return b
 }
 
@@ -146,8 +146,8 @@ func (b *ConfigBuilder) WithExpiration(duration time.Duration) *ConfigBuilder {
 	if b == nil {
 		return nil
 	}
-	copy := duration
-	b.expiration = &copy
+	durationCopy := duration
+	b.expiration = &durationCopy
 	return b
 }
 
@@ -181,50 +181,16 @@ func (b *ConfigBuilder) WithDistributedLocking(enabled bool) *ConfigBuilder {
 
 // Build validates inputs, aggregates errors, and returns a memory config.
 func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error) {
-	if b == nil {
-		return nil, fmt.Errorf("memory config builder is required")
+	if err := b.ensureBuilderState(ctx); err != nil {
+		return nil, err
 	}
-	if ctx == nil {
-		return nil, fmt.Errorf("context is required")
-	}
-
-	log := logger.FromContext(ctx)
-	log.Debug("building memory configuration", "memory", b.config.ID)
-
 	flushConfig, flushMessages, flushErrs := b.buildFlushStrategy(ctx)
-
-	collected := make([]error, 0, len(b.errors)+9)
-	collected = append(collected, b.errors...)
-	collected = append(collected, b.validateID(ctx))
-	collected = append(collected, b.validateProvider(ctx))
-	collected = append(collected, b.validateModel(ctx))
-	collected = append(collected, b.validateMaxTokens())
-	collected = append(collected, flushErrs...)
-	collected = append(collected, b.validatePrivacyScope())
-	collected = append(collected, b.validateExpiration())
-	collected = append(collected, b.validatePersistence(ctx))
-	collected = append(collected, b.validateDistributedLocking())
-
-	filtered := filterErrors(collected)
+	filtered := b.collectBuildErrors(ctx, flushErrs)
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
-
-	if flushConfig != nil {
-		b.config.Flushing = flushConfig
-	}
-	if flushMessages > 0 {
-		b.config.MaxMessages = flushMessages
-	}
-	if b.provider != "" || b.model != "" {
-		normalizedProvider := strings.ToLower(b.provider)
-		if b.config.TokenProvider == nil {
-			b.config.TokenProvider = &memcore.TokenProviderConfig{}
-		}
-		b.config.TokenProvider.Provider = normalizedProvider
-		b.config.TokenProvider.Model = b.model
-	}
-
+	b.applyFlushResults(flushConfig, flushMessages)
+	b.applyTokenProviderDefaults()
 	cloned, err := core.DeepCopy(b.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone memory config: %w", err)
@@ -232,9 +198,61 @@ func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error)
 	return cloned, nil
 }
 
+func (b *ConfigBuilder) ensureBuilderState(ctx context.Context) error {
+	if b == nil {
+		return fmt.Errorf("memory config builder is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	logger.FromContext(ctx).Debug("building memory configuration", "memory", b.config.ID)
+	return nil
+}
+
+func (b *ConfigBuilder) collectBuildErrors(ctx context.Context, flushErrs []error) []error {
+	collected := append(make([]error, 0, len(b.errors)+9), b.errors...)
+	collected = append(
+		collected,
+		b.validateID(ctx),
+		b.validateProvider(ctx),
+		b.validateModel(ctx),
+		b.validateMaxTokens(),
+	)
+	collected = append(collected, flushErrs...)
+	collected = append(
+		collected,
+		b.validatePrivacyScope(),
+		b.validateExpiration(),
+		b.validatePersistence(ctx),
+		b.validateDistributedLocking(),
+	)
+	return filterErrors(collected)
+}
+
+func (b *ConfigBuilder) applyFlushResults(flushConfig *memcore.FlushingStrategyConfig, flushMessages int) {
+	if flushConfig != nil {
+		b.config.Flushing = flushConfig
+	}
+	if flushMessages > 0 {
+		b.config.MaxMessages = flushMessages
+	}
+}
+
+func (b *ConfigBuilder) applyTokenProviderDefaults() {
+	if b.provider == "" && b.model == "" {
+		return
+	}
+	normalizedProvider := strings.ToLower(b.provider)
+	if b.config.TokenProvider == nil {
+		b.config.TokenProvider = &memcore.TokenProviderConfig{}
+	}
+	b.config.TokenProvider.Provider = normalizedProvider
+	b.config.TokenProvider.Model = b.model
+}
+
 func (b *ConfigBuilder) validateID(ctx context.Context) error {
 	b.config.ID = strings.TrimSpace(b.config.ID)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		return fmt.Errorf("memory id is invalid: %w", err)
 	}
 	return nil
@@ -242,7 +260,7 @@ func (b *ConfigBuilder) validateID(ctx context.Context) error {
 
 func (b *ConfigBuilder) validateProvider(ctx context.Context) error {
 	normalized := strings.ToLower(strings.TrimSpace(b.provider))
-	if err := validate.ValidateNonEmpty(ctx, "provider", normalized); err != nil {
+	if err := validate.NonEmpty(ctx, "provider", normalized); err != nil {
 		return err
 	}
 	b.provider = normalized
@@ -251,7 +269,7 @@ func (b *ConfigBuilder) validateProvider(ctx context.Context) error {
 
 func (b *ConfigBuilder) validateModel(ctx context.Context) error {
 	trimmed := strings.TrimSpace(b.model)
-	if err := validate.ValidateNonEmpty(ctx, "model", trimmed); err != nil {
+	if err := validate.NonEmpty(ctx, "model", trimmed); err != nil {
 		return err
 	}
 	b.model = trimmed
@@ -290,7 +308,7 @@ func (b *ConfigBuilder) validateExpiration() error {
 
 func (b *ConfigBuilder) validatePersistence(ctx context.Context) error {
 	backend := strings.ToLower(strings.TrimSpace(string(b.config.Persistence.Type)))
-	if err := validate.ValidateNonEmpty(ctx, "persistence backend", backend); err != nil {
+	if err := validate.NonEmpty(ctx, "persistence backend", backend); err != nil {
 		return err
 	}
 	switch memcore.PersistenceType(backend) {
@@ -359,10 +377,10 @@ func (b *ConfigBuilder) buildFlushStrategy(ctx context.Context) (*memcore.Flushi
 		errs := make([]error, 0, 3)
 		provider := strings.ToLower(strings.TrimSpace(b.flushStrategy.Provider))
 		model := strings.TrimSpace(b.flushStrategy.Model)
-		if err := validate.ValidateNonEmpty(ctx, "summarization provider", provider); err != nil {
+		if err := validate.NonEmpty(ctx, "summarization provider", provider); err != nil {
 			errs = append(errs, err)
 		}
-		if err := validate.ValidateNonEmpty(ctx, "summarization model", model); err != nil {
+		if err := validate.NonEmpty(ctx, "summarization model", model); err != nil {
 			errs = append(errs, err)
 		}
 		if b.flushStrategy.SummaryTokens <= 0 {

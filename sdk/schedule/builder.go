@@ -19,9 +19,7 @@ type Builder struct {
 	errors []error
 }
 
-var cloneScheduleConfig = func(cfg *engineschedule.Config) (*engineschedule.Config, error) {
-	return core.DeepCopy(cfg)
-}
+var cloneScheduleConfig = core.DeepCopy[*engineschedule.Config]
 
 // New creates a schedule builder initialized with the provided identifier.
 func New(id string) *Builder {
@@ -139,22 +137,22 @@ func (b *Builder) Build(ctx context.Context) (*engineschedule.Config, error) {
 	log.Debug("building schedule configuration", "schedule", b.config.ID, "workflow", b.config.WorkflowID)
 	collected := make([]error, 0, len(b.errors)+4)
 	collected = append(collected, b.errors...)
-	if err := validate.ValidateID(ctx, b.config.ID); err != nil {
+	if err := validate.ID(ctx, b.config.ID); err != nil {
 		collected = append(collected, fmt.Errorf("schedule id is invalid: %w", err))
 	}
-	if err := validate.ValidateNonEmpty(ctx, "workflow id", b.config.WorkflowID); err != nil {
+	if err := validate.NonEmpty(ctx, "workflow id", b.config.WorkflowID); err != nil {
 		collected = append(collected, err)
-	} else if err := validate.ValidateID(ctx, b.config.WorkflowID); err != nil {
+	} else if err := validate.ID(ctx, b.config.WorkflowID); err != nil {
 		collected = append(collected, fmt.Errorf("workflow id is invalid: %w", err))
 	}
-	if err := validate.ValidateCron(ctx, b.config.Cron); err != nil {
+	if err := validate.Cron(ctx, b.config.Cron); err != nil {
 		collected = append(collected, err)
 	}
 	if b.config.Retry != nil {
-		if err := validate.ValidateRange(ctx, "retry attempts", b.config.Retry.MaxAttempts, 1, 100); err != nil {
+		if err := validate.Range(ctx, "retry attempts", b.config.Retry.MaxAttempts, 1, 100); err != nil {
 			collected = append(collected, err)
 		}
-		if err := validate.ValidateDuration(ctx, b.config.Retry.Backoff); err != nil {
+		if err := validate.Duration(ctx, b.config.Retry.Backoff); err != nil {
 			collected = append(collected, err)
 		}
 	}

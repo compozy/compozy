@@ -57,7 +57,7 @@ func newValidationHarness(t *testing.T) *validationHarness {
 	ctx := helpers.NewTestContext(t)
 	log := newCapturingLogger()
 	ctx = logger.ContextWithLogger(ctx, log)
-	projectCfg, alpha := buildTestConfigs(t, ctx)
+	projectCfg, alpha := buildTestConfigs(ctx, t)
 	configureProjectForValidation(t, projectCfg)
 	configureWorkflowForValidation(alpha)
 	store := resources.NewMemoryResourceStore()
@@ -72,7 +72,7 @@ func newValidationHarness(t *testing.T) *validationHarness {
 
 func configureProjectForValidation(t *testing.T, proj *project.Config) {
 	proj.Tools = []tool.Config{{ID: "tool-shared"}}
-	proj.Memories = []memory.Config{{
+	proj.Memories = []*memory.Config{{
 		Resource:  string(resources.ResourceMemory),
 		ID:        "memory-shared",
 		Type:      memcore.TokenBasedMemory,

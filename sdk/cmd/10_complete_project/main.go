@@ -1,5 +1,3 @@
-//go:build examples
-
 package main
 
 import (
@@ -16,6 +14,7 @@ import (
 	enginememory "github.com/compozy/compozy/engine/memory"
 	engineproject "github.com/compozy/compozy/engine/project"
 	engineruntime "github.com/compozy/compozy/engine/runtime"
+	engineschema "github.com/compozy/compozy/engine/schema"
 	enginetask "github.com/compozy/compozy/engine/task"
 	enginetool "github.com/compozy/compozy/engine/tool"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
@@ -23,7 +22,6 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/sdk/agent"
-	"github.com/compozy/compozy/sdk/client"
 	"github.com/compozy/compozy/sdk/compozy"
 	"github.com/compozy/compozy/sdk/knowledge"
 	"github.com/compozy/compozy/sdk/mcp"
@@ -44,11 +42,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		os.Exit(1)
 	}
-	defer cleanup()
 	if err := runKitchenSink(ctx); err != nil {
 		logger.FromContext(ctx).Error("complete project example failed", "error", err)
+		cleanup()
 		os.Exit(1)
 	}
+	cleanup()
 }
 
 // initializeContext prepares the base context with logger and configuration manager.
@@ -88,21 +87,20 @@ func runKitchenSink(ctx context.Context) error {
 
 // kitchenResources aggregates all builder outputs required to run the example.
 type kitchenResources struct {
-	models         []*enginecore.ProviderConfig
-	embedder       *engineknowledge.EmbedderConfig
-	vectorDB       *engineknowledge.VectorDBConfig
-	knowledgeBase  *engineknowledge.BaseConfig
-	memoryConfig   *enginememory.Config
-	memoryRef      *memory.ReferenceConfig
-	localMCP       *enginemcp.Config
-	remoteMCP      *enginemcp.Config
-	toolConfig     *enginetool.Config
-	runtimeConfig  *engineruntime.Config
-	agentConfig    *engineagent.Config
-	workflows      []*engineworkflow.Config
-	schedules      []*engineschedule.Config
-	projectConfig  *engineproject.Config
-	clientInstance *client.Client
+	models        []*enginecore.ProviderConfig
+	embedder      *engineknowledge.EmbedderConfig
+	vectorDB      *engineknowledge.VectorDBConfig
+	knowledgeBase *engineknowledge.BaseConfig
+	memoryConfig  *enginememory.Config
+	memoryRef     *memory.ReferenceConfig
+	localMCP      *enginemcp.Config
+	remoteMCP     *enginemcp.Config
+	toolConfig    *enginetool.Config
+	runtimeConfig *engineruntime.Config
+	agentConfig   *engineagent.Config
+	workflows     []*engineworkflow.Config
+	schedules     []*engineschedule.Config
+	projectConfig *engineproject.Config
 }
 
 type analysisCoreTasks struct {
@@ -127,8 +125,14 @@ type compositeTasks struct {
 	collection  *enginetask.Config
 }
 
-// buildKitchenResources composes all builders so the lifecycle demonstration can execute.
-func buildKitchenResources(ctx context.Context) (*kitchenResources, error) {
+type baseResources struct {
+	models        []*enginecore.ProviderConfig
+	embedder      *engineknowledge.EmbedderConfig
+	vectorDB      *engineknowledge.VectorDBConfig
+	knowledgeBase *engineknowledge.BaseConfig
+}
+
+func buildBaseResources(ctx context.Context) (*baseResources, error) {
 	models, err := buildModels(ctx)
 	if err != nil {
 		return nil, err
@@ -137,6 +141,24 @@ func buildKitchenResources(ctx context.Context) (*kitchenResources, error) {
 	if err != nil {
 		return nil, err
 	}
+	return &baseResources{
+		models:        models,
+		embedder:      embedderCfg,
+		vectorDB:      vectorCfg,
+		knowledgeBase: knowledgeBaseCfg,
+	}, nil
+}
+
+type infraResources struct {
+	memory    *enginememory.Config
+	memRef    *memory.ReferenceConfig
+	localMCP  *enginemcp.Config
+	remoteMCP *enginemcp.Config
+	tool      *enginetool.Config
+	runtime   *engineruntime.Config
+}
+
+func buildInfraResources(ctx context.Context) (*infraResources, error) {
 	memCfg, memRef, err := buildMemoryResources(ctx)
 	if err != nil {
 		return nil, err
@@ -149,53 +171,86 @@ func buildKitchenResources(ctx context.Context) (*kitchenResources, error) {
 	if err != nil {
 		return nil, err
 	}
-	agentCfg, err := buildAgentConfig(ctx, knowledgeBaseCfg, memRef, toolCfg.ID, localMCP.ID, remoteMCP.ID)
+	return &infraResources{
+		memory:    memCfg,
+		memRef:    memRef,
+		localMCP:  localMCP,
+		remoteMCP: remoteMCP,
+		tool:      toolCfg,
+		runtime:   runtimeCfg,
+	}, nil
+}
+
+func newKitchenResources(
+	base *baseResources,
+	infra *infraResources,
+	agentCfg *engineagent.Config,
+	workflows []*engineworkflow.Config,
+	schedules []*engineschedule.Config,
+	projectCfg *engineproject.Config,
+) *kitchenResources {
+	return &kitchenResources{
+		models:        base.models,
+		embedder:      base.embedder,
+		vectorDB:      base.vectorDB,
+		knowledgeBase: base.knowledgeBase,
+		memoryConfig:  infra.memory,
+		memoryRef:     infra.memRef,
+		localMCP:      infra.localMCP,
+		remoteMCP:     infra.remoteMCP,
+		toolConfig:    infra.tool,
+		runtimeConfig: infra.runtime,
+		agentConfig:   agentCfg,
+		workflows:     workflows,
+		schedules:     schedules,
+		projectConfig: projectCfg,
+	}
+}
+
+// buildKitchenResources composes all builders so the lifecycle demonstration can execute.
+func buildKitchenResources(ctx context.Context) (*kitchenResources, error) {
+	base, err := buildBaseResources(ctx)
 	if err != nil {
 		return nil, err
 	}
-	workflows, schedules, err := buildWorkflowSuite(ctx, agentCfg, memCfg, toolCfg.ID, remoteMCP.ID)
+	infra, err := buildInfraResources(ctx)
+	if err != nil {
+		return nil, err
+	}
+	agentCfg, err := buildAgentConfig(
+		ctx,
+		base.knowledgeBase,
+		infra.memRef,
+		infra.tool.ID,
+		infra.localMCP.ID,
+		infra.remoteMCP.ID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	workflows, schedules, err := buildWorkflowSuite(ctx, agentCfg, infra.memory, infra.tool.ID, infra.remoteMCP.ID)
 	if err != nil {
 		return nil, err
 	}
 	projectCfg, err := assembleProject(
 		ctx,
-		models,
+		base.models,
 		workflows,
 		schedules,
 		agentCfg,
-		embedderCfg,
-		vectorCfg,
-		knowledgeBaseCfg,
-		memCfg,
-		localMCP,
-		remoteMCP,
-		toolCfg,
-		runtimeCfg,
+		base.embedder,
+		base.vectorDB,
+		base.knowledgeBase,
+		infra.memory,
+		infra.localMCP,
+		infra.remoteMCP,
+		infra.tool,
+		infra.runtime,
 	)
 	if err != nil {
 		return nil, err
 	}
-	clientInstance, err := prepareSDKClient(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &kitchenResources{
-		models:         models,
-		embedder:       embedderCfg,
-		vectorDB:       vectorCfg,
-		knowledgeBase:  knowledgeBaseCfg,
-		memoryConfig:   memCfg,
-		memoryRef:      memRef,
-		localMCP:       localMCP,
-		remoteMCP:      remoteMCP,
-		toolConfig:     toolCfg,
-		runtimeConfig:  runtimeCfg,
-		agentConfig:    agentCfg,
-		workflows:      workflows,
-		schedules:      schedules,
-		projectConfig:  projectCfg,
-		clientInstance: clientInstance,
-	}, nil
+	return newKitchenResources(base, infra, agentCfg, workflows, schedules, projectCfg), nil
 }
 
 // configureMonitoring enables Prometheus metrics and sets tracing metadata.
@@ -224,7 +279,6 @@ func demonstrateLifecycle(ctx context.Context, resources *kitchenResources) erro
 		WithDatabase("postgres://postgres:postgres@localhost:5432/compozy?sslmode=disable").
 		WithTemporal("localhost:7233", "default").
 		WithRedis("redis://localhost:6379/0").
-		WithCorsOrigins("http://localhost:3000").
 		WithAuth(false).
 		WithWorkingDirectory(cwd).
 		WithLogLevel("debug")
@@ -232,9 +286,7 @@ func demonstrateLifecycle(ctx context.Context, resources *kitchenResources) erro
 	if err != nil {
 		return fmt.Errorf("build embedded compozy: %w", err)
 	}
-	startCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	if err := app.StartWithContext(startCtx); err != nil {
+	if err := app.Start(); err != nil {
 		return fmt.Errorf("start embedded compozy: %w", err)
 	}
 	defer func() {
@@ -286,6 +338,33 @@ func buildModels(ctx context.Context) ([]*enginecore.ProviderConfig, error) {
 	return []*enginecore.ProviderConfig{primary, fallback}, nil
 }
 
+type knowledgeSources struct {
+	file *engineknowledge.SourceConfig
+	dir  *engineknowledge.SourceConfig
+	url  *engineknowledge.SourceConfig
+	api  *engineknowledge.SourceConfig
+}
+
+func buildKnowledgeSources(ctx context.Context) (*knowledgeSources, error) {
+	fileSource, err := knowledge.NewFileSource("./README.md").Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("build file source: %w", err)
+	}
+	dirSource, err := knowledge.NewDirectorySource("./docs", "./tasks").Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("build directory source: %w", err)
+	}
+	urlSource, err := knowledge.NewURLSource("https://docs.compozy.dev/guides/orchestration").Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("build url source: %w", err)
+	}
+	apiSource, err := knowledge.NewAPISource("github").Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("build api source: %w", err)
+	}
+	return &knowledgeSources{file: fileSource, dir: dirSource, url: urlSource, api: apiSource}, nil
+}
+
 // buildKnowledgeResources wires all knowledge builders: embedder, vector DB, sources, and base.
 func buildKnowledgeResources(
 	ctx context.Context,
@@ -307,34 +386,22 @@ func buildKnowledgeResources(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build vector db: %w", err)
 	}
-	fileSource, err := knowledge.NewFileSource("./README.md").Build(ctx)
+	sources, err := buildKnowledgeSources(ctx)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build file source: %w", err)
-	}
-	dirSource, err := knowledge.NewDirectorySource("./docs", "./tasks").Build(ctx)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build directory source: %w", err)
-	}
-	urlSource, err := knowledge.NewURLSource("https://docs.compozy.dev/guides/orchestration").Build(ctx)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build url source: %w", err)
-	}
-	apiSource, err := knowledge.NewAPISource("github").Build(ctx)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("build api source: %w", err)
+		return nil, nil, nil, err
 	}
 	baseCfg, err := knowledge.NewBase("product-knowledge").
 		WithDescription("Unified view across documentation, issues, and release notes").
 		WithEmbedder(embedderCfg.ID).
 		WithVectorDB(vectorCfg.ID).
-		AddSource(fileSource).
-		AddSource(dirSource).
-		AddSource(urlSource).
-		AddSource(apiSource).
+		AddSource(sources.file).
+		AddSource(sources.dir).
+		AddSource(sources.url).
+		AddSource(sources.api).
 		WithChunking(knowledge.ChunkStrategy("recursive_text_splitter"), 800, 80).
 		WithPreprocess(true, true).
 		WithRetrieval(8, 0.7, 1200).
-		WithIngestMode(knowledge.IngestOnStart).
+		WithIngestMode(knowledge.IngestModeOnStart).
 		Build(ctx)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("build knowledge base: %w", err)
@@ -422,7 +489,7 @@ func buildRuntimeAndTools(ctx context.Context) (*enginetool.Config, *enginerunti
 }
 
 // buildToolSchemas constructs JSON schemas using both Builder and PropertyBuilder APIs.
-func buildToolSchemas(ctx context.Context) (*schema.Schema, *schema.Schema, error) {
+func buildToolSchemas(ctx context.Context) (*engineschema.Schema, *engineschema.Schema, error) {
 	recordSchema := schema.NewObject().
 		AddProperty("feature", schema.NewString().WithMinLength(3)).
 		AddProperty("priority", schema.NewString().WithEnum("high", "medium", "low")).
@@ -464,23 +531,13 @@ func buildToolSchemas(ctx context.Context) (*schema.Schema, *schema.Schema, erro
 	return input, output, nil
 }
 
-// buildAgentConfig wires knowledge, memory, tool, and MCP integrations onto an agent.
-func buildAgentConfig(
-	ctx context.Context,
-	base *engineknowledge.BaseConfig,
-	memRef *memory.ReferenceConfig,
-	toolID string,
-	localMCPID string,
-	remoteMCPID string,
-) (*engineagent.Config, error) {
-	binding, err := knowledge.NewBinding(base.ID).
-		WithTopK(5).
-		WithMinScore(0.65).
-		WithMaxTokens(1024).
-		Build(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("build knowledge binding: %w", err)
-	}
+type agentActions struct {
+	insights *engineagent.ActionConfig
+	mcp      *engineagent.ActionConfig
+	delegate *engineagent.ActionConfig
+}
+
+func buildOrchestratorActions(ctx context.Context, toolID string) (*agentActions, error) {
 	actionInsights, err := agent.NewAction("collect-insights").
 		WithPrompt("Synthesize the user's request, referencing available knowledge and MCP repositories.").
 		WithTimeout(30 * time.Second).
@@ -502,13 +559,37 @@ func buildAgentConfig(
 	if err != nil {
 		return nil, fmt.Errorf("build delegate action: %w", err)
 	}
+	return &agentActions{insights: actionInsights, mcp: actionMCP, delegate: actionDelegate}, nil
+}
+
+// buildAgentConfig wires knowledge, memory, tool, and MCP integrations onto an agent.
+func buildAgentConfig(
+	ctx context.Context,
+	base *engineknowledge.BaseConfig,
+	memRef *memory.ReferenceConfig,
+	toolID string,
+	localMCPID string,
+	remoteMCPID string,
+) (*engineagent.Config, error) {
+	binding, err := knowledge.NewBinding(base.ID).
+		WithTopK(5).
+		WithMinScore(0.65).
+		WithMaxTokens(1024).
+		Build(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("build knowledge binding: %w", err)
+	}
+	actions, err := buildOrchestratorActions(ctx, toolID)
+	if err != nil {
+		return nil, err
+	}
 	agentCfg, err := agent.New("orchestrator").
 		WithInstructions("You are a senior incident manager coordinating analysis across knowledge, MCPs, and custom tools.").
 		WithKnowledge(binding).
 		WithMemory(memRef).
-		AddAction(actionInsights).
-		AddAction(actionMCP).
-		AddAction(actionDelegate).
+		AddAction(actions.insights).
+		AddAction(actions.mcp).
+		AddAction(actions.delegate).
 		AddMCP(localMCPID).
 		AddMCP(remoteMCPID).
 		AddTool(toolID).
@@ -541,32 +622,50 @@ func buildAnalysisCoreTasks(ctx context.Context, agentID string, toolID string) 
 	}
 	toolTask, err := task.NewBasic("delegate-tool-task").
 		WithTool(toolID).
-		WithInput(map[string]string{"items": "{{ merge (dict) .tasks.collect-insights-task.output .tasks.survey-mcp-task.output }}"}).
+		WithInput(map[string]string{
+			"items": "{{ merge (dict) .tasks.collect-insights-task.output .tasks.survey-mcp-task.output }}",
+		}).
 		WithOutput("summary = {{ .result.output.summary }}").
 		Build(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build tool task: %w", err)
 	}
+	coordTasks, err := buildCoordinationTasks(ctx, collectTask.ID, mcpTask.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &analysisCoreTasks{
+		collect:   collectTask,
+		mcp:       mcpTask,
+		tool:      toolTask,
+		parallel:  coordTasks.parallel,
+		aggregate: coordTasks.aggregate,
+	}, nil
+}
+
+type coordinationTasks struct {
+	parallel  *enginetask.Config
+	aggregate *enginetask.Config
+}
+
+func buildCoordinationTasks(ctx context.Context, collectID, mcpID string) (*coordinationTasks, error) {
 	parallelTask, err := task.NewParallel("parallel-analysis").
-		AddTask(collectTask.ID).
-		AddTask(mcpTask.ID).
+		AddTask(collectID).
+		AddTask(mcpID).
 		WithWaitAll(true).
 		Build(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build parallel task: %w", err)
 	}
 	aggregateTask, err := task.NewAggregate("aggregate-findings").
-		AddTask(collectTask.ID).
-		AddTask(mcpTask.ID).
+		AddTask(collectID).
+		AddTask(mcpID).
 		WithStrategy("merge").
 		Build(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build aggregate task: %w", err)
 	}
-	return &analysisCoreTasks{
-		collect:   collectTask,
-		mcp:       mcpTask,
-		tool:      toolTask,
+	return &coordinationTasks{
 		parallel:  parallelTask,
 		aggregate: aggregateTask,
 	}, nil
@@ -630,10 +729,9 @@ func buildSupportTasks(
 func buildCompositeTasks(
 	ctx context.Context,
 	agentID string,
-	toolID string,
 	delegateTaskID string,
 ) (*compositeTasks, error) {
-	subWorkflow, err := buildPostProcessWorkflow(ctx, agentID, toolID)
+	subWorkflow, err := buildPostProcessWorkflow(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -655,31 +753,18 @@ func buildCompositeTasks(
 	return &compositeTasks{subWorkflow: subWorkflow, composite: compositeTask, collection: collectionTask}, nil
 }
 
-// buildWorkflowSuite demonstrates every task builder and prepares schedules.
-func buildWorkflowSuite(
+func assembleMainWorkflow(
 	ctx context.Context,
 	agentCfg *engineagent.Config,
-	memCfg *enginememory.Config,
-	toolID string,
-	remoteMCPID string,
-) ([]*engineworkflow.Config, []*engineschedule.Config, error) {
-	coreTasks, err := buildAnalysisCoreTasks(ctx, agentCfg.ID, toolID)
-	if err != nil {
-		return nil, nil, err
-	}
-	supportSet, err := buildSupportTasks(ctx, memCfg.ID, coreTasks.aggregate.ID, remoteMCPID)
-	if err != nil {
-		return nil, nil, err
-	}
-	compositeSet, err := buildCompositeTasks(ctx, agentCfg.ID, toolID, coreTasks.tool.ID)
-	if err != nil {
-		return nil, nil, err
-	}
+	coreTasks *analysisCoreTasks,
+	supportSet *supportTasks,
+	compositeSet *compositeTasks,
+) (*engineworkflow.Config, error) {
 	workflowInputSchema, err := buildWorkflowInputSchema(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	mainWorkflow, err := workflow.New("complete-automation").
+	return workflow.New("complete-automation").
 		WithDescription("Kitchen sink workflow combining every builder type").
 		WithInput(workflowInputSchema).
 		AddAgent(agentCfg).
@@ -700,6 +785,29 @@ func buildWorkflowSuite(
 			"signal":  "{{ .tasks." + supportSet.signalSend.ID + ".output }}",
 		}).
 		Build(ctx)
+}
+
+// buildWorkflowSuite demonstrates every task builder and prepares schedules.
+func buildWorkflowSuite(
+	ctx context.Context,
+	agentCfg *engineagent.Config,
+	memCfg *enginememory.Config,
+	toolID string,
+	remoteMCPID string,
+) ([]*engineworkflow.Config, []*engineschedule.Config, error) {
+	coreTasks, err := buildAnalysisCoreTasks(ctx, agentCfg.ID, toolID)
+	if err != nil {
+		return nil, nil, err
+	}
+	supportSet, err := buildSupportTasks(ctx, memCfg.ID, coreTasks.aggregate.ID, remoteMCPID)
+	if err != nil {
+		return nil, nil, err
+	}
+	compositeSet, err := buildCompositeTasks(ctx, agentCfg.ID, coreTasks.tool.ID)
+	if err != nil {
+		return nil, nil, err
+	}
+	mainWorkflow, err := assembleMainWorkflow(ctx, agentCfg, coreTasks, supportSet, compositeSet)
 	if err != nil {
 		return nil, nil, fmt.Errorf("build main workflow: %w", err)
 	}
@@ -738,7 +846,7 @@ func buildProjectSchedules(ctx context.Context, workflowID string) ([]*enginesch
 }
 
 // buildWorkflowInputSchema constructs the workflow input JSON schema.
-func buildWorkflowInputSchema(ctx context.Context) (*schema.Schema, error) {
+func buildWorkflowInputSchema(ctx context.Context) (*engineschema.Schema, error) {
 	customerBuilder := schema.NewObject().
 		AddProperty("name", schema.NewString().WithMinLength(2)).
 		AddProperty("issue", schema.NewString().WithMinLength(5)).
@@ -758,7 +866,7 @@ func buildWorkflowInputSchema(ctx context.Context) (*schema.Schema, error) {
 }
 
 // buildPostProcessWorkflow constructs the nested workflow used by the composite task.
-func buildPostProcessWorkflow(ctx context.Context, agentID string, toolID string) (*engineworkflow.Config, error) {
+func buildPostProcessWorkflow(ctx context.Context, agentID string) (*engineworkflow.Config, error) {
 	validateTask, err := task.NewBasic("validate-entry").
 		WithAgent(agentID).
 		WithAction("collect-insights").
@@ -827,39 +935,37 @@ func assembleProject(
 	for _, sched := range schedules {
 		builder = builder.AddSchedule(sched)
 	}
+	builder = builder.AddMemory(memCfg)
+	builder = builder.AddEmbedder(embedderCfg)
+	builder = builder.AddVectorDB(vectorCfg)
+	builder = builder.AddKnowledgeBase(knowledgeBaseCfg)
+	builder = builder.AddMCP(localMCP)
+	builder = builder.AddMCP(remoteMCP)
+	builder = builder.AddTool(toolCfg)
 	projectCfg, err := builder.Build(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("build project config: %w", err)
 	}
-	projectCfg.Embedders = append(projectCfg.Embedders, *embedderCfg)
-	projectCfg.VectorDBs = append(projectCfg.VectorDBs, *vectorCfg)
-	projectCfg.KnowledgeBases = append(projectCfg.KnowledgeBases, *knowledgeBaseCfg)
-	projectCfg.Memories = append(projectCfg.Memories, *memCfg)
-	projectCfg.MCPs = append(projectCfg.MCPs, *localMCP, *remoteMCP)
-	projectCfg.Tools = append(projectCfg.Tools, *toolCfg)
-	projectCfg.Runtime.RuntimeType = runtimeCfg.RuntimeType
-	projectCfg.Runtime.EntrypointPath = runtimeCfg.EntrypointPath
-	projectCfg.Runtime.BunPermissions = append([]string{}, runtimeCfg.BunPermissions...)
-	if runtimeCfg.NativeTools != nil {
-		projectCfg.Runtime.NativeTools.CallAgents = runtimeCfg.NativeTools.CallAgents
-		projectCfg.Runtime.NativeTools.CallWorkflows = runtimeCfg.NativeTools.CallWorkflows
-	}
-	projectCfg.Opts.SourceOfTruth = "builder"
-	projectCfg.MonitoringConfig = &enginemonitoring.Config{Enabled: true, Path: "/metrics"}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("determine project cwd: %w", err)
-	}
-	if err := projectCfg.SetCWD(cwd); err != nil {
-		return nil, fmt.Errorf("set project cwd: %w", err)
+	if err := configureProjectPostBuild(projectCfg, runtimeCfg); err != nil {
+		return nil, err
 	}
 	return projectCfg, nil
 }
 
-// prepareSDKClient demonstrates the client.Builder usage for completeness.
-func prepareSDKClient(ctx context.Context) (*client.Client, error) {
-	builder := client.New("http://127.0.0.1:18080").
-		WithAPIKey("local-dev-key").
-		WithTimeout(5 * time.Second)
-	return builder.Build(ctx)
+// configureProjectPostBuild applies runtime and monitoring configuration to the built project.
+func configureProjectPostBuild(projectCfg *engineproject.Config, runtimeCfg *engineruntime.Config) error {
+	projectCfg.Runtime.Type = runtimeCfg.RuntimeType
+	projectCfg.Runtime.Entrypoint = runtimeCfg.EntrypointPath
+	projectCfg.Runtime.Permissions = append([]string{}, runtimeCfg.BunPermissions...)
+	projectCfg.Runtime.ToolExecutionTimeout = runtimeCfg.ToolExecutionTimeout
+	projectCfg.Opts.SourceOfTruth = "builder"
+	projectCfg.MonitoringConfig = &enginemonitoring.Config{Enabled: true, Path: "/metrics"}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("determine project cwd: %w", err)
+	}
+	if err := projectCfg.SetCWD(cwd); err != nil {
+		return fmt.Errorf("set project cwd: %w", err)
+	}
+	return nil
 }

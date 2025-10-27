@@ -54,10 +54,8 @@ func (b *ReferenceBuilder) Build(ctx context.Context) (*ReferenceConfig, error) 
 	log := logger.FromContext(ctx)
 	b.config.ID = strings.TrimSpace(b.config.ID)
 	log.Debug("building memory reference", "memory", b.config.ID, "mode", b.config.Mode)
-	collected := make([]error, 0, len(b.errors)+2)
-	collected = append(collected, b.errors...)
-	collected = append(collected, validate.ValidateID(ctx, b.config.ID))
-	collected = append(collected, b.validateMode())
+	collected := append(make([]error, 0, len(b.errors)+2), b.errors...)
+	collected = append(collected, validate.ID(ctx, b.config.ID), b.validateMode())
 	filtered := filterErrors(collected)
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
