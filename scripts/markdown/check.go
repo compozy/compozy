@@ -1181,7 +1181,7 @@ func executeJobWithRetry(
 		maxRetries = uint64(args.maxRetries)
 	}
 	backoff := retry.WithMaxRetries(maxRetries, retry.NewConstant(1*time.Millisecond))
-	err := retry.Do(ctx, backoff, func(ctx context.Context) error {
+	err := retry.Do(ctx, backoff, func(retryCtx context.Context) error {
 		attempt++
 		currentTimeout = calculateRetryTimeout(
 			currentTimeout,
@@ -1190,13 +1190,14 @@ func executeJobWithRetry(
 			args.maxRetries,
 			index,
 			j,
+			useUI,
 		)
 		return executeJobAttempt(
-			ctx, args, j, cwd, useUI, uiCh, index, currentTimeout,
-			failed, failuresMu, failures, aggregateUsage, aggregateMu,
+			retryCtx, args, j, cwd, useUI, uiCh, index, currentTimeout,
+			failed, failuresMu, failures, aggregateUsage, aggregateMu, attempt,
 		)
 	})
-	logRetryCompletion(err, attempt, index, j)
+	logRetryCompletion(err, attempt, index, j, useUI)
 }
 
 func calculateRetryTimeout(
@@ -1206,18 +1207,21 @@ func calculateRetryTimeout(
 	maxRetries int,
 	index int,
 	j *job,
+	useUI bool,
 ) time.Duration {
 	if attempt > 1 {
 		currentTimeout = time.Duration(float64(currentTimeout) * multiplier)
-		fmt.Fprintf(
-			os.Stderr,
-			"\n🔄 Retry attempt %d/%d for job %d (%s) with timeout %v\n",
-			attempt-1,
-			maxRetries,
-			index+1,
-			strings.Join(j.codeFiles, ", "),
-			currentTimeout,
-		)
+		if !useUI {
+			fmt.Fprintf(
+				os.Stderr,
+				"\n🔄 Retry attempt %d/%d for job %d (%s) with timeout %v\n",
+				attempt-1,
+				maxRetries,
+				index+1,
+				strings.Join(j.codeFiles, ", "),
+				currentTimeout,
+			)
+		}
 	}
 	return currentTimeout
 }
@@ -1236,9 +1240,13 @@ func executeJobAttempt(
 	failures *[]failInfo,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
+	attempt int,
 ) error {
 	argsWithTimeout := *args
 	argsWithTimeout.timeout = currentTimeout
+	if useUI && attempt > 1 {
+		uiCh <- jobStartedMsg{Index: index}
+	}
 	success, exitCode := executeJobWithTimeoutAndResult(
 		ctx, &argsWithTimeout, j, cwd, useUI, uiCh,
 		index, failed, failuresMu, failures, aggregateUsage, aggregateMu,
@@ -1249,8 +1257,8 @@ func executeJobAttempt(
 	return nil
 }
 
-func logRetryCompletion(err error, attempt int, index int, j *job) {
-	if err != nil && attempt > 1 {
+func logRetryCompletion(err error, attempt int, index int, j *job, useUI bool) {
+	if err != nil && attempt > 1 && !useUI {
 		fmt.Fprintf(
 			os.Stderr,
 			"\n❌ Job %d (%s) failed after %d retry attempts\n",
@@ -1640,7 +1648,7 @@ func setupCommandExecution(
 }
 
 func createLogFile(path, _ string) (*os.File, error) {
-	file, err := os.Create(path)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
 	}
@@ -1809,28 +1817,62 @@ func handleActivityTimeout(
 	failures *[]failInfo,
 	timeout time.Duration,
 ) {
-	fmt.Fprintf(
-		os.Stderr,
-		"\nJob %d (%s) timed out after %v of inactivity\n",
-		index+1,
-		strings.Join(j.codeFiles, ", "),
-		timeout,
-	)
+	logTimeoutMessage(index, j, timeout, useUI)
 	atomic.AddInt32(failed, 1)
-	if cmd.Process != nil {
-		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+	terminateTimedOutProcess(cmd, cmdDone, index, useUI)
+	recordTimeoutFailure(j, timeout, failuresMu, failures)
+	if useUI {
+		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -2}
+	}
+}
+
+func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
+	if !useUI {
+		fmt.Fprintf(
+			os.Stderr,
+			"\nJob %d (%s) timed out after %v of inactivity\n",
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+			timeout,
+		)
+	}
+}
+
+func terminateTimedOutProcess(cmd *exec.Cmd, cmdDone <-chan error, index int, useUI bool) {
+	if cmd.Process == nil {
+		return
+	}
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		if !useUI {
 			fmt.Fprintf(os.Stderr, "Failed to send SIGTERM to process: %v\n", err)
 		}
-		select {
-		case <-cmdDone:
+	}
+	waitForProcessTermination(cmdDone, cmd, index, useUI)
+}
+
+func waitForProcessTermination(cmdDone <-chan error, cmd *exec.Cmd, index int, useUI bool) {
+	select {
+	case <-cmdDone:
+		if !useUI {
 			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully after timeout\n", index+1)
-		case <-time.After(5 * time.Second):
-			fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
-			if err := cmd.Process.Kill(); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
-			}
+		}
+	case <-time.After(5 * time.Second):
+		forceKillProcess(cmd, index, useUI)
+	}
+}
+
+func forceKillProcess(cmd *exec.Cmd, index int, useUI bool) {
+	if !useUI {
+		fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
+	}
+	if err := cmd.Process.Kill(); err != nil {
+		if !useUI {
+			fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
 		}
 	}
+}
+
+func recordTimeoutFailure(j *job, timeout time.Duration, failuresMu *sync.Mutex, failures *[]failInfo) {
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
 	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
 	recordFailure(
@@ -1844,9 +1886,6 @@ func handleActivityTimeout(
 			err:      timeoutErr,
 		},
 	)
-	if useUI {
-		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -2}
-	}
 }
 
 func recordFailureWithContext(
