@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -31,15 +31,15 @@ Create example demonstrating parallel task execution using ParallelBuilder and A
 
 ## Subtasks
 
-- [ ] 45.1 Create sdk/examples/02_parallel_tasks.go
-- [ ] 45.2 Build multiple specialized agents (sentiment, entity, summary)
-- [ ] 45.3 Create individual analysis tasks
-- [ ] 45.4 Build parallel task to run analyses concurrently
-- [ ] 45.5 Build aggregate task to combine results
-- [ ] 45.6 Build workflow orchestrating parallel execution
-- [ ] 45.7 Add comments explaining parallel execution
-- [ ] 45.8 Update README.md with parallel example
-- [ ] 45.9 Test example runs successfully
+- [x] 45.1 Create sdk/examples/02_parallel_tasks.go
+- [x] 45.2 Build multiple specialized agents (sentiment, entity, summary)
+- [x] 45.3 Create individual analysis tasks
+- [x] 45.4 Build parallel task to run analyses concurrently
+- [x] 45.5 Build aggregate task to combine results
+- [x] 45.6 Build workflow orchestrating parallel execution
+- [x] 45.7 Add comments explaining parallel execution
+- [x] 45.8 Update README.md with parallel example
+- [x] 45.9 Test example runs successfully
 
 ## Implementation Details
 
@@ -77,23 +77,23 @@ aggregateTask, _ := task.NewAggregate("combine-results").
 
 ## Deliverables
 
-- [ ] sdk/examples/02_parallel_tasks.go (runnable)
-- [ ] Updated README.md with parallel example section
-- [ ] Comments explaining concurrent execution benefits
-- [ ] Example demonstrates all 3 task types (Basic, Parallel, Aggregate)
-- [ ] Verified example runs successfully
+- [x] sdk/examples/02_parallel_tasks.go (runnable)
+- [x] Updated README.md with parallel example section
+- [x] Comments explaining concurrent execution benefits
+- [x] Example demonstrates all 3 task types (Basic, Parallel, Aggregate)
+- [x] Verified example runs successfully
 
 ## Tests
 
 From _tests.md:
 
 - Example validation:
-  - [ ] Code compiles without errors
-  - [ ] Example runs with parallel execution
-  - [ ] All tasks execute concurrently (verify logs)
-  - [ ] Aggregate task combines results correctly
-  - [ ] WithWaitAll(true) behavior verified
-  - [ ] Error handling for parallel failures
+  - [x] Code compiles without errors
+  - [x] Example runs with parallel execution
+  - [x] All tasks execute concurrently (verify logs)
+  - [x] Aggregate task combines results correctly
+  - [x] WithWaitAll(true) behavior verified
+  - [x] Error handling for parallel failures
 
 ## Success Criteria
 

@@ -31,6 +31,26 @@ go run ./sdk/examples/01_simple_workflow.go
 
 The program logs each build step, prints a summary of the resulting project configuration, and warns when required environment variables are missing.
 
+## 02. Parallel Tasks
+
+The file `02_parallel_tasks.go` demonstrates how to orchestrate concurrent analysis pipelines while keeping task outputs aligned for downstream consumers. It highlights how to:
+
+- Build three specialized agents (sentiment, entity extraction, summarization)
+- Configure individual basic tasks that share workflow input via templates
+- Execute the tasks concurrently with `ParallelBuilder` using `WithWaitAll(true)` to guarantee consistent aggregation
+- Merge the branch outputs with `AggregateBuilder` using the `merge` strategy to produce a single payload
+- Surface aggregated results as workflow outputs so other systems can consume a unified analysis artifact
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/02_parallel_tasks.go
+```
+
+Use the same `OPENAI_API_KEY` export from the simple workflow example; the builders log a warning when credentials are missing.
+
+When the program finishes it prints a summary showing how many tasks run in parallel and how aggregation reduces fan-out for calling services.
+
 ### What's Next
 
-Future examples in this directory will cover parallel tasks, knowledge bases, memory, MCP integrations, and more advanced orchestration scenarios. Each example will continue to reinforce context-first patterns and proper error handling with `BuildError`.
+Upcoming examples in this directory will introduce knowledge bases, long-term memory, MCP integrations, and more advanced orchestration scenarios. Every example continues to reinforce context-first patterns and robust error handling with `BuildError`.
