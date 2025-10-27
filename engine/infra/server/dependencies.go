@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/worker"
+	"github.com/compozy/compozy/engine/worker/embedded"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
@@ -183,6 +184,11 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
+	temporalCleanup, err := maybeStartStandaloneTemporal(s.ctx, cfg)
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+	cleanupFuncs = appendCleanup(cleanupFuncs, temporalCleanup)
 	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, newTemporalConfig(cfg))
 	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, cfg, configRegistry)
 	if err != nil {
@@ -319,6 +325,73 @@ func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resource
 		return resources.NewRedisResourceStore(redisClient)
 	}
 	return resources.NewMemoryResourceStore()
+}
+
+func maybeStartStandaloneTemporal(ctx context.Context, cfg *config.Config) (func(), error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration is required to start Temporal")
+	}
+	if cfg.Temporal.Mode != modeStandalone {
+		return nil, nil
+	}
+	embeddedCfg := standaloneEmbeddedConfig(cfg)
+	log := logger.FromContext(ctx)
+	log.Info(
+		"Starting in standalone mode",
+		"database", embeddedCfg.DatabaseFile,
+		"frontend_port", embeddedCfg.FrontendPort,
+		"ui_enabled", embeddedCfg.EnableUI,
+	)
+	log.Warn("Temporal standalone mode is not recommended for production")
+	server, err := embedded.NewServer(ctx, embeddedCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare embedded Temporal server: %w", err)
+	}
+	if err := server.Start(ctx); err != nil {
+		return nil, fmt.Errorf("failed to start embedded Temporal server: %w", err)
+	}
+	cfg.Temporal.HostPort = server.FrontendAddress()
+	log.Info(
+		"Temporal standalone mode started at "+cfg.Temporal.HostPort,
+		"frontend_addr", cfg.Temporal.HostPort,
+		"ui_enabled", embeddedCfg.EnableUI,
+		"ui_port", embeddedCfg.UIPort,
+	)
+	return standaloneTemporalCleanup(ctx, cfg, server, embeddedCfg.StartTimeout), nil
+}
+
+func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
+	standalone := cfg.Temporal.Standalone
+	return &embedded.Config{
+		DatabaseFile: standalone.DatabaseFile,
+		FrontendPort: standalone.FrontendPort,
+		BindIP:       standalone.BindIP,
+		Namespace:    standalone.Namespace,
+		ClusterName:  standalone.ClusterName,
+		EnableUI:     standalone.EnableUI,
+		UIPort:       standalone.UIPort,
+		LogLevel:     standalone.LogLevel,
+		StartTimeout: standalone.StartTimeout,
+	}
+}
+
+func standaloneTemporalCleanup(
+	ctx context.Context,
+	cfg *config.Config,
+	server *embedded.Server,
+	fallback time.Duration,
+) func() {
+	shutdownTimeout := cfg.Server.Timeouts.WorkerShutdown
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = fallback
+	}
+	return func() {
+		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		if err := server.Stop(stopCtx); err != nil {
+			logger.FromContext(ctx).Warn("Failed to stop embedded Temporal server", "error", err)
+		}
+	}
 }
 
 // appendCleanup appends a cleanup function when it is non-nil.

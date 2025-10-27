@@ -58,7 +58,7 @@
 - [x] 2.0 Embedded Server Lifecycle (M - 2 days)
 - [x] 3.0 Configuration System Extension (M - 2 days)
 - [x] 4.0 UI Server Implementation (M - 1-2 days)
-- [ ] 5.0 Server Lifecycle Integration (M - 2 days)
+- [x] 5.0 Server Lifecycle Integration (M - 2 days)
 - [ ] 6.0 Core Integration Tests (L - 3 days)
 - [ ] 7.0 CLI & Schema Updates (S - half day)
 - [ ] 8.0 Documentation (L - 2-3 days)
@@ -139,7 +139,7 @@ PARALLEL LANES (after respective dependencies):
   - Both required for integration
   - Can be separate PRs, both must merge before Batch 3
   
-- [ ] **Batch 3 — Integration:** 4.0, 5.0
+- [x] **Batch 3 — Integration:** 4.0, 5.0
   - UI server + lifecycle integration
   - Complete end-to-end functionality
   - Merge together for working standalone mode

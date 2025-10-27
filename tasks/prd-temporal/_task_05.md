@@ -1,5 +1,7 @@
 # Task 5.0: Server Lifecycle Integration
 
+## status: completed
+
 **Size:** M (2 days)  
 **Priority:** HIGH - Enables end-to-end functionality  
 **Dependencies:** Tasks 2.0, 3.0
@@ -10,20 +12,20 @@ Integrate embedded Temporal server into main server startup sequence in `engine/
 
 ## Deliverables
 
-- [ ] `engine/infra/server/dependencies.go` - Add maybeStartStandaloneTemporal function
-- [ ] Integration point tested
+- [x] `engine/infra/server/dependencies.go` - Add maybeStartStandaloneTemporal function
+- [x] Integration point tested
 
 ## Acceptance Criteria
 
-- [ ] `maybeStartStandaloneTemporal(ctx, cfg)` function created
-- [ ] Function called BEFORE `maybeStartWorker()` in setupDependencies
-- [ ] Embedded server started when Mode="standalone"
-- [ ] Nothing happens when Mode="remote"
-- [ ] cfg.Temporal.HostPort dynamically overridden in standalone mode
-- [ ] Cleanup function registered for graceful shutdown
-- [ ] Startup logging added (Info: "Starting in standalone mode", Warn: "Not for production")
-- [ ] Integration verified with manual test
-- [ ] No linter errors
+- [x] `maybeStartStandaloneTemporal(ctx, cfg)` function created
+- [x] Function called BEFORE `maybeStartWorker()` in setupDependencies
+- [x] Embedded server started when Mode="standalone"
+- [x] Nothing happens when Mode="remote"
+- [x] cfg.Temporal.HostPort dynamically overridden in standalone mode
+- [x] Cleanup function registered for graceful shutdown
+- [x] Startup logging added (Info: "Starting in standalone mode", Warn: "Not for production")
+- [x] Integration verified with manual test
+- [x] No linter errors
 
 ## Implementation Approach
 
