@@ -1,0 +1,9 @@
+{
+  "title": "Troubleshooting",
+  "description": "Resolve common issues when operating Compozy",
+  "icon": "LifeBuoy",
+  "root": true,
+  "pages": [
+    "temporal"
+  ]
+}

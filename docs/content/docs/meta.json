@@ -1,5 +1,10 @@
 {
   "pages": [
+    "quick-start",
+    "deployment",
+    "configuration",
+    "architecture",
+    "troubleshooting",
     "core",
     "cli",
     "schema",

@@ -26,18 +26,28 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/sethvargo/go-retry"
 	"github.com/spf13/cobra"
 	"github.com/tidwall/pretty"
 )
 
 const (
-	unknownFileName            = "unknown"
-	ideCodex                   = "codex"
-	ideClaude                  = "claude"
-	ideDroid                   = "droid"
-	defaultCodexModel          = "gpt-5-codex"
-	defaultClaudeModel         = "sonnet[1m]"
-	thinkPromptMedium          = "Think hard through problems carefully before acting. Balance speed with thoroughness."
+	unknownFileName               = "unknown"
+	ideCodex                      = "codex"
+	ideClaude                     = "claude"
+	ideDroid                      = "droid"
+	defaultCodexModel             = "gpt-5-codex"
+	defaultClaudeModel            = "claude-sonnet-4-5-20250929"
+	defaultActivityTimeout        = 10 * time.Minute
+	exitCodeTimeout               = -2
+	exitCodeCanceled              = -1
+	activityCheckInterval         = 5 * time.Second
+	processTerminationGracePeriod = 5 * time.Second
+	gracefulShutdownTimeout       = 30 * time.Second
+	uiMessageDrainDelay           = 80 * time.Millisecond
+	uiTickInterval                = 120 * time.Millisecond
+	thinkPromptMedium             = "Think hard through problems carefully before acting. " +
+		"Balance speed with thoroughness."
 	thinkPromptLow             = "Think concisely and act quickly. Prefer direct solutions."
 	thinkPromptHighDescription = "Ultrathink deeply and comprehensively before taking action. " +
 		"Consider edge cases, alternatives, and long-term implications. Show your reasoning process."
@@ -73,18 +83,21 @@ const (
 //   (default: medium, options: low/medium/high).
 
 type cliArgs struct {
-	pr               string
-	issuesDir        string
-	dryRun           bool
-	concurrent       int
-	batchSize        int
-	ide              string
-	model            string
-	grouped          bool
-	tailLines        int
-	reasoningEffort  string
-	mode             string
-	includeCompleted bool
+	pr                     string
+	issuesDir              string
+	dryRun                 bool
+	concurrent             int
+	batchSize              int
+	ide                    string
+	model                  string
+	grouped                bool
+	tailLines              int
+	reasoningEffort        string
+	mode                   string
+	includeCompleted       bool
+	timeout                time.Duration
+	maxRetries             int
+	retryBackoffMultiplier float64
 }
 
 type issueEntry struct {
@@ -151,19 +164,22 @@ Behavior:
 }
 
 var (
-	pr               string
-	issuesDir        string
-	dryRun           bool
-	concurrent       int
-	batchSize        int
-	ide              string
-	model            string
-	grouped          bool
-	tailLines        int
-	reasoningEffort  string
-	useForm          bool
-	mode             string
-	includeCompleted bool
+	pr                     string
+	issuesDir              string
+	dryRun                 bool
+	concurrent             int
+	batchSize              int
+	ide                    string
+	model                  string
+	grouped                bool
+	tailLines              int
+	reasoningEffort        string
+	useForm                bool
+	mode                   string
+	includeCompleted       bool
+	timeout                string
+	maxRetries             int
+	retryBackoffMultiplier float64
 )
 
 var _ = buildZenMCPGuidance
@@ -197,6 +213,24 @@ func setupFlags() {
 	)
 	rootCmd.Flags().
 		BoolVar(&includeCompleted, "include-completed", false, "Include completed tasks (only applies to prd-tasks mode)")
+	rootCmd.Flags().StringVar(
+		&timeout,
+		"timeout",
+		"10m",
+		"Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period.",
+	)
+	rootCmd.Flags().IntVar(
+		&maxRetries,
+		"max-retries",
+		3,
+		"Maximum number of retry attempts on timeout (0 = no retry, default: 3)",
+	)
+	rootCmd.Flags().Float64Var(
+		&retryBackoffMultiplier,
+		"retry-backoff-multiplier",
+		2.0,
+		"Timeout multiplier for each retry attempt (default: 2.0 = 2x timeout on each retry)",
+	)
 
 	// Note: PR is usually required, but we handle this dynamically in runSolveIssues
 }
@@ -225,6 +259,7 @@ type formInputs struct {
 	tailLines       string
 	reasoningEffort string
 	mode            string
+	timeout         string
 }
 
 func newFormInputs() *formInputs {
@@ -242,6 +277,7 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addModelField(&fi.model)
 	builder.addTailLinesField(&fi.tailLines)
 	builder.addReasoningEffortField(&fi.reasoningEffort)
+	builder.addTimeoutField(&fi.timeout)
 	builder.addConfirmField(
 		"dry-run",
 		"Dry Run?",
@@ -270,6 +306,7 @@ func (fi *formInputs) apply(cmd *cobra.Command) {
 	applyStringInput(cmd, "reasoning-effort", fi.reasoningEffort, func(val string) {
 		reasoningEffort = val
 	})
+	applyStringInput(cmd, "timeout", fi.timeout, func(val string) { timeout = val })
 }
 
 type formBuilder struct {
@@ -290,7 +327,10 @@ func (fb *formBuilder) addField(flag string, build func() huh.Field) {
 	if fb.cmd.Flags().Changed(flag) {
 		return
 	}
-	fb.fields = append(fb.fields, build())
+	field := build()
+	if field != nil {
+		fb.fields = append(fb.fields, field)
+	}
 }
 
 func (fb *formBuilder) addModeField(target *string) {
@@ -308,14 +348,24 @@ func (fb *formBuilder) addModeField(target *string) {
 
 func (fb *formBuilder) addPRField(target *string) {
 	fb.addField("pr", func() huh.Field {
+		title := "PR Number"
+		placeholder := "259"
+		description := "Required: Pull request number or identifier to process"
+		errorMsg := "PR number is required"
+		if mode == modePRDTasks {
+			title = "Task Identifier"
+			placeholder = "multi-repo"
+			description = "Required: Task name/identifier (e.g., 'multi-repo' for tasks/prd-multi-repo)"
+			errorMsg = "Task identifier is required"
+		}
 		return huh.NewInput().
-			Title("PR Number").
-			Placeholder("259").
-			Description("Required: Pull request number or identifier to process").
+			Title(title).
+			Placeholder(placeholder).
+			Description(description).
 			Value(target).
 			Validate(func(str string) error {
 				if str == "" {
-					return errors.New("PR number is required")
+					return errors.New(errorMsg)
 				}
 				return nil
 			})
@@ -324,10 +374,18 @@ func (fb *formBuilder) addPRField(target *string) {
 
 func (fb *formBuilder) addOptionalPathField(flag string, target *string) {
 	fb.addField(flag, func() huh.Field {
+		title := "Issues Directory (optional)"
+		placeholder := "ai-docs/reviews-pr-<PR>/issues"
+		description := "Leave empty to auto-generate from PR number"
+		if mode == modePRDTasks {
+			title = "Tasks Directory (optional)"
+			placeholder = "tasks/prd-<name>"
+			description = "Leave empty to auto-generate from task identifier"
+		}
 		return huh.NewInput().
-			Title("Issues Directory (optional)").
-			Placeholder("ai-docs/reviews-pr-<PR>/issues").
-			Description("Leave empty to auto-generate from PR number").
+			Title(title).
+			Placeholder(placeholder).
+			Description(description).
 			Value(target)
 	})
 }
@@ -413,6 +471,26 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 				huh.NewOption("High", "high"),
 			).
 			Value(target)
+	})
+}
+
+func (fb *formBuilder) addTimeoutField(target *string) {
+	fb.addField("timeout", func() huh.Field {
+		return huh.NewInput().
+			Title("Activity Timeout").
+			Placeholder("10m").
+			Description("Cancel job if no output received within this period (e.g., 5m, 30s)").
+			Value(target).
+			Validate(func(str string) error {
+				if str == "" {
+					return nil
+				}
+				_, err := time.ParseDuration(str)
+				if err != nil {
+					return errors.New("invalid duration format (e.g., 5m, 30s, 1h)")
+				}
+				return nil
+			})
 	})
 }
 
@@ -521,19 +599,28 @@ func ensurePRProvided() error {
 }
 
 func buildCLIArgs() *cliArgs {
+	timeoutDuration := defaultActivityTimeout
+	if timeout != "" {
+		if parsed, err := time.ParseDuration(timeout); err == nil {
+			timeoutDuration = parsed
+		}
+	}
 	return &cliArgs{
-		pr:               pr,
-		issuesDir:        issuesDir,
-		dryRun:           dryRun,
-		concurrent:       concurrent,
-		batchSize:        batchSize,
-		ide:              ide,
-		model:            model,
-		grouped:          grouped,
-		tailLines:        tailLines,
-		reasoningEffort:  reasoningEffort,
-		mode:             mode,
-		includeCompleted: includeCompleted,
+		pr:                     pr,
+		issuesDir:              issuesDir,
+		dryRun:                 dryRun,
+		concurrent:             concurrent,
+		batchSize:              batchSize,
+		ide:                    ide,
+		model:                  model,
+		grouped:                grouped,
+		tailLines:              tailLines,
+		reasoningEffort:        reasoningEffort,
+		mode:                   mode,
+		includeCompleted:       includeCompleted,
+		timeout:                timeoutDuration,
+		maxRetries:             maxRetries,
+		retryBackoffMultiplier: retryBackoffMultiplier,
 	}
 }
 
@@ -560,6 +647,12 @@ func (c *cliArgs) validate() error {
 			"batch size must be 1 for prd-tasks mode (got %d)",
 			c.batchSize,
 		)
+	}
+	if c.maxRetries < 0 {
+		return fmt.Errorf("max-retries cannot be negative (got %d)", c.maxRetries)
+	}
+	if c.retryBackoffMultiplier <= 0 {
+		return fmt.Errorf("retry-backoff-multiplier must be positive (got %.2f)", c.retryBackoffMultiplier)
 	}
 	return nil
 }
@@ -688,7 +781,11 @@ func resolveInputs(args *cliArgs) (string, string, string, error) {
 		}
 	}
 	if issuesDir == "" {
-		issuesDir = fmt.Sprintf("ai-docs/reviews-pr-%s/issues", pr)
+		if args.mode == modePRDTasks {
+			issuesDir = fmt.Sprintf("tasks/prd-%s", pr)
+		} else {
+			issuesDir = fmt.Sprintf("ai-docs/reviews-pr-%s/issues", pr)
+		}
 	}
 	resolvedIssuesDir, err := filepath.Abs(issuesDir)
 	if err != nil {
@@ -910,7 +1007,7 @@ func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jo
 func (j *jobExecutionContext) cleanup() {
 	if j.uiProg != nil {
 		close(j.uiCh)
-		time.Sleep(80 * time.Millisecond)
+		time.Sleep(uiMessageDrainDelay)
 		j.uiProg.Quit()
 	}
 }
@@ -982,7 +1079,7 @@ func (j *jobExecutionContext) reportAggregateUsage() {
 }
 
 func (j *jobExecutionContext) awaitShutdownAfterCancel(done <-chan struct{}) (int32, []failInfo, int, error) {
-	shutdownTimeout := 30 * time.Second
+	shutdownTimeout := gracefulShutdownTimeout
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer shutdownCancel()
 	select {
@@ -1060,7 +1157,7 @@ func runOneJob(
 	useUI := uiCh != nil
 	if ctx.Err() != nil {
 		if useUI {
-			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: exitCodeCanceled}
 		}
 		return
 	}
@@ -1071,11 +1168,146 @@ func runOneJob(
 		}
 		return
 	}
-	cmd, outF, errF := setupCommandExecution(ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu)
-	if cmd == nil {
-		return
+	executeJobWithRetry(
+		ctx, args, j, cwd, useUI, uiCh, index,
+		failed, failuresMu, failures, aggregateUsage, aggregateMu,
+	)
+}
+
+func executeJobWithRetry(
+	ctx context.Context,
+	args *cliArgs,
+	j *job,
+	cwd string,
+	useUI bool,
+	uiCh chan uiMsg,
+	index int,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) {
+	currentTimeout := args.timeout
+	attempt := 0
+	maxRetries := uint64(0)
+	if args.maxRetries > 0 {
+		// #nosec G115 - maxRetries is validated to be non-negative and reasonable
+		maxRetries = uint64(args.maxRetries)
 	}
-	executeCommandAndHandleResult(ctx, cmd, outF, errF, j, index, useUI, uiCh, failed, failuresMu, failures)
+	backoff := retry.WithMaxRetries(maxRetries, retry.NewConstant(1*time.Millisecond))
+	err := retry.Do(ctx, backoff, func(retryCtx context.Context) error {
+		attempt++
+		currentTimeout = calculateRetryTimeout(
+			currentTimeout,
+			attempt,
+			args.retryBackoffMultiplier,
+			args.maxRetries,
+			index,
+			j,
+			useUI,
+		)
+		return executeJobAttempt(
+			retryCtx, args, j, cwd, useUI, uiCh, index, currentTimeout,
+			failed, failuresMu, failures, aggregateUsage, aggregateMu, attempt,
+		)
+	})
+	logRetryCompletion(err, attempt, index, j, useUI)
+}
+
+func calculateRetryTimeout(
+	currentTimeout time.Duration,
+	attempt int,
+	multiplier float64,
+	maxRetries int,
+	index int,
+	j *job,
+	useUI bool,
+) time.Duration {
+	if attempt > 1 {
+		currentTimeout = time.Duration(float64(currentTimeout) * multiplier)
+		if !useUI {
+			fmt.Fprintf(
+				os.Stderr,
+				"\n🔄 Retry attempt %d/%d for job %d (%s) with timeout %v\n",
+				attempt-1,
+				maxRetries,
+				index+1,
+				strings.Join(j.codeFiles, ", "),
+				currentTimeout,
+			)
+		}
+	}
+	return currentTimeout
+}
+
+func executeJobAttempt(
+	ctx context.Context,
+	args *cliArgs,
+	j *job,
+	cwd string,
+	useUI bool,
+	uiCh chan uiMsg,
+	index int,
+	currentTimeout time.Duration,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+	attempt int,
+) error {
+	argsWithTimeout := *args
+	argsWithTimeout.timeout = currentTimeout
+	if useUI && attempt > 1 {
+		uiCh <- jobStartedMsg{Index: index}
+	}
+	success, exitCode := executeJobWithTimeoutAndResult(
+		ctx, &argsWithTimeout, j, cwd, useUI, uiCh,
+		index, failed, failuresMu, failures, aggregateUsage, aggregateMu,
+	)
+	if !success && exitCode == exitCodeTimeout {
+		return retry.RetryableError(fmt.Errorf("timeout"))
+	}
+	return nil
+}
+
+func logRetryCompletion(err error, attempt int, index int, j *job, useUI bool) {
+	if err != nil && attempt > 1 && !useUI {
+		fmt.Fprintf(
+			os.Stderr,
+			"\n❌ Job %d (%s) failed after %d retry attempts\n",
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+			attempt-1,
+		)
+	}
+}
+
+func executeJobWithTimeoutAndResult(
+	ctx context.Context,
+	args *cliArgs,
+	j *job,
+	cwd string,
+	useUI bool,
+	uiCh chan uiMsg,
+	index int,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	aggregateUsage *TokenUsage,
+	aggregateMu *sync.Mutex,
+) (bool, int) {
+	cmd, outF, errF, monitor := setupCommandExecution(
+		ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu,
+	)
+	if cmd == nil {
+		return false, -1
+	}
+	return executeCommandAndHandleResultWithStatus(
+		ctx, args.timeout, monitor, cmd, outF, errF, j,
+		index, useUI, uiCh, failed, failuresMu, failures,
+	)
 }
 
 func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, j *job, ide string, model string, reasoningEffort string) {
@@ -1277,17 +1509,18 @@ func setupCommandIO(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) (*os.File, *os.File, error) {
+) (*os.File, *os.File, *activityMonitor, error) {
 	configureCommandEnvironment(cmd, cwd, j.prompt)
 	outF, err := createLogFile(j.outLog, "out")
 	if err != nil {
-		return nil, nil, fmt.Errorf("create out log: %w", err)
+		return nil, nil, nil, fmt.Errorf("create out log: %w", err)
 	}
 	errF, err := createLogFile(j.errLog, "err")
 	if err != nil {
 		outF.Close()
-		return nil, nil, fmt.Errorf("create err log: %w", err)
+		return nil, nil, nil, fmt.Errorf("create err log: %w", err)
 	}
+	monitor := newActivityMonitor()
 	outTap, errTap := buildCommandTaps(
 		outF,
 		errF,
@@ -1298,10 +1531,11 @@ func setupCommandIO(
 		ideType,
 		aggregateUsage,
 		aggregateMu,
+		monitor,
 	)
 	cmd.Stdout = outTap
 	cmd.Stderr = errTap
-	return outF, errF, nil
+	return outF, errF, monitor, nil
 }
 
 // configureCommandEnvironment applies working directory, stdin, and color env vars.
@@ -1325,13 +1559,14 @@ func buildCommandTaps(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
+	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
 	outRing := newLineRing(tailLines)
 	errRing := newLineRing(tailLines)
 	if useUI {
-		return buildUITaps(outF, errF, outRing, errRing, uiCh, index, ideType, aggregateUsage, aggregateMu)
+		return buildUITaps(outF, errF, outRing, errRing, uiCh, index, ideType, aggregateUsage, aggregateMu, monitor)
 	}
-	return buildCLITaps(outF, errF, ideType, aggregateUsage, aggregateMu)
+	return buildCLITaps(outF, errF, ideType, aggregateUsage, aggregateMu, monitor)
 }
 
 // buildUITaps creates stdout/stderr writers when the interactive UI is enabled.
@@ -1343,8 +1578,9 @@ func buildUITaps(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
+	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
-	uiTap := newUILogTap(index, false, outRing, errRing, uiCh)
+	uiTap := newUILogTap(index, false, outRing, errRing, uiCh, monitor)
 	var outTap io.Writer
 	if ideType == ideClaude {
 		usageCallback := func(usage TokenUsage) {
@@ -1357,11 +1593,11 @@ func buildUITaps(
 				aggregateMu.Unlock()
 			}
 		}
-		outTap = io.MultiWriter(outF, newJSONFormatterWithCallback(uiTap, usageCallback))
+		outTap = io.MultiWriter(outF, newJSONFormatterWithCallbackAndMonitor(uiTap, usageCallback, monitor))
 	} else {
 		outTap = io.MultiWriter(outF, uiTap)
 	}
-	errTap := io.MultiWriter(errF, newUILogTap(index, true, outRing, errRing, uiCh))
+	errTap := io.MultiWriter(errF, newUILogTap(index, true, outRing, errRing, uiCh, monitor))
 	return outTap, errTap
 }
 
@@ -1371,6 +1607,7 @@ func buildCLITaps(
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
+	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
 	if ideType == ideClaude {
 		usageCallback := func(usage TokenUsage) {
@@ -1382,7 +1619,7 @@ func buildCLITaps(
 		}
 		return io.MultiWriter(
 				outF,
-				newJSONFormatterWithCallback(os.Stdout, usageCallback),
+				newJSONFormatterWithCallbackAndMonitor(os.Stdout, usageCallback, monitor),
 			), io.MultiWriter(
 				errF,
 				os.Stderr,
@@ -1401,12 +1638,12 @@ func setupCommandExecution(
 	index int,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) (*exec.Cmd, *os.File, *os.File) {
+) (*exec.Cmd, *os.File, *os.File, *activityMonitor) {
 	cmd := createIDECommand(ctx, args)
 	if cmd == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
-	outF, errF, err := setupCommandIO(
+	outF, errF, monitor, err := setupCommandIO(
 		cmd,
 		j,
 		cwd,
@@ -1420,21 +1657,23 @@ func setupCommandExecution(
 	)
 	if err != nil {
 		recordFailureWithContext(nil, j, nil, err, -1)
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
-	return cmd, outF, errF
+	return cmd, outF, errF, monitor
 }
 
 func createLogFile(path, _ string) (*os.File, error) {
-	file, err := os.Create(path)
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
 	}
 	return file, nil
 }
 
-func executeCommandAndHandleResult(
+func executeCommandAndHandleResultWithStatus(
 	ctx context.Context,
+	timeout time.Duration,
+	monitor *activityMonitor,
 	cmd *exec.Cmd,
 	outF *os.File,
 	errF *os.File,
@@ -1445,7 +1684,7 @@ func executeCommandAndHandleResult(
 	failed *int32,
 	failuresMu *sync.Mutex,
 	failures *[]failInfo,
-) {
+) (bool, int) {
 	defer func() {
 		if outF != nil {
 			outF.Close()
@@ -1458,15 +1697,59 @@ func executeCommandAndHandleResult(
 	go func() {
 		cmdDone <- cmd.Run()
 	}()
+	activityTimeout := startActivityWatchdog(ctx, monitor, timeout, cmdDone)
+	type result struct {
+		success  bool
+		exitCode int
+	}
+	resultCh := make(chan result, 1)
 	select {
 	case err := <-cmdDone:
-		handleCommandCompletion(err, j, index, useUI, uiCh, failed, failuresMu, failures)
+		success, exitCode := handleCommandCompletionWithResult(
+			err, j, index, useUI, uiCh, failed, failuresMu, failures,
+		)
+		resultCh <- result{success, exitCode}
+	case <-activityTimeout:
+		handleActivityTimeout(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures, timeout)
+		resultCh <- result{false, exitCodeTimeout}
 	case <-ctx.Done():
 		handleCommandCancellation(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures)
+		resultCh <- result{false, exitCodeCanceled}
 	}
+	res := <-resultCh
+	return res.success, res.exitCode
 }
 
-func handleCommandCompletion(
+func startActivityWatchdog(
+	ctx context.Context,
+	monitor *activityMonitor,
+	timeout time.Duration,
+	cmdDone <-chan error,
+) <-chan struct{} {
+	activityTimeout := make(chan struct{})
+	if monitor != nil && timeout > 0 {
+		go func() {
+			ticker := time.NewTicker(activityCheckInterval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-ticker.C:
+					if monitor.timeSinceLastActivity() > timeout {
+						close(activityTimeout)
+						return
+					}
+				case <-cmdDone:
+					return
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
+	}
+	return activityTimeout
+}
+
+func handleCommandCompletionWithResult(
 	err error,
 	j *job,
 	index int,
@@ -1475,7 +1758,7 @@ func handleCommandCompletion(
 	failed *int32,
 	failuresMu *sync.Mutex,
 	failures *[]failInfo,
-) {
+) (bool, int) {
 	if err != nil {
 		ec := exitCodeOf(err)
 		atomic.AddInt32(failed, 1)
@@ -1488,11 +1771,12 @@ func handleCommandCompletion(
 		if useUI {
 			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: ec}
 		}
-		return
+		return false, ec
 	}
 	if useUI {
 		uiCh <- jobFinishedMsg{Index: index, Success: true, ExitCode: 0}
 	}
+	return true, 0
 }
 
 func handleCommandCancellation(
@@ -1522,7 +1806,7 @@ func handleCommandCancellation(
 		select {
 		case <-cmdDone:
 			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully\n", index+1)
-		case <-time.After(5 * time.Second):
+		case <-time.After(processTerminationGracePeriod):
 			// NOTE: Escalate to SIGKILL if the process ignores our grace period.
 			fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
 			if err := cmd.Process.Kill(); err != nil {
@@ -1531,8 +1815,92 @@ func handleCommandCancellation(
 		}
 	}
 	if useUI {
-		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: exitCodeCanceled}
 	}
+}
+
+func handleActivityTimeout(
+	_ context.Context,
+	cmd *exec.Cmd,
+	cmdDone <-chan error,
+	j *job,
+	index int,
+	useUI bool,
+	uiCh chan uiMsg,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+	timeout time.Duration,
+) {
+	logTimeoutMessage(index, j, timeout, useUI)
+	atomic.AddInt32(failed, 1)
+	terminateTimedOutProcess(cmd, cmdDone, index, useUI)
+	recordTimeoutFailure(j, timeout, failuresMu, failures)
+	if useUI {
+		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: exitCodeTimeout}
+	}
+}
+
+func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
+	if !useUI {
+		fmt.Fprintf(
+			os.Stderr,
+			"\nJob %d (%s) timed out after %v of inactivity\n",
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+			timeout,
+		)
+	}
+}
+
+func terminateTimedOutProcess(cmd *exec.Cmd, cmdDone <-chan error, index int, useUI bool) {
+	if cmd.Process == nil {
+		return
+	}
+	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		if !useUI {
+			fmt.Fprintf(os.Stderr, "Failed to send SIGTERM to process: %v\n", err)
+		}
+	}
+	waitForProcessTermination(cmdDone, cmd, index, useUI)
+}
+
+func waitForProcessTermination(cmdDone <-chan error, cmd *exec.Cmd, index int, useUI bool) {
+	select {
+	case <-cmdDone:
+		if !useUI {
+			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully after timeout\n", index+1)
+		}
+	case <-time.After(processTerminationGracePeriod):
+		forceKillProcess(cmd, index, useUI)
+	}
+}
+
+func forceKillProcess(cmd *exec.Cmd, index int, useUI bool) {
+	if !useUI {
+		fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
+	}
+	if err := cmd.Process.Kill(); err != nil {
+		if !useUI {
+			fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
+		}
+	}
+}
+
+func recordTimeoutFailure(j *job, timeout time.Duration, failuresMu *sync.Mutex, failures *[]failInfo) {
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
+	recordFailure(
+		failuresMu,
+		failures,
+		failInfo{
+			codeFile: codeFileLabel,
+			exitCode: exitCodeTimeout,
+			outLog:   j.outLog,
+			errLog:   j.errLog,
+			err:      timeoutErr,
+		},
+	)
 }
 
 func recordFailureWithContext(
@@ -1792,7 +2160,7 @@ func (m *uiModel) waitEvent() tea.Cmd {
 }
 
 func (m *uiModel) tick() tea.Cmd {
-	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{} })
+	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -2548,7 +2916,7 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 		if !f.Type().IsRegular() || !strings.HasSuffix(f.Name(), ".md") {
 			continue
 		}
-		if strings.HasPrefix(f.Name(), "_") && !strings.HasPrefix(f.Name(), "_task_") {
+		if !reTaskFile.MatchString(f.Name()) {
 			continue
 		}
 		names = append(names, f.Name())
@@ -2569,7 +2937,7 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 			name:     name,
 			absPath:  absPath,
 			content:  content,
-			codeFile: task.domain,
+			codeFile: strings.TrimSuffix(name, ".md"),
 		})
 	}
 	return entries, nil
@@ -2629,6 +2997,7 @@ func filterUnresolved(all []issueEntry) []issueEntry {
 var (
 	reResolvedStatus = regexp.MustCompile(`(?mi)^\s*(status|state)\s*:\s*resolved\b`)
 	reResolvedTask   = regexp.MustCompile(`(?mi)^\s*-\s*\[(x|X)\]\s*resolved\b`)
+	reTaskFile       = regexp.MustCompile(`^_task_\d+\.md$`)
 )
 
 func isIssueResolved(content string) bool {
@@ -2835,8 +3204,19 @@ func buildCodeReviewPrompt(p buildBatchedIssuesParams) string {
 
 func buildPRDTaskPrompt(task issueEntry) string {
 	taskData := parseTaskFile(task.content)
+	prdDir := filepath.Dir(task.absPath)
+	tasksFile := filepath.Join(prdDir, "_tasks.md")
+	header := fmt.Sprintf("# Implementation Task: %s\n\n", task.name)
+	contextSection := buildTaskContextSection(&taskData)
+	criticalSection := buildCriticalExecutionSection()
+	specSection := fmt.Sprintf("## Task Specification\n\n%s\n\n", task.content)
+	implSection := buildImplementationInstructionsSection(prdDir)
+	completionSection := buildCompletionCriteriaSection(task.absPath, tasksFile, task.name)
+	return header + contextSection + criticalSection + specSection + implSection + completionSection
+}
+
+func buildTaskContextSection(taskData *taskEntry) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("# Implementation Task: %s\n\n", task.name))
 	sb.WriteString("## Task Context\n\n")
 	sb.WriteString(fmt.Sprintf("- **Domain**: %s\n", taskData.domain))
 	sb.WriteString(fmt.Sprintf("- **Type**: %s\n", taskData.taskType))
@@ -2846,31 +3226,81 @@ func buildPRDTaskPrompt(task issueEntry) string {
 		sb.WriteString(fmt.Sprintf("- **Dependencies**: %s\n", strings.Join(taskData.dependencies, ", ")))
 	}
 	sb.WriteString("\n")
-	sb.WriteString("## Task Specification\n\n")
-	sb.WriteString(task.content)
-	sb.WriteString("\n\n")
+	return sb.String()
+}
+
+func buildCriticalExecutionSection() string {
+	var sb strings.Builder
+	sb.WriteString("<CRITICAL>\n")
+	sb.WriteString("**EXECUTION MODE: ONE-SHOT DIRECT IMPLEMENTATION**\n\n")
+	sb.WriteString("You MUST complete this task in ONE continuous execution from beginning to end:\n\n")
+	sb.WriteString("- **NO ASKING**: Do not ask for clarification, confirmation, or approval\n")
+	sb.WriteString("- **NO PLANNING MODE**: Execute directly without presenting plans\n")
+	sb.WriteString("- **NO PARTIAL WORK**: Complete ALL requirements, subtasks, and deliverables\n")
+	sb.WriteString("- **FOLLOW ALL STANDARDS**: Adhere to ALL project rules in `.cursor/rules/`\n")
+	sb.WriteString("- **BEST PRACTICES ONLY**: No workarounds, hacks, or shortcuts\n")
+	sb.WriteString("- **PROPER SOLUTIONS**: Implement production-ready, maintainable code\n\n")
+	sb.WriteString("**VALIDATION REQUIREMENTS**:\n")
+	sb.WriteString("- All tests MUST pass (`make test`)\n")
+	sb.WriteString("- All linting MUST pass (`make lint`)\n")
+	sb.WriteString("- All type checking MUST pass (`make typecheck`)\n")
+	sb.WriteString("- All subtasks MUST be marked complete\n")
+	sb.WriteString("- Task status MUST be updated to 'completed'\n\n")
+	sb.WriteString("⚠️  **WORK WILL BE INVALIDATED** if:\n")
+	sb.WriteString("- Any requirement is incomplete\n")
+	sb.WriteString("- Tests/linting/typecheck fail\n")
+	sb.WriteString("- Project standards are violated\n")
+	sb.WriteString("- Workarounds are used instead of proper solutions\n")
+	sb.WriteString("- Task completion steps are skipped\n")
+	sb.WriteString("</CRITICAL>\n\n")
+	return sb.String()
+}
+
+func buildImplementationInstructionsSection(prdDir string) string {
+	var sb strings.Builder
 	sb.WriteString("## Implementation Instructions\n\n")
 	sb.WriteString("<critical>\n")
 	sb.WriteString("**MANDATORY READ BEFORE STARTING**:\n")
-	sb.WriteString("- @.cursor/rules/go-coding-standards.mdc\n")
-	sb.WriteString("- @.cursor/rules/architecture.mdc\n")
-	sb.WriteString("- @.cursor/rules/test-standards.mdc\n")
+	sb.WriteString("- @.cursor/rules/critical-validation.mdc\n")
+	sb.WriteString(fmt.Sprintf("- All documents from this PRD directory: `%s`\n", prdDir))
+	sb.WriteString("  - Especially review `_techspec.md` and `_tasks.md` for full context\n")
 	sb.WriteString("</critical>\n\n")
-	sb.WriteString("**Requirements**:\n")
-	sb.WriteString("- All functions must be < 50 lines\n")
-	sb.WriteString("- Must pass `make lint` and `make test`\n")
-	sb.WriteString("- Use context-first APIs: `logger.FromContext(ctx)`, `config.FromContext(ctx)`\n")
-	sb.WriteString("- No `context.Background()` in runtime code (use `t.Context()` in tests)\n")
-	sb.WriteString("- Proper error wrapping with `fmt.Errorf` and `%w`\n")
-	sb.WriteString("- Follow SOLID principles and clean architecture patterns\n\n")
+	return sb.String()
+}
+
+func buildCompletionCriteriaSection(taskAbsPath, tasksFile, taskName string) string {
+	var sb strings.Builder
 	sb.WriteString("## Completion Criteria\n\n")
-	sb.WriteString("After implementation:\n")
-	sb.WriteString("1. All subtasks in the task file are completed\n")
-	sb.WriteString("2. All deliverables are produced\n")
-	sb.WriteString("3. All tests pass: `make test`\n")
-	sb.WriteString("4. Code passes linting: `make lint`\n")
-	sb.WriteString(fmt.Sprintf("5. Update task status in `%s` to `completed`\n", task.absPath))
-	sb.WriteString("6. Commit changes with descriptive message referencing the task number\n\n")
+	sb.WriteString("After implementation, you MUST complete ALL of the following steps:\n\n")
+	sb.WriteString("1. **Verify Implementation**:\n")
+	sb.WriteString("   - All subtasks in this task file are completed\n")
+	sb.WriteString("   - All deliverables specified are produced\n")
+	sb.WriteString("   - All tests pass: `make test`\n")
+	sb.WriteString("   - Code passes linting: `make lint`\n\n")
+	sb.WriteString("2. **Mark Subtasks Complete**:\n")
+	sb.WriteString(fmt.Sprintf("   - In `%s`, check all `[ ]` boxes to `[x]` for completed subtasks\n\n", taskAbsPath))
+	sb.WriteString("3. **Update Task Status**:\n")
+	sb.WriteString(fmt.Sprintf("   - In `%s`, change the status line from:\n", taskAbsPath))
+	sb.WriteString("     ```\n")
+	sb.WriteString("     ## status: pending\n")
+	sb.WriteString("     ```\n")
+	sb.WriteString("     to:\n")
+	sb.WriteString("     ```\n")
+	sb.WriteString("     ## status: completed\n")
+	sb.WriteString("     ```\n\n")
+	sb.WriteString("4. **Update Master Tasks List**:\n")
+	sb.WriteString(fmt.Sprintf("   - In `%s`, check the corresponding task checkbox for `%s`\n\n", tasksFile, taskName))
+	sb.WriteString("5. **Commit Changes**:\n")
+	sb.WriteString(
+		fmt.Sprintf("   - Commit all changes with a descriptive message like: `feat: complete %s`\n\n", taskName),
+	)
+	sb.WriteString("<critical>\n")
+	sb.WriteString("**DO NOT SKIP ANY COMPLETION STEPS**\n")
+	sb.WriteString("Your task is NOT complete until ALL steps above are done, including:\n")
+	sb.WriteString("- All subtask checkboxes marked\n")
+	sb.WriteString("- Status changed to 'completed'\n")
+	sb.WriteString("- Master tasks list updated\n")
+	sb.WriteString("</critical>\n\n")
 	return sb.String()
 }
 
@@ -3175,22 +3605,66 @@ func (r *lineRing) snapshot() []string {
 	return out
 }
 
+// activityMonitor tracks the last time output was received from a process.
+// It enables activity-based timeout detection, where a job is considered
+// stuck if no output is received within the configured timeout period.
+type activityMonitor struct {
+	mu           sync.Mutex
+	lastActivity time.Time
+}
+
+func newActivityMonitor() *activityMonitor {
+	return &activityMonitor{
+		lastActivity: time.Now(),
+	}
+}
+
+func (a *activityMonitor) recordActivity() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastActivity = time.Now()
+}
+
+func (a *activityMonitor) timeSinceLastActivity() time.Duration {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return time.Since(a.lastActivity)
+}
+
 // uiLogTap is an io.Writer that splits by newlines, appends to a ring buffer
 // and emits UI updates with the newest snapshots.
 type uiLogTap struct {
-	idx   int
-	isErr bool
-	out   *lineRing
-	err   *lineRing
-	ch    chan<- uiMsg
-	buf   []byte
+	idx             int
+	isErr           bool
+	out             *lineRing
+	err             *lineRing
+	ch              chan<- uiMsg
+	buf             []byte
+	activityMonitor *activityMonitor
 }
 
-func newUILogTap(idx int, isErr bool, outRing, errRing *lineRing, ch chan<- uiMsg) *uiLogTap {
-	return &uiLogTap{idx: idx, isErr: isErr, out: outRing, err: errRing, ch: ch, buf: make([]byte, 0, 1024)}
+func newUILogTap(
+	idx int,
+	isErr bool,
+	outRing, errRing *lineRing,
+	ch chan<- uiMsg,
+	monitor *activityMonitor,
+) *uiLogTap {
+	return &uiLogTap{
+		idx:             idx,
+		isErr:           isErr,
+		out:             outRing,
+		err:             errRing,
+		ch:              ch,
+		buf:             make([]byte, 0, 1024),
+		activityMonitor: monitor,
+	}
 }
 
 func (t *uiLogTap) Write(p []byte) (int, error) {
+	if len(p) > 0 && t.activityMonitor != nil {
+		t.activityMonitor.recordActivity()
+	}
 	cleaned := bytes.ReplaceAll(p, []byte{'\r'}, []byte{'\n'})
 	t.buf = append(t.buf, cleaned...)
 	for {
@@ -3217,16 +3691,29 @@ func (t *uiLogTap) Write(p []byte) (int, error) {
 // Non-JSON lines are passed through unchanged.
 // For Claude messages, it can optionally parse and report token usage via callback.
 type jsonFormatter struct {
-	w             io.Writer
-	buf           []byte
-	usageCallback func(TokenUsage) // Called when Claude usage data is parsed
+	w               io.Writer
+	buf             []byte
+	usageCallback   func(TokenUsage) // Called when Claude usage data is parsed
+	activityMonitor *activityMonitor
 }
 
-func newJSONFormatterWithCallback(w io.Writer, callback func(TokenUsage)) *jsonFormatter {
-	return &jsonFormatter{w: w, buf: make([]byte, 0, 4096), usageCallback: callback}
+func newJSONFormatterWithCallbackAndMonitor(
+	w io.Writer,
+	callback func(TokenUsage),
+	monitor *activityMonitor,
+) *jsonFormatter {
+	return &jsonFormatter{
+		w:               w,
+		buf:             make([]byte, 0, 4096),
+		usageCallback:   callback,
+		activityMonitor: monitor,
+	}
 }
 
 func (f *jsonFormatter) Write(p []byte) (int, error) {
+	if len(p) > 0 && f.activityMonitor != nil {
+		f.activityMonitor.recordActivity()
+	}
 	f.buf = append(f.buf, p...)
 	for {
 		i := bytes.IndexByte(f.buf, '\n')

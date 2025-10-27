@@ -363,9 +363,21 @@ func createDatabaseDefaults(defaultConfig *Config) map[string]any {
 // createTemporalDefaults creates temporal configuration defaults
 func createTemporalDefaults(defaultConfig *Config) map[string]any {
 	return map[string]any{
+		"mode":       defaultConfig.Temporal.Mode,
 		"host_port":  defaultConfig.Temporal.HostPort,
 		"namespace":  defaultConfig.Temporal.Namespace,
 		"task_queue": defaultConfig.Temporal.TaskQueue,
+		"standalone": map[string]any{
+			"database_file": defaultConfig.Temporal.Standalone.DatabaseFile,
+			"frontend_port": defaultConfig.Temporal.Standalone.FrontendPort,
+			"bind_ip":       defaultConfig.Temporal.Standalone.BindIP,
+			"namespace":     defaultConfig.Temporal.Standalone.Namespace,
+			"cluster_name":  defaultConfig.Temporal.Standalone.ClusterName,
+			"enable_ui":     defaultConfig.Temporal.Standalone.EnableUI,
+			"ui_port":       defaultConfig.Temporal.Standalone.UIPort,
+			"log_level":     defaultConfig.Temporal.Standalone.LogLevel,
+			"start_timeout": defaultConfig.Temporal.Standalone.StartTimeout.String(),
+		},
 	}
 }
 

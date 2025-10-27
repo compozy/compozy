@@ -1,0 +1,223 @@
+---
+title: "Temporal Modes"
+description: "Choose between remote and standalone Temporal deployments for Compozy."
+icon: GitBranch
+---
+
+<Callout type="warning">
+**Production rule:** Use the remote mode for every production environment. Standalone mode embeds Temporal for local development and automated testing only.
+</Callout>
+
+## Mode Comparison
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Capability</TableHead>
+      <TableHead>Remote Mode</TableHead>
+      <TableHead>Standalone Mode</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Target environment</TableCell>
+      <TableCell>Production, staging, shared QA</TableCell>
+      <TableCell>Local development, ephemeral CI jobs, automated tests</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Runtime</TableCell>
+      <TableCell>External Temporal cluster (Temporal Cloud or self-managed)</TableCell>
+      <TableCell>Embedded `temporal.NewServer()` running in-process</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Persistence</TableCell>
+      <TableCell>Managed persistence (Cassandra, MySQL, PostgreSQL)</TableCell>
+      <TableCell>SQLite (`:memory:` or file on disk)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>High availability</TableCell>
+      <TableCell>Multi-node, supports failover and replication</TableCell>
+      <TableCell>Single-node; no HA guarantees</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Web UI</TableCell>
+      <TableCell>Optional, usually deployed separately</TableCell>
+      <TableCell>Bundled UI on port 8233 when `enable_ui: true`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Default ports</TableCell>
+      <TableCell>Depends on cluster setup (usually 7233)</TableCell>
+      <TableCell>Frontend 7233, History 7234, Matching 7235, Worker 7236, UI 8233</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Startup latency</TableCell>
+      <TableCell>Depends on remote connectivity</TableCell>
+      <TableCell>&lt; 10s typical; configurable via `start_timeout`</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Architecture Overview
+
+<Mermaid chart={`flowchart LR
+  subgraph Remote Cluster
+    F[Frontend Services]
+    H[History Services]
+    M[Matching Services]
+    W[Worker Services]
+    DB[(Durable Storage)]
+    F -> H
+    F -->|GRPC 7233| Compozy
+    H --> DB
+    M --> DB
+    W --> DB
+  end
+
+  subgraph Compozy standalone
+    subgraph Embedded Temporal
+      FE[Frontend 7233]
+      HI[History 7234]
+      MA[Matching 7235]
+      WO[Worker 7236]
+      DB2[(SQLite :memory: or file)]
+    end
+    UI[Temporal UI 8233]
+  end
+
+  Compozy -.-> UI
+  FE --> DB2
+  HI --> DB2
+  MA --> DB2
+  WO --> DB2
+`} />
+
+<Callout type="info">
+The embedded server reuses the production Temporal codebase. Switching between modes changes orchestration, not workflow semantics.
+</Callout>
+
+## Remote Mode (Production)
+
+Use remote mode whenever you need durability, multi-node availability, or shared infrastructure.
+
+```yaml title="temporal (remote)"
+temporal:
+  mode: remote
+  host_port: temporal.my-company.internal:7233
+  namespace: compozy-prod
+  task_queue: compozy-tasks
+```
+
+```bash title="CLI override"
+compozy start --temporal-mode=remote --temporal-host=temporal.my-company.internal:7233
+```
+
+- Provision namespaces per environment and align retention policies with compliance needs.
+- Enable mTLS or mutual auth on the Temporal gateway.
+- Monitor latency, workflow backlog, and activity heartbeats via Temporal metrics.
+
+## Standalone Mode (Development & CI)
+
+Standalone mode spins up the Temporal server inside the Compozy process. It is perfect for developers who want zero external dependencies.
+
+```yaml title="temporal (standalone)"
+temporal:
+  mode: standalone
+  host_port: localhost:7233
+  standalone:
+    database_file: :memory:
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-standalone
+    enable_ui: true
+    ui_port: 8233
+    log_level: warn
+    start_timeout: 30s
+```
+
+```bash title="Quick start"
+compozy start --temporal-mode=standalone --temporal-standalone-database=:memory:
+```
+
+<Callout type="warning">
+Standalone mode stores workflow state in SQLite and binds to loopback by default. Do not expose it to the public internet and never run it behind load balancers.
+</Callout>
+
+### When to Use Standalone
+
+<List>
+  <ListItem title="Local development" icon="Monitor">
+    Reduce onboarding friction—no Docker Compose, just run `compozy start` and start building workflows.
+  </ListItem>
+  <ListItem title="Continuous integration" icon="Workflow">
+    Run integration tests inside CI jobs without provisioning external clusters. Point tests to `TEMPORAL_MODE=standalone` for predictable behavior.
+  </ListItem>
+  <ListItem title="Workshops & samples" icon="Sparkles">
+    Ship self-contained examples that boot end-to-end in seconds, ideal for tutorials and demos.
+  </ListItem>
+</List>
+
+### Port Allocation
+
+| Service   | Port | Description |
+| --------- | ---- | ----------- |
+| Frontend  | 7233 | gRPC entrypoint for clients and workers |
+| History   | 7234 | Internal history service |
+| Matching  | 7235 | Task queue matching service |
+| Worker    | 7236 | System worker service (internal workflows) |
+| Web UI    | 8233 | Temporal Web UI (when `enable_ui` is `true`) |
+
+Use the `frontend_port` field to shift the entire block of service ports. For example, setting `frontend_port: 9733` exposes the services on 9733–9736.
+
+## Migrating Between Modes
+
+<Steps size="sm">
+  <Step title="Plan the migration">
+    Audit current workflows, ensure retries are idempotent, and decide migration direction (remote → standalone for dev, or standalone → remote for prod).
+  </Step>
+  <Step title="Update configuration">
+    Change `temporal.mode` and related fields in `compozy.yaml`. For standalone → remote, remove the `standalone` block to rely on remote defaults.
+  </Step>
+  <Step title="Rotate secrets & endpoints">
+    Adjust environment variables (`TEMPORAL_MODE`, `TEMPORAL_HOST_PORT`, `TEMPORAL_STANDALONE_*`) and restart any long-running workers.
+  </Step>
+  <Step title="Verify connectivity">
+    For remote mode, run `temporal namespace describe`. For standalone mode, open `http://localhost:8233` to confirm the embedded UI is available.
+  </Step>
+</Steps>
+
+<Callout type="success">
+For automated tests, pin `database_file` to a temporary location (e.g. `./.tmp/temporal.db`) when you need persistence across multiple test executions.
+</Callout>
+
+## Resources
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Temporal Configuration"
+    description="Field-by-field description of mode, standalone options, and validation rules"
+    href="/docs/configuration/temporal"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Embedded Temporal Architecture"
+    description="Understand the four-service layout, lifecycle hooks, and SQLite storage"
+    href="/docs/architecture/embedded-temporal"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Standalone Troubleshooting"
+    description="Resolve port conflicts, SQLite errors, and startup timeouts"
+    href="/docs/troubleshooting/temporal"
+    icon="LifeBuoy"
+  />
+  <ReferenceCard
+    title="Quick Start"
+    description="Spin up Compozy with standalone mode in minutes"
+    href="/docs/quick-start"
+    icon="Rocket"
+  />
+</ReferenceCardList>
+
+- [Temporal Self-Hosted Guide](https://docs.temporal.io/self-hosted-guide)
+- [Reference implementation using `temporal.NewServer()`](https://github.com/abtinf/temporal-a-day/blob/main/001-all-in-one-hello/main.go)

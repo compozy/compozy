@@ -1,0 +1,195 @@
+---
+title: "Quick Start"
+description: "Launch Compozy with the embedded Temporal server in under five minutes."
+icon: Rocket
+---
+
+<Callout type="info">
+This quick start uses **Temporal standalone mode**, so you do not need Docker or an external Temporal cluster. For production hardening, read the [Production guide](/docs/deployment/production).
+</Callout>
+
+## Prerequisites
+
+- [Compozy CLI](/docs/core/getting-started/installation)
+- [Bun](https://bun.sh/docs/installation) for tool execution
+- An OpenAI-compatible API key stored in `.env`
+
+## 1. Initialize a Project
+
+```bash
+compozy init hello-standalone
+cd hello-standalone
+```
+
+## 2. Configure Temporal Standalone Mode
+
+Replace the generated `compozy.yaml` with the configuration below. It enables standalone mode and points to a simple workflow.
+
+```yaml title="compozy.yaml"
+name: hello-standalone
+version: "0.1.0"
+description: Develop locally with embedded Temporal
+
+temporal:
+  mode: standalone
+  host_port: localhost:7233
+  standalone:
+    database_file: :memory:
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-standalone
+    enable_ui: true
+    ui_port: 8233
+
+runtime:
+  type: bun
+  entrypoint: "./entrypoint.ts"
+  permissions:
+    - --allow-read
+    - --allow-net
+
+workflows:
+  - source: ./workflows/greeting.yaml
+```
+
+## 3. Create a Tool and Workflow
+
+```typescript title="entrypoint.ts"
+interface GreetingInput {
+  name: string;
+}
+
+export default {
+  async greeting_tool({ input }: { input: GreetingInput }) {
+    return {
+      message: `Hello, ${input.name}! Welcome to Compozy with Temporal standalone mode.`,
+      timestamp: new Date().toISOString(),
+    };
+  },
+};
+```
+
+```yaml title="workflows/greeting.yaml"
+id: greeting-workflow
+version: 0.1.0
+description: Quick start workflow using embedded Temporal
+
+schemas:
+  - id: greeting_input
+    type: object
+    properties:
+      name:
+        type: string
+        description: Name of the person to greet
+    required:
+      - name
+
+config:
+  input:
+    greeting_input
+
+tools:
+  - id: greeting_tool
+    description: Generates a greeting message
+    input:
+      greeting_input
+
+agents:
+  - id: greeter
+    model: openai:gpt-4o-mini
+    instructions: "Use the greeting tool to produce a personalized welcome."
+    tools:
+      - greeting_tool
+    actions:
+      - id: make_greeting
+        prompt: "Generate a greeting for {{ .workflow.input.name }}."
+
+tasks:
+  - id: greet
+    type: basic
+    agent: greeter
+    action: make_greeting
+    final: true
+
+outputs:
+  greeting: "{{ .tasks.greet.output }}"
+```
+
+Create a `.env` file with your API key:
+
+```bash
+OPENAI_API_KEY=sk-your-api-key
+```
+
+## 4. Start Compozy with Standalone Temporal
+
+```bash
+compozy start --temporal-mode=standalone --temporal-standalone-database=:memory:
+```
+
+The command boots Compozy, launches the embedded Temporal services on ports 7233-7236, and serves the Temporal Web UI at `http://localhost:8233`.
+
+<Callout type="success">
+Visit the Temporal Web UI to watch workflow executions in real time. Use it to inspect task queues, workflow history, and failure retries without leaving your laptop.
+</Callout>
+
+## 5. Run the Workflow
+
+<Tabs items={["CLI", "REST"]}>
+  <Tab>
+
+  ```bash
+  compozy workflow run ./workflows/greeting.yaml --input '{"name":"Avery"}'
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```http title="test.http"
+  @baseUrl = http://localhost:5001/api/v0
+  @workflowId = greeting-workflow
+
+  POST {{baseUrl}}/workflows/{{workflowId}}/executions
+  Content-Type: application/json
+
+  {
+    "input": {
+      "name": "Avery"
+    }
+  }
+  ```
+
+  </Tab>
+</Tabs>
+
+You should see the greeting response in your terminal or HTTP client within seconds.
+
+## Next Steps
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Temporal Modes"
+    description="Understand when to switch between remote and standalone"
+    href="/docs/deployment/temporal-modes"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Production Deployment"
+    description="Harden your deployment with a remote Temporal cluster"
+    href="/docs/deployment/production"
+    icon="Shield"
+  />
+  <ReferenceCard
+    title="Embedded Temporal"
+    description="Learn how the standalone server is wired into Compozy"
+    href="/docs/architecture/embedded-temporal"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Troubleshooting"
+    description="Fix startup timeouts, port conflicts, and SQLite issues"
+    href="/docs/troubleshooting/temporal"
+    icon="LifeBuoy"
+  />
+</ReferenceCardList>

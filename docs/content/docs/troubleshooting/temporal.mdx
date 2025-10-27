@@ -1,0 +1,122 @@
+---
+title: "Temporal Troubleshooting"
+description: "Resolve common issues when running Temporal in Compozy."
+icon: LifeBuoy
+---
+
+<Callout type="info">
+Most issues surface when running standalone mode because the Temporal server shares ports and resources with your local machine. Start here before escalating to Temporal logs.
+</Callout>
+
+## Quick Diagnostics
+
+<List>
+  <ListItem title="Check ports" icon="Server">
+    `lsof -i :7233-7236` shows which process is using Temporal service ports. Release conflicting processes or configure a different `frontend_port`.
+  </ListItem>
+  <ListItem title="Inspect logs" icon="FileSearch">
+    Run `COMPOZY_LOG_LEVEL=debug` and set `temporal.standalone.log_level=debug` to stream Temporal server logs through the CLI.
+  </ListItem>
+  <ListItem title="Validate namespace" icon="Layers">
+    `temporal namespace describe` confirms the namespace exists and is reachable when operating in remote mode.
+  </ListItem>
+</List>
+
+## Port Conflicts
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Symptom</TableHead>
+      <TableHead>Resolution</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`listen tcp 127.0.0.1:7233: bind: address already in use`</TableCell>
+      <TableCell>Change `temporal.standalone.frontend_port` (all services shift with it) or stop the conflicting process.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Temporal UI fails to start because 8233 is in use</TableCell>
+      <TableCell>Set `temporal.standalone.ui_port` to an available port or disable the UI with `enable_ui: false`.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Remote mode cannot reach Temporal</TableCell>
+      <TableCell>Verify firewall rules and TLS configuration. Use `temporal workflow list --namespace <ns>` from the same host.</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## SQLite Issues
+
+<List>
+  <ListItem title="Permission denied" icon="Key">
+    Ensure the directory containing `database_file` exists and is writable. For CI, create a tmp directory before launching Compozy.
+  </ListItem>
+  <ListItem title="Corrupted database" icon="AlertTriangle">
+    Delete the SQLite file and restart. Use `:memory:` for transient runs or swap to a clean path per test.
+  </ListItem>
+  <ListItem title="Slow startup" icon="Gauge">
+    Large disk-backed SQLite files slow boot time. Prune old history or use `:memory:` during development.
+  </ListItem>
+</List>
+
+## Startup Timeouts
+
+If you see `standalone Temporal failed to start within 30s`:
+
+- Increase `temporal.standalone.start_timeout` (e.g. `60s`) for slower laptops or CI.
+- Check that the host ports are free; Temporal will not start if they are already bound.
+- For remote mode, confirm the Temporal cluster is reachable and healthy. Latency or TLS negotiation failures can exhaust the timeout.
+
+## Temporal UI Not Accessible
+
+- Confirm `enable_ui: true` and that the UI port is open.
+- For standalone mode, open `http://127.0.0.1:<ui_port>`. If you bound to `0.0.0.0`, use the machine IP explicitly.
+- Behind reverse proxies, configure allowed hosts and TLS termination before exposing the UI to other users.
+
+## Performance & Throughput
+
+- Standalone mode uses SQLite and a single worker process—expect lower throughput than production clusters.
+- To simulate production load, switch to remote mode against a staging Temporal cluster.
+- Monitor metrics via Compozy’s Prometheus endpoint; look for high `workflow_task_schedule_to_start_latency` when load grows.
+
+## Escalation Checklist
+
+<List>
+  <ListItem title="Capture logs" icon="FileText">
+    Attach Compozy and Temporal logs when filing an issue.
+  </ListItem>
+  <ListItem title="Record configuration" icon="ClipboardList">
+    Include `temporal` and `standalone` sections of `compozy.yaml` and any CLI overrides you used.
+  </ListItem>
+  <ListItem title="Note versions" icon="Tag">
+    Provide the Compozy version, Go runtime version, and Temporal server version if running remotely.
+  </ListItem>
+</List>
+
+## Related Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Temporal Modes"
+    description="Decide when to use remote or standalone"
+    href="/docs/deployment/temporal-modes"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Embedded Temporal"
+    description="Understand how standalone services are composed"
+    href="/docs/architecture/embedded-temporal"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="compozy start CLI"
+    description="CLI flags for Temporal connectivity"
+    href="/docs/cli/compozy-start"
+    icon="Terminal"
+  />
+</ReferenceCardList>
+
+- [Temporal Server Operational Guide](https://docs.temporal.io/self-hosted-guide)
+- [Temporalite Deprecation Notice](https://github.com/temporalio/temporalite#deprecation-notice)

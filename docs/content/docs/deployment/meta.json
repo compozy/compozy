@@ -1,0 +1,12 @@
+{
+  "title": "Deployment",
+  "description": "Deploy Compozy across environments and Temporal modes",
+  "icon": "Rocket",
+  "root": true,
+  "pages": [
+    "production",
+    "temporal-modes",
+    "docker",
+    "kubernetes"
+  ]
+}

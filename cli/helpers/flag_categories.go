@@ -173,7 +173,9 @@ func getInfrastructureCategories() []FlagCategory {
 			Name:        "Temporal Configuration",
 			Description: "Workflow orchestration settings",
 			Flags: []string{
-				"temporal-host", "temporal-namespace", "temporal-task-queue",
+				"temporal-mode", "temporal-host", "temporal-namespace", "temporal-task-queue",
+				"temporal-standalone-database", "temporal-standalone-frontend-port",
+				"temporal-standalone-ui-port",
 			},
 		},
 		{

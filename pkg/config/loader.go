@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net"
 	"reflect"
 	"strconv"
 	"strings"
@@ -16,6 +17,12 @@ import (
 	"github.com/knadh/koanf/providers/env/v2"
 	"github.com/knadh/koanf/providers/structs"
 	"github.com/knadh/koanf/v2"
+)
+
+const (
+	maxTCPPort             = 65535
+	temporalServiceSpan    = 3 // Temporal reserves FrontendPort through FrontendPort+3
+	temporalModeStandalone = "standalone"
 )
 
 // loader implements the Service interface for configuration management.
@@ -373,8 +380,107 @@ func validateDatabase(cfg *Config) error {
 }
 
 func validateTemporal(cfg *Config) error {
-	if cfg.Temporal.HostPort == "" {
-		return fmt.Errorf("temporal host_port is required")
+	mode := strings.TrimSpace(cfg.Temporal.Mode)
+	if mode == "" {
+		return fmt.Errorf("temporal.mode is required")
+	}
+	switch mode {
+	case "remote":
+		if cfg.Temporal.HostPort == "" {
+			return fmt.Errorf("temporal.host_port is required in remote mode")
+		}
+		return nil
+	case temporalModeStandalone:
+		return validateStandaloneTemporalConfig(cfg)
+	default:
+		return fmt.Errorf("temporal.mode must be one of [remote standalone], got %q", mode)
+	}
+}
+
+func validateStandaloneTemporalConfig(cfg *Config) error {
+	standalone := &cfg.Temporal.Standalone
+	if err := validateStandaloneDatabase(standalone); err != nil {
+		return err
+	}
+	if err := validateStandalonePorts(standalone); err != nil {
+		return err
+	}
+	if err := validateStandaloneNetwork(standalone); err != nil {
+		return err
+	}
+	if err := validateStandaloneMetadata(standalone); err != nil {
+		return err
+	}
+	if err := validateStandaloneLogLevel(standalone); err != nil {
+		return err
+	}
+	return validateStandaloneStartTimeout(standalone)
+}
+
+func validateStandaloneDatabase(standalone *StandaloneConfig) error {
+	if standalone.DatabaseFile == "" {
+		return fmt.Errorf("temporal.standalone.database_file is required when mode=standalone")
+	}
+	return nil
+}
+
+func validateStandalonePorts(standalone *StandaloneConfig) error {
+	if standalone.FrontendPort < 1 || standalone.FrontendPort > maxTCPPort {
+		return fmt.Errorf("temporal.standalone.frontend_port must be between 1 and %d", maxTCPPort)
+	}
+	if standalone.FrontendPort+temporalServiceSpan > maxTCPPort {
+		return fmt.Errorf("temporal.standalone.frontend_port reserves out-of-range service port")
+	}
+	if standalone.EnableUI {
+		if standalone.UIPort < 1 || standalone.UIPort > maxTCPPort {
+			return fmt.Errorf("temporal.standalone.ui_port must be between 1 and %d when enable_ui is true", maxTCPPort)
+		}
+		start := standalone.FrontendPort
+		end := standalone.FrontendPort + temporalServiceSpan
+		if standalone.UIPort >= start && standalone.UIPort <= end {
+			return fmt.Errorf("temporal.standalone.ui_port must not collide with service ports [%d-%d]", start, end)
+		}
+	} else if standalone.UIPort != 0 && (standalone.UIPort < 1 || standalone.UIPort > maxTCPPort) {
+		return fmt.Errorf("temporal.standalone.ui_port must be between 1 and %d when set", maxTCPPort)
+	}
+	return nil
+}
+
+func validateStandaloneNetwork(standalone *StandaloneConfig) error {
+	if standalone.BindIP == "" {
+		return fmt.Errorf("temporal.standalone.bind_ip is required when mode=standalone")
+	}
+	if net.ParseIP(standalone.BindIP) == nil {
+		return fmt.Errorf("temporal.standalone.bind_ip must be a valid IP address")
+	}
+	return nil
+}
+
+func validateStandaloneMetadata(standalone *StandaloneConfig) error {
+	if standalone.Namespace == "" {
+		return fmt.Errorf("temporal.standalone.namespace is required when mode=standalone")
+	}
+	if standalone.ClusterName == "" {
+		return fmt.Errorf("temporal.standalone.cluster_name is required when mode=standalone")
+	}
+	return nil
+}
+
+func validateStandaloneLogLevel(standalone *StandaloneConfig) error {
+	switch standalone.LogLevel {
+	case "debug", "info", "warn", "error":
+		return nil
+	default:
+		return fmt.Errorf(
+			"temporal.standalone.log_level must be one of [debug info warn error], got %q",
+			standalone.LogLevel,
+		)
+	}
+}
+
+func validateStandaloneStartTimeout(standalone *StandaloneConfig) error {
+	if standalone.StartTimeout <= 0 {
+		return fmt.Errorf("temporal.standalone.start_timeout must be positive")
 	}
 	return nil
 }
@@ -485,14 +591,14 @@ func validateNativeToolTimeouts(cfg *Config) error {
 	return nil
 }
 
-// validateTCPPort validates that a string represents a valid TCP port number (1-65535)
+// validateTCPPort validates that a string represents a valid TCP port number (1-maxTCPPort)
 func validateTCPPort(portStr, fieldName string) error {
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
 		return fmt.Errorf("%s must be a valid integer, got: %s", fieldName, portStr)
 	}
-	if port < 1 || port > 65535 {
-		return fmt.Errorf("%s must be between 1 and 65535, got: %d", fieldName, port)
+	if port < 1 || port > maxTCPPort {
+		return fmt.Errorf("%s must be between 1 and %d, got: %d", fieldName, maxTCPPort, port)
 	}
 	return nil
 }
