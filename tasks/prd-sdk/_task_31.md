@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/memory</domain>
@@ -31,11 +31,11 @@ Implement ConfigBuilder in `sdk/memory/config.go` to configure memory resources 
 
 ## Subtasks
 
-- [ ] 31.1 Create sdk/memory/config.go with ConfigBuilder
-- [ ] 31.2 Implement New(id) constructor
-- [ ] 31.3 Implement WithProvider, WithModel, WithMaxTokens methods
-- [ ] 31.4 Implement WithFlushStrategy and WithFIFOFlush methods
-- [ ] 31.5 Add unit tests for core configuration and FIFO flush
+- [x] 31.1 Create sdk/memory/config.go with ConfigBuilder
+- [x] 31.2 Implement New(id) constructor
+- [x] 31.3 Implement WithProvider, WithModel, WithMaxTokens methods
+- [x] 31.4 Implement WithFlushStrategy and WithFIFOFlush methods
+- [x] 31.5 Add unit tests for core configuration and FIFO flush
 
 ## Implementation Details
 
@@ -93,16 +93,16 @@ Note: Advanced features (summarization flush, privacy, expiration, persistence, 
 
 Unit tests from _tests.md (Memory section - core subset):
 
-- [ ] Valid memory config with provider/model/maxTokens builds successfully
-- [ ] Memory config with empty ID returns BuildError
-- [ ] Memory config with empty provider returns BuildError
-- [ ] Memory config with empty model returns BuildError
-- [ ] Memory config with maxTokens <= 0 returns validation error
-- [ ] FIFO flush with maxMessages <= 0 returns validation error
-- [ ] FIFO flush strategy sets correct enum value
-- [ ] Build(ctx) propagates context to validation
-- [ ] logger.FromContext(ctx) used in Build method
-- [ ] Multiple validation errors aggregate in BuildError
+- [x] Valid memory config with provider/model/maxTokens builds successfully
+- [x] Memory config with empty ID returns BuildError
+- [x] Memory config with empty provider returns BuildError
+- [x] Memory config with empty model returns BuildError
+- [x] Memory config with maxTokens <= 0 returns validation error
+- [x] FIFO flush with maxMessages <= 0 returns validation error
+- [x] FIFO flush strategy sets correct enum value
+- [x] Build(ctx) propagates context to validation
+- [x] logger.FromContext(ctx) used in Build method
+- [x] Multiple validation errors aggregate in BuildError
 
 ## Success Criteria
 
