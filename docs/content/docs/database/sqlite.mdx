@@ -1,0 +1,209 @@
+---
+title: "SQLite Driver"
+description: "Run Compozy with an embedded SQLite database for local development, edge deployments, and lightweight environments."
+icon: HardDrive
+---
+
+<Callout type="warning">
+SQLite is optimized for **development, testing, and single-tenant edge workloads**. It uses database-level locks, so plan for a maximum of 5-10 concurrent workflows. For high-concurrency or multi-tenant environments, migrate to PostgreSQL.
+</Callout>
+
+## Why SQLite
+
+- Single-file deployment without external dependencies.
+- Ideal for CI pipelines and ephemeral preview environments.
+- Zero network latency; great for edge devices with limited resources.
+- Works with in-memory mode (`:memory:`) for short-lived execution.
+
+## Configuration
+
+```yaml title="compozy.yaml (SQLite)"
+database:
+  driver: sqlite
+  path: ./data/compozy.db
+  busy_timeout: 5000      # optional, milliseconds
+  journal_mode: wal       # optional, WAL recommended for concurrent writes
+  synchronous: normal     # optional, balance durability vs speed
+
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: qdrant
+      url: http://localhost:6333
+      dimension: 1536
+```
+
+### Supported Fields
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Field</TableHead>
+      <TableHead>Required</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`path`</TableCell>
+      <TableCell>Yes</TableCell>
+      <TableCell>Filesystem path to the SQLite database (`:memory:` for ephemeral usage).</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`busy_timeout`</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Milliseconds to wait before emitting `database is locked` errors.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`journal_mode`</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Recommended `wal` for write-concurrent scenarios; defaults to SQLite's driver configuration.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`synchronous`</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Adjust durability guarantees (`full`, `normal`, `off`).</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+Environment variables mirror the configuration fields (`COMPOZY_DB_PATH`, `COMPOZY_DB_BUSY_TIMEOUT`, etc.).
+
+## ⚠️ Vector Database Requirement
+
+SQLite does **not** ship with vector search. Configure an external provider whenever you use the SQLite driver.
+
+<Tabs items={["Qdrant", "Redis", "Filesystem"]}>
+  <Tab>
+
+  ```yaml title="Qdrant (Recommended)"
+  knowledge:
+    vector_dbs:
+      - id: main
+        provider: qdrant
+        url: http://localhost:6333
+        dimension: 1536
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```yaml title="Redis with RediSearch"
+  knowledge:
+    vector_dbs:
+      - id: cache
+        provider: redis
+        url: redis://localhost:6379
+        dialect: search
+        dimension: 1536
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```yaml title="Filesystem (Development Only)"
+  knowledge:
+    vector_dbs:
+      - id: local
+        provider: filesystem
+        path: ./data/embeddings
+        dimension: 1536
+  ```
+
+  </Tab>
+</Tabs>
+
+<Callout type="error">
+Do **not** set `provider: pgvector` while using the SQLite driver. Compozy refuses to start and emits `pgvector provider is incompatible with SQLite driver`.
+</Callout>
+
+## Concurrency Limitations
+
+SQLite uses database-level locks and serializes writes. Plan capacity accordingly:
+
+- ✅ Recommended: **5-10** concurrent workflows.
+- ⚠️ Borderline: 10-25 workflows with generous backoff and `busy_timeout`.
+- 🔴 Not supported: 25+ workflows or multi-tenant loads — migrate to PostgreSQL.
+
+```yaml title="Throttle concurrency for SQLite"
+runtime:
+  max_concurrent_workflows: 5
+```
+
+## Backup & Data Portability
+
+<List>
+  <ListItem title="Hot backups" icon="Database">
+    Use the `sqlite3` command (`.backup`) or copy the `.db` file while the server is idle.
+  </ListItem>
+  <ListItem title="Snapshots" icon="Camera">
+    Store database files in persistent volumes or object storage for rollback.
+  </ListItem>
+  <ListItem title="Migration to PostgreSQL" icon="GitBranch">
+    Export data as JSON (`.dump`) and import via repository tooling before switching drivers.
+  </ListItem>
+</List>
+
+## Operational Tips
+
+<AccordionGroup type="multiple">
+  <Accordion title="Enable WAL mode" icon="HardDrive">
+    Write-ahead logging (`journal_mode: wal`) improves concurrent write throughput and reduces lock contention.
+  </Accordion>
+  <Accordion title="Configure busy timeout" icon="Timer">
+    Set `busy_timeout` (e.g., 5000ms) to allow Compozy to retry automatically when the database is temporarily locked.
+  </Accordion>
+  <Accordion title="File permissions" icon="Lock">
+    Ensure the server process can read/write the configured database path. Set secure permissions for production-likes edge deployments.
+  </Accordion>
+  <Accordion title="Vacuum periodically" icon="Recycle">
+    Schedule `VACUUM` and `ANALYZE` during maintenance to keep the file compact and query planner statistics fresh.
+  </Accordion>
+</AccordionGroup>
+
+## CLI Reference
+
+```bash
+# File-backed database
+compozy start --db-driver=sqlite --db-path=./data/compozy.db
+
+# In-memory database (data reset on restart)
+compozy start --db-driver=sqlite --db-path=:memory:
+```
+
+```bash
+# Run migrations (auto-detects driver)
+compozy migrate up
+```
+
+## Troubleshooting
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `database is locked` | Too many concurrent writes | Reduce `runtime.max_concurrent_workflows`, increase `busy_timeout`, enable WAL mode. |
+| `pgvector provider is incompatible with SQLite driver` | Vector DB configured as `pgvector` | Switch to Qdrant, Redis, or filesystem provider. |
+| `no such table` | Migrations not applied | Run `compozy migrate up` after changing drivers or deleting database file. |
+| `permission denied` | Filesystem permissions on `.db` file | Adjust ownership or run Compozy with proper user/group permissions. |
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Database Overview"
+    description="Compare SQLite with PostgreSQL to confirm your choice."
+    href="/docs/database/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Vector Databases"
+    description="Select an external vector database when using SQLite."
+    href="/docs/knowledge-bases/vector-databases"
+    icon="Network"
+  />
+  <ReferenceCard
+    title="Database Troubleshooting"
+    description="Resolve locking, file, and configuration issues."
+    href="/docs/troubleshooting/database"
+    icon="LifeBuoy"
+  />
+</ReferenceCardList>

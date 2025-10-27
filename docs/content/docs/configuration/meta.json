@@ -4,6 +4,7 @@
   "icon": "Settings",
   "root": true,
   "pages": [
+    "database",
     "temporal"
   ]
 }

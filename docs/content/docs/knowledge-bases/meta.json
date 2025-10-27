@@ -1,0 +1,9 @@
+{
+  "title": "Knowledge Bases",
+  "description": "Configure vector databases and retrieval for Compozy projects",
+  "icon": "Network",
+  "root": true,
+  "pages": [
+    "vector-databases"
+  ]
+}

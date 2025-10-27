@@ -4,6 +4,7 @@
   "icon": "LifeBuoy",
   "root": true,
   "pages": [
+    "database",
     "temporal"
   ]
 }

@@ -7,6 +7,7 @@
     "project-commands",
     "dev-commands",
     "compozy-start",
+    "migrate",
     "auth-commands",
     "config-commands",
     "knowledge-commands",

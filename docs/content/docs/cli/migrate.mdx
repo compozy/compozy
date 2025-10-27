@@ -1,0 +1,83 @@
+---
+title: "compozy migrate"
+description: "Database migration commands with automatic driver detection for PostgreSQL and SQLite."
+icon: Database
+---
+
+Run schema migrations for the active database driver. Compozy detects PostgreSQL or SQLite based on your configuration and applies the correct migration set.
+
+## Usage
+
+```bash
+compozy migrate [command]
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `up` | Applies all pending migrations. |
+| `down` | Rolls back the most recent migration batch. |
+| `status` | Displays applied vs. pending migrations. |
+
+## Multi-Database Support
+
+```bash
+# Apply migrations (auto-detects driver from compozy.yaml or CLI flags)
+compozy migrate up
+
+# Check migration status
+compozy migrate status
+
+# Roll back last migration batch
+compozy migrate down
+```
+
+- PostgreSQL and SQLite use **separate migration files** tuned for each SQL dialect.
+- Switching drivers? Run `compozy migrate up` after updating `database.driver` to ensure the new backend schema exists.
+- For SQLite, keep the `.db` file available before running migrations; the CLI creates it if missing.
+
+<Callout type="warning">
+Always back up your database before running destructive commands such as `compozy migrate down`, especially in production PostgreSQL environments.
+</Callout>
+
+## Driver Overrides
+
+```bash
+# Force PostgreSQL migrations even if config defaults apply
+compozy migrate up --db-driver=postgres --db-conn-string=postgres://...
+
+# Migrate an SQLite file
+compozy migrate up --db-driver=sqlite --db-path=./data/compozy.db
+```
+
+Flags mirror those available on `compozy start`, ensuring parity between runtime and migration workflows (`--db-driver`, `--db-path`, `--db-conn-string`).
+
+## Troubleshooting
+
+- `no such table`: migrations were not applied for the selected driver—rerun `compozy migrate up`.
+- `database is locked` (SQLite): close other processes and consider enabling WAL mode before retrying.
+- `permission denied` (PostgreSQL): ensure the database user can create tables, indexes, and sequences.
+
+## Related Pages
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Database Overview"
+    description="Understand how driver selection impacts migrations."
+    href="/docs/database/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="PostgreSQL Driver"
+    description="Production-ready configuration and pgvector guidance."
+    href="/docs/database/postgresql"
+    icon="ServerCog"
+  />
+  <ReferenceCard
+    title="SQLite Driver"
+    description="Lightweight deployments and concurrency limits."
+    href="/docs/database/sqlite"
+    icon="HardDrive"
+  />
+</ReferenceCardList>

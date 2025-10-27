@@ -1,0 +1,149 @@
+---
+title: "Database Overview"
+description: "Compare PostgreSQL and SQLite drivers, understand architecture, and choose the right database for Compozy deployments."
+icon: Database
+---
+
+<Callout type="info">
+Compozy ships with **multi-database support**. PostgreSQL remains the default production driver, while SQLite unlocks lightweight, single-binary deployments. Use this page to decide which driver fits your workload before diving into driver-specific guides.
+</Callout>
+
+## Multi-Database Support at a Glance
+
+- Unified repository interfaces keep domain logic identical for both drivers.
+- `database.driver` selects PostgreSQL (`postgres`) or SQLite (`sqlite`) at startup.
+- Vector databases remain a separate concern; **SQLite requires an external vector DB**.
+- Migration tooling (`compozy migrate`) automatically targets the active driver.
+
+## Choosing Your Database
+
+| Criterion | PostgreSQL ✅ | SQLite ✅ |
+|-----------|--------------|----------|
+| **Use Case** | Production, Multi-tenant | Development, Edge, Single-tenant |
+| **Concurrency** | High (100+ workflows) | Low (5-10 workflows) |
+| **Scalability** | Excellent (horizontal/vertical) | Limited (single file) |
+| **Vector Search** | pgvector (built-in) | External DB required |
+| **Deployment** | Separate database server | Embedded (single binary) |
+| **Setup Complexity** | Moderate | Low (just a file path) |
+| **Performance** | Optimized for high load | Optimized for reads |
+| **Backup** | PostgreSQL tools (pg_dump) | File copy |
+| **Recommended For** | ✅ Production deployments | ✅ Development, testing, edge |
+
+### When to Use PostgreSQL
+
+- Sustained throughput with 25+ concurrent workflows or multi-tenant projects.
+- Built-in vector search via `pgvector` for knowledge bases and RAG.
+- Horizontal and vertical scaling on managed services (RDS, Neon, Supabase).
+- Advanced SQL features: advisory locks, JSONB operators, partitioning.
+- Strict audit, compliance, or HA requirements.
+
+### When to Use SQLite
+
+- Instant local development with no external dependencies.
+- Single-binary edge, IoT, or CI pipelines where a file-backed store is ideal.
+- Low to moderate concurrency (≤10 parallel workflows) with predictable load.
+- Disposable environments that can snapshot or replace the database file quickly.
+- Scenarios where you already run an external vector database service.
+
+<Callout type="error">
+SQLite **cannot** host vector embeddings. Configure an external vector database (Qdrant, Redis with RediSearch, or filesystem-based storage) whenever you select the SQLite driver.
+</Callout>
+
+## Architecture Overview
+
+<Mermaid chart={`graph TD
+  A[config.FromContext(ctx)\n database.driver] -->|postgres| B[PostgreSQL Provider]
+  A -->|sqlite| C[SQLite Provider]
+  B --> D[(PostgreSQL)]
+  C --> E[(SQLite File)]
+  D --> F[Repositories\nworkflow/task/auth]
+  E --> F
+  F --> G[Domain Services]
+  B -.-> H[pgvector]
+  C -.-> I[External Vector DB\n(Qdrant/Redis/Filesystem)]
+`} />
+
+<Steps>
+  <Step
+    title="Configuration"
+    description="`database.driver` determines which repository provider is instantiated during startup."
+    icon="Settings"
+  />
+  <Step
+    title="Provider Factory"
+    description="The factory constructs driver-specific repositories while keeping domain interfaces unchanged."
+    icon="GitBranch"
+  />
+  <Step
+    title="Runtime Behavior"
+    description="Concurrent workflow execution relies on database capabilities—PostgreSQL supports high concurrency; SQLite enforces database-level locks."
+    icon="Gauge"
+  />
+</Steps>
+
+## Driver Decision Flowchart
+
+<Mermaid chart={`graph TD
+  A[Start] --> B{Is this production?}
+  B -- Yes --> C[Choose PostgreSQL]
+  B -- No --> D{Need vector search?}
+  D -- Yes --> E{Can you provision pgvector?}
+  E -- Yes --> C
+  E -- No --> F[Use SQLite + External Vector DB]
+  D -- No --> G{Concurrency > 10 workflows?}
+  G -- Yes --> C
+  G -- No --> F
+`} />
+
+## Migration Considerations
+
+- Run `compozy migrate up` after switching drivers; Compozy selects the correct migration set automatically.
+- SQLite migrations focus on single-file durability—keep `.db` files in persistent storage.
+- PostgreSQL migrations can run online but prefer maintenance windows for schema-heavy releases.
+- Switching from SQLite to PostgreSQL requires exporting data (see driver guides) and re-running migrations on the target database.
+
+## Operational Readiness Checklist
+
+<List>
+  <ListItem title="Backups" icon="Database">
+    PostgreSQL: schedule `pg_dump` or managed snapshots. SQLite: copy the `.db` file during quiescent periods.
+  </ListItem>
+  <ListItem title="Monitoring" icon="Activity">
+    Track connection pool saturation (PostgreSQL) or lock contention (SQLite) via diagnostics.
+  </ListItem>
+  <ListItem title="Vector Search" icon="Cpu">
+    Confirm knowledge base configuration matches the driver’s capabilities (`pgvector` vs external providers).
+  </ListItem>
+  <ListItem title="Scaling Plan" icon="Layers">
+    Document when to graduate from SQLite to PostgreSQL as workload scales beyond 10 concurrent workflows.
+  </ListItem>
+</List>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="PostgreSQL Guide"
+    description="Configure Compozy for production-grade PostgreSQL deployments"
+    href="/docs/database/postgresql"
+    icon="ServerCog"
+  />
+  <ReferenceCard
+    title="SQLite Guide"
+    description="Set up lightweight deployments with SQLite"
+    href="/docs/database/sqlite"
+    icon="HardDrive"
+  />
+  <ReferenceCard
+    title="Database Configuration"
+    description="Reference for `database` configuration fields"
+    href="/docs/configuration/database"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Database Troubleshooting"
+    description="Resolve connection, locking, and vector database issues"
+    href="/docs/troubleshooting/database"
+    icon="LifeBuoy"
+  />
+</ReferenceCardList>
