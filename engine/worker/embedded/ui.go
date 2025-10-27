@@ -70,6 +70,9 @@ func (s *UIServer) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	if err := ensureUIPortAvailable(ctx, s.bindIP, s.uiPort); err != nil {
+		s.mu.Lock()
+		s.runErrCh = nil
+		s.mu.Unlock()
 		return err
 	}
 
@@ -110,7 +113,7 @@ func (s *UIServer) Stop(ctx context.Context) error {
 	}
 
 	s.mu.Lock()
-	if !s.started {
+	if !s.started && s.runErrCh == nil {
 		s.mu.Unlock()
 		return nil
 	}
@@ -144,7 +147,7 @@ func (s *UIServer) Stop(ctx context.Context) error {
 
 func ensureUIPortAvailable(ctx context.Context, bindIP string, port int) error {
 	dialer := &net.Dialer{Timeout: readyDialTimeout}
-	address := net.JoinHostPort(bindIP, strconv.Itoa(port))
+	address := net.JoinHostPort(dialHost(bindIP), strconv.Itoa(port))
 
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err == nil {

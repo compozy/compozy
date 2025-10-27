@@ -102,6 +102,37 @@ func TestServerStartStop(t *testing.T) {
 		assert.Contains(t, err.Error(), strconv.Itoa(port))
 	})
 
+	t.Run("Should fail start when UI required and port unavailable", func(t *testing.T) {
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		cfg := newTestConfig(t)
+		cfg.EnableUI = true
+		cfg.RequireUI = true
+		reserve, uiPort := reservePort(t)
+		require.NoError(t, reserve.Close())
+		cfg.UIPort = uiPort
+		require.NoError(t, ensureUIPortAvailable(t.Context(), cfg.BindIP, cfg.UIPort))
+
+		srv := newServerForTest(ctx, t, cfg)
+
+		listenCtx, cancel := context.WithTimeout(ctx, time.Second)
+		listener, err := (&net.ListenConfig{}).Listen(
+			listenCtx,
+			"tcp",
+			net.JoinHostPort(cfg.BindIP, strconv.Itoa(cfg.UIPort)),
+		)
+		cancel()
+		require.NoError(t, err)
+		defer func() { require.NoError(t, listener.Close()) }()
+
+		err = srv.Start(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "temporal ui port")
+
+		stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		require.NoError(t, srv.Stop(stopCtx))
+	})
+
 	t.Run("Should wait for ready state", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		cfg := newTestConfig(t)

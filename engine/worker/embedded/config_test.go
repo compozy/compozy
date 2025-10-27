@@ -146,6 +146,7 @@ func TestBuildSQLiteConnectAttrs(t *testing.T) {
 	require.Equal(t, map[string]string{
 		"mode":  "memory",
 		"cache": "shared",
+		"setup": "true",
 	}, memoryAttrs)
 
 	fileAttrs := buildSQLiteConnectAttrs(&Config{DatabaseFile: "temporal.db"})

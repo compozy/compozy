@@ -303,6 +303,7 @@ func newEmbeddedConfigFromDefaults() *embedded.Config {
 		Namespace:    defaults.Namespace,
 		ClusterName:  defaults.ClusterName,
 		EnableUI:     defaults.EnableUI,
+		RequireUI:    defaults.RequireUI,
 		UIPort:       defaults.UIPort,
 		LogLevel:     defaults.LogLevel,
 		StartTimeout: defaults.StartTimeout,

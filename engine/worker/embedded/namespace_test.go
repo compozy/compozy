@@ -16,9 +16,54 @@ import (
 func TestCreateNamespace(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	cfg := &Config{
-		DatabaseFile: filepath.Join(tempDir, "temporal.db"),
+	t.Run("Should create namespace successfully", func(t *testing.T) {
+		cfg := newNamespaceTestConfig(t)
+		require.NoError(t, validateConfig(cfg))
+
+		temporalCfg, err := buildTemporalConfig(cfg)
+		require.NoError(t, err)
+
+		require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
+	})
+
+	t.Run("Should persist namespace to database", func(t *testing.T) {
+		cfg := newNamespaceTestConfig(t)
+		temporalCfg, err := buildTemporalConfig(cfg)
+		require.NoError(t, err)
+		require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
+
+		sqlCfg := temporalCfg.Persistence.DataStores[temporalCfg.Persistence.DefaultStore].SQL
+		db, err := persistenceSQL.NewSQLDB(
+			sqlplugin.DbKindUnknown,
+			sqlCfg,
+			resolver.NewNoopResolver(),
+			log.NewNoopLogger(),
+			metrics.NoopMetricsHandler,
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = db.Close()
+		})
+
+		ctx := t.Context()
+		rows, err := db.SelectFromNamespace(ctx, sqlplugin.NamespaceFilter{Name: &cfg.Namespace})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+	})
+
+	t.Run("Should be idempotent when namespace already exists", func(t *testing.T) {
+		cfg := newNamespaceTestConfig(t)
+		temporalCfg, err := buildTemporalConfig(cfg)
+		require.NoError(t, err)
+		require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
+		require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
+	})
+}
+
+func newNamespaceTestConfig(t *testing.T) *Config {
+	t.Helper()
+	return &Config{
+		DatabaseFile: filepath.Join(t.TempDir(), "temporal.db"),
 		FrontendPort: 7400,
 		BindIP:       "127.0.0.1",
 		Namespace:    "standalone",
@@ -28,31 +73,4 @@ func TestCreateNamespace(t *testing.T) {
 		LogLevel:     "info",
 		StartTimeout: 15 * time.Second,
 	}
-
-	require.NoError(t, validateConfig(cfg))
-
-	temporalCfg, err := buildTemporalConfig(cfg)
-	require.NoError(t, err)
-
-	require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
-
-	sqlCfg := temporalCfg.Persistence.DataStores[temporalCfg.Persistence.DefaultStore].SQL
-	db, err := persistenceSQL.NewSQLDB(
-		sqlplugin.DbKindUnknown,
-		sqlCfg,
-		resolver.NewNoopResolver(),
-		log.NewNoopLogger(),
-		metrics.NoopMetricsHandler,
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = db.Close()
-	})
-
-	ctx := t.Context()
-	rows, err := db.SelectFromNamespace(ctx, sqlplugin.NamespaceFilter{Name: &cfg.Namespace})
-	require.NoError(t, err)
-	require.Len(t, rows, 1)
-
-	require.NoError(t, createNamespace(t.Context(), temporalCfg, cfg))
 }

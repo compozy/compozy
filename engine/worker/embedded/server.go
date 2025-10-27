@@ -28,7 +28,8 @@ var (
 
 // Server wraps an embedded Temporal server instance.
 type Server struct {
-	mu           sync.Mutex
+	mu           sync.Mutex // protects state fields like started
+	opMu         sync.Mutex // serializes start/stop operations
 	server       temporal.Server
 	config       *Config
 	frontendAddr string
@@ -99,7 +100,7 @@ func buildEmbeddedTemporalServer(ctx context.Context, cfg *Config) (temporal.Ser
 		return nil, "", fmt.Errorf("create temporal server: %w", err)
 	}
 
-	return server, fmt.Sprintf("%s:%d", cfg.BindIP, cfg.FrontendPort), nil
+	return server, net.JoinHostPort(cfg.BindIP, strconv.Itoa(cfg.FrontendPort)), nil
 }
 
 // Start boots the embedded Temporal server and waits for readiness.
@@ -108,44 +109,35 @@ func (s *Server) Start(ctx context.Context) error {
 		return errNilContext
 	}
 
+	log := logger.FromContext(ctx)
+
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
 	s.mu.Lock()
 	if s.started {
 		s.mu.Unlock()
 		return errAlreadyStarted
 	}
-	s.mu.Unlock()
-
-	startCtx, cancel := context.WithTimeout(ctx, s.config.StartTimeout)
-	defer cancel()
-
-	startTime := time.Now()
-	if err := s.server.Start(); err != nil {
-		return fmt.Errorf("start temporal server: %w", err)
-	}
-
-	if err := s.waitForReady(startCtx); err != nil {
-		stopErr := s.server.Stop()
-		if stopErr != nil {
-			logger.FromContext(ctx).Error("Failed to stop Temporal server after startup error", "error", stopErr)
-		}
-		return fmt.Errorf("wait for ready: %w", err)
-	}
-
-	s.mu.Lock()
 	s.started = true
 	s.mu.Unlock()
 
-	logger.FromContext(ctx).Info(
+	duration, err := s.startCore(ctx, log)
+	if err != nil {
+		s.setStarted(false)
+		return err
+	}
+
+	if err := s.startUIServer(ctx, log); err != nil {
+		s.setStarted(false)
+		return err
+	}
+
+	log.Info(
 		"Embedded Temporal server started",
 		"frontend_addr", s.frontendAddr,
-		"duration", time.Since(startTime),
+		"duration", duration,
 	)
-
-	if s.uiServer != nil {
-		if err := s.uiServer.Start(ctx); err != nil {
-			logger.FromContext(ctx).Warn("Failed to start Temporal UI server", "error", err)
-		}
-	}
 
 	return nil
 }
@@ -156,6 +148,9 @@ func (s *Server) Stop(ctx context.Context) error {
 		return errNilContext
 	}
 
+	s.opMu.Lock()
+	defer s.opMu.Unlock()
+
 	s.mu.Lock()
 	if !s.started {
 		s.mu.Unlock()
@@ -165,11 +160,12 @@ func (s *Server) Stop(ctx context.Context) error {
 	s.mu.Unlock()
 
 	stopStart := time.Now()
-	logger.FromContext(ctx).Info("Stopping embedded Temporal server", "frontend_addr", s.frontendAddr)
+	log := logger.FromContext(ctx)
+	log.Info("Stopping embedded Temporal server", "frontend_addr", s.frontendAddr)
 
 	if s.uiServer != nil {
 		if err := s.uiServer.Stop(ctx); err != nil {
-			logger.FromContext(ctx).Warn("Failed to stop Temporal UI server", "error", err)
+			log.Warn("Failed to stop Temporal UI server", "error", err)
 		}
 	}
 
@@ -177,7 +173,7 @@ func (s *Server) Stop(ctx context.Context) error {
 		return fmt.Errorf("stop temporal server: %w", err)
 	}
 
-	logger.FromContext(ctx).Info(
+	log.Info(
 		"Embedded Temporal server stopped",
 		"frontend_addr", s.frontendAddr,
 		"duration", time.Since(stopStart),
@@ -200,12 +196,18 @@ func (s *Server) waitForReady(ctx context.Context) error {
 	ticker := time.NewTicker(readyPollInterval)
 	defer ticker.Stop()
 
+	host, port, err := net.SplitHostPort(s.frontendAddr)
+	if err != nil {
+		return fmt.Errorf("parse frontend address %q: %w", s.frontendAddr, err)
+	}
+	target := net.JoinHostPort(dialHost(host), port)
+
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return fmt.Errorf("temporal frontend %s not ready before deadline: %w", target, ctx.Err())
 		case <-ticker.C:
-			conn, err := dialer.DialContext(ctx, "tcp", s.frontendAddr)
+			conn, err := dialer.DialContext(ctx, "tcp", target)
 			if err == nil {
 				_ = conn.Close()
 				return nil
@@ -217,7 +219,7 @@ func (s *Server) waitForReady(ctx context.Context) error {
 func ensurePortsAvailable(ctx context.Context, bindIP string, ports []int) error {
 	dialer := &net.Dialer{Timeout: readyDialTimeout}
 	for _, port := range ports {
-		addr := net.JoinHostPort(bindIP, strconv.Itoa(port))
+		addr := net.JoinHostPort(dialHost(bindIP), strconv.Itoa(port))
 		conn, err := dialer.DialContext(ctx, "tcp", addr)
 		if err == nil {
 			_ = conn.Close()
@@ -237,22 +239,82 @@ func ensurePortsAvailable(ctx context.Context, bindIP string, ports []int) error
 func isConnRefused(err error) bool {
 	var opErr *net.OpError
 	if errors.As(err, &opErr) {
-		if opErr.Err == syscall.ECONNREFUSED {
+		if errors.Is(opErr.Err, syscall.ECONNREFUSED) {
 			return true
 		}
 		var sysErr *os.SyscallError
 		if errors.As(opErr.Err, &sysErr) {
-			return sysErr.Err == syscall.ECONNREFUSED
+			return errors.Is(sysErr.Err, syscall.ECONNREFUSED)
 		}
 	}
 	return false
 }
 
 func servicePorts(cfg *Config) []int {
-	return []int{
+	ports := []int{
 		cfg.FrontendPort,
 		cfg.FrontendPort + 1,
 		cfg.FrontendPort + 2,
 		cfg.FrontendPort + 3,
 	}
+	if cfg.EnableUI {
+		ports = append(ports, cfg.UIPort)
+	}
+	return ports
+}
+
+func dialHost(bindIP string) string {
+	switch bindIP {
+	case "", "0.0.0.0":
+		return "127.0.0.1"
+	case "::", "[::]":
+		return "::1"
+	default:
+		return bindIP
+	}
+}
+
+func (s *Server) setStarted(started bool) {
+	s.mu.Lock()
+	s.started = started
+	s.mu.Unlock()
+}
+
+func (s *Server) startCore(ctx context.Context, log logger.Logger) (time.Duration, error) {
+	startCtx, cancel := context.WithTimeout(ctx, s.config.StartTimeout)
+	defer cancel()
+
+	startTime := time.Now()
+	if err := s.server.Start(); err != nil {
+		return 0, fmt.Errorf("start temporal server: %w", err)
+	}
+
+	if err := s.waitForReady(startCtx); err != nil {
+		stopErr := s.server.Stop()
+		if stopErr != nil {
+			log.Error("Failed to stop Temporal server after startup error", "error", stopErr)
+		}
+		return 0, fmt.Errorf("wait for ready: %w", err)
+	}
+
+	return time.Since(startTime), nil
+}
+
+func (s *Server) startUIServer(ctx context.Context, log logger.Logger) error {
+	if s.uiServer == nil {
+		return nil
+	}
+
+	if err := s.uiServer.Start(ctx); err != nil {
+		if s.config.RequireUI {
+			stopErr := s.server.Stop()
+			if stopErr != nil {
+				log.Error("Failed to stop Temporal server after UI startup error", "error", stopErr)
+			}
+			return fmt.Errorf("start temporal ui server: %w", err)
+		}
+		log.Warn("Failed to start Temporal UI server", "error", err)
+	}
+
+	return nil
 }

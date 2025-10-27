@@ -49,8 +49,12 @@ type Config struct {
 	// ClusterName is the Temporal cluster name.
 	ClusterName string
 
-	// EnableUI enables the Temporal Web UI server (defaults to true if not explicitly set).
+	// EnableUI enables the Temporal Web UI server.
+	// Set to true to enable the UI server on the specified UIPort.
 	EnableUI bool
+
+	// RequireUI enforces UI availability; Start returns an error if the UI fails to launch.
+	RequireUI bool
 
 	// UIPort is the HTTP port for the Web UI.
 	UIPort int
@@ -104,6 +108,9 @@ func validateConfig(cfg *Config) error {
 	}
 	if err := validatePort("ui_port", cfg.UIPort, cfg.EnableUI); err != nil {
 		return err
+	}
+	if cfg.RequireUI && !cfg.EnableUI {
+		return errors.New("require_ui cannot be set when enable_ui is false")
 	}
 	if err := validateBindIP(cfg.BindIP); err != nil {
 		return err

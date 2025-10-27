@@ -141,6 +141,7 @@ func buildSQLiteConnectAttrs(cfg *Config) map[string]string {
 		return map[string]string{
 			"mode":  "memory",
 			"cache": "shared",
+			"setup": "true",
 		}
 	}
 	return map[string]string{

@@ -460,6 +460,9 @@ type StandaloneConfig struct {
 	// EnableUI toggles the Temporal Web UI server.
 	EnableUI bool `koanf:"enable_ui" env:"TEMPORAL_STANDALONE_ENABLE_UI" json:"enable_ui" yaml:"enable_ui" mapstructure:"enable_ui"`
 
+	// RequireUI enforces UI availability; startup fails when UI cannot be launched.
+	RequireUI bool `koanf:"require_ui" env:"TEMPORAL_STANDALONE_REQUIRE_UI" json:"require_ui" yaml:"require_ui" mapstructure:"require_ui"`
+
 	// UIPort sets the HTTP port for the Temporal Web UI.
 	UIPort int `koanf:"ui_port" env:"TEMPORAL_STANDALONE_UI_PORT" json:"ui_port" yaml:"ui_port" mapstructure:"ui_port"`
 
@@ -2191,6 +2194,7 @@ func buildTemporalConfig(registry *definition.Registry) TemporalConfig {
 			Namespace:    getString(registry, "temporal.standalone.namespace"),
 			ClusterName:  getString(registry, "temporal.standalone.cluster_name"),
 			EnableUI:     getBool(registry, "temporal.standalone.enable_ui"),
+			RequireUI:    getBool(registry, "temporal.standalone.require_ui"),
 			UIPort:       getInt(registry, "temporal.standalone.ui_port"),
 			LogLevel:     getString(registry, "temporal.standalone.log_level"),
 			StartTimeout: getDuration(registry, "temporal.standalone.start_timeout"),

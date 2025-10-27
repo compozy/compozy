@@ -12,7 +12,13 @@ export const docs = defineDocs({
   },
 });
 
-const navigationLinks = [
+export interface NavigationLink {
+  title: string;
+  url: string;
+  description: string;
+}
+
+const navigationLinks: NavigationLink[] = [
   {
     title: "Temporal Modes",
     url: "/docs/deployment/temporal-modes",

@@ -7,7 +7,7 @@ type ValidationOutput = {
 };
 
 export default {
-  async validate_input({ input }: { input: ValidationInput }): Promise<ValidationOutput> {
+  validate_input({ input }: { input: ValidationInput }): ValidationOutput {
     if (!Number.isFinite(input.value)) {
       throw new Error("value must be a finite number");
     }

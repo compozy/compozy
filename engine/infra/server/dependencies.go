@@ -374,6 +374,7 @@ func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
 		Namespace:    standalone.Namespace,
 		ClusterName:  standalone.ClusterName,
 		EnableUI:     standalone.EnableUI,
+		RequireUI:    standalone.RequireUI,
 		UIPort:       standalone.UIPort,
 		LogLevel:     standalone.LogLevel,
 		StartTimeout: standalone.StartTimeout,

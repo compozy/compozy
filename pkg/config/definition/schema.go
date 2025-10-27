@@ -1017,6 +1017,13 @@ func registerTemporalStandaloneRuntimeFields(registry *Registry) {
 		Help:    "Enable Temporal Web UI in standalone mode",
 	})
 	registry.Register(&FieldDef{
+		Path:    "temporal.standalone.require_ui",
+		Default: false,
+		EnvVar:  "TEMPORAL_STANDALONE_REQUIRE_UI",
+		Type:    reflect.TypeOf(true),
+		Help:    "Fail startup when Temporal Web UI cannot be launched in standalone mode",
+	})
+	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.ui_port",
 		Default: 8233,
 		CLIFlag: "temporal-standalone-ui-port",

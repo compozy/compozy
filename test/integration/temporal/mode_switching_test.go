@@ -56,6 +56,7 @@ func toEmbeddedConfig(cfg *config.StandaloneConfig) *embedded.Config {
 		Namespace:    cfg.Namespace,
 		ClusterName:  cfg.ClusterName,
 		EnableUI:     cfg.EnableUI,
+		RequireUI:    cfg.RequireUI,
 		UIPort:       cfg.UIPort,
 		LogLevel:     cfg.LogLevel,
 		StartTimeout: cfg.StartTimeout,
