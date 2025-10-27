@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>sdk/docs</domain>
@@ -33,13 +33,13 @@ Create basic migration guide covering fundamental YAML-to-SDK patterns for simpl
 
 ## Subtasks
 
-- [ ] 53.1 Document context setup pattern (logger.WithLogger, config.WithConfig)
-- [ ] 53.2 Create YAML → SDK comparison for project configuration
-- [ ] 53.3 Create YAML → SDK comparison for model configuration
-- [ ] 53.4 Create YAML → SDK comparison for workflow + agent
-- [ ] 53.5 Create YAML → SDK comparison for basic task types
-- [ ] 53.6 Add validation error handling examples
-- [ ] 53.7 Add troubleshooting section for common beginner errors
+- [x] 53.1 Document context setup pattern (logger.WithLogger, config.WithConfig)
+- [x] 53.2 Create YAML → SDK comparison for project configuration
+- [x] 53.3 Create YAML → SDK comparison for model configuration
+- [x] 53.4 Create YAML → SDK comparison for workflow + agent
+- [x] 53.5 Create YAML → SDK comparison for basic task types
+- [x] 53.6 Add validation error handling examples
+- [x] 53.7 Add troubleshooting section for common beginner errors
 
 ## Implementation Details
 
@@ -95,17 +95,17 @@ None (standalone documentation task)
 ## Tests
 
 Documentation validation:
-- [ ] All code snippets compile without errors
-- [ ] Context setup pattern is correct (logger.WithLogger + config.WithConfig)
-- [ ] YAML examples match Go SDK output semantically
-- [ ] Error handling examples show proper BuildError usage
-- [ ] Links to full migration guide work
-- [ ] Troubleshooting covers: import errors, validation errors, context missing
+- [x] All code snippets compile without errors
+- [x] Context setup pattern is correct (logger.WithLogger + config.WithConfig)
+- [x] YAML examples match Go SDK output semantically
+- [x] Error handling examples show proper BuildError usage
+- [x] Links to full migration guide work
+- [x] Troubleshooting covers: import errors, validation errors, context missing
 
 Manual verification:
-- [ ] Copy each Go snippet to test file and verify it compiles
-- [ ] Run `go vet` on example snippets
-- [ ] Verify imports are complete and correct
+- [x] Copy each Go snippet to test file and verify it compiles
+- [x] Run `go vet` on example snippets
+- [x] Verify imports are complete and correct
 
 ## Success Criteria
 
