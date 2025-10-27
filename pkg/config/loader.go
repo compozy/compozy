@@ -19,6 +19,11 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
+const (
+	maxTCPPort          = 65535
+	temporalServiceSpan = 3 // Temporal reserves FrontendPort through FrontendPort+3
+)
+
 // loader implements the Service interface for configuration management.
 type loader struct {
 	koanf          *koanf.Koanf
@@ -419,15 +424,20 @@ func validateStandaloneDatabase(standalone *StandaloneConfig) error {
 }
 
 func validateStandalonePorts(standalone *StandaloneConfig) error {
-	if standalone.FrontendPort <= 0 || standalone.FrontendPort > 65535 {
+	if standalone.FrontendPort < 1 || standalone.FrontendPort > maxTCPPort {
 		return fmt.Errorf("temporal.standalone.frontend_port must be between 1 and 65535")
 	}
-	if standalone.FrontendPort+3 > 65535 {
+	if standalone.FrontendPort+temporalServiceSpan > maxTCPPort {
 		return fmt.Errorf("temporal.standalone.frontend_port reserves out-of-range service port")
 	}
 	if standalone.EnableUI {
-		if standalone.UIPort < 1 || standalone.UIPort > 65535 {
+		if standalone.UIPort < 1 || standalone.UIPort > maxTCPPort {
 			return fmt.Errorf("temporal.standalone.ui_port must be between 1 and 65535 when enable_ui is true")
+		}
+		start := standalone.FrontendPort
+		end := standalone.FrontendPort + temporalServiceSpan
+		if standalone.UIPort >= start && standalone.UIPort <= end {
+			return fmt.Errorf("temporal.standalone.ui_port must not collide with service ports [%d-%d]", start, end)
 		}
 	} else if standalone.UIPort != 0 && (standalone.UIPort < 1 || standalone.UIPort > 65535) {
 		return fmt.Errorf("temporal.standalone.ui_port must be between 1 and 65535 when set")

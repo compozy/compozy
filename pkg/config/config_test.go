@@ -286,6 +286,14 @@ func TestConfig_Validation(t *testing.T) {
 				},
 				wantErr: "start_timeout",
 			},
+			{
+				name: "ui disabled allows zero port",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.EnableUI = false
+					cfg.Standalone.UIPort = 0
+				},
+				wantErr: "",
+			},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -294,8 +302,12 @@ func TestConfig_Validation(t *testing.T) {
 				tc.mutate(&cfg.Temporal)
 				svc := NewService()
 				err := svc.Validate(cfg)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.wantErr)
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tc.wantErr)
+				}
 			})
 		}
 	})
