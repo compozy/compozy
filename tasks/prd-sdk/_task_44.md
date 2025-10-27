@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -33,15 +33,15 @@ Create the first runnable SDK example demonstrating basic workflow construction 
 
 ## Subtasks
 
-- [ ] 44.1 Create sdk/examples/01_simple_workflow.go
-- [ ] 44.2 Implement context setup (logger + config)
-- [ ] 44.3 Build model configuration
-- [ ] 44.4 Build agent with action and output schema
-- [ ] 44.5 Build workflow with basic task
-- [ ] 44.6 Build project configuration
-- [ ] 44.7 Add error handling examples
-- [ ] 44.8 Create README.md with run instructions
-- [ ] 44.9 Test example runs successfully
+- [x] 44.1 Create sdk/examples/01_simple_workflow.go
+- [x] 44.2 Implement context setup (logger + config)
+- [x] 44.3 Build model configuration
+- [x] 44.4 Build agent with action and output schema
+- [x] 44.5 Build workflow with basic task
+- [x] 44.6 Build project configuration
+- [x] 44.7 Add error handling examples
+- [x] 44.8 Create README.md with run instructions
+- [x] 44.9 Test example runs successfully
 
 ## Implementation Details
 
@@ -84,23 +84,23 @@ model, err := model.New("openai", "gpt-4").
 
 ## Deliverables
 
-- [ ] sdk/examples/01_simple_workflow.go (runnable)
-- [ ] sdk/examples/README.md with setup/run instructions
-- [ ] Clear comments explaining SDK patterns
-- [ ] Error handling examples
-- [ ] Verified example runs successfully
+- [x] sdk/examples/01_simple_workflow.go (runnable)
+- [x] sdk/examples/README.md with setup/run instructions
+- [x] Clear comments explaining SDK patterns
+- [x] Error handling examples
+- [x] Verified example runs successfully
 
 ## Tests
 
 From _tests.md:
 
 - Example validation:
-  - [ ] Code compiles without errors
-  - [ ] Example runs successfully with valid env vars
-  - [ ] Error handling works (missing API key, invalid config)
-  - [ ] Output matches expected format
-  - [ ] All context-first patterns followed
-  - [ ] No global config or logger usage
+  - [x] Code compiles without errors
+  - [x] Example runs successfully with valid env vars
+  - [x] Error handling works (missing API key, invalid config)
+  - [x] Output matches expected format
+  - [x] All context-first patterns followed
+  - [x] No global config or logger usage
 
 ## Success Criteria
 
