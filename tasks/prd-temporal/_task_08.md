@@ -1,5 +1,7 @@
 # Task 8.0: Documentation
 
+## status: completed
+
 **Size:** L (2-3 days)  
 **Priority:** HIGH - User-facing  
 **Dependencies:** Task 5.0
@@ -10,25 +12,25 @@ Create comprehensive documentation covering temporal modes, architecture, config
 
 ## Deliverables
 
-- [ ] `docs/content/docs/deployment/temporal-modes.mdx` - Mode selection guide
-- [ ] `docs/content/docs/architecture/embedded-temporal.mdx` - Architecture deep-dive
-- [ ] `docs/content/docs/configuration/temporal.mdx` - Update config reference
-- [ ] `docs/content/docs/quick-start/index.mdx` - Update quick start
-- [ ] `docs/content/docs/deployment/production.mdx` - Update production guide
-- [ ] `docs/content/docs/cli/compozy-start.mdx` - Update CLI docs
-- [ ] `docs/content/docs/troubleshooting/temporal.mdx` - Troubleshooting guide
+- [x] `docs/content/docs/deployment/temporal-modes.mdx` - Mode selection guide
+- [x] `docs/content/docs/architecture/embedded-temporal.mdx` - Architecture deep-dive
+- [x] `docs/content/docs/configuration/temporal.mdx` - Update config reference
+- [x] `docs/content/docs/quick-start/index.mdx` - Update quick start
+- [x] `docs/content/docs/deployment/production.mdx` - Update production guide
+- [x] `docs/content/docs/cli/compozy-start.mdx` - Update CLI docs
+- [x] `docs/content/docs/troubleshooting/temporal.mdx` - Troubleshooting guide
 
 ## Acceptance Criteria
 
-- [ ] All 7 pages created/updated
-- [ ] Navigation config updated
-- [ ] Code examples tested
-- [ ] YAML configuration examples included
-- [ ] Architecture diagrams clear
-- [ ] Troubleshooting section comprehensive
-- [ ] Production warnings prominent
-- [ ] Links validated
-- [ ] Docs site builds successfully
+- [x] All 7 pages created/updated
+- [x] Navigation config updated
+- [x] Code examples tested
+- [x] YAML configuration examples included
+- [x] Architecture diagrams clear
+- [x] Troubleshooting section comprehensive
+- [x] Production warnings prominent
+- [x] Links validated
+- [x] Docs site builds successfully
 
 ## Content Outline
 

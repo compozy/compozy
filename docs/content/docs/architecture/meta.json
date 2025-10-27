@@ -1,0 +1,9 @@
+{
+  "title": "Architecture",
+  "description": "Deep dives into Compozy's architecture and deployment internals",
+  "icon": "Layers",
+  "root": true,
+  "pages": [
+    "embedded-temporal"
+  ]
+}

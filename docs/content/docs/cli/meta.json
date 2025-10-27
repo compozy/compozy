@@ -6,6 +6,7 @@
   "pages": [
     "project-commands",
     "dev-commands",
+    "compozy-start",
     "auth-commands",
     "config-commands",
     "knowledge-commands",

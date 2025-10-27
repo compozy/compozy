@@ -12,7 +12,25 @@ export const docs = defineDocs({
   },
 });
 
-export default defineConfig({
+const navigationLinks = [
+  {
+    title: "Temporal Modes",
+    url: "/docs/deployment/temporal-modes",
+    description: "Choose between remote and standalone Temporal modes",
+  },
+  {
+    title: "Embedded Temporal",
+    url: "/docs/architecture/embedded-temporal",
+    description: "Technical deep-dive on embedded Temporal server implementation",
+  },
+  {
+    title: "Temporal Troubleshooting",
+    url: "/docs/troubleshooting/temporal",
+    description: "Common Temporal issues and solutions",
+  },
+];
+
+const config = defineConfig({
   mdxOptions: {
     rehypeCodeOptions: {
       themes: {
@@ -36,3 +54,7 @@ export default defineConfig({
     },
   },
 });
+
+(config as { navigationLinks?: typeof navigationLinks }).navigationLinks = navigationLinks;
+
+export default config;

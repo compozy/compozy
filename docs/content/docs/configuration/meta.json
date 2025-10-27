@@ -1,0 +1,9 @@
+{
+  "title": "Configuration",
+  "description": "Configuration references and examples",
+  "icon": "Settings",
+  "root": true,
+  "pages": [
+    "temporal"
+  ]
+}

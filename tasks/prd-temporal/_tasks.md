@@ -61,7 +61,7 @@
 - [x] 5.0 Server Lifecycle Integration (M - 2 days)
 - [ ] 6.0 Core Integration Tests (L - 3 days)
 - [x] 7.0 CLI & Schema Updates (S - half day)
-- [ ] 8.0 Documentation (L - 2-3 days)
+- [x] 8.0 Documentation (L - 2-3 days)
 - [ ] 9.0 Examples (L - 2-3 days)
 - [ ] 10.0 Advanced Integration Tests (M - 2 days)
 

@@ -1,9 +1,0 @@
-{
-  "title": "Deployment",
-  "description": "Deployment options and strategies",
-  "icon": "Rocket",
-  "pages": [
-    "docker",
-    "kubernetes"
-  ]
-}
