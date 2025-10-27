@@ -49,7 +49,7 @@ type Config struct {
 	// ClusterName is the Temporal cluster name.
 	ClusterName string
 
-	// EnableUI enables the Temporal Web UI server.
+	// EnableUI enables the Temporal Web UI server (defaults to true if not explicitly set).
 	EnableUI bool
 
 	// UIPort is the HTTP port for the Web UI.
@@ -89,9 +89,6 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.StartTimeout == 0 {
 		cfg.StartTimeout = defaultStartTimeout
-	}
-	if !cfg.EnableUI {
-		cfg.EnableUI = defaultEnableUI
 	}
 }
 

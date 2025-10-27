@@ -42,16 +42,10 @@ func NewServer(ctx context.Context, cfg *Config) (*Server, error) {
 	if ctx == nil {
 		return nil, errNilContext
 	}
-	userEnableUI := cfg.EnableUI
-	userUIPort := cfg.UIPort
 	if err := validateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 	applyDefaults(cfg)
-	if !userEnableUI {
-		cfg.EnableUI = false
-		cfg.UIPort = userUIPort
-	}
 
 	server, frontendAddr, err := buildEmbeddedTemporalServer(ctx, cfg)
 	if err != nil {

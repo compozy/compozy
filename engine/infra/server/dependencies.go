@@ -184,7 +184,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	temporalCleanup, err := maybeStartStandaloneTemporal(s.ctx, cfg)
+	temporalCleanup, err := maybeStartStandaloneTemporal(s.ctx)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -327,7 +327,8 @@ func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resource
 	return resources.NewMemoryResourceStore()
 }
 
-func maybeStartStandaloneTemporal(ctx context.Context, cfg *config.Config) (func(), error) {
+func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
+	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration is required to start Temporal")
 	}
@@ -352,12 +353,16 @@ func maybeStartStandaloneTemporal(ctx context.Context, cfg *config.Config) (func
 	}
 	cfg.Temporal.HostPort = server.FrontendAddress()
 	log.Info(
-		"Temporal standalone mode started at "+cfg.Temporal.HostPort,
+		"Temporal standalone mode started",
 		"frontend_addr", cfg.Temporal.HostPort,
 		"ui_enabled", embeddedCfg.EnableUI,
 		"ui_port", embeddedCfg.UIPort,
 	)
-	return standaloneTemporalCleanup(ctx, cfg, server, embeddedCfg.StartTimeout), nil
+	shutdownTimeout := cfg.Server.Timeouts.WorkerShutdown
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = embeddedCfg.StartTimeout
+	}
+	return standaloneTemporalCleanup(ctx, server, shutdownTimeout), nil
 }
 
 func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
@@ -377,14 +382,9 @@ func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
 
 func standaloneTemporalCleanup(
 	ctx context.Context,
-	cfg *config.Config,
 	server *embedded.Server,
-	fallback time.Duration,
+	shutdownTimeout time.Duration,
 ) func() {
-	shutdownTimeout := cfg.Server.Timeouts.WorkerShutdown
-	if shutdownTimeout <= 0 {
-		shutdownTimeout = fallback
-	}
 	return func() {
 		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 		defer cancel()

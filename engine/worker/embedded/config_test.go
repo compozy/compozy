@@ -31,74 +31,74 @@ func TestValidateConfig(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:   "valid configuration passes",
+			name:   "Should validate a correct configuration",
 			mutate: func(_ *Config) {},
 		},
 		{
-			name: "invalid frontend port",
+			name: "Should reject invalid frontend port",
 			mutate: func(cfg *Config) {
 				cfg.FrontendPort = -1
 			},
 			wantErr: "frontend_port",
 		},
 		{
-			name: "service port overflow",
+			name: "Should reject service port overflow",
 			mutate: func(cfg *Config) {
 				cfg.FrontendPort = 65534
 			},
 			wantErr: "out-of-range",
 		},
 		{
-			name: "invalid ui port",
+			name: "Should reject invalid ui port",
 			mutate: func(cfg *Config) {
 				cfg.UIPort = 0
 			},
 			wantErr: "ui_port",
 		},
 		{
-			name: "invalid bind ip",
+			name: "Should reject invalid bind ip",
 			mutate: func(cfg *Config) {
 				cfg.BindIP = "not-an-ip"
 			},
 			wantErr: "invalid bind IP",
 		},
 		{
-			name: "invalid log level",
+			name: "Should reject invalid log level",
 			mutate: func(cfg *Config) {
 				cfg.LogLevel = "verbose"
 			},
 			wantErr: "invalid log level",
 		},
 		{
-			name: "invalid database path",
+			name: "Should reject invalid database path",
 			mutate: func(cfg *Config) {
 				cfg.DatabaseFile = filepath.Join(string(filepath.Separator), "does", "not", "exist", "temporal.db")
 			},
 			wantErr: "database directory",
 		},
 		{
-			name: "missing namespace",
+			name: "Should require namespace",
 			mutate: func(cfg *Config) {
 				cfg.Namespace = ""
 			},
 			wantErr: "namespace is required",
 		},
 		{
-			name: "missing cluster name",
+			name: "Should require cluster name",
 			mutate: func(cfg *Config) {
 				cfg.ClusterName = ""
 			},
 			wantErr: "cluster name is required",
 		},
 		{
-			name: "invalid start timeout",
+			name: "Should reject invalid start timeout",
 			mutate: func(cfg *Config) {
 				cfg.StartTimeout = 0
 			},
 			wantErr: "start timeout",
 		},
 		{
-			name: "ui disabled allows zero port",
+			name: "Should allow zero port when ui disabled",
 			mutate: func(cfg *Config) {
 				cfg.EnableUI = false
 				cfg.UIPort = 0
@@ -136,7 +136,7 @@ func TestApplyDefaults(t *testing.T) {
 	assert.Equal(t, defaultUIPort, cfg.UIPort)
 	assert.Equal(t, defaultLogLevel, cfg.LogLevel)
 	assert.Equal(t, defaultStartTimeout, cfg.StartTimeout)
-	assert.True(t, cfg.EnableUI)
+	// EnableUI is not set by applyDefaults - callers must set explicitly or rely on application-level defaults
 }
 
 func TestBuildSQLiteConnectAttrs(t *testing.T) {

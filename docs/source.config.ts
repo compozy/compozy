@@ -55,6 +55,7 @@ const config = defineConfig({
   },
 });
 
+// fumadocs-mdx does not expose navigationLinks in the config type; attach via runtime assignment
 (config as { navigationLinks?: typeof navigationLinks }).navigationLinks = navigationLinks;
 
 export default config;
