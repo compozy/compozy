@@ -399,6 +399,13 @@ type DatabaseConfig struct {
 //	  namespace: default
 //	  task_queue: compozy-tasks
 type TemporalConfig struct {
+	// Mode controls how the application connects to Temporal.
+	//
+	// Values:
+	//   - "remote": Connect to an external Temporal cluster (default)
+	//   - "standalone": Launch embedded Temporal server for local development and tests
+	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"required,oneof=remote standalone"`
+
 	// HostPort specifies the Temporal server endpoint.
 	//
 	// Format: `host:port`
@@ -424,7 +431,43 @@ type TemporalConfig struct {
 	// Default: "compozy-tasks"
 	TaskQueue string `koanf:"task_queue" env:"TEMPORAL_TASK_QUEUE" json:"task_queue" yaml:"task_queue" mapstructure:"task_queue"`
 
-	// Embedded Temporal not supported; dev server flag removed.
+	// Standalone configures embedded Temporal when Mode is set to "standalone".
+	Standalone StandaloneConfig `koanf:"standalone" env_prefix:"TEMPORAL_STANDALONE" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
+}
+
+// StandaloneConfig configures the embedded Temporal server.
+//
+// These options mirror the embedded server configuration so users can manage development
+// and test environments without touching production settings.
+type StandaloneConfig struct {
+	// DatabaseFile specifies the SQLite database location.
+	//
+	// Use ":memory:" for ephemeral storage or provide a file path for persistence.
+	DatabaseFile string `koanf:"database_file" env:"TEMPORAL_STANDALONE_DATABASE_FILE" json:"database_file" yaml:"database_file" mapstructure:"database_file"`
+
+	// FrontendPort sets the gRPC port for the Temporal frontend service.
+	FrontendPort int `koanf:"frontend_port" env:"TEMPORAL_STANDALONE_FRONTEND_PORT" json:"frontend_port" yaml:"frontend_port" mapstructure:"frontend_port"`
+
+	// BindIP determines the IP address Temporal services bind to.
+	BindIP string `koanf:"bind_ip" env:"TEMPORAL_STANDALONE_BIND_IP" json:"bind_ip" yaml:"bind_ip" mapstructure:"bind_ip"`
+
+	// Namespace specifies the default namespace created on startup.
+	Namespace string `koanf:"namespace" env:"TEMPORAL_STANDALONE_NAMESPACE" json:"namespace" yaml:"namespace" mapstructure:"namespace"`
+
+	// ClusterName customizes the Temporal cluster name for standalone mode.
+	ClusterName string `koanf:"cluster_name" env:"TEMPORAL_STANDALONE_CLUSTER_NAME" json:"cluster_name" yaml:"cluster_name" mapstructure:"cluster_name"`
+
+	// EnableUI toggles the Temporal Web UI server.
+	EnableUI bool `koanf:"enable_ui" env:"TEMPORAL_STANDALONE_ENABLE_UI" json:"enable_ui" yaml:"enable_ui" mapstructure:"enable_ui"`
+
+	// UIPort sets the HTTP port for the Temporal Web UI.
+	UIPort int `koanf:"ui_port" env:"TEMPORAL_STANDALONE_UI_PORT" json:"ui_port" yaml:"ui_port" mapstructure:"ui_port"`
+
+	// LogLevel controls Temporal server logging verbosity.
+	LogLevel string `koanf:"log_level" env:"TEMPORAL_STANDALONE_LOG_LEVEL" json:"log_level" yaml:"log_level" mapstructure:"log_level"`
+
+	// StartTimeout defines the maximum startup wait duration.
+	StartTimeout time.Duration `koanf:"start_timeout" env:"TEMPORAL_STANDALONE_START_TIMEOUT" json:"start_timeout" yaml:"start_timeout" mapstructure:"start_timeout"`
 }
 
 // RuntimeConfig contains runtime behavior configuration.
@@ -2137,9 +2180,21 @@ func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 
 func buildTemporalConfig(registry *definition.Registry) TemporalConfig {
 	return TemporalConfig{
+		Mode:      getString(registry, "temporal.mode"),
 		HostPort:  getString(registry, "temporal.host_port"),
 		Namespace: getString(registry, "temporal.namespace"),
 		TaskQueue: getString(registry, "temporal.task_queue"),
+		Standalone: StandaloneConfig{
+			DatabaseFile: getString(registry, "temporal.standalone.database_file"),
+			FrontendPort: getInt(registry, "temporal.standalone.frontend_port"),
+			BindIP:       getString(registry, "temporal.standalone.bind_ip"),
+			Namespace:    getString(registry, "temporal.standalone.namespace"),
+			ClusterName:  getString(registry, "temporal.standalone.cluster_name"),
+			EnableUI:     getBool(registry, "temporal.standalone.enable_ui"),
+			UIPort:       getInt(registry, "temporal.standalone.ui_port"),
+			LogLevel:     getString(registry, "temporal.standalone.log_level"),
+			StartTimeout: getDuration(registry, "temporal.standalone.start_timeout"),
+		},
 	}
 }
 

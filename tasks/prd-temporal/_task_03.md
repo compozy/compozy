@@ -1,5 +1,7 @@
 # Task 3.0: Configuration System Extension
 
+## status: completed
+
 **Size:** M (2 days)  
 **Priority:** HIGH - Required for integration  
 **Dependencies:** Task 1.0 (needs embedded.Config type)
@@ -10,22 +12,22 @@ Extend `pkg/config` to support `TemporalConfig.Mode` and `StandaloneConfig`, add
 
 ## Deliverables
 
-- [ ] `pkg/config/config.go` - Add Mode and StandaloneConfig fields
-- [ ] `pkg/config/definition/schema.go` - Registry entries
-- [ ] `pkg/config/provider.go` - Default values
-- [ ] `pkg/config/config_test.go` - Config validation tests
+- [x] `pkg/config/config.go` - Add Mode and StandaloneConfig fields
+- [x] `pkg/config/definition/schema.go` - Registry entries
+- [x] `pkg/config/provider.go` - Default values
+- [x] `pkg/config/config_test.go` - Config validation tests
 
 ## Acceptance Criteria
 
-- [ ] `TemporalConfig.Mode` field added (values: "remote", "standalone")
-- [ ] `TemporalConfig.Standalone` field added (type: StandaloneConfig)
-- [ ] StandaloneConfig matches embedded.Config structure
-- [ ] Registry entries defined for all new fields
-- [ ] Defaults applied: Mode="remote", Standalone.FrontendPort=7233, etc.
-- [ ] Validation ensures valid mode values
-- [ ] Validation ensures valid standalone config when mode="standalone"
-- [ ] All tests pass
-- [ ] No linter errors
+- [x] `TemporalConfig.Mode` field added (values: "remote", "standalone")
+- [x] `TemporalConfig.Standalone` field added (type: StandaloneConfig)
+- [x] StandaloneConfig matches embedded.Config structure
+- [x] Registry entries defined for all new fields
+- [x] Defaults applied: Mode="remote", Standalone.FrontendPort=7233, etc.
+- [x] Validation ensures valid mode values
+- [x] Validation ensures valid standalone config when mode="standalone"
+- [x] All tests pass
+- [x] No linter errors
 
 ## Implementation Approach
 

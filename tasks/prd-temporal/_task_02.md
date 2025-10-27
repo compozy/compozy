@@ -1,5 +1,7 @@
 # Task 2.0: Embedded Server Lifecycle
 
+## status: completed
+
 **Size:** M (2 days)  
 **Priority:** HIGH - Required for integration  
 **Dependencies:** Task 1.0
@@ -10,20 +12,20 @@ Implement the Server struct with lifecycle management (Start, Stop, ready-state 
 
 ## Deliverables
 
-- [ ] `engine/worker/embedded/server.go` - Server lifecycle implementation
-- [ ] `engine/worker/embedded/server_test.go` - Lifecycle tests
+- [x] `engine/worker/embedded/server.go` - Server lifecycle implementation
+- [x] `engine/worker/embedded/server_test.go` - Lifecycle tests
 
 ## Acceptance Criteria
 
-- [ ] `NewServer(ctx, cfg)` creates server without starting it
-- [ ] `Start(ctx)` starts all 4 services (frontend, history, matching, worker)
-- [ ] `waitForReady(ctx)` polls until frontend accepts connections
-- [ ] `Stop(ctx)` gracefully shuts down all services
-- [ ] `FrontendAddress()` returns correct address
-- [ ] Timeout handling works (returns error if startup exceeds StartTimeout)
-- [ ] Port conflicts detected with clear error messages
-- [ ] All unit tests pass
-- [ ] No linter errors
+- [x] `NewServer(ctx, cfg)` creates server without starting it
+- [x] `Start(ctx)` starts all 4 services (frontend, history, matching, worker)
+- [x] `waitForReady(ctx)` polls until frontend accepts connections
+- [x] `Stop(ctx)` gracefully shuts down all services
+- [x] `FrontendAddress()` returns correct address
+- [x] Timeout handling works (returns error if startup exceeds StartTimeout)
+- [x] Port conflicts detected with clear error messages
+- [x] All unit tests pass
+- [x] No linter errors
 
 ## Implementation Approach
 
