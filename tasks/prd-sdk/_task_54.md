@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>sdk/docs</domain>
@@ -33,14 +33,14 @@ Create advanced migration guide covering hybrid SDK+YAML projects, complex featu
 
 ## Subtasks
 
-- [ ] 54.1 Document hybrid SDK+YAML pattern with AutoLoad configuration
-- [ ] 54.2 Create knowledge/RAG migration example (Example 3)
-- [ ] 54.3 Create memory migration example (Example 4)
-- [ ] 54.4 Create MCP integration migration example (Example 5)
-- [ ] 54.5 Create runtime + native tools migration example (Example 6)
-- [ ] 54.6 Create signals migration example (Example 10)
-- [ ] 54.7 Document embedded usage pattern (compozy.New + lifecycle)
-- [ ] 54.8 Create migration strategy decision tree
+- [x] 54.1 Document hybrid SDK+YAML pattern with AutoLoad configuration
+- [x] 54.2 Create knowledge/RAG migration example (Example 3)
+- [x] 54.3 Create memory migration example (Example 4)
+- [x] 54.4 Create MCP integration migration example (Example 5)
+- [x] 54.5 Create runtime + native tools migration example (Example 6)
+- [x] 54.6 Create signals migration example (Example 10)
+- [x] 54.7 Document embedded usage pattern (compozy.New + lifecycle)
+- [x] 54.8 Create migration strategy decision tree
 
 ## Implementation Details
 
@@ -113,19 +113,19 @@ Create advanced migration guide covering hybrid SDK+YAML projects, complex featu
 ## Tests
 
 Documentation validation:
-- [ ] All advanced code snippets compile
-- [ ] Hybrid pattern example is complete and correct
-- [ ] AutoLoad configuration matches engine expectations
-- [ ] Embedded usage pattern includes all lifecycle methods
-- [ ] All 5 advanced examples are present and complete
-- [ ] Decision tree helps users choose migration strategy
-- [ ] Links to basics guide work correctly
+- [x] All advanced code snippets compile
+- [x] Hybrid pattern example is complete and correct
+- [x] AutoLoad configuration matches engine expectations
+- [x] Embedded usage pattern includes all lifecycle methods
+- [x] All 5 advanced examples are present and complete
+- [x] Decision tree helps users choose migration strategy
+- [x] Links to basics guide work correctly
 
 Manual verification:
-- [ ] Test hybrid project pattern with real YAML + SDK mix
-- [ ] Verify embedded usage pattern starts/stops correctly
-- [ ] Compile all advanced examples in isolation
-- [ ] Verify AutoLoad behavior matches documentation
+- [x] Test hybrid project pattern with real YAML + SDK mix
+- [x] Verify embedded usage pattern starts/stops correctly
+- [x] Compile all advanced examples in isolation
+- [x] Verify AutoLoad behavior matches documentation
 
 ## Success Criteria
 

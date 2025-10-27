@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -33,39 +33,39 @@ Create comprehensive "kitchen sink" example demonstrating all SDK features toget
 
 ## Subtasks
 
-- [ ] 52.1 Create sdk/examples/10_complete_project.go:
-  - [ ] Models (multiple providers)
-  - [ ] Embedder + VectorDB
-  - [ ] Knowledge bases
-  - [ ] Memory (full features)
-  - [ ] MCP (remote + local)
-  - [ ] Runtime + native tools
-  - [ ] Monitoring (Prometheus + tracing)
-  - [ ] Agents with all integrations
-  - [ ] Workflows with multiple task types
-  - [ ] Schedules
-  - [ ] Complete project assembly
-  - [ ] Embedded Compozy lifecycle
-- [ ] 52.2 Create sdk/examples/11_debugging.go:
-  - [ ] Error accumulation examples
-  - [ ] BuildError handling
-  - [ ] Config inspection (AsMap())
-  - [ ] Manual validation examples
-  - [ ] Performance monitoring
-  - [ ] Debug logging setup
-  - [ ] Logger from context pattern
-- [ ] 52.3 Add comprehensive comments:
-  - [ ] Feature section headers
-  - [ ] When to use each feature
-  - [ ] Common patterns
-  - [ ] Debugging tips
-- [ ] 52.4 Create detailed README section:
-  - [ ] Prerequisites (Postgres, Redis, Temporal)
-  - [ ] Environment variables
-  - [ ] Run instructions
-  - [ ] Debugging guide
-  - [ ] Common issues
-- [ ] 52.5 Test both examples run successfully
+- [x] 52.1 Create sdk/examples/10_complete_project.go:
+  - [x] Models (multiple providers)
+  - [x] Embedder + VectorDB
+  - [x] Knowledge bases
+  - [x] Memory (full features)
+  - [x] MCP (remote + local)
+  - [x] Runtime + native tools
+  - [x] Monitoring (Prometheus + tracing)
+  - [x] Agents with all integrations
+  - [x] Workflows with multiple task types
+  - [x] Schedules
+  - [x] Complete project assembly
+  - [x] Embedded Compozy lifecycle
+- [x] 52.2 Create sdk/examples/11_debugging.go:
+  - [x] Error accumulation examples
+  - [x] BuildError handling
+  - [x] Config inspection (AsMap())
+  - [x] Manual validation examples
+  - [x] Performance monitoring
+  - [x] Debug logging setup
+  - [x] Logger from context pattern
+- [x] 52.3 Add comprehensive comments:
+  - [x] Feature section headers
+  - [x] When to use each feature
+  - [x] Common patterns
+  - [x] Debugging tips
+- [x] 52.4 Create detailed README section:
+  - [x] Prerequisites (Postgres, Redis, Temporal)
+  - [x] Environment variables
+  - [x] Run instructions
+  - [x] Debugging guide
+  - [x] Common issues
+- [x] 52.5 Test both examples run successfully
 
 ## Implementation Details
 
@@ -108,40 +108,40 @@ All sdk builder packages:
 
 ## Deliverables
 
-- [ ] sdk/examples/10_complete_project.go (runnable)
-- [ ] sdk/examples/11_debugging.go (runnable)
-- [ ] Comprehensive README.md section:
-  - [ ] Prerequisites and setup
-  - [ ] Environment variables
-  - [ ] Run instructions
-  - [ ] Feature guide
-  - [ ] Debugging guide
-  - [ ] Troubleshooting section
-- [ ] Comments organizing feature sections
-- [ ] All 30 builders demonstrated
-- [ ] Debugging patterns shown
-- [ ] Verified both examples run successfully
+- [x] sdk/examples/10_complete_project.go (runnable)
+- [x] sdk/examples/11_debugging.go (runnable)
+- [x] Comprehensive README.md section:
+  - [x] Prerequisites and setup
+  - [x] Environment variables
+  - [x] Run instructions
+  - [x] Feature guide
+  - [x] Debugging guide
+  - [x] Troubleshooting section
+- [x] Comments organizing feature sections
+- [x] All 30 builders demonstrated
+- [x] Debugging patterns shown
+- [x] Verified both examples run successfully
 
 ## Tests
 
 From _tests.md:
 
 - Complete example validation:
-  - [ ] Code compiles without errors
-  - [ ] All builders used correctly
-  - [ ] All integrations configured
-  - [ ] Monitoring setup works
-  - [ ] Embedded Compozy lifecycle works
-  - [ ] Example runs end-to-end
+  - [x] Code compiles without errors
+  - [x] All builders used correctly
+  - [x] All integrations configured
+  - [x] Monitoring setup works
+  - [x] Embedded Compozy lifecycle works
+  - [x] Example runs end-to-end
 
 - Debugging example validation:
-  - [ ] BuildError aggregation demonstrated
-  - [ ] Multiple errors reported correctly
-  - [ ] Config inspection works (AsMap())
-  - [ ] Manual validation examples work
-  - [ ] Performance monitoring accurate
-  - [ ] Debug logging setup correct
-  - [ ] Logger from context pattern followed
+  - [x] BuildError aggregation demonstrated
+  - [x] Multiple errors reported correctly
+  - [x] Config inspection works (AsMap())
+  - [x] Manual validation examples work
+  - [x] Performance monitoring accurate
+  - [x] Debug logging setup correct
+  - [x] Logger from context pattern followed
 
 ## Success Criteria
 

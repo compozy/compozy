@@ -177,3 +177,65 @@ go run ./sdk/examples/08_signal_communication.go
 ```
 
 The program prints context-aware logs that illustrate when to use `Send()` versus `Wait()`, how payload keys propagate to receivers, and how timeouts guard against stalled upstream workflows.
+
+## 10. Complete Project
+
+The file `10_complete_project.go` is the kitchen-sink reference: it assembles every SDK builder into a single runnable project, wires live integrations, and boots an embedded Compozy instance end-to-end. You can treat it as the canonical blueprint when you need to remember how two or more subsystems snap together.
+
+### Prerequisites
+
+- PostgreSQL with the `pgvector` extension (`PGVECTOR_DSN`)
+- Redis (`REDIS_URL`)
+- Temporal server reachable at `localhost:7233`
+- API keys: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`
+- Optional: ensure Bun runtime is installed if you plan to execute the generated tool code
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/10_complete_project.go
+```
+
+The program emits a structured summary detailing models, knowledge bases, schedules, monitoring endpoints (`http://127.0.0.1:18080/metrics`), and workflow outputs.
+
+### Feature Guide
+
+- Demonstrates all 30 SDK builders (models, knowledge, memory, MCP, runtime, tools, tasks, workflows, schedules, comps)
+- Configures Prometheus metrics and Jaeger-compatible tracing fields via `config.FromContext(ctx)`
+- Starts an embedded server, executes a workflow, and gracefully shuts down using the lifecycle APIs
+- Surfaces helper functions for grouping related builder responsibilities into small, testable units
+
+### Debugging Guide
+
+- Watch the console for aggregated builder logs (each build emits `"building ..."` debug entries)
+- Query `/metrics` to confirm Prometheus export, and attach Jaeger to the configured endpoint for spans
+- Use the returned workflow output to validate template expressions (e.g., aggregated summaries, signal payloads)
+
+### Common Issues
+
+- Missing environment variables: the builder logs warnings and the execution will return validation errors
+- Temporal, Redis, or PostgreSQL offline: the embedded server will fail to start—check Docker/Compose status
+- Port conflicts on `18080`: adjust `WithServerPort` in the example before running
+
+## 11. Debugging Toolkit
+
+The file `11_debugging.go` focuses on troubleshooting techniques rather than orchestration. It shows how to accumulate build errors, inspect configs, validate manually, measure builder latency, and set up contextual logging.
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/11_debugging.go
+```
+
+### What You’ll See
+
+- Aggregated `BuildError` output with every individual validation failure listed
+- `AsMap()` inspection of a constructed agent for quick debugging or serialization
+- Manual project validation flow demonstrating when to call `Validate(ctx)`
+- Micro benchmark for builder latency with a thin wait task
+- `logger.FromContext(ctx)` usage to emit debug lines without passing loggers around
+
+### Common Issues
+
+- Running outside the repository root will prevent the README from resolving during knowledge inspection; stay in the repo root
+- If the example panics, confirm Go 1.25.2+ is active—older toolchains may not support the generics utilities used in the context setup
