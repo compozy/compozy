@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/examples</domain>
@@ -32,19 +32,19 @@ Create example demonstrating inter-workflow communication using the unified Sign
 
 ## Subtasks
 
-- [ ] 51.1 Create sdk/examples/08_signal_communication.go
-- [ ] 51.2 Build workflow 1 (sender):
-  - [ ] Processing task
-  - [ ] Signal send task with payload
-- [ ] 51.3 Build workflow 2 (receiver):
-  - [ ] Signal wait task with timeout
-  - [ ] Analysis task after signal
-- [ ] 51.4 Demonstrate signal task patterns:
-  - [ ] Send operation with data payload
-  - [ ] Wait operation with timeout
-- [ ] 51.5 Add comments explaining signal use cases
-- [ ] 51.6 Update README.md with signal example
-- [ ] 51.7 Test example runs successfully
+- [x] 51.1 Create sdk/examples/08_signal_communication.go
+- [x] 51.2 Build workflow 1 (sender):
+  - [x] Processing task
+  - [x] Signal send task with payload
+- [x] 51.3 Build workflow 2 (receiver):
+  - [x] Signal wait task with timeout
+  - [x] Analysis task after signal
+- [x] 51.4 Demonstrate signal task patterns:
+  - [x] Send operation with data payload
+  - [x] Wait operation with timeout
+- [x] 51.5 Add comments explaining signal use cases
+- [x] 51.6 Update README.md with signal example
+- [x] 51.7 Test example runs successfully
 
 ## Implementation Details
 
@@ -98,29 +98,29 @@ workflow2, _ := workflow.New("data-analyzer").
 
 ## Deliverables
 
-- [ ] sdk/examples/08_signal_communication.go (runnable)
-- [ ] Updated README.md with signal example section
-- [ ] Comments explaining:
+- [x] sdk/examples/08_signal_communication.go (runnable)
+- [x] Updated README.md with signal example section
+- [x] Comments explaining:
   - Signal communication patterns
   - When to use signals (inter-workflow coordination)
   - Send vs Wait operations
   - Payload data passing
   - Timeout configuration
-- [ ] Both workflows demonstrated
-- [ ] Verified example runs successfully
+- [x] Both workflows demonstrated
+- [x] Verified example runs successfully
 
 ## Tests
 
 From _tests.md:
 
 - Example validation:
-  - [ ] Code compiles without errors
-  - [ ] Signal send task with payload
-  - [ ] Signal wait task with timeout
-  - [ ] Signal names match between send and wait
-  - [ ] Payload data structure validated
-  - [ ] Timeout validated (positive duration)
-  - [ ] Two workflows communicate correctly
+- [x] Code compiles without errors
+- [x] Signal send task with payload
+- [x] Signal wait task with timeout
+- [x] Signal names match between send and wait
+- [x] Payload data structure validated
+- [x] Timeout validated (positive duration)
+- [x] Two workflows communicate correctly
 
 ## Success Criteria
 

@@ -160,3 +160,20 @@ go run ./sdk/examples/07_scheduled_workflow.go
 ```
 
 The program logs each schedule with its cron expression, retry configuration, and input keys so you can confirm the automation profile the project will register.
+
+## 08. Signal Communication
+
+The file `08_signal_communication.go` demonstrates how two workflows coordinate through the unified signal builder. It highlights how to:
+
+- Build a processing workflow that sends a readiness signal with structured payload data
+- Configure a downstream workflow that waits on the same signal with an explicit timeout window
+- Share agents and models while keeping context-first patterns for logging and configuration
+- Summarize signal metadata so operators can confirm payload fields, wait targets, and timeout durations
+
+### Run the Example
+
+```bash
+go run ./sdk/examples/08_signal_communication.go
+```
+
+The program prints context-aware logs that illustrate when to use `Send()` versus `Wait()`, how payload keys propagate to receivers, and how timeouts guard against stalled upstream workflows.
