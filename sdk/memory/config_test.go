@@ -3,6 +3,7 @@ package memory
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -294,4 +295,91 @@ func TestBuildDoesNotMutateReturnedConfig(t *testing.T) {
 	require.NotNil(t, second)
 
 	require.NotSame(t, first, second)
+}
+
+func TestWithPrivacySetsScope(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("privacy-memory").
+		WithProvider("openai").
+		WithModel("gpt-4o-mini").
+		WithMaxTokens(1024).
+		WithPrivacy(PrivacyUserScope).
+		Build(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, PrivacyUserScope, cfg.PrivacyScope)
+}
+
+func TestWithExpirationSetsDuration(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	duration := 24 * time.Hour
+	cfg, err := New("exp-memory").
+		WithProvider("openai").
+		WithModel("gpt-4o-mini").
+		WithMaxTokens(2048).
+		WithExpiration(duration).
+		Build(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, duration.String(), cfg.Expiration)
+}
+
+func TestBuildInvalidPrivacyScopeReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("privacy-invalid").
+		WithProvider("openai").
+		WithModel("gpt-4o").
+		WithMaxTokens(1200).
+		WithPrivacy(PrivacyScope("unsupported")).
+		Build(ctx)
+
+	require.Error(t, err)
+	require.Nil(t, cfg)
+
+	var buildErr *sdkerrors.BuildError
+	require.ErrorAs(t, err, &buildErr)
+	require.Contains(t, buildErr.Error(), "privacy scope")
+}
+
+func TestBuildNegativeExpirationReturnsError(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("exp-negative").
+		WithProvider("openai").
+		WithModel("gpt-4o").
+		WithMaxTokens(1200).
+		WithExpiration(-1 * time.Minute).
+		Build(ctx)
+
+	require.Error(t, err)
+	require.Nil(t, cfg)
+
+	var buildErr *sdkerrors.BuildError
+	require.ErrorAs(t, err, &buildErr)
+	require.Contains(t, buildErr.Error(), "non-negative")
+}
+
+func TestWithExpirationZeroDisablesExpiration(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	cfg, err := New("exp-zero").
+		WithProvider("openai").
+		WithModel("gpt-4o").
+		WithMaxTokens(512).
+		WithExpiration(0).
+		Build(ctx)
+
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, "", cfg.Expiration)
 }

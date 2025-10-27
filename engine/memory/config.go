@@ -192,6 +192,10 @@ type Config struct {
 	//   default_redaction_string: "[REDACTED]"
 	// ```
 	PrivacyPolicy *memcore.PrivacyPolicyConfig `json:"privacy_policy,omitempty" yaml:"privacy_policy,omitempty" mapstructure:"privacy_policy,omitempty"`
+	// PrivacyScope controls how memory is shared across tenants/users/sessions.
+	PrivacyScope PrivacyScope `json:"privacy_scope,omitempty"  yaml:"privacy_scope,omitempty"  mapstructure:"privacy_scope,omitempty"`
+	// Expiration defines how long memory data is retained before cleanup.
+	Expiration string `json:"expiration,omitempty"     yaml:"expiration,omitempty"     mapstructure:"expiration,omitempty"`
 
 	// Locking configures **distributed lock timeouts** for concurrent memory operations.
 	// **Critical for preventing race conditions** when multiple agents access the same memory.
@@ -222,6 +226,8 @@ type Config struct {
 	ttlManager *TTLManager `json:"-" yaml:"-"`
 	// ttlManagerOnce ensures thread-safe initialization of ttlManager
 	ttlManagerOnce sync.Once `json:"-" yaml:"-"`
+	// parsedExpiration caches the parsed expiration duration for runtime use.
+	parsedExpiration time.Duration
 }
 
 // --- Implementation for core.Configurable pattern ---
@@ -290,6 +296,12 @@ func (c *Config) Validate(ctx context.Context) error {
 		return err
 	}
 	if err := c.validateLocking(ctx); err != nil {
+		return err
+	}
+	if err := c.validatePrivacyScope(); err != nil {
+		return err
+	}
+	if err := c.validateExpiration(ctx); err != nil {
 		return err
 	}
 	return c.validateTokenBased(ctx)
@@ -413,6 +425,42 @@ func (c *Config) validateLocking(_ context.Context) error {
 		}
 		c.Locking.ParsedFlushTTL = d
 	}
+	return nil
+}
+
+func (c *Config) validatePrivacyScope() error {
+	if c.PrivacyScope.IsValid() {
+		return nil
+	}
+	return fmt.Errorf(
+		"memory config ID '%s': privacy scope '%s' is invalid",
+		c.ID,
+		c.PrivacyScope,
+	)
+}
+
+func (c *Config) validateExpiration(_ context.Context) error {
+	if c.Expiration == "" {
+		c.parsedExpiration = 0
+		return nil
+	}
+	duration, err := core.ParseHumanDuration(c.Expiration)
+	if err != nil {
+		return fmt.Errorf(
+			"memory config ID '%s': invalid expiration duration '%s': %w",
+			c.ID,
+			c.Expiration,
+			err,
+		)
+	}
+	if duration < 0 {
+		return fmt.Errorf(
+			"memory config ID '%s': expiration duration must be non-negative, got '%s'",
+			c.ID,
+			c.Expiration,
+		)
+	}
+	c.parsedExpiration = duration
 	return nil
 }
 
@@ -588,6 +636,9 @@ func (c *Config) copyConfigFields(from *Config) {
 	c.MaxTokens = from.MaxTokens
 	c.MaxMessages = from.MaxMessages
 	c.MaxContextRatio = from.MaxContextRatio
+	c.PrivacyScope = from.PrivacyScope
+	c.Expiration = from.Expiration
+	c.parsedExpiration = from.parsedExpiration
 	if from.TokenAllocation != nil {
 		if v, err := core.DeepCopy(from.TokenAllocation); err == nil {
 			c.TokenAllocation = v
@@ -624,6 +675,7 @@ func (c *Config) copyConfigFields(from *Config) {
 	} else {
 		c.TokenProvider = nil
 	}
+	c.DefaultKeyTemplate = from.DefaultKeyTemplate
 	c.filePath = from.filePath
 	c.CWD = from.CWD
 }

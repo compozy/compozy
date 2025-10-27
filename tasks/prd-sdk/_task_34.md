@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/memory</domain>
@@ -28,10 +28,10 @@ Extend memory ConfigBuilder with privacy scope and expiration configuration.
 
 ## Subtasks
 
-- [ ] 34.1 Add WithPrivacy(privacy memory.PrivacyScope) method
-- [ ] 34.2 Add WithExpiration(duration time.Duration) method
-- [ ] 34.3 Update Build(ctx) validation for privacy/expiration
-- [ ] 34.4 Add unit tests for privacy and expiration
+- [x] 34.1 Add WithPrivacy(privacy memory.PrivacyScope) method
+- [x] 34.2 Add WithExpiration(duration time.Duration) method
+- [x] 34.3 Update Build(ctx) validation for privacy/expiration
+- [x] 34.4 Add unit tests for privacy and expiration
 
 ## Implementation Details
 

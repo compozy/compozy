@@ -57,7 +57,7 @@
 - [x] 31.0 Memory: Config — core (S)
 - [x] 32.0 Memory: Reference (S)
 - [x] 33.0 Memory: Flush Strategies (S)
-- [ ] 34.0 Memory: Privacy + Expiration (S)
+- [x] 34.0 Memory: Privacy + Expiration (S)
 - [ ] 35.0 Memory: Persistence + Token Counting (S)
 - [ ] 36.0 MCP: Command/URL Basics (S)
 - [ ] 37.0 MCP: Transport (stdio/SSE) (S)

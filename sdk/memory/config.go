@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	enginememory "github.com/compozy/compozy/engine/memory"
@@ -43,6 +44,7 @@ type ConfigBuilder struct {
 	provider      string
 	model         string
 	flushStrategy *FlushStrategy
+	expiration    *time.Duration
 }
 
 // New creates a memory configuration builder for the supplied identifier.
@@ -117,6 +119,25 @@ func (b *ConfigBuilder) WithSummarizationFlush(provider, model string, maxTokens
 	})
 }
 
+// WithPrivacy configures how the memory resource is shared across tenants, users, or sessions.
+func (b *ConfigBuilder) WithPrivacy(scope PrivacyScope) *ConfigBuilder {
+	if b == nil {
+		return nil
+	}
+	b.config.PrivacyScope = scope
+	return b
+}
+
+// WithExpiration sets an automatic expiration window for stored memory entries.
+func (b *ConfigBuilder) WithExpiration(duration time.Duration) *ConfigBuilder {
+	if b == nil {
+		return nil
+	}
+	copy := duration
+	b.expiration = &copy
+	return b
+}
+
 // Build validates inputs, aggregates errors, and returns a memory config.
 func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error) {
 	if b == nil {
@@ -131,13 +152,15 @@ func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error)
 
 	flushConfig, flushMessages, flushErrs := b.buildFlushStrategy(ctx)
 
-	collected := make([]error, 0, len(b.errors)+5)
+	collected := make([]error, 0, len(b.errors)+7)
 	collected = append(collected, b.errors...)
 	collected = append(collected, b.validateID(ctx))
 	collected = append(collected, b.validateProvider(ctx))
 	collected = append(collected, b.validateModel(ctx))
 	collected = append(collected, b.validateMaxTokens())
 	collected = append(collected, flushErrs...)
+	collected = append(collected, b.validatePrivacyScope())
+	collected = append(collected, b.validateExpiration())
 
 	filtered := filterErrors(collected)
 	if len(filtered) > 0 {
@@ -196,6 +219,29 @@ func (b *ConfigBuilder) validateMaxTokens() error {
 	if b.config.MaxTokens <= 0 {
 		return fmt.Errorf("max tokens must be greater than zero: got %d", b.config.MaxTokens)
 	}
+	return nil
+}
+
+func (b *ConfigBuilder) validatePrivacyScope() error {
+	if b.config.PrivacyScope.IsValid() {
+		return nil
+	}
+	return fmt.Errorf("privacy scope '%s' is not supported", b.config.PrivacyScope)
+}
+
+func (b *ConfigBuilder) validateExpiration() error {
+	if b.expiration == nil {
+		return nil
+	}
+	duration := *b.expiration
+	if duration < 0 {
+		return fmt.Errorf("expiration duration must be non-negative: got %s", duration)
+	}
+	if duration == 0 {
+		b.config.Expiration = ""
+		return nil
+	}
+	b.config.Expiration = duration.String()
 	return nil
 }
 
