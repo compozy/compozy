@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>docs</domain>
@@ -35,14 +35,14 @@ Finalize the implementation plan for the new "SDK" top-level documentation secti
 
 ## Subtasks
 
-- [ ] 61.1 Define SDK section navigation structure (meta.json)
-- [ ] 61.2 Create page outlines for all SDK documentation pages
-- [ ] 61.3 Map content sources (PRD modules → docs pages)
-- [ ] 61.4 Plan cross-links from Core/API/CLI to SDK
-- [ ] 61.5 Define builders/ subdirectory structure
-- [ ] 61.6 Create docs site integration plan
-- [ ] 61.7 Document content guidelines (DRY, linking strategy)
-- [ ] 61.8 Create implementation checklist for docs team
+- [x] 61.1 Define SDK section navigation structure (meta.json)
+- [x] 61.2 Create page outlines for all SDK documentation pages
+- [x] 61.3 Map content sources (PRD modules → docs pages)
+- [x] 61.4 Plan cross-links from Core/API/CLI to SDK
+- [x] 61.5 Define builders/ subdirectory structure
+- [x] 61.6 Create docs site integration plan
+- [x] 61.7 Document content guidelines (DRY, linking strategy)
+- [x] 61.8 Create implementation checklist for docs team
 
 ## Implementation Details
 
@@ -183,19 +183,19 @@ Each page outline specifies:
 ## Tests
 
 Documentation plan validation:
-- [ ] All 16 builder categories have corresponding pages
-- [ ] Navigation structure is complete and logical
-- [ ] Every page outline specifies content sources
-- [ ] Cross-links are bidirectional (SDK ← → Core/API/CLI)
-- [ ] DRY strategy prevents content duplication
-- [ ] Examples strategy links to sdk/examples/
-- [ ] Implementation checklist is actionable
+- [x] All 16 builder categories have corresponding pages
+- [x] Navigation structure is complete and logical
+- [x] Every page outline specifies content sources
+- [x] Cross-links are bidirectional (SDK ← → Core/API/CLI)
+- [x] DRY strategy prevents content duplication
+- [x] Examples strategy links to sdk/examples/
+- [x] Implementation checklist is actionable
 
 Completeness checks:
-- [ ] meta.json configurations are valid JSON
-- [ ] All PRD module references are correct
-- [ ] Page dependency order is clear
-- [ ] Content guidelines cover all edge cases
+- [x] meta.json configurations are valid JSON
+- [x] All PRD module references are correct
+- [x] Page dependency order is clear
+- [x] Content guidelines cover all edge cases
 
 ## Success Criteria
 
