@@ -58,7 +58,7 @@ func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
 	applyServerDefaults(cfg)
 	proj, projectFile, projectDir := prepareProject(t, options.ProjectName)
 	pool := prepareDatabase(t, cfg)
-	state, store := buildApplicationState(t, proj, pool)
+	state, store := buildApplicationState(ctx, t, cfg, proj, pool)
 	engine, srv := buildGinComponents(ctx, t, cfg, state, projectDir, projectFile)
 	return &ServerHarness{
 		Engine:        engine,
@@ -129,11 +129,19 @@ func prepareDatabase(t *testing.T, cfg *config.Config) *pgxpool.Pool {
 
 // buildApplicationState constructs application state and resource store.
 func buildApplicationState(
+	ctx context.Context,
 	t *testing.T,
+	cfg *config.Config,
 	proj *project.Config,
 	pool *pgxpool.Pool,
 ) (*appstate.State, resources.ResourceStore) {
-	deps := appstate.NewBaseDeps(proj, nil, repo.NewProvider(pool), nil)
+	dbCfg := cfg.Database
+	dbCfg.Driver = "postgres"
+	dbCfg.ConnString = pool.Config().ConnString()
+	provider, cleanup, err := repo.NewProvider(ctx, &dbCfg)
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+	deps := appstate.NewBaseDeps(proj, nil, provider, nil)
 	state, err := appstate.NewState(deps, nil)
 	require.NoError(t, err)
 	store := resources.NewMemoryResourceStore()

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/autoload"
 	"github.com/compozy/compozy/engine/infra/monitoring"
-	"github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
@@ -24,6 +24,12 @@ import (
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	redis "github.com/redis/go-redis/v9"
+)
+
+const (
+	recommendedSQLiteConcurrency = 10
+	sqliteConcurrencySummary     = "low (5-10 workflows recommended)"
+	postgresConcurrencySummary   = "high (25+ workflows)"
 )
 
 func (s *Server) setupProjectConfig(
@@ -90,72 +96,108 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 			"configuration missing from context; attach a manager with config.ContextWithManager",
 		)
 	}
-	log := logger.FromContext(s.ctx)
+	if err := cfg.Database.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("validate database config: %w", err)
+	}
+	if err := s.validateDatabaseConfig(cfg); err != nil {
+		return nil, nil, fmt.Errorf("invalid database configuration: %w", err)
+	}
 	start := time.Now()
-	pgCfg := buildPostgresConfigFromApp(cfg)
-	if err := s.applyStoreMigrations(pgCfg, cfg); err != nil {
-		return nil, nil, err
-	}
-	drv, err := postgres.NewStore(s.ctx, pgCfg)
+	dbCfg := cfg.Database
+	provider, cleanup, err := repo.NewProvider(s.ctx, &dbCfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize postgres store: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize store: %w", err)
 	}
-	provider := repo.NewProvider(drv.Pool())
-	s.storeDriverLabel = driverPostgres
-	s.authRepoDriverLabel = driverPostgres
+	driver := provider.Driver()
+	s.storeDriverLabel = driver
+	s.authRepoDriverLabel = driver
 	if s.authCacheDriverLabel == "" {
 		s.authCacheDriverLabel = driverNone
 	}
-	log.Info("Database store initialized",
-		"store_driver", s.storeDriverLabel,
-		"duration", time.Since(start),
-	)
-	return provider, s.storeCleanupFunc(cfg, drv), nil
+	s.logDatabaseStartup(cfg, driver, time.Since(start))
+	return provider, cleanup, nil
 }
 
-// buildPostgresConfigFromApp constructs the postgres.Config from application configuration.
-func buildPostgresConfigFromApp(cfg *config.Config) *postgres.Config {
-	return &postgres.Config{
-		ConnString:         cfg.Database.ConnString,
-		Host:               cfg.Database.Host,
-		Port:               cfg.Database.Port,
-		User:               cfg.Database.User,
-		Password:           cfg.Database.Password,
-		DBName:             cfg.Database.DBName,
-		SSLMode:            cfg.Database.SSLMode,
-		MaxOpenConns:       cfg.Database.MaxOpenConns,
-		MaxIdleConns:       cfg.Database.MaxIdleConns,
-		ConnMaxLifetime:    cfg.Database.ConnMaxLifetime,
-		ConnMaxIdleTime:    cfg.Database.ConnMaxIdleTime,
-		PingTimeout:        cfg.Database.PingTimeout,
-		HealthCheckTimeout: cfg.Database.HealthCheckTimeout,
-		HealthCheckPeriod:  cfg.Database.HealthCheckPeriod,
-		ConnectTimeout:     cfg.Database.ConnectTimeout,
+func (s *Server) validateDatabaseConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is required for database validation")
 	}
-}
-
-// applyStoreMigrations runs database migrations when enabled.
-func (s *Server) applyStoreMigrations(pgCfg *postgres.Config, cfg *config.Config) error {
-	if !cfg.Database.AutoMigrate {
+	driver := strings.TrimSpace(cfg.Database.Driver)
+	if driver == "" {
+		driver = driverPostgres
+	}
+	if driver != driverSQLite {
 		return nil
 	}
-	mctx, mcancel := context.WithTimeout(s.ctx, cfg.Database.MigrationTimeout)
-	defer mcancel()
-	if err := postgres.ApplyMigrationsWithLock(mctx, postgres.DSNFor(pgCfg)); err != nil {
-		return fmt.Errorf("failed to apply migrations: %w", err)
+	log := logger.FromContext(s.ctx)
+	if len(cfg.Knowledge.VectorDBs) == 0 {
+		log.Warn("SQLite mode without vector database - knowledge features will not work",
+			"driver", driverSQLite,
+			"recommendation", "Configure Qdrant, Redis, or Filesystem vector DB",
+		)
+	}
+	for _, vdb := range cfg.Knowledge.VectorDBs {
+		provider := strings.TrimSpace(vdb.Provider)
+		if strings.EqualFold(provider, "pgvector") {
+			return fmt.Errorf(
+				"pgvector provider is incompatible with SQLite driver. " +
+					"SQLite requires an external vector database. " +
+					"Configure one of: Qdrant, Redis, or Filesystem. " +
+					"See documentation: docs/database/sqlite.md#vector-database-requirement",
+			)
+		}
+	}
+	maxWorkflows := cfg.Worker.MaxConcurrentWorkflowExecutionSize
+	if maxWorkflows > recommendedSQLiteConcurrency {
+		log.Warn("SQLite has concurrency limitations",
+			"driver", driverSQLite,
+			"max_concurrent_workflows", maxWorkflows,
+			"recommended_max", recommendedSQLiteConcurrency,
+			"note", "Consider using PostgreSQL for high-concurrency production workloads",
+		)
 	}
 	return nil
 }
 
-// storeCleanupFunc returns a cleanup function that gracefully closes the store.
-func (s *Server) storeCleanupFunc(cfg *config.Config, drv *postgres.Store) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), cfg.Server.Timeouts.DBShutdown)
-		defer cancel()
-		if err := drv.Close(ctx); err != nil {
-			logger.FromContext(s.ctx).Warn("Failed to close store", "error", err)
-		}
+func (s *Server) logDatabaseStartup(cfg *config.Config, driver string, duration time.Duration) {
+	log := logger.FromContext(s.ctx)
+	resolved := strings.TrimSpace(driver)
+	if resolved == "" {
+		resolved = driverPostgres
 	}
+	fields := []any{
+		"driver", resolved,
+		"duration", duration,
+	}
+	switch resolved {
+	case driverSQLite:
+		fields = append(fields,
+			"path", cfg.Database.Path,
+			"mode", sqliteMode(cfg.Database.Path),
+			"vector_db_required", true,
+			"concurrency_limit", sqliteConcurrencySummary,
+		)
+	case driverPostgres:
+		fields = append(fields,
+			"host", cfg.Database.Host,
+			"port", cfg.Database.Port,
+			"database", cfg.Database.DBName,
+			"vector_db", "pgvector (optional)",
+			"concurrency_limit", postgresConcurrencySummary,
+		)
+	}
+	log.Info("Database store initialized", fields...)
+}
+
+func sqliteMode(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "unknown"
+	}
+	if trimmed == ":memory:" || strings.HasPrefix(trimmed, "file::memory:") {
+		return "in-memory"
+	}
+	return "file-based"
 }
 
 func (s *Server) setupMCPProxyIfEnabled(cfg *config.Config) (func(), error) {

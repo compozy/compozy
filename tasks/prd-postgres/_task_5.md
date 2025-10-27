@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending
+## status: completed
 
 <task_context>
 <domain>engine/infra/server</domain>
@@ -39,12 +39,12 @@ Integrate SQLite database driver into server initialization and implement critic
 
 ## Subtasks
 
-- [ ] 5.1 Update `setupStore()` to route by driver
-- [ ] 5.2 Implement `validateDatabaseConfig()` for vector DB checks
-- [ ] 5.3 Add startup logging with driver information
-- [ ] 5.4 Add concurrency warnings for SQLite
-- [ ] 5.5 Write unit tests for validation logic
-- [ ] 5.6 Write integration tests for server startup
+- [x] 5.1 Update `setupStore()` to route by driver
+- [x] 5.2 Implement `validateDatabaseConfig()` for vector DB checks
+- [x] 5.3 Add startup logging with driver information
+- [x] 5.4 Add concurrency warnings for SQLite
+- [x] 5.5 Write unit tests for validation logic
+- [x] 5.6 Write integration tests for server startup
 
 ## Implementation Details
 
@@ -369,14 +369,14 @@ func TestDatabaseStartupLogging(t *testing.T) {
 
 ## Success Criteria
 
-- [ ] Server starts successfully with PostgreSQL driver
-- [ ] Server starts successfully with SQLite driver
-- [ ] Server fails with clear error when SQLite + pgvector configured
-- [ ] Server warns (but doesn't fail) when SQLite without vector DB
-- [ ] Server warns when SQLite with high concurrency settings
-- [ ] Startup logs show correct driver and configuration information
-- [ ] Error messages are helpful and include documentation links
-- [ ] All validation logic unit tested
-- [ ] All integration tests pass
-- [ ] Code passes linting: `golangci-lint run ./engine/infra/server/...`
-- [ ] Backwards compatibility: Existing PostgreSQL configs work unchanged
+- [x] Server starts successfully with PostgreSQL driver
+- [x] Server starts successfully with SQLite driver
+- [x] Server fails with clear error when SQLite + pgvector configured
+- [x] Server warns (but doesn't fail) when SQLite without vector DB
+- [x] Server warns when SQLite with high concurrency settings
+- [x] Startup logs show correct driver and configuration information
+- [x] Error messages are helpful and include documentation links
+- [x] All validation logic unit tested
+- [x] All integration tests pass
+- [x] Code passes linting: `golangci-lint run ./engine/infra/server/...`
+- [x] Backwards compatibility: Existing PostgreSQL configs work unchanged

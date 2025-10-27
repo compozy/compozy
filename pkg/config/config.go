@@ -900,6 +900,20 @@ type KnowledgeConfig struct {
 	//
 	// Applies to HTTP-based vector stores such as Qdrant.
 	VectorHTTPTimeout time.Duration `koanf:"vector_http_timeout" env:"KNOWLEDGE_VECTOR_HTTP_TIMEOUT" json:"vector_http_timeout" yaml:"vector_http_timeout" mapstructure:"vector_http_timeout" validate:"min=0"`
+
+	// VectorDBs declares global vector database connections available to knowledge features.
+	// When SQLite is selected, at least one external vector database should be configured.
+	VectorDBs []VectorDBConfig `koanf:"vector_dbs" json:"vector_dbs" yaml:"vector_dbs" mapstructure:"vector_dbs"`
+}
+
+// VectorDBConfig describes an external vector database integration available at runtime.
+// It captures connection parameters so knowledge ingestion and retrieval can target the store.
+type VectorDBConfig struct {
+	ID       string         `koanf:"id"       json:"id"       yaml:"id"       mapstructure:"id"`
+	Provider string         `koanf:"provider" json:"provider" yaml:"provider" mapstructure:"provider"`
+	URL      string         `koanf:"url"      json:"url"      yaml:"url"      mapstructure:"url"`
+	Path     string         `koanf:"path"     json:"path"     yaml:"path"     mapstructure:"path"`
+	Options  map[string]any `koanf:"options"  json:"options"  yaml:"options"  mapstructure:"options"`
 }
 
 // LLMConfig contains LLM service configuration.
@@ -2449,6 +2463,7 @@ func buildKnowledgeConfig(registry *definition.Registry) KnowledgeConfig {
 		RetrievalMinScore:        getFloat64(registry, "knowledge.retrieval_min_score"),
 		MaxMarkdownFileSizeBytes: getInt(registry, "knowledge.max_markdown_file_size_bytes"),
 		VectorHTTPTimeout:        getDuration(registry, "knowledge.vector_http_timeout"),
+		VectorDBs:                nil,
 	}
 }
 
