@@ -51,7 +51,7 @@
 - [x] 25.0 Validation & Linking Orchestration (S)
 - [x] 26.0 Knowledge: Embedder (S)
 - [x] 27.0 Knowledge: VectorDB (S)
-- [ ] 28.0 Knowledge: Source (S)
+- [x] 28.0 Knowledge: Source (S)
 - [ ] 29.0 Knowledge: Base (S)
 - [ ] 30.0 Knowledge: Binding (S)
 - [ ] 31.0 Memory: Config — core (S)

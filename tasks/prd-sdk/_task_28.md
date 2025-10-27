@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/knowledge</domain>
@@ -30,11 +30,11 @@ Implement SourceBuilder in `sdk/knowledge/source.go` to configure knowledge inge
 
 ## Subtasks
 
-- [ ] 28.1 Create sdk/knowledge/source.go with SourceBuilder
-- [ ] 28.2 Implement NewFileSource(path), NewDirectorySource(paths...), NewURLSource(urls...), NewAPISource(provider)
-- [ ] 28.3 Add source type validation in Build(ctx)
-- [ ] 28.4 Implement Build(ctx) with path/URL validation
-- [ ] 28.5 Add unit tests for all source types
+- [x] 28.1 Create sdk/knowledge/source.go with SourceBuilder
+- [x] 28.2 Implement NewFileSource(path), NewDirectorySource(paths...), NewURLSource(urls...), NewAPISource(provider)
+- [x] 28.3 Add source type validation in Build(ctx)
+- [x] 28.4 Implement Build(ctx) with path/URL validation
+- [x] 28.5 Add unit tests for all source types
 
 ## Implementation Details
 
