@@ -25,20 +25,24 @@ func TestStandaloneModeActivation(t *testing.T) {
 	t.Helper()
 	ctx := helpers.NewTestContext(t)
 	cfg := config.FromContext(ctx)
-	oldHostPort := "remote.example:7233"
-	cfg.Temporal.HostPort = oldHostPort
-	cfg.Temporal.Mode = "standalone"
-	cfg.Temporal.Namespace = defaultNamespace()
-	cfg.Temporal.Standalone.DatabaseFile = ":memory:"
-	cfg.Temporal.Standalone.EnableUI = false
-	cfg.Temporal.Standalone.Namespace = cfg.Temporal.Namespace
-	cfg.Temporal.Standalone.FrontendPort = findAvailablePortRange(ctx, t, 4)
-	embeddedCfg := toEmbeddedConfig(&cfg.Temporal.Standalone)
-	server := startStandaloneServer(ctx, t, embeddedCfg)
-	cfg.Temporal.HostPort = server.FrontendAddress()
-	require.NotEqual(t, oldHostPort, cfg.Temporal.HostPort)
-	exec := executeTestWorkflow(ctx, t, cfg.Temporal.HostPort, cfg.Temporal.Namespace)
-	require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+
+	t.Run("Should activate standalone mode and run workflow", func(t *testing.T) {
+		oldHostPort := "remote.example:7233"
+		cfg.Temporal.HostPort = oldHostPort
+		cfg.Temporal.Mode = "standalone"
+		cfg.Temporal.Namespace = defaultNamespace()
+		cfg.Temporal.Standalone.DatabaseFile = ":memory:"
+		cfg.Temporal.Standalone.EnableUI = false
+		cfg.Temporal.Standalone.Namespace = cfg.Temporal.Namespace
+		cfg.Temporal.Standalone.FrontendPort = findAvailablePortRange(ctx, t, 4)
+		embeddedCfg := toEmbeddedConfig(&cfg.Temporal.Standalone)
+		server := startStandaloneServer(ctx, t, embeddedCfg)
+		cfg.Temporal.HostPort = server.FrontendAddress()
+		require.NotEqual(t, oldHostPort, cfg.Temporal.HostPort)
+
+		exec := executeTestWorkflow(ctx, t, cfg.Temporal.HostPort, cfg.Temporal.Namespace)
+		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
+	})
 }
 
 func toEmbeddedConfig(cfg *config.StandaloneConfig) *embedded.Config {

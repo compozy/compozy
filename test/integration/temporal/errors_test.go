@@ -24,6 +24,9 @@ func TestPortConflict(t *testing.T) {
 	primaryCfg.EnableUI = false
 	primaryCfg.FrontendPort = frontendPort
 	server := startStandaloneServer(ctx, t, primaryCfg)
+	t.Cleanup(func() {
+		stopTemporalServer(ctx, t, server)
+	})
 
 	conflictCtx := helpers.NewTestContext(t)
 	conflictCfg := newEmbeddedConfigFromDefaults()
@@ -35,8 +38,6 @@ func TestPortConflict(t *testing.T) {
 	require.ErrorContains(t, err, "already in use")
 	require.ErrorContains(t, err, fmt.Sprintf("%d", frontendPort))
 	require.ErrorContains(t, err, "adjust configuration")
-
-	stopTemporalServer(ctx, t, server)
 }
 
 func TestStartupTimeout(t *testing.T) {

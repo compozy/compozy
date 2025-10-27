@@ -32,14 +32,19 @@ import (
 )
 
 const (
-	unknownFileName            = "unknown"
-	ideCodex                   = "codex"
-	ideClaude                  = "claude"
-	ideDroid                   = "droid"
-	defaultCodexModel          = "gpt-5-codex"
-	defaultClaudeModel         = "claude-sonnet-4-5-20250929"
-	defaultActivityTimeout     = 10 * time.Minute
-	thinkPromptMedium          = "Think hard through problems carefully before acting. Balance speed with thoroughness."
+	unknownFileName               = "unknown"
+	ideCodex                      = "codex"
+	ideClaude                     = "claude"
+	ideDroid                      = "droid"
+	defaultCodexModel             = "gpt-5-codex"
+	defaultClaudeModel            = "claude-sonnet-4-5-20250929"
+	defaultActivityTimeout        = 10 * time.Minute
+	exitCodeTimeout               = -2
+	exitCodeCanceled              = -1
+	activityCheckInterval         = 5 * time.Second
+	processTerminationGracePeriod = 5 * time.Second
+	thinkPromptMedium             = "Think hard through problems carefully before acting. " +
+		"Balance speed with thoroughness."
 	thinkPromptLow             = "Think concisely and act quickly. Prefer direct solutions."
 	thinkPromptHighDescription = "Ultrathink deeply and comprehensively before taking action. " +
 		"Consider edge cases, alternatives, and long-term implications. Show your reasoning process."
@@ -1143,7 +1148,7 @@ func runOneJob(
 	useUI := uiCh != nil
 	if ctx.Err() != nil {
 		if useUI {
-			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: exitCodeCanceled}
 		}
 		return
 	}
@@ -1252,7 +1257,7 @@ func executeJobAttempt(
 		ctx, &argsWithTimeout, j, cwd, useUI, uiCh,
 		index, failed, failuresMu, failures, aggregateUsage, aggregateMu,
 	)
-	if !success && exitCode == -2 {
+	if !success && exitCode == exitCodeTimeout {
 		return retry.RetryableError(fmt.Errorf("timeout"))
 	}
 	return nil
@@ -1697,10 +1702,10 @@ func executeCommandAndHandleResultWithStatus(
 		resultCh <- result{success, exitCode}
 	case <-activityTimeout:
 		handleActivityTimeout(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures, timeout)
-		resultCh <- result{false, -2}
+		resultCh <- result{false, exitCodeTimeout}
 	case <-ctx.Done():
 		handleCommandCancellation(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures)
-		resultCh <- result{false, -1}
+		resultCh <- result{false, exitCodeCanceled}
 	}
 	res := <-resultCh
 	return res.success, res.exitCode
@@ -1715,7 +1720,7 @@ func startActivityWatchdog(
 	activityTimeout := make(chan struct{})
 	if monitor != nil && timeout > 0 {
 		go func() {
-			ticker := time.NewTicker(5 * time.Second)
+			ticker := time.NewTicker(activityCheckInterval)
 			defer ticker.Stop()
 			for {
 				select {
@@ -1792,7 +1797,7 @@ func handleCommandCancellation(
 		select {
 		case <-cmdDone:
 			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully\n", index+1)
-		case <-time.After(5 * time.Second):
+		case <-time.After(processTerminationGracePeriod):
 			// NOTE: Escalate to SIGKILL if the process ignores our grace period.
 			fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
 			if err := cmd.Process.Kill(); err != nil {
@@ -1801,7 +1806,7 @@ func handleCommandCancellation(
 		}
 	}
 	if useUI {
-		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: exitCodeCanceled}
 	}
 }
 
@@ -1823,7 +1828,7 @@ func handleActivityTimeout(
 	terminateTimedOutProcess(cmd, cmdDone, index, useUI)
 	recordTimeoutFailure(j, timeout, failuresMu, failures)
 	if useUI {
-		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -2}
+		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: exitCodeTimeout}
 	}
 }
 
@@ -1881,7 +1886,7 @@ func recordTimeoutFailure(j *job, timeout time.Duration, failuresMu *sync.Mutex,
 		failures,
 		failInfo{
 			codeFile: codeFileLabel,
-			exitCode: -2,
+			exitCode: exitCodeTimeout,
 			outLog:   j.outLog,
 			errLog:   j.errLog,
 			err:      timeoutErr,
