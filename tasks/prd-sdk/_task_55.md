@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>sdk/docs</domain>
@@ -33,13 +33,13 @@ Create comprehensive troubleshooting guide covering common errors, debugging pat
 
 ## Subtasks
 
-- [ ] 55.1 Document compilation/import errors and fixes
-- [ ] 55.2 Document validation errors (BuildError handling)
-- [ ] 55.3 Document context-related errors (missing logger/config)
-- [ ] 55.4 Document integration errors (DB, MCP, external services)
-- [ ] 55.5 Document template expression errors
-- [ ] 55.6 Create diagnostic commands reference
-- [ ] 55.7 Add debugging best practices section
+- [x] 55.1 Document compilation/import errors and fixes
+- [x] 55.2 Document validation errors (BuildError handling)
+- [x] 55.3 Document context-related errors (missing logger/config)
+- [x] 55.4 Document integration errors (DB, MCP, external services)
+- [x] 55.5 Document template expression errors
+- [x] 55.6 Create diagnostic commands reference
+- [x] 55.7 Add debugging best practices section
 
 ## Implementation Details
 
