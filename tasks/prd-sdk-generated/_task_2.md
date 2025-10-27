@@ -1,0 +1,97 @@
+## status: pending
+
+<task_context>
+<domain>sdk/schedule</domain>
+<type>implementation</type>
+<scope>code_generation</scope>
+<complexity>low</complexity>
+<dependencies>none</dependencies>
+</task_context>
+
+# Task 2.0: Migrate schedule Package to Functional Options
+
+## Overview
+
+Migrate the `sdk/schedule` package from manual builder pattern to auto-generated functional options. The schedule package configures cron-based scheduling with interval, timezone, and jitter settings.
+
+**Estimated Time:** 1-2 hours
+
+<critical>
+- **ALWAYS READ** @sdk2/MIGRATION_GUIDE.md before starting
+- **GREENFIELD APPROACH:** Build fresh in sdk2/, keep sdk/ for reference
+- **CRON VALIDATION:** Must validate cron expression syntax
+</critical>
+
+<requirements>
+- Generate functional options from engine/schedule/config.go
+- Create constructor with cron expression validation
+- Validate timezone strings (use time.LoadLocation)
+- Validate jitter percentages (0-100 range)
+- Deep copy configuration before returning
+- Comprehensive test coverage (>90%)
+</requirements>
+
+## Subtasks
+
+- [ ] 2.1 Create sdk2/schedule/ directory structure
+- [ ] 2.2 Create generate.go with go:generate directive
+- [ ] 2.3 Run go generate to create options_generated.go
+- [ ] 2.4 Create constructor.go with cron validation
+- [ ] 2.5 Create constructor_test.go with schedule tests
+- [ ] 2.6 Verify with linter and tests
+- [ ] 2.7 Create README.md
+
+## Implementation Details
+
+### Engine Source
+```go
+// From engine/schedule/config.go
+type Config struct {
+    ID       string   // Schedule identifier
+    Cron     string   // Cron expression
+    Timezone string   // IANA timezone (e.g., "America/New_York")
+    Jitter   int      // Jitter percentage (0-100)
+}
+```
+
+### Key Validation
+- Cron expression syntax (use cron parser)
+- Timezone via time.LoadLocation()
+- Jitter range 0-100
+
+### Relevant Files
+
+**Reference (for understanding):**
+- `sdk/schedule/builder.go` - Old builder pattern to understand requirements
+- `sdk/schedule/builder_test.go` - Old tests to understand test cases
+- `engine/schedule/config.go` - Source struct for generation
+
+**To Create in sdk2/schedule/:**
+- `generate.go` - go:generate directive
+- `options_generated.go` - Auto-generated
+- `constructor.go` - Validation logic (~70 lines)
+- `constructor_test.go` - Test suite (~250 lines)
+- `README.md` - API documentation
+
+**Note:** Do NOT delete or modify anything in `sdk/schedule/` - keep for reference during transition
+
+## Tests
+
+- [ ] Valid cron expressions (standard 5-field format)
+- [ ] Invalid cron expressions fail validation
+- [ ] Valid timezones (UTC, America/New_York, Europe/London, etc.)
+- [ ] Invalid timezones fail validation
+- [ ] Jitter range validation (0-100)
+- [ ] Negative jitter fails
+- [ ] Jitter > 100 fails
+- [ ] Empty ID fails
+- [ ] Empty cron expression fails
+
+## Success Criteria
+
+- [ ] sdk2/schedule/ directory created with proper structure
+- [ ] Cron expressions validated with proper error messages
+- [ ] Timezone validation uses time.LoadLocation
+- [ ] All tests pass with >90% coverage: `gotestsum -- ./sdk2/schedule`
+- [ ] Linter passes: `golangci-lint run --fix ./sdk2/schedule/...`
+- [ ] Code reduction: ~174 LOC → ~70 LOC (60% reduction)

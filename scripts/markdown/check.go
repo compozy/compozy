@@ -829,7 +829,7 @@ func prepareJobs(
 		batchSize = 1
 		grouped = false
 	}
-	allIssues := flattenAndSortIssues(groups)
+	allIssues := flattenAndSortIssues(groups, mode)
 	if batchSize <= 0 {
 		batchSize = 1
 	}
@@ -906,14 +906,23 @@ func writeBatchArtifacts(promptRoot, safeName, promptStr string) (string, string
 	return outPromptPath, outLog, errLog, nil
 }
 
-func flattenAndSortIssues(groups map[string][]issueEntry) []issueEntry {
+func flattenAndSortIssues(groups map[string][]issueEntry, mode executionMode) []issueEntry {
 	allIssues := make([]issueEntry, 0)
 	for _, items := range groups {
 		allIssues = append(allIssues, items...)
 	}
-	sort.Slice(allIssues, func(i, j int) bool {
-		return allIssues[i].name < allIssues[j].name
-	})
+	// For PRD tasks, sort by numeric task ID instead of lexicographically
+	if mode == ExecutionModePRDTasks {
+		sort.Slice(allIssues, func(i, j int) bool {
+			numI := extractTaskNumber(allIssues[i].name)
+			numJ := extractTaskNumber(allIssues[j].name)
+			return numI < numJ
+		})
+	} else {
+		sort.Slice(allIssues, func(i, j int) bool {
+			return allIssues[i].name < allIssues[j].name
+		})
+	}
 	return allIssues
 }
 
@@ -2890,6 +2899,20 @@ func readIssueEntries(resolvedIssuesDir string, mode executionMode, includeCompl
 	return readCodeRabbitIssues(resolvedIssuesDir)
 }
 
+// extractTaskNumber extracts the numeric ID from a task filename.
+// Example: "_task_10.md" returns 10, "_task_2.md" returns 2.
+// Returns 0 for invalid filenames.
+func extractTaskNumber(filename string) int {
+	// Remove prefix and suffix to get just the number
+	numStr := strings.TrimPrefix(filename, "_task_")
+	numStr = strings.TrimSuffix(numStr, ".md")
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return 0
+	}
+	return num
+}
+
 func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, error) {
 	entries := []issueEntry{}
 	files, err := os.ReadDir(tasksDir)
@@ -2906,7 +2929,12 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 		}
 		names = append(names, f.Name())
 	}
-	sort.Strings(names)
+	// Sort by numeric task ID instead of lexicographically
+	sort.Slice(names, func(i, j int) bool {
+		numI := extractTaskNumber(names[i])
+		numJ := extractTaskNumber(names[j])
+		return numI < numJ
+	})
 	for _, name := range names {
 		absPath := filepath.Join(tasksDir, name)
 		b, err := os.ReadFile(absPath)
