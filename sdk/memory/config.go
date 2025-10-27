@@ -21,12 +21,19 @@ const (
 	FlushStrategyNone FlushStrategyKind = "none"
 	// FlushStrategyFIFO configures simple FIFO flushing.
 	FlushStrategyFIFO FlushStrategyKind = "fifo"
+	// FlushStrategySummarization configures hybrid summarization flushing.
+	FlushStrategySummarization FlushStrategyKind = "summarization"
 )
+
+const defaultSummarizeThreshold = 0.8
 
 // FlushStrategy captures the flush behavior requested by the builder.
 type FlushStrategy struct {
-	Kind        FlushStrategyKind
-	MaxMessages int
+	Kind          FlushStrategyKind
+	MaxMessages   int
+	Provider      string
+	Model         string
+	SummaryTokens int
 }
 
 // ConfigBuilder constructs engine memory configurations using a fluent API.
@@ -97,6 +104,19 @@ func (b *ConfigBuilder) WithFIFOFlush(maxMessages int) *ConfigBuilder {
 	return b.WithFlushStrategy(FlushStrategy{Kind: FlushStrategyFIFO, MaxMessages: maxMessages})
 }
 
+// WithSummarizationFlush configures a hybrid summarization flush strategy.
+func (b *ConfigBuilder) WithSummarizationFlush(provider, model string, maxTokens int) *ConfigBuilder {
+	if b == nil {
+		return nil
+	}
+	return b.WithFlushStrategy(FlushStrategy{
+		Kind:          FlushStrategySummarization,
+		Provider:      provider,
+		Model:         model,
+		SummaryTokens: maxTokens,
+	})
+}
+
 // Build validates inputs, aggregates errors, and returns a memory config.
 func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error) {
 	if b == nil {
@@ -109,7 +129,7 @@ func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error)
 	log := logger.FromContext(ctx)
 	log.Debug("building memory configuration", "memory", b.config.ID)
 
-	flushConfig, flushMessages, flushErr := b.buildFlushStrategy()
+	flushConfig, flushMessages, flushErrs := b.buildFlushStrategy(ctx)
 
 	collected := make([]error, 0, len(b.errors)+5)
 	collected = append(collected, b.errors...)
@@ -117,7 +137,7 @@ func (b *ConfigBuilder) Build(ctx context.Context) (*enginememory.Config, error)
 	collected = append(collected, b.validateProvider(ctx))
 	collected = append(collected, b.validateModel(ctx))
 	collected = append(collected, b.validateMaxTokens())
-	collected = append(collected, flushErr)
+	collected = append(collected, flushErrs...)
 
 	filtered := filterErrors(collected)
 	if len(filtered) > 0 {
@@ -179,22 +199,48 @@ func (b *ConfigBuilder) validateMaxTokens() error {
 	return nil
 }
 
-func (b *ConfigBuilder) buildFlushStrategy() (*memcore.FlushingStrategyConfig, int, error) {
+func (b *ConfigBuilder) buildFlushStrategy(ctx context.Context) (*memcore.FlushingStrategyConfig, int, []error) {
 	if b.flushStrategy == nil || b.flushStrategy.Kind == FlushStrategyNone {
 		return nil, 0, nil
 	}
 	switch b.flushStrategy.Kind {
 	case FlushStrategyFIFO:
 		if b.flushStrategy.MaxMessages <= 0 {
-			return nil, 0, fmt.Errorf(
+			msg := fmt.Errorf(
 				"fifo flush requires max messages greater than zero: got %d",
 				b.flushStrategy.MaxMessages,
 			)
+			return nil, 0, []error{msg}
 		}
 		cfg := &memcore.FlushingStrategyConfig{Type: memcore.SimpleFIFOFlushing}
 		return cfg, b.flushStrategy.MaxMessages, nil
+	case FlushStrategySummarization:
+		errs := make([]error, 0, 3)
+		provider := strings.ToLower(strings.TrimSpace(b.flushStrategy.Provider))
+		model := strings.TrimSpace(b.flushStrategy.Model)
+		if err := validate.ValidateNonEmpty(ctx, "summarization provider", provider); err != nil {
+			errs = append(errs, err)
+		}
+		if err := validate.ValidateNonEmpty(ctx, "summarization model", model); err != nil {
+			errs = append(errs, err)
+		}
+		if b.flushStrategy.SummaryTokens <= 0 {
+			errs = append(errs, fmt.Errorf(
+				"summarization flush requires summary tokens greater than zero: got %d",
+				b.flushStrategy.SummaryTokens,
+			))
+		}
+		if len(errs) > 0 {
+			return nil, 0, errs
+		}
+		cfg := &memcore.FlushingStrategyConfig{
+			Type:               memcore.HybridSummaryFlushing,
+			SummarizeThreshold: defaultSummarizeThreshold,
+			SummaryTokens:      b.flushStrategy.SummaryTokens,
+		}
+		return cfg, 0, nil
 	default:
-		return nil, 0, fmt.Errorf("unsupported flush strategy %q", b.flushStrategy.Kind)
+		return nil, 0, []error{fmt.Errorf("unsupported flush strategy %q", b.flushStrategy.Kind)}
 	}
 }
 

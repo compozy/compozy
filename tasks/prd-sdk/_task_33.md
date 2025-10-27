@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/memory</domain>
@@ -29,11 +29,11 @@ Extend memory ConfigBuilder with flush strategy methods (FIFO and Summarization 
 
 ## Subtasks
 
-- [ ] 33.1 Add WithFlushStrategy(strategy) method to ConfigBuilder
-- [ ] 33.2 Implement WithFIFOFlush(maxMessages int) helper
-- [ ] 33.3 Implement WithSummarizationFlush(provider, model string) helper
-- [ ] 33.4 Update Build(ctx) validation for flush strategies
-- [ ] 33.5 Add unit tests for flush strategy methods
+- [x] 33.1 Add WithFlushStrategy(strategy) method to ConfigBuilder
+- [x] 33.2 Implement WithFIFOFlush(maxMessages int) helper
+- [x] 33.3 Implement WithSummarizationFlush(provider, model string) helper
+- [x] 33.4 Update Build(ctx) validation for flush strategies
+- [x] 33.5 Add unit tests for flush strategy methods
 
 ## Implementation Details
 
@@ -72,12 +72,12 @@ Engine flush strategies from engine/memory:
 
 Unit tests mapped from `_tests.md`:
 
-- [ ] WithFlushStrategy sets strategy correctly
-- [ ] WithFIFOFlush configures FIFO with max messages
-- [ ] WithSummarizationFlush configures summarization with provider/model
-- [ ] Build(ctx) validates flush strategy requirements
-- [ ] Error cases: invalid max messages, missing provider/model
-- [ ] Edge cases: conflicting flush strategies
+- [x] WithFlushStrategy sets strategy correctly
+- [x] WithFIFOFlush configures FIFO with max messages
+- [x] WithSummarizationFlush configures summarization with provider/model
+- [x] Build(ctx) validates flush strategy requirements
+- [x] Error cases: invalid max messages, missing provider/model
+- [x] Edge cases: conflicting flush strategies
 
 ## Success Criteria
 
