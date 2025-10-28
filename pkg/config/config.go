@@ -4,15 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"maps"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/compozy/compozy/pkg/config/definition"
+	"github.com/mitchellh/mapstructure"
 )
 
 const (
@@ -328,7 +326,7 @@ type DatabaseConfig struct {
 	// Password specifies the database password for authentication.
 	//
 	// **Security**: Use environment variables in production.
-	Password string `koanf:"password" json:"password" yaml:"password" mapstructure:"password" env:"DB_PASSWORD"`
+	Password string `koanf:"password" json:"password" yaml:"password" mapstructure:"password" env:"DB_PASSWORD" sensitive:"true"`
 
 	// DBName specifies the database name to connect to.
 	//
@@ -2180,7 +2178,9 @@ func getStringIntMap(registry *definition.Registry, path string) map[string]int 
 	out := make(map[string]int)
 	switch raw := val.(type) {
 	case map[string]int:
-		maps.Copy(out, raw)
+		for k, v := range raw {
+			out[k] = v
+		}
 	case map[string]any:
 		for k, v := range raw {
 			switch num := v.(type) {
@@ -2318,6 +2318,7 @@ func buildReconcilerConfig(registry *definition.Registry) ReconcilerConfig {
 
 func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 	return DatabaseConfig{
+		ConnString:       getString(registry, "database.conn_string"),
 		Driver:           getString(registry, "database.driver"),
 		Host:             getString(registry, "database.host"),
 		Port:             getString(registry, "database.port"),
@@ -2571,7 +2572,9 @@ func buildPerProviderRateLimitOverrides(registry *definition.Registry) map[strin
 	out := make(map[string]ProviderRateLimitConfig)
 	switch raw := val.(type) {
 	case map[string]ProviderRateLimitConfig:
-		maps.Copy(out, raw)
+		for k, v := range raw {
+			out[k] = v
+		}
 	case map[string]any:
 		for provider, candidate := range raw {
 			m, ok := candidate.(map[string]any)
