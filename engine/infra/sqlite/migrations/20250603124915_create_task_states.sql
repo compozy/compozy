@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS task_states (
     FOREIGN KEY (parent_state_id)
         REFERENCES task_states (task_exec_id)
         ON DELETE CASCADE,
+    CHECK (execution_type IN ('basic','router','parallel','collection','composite')),
     CHECK (
         (execution_type = 'basic' AND (
             (agent_id IS NOT NULL AND action_id IS NOT NULL AND tool_id IS NULL) OR
@@ -33,8 +34,7 @@ CREATE TABLE IF NOT EXISTS task_states (
             (agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL)
         )) OR
         (execution_type = 'router' AND agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL) OR
-        (execution_type IN ('parallel', 'collection', 'composite')) OR
-        (execution_type NOT IN ('parallel', 'collection', 'composite', 'basic', 'router'))
+        (execution_type IN ('parallel', 'collection', 'composite'))
     ),
     CHECK (usage IS NULL OR json_type(usage) = 'array')
 );
@@ -44,9 +44,19 @@ CREATE INDEX IF NOT EXISTS idx_task_states_workflow_id ON task_states (workflow_
 CREATE INDEX IF NOT EXISTS idx_task_states_workflow_exec_id ON task_states (workflow_exec_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_task_id ON task_states (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_parent_state_id ON task_states (parent_state_id);
+-- Keep updated_at in sync on row updates.
+CREATE TRIGGER IF NOT EXISTS trg_task_states_updated_at
+AFTER UPDATE ON task_states
+FOR EACH ROW
+BEGIN
+  UPDATE task_states
+  SET updated_at = datetime('now')
+  WHERE task_exec_id = NEW.task_exec_id;
+END;
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE IF EXISTS task_states;
+DROP TRIGGER IF EXISTS trg_task_states_updated_at;
 -- +goose StatementEnd

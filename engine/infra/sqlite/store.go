@@ -25,6 +25,7 @@ const (
 	defaultConnLifetime       = time.Hour
 	defaultConnIdleTime       = 15 * time.Minute
 	defaultBusyTimeout        = 5 * time.Second
+	defaultPingTimeout        = 5 * time.Second
 )
 
 // Store manages SQLite connections using database/sql.
@@ -142,7 +143,7 @@ func applyBusyTimeout(ctx context.Context, db *sql.DB, cfg *Config) error {
 }
 
 func verifyConnection(ctx context.Context, db *sql.DB) error {
-	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, defaultPingTimeout)
 	defer cancel()
 	if err := db.PingContext(pingCtx); err != nil {
 		return fmt.Errorf("sqlite: ping: %w", err)

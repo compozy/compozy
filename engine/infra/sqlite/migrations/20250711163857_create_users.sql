@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS users (
     id         TEXT NOT NULL PRIMARY KEY,
-    email      TEXT NOT NULL UNIQUE,
+    email      TEXT NOT NULL,
     role       TEXT NOT NULL CHECK (role IN ('admin', 'user')),
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

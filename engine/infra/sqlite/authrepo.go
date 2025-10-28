@@ -330,7 +330,7 @@ func (r *AuthRepo) ListAPIKeysByUserID(ctx context.Context, userID core.ID) ([]*
 // UpdateAPIKeyLastUsed sets the last_used timestamp.
 func (r *AuthRepo) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID) error {
 	const query = `UPDATE api_keys SET last_used = ? WHERE id = ?`
-	now := time.Now().UTC().Format(time.RFC3339)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
 	result, err := r.db.ExecContext(ctx, query, now, id.String())
 	if err != nil {
 		return fmt.Errorf("sqlite auth: update api key last_used: %w", err)
@@ -409,7 +409,11 @@ func classifyUserError(err error) error {
 	}
 	if isUniqueConstraint(err) {
 		lowerMsg := strings.ToLower(err.Error())
-		if strings.Contains(lowerMsg, "users") || strings.Contains(lowerMsg, "idx_users_email_ci") {
+		// Only map email-related unique violations to ErrEmailExists.
+		// SQLite typically emits "UNIQUE constraint failed: users.email" when the
+		// column-level or dedicated email index is violated. We also match the
+		// case-insensitive email index name.
+		if strings.Contains(lowerMsg, "users.email") || strings.Contains(lowerMsg, "idx_users_email_ci") {
 			return uc.ErrEmailExists
 		}
 	}

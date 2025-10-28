@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS workflow_states (
 );
 
 CREATE INDEX IF NOT EXISTS idx_workflow_states_status ON workflow_states (status);
-CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_id ON workflow_states (workflow_id);
 CREATE INDEX IF NOT EXISTS idx_workflow_states_workflow_status ON workflow_states (workflow_id, status);
 CREATE INDEX IF NOT EXISTS idx_workflow_states_created_at ON workflow_states (created_at);
 CREATE INDEX IF NOT EXISTS idx_workflow_states_updated_at ON workflow_states (updated_at);

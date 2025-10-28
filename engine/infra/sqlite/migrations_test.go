@@ -72,7 +72,6 @@ func TestMigrations(t *testing.T) {
 
 		expectedIndexes := []string{
 			"idx_workflow_states_status",
-			"idx_workflow_states_workflow_id",
 			"idx_workflow_states_workflow_status",
 			"idx_workflow_states_created_at",
 			"idx_workflow_states_updated_at",
@@ -103,9 +102,10 @@ func TestMigrations(t *testing.T) {
 		_, err := db.ExecContext(
 			ctx,
 			`INSERT INTO task_states (component, status, task_exec_id, task_id, workflow_exec_id, workflow_id, execution_type)
-			 VALUES ('component', 'pending', 'task-exec', 'task', 'missing-workflow', 'workflow', 'router')`,
+         VALUES ('component', 'pending', 'task-exec', 'task', 'missing-workflow', 'workflow', 'router')`,
 		)
 		require.Error(t, err)
+		assert.ErrorContains(t, err, "FOREIGN KEY")
 	})
 
 	t.Run("Should enforce check constraints", func(t *testing.T) {
@@ -121,6 +121,7 @@ func TestMigrations(t *testing.T) {
 			"INSERT INTO users (id, email, role) VALUES ('user-1', 'user@example.com', 'guest')",
 		)
 		require.Error(t, err)
+		assert.ErrorContains(t, err, "CHECK")
 	})
 
 	t.Run("Should rollback migrations", func(t *testing.T) {
