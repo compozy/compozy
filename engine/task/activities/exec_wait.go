@@ -136,6 +136,8 @@ func validateWaitConfig(cfg *task.Config) error {
 }
 
 // parseTimeout parses and validates the timeout from the normalized configuration.
+// It converts the human-readable timeout string (e.g., "5m", "2h30m") to a time.Duration
+// and ensures it is positive. Returns an error if the timeout is missing, invalid, or non-positive.
 func parseTimeout(cfg *task.Config) (time.Duration, error) {
 	if cfg.Timeout == "" {
 		return 0, fmt.Errorf("wait task requires a timeout")
@@ -151,6 +153,7 @@ func parseTimeout(cfg *task.Config) (time.Duration, error) {
 }
 
 // createWaitTaskState creates and augments the state for the wait task.
+// It stores the parsed timeout in both seconds and milliseconds for flexible consumption.
 func (a *ExecuteWait) createWaitTaskState(
 	ctx context.Context,
 	workflowState *workflow.State,
@@ -168,10 +171,11 @@ func (a *ExecuteWait) createWaitTaskState(
 	}
 	taskState.Status = core.StatusWaiting
 	taskState.Output = &core.Output{
-		"wait_status":     "waiting",
-		"signal_name":     cfg.WaitFor,
-		"has_processor":   cfg.Processor != nil,
-		"timeout_seconds": int64(timeout.Seconds()),
+		"wait_status":          "waiting",
+		"signal_name":          cfg.WaitFor,
+		"has_processor":        cfg.Processor != nil,
+		"timeout_seconds":      int64(timeout.Seconds()),
+		"timeout_milliseconds": timeout.Milliseconds(),
 	}
 	return taskState, nil
 }

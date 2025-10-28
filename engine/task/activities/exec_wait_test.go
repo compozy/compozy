@@ -118,6 +118,7 @@ func TestExecuteWait_Run(t *testing.T) {
 		assert.Equal(t, "approval_signal", output["signal_name"])
 		assert.Equal(t, false, output["has_processor"])
 		assert.Equal(t, int64(300), output["timeout_seconds"], "Should contain timeout in seconds (5m = 300s)")
+		assert.Equal(t, int64(300000), output["timeout_milliseconds"], "Should contain timeout in ms (5m = 300000ms)")
 
 		// Verify state was saved to database
 		savedState, err := taskRepo.GetState(ctx, response.State.TaskExecID)
@@ -234,6 +235,12 @@ func TestExecuteWait_Run(t *testing.T) {
 			int64(7500),
 			waitOutput["timeout_seconds"],
 			"Should contain parsed timeout in seconds (2h5m = 7500s)",
+		)
+		assert.Equal(
+			t,
+			int64(7500000),
+			waitOutput["timeout_milliseconds"],
+			"Should contain parsed timeout in ms (2h5m = 7500000ms)",
 		)
 	})
 	t.Run("Should handle nil task config", func(t *testing.T) {
@@ -536,6 +543,8 @@ func TestExecuteWait_Run(t *testing.T) {
 		// Verify has_processor is true
 		output := *response.State.Output
 		assert.Equal(t, true, output["has_processor"])
+		assert.Equal(t, int64(600), output["timeout_seconds"], "Should contain timeout in seconds (10m = 600s)")
+		assert.Equal(t, int64(600000), output["timeout_milliseconds"], "Should contain timeout in ms (10m = 600000ms)")
 
 		// Verify state was saved to database with has_processor = true
 		savedState, err := taskRepo.GetState(ctx, response.State.TaskExecID)

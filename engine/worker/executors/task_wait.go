@@ -147,6 +147,10 @@ type WaitState struct {
 	Error           error
 }
 
+// extractTimeout retrieves the parsed timeout duration from the activity response output.
+// It reads timeout_seconds from the response (set by the activity after template evaluation)
+// and converts it to time.Duration. Handles both int64 and float64 types for JSON compatibility.
+// Returns an error if the response is invalid, timeout is missing, or has an invalid value.
 func (e *TaskWaitExecutor) extractTimeout(response *task.MainTaskResponse) (time.Duration, error) {
 	if response == nil || response.State == nil || response.State.Output == nil {
 		return 0, fmt.Errorf("response state or output is nil")
@@ -253,6 +257,8 @@ func (e *TaskWaitExecutor) handleTimeoutResponse(
 		map[string]any{
 			"signal_name": taskConfig.WaitFor,
 			"timeout":     taskConfig.Timeout,
+			"timeout_ms":  timeout.Milliseconds(),
+			"timeout_sec": int64(timeout.Seconds()),
 		},
 	)
 	if taskConfig.OnTimeout != "" {
