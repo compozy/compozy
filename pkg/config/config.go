@@ -44,6 +44,11 @@ const (
 //	  environment: development
 //	  log_level: info
 type Config struct {
+	// Mode controls global deployment model.
+	//
+	// "distributed" (default): External services required
+	// "standalone": Embedded services, single-process
+	Mode string `koanf:"mode"   json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=standalone distributed"`
 	// Server configures the HTTP API server settings.
 	//
 	// $ref: schema://application#server
@@ -1156,11 +1161,18 @@ type RateConfig struct {
 //     **Note**: Port is now a string field. Both quoted strings ("6379") and
 //     numeric literals (6379) are supported due to weakly-typed input parsing.
 type RedisConfig struct {
+	// Mode controls Redis deployment model.
+	//
+	// Values:
+	//   - "" (empty): Inherit from global Config.Mode
+	//   - "distributed": Use external Redis (explicit override)
+	//   - "standalone": Use embedded miniredis (explicit override)
+	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=standalone distributed"`
 	// URL provides a complete Redis connection string.
 	//
 	// Format: `redis://[user:password@]host:port/db`
 	// Takes precedence over individual connection parameters.
-	URL string `koanf:"url" json:"url" yaml:"url" mapstructure:"url" env:"REDIS_URL"`
+	URL string `koanf:"url"  json:"url"  yaml:"url"  mapstructure:"url"                                                    env:"REDIS_URL"`
 
 	// Host specifies the Redis server hostname or IP address.
 	//
@@ -1256,6 +1268,24 @@ type RedisConfig struct {
 	// When TLSEnabled is true, this can be used to provide custom TLS settings.
 	// If nil, default TLS configuration will be used.
 	TLSConfig *tls.Config `koanf:"-" json:"-" yaml:"-" mapstructure:"-"`
+
+	// Standalone config for embedded Redis when Mode is "standalone".
+	Standalone RedisStandaloneConfig `koanf:"standalone" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
+}
+
+// RedisStandaloneConfig defines options for embedded Redis in standalone mode.
+type RedisStandaloneConfig struct {
+	// Persistence configures optional snapshot persistence for embedded Redis.
+	Persistence RedisPersistenceConfig `koanf:"persistence" json:"persistence" yaml:"persistence" mapstructure:"persistence"`
+}
+
+// RedisPersistenceConfig defines snapshot settings for embedded Redis.
+type RedisPersistenceConfig struct {
+	Enabled            bool          `koanf:"enabled"              json:"enabled"              yaml:"enabled"              mapstructure:"enabled"`
+	DataDir            string        `koanf:"data_dir"             json:"data_dir"             yaml:"data_dir"             mapstructure:"data_dir"`
+	SnapshotInterval   time.Duration `koanf:"snapshot_interval"    json:"snapshot_interval"    yaml:"snapshot_interval"    mapstructure:"snapshot_interval"`
+	SnapshotOnShutdown bool          `koanf:"snapshot_on_shutdown" json:"snapshot_on_shutdown" yaml:"snapshot_on_shutdown" mapstructure:"snapshot_on_shutdown"`
+	RestoreOnStartup   bool          `koanf:"restore_on_startup"   json:"restore_on_startup"   yaml:"restore_on_startup"   mapstructure:"restore_on_startup"`
 }
 
 // CacheConfig contains cache-specific configuration settings.

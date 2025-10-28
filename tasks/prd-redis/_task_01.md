@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>pkg/config, engine/infra/cache</domain>
@@ -46,15 +46,15 @@ Implement the global mode configuration system with component inheritance patter
 
 ## Subtasks
 
-- [ ] 1.1 Add global `mode` field to Config struct in `pkg/config/config.go`
-- [ ] 1.2 Add `RedisConfig` struct with mode, addr, password, and standalone sections
-- [ ] 1.3 Add `RedisStandaloneConfig` and `RedisPersistenceConfig` structs
-- [ ] 1.4 Create `pkg/config/resolver.go` with `ResolveMode()` function
-- [ ] 1.5 Implement `EffectiveRedisMode()` method on Config
-- [ ] 1.6 Implement `EffectiveTemporalMode()` method on Config
-- [ ] 1.7 Implement `EffectiveMCPProxyMode()` method on Config
-- [ ] 1.8 Add validation rules in `pkg/config/loader.go` for mode fields
-- [ ] 1.9 Update config tests to verify mode resolution logic
+- [x] 1.1 Add global `mode` field to Config struct in `pkg/config/config.go`
+- [x] 1.2 Add `RedisConfig` struct with mode, addr, password, and standalone sections
+- [x] 1.3 Add `RedisStandaloneConfig` and `RedisPersistenceConfig` structs
+- [x] 1.4 Create `pkg/config/resolver.go` with `ResolveMode()` function
+- [x] 1.5 Implement `EffectiveRedisMode()` method on Config
+- [x] 1.6 Implement `EffectiveTemporalMode()` method on Config
+- [x] 1.7 Implement `EffectiveMCPProxyMode()` method on Config
+- [x] 1.8 Add validation rules in `pkg/config/loader.go` for mode fields
+- [x] 1.9 Update config tests to verify mode resolution logic
 
 ## Implementation Details
 
@@ -157,16 +157,16 @@ None - this is the foundation task with no dependencies
 
 ## Deliverables
 
-- [ ] Global `mode` field added to Config struct
-- [ ] RedisConfig struct with mode and standalone sections
-- [ ] RedisStandaloneConfig with persistence configuration
-- [ ] RedisPersistenceConfig with all snapshot settings
-- [ ] `pkg/config/resolver.go` created with ResolveMode function
-- [ ] EffectiveRedisMode() method implemented
-- [ ] EffectiveTemporalMode() method implemented with "distributed" → "remote" normalization
-- [ ] EffectiveMCPProxyMode() method implemented
-- [ ] Validation rules for mode fields
-- [ ] Default mode is "distributed" for backward compatibility
+- [x] Global `mode` field added to Config struct
+- [x] RedisConfig struct with mode and standalone sections
+- [x] RedisStandaloneConfig with persistence configuration
+- [x] RedisPersistenceConfig with all snapshot settings
+- [x] `pkg/config/resolver.go` created with ResolveMode function
+- [x] EffectiveRedisMode() method implemented
+- [x] EffectiveTemporalMode() method implemented with "distributed" → "remote" normalization
+- [x] EffectiveMCPProxyMode() method implemented
+- [x] Validation rules for mode fields
+- [x] Default mode is "distributed" for backward compatibility
 
 ## Tests
 

@@ -38,7 +38,7 @@
 
 ## Tasks
 
-- [ ] 1.0 Global Mode Configuration & Resolver (M - 1-2 days)
+- [x] 1.0 Global Mode Configuration & Resolver (M - 1-2 days)
 - [ ] 2.0 MiniredisStandalone Wrapper (S - ≤ half-day)
 - [ ] 3.0 Mode-Aware Cache Factory (S - ≤ half-day)
 - [ ] 4.0 Memory Store Integration (M - 1 day)
@@ -131,7 +131,7 @@ Notes:
 ## Batch Plan (Grouped Commits)
 
 ### Batch 1 — Configuration Foundation
-- [ ] Task 1.0: Global Mode Configuration & Resolver
+- [x] Task 1.0: Global Mode Configuration & Resolver
 - [ ] Task 11.0: Configuration Validation & CLI
 
 **Commit Message**: `feat(config): add global mode configuration with component inheritance`
@@ -250,4 +250,3 @@ Notes:
 - All existing Redis-based deployments continue to work
 - Default mode is "distributed" for backward compatibility
 - Consumer code requires ZERO changes
-

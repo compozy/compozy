@@ -114,3 +114,57 @@ func TestValidateNativeToolTimeouts(t *testing.T) {
 		}
 	})
 }
+
+func TestModeValidation(t *testing.T) {
+	t.Run("Global mode validation", func(t *testing.T) {
+		svc := NewService()
+		cfg := Default()
+		cfg.Mode = "standalone"
+		if err := svc.Validate(cfg); err != nil {
+			t.Fatalf("expected valid global mode, got: %v", err)
+		}
+		cfg.Mode = "distributed"
+		if err := svc.Validate(cfg); err != nil {
+			t.Fatalf("expected valid global mode, got: %v", err)
+		}
+		cfg.Mode = "invalid"
+		if err := svc.Validate(cfg); err == nil {
+			t.Fatalf("expected validation error for invalid global mode")
+		}
+	})
+
+	t.Run("Component mode validation and inheritance", func(t *testing.T) {
+		svc := NewService()
+		cfg := Default()
+		// Empty is allowed (inheritance)
+		cfg.Redis.Mode = ""
+		if err := svc.Validate(cfg); err != nil {
+			t.Fatalf("expected nil error for empty redis.mode, got: %v", err)
+		}
+		// Allowed values
+		cfg.Redis.Mode = "standalone"
+		if err := svc.Validate(cfg); err != nil {
+			t.Fatalf("expected valid redis.mode, got: %v", err)
+		}
+		cfg.Redis.Mode = "distributed"
+		if err := svc.Validate(cfg); err != nil {
+			t.Fatalf("expected valid redis.mode, got: %v", err)
+		}
+		// Invalid value
+		cfg.Redis.Mode = "invalid"
+		if err := svc.Validate(cfg); err == nil {
+			t.Fatalf("expected validation error for invalid redis.mode")
+		}
+	})
+
+	t.Run("Redis persistence configuration baseline", func(t *testing.T) {
+		svc := NewService()
+		cfg := Default()
+		cfg.Redis.Mode = "standalone"
+		cfg.Redis.Standalone.Persistence.Enabled = true
+		cfg.Redis.Standalone.Persistence.SnapshotInterval = 0
+		if err := svc.Validate(cfg); err != nil {
+			t.Fatalf("expected persistence settings to validate, got: %v", err)
+		}
+	})
+}
