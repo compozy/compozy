@@ -19,7 +19,15 @@
 <critical>
 - **ALWAYS READ** @.cursor/rules/critical-validation.mdc before start
 - **ALWAYS READ** the technicals docs from this PRD before start
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
+
+<research>
+# When you need information about a library or external API:
+- use perplexity and context7 to find out how to properly fix/resolve this
+- when using perplexity mcp, you can pass a prompt to the query param with more description about what you want to know, you don't need to pass a query-style search phrase, the same for the topic param of context7
+- for context7 to use the mcp is two steps, one you will find out the library id and them you will check what you want
+</research>
 
 <requirements>
 [List of mandatory requirements]
@@ -30,7 +38,7 @@
 - [ ] X.1 [Subtask description]
 - [ ] X.2 [Subtask description]
 
-## Implementation Details
+## Implementation Details (**FOR LLM READING THIS: KEEP THIS BRIEFLY AND HIGH-LEVEL, THE IMPLEMENTATION ALREADY EXIST IN THE TECHSPEC**)
 
 [Relevant sections from tech spec]
 
