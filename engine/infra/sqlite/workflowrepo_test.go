@@ -471,6 +471,7 @@ func TestWorkflowRepo_JSONConstraint(t *testing.T) {
 			state.WorkflowExecID.String(),
 		)
 		require.Error(t, err)
+		assert.ErrorContains(t, err, "CHECK")
 	})
 }
 

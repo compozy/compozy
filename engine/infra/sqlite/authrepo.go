@@ -200,56 +200,39 @@ func (r *AuthRepo) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
 // GetAPIKeyByID fetches an API key by identifier.
 func (r *AuthRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey, error) {
 	const query = `
-		SELECT id, user_id, hash, fingerprint, prefix, created_at, last_used
-		FROM api_keys
-		WHERE id = ?
-	`
-	var (
-		key       model.APIKey
-		createdAt string
-		lastUsed  sql.NullString
-	)
-	err := r.db.QueryRowContext(ctx, query, id.String()).Scan(
-		&key.ID,
-		&key.UserID,
-		&key.Hash,
-		&key.Fingerprint,
-		&key.Prefix,
-		&createdAt,
-		&lastUsed,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, uc.ErrAPIKeyNotFound
-	}
+        SELECT id, user_id, hash, fingerprint, prefix, created_at, last_used
+        FROM api_keys
+        WHERE id = ?
+    `
+	key, err := scanAPIKey(r.db.QueryRowContext(ctx, query, id.String()))
 	if err != nil {
 		return nil, fmt.Errorf("sqlite auth: get api key by id: %w", err)
 	}
-	ts, perr := parseSQLiteTime(createdAt)
-	if perr != nil {
-		return nil, fmt.Errorf("sqlite auth: parse api key created_at: %w", perr)
-	}
-	key.CreatedAt = ts
-	lts, lerr := parseNullableSQLiteTime(lastUsed)
-	if lerr != nil {
-		return nil, fmt.Errorf("sqlite auth: parse api key last_used: %w", lerr)
-	}
-	key.LastUsed = lts
-	return &key, nil
+	return key, nil
 }
 
 // GetAPIKeyByFingerprint fetches an API key by fingerprint.
 func (r *AuthRepo) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
 	const query = `
-		SELECT id, user_id, hash, fingerprint, prefix, created_at, last_used
-		FROM api_keys
-		WHERE fingerprint = ?
-	`
+        SELECT id, user_id, hash, fingerprint, prefix, created_at, last_used
+        FROM api_keys
+        WHERE fingerprint = ?
+    `
+	key, err := scanAPIKey(r.db.QueryRowContext(ctx, query, fingerprint))
+	if err != nil {
+		return nil, fmt.Errorf("sqlite auth: get api key by fingerprint: %w", err)
+	}
+	return key, nil
+}
+
+// scanAPIKey scans a single api_keys row into model.APIKey, handling time parsing and not-found mapping.
+func scanAPIKey(row *sql.Row) (*model.APIKey, error) {
 	var (
 		key       model.APIKey
 		createdAt string
 		lastUsed  sql.NullString
 	)
-	err := r.db.QueryRowContext(ctx, query, fingerprint).Scan(
+	err := row.Scan(
 		&key.ID,
 		&key.UserID,
 		&key.Hash,
@@ -262,16 +245,16 @@ func (r *AuthRepo) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byt
 		return nil, uc.ErrAPIKeyNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("sqlite auth: get api key by fingerprint: %w", err)
+		return nil, fmt.Errorf("scan api key: %w", err)
 	}
 	ts, perr := parseSQLiteTime(createdAt)
 	if perr != nil {
-		return nil, fmt.Errorf("sqlite auth: parse api key created_at: %w", perr)
+		return nil, fmt.Errorf("parse api key created_at: %w", perr)
 	}
 	key.CreatedAt = ts
 	lts, lerr := parseNullableSQLiteTime(lastUsed)
 	if lerr != nil {
-		return nil, fmt.Errorf("sqlite auth: parse api key last_used: %w", lerr)
+		return nil, fmt.Errorf("parse api key last_used: %w", lerr)
 	}
 	key.LastUsed = lts
 	return &key, nil

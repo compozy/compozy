@@ -46,7 +46,9 @@ CREATE INDEX IF NOT EXISTS idx_task_states_task_id ON task_states (task_id);
 CREATE INDEX IF NOT EXISTS idx_task_states_parent_state_id ON task_states (parent_state_id);
 -- Keep updated_at in sync on row updates.
 CREATE TRIGGER IF NOT EXISTS trg_task_states_updated_at
-AFTER UPDATE ON task_states
+AFTER UPDATE OF component, status, task_id, workflow_exec_id, workflow_id,
+  execution_type, usage, agent_id, tool_id, action_id, parent_state_id, input, output, error
+ON task_states
 FOR EACH ROW
 BEGIN
   UPDATE task_states
@@ -57,6 +59,6 @@ END;
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE IF EXISTS task_states;
 DROP TRIGGER IF EXISTS trg_task_states_updated_at;
+DROP TABLE IF EXISTS task_states;
 -- +goose StatementEnd

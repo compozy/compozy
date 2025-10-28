@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"sync"
 
 	"github.com/pressly/goose/v3"
 	// Register modernc SQLite driver with database/sql.
@@ -13,6 +14,8 @@ import (
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
+
+var gooseInitOnce sync.Once
 
 // ApplyMigrations executes all embedded SQLite migrations against the database.
 func ApplyMigrations(ctx context.Context, dbPath string) error {
@@ -34,9 +37,13 @@ func ApplyMigrations(ctx context.Context, dbPath string) error {
 		return fmt.Errorf("sqlite: enable foreign keys: %w", err)
 	}
 
-	goose.SetBaseFS(migrationsFS)
-	if err := goose.SetDialect("sqlite3"); err != nil {
-		return fmt.Errorf("sqlite: set goose dialect: %w", err)
+	var initErr error
+	gooseInitOnce.Do(func() {
+		goose.SetBaseFS(migrationsFS)
+		initErr = goose.SetDialect("sqlite3")
+	})
+	if initErr != nil {
+		return fmt.Errorf("sqlite: set goose dialect: %w", initErr)
 	}
 	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
 		return fmt.Errorf("sqlite: apply migrations: %w", err)

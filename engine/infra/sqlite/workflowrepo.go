@@ -134,7 +134,7 @@ func buildListStatesQuery(filter *workflow.StateFilter) (string, []any) {
 			args = append(args, filter.WorkflowExecID.String())
 		}
 	}
-	sb.WriteString(` ORDER BY created_at DESC`)
+	sb.WriteString(` ORDER BY updated_at DESC, created_at DESC`)
 	return sb.String(), args
 }
 

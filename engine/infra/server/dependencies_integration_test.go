@@ -82,14 +82,14 @@ func TestServerStartup(t *testing.T) {
 	})
 
 	t.Run("Should fail with invalid driver", func(t *testing.T) {
+		t.Parallel()
 		srv, _ := newStartupServer(t, func(cfg *config.Config) {
 			cfg.Database.Driver = "mysql"
 		}, bytes.NewBuffer(nil))
 		provider, cleanupStore, err := srv.setupStore()
-		require.Error(t, err)
+		require.ErrorContains(t, err, "unsupported database driver")
 		assert.Nil(t, provider)
 		assert.Nil(t, cleanupStore)
-		assert.Contains(t, err.Error(), "unsupported database driver")
 	})
 
 	t.Run("Should fail sqlite plus pgvector", func(t *testing.T) {
@@ -100,10 +100,9 @@ func TestServerStartup(t *testing.T) {
 			cfg.Knowledge.VectorDBs = []config.VectorDBConfig{{Provider: "pgvector"}}
 		}, bytes.NewBuffer(nil))
 		provider, cleanupStore, err := srv.setupStore()
-		require.Error(t, err)
+		require.ErrorContains(t, err, "pgvector provider is incompatible with SQLite driver")
 		assert.Nil(t, provider)
 		assert.Nil(t, cleanupStore)
-		assert.Contains(t, err.Error(), "pgvector provider is incompatible with SQLite driver")
 	})
 
 	t.Run("Should log driver information", func(t *testing.T) {
