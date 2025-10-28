@@ -42,6 +42,7 @@ func TestExecuteWait_Run(t *testing.T) {
 						ID:        "wait-task",
 						Type:      task.TaskTypeWait,
 						Condition: `signal.payload.approved == true`,
+						Timeout:   "5m",
 					},
 					WaitTask: task.WaitTask{
 						WaitFor: "approval_signal",
@@ -65,6 +66,7 @@ func TestExecuteWait_Run(t *testing.T) {
 				ID:        "wait-task",
 				Type:      task.TaskTypeWait,
 				Condition: `signal.payload.approved == true`,
+				Timeout:   "5m",
 			},
 			WaitTask: task.WaitTask{
 				WaitFor: "approval_signal",
@@ -115,6 +117,7 @@ func TestExecuteWait_Run(t *testing.T) {
 		assert.Equal(t, "waiting", output["wait_status"])
 		assert.Equal(t, "approval_signal", output["signal_name"])
 		assert.Equal(t, false, output["has_processor"])
+		assert.Equal(t, int64(300), output["timeout_seconds"], "Should contain timeout in seconds (5m = 300s)")
 
 		// Verify state was saved to database
 		savedState, err := taskRepo.GetState(ctx, response.State.TaskExecID)
@@ -226,6 +229,12 @@ func TestExecuteWait_Run(t *testing.T) {
 		assert.NotNil(t, response.State.Output)
 		waitOutput := *response.State.Output
 		assert.Equal(t, "reminder-signal", waitOutput["signal_name"])
+		assert.Equal(
+			t,
+			int64(7500),
+			waitOutput["timeout_seconds"],
+			"Should contain parsed timeout in seconds (2h5m = 7500s)",
+		)
 	})
 	t.Run("Should handle nil task config", func(t *testing.T) {
 		// Arrange
@@ -444,6 +453,7 @@ func TestExecuteWait_Run(t *testing.T) {
 						ID:        "wait-task",
 						Type:      task.TaskTypeWait,
 						Condition: `processor.output.valid == true`,
+						Timeout:   "10m",
 					},
 					WaitTask: task.WaitTask{
 						WaitFor: "data_signal",
@@ -473,6 +483,7 @@ func TestExecuteWait_Run(t *testing.T) {
 				ID:        "wait-task",
 				Type:      task.TaskTypeWait,
 				Condition: `processor.output.valid == true`,
+				Timeout:   "10m",
 			},
 			WaitTask: task.WaitTask{
 				WaitFor: "data_signal",

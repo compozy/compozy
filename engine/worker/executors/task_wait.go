@@ -32,7 +32,7 @@ func (e *TaskWaitExecutor) Execute(ctx workflow.Context, taskConfig *task.Config
 	if err != nil {
 		return nil, err
 	}
-	timeout, err := e.validateTimeout(ctx, taskConfig)
+	timeout, err := e.extractTimeout(response)
 	if err != nil {
 		return nil, err
 	}
@@ -147,16 +147,27 @@ type WaitState struct {
 	Error           error
 }
 
-func (e *TaskWaitExecutor) validateTimeout(ctx workflow.Context, taskConfig *task.Config) (time.Duration, error) {
-	timeout, err := core.ParseHumanDuration(taskConfig.Timeout)
-	if err != nil {
-		workflow.GetLogger(ctx).Error("Invalid timeout format", "timeout", taskConfig.Timeout, "error", err)
-		return 0, fmt.Errorf("invalid timeout: %w", err)
+func (e *TaskWaitExecutor) extractTimeout(response *task.MainTaskResponse) (time.Duration, error) {
+	if response == nil || response.State == nil || response.State.Output == nil {
+		return 0, fmt.Errorf("response state or output is nil")
 	}
-	if timeout <= 0 {
-		return 0, fmt.Errorf("wait task requires a positive timeout (got %s)", taskConfig.Timeout)
+	output := *response.State.Output
+	timeoutSeconds, ok := output["timeout_seconds"]
+	if !ok {
+		return 0, fmt.Errorf("timeout_seconds not found in response output")
 	}
-	return timeout, nil
+	timeoutSecondsInt64, ok := timeoutSeconds.(int64)
+	if !ok {
+		timeoutSecondsFloat64, ok := timeoutSeconds.(float64)
+		if !ok {
+			return 0, fmt.Errorf("timeout_seconds has unexpected type: %T", timeoutSeconds)
+		}
+		timeoutSecondsInt64 = int64(timeoutSecondsFloat64)
+	}
+	if timeoutSecondsInt64 <= 0 {
+		return 0, fmt.Errorf("wait task requires a positive timeout (got %d seconds)", timeoutSecondsInt64)
+	}
+	return time.Duration(timeoutSecondsInt64) * time.Second, nil
 }
 
 func (e *TaskWaitExecutor) logWaitTaskStart(ctx workflow.Context, taskConfig *task.Config, timeout time.Duration) {
