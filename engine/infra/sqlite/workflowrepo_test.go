@@ -454,7 +454,7 @@ func TestWorkflowRepo_ComplexNestedJSON(t *testing.T) {
 		require.NotNil(t, stored.Output)
 		outer := (*stored.Output)["outer"].(map[string]any)
 		inner := outer["inner"].([]any)
-		assert.Equal(t, true, inner[1].(map[string]any)["deep"])
+		assert.True(t, inner[1].(map[string]any)["deep"].(bool))
 	})
 }
 

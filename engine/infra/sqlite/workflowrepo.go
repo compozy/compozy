@@ -22,24 +22,26 @@ import (
 
 const (
 	selectWorkflowStateByExecID = `SELECT workflow_exec_id, workflow_id, status, usage, input, output, error, created_at, updated_at FROM workflow_states WHERE workflow_exec_id = ?`
-	selectWorkflowStateByID     = `SELECT workflow_exec_id, workflow_id, status, usage, input, output, error, created_at, updated_at FROM workflow_states WHERE workflow_id = ? LIMIT 1`
+	selectWorkflowStateByID     = `SELECT workflow_exec_id, workflow_id, status, usage, input, output, error, created_at, updated_at FROM workflow_states WHERE workflow_id = ? ORDER BY updated_at DESC, created_at DESC LIMIT 1`
 	selectWorkflowByJoinBase    = `SELECT w.workflow_exec_id, w.workflow_id, w.status, w.usage, w.input, w.output, w.error, w.created_at, w.updated_at FROM workflow_states w JOIN task_states t ON w.workflow_exec_id = t.workflow_exec_id`
 )
 
+const taskStateSelectColumnsQualifiedTS = `ts.component, ts.status, ts.task_exec_id, ts.task_id, ts.workflow_id, ts.workflow_exec_id, ts.execution_type, ts.usage, ts.agent_id, ts.tool_id, ts.action_id, ts.parent_state_id, ts.input, ts.output, ts.error, ts.created_at, ts.updated_at`
+
 const taskHierarchyQuery = `
 WITH RECURSIVE task_hierarchy AS (
-    SELECT *
-    FROM task_states
-    WHERE workflow_exec_id = ? AND parent_state_id IS NULL
+    SELECT ` + taskStateSelectColumnsQualifiedTS + `
+    FROM task_states ts
+    WHERE ts.workflow_exec_id = ? AND ts.parent_state_id IS NULL
 
     UNION ALL
 
-    SELECT ts.*
+    SELECT ` + taskStateSelectColumnsQualifiedTS + `
     FROM task_states ts
     INNER JOIN task_hierarchy th ON ts.parent_state_id = th.task_exec_id
     WHERE ts.workflow_exec_id = ?
 )
-SELECT * FROM task_hierarchy
+SELECT ` + taskStateSelectColumns + ` FROM task_hierarchy
 `
 
 // WorkflowRepo implements workflow.Repository using SQLite as backend.
@@ -265,17 +267,17 @@ func (r *WorkflowRepo) GetStateByID(ctx context.Context, workflowID string) (*wo
 }
 
 func (r *WorkflowRepo) GetStateByTaskID(ctx context.Context, workflowID, taskID string) (*workflow.State, error) {
-	query := selectWorkflowByJoinBase + ` WHERE w.workflow_id = ? AND t.task_id = ? LIMIT 1`
+	query := selectWorkflowByJoinBase + ` WHERE w.workflow_id = ? AND t.task_id = ? ORDER BY w.updated_at DESC, w.created_at DESC LIMIT 1`
 	return r.getStateWithJoin(ctx, query, workflowID, taskID)
 }
 
 func (r *WorkflowRepo) GetStateByAgentID(ctx context.Context, workflowID, agentID string) (*workflow.State, error) {
-	query := selectWorkflowByJoinBase + ` WHERE w.workflow_id = ? AND t.agent_id = ? LIMIT 1`
+	query := selectWorkflowByJoinBase + ` WHERE w.workflow_id = ? AND t.agent_id = ? ORDER BY w.updated_at DESC, w.created_at DESC LIMIT 1`
 	return r.getStateWithJoin(ctx, query, workflowID, agentID)
 }
 
 func (r *WorkflowRepo) GetStateByToolID(ctx context.Context, workflowID, toolID string) (*workflow.State, error) {
-	query := selectWorkflowByJoinBase + ` WHERE w.workflow_id = ? AND t.tool_id = ? LIMIT 1`
+	query := selectWorkflowByJoinBase + ` WHERE w.workflow_id = ? AND t.tool_id = ? ORDER BY w.updated_at DESC, w.created_at DESC LIMIT 1`
 	return r.getStateWithJoin(ctx, query, workflowID, toolID)
 }
 
@@ -407,15 +409,20 @@ func (r *WorkflowRepo) fetchStateRow(
 	return &result, nil
 }
 
+const (
+	sqliteTxMaxAttempts     = 50
+	sqliteTxBackoffFastBase = 10 * time.Millisecond
+	sqliteTxBackoffSlowBase = 25 * time.Millisecond
+)
+
 func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(*sql.Tx) error) error {
-	const maxAttempts = 50
 	var lastErr error
-	for attempt := 0; attempt < maxAttempts; attempt++ {
+	for attempt := 0; attempt < sqliteTxMaxAttempts; attempt++ {
 		tx, err := r.db.BeginTx(ctx, nil)
 		if err != nil {
 			if isBusyError(err) {
 				lastErr = err
-				time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+				time.Sleep(time.Duration(attempt+1) * sqliteTxBackoffFastBase)
 				continue
 			}
 			return fmt.Errorf("sqlite workflow: begin tx: %w", err)
@@ -423,7 +430,7 @@ func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(*sql.Tx) err
 		if err := r.runTransaction(ctx, tx, fn); err != nil {
 			if isBusyError(err) {
 				lastErr = err
-				time.Sleep(time.Duration(attempt+1) * 25 * time.Millisecond)
+				time.Sleep(time.Duration(attempt+1) * sqliteTxBackoffSlowBase)
 				continue
 			}
 			return err

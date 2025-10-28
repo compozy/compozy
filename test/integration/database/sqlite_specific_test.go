@@ -51,14 +51,12 @@ func TestSQLite_Specific(t *testing.T) {
 		var wg sync.WaitGroup
 		errCh := make(chan error, 20)
 		for i := 0; i < 20; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				_, err := repo.GetState(ctx, execID)
 				if err != nil {
 					errCh <- err
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		close(errCh)
@@ -77,9 +75,7 @@ func TestSQLite_Specific(t *testing.T) {
 		errCh := make(chan error, 5)
 		for i := 0; i < 5; i++ {
 			index := i
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				state := &task.State{
 					Component:      core.ComponentTask,
 					Status:         core.StatusRunning,
@@ -96,7 +92,7 @@ func TestSQLite_Specific(t *testing.T) {
 				if err := repo.UpdateStatus(ctx, execID, core.StatusSuccess); err != nil && index == 0 {
 					errCh <- err
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		close(errCh)

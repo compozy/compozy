@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"maps"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -466,8 +467,8 @@ func normalizeSQLitePath(input string) (string, error) {
 	if strings.ContainsRune(input, '\n') || strings.ContainsRune(input, '\r') {
 		return "", fmt.Errorf("sqlite path cannot contain newlines")
 	}
-	if strings.Contains(input, "?") {
-		return "", fmt.Errorf("sqlite path must not include query parameters")
+	if strings.HasPrefix(input, "file:") {
+		return validateAndNormalizeFileDSN(input)
 	}
 	cleaned := filepath.Clean(input)
 	if cleaned == "." || cleaned == string(filepath.Separator) {
@@ -477,6 +478,36 @@ func normalizeSQLitePath(input string) (string, error) {
 		return "", fmt.Errorf("sqlite path cannot traverse directories: %q", input)
 	}
 	return cleaned, nil
+}
+
+func validateAndNormalizeFileDSN(input string) (string, error) {
+	u, err := url.Parse(input)
+	if err != nil {
+		return "", fmt.Errorf("invalid sqlite file DSN: %w", err)
+	}
+	clean := filepath.Clean(strings.TrimPrefix(u.Path, "//"))
+	if clean == "." || clean == string(filepath.Separator) {
+		return "", fmt.Errorf("sqlite path must reference a file, got %q", input)
+	}
+	if hasParentTraversal(clean) {
+		return "", fmt.Errorf("sqlite path cannot traverse directories: %q", input)
+	}
+	for key := range u.Query() {
+		if !isAllowedSQLiteParam(key) {
+			return "", fmt.Errorf("unsupported sqlite DSN parameter: %s", key)
+		}
+	}
+	u.Path = clean
+	return u.String(), nil
+}
+
+func isAllowedSQLiteParam(key string) bool {
+	switch strings.ToLower(key) {
+	case "mode", "cache", "_pragma":
+		return true
+	default:
+		return false
+	}
 }
 
 func hasParentTraversal(path string) bool {

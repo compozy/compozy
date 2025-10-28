@@ -70,12 +70,10 @@ func TestMultiDriver_WorkflowExecution(t *testing.T) {
 		})
 
 		t.Run("Should handle concurrent workflows", func(t *testing.T) {
+			t.Parallel()
 			ctx := helpers.NewTestContext(t)
 			repo := provider.NewWorkflowRepo()
-			concurrency := 25
-			if driver == "sqlite" {
-				concurrency = 5
-			}
+			concurrency := driverConcurrency(driver)
 			var wg sync.WaitGroup
 			errCh := make(chan error, concurrency)
 			for i := 0; i < concurrency; i++ {
@@ -105,6 +103,13 @@ func TestMultiDriver_WorkflowExecution(t *testing.T) {
 			}
 		})
 	})
+}
+
+func driverConcurrency(driver string) int {
+	if driver == "sqlite" {
+		return 5
+	}
+	return 25
 }
 
 func insertTaskState(
