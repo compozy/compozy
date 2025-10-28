@@ -38,7 +38,8 @@ func (c *CachedRepository) sanitize(k *model.APIKey) *model.APIKey {
 		return nil
 	}
 	cp := *k
-	cp.Hash = nil // never cache sensitive hash bytes
+	cp.Hash = nil        // never cache sensitive hash bytes
+	cp.Fingerprint = nil // avoid storing fingerprint in ID cache
 	return &cp
 }
 
@@ -75,10 +76,11 @@ func (c *CachedRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*mode
 	if c.client != nil {
 		if s, err := c.client.Get(ctx, c.idKey(id)).Result(); err == nil && s != "" {
 			var masked model.APIKey
-			if jerr := json.Unmarshal([]byte(s), &masked); jerr == nil {
+			uerr := json.Unmarshal([]byte(s), &masked)
+			if uerr == nil {
 				return &masked, nil
 			}
-			log.Debug("redis: unmarshal cached api key failed", "error", err)
+			log.Debug("redis: unmarshal cached api key failed", "error", uerr)
 		}
 	}
 	key, err := c.repo.GetAPIKeyByID(ctx, id)
@@ -108,6 +110,13 @@ func (c *CachedRepository) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID)
 }
 
 func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
+	var k *model.APIKey
+	if c.client != nil {
+		// best effort: capture fingerprint before deletion for cache eviction
+		if key, err := c.repo.GetAPIKeyByID(ctx, id); err == nil {
+			k = key
+		}
+	}
 	if err := c.repo.DeleteAPIKey(ctx, id); err != nil {
 		return err
 	}
@@ -116,11 +125,9 @@ func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 			logger.FromContext(ctx).Warn("redis: del id cache failed", "error", err)
 		}
 	}
-	if c.client != nil {
-		if k, err := c.repo.GetAPIKeyByID(ctx, id); err == nil {
-			if err := c.client.Del(ctx, c.fpKey(k.Fingerprint)).Err(); err != nil {
-				logger.FromContext(ctx).Warn("redis: del fp cache failed", "error", err)
-			}
+	if c.client != nil && k != nil {
+		if err := c.client.Del(ctx, c.fpKey(k.Fingerprint)).Err(); err != nil {
+			logger.FromContext(ctx).Warn("redis: del fp cache failed", "error", err)
 		}
 	}
 	return nil

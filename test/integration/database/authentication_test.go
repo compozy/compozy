@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +24,7 @@ func TestMultiDriver_Authentication(t *testing.T) {
 			ctx := helpers.NewTestContext(t)
 			user := &model.User{
 				ID:    core.MustNewID(),
-				Email: "user+" + time.Now().Format("150405.000000") + "@example.com",
+				Email: fmt.Sprintf("user-%s@example.com", core.MustNewID()),
 				Role:  model.RoleAdmin,
 			}
 			require.NoError(t, authRepo.CreateUser(ctx, user))

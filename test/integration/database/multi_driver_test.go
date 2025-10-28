@@ -78,9 +78,7 @@ func TestMultiDriver_WorkflowExecution(t *testing.T) {
 			errCh := make(chan error, concurrency)
 			for i := 0; i < concurrency; i++ {
 				index := i
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					execID := core.MustNewID()
 					state := &workflow.State{
 						WorkflowID:     fmt.Sprintf("concurrent-%d", index),
@@ -94,7 +92,7 @@ func TestMultiDriver_WorkflowExecution(t *testing.T) {
 					if err := repo.UpdateStatus(ctx, execID, core.StatusSuccess); err != nil {
 						errCh <- err
 					}
-				}()
+				})
 			}
 			wg.Wait()
 			close(errCh)

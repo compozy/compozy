@@ -100,6 +100,7 @@ func newSQLiteProvider(ctx context.Context, cfg *config.DatabaseConfig) (*Provid
 		MaxIdleConns:    cfg.MaxIdleConns,
 		ConnMaxLifetime: cfg.ConnMaxLifetime,
 		ConnMaxIdleTime: cfg.ConnMaxIdleTime,
+		BusyTimeout:     cfg.BusyTimeout,
 	}
 	store, err := sqlite.NewStore(ctx, sqliteCfg)
 	if err != nil {

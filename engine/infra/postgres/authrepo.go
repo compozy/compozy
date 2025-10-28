@@ -22,7 +22,7 @@ func NewAuthRepo(db *pgxpool.Pool) uc.Repository { return &AuthRepo{db: db} }
 
 func (r *AuthRepo) CreateUser(ctx context.Context, user *model.User) error {
 	query := `INSERT INTO users (id, email, role, created_at) VALUES ($1, $2, $3, $4)`
-	user.CreatedAt = time.Now()
+	user.CreatedAt = time.Now().UTC()
 	if _, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, user.CreatedAt); err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
@@ -76,7 +76,7 @@ func (r *AuthRepo) ListUsers(ctx context.Context) ([]*model.User, error) {
 
 func (r *AuthRepo) UpdateUser(ctx context.Context, user *model.User) error {
 	query := `UPDATE users SET email = $2, role = $3, updated_at = $4 WHERE id = $1`
-	tag, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, time.Now())
+	tag, err := r.db.Exec(ctx, query, user.ID, user.Email, user.Role, time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
@@ -98,11 +98,7 @@ func (r *AuthRepo) DeleteUser(ctx context.Context, id core.ID) error {
 			}
 		}
 	}()
-	if _, err = tx.Exec(ctx, "DELETE FROM api_keys WHERE user_id = $1", id); err != nil {
-		return fmt.Errorf("failed to delete user API keys: %w", err)
-	}
-	var tag pgconn.CommandTag
-	tag, err = tx.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
+	tag, err := tx.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
@@ -117,7 +113,7 @@ func (r *AuthRepo) DeleteUser(ctx context.Context, id core.ID) error {
 
 func (r *AuthRepo) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
 	query := `INSERT INTO api_keys (id, user_id, hash, prefix, fingerprint, created_at) VALUES ($1, $2, $3, $4, $5, $6)`
-	createdAt := time.Now()
+	createdAt := time.Now().UTC()
 	if _, err := r.db.Exec(
 		ctx,
 		query,
@@ -204,7 +200,7 @@ func (r *AuthRepo) ListAPIKeysByUserID(ctx context.Context, userID core.ID) ([]*
 
 func (r *AuthRepo) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID) error {
 	query := `UPDATE api_keys SET last_used = $2 WHERE id = $1`
-	if _, err := r.db.Exec(ctx, query, id, sql.NullTime{Time: time.Now(), Valid: true}); err != nil {
+	if _, err := r.db.Exec(ctx, query, id, sql.NullTime{Time: time.Now().UTC(), Valid: true}); err != nil {
 		return fmt.Errorf("failed to update API key last used: %w", err)
 	}
 	return nil

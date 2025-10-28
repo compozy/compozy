@@ -376,6 +376,10 @@ type DatabaseConfig struct {
 	//   - Relative or absolute file path for persistent storage
 	Path string `koanf:"path" json:"path" yaml:"path" mapstructure:"path" env:"DB_PATH"`
 
+	// BusyTimeout configures SQLite PRAGMA busy_timeout for lock contention.
+	// When unset, a sensible default is applied by the SQLite provider.
+	BusyTimeout time.Duration `koanf:"busy_timeout" json:"busy_timeout" yaml:"busy_timeout" mapstructure:"busy_timeout" env:"DB_BUSY_TIMEOUT"`
+
 	// ConnMaxLifetime bounds how long a connection may be reused.
 	//
 	// Default: `5m`
@@ -2343,6 +2347,7 @@ func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 		),
 		ConnectTimeout: getDuration(registry, "database.connect_timeout"),
 		Path:           getString(registry, "database.path"),
+		BusyTimeout:    getDuration(registry, "database.busy_timeout"),
 	}
 }
 

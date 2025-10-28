@@ -140,6 +140,7 @@ func TestManager_Middleware(t *testing.T) {
 		mockRepo := &MockRepository{}
 		mockRepo.On("GetAPIKeyByFingerprint", mock.Anything, mock.Anything).
 			Return((*model.APIKey)(nil), errors.New("key not found"))
+		t.Cleanup(func() { mockRepo.AssertExpectations(t) })
 		factory := uc.NewFactory(mockRepo)
 		manager := NewManager(factory, nil)
 		router := gin.New()

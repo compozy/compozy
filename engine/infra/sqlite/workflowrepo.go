@@ -2,10 +2,12 @@ package sqlite
 
 import (
 	"context"
+	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"reflect"
 	"sort"
 	"strings"
@@ -415,6 +417,19 @@ const (
 	sqliteTxBackoffSlowBase = 25 * time.Millisecond
 )
 
+// randomJitter returns a random duration in [0, max) using crypto-grade randomness.
+// Returns 0 on error or when max <= 0.
+func randomJitter(limit time.Duration) time.Duration {
+	if limit <= 0 {
+		return 0
+	}
+	n, err := crand.Int(crand.Reader, big.NewInt(int64(limit)))
+	if err != nil {
+		return 0
+	}
+	return time.Duration(n.Int64())
+}
+
 func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(*sql.Tx) error) error {
 	var lastErr error
 	for attempt := 0; attempt < sqliteTxMaxAttempts; attempt++ {
@@ -422,7 +437,9 @@ func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(*sql.Tx) err
 		if err != nil {
 			if isBusyError(err) {
 				lastErr = err
-				time.Sleep(time.Duration(attempt+1) * sqliteTxBackoffFastBase)
+				base := time.Duration(attempt+1) * sqliteTxBackoffFastBase
+				// add small jitter up to base backoff to avoid lock-step retries
+				time.Sleep(base + randomJitter(sqliteTxBackoffFastBase))
 				continue
 			}
 			return fmt.Errorf("sqlite workflow: begin tx: %w", err)
@@ -430,7 +447,9 @@ func (r *WorkflowRepo) withTransaction(ctx context.Context, fn func(*sql.Tx) err
 		if err := r.runTransaction(ctx, tx, fn); err != nil {
 			if isBusyError(err) {
 				lastErr = err
-				time.Sleep(time.Duration(attempt+1) * sqliteTxBackoffSlowBase)
+				base := time.Duration(attempt+1) * sqliteTxBackoffSlowBase
+				// add small jitter up to base backoff to avoid lock-step retries
+				time.Sleep(base + randomJitter(sqliteTxBackoffSlowBase))
 				continue
 			}
 			return err
