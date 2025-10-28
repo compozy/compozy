@@ -112,7 +112,7 @@ func NewValidateAPIKey(repo Repository, plaintext string) *ValidateAPIKey {
 func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 	log := logger.FromContext(ctx)
 	hash := sha256.Sum256([]byte(uc.plaintext))
-	apiKey, err := uc.repo.GetAPIKeyByHash(ctx, hash[:])
+	apiKey, err := uc.repo.GetAPIKeyByFingerprint(ctx, hash[:])
 	if err != nil {
 		// NOTE: Perform dummy bcrypt comparison to equalize timing with the success path and prevent timing attacks.
 		//nolint:errcheck // CompareHashAndPassword failure is expected for invalid keys.
@@ -124,7 +124,7 @@ func (uc *ValidateAPIKey) Execute(ctx context.Context) (*model.User, error) {
 			log.Debug("Invalid API key", "error", err)
 			return nil, ErrInvalidCredentials
 		}
-		log.Error("Failed to get API key by hash", "error", err)
+		log.Error("Failed to get API key by fingerprint", "error", err)
 		return nil, fmt.Errorf("internal error validating API key: %w", err)
 	}
 	if err := bcrypt.CompareHashAndPassword(apiKey.Hash, []byte(uc.plaintext)); err != nil {

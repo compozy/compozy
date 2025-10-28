@@ -15,7 +15,7 @@ import (
 
 // CachedRepository decorates an auth repository with Redis-backed caching.
 // Security: never caches sensitive hash bytes. For validation lookups
-// (GetAPIKeyByHash), only a fingerprint->ID mapping is cached; the full
+// (GetAPIKeyByFingerprint), only a fingerprint->ID mapping is cached; the full
 // record is always fetched from the underlying repository by ID.
 type CachedRepository struct {
 	repo   uc.Repository
@@ -44,7 +44,7 @@ func (c *CachedRepository) sanitize(k *model.APIKey) *model.APIKey {
 
 // --- Cache-aware API Key methods ---
 
-func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+func (c *CachedRepository) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
 	log := logger.FromContext(ctx)
 	if c.client != nil {
 		if s, err := c.client.Get(ctx, c.fpKey(fingerprint)).Result(); err == nil && s != "" {
@@ -58,7 +58,7 @@ func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, fingerprint []by
 			}
 		}
 	}
-	key, err := c.repo.GetAPIKeyByHash(ctx, fingerprint)
+	key, err := c.repo.GetAPIKeyByFingerprint(ctx, fingerprint)
 	if err != nil {
 		return nil, err
 	}

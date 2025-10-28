@@ -194,7 +194,9 @@ func sqliteMode(path string) string {
 	if trimmed == "" {
 		return "unknown"
 	}
-	if trimmed == ":memory:" || strings.HasPrefix(trimmed, "file::memory:") {
+	lowered := strings.ToLower(trimmed)
+	if lowered == ":memory:" || strings.HasPrefix(lowered, "file::memory:") ||
+		strings.Contains(lowered, "mode=memory") {
 		return "in-memory"
 	}
 	return "file-based"

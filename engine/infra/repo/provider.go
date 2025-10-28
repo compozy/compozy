@@ -100,15 +100,22 @@ func newSQLiteProvider(ctx context.Context, cfg *config.DatabaseConfig) (*Provid
 		MaxIdleConns:    cfg.MaxIdleConns,
 		ConnMaxLifetime: cfg.ConnMaxLifetime,
 		ConnMaxIdleTime: cfg.ConnMaxIdleTime,
-		BusyTimeout:     cfg.PingTimeout,
 	}
 	store, err := sqlite.NewStore(ctx, sqliteCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("repo: sqlite store: %w", err)
 	}
-	if err := sqlite.ApplyMigrations(ctx, cfg.Path); err != nil {
-		_ = store.Close(context.WithoutCancel(ctx))
-		return nil, nil, fmt.Errorf("repo: sqlite migrations: %w", err)
+	if cfg.AutoMigrate {
+		timeout := cfg.MigrationTimeout
+		if timeout <= 0 {
+			timeout = fallbackMigrationTimeout
+		}
+		mctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+		defer cancel()
+		if err := sqlite.ApplyMigrations(mctx, cfg.Path); err != nil {
+			_ = store.Close(context.WithoutCancel(ctx))
+			return nil, nil, fmt.Errorf("repo: sqlite migrations: %w", err)
+		}
 	}
 	cleanup := func() {
 		_ = store.Close(context.WithoutCancel(ctx))

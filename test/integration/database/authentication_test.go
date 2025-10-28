@@ -54,7 +54,7 @@ func TestMultiDriver_Authentication(t *testing.T) {
 			assert.Equal(t, key.UserID, retrieved.UserID)
 
 			fingerprint := sha256.Sum256(key.Hash)
-			byFingerprint, err := authRepo.GetAPIKeyByHash(ctx, fingerprint[:])
+			byFingerprint, err := authRepo.GetAPIKeyByFingerprint(ctx, fingerprint[:])
 			require.NoError(t, err)
 			assert.Equal(t, key.ID, byFingerprint.ID)
 

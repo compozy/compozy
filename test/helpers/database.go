@@ -296,8 +296,9 @@ func setupSQLiteTest(t *testing.T) (*repo.Provider, func()) {
 	t.Helper()
 	ctx := NewTestContext(t)
 	cfg := &config.DatabaseConfig{
-		Driver: "sqlite",
-		Path:   ":memory:",
+		Driver:      "sqlite",
+		Path:        ":memory:",
+		AutoMigrate: true,
 	}
 	provider, cleanup, err := repo.NewProvider(ctx, cfg)
 	require.NoError(t, err)

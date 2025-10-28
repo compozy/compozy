@@ -65,6 +65,7 @@ func TestServerStartup(t *testing.T) {
 	})
 
 	t.Run("Should start with sqlite driver", func(t *testing.T) {
+		t.Parallel()
 		buffer := &bytes.Buffer{}
 		srv, _ := newStartupServer(t, func(cfg *config.Config) {
 			cfg.Database.Driver = driverSQLite
@@ -92,6 +93,7 @@ func TestServerStartup(t *testing.T) {
 	})
 
 	t.Run("Should fail sqlite plus pgvector", func(t *testing.T) {
+		t.Parallel()
 		srv, _ := newStartupServer(t, func(cfg *config.Config) {
 			cfg.Database.Driver = driverSQLite
 			cfg.Database.Path = filepath.Join(t.TempDir(), "compozy.db")
@@ -105,6 +107,7 @@ func TestServerStartup(t *testing.T) {
 	})
 
 	t.Run("Should log driver information", func(t *testing.T) {
+		t.Parallel()
 		buffer := &bytes.Buffer{}
 		srv, _ := newStartupServer(t, func(cfg *config.Config) {
 			cfg.Database.Driver = driverSQLite

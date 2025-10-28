@@ -22,8 +22,8 @@ type MockRepository struct {
 	mock.Mock
 }
 
-func (m *MockRepository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.APIKey, error) {
-	args := m.Called(ctx, hash)
+func (m *MockRepository) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+	args := m.Called(ctx, fingerprint)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -138,7 +138,7 @@ func TestManager_Middleware(t *testing.T) {
 
 	t.Run("Should reject request with invalid API key", func(t *testing.T) {
 		mockRepo := &MockRepository{}
-		mockRepo.On("GetAPIKeyByHash", mock.Anything, mock.Anything).
+		mockRepo.On("GetAPIKeyByFingerprint", mock.Anything, mock.Anything).
 			Return((*model.APIKey)(nil), errors.New("key not found"))
 		factory := uc.NewFactory(mockRepo)
 		manager := NewManager(factory, nil)

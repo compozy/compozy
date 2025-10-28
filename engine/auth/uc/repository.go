@@ -24,7 +24,7 @@ type Repository interface {
 	// API Key operations
 	CreateAPIKey(ctx context.Context, key *model.APIKey) error
 	GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey, error)
-	GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.APIKey, error)
+	GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error)
 	ListAPIKeysByUserID(ctx context.Context, userID core.ID) ([]*model.APIKey, error)
 	UpdateAPIKeyLastUsed(ctx context.Context, id core.ID) error
 	DeleteAPIKey(ctx context.Context, id core.ID) error

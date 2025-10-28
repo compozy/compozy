@@ -225,17 +225,17 @@ func (r *AuthRepo) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
     return nil
 }
 
-func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.APIKey, error) {
+func (r *AuthRepo) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
     query := `
         SELECT id, user_id, hash, prefix, created_at, last_used
         FROM api_keys
-        WHERE hash = ?
+        WHERE fingerprint = ?
     `
     
     var key model.APIKey
     var createdAt, lastUsed sql.NullString
     
-    err := r.db.QueryRowContext(ctx, query, hash).Scan(
+    err := r.db.QueryRowContext(ctx, query, fingerprint).Scan(
         &key.ID,
         &key.UserID,
         &key.Hash,
@@ -247,7 +247,7 @@ func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.API
         return nil, fmt.Errorf("api key not found: %w", core.ErrNotFound)
     }
     if err != nil {
-        return nil, fmt.Errorf("get api key by hash: %w", err)
+        return nil, fmt.Errorf("get api key by fingerprint: %w", err)
     }
     
     key.CreatedAt, _ = time.Parse(time.RFC3339, createdAt.String)

@@ -27,8 +27,8 @@ type MockRepository struct {
 	mock.Mock
 }
 
-func (m *MockRepository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.APIKey, error) {
-	args := m.Called(ctx, hash)
+func (m *MockRepository) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+	args := m.Called(ctx, fingerprint)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
@@ -89,7 +89,7 @@ func setupAuthTestFixture(t *testing.T) *authTestFixture {
 	user := &model.User{ID: userID, Email: "test@example.com", Role: model.RoleUser}
 	storedAPIKey := &model.APIKey{ID: keyID, UserID: userID, Hash: bcryptHash}
 	mockRepo := new(MockRepository)
-	mockRepo.On("GetAPIKeyByHash", mock.Anything, hash[:]).Return(storedAPIKey, nil)
+	mockRepo.On("GetAPIKeyByFingerprint", mock.Anything, hash[:]).Return(storedAPIKey, nil)
 	mockRepo.On("GetUserByID", mock.Anything, userID).Return(user, nil)
 	mockRepo.On("UpdateAPIKeyLastUsed", mock.Anything, keyID).Return(nil)
 	authFactory := uc.NewFactory(mockRepo)
@@ -143,7 +143,7 @@ func TestAuthMiddleware_RateLimiting(t *testing.T) {
 		bcryptHash2, _ := bcrypt.GenerateFromPassword([]byte(apiKey2), bcrypt.MinCost)
 		user2 := &model.User{ID: userID2, Email: "test2@example.com", Role: model.RoleUser}
 		storedAPIKey2 := &model.APIKey{ID: keyID2, UserID: userID2, Hash: bcryptHash2}
-		fixture.mockRepo.On("GetAPIKeyByHash", mock.Anything, hash2[:]).Return(storedAPIKey2, nil)
+		fixture.mockRepo.On("GetAPIKeyByFingerprint", mock.Anything, hash2[:]).Return(storedAPIKey2, nil)
 		fixture.mockRepo.On("GetUserByID", mock.Anything, userID2).Return(user2, nil)
 		fixture.mockRepo.On("UpdateAPIKeyLastUsed", mock.Anything, keyID2).Return(nil)
 		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
@@ -166,7 +166,7 @@ func TestAuthMiddleware_RateLimiting(t *testing.T) {
 	t.Run("Should handle auth failures before rate limiting", func(t *testing.T) {
 		// Setup mock for invalid key
 		invalidHash := sha256.Sum256([]byte("invalid_key"))
-		fixture.mockRepo.On("GetAPIKeyByHash", mock.Anything, invalidHash[:]).Return(nil, uc.ErrAPIKeyNotFound)
+		fixture.mockRepo.On("GetAPIKeyByFingerprint", mock.Anything, invalidHash[:]).Return(nil, uc.ErrAPIKeyNotFound)
 		req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
 		req.Header.Set("Authorization", "Bearer invalid_key")
 		w := httptest.NewRecorder()

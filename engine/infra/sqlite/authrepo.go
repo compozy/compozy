@@ -33,7 +33,14 @@ func (r *AuthRepo) CreateUser(ctx context.Context, user *model.User) error {
 		createdAt = time.Now().UTC()
 	}
 	const query = `INSERT INTO users (id, email, role, created_at) VALUES (?, ?, ?, ?)`
-	if _, err := r.db.ExecContext(ctx, query, user.ID, user.Email, user.Role, createdAt.Format(time.RFC3339)); err != nil {
+	if _, err := r.db.ExecContext(
+		ctx,
+		query,
+		user.ID,
+		user.Email,
+		user.Role,
+		createdAt.Format(time.RFC3339Nano),
+	); err != nil {
 		if mapped := classifyUserError(err); mapped != nil {
 			return mapped
 		}
@@ -181,7 +188,7 @@ func (r *AuthRepo) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
 		key.Hash,
 		key.Fingerprint,
 		key.Prefix,
-		createdAt.Format(time.RFC3339),
+		createdAt.Format(time.RFC3339Nano),
 	)
 	if err := classifyAPIKeyError(err); err != nil {
 		return err
@@ -230,8 +237,8 @@ func (r *AuthRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey
 	return &key, nil
 }
 
-// GetAPIKeyByHash fetches an API key by fingerprint.
-func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+// GetAPIKeyByFingerprint fetches an API key by fingerprint.
+func (r *AuthRepo) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
 	const query = `
 		SELECT id, user_id, hash, fingerprint, prefix, created_at, last_used
 		FROM api_keys
@@ -255,7 +262,7 @@ func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*mo
 		return nil, uc.ErrAPIKeyNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("sqlite auth: get api key by hash: %w", err)
+		return nil, fmt.Errorf("sqlite auth: get api key by fingerprint: %w", err)
 	}
 	ts, perr := parseSQLiteTime(createdAt)
 	if perr != nil {
@@ -375,7 +382,7 @@ func (r *AuthRepo) CreateInitialAdminIfNone(ctx context.Context, user *model.Use
 		user.ID,
 		user.Email,
 		model.RoleAdmin,
-		createdAt.Format(time.RFC3339),
+		createdAt.Format(time.RFC3339Nano),
 		model.RoleAdmin,
 	)
 	if err != nil {

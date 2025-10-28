@@ -153,7 +153,7 @@ func (r *AuthRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey
 	return &key, nil
 }
 
-func (r *AuthRepo) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+func (r *AuthRepo) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
 	query := `SELECT id, user_id, hash, prefix, fingerprint, created_at, last_used FROM api_keys WHERE fingerprint = $1`
 	var key model.APIKey
 	if err := r.db.QueryRow(ctx, query, fingerprint).Scan(
