@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>sdk/knowledge</domain>
@@ -34,15 +34,15 @@ Migrate `sdk/knowledge` for RAG (Retrieval Augmented Generation) configurations.
 
 ## Subtasks
 
-- [ ] 9.1 Create sdk2/knowledge/ directory structure
-- [ ] 9.2 Create 4 generate.go files (or one with 4 directives)
-- [ ] 9.3 Generate options for all 4 types
-- [ ] 9.4 Create NewBase constructor
-- [ ] 9.5 Create NewBinding constructor
-- [ ] 9.6 Create NewEmbedder constructor
-- [ ] 9.7 Create NewVectorDB constructor
-- [ ] 9.8 Tests for all 4 types
-- [ ] 9.9 Document multi-type approach
+- [x] 9.1 Create sdk2/knowledge/ directory structure
+- [x] 9.2 Create 4 generate.go files (or one with 4 directives)
+- [x] 9.3 Generate options for all 4 types
+- [x] 9.4 Create NewBase constructor
+- [x] 9.5 Create NewBinding constructor
+- [x] 9.6 Create NewEmbedder constructor
+- [x] 9.7 Create NewVectorDB constructor
+- [x] 9.8 Tests for all 4 types
+- [x] 9.9 Document multi-type approach
 
 ## Implementation Details
 
@@ -113,27 +113,27 @@ Fields: ID, Type (pgvector/qdrant/pinecone), ConnectionString, CollectionName, I
 
 ## Tests
 
-- [ ] Base with single source
-- [ ] Base with multiple sources
-- [ ] ChunkSize validation
-- [ ] ChunkOverlap vs ChunkSize
-- [ ] Binding with valid BaseID
-- [ ] Binding with max results
-- [ ] Embedder with supported model
-- [ ] Embedder dimension validation
-- [ ] VectorDB pgvector config
-- [ ] VectorDB qdrant config
-- [ ] Invalid types fail
-- [ ] Missing required fields fail
+- [x] Base with single source
+- [x] Base with multiple sources
+- [x] ChunkSize validation
+- [x] ChunkOverlap vs ChunkSize
+- [x] Binding with valid BaseID
+- [x] Binding with max results
+- [x] Embedder with supported model
+- [x] Embedder dimension validation
+- [x] VectorDB pgvector config
+- [x] VectorDB qdrant config
+- [x] Invalid types fail
+- [x] Missing required fields fail
 
 ## Success Criteria
 
-- [ ] sdk2/knowledge/ directory structure created
-- [ ] All 4 config types working in sdk2/knowledge/
-- [ ] Type-specific validation complete
-- [ ] Clear API separation between types
-- [ ] Tests pass: `gotestsum -- ./sdk2/knowledge`
-- [ ] Linter clean: `golangci-lint run ./sdk2/knowledge/...`
-- [ ] Reduction: ~250+ LOC → ~120 LOC (52% reduction)
-- [ ] README clearly documents when to use each type
-- [ ] Old sdk/knowledge/ remains untouched
+- [x] sdk2/knowledge/ directory structure created
+- [x] All 4 config types working in sdk2/knowledge/
+- [x] Type-specific validation complete
+- [x] Clear API separation between types
+- [x] Tests pass: `gotestsum -- ./sdk2/knowledge` (40 tests passing)
+- [x] Linter clean: `golangci-lint run ./sdk2/knowledge/...` (0 issues)
+- [x] Reduction: ~250+ LOC → ~120 LOC (52% reduction)
+- [x] README clearly documents when to use each type
+- [x] Old sdk/knowledge/ remains untouched
