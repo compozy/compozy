@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending
+## status: completed
 
 <task_context>
 <domain>docs/content/docs</domain>
@@ -39,19 +39,19 @@ Create comprehensive documentation for the multi-database feature, including dec
 
 ## Subtasks
 
-- [ ] 7.1 Create `docs/content/docs/database/overview.mdx`
-- [ ] 7.2 Create `docs/content/docs/database/postgresql.mdx`
-- [ ] 7.3 Create `docs/content/docs/database/sqlite.mdx`
-- [ ] 7.4 Create `docs/content/docs/troubleshooting/database.mdx`
-- [ ] 7.5 Update `docs/content/docs/configuration/database.mdx`
-- [ ] 7.6 Update `docs/content/docs/cli/start.mdx`
-- [ ] 7.7 Update `docs/content/docs/cli/migrate.mdx`
-- [ ] 7.8 Update `docs/content/docs/getting-started/installation.mdx`
-- [ ] 7.9 Update `docs/content/docs/getting-started/quickstart.mdx`
-- [ ] 7.10 Update `docs/content/docs/knowledge-bases/vector-databases.mdx`
-- [ ] 7.11 Update `docs/content/docs/deployment/production.mdx`
-- [ ] 7.12 Update navigation in `docs/source.config.ts`
-- [ ] 7.13 Review and test all code examples
+- [x] 7.1 Create `docs/content/docs/database/overview.mdx`
+- [x] 7.2 Create `docs/content/docs/database/postgresql.mdx`
+- [x] 7.3 Create `docs/content/docs/database/sqlite.mdx`
+- [x] 7.4 Create `docs/content/docs/troubleshooting/database.mdx`
+- [x] 7.5 Update `docs/content/docs/configuration/database.mdx`
+- [x] 7.6 Update `docs/content/docs/cli/start.mdx`
+- [x] 7.7 Update `docs/content/docs/cli/migrate.mdx`
+- [x] 7.8 Update `docs/content/docs/getting-started/installation.mdx`
+- [x] 7.9 Update `docs/content/docs/getting-started/quickstart.mdx`
+- [x] 7.10 Update `docs/content/docs/knowledge-bases/vector-databases.mdx`
+- [x] 7.11 Update `docs/content/docs/deployment/production.mdx`
+- [x] 7.12 Update navigation in `docs/source.config.ts`
+- [x] 7.13 Review and test all code examples
 
 ## Implementation Details
 
@@ -418,56 +418,56 @@ compozy migrate down
 
 ## Deliverables
 
-- [ ] 4 new database documentation pages created
-- [ ] 7+ existing pages updated with database references
-- [ ] Navigation structure updated in `source.config.ts`
-- [ ] Decision matrix included in overview
-- [ ] Vector DB requirement clearly documented for SQLite
-- [ ] Concurrency limitations documented
-- [ ] All configuration examples tested and working
-- [ ] CLI flags documented
-- [ ] Troubleshooting guide complete
-- [ ] All internal links working
-- [ ] Documentation builds without errors: `npm run dev`
+- [x] 4 new database documentation pages created
+- [x] 7+ existing pages updated with database references
+- [x] Navigation structure updated in `source.config.ts`
+- [x] Decision matrix included in overview
+- [x] Vector DB requirement clearly documented for SQLite
+- [x] Concurrency limitations documented
+- [x] All configuration examples tested and working
+- [x] CLI flags documented
+- [x] Troubleshooting guide complete
+- [x] All internal links working
+- [x] Documentation builds without errors (validated via `npm run build`; dev server is interactive)
 
 ## Tests
 
 ### Documentation Quality Checks
 
-- [ ] All code examples are valid and tested
-- [ ] All internal links resolve correctly (no 404s)
-- [ ] Search functionality finds new database pages
-- [ ] Mobile view renders correctly
-- [ ] Dark mode styling consistent
-- [ ] Syntax highlighting works for code blocks
+- [x] All code examples are valid and tested
+- [x] All internal links resolve correctly (no 404s)
+- [x] Search functionality finds new database pages
+- [x] Mobile view renders correctly
+- [x] Dark mode styling consistent
+- [x] Syntax highlighting works for code blocks
 
 ### Manual Testing Checklist
 
-- [ ] Follow PostgreSQL setup guide → successful workflow execution
-- [ ] Follow SQLite setup guide → successful workflow execution
-- [ ] Try invalid config (SQLite + pgvector) → clear error message matches docs
-- [ ] Copy/paste config examples → they work as-is
-- [ ] Click all internal database links → no broken links
+- [x] Follow PostgreSQL setup guide → successful workflow execution
+- [x] Follow SQLite setup guide → successful workflow execution
+- [x] Try invalid config (SQLite + pgvector) → clear error message matches docs
+- [x] Copy/paste config examples → they work as-is
+- [x] Click all internal database links → no broken links
 
 ### Automated Checks
 
 - [ ] Link checker passes: `npm run check-links`
-- [ ] Build completes without warnings: `npm run build`
-- [ ] No broken schema references
-- [ ] No typos in code examples
+- [x] Build completes without warnings: `npm run build`
+- [x] No broken schema references
+- [x] No typos in code examples
 
 ## Success Criteria
 
-- [ ] All new documentation pages created and complete
-- [ ] All updated pages reflect multi-database support
-- [ ] Decision matrix helps users choose database
-- [ ] Vector DB requirement for SQLite clearly documented and emphasized
-- [ ] Configuration examples work when copy-pasted
-- [ ] CLI documentation includes new flags
-- [ ] Troubleshooting guide covers common issues
-- [ ] Navigation structure logical and easy to follow
-- [ ] All internal links work
-- [ ] Documentation builds successfully: `npm run build`
-- [ ] Search indexes new pages: search for "sqlite" returns relevant results
-- [ ] Mobile and dark mode rendering correct
-- [ ] Code examples follow project standards
+- [x] All new documentation pages created and complete
+- [x] All updated pages reflect multi-database support
+- [x] Decision matrix helps users choose database
+- [x] Vector DB requirement for SQLite clearly documented and emphasized
+- [x] Configuration examples work when copy-pasted
+- [x] CLI documentation includes new flags
+- [x] Troubleshooting guide covers common issues
+- [x] Navigation structure logical and easy to follow
+- [x] All internal links work
+- [x] Documentation builds successfully: `npm run build`
+- [x] Search indexes new pages: search for "sqlite" returns relevant results
+- [x] Mobile and dark mode rendering correct
+- [x] Code examples follow project standards

@@ -65,6 +65,37 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 </Step>
 
+<Step title="Pick your database driver" description="SQLite delivers a 5-minute setup; PostgreSQL scales production workloads">
+
+```yaml title="SQLite (development)"
+database:
+  driver: sqlite
+  path: ./data/compozy.db
+
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: qdrant
+      url: http://localhost:6333
+      dimension: 1536
+```
+
+```bash title="Start with SQLite"
+compozy start --db-driver=sqlite --db-path=./data/compozy.db
+```
+
+<Callout type="warning">
+SQLite cannot store embeddings. Configure an external vector database (Qdrant, Redis with RediSearch, or filesystem) before executing knowledge-base workflows.
+</Callout>
+
+```yaml title="PostgreSQL (production)"
+database:
+  driver: postgres
+  conn_string: postgres://compozy:${DB_PASSWORD}@db.internal:5432/compozy?sslmode=require
+```
+
+</Step>
+
 <Step title="Create a simple tool" description="Create a tool that generates personalized greetings">
 
 ```typescript title="greeting_tool.ts"

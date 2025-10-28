@@ -87,7 +87,12 @@ func newServerHarnessWithMiddleware(t *testing.T, extra ...gin.HandlerFunc) *ser
 	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
 	cfg.Database.ConnString = pool.Config().ConnString()
 	cfg.Database.AutoMigrate = false
-	deps := appstate.NewBaseDeps(proj, nil, repo.NewProvider(pool), nil)
+	dbCfg := cfg.Database
+	dbCfg.Driver = "postgres"
+	provider, closeProvider, err := repo.NewProvider(ctx, &dbCfg)
+	require.NoError(t, err)
+	t.Cleanup(closeProvider)
+	deps := appstate.NewBaseDeps(proj, nil, provider, nil)
 	state, err := appstate.NewState(deps, nil)
 	require.NoError(t, err)
 	store := resources.NewMemoryResourceStore()

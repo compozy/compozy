@@ -1,0 +1,227 @@
+---
+title: "PostgreSQL Driver"
+description: "Configure Compozy with PostgreSQL for production-grade reliability, pgvector search, and high concurrency."
+icon: ServerCog
+---
+
+<Callout type="success">
+PostgreSQL is the **default and recommended** database driver for production. It delivers high concurrency, robust transactions, and native vector search through the `pgvector` extension.
+</Callout>
+
+## Why PostgreSQL
+
+<FeatureCardList cols={3}>
+  <FeatureCard
+    title="High Concurrency"
+    description="Connection pooling and row-level locking support 100+ concurrent workflows."
+    icon="Gauge"
+  />
+  <FeatureCard
+    title="pgvector Integration"
+    description="Store embeddings inside the same database with first-class support for `pgvector`."
+    icon="Network"
+  />
+  <FeatureCard
+    title="Managed Services"
+    description="Works seamlessly with RDS, Cloud SQL, Azure Database, Neon, Supabase, and more."
+    icon="Cloud"
+  />
+</FeatureCardList>
+
+## Configuration Options
+
+PostgreSQL is selected when `database.driver` is omitted or set to `postgres`. You can configure via either a connection string or individual parameters.
+
+```yaml title="compozy.yaml (PostgreSQL)"
+database:
+  driver: postgres  # default, can be omitted
+  host: localhost
+  port: 5432
+  user: compozy
+  password: ${DB_PASSWORD}
+  dbname: compozy
+  sslmode: require
+  max_open_conns: 25
+  max_idle_conns: 5
+
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: pgvector
+      dimension: 1536
+```
+
+### Connection String Support
+
+```yaml title="Using a single DSN"
+database:
+  driver: postgres
+  conn_string: postgres://compozy:${DB_PASSWORD}@db.internal:5432/compozy?sslmode=require
+```
+
+### Parameter Reference
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Field</TableHead>
+      <TableHead>Required</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`host`</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Hostname or IP of the PostgreSQL server (*omit when using `conn_string`).</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`port`</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Server port (default `5432`).</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`user`</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Database user used for all connections.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`password`</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Password or secret for the database user.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`dbname`</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Database name that stores Compozy metadata.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`sslmode`</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>TLS mode: `disable`, `require`, `verify-ca`, or `verify-full`.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`max_open_conns`</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Upper bound for concurrent connections (defaults to driver auto-tuning).</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`max_idle_conns`</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Idle pool size to keep warm for bursty workloads.</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+Environment variables are supported via the CLI (`COMPOZY_DB_*`) and align with the configuration fields listed above.
+
+## pgvector for Knowledge Bases
+
+<Callout type="info">
+Installing the `pgvector` extension is mandatory when using PostgreSQL as your vector database provider.
+</Callout>
+
+```sql title="Enable pgvector (once per database)"
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+- Set `knowledge.vector_dbs[].provider` to `pgvector`.
+- Ensure `dimension` matches the embedding model size (e.g., 1536 for OpenAI text-embedding-3-large).
+- Use managed services like Neon or Supabase that ship with pgvector to avoid manual installation.
+
+## Performance Tuning
+
+<List>
+  <ListItem title="Connection Pooling" icon="Gauge">
+    Tune `max_open_conns` and `max_idle_conns` to match database limits; start with 25/5 and monitor saturation.
+  </ListItem>
+  <ListItem title="Prepared Statements" icon="Cpu">
+    Compozy uses prepared statements via `pgx`, reducing parse overhead for repetitive workflow queries.
+  </ListItem>
+  <ListItem title="Autovacuum" icon="Recycle">
+    Keep autovacuum enabled; repositories write frequently and benefit from automatic cleanup.
+  </ListItem>
+  <ListItem title="Index Strategy" icon="Binary">
+    Migrations ship with indexes tuned for workflow/task lookups. Add partial indexes for custom workload filters if needed.
+  </ListItem>
+</List>
+
+## Production Deployment Guide
+
+<Steps>
+  <Step
+    title="Provision the Database"
+    description="Create a managed PostgreSQL instance with TLS enabled and provision the `compozy` database."
+    icon="Server"
+  />
+  <Step
+    title="Install pgvector"
+    description="Enable the `vector` extension and verify privileges for the Compozy user."
+    icon="Network"
+  />
+  <Step
+    title="Configure Secrets"
+    description="Store credentials in your secret manager and map them to `COMPOZY_DB_*` environment variables."
+    icon="Key"
+  />
+  <Step
+    title="Run Migrations"
+    description="Execute `compozy migrate up` or `compozy migrate status` during deployment pipelines."
+    icon="FileText"
+  />
+  <Step
+    title="Scale Intelligently"
+    description="Monitor CPU, I/O, and connection pool metrics; enable read replicas if analytical workloads grow."
+    icon="Activity"
+  />
+</Steps>
+
+## CLI Reference
+
+```bash
+# Override default driver (explicit but optional)
+compozy start --db-driver=postgres
+
+# Supply connection string on the command line
+COMPOZY_DB_CONN_STRING="postgres://..." compozy start
+```
+
+## Troubleshooting
+
+<AccordionGroup type="multiple">
+  <Accordion title="SSL certificate errors" icon="ShieldAlert">
+    Ensure `sslmode` is set to `require` or stricter, and provide CA certificates via the standard PostgreSQL environment variables (`PGSSLROOTCERT`, `PGSSLCERT`, `PGSSLKEY`) if using self-hosted infrastructure.
+  </Accordion>
+  <Accordion title="Connection pool exhaustion" icon="Gauge">
+    Increase `max_open_conns` gradually and tune PostgreSQL resource limits. Review idle transactions that hold locks longer than expected.
+  </Accordion>
+  <Accordion title="pgvector missing or misconfigured" icon="Network">
+    Run `CREATE EXTENSION IF NOT EXISTS vector;` as a superuser. Cloud providers may require enabling pgvector through their control panel.
+  </Accordion>
+  <Accordion title="Long-running migrations" icon="Timer">
+    Schedule migrations during maintenance windows and prefer `compozy migrate status` to monitor progress before enabling traffic.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Database Overview"
+    description="Compare PostgreSQL and SQLite trade-offs."
+    href="/docs/database/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Database Troubleshooting"
+    description="Resolve connectivity and migration issues."
+    href="/docs/troubleshooting/database"
+    icon="LifeBuoy"
+  />
+  <ReferenceCard
+    title="Vector Databases"
+    description="Configure knowledge bases with pgvector and external providers."
+    href="/docs/knowledge-bases/vector-databases"
+    icon="Network"
+  />
+</ReferenceCardList>

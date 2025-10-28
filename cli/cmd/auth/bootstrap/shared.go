@@ -8,10 +8,8 @@ import (
 
 	"github.com/compozy/compozy/engine/auth/bootstrap"
 	authuc "github.com/compozy/compozy/engine/auth/uc"
-	"github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/pkg/config"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 // defaultAuthBootstrapDBTimeout is the bounded timeout for bootstrap DB operations.
@@ -35,31 +33,15 @@ func (f *DefaultServiceFactory) CreateService(ctx context.Context) (*bootstrap.S
 	dbCtx, cancel := context.WithTimeout(ctx, defaultAuthBootstrapDBTimeout)
 	defer cancel()
 	// NOTE: Auth bootstrap always uses Postgres to enforce consistent credential handling.
-	dbCfg := &postgres.Config{
-		ConnString:         cfg.Database.ConnString,
-		Host:               cfg.Database.Host,
-		Port:               cfg.Database.Port,
-		User:               cfg.Database.User,
-		Password:           cfg.Database.Password,
-		DBName:             cfg.Database.DBName,
-		SSLMode:            cfg.Database.SSLMode,
-		PingTimeout:        cfg.Database.PingTimeout,
-		HealthCheckTimeout: cfg.Database.HealthCheckTimeout,
-		HealthCheckPeriod:  cfg.Database.HealthCheckPeriod,
-		ConnectTimeout:     cfg.Database.ConnectTimeout,
-	}
-	drv, err := postgres.NewStore(dbCtx, dbCfg)
+	dbCfg := cfg.Database
+	dbCfg.Driver = "postgres"
+	provider, providerCleanup, err := repo.NewProvider(dbCtx, &dbCfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
-	provider := repo.NewProvider(drv.Pool())
 	authRepo := provider.NewAuthRepo()
 	cleanup := func() {
-		closeCtx, cancelClose := context.WithTimeout(context.WithoutCancel(ctx), defaultAuthBootstrapDBTimeout)
-		defer cancelClose()
-		if err := drv.Close(closeCtx); err != nil {
-			logger.FromContext(ctx).Error("Failed to close database", "error", err)
-		}
+		providerCleanup()
 	}
 	factory := authuc.NewFactory(authRepo)
 	service := bootstrap.NewService(factory)

@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending
+## status: completed
 
 <task_context>
 <domain>engine/infra/sqlite</domain>
@@ -40,15 +40,15 @@ Implement SQLite-backed workflow state repository for workflow execution persist
 
 ## Subtasks
 
-- [ ] 3.1 Create `engine/infra/sqlite/workflowrepo.go` structure
-- [ ] 3.2 Implement workflow state upsert
-- [ ] 3.3 Implement workflow state retrieval
-- [ ] 3.4 Implement list with filtering
-- [ ] 3.5 Implement status updates
-- [ ] 3.6 Add JSON marshaling helpers
-- [ ] 3.7 Write unit tests for CRUD operations
-- [ ] 3.8 Write unit tests for JSON handling
-- [ ] 3.9 Write integration tests for transactions
+- [x] 3.1 Create `engine/infra/sqlite/workflowrepo.go` structure
+- [x] 3.2 Implement workflow state upsert
+- [x] 3.3 Implement workflow state retrieval
+- [x] 3.4 Implement list with filtering
+- [x] 3.5 Implement status updates
+- [x] 3.6 Add JSON marshaling helpers
+- [x] 3.7 Write unit tests for CRUD operations
+- [x] 3.8 Write unit tests for JSON handling
+- [x] 3.9 Write integration tests for transactions
 
 ## Implementation Details
 

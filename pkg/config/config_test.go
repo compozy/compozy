@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -44,6 +45,8 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, "postgres", cfg.Database.User)
 		assert.Equal(t, "compozy", cfg.Database.DBName)
 		assert.Equal(t, "disable", cfg.Database.SSLMode)
+		assert.Equal(t, "postgres", cfg.Database.Driver)
+		assert.Equal(t, ":memory:", cfg.Database.Path)
 
 		// Temporal defaults
 		assert.Equal(t, "remote", cfg.Temporal.Mode)
@@ -117,6 +120,82 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, DefaultCLIActiveWindowDays, cfg.CLI.Users.ActiveWindowDays)
 
 		// App mode removed in greenfield cleanup
+	})
+}
+
+func TestDatabaseConfig(t *testing.T) {
+	t.Run("Should default to postgres when driver empty", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "",
+			Host:   "localhost",
+			Port:   "5432",
+			User:   "test",
+			DBName: "compozy",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "postgres", cfg.Driver)
+	})
+
+	t.Run("Should accept postgres driver explicitly", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "postgres",
+			Host:   "localhost",
+			Port:   "5432",
+			User:   "test",
+			DBName: "compozy",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Should accept sqlite driver", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "data/test.db",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "data"+string(filepath.Separator)+"test.db", cfg.Path)
+	})
+
+	t.Run("Should reject invalid driver", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "mysql",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported database driver")
+	})
+
+	t.Run("Should require path for sqlite", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires path")
+	})
+
+	t.Run("Should require connection params for postgres", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "postgres",
+			Host:   "localhost",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires host, port, user, and name")
+	})
+
+	t.Run("Should validate sqlite path format", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "../data/test.db",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot traverse directories")
 	})
 }
 

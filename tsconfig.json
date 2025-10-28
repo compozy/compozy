@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -24,12 +25,22 @@
     ],
     "types": [
       "bun-types"
-    ]
+    ],
+    "paths": {
+      "@/*": [
+        "docs/src/*"
+      ],
+      "@/.source": [
+        "docs/.source/index.ts"
+      ],
+      "@/schemas/*": [
+        "docs/src/schemas/*"
+      ]
+    }
   },
   "include": [
     "schemas/**/*",
     "examples/**/*",
-    "docs/**/*",
     "tools/**/*"
   ],
   "exclude": [

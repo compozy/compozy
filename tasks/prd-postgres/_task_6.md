@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending
+## status: completed
 
 <task_context>
 <domain>test/integration/database</domain>
@@ -39,13 +39,13 @@ Create comprehensive parameterized integration tests that run against both Postg
 
 ## Subtasks
 
-- [ ] 6.1 Create test infrastructure (`test/helpers/database.go`)
-- [ ] 6.2 Implement parameterized workflow execution tests
-- [ ] 6.3 Implement task hierarchy tests
-- [ ] 6.4 Implement concurrent workflow tests
-- [ ] 6.5 Implement SQLite-specific tests
-- [ ] 6.6 Implement transaction tests
-- [ ] 6.7 Implement edge case tests
+- [x] 6.1 Create test infrastructure (`test/helpers/database.go`)
+- [x] 6.2 Implement parameterized workflow execution tests
+- [x] 6.3 Implement task hierarchy tests
+- [x] 6.4 Implement concurrent workflow tests
+- [x] 6.5 Implement SQLite-specific tests
+- [x] 6.6 Implement transaction tests
+- [x] 6.7 Implement edge case tests
 
 ## Implementation Details
 
@@ -419,58 +419,58 @@ func TestSQLite_Specific(t *testing.T) {
 
 ## Deliverables
 
-- [ ] `test/helpers/database.go` with multi-driver setup
-- [ ] Parameterized integration tests for both drivers
-- [ ] End-to-end workflow execution tests
-- [ ] Task hierarchy tests
-- [ ] Concurrent workflow tests (driver-appropriate)
-- [ ] SQLite-specific behavior tests
-- [ ] Transaction tests
-- [ ] All tests pass for both PostgreSQL and SQLite
-- [ ] Test coverage ≥ 80% for new code
+- [x] `test/helpers/database.go` with multi-driver setup
+- [x] Parameterized integration tests for both drivers
+- [x] End-to-end workflow execution tests
+- [x] Task hierarchy tests
+- [x] Concurrent workflow tests (driver-appropriate)
+- [x] SQLite-specific behavior tests
+- [x] Transaction tests
+- [x] All tests pass for both PostgreSQL and SQLite
+- [x] Test coverage ≥ 80% for new code
 
 ## Tests
 
 ### Integration Test Categories
 
 **Workflow Execution:**
-- [ ] `TestMultiDriver_WorkflowExecution/Should_execute_workflow_end_to_end`
-- [ ] `TestMultiDriver_WorkflowExecution/Should_persist_task_hierarchy`
-- [ ] `TestMultiDriver_WorkflowExecution/Should_handle_concurrent_workflows`
+- [x] `TestMultiDriver_WorkflowExecution/Should_execute_workflow_end_to_end`
+- [x] `TestMultiDriver_WorkflowExecution/Should_persist_task_hierarchy`
+- [x] `TestMultiDriver_WorkflowExecution/Should_handle_concurrent_workflows`
 
 **Task Operations:**
-- [ ] `TestMultiDriver_TaskOperations/Should_create_and_retrieve_tasks`
-- [ ] `TestMultiDriver_TaskOperations/Should_list_tasks_by_workflow`
-- [ ] `TestMultiDriver_TaskOperations/Should_list_children_of_parent`
-- [ ] `TestMultiDriver_TaskOperations/Should_handle_deep_hierarchy`
+- [x] `TestMultiDriver_TaskOperations/Should_create_and_retrieve_tasks`
+- [x] `TestMultiDriver_TaskOperations/Should_list_tasks_by_workflow`
+- [x] `TestMultiDriver_TaskOperations/Should_list_children_of_parent`
+- [x] `TestMultiDriver_TaskOperations/Should_handle_deep_hierarchy`
 
 **Authentication:**
-- [ ] `TestMultiDriver_Authentication/Should_create_and_retrieve_users`
-- [ ] `TestMultiDriver_Authentication/Should_authenticate_with_api_key`
-- [ ] `TestMultiDriver_Authentication/Should_cascade_delete_api_keys`
+- [x] `TestMultiDriver_Authentication/Should_create_and_retrieve_users`
+- [x] `TestMultiDriver_Authentication/Should_authenticate_with_api_key`
+- [x] `TestMultiDriver_Authentication/Should_cascade_delete_api_keys`
 
 **Transactions:**
-- [ ] `TestMultiDriver_Transactions/Should_rollback_on_error`
-- [ ] `TestMultiDriver_Transactions/Should_commit_on_success`
-- [ ] `TestMultiDriver_Transactions/Should_handle_nested_transactions`
+- [x] `TestMultiDriver_Transactions/Should_rollback_on_error`
+- [x] `TestMultiDriver_Transactions/Should_commit_on_success`
+- [x] `TestMultiDriver_Transactions/Should_handle_nested_transactions`
 
 **SQLite-Specific:**
-- [ ] `TestSQLite_Specific/Should_support_in_memory_mode`
-- [ ] `TestSQLite_Specific/Should_enforce_foreign_keys`
-- [ ] `TestSQLite_Specific/Should_handle_concurrent_reads`
-- [ ] `TestSQLite_Specific/Should_serialize_concurrent_writes`
+- [x] `TestSQLite_Specific/Should_support_in_memory_mode`
+- [x] `TestSQLite_Specific/Should_enforce_foreign_keys`
+- [x] `TestSQLite_Specific/Should_handle_concurrent_reads`
+- [x] `TestSQLite_Specific/Should_serialize_concurrent_writes`
 
 ## Success Criteria
 
-- [ ] All parameterized tests pass for both PostgreSQL and SQLite
-- [ ] Concurrent workflow tests work (5-10 for SQLite, 25+ for PostgreSQL)
-- [ ] Task hierarchy correctly handled in both databases
-- [ ] Foreign key constraints enforced in both databases
-- [ ] Transactions commit/rollback correctly in both databases
-- [ ] SQLite-specific edge cases handled properly
-- [ ] Test helpers work for both drivers
-- [ ] All tests use `t.Context()` (not `context.Background()`)
-- [ ] All tests follow `t.Run("Should ...")` pattern
-- [ ] No test flakiness or race conditions
-- [ ] Tests run successfully: `go test ./test/integration/database/... -v -race`
-- [ ] Code coverage: `go test -coverprofile=coverage.out ./test/integration/database/...`
+- [x] All parameterized tests pass for both PostgreSQL and SQLite
+- [x] Concurrent workflow tests work (5-10 for SQLite, 25+ for PostgreSQL)
+- [x] Task hierarchy correctly handled in both databases
+- [x] Foreign key constraints enforced in both databases
+- [x] Transactions commit/rollback correctly in both databases
+- [x] SQLite-specific edge cases handled properly
+- [x] Test helpers work for both drivers
+- [x] All tests use `t.Context()` (not `context.Background()`)
+- [x] All tests follow `t.Run("Should ...")` pattern
+- [x] No test flakiness or race conditions
+- [x] Tests run successfully: `go test ./test/integration/database/... -v -race`
+- [x] Code coverage: `go test -coverprofile=coverage.out ./test/integration/database/...`

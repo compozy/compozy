@@ -165,6 +165,62 @@ This creates a complete project structure:
   initialExpandedItems={["my-ai-project", "workflows"]}
 />
 
+## Choose Your Database Backend
+
+<Callout type="info">
+Compozy defaults to **PostgreSQL** for production reliability. Switch to **SQLite** for rapid local development, CI pipelines, or edge deployments. Review the [Database Overview](/docs/database/overview) if you are unsure which driver fits your workload.
+</Callout>
+
+<Steps>
+  <Step
+    title="Select a driver"
+    description="PostgreSQL for multi-tenant or high-concurrency usage; SQLite for lightweight, single-tenant environments."
+    icon="GitBranch"
+  />
+  <Step
+    title="Configure credentials"
+    description="Set `database.driver` and populate driver-specific fields in `compozy.yaml` or via CLI flags."
+    icon="Cog"
+  />
+  <Step
+    title="Apply migrations"
+    description="Run `compozy migrate up` before starting the server to create schema objects for the selected driver."
+    icon="FileText"
+  />
+</Steps>
+
+### Quick Start with SQLite
+
+```yaml title="compozy.yaml"
+database:
+  driver: sqlite
+  path: ./data/compozy.db
+
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: qdrant
+      url: http://localhost:6333
+      dimension: 1536
+```
+
+```bash title="Start with SQLite"
+compozy start --db-driver=sqlite --db-path=./data/compozy.db
+```
+
+<Callout type="warning">
+SQLite cannot host embeddings. Configure an external vector database (Qdrant, Redis with RediSearch, or filesystem) before running knowledge-base workflows.
+</Callout>
+
+### Production with PostgreSQL
+
+```bash title="Start with managed PostgreSQL"
+COMPOZY_DB_CONN_STRING="postgres://compozy:${DB_PASSWORD}@db.internal:5432/compozy?sslmode=require" \
+  compozy start --db-driver=postgres
+```
+
+Provision PostgreSQL (RDS, Cloud SQL, Neon, Supabase, etc.), enable `pgvector`, and execute `compozy migrate up` during deployment. See the [PostgreSQL driver guide](/docs/database/postgresql) for tuning recommendations.
+
 ## Prerequisites
 
 Your project needs these dependencies:

@@ -1,0 +1,152 @@
+---
+title: "Database Troubleshooting"
+description: "Resolve PostgreSQL and SQLite issues, from connection failures to vector database configuration."
+icon: LifeBuoy
+---
+
+<Callout type="info">
+Start with `compozy diagnostics database` (if available in your build) to capture logs, environment details, and connectivity tests. The sections below map common symptoms to actionable fixes.
+</Callout>
+
+## Quick Checklist
+
+- Confirm `database.driver` matches the deployed backend (`postgres` or `sqlite`).
+- Run `compozy migrate status` to ensure schema migrations are current.
+- Verify vector database configuration (mandatory for SQLite).
+- Inspect logs for `sql` or `database` error codes—they surface context-specific hints.
+
+## PostgreSQL Issues
+
+<AccordionGroup type="multiple">
+  <Accordion title="Connection refused or timeout" icon="Plug">
+    <List>
+      <ListItem title="Verify network access" icon="Globe">
+        Ensure security groups, firewalls, or Kubernetes network policies permit traffic to the PostgreSQL host and port.
+      </ListItem>
+      <ListItem title="Check credentials" icon="Key">
+        Validate `COMPOZY_DB_USER`, `COMPOZY_DB_PASSWORD`, and the `dbname` in the connection string.
+      </ListItem>
+      <ListItem title="TLS mismatch" icon="Shield">
+        Align `sslmode` with server configuration (`require`, `verify-full`, etc.). Supply CA bundles for self-hosted clusters.
+      </ListItem>
+    </List>
+  </Accordion>
+  <Accordion title="Migrations fail with permission errors" icon="Lock">
+    Grant `CREATE TABLE`, `ALTER TABLE`, and `CREATE INDEX` permissions to the Compozy role. Managed services might require elevating privileges temporarily while migrations run.
+  </Accordion>
+  <Accordion title="pgvector missing" icon="Network">
+    Install the `vector` extension: `CREATE EXTENSION IF NOT EXISTS vector;`. On managed services enable pgvector through the provider dashboard.
+  </Accordion>
+  <Accordion title="Slow queries or timeouts" icon="Timer">
+    <List>
+      <ListItem title="Inspect query plans" icon="Search">
+        Use `EXPLAIN ANALYZE` on heavy queries from logs. Add indexes where appropriate.
+      </ListItem>
+      <ListItem title="Adjust pool settings" icon="Gauge">
+        Tune `max_open_conns` and `max_idle_conns` to match workload and database limits.
+      </ListItem>
+      <ListItem title="Monitor vacuum" icon="Recycle">
+        Ensure autovacuum is active to prevent table bloat and slow sequential scans.
+      </ListItem>
+    </List>
+  </Accordion>
+</AccordionGroup>
+
+## SQLite Issues
+
+<AccordionGroup type="multiple">
+  <Accordion title="`database is locked`" icon="Lock">
+    <Steps>
+      <Step title="Throttle concurrency" description="Reduce `runtime.max_concurrent_workflows` to 5 for steady workloads." icon="Gauge" />
+      <Step title="Extend busy timeout" description="Set `database.busy_timeout: 5000` (milliseconds) to let SQLite retry before failing." icon="Timer" />
+      <Step title="Enable WAL mode" description="Switch to `journal_mode: wal` for better write concurrency." icon="HardDrive" />
+    </Steps>
+  </Accordion>
+  <Accordion title="`pgvector provider is incompatible with SQLite driver`" icon="AlertCircle">
+    Configure an **external vector database**. Example:
+
+    ```yaml
+    database:
+      driver: sqlite
+      path: ./data/compozy.db
+
+    knowledge:
+      vector_dbs:
+        - id: main
+          provider: qdrant
+          url: http://localhost:6333
+          dimension: 1536
+    ```
+
+    See the [SQLite guide](/docs/database/sqlite#⚠️-vector-database-requirement) for supported providers.
+  </Accordion>
+  <Accordion title="Missing tables after restart" icon="Table">
+    SQLite databases are file-based; deleting the `.db` file removes schema. Re-run `compozy migrate up` or restore from backup before restarting the server.
+  </Accordion>
+  <Accordion title="Permission denied errors" icon="ShieldAlert">
+    Ensure the Compozy process user can read/write the database path. Consider storing the file under `/var/lib/compozy` with restrictive permissions.
+  </Accordion>
+</AccordionGroup>
+
+## Vector Database Diagnostics
+
+<Mermaid chart={`graph TD
+  A[Workflow Executes] --> B[Knowledge Base Lookup]
+  B --> C{Driver}
+  C -- PostgreSQL --> D[pgvector in PostgreSQL]
+  C -- SQLite --> E[External Vector DB]
+  E --> F[(Qdrant/Redis/Filesystem)]
+  D --> G[Embeddings Found]
+  F --> G
+  G --> H[Agent Response]
+`} />
+
+1. Verify vector database connectivity (`qdrant --version`, `redis-cli ping`, or file existence).
+2. Confirm `dimension` matches the embedding model.
+3. Check logs for provider-specific errors (e.g., HTTP 401 from Qdrant).
+
+## Diagnostic Commands
+
+```bash
+# Check migration status (driver auto-detected)
+compozy migrate status
+
+# Re-run migrations after configuration changes
+compozy migrate up
+
+# Verify PostgreSQL connectivity
+psql "$COMPOZY_DB_CONN_STRING" -c 'SELECT version();'
+
+# Inspect SQLite file
+sqlite3 ./data/compozy.db ".tables"
+```
+
+## Escalation Checklist
+
+- Collect Compozy logs with `--log-level=debug`.
+- Export relevant configuration snippet (redact secrets).
+- Include output of `compozy diagnose database` (if feature flag enabled).
+- Share vector database status (provider, endpoint, health).
+
+## Related Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Database Overview"
+    description="Choose the right driver before troubleshooting."
+    href="/docs/database/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="PostgreSQL Guide"
+    description="Configuration, tuning, and pgvector setup."
+    href="/docs/database/postgresql"
+    icon="ServerCog"
+  />
+  <ReferenceCard
+    title="SQLite Guide"
+    description="Lightweight deployments and concurrency guidance."
+    href="/docs/database/sqlite"
+    icon="HardDrive"
+  />
+</ReferenceCardList>
