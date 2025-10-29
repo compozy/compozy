@@ -39,7 +39,7 @@
 ## Tasks
 
 - [x] 1.0 Global Mode Configuration & Resolver (M - 1-2 days)
-- [ ] 2.0 MiniredisStandalone Wrapper (S - ≤ half-day)
+- [x] 2.0 MiniredisStandalone Wrapper (S - ≤ half-day)
 - [ ] 3.0 Mode-Aware Cache Factory (S - ≤ half-day)
 - [ ] 4.0 Memory Store Integration (M - 1 day)
 - [ ] 5.0 Resource Store Integration (M - 1 day)

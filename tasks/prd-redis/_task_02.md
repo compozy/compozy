@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/cache</domain>
@@ -48,14 +48,14 @@ Create a lightweight wrapper around miniredis v2 that manages the embedded Redis
 
 ## Subtasks
 
-- [ ] 2.1 Add miniredis v2 dependency (`go get github.com/alicebob/miniredis/v2`)
-- [ ] 2.2 Create `engine/infra/cache/miniredis_standalone.go`
-- [ ] 2.3 Implement MiniredisStandalone struct with server, client, and snapshot fields
-- [ ] 2.4 Implement NewMiniredisStandalone constructor
-- [ ] 2.5 Implement Client() method to expose go-redis client
-- [ ] 2.6 Implement Close() method with graceful shutdown
-- [ ] 2.7 Add thread-safe close protection with atomic.Bool
-- [ ] 2.8 Create unit tests in `engine/infra/cache/miniredis_standalone_test.go`
+- [x] 2.1 Add miniredis v2 dependency (`go get github.com/alicebob/miniredis/v2`)
+- [x] 2.2 Create `engine/infra/cache/miniredis_standalone.go`
+- [x] 2.3 Implement MiniredisStandalone struct with server, client, and snapshot fields
+- [x] 2.4 Implement NewMiniredisStandalone constructor
+- [x] 2.5 Implement Client() method to expose go-redis client
+- [x] 2.6 Implement Close() method with graceful shutdown
+- [x] 2.7 Add thread-safe close protection with atomic.Bool
+- [x] 2.8 Create unit tests in `engine/infra/cache/miniredis_standalone_test.go`
 
 ## Implementation Details
 
@@ -195,16 +195,16 @@ func (m *MiniredisStandalone) Close(ctx context.Context) error {
 
 ## Deliverables
 
-- [ ] miniredis v2 dependency added to go.mod
-- [ ] MiniredisStandalone struct created
-- [ ] NewMiniredisStandalone constructor implemented
-- [ ] Client() method returns go-redis client
-- [ ] Close() method with graceful shutdown
-- [ ] Thread-safe close protection with atomic.Bool
-- [ ] Support for optional snapshot manager integration
-- [ ] All logging uses `logger.FromContext(ctx)`
-- [ ] All config access uses `config.FromContext(ctx)`
-- [ ] Connection tested with Ping before returning
+- [x] miniredis v2 dependency added to go.mod
+- [x] MiniredisStandalone struct created
+- [x] NewMiniredisStandalone constructor implemented
+- [x] Client() method returns go-redis client
+- [x] Close() method with graceful shutdown
+- [x] Thread-safe close protection with atomic.Bool
+- [x] Support for optional snapshot manager integration
+- [x] All logging uses `logger.FromContext(ctx)`
+- [x] All config access uses `config.FromContext(ctx)`
+- [x] Connection tested with Ping before returning
 
 ## Tests
 
@@ -212,7 +212,7 @@ Unit tests in `engine/infra/cache/miniredis_standalone_test.go`:
 
 ### Lifecycle Tests
 
-- [ ] Should start and stop embedded Redis server
+- [x] Should start and stop embedded Redis server
   ```go
   func TestMiniredisStandalone_Lifecycle(t *testing.T) {
       t.Run("Should start embedded Redis server", func(t *testing.T) {
@@ -231,7 +231,7 @@ Unit tests in `engine/infra/cache/miniredis_standalone_test.go`:
   }
   ```
 
-- [ ] Should close cleanly without errors
+- [x] Should close cleanly without errors
   ```go
   t.Run("Should close cleanly without errors", func(t *testing.T) {
       ctx := t.Context()
@@ -250,7 +250,7 @@ Unit tests in `engine/infra/cache/miniredis_standalone_test.go`:
   })
   ```
 
-- [ ] Should handle startup errors gracefully
+- [x] Should handle startup errors gracefully
   ```go
   t.Run("Should handle startup errors gracefully", func(t *testing.T) {
       // Test error handling (e.g., invalid config)
@@ -259,7 +259,7 @@ Unit tests in `engine/infra/cache/miniredis_standalone_test.go`:
 
 ### Basic Operations Tests
 
-- [ ] Should support Get/Set operations
+- [x] Should support Get/Set operations
   ```go
   func TestMiniredisStandalone_BasicOperations(t *testing.T) {
       t.Run("Should support Get/Set operations", func(t *testing.T) {
@@ -279,7 +279,7 @@ Unit tests in `engine/infra/cache/miniredis_standalone_test.go`:
   }
   ```
 
-- [ ] Should support Eval (Lua scripts)
+- [x] Should support Eval (Lua scripts)
   ```go
   t.Run("Should support Lua scripts", func(t *testing.T) {
       ctx := t.Context()
@@ -298,7 +298,7 @@ Unit tests in `engine/infra/cache/miniredis_standalone_test.go`:
   })
   ```
 
-- [ ] Should support TxPipeline operations
+- [x] Should support TxPipeline operations
   ```go
   t.Run("Should support TxPipeline operations", func(t *testing.T) {
       ctx := t.Context()
