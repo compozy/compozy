@@ -1,5 +1,13 @@
 package config
 
+// Deployment modes (shared across components).
+const (
+	ModeStandalone  = "standalone"
+	ModeDistributed = "distributed"
+	// Temporal-only normalized mode for remote clusters
+	ModeRemoteTemporal = "remote"
+)
+
 // ResolveMode determines the effective deployment mode for a component.
 //
 // Resolution priority:
@@ -13,7 +21,7 @@ func ResolveMode(cfg *Config, componentMode string) string {
 	if cfg != nil && cfg.Mode != "" {
 		return cfg.Mode
 	}
-	return "distributed"
+	return ModeDistributed
 }
 
 // EffectiveRedisMode returns the resolved Redis deployment mode.
@@ -25,8 +33,8 @@ func (cfg *Config) EffectiveRedisMode() string {
 // Normalizes "distributed" → "remote" for Temporal.
 func (cfg *Config) EffectiveTemporalMode() string {
 	mode := ResolveMode(cfg, cfg.Temporal.Mode)
-	if mode == "distributed" {
-		return "remote"
+	if mode == ModeDistributed {
+		return ModeRemoteTemporal
 	}
 	return mode
 }

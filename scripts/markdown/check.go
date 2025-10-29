@@ -926,15 +926,18 @@ func flattenAndSortIssues(groups map[string][]issueEntry, mode executionMode) []
 	for _, items := range groups {
 		allIssues = append(allIssues, items...)
 	}
-	// For PRD tasks, sort by numeric task ID instead of lexicographically
+	// For PRD tasks, sort by numeric task ID (stable) with name tie-breaker.
 	if mode == ExecutionModePRDTasks {
-		sort.Slice(allIssues, func(i, j int) bool {
+		sort.SliceStable(allIssues, func(i, j int) bool {
 			numI := extractTaskNumber(allIssues[i].name)
 			numJ := extractTaskNumber(allIssues[j].name)
-			return numI < numJ
+			if numI != numJ {
+				return numI < numJ
+			}
+			return allIssues[i].name < allIssues[j].name
 		})
 	} else {
-		sort.Slice(allIssues, func(i, j int) bool {
+		sort.SliceStable(allIssues, func(i, j int) bool {
 			return allIssues[i].name < allIssues[j].name
 		})
 	}
@@ -3041,7 +3044,10 @@ func readIssueEntries(resolvedIssuesDir string, mode executionMode, includeCompl
 // Example: "_task_10.md" returns 10, "_task_2.md" returns 2.
 // Returns 0 for invalid filenames.
 func extractTaskNumber(filename string) int {
-	// Remove prefix and suffix to get just the number
+	// Only accept canonical task filenames; fallback to 0 otherwise.
+	if !reTaskFile.MatchString(filename) {
+		return 0
+	}
 	numStr := strings.TrimPrefix(filename, "_task_")
 	numStr = strings.TrimSuffix(numStr, ".md")
 	num, err := strconv.Atoi(numStr)
@@ -3067,8 +3073,8 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 		}
 		names = append(names, f.Name())
 	}
-	// Sort by numeric task ID instead of lexicographically
-	sort.Slice(names, func(i, j int) bool {
+	// Sort by numeric task ID (stable) instead of lexicographically
+	sort.SliceStable(names, func(i, j int) bool {
 		numI := extractTaskNumber(names[i])
 		numJ := extractTaskNumber(names[j])
 		return numI < numJ

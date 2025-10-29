@@ -48,11 +48,11 @@ type Config struct {
 	//
 	// "distributed" (default): External services required
 	// "standalone": Embedded services, single-process
-	Mode string `koanf:"mode"   json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=standalone distributed"`
+	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=standalone distributed"`
 	// Server configures the HTTP API server settings.
 	//
 	// $ref: schema://application#server
-	Server ServerConfig `koanf:"server" json:"server" yaml:"server" mapstructure:"server" validate:"required"`
+	Server ServerConfig `koanf:"server"                    json:"server" yaml:"server" mapstructure:"server" validate:"required"`
 
 	// Database configures the PostgreSQL database connection.
 	//
@@ -1167,12 +1167,12 @@ type RedisConfig struct {
 	//   - "" (empty): Inherit from global Config.Mode
 	//   - "distributed": Use external Redis (explicit override)
 	//   - "standalone": Use embedded miniredis (explicit override)
-	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=standalone distributed"`
+	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty,oneof=standalone distributed"`
 	// URL provides a complete Redis connection string.
 	//
 	// Format: `redis://[user:password@]host:port/db`
 	// Takes precedence over individual connection parameters.
-	URL string `koanf:"url"  json:"url"  yaml:"url"  mapstructure:"url"                                                    env:"REDIS_URL"`
+	URL string `koanf:"url"  json:"url"  yaml:"url"  mapstructure:"url"  env:"REDIS_URL"`
 
 	// Host specifies the Redis server hostname or IP address.
 	//
@@ -1281,11 +1281,11 @@ type RedisStandaloneConfig struct {
 
 // RedisPersistenceConfig defines snapshot settings for embedded Redis.
 type RedisPersistenceConfig struct {
-	Enabled            bool          `koanf:"enabled"              json:"enabled"              yaml:"enabled"              mapstructure:"enabled"`
-	DataDir            string        `koanf:"data_dir"             json:"data_dir"             yaml:"data_dir"             mapstructure:"data_dir"`
-	SnapshotInterval   time.Duration `koanf:"snapshot_interval"    json:"snapshot_interval"    yaml:"snapshot_interval"    mapstructure:"snapshot_interval"`
-	SnapshotOnShutdown bool          `koanf:"snapshot_on_shutdown" json:"snapshot_on_shutdown" yaml:"snapshot_on_shutdown" mapstructure:"snapshot_on_shutdown"`
-	RestoreOnStartup   bool          `koanf:"restore_on_startup"   json:"restore_on_startup"   yaml:"restore_on_startup"   mapstructure:"restore_on_startup"`
+	Enabled            bool          `koanf:"enabled"              json:"enabled"              yaml:"enabled"              mapstructure:"enabled"              env:"REDIS_STANDALONE_PERSISTENCE_ENABLED"`
+	DataDir            string        `koanf:"data_dir"             json:"data_dir"             yaml:"data_dir"             mapstructure:"data_dir"             env:"REDIS_STANDALONE_PERSISTENCE_DATA_DIR"`
+	SnapshotInterval   time.Duration `koanf:"snapshot_interval"    json:"snapshot_interval"    yaml:"snapshot_interval"    mapstructure:"snapshot_interval"    env:"REDIS_STANDALONE_PERSISTENCE_SNAPSHOT_INTERVAL"`
+	SnapshotOnShutdown bool          `koanf:"snapshot_on_shutdown" json:"snapshot_on_shutdown" yaml:"snapshot_on_shutdown" mapstructure:"snapshot_on_shutdown" env:"REDIS_STANDALONE_PERSISTENCE_SNAPSHOT_ON_SHUTDOWN"`
+	RestoreOnStartup   bool          `koanf:"restore_on_startup"   json:"restore_on_startup"   yaml:"restore_on_startup"   mapstructure:"restore_on_startup"   env:"REDIS_STANDALONE_PERSISTENCE_RESTORE_ON_STARTUP"`
 }
 
 // CacheConfig contains cache-specific configuration settings.
@@ -1867,6 +1867,7 @@ func Default() *Config {
 func defaultFromRegistry() *Config {
 	registry := definition.CreateRegistry()
 	return &Config{
+		Mode:        getString(registry, "mode"),
 		Server:      buildServerConfig(registry),
 		Database:    buildDatabaseConfig(registry),
 		Temporal:    buildTemporalConfig(registry),
@@ -2542,6 +2543,7 @@ func buildCLIDevConfig(registry *definition.Registry) CLIDevConfig {
 
 func buildRedisConfig(registry *definition.Registry) RedisConfig {
 	return RedisConfig{
+		Mode:                   getString(registry, "redis.mode"),
 		URL:                    getString(registry, "redis.url"),
 		Host:                   getString(registry, "redis.host"),
 		Port:                   getString(registry, "redis.port"),
@@ -2560,6 +2562,15 @@ func buildRedisConfig(registry *definition.Registry) RedisConfig {
 		MaxRetryBackoff:        getDuration(registry, "redis.max_retry_backoff"),
 		NotificationBufferSize: getInt(registry, "redis.notification_buffer_size"),
 		TLSEnabled:             getBool(registry, "redis.tls_enabled"),
+		Standalone: RedisStandaloneConfig{
+			Persistence: RedisPersistenceConfig{
+				Enabled:            getBool(registry, "redis.standalone.persistence.enabled"),
+				DataDir:            getString(registry, "redis.standalone.persistence.data_dir"),
+				SnapshotInterval:   getDuration(registry, "redis.standalone.persistence.snapshot_interval"),
+				SnapshotOnShutdown: getBool(registry, "redis.standalone.persistence.snapshot_on_shutdown"),
+				RestoreOnStartup:   getBool(registry, "redis.standalone.persistence.restore_on_startup"),
+			},
+		},
 	}
 }
 

@@ -138,8 +138,7 @@ func initProject(t *testing.T) *project.Config {
 }
 
 func loadWorkflows(ctx context.Context, t *testing.T, relPaths ...string) []*workflow.Config {
-	cwd, err := projectCWDFromRepoRoot()
-	require.NoError(t, err)
+	cwd := projectCWDFromRepoRoot(t)
 	var out []*workflow.Config
 	for _, rel := range relPaths {
 		wf, err := workflow.Load(ctx, cwd, filepath.ToSlash(rel))
@@ -293,12 +292,13 @@ func portAvailable(ctx context.Context, port int) bool {
 	return true
 }
 
-func projectCWDFromRepoRoot() (*core.PathCWD, error) {
+func projectCWDFromRepoRoot(t *testing.T) *core.PathCWD {
+	t.Helper()
 	root, err := testhelpers.FindProjectRoot()
-	if err != nil {
-		return nil, err
-	}
-	return core.CWDFromPath(root)
+	require.NoError(t, err)
+	cwd, err := core.CWDFromPath(root)
+	require.NoError(t, err)
+	return cwd
 }
 
 func sanitizeProjectName(name string) string {

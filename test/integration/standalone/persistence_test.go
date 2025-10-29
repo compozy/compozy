@@ -190,7 +190,6 @@ func TestPersistence_PeriodicSnapshots(t *testing.T) {
 		dataDir := t.TempDir()
 
 		env := helpers.SetupStandaloneWithPeriodicSnapshots(ctx, t, dataDir, 200*time.Millisecond)
-		defer env.Cleanup(ctx)
 
 		var writes atomic.Int64
 		stop := make(chan struct{})
