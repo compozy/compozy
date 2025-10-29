@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/cache</domain>
@@ -49,19 +49,19 @@ Implement the optional persistence layer for standalone mode using BadgerDB to c
 
 ## Subtasks
 
-- [ ] 7.1 Create engine/infra/cache/snapshot_manager.go with SnapshotManager struct
-- [ ] 7.2 Implement NewSnapshotManager constructor with context patterns
-- [ ] 7.3 Implement Snapshot() method for creating snapshots
-- [ ] 7.4 Implement Restore() method for loading snapshots
-- [ ] 7.5 Implement StartPeriodicSnapshots() with background goroutine
-- [ ] 7.6 Implement Stop() method for graceful shutdown
-- [ ] 7.7 Add snapshot metrics (duration, size, count)
-- [ ] 7.8 Create unit tests in snapshot_manager_test.go
-- [ ] 7.9 Test periodic snapshot functionality
-- [ ] 7.10 Test graceful shutdown snapshot
-- [ ] 7.11 Test snapshot restore on startup
-- [ ] 7.12 Test error handling (corrupt snapshots, disk full, etc.)
-- [ ] 7.13 Run full test suite and ensure >80% coverage
+- [x] 7.1 Create engine/infra/cache/snapshot_manager.go with SnapshotManager struct
+- [x] 7.2 Implement NewSnapshotManager constructor with context patterns
+- [x] 7.3 Implement Snapshot() method for creating snapshots
+- [x] 7.4 Implement Restore() method for loading snapshots
+- [x] 7.5 Implement StartPeriodicSnapshots() with background goroutine
+- [x] 7.6 Implement Stop() method for graceful shutdown
+- [x] 7.7 Add snapshot metrics (duration, size, count)
+- [x] 7.8 Create unit tests in snapshot_manager_test.go
+- [x] 7.9 Test periodic snapshot functionality
+- [x] 7.10 Test graceful shutdown snapshot
+- [x] 7.11 Test snapshot restore on startup
+- [x] 7.12 Test error handling (corrupt snapshots, disk full, etc.)
+- [x] 7.13 Run full test suite and ensure >80% coverage
 
 ## Implementation Details
 

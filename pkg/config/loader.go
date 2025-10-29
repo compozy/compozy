@@ -537,7 +537,7 @@ func validateAuth(cfg *Config) error {
 
 func validateMCPProxy(cfg *Config) error {
 	mode := strings.TrimSpace(cfg.MCPProxy.Mode)
-	if mode == "standalone" && cfg.MCPProxy.Port == 0 {
+	if mode == mcpProxyModeStandalone && cfg.MCPProxy.Port == 0 {
 		return fmt.Errorf("mcp_proxy.port must be non-zero in standalone mode")
 	}
 	return nil
