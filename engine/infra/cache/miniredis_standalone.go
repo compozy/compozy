@@ -22,6 +22,47 @@ type MiniredisStandalone struct {
 	closed   atomic.Bool
 }
 
+func newMiniRedisClient(addr string) *redis.Client {
+	return redis.NewClient(&redis.Options{Addr: addr})
+}
+
+func ensurePing(ctx context.Context, client *redis.Client) error {
+	if err := client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("ping miniredis: %w", err)
+	}
+	return nil
+}
+
+func setupPersistenceIfEnabled(
+	ctx context.Context,
+	standalone *MiniredisStandalone,
+	mr *miniredis.Miniredis,
+	cfg *config.Config,
+) error {
+	if cfg == nil || !cfg.Redis.Standalone.Persistence.Enabled {
+		return nil
+	}
+	log := logger.FromContext(ctx)
+	log.Info("Initializing persistence layer",
+		"data_dir", cfg.Redis.Standalone.Persistence.DataDir,
+		"snapshot_interval", cfg.Redis.Standalone.Persistence.SnapshotInterval,
+	)
+	snapshot, err := NewSnapshotManager(ctx, mr, cfg.Redis.Standalone.Persistence)
+	if err != nil {
+		return fmt.Errorf("create snapshot manager: %w", err)
+	}
+	standalone.snapshot = snapshot
+	if cfg.Redis.Standalone.Persistence.RestoreOnStartup {
+		if err := snapshot.Restore(ctx); err != nil {
+			log.Warn("Failed to restore snapshot", "error", err)
+		} else {
+			log.Info("Restored last snapshot")
+		}
+	}
+	snapshot.StartPeriodicSnapshots(ctx)
+	return nil
+}
+
 // NewMiniredisStandalone creates and starts an embedded Redis server and a
 // standard go-redis client connected to it. The function validates the
 // connection with a Ping and, when enabled, wires the SnapshotManager
@@ -42,12 +83,13 @@ func NewMiniredisStandalone(ctx context.Context) (*MiniredisStandalone, error) {
 	)
 
 	// Create a standard go-redis client pointing to the embedded server.
-	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	client := newMiniRedisClient(mr.Addr())
 
 	// Validate connectivity before returning.
-	if err := client.Ping(ctx).Err(); err != nil {
+	if err := ensurePing(ctx, client); err != nil {
+		_ = client.Close()
 		mr.Close()
-		return nil, fmt.Errorf("ping miniredis: %w", err)
+		return nil, err
 	}
 
 	standalone := &MiniredisStandalone{
@@ -56,28 +98,9 @@ func NewMiniredisStandalone(ctx context.Context) (*MiniredisStandalone, error) {
 	}
 
 	// Optional persistence layer via SnapshotManager.
-	if cfg != nil && cfg.Redis.Standalone.Persistence.Enabled {
-		log.Info("Initializing persistence layer",
-			"data_dir", cfg.Redis.Standalone.Persistence.DataDir,
-			"snapshot_interval", cfg.Redis.Standalone.Persistence.SnapshotInterval,
-		)
-
-		snapshot, err := NewSnapshotManager(ctx, mr, cfg.Redis.Standalone.Persistence)
-		if err != nil {
-			_ = standalone.Close(ctx)
-			return nil, fmt.Errorf("create snapshot manager: %w", err)
-		}
-		standalone.snapshot = snapshot
-
-		if cfg.Redis.Standalone.Persistence.RestoreOnStartup {
-			if err := snapshot.Restore(ctx); err != nil {
-				log.Warn("Failed to restore snapshot", "error", err)
-			} else {
-				log.Info("Restored last snapshot")
-			}
-		}
-
-		snapshot.StartPeriodicSnapshots(ctx)
+	if err := setupPersistenceIfEnabled(ctx, standalone, mr, cfg); err != nil {
+		_ = standalone.Close(ctx)
+		return nil, err
 	}
 
 	return standalone, nil
@@ -100,10 +123,12 @@ func (m *MiniredisStandalone) Close(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
 
-	if m.snapshot != nil && cfg != nil && cfg.Redis.Standalone.Persistence.SnapshotOnShutdown {
-		log.Info("Taking final snapshot before shutdown")
-		if err := m.snapshot.Snapshot(ctx); err != nil {
-			log.Error("Failed to snapshot on shutdown", "error", err)
+	if m.snapshot != nil {
+		if cfg != nil && cfg.Redis.Standalone.Persistence.SnapshotOnShutdown {
+			log.Info("Taking final snapshot before shutdown")
+			if err := m.snapshot.Snapshot(ctx); err != nil {
+				log.Error("Failed to snapshot on shutdown", "error", err)
+			}
 		}
 		m.snapshot.Stop()
 	}

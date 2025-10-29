@@ -22,6 +22,12 @@ const (
 	localhost             = "localhost"
 )
 
+// Deployment mode constants (avoid magic strings)
+const (
+	modeStandalone  = "standalone"
+	modeDistributed = "distributed"
+)
+
 // NewStartCommand creates the start command for production server
 func NewStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -54,14 +60,14 @@ func handleStartTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.Command
 		return fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
 	cfg.Mode = resolveStartMode(cobraCmd, config.ManagerFromContext(ctx).Service, cfg.Mode)
-	if m := strings.TrimSpace(cfg.Mode); m != "" && m != "standalone" && m != "distributed" {
+	if m := strings.TrimSpace(cfg.Mode); m != "" && m != modeStandalone && m != modeDistributed {
 		return fmt.Errorf("invalid --mode value %q: must be one of [standalone distributed]", m)
 	}
 	cfg.Runtime.Environment = productionEnvironment
 	gin.SetMode(gin.ReleaseMode)
 	modeStr := cfg.Mode
 	if modeStr == "" {
-		modeStr = "distributed"
+		modeStr = modeDistributed
 	}
 	logger.FromContext(ctx).Info("Starting Compozy server", "mode", modeStr)
 	logProductionSecurityWarnings(ctx, cfg)

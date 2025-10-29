@@ -122,7 +122,7 @@ func (sm *SnapshotManager) Snapshot(ctx context.Context) error {
 	})
 	if err != nil {
 		sm.metrics.mu.Lock()
-		sm.metrics.SnapshotFailures++
+		sm.metrics.snapshotFailures++
 		sm.metrics.mu.Unlock()
 		log.Error("Snapshot failed", "error", err)
 		return fmt.Errorf("snapshot transaction: %w", err)
@@ -130,9 +130,9 @@ func (sm *SnapshotManager) Snapshot(ctx context.Context) error {
 
 	duration := time.Since(start)
 	sm.metrics.mu.Lock()
-	sm.metrics.SnapshotsTaken++
-	sm.metrics.LastDuration = duration
-	sm.metrics.LastSizeBytes = totalBytes
+	sm.metrics.snapshotsTaken++
+	sm.metrics.lastDuration = duration
+	sm.metrics.lastSizeBytes = totalBytes
 	sm.metrics.mu.Unlock()
 
 	log.Info("Snapshot completed", "duration", duration, "keys", len(keys), "bytes", totalBytes)
@@ -171,14 +171,14 @@ func (sm *SnapshotManager) Restore(ctx context.Context) error {
 	})
 	if err != nil {
 		sm.metrics.mu.Lock()
-		sm.metrics.RestoreFailures++
+		sm.metrics.restoreFailures++
 		sm.metrics.mu.Unlock()
 		log.Error("Restore failed", "error", err)
 		return fmt.Errorf("restore transaction: %w", err)
 	}
 	sm.metrics.mu.Lock()
-	sm.metrics.Restores++
-	sm.metrics.LastDuration = time.Since(start)
+	sm.metrics.restores++
+	sm.metrics.lastDuration = time.Since(start)
 	sm.metrics.mu.Unlock()
 	log.Info("Restore completed", "keys", count, "duration", time.Since(start))
 	return nil
@@ -243,9 +243,9 @@ func (sm *SnapshotManager) Stop() {
 }
 
 // GetSnapshotMetrics returns a snapshot of metrics values.
-func (sm *SnapshotManager) GetSnapshotMetrics() SnapshotMetrics {
+func (sm *SnapshotManager) GetSnapshotMetrics() SnapshotMetricsView {
 	if sm == nil || sm.metrics == nil {
-		return SnapshotMetrics{}
+		return SnapshotMetricsView{}
 	}
 	return sm.metrics.copy()
 }

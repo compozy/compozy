@@ -75,7 +75,7 @@ func setupStandaloneCache(ctx context.Context, cacheCfg *Config) (*Cache, func()
 	if err != nil {
 		return nil, nil, fmt.Errorf("create miniredis standalone: %w", err)
 	}
-	r := &Redis{client: mr.Client(), config: cacheCfg, ctx: ctx}
+	r := NewRedisFromClient(ctx, mr.Client(), cacheCfg)
 	lm, err := NewRedisLockManager(r)
 	if err != nil {
 		_ = mr.Close(ctx)

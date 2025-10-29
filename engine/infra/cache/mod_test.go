@@ -13,9 +13,12 @@ import (
 func TestSetupCache_ModeAware(t *testing.T) {
 	t.Run("Should create miniredis in standalone mode", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
-		// Mutate default manager's config in this context
-		cfg := config.FromContext(ctx)
-		require.NotNil(t, cfg)
+		mgr := config.NewManager(ctx, config.NewService())
+		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = mgr.Close(ctx) })
+		ctx = config.ContextWithManager(ctx, mgr)
+		cfg := mgr.Get()
 		cfg.Mode = "distributed"      // global mode
 		cfg.Redis.Mode = "standalone" // component override
 
@@ -32,11 +35,16 @@ func TestSetupCache_ModeAware(t *testing.T) {
 
 	t.Run("Should handle Redis connection errors in distributed mode", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
-		cfg := config.FromContext(ctx)
+		mgr := config.NewManager(ctx, config.NewService())
+		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = mgr.Close(ctx) })
+		ctx = config.ContextWithManager(ctx, mgr)
+		cfg := mgr.Get()
 		cfg.Mode = "distributed"
 		cfg.Redis.Mode = "distributed"
 		cfg.Redis.URL = "redis://invalid:0"
-		_, _, err := SetupCache(ctx)
+		_, _, err = SetupCache(ctx)
 		assert.Error(t, err)
 	})
 }

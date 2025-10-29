@@ -3,6 +3,8 @@ package start
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	pkgconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/spf13/cobra"
 )
@@ -18,9 +20,7 @@ func TestResolveStartMode(t *testing.T) {
 		cmd.Flags().String("mode", "", "")
 		_ = cmd.Flags().Set("mode", "standalone")
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceDefault}, "")
-		if got != "standalone" {
-			t.Fatalf("expected standalone, got %q", got)
-		}
+		require.Equal(t, "standalone", got)
 	})
 
 	t.Run("Should accept --mode distributed", func(t *testing.T) {
@@ -28,9 +28,7 @@ func TestResolveStartMode(t *testing.T) {
 		cmd.Flags().String("mode", "", "")
 		_ = cmd.Flags().Set("mode", "distributed")
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceDefault}, "")
-		if got != "distributed" {
-			t.Fatalf("expected distributed, got %q", got)
-		}
+		require.Equal(t, "distributed", got)
 	})
 
 	t.Run("Should prioritize config file over CLI flag", func(t *testing.T) {
@@ -39,9 +37,7 @@ func TestResolveStartMode(t *testing.T) {
 		_ = cmd.Flags().Set("mode", "standalone")
 		// When source is YAML, do not override
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceYAML}, "distributed")
-		if got != "distributed" {
-			t.Fatalf("expected distributed to win over CLI flag, got %q", got)
-		}
+		require.Equal(t, "distributed", got)
 	})
 
 	t.Run("Should reject invalid --mode values via validation", func(t *testing.T) {
@@ -52,8 +48,6 @@ func TestResolveStartMode(t *testing.T) {
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceDefault}, "")
 		cfg := pkgconfig.Default()
 		cfg.Mode = got
-		if err := pkgconfig.NewService().Validate(cfg); err == nil {
-			t.Fatalf("expected validation error for invalid mode, got nil")
-		}
+		require.Error(t, pkgconfig.NewService().Validate(cfg))
 	})
 }

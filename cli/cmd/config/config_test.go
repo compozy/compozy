@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	pkgconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	testhelpers "github.com/compozy/compozy/test/helpers"
@@ -16,9 +18,7 @@ func TestConfigShow_Goldens(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		mgr := pkgconfig.NewManager(ctx, pkgconfig.NewService())
 		_, err := mgr.Load(ctx, pkgconfig.NewDefaultProvider(), pkgconfig.NewEnvProvider())
-		if err != nil {
-			t.Fatalf("failed to load defaults: %v", err)
-		}
+		require.NoError(t, err)
 		cfg := mgr.Get()
 		cfg.Mode = "standalone"
 		cfg.Redis.Mode = "standalone"
@@ -27,11 +27,10 @@ func TestConfigShow_Goldens(t *testing.T) {
 		old := os.Stdout
 		os.Stdout = w
 		t.Cleanup(func() { os.Stdout = old })
-		if err := formatConfigOutput(cfg, nil, "table", false); err != nil {
-			t.Fatalf("formatConfigOutput error: %v", err)
-		}
-		_ = w.Close()
-		out, _ := io.ReadAll(r)
+		require.NoError(t, formatConfigOutput(cfg, nil, "table", false))
+		require.NoError(t, w.Close())
+		out, err := io.ReadAll(r)
+		require.NoError(t, err)
 		testhelpers.CompareWithGolden(t, out, "testdata/config-show-standalone.golden")
 	})
 
@@ -39,9 +38,7 @@ func TestConfigShow_Goldens(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		mgr := pkgconfig.NewManager(ctx, pkgconfig.NewService())
 		_, err := mgr.Load(ctx, pkgconfig.NewDefaultProvider(), pkgconfig.NewEnvProvider())
-		if err != nil {
-			t.Fatalf("failed to load defaults: %v", err)
-		}
+		require.NoError(t, err)
 		cfg := mgr.Get()
 		cfg.Mode = "distributed"
 		cfg.Redis.Mode = "standalone"
@@ -50,11 +47,10 @@ func TestConfigShow_Goldens(t *testing.T) {
 		old := os.Stdout
 		os.Stdout = w
 		t.Cleanup(func() { os.Stdout = old })
-		if err := formatConfigOutput(cfg, nil, "table", false); err != nil {
-			t.Fatalf("formatConfigOutput error: %v", err)
-		}
-		_ = w.Close()
-		out, _ := io.ReadAll(r)
+		require.NoError(t, formatConfigOutput(cfg, nil, "table", false))
+		require.NoError(t, w.Close())
+		out, err := io.ReadAll(r)
+		require.NoError(t, err)
 		testhelpers.CompareWithGolden(t, out, "testdata/config-show-mixed.golden")
 	})
 }
@@ -64,9 +60,7 @@ func TestDiagnostics_EffectiveModes(t *testing.T) {
 	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	mgr := pkgconfig.NewManager(ctx, pkgconfig.NewService())
 	_, err := mgr.Load(ctx, pkgconfig.NewDefaultProvider(), pkgconfig.NewEnvProvider())
-	if err != nil {
-		t.Fatalf("failed to load defaults: %v", err)
-	}
+	require.NoError(t, err)
 	cfg := mgr.Get()
 	cfg.Mode = "standalone"
 	ctx = pkgconfig.ContextWithManager(ctx, mgr)
@@ -75,10 +69,9 @@ func TestDiagnostics_EffectiveModes(t *testing.T) {
 	old := os.Stdout
 	os.Stdout = w
 	t.Cleanup(func() { os.Stdout = old })
-	if err := outputDiagnosticsResults(ctx, ".", cfg, nil, true); err != nil {
-		t.Fatalf("outputDiagnosticsResults error: %v", err)
-	}
-	_ = w.Close()
-	out, _ := io.ReadAll(r)
+	require.NoError(t, outputDiagnosticsResults(ctx, ".", cfg, nil, true))
+	require.NoError(t, w.Close())
+	out, err := io.ReadAll(r)
+	require.NoError(t, err)
 	testhelpers.CompareWithGolden(t, out, "testdata/config-diagnostics-standalone.golden")
 }
