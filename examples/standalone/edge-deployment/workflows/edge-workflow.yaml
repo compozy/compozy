@@ -1,0 +1,27 @@
+id: edge-workflow
+version: 0.1.0
+description: Lightweight workflow designed for edge devices.
+
+schemas:
+  - id: input
+    type: object
+    properties:
+      name:
+        type: string
+        default: Edge
+
+config:
+  input: input
+
+tasks:
+  - id: hello
+    type: basic
+    agent: edge-agent
+    action: greet
+    with:
+      name: "{{ .workflow.input.name }}"
+    final: true
+
+outputs:
+  message: "{{ .tasks.hello.output.greeting }}"
+

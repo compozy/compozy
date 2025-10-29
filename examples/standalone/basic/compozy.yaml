@@ -1,0 +1,24 @@
+name: standalone-basic
+version: 0.1.0
+description: Minimal standalone project with a single hello world workflow.
+
+workflows:
+  - source: ./workflows/hello-world.yaml
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tasks/*.yaml"
+  exclude:
+    - "**/*~"
+    - "**/*.bak"
+    - "**/*.tmp"
+

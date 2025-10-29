@@ -1,0 +1,24 @@
+name: edge-demo
+version: 0.1.0
+description: Edge-optimized example with minimal resources.
+
+workflows:
+  - source: ./workflows/edge-workflow.yaml
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
+
+runtime:
+  native_tools:
+    enabled: false
+
+autoload:
+  enabled: true
+  strict: true
+  include:
+    - "agents/*.yaml"
+    - "tasks/*.yaml"
+

@@ -1,0 +1,25 @@
+id: migration-demo
+version: 0.1.0
+description: Simple workflow executed in both phases to verify migration.
+
+schemas:
+  - id: input
+    type: object
+    properties:
+      name: { type: string, default: Migrator }
+    required: [name]
+
+config:
+  input: input
+
+tasks:
+  - id: greet
+    type: basic
+    agent: migration-agent
+    action: greet
+    with: { name: "{{ .workflow.input.name }}" }
+    final: true
+
+outputs:
+  message: "{{ .tasks.greet.output.message }}"
+

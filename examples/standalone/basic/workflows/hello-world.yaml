@@ -1,0 +1,28 @@
+id: hello-world
+version: 0.1.0
+description: Simple workflow that greets the provided name.
+
+schemas:
+  - id: hello_input
+    type: object
+    properties:
+      name:
+        type: string
+    required:
+      - name
+
+config:
+  input: hello_input
+
+tasks:
+  - id: say_hello
+    type: basic
+    agent: hello-agent
+    action: greet
+    with:
+      name: "{{ .workflow.input.name }}"
+    final: true
+
+outputs:
+  message: "{{ .tasks.say_hello.output.greeting }}"
+

@@ -1,0 +1,18 @@
+resource: agent
+id: hybrid-agent
+name: Hybrid Agent
+description: Minimal agent used by the mixed-mode workflow.
+instructions: Always reply with compact JSON.
+
+actions:
+  - id: greet
+    name: Greet
+    prompt: |
+      Return JSON {"greeting":"Hello {{ .with.name }} from mixed mode"}
+    output:
+      type: object
+      properties:
+        greeting:
+          type: string
+      required: [greeting]
+

@@ -493,7 +493,7 @@ func validateStandaloneStartTimeout(standalone *StandaloneConfig) error {
 func validateRedis(cfg *Config) error {
 	// Validate component mode values via struct tags; add friendly errors for clarity.
 	switch strings.TrimSpace(cfg.Redis.Mode) {
-	case "", "standalone", "distributed":
+	case "", mcpProxyModeStandalone, "distributed":
 		// ok
 	default:
 		return fmt.Errorf(
@@ -502,22 +502,22 @@ func validateRedis(cfg *Config) error {
 		)
 	}
 
-    // Validate requirements based on effective mode
-    switch cfg.EffectiveRedisMode() {
-    case "standalone":
-        // When using embedded redis, validate optional persistence settings when enabled.
-        p := cfg.Redis.Standalone.Persistence
-        if p.Enabled {
-            if strings.TrimSpace(p.DataDir) == "" {
-                return fmt.Errorf("redis.standalone.persistence.data_dir is required when persistence.enabled is true")
-            }
-            if p.SnapshotInterval <= 0 {
-                return fmt.Errorf(
-                    "redis.standalone.persistence.snapshot_interval must be a positive duration when persistence.enabled is true",
-                )
-            }
-        }
-    }
+	// Validate requirements based on effective mode
+	if cfg.EffectiveRedisMode() == mcpProxyModeStandalone {
+		// When using embedded redis, validate optional persistence settings when enabled.
+		p := cfg.Redis.Standalone.Persistence
+		if p.Enabled {
+			if strings.TrimSpace(p.DataDir) == "" {
+				return fmt.Errorf("redis.standalone.persistence.data_dir is required when persistence.enabled is true")
+			}
+			if p.SnapshotInterval <= 0 {
+				return fmt.Errorf(
+					"redis.standalone.persistence.snapshot_interval must be a positive duration " +
+						"when persistence.enabled is true",
+				)
+			}
+		}
+	}
 	return nil
 }
 

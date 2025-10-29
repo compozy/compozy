@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>examples/standalone</domain>
@@ -45,13 +45,13 @@ Create comprehensive example projects and runbooks that demonstrate standalone m
 
 ## Subtasks
 
-- [ ] 13.1 Create basic standalone example
-- [ ] 13.2 Create standalone with persistence example
-- [ ] 13.3 Create mixed mode example
-- [ ] 13.4 Create edge deployment example
-- [ ] 13.5 Create migration demo example
-- [ ] 13.6 Create integration tests for all examples
-- [ ] 13.7 Add examples index to documentation
+- [x] 13.1 Create basic standalone example
+- [x] 13.2 Create standalone with persistence example
+- [x] 13.3 Create mixed mode example
+- [x] 13.4 Create edge deployment example
+- [x] 13.5 Create migration demo example
+- [x] 13.6 Create integration tests for all examples
+- [x] 13.7 Add examples index to documentation
 
 ## Implementation Details
 
