@@ -49,7 +49,8 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, ":memory:", cfg.Database.Path)
 
 		// Temporal defaults
-		assert.Equal(t, "remote", cfg.Temporal.Mode)
+		assert.Empty(t, cfg.Temporal.Mode)
+		assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
 		assert.Equal(t, "localhost:7233", cfg.Temporal.HostPort)
 		assert.Equal(t, "default", cfg.Temporal.Namespace)
 		assert.Equal(t, "compozy-tasks", cfg.Temporal.TaskQueue)
@@ -132,6 +133,7 @@ func TestConfig_StandaloneModeDefaultsToSQLiteDriver(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = m.Close(ctx) })
 		assert.Equal(t, databaseDriverSQLite, cfg.Database.Driver)
+		assert.Equal(t, ModeStandalone, cfg.Temporal.Mode)
 	})
 }
 
@@ -298,7 +300,7 @@ func TestConfig_Validation(t *testing.T) {
 			{name: "remote", mode: "remote", wantErr: false},
 			{name: "standalone", mode: "standalone", wantErr: false},
 			{name: "invalid", mode: "invalid", wantErr: true},
-			{name: "empty", mode: "", wantErr: true},
+			{name: "empty", mode: "", wantErr: false},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -311,6 +313,13 @@ func TestConfig_Validation(t *testing.T) {
 					return
 				}
 				require.NoError(t, err)
+				assert.NotEmpty(t, cfg.Temporal.Mode)
+				if tc.mode == "" {
+					assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
+					assert.Equal(t, ModeRemoteTemporal, cfg.Temporal.Mode)
+				} else {
+					assert.Equal(t, tc.mode, cfg.Temporal.Mode)
+				}
 			})
 		}
 	})

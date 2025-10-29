@@ -3,11 +3,6 @@ version: 0.1.0
 description: Minimal standalone Temporal configuration with in-memory persistence and Web UI enabled.
 mode: standalone
 
-temporal:
-  mode: standalone
-  standalone:
-    database_file: ":memory:"
-
 models:
   - provider: openai
     model: gpt-4o-mini

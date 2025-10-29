@@ -14,7 +14,8 @@ import (
 
 func TestDefaultModeIsRemote(t *testing.T) {
 	cfg := config.Default()
-	require.Equal(t, "remote", cfg.Temporal.Mode)
+	require.Equal(t, "", cfg.Temporal.Mode)
+	require.Equal(t, config.ModeRemoteTemporal, cfg.EffectiveTemporalMode())
 	require.NotEmpty(t, cfg.Temporal.HostPort)
 }
 

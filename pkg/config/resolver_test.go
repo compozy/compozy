@@ -49,6 +49,12 @@ func TestEffectiveTemporalMode_Normalization(t *testing.T) {
 		result := cfg.EffectiveTemporalMode()
 		assert.Equal(t, "standalone", result)
 	})
+
+	t.Run("Should fallback to global mode when component unset", func(t *testing.T) {
+		cfg := &Config{Mode: ModeStandalone}
+		result := cfg.EffectiveTemporalMode()
+		assert.Equal(t, ModeStandalone, result)
+	})
 }
 
 func TestEffectiveMCPProxyMode_Resolution(t *testing.T) {

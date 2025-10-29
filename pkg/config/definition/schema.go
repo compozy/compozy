@@ -952,7 +952,7 @@ func registerTemporalFields(registry *Registry) {
 func registerTemporalCoreFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "temporal.mode",
-		Default: "remote",
+		Default: "",
 		CLIFlag: "temporal-mode",
 		EnvVar:  "TEMPORAL_MODE",
 		Type:    reflect.TypeOf(""),

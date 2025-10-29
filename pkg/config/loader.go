@@ -392,7 +392,14 @@ func validateDatabase(cfg *Config) error {
 func validateTemporal(cfg *Config) error {
 	mode := strings.TrimSpace(cfg.Temporal.Mode)
 	if mode == "" {
-		return fmt.Errorf("temporal.mode is required")
+		resolved := cfg.EffectiveTemporalMode()
+		if strings.TrimSpace(resolved) == "" {
+			return fmt.Errorf("temporal.mode is required")
+		}
+		cfg.Temporal.Mode = resolved
+		mode = resolved
+	} else {
+		cfg.Temporal.Mode = mode
 	}
 	switch mode {
 	case "remote":

@@ -545,7 +545,7 @@ type TemporalConfig struct {
 	// Values:
 	//   - "remote": Connect to an external Temporal cluster (default)
 	//   - "standalone": Launch embedded Temporal server for local development and tests
-	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"required,oneof=remote standalone"`
+	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=remote standalone"`
 
 	// HostPort specifies the Temporal server endpoint.
 	//
@@ -2009,8 +2009,7 @@ type Metadata struct {
 
 // Default returns a Config with default values for development.
 func Default() *Config {
-	cfg := defaultFromRegistry()
-	return cfg
+	return defaultFromRegistry()
 }
 
 // defaultFromRegistry creates a Config using the centralized registry
