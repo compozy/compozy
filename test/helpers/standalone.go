@@ -3,9 +3,11 @@ package helpers
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/infra/cache"
@@ -178,6 +180,133 @@ func (e *StreamingTestEnv) SubscribePattern(ctx context.Context, pattern string,
 		}
 	}(ps.Channel())
 	return nil
+}
+
+// PersistenceTestEnv encapsulates an embedded miniredis instance, a go-redis
+// client bound to it, and a SnapshotManager configured for persistence.
+type PersistenceTestEnv struct {
+	Server          *cache.MiniredisStandalone // optional when using MiniredisStandalone
+	Mini            *miniredis.Miniredis
+	Client          *redis.Client
+	SnapshotManager *cache.SnapshotManager
+	Cleanup         func(context.Context)
+}
+
+// SetupStandaloneWithPersistence creates a miniredis instance, attaches a
+// SnapshotManager backed by BadgerDB at dataDir, and returns a go-redis client
+// connected to the server. Context must come from t.Context().
+func SetupStandaloneWithPersistence(
+	ctx context.Context,
+	t *testing.T,
+	persistCfg config.RedisPersistenceConfig,
+) *PersistenceTestEnv {
+	t.Helper()
+	if logger.FromContext(ctx) == nil {
+		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
+	}
+	mgr := config.NewManager(ctx, config.NewService())
+	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+	require.NoError(t, err)
+	active := mgr.Get()
+	require.NotNil(t, active)
+	active.Mode = testModeStandalone
+	active.Redis.Mode = testModeStandalone
+	active.Redis.Standalone.Persistence = persistCfg
+	ctx = config.ContextWithManager(ctx, mgr)
+	t.Cleanup(func() { _ = mgr.Close(ctx) })
+
+	mr := miniredis.NewMiniRedis()
+	require.NoError(t, mr.Start())
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	require.NoError(t, client.Ping(ctx).Err())
+
+	sm, err := cache.NewSnapshotManager(ctx, mr, persistCfg)
+	require.NoError(t, err)
+
+	env := &PersistenceTestEnv{
+		Mini:            mr,
+		Client:          client,
+		SnapshotManager: sm,
+	}
+	env.Cleanup = func(_ context.Context) {
+		if env.SnapshotManager != nil {
+			env.SnapshotManager.Stop()
+		}
+		if env.Client != nil {
+			_ = env.Client.Close()
+		}
+		if env.Mini != nil {
+			env.Mini.Close()
+		}
+	}
+	t.Cleanup(func() { env.Cleanup(ctx) })
+	return env
+}
+
+// SetupStandaloneWithPeriodicSnapshots is a convenience around
+// SetupStandaloneWithPersistence that configures a custom snapshot interval and
+// starts periodic snapshots.
+func SetupStandaloneWithPeriodicSnapshots(
+	ctx context.Context,
+	t *testing.T,
+	dataDir string,
+	interval time.Duration,
+) *PersistenceTestEnv {
+	t.Helper()
+	cfg := config.RedisPersistenceConfig{
+		Enabled:            true,
+		DataDir:            dataDir,
+		SnapshotInterval:   interval,
+		SnapshotOnShutdown: true,
+		RestoreOnStartup:   false,
+	}
+	env := SetupStandaloneWithPersistence(ctx, t, cfg)
+	env.SnapshotManager.StartPeriodicSnapshots(ctx)
+	return env
+}
+
+// SetupMiniredisStandaloneWithConfig creates a MiniredisStandalone instance that
+// uses the configured persistence settings (RestoreOnStartup/SnapshotOnShutdown).
+func SetupMiniredisStandaloneWithConfig(
+	ctx context.Context,
+	t *testing.T,
+	persistCfg config.RedisPersistenceConfig,
+) *PersistenceTestEnv {
+	t.Helper()
+	if logger.FromContext(ctx) == nil {
+		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
+	}
+	mgr := config.NewManager(ctx, config.NewService())
+	_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+	require.NoError(t, err)
+	active := mgr.Get()
+	require.NotNil(t, active)
+	active.Mode = testModeStandalone
+	active.Redis.Mode = testModeStandalone
+	active.Redis.Standalone.Persistence = persistCfg
+	ctx = config.ContextWithManager(ctx, mgr)
+	t.Cleanup(func() { _ = mgr.Close(ctx) })
+
+	// Retry a few times to avoid transient Badger directory lock contention on CI/macOS.
+	var (
+		mr      *cache.MiniredisStandalone
+		openErr error
+	)
+	for i := 0; i < 5; i++ {
+		mr, openErr = cache.NewMiniredisStandalone(ctx)
+		if openErr == nil || !strings.Contains(openErr.Error(), "Cannot acquire directory lock") {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	require.NoError(t, openErr)
+	env := &PersistenceTestEnv{
+		Server: mr,
+		Client: mr.Client(),
+	}
+	env.Cleanup = func(c context.Context) { _ = mr.Close(c) }
+	t.Cleanup(func() { env.Cleanup(ctx) })
+	return env
 }
 
 // SubscribeRaw exposes the native PubSub for lifecycle tests.
