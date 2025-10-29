@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>pkg/config|cli/cmd</domain>
@@ -43,12 +43,12 @@ Add validation rules for mode configuration and update CLI commands to support t
 
 ## Subtasks
 
-- [ ] 11.1 Add mode validation rules to config loader
-- [ ] 11.2 Add `--mode` flag to `compozy start` command
-- [ ] 11.3 Update `compozy config show` to display mode configuration
-- [ ] 11.4 Update `compozy config diagnostics` to show mode resolution
-- [ ] 11.5 Add CLI tests with golden files
-- [ ] 11.6 Add validation error message tests
+- [x] 11.1 Add mode validation rules to config loader
+- [x] 11.2 Add `--mode` flag to `compozy start` command
+- [x] 11.3 Update `compozy config show` to display mode configuration
+- [x] 11.4 Update `compozy config diagnostics` to show mode resolution
+- [x] 11.5 Add CLI tests with golden files
+- [x] 11.6 Add validation error message tests
 
 ## Implementation Details
 
@@ -102,59 +102,59 @@ Unit tests mapped from `_tests.md` for this feature:
 
 ### Configuration Validation Tests (`pkg/config/loader_test.go`)
 
-- [ ] Should validate global mode field (standalone | distributed | empty)
-- [ ] Should validate component mode fields
-- [ ] Should reject invalid mode values with clear error message
-- [ ] Should allow empty mode values (inheritance)
-- [ ] Should validate Redis persistence configuration when enabled
-- [ ] Should validate mode-specific requirements (Redis addr when distributed)
-- [ ] Should validate snapshot interval is positive duration
-- [ ] Should validate data directory path is valid
-- [ ] Should accept valid standalone configurations
-- [ ] Should accept valid distributed configurations
-- [ ] Should accept valid mixed mode configurations
+- [x] Should validate global mode field (standalone | distributed | empty)
+- [x] Should validate component mode fields
+- [x] Should reject invalid mode values with clear error message
+- [x] Should allow empty mode values (inheritance)
+- [x] Should validate Redis persistence configuration when enabled
+- [x] Should validate mode-specific requirements (Redis addr when distributed)
+- [x] Should validate snapshot interval is positive duration
+- [x] Should validate data directory path is valid
+- [x] Should accept valid standalone configurations
+- [x] Should accept valid distributed configurations
+- [x] Should accept valid mixed mode configurations
 
 ### CLI Flag Tests (`cli/cmd/start/start_test.go`)
 
-- [ ] Should accept `--mode standalone` flag
-- [ ] Should accept `--mode distributed` flag
-- [ ] Should reject invalid `--mode` values
-- [ ] Should prioritize config file over CLI flags
-- [ ] Should merge CLI flags with config file correctly
-- [ ] Should display mode in startup logs
+- [x] Should accept `--mode standalone` flag
+- [x] Should accept `--mode distributed` flag
+- [x] Should reject invalid `--mode` values
+- [x] Should prioritize config file over CLI flags
+- [x] Should merge CLI flags with config file correctly
+- [x] Should display mode in startup logs
 
 ### Config Show Tests (`cli/cmd/config/config_test.go`)
 
-- [ ] Should show global mode in output
-- [ ] Should show component modes in output
-- [ ] Should show Redis standalone persistence config
-- [ ] Should format mode configuration clearly
-- [ ] Should match golden file for standalone config
-- [ ] Should match golden file for mixed mode config
+- [x] Should show global mode in output
+- [x] Should show component modes in output
+- [x] Should show Redis standalone persistence config
+- [x] Should format mode configuration clearly
+- [x] Should match golden file for standalone config
+- [x] Should match golden file for mixed mode config
 
 ### Config Diagnostics Tests (`cli/cmd/config/config_test.go`)
 
-- [ ] Should display effective mode resolution for Redis
-- [ ] Should display effective mode resolution for Temporal
-- [ ] Should display effective mode resolution for MCPProxy
-- [ ] Should show mode inheritance clearly
-- [ ] Should highlight mode overrides
-- [ ] Should show default fallback mode
+- [x] Should display effective mode resolution for Redis
+- [x] Should display effective mode resolution for Temporal
+- [x] Should display effective mode resolution for MCPProxy
+- [x] Should show mode inheritance clearly
+- [x] Should highlight mode overrides
+- [x] Should show default fallback mode
 
 ### Error Message Tests
 
-- [ ] Should provide helpful error for invalid global mode
-- [ ] Should provide helpful error for invalid component mode
-- [ ] Should provide helpful error for missing Redis address in distributed mode
-- [ ] Should provide helpful error for invalid persistence config
-- [ ] Should provide helpful error for invalid snapshot interval
+- [x] Should provide helpful error for invalid global mode
+- [x] Should provide helpful error for invalid component mode
+- [x] Should provide helpful error for missing Redis address in distributed mode
+- [x] Should provide helpful error for invalid persistence config
+- [x] Should provide helpful error for invalid snapshot interval
 
 ### Golden File Tests
 
-- [ ] `testdata/config-show-standalone.golden` - Standalone config output
-- [ ] `testdata/config-show-mixed.golden` - Mixed mode config output
-- [ ] `testdata/config-diagnostics-standalone.golden` - Diagnostics output
-- [ ] Golden files should be regenerated with `--update-golden` flag
+- [x] `testdata/config-show-standalone.golden` - Standalone config output
+- [x] `testdata/config-show-mixed.golden` - Mixed mode config output
+- [x] `testdata/config-diagnostics-standalone.golden` - Diagnostics output
+- [x] Golden files should be regenerated with `--update-golden` flag
 
 ## Success Criteria
 

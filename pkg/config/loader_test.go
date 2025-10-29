@@ -162,9 +162,36 @@ func TestModeValidation(t *testing.T) {
 		cfg := Default()
 		cfg.Redis.Mode = "standalone"
 		cfg.Redis.Standalone.Persistence.Enabled = true
-		cfg.Redis.Standalone.Persistence.SnapshotInterval = 0
+		cfg.Redis.Standalone.Persistence.DataDir = "/tmp/compozy-test"
+		cfg.Redis.Standalone.Persistence.SnapshotInterval = time.Minute
 		if err := svc.Validate(cfg); err != nil {
 			t.Fatalf("expected persistence settings to validate, got: %v", err)
+		}
+	})
+
+	// Validation error messages
+	t.Run("Should provide helpful error for invalid snapshot interval", func(t *testing.T) {
+		svc := NewService()
+		cfg := Default()
+		cfg.Redis.Mode = "standalone"
+		cfg.Redis.Standalone.Persistence.Enabled = true
+		cfg.Redis.Standalone.Persistence.DataDir = "/tmp/dir"
+		cfg.Redis.Standalone.Persistence.SnapshotInterval = 0
+		if err := svc.Validate(cfg); err == nil {
+			t.Fatalf("expected error for zero snapshot interval")
+		}
+	})
+
+	t.Run("Should allow missing Redis address in distributed mode (server skips client)", func(t *testing.T) {
+		svc := NewService()
+		cfg := Default()
+		cfg.Mode = "distributed"
+		cfg.Redis.Mode = "distributed"
+		cfg.Redis.URL = ""
+		cfg.Redis.Host = ""
+		cfg.Redis.Port = ""
+		if err := svc.Validate(cfg); err != nil {
+			t.Fatalf("unexpected validation error: %v", err)
 		}
 	})
 }

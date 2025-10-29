@@ -31,6 +31,9 @@ func NewStartCommand() *cobra.Command {
 		Long:    "Start the Compozy server optimized for production use",
 		RunE:    executeStartCommand,
 	}
+	// Deployment mode flag controls global runtime mode for this command invocation.
+	// Valid values: standalone, distributed.
+	cmd.Flags().String("mode", "", "Deployment mode: standalone or distributed")
 	return cmd
 }
 
@@ -45,13 +48,22 @@ func executeStartCommand(cobraCmd *cobra.Command, args []string) error {
 }
 
 // handleStartTUI handles start command in TUI mode
-func handleStartTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, _ []string) error {
+func handleStartTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.CommandExecutor, _ []string) error {
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
+	cfg.Mode = resolveStartMode(cobraCmd, config.ManagerFromContext(ctx).Service, cfg.Mode)
+	if m := strings.TrimSpace(cfg.Mode); m != "" && m != "standalone" && m != "distributed" {
+		return fmt.Errorf("invalid --mode value %q: must be one of [standalone distributed]", m)
+	}
 	cfg.Runtime.Environment = productionEnvironment
 	gin.SetMode(gin.ReleaseMode)
+	modeStr := cfg.Mode
+	if modeStr == "" {
+		modeStr = "distributed"
+	}
+	logger.FromContext(ctx).Info("Starting Compozy server", "mode", modeStr)
 	logProductionSecurityWarnings(ctx, cfg)
 	if !helpers.IsPortAvailable(ctx, cfg.Server.Host, cfg.Server.Port) {
 		return fmt.Errorf("port %d is not available on host %s", cfg.Server.Port, cfg.Server.Host)
@@ -73,6 +85,32 @@ func handleStartTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecuto
 // handleStartJSON handles start command in JSON mode
 func handleStartJSON(ctx context.Context, _ *cobra.Command, executor *cmd.CommandExecutor, _ []string) error {
 	return handleStartTUI(ctx, nil, executor, nil)
+}
+
+// sourceGetter defines the subset of the configuration service needed for mode precedence checks.
+type sourceGetter interface {
+	GetSource(key string) config.SourceType
+}
+
+// resolveStartMode applies the --mode flag if provided while respecting precedence.
+// Config file values take precedence over CLI flag for the global deployment mode.
+func resolveStartMode(cobraCmd *cobra.Command, svc sourceGetter, current string) string {
+	if cobraCmd == nil || svc == nil {
+		return current
+	}
+	flagVal, err := cobraCmd.Flags().GetString("mode")
+	if err != nil {
+		return current
+	}
+	mode := strings.TrimSpace(flagVal)
+	if mode == "" {
+		return current
+	}
+	src := svc.GetSource("mode")
+	if src == config.SourceDefault || src == config.SourceEnv || src == config.SourceCLI {
+		return mode
+	}
+	return current
 }
 
 // logProductionSecurityWarnings warns about disabled security features in production

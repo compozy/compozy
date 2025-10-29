@@ -342,6 +342,9 @@ func (l *loader) validateCustom(config *Config) error {
 	if err := validateTemporal(config); err != nil {
 		return err
 	}
+	if err := validateRedis(config); err != nil {
+		return err
+	}
 	if err := validateDispatcherTiming(config); err != nil {
 		return err
 	}
@@ -482,6 +485,39 @@ func validateStandaloneStartTimeout(standalone *StandaloneConfig) error {
 	if standalone.StartTimeout <= 0 {
 		return fmt.Errorf("temporal.standalone.start_timeout must be positive")
 	}
+	return nil
+}
+
+// validateRedis performs validation for Redis configuration including
+// deployment mode requirements and standalone persistence settings.
+func validateRedis(cfg *Config) error {
+	// Validate component mode values via struct tags; add friendly errors for clarity.
+	switch strings.TrimSpace(cfg.Redis.Mode) {
+	case "", "standalone", "distributed":
+		// ok
+	default:
+		return fmt.Errorf(
+			"redis.mode must be one of [standalone distributed] or empty for inheritance, got %q",
+			cfg.Redis.Mode,
+		)
+	}
+
+    // Validate requirements based on effective mode
+    switch cfg.EffectiveRedisMode() {
+    case "standalone":
+        // When using embedded redis, validate optional persistence settings when enabled.
+        p := cfg.Redis.Standalone.Persistence
+        if p.Enabled {
+            if strings.TrimSpace(p.DataDir) == "" {
+                return fmt.Errorf("redis.standalone.persistence.data_dir is required when persistence.enabled is true")
+            }
+            if p.SnapshotInterval <= 0 {
+                return fmt.Errorf(
+                    "redis.standalone.persistence.snapshot_interval must be a positive duration when persistence.enabled is true",
+                )
+            }
+        }
+    }
 	return nil
 }
 
