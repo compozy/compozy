@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/compozy/compozy/engine/infra/pubsub"
@@ -23,7 +24,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9"
 )
 
 func (s *Server) setupProjectConfig(
@@ -169,13 +170,13 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	cleanupFuncs := make([]func(), 0)
 	cfg := config.FromContext(s.ctx)
 	setupStart := time.Now()
-	redisClient, redisCleanup, err := s.SetupRedisClient(cfg)
+	cacheInstance, cacheCleanup, err := cache.SetupCache(s.ctx)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	s.redisClient = redisClient
-	cleanupFuncs = appendCleanup(cleanupFuncs, redisCleanup)
-	resourceStore := chooseResourceStore(s.redisClient, cfg)
+	s.cacheInstance = cacheInstance
+	cleanupFuncs = appendCleanup(cleanupFuncs, cacheCleanup)
+	resourceStore := chooseResourceStore(s.cacheInstance, cfg)
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig(resourceStore)
 	if err != nil {
 		return nil, cleanupFuncs, err
@@ -217,15 +218,16 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 }
 
 func (s *Server) attachStreamingProviders(state *appstate.State) error {
-	if s.redisClient == nil {
+	redisClient := s.RedisClient()
+	if redisClient == nil {
 		return nil
 	}
-	provider, err := pubsub.NewRedisProvider(s.redisClient)
+	provider, err := pubsub.NewRedisProvider(redisClient)
 	if err != nil {
 		return fmt.Errorf("failed to initialize pubsub provider: %w", err)
 	}
 	state.SetPubSubProvider(provider)
-	publisher, err := streaming.NewRedisPublisher(s.redisClient, nil)
+	publisher, err := streaming.NewRedisPublisher(redisClient, nil)
 	if err != nil {
 		logger.FromContext(s.ctx).Warn("Failed to initialize stream publisher", "error", err)
 		return nil
@@ -316,12 +318,15 @@ func (s *Server) seedAndIngestKnowledge(
 	return ingestKnowledgeBasesOnStart(s.ctx, state, projectConfig, workflows)
 }
 
-func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resources.ResourceStore {
+func chooseResourceStore(cacheInstance *cache.Cache, cfg *config.Config) resources.ResourceStore {
 	if cfg != nil && cfg.Server.SourceOfTruth == sourceRepo {
 		return resources.NewMemoryResourceStore()
 	}
-	if redisClient != nil {
-		return resources.NewRedisResourceStore(redisClient)
+	if cacheInstance != nil && cacheInstance.Redis != nil {
+		client := cacheInstance.Redis.Client()
+		if redisClient, ok := client.(*redis.Client); ok {
+			return resources.NewRedisResourceStore(redisClient)
+		}
 	}
 	return resources.NewMemoryResourceStore()
 }
@@ -424,8 +429,9 @@ func (s *Server) startReconcilerIfNeeded(state *appstate.State, cleanups *[]func
 }
 
 func (s *Server) finalizeStartupLabels() {
+	redisClient := s.RedisClient()
 	switch {
-	case s.redisClient != nil:
+	case redisClient != nil:
 		s.cacheDriverLabel = "redis"
 	default:
 		s.cacheDriverLabel = driverNone

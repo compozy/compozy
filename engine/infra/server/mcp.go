@@ -305,7 +305,11 @@ func storageConfigForMCP(cfg *config.Config) *mcpproxy.StorageConfig {
 	if cfg == nil {
 		return mcpproxy.DefaultStorageConfig()
 	}
-	if !isRedisConfigured(cfg) {
+	mode := cfg.EffectiveRedisMode()
+	if mode == "standalone" {
+		return &mcpproxy.StorageConfig{Type: mcpproxy.StorageTypeMemory}
+	}
+	if mode != "distributed" {
 		return &mcpproxy.StorageConfig{Type: mcpproxy.StorageTypeMemory}
 	}
 	app := cfg.Redis

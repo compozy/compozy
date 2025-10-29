@@ -8,23 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSetupRedisClient_SkipsWhenRedisMissing ensures server continues when Redis is not configured.
-func TestSetupRedisClient_SkipsWhenRedisMissing(t *testing.T) {
-	t.Run("Should skip Redis client when configuration missing", func(t *testing.T) {
-		t.Setenv("REDIS_URL", "")
-		t.Setenv("REDIS_HOST", "")
-		t.Setenv("REDIS_PORT", "")
-		t.Setenv("REDIS_PASSWORD", "")
+// TestRedisClient_NilWhenNotInitialized ensures RedisClient() returns nil when cache is not initialized.
+func TestRedisClient_NilWhenNotInitialized(t *testing.T) {
+	t.Run("Should return nil when cache instance not initialized", func(t *testing.T) {
 		mgr := config.NewManager(t.Context(), config.NewService())
 		ctx := config.ContextWithManager(t.Context(), mgr)
 		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
 		require.NoError(t, err)
 		srv, err := server.NewServer(ctx, ".", "", "")
 		require.NoError(t, err)
-		cfg := config.FromContext(ctx)
-		client, cleanup, err := srv.SetupRedisClient(cfg)
-		require.NoError(t, err)
-		require.Nil(t, client)
-		require.Nil(t, cleanup)
+		client := srv.RedisClient()
+		require.Nil(t, client, "RedisClient should return nil when cache not initialized")
 	})
 }
