@@ -202,6 +202,8 @@ func handleConfigValidateTUI(
 }
 
 // formatConfigOutput formats and outputs configuration based on requested format
+//
+//nolint:unparam // sources/showSources kept for future source-tracking enhancements
 func formatConfigOutput(
 	cfg *config.Config,
 	sources map[string]config.SourceType,
@@ -277,6 +279,12 @@ func outputDiagnosticsResults(
 				return nil
 			}(),
 		},
+		"effective_modes": map[string]string{
+			"global":    cfg.Mode,
+			"redis":     cfg.EffectiveRedisMode(),
+			"temporal":  cfg.EffectiveTemporalMode(),
+			"mcp_proxy": cfg.EffectiveMCPProxyMode(),
+		},
 	}
 	if verbose {
 		sources := make(map[string]string)
@@ -307,6 +315,15 @@ func outputDiagnosticsTUI(ctx context.Context, cwd string, validationErr error, 
 		fmt.Printf("❌ Validation errors:\n%v\n", validationErr)
 	} else {
 		fmt.Println("✅ Configuration is valid")
+	}
+	// Show effective mode resolution for key components
+	cfg := config.FromContext(ctx)
+	if cfg != nil {
+		fmt.Println("\n--- Effective Mode Resolution ---")
+		fmt.Printf("global: %s\n", cfg.Mode)
+		fmt.Printf("redis: %s\n", cfg.EffectiveRedisMode())
+		fmt.Printf("temporal: %s\n", cfg.EffectiveTemporalMode())
+		fmt.Printf("mcp_proxy: %s\n", cfg.EffectiveMCPProxyMode())
 	}
 	if verbose {
 		fmt.Println("\n--- Configuration Sources ---")
@@ -383,6 +400,8 @@ func outputTable(cfg *config.Config, sources map[string]config.SourceType, showS
 // flattenConfig converts nested config to flat key-value map
 func flattenConfig(cfg *config.Config) map[string]string {
 	result := make(map[string]string)
+	// Global mode
+	result["mode"] = cfg.Mode
 	flattenServerConfig(cfg, result)
 	flattenDatabaseConfig(cfg, result)
 	flattenTemporalConfig(cfg, result)
@@ -430,6 +449,7 @@ func flattenDatabaseConfig(cfg *config.Config, result map[string]string) {
 
 // flattenTemporalConfig flattens temporal configuration
 func flattenTemporalConfig(cfg *config.Config, result map[string]string) {
+	result["temporal.mode"] = cfg.Temporal.Mode
 	result["temporal.host_port"] = cfg.Temporal.HostPort
 	result["temporal.namespace"] = cfg.Temporal.Namespace
 	result["temporal.task_queue"] = cfg.Temporal.TaskQueue
@@ -701,6 +721,7 @@ func flattenCLIConfig(cfg *config.Config, result map[string]string) {
 
 // flattenRedisConfig flattens Redis configuration
 func flattenRedisConfig(cfg *config.Config, result map[string]string) {
+	result["redis.mode"] = cfg.Redis.Mode
 	if cfg.Redis.URL != "" {
 		result["redis.url"] = redactURL(cfg.Redis.URL)
 	}

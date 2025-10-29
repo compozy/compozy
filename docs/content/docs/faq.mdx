@@ -1,0 +1,21 @@
+---
+title: "FAQ"
+description: "Frequently asked questions about deployment modes and configuration."
+icon: HelpCircle
+---
+
+### Is standalone mode production-ready?
+No. It is intended for development, CI, and demos. Use [Distributed Mode](/docs/deployment/distributed-mode) for production.
+
+### Do I need Docker for standalone?
+No. Standalone embeds Temporal and the cache layer—no external services required.
+
+### Can I persist data in standalone?
+Yes. Use `temporal.standalone.database_file` for Temporal and enable `redis.standalone.persistence` for cache snapshots.
+
+### How do I switch modes?
+Set the global `mode` and/or component modes. See [Mode Configuration](/docs/configuration/mode-configuration).
+
+### What ports are used by standalone Temporal?
+`frontend_port` plus the next 3 ports (history, matching, worker). UI defaults to `8233`.
+

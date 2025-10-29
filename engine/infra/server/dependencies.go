@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/repo"
@@ -23,7 +24,7 @@ import (
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -202,8 +203,8 @@ func sqliteMode(path string) string {
 	return "file-based"
 }
 
-func (s *Server) setupMCPProxyIfEnabled(cfg *config.Config) (func(), error) {
-	if !shouldEmbedMCPProxy(cfg) {
+func (s *Server) setupMCPProxyIfEnabled() (func(), error) {
+	if !shouldEmbedMCPProxy(s.ctx) {
 		return nil, nil
 	}
 	return s.setupMCPProxy(s.ctx)
@@ -213,18 +214,18 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	cleanupFuncs := make([]func(), 0)
 	cfg := config.FromContext(s.ctx)
 	setupStart := time.Now()
-	redisClient, redisCleanup, err := s.SetupRedisClient(cfg)
+	cacheInstance, cacheCleanup, err := cache.SetupCache(s.ctx)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	s.redisClient = redisClient
-	cleanupFuncs = appendCleanup(cleanupFuncs, redisCleanup)
-	resourceStore := chooseResourceStore(s.redisClient, cfg)
+	s.cacheInstance = cacheInstance
+	cleanupFuncs = appendCleanup(cleanupFuncs, cacheCleanup)
+	resourceStore := chooseResourceStore(s.cacheInstance, cfg)
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig(resourceStore)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	storeInstance, cleanupFuncs, err := s.initRuntimeServices(cfg, projectConfig, cleanupFuncs)
+	storeInstance, cleanupFuncs, err := s.initRuntimeServices(projectConfig, cleanupFuncs)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -234,7 +235,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	cleanupFuncs = appendCleanup(cleanupFuncs, temporalCleanup)
 	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, newTemporalConfig(cfg))
-	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, cfg, configRegistry)
+	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, configRegistry)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -261,15 +262,16 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 }
 
 func (s *Server) attachStreamingProviders(state *appstate.State) error {
-	if s.redisClient == nil {
+	redisClient := s.RedisClient()
+	if redisClient == nil {
 		return nil
 	}
-	provider, err := pubsub.NewRedisProvider(s.redisClient)
+	provider, err := pubsub.NewRedisProvider(redisClient)
 	if err != nil {
 		return fmt.Errorf("failed to initialize pubsub provider: %w", err)
 	}
 	state.SetPubSubProvider(provider)
-	publisher, err := streaming.NewRedisPublisher(s.redisClient, nil)
+	publisher, err := streaming.NewRedisPublisher(redisClient, nil)
 	if err != nil {
 		logger.FromContext(s.ctx).Warn("Failed to initialize stream publisher", "error", err)
 		return nil
@@ -280,7 +282,6 @@ func (s *Server) attachStreamingProviders(state *appstate.State) error {
 
 // initRuntimeServices wires monitoring, database, and MCP proxy services.
 func (s *Server) initRuntimeServices(
-	cfg *config.Config,
 	projectConfig *project.Config,
 	cleanups []func(),
 ) (*repo.Provider, []func(), error) {
@@ -290,7 +291,7 @@ func (s *Server) initRuntimeServices(
 		return nil, cleanups, err
 	}
 	cleanups = appendCleanup(cleanups, storeCleanup)
-	mcpCleanup, err := s.setupMCPProxyIfEnabled(cfg)
+	mcpCleanup, err := s.setupMCPProxyIfEnabled()
 	if err != nil {
 		return nil, cleanups, err
 	}
@@ -361,12 +362,15 @@ func (s *Server) seedAndIngestKnowledge(
 	return ingestKnowledgeBasesOnStart(s.ctx, state, projectConfig, workflows)
 }
 
-func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resources.ResourceStore {
+func chooseResourceStore(cacheInstance *cache.Cache, cfg *config.Config) resources.ResourceStore {
 	if cfg != nil && cfg.Server.SourceOfTruth == sourceRepo {
 		return resources.NewMemoryResourceStore()
 	}
-	if redisClient != nil {
-		return resources.NewRedisResourceStore(redisClient)
+	if cacheInstance != nil && cacheInstance.Redis != nil {
+		client := cacheInstance.Redis.Client()
+		if redisClient, ok := client.(*redis.Client); ok {
+			return resources.NewRedisResourceStore(redisClient)
+		}
 	}
 	return resources.NewMemoryResourceStore()
 }
@@ -376,7 +380,7 @@ func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration is required to start Temporal")
 	}
-	if cfg.Temporal.Mode != modeStandalone {
+	if cfg.EffectiveTemporalMode() != modeStandalone {
 		return nil, nil
 	}
 	embeddedCfg := standaloneEmbeddedConfig(cfg)
@@ -469,8 +473,9 @@ func (s *Server) startReconcilerIfNeeded(state *appstate.State, cleanups *[]func
 }
 
 func (s *Server) finalizeStartupLabels() {
+	redisClient := s.RedisClient()
 	switch {
-	case s.redisClient != nil:
+	case redisClient != nil:
 		s.cacheDriverLabel = "redis"
 	default:
 		s.cacheDriverLabel = driverNone
@@ -489,14 +494,42 @@ func (s *Server) emitStartupSummary(total time.Duration) {
 }
 
 func (s *Server) cleanup(cleanupFuncs []func()) {
+	log := logger.FromContext(s.ctx)
+	cfg := config.FromContext(s.ctx)
+	cleanupTimeout := cfg.Server.Timeouts.WorkerShutdown
 	for i := len(cleanupFuncs) - 1; i >= 0; i-- {
-		cleanupFuncs[i]()
+		idx := len(cleanupFuncs) - 1 - i
+		log.Debug("Running cleanup function", "index", idx, "total", len(cleanupFuncs), "timeout", cleanupTimeout)
+		s.runCleanupWithTimeout(cleanupFuncs[i], cleanupTimeout, idx)
 	}
 	s.cleanupMu.Lock()
 	extra := s.extraCleanups
 	s.extraCleanups = nil
 	s.cleanupMu.Unlock()
 	for i := len(extra) - 1; i >= 0; i-- {
-		extra[i]()
+		idx := len(extra) - 1 - i
+		log.Debug("Running extra cleanup function", "index", idx, "total", len(extra), "timeout", cleanupTimeout)
+		s.runCleanupWithTimeout(extra[i], cleanupTimeout, idx)
+	}
+}
+
+func (s *Server) runCleanupWithTimeout(fn func(), timeout time.Duration, index int) {
+	log := logger.FromContext(s.ctx)
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Cleanup function panicked", "index", index, "panic", r)
+			}
+			close(done)
+		}()
+		fn()
+	}()
+	select {
+	case <-done:
+		log.Debug("Cleanup function completed", "index", index, "duration", time.Since(start))
+	case <-time.After(timeout):
+		log.Warn("Cleanup function exceeded timeout", "index", index, "timeout", timeout, "elapsed", time.Since(start))
 	}
 }

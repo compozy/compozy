@@ -112,6 +112,38 @@ Validate the remote Temporal cluster before switching traffic. Run `compozy diag
   </TableBody>
 </Table>
 
+## Choosing a Mode
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Criterion</TableHead>
+      <TableHead>Choose Distributed</TableHead>
+      <TableHead>Choose Standalone</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Durability / HA</TableCell>
+      <TableCell>Yes</TableCell>
+      <TableCell>No</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Team size & shared env</TableCell>
+      <TableCell>Team / shared</TableCell>
+      <TableCell>Solo dev / CI</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Operational complexity</TableCell>
+      <TableCell>Higher</TableCell>
+      <TableCell>Lower</TableCell>
+    </TableRow>
+  </TableBody>
+  
+</Table>
+
+Refer to [Mode Configuration](/docs/configuration/mode-configuration) for inheritance and overrides.
+
 ## Migration Tips
 
 - Plan a low-traffic maintenance window.

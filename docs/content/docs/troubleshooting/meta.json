@@ -5,6 +5,7 @@
   "root": true,
   "pages": [
     "database",
-    "temporal"
+    "temporal",
+    "common-issues"
   ]
 }

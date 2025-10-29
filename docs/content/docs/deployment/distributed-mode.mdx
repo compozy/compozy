@@ -1,0 +1,82 @@
+---
+title: "Distributed (Remote) Mode"
+description: "Production‑ready deployment of Compozy with external Temporal and Redis."
+icon: Server
+---
+
+Distributed ("remote") mode connects Compozy to external infrastructure for durability, scale, and security.
+
+## Comparison with Standalone
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Aspect</TableHead>
+      <TableHead>Distributed</TableHead>
+      <TableHead>Standalone</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Use case</TableCell>
+      <TableCell>Production, staging, shared QA</TableCell>
+      <TableCell>Local dev, CI, demos</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Temporal</TableCell>
+      <TableCell>External cluster (`mode: remote`)</TableCell>
+      <TableCell>Embedded server (`mode: standalone`)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Cache</TableCell>
+      <TableCell>External Redis (`redis.mode: distributed`)</TableCell>
+      <TableCell>Embedded compatible server (`redis.mode: standalone`)</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Availability</TableCell>
+      <TableCell>Multi‑node, HA</TableCell>
+      <TableCell>Single process</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Recommended Configuration
+
+```yaml title="compozy.yaml"
+mode: distributed
+
+temporal:
+  mode: remote
+  host_port: temporal.prod.internal:7233
+  namespace: compozy-prod
+
+redis:
+  mode: distributed
+  distributed:
+    addr: redis.prod.internal:6379
+    password: ${REDIS_PASSWORD}
+    tls:
+      enabled: true
+```
+
+## Migration from Standalone
+
+Follow the [migration guide](/docs/guides/migrate-standalone-to-distributed) to plan, switch configuration, and validate.
+
+## See Also
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Standalone Mode"
+    description="End‑to‑end single‑process deployment"
+    href="/docs/deployment/standalone-mode"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Temporal Modes"
+    description="Detailed trade‑offs and diagrams"
+    href="/docs/deployment/temporal-modes"
+    icon="GitBranch"
+  />
+</ReferenceCardList>
+

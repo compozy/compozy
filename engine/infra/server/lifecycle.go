@@ -92,14 +92,14 @@ func (s *Server) handleGracefulShutdown(srv *http.Server, cleanupFuncs []func(),
 	case err := <-errChan:
 		if err != nil {
 			log.Error("Server reported failure, shutting down", "error", err)
-			s.cleanup(cleanupFuncs)
 			s.cancel()
+			s.cleanup(cleanupFuncs)
 			return err
 		}
 		log.Debug("HTTP server closed, proceeding with shutdown")
 	}
-	s.cleanup(cleanupFuncs)
 	s.cancel()
+	s.cleanup(cleanupFuncs)
 	shutdownCtx, shutdownCancel := context.WithTimeout(
 		context.WithoutCancel(s.ctx),
 		config.FromContext(s.ctx).Server.Timeouts.ServerShutdown,

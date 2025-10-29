@@ -169,8 +169,19 @@ func (s *Server) Stop(ctx context.Context) error {
 		}
 	}
 
-	if err := s.server.Stop(); err != nil {
-		return fmt.Errorf("stop temporal server: %w", err)
+	stopErr := make(chan error, 1)
+	go func() {
+		stopErr <- s.server.Stop()
+	}()
+
+	select {
+	case err := <-stopErr:
+		if err != nil {
+			return fmt.Errorf("stop temporal server: %w", err)
+		}
+	case <-ctx.Done():
+		log.Warn("Temporal server stop exceeded context deadline", "elapsed", time.Since(stopStart), "error", ctx.Err())
+		return fmt.Errorf("temporal server stop timeout: %w", ctx.Err())
 	}
 
 	log.Info(

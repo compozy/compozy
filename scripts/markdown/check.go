@@ -926,15 +926,18 @@ func flattenAndSortIssues(groups map[string][]issueEntry, mode executionMode) []
 	for _, items := range groups {
 		allIssues = append(allIssues, items...)
 	}
-	// For PRD tasks, sort by numeric task ID instead of lexicographically
+	// For PRD tasks, sort by numeric task ID (stable) with name tie-breaker.
 	if mode == ExecutionModePRDTasks {
-		sort.Slice(allIssues, func(i, j int) bool {
+		sort.SliceStable(allIssues, func(i, j int) bool {
 			numI := extractTaskNumber(allIssues[i].name)
 			numJ := extractTaskNumber(allIssues[j].name)
-			return numI < numJ
+			if numI != numJ {
+				return numI < numJ
+			}
+			return allIssues[i].name < allIssues[j].name
 		})
 	} else {
-		sort.Slice(allIssues, func(i, j int) bool {
+		sort.SliceStable(allIssues, func(i, j int) bool {
 			return allIssues[i].name < allIssues[j].name
 		})
 	}
@@ -1009,7 +1012,7 @@ func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jo
 		cwd:   cwd,
 		sem:   make(chan struct{}, maxInt(1, args.concurrent)),
 	}
-	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun, &execCtx.aggregateUsage, &execCtx.aggregateMu)
+	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun)
 	return execCtx, nil
 }
 
@@ -1107,8 +1110,6 @@ func setupUI(
 	jobs []job,
 	_ *cliArgs,
 	enabled bool,
-	_ *TokenUsage,
-	_ *sync.Mutex,
 ) (chan uiMsg, *tea.Program) {
 	if !enabled {
 		return nil, nil
@@ -1307,10 +1308,24 @@ func executeJobWithTimeoutAndResult(
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
 ) (bool, int) {
-	cmd, outF, errF, monitor := setupCommandExecution(
+	cmd, outF, errF, monitor, err := setupCommandExecution(
 		ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu,
 	)
-	if cmd == nil {
+	if err != nil {
+		failure := recordFailureWithContext(failuresMu, j, failures, err, -1)
+		atomic.AddInt32(failed, 1)
+		if useUI && uiCh != nil {
+			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+			uiCh <- jobFailureMsg{Failure: failure}
+		} else {
+			fmt.Fprintf(
+				os.Stderr,
+				"\n❌ Failed to prepare job %d (%s): %v\n",
+				index+1,
+				strings.Join(j.codeFiles, ", "),
+				err,
+			)
+		}
 		return false, -1
 	}
 	return executeCommandAndHandleResultWithStatus(
@@ -1647,10 +1662,10 @@ func setupCommandExecution(
 	index int,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) (*exec.Cmd, *os.File, *os.File, *activityMonitor) {
+) (*exec.Cmd, *os.File, *os.File, *activityMonitor, error) {
 	cmd := createIDECommand(ctx, args)
 	if cmd == nil {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, fmt.Errorf("create IDE command: unsupported ide %q", args.ide)
 	}
 	outF, errF, monitor, err := setupCommandIO(
 		cmd,
@@ -1665,10 +1680,9 @@ func setupCommandExecution(
 		aggregateMu,
 	)
 	if err != nil {
-		recordFailureWithContext(nil, j, nil, err, -1)
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, fmt.Errorf("setup command IO: %w", err)
 	}
-	return cmd, outF, errF, monitor
+	return cmd, outF, errF, monitor, nil
 }
 
 func createLogFile(path, _ string) (*os.File, error) {
@@ -1914,21 +1928,28 @@ func recordFailureWithContext(
 	failures *[]failInfo,
 	err error,
 	exitCode int,
-) {
+) failInfo {
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
-	recordFailure(failuresMu, failures, failInfo{
+	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: exitCode,
 		outLog:   j.outLog,
 		errLog:   j.errLog,
 		err:      err,
-	})
+	}
+	recordFailure(failuresMu, failures, failure)
+	return failure
 }
 
 func recordFailure(mu *sync.Mutex, list *[]failInfo, f failInfo) {
-	mu.Lock()
+	if list == nil {
+		return
+	}
+	if mu != nil {
+		mu.Lock()
+		defer mu.Unlock()
+	}
 	*list = append(*list, f)
-	mu.Unlock()
 }
 
 func printAggregateTokenUsage(usage *TokenUsage) {
@@ -2446,6 +2467,9 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 			job.duration = job.completedAt.Sub(job.startedAt)
 		}
 		m.selectNextRunningJob()
+	}
+	if m.total > 0 && m.completed+m.failed >= m.total && m.failed > 0 && m.currentView != uiViewSummary {
+		m.currentView = uiViewSummary
 	}
 	m.refreshViewportContent()
 	return m.waitEvent()
@@ -3041,7 +3065,10 @@ func readIssueEntries(resolvedIssuesDir string, mode executionMode, includeCompl
 // Example: "_task_10.md" returns 10, "_task_2.md" returns 2.
 // Returns 0 for invalid filenames.
 func extractTaskNumber(filename string) int {
-	// Remove prefix and suffix to get just the number
+	// Only accept canonical task filenames; fallback to 0 otherwise.
+	if !reTaskFile.MatchString(filename) {
+		return 0
+	}
 	numStr := strings.TrimPrefix(filename, "_task_")
 	numStr = strings.TrimSuffix(numStr, ".md")
 	num, err := strconv.Atoi(numStr)
@@ -3067,8 +3094,8 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 		}
 		names = append(names, f.Name())
 	}
-	// Sort by numeric task ID instead of lexicographically
-	sort.Slice(names, func(i, j int) bool {
+	// Sort by numeric task ID (stable) instead of lexicographically
+	sort.SliceStable(names, func(i, j int) bool {
 		numI := extractTaskNumber(names[i])
 		numJ := extractTaskNumber(names[j])
 		return numI < numJ
