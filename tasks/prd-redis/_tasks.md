@@ -41,7 +41,7 @@
 - [x] 1.0 Global Mode Configuration & Resolver (M - 1-2 days)
 - [x] 2.0 MiniredisStandalone Wrapper (S - ≤ half-day)
 - [x] 3.0 Mode-Aware Cache Factory (S - ≤ half-day)
-- [ ] 4.0 Memory Store Integration (M - 1 day)
+- [x] 4.0 Memory Store Integration (M - 1 day)
 - [ ] 5.0 Resource Store Integration (M - 1 day)
 - [ ] 6.0 Streaming & Pub/Sub Integration (M - 1 day)
 - [ ] 7.0 Snapshot Manager Implementation (M - 1-2 days)

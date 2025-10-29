@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/memory/store, test/integration/standalone</domain>
@@ -47,16 +47,16 @@ Verify that the memory store works seamlessly with miniredis by testing all Lua 
 
 ## Subtasks
 
-- [ ] 4.1 Read existing memory store implementation to understand operations
-- [ ] 4.2 Identify all Lua scripts used by memory store
-- [ ] 4.3 Create test/integration/standalone/memory_store_test.go
-- [ ] 4.4 Create test helper to setup memory store with miniredis
-- [ ] 4.5 Write test for AppendAndTrimWithMetadataScript execution
-- [ ] 4.6 Write test for concurrent message appends
-- [ ] 4.7 Write test for message metadata preservation
-- [ ] 4.8 Write test for conversation history consistency
-- [ ] 4.9 Write test for conversation history trimming
-- [ ] 4.10 Write test for message retrieval with pagination
+- [x] 4.1 Read existing memory store implementation to understand operations
+- [x] 4.2 Identify all Lua scripts used by memory store
+- [x] 4.3 Create test/integration/standalone/memory_store_test.go
+- [x] 4.4 Create test helper to setup memory store with miniredis
+- [x] 4.5 Write test for AppendAndTrimWithMetadataScript execution
+- [x] 4.6 Write test for concurrent message appends
+- [x] 4.7 Write test for message metadata preservation
+- [x] 4.8 Write test for conversation history consistency
+- [x] 4.9 Write test for conversation history trimming
+- [x] 4.10 Write test for message retrieval with pagination
 
 ## Implementation Details
 
@@ -297,58 +297,58 @@ func TestMemoryStore_MiniredisCompatibility(t *testing.T) {
 
 ## Deliverables
 
-- [ ] test/integration/standalone/memory_store_test.go created
-- [ ] setupMemoryStoreWithMiniredis() helper function
-- [ ] Test for Lua script execution (AppendAndTrimWithMetadataScript)
-- [ ] Test for concurrent message appends
-- [ ] Test for message metadata preservation
-- [ ] Test for conversation history trimming
-- [ ] Test for conversation history consistency
-- [ ] Test for message retrieval with pagination
-- [ ] All tests use t.Context() (no context.Background())
-- [ ] All tests follow "Should..." naming convention
+- [x] test/integration/standalone/memory_store_test.go created
+- [x] setupMemoryStoreWithMiniredis() helper function
+- [x] Test for Lua script execution (AppendAndTrimWithMetadataScript)
+- [x] Test for concurrent message appends
+- [x] Test for message metadata preservation
+- [x] Test for conversation history trimming
+- [x] Test for conversation history consistency
+- [x] Test for message retrieval with pagination
+- [x] All tests use t.Context() (no context.Background())
+- [x] All tests follow "Should..." naming convention
 
 ## Tests
 
 All tests are defined in the implementation section above. Summary of test coverage:
 
 ### Lua Script Tests
-- [ ] Should execute Lua scripts natively (AppendAndTrimWithMetadataScript)
-- [ ] Should handle script errors gracefully
+- [x] Should execute Lua scripts natively (AppendAndTrimWithMetadataScript)
+- [x] Should handle script errors gracefully
 
 ### Concurrent Operation Tests
-- [ ] Should handle concurrent message appends without data loss
-- [ ] Should maintain message ordering under concurrent writes
+- [x] Should handle concurrent message appends without data loss
+- [x] Should maintain message ordering under concurrent writes
 
 ### Metadata Tests
-- [ ] Should preserve message metadata across operations
-- [ ] Should preserve complex metadata structures (nested objects, arrays)
+- [x] Should preserve message metadata across operations
+- [x] Should preserve complex metadata structures (nested objects, arrays)
 
 ### Conversation History Tests
-- [ ] Should trim conversation history at max length
-- [ ] Should maintain conversation history consistency
-- [ ] Should preserve message order in conversation history
+- [x] Should trim conversation history at max length
+- [x] Should maintain conversation history consistency
+- [x] Should preserve message order in conversation history
 
 ### Pagination Tests
-- [ ] Should support message retrieval with pagination (if applicable)
-- [ ] Should handle edge cases (empty history, single message)
+- [x] Should support message retrieval with pagination (if applicable)
+- [x] Should handle edge cases (empty history, single message)
 
 ### Edge Cases
-- [ ] Should handle empty conversation history
-- [ ] Should handle messages with no metadata
-- [ ] Should handle messages with large content
-- [ ] Should handle special characters in message content
+- [x] Should handle empty conversation history
+- [x] Should handle messages with no metadata
+- [x] Should handle messages with large content
+- [x] Should handle special characters in message content
 
 ## Success Criteria
 
-- [ ] All memory store integration tests pass
-- [ ] Lua scripts execute successfully in miniredis
-- [ ] Concurrent appends work without data loss
-- [ ] Message metadata preserved correctly
-- [ ] Conversation history maintains consistency
-- [ ] Conversation trimming works at max length
-- [ ] Zero changes required to memory store implementation
-- [ ] All tests use t.Context() (no context.Background())
-- [ ] `go test ./test/integration/standalone/...` passes
-- [ ] `make lint` passes with zero warnings
-- [ ] Test coverage demonstrates miniredis compatibility with memory store
+- [x] All memory store integration tests pass
+- [x] Lua scripts execute successfully in miniredis
+- [x] Concurrent appends work without data loss
+- [x] Message metadata preserved correctly
+- [x] Conversation history maintains consistency
+- [x] Conversation trimming works at max length
+- [x] Zero changes required to memory store implementation
+- [x] All tests use t.Context() (no context.Background())
+- [x] `go test ./test/integration/standalone/...` passes
+- [x] `make lint` passes with zero warnings
+- [x] Test coverage demonstrates miniredis compatibility with memory store
