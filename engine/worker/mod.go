@@ -79,6 +79,7 @@ type Worker struct {
 	taskQueue        string
 	configStore      services.ConfigStore
 	redisCache       *cache.Cache
+	cacheCleanup     func()
 	mcpRegister      *mcp.RegisterService
 	dispatcherID     string // Track dispatcher ID for cleanup
 	serverID         string // Server ID for this worker instance
@@ -323,6 +324,7 @@ func NewWorker(
 		taskQueue:       initResult.core.taskQueue,
 		configStore:     initResult.core.configStore,
 		redisCache:      initResult.core.redisCache,
+		cacheCleanup:    initResult.core.cacheCleanup,
 		mcpRegister:     initResult.mcpRegister,
 		dispatcherID:    initResult.dispatcher.dispatcherID,
 		serverID:        initResult.dispatcher.serverID,
@@ -459,11 +461,12 @@ func buildWorkerResources(
 
 // workerCoreComponents holds the core components needed for a worker
 type workerCoreComponents struct {
-	worker      worker.Worker
-	taskQueue   string
-	rtManager   runtime.Runtime
-	redisCache  *cache.Cache
-	configStore services.ConfigStore
+	worker       worker.Worker
+	taskQueue    string
+	rtManager    runtime.Runtime
+	redisCache   *cache.Cache
+	cacheCleanup func()
+	configStore  services.ConfigStore
 }
 
 // dispatcherComponents holds dispatcher-related components
@@ -503,16 +506,17 @@ func setupWorkerCore(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create execution manager: %w", err)
 	}
-	redisCache, configStore, err := setupRedisAndConfig(ctx)
+	redisCache, cacheCleanup, configStore, err := setupRedisAndConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
 	return &workerCoreComponents{
-		worker:      worker,
-		taskQueue:   taskQueue,
-		rtManager:   rtManager,
-		redisCache:  redisCache,
-		configStore: configStore,
+		worker:       worker,
+		taskQueue:    taskQueue,
+		rtManager:    rtManager,
+		redisCache:   redisCache,
+		cacheCleanup: cacheCleanup,
+		configStore:  configStore,
 	}, nil
 }
 
@@ -618,21 +622,20 @@ func truncateWithHash(value string, limit int) string {
 // setupRedisAndConfig sets up Redis cache and configuration management
 func setupRedisAndConfig(
 	ctx context.Context,
-) (*cache.Cache, services.ConfigStore, error) {
+) (*cache.Cache, func(), services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
 	cfg := appconfig.FromContext(ctx)
 	if cfg == nil {
-		return nil, nil, fmt.Errorf("config manager not found in context")
+		return nil, nil, nil, fmt.Errorf("config manager not found in context")
 	}
-	cacheConfig := cache.FromAppConfig(cfg)
-	redisCache, err := cache.SetupCache(ctx, cacheConfig)
+	redisCache, cleanup, err := cache.SetupCache(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to setup Redis cache: %w", err)
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
 	configStore := services.NewRedisConfigStore(redisCache.Redis, cfg.Worker.ConfigStoreTTL)
-	return redisCache, configStore, nil
+	return redisCache, cleanup, configStore, nil
 }
 
 // setupMCPRegister initializes MCP registration for workflows
@@ -845,6 +848,9 @@ func (o *Worker) shutdownMCPs(ctx context.Context) {
 
 func (o *Worker) closeStores(ctx context.Context) {
 	log := logger.FromContext(ctx)
+	if o.cacheCleanup != nil {
+		o.cacheCleanup()
+	}
 	if o.configStore != nil {
 		if err := o.configStore.Close(); err != nil {
 			log.Error("Failed to close config store", "error", err)

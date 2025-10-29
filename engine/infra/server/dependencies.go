@@ -158,8 +158,8 @@ func (s *Server) storeCleanupFunc(cfg *config.Config, drv *postgres.Store) func(
 	}
 }
 
-func (s *Server) setupMCPProxyIfEnabled(cfg *config.Config) (func(), error) {
-	if !shouldEmbedMCPProxy(cfg) {
+func (s *Server) setupMCPProxyIfEnabled() (func(), error) {
+	if !shouldEmbedMCPProxy(s.ctx) {
 		return nil, nil
 	}
 	return s.setupMCPProxy(s.ctx)
@@ -180,7 +180,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	storeInstance, cleanupFuncs, err := s.initRuntimeServices(cfg, projectConfig, cleanupFuncs)
+	storeInstance, cleanupFuncs, err := s.initRuntimeServices(projectConfig, cleanupFuncs)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -236,7 +236,6 @@ func (s *Server) attachStreamingProviders(state *appstate.State) error {
 
 // initRuntimeServices wires monitoring, database, and MCP proxy services.
 func (s *Server) initRuntimeServices(
-	cfg *config.Config,
 	projectConfig *project.Config,
 	cleanups []func(),
 ) (*repo.Provider, []func(), error) {
@@ -246,7 +245,7 @@ func (s *Server) initRuntimeServices(
 		return nil, cleanups, err
 	}
 	cleanups = appendCleanup(cleanups, storeCleanup)
-	mcpCleanup, err := s.setupMCPProxyIfEnabled(cfg)
+	mcpCleanup, err := s.setupMCPProxyIfEnabled()
 	if err != nil {
 		return nil, cleanups, err
 	}
@@ -332,7 +331,7 @@ func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration is required to start Temporal")
 	}
-	if cfg.Temporal.Mode != modeStandalone {
+	if cfg.EffectiveTemporalMode() != modeStandalone {
 		return nil, nil
 	}
 	embeddedCfg := standaloneEmbeddedConfig(cfg)

@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/cache, engine/infra/server</domain>
@@ -47,15 +47,15 @@ Update the cache factory (`SetupCache`) to use mode resolution and construct the
 
 ## Subtasks
 
-- [ ] 3.1 Update SetupCache() to read config from context
-- [ ] 3.2 Add mode resolution using cfg.EffectiveRedisMode()
-- [ ] 3.3 Implement distributed mode branch (existing external Redis)
-- [ ] 3.4 Implement standalone mode branch (new MiniredisStandalone)
-- [ ] 3.5 Update maybeStartStandaloneTemporal() to use cfg.EffectiveTemporalMode()
-- [ ] 3.6 Update shouldEmbedMCPProxy() to use cfg.EffectiveMCPProxyMode()
-- [ ] 3.7 Create unit tests in `engine/infra/cache/mod_test.go`
-- [ ] 3.8 Create unit tests for Temporal factory pattern
-- [ ] 3.9 Create unit tests for MCPProxy factory pattern
+- [x] 3.1 Update SetupCache() to read config from context
+- [x] 3.2 Add mode resolution using cfg.EffectiveRedisMode()
+- [x] 3.3 Implement distributed mode branch (existing external Redis)
+- [x] 3.4 Implement standalone mode branch (new MiniredisStandalone)
+- [x] 3.5 Update maybeStartStandaloneTemporal() to use cfg.EffectiveTemporalMode()
+- [x] 3.6 Update shouldEmbedMCPProxy() to use cfg.EffectiveMCPProxyMode()
+- [x] 3.7 Create unit tests in `engine/infra/cache/mod_test.go`
+- [x] 3.8 Create unit tests for Temporal factory pattern
+- [x] 3.9 Create unit tests for MCPProxy factory pattern
 
 ## Implementation Details
 
@@ -214,15 +214,15 @@ func shouldEmbedMCPProxy(ctx context.Context) bool {
 
 ## Deliverables
 
-- [ ] SetupCache() updated to use mode resolution
-- [ ] setupStandaloneCache() function created for miniredis backend
-- [ ] setupDistributedCache() function created for external Redis backend
-- [ ] Both backends return unified Cache interface
-- [ ] maybeStartStandaloneTemporal() uses cfg.EffectiveTemporalMode()
-- [ ] shouldEmbedMCPProxy() uses cfg.EffectiveMCPProxyMode()
-- [ ] Cleanup functions work for both backends
-- [ ] All logging uses logger.FromContext(ctx)
-- [ ] All config access uses config.FromContext(ctx)
+- [x] SetupCache() updated to use mode resolution
+- [x] setupStandaloneCache() function created for miniredis backend
+- [x] setupDistributedCache() function created for external Redis backend
+- [x] Both backends return unified Cache interface
+- [x] maybeStartStandaloneTemporal() uses cfg.EffectiveTemporalMode()
+- [x] shouldEmbedMCPProxy() uses cfg.EffectiveMCPProxyMode()
+- [x] Cleanup functions work for both backends
+- [x] All logging uses logger.FromContext(ctx)
+- [x] All config access uses config.FromContext(ctx)
 
 ## Tests
 

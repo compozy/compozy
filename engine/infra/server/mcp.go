@@ -24,7 +24,7 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
-	if !shouldEmbedMCPProxy(cfg) {
+	if !shouldEmbedMCPProxy(ctx) {
 		return func() {}, nil
 	}
 	server, driver, baseURL, err := s.launchMCPServer(ctx, cfg)
@@ -271,11 +271,12 @@ func (s *Server) newMCPProxyServer(
 	return server, string(storageCfg.Type), nil
 }
 
-func shouldEmbedMCPProxy(cfg *config.Config) bool {
+func shouldEmbedMCPProxy(ctx context.Context) bool {
+	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return false
 	}
-	if cfg.MCPProxy.Mode != modeStandalone {
+	if cfg.EffectiveMCPProxyMode() != modeStandalone {
 		return false
 	}
 	return true

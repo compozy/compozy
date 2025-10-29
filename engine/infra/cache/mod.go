@@ -5,6 +5,12 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
+)
+
+const (
+	modeStandalone  = "standalone"
+	modeDistributed = "distributed"
 )
 
 // Config represents the cache-specific configuration
@@ -28,30 +34,89 @@ type Cache struct {
 	Redis        *Redis
 	LockManager  LockManager
 	Notification NotificationSystem
+	// embedded holds the standalone miniredis server when running in standalone
+	// mode. It remains nil when using an external (distributed) Redis backend.
+	embedded *MiniredisStandalone
 }
 
-// SetupCache creates a new Cache instance with Redis backend
-func SetupCache(ctx context.Context, config *Config) (*Cache, error) {
-	if config == nil {
-		return nil, fmt.Errorf("cache config cannot be nil")
+// SetupCache creates a mode-aware cache backend using configuration from context.
+// It returns a unified Cache object plus a cleanup function safe to call multiple times.
+//
+// Modes (resolved via cfg.EffectiveRedisMode()):
+//   - "standalone": starts an embedded miniredis and connects a client to it
+//   - "distributed" (default): connects to external Redis using provided settings
+func SetupCache(ctx context.Context) (*Cache, func(), error) {
+	log := logger.FromContext(ctx)
+	appCfg := config.FromContext(ctx)
+	if appCfg == nil {
+		return nil, nil, fmt.Errorf("missing configuration in context")
 	}
-	redis, err := NewRedis(ctx, config)
+
+	cacheCfg := FromAppConfig(appCfg)
+	mode := appCfg.EffectiveRedisMode()
+	log.Info("Initializing cache backend", "mode", mode)
+
+	switch mode {
+	case modeStandalone:
+		return setupStandaloneCache(ctx, cacheCfg)
+
+	case modeDistributed:
+		return setupDistributedCache(ctx, cacheCfg)
+
+	default:
+		return nil, nil, fmt.Errorf("unsupported redis mode: %s", mode)
+	}
+}
+
+// setupStandaloneCache creates embedded miniredis backend and wraps it with Redis facade.
+func setupStandaloneCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
+	log := logger.FromContext(ctx)
+	mr, err := NewMiniredisStandalone(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, fmt.Errorf("create miniredis standalone: %w", err)
 	}
-	lockManager, err := NewRedisLockManager(redis)
+	r := &Redis{client: mr.Client(), config: cacheCfg, ctx: ctx}
+	lm, err := NewRedisLockManager(r)
 	if err != nil {
-		return nil, err
+		_ = mr.Close(ctx)
+		return nil, nil, err
 	}
-	notification, err := NewRedisNotificationSystem(redis, config)
+	ns, err := NewRedisNotificationSystem(r, cacheCfg)
 	if err != nil {
-		return nil, err
+		_ = mr.Close(ctx)
+		return nil, nil, err
 	}
-	return &Cache{
-		Redis:        redis,
-		LockManager:  lockManager,
-		Notification: notification,
-	}, nil
+	c := &Cache{Redis: r, LockManager: lm, Notification: ns, embedded: mr}
+	cleanup := func() {
+		_ = c.Notification.Close()
+		_ = c.Redis.Close()
+		_ = mr.Close(ctx)
+	}
+	log.Info("Standalone cache initialized")
+	return c, cleanup, nil
+}
+
+// setupDistributedCache creates external Redis backend using application configuration.
+func setupDistributedCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
+	log := logger.FromContext(ctx)
+	r, err := NewRedis(ctx, cacheCfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	lm, err := NewRedisLockManager(r)
+	if err != nil {
+		_ = r.Close()
+		return nil, nil, err
+	}
+	ns, err := NewRedisNotificationSystem(r, cacheCfg)
+	if err != nil {
+		_ = r.Close()
+		return nil, nil, err
+	}
+	c := &Cache{Redis: r, LockManager: lm, Notification: ns}
+	cleanup := func() { _ = c.Close() }
+	log.Info("Distributed cache initialized")
+	return c, cleanup, nil
 }
 
 // Close gracefully shuts down the cache

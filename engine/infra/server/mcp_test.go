@@ -12,15 +12,17 @@ import (
 
 func TestShouldEmbedMCPProxy(t *testing.T) {
 	t.Run("ShouldEmbedStandaloneEvenWhenProxyURLIsConfigured", func(t *testing.T) {
-		cfg := config.Default()
-		cfg.MCPProxy.Mode = modeStandalone
-		cfg.LLM.ProxyURL = "http://localhost:6001"
-		assert.True(t, shouldEmbedMCPProxy(cfg))
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		c := config.FromContext(ctx)
+		c.MCPProxy.Mode = modeStandalone
+		c.LLM.ProxyURL = "http://localhost:6001"
+		assert.True(t, shouldEmbedMCPProxy(ctx))
 	})
 	t.Run("ShouldNotEmbedWhenModeIsExternal", func(t *testing.T) {
-		cfg := config.Default()
-		cfg.MCPProxy.Mode = ""
-		assert.False(t, shouldEmbedMCPProxy(cfg))
+		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		c := config.FromContext(ctx)
+		c.MCPProxy.Mode = ""
+		assert.False(t, shouldEmbedMCPProxy(ctx))
 	})
 }
 
