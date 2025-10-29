@@ -23,7 +23,8 @@ func TestConfigShow_Goldens(t *testing.T) {
 		cfg.Mode = "standalone"
 		cfg.Redis.Mode = "standalone"
 		// Capture stdout
-		r, w, _ := os.Pipe()
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
 		old := os.Stdout
 		os.Stdout = w
 		t.Cleanup(func() { os.Stdout = old })
@@ -43,7 +44,8 @@ func TestConfigShow_Goldens(t *testing.T) {
 		cfg.Mode = "distributed"
 		cfg.Redis.Mode = "standalone"
 		// Capture stdout
-		r, w, _ := os.Pipe()
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
 		old := os.Stdout
 		os.Stdout = w
 		t.Cleanup(func() { os.Stdout = old })
@@ -65,7 +67,8 @@ func TestDiagnostics_EffectiveModes(t *testing.T) {
 	cfg.Mode = "standalone"
 	ctx = pkgconfig.ContextWithManager(ctx, mgr)
 	// Capture stdout
-	r, w, _ := os.Pipe()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
 	old := os.Stdout
 	os.Stdout = w
 	t.Cleanup(func() { os.Stdout = old })

@@ -450,14 +450,42 @@ func (s *Server) emitStartupSummary(total time.Duration) {
 }
 
 func (s *Server) cleanup(cleanupFuncs []func()) {
+	log := logger.FromContext(s.ctx)
+	cfg := config.FromContext(s.ctx)
+	cleanupTimeout := cfg.Server.Timeouts.WorkerShutdown
 	for i := len(cleanupFuncs) - 1; i >= 0; i-- {
-		cleanupFuncs[i]()
+		idx := len(cleanupFuncs) - 1 - i
+		log.Debug("Running cleanup function", "index", idx, "total", len(cleanupFuncs), "timeout", cleanupTimeout)
+		s.runCleanupWithTimeout(cleanupFuncs[i], cleanupTimeout, idx)
 	}
 	s.cleanupMu.Lock()
 	extra := s.extraCleanups
 	s.extraCleanups = nil
 	s.cleanupMu.Unlock()
 	for i := len(extra) - 1; i >= 0; i-- {
-		extra[i]()
+		idx := len(extra) - 1 - i
+		log.Debug("Running extra cleanup function", "index", idx, "total", len(extra), "timeout", cleanupTimeout)
+		s.runCleanupWithTimeout(extra[i], cleanupTimeout, idx)
+	}
+}
+
+func (s *Server) runCleanupWithTimeout(fn func(), timeout time.Duration, index int) {
+	log := logger.FromContext(s.ctx)
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Cleanup function panicked", "index", index, "panic", r)
+			}
+			close(done)
+		}()
+		fn()
+	}()
+	select {
+	case <-done:
+		log.Debug("Cleanup function completed", "index", index, "duration", time.Since(start))
+	case <-time.After(timeout):
+		log.Warn("Cleanup function exceeded timeout", "index", index, "timeout", timeout, "elapsed", time.Since(start))
 	}
 }

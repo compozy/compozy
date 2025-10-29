@@ -1678,7 +1678,7 @@ type CLIConfig struct {
 	//   - `"normal"`: Standard interactive mode (default)
 	//   - `"batch"`: Non-interactive batch processing
 	//   - `"script"`: Optimized for scripting (minimal output)
-	Mode string `koanf:"mode" env:"COMPOZY_MODE" json:"Mode" yaml:"mode" mapstructure:"mode"`
+	Mode string `koanf:"mode" env:"COMPOZY_CLI_MODE" json:"Mode" yaml:"mode" mapstructure:"mode"`
 
 	// DefaultFormat sets the default output format.
 	//

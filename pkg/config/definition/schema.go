@@ -2376,7 +2376,7 @@ func registerBasicCLIFields(registry *Registry) {
 		Path:    "cli.mode",
 		Default: "auto",
 		CLIFlag: "mode",
-		EnvVar:  "COMPOZY_MODE",
+		EnvVar:  "COMPOZY_CLI_MODE",
 		Type:    reflect.TypeOf(""),
 		Help:    "CLI mode: auto, json, or tui",
 	})

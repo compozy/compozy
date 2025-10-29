@@ -635,14 +635,8 @@ func setupRedisAndConfig(
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
 	configStore := services.NewRedisConfigStore(redisCache.Redis, cfg.Worker.ConfigStoreTTL)
-	cleanupWithCtx := func(parent context.Context) {
-		if cleanup != nil {
-			cleanup()
-			return
-		}
-		if redisCache != nil {
-			_ = redisCache.Close(context.WithoutCancel(parent))
-		}
+	cleanupWithCtx := func(context.Context) {
+		cleanup()
 	}
 	return redisCache, cleanupWithCtx, configStore, nil
 }
@@ -784,15 +778,56 @@ func (o *Worker) Setup(ctx context.Context) error {
 }
 
 func (o *Worker) Stop(ctx context.Context) {
+	log := logger.FromContext(ctx)
+	cfg := appconfig.FromContext(ctx)
+	if cfg == nil {
+		log.Error("config manager not found in context, using default timeout for worker stop")
+		cfg = &appconfig.Config{
+			Server: appconfig.ServerConfig{Timeouts: appconfig.ServerTimeouts{WorkerShutdown: 30 * time.Second}},
+		}
+	}
+	stopTimeout := cfg.Server.Timeouts.WorkerShutdown
 	o.stopQueueDepthMonitor()
 	interceptor.DecrementRunningWorkers(ctx)
 	o.stopDispatcherMonitoring(ctx)
 	o.cancelLifecycle()
 	o.terminateDispatcher(ctx)
-	o.worker.Stop()
-	o.client.Close()
+	o.stopWorkerWithTimeout(ctx, stopTimeout)
+	o.closeClientWithTimeout(ctx, stopTimeout)
 	o.shutdownMCPs(ctx)
 	o.closeStores(ctx)
+}
+
+func (o *Worker) stopWorkerWithTimeout(ctx context.Context, timeout time.Duration) {
+	log := logger.FromContext(ctx)
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		defer close(done)
+		o.worker.Stop()
+	}()
+	select {
+	case <-done:
+		log.Debug("Worker stopped successfully", "duration", time.Since(start))
+	case <-time.After(timeout):
+		log.Warn("Worker stop exceeded timeout", "timeout", timeout, "elapsed", time.Since(start))
+	}
+}
+
+func (o *Worker) closeClientWithTimeout(ctx context.Context, timeout time.Duration) {
+	log := logger.FromContext(ctx)
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		defer close(done)
+		o.client.Close()
+	}()
+	select {
+	case <-done:
+		log.Debug("Temporal client closed successfully", "duration", time.Since(start))
+	case <-time.After(timeout):
+		log.Warn("Client close exceeded timeout", "timeout", timeout, "elapsed", time.Since(start))
+	}
 }
 
 func (o *Worker) stopDispatcherMonitoring(ctx context.Context) {
