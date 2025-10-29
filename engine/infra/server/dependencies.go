@@ -191,7 +191,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	}
 	cleanupFuncs = appendCleanup(cleanupFuncs, temporalCleanup)
 	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, newTemporalConfig(cfg))
-	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, cfg, configRegistry)
+	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, configRegistry)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}

@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/pkg/config"
@@ -88,9 +89,7 @@ func setupStandaloneCache(ctx context.Context, cacheCfg *Config) (*Cache, func()
 	}
 	c := &Cache{Redis: r, LockManager: lm, Notification: ns, embedded: mr}
 	cleanup := func() {
-		_ = c.Notification.Close()
-		_ = c.Redis.Close()
-		_ = mr.Close(ctx)
+		_ = c.Close(context.WithoutCancel(ctx))
 	}
 	log.Info("Standalone cache initialized")
 	return c, cleanup, nil
@@ -114,24 +113,30 @@ func setupDistributedCache(ctx context.Context, cacheCfg *Config) (*Cache, func(
 		return nil, nil, err
 	}
 	c := &Cache{Redis: r, LockManager: lm, Notification: ns}
-	cleanup := func() { _ = c.Close() }
+	cleanup := func() { _ = c.Close(context.WithoutCancel(ctx)) }
 	log.Info("Distributed cache initialized")
 	return c, cleanup, nil
 }
 
-// Close gracefully shuts down the cache
-func (c *Cache) Close() error {
+// Close gracefully shuts down the cache and any embedded runtime components.
+func (c *Cache) Close(ctx context.Context) error {
+	var errs []error
 	if c.Notification != nil {
 		if err := c.Notification.Close(); err != nil {
-			return fmt.Errorf("failed to close notification system: %w", err)
+			errs = append(errs, fmt.Errorf("close notification system: %w", err))
 		}
 	}
 	if c.Redis != nil {
 		if err := c.Redis.Close(); err != nil {
-			return fmt.Errorf("failed to close Redis: %w", err)
+			errs = append(errs, fmt.Errorf("close redis client: %w", err))
 		}
 	}
-	return nil
+	if c.embedded != nil {
+		if err := c.embedded.Close(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("close embedded redis: %w", err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // HealthCheck performs a health check on all cache components

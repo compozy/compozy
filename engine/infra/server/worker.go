@@ -135,10 +135,13 @@ func buildToolEnvironment(
 func (s *Server) maybeStartWorker(
 	deps appstate.BaseDeps,
 	resourceStore resources.ResourceStore,
-	cfg *config.Config,
 	configRegistry *autoload.ConfigRegistry,
 ) (*worker.Worker, func(), error) {
 	log := logger.FromContext(s.ctx)
+	cfg := config.FromContext(s.ctx)
+	if cfg == nil {
+		return nil, nil, fmt.Errorf("configuration missing from server context")
+	}
 	if !isHostPortReachable(s.ctx, cfg.Temporal.HostPort, cfg.Server.Timeouts.TemporalReachability) {
 		return nil, nil, fmt.Errorf("temporal not reachable at %s", cfg.Temporal.HostPort)
 	}

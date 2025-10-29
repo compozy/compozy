@@ -79,7 +79,7 @@ type Worker struct {
 	taskQueue        string
 	configStore      services.ConfigStore
 	redisCache       *cache.Cache
-	cacheCleanup     func()
+	cacheCleanup     func(context.Context)
 	mcpRegister      *mcp.RegisterService
 	dispatcherID     string // Track dispatcher ID for cleanup
 	serverID         string // Server ID for this worker instance
@@ -465,7 +465,7 @@ type workerCoreComponents struct {
 	taskQueue    string
 	rtManager    runtime.Runtime
 	redisCache   *cache.Cache
-	cacheCleanup func()
+	cacheCleanup func(context.Context)
 	configStore  services.ConfigStore
 }
 
@@ -622,7 +622,7 @@ func truncateWithHash(value string, limit int) string {
 // setupRedisAndConfig sets up Redis cache and configuration management
 func setupRedisAndConfig(
 	ctx context.Context,
-) (*cache.Cache, func(), services.ConfigStore, error) {
+) (*cache.Cache, func(context.Context), services.ConfigStore, error) {
 	log := logger.FromContext(ctx)
 	cacheStart := time.Now()
 	cfg := appconfig.FromContext(ctx)
@@ -635,7 +635,16 @@ func setupRedisAndConfig(
 	}
 	log.Debug("Redis cache connected", "duration", time.Since(cacheStart))
 	configStore := services.NewRedisConfigStore(redisCache.Redis, cfg.Worker.ConfigStoreTTL)
-	return redisCache, cleanup, configStore, nil
+	cleanupWithCtx := func(parent context.Context) {
+		if cleanup != nil {
+			cleanup()
+			return
+		}
+		if redisCache != nil {
+			_ = redisCache.Close(context.WithoutCancel(parent))
+		}
+	}
+	return redisCache, cleanupWithCtx, configStore, nil
 }
 
 // setupMCPRegister initializes MCP registration for workflows
@@ -849,7 +858,7 @@ func (o *Worker) shutdownMCPs(ctx context.Context) {
 func (o *Worker) closeStores(ctx context.Context) {
 	log := logger.FromContext(ctx)
 	if o.cacheCleanup != nil {
-		o.cacheCleanup()
+		o.cacheCleanup(ctx)
 	}
 	if o.configStore != nil {
 		if err := o.configStore.Close(); err != nil {

@@ -194,7 +194,8 @@ func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL,
 	s.setMCPReady(true)
 	s.onReadinessMaybeChanged("mcp_ready")
 	log := logger.FromContext(ctx)
-	if cfg.MCPProxy.Mode == modeStandalone {
+	mode := cfg.EffectiveMCPProxyMode()
+	if mode == modeStandalone {
 		if cfg.LLM.ProxyURL != baseURL {
 			cfg.LLM.ProxyURL = baseURL
 			log.Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
@@ -205,7 +206,7 @@ func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL,
 	}
 	log.Info(
 		"Embedded MCP proxy started",
-		"mode", cfg.MCPProxy.Mode,
+		"mode", mode,
 		"mcp_storage_driver", driver,
 		"base_url", baseURL,
 	)
