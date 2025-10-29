@@ -47,7 +47,7 @@
 - [x] 7.0 Snapshot Manager Implementation (M - 1-2 days)
 - [x] 8.0 Persistence Integration Tests (M - 1 day)
 - [x] 9.0 End-to-End Workflow Tests (M - 1-2 days)
-- [ ] 10.0 Contract Tests & Validation (M - 1 day)
+- [x] 10.0 Contract Tests & Validation (M - 1 day)
 - [ ] 11.0 Configuration Validation & CLI (S - ≤ half-day)
 - [ ] 12.0 User Documentation (M - 1-2 days)
 - [ ] 13.0 Examples & Runbooks (M - 1-2 days)

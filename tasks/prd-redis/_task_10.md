@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>test/integration/cache</domain>
@@ -46,14 +46,14 @@ Create comprehensive contract tests that verify miniredis adapter behaves identi
 
 ## Subtasks
 
-- [ ] 10.1 Create contract test framework for cache adapters
-- [ ] 10.2 Implement basic operations contract tests (Get, Set, Del, Exists)
-- [ ] 10.3 Implement Lua script contract tests (Eval, EvalSha)
-- [ ] 10.4 Implement TxPipeline contract tests (transactions, atomicity)
-- [ ] 10.5 Implement Pub/Sub contract tests (Subscribe, Publish, patterns)
-- [ ] 10.6 Implement data structure contract tests (Hash, List, Set, ZSet)
-- [ ] 10.7 Implement error handling contract tests
-- [ ] 10.8 Implement mode switching tests
+- [x] 10.1 Create contract test framework for cache adapters
+- [x] 10.2 Implement basic operations contract tests (Get, Set, Del, Exists)
+- [x] 10.3 Implement Lua script contract tests (Eval, EvalSha)
+- [x] 10.4 Implement TxPipeline contract tests (transactions, atomicity)
+- [x] 10.5 Implement Pub/Sub contract tests (Subscribe, Publish, patterns)
+- [x] 10.6 Implement data structure contract tests (Hash, List, Set, ZSet)
+- [x] 10.7 Implement error handling contract tests
+- [x] 10.8 Implement mode switching tests
 
 ## Implementation Details
 
