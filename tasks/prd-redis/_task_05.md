@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/resources</domain>
@@ -43,14 +43,14 @@ Verify that the resource store works correctly with miniredis backend, ensuring 
 
 ## Subtasks
 
-- [ ] 5.1 Create test/integration/standalone/resource_store_test.go with test suite
-- [ ] 5.2 Verify TxPipeline atomic operations (value + etag stored atomically)
-- [ ] 5.3 Verify optimistic locking via Lua scripts (PutIfMatch works natively)
-- [ ] 5.4 Verify ETag consistency across all resource operations
-- [ ] 5.5 Verify concurrent resource update handling (race conditions)
-- [ ] 5.6 Verify watch notifications via Pub/Sub
-- [ ] 5.7 Add test fixtures and helpers in test/helpers/standalone.go
-- [ ] 5.8 Run full test suite and ensure >80% coverage for integration code
+- [x] 5.1 Create test/integration/standalone/resource_store_test.go with test suite
+- [x] 5.2 Verify TxPipeline atomic operations (value + etag stored atomically)
+- [x] 5.3 Verify optimistic locking via Lua scripts (PutIfMatch works natively)
+- [x] 5.4 Verify ETag consistency across all resource operations
+- [x] 5.5 Verify concurrent resource update handling (race conditions)
+- [x] 5.6 Verify watch notifications via Pub/Sub
+- [x] 5.7 Add test fixtures and helpers in test/helpers/standalone.go
+- [x] 5.8 Run full test suite and ensure >80% coverage for integration code
 
 ## Implementation Details
 

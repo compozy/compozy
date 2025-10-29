@@ -42,7 +42,7 @@
 - [x] 2.0 MiniredisStandalone Wrapper (S - ≤ half-day)
 - [x] 3.0 Mode-Aware Cache Factory (S - ≤ half-day)
 - [x] 4.0 Memory Store Integration (M - 1 day)
-- [ ] 5.0 Resource Store Integration (M - 1 day)
+- [x] 5.0 Resource Store Integration (M - 1 day)
 - [ ] 6.0 Streaming & Pub/Sub Integration (M - 1 day)
 - [ ] 7.0 Snapshot Manager Implementation (M - 1-2 days)
 - [ ] 8.0 Persistence Integration Tests (M - 1 day)
