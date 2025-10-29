@@ -1,0 +1,117 @@
+---
+title: "Redis Configuration"
+description: "Configure the cache layer for distributed and standalone modes."
+icon: Database
+---
+
+Compozy’s cache layer supports two modes:
+
+- `distributed`: connect to an external Redis instance (production/staging)
+- `standalone`: run an embedded, Redis‑compatible server with optional snapshots (development/CI)
+
+## Configuration Structure
+
+```yaml title="compozy.yaml"
+redis:
+  mode: distributed | standalone
+
+  distributed:
+    addr: localhost:6379
+    password: ""
+    db: 0
+    tls:
+      enabled: false
+      insecure_skip_verify: false
+
+  standalone:
+    persistence:
+      enabled: false
+      dir: ./.tmp/redis
+      interval: 60s
+```
+
+<Callout type="info">
+Mode resolution: `redis.mode` (if set) → global `mode` → default `distributed`.
+</Callout>
+
+## Distributed Mode (External Redis)
+
+Use this for production and shared environments.
+
+```yaml
+redis:
+  mode: distributed
+  distributed:
+    addr: redis.prod.internal:6379
+    password: ${REDIS_PASSWORD}
+    tls:
+      enabled: true
+```
+
+### Environment Variables
+
+| Path | Env |
+| ---- | --- |
+| `redis.mode` | `REDIS_MODE` |
+| `redis.distributed.addr` | `REDIS_ADDR` |
+| `redis.distributed.password` | `REDIS_PASSWORD` |
+| `redis.distributed.db` | `REDIS_DB` |
+
+## Standalone Mode (Embedded)
+
+Runs a Redis‑compatible server inside the Compozy process.
+
+```yaml
+redis:
+  mode: standalone
+  standalone:
+    persistence:
+      enabled: true
+      dir: ./.tmp/redis
+      interval: 30s
+```
+
+### Persistence Options
+
+- `enabled`: turn on periodic snapshots for CI scenarios that need restarts
+- `dir`: where snapshots are stored; ensure the process can write here
+- `interval`: snapshot frequency (`time.Duration` syntax)
+
+<Callout type="warning">
+Standalone mode is single‑process and not HA. Use it only for dev/CI.
+</Callout>
+
+## Performance Tuning
+
+- Prefer `distributed` with managed Redis for high throughput
+- For `standalone`, disable snapshots in tight loops to minimize I/O
+- Use separate DB indexes (`db`) per tenant in shared dev boxes
+
+## Monitoring & Metrics
+
+- In distributed mode, use `INFO`, latency monitors, and your provider’s dashboards
+- In standalone, observe Compozy logs; enable debug logs when diagnosing cache behavior
+
+## Troubleshooting
+
+- "connection refused" (standalone): ensure the process owns the snapshot `dir` and no port conflicts
+- Authentication failures (distributed): verify `password` and TLS settings
+- Snapshot errors: validate `interval` format and directory permissions
+
+## See Also
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Mode Configuration"
+    description="Global defaults and inheritance"
+    href="/docs/configuration/mode-configuration"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Standalone Deployment"
+    description="End‑to‑end single‑process setup"
+    href="/docs/deployment/standalone-mode"
+    icon="Rocket"
+  />
+</ReferenceCardList>
+

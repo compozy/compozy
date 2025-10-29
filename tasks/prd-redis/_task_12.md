@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>docs/content/docs</domain>
@@ -45,18 +45,18 @@ Create comprehensive user-facing documentation for standalone mode, including de
 
 ## Subtasks
 
-- [ ] 12.1 Create standalone deployment guide
-- [ ] 12.2 Create mode configuration guide
-- [ ] 12.3 Create Redis configuration reference
-- [ ] 12.4 Create migration guide (standalone → distributed)
-- [ ] 12.5 Update getting started quickstart guide
-- [ ] 12.6 Update distributed mode deployment guide
-- [ ] 12.7 Update architecture documentation
-- [ ] 12.8 Update configuration overview
-- [ ] 12.9 Update troubleshooting guide
-- [ ] 12.10 Update FAQ
-- [ ] 12.11 Update navigation structure
-- [ ] 12.12 Validate all code examples and configuration samples
+- [x] 12.1 Create standalone deployment guide
+- [x] 12.2 Create mode configuration guide
+- [x] 12.3 Create Redis configuration reference
+- [x] 12.4 Create migration guide (standalone → distributed)
+- [x] 12.5 Update getting started quickstart guide
+- [x] 12.6 Update distributed mode deployment guide
+- [x] 12.7 Update architecture documentation
+- [x] 12.8 Update configuration overview
+- [x] 12.9 Update troubleshooting guide
+- [x] 12.10 Update FAQ
+- [x] 12.11 Update navigation structure
+- [x] 12.12 Validate all code examples and configuration samples
 
 ## Implementation Details
 

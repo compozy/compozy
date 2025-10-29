@@ -1,9 +1,10 @@
 {
   "title": "Architecture",
-  "description": "Deep dives into Compozy's architecture and deployment internals",
+  "description": "High-level architecture and component deep-dives",
   "icon": "Layers",
   "root": true,
   "pages": [
+    "overview",
     "embedded-temporal"
   ]
 }

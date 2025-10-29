@@ -4,6 +4,9 @@
   "icon": "Settings",
   "root": true,
   "pages": [
+    "overview",
+    "mode-configuration",
+    "redis",
     "temporal"
   ]
 }

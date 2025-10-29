@@ -1,0 +1,174 @@
+---
+title: "Standalone Mode Deployment"
+description: "Run Compozy as a single process with embedded Temporal and an optional embedded Redis-compatible cache."
+icon: Rocket
+---
+
+<Callout type="info" title="Who is this for?">
+Standalone mode is optimized for local development, CI, workshops, and demos. It removes external dependencies by embedding Temporal (workflow engine) and the cache layer in-process.
+</Callout>
+
+## When to Use Standalone
+
+<List>
+  <ListItem title="Local development" icon="Monitor">
+    Zero-deps setup. Run Compozy with an embedded Temporal server and built‑in cache.
+  </ListItem>
+  <ListItem title="Ephemeral CI & tests" icon="Workflow">
+    Deterministic, fast startup for integration tests. No Docker or external clusters.
+  </ListItem>
+  <ListItem title="Samples and workshops" icon="Sparkles">
+    Ship examples that boot end‑to‑end in seconds on any laptop.
+  </ListItem>
+</List>
+
+<Callout type="warning">
+Standalone mode is not designed for production: single process, no HA, and local SQLite/BadgerDB persistence. For production, use the [Distributed/Remote Mode](/docs/deployment/distributed-mode) with a managed Temporal cluster.
+</Callout>
+
+## Requirements
+
+- Go 1.25+ (CLI runtime; project uses Go 1.25.2)
+- macOS, Linux, or Windows
+- Optional: PostgreSQL if your workflows use the database features
+- No external Redis required (embedded compatible server covers cache use cases)
+
+## Quick Start
+
+Create a minimal configuration with standalone mode enabled for both Temporal and the cache layer.
+
+```yaml title="compozy.yaml"
+name: hello-standalone
+version: "0.1.0"
+
+mode: standalone
+
+temporal:
+  mode: standalone
+  host_port: localhost:7233
+  standalone:
+    database_file: :memory:
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-standalone
+    enable_ui: true
+    ui_port: 8233
+
+redis:
+  mode: standalone
+  standalone:
+    persistence:
+      enabled: false         # enable for snapshots
+      dir: ./.tmp/redis      # snapshot directory when enabled
+      interval: 60s          # snapshot interval
+
+workflows:
+  - source: ./workflows/greeting.yaml
+```
+
+Start Compozy with explicit overrides (optional; YAML takes precedence):
+
+```bash
+compozy start --temporal-mode=standalone --temporal-standalone-database=:memory:
+```
+
+Open the Temporal UI at `http://localhost:8233` and run a sample workflow.
+
+## Configuration Reference
+
+- Global mode: see [Mode Configuration](/docs/configuration/mode-configuration)
+- Temporal options: see [Temporal Configuration](/docs/configuration/temporal)
+- Cache options: see [Redis Configuration](/docs/configuration/redis)
+
+### Minimal Standalone (Ephemeral)
+
+```yaml
+mode: standalone
+temporal:
+  mode: standalone
+  standalone:
+    database_file: :memory:
+redis:
+  mode: standalone
+  standalone:
+    persistence:
+      enabled: false
+```
+
+### Standalone with Persistence
+
+```yaml
+mode: standalone
+temporal:
+  mode: standalone
+  standalone:
+    database_file: ./.tmp/temporal.db
+redis:
+  mode: standalone
+  standalone:
+    persistence:
+      enabled: true
+      dir: ./.tmp/redis
+      interval: 30s
+```
+
+## Verify the Setup
+
+<Steps size="sm">
+  <Step title="Server is running">
+    `compozy start` shows HTTP and Temporal ports; Temporal UI responds at the configured `ui_port`.
+  </Step>
+  <Step title="Workflow executes">
+    Run `compozy workflow run ./workflows/greeting.yaml --input '{"name":"Ava"}'` and confirm success in the UI.
+  </Step>
+  <Step title="Cache operational">
+    Run features that use caching (rate limits, stores). With persistence enabled, restart and verify data restores.
+  </Step>
+</Steps>
+
+## Performance Expectations
+
+- Startup: typically under 10 seconds on modern laptops
+- Throughput: lower than multi‑node clusters; suitable for individual developers and CI
+- UI: convenient for debugging, disable in CI for faster boots (`enable_ui: false`)
+
+## Troubleshooting
+
+Common issues and fixes:
+
+- Port conflict on `7233–7236` or `8233`: Adjust `temporal.standalone.frontend_port` or `ui_port`
+- Startup timeout: Increase `temporal.standalone.start_timeout` (e.g. `60s`)
+- Snapshot errors: Verify `redis.standalone.persistence.dir` write permissions
+
+See [Temporal Troubleshooting](/docs/troubleshooting/temporal) and [Common Issues](/docs/troubleshooting/common-issues).
+
+## Next Steps
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Distributed/Remote Mode"
+    description="Production‑grade deployment with durable infrastructure"
+    href="/docs/deployment/distributed-mode"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Mode Configuration"
+    description="Understand global vs per‑component mode selection"
+    href="/docs/configuration/mode-configuration"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Redis Configuration"
+    description="Cache settings for standalone and distributed environments"
+    href="/docs/configuration/redis"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Migrate to Distributed"
+    description="Step‑by‑step migration guide for scaling"
+    href="/docs/guides/migrate-standalone-to-distributed"
+    icon="ArrowRight"
+  />
+</ReferenceCardList>
+
