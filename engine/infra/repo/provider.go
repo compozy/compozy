@@ -33,7 +33,7 @@ func NewProvider(ctx context.Context, cfg *config.DatabaseConfig) (*Provider, fu
 	if cfg == nil {
 		return nil, nil, fmt.Errorf("repo: database config is required")
 	}
-	driver := strings.TrimSpace(cfg.Driver)
+	driver := strings.ToLower(strings.TrimSpace(cfg.Driver))
 	if driver == "" {
 		driver = driverPostgres
 	}

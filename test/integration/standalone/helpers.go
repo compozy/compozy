@@ -70,7 +70,8 @@ func SetupStandaloneTestEnv(t *testing.T, workflowPaths ...string) *Env {
 	proj := initProject(t)
 	wfs := loadWorkflows(ctx, t, workflowPaths...)
 	// Worker
-	deps := buildBaseDeps(proj, pool, cfg)
+	deps, cleanupProvider := buildBaseDeps(ctx, proj, cfg)
+	t.Cleanup(cleanupProvider)
 	registry := autoload.NewConfigRegistry()
 	w := startWorker(ctx, t, deps, registry, proj, wfs)
 
@@ -119,7 +120,7 @@ func initDatabase(t *testing.T, cfg *config.Config) *pgxpool.Pool {
 }
 
 func initTemporal(ctx context.Context, t *testing.T, cfg *config.Config) (*embedded.Config, *embedded.Server) {
-	e := newEmbeddedConfig()
+	e := newEmbeddedConfig(t)
 	e.FrontendPort = findFreePortRange(ctx, t, 4)
 	srv := startTemporal(ctx, t, e)
 	cfg.Temporal.HostPort = srv.FrontendAddress()
@@ -149,16 +150,20 @@ func loadWorkflows(ctx context.Context, t *testing.T, relPaths ...string) []*wor
 }
 
 func buildBaseDeps(
+	ctx context.Context,
 	proj *project.Config,
-	pool *pgxpool.Pool,
 	cfg *config.Config,
-) serverstate.BaseDeps {
-	provider := repo.NewProvider(pool)
-	return serverstate.NewBaseDeps(proj, nil, provider, &worker.TemporalConfig{
+) (serverstate.BaseDeps, func()) {
+	provider, cleanup, err := repo.NewProvider(ctx, &cfg.Database)
+	if err != nil {
+		panic(fmt.Errorf("buildBaseDeps: failed to create repo provider: %w", err))
+	}
+	deps := serverstate.NewBaseDeps(proj, nil, provider, &worker.TemporalConfig{
 		HostPort:  cfg.Temporal.HostPort,
 		Namespace: cfg.Temporal.Namespace,
 		TaskQueue: cfg.Temporal.TaskQueue,
 	})
+	return deps, cleanup
 }
 
 func startWorker(
@@ -220,10 +225,11 @@ func resolveToolEnv(
 
 // ---- Temporal helpers ----
 
-func newEmbeddedConfig() *embedded.Config {
+func newEmbeddedConfig(t *testing.T) *embedded.Config {
 	defaults := config.Default().Temporal.Standalone
+	memDir := t.TempDir()
 	return &embedded.Config{
-		DatabaseFile: ":memory:",
+		DatabaseFile: filepath.Join(memDir, "temporal.db"),
 		FrontendPort: defaults.FrontendPort,
 		BindIP:       defaults.BindIP,
 		Namespace:    defaults.Namespace,

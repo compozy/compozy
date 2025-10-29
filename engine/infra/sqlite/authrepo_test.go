@@ -240,8 +240,9 @@ func TestAuthRepo(t *testing.T) {
 	})
 
 	t.Run("Should_handle_null_last_used_timestamp", func(t *testing.T) {
+		t.Parallel()
 		repo := setupAuthRepo(t)
-		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		ctx := testCtx(t)
 
 		user := createTestUser(t, repo, "nulllastused@example.com", model.RoleAdmin)
 		key := createTestAPIKey(t, repo, user.ID, "cpzy_prefix_8")
@@ -280,7 +281,7 @@ func createTestUser(t *testing.T, repo uc.Repository, email string, role model.R
 
 func createTestAPIKey(t *testing.T, repo uc.Repository, userID core.ID, prefix string) *model.APIKey {
 	t.Helper()
-	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	ctx := testCtx(t)
 	key := &model.APIKey{
 		ID:          core.MustNewID(),
 		UserID:      userID,

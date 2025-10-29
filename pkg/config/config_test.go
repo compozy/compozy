@@ -45,7 +45,7 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, "postgres", cfg.Database.User)
 		assert.Equal(t, "compozy", cfg.Database.DBName)
 		assert.Equal(t, "disable", cfg.Database.SSLMode)
-		assert.Equal(t, "postgres", cfg.Database.Driver)
+		assert.Empty(t, cfg.Database.Driver)
 		assert.Equal(t, ":memory:", cfg.Database.Path)
 
 		// Temporal defaults
@@ -120,6 +120,18 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, DefaultCLIActiveWindowDays, cfg.CLI.Users.ActiveWindowDays)
 
 		// App mode removed in greenfield cleanup
+	})
+}
+
+func TestConfig_StandaloneModeDefaultsToSQLiteDriver(t *testing.T) {
+	t.Run("Should resolve sqlite driver when global mode standalone", func(t *testing.T) {
+		t.Setenv("COMPOZY_MODE", ModeStandalone)
+		ctx := t.Context()
+		m := NewManager(ctx, NewService())
+		cfg, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = m.Close(ctx) })
+		assert.Equal(t, databaseDriverSQLite, cfg.Database.Driver)
 	})
 }
 

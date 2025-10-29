@@ -148,6 +148,8 @@ func (s *Server) Stop(ctx context.Context) error {
 		return errNilContext
 	}
 
+	ctx = context.WithoutCancel(ctx)
+
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
 

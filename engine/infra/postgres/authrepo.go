@@ -114,6 +114,7 @@ func (r *AuthRepo) DeleteUser(ctx context.Context, id core.ID) error {
 func (r *AuthRepo) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
 	query := `INSERT INTO api_keys (id, user_id, hash, prefix, fingerprint, created_at) VALUES ($1, $2, $3, $4, $5, $6)`
 	createdAt := time.Now().UTC()
+	key.CreatedAt = createdAt
 	if _, err := r.db.Exec(
 		ctx,
 		query,
@@ -122,7 +123,7 @@ func (r *AuthRepo) CreateAPIKey(ctx context.Context, key *model.APIKey) error {
 		key.Hash,
 		key.Prefix,
 		key.Fingerprint,
-		createdAt,
+		key.CreatedAt,
 	); err != nil {
 		return fmt.Errorf("failed to create API key: %w", err)
 	}

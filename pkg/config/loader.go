@@ -370,6 +370,15 @@ func (l *loader) validateCustom(config *Config) error {
 }
 
 func validateDatabase(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is required for database validation")
+	}
+	trimmed := strings.TrimSpace(cfg.Database.Driver)
+	if trimmed == "" {
+		cfg.Database.Driver = cfg.EffectiveDatabaseDriver()
+	} else {
+		cfg.Database.Driver = trimmed
+	}
 	if err := cfg.Database.Validate(); err != nil {
 		return err
 	}

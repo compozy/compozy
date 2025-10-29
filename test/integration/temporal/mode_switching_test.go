@@ -1,6 +1,7 @@
 package temporal
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestStandaloneModeActivation(t *testing.T) {
 		cfg.Temporal.HostPort = oldHostPort
 		cfg.Temporal.Mode = "standalone"
 		cfg.Temporal.Namespace = defaultNamespace()
-		cfg.Temporal.Standalone.DatabaseFile = ":memory:"
+		cfg.Temporal.Standalone.DatabaseFile = filepath.Join(t.TempDir(), "temporal-mode.db")
 		cfg.Temporal.Standalone.EnableUI = false
 		cfg.Temporal.Standalone.Namespace = cfg.Temporal.Namespace
 		cfg.Temporal.Standalone.FrontendPort = findAvailablePortRange(ctx, t, 4)

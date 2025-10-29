@@ -15,13 +15,13 @@ import (
 	"github.com/compozy/compozy/engine/llm/usage"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/logger"
 )
 
 func TestWorkflowRepo_UpsertState(t *testing.T) {
 	t.Run("Should upsert and load workflow state", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -35,8 +35,9 @@ func TestWorkflowRepo_UpsertState(t *testing.T) {
 
 func TestWorkflowRepo_GetStateByExecID(t *testing.T) {
 	t.Run("Should load state with tasks by exec id", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -56,8 +57,9 @@ func TestWorkflowRepo_GetStateByExecID(t *testing.T) {
 
 func TestWorkflowRepo_ListStatesByStatus(t *testing.T) {
 	t.Run("Should list states filtered by status", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		running := sampleWorkflowState()
 		success := sampleWorkflowState()
@@ -75,8 +77,9 @@ func TestWorkflowRepo_ListStatesByStatus(t *testing.T) {
 
 func TestWorkflowRepo_ListStatesByWorkflowID(t *testing.T) {
 	t.Run("Should list states filtered by workflow id", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		target := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, target))
@@ -92,8 +95,9 @@ func TestWorkflowRepo_ListStatesByWorkflowID(t *testing.T) {
 
 func TestWorkflowRepo_UpdateStatus(t *testing.T) {
 	t.Run("Should update workflow status", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -107,8 +111,9 @@ func TestWorkflowRepo_UpdateStatus(t *testing.T) {
 
 func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
 	t.Run("Should get state by task id", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -127,8 +132,9 @@ func TestWorkflowRepo_GetStateByTaskID(t *testing.T) {
 
 func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
 	t.Run("Should get state by agent id", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -151,8 +157,9 @@ func TestWorkflowRepo_GetStateByAgentID(t *testing.T) {
 
 func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 	t.Run("Should get state by tool id", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -173,8 +180,9 @@ func TestWorkflowRepo_GetStateByToolID(t *testing.T) {
 
 func TestWorkflowRepo_CompleteWorkflow(t *testing.T) {
 	t.Run("Should complete workflow and attach output", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -200,8 +208,9 @@ func TestWorkflowRepo_CompleteWorkflow(t *testing.T) {
 
 func TestWorkflowRepo_CompleteWorkflowTransformerError(t *testing.T) {
 	t.Run("Should mark workflow failed when transformer errors", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -222,8 +231,9 @@ func TestWorkflowRepo_CompleteWorkflowTransformerError(t *testing.T) {
 
 func TestWorkflowRepo_UsageJSON(t *testing.T) {
 	t.Run("Should persist and load usage JSON", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		state.Usage = usageSummary(10, 5)
@@ -238,8 +248,9 @@ func TestWorkflowRepo_UsageJSON(t *testing.T) {
 
 func TestWorkflowRepo_InputJSON(t *testing.T) {
 	t.Run("Should persist and load input JSON", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		input := core.Input{"prompt": "hello"}
@@ -255,8 +266,9 @@ func TestWorkflowRepo_InputJSON(t *testing.T) {
 
 func TestWorkflowRepo_OutputJSON(t *testing.T) {
 	t.Run("Should persist and load output JSON", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		output := core.Output{"result": "world"}
@@ -272,8 +284,9 @@ func TestWorkflowRepo_OutputJSON(t *testing.T) {
 
 func TestWorkflowRepo_ErrorJSON(t *testing.T) {
 	t.Run("Should persist and load error JSON", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		state.Error = core.NewError(assert.AnError, "TEST", map[string]any{"code": 500})
@@ -288,8 +301,9 @@ func TestWorkflowRepo_ErrorJSON(t *testing.T) {
 
 func TestWorkflowRepo_NullJSONFields(t *testing.T) {
 	t.Run("Should keep nullable JSON fields nil when absent", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -305,8 +319,9 @@ func TestWorkflowRepo_NullJSONFields(t *testing.T) {
 
 func TestWorkflowRepo_MergeUsage(t *testing.T) {
 	t.Run("Should merge usage summaries", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		state.Usage = usageSummary(5, 5)
@@ -322,8 +337,9 @@ func TestWorkflowRepo_MergeUsage(t *testing.T) {
 
 func TestWorkflowRepo_TransactionAtomic(t *testing.T) {
 	t.Run("Should commit when workflow can complete", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -346,8 +362,9 @@ func TestWorkflowRepo_TransactionAtomic(t *testing.T) {
 
 func TestWorkflowRepo_RollbackOnError(t *testing.T) {
 	t.Run("Should rollback when workflow cannot complete", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -369,8 +386,9 @@ func TestWorkflowRepo_RollbackOnError(t *testing.T) {
 
 func TestWorkflowRepo_HandleConcurrentUpdates(t *testing.T) {
 	t.Run("Should handle concurrent updates without fatal errors", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -413,8 +431,9 @@ func TestWorkflowRepo_HandleConcurrentUpdates(t *testing.T) {
 
 func TestWorkflowRepo_MissingWorkflow(t *testing.T) {
 	t.Run("Should return not found for missing workflow", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		_, err := repo.GetState(ctx, core.MustNewID())
 		assert.ErrorIs(t, err, store.ErrWorkflowNotFound)
@@ -423,8 +442,9 @@ func TestWorkflowRepo_MissingWorkflow(t *testing.T) {
 
 func TestWorkflowRepo_EmptyJSONArrays(t *testing.T) {
 	t.Run("Should persist empty JSON arrays and objects", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		empty := core.Output{}
@@ -441,8 +461,9 @@ func TestWorkflowRepo_EmptyJSONArrays(t *testing.T) {
 
 func TestWorkflowRepo_ComplexNestedJSON(t *testing.T) {
 	t.Run("Should persist and load complex nested JSON", func(t *testing.T) {
+		t.Parallel()
 		repo, _ := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		nested := core.Output{"outer": map[string]any{"inner": []any{1, map[string]any{"deep": true}}}}
@@ -460,8 +481,9 @@ func TestWorkflowRepo_ComplexNestedJSON(t *testing.T) {
 
 func TestWorkflowRepo_JSONConstraint(t *testing.T) {
 	t.Run("Should enforce JSON array constraint on usage", func(t *testing.T) {
+		t.Parallel()
 		repo, db := setupWorkflowRepoTest(t)
-		ctx := t.Context()
+		ctx := testCtx(t)
 
 		state := sampleWorkflowState()
 		require.NoError(t, repo.UpsertState(ctx, state))
@@ -488,8 +510,7 @@ type taskInsertOptions struct {
 
 func setupWorkflowRepoTest(t *testing.T) (*WorkflowRepo, *sql.DB) {
 	t.Helper()
-	// Attach a test logger to ensure context-backed logging during tests.
-	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+	ctx := testCtx(t)
 	dbPath := t.TempDir() + "/workflow.db"
 
 	require.NoError(t, ApplyMigrations(ctx, dbPath))
@@ -523,7 +544,7 @@ func usageSummary(prompt, completion int) *usage.Summary {
 
 func insertTask(t *testing.T, db *sql.DB, opts *taskInsertOptions) {
 	t.Helper()
-	ctx := t.Context()
+	ctx := testCtx(t)
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	component := core.ComponentTask
 	if opts.AgentID != nil {

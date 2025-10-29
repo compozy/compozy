@@ -2,6 +2,7 @@ package embedded
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
@@ -137,7 +138,7 @@ func buildSQLiteSQLConfig(cfg *Config) *config.SQL {
 }
 
 func buildSQLiteConnectAttrs(cfg *Config) map[string]string {
-	if cfg.DatabaseFile == ":memory:" {
+	if isInMemoryDatabase(cfg.DatabaseFile) {
 		return map[string]string{
 			"mode":  "memory",
 			"cache": "shared",
@@ -150,6 +151,14 @@ func buildSQLiteConnectAttrs(cfg *Config) map[string]string {
 		"synchronous":  "2",
 		"setup":        "true",
 	}
+}
+
+func isInMemoryDatabase(name string) bool {
+	if name == ":memory:" {
+		return true
+	}
+	lower := strings.ToLower(name)
+	return strings.HasPrefix(lower, "file:") && strings.Contains(lower, "mode=memory")
 }
 
 func buildServiceConfig(cfg *Config) map[string]config.Service {

@@ -737,7 +737,7 @@ func registerDatabaseEndpointFields(registry *Registry) {
 		registry,
 		FieldDef{
 			Path:    "database.driver",
-			Default: "postgres",
+			Default: "",
 			CLIFlag: "db-driver",
 			EnvVar:  "DB_DRIVER",
 			Type:    reflect.TypeOf(""),

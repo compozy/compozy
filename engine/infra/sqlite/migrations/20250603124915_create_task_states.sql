@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS task_states (
         (execution_type = 'router' AND agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL) OR
         (execution_type IN ('parallel', 'collection', 'composite'))
     ),
-    CHECK (usage IS NULL OR json_type(usage) = 'array')
+    CHECK (usage IS NULL OR json_type(usage) = 'array'),
+    CHECK (input IS NULL OR json_valid(input)),
+    CHECK (output IS NULL OR json_valid(output)),
+    CHECK (error IS NULL OR json_valid(error))
 );
 
 CREATE INDEX IF NOT EXISTS idx_task_states_status ON task_states (status);

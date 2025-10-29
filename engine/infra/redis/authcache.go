@@ -23,10 +23,12 @@ type CachedRepository struct {
 	ttl    time.Duration
 }
 
+const defaultAuthCacheTTL = 30 * time.Second
+
 // NewCachedRepository returns a Redis-backed caching decorator.
 func NewCachedRepository(repo uc.Repository, client *rds.Client, ttl time.Duration) uc.Repository {
 	if ttl <= 0 {
-		ttl = 30 * time.Second
+		ttl = defaultAuthCacheTTL
 	}
 	return &CachedRepository{repo: repo, client: client, ttl: ttl}
 }
@@ -55,7 +57,15 @@ func (c *CachedRepository) GetAPIKeyByFingerprint(ctx context.Context, fingerpri
 				if gerr == nil {
 					return key, nil
 				}
-				log.Debug("repo.GetAPIKeyByID after fp mapping failed", "error", gerr)
+				if derr := c.client.Del(ctx, c.fpKey(fingerprint)).Err(); derr != nil {
+					log.Warn("redis: del fp cache failed", "error", derr)
+				}
+				log.Debug("repo.GetAPIKeyByID after fp mapping failed; evicted mapping", "error", gerr)
+			} else {
+				if derr := c.client.Del(ctx, c.fpKey(fingerprint)).Err(); derr != nil {
+					log.Warn("redis: del fp cache failed", "error", derr)
+				}
+				log.Debug("redis: invalid fp->id mapping; evicted", "value", s, "error", perr)
 			}
 		}
 	}
@@ -80,7 +90,10 @@ func (c *CachedRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*mode
 			if uerr == nil {
 				return &masked, nil
 			}
-			log.Debug("redis: unmarshal cached api key failed", "error", uerr)
+			if derr := c.client.Del(ctx, c.idKey(id)).Err(); derr != nil {
+				log.Warn("redis: del id cache failed", "error", derr)
+			}
+			log.Debug("redis: unmarshal cached api key failed; evicted", "error", uerr)
 		}
 	}
 	key, err := c.repo.GetAPIKeyByID(ctx, id)
@@ -125,7 +138,7 @@ func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 			logger.FromContext(ctx).Warn("redis: del id cache failed", "error", err)
 		}
 	}
-	if c.client != nil && k != nil {
+	if c.client != nil && k != nil && len(k.Fingerprint) > 0 {
 		if err := c.client.Del(ctx, c.fpKey(k.Fingerprint)).Err(); err != nil {
 			logger.FromContext(ctx).Warn("redis: del fp cache failed", "error", err)
 		}

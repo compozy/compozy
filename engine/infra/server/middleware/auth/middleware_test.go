@@ -139,7 +139,7 @@ func TestManager_Middleware(t *testing.T) {
 	t.Run("Should reject request with invalid API key", func(t *testing.T) {
 		mockRepo := &MockRepository{}
 		mockRepo.On("GetAPIKeyByFingerprint", mock.Anything, mock.Anything).
-			Return((*model.APIKey)(nil), errors.New("key not found"))
+			Return((*model.APIKey)(nil), uc.ErrAPIKeyNotFound)
 		t.Cleanup(func() { mockRepo.AssertExpectations(t) })
 		factory := uc.NewFactory(mockRepo)
 		manager := NewManager(factory, nil)

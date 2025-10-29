@@ -307,7 +307,7 @@ type DatabaseConfig struct {
 	//   - "sqlite": lightweight single-node deployments
 	//
 	// Defaults to "postgres" when omitted for backward compatibility.
-	Driver string `koanf:"driver" json:"driver" yaml:"driver" mapstructure:"driver" env:"DB_DRIVER" validate:"oneof=postgres sqlite"`
+	Driver string `koanf:"driver" json:"driver" yaml:"driver" mapstructure:"driver" env:"DB_DRIVER" validate:"omitempty,oneof=postgres sqlite"`
 
 	// ConnString provides a complete PostgreSQL connection URL.
 	//
@@ -421,7 +421,7 @@ func (c *DatabaseConfig) Validate() error {
 	if c == nil {
 		return fmt.Errorf("database config is required")
 	}
-	driver := strings.TrimSpace(c.Driver)
+	driver := strings.ToLower(strings.TrimSpace(c.Driver))
 	if driver == "" {
 		driver = databaseDriverPostgres
 	}
