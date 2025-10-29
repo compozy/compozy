@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/server</domain>
@@ -43,14 +43,14 @@ Verify that streaming and Pub/Sub functionality work correctly with miniredis ba
 
 ## Subtasks
 
-- [ ] 6.1 Create test/integration/standalone/streaming_test.go with test suite
-- [ ] 6.2 Verify basic publish/subscribe functionality
-- [ ] 6.3 Verify pattern subscriptions (wildcard channels)
-- [ ] 6.4 Verify multiple subscribers receive events
-- [ ] 6.5 Verify event delivery reliability (no lost events)
-- [ ] 6.6 Verify subscription lifecycle (subscribe, unsubscribe, cleanup)
-- [ ] 6.7 Add test fixtures and event generators
-- [ ] 6.8 Run full test suite and ensure >80% coverage for integration code
+- [x] 6.1 Create test/integration/standalone/streaming_test.go with test suite
+- [x] 6.2 Verify basic publish/subscribe functionality
+- [x] 6.3 Verify pattern subscriptions (wildcard channels)
+- [x] 6.4 Verify multiple subscribers receive events
+- [x] 6.5 Verify event delivery reliability (no lost events)
+- [x] 6.6 Verify subscription lifecycle (subscribe, unsubscribe, cleanup)
+- [x] 6.7 Add test fixtures and event generators
+- [x] 6.8 Run full test suite and ensure >80% coverage for integration code
 
 ## Implementation Details
 
@@ -300,19 +300,19 @@ func setupStreamingWithMiniredis(ctx context.Context, t *testing.T) *StreamingTe
 
 ## Success Criteria
 
-- [ ] All integration tests pass with miniredis backend
-- [ ] Basic publish/subscribe functionality works correctly
-- [ ] Pattern subscriptions (wildcards) work identically to Redis
-- [ ] Multiple subscribers receive all events
-- [ ] Event delivery is reliable (no lost events)
-- [ ] Subscription lifecycle (subscribe/unsubscribe/cleanup) works correctly
-- [ ] Test coverage >80% for integration code
-- [ ] `make test` passes with no failures
-- [ ] All tests use `t.Context()` (no `context.Background()`)
-- [ ] All tests follow "Should..." naming convention
-- [ ] Test output clearly shows miniredis backend being tested
-- [ ] No behavioral differences between miniredis and external Redis
-- [ ] Documentation updated with any edge cases discovered
+- [x] All integration tests pass with miniredis backend
+- [x] Basic publish/subscribe functionality works correctly
+- [x] Pattern subscriptions (wildcards) work identically to Redis
+- [x] Multiple subscribers receive all events
+- [x] Event delivery is reliable (no lost events)
+- [x] Subscription lifecycle (subscribe/unsubscribe/cleanup) works correctly
+- [x] Test coverage >80% for integration code
+- [x] `make test` passes with no failures
+- [x] All tests use `t.Context()` (no `context.Background()`)
+- [x] All tests follow "Should..." naming convention
+- [x] Test output clearly shows miniredis backend being tested
+- [x] No behavioral differences between miniredis and external Redis
+- [x] Documentation updated with any edge cases discovered
 
 ## Dependencies
 
@@ -352,14 +352,14 @@ func setupStreamingWithMiniredis(ctx context.Context, t *testing.T) *StreamingTe
 
 Before marking this task complete:
 
-- [ ] All subtasks completed
-- [ ] All tests in "Tests" section implemented and passing
-- [ ] Test coverage verified (>80%)
-- [ ] `make lint` passes with no warnings
-- [ ] `make test` passes with no failures
-- [ ] Integration tests added to CI pipeline
-- [ ] Code follows `.cursor/rules/test-standards.mdc`
-- [ ] All uses of context follow patterns (t.Context() in tests)
-- [ ] Test fixtures and helpers properly organized
-- [ ] No flaky tests (all tests deterministic)
-- [ ] Documentation updated if edge cases discovered
+- [x] All subtasks completed
+- [x] All tests in "Tests" section implemented and passing
+- [x] Test coverage verified (>80%)
+- [x] `make lint` passes with no warnings
+- [x] `make test` passes with no failures
+- [x] Integration tests added to CI pipeline
+- [x] Code follows `.cursor/rules/test-standards.mdc`
+- [x] All uses of context follow patterns (t.Context() in tests)
+- [x] Test fixtures and helpers properly organized
+- [x] No flaky tests (all tests deterministic)
+- [x] Documentation updated if edge cases discovered

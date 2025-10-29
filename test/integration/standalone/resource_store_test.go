@@ -45,17 +45,17 @@ func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 		got2, et4, err := env.Store.Get(ctx, key)
 		require.NoError(t, err)
 		assert.Equal(t, et3, et4)
-        m2 := got2.(map[string]any)
-        x := m2["cfg"].(map[string]any)["x"]
-        switch xv := x.(type) {
-        case string:
-            assert.Equal(t, "2", xv)
-        case fmt.Stringer:
-            assert.Equal(t, "2", xv.String())
-        default:
-            // As a fallback, accept numeric equality when decoded as float64
-            assert.Equal(t, 2.0, xv)
-        }
+		m2 := got2.(map[string]any)
+		x := m2["cfg"].(map[string]any)["x"]
+		switch xv := x.(type) {
+		case string:
+			assert.Equal(t, "2", xv)
+		case fmt.Stringer:
+			assert.Equal(t, "2", xv.String())
+		default:
+			// As a fallback, accept numeric equality when decoded as float64
+			assert.Equal(t, 2.0, xv)
+		}
 	})
 
 	t.Run("Should support optimistic locking via PutIfMatch Lua script", func(t *testing.T) {
