@@ -4,9 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## Unreleased
 
+### ♻️  Refactoring
 
-## 0.0.19 - 2025-10-20
+- *(repo)* Replace task2 package
+- *(repo)* Add temporal standalone mode ([#305](https://github.com/compozy/compozy/issues/305))
+
+### 🎉 Features
+
+- *(repo)* Add support for streams ([#297](https://github.com/compozy/compozy/issues/297))
+- *(repo)* New call_agents built-in tool ([#299](https://github.com/compozy/compozy/issues/299))
+- *(repo)* Built-in tools to call tasks and workflows ([#301](https://github.com/compozy/compozy/issues/301))
+- *(repo)* Add standalone mode for cache ([#311](https://github.com/compozy/compozy/issues/311))
+
+### 🐛 Bug Fixes
+
+- *(task)* Evaluate timeout templates in wait tasks before execution ([#309](https://github.com/compozy/compozy/issues/309))
+
+### 📚 Documentation
+
+- *(repo)* Update CHANGELOG.md
+
+## 0.0.19 - 2025-10-21
 
 ### ♻️  Refactoring
 
@@ -23,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🔧 CI/CD
 
+- *(release)* Release v0.0.19 ([#295](https://github.com/compozy/compozy/issues/295))
 - *(repo)* Fix release
 
 ## 0.0.18 - 2025-10-17
@@ -408,6 +429,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(repo)* Fix testcontainer timeouts
 - *(server)* Add basic tests for server
 
+[0.0.19]: https://github.com/compozy/compozy/compare/v0.0.18...v0.0.19
 [0.0.18]: https://github.com/compozy/compozy/compare/v0.0.17...v0.0.18
 [0.0.17]: https://github.com/compozy/compozy/compare/v0.0.16...v0.0.17
 [0.0.16]: https://github.com/compozy/compozy/compare/v0.0.15...v0.0.16
