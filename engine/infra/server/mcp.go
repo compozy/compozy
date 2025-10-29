@@ -24,7 +24,7 @@ func (s *Server) setupMCPProxy(ctx context.Context) (func(), error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
-	if !shouldEmbedMCPProxy(cfg) {
+	if !shouldEmbedMCPProxy(ctx) {
 		return func() {}, nil
 	}
 	server, driver, baseURL, err := s.launchMCPServer(ctx, cfg)
@@ -194,7 +194,8 @@ func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL,
 	s.setMCPReady(true)
 	s.onReadinessMaybeChanged("mcp_ready")
 	log := logger.FromContext(ctx)
-	if cfg.MCPProxy.Mode == modeStandalone {
+	mode := cfg.EffectiveMCPProxyMode()
+	if mode == config.ModeStandalone {
 		if cfg.LLM.ProxyURL != baseURL {
 			cfg.LLM.ProxyURL = baseURL
 			log.Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
@@ -205,7 +206,7 @@ func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL,
 	}
 	log.Info(
 		"Embedded MCP proxy started",
-		"mode", cfg.MCPProxy.Mode,
+		"mode", mode,
 		"mcp_storage_driver", driver,
 		"base_url", baseURL,
 	)
@@ -271,11 +272,12 @@ func (s *Server) newMCPProxyServer(
 	return server, string(storageCfg.Type), nil
 }
 
-func shouldEmbedMCPProxy(cfg *config.Config) bool {
+func shouldEmbedMCPProxy(ctx context.Context) bool {
+	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return false
 	}
-	if cfg.MCPProxy.Mode != modeStandalone {
+	if cfg.EffectiveMCPProxyMode() != config.ModeStandalone {
 		return false
 	}
 	return true
@@ -304,7 +306,11 @@ func storageConfigForMCP(cfg *config.Config) *mcpproxy.StorageConfig {
 	if cfg == nil {
 		return mcpproxy.DefaultStorageConfig()
 	}
-	if !isRedisConfigured(cfg) {
+	mode := cfg.EffectiveRedisMode()
+	if mode == config.ModeStandalone {
+		return &mcpproxy.StorageConfig{Type: mcpproxy.StorageTypeMemory}
+	}
+	if mode != config.ModeDistributed {
 		return &mcpproxy.StorageConfig{Type: mcpproxy.StorageTypeMemory}
 	}
 	app := cfg.Redis

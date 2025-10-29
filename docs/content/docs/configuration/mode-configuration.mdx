@@ -1,0 +1,139 @@
+---
+title: "Mode Configuration"
+description: "Control global and per-component deployment modes (standalone vs distributed)."
+icon: GitBranch
+---
+
+Compozy supports two operational modes: `standalone` and `distributed` (aka remote). You select a global default and optionally override per component.
+
+## Overview
+
+<List>
+  <ListItem title="Global mode" icon="Globe2">
+    Set `mode: standalone|distributed` at the root to establish a default for all components.
+  </ListItem>
+  <ListItem title="Per‑component override" icon="Settings">
+    Each component (e.g., `temporal`, `redis`) can specify its own `mode` to override the global setting.
+  </ListItem>
+  <ListItem title="Resolution order" icon="ListChecks">
+    Component mode (if set) → global `mode` (if set) → component default (usually `distributed`).
+  </ListItem>
+</List>
+
+## Configuration Structure
+
+```yaml title="compozy.yaml"
+# Global default
+mode: standalone | distributed
+
+temporal:
+  mode: standalone | remote   # "remote" is the distributed mode for Temporal
+  # ...other temporal fields
+
+redis:
+  mode: standalone | distributed
+  # ...per-mode fields
+```
+
+<Callout type="info">
+Temporal uses `remote` to denote the distributed mode, matching Temporal terminology. For Redis and other components, `distributed` is used. Both follow the same inheritance rules.
+</Callout>
+
+## Examples
+
+### Pure Standalone
+
+```yaml
+mode: standalone
+
+temporal:
+  mode: standalone
+  standalone:
+    database_file: :memory:
+
+redis:
+  mode: standalone
+  standalone:
+    persistence:
+      enabled: false
+```
+
+### Pure Distributed
+
+```yaml
+mode: distributed
+
+temporal:
+  mode: remote
+  host_port: temporal.prod.internal:7233
+  namespace: compozy-prod
+
+redis:
+  mode: distributed
+  distributed:
+    addr: redis.prod.internal:6379
+    password: ${REDIS_PASSWORD}
+    tls:
+      enabled: true
+```
+
+### Mixed Mode (Local Dev)
+
+```yaml
+mode: standalone
+
+temporal:
+  mode: standalone
+  standalone:
+    database_file: ./.tmp/temporal.db
+
+redis:
+  mode: distributed           # use real Redis while keeping Temporal embedded
+  distributed:
+    addr: localhost:6379
+    password: ""
+```
+
+## Environment & CLI Overrides
+
+Use environment variables or flags to switch quickly:
+
+| Path | Env | Flag |
+| ---- | --- | ---- |
+| `mode` | `COMPOZY_MODE` | `--mode` |
+| `temporal.mode` | `TEMPORAL_MODE` | `--temporal-mode` |
+| `redis.mode` | `REDIS_MODE` | `--redis-mode` |
+
+<Callout type="warning">
+YAML values take precedence over flags. Use flags for local overrides only.
+</Callout>
+
+## Validation
+
+- Unknown modes are rejected with a clear error (valid: `standalone`, `distributed`, `remote` where applicable)
+- Fields must be valid for the selected mode (e.g., `redis.distributed.addr` required when `redis.mode=distributed`)
+- Mode conflicts surface actionable diagnostics in `compozy config` commands
+
+## See Also
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Redis Configuration"
+    description="Per‑mode settings and persistence options"
+    href="/docs/configuration/redis"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Temporal Configuration"
+    description="Remote vs standalone server fields"
+    href="/docs/configuration/temporal"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Standalone Deployment"
+    description="End‑to‑end guide for single‑process setups"
+    href="/docs/deployment/standalone-mode"
+    icon="Rocket"
+  />
+</ReferenceCardList>
+

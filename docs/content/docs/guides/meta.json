@@ -1,0 +1,9 @@
+{
+  "title": "Guides",
+  "description": "How‑to guides for common operational tasks",
+  "icon": "BookOpen",
+  "root": true,
+  "pages": [
+    "migrate-standalone-to-distributed"
+  ]
+}

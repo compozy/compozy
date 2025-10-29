@@ -2,9 +2,16 @@ package cache
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
+)
+
+const (
+	modeStandalone  = "standalone"
+	modeDistributed = "distributed"
 )
 
 // Config represents the cache-specific configuration
@@ -28,45 +35,108 @@ type Cache struct {
 	Redis        *Redis
 	LockManager  LockManager
 	Notification NotificationSystem
+	// embedded holds the standalone miniredis server when running in standalone
+	// mode. It remains nil when using an external (distributed) Redis backend.
+	embedded *MiniredisStandalone
 }
 
-// SetupCache creates a new Cache instance with Redis backend
-func SetupCache(ctx context.Context, config *Config) (*Cache, error) {
-	if config == nil {
-		return nil, fmt.Errorf("cache config cannot be nil")
+// SetupCache creates a mode-aware cache backend using configuration from context.
+// It returns a unified Cache object plus a cleanup function safe to call multiple times.
+//
+// Modes (resolved via cfg.EffectiveRedisMode()):
+//   - "standalone": starts an embedded miniredis and connects a client to it
+//   - "distributed" (default): connects to external Redis using provided settings
+func SetupCache(ctx context.Context) (*Cache, func(), error) {
+	log := logger.FromContext(ctx)
+	appCfg := config.FromContext(ctx)
+	if appCfg == nil {
+		return nil, nil, fmt.Errorf("missing configuration in context")
 	}
-	redis, err := NewRedis(ctx, config)
-	if err != nil {
-		return nil, err
+
+	cacheCfg := FromAppConfig(appCfg)
+	mode := appCfg.EffectiveRedisMode()
+	log.Info("Initializing cache backend", "mode", mode)
+
+	switch mode {
+	case modeStandalone:
+		return setupStandaloneCache(ctx, cacheCfg)
+
+	case modeDistributed:
+		return setupDistributedCache(ctx, cacheCfg)
+
+	default:
+		return nil, nil, fmt.Errorf("unsupported redis mode: %s", mode)
 	}
-	lockManager, err := NewRedisLockManager(redis)
-	if err != nil {
-		return nil, err
-	}
-	notification, err := NewRedisNotificationSystem(redis, config)
-	if err != nil {
-		return nil, err
-	}
-	return &Cache{
-		Redis:        redis,
-		LockManager:  lockManager,
-		Notification: notification,
-	}, nil
 }
 
-// Close gracefully shuts down the cache
-func (c *Cache) Close() error {
+// setupStandaloneCache creates embedded miniredis backend and wraps it with Redis facade.
+func setupStandaloneCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
+	log := logger.FromContext(ctx)
+	mr, err := NewMiniredisStandalone(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create miniredis standalone: %w", err)
+	}
+	r := NewRedisFromClient(ctx, mr.Client(), cacheCfg)
+	lm, err := NewRedisLockManager(r)
+	if err != nil {
+		_ = mr.Close(ctx)
+		return nil, nil, err
+	}
+	ns, err := NewRedisNotificationSystem(r, cacheCfg)
+	if err != nil {
+		_ = mr.Close(ctx)
+		return nil, nil, err
+	}
+	c := &Cache{Redis: r, LockManager: lm, Notification: ns, embedded: mr}
+	cleanup := func() {
+		_ = c.Close(context.WithoutCancel(ctx))
+	}
+	log.Info("Standalone cache initialized")
+	return c, cleanup, nil
+}
+
+// setupDistributedCache creates external Redis backend using application configuration.
+func setupDistributedCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
+	log := logger.FromContext(ctx)
+	r, err := NewRedis(ctx, cacheCfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	lm, err := NewRedisLockManager(r)
+	if err != nil {
+		_ = r.Close()
+		return nil, nil, err
+	}
+	ns, err := NewRedisNotificationSystem(r, cacheCfg)
+	if err != nil {
+		_ = r.Close()
+		return nil, nil, err
+	}
+	c := &Cache{Redis: r, LockManager: lm, Notification: ns}
+	cleanup := func() { _ = c.Close(context.WithoutCancel(ctx)) }
+	log.Info("Distributed cache initialized")
+	return c, cleanup, nil
+}
+
+// Close gracefully shuts down the cache and any embedded runtime components.
+func (c *Cache) Close(ctx context.Context) error {
+	var errs []error
 	if c.Notification != nil {
 		if err := c.Notification.Close(); err != nil {
-			return fmt.Errorf("failed to close notification system: %w", err)
+			errs = append(errs, fmt.Errorf("close notification system: %w", err))
 		}
 	}
 	if c.Redis != nil {
 		if err := c.Redis.Close(); err != nil {
-			return fmt.Errorf("failed to close Redis: %w", err)
+			errs = append(errs, fmt.Errorf("close redis client: %w", err))
 		}
 	}
-	return nil
+	if c.embedded != nil {
+		if err := c.embedded.Close(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("close embedded redis: %w", err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // HealthCheck performs a health check on all cache components

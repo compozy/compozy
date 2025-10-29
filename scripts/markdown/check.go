@@ -844,7 +844,7 @@ func prepareJobs(
 		batchSize = 1
 		grouped = false
 	}
-	allIssues := flattenAndSortIssues(groups)
+	allIssues := flattenAndSortIssues(groups, mode)
 	if batchSize <= 0 {
 		batchSize = 1
 	}
@@ -921,14 +921,26 @@ func writeBatchArtifacts(promptRoot, safeName, promptStr string) (string, string
 	return outPromptPath, outLog, errLog, nil
 }
 
-func flattenAndSortIssues(groups map[string][]issueEntry) []issueEntry {
+func flattenAndSortIssues(groups map[string][]issueEntry, mode executionMode) []issueEntry {
 	allIssues := make([]issueEntry, 0)
 	for _, items := range groups {
 		allIssues = append(allIssues, items...)
 	}
-	sort.Slice(allIssues, func(i, j int) bool {
-		return allIssues[i].name < allIssues[j].name
-	})
+	// For PRD tasks, sort by numeric task ID (stable) with name tie-breaker.
+	if mode == ExecutionModePRDTasks {
+		sort.SliceStable(allIssues, func(i, j int) bool {
+			numI := extractTaskNumber(allIssues[i].name)
+			numJ := extractTaskNumber(allIssues[j].name)
+			if numI != numJ {
+				return numI < numJ
+			}
+			return allIssues[i].name < allIssues[j].name
+		})
+	} else {
+		sort.SliceStable(allIssues, func(i, j int) bool {
+			return allIssues[i].name < allIssues[j].name
+		})
+	}
 	return allIssues
 }
 
@@ -1000,7 +1012,7 @@ func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jo
 		cwd:   cwd,
 		sem:   make(chan struct{}, maxInt(1, args.concurrent)),
 	}
-	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun, &execCtx.aggregateUsage, &execCtx.aggregateMu)
+	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun)
 	return execCtx, nil
 }
 
@@ -1098,8 +1110,6 @@ func setupUI(
 	jobs []job,
 	_ *cliArgs,
 	enabled bool,
-	_ *TokenUsage,
-	_ *sync.Mutex,
 ) (chan uiMsg, *tea.Program) {
 	if !enabled {
 		return nil, nil
@@ -1298,10 +1308,24 @@ func executeJobWithTimeoutAndResult(
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
 ) (bool, int) {
-	cmd, outF, errF, monitor := setupCommandExecution(
+	cmd, outF, errF, monitor, err := setupCommandExecution(
 		ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu,
 	)
-	if cmd == nil {
+	if err != nil {
+		failure := recordFailureWithContext(failuresMu, j, failures, err, -1)
+		atomic.AddInt32(failed, 1)
+		if useUI && uiCh != nil {
+			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+			uiCh <- jobFailureMsg{Failure: failure}
+		} else {
+			fmt.Fprintf(
+				os.Stderr,
+				"\n❌ Failed to prepare job %d (%s): %v\n",
+				index+1,
+				strings.Join(j.codeFiles, ", "),
+				err,
+			)
+		}
 		return false, -1
 	}
 	return executeCommandAndHandleResultWithStatus(
@@ -1638,10 +1662,10 @@ func setupCommandExecution(
 	index int,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) (*exec.Cmd, *os.File, *os.File, *activityMonitor) {
+) (*exec.Cmd, *os.File, *os.File, *activityMonitor, error) {
 	cmd := createIDECommand(ctx, args)
 	if cmd == nil {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, fmt.Errorf("create IDE command: unsupported ide %q", args.ide)
 	}
 	outF, errF, monitor, err := setupCommandIO(
 		cmd,
@@ -1656,10 +1680,9 @@ func setupCommandExecution(
 		aggregateMu,
 	)
 	if err != nil {
-		recordFailureWithContext(nil, j, nil, err, -1)
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, fmt.Errorf("setup command IO: %w", err)
 	}
-	return cmd, outF, errF, monitor
+	return cmd, outF, errF, monitor, nil
 }
 
 func createLogFile(path, _ string) (*os.File, error) {
@@ -1763,13 +1786,15 @@ func handleCommandCompletionWithResult(
 		ec := exitCodeOf(err)
 		atomic.AddInt32(failed, 1)
 		codeFileLabel := strings.Join(j.codeFiles, ", ")
+		failInfo := failInfo{codeFile: codeFileLabel, exitCode: ec, outLog: j.outLog, errLog: j.errLog, err: err}
 		recordFailure(
 			failuresMu,
 			failures,
-			failInfo{codeFile: codeFileLabel, exitCode: ec, outLog: j.outLog, errLog: j.errLog, err: err},
+			failInfo,
 		)
 		if useUI {
 			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: ec}
+			uiCh <- jobFailureMsg{Failure: failInfo}
 		}
 		return false, ec
 	}
@@ -1835,9 +1860,19 @@ func handleActivityTimeout(
 	logTimeoutMessage(index, j, timeout, useUI)
 	atomic.AddInt32(failed, 1)
 	terminateTimedOutProcess(cmd, cmdDone, index, useUI)
-	recordTimeoutFailure(j, timeout, failuresMu, failures)
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
+	failInfo := failInfo{
+		codeFile: codeFileLabel,
+		exitCode: exitCodeTimeout,
+		outLog:   j.outLog,
+		errLog:   j.errLog,
+		err:      timeoutErr,
+	}
+	recordFailure(failuresMu, failures, failInfo)
 	if useUI {
 		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: exitCodeTimeout}
+		uiCh <- jobFailureMsg{Failure: failInfo}
 	}
 }
 
@@ -1887,43 +1922,34 @@ func forceKillProcess(cmd *exec.Cmd, index int, useUI bool) {
 	}
 }
 
-func recordTimeoutFailure(j *job, timeout time.Duration, failuresMu *sync.Mutex, failures *[]failInfo) {
-	codeFileLabel := strings.Join(j.codeFiles, ", ")
-	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
-	recordFailure(
-		failuresMu,
-		failures,
-		failInfo{
-			codeFile: codeFileLabel,
-			exitCode: exitCodeTimeout,
-			outLog:   j.outLog,
-			errLog:   j.errLog,
-			err:      timeoutErr,
-		},
-	)
-}
-
 func recordFailureWithContext(
 	failuresMu *sync.Mutex,
 	j *job,
 	failures *[]failInfo,
 	err error,
 	exitCode int,
-) {
+) failInfo {
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
-	recordFailure(failuresMu, failures, failInfo{
+	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: exitCode,
 		outLog:   j.outLog,
 		errLog:   j.errLog,
 		err:      err,
-	})
+	}
+	recordFailure(failuresMu, failures, failure)
+	return failure
 }
 
 func recordFailure(mu *sync.Mutex, list *[]failInfo, f failInfo) {
-	mu.Lock()
+	if list == nil {
+		return
+	}
+	if mu != nil {
+		mu.Lock()
+		defer mu.Unlock()
+	}
 	*list = append(*list, f)
-	mu.Unlock()
 }
 
 func printAggregateTokenUsage(usage *TokenUsage) {
@@ -2039,6 +2065,9 @@ type tokenUsageUpdateMsg struct {
 	Index int
 	Usage TokenUsage
 }
+type jobFailureMsg struct {
+	Failure failInfo
+}
 
 // TokenUsage tracks Claude API token consumption
 type TokenUsage struct {
@@ -2088,6 +2117,13 @@ type ClaudeMessage struct {
 	} `json:"message"`
 }
 
+type uiViewState int
+
+const (
+	uiViewJobs uiViewState = iota
+	uiViewSummary
+)
+
 type uiModel struct {
 	jobs            []uiJob
 	total           int
@@ -2104,6 +2140,9 @@ type uiModel struct {
 	sidebarWidth    int
 	mainWidth       int
 	contentHeight   int
+	currentView     uiViewState
+	failures        []failInfo
+	aggregateUsage  *TokenUsage
 }
 
 type uiMsg any
@@ -2138,6 +2177,9 @@ func newUIModel(total int) *uiModel {
 		sidebarWidth:    initialSidebarWidth,
 		mainWidth:       initialMainWidth,
 		contentHeight:   initialContentHeight,
+		currentView:     uiViewJobs,
+		failures:        []failInfo{},
+		aggregateUsage:  &TokenUsage{},
 	}
 }
 
@@ -2189,6 +2231,9 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tokenUsageUpdateMsg:
 		cmd := m.handleTokenUsageUpdate(v)
 		return m, cmd
+	case jobFailureMsg:
+		m.failures = append(m.failures, v.Failure)
+		return m, nil
 	case drainMsg:
 		return m, nil
 	default:
@@ -2197,43 +2242,70 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
-	switch v.String() {
+	key := v.String()
+	switch key {
 	case "ctrl+c", "q":
 		if m.onQuit != nil {
 			m.onQuit()
 		}
 		return tea.Quit
+	case "s", "tab", "esc":
+		return m.handleViewSwitchKeys(key)
+	case "up", "k", "down", "j":
+		return m.handleNavigationKeys(key)
+	case "left", "h", "right", "l", "pgup", "b", "u", "pgdown", "f", "d", "home", "end":
+		return m.handleScrollKeys(key)
+	default:
+		return m.waitEvent()
+	}
+}
+
+func (m *uiModel) handleViewSwitchKeys(key string) tea.Cmd {
+	switch key {
+	case "s", "tab":
+		// Switch to summary view only when all tasks are complete
+		if m.completed+m.failed >= m.total && m.currentView == uiViewJobs {
+			m.currentView = uiViewSummary
+		}
+	case "esc":
+		// Return to main jobs view from summary
+		if m.currentView == uiViewSummary {
+			m.currentView = uiViewJobs
+		}
+	}
+	return nil
+}
+
+func (m *uiModel) handleNavigationKeys(key string) tea.Cmd {
+	switch key {
 	case "up", "k":
 		if m.selectedJob > 0 {
 			m.selectedJob--
 		}
-		return nil
 	case "down", "j":
 		if m.selectedJob < len(m.jobs)-1 {
 			m.selectedJob++
 		}
-		return nil
+	}
+	return nil
+}
+
+func (m *uiModel) handleScrollKeys(key string) tea.Cmd {
+	switch key {
 	case "left", "h":
 		m.viewport.ScrollUp(1)
-		return nil
 	case "right", "l":
 		m.viewport.ScrollDown(1)
-		return nil
 	case "pgup", "b", "u":
 		m.viewport.HalfPageUp()
-		return nil
 	case "pgdown", "f", "d":
 		m.viewport.HalfPageDown()
-		return nil
 	case "home":
 		m.viewport.GotoTop()
-		return nil
 	case "end":
 		m.viewport.GotoBottom()
-		return nil
-	default:
-		return m.waitEvent()
 	}
+	return nil
 }
 
 func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
@@ -2343,10 +2415,8 @@ func (m *uiModel) selectNextRunningJob() {
 
 func (m *uiModel) handleTick() tea.Cmd {
 	m.frame++
-	if m.completed+m.failed < m.total {
-		return m.tick()
-	}
-	return nil
+	// Keep ticking even after all jobs complete to maintain UI responsiveness
+	return m.tick()
 }
 
 func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
@@ -2398,6 +2468,9 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 		}
 		m.selectNextRunningJob()
 	}
+	if m.total > 0 && m.completed+m.failed >= m.total && m.failed > 0 && m.currentView != uiViewSummary {
+		m.currentView = uiViewSummary
+	}
 	m.refreshViewportContent()
 	return m.waitEvent()
 }
@@ -2418,28 +2491,111 @@ func (m *uiModel) handleTokenUsageUpdate(v tokenUsageUpdateMsg) tea.Cmd {
 		}
 		m.jobs[v.Index].tokenUsage.Add(v.Usage)
 	}
+	// Also update aggregate usage for summary view
+	if m.aggregateUsage != nil {
+		m.aggregateUsage.Add(v.Usage)
+	}
 	m.refreshViewportContent()
 	return m.waitEvent()
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+// renderSummaryView creates the execution summary screen shown after all jobs complete
+func (m *uiModel) renderSummaryView() string {
+	sections := []string{m.renderSummaryHeader(), m.renderSummaryCounts()}
+	if len(m.failures) > 0 {
+		sections = append(sections, m.renderSummaryFailures())
+	}
+	if m.aggregateUsage != nil && m.aggregateUsage.Total() > 0 {
+		sections = append(sections, m.renderSummaryTokenUsage())
+	}
+	sections = append(sections, m.renderSummaryHelp())
+	separator := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("238")).
+		Render(strings.Repeat("─", m.width))
+	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
+	return lipgloss.JoinVertical(lipgloss.Left, separator, content)
+}
+
+func (m *uiModel) renderSummaryHeader() string {
+	headerStyle := lipgloss.NewStyle().Bold(true).MarginTop(1).MarginBottom(1)
+	if m.failed > 0 {
+		headerStyle = headerStyle.Foreground(lipgloss.Color("220"))
+		return headerStyle.Render(
+			fmt.Sprintf("✓ Execution Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed),
+		)
+	}
+	headerStyle = headerStyle.Foreground(lipgloss.Color("42"))
+	return headerStyle.Render(fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total))
+}
+
+func (m *uiModel) renderSummaryCounts() string {
+	summaryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("81")).MarginBottom(1)
+	summaryText := fmt.Sprintf("Total Groups: %d\nSuccess: %d\nFailed: %d", m.total, m.completed, m.failed)
+	return summaryStyle.Render(summaryText)
+}
+
+func (m *uiModel) renderSummaryFailures() string {
+	failuresStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).MarginBottom(1)
+	failureLines := []string{"Failures:"}
+	for _, f := range m.failures {
+		failureLines = append(failureLines,
+			fmt.Sprintf("  • %s (exit code: %d)", f.codeFile, f.exitCode),
+			fmt.Sprintf("    Logs: %s (out), %s (err)", f.outLog, f.errLog))
+	}
+	return failuresStyle.Render(strings.Join(failureLines, "\n"))
+}
+
+func (m *uiModel) renderSummaryTokenUsage() string {
+	usageStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("141")).MarginBottom(1)
+	usageLines := []string{
+		"Token Usage (Claude API - Aggregate):",
+		fmt.Sprintf("  Input:  %s tokens", formatNumber(m.aggregateUsage.InputTokens)),
+	}
+	if m.aggregateUsage.CacheReadTokens > 0 {
+		usageLines = append(usageLines,
+			fmt.Sprintf("  Cache Reads: %s tokens", formatNumber(m.aggregateUsage.CacheReadTokens)))
+	}
+	if m.aggregateUsage.CacheCreationTokens > 0 {
+		usageLines = append(usageLines,
+			fmt.Sprintf("  Cache Creation: %s tokens", formatNumber(m.aggregateUsage.CacheCreationTokens)))
+	}
+	usageLines = append(usageLines,
+		fmt.Sprintf("  Output: %s tokens", formatNumber(m.aggregateUsage.OutputTokens)),
+		fmt.Sprintf("  Total:  %s tokens", formatNumber(m.aggregateUsage.Total())))
+	return usageStyle.Render(strings.Join(usageLines, "\n"))
+}
+
+func (m *uiModel) renderSummaryHelp() string {
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).MarginTop(2)
+	return helpStyle.Render("Press 'esc' to return to job list • Press 'q' to exit")
+}
+
 func (m *uiModel) View() string {
-	header, headerStyle := m.renderHeader()
-	helpText, helpStyle := m.renderHelp()
-	separator := m.renderSeparator()
-	splitView := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.renderSidebar(),
-		m.renderMainContent(),
-	)
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		headerStyle.Render(header),
-		helpStyle.Render(helpText),
-		separator,
-		splitView,
-	)
+	// Switch between views based on current state
+	switch m.currentView {
+	case uiViewSummary:
+		return m.renderSummaryView()
+	case uiViewJobs:
+		header, headerStyle := m.renderHeader()
+		helpText, helpStyle := m.renderHelp()
+		separator := m.renderSeparator()
+		splitView := lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			m.renderSidebar(),
+			m.renderMainContent(),
+		)
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			headerStyle.Render(header),
+			helpStyle.Render(helpText),
+			separator,
+			splitView,
+		)
+	default:
+		return ""
+	}
 }
 
 // renderHeader returns the header content and styling based on job progress.
@@ -2467,7 +2623,7 @@ func (m *uiModel) renderHelp() (string, lipgloss.Style) {
 	complete := m.completed+m.failed >= m.total
 	text := "↑↓/jk navigate • pgup/pgdn scroll logs • q quit"
 	if complete {
-		text = "↑↓/jk navigate • pgup/pgdn scroll logs • Press 'q' to exit"
+		text = "↑↓/jk navigate • pgup/pgdn scroll logs • press 's' to view summary • q quit"
 	}
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("245")).
@@ -2905,6 +3061,23 @@ func readIssueEntries(resolvedIssuesDir string, mode executionMode, includeCompl
 	return readCodeRabbitIssues(resolvedIssuesDir)
 }
 
+// extractTaskNumber extracts the numeric ID from a task filename.
+// Example: "_task_10.md" returns 10, "_task_2.md" returns 2.
+// Returns 0 for invalid filenames.
+func extractTaskNumber(filename string) int {
+	// Only accept canonical task filenames; fallback to 0 otherwise.
+	if !reTaskFile.MatchString(filename) {
+		return 0
+	}
+	numStr := strings.TrimPrefix(filename, "_task_")
+	numStr = strings.TrimSuffix(numStr, ".md")
+	num, err := strconv.Atoi(numStr)
+	if err != nil {
+		return 0
+	}
+	return num
+}
+
 func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, error) {
 	entries := []issueEntry{}
 	files, err := os.ReadDir(tasksDir)
@@ -2921,7 +3094,12 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 		}
 		names = append(names, f.Name())
 	}
-	sort.Strings(names)
+	// Sort by numeric task ID (stable) instead of lexicographically
+	sort.SliceStable(names, func(i, j int) bool {
+		numI := extractTaskNumber(names[i])
+		numJ := extractTaskNumber(names[j])
+		return numI < numJ
+	})
 	for _, name := range names {
 		absPath := filepath.Join(tasksDir, name)
 		b, err := os.ReadFile(absPath)
