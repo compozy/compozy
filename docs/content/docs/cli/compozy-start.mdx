@@ -67,6 +67,47 @@ compozy start [flags]
 
 Additional standalone fields (`bind_ip`, `namespace`, `cluster_name`, `enable_ui`, `log_level`, `start_timeout`) are configured via `compozy.yaml` or environment variables.
 
+### Database Flags
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Flag</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Default</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`--db-driver`</TableCell>
+      <TableCell>Selects the database backend (`postgres` or `sqlite`).</TableCell>
+      <TableCell>`postgres`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--db-path`</TableCell>
+      <TableCell>SQLite database path or `:memory:`. Required when `--db-driver=sqlite`.</TableCell>
+      <TableCell>None</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`--db-conn-string`</TableCell>
+      <TableCell>PostgreSQL connection string (`postgres://user:pass@host:port/db`). Overrides individual host/port flags.</TableCell>
+      <TableCell>None</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+```bash title="SQLite file-backed"
+compozy start --db-driver=sqlite --db-path=./data/compozy.db
+```
+
+```bash title=":memory: mode"
+compozy start --db-driver=sqlite --db-path=:memory:
+```
+
+<Callout type="warning">
+When `--db-driver=sqlite`, configure an external vector database (Qdrant, Redis, or filesystem) because SQLite cannot host embeddings.
+</Callout>
+
 ## Examples
 
 <Tabs items={["Remote", "Standalone"]}>

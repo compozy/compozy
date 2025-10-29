@@ -21,6 +21,7 @@ const (
 	hostAny        = "0.0.0.0"
 	hostLoopback   = "127.0.0.1"
 	driverPostgres = "postgres"
+	driverSQLite   = "sqlite"
 	driverNone     = "none"
 )
 

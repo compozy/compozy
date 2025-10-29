@@ -1,0 +1,31 @@
+name: sqlite-quickstart
+version: 0.1.0
+description: Minimal SQLite database backend example
+
+workflows:
+  - source: ./workflow.yaml
+
+models:
+  - provider: groq
+    model: llama-3.3-70b-versatile
+    api_key: "{{ .env.GROQ_API_KEY }}"
+    default: true
+
+# SQLite database configuration
+database:
+  driver: sqlite
+  path: ./data/compozy.db
+
+# Filesystem vector DB (no external dependencies)
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: filesystem
+      path: ./data/vectors
+      dimension: 1536
+
+runtime:
+  type: bun
+  permissions:
+    - --allow-read
+    - --allow-net

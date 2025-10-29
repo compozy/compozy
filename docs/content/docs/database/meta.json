@@ -1,0 +1,11 @@
+{
+  "title": "Database",
+  "description": "Choose and configure PostgreSQL or SQLite backends for Compozy",
+  "icon": "Database",
+  "root": true,
+  "pages": [
+    "overview",
+    "postgresql",
+    "sqlite"
+  ]
+}

@@ -25,6 +25,30 @@ Standalone mode is optimized for development and testing only. Production deploy
   </ListItem>
 </List>
 
+## Database Selection
+
+<Callout type="error">
+Production deployments must use **PostgreSQL**. SQLite is limited to 5-10 concurrent workflows and should remain in development or edge environments only.
+</Callout>
+
+```yaml title="Production database configuration"
+database:
+  driver: postgres
+  conn_string: postgres://compozy:${DB_PASSWORD}@postgres.prod.internal:5432/compozy?sslmode=verify-full
+
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: pgvector
+      dimension: 1536
+```
+
+- Enable the `pgvector` extension to keep embeddings in the same PostgreSQL cluster.
+- Grant least-privilege credentials: schema migrations need `CREATE`, runtime requires CRUD permissions.
+- Capture automated backups (RDS snapshots, PITR) before major releases.
+
+For staging environments that mimic production, follow the same PostgreSQL configuration and capacity planning guidance. See the [Database Overview](/docs/database/overview) for the full decision matrix.
+
 ## Recommended Configuration
 
 Configure remote mode explicitly in your project configuration. Compozy will refuse to start if `temporal.mode` is missing in production builds.

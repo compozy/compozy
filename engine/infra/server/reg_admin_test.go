@@ -43,7 +43,7 @@ func (dummyRepo) CreateAPIKey(context.Context, *model.APIKey) error           { 
 func (dummyRepo) GetAPIKeyByID(context.Context, core.ID) (*model.APIKey, error) {
 	return nil, authuc.ErrAPIKeyNotFound
 }
-func (dummyRepo) GetAPIKeyByHash(context.Context, []byte) (*model.APIKey, error) {
+func (dummyRepo) GetAPIKeyByFingerprint(context.Context, []byte) (*model.APIKey, error) {
 	return nil, authuc.ErrAPIKeyNotFound
 }
 func (dummyRepo) ListAPIKeysByUserID(context.Context, core.ID) ([]*model.APIKey, error) {

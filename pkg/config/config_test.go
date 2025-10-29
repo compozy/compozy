@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -44,9 +45,12 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, "postgres", cfg.Database.User)
 		assert.Equal(t, "compozy", cfg.Database.DBName)
 		assert.Equal(t, "disable", cfg.Database.SSLMode)
+		assert.Empty(t, cfg.Database.Driver)
+		assert.Equal(t, ":memory:", cfg.Database.Path)
 
 		// Temporal defaults
-		assert.Equal(t, "remote", cfg.Temporal.Mode)
+		assert.Empty(t, cfg.Temporal.Mode)
+		assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
 		assert.Equal(t, "localhost:7233", cfg.Temporal.HostPort)
 		assert.Equal(t, "default", cfg.Temporal.Namespace)
 		assert.Equal(t, "compozy-tasks", cfg.Temporal.TaskQueue)
@@ -117,6 +121,95 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, DefaultCLIActiveWindowDays, cfg.CLI.Users.ActiveWindowDays)
 
 		// App mode removed in greenfield cleanup
+	})
+}
+
+func TestConfig_StandaloneModeDefaultsToSQLiteDriver(t *testing.T) {
+	t.Run("Should resolve sqlite driver when global mode standalone", func(t *testing.T) {
+		t.Setenv("COMPOZY_MODE", ModeStandalone)
+		ctx := t.Context()
+		m := NewManager(ctx, NewService())
+		cfg, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = m.Close(ctx) })
+		assert.Equal(t, databaseDriverSQLite, cfg.Database.Driver)
+		assert.Equal(t, ModeStandalone, cfg.Temporal.Mode)
+	})
+}
+
+func TestDatabaseConfig(t *testing.T) {
+	t.Run("Should default to postgres when driver empty", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "",
+			Host:   "localhost",
+			Port:   "5432",
+			User:   "test",
+			DBName: "compozy",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "postgres", cfg.Driver)
+	})
+
+	t.Run("Should accept postgres driver explicitly", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "postgres",
+			Host:   "localhost",
+			Port:   "5432",
+			User:   "test",
+			DBName: "compozy",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Should accept sqlite driver", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "data/test.db",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "data"+string(filepath.Separator)+"test.db", cfg.Path)
+	})
+
+	t.Run("Should reject invalid driver", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "mysql",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported database driver")
+	})
+
+	t.Run("Should require path for sqlite", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires path")
+	})
+
+	t.Run("Should require connection params for postgres", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "postgres",
+			Host:   "localhost",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires host, port, user, and name")
+	})
+
+	t.Run("Should validate sqlite path format", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "../data/test.db",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot traverse directories")
 	})
 }
 
@@ -207,7 +300,7 @@ func TestConfig_Validation(t *testing.T) {
 			{name: "remote", mode: "remote", wantErr: false},
 			{name: "standalone", mode: "standalone", wantErr: false},
 			{name: "invalid", mode: "invalid", wantErr: true},
-			{name: "empty", mode: "", wantErr: true},
+			{name: "empty", mode: "", wantErr: false},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -220,6 +313,13 @@ func TestConfig_Validation(t *testing.T) {
 					return
 				}
 				require.NoError(t, err)
+				assert.NotEmpty(t, cfg.Temporal.Mode)
+				if tc.mode == "" {
+					assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
+					assert.Equal(t, ModeRemoteTemporal, cfg.Temporal.Mode)
+				} else {
+					assert.Equal(t, tc.mode, cfg.Temporal.Mode)
+				}
 			})
 		}
 	})

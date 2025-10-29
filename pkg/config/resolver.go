@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 // Deployment modes (shared across components).
 const (
 	ModeStandalone  = "standalone"
@@ -42,4 +44,22 @@ func (cfg *Config) EffectiveTemporalMode() string {
 // EffectiveMCPProxyMode returns the resolved MCPProxy deployment mode.
 func (cfg *Config) EffectiveMCPProxyMode() string {
 	return ResolveMode(cfg, cfg.MCPProxy.Mode)
+}
+
+// EffectiveDatabaseDriver resolves the database driver with global mode fallback.
+// Defaults:
+//   - Global mode "standalone" -> sqlite (unless overridden)
+//   - All other modes -> postgres
+func (cfg *Config) EffectiveDatabaseDriver() string {
+	if cfg == nil {
+		return databaseDriverPostgres
+	}
+	driver := strings.TrimSpace(cfg.Database.Driver)
+	if driver != "" {
+		return driver
+	}
+	if strings.TrimSpace(cfg.Mode) == ModeStandalone {
+		return databaseDriverSQLite
+	}
+	return databaseDriverPostgres
 }

@@ -3,16 +3,21 @@ package config
 import (
 	"context"
 	"crypto/tls"
-	"maps"
+	"fmt"
+	"net/url"
+	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/mitchellh/mapstructure"
-
 	"github.com/compozy/compozy/pkg/config/definition"
+	"github.com/mitchellh/mapstructure"
 )
 
 const (
 	mcpProxyModeStandalone = "standalone"
+
+	databaseDriverPostgres = "postgres"
+	databaseDriverSQLite   = "sqlite"
 )
 
 // Config represents the complete configuration for the Compozy system.
@@ -295,6 +300,15 @@ type AuthConfig struct {
 //     ssl_mode: prefer
 //     ```
 type DatabaseConfig struct {
+	// Driver selects the backing database driver implementation.
+	//
+	// Supported drivers:
+	//   - "postgres": default, full production deployment
+	//   - "sqlite": lightweight single-node deployments
+	//
+	// Defaults to "postgres" when omitted for backward compatibility.
+	Driver string `koanf:"driver" json:"driver" yaml:"driver" mapstructure:"driver" env:"DB_DRIVER" validate:"omitempty,oneof=postgres sqlite"`
+
 	// ConnString provides a complete PostgreSQL connection URL.
 	//
 	// Format: `postgres://user:password@host:port/database?sslmode=mode`
@@ -317,7 +331,7 @@ type DatabaseConfig struct {
 	// Password specifies the database password for authentication.
 	//
 	// **Security**: Use environment variables in production.
-	Password string `koanf:"password" json:"password" yaml:"password" mapstructure:"password" env:"DB_PASSWORD"`
+	Password string `koanf:"password" json:"password" yaml:"password" mapstructure:"password" env:"DB_PASSWORD" sensitive:"true"`
 
 	// DBName specifies the database name to connect to.
 	//
@@ -360,6 +374,17 @@ type DatabaseConfig struct {
 	// Default: `5`
 	MaxIdleConns int `koanf:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns" mapstructure:"max_idle_conns" env:"DB_MAX_IDLE_CONNS"`
 
+	// Path specifies the SQLite database location or ":memory:".
+	//
+	// Values:
+	//   - ":memory:" for ephemeral in-memory databases
+	//   - Relative or absolute file path for persistent storage
+	Path string `koanf:"path" json:"path" yaml:"path" mapstructure:"path" env:"DB_PATH"`
+
+	// BusyTimeout configures SQLite PRAGMA busy_timeout for lock contention.
+	// When unset, a sensible default is applied by the SQLite provider.
+	BusyTimeout time.Duration `koanf:"busy_timeout" json:"busy_timeout" yaml:"busy_timeout" mapstructure:"busy_timeout" env:"DB_BUSY_TIMEOUT"`
+
 	// ConnMaxLifetime bounds how long a connection may be reused.
 	//
 	// Default: `5m`
@@ -391,6 +416,117 @@ type DatabaseConfig struct {
 	ConnectTimeout time.Duration `koanf:"connect_timeout" json:"connect_timeout" yaml:"connect_timeout" mapstructure:"connect_timeout" env:"DB_CONNECT_TIMEOUT"`
 }
 
+// Validate ensures driver-specific requirements are satisfied and normalizes configuration.
+func (c *DatabaseConfig) Validate() error {
+	if c == nil {
+		return fmt.Errorf("database config is required")
+	}
+	driver := strings.ToLower(strings.TrimSpace(c.Driver))
+	if driver == "" {
+		driver = databaseDriverPostgres
+	}
+	c.Driver = driver
+	switch driver {
+	case databaseDriverPostgres:
+		return c.validatePostgres()
+	case databaseDriverSQLite:
+		return c.validateSQLite()
+	default:
+		return fmt.Errorf("unsupported database driver: %s", driver)
+	}
+}
+
+func (c *DatabaseConfig) validatePostgres() error {
+	if strings.TrimSpace(c.ConnString) != "" {
+		return nil
+	}
+	if strings.TrimSpace(c.Host) == "" {
+		return fmt.Errorf("postgres driver requires host or conn_string")
+	}
+	if strings.TrimSpace(c.Port) == "" ||
+		strings.TrimSpace(c.User) == "" ||
+		strings.TrimSpace(c.DBName) == "" {
+		return fmt.Errorf("postgres driver requires host, port, user, and name or conn_string")
+	}
+	return nil
+}
+
+func (c *DatabaseConfig) validateSQLite() error {
+	path := strings.TrimSpace(c.Path)
+	if path == "" {
+		return fmt.Errorf("sqlite driver requires path")
+	}
+	normalized, err := normalizeSQLitePath(path)
+	if err != nil {
+		return err
+	}
+	c.Path = normalized
+	return nil
+}
+
+func normalizeSQLitePath(input string) (string, error) {
+	if input == ":memory:" || strings.HasPrefix(input, "file::memory:") {
+		return input, nil
+	}
+	if strings.Contains(input, "\x00") {
+		return "", fmt.Errorf("sqlite path contains null byte")
+	}
+	if strings.ContainsRune(input, '\n') || strings.ContainsRune(input, '\r') {
+		return "", fmt.Errorf("sqlite path cannot contain newlines")
+	}
+	if strings.HasPrefix(input, "file:") {
+		return validateAndNormalizeFileDSN(input)
+	}
+	cleaned := filepath.Clean(input)
+	if cleaned == "." || cleaned == string(filepath.Separator) {
+		return "", fmt.Errorf("sqlite path must reference a file, got %q", input)
+	}
+	if hasParentTraversal(cleaned) {
+		return "", fmt.Errorf("sqlite path cannot traverse directories: %q", input)
+	}
+	return cleaned, nil
+}
+
+func validateAndNormalizeFileDSN(input string) (string, error) {
+	u, err := url.Parse(input)
+	if err != nil {
+		return "", fmt.Errorf("invalid sqlite file DSN: %w", err)
+	}
+	clean := filepath.Clean(strings.TrimPrefix(u.Path, "//"))
+	if clean == "." || clean == string(filepath.Separator) {
+		return "", fmt.Errorf("sqlite path must reference a file, got %q", input)
+	}
+	if hasParentTraversal(clean) {
+		return "", fmt.Errorf("sqlite path cannot traverse directories: %q", input)
+	}
+	for key := range u.Query() {
+		if !isAllowedSQLiteParam(key) {
+			return "", fmt.Errorf("unsupported sqlite DSN parameter: %s", key)
+		}
+	}
+	u.Path = clean
+	return u.String(), nil
+}
+
+func isAllowedSQLiteParam(key string) bool {
+	switch strings.ToLower(key) {
+	case "mode", "cache", "_pragma":
+		return true
+	default:
+		return false
+	}
+}
+
+func hasParentTraversal(path string) bool {
+	segments := strings.Split(path, string(filepath.Separator))
+	for _, segment := range segments {
+		if segment == ".." {
+			return true
+		}
+	}
+	return false
+}
+
 // TemporalConfig contains Temporal workflow engine configuration.
 //
 // **Temporal Workflow Engine** provides durable execution, retries, and orchestration
@@ -409,7 +545,7 @@ type TemporalConfig struct {
 	// Values:
 	//   - "remote": Connect to an external Temporal cluster (default)
 	//   - "standalone": Launch embedded Temporal server for local development and tests
-	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"required,oneof=remote standalone"`
+	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=remote standalone"`
 
 	// HostPort specifies the Temporal server endpoint.
 	//
@@ -802,6 +938,20 @@ type KnowledgeConfig struct {
 	//
 	// Applies to HTTP-based vector stores such as Qdrant.
 	VectorHTTPTimeout time.Duration `koanf:"vector_http_timeout" env:"KNOWLEDGE_VECTOR_HTTP_TIMEOUT" json:"vector_http_timeout" yaml:"vector_http_timeout" mapstructure:"vector_http_timeout" validate:"min=0"`
+
+	// VectorDBs declares global vector database connections available to knowledge features.
+	// When SQLite is selected, at least one external vector database should be configured.
+	VectorDBs []VectorDBConfig `koanf:"vector_dbs" json:"vector_dbs" yaml:"vector_dbs" mapstructure:"vector_dbs"`
+}
+
+// VectorDBConfig describes an external vector database integration available at runtime.
+// It captures connection parameters so knowledge ingestion and retrieval can target the store.
+type VectorDBConfig struct {
+	ID       string         `koanf:"id"       json:"id"       yaml:"id"       mapstructure:"id"`
+	Provider string         `koanf:"provider" json:"provider" yaml:"provider" mapstructure:"provider"`
+	URL      string         `koanf:"url"      json:"url"      yaml:"url"      mapstructure:"url"`
+	Path     string         `koanf:"path"     json:"path"     yaml:"path"     mapstructure:"path"`
+	Options  map[string]any `koanf:"options"  json:"options"  yaml:"options"  mapstructure:"options"`
 }
 
 // LLMConfig contains LLM service configuration.
@@ -1859,8 +2009,7 @@ type Metadata struct {
 
 // Default returns a Config with default values for development.
 func Default() *Config {
-	cfg := defaultFromRegistry()
-	return cfg
+	return defaultFromRegistry()
 }
 
 // defaultFromRegistry creates a Config using the centralized registry
@@ -2063,7 +2212,9 @@ func getStringIntMap(registry *definition.Registry, path string) map[string]int 
 	out := make(map[string]int)
 	switch raw := val.(type) {
 	case map[string]int:
-		maps.Copy(out, raw)
+		for k, v := range raw {
+			out[k] = v
+		}
 	case map[string]any:
 		for k, v := range raw {
 			switch num := v.(type) {
@@ -2201,6 +2352,8 @@ func buildReconcilerConfig(registry *definition.Registry) ReconcilerConfig {
 
 func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 	return DatabaseConfig{
+		ConnString:       getString(registry, "database.conn_string"),
+		Driver:           getString(registry, "database.driver"),
 		Host:             getString(registry, "database.host"),
 		Port:             getString(registry, "database.port"),
 		User:             getString(registry, "database.user"),
@@ -2209,6 +2362,22 @@ func buildDatabaseConfig(registry *definition.Registry) DatabaseConfig {
 		SSLMode:          getString(registry, "database.ssl_mode"),
 		AutoMigrate:      getBool(registry, "database.auto_migrate"),
 		MigrationTimeout: getDuration(registry, "database.migration_timeout"),
+		MaxOpenConns:     getInt(registry, "database.max_open_conns"),
+		MaxIdleConns:     getInt(registry, "database.max_idle_conns"),
+		ConnMaxLifetime:  getDuration(registry, "database.conn_max_lifetime"),
+		ConnMaxIdleTime:  getDuration(registry, "database.conn_max_idle_time"),
+		PingTimeout:      getDuration(registry, "database.ping_timeout"),
+		HealthCheckTimeout: getDuration(
+			registry,
+			"database.health_check_timeout",
+		),
+		HealthCheckPeriod: getDuration(
+			registry,
+			"database.health_check_period",
+		),
+		ConnectTimeout: getDuration(registry, "database.connect_timeout"),
+		Path:           getString(registry, "database.path"),
+		BusyTimeout:    getDuration(registry, "database.busy_timeout"),
 	}
 }
 
@@ -2361,6 +2530,7 @@ func buildKnowledgeConfig(registry *definition.Registry) KnowledgeConfig {
 		RetrievalMinScore:        getFloat64(registry, "knowledge.retrieval_min_score"),
 		MaxMarkdownFileSizeBytes: getInt(registry, "knowledge.max_markdown_file_size_bytes"),
 		VectorHTTPTimeout:        getDuration(registry, "knowledge.vector_http_timeout"),
+		VectorDBs:                nil,
 	}
 }
 
@@ -2437,7 +2607,9 @@ func buildPerProviderRateLimitOverrides(registry *definition.Registry) map[strin
 	out := make(map[string]ProviderRateLimitConfig)
 	switch raw := val.(type) {
 	case map[string]ProviderRateLimitConfig:
-		maps.Copy(out, raw)
+		for k, v := range raw {
+			out[k] = v
+		}
 	case map[string]any:
 		for provider, candidate := range raw {
 			m, ok := candidate.(map[string]any)

@@ -1,0 +1,29 @@
+id: text-analysis
+version: 0.1.0
+description: Simple text analysis workflow using SQLite backend
+
+config:
+  input:
+    type: object
+    properties:
+      text:
+        type: string
+        description: The text content to analyze
+
+tasks:
+  - id: analyze
+    type: basic
+    prompt: |-
+      You are a concise text analysis assistant.
+
+      Analyze the following text and provide:
+      1. A brief summary (1-2 sentences)
+      2. Key themes or topics
+      3. Overall sentiment (positive/negative/neutral)
+
+      Text to analyze:
+      ---
+      {{ .workflow.input.text }}
+      ---
+
+      Provide your analysis in a clear, structured format.

@@ -1693,6 +1693,32 @@ func createLogFile(path, _ string) (*os.File, error) {
 	return file, nil
 }
 
+func handleNilCommand(
+	useUI bool,
+	uiCh chan uiMsg,
+	j *job,
+	index int,
+	failed *int32,
+	failuresMu *sync.Mutex,
+	failures *[]failInfo,
+) (bool, int) {
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	atomic.AddInt32(failed, 1)
+	failure := failInfo{
+		codeFile: codeFileLabel,
+		exitCode: -1,
+		outLog:   j.outLog,
+		errLog:   j.errLog,
+		err:      fmt.Errorf("failed to set up command (see logs)"),
+	}
+	recordFailure(failuresMu, failures, failure)
+	if useUI {
+		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+		uiCh <- jobFailureMsg{Failure: failure}
+	}
+	return false, -1
+}
+
 func executeCommandAndHandleResultWithStatus(
 	ctx context.Context,
 	timeout time.Duration,
@@ -1708,6 +1734,9 @@ func executeCommandAndHandleResultWithStatus(
 	failuresMu *sync.Mutex,
 	failures *[]failInfo,
 ) (bool, int) {
+	if cmd == nil {
+		return handleNilCommand(useUI, uiCh, j, index, failed, failuresMu, failures)
+	}
 	defer func() {
 		if outF != nil {
 			outF.Close()

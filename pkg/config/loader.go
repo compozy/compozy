@@ -370,12 +370,19 @@ func (l *loader) validateCustom(config *Config) error {
 }
 
 func validateDatabase(cfg *Config) error {
-	if cfg.Database.ConnString == "" {
-		if cfg.Database.Host == "" || cfg.Database.Port == "" || cfg.Database.User == "" || cfg.Database.DBName == "" {
-			return fmt.Errorf("database configuration incomplete: either conn_string or individual components required")
-		}
+	if cfg == nil {
+		return fmt.Errorf("config is required for database validation")
 	}
-	if cfg.Database.MigrationTimeout < 45*time.Second {
+	trimmed := strings.TrimSpace(cfg.Database.Driver)
+	if trimmed == "" {
+		cfg.Database.Driver = cfg.EffectiveDatabaseDriver()
+	} else {
+		cfg.Database.Driver = trimmed
+	}
+	if err := cfg.Database.Validate(); err != nil {
+		return err
+	}
+	if cfg.Database.Driver == databaseDriverPostgres && cfg.Database.MigrationTimeout < 45*time.Second {
 		// NOTE: Keep migration timeout above advisory-lock window so schema changes don't deadlock.
 		return fmt.Errorf("database.migration_timeout must be >= 45s, got: %s", cfg.Database.MigrationTimeout)
 	}
@@ -385,7 +392,14 @@ func validateDatabase(cfg *Config) error {
 func validateTemporal(cfg *Config) error {
 	mode := strings.TrimSpace(cfg.Temporal.Mode)
 	if mode == "" {
-		return fmt.Errorf("temporal.mode is required")
+		resolved := cfg.EffectiveTemporalMode()
+		if strings.TrimSpace(resolved) == "" {
+			return fmt.Errorf("temporal.mode is required")
+		}
+		cfg.Temporal.Mode = resolved
+		mode = resolved
+	} else {
+		cfg.Temporal.Mode = mode
 	}
 	switch mode {
 	case "remote":

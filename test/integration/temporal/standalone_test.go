@@ -49,7 +49,7 @@ func TestStandaloneMemoryMode(t *testing.T) {
 		t.Helper()
 		ctx := helpers.NewTestContext(t)
 		cfg := newEmbeddedConfigFromDefaults()
-		cfg.DatabaseFile = ":memory:"
+		cfg.DatabaseFile = filepath.Join(t.TempDir(), fmt.Sprintf("temporal-%s.db", uuid.NewString()))
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
 		server := startStandaloneServer(ctx, t, cfg)
@@ -91,7 +91,7 @@ func TestStandaloneCustomPorts(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
 		frontendPort := findAvailablePortRange(ctx, t, 4)
 		cfg := newEmbeddedConfigFromDefaults()
-		cfg.DatabaseFile = ":memory:"
+		cfg.DatabaseFile = filepath.Join(t.TempDir(), fmt.Sprintf("temporal-%s.db", uuid.NewString()))
 		cfg.FrontendPort = frontendPort
 		cfg.EnableUI = false
 		server := startStandaloneServer(ctx, t, cfg)
@@ -110,7 +110,7 @@ func TestStandaloneWorkflowExecution(t *testing.T) {
 		t.Helper()
 		ctx := helpers.NewTestContext(t)
 		cfg := newEmbeddedConfigFromDefaults()
-		cfg.DatabaseFile = ":memory:"
+		cfg.DatabaseFile = filepath.Join(t.TempDir(), fmt.Sprintf("temporal-%s.db", uuid.NewString()))
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
 		server := startStandaloneServer(ctx, t, cfg)
