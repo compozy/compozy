@@ -8,19 +8,32 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 	mcpproxy "github.com/compozy/compozy/pkg/mcp-proxy"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShouldEmbedMCPProxy(t *testing.T) {
 	t.Run("ShouldEmbedStandaloneEvenWhenProxyURLIsConfigured", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		mgr := config.NewManager(ctx, config.NewService())
+		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+		require.NoError(t, err)
+		ctx = config.ContextWithManager(ctx, mgr)
+		t.Cleanup(func() { _ = mgr.Close(ctx) })
 		c := config.FromContext(ctx)
+		require.NotNil(t, c)
 		c.MCPProxy.Mode = modeStandalone
 		c.LLM.ProxyURL = "http://localhost:6001"
 		assert.True(t, shouldEmbedMCPProxy(ctx))
 	})
 	t.Run("ShouldNotEmbedWhenModeIsExternal", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		mgr := config.NewManager(ctx, config.NewService())
+		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+		require.NoError(t, err)
+		ctx = config.ContextWithManager(ctx, mgr)
+		t.Cleanup(func() { _ = mgr.Close(ctx) })
 		c := config.FromContext(ctx)
+		require.NotNil(t, c)
 		c.MCPProxy.Mode = ""
 		assert.False(t, shouldEmbedMCPProxy(ctx))
 	})

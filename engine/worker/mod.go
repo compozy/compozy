@@ -856,11 +856,6 @@ func (o *Worker) closeStores(ctx context.Context) {
 			log.Error("Failed to close config store", "error", err)
 		}
 	}
-	if o.redisCache != nil {
-		if err := o.redisCache.Close(); err != nil {
-			log.Error("Failed to close Redis cache", "error", err)
-		}
-	}
 }
 
 func (o *Worker) WorkflowRepo() wf.Repository {

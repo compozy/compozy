@@ -12,6 +12,11 @@ import (
 func TestMaybeStartStandaloneTemporal_ModeResolver(t *testing.T) {
 	t.Run("Should skip embedded Temporal in remote/distributed mode", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
+		mgr := config.NewManager(ctx, config.NewService())
+		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
+		require.NoError(t, err)
+		ctx = config.ContextWithManager(ctx, mgr)
+		t.Cleanup(func() { _ = mgr.Close(ctx) })
 		cfg := config.FromContext(ctx)
 		require.NotNil(t, cfg)
 		cfg.Mode = "distributed"

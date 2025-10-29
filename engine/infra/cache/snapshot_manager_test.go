@@ -117,12 +117,11 @@ func TestSnapshotManager_Periodic(t *testing.T) {
 		sm.StartPeriodicSnapshots(ctx)
 
 		mr.Set("k", "v1")
-		time.Sleep(1200 * time.Millisecond)
 		mr.Set("k", "v2")
-		time.Sleep(800 * time.Millisecond)
-
-		metrics := sm.GetSnapshotMetrics()
-		assert.GreaterOrEqual(t, metrics.SnapshotsTaken, int64(2))
+		require.Eventually(t, func() bool {
+			m := sm.GetSnapshotMetrics()
+			return m.SnapshotsTaken >= 2
+		}, 3*time.Second, 100*time.Millisecond)
 	})
 }
 

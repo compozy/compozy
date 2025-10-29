@@ -86,6 +86,9 @@ func (sm *SnapshotManager) Snapshot(ctx context.Context) error {
 	if sm == nil || sm.db == nil {
 		return fmt.Errorf("snapshot manager not initialized")
 	}
+	// Serialize Badger access against Restore/Stop.
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	start := time.Now()
 
 	// Capture keys first to keep transaction short.
@@ -95,31 +98,7 @@ func (sm *SnapshotManager) Snapshot(ctx context.Context) error {
 	if err := sm.db.DropAll(); err != nil {
 		log.Warn("Failed to drop previous snapshot", "error", err)
 	}
-
-	var totalBytes int64
-	err := sm.db.Update(func(txn *badger.Txn) error {
-		// Metadata
-		if err := txn.Set([]byte(metaKeyTimestamp), []byte(time.Now().Format(time.RFC3339Nano))); err != nil {
-			return err
-		}
-		if err := txn.Set([]byte(metaKeyVersion), []byte(snapshotFormatVersion)); err != nil {
-			return err
-		}
-		// Write all keys
-		for _, k := range keys {
-			v, gErr := sm.miniredis.Get(k)
-			if gErr != nil {
-				log.Debug("skip non-string or missing key during snapshot", "key", k, "error", gErr)
-				continue
-			}
-			// Use Set with default options; this is snapshot, not TTL aware.
-			if err := txn.Set([]byte(k), []byte(v)); err != nil {
-				return err
-			}
-			totalBytes += int64(len(k)) + int64(len(v))
-		}
-		return nil
-	})
+	totalBytes, err := sm.writeSnapshot(keys, log)
 	if err != nil {
 		sm.metrics.mu.Lock()
 		sm.metrics.snapshotFailures++
@@ -139,6 +118,32 @@ func (sm *SnapshotManager) Snapshot(ctx context.Context) error {
 	return nil
 }
 
+// writeSnapshot writes metadata and the provided keys into Badger atomically.
+func (sm *SnapshotManager) writeSnapshot(keys []string, log logger.Logger) (int64, error) {
+	var totalBytes int64
+	err := sm.db.Update(func(txn *badger.Txn) error {
+		if err := txn.Set([]byte(metaKeyTimestamp), []byte(time.Now().Format(time.RFC3339Nano))); err != nil {
+			return err
+		}
+		if err := txn.Set([]byte(metaKeyVersion), []byte(snapshotFormatVersion)); err != nil {
+			return err
+		}
+		for _, k := range keys {
+			v, gErr := sm.miniredis.Get(k)
+			if gErr != nil {
+				log.Debug("skip non-string or missing key during snapshot", "key", k, "error", gErr)
+				continue
+			}
+			if err := txn.Set([]byte(k), []byte(v)); err != nil {
+				return err
+			}
+			totalBytes += int64(len(k)) + int64(len(v))
+		}
+		return nil
+	})
+	return totalBytes, err
+}
+
 // Restore reads the last snapshot from Badger and populates miniredis. The
 // operation is idempotent and ignores metadata keys.
 func (sm *SnapshotManager) Restore(ctx context.Context) error {
@@ -146,6 +151,9 @@ func (sm *SnapshotManager) Restore(ctx context.Context) error {
 	if sm == nil || sm.db == nil {
 		return fmt.Errorf("snapshot manager not initialized")
 	}
+	// Serialize Badger access against Snapshot/Stop.
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
 	start := time.Now()
 	var count int
 	err := sm.db.View(func(txn *badger.Txn) error {
@@ -227,19 +235,21 @@ func (sm *SnapshotManager) Stop() {
 	if sm == nil {
 		return
 	}
-	// Safe close: prevent panic if closed twice.
-	sm.mu.Lock()
+	// Signal background goroutines to stop (idempotent).
 	select {
 	case <-sm.stopCh:
 		// already closed
 	default:
 		close(sm.stopCh)
 	}
-	sm.mu.Unlock()
+	// Wait for periodic snapshot goroutine to exit before closing DB.
 	sm.wg.Wait()
+	// Hold the lock while closing to avoid races with Snapshot/Restore callers.
+	sm.mu.Lock()
 	if sm.db != nil {
 		_ = sm.db.Close()
 	}
+	sm.mu.Unlock()
 }
 
 // GetSnapshotMetrics returns a snapshot of metrics values.
