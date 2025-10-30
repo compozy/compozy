@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/test/helpers"
 )
 
-var driverMatrix = []string{"postgres", "sqlite"}
+var driverMatrix = []string{"sqlite", "postgres"}
 
 func forEachDriver(
 	t *testing.T,
@@ -27,7 +27,15 @@ func forEachDriver(
 	for _, driver := range driverMatrix {
 		driver := driver
 		t.Run(fmt.Sprintf("%s/%s", name, driver), func(t *testing.T) {
-			provider, cleanup := helpers.SetupTestDatabase(t, driver)
+			var (
+				provider *repo.Provider
+				cleanup  func()
+			)
+			if driver == "postgres" {
+				provider, cleanup = helpers.SetupPostgresContainer(t)
+			} else {
+				provider, cleanup = helpers.SetupTestDatabase(t)
+			}
 			t.Cleanup(cleanup)
 			fn(t, driver, provider)
 		})

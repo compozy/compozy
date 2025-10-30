@@ -15,7 +15,7 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-var gooseInitOnce sync.Once
+var gooseInitMu sync.Mutex
 
 // ApplyMigrations executes all embedded SQLite migrations against the database.
 func ApplyMigrations(ctx context.Context, dbPath string) error {
@@ -37,16 +37,19 @@ func ApplyMigrations(ctx context.Context, dbPath string) error {
 		return fmt.Errorf("sqlite: enable foreign keys: %w", err)
 	}
 
-	var initErr error
-	gooseInitOnce.Do(func() {
-		goose.SetBaseFS(migrationsFS)
-		initErr = goose.SetDialect("sqlite3")
-	})
-	if initErr != nil {
-		return fmt.Errorf("sqlite: set goose dialect: %w", initErr)
+	gooseInitMu.Lock()
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		goose.SetBaseFS(nil)
+		gooseInitMu.Unlock()
+		return fmt.Errorf("sqlite: set goose dialect: %w", err)
 	}
 	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
+		goose.SetBaseFS(nil)
+		gooseInitMu.Unlock()
 		return fmt.Errorf("sqlite: apply migrations: %w", err)
 	}
+	goose.SetBaseFS(nil)
+	gooseInitMu.Unlock()
 	return nil
 }

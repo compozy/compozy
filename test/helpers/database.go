@@ -43,13 +43,12 @@ var (
 	pgContainerNoMigrationsStartError error
 )
 
-// GetSharedPostgresDB returns a shared PostgreSQL database for tests
-// GetSharedPostgresDB returns a shared *pgxpool.Pool for tests and a no-op cleanup function.
-//
-// GetSharedPostgresDB lazily starts a single shared PostgreSQL container and connection pool on
-// first use (significantly faster than creating per-test containers). If initialization fails the
-// test is fatally failed via t.Fatalf. Per-test isolation is expected to be achieved by running
-// each test inside its own transaction, so the returned cleanup is a no-op.
+// GetSharedPostgresDB returns a shared PostgreSQL database for tests that require Postgres-specific
+// behavior. Prefer SetupTestDatabase(t) for new tests so they run against the fast, dependency-free
+// SQLite :memory: backend. GetSharedPostgresDB lazily starts a single shared PostgreSQL container
+// and connection pool on first use. If initialization fails the test is failed via t.Fatalf. Per-test
+// isolation is expected to be achieved by running each test inside its own transaction, so the returned
+// cleanup is a no-op.
 func GetSharedPostgresDB(t *testing.T) (*pgxpool.Pool, func()) {
 	t.Helper()
 	pgContainerOnce.Do(func() {
@@ -258,18 +257,32 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 // EnsureTablesExistForTest is a small wrapper to expose ensureTablesExist to tests in other packages.
 func EnsureTablesExistForTest(db *pgxpool.Pool) error { return ensureTablesExist(db) }
 
-// SetupTestDatabase provisions a repo provider for the requested driver and returns a cleanup function.
-func SetupTestDatabase(t *testing.T, driver string) (*repo.Provider, func()) {
+// SetupTestDatabase provisions a repo provider for tests. By default it returns a SQLite :memory:
+// database with automigrations applied so tests run quickly without Docker. To exercise PostgreSQL-
+// specific behavior either pass "postgres" explicitly or call SetupPostgresContainer(t).
+func SetupTestDatabase(t *testing.T, driver ...string) (*repo.Provider, func()) {
 	t.Helper()
-	switch driver {
+	selectedDriver := "sqlite"
+	if len(driver) > 0 && driver[0] != "" {
+		selectedDriver = driver[0]
+	}
+	switch selectedDriver {
 	case "postgres":
 		return setupPostgresTest(t)
 	case "sqlite":
 		return setupSQLiteTest(t)
 	default:
-		t.Fatalf("unsupported driver: %s", driver)
+		t.Fatalf("unsupported driver: %s", selectedDriver)
 		return nil, nil
 	}
+}
+
+// SetupPostgresContainer provisions a PostgreSQL-backed repo provider using testcontainers.
+// Use this helper only when tests need PostgreSQL-specific features such as pgvector or dialect-
+// dependent behavior. Most tests should rely on SetupTestDatabase(t) to benefit from SQLite speed.
+func SetupPostgresContainer(t *testing.T) (*repo.Provider, func()) {
+	t.Helper()
+	return setupPostgresTest(t)
 }
 
 func setupPostgresTest(t *testing.T) (*repo.Provider, func()) {

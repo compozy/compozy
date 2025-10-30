@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>test/helpers</domain>
@@ -36,11 +36,11 @@ When you need information about SQLite best practices:
 
 ## Subtasks
 
-- [ ] 9.1 Update `SetupTestDatabase` to default to SQLite :memory:
-- [ ] 9.2 Add explicit `SetupPostgresContainer` helper for PostgreSQL tests
-- [ ] 9.3 Update `GetSharedPostgresDB` documentation to recommend SQLite
-- [ ] 9.4 Verify context inheritance patterns (t.Context() usage)
-- [ ] 9.5 Run test suite to measure performance improvement
+- [x] 9.1 Update `SetupTestDatabase` to default to SQLite :memory:
+- [x] 9.2 Add explicit `SetupPostgresContainer` helper for PostgreSQL tests
+- [x] 9.3 Update `GetSharedPostgresDB` documentation to recommend SQLite
+- [x] 9.4 Verify context inheritance patterns (t.Context() usage)
+- [x] 9.5 Run test suite to measure performance improvement
 
 ## Implementation Details
 
@@ -85,11 +85,11 @@ Change default test database from PostgreSQL testcontainers to SQLite memory mod
 
 Since this task updates test infrastructure itself, validation is through:
 
-- [ ] Run `make test` and verify all tests pass
-- [ ] Measure test suite execution time (should be 50-80% faster)
-- [ ] Verify no testcontainers startup in default test runs
-- [ ] Confirm PostgreSQL tests still work with explicit `SetupPostgresContainer`
-- [ ] Check that all helpers use `t.Context()` for proper context inheritance
+- [x] Run `make test` and verify all tests pass
+- [x] Measure test suite execution time (should be 50-80% faster)
+- [x] Verify no testcontainers startup in default test runs
+- [x] Confirm PostgreSQL tests still work with explicit `SetupPostgresContainer`
+- [x] Check that all helpers use `t.Context()` for proper context inheritance
 
 ## Success Criteria
 

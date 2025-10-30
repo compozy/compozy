@@ -13,7 +13,7 @@ import (
 )
 
 func TestSQLite_Specific(t *testing.T) {
-	provider, cleanup := helpers.SetupTestDatabase(t, "sqlite")
+	provider, cleanup := helpers.SetupTestDatabase(t)
 	t.Cleanup(cleanup)
 
 	t.Run("Should support in memory mode", func(t *testing.T) {

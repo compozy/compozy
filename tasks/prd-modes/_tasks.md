@@ -56,7 +56,7 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 
 **Dependencies**: Phase 1, Phase 2 complete
 
-- **9.0** Update Test Helpers [M] - 1 day
+- [x] **9.0** Update Test Helpers [M] - 1 day
 - **10.0** Add Database Mode Helper [S] - 0.5 days
 - **11.0** Audit & Migrate Integration Tests [XL] - 3 days
 - **12.0** Update Integration Test Helpers [M] - 1 day
