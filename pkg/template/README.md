@@ -46,13 +46,16 @@ for _, tmpl := range templates {
 ### Generating a Project
 
 ```go
+ctx := context.Background() // Replace with your application context
 opts := &template.GenerateOptions{
+    Context:     ctx,
     Path:        "./my-project",
     Name:        "My Project",
     Description: "A sample project",
     Version:     "0.1.0",
     Author:      "John Doe",
     DockerSetup: true,
+    Mode:        template.DefaultMode,
 }
 
 err := templateSvc.Generate("basic", opts)

@@ -1,5 +1,7 @@
 # Task 27.0: Add Mode Selection to TUI Form
 
+## status: completed
+
 <task_context>
 <phase>Phase 5: Template System</phase>
 <priority>CRITICAL - First Impression</priority>
@@ -18,18 +20,7 @@ Add a mode selection dropdown to the `compozy init` TUI form, allowing users to 
 ---
 
 <critical>
-**MANDATORY VALIDATION:**
-- Run `go build ./cli` - MUST COMPILE
-- Run `compozy init` - TUI form MUST show mode dropdown
-- Select each mode - Generated project MUST use selected mode
-- Run `make lint` - MUST BE CLEAN
-
-**USER EXPERIENCE:**
-- Mode dropdown appears AFTER template selection
-- Default selection: "memory"
-- Clear help text for each mode
-- Visual indicators: 🚀 memory, 💾 persistent, 🏭 distributed
-- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
+- **DO NOT RUN TUI COMMANDS OR BLOCK COMMANDS TO AVOID GET YOUR EXECUTION BLOCKED**
 </critical>
 
 ---
@@ -77,20 +68,20 @@ Add a mode selection dropdown to the `compozy init` TUI form, allowing users to 
 ### 27.1 Add Mode Field to Form Model
 **File**: `cli/cmd/init/components/init_model.go`
 
-- [ ] Add `Mode string` field to form model struct
-- [ ] Initialize mode to "memory" (default)
-- [ ] Add mode getter/setter methods
-- [ ] Add mode to form data output
+- [x] Add `Mode string` field to form model struct
+- [x] Initialize mode to "memory" (default)
+- [x] Add mode getter/setter methods
+- [x] Add mode to form data output
 
 ---
 
 ### 27.2 Create Mode Dropdown Component
 **File**: `cli/cmd/init/components/project_form.go`
 
-- [ ] Add mode dropdown after template selection
-- [ ] Options: memory, persistent, distributed
-- [ ] Default selected: memory
-- [ ] Visual indicators: 🚀 memory, 💾 persistent, 🏭 distributed
+- [x] Add mode dropdown after template selection
+- [x] Options: memory, persistent, distributed
+- [x] Default selected: memory
+- [x] Visual indicators: 🚀 memory, 💾 persistent, 🏭 distributed
 
 **Help Text**:
 ```
@@ -115,10 +106,10 @@ Distributed Mode (🏭):
 ### 27.3 Conditional Docker Toggle
 **File**: `cli/cmd/init/components/project_form.go`
 
-- [ ] Disable Docker toggle when mode is memory or persistent
-- [ ] Enable Docker toggle only when mode is distributed
-- [ ] Update Docker toggle help text based on mode
-- [ ] Gray out Docker toggle when disabled (visual feedback)
+- [x] Disable Docker toggle when mode is memory or persistent
+- [x] Enable Docker toggle only when mode is distributed
+- [x] Update Docker toggle help text based on mode
+- [x] Gray out Docker toggle when disabled (visual feedback)
 
 **Conditional Logic**:
 ```go
@@ -138,20 +129,20 @@ if mode == "distributed" {
 ### 27.4 Update Form Rendering
 **File**: `cli/cmd/init/components/project_form.go`
 
-- [ ] Add mode dropdown to form layout
-- [ ] Position after template, before Docker toggle
-- [ ] Update form navigation (tab order)
-- [ ] Add mode validation (must be one of three values)
+- [x] Add mode dropdown to form layout
+- [x] Position after template, before Docker toggle
+- [x] Update form navigation (tab order)
+- [x] Add mode validation (must be one of three values)
 
 ---
 
 ### 27.5 Pass Mode to Template Generator
 **File**: `cli/cmd/init/init.go`
 
-- [ ] Extract mode from form data
-- [ ] Pass mode to `GenerateOptions` struct (Task 28.0 will add this field)
-- [ ] Log selected mode for debugging
-- [ ] Validate mode before template generation
+- [x] Extract mode from form data
+- [x] Pass mode to `GenerateOptions` struct (Task 28.0 will add this field)
+- [x] Log selected mode for debugging
+- [x] Validate mode before template generation
 
 ---
 

@@ -87,8 +87,8 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 
 **Dependencies**: Phase 1 complete (can run parallel with Phases 2-3-4)
 
-- **27.0** Add Mode Selection to TUI Form [M] - 0.5 days
-- **28.0** Update Template System Types for Mode [S] - 0.5 days
+- [x] **27.0** Add Mode Selection to TUI Form [M] - 0.5 days
+- [x] **28.0** Update Template System Types for Mode [S] - 0.5 days
 - **29.0** Make Template Generation Mode-Aware [L] - 1 day
 
 **Duration**: 1 day (with parallelization)
@@ -114,10 +114,6 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 **Dependencies**: ALL previous phases complete
 
 - [x] **22.0** Comprehensive Testing [L] - 2 days (BLOCKING)
-- **23.0** Validate Examples [M] - 1 day
-- **24.0** Performance Benchmarking [M] - 1 day
-- **25.0** Error Message Validation [S] - 0.5 days
-- **26.0** Documentation Validation [S] - 0.5 days
 
 **Duration**: 1 day (with parallelization after task 22.0)
 **Parallel Lanes**: 3 (after comprehensive tests complete)

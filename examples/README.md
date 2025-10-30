@@ -1,27 +1,29 @@
 # Compozy Examples
 
-Browse runnable examples demonstrating Compozy features and integrations. Each folder includes a README with setup instructions.
+Browse runnable examples demonstrating Compozy features and integrations. Each
+folder includes a README with setup instructions.
 
-## Mode Configurations
+## Mode Profiles
 
-Use the ready-to-run configs under `examples/configs` to bootstrap different infrastructure profiles:
+These directories provide end-to-end environments for each deployment mode:
 
-- `memory-mode.yaml` — zero-dependency setup for demos and CI smoke tests.
-- `persistent-mode.yaml` — embedded services with on-disk durability for daily development.
-- `distributed-mode.yaml` — production wiring that connects to managed PostgreSQL, Temporal, and Redis clusters.
+- `memory-mode/` — zero-dependency setup that starts instantly with fully
+  ephemeral services.
+- `persistent-mode/` — embedded services that persist data to `.compozy/` for
+  stateful local development.
+- `distributed-mode/` — connects to external PostgreSQL, Temporal, and Redis
+  services via the bundled `docker-compose.yml`.
 
-## Database Examples
+## Config Packs
 
-### SQLite Quickstart
+Use the ready-to-run configs under `examples/configs` to bootstrap additional
+projects or CI environments:
 
-**Location:** `database/sqlite-quickstart/`
+- `memory-mode.yaml` — minimal memory profile for demos and smoke tests.
+- `persistent-mode.yaml` — embedded services with on-disk durability.
+- `distributed-mode.yaml` — production wiring targeting managed services.
 
-Minimal example demonstrating SQLite backend with a filesystem vector DB. Perfect for local development and testing.
+## Additional Examples
 
-**Highlights:**
-
-- No external database dependencies
-- Single-file SQLite datastore
-- Filesystem vector embeddings
-
-[View Example →](./database/sqlite-quickstart/)
+Explore the rest of the folders for domain-specific workflows (GitHub, memory,
+weather, etc.). Each README describes prerequisites and execution steps.

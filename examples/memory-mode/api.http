@@ -1,20 +1,20 @@
-### Temporal Standalone Basic Example API
+### Memory Mode Quickstart API
 @baseUrl = http://localhost:5001/api/v0
-@workflowId = hello
+@workflowId = echo
 
-### Execute hello workflow
-# @name executeWorkflow
+### Trigger echo workflow
+# @name triggerEcho
 POST {{baseUrl}}/workflows/{{workflowId}}/executions
 Content-Type: application/json
 Accept: application/json
 
 {
   "input": {
-    "name": "Temporal developer"
+    "message": "Memory mode is running"
   }
 }
 
-### Get exec details
-@execId = {{executeWorkflow.response.body.data.exec_id}}
+### Inspect execution details
+@execId = {{triggerEcho.response.body.data.exec_id}}
 GET {{baseUrl}}/executions/workflows/{{execId}}
 Accept: application/json

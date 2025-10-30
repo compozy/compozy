@@ -1,5 +1,7 @@
 # Task 29.0: Make Template Generation Mode-Aware
 
+## status: pending
+
 <task_context>
 <phase>Phase 5: Template System</phase>
 <priority>CRITICAL - User Onboarding</priority>
@@ -21,9 +23,10 @@ Update the "basic" template to generate mode-appropriate configuration files, wi
 **MANDATORY VALIDATION:**
 - Run `go build ./pkg/template` - MUST COMPILE
 - Generate project in each mode - MUST WORK
-- Run generated project `compozy start` - MUST START
 - Run `make lint` - MUST BE CLEAN
 - Run `make test` - MUST PASS
+
+- **DO NOT RUN TUI COMMANDS OR BLOCK COMMANDS TO AVOID GET YOUR EXECUTION BLOCKED**
 
 **USER EXPERIENCE:**
 - Memory mode: Minimal config, no docker-compose, instant startup

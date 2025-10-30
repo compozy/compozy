@@ -1,0 +1,23 @@
+id: echo
+version: 0.1.0
+description: Minimal workflow for validating Compozy memory mode startup.
+
+config:
+  input:
+    type: object
+    properties:
+      message:
+        type: string
+        description: Text that should be echoed back
+        default: "Hello from memory mode"
+    required:
+      - message
+
+# Reference the echo task defined in compozy.yaml.
+tasks:
+  - id: echo
+    type: reference
+    target: echo
+
+outputs:
+  message: "{{ .tasks.echo.output }}"
