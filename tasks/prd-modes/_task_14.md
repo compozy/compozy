@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>documentation</domain>
@@ -31,10 +31,10 @@ Rename and update deployment documentation to reflect new three-mode system (mem
 
 ## Subtasks
 
-- [ ] 14.1 Rename and update standalone-mode.mdx to memory-mode.mdx
-- [ ] 14.2 Create new persistent-mode.mdx documentation
-- [ ] 14.3 Update distributed-mode.mdx with comparison section
-- [ ] 14.4 Verify all cross-references between mode docs
+- [x] 14.1 Rename and update standalone-mode.mdx to memory-mode.mdx
+- [x] 14.2 Create new persistent-mode.mdx documentation
+- [x] 14.3 Update distributed-mode.mdx with comparison section
+- [x] 14.4 Verify all cross-references between mode docs
 
 ## Implementation Details
 
@@ -73,20 +73,20 @@ See `tasks/prd-modes/_techspec.md` Section 4.1 for complete implementation detai
 
 ## Deliverables
 
-- [ ] `memory-mode.mdx` with updated content and use cases
-- [ ] `persistent-mode.mdx` with complete configuration examples
-- [ ] `distributed-mode.mdx` with mode comparison table
-- [ ] All internal links updated and working
-- [ ] Consistent MDX formatting and structure
+- [x] `memory-mode.mdx` with updated content and use cases
+- [x] `persistent-mode.mdx` with complete configuration examples
+- [x] `distributed-mode.mdx` with mode comparison table
+- [x] All internal links updated and working
+- [x] Consistent MDX formatting and structure
 
 ## Tests
 
 Documentation verification (no automated tests):
-- [ ] All code examples are syntactically valid YAML
-- [ ] All cross-references resolve correctly
-- [ ] Mode comparison table is accurate
-- [ ] Use case guidance is clear and actionable
-- [ ] No references to old "standalone" naming (except in migration context)
+- [x] All code examples are syntactically valid YAML
+- [x] All cross-references resolve correctly
+- [x] Mode comparison table is accurate
+- [x] Use case guidance is clear and actionable
+- [x] No references to old "standalone" naming (except in migration context)
 
 ## Success Criteria
 

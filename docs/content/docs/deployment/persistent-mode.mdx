@@ -1,0 +1,155 @@
+---
+title: "Persistent Mode Deployment"
+description: "Keep embedded Temporal and Redis while persisting state to disk for reliable local environments."
+icon: Folder
+---
+
+<Callout type="info" title="Local durability without external services">
+Persistent mode stores Compozy data on disk using file-based SQLite, embedded Temporal, and embedded Redis with snapshots. It is ideal when you need reproducible state between restarts without provisioning infrastructure.
+</Callout>
+
+## When to Choose Persistent Mode
+
+<List>
+  <ListItem title="Stateful local development" icon="Monitor">
+    Preserve workflow history, cache entries, and database state between runs on your laptop.
+  </ListItem>
+  <ListItem title="Debugging and demos" icon="Bug">
+    Reproduce issues by restarting the server with the same durable data set.
+  </ListItem>
+  <ListItem title="Small internal teams" icon="Users">
+    Share a lightweight environment that behaves consistently without managing PostgreSQL, Temporal Cloud, or Redis clusters.
+  </ListItem>
+</List>
+
+<Callout type="warning">
+Persistent mode is still a single-process deployment. It shares the same throughput limits as [Memory Mode](/docs/deployment/memory-mode) and does not support pgvector. For multi-user production workloads, use [Distributed Mode](/docs/deployment/distributed-mode).
+</Callout>
+
+## Architecture Snapshot
+
+<List>
+  <ListItem title="Database" icon="Database">
+    File-backed SQLite (<InlineCode>mode: persistent</InlineCode>) stored at <InlineCode>./.compozy/compozy.db</InlineCode> by default.
+  </ListItem>
+  <ListItem title="Temporal" icon="GitBranch">
+    Embedded Temporal server (<InlineCode>temporal.mode: persistent</InlineCode>) with data stored in <InlineCode>./.compozy/temporal.db</InlineCode>.
+  </ListItem>
+  <ListItem title="Redis" icon="Layers">
+    Embedded Redis-compatible cache (<InlineCode>redis.mode: persistent</InlineCode>) with BadgerDB snapshots in <InlineCode>./.compozy/redis/</InlineCode>.
+  </ListItem>
+</List>
+
+## Quick Start
+
+```yaml title="compozy.yaml"
+name: hello-persistent
+version: "0.1.0"
+
+mode: persistent
+
+database:
+  driver: sqlite
+  path: ./.compozy/compozy.db
+
+temporal:
+  mode: persistent
+  host_port: localhost:7233
+  standalone:
+    database_file: ./.compozy/temporal.db
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-persistent
+    enable_ui: true
+    ui_port: 8233
+
+redis:
+  mode: persistent
+  standalone:
+    persistence:
+      enabled: true
+      dir: ./.compozy/redis
+      snapshot_interval: 60s
+      snapshot_on_shutdown: true
+
+workflows:
+  - source: ./workflows/greeting.yaml
+```
+
+Start Compozy and verify the data directory:
+
+```bash
+compozy start --mode persistent --temporal-mode=persistent
+ls -la .compozy/
+```
+
+You should see `compozy.db`, `temporal.db`, and a `redis/` directory after the first run.
+
+## Default Directory Layout
+
+| Path | Purpose |
+| ---- | ------- |
+| <InlineCode>./.compozy/compozy.db</InlineCode> | Primary SQLite database for Compozy metadata |
+| <InlineCode>./.compozy/temporal.db</InlineCode> | Temporal history and visibility store |
+| <InlineCode>./.compozy/redis/</InlineCode> | Redis snapshot files for cache persistence |
+
+Add `.compozy/` to your `.gitignore` to avoid committing local state.
+
+## Backup & Recovery
+
+<Steps size="sm">
+  <Step title="Create a backup">
+    `cp -R ./.compozy ./backup-$(date +%Y%m%d)`
+  </Step>
+  <Step title="Store securely">
+    Keep backups outside your project workspace (e.g., encrypted volume or cloud storage).
+  </Step>
+  <Step title="Restore">
+    Stop Compozy, remove the current `.compozy/`, then `cp -R ./backup-20251030 ./.compozy` and restart.
+  </Step>
+</Steps>
+
+For automated backups, schedule a cron job or CI workflow to copy the directory before destructive operations.
+
+## Limitations & Best Practices
+
+- No pgvector support: connect to an external vector database if embeddings are required.
+- Write concurrency is limited (SQLite + embedded Temporal). Keep concurrent workflows under ~10.
+- Monitor disk usage: snapshots accumulate; prune old backups and clear `redis/` if cache data is disposable.
+- Use the same mode across the team to avoid configuration drift between laptops.
+
+## Troubleshooting
+
+- Directory not created: ensure the process has write access to the project folder.
+- Redis snapshot errors: double-check <InlineCode>redis.standalone.persistence.dir</InlineCode> permissions and available disk space.
+- Temporal startup timeout: raise <InlineCode>temporal.standalone.start_timeout</InlineCode> for slower machines or busy CI runners.
+
+## Next Steps
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Memory Mode"
+    description="Fast, ephemeral setup for tests and quick prototypes"
+    href="/docs/deployment/memory-mode"
+    icon="Rocket"
+  />
+  <ReferenceCard
+    title="Distributed Mode"
+    description="Production-grade deployment with external services"
+    href="/docs/deployment/distributed-mode"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Mode Configuration"
+    description="Understand global vs per-component mode selection"
+    href="/docs/configuration/mode-configuration"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Mode Migration Guide"
+    description="Choose the right mode for each environment"
+    href="/docs/guides/migrate-standalone-to-distributed"
+    icon="ArrowRight"
+  />
+</ReferenceCardList>

@@ -4,7 +4,8 @@
   "icon": "Rocket",
   "root": true,
   "pages": [
-    "standalone-mode",
+    "memory-mode",
+    "persistent-mode",
     "distributed-mode",
     "production",
     "temporal-modes",

@@ -71,7 +71,7 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 
 **Dependencies**: Phase 1 complete (can run parallel with Phases 2-3)
 
-- **14.0** Update Deployment Documentation [L] - 2 days
+- [x] **14.0** Update Deployment Documentation [L] - 2 days
 - **15.0** Update Configuration Documentation [M] - 1 day
 - **16.0** Create Migration Guide [L] - 2 days
 - **17.0** Update Quick Start [S] - 0.5 days
