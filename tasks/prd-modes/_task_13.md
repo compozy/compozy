@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>testdata</domain>
@@ -37,14 +37,14 @@ When you need information about golden file testing:
 
 ## Subtasks
 
-- [ ] 13.1 Identify all golden files in `testdata/` directory
-- [ ] 13.2 Find golden files containing "standalone" references
-- [ ] 13.3 Update `config-diagnostics-standalone.golden` → `config-diagnostics-memory.golden`
-- [ ] 13.4 Update `config-show-mixed.golden` mode references
-- [ ] 13.5 Update `config-show-standalone.golden` → `config-show-memory.golden`
-- [ ] 13.6 Regenerate golden files using `UPDATE_GOLDEN=1`
-- [ ] 13.7 Run CLI config tests to verify golden file accuracy
-- [ ] 13.8 Update any test code referencing old golden file names
+- [x] 13.1 Identify all golden files in `testdata/` directory
+- [x] 13.2 Find golden files containing "standalone" references
+- [x] 13.3 Update `config-diagnostics-standalone.golden` → `config-diagnostics-memory.golden`
+- [x] 13.4 Update `config-show-mixed.golden` mode references
+- [x] 13.5 Update `config-show-standalone.golden` → `config-show-memory.golden`
+- [x] 13.6 Regenerate golden files using `UPDATE_GOLDEN=1`
+- [x] 13.7 Run CLI config tests to verify golden file accuracy
+- [x] 13.8 Update any test code referencing old golden file names
 
 ## Implementation Details
 
@@ -139,12 +139,12 @@ goldenFile := "testdata/config-show-memory.golden"
 
 Validation through CLI tests:
 
-- [ ] Run `go test ./cli/cmd/config/... -v` and verify all pass
-- [ ] Check `config diagnostics` command output matches new golden file
-- [ ] Check `config show` command output matches updated golden files
-- [ ] Verify default mode is "memory" in generated output
-- [ ] Confirm mode validation accepts memory/persistent/distributed
-- [ ] Check git diff shows expected changes only
+- [x] Run `go test ./cli/cmd/config/... -v` and verify all pass
+- [x] Check `config diagnostics` command output matches new golden file
+- [x] Check `config show` command output matches updated golden files
+- [x] Verify default mode is "memory" in generated output
+- [x] Confirm mode validation accepts memory/persistent/distributed
+- [x] Check git diff shows expected changes only
 
 ## Success Criteria
 
