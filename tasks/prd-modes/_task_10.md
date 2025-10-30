@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>test/helpers</domain>
@@ -37,13 +37,13 @@ When you need information about mode-based configuration:
 
 ## Subtasks
 
-- [ ] 10.1 Create `SetupDatabaseWithMode` function signature
-- [ ] 10.2 Implement mode-to-backend mapping logic
-- [ ] 10.3 Handle SQLite memory mode configuration
-- [ ] 10.4 Handle SQLite persistent mode configuration (temporary file)
-- [ ] 10.5 Handle distributed mode configuration (PostgreSQL)
-- [ ] 10.6 Add helper documentation with usage examples
-- [ ] 10.7 Create example test demonstrating mode switching
+- [x] 10.1 Create `SetupDatabaseWithMode` function signature
+- [x] 10.2 Implement mode-to-backend mapping logic
+- [x] 10.3 Handle SQLite memory mode configuration
+- [x] 10.4 Handle SQLite persistent mode configuration (temporary file)
+- [x] 10.5 Handle distributed mode configuration (PostgreSQL)
+- [x] 10.6 Add helper documentation with usage examples
+- [x] 10.7 Create example test demonstrating mode switching
 
 ## Implementation Details
 
@@ -108,12 +108,12 @@ func TestWithDistributedMode(t *testing.T) {
 
 ## Tests
 
-- [ ] Unit test: memory mode returns SQLite :memory: connection
-- [ ] Unit test: persistent mode returns SQLite file connection with temp directory
-- [ ] Unit test: distributed mode returns PostgreSQL connection
-- [ ] Integration test: mode switching works correctly across test cases
-- [ ] Verify cleanup functions properly close connections and remove temp files
-- [ ] Confirm `t.Context()` usage for context inheritance
+- [x] Unit test: memory mode returns SQLite :memory: connection
+- [x] Unit test: persistent mode returns SQLite file connection with temp directory
+- [x] Unit test: distributed mode returns PostgreSQL connection
+- [x] Integration test: mode switching works correctly across test cases
+- [x] Verify cleanup functions properly close connections and remove temp files
+- [x] Confirm `t.Context()` usage for context inheritance
 
 ## Success Criteria
 
