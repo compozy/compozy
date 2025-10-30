@@ -29,10 +29,10 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 
 **Blocking**: All other work depends on Phase 1 completion
 
-- **1.0** Update Mode Constants & Defaults [M] - 1 day
-- **2.0** Update Configuration Validation [M] - 1 day
-- **3.0** Update Configuration Registry [M] - 1 day
-- **4.0** Update Configuration Tests [L] - 2 days
+- [ ] **1.0** Update Mode Constants & Defaults [M] - 1 day
+- [x] **2.0** Update Configuration Validation [M] - 1 day
+- [ ] **3.0** Update Configuration Registry [M] - 1 day
+- [ ] **4.0** Update Configuration Tests [L] - 2 days
 
 **Duration**: 2 days (with parallelization)
 

@@ -2869,10 +2869,10 @@ func registerMCPProxyServerFields(registry *Registry) {
 		registry,
 		FieldDef{
 			Path:    "mcp_proxy.mode",
-			Default: "standalone",
+			Default: "memory",
 			EnvVar:  "MCP_PROXY_MODE",
 			Type:    reflect.TypeOf(""),
-			Help:    "MCP proxy mode: 'standalone' embeds the proxy (needs fixed port); empty keeps external proxy defaults",
+			Help:    "MCP proxy mode: 'memory'/'persistent' embed the proxy (fixed port); 'distributed' uses external proxy",
 		},
 		FieldDef{
 			Path:    "mcp_proxy.host",

@@ -14,11 +14,18 @@ import (
 )
 
 const (
-	mcpProxyModeStandalone = "standalone"
-
 	databaseDriverPostgres = "postgres"
 	databaseDriverSQLite   = "sqlite"
 )
+
+func isEmbeddedMode(mode string) bool {
+	switch strings.TrimSpace(mode) {
+	case ModeMemory, ModePersistent:
+		return true
+	default:
+		return false
+	}
+}
 
 // Config represents the complete configuration for the Compozy system.
 //
@@ -49,11 +56,12 @@ const (
 //	  environment: development
 //	  log_level: info
 type Config struct {
-	// Mode controls global deployment model.
+	// Mode controls the global deployment model.
 	//
-	// "distributed" (default): External services required
-	// "standalone": Embedded services, single-process
-	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=standalone distributed"`
+	// "memory" (default): In-memory SQLite with embedded services for tests, CI pipelines, and quick prototypes.
+	// "persistent": File-backed SQLite with embedded services for local development that needs state between runs.
+	// "distributed": PostgreSQL with external Temporal/Redis for production-grade deployments.
+	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=memory persistent distributed"`
 	// Server configures the HTTP API server settings.
 	//
 	// $ref: schema://application#server
@@ -1317,7 +1325,7 @@ type RedisConfig struct {
 	//   - "" (empty): Inherit from global Config.Mode
 	//   - "distributed": Use external Redis (explicit override)
 	//   - "standalone": Use embedded miniredis (explicit override)
-	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty,oneof=standalone distributed"`
+	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty,oneof=memory persistent distributed"`
 	// URL provides a complete Redis connection string.
 	//
 	// Format: `redis://[user:password@]host:port/db`
@@ -2781,9 +2789,9 @@ func buildWorkerDispatcherConfig(registry *definition.Registry) WorkerDispatcher
 }
 
 func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
-	mode := getString(registry, "mcp_proxy.mode")
+	mode := strings.TrimSpace(getString(registry, "mcp_proxy.mode"))
 	port := getInt(registry, "mcp_proxy.port")
-	if mode == mcpProxyModeStandalone && port == 0 {
+	if isEmbeddedMode(mode) && port == 0 {
 		port = 6001
 	}
 	return MCPProxyConfig{

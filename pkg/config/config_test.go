@@ -50,7 +50,7 @@ func TestConfig_Default(t *testing.T) {
 
 		// Temporal defaults
 		assert.Empty(t, cfg.Temporal.Mode)
-		assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
+		assert.Equal(t, ModeMemory, cfg.EffectiveTemporalMode())
 		assert.Equal(t, "localhost:7233", cfg.Temporal.HostPort)
 		assert.Equal(t, "default", cfg.Temporal.Namespace)
 		assert.Equal(t, "compozy-tasks", cfg.Temporal.TaskQueue)
@@ -111,8 +111,8 @@ func TestConfig_Default(t *testing.T) {
 		expectedBuckets := []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
 		assert.Equal(t, expectedBuckets, cfg.LLM.UsageMetrics.PersistBuckets)
 
-		// MCP proxy defaults preserve classic external port
-		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
+		// MCP proxy defaults embed in memory mode with fixed port
+		assert.Equal(t, ModeMemory, cfg.MCPProxy.Mode)
 		assert.Equal(t, "127.0.0.1", cfg.MCPProxy.Host)
 		assert.Equal(t, 6001, cfg.MCPProxy.Port)
 		assert.Equal(t, "", cfg.MCPProxy.BaseURL)
@@ -124,16 +124,15 @@ func TestConfig_Default(t *testing.T) {
 	})
 }
 
-func TestConfig_StandaloneModeDefaultsToSQLiteDriver(t *testing.T) {
-	t.Run("Should resolve sqlite driver when global mode standalone", func(t *testing.T) {
-		t.Setenv("COMPOZY_MODE", ModeStandalone)
-		ctx := t.Context()
-		m := NewManager(ctx, NewService())
-		cfg, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider())
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = m.Close(ctx) })
-		assert.Equal(t, databaseDriverSQLite, cfg.Database.Driver)
-		assert.Equal(t, ModeStandalone, cfg.Temporal.Mode)
+func TestConfig_MemoryModeDefaultsToSQLiteDriver(t *testing.T) {
+	t.Run("Should resolve sqlite driver when global mode memory", func(t *testing.T) {
+		cfg := Default()
+		require.NotNil(t, cfg)
+		cfg.Mode = ModeMemory
+		cfg.Database.Driver = ""
+		cfg.Temporal.Mode = ""
+		assert.Equal(t, databaseDriverSQLite, cfg.EffectiveDatabaseDriver())
+		assert.Equal(t, ModeMemory, cfg.EffectiveTemporalMode())
 	})
 }
 
@@ -611,28 +610,28 @@ func TestConfig_Validation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require non-ephemeral MCP proxy port when standalone", func(t *testing.T) {
+	t.Run("Should require non-ephemeral MCP proxy port in embedded modes", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()
-		cfg.MCPProxy.Mode = mcpProxyModeStandalone
+		cfg.MCPProxy.Mode = ModeMemory
 		cfg.MCPProxy.Port = 0
 		err := svc.Validate(cfg)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "mcp_proxy.port must be non-zero in standalone mode")
+		assert.Contains(t, err.Error(), "mcp_proxy.port must be non-zero when mode is \"memory\" or \"persistent\"")
 	})
 
-	t.Run("Should allow standalone MCP proxy when port provided", func(t *testing.T) {
+	t.Run("Should allow embedded MCP proxy when port provided", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()
-		cfg.MCPProxy.Mode = mcpProxyModeStandalone
+		cfg.MCPProxy.Mode = ModePersistent
 		cfg.MCPProxy.Port = 6200
 		err := svc.Validate(cfg)
 		assert.NoError(t, err)
 	})
 
-	t.Run("Should default MCP proxy to standalone with fixed port", func(t *testing.T) {
+	t.Run("Should default MCP proxy to embedded mode with fixed port", func(t *testing.T) {
 		cfg := Default()
-		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
+		assert.Equal(t, ModeMemory, cfg.MCPProxy.Mode)
 		assert.Equal(t, 6001, cfg.MCPProxy.Port)
 	})
 

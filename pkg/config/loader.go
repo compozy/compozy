@@ -20,9 +20,8 @@ import (
 )
 
 const (
-	maxTCPPort             = 65535
-	temporalServiceSpan    = 3 // Temporal reserves FrontendPort through FrontendPort+3
-	temporalModeStandalone = "standalone"
+	maxTCPPort          = 65535
+	temporalServiceSpan = 3 // Temporal reserves FrontendPort through FrontendPort+3
 )
 
 // loader implements the Service interface for configuration management.
@@ -402,15 +401,21 @@ func validateTemporal(cfg *Config) error {
 		cfg.Temporal.Mode = mode
 	}
 	switch mode {
-	case "remote":
+	case ModeRemoteTemporal:
 		if cfg.Temporal.HostPort == "" {
 			return fmt.Errorf("temporal.host_port is required in remote mode")
 		}
 		return nil
-	case temporalModeStandalone:
+	case ModeMemory, ModePersistent:
 		return validateStandaloneTemporalConfig(cfg)
 	default:
-		return fmt.Errorf("temporal.mode must be one of [remote standalone], got %q", mode)
+		return fmt.Errorf(
+			"temporal.mode must be one of [%s %s %s], got %q",
+			ModeMemory,
+			ModePersistent,
+			ModeRemoteTemporal,
+			mode,
+		)
 	}
 }
 
@@ -436,7 +441,7 @@ func validateStandaloneTemporalConfig(cfg *Config) error {
 
 func validateStandaloneDatabase(standalone *StandaloneConfig) error {
 	if standalone.DatabaseFile == "" {
-		return fmt.Errorf("temporal.standalone.database_file is required when mode=standalone")
+		return fmt.Errorf("temporal.standalone.database_file is required when using embedded Temporal")
 	}
 	return nil
 }
@@ -507,17 +512,20 @@ func validateStandaloneStartTimeout(standalone *StandaloneConfig) error {
 func validateRedis(cfg *Config) error {
 	// Validate component mode values via struct tags; add friendly errors for clarity.
 	switch strings.TrimSpace(cfg.Redis.Mode) {
-	case "", mcpProxyModeStandalone, "distributed":
+	case "", ModeMemory, ModePersistent, ModeDistributed:
 		// ok
 	default:
 		return fmt.Errorf(
-			"redis.mode must be one of [standalone distributed] or empty for inheritance, got %q",
+			"redis.mode must be one of [%s %s %s] or empty for inheritance, got %q",
+			ModeMemory,
+			ModePersistent,
+			ModeDistributed,
 			cfg.Redis.Mode,
 		)
 	}
 
 	// Validate requirements based on effective mode
-	if cfg.EffectiveRedisMode() == mcpProxyModeStandalone {
+	if isEmbeddedMode(cfg.EffectiveRedisMode()) {
 		// When using embedded redis, validate optional persistence settings when enabled.
 		p := cfg.Redis.Standalone.Persistence
 		if p.Enabled {
@@ -586,9 +594,13 @@ func validateAuth(cfg *Config) error {
 }
 
 func validateMCPProxy(cfg *Config) error {
-	mode := strings.TrimSpace(cfg.MCPProxy.Mode)
-	if mode == mcpProxyModeStandalone && cfg.MCPProxy.Port == 0 {
-		return fmt.Errorf("mcp_proxy.port must be non-zero in standalone mode")
+	mode := cfg.EffectiveMCPProxyMode()
+	if isEmbeddedMode(mode) && cfg.MCPProxy.Port == 0 {
+		return fmt.Errorf(
+			"mcp_proxy.port must be non-zero when mode is %q or %q",
+			ModeMemory,
+			ModePersistent,
+		)
 	}
 	return nil
 }
