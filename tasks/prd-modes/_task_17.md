@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>documentation</domain>
@@ -30,11 +30,11 @@ Update quick start documentation to reflect memory mode as the new default. Simp
 
 ## Subtasks
 
-- [ ] 17.1 Update installation and first run section
-- [ ] 17.2 Emphasize zero-dependency default (memory mode)
-- [ ] 17.3 Add brief mode selection guidance
-- [ ] 17.4 Update example workflow to work in memory mode
-- [ ] 17.5 Add "next steps" section with links to other modes
+- [x] 17.1 Update installation and first run section
+- [x] 17.2 Emphasize zero-dependency default (memory mode)
+- [x] 17.3 Add brief mode selection guidance
+- [x] 17.4 Update example workflow to work in memory mode
+- [x] 17.5 Add "next steps" section with links to other modes
 
 ## Implementation Details
 
@@ -73,21 +73,21 @@ Keep quick start focused on getting users running immediately. Defer detailed mo
 
 ## Deliverables
 
-- [ ] Updated `quick-start/index.mdx` with memory mode as default
-- [ ] Simplified getting started steps
-- [ ] Brief mode selection guidance
-- [ ] Working example workflow
-- [ ] Clear "next steps" section with mode links
+- [x] Updated `quick-start/index.mdx` with memory mode as default
+- [x] Simplified getting started steps
+- [x] Brief mode selection guidance
+- [x] Working example workflow
+- [x] Clear "next steps" section with mode links
 
 ## Tests
 
 Documentation verification (no automated tests):
-- [ ] Installation commands are correct
-- [ ] `compozy start` works without configuration
-- [ ] Example workflow runs successfully
-- [ ] Links to mode documentation work
-- [ ] Quick start doesn't overwhelm with options
-- [ ] Clear path from quick start to production deployment
+- [x] Installation commands are correct
+- [x] `compozy start` works without configuration
+- [x] Example workflow runs successfully
+- [x] Links to mode documentation work
+- [x] Quick start doesn't overwhelm with options
+- [x] Clear path from quick start to production deployment
 
 ## Success Criteria
 
