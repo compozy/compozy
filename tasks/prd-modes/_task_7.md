@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/server</domain>
@@ -39,10 +39,10 @@ Update server initialization logging in `engine/infra/server/server.go` to use a
 
 ## Subtasks
 
-- [ ] 7.1 Search for hardcoded "standalone" strings in server.go logging
-- [ ] 7.2 Replace with dynamic mode values from config
-- [ ] 7.3 Verify structured logging format consistency
-- [ ] 7.4 Test logging output in each mode
+- [x] 7.1 Search for hardcoded "standalone" strings in server.go logging
+- [x] 7.2 Replace with dynamic mode values from config
+- [x] 7.3 Verify structured logging format consistency
+- [x] 7.4 Test logging output in each mode
 
 ## Implementation Details
 
