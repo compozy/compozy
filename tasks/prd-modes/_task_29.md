@@ -29,6 +29,7 @@ Update the "basic" template to generate mode-appropriate configuration files, wi
 - Memory mode: Minimal config, no docker-compose, instant startup
 - Persistent mode: File paths configured, no docker-compose, state persists
 - Distributed mode: External services configured, docker-compose included
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 ---

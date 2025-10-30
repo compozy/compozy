@@ -19,6 +19,7 @@ Final validation of all documentation to ensure accuracy, completeness, and qual
 - **ALWAYS READ** the technical docs from `_techspec.md` Phase 6.5 before start
 - **DEPENDENCIES:** All previous tasks (1.0-25.0) must be completed
 - **BLOCKING:** This is the final validation gate before ship
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 <research>

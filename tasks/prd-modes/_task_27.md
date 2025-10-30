@@ -29,6 +29,7 @@ Add a mode selection dropdown to the `compozy init` TUI form, allowing users to 
 - Default selection: "memory"
 - Clear help text for each mode
 - Visual indicators: 🚀 memory, 💾 persistent, 🏭 distributed
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 ---

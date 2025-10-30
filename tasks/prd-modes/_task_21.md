@@ -18,6 +18,7 @@ Regenerate auto-generated files (Swagger docs, golden test files, schema-generat
 - **ALWAYS READ** @.cursor/rules/critical-validation.mdc before start
 - **ALWAYS READ** the technical docs from `_techspec.md` Phase 5.2 before start
 - **DEPENDENCIES:** This task depends on Task 20.0 (Update JSON Schemas) being completed
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 <research>

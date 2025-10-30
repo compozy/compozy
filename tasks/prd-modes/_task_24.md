@@ -19,6 +19,7 @@ Measure and validate performance improvements across all modes, particularly foc
 - **ALWAYS READ** the technical docs from `_techspec.md` Phase 6.3 before start
 - **DEPENDENCIES:** Tasks 1.0-22.0 must be completed
 - **TARGET:** 50-80% improvement in test suite execution time
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 <research>

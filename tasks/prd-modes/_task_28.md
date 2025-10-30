@@ -26,6 +26,7 @@ Add `Mode` field to `GenerateOptions` struct in the template system, enabling mo
 **BREAKING CHANGE:**
 - `GenerateOptions` struct signature changes
 - All template generators must handle mode field
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 ---

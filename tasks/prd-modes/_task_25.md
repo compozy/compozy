@@ -18,6 +18,7 @@ Validate that all error messages are helpful, clear, and guide users toward corr
 - **ALWAYS READ** @.cursor/rules/critical-validation.mdc before start
 - **ALWAYS READ** the technical docs from `_techspec.md` Phase 6.4 before start
 - **DEPENDENCIES:** Tasks 1.0-23.0 must be completed
+- **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 <research>

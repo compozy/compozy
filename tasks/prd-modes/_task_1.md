@@ -27,6 +27,8 @@ Update mode constants in `pkg/config/resolver.go` to support three modes (memory
 - Default mode changes from "distributed" to "memory"
 - "standalone" mode constant removed (breaking for alpha users)
 - All mode references must use new constants
+  
+**YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
 ---
