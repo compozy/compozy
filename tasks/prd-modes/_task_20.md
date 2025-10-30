@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>schemas</domain>
@@ -36,10 +36,10 @@ Update JSON schemas (`config.json` and `compozy.json`) to reflect the new three-
 
 ## Subtasks
 
-- [ ] 20.1 Update mode enum and default in `schemas/config.json`
-- [ ] 20.2 Update mode enum and component modes in `schemas/compozy.json`
-- [ ] 20.3 Update mode descriptions and help text in both schemas
-- [ ] 20.4 Validate schemas against example configs
+- [x] 20.1 Update mode enum and default in `schemas/config.json`
+- [x] 20.2 Update mode enum and component modes in `schemas/compozy.json`
+- [x] 20.3 Update mode descriptions and help text in both schemas
+- [x] 20.4 Validate schemas against example configs
 
 ## Implementation Details
 
@@ -79,12 +79,12 @@ See `_techspec.md` Phase 5.1 for complete implementation details.
 ## Tests
 
 - Schema validation tests:
-  - [ ] Validate memory mode config against schema
-  - [ ] Validate persistent mode config against schema
-  - [ ] Validate distributed mode config against schema
-  - [ ] Validate component mode override configs
-  - [ ] Reject invalid mode values (e.g., "standalone")
-  - [ ] Validate mode inheritance (component inherits from global)
+  - [x] Validate memory mode config against schema
+  - [x] Validate persistent mode config against schema
+  - [x] Validate distributed mode config against schema
+  - [x] Validate component mode override configs
+  - [x] Reject invalid mode values (e.g., "standalone")
+  - [x] Validate mode inheritance (component inherits from global)
 
 ## Success Criteria
 

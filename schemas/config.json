@@ -620,7 +620,7 @@
           "type": "integer"
         },
         "mode": {
-          "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
+          "description": "Mode controls how the MCP proxy runs within Compozy.\n\n- \"memory\" or \"persistent\": Embed and manage the MCP proxy alongside the API server (default via global mode)\n- \"distributed\": Use an external MCP proxy deployment\n- Leave unset to inherit the global mode",
           "type": "string"
         },
         "port": {
@@ -894,6 +894,15 @@
       "additionalProperties": false,
       "description": "RedisConfig contains Redis connection configuration.",
       "properties": {
+        "mode": {
+          "description": "Mode overrides the Redis deployment for this component.\n\n- \"memory\": Embedded Redis without persistence for fast local testing\n- \"persistent\": Embedded Redis with on-disk snapshots for durable local development\n- \"distributed\": External Redis deployment managed outside of Compozy\n\nLeave unset to inherit the global deployment mode.",
+          "enum": [
+            "memory",
+            "persistent",
+            "distributed"
+          ],
+          "type": "string"
+        },
         "db": {
           "description": "DB selects the Redis database number.\n\nDefault: 0",
           "type": "integer"
@@ -1148,10 +1157,11 @@
       "description": "TemporalConfig contains Temporal workflow engine configuration.",
       "properties": {
         "mode": {
-          "description": "Mode controls how Compozy connects to Temporal.\n\nValues:\n  - \"remote\": connect to an external Temporal deployment (default)\n  - \"standalone\": launch the embedded Temporal server for local development\n\nStandalone mode is intended for development and testing only.",
+          "description": "Mode controls how Compozy connects to Temporal.\n\n- \"memory\": Run the embedded Temporal server with in-memory persistence (fastest for tests)\n- \"persistent\": Run the embedded Temporal server with on-disk persistence for local development\n- \"remote\": Connect to an external Temporal deployment (used automatically when the global mode is \"distributed\")\n\nLeave unset to inherit the global deployment mode.",
           "enum": [
-            "remote",
-            "standalone"
+            "memory",
+            "persistent",
+            "remote"
           ],
           "type": "string"
         },
@@ -1169,21 +1179,21 @@
         },
         "standalone": {
           "$ref": "#/$defs/TemporalStandaloneConfig",
-          "description": "Standalone configures the embedded Temporal server when `mode` is \"standalone\"."
+          "description": "Standalone configures the embedded Temporal server when `mode` is \"memory\" or \"persistent\"."
         }
       },
       "type": "object"
     },
     "TemporalStandaloneConfig": {
       "additionalProperties": false,
-      "description": "TemporalStandaloneConfig configures the embedded Temporal server used in standalone mode.",
+      "description": "TemporalStandaloneConfig configures the embedded Temporal server used in memory or persistent modes.",
       "properties": {
         "bind_ip": {
           "description": "BindIP determines the IP address the Temporal services listen on.\n\nDefault: \"127.0.0.1\"",
           "type": "string"
         },
         "cluster_name": {
-          "description": "ClusterName customizes the Temporal cluster identifier for standalone deployments.\n\nDefault: \"compozy-standalone\"",
+          "description": "ClusterName customizes the Temporal cluster identifier for embedded deployments.\n\nDefault: \"compozy-standalone\"",
           "type": "string"
         },
         "database_file": {
@@ -1346,6 +1356,16 @@
   "additionalProperties": false,
   "description": "Config represents the complete configuration for the Compozy system.",
   "properties": {
+    "mode": {
+      "description": "Mode selects the deployment profile for this configuration.\n\n- \"memory\": In-memory SQLite with embedded Temporal and Redis for the fastest startup (default)\n- \"persistent\": Embedded services with on-disk persistence for local development that needs durable state\n- \"distributed\": External PostgreSQL, Temporal, and Redis for scalable production deployments",
+      "enum": [
+        "memory",
+        "persistent",
+        "distributed"
+      ],
+      "default": "memory",
+      "type": "string"
+    },
     "attachments": {
       "$ref": "#/$defs/AttachmentsConfig",
       "description": "Attachments configures global attachment handling limits and policies.\n\n$ref: schema://application#attachments"
