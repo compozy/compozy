@@ -1,0 +1,23 @@
+id: echo
+version: 0.1.0
+description: Minimal echo workflow for memory mode smoke tests
+
+config:
+  input:
+    type: object
+    properties:
+      message:
+        type: string
+        description: Text to echo
+        default: "Hello from memory mode"
+    required:
+      - message
+
+# Reference the task defined in examples/configs/memory-mode.yaml.
+tasks:
+  - id: echo
+    type: reference
+    target: echo
+
+outputs:
+  message: "{{ .tasks.echo.output }}"

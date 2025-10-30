@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>documentation</domain>
@@ -31,12 +31,12 @@ Create or update example configurations for each mode (memory, persistent, distr
 
 ## Subtasks
 
-- [ ] 19.1 Create/update memory mode example
-- [ ] 19.2 Create/update persistent mode example
-- [ ] 19.3 Create/update distributed mode example
-- [ ] 19.4 Add inline comments explaining mode-specific features
-- [ ] 19.5 Test all examples to ensure they work
-- [ ] 19.6 Update examples index/navigation
+- [x] 19.1 Create/update memory mode example
+- [x] 19.2 Create/update persistent mode example
+- [x] 19.3 Create/update distributed mode example
+- [x] 19.4 Add inline comments explaining mode-specific features
+- [x] 19.5 Test all examples to ensure they work
+- [x] 19.6 Update examples index/navigation
 
 ## Implementation Details
 

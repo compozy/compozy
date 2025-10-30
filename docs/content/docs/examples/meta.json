@@ -1,0 +1,12 @@
+{
+  "title": "Mode Examples",
+  "description": "Complete, runnable configurations for each Compozy mode",
+  "icon": "BookOpen",
+  "root": true,
+  "pages": [
+    "index",
+    "memory-mode",
+    "persistent-mode",
+    "distributed-mode"
+  ]
+}

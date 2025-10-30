@@ -1,0 +1,44 @@
+# Durable local profile for iterative development with stateful debugging.
+name: persistent-dev
+version: "0.1.0"
+mode: persistent  # Promote the entire stack to durable embedded services.
+
+database:
+  driver: sqlite
+  path: ./.compozy/compozy.db  # Keep project data in a hidden folder.
+
+# Temporal still runs in-process, but stores history and visibility on disk.
+temporal:
+  mode: persistent
+  standalone:
+    database_file: ./.compozy/temporal.db  # Replays workflows across sessions.
+    enable_ui: true
+    ui_port: 8233
+
+# Redis (Miniredis) persists snapshots via BadgerDB.
+redis:
+  mode: persistent
+  standalone:
+    persistence:
+      enabled: true
+      dir: ./.compozy/redis  # Holds snapshot and AOF files.
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "${OPENAI_API_KEY}"
+
+# Reference a workflow file so you can replay durable history.
+workflows:
+  - source: ./workflows/summarize.yaml
+    watch: true
+
+# Example task that produces artifacts you can inspect later.
+tasks:
+  - id: summarize
+    type: basic
+    action: run
+    prompt: |
+      Summarize this note for tomorrow's stand-up:
+      {{ .workflow.input.note }}
+    final: true

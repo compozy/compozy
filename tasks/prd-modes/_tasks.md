@@ -76,7 +76,7 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 - [x] **16.0** Create Migration Guide [L] - 2 days
 - [x] **17.0** Update Quick Start [S] - 0.5 days
 - [x] **18.0** Update CLI Help [S] - 0.5 days
-- **19.0** Create/Update Examples [M] - 1 day
+- [x] **19.0** Create/Update Examples [M] - 1 day
 
 **Duration**: 1 day (with parallelization)
 **Parallel Lanes**: 5 (all tasks can run concurrently)

@@ -1,0 +1,23 @@
+---
+title: "Mode Examples"
+description: "Choose the right example configuration for memory, persistent, or distributed deployments."
+icon: BookOpen
+---
+
+Use these examples as starting points for new Compozy projects. Each example ships with a fully commented `compozy.yaml` that highlights mode-specific configuration and opinionated defaults.
+
+<List>
+  <ListItem title="Memory Mode" icon="Sparkles">
+    Zero-dependency configuration for demos, tutorials, or fast CI runs. See the [memory mode example](/docs/examples/memory-mode) and load `examples/configs/memory-mode.yaml`.
+  </ListItem>
+  <ListItem title="Persistent Mode" icon="HardDrive">
+    Embedded services with on-disk durability. Try the [persistent mode example](/docs/examples/persistent-mode) with `examples/configs/persistent-mode.yaml`.
+  </ListItem>
+  <ListItem title="Distributed Mode" icon="Server">
+    Production-ready wiring for external PostgreSQL, Temporal, and Redis. Review the [distributed mode example](/docs/examples/distributed-mode) alongside `examples/configs/distributed-mode.yaml`.
+  </ListItem>
+</List>
+
+<Callout type="info">
+Each example references environment variables for secrets. Load them via `.env`, your shell, or a secrets manager before running `compozy start`.
+</Callout>
