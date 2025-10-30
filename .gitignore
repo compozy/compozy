@@ -17,6 +17,7 @@ ai-docs/**
 _reviews
 **/**/_reviews
 .tmp
+./testdata
 
 # === DEPENDENCIES ===
 node_modules/
