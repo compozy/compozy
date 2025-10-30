@@ -39,6 +39,7 @@ env:
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
   PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.15
+  GOTMPDIR: ${{ runner.temp }}/go-tmp
 
 permissions:
   contents: write
@@ -60,11 +61,16 @@ jobs:
        github.event.head_commit.author.name != 'github-actions[bot]') ||
       (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    env:
+      GOTMPDIR: ${{ env.GOTMPDIR }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        run: mkdir -p "$GOTMPDIR"
 
       - uses: ./.github/actions/setup-go
         with:
@@ -91,11 +97,16 @@ jobs:
       (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
+    env:
+      GOTMPDIR: ${{ env.GOTMPDIR }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        run: mkdir -p "$GOTMPDIR"
 
       - uses: ./.github/actions/setup-go
         with:
@@ -132,11 +143,15 @@ jobs:
     timeout-minutes: 120
     env:
       DOCKER_CLI_EXPERIMENTAL: enabled
+      GOTMPDIR: ${{ env.GOTMPDIR }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        run: mkdir -p "$GOTMPDIR"
 
       - name: Set up Go with caching
         uses: ./.github/actions/setup-go
