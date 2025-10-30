@@ -15,6 +15,7 @@ var (
 // This is the SINGLE SOURCE OF TRUTH for all configuration defaults
 func CreateRegistry() *Registry {
 	registry := NewRegistry()
+	registerGlobalModeField(registry)
 	registerServerFields(registry)
 	registerDatabaseFields(registry)
 	registerTemporalFields(registry)
@@ -41,6 +42,17 @@ func registerFieldDefs(registry *Registry, defs ...FieldDef) {
 		def := defs[i]
 		registry.Register(&def)
 	}
+}
+
+func registerGlobalModeField(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "mode",
+		Default: "memory",
+		CLIFlag: "mode",
+		EnvVar:  "COMPOZY_MODE",
+		Type:    reflect.TypeOf(""),
+		Help:    "Deployment mode: memory (default, in-memory SQLite), persistent (file SQLite), or distributed (Postgres)",
+	})
 }
 
 func registerStreamFields(registry *Registry) {
@@ -956,7 +968,7 @@ func registerTemporalCoreFields(registry *Registry) {
 		CLIFlag: "temporal-mode",
 		EnvVar:  "TEMPORAL_MODE",
 		Type:    reflect.TypeOf(""),
-		Help:    "Temporal connection mode: remote (production) or standalone (development/testing)",
+		Help:    "Temporal deployment mode (memory/persistent/remote), inherits from global mode if unset",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.host_port",
@@ -2189,11 +2201,23 @@ func registerCLIFields(registry *Registry) {
 }
 
 func registerRedisFields(registry *Registry) {
+	registerRedisModeFields(registry)
 	registerRedisConnectionFields(registry)
 	registerRedisPoolFields(registry)
 	registerRedisTimeoutFields(registry)
 	registerRedisRetryFields(registry)
 	registerRedisTLSFields(registry)
+}
+
+func registerRedisModeFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "redis.mode",
+		Default: "",
+		CLIFlag: "redis-mode",
+		EnvVar:  "REDIS_MODE",
+		Type:    reflect.TypeOf(""),
+		Help:    "Redis deployment mode (memory/persistent/distributed), inherits from global mode if unset",
+	})
 }
 
 func registerRedisConnectionFields(registry *Registry) {
@@ -2391,7 +2415,7 @@ func registerBasicCLIFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "cli.mode",
 		Default: "auto",
-		CLIFlag: "mode",
+		CLIFlag: "cli-mode",
 		EnvVar:  "COMPOZY_CLI_MODE",
 		Type:    reflect.TypeOf(""),
 		Help:    "CLI mode: auto, json, or tui",
