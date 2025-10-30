@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/cache</domain>
@@ -39,10 +39,10 @@ Update cache layer (`engine/infra/cache/mod.go`) to support three modes (memory/
 
 ## Subtasks
 
-- [ ] 5.1 Update mode constants in cache/mod.go
-- [ ] 5.2 Update SetupCache() switch statement with mode-specific persistence logic
-- [ ] 5.3 Add logging for cache mode and persistence configuration
-- [ ] 5.4 Validate cache setup works correctly in all three modes
+- [x] 5.1 Update mode constants in cache/mod.go
+- [x] 5.2 Update SetupCache() switch statement with mode-specific persistence logic
+- [x] 5.3 Add logging for cache mode and persistence configuration
+- [x] 5.4 Validate cache setup works correctly in all three modes
 
 ## Implementation Details
 
@@ -78,13 +78,13 @@ See **Phase 2.1: Update Cache Layer** in `_techspec.md` (lines 543-609).
 ## Tests
 
 Unit tests mapped from `_tests.md` for cache layer:
-- [ ] Test cache setup in memory mode (persistence forced OFF)
-- [ ] Test cache setup in persistent mode (persistence auto-enabled)
-- [ ] Test cache setup in distributed mode (external Redis)
-- [ ] Test default persistence path for persistent mode
-- [ ] Test explicit persistence override in persistent mode
-- [ ] Verify no persistence files created in memory mode
-- [ ] Verify persistence files created in persistent mode
+- [x] Test cache setup in memory mode (persistence forced OFF)
+- [x] Test cache setup in persistent mode (persistence auto-enabled)
+- [x] Test cache setup in distributed mode (external Redis)
+- [x] Test default persistence path for persistent mode
+- [x] Test explicit persistence override in persistent mode
+- [x] Verify no persistence files created in memory mode
+- [x] Verify persistence files created in persistent mode
 
 ## Success Criteria
 

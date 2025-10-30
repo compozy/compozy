@@ -95,7 +95,7 @@ mcp_proxy.shutdown_timeout               10s
 memory.max_entries                       10000
 memory.prefix                            compozy:memory:
 memory.ttl                               24h0m0s
-mode                                     distributed
+mode                                     memory
 ratelimit.api_key_rate.limit             100
 ratelimit.api_key_rate.period            1m0s
 ratelimit.global_rate.limit              100
@@ -110,7 +110,7 @@ redis.max_retries                        3
 redis.max_retry_backoff                  512ms
 redis.min_idle_conns                     0
 redis.min_retry_backoff                  8ms
-redis.mode                               persistent
+redis.mode                               memory
 redis.notification_buffer_size           100
 redis.ping_timeout                       1s
 redis.pool_size                          10

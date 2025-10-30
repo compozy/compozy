@@ -77,9 +77,13 @@ func NewMiniredisStandalone(ctx context.Context) (*MiniredisStandalone, error) {
 		return nil, fmt.Errorf("start miniredis: %w", err)
 	}
 
+	mode := "standalone"
+	if cfg != nil {
+		mode = cfg.EffectiveRedisMode()
+	}
 	log.Info("Started embedded Redis server",
 		"addr", mr.Addr(),
-		"mode", "standalone",
+		"mode", mode,
 	)
 
 	// Create a standard go-redis client pointing to the embedded server.
