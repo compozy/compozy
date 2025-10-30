@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// StandaloneEnv wires a minimal end-to-end environment with:
-// - Embedded Temporal (standalone)
+// Env wires a minimal end-to-end environment with:
+// - Embedded Temporal (memory mode)
 // - Postgres-backed repos
 // - Real Worker instance
 // - Workflows loaded from test fixtures
@@ -44,17 +44,17 @@ type Env struct {
 	Cleanup   func()
 }
 
-// SetupStandaloneTestEnv creates a complete environment suitable for exercising
-// end-to-end workflow execution in standalone mode using embedded Temporal and
+// SetupMemoryTestEnv creates a complete environment suitable for exercising
+// end-to-end workflow execution in memory mode using embedded Temporal and
 // embedded Redis (miniredis via cache.SetupCache in the worker).
 //
 // The function:
-// - Loads default config, enforces standalone mode for Redis/Temporal
+// - Loads default config, enforces memory mode for Redis/Temporal
 // - Starts an embedded Temporal server on a free port
 // - Creates a project with mock LLM provider for deterministic runs
 // - Loads workflows from the provided relative fixture paths
 // - Boots a real Worker wired to Postgres test DB and the embedded Temporal
-func SetupStandaloneTestEnv(t *testing.T, workflowPaths ...string) *Env {
+func SetupMemoryTestEnv(t *testing.T, workflowPaths ...string) *Env {
 	t.Helper()
 	ctx := testhelpers.NewTestContext(t)
 	if logger.FromContext(ctx) == nil {
@@ -101,9 +101,9 @@ func initConfig(ctx context.Context, t *testing.T) (context.Context, *config.Con
 	_, err := mgr.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := mgr.Get()
-	cfg.Mode = config.ModeDistributed
-	cfg.Redis.Mode = config.ModePersistent
-	cfg.Temporal.Mode = config.ModePersistent
+	cfg.Mode = config.ModeMemory
+	cfg.Redis.Mode = config.ModeMemory
+	cfg.Temporal.Mode = config.ModeMemory
 	cfg.Server.Auth.Enabled = false
 	cfg.Server.SourceOfTruth = "repo"
 	cfg.Server.Timeouts.StartProbeDelay = time.Millisecond

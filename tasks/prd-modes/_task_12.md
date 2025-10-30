@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>test/integration</domain>
@@ -38,14 +38,14 @@ When you need information about test organization:
 
 ## Subtasks
 
-- [ ] 12.1 Update `test/integration/standalone/helpers.go` mode references
-- [ ] 12.2 Rename "standalone" references to "memory" throughout helpers
-- [ ] 12.3 Update `mode_switching_test.go` to test all three modes
-- [ ] 12.4 Add `TestModeResolver_Persistent` test case
-- [ ] 12.5 Update `TestModeResolver_Memory` (renamed from standalone)
-- [ ] 12.6 Verify `TestModeResolver_Distributed` still works
-- [ ] 12.7 Add integration test for mode inheritance behavior
-- [ ] 12.8 Run mode switching tests and verify all pass
+- [x] 12.1 Update `test/integration/standalone/helpers.go` mode references
+- [x] 12.2 Rename "standalone" references to "memory" throughout helpers
+- [x] 12.3 Update `mode_switching_test.go` to test all three modes
+- [x] 12.4 Add `TestModeResolver_Persistent` test case
+- [x] 12.5 Update `TestModeResolver_Memory` (renamed from standalone)
+- [x] 12.6 Verify `TestModeResolver_Distributed` still works
+- [x] 12.7 Add integration test for mode inheritance behavior
+- [x] 12.8 Run mode switching tests and verify all pass
 
 ## Implementation Details
 
@@ -140,13 +140,13 @@ func TestModeResolver_Inheritance(t *testing.T) {
 
 ## Tests
 
-- [ ] `TestModeResolver_Memory` passes
-- [ ] `TestModeResolver_Persistent` passes
-- [ ] `TestModeResolver_Distributed` passes
-- [ ] `TestModeResolver_Inheritance` passes (component override)
-- [ ] All integration tests using helpers still pass
-- [ ] Verify `t.Context()` usage in all test helpers
-- [ ] Run `make test` to confirm no regressions
+- [x] `TestModeResolver_Memory` passes
+- [x] `TestModeResolver_Persistent` passes
+- [x] `TestModeResolver_Distributed` passes
+- [x] `TestModeResolver_Inheritance` passes (component override)
+- [x] All integration tests using helpers still pass
+- [x] Verify `t.Context()` usage in all test helpers
+- [x] Run `make test` to confirm no regressions
 
 ## Success Criteria
 

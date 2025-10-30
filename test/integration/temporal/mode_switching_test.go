@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/worker/embedded"
@@ -17,6 +18,42 @@ func TestDefaultModeIsMemory(t *testing.T) {
 	require.Equal(t, "", cfg.Temporal.Mode)
 	require.Equal(t, config.ModeMemory, cfg.EffectiveTemporalMode())
 	require.NotEmpty(t, cfg.Temporal.HostPort)
+}
+
+func TestModeResolver_Memory(t *testing.T) {
+	cfg := &config.Config{Mode: config.ModeMemory}
+
+	assert.Equal(t, config.ModeMemory, config.ResolveMode(cfg, ""))
+	assert.Equal(t, "sqlite", cfg.EffectiveDatabaseDriver())
+	assert.Equal(t, config.ModeMemory, cfg.EffectiveTemporalMode())
+}
+
+func TestModeResolver_Persistent(t *testing.T) {
+	cfg := &config.Config{Mode: config.ModePersistent}
+
+	assert.Equal(t, config.ModePersistent, config.ResolveMode(cfg, ""))
+	assert.Equal(t, "sqlite", cfg.EffectiveDatabaseDriver())
+	assert.Equal(t, config.ModePersistent, cfg.EffectiveTemporalMode())
+}
+
+func TestModeResolver_Distributed(t *testing.T) {
+	cfg := &config.Config{Mode: config.ModeDistributed}
+
+	assert.Equal(t, config.ModeDistributed, config.ResolveMode(cfg, ""))
+	assert.Equal(t, "postgres", cfg.EffectiveDatabaseDriver())
+	assert.Equal(t, config.ModeRemoteTemporal, cfg.EffectiveTemporalMode())
+}
+
+func TestModeResolver_Inheritance(t *testing.T) {
+	cfg := &config.Config{
+		Mode: config.ModeMemory,
+		Temporal: config.TemporalConfig{
+			Mode: config.ModePersistent,
+		},
+	}
+
+	assert.Equal(t, config.ModeMemory, config.ResolveMode(cfg, ""))
+	assert.Equal(t, config.ModePersistent, cfg.EffectiveTemporalMode())
 }
 
 func TestEmbeddedModeActivation(t *testing.T) {

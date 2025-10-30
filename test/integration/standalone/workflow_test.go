@@ -12,14 +12,14 @@ import (
 )
 
 // End-to-end tests that exercise a full Compozy Worker running against:
-// - Embedded Temporal (standalone)
+// - Embedded Temporal (memory mode)
 // - Embedded Redis (miniredis via cache.SetupCache)
 // - Postgres-backed repositories
 // Workflows are loaded from test fixtures and executed via the real Worker API.
-func TestStandalone_WorkflowE2E(t *testing.T) {
+func TestMemory_WorkflowE2E(t *testing.T) {
 	t.Run("Should execute complete workflow with agent and tasks", func(t *testing.T) {
 		ctx := t.Context()
-		env := SetupStandaloneTestEnv(t, "test/fixtures/standalone/workflows/test-workflow.yaml")
+		env := SetupMemoryTestEnv(t, "test/fixtures/standalone/workflows/test-workflow.yaml")
 		defer env.Cleanup()
 
 		// Trigger workflow and wait for completion
@@ -42,7 +42,7 @@ func TestStandalone_WorkflowE2E(t *testing.T) {
 
 	t.Run("Should execute 12 workflows concurrently without interference", func(t *testing.T) {
 		ctx := t.Context()
-		env := SetupStandaloneTestEnv(t, "test/fixtures/standalone/workflows/test-workflow.yaml")
+		env := SetupMemoryTestEnv(t, "test/fixtures/standalone/workflows/test-workflow.yaml")
 		defer env.Cleanup()
 
 		type result struct {
