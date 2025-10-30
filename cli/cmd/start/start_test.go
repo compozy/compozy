@@ -15,18 +15,26 @@ type fakeService struct{ src pkgconfig.SourceType }
 func (f fakeService) GetSource(_ string) pkgconfig.SourceType { return f.src }
 
 func TestResolveStartMode(t *testing.T) {
-	t.Run("Should accept --mode standalone", func(t *testing.T) {
+	t.Run("Should accept --mode memory", func(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.Flags().String("mode", "", "")
-		_ = cmd.Flags().Set("mode", "standalone")
+		require.NoError(t, cmd.Flags().Set("mode", "memory"))
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceDefault}, "")
-		require.Equal(t, "standalone", got)
+		require.Equal(t, "memory", got)
+	})
+
+	t.Run("Should accept --mode persistent", func(t *testing.T) {
+		cmd := &cobra.Command{}
+		cmd.Flags().String("mode", "", "")
+		require.NoError(t, cmd.Flags().Set("mode", "persistent"))
+		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceDefault}, "")
+		require.Equal(t, "persistent", got)
 	})
 
 	t.Run("Should accept --mode distributed", func(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.Flags().String("mode", "", "")
-		_ = cmd.Flags().Set("mode", "distributed")
+		require.NoError(t, cmd.Flags().Set("mode", "distributed"))
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceDefault}, "")
 		require.Equal(t, "distributed", got)
 	})
@@ -34,7 +42,7 @@ func TestResolveStartMode(t *testing.T) {
 	t.Run("Should prioritize config file over CLI flag", func(t *testing.T) {
 		cmd := &cobra.Command{}
 		cmd.Flags().String("mode", "", "")
-		_ = cmd.Flags().Set("mode", "standalone")
+		require.NoError(t, cmd.Flags().Set("mode", "memory"))
 		// When source is YAML, do not override
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceYAML}, "distributed")
 		require.Equal(t, "distributed", got)
@@ -44,7 +52,7 @@ func TestResolveStartMode(t *testing.T) {
 		// ensure invalid mode will fail config validation when applied
 		cmd := &cobra.Command{}
 		cmd.Flags().String("mode", "", "")
-		_ = cmd.Flags().Set("mode", "bogus")
+		require.NoError(t, cmd.Flags().Set("mode", "bogus"))
 		got := resolveStartMode(cmd, fakeService{src: pkgconfig.SourceDefault}, "")
 		cfg := pkgconfig.Default()
 		cfg.Mode = got

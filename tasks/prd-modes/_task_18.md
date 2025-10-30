@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>documentation</domain>
@@ -30,10 +30,10 @@ Update CLI help documentation and inline help text to reflect new mode system. E
 
 ## Subtasks
 
-- [ ] 18.1 Update cli/help/global-flags.md
-- [ ] 18.2 Verify CLI flag help text matches documentation
-- [ ] 18.3 Update environment variable documentation (COMPOZY_MODE)
-- [ ] 18.4 Ensure consistency across all help outputs
+- [x] 18.1 Update cli/help/global-flags.md
+- [x] 18.2 Verify CLI flag help text matches documentation
+- [x] 18.3 Update environment variable documentation (COMPOZY_MODE)
+- [x] 18.4 Ensure consistency across all help outputs
 
 ## Implementation Details
 

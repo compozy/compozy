@@ -51,7 +51,8 @@ func registerGlobalModeField(registry *Registry) {
 		CLIFlag: "mode",
 		EnvVar:  "COMPOZY_MODE",
 		Type:    reflect.TypeOf(""),
-		Help:    "Deployment mode: memory (default, in-memory SQLite), persistent (file SQLite), or distributed (Postgres)",
+		Help: "Deployment mode: memory (default, fastest), persistent " +
+			"(file SQLite/local dev), distributed (PostgreSQL/production)",
 	})
 }
 

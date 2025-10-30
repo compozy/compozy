@@ -73,6 +73,21 @@ Forces interactive mode even when CI or non-TTY environment is detected.
 - **Config**: `cli.interactive: true`
 - **Example**: `compozy auth login --interactive`
 
+## Deployment Flags
+
+### `--mode`
+
+Deployment mode: memory (default), persistent, or distributed.
+
+- **memory**: In-memory SQLite, embedded services (fastest)
+- **persistent**: File-based SQLite, embedded services (local dev)
+- **distributed**: PostgreSQL, external services (production)
+
+- **Default**: `memory`
+- **Environment**: `COMPOZY_MODE`
+- **Config**: `mode`
+- **Example**: `compozy start --mode persistent`
+
 ## Temporal Configuration Flags
 
 ### `--temporal-mode`
@@ -170,6 +185,7 @@ All global flags can be controlled via environment variables:
 ```bash
 export COMPOZY_SERVER_URL="https://api.compozy.com"
 export COMPOZY_CONFIG_FILE="./my-config.yaml"
+export COMPOZY_MODE="memory"
 export COMPOZY_DEFAULT_FORMAT="json"
 export COMPOZY_DEBUG="true"
 export COMPOZY_QUIET="false"
