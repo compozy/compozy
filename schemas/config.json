@@ -1,5 +1,27 @@
 {
   "$defs": {
+    "AgentStreamConfig": {
+      "additionalProperties": false,
+      "description": "AgentStreamConfig defines tunables for agent execution streaming.",
+      "properties": {
+        "default_poll": {
+          "type": "integer"
+        },
+        "heartbeat_frequency": {
+          "type": "integer"
+        },
+        "max_poll": {
+          "type": "integer"
+        },
+        "min_poll": {
+          "type": "integer"
+        },
+        "replay_limit": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "AttachmentMIMEAllowlist": {
       "additionalProperties": false,
       "description": "AttachmentMIMEAllowlist holds allowed MIME types per category.",
@@ -85,6 +107,14 @@
         "admin_key": {
           "type": "string"
         },
+        "api_key_last_used_max_concurrency": {
+          "description": "APIKeyLastUsedMaxConcurrency bounds background workers that stamp API key last-used timestamps.\n\nDefault: 10. Set to 0 to disable asynchronous updates.",
+          "type": "integer"
+        },
+        "api_key_last_used_timeout": {
+          "description": "APIKeyLastUsedTimeout limits how long asynchronous last-used updates may run before timing out.\n\nDefault: 2s.",
+          "type": "integer"
+        },
         "enabled": {
           "type": "boolean"
         },
@@ -124,21 +154,29 @@
           "description": "DefaultFormat sets the default output format.\n\nOptions:\n  - `\"json\"`: JSON format for programmatic consumption\n  - `\"tui\"`: Terminal UI with tables and formatting (default)\n  - `\"auto\"`: Automatically detect based on terminal capabilities",
           "type": "string"
         },
+        "Dev": {
+          "$ref": "#/$defs/CLIDevConfig",
+          "description": "Dev exposes local development settings, including watcher debounce and restart backoff."
+        },
         "EnvFile": {
           "description": "EnvFile specifies a .env file to load environment variables from.\n\nVariables in this file are loaded before processing configuration.",
           "type": "string"
+        },
+        "FileWatchInterval": {
+          "description": "FileWatchInterval controls the polling cadence when filesystem notifications are unavailable.\n\nDefault: 1s\nSet to 0 to use the built-in default.",
+          "type": "integer"
         },
         "Interactive": {
           "description": "Interactive enables interactive prompts and confirmations.\n\nDefault: true\nSet to false for non-interactive environments.",
           "type": "boolean"
         },
+        "MaxRetries": {
+          "description": "MaxRetries sets the maximum retry attempts for CLI HTTP requests.\nDefault: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.",
+          "type": "integer"
+        },
         "Mode": {
           "description": "Mode controls the CLI execution behavior.\n\nAvailable modes:\n  - `\"normal\"`: Standard interactive mode (default)\n  - `\"batch\"`: Non-interactive batch processing\n  - `\"script\"`: Optimized for scripting (minimal output)",
           "type": "string"
-        },
-        "MaxRetries": {
-          "description": "MaxRetries sets the maximum retry attempts for CLI HTTP requests.\n\nDefault: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.",
-          "type": "integer"
         },
         "NoColor": {
           "description": "NoColor disables all color output regardless of terminal support.\n\nOverrides ColorMode when set to true.",
@@ -170,6 +208,40 @@
         },
         "Timeout": {
           "description": "Timeout sets the maximum duration for API requests.\n\nDefault: 30s\nIncrease for long-running operations like workflow execution.",
+          "type": "integer"
+        },
+        "Users": {
+          "$ref": "#/$defs/CLIUsersConfig",
+          "description": "Users configures CLI behavior for user-management commands.\n\nProvides operator-tunable knobs for filters and heuristics like the active-user window."
+        }
+      },
+      "type": "object"
+    },
+    "CLIDevConfig": {
+      "additionalProperties": false,
+      "description": "CLIDevConfig contains development tooling settings for the CLI.",
+      "properties": {
+        "WatcherDebounce": {
+          "description": "WatcherDebounce defines the quiet period before restarting the dev server after a file change.\nLower values trigger faster restarts; higher values reduce churn when many files change at once.\n\n**Default**: `200ms`",
+          "type": "integer"
+        },
+        "WatcherRetryInitial": {
+          "description": "WatcherRetryInitial controls the first backoff duration after an unexpected server failure.\nThe delay doubles after each failure until WatcherRetryMax is reached.\n\n**Default**: `500ms`",
+          "type": "integer"
+        },
+        "WatcherRetryMax": {
+          "description": "WatcherRetryMax caps the exponential backoff window when the dev server repeatedly fails to start.\n\n**Default**: `30s`",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CLIUsersConfig": {
+      "additionalProperties": false,
+      "description": "CLIUsersConfig controls CLI user-management heuristics and filters.",
+      "properties": {
+        "ActiveWindowDays": {
+          "description": "ActiveWindowDays specifies how many days define an \"active\" user.\n\nUsed by commands like `auth users list --active` to determine recent activity.\nDefault: 30 days.",
           "type": "integer"
         }
       },
@@ -245,6 +317,10 @@
           "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
           "type": "boolean"
         },
+        "busy_timeout": {
+          "description": "BusyTimeout configures SQLite PRAGMA busy_timeout for lock contention.\nWhen unset, a sensible default is applied by the SQLite provider.",
+          "type": "integer"
+        },
         "conn_max_idle_time": {
           "description": "ConnMaxIdleTime bounds how long an idle connection is retained before recycling.\n\nDefault: `1m`",
           "type": "integer"
@@ -256,6 +332,22 @@
         "conn_string": {
           "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
           "type": "string"
+        },
+        "connect_timeout": {
+          "description": "ConnectTimeout bounds how long the driver may spend establishing new PostgreSQL connections.\n\nDefault: `5s`",
+          "type": "integer"
+        },
+        "driver": {
+          "description": "Driver selects the backing database driver implementation.\n\nSupported drivers:\n  - \"postgres\": default, full production deployment\n  - \"sqlite\": lightweight single-node deployments\n\nDefaults to \"postgres\" when omitted for backward compatibility.",
+          "type": "string"
+        },
+        "health_check_period": {
+          "description": "HealthCheckPeriod configures how frequently the pool performs background health checks.\n\nDefault: `30s`",
+          "type": "integer"
+        },
+        "health_check_timeout": {
+          "description": "HealthCheckTimeout limits the runtime health check duration before reporting failure.\n\nDefault: `1s`",
+          "type": "integer"
         },
         "host": {
           "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
@@ -280,6 +372,14 @@
         "password": {
           "description": "Password specifies the database password for authentication.\n\n**Security**: Use environment variables in production.",
           "type": "string"
+        },
+        "path": {
+          "description": "Path specifies the SQLite database location or \":memory:\".\n\nValues:\n  - \":memory:\" for ephemeral in-memory databases\n  - Relative or absolute file path for persistent storage",
+          "type": "string"
+        },
+        "ping_timeout": {
+          "description": "PingTimeout bounds how long connectivity checks may wait when establishing the pool.\n\nDefault: `3s`",
+          "type": "integer"
         },
         "port": {
           "description": "Port specifies the database server port.\n\nDefault: \"5432\" (PostgreSQL default)",
@@ -323,6 +423,13 @@
         "retrieval_top_k": {
           "description": "RetrievalTopK specifies the default number of results returned during retrieval.\n\nUsed when retrieval.top_k is unset on a knowledge binding or base definition.",
           "type": "integer"
+        },
+        "vector_dbs": {
+          "description": "VectorDBs declares global vector database connections available to knowledge features.\nWhen SQLite is selected, at least one external vector database should be configured.",
+          "items": {
+            "$ref": "#/$defs/VectorDBConfig"
+          },
+          "type": "array"
         },
         "vector_http_timeout": {
           "description": "VectorHTTPTimeout bounds HTTP requests made by knowledge vector backends.\n\nApplies to HTTP-based vector stores such as Qdrant.",
@@ -514,6 +621,10 @@
           "description": "DefaultQueueSize bounds queued work waiting for a concurrency slot.\nZero disables queuing and causes immediate rejection when the pool is saturated.",
           "type": "integer"
         },
+        "default_release_slot_before_token_wait": {
+          "description": "DefaultReleaseSlotBeforeTokenWait releases concurrency slots before waiting on token budgets when true.\nThis favors throughput over strict slot ownership and may reduce head-of-line blocking.",
+          "type": "boolean"
+        },
         "default_request_burst": {
           "description": "DefaultRequestBurst overrides the burst size used for request-per-minute limiters.\nZero falls back to ceiling(perSecond) for compatibility.",
           "type": "integer"
@@ -539,6 +650,16 @@
           },
           "description": "PerProviderLimits customizes concurrency and queue depth for specific providers.\nKeys should match provider names (e.g., \"openai\", \"groq\").",
           "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "LLMStreamConfig": {
+      "additionalProperties": false,
+      "description": "LLMStreamConfig defines tunables for LLM fallback streaming behavior.",
+      "properties": {
+        "fallback_segment_limit": {
+          "type": "integer"
         }
       },
       "type": "object"
@@ -611,6 +732,10 @@
           "description": "IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain\nidle before closing itself.\n\n**Default**: `90s`",
           "type": "integer"
         },
+        "max_conns_per_host": {
+          "description": "MaxConnsPerHost caps the total number of simultaneous connections per host.\n\n**Default**: `128`",
+          "type": "integer"
+        },
         "max_idle_conns": {
           "description": "MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.\n\n**Default**: `128`",
           "type": "integer"
@@ -620,7 +745,7 @@
           "type": "integer"
         },
         "mode": {
-          "description": "Mode controls how the MCP proxy runs within Compozy.\n\n- \"memory\" or \"persistent\": Embed and manage the MCP proxy alongside the API server (default via global mode)\n- \"distributed\": Use an external MCP proxy deployment\n- Leave unset to inherit the global mode",
+          "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"memory\": Embed the MCP proxy inside the server with in-memory state\n  - \"persistent\": Embed the MCP proxy with durable on-disk state\n  - \"distributed\": Delegate to an external MCP proxy endpoint\n  - \"\": Inherit the global deployment mode (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
           "type": "string"
         },
         "port": {
@@ -669,6 +794,65 @@
     "NativeCallAgentsConfig": {
       "additionalProperties": false,
       "description": "NativeCallAgentsConfig configures cp__call_agents behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_concurrent": {
+          "description": "MaxConcurrent limits concurrent agent executions; 0 selects sequential execution, negative values are invalid.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallTaskConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallTaskConfig configures cp__call_task behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallTasksConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallTasksConfig configures cp__call_tasks behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_concurrent": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallWorkflowConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallWorkflowConfig configures cp__call_workflow behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallWorkflowsConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallWorkflowsConfig configures cp__call_workflows behavior.",
       "properties": {
         "default_timeout": {
           "type": "integer"
@@ -787,10 +971,28 @@
           "type": "array"
         },
         "call_agent": {
-          "$ref": "#/$defs/NativeCallAgentConfig"
+          "$ref": "#/$defs/NativeCallAgentConfig",
+          "description": "CallAgent configures single agent execution through cp__call_agent."
         },
         "call_agents": {
-          "$ref": "#/$defs/NativeCallAgentsConfig"
+          "$ref": "#/$defs/NativeCallAgentsConfig",
+          "description": "CallAgents governs multi-agent orchestration for cp__call_agents."
+        },
+        "call_task": {
+          "$ref": "#/$defs/NativeCallTaskConfig",
+          "description": "CallTask configures single task execution through cp__call_task."
+        },
+        "call_tasks": {
+          "$ref": "#/$defs/NativeCallTasksConfig",
+          "description": "CallTasks governs parallel task execution for cp__call_tasks."
+        },
+        "call_workflow": {
+          "$ref": "#/$defs/NativeCallWorkflowConfig",
+          "description": "CallWorkflow configures single workflow execution via cp__call_workflow."
+        },
+        "call_workflows": {
+          "$ref": "#/$defs/NativeCallWorkflowsConfig",
+          "description": "CallWorkflows governs parallel workflow execution via cp__call_workflows."
         },
         "enabled": {
           "type": "boolean"
@@ -816,6 +1018,10 @@
         },
         "queue_size": {
           "type": "integer"
+        },
+        "release_slot_before_token_wait": {
+          "description": "ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true; nil inherits defaults.",
+          "type": "boolean"
         },
         "request_burst": {
           "description": "RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.",
@@ -894,15 +1100,6 @@
       "additionalProperties": false,
       "description": "RedisConfig contains Redis connection configuration.",
       "properties": {
-        "mode": {
-          "description": "Mode overrides the Redis deployment for this component.\n\n- \"memory\": Embedded Redis without persistence for fast local testing\n- \"persistent\": Embedded Redis with on-disk snapshots for durable local development\n- \"distributed\": External Redis deployment managed outside of Compozy\n\nLeave unset to inherit the global deployment mode.",
-          "enum": [
-            "memory",
-            "persistent",
-            "distributed"
-          ],
-          "type": "string"
-        },
         "db": {
           "description": "DB selects the Redis database number.\n\nDefault: 0",
           "type": "integer"
@@ -935,6 +1132,10 @@
           "description": "MinRetryBackoff sets minimum backoff between retries.\n\nDefault: 8ms",
           "type": "integer"
         },
+        "mode": {
+          "description": "Mode controls Redis deployment model.\n\nValues:\n  - \"\" (empty): Inherit from global Config.Mode\n  - \"memory\": Use embedded Redis without persistence\n  - \"persistent\": Use embedded Redis with persistence enabled\n  - \"distributed\": Use external Redis (explicit override)",
+          "type": "string"
+        },
         "notification_buffer_size": {
           "description": "NotificationBufferSize sets buffer size for pub/sub notifications.\n\nDefault: 100",
           "type": "integer"
@@ -963,6 +1164,10 @@
           "description": "ReadTimeout sets timeout for socket reads.\n\nDefault: 3s",
           "type": "integer"
         },
+        "standalone": {
+          "$ref": "#/$defs/RedisStandaloneConfig",
+          "description": "Standalone config defines embedded Redis options used in memory and persistent modes."
+        },
         "tls_enabled": {
           "description": "TLSEnabled enables TLS encryption.\n\nDefault: false",
           "type": "boolean"
@@ -974,6 +1179,39 @@
         "write_timeout": {
           "description": "WriteTimeout sets timeout for socket writes.\n\nDefault: ReadTimeout",
           "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "RedisPersistenceConfig": {
+      "additionalProperties": false,
+      "description": "RedisPersistenceConfig defines snapshot settings for embedded Redis.",
+      "properties": {
+        "data_dir": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "restore_on_startup": {
+          "type": "boolean"
+        },
+        "snapshot_interval": {
+          "type": "integer"
+        },
+        "snapshot_on_shutdown": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "RedisStandaloneConfig": {
+      "additionalProperties": false,
+      "description": "RedisStandaloneConfig defines options for the embedded Redis used by memory and persistent modes.",
+      "properties": {
+        "persistence": {
+          "$ref": "#/$defs/RedisPersistenceConfig",
+          "description": "Persistence configures optional snapshot persistence for embedded Redis."
         }
       },
       "type": "object"
@@ -1152,77 +1390,220 @@
       },
       "type": "object"
     },
+    "StandaloneConfig": {
+      "additionalProperties": false,
+      "description": "StandaloneConfig configures the embedded Temporal server that powers memory and persistent modes.",
+      "properties": {
+        "bind_ip": {
+          "description": "BindIP determines the IP address Temporal services bind to.",
+          "type": "string"
+        },
+        "cluster_name": {
+          "description": "ClusterName customizes the Temporal cluster name for embedded deployments.",
+          "type": "string"
+        },
+        "database_file": {
+          "description": "DatabaseFile specifies the SQLite database location.\n\nUse \":memory:\" for ephemeral storage or provide a file path for persistence.",
+          "type": "string"
+        },
+        "enable_ui": {
+          "description": "EnableUI toggles the Temporal Web UI server.",
+          "type": "boolean"
+        },
+        "frontend_port": {
+          "description": "FrontendPort sets the gRPC port for the Temporal frontend service.",
+          "type": "integer"
+        },
+        "log_level": {
+          "description": "LogLevel controls Temporal server logging verbosity.",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace specifies the default namespace created on startup.",
+          "type": "string"
+        },
+        "require_ui": {
+          "description": "RequireUI enforces UI availability; startup fails when UI cannot be launched.",
+          "type": "boolean"
+        },
+        "start_timeout": {
+          "description": "StartTimeout defines the maximum startup wait duration.",
+          "type": "integer"
+        },
+        "ui_port": {
+          "description": "UIPort sets the HTTP port for the Temporal Web UI.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "StreamConfig": {
+      "additionalProperties": false,
+      "description": "StreamConfig holds defaults for streaming endpoints.",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/AgentStreamConfig"
+        },
+        "llm": {
+          "$ref": "#/$defs/LLMStreamConfig"
+        },
+        "task": {
+          "$ref": "#/$defs/TaskStreamEndpointConfig"
+        },
+        "workflow": {
+          "$ref": "#/$defs/WorkflowStreamConfig"
+        }
+      },
+      "type": "object"
+    },
+    "TaskChildStateRetryConfig": {
+      "additionalProperties": false,
+      "description": "TaskChildStateRetryConfig defines retry strategy for child state lookups.",
+      "properties": {
+        "base_backoff": {
+          "type": "integer"
+        },
+        "max_attempts": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TaskRetryConfig": {
+      "additionalProperties": false,
+      "description": "TaskRetryConfig captures retry behavior for dependent lookups.",
+      "properties": {
+        "child_state": {
+          "$ref": "#/$defs/TaskChildStateRetryConfig"
+        }
+      },
+      "type": "object"
+    },
+    "TaskSiblingWaitConfig": {
+      "additionalProperties": false,
+      "description": "TaskSiblingWaitConfig tunes sibling polling behavior.",
+      "properties": {
+        "poll_interval": {
+          "type": "integer"
+        },
+        "timeout": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TaskStreamConfig": {
+      "additionalProperties": false,
+      "description": "TaskStreamConfig limits stream chunk publication.",
+      "properties": {
+        "max_chunks": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TaskStreamEndpointConfig": {
+      "additionalProperties": false,
+      "description": "TaskStreamEndpointConfig defines tunables for task streaming endpoints.",
+      "properties": {
+        "default_poll": {
+          "type": "integer"
+        },
+        "heartbeat_frequency": {
+          "type": "integer"
+        },
+        "max_poll": {
+          "type": "integer"
+        },
+        "min_poll": {
+          "type": "integer"
+        },
+        "redis_channel_prefix": {
+          "type": "string"
+        },
+        "redis_log_prefix": {
+          "type": "string"
+        },
+        "redis_max_entries": {
+          "type": "integer"
+        },
+        "redis_seq_prefix": {
+          "type": "string"
+        },
+        "redis_ttl": {
+          "type": "integer"
+        },
+        "replay_limit": {
+          "type": "integer"
+        },
+        "text": {
+          "$ref": "#/$defs/TaskTextStreamConfig"
+        }
+      },
+      "type": "object"
+    },
+    "TaskTextStreamConfig": {
+      "additionalProperties": false,
+      "description": "TaskTextStreamConfig defines tunables for plain-text task streaming.",
+      "properties": {
+        "max_segment_runes": {
+          "type": "integer"
+        },
+        "publish_timeout": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "TaskWaitConfig": {
+      "additionalProperties": false,
+      "description": "TaskWaitConfig captures sibling wait tunables.",
+      "properties": {
+        "siblings": {
+          "$ref": "#/$defs/TaskSiblingWaitConfig"
+        }
+      },
+      "type": "object"
+    },
+    "TasksConfig": {
+      "additionalProperties": false,
+      "description": "TasksConfig aggregates task execution tunables.",
+      "properties": {
+        "retry": {
+          "$ref": "#/$defs/TaskRetryConfig"
+        },
+        "stream": {
+          "$ref": "#/$defs/TaskStreamConfig"
+        },
+        "wait": {
+          "$ref": "#/$defs/TaskWaitConfig"
+        }
+      },
+      "type": "object"
+    },
     "TemporalConfig": {
       "additionalProperties": false,
       "description": "TemporalConfig contains Temporal workflow engine configuration.",
       "properties": {
-        "mode": {
-          "description": "Mode controls how Compozy connects to Temporal.\n\n- \"memory\": Run the embedded Temporal server with in-memory persistence (fastest for tests)\n- \"persistent\": Run the embedded Temporal server with on-disk persistence for local development\n- \"remote\": Connect to an external Temporal deployment (used automatically when the global mode is \"distributed\")\n\nLeave unset to inherit the global deployment mode.",
-          "enum": [
-            "memory",
-            "persistent",
-            "remote"
-          ],
-          "type": "string"
-        },
         "host_port": {
           "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\"",
+          "type": "string"
+        },
+        "mode": {
+          "description": "Mode controls how the application connects to Temporal.\n\nValues:\n  - \"memory\": Launch embedded Temporal with in-memory persistence for the fastest feedback loops (default)\n  - \"persistent\": Launch embedded Temporal with file-backed persistence for stateful local development\n  - \"distributed\": Connect to an external Temporal deployment for production workloads",
           "type": "string"
         },
         "namespace": {
           "description": "Namespace isolates workflows within Temporal.\n\nUse different namespaces for:\n  - Environment separation (dev, staging, prod)\n  - Multi-tenant deployments\n  - Workflow versioning\nDefault: \"default\"",
           "type": "string"
         },
+        "standalone": {
+          "$ref": "#/$defs/StandaloneConfig",
+          "description": "Standalone configures the embedded Temporal server used by memory and persistent modes."
+        },
         "task_queue": {
           "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\"",
           "type": "string"
-        },
-        "standalone": {
-          "$ref": "#/$defs/TemporalStandaloneConfig",
-          "description": "Standalone configures the embedded Temporal server when `mode` is \"memory\" or \"persistent\"."
-        }
-      },
-      "type": "object"
-    },
-    "TemporalStandaloneConfig": {
-      "additionalProperties": false,
-      "description": "TemporalStandaloneConfig configures the embedded Temporal server used in memory or persistent modes.",
-      "properties": {
-        "bind_ip": {
-          "description": "BindIP determines the IP address the Temporal services listen on.\n\nDefault: \"127.0.0.1\"",
-          "type": "string"
-        },
-        "cluster_name": {
-          "description": "ClusterName customizes the Temporal cluster identifier for embedded deployments.\n\nDefault: \"compozy-standalone\"",
-          "type": "string"
-        },
-        "database_file": {
-          "description": "DatabaseFile specifies the SQLite database location for Temporal persistence.\n\nUse `\":memory:\"` for ephemeral storage or provide a file path for persistence across restarts.\nDefault: `\":memory:\"`",
-          "type": "string"
-        },
-        "enable_ui": {
-          "description": "EnableUI toggles the Temporal Web UI server for local debugging.\n\nDefault: `true`",
-          "type": "boolean"
-        },
-        "frontend_port": {
-          "description": "FrontendPort sets the Temporal frontend gRPC port.\n\nDefault: `7233`",
-          "type": "integer"
-        },
-        "log_level": {
-          "description": "LogLevel controls Temporal server logging verbosity.\n\nValues: \"debug\", \"info\", \"warn\", \"error\"\nDefault: \"warn\"",
-          "type": "string"
-        },
-        "namespace": {
-          "description": "Namespace specifies the default namespace created when the embedded server starts.\n\nDefault: \"default\"",
-          "type": "string"
-        },
-        "start_timeout": {
-          "description": "StartTimeout defines the maximum duration to wait for the embedded Temporal server to start.\n\nDefault: `30s`",
-          "type": "integer"
-        },
-        "ui_port": {
-          "description": "UIPort sets the HTTP port for the Temporal Web UI.\n\nDefault: `8233`",
-          "type": "integer"
         }
       },
       "type": "object"
@@ -1239,6 +1620,28 @@
             "type": "integer"
           },
           "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "VectorDBConfig": {
+      "additionalProperties": false,
+      "description": "VectorDBConfig describes an external vector database integration available at runtime.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
         }
       },
       "type": "object"
@@ -1349,6 +1752,28 @@
         }
       },
       "type": "object"
+    },
+    "WorkflowStreamConfig": {
+      "additionalProperties": false,
+      "description": "WorkflowStreamConfig defines tunables for workflow execution streaming.",
+      "properties": {
+        "default_poll": {
+          "type": "integer"
+        },
+        "heartbeat_frequency": {
+          "type": "integer"
+        },
+        "max_poll": {
+          "type": "integer"
+        },
+        "min_poll": {
+          "type": "integer"
+        },
+        "query_timeout": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
     }
   },
   "$id": "config.json",
@@ -1356,16 +1781,6 @@
   "additionalProperties": false,
   "description": "Config represents the complete configuration for the Compozy system.",
   "properties": {
-    "mode": {
-      "description": "Mode selects the deployment profile for this configuration.\n\n- \"memory\": In-memory SQLite with embedded Temporal and Redis for the fastest startup (default)\n- \"persistent\": Embedded services with on-disk persistence for local development that needs durable state\n- \"distributed\": External PostgreSQL, Temporal, and Redis for scalable production deployments",
-      "enum": [
-        "memory",
-        "persistent",
-        "distributed"
-      ],
-      "default": "memory",
-      "type": "string"
-    },
     "attachments": {
       "$ref": "#/$defs/AttachmentsConfig",
       "description": "Attachments configures global attachment handling limits and policies.\n\n$ref: schema://application#attachments"
@@ -1402,6 +1817,10 @@
       "$ref": "#/$defs/MemoryConfig",
       "description": "Memory configures the memory service for agent conversations.\n\n$ref: schema://application#memory"
     },
+    "mode": {
+      "description": "Mode controls the global deployment model.\n\n\"memory\" (default): In-memory SQLite with embedded services for tests, CI pipelines, and quick prototypes.\n\"persistent\": File-backed SQLite with embedded services for local development that needs state between runs.\n\"distributed\": PostgreSQL with external Temporal/Redis for production-grade deployments.",
+      "type": "string"
+    },
     "ratelimit": {
       "$ref": "#/$defs/RateLimitConfig",
       "description": "RateLimit configures API rate limiting.\n\n$ref: schema://application#ratelimit"
@@ -1417,6 +1836,14 @@
     "server": {
       "$ref": "#/$defs/ServerConfig",
       "description": "Server configures the HTTP API server settings.\n\n$ref: schema://application#server"
+    },
+    "stream": {
+      "$ref": "#/$defs/StreamConfig",
+      "description": "Stream configures real-time streaming defaults."
+    },
+    "tasks": {
+      "$ref": "#/$defs/TasksConfig",
+      "description": "Tasks configures task execution tunables."
     },
     "temporal": {
       "$ref": "#/$defs/TemporalConfig",

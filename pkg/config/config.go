@@ -551,8 +551,9 @@ type TemporalConfig struct {
 	// Mode controls how the application connects to Temporal.
 	//
 	// Values:
-	//   - "remote": Connect to an external Temporal cluster (default)
-	//   - "standalone": Launch embedded Temporal server for local development and tests
+	//   - "memory": Launch embedded Temporal with in-memory persistence for the fastest feedback loops (default)
+	//   - "persistent": Launch embedded Temporal with file-backed persistence for stateful local development
+	//   - "distributed": Connect to an external Temporal deployment for production workloads
 	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty"`
 
 	// HostPort specifies the Temporal server endpoint.
@@ -580,11 +581,11 @@ type TemporalConfig struct {
 	// Default: "compozy-tasks"
 	TaskQueue string `koanf:"task_queue" env:"TEMPORAL_TASK_QUEUE" json:"task_queue" yaml:"task_queue" mapstructure:"task_queue"`
 
-	// Standalone configures embedded Temporal when Mode is set to "standalone".
+	// Standalone configures the embedded Temporal server used by memory and persistent modes.
 	Standalone StandaloneConfig `koanf:"standalone" env_prefix:"TEMPORAL_STANDALONE" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
 }
 
-// StandaloneConfig configures the embedded Temporal server.
+// StandaloneConfig configures the embedded Temporal server that powers memory and persistent modes.
 //
 // These options mirror the embedded server configuration so users can manage development
 // and test environments without touching production settings.
@@ -603,7 +604,7 @@ type StandaloneConfig struct {
 	// Namespace specifies the default namespace created on startup.
 	Namespace string `koanf:"namespace" env:"TEMPORAL_STANDALONE_NAMESPACE" json:"namespace" yaml:"namespace" mapstructure:"namespace"`
 
-	// ClusterName customizes the Temporal cluster name for standalone mode.
+	// ClusterName customizes the Temporal cluster name for embedded deployments.
 	ClusterName string `koanf:"cluster_name" env:"TEMPORAL_STANDALONE_CLUSTER_NAME" json:"cluster_name" yaml:"cluster_name" mapstructure:"cluster_name"`
 
 	// EnableUI toggles the Temporal Web UI server.
@@ -1428,11 +1429,11 @@ type RedisConfig struct {
 	// If nil, default TLS configuration will be used.
 	TLSConfig *tls.Config `koanf:"-" json:"-" yaml:"-" mapstructure:"-"`
 
-	// Standalone config for embedded Redis when Mode is "standalone".
+	// Standalone config defines embedded Redis options used in memory and persistent modes.
 	Standalone RedisStandaloneConfig `koanf:"standalone" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
 }
 
-// RedisStandaloneConfig defines options for embedded Redis in standalone mode.
+// RedisStandaloneConfig defines options for the embedded Redis used by memory and persistent modes.
 type RedisStandaloneConfig struct {
 	// Persistence configures optional snapshot persistence for embedded Redis.
 	Persistence RedisPersistenceConfig `koanf:"persistence" json:"persistence" yaml:"persistence" mapstructure:"persistence"`
@@ -1711,8 +1712,10 @@ type MCPProxyConfig struct {
 	// Mode controls how the MCP proxy runs within Compozy.
 	//
 	// Values:
-	//   - "standalone": embed MCP proxy inside the server
-	//   - "": external MCP proxy (default)
+	//   - "memory": Embed the MCP proxy inside the server with in-memory state
+	//   - "persistent": Embed the MCP proxy with durable on-disk state
+	//   - "distributed": Delegate to an external MCP proxy endpoint
+	//   - "": Inherit the global deployment mode (default)
 	//
 	// When embedded, the server manages lifecycle and health of the proxy
 	// and will set LLM.ProxyURL if empty.

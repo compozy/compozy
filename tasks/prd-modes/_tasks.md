@@ -103,7 +103,7 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 **Dependencies**: Phase 1 complete (can run parallel with Phases 2-3-4-5)
 
 - [x] **20.0** Update JSON Schemas [S] - 0.5 days
-- **21.0** Regenerate Generated Files [M] - 1 day
+- [x] **21.0** Regenerate Generated Files [M] - 1 day
 
 **Duration**: 1 day (sequential)
 

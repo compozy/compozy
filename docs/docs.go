@@ -1867,7 +1867,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -1967,7 +1967,7 @@ const docTemplate = `{
         },
         "/executions/agents/{exec_id}/stream": {
             "get": {
-                "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema.",
+                "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema. Served under routes.Base() (e.g., /api/v0/executions/agents/{exec_id}/stream).",
                 "consumes": [
                     "*/*"
                 ],
@@ -2171,7 +2171,7 @@ const docTemplate = `{
         },
         "/executions/tasks/{exec_id}/stream": {
             "get": {
-                "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema.",
+                "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema. Served under routes.Base() (e.g., /api/v0/executions/tasks/{exec_id}/stream).",
                 "consumes": [
                     "*/*"
                 ],
@@ -2354,7 +2354,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2471,7 +2471,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2570,7 +2570,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2669,7 +2669,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2768,7 +2768,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2894,7 +2894,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10653,7 +10653,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10789,7 +10789,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10957,7 +10957,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {

@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>tooling</domain>
@@ -36,10 +36,10 @@ Regenerate auto-generated files (Swagger docs, golden test files, schema-generat
 
 ## Subtasks
 
-- [ ] 21.1 Regenerate Swagger documentation (`make swagger`)
-- [ ] 21.2 Regenerate golden test files (`UPDATE_GOLDEN=1`)
-- [ ] 21.3 Regenerate schema-generated code (if applicable)
-- [ ] 21.4 Verify all generated files are correct
+- [x] 21.1 Regenerate Swagger documentation (`make swagger`)
+- [x] 21.2 Regenerate golden test files (`UPDATE_GOLDEN=1`)
+- [x] 21.3 Regenerate schema-generated code (if applicable)
+- [x] 21.4 Verify all generated files are correct
 
 ## Implementation Details
 
@@ -88,11 +88,11 @@ go run pkg/schemagen/main.go  # If this exists
 ## Tests
 
 - Generated file validation:
-  - [ ] Swagger docs contain correct mode enums
-  - [ ] Golden files contain updated mode names
-  - [ ] Golden test comparisons pass
-  - [ ] No "standalone" references in generated files
-  - [ ] All config tests pass with updated golden files
+  - [x] Swagger docs contain correct mode enums
+  - [x] Golden files contain updated mode names
+  - [x] Golden test comparisons pass
+  - [x] No "standalone" references in generated files
+  - [x] All config tests pass with updated golden files
 
 ## Success Criteria
 

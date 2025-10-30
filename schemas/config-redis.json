@@ -1,4 +1,39 @@
 {
+  "$defs": {
+    "RedisPersistenceConfig": {
+      "additionalProperties": false,
+      "description": "RedisPersistenceConfig defines snapshot settings for embedded Redis.",
+      "properties": {
+        "data_dir": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "restore_on_startup": {
+          "type": "boolean"
+        },
+        "snapshot_interval": {
+          "type": "integer"
+        },
+        "snapshot_on_shutdown": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "RedisStandaloneConfig": {
+      "additionalProperties": false,
+      "description": "RedisStandaloneConfig defines options for the embedded Redis used by memory and persistent modes.",
+      "properties": {
+        "persistence": {
+          "$ref": "#/$defs/RedisPersistenceConfig",
+          "description": "Persistence configures optional snapshot persistence for embedded Redis."
+        }
+      },
+      "type": "object"
+    }
+  },
   "$id": "config-redis.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
@@ -36,6 +71,10 @@
       "description": "MinRetryBackoff sets minimum backoff between retries.\n\nDefault: 8ms",
       "type": "integer"
     },
+    "mode": {
+      "description": "Mode controls Redis deployment model.\n\nValues:\n  - \"\" (empty): Inherit from global Config.Mode\n  - \"memory\": Use embedded Redis without persistence\n  - \"persistent\": Use embedded Redis with persistence enabled\n  - \"distributed\": Use external Redis (explicit override)",
+      "type": "string"
+    },
     "notification_buffer_size": {
       "description": "NotificationBufferSize sets buffer size for pub/sub notifications.\n\nDefault: 100",
       "type": "integer"
@@ -63,6 +102,10 @@
     "read_timeout": {
       "description": "ReadTimeout sets timeout for socket reads.\n\nDefault: 3s",
       "type": "integer"
+    },
+    "standalone": {
+      "$ref": "#/$defs/RedisStandaloneConfig",
+      "description": "Standalone config defines embedded Redis options used in memory and persistent modes."
     },
     "tls_enabled": {
       "description": "TLSEnabled enables TLS encryption.\n\nDefault: false",
