@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	modeStandalone  = "standalone"
-	modeDistributed = "distributed"
+	modeStandalone = "standalone"
 )
 
 // Config represents the cache-specific configuration
@@ -58,10 +57,10 @@ func SetupCache(ctx context.Context) (*Cache, func(), error) {
 	log.Info("Initializing cache backend", "mode", mode)
 
 	switch mode {
-	case modeStandalone:
+	case modeStandalone, config.ModeMemory, config.ModePersistent:
 		return setupStandaloneCache(ctx, cacheCfg)
 
-	case modeDistributed:
+	case config.ModeDistributed:
 		return setupDistributedCache(ctx, cacheCfg)
 
 	default:

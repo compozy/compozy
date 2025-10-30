@@ -101,8 +101,9 @@ func initConfig(ctx context.Context, t *testing.T) (context.Context, *config.Con
 	_, err := mgr.Load(ctx, config.NewDefaultProvider())
 	require.NoError(t, err)
 	cfg := mgr.Get()
-	cfg.Mode = "standalone"
-	cfg.Redis.Mode = "standalone"
+	cfg.Mode = config.ModeDistributed
+	cfg.Redis.Mode = config.ModePersistent
+	cfg.Temporal.Mode = config.ModePersistent
 	cfg.Server.Auth.Enabled = false
 	cfg.Server.SourceOfTruth = "repo"
 	cfg.Server.Timeouts.StartProbeDelay = time.Millisecond
@@ -116,6 +117,7 @@ func initDatabase(t *testing.T, cfg *config.Config) *pgxpool.Pool {
 	require.NoError(t, testhelpers.EnsureTablesExistForTest(pool))
 	cfg.Database.ConnString = pool.Config().ConnString()
 	cfg.Database.AutoMigrate = false
+	cfg.Database.Driver = "postgres"
 	return pool
 }
 

@@ -12,14 +12,14 @@ import (
 	"github.com/compozy/compozy/test/helpers"
 )
 
-func TestDefaultModeIsRemote(t *testing.T) {
+func TestDefaultModeIsMemory(t *testing.T) {
 	cfg := config.Default()
 	require.Equal(t, "", cfg.Temporal.Mode)
-	require.Equal(t, config.ModeRemoteTemporal, cfg.EffectiveTemporalMode())
+	require.Equal(t, config.ModeMemory, cfg.EffectiveTemporalMode())
 	require.NotEmpty(t, cfg.Temporal.HostPort)
 }
 
-func TestStandaloneModeActivation(t *testing.T) {
+func TestEmbeddedModeActivation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
@@ -28,10 +28,10 @@ func TestStandaloneModeActivation(t *testing.T) {
 	ctx := helpers.NewTestContext(t)
 	cfg := config.FromContext(ctx)
 
-	t.Run("Should activate standalone mode and run workflow", func(t *testing.T) {
+	t.Run("Should activate embedded mode and run workflow", func(t *testing.T) {
 		oldHostPort := "remote.example:7233"
 		cfg.Temporal.HostPort = oldHostPort
-		cfg.Temporal.Mode = "standalone"
+		cfg.Temporal.Mode = config.ModePersistent
 		cfg.Temporal.Namespace = defaultNamespace()
 		cfg.Temporal.Standalone.DatabaseFile = filepath.Join(t.TempDir(), "temporal-mode.db")
 		cfg.Temporal.Standalone.EnableUI = false

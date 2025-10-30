@@ -61,7 +61,7 @@ type Config struct {
 	// "memory" (default): In-memory SQLite with embedded services for tests, CI pipelines, and quick prototypes.
 	// "persistent": File-backed SQLite with embedded services for local development that needs state between runs.
 	// "distributed": PostgreSQL with external Temporal/Redis for production-grade deployments.
-	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=memory persistent distributed"`
+	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty"`
 	// Server configures the HTTP API server settings.
 	//
 	// $ref: schema://application#server
@@ -553,7 +553,7 @@ type TemporalConfig struct {
 	// Values:
 	//   - "remote": Connect to an external Temporal cluster (default)
 	//   - "standalone": Launch embedded Temporal server for local development and tests
-	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=remote standalone"`
+	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty"`
 
 	// HostPort specifies the Temporal server endpoint.
 	//
@@ -1323,9 +1323,10 @@ type RedisConfig struct {
 	//
 	// Values:
 	//   - "" (empty): Inherit from global Config.Mode
+	//   - "memory": Use embedded Redis without persistence
+	//   - "persistent": Use embedded Redis with persistence enabled
 	//   - "distributed": Use external Redis (explicit override)
-	//   - "standalone": Use embedded miniredis (explicit override)
-	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty,oneof=memory persistent distributed"`
+	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty"`
 	// URL provides a complete Redis connection string.
 	//
 	// Format: `redis://[user:password@]host:port/db`

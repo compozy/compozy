@@ -335,6 +335,9 @@ func (l *loader) trackSource(key string, source SourceType) {
 
 // validateCustom performs custom validation beyond struct tags.
 func (l *loader) validateCustom(config *Config) error {
+	if err := validateGlobalMode(config); err != nil {
+		return err
+	}
 	if err := validateDatabase(config); err != nil {
 		return err
 	}
@@ -366,6 +369,30 @@ func (l *loader) validateCustom(config *Config) error {
 		return err
 	}
 	return nil
+}
+
+const deprecatedModeStandalone = "standalone"
+
+func validateGlobalMode(cfg *Config) error {
+	switch mode := strings.TrimSpace(cfg.Mode); mode {
+	case "", ModeMemory, ModePersistent, ModeDistributed:
+		return nil
+	case deprecatedModeStandalone:
+		return fmt.Errorf(
+			"mode %q has been replaced by %q (ephemeral) and %q (persistent); choose the mode that fits your workflow",
+			deprecatedModeStandalone,
+			ModeMemory,
+			ModePersistent,
+		)
+	default:
+		return fmt.Errorf(
+			"mode must be one of [%s %s %s], got %q",
+			ModeMemory,
+			ModePersistent,
+			ModeDistributed,
+			mode,
+		)
+	}
 }
 
 func validateDatabase(cfg *Config) error {
@@ -408,6 +435,13 @@ func validateTemporal(cfg *Config) error {
 		return nil
 	case ModeMemory, ModePersistent:
 		return validateStandaloneTemporalConfig(cfg)
+	case deprecatedModeStandalone:
+		return fmt.Errorf(
+			"temporal.mode %q has been removed; use %q for in-memory Temporal or %q for persistent embedded Temporal",
+			deprecatedModeStandalone,
+			ModeMemory,
+			ModePersistent,
+		)
 	default:
 		return fmt.Errorf(
 			"temporal.mode must be one of [%s %s %s], got %q",
@@ -511,16 +545,23 @@ func validateStandaloneStartTimeout(standalone *StandaloneConfig) error {
 // deployment mode requirements and standalone persistence settings.
 func validateRedis(cfg *Config) error {
 	// Validate component mode values via struct tags; add friendly errors for clarity.
-	switch strings.TrimSpace(cfg.Redis.Mode) {
+	switch mode := strings.TrimSpace(cfg.Redis.Mode); mode {
 	case "", ModeMemory, ModePersistent, ModeDistributed:
 		// ok
+	case deprecatedModeStandalone:
+		return fmt.Errorf(
+			"redis.mode %q is no longer supported; switch to %q (ephemeral) or %q (persistent) to run the embedded Redis",
+			deprecatedModeStandalone,
+			ModeMemory,
+			ModePersistent,
+		)
 	default:
 		return fmt.Errorf(
 			"redis.mode must be one of [%s %s %s] or empty for inheritance, got %q",
 			ModeMemory,
 			ModePersistent,
 			ModeDistributed,
-			cfg.Redis.Mode,
+			mode,
 		)
 	}
 

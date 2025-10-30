@@ -1,5 +1,7 @@
 # Task 1.0: Update Mode Constants & Defaults
 
+## status: completed
+
 <task_context>
 <phase>Phase 1: Core Configuration</phase>
 <priority>CRITICAL - BLOCKING</priority>
@@ -74,11 +76,11 @@ Update mode constants in `pkg/config/resolver.go` to support three modes (memory
 ### 1.1 Replace Mode Constants
 **File**: `pkg/config/resolver.go` (lines 6-11)
 
-- [ ] Remove `ModeStandalone` constant
-- [ ] Add `ModeMemory` constant with comment
-- [ ] Add `ModePersistent` constant with comment
-- [ ] Keep `ModeDistributed` constant (update comment)
-- [ ] Keep `ModeRemoteTemporal` constant (unchanged)
+- [x] Remove `ModeStandalone` constant
+- [x] Add `ModeMemory` constant with comment
+- [x] Add `ModePersistent` constant with comment
+- [x] Keep `ModeDistributed` constant (update comment)
+- [x] Keep `ModeRemoteTemporal` constant (unchanged)
 
 **Reference**: `_techspec.md` lines 297-311
 
@@ -87,8 +89,8 @@ Update mode constants in `pkg/config/resolver.go` to support three modes (memory
 ### 1.2 Update Default Mode
 **File**: `pkg/config/resolver.go` (line 26)
 
-- [ ] Change `return ModeDistributed` to `return ModeMemory`
-- [ ] Update function docstring (line 18) to reflect new default
+- [x] Change `return ModeDistributed` to `return ModeMemory`
+- [x] Update function docstring (line 18) to reflect new default
 
 **Reference**: `_techspec.md` lines 314-329
 
@@ -97,10 +99,10 @@ Update mode constants in `pkg/config/resolver.go` to support three modes (memory
 ### 1.3 Update EffectiveTemporalMode Logic
 **File**: `pkg/config/resolver.go` (lines 36-42)
 
-- [ ] Update logic to handle `ModeMemory` and `ModePersistent`
-- [ ] Both memory and persistent should return embedded mode
-- [ ] Only `ModeDistributed` returns `ModeRemoteTemporal`
-- [ ] Add comment explaining mode mapping
+- [x] Update logic to handle `ModeMemory` and `ModePersistent`
+- [x] Both memory and persistent should return embedded mode
+- [x] Only `ModeDistributed` returns `ModeRemoteTemporal`
+- [x] Add comment explaining mode mapping
 
 **Reference**: `_techspec.md` lines 332-341
 
@@ -109,11 +111,11 @@ Update mode constants in `pkg/config/resolver.go` to support three modes (memory
 ### 1.4 Update EffectiveDatabaseDriver Logic
 **File**: `pkg/config/resolver.go` (lines 49-65)
 
-- [ ] Update nil check to return SQLite (changed from Postgres)
-- [ ] Check for `ModeMemory || ModePersistent` → return SQLite
-- [ ] Check for `ModeDistributed` → return Postgres
-- [ ] Default fallback to SQLite
-- [ ] Add comprehensive comments
+- [x] Update nil check to return SQLite (changed from Postgres)
+- [x] Check for `ModeMemory || ModePersistent` → return SQLite
+- [x] Check for `ModeDistributed` → return Postgres
+- [x] Default fallback to SQLite
+- [x] Add comprehensive comments
 
 **Reference**: `_techspec.md` lines 344-362
 
