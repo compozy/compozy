@@ -4,21 +4,25 @@ import (
 	"context"
 	"testing"
 
-	"github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 )
 
-func SetupTestRepos(ctx context.Context, t *testing.T) (task.Repository, workflow.Repository, func()) {
-	pool, cleanup, err := SetupTestReposWithRetry(ctx, t)
-	if err != nil {
-		t.Fatalf("Failed to setup test repositories: %v", err)
+// SetupTestRepos returns task and workflow repositories backed by the default
+// test database driver (SQLite in-memory). Tests can override the driver by
+// passing an explicit value (e.g. "postgres").
+func SetupTestRepos(
+	_ context.Context,
+	t *testing.T,
+	driver ...string,
+) (task.Repository, workflow.Repository, func()) {
+	t.Helper()
+	selectedDriver := ""
+	if len(driver) > 0 {
+		selectedDriver = driver[0]
 	}
-	if err := TestContainerHealthCheck(ctx, pool); err != nil {
-		cleanup()
-		t.Fatalf("Test container health check failed: %v", err)
-	}
-	taskRepo := postgres.NewTaskRepo(pool)
-	workflowRepo := postgres.NewWorkflowRepo(pool)
+	provider, cleanup := SetupTestDatabase(t, selectedDriver)
+	taskRepo := provider.NewTaskRepo()
+	workflowRepo := provider.NewWorkflowRepo()
 	return taskRepo, workflowRepo, cleanup
 }

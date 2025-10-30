@@ -23,7 +23,6 @@ import (
 	ctxhelpers "github.com/compozy/compozy/test/helpers/ctx"
 	"github.com/compozy/compozy/test/helpers/ginmode"
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,7 +46,7 @@ type ServerHarness struct {
 	ResourceStore resources.ResourceStore
 	Project       *project.Config
 	Server        *server.Server
-	DB            *pgxpool.Pool
+	RepoProvider  *repo.Provider
 }
 
 func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
@@ -57,8 +56,8 @@ func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
 	ctx, cfg := loadTestConfig(ctx, t)
 	applyServerDefaults(cfg)
 	proj, projectFile, projectDir := prepareProject(t, options.ProjectName)
-	pool := prepareDatabase(t, cfg)
-	state, store := buildApplicationState(ctx, t, cfg, proj, pool)
+	provider := prepareDatabase(t, cfg)
+	state, store := buildApplicationState(t, proj, provider)
 	engine, srv := buildGinComponents(ctx, t, cfg, state, projectDir, projectFile)
 	return &ServerHarness{
 		Engine:        engine,
@@ -68,7 +67,7 @@ func NewServerHarness(t *testing.T, opts ...Option) *ServerHarness {
 		ResourceStore: store,
 		Project:       proj,
 		Server:        srv,
-		DB:            pool,
+		RepoProvider:  provider,
 	}
 }
 
@@ -117,30 +116,23 @@ func prepareProject(t *testing.T, projectName string) (*project.Config, string, 
 	return proj, projFile, tempDir
 }
 
-// prepareDatabase provisions a shared test database connection pool.
-func prepareDatabase(t *testing.T, cfg *config.Config) *pgxpool.Pool {
-	pool, cleanup := helpers.GetSharedPostgresDB(t)
+// prepareDatabase provisions a fast in-memory repository provider for tests.
+func prepareDatabase(t *testing.T, cfg *config.Config) *repo.Provider {
+	provider, cleanup := helpers.SetupTestDatabase(t)
 	t.Cleanup(cleanup)
-	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
-	cfg.Database.ConnString = pool.Config().ConnString()
-	cfg.Database.AutoMigrate = false
-	return pool
+	cfg.Database.Driver = "sqlite"
+	cfg.Database.Path = ":memory:"
+	cfg.Database.ConnString = ""
+	cfg.Database.AutoMigrate = true
+	return provider
 }
 
 // buildApplicationState constructs application state and resource store.
 func buildApplicationState(
-	ctx context.Context,
 	t *testing.T,
-	cfg *config.Config,
 	proj *project.Config,
-	pool *pgxpool.Pool,
+	provider *repo.Provider,
 ) (*appstate.State, resources.ResourceStore) {
-	dbCfg := cfg.Database
-	dbCfg.Driver = "postgres"
-	dbCfg.ConnString = pool.Config().ConnString()
-	provider, cleanup, err := repo.NewProvider(ctx, &dbCfg)
-	require.NoError(t, err)
-	t.Cleanup(cleanup)
 	deps := appstate.NewBaseDeps(proj, nil, provider, nil)
 	state, err := appstate.NewState(deps, nil)
 	require.NoError(t, err)

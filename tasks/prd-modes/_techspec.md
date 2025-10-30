@@ -1276,7 +1276,7 @@ See complete examples:
 
 #### 4.3 Update Migration Guide
 
-**File:** `docs/content/docs/guides/migrate-standalone-to-distributed.mdx`
+**File:** `docs/content/docs/guides/mode-migration-guide.mdx`
 
 **Rename to:** `mode-migration-guide.mdx`
 

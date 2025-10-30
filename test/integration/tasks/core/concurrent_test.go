@@ -16,7 +16,7 @@ import (
 )
 
 func TestTransactionService_ConcurrentAccess(t *testing.T) {
-	setup := tkhelpers.NewTestSetup(t)
+	setup := tkhelpers.NewTestSetupWithDriver(t, "postgres")
 
 	ctx := setup.Context
 	transactionService := shared.NewTransactionService(setup.TaskRepo)

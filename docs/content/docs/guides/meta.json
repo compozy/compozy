@@ -4,6 +4,6 @@
   "icon": "BookOpen",
   "root": true,
   "pages": [
-    "migrate-standalone-to-distributed"
+    "mode-migration-guide"
   ]
 }

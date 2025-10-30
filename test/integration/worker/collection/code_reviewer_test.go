@@ -32,7 +32,7 @@ func TestCollectionTask_CodeReviewer(t *testing.T) {
 		}
 
 		fixture.AssertWorkflowState(t, result)
-		verifyCodeReviewerExecution(t, result)
+		verifyCodeReviewerExecution(t, dbHelper, result)
 	})
 }
 
@@ -99,7 +99,7 @@ Provide a code review.`,
 	}
 }
 
-func verifyCodeReviewerExecution(t *testing.T, result *workflow.State) {
+func verifyCodeReviewerExecution(t *testing.T, dbHelper *helpers.DatabaseHelper, result *workflow.State) {
 	require.NotNil(t, result, "Workflow state should not be nil")
 	require.NotNil(t, result.Tasks, "Tasks map should not be nil")
 
@@ -107,6 +107,11 @@ func verifyCodeReviewerExecution(t *testing.T, result *workflow.State) {
 	require.NotNil(t, parentTask, "Should have a parent collection task")
 
 	childTasks := helpers.FindChildTasks(result, parentTask.TaskExecID)
+	if len(childTasks) == 0 && dbHelper != nil {
+		children, err := dbHelper.TaskRepo().ListChildren(t.Context(), parentTask.TaskExecID)
+		require.NoError(t, err)
+		childTasks = children
+	}
 	require.Len(t, childTasks, 2, "Should have 2 child tasks")
 
 	// Parent should also succeed

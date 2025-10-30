@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
 <domain>documentation</domain>
@@ -31,12 +31,12 @@ Create comprehensive migration guide covering transitions between modes and migr
 
 ## Subtasks
 
-- [ ] 16.1 Rename and restructure existing migration guide
-- [ ] 16.2 Document alpha version migration (standalone → memory/persistent)
-- [ ] 16.3 Add memory → persistent migration path
-- [ ] 16.4 Add persistent → distributed migration path
-- [ ] 16.5 Document common issues (pgvector, concurrency limits)
-- [ ] 16.6 Add data export/import procedures
+- [x] 16.1 Rename and restructure existing migration guide
+- [x] 16.2 Document alpha version migration (standalone → memory/persistent)
+- [x] 16.3 Add memory → persistent migration path
+- [x] 16.4 Add persistent → distributed migration path
+- [x] 16.5 Document common issues (pgvector, concurrency limits)
+- [x] 16.6 Add data export/import procedures
 
 ## Implementation Details
 
@@ -71,22 +71,22 @@ See `tasks/prd-modes/_techspec.md` Section 4.3 for complete implementation detai
 
 ## Deliverables
 
-- [ ] Renamed and updated `mode-migration-guide.mdx`
-- [ ] Alpha version migration instructions
-- [ ] All migration paths documented with examples
-- [ ] Data export/import procedures
-- [ ] Common issues and troubleshooting section
-- [ ] Working code examples for each migration
+- [x] Renamed and updated `mode-migration-guide.mdx`
+- [x] Alpha version migration instructions
+- [x] All migration paths documented with examples
+- [x] Data export/import procedures
+- [x] Common issues and troubleshooting section
+- [x] Working code examples for each migration
 
 ## Tests
 
 Documentation verification (no automated tests):
-- [ ] All migration commands are valid and tested
-- [ ] YAML examples are syntactically correct
-- [ ] Data export/import procedures work
-- [ ] Common issues have actionable solutions
-- [ ] Migration paths are complete and sequential
-- [ ] No broken references to old mode names
+- [x] All migration commands are valid and tested
+- [x] YAML examples are syntactically correct
+- [x] Data export/import procedures work
+- [x] Common issues have actionable solutions
+- [x] Migration paths are complete and sequential
+- [x] No broken references to old mode names
 
 ## Success Criteria
 

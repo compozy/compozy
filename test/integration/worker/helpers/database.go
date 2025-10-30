@@ -1,53 +1,49 @@
 package helpers
 
 import (
-	"fmt"
 	"testing"
 
+	"github.com/compozy/compozy/engine/infra/repo"
+	"github.com/compozy/compozy/engine/task"
+	"github.com/compozy/compozy/engine/workflow"
 	helpers "github.com/compozy/compozy/test/helpers"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/stretchr/testify/require"
 )
 
-// DatabaseHelper provides database setup and teardown for integration tests
+// DatabaseHelper provides database setup and teardown for integration tests.
 type DatabaseHelper struct {
-	pool    *pgxpool.Pool
-	cleanup func()
+	provider *repo.Provider
+	cleanup  func()
 }
 
-// NewDatabaseHelper creates a new database helper using the shared container pattern.
+// NewDatabaseHelper provisions a fast in-memory test database.
 func NewDatabaseHelper(t *testing.T) *DatabaseHelper {
-	pool, cleanup := helpers.GetSharedPostgresDB(t)
+	t.Helper()
+	provider, cleanup := helpers.SetupTestDatabase(t)
 	return &DatabaseHelper{
-		pool:    pool,
-		cleanup: cleanup,
+		provider: provider,
+		cleanup:  cleanup,
 	}
 }
 
-// GetPool returns the database connection pool
-func (h *DatabaseHelper) GetPool() *pgxpool.Pool {
-	return h.pool
+// Provider exposes the underlying repository provider.
+func (h *DatabaseHelper) Provider() *repo.Provider {
+	return h.provider
 }
 
-// Cleanup cleans up database resources
+// TaskRepo returns a task repository instance backed by the helper database.
+func (h *DatabaseHelper) TaskRepo() task.Repository {
+	return h.provider.NewTaskRepo()
+}
+
+// WorkflowRepo returns a workflow repository instance backed by the helper database.
+func (h *DatabaseHelper) WorkflowRepo() workflow.Repository {
+	return h.provider.NewWorkflowRepo()
+}
+
+// Cleanup releases database resources.
 func (h *DatabaseHelper) Cleanup(t *testing.T) {
-	h.cleanup()
-	t.Logf("Database helper cleanup completed")
-}
-
-// TruncateTables truncates all tables for test cleanup
-func (h *DatabaseHelper) TruncateTables(t *testing.T, tables ...string) {
-	for _, table := range tables {
-		query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", pgx.Identifier{table}.Sanitize())
-		_, err := h.pool.Exec(t.Context(), query)
-		require.NoError(t, err, "Failed to truncate table %s", table)
+	if h.cleanup != nil {
+		h.cleanup()
 	}
-}
-
-// BeginTx starts a new transaction for test isolation
-func (h *DatabaseHelper) BeginTx(t *testing.T) pgx.Tx {
-	tx, err := h.pool.Begin(t.Context())
-	require.NoError(t, err, "Failed to begin transaction")
-	return tx
+	t.Logf("Database helper cleanup completed")
 }

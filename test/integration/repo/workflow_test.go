@@ -15,7 +15,6 @@ import (
 func TestWorkflowRepoIntegration(t *testing.T) {
 	t.Run("Should upsert and retrieve workflow state", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-upsert"
@@ -53,7 +52,6 @@ func TestWorkflowRepoIntegration(t *testing.T) {
 	t.Run("Should get workflow state with and without tasks", func(t *testing.T) {
 		t.Run("Should get workflow state without associated tasks", func(t *testing.T) {
 			env := newRepoTestEnv(t)
-			truncateRepoTables(env.ctx, t, env.pool)
 
 			workflowExecID := core.MustNewID()
 			workflowID := "wf-no-tasks"
@@ -73,7 +71,6 @@ func TestWorkflowRepoIntegration(t *testing.T) {
 
 		t.Run("Should populate workflow state with task hierarchy", func(t *testing.T) {
 			env := newRepoTestEnv(t)
-			truncateRepoTables(env.ctx, t, env.pool)
 
 			workflowExecID := core.MustNewID()
 			workflowID := "wf-with-tasks"
@@ -109,7 +106,6 @@ func TestWorkflowRepoIntegration(t *testing.T) {
 
 		t.Run("Should return error when workflow state does not exist", func(t *testing.T) {
 			env := newRepoTestEnv(t)
-			truncateRepoTables(env.ctx, t, env.pool)
 
 			_, err := env.workflowRepo.GetState(env.ctx, core.MustNewID())
 			require.ErrorIs(t, err, store.ErrWorkflowNotFound)
@@ -118,7 +114,6 @@ func TestWorkflowRepoIntegration(t *testing.T) {
 
 	t.Run("Should retrieve workflow state by workflow ID", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-get-by-id"
@@ -154,7 +149,6 @@ func TestWorkflowRepoIntegration(t *testing.T) {
 
 	t.Run("Should list workflow states with filters and include tasks", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		runningExecID := core.MustNewID()
 		successExecID := core.MustNewID()
@@ -200,7 +194,6 @@ func TestWorkflowRepoIntegration(t *testing.T) {
 
 	t.Run("Should update workflow status", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-update"
