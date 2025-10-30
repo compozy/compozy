@@ -1,67 +1,121 @@
 ---
 title: "Mode Configuration"
-description: "Control global and per-component deployment modes (standalone vs distributed)."
+description: "Control deployment modes: memory, persistent, or distributed."
 icon: GitBranch
 ---
 
-Compozy supports two operational modes: `standalone` and `distributed` (aka remote). You select a global default and optionally override per component.
+Compozy supports three deployment modes—`memory`, `persistent`, and `distributed`—so you can match infrastructure to each environment while keeping a single configuration format.
+
+<Callout type="info">
+`memory` is the default mode. If you omit the global <InlineCode>mode</InlineCode>, Compozy resolves to the in-memory profile.
+</Callout>
 
 ## Overview
 
 <List>
   <ListItem title="Global mode" icon="Globe2">
-    Set `mode: standalone|distributed` at the root to establish a default for all components.
+    Set <InlineCode>mode: memory|persistent|distributed</InlineCode> at the root to establish the default for all components.
   </ListItem>
-  <ListItem title="Per‑component override" icon="Settings">
-    Each component (e.g., `temporal`, `redis`) can specify its own `mode` to override the global setting.
+  <ListItem title="Component overrides" icon="Settings">
+    Temporal, Redis, the MCP proxy, and other services may declare their own <InlineCode>mode</InlineCode> values to diverge from the global default.
   </ListItem>
   <ListItem title="Resolution order" icon="ListChecks">
-    Component mode (if set) → global `mode` (if set) → component default (usually `distributed`).
+    Component mode (if set) → global <InlineCode>mode</InlineCode> (if set) → built-in default (`memory`).
   </ListItem>
 </List>
+
+## Mode Resolution
+
+1. **Component override** – A component’s own `mode` always wins.
+2. **Global mode** – If the component leaves `mode` empty, the value from the root configuration is applied.
+3. **Default** – When neither is set, Compozy falls back to `memory`.
+
+This cascade keeps local development simple while letting you promote individual services to durable or distributed infrastructure incrementally.
 
 ## Configuration Structure
 
 ```yaml title="compozy.yaml"
-# Global default
-mode: standalone | distributed
+# Global default (optional — defaults to memory)
+mode: memory | persistent | distributed
 
 temporal:
-  mode: standalone | remote   # "remote" is the distributed mode for Temporal
-  # ...other temporal fields
+  mode: memory | persistent | distributed  # distributed resolves to remote Temporal
+  # component-specific settings
 
 redis:
-  mode: standalone | distributed
-  # ...per-mode fields
+  mode: memory | persistent | distributed
+  # component-specific settings
+
+mcp_proxy:
+  mode: memory | distributed
+  # component-specific settings
 ```
 
-<Callout type="info">
-Temporal uses `remote` to denote the distributed mode, matching Temporal terminology. For Redis and other components, `distributed` is used. Both follow the same inheritance rules.
+<Callout type="tip">
+Temporal uses <InlineCode>remote</InlineCode> internally when you select <InlineCode>distributed</InlineCode>. You can keep existing <InlineCode>mode: remote</InlineCode> values; they resolve the same way.
 </Callout>
 
-## Examples
+## Mode Options
 
-### Pure Standalone
+### memory (default)
+
+Speed-first configuration for tests, CI pipelines, and workshops.
+
+- SQLite `:memory:` database
+- Embedded Temporal and Redis instances (no persistence)
+- Zero external services required
 
 ```yaml
-mode: standalone
-
+# mode: memory is implied
 temporal:
-  mode: standalone
-  standalone:
-    database_file: :memory:
+  mode: memory
 
 redis:
-  mode: standalone
-  standalone:
-    persistence:
-      enabled: false
+  mode: memory
 ```
 
-### Pure Distributed
+### persistent
+
+Durable local development profile that keeps embedded services but stores state on disk.
+
+- SQLite database stored in `./.compozy/compozy.db`
+- Embedded Temporal with file-backed history
+- Embedded Redis with BadgerDB snapshots
+
+```yaml
+mode: persistent
+
+database:
+  driver: sqlite
+  path: ./.compozy/compozy.db
+
+temporal:
+  mode: persistent
+  standalone:
+    database_file: ./.compozy/temporal.db
+
+redis:
+  mode: persistent
+  standalone:
+    persistence:
+      enabled: true
+      dir: ./.compozy/redis
+```
+
+### distributed
+
+Production-grade profile backed by managed infrastructure.
+
+- PostgreSQL with pgvector support
+- External Temporal cluster (`temporal.mode: remote` or `distributed`)
+- External Redis cluster
 
 ```yaml
 mode: distributed
+
+database:
+  driver: postgres
+  url: postgres://compozy:${PGPASSWORD}@postgres.prod.internal:5432/compozy
 
 temporal:
   mode: remote
@@ -77,62 +131,116 @@ redis:
       enabled: true
 ```
 
-### Mixed Mode (Local Dev)
+## Component Override Examples
+
+### Global memory with persistent Temporal
+
+Keep the zero-dependency defaults for most services while persisting Temporal history for debugging.
 
 ```yaml
-mode: standalone
+mode: memory
 
 temporal:
-  mode: standalone
+  mode: persistent
   standalone:
-    database_file: ./.tmp/temporal.db
+    database_file: ./.compozy/temporal.db
 
 redis:
-  mode: distributed           # use real Redis while keeping Temporal embedded
-  distributed:
-    addr: localhost:6379
-    password: ""
+  mode: memory
 ```
 
-## Environment & CLI Overrides
+### Hybrid: Persistent defaults with external Redis
 
-Use environment variables or flags to switch quickly:
+Persist local data but connect to a managed Redis instance for shared cache state.
+
+```yaml
+mode: persistent
+
+redis:
+  mode: distributed
+  distributed:
+    addr: redis.shared.internal:6379
+    tls:
+      enabled: true
+```
+
+### Per-component distributed overrides
+
+Promote services incrementally by setting their `mode` explicitly.
+
+```yaml
+mode: memory
+
+database:
+  driver: postgres
+
+temporal:
+  mode: remote
+  host_port: temporal.shared.internal:7233
+
+redis:
+  mode: distributed
+  distributed:
+    addr: redis.shared.internal:6379
+```
+
+### Full configuration examples
+
+- [Memory mode example](/docs/examples/memory-mode)
+- [Persistent mode example](/docs/examples/persistent-mode)
+- [Distributed mode example](/docs/examples/distributed-mode)
+
+## Environment & CLI Overrides
 
 | Path | Env | Flag |
 | ---- | --- | ---- |
 | `mode` | `COMPOZY_MODE` | `--mode` |
 | `temporal.mode` | `TEMPORAL_MODE` | `--temporal-mode` |
 | `redis.mode` | `REDIS_MODE` | `--redis-mode` |
+| `mcp_proxy.mode` | `MCP_PROXY_MODE` | `--mcp-proxy-mode` |
 
 <Callout type="warning">
-YAML values take precedence over flags. Use flags for local overrides only.
+Values loaded from YAML take precedence. Use flags and environment variables for temporary overrides only.
 </Callout>
 
-## Validation
+## Validation Checklist
 
-- Unknown modes are rejected with a clear error (valid: `standalone`, `distributed`, `remote` where applicable)
-- Fields must be valid for the selected mode (e.g., `redis.distributed.addr` required when `redis.mode=distributed`)
-- Mode conflicts surface actionable diagnostics in `compozy config` commands
+- Only `memory`, `persistent`, and `distributed` are accepted for the global `mode`.
+- Temporal accepts `memory`, `persistent`, `distributed`, or legacy `remote` (normalized to `remote`).
+- Redis accepts `memory`, `persistent`, or `distributed` and validates required fields based on the resolved mode.
+- Diagnostics (`compozy config diagnostics`) show the effective mode for every component.
 
 ## See Also
 
 <ReferenceCardList>
   <ReferenceCard
-    title="Redis Configuration"
-    description="Per‑mode settings and persistence options"
-    href="/docs/configuration/redis"
-    icon="Database"
-  />
-  <ReferenceCard
-    title="Temporal Configuration"
-    description="Remote vs standalone server fields"
-    href="/docs/configuration/temporal"
-    icon="Settings"
-  />
-  <ReferenceCard
-    title="Standalone Deployment"
-    description="End‑to‑end guide for single‑process setups"
+    title="Memory Mode Deployment"
+    description="Zero-dependency setup with in-memory services"
     href="/docs/deployment/memory-mode"
     icon="Rocket"
+  />
+  <ReferenceCard
+    title="Persistent Mode Deployment"
+    description="Embedded services with on-disk durability"
+    href="/docs/deployment/persistent-mode"
+    icon="Folder"
+  />
+  <ReferenceCard
+    title="Distributed Mode Deployment"
+    description="Connect to managed PostgreSQL, Temporal, and Redis"
+    href="/docs/deployment/distributed-mode"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Mode Examples"
+    description="Complete sample projects for each mode"
+    href="/docs/examples/memory-mode"
+    icon="BookOpen"
+  />
+  <ReferenceCard
+    title="Mode Migration Guide"
+    description="Map legacy standalone configs to memory or persistent"
+    href="/docs/guides/migrate-standalone-to-distributed"
+    icon="ArrowRightLeft"
   />
 </ReferenceCardList>
