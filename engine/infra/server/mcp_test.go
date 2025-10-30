@@ -21,7 +21,7 @@ func TestShouldEmbedMCPProxy(t *testing.T) {
 		t.Cleanup(func() { _ = mgr.Close(ctx) })
 		c := config.FromContext(ctx)
 		require.NotNil(t, c)
-		c.MCPProxy.Mode = modeStandalone
+		c.MCPProxy.Mode = config.ModeMemory
 		c.LLM.ProxyURL = "http://localhost:6001"
 		assert.True(t, shouldEmbedMCPProxy(ctx))
 	})
@@ -34,7 +34,7 @@ func TestShouldEmbedMCPProxy(t *testing.T) {
 		t.Cleanup(func() { _ = mgr.Close(ctx) })
 		c := config.FromContext(ctx)
 		require.NotNil(t, c)
-		c.MCPProxy.Mode = ""
+		c.MCPProxy.Mode = config.ModeDistributed
 		assert.False(t, shouldEmbedMCPProxy(ctx))
 	})
 }
@@ -42,7 +42,7 @@ func TestShouldEmbedMCPProxy(t *testing.T) {
 func TestServerAfterMCPReady(t *testing.T) {
 	t.Run("ShouldOverrideProxyURLInStandaloneMode", func(t *testing.T) {
 		cfg := config.Default()
-		cfg.MCPProxy.Mode = modeStandalone
+		cfg.MCPProxy.Mode = config.ModeMemory
 		cfg.LLM.ProxyURL = "http://localhost:6001"
 		srv := &Server{}
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())

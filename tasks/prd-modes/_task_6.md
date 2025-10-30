@@ -1,6 +1,6 @@
 ## markdown
 
-## status: pending # Options: pending, in-progress, completed, excluded
+## status: completed # Options: pending, in-progress, completed, excluded
 
 <task_context>
 <domain>engine/infra/server</domain>
@@ -40,11 +40,11 @@ Update Temporal wiring in `engine/infra/server/dependencies.go` to support three
 
 ## Subtasks
 
-- [ ] 6.1 Update maybeStartStandaloneTemporal() to handle memory and persistent modes
-- [ ] 6.2 Update standaloneEmbeddedConfig() with intelligent database path defaults
-- [ ] 6.3 Update validateDatabaseConfig() to use mode checks instead of hardcoded strings
-- [ ] 6.4 Add comprehensive logging for Temporal startup
-- [ ] 6.5 Validate Temporal starts correctly in all three modes
+- [x] 6.1 Update maybeStartStandaloneTemporal() to handle memory and persistent modes
+- [x] 6.2 Update standaloneEmbeddedConfig() with intelligent database path defaults
+- [x] 6.3 Update validateDatabaseConfig() to use mode checks instead of hardcoded strings
+- [x] 6.4 Add comprehensive logging for Temporal startup
+- [x] 6.5 Validate Temporal starts correctly in all three modes
 
 ## Implementation Details
 

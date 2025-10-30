@@ -43,7 +43,7 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 **Dependencies**: Phase 1 complete
 
 - [x] **5.0** Update Cache Layer [M] - 1 day
-- **6.0** Update Temporal Wiring [L] - 2 days
+- [x] **6.0** Update Temporal Wiring [L] - 2 days
 - **7.0** Update Server Logging [S] - 0.5 days
 - **8.0** Manual Runtime Validation [M] - 1 day
 

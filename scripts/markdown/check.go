@@ -222,8 +222,8 @@ func setupFlags() {
 	rootCmd.Flags().IntVar(
 		&maxRetries,
 		"max-retries",
-		3,
-		"Maximum number of retry attempts on timeout (0 = no retry, default: 3)",
+		50,
+		"Maximum number of retry attempts on timeout (0 = no retry, default: 50)",
 	)
 	rootCmd.Flags().Float64Var(
 		&retryBackoffMultiplier,
@@ -1236,10 +1236,16 @@ func calculateRetryTimeout(
 ) time.Duration {
 	if attempt > 1 {
 		currentTimeout = time.Duration(float64(currentTimeout) * multiplier)
+		// Cap timeout at 30 minutes to prevent excessively long waits
+		const maxTimeout = 30 * time.Minute
+		if currentTimeout > maxTimeout {
+			currentTimeout = maxTimeout
+		}
 		if !useUI {
 			fmt.Fprintf(
 				os.Stderr,
-				"\n🔄 Retry attempt %d/%d for job %d (%s) with timeout %v\n",
+				"\n🔄 [%s] Retry attempt %d/%d for job %d (%s) with timeout %v\n",
+				time.Now().Format("15:04:05"),
 				attempt-1,
 				maxRetries,
 				index+1,
@@ -1283,10 +1289,23 @@ func executeJobAttempt(
 }
 
 func logRetryCompletion(err error, attempt int, index int, j *job, useUI bool) {
-	if err != nil && attempt > 1 && !useUI {
+	if useUI {
+		return // UI mode has its own logging
+	}
+	if err != nil && attempt > 1 {
 		fmt.Fprintf(
 			os.Stderr,
-			"\n❌ Job %d (%s) failed after %d retry attempts\n",
+			"\n❌ [%s] Job %d (%s) failed after %d retry attempts (all retries exhausted)\n",
+			time.Now().Format("15:04:05"),
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+			attempt-1,
+		)
+	} else if err == nil && attempt > 1 {
+		fmt.Fprintf(
+			os.Stderr,
+			"\n✅ [%s] Job %d (%s) succeeded after %d retry attempts\n",
+			time.Now().Format("15:04:05"),
 			index+1,
 			strings.Join(j.codeFiles, ", "),
 			attempt-1,
@@ -1781,13 +1800,13 @@ func startActivityWatchdog(
 	activityTimeout := make(chan struct{})
 	if monitor != nil && timeout > 0 {
 		go func() {
+			defer close(activityTimeout) // Always close channel on exit
 			ticker := time.NewTicker(activityCheckInterval)
 			defer ticker.Stop()
 			for {
 				select {
 				case <-ticker.C:
 					if monitor.timeSinceLastActivity() > timeout {
-						close(activityTimeout)
 						return
 					}
 				case <-cmdDone:
@@ -1797,6 +1816,9 @@ func startActivityWatchdog(
 				}
 			}
 		}()
+	} else {
+		// Close immediately if no monitoring enabled
+		close(activityTimeout)
 	}
 	return activityTimeout
 }
