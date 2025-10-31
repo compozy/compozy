@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"dario.cat/mergo"
@@ -16,6 +17,12 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/tmc/langchaingo/llms"
 	"gopkg.in/yaml.v3"
+)
+
+const (
+	ImplementationRuntime = "runtime"
+	ImplementationNative  = "native"
+	RuntimeGo             = "go"
 )
 
 // Config represents a tool configuration in Compozy.
@@ -97,32 +104,38 @@ import (
 type Config struct {
 	// Resource identifier for the autoloader system (must be `"tool"`).
 	// This field enables automatic discovery and registration of tool configurations.
-	Resource string `json:"resource,omitempty"    yaml:"resource,omitempty"    mapstructure:"resource,omitempty"`
+	Resource string `json:"resource,omitempty"       yaml:"resource,omitempty"       mapstructure:"resource,omitempty"`
 	// Unique identifier for the tool within the project scope.
 	// Used for referencing the tool in agent configurations, workflows, and function calls.
 	// Must be unique across all tools in the project.
 	//
 	// - **Examples:** `"file-reader"`, `"api-client"`, `"data-processor"`
 	// - **Naming:** Use kebab-case for consistency with other Compozy identifiers
-	ID string `json:"id,omitempty"          yaml:"id,omitempty"          mapstructure:"id,omitempty"`
+	ID string `json:"id,omitempty"             yaml:"id,omitempty"             mapstructure:"id,omitempty"`
 	// Name provides a concise, human-readable label for the tool shown in UIs and logs.
 	// Unlike the identifier, the name may include spaces and capitalization to improve readability.
 	// When omitted, UIs should fall back to using the identifier.
-	Name string `json:"name,omitempty"        yaml:"name,omitempty"        mapstructure:"name,omitempty"`
+	Name string `json:"name,omitempty"           yaml:"name,omitempty"           mapstructure:"name,omitempty"`
 	// Human-readable description of the tool's functionality and purpose.
 	// This description is used by AI agents to understand when and how to use the tool.
 	// Should clearly explain capabilities, limitations, and expected use cases.
 	//
 	// - **Best practices:** Be specific about what the tool does and its constraints
 	// - **Example:** `"Read and parse various file formats including JSON, YAML, and CSV with size limits"`
-	Description string `json:"description,omitempty" yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Description string `json:"description,omitempty"    yaml:"description,omitempty"    mapstructure:"description,omitempty"`
 	// Runtime selects the execution environment for custom tool implementations.
 	// Supported runtimes include `"bun"`, `"node"`, and `"deno"` for JavaScript/TypeScript execution.
 	// When empty, the project runtime defaults are applied.
-	Runtime string `json:"runtime,omitempty"     yaml:"runtime,omitempty"     mapstructure:"runtime,omitempty"`
+	Runtime string `json:"runtime,omitempty"        yaml:"runtime,omitempty"        mapstructure:"runtime,omitempty"`
+	// Implementation defines how the tool executes within the Compozy engine.
+	// Supported values are:
+	//   - `"runtime"`: executes via an external runtime such as Bun (default)
+	//   - `"native"`: executes via an in-process Go handler registered at runtime
+	// When unset, the implementation defaults to `"runtime"` unless the runtime is explicitly `"go"`.
+	Implementation string `json:"implementation,omitempty" yaml:"implementation,omitempty" mapstructure:"implementation,omitempty"`
 	// Code contains inline source executed by the selected runtime when the tool runs.
 	// Builders may supply either inline JavaScript/TypeScript code or references resolved at runtime.
-	Code string `json:"code,omitempty"        yaml:"code,omitempty"        mapstructure:"code,omitempty"`
+	Code string `json:"code,omitempty"           yaml:"code,omitempty"           mapstructure:"code,omitempty"`
 	// Maximum execution time for the tool in Go duration format.
 	// If not specified, uses the global tool timeout from project configuration.
 	// This timeout applies to the entire tool execution lifecycle.
@@ -130,7 +143,7 @@ type Config struct {
 	// - **Examples:** `"30s"`, `"5m"`, `"1h"`, `"500ms"`
 	// - **Constraints:** Must be positive; zero or negative values cause validation errors
 	// - **Default fallback:** Uses project-level tool timeout when empty
-	Timeout string `json:"timeout,omitempty"     yaml:"timeout,omitempty"     mapstructure:"timeout,omitempty"`
+	Timeout string `json:"timeout,omitempty"        yaml:"timeout,omitempty"        mapstructure:"timeout,omitempty"`
 	// JSON schema defining the expected input parameters for the tool.
 	// Used for validation before execution and to generate LLM function call definitions.
 	// Must follow JSON Schema Draft 7 specification for compatibility.
@@ -138,7 +151,7 @@ type Config struct {
 	// - **When nil:** Tool accepts any input format (no validation performed)
 	// - **Use cases:** Parameter validation, type safety, auto-generated documentation
 	// - **Integration:** Automatically converts to LLM function parameters
-	InputSchema *schema.Schema `json:"input,omitempty"       yaml:"input,omitempty"       mapstructure:"input,omitempty"`
+	InputSchema *schema.Schema `json:"input,omitempty"          yaml:"input,omitempty"          mapstructure:"input,omitempty"`
 	// JSON schema defining the expected output format from the tool.
 	// Used for validation after execution and documentation purposes.
 	// Must follow JSON Schema Draft 7 specification for compatibility.
@@ -146,14 +159,14 @@ type Config struct {
 	// - **When nil:** No output validation is performed
 	// - **Use cases:** Response validation, type safety, workflow data flow verification
 	// - **Best practice:** Define output schema for tools used in critical workflows
-	OutputSchema *schema.Schema `json:"output,omitempty"      yaml:"output,omitempty"      mapstructure:"output,omitempty"`
+	OutputSchema *schema.Schema `json:"output,omitempty"         yaml:"output,omitempty"         mapstructure:"output,omitempty"`
 	// Default input parameters merged with runtime parameters provided by agents.
 	// Provides a way to set tool defaults while allowing runtime customization.
 	//
 	// - **Merge strategy:** Runtime parameters override defaults (shallow merge)
 	// - **Use cases:** Default API URLs, fallback configurations, preset options
 	// - **Security note:** Avoid storing secrets here; use environment variables instead
-	With *core.Input `json:"with,omitempty"        yaml:"with,omitempty"        mapstructure:"with,omitempty"`
+	With *core.Input `json:"with,omitempty"           yaml:"with,omitempty"           mapstructure:"with,omitempty"`
 	// Configuration parameters passed to the tool separately from input data.
 	// Provides static configuration that tools can use for initialization and behavior control.
 	// Unlike input parameters, config is not meant to change between tool invocations.
@@ -170,7 +183,7 @@ type Config struct {
 	//     headers:
 	//       User-Agent: "Compozy/1.0"
 	//   ```
-	Config *core.Input `json:"config,omitempty"      yaml:"config,omitempty"      mapstructure:"config,omitempty"`
+	Config *core.Input `json:"config,omitempty"         yaml:"config,omitempty"         mapstructure:"config,omitempty"`
 	// Environment variables available during tool execution.
 	// Variables are isolated to the tool's execution context for security.
 	// Used for configuration, API keys, and runtime settings.
@@ -184,7 +197,7 @@ type Config struct {
 	//     BASE_URL: "https://api.example.com"
 	//     DEBUG: "{{ .project.debug | default(false) }}"
 	//   ```
-	Env *core.EnvMap `json:"env,omitempty"         yaml:"env,omitempty"         mapstructure:"env,omitempty"`
+	Env *core.EnvMap `json:"env,omitempty"            yaml:"env,omitempty"            mapstructure:"env,omitempty"`
 
 	// filePath stores the filesystem path where this configuration was loaded from.
 	// Used internally for resolving relative paths and debugging.
@@ -348,6 +361,39 @@ func (t *Config) HasSchema() bool {
 	return t.InputSchema != nil || t.OutputSchema != nil
 }
 
+// EffectiveImplementation returns the canonical implementation mode for the tool configuration.
+// When the Implementation field is empty, it infers the value from the runtime, defaulting to "runtime".
+func (t *Config) EffectiveImplementation() (string, error) {
+	impl := strings.TrimSpace(strings.ToLower(t.Implementation))
+	if impl == "" {
+		runtime := strings.TrimSpace(strings.ToLower(t.Runtime))
+		if runtime == RuntimeGo {
+			return ImplementationNative, nil
+		}
+		return ImplementationRuntime, nil
+	}
+	switch impl {
+	case ImplementationRuntime, ImplementationNative:
+		return impl, nil
+	default:
+		return "", fmt.Errorf("invalid implementation '%s'", t.Implementation)
+	}
+}
+
+// SetImplementation stores the canonical implementation value using runtime inference rules.
+func (t *Config) SetImplementation(implementation string) {
+	t.Implementation = strings.TrimSpace(strings.ToLower(implementation))
+}
+
+// IsNative reports whether the configuration represents a native Go tool.
+func (t *Config) IsNative() bool {
+	impl, err := t.EffectiveImplementation()
+	if err != nil {
+		return false
+	}
+	return impl == ImplementationNative
+}
+
 // Validate ensures the tool configuration is valid and complete.
 // Performs comprehensive validation of all configuration fields including working directory
 // and timeout format. Should be called before using the tool in production workflows.
@@ -357,6 +403,24 @@ func (t *Config) Validate(ctx context.Context) error {
 	)
 	if err := v.Validate(ctx); err != nil {
 		return err
+	}
+	impl, err := t.EffectiveImplementation()
+	if err != nil {
+		return err
+	}
+	t.SetImplementation(impl)
+	if impl == ImplementationNative {
+		runtime := strings.TrimSpace(strings.ToLower(t.Runtime))
+		switch runtime {
+		case "":
+			t.Runtime = RuntimeGo
+		case RuntimeGo:
+			t.Runtime = runtime
+		default:
+			return fmt.Errorf("native tools must use runtime '%s', got: %s", RuntimeGo, t.Runtime)
+		}
+	} else if t.Runtime != "" {
+		t.Runtime = strings.TrimSpace(strings.ToLower(t.Runtime))
 	}
 	if t.Timeout != "" {
 		timeout, err := time.ParseDuration(t.Timeout)

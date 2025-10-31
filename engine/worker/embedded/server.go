@@ -242,6 +242,10 @@ func ensurePortsAvailable(ctx context.Context, bindIP string, ports []int) error
 				bindIP,
 			)
 		}
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			continue
+		}
 		if !isConnRefused(err) {
 			return fmt.Errorf("verify port %d on %s: %w", port, bindIP, err)
 		}

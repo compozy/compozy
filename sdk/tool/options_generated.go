@@ -68,6 +68,19 @@ func WithRuntime(runtime string) Option {
 	}
 }
 
+// WithImplementation sets the Implementation field
+//
+// Implementation defines how the tool executes within the Compozy engine.
+// Supported values are:
+// - `"runtime"`: executes via an external runtime such as Bun (default)
+// - `"native"`: executes via an in-process Go handler registered at runtime
+// When unset, the implementation defaults to `"runtime"` unless the runtime is explicitly `"go"`.
+func WithImplementation(implementation string) Option {
+	return func(cfg *tool.Config) {
+		cfg.Implementation = implementation
+	}
+}
+
 // WithCode sets the Code field
 //
 // Code contains inline source executed by the selected runtime when the tool runs.

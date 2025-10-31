@@ -148,11 +148,17 @@ func RunMemoryConversation(ctx context.Context) error {
 func RunRuntimeNativeTools(ctx context.Context) error {
 	log := logger.FromContext(ctx)
 	log.Info("running runtime native tools example")
-	fmt.Println("✅ Runtime native tools example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Runtime configuration with runtime.New()")
-	fmt.Println("  - Native tool definitions with tool.New()")
-	fmt.Println("  - Tool execution")
+	fmt.Println("✅ Runtime native tools example")
+	fmt.Println("This walkthrough highlights:")
+	fmt.Println("  1. Inline TypeScript provided via tool.WithCode() now syncs automatically")
+	fmt.Println("     into .compozy/runtime/inline/")
+	fmt.Println("  2. The generated entrypoint merges user exports with inline modules")
+	fmt.Println("     without manual wiring")
+	fmt.Println("  3. Native Go handlers continue to coexist with Bun-executed tools")
+	fmt.Println()
+	fmt.Println("To see it in action, register a tool with tool.WithCode(...) and call engine.Start(...).")
+	fmt.Println("The inline manager writes the module files, composes the entrypoint, and Bun executes")
+	fmt.Println("the generated bundle on demand.")
 	return nil
 }
 

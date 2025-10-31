@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/engine/core"
 	enginetool "github.com/compozy/compozy/engine/tool"
+	nativeuser "github.com/compozy/compozy/engine/tool/nativeuser"
 	"github.com/compozy/compozy/pkg/logger"
 	sdkerrors "github.com/compozy/compozy/sdk/v2/internal/errors"
 	"github.com/compozy/compozy/sdk/v2/internal/validate"
@@ -17,6 +19,8 @@ import (
 var supportedRuntimes = map[string]struct{}{
 	"bun": {},
 }
+
+var nativeHandlers sync.Map // map[*enginetool.Config]nativeuser.Handler
 
 // New creates a tool configuration using functional options
 func New(ctx context.Context, id string, opts ...Option) (*enginetool.Config, error) {
@@ -32,25 +36,18 @@ func New(ctx context.Context, id string, opts ...Option) (*enginetool.Config, er
 	for _, opt := range opts {
 		opt(cfg)
 	}
-	collected := make([]error, 0)
-	if err := validateID(ctx, cfg); err != nil {
-		collected = append(collected, err)
-	}
-	if err := validateName(ctx, cfg); err != nil {
-		collected = append(collected, err)
-	}
-	if err := validateDescription(ctx, cfg); err != nil {
-		collected = append(collected, err)
-	}
-	if err := validateRuntime(ctx, cfg); err != nil {
-		collected = append(collected, err)
-	}
-	if err := validateCode(ctx, cfg); err != nil {
-		collected = append(collected, err)
-	}
-	if err := validateTimeout(ctx, cfg); err != nil {
-		collected = append(collected, err)
-	}
+	cfg.Runtime = strings.TrimSpace(cfg.Runtime)
+	cfg.Code = strings.TrimSpace(cfg.Code)
+	nativeHandler, handlerProvided := extractNativeHandler(cfg)
+	implementation, implErr := cfg.EffectiveImplementation()
+	collected := collectValidationErrors(
+		ctx,
+		cfg,
+		implementation,
+		implErr,
+		nativeHandler,
+		handlerProvided,
+	)
 	filtered := make([]error, 0, len(collected))
 	for _, err := range collected {
 		if err != nil {
@@ -60,11 +57,57 @@ func New(ctx context.Context, id string, opts ...Option) (*enginetool.Config, er
 	if len(filtered) > 0 {
 		return nil, &sdkerrors.BuildError{Errors: filtered}
 	}
+	if implementation != "" {
+		cfg.SetImplementation(implementation)
+	}
+	if implementation == enginetool.ImplementationNative {
+		if err := nativeuser.Register(cfg.ID, nativeHandler); err != nil {
+			return nil, fmt.Errorf("failed to register native handler: %w", err)
+		}
+	}
 	cloned, err := core.DeepCopy(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone tool config: %w", err)
 	}
 	return cloned, nil
+}
+
+func extractNativeHandler(cfg *enginetool.Config) (nativeuser.Handler, bool) {
+	value, provided := nativeHandlers.LoadAndDelete(cfg)
+	if !provided {
+		return nil, false
+	}
+	handler, ok := value.(nativeuser.Handler)
+	if !ok {
+		return nil, true
+	}
+	return handler, true
+}
+
+func collectValidationErrors(
+	ctx context.Context,
+	cfg *enginetool.Config,
+	implementation string,
+	implErr error,
+	nativeHandler nativeuser.Handler,
+	handlerProvided bool,
+) []error {
+	errors := []error{
+		validateID(ctx, cfg),
+		validateName(ctx, cfg),
+		validateDescription(ctx, cfg),
+	}
+	if implErr != nil {
+		errors = append(errors, implErr)
+	}
+	errors = append(
+		errors,
+		validateRuntime(ctx, cfg, implementation),
+		validateCode(ctx, cfg, implementation),
+		validateNativeHandler(cfg, implementation, nativeHandler, handlerProvided),
+		validateTimeout(ctx, cfg),
+	)
+	return errors
 }
 
 func validateID(ctx context.Context, cfg *enginetool.Config) error {
@@ -91,8 +134,21 @@ func validateDescription(ctx context.Context, cfg *enginetool.Config) error {
 	return nil
 }
 
-func validateRuntime(ctx context.Context, cfg *enginetool.Config) error {
-	cfg.Runtime = strings.TrimSpace(cfg.Runtime)
+func validateRuntime(ctx context.Context, cfg *enginetool.Config, implementation string) error {
+	if implementation == "" {
+		return nil
+	}
+	if implementation == enginetool.ImplementationNative {
+		runtime := strings.ToLower(strings.TrimSpace(cfg.Runtime))
+		if runtime == "" {
+			runtime = enginetool.RuntimeGo
+		}
+		if runtime != enginetool.RuntimeGo {
+			return fmt.Errorf("native tools must use runtime %s: got %s", enginetool.RuntimeGo, cfg.Runtime)
+		}
+		cfg.Runtime = runtime
+		return nil
+	}
 	if err := validate.NonEmpty(ctx, "tool runtime", cfg.Runtime); err != nil {
 		return err
 	}
@@ -104,10 +160,36 @@ func validateRuntime(ctx context.Context, cfg *enginetool.Config) error {
 	return nil
 }
 
-func validateCode(ctx context.Context, cfg *enginetool.Config) error {
-	cfg.Code = strings.TrimSpace(cfg.Code)
+func validateCode(ctx context.Context, cfg *enginetool.Config, implementation string) error {
+	if implementation == "" {
+		return nil
+	}
+	if implementation == enginetool.ImplementationNative {
+		return nil
+	}
 	if err := validate.NonEmpty(ctx, "tool code", cfg.Code); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateNativeHandler(
+	cfg *enginetool.Config,
+	implementation string,
+	handler nativeuser.Handler,
+	handlerProvided bool,
+) error {
+	if implementation == "" {
+		return nil
+	}
+	if implementation == enginetool.ImplementationNative {
+		if handler == nil {
+			return fmt.Errorf("native handler is required for tool %s", cfg.ID)
+		}
+		return nil
+	}
+	if handlerProvided {
+		return fmt.Errorf("native handler provided but implementation is %s", implementation)
 	}
 	return nil
 }
@@ -124,4 +206,14 @@ func validateTimeout(_ context.Context, cfg *enginetool.Config) error {
 		return fmt.Errorf("timeout must be positive, got: %v", timeout)
 	}
 	return nil
+}
+
+// WithNativeHandler registers a Go-native handler for the tool configuration.
+// The handler is bound to the tool ID during construction and executed in-process at runtime.
+func WithNativeHandler(handler nativeuser.Handler) Option {
+	return func(cfg *enginetool.Config) {
+		nativeHandlers.Store(cfg, handler)
+		cfg.SetImplementation(enginetool.ImplementationNative)
+		cfg.Runtime = enginetool.RuntimeGo
+	}
 }

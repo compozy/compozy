@@ -9,7 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/mcp"
+	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/tool"
+	nativeuser "github.com/compozy/compozy/engine/tool/nativeuser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -213,6 +217,102 @@ func TestToolRegistry_FindRefreshesOnStaleMiss(t *testing.T) {
 	require.True(t, ok, "expected synchronous refresh to find new tool")
 	require.Equal(t, "tool-b", tool.Name())
 	require.GreaterOrEqual(t, dynamic.Hits(), 2)
+}
+
+func TestNativeToolAdapter(t *testing.T) {
+	buildConfig := func() *tool.Config {
+		return &tool.Config{
+			ID:             "native-tool",
+			Description:    "Native tool",
+			Implementation: tool.ImplementationNative,
+			InputSchema: &schema.Schema{
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{"type": "string"},
+				},
+				"required": []string{"name"},
+			},
+			OutputSchema: &schema.Schema{
+				"type": "object",
+				"properties": map[string]any{
+					"result": map[string]any{"type": "string"},
+				},
+				"required": []string{"result"},
+			},
+			Config: &core.Input{"sample": true},
+		}
+	}
+
+	t.Run("Should execute native handler successfully", func(t *testing.T) {
+		nativeuser.Reset()
+		handler := func(_ context.Context, input map[string]any, cfg map[string]any) (map[string]any, error) {
+			assert.Equal(t, map[string]any{"sample": true}, cfg)
+			assert.Equal(t, "alice", input["name"])
+			return map[string]any{"result": "ok"}, nil
+		}
+		require.NoError(t, nativeuser.Register("native-tool", handler))
+		adapter := NewNativeToolAdapter(buildConfig())
+		output, err := adapter.Call(t.Context(), `{"name":"alice"}`)
+		require.NoError(t, err)
+		assert.Contains(t, output, "\"result\":\"ok\"")
+	})
+
+	t.Run("Should validate input schema", func(t *testing.T) {
+		nativeuser.Reset()
+		require.NoError(
+			t,
+			nativeuser.Register(
+				"native-tool",
+				func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
+					return map[string]any{"result": "ok"}, nil
+				},
+			),
+		)
+		adapter := NewNativeToolAdapter(buildConfig())
+		_, err := adapter.Call(t.Context(), `{"unexpected":true}`)
+		require.Error(t, err)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "INVALID_TOOL_INPUT", coreErr.Code)
+	})
+
+	t.Run("Should recover from handler panic", func(t *testing.T) {
+		nativeuser.Reset()
+		require.NoError(
+			t,
+			nativeuser.Register(
+				"native-tool",
+				func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
+					panic("boom")
+				},
+			),
+		)
+		adapter := NewNativeToolAdapter(buildConfig())
+		_, err := adapter.Call(t.Context(), `{"name":"alice"}`)
+		require.Error(t, err)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "TOOL_EXECUTION_ERROR", coreErr.Code)
+	})
+
+	t.Run("Should validate output schema", func(t *testing.T) {
+		nativeuser.Reset()
+		require.NoError(
+			t,
+			nativeuser.Register(
+				"native-tool",
+				func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
+					return map[string]any{"unexpected": true}, nil
+				},
+			),
+		)
+		adapter := NewNativeToolAdapter(buildConfig())
+		_, err := adapter.Call(t.Context(), `{"name":"alice"}`)
+		require.Error(t, err)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "TOOL_INVALID_OUTPUT", coreErr.Code)
+	})
 }
 
 func TestToolRegistry_InvalidateCacheClearsIndex(t *testing.T) {

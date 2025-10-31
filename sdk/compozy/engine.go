@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/engine/resources"
 	engineschema "github.com/compozy/compozy/engine/schema"
 	enginetool "github.com/compozy/compozy/engine/tool"
+	"github.com/compozy/compozy/engine/tool/inline"
 	enginewebhook "github.com/compozy/compozy/engine/webhook"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 	appconfig "github.com/compozy/compozy/pkg/config"
@@ -58,7 +59,8 @@ type Engine struct {
 	serverCancel context.CancelFunc
 	serverWG     sync.WaitGroup
 
-	modeCleanups []modeCleanup
+	modeCleanups  []modeCleanup
+	inlineManager *inline.Manager
 
 	stateMu sync.RWMutex
 	started bool

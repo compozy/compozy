@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/engine/core"
 	engineschema "github.com/compozy/compozy/engine/schema"
+	nativeuser "github.com/compozy/compozy/engine/tool/nativeuser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,6 +28,56 @@ func TestNew_MinimalConfig(t *testing.T) {
 		assert.Equal(t, "bun", cfg.Runtime)
 		assert.Equal(t, "export default () => {}", cfg.Code)
 		assert.Equal(t, string(core.ConfigTool), cfg.Resource)
+	})
+}
+
+func TestNew_NativeHandler(t *testing.T) {
+	nativeuser.Reset()
+	t.Run("Should register native handler and normalize config", func(t *testing.T) {
+		handler := func(_ context.Context, _ map[string]any, _ map[string]any) (map[string]any, error) {
+			return map[string]any{"ok": true}, nil
+		}
+		cfg, err := New(
+			t.Context(),
+			"native-tool",
+			WithName("Native Tool"),
+			WithDescription("Executes in-process"),
+			WithNativeHandler(handler),
+		)
+		require.NoError(t, err)
+		assert.Equal(t, "native", cfg.Implementation)
+		assert.Equal(t, "go", cfg.Runtime)
+		definition, ok := nativeuser.Lookup("native-tool")
+		require.True(t, ok)
+		out, callErr := definition.Handler(t.Context(), map[string]any{}, map[string]any{})
+		require.NoError(t, callErr)
+		assert.Equal(t, map[string]any{"ok": true}, out)
+	})
+
+	t.Run("Should require native handler when runtime is go", func(t *testing.T) {
+		nativeuser.Reset()
+		_, err := New(
+			t.Context(),
+			"native-tool-missing",
+			WithName("Missing Handler"),
+			WithDescription("Fails"),
+			WithRuntime("go"),
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "native handler")
+	})
+
+	t.Run("Should fail when native handler is nil", func(t *testing.T) {
+		nativeuser.Reset()
+		_, err := New(
+			t.Context(),
+			"native-tool-nil",
+			WithName("Nil Handler"),
+			WithDescription("Fails"),
+			WithNativeHandler(nil),
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "native handler")
 	})
 }
 

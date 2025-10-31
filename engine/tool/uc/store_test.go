@@ -62,3 +62,16 @@ func TestListTools_FilterByWorkflow(t *testing.T) {
 	assert.Len(t, out.Items, 1)
 	assert.Equal(t, "t1", out.Items[0]["id"])
 }
+
+func TestUpsert_RejectsNativeImplementation(t *testing.T) {
+	store := resources.NewMemoryResourceStore()
+	ctx := t.Context()
+	body := map[string]any{
+		"implementation": "native",
+		"name":           "Native Tool",
+		"description":    "Blocked",
+	}
+	_, err := NewUpsert(store).Execute(ctx, &UpsertInput{Project: "demo", ID: "native", Body: body})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrNativeImplementation)
+}

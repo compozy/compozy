@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/tool/inline"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 	sdkclient "github.com/compozy/compozy/sdk/v2/client"
@@ -48,7 +51,23 @@ func (e *Engine) Start(ctx context.Context) error {
 		e.recordStartError(err)
 		return err
 	}
+	inlineManager, err := e.initInlineManager(ctx, cfg, store)
+	if err != nil {
+		e.cleanupHTTPState(ctx, httpState)
+		e.cleanupStore(ctx, store)
+		cleanupErr := e.cleanupModeResources(ctx)
+		if cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("cleanup mode resources: %w", cleanupErr))
+		}
+		e.recordStartError(err)
+		return err
+	}
 	e.applyStartState(cfg, store, httpState)
+	if inlineManager != nil {
+		e.stateMu.Lock()
+		e.inlineManager = inlineManager
+		e.stateMu.Unlock()
+	}
 	if log := logger.FromContext(ctx); log != nil {
 		log.Info("engine started", "mode", string(e.mode), "base_url", httpState.baseURL)
 	}
@@ -101,6 +120,70 @@ func (e *Engine) startHTTPComponents(ctx context.Context, cfg *appconfig.Config)
 	}, nil
 }
 
+func (e *Engine) initInlineManager(
+	ctx context.Context,
+	cfg *appconfig.Config,
+	store resources.ResourceStore,
+) (*inline.Manager, error) {
+	if store == nil {
+		return nil, fmt.Errorf("resource store is required for inline manager")
+	}
+	projectName := projectNameOf(e.project)
+	if projectName == "" {
+		return nil, nil
+	}
+	root := strings.TrimSpace(cfg.CLI.CWD)
+	if root == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("resolve project root: %w", err)
+		}
+		root = wd
+	}
+	manager, err := inline.NewManager(ctx, inline.Options{
+		ProjectRoot:    root,
+		ProjectName:    projectName,
+		Store:          store,
+		UserEntrypoint: strings.TrimSpace(cfg.Runtime.EntrypointPath),
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := manager.Start(ctx); err != nil {
+		_ = manager.Close(ctx)
+		return nil, err
+	}
+	cfg.Runtime.EntrypointPath = manager.EntrypointPath()
+	return manager, nil
+}
+
+func (e *Engine) cleanupHTTPState(ctx context.Context, state *httpState) {
+	if state == nil {
+		return
+	}
+	if state.cancel != nil {
+		state.cancel()
+	}
+	if state.server != nil {
+		shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		if cancel != nil {
+			defer cancel()
+		}
+		if err := state.server.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			if log := logger.FromContext(ctx); log != nil {
+				log.Warn("failed to shutdown http server", "error", err)
+			}
+		}
+	}
+	if state.listener != nil {
+		if err := state.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			if log := logger.FromContext(ctx); log != nil {
+				log.Warn("failed to close listener", "error", err)
+			}
+		}
+	}
+}
+
 func (e *Engine) applyStartState(cfg *appconfig.Config, store resources.ResourceStore, httpState *httpState) {
 	e.stateMu.Lock()
 	e.resourceStore = store
@@ -131,6 +214,12 @@ func (e *Engine) Stop(ctx context.Context) error {
 		return e.stopErr
 	}
 	log := logger.FromContext(ctx)
+	inlineManager := e.takeInlineManager()
+	if inlineManager != nil {
+		if err := inlineManager.Close(ctx); err != nil && log != nil {
+			log.Warn("failed to close inline manager", "error", err)
+		}
+	}
 	state := e.detachStopState()
 	if state.cancel != nil {
 		state.cancel()
@@ -164,6 +253,14 @@ func (e *Engine) detachStopState() stopState {
 	e.port = 0
 	e.started = false
 	return state
+}
+
+func (e *Engine) takeInlineManager() *inline.Manager {
+	e.stateMu.Lock()
+	defer e.stateMu.Unlock()
+	manager := e.inlineManager
+	e.inlineManager = nil
+	return manager
 }
 
 func deriveShutdownContext(ctx context.Context, cfg *appconfig.Config) (context.Context, context.CancelFunc) {

@@ -81,6 +81,9 @@ linters:
           - unparam
         path: _test\.go
       - linters:
+          - funlen
+        path: sdk/examples
+      - linters:
           - dupl
         path: pkg/pb
       - linters:
