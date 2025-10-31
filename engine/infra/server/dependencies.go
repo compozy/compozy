@@ -429,13 +429,17 @@ func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
 	standalone := cfg.Temporal.Standalone
 	mode := cfg.EffectiveTemporalMode()
 	dbFile := strings.TrimSpace(standalone.DatabaseFile)
-	if dbFile == "" {
-		switch mode {
-		case config.ModePersistent:
+	switch mode {
+	case config.ModePersistent:
+		if dbFile == "" || dbFile == ":memory:" {
 			dbFile = "./.compozy/temporal.db"
-		case config.ModeMemory:
+		}
+	case config.ModeMemory:
+		if dbFile == "" {
 			dbFile = ":memory:"
-		default:
+		}
+	default:
+		if dbFile == "" {
 			dbFile = ":memory:"
 		}
 	}

@@ -120,6 +120,7 @@ func prepareProject(t *testing.T, projectName string) (*project.Config, string, 
 func prepareDatabase(t *testing.T, cfg *config.Config) *repo.Provider {
 	provider, cleanup := helpers.SetupTestDatabase(t)
 	t.Cleanup(cleanup)
+	cfg.Mode = config.ModeMemory
 	cfg.Database.Driver = "sqlite"
 	cfg.Database.Path = ":memory:"
 	cfg.Database.ConnString = ""

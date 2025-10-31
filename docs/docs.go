@@ -2071,7 +2071,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2275,7 +2275,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -3020,7 +3020,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {

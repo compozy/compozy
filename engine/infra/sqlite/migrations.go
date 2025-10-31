@@ -38,18 +38,16 @@ func ApplyMigrations(ctx context.Context, dbPath string) error {
 	}
 
 	gooseInitMu.Lock()
-	goose.SetBaseFS(migrationsFS)
-	if err := goose.SetDialect("sqlite3"); err != nil {
+	defer func() {
 		goose.SetBaseFS(nil)
 		gooseInitMu.Unlock()
+	}()
+	goose.SetBaseFS(migrationsFS)
+	if err := goose.SetDialect("sqlite3"); err != nil {
 		return fmt.Errorf("sqlite: set goose dialect: %w", err)
 	}
 	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
-		goose.SetBaseFS(nil)
-		gooseInitMu.Unlock()
 		return fmt.Errorf("sqlite: apply migrations: %w", err)
 	}
-	goose.SetBaseFS(nil)
-	gooseInitMu.Unlock()
 	return nil
 }

@@ -24,73 +24,75 @@ func newCacheTestContext(t *testing.T) (context.Context, *config.Manager) {
 }
 
 func TestSetupCache_MemoryMode_DisablesPersistence(t *testing.T) {
-	ctx, mgr := newCacheTestContext(t)
-	cfg := mgr.Get()
-	cfg.Mode = config.ModeMemory
-	cfg.Redis.Mode = ""
-	cfg.Redis.Standalone.Persistence.Enabled = true
-	cfg.Redis.Standalone.Persistence.DataDir = filepath.Join(t.TempDir(), "redis")
-
-	cache, cleanup, err := SetupCache(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, cleanup)
-	t.Cleanup(cleanup)
-
-	assert.NotNil(t, cache)
-	assert.NotNil(t, cache.Redis)
-	assert.NotNil(t, cache.embedded)
-	assert.Nil(t, cache.embedded.snapshot, "persistence should remain disabled")
-	assert.False(t, cfg.Redis.Standalone.Persistence.Enabled)
+	t.Run("Should disable persistence for memory mode", func(t *testing.T) {
+		ctx, mgr := newCacheTestContext(t)
+		cfg := mgr.Get()
+		cfg.Mode = config.ModeMemory
+		cfg.Redis.Mode = ""
+		cfg.Redis.Standalone.Persistence.Enabled = true
+		cfg.Redis.Standalone.Persistence.DataDir = filepath.Join(t.TempDir(), "redis")
+		cache, cleanup, err := SetupCache(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, cleanup)
+		t.Cleanup(cleanup)
+		assert.NotNil(t, cache)
+		assert.NotNil(t, cache.Redis)
+		assert.NotNil(t, cache.embedded)
+		assert.Nil(t, cache.embedded.snapshot, "persistence should remain disabled")
+		assert.False(t, cfg.Redis.Standalone.Persistence.Enabled)
+	})
 }
 
 func TestSetupCache_PersistentMode_Defaults(t *testing.T) {
-	ctx, mgr := newCacheTestContext(t)
-	cfg := mgr.Get()
-	cfg.Mode = config.ModePersistent
-	cfg.Redis.Mode = ""
-	cfg.Redis.Standalone.Persistence.Enabled = false
-	cfg.Redis.Standalone.Persistence.DataDir = ""
-
-	cache, cleanup, err := SetupCache(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, cleanup)
-	t.Cleanup(cleanup)
-
-	assert.NotNil(t, cache)
-	assert.NotNil(t, cache.Redis)
-	assert.NotNil(t, cache.embedded)
-	assert.NotNil(t, cache.embedded.snapshot, "persistence manager should be configured")
-	assert.True(t, cfg.Redis.Standalone.Persistence.Enabled)
-	assert.Equal(t, defaultPersistenceDataDir, cfg.Redis.Standalone.Persistence.DataDir)
+	t.Run("Should enable persistence with default settings", func(t *testing.T) {
+		ctx, mgr := newCacheTestContext(t)
+		cfg := mgr.Get()
+		cfg.Mode = config.ModePersistent
+		cfg.Redis.Mode = ""
+		cfg.Redis.Standalone.Persistence.Enabled = false
+		cfg.Redis.Standalone.Persistence.DataDir = ""
+		cache, cleanup, err := SetupCache(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, cleanup)
+		t.Cleanup(cleanup)
+		assert.NotNil(t, cache)
+		assert.NotNil(t, cache.Redis)
+		assert.NotNil(t, cache.embedded)
+		assert.NotNil(t, cache.embedded.snapshot, "persistence manager should be configured")
+		assert.True(t, cfg.Redis.Standalone.Persistence.Enabled)
+		assert.Equal(t, defaultPersistenceDataDir, cfg.Redis.Standalone.Persistence.DataDir)
+	})
 }
 
 func TestSetupCache_PersistentMode_CustomPersistence(t *testing.T) {
-	ctx, mgr := newCacheTestContext(t)
-	cfg := mgr.Get()
-	cfg.Mode = config.ModePersistent
-	cfg.Redis.Mode = config.ModePersistent
-	customDir := filepath.Join(t.TempDir(), "redis-data")
-	cfg.Redis.Standalone.Persistence.Enabled = true
-	cfg.Redis.Standalone.Persistence.DataDir = customDir
-
-	cache, cleanup, err := SetupCache(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, cleanup)
-	t.Cleanup(cleanup)
-
-	assert.NotNil(t, cache)
-	assert.NotNil(t, cache.embedded)
-	assert.NotNil(t, cache.embedded.snapshot)
-	assert.True(t, cfg.Redis.Standalone.Persistence.Enabled)
-	assert.Equal(t, customDir, cfg.Redis.Standalone.Persistence.DataDir)
+	t.Run("Should respect custom persistence directory", func(t *testing.T) {
+		ctx, mgr := newCacheTestContext(t)
+		cfg := mgr.Get()
+		cfg.Mode = config.ModePersistent
+		cfg.Redis.Mode = config.ModePersistent
+		customDir := filepath.Join(t.TempDir(), "redis-data")
+		cfg.Redis.Standalone.Persistence.Enabled = true
+		cfg.Redis.Standalone.Persistence.DataDir = customDir
+		cache, cleanup, err := SetupCache(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, cleanup)
+		t.Cleanup(cleanup)
+		assert.NotNil(t, cache)
+		assert.NotNil(t, cache.embedded)
+		assert.NotNil(t, cache.embedded.snapshot)
+		assert.True(t, cfg.Redis.Standalone.Persistence.Enabled)
+		assert.Equal(t, customDir, cfg.Redis.Standalone.Persistence.DataDir)
+	})
 }
 
 func TestSetupCache_DistributedMode_Error(t *testing.T) {
-	ctx, mgr := newCacheTestContext(t)
-	cfg := mgr.Get()
-	cfg.Mode = config.ModeDistributed
-	cfg.Redis.Mode = config.ModeDistributed
-	cfg.Redis.URL = "redis://invalid:0"
-	_, _, err := SetupCache(ctx)
-	assert.Error(t, err)
+	t.Run("Should return error for distributed mode", func(t *testing.T) {
+		ctx, mgr := newCacheTestContext(t)
+		cfg := mgr.Get()
+		cfg.Mode = config.ModeDistributed
+		cfg.Redis.Mode = config.ModeDistributed
+		cfg.Redis.URL = "redis://invalid:0"
+		_, _, err := SetupCache(ctx)
+		assert.Error(t, err)
+	})
 }

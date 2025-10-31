@@ -27,15 +27,7 @@ func forEachDriver(
 	for _, driver := range driverMatrix {
 		driver := driver
 		t.Run(fmt.Sprintf("%s/%s", name, driver), func(t *testing.T) {
-			var (
-				provider *repo.Provider
-				cleanup  func()
-			)
-			if driver == "postgres" {
-				provider, cleanup = helpers.SetupPostgresContainer(t)
-			} else {
-				provider, cleanup = helpers.SetupTestDatabase(t)
-			}
+			provider, cleanup := helpers.SetupTestDatabase(t, driver)
 			t.Cleanup(cleanup)
 			fn(t, driver, provider)
 		})
