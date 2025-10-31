@@ -12,7 +12,7 @@ import (
 )
 
 func TestShouldEmbedMCPProxy(t *testing.T) {
-	t.Run("ShouldEmbedStandaloneEvenWhenProxyURLIsConfigured", func(t *testing.T) {
+	t.Run("ShouldEmbedProxyEvenWhenProxyURLIsConfigured", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		mgr := config.NewManager(ctx, config.NewService())
 		_, err := mgr.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider())
@@ -40,7 +40,7 @@ func TestShouldEmbedMCPProxy(t *testing.T) {
 }
 
 func TestServerAfterMCPReady(t *testing.T) {
-	t.Run("ShouldOverrideProxyURLInStandaloneMode", func(t *testing.T) {
+	t.Run("ShouldOverrideProxyURLInEmbeddedMode", func(t *testing.T) {
 		cfg := config.Default()
 		cfg.MCPProxy.Mode = config.ModeMemory
 		cfg.LLM.ProxyURL = "http://localhost:6001"

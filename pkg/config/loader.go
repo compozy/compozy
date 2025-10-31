@@ -542,7 +542,7 @@ func validateEmbeddedTemporalStartTimeout(embedded *EmbeddedTemporalConfig) erro
 }
 
 // validateRedis performs validation for Redis configuration including
-// deployment mode requirements and standalone persistence settings.
+// deployment mode requirements and embedded persistence settings.
 func validateRedis(cfg *Config) error {
 	// Validate component mode values via struct tags; add friendly errors for clarity.
 	switch mode := strings.TrimSpace(cfg.Redis.Mode); mode {

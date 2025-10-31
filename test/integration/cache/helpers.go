@@ -35,17 +35,17 @@ type adapterCase struct {
 }
 
 // contractBackends returns the two backends under test:
-// - standalone: embedded miniredis via MiniredisEmbedded
-// - external: go-redis client talking to a standalone miniredis server
+// - embedded: in-process miniredis via MiniredisEmbedded
+// - external: go-redis client talking to a dedicated miniredis server
 func contractBackends(t *testing.T) []adapterCase {
 	t.Helper()
 	return []adapterCase{
 		{
-			name: "standalone",
+			name: "embedded",
 			build: func(ctx context.Context, t *testing.T) (cache.RedisInterface, func()) {
 				mr, err := cache.NewMiniredisEmbedded(ctx)
 				if err != nil {
-					t.Fatalf("standalone setup failed: %v", err)
+					t.Fatalf("embedded setup failed: %v", err)
 				}
 				// The embedded client already satisfies cache.RedisInterface (redis.Client implements it)
 				client := mr.Client()

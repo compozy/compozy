@@ -30,6 +30,6 @@ func TestMCPHealth_EndpointExposed(t *testing.T) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/health", http.NoBody)
 	r.ServeHTTP(w, req)
-	// On a fresh standalone server (without MCP ready), health should be not ready
+	// On a fresh embedded server (without MCP ready), health should be not ready
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }

@@ -32,7 +32,7 @@ var (
 	ErrNegativeTimeout       = errors.New("timeout must be non-negative")
 )
 
-// Runner executes standalone tasks synchronously using the DirectExecutor pipeline.
+// Runner executes tasks in embedded mode synchronously using the DirectExecutor pipeline.
 type Runner struct {
 	state *appstate.State
 	repo  task.Repository
