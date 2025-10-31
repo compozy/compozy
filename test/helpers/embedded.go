@@ -18,17 +18,17 @@ import (
 )
 
 // ResourceStoreTestEnv encapsulates a Redis-backed resource store environment
-// running in standalone (embedded miniredis) mode for integration tests.
+// running in embedded (miniredis-backed) mode for integration tests.
 type ResourceStoreTestEnv struct {
 	Cache   *cache.Cache
 	Store   resources.ResourceStore
 	Cleanup func()
 }
 
-// SetupStandaloneResourceStore creates a RedisResourceStore backed by the
-// standalone (embedded) Redis using the mode-aware cache factory. It assumes
+// SetupEmbeddedResourceStore creates a RedisResourceStore backed by the
+// embedded Redis using the mode-aware cache factory. It assumes
 // the provided context comes from t.Context().
-func SetupStandaloneResourceStore(ctx context.Context, t *testing.T) *ResourceStoreTestEnv {
+func SetupEmbeddedResourceStore(ctx context.Context, t *testing.T) *ResourceStoreTestEnv {
 	t.Helper()
 	// Ensure logger and config are present in context for all code paths.
 	if logger.FromContext(ctx) == nil {
@@ -71,7 +71,7 @@ func SetupStandaloneResourceStore(ctx context.Context, t *testing.T) *ResourceSt
 }
 
 // StreamingTestEnv encapsulates Redis Pub/Sub testing utilities backed by the
-// standalone (embedded) miniredis instance created via the mode-aware factory.
+// embedded miniredis instance created via the mode-aware factory.
 // It exposes convenience helpers that use native go-redis Pub/Sub types.
 type StreamingTestEnv struct {
 	Cache   *cache.Cache
@@ -80,10 +80,10 @@ type StreamingTestEnv struct {
 	Cleanup func()
 }
 
-// SetupStandaloneStreaming creates a StreamingTestEnv using embedded miniredis.
+// SetupEmbeddedStreaming creates a StreamingTestEnv using embedded miniredis.
 // It enforces that logger and configuration are present in the context and
-// forces the Redis mode to "standalone" to exercise the Miniredis backend.
-func SetupStandaloneStreaming(ctx context.Context, t *testing.T) *StreamingTestEnv {
+// forces the Redis mode to embedded to exercise the Miniredis backend.
+func SetupEmbeddedStreaming(ctx context.Context, t *testing.T) *StreamingTestEnv {
 	t.Helper()
 	if logger.FromContext(ctx) == nil {
 		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
@@ -190,10 +190,10 @@ type PersistenceTestEnv struct {
 	Cleanup         func(context.Context)
 }
 
-// SetupStandaloneWithPersistence creates a miniredis instance, attaches a
+// SetupEmbeddedWithPersistence creates a miniredis instance, attaches a
 // SnapshotManager backed by BadgerDB at dataDir, and returns a go-redis client
 // connected to the server. Context must come from t.Context().
-func SetupStandaloneWithPersistence(
+func SetupEmbeddedWithPersistence(
 	ctx context.Context,
 	t *testing.T,
 	persistCfg config.RedisPersistenceConfig,
@@ -241,10 +241,10 @@ func SetupStandaloneWithPersistence(
 	return env
 }
 
-// SetupStandaloneWithPeriodicSnapshots is a convenience around
-// SetupStandaloneWithPersistence that configures a custom snapshot interval and
+// SetupEmbeddedWithPeriodicSnapshots is a convenience around
+// SetupEmbeddedWithPersistence that configures a custom snapshot interval and
 // starts periodic snapshots.
-func SetupStandaloneWithPeriodicSnapshots(
+func SetupEmbeddedWithPeriodicSnapshots(
 	ctx context.Context,
 	t *testing.T,
 	dataDir string,
@@ -258,7 +258,7 @@ func SetupStandaloneWithPeriodicSnapshots(
 		SnapshotOnShutdown: true,
 		RestoreOnStartup:   false,
 	}
-	env := SetupStandaloneWithPersistence(ctx, t, cfg)
+	env := SetupEmbeddedWithPersistence(ctx, t, cfg)
 	env.SnapshotManager.StartPeriodicSnapshots(ctx)
 	return env
 }

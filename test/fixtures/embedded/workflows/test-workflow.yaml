@@ -8,7 +8,8 @@ schemas:
     properties:
       name:
         type: string
-    required: [name]
+    required:
+      - name
 
 config:
   input: input_schema
@@ -20,4 +21,3 @@ tasks:
     prompt: |
       Greet the person named {{ .workflow.input.name }} in one short sentence.
     final: true
-

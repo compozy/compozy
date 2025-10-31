@@ -64,7 +64,7 @@ func TestMultipleStartCalls(t *testing.T) {
 		cfg := newEmbeddedConfigFromDefaults()
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		err := server.Start(ctx)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "already started")
@@ -82,7 +82,7 @@ func TestMultipleStopCalls(t *testing.T) {
 		cfg := newEmbeddedConfigFromDefaults()
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		firstStopCtx, firstCancel := context.WithTimeout(context.WithoutCancel(ctx), 20*time.Second)
 		require.NoError(t, server.Stop(firstStopCtx))
 		firstCancel()
@@ -103,7 +103,7 @@ func TestConcurrentRequests(t *testing.T) {
 		cfg := newEmbeddedConfigFromDefaults()
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		lifecycleClient := dialTemporalClient(t, server.FrontendAddress(), cfg.Namespace)
 		defer closeTemporalClient(t, lifecycleClient)
 		lifecycleWorker := worker.New(lifecycleClient, lifecycleTaskQueue, worker.Options{})
@@ -161,7 +161,7 @@ func TestServerRestartCycle(t *testing.T) {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
 
-	t.Run("Should restart standalone server without data loss", func(t *testing.T) {
+	t.Run("Should restart embedded server without data loss", func(t *testing.T) {
 		t.Helper()
 		dbPath := filepath.Join(t.TempDir(), "temporal-restart.db")
 		for i := 0; i < 2; i++ {
@@ -170,7 +170,7 @@ func TestServerRestartCycle(t *testing.T) {
 			cfg.EnableUI = false
 			cfg.DatabaseFile = dbPath
 			cfg.FrontendPort = findAvailablePortRange(cycleCtx, t, 4)
-			server := startStandaloneServer(cycleCtx, t, cfg)
+			server := startEmbeddedServer(cycleCtx, t, cfg)
 			exec := executeTestWorkflow(cycleCtx, t, server.FrontendAddress(), cfg.Namespace)
 			require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
 			stopTemporalServer(cycleCtx, t, server)

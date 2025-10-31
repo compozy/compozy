@@ -1,4 +1,4 @@
-package standalone
+package embedded
 
 // GenerateLargeString returns a deterministic string of the requested size.
 func GenerateLargeString(n int) string {

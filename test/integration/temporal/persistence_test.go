@@ -11,7 +11,7 @@ import (
 	enumspb "go.temporal.io/api/enums/v1"
 )
 
-func TestStandalonePersistence(t *testing.T) {
+func TestEmbeddedPersistence(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
@@ -23,7 +23,7 @@ func TestStandalonePersistence(t *testing.T) {
 		cfg.DatabaseFile = dbPath
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		workflowID := "persistent-workflow"
 		firstRun, err := runWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace, workflowID)
 		require.NoError(t, err)
@@ -36,7 +36,7 @@ func TestStandalonePersistence(t *testing.T) {
 		restartCfg.EnableUI = false
 		restartCfg.FrontendPort = findAvailablePortRange(restartCtx, t, 4)
 		restartCfg.Namespace = cfg.Namespace
-		restarted := startStandaloneServer(restartCtx, t, restartCfg)
+		restarted := startEmbeddedServer(restartCtx, t, restartCfg)
 		t.Cleanup(func() {
 			stopTemporalServer(restartCtx, t, restarted)
 		})

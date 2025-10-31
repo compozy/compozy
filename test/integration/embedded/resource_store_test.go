@@ -1,4 +1,4 @@
-package standalone
+package embedded
 
 import (
 	"errors"
@@ -20,7 +20,7 @@ const rshort = 1 * time.Second
 func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 	t.Run("Should support TxPipeline atomic operations", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceAgent, ID: "writer"}
@@ -60,7 +60,7 @@ func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should support optimistic locking via PutIfMatch Lua script", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceModel, ID: "gpt"}
@@ -84,7 +84,7 @@ func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should maintain ETag consistency across operations", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceSchema, ID: "schema1"}
@@ -105,7 +105,7 @@ func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should handle concurrent resource updates correctly", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceTool, ID: "tool1"}
@@ -148,7 +148,7 @@ func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should publish watch notifications via Pub/Sub", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceAgent, ID: "watchme"}
@@ -185,7 +185,7 @@ func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should handle error cases gracefully", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		missing := resources.ResourceKey{Project: "proj", Type: resources.ResourceSchema, ID: "missing"}
@@ -211,7 +211,7 @@ func TestResourceStore_MiniredisCompatibility(t *testing.T) {
 func TestResourceStore_MultipleSubscribersReceiveNotifications(t *testing.T) {
 	t.Run("Should deliver updates to multiple subscribers", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceTool, ID: "fanout"}
@@ -258,7 +258,7 @@ func generateTestResource(id string, v int) map[string]any {
 func TestResourceStore_ListWithValuesConsistency(t *testing.T) {
 	t.Run("Should return items with consistent ETags", func(t *testing.T) {
 		ctx := helpers.NewTestContext(t)
-		env := helpers.SetupStandaloneResourceStore(ctx, t)
+		env := helpers.SetupEmbeddedResourceStore(ctx, t)
 		defer env.Cleanup()
 
 		for i := 0; i < 5; i++ {

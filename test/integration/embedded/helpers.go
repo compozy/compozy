@@ -1,4 +1,4 @@
-package standalone
+package embedded
 
 import (
 	"context"

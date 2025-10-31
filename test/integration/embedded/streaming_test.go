@@ -1,4 +1,4 @@
-package standalone
+package embedded
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 func TestStreaming_MiniredisCompatibility(t *testing.T) {
 	t.Run("Should publish and subscribe to events", func(t *testing.T) {
 		ctx := t.Context()
-		env := helpers.SetupStandaloneStreaming(ctx, t)
+		env := helpers.SetupEmbeddedStreaming(ctx, t)
 		defer env.Cleanup()
 
 		t.Log("Testing publish/subscribe using embedded miniredis backend")
@@ -57,7 +57,7 @@ func TestStreaming_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should support pattern subscriptions", func(t *testing.T) {
 		ctx := t.Context()
-		env := helpers.SetupStandaloneStreaming(ctx, t)
+		env := helpers.SetupEmbeddedStreaming(ctx, t)
 		defer env.Cleanup()
 
 		events := make(chan string, 10)
@@ -93,7 +93,7 @@ func TestStreaming_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should support multiple subscribers", func(t *testing.T) {
 		ctx := t.Context()
-		env := helpers.SetupStandaloneStreaming(ctx, t)
+		env := helpers.SetupEmbeddedStreaming(ctx, t)
 		defer env.Cleanup()
 
 		const numSubscribers = 5
@@ -120,7 +120,7 @@ func TestStreaming_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should deliver events reliably", func(t *testing.T) {
 		ctx := t.Context()
-		env := helpers.SetupStandaloneStreaming(ctx, t)
+		env := helpers.SetupEmbeddedStreaming(ctx, t)
 		defer env.Cleanup()
 
 		events := make(chan string, 256)
@@ -169,7 +169,7 @@ func TestStreaming_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should handle subscription lifecycle", func(t *testing.T) {
 		ctx := t.Context()
-		env := helpers.SetupStandaloneStreaming(ctx, t)
+		env := helpers.SetupEmbeddedStreaming(ctx, t)
 		defer env.Cleanup()
 
 		sub := env.SubscribeRaw(ctx, "lifecycle")
@@ -196,7 +196,7 @@ func TestStreaming_MiniredisCompatibility(t *testing.T) {
 
 	t.Run("Should handle error cases gracefully", func(t *testing.T) {
 		ctx := t.Context()
-		env := helpers.SetupStandaloneStreaming(ctx, t)
+		env := helpers.SetupEmbeddedStreaming(ctx, t)
 		defer env.Cleanup()
 
 		// Invalid pattern (empty) should error at helper level

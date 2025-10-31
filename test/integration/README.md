@@ -17,7 +17,7 @@ Integration tests now default to the in-memory SQLite driver via the shared help
 These suites continue to exercise PostgreSQL because they rely on dialect-specific features:
 
 - `test/integration/store/migrations_test.go` — validates PostgreSQL schema migrations, index metadata, and `information_schema` state.
-- `test/integration/standalone` helpers (memory mode env) — run embedded services end-to-end with full infrastructure wiring.
+- `test/integration/embedded` helpers (memory mode env) — run embedded services end-to-end with full infrastructure wiring.
 - `engine/infra/server/dependencies_integration_test.go` — covers server dependency bootstrapping with PostgreSQL.
 
 ## Key Helper Changes

@@ -1,4 +1,4 @@
-package standalone
+package embedded
 
 import (
 	"fmt"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	fixtures "github.com/compozy/compozy/test/fixtures/standalone"
+	fixtures "github.com/compozy/compozy/test/fixtures/embedded"
 	helpers "github.com/compozy/compozy/test/helpers"
 
 	"github.com/compozy/compozy/engine/infra/cache"
@@ -40,7 +40,7 @@ func TestPersistence_FullCycle(t *testing.T) {
 				SnapshotOnShutdown: true,
 				RestoreOnStartup:   false,
 			}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			for k, v := range dataset {
 				require.NoError(t, env.Client.Set(ctx, k, v, 0).Err())
 			}
@@ -56,7 +56,7 @@ func TestPersistence_FullCycle(t *testing.T) {
 				SnapshotOnShutdown: false,
 				RestoreOnStartup:   false,
 			}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			defer env.Cleanup(ctx)
 			require.NoError(t, env.SnapshotManager.Restore(ctx))
 			for k, expected := range dataset {
@@ -79,7 +79,7 @@ func TestPersistence_FullCycle(t *testing.T) {
 				SnapshotOnShutdown: true,
 				RestoreOnStartup:   false,
 			}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			// Restore any previous snapshot to simulate a true restart cycle
 			_ = env.SnapshotManager.Restore(ctx)
 			key := fmt.Sprintf("cycle:%d", cycle)
@@ -89,7 +89,7 @@ func TestPersistence_FullCycle(t *testing.T) {
 		}
 
 		cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-		env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+		env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 		defer env.Cleanup(ctx)
 		require.NoError(t, env.SnapshotManager.Restore(ctx))
 		for cycle := 1; cycle <= 3; cycle++ {
@@ -108,7 +108,7 @@ func TestPersistence_FailureHandling(t *testing.T) {
 		dataDir := t.TempDir()
 
 		cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-		env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+		env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 		defer env.Cleanup(ctx)
 
 		require.NoError(t, env.Client.Set(ctx, "key1", "value1", 0).Err())
@@ -136,7 +136,7 @@ func TestPersistence_FailureHandling(t *testing.T) {
 		// Phase 1: create a valid snapshot
 		{
 			cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			require.NoError(t, env.Client.Set(ctx, "key1", "value1", 0).Err())
 			require.NoError(t, env.SnapshotManager.Snapshot(ctx))
 			env.Cleanup(ctx)
@@ -173,7 +173,7 @@ func TestPersistence_FailureHandling(t *testing.T) {
 		{
 			freshDir := filepath.Join(t.TempDir(), "fresh")
 			cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: freshDir}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			defer env.Cleanup(ctx)
 			_, err := env.Client.Get(ctx, "key1").Result()
 			assert.Error(t, err)
@@ -189,7 +189,7 @@ func TestPersistence_PeriodicSnapshots(t *testing.T) {
 		ctx = logger.ContextWithLogger(ctx, logger.NewForTests())
 		dataDir := t.TempDir()
 
-		env := helpers.SetupStandaloneWithPeriodicSnapshots(ctx, t, dataDir, 200*time.Millisecond)
+		env := helpers.SetupEmbeddedWithPeriodicSnapshots(ctx, t, dataDir, 200*time.Millisecond)
 
 		var writes atomic.Int64
 		stop := make(chan struct{})
@@ -216,7 +216,7 @@ func TestPersistence_PeriodicSnapshots(t *testing.T) {
 		// Restart and restore
 		env.Cleanup(ctx)
 		cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-		env2 := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+		env2 := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 		defer env2.Cleanup(ctx)
 		require.NoError(t, env2.SnapshotManager.Restore(ctx))
 
@@ -242,7 +242,7 @@ func TestPersistence_GracefulShutdown_And_StartupRestore(t *testing.T) {
 		// Phase 1: create data and simulate graceful shutdown snapshot
 		{
 			cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			for i := 0; i < 100; i++ {
 				key := fmt.Sprintf("key:%d", i)
 				require.NoError(t, env.Client.Set(ctx, key, fmt.Sprintf("value:%d", i), 0).Err())
@@ -255,7 +255,7 @@ func TestPersistence_GracefulShutdown_And_StartupRestore(t *testing.T) {
 		// Phase 2: restore and verify
 		{
 			cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			defer env.Cleanup(ctx)
 			require.NoError(t, env.SnapshotManager.Restore(ctx))
 			for i := 0; i < 100; i++ {
@@ -276,7 +276,7 @@ func TestPersistence_GracefulShutdown_And_StartupRestore(t *testing.T) {
 		dataset := fixtures.GenerateKVData("cold", 50)
 		{
 			cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			for _, kv := range dataset {
 				require.NoError(t, env.Client.Set(ctx, kv.Key, kv.Value, 0).Err())
 			}
@@ -287,7 +287,7 @@ func TestPersistence_GracefulShutdown_And_StartupRestore(t *testing.T) {
 		// Simulate startup restore by creating a new manager and calling Restore
 		{
 			cfg := config.RedisPersistenceConfig{Enabled: true, DataDir: dataDir}
-			env := helpers.SetupStandaloneWithPersistence(ctx, t, cfg)
+			env := helpers.SetupEmbeddedWithPersistence(ctx, t, cfg)
 			defer env.Cleanup(ctx)
 			require.NoError(t, env.SnapshotManager.Restore(ctx))
 			m := fixtures.ToMap(dataset)

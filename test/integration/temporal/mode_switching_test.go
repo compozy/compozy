@@ -75,7 +75,7 @@ func TestEmbeddedModeActivation(t *testing.T) {
 		cfg.Temporal.Standalone.Namespace = cfg.Temporal.Namespace
 		cfg.Temporal.Standalone.FrontendPort = findAvailablePortRange(ctx, t, 4)
 		embeddedCfg := toEmbeddedConfig(&cfg.Temporal.Standalone)
-		server := startStandaloneServer(ctx, t, embeddedCfg)
+		server := startEmbeddedServer(ctx, t, embeddedCfg)
 		t.Cleanup(func() {
 			stopTemporalServer(ctx, t, server)
 		})

@@ -1,4 +1,4 @@
-package standalone
+package embedded
 
 import (
 	"strconv"
@@ -19,7 +19,7 @@ import (
 func TestMemory_WorkflowE2E(t *testing.T) {
 	t.Run("Should execute complete workflow with agent and tasks", func(t *testing.T) {
 		ctx := t.Context()
-		env := SetupMemoryTestEnv(t, "test/fixtures/standalone/workflows/test-workflow.yaml")
+		env := SetupMemoryTestEnv(t, "test/fixtures/embedded/workflows/test-workflow.yaml")
 		defer env.Cleanup()
 
 		// Trigger workflow and wait for completion
@@ -42,7 +42,7 @@ func TestMemory_WorkflowE2E(t *testing.T) {
 
 	t.Run("Should execute 12 workflows concurrently without interference", func(t *testing.T) {
 		ctx := t.Context()
-		env := SetupMemoryTestEnv(t, "test/fixtures/standalone/workflows/test-workflow.yaml")
+		env := SetupMemoryTestEnv(t, "test/fixtures/embedded/workflows/test-workflow.yaml")
 		defer env.Cleanup()
 
 		type result struct {

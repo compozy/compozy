@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	testTaskQueue   = "temporal-standalone-integration"
+	testTaskQueue   = "temporal-embedded-integration"
 	workflowTimeout = 30 * time.Second
 )
 
@@ -40,7 +40,7 @@ type workflowInput struct {
 	Name string `json:"name"`
 }
 
-func TestStandaloneMemoryMode(t *testing.T) {
+func TestEmbeddedMemoryMode(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
@@ -52,13 +52,13 @@ func TestStandaloneMemoryMode(t *testing.T) {
 		cfg.DatabaseFile = filepath.Join(t.TempDir(), fmt.Sprintf("temporal-%s.db", uuid.NewString()))
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
 		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
 	})
 }
 
-func TestStandaloneFileMode(t *testing.T) {
+func TestEmbeddedFileMode(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
@@ -71,7 +71,7 @@ func TestStandaloneFileMode(t *testing.T) {
 		cfg.DatabaseFile = dbPath
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
 		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
 		require.Eventually(t, func() bool {
@@ -81,7 +81,7 @@ func TestStandaloneFileMode(t *testing.T) {
 	})
 }
 
-func TestStandaloneCustomPorts(t *testing.T) {
+func TestEmbeddedCustomPorts(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
@@ -94,14 +94,14 @@ func TestStandaloneCustomPorts(t *testing.T) {
 		cfg.DatabaseFile = filepath.Join(t.TempDir(), fmt.Sprintf("temporal-%s.db", uuid.NewString()))
 		cfg.FrontendPort = frontendPort
 		cfg.EnableUI = false
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		require.Equal(t, fmt.Sprintf("%s:%d", cfg.BindIP, cfg.FrontendPort), server.FrontendAddress())
 		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
 		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
 	})
 }
 
-func TestStandaloneWorkflowExecution(t *testing.T) {
+func TestEmbeddedWorkflowExecution(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping temporal integration tests in short mode")
 	}
@@ -113,7 +113,7 @@ func TestStandaloneWorkflowExecution(t *testing.T) {
 		cfg.DatabaseFile = filepath.Join(t.TempDir(), fmt.Sprintf("temporal-%s.db", uuid.NewString()))
 		cfg.EnableUI = false
 		cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
-		server := startStandaloneServer(ctx, t, cfg)
+		server := startEmbeddedServer(ctx, t, cfg)
 		exec := executeTestWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace)
 		require.Equal(t, strings.ToUpper(exec.Input), exec.Result)
 		desc, err := describeWorkflow(ctx, t, server.FrontendAddress(), cfg.Namespace, exec.WorkflowID, exec.RunID)
@@ -122,7 +122,7 @@ func TestStandaloneWorkflowExecution(t *testing.T) {
 	})
 }
 
-func startStandaloneServer(ctx context.Context, t *testing.T, cfg *embedded.Config) *embedded.Server {
+func startEmbeddedServer(ctx context.Context, t *testing.T, cfg *embedded.Config) *embedded.Server {
 	t.Helper()
 	server, err := embedded.NewServer(ctx, cfg)
 	require.NoError(t, err)
@@ -153,7 +153,7 @@ func executeTestWorkflow(
 		id = workflowID[0]
 	}
 	if id == "" {
-		id = fmt.Sprintf("standalone-%s", uuid.NewString())
+		id = fmt.Sprintf("embedded-%s", uuid.NewString())
 	}
 	exec, err := runWorkflow(ctx, t, address, namespace, id)
 	require.NoError(t, err)

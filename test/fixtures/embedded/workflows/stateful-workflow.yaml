@@ -10,7 +10,9 @@ schemas:
         type: string
       message:
         type: string
-    required: [user_id, message]
+    required:
+      - user_id
+      - message
 
 config:
   input: user_input
@@ -38,4 +40,3 @@ tasks:
     prompt: |
       Acknowledge the previous confirmation: {{ .with.previous }}
     final: true
-
