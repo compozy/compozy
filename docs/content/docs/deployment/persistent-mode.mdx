@@ -30,13 +30,13 @@ Persistent mode is still a single-process deployment. It shares the same through
 
 <List>
   <ListItem title="Database" icon="Database">
-    File-backed SQLite (<InlineCode>mode: persistent</InlineCode>) stored at <InlineCode>./.compozy/compozy.db</InlineCode> by default.
+    File-backed SQLite (`mode: persistent`) stored at `./.compozy/compozy.db` by default.
   </ListItem>
   <ListItem title="Temporal" icon="GitBranch">
-    Embedded Temporal server (<InlineCode>temporal.mode: persistent</InlineCode>) with data stored in <InlineCode>./.compozy/temporal.db</InlineCode>.
+    Embedded Temporal server (`temporal.mode: persistent`) with data stored in `./.compozy/temporal.db`.
   </ListItem>
   <ListItem title="Redis" icon="Layers">
-    Embedded Redis-compatible cache (<InlineCode>redis.mode: persistent</InlineCode>) with BadgerDB snapshots in <InlineCode>./.compozy/redis/</InlineCode>.
+    Embedded Redis-compatible cache (`redis.mode: persistent`) with BadgerDB snapshots in `./.compozy/redis/`.
   </ListItem>
 </List>
 
@@ -69,7 +69,7 @@ redis:
   standalone:
     persistence:
       enabled: true
-      dir: ./.compozy/redis
+      data_dir: ./.compozy/redis
       snapshot_interval: 60s
       snapshot_on_shutdown: true
 
@@ -90,9 +90,9 @@ You should see `compozy.db`, `temporal.db`, and a `redis/` directory after the f
 
 | Path | Purpose |
 | ---- | ------- |
-| <InlineCode>./.compozy/compozy.db</InlineCode> | Primary SQLite database for Compozy metadata |
-| <InlineCode>./.compozy/temporal.db</InlineCode> | Temporal history and visibility store |
-| <InlineCode>./.compozy/redis/</InlineCode> | Redis snapshot files for cache persistence |
+| `./.compozy/compozy.db` | Primary SQLite database for Compozy metadata |
+| `./.compozy/temporal.db` | Temporal history and visibility store |
+| `./.compozy/redis/` | Redis snapshot files for cache persistence |
 
 Add `.compozy/` to your `.gitignore` to avoid committing local state.
 
@@ -122,8 +122,8 @@ For automated backups, schedule a cron job or CI workflow to copy the directory 
 ## Troubleshooting
 
 - Directory not created: ensure the process has write access to the project folder.
-- Redis snapshot errors: double-check <InlineCode>redis.standalone.persistence.dir</InlineCode> permissions and available disk space.
-- Temporal startup timeout: raise <InlineCode>temporal.standalone.start_timeout</InlineCode> for slower machines or busy CI runners.
+- Redis snapshot errors: double-check `redis.standalone.persistence.data_dir` permissions and available disk space.
+- Temporal startup timeout: raise `temporal.standalone.start_timeout` for slower machines or busy CI runners.
 
 ## Next Steps
 

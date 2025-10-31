@@ -5,7 +5,7 @@ icon: LifeBuoy
 ---
 
 <Callout type="info">
-Most issues surface when running standalone mode because the Temporal server shares ports and resources with your local machine. Start here before escalating to Temporal logs.
+Most issues surface when running memory or persistent modes because the embedded Temporal server shares ports and resources with your local machine. Start here before escalating to Temporal logs.
 </Callout>
 
 ## Quick Diagnostics
@@ -63,7 +63,7 @@ Most issues surface when running standalone mode because the Temporal server sha
 
 ## Startup Timeouts
 
-If you see `standalone Temporal failed to start within 30s`:
+If you see `failed to start embedded Temporal server` errors:
 
 - Increase `temporal.standalone.start_timeout` (e.g. `60s`) for slower laptops or CI.
 - Check that the host ports are free; Temporal will not start if they are already bound.
@@ -72,12 +72,12 @@ If you see `standalone Temporal failed to start within 30s`:
 ## Temporal UI Not Accessible
 
 - Confirm `enable_ui: true` and that the UI port is open.
-- For standalone mode, open `http://127.0.0.1:<ui_port>`. If you bound to `0.0.0.0`, use the machine IP explicitly.
+- For embedded modes, open `http://127.0.0.1:<ui_port>`. If you bound to `0.0.0.0`, use the machine IP explicitly.
 - Behind reverse proxies, configure allowed hosts and TLS termination before exposing the UI to other users.
 
 ## Performance & Throughput
 
-- Standalone mode uses SQLite and a single worker process—expect lower throughput than production clusters.
+- Memory and persistent modes use SQLite and a single worker process—expect lower throughput than production clusters.
 - To simulate production load, switch to remote mode against a staging Temporal cluster.
 - Monitor metrics via Compozy’s Prometheus endpoint; look for high `workflow_task_schedule_to_start_latency` when load grows.
 
@@ -88,7 +88,7 @@ If you see `standalone Temporal failed to start within 30s`:
     Attach Compozy and Temporal logs when filing an issue.
   </ListItem>
   <ListItem title="Record configuration" icon="ClipboardList">
-    Include `temporal` and `standalone` sections of `compozy.yaml` and any CLI overrides you used.
+    Include `temporal` configuration (especially the `standalone` block) and any CLI overrides you used.
   </ListItem>
   <ListItem title="Note versions" icon="Tag">
     Provide the Compozy version, Go runtime version, and Temporal server version if running remotely.
@@ -100,13 +100,13 @@ If you see `standalone Temporal failed to start within 30s`:
 <ReferenceCardList>
   <ReferenceCard
     title="Temporal Modes"
-    description="Decide when to use remote or standalone"
+    description="Decide when to use memory, persistent, or distributed"
     href="/docs/deployment/temporal-modes"
     icon="GitBranch"
   />
   <ReferenceCard
     title="Embedded Temporal"
-    description="Understand how standalone services are composed"
+    description="Understand how embedded services are composed"
     href="/docs/architecture/embedded-temporal"
     icon="Layers"
   />

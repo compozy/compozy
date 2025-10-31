@@ -5,7 +5,7 @@ icon: Shield
 ---
 
 <Callout type="error">
-Standalone mode is optimized for development and testing only. Production deployments **must** use the remote mode backed by a highly available Temporal cluster.
+Memory and persistent modes are optimized for development and testing only. Production deployments **must** use the distributed mode backed by a highly available Temporal cluster.
 </Callout>
 
 ## Deployment Checklist
@@ -51,14 +51,14 @@ For staging environments that mimic production, follow the same PostgreSQL confi
 
 ## Recommended Configuration
 
-Configure remote mode explicitly in your project configuration. Compozy will refuse to start if `temporal.mode` is missing in production builds.
+Configure distributed mode explicitly in your project configuration. Compozy will refuse to start if `temporal.mode` is missing in production builds.
 
 ```yaml title="compozy.yaml"
 server:
   environment: production
 
 temporal:
-  mode: remote
+  mode: distributed
   host_port: temporal.my-company.internal:7233
   namespace: compozy-prod
   task_queue: compozy-tasks
@@ -71,7 +71,7 @@ runtime:
 COMPOZY_CONFIG_FILE=./compozy.yaml \
   compozy start \
     --format json \
-    --temporal-mode=remote \
+    --temporal-mode=distributed \
     --temporal-host=temporal.my-company.internal:7233
 ```
 
@@ -119,7 +119,7 @@ Validate the remote Temporal cluster before switching traffic. Run `compozy diag
     <TableRow>
       <TableHead>Criterion</TableHead>
       <TableHead>Choose Distributed</TableHead>
-      <TableHead>Choose Standalone</TableHead>
+      <TableHead>Choose Embedded (memory/persistent)</TableHead>
     </TableRow>
   </TableHeader>
   <TableBody>
@@ -147,7 +147,7 @@ Refer to [Mode Configuration](/docs/configuration/mode-configuration) for inheri
 ## Migration Tips
 
 - Plan a low-traffic maintenance window.
-- Update `temporal.mode` to `remote` in configuration management.
+- Update `temporal.mode` to `distributed` in configuration management.
 - Point workers to the production Temporal cluster.
 - Restart Compozy servers to pick up the new configuration.
 - Monitor workflow metrics and queues closely for the first 30 minutes.
@@ -157,7 +157,7 @@ Refer to [Mode Configuration](/docs/configuration/mode-configuration) for inheri
 <ReferenceCardList>
   <ReferenceCard
     title="Temporal Modes"
-    description="Compare remote and standalone modes with migration steps"
+    description="Compare memory, persistent, and distributed modes with migration steps"
     href="/docs/deployment/temporal-modes"
     icon="GitBranch"
   />

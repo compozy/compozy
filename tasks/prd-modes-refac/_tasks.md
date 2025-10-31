@@ -38,7 +38,7 @@
 - [x] 3.0 Update Embedded Temporal Package (S)
 - [x] 4.0 Rename Test Functions, Files & Update Test Cases (M)
 - [x] 5.0 Standardize Comments & Log Messages (M)
-- [ ] 6.0 Documentation Update (M)
+- [x] 6.0 Documentation Update (M)
 - [ ] 7.0 Examples & Schema Regeneration (S)
 
 Notes on sizing:

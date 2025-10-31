@@ -5,18 +5,18 @@ icon: Settings
 ---
 
 <Callout type="info">
-Temporal configuration is split into **mode selection** and **standalone overrides**. Remote mode connects to an external cluster; standalone mode boots `temporal.NewServer()` inside the process for local development and CI.
+`temporal.mode` accepts `memory`, `persistent`, or `distributed`. Memory and persistent launch the embedded Temporal server (`temporal.standalone` block), while distributed connects to an external cluster. The legacy value `remote` is still accepted and normalized to `distributed`.
 </Callout>
 
 ## Configuration Structure
 
 ```yaml title="compozy.yaml"
 temporal:
-  mode: remote | standalone
+  mode: memory | persistent | distributed
   host_port: localhost:7233
   namespace: default
   task_queue: compozy-tasks
-  standalone:
+  standalone: # Embedded server options for memory/persistent modes
     database_file: :memory:
     frontend_port: 7233
     bind_ip: 127.0.0.1
@@ -41,12 +41,17 @@ temporal:
   <TableBody>
     <TableRow>
       <TableCell>`mode`</TableCell>
-      <TableCell>`remote` (default) uses an external Temporal cluster. `standalone` starts the embedded Temporal server.</TableCell>
-      <TableCell>`remote`</TableCell>
+      <TableCell>
+        Chooses deployment strategy. Accepted values:
+        `memory` (embed Temporal in-memory),
+        `persistent` (embed Temporal with file-backed storage),
+        `distributed` (connect to an external cluster). The alias `remote` maps to `distributed`.
+      </TableCell>
+      <TableCell>`memory` (via global defaults)</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`host_port`</TableCell>
-      <TableCell>Temporal endpoint in `host:port` format. Overridden automatically when `mode=standalone`.</TableCell>
+      <TableCell>Temporal endpoint in `host:port` format. For embedded modes this value is derived from `bind_ip` and `frontend_port`.</TableCell>
       <TableCell>`localhost:7233`</TableCell>
     </TableRow>
     <TableRow>
@@ -56,17 +61,17 @@ temporal:
     </TableRow>
     <TableRow>
       <TableCell>`task_queue`</TableCell>
-      <TableCell>Primary task queue that Compozy workers poll.</TableCell>
+      <TableCell>Primary task queue polled by Compozy workers.</TableCell>
       <TableCell>`compozy-tasks`</TableCell>
     </TableRow>
   </TableBody>
 </Table>
 
 <Callout type="warning">
-When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Update downstream services (like external workers) to use the new address if you expose it beyond localhost.
+When `mode` resolves to memory or persistent, the runtime rewrites `host_port` to `<bind_ip>:<frontend_port>`. Update external workers accordingly if you expose the embedded server beyond localhost.
 </Callout>
 
-## Standalone Options
+## Embedded Options (`temporal.standalone`)
 
 <Table>
   <TableHeader>
@@ -79,12 +84,12 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
   <TableBody>
     <TableRow>
       <TableCell>`database_file`</TableCell>
-      <TableCell>SQLite path. Use `:memory:` for ephemeral instances or a file path for persistence.</TableCell>
+      <TableCell>SQLite path. Use `:memory:` for ephemeral runs or provide a file path for persistence.</TableCell>
       <TableCell>`:memory:`</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`frontend_port`</TableCell>
-      <TableCell>Anchors the port block used by Temporal services (frontend + history + matching + worker).</TableCell>
+      <TableCell>Anchors the Temporal service port block (frontend + history + matching + worker).</TableCell>
       <TableCell>`7233`</TableCell>
     </TableRow>
     <TableRow>
@@ -99,12 +104,12 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
     </TableRow>
     <TableRow>
       <TableCell>`cluster_name`</TableCell>
-      <TableCell>Cluster identifier for the embedded server. Useful when inspecting metrics or logs.</TableCell>
+      <TableCell>Cluster identifier used in logs and metrics.</TableCell>
       <TableCell>`compozy-standalone`</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`enable_ui`</TableCell>
-      <TableCell>Toggle the Temporal Web UI bundled with standalone mode.</TableCell>
+      <TableCell>Toggle the Temporal Web UI bundled with embedded modes.</TableCell>
       <TableCell>`true`</TableCell>
     </TableRow>
     <TableRow>
@@ -130,8 +135,8 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
 <Table>
   <TableHeader>
     <TableRow>
-      <TableHead>Config Path</TableHead>
-      <TableHead>Environment Variable</TableHead>
+      <TableHead>Path</TableHead>
+      <TableHead>Environment</TableHead>
       <TableHead>CLI Flag</TableHead>
     </TableRow>
   </TableHeader>
@@ -208,7 +213,7 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
 
 <List>
   <ListItem title="Mode enum" icon="CheckCircle">
-    Only `remote` and `standalone` are accepted values for `temporal.mode`.
+    `temporal.mode` accepts `memory`, `persistent`, `distributed`, or legacy `remote` (normalized to `distributed`).
   </ListItem>
   <ListItem title="Port ranges" icon="Gauge">
     `frontend_port` and `ui_port` must be between 1 and 65535. `frontend_port` reserves a block of four contiguous ports.
@@ -226,11 +231,11 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
 
 ## Usage Patterns
 
-<Tabs items={["Remote", "Standalone"]}>
+<Tabs items={["Distributed", "Memory", "Persistent"]}>
   <Tab>
 
-  ```bash title="Remote mode deployment"
-  export TEMPORAL_MODE=remote
+  ```bash title="Distributed deployment"
+  export TEMPORAL_MODE=distributed
   export TEMPORAL_HOST_PORT=temporal.prod.internal:7233
   compozy start --temporal-namespace=compozy-prod
   ```
@@ -238,9 +243,18 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
   </Tab>
   <Tab>
 
-  ```bash title="Standalone mode development"
-  export TEMPORAL_MODE=standalone
-  export TEMPORAL_EMBEDDED_DATABASE_FILE=./.tmp/temporal.db
+  ```bash title="Memory mode development"
+  export TEMPORAL_MODE=memory
+  export TEMPORAL_EMBEDDED_DATABASE_FILE=:memory:
+  compozy start --temporal-standalone-frontend-port=9733 --temporal-standalone-ui-port=9833
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```bash title="Persistent local workflow lab"
+  export TEMPORAL_MODE=persistent
+  export TEMPORAL_EMBEDDED_DATABASE_FILE=./.compozy/temporal.db
   compozy start --temporal-standalone-frontend-port=9733 --temporal-standalone-ui-port=9833
   ```
 
@@ -252,7 +266,7 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
 <ReferenceCardList cols={2}>
   <ReferenceCard
     title="Temporal Modes"
-    description="Compare remote and standalone deployments"
+    description="Compare memory, persistent, and distributed deployments"
     href="/docs/deployment/temporal-modes"
     icon="GitBranch"
   />

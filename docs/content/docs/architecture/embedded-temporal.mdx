@@ -1,11 +1,11 @@
 ---
 title: "Embedded Temporal"
-description: "Deep dive into the embedded Temporal server that powers standalone mode."
+description: "Deep dive into the embedded Temporal server that powers memory and persistent modes."
 icon: Layers
 ---
 
 <Callout type="info">
-Standalone mode embeds the official Temporal server inside the Compozy process. It spins up the same four microservices you deploy in production—just scoped to the developer machine.
+Memory and persistent modes embed the official Temporal server inside the Compozy process. They spin up the same four microservices you deploy in production—just scoped to the developer machine.
 </Callout>
 
 ## Component Topology
@@ -72,12 +72,12 @@ Standalone mode embeds the official Temporal server inside the Compozy process. 
 ## Port Allocation Strategy
 
 - `frontend_port` anchors the service block; History, Matching, and Worker consume the next three sequential ports.
-- Ports bind to `standalone.bind_ip` (defaults to `127.0.0.1`). Override the IP when running inside containers that expose additional interfaces.
+- Ports bind to `temporal.standalone.bind_ip` (defaults to `127.0.0.1`). Override the IP when running inside containers that expose additional interfaces.
 - Adjust `frontend_port` to avoid conflicts, for example when other Temporal stacks are already listening on 7233.
 
 ```yaml title="Custom port block"
 temporal:
-  mode: standalone
+  mode: persistent
   standalone:
     frontend_port: 9733   # Services listen on 9733-9736
     bind_ip: 0.0.0.0      # Use cautiously; exposes gRPC outside loopback
@@ -120,10 +120,10 @@ Use file-backed SQLite in CI if you need to inspect workflow history after a fai
     `maybeStartEmbeddedTemporal` evaluates `temporal.mode`. When set to `memory` or `persistent`, it constructs Temporal configuration, assigns deterministic host settings, and launches the server using `server.NewServer()`.
   </Step>
   <Step title="Health checks">
-    Startup waits for the frontend service to accept gRPC connections. The wait is bounded by `standalone.start_timeout` (default `30s`).
+    Startup waits for the frontend service to accept gRPC connections. The wait is bounded by `temporal.standalone.start_timeout` (default `30s`).
   </Step>
   <Step title="Registration">
-    On first boot, the embedded server creates the configured namespace (`standalone.namespace`) and cluster name (`standalone.cluster_name`).
+    On first boot, the embedded server creates the configured namespace (`temporal.standalone.namespace`) and cluster name (`temporal.standalone.cluster_name`).
   </Step>
   <Step title="Shutdown">
     Compozy stops the worker pool and gracefully closes the Temporal server, flushing SQLite WAL files to disk when applicable.
@@ -132,17 +132,17 @@ Use file-backed SQLite in CI if you need to inspect workflow history after a fai
 
 ## Logging & Observability
 
-- `standalone.log_level` controls Temporal server logging (`debug`, `info`, `warn`, `error`). Logs flow through `logger.FromContext(ctx)`.
+- `temporal.standalone.log_level` controls Temporal server logging (`debug`, `info`, `warn`, `error`). Logs flow through `logger.FromContext(ctx)`.
 - The embedded UI exposes workflow executions, task queues, and history events via `http://localhost:8233`.
 - Prometheus metrics are emitted on the same process; scrape the Compozy metrics endpoint to monitor Temporal internals during development.
 
 ## Security Considerations
 
 <Callout type="warning">
-Standalone mode intentionally trades durability and network isolation for convenience. Do not share the embedded SQLite database between users, and never expose the Temporal UI without authentication.
+Embedded modes intentionally trade durability and network isolation for convenience. Do not share the embedded SQLite database between users, and never expose the Temporal UI without authentication.
 </Callout>
 
-- Keep `bind_ip` on loopback unless you understand the risk profile.
+- Keep `temporal.standalone.bind_ip` on loopback unless you understand the risk profile.
 - Use non-default namespaces and task queues when multiple developers share a Temporal cluster.
 - Reset the SQLite file after workshops to avoid leaking PII in workflow payloads.
 

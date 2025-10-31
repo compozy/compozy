@@ -9,7 +9,7 @@ Memory mode starts Compozy with an in-memory SQLite database plus embedded Tempo
 </Callout>
 
 <Callout type="tip">
-Previously called <InlineCode>standalone</InlineCode>. Use the migration guide if you still see that name in older configs.
+Previously called `standalone`. Use the migration guide if you still see that name in older configs.
 </Callout>
 
 ## When to Choose Memory Mode
@@ -34,19 +34,19 @@ Memory mode keeps state in RAM. Restarting the process clears Temporal history a
 
 <List>
   <ListItem title="Database" icon="Database">
-    In-memory SQLite (<InlineCode>mode: memory</InlineCode>) for the primary application database. No files are written to disk.
+    In-memory SQLite (`mode: memory`) for the primary application database. No files are written to disk.
   </ListItem>
   <ListItem title="Temporal" icon="GitBranch">
-    Embedded Temporal server (<InlineCode>temporal.mode: memory</InlineCode>) with optional UI on port 8233.
+    Embedded Temporal server (`temporal.mode: memory`) with optional UI on port 8233.
   </ListItem>
   <ListItem title="Redis" icon="Layers">
-    Embedded Redis-compatible cache (<InlineCode>redis.mode: memory</InlineCode>) implemented with Miniredis. Persistence is disabled.
+    Embedded Redis-compatible cache (`redis.mode: memory`) implemented with Miniredis. Persistence is disabled.
   </ListItem>
 </List>
 
 ## Quick Start
 
-Create <InlineCode>compozy.yaml</InlineCode> with memory mode for every component.
+Create `compozy.yaml` with memory mode for every component.
 
 ```yaml title="compozy.yaml"
 name: hello-memory
@@ -122,7 +122,7 @@ redis:
   standalone:
     persistence:
       enabled: true
-      dir: /tmp/compozy-snapshots
+      data_dir: /tmp/compozy-snapshots
       snapshot_interval: 60s
 ```
 
@@ -144,15 +144,15 @@ redis:
 
 - Startup: typically under one second on modern laptops
 - Throughput: limited by single-process concurrency; keep write-heavy workloads small
-- Temporal UI: convenient for debugging, disable in CI for faster boots (<InlineCode>enable_ui: false</InlineCode>)
+- Temporal UI: convenient for debugging, disable in CI for faster boots (`enable_ui: false`)
 
 ## Troubleshooting
 
 Common issues and fixes:
 
-- Port conflict on <InlineCode>7233–7236</InlineCode> or <InlineCode>8233</InlineCode>: Adjust <InlineCode>temporal.standalone.frontend_port</InlineCode> or <InlineCode>ui_port</InlineCode>.
-- Temporal fails to start: Increase <InlineCode>temporal.standalone.start_timeout</InlineCode> (e.g. <InlineCode>60s</InlineCode>) for slower machines.
-- Snapshot errors: Verify <InlineCode>redis.standalone.persistence.dir</InlineCode> write permissions.
+- Port conflict on `7233–7236` or `8233`: Adjust `temporal.standalone.frontend_port` or `ui_port`.
+- Temporal fails to start: Increase `temporal.standalone.start_timeout` (e.g. `60s`) for slower machines.
+- Snapshot errors: Verify `redis.standalone.persistence.data_dir` write permissions.
 
 See [Temporal Troubleshooting](/docs/troubleshooting/temporal) and [Common Issues](/docs/troubleshooting/common-issues).
 

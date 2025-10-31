@@ -1,25 +1,24 @@
 ---
 title: "Common Issues"
-description: "Frequent problems and quick resolutions for standalone and distributed modes."
+description: "Frequent problems and quick resolutions for memory, persistent, and distributed modes."
 icon: LifeBuoy
 ---
 
-## Redis in Standalone Mode
+## Redis in Embedded Modes
 
 - Connection refused / ECONNRESET: ensure the Compozy process is running; embedded cache shares the process lifecycle
-- Snapshot failures: verify `redis.standalone.persistence.dir` exists and is writable; validate `interval` format
-- Slowdowns during tests: disable snapshots or increase `interval`
+- Snapshot failures: verify `redis.standalone.persistence.data_dir` exists and is writable; validate `snapshot_interval` format
+- Slowdowns during tests: disable snapshots or increase `snapshot_interval`
 
 ## Mode Validation Errors
 
-- Unknown mode: only `standalone`, `distributed` (and `remote` for Temporal) are accepted
+- Unknown mode: only `memory`, `persistent`, and `distributed` (plus legacy `remote` for Temporal) are accepted
 - Missing required fields: e.g., `redis.distributed.addr` must be set when `redis.mode=distributed`
 - Conflicting overrides: remove duplicate fields when switching modes
 
-## Temporal Standalone
+## Embedded Temporal
 
-- Port conflicts on `7233–7236` or UI `8233`: change `frontend_port`/`ui_port`
+- Port conflicts on `7233–7236` or UI `8233`: change `temporal.standalone.frontend_port`/`temporal.standalone.ui_port`
 - Startup timeout: increase `temporal.standalone.start_timeout`
 
 See also: [Temporal Troubleshooting](/docs/troubleshooting/temporal)
-

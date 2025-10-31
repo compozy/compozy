@@ -1,19 +1,20 @@
 ---
 title: "Redis Configuration"
-description: "Configure the cache layer for distributed and standalone modes."
+description: "Configure the cache layer for memory, persistent, and distributed modes."
 icon: Database
 ---
 
-Compozy’s cache layer supports two modes:
+Compozy’s cache layer supports three deployment modes:
 
-- `distributed`: connect to an external Redis instance (production/staging)
-- `standalone`: run an embedded, Redis‑compatible server with optional snapshots (development/CI)
+- `memory`: embedded Redis with in-memory storage for zero-dependency workflows
+- `persistent`: embedded Redis with on-disk snapshots for durable local state
+- `distributed`: external Redis for shared staging and production environments
 
 ## Configuration Structure
 
 ```yaml title="compozy.yaml"
 redis:
-  mode: distributed | standalone
+  mode: memory | persistent | distributed
 
   distributed:
     addr: localhost:6379
@@ -23,15 +24,15 @@ redis:
       enabled: false
       insecure_skip_verify: false
 
-  standalone:
+  standalone: # Embedded Redis options used by memory and persistent modes
     persistence:
       enabled: false
-      dir: ./.tmp/redis
-      interval: 60s
+      data_dir: ./.tmp/redis
+      snapshot_interval: 60s
 ```
 
 <Callout type="info">
-Mode resolution: `redis.mode` (if set) → global `mode` → default `distributed`.
+Mode resolution: `redis.mode` (if set) → global `mode` (if set) → default `memory`.
 </Callout>
 
 ## Distributed Mode (External Redis)
@@ -57,46 +58,58 @@ redis:
 | `redis.distributed.password` | `REDIS_PASSWORD` |
 | `redis.distributed.db` | `REDIS_DB` |
 
-## Standalone Mode (Embedded)
+## Embedded Modes (Memory & Persistent)
 
-Runs a Redis‑compatible server inside the Compozy process.
+Memory and persistent modes run an embedded Redis‑compatible server inside the Compozy process. The `redis.standalone` block configures optional persistence shared by both modes.
 
 ```yaml
+# Ephemeral memory mode (default)
 redis:
-  mode: standalone
+  mode: memory
   standalone:
     persistence:
       enabled: true
-      dir: ./.tmp/redis
-      interval: 30s
+      snapshot_interval: 60s
+
+# File-backed persistent mode
+redis:
+  mode: persistent
+  standalone:
+    persistence:
+      enabled: true
+      data_dir: ./.compozy/redis
+      snapshot_interval: 30s
+      snapshot_on_shutdown: true
 ```
 
 ### Persistence Options
 
 - `enabled`: turn on periodic snapshots for CI scenarios that need restarts
-- `dir`: where snapshots are stored; ensure the process can write here
-- `interval`: snapshot frequency (`time.Duration` syntax)
+- `data_dir`: where snapshots are stored; ensure the process can write here
+- `snapshot_interval`: snapshot frequency (`time.Duration` syntax)
+- `snapshot_on_shutdown`: flush final snapshot during graceful shutdown
+- `restore_on_startup`: automatically reload snapshots when the process starts
 
 <Callout type="warning">
-Standalone mode is single‑process and not HA. Use it only for dev/CI.
+Embedded modes are single‑process and not HA. Use them for development and CI only.
 </Callout>
 
 ## Performance Tuning
 
 - Prefer `distributed` with managed Redis for high throughput
-- For `standalone`, disable snapshots in tight loops to minimize I/O
+- For embedded modes, disable snapshots in tight loops to minimize I/O
 - Use separate DB indexes (`db`) per tenant in shared dev boxes
 
 ## Monitoring & Metrics
 
 - In distributed mode, use `INFO`, latency monitors, and your provider’s dashboards
-- In standalone, observe Compozy logs; enable debug logs when diagnosing cache behavior
+- In embedded modes, monitor Compozy logs; enable debug logs when diagnosing cache behavior
 
 ## Troubleshooting
 
-- "connection refused" (standalone): ensure the process owns the snapshot `dir` and no port conflicts
+- "connection refused" (embedded): ensure the process owns the snapshot directory and no port conflicts
 - Authentication failures (distributed): verify `password` and TLS settings
-- Snapshot errors: validate `interval` format and directory permissions
+- Snapshot errors: validate `snapshot_interval` format and directory permissions
 
 ## See Also
 
@@ -108,9 +121,15 @@ Standalone mode is single‑process and not HA. Use it only for dev/CI.
     icon="GitBranch"
   />
   <ReferenceCard
-    title="Standalone Deployment"
-    description="End‑to‑end single‑process setup"
+    title="Memory Mode Deployment"
+    description="Zero-dependency local environment"
     href="/docs/deployment/memory-mode"
     icon="Rocket"
+  />
+  <ReferenceCard
+    title="Persistent Mode Deployment"
+    description="Embedded services with on-disk durability"
+    href="/docs/deployment/persistent-mode"
+    icon="Folder"
   />
 </ReferenceCardList>

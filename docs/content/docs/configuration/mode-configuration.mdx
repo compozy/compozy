@@ -7,20 +7,20 @@ icon: GitBranch
 Compozy supports three deployment modes—`memory`, `persistent`, and `distributed`—so you can match infrastructure to each environment while keeping a single configuration format.
 
 <Callout type="info">
-`memory` is the default mode. If you omit the global <InlineCode>mode</InlineCode>, Compozy resolves to the in-memory profile.
+`memory` is the default mode. If you omit the global `mode`, Compozy resolves to the in-memory profile.
 </Callout>
 
 ## Overview
 
 <List>
   <ListItem title="Global mode" icon="Globe2">
-    Set <InlineCode>mode: memory|persistent|distributed</InlineCode> at the root to establish the default for all components.
+    Set `mode: memory|persistent|distributed` at the root to establish the default for all components.
   </ListItem>
   <ListItem title="Component overrides" icon="Settings">
-    Temporal, Redis, the MCP proxy, and other services may declare their own <InlineCode>mode</InlineCode> values to diverge from the global default.
+    Temporal, Redis, the MCP proxy, and other services may declare their own `mode` values to diverge from the global default.
   </ListItem>
   <ListItem title="Resolution order" icon="ListChecks">
-    Component mode (if set) → global <InlineCode>mode</InlineCode> (if set) → built-in default (`memory`).
+    Component mode (if set) → global `mode` (if set) → built-in default (`memory`).
   </ListItem>
 </List>
 
@@ -52,7 +52,7 @@ mcp_proxy:
 ```
 
 <Callout type="tip">
-Temporal uses <InlineCode>remote</InlineCode> internally when you select <InlineCode>distributed</InlineCode>. You can keep existing <InlineCode>mode: remote</InlineCode> values; they resolve the same way.
+Temporal uses `remote` internally when you select `distributed`. You can keep existing `mode: remote` values; they resolve the same way.
 </Callout>
 
 ## Mode Options
@@ -99,7 +99,7 @@ redis:
   standalone:
     persistence:
       enabled: true
-      dir: ./.compozy/redis
+      data_dir: ./.compozy/redis
 ```
 
 ### distributed
