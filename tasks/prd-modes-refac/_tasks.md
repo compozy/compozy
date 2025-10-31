@@ -35,7 +35,7 @@
 
 - [x] 1.0 Core Configuration & Server Functions Refactoring (L)
 - [x] 2.0 Rename Cache Layer Functions & Types (S)
-- [ ] 3.0 Update Embedded Temporal Package (S)
+- [x] 3.0 Update Embedded Temporal Package (S)
 - [ ] 4.0 Rename Test Functions, Files & Update Test Cases (M)
 - [ ] 5.0 Standardize Comments & Log Messages (M)
 - [ ] 6.0 Documentation Update (M)
