@@ -24,7 +24,7 @@
 - [x] 2.0 Implement code generation pipeline for SDK resources (L)
 - [x] 3.0 Build engine core lifecycle and client integration (L)
 - [x] 4.0 Deliver standalone and distributed mode orchestration (L)
-- [ ] 5.0 Implement resource loading and validation layer (M)
+- [x] 5.0 Implement resource loading and validation layer (M)
 - [ ] 6.0 Complete Test Coverage (M)
 
 Notes on sizing:
@@ -55,5 +55,5 @@ Notes
 ## Batch Plan (Grouped Commits)
 
 - [x] Batch 1 — Foundation & Codegen: 1.0, 2.0
-- [ ] Batch 2 — Engine & Runtime: 3.0, 4.0, 5.0
+- [x] Batch 2 — Engine & Runtime: 3.0, 4.0, 5.0
 - [ ] Batch 3 — Test Coverage: 6.0

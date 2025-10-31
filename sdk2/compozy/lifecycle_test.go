@@ -2,6 +2,7 @@ package compozy
 
 import (
 	"context"
+	"net"
 	"testing"
 
 	"github.com/compozy/compozy/engine/resources"
@@ -83,5 +84,17 @@ func lifecycleTestContext(t *testing.T) context.Context {
 	_, err := manager.Load(ctx, appconfig.NewDefaultProvider())
 	require.NoError(t, err)
 	ctx = appconfig.ContextWithManager(ctx, manager)
+	cfg := appconfig.FromContext(ctx)
+	require.NotNil(t, cfg)
+	for {
+		ln, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		port := ln.Addr().(*net.TCPAddr).Port
+		require.NoError(t, ln.Close())
+		if port <= 64535 {
+			cfg.Temporal.Standalone.FrontendPort = port
+			break
+		}
+	}
 	return ctx
 }
