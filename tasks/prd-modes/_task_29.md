@@ -1,6 +1,6 @@
 # Task 29.0: Make Template Generation Mode-Aware
 
-## status: pending
+## status: completed
 
 <task_context>
 <phase>Phase 5: Template System</phase>
@@ -79,11 +79,11 @@ Update the "basic" template to generate mode-appropriate configuration files, wi
 ### 29.1 Update compozy.yaml Template
 **File**: `pkg/template/templates/basic/compozy.yaml.tmpl`
 
-- [ ] Add mode-specific configuration sections
-- [ ] Memory mode: Minimal config, explicit :memory: database
-- [ ] Persistent mode: File paths for database and persistence
-- [ ] Distributed mode: External service placeholders with env vars
-- [ ] Add comments explaining mode-specific settings
+- [x] Add mode-specific configuration sections
+- [x] Memory mode: Minimal config, explicit :memory: database
+- [x] Persistent mode: File paths for database and persistence
+- [x] Distributed mode: External service placeholders with env vars
+- [x] Add comments explaining mode-specific settings
 
 **Implementation**:
 ```yaml
@@ -175,10 +175,10 @@ server:
 ### 29.2 Conditional Docker Compose Generation
 **File**: `pkg/template/templates/basic/basic.go`
 
-- [ ] Check if mode is "distributed" before generating docker-compose
-- [ ] Skip docker-compose.yaml for memory and persistent modes
-- [ ] Update file generation logic
-- [ ] Log skipped files for transparency
+- [x] Check if mode is "distributed" before generating docker-compose
+- [x] Skip docker-compose.yaml for memory and persistent modes
+- [x] Update file generation logic
+- [x] Log skipped files for transparency
 
 **Implementation**:
 ```go
@@ -205,11 +205,11 @@ func (t *BasicTemplate) Generate(opts GenerateOptions) error {
 ### 29.3 Update README Template
 **File**: `pkg/template/templates/basic/README.md.tmpl`
 
-- [ ] Add mode-specific quick start sections
-- [ ] Memory mode: Instant startup instructions
-- [ ] Persistent mode: State preservation notes
-- [ ] Distributed mode: Docker setup instructions
-- [ ] Add mode switching guide
+- [x] Add mode-specific quick start sections
+- [x] Memory mode: Instant startup instructions
+- [x] Persistent mode: State preservation notes
+- [x] Distributed mode: Docker setup instructions
+- [x] Add mode switching guide
 
 **Implementation**:
 ```markdown
@@ -289,10 +289,10 @@ To switch to a different mode:
 ### 29.4 Update Environment Variables Template
 **File**: `pkg/template/templates/basic/env.example.tmpl`
 
-- [ ] Add mode-specific environment variables
-- [ ] Memory mode: Minimal env vars
-- [ ] Persistent mode: Optional data directory overrides
-- [ ] Distributed mode: Required external service connections
+- [x] Add mode-specific environment variables
+- [x] Memory mode: Minimal env vars
+- [x] Persistent mode: Optional data directory overrides
+- [x] Distributed mode: Required external service connections
 
 **Implementation**:
 ```bash
@@ -337,9 +337,9 @@ REDIS_DB=0
 ### 29.5 Update .gitignore Template
 **File**: `pkg/template/templates/basic/gitignore.tmpl`
 
-- [ ] Add .compozy/ directory for persistent mode
-- [ ] Mode-agnostic ignores (node_modules, .env)
-- [ ] Keep minimal and clean
+- [x] Add .compozy/ directory for persistent mode
+- [x] Mode-agnostic ignores (node_modules, .env)
+- [x] Keep minimal and clean
 
 **Implementation**:
 ```gitignore

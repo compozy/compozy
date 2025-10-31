@@ -9,6 +9,8 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
+
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // generator implements the template generation logic
@@ -25,6 +27,7 @@ func newGenerator() *generator {
 
 // Generate creates a project from the specified template
 func (g *generator) Generate(templateName string, opts *GenerateOptions) error {
+	log := logger.FromContext(opts.Context)
 	tmpl, err := g.registry.get(templateName)
 	if err != nil {
 		return fmt.Errorf("failed to get template: %w", err)
@@ -45,13 +48,21 @@ func (g *generator) Generate(templateName string, opts *GenerateOptions) error {
 	projectConfig := tmpl.GetProjectConfig(opts)
 	files := tmpl.GetFiles()
 	if dockerTemplate, ok := tmpl.(DockerTemplate); ok && opts.DockerSetup {
+		if opts.Mode == "distributed" {
+			log.Info("including docker-compose.yaml", "template", templateName, "mode", opts.Mode)
+		} else {
+			log.Info("skipping docker-compose.yaml for mode", "template", templateName, "mode", opts.Mode)
+		}
 		files = dockerTemplate.GetFilesWithOptions(opts)
+	} else if opts.DockerSetup {
+		log.Info("docker setup requested but template has no docker support", "template", templateName, "mode", opts.Mode)
 	}
 	for _, file := range files {
 		if err := g.createFile(opts.Path, file, projectConfig); err != nil {
 			return fmt.Errorf("failed to create file %s: %w", file.Name, err)
 		}
 	}
+	log.Info("template generation complete", "template", templateName, "mode", opts.Mode)
 	return nil
 }
 

@@ -89,7 +89,7 @@ Replace the current two-mode system (standalone/distributed) with a three-mode s
 
 - [x] **27.0** Add Mode Selection to TUI Form [M] - 0.5 days
 - [x] **28.0** Update Template System Types for Mode [S] - 0.5 days
-- **29.0** Make Template Generation Mode-Aware [L] - 1 day
+- [x] **29.0** Make Template Generation Mode-Aware [L] - 1 day
 
 **Duration**: 1 day (with parallelization)
 **Parallel Lanes**: 2 (tasks 27.0 and 28.0 can run in parallel, then 29.0)
