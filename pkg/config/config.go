@@ -582,45 +582,45 @@ type TemporalConfig struct {
 	TaskQueue string `koanf:"task_queue" env:"TEMPORAL_TASK_QUEUE" json:"task_queue" yaml:"task_queue" mapstructure:"task_queue"`
 
 	// Standalone configures the embedded Temporal server used by memory and persistent modes.
-	Standalone StandaloneConfig `koanf:"standalone" env_prefix:"TEMPORAL_STANDALONE" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
+	Standalone EmbeddedTemporalConfig `koanf:"standalone" env_prefix:"TEMPORAL_EMBEDDED" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
 }
 
-// StandaloneConfig configures the embedded Temporal server that powers memory and persistent modes.
+// EmbeddedTemporalConfig configures the embedded Temporal server that powers memory and persistent modes.
 //
 // These options mirror the embedded server configuration so users can manage development
 // and test environments without touching production settings.
-type StandaloneConfig struct {
+type EmbeddedTemporalConfig struct {
 	// DatabaseFile specifies the SQLite database location.
 	//
 	// Use ":memory:" for ephemeral storage or provide a file path for persistence.
-	DatabaseFile string `koanf:"database_file" env:"TEMPORAL_STANDALONE_DATABASE_FILE" json:"database_file" yaml:"database_file" mapstructure:"database_file"`
+	DatabaseFile string `koanf:"database_file" env:"TEMPORAL_EMBEDDED_DATABASE_FILE" json:"database_file" yaml:"database_file" mapstructure:"database_file"`
 
 	// FrontendPort sets the gRPC port for the Temporal frontend service.
-	FrontendPort int `koanf:"frontend_port" env:"TEMPORAL_STANDALONE_FRONTEND_PORT" json:"frontend_port" yaml:"frontend_port" mapstructure:"frontend_port"`
+	FrontendPort int `koanf:"frontend_port" env:"TEMPORAL_EMBEDDED_FRONTEND_PORT" json:"frontend_port" yaml:"frontend_port" mapstructure:"frontend_port"`
 
 	// BindIP determines the IP address Temporal services bind to.
-	BindIP string `koanf:"bind_ip" env:"TEMPORAL_STANDALONE_BIND_IP" json:"bind_ip" yaml:"bind_ip" mapstructure:"bind_ip"`
+	BindIP string `koanf:"bind_ip" env:"TEMPORAL_EMBEDDED_BIND_IP" json:"bind_ip" yaml:"bind_ip" mapstructure:"bind_ip"`
 
 	// Namespace specifies the default namespace created on startup.
-	Namespace string `koanf:"namespace" env:"TEMPORAL_STANDALONE_NAMESPACE" json:"namespace" yaml:"namespace" mapstructure:"namespace"`
+	Namespace string `koanf:"namespace" env:"TEMPORAL_EMBEDDED_NAMESPACE" json:"namespace" yaml:"namespace" mapstructure:"namespace"`
 
 	// ClusterName customizes the Temporal cluster name for embedded deployments.
-	ClusterName string `koanf:"cluster_name" env:"TEMPORAL_STANDALONE_CLUSTER_NAME" json:"cluster_name" yaml:"cluster_name" mapstructure:"cluster_name"`
+	ClusterName string `koanf:"cluster_name" env:"TEMPORAL_EMBEDDED_CLUSTER_NAME" json:"cluster_name" yaml:"cluster_name" mapstructure:"cluster_name"`
 
 	// EnableUI toggles the Temporal Web UI server.
-	EnableUI bool `koanf:"enable_ui" env:"TEMPORAL_STANDALONE_ENABLE_UI" json:"enable_ui" yaml:"enable_ui" mapstructure:"enable_ui"`
+	EnableUI bool `koanf:"enable_ui" env:"TEMPORAL_EMBEDDED_ENABLE_UI" json:"enable_ui" yaml:"enable_ui" mapstructure:"enable_ui"`
 
 	// RequireUI enforces UI availability; startup fails when UI cannot be launched.
-	RequireUI bool `koanf:"require_ui" env:"TEMPORAL_STANDALONE_REQUIRE_UI" json:"require_ui" yaml:"require_ui" mapstructure:"require_ui"`
+	RequireUI bool `koanf:"require_ui" env:"TEMPORAL_EMBEDDED_REQUIRE_UI" json:"require_ui" yaml:"require_ui" mapstructure:"require_ui"`
 
 	// UIPort sets the HTTP port for the Temporal Web UI.
-	UIPort int `koanf:"ui_port" env:"TEMPORAL_STANDALONE_UI_PORT" json:"ui_port" yaml:"ui_port" mapstructure:"ui_port"`
+	UIPort int `koanf:"ui_port" env:"TEMPORAL_EMBEDDED_UI_PORT" json:"ui_port" yaml:"ui_port" mapstructure:"ui_port"`
 
 	// LogLevel controls Temporal server logging verbosity.
-	LogLevel string `koanf:"log_level" env:"TEMPORAL_STANDALONE_LOG_LEVEL" json:"log_level" yaml:"log_level" mapstructure:"log_level"`
+	LogLevel string `koanf:"log_level" env:"TEMPORAL_EMBEDDED_LOG_LEVEL" json:"log_level" yaml:"log_level" mapstructure:"log_level"`
 
 	// StartTimeout defines the maximum startup wait duration.
-	StartTimeout time.Duration `koanf:"start_timeout" env:"TEMPORAL_STANDALONE_START_TIMEOUT" json:"start_timeout" yaml:"start_timeout" mapstructure:"start_timeout"`
+	StartTimeout time.Duration `koanf:"start_timeout" env:"TEMPORAL_EMBEDDED_START_TIMEOUT" json:"start_timeout" yaml:"start_timeout" mapstructure:"start_timeout"`
 }
 
 // RuntimeConfig contains runtime behavior configuration.
@@ -1430,11 +1430,11 @@ type RedisConfig struct {
 	TLSConfig *tls.Config `koanf:"-" json:"-" yaml:"-" mapstructure:"-"`
 
 	// Standalone config defines embedded Redis options used in memory and persistent modes.
-	Standalone RedisStandaloneConfig `koanf:"standalone" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
+	Standalone EmbeddedRedisConfig `koanf:"standalone" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
 }
 
-// RedisStandaloneConfig defines options for the embedded Redis used by memory and persistent modes.
-type RedisStandaloneConfig struct {
+// EmbeddedRedisConfig defines options for the embedded Redis used by memory and persistent modes.
+type EmbeddedRedisConfig struct {
 	// Persistence configures optional snapshot persistence for embedded Redis.
 	Persistence RedisPersistenceConfig `koanf:"persistence" json:"persistence" yaml:"persistence" mapstructure:"persistence"`
 }
@@ -2399,7 +2399,7 @@ func buildTemporalConfig(registry *definition.Registry) TemporalConfig {
 		HostPort:  getString(registry, "temporal.host_port"),
 		Namespace: getString(registry, "temporal.namespace"),
 		TaskQueue: getString(registry, "temporal.task_queue"),
-		Standalone: StandaloneConfig{
+		Standalone: EmbeddedTemporalConfig{
 			DatabaseFile: getString(registry, "temporal.standalone.database_file"),
 			FrontendPort: getInt(registry, "temporal.standalone.frontend_port"),
 			BindIP:       getString(registry, "temporal.standalone.bind_ip"),
@@ -2746,7 +2746,7 @@ func buildRedisConfig(registry *definition.Registry) RedisConfig {
 		MaxRetryBackoff:        getDuration(registry, "redis.max_retry_backoff"),
 		NotificationBufferSize: getInt(registry, "redis.notification_buffer_size"),
 		TLSEnabled:             getBool(registry, "redis.tls_enabled"),
-		Standalone: RedisStandaloneConfig{
+		Standalone: EmbeddedRedisConfig{
 			Persistence: RedisPersistenceConfig{
 				Enabled:            getBool(registry, "redis.standalone.persistence.enabled"),
 				DataDir:            getString(registry, "redis.standalone.persistence.data_dir"),

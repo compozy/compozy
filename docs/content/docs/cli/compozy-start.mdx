@@ -4,10 +4,10 @@ description: "Production-grade start command with Temporal configuration flags."
 icon: Terminal
 ---
 
-The `compozy start` command boots the Compozy production server. With Temporal standalone mode it can also launch the embedded Temporal server, making end-to-end execution possible without external infrastructure.
+The `compozy start` command boots the Compozy production server. With Temporal embedded modes it can also launch the in-process Temporal server, making end-to-end execution possible without external infrastructure.
 
 <Callout type="warning">
-Use `--temporal-mode=standalone` for development and CI only. Keep production deployments pinned to `--temporal-mode=remote` and an external Temporal cluster.
+Use `--temporal-mode=memory` (or `persistent`) for development and CI only. Keep production deployments pinned to `--temporal-mode=remote` and an external Temporal cluster.
 </Callout>
 
 ## Usage
@@ -29,7 +29,7 @@ compozy start [flags]
   <TableBody>
     <TableRow>
       <TableCell>`--temporal-mode`</TableCell>
-      <TableCell>Selects Temporal connectivity (`remote` or `standalone`).</TableCell>
+      <TableCell>Selects Temporal connectivity (`remote`, `memory`, or `persistent`).</TableCell>
       <TableCell>`remote`</TableCell>
     </TableRow>
     <TableRow>
@@ -125,7 +125,7 @@ When `--db-driver=sqlite`, configure an external vector database (Qdrant, Redis,
 
   ```bash title="Local development"
   compozy start \
-    --temporal-mode=standalone \
+    --temporal-mode=memory \
     --temporal-standalone-database=:memory: \
     --temporal-standalone-frontend-port=9733 \
     --temporal-standalone-ui-port=9833
@@ -135,7 +135,7 @@ When `--db-driver=sqlite`, configure an external vector database (Qdrant, Redis,
 </Tabs>
 
 <Callout type="success">
-During development you can keep `temporal.mode=standalone` in `compozy.yaml` and omit the flag entirely; the CLI flag still wins if you need to override temporarily.
+During development you can keep `temporal.mode=memory` (or `persistent`) in `compozy.yaml` and omit the flag entirely; the CLI flag still wins if you need to override temporarily.
 </Callout>
 
 ## Flag Precedence

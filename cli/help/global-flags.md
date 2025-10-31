@@ -98,34 +98,34 @@ Selects how Compozy connects to Temporal.
 - **Default**: `remote`
 - **Environment**: `TEMPORAL_MODE`
 - **Config**: `temporal.mode`
-- **Example**: `compozy start --temporal-mode=standalone`
+- **Example**: `compozy start --temporal-mode=memory`
 
 ### `--temporal-standalone-database`
 
-Sets the SQLite database location used by the embedded Temporal server when `--temporal-mode=standalone`.
+Sets the SQLite database location used by the embedded Temporal server when `--temporal-mode` is `memory` or `persistent`.
 
 - **Default**: `:memory:` (ephemeral)
-- **Environment**: `TEMPORAL_STANDALONE_DATABASE_FILE`
+- **Environment**: `TEMPORAL_EMBEDDED_DATABASE_FILE`
 - **Config**: `temporal.standalone.database_file`
-- **Example**: `compozy start --temporal-mode=standalone --temporal-standalone-database=./temporal.db`
+- **Example**: `compozy start --temporal-mode=memory --temporal-standalone-database=./temporal.db`
 
 ### `--temporal-standalone-frontend-port`
 
-Overrides the Temporal frontend gRPC port exposed in standalone mode.
+Overrides the Temporal frontend gRPC port exposed in embedded modes.
 
 - **Default**: `7233`
-- **Environment**: `TEMPORAL_STANDALONE_FRONTEND_PORT`
+- **Environment**: `TEMPORAL_EMBEDDED_FRONTEND_PORT`
 - **Config**: `temporal.standalone.frontend_port`
-- **Example**: `compozy start --temporal-mode=standalone --temporal-standalone-frontend-port=9733`
+- **Example**: `compozy start --temporal-mode=persistent --temporal-standalone-frontend-port=9733`
 
 ### `--temporal-standalone-ui-port`
 
-Overrides the Temporal Web UI HTTP port when running in standalone mode.
+Overrides the Temporal Web UI HTTP port when running in embedded modes.
 
 - **Default**: `8233`
-- **Environment**: `TEMPORAL_STANDALONE_UI_PORT`
+- **Environment**: `TEMPORAL_EMBEDDED_UI_PORT`
 - **Config**: `temporal.standalone.ui_port`
-- **Example**: `compozy start --temporal-mode=standalone --temporal-standalone-ui-port=9833`
+- **Example**: `compozy start --temporal-mode=persistent --temporal-standalone-ui-port=9833`
 
 ## Flag Precedence
 

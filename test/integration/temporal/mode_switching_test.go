@@ -87,7 +87,7 @@ func TestEmbeddedModeActivation(t *testing.T) {
 	})
 }
 
-func toEmbeddedConfig(cfg *config.StandaloneConfig) *embedded.Config {
+func toEmbeddedConfig(cfg *config.EmbeddedTemporalConfig) *embedded.Config {
 	if cfg == nil {
 		return newEmbeddedConfigFromDefaults()
 	}

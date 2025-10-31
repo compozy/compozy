@@ -235,7 +235,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	temporalCleanup, err := maybeStartStandaloneTemporal(s.ctx)
+	temporalCleanup, err := maybeStartEmbeddedTemporal(s.ctx)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -381,7 +381,7 @@ func chooseResourceStore(cacheInstance *cache.Cache, cfg *config.Config) resourc
 	return resources.NewMemoryResourceStore()
 }
 
-func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
+func maybeStartEmbeddedTemporal(ctx context.Context) (func(), error) {
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration is required to start Temporal")
@@ -390,7 +390,7 @@ func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
 	if mode != config.ModeMemory && mode != config.ModePersistent {
 		return nil, nil
 	}
-	embeddedCfg := standaloneEmbeddedConfig(cfg)
+	embeddedCfg := embeddedTemporalConfig(cfg)
 	log := logger.FromContext(ctx)
 	log.Info(
 		"Starting embedded Temporal",
@@ -422,13 +422,13 @@ func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = embeddedCfg.StartTimeout
 	}
-	return standaloneTemporalCleanup(ctx, server, shutdownTimeout), nil
+	return embeddedTemporalCleanup(ctx, server, shutdownTimeout), nil
 }
 
-func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
-	standalone := cfg.Temporal.Standalone
+func embeddedTemporalConfig(cfg *config.Config) *embedded.Config {
+	embeddedTemporal := cfg.Temporal.Standalone
 	mode := cfg.EffectiveTemporalMode()
-	dbFile := strings.TrimSpace(standalone.DatabaseFile)
+	dbFile := strings.TrimSpace(embeddedTemporal.DatabaseFile)
 	switch mode {
 	case config.ModePersistent:
 		if dbFile == "" || dbFile == ":memory:" {
@@ -445,19 +445,19 @@ func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
 	}
 	return &embedded.Config{
 		DatabaseFile: dbFile,
-		FrontendPort: standalone.FrontendPort,
-		BindIP:       standalone.BindIP,
-		Namespace:    standalone.Namespace,
-		ClusterName:  standalone.ClusterName,
-		EnableUI:     standalone.EnableUI,
-		RequireUI:    standalone.RequireUI,
-		UIPort:       standalone.UIPort,
-		LogLevel:     standalone.LogLevel,
-		StartTimeout: standalone.StartTimeout,
+		FrontendPort: embeddedTemporal.FrontendPort,
+		BindIP:       embeddedTemporal.BindIP,
+		Namespace:    embeddedTemporal.Namespace,
+		ClusterName:  embeddedTemporal.ClusterName,
+		EnableUI:     embeddedTemporal.EnableUI,
+		RequireUI:    embeddedTemporal.RequireUI,
+		UIPort:       embeddedTemporal.UIPort,
+		LogLevel:     embeddedTemporal.LogLevel,
+		StartTimeout: embeddedTemporal.StartTimeout,
 	}
 }
 
-func standaloneTemporalCleanup(
+func embeddedTemporalCleanup(
 	ctx context.Context,
 	server *embedded.Server,
 	shutdownTimeout time.Duration,

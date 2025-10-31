@@ -10,11 +10,9 @@ import (
 )
 
 const (
-	modeMemory           = config.ModeMemory
-	modePersistent       = config.ModePersistent
-	modeDistributed      = config.ModeDistributed
-	legacyModeStandalone = "standalone"
-
+	modeMemory                = config.ModeMemory
+	modePersistent            = config.ModePersistent
+	modeDistributed           = config.ModeDistributed
 	defaultPersistenceDataDir = "./.compozy/redis"
 )
 
@@ -39,8 +37,9 @@ type Cache struct {
 	Redis        *Redis
 	LockManager  LockManager
 	Notification NotificationSystem
-	// embedded holds the standalone miniredis server when running in standalone
-	// mode. It remains nil when using an external (distributed) Redis backend.
+	// embedded holds the embedded miniredis server when running in memory or
+	// persistent modes. It remains nil when using an external (distributed) Redis
+	// backend.
 	embedded *MiniredisStandalone
 }
 
@@ -48,7 +47,8 @@ type Cache struct {
 // It returns a unified Cache object plus a cleanup function safe to call multiple times.
 //
 // Modes (resolved via cfg.EffectiveRedisMode()):
-//   - "standalone": starts an embedded miniredis and connects a client to it
+//   - "memory": starts an embedded miniredis without persistence
+//   - "persistent": starts an embedded miniredis with persistence enabled
 //   - "distributed" (default): connects to external Redis using provided settings
 func SetupCache(ctx context.Context) (*Cache, func(), error) {
 	log := logger.FromContext(ctx)
@@ -60,15 +60,6 @@ func SetupCache(ctx context.Context) (*Cache, func(), error) {
 	cacheCfg := FromAppConfig(appCfg)
 	mode := appCfg.EffectiveRedisMode()
 	log.Info("Initializing cache backend", "mode", mode)
-	if mode == legacyModeStandalone {
-		redisCfg := cacheCfg.RedisConfig
-		mappedMode := modeMemory
-		if redisCfg != nil && redisCfg.Standalone.Persistence.Enabled {
-			mappedMode = modePersistent
-		}
-		log.Info("Mapping legacy standalone mode", "mapped_mode", mappedMode)
-		mode = mappedMode
-	}
 
 	switch mode {
 	case modeMemory:

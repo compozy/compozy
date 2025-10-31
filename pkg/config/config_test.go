@@ -668,6 +668,65 @@ func TestConfig_Validation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should validate MCP proxy mode values", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			mode           string
+			wantErr        bool
+			wantSubstrings []string
+		}{
+			{
+				name:    "inherits global mode",
+				mode:    "",
+				wantErr: false,
+			},
+			{
+				name:    "memory mode allowed",
+				mode:    ModeMemory,
+				wantErr: false,
+			},
+			{
+				name:    "persistent mode allowed",
+				mode:    ModePersistent,
+				wantErr: false,
+			},
+			{
+				name:    "distributed mode allowed",
+				mode:    ModeDistributed,
+				wantErr: false,
+			},
+			{
+				name:           "standalone mode rejected",
+				mode:           deprecatedModeStandalone,
+				wantErr:        true,
+				wantSubstrings: []string{"mcp_proxy.mode", deprecatedModeStandalone, "no longer supported"},
+			},
+			{
+				name:           "unknown mode rejected",
+				mode:           "invalid",
+				wantErr:        true,
+				wantSubstrings: []string{"mcp_proxy.mode", "must be one of"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				svc := NewService()
+				cfg := Default()
+				cfg.MCPProxy.Mode = tc.mode
+				err := svc.Validate(cfg)
+				if tc.wantErr {
+					require.Error(t, err)
+					for _, sub := range tc.wantSubstrings {
+						assert.Contains(t, err.Error(), sub)
+					}
+					return
+				}
+				assert.NoError(t, err)
+			})
+		}
+	})
+
 	t.Run("Should require non-ephemeral MCP proxy port in embedded modes", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()

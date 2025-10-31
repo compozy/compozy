@@ -158,47 +158,47 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.database_file`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_DATABASE_FILE`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_DATABASE_FILE`</TableCell>
       <TableCell>`--temporal-standalone-database`</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.frontend_port`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_FRONTEND_PORT`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_FRONTEND_PORT`</TableCell>
       <TableCell>`--temporal-standalone-frontend-port`</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.bind_ip`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_BIND_IP`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_BIND_IP`</TableCell>
       <TableCell>-</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.namespace`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_NAMESPACE`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_NAMESPACE`</TableCell>
       <TableCell>-</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.cluster_name`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_CLUSTER_NAME`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_CLUSTER_NAME`</TableCell>
       <TableCell>-</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.enable_ui`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_ENABLE_UI`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_ENABLE_UI`</TableCell>
       <TableCell>-</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.ui_port`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_UI_PORT`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_UI_PORT`</TableCell>
       <TableCell>`--temporal-standalone-ui-port`</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.log_level`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_LOG_LEVEL`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_LOG_LEVEL`</TableCell>
       <TableCell>-</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`temporal.standalone.start_timeout`</TableCell>
-      <TableCell>`TEMPORAL_STANDALONE_START_TIMEOUT`</TableCell>
+      <TableCell>`TEMPORAL_EMBEDDED_START_TIMEOUT`</TableCell>
       <TableCell>-</TableCell>
     </TableRow>
   </TableBody>
@@ -240,7 +240,7 @@ When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Upd
 
   ```bash title="Standalone mode development"
   export TEMPORAL_MODE=standalone
-  export TEMPORAL_STANDALONE_DATABASE_FILE=./.tmp/temporal.db
+  export TEMPORAL_EMBEDDED_DATABASE_FILE=./.tmp/temporal.db
   compozy start --temporal-standalone-frontend-port=9733 --temporal-standalone-ui-port=9833
   ```
 

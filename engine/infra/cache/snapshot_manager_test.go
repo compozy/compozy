@@ -62,7 +62,7 @@ func TestSnapshotManager_SnapshotAndRestore(t *testing.T) {
 		cfg := testPersistenceConfig(tempDir)
 		m := newSnapshotTestContext(t, &config.Config{
 			Redis: config.RedisConfig{
-				Standalone: config.RedisStandaloneConfig{Persistence: cfg},
+				Standalone: config.EmbeddedRedisConfig{Persistence: cfg},
 			},
 		})
 		ctx = config.ContextWithManager(ctx, m)
@@ -107,7 +107,7 @@ func TestSnapshotManager_Periodic(t *testing.T) {
 		cfg.SnapshotInterval = 500 * time.Millisecond
 
 		m := newSnapshotTestContext(t, &config.Config{
-			Redis: config.RedisConfig{Standalone: config.RedisStandaloneConfig{Persistence: cfg}},
+			Redis: config.RedisConfig{Standalone: config.EmbeddedRedisConfig{Persistence: cfg}},
 		})
 		ctx = config.ContextWithManager(ctx, m)
 
@@ -130,7 +130,7 @@ func TestMiniredisStandalone_GracefulShutdownSnapshot(t *testing.T) {
 		base := t.Context()
 		base = logger.ContextWithLogger(base, logger.NewForTests())
 		dataDir := filepath.Join(t.TempDir(), "data")
-		cfg := &config.Config{Redis: config.RedisConfig{Standalone: config.RedisStandaloneConfig{
+		cfg := &config.Config{Redis: config.RedisConfig{Standalone: config.EmbeddedRedisConfig{
 			Persistence: config.RedisPersistenceConfig{
 				Enabled:            true,
 				DataDir:            dataDir,

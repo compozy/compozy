@@ -136,11 +136,11 @@ temporal:
 ```
 
 ```bash title="Quick start"
-compozy start --temporal-mode=standalone --temporal-standalone-database=:memory:
+compozy start --temporal-mode=memory --temporal-standalone-database=:memory:
 ```
 
 <Callout type="warning">
-Standalone mode stores workflow state in SQLite and binds to loopback by default. Do not expose it to the public internet and never run it behind load balancers.
+Embedded mode stores workflow state in SQLite and binds to loopback by default. Do not expose it to the public internet and never run it behind load balancers.
 </Callout>
 
 ### When to Use Standalone
@@ -179,7 +179,7 @@ Use the `frontend_port` field to shift the entire block of service ports. For ex
     Change `temporal.mode` and related fields in `compozy.yaml`. For standalone → remote, remove the `standalone` block to rely on remote defaults.
   </Step>
   <Step title="Rotate secrets & endpoints">
-    Adjust environment variables (`TEMPORAL_MODE`, `TEMPORAL_HOST_PORT`, `TEMPORAL_STANDALONE_*`) and restart any long-running workers.
+    Adjust environment variables (`TEMPORAL_MODE`, `TEMPORAL_HOST_PORT`, `TEMPORAL_EMBEDDED_*`) and restart any long-running workers.
   </Step>
   <Step title="Verify connectivity">
     For remote mode, run `temporal namespace describe`. For standalone mode, open `http://localhost:8233` to confirm the embedded UI is available.

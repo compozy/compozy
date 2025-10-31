@@ -17,8 +17,6 @@ import (
 	redis "github.com/redis/go-redis/v9"
 )
 
-const testModeStandalone = "standalone"
-
 // ResourceStoreTestEnv encapsulates a Redis-backed resource store environment
 // running in standalone (embedded miniredis) mode for integration tests.
 type ResourceStoreTestEnv struct {
@@ -47,9 +45,9 @@ func SetupStandaloneResourceStore(ctx context.Context, t *testing.T) *ResourceSt
 		cfg = config.FromContext(ctx)
 	}
 
-	// Force standalone mode for Redis so SetupCache spins up MiniredisStandalone.
-	cfg.Mode = testModeStandalone
-	cfg.Redis.Mode = testModeStandalone
+	// Force embedded mode (memory) for Redis so SetupCache spins up MiniredisStandalone.
+	cfg.Mode = config.ModeMemory
+	cfg.Redis.Mode = config.ModeMemory
 
 	c, cleanup, err := cache.SetupCache(ctx)
 	require.NoError(t, err)
@@ -99,9 +97,9 @@ func SetupStandaloneStreaming(ctx context.Context, t *testing.T) *StreamingTestE
 		t.Cleanup(func() { _ = mgr.Close(ctx) })
 		cfg = config.FromContext(ctx)
 	}
-	// Force standalone mode explicitly
-	cfg.Mode = "standalone"
-	cfg.Redis.Mode = "standalone"
+	// Force embedded mode explicitly
+	cfg.Mode = config.ModeMemory
+	cfg.Redis.Mode = config.ModeMemory
 
 	c, cleanup, err := cache.SetupCache(ctx)
 	require.NoError(t, err)
@@ -209,8 +207,8 @@ func SetupStandaloneWithPersistence(
 	require.NoError(t, err)
 	active := mgr.Get()
 	require.NotNil(t, active)
-	active.Mode = testModeStandalone
-	active.Redis.Mode = testModeStandalone
+	active.Mode = config.ModePersistent
+	active.Redis.Mode = config.ModePersistent
 	active.Redis.Standalone.Persistence = persistCfg
 	ctx = config.ContextWithManager(ctx, mgr)
 	t.Cleanup(func() { _ = mgr.Close(ctx) })
@@ -281,8 +279,8 @@ func SetupMiniredisStandaloneWithConfig(
 	require.NoError(t, err)
 	active := mgr.Get()
 	require.NotNil(t, active)
-	active.Mode = testModeStandalone
-	active.Redis.Mode = testModeStandalone
+	active.Mode = config.ModePersistent
+	active.Redis.Mode = config.ModePersistent
 	active.Redis.Standalone.Persistence = persistCfg
 	ctx = config.ContextWithManager(ctx, mgr)
 	t.Cleanup(func() { _ = mgr.Close(ctx) })
