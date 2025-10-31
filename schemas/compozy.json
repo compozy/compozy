@@ -1118,6 +1118,64 @@
       },
       "type": "object"
     },
+    "config_EmbeddedRedisConfig": {
+      "additionalProperties": false,
+      "description": "EmbeddedRedisConfig defines options for the embedded Redis used by memory and persistent modes.",
+      "properties": {
+        "persistence": {
+          "$ref": "#/$defs/config_RedisPersistenceConfig",
+          "description": "Persistence configures optional snapshot persistence for embedded Redis."
+        }
+      },
+      "type": "object"
+    },
+    "config_EmbeddedTemporalConfig": {
+      "additionalProperties": false,
+      "description": "EmbeddedTemporalConfig configures the embedded Temporal server that powers memory and persistent modes.",
+      "properties": {
+        "bind_ip": {
+          "description": "BindIP determines the IP address Temporal services bind to.",
+          "type": "string"
+        },
+        "cluster_name": {
+          "description": "ClusterName customizes the Temporal cluster name for embedded deployments.",
+          "type": "string"
+        },
+        "database_file": {
+          "description": "DatabaseFile specifies the SQLite database location.\n\nUse \":memory:\" for ephemeral storage or provide a file path for persistence.",
+          "type": "string"
+        },
+        "enable_ui": {
+          "description": "EnableUI toggles the Temporal Web UI server.",
+          "type": "boolean"
+        },
+        "frontend_port": {
+          "description": "FrontendPort sets the gRPC port for the Temporal frontend service.",
+          "type": "integer"
+        },
+        "log_level": {
+          "description": "LogLevel controls Temporal server logging verbosity.",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace specifies the default namespace created on startup.",
+          "type": "string"
+        },
+        "require_ui": {
+          "description": "RequireUI enforces UI availability; startup fails when UI cannot be launched.",
+          "type": "boolean"
+        },
+        "start_timeout": {
+          "description": "StartTimeout defines the maximum startup wait duration.",
+          "type": "integer"
+        },
+        "ui_port": {
+          "description": "UIPort sets the HTTP port for the Temporal Web UI.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "config_KnowledgeConfig": {
       "additionalProperties": false,
       "description": "KnowledgeConfig contains default tuning knobs for knowledge ingestion and retrieval.",
@@ -1887,7 +1945,7 @@
           "type": "integer"
         },
         "standalone": {
-          "$ref": "#/$defs/config_RedisStandaloneConfig",
+          "$ref": "#/$defs/config_EmbeddedRedisConfig",
           "description": "Standalone config defines embedded Redis options used in memory and persistent modes."
         },
         "tls_enabled": {
@@ -1923,17 +1981,6 @@
         },
         "snapshot_on_shutdown": {
           "type": "boolean"
-        }
-      },
-      "type": "object"
-    },
-    "config_RedisStandaloneConfig": {
-      "additionalProperties": false,
-      "description": "RedisStandaloneConfig defines options for the embedded Redis used by memory and persistent modes.",
-      "properties": {
-        "persistence": {
-          "$ref": "#/$defs/config_RedisPersistenceConfig",
-          "description": "Persistence configures optional snapshot persistence for embedded Redis."
         }
       },
       "type": "object"
@@ -2112,53 +2159,6 @@
       },
       "type": "object"
     },
-    "config_StandaloneConfig": {
-      "additionalProperties": false,
-      "description": "StandaloneConfig configures the embedded Temporal server that powers memory and persistent modes.",
-      "properties": {
-        "bind_ip": {
-          "description": "BindIP determines the IP address Temporal services bind to.",
-          "type": "string"
-        },
-        "cluster_name": {
-          "description": "ClusterName customizes the Temporal cluster name for embedded deployments.",
-          "type": "string"
-        },
-        "database_file": {
-          "description": "DatabaseFile specifies the SQLite database location.\n\nUse \":memory:\" for ephemeral storage or provide a file path for persistence.",
-          "type": "string"
-        },
-        "enable_ui": {
-          "description": "EnableUI toggles the Temporal Web UI server.",
-          "type": "boolean"
-        },
-        "frontend_port": {
-          "description": "FrontendPort sets the gRPC port for the Temporal frontend service.",
-          "type": "integer"
-        },
-        "log_level": {
-          "description": "LogLevel controls Temporal server logging verbosity.",
-          "type": "string"
-        },
-        "namespace": {
-          "description": "Namespace specifies the default namespace created on startup.",
-          "type": "string"
-        },
-        "require_ui": {
-          "description": "RequireUI enforces UI availability; startup fails when UI cannot be launched.",
-          "type": "boolean"
-        },
-        "start_timeout": {
-          "description": "StartTimeout defines the maximum startup wait duration.",
-          "type": "integer"
-        },
-        "ui_port": {
-          "description": "UIPort sets the HTTP port for the Temporal Web UI.",
-          "type": "integer"
-        }
-      },
-      "type": "object"
-    },
     "config_StreamConfig": {
       "additionalProperties": false,
       "description": "StreamConfig holds defaults for streaming endpoints.",
@@ -2320,7 +2320,7 @@
           "type": "string"
         },
         "standalone": {
-          "$ref": "#/$defs/config_StandaloneConfig",
+          "$ref": "#/$defs/config_EmbeddedTemporalConfig",
           "description": "Standalone configures the embedded Temporal server used by memory and persistent modes."
         },
         "task_queue": {

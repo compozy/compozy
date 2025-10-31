@@ -1,5 +1,16 @@
 {
   "$defs": {
+    "EmbeddedRedisConfig": {
+      "additionalProperties": false,
+      "description": "EmbeddedRedisConfig defines options for the embedded Redis used by memory and persistent modes.",
+      "properties": {
+        "persistence": {
+          "$ref": "#/$defs/RedisPersistenceConfig",
+          "description": "Persistence configures optional snapshot persistence for embedded Redis."
+        }
+      },
+      "type": "object"
+    },
     "RedisPersistenceConfig": {
       "additionalProperties": false,
       "description": "RedisPersistenceConfig defines snapshot settings for embedded Redis.",
@@ -18,17 +29,6 @@
         },
         "snapshot_on_shutdown": {
           "type": "boolean"
-        }
-      },
-      "type": "object"
-    },
-    "RedisStandaloneConfig": {
-      "additionalProperties": false,
-      "description": "RedisStandaloneConfig defines options for the embedded Redis used by memory and persistent modes.",
-      "properties": {
-        "persistence": {
-          "$ref": "#/$defs/RedisPersistenceConfig",
-          "description": "Persistence configures optional snapshot persistence for embedded Redis."
         }
       },
       "type": "object"
@@ -104,7 +104,7 @@
       "type": "integer"
     },
     "standalone": {
-      "$ref": "#/$defs/RedisStandaloneConfig",
+      "$ref": "#/$defs/EmbeddedRedisConfig",
       "description": "Standalone config defines embedded Redis options used in memory and persistent modes."
     },
     "tls_enabled": {

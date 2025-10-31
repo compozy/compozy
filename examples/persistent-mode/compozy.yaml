@@ -22,7 +22,8 @@ redis:
   standalone:
     persistence:
       enabled: true
-      dir: ./.compozy/redis
+      data_dir: ./.compozy/redis
+      snapshot_interval: 60s
 
 models:
   - provider: openai

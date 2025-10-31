@@ -39,7 +39,7 @@
 - [x] 4.0 Rename Test Functions, Files & Update Test Cases (M)
 - [x] 5.0 Standardize Comments & Log Messages (M)
 - [x] 6.0 Documentation Update (M)
-- [ ] 7.0 Examples & Schema Regeneration (S)
+- [x] 7.0 Examples & Schema Regeneration (S)
 
 Notes on sizing:
 
@@ -73,4 +73,4 @@ Notes
 - [ ] Batch 2 — Cache & Temporal Packages: 2.0, 3.0
 - [x] Batch 3 — Tests: 4.0
 - [x] Batch 4 — Comments Standardization: 5.0
-- [ ] Batch 5 — Documentation & Examples: 6.0, 7.0
+- [x] Batch 5 — Documentation & Examples: 6.0, 7.0

@@ -1,8 +1,8 @@
 {
   "$defs": {
-    "StandaloneConfig": {
+    "EmbeddedTemporalConfig": {
       "additionalProperties": false,
-      "description": "StandaloneConfig configures the embedded Temporal server that powers memory and persistent modes.",
+      "description": "EmbeddedTemporalConfig configures the embedded Temporal server that powers memory and persistent modes.",
       "properties": {
         "bind_ip": {
           "description": "BindIP determines the IP address Temporal services bind to.",
@@ -66,7 +66,7 @@
       "type": "string"
     },
     "standalone": {
-      "$ref": "#/$defs/StandaloneConfig",
+      "$ref": "#/$defs/EmbeddedTemporalConfig",
       "description": "Standalone configures the embedded Temporal server used by memory and persistent modes."
     },
     "task_queue": {

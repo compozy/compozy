@@ -21,7 +21,8 @@ redis:
   standalone:
     persistence:
       enabled: true
-      dir: ./.compozy/redis  # Holds snapshot and AOF files.
+      data_dir: ./.compozy/redis  # Holds snapshot and AOF files.
+      snapshot_interval: 60s
 
 models:
   - provider: openai

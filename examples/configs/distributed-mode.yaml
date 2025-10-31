@@ -9,7 +9,7 @@ database:
   migrations:
     schema: compozy  # Isolate migration history from other applications.
 
-# Connect to a remote Temporal cluster with explicit namespace and TLS.
+# Connect to an external Temporal cluster with explicit namespace and TLS.
 temporal:
   mode: remote  # Resolved automatically when global mode is distributed.
   host_port: temporal.prod.internal:7233
