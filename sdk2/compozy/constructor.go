@@ -10,35 +10,12 @@ import (
 	engineknowledge "github.com/compozy/compozy/engine/knowledge"
 	enginemcp "github.com/compozy/compozy/engine/mcp"
 	enginememory "github.com/compozy/compozy/engine/memory"
-	engineproject "github.com/compozy/compozy/engine/project"
 	projectschedule "github.com/compozy/compozy/engine/project/schedule"
 	engineschema "github.com/compozy/compozy/engine/schema"
 	enginetool "github.com/compozy/compozy/engine/tool"
 	enginewebhook "github.com/compozy/compozy/engine/webhook"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 )
-
-// Engine represents an instantiated Compozy SDK core.
-type Engine struct {
-	ctx                context.Context
-	mode               Mode
-	host               string
-	port               int
-	project            *engineproject.Config
-	workflows          []*engineworkflow.Config
-	agents             []*engineagent.Config
-	tools              []*enginetool.Config
-	knowledgeBases     []*engineknowledge.BaseConfig
-	memories           []*enginememory.Config
-	mcps               []*enginemcp.Config
-	schemas            []*engineschema.Schema
-	models             []*core.ProviderConfig
-	schedules          []*projectschedule.Config
-	webhooks           []*enginewebhook.Config
-	standaloneTemporal *StandaloneTemporalConfig
-	standaloneRedis    *StandaloneRedisConfig
-	started            bool
-}
 
 // New constructs an Engine using the provided functional options.
 func New(ctx context.Context, opts ...Option) (*Engine, error) {
