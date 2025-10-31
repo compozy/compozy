@@ -33,6 +33,11 @@ const (
 	postgresConcurrencySummary   = "high (25+ workflows)"
 )
 
+const (
+	sqliteMemoryDSN        = ":memory:"
+	sqliteMemoryFilePrefix = "file::memory:"
+)
+
 func (s *Server) setupProjectConfig(
 	store resources.ResourceStore,
 ) (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
@@ -202,7 +207,7 @@ func sqliteMode(path string) string {
 		return "unknown"
 	}
 	lowered := strings.ToLower(trimmed)
-	if lowered == ":memory:" || strings.HasPrefix(lowered, "file::memory:") ||
+	if lowered == sqliteMemoryDSN || strings.HasPrefix(lowered, sqliteMemoryFilePrefix) ||
 		strings.Contains(lowered, "mode=memory") {
 		return "in-memory"
 	}
@@ -431,16 +436,16 @@ func embeddedTemporalConfig(cfg *config.Config) *embedded.Config {
 	dbFile := strings.TrimSpace(embeddedTemporal.DatabaseFile)
 	switch mode {
 	case config.ModePersistent:
-		if dbFile == "" || dbFile == ":memory:" {
+		if dbFile == "" || dbFile == sqliteMemoryDSN {
 			dbFile = "./.compozy/temporal.db"
 		}
 	case config.ModeMemory:
 		if dbFile == "" {
-			dbFile = ":memory:"
+			dbFile = sqliteMemoryDSN
 		}
 	default:
 		if dbFile == "" {
-			dbFile = ":memory:"
+			dbFile = sqliteMemoryDSN
 		}
 	}
 	return &embedded.Config{

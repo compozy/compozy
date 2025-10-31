@@ -125,7 +125,7 @@ func TestSnapshotManager_Periodic(t *testing.T) {
 	})
 }
 
-func TestMiniredisStandalone_GracefulShutdownSnapshot(t *testing.T) {
+func TestMiniredisEmbedded_GracefulShutdownSnapshot(t *testing.T) {
 	t.Run("snapshot on shutdown + restore on startup", func(t *testing.T) {
 		base := t.Context()
 		base = logger.ContextWithLogger(base, logger.NewForTests())
@@ -142,13 +142,13 @@ func TestMiniredisStandalone_GracefulShutdownSnapshot(t *testing.T) {
 		m := newSnapshotTestContext(t, cfg)
 		ctx := config.ContextWithManager(base, m)
 
-		mr, err := NewMiniredisStandalone(ctx)
+		mr, err := NewMiniredisEmbedded(ctx)
 		require.NoError(t, err)
 		require.NoError(t, mr.Client().Set(ctx, "persist-key", "persist-val", 0).Err())
 		require.NoError(t, mr.Close(ctx))
 
 		// New instance should restore the key
-		mr2, err := NewMiniredisStandalone(ctx)
+		mr2, err := NewMiniredisEmbedded(ctx)
 		require.NoError(t, err)
 		defer mr2.Close(ctx)
 		val, err := mr2.Client().Get(ctx, "persist-key").Result()

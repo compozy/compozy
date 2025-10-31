@@ -8,7 +8,7 @@
 - `pkg/config/loader.go` - Configuration validation and loading logic
 - `pkg/config/resolver.go` - Mode resolution functions
 - `engine/infra/cache/mod.go` - Cache layer mode handling
-- `engine/infra/cache/miniredis_standalone.go` - Embedded Redis implementation
+- `engine/infra/cache/miniredis_embedded.go` - Embedded Redis implementation
 - `engine/infra/server/dependencies.go` - Server dependency setup functions
 - `engine/worker/embedded/config.go` - Embedded Temporal configuration
 - `engine/worker/embedded/server.go` - Embedded Temporal server implementation
@@ -34,7 +34,7 @@
 ## Tasks
 
 - [x] 1.0 Core Configuration & Server Functions Refactoring (L)
-- [ ] 2.0 Rename Cache Layer Functions & Types (S)
+- [x] 2.0 Rename Cache Layer Functions & Types (S)
 - [ ] 3.0 Update Embedded Temporal Package (S)
 - [ ] 4.0 Rename Test Functions, Files & Update Test Cases (M)
 - [ ] 5.0 Standardize Comments & Log Messages (M)

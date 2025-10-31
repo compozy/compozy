@@ -45,7 +45,7 @@ func SetupStandaloneResourceStore(ctx context.Context, t *testing.T) *ResourceSt
 		cfg = config.FromContext(ctx)
 	}
 
-	// Force embedded mode (memory) for Redis so SetupCache spins up MiniredisStandalone.
+	// Force embedded mode (memory) for Redis so SetupCache spins up MiniredisEmbedded.
 	cfg.Mode = config.ModeMemory
 	cfg.Redis.Mode = config.ModeMemory
 
@@ -183,7 +183,7 @@ func (e *StreamingTestEnv) SubscribePattern(ctx context.Context, pattern string,
 // PersistenceTestEnv encapsulates an embedded miniredis instance, a go-redis
 // client bound to it, and a SnapshotManager configured for persistence.
 type PersistenceTestEnv struct {
-	Server          *cache.MiniredisStandalone // optional when using MiniredisStandalone
+	Server          *cache.MiniredisEmbedded // optional when using MiniredisEmbedded
 	Mini            *miniredis.Miniredis
 	Client          *redis.Client
 	SnapshotManager *cache.SnapshotManager
@@ -263,9 +263,9 @@ func SetupStandaloneWithPeriodicSnapshots(
 	return env
 }
 
-// SetupMiniredisStandaloneWithConfig creates a MiniredisStandalone instance that
+// SetupMiniredisEmbeddedWithConfig creates a MiniredisEmbedded instance that
 // uses the configured persistence settings (RestoreOnStartup/SnapshotOnShutdown).
-func SetupMiniredisStandaloneWithConfig(
+func SetupMiniredisEmbeddedWithConfig(
 	ctx context.Context,
 	t *testing.T,
 	persistCfg config.RedisPersistenceConfig,
@@ -287,11 +287,11 @@ func SetupMiniredisStandaloneWithConfig(
 
 	// Retry a few times to avoid transient Badger directory lock contention on CI/macOS.
 	var (
-		mr      *cache.MiniredisStandalone
+		mr      *cache.MiniredisEmbedded
 		openErr error
 	)
 	for i := 0; i < 5; i++ {
-		mr, openErr = cache.NewMiniredisStandalone(ctx)
+		mr, openErr = cache.NewMiniredisEmbedded(ctx)
 		if openErr == nil || !strings.Contains(openErr.Error(), "Cannot acquire directory lock") {
 			break
 		}

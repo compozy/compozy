@@ -13,10 +13,10 @@ import (
 )
 
 // setupMiniredisForTest creates a test context with logger+config and starts the
-// miniredis standalone wrapper. Caller must defer Close.
-func setupMiniredisForTest(ctx context.Context, t *testing.T) *MiniredisStandalone {
+// miniredis embedded wrapper. Caller must defer Close.
+func setupMiniredisForTest(ctx context.Context, t *testing.T) *MiniredisEmbedded {
 	t.Helper()
-	mr, err := NewMiniredisStandalone(ctx)
+	mr, err := NewMiniredisEmbedded(ctx)
 	require.NoError(t, err)
 	return mr
 }
@@ -34,11 +34,11 @@ func newTestContext(t *testing.T) context.Context {
 	return ctx
 }
 
-func TestMiniredisStandalone_Lifecycle(t *testing.T) {
+func TestMiniredisEmbedded_Lifecycle(t *testing.T) {
 	t.Run("Should start embedded Redis server", func(t *testing.T) {
 		// Build a context with default config+logger attached.
 		ctx := newTestContext(t)
-		mr, err := NewMiniredisStandalone(ctx)
+		mr, err := NewMiniredisEmbedded(ctx)
 		require.NoError(t, err)
 		defer mr.Close(ctx)
 
@@ -49,7 +49,7 @@ func TestMiniredisStandalone_Lifecycle(t *testing.T) {
 
 	t.Run("Should close cleanly without errors", func(t *testing.T) {
 		ctx := newTestContext(t)
-		mr, err := NewMiniredisStandalone(ctx)
+		mr, err := NewMiniredisEmbedded(ctx)
 		require.NoError(t, err)
 
 		err = mr.Close(ctx)
@@ -65,13 +65,13 @@ func TestMiniredisStandalone_Lifecycle(t *testing.T) {
 		base := newTestContext(t)
 		ctx, cancel := context.WithCancel(base)
 		cancel()
-		mr, err := NewMiniredisStandalone(ctx)
+		mr, err := NewMiniredisEmbedded(ctx)
 		assert.Nil(t, mr)
 		assert.Error(t, err)
 	})
 }
 
-func TestMiniredisStandalone_BasicOperations(t *testing.T) {
+func TestMiniredisEmbedded_BasicOperations(t *testing.T) {
 	t.Run("Should support Get/Set operations", func(t *testing.T) {
 		ctx := newTestContext(t)
 		mr := setupMiniredisForTest(ctx, t)
@@ -132,7 +132,7 @@ func TestMiniredisStandalone_BasicOperations(t *testing.T) {
 }
 
 // Ensure the client type is the expected go-redis client
-func TestMiniredisStandalone_ClientType(t *testing.T) {
+func TestMiniredisEmbedded_ClientType(t *testing.T) {
 	ctx := newTestContext(t)
 	mr := setupMiniredisForTest(ctx, t)
 	defer mr.Close(ctx)

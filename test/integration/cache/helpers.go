@@ -35,7 +35,7 @@ type adapterCase struct {
 }
 
 // contractBackends returns the two backends under test:
-// - standalone: embedded miniredis via MiniredisStandalone
+// - standalone: embedded miniredis via MiniredisEmbedded
 // - external: go-redis client talking to a standalone miniredis server
 func contractBackends(t *testing.T) []adapterCase {
 	t.Helper()
@@ -43,7 +43,7 @@ func contractBackends(t *testing.T) []adapterCase {
 		{
 			name: "standalone",
 			build: func(ctx context.Context, t *testing.T) (cache.RedisInterface, func()) {
-				mr, err := cache.NewMiniredisStandalone(ctx)
+				mr, err := cache.NewMiniredisEmbedded(ctx)
 				if err != nil {
 					t.Fatalf("standalone setup failed: %v", err)
 				}

@@ -40,7 +40,7 @@ type Cache struct {
 	// embedded holds the embedded miniredis server when running in memory or
 	// persistent modes. It remains nil when using an external (distributed) Redis
 	// backend.
-	embedded *MiniredisStandalone
+	embedded *MiniredisEmbedded
 }
 
 // SetupCache creates a mode-aware cache backend using configuration from context.
@@ -90,7 +90,7 @@ func setupMemoryCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), er
 		"persistence_enabled", persistence.Enabled,
 		"previously_enabled", previouslyEnabled,
 	)
-	return setupStandaloneCache(ctx, cacheCfg, modeMemory)
+	return setupEmbeddedCache(ctx, cacheCfg, modeMemory)
 }
 
 func setupPersistentCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
@@ -113,15 +113,15 @@ func setupPersistentCache(ctx context.Context, cacheCfg *Config) (*Cache, func()
 		"data_dir", persistence.DataDir,
 		"default_data_dir", defaultedDataDir,
 	)
-	return setupStandaloneCache(ctx, cacheCfg, modePersistent)
+	return setupEmbeddedCache(ctx, cacheCfg, modePersistent)
 }
 
-// setupStandaloneCache creates embedded miniredis backend and wraps it with Redis facade.
-func setupStandaloneCache(ctx context.Context, cacheCfg *Config, mode string) (*Cache, func(), error) {
+// setupEmbeddedCache creates an embedded miniredis backend and wraps it with the Redis facade.
+func setupEmbeddedCache(ctx context.Context, cacheCfg *Config, mode string) (*Cache, func(), error) {
 	log := logger.FromContext(ctx)
-	mr, err := NewMiniredisStandalone(ctx)
+	mr, err := NewMiniredisEmbedded(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create miniredis standalone: %w", err)
+		return nil, nil, fmt.Errorf("create miniredis embedded: %w", err)
 	}
 	r := NewRedisFromClient(ctx, mr.Client(), cacheCfg)
 	lm, err := NewRedisLockManager(r)

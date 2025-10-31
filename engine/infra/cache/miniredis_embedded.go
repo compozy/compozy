@@ -12,10 +12,10 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 )
 
-// MiniredisStandalone embeds a miniredis server and exposes a go-redis client
+// MiniredisEmbedded embeds a miniredis server and exposes a go-redis client
 // connected to it. It optionally integrates with a SnapshotManager when
 // persistence is enabled in configuration.
-type MiniredisStandalone struct {
+type MiniredisEmbedded struct {
 	server   *miniredis.Miniredis
 	client   *redis.Client
 	snapshot *SnapshotManager
@@ -35,7 +35,7 @@ func ensurePing(ctx context.Context, client *redis.Client) error {
 
 func setupPersistenceIfEnabled(
 	ctx context.Context,
-	standalone *MiniredisStandalone,
+	embedded *MiniredisEmbedded,
 	mr *miniredis.Miniredis,
 	cfg *config.Config,
 ) error {
@@ -51,7 +51,7 @@ func setupPersistenceIfEnabled(
 	if err != nil {
 		return fmt.Errorf("create snapshot manager: %w", err)
 	}
-	standalone.snapshot = snapshot
+	embedded.snapshot = snapshot
 	if cfg.Redis.Standalone.Persistence.RestoreOnStartup {
 		if err := snapshot.Restore(ctx); err != nil {
 			log.Warn("Failed to restore snapshot", "error", err)
@@ -63,11 +63,11 @@ func setupPersistenceIfEnabled(
 	return nil
 }
 
-// NewMiniredisStandalone creates and starts an embedded Redis server and a
+// NewMiniredisEmbedded creates and starts an embedded Redis server and a
 // standard go-redis client connected to it. The function validates the
 // connection with a Ping and, when enabled, wires the SnapshotManager
 // persistence lifecycle.
-func NewMiniredisStandalone(ctx context.Context) (*MiniredisStandalone, error) {
+func NewMiniredisEmbedded(ctx context.Context) (*MiniredisEmbedded, error) {
 	log := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
 
@@ -77,7 +77,7 @@ func NewMiniredisStandalone(ctx context.Context) (*MiniredisStandalone, error) {
 		return nil, fmt.Errorf("start miniredis: %w", err)
 	}
 
-	mode := "standalone"
+	mode := "embedded"
 	if cfg != nil {
 		mode = cfg.EffectiveRedisMode()
 	}
@@ -96,27 +96,27 @@ func NewMiniredisStandalone(ctx context.Context) (*MiniredisStandalone, error) {
 		return nil, err
 	}
 
-	standalone := &MiniredisStandalone{
+	embedded := &MiniredisEmbedded{
 		server: mr,
 		client: client,
 	}
 
 	// Optional persistence layer via SnapshotManager.
-	if err := setupPersistenceIfEnabled(ctx, standalone, mr, cfg); err != nil {
-		_ = standalone.Close(ctx)
+	if err := setupPersistenceIfEnabled(ctx, embedded, mr, cfg); err != nil {
+		_ = embedded.Close(ctx)
 		return nil, err
 	}
 
-	return standalone, nil
+	return embedded, nil
 }
 
 // Client returns the go-redis client connected to the embedded server.
-func (m *MiniredisStandalone) Client() *redis.Client {
+func (m *MiniredisEmbedded) Client() *redis.Client {
 	return m.client
 }
 
 // Close gracefully shuts down the embedded Redis server and related resources.
-func (m *MiniredisStandalone) Close(ctx context.Context) error {
+func (m *MiniredisEmbedded) Close(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
