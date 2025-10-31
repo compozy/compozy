@@ -4,7 +4,7 @@
 ## status: completed
 
 <task_context>
-<domain>sdk2/compozy</domain>
+<domain>sdk/compozy</domain>
 <type>implementation</type>
 <scope>core_feature</scope>
 <complexity>high</complexity>
@@ -52,11 +52,11 @@ Reference §2.2.3 for mode responsibilities and §7.1 for dependencies. Default 
 
 ### Relevant Files
 
-- `sdk2/compozy/mode.go`
-- `sdk2/compozy/standalone.go`
-- `sdk2/compozy/distributed.go`
-- `sdk2/compozy/standalone_test.go`
-- `sdk2/compozy/distributed_test.go`
+- `sdk/compozy/mode.go`
+- `sdk/compozy/standalone.go`
+- `sdk/compozy/distributed.go`
+- `sdk/compozy/standalone_test.go`
+- `sdk/compozy/distributed_test.go`
 
 ### Dependent Files
 
@@ -75,9 +75,9 @@ Reference §2.2.3 for mode responsibilities and §7.1 for dependencies. Default 
 ## Tests
 
 - Unit tests mapped from `_tests.md` for this feature:
-- [x] `sdk2/compozy/mode_test.go`
-- [x] `sdk2/compozy/integration/standalone_integration_test.go`
-- [x] `sdk2/compozy/integration/distributed_integration_test.go`
+- [x] `sdk/compozy/mode_test.go`
+- [x] `sdk/compozy/integration/standalone_integration_test.go`
+- [x] `sdk/compozy/integration/distributed_integration_test.go`
 
 ## Success Criteria
 

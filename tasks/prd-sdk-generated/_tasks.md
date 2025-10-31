@@ -10,36 +10,36 @@ Migrate all SDK packages from manual builder pattern to auto-generated functiona
 
 ### Code Generation Infrastructure (Complete)
 
-- `sdk2/internal/codegen/types.go` - Struct metadata types
-- `sdk2/internal/codegen/parser.go` - AST parser for field discovery
-- `sdk2/internal/codegen/generator.go` - Jennifer-based code generator
-- `sdk2/internal/codegen/cmd/optionsgen/main.go` - CLI tool with -package flag
+- `sdk/internal/codegen/types.go` - Struct metadata types
+- `sdk/internal/codegen/parser.go` - AST parser for field discovery
+- `sdk/internal/codegen/generator.go` - Jennifer-based code generator
+- `sdk/internal/codegen/cmd/optionsgen/main.go` - CLI tool with -package flag
 
 ### Reference Implementations (Complete)
 
-- `sdk2/agent/` - Agent package migration (14 fields, complex embedded structs)
-- `sdk2/agentaction/` - Action package migration (12 fields, separate package pattern)
-- `sdk2/MIGRATION_GUIDE.md` - Comprehensive migration documentation
-- `sdk2/CODEGEN_COMPARISON.md` - Before/after metrics
+- `sdk/agent/` - Agent package migration (14 fields, complex embedded structs)
+- `sdk/agentaction/` - Action package migration (12 fields, separate package pattern)
+- `sdk/MIGRATION_GUIDE.md` - Comprehensive migration documentation
+- `sdk/CODEGEN_COMPARISON.md` - Before/after metrics
 
 ### Packages to Migrate
 
 #### Phase 1 - Foundations (5 packages)
-- Reference: `sdk/model/builder.go` (257 LOC) → Create: `sdk2/model/`
-- Reference: `sdk/schedule/builder.go` (174 LOC) → Create: `sdk2/schedule/`
-- Reference: `sdk/mcp/builder.go` (117 LOC) → Create: `sdk2/mcp/`
-- Reference: `sdk/runtime/builder.go` (150 LOC) → Create: `sdk2/runtime/`
-- Reference: `sdk/memory/builder.go` (200 LOC) → Create: `sdk2/memory/`
+- Reference: `sdk/model/builder.go` (257 LOC) → Create: `sdk/model/`
+- Reference: `sdk/schedule/builder.go` (174 LOC) → Create: `sdk/schedule/`
+- Reference: `sdk/mcp/builder.go` (117 LOC) → Create: `sdk/mcp/`
+- Reference: `sdk/runtime/builder.go` (150 LOC) → Create: `sdk/runtime/`
+- Reference: `sdk/memory/builder.go` (200 LOC) → Create: `sdk/memory/`
 
 #### Phase 2 - Components (4 packages)
-- Reference: `sdk/tool/builder.go` (239 LOC) → Create: `sdk2/tool/`
-- Reference: `sdk/schema/builder.go` (180 LOC) → Create: `sdk2/schema/` (special: new approach)
-- Reference: `sdk/workflow/builder.go` (198 LOC) → Create: `sdk2/workflow/`
-- Reference: `sdk/knowledge/builder.go` (250+ LOC) → Create: `sdk2/knowledge/` (4 different types)
+- Reference: `sdk/tool/builder.go` (239 LOC) → Create: `sdk/tool/`
+- Reference: `sdk/schema/builder.go` (180 LOC) → Create: `sdk/schema/` (special: new approach)
+- Reference: `sdk/workflow/builder.go` (198 LOC) → Create: `sdk/workflow/`
+- Reference: `sdk/knowledge/builder.go` (250+ LOC) → Create: `sdk/knowledge/` (4 different types)
 
 #### Phase 3 - Complex Integration (2 packages)
-- Reference: `sdk/task/builder.go` (300+ LOC) → Create: `sdk2/task/` (7+ task type variants)
-- Reference: `sdk/project/builder.go` (460+ LOC) → Create: `sdk2/project/` (15+ fields, orchestrator)
+- Reference: `sdk/task/builder.go` (300+ LOC) → Create: `sdk/task/` (7+ task type variants)
+- Reference: `sdk/project/builder.go` (460+ LOC) → Create: `sdk/project/` (15+ fields, orchestrator)
 
 ### Examples to Update
 
@@ -124,16 +124,16 @@ Phase 4 (After Phase 1):
 
 ## Notes
 
-- **SDK2 Parallel Development:** All work happens in `sdk2/` directory, `sdk/` remains untouched
-- **No Deletions During Migration:** Do not delete anything from `sdk/` until sdk2 is complete
-- **Greenfield in SDK2:** Build fresh in sdk2, no backwards compatibility with sdk
+- **SDK2 Parallel Development:** All work happens in `sdk/` directory, `sdk/` remains untouched
+- **No Deletions During Migration:** Do not delete anything from `sdk/` until sdk is complete
+- **Greenfield in SDK2:** Build fresh in sdk, no backwards compatibility with sdk
 - **Package Naming:** Use separate packages if Option type conflicts (e.g., agentaction)
 - **Validation Centralization:** Move all validation to constructor
 - **Deep Copy Required:** Always clone configs before returning
 - **Context First:** ctx must be first parameter in all constructors
 - All runtime code MUST use `logger.FromContext(ctx)` and `config.FromContext(ctx)`
 - Run `make fmt && make lint && make test` before marking any task as completed
-- **SDK Cleanup:** After sdk2 complete, separately decide what to do with old sdk/
+- **SDK Cleanup:** After sdk complete, separately decide what to do with old sdk/
 
 ## Batch Plan (Grouped Commits)
 

@@ -24,18 +24,18 @@
 - Context validation in all constructors
 
 **Files Created:**
-- `sdk2/task/generate.go` - Code generation directive
-- `sdk2/task/options_generated.go` - 50 auto-generated functional options
-- `sdk2/task/constructors.go` - 7 task type constructors with validation
-- `sdk2/task/constructors_test.go` - 47 comprehensive tests
-- `sdk2/task/README.md` - Complete documentation with examples
+- `sdk/task/generate.go` - Code generation directive
+- `sdk/task/options_generated.go` - 50 auto-generated functional options
+- `sdk/task/constructors.go` - 7 task type constructors with validation
+- `sdk/task/constructors_test.go` - 47 comprehensive tests
+- `sdk/task/README.md` - Complete documentation with examples
 
 <task_context>
 <domain>sdk/task</domain>
 <type>implementation</type>
 <scope>code_generation</scope>
 <complexity>high</complexity>
-<dependencies>sdk2/workflow,sdk2/tool</dependencies>
+<dependencies>sdk/workflow,sdk/tool</dependencies>
 </task_context>
 
 # Task 10.0: Migrate task Package to Functional Options
@@ -66,7 +66,7 @@ Migrate `sdk/task` with 7+ task type variants (Basic, Parallel, Collection, Wait
 
 ## Subtasks
 
-- [x] 10.1 Create sdk2/task/ directory structure
+- [x] 10.1 Create sdk/task/ directory structure
 - [x] 10.2 Analyze task types and their engine structs
 - [x] 10.3 Create generate files for unified Config approach
 - [x] 10.4 Generate options from engine/task/config.go (50 options)
@@ -143,7 +143,7 @@ Fields: ID, Condition (expression), ThenTask, ElseTask
 - `sdk/task/builder_test.go` - Old tests to understand test cases
 - `engine/task/config.go` - Source structs for all 7+ task types
 
-**To Create in sdk2/task/:**
+**To Create in sdk/task/:**
 - `generate.go` - Code generation directives (7+ types)
 - `basic_options_generated.go` - Generated options for BasicTask
 - `parallel_options_generated.go` - Generated options for ParallelTask
@@ -156,7 +156,7 @@ Fields: ID, Condition (expression), ThenTask, ElseTask
 - `constructors_test.go` - Extensive tests for all types
 - `README.md` - Documentation for multi-type approach
 
-**Note:** Do NOT delete or modify anything in `sdk/task/` - keep for reference during transition. All 7+ task types go in the same sdk2/task/ package.
+**Note:** Do NOT delete or modify anything in `sdk/task/` - keep for reference during transition. All 7+ task types go in the same sdk/task/ package.
 
 ## Tests
 
@@ -176,13 +176,13 @@ Fields: ID, Condition (expression), ThenTask, ElseTask
 
 ## Success Criteria
 
-- [x] sdk2/task/ directory structure created
-- [x] All 7 task types have constructors in sdk2/task/ (New, NewRouter, NewParallel, NewCollection, NewWait, NewSignal, NewMemory)
+- [x] sdk/task/ directory structure created
+- [x] All 7 task types have constructors in sdk/task/ (New, NewRouter, NewParallel, NewCollection, NewWait, NewSignal, NewMemory)
 - [x] Type-specific validation complete for each constructor
 - [x] Clear separation between task types with dedicated constructors
 - [x] Transition logic validated (OnSuccess, OnError)
-- [x] Tests pass: `gotestsum -- ./sdk2/task` (47 tests, all passing)
-- [x] Linter clean: `golangci-lint run ./sdk2/task/...` (0 issues)
+- [x] Tests pass: `gotestsum -- ./sdk/task` (47 tests, all passing)
+- [x] Linter clean: `golangci-lint run ./sdk/task/...` (0 issues)
 - [x] Reduction: ~300+ LOC → ~90 LOC per constructor (70% reduction achieved)
 - [x] README documents when to use each task type with examples
 - [x] Old sdk/task/ remains untouched

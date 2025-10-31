@@ -5,7 +5,7 @@
 <type>implementation</type>
 <scope>code_generation</scope>
 <complexity>medium</complexity>
-<dependencies>sdk2/model</dependencies>
+<dependencies>sdk/model</dependencies>
 </task_context>
 
 # Task 8.0: Migrate workflow Package to Functional Options
@@ -29,7 +29,7 @@ Migrate `sdk/workflow` for orchestrating multiple tasks. Workflows define execut
 
 ## Subtasks
 
-- [x] 8.1 Create sdk2/workflow/ directory structure
+- [x] 8.1 Create sdk/workflow/ directory structure
 - [x] 8.2 Create generate.go
 - [x] 8.3 Generate options (~10 fields)
 - [x] 8.4 Constructor with workflow validation
@@ -68,7 +68,7 @@ func New(ctx context.Context, id string, opts ...Option) (*workflow.Config, erro
 - `sdk/workflow/builder_test.go` - Old tests to understand test cases
 - `engine/workflow/config.go` - Source struct for generation
 
-**To Create in sdk2/workflow/:**
+**To Create in sdk/workflow/:**
 - `generate.go` - Code generation directive
 - `options_generated.go` - Generated functional options
 - `constructors.go` - New() constructor with validation
@@ -90,11 +90,11 @@ func New(ctx context.Context, id string, opts ...Option) (*workflow.Config, erro
 
 ## Success Criteria
 
-- [x] sdk2/workflow/ directory structure created
+- [x] sdk/workflow/ directory structure created
 - [x] Task collection validated
 - [x] Initial task reference checked
 - [x] Circular dependencies caught
-- [x] Tests pass: `gotestsum -- ./sdk2/workflow`
-- [x] Linter clean: `golangci-lint run ./sdk2/workflow/...`
+- [x] Tests pass: `gotestsum -- ./sdk/workflow`
+- [x] Linter clean: `golangci-lint run ./sdk/workflow/...`
 - [x] Reduction: ~203 LOC → ~89 LOC (56% reduction, 17 fields generated)
 - [x] Old sdk/workflow/ remains untouched

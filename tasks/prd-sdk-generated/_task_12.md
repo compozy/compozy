@@ -5,14 +5,14 @@
 <type>implementation</type>
 <scope>examples</scope>
 <complexity>low</complexity>
-<dependencies>sdk2/model,sdk2/workflow</dependencies>
+<dependencies>sdk/model,sdk/workflow</dependencies>
 </task_context>
 
 # Task 12.0: Create Consolidated Examples with Functional Options
 
 ## Overview
 
-Create a single consolidated examples program in `sdk2/examples/` with a flag-based interface to run different examples. Each example will be an exported `Run<ExampleName>()` function, making it easier for users to browse code and run examples with a simple CLI.
+Create a single consolidated examples program in `sdk/examples/` with a flag-based interface to run different examples. Each example will be an exported `Run<ExampleName>()` function, making it easier for users to browse code and run examples with a simple CLI.
 
 **Estimated Time:** 2-3 hours
 
@@ -21,17 +21,17 @@ Create a single consolidated examples program in `sdk2/examples/` with a flag-ba
 <critical>
 - **USER-FACING:** Examples are primary learning resource
 - **SINGLE ENTRY POINT:** One main.go with flag-based example selection
-- **BETTER UX:** Users run `go run sdk2/examples --example <name>` instead of navigating multiple directories
+- **BETTER UX:** Users run `go run sdk/examples --example <name>` instead of navigating multiple directories
 - **CLEANER STRUCTURE:** All examples in one file, easier to maintain and browse
 - **API DEMONSTRATION:** Must show best practices with new functional options
 </critical>
 
 <requirements>
-- Create single sdk2/examples/ directory with main.go
+- Create single sdk/examples/ directory with main.go
 - Each example as exported Run<ExampleName>(ctx context.Context) error function
 - CLI flag --example <name> to select which example to run
 - Follow new API: ctx first, no .Build(), WithX() options
-- Use sdk2 imports throughout
+- Use sdk imports throughout
 - Verify each example still runs correctly via flag
 - Maintain example functionality (no behavior changes)
 - Clear help text showing available examples
@@ -39,7 +39,7 @@ Create a single consolidated examples program in `sdk2/examples/` with a flag-ba
 
 ## Subtasks
 
-- [x] 12.1 Create sdk2/examples/ directory and main.go with flag parsing
+- [x] 12.1 Create sdk/examples/ directory and main.go with flag parsing
 - [x] 12.2 Implement RunSimpleWorkflow() function
 - [x] 12.3 Implement RunParallelTasks() function
 - [x] 12.4 Implement RunKnowledgeRag() function
@@ -56,7 +56,7 @@ Create a single consolidated examples program in `sdk2/examples/` with a flag-ba
 
 ### New Single File Structure
 ```
-sdk2/
+sdk/
 └── examples/
     └── main.go  (single file with all examples)
 ```
@@ -110,10 +110,10 @@ func RunSimpleWorkflow(ctx context.Context) error {
 ### Usage
 ```bash
 # Run specific example
-go run sdk2/examples --example simple-workflow
+go run sdk/examples --example simple-workflow
 
 # Show help
-go run sdk2/examples --help
+go run sdk/examples --help
 ```
 
 ### Key Changes Checklist
@@ -127,7 +127,7 @@ go run sdk2/examples --help
 
 ## Example Functions to Implement
 
-**Note:** All functions in single `sdk2/examples/main.go` file
+**Note:** All functions in single `sdk/examples/main.go` file
 
 ### 1. RunSimpleWorkflow(ctx context.Context) error
 **Demonstrates:**
@@ -201,18 +201,18 @@ go run sdk2/examples --help
 
 ```bash
 # Test each example via flag
-go run sdk2/examples --example simple-workflow
-go run sdk2/examples --example parallel-tasks
-go run sdk2/examples --example knowledge-rag
-go run sdk2/examples --example memory-conversation
-go run sdk2/examples --example runtime-native-tools
-go run sdk2/examples --example scheduled-workflow
-go run sdk2/examples --example signal-communication
-go run sdk2/examples --example complete-project
-go run sdk2/examples --example debugging
+go run sdk/examples --example simple-workflow
+go run sdk/examples --example parallel-tasks
+go run sdk/examples --example knowledge-rag
+go run sdk/examples --example memory-conversation
+go run sdk/examples --example runtime-native-tools
+go run sdk/examples --example scheduled-workflow
+go run sdk/examples --example signal-communication
+go run sdk/examples --example complete-project
+go run sdk/examples --example debugging
 
 # Show available examples
-go run sdk2/examples --help
+go run sdk/examples --help
 
 # Expected: Each example runs successfully without errors
 # Verify: Output matches expected behavior
@@ -221,12 +221,12 @@ go run sdk2/examples --help
 ## Files
 
 **Create:**
-- `sdk2/examples/main.go` - Single file with all examples and CLI
-- `sdk2/examples/README.md` - Documentation on running examples
+- `sdk/examples/main.go` - Single file with all examples and CLI
+- `sdk/examples/README.md` - Documentation on running examples
 
 **Structure:**
 ```
-sdk2/examples/
+sdk/examples/
 ├── main.go          # Main entry point with flag parsing
 └── README.md        # Usage documentation
 ```
@@ -241,15 +241,15 @@ sdk2/examples/
 - [ ] Invalid example name shows helpful error
 - [ ] Output behavior matches expected functionality
 - [ ] No builder pattern references remaining
-- [ ] All imports use sdk2 (sdk/v2/*)
+- [ ] All imports use sdk (sdk/v2/*)
 - [ ] Engine types imported where needed
 - [ ] Comments explain new patterns
 - [ ] README.md provides clear usage instructions
 
 ## Success Criteria
 
-- [ ] sdk2/examples/main.go created with all 9 example functions
-- [ ] Program compiles: `go build sdk2/examples/main.go`
+- [ ] sdk/examples/main.go created with all 9 example functions
+- [ ] Program compiles: `go build sdk/examples/main.go`
 - [ ] All examples run: Each --example flag tested
 - [ ] Help text shows all available examples
 - [ ] No old builder pattern references
@@ -257,13 +257,13 @@ sdk2/examples/
 - [ ] Updated comments reflect new API
 - [ ] Examples serve as learning resources
 - [ ] README.md documents usage clearly
-- [ ] Single command execution: `go run sdk2/examples --example <name>`
-- [ ] Migration complete: Examples demonstrate sdk2 functional options
+- [ ] Single command execution: `go run sdk/examples --example <name>`
+- [ ] Migration complete: Examples demonstrate sdk functional options
 
 ## Notes
 
 **Critical Understanding:**
-- We ARE creating a NEW consolidated examples program in `sdk2/examples/`
+- We ARE creating a NEW consolidated examples program in `sdk/examples/`
 - Single main.go file with flag-based example selection
 - Each example is an exported Run*() function
 - Old examples in `sdk/cmd/` remain as reference but are deprecated
@@ -271,7 +271,7 @@ sdk2/examples/
 
 **Benefits of Single File Approach:**
 - Easier for users to browse and understand all examples
-- Single command to run any example: `go run sdk2/examples --example <name>`
+- Single command to run any example: `go run sdk/examples --example <name>`
 - Easier maintenance (one file vs 9 directories)
 - Clear API demonstration in one place
 - Better discoverability via --help flag

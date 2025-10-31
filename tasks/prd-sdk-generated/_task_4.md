@@ -25,7 +25,7 @@ Migrate `sdk/runtime` for native function execution in workflows. Runtime config
 
 ## Subtasks
 
-- [x] 4.1 Create sdk2/runtime/ directory structure
+- [x] 4.1 Create sdk/runtime/ directory structure
 - [x] 4.2 Create generate.go
 - [x] 4.3 Generate options (~13 fields)
 - [x] 4.4 Constructor with runtime validation
@@ -49,7 +49,7 @@ Migrate `sdk/runtime` for native function execution in workflows. Runtime config
 - `sdk/runtime/builder_test.go` - Old tests to understand test cases
 - `engine/runtime/config.go` - Source struct for generation
 
-**To Create in sdk2/runtime/:**
+**To Create in sdk/runtime/:**
 - `generate.go` - go:generate directive
 - `options_generated.go` - Auto-generated
 - `constructor.go` - Validation logic (~55 lines)
@@ -65,8 +65,8 @@ Migrate `sdk/runtime` for native function execution in workflows. Runtime config
 - [x] Deep copy behavior verified
 
 ## Success Criteria
-- [x] sdk2/runtime/ directory created with proper structure
+- [x] sdk/runtime/ directory created with proper structure
 - [x] Runtime enum validated
-- [x] Tests pass: `gotestsum -- ./sdk2/runtime` (23 tests, 71.7% coverage)
-- [x] Linter clean: `golangci-lint run ./sdk2/runtime/...` (0 issues)
+- [x] Tests pass: `gotestsum -- ./sdk/runtime` (23 tests, 71.7% coverage)
+- [x] Linter clean: `golangci-lint run ./sdk/runtime/...` (0 issues)
 - [x] 654 LOC → 180 LOC (72% reduction, exceeded target!)

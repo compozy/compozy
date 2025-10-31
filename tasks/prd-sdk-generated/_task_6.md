@@ -5,7 +5,7 @@
 <type>implementation</type>
 <scope>code_generation</scope>
 <complexity>medium</complexity>
-<dependencies>sdk2/model</dependencies>
+<dependencies>sdk/model</dependencies>
 </task_context>
 
 # Task 6.0: Migrate tool Package to Functional Options
@@ -34,7 +34,7 @@ Migrate `sdk/tool` for agent tool configurations. Tools extend agent capabilitie
 
 ## Subtasks
 
-- [x] 6.1 Create sdk2/tool/ directory structure
+- [x] 6.1 Create sdk/tool/ directory structure
 - [x] 6.2 Create generate.go
 - [x] 6.3 Generate options (~13 fields)
 - [x] 6.4 Constructor with type-specific validation
@@ -71,7 +71,7 @@ case "mcp":
 - `sdk/tool/builder_test.go` - Old tests to understand test cases
 - `engine/tool/config.go` - Source struct for generation
 
-**To Create in sdk2/tool/:**
+**To Create in sdk/tool/:**
 - `generate.go` - go:generate directive
 - `options_generated.go` - Auto-generated
 - `constructor.go` - Validation logic
@@ -101,12 +101,12 @@ case "mcp":
 
 ## Success Criteria
 
-- [x] sdk2/tool/ directory created
+- [x] sdk/tool/ directory created
 - [x] Type-based validation logic complete
 - [x] Schema integration working
 - [x] All tool types tested
-- [x] Tests pass: `gotestsum -- ./sdk2/tool` (40 tests, all passing)
-- [x] Linter clean: `golangci-lint run ./sdk2/tool/...` (0 issues)
+- [x] Tests pass: `gotestsum -- ./sdk/tool` (40 tests, all passing)
+- [x] Linter clean: `golangci-lint run ./sdk/tool/...` (0 issues)
 - [x] Generated 13 option functions (Resource, ID, Name, Description, Runtime, Code, Timeout, InputSchema, OutputSchema, With, Config, Env, CWD)
 - [x] Comprehensive validation: ID, Name, Description, Runtime, Code, Timeout
 - [x] README.md with API documentation and migration guide

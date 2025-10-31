@@ -4,17 +4,17 @@
 
 ### Core Implementation Files
 
-- `sdk2/compozy/constructor.go` - New engine constructor and option wiring.
-- `sdk2/compozy/types.go` - Shared request/response and mode definitions.
-- `sdk2/compozy/engine.go` - Engine struct, lifecycle hooks, and client integration.
-- `sdk2/compozy/mode.go` - Mode configuration objects and validation.
-- `sdk2/compozy/loader.go` - YAML loading helpers and resource registrars.
-- `sdk2/compozy/validation.go` - Dependency graph validation utilities.
+- `sdk/compozy/constructor.go` - New engine constructor and option wiring.
+- `sdk/compozy/types.go` - Shared request/response and mode definitions.
+- `sdk/compozy/engine.go` - Engine struct, lifecycle hooks, and client integration.
+- `sdk/compozy/mode.go` - Mode configuration objects and validation.
+- `sdk/compozy/loader.go` - YAML loading helpers and resource registrars.
+- `sdk/compozy/validation.go` - Dependency graph validation utilities.
 
 ### Integration Points
 
-- `sdk2/internal/sdkcodegen/*` - Code generation specs and generators for options, execution, loading, registration.
-- `sdk2/client` - HTTP transport used by engine execution methods.
+- `sdk/internal/sdkcodegen/*` - Code generation specs and generators for options, execution, loading, registration.
+- `sdk/client` - HTTP transport used by engine execution methods.
 - `engine/resources` & `engine/infra/*` - Resource store and infrastructure dependencies for mode wiring.
 - `pkg/config`, `pkg/logger` - Context-based config and logging integration.
 
@@ -25,7 +25,7 @@
 - [x] 3.0 Build engine core lifecycle and client integration (L)
 - [x] 4.0 Deliver standalone and distributed mode orchestration (L)
 - [x] 5.0 Implement resource loading and validation layer (M)
-- [ ] 6.0 Complete Test Coverage (M)
+- [x] 6.0 Complete Test Coverage (M)
 
 Notes on sizing:
 
@@ -56,4 +56,4 @@ Notes
 
 - [x] Batch 1 — Foundation & Codegen: 1.0, 2.0
 - [x] Batch 2 — Engine & Runtime: 3.0, 4.0, 5.0
-- [ ] Batch 3 — Test Coverage: 6.0
+- [x] Batch 3 — Test Coverage: 6.0

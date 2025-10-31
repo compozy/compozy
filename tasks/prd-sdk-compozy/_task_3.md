@@ -4,7 +4,7 @@
 ## status: completed
 
 <task_context>
-<domain>sdk2/compozy</domain>
+<domain>sdk/compozy</domain>
 <type>implementation</type>
 <scope>core_feature</scope>
 <complexity>high</complexity>
@@ -33,7 +33,7 @@ Implement the `Engine` struct, lifecycle management, client wiring, and introspe
 <requirements>
 - Implement `Engine` struct fields covering resource slices, stores, client, mode, and HTTP server references per §2.2 and §3.1.
 - Develop lifecycle methods (`Start`, `Stop`, `Wait`) handling embedded server bootstrapping hooks and deferring mode-specific wiring to Task 4.
-- Integrate `sdk2/client` for all execution methods, reusing generated helpers and mapping request/response types (§7.2).
+- Integrate `sdk/client` for all execution methods, reusing generated helpers and mapping request/response types (§7.2).
 - Expose introspection methods (`Server`, `Router`, `Config`, `ResourceStore`, `Mode`, `IsStarted`) matching interface in §3.1.
 - Ensure context usage pulls config/logger via `config.FromContext` and `logger.FromContext` per project rules.
 </requirements>
@@ -42,7 +42,7 @@ Implement the `Engine` struct, lifecycle management, client wiring, and introspe
 
 - [x] 3.1 Define `Engine` struct and supporting private helpers in `engine.go` (§2.2.1).
 - [x] 3.2 Implement lifecycle methods with proper context propagation and error handling (§7.2).
-- [x] 3.3 Wire execution helpers to `sdk2/client`, covering sync/async/streaming flows via generated code (§4.2, §7.2).
+- [x] 3.3 Wire execution helpers to `sdk/client`, covering sync/async/streaming flows via generated code (§4.2, §7.2).
 - [x] 3.4 Implement resource store selection logic stub aligning with mode defaults (standalone memory vs distributed redis) (§7.1); full wiring completed in Task 4.
 - [x] 3.5 Add unit tests for lifecycle and execution method conversions.
 
@@ -52,15 +52,15 @@ Follow §2.2 for component responsibilities and §7.2 for client integration. Li
 
 ### Relevant Files
 
-- `sdk2/compozy/engine.go`
-- `sdk2/compozy/lifecycle.go`
-- `sdk2/compozy/engine_execution.go`
-- `sdk2/compozy/constants.go`
-- `sdk2/compozy/errors.go`
+- `sdk/compozy/engine.go`
+- `sdk/compozy/lifecycle.go`
+- `sdk/compozy/engine_execution.go`
+- `sdk/compozy/constants.go`
+- `sdk/compozy/errors.go`
 
 ### Dependent Files
 
-- `sdk2/client`
+- `sdk/client`
 - `engine/resources`
 - `pkg/config`
 - `pkg/logger`
@@ -74,9 +74,9 @@ Follow §2.2 for component responsibilities and §7.2 for client integration. Li
 ## Tests
 
 - Unit tests mapped from `_tests.md` for this feature:
-  - [ ] `sdk2/compozy/engine_test.go`
-  - [ ] `sdk2/compozy/lifecycle_test.go`
-  - [ ] `sdk2/compozy/execution/client_test.go`
+  - [ ] `sdk/compozy/engine_test.go`
+  - [ ] `sdk/compozy/lifecycle_test.go`
+  - [ ] `sdk/compozy/execution/client_test.go`
 
 ## Success Criteria
 

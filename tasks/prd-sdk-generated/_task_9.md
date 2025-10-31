@@ -5,7 +5,7 @@
 <type>implementation</type>
 <scope>code_generation</scope>
 <complexity>medium</complexity>
-<dependencies>sdk2/model</dependencies>
+<dependencies>sdk/model</dependencies>
 </task_context>
 
 # Task 9.0: Migrate knowledge Package to Functional Options
@@ -34,7 +34,7 @@ Migrate `sdk/knowledge` for RAG (Retrieval Augmented Generation) configurations.
 
 ## Subtasks
 
-- [x] 9.1 Create sdk2/knowledge/ directory structure
+- [x] 9.1 Create sdk/knowledge/ directory structure
 - [x] 9.2 Create 4 generate.go files (or one with 4 directives)
 - [x] 9.3 Generate options for all 4 types
 - [x] 9.4 Create NewBase constructor
@@ -99,7 +99,7 @@ Fields: ID, Type (pgvector/qdrant/pinecone), ConnectionString, CollectionName, I
 - `sdk/knowledge/builder_test.go` - Old tests to understand test cases
 - `engine/knowledge/config.go` - Source structs for all 4 config types
 
-**To Create in sdk2/knowledge/:**
+**To Create in sdk/knowledge/:**
 - `generate.go` - Code generation directives (4 types)
 - `base_options_generated.go` - Generated options for Base
 - `binding_options_generated.go` - Generated options for Binding
@@ -109,7 +109,7 @@ Fields: ID, Type (pgvector/qdrant/pinecone), ConnectionString, CollectionName, I
 - `constructors_test.go` - Tests for all 4 types
 - `README.md` - Documentation for multi-type approach
 
-**Note:** Do NOT delete or modify anything in `sdk/knowledge/` - keep for reference during transition. All 4 config types go in the same sdk2/knowledge/ package.
+**Note:** Do NOT delete or modify anything in `sdk/knowledge/` - keep for reference during transition. All 4 config types go in the same sdk/knowledge/ package.
 
 ## Tests
 
@@ -128,12 +128,12 @@ Fields: ID, Type (pgvector/qdrant/pinecone), ConnectionString, CollectionName, I
 
 ## Success Criteria
 
-- [x] sdk2/knowledge/ directory structure created
-- [x] All 4 config types working in sdk2/knowledge/
+- [x] sdk/knowledge/ directory structure created
+- [x] All 4 config types working in sdk/knowledge/
 - [x] Type-specific validation complete
 - [x] Clear API separation between types
-- [x] Tests pass: `gotestsum -- ./sdk2/knowledge` (40 tests passing)
-- [x] Linter clean: `golangci-lint run ./sdk2/knowledge/...` (0 issues)
+- [x] Tests pass: `gotestsum -- ./sdk/knowledge` (40 tests passing)
+- [x] Linter clean: `golangci-lint run ./sdk/knowledge/...` (0 issues)
 - [x] Reduction: ~250+ LOC → ~120 LOC (52% reduction)
 - [x] README clearly documents when to use each type
 - [x] Old sdk/knowledge/ remains untouched

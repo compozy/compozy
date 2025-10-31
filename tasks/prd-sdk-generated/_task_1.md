@@ -17,9 +17,9 @@ Migrate the `sdk/model` package from manual builder pattern to auto-generated fu
 **Estimated Time:** 1-2 hours
 
 <critical>
-- **ALWAYS READ** @sdk2/MIGRATION_GUIDE.md before starting
-- **ALWAYS READ** @sdk2/CODEGEN_COMPARISON.md for patterns
-- **ALWAYS USE** @sdk2/agent/ and @sdk2/agentaction/ as reference implementations
+- **ALWAYS READ** @sdk/MIGRATION_GUIDE.md before starting
+- **ALWAYS READ** @sdk/CODEGEN_COMPARISON.md for patterns
+- **ALWAYS USE** @sdk/agent/ and @sdk/agentaction/ as reference implementations
 - **GREENFIELD APPROACH:** Delete old builder files immediately, no backwards compatibility
 </critical>
 
@@ -35,7 +35,7 @@ Migrate the `sdk/model` package from manual builder pattern to auto-generated fu
 
 ## Subtasks
 
-- [x] 1.1 Create sdk2/model/ directory structure
+- [x] 1.1 Create sdk/model/ directory structure
 - [x] 1.2 Create generate.go with go:generate directive
 - [x] 1.3 Run go generate to create options_generated.go
 - [x] 1.4 Create constructor.go with validation logic
@@ -95,7 +95,7 @@ func New(ctx context.Context, provider string, model string, opts ...Option) (*c
 - `sdk/model/builder_test.go` - Old tests to understand test cases
 - `engine/core/provider_config.go` - Source struct for generation
 
-**To Create in sdk2/model/:**
+**To Create in sdk/model/:**
 - `generate.go` - go:generate directive
 - `options_generated.go` - Auto-generated (DO NOT EDIT)
 - `constructor.go` - Validation logic (~80 lines)
@@ -110,14 +110,14 @@ func New(ctx context.Context, provider string, model string, opts ...Option) (*c
 
 ## Deliverables
 
-- [x] `sdk2/model/` directory created
-- [x] `sdk2/model/generate.go` created
-- [x] `sdk2/model/options_generated.go` generated successfully
-- [x] `sdk2/model/constructor.go` with validation implemented
-- [x] `sdk2/model/constructor_test.go` with >90% coverage
-- [x] `sdk2/model/README.md` with usage examples
-- [x] All tests passing: `gotestsum -- -race -parallel=4 ./sdk2/model`
-- [x] Linter passes: `golangci-lint run --fix ./sdk2/model/...`
+- [x] `sdk/model/` directory created
+- [x] `sdk/model/generate.go` created
+- [x] `sdk/model/options_generated.go` generated successfully
+- [x] `sdk/model/constructor.go` with validation implemented
+- [x] `sdk/model/constructor_test.go` with >90% coverage
+- [x] `sdk/model/README.md` with usage examples
+- [x] All tests passing: `gotestsum -- -race -parallel=4 ./sdk/model`
+- [x] Linter passes: `golangci-lint run --fix ./sdk/model/...`
 
 ## Tests
 
@@ -150,7 +150,7 @@ Unit tests must cover:
 ## Reference
 
 Use these as templates:
-- Constructor pattern: `sdk2/agent/constructor.go`
-- Test patterns: `sdk2/agent/constructor_test.go`
-- Generate directive: `sdk2/agentaction/generate.go`
-- README structure: `sdk2/agentaction/README.md`
+- Constructor pattern: `sdk/agent/constructor.go`
+- Test patterns: `sdk/agent/constructor_test.go`
+- Generate directive: `sdk/agentaction/generate.go`
+- README structure: `sdk/agentaction/README.md`

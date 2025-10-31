@@ -26,7 +26,7 @@ Migrate `sdk/memory` for persistent agent memory storage. Memory configs define 
 
 ## Subtasks
 
-- [x] 5.1 Create sdk2/memory/ directory structure
+- [x] 5.1 Create sdk/memory/ directory structure
 - [x] 5.2 Create generate.go
 - [x] 5.3 Generate options (~18 fields)
 - [x] 5.4 Constructor with backend validation
@@ -51,7 +51,7 @@ Migrate `sdk/memory` for persistent agent memory storage. Memory configs define 
 - `sdk/memory/builder_test.go` - Old tests to understand test cases
 - `engine/memory/config.go` - Source struct for generation
 
-**To Create in sdk2/memory/:**
+**To Create in sdk/memory/:**
 - `generate.go` - go:generate directive
 - `options_generated.go` - Auto-generated
 - `constructor.go` - Validation logic
@@ -69,9 +69,9 @@ Migrate `sdk/memory` for persistent agent memory storage. Memory configs define 
 - [x] Negative limits fail
 
 ## Success Criteria
-- [x] sdk2/memory/ directory created
+- [x] sdk/memory/ directory created
 - [x] Backend validation complete
 - [x] Persistence type and TTL validation
-- [x] Tests pass: `gotestsum -- ./sdk2/memory` (19 tests, all pass)
-- [x] Linter clean: `golangci-lint run ./sdk2/memory/...` (0 issues)
+- [x] Tests pass: `gotestsum -- ./sdk/memory` (19 tests, all pass)
+- [x] Linter clean: `golangci-lint run ./sdk/memory/...` (0 issues)
 - [x] ~727 LOC total (4 files: generate.go, options_generated.go, constructor.go, constructor_test.go)

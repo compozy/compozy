@@ -39,7 +39,7 @@ Migrate `sdk/project` - the top-level orchestrator that integrates all other pac
 
 ## Subtasks
 
-- [x] 11.1 Create sdk2/project/ directory structure
+- [x] 11.1 Create sdk/project/ directory structure
 - [x] 11.2 Create generate.go for project config
 - [x] 11.3 Generate options (20 fields)
 - [x] 11.4 Create constructor with cross-validation
@@ -137,14 +137,14 @@ func validateCircularDependencies(cfg *project.Config) error
 - `sdk/project/builder.go` (~460 LOC) - Old builder to understand requirements
 - `engine/project/config.go` - Source struct
 
-**To Create in sdk2/project/:**
-- `sdk2/project/generate.go`
-- `sdk2/project/options_generated.go` (15+ options)
-- `sdk2/project/constructor.go` (~200 lines with validation)
-- `sdk2/project/constructor_test.go` (~500+ lines)
-- `sdk2/project/validation.go` (cross-reference logic)
-- `sdk2/project/validation_test.go`
-- `sdk2/project/README.md`
+**To Create in sdk/project/:**
+- `sdk/project/generate.go`
+- `sdk/project/options_generated.go` (15+ options)
+- `sdk/project/constructor.go` (~200 lines with validation)
+- `sdk/project/constructor_test.go` (~500+ lines)
+- `sdk/project/validation.go` (cross-reference logic)
+- `sdk/project/validation_test.go`
+- `sdk/project/README.md`
 
 **Note:** Do NOT modify sdk/project/ - keep as reference only
 
@@ -185,10 +185,10 @@ func validateCircularDependencies(cfg *project.Config) error
 - [ ] Cross-reference validation complete
 - [ ] Circular dependency detection working
 - [ ] Resource collection handling correct
-- [ ] Tests pass: `gotestsum -- ./sdk2/project`
-- [ ] Linter clean: `golangci-lint run ./sdk2/project/...`
+- [ ] Tests pass: `gotestsum -- ./sdk/project`
+- [ ] Linter clean: `golangci-lint run ./sdk/project/...`
 - [ ] Integration tests with all SDK packages pass
-- [ ] New code in sdk2/project/ (~200 LOC)
+- [ ] New code in sdk/project/ (~200 LOC)
 - [ ] README documents complete project structure
 - [ ] Examples reference best practices
 

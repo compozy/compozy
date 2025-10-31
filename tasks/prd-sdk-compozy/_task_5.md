@@ -4,7 +4,7 @@
 ## status: completed
 
 <task_context>
-<domain>sdk2/compozy</domain>
+<domain>sdk/compozy</domain>
 <type>implementation</type>
 <scope>configuration</scope>
 <complexity>medium</complexity>
@@ -52,16 +52,16 @@ Reference §4.3 for dynamic loading flows, §2.2.4–§2.2.5 for resource manage
 
 ### Relevant Files
 
-- `sdk2/compozy/loader.go`
-- `sdk2/compozy/engine_loading.go`
-- `sdk2/compozy/engine_registration.go`
-- `sdk2/compozy/validation.go`
-- `sdk2/compozy/validation_test.go`
+- `sdk/compozy/loader.go`
+- `sdk/compozy/engine_loading.go`
+- `sdk/compozy/engine_registration.go`
+- `sdk/compozy/validation.go`
+- `sdk/compozy/validation_test.go`
 
 ### Dependent Files
 
 - `engine/resources`
-- `sdk2/resource` packages for schema definitions
+- `sdk/resource` packages for schema definitions
 - `pkg/template`
 
 ## Deliverables
@@ -73,9 +73,9 @@ Reference §4.3 for dynamic loading flows, §2.2.4–§2.2.5 for resource manage
 ## Tests
 
 - Unit tests mapped from `_tests.md` for this feature:
-  - [x] `sdk2/compozy/resources/graph_test.go`
-  - [x] `sdk2/compozy/config/yaml_loader_test.go`
-  - [x] `sdk2/compozy/integration/hybrid_yaml_integration_test.go`
+  - [x] `sdk/compozy/resources/graph_test.go`
+  - [x] `sdk/compozy/config/yaml_loader_test.go`
+  - [x] `sdk/compozy/integration/hybrid_yaml_integration_test.go`
 
 ## Success Criteria
 

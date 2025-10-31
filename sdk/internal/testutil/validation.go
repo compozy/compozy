@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
+	sdkerrors "github.com/compozy/compozy/sdk/v2/internal/errors"
 )
 
 var reportFailure = func(t *testing.T, format string, args ...any) {

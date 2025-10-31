@@ -17,8 +17,8 @@ Migrate the `sdk/schedule` package from manual builder pattern to auto-generated
 **Estimated Time:** 1-2 hours
 
 <critical>
-- **ALWAYS READ** @sdk2/MIGRATION_GUIDE.md before starting
-- **GREENFIELD APPROACH:** Build fresh in sdk2/, keep sdk/ for reference
+- **ALWAYS READ** @sdk/MIGRATION_GUIDE.md before starting
+- **GREENFIELD APPROACH:** Build fresh in sdk/, keep sdk/ for reference
 - **CRON VALIDATION:** Must validate cron expression syntax
 </critical>
 
@@ -33,7 +33,7 @@ Migrate the `sdk/schedule` package from manual builder pattern to auto-generated
 
 ## Subtasks
 
-- [x] 2.1 Create sdk2/schedule/ directory structure
+- [x] 2.1 Create sdk/schedule/ directory structure
 - [x] 2.2 Create generate.go with go:generate directive
 - [x] 2.3 Run go generate to create options_generated.go
 - [x] 2.4 Create constructor.go with cron validation
@@ -66,7 +66,7 @@ type Config struct {
 - `sdk/schedule/builder_test.go` - Old tests to understand test cases
 - `engine/schedule/config.go` - Source struct for generation
 
-**To Create in sdk2/schedule/:**
+**To Create in sdk/schedule/:**
 - `generate.go` - go:generate directive
 - `options_generated.go` - Auto-generated
 - `constructor.go` - Validation logic (~70 lines)
@@ -89,9 +89,9 @@ type Config struct {
 
 ## Success Criteria
 
-- [x] sdk2/schedule/ directory created with proper structure
+- [x] sdk/schedule/ directory created with proper structure
 - [x] Cron expressions validated with proper error messages
 - [x] Timezone validation uses time.LoadLocation
-- [x] All tests pass with >90% coverage: `gotestsum -- ./sdk2/schedule`
-- [x] Linter passes: `golangci-lint run --fix ./sdk2/schedule/...`
+- [x] All tests pass with >90% coverage: `gotestsum -- ./sdk/schedule`
+- [x] Linter passes: `golangci-lint run --fix ./sdk/schedule/...`
 - [x] Code reduction: ~174 LOC → ~115 LOC (34% reduction)

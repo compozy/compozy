@@ -17,7 +17,7 @@ Migrate the `sdk/mcp` package (Model Context Protocol) from builder pattern to f
 **Estimated Time:** 1 hour
 
 <critical>
-- **GREENFIELD APPROACH:** Build fresh in sdk2/, keep sdk/ for reference
+- **GREENFIELD APPROACH:** Build fresh in sdk/, keep sdk/ for reference
 - **SIMPLE VALIDATION:** Mainly ID and transport type validation
 </critical>
 
@@ -32,7 +32,7 @@ Migrate the `sdk/mcp` package (Model Context Protocol) from builder pattern to f
 
 ## Subtasks
 
-- [x] 3.1 Create sdk2/mcp/ directory structure
+- [x] 3.1 Create sdk/mcp/ directory structure
 - [x] 3.2 Create generate.go
 - [x] 3.3 Generate options
 - [x] 3.4 Create constructor with validation
@@ -62,7 +62,7 @@ Migrate the `sdk/mcp` package (Model Context Protocol) from builder pattern to f
 - `sdk/mcp/builder_test.go` - Old tests to understand test cases
 - `engine/mcp/config.go` - Source struct for generation
 
-**To Create in sdk2/mcp/:**
+**To Create in sdk/mcp/:**
 - `generate.go` - go:generate directive
 - `options_generated.go` - Auto-generated
 - `constructor.go` - Validation logic (~50 lines)
@@ -80,8 +80,8 @@ Migrate the `sdk/mcp` package (Model Context Protocol) from builder pattern to f
 - [x] Invalid URL format fails
 
 ## Success Criteria
-- [x] sdk2/mcp/ directory created with proper structure
+- [x] sdk/mcp/ directory created with proper structure
 - [x] Transport validation enforced
-- [x] Tests pass: `gotestsum -- ./sdk2/mcp`
-- [x] Linter clean: `golangci-lint run ./sdk2/mcp/...`
+- [x] Tests pass: `gotestsum -- ./sdk/mcp`
+- [x] Linter clean: `golangci-lint run ./sdk/mcp/...`
 - [x] Reduction: ~117 LOC → ~50 LOC (57% reduction)

@@ -10,7 +10,7 @@ import (
 	enginecore "github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
-	sdkerrors "github.com/compozy/compozy/sdk/internal/errors"
+	sdkerrors "github.com/compozy/compozy/sdk/v2/internal/errors"
 )
 
 func TestNewTestContextProvidesLoggerAndConfig(t *testing.T) {

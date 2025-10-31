@@ -168,6 +168,7 @@ func TestTokenCountingConsistency(t *testing.T) {
 			err := instance.Append(ctx, msg)
 			require.NoError(t, err)
 		}
+		require.NoError(t, waitForTokenCountStabilization(ctx, instance, 0, 100*time.Millisecond))
 		// Get initial counts
 		health1, err := instance.GetMemoryHealth(ctx)
 		require.NoError(t, err)

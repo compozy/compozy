@@ -5,7 +5,7 @@
 <type>implementation</type>
 <scope>code_generation</scope>
 <complexity>medium</complexity>
-<dependencies>sdk2/model</dependencies>
+<dependencies>sdk/model</dependencies>
 </task_context>
 
 # Task 7.0: Migrate schema Package to Functional Options (Hybrid Approach)
@@ -36,7 +36,7 @@
 
 ## Subtasks
 
-- [x] 7.1 Create sdk2/schema/ directory structure
+- [x] 7.1 Create sdk/schema/ directory structure
 - [x] 7.2 Analyze which parts to migrate vs keep
 - [x] 7.3 Create generate.go for Schema wrapper metadata
 - [x] 7.4 Generate options for schema metadata
@@ -82,13 +82,13 @@ schemaConfig, err := schema.New(ctx, "user-schema",
 - `sdk/schema/builder_test.go` - Old tests to understand test cases
 - `engine/schema/schema.go` - Source type for generation
 
-**To Create in sdk2/schema/:**
+**To Create in sdk/schema/:**
 - `options.go` - WithJsonSchema() functional option
 - `constructor.go` - Schema configuration validation
 - `constructor_test.go` - Test suite for new API
 - `README.md` - Hybrid approach documentation
 
-**Note:** Do NOT delete or modify anything in `sdk/schema/` - PropertyBuilder stays as reference. We're building a NEW approach in sdk2/schema/ for schema configuration/metadata, while keeping PropertyBuilder pattern for dynamic schema construction.
+**Note:** Do NOT delete or modify anything in `sdk/schema/` - PropertyBuilder stays as reference. We're building a NEW approach in sdk/schema/ for schema configuration/metadata, while keeping PropertyBuilder pattern for dynamic schema construction.
 
 ## Tests
 
@@ -101,13 +101,13 @@ schemaConfig, err := schema.New(ctx, "user-schema",
 
 ## Success Criteria
 
-- [x] sdk2/schema/ directory created
+- [x] sdk/schema/ directory created
 - [x] PropertyBuilder API unchanged and working (in sdk/schema/)
 - [x] New functional options for schema metadata
 - [x] Clear documentation of hybrid approach
 - [x] No breaking changes to existing PropertyBuilder users
-- [x] Tests pass: `gotestsum -- ./sdk2/schema`
-- [x] Linter clean: `golangci-lint run ./sdk2/schema/...`
+- [x] Tests pass: `gotestsum -- ./sdk/schema`
+- [x] Linter clean: `golangci-lint run ./sdk/schema/...`
 - [x] README explains when to use each pattern:
   - PropertyBuilder (sdk/schema/): Dynamic schema construction
-  - Functional options (sdk2/schema/): Schema configuration/metadata
+  - Functional options (sdk/schema/): Schema configuration/metadata

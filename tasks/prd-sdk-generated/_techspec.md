@@ -75,7 +75,7 @@ Migrate the entire Compozy SDK from manual builder pattern to auto-generated fun
 │              Code Generation Infrastructure                  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  sdk2/internal/codegen/                                     │
+│  sdk/internal/codegen/                                     │
 │  ├── types.go         - Metadata structures                 │
 │  ├── parser.go        - AST-based field discovery           │
 │  ├── generator.go     - Jennifer code generation            │
@@ -393,7 +393,7 @@ func WithModel(model Model) Option {
 
 #### 5.1.1 Standard Migration Steps
 
-**For each package in sdk2/:**
+**For each package in sdk/:**
 
 1. **Create `generate.go`** (1 min)
    ```go
@@ -404,7 +404,7 @@ func WithModel(model Model) Option {
 
 2. **Run Generator** (1 min)
    ```bash
-   cd sdk2/<package>
+   cd sdk/<package>
    go generate
    ```
 
@@ -429,8 +429,8 @@ func WithModel(model Model) Option {
 
 6. **Verify Quality** (5 min)
    ```bash
-   golangci-lint run --fix --allow-parallel-runners ./sdk2/<package>/...
-   gotestsum --format pkgname -- -race -parallel=4 ./sdk2/<package>
+   golangci-lint run --fix --allow-parallel-runners ./sdk/<package>/...
+   gotestsum --format pkgname -- -race -parallel=4 ./sdk/<package>
    ```
 
 **Total Time Per Package:** 1-2 hours (simple) to 4-8 hours (complex)
@@ -443,7 +443,7 @@ func WithModel(model Model) Option {
 
 **Pattern:**
 ```
-sdk2/
+sdk/
 ├── agent/
 │   ├── generate.go
 │   ├── options_generated.go
@@ -527,7 +527,7 @@ sdk2/
 **Solution:** Separate constructors per type
 
 ```go
-// sdk2/task/constructors.go
+// sdk/task/constructors.go
 
 func NewBasic(ctx context.Context, id string, agentID string, actionID string, opts ...BasicOption) (*task.BasicTaskConfig, error)
 
@@ -546,7 +546,7 @@ func NewConditional(ctx context.Context, id string, condition string, opts ...Co
 
 **Generation Strategy:**
 ```
-sdk2/task/
+sdk/task/
 ├── generate_basic.go       //go:generate ... -struct BasicTaskConfig
 ├── generate_parallel.go    //go:generate ... -struct ParallelTaskConfig
 ├── generate_collection.go  //go:generate ... -struct CollectionTaskConfig
@@ -577,7 +577,7 @@ schema := schema.NewProperty("object").
     AddProperty("age", schema.NewProperty("integer")).
     Build()
 
-// Use functional options for Schema wrapper (in sdk2/schema/)
+// Use functional options for Schema wrapper (in sdk/schema/)
 schemaConfig, err := schema.New(ctx, "user-schema",
     schema.WithTitle("User Schema"),
     schema.WithDescription("Validates user data"),
@@ -593,7 +593,7 @@ schemaConfig, err := schema.New(ctx, "user-schema",
 **Solution:** Separate constructors per type
 
 ```go
-// sdk2/knowledge/constructors.go
+// sdk/knowledge/constructors.go
 
 func NewBase(ctx context.Context, id string, opts ...BaseOption) (*knowledge.BaseConfig, error)
 
@@ -855,7 +855,7 @@ func BenchmarkNew_FullConfig(b *testing.B) {
 **Linter Requirements:**
 ```bash
 # Must pass with zero warnings
-golangci-lint run --fix --allow-parallel-runners ./sdk2/<package>/...
+golangci-lint run --fix --allow-parallel-runners ./sdk/<package>/...
 ```
 
 **Enabled Linters:**
@@ -987,7 +987,7 @@ golangci-lint run --fix --allow-parallel-runners ./sdk2/<package>/...
 
 - [x] Code generation infrastructure complete
 - [x] Agent + AgentAction packages migrated (reference implementations)
-- [ ] All 11 packages migrated to sdk2/
+- [ ] All 11 packages migrated to sdk/
 - [ ] All 9 examples updated and working
 - [ ] Zero regressions in functionality
 - [ ] All tests pass (`make test`)
@@ -1050,8 +1050,8 @@ golangci-lint run --fix --allow-parallel-runners ./sdk2/<package>/...
 ### 13.3 References
 
 **Internal Documents:**
-- `sdk2/MIGRATION_GUIDE.md` - Migration patterns and guidelines
-- `sdk2/CODEGEN_COMPARISON.md` - Before/after comparison
+- `sdk/MIGRATION_GUIDE.md` - Migration patterns and guidelines
+- `sdk/CODEGEN_COMPARISON.md` - Before/after comparison
 - `tasks/prd-sdk-generated/_tasks.md` - Task breakdown
 
 **External Resources:**
