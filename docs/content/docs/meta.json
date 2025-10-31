@@ -1,5 +1,14 @@
 {
   "pages": [
+    "quick-start",
+    "database",
+    "deployment",
+    "configuration",
+    "knowledge-bases",
+    "architecture",
+    "troubleshooting",
+    "guides",
+    "faq",
     "core",
     "cli",
     "schema",

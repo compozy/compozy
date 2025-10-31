@@ -205,8 +205,9 @@ func buildWebhookDispatcher(ctx context.Context, state *appstate.State) services
 }
 
 func buildWebhookIdempotencyService(server *Server) (webhook.Service, error) {
-	if server != nil && server.redisClient != nil {
-		svc, err := webhook.NewServiceFromCache(server.redisClient)
+	redisClient := server.RedisClient()
+	if server != nil && redisClient != nil {
+		svc, err := webhook.NewServiceFromCache(redisClient)
 		if err != nil {
 			return nil, err
 		}

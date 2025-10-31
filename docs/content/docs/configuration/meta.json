@@ -1,0 +1,13 @@
+{
+  "title": "Configuration",
+  "description": "Configuration references and examples",
+  "icon": "Settings",
+  "root": true,
+  "pages": [
+    "overview",
+    "mode-configuration",
+    "redis",
+    "database",
+    "temporal"
+  ]
+}

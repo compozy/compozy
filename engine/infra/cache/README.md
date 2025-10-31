@@ -86,7 +86,7 @@ func main() {
     if err != nil {
         panic(err)
     }
-    defer cache.Close()
+    defer cache.Close(ctx)
 
     // Basic cache operation
     err = cache.Redis.Set(ctx, "key", "value", time.Hour).Err()
@@ -493,7 +493,7 @@ func TestCache(t *testing.T) {
         DB:   1, // Use separate DB for testing
     })
     require.NoError(t, err)
-    defer cache.Close()
+    defer cache.Close(ctx)
 
     t.Run("Should set and get values", func(t *testing.T) {
         err := cache.Redis.Set(ctx, "test:key", "test:value", time.Minute).Err()
@@ -515,11 +515,11 @@ func TestDistributedLocking(t *testing.T) {
     // Setup two cache instances
     cache1, err := cache.SetupCache(ctx, testConfig())
     require.NoError(t, err)
-    defer cache1.Close()
+    defer cache1.Close(ctx)
 
     cache2, err := cache.SetupCache(ctx, testConfig())
     require.NoError(t, err)
-    defer cache2.Close()
+    defer cache2.Close(ctx)
 
     t.Run("Should prevent concurrent access", func(t *testing.T) {
         // Acquire lock from first instance
@@ -554,7 +554,7 @@ func setupTestCache(t *testing.T) *cache.Cache {
 
     // Cleanup function
     t.Cleanup(func() {
-        cache.Close()
+        cache.Close(ctx)
     })
 
     return cache

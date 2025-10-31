@@ -1,0 +1,43 @@
+---
+title: "Configuration Overview"
+description: "Entry point to runtime, mode, and component configuration."
+icon: Settings
+---
+
+Use this page to discover where to configure global defaults and per‑component settings. Start with selecting a deployment mode, then refine Temporal and Redis.
+
+<List>
+  <ListItem title="Mode Configuration" icon="GitBranch">
+    Choose `standalone` for local/CI or `distributed` for production. Per‑component overrides are supported.
+  </ListItem>
+  <ListItem title="Temporal" icon="Server">
+    Configure remote vs embedded server, ports, namespace, and UI.
+  </ListItem>
+  <ListItem title="Redis" icon="Database">
+    Configure external Redis or embedded cache, plus persistence options.
+  </ListItem>
+</List>
+
+## Recommended Reading
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Mode Configuration"
+    description="Global defaults and inheritance"
+    href="/docs/configuration/mode-configuration"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Temporal Configuration"
+    description="Remote vs standalone server settings"
+    href="/docs/configuration/temporal"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Redis Configuration"
+    description="Distributed vs standalone cache settings"
+    href="/docs/configuration/redis"
+    icon="Database"
+  />
+</ReferenceCardList>
+

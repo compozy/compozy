@@ -41,7 +41,13 @@ func (s *StreamSession) Close() error {
 	return err
 }
 
-func newStreamSession(execID string, execURL string, events <-chan StreamEvent, errors <-chan error, closer func() error) *StreamSession {
+func newStreamSession(
+	execID string,
+	execURL string,
+	events <-chan StreamEvent,
+	errors <-chan error,
+	closer func() error,
+) *StreamSession {
 	return &StreamSession{
 		ExecID:  execID,
 		ExecURL: execURL,

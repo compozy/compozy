@@ -1,0 +1,397 @@
+---
+title: Deploying with Docker
+description: Deploy Compozy using our production-ready Docker images with comprehensive environment configuration
+---
+
+## Production Prerequisites
+
+<Callout type="error">
+  **IMPORTANT**: For production deployments, you **MUST** have these three managed services configured before running Compozy. Docker Compose is for local development only.
+</Callout>
+
+### Required Managed Services
+
+<List>
+  <ListItem title="PostgreSQL" icon="Database">
+    Main database for workflows, agents, and application data
+    <br />**Recommended providers**: AWS RDS, Google Cloud SQL, Azure Database, Neon, Supabase
+  </ListItem>
+  <ListItem title="Redis" icon="Zap">
+    Caching, configuration storage, pub/sub messaging, and rate limiting
+    <br />**Recommended providers**: Upstash, AWS ElastiCache, Azure Cache for Redis, Redis Cloud
+  </ListItem>
+  <ListItem title="Temporal" icon="Clock">
+    Workflow orchestration engine for reliable task execution
+    <br />**Recommended provider**: Temporal Cloud (managed service)
+  </ListItem>
+</List>
+
+## Available Docker Images
+
+Compozy provides two production-ready Docker images:
+
+<List>
+  <ListItem title="ghcr.io/compozy/compozy" icon="Container">
+    Full Compozy server with workflow engine, API server, and Bun runtime for TypeScript tools
+  </ListItem>
+  <ListItem title="ghcr.io/compozy/mcp-proxy" icon="Network">
+    Standalone MCP Proxy server for Model Context Protocol integrations
+  </ListItem>
+</List>
+
+## Local Development with Docker Compose
+
+<Callout type="warning">
+  Docker Compose is intended for **local development only**. For production deployments, use Kubernetes or managed container services with the required managed services above.
+</Callout>
+
+Start a complete development stack locally:
+
+```bash
+# Download our development docker-compose.yml
+curl -O https://raw.githubusercontent.com/compozy/compozy/main/cluster/docker-compose.yml
+
+# Create a .env file with your configuration
+cat > .env << EOF
+# AI Provider (choose one)
+OPENAI_API_KEY=sk-your-openai-key
+
+# Database passwords
+DB_PASSWORD=your_secure_password
+TEMPORAL_DB_PASSWORD=your_temporal_password
+REDIS_PASSWORD=your_redis_password
+EOF
+
+# Start all services
+docker-compose up -d
+```
+
+Your Compozy stack will be available at:
+- **Compozy API**: http://localhost:5001
+- **Temporal UI**: http://localhost:8080
+- **MCP Proxy**: http://localhost:6001
+
+## Production Deployment with Docker
+
+### Running Compozy Server
+
+<Callout type="info">
+  Ensure you have your managed PostgreSQL, Redis, and Temporal services ready before proceeding.
+</Callout>
+
+```bash
+docker run -d \
+  --name compozy-server \
+  -p 5001:5001 \
+  -e DB_CONN_STRING="postgresql://user:pass@your-managed-postgres:5432/compozy?sslmode=require" \
+  -e REDIS_URL="redis://:password@your-managed-redis:6379/0" \
+  -e TEMPORAL_HOST_PORT="your-temporal-cloud:7233" \
+  -e OPENAI_API_KEY="sk-your-key" \
+  ghcr.io/compozy/compozy:latest
+```
+
+### With Custom Configuration
+
+Mount your project directory and configuration:
+
+```bash
+docker run -d \
+  --name compozy-server \
+  -p 5001:5001 \
+  -v $(pwd):/app/project \
+  -v $(pwd)/compozy.yaml:/app/config/compozy.yaml \
+  -e COMPOZY_CONFIG_FILE=/app/config/compozy.yaml \
+  ghcr.io/compozy/compozy:latest
+```
+
+## Running MCP Proxy
+
+The MCP Proxy enables integration with external Model Context Protocol servers:
+
+```bash
+docker run -d \
+  --name mcp-proxy \
+  -p 6001:6001 \
+  # Note: No built-in admin auth; secure /admin via your environment (network, reverse proxy)
+  -e REDIS_URL="redis://:password@host:6379/0" \
+  ghcr.io/compozy/mcp-proxy:latest
+```
+
+## Environment Configuration
+
+### Core Environment Variables
+
+<Tabs items={["Database", "Redis", "Temporal", "Server"]}>
+
+<Tab>
+```bash
+# Connection string (overrides individual settings)
+DB_CONN_STRING="postgresql://user:pass@host:5432/compozy?sslmode=require"
+
+# Or use individual settings
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_NAME=compozy
+DB_SSL_MODE=require  # disable, require, verify-ca, verify-full
+```
+</Tab>
+
+<Tab>
+```bash
+# Connection URL (overrides individual settings)
+REDIS_URL="redis://:password@host:6379/0"
+
+# Or use individual settings
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=your_password
+REDIS_DB=0
+REDIS_TLS_ENABLED=false
+REDIS_POOL_SIZE=10
+```
+</Tab>
+
+<Tab>
+```bash
+TEMPORAL_HOST_PORT=localhost:7233
+TEMPORAL_NAMESPACE=default
+TEMPORAL_TASK_QUEUE=compozy-tasks
+```
+</Tab>
+
+<Tab>
+```bash
+# Server Configuration
+SERVER_HOST=0.0.0.0
+SERVER_PORT=5001
+SERVER_TIMEOUT=30s
+
+# CORS Settings
+SERVER_CORS_ENABLED=true
+SERVER_CORS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5001"
+SERVER_CORS_ALLOW_CREDENTIALS=true
+
+# Authentication
+SERVER_AUTH_ENABLED=false
+SERVER_AUTH_WORKFLOW_EXCEPTIONS=""
+```
+</Tab>
+
+</Tabs>
+
+### AI Provider Configuration
+
+Configure at least one LLM provider:
+
+```bash
+# OpenAI
+OPENAI_API_KEY=sk-your-openai-key
+OPENAI_BASE_URL=https://api.openai.com/v1  # Optional custom endpoint
+
+# Anthropic
+ANTHROPIC_API_KEY=sk-ant-your-key
+
+# Groq
+GROQ_API_KEY=gsk_your-groq-key
+
+# Ollama (local)
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+```
+
+### Runtime Configuration
+
+Configure the TypeScript tool execution environment:
+
+```bash
+# Tool Execution
+TOOL_EXECUTION_TIMEOUT=60s
+RUNTIME_TYPE=bun
+RUNTIME_ENTRYPOINT_PATH=./tools.ts
+
+# Bun Permissions (security sandboxing)
+RUNTIME_BUN_PERMISSIONS="--allow-read,--allow-write=/app/data"
+
+# System Limits
+LIMITS_MAX_NESTING_DEPTH=20
+LIMITS_MAX_STRING_LENGTH=10485760
+LIMITS_MAX_MESSAGE_CONTENT_LENGTH=10240
+```
+
+## Production Best Practices
+
+### Container Orchestration
+
+<Callout type="info">
+  For production deployments, use a container orchestration platform like Kubernetes, Amazon ECS, or Google Cloud Run instead of standalone Docker.
+</Callout>
+
+### Security Recommendations
+
+<Steps>
+  <Step
+    title="Use Secrets Management"
+    description="Store sensitive environment variables in a secrets manager"
+    icon="Key"
+  >
+    ```bash
+    # Example with Docker Swarm secrets
+    echo "your-api-key" | docker secret create openai_key -
+
+    docker service create \
+      --secret openai_key \
+      -e OPENAI_API_KEY_FILE=/run/secrets/openai_key \
+      ghcr.io/compozy/compozy:latest
+    ```
+  </Step>
+
+  <Step
+    title="Configure TLS"
+    description="Enable TLS for all external connections"
+    icon="Shield"
+  >
+    ```bash
+    # PostgreSQL
+    DB_SSL_MODE=verify-full
+
+    # Redis
+    REDIS_TLS_ENABLED=true
+
+    # Server (behind reverse proxy)
+    SERVER_AUTH_ENABLED=true
+    ```
+  </Step>
+
+  <Step
+    title="Set Resource Limits"
+    description="Prevent resource exhaustion with Docker limits"
+    icon="Gauge"
+  >
+    ```bash
+    docker run -d \
+      --memory="2g" \
+      --cpus="2" \
+      --restart=unless-stopped \
+      ghcr.io/compozy/compozy:latest
+    ```
+  </Step>
+</Steps>
+
+### Health Monitoring
+
+Both images include health checks:
+
+```bash
+# Check Compozy server health (using health endpoint)
+curl -f http://localhost:5001/api/v0/health || echo "Health check failed"
+
+# Alternative: Check process status
+docker exec compozy-server ps aux | grep compozy
+
+# View health status
+docker ps --format "table {{.Names}}\t{{.Status}}"
+```
+
+### Logging Configuration
+
+```bash
+# Set log level
+RUNTIME_LOG_LEVEL=info  # debug, info, warn, error
+
+# View logs
+docker logs -f compozy-server
+
+# JSON structured logs for production
+docker run -d \
+  -e RUNTIME_LOG_LEVEL=info \
+  -e RUNTIME_LOG_FORMAT=json \
+  ghcr.io/compozy/compozy:latest
+```
+
+## Volumes and Data Persistence
+
+The Compozy Docker image defines these volumes:
+
+<List>
+  <ListItem title="/app/config" icon="FileCode">
+    Configuration files including compozy.yaml
+  </ListItem>
+  <ListItem title="/app/data" icon="Database">
+    Application data and file storage
+  </ListItem>
+  <ListItem title="/app/tools" icon="Wrench">
+    Custom TypeScript tools for your workflows
+  </ListItem>
+  <ListItem title="/app/logs" icon="FileText">
+    Application logs (when file logging is enabled)
+  </ListItem>
+</List>
+
+Mount these volumes for data persistence:
+
+```bash
+docker run -d \
+  -v compozy-config:/app/config \
+  -v compozy-data:/app/data \
+  -v compozy-tools:/app/tools \
+  -v compozy-logs:/app/logs \
+  ghcr.io/compozy/compozy:latest
+```
+
+## Debugging and Troubleshooting
+
+### Interactive Shell Access
+
+```bash
+# Access the container shell
+docker exec -it compozy-server /bin/sh
+
+# Run CLI commands inside the container
+docker exec compozy-server compozy workflow list
+
+# Check health via HTTP endpoint
+curl -f http://localhost:5001/api/v0/health
+```
+
+### Common Issues
+
+<Callout type="warning">
+  If using Docker Desktop, replace `localhost` with `host.docker.internal` in connection strings when connecting to services on your host machine.
+</Callout>
+
+### Environment Variable Debugging
+
+```bash
+# View all environment variables
+docker exec compozy-server env | grep -E '^(DB_|REDIS_|TEMPORAL_)'
+
+# Test database connection via health endpoint
+curl -f http://localhost:5001/api/v0/health
+
+# Or check logs for connection errors
+docker logs compozy-server --tail 50
+```
+
+## Next Steps
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Kubernetes Deployment"
+    description="Deploy Compozy on Kubernetes with our Helm chart"
+    href="/docs/deployment/kubernetes"
+    icon="Ship"
+  />
+  <ReferenceCard
+    title="Configuration Reference"
+    description="Complete guide to all configuration options"
+    href="/docs/core/configuration/project-setup"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="MCP Integration"
+    description="Configure Model Context Protocol servers"
+    href="/docs/core/mcp/overview"
+    icon="Network"
+  />
+</ReferenceCardList>

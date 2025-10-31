@@ -279,3 +279,98 @@ func TestTaskWaitExecutor_WaitStateBusinessLogic(t *testing.T) {
 		assert.False(t, waitState.TimedOut, "Error is not a timeout scenario")
 	})
 }
+
+func TestTaskWaitExecutor_ExtractTimeout(t *testing.T) {
+	executor := createTestExecutor()
+	t.Run("Should extract timeout from response output", func(t *testing.T) {
+		response := &task.MainTaskResponse{
+			State: &task.State{
+				Output: &core.Output{
+					"timeout_seconds": int64(300),
+				},
+			},
+		}
+		timeout, err := executor.extractTimeout(response)
+		require.NoError(t, err)
+		assert.Equal(t, 5*time.Minute, timeout, "Should extract 300 seconds as 5 minutes")
+	})
+	t.Run("Should handle float64 timeout seconds", func(t *testing.T) {
+		response := &task.MainTaskResponse{
+			State: &task.State{
+				Output: &core.Output{
+					"timeout_seconds": float64(7500),
+				},
+			},
+		}
+		timeout, err := executor.extractTimeout(response)
+		require.NoError(t, err)
+		assert.Equal(t, 125*time.Minute, timeout, "Should extract 7500 seconds as 125 minutes")
+	})
+	t.Run("Should reject nil response", func(t *testing.T) {
+		_, err := executor.extractTimeout(nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "response state or output is nil")
+	})
+	t.Run("Should reject nil state", func(t *testing.T) {
+		response := &task.MainTaskResponse{State: nil}
+		_, err := executor.extractTimeout(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "response state or output is nil")
+	})
+	t.Run("Should reject nil output", func(t *testing.T) {
+		response := &task.MainTaskResponse{
+			State: &task.State{Output: nil},
+		}
+		_, err := executor.extractTimeout(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "response state or output is nil")
+	})
+	t.Run("Should reject missing timeout_seconds field", func(t *testing.T) {
+		response := &task.MainTaskResponse{
+			State: &task.State{
+				Output: &core.Output{
+					"other_field": "value",
+				},
+			},
+		}
+		_, err := executor.extractTimeout(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timeout_seconds not found")
+	})
+	t.Run("Should reject invalid timeout type", func(t *testing.T) {
+		response := &task.MainTaskResponse{
+			State: &task.State{
+				Output: &core.Output{
+					"timeout_seconds": "300",
+				},
+			},
+		}
+		_, err := executor.extractTimeout(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unexpected type")
+	})
+	t.Run("Should reject zero timeout", func(t *testing.T) {
+		response := &task.MainTaskResponse{
+			State: &task.State{
+				Output: &core.Output{
+					"timeout_seconds": int64(0),
+				},
+			},
+		}
+		_, err := executor.extractTimeout(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "positive timeout")
+	})
+	t.Run("Should reject negative timeout", func(t *testing.T) {
+		response := &task.MainTaskResponse{
+			State: &task.State{
+				Output: &core.Output{
+					"timeout_seconds": int64(-100),
+				},
+			},
+		}
+		_, err := executor.extractTimeout(response)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "positive timeout")
+	})
+}

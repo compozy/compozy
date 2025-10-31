@@ -9,6 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	"github.com/compozy/compozy/engine/infra/repo"
+	"github.com/compozy/compozy/pkg/config"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -253,3 +257,50 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 
 // EnsureTablesExistForTest is a small wrapper to expose ensureTablesExist to tests in other packages.
 func EnsureTablesExistForTest(db *pgxpool.Pool) error { return ensureTablesExist(db) }
+
+// SetupTestDatabase provisions a repo provider for the requested driver and returns a cleanup function.
+func SetupTestDatabase(t *testing.T, driver string) (*repo.Provider, func()) {
+	t.Helper()
+	switch driver {
+	case "postgres":
+		return setupPostgresTest(t)
+	case "sqlite":
+		return setupSQLiteTest(t)
+	default:
+		t.Fatalf("unsupported driver: %s", driver)
+		return nil, nil
+	}
+}
+
+func setupPostgresTest(t *testing.T) (*repo.Provider, func()) {
+	t.Helper()
+	pool, containerCleanup, err := SetupTestReposWithRetry(t.Context(), t)
+	require.NoError(t, err)
+
+	ctx := NewTestContext(t)
+	cfg := &config.DatabaseConfig{
+		Driver:      "postgres",
+		ConnString:  pool.Config().ConnString(),
+		AutoMigrate: false,
+	}
+	provider, providerCleanup, err := repo.NewProvider(ctx, cfg)
+	require.NoError(t, err)
+	cleanup := func() {
+		providerCleanup()
+		containerCleanup()
+	}
+	return provider, cleanup
+}
+
+func setupSQLiteTest(t *testing.T) (*repo.Provider, func()) {
+	t.Helper()
+	ctx := NewTestContext(t)
+	cfg := &config.DatabaseConfig{
+		Driver:      "sqlite",
+		Path:        ":memory:",
+		AutoMigrate: true,
+	}
+	provider, cleanup, err := repo.NewProvider(ctx, cfg)
+	require.NoError(t, err)
+	return provider, cleanup
+}

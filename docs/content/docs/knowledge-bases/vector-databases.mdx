@@ -1,0 +1,138 @@
+---
+title: "Vector Databases"
+description: "Choose and configure vector databases for knowledge bases, including pgvector, Qdrant, Redis, and filesystem providers."
+icon: Network
+---
+
+<Callout type="info">
+Compozy decouples workflow metadata (PostgreSQL or SQLite) from vector storage. Your choice of metadata database dictates which vector providers are available.
+</Callout>
+
+## Driver Compatibility
+
+| Metadata Driver | Vector Provider | Notes |
+|-----------------|-----------------|-------|
+| PostgreSQL | `pgvector` | Native integration when the `vector` extension is installed. |
+| PostgreSQL | Qdrant, Redis, Filesystem | Supported via external services if you prefer to separate workloads. |
+| SQLite | Qdrant (recommended) | External vector database required for knowledge bases. |
+| SQLite | Redis with RediSearch | Works for low-latency deployments with managed Redis. |
+| SQLite | Filesystem | Development-only option for lightweight prototypes. |
+
+<Callout type="warning">
+SQLite deployments **cannot** use `pgvector`. Attempting to configure `provider: pgvector` results in: `pgvector provider is incompatible with SQLite driver`. Select an external vector database instead.
+</Callout>
+
+## pgvector (PostgreSQL Only)
+
+```sql title="Enable pgvector"
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+```yaml title="Configuration"
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: pgvector
+      dimension: 1536
+```
+
+- Works alongside metadata in the same PostgreSQL cluster.
+- Ensure `dimension` matches the embedding model output.
+- Managed databases (Neon, Supabase, RDS) often provide pgvector as a toggle or automatic extension.
+
+## Qdrant (Recommended with SQLite)
+
+```yaml title="Qdrant configuration"
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: qdrant
+      url: http://localhost:6333
+      dimension: 1536
+      collection: compozy_embeddings
+```
+
+- Production-ready open-source vector database.
+- Supports filtering, payloads, and distributed deployments.
+- Works with both PostgreSQL and SQLite metadata drivers.
+
+## Redis with RediSearch
+
+```yaml title="Redis vector store"
+knowledge:
+  vector_dbs:
+    - id: cache
+      provider: redis
+      url: redis://localhost:6379
+      dialect: search
+      dimension: 1536
+      index: compozy:kb
+```
+
+- Utilize managed Redis offerings with RediSearch enabled.
+- Ideal when you already depend on Redis for caching or rate limiting.
+- Memory-bound; monitor dataset size closely.
+
+## Filesystem Provider (Development Only)
+
+```yaml title="Filesystem provider"
+knowledge:
+  vector_dbs:
+    - id: local
+      provider: filesystem
+      path: ./data/embeddings
+      dimension: 1536
+```
+
+- Stores embeddings as structured files on disk.
+- Great for unit tests or quick demos.
+- Not recommended for production due to limited concurrency and durability.
+
+## Decision Matrix
+
+| Requirement | Recommended Provider |
+|-------------|----------------------|
+| Production deployment with PostgreSQL | `pgvector` |
+| Production deployment with SQLite | `qdrant` |
+| Edge deployment with minimal services | `filesystem` (development) or `qdrant` (managed) |
+| Shared cache infrastructure already in place | `redis` |
+
+## Operational Tips
+
+<List>
+  <ListItem title="Dimension Consistency" icon="Ruler">
+    Ensure every provider uses the same embedding dimension across collections.
+  </ListItem>
+  <ListItem title="Health Checks" icon="Activity">
+    Add readiness probes for external vector services to avoid startup race conditions.
+  </ListItem>
+  <ListItem title="Access Control" icon="Shield">
+    Secure API keys or tokens for Qdrant/Redis; never store them in plain text inside repositories.
+  </ListItem>
+  <ListItem title="Monitoring" icon="ChartPie">
+    Track latency and memory usage, especially when running Redis or Qdrant alongside Compozy.
+  </ListItem>
+</List>
+
+## Related Resources
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Database Overview"
+    description="Understand how metadata driver selection impacts vector storage."
+    href="/docs/database/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="PostgreSQL Driver"
+    description="Configure pgvector with PostgreSQL."
+    href="/docs/database/postgresql"
+    icon="ServerCog"
+  />
+  <ReferenceCard
+    title="SQLite Driver"
+    description="Set up external vector databases alongside SQLite."
+    href="/docs/database/sqlite"
+    icon="HardDrive"
+  />
+</ReferenceCardList>

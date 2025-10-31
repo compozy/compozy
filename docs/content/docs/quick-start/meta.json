@@ -1,0 +1,9 @@
+{
+  "title": "Quick Start",
+  "description": "Get Compozy running with the embedded Temporal server",
+  "icon": "Rocket",
+  "root": true,
+  "pages": [
+    "index"
+  ]
+}

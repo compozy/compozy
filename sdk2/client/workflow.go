@@ -12,7 +12,11 @@ import (
 )
 
 // ExecuteWorkflow triggers an asynchronous workflow execution and returns the execution handle.
-func (c *Client) ExecuteWorkflow(ctx context.Context, workflowID string, req *WorkflowExecuteRequest) (*WorkflowExecuteResponse, error) {
+func (c *Client) ExecuteWorkflow(
+	ctx context.Context,
+	workflowID string,
+	req *WorkflowExecuteRequest,
+) (*WorkflowExecuteResponse, error) {
 	id := strings.TrimSpace(workflowID)
 	if id == "" {
 		return nil, fmt.Errorf("workflow id is required")
@@ -31,7 +35,11 @@ func (c *Client) ExecuteWorkflow(ctx context.Context, workflowID string, req *Wo
 }
 
 // ExecuteWorkflowSync executes a workflow and waits for completion.
-func (c *Client) ExecuteWorkflowSync(ctx context.Context, workflowID string, req *WorkflowSyncRequest) (*WorkflowSyncResponse, error) {
+func (c *Client) ExecuteWorkflowSync(
+	ctx context.Context,
+	workflowID string,
+	req *WorkflowSyncRequest,
+) (*WorkflowSyncResponse, error) {
 	id := strings.TrimSpace(workflowID)
 	if id == "" {
 		return nil, fmt.Errorf("workflow id is required")

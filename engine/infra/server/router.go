@@ -6,7 +6,6 @@ import (
 	"time"
 
 	authuc "github.com/compozy/compozy/engine/auth/uc"
-	"github.com/compozy/compozy/engine/infra/cache"
 	rediscache "github.com/compozy/compozy/engine/infra/redis"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	corsmiddleware "github.com/compozy/compozy/engine/infra/server/middleware/cors"
@@ -18,36 +17,7 @@ import (
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/compozy/compozy/pkg/version"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
-
-func (s *Server) SetupRedisClient(cfg *config.Config) (*redis.Client, func(), error) {
-	log := logger.FromContext(s.ctx)
-	if !isRedisConfigured(cfg) {
-		log.Warn("Redis not configured; continuing without rate limiting cache")
-		return nil, nil, nil
-	}
-	cacheConfig := cache.FromAppConfig(cfg)
-	redisInstance, err := cache.NewRedis(s.ctx, cacheConfig)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create Redis client for rate limiting: %w", err)
-	}
-	log.Info("Redis client created for rate limiting",
-		"host", cfg.Redis.Host,
-		"port", cfg.Redis.Port,
-		"db", cfg.Redis.DB)
-	redisClient := redisInstance.Client()
-	client, ok := redisClient.(*redis.Client)
-	if !ok {
-		return nil, nil, fmt.Errorf("redis client is not a *redis.Client type")
-	}
-	cleanup := func() {
-		if err := redisInstance.Close(); err != nil {
-			log.Error("Failed to close Redis client", "error", err)
-		}
-	}
-	return client, cleanup, nil
-}
 
 func convertRateLimitConfig(cfg *config.Config) *ratelimit.Config {
 	return &ratelimit.Config{
@@ -85,8 +55,9 @@ func (s *Server) buildAuthRepo(cfg *config.Config, base authuc.Repository) (auth
 	if ttl <= 0 {
 		ttl = 24 * time.Hour
 	}
-	if s.redisClient != nil {
-		repo = rediscache.NewCachedRepository(repo, s.redisClient, ttl)
+	redisClient := s.RedisClient()
+	if redisClient != nil {
+		repo = rediscache.NewCachedRepository(repo, redisClient, ttl)
 		driver = cacheDriverRedis
 		return repo, driver
 	}
@@ -100,19 +71,20 @@ func (s *Server) buildRouter(state *appstate.State) error {
 	if cfg.RateLimit.GlobalRate.Limit > 0 {
 		log := logger.FromContext(s.ctx)
 		rateLimitConfig := convertRateLimitConfig(cfg)
+		redisClient := s.RedisClient()
 		var manager *ratelimit.Manager
 		var err error
 		if s.monitoring != nil && s.monitoring.IsInitialized() {
-			manager, err = ratelimit.NewManagerWithMetrics(s.ctx, rateLimitConfig, s.redisClient, s.monitoring.Meter())
+			manager, err = ratelimit.NewManagerWithMetrics(s.ctx, rateLimitConfig, redisClient, s.monitoring.Meter())
 		} else {
-			manager, err = ratelimit.NewManager(rateLimitConfig, s.redisClient)
+			manager, err = ratelimit.NewManager(rateLimitConfig, redisClient)
 		}
 		if err != nil {
 			log.Error("Failed to initialize rate limiting", "error", err)
 		} else {
 			r.Use(manager.Middleware())
 			driver := "memory"
-			if s.redisClient != nil {
+			if redisClient != nil {
 				driver = "redis"
 			}
 			log.Info("rate limiter initialized",
@@ -189,14 +161,4 @@ func friendlyHost(h string) string {
 		return hostLoopback
 	}
 	return h
-}
-
-func isRedisConfigured(cfg *config.Config) bool {
-	if cfg == nil {
-		return false
-	}
-	if cfg.Redis.URL != "" {
-		return true
-	}
-	return cfg.Redis.Host != ""
 }

@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/engine/autoload"
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
-	"github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/compozy/compozy/engine/infra/pubsub"
 	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
@@ -19,10 +20,17 @@ import (
 	"github.com/compozy/compozy/engine/runtime/toolenvstate"
 	"github.com/compozy/compozy/engine/streaming"
 	"github.com/compozy/compozy/engine/worker"
+	"github.com/compozy/compozy/engine/worker/embedded"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
-	redis "github.com/redis/go-redis/v9"
+	"github.com/redis/go-redis/v9"
+)
+
+const (
+	recommendedSQLiteConcurrency = 10
+	sqliteConcurrencySummary     = "low (5-10 workflows recommended)"
+	postgresConcurrencySummary   = "high (25+ workflows)"
 )
 
 func (s *Server) setupProjectConfig(
@@ -89,76 +97,114 @@ func (s *Server) setupStore() (*repo.Provider, func(), error) {
 			"configuration missing from context; attach a manager with config.ContextWithManager",
 		)
 	}
-	log := logger.FromContext(s.ctx)
+	if err := cfg.Database.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("validate database config: %w", err)
+	}
+	if err := s.validateDatabaseConfig(cfg); err != nil {
+		return nil, nil, fmt.Errorf("invalid database configuration: %w", err)
+	}
 	start := time.Now()
-	pgCfg := buildPostgresConfigFromApp(cfg)
-	if err := s.applyStoreMigrations(pgCfg, cfg); err != nil {
-		return nil, nil, err
-	}
-	drv, err := postgres.NewStore(s.ctx, pgCfg)
+	dbCfg := cfg.Database
+	provider, cleanup, err := repo.NewProvider(s.ctx, &dbCfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to initialize postgres store: %w", err)
+		return nil, nil, fmt.Errorf("failed to initialize store: %w", err)
 	}
-	provider := repo.NewProvider(drv.Pool())
-	s.storeDriverLabel = driverPostgres
-	s.authRepoDriverLabel = driverPostgres
+	driver := provider.Driver()
+	s.storeDriverLabel = driver
+	s.authRepoDriverLabel = driver
 	if s.authCacheDriverLabel == "" {
 		s.authCacheDriverLabel = driverNone
 	}
-	log.Info("Database store initialized",
-		"store_driver", s.storeDriverLabel,
-		"duration", time.Since(start),
-	)
-	return provider, s.storeCleanupFunc(cfg, drv), nil
+	s.logDatabaseStartup(cfg, driver, time.Since(start))
+	return provider, cleanup, nil
 }
 
-// buildPostgresConfigFromApp constructs the postgres.Config from application configuration.
-func buildPostgresConfigFromApp(cfg *config.Config) *postgres.Config {
-	return &postgres.Config{
-		ConnString:         cfg.Database.ConnString,
-		Host:               cfg.Database.Host,
-		Port:               cfg.Database.Port,
-		User:               cfg.Database.User,
-		Password:           cfg.Database.Password,
-		DBName:             cfg.Database.DBName,
-		SSLMode:            cfg.Database.SSLMode,
-		MaxOpenConns:       cfg.Database.MaxOpenConns,
-		MaxIdleConns:       cfg.Database.MaxIdleConns,
-		ConnMaxLifetime:    cfg.Database.ConnMaxLifetime,
-		ConnMaxIdleTime:    cfg.Database.ConnMaxIdleTime,
-		PingTimeout:        cfg.Database.PingTimeout,
-		HealthCheckTimeout: cfg.Database.HealthCheckTimeout,
-		HealthCheckPeriod:  cfg.Database.HealthCheckPeriod,
-		ConnectTimeout:     cfg.Database.ConnectTimeout,
+func (s *Server) validateDatabaseConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is required for database validation")
 	}
-}
-
-// applyStoreMigrations runs database migrations when enabled.
-func (s *Server) applyStoreMigrations(pgCfg *postgres.Config, cfg *config.Config) error {
-	if !cfg.Database.AutoMigrate {
+	driver := strings.TrimSpace(cfg.Database.Driver)
+	if driver == "" {
+		driver = driverPostgres
+	}
+	if driver != driverSQLite {
 		return nil
 	}
-	mctx, mcancel := context.WithTimeout(s.ctx, cfg.Database.MigrationTimeout)
-	defer mcancel()
-	if err := postgres.ApplyMigrationsWithLock(mctx, postgres.DSNFor(pgCfg)); err != nil {
-		return fmt.Errorf("failed to apply migrations: %w", err)
+	log := logger.FromContext(s.ctx)
+	if len(cfg.Knowledge.VectorDBs) == 0 {
+		log.Warn("SQLite mode without vector database - knowledge features will not work",
+			"driver", driverSQLite,
+			"recommendation", "Configure Qdrant, Redis, or Filesystem vector DB",
+		)
+	}
+	for _, vdb := range cfg.Knowledge.VectorDBs {
+		provider := strings.TrimSpace(vdb.Provider)
+		if strings.EqualFold(provider, "pgvector") {
+			return fmt.Errorf(
+				"pgvector provider is incompatible with SQLite driver. " +
+					"SQLite requires an external vector database. " +
+					"Configure one of: Qdrant, Redis, or Filesystem. " +
+					"See documentation: docs/database/sqlite.md#vector-database-requirement",
+			)
+		}
+	}
+	maxWorkflows := cfg.Worker.MaxConcurrentWorkflowExecutionSize
+	if maxWorkflows > recommendedSQLiteConcurrency {
+		log.Warn("SQLite has concurrency limitations",
+			"driver", driverSQLite,
+			"max_concurrent_workflows", maxWorkflows,
+			"recommended_max", recommendedSQLiteConcurrency,
+			"note", "Consider using PostgreSQL for high-concurrency production workloads",
+		)
 	}
 	return nil
 }
 
-// storeCleanupFunc returns a cleanup function that gracefully closes the store.
-func (s *Server) storeCleanupFunc(cfg *config.Config, drv *postgres.Store) func() {
-	return func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), cfg.Server.Timeouts.DBShutdown)
-		defer cancel()
-		if err := drv.Close(ctx); err != nil {
-			logger.FromContext(s.ctx).Warn("Failed to close store", "error", err)
-		}
+func (s *Server) logDatabaseStartup(cfg *config.Config, driver string, duration time.Duration) {
+	log := logger.FromContext(s.ctx)
+	resolved := strings.TrimSpace(driver)
+	if resolved == "" {
+		resolved = driverPostgres
 	}
+	fields := []any{
+		"driver", resolved,
+		"duration", duration,
+	}
+	switch resolved {
+	case driverSQLite:
+		fields = append(fields,
+			"path", cfg.Database.Path,
+			"mode", sqliteMode(cfg.Database.Path),
+			"vector_db_required", true,
+			"concurrency_limit", sqliteConcurrencySummary,
+		)
+	case driverPostgres:
+		fields = append(fields,
+			"host", cfg.Database.Host,
+			"port", cfg.Database.Port,
+			"database", cfg.Database.DBName,
+			"vector_db", "pgvector (optional)",
+			"concurrency_limit", postgresConcurrencySummary,
+		)
+	}
+	log.Info("Database store initialized", fields...)
 }
 
-func (s *Server) setupMCPProxyIfEnabled(cfg *config.Config) (func(), error) {
-	if !shouldEmbedMCPProxy(cfg) {
+func sqliteMode(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "unknown"
+	}
+	lowered := strings.ToLower(trimmed)
+	if lowered == ":memory:" || strings.HasPrefix(lowered, "file::memory:") ||
+		strings.Contains(lowered, "mode=memory") {
+		return "in-memory"
+	}
+	return "file-based"
+}
+
+func (s *Server) setupMCPProxyIfEnabled() (func(), error) {
+	if !shouldEmbedMCPProxy(s.ctx) {
 		return nil, nil
 	}
 	return s.setupMCPProxy(s.ctx)
@@ -168,23 +214,28 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	cleanupFuncs := make([]func(), 0)
 	cfg := config.FromContext(s.ctx)
 	setupStart := time.Now()
-	redisClient, redisCleanup, err := s.SetupRedisClient(cfg)
+	cacheInstance, cacheCleanup, err := cache.SetupCache(s.ctx)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	s.redisClient = redisClient
-	cleanupFuncs = appendCleanup(cleanupFuncs, redisCleanup)
-	resourceStore := chooseResourceStore(s.redisClient, cfg)
+	s.cacheInstance = cacheInstance
+	cleanupFuncs = appendCleanup(cleanupFuncs, cacheCleanup)
+	resourceStore := chooseResourceStore(s.cacheInstance, cfg)
 	projectConfig, workflows, configRegistry, err := s.setupProjectConfig(resourceStore)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	storeInstance, cleanupFuncs, err := s.initRuntimeServices(cfg, projectConfig, cleanupFuncs)
+	storeInstance, cleanupFuncs, err := s.initRuntimeServices(projectConfig, cleanupFuncs)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
+	temporalCleanup, err := maybeStartStandaloneTemporal(s.ctx)
+	if err != nil {
+		return nil, cleanupFuncs, err
+	}
+	cleanupFuncs = appendCleanup(cleanupFuncs, temporalCleanup)
 	deps := appstate.NewBaseDeps(projectConfig, workflows, storeInstance, newTemporalConfig(cfg))
-	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, cfg, configRegistry)
+	workerInstance, workerCleanup, err := s.maybeStartWorker(deps, resourceStore, configRegistry)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -211,15 +262,16 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 }
 
 func (s *Server) attachStreamingProviders(state *appstate.State) error {
-	if s.redisClient == nil {
+	redisClient := s.RedisClient()
+	if redisClient == nil {
 		return nil
 	}
-	provider, err := pubsub.NewRedisProvider(s.redisClient)
+	provider, err := pubsub.NewRedisProvider(redisClient)
 	if err != nil {
 		return fmt.Errorf("failed to initialize pubsub provider: %w", err)
 	}
 	state.SetPubSubProvider(provider)
-	publisher, err := streaming.NewRedisPublisher(s.redisClient, nil)
+	publisher, err := streaming.NewRedisPublisher(redisClient, nil)
 	if err != nil {
 		logger.FromContext(s.ctx).Warn("Failed to initialize stream publisher", "error", err)
 		return nil
@@ -230,7 +282,6 @@ func (s *Server) attachStreamingProviders(state *appstate.State) error {
 
 // initRuntimeServices wires monitoring, database, and MCP proxy services.
 func (s *Server) initRuntimeServices(
-	cfg *config.Config,
 	projectConfig *project.Config,
 	cleanups []func(),
 ) (*repo.Provider, []func(), error) {
@@ -240,7 +291,7 @@ func (s *Server) initRuntimeServices(
 		return nil, cleanups, err
 	}
 	cleanups = appendCleanup(cleanups, storeCleanup)
-	mcpCleanup, err := s.setupMCPProxyIfEnabled(cfg)
+	mcpCleanup, err := s.setupMCPProxyIfEnabled()
 	if err != nil {
 		return nil, cleanups, err
 	}
@@ -311,14 +362,85 @@ func (s *Server) seedAndIngestKnowledge(
 	return ingestKnowledgeBasesOnStart(s.ctx, state, projectConfig, workflows)
 }
 
-func chooseResourceStore(redisClient *redis.Client, cfg *config.Config) resources.ResourceStore {
+func chooseResourceStore(cacheInstance *cache.Cache, cfg *config.Config) resources.ResourceStore {
 	if cfg != nil && cfg.Server.SourceOfTruth == sourceRepo {
 		return resources.NewMemoryResourceStore()
 	}
-	if redisClient != nil {
-		return resources.NewRedisResourceStore(redisClient)
+	if cacheInstance != nil && cacheInstance.Redis != nil {
+		client := cacheInstance.Redis.Client()
+		if redisClient, ok := client.(*redis.Client); ok {
+			return resources.NewRedisResourceStore(redisClient)
+		}
 	}
 	return resources.NewMemoryResourceStore()
+}
+
+func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
+	cfg := config.FromContext(ctx)
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration is required to start Temporal")
+	}
+	if cfg.EffectiveTemporalMode() != modeStandalone {
+		return nil, nil
+	}
+	embeddedCfg := standaloneEmbeddedConfig(cfg)
+	log := logger.FromContext(ctx)
+	log.Info(
+		"Starting in standalone mode",
+		"database", embeddedCfg.DatabaseFile,
+		"frontend_port", embeddedCfg.FrontendPort,
+		"ui_enabled", embeddedCfg.EnableUI,
+	)
+	log.Warn("Temporal standalone mode is not recommended for production")
+	server, err := embedded.NewServer(ctx, embeddedCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare embedded Temporal server: %w", err)
+	}
+	if err := server.Start(ctx); err != nil {
+		return nil, fmt.Errorf("failed to start embedded Temporal server: %w", err)
+	}
+	cfg.Temporal.HostPort = server.FrontendAddress()
+	log.Info(
+		"Temporal standalone mode started",
+		"frontend_addr", cfg.Temporal.HostPort,
+		"ui_enabled", embeddedCfg.EnableUI,
+		"ui_port", embeddedCfg.UIPort,
+	)
+	shutdownTimeout := cfg.Server.Timeouts.WorkerShutdown
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = embeddedCfg.StartTimeout
+	}
+	return standaloneTemporalCleanup(ctx, server, shutdownTimeout), nil
+}
+
+func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
+	standalone := cfg.Temporal.Standalone
+	return &embedded.Config{
+		DatabaseFile: standalone.DatabaseFile,
+		FrontendPort: standalone.FrontendPort,
+		BindIP:       standalone.BindIP,
+		Namespace:    standalone.Namespace,
+		ClusterName:  standalone.ClusterName,
+		EnableUI:     standalone.EnableUI,
+		RequireUI:    standalone.RequireUI,
+		UIPort:       standalone.UIPort,
+		LogLevel:     standalone.LogLevel,
+		StartTimeout: standalone.StartTimeout,
+	}
+}
+
+func standaloneTemporalCleanup(
+	ctx context.Context,
+	server *embedded.Server,
+	shutdownTimeout time.Duration,
+) func() {
+	return func() {
+		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		if err := server.Stop(stopCtx); err != nil {
+			logger.FromContext(ctx).Warn("Failed to stop embedded Temporal server", "error", err)
+		}
+	}
 }
 
 // appendCleanup appends a cleanup function when it is non-nil.
@@ -351,8 +473,9 @@ func (s *Server) startReconcilerIfNeeded(state *appstate.State, cleanups *[]func
 }
 
 func (s *Server) finalizeStartupLabels() {
+	redisClient := s.RedisClient()
 	switch {
-	case s.redisClient != nil:
+	case redisClient != nil:
 		s.cacheDriverLabel = "redis"
 	default:
 		s.cacheDriverLabel = driverNone
@@ -371,14 +494,42 @@ func (s *Server) emitStartupSummary(total time.Duration) {
 }
 
 func (s *Server) cleanup(cleanupFuncs []func()) {
+	log := logger.FromContext(s.ctx)
+	cfg := config.FromContext(s.ctx)
+	cleanupTimeout := cfg.Server.Timeouts.WorkerShutdown
 	for i := len(cleanupFuncs) - 1; i >= 0; i-- {
-		cleanupFuncs[i]()
+		idx := len(cleanupFuncs) - 1 - i
+		log.Debug("Running cleanup function", "index", idx, "total", len(cleanupFuncs), "timeout", cleanupTimeout)
+		s.runCleanupWithTimeout(cleanupFuncs[i], cleanupTimeout, idx)
 	}
 	s.cleanupMu.Lock()
 	extra := s.extraCleanups
 	s.extraCleanups = nil
 	s.cleanupMu.Unlock()
 	for i := len(extra) - 1; i >= 0; i-- {
-		extra[i]()
+		idx := len(extra) - 1 - i
+		log.Debug("Running extra cleanup function", "index", idx, "total", len(extra), "timeout", cleanupTimeout)
+		s.runCleanupWithTimeout(extra[i], cleanupTimeout, idx)
+	}
+}
+
+func (s *Server) runCleanupWithTimeout(fn func(), timeout time.Duration, index int) {
+	log := logger.FromContext(s.ctx)
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Error("Cleanup function panicked", "index", index, "panic", r)
+			}
+			close(done)
+		}()
+		fn()
+	}()
+	select {
+	case <-done:
+		log.Debug("Cleanup function completed", "index", index, "duration", time.Since(start))
+	case <-time.After(timeout):
+		log.Warn("Cleanup function exceeded timeout", "index", index, "timeout", timeout, "elapsed", time.Since(start))
 	}
 }

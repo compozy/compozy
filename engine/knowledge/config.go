@@ -44,7 +44,7 @@ func DefaultsFromConfig(cfg *appconfig.Config) Defaults {
 	if cfg == nil {
 		return builtinDefaults
 	}
-	overrides := defaultsFromKnowledgeConfig(cfg.Knowledge)
+	overrides := defaultsFromKnowledgeConfig(&cfg.Knowledge)
 	return sanitizeDefaultsWithFallback(overrides, builtinDefaults)
 }
 
@@ -91,7 +91,10 @@ func sanitizeDefaultsWithFallback(in Defaults, fallback Defaults) Defaults {
 	return out
 }
 
-func defaultsFromKnowledgeConfig(cfg appconfig.KnowledgeConfig) Defaults {
+func defaultsFromKnowledgeConfig(cfg *appconfig.KnowledgeConfig) Defaults {
+	if cfg == nil {
+		return Defaults{}
+	}
 	return Defaults{
 		EmbedderBatchSize: cfg.EmbedderBatchSize,
 		ChunkSize:         cfg.ChunkSize,
@@ -103,7 +106,7 @@ func defaultsFromKnowledgeConfig(cfg appconfig.KnowledgeConfig) Defaults {
 
 func computeBuiltinDefaults() Defaults {
 	cfg := appconfig.Default()
-	raw := defaultsFromKnowledgeConfig(cfg.Knowledge)
+	raw := defaultsFromKnowledgeConfig(&cfg.Knowledge)
 	fallback := Defaults{
 		EmbedderBatchSize: raw.EmbedderBatchSize,
 		ChunkSize:         raw.ChunkSize,

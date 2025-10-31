@@ -1,6 +1,7 @@
 package config
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -44,11 +45,24 @@ func TestConfig_Default(t *testing.T) {
 		assert.Equal(t, "postgres", cfg.Database.User)
 		assert.Equal(t, "compozy", cfg.Database.DBName)
 		assert.Equal(t, "disable", cfg.Database.SSLMode)
+		assert.Empty(t, cfg.Database.Driver)
+		assert.Equal(t, ":memory:", cfg.Database.Path)
 
 		// Temporal defaults
+		assert.Empty(t, cfg.Temporal.Mode)
+		assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
 		assert.Equal(t, "localhost:7233", cfg.Temporal.HostPort)
 		assert.Equal(t, "default", cfg.Temporal.Namespace)
 		assert.Equal(t, "compozy-tasks", cfg.Temporal.TaskQueue)
+		assert.Equal(t, ":memory:", cfg.Temporal.Standalone.DatabaseFile)
+		assert.Equal(t, 7233, cfg.Temporal.Standalone.FrontendPort)
+		assert.Equal(t, "127.0.0.1", cfg.Temporal.Standalone.BindIP)
+		assert.Equal(t, cfg.Temporal.Namespace, cfg.Temporal.Standalone.Namespace)
+		assert.Equal(t, "compozy-standalone", cfg.Temporal.Standalone.ClusterName)
+		assert.True(t, cfg.Temporal.Standalone.EnableUI)
+		assert.Equal(t, 8233, cfg.Temporal.Standalone.UIPort)
+		assert.Equal(t, "warn", cfg.Temporal.Standalone.LogLevel)
+		assert.Equal(t, 30*time.Second, cfg.Temporal.Standalone.StartTimeout)
 
 		// Runtime defaults
 		assert.Equal(t, "development", cfg.Runtime.Environment)
@@ -110,6 +124,136 @@ func TestConfig_Default(t *testing.T) {
 	})
 }
 
+func TestConfig_StandaloneModeDefaultsToSQLiteDriver(t *testing.T) {
+	t.Run("Should resolve sqlite driver when global mode standalone", func(t *testing.T) {
+		t.Setenv("COMPOZY_MODE", ModeStandalone)
+		ctx := t.Context()
+		m := NewManager(ctx, NewService())
+		cfg, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider())
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = m.Close(ctx) })
+		assert.Equal(t, databaseDriverSQLite, cfg.Database.Driver)
+		assert.Equal(t, ModeStandalone, cfg.Temporal.Mode)
+	})
+}
+
+func TestDatabaseConfig(t *testing.T) {
+	t.Run("Should default to postgres when driver empty", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "",
+			Host:   "localhost",
+			Port:   "5432",
+			User:   "test",
+			DBName: "compozy",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "postgres", cfg.Driver)
+	})
+
+	t.Run("Should accept postgres driver explicitly", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "postgres",
+			Host:   "localhost",
+			Port:   "5432",
+			User:   "test",
+			DBName: "compozy",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("Should accept sqlite driver", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "data/test.db",
+		}
+		err := cfg.Validate()
+		require.NoError(t, err)
+		assert.Equal(t, "data"+string(filepath.Separator)+"test.db", cfg.Path)
+	})
+
+	t.Run("Should reject invalid driver", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "mysql",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported database driver")
+	})
+
+	t.Run("Should require path for sqlite", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires path")
+	})
+
+	t.Run("Should require connection params for postgres", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "postgres",
+			Host:   "localhost",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "requires host, port, user, and name")
+	})
+
+	t.Run("Should validate sqlite path format", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "sqlite",
+			Path:   "../data/test.db",
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot traverse directories")
+	})
+}
+
+func TestTemporalStandaloneMode(t *testing.T) {
+	t.Run("Should apply standalone defaults when mode set to standalone", func(t *testing.T) {
+		ctx := t.Context()
+		manager := NewManager(ctx, NewService())
+		overrides := map[string]any{
+			"temporal-mode": "standalone",
+		}
+		cfg, err := manager.Load(ctx, NewDefaultProvider(), NewCLIProvider(overrides))
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		assert.Equal(t, "standalone", cfg.Temporal.Mode)
+		assert.Equal(t, ":memory:", cfg.Temporal.Standalone.DatabaseFile)
+		assert.Equal(t, 7233, cfg.Temporal.Standalone.FrontendPort)
+		assert.Equal(t, "127.0.0.1", cfg.Temporal.Standalone.BindIP)
+		assert.Equal(t, cfg.Temporal.Namespace, cfg.Temporal.Standalone.Namespace)
+		assert.Equal(t, "compozy-standalone", cfg.Temporal.Standalone.ClusterName)
+		assert.True(t, cfg.Temporal.Standalone.EnableUI)
+		assert.Equal(t, 8233, cfg.Temporal.Standalone.UIPort)
+		assert.Equal(t, "warn", cfg.Temporal.Standalone.LogLevel)
+		assert.Equal(t, 30*time.Second, cfg.Temporal.Standalone.StartTimeout)
+		assert.Equal(t, "localhost:7233", cfg.Temporal.HostPort)
+		assert.Equal(t, "default", cfg.Temporal.Namespace)
+		_ = manager.Close(ctx)
+	})
+
+	t.Run("Should allow host port override in standalone mode", func(t *testing.T) {
+		ctx := t.Context()
+		manager := NewManager(ctx, NewService())
+		overrides := map[string]any{
+			"temporal-mode": "standalone",
+			"temporal-host": "0.0.0.0:9000",
+		}
+		cfg, err := manager.Load(ctx, NewDefaultProvider(), NewCLIProvider(overrides))
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
+		assert.Equal(t, "standalone", cfg.Temporal.Mode)
+		assert.Equal(t, "0.0.0.0:9000", cfg.Temporal.HostPort)
+		_ = manager.Close(ctx)
+	})
+}
+
 func TestLLMConfig_StructuredOutputRetryPrecedence(t *testing.T) {
 	t.Setenv("LLM_STRUCTURED_OUTPUT_RETRIES", "3")
 	ctx := t.Context()
@@ -147,6 +291,126 @@ func TestDefaultNativeToolsConfig(t *testing.T) {
 }
 
 func TestConfig_Validation(t *testing.T) {
+	t.Run("Should validate temporal mode", func(t *testing.T) {
+		testCases := []struct {
+			name    string
+			mode    string
+			wantErr bool
+		}{
+			{name: "remote", mode: "remote", wantErr: false},
+			{name: "standalone", mode: "standalone", wantErr: false},
+			{name: "invalid", mode: "invalid", wantErr: true},
+			{name: "empty", mode: "", wantErr: false},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				cfg := Default()
+				cfg.Temporal.Mode = tc.mode
+				svc := NewService()
+				err := svc.Validate(cfg)
+				if tc.wantErr {
+					require.Error(t, err)
+					return
+				}
+				require.NoError(t, err)
+				assert.NotEmpty(t, cfg.Temporal.Mode)
+				if tc.mode == "" {
+					assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
+					assert.Equal(t, ModeRemoteTemporal, cfg.Temporal.Mode)
+				} else {
+					assert.Equal(t, tc.mode, cfg.Temporal.Mode)
+				}
+			})
+		}
+	})
+
+	t.Run("Should validate standalone configuration when mode standalone", func(t *testing.T) {
+		testCases := []struct {
+			name    string
+			mutate  func(*TemporalConfig)
+			wantErr string
+		}{
+			{
+				name: "missing database file",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.DatabaseFile = ""
+				},
+				wantErr: "database_file",
+			},
+			{
+				name: "frontend port out of range",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.FrontendPort = 0
+				},
+				wantErr: "frontend_port",
+			},
+			{
+				name: "bind ip invalid",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.BindIP = "not-an-ip"
+				},
+				wantErr: "bind_ip",
+			},
+			{
+				name: "missing namespace",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.Namespace = ""
+				},
+				wantErr: "namespace",
+			},
+			{
+				name: "missing cluster name",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.ClusterName = ""
+				},
+				wantErr: "cluster_name",
+			},
+			{
+				name: "ui port invalid when ui enabled",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.UIPort = 0
+				},
+				wantErr: "ui_port",
+			},
+			{
+				name: "invalid log level",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.LogLevel = "trace"
+				},
+				wantErr: "log_level",
+			},
+			{
+				name: "non positive start timeout",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.StartTimeout = 0
+				},
+				wantErr: "start_timeout",
+			},
+			{
+				name: "ui disabled allows zero port",
+				mutate: func(cfg *TemporalConfig) {
+					cfg.Standalone.EnableUI = false
+					cfg.Standalone.UIPort = 0
+				},
+				wantErr: "",
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				cfg := Default()
+				cfg.Temporal.Mode = "standalone"
+				tc.mutate(&cfg.Temporal)
+				svc := NewService()
+				err := svc.Validate(cfg)
+				if tc.wantErr == "" {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tc.wantErr)
+				}
+			})
+		}
+	})
 	t.Run("Should validate server port range", func(t *testing.T) {
 		tests := []struct {
 			name    string

@@ -53,8 +53,8 @@ func (m *mockRepo) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.APIKey
 	}
 	return a.Get(0).(*model.APIKey), a.Error(1)
 }
-func (m *mockRepo) GetAPIKeyByHash(ctx context.Context, h []byte) (*model.APIKey, error) {
-	a := m.Called(ctx, h)
+func (m *mockRepo) GetAPIKeyByFingerprint(ctx context.Context, fp []byte) (*model.APIKey, error) {
+	a := m.Called(ctx, fp)
 	if a.Get(0) == nil {
 		return nil, a.Error(1)
 	}
@@ -94,14 +94,14 @@ func TestAuthCache_FPMappingAndSanitizedIDCache(t *testing.T) {
 	}
 
 	// On miss, fetch from repo and map fp->ID; ID cache stores sanitized (no Hash)
-	repo.On("GetAPIKeyByHash", ctx, []byte("fp")).Return(key, nil).Once()
-	out, err := cache.GetAPIKeyByHash(ctx, []byte("fp"))
+	repo.On("GetAPIKeyByFingerprint", ctx, []byte("fp")).Return(key, nil).Once()
+	out, err := cache.GetAPIKeyByFingerprint(ctx, []byte("fp"))
 	require.NoError(t, err)
 	assert.Equal(t, key.ID, out.ID)
 
 	// Second call hits mapping then GetAPIKeyByID
 	repo.On("GetAPIKeyByID", ctx, key.ID).Return(key, nil).Once()
-	out2, err := cache.GetAPIKeyByHash(ctx, []byte("fp"))
+	out2, err := cache.GetAPIKeyByFingerprint(ctx, []byte("fp"))
 	require.NoError(t, err)
 	assert.Equal(t, key.ID, out2.ID)
 	repo.AssertExpectations(t)

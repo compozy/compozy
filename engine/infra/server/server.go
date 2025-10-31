@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,7 @@ const (
 	hostAny        = "0.0.0.0"
 	hostLoopback   = "127.0.0.1"
 	driverPostgres = "postgres"
+	driverSQLite   = "sqlite"
 	driverNone     = "none"
 )
 
@@ -35,7 +37,7 @@ type Server struct {
 	envFilePath           string
 	router                *gin.Engine
 	monitoring            *monitoring.Service
-	redisClient           *redis.Client
+	cacheInstance         *cache.Cache
 	ctx                   context.Context
 	cancel                context.CancelFunc
 	httpServer            *http.Server
@@ -78,4 +80,17 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Serve
 		reconciliationState: &reconciliationStatus{},
 		lastReady:           false,
 	}, nil
+}
+
+// RedisClient returns the Redis client from the cache instance.
+// Returns nil if cache is not initialized (safe for rate limiting fallback).
+func (s *Server) RedisClient() *redis.Client {
+	if s.cacheInstance == nil || s.cacheInstance.Redis == nil {
+		return nil
+	}
+	client := s.cacheInstance.Redis.Client()
+	if c, ok := client.(*redis.Client); ok {
+		return c
+	}
+	return nil
 }

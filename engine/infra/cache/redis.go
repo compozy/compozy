@@ -85,6 +85,15 @@ func NewRedis(ctx context.Context, cfg *Config) (*Redis, error) {
 	}, nil
 }
 
+// NewRedisFromClient wraps an existing redis client with standard logging and configuration.
+// It assumes the client is already connected/validated by the caller.
+func NewRedisFromClient(ctx context.Context, client redis.UniversalClient, cfg *Config) *Redis {
+	log := logger.FromContext(ctx).With("component", "infra_redis")
+	ctx = logger.ContextWithLogger(ctx, log)
+	logRedisConnection(ctx, cfg)
+	return &Redis{client: client, config: cfg, ctx: ctx}
+}
+
 // buildRedisClient configures the Redis client from the provided config.
 func buildRedisClient(cfg *Config) (redis.UniversalClient, error) {
 	if cfg.URL != "" {

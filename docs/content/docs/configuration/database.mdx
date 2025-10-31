@@ -1,0 +1,197 @@
+---
+title: "Database Configuration"
+description: "Field-by-field reference for configuring PostgreSQL and SQLite in Compozy."
+icon: Database
+---
+
+## `database.driver`
+
+Select the backing store for Compozy metadata.
+
+| Property | Value |
+|----------|-------|
+| **Type** | `string` |
+| **Options** | `postgres` \| `sqlite` |
+| **Default** | `postgres` |
+| **Environment Variable** | `DB_DRIVER` or `COMPOZY_DB_DRIVER` |
+
+Omitting `driver` keeps PostgreSQL as the default.
+
+## PostgreSQL Fields
+
+Use these fields when `driver: postgres` (or omitted):
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Field</TableHead>
+      <TableHead>Type</TableHead>
+      <TableHead>Required</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`host`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Hostname or IP address of the PostgreSQL server (*omit when using `conn_string`).</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`port`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Port number (default `5432`).</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`user`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Database user used for migrations and runtime operations.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`password`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Password for the specified user.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`dbname`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>Yes*</TableCell>
+      <TableCell>Name of the PostgreSQL database where Compozy stores metadata.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`conn_string`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>PostgreSQL DSN (`postgres://user:pass@host:port/db?sslmode=require`). When provided, overrides individual connection fields.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`sslmode`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>SSL/TLS mode (`disable`, `require`, `verify-ca`, `verify-full`). Defaults to `require` in production builds.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`max_open_conns`</TableCell>
+      <TableCell>int</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Upper bound for concurrent connections in the pool.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`max_idle_conns`</TableCell>
+      <TableCell>int</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Number of warm idle connections the pool maintains.</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+```yaml title="PostgreSQL Example"
+database:
+  driver: postgres
+  host: postgres.internal
+  port: 5432
+  user: compozy
+  password: ${DB_PASSWORD}
+  dbname: compozy
+  sslmode: verify-full
+  max_open_conns: 50
+  max_idle_conns: 10
+```
+
+## SQLite Fields
+
+Use these fields when `driver: sqlite`:
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Field</TableHead>
+      <TableHead>Type</TableHead>
+      <TableHead>Required</TableHead>
+      <TableHead>Description</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`path`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>Yes</TableCell>
+      <TableCell>Path to the SQLite file. Use `:memory:` for ephemeral, in-memory deployments.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`busy_timeout`</TableCell>
+      <TableCell>int</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Milliseconds SQLite waits before returning `database is locked`.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`journal_mode`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Transaction journal mode. `wal` is recommended for moderate concurrency.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`synchronous`</TableCell>
+      <TableCell>string</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Durability level: `full`, `normal`, or `off`.</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+```yaml title="SQLite Example"
+database:
+  driver: sqlite
+  path: ./data/compozy.db
+  busy_timeout: 5000
+  journal_mode: wal
+  synchronous: normal
+```
+
+<Callout type="error">
+SQLite deployments **must** configure an external vector database provider. See the [vector database guide](/docs/knowledge-bases/vector-databases) for supported options.
+</Callout>
+
+## Environment Variables
+
+CLI flags and environment variables override configuration values:
+
+| Variable | Description |
+|----------|-------------|
+| `COMPOZY_DB_DRIVER` | Overrides `database.driver`. |
+| `COMPOZY_DB_HOST` | PostgreSQL host. |
+| `COMPOZY_DB_PORT` | PostgreSQL port. |
+| `COMPOZY_DB_NAME` | PostgreSQL database name. |
+| `COMPOZY_DB_USER` | PostgreSQL user. |
+| `COMPOZY_DB_PASSWORD` | PostgreSQL password. |
+| `COMPOZY_DB_CONN_STRING` | PostgreSQL connection string. |
+| `COMPOZY_DB_PATH` | SQLite file or `:memory:` path. |
+| `COMPOZY_DB_BUSY_TIMEOUT` | Millisecond timeout for SQLite locks. |
+
+CLI precedence follows the order: **flags → environment → configuration file → defaults**.
+
+## Related Topics
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Database Overview"
+    description="Decide when to run PostgreSQL or SQLite."
+    href="/docs/database/overview"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="PostgreSQL Driver"
+    description="Production setup and tuning guidance."
+    href="/docs/database/postgresql"
+    icon="ServerCog"
+  />
+  <ReferenceCard
+    title="SQLite Driver"
+    description="Edge deployments and concurrency limits."
+    href="/docs/database/sqlite"
+    icon="HardDrive"
+  />
+</ReferenceCardList>

@@ -1,0 +1,10 @@
+{
+  "title": "Architecture",
+  "description": "High-level architecture and component deep-dives",
+  "icon": "Layers",
+  "root": true,
+  "pages": [
+    "overview",
+    "embedded-temporal"
+  ]
+}

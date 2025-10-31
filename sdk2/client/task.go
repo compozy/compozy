@@ -11,7 +11,11 @@ import (
 )
 
 // ExecuteTask triggers an asynchronous direct task execution.
-func (c *Client) ExecuteTask(ctx context.Context, taskID string, req *TaskExecuteRequest) (*TaskExecuteResponse, error) {
+func (c *Client) ExecuteTask(
+	ctx context.Context,
+	taskID string,
+	req *TaskExecuteRequest,
+) (*TaskExecuteResponse, error) {
 	id := strings.TrimSpace(taskID)
 	if id == "" {
 		return nil, fmt.Errorf("task id is required")
@@ -30,7 +34,11 @@ func (c *Client) ExecuteTask(ctx context.Context, taskID string, req *TaskExecut
 }
 
 // ExecuteTaskSync executes a task synchronously and waits for completion.
-func (c *Client) ExecuteTaskSync(ctx context.Context, taskID string, req *TaskExecuteRequest) (*TaskSyncResponse, error) {
+func (c *Client) ExecuteTaskSync(
+	ctx context.Context,
+	taskID string,
+	req *TaskExecuteRequest,
+) (*TaskSyncResponse, error) {
 	id := strings.TrimSpace(taskID)
 	if id == "" {
 		return nil, fmt.Errorf("task id is required")

@@ -15,7 +15,7 @@ import (
 
 // CachedRepository decorates an auth repository with Redis-backed caching.
 // Security: never caches sensitive hash bytes. For validation lookups
-// (GetAPIKeyByHash), only a fingerprint->ID mapping is cached; the full
+// (GetAPIKeyByFingerprint), only a fingerprint->ID mapping is cached; the full
 // record is always fetched from the underlying repository by ID.
 type CachedRepository struct {
 	repo   uc.Repository
@@ -23,10 +23,12 @@ type CachedRepository struct {
 	ttl    time.Duration
 }
 
+const defaultAuthCacheTTL = 30 * time.Second
+
 // NewCachedRepository returns a Redis-backed caching decorator.
 func NewCachedRepository(repo uc.Repository, client *rds.Client, ttl time.Duration) uc.Repository {
 	if ttl <= 0 {
-		ttl = 30 * time.Second
+		ttl = defaultAuthCacheTTL
 	}
 	return &CachedRepository{repo: repo, client: client, ttl: ttl}
 }
@@ -38,13 +40,14 @@ func (c *CachedRepository) sanitize(k *model.APIKey) *model.APIKey {
 		return nil
 	}
 	cp := *k
-	cp.Hash = nil // never cache sensitive hash bytes
+	cp.Hash = nil        // never cache sensitive hash bytes
+	cp.Fingerprint = nil // avoid storing fingerprint in ID cache
 	return &cp
 }
 
 // --- Cache-aware API Key methods ---
 
-func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+func (c *CachedRepository) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
 	log := logger.FromContext(ctx)
 	if c.client != nil {
 		if s, err := c.client.Get(ctx, c.fpKey(fingerprint)).Result(); err == nil && s != "" {
@@ -54,11 +57,19 @@ func (c *CachedRepository) GetAPIKeyByHash(ctx context.Context, fingerprint []by
 				if gerr == nil {
 					return key, nil
 				}
-				log.Debug("repo.GetAPIKeyByID after fp mapping failed", "error", gerr)
+				if derr := c.client.Del(ctx, c.fpKey(fingerprint)).Err(); derr != nil {
+					log.Warn("redis: del fp cache failed", "error", derr)
+				}
+				log.Debug("repo.GetAPIKeyByID after fp mapping failed; evicted mapping", "error", gerr)
+			} else {
+				if derr := c.client.Del(ctx, c.fpKey(fingerprint)).Err(); derr != nil {
+					log.Warn("redis: del fp cache failed", "error", derr)
+				}
+				log.Debug("redis: invalid fp->id mapping; evicted", "value", s, "error", perr)
 			}
 		}
 	}
-	key, err := c.repo.GetAPIKeyByHash(ctx, fingerprint)
+	key, err := c.repo.GetAPIKeyByFingerprint(ctx, fingerprint)
 	if err != nil {
 		return nil, err
 	}
@@ -75,10 +86,14 @@ func (c *CachedRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*mode
 	if c.client != nil {
 		if s, err := c.client.Get(ctx, c.idKey(id)).Result(); err == nil && s != "" {
 			var masked model.APIKey
-			if jerr := json.Unmarshal([]byte(s), &masked); jerr == nil {
+			uerr := json.Unmarshal([]byte(s), &masked)
+			if uerr == nil {
 				return &masked, nil
 			}
-			log.Debug("redis: unmarshal cached api key failed", "error", err)
+			if derr := c.client.Del(ctx, c.idKey(id)).Err(); derr != nil {
+				log.Warn("redis: del id cache failed", "error", derr)
+			}
+			log.Debug("redis: unmarshal cached api key failed; evicted", "error", uerr)
 		}
 	}
 	key, err := c.repo.GetAPIKeyByID(ctx, id)
@@ -108,6 +123,13 @@ func (c *CachedRepository) UpdateAPIKeyLastUsed(ctx context.Context, id core.ID)
 }
 
 func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
+	var k *model.APIKey
+	if c.client != nil {
+		// best effort: capture fingerprint before deletion for cache eviction
+		if key, err := c.repo.GetAPIKeyByID(ctx, id); err == nil {
+			k = key
+		}
+	}
 	if err := c.repo.DeleteAPIKey(ctx, id); err != nil {
 		return err
 	}
@@ -116,11 +138,9 @@ func (c *CachedRepository) DeleteAPIKey(ctx context.Context, id core.ID) error {
 			logger.FromContext(ctx).Warn("redis: del id cache failed", "error", err)
 		}
 	}
-	if c.client != nil {
-		if k, err := c.repo.GetAPIKeyByID(ctx, id); err == nil {
-			if err := c.client.Del(ctx, c.fpKey(k.Fingerprint)).Err(); err != nil {
-				logger.FromContext(ctx).Warn("redis: del fp cache failed", "error", err)
-			}
+	if c.client != nil && k != nil && len(k.Fingerprint) > 0 {
+		if err := c.client.Del(ctx, c.fpKey(k.Fingerprint)).Err(); err != nil {
+			logger.FromContext(ctx).Warn("redis: del fp cache failed", "error", err)
 		}
 	}
 	return nil

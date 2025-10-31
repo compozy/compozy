@@ -50,7 +50,13 @@ func (c *Client) get(ctx context.Context, path string, query url.Values) (*http.
 	return c.do(ctx, http.MethodGet, path, query, nil)
 }
 
-func (c *Client) do(ctx context.Context, method string, path string, query url.Values, payload any) (*http.Response, error) {
+func (c *Client) do(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	payload any,
+) (*http.Response, error) {
 	if c == nil || c.baseURL == nil {
 		return nil, fmt.Errorf("client is not initialized")
 	}

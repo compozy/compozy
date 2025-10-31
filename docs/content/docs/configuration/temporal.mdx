@@ -1,0 +1,277 @@
+---
+title: "Temporal Configuration"
+description: "Reference for configuring Temporal connectivity in Compozy."
+icon: Settings
+---
+
+<Callout type="info">
+Temporal configuration is split into **mode selection** and **standalone overrides**. Remote mode connects to an external cluster; standalone mode boots `temporal.NewServer()` inside the process for local development and CI.
+</Callout>
+
+## Configuration Structure
+
+```yaml title="compozy.yaml"
+temporal:
+  mode: remote | standalone
+  host_port: localhost:7233
+  namespace: default
+  task_queue: compozy-tasks
+  standalone:
+    database_file: :memory:
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-standalone
+    enable_ui: true
+    ui_port: 8233
+    log_level: warn
+    start_timeout: 30s
+```
+
+## Mode Selection
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Field</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Default</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`mode`</TableCell>
+      <TableCell>`remote` (default) uses an external Temporal cluster. `standalone` starts the embedded Temporal server.</TableCell>
+      <TableCell>`remote`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`host_port`</TableCell>
+      <TableCell>Temporal endpoint in `host:port` format. Overridden automatically when `mode=standalone`.</TableCell>
+      <TableCell>`localhost:7233`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`namespace`</TableCell>
+      <TableCell>Default Temporal namespace for workflows. Create unique namespaces per environment.</TableCell>
+      <TableCell>`default`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`task_queue`</TableCell>
+      <TableCell>Primary task queue that Compozy workers poll.</TableCell>
+      <TableCell>`compozy-tasks`</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+<Callout type="warning">
+When `mode=standalone`, `host_port` is rewritten to `bind_ip:frontend_port`. Update downstream services (like external workers) to use the new address if you expose it beyond localhost.
+</Callout>
+
+## Standalone Options
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Field</TableHead>
+      <TableHead>Description</TableHead>
+      <TableHead>Default</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`database_file`</TableCell>
+      <TableCell>SQLite path. Use `:memory:` for ephemeral instances or a file path for persistence.</TableCell>
+      <TableCell>`:memory:`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`frontend_port`</TableCell>
+      <TableCell>Anchors the port block used by Temporal services (frontend + history + matching + worker).</TableCell>
+      <TableCell>`7233`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`bind_ip`</TableCell>
+      <TableCell>Interface to bind Temporal services. Keep `127.0.0.1` for safe development defaults.</TableCell>
+      <TableCell>`127.0.0.1`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`namespace`</TableCell>
+      <TableCell>Namespace created automatically when the embedded server starts.</TableCell>
+      <TableCell>`default`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`cluster_name`</TableCell>
+      <TableCell>Cluster identifier for the embedded server. Useful when inspecting metrics or logs.</TableCell>
+      <TableCell>`compozy-standalone`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`enable_ui`</TableCell>
+      <TableCell>Toggle the Temporal Web UI bundled with standalone mode.</TableCell>
+      <TableCell>`true`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`ui_port`</TableCell>
+      <TableCell>HTTP port for the Temporal Web UI.</TableCell>
+      <TableCell>`8233`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`log_level`</TableCell>
+      <TableCell>Temporal server log level (`debug`, `info`, `warn`, `error`).</TableCell>
+      <TableCell>`warn`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`start_timeout`</TableCell>
+      <TableCell>Maximum time to wait for Temporal startup before failing (`time.Duration` format).</TableCell>
+      <TableCell>`30s`</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Environment Variables & CLI Flags
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Config Path</TableHead>
+      <TableHead>Environment Variable</TableHead>
+      <TableHead>CLI Flag</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>`temporal.mode`</TableCell>
+      <TableCell>`TEMPORAL_MODE`</TableCell>
+      <TableCell>`--temporal-mode`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.host_port`</TableCell>
+      <TableCell>`TEMPORAL_HOST_PORT`</TableCell>
+      <TableCell>`--temporal-host`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.namespace`</TableCell>
+      <TableCell>`TEMPORAL_NAMESPACE`</TableCell>
+      <TableCell>`--temporal-namespace`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.task_queue`</TableCell>
+      <TableCell>`TEMPORAL_TASK_QUEUE`</TableCell>
+      <TableCell>`--temporal-task-queue`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.database_file`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_DATABASE_FILE`</TableCell>
+      <TableCell>`--temporal-standalone-database`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.frontend_port`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_FRONTEND_PORT`</TableCell>
+      <TableCell>`--temporal-standalone-frontend-port`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.bind_ip`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_BIND_IP`</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.namespace`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_NAMESPACE`</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.cluster_name`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_CLUSTER_NAME`</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.enable_ui`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_ENABLE_UI`</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.ui_port`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_UI_PORT`</TableCell>
+      <TableCell>`--temporal-standalone-ui-port`</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.log_level`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_LOG_LEVEL`</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>`temporal.standalone.start_timeout`</TableCell>
+      <TableCell>`TEMPORAL_STANDALONE_START_TIMEOUT`</TableCell>
+      <TableCell>-</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Validation Rules
+
+<List>
+  <ListItem title="Mode enum" icon="CheckCircle">
+    Only `remote` and `standalone` are accepted values for `temporal.mode`.
+  </ListItem>
+  <ListItem title="Port ranges" icon="Gauge">
+    `frontend_port` and `ui_port` must be between 1 and 65535. `frontend_port` reserves a block of four contiguous ports.
+  </ListItem>
+  <ListItem title="IP address validation" icon="Shield">
+    `bind_ip` must be a valid IP string. IPv4 loopback is recommended for development.
+  </ListItem>
+  <ListItem title="Log level enum" icon="ListChecks">
+    `log_level` accepts `debug`, `info`, `warn`, or `error`.
+  </ListItem>
+  <ListItem title="Start timeout" icon="Timer">
+    `start_timeout` must be positive. Increase it if your machine boots Temporal slower than 30 seconds.
+  </ListItem>
+</List>
+
+## Usage Patterns
+
+<Tabs items={["Remote", "Standalone"]}>
+  <Tab>
+
+  ```bash title="Remote mode deployment"
+  export TEMPORAL_MODE=remote
+  export TEMPORAL_HOST_PORT=temporal.prod.internal:7233
+  compozy start --temporal-namespace=compozy-prod
+  ```
+
+  </Tab>
+  <Tab>
+
+  ```bash title="Standalone mode development"
+  export TEMPORAL_MODE=standalone
+  export TEMPORAL_STANDALONE_DATABASE_FILE=./.tmp/temporal.db
+  compozy start --temporal-standalone-frontend-port=9733 --temporal-standalone-ui-port=9833
+  ```
+
+  </Tab>
+</Tabs>
+
+## Related Documentation
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Temporal Modes"
+    description="Compare remote and standalone deployments"
+    href="/docs/deployment/temporal-modes"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Embedded Temporal"
+    description="Understand how the embedded server is composed"
+    href="/docs/architecture/embedded-temporal"
+    icon="Layers"
+  />
+  <ReferenceCard
+    title="Temporal Troubleshooting"
+    description="Fix port conflicts, SQLite issues, and UI errors"
+    href="/docs/troubleshooting/temporal"
+    icon="LifeBuoy"
+  />
+  <ReferenceCard
+    title="compozy start CLI"
+    description="Flags and examples for runtime configuration"
+    href="/docs/cli/compozy-start"
+    icon="Terminal"
+  />
+</ReferenceCardList>

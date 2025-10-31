@@ -11,7 +11,11 @@ import (
 )
 
 // ExecuteAgent triggers an asynchronous agent execution.
-func (c *Client) ExecuteAgent(ctx context.Context, agentID string, req *AgentExecuteRequest) (*AgentExecuteResponse, error) {
+func (c *Client) ExecuteAgent(
+	ctx context.Context,
+	agentID string,
+	req *AgentExecuteRequest,
+) (*AgentExecuteResponse, error) {
 	id := strings.TrimSpace(agentID)
 	if id == "" {
 		return nil, fmt.Errorf("agent id is required")
@@ -30,7 +34,11 @@ func (c *Client) ExecuteAgent(ctx context.Context, agentID string, req *AgentExe
 }
 
 // ExecuteAgentSync executes an agent synchronously.
-func (c *Client) ExecuteAgentSync(ctx context.Context, agentID string, req *AgentExecuteRequest) (*AgentSyncResponse, error) {
+func (c *Client) ExecuteAgentSync(
+	ctx context.Context,
+	agentID string,
+	req *AgentExecuteRequest,
+) (*AgentSyncResponse, error) {
 	id := strings.TrimSpace(agentID)
 	if id == "" {
 		return nil, fmt.Errorf("agent id is required")

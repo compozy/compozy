@@ -73,6 +73,45 @@ Forces interactive mode even when CI or non-TTY environment is detected.
 - **Config**: `cli.interactive: true`
 - **Example**: `compozy auth login --interactive`
 
+## Temporal Configuration Flags
+
+### `--temporal-mode`
+
+Selects how Compozy connects to Temporal.
+
+- **Values**: `remote`, `standalone`
+- **Default**: `remote`
+- **Environment**: `TEMPORAL_MODE`
+- **Config**: `temporal.mode`
+- **Example**: `compozy start --temporal-mode=standalone`
+
+### `--temporal-standalone-database`
+
+Sets the SQLite database location used by the embedded Temporal server when `--temporal-mode=standalone`.
+
+- **Default**: `:memory:` (ephemeral)
+- **Environment**: `TEMPORAL_STANDALONE_DATABASE_FILE`
+- **Config**: `temporal.standalone.database_file`
+- **Example**: `compozy start --temporal-mode=standalone --temporal-standalone-database=./temporal.db`
+
+### `--temporal-standalone-frontend-port`
+
+Overrides the Temporal frontend gRPC port exposed in standalone mode.
+
+- **Default**: `7233`
+- **Environment**: `TEMPORAL_STANDALONE_FRONTEND_PORT`
+- **Config**: `temporal.standalone.frontend_port`
+- **Example**: `compozy start --temporal-mode=standalone --temporal-standalone-frontend-port=9733`
+
+### `--temporal-standalone-ui-port`
+
+Overrides the Temporal Web UI HTTP port when running in standalone mode.
+
+- **Default**: `8233`
+- **Environment**: `TEMPORAL_STANDALONE_UI_PORT`
+- **Config**: `temporal.standalone.ui_port`
+- **Example**: `compozy start --temporal-mode=standalone --temporal-standalone-ui-port=9833`
+
 ## Flag Precedence
 
 Configuration values are resolved in the following order (highest to lowest priority):

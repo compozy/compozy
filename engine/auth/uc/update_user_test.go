@@ -75,8 +75,8 @@ func (m *MockRepository) GetAPIKeyByID(ctx context.Context, id core.ID) (*model.
 	return args.Get(0).(*model.APIKey), args.Error(1)
 }
 
-func (m *MockRepository) GetAPIKeyByHash(ctx context.Context, hash []byte) (*model.APIKey, error) {
-	args := m.Called(ctx, hash)
+func (m *MockRepository) GetAPIKeyByFingerprint(ctx context.Context, fingerprint []byte) (*model.APIKey, error) {
+	args := m.Called(ctx, fingerprint)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

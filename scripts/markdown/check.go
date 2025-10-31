@@ -26,19 +26,28 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/sethvargo/go-retry"
+	"github.com/looplab/fsm"
 	"github.com/spf13/cobra"
 	"github.com/tidwall/pretty"
 )
 
 const (
-	unknownFileName            = "unknown"
-	ideCodex                   = "codex"
-	ideClaude                  = "claude"
-	ideDroid                   = "droid"
-	defaultCodexModel          = "gpt-5-codex"
-	defaultClaudeModel         = "claude-sonnet-4-5-20250929"
-	thinkPromptMedium          = "Think hard through problems carefully before acting. Balance speed with thoroughness."
+	unknownFileName               = "unknown"
+	ideCodex                      = "codex"
+	ideClaude                     = "claude"
+	ideDroid                      = "droid"
+	defaultCodexModel             = "gpt-5-codex"
+	defaultClaudeModel            = "claude-sonnet-4-5-20250929"
+	defaultActivityTimeout        = 10 * time.Minute
+	exitCodeTimeout               = -2
+	exitCodeCanceled              = -1
+	activityCheckInterval         = 5 * time.Second
+	processTerminationGracePeriod = 5 * time.Second
+	gracefulShutdownTimeout       = 30 * time.Second
+	uiMessageDrainDelay           = 80 * time.Millisecond
+	uiTickInterval                = 120 * time.Millisecond
+	thinkPromptMedium             = "Think hard through problems carefully before acting. " +
+		"Balance speed with thoroughness."
 	thinkPromptLow             = "Think concisely and act quickly. Prefer direct solutions."
 	thinkPromptHighDescription = "Ultrathink deeply and comprehensively before taking action. " +
 		"Consider edge cases, alternatives, and long-term implications. Show your reasoning process."
@@ -213,8 +222,8 @@ func setupFlags() {
 	rootCmd.Flags().IntVar(
 		&maxRetries,
 		"max-retries",
-		3,
-		"Maximum number of retry attempts on timeout (0 = no retry, default: 3)",
+		50,
+		"Maximum number of retry attempts on timeout (0 = no retry, default: 50)",
 	)
 	rootCmd.Flags().Float64Var(
 		&retryBackoffMultiplier,
@@ -590,7 +599,7 @@ func ensurePRProvided() error {
 }
 
 func buildCLIArgs() *cliArgs {
-	timeoutDuration := 10 * time.Minute
+	timeoutDuration := defaultActivityTimeout
 	if timeout != "" {
 		if parsed, err := time.ParseDuration(timeout); err == nil {
 			timeoutDuration = parsed
@@ -639,13 +648,19 @@ func (c *cliArgs) validate() error {
 			c.batchSize,
 		)
 	}
+	if c.maxRetries < 0 {
+		return fmt.Errorf("max-retries cannot be negative (got %d)", c.maxRetries)
+	}
+	if c.retryBackoffMultiplier <= 0 {
+		return fmt.Errorf("retry-backoff-multiplier must be positive (got %.2f)", c.retryBackoffMultiplier)
+	}
 	return nil
 }
 
 var errNoIssues = errors.New("no issues to process")
 
 func executeSolveIssues(ctx context.Context, args *cliArgs) error {
-	prepared, err := prepareSolveIssues(args)
+	prepared, err := prepareSolveIssues(ctx, args)
 	if err != nil {
 		if errors.Is(err, errNoIssues) {
 			return nil
@@ -691,7 +706,7 @@ func validateAndFilterEntries(entries []issueEntry, mode executionMode) ([]issue
 	return entries, nil
 }
 
-func prepareSolveIssues(args *cliArgs) (*solvePreparation, error) {
+func prepareSolveIssues(ctx context.Context, args *cliArgs) (*solvePreparation, error) {
 	prep := &solvePreparation{}
 	var err error
 	prep.resolvedPr, prep.issuesDir, prep.issuesDirPath, err = resolveInputs(args)
@@ -710,20 +725,16 @@ func prepareSolveIssues(args *cliArgs) (*solvePreparation, error) {
 		return nil, err
 	}
 	groups := groupIssues(entries)
-	if args.grouped {
-		if err := writeSummaries(prep.issuesDirPath, groups); err != nil {
-			return nil, err
-		}
-		prep.groupedSummarized = true
-	}
 	promptRoot, err := initPromptRoot(prep.resolvedPr)
 	if err != nil {
 		return nil, err
 	}
-	prep.jobs, err = prepareJobs(
+	prep.jobs, prep.groupedSummarized, err = prepareJobs(
+		ctx,
 		prep.resolvedPr,
 		groups,
 		promptRoot,
+		prep.issuesDirPath,
 		args.batchSize,
 		args.grouped,
 		executionMode(args.mode),
@@ -750,6 +761,61 @@ type failInfo struct {
 	outLog   string
 	errLog   string
 	err      error
+}
+
+type jobPhase string
+
+const (
+	jobPhaseQueued    jobPhase = "queued"
+	jobPhaseScheduled jobPhase = "scheduled"
+	jobPhaseRunning   jobPhase = "running"
+	jobPhaseRetrying  jobPhase = "retrying"
+	jobPhaseSucceeded jobPhase = "succeeded"
+	jobPhaseFailed    jobPhase = "failed"
+	jobPhaseCanceled  jobPhase = "canceled"
+)
+
+type jobEvent string
+
+const (
+	eventSchedule jobEvent = "schedule"
+	eventStart    jobEvent = "start"
+	eventRetry    jobEvent = "retry"
+	eventSuccess  jobEvent = "success"
+	eventGiveUp   jobEvent = "give_up"
+	eventCancel   jobEvent = "cancel"
+)
+
+type jobAttemptStatus string
+
+const (
+	attemptStatusSuccess     jobAttemptStatus = "success"
+	attemptStatusFailure     jobAttemptStatus = "failure"
+	attemptStatusTimeout     jobAttemptStatus = "timeout"
+	attemptStatusCanceled    jobAttemptStatus = "canceled"
+	attemptStatusSetupFailed jobAttemptStatus = "setup_failed"
+)
+
+type jobAttemptResult struct {
+	status   jobAttemptStatus
+	exitCode int
+	failure  *failInfo
+}
+
+func (r jobAttemptResult) Successful() bool {
+	return r.status == attemptStatusSuccess
+}
+
+func (r jobAttemptResult) NeedsRetry() bool {
+	return r.status == attemptStatusFailure || r.status == attemptStatusTimeout
+}
+
+func (r jobAttemptResult) IsTimeout() bool {
+	return r.status == attemptStatusTimeout
+}
+
+func (r jobAttemptResult) IsCanceled() bool {
+	return r.status == attemptStatusCanceled
 }
 
 func resolveInputs(args *cliArgs) (string, string, string, error) {
@@ -817,32 +883,218 @@ func initPromptRoot(pr string) (string, error) {
 	return promptRoot, nil
 }
 
-func prepareJobs(
-	pr string,
-	groups map[string][]issueEntry,
-	promptRoot string,
-	batchSize int,
-	grouped bool,
-	mode executionMode,
-) ([]job, error) {
-	if mode == ExecutionModePRDTasks {
-		batchSize = 1
-		grouped = false
+type preparationState string
+
+const (
+	prepStateCollect      preparationState = "collect_entries"
+	prepStateGroup        preparationState = "group_entries"
+	prepStateWriteGrouped preparationState = "write_grouped"
+	prepStateBatch        preparationState = "batch_jobs"
+	prepStateFinalize     preparationState = "finalize"
+	prepStateCompleted    preparationState = "completed"
+	prepStateFailed       preparationState = "failed"
+)
+
+type preparationEvent string
+
+const (
+	prepEventCollected    preparationEvent = "collected"
+	prepEventGrouped      preparationEvent = "grouped"
+	prepEventWriteSkipped preparationEvent = "write_skipped"
+	prepEventWritten      preparationEvent = "write_done"
+	prepEventBatched      preparationEvent = "batched"
+	prepEventFinalized    preparationEvent = "finalized"
+	prepEventFailed       preparationEvent = "failed"
+)
+
+// promptPreparationConfig carries immutable parameters for the prompt FSM.
+type promptPreparationConfig struct {
+	ctx        context.Context
+	pr         string
+	groups     map[string][]issueEntry
+	promptRoot string
+	issuesDir  string
+	batchSize  int
+	grouped    bool
+	mode       executionMode
+}
+
+// promptPreparationFSM orchestrates artifact preparation with explicit stages.
+type promptPreparationFSM struct {
+	cfg            promptPreparationConfig
+	fsm            *fsm.FSM
+	collected      []issueEntry
+	batches        [][]issueEntry
+	jobs           []job
+	groupedWritten bool
+	lastErr        error
+}
+
+func newPromptPreparationFSM(cfg *promptPreparationConfig) *promptPreparationFSM {
+	if cfg == nil {
+		cfg = &promptPreparationConfig{}
 	}
-	allIssues := flattenAndSortIssues(groups, mode)
-	if batchSize <= 0 {
-		batchSize = 1
+	f := &promptPreparationFSM{cfg: *cfg}
+	if f.cfg.mode == ExecutionModePRDTasks {
+		f.cfg.batchSize = 1
+		f.cfg.grouped = false
 	}
-	issueBatches := createIssueBatches(allIssues, batchSize)
-	jobs := make([]job, 0, len(issueBatches))
-	for batchIdx, batchIssues := range issueBatches {
-		jb, err := buildBatchJob(pr, promptRoot, grouped, batchIdx, batchIssues, mode)
+	if f.cfg.batchSize <= 0 {
+		f.cfg.batchSize = 1
+	}
+	f.fsm = fsm.NewFSM(
+		string(prepStateCollect),
+		fsm.Events{
+			{Name: string(prepEventCollected), Src: []string{string(prepStateCollect)}, Dst: string(prepStateGroup)},
+			{Name: string(prepEventGrouped), Src: []string{string(prepStateGroup)}, Dst: string(prepStateWriteGrouped)},
+			{
+				Name: string(prepEventWriteSkipped),
+				Src:  []string{string(prepStateWriteGrouped)},
+				Dst:  string(prepStateBatch),
+			},
+			{Name: string(prepEventWritten), Src: []string{string(prepStateWriteGrouped)}, Dst: string(prepStateBatch)},
+			{Name: string(prepEventBatched), Src: []string{string(prepStateBatch)}, Dst: string(prepStateFinalize)},
+			{
+				Name: string(prepEventFinalized),
+				Src:  []string{string(prepStateFinalize)},
+				Dst:  string(prepStateCompleted),
+			},
+			{
+				Name: string(prepEventFailed),
+				Src: []string{
+					string(prepStateCollect),
+					string(prepStateGroup),
+					string(prepStateWriteGrouped),
+					string(prepStateBatch),
+					string(prepStateFinalize),
+				},
+				Dst: string(prepStateFailed),
+			},
+		},
+		fsm.Callbacks{
+			"enter_" + string(prepStateFailed):    f.onEnterFailed,
+			"enter_" + string(prepStateCompleted): f.onEnterCompleted,
+		},
+	)
+	return f
+}
+
+func (p *promptPreparationFSM) Run() ([]job, bool, error) {
+	steps := []func() error{
+		p.collectEntries,
+		p.groupEntries,
+		p.writeGroupedSummaries,
+		p.batchJobs,
+		p.finalize,
+	}
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return nil, p.groupedWritten, err
+		}
+		if p.lastErr != nil {
+			return nil, p.groupedWritten, p.lastErr
+		}
+	}
+	return p.jobs, p.groupedWritten, nil
+}
+
+func (p *promptPreparationFSM) collectEntries() error {
+	p.collected = flattenAndSortIssues(p.cfg.groups, p.cfg.mode)
+	return p.transition(prepEventCollected)
+}
+
+func (p *promptPreparationFSM) groupEntries() error {
+	p.batches = createIssueBatches(p.collected, p.cfg.batchSize)
+	if len(p.batches) == 0 {
+		return p.fail(fmt.Errorf("no batches created for prompt preparation"))
+	}
+	return p.transition(prepEventGrouped)
+}
+
+func (p *promptPreparationFSM) writeGroupedSummaries() error {
+	if !p.cfg.grouped {
+		return p.transition(prepEventWriteSkipped)
+	}
+	if err := writeSummaries(p.cfg.issuesDir, p.cfg.groups); err != nil {
+		return p.fail(fmt.Errorf("write grouped summaries: %w", err))
+	}
+	p.groupedWritten = true
+	return p.transition(prepEventWritten)
+}
+
+func (p *promptPreparationFSM) batchJobs() error {
+	jobs := make([]job, 0, len(p.batches))
+	for idx, batchIssues := range p.batches {
+		jb, err := buildBatchJob(p.cfg.pr, p.cfg.promptRoot, p.cfg.grouped, idx, batchIssues, p.cfg.mode)
 		if err != nil {
-			return nil, err
+			return p.fail(err)
 		}
 		jobs = append(jobs, jb)
 	}
-	return jobs, nil
+	p.jobs = jobs
+	return p.transition(prepEventBatched)
+}
+
+func (p *promptPreparationFSM) finalize() error {
+	if len(p.jobs) == 0 {
+		return p.fail(errors.New("no jobs finalized"))
+	}
+	return p.transition(prepEventFinalized)
+}
+
+func (p *promptPreparationFSM) transition(evt preparationEvent) error {
+	if err := p.fsm.Event(p.cfg.ctx, string(evt)); err != nil {
+		var inTransitionErr fsm.InTransitionError
+		var noTransitionErr fsm.NoTransitionError
+		if errors.As(err, &inTransitionErr) || errors.As(err, &noTransitionErr) {
+			return nil
+		}
+		return fmt.Errorf("prompt preparation transition %s failed: %w", evt, err)
+	}
+	return nil
+}
+
+func (p *promptPreparationFSM) fail(err error) error {
+	p.lastErr = err
+	if transErr := p.transition(prepEventFailed); transErr != nil {
+		return fmt.Errorf("propagate failure: %w", transErr)
+	}
+	return err
+}
+
+func (p *promptPreparationFSM) onEnterFailed(_ context.Context, _ *fsm.Event) {
+	if p.lastErr == nil {
+		p.lastErr = errors.New("prompt preparation failed")
+	}
+}
+
+func (p *promptPreparationFSM) onEnterCompleted(_ context.Context, _ *fsm.Event) {}
+
+func prepareJobs(
+	ctx context.Context,
+	pr string,
+	groups map[string][]issueEntry,
+	promptRoot string,
+	issuesDir string,
+	batchSize int,
+	grouped bool,
+	mode executionMode,
+) ([]job, bool, error) {
+	pipeline := newPromptPreparationFSM(&promptPreparationConfig{
+		ctx:        ctx,
+		pr:         pr,
+		groups:     groups,
+		promptRoot: promptRoot,
+		issuesDir:  issuesDir,
+		batchSize:  batchSize,
+		grouped:    grouped,
+		mode:       mode,
+	})
+	jobs, groupedWritten, err := pipeline.Run()
+	if err != nil {
+		return nil, groupedWritten, err
+	}
+	return jobs, groupedWritten, nil
 }
 
 // buildBatchJob converts a batch of issues into an executable job definition.
@@ -911,15 +1163,18 @@ func flattenAndSortIssues(groups map[string][]issueEntry, mode executionMode) []
 	for _, items := range groups {
 		allIssues = append(allIssues, items...)
 	}
-	// For PRD tasks, sort by numeric task ID instead of lexicographically
+	// For PRD tasks, sort by numeric task ID (stable) with name tie-breaker.
 	if mode == ExecutionModePRDTasks {
-		sort.Slice(allIssues, func(i, j int) bool {
+		sort.SliceStable(allIssues, func(i, j int) bool {
 			numI := extractTaskNumber(allIssues[i].name)
 			numJ := extractTaskNumber(allIssues[j].name)
-			return numI < numJ
+			if numI != numJ {
+				return numI < numJ
+			}
+			return allIssues[i].name < allIssues[j].name
 		})
 	} else {
-		sort.Slice(allIssues, func(i, j int) bool {
+		sort.SliceStable(allIssues, func(i, j int) bool {
 			return allIssues[i].name < allIssues[j].name
 		})
 	}
@@ -959,6 +1214,7 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, args *cliA
 		return 0, []failInfo{{err: err}}, total, nil
 	}
 	defer execCtx.cleanup()
+	execCtx.lifecycle = newExecutorLifecycle(ctx, execCtx)
 	_, cancelJobs := execCtx.launchWorkers(ctx)
 	defer cancelJobs()
 	done := execCtx.waitChannel()
@@ -980,6 +1236,464 @@ type jobExecutionContext struct {
 	failuresMu     sync.Mutex
 	completed      int32
 	wg             sync.WaitGroup
+	lifecycle      *executorLifecycle
+}
+
+type executorState string
+
+const (
+	executorStateInitializing executorState = "initializing"
+	executorStateRunning      executorState = "running"
+	executorStateDraining     executorState = "draining"
+	executorStateShutdown     executorState = "shutdown"
+	executorStateTerminated   executorState = "terminated"
+)
+
+type executorEvent string
+
+const (
+	executorEventJobsReady      executorEvent = "jobs_ready"
+	executorEventRunComplete    executorEvent = "run_complete"
+	executorEventCancelSignal   executorEvent = "cancel_signal"
+	executorEventDrainComplete  executorEvent = "drain_complete"
+	executorEventTimeoutExpired executorEvent = "timeout_expired"
+	executorEventShutdownDone   executorEvent = "shutdown_done"
+)
+
+// executorLifecycle coordinates executor state transitions via an FSM.
+type executorLifecycle struct {
+	ctx        context.Context
+	execCtx    *jobExecutionContext
+	cancelJobs context.CancelFunc
+	done       <-chan struct{}
+	fsm        *fsm.FSM
+}
+
+func newExecutorLifecycle(ctx context.Context, execCtx *jobExecutionContext) *executorLifecycle {
+	lc := &executorLifecycle{ctx: ctx, execCtx: execCtx}
+	lc.fsm = fsm.NewFSM(
+		string(executorStateInitializing),
+		fsm.Events{
+			{
+				Name: string(executorEventJobsReady),
+				Src:  []string{string(executorStateInitializing)},
+				Dst:  string(executorStateRunning),
+			},
+			{
+				Name: string(executorEventRunComplete),
+				Src:  []string{string(executorStateRunning)},
+				Dst:  string(executorStateShutdown),
+			},
+			{
+				Name: string(executorEventCancelSignal),
+				Src:  []string{string(executorStateRunning)},
+				Dst:  string(executorStateDraining),
+			},
+			{
+				Name: string(executorEventDrainComplete),
+				Src:  []string{string(executorStateDraining)},
+				Dst:  string(executorStateShutdown),
+			},
+			{
+				Name: string(executorEventTimeoutExpired),
+				Src:  []string{string(executorStateDraining)},
+				Dst:  string(executorStateTerminated),
+			},
+			{
+				Name: string(executorEventShutdownDone),
+				Src:  []string{string(executorStateShutdown)},
+				Dst:  string(executorStateTerminated),
+			},
+		},
+		fsm.Callbacks{
+			"enter_" + string(executorStateShutdown): lc.onEnterShutdown,
+		},
+	)
+	return lc
+}
+
+func (e *executorLifecycle) markJobsReady(cancel context.CancelFunc, done <-chan struct{}) error {
+	e.cancelJobs = cancel
+	e.done = done
+	return e.transition(executorEventJobsReady)
+}
+
+func (e *executorLifecycle) awaitCompletion() (int32, []failInfo, int, error) {
+	if e.done == nil {
+		return e.resultWithError(fmt.Errorf("executor lifecycle not initialized"))
+	}
+	select {
+	case <-e.done:
+		if err := e.transition(executorEventRunComplete); err != nil {
+			return e.resultWithError(err)
+		}
+		if err := e.transition(executorEventShutdownDone); err != nil {
+			return e.resultWithError(err)
+		}
+		return e.resultWithError(nil)
+	case <-e.ctx.Done():
+		fmt.Fprintf(
+			os.Stderr,
+			"\nReceived shutdown signal while executor in %s state; requesting drain...\n",
+			e.fsm.Current(),
+		)
+		if err := e.transition(executorEventCancelSignal); err != nil {
+			return e.resultWithError(err)
+		}
+		if e.cancelJobs != nil {
+			e.cancelJobs()
+		}
+		return e.awaitShutdownAfterCancel()
+	}
+}
+
+func (e *executorLifecycle) awaitShutdownAfterCancel() (int32, []failInfo, int, error) {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(e.ctx), gracefulShutdownTimeout)
+	defer shutdownCancel()
+	select {
+	case <-e.done:
+		fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v while draining\n", gracefulShutdownTimeout)
+		if err := e.transition(executorEventDrainComplete); err != nil {
+			return e.resultWithError(err)
+		}
+		if err := e.transition(executorEventShutdownDone); err != nil {
+			return e.resultWithError(err)
+		}
+		return e.resultWithError(nil)
+	case <-shutdownCtx.Done():
+		fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded (%v), forcing exit\n", gracefulShutdownTimeout)
+		if err := e.transition(executorEventTimeoutExpired); err != nil {
+			return e.resultWithError(err)
+		}
+		return e.resultWithError(fmt.Errorf("shutdown timeout exceeded"))
+	}
+}
+
+func (e *executorLifecycle) transition(evt executorEvent) error {
+	if err := e.fsm.Event(e.ctx, string(evt)); err != nil {
+		var inTransitionErr fsm.InTransitionError
+		var noTransitionErr fsm.NoTransitionError
+		if errors.As(err, &inTransitionErr) || errors.As(err, &noTransitionErr) {
+			return nil
+		}
+		return fmt.Errorf("executor transition %s failed: %w", evt, err)
+	}
+	return nil
+}
+
+func (e *executorLifecycle) resultWithError(err error) (int32, []failInfo, int, error) {
+	failed := atomic.LoadInt32(&e.execCtx.failed)
+	return failed, e.execCtx.failures, e.execCtx.total, err
+}
+
+func (e *executorLifecycle) onEnterShutdown(_ context.Context, _ *fsm.Event) {
+	e.execCtx.reportAggregateUsage()
+}
+
+type jobLifecycle struct {
+	index          int
+	job            *job
+	execCtx        *jobExecutionContext
+	fsm            *fsm.FSM
+	attempt        int
+	currentTimeout time.Duration
+	lastExitCode   int
+	lastFailure    *failInfo
+}
+
+func newJobLifecycle(index int, jb *job, execCtx *jobExecutionContext) *jobLifecycle {
+	l := &jobLifecycle{
+		index:   index,
+		job:     jb,
+		execCtx: execCtx,
+	}
+	l.fsm = fsm.NewFSM(
+		string(jobPhaseQueued),
+		fsm.Events{
+			{Name: string(eventSchedule), Src: []string{string(jobPhaseQueued)}, Dst: string(jobPhaseScheduled)},
+			{
+				Name: string(eventStart),
+				Src: []string{
+					string(jobPhaseScheduled),
+					string(jobPhaseRetrying),
+				},
+				Dst: string(jobPhaseRunning),
+			},
+			{Name: string(eventRetry), Src: []string{string(jobPhaseRunning)}, Dst: string(jobPhaseRetrying)},
+			{Name: string(eventSuccess), Src: []string{string(jobPhaseRunning)}, Dst: string(jobPhaseSucceeded)},
+			{
+				Name: string(eventGiveUp),
+				Src: []string{
+					string(jobPhaseRunning),
+					string(jobPhaseRetrying),
+				},
+				Dst: string(jobPhaseFailed),
+			},
+			{
+				Name: string(eventCancel),
+				Src: []string{
+					string(jobPhaseQueued),
+					string(jobPhaseScheduled),
+					string(jobPhaseRunning),
+					string(jobPhaseRetrying),
+				},
+				Dst: string(jobPhaseCanceled),
+			},
+		},
+		fsm.Callbacks{
+			"enter_" + string(jobPhaseRunning):   l.onEnterRunning,
+			"enter_" + string(jobPhaseRetrying):  l.onEnterRetrying,
+			"enter_" + string(jobPhaseSucceeded): l.onEnterSucceeded,
+			"enter_" + string(jobPhaseFailed):    l.onEnterFailed,
+			"enter_" + string(jobPhaseCanceled):  l.onEnterCanceled,
+		},
+	)
+	return l
+}
+
+func (l *jobLifecycle) schedule() {
+	l.transition(eventSchedule)
+}
+
+func (l *jobLifecycle) startAttempt(attempt int, timeout time.Duration) {
+	l.attempt = attempt
+	l.currentTimeout = timeout
+	l.transition(eventStart)
+}
+
+func (l *jobLifecycle) markRetry(failure failInfo) {
+	l.lastFailure = &failure
+	l.lastExitCode = failure.exitCode
+	l.transition(eventRetry)
+}
+
+func (l *jobLifecycle) markGiveUp(failure failInfo) {
+	l.lastFailure = &failure
+	l.lastExitCode = failure.exitCode
+	l.transition(eventGiveUp)
+}
+
+func (l *jobLifecycle) markSuccess() {
+	l.lastFailure = nil
+	l.lastExitCode = 0
+	l.transition(eventSuccess)
+}
+
+func (l *jobLifecycle) markCanceled(exitCode int) {
+	l.lastExitCode = exitCode
+	if exitCode == exitCodeCanceled {
+		l.lastFailure = &failInfo{
+			codeFile: strings.Join(l.job.codeFiles, ", "),
+			exitCode: exitCodeCanceled,
+			outLog:   l.job.outLog,
+			errLog:   l.job.errLog,
+			err:      fmt.Errorf("job canceled by shutdown"),
+		}
+	} else {
+		l.lastFailure = nil
+	}
+	l.transition(eventCancel)
+}
+
+func (l *jobLifecycle) transition(evt jobEvent) {
+	if err := l.fsm.Event(context.Background(), string(evt)); err != nil {
+		var inTransitionErr fsm.InTransitionError
+		var noTransitionErr fsm.NoTransitionError
+		if errors.As(err, &inTransitionErr) || errors.As(err, &noTransitionErr) {
+			return
+		}
+		fmt.Fprintf(os.Stderr, "job %d transition %s failed: %v\n", l.index+1, evt, err)
+	}
+}
+
+func (l *jobLifecycle) onEnterRunning(_ context.Context, _ *fsm.Event) {
+	useUI := l.execCtx.uiCh != nil
+	if l.attempt == 1 {
+		notifyJobStart(
+			useUI,
+			l.execCtx.uiCh,
+			l.index,
+			l.job,
+			l.execCtx.args.ide,
+			l.execCtx.args.model,
+			l.execCtx.args.reasoningEffort,
+		)
+		return
+	}
+	if useUI {
+		l.execCtx.uiCh <- jobStartedMsg{Index: l.index}
+	}
+}
+
+func (l *jobLifecycle) onEnterRetrying(_ context.Context, _ *fsm.Event) {
+}
+
+func (l *jobLifecycle) onEnterSucceeded(_ context.Context, _ *fsm.Event) {
+	if l.execCtx.uiCh != nil {
+		l.execCtx.uiCh <- jobFinishedMsg{Index: l.index, Success: true, ExitCode: 0}
+	}
+}
+
+func (l *jobLifecycle) onEnterFailed(_ context.Context, _ *fsm.Event) {
+	if l.lastFailure != nil {
+		recordFailure(&l.execCtx.failuresMu, &l.execCtx.failures, *l.lastFailure)
+	}
+	atomic.AddInt32(&l.execCtx.failed, 1)
+	if l.execCtx.uiCh != nil {
+		l.execCtx.uiCh <- jobFinishedMsg{Index: l.index, Success: false, ExitCode: l.lastExitCode}
+		if l.lastFailure != nil {
+			l.execCtx.uiCh <- jobFailureMsg{Failure: *l.lastFailure}
+		}
+	} else if l.lastFailure != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"\n❌ Job %d (%s) failed with exit code %d: %v\n",
+			l.index+1,
+			strings.Join(l.job.codeFiles, ", "),
+			l.lastExitCode,
+			l.lastFailure.err,
+		)
+	}
+}
+
+func (l *jobLifecycle) onEnterCanceled(_ context.Context, _ *fsm.Event) {
+	if l.lastFailure != nil {
+		recordFailure(&l.execCtx.failuresMu, &l.execCtx.failures, *l.lastFailure)
+	}
+	atomic.AddInt32(&l.execCtx.failed, 1)
+	if l.execCtx.uiCh != nil {
+		l.execCtx.uiCh <- jobFinishedMsg{Index: l.index, Success: false, ExitCode: exitCodeCanceled}
+		if l.lastFailure != nil {
+			l.execCtx.uiCh <- jobFailureMsg{Failure: *l.lastFailure}
+		}
+	} else if l.lastFailure != nil {
+		fmt.Fprintf(
+			os.Stderr,
+			"\n⚠️ Job %d (%s) canceled: %v\n",
+			l.index+1,
+			strings.Join(l.job.codeFiles, ", "),
+			l.lastFailure.err,
+		)
+	}
+}
+
+type jobRunner struct {
+	index     int
+	job       *job
+	execCtx   *jobExecutionContext
+	lifecycle *jobLifecycle
+}
+
+func newJobRunner(index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
+	return &jobRunner{
+		index:     index,
+		job:       jb,
+		execCtx:   execCtx,
+		lifecycle: newJobLifecycle(index, jb, execCtx),
+	}
+}
+
+func (r *jobRunner) run(ctx context.Context) {
+	r.lifecycle.schedule()
+	if r.execCtx.args.dryRun {
+		r.lifecycle.markSuccess()
+		return
+	}
+	attempts := maxInt(1, r.execCtx.args.maxRetries+1)
+	timeout := r.execCtx.args.timeout
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if ctx.Err() != nil {
+			r.lifecycle.markCanceled(exitCodeCanceled)
+			return
+		}
+		r.lifecycle.startAttempt(attempt, timeout)
+		result := r.executeAttempt(ctx, timeout)
+		nextTimeout, continueLoop := r.handleResult(attempt, attempts, timeout, result)
+		if !continueLoop {
+			return
+		}
+		timeout = nextTimeout
+	}
+}
+
+func (r *jobRunner) handleResult(
+	attempt int,
+	attempts int,
+	timeout time.Duration,
+	result jobAttemptResult,
+) (time.Duration, bool) {
+	if result.Successful() {
+		r.lifecycle.markSuccess()
+		return timeout, false
+	}
+	if result.IsCanceled() {
+		r.lifecycle.markCanceled(result.exitCode)
+		return timeout, false
+	}
+	if !result.NeedsRetry() || attempt == attempts {
+		r.lifecycle.markGiveUp(r.ensureFailure(result, "job failed"))
+		return timeout, false
+	}
+	nextTimeout := r.nextTimeout(timeout)
+	r.lifecycle.markRetry(r.ensureFailure(result, "retrying job"))
+	r.logRetry(attempt, attempts-1, nextTimeout)
+	return nextTimeout, true
+}
+
+func (r *jobRunner) ensureFailure(result jobAttemptResult, fallback string) failInfo {
+	if result.failure != nil {
+		return *result.failure
+	}
+	return failInfo{
+		codeFile: strings.Join(r.job.codeFiles, ", "),
+		exitCode: result.exitCode,
+		outLog:   r.job.outLog,
+		errLog:   r.job.errLog,
+		err:      fmt.Errorf("%s", fallback),
+	}
+}
+
+func (r *jobRunner) executeAttempt(ctx context.Context, timeout time.Duration) jobAttemptResult {
+	return executeJobWithTimeout(
+		ctx,
+		r.execCtx.args,
+		r.job,
+		r.execCtx.cwd,
+		r.execCtx.uiCh != nil,
+		r.execCtx.uiCh,
+		r.index,
+		timeout,
+		&r.execCtx.aggregateUsage,
+		&r.execCtx.aggregateMu,
+	)
+}
+
+func (r *jobRunner) nextTimeout(current time.Duration) time.Duration {
+	if current <= 0 {
+		return current
+	}
+	next := time.Duration(float64(current) * r.execCtx.args.retryBackoffMultiplier)
+	const maxTimeout = 30 * time.Minute
+	if next > maxTimeout {
+		return maxTimeout
+	}
+	return next
+}
+
+func (r *jobRunner) logRetry(attempt int, maxRetries int, timeout time.Duration) {
+	if r.execCtx.uiCh != nil {
+		return
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"\n🔄 [%s] Job %d (%s) retry attempt %d/%d with timeout %v\n",
+		time.Now().Format("15:04:05"),
+		r.index+1,
+		strings.Join(r.job.codeFiles, ", "),
+		attempt,
+		maxRetries,
+		timeout,
+	)
 }
 
 func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jobExecutionContext, error) {
@@ -994,14 +1708,14 @@ func newJobExecutionContext(ctx context.Context, jobs []job, args *cliArgs) (*jo
 		cwd:   cwd,
 		sem:   make(chan struct{}, maxInt(1, args.concurrent)),
 	}
-	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun, &execCtx.aggregateUsage, &execCtx.aggregateMu)
+	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, args, !args.dryRun)
 	return execCtx, nil
 }
 
 func (j *jobExecutionContext) cleanup() {
 	if j.uiProg != nil {
 		close(j.uiCh)
-		time.Sleep(80 * time.Millisecond)
+		time.Sleep(uiMessageDrainDelay)
 		j.uiProg.Quit()
 	}
 }
@@ -1023,19 +1737,7 @@ func (j *jobExecutionContext) executeJob(jobCtx context.Context, index int, jb *
 		j.wg.Done()
 		atomic.AddInt32(&j.completed, 1)
 	}()
-	runOneJob(
-		jobCtx,
-		j.args,
-		index,
-		jb,
-		j.cwd,
-		j.uiCh,
-		&j.failed,
-		&j.failuresMu,
-		&j.failures,
-		&j.aggregateUsage,
-		&j.aggregateMu,
-	)
+	newJobRunner(index, jb, j).run(jobCtx)
 }
 
 func (j *jobExecutionContext) waitChannel() <-chan struct{} {
@@ -1052,15 +1754,14 @@ func (j *jobExecutionContext) awaitCompletion(
 	done <-chan struct{},
 	cancelJobs context.CancelFunc,
 ) (int32, []failInfo, int, error) {
-	select {
-	case <-done:
-		j.reportAggregateUsage()
-		return j.failed, j.failures, j.total, nil
-	case <-ctx.Done():
-		fmt.Fprintf(os.Stderr, "\nReceived shutdown signal, canceling remaining jobs...\n")
-		cancelJobs()
-		return j.awaitShutdownAfterCancel(done)
+	if j.lifecycle == nil {
+		j.lifecycle = newExecutorLifecycle(ctx, j)
 	}
+	if err := j.lifecycle.markJobsReady(cancelJobs, done); err != nil {
+		cancelJobs()
+		return j.lifecycle.resultWithError(err)
+	}
+	return j.lifecycle.awaitCompletion()
 }
 
 func (j *jobExecutionContext) reportAggregateUsage() {
@@ -1072,35 +1773,18 @@ func (j *jobExecutionContext) reportAggregateUsage() {
 	printAggregateTokenUsage(&j.aggregateUsage)
 }
 
-func (j *jobExecutionContext) awaitShutdownAfterCancel(done <-chan struct{}) (int32, []failInfo, int, error) {
-	shutdownTimeout := 30 * time.Second
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer shutdownCancel()
-	select {
-	case <-done:
-		fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v\n", shutdownTimeout)
-		j.reportAggregateUsage()
-		return j.failed, j.failures, j.total, nil
-	case <-shutdownCtx.Done():
-		fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded (%v), forcing exit\n", shutdownTimeout)
-		return j.failed, j.failures, j.total, fmt.Errorf("shutdown timeout exceeded")
-	}
-}
-
 func setupUI(
 	ctx context.Context,
 	jobs []job,
 	_ *cliArgs,
 	enabled bool,
-	_ *TokenUsage,
-	_ *sync.Mutex,
 ) (chan uiMsg, *tea.Program) {
 	if !enabled {
 		return nil, nil
 	}
 	total := len(jobs)
 	uiCh := make(chan uiMsg, total*4)
-	mdl := newUIModel(total)
+	mdl := newUIModel(ctx, total)
 	mdl.setEventSource(uiCh)
 	prog := tea.NewProgram(mdl, tea.WithAltScreen())
 	go func() {
@@ -1135,40 +1819,7 @@ func setupUI(
 	return uiCh, prog
 }
 
-func runOneJob(
-	ctx context.Context,
-	args *cliArgs,
-	index int,
-	j *job,
-	cwd string,
-	uiCh chan uiMsg,
-	failed *int32,
-	failuresMu *sync.Mutex,
-	failures *[]failInfo,
-	aggregateUsage *TokenUsage,
-	aggregateMu *sync.Mutex,
-) {
-	useUI := uiCh != nil
-	if ctx.Err() != nil {
-		if useUI {
-			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
-		}
-		return
-	}
-	notifyJobStart(useUI, uiCh, index, j, args.ide, args.model, args.reasoningEffort)
-	if args.dryRun {
-		if useUI {
-			uiCh <- jobFinishedMsg{Index: index, Success: true, ExitCode: 0}
-		}
-		return
-	}
-	executeJobWithRetry(
-		ctx, args, j, cwd, useUI, uiCh, index,
-		failed, failuresMu, failures, aggregateUsage, aggregateMu,
-	)
-}
-
-func executeJobWithRetry(
+func executeJobWithTimeout(
 	ctx context.Context,
 	args *cliArgs,
 	j *job,
@@ -1176,131 +1827,27 @@ func executeJobWithRetry(
 	useUI bool,
 	uiCh chan uiMsg,
 	index int,
-	failed *int32,
-	failuresMu *sync.Mutex,
-	failures *[]failInfo,
+	timeout time.Duration,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) {
-	currentTimeout := args.timeout
-	attempt := 0
-	maxRetries := uint64(0)
-	if args.maxRetries > 0 {
-		// #nosec G115 - maxRetries is validated to be non-negative and reasonable
-		maxRetries = uint64(args.maxRetries)
-	}
-	backoff := retry.WithMaxRetries(maxRetries, retry.NewConstant(1*time.Millisecond))
-	err := retry.Do(ctx, backoff, func(retryCtx context.Context) error {
-		attempt++
-		currentTimeout = calculateRetryTimeout(
-			currentTimeout,
-			attempt,
-			args.retryBackoffMultiplier,
-			args.maxRetries,
-			index,
-			j,
-			useUI,
-		)
-		return executeJobAttempt(
-			retryCtx, args, j, cwd, useUI, uiCh, index, currentTimeout,
-			failed, failuresMu, failures, aggregateUsage, aggregateMu, attempt,
-		)
-	})
-	logRetryCompletion(err, attempt, index, j, useUI)
-}
-
-func calculateRetryTimeout(
-	currentTimeout time.Duration,
-	attempt int,
-	multiplier float64,
-	maxRetries int,
-	index int,
-	j *job,
-	useUI bool,
-) time.Duration {
-	if attempt > 1 {
-		currentTimeout = time.Duration(float64(currentTimeout) * multiplier)
-		if !useUI {
-			fmt.Fprintf(
-				os.Stderr,
-				"\n🔄 Retry attempt %d/%d for job %d (%s) with timeout %v\n",
-				attempt-1,
-				maxRetries,
-				index+1,
-				strings.Join(j.codeFiles, ", "),
-				currentTimeout,
-			)
-		}
-	}
-	return currentTimeout
-}
-
-func executeJobAttempt(
-	ctx context.Context,
-	args *cliArgs,
-	j *job,
-	cwd string,
-	useUI bool,
-	uiCh chan uiMsg,
-	index int,
-	currentTimeout time.Duration,
-	failed *int32,
-	failuresMu *sync.Mutex,
-	failures *[]failInfo,
-	aggregateUsage *TokenUsage,
-	aggregateMu *sync.Mutex,
-	attempt int,
-) error {
-	argsWithTimeout := *args
-	argsWithTimeout.timeout = currentTimeout
-	if useUI && attempt > 1 {
-		uiCh <- jobStartedMsg{Index: index}
-	}
-	success, exitCode := executeJobWithTimeoutAndResult(
-		ctx, &argsWithTimeout, j, cwd, useUI, uiCh,
-		index, failed, failuresMu, failures, aggregateUsage, aggregateMu,
-	)
-	if !success && exitCode == -2 {
-		return retry.RetryableError(fmt.Errorf("timeout"))
-	}
-	return nil
-}
-
-func logRetryCompletion(err error, attempt int, index int, j *job, useUI bool) {
-	if err != nil && attempt > 1 && !useUI {
-		fmt.Fprintf(
-			os.Stderr,
-			"\n❌ Job %d (%s) failed after %d retry attempts\n",
-			index+1,
-			strings.Join(j.codeFiles, ", "),
-			attempt-1,
-		)
-	}
-}
-
-func executeJobWithTimeoutAndResult(
-	ctx context.Context,
-	args *cliArgs,
-	j *job,
-	cwd string,
-	useUI bool,
-	uiCh chan uiMsg,
-	index int,
-	failed *int32,
-	failuresMu *sync.Mutex,
-	failures *[]failInfo,
-	aggregateUsage *TokenUsage,
-	aggregateMu *sync.Mutex,
-) (bool, int) {
-	cmd, outF, errF, monitor := setupCommandExecution(
+) jobAttemptResult {
+	cmd, outF, errF, monitor, err := setupCommandExecution(
 		ctx, args, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu,
 	)
-	if cmd == nil {
-		return false, -1
+	if err != nil {
+		fail := recordFailureWithContext(nil, j, nil, err, -1)
+		return jobAttemptResult{status: attemptStatusSetupFailed, exitCode: -1, failure: &fail}
 	}
-	return executeCommandAndHandleResultWithStatus(
-		ctx, args.timeout, monitor, cmd, outF, errF, j,
-		index, useUI, uiCh, failed, failuresMu, failures,
+	return executeCommandAndResolve(
+		ctx,
+		timeout,
+		monitor,
+		cmd,
+		outF,
+		errF,
+		j,
+		index,
+		useUI,
 	)
 }
 
@@ -1632,10 +2179,10 @@ func setupCommandExecution(
 	index int,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
-) (*exec.Cmd, *os.File, *os.File, *activityMonitor) {
+) (*exec.Cmd, *os.File, *os.File, *activityMonitor, error) {
 	cmd := createIDECommand(ctx, args)
 	if cmd == nil {
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, fmt.Errorf("create IDE command: unsupported ide %q", args.ide)
 	}
 	outF, errF, monitor, err := setupCommandIO(
 		cmd,
@@ -1650,10 +2197,9 @@ func setupCommandExecution(
 		aggregateMu,
 	)
 	if err != nil {
-		recordFailureWithContext(nil, j, nil, err, -1)
-		return nil, nil, nil, nil
+		return nil, nil, nil, nil, fmt.Errorf("setup command IO: %w", err)
 	}
-	return cmd, outF, errF, monitor
+	return cmd, outF, errF, monitor, nil
 }
 
 func createLogFile(path, _ string) (*os.File, error) {
@@ -1664,7 +2210,26 @@ func createLogFile(path, _ string) (*os.File, error) {
 	return file, nil
 }
 
-func executeCommandAndHandleResultWithStatus(
+func handleNilCommand(j *job, index int) jobAttemptResult {
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	failure := failInfo{
+		codeFile: codeFileLabel,
+		exitCode: -1,
+		outLog:   j.outLog,
+		errLog:   j.errLog,
+		err:      fmt.Errorf("failed to set up command (see logs)"),
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"\n❌ Failed to set up job %d (%s): %v\n",
+		index+1,
+		codeFileLabel,
+		failure.err,
+	)
+	return jobAttemptResult{status: attemptStatusSetupFailed, exitCode: -1, failure: &failure}
+}
+
+func executeCommandAndResolve(
 	ctx context.Context,
 	timeout time.Duration,
 	monitor *activityMonitor,
@@ -1674,11 +2239,10 @@ func executeCommandAndHandleResultWithStatus(
 	j *job,
 	index int,
 	useUI bool,
-	uiCh chan uiMsg,
-	failed *int32,
-	failuresMu *sync.Mutex,
-	failures *[]failInfo,
-) (bool, int) {
+) jobAttemptResult {
+	if cmd == nil {
+		return handleNilCommand(j, index)
+	}
 	defer func() {
 		if outF != nil {
 			outF.Close()
@@ -1688,89 +2252,84 @@ func executeCommandAndHandleResultWithStatus(
 		}
 	}()
 	cmdDone := make(chan error, 1)
+	cmdDoneSignal := make(chan struct{})
 	go func() {
 		cmdDone <- cmd.Run()
+		close(cmdDoneSignal)
 	}()
-	activityTimeout := startActivityWatchdog(ctx, monitor, timeout, cmdDone)
-	type result struct {
-		success  bool
-		exitCode int
-	}
-	resultCh := make(chan result, 1)
+	activityTimeout := startActivityWatchdog(ctx, monitor, timeout, cmdDoneSignal)
 	select {
 	case err := <-cmdDone:
-		success, exitCode := handleCommandCompletionWithResult(
-			err, j, index, useUI, uiCh, failed, failuresMu, failures,
-		)
-		resultCh <- result{success, exitCode}
+		return handleCommandCompletion(err, j, index, useUI)
 	case <-activityTimeout:
-		handleActivityTimeout(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures, timeout)
-		resultCh <- result{false, -2}
+		return handleActivityTimeout(ctx, cmd, cmdDone, j, index, useUI, timeout)
 	case <-ctx.Done():
-		handleCommandCancellation(ctx, cmd, cmdDone, j, index, useUI, uiCh, failed, failuresMu, failures)
-		resultCh <- result{false, -1}
+		return handleCommandCancellation(ctx, cmd, cmdDone, j, index, useUI)
 	}
-	res := <-resultCh
-	return res.success, res.exitCode
 }
 
 func startActivityWatchdog(
 	ctx context.Context,
 	monitor *activityMonitor,
 	timeout time.Duration,
-	cmdDone <-chan error,
+	cmdDone <-chan struct{},
 ) <-chan struct{} {
-	activityTimeout := make(chan struct{})
-	if monitor != nil && timeout > 0 {
-		go func() {
-			ticker := time.NewTicker(5 * time.Second)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					if monitor.timeSinceLastActivity() > timeout {
-						close(activityTimeout)
-						return
+	if monitor == nil || timeout <= 0 {
+		return nil
+	}
+	activityTimeout := make(chan struct{}, 1)
+	go func() {
+		ticker := time.NewTicker(activityCheckInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if monitor.timeSinceLastActivity() > timeout {
+					select {
+					case activityTimeout <- struct{}{}:
+					default:
 					}
-				case <-cmdDone:
-					return
-				case <-ctx.Done():
 					return
 				}
+			case <-cmdDone:
+				return
+			case <-ctx.Done():
+				return
 			}
-		}()
-	}
+		}
+	}()
 	return activityTimeout
 }
 
-func handleCommandCompletionWithResult(
+func handleCommandCompletion(
 	err error,
 	j *job,
 	index int,
 	useUI bool,
-	uiCh chan uiMsg,
-	failed *int32,
-	failuresMu *sync.Mutex,
-	failures *[]failInfo,
-) (bool, int) {
+) jobAttemptResult {
 	if err != nil {
 		ec := exitCodeOf(err)
-		atomic.AddInt32(failed, 1)
 		codeFileLabel := strings.Join(j.codeFiles, ", ")
-		recordFailure(
-			failuresMu,
-			failures,
-			failInfo{codeFile: codeFileLabel, exitCode: ec, outLog: j.outLog, errLog: j.errLog, err: err},
-		)
-		if useUI {
-			uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: ec}
+		failInfo := failInfo{
+			codeFile: codeFileLabel,
+			exitCode: ec,
+			outLog:   j.outLog,
+			errLog:   j.errLog,
+			err:      err,
 		}
-		return false, ec
+		if !useUI {
+			fmt.Fprintf(
+				os.Stderr,
+				"\n❌ Job %d (%s) failed with exit code %d: %v\n",
+				index+1,
+				codeFileLabel,
+				ec,
+				err,
+			)
+		}
+		return jobAttemptResult{status: attemptStatusFailure, exitCode: ec, failure: &failInfo}
 	}
-	if useUI {
-		uiCh <- jobFinishedMsg{Index: index, Success: true, ExitCode: 0}
-	}
-	return true, 0
+	return jobAttemptResult{status: attemptStatusSuccess, exitCode: 0}
 }
 
 func handleCommandCancellation(
@@ -1780,17 +2339,15 @@ func handleCommandCancellation(
 	j *job,
 	index int,
 	useUI bool,
-	uiCh chan uiMsg,
-	_ *int32,
-	_ *sync.Mutex,
-	_ *[]failInfo,
-) {
-	fmt.Fprintf(
-		os.Stderr,
-		"\nCanceling job %d (%s) due to shutdown signal\n",
-		index+1,
-		strings.Join(j.codeFiles, ", "),
-	)
+) jobAttemptResult {
+	if !useUI {
+		fmt.Fprintf(
+			os.Stderr,
+			"\nCanceling job %d (%s) due to shutdown signal\n",
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+		)
+	}
 	if cmd.Process != nil {
 		// NOTE: Attempt graceful termination before force killing spawned commands.
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
@@ -1799,18 +2356,28 @@ func handleCommandCancellation(
 
 		select {
 		case <-cmdDone:
-			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully\n", index+1)
-		case <-time.After(5 * time.Second):
+			if !useUI {
+				fmt.Fprintf(os.Stderr, "Job %d terminated gracefully\n", index+1)
+			}
+		case <-time.After(processTerminationGracePeriod):
 			// NOTE: Escalate to SIGKILL if the process ignores our grace period.
-			fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
+			if !useUI {
+				fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
+			}
 			if err := cmd.Process.Kill(); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
 			}
 		}
 	}
-	if useUI {
-		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -1}
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	failure := failInfo{
+		codeFile: codeFileLabel,
+		exitCode: exitCodeCanceled,
+		outLog:   j.outLog,
+		errLog:   j.errLog,
+		err:      fmt.Errorf("job canceled by shutdown"),
 	}
+	return jobAttemptResult{status: attemptStatusCanceled, exitCode: exitCodeCanceled, failure: &failure}
 }
 
 func handleActivityTimeout(
@@ -1820,19 +2387,20 @@ func handleActivityTimeout(
 	j *job,
 	index int,
 	useUI bool,
-	uiCh chan uiMsg,
-	failed *int32,
-	failuresMu *sync.Mutex,
-	failures *[]failInfo,
 	timeout time.Duration,
-) {
+) jobAttemptResult {
 	logTimeoutMessage(index, j, timeout, useUI)
-	atomic.AddInt32(failed, 1)
 	terminateTimedOutProcess(cmd, cmdDone, index, useUI)
-	recordTimeoutFailure(j, timeout, failuresMu, failures)
-	if useUI {
-		uiCh <- jobFinishedMsg{Index: index, Success: false, ExitCode: -2}
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
+	failInfo := failInfo{
+		codeFile: codeFileLabel,
+		exitCode: exitCodeTimeout,
+		outLog:   j.outLog,
+		errLog:   j.errLog,
+		err:      timeoutErr,
 	}
+	return jobAttemptResult{status: attemptStatusTimeout, exitCode: exitCodeTimeout, failure: &failInfo}
 }
 
 func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
@@ -1865,7 +2433,7 @@ func waitForProcessTermination(cmdDone <-chan error, cmd *exec.Cmd, index int, u
 		if !useUI {
 			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully after timeout\n", index+1)
 		}
-	case <-time.After(5 * time.Second):
+	case <-time.After(processTerminationGracePeriod):
 		forceKillProcess(cmd, index, useUI)
 	}
 }
@@ -1881,43 +2449,34 @@ func forceKillProcess(cmd *exec.Cmd, index int, useUI bool) {
 	}
 }
 
-func recordTimeoutFailure(j *job, timeout time.Duration, failuresMu *sync.Mutex, failures *[]failInfo) {
-	codeFileLabel := strings.Join(j.codeFiles, ", ")
-	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
-	recordFailure(
-		failuresMu,
-		failures,
-		failInfo{
-			codeFile: codeFileLabel,
-			exitCode: -2,
-			outLog:   j.outLog,
-			errLog:   j.errLog,
-			err:      timeoutErr,
-		},
-	)
-}
-
 func recordFailureWithContext(
 	failuresMu *sync.Mutex,
 	j *job,
 	failures *[]failInfo,
 	err error,
 	exitCode int,
-) {
+) failInfo {
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
-	recordFailure(failuresMu, failures, failInfo{
+	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: exitCode,
 		outLog:   j.outLog,
 		errLog:   j.errLog,
 		err:      err,
-	})
+	}
+	recordFailure(failuresMu, failures, failure)
+	return failure
 }
 
 func recordFailure(mu *sync.Mutex, list *[]failInfo, f failInfo) {
-	mu.Lock()
+	if list == nil {
+		return
+	}
+	if mu != nil {
+		mu.Lock()
+		defer mu.Unlock()
+	}
 	*list = append(*list, f)
-	mu.Unlock()
 }
 
 func printAggregateTokenUsage(usage *TokenUsage) {
@@ -2033,6 +2592,9 @@ type tokenUsageUpdateMsg struct {
 	Index int
 	Usage TokenUsage
 }
+type jobFailureMsg struct {
+	Failure failInfo
+}
 
 // TokenUsage tracks Claude API token consumption
 type TokenUsage struct {
@@ -2082,6 +2644,22 @@ type ClaudeMessage struct {
 	} `json:"message"`
 }
 
+type uiViewState string
+
+const (
+	uiViewJobs     uiViewState = "jobs"
+	uiViewSummary  uiViewState = "summary"
+	uiViewFailures uiViewState = "failures"
+)
+
+type uiViewEvent string
+
+const (
+	uiViewEventShowJobs     uiViewEvent = "view_jobs"
+	uiViewEventShowSummary  uiViewEvent = "view_summary"
+	uiViewEventShowFailures uiViewEvent = "view_failures"
+)
+
 type uiModel struct {
 	jobs            []uiJob
 	total           int
@@ -2098,11 +2676,16 @@ type uiModel struct {
 	sidebarWidth    int
 	mainWidth       int
 	contentHeight   int
+	currentView     uiViewState
+	viewFSM         *fsm.FSM
+	ctx             context.Context
+	failures        []failInfo
+	aggregateUsage  *TokenUsage
 }
 
 type uiMsg any
 
-func newUIModel(total int) *uiModel {
+func newUIModel(ctx context.Context, total int) *uiModel {
 	vp := viewport.New(80, 24)        // Increased initial height
 	sidebarVp := viewport.New(30, 24) // Increased initial height
 	defaultWidth := 120
@@ -2122,7 +2705,7 @@ func newUIModel(total int) *uiModel {
 	if initialContentHeight < minContentHeight {
 		initialContentHeight = minContentHeight
 	}
-	return &uiModel{
+	mdl := &uiModel{
 		total:           total,
 		viewport:        vp,
 		sidebarViewport: sidebarVp,
@@ -2132,6 +2715,81 @@ func newUIModel(total int) *uiModel {
 		sidebarWidth:    initialSidebarWidth,
 		mainWidth:       initialMainWidth,
 		contentHeight:   initialContentHeight,
+		currentView:     uiViewJobs,
+		ctx:             ctx,
+		failures:        []failInfo{},
+		aggregateUsage:  &TokenUsage{},
+	}
+	mdl.initViewFSM()
+	return mdl
+}
+
+func (m *uiModel) initViewFSM() {
+	m.viewFSM = fsm.NewFSM(
+		string(uiViewJobs),
+		fsm.Events{
+			{
+				Name: string(uiViewEventShowJobs),
+				Src:  []string{string(uiViewSummary), string(uiViewFailures)},
+				Dst:  string(uiViewJobs),
+			},
+			{
+				Name: string(uiViewEventShowSummary),
+				Src:  []string{string(uiViewJobs), string(uiViewFailures)},
+				Dst:  string(uiViewSummary),
+			},
+			{
+				Name: string(uiViewEventShowFailures),
+				Src:  []string{string(uiViewJobs), string(uiViewSummary)},
+				Dst:  string(uiViewFailures),
+			},
+		},
+		fsm.Callbacks{
+			"before_" + string(uiViewEventShowSummary):  m.beforeShowSummary,
+			"before_" + string(uiViewEventShowFailures): m.beforeShowFailures,
+			"enter_" + string(uiViewJobs):               m.onEnterJobsView,
+			"enter_" + string(uiViewSummary):            m.onEnterSummaryView,
+			"enter_" + string(uiViewFailures):           m.onEnterFailuresView,
+		},
+	)
+}
+
+func (m *uiModel) beforeShowSummary(_ context.Context, evt *fsm.Event) {
+	if m.completed+m.failed < m.total {
+		evt.Cancel(fmt.Errorf("cannot switch to summary while jobs are incomplete"))
+	}
+}
+
+func (m *uiModel) beforeShowFailures(_ context.Context, evt *fsm.Event) {
+	if len(m.failures) == 0 {
+		evt.Cancel(fmt.Errorf("no failures available to display"))
+	}
+}
+
+func (m *uiModel) onEnterJobsView(_ context.Context, _ *fsm.Event) {
+	m.currentView = uiViewJobs
+	m.refreshViewportContent()
+}
+
+func (m *uiModel) onEnterSummaryView(_ context.Context, _ *fsm.Event) {
+	m.currentView = uiViewSummary
+}
+
+func (m *uiModel) onEnterFailuresView(_ context.Context, _ *fsm.Event) {
+	m.currentView = uiViewFailures
+}
+
+func (m *uiModel) transitionView(evt uiViewEvent) {
+	if m.viewFSM == nil {
+		return
+	}
+	if err := m.viewFSM.Event(m.ctx, string(evt)); err != nil {
+		var inTransitionErr fsm.InTransitionError
+		var noTransitionErr fsm.NoTransitionError
+		var invalidEventErr fsm.InvalidEventError
+		if errors.As(err, &inTransitionErr) || errors.As(err, &noTransitionErr) || errors.As(err, &invalidEventErr) {
+			return
+		}
 	}
 }
 
@@ -2154,7 +2812,7 @@ func (m *uiModel) waitEvent() tea.Cmd {
 }
 
 func (m *uiModel) tick() tea.Cmd {
-	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{} })
+	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
 func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -2183,6 +2841,9 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tokenUsageUpdateMsg:
 		cmd := m.handleTokenUsageUpdate(v)
 		return m, cmd
+	case jobFailureMsg:
+		m.failures = append(m.failures, v.Failure)
+		return m, nil
 	case drainMsg:
 		return m, nil
 	default:
@@ -2191,43 +2852,68 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
-	switch v.String() {
+	key := v.String()
+	switch key {
 	case "ctrl+c", "q":
 		if m.onQuit != nil {
 			m.onQuit()
 		}
 		return tea.Quit
+	case "s", "tab", "esc":
+		return m.handleViewSwitchKeys(key)
+	case "up", "k", "down", "j":
+		return m.handleNavigationKeys(key)
+	case "left", "h", "right", "l", "pgup", "b", "u", "pgdown", "f", "d", "home", "end":
+		return m.handleScrollKeys(key)
+	default:
+		return m.waitEvent()
+	}
+}
+
+func (m *uiModel) handleViewSwitchKeys(key string) tea.Cmd {
+	switch key {
+	case "s", "tab":
+		if m.viewFSM != nil && m.currentView != uiViewSummary {
+			m.transitionView(uiViewEventShowSummary)
+		}
+	case "esc":
+		if m.viewFSM != nil && m.currentView != uiViewJobs {
+			m.transitionView(uiViewEventShowJobs)
+		}
+	}
+	return nil
+}
+
+func (m *uiModel) handleNavigationKeys(key string) tea.Cmd {
+	switch key {
 	case "up", "k":
 		if m.selectedJob > 0 {
 			m.selectedJob--
 		}
-		return nil
 	case "down", "j":
 		if m.selectedJob < len(m.jobs)-1 {
 			m.selectedJob++
 		}
-		return nil
+	}
+	return nil
+}
+
+func (m *uiModel) handleScrollKeys(key string) tea.Cmd {
+	switch key {
 	case "left", "h":
 		m.viewport.ScrollUp(1)
-		return nil
 	case "right", "l":
 		m.viewport.ScrollDown(1)
-		return nil
 	case "pgup", "b", "u":
 		m.viewport.HalfPageUp()
-		return nil
 	case "pgdown", "f", "d":
 		m.viewport.HalfPageDown()
-		return nil
 	case "home":
 		m.viewport.GotoTop()
-		return nil
 	case "end":
 		m.viewport.GotoBottom()
-		return nil
-	default:
-		return m.waitEvent()
 	}
+	return nil
 }
 
 func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
@@ -2337,10 +3023,8 @@ func (m *uiModel) selectNextRunningJob() {
 
 func (m *uiModel) handleTick() tea.Cmd {
 	m.frame++
-	if m.completed+m.failed < m.total {
-		return m.tick()
-	}
-	return nil
+	// Keep ticking even after all jobs complete to maintain UI responsiveness
+	return m.tick()
 }
 
 func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
@@ -2392,6 +3076,9 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 		}
 		m.selectNextRunningJob()
 	}
+	if m.total > 0 && m.completed+m.failed >= m.total && m.failed > 0 && m.currentView != uiViewSummary {
+		m.transitionView(uiViewEventShowSummary)
+	}
 	m.refreshViewportContent()
 	return m.waitEvent()
 }
@@ -2412,28 +3099,129 @@ func (m *uiModel) handleTokenUsageUpdate(v tokenUsageUpdateMsg) tea.Cmd {
 		}
 		m.jobs[v.Index].tokenUsage.Add(v.Usage)
 	}
+	// Also update aggregate usage for summary view
+	if m.aggregateUsage != nil {
+		m.aggregateUsage.Add(v.Usage)
+	}
 	m.refreshViewportContent()
 	return m.waitEvent()
 }
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+// renderSummaryView creates the execution summary screen shown after all jobs complete
+func (m *uiModel) renderSummaryView() string {
+	sections := []string{m.renderSummaryHeader(), m.renderSummaryCounts()}
+	if len(m.failures) > 0 {
+		sections = append(sections, m.renderSummaryFailures())
+	}
+	if m.aggregateUsage != nil && m.aggregateUsage.Total() > 0 {
+		sections = append(sections, m.renderSummaryTokenUsage())
+	}
+	sections = append(sections, m.renderSummaryHelp())
+	separator := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("238")).
+		Render(strings.Repeat("─", m.width))
+	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
+	return lipgloss.JoinVertical(lipgloss.Left, separator, content)
+}
+
+func (m *uiModel) renderFailuresView() string {
+	if len(m.failures) == 0 {
+		noteStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).MarginTop(2)
+		return noteStyle.Render("No failures recorded. Return with 'esc'.")
+	}
+	rows := []string{"Failure Details:"}
+	for _, f := range m.failures {
+		rows = append(rows,
+			fmt.Sprintf("• %s (exit %d)", f.codeFile, f.exitCode),
+			fmt.Sprintf("  Logs: %s (out), %s (err)", f.outLog, f.errLog),
+		)
+	}
+	block := lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render(strings.Join(rows, "\n"))
+	return lipgloss.JoinVertical(lipgloss.Left, block, m.renderSummaryHelp())
+}
+
+func (m *uiModel) renderSummaryHeader() string {
+	headerStyle := lipgloss.NewStyle().Bold(true).MarginTop(1).MarginBottom(1)
+	if m.failed > 0 {
+		headerStyle = headerStyle.Foreground(lipgloss.Color("220"))
+		return headerStyle.Render(
+			fmt.Sprintf("✓ Execution Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed),
+		)
+	}
+	headerStyle = headerStyle.Foreground(lipgloss.Color("42"))
+	return headerStyle.Render(fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total))
+}
+
+func (m *uiModel) renderSummaryCounts() string {
+	summaryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("81")).MarginBottom(1)
+	summaryText := fmt.Sprintf("Total Groups: %d\nSuccess: %d\nFailed: %d", m.total, m.completed, m.failed)
+	return summaryStyle.Render(summaryText)
+}
+
+func (m *uiModel) renderSummaryFailures() string {
+	failuresStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).MarginBottom(1)
+	failureLines := []string{"Failures:"}
+	for _, f := range m.failures {
+		failureLines = append(failureLines,
+			fmt.Sprintf("  • %s (exit code: %d)", f.codeFile, f.exitCode),
+			fmt.Sprintf("    Logs: %s (out), %s (err)", f.outLog, f.errLog))
+	}
+	return failuresStyle.Render(strings.Join(failureLines, "\n"))
+}
+
+func (m *uiModel) renderSummaryTokenUsage() string {
+	usageStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("141")).MarginBottom(1)
+	usageLines := []string{
+		"Token Usage (Claude API - Aggregate):",
+		fmt.Sprintf("  Input:  %s tokens", formatNumber(m.aggregateUsage.InputTokens)),
+	}
+	if m.aggregateUsage.CacheReadTokens > 0 {
+		usageLines = append(usageLines,
+			fmt.Sprintf("  Cache Reads: %s tokens", formatNumber(m.aggregateUsage.CacheReadTokens)))
+	}
+	if m.aggregateUsage.CacheCreationTokens > 0 {
+		usageLines = append(usageLines,
+			fmt.Sprintf("  Cache Creation: %s tokens", formatNumber(m.aggregateUsage.CacheCreationTokens)))
+	}
+	usageLines = append(usageLines,
+		fmt.Sprintf("  Output: %s tokens", formatNumber(m.aggregateUsage.OutputTokens)),
+		fmt.Sprintf("  Total:  %s tokens", formatNumber(m.aggregateUsage.Total())))
+	return usageStyle.Render(strings.Join(usageLines, "\n"))
+}
+
+func (m *uiModel) renderSummaryHelp() string {
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).MarginTop(2)
+	return helpStyle.Render("Press 'esc' to return to job list • Press 'q' to exit")
+}
+
 func (m *uiModel) View() string {
-	header, headerStyle := m.renderHeader()
-	helpText, helpStyle := m.renderHelp()
-	separator := m.renderSeparator()
-	splitView := lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		m.renderSidebar(),
-		m.renderMainContent(),
-	)
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		headerStyle.Render(header),
-		helpStyle.Render(helpText),
-		separator,
-		splitView,
-	)
+	// Switch between views based on current state
+	switch m.currentView {
+	case uiViewSummary:
+		return m.renderSummaryView()
+	case uiViewFailures:
+		return m.renderFailuresView()
+	case uiViewJobs:
+		header, headerStyle := m.renderHeader()
+		helpText, helpStyle := m.renderHelp()
+		separator := m.renderSeparator()
+		splitView := lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			m.renderSidebar(),
+			m.renderMainContent(),
+		)
+		return lipgloss.JoinVertical(
+			lipgloss.Left,
+			headerStyle.Render(header),
+			helpStyle.Render(helpText),
+			separator,
+			splitView,
+		)
+	default:
+		return ""
+	}
 }
 
 // renderHeader returns the header content and styling based on job progress.
@@ -2461,7 +3249,7 @@ func (m *uiModel) renderHelp() (string, lipgloss.Style) {
 	complete := m.completed+m.failed >= m.total
 	text := "↑↓/jk navigate • pgup/pgdn scroll logs • q quit"
 	if complete {
-		text = "↑↓/jk navigate • pgup/pgdn scroll logs • Press 'q' to exit"
+		text = "↑↓/jk navigate • pgup/pgdn scroll logs • press 's' to view summary • q quit"
 	}
 	style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("245")).
@@ -2903,7 +3691,10 @@ func readIssueEntries(resolvedIssuesDir string, mode executionMode, includeCompl
 // Example: "_task_10.md" returns 10, "_task_2.md" returns 2.
 // Returns 0 for invalid filenames.
 func extractTaskNumber(filename string) int {
-	// Remove prefix and suffix to get just the number
+	// Only accept canonical task filenames; fallback to 0 otherwise.
+	if !reTaskFile.MatchString(filename) {
+		return 0
+	}
 	numStr := strings.TrimPrefix(filename, "_task_")
 	numStr = strings.TrimSuffix(numStr, ".md")
 	num, err := strconv.Atoi(numStr)
@@ -2929,8 +3720,8 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]issueEntry, erro
 		}
 		names = append(names, f.Name())
 	}
-	// Sort by numeric task ID instead of lexicographically
-	sort.Slice(names, func(i, j int) bool {
+	// Sort by numeric task ID (stable) instead of lexicographically
+	sort.SliceStable(names, func(i, j int) bool {
 		numI := extractTaskNumber(names[i])
 		numJ := extractTaskNumber(names[j])
 		return numI < numJ
@@ -3256,12 +4047,11 @@ func buildCriticalExecutionSection() string {
 	sb.WriteString("**VALIDATION REQUIREMENTS**:\n")
 	sb.WriteString("- All tests MUST pass (`make test`)\n")
 	sb.WriteString("- All linting MUST pass (`make lint`)\n")
-	sb.WriteString("- All type checking MUST pass (`make typecheck`)\n")
 	sb.WriteString("- All subtasks MUST be marked complete\n")
 	sb.WriteString("- Task status MUST be updated to 'completed'\n\n")
 	sb.WriteString("⚠️  **WORK WILL BE INVALIDATED** if:\n")
 	sb.WriteString("- Any requirement is incomplete\n")
-	sb.WriteString("- Tests/linting/typecheck fail\n")
+	sb.WriteString("- Tests/linting fails\n")
 	sb.WriteString("- Project standards are violated\n")
 	sb.WriteString("- Workarounds are used instead of proper solutions\n")
 	sb.WriteString("- Task completion steps are skipped\n")

@@ -1,0 +1,176 @@
+---
+title: "Production Deployment"
+description: "Run Compozy against a hardened Temporal cluster with production guardrails and operational best practices."
+icon: Shield
+---
+
+<Callout type="error">
+Standalone mode is optimized for development and testing only. Production deployments **must** use the remote mode backed by a highly available Temporal cluster.
+</Callout>
+
+## Deployment Checklist
+
+<List>
+  <ListItem title="Managed Temporal" icon="Server">
+    Use Temporal Cloud or a self-managed Temporal cluster with multi-node frontend, history, matching, and worker services. Verify TLS and authentication.
+  </ListItem>
+  <ListItem title="Durable Datastores" icon="Database">
+    Provision managed PostgreSQL for Compozy metadata and Redis for caching, rate limiting, and configuration layers.
+  </ListItem>
+  <ListItem title="Secrets & Config" icon="Key">
+    Load secrets from your platform (AWS Secrets Manager, GCP Secret Manager, HashiCorp Vault) and mount `compozy.yaml` with read-only permissions.
+  </ListItem>
+  <ListItem title="Observability" icon="Activity">
+    Enable structured logging, metrics export, and distributed tracing in both Compozy and Temporal. Ensure alerts cover queue backlogs and workflow failures.
+  </ListItem>
+</List>
+
+## Database Selection
+
+<Callout type="error">
+Production deployments must use **PostgreSQL**. SQLite is limited to 5-10 concurrent workflows and should remain in development or edge environments only.
+</Callout>
+
+```yaml title="Production database configuration"
+database:
+  driver: postgres
+  conn_string: postgres://compozy:${DB_PASSWORD}@postgres.prod.internal:5432/compozy?sslmode=verify-full
+
+knowledge:
+  vector_dbs:
+    - id: main
+      provider: pgvector
+      dimension: 1536
+```
+
+- Enable the `pgvector` extension to keep embeddings in the same PostgreSQL cluster.
+- Grant least-privilege credentials: schema migrations need `CREATE`, runtime requires CRUD permissions.
+- Capture automated backups (RDS snapshots, PITR) before major releases.
+
+For staging environments that mimic production, follow the same PostgreSQL configuration and capacity planning guidance. See the [Database Overview](/docs/database/overview) for the full decision matrix.
+
+## Recommended Configuration
+
+Configure remote mode explicitly in your project configuration. Compozy will refuse to start if `temporal.mode` is missing in production builds.
+
+```yaml title="compozy.yaml"
+server:
+  environment: production
+
+temporal:
+  mode: remote
+  host_port: temporal.my-company.internal:7233
+  namespace: compozy-prod
+  task_queue: compozy-tasks
+
+runtime:
+  environment: production
+```
+
+```bash title="Start with hardened settings"
+COMPOZY_CONFIG_FILE=./compozy.yaml \
+  compozy start \
+    --format json \
+    --temporal-mode=remote \
+    --temporal-host=temporal.my-company.internal:7233
+```
+
+<Callout type="warning">
+Validate the remote Temporal cluster before switching traffic. Run `compozy diagnostics temporal` (if enabled) or `temporal workflow list` to confirm connectivity and namespace health.
+</Callout>
+
+## Best Practices
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Concern</TableHead>
+      <TableHead>Guidance</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>High availability</TableCell>
+      <TableCell>Deploy Temporal with at least 3 history and 2 frontend instances. Use load balancers with health checks on port 7233.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Security</TableCell>
+      <TableCell>Enable mTLS between Compozy and Temporal. Lock down the Temporal Web UI to trusted networks only.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Namespaces</TableCell>
+      <TableCell>Use dedicated namespaces per environment (dev, staging, prod) to isolate retention policies and rate limits.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Task queues</TableCell>
+      <TableCell>Partition workloads using multiple task queues when different latency or concurrency guarantees are required.</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Disaster recovery</TableCell>
+      <TableCell>Configure Temporal replication or backups. Test failover playbooks quarterly.</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Choosing a Mode
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Criterion</TableHead>
+      <TableHead>Choose Distributed</TableHead>
+      <TableHead>Choose Standalone</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Durability / HA</TableCell>
+      <TableCell>Yes</TableCell>
+      <TableCell>No</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Team size & shared env</TableCell>
+      <TableCell>Team / shared</TableCell>
+      <TableCell>Solo dev / CI</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Operational complexity</TableCell>
+      <TableCell>Higher</TableCell>
+      <TableCell>Lower</TableCell>
+    </TableRow>
+  </TableBody>
+  
+</Table>
+
+Refer to [Mode Configuration](/docs/configuration/mode-configuration) for inheritance and overrides.
+
+## Migration Tips
+
+- Plan a low-traffic maintenance window.
+- Update `temporal.mode` to `remote` in configuration management.
+- Point workers to the production Temporal cluster.
+- Restart Compozy servers to pick up the new configuration.
+- Monitor workflow metrics and queues closely for the first 30 minutes.
+
+## See Also
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Temporal Modes"
+    description="Compare remote and standalone modes with migration steps"
+    href="/docs/deployment/temporal-modes"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Temporal Configuration"
+    description="Field-by-field configuration reference"
+    href="/docs/configuration/temporal"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Temporal Troubleshooting"
+    description="Resolve connection, performance, and port issues"
+    href="/docs/troubleshooting/temporal"
+    icon="LifeBuoy"
+  />
+</ReferenceCardList>

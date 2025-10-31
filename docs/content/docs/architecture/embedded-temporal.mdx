@@ -1,0 +1,176 @@
+---
+title: "Embedded Temporal"
+description: "Deep dive into the embedded Temporal server that powers standalone mode."
+icon: Layers
+---
+
+<Callout type="info">
+Standalone mode embeds the official Temporal server inside the Compozy process. It spins up the same four microservices you deploy in production—just scoped to the developer machine.
+</Callout>
+
+## Component Topology
+
+<Mermaid chart={`flowchart TD
+  subgraph Compozy Process
+    direction TB
+    CFG[config.FromContext]
+    LOG[logger.FromContext]
+    subgraph Embedded Temporal (temporal.NewServer)
+      FE[Frontend Service\nPort 7233]
+      HI[History Service\nPort 7234]
+      MA[Matching Service\nPort 7235]
+      WO[Worker Service\nPort 7236]
+    end
+    UI[Temporal UI (optional)\nPort 8233]
+  end
+
+  FE -->|gRPC| HI
+  FE -->|Task routing| MA
+  MA --> WO
+  HI --> DB[(SQLite)]
+  WO --> DB
+  FE --> DB
+`} />
+
+<Table>
+  <TableHeader>
+    <TableRow>
+      <TableHead>Component</TableHead>
+      <TableHead>Role</TableHead>
+      <TableHead>Default Port</TableHead>
+    </TableRow>
+  </TableHeader>
+  <TableBody>
+    <TableRow>
+      <TableCell>Frontend</TableCell>
+      <TableCell>gRPC entrypoint used by Compozy workers and the CLI</TableCell>
+      <TableCell>7233</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>History</TableCell>
+      <TableCell>Persists workflow execution history and timers</TableCell>
+      <TableCell>7234</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Matching</TableCell>
+      <TableCell>Distributes tasks to the correct worker queues</TableCell>
+      <TableCell>7235</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Worker</TableCell>
+      <TableCell>Runs system workflows (namespace replication, visibility)</TableCell>
+      <TableCell>7236</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>UI Server</TableCell>
+      <TableCell>Optional Temporal Web UI for debugging workflows</TableCell>
+      <TableCell>8233</TableCell>
+    </TableRow>
+  </TableBody>
+</Table>
+
+## Port Allocation Strategy
+
+- `frontend_port` anchors the service block; History, Matching, and Worker consume the next three sequential ports.
+- Ports bind to `standalone.bind_ip` (defaults to `127.0.0.1`). Override the IP when running inside containers that expose additional interfaces.
+- Adjust `frontend_port` to avoid conflicts, for example when other Temporal stacks are already listening on 7233.
+
+```yaml title="Custom port block"
+temporal:
+  mode: standalone
+  standalone:
+    frontend_port: 9733   # Services listen on 9733-9736
+    bind_ip: 0.0.0.0      # Use cautiously; exposes gRPC outside loopback
+    enable_ui: true
+    ui_port: 9820
+```
+
+<Callout type="warning">
+Binding to `0.0.0.0` opens the embedded Temporal services beyond the local machine. Only do this inside disposable containers or secured developer networks.
+</Callout>
+
+## SQLite Persistence Modes
+
+<List>
+  <ListItem title="Ephemeral" icon="Timer">
+    `database_file: :memory:` keeps Temporal state in RAM. This is fastest for unit tests because every Compozy restart resets state.
+  </ListItem>
+  <ListItem title="File-backed" icon="HardDrive">
+    Point `database_file` to a writable path to persist workflow history between restarts. The server enables WAL + NORMAL sync for durability without sacrificing dev speed.
+  </ListItem>
+</List>
+
+The builder automatically selects SQLite connection attributes:
+
+```go title="engine/worker/embedded/sqlite.go"
+if dbFile == ":memory:" {
+  return map[string]string{"mode": "memory", "cache": "shared"}
+}
+return map[string]string{"_journal_mode": "WAL", "_synchronous": "NORMAL"}
+```
+
+<Callout type="info">
+Use file-backed SQLite in CI if you need to inspect workflow history after a failure. Clean up the file between test runs to avoid cross-test contamination.
+</Callout>
+
+## Lifecycle Management
+
+<Steps size="sm">
+  <Step title="Startup">
+    `maybeStartStandaloneTemporal` evaluates `temporal.mode`. When set to `standalone`, it constructs Temporal configuration, assigns deterministic host settings, and launches the server using `server.NewServer()`.
+  </Step>
+  <Step title="Health checks">
+    Startup waits for the frontend service to accept gRPC connections. The wait is bounded by `standalone.start_timeout` (default `30s`).
+  </Step>
+  <Step title="Registration">
+    On first boot, the embedded server creates the configured namespace (`standalone.namespace`) and cluster name (`standalone.cluster_name`).
+  </Step>
+  <Step title="Shutdown">
+    Compozy stops the worker pool and gracefully closes the Temporal server, flushing SQLite WAL files to disk when applicable.
+  </Step>
+</Steps>
+
+## Logging & Observability
+
+- `standalone.log_level` controls Temporal server logging (`debug`, `info`, `warn`, `error`). Logs flow through `logger.FromContext(ctx)`.
+- The embedded UI exposes workflow executions, task queues, and history events via `http://localhost:8233`.
+- Prometheus metrics are emitted on the same process; scrape the Compozy metrics endpoint to monitor Temporal internals during development.
+
+## Security Considerations
+
+<Callout type="warning">
+Standalone mode intentionally trades durability and network isolation for convenience. Do not share the embedded SQLite database between users, and never expose the Temporal UI without authentication.
+</Callout>
+
+- Keep `bind_ip` on loopback unless you understand the risk profile.
+- Use non-default namespaces and task queues when multiple developers share a Temporal cluster.
+- Reset the SQLite file after workshops to avoid leaking PII in workflow payloads.
+
+## Related Guides
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Temporal Modes"
+    description="When to choose remote vs standby deployments"
+    href="/docs/deployment/temporal-modes"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Temporal Configuration"
+    description="Reference for every field in the Temporal configuration block"
+    href="/docs/configuration/temporal"
+    icon="Settings"
+  />
+  <ReferenceCard
+    title="Temporal Troubleshooting"
+    description="Resolve port conflicts, SQLite issues, and UI problems"
+    href="/docs/troubleshooting/temporal"
+    icon="LifeBuoy"
+  />
+  <ReferenceCard
+    title="Quick Start"
+    description="Launch Compozy locally using the embedded server"
+    href="/docs/quick-start"
+    icon="Rocket"
+  />
+</ReferenceCardList>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	agentscmd "github.com/compozy/compozy/cli/cmd/agents"
 	authcmd "github.com/compozy/compozy/cli/cmd/auth"
@@ -152,10 +153,10 @@ func buildConfigSources(cmd *cobra.Command, cliFlags map[string]any) []config.So
 		config.NewDefaultProvider(),
 		config.NewEnvProvider(),
 	}
-	if configFile := resolveConfigFile(cmd); configFile != "" {
+	cwd := extractCWDFromFlags(cliFlags)
+	configFile := resolveConfigFile(cmd, cwd)
+	if configFile != "" {
 		sources = append(sources, config.NewYAMLProvider(configFile))
-	} else if _, err := os.Stat("compozy.yaml"); err == nil {
-		sources = append(sources, config.NewYAMLProvider("compozy.yaml"))
 	}
 	if len(cliFlags) > 0 {
 		sources = append(sources, config.NewCLIProvider(cliFlags))
@@ -163,16 +164,54 @@ func buildConfigSources(cmd *cobra.Command, cliFlags map[string]any) []config.So
 	return sources
 }
 
-func resolveConfigFile(cmd *cobra.Command) string {
+func resolveConfigFile(cmd *cobra.Command, cwd string) string {
+	configFile := ""
 	if flag := cmd.PersistentFlags().Lookup("config"); flag != nil {
 		if value, err := cmd.PersistentFlags().GetString("config"); err == nil {
-			return value
+			configFile = value
 		}
 	}
-	if flag := cmd.Flags().Lookup("config"); flag != nil {
-		if value, err := cmd.Flags().GetString("config"); err == nil {
-			return value
+	if configFile == "" {
+		if flag := cmd.Flags().Lookup("config"); flag != nil {
+			if value, err := cmd.Flags().GetString("config"); err == nil {
+				configFile = value
+			}
 		}
+	}
+	if configFile == "" {
+		configFile = "compozy.yaml"
+	}
+	return resolveConfigPathWithCWD(configFile, cwd)
+}
+
+func extractCWDFromFlags(cliFlags map[string]any) string {
+	if cliFlags == nil {
+		return ""
+	}
+	if cwd, ok := cliFlags["cwd"].(string); ok {
+		return cwd
+	}
+	return ""
+}
+
+func resolveConfigPathWithCWD(configFile, cwd string) string {
+	if configFile == "" {
+		return ""
+	}
+	if filepath.IsAbs(configFile) {
+		if _, err := os.Stat(configFile); err == nil {
+			return configFile
+		}
+		return ""
+	}
+	if cwd != "" {
+		cwdPath := filepath.Join(cwd, configFile)
+		if _, err := os.Stat(cwdPath); err == nil {
+			return cwdPath
+		}
+	}
+	if _, err := os.Stat(configFile); err == nil {
+		return configFile
 	}
 	return ""
 }

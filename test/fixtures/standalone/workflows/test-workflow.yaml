@@ -1,0 +1,23 @@
+id: e2e-simple
+version: 0.1.0
+description: Minimal single-task workflow for standalone E2E validation.
+
+schemas:
+  - id: input_schema
+    type: object
+    properties:
+      name:
+        type: string
+    required: [name]
+
+config:
+  input: input_schema
+
+tasks:
+  - id: greet
+    type: basic
+    # Use a prompt-only basic task; mock model returns deterministic content.
+    prompt: |
+      Greet the person named {{ .workflow.input.name }} in one short sentence.
+    final: true
+
