@@ -30,19 +30,44 @@ func (e *Engine) Start(ctx context.Context) error {
 	if cfg == nil {
 		return ErrConfigUnavailable
 	}
-	log := logger.FromContext(ctx)
-	store, err := e.buildResourceStore(ctx)
+	store, err := e.buildResourceStore(ctx, cfg)
 	if err != nil {
 		e.recordStartError(err)
 		return err
 	}
+	httpState, err := e.startHTTPComponents(ctx, cfg)
+	if err != nil {
+		e.cleanupStore(ctx, store)
+		cleanupErr := e.cleanupModeResources(ctx)
+		if cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("cleanup mode resources: %w", cleanupErr))
+		}
+		e.recordStartError(err)
+		return err
+	}
+	e.applyStartState(cfg, store, httpState)
+	if log := logger.FromContext(ctx); log != nil {
+		log.Info("engine started", "mode", string(e.mode), "base_url", httpState.baseURL)
+	}
+	return nil
+}
+
+type httpState struct {
+	router   *chi.Mux
+	server   *http.Server
+	listener net.Listener
+	cancel   context.CancelFunc
+	client   *sdkclient.Client
+	baseURL  string
+	port     int
+}
+
+func (e *Engine) startHTTPComponents(ctx context.Context, cfg *appconfig.Config) (*httpState, error) {
 	router := chi.NewRouter()
 	listenHost, listenPort := e.resolveListenAddress(cfg)
 	listener, actualPort, err := e.listen(listenHost, listenPort)
 	if err != nil {
-		e.cleanupStore(ctx, store)
-		e.recordStartError(err)
-		return err
+		return nil, err
 	}
 	serverCtx, cancel := context.WithCancel(ctx)
 	server := e.newHTTPServer(serverCtx, router, cfg, listener.Addr().String())
@@ -50,30 +75,38 @@ func (e *Engine) Start(ctx context.Context) error {
 	if err != nil {
 		cancel()
 		_ = listener.Close()
-		e.cleanupStore(ctx, store)
-		e.recordStartError(err)
-		return err
+		return nil, err
 	}
 	e.serverWG = sync.WaitGroup{}
-	e.launchServer(log, server, listener)
+	e.launchServer(logger.FromContext(ctx), server, listener)
+	return &httpState{
+		router:   router,
+		server:   server,
+		listener: listener,
+		cancel:   cancel,
+		client:   client,
+		baseURL:  baseURL,
+		port:     actualPort,
+	}, nil
+}
+
+func (e *Engine) applyStartState(cfg *appconfig.Config, store resources.ResourceStore, httpState *httpState) {
 	e.stateMu.Lock()
 	e.resourceStore = store
-	e.router = router
-	e.server = server
-	e.listener = listener
-	e.client = client
+	e.router = httpState.router
+	e.server = httpState.server
+	e.listener = httpState.listener
+	e.client = httpState.client
 	e.configSnapshot = cfg
-	e.serverCancel = cancel
+	e.serverCancel = httpState.cancel
 	e.started = true
-	e.baseURL = baseURL
-	e.port = actualPort
+	e.baseURL = httpState.baseURL
+	e.port = httpState.port
 	e.stopErr = nil
 	e.stateMu.Unlock()
 	e.errMu.Lock()
 	e.startErr = nil
 	e.errMu.Unlock()
-	log.Info("engine started", "mode", string(e.mode), "base_url", baseURL)
-	return nil
 }
 
 // Stop gracefully shuts down the engine and all managed resources.
@@ -92,12 +125,14 @@ func (e *Engine) Stop(ctx context.Context) error {
 	listener := e.listener
 	store := e.resourceStore
 	cancel := e.serverCancel
-	e.router = nil
 	cfg := e.configSnapshot
+	e.router = nil
 	e.server = nil
 	e.listener = nil
 	e.resourceStore = nil
 	e.serverCancel = nil
+	e.client = nil
+	e.configSnapshot = nil
 	e.started = false
 	e.stateMu.Unlock()
 	if cancel != nil {
@@ -125,6 +160,9 @@ func (e *Engine) Stop(ctx context.Context) error {
 		if err := store.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close resource store: %w", err))
 		}
+	}
+	if cleanupErr := e.cleanupModeResources(context.WithoutCancel(ctx)); cleanupErr != nil {
+		errs = append(errs, fmt.Errorf("cleanup mode resources: %w", cleanupErr))
 	}
 	if serverErr := e.serverFailure(); serverErr != nil {
 		errs = append(errs, serverErr)
@@ -193,19 +231,21 @@ func (e *Engine) IsStarted() bool {
 	return e.started
 }
 
-func (e *Engine) buildResourceStore(ctx context.Context) (resources.ResourceStore, error) {
-	switch e.mode {
-	case ModeStandalone:
-		log := logger.FromContext(ctx)
-		if log != nil {
-			log.Debug("initializing memory resource store for standalone mode")
-		}
-		return resources.NewMemoryResourceStore(), nil
-	case ModeDistributed:
-		return nil, ErrDistributedModeUnsupported
-	default:
-		return nil, fmt.Errorf("unsupported engine mode %q", e.mode)
+func (e *Engine) buildResourceStore(ctx context.Context, cfg *appconfig.Config) (resources.ResourceStore, error) {
+	state, err := e.bootstrapMode(ctx, cfg)
+	if err != nil {
+		return nil, err
 	}
+	if state == nil || state.resourceStore == nil {
+		if state != nil {
+			state.cleanupOnError(context.WithoutCancel(ctx))
+		}
+		return nil, fmt.Errorf("mode runtime did not provide resource store")
+	}
+	e.stateMu.Lock()
+	e.modeCleanups = state.cleanups
+	e.stateMu.Unlock()
+	return state.resourceStore, nil
 }
 
 func (e *Engine) newHTTPServer(
@@ -303,6 +343,32 @@ func (e *Engine) recordServerError(err error) {
 	e.errMu.Lock()
 	e.serverErr = err
 	e.errMu.Unlock()
+}
+
+func (e *Engine) cleanupModeResources(ctx context.Context) error {
+	cleanups := e.extractModeCleanups()
+	if len(cleanups) == 0 {
+		return nil
+	}
+	var errs []error
+	for i := len(cleanups) - 1; i >= 0; i-- {
+		fn := cleanups[i]
+		if fn == nil {
+			continue
+		}
+		if err := fn(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func (e *Engine) extractModeCleanups() []modeCleanup {
+	e.stateMu.Lock()
+	defer e.stateMu.Unlock()
+	cleanups := e.modeCleanups
+	e.modeCleanups = nil
+	return cleanups
 }
 
 func (e *Engine) serverFailure() error {

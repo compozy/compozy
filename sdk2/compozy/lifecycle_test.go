@@ -57,13 +57,20 @@ func TestEngineLifecycle(t *testing.T) {
 		assert.ErrorContains(t, putErr, "store is closed")
 	})
 
-	t.Run("Should reject start for distributed mode until implemented", func(t *testing.T) {
+	t.Run("Should fail to start distributed mode without external configuration", func(t *testing.T) {
 		t.Parallel()
 		ctx := lifecycleTestContext(t)
+		cfg := appconfig.FromContext(ctx)
+		require.NotNil(t, cfg)
+		cfg.Mode = string(ModeDistributed)
+		cfg.Redis.URL = ""
+		cfg.Redis.Host = ""
+		cfg.Redis.Port = ""
 		engine, err := New(ctx, WithMode(ModeDistributed), WithWorkflow(&engineworkflow.Config{ID: "distributed"}))
 		require.NoError(t, err)
 		err = engine.Start(ctx)
-		require.ErrorIs(t, err, ErrDistributedModeUnsupported)
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "redis")
 		assert.False(t, engine.IsStarted())
 	})
 }

@@ -58,6 +58,8 @@ type Engine struct {
 	serverCancel context.CancelFunc
 	serverWG     sync.WaitGroup
 
+	modeCleanups []modeCleanup
+
 	stateMu sync.RWMutex
 	started bool
 
