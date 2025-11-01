@@ -141,14 +141,14 @@ func TestLoadFromDirValidatesInputs(t *testing.T) {
 		var engine *Engine
 		ctx := lifecycleTestContext(t)
 		err := engine.loadFromDir(ctx, "", nil)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 	t.Run("Should require directory path and loader", func(t *testing.T) {
 		t.Parallel()
 		ctx := lifecycleTestContext(t)
-		engine := &Engine{}
+		engine := &Engine{ctx: ctx}
 		err := engine.loadFromDir(ctx, "", func(context.Context, string) error { return nil })
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 

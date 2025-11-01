@@ -204,15 +204,18 @@ func TestPersistResourceReportsMetaWriteFailure(t *testing.T) {
 }
 
 func TestRegisterProjectResetsStateOnPersistFailure(t *testing.T) {
-	store := newResourceStoreStub()
-	store.putErr = errors.New("persist failure")
-	engine := &Engine{ctx: t.Context(), resourceStore: store}
-	cfg := &engineproject.Config{Name: "helios"}
-	err := engine.registerProject(cfg, registrationSourceProgrammatic)
-	require.Error(t, err)
-	engine.stateMu.RLock()
-	defer engine.stateMu.RUnlock()
-	assert.Nil(t, engine.project)
+	t.Run("Should reset project state on persist failure", func(t *testing.T) {
+		t.Parallel()
+		store := newResourceStoreStub()
+		store.putErr = errors.New("persist failure")
+		engine := &Engine{ctx: t.Context(), resourceStore: store}
+		cfg := &engineproject.Config{Name: "helios"}
+		err := engine.registerProject(cfg, registrationSourceProgrammatic)
+		require.Error(t, err)
+		engine.stateMu.RLock()
+		defer engine.stateMu.RUnlock()
+		assert.Nil(t, engine.project)
+	})
 }
 
 func TestRegisterResourceNilConfigValidation(t *testing.T) {
@@ -418,39 +421,51 @@ func TestRegisterResourceEmptyIdentifier(t *testing.T) {
 }
 
 func TestRegisterResourceDuplicateDetection(t *testing.T) {
-	ctx := lifecycleTestContext(t)
-	engine := &Engine{ctx: ctx, resourceStore: newResourceStoreStub()}
-	require.NoError(t, engine.registerProject(&engineproject.Config{Name: "dup"}, registrationSourceProgrammatic))
-	require.NoError(t, engine.registerWorkflow(&engineworkflow.Config{ID: "wf"}, registrationSourceProgrammatic))
-	require.NoError(t, engine.registerTool(&enginetool.Config{ID: "tool"}, registrationSourceProgrammatic))
-	require.NoError(t, engine.registerKnowledge(&engineknowledge.BaseConfig{ID: "kb"}, registrationSourceProgrammatic))
-	require.NoError(t, engine.registerMemory(&enginememory.Config{ID: "mem"}, registrationSourceProgrammatic))
-	require.NoError(t, engine.registerMCP(&enginemcp.Config{ID: "mcp"}, registrationSourceProgrammatic))
-	schema := engineschema.Schema{"id": "schema-1", "type": "object"}
-	require.NoError(t, engine.registerSchema(&schema, registrationSourceProgrammatic))
-	require.NoError(
-		t,
-		engine.registerModel(
-			&enginecore.ProviderConfig{Provider: enginecore.ProviderName("openai"), Model: "gpt"},
-			registrationSourceProgrammatic,
-		),
-	)
-	require.NoError(t, engine.registerSchedule(&projectschedule.Config{ID: "schedule"}, registrationSourceProgrammatic))
-	require.NoError(t, engine.registerWebhook(&enginewebhook.Config{Slug: "hook"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerProject(&engineproject.Config{Name: "dup"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerWorkflow(&engineworkflow.Config{ID: "wf"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerTool(&enginetool.Config{ID: "tool"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerKnowledge(&engineknowledge.BaseConfig{ID: "kb"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerMemory(&enginememory.Config{ID: "mem"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerMCP(&enginemcp.Config{ID: "mcp"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerSchema(&schema, registrationSourceProgrammatic))
-	assert.Error(
-		t,
-		engine.registerModel(
-			&enginecore.ProviderConfig{Provider: enginecore.ProviderName("openai"), Model: "gpt"},
-			registrationSourceProgrammatic,
-		),
-	)
-	assert.Error(t, engine.registerSchedule(&projectschedule.Config{ID: "schedule"}, registrationSourceProgrammatic))
-	assert.Error(t, engine.registerWebhook(&enginewebhook.Config{Slug: "hook"}, registrationSourceProgrammatic))
+	t.Run("Should detect duplicate registrations across resources", func(t *testing.T) {
+		t.Parallel()
+		ctx := lifecycleTestContext(t)
+		engine := &Engine{ctx: ctx, resourceStore: newResourceStoreStub()}
+		require.NoError(t, engine.registerProject(&engineproject.Config{Name: "dup"}, registrationSourceProgrammatic))
+		require.NoError(t, engine.registerWorkflow(&engineworkflow.Config{ID: "wf"}, registrationSourceProgrammatic))
+		require.NoError(t, engine.registerTool(&enginetool.Config{ID: "tool"}, registrationSourceProgrammatic))
+		require.NoError(
+			t,
+			engine.registerKnowledge(&engineknowledge.BaseConfig{ID: "kb"}, registrationSourceProgrammatic),
+		)
+		require.NoError(t, engine.registerMemory(&enginememory.Config{ID: "mem"}, registrationSourceProgrammatic))
+		require.NoError(t, engine.registerMCP(&enginemcp.Config{ID: "mcp"}, registrationSourceProgrammatic))
+		schema := engineschema.Schema{"id": "schema-1", "type": "object"}
+		require.NoError(t, engine.registerSchema(&schema, registrationSourceProgrammatic))
+		require.NoError(
+			t,
+			engine.registerModel(
+				&enginecore.ProviderConfig{Provider: enginecore.ProviderName("openai"), Model: "gpt"},
+				registrationSourceProgrammatic,
+			),
+		)
+		require.NoError(
+			t,
+			engine.registerSchedule(&projectschedule.Config{ID: "schedule"}, registrationSourceProgrammatic),
+		)
+		require.NoError(t, engine.registerWebhook(&enginewebhook.Config{Slug: "hook"}, registrationSourceProgrammatic))
+		assert.Error(t, engine.registerProject(&engineproject.Config{Name: "dup"}, registrationSourceProgrammatic))
+		assert.Error(t, engine.registerWorkflow(&engineworkflow.Config{ID: "wf"}, registrationSourceProgrammatic))
+		assert.Error(t, engine.registerTool(&enginetool.Config{ID: "tool"}, registrationSourceProgrammatic))
+		assert.Error(t, engine.registerKnowledge(&engineknowledge.BaseConfig{ID: "kb"}, registrationSourceProgrammatic))
+		assert.Error(t, engine.registerMemory(&enginememory.Config{ID: "mem"}, registrationSourceProgrammatic))
+		assert.Error(t, engine.registerMCP(&enginemcp.Config{ID: "mcp"}, registrationSourceProgrammatic))
+		assert.Error(t, engine.registerSchema(&schema, registrationSourceProgrammatic))
+		assert.Error(
+			t,
+			engine.registerModel(
+				&enginecore.ProviderConfig{Provider: enginecore.ProviderName("openai"), Model: "gpt"},
+				registrationSourceProgrammatic,
+			),
+		)
+		assert.Error(
+			t,
+			engine.registerSchedule(&projectschedule.Config{ID: "schedule"}, registrationSourceProgrammatic),
+		)
+		assert.Error(t, engine.registerWebhook(&enginewebhook.Config{Slug: "hook"}, registrationSourceProgrammatic))
+	})
 }

@@ -1,43 +1,45 @@
-# Issue 16 - Review Thread Comment
+# Duplicate from Comment 5
 
-**File:** `sdk/compozy/integration/hybrid_yaml_integration_test.go:61`
-**Date:** 2025-11-01 01:57:03 America/Sao_Paulo
-**Status:** - [x] RESOLVED
+**File:** `sdk/compozy/registration_errors_test.go`
+**Date:** 2025-11-01 12:25:25 America/Sao_Paulo
+**Status:** - [x] RESOLVED ✓
 
-## Body
+## Resolution
 
-_🛠️ Refactor suggestion_ | _🟠 Major_
+- Wrapped the persist failure scenario in a `t.Run` block with `t.Parallel()` to align with the suite's Should-style expectations.
 
-**Conform to required t.Run usage.**
-
-This test should also wrap its assertions inside `t.Run("Should …", func(t *testing.T) { ... })` to meet the testing convention set in the guidelines. Please update the structure accordingly. As per coding guidelines
+## Details
 
 <details>
-<summary>🤖 Prompt for AI Agents</summary>
+<summary>sdk/compozy/registration_errors_test.go (1)</summary><blockquote>
 
+`206-216`: **Wrap this test in a Should-style subtest**
+
+This package mandates `t.Run("Should ...")` subtests for every behavior. Please wrap the body in a `t.Run` block so the test complies. As per coding guidelines.
+
+```diff
+ func TestRegisterProjectResetsStateOnPersistFailure(t *testing.T) {
+-	store := newResourceStoreStub()
+-	store.putErr = errors.New("persist failure")
+-	engine := &Engine{ctx: t.Context(), resourceStore: store}
+-	cfg := &engineproject.Config{Name: "helios"}
+-	err := engine.registerProject(cfg, registrationSourceProgrammatic)
+-	require.Error(t, err)
+-	engine.stateMu.RLock()
+-	defer engine.stateMu.RUnlock()
+-	assert.Nil(t, engine.project)
++	t.Run("Should reset project state on persist failure", func(t *testing.T) {
++		store := newResourceStoreStub()
++		store.putErr = errors.New("persist failure")
++		engine := &Engine{ctx: t.Context(), resourceStore: store}
++		cfg := &engineproject.Config{Name: "helios"}
++		err := engine.registerProject(cfg, registrationSourceProgrammatic)
++		require.Error(t, err)
++		engine.stateMu.RLock()
++		defer engine.stateMu.RUnlock()
++		assert.Nil(t, engine.project)
++	})
+ }
 ```
-In sdk/compozy/integration/hybrid_yaml_integration_test.go around lines 20-61,
-wrap the existing test body inside t.Run so assertions run in a named subtest;
-replace the current top-level statements with t.Run("Should validate hybrid YAML
-integration", func(t *testing.T) { /* existing body here */ }) and ensure all
-test helpers (lifecycleTestContext, require.*, assert.*) use the inner t; keep
-setup, file creation, engine.LoadWorkflowsFromDir, ValidateReferences and
-assertions unchanged but moved into the inner closure.
-```
 
-</details>
-
-<!-- fingerprinting:phantom:medusa:sabertoothed -->
-
-<!-- This is an auto-generated comment by CodeRabbit -->
-
-## Resolve
-
-Thread ID: `PRRT_kwDOOlCPts5gLa2p`
-
-```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gLa2p
-```
-
----
-*Generated from PR review - CodeRabbit AI*
+</blockquote></details>
