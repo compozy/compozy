@@ -51,7 +51,7 @@ func TestToProjectDTO(t *testing.T) {
 				ID:          "tool-1",
 				Description: "Test tool",
 			}},
-			Memories: []memory.Config{{
+			Memories: []*memory.Config{{
 				ID: "memory-1",
 			}},
 			MonitoringConfig: &monitoring.Config{

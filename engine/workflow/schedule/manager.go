@@ -85,15 +85,15 @@ func NewOverrideCache() *OverrideCache {
 	}
 }
 
-// Config holds configuration options for the schedule manager
-type Config struct {
+// ManagerConfig holds configuration options for the schedule manager
+type ManagerConfig struct {
 	// PageSize for listing schedules from Temporal (default: 100)
 	PageSize int
 }
 
 // DefaultConfig returns default configuration values
-func DefaultConfig() *Config {
-	return &Config{
+func DefaultConfig() *ManagerConfig {
+	return &ManagerConfig{
 		PageSize: 100,
 	}
 }
@@ -103,7 +103,7 @@ type manager struct {
 	client    *worker.Client
 	projectID string
 	taskQueue string
-	config    *Config
+	config    *ManagerConfig
 	mu        sync.RWMutex
 	// Track API overrides with persistence and timestamp tracking
 	overrideCache *OverrideCache
@@ -268,7 +268,7 @@ func (m *manager) getYAMLModTime(ctx context.Context, wf *workflow.Config) time.
 type Option func(*manager)
 
 // WithConfig sets a custom configuration for the manager
-func WithConfig(cfg *Config) Option {
+func WithConfig(cfg *ManagerConfig) Option {
 	return func(m *manager) {
 		if cfg != nil {
 			m.config = cfg

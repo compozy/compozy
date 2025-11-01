@@ -43,6 +43,7 @@ require (
 	github.com/knadh/koanf/providers/structs v1.0.0
 	github.com/knadh/koanf/v2 v2.3.0
 	github.com/looplab/fsm v1.0.3
+	github.com/magefile/mage v1.15.0
 	github.com/mark3labs/mcp-go v0.41.1
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mitchellh/mapstructure v1.5.0
@@ -97,6 +98,7 @@ require (
 	golang.org/x/time v0.14.0
 	google.golang.org/grpc v1.76.0
 	gopkg.in/yaml.v3 v3.0.1
+	modernc.org/sqlite v1.39.1
 )
 
 require (
@@ -346,10 +348,9 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	modernc.org/libc v1.66.3 // indirect
+	modernc.org/libc v1.66.10 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.38.2 // indirect
 )
 
 replace github.com/compozy/compozy/test/fixtures => ./test/fixtures

@@ -39,7 +39,6 @@ env:
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
   PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.15
-  GOTMPDIR: ${{ runner.temp }}/go-tmp
 
 permissions:
   contents: write
@@ -61,8 +60,6 @@ jobs:
        github.event.head_commit.author.name != 'github-actions[bot]') ||
       (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    env:
-      GOTMPDIR: ${{ env.GOTMPDIR }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,6 +67,8 @@ jobs:
           fetch-tags: true
 
       - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: mkdir -p "$GOTMPDIR"
 
       - uses: ./.github/actions/setup-go
@@ -86,6 +85,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: |
           go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
@@ -97,8 +97,6 @@ jobs:
       (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
-    env:
-      GOTMPDIR: ${{ env.GOTMPDIR }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -106,6 +104,8 @@ jobs:
           fetch-tags: true
 
       - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: mkdir -p "$GOTMPDIR"
 
       - uses: ./.github/actions/setup-go
@@ -130,6 +130,7 @@ jobs:
           GITHUB_HEAD_REF: ${{ github.head_ref }}
           GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 
   # Job 3: Production release on merge
@@ -143,7 +144,6 @@ jobs:
     timeout-minutes: 120
     env:
       DOCKER_CLI_EXPERIMENTAL: enabled
-      GOTMPDIR: ${{ env.GOTMPDIR }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -151,6 +151,8 @@ jobs:
           fetch-tags: true
 
       - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: mkdir -p "$GOTMPDIR"
 
       - name: Set up Go with caching
@@ -212,6 +214,7 @@ jobs:
           AUR_KEY: ${{ secrets.AUR_KEY }}
           COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
 
       - name: Publish NPM Packages
         env:

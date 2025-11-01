@@ -26,6 +26,14 @@ definitions:
           If `nil`, the action accepts any input format without validation.
 
           **Schema format:** JSON Schema Draft 7
+      on_error:
+        allOf:
+          - $ref: '#/definitions/core.ErrorTransition'
+        description: OnError defines the transition executed when the action encounters an error.
+      on_success:
+        allOf:
+          - $ref: '#/definitions/core.SuccessTransition'
+        description: OnSuccess defines the transition executed when the action completes successfully.
       output:
         allOf:
           - $ref: '#/definitions/schema.Schema'
@@ -47,6 +55,18 @@ definitions:
           - Define clear success criteria
           - Specify any limitations or boundaries
         type: string
+      retry_policy:
+        allOf:
+          - $ref: '#/definitions/core.RetryPolicyConfig'
+        description: RetryPolicy configures automatic retries for the action when execution fails.
+      timeout:
+        description: Timeout specifies the maximum duration allowed for the action execution.
+        type: string
+      tools:
+        description: Tools scoped to this action; override agent-level tool availability when provided.
+        items:
+          $ref: '#/definitions/tool.Config'
+        type: array
       with:
         allOf:
           - $ref: '#/definitions/core.Input'
@@ -1514,7 +1534,7 @@ definitions:
           Each agent connection typically creates one session.
 
           **Values**:
-          - `0` or negative: Unlimited sessions (default)
+          - `0`: Unlimited sessions (default)
           - Positive number: Maximum concurrent sessions
 
           - **Examples**:
@@ -1856,6 +1876,19 @@ definitions:
       token_usage:
         $ref: '#/definitions/memory.TokenUsageHealth'
     type: object
+  memory.PrivacyScope:
+    enum:
+      - global
+      - user
+      - session
+      - global
+      - user
+      - session
+    type: string
+    x-enum-varnames:
+      - PrivacyGlobalScope
+      - PrivacyUserScope
+      - PrivacySessionScope
   memory.SystemHealth:
     properties:
       healthy:
@@ -1903,6 +1936,8 @@ definitions:
         type: string
       description:
         type: string
+      expiration:
+        type: string
       flushing:
         $ref: '#/definitions/core.FlushingStrategyConfig'
       id:
@@ -1919,6 +1954,8 @@ definitions:
         $ref: '#/definitions/core.PersistenceConfig'
       privacy_policy:
         $ref: '#/definitions/core.PrivacyPolicyConfig'
+      privacy_scope:
+        $ref: '#/definitions/memory.PrivacyScope'
       resource:
         type: string
       token_allocation:
@@ -1939,6 +1976,8 @@ definitions:
       etag:
         example: abc123
         type: string
+      expiration:
+        type: string
       flushing:
         $ref: '#/definitions/core.FlushingStrategyConfig'
       id:
@@ -1955,6 +1994,8 @@ definitions:
         $ref: '#/definitions/core.PersistenceConfig'
       privacy_policy:
         $ref: '#/definitions/core.PrivacyPolicyConfig'
+      privacy_scope:
+        $ref: '#/definitions/memory.PrivacyScope'
       resource:
         type: string
       token_allocation:
@@ -3334,6 +3375,11 @@ definitions:
     type: object
   tool.Config:
     properties:
+      code:
+        description: |-
+          Code contains inline source executed by the selected runtime when the tool runs.
+          Builders may supply either inline JavaScript/TypeScript code or references resolved at runtime.
+        type: string
       config:
         allOf:
           - $ref: '#/definitions/core.Input'
@@ -3406,6 +3452,12 @@ definitions:
           - **When nil:** Tool accepts any input format (no validation performed)
           - **Use cases:** Parameter validation, type safety, auto-generated documentation
           - **Integration:** Automatically converts to LLM function parameters
+      name:
+        description: |-
+          Name provides a concise, human-readable label for the tool shown in UIs and logs.
+          Unlike the identifier, the name may include spaces and capitalization to improve readability.
+          When omitted, UIs should fall back to using the identifier.
+        type: string
       output:
         allOf:
           - $ref: '#/definitions/schema.Schema'
@@ -3421,6 +3473,12 @@ definitions:
         description: |-
           Resource identifier for the autoloader system (must be `"tool"`).
           This field enables automatic discovery and registration of tool configurations.
+        type: string
+      runtime:
+        description: |-
+          Runtime selects the execution environment for custom tool implementations.
+          Supported runtimes include `"bun"`, `"node"`, and `"deno"` for JavaScript/TypeScript execution.
+          When empty, the project runtime defaults are applied.
         type: string
       timeout:
         description: |-
@@ -3445,6 +3503,8 @@ definitions:
     type: object
   toolrouter.ToolDTO:
     properties:
+      code:
+        type: string
       config:
         $ref: '#/definitions/core.Input'
       cwd:
@@ -3457,9 +3517,13 @@ definitions:
         type: string
       input:
         $ref: '#/definitions/schema.Schema'
+      name:
+        type: string
       output:
         $ref: '#/definitions/schema.Schema'
       resource:
+        type: string
+      runtime:
         type: string
       timeout:
         type: string
@@ -3468,6 +3532,8 @@ definitions:
     type: object
   toolrouter.ToolListItem:
     properties:
+      code:
+        type: string
       config:
         $ref: '#/definitions/core.Input'
       cwd:
@@ -3483,9 +3549,13 @@ definitions:
         type: string
       input:
         $ref: '#/definitions/schema.Schema'
+      name:
+        type: string
       output:
         $ref: '#/definitions/schema.Schema'
       resource:
+        type: string
+      runtime:
         type: string
       timeout:
         type: string
@@ -5384,7 +5454,7 @@ paths:
       consumes:
         - '*/*'
       description: Streams agent execution updates over Server-Sent Events, emitting structured JSON or
-        llm_chunk text depending on the output schema.
+        llm_chunk text depending on the output schema. Served under routes.Base() (e.g., /api/v0/executions/agents/{exec_id}/stream).
       parameters:
         - description: Agent execution ID
           example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
@@ -5442,7 +5512,7 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "503":
-          description: Pub/Sub provider unavailable
+          description: Streaming infrastructure unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -5504,7 +5574,7 @@ paths:
       consumes:
         - '*/*'
       description: Streams task execution updates over Server-Sent Events, emitting structured JSON or
-        llm_chunk text depending on the task output schema.
+        llm_chunk text depending on the task output schema. Served under routes.Base() (e.g., /api/v0/executions/tasks/{exec_id}/stream).
       parameters:
         - description: Task execution ID
           example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
@@ -5562,7 +5632,7 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "503":
-          description: Pub/Sub provider unavailable
+          description: Streaming infrastructure unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -5979,7 +6049,7 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "503":
-          description: Worker unavailable
+          description: Streaming infrastructure unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'

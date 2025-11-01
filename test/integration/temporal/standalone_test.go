@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +30,12 @@ const (
 	testTaskQueue   = "temporal-standalone-integration"
 	workflowTimeout = 30 * time.Second
 )
+
+func init() {
+	if os.Getenv("TEMPORAL_TEST_PORT_BASE") == "" {
+		_ = os.Setenv("TEMPORAL_TEST_PORT_BASE", "45000")
+	}
+}
 
 type workflowExecution struct {
 	WorkflowID string
@@ -124,13 +132,42 @@ func TestStandaloneWorkflowExecution(t *testing.T) {
 
 func startStandaloneServer(ctx context.Context, t *testing.T, cfg *embedded.Config) *embedded.Server {
 	t.Helper()
-	server, err := embedded.NewServer(ctx, cfg)
-	require.NoError(t, err)
-	require.NoError(t, server.Start(ctx))
-	t.Cleanup(func() {
-		stopTemporalServer(ctx, t, server)
-	})
-	return server
+	var lastErr error
+	for attempts := 0; attempts < 5; attempts++ {
+		server, err := embedded.NewServer(ctx, cfg)
+		if isAddressInUseErr(err) {
+			cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
+			lastErr = err
+			continue
+		}
+		require.NoError(t, err)
+		startErr := server.Start(ctx)
+		if isAddressInUseErr(startErr) {
+			lastErr = startErr
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+			server.Stop(stopCtx) // ignore error; attempting retry
+			cancel()
+			cfg.FrontendPort = findAvailablePortRange(ctx, t, 4)
+			continue
+		}
+		require.NoError(t, startErr)
+		t.Cleanup(func() {
+			stopTemporalServer(ctx, t, server)
+		})
+		return server
+	}
+	if lastErr != nil {
+		require.FailNow(t, "failed to start embedded temporal server after retries", lastErr)
+	}
+	require.FailNow(t, "failed to start embedded temporal server after retries")
+	return nil
+}
+
+func isAddressInUseErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "address already in use")
 }
 
 func stopTemporalServer(ctx context.Context, t *testing.T, server *embedded.Server) {
@@ -264,37 +301,79 @@ func loadWorkflowInput(t *testing.T) workflowInput {
 
 func findAvailablePortRange(ctx context.Context, t *testing.T, size int) int {
 	t.Helper()
-	for port := 15000; port < 25000; port++ {
-		if !portsAvailable(ctx, port, size) {
-			continue
+	start := temporalPortSearchStart()
+	deadline := time.Now().Add(5 * time.Second)
+	maxSequential := 60000
+	maxPort := 65535
+
+	tryReserve := func(port int) bool {
+		if port <= 0 || port+size+1000 > maxPort {
+			return false
 		}
-		// Ensure auxiliary port at +1000 offset is available for Temporal UI when enabled
-		if !portAvailable(ctx, port+1000) {
-			continue
+		if !reservePorts(ctx, port, size) {
+			return false
 		}
-		return port
+		if !reservePorts(ctx, port+1000, 1) {
+			return false
+		}
+		return true
 	}
-	t.Fatalf("no available port range found")
+
+	// First attempt sequential scan to keep behavior deterministic.
+	for port := start; port < maxSequential; port++ {
+		if time.Now().After(deadline) {
+			break
+		}
+		if tryReserve(port) {
+			return port
+		}
+	}
+
+	// Fallback to random probing before giving up.
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for attempts := 0; attempts < 200; attempts++ {
+		if time.Now().After(deadline) {
+			break
+		}
+		candidate := start + rng.Intn(maxPort-start-size-1000)
+		// Align candidate to avoid wrapping when checking contiguous ports.
+		candidate -= candidate % size
+		if tryReserve(candidate) {
+			return candidate
+		}
+	}
+
+	t.Fatalf("no available port range found after retries (start=%d, size=%d)", start, size)
 	return 0
 }
 
-func portsAvailable(ctx context.Context, start int, size int) bool {
-	for offset := 0; offset < size; offset++ {
-		if !portAvailable(ctx, start+offset) {
-			return false
-		}
+func temporalPortSearchStart() int {
+	raw := strings.TrimSpace(os.Getenv("TEMPORAL_TEST_PORT_BASE"))
+	if raw == "" {
+		return 15000
 	}
-	return true
+	base, err := strconv.Atoi(raw)
+	if err != nil || base < 1024 || base > 60000 {
+		return 15000
+	}
+	return base
 }
 
-func portAvailable(ctx context.Context, port int) bool {
-	dialCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-	ln, err := (&net.ListenConfig{}).Listen(dialCtx, "tcp", fmt.Sprintf("127.0.0.1:%d", port))
-	cancel()
-	if err != nil {
-		return false
+func reservePorts(ctx context.Context, start int, size int) bool {
+	listeners := make([]net.Listener, 0, size)
+	for offset := 0; offset < size; offset++ {
+		ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", start+offset))
+		if err != nil {
+			for _, listener := range listeners {
+				_ = listener.Close()
+			}
+			return false
+		}
+		listeners = append(listeners, ln)
 	}
-	_ = ln.Close()
+	for _, listener := range listeners {
+		_ = listener.Close()
+	}
 	return true
 }
 

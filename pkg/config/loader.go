@@ -507,7 +507,7 @@ func validateStandaloneStartTimeout(standalone *StandaloneConfig) error {
 func validateRedis(cfg *Config) error {
 	// Validate component mode values via struct tags; add friendly errors for clarity.
 	switch strings.TrimSpace(cfg.Redis.Mode) {
-	case "", mcpProxyModeStandalone, "distributed":
+	case "", mcpProxyModeStandalone, ModeDistributed:
 		// ok
 	default:
 		return fmt.Errorf(

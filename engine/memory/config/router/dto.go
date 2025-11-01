@@ -40,6 +40,8 @@ type MemoryCoreDTO struct {
 	Flushing           *memcore.FlushingStrategyConfig `json:"flushing,omitempty"`
 	Persistence        memcore.PersistenceConfig       `json:"persistence"`
 	PrivacyPolicy      *memcore.PrivacyPolicyConfig    `json:"privacy_policy,omitempty"`
+	PrivacyScope       memory.PrivacyScope             `json:"privacy_scope,omitempty"`
+	Expiration         string                          `json:"expiration,omitempty"`
 	Locking            *memcore.LockConfig             `json:"locking,omitempty"`
 	TokenProvider      *memcore.TokenProviderConfig    `json:"token_provider,omitempty"`
 	DefaultKeyTemplate string                          `json:"default_key_template,omitempty"`
@@ -95,6 +97,8 @@ func convertMemoryConfigToDTO(cfg *memory.Config) (MemoryCoreDTO, error) {
 		Flushing:           cfg.Flushing,
 		Persistence:        cfg.Persistence,
 		PrivacyPolicy:      cfg.PrivacyPolicy,
+		PrivacyScope:       cfg.PrivacyScope,
+		Expiration:         cfg.Expiration,
 		Locking:            cfg.Locking,
 		TokenProvider:      cfg.TokenProvider,
 		DefaultKeyTemplate: cfg.DefaultKeyTemplate,

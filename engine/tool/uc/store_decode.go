@@ -15,6 +15,14 @@ func decodeToolBody(body map[string]any, pathID string) (*tool.Config, error) {
 	if err := cfg.FromMap(body); err != nil {
 		return nil, fmt.Errorf("decode tool config: %w", err)
 	}
+	impl, err := cfg.EffectiveImplementation()
+	if err != nil {
+		return nil, err
+	}
+	if impl == tool.ImplementationNative {
+		return nil, ErrNativeImplementation
+	}
+	cfg.SetImplementation(impl)
 	return normalizeToolID(cfg, pathID)
 }
 
@@ -49,5 +57,10 @@ func normalizeToolID(cfg *tool.Config, pathID string) (*tool.Config, error) {
 		return nil, fmt.Errorf("id mismatch: body=%s path=%s", bodyID, id)
 	}
 	cfg.ID = id
+	impl, err := cfg.EffectiveImplementation()
+	if err != nil {
+		return nil, err
+	}
+	cfg.SetImplementation(impl)
 	return cfg, nil
 }

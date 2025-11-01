@@ -244,7 +244,8 @@ func respondToolError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, tooluc.ErrInvalidInput),
 		errors.Is(err, tooluc.ErrProjectMissing),
-		errors.Is(err, tooluc.ErrIDMissing):
+		errors.Is(err, tooluc.ErrIDMissing),
+		errors.Is(err, tooluc.ErrNativeImplementation):
 		router.RespondProblem(c, &core.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 	case errors.Is(err, tooluc.ErrNotFound):
 		router.RespondProblem(c, &core.Problem{Status: http.StatusNotFound, Detail: err.Error()})

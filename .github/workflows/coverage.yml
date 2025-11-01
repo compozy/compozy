@@ -47,10 +47,30 @@ jobs:
         run: |
           make test-coverage
 
+      - name: Generate SDK coverage report
+        run: |
+          go work sync
+          cd sdk
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          if [ -z "$packages" ]; then
+            echo "no SDK packages discovered"
+            exit 1
+          fi
+          go test -covermode=atomic -coverprofile=coverage.out $packages
+
+      - name: Enforce SDK coverage
+        run: |
+          cd sdk
+          go tool cover -func=coverage.out | tee coverage.txt
+          awk '/^total:/ {gsub(/%/, "", $3); cov=$3+0; if (cov < 100) {printf "Coverage is %.2f%%, must be 100%%\n", cov; exit 1}} END {if (NR == 0) {print "No coverage summary found"; exit 1}}' coverage.txt
+          echo "SDK coverage requirement satisfied"
+
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
-          files: ./coverage.out
+          files: |
+            ./coverage.out
+            ./sdk/coverage.out
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: true

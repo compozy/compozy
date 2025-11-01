@@ -155,6 +155,7 @@ jobs:
           filters: |
             backend:
               - '**/*.go'
+              - 'magefile.go'
               - 'go.mod'
               - 'go.sum'
               - 'Makefile'
@@ -198,6 +199,11 @@ jobs:
       - name: Setup git-cliff for release tests
         uses: ./.github/actions/setup-git-cliff
 
+      - name: Install Mage
+        run: |
+          echo "Installing Mage..."
+          go install github.com/magefile/mage@latest
+
       - name: Run linting
         run: |
           echo "Running Go code quality checks..."
@@ -220,6 +226,23 @@ jobs:
         run: |
           echo "Running unit and integration tests..."
           make test
+        continue-on-error: false
+
+      - name: Run SDK benchmarks
+        run: |
+          echo "Running SDK benchmarks with memory stats..."
+          go test -run=^$ -bench=. -benchmem github.com/compozy/compozy/sdk/agent \
+            github.com/compozy/compozy/sdk/project \
+            github.com/compozy/compozy/sdk/workflow \
+            github.com/compozy/compozy/sdk/task \
+            github.com/compozy/compozy/sdk/knowledge \
+            github.com/compozy/compozy/sdk/memory \
+            github.com/compozy/compozy/sdk/compozy | tee bench.out
+        continue-on-error: false
+
+      - name: Check benchmark regressions
+        run: |
+          go run ./tools/benchcheck --baseline sdk/docs/performance-benchmarks.json --results bench.out
         continue-on-error: false
 
       - name: Upload test results

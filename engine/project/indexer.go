@@ -7,9 +7,11 @@ import (
 	"runtime"
 	"sync"
 
+	"dario.cat/mergo"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/compozy/compozy/engine/knowledge"
+	enginememory "github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
@@ -239,7 +241,7 @@ func schemaID(s *schema.Schema) string { return schema.GetID(s) }
 
 // indexProjectTools publishes project-level tools to the store.
 func (p *Config) indexProjectTools(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -250,9 +252,10 @@ func (p *Config) indexProjectTools(
 			return fmt.Errorf("project tool at index %d missing id", i)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceTool, ID: tool.ID}
-		value := tool
+		keyCopy := key
+		toolCopy := tool
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, toolCopy)
 		})
 	}
 	return nil
@@ -260,26 +263,32 @@ func (p *Config) indexProjectTools(
 
 // indexProjectMemories publishes project-level memory resources to the store.
 func (p *Config) indexProjectMemories(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
 ) error {
-	for i := range p.Memories {
-		memory := &p.Memories[i]
+	for i, memory := range p.Memories {
+		if memory == nil {
+			return fmt.Errorf("project memory at index %d cannot be nil", i)
+		}
 		if memory.ID == "" {
 			return fmt.Errorf("project memory at index %d missing id", i)
 		}
-		if memory.Resource == "" {
-			memory.Resource = string(resources.ResourceMemory)
+		memClone := new(enginememory.Config)
+		if err := mergo.Merge(memClone, memory, mergo.WithOverride); err != nil {
+			return fmt.Errorf("memory '%s' clone failed: %w", memory.ID, err)
 		}
-		if err := memory.Validate(ctx); err != nil {
+		if memClone.Resource == "" {
+			memClone.Resource = string(resources.ResourceMemory)
+		}
+		if err := memClone.Validate(groupCtx); err != nil {
 			return fmt.Errorf("memory '%s' validation failed: %w", memory.ID, err)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceMemory, ID: memory.ID}
-		value := memory
+		keyCopy := key
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, memClone)
 		})
 	}
 	return nil
@@ -287,7 +296,7 @@ func (p *Config) indexProjectMemories(
 
 // indexProjectSchemas publishes project-level schemas to the store.
 func (p *Config) indexProjectSchemas(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -299,9 +308,10 @@ func (p *Config) indexProjectSchemas(
 			continue
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceSchema, ID: sid}
-		value := schemaValue
+		keyCopy := key
+		schemaCopy := schemaValue
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, schemaCopy)
 		})
 	}
 	return nil
@@ -309,7 +319,7 @@ func (p *Config) indexProjectSchemas(
 
 // indexProjectModels publishes project-level models to the store.
 func (p *Config) indexProjectModels(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -321,16 +331,17 @@ func (p *Config) indexProjectModels(
 		}
 		id := fmt.Sprintf("%s:%s", string(model.Provider), model.Model)
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceModel, ID: id}
-		value := model
+		keyCopy := key
+		modelCopy := model
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, modelCopy)
 		})
 	}
 	return nil
 }
 
 func (p *Config) indexProjectEmbedders(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -341,16 +352,17 @@ func (p *Config) indexProjectEmbedders(
 			return fmt.Errorf("project embedder at index %d missing id", i)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceEmbedder, ID: embedder.ID}
-		value := embedder
+		keyCopy := key
+		embedderCopy := embedder
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, embedderCopy)
 		})
 	}
 	return nil
 }
 
 func (p *Config) indexProjectVectorDBs(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -361,16 +373,17 @@ func (p *Config) indexProjectVectorDBs(
 			return fmt.Errorf("project vector_db at index %d missing id", i)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceVectorDB, ID: vectorDB.ID}
-		value := vectorDB
+		keyCopy := key
+		vectorDBCopy := vectorDB
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, vectorDBCopy)
 		})
 	}
 	return nil
 }
 
 func (p *Config) indexProjectKnowledgeBases(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -380,13 +393,15 @@ func (p *Config) indexProjectKnowledgeBases(
 		if knowledgeBase.ID == "" {
 			return fmt.Errorf("project knowledge_base at index %d missing id", i)
 		}
-		if knowledgeBase.Ingest == "" {
-			knowledgeBase.Ingest = knowledge.IngestManual
-		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceKnowledgeBase, ID: knowledgeBase.ID}
-		value := knowledgeBase
+		keyCopy := key
+		knowledgeBaseCopy := *knowledgeBase
+		if knowledgeBaseCopy.Ingest == "" {
+			knowledgeBaseCopy.Ingest = knowledge.IngestManual
+		}
+		copyValue := knowledgeBaseCopy
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, &copyValue)
 		})
 	}
 	return nil

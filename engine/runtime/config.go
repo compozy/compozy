@@ -19,6 +19,7 @@ type Config struct {
 	EntrypointPath string   // Path to entrypoint file
 	BunPermissions []string // Bun-specific permissions
 	NodeOptions    []string // Node.js-specific options
+	NativeTools    *NativeToolsConfig
 	// Application config integration fields
 	Environment string // Deployment environment (development, staging, production)
 	// Memory management
@@ -45,6 +46,7 @@ func DefaultConfig() *Config {
 		BunPermissions: []string{
 			"--allow-read", // Minimal permissions - allow read only by default
 		},
+		NativeTools:          &NativeToolsConfig{},
 		Environment:          "development",   // Default environment
 		MaxMemoryMB:          2048,            // Default 2GB memory limit
 		MaxStderrCaptureSize: 1 * 1024 * 1024, // Default 1MB stderr buffer
@@ -73,6 +75,7 @@ func TestConfig() *Config {
 		BunPermissions: []string{
 			"--allow-read",
 		},
+		NativeTools: &NativeToolsConfig{},
 		Environment: "testing", // Test environment
 		MaxMemoryMB: 512,       // Lower memory limit for tests
 	}

@@ -15,6 +15,7 @@ import (
 	mcpmetrics "github.com/compozy/compozy/engine/mcp/metrics"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
+	nativeuser "github.com/compozy/compozy/engine/tool/nativeuser"
 	"github.com/compozy/compozy/pkg/logger"
 	"github.com/tmc/langchaingo/tools"
 	"golang.org/x/sync/singleflight"
@@ -585,6 +586,83 @@ func (a *localToolAdapter) Call(ctx context.Context, input string) (string, erro
 		return "", fmt.Errorf("failed to marshal output: %w", err)
 	}
 	return string(result), nil
+}
+
+type nativeToolAdapter struct {
+	config *tool.Config
+}
+
+func NewNativeToolAdapter(config *tool.Config) Tool {
+	return &nativeToolAdapter{config: config}
+}
+
+func (a *nativeToolAdapter) Name() string {
+	return a.config.ID
+}
+
+func (a *nativeToolAdapter) Description() string {
+	return a.config.Description
+}
+
+func (a *nativeToolAdapter) ParameterSchema() map[string]any {
+	if a.config == nil || a.config.InputSchema == nil {
+		return nil
+	}
+	source := map[string]any(*a.config.InputSchema)
+	copied, err := core.DeepCopy(source)
+	if err != nil {
+		return core.CloneMap(source)
+	}
+	return copied
+}
+
+func (a *nativeToolAdapter) Call(ctx context.Context, input string) (string, error) {
+	log := logger.FromContext(ctx)
+	definition, ok := nativeuser.Lookup(a.config.ID)
+	if !ok {
+		err := fmt.Errorf("native handler missing for tool %s", a.config.ID)
+		log.Error("Native tool handler not registered", "tool", a.config.ID)
+		return "", core.NewError(err, "TOOL_EXECUTION_ERROR", map[string]any{"tool": a.config.ID})
+	}
+	var inputMap map[string]any
+	if err := json.Unmarshal([]byte(input), &inputMap); err != nil {
+		return "", core.NewError(err, "INVALID_TOOL_INPUT", map[string]any{"tool": a.config.ID})
+	}
+	coreInput := core.NewInput(inputMap)
+	if err := a.config.ValidateInput(ctx, &coreInput); err != nil {
+		return "", core.NewError(err, "INVALID_TOOL_INPUT", map[string]any{"tool": a.config.ID})
+	}
+	configMap := a.config.GetConfig().AsMap()
+	inputCopy := coreInput.AsMap()
+	var (
+		outputMap map[string]any
+		execErr   error
+	)
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				execErr = fmt.Errorf("native tool handler panic: %v", r)
+				log.Error("Native tool handler panicked", "tool", a.config.ID, "panic", r)
+			}
+		}()
+		log.Debug("Executing native tool", "tool", a.config.ID)
+		outputMap, execErr = definition.Handler(ctx, inputCopy, configMap)
+	}()
+	if execErr != nil {
+		return "", core.NewError(execErr, "TOOL_EXECUTION_ERROR", map[string]any{"tool": a.config.ID})
+	}
+	if outputMap == nil {
+		return "", core.NewError(fmt.Errorf("nil output"), "TOOL_EMPTY_OUTPUT", map[string]any{"tool": a.config.ID})
+	}
+	output := core.Output(outputMap)
+	if err := a.config.ValidateOutput(ctx, &output); err != nil {
+		return "", core.NewError(err, "TOOL_INVALID_OUTPUT", map[string]any{"tool": a.config.ID})
+	}
+	encoded, err := json.Marshal(output)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal output: %w", err)
+	}
+	return string(encoded), nil
 }
 
 // fetchFreshMCPTools retrieves the latest MCP tool list using singleflight.

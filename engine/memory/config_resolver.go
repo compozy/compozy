@@ -69,6 +69,9 @@ func (rb *ResourceBuilder) Build(ctx context.Context) (*memcore.Resource, error)
 		Persistence:          rb.config.Persistence,
 		TokenCounter:         "", // Token counter determined at runtime
 		TokenProvider:        rb.config.TokenProvider,
+		PrivacyScope:         rb.config.PrivacyScope,
+		Expiration:           rb.config.Expiration,
+		ParsedExpiration:     rb.config.parsedExpiration,
 		Metadata:             nil,   // Metadata not stored in config
 		DisableFlush:         false, // Flush enabled by default
 	}
@@ -426,6 +429,9 @@ func cloneConfigForValidation(cfg *Config) *Config {
 		DefaultKeyTemplate: cfg.DefaultKeyTemplate,
 		filePath:           cfg.filePath,
 		ttlManager:         cfg.ttlManager,
+		PrivacyScope:       cfg.PrivacyScope,
+		Expiration:         cfg.Expiration,
+		parsedExpiration:   cfg.parsedExpiration,
 	}
 	cloned.TokenAllocation = cloneTokenAllocation(cfg.TokenAllocation)
 	cloned.Flushing = cloneFlushingConfig(cfg.Flushing)

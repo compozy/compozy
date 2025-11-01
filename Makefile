@@ -1,19 +1,12 @@
 -include .env
 # Makefile for Compozy Go Project
+# This Makefile delegates to Mage for parallel execution and smart caching
+# Install mage: go install github.com/magefile/mage@latest
 
 # -----------------------------------------------------------------------------
-# Go Parameters & Setup
+# Configuration
 # -----------------------------------------------------------------------------
-GOCMD=$(shell which go)
-GOVERSION ?= $(shell awk '/^go /{print $$2}' go.mod 2>/dev/null || echo "1.25")
-GOBUILD=$(GOCMD) build
-GOTEST=$(GOCMD) test
-GOFMT=gofmt -s -w
-BINARY_NAME=compozy
-BINARY_DIR=bin
-SRC_DIRS=./...
-LINTCMD=golangci-lint
-BUNCMD=bun
+MAGE=$(shell which mage 2>/dev/null)
 
 # Colors for output
 RED := \033[0;31m
@@ -21,264 +14,253 @@ GREEN := \033[0;32m
 YELLOW := \033[0;33m
 NC := \033[0m # No Color
 
-# -----------------------------------------------------------------------------
-# Build Variables
-# -----------------------------------------------------------------------------
-GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-VERSION := $(shell git describe --tags --match="v*" --always 2>/dev/null || echo "unknown")
-
-# Build flags for injecting version info (aligned with GoReleaser format)
-BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-LDFLAGS := -X github.com/compozy/compozy/pkg/version.Version=$(VERSION) -X github.com/compozy/compozy/pkg/version.CommitHash=$(GIT_COMMIT) -X github.com/compozy/compozy/pkg/version.BuildDate=$(BUILD_DATE)
+.PHONY: all test lint fmt modernize clean build dev deps schemagen schemagen-watch help integration-test typecheck
+.PHONY: tidy start-docker stop-docker clean-docker reset-docker check-mage
+.PHONY: swagger swagger-validate setup
+.PHONY: lint-main lint-sdk typecheck-main typecheck-sdk fmt-main fmt-sdk modernize-main modernize-sdk
+.PHONY: test-main test-sdk test-coverage test-coverage-main test-coverage-sdk test-nocache test-nocache-main test-nocache-sdk
 
 # -----------------------------------------------------------------------------
-# Swagger/OpenAPI
+# Mage Check
 # -----------------------------------------------------------------------------
-SWAGGER_DIR=./docs
-SWAGGER_OUTPUT=$(SWAGGER_DIR)/swagger.json
-
-.PHONY: all test lint fmt modernize clean build dev deps schemagen schemagen-watch help integration-test
-.PHONY: tidy test-go start-docker stop-docker clean-docker reset-docker
-.PHONY: swagger swagger-deps swagger-gen swagger-serve check-go-version setup clean-go-cache
-.PHONY: check-func-length create-func-issues solve-func-length
-
-# -----------------------------------------------------------------------------
-# Setup & Version Checks
-# -----------------------------------------------------------------------------
-check-go-version:
-	@echo "Checking Go version..."
-	@GO_VERSION=$$($(GOCMD) version 2>/dev/null | awk '{print $$3}' | sed 's/go//'); \
-	REQUIRED_VERSION=$(GOVERSION); \
-	if [ -z "$$GO_VERSION" ]; then \
-		echo "$(RED)Error: Go is not available$(NC)"; \
-		echo "Please ensure Go $(GOVERSION) is installed via mise"; \
+check-mage:
+	@if [ -z "$(MAGE)" ]; then \
+		echo "$(RED)Error: mage is not installed$(NC)"; \
+		echo "Install with: go install github.com/magefile/mage@latest"; \
 		exit 1; \
-	elif [ "$$(printf '%s\n' "$$REQUIRED_VERSION" "$$GO_VERSION" | sort -V | head -n1)" != "$$REQUIRED_VERSION" ]; then \
-		echo "$(YELLOW)Warning: Go version $$GO_VERSION found, but $(GOVERSION) is required$(NC)"; \
-		echo "Please update Go to version $(GOVERSION) with: mise use go@$(GOVERSION)"; \
-		exit 1; \
-	else \
-		echo "$(GREEN)✓ Go version $$GO_VERSION is compatible$(NC)"; \
 	fi
 
-setup: check-go-version deps
-	@echo "$(GREEN)✓ Setup complete! You can now run 'make build' or 'make dev'$(NC)"
+# -----------------------------------------------------------------------------
+# Main Targets (Mage Delegates - Parallel Execution)
+# -----------------------------------------------------------------------------
+all: check-mage
+	@$(MAGE) all
+
+setup: check-mage
+	@$(MAGE) setup
+
+clean: check-mage
+	@$(MAGE) clean
+
+build: check-mage
+	@$(MAGE) build
 
 # -----------------------------------------------------------------------------
-# Main Targets
+# Code Quality & Formatting (Mage Delegates - Parallel Execution)
 # -----------------------------------------------------------------------------
-all: swagger test lint fmt
+lint: check-mage
+	@$(MAGE) quality:lint
 
-clean:
-	rm -rf $(BINARY_DIR)/
-	rm -rf $(SWAGGER_DIR)/
-	$(GOCMD) clean
+lint-main: check-mage
+	@$(MAGE) lintMain
 
-build: check-go-version swagger
-	mkdir -p $(BINARY_DIR)
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./
-	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
+lint-sdk: check-mage
+	@$(MAGE) lintSDK
 
-# -----------------------------------------------------------------------------
-# Code Quality & Formatting
-# -----------------------------------------------------------------------------
-lint:
-	$(BUNCMD) run lint
-	$(LINTCMD) run --fix --allow-parallel-runners
-	@echo "Running static driver import guard..."
-	@./scripts/check-driver-imports.sh
-	@echo "Running modernize analyzer for min/max suggestions..."
-	@echo "Linting completed successfully"
+typecheck: check-mage
+	@$(MAGE) quality:typecheck
 
-fmt:
-	@echo "Formatting code..."
-	$(BUNCMD) run format
-	$(LINTCMD) fmt
-	@echo "Formatting completed successfully"
+typecheck-main: check-mage
+	@$(MAGE) typecheckMain
 
-modernize:
-	$(GOCMD) run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@latest -fix ./...
+typecheck-sdk: check-mage
+	@$(MAGE) typecheckSDK
 
-# -----------------------------------------------------------------------------
-# Development & Dependencies
-# -----------------------------------------------------------------------------
+fmt: check-mage
+	@$(MAGE) quality:fmt
 
-dev: EXAMPLE=weather
-dev:
-	gow run . dev --cwd examples/$(EXAMPLE) --env-file .env --debug --watch
+fmt-main: check-mage
+	@$(MAGE) fmtMain
 
-tidy:
-	@echo "Tidying modules..."
-	$(GOCMD) mod tidy
+fmt-sdk: check-mage
+	@$(MAGE) fmtSDK
 
-deps: check-go-version clean-go-cache swagger-deps
-	@echo "Installing Go dependencies..."
-	@echo "Installing gotestsum..."
-	@$(GOCMD) install gotest.tools/gotestsum@latest
-	@echo "Installing gow for hot reload..."
-	@$(GOCMD) install github.com/mitranim/gow@latest
-	@echo "Installing goose for migrations..."
-	@$(GOCMD) install github.com/pressly/goose/v3/cmd/goose@latest
-	@echo "Installing golangci-lint v2..."
-	@curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $$($(GOCMD) env GOPATH)/bin v2.4.0
-	@echo "$(GREEN)✓ All dependencies installed successfully$(NC)"
+modernize: check-mage
+	@$(MAGE) quality:modernize
 
-clean-go-cache:
-	@echo "Cleaning Go build cache for fresh setup..."
-	@$(GOCMD) clean -cache -testcache -modcache 2>/dev/null || true
-	@echo "$(GREEN)✓ Go cache cleaned$(NC)"
+modernize-main: check-mage
+	@$(MAGE) modernizeMain
 
-swagger-deps:
-	@echo "Installing Swagger dependencies..."
-	$(GOCMD) install github.com/swaggo/swag/cmd/swag@latest
-	@echo "Swagger dependencies installation complete."
+modernize-sdk: check-mage
+	@$(MAGE) modernizeSDK
 
 # -----------------------------------------------------------------------------
-# Swagger/OpenAPI Generation
+# Development & Dependencies (Mage Delegates)
 # -----------------------------------------------------------------------------
-swagger: swagger-gen
+dev: check-mage
+	@$(MAGE) dev
 
-swagger-gen:
-	@echo "Generating Swagger documentation..."
-	@mkdir -p $(SWAGGER_DIR)
-	@swag init --dir ./ --generalInfo main.go --output $(SWAGGER_DIR) --parseDependency --parseInternal 2>&1 | grep -v "warning: failed to evaluate const" | grep -v "reflect: call of reflect.Value" | grep -v "strconv.ParseUint: parsing" || true
-	@echo "Running pre-commit on generated swagger files..."
-	@pre-commit run --files $(SWAGGER_DIR)/docs.go $(SWAGGER_DIR)/swagger.json $(SWAGGER_DIR)/swagger.yaml || true
-	@echo "Swagger documentation generated at $(SWAGGER_DIR)"
+tidy: check-mage
+	@$(MAGE) tidy
 
-swagger-validate:
-	@echo "Validating Swagger documentation..."
-	@swag init --dir ./ --generalInfo main.go --output $(SWAGGER_DIR) --parseDependency --parseInternal --quiet
-	@echo "Swagger documentation is valid"
+deps: check-mage
+	@$(MAGE) deps
 
 # -----------------------------------------------------------------------------
-# Schema Generation
+# Swagger/OpenAPI Generation (Mage Delegates)
 # -----------------------------------------------------------------------------
-schemagen:
-	$(GOCMD) run ./pkg/schemagen -out=./schemas
-	@cp -Rf ./schemas ../compozy-ui/backend/
+swagger: check-mage
+	@$(MAGE) swagger
 
-schemagen-watch:
-	$(GOCMD) run ./pkg/schemagen -out=./schemas -watch
-
-# -----------------------------------------------------------------------------
-# Testing
-# -----------------------------------------------------------------------------
-
-test:
-	@bun run test
-	@gotestsum --format pkgname  -- -race -parallel=4 ./...
-
-test-coverage:
-	@bun run test
-	@gotestsum --format pkgname -- -race -parallel=4 -coverprofile=coverage.out -covermode=atomic ./...
-
-test-nocache:
-	@bun run test
-	@gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...
+swagger-validate: check-mage
+	@$(MAGE) swaggerValidate
 
 # -----------------------------------------------------------------------------
-# Docker & Database Management
+# Schema Generation (Mage Delegates)
 # -----------------------------------------------------------------------------
-start-docker:
-	docker compose -f ./cluster/docker-compose.yml up -d
+schemagen: check-mage
+	@$(MAGE) schema:generate
 
-stop-docker:
-	docker compose -f ./cluster/docker-compose.yml down
-
-clean-docker:
-	docker compose -f ./cluster/docker-compose.yml down --volumes
-
-reset-docker:
-	make clean-docker
-	make start-docker
+schemagen-watch: check-mage
+	@$(MAGE) schema:watch
 
 # -----------------------------------------------------------------------------
-# Database
+# Testing (Mage Delegates - Parallel Execution)
 # -----------------------------------------------------------------------------
-DB_USER ?= postgres
-DB_PASSWORD ?= postgres
-DB_HOST ?= localhost
-DB_PORT ?= 5432
-DB_NAME ?= compozy
+test: check-mage
+	@$(MAGE) test
 
-GOOSE_DBSTRING=postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
-GOOSE_COMMAND = GOOSE_DRIVER=postgres GOOSE_DBSTRING=${GOOSE_DBSTRING} goose -dir ./engine/infra/postgres/migrations
+test-main: check-mage
+	@$(MAGE) testMain
 
-migrate-status:
-	$(GOOSE_COMMAND) status
+test-sdk: check-mage
+	@$(MAGE) testSDK
 
-migrate-up:
-	$(GOOSE_COMMAND) up
+test-coverage: check-mage
+	@$(MAGE) testCoverage
 
-migrate-down:
-	$(GOOSE_COMMAND) down
+test-coverage-main: check-mage
+	@$(MAGE) testCoverageMain
 
-migrate-create:
-	$(GOOSE_COMMAND) create $(name) sql
+test-coverage-sdk: check-mage
+	@$(MAGE) testCoverageSDK
 
-migrate-validate:
-	$(GOOSE_COMMAND) validate
+test-nocache: check-mage
+	@$(MAGE) testNoCache
 
-migrate-reset:
-	$(GOOSE_COMMAND) reset
+test-nocache-main: check-mage
+	@$(MAGE) testNoCacheMain
 
-reset-db:
-	@make reset-docker
+test-nocache-sdk: check-mage
+	@$(MAGE) testNoCacheSDK
+
+integration-sdk-compozy: check-mage
+	@$(MAGE) integration:sdkCompozy
 
 # -----------------------------------------------------------------------------
-# Redis
+# Docker & Database Management (Mage Delegates)
 # -----------------------------------------------------------------------------
-REDIS_PASSWORD ?= redis_secret
-REDIS_HOST ?= localhost
-REDIS_PORT ?= 6379
+start-docker: check-mage
+	@$(MAGE) docker:start
 
-redis-cli:
-	docker exec -it redis redis-cli -a ${REDIS_PASSWORD}
+stop-docker: check-mage
+	@$(MAGE) docker:stop
 
-redis-info:
-	docker exec redis redis-cli -a ${REDIS_PASSWORD} info
+clean-docker: check-mage
+	@$(MAGE) docker:clean
 
-redis-monitor:
-	docker exec -it redis redis-cli -a ${REDIS_PASSWORD} monitor
+reset-docker: check-mage
+	@$(MAGE) docker:reset
 
-redis-flush:
-	docker exec redis redis-cli -a ${REDIS_PASSWORD} flushall
+# -----------------------------------------------------------------------------
+# Database (Mage Delegates)
+# -----------------------------------------------------------------------------
+migrate-status: check-mage
+	@$(MAGE) database:status
 
-test-redis:
-	@echo "Testing Redis connection..."
-	@docker exec redis redis-cli -a ${REDIS_PASSWORD} ping
+migrate-up: check-mage
+	@$(MAGE) database:up
+
+migrate-down: check-mage
+	@$(MAGE) database:down
+
+migrate-create: check-mage
+	@$(MAGE) database:create
+
+migrate-validate: check-mage
+	@$(MAGE) database:validate
+
+migrate-reset: check-mage
+	@$(MAGE) database:reset
+
+reset-db: check-mage
+	@$(MAGE) docker:reset
+
+# -----------------------------------------------------------------------------
+# Redis (Mage Delegates)
+# -----------------------------------------------------------------------------
+redis-cli: check-mage
+	@$(MAGE) redis:cli
+
+redis-info: check-mage
+	@$(MAGE) redis:info
+
+redis-monitor: check-mage
+	@$(MAGE) redis:monitor
+
+redis-flush: check-mage
+	@$(MAGE) redis:flush
+
+test-redis: check-mage
+	@$(MAGE) redis:testConnection
 # -----------------------------------------------------------------------------
 # Help
 # -----------------------------------------------------------------------------
 help:
-	@echo "$(GREEN)Compozy Makefile Commands$(NC)"
+	@echo "$(GREEN)Compozy Makefile Commands (Powered by Mage)$(NC)"
+	@echo ""
+	@echo "$(YELLOW)⚡ Performance: Tests run ~2-3x faster with parallel execution!$(NC)"
 	@echo ""
 	@echo "$(YELLOW)Setup & Build:$(NC)"
 	@echo "  make setup          - Complete setup with Go version check and dependencies"
 	@echo "  make deps           - Install all required dependencies"
-	@echo "  make build          - Build the compozy binary"
+	@echo "  make build          - Build the compozy binary (with smart caching)"
 	@echo "  make clean          - Clean build artifacts"
 	@echo ""
 	@echo "$(YELLOW)Development:$(NC)"
 	@echo "  make dev            - Run in development mode with hot reload"
-		@echo "  make test           - Run all tests"
-		@echo "  make lint           - Run linters and fix issues"
-		@echo "  make fmt            - Format code"
+	@echo "  make test           - Run all tests (main + sdk + bun) in parallel"
+	@echo "  make test-coverage  - Run all tests with coverage reports"
+	@echo "  make test-nocache   - Run all tests without cache"
+	@echo "  make lint           - Run linters in parallel (main + sdk + bun)"
+	@echo "  make fmt            - Format code in parallel (main + sdk + bun)"
+	@echo "  make typecheck      - Type check all modules in parallel"
+	@echo "  make modernize      - Modernize code patterns in parallel"
 	@echo ""
 	@echo "$(YELLOW)Docker & Database:$(NC)"
 	@echo "  make start-docker   - Start Docker services"
 	@echo "  make stop-docker    - Stop Docker services"
+	@echo "  make reset-docker   - Reset Docker environment"
 	@echo "  make migrate-up     - Run database migrations"
 	@echo "  make migrate-down   - Rollback last migration"
+	@echo "  make migrate-create - Create new migration (use: make migrate-create name=my_migration)"
+	@echo ""
+	@echo "$(YELLOW)Redis:$(NC)"
+	@echo "  make redis-cli      - Open Redis CLI"
+	@echo "  make redis-info     - Show Redis info"
+	@echo "  make redis-monitor  - Monitor Redis commands"
+	@echo "  make redis-flush    - Flush all Redis data"
+	@echo "  make test-redis     - Test Redis connection"
+	@echo ""
+	@echo "$(YELLOW)Other:$(NC)"
+	@echo "  make swagger        - Generate Swagger documentation (with caching)"
+	@echo "  make schemagen      - Generate JSON schemas"
+	@echo "  make all            - Run all checks (tests + lint + format)"
+	@echo ""
+	@echo "$(YELLOW)Advanced:$(NC)"
+	@echo "  mage -l             - List all available Mage targets"
+	@echo "  mage help           - Show detailed Mage help"
+	@echo "  mage <target>       - Run Mage target directly"
 	@echo ""
 	@echo "$(YELLOW)Requirements:$(NC)"
-	@echo "  Go $(GOVERSION) or later (via mise)"
-	@echo "  Bun (see https://bun.sh for install instructions or use Homebrew: brew install oven-sh/bun/bun)"
+	@echo "  Go 1.25 or later (via mise)"
+	@echo "  Mage (install: go install github.com/magefile/mage@latest)"
+	@echo "  Bun (see https://bun.sh)"
 	@echo "  Docker & Docker Compose"
 	@echo ""
 	@echo "$(GREEN)Quick Start:$(NC)"
-	@echo "  1. make setup        # Install dependencies"
-	@echo "  2. make start-docker # Start services"
-	@echo "  3. make migrate-up   # Setup database"
-	@echo "  4. make dev          # Start development server"
+	@echo "  1. go install github.com/magefile/mage@latest  # Install mage"
+	@echo "  2. make setup                                  # Install dependencies"
+	@echo "  3. make start-docker                           # Start services"
+	@echo "  4. make migrate-up                             # Setup database"
+	@echo "  5. make dev                                    # Start development server"

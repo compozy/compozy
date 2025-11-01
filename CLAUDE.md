@@ -55,6 +55,10 @@ cat .cursor/rules/{go-coding-standards,architecture,test-standards,backwards-com
   - **Linting:** `golangci-lint run --fix --allow-parallel-runners <scope>` (e.g., `./engine/agent/...`)
   - **IF YOUR SCOPE** is `.../.` then you need to run `make test` and `make lint`
 
+### When writting code
+
+- **YOU MUST STRICTLY** follow the .cursor/rules/no-linebreaks.mdc or your code will be invalidate
+
 **Enforcement:** Violating these standards results in immediate task rejection.
 </critical>
 

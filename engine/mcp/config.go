@@ -317,7 +317,7 @@ type Config struct {
 	// Each agent connection typically creates one session.
 	//
 	// **Values**:
-	// - `0` or negative: Unlimited sessions (default)
+	// - `0`: Unlimited sessions (default)
 	// - Positive number: Maximum concurrent sessions
 	//
 	// - **Examples**:
@@ -581,6 +581,9 @@ func (c *Config) validateTransport(_ context.Context) error {
 func (c *Config) validateLimits(_ context.Context) error {
 	if c.StartTimeout < 0 {
 		return errors.New("start_timeout cannot be negative")
+	}
+	if c.MaxSessions < 0 {
+		return errors.New("max_sessions cannot be negative")
 	}
 	return nil
 }

@@ -1,0 +1,179 @@
+name: SDK Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "sdk/**"
+      - "go.work"
+      - ".github/workflows/test-sdk.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "sdk/**"
+      - "go.work"
+      - ".github/workflows/test-sdk.yml"
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.25.2"
+
+jobs:
+  unit:
+    name: SDK Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "false"
+
+      - name: Initialize Go workspace
+        run: |
+          rm -f go.work
+          go work init . ./sdk
+          go work sync
+
+      - name: Download SDK dependencies
+        run: |
+          cd sdk
+          go mod download
+          go mod verify
+
+      - name: Run unit tests with race detector and coverage
+        run: |
+          cd sdk
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          if [ -z "$packages" ]; then
+            echo "no SDK packages discovered"
+            exit 1
+          fi
+          go test -race -covermode=atomic -coverprofile=coverage.out $packages
+
+      - name: Enforce 100% coverage
+        run: |
+          cd sdk
+          go tool cover -func=coverage.out | tee coverage.txt
+          awk '/^total:/ {gsub(/%/, "", $3); cov=$3+0; if (cov < 100) {printf "Coverage is %.2f%%, must be 100%%\n", cov; exit 1}} END {if (NR == 0) {print "No coverage summary found"; exit 1}}' coverage.txt
+          echo "Coverage requirement satisfied"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: sdk/coverage.out
+          flags: sdk-unit
+          name: sdk-unit
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          override_branch: ${{ github.head_ref || github.ref_name }}
+          override_commit: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  integration:
+    name: SDK Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "false"
+
+      - name: Initialize Go workspace
+        run: |
+          rm -f go.work
+          go work init . ./sdk
+          go work sync
+
+      - name: Run integration tests
+        run: |
+          cd sdk
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          if [ -z "$packages" ]; then
+            echo "no SDK packages discovered"
+            exit 0
+          fi
+          go test -count=1 -tags=integration $packages
+        env:
+          TESTCONTAINERS_RYUK_DISABLED: "false"
+          TESTCONTAINERS_CLEANUP_TIMEOUT: "120s"
+
+  benchmarks:
+    name: SDK Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "false"
+
+      - name: Initialize Go workspace
+        run: |
+          rm -f go.work
+          go work init . ./sdk
+          go work sync
+
+      - name: Run benchmarks
+        run: |
+          cd sdk
+          packages=$(go list ./... 2>/dev/null | grep -v '/examples')
+          if [ -z "$packages" ]; then
+            echo "no SDK packages discovered"
+            exit 0
+          fi
+          go test -run=^$ -bench=. -benchmem $packages | tee bench.out
+
+      - name: Detect benchmark regressions
+        run: |
+          go run ./tools/benchcheck --baseline sdk/docs/performance-benchmarks.json --results sdk/bench.out
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdk-benchmarks
+          path: sdk/bench.out
+          retention-days: 7
+
+  lint:
+    name: SDK Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "false"
+
+      - name: Initialize Go workspace
+        run: |
+          rm -f go.work
+          go work init . ./sdk
+          go work sync
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          working-directory: sdk
+          args: --timeout=5m
