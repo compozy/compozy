@@ -2064,7 +2064,7 @@
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Pub/Sub provider unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2268,7 +2268,7 @@
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Pubsub provider unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -3013,7 +3013,7 @@
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Workflow query client unavailable",
                         "schema": {
                             "allOf": [
                                 {

@@ -308,6 +308,9 @@ func (l *loader) Validate(config *Config) error {
 		return fmt.Errorf("configuration cannot be nil")
 	}
 	if err := l.validator.Struct(config); err != nil {
+		if friendly := friendlyModeValidationError(err, config); friendly != nil {
+			return fmt.Errorf("validation failed: %w", friendly)
+		}
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	if err := l.validateCustom(config); err != nil {
@@ -331,6 +334,39 @@ func (l *loader) trackSource(key string, source SourceType) {
 	l.metadataMu.Lock()
 	defer l.metadataMu.Unlock()
 	l.metadata.Sources[key] = source
+}
+
+func friendlyModeValidationError(err error, cfg *Config) error {
+	validationErrs, ok := err.(validator.ValidationErrors)
+	if !ok {
+		return nil
+	}
+	messages := make([]string, 0, len(validationErrs))
+	for _, fieldErr := range validationErrs {
+		if fieldErr.Tag() != "oneof" {
+			return nil
+		}
+		switch fieldErr.StructNamespace() {
+		case "Config.Mode":
+			if friendly := validateGlobalMode(cfg); friendly != nil {
+				messages = append(messages, friendly.Error())
+			}
+		case "Config.Temporal.Mode":
+			if friendly := validateTemporal(cfg); friendly != nil {
+				messages = append(messages, friendly.Error())
+			}
+		case "Config.Redis.Mode":
+			if friendly := validateRedis(cfg); friendly != nil {
+				messages = append(messages, friendly.Error())
+			}
+		default:
+			return nil
+		}
+	}
+	if len(messages) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s", strings.Join(messages, "; "))
 }
 
 // validateCustom performs custom validation beyond struct tags.
@@ -374,8 +410,15 @@ func (l *loader) validateCustom(config *Config) error {
 const deprecatedModeStandalone = "standalone"
 
 func validateGlobalMode(cfg *Config) error {
-	switch mode := strings.TrimSpace(cfg.Mode); mode {
-	case "", ModeMemory, ModePersistent, ModeDistributed:
+	raw := strings.TrimSpace(cfg.Mode)
+	if raw == "" {
+		cfg.Mode = ""
+		return nil
+	}
+	mode := strings.ToLower(raw)
+	switch mode {
+	case ModeMemory, ModePersistent, ModeDistributed:
+		cfg.Mode = mode
 		return nil
 	case deprecatedModeStandalone:
 		return fmt.Errorf(
@@ -390,7 +433,7 @@ func validateGlobalMode(cfg *Config) error {
 			ModeMemory,
 			ModePersistent,
 			ModeDistributed,
-			mode,
+			raw,
 		)
 	}
 }
@@ -416,24 +459,31 @@ func validateDatabase(cfg *Config) error {
 }
 
 func validateTemporal(cfg *Config) error {
-	mode := strings.TrimSpace(cfg.Temporal.Mode)
+	raw := strings.TrimSpace(cfg.Temporal.Mode)
+	mode := strings.ToLower(raw)
+	errValue := raw
 	if mode == "" {
-		resolved := cfg.EffectiveTemporalMode()
-		if strings.TrimSpace(resolved) == "" {
+		resolved := strings.ToLower(strings.TrimSpace(cfg.EffectiveTemporalMode()))
+		if resolved == "" {
 			return fmt.Errorf("temporal.mode is required")
 		}
-		cfg.Temporal.Mode = resolved
 		mode = resolved
-	} else {
-		cfg.Temporal.Mode = mode
+		errValue = mode
+	}
+	if mode == ModeDistributed {
+		mode = ModeRemoteTemporal
 	}
 	switch mode {
 	case ModeRemoteTemporal:
-		if cfg.Temporal.HostPort == "" {
+		cfg.Temporal.Mode = ModeRemoteTemporal
+		hostPort := strings.TrimSpace(cfg.Temporal.HostPort)
+		if hostPort == "" {
 			return fmt.Errorf("temporal.host_port is required in remote mode")
 		}
+		cfg.Temporal.HostPort = hostPort
 		return nil
 	case ModeMemory, ModePersistent:
+		cfg.Temporal.Mode = mode
 		return validateEmbeddedTemporalConfig(cfg)
 	case deprecatedModeStandalone:
 		return fmt.Errorf(
@@ -448,7 +498,7 @@ func validateTemporal(cfg *Config) error {
 			ModeMemory,
 			ModePersistent,
 			ModeRemoteTemporal,
-			mode,
+			errValue,
 		)
 	}
 }
@@ -545,9 +595,13 @@ func validateEmbeddedTemporalStartTimeout(embedded *EmbeddedTemporalConfig) erro
 // deployment mode requirements and embedded persistence settings.
 func validateRedis(cfg *Config) error {
 	// Validate component mode values via struct tags; add friendly errors for clarity.
-	switch mode := strings.TrimSpace(cfg.Redis.Mode); mode {
-	case "", ModeMemory, ModePersistent, ModeDistributed:
-		// ok
+	raw := strings.TrimSpace(cfg.Redis.Mode)
+	mode := strings.ToLower(raw)
+	switch mode {
+	case "":
+		cfg.Redis.Mode = ""
+	case ModeMemory, ModePersistent, ModeDistributed:
+		cfg.Redis.Mode = mode
 	case deprecatedModeStandalone:
 		return fmt.Errorf(
 			"redis.mode %q is no longer supported; switch to %q (ephemeral) or %q (persistent) to run the embedded Redis",
@@ -561,7 +615,7 @@ func validateRedis(cfg *Config) error {
 			ModeMemory,
 			ModePersistent,
 			ModeDistributed,
-			mode,
+			raw,
 		)
 	}
 

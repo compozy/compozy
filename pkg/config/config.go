@@ -61,7 +61,7 @@ type Config struct {
 	// "memory" (default): In-memory SQLite with embedded services for tests, CI pipelines, and quick prototypes.
 	// "persistent": File-backed SQLite with embedded services for local development that needs state between runs.
 	// "distributed": PostgreSQL with external Temporal/Redis for production-grade deployments.
-	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty"`
+	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=memory persistent distributed"`
 	// Server configures the HTTP API server settings.
 	//
 	// $ref: schema://application#server
@@ -554,7 +554,7 @@ type TemporalConfig struct {
 	//   - "memory": Launch embedded Temporal with in-memory persistence for the fastest feedback loops (default)
 	//   - "persistent": Launch embedded Temporal with file-backed persistence for stateful local development
 	//   - "distributed": Connect to an external Temporal deployment for production workloads
-	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty"`
+	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=memory persistent distributed remote"`
 
 	// HostPort specifies the Temporal server endpoint.
 	//
@@ -1327,7 +1327,7 @@ type RedisConfig struct {
 	//   - "memory": Use embedded Redis without persistence
 	//   - "persistent": Use embedded Redis with persistence enabled
 	//   - "distributed": Use external Redis (explicit override)
-	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty"`
+	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty,oneof=memory persistent distributed"`
 	// URL provides a complete Redis connection string.
 	//
 	// Format: `redis://[user:password@]host:port/db`
@@ -1441,11 +1441,11 @@ type EmbeddedRedisConfig struct {
 
 // RedisPersistenceConfig defines snapshot settings for embedded Redis.
 type RedisPersistenceConfig struct {
-	Enabled            bool          `koanf:"enabled"              json:"enabled"              yaml:"enabled"              mapstructure:"enabled"              env:"REDIS_STANDALONE_PERSISTENCE_ENABLED"`
-	DataDir            string        `koanf:"data_dir"             json:"data_dir"             yaml:"data_dir"             mapstructure:"data_dir"             env:"REDIS_STANDALONE_PERSISTENCE_DATA_DIR"`
-	SnapshotInterval   time.Duration `koanf:"snapshot_interval"    json:"snapshot_interval"    yaml:"snapshot_interval"    mapstructure:"snapshot_interval"    env:"REDIS_STANDALONE_PERSISTENCE_SNAPSHOT_INTERVAL"`
-	SnapshotOnShutdown bool          `koanf:"snapshot_on_shutdown" json:"snapshot_on_shutdown" yaml:"snapshot_on_shutdown" mapstructure:"snapshot_on_shutdown" env:"REDIS_STANDALONE_PERSISTENCE_SNAPSHOT_ON_SHUTDOWN"`
-	RestoreOnStartup   bool          `koanf:"restore_on_startup"   json:"restore_on_startup"   yaml:"restore_on_startup"   mapstructure:"restore_on_startup"   env:"REDIS_STANDALONE_PERSISTENCE_RESTORE_ON_STARTUP"`
+	Enabled            bool          `koanf:"enabled"              json:"enabled"              yaml:"enabled"              mapstructure:"enabled"              env:"REDIS_EMBEDDED_PERSISTENCE_ENABLED"`
+	DataDir            string        `koanf:"data_dir"             json:"data_dir"             yaml:"data_dir"             mapstructure:"data_dir"             env:"REDIS_EMBEDDED_PERSISTENCE_DATA_DIR"`
+	SnapshotInterval   time.Duration `koanf:"snapshot_interval"    json:"snapshot_interval"    yaml:"snapshot_interval"    mapstructure:"snapshot_interval"    env:"REDIS_EMBEDDED_PERSISTENCE_SNAPSHOT_INTERVAL"`
+	SnapshotOnShutdown bool          `koanf:"snapshot_on_shutdown" json:"snapshot_on_shutdown" yaml:"snapshot_on_shutdown" mapstructure:"snapshot_on_shutdown" env:"REDIS_EMBEDDED_PERSISTENCE_SNAPSHOT_ON_SHUTDOWN"`
+	RestoreOnStartup   bool          `koanf:"restore_on_startup"   json:"restore_on_startup"   yaml:"restore_on_startup"   mapstructure:"restore_on_startup"   env:"REDIS_EMBEDDED_PERSISTENCE_RESTORE_ON_STARTUP"`
 }
 
 // CacheConfig contains cache-specific configuration settings.

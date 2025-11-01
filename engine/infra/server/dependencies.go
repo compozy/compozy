@@ -395,7 +395,7 @@ func maybeStartEmbeddedTemporal(ctx context.Context) (func(), error) {
 	if mode != config.ModeMemory && mode != config.ModePersistent {
 		return nil, nil
 	}
-	embeddedCfg := embeddedTemporalConfig(cfg)
+	embeddedCfg := embeddedTemporalConfig(ctx, cfg)
 	log := logger.FromContext(ctx)
 	log.Info(
 		"Starting embedded Temporal",
@@ -430,14 +430,27 @@ func maybeStartEmbeddedTemporal(ctx context.Context) (func(), error) {
 	return embeddedTemporalCleanup(ctx, server, shutdownTimeout), nil
 }
 
-func embeddedTemporalConfig(cfg *config.Config) *embedded.Config {
+func embeddedTemporalConfig(ctx context.Context, cfg *config.Config) *embedded.Config {
 	embeddedTemporal := cfg.Temporal.Standalone
 	mode := cfg.EffectiveTemporalMode()
 	dbFile := strings.TrimSpace(embeddedTemporal.DatabaseFile)
+	const persistentDBPath = "./.compozy/temporal.db"
+	log := logger.FromContext(ctx)
+	originalDBFile := dbFile
 	switch mode {
 	case config.ModePersistent:
 		if dbFile == "" || dbFile == sqliteMemoryDSN {
-			dbFile = "./.compozy/temporal.db"
+			fromValue := originalDBFile
+			if fromValue == "" {
+				fromValue = "(empty)"
+			}
+			log.Info(
+				"Overriding Temporal database file for persistent mode",
+				"mode", mode,
+				"from", fromValue,
+				"to", persistentDBPath,
+			)
+			dbFile = persistentDBPath
 		}
 	case config.ModeMemory:
 		if dbFile == "" {
