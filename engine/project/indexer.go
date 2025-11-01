@@ -239,7 +239,7 @@ func schemaID(s *schema.Schema) string { return schema.GetID(s) }
 
 // indexProjectTools publishes project-level tools to the store.
 func (p *Config) indexProjectTools(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -253,7 +253,7 @@ func (p *Config) indexProjectTools(
 		keyCopy := key
 		toolCopy := tool
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, toolCopy)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, toolCopy)
 		})
 	}
 	return nil
@@ -261,7 +261,7 @@ func (p *Config) indexProjectTools(
 
 // indexProjectMemories publishes project-level memory resources to the store.
 func (p *Config) indexProjectMemories(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -276,14 +276,14 @@ func (p *Config) indexProjectMemories(
 		if memory.Resource == "" {
 			memory.Resource = string(resources.ResourceMemory)
 		}
-		if err := memory.Validate(ctx); err != nil {
+		if err := memory.Validate(groupCtx); err != nil {
 			return fmt.Errorf("memory '%s' validation failed: %w", memory.ID, err)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceMemory, ID: memory.ID}
 		keyCopy := key
 		mem := memory
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, mem)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, mem)
 		})
 	}
 	return nil
@@ -291,7 +291,7 @@ func (p *Config) indexProjectMemories(
 
 // indexProjectSchemas publishes project-level schemas to the store.
 func (p *Config) indexProjectSchemas(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -306,7 +306,7 @@ func (p *Config) indexProjectSchemas(
 		keyCopy := key
 		schemaCopy := schemaValue
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, schemaCopy)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, schemaCopy)
 		})
 	}
 	return nil
@@ -314,7 +314,7 @@ func (p *Config) indexProjectSchemas(
 
 // indexProjectModels publishes project-level models to the store.
 func (p *Config) indexProjectModels(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -329,14 +329,14 @@ func (p *Config) indexProjectModels(
 		keyCopy := key
 		modelCopy := model
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, modelCopy)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, modelCopy)
 		})
 	}
 	return nil
 }
 
 func (p *Config) indexProjectEmbedders(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -350,14 +350,14 @@ func (p *Config) indexProjectEmbedders(
 		keyCopy := key
 		embedderCopy := embedder
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, embedderCopy)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, embedderCopy)
 		})
 	}
 	return nil
 }
 
 func (p *Config) indexProjectVectorDBs(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -371,14 +371,14 @@ func (p *Config) indexProjectVectorDBs(
 		keyCopy := key
 		vectorDBCopy := vectorDB
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, vectorDBCopy)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, vectorDBCopy)
 		})
 	}
 	return nil
 }
 
 func (p *Config) indexProjectKnowledgeBases(
-	ctx context.Context,
+	groupCtx context.Context,
 	group *errgroup.Group,
 	store resources.ResourceStore,
 	metaSources *metaCache,
@@ -395,7 +395,7 @@ func (p *Config) indexProjectKnowledgeBases(
 		keyCopy := key
 		knowledgeBaseCopy := knowledgeBase
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, knowledgeBaseCopy)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, knowledgeBaseCopy)
 		})
 	}
 	return nil

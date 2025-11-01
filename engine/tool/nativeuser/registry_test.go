@@ -12,7 +12,7 @@ import (
 
 func TestRegisterAndLookup(t *testing.T) {
 	Reset()
-	ctx := context.Background()
+	ctx := t.Context()
 	h := func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
 		return map[string]any{"ok": true}, nil
 	}
@@ -51,7 +51,7 @@ func TestRegisterDuplicate(t *testing.T) {
 func TestRegisterConcurrent(t *testing.T) {
 	Reset()
 	var wg sync.WaitGroup
-	ctx := context.Background()
+	ctx := t.Context()
 	errCh := make(chan error, 25)
 	for i := 0; i < 25; i++ {
 		wg.Add(1)

@@ -41,6 +41,8 @@ type RetryPolicy struct {
 	Backoff time.Duration `json:"backoff"      yaml:"backoff"      mapstructure:"backoff"`
 }
 
+// Validate normalizes the schedule configuration and validates identifiers, cron expression,
+// optional timezone, and retry settings before the schedule is registered.
 func (c *Config) Validate(ctx context.Context) error {
 	if err := ensureContext(ctx); err != nil {
 		return err
@@ -71,6 +73,8 @@ func (c *Config) Validate(ctx context.Context) error {
 	return nil
 }
 
+// Validate checks that the retry policy uses a valid context and ensures
+// positive attempt and backoff values before activation.
 func (r *RetryPolicy) Validate(ctx context.Context) error {
 	if err := ensureContext(ctx); err != nil {
 		return err

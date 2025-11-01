@@ -26,6 +26,8 @@ const (
 	defaultDirPerm     fs.FileMode = 0o755
 )
 
+// Options configures the inline manager with project metadata and resource store dependencies.
+// Fields are normalized when building the manager so runtime paths are deterministic.
 type Options struct {
 	ProjectRoot    string
 	ProjectName    string
@@ -34,6 +36,8 @@ type Options struct {
 	WorkerFilePerm fs.FileMode
 }
 
+// Manager materializes inline tools on disk and watches project resources for live updates.
+// It keeps generated modules and entrypoint files in sync so worker runtimes execute fresh code.
 type Manager struct {
 	opts           Options
 	inlineDir      string
@@ -45,6 +49,7 @@ type Manager struct {
 
 	startOnce sync.Once
 	closeOnce sync.Once
+	startErr  error
 
 	syncCh chan struct{}
 	cancel context.CancelFunc
@@ -63,6 +68,8 @@ type moduleSpec struct {
 	checksum string
 }
 
+// NewManager constructs an inline Manager, validating options and preparing runtime directories
+// without starting background synchronization loops.
 func NewManager(ctx context.Context, opts Options) (*Manager, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context is required")
@@ -102,15 +109,16 @@ func NewManager(ctx context.Context, opts Options) (*Manager, error) {
 	return manager, nil
 }
 
+// Start initializes synchronization goroutines and subscribes to tool changes in the resource store.
+// It returns any initialization error and preserves the first failure for subsequent callers.
 func (m *Manager) Start(ctx context.Context) error {
-	var startErr error
 	m.startOnce.Do(func() {
 		if ctx == nil {
-			startErr = fmt.Errorf("context is required")
+			m.startErr = fmt.Errorf("context is required")
 			return
 		}
 		if err := os.MkdirAll(m.inlineDir, defaultDirPerm); err != nil {
-			startErr = fmt.Errorf("ensure inline directory: %w", err)
+			m.startErr = fmt.Errorf("ensure inline directory: %w", err)
 			return
 		}
 		syncCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -119,24 +127,27 @@ func (m *Manager) Start(ctx context.Context) error {
 		m.wg.Add(1)
 		go m.runSyncLoop(syncCtx)
 		if err := m.Sync(ctx); err != nil {
-			startErr = err
+			m.startErr = err
 			cancel()
 			m.wg.Wait()
 			return
 		}
 		events, err := m.opts.Store.Watch(syncCtx, m.opts.ProjectName, resources.ResourceTool)
 		if err != nil {
-			startErr = fmt.Errorf("watch tool resources: %w", err)
+			m.startErr = fmt.Errorf("watch tool resources: %w", err)
 			cancel()
 			m.wg.Wait()
 			return
 		}
 		m.wg.Add(1)
 		go m.runWatcher(syncCtx, events)
+		m.startErr = nil
 	})
-	return startErr
+	return m.startErr
 }
 
+// Close signals shutdown to background loops and waits for all goroutines to exit.
+// It is safe to call multiple times and always returns nil.
 func (m *Manager) Close(_ context.Context) error {
 	var err error
 	m.closeOnce.Do(func() {
@@ -148,6 +159,8 @@ func (m *Manager) Close(_ context.Context) error {
 	return err
 }
 
+// Sync reconciles inline modules against the current tool registry and writes updated source files.
+// It can be invoked manually and is also used internally by the background watcher.
 func (m *Manager) Sync(ctx context.Context) error {
 	modules, err := m.collectModules(ctx)
 	if err != nil {
@@ -161,10 +174,12 @@ func (m *Manager) Sync(ctx context.Context) error {
 	return m.writeEntrypoint(ctx, modules)
 }
 
+// EntrypointPath returns the absolute path to the generated inline entrypoint TypeScript file.
 func (m *Manager) EntrypointPath() string {
 	return m.entrypointPath
 }
 
+// ModulePath reports the absolute file path for a tool module and whether it exists in the local cache.
 func (m *Manager) ModulePath(toolID string) (string, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
