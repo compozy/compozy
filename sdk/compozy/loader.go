@@ -16,6 +16,8 @@ import (
 
 var yamlExtensions = []string{".yaml", ".yml"}
 
+const defaultFilteredFilesCapacity = 8
+
 func requireContext(ctx context.Context) error {
 	if ctx == nil {
 		return fmt.Errorf("context is required")
@@ -43,28 +45,43 @@ type cwdSetter interface {
 
 func loadYAML[T any](ctx context.Context, engine *Engine, path string) (T, string, error) {
 	var zero T
+	log := logger.FromContext(ctx)
+	logFailure := func(target string, err error) {
+		if err == nil || log == nil {
+			return
+		}
+		log.Error("failed to load YAML", "path", target, "error", err)
+	}
+	requestedPath := strings.TrimSpace(path)
 	if err := requireContext(ctx); err != nil {
+		logFailure(requestedPath, err)
 		return zero, "", err
 	}
 	trimmed, cfg, err := prepareLoadContext(engine, path)
 	if err != nil {
+		logFailure(requestedPath, err)
 		return zero, "", err
 	}
 	if err := contextError(ctx); err != nil {
+		logFailure(trimmed, err)
 		return zero, "", err
 	}
 	data, abs, err := readYAMLFile(trimmed, cfg.Limits.MaxConfigFileSize)
 	if err != nil {
+		logFailure(trimmed, err)
 		return zero, "", err
 	}
 	if err := contextError(ctx); err != nil {
+		logFailure(trimmed, err)
 		return zero, "", err
 	}
 	value, err := decodeYAML[T](data, trimmed)
 	if err != nil {
+		logFailure(trimmed, err)
 		return zero, "", err
 	}
 	if err := contextError(ctx); err != nil {
+		logFailure(trimmed, err)
 		return zero, "", err
 	}
 	applyYAMLMetadata(engine.ctx, value, abs)
@@ -141,7 +158,11 @@ func filteredYAMLFiles(ctx context.Context, dir string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read dir %s: %w", dir, err)
 	}
-	files := make([]string, 0, len(entries))
+	filesCap := len(entries)
+	if filesCap < defaultFilteredFilesCapacity {
+		filesCap = defaultFilteredFilesCapacity
+	}
+	files := make([]string, 0, filesCap)
 	for _, entry := range entries {
 		if err := contextError(ctx); err != nil {
 			return nil, err

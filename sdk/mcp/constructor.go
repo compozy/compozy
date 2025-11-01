@@ -34,7 +34,6 @@ func New(ctx context.Context, id string, opts ...Option) (*enginemcp.Config, err
 
 func validateConfig(ctx context.Context, cfg *enginemcp.Config) error {
 	collected := make([]error, 0)
-	cfg.ID = strings.TrimSpace(cfg.ID)
 	if err := validate.ID(ctx, cfg.ID); err != nil {
 		collected = append(collected, fmt.Errorf("mcp id is invalid: %w", err))
 	}

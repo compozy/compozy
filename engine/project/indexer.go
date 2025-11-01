@@ -250,9 +250,10 @@ func (p *Config) indexProjectTools(
 			return fmt.Errorf("project tool at index %d missing id", i)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceTool, ID: tool.ID}
-		value := tool
+		keyCopy := key
+		toolCopy := tool
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, toolCopy)
 		})
 	}
 	return nil
@@ -279,9 +280,10 @@ func (p *Config) indexProjectMemories(
 			return fmt.Errorf("memory '%s' validation failed: %w", memory.ID, err)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceMemory, ID: memory.ID}
-		value := memory
+		keyCopy := key
+		mem := memory
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, mem)
 		})
 	}
 	return nil
@@ -301,9 +303,10 @@ func (p *Config) indexProjectSchemas(
 			continue
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceSchema, ID: sid}
-		value := schemaValue
+		keyCopy := key
+		schemaCopy := schemaValue
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, schemaCopy)
 		})
 	}
 	return nil
@@ -323,9 +326,10 @@ func (p *Config) indexProjectModels(
 		}
 		id := fmt.Sprintf("%s:%s", string(model.Provider), model.Model)
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceModel, ID: id}
-		value := model
+		keyCopy := key
+		modelCopy := model
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, modelCopy)
 		})
 	}
 	return nil
@@ -343,9 +347,10 @@ func (p *Config) indexProjectEmbedders(
 			return fmt.Errorf("project embedder at index %d missing id", i)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceEmbedder, ID: embedder.ID}
-		value := embedder
+		keyCopy := key
+		embedderCopy := embedder
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, embedderCopy)
 		})
 	}
 	return nil
@@ -363,9 +368,10 @@ func (p *Config) indexProjectVectorDBs(
 			return fmt.Errorf("project vector_db at index %d missing id", i)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceVectorDB, ID: vectorDB.ID}
-		value := vectorDB
+		keyCopy := key
+		vectorDBCopy := vectorDB
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, vectorDBCopy)
 		})
 	}
 	return nil
@@ -386,9 +392,10 @@ func (p *Config) indexProjectKnowledgeBases(
 			knowledgeBase.Ingest = knowledge.IngestManual
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceKnowledgeBase, ID: knowledgeBase.ID}
-		value := knowledgeBase
+		keyCopy := key
+		knowledgeBaseCopy := knowledgeBase
 		group.Go(func() error {
-			return p.putResourceWithMeta(ctx, store, metaSources, key, value)
+			return p.putResourceWithMeta(ctx, store, metaSources, keyCopy, knowledgeBaseCopy)
 		})
 	}
 	return nil
