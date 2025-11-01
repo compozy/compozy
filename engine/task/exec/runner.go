@@ -32,7 +32,7 @@ var (
 	ErrNegativeTimeout       = errors.New("timeout must be non-negative")
 )
 
-// Runner executes standalone tasks synchronously using the DirectExecutor pipeline.
+// Runner executes tasks in embedded mode synchronously using the DirectExecutor pipeline.
 type Runner struct {
 	state *appstate.State
 	repo  task.Repository
@@ -92,19 +92,27 @@ func (r *Runner) Execute(ctx context.Context, req ExecuteRequest) (*ExecuteResul
 	return r.ExecutePrepared(ctx, prepared)
 }
 
+// validateRunner ensures required runner dependencies are present before execution.
+func (r *Runner) validateRunner() error {
+	if r.state == nil {
+		return ErrStateRequired
+	}
+	if r.repo == nil {
+		return ErrRepositoryRequired
+	}
+	if r.store == nil {
+		return ErrResourceStoreRequired
+	}
+	return nil
+}
+
 // Prepare validates the request, loads configuration, and resolves execution dependencies.
 func (r *Runner) Prepare(ctx context.Context, req ExecuteRequest) (*PreparedExecution, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("context is required")
 	}
-	if r.state == nil {
-		return nil, ErrStateRequired
-	}
-	if r.repo == nil {
-		return nil, ErrRepositoryRequired
-	}
-	if r.store == nil {
-		return nil, ErrResourceStoreRequired
+	if err := r.validateRunner(); err != nil {
+		return nil, err
 	}
 	if strings.TrimSpace(req.TaskID) == "" {
 		return nil, ErrTaskIDRequired

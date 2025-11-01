@@ -24,6 +24,65 @@
           "type": "boolean"
         },
         "max_concurrent": {
+          "description": "MaxConcurrent limits concurrent agent executions; 0 selects sequential execution, negative values are invalid.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallTaskConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallTaskConfig configures cp__call_task behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallTasksConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallTasksConfig configures cp__call_tasks behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_concurrent": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallWorkflowConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallWorkflowConfig configures cp__call_workflow behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "NativeCallWorkflowsConfig": {
+      "additionalProperties": false,
+      "description": "NativeCallWorkflowsConfig configures cp__call_workflows behavior.",
+      "properties": {
+        "default_timeout": {
+          "type": "integer"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "max_concurrent": {
           "type": "integer"
         }
       },
@@ -134,10 +193,28 @@
           "type": "array"
         },
         "call_agent": {
-          "$ref": "#/$defs/NativeCallAgentConfig"
+          "$ref": "#/$defs/NativeCallAgentConfig",
+          "description": "CallAgent configures single agent execution through cp__call_agent."
         },
         "call_agents": {
-          "$ref": "#/$defs/NativeCallAgentsConfig"
+          "$ref": "#/$defs/NativeCallAgentsConfig",
+          "description": "CallAgents governs multi-agent orchestration for cp__call_agents."
+        },
+        "call_task": {
+          "$ref": "#/$defs/NativeCallTaskConfig",
+          "description": "CallTask configures single task execution through cp__call_task."
+        },
+        "call_tasks": {
+          "$ref": "#/$defs/NativeCallTasksConfig",
+          "description": "CallTasks governs parallel task execution for cp__call_tasks."
+        },
+        "call_workflow": {
+          "$ref": "#/$defs/NativeCallWorkflowConfig",
+          "description": "CallWorkflow configures single workflow execution via cp__call_workflow."
+        },
+        "call_workflows": {
+          "$ref": "#/$defs/NativeCallWorkflowsConfig",
+          "description": "CallWorkflows governs parallel workflow execution via cp__call_workflows."
         },
         "enabled": {
           "type": "boolean"

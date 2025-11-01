@@ -7,7 +7,7 @@ var inputSchema = schema.Schema{
 	"properties": map[string]any{
 		"task_id": map[string]any{
 			"type":        "string",
-			"description": "Identifier of the task to execute. Must be a valid standalone task ID.",
+			"description": "Identifier of the task to execute. Must be a valid embedded task ID.",
 		},
 		"with": map[string]any{
 			"type":                 "object",

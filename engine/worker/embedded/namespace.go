@@ -29,6 +29,13 @@ func createNamespace(ctx context.Context, serverCfg *config.Config, embeddedCfg 
 	}
 
 	sqlCfg := cloneSQLConfig(datastore.SQL)
+	if err := sqliteschema.SetupSchema(sqlCfg); err != nil {
+		e := strings.ToLower(err.Error())
+		if !strings.Contains(e, "already exists") {
+			return fmt.Errorf("setup temporal schema failed: %w", err)
+		}
+		log.Debug("temporal schema already initialized; continuing")
+	}
 	namespace, err := sqliteschema.NewNamespaceConfig(
 		embeddedCfg.ClusterName,
 		embeddedCfg.Namespace,

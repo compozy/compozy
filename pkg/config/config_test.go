@@ -33,6 +33,9 @@ func TestConfig_Default(t *testing.T) {
 		// Assert
 		require.NotNil(t, cfg)
 
+		assert.Equal(t, ModeMemory, cfg.Mode)
+		assert.Equal(t, ModeMemory, ResolveMode(cfg, ""))
+
 		// Server defaults
 		assert.Equal(t, "0.0.0.0", cfg.Server.Host)
 		assert.Equal(t, 5001, cfg.Server.Port)
@@ -50,7 +53,7 @@ func TestConfig_Default(t *testing.T) {
 
 		// Temporal defaults
 		assert.Empty(t, cfg.Temporal.Mode)
-		assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
+		assert.Equal(t, ModeMemory, cfg.EffectiveTemporalMode())
 		assert.Equal(t, "localhost:7233", cfg.Temporal.HostPort)
 		assert.Equal(t, "default", cfg.Temporal.Namespace)
 		assert.Equal(t, "compozy-tasks", cfg.Temporal.TaskQueue)
@@ -111,8 +114,8 @@ func TestConfig_Default(t *testing.T) {
 		expectedBuckets := []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1}
 		assert.Equal(t, expectedBuckets, cfg.LLM.UsageMetrics.PersistBuckets)
 
-		// MCP proxy defaults preserve classic external port
-		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
+		// MCP proxy defaults embed in memory mode with fixed port
+		assert.Equal(t, ModeMemory, cfg.MCPProxy.Mode)
 		assert.Equal(t, "127.0.0.1", cfg.MCPProxy.Host)
 		assert.Equal(t, 6001, cfg.MCPProxy.Port)
 		assert.Equal(t, "", cfg.MCPProxy.BaseURL)
@@ -124,17 +127,60 @@ func TestConfig_Default(t *testing.T) {
 	})
 }
 
-func TestConfig_StandaloneModeDefaultsToSQLiteDriver(t *testing.T) {
-	t.Run("Should resolve sqlite driver when global mode standalone", func(t *testing.T) {
-		t.Setenv("COMPOZY_MODE", ModeStandalone)
-		ctx := t.Context()
-		m := NewManager(ctx, NewService())
-		cfg, err := m.Load(ctx, NewDefaultProvider(), NewEnvProvider())
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = m.Close(ctx) })
-		assert.Equal(t, databaseDriverSQLite, cfg.Database.Driver)
-		assert.Equal(t, ModeStandalone, cfg.Temporal.Mode)
+func TestConfig_MemoryModeDefaultsToSQLiteDriver(t *testing.T) {
+	t.Run("Should resolve sqlite driver when global mode memory", func(t *testing.T) {
+		cfg := Default()
+		require.NotNil(t, cfg)
+		cfg.Mode = ModeMemory
+		cfg.Database.Driver = ""
+		cfg.Temporal.Mode = ""
+		assert.Equal(t, databaseDriverSQLite, cfg.EffectiveDatabaseDriver())
+		assert.Equal(t, ModeMemory, cfg.EffectiveTemporalMode())
 	})
+}
+
+func TestConfig_ModeValidation(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name           string
+		mode           string
+		wantErr        bool
+		wantSubstrings []string
+	}{
+		{name: "empty inherits memory", mode: ""},
+		{name: "memory valid", mode: ModeMemory},
+		{name: "persistent valid", mode: ModePersistent},
+		{name: "distributed valid", mode: ModeDistributed},
+		{
+			name:           "standalone invalid",
+			mode:           "standalone",
+			wantErr:        true,
+			wantSubstrings: []string{"standalone", "has been replaced", ModeMemory, ModePersistent},
+		},
+		{name: "invalid value", mode: "invalid", wantErr: true, wantSubstrings: []string{"must be one of"}},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			svc := NewService()
+			cfg := Default()
+			cfg.Mode = tc.mode
+			err := svc.Validate(cfg)
+			if tc.wantErr {
+				require.Error(t, err)
+				for _, sub := range tc.wantSubstrings {
+					assert.Contains(t, err.Error(), sub)
+				}
+				return
+			}
+			require.NoError(t, err)
+			if tc.mode == "" {
+				assert.Equal(t, ModeMemory, ResolveMode(cfg, ""))
+			}
+		})
+	}
 }
 
 func TestDatabaseConfig(t *testing.T) {
@@ -213,17 +259,17 @@ func TestDatabaseConfig(t *testing.T) {
 	})
 }
 
-func TestTemporalStandaloneMode(t *testing.T) {
-	t.Run("Should apply standalone defaults when mode set to standalone", func(t *testing.T) {
+func TestTemporalEmbeddedMode(t *testing.T) {
+	t.Run("Should apply embedded defaults when mode set to memory", func(t *testing.T) {
 		ctx := t.Context()
 		manager := NewManager(ctx, NewService())
 		overrides := map[string]any{
-			"temporal-mode": "standalone",
+			"temporal-mode": ModeMemory,
 		}
 		cfg, err := manager.Load(ctx, NewDefaultProvider(), NewCLIProvider(overrides))
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
-		assert.Equal(t, "standalone", cfg.Temporal.Mode)
+		assert.Equal(t, ModeMemory, cfg.Temporal.Mode)
 		assert.Equal(t, ":memory:", cfg.Temporal.Standalone.DatabaseFile)
 		assert.Equal(t, 7233, cfg.Temporal.Standalone.FrontendPort)
 		assert.Equal(t, "127.0.0.1", cfg.Temporal.Standalone.BindIP)
@@ -238,17 +284,17 @@ func TestTemporalStandaloneMode(t *testing.T) {
 		_ = manager.Close(ctx)
 	})
 
-	t.Run("Should allow host port override in standalone mode", func(t *testing.T) {
+	t.Run("Should allow host port override in embedded mode", func(t *testing.T) {
 		ctx := t.Context()
 		manager := NewManager(ctx, NewService())
 		overrides := map[string]any{
-			"temporal-mode": "standalone",
+			"temporal-mode": ModePersistent,
 			"temporal-host": "0.0.0.0:9000",
 		}
 		cfg, err := manager.Load(ctx, NewDefaultProvider(), NewCLIProvider(overrides))
 		require.NoError(t, err)
 		require.NotNil(t, cfg)
-		assert.Equal(t, "standalone", cfg.Temporal.Mode)
+		assert.Equal(t, ModePersistent, cfg.Temporal.Mode)
 		assert.Equal(t, "0.0.0.0:9000", cfg.Temporal.HostPort)
 		_ = manager.Close(ctx)
 	})
@@ -293,14 +339,22 @@ func TestDefaultNativeToolsConfig(t *testing.T) {
 func TestConfig_Validation(t *testing.T) {
 	t.Run("Should validate temporal mode", func(t *testing.T) {
 		testCases := []struct {
-			name    string
-			mode    string
-			wantErr bool
+			name           string
+			mode           string
+			wantErr        bool
+			wantSubstrings []string
 		}{
-			{name: "remote", mode: "remote", wantErr: false},
-			{name: "standalone", mode: "standalone", wantErr: false},
-			{name: "invalid", mode: "invalid", wantErr: true},
-			{name: "empty", mode: "", wantErr: false},
+			{name: "remote", mode: ModeRemoteTemporal},
+			{name: "memory", mode: ModeMemory},
+			{name: "persistent", mode: ModePersistent},
+			{name: "empty inherits", mode: ""},
+			{
+				name:           "standalone invalid",
+				mode:           "standalone",
+				wantErr:        true,
+				wantSubstrings: []string{"standalone", "has been removed", ModeMemory, ModePersistent},
+			},
+			{name: "invalid", mode: "invalid", wantErr: true, wantSubstrings: []string{"must be one of"}},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -310,13 +364,16 @@ func TestConfig_Validation(t *testing.T) {
 				err := svc.Validate(cfg)
 				if tc.wantErr {
 					require.Error(t, err)
+					for _, sub := range tc.wantSubstrings {
+						assert.Contains(t, err.Error(), sub)
+					}
 					return
 				}
 				require.NoError(t, err)
 				assert.NotEmpty(t, cfg.Temporal.Mode)
 				if tc.mode == "" {
-					assert.Equal(t, ModeRemoteTemporal, cfg.EffectiveTemporalMode())
-					assert.Equal(t, ModeRemoteTemporal, cfg.Temporal.Mode)
+					assert.Equal(t, ModeMemory, cfg.EffectiveTemporalMode())
+					assert.Equal(t, ModeMemory, cfg.Temporal.Mode)
 				} else {
 					assert.Equal(t, tc.mode, cfg.Temporal.Mode)
 				}
@@ -324,7 +381,7 @@ func TestConfig_Validation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should validate standalone configuration when mode standalone", func(t *testing.T) {
+	t.Run("Should validate embedded configuration when mode embedded", func(t *testing.T) {
 		testCases := []struct {
 			name    string
 			mutate  func(*TemporalConfig)
@@ -398,7 +455,7 @@ func TestConfig_Validation(t *testing.T) {
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
 				cfg := Default()
-				cfg.Temporal.Mode = "standalone"
+				cfg.Temporal.Mode = ModeMemory
 				tc.mutate(&cfg.Temporal)
 				svc := NewService()
 				err := svc.Validate(cfg)
@@ -611,28 +668,87 @@ func TestConfig_Validation(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require non-ephemeral MCP proxy port when standalone", func(t *testing.T) {
+	t.Run("Should validate MCP proxy mode values", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			mode           string
+			wantErr        bool
+			wantSubstrings []string
+		}{
+			{
+				name:    "inherits global mode",
+				mode:    "",
+				wantErr: false,
+			},
+			{
+				name:    "memory mode allowed",
+				mode:    ModeMemory,
+				wantErr: false,
+			},
+			{
+				name:    "persistent mode allowed",
+				mode:    ModePersistent,
+				wantErr: false,
+			},
+			{
+				name:    "distributed mode allowed",
+				mode:    ModeDistributed,
+				wantErr: false,
+			},
+			{
+				name:           "standalone mode rejected",
+				mode:           deprecatedModeStandalone,
+				wantErr:        true,
+				wantSubstrings: []string{"mcp_proxy.mode", deprecatedModeStandalone, "no longer supported"},
+			},
+			{
+				name:           "unknown mode rejected",
+				mode:           "invalid",
+				wantErr:        true,
+				wantSubstrings: []string{"mcp_proxy.mode", "must be one of"},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				svc := NewService()
+				cfg := Default()
+				cfg.MCPProxy.Mode = tc.mode
+				err := svc.Validate(cfg)
+				if tc.wantErr {
+					require.Error(t, err)
+					for _, sub := range tc.wantSubstrings {
+						assert.Contains(t, err.Error(), sub)
+					}
+					return
+				}
+				assert.NoError(t, err)
+			})
+		}
+	})
+
+	t.Run("Should require non-ephemeral MCP proxy port in embedded modes", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()
-		cfg.MCPProxy.Mode = mcpProxyModeStandalone
+		cfg.MCPProxy.Mode = ModeMemory
 		cfg.MCPProxy.Port = 0
 		err := svc.Validate(cfg)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "mcp_proxy.port must be non-zero in standalone mode")
+		assert.Contains(t, err.Error(), "mcp_proxy.port must be non-zero when mode is \"memory\" or \"persistent\"")
 	})
 
-	t.Run("Should allow standalone MCP proxy when port provided", func(t *testing.T) {
+	t.Run("Should allow embedded MCP proxy when port provided", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()
-		cfg.MCPProxy.Mode = mcpProxyModeStandalone
+		cfg.MCPProxy.Mode = ModePersistent
 		cfg.MCPProxy.Port = 6200
 		err := svc.Validate(cfg)
 		assert.NoError(t, err)
 	})
 
-	t.Run("Should default MCP proxy to standalone with fixed port", func(t *testing.T) {
+	t.Run("Should default MCP proxy to embedded mode with fixed port", func(t *testing.T) {
 		cfg := Default()
-		assert.Equal(t, mcpProxyModeStandalone, cfg.MCPProxy.Mode)
+		assert.Equal(t, ModeMemory, cfg.MCPProxy.Mode)
 		assert.Equal(t, 6001, cfg.MCPProxy.Port)
 	})
 
@@ -802,6 +918,7 @@ func TestConfig_Validation(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				cfg := Default()
+				cfg.Mode = ModeDistributed
 				tt.modify(cfg)
 
 				svc := NewService()
@@ -840,6 +957,7 @@ func TestConfig_Validation(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				cfg := Default()
+				cfg.Mode = ModeDistributed
 				tt.modify(cfg)
 
 				svc := NewService()

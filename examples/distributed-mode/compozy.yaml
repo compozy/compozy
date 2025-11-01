@@ -1,0 +1,52 @@
+# Distributed mode example connecting to managed-style services.
+name: distributed-mode-demo
+version: "1.0.0"
+description: Run Compozy against external Postgres, Temporal, and Redis services.
+mode: distributed
+
+database:
+  driver: postgres
+  url: "${COMPOZY_DATABASE_URL}"
+  migrations:
+    schema: compozy
+
+temporal:
+  mode: remote
+  host_port: "${TEMPORAL_ADDRESS}"
+  namespace: "${TEMPORAL_NAMESPACE}"
+  tls:
+    enabled: false
+
+redis:
+  mode: distributed
+  distributed:
+    addr: "${REDIS_ADDRESS}"
+    tls:
+      enabled: false
+
+models:
+  - provider: openai
+    model: gpt-4o
+    api_key: "${OPENAI_API_KEY}"
+
+workflows:
+  - source: ./workflow.yaml
+
+# Tasks executed remotely by the configured model provider.
+tasks:
+  classify:
+    type: basic
+    action: run
+    prompt: |
+      You are triaging customer tickets for the distributed mode demo.
+      Classify the ticket into one of: bug, billing, feature, or other.
+      Ticket: {{ .workflow.input.ticket }}
+  respond:
+    type: basic
+    action: run
+    prompt: |
+      Craft a helpful reply for the customer ticket using the classification
+      result: {{ .tasks.classify.output }}.
+      Keep the tone professional and mention that the request is handled by the
+      distributed deployment.
+    final: true

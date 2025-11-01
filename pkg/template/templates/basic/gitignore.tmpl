@@ -1,17 +1,19 @@
-# Compozy runtime and local state
-.compozy/
-
 # Environment variables
 .env
+.env.local
 .env.*
 !.env.example
 !env.example
-!env-compozy.example
 
 # Dependencies
 node_modules/
 bun.lockb
 .bun/
+
+{{- if or (eq .Mode "persistent") (eq .Mode "memory") }}
+# Compozy data directory
+.compozy/
+{{- end }}
 
 # Build outputs
 dist/
@@ -35,14 +37,3 @@ Thumbs.db
 .vscode/
 .idea/
 *.sublime-*
-
-# Testing
-coverage/
-*.test
-*.out
-
-# Temporary files
-*.tmp
-*.temp
-*.bak
-*~

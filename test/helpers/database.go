@@ -2,9 +2,12 @@ package helpers
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,10 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/infra/repo"
+	"github.com/compozy/compozy/engine/infra/sqlite"
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
 	"github.com/pressly/goose/v3"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -24,6 +29,10 @@ import (
 
 const (
 	postgresStartupTimeout = 3 * time.Minute
+	sqliteMigrationTimeout = 45 * time.Second
+	sqliteShutdownTimeout  = 5 * time.Second
+	testDriverSQLite       = "sqlite"
+	testDriverPostgres     = "postgres"
 )
 
 var (
@@ -43,13 +52,12 @@ var (
 	pgContainerNoMigrationsStartError error
 )
 
-// GetSharedPostgresDB returns a shared PostgreSQL database for tests
-// GetSharedPostgresDB returns a shared *pgxpool.Pool for tests and a no-op cleanup function.
-//
-// GetSharedPostgresDB lazily starts a single shared PostgreSQL container and connection pool on
-// first use (significantly faster than creating per-test containers). If initialization fails the
-// test is fatally failed via t.Fatalf. Per-test isolation is expected to be achieved by running
-// each test inside its own transaction, so the returned cleanup is a no-op.
+// GetSharedPostgresDB returns a shared PostgreSQL database for tests that require Postgres-specific
+// behavior. Prefer SetupTestDatabase(t) for new tests so they run against the fast, dependency-free
+// SQLite :memory: backend. GetSharedPostgresDB lazily starts a single shared PostgreSQL container
+// and connection pool on first use. If initialization fails the test is failed via t.Fatalf. Per-test
+// isolation is expected to be achieved by running each test inside its own transaction, so the returned
+// cleanup is a no-op.
 func GetSharedPostgresDB(t *testing.T) (*pgxpool.Pool, func()) {
 	t.Helper()
 	pgContainerOnce.Do(func() {
@@ -258,18 +266,166 @@ func ensureTablesExist(db *pgxpool.Pool) error {
 // EnsureTablesExistForTest is a small wrapper to expose ensureTablesExist to tests in other packages.
 func EnsureTablesExistForTest(db *pgxpool.Pool) error { return ensureTablesExist(db) }
 
-// SetupTestDatabase provisions a repo provider for the requested driver and returns a cleanup function.
-func SetupTestDatabase(t *testing.T, driver string) (*repo.Provider, func()) {
+// SetupDatabaseWithMode configures a test database according to the requested mode and returns
+// the sqlx handle alongside an idempotent cleanup function. Supported modes map to backends as:
+//   - memory: SQLite :memory: (fastest, fully in-memory)
+//   - persistent: SQLite file stored inside t.TempDir()
+//   - distributed: PostgreSQL via the shared testcontainer
+//
+// Example usage:
+//
+//	db, cleanup := helpers.SetupDatabaseWithMode(t, config.ModeMemory)
+//	defer cleanup()
+//	// run assertions using db
+//
+// Callers must defer the returned cleanup; it is also registered with t.Cleanup for safety.
+func SetupDatabaseWithMode(t *testing.T, mode string) (*sqlx.DB, func()) {
 	t.Helper()
-	switch driver {
+
+	ctx := NewTestContext(t)
+	cfg := config.FromContext(ctx)
+	require.NotNil(t, cfg, "config manager missing from context")
+
+	resolvedMode, ok := normalizeMode(mode)
+	if !ok {
+		t.Fatalf("helpers: unsupported database mode %q", mode)
+	}
+	cfg.Mode = resolvedMode
+
+	switch resolvedMode {
+	case config.ModeMemory:
+		cfg.Database.Driver = testDriverSQLite
+		cfg.Database.Path = ":memory:"
+		cfg.Database.AutoMigrate = true
+		cfg.Database.ConnString = ""
+		return setupSQLiteDatabaseForMode(ctx, t, cfg.Database.Path, true)
+	case config.ModePersistent:
+		cfg.Database.Driver = testDriverSQLite
+		cfg.Database.AutoMigrate = true
+		persistentPath := filepath.Join(t.TempDir(), "compozy.db")
+		cfg.Database.Path = persistentPath
+		cfg.Database.ConnString = ""
+		return setupSQLiteDatabaseForMode(ctx, t, persistentPath, false)
+	case config.ModeDistributed:
+		cfg.Database.Driver = testDriverPostgres
+		cfg.Database.AutoMigrate = false
+		cfg.Database.Path = ""
+		return setupPostgresDatabaseForMode(ctx, t, cfg)
+	default:
+		t.Fatalf("helpers: unsupported database mode %q", mode)
+		return nil, nil
+	}
+}
+
+func normalizeMode(mode string) (string, bool) {
+	normalized := strings.TrimSpace(strings.ToLower(mode))
+	if normalized == "" {
+		return config.ModeMemory, true
+	}
+	switch normalized {
+	case config.ModeMemory:
+		return config.ModeMemory, true
+	case config.ModePersistent:
+		return config.ModePersistent, true
+	case config.ModeDistributed:
+		return config.ModeDistributed, true
+	default:
+		return "", false
+	}
+}
+
+func setupSQLiteDatabaseForMode(
+	ctx context.Context,
+	t *testing.T,
+	path string,
+	inMemory bool,
+) (*sqlx.DB, func()) {
+	t.Helper()
+
+	store, err := sqlite.NewStore(ctx, &sqlite.Config{Path: path})
+	require.NoError(t, err)
+
+	migrateCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sqliteMigrationTimeout)
+	defer cancel()
+	require.NoError(t, sqlite.ApplyMigrations(migrateCtx, path))
+
+	db := sqlx.NewDb(store.DB(), testDriverSQLite)
+
+	var cleanupOnce sync.Once
+	cleanup := func() {
+		cleanupOnce.Do(func() {
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sqliteShutdownTimeout)
+			defer cancel()
+			if err := store.Close(shutdownCtx); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Logf("warning: closing sqlite test database: %v", err)
+			}
+			if !inMemory {
+				if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+					t.Logf("warning: removing sqlite database file: %v", err)
+				}
+			}
+		})
+	}
+	t.Cleanup(cleanup)
+
+	return db, cleanup
+}
+
+func setupPostgresDatabaseForMode(
+	ctx context.Context,
+	t *testing.T,
+	cfg *config.Config,
+) (*sqlx.DB, func()) {
+	t.Helper()
+
+	pool, containerCleanup, err := SetupTestReposWithRetry(ctx, t)
+	require.NoError(t, err)
+
+	cfg.Database.ConnString = pool.Config().ConnString()
+
+	sqlDB := stdlib.OpenDBFromPool(pool)
+	db := sqlx.NewDb(sqlDB, "pgx")
+
+	var cleanupOnce sync.Once
+	cleanup := func() {
+		cleanupOnce.Do(func() {
+			if err := db.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Logf("warning: closing postgres test database: %v", err)
+			}
+			containerCleanup()
+		})
+	}
+	t.Cleanup(cleanup)
+
+	return db, cleanup
+}
+
+// SetupTestDatabase provisions a repo provider for tests. By default it returns a SQLite :memory:
+// database with automigrations applied so tests run quickly without Docker. To exercise PostgreSQL-
+// specific behavior either pass "postgres" explicitly or call SetupPostgresContainer(t).
+func SetupTestDatabase(t *testing.T, driver ...string) (*repo.Provider, func()) {
+	t.Helper()
+	selectedDriver := "sqlite"
+	if len(driver) > 0 && driver[0] != "" {
+		selectedDriver = driver[0]
+	}
+	switch selectedDriver {
 	case "postgres":
 		return setupPostgresTest(t)
 	case "sqlite":
 		return setupSQLiteTest(t)
 	default:
-		t.Fatalf("unsupported driver: %s", driver)
+		t.Fatalf("unsupported driver: %s", selectedDriver)
 		return nil, nil
 	}
+}
+
+// SetupPostgresContainer provisions a PostgreSQL-backed repo provider using testcontainers.
+// Use this helper only when tests need PostgreSQL-specific features such as pgvector or dialect-
+// dependent behavior. Most tests should rely on SetupTestDatabase(t) to benefit from SQLite speed.
+func SetupPostgresContainer(t *testing.T) (*repo.Provider, func()) {
+	t.Helper()
+	return setupPostgresTest(t)
 }
 
 func setupPostgresTest(t *testing.T) (*repo.Provider, func()) {

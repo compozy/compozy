@@ -66,7 +66,7 @@ func newNamespaceTestConfig(t *testing.T) *Config {
 		DatabaseFile: filepath.Join(t.TempDir(), "temporal.db"),
 		FrontendPort: 7400,
 		BindIP:       "127.0.0.1",
-		Namespace:    "standalone",
+		Namespace:    "embedded",
 		ClusterName:  "cluster",
 		EnableUI:     true,
 		UIPort:       8300,

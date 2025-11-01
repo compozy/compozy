@@ -22,6 +22,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	defaultInitMode = "memory"
+)
+
 // Options holds the configuration for the init command
 type Options struct {
 	Path        string `validate:"required"`
@@ -31,6 +35,7 @@ type Options struct {
 	Template    string
 	Author      string
 	AuthorURL   string
+	Mode        string `validate:"required,oneof=memory persistent distributed"`
 	Interactive bool
 	DockerSetup bool
 	InstallBun  bool
@@ -73,7 +78,7 @@ Examples:
 }
 
 func defaultInitOptions() *Options {
-	return &Options{Version: "0.1.0"}
+	return &Options{Version: "0.1.0", Mode: defaultInitMode}
 }
 
 func applyInitFlags(command *cobra.Command, opts *Options) {
@@ -83,6 +88,7 @@ func applyInitFlags(command *cobra.Command, opts *Options) {
 	command.Flags().StringVarP(&opts.Template, "template", "t", "basic", "Project template")
 	command.Flags().StringVar(&opts.Author, "author", "", "Author name")
 	command.Flags().StringVar(&opts.AuthorURL, "author-url", "", "Author URL")
+	command.Flags().StringVar(&opts.Mode, "mode", defaultInitMode, "Project mode (memory|persistent|distributed)")
 	command.Flags().BoolVarP(&opts.Interactive, "interactive", "i", false, "Force interactive mode")
 	command.Flags().BoolVar(&opts.DockerSetup, "docker", false, "Include Docker Compose setup")
 	command.Flags().BoolVar(&opts.InstallBun, "install-bun", false, "Install Bun runtime if missing")
@@ -127,6 +133,7 @@ func executeInitCommand(cobraCmd *cobra.Command, opts *Options, args []string) e
 func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, opts *Options) error {
 	logger.FromContext(ctx).Debug("executing init command in JSON mode")
 	logDebugMode(ctx)
+	logSelectedMode(ctx, opts.Mode)
 	if err := ensureNameProvided(opts); err != nil {
 		return err
 	}
@@ -136,7 +143,7 @@ func runInitJSON(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, 
 	if err := installBunIfNeeded(ctx, opts); err != nil {
 		return err
 	}
-	if err := generateProjectStructure(opts); err != nil {
+	if err := generateProjectStructure(ctx, opts); err != nil {
 		return err
 	}
 	envFileName := determineEnvExampleFile(opts.Path)
@@ -150,13 +157,14 @@ func runInitTUI(ctx context.Context, _ *cobra.Command, _ *cmd.CommandExecutor, o
 	if err := runInteractiveForm(ctx, opts); err != nil {
 		return fmt.Errorf("interactive form failed: %w", err)
 	}
+	logSelectedMode(ctx, opts.Mode)
 	if err := validateProjectOptions(opts); err != nil {
 		return err
 	}
 	if err := installBunIfNeeded(ctx, opts); err != nil {
 		return err
 	}
-	if err := generateProjectStructure(opts); err != nil {
+	if err := generateProjectStructure(ctx, opts); err != nil {
 		return err
 	}
 	envFileName := determineEnvExampleFile(opts.Path)
@@ -168,6 +176,10 @@ func logDebugMode(ctx context.Context) {
 	if cfg := config.FromContext(ctx); cfg != nil && cfg.CLI.Debug {
 		logger.FromContext(ctx).Debug("debug mode enabled from global config")
 	}
+}
+
+func logSelectedMode(ctx context.Context, mode string) {
+	logger.FromContext(ctx).Debug("init mode selected", "mode", mode)
 }
 
 func ensureNameProvided(opts *Options) error {
@@ -197,18 +209,19 @@ func installBunIfNeeded(ctx context.Context, opts *Options) error {
 	return nil
 }
 
-func generateProjectStructure(opts *Options) error {
+func generateProjectStructure(ctx context.Context, opts *Options) error {
 	if err := ensureTemplatesRegistered(); err != nil {
 		return fmt.Errorf("failed to initialize templates: %w", err)
 	}
-	if err := template.GetService().Generate(opts.Template, buildGenerateOptions(opts)); err != nil {
+	if err := template.GetService().Generate(opts.Template, buildGenerateOptions(ctx, opts)); err != nil {
 		return fmt.Errorf("failed to generate project: %w", err)
 	}
 	return nil
 }
 
-func buildGenerateOptions(opts *Options) *template.GenerateOptions {
+func buildGenerateOptions(ctx context.Context, opts *Options) *template.GenerateOptions {
 	return &template.GenerateOptions{
+		Context:     ctx,
 		Path:        opts.Path,
 		Name:        opts.Name,
 		Description: opts.Description,
@@ -216,6 +229,7 @@ func buildGenerateOptions(opts *Options) *template.GenerateOptions {
 		Author:      opts.Author,
 		AuthorURL:   opts.AuthorURL,
 		DockerSetup: opts.DockerSetup,
+		Mode:        opts.Mode,
 	}
 }
 
@@ -234,6 +248,7 @@ func buildInitJSONResponse(opts *Options, envFileName string) map[string]any {
 		"path":    opts.Path,
 		"name":    opts.Name,
 		"version": opts.Version,
+		"mode":    opts.Mode,
 		"envFile": envFileName,
 		"docker":  opts.DockerSetup,
 		"files": map[string]string{
@@ -282,6 +297,7 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 		Author:        opts.Author,
 		AuthorURL:     opts.AuthorURL,
 		Template:      opts.Template,
+		Mode:          opts.Mode,
 		IncludeDocker: opts.DockerSetup,
 		InstallBun:    opts.InstallBun,
 	}
@@ -302,6 +318,7 @@ func runInteractiveForm(_ context.Context, opts *Options) error {
 	opts.Author = projectData.Author
 	opts.AuthorURL = projectData.AuthorURL
 	opts.Template = projectData.Template
+	opts.Mode = projectData.Mode
 	opts.DockerSetup = projectData.IncludeDocker
 	opts.InstallBun = projectData.InstallBun
 	return nil

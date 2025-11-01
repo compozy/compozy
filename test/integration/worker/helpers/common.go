@@ -644,13 +644,15 @@ func createTestWorkflowConfigs(fixture *TestFixture, agentConfig *agent.Config) 
 func ExecuteWorkflowAndGetState(
 	t *testing.T,
 	fixture *TestFixture,
-	_ *DatabaseHelper,
+	dbHelper *DatabaseHelper,
 	projectName string,
 	agentConfig *agent.Config,
 ) *workflow.State {
 	ctx := t.Context()
-	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
-	defer cleanup()
+	taskRepo, workflowRepo, cleanup := resolveTestRepos(t, dbHelper)
+	if cleanup != nil {
+		defer cleanup()
+	}
 	testSuite := testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestWorkflowEnvironment()
 	configStore := services.NewTestConfigStore(t)
@@ -690,6 +692,15 @@ func ExecuteWorkflowAndGetState(
 	finalState, err := workflowRepo.GetState(ctx, workflowExecID)
 	require.NoError(t, err, "Failed to retrieve final workflow state")
 	return finalState
+}
+
+func resolveTestRepos(t *testing.T, dbHelper *DatabaseHelper) (task.Repository, workflow.Repository, func()) {
+	if dbHelper != nil {
+		return dbHelper.TaskRepo(), dbHelper.WorkflowRepo(), nil
+	}
+	ctx := t.Context()
+	taskRepo, workflowRepo, cleanup := utils.SetupTestRepos(ctx, t)
+	return taskRepo, workflowRepo, cleanup
 }
 
 // FindTasksByExecutionType finds all tasks of a specific execution type

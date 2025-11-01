@@ -41,7 +41,7 @@ func getCoreCategories() []FlagCategory {
 			Name:        "Core Configuration",
 			Description: "Essential configuration flags",
 			Flags: []string{
-				"config", "env-file", "cwd", "help", "version",
+				"config", "env-file", "cwd", "mode", "help", "version",
 			},
 		},
 		{

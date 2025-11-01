@@ -1,6 +1,70 @@
+# {{ .Name | yamlEscape }} - Generated with Compozy
 name: {{ .Name | yamlEscape }}
 version: {{ .Version | yamlEscape }}
 description: {{ .Description | yamlEscape }}
+
+# Deployment Mode: {{ .Mode }}
+{{- if eq .Mode "memory" }}
+# Memory mode - zero dependencies, instant startup, no persistence
+mode: memory
+
+database:
+  driver: sqlite
+  url: ":memory:"
+
+temporal:
+  mode: memory
+  namespace: {{ printf "%s-dev" (.Name | kebabcase) | yamlEscape }}
+
+redis:
+  mode: memory
+  # Embedded miniredis, no persistence
+
+{{- else if eq .Mode "persistent" }}
+# Persistent mode - file-based storage, state preserved
+mode: persistent
+
+database:
+  driver: sqlite
+  url: {{ printf "./.compozy/%s.db" (.Name | kebabcase) | yamlEscape }}
+
+temporal:
+  mode: persistent
+  namespace: {{ printf "%s-dev" (.Name | kebabcase) | yamlEscape }}
+  standalone:
+    database_file: {{ printf "./.compozy/%s-temporal.db" (.Name | kebabcase) | yamlEscape }}
+
+redis:
+  mode: persistent
+  standalone:
+    persistence:
+      enabled: true
+      dir: {{ printf "./.compozy/%s-redis" (.Name | kebabcase) | yamlEscape }}
+
+{{- else if eq .Mode "distributed" }}
+# Distributed mode - production deployment with external services
+mode: distributed
+
+database:
+  driver: postgres
+  url: ${COMPOZY_DATABASE_URL}
+  pool:
+    max_open_conns: 25
+    max_idle_conns: 5
+
+temporal:
+  mode: remote
+  host_port: ${TEMPORAL_HOST_PORT}
+  namespace: ${TEMPORAL_NAMESPACE}
+
+redis:
+  mode: distributed
+  distributed:
+    addr: ${REDIS_ADDR}
+    password: ${REDIS_PASSWORD}
+    db: 0
+
+{{- end }}
 
 workflows:
 {{- range .Workflows }}

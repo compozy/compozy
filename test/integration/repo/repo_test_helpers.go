@@ -3,52 +3,31 @@ package store
 import (
 	"context"
 	"testing"
-	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/postgres"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
-	"github.com/compozy/compozy/pkg/config"
-	"github.com/compozy/compozy/pkg/logger"
 	helpers "github.com/compozy/compozy/test/helpers"
 )
 
 type repoTestEnv struct {
 	ctx          context.Context
-	pool         *pgxpool.Pool
-	taskRepo     *postgres.TaskRepo
-	workflowRepo *postgres.WorkflowRepo
+	taskRepo     task.Repository
+	workflowRepo workflow.Repository
 }
 
 func newRepoTestEnv(t *testing.T) repoTestEnv {
 	t.Helper()
-	baseCtx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
-	t.Cleanup(cancel)
-	ctx := logger.ContextWithLogger(baseCtx, logger.NewForTests())
-	manager := config.NewManager(ctx, config.NewService())
-	_, err := manager.Load(ctx, config.NewDefaultProvider())
-	require.NoError(t, err)
-	ctx = config.ContextWithManager(ctx, manager)
-	pool, cleanup := helpers.GetSharedPostgresDB(t)
+	ctx := helpers.NewTestContext(t)
+	taskRepo, workflowRepo, cleanup := helpers.SetupTestRepos(ctx, t)
 	t.Cleanup(cleanup)
-	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
-	truncateRepoTables(ctx, t, pool)
 	return repoTestEnv{
 		ctx:          ctx,
-		pool:         pool,
-		taskRepo:     postgres.NewTaskRepo(pool),
-		workflowRepo: postgres.NewWorkflowRepo(pool),
+		taskRepo:     taskRepo,
+		workflowRepo: workflowRepo,
 	}
-}
-
-func truncateRepoTables(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
-	t.Helper()
-	_, err := pool.Exec(ctx, "TRUNCATE task_states, workflow_states CASCADE")
-	require.NoError(t, err)
 }
 
 func upsertWorkflowState(

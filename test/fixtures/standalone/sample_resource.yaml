@@ -1,5 +1,0 @@
-id: sample
-type: agent
-config:
-  name: "sample-agent"
-  enabled: true

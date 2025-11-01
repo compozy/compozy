@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/engine/infra/cache"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/pkg/config"
+	"github.com/compozy/compozy/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"go.opentelemetry.io/otel/metric"
@@ -17,7 +19,6 @@ import (
 const (
 	statusNotReady = "not_ready"
 	statusReady    = "ready"
-	modeStandalone = "standalone"
 	hostAny        = "0.0.0.0"
 	hostLoopback   = "127.0.0.1"
 	driverPostgres = "postgres"
@@ -69,6 +70,18 @@ func NewServer(ctx context.Context, cwd, configFile, envFilePath string) (*Serve
 		cancel()
 		return nil, fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
+	log := logger.FromContext(serverCtx)
+	mode := strings.TrimSpace(cfg.Mode)
+	if mode == "" {
+		mode = config.ModeMemory
+	}
+	log.Info("Resolved server runtime configuration",
+		"mode", mode,
+		"temporal_mode", cfg.EffectiveTemporalMode(),
+		"redis_mode", cfg.EffectiveRedisMode(),
+		"mcp_proxy_mode", cfg.EffectiveMCPProxyMode(),
+		"database_driver", cfg.EffectiveDatabaseDriver(),
+	)
 	return &Server{
 		serverConfig:        &cfg.Server,
 		cwd:                 cwd,

@@ -477,6 +477,10 @@
         "queue_size": {
           "type": "integer"
         },
+        "release_slot_before_token_wait": {
+          "description": "ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true; nil inherits defaults.",
+          "type": "boolean"
+        },
         "request_burst": {
           "type": "integer"
         },

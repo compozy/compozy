@@ -7,6 +7,14 @@
         "admin_key": {
           "type": "string"
         },
+        "api_key_last_used_max_concurrency": {
+          "description": "APIKeyLastUsedMaxConcurrency bounds background workers that stamp API key last-used timestamps.\n\nDefault: 10. Set to 0 to disable asynchronous updates.",
+          "type": "integer"
+        },
+        "api_key_last_used_timeout": {
+          "description": "APIKeyLastUsedTimeout limits how long asynchronous last-used updates may run before timing out.\n\nDefault: 2s.",
+          "type": "integer"
+        },
         "enabled": {
           "type": "boolean"
         },

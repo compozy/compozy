@@ -1,4 +1,53 @@
 {
+  "$defs": {
+    "EmbeddedTemporalConfig": {
+      "additionalProperties": false,
+      "description": "EmbeddedTemporalConfig configures the embedded Temporal server that powers memory and persistent modes.",
+      "properties": {
+        "bind_ip": {
+          "description": "BindIP determines the IP address Temporal services bind to.",
+          "type": "string"
+        },
+        "cluster_name": {
+          "description": "ClusterName customizes the Temporal cluster name for embedded deployments.",
+          "type": "string"
+        },
+        "database_file": {
+          "description": "DatabaseFile specifies the SQLite database location.\n\nUse \":memory:\" for ephemeral storage or provide a file path for persistence.",
+          "type": "string"
+        },
+        "enable_ui": {
+          "description": "EnableUI toggles the Temporal Web UI server.",
+          "type": "boolean"
+        },
+        "frontend_port": {
+          "description": "FrontendPort sets the gRPC port for the Temporal frontend service.",
+          "type": "integer"
+        },
+        "log_level": {
+          "description": "LogLevel controls Temporal server logging verbosity.",
+          "type": "string"
+        },
+        "namespace": {
+          "description": "Namespace specifies the default namespace created on startup.",
+          "type": "string"
+        },
+        "require_ui": {
+          "description": "RequireUI enforces UI availability; startup fails when UI cannot be launched.",
+          "type": "boolean"
+        },
+        "start_timeout": {
+          "description": "StartTimeout defines the maximum startup wait duration.",
+          "type": "integer"
+        },
+        "ui_port": {
+          "description": "UIPort sets the HTTP port for the Temporal Web UI.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
   "$id": "config-temporal.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
@@ -8,9 +57,17 @@
       "description": "HostPort specifies the Temporal server endpoint.\n\nFormat: `host:port`\nDefault: \"localhost:7233\"",
       "type": "string"
     },
+    "mode": {
+      "description": "Mode controls how the application connects to Temporal.\n\nValues:\n  - \"memory\": Launch embedded Temporal with in-memory persistence for the fastest feedback loops (default)\n  - \"persistent\": Launch embedded Temporal with file-backed persistence for stateful local development\n  - \"distributed\": Connect to an external Temporal deployment for production workloads",
+      "type": "string"
+    },
     "namespace": {
       "description": "Namespace isolates workflows within Temporal.\n\nUse different namespaces for:\n  - Environment separation (dev, staging, prod)\n  - Multi-tenant deployments\n  - Workflow versioning\nDefault: \"default\"",
       "type": "string"
+    },
+    "standalone": {
+      "$ref": "#/$defs/EmbeddedTemporalConfig",
+      "description": "Standalone configures the embedded Temporal server used by memory and persistent modes."
     },
     "task_queue": {
       "description": "TaskQueue identifies the queue for workflow tasks.\n\nWorkers poll this queue for tasks to execute.\nUse different queues for:\n  - Workflow type separation\n  - Priority-based routing\n  - Resource isolation\nDefault: \"compozy-tasks\"",

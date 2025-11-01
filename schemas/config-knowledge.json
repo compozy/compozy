@@ -1,4 +1,28 @@
 {
+  "$defs": {
+    "VectorDBConfig": {
+      "additionalProperties": false,
+      "description": "VectorDBConfig describes an external vector database integration available at runtime.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
   "$id": "config-knowledge.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
@@ -27,6 +51,13 @@
     "retrieval_top_k": {
       "description": "RetrievalTopK specifies the default number of results returned during retrieval.\n\nUsed when retrieval.top_k is unset on a knowledge binding or base definition.",
       "type": "integer"
+    },
+    "vector_dbs": {
+      "description": "VectorDBs declares global vector database connections available to knowledge features.\nWhen SQLite is selected, at least one external vector database should be configured.",
+      "items": {
+        "$ref": "#/$defs/VectorDBConfig"
+      },
+      "type": "array"
     },
     "vector_http_timeout": {
       "description": "VectorHTTPTimeout bounds HTTP requests made by knowledge vector backends.\n\nApplies to HTTP-based vector stores such as Qdrant.",

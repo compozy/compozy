@@ -187,11 +187,18 @@ func (r *TaskRepo) buildUpsertArgs(state *task.State) (string, []any, error) {
 	}
 	args := []any{
 		state.TaskExecID, state.TaskID, state.WorkflowExecID, state.WorkflowID, payload.usage,
-		state.Component, state.Status, state.ExecutionType, payload.parentStateID,
+		state.Component, state.Status, defaultExecutionType(state.ExecutionType), payload.parentStateID,
 		state.AgentID, state.ActionID, state.ToolID,
 		payload.input, payload.output, payload.errJSON,
 	}
 	return taskStateUpsertQuery, args, nil
+}
+
+func defaultExecutionType(exec task.ExecutionType) task.ExecutionType {
+	if exec == "" {
+		return task.ExecutionBasic
+	}
+	return exec
 }
 
 type taskStateUpsertPayload struct {

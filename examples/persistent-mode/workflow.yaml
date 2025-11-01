@@ -1,0 +1,23 @@
+id: summarize
+version: 0.1.0
+description: Durable workflow for validating persistent mode state retention.
+
+config:
+  input:
+    type: object
+    properties:
+      note:
+        type: string
+        description: Text to summarize and persist between runs
+        default: "Investigate mode migration backlog"
+    required:
+      - note
+
+# Reference the summarize task defined in compozy.yaml.
+tasks:
+  - id: summarize
+    type: reference
+    target: summarize
+
+outputs:
+  summary: "{{ .tasks.summarize.output }}"

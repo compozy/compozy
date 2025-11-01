@@ -1,0 +1,99 @@
+---
+title: "Memory Mode Example"
+description: "Zero-dependency configuration for fast iteration and testing."
+icon: Sparkles
+---
+
+Memory mode keeps everything in-process so you can experiment without provisioning infrastructure. The example below mirrors the defaults that ship with Compozy and adds helpful comments to explain each section.
+
+<Callout type="info">
+`mode` defaults to `memory`, so the global field is optional. It is included here to make the profile explicit for readers.
+</Callout>
+
+```yaml title="examples/configs/memory-mode.yaml"
+# Minimal memory profile for demos, tutorials, or CI smoke tests.
+name: memory-demo
+version: "0.1.0"
+mode: memory  # Explicit for clarity; resolved automatically if omitted.
+
+# SQLite stays entirely in memory so runs are isolated and fast.
+database:
+  driver: sqlite
+  path: ":memory:"  # No files are written to disk.
+
+# Embedded Temporal spins up alongside the process with no external deps.
+temporal:
+  mode: memory
+  standalone:
+    database_file: ":memory:"  # Clears history on every restart.
+    enable_ui: true  # Optional Temporal UI for quick inspection.
+
+# Embedded Redis (Miniredis) disables persistence for clean runs.
+redis:
+  mode: memory
+  standalone:
+    persistence:
+      enabled: false
+
+# Simple model definition so workflows can execute end-to-end.
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "${OPENAI_API_KEY}"
+
+# Reference a workflow file so CLI commands have a defined entrypoint.
+workflows:
+  - source: ./workflows/echo.yaml
+    watch: true  # Enable hot reload while iterating on the workflow.
+
+# Basic task that echoes input to prove the stack is operational.
+tasks:
+  - id: echo
+    type: basic
+    action: run
+    prompt: "Echo: {{ .workflow.input.message }}"
+    final: true
+```
+
+## How to Run
+
+1. Export `OPENAI_API_KEY` (or adjust the provider block to match your environment).
+2. Create `workflows/echo.yaml` alongside the config with the snippet below.
+3. Start Compozy: `compozy start --config examples/configs/memory-mode.yaml`.
+4. Trigger the workflow: `compozy workflow run workflows/echo.yaml --input '{"message":"hello"}'`.
+5. Reset by stopping the process—no artifacts linger on disk.
+
+```yaml title="workflows/echo.yaml"
+id: echo
+version: 0.1.0
+description: Minimal echo workflow for memory mode
+
+config:
+  input:
+    type: object
+    properties:
+      message:
+        type: string
+        description: Text to echo
+        default: "Hello from memory mode"
+    required:
+      - message
+
+tasks:
+  - id: echo
+    type: reference
+    target: echo
+
+outputs:
+  message: "{{ .tasks.echo.output }}"
+```
+
+## When to Use Memory Mode
+
+- Demos and workshops where attendees should not install dependencies
+- Smoke tests and continuous integration pipelines that value boot speed
+- Rapid prototyping sessions where state resets between runs are a feature
+
+<Callout type="tip">
+Switch to [persistent mode](/docs/examples/persistent-mode) when you need to keep Temporal history or cached data between restarts.
+</Callout>

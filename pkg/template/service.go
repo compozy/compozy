@@ -1,7 +1,10 @@
 package template
 
 import (
+	"fmt"
 	"sync"
+
+	"github.com/compozy/compozy/pkg/logger"
 )
 
 // service implements the Service interface
@@ -44,5 +47,18 @@ func (s *service) List() []Metadata {
 
 // Generate creates project from template
 func (s *service) Generate(templateName string, opts *GenerateOptions) error {
+	if opts == nil {
+		return fmt.Errorf("generate options cannot be nil")
+	}
+	if opts.Context == nil {
+		return fmt.Errorf("generate options context cannot be nil")
+	}
+	if opts.Mode == "" {
+		opts.Mode = DefaultMode
+	}
+	if err := ValidateMode(opts.Mode); err != nil {
+		return fmt.Errorf("invalid mode: %w", err)
+	}
+	logger.FromContext(opts.Context).Info("generating template", "template", templateName, "mode", opts.Mode)
 	return s.generator.Generate(templateName, opts)
 }

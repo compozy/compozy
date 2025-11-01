@@ -104,7 +104,7 @@ type taskStreamDeps struct {
 //	@Success		200				{string}	string											"SSE stream"
 //	@Failure		400				{object}	router.Response{error=router.ErrorInfo}			"Invalid request"
 //	@Failure		404				{object}	router.Response{error=router.ErrorInfo}			"Execution not found"
-//	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Streaming infrastructure unavailable"
+//	@Failure		503				{object}	router.Response{error=router.ErrorInfo}			"Pubsub provider unavailable"
 //	@Failure		500				{object}	router.Response{error=router.ErrorInfo}			"Internal server error"
 //	@Router			/executions/tasks/{exec_id}/stream [get]
 func streamTaskExecution(c *gin.Context) {

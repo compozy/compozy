@@ -1,0 +1,23 @@
+id: summarize
+version: 0.1.0
+description: Persistent workflow for local debugging with durable state
+
+config:
+  input:
+    type: object
+    properties:
+      note:
+        type: string
+        description: Meeting note or TODO item to summarize
+        default: "Investigate mode migration backlog"
+    required:
+      - note
+
+# Reference the summarize task defined in the persistent config.
+tasks:
+  - id: summarize
+    type: reference
+    target: summarize
+
+outputs:
+  summary: "{{ .tasks.summarize.output }}"

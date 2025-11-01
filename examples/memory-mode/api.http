@@ -1,0 +1,20 @@
+### Memory Mode Quickstart API
+@baseUrl = http://localhost:5001/api/v0
+@workflowId = echo
+
+### Trigger echo workflow
+# @name triggerEcho
+POST {{baseUrl}}/workflows/{{workflowId}}/executions
+Content-Type: application/json
+Accept: application/json
+
+{
+  "input": {
+    "message": "Memory mode is running"
+  }
+}
+
+### Inspect execution details
+@execId = {{triggerEcho.response.body.data.exec_id}}
+GET {{baseUrl}}/executions/workflows/{{execId}}
+Accept: application/json

@@ -7,7 +7,7 @@ import (
 )
 
 // memSvc provides an in-memory idempotency store with TTL-based eviction.
-// It is suitable for standalone/dev modes only. Not safe for distributed use.
+// It is suitable for embedded/dev modes only. Not safe for distributed use.
 type memSvc struct {
 	mu   sync.Mutex
 	data map[string]time.Time // key -> expiry time

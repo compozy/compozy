@@ -16,7 +16,6 @@ import (
 
 	authuc "github.com/compozy/compozy/engine/auth/uc"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/repo"
 	serverpkg "github.com/compozy/compozy/engine/infra/server"
 	"github.com/compozy/compozy/engine/infra/server/appstate"
 	authmw "github.com/compozy/compozy/engine/infra/server/middleware/auth"
@@ -82,16 +81,12 @@ func newServerHarnessWithMiddleware(t *testing.T, extra ...gin.HandlerFunc) *ser
 	proj := &project.Config{Name: projectName, Version: "1.0.0"}
 	require.NoError(t, proj.SetCWD(tempDir))
 	proj.SetFilePath(projFile)
-	pool, cleanup := helpers.GetSharedPostgresDB(t)
-	t.Cleanup(cleanup)
-	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
-	cfg.Database.ConnString = pool.Config().ConnString()
-	cfg.Database.AutoMigrate = false
-	dbCfg := cfg.Database
-	dbCfg.Driver = "postgres"
-	provider, closeProvider, err := repo.NewProvider(ctx, &dbCfg)
-	require.NoError(t, err)
-	t.Cleanup(closeProvider)
+	provider, dbCleanup := helpers.SetupTestDatabase(t)
+	t.Cleanup(dbCleanup)
+	cfg.Database.Driver = "sqlite"
+	cfg.Database.Path = ":memory:"
+	cfg.Database.ConnString = ""
+	cfg.Database.AutoMigrate = true
 	deps := appstate.NewBaseDeps(proj, nil, provider, nil)
 	state, err := appstate.NewState(deps, nil)
 	require.NoError(t, err)
@@ -122,7 +117,7 @@ func newServerHarnessWithMiddleware(t *testing.T, extra ...gin.HandlerFunc) *ser
 		ResourceStore: store,
 		Project:       proj,
 		Server:        srv,
-		DB:            pool,
+		RepoProvider:  provider,
 	}
 }
 

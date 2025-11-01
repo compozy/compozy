@@ -14,14 +14,14 @@ import (
 
 // TestConfigShow_Goldens verifies mode fields appear in config show output and match goldens.
 func TestConfigShow_Goldens(t *testing.T) {
-	t.Run("Should match golden file for standalone config", func(t *testing.T) {
+	t.Run("Should match golden file for memory config", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		mgr := pkgconfig.NewManager(ctx, pkgconfig.NewService())
 		_, err := mgr.Load(ctx, pkgconfig.NewDefaultProvider(), pkgconfig.NewEnvProvider())
 		require.NoError(t, err)
 		cfg := mgr.Get()
-		cfg.Mode = "standalone"
-		cfg.Redis.Mode = "standalone"
+		cfg.Mode = pkgconfig.ModeMemory
+		cfg.Redis.Mode = pkgconfig.ModeMemory
 		// Capture stdout
 		r, w, err := os.Pipe()
 		require.NoError(t, err)
@@ -32,7 +32,7 @@ func TestConfigShow_Goldens(t *testing.T) {
 		require.NoError(t, w.Close())
 		out, err := io.ReadAll(r)
 		require.NoError(t, err)
-		testhelpers.CompareWithGolden(t, out, "testdata/config-show-standalone.golden")
+		testhelpers.CompareWithGolden(t, out, "testdata/config-show-memory.golden")
 	})
 
 	t.Run("Should match golden file for mixed mode config", func(t *testing.T) {
@@ -41,8 +41,8 @@ func TestConfigShow_Goldens(t *testing.T) {
 		_, err := mgr.Load(ctx, pkgconfig.NewDefaultProvider(), pkgconfig.NewEnvProvider())
 		require.NoError(t, err)
 		cfg := mgr.Get()
-		cfg.Mode = "distributed"
-		cfg.Redis.Mode = "standalone"
+		cfg.Mode = pkgconfig.ModeDistributed
+		cfg.Redis.Mode = pkgconfig.ModePersistent
 		// Capture stdout
 		r, w, err := os.Pipe()
 		require.NoError(t, err)
@@ -64,7 +64,8 @@ func TestDiagnostics_EffectiveModes(t *testing.T) {
 	_, err := mgr.Load(ctx, pkgconfig.NewDefaultProvider(), pkgconfig.NewEnvProvider())
 	require.NoError(t, err)
 	cfg := mgr.Get()
-	cfg.Mode = "standalone"
+	cfg.Mode = pkgconfig.ModeMemory
+	cfg.Redis.Mode = pkgconfig.ModeMemory
 	ctx = pkgconfig.ContextWithManager(ctx, mgr)
 	// Capture stdout
 	r, w, err := os.Pipe()
@@ -76,5 +77,5 @@ func TestDiagnostics_EffectiveModes(t *testing.T) {
 	require.NoError(t, w.Close())
 	out, err := io.ReadAll(r)
 	require.NoError(t, err)
-	testhelpers.CompareWithGolden(t, out, "testdata/config-diagnostics-standalone.golden")
+	testhelpers.CompareWithGolden(t, out, "testdata/config-diagnostics-memory.golden")
 }

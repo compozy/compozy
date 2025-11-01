@@ -23,16 +23,10 @@
         "ef_construction": {
           "type": "integer"
         },
-        "ef_search": {
-          "type": "integer"
-        },
         "lists": {
           "type": "integer"
         },
         "m": {
-          "type": "integer"
-        },
-        "probes": {
           "type": "integer"
         },
         "type": {

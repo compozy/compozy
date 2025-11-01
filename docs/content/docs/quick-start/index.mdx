@@ -1,150 +1,101 @@
 ---
 title: "Quick Start"
-description: "Launch Compozy with the embedded Temporal server in under five minutes."
+description: "Launch Compozy in memory mode with zero external dependencies."
 icon: Rocket
 ---
 
 <Callout type="info">
-This quick start uses **Temporal standalone mode**, so you do not need Docker or an external Temporal cluster. For production hardening, read the [Production guide](/docs/deployment/production).
+Compozy now starts in **memory mode** by default. SQLite, Temporal, and Redis all run in-process so you can iterate without Docker, Postgres, or any other services.
 </Callout>
 
 ## Prerequisites
 
 - [Compozy CLI](/docs/core/getting-started/installation)
-- [Bun](https://bun.sh/docs/installation) for tool execution
-- An OpenAI-compatible API key stored in `.env`
+- An OpenAI-compatible API key exported as `OPENAI_API_KEY` (or swap in your provider of choice)
 
-## Option 1: Standalone (Recommended for Dev)
-
-Follow these steps to run everything locally without external services.
-
-## 1. Initialize a Project
+## 1. Create a Workspace
 
 ```bash
-compozy init hello-standalone
-cd hello-standalone
+mkdir hello-compozy
+cd hello-compozy
+mkdir -p workflows
 ```
 
-## 2. Configure Temporal Standalone Mode
-
-Replace the generated `compozy.yaml` with the configuration below. It enables standalone mode and points to a simple workflow.
+Create `compozy.yaml` with everything set to memory mode:
 
 ```yaml title="compozy.yaml"
-name: hello-standalone
+name: hello-compozy
 version: "0.1.0"
-description: Develop locally with embedded Temporal
-
-temporal:
-  mode: standalone
-  host_port: localhost:7233
-  standalone:
-    database_file: :memory:
-    frontend_port: 7233
-    bind_ip: 127.0.0.1
-    namespace: default
-    cluster_name: compozy-standalone
-    enable_ui: true
-    ui_port: 8233
-
-runtime:
-  type: bun
-  entrypoint: "./entrypoint.ts"
-  permissions:
-    - --allow-read
-    - --allow-net
+mode: memory
 
 workflows:
-  - source: ./workflows/greeting.yaml
+  - source: ./workflows/hello-world.yaml
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "{{ .env.OPENAI_API_KEY }}"
+    default: true
 ```
 
-## 3. Create a Tool and Workflow
+Add your first workflow at `workflows/hello-world.yaml`:
 
-```typescript title="entrypoint.ts"
-interface GreetingInput {
-  name: string;
-}
-
-export default {
-  async greeting_tool({ input }: { input: GreetingInput }) {
-    return {
-      message: `Hello, ${input.name}! Welcome to Compozy with Temporal standalone mode.`,
-      timestamp: new Date().toISOString(),
-    };
-  },
-};
-```
-
-```yaml title="workflows/greeting.yaml"
-id: greeting-workflow
+```yaml title="workflows/hello-world.yaml"
+id: hello-world
 version: 0.1.0
-description: Quick start workflow using embedded Temporal
+description: Quick greeting workflow for memory mode
 
-schemas:
-  - id: greeting_input
+config:
+  input:
     type: object
     properties:
       name:
         type: string
         description: Name of the person to greet
+        default: Avery
     required:
       - name
-
-config:
-  input:
-    greeting_input
-
-tools:
-  - id: greeting_tool
-    description: Generates a greeting message
-    input:
-      greeting_input
-
-agents:
-  - id: greeter
-    model: openai:gpt-4o-mini
-    instructions: "Use the greeting tool to produce a personalized welcome."
-    tools:
-      - greeting_tool
-    actions:
-      - id: make_greeting
-        prompt: "Generate a greeting for {{ .workflow.input.name }}."
 
 tasks:
   - id: greet
     type: basic
-    agent: greeter
-    action: make_greeting
-    final: true
+    prompt: |-
+      You are a helpful assistant.
+      Write a short greeting for {{ .workflow.input.name }}.
 
 outputs:
-  greeting: "{{ .tasks.greet.output }}"
+  message: "{{ .tasks.greet.output }}"
 ```
 
-Create a `.env` file with your API key:
+## 2. Start Compozy (Memory Mode)
+
+From the workspace root run:
 
 ```bash
-OPENAI_API_KEY=sk-your-api-key
+compozy start
 ```
 
-## 4. Start Compozy with Standalone Temporal
-
-```bash
-compozy start --temporal-mode=standalone --temporal-standalone-database=:memory:
-```
-
-The command boots Compozy, launches the embedded Temporal services on ports 7233-7236, and serves the Temporal Web UI at `http://localhost:8233`.
+Memory mode boots everything in the current process. Temporal's UI is available at [http://localhost:8233](http://localhost:8233) if you want to inspect executions.
 
 <Callout type="success">
-Visit the Temporal Web UI to watch workflow executions in real time. Use it to inspect task queues, workflow history, and failure retries without leaving your laptop.
+No Docker, Postgres, or Redis required—just the CLI and your API key.
 </Callout>
 
-## 5. Run the Workflow
+## 3. Run Your First Workflow
+
+Run the workflow from another terminal session:
+
+```bash
+compozy workflow run workflows/hello-world.yaml --input '{"name":"Avery"}'
+```
+
+You will receive the greeting in your terminal within a few seconds.
 
 <Tabs items={["CLI", "REST"]}>
   <Tab>
 
   ```bash
-  compozy workflow run ./workflows/greeting.yaml --input '{"name":"Avery"}'
+  compozy workflow run workflows/hello-world.yaml --input '{"name":"Taylor"}'
   ```
 
   </Tab>
@@ -152,14 +103,14 @@ Visit the Temporal Web UI to watch workflow executions in real time. Use it to i
 
   ```http title="test.http"
   @baseUrl = http://localhost:5001/api/v0
-  @workflowId = greeting-workflow
+  @workflowId = hello-world
 
   POST {{baseUrl}}/workflows/{{workflowId}}/executions
   Content-Type: application/json
 
   {
     "input": {
-      "name": "Avery"
+      "name": "Taylor"
     }
   }
   ```
@@ -167,33 +118,39 @@ Visit the Temporal Web UI to watch workflow executions in real time. Use it to i
   </Tab>
 </Tabs>
 
-You should see the greeting response in your terminal or HTTP client within seconds.
+## Mode Options at a Glance
+
+- **memory (default):** Fastest startup with in-memory SQLite, embedded Temporal, and embedded Redis. Ideal for local development, demos, and CI.
+- **persistent:** Keeps using embedded services but stores state on disk for longer-running local projects.
+- **distributed:** Connects to external PostgreSQL, Temporal, and Redis for production deployments.
+
+Switch modes by updating the `mode` field in `compozy.yaml` or using the `--mode` flag when starting the server.
 
 ## Next Steps
 
 <ReferenceCardList cols={2}>
   <ReferenceCard
-    title="Temporal Modes"
-    description="Understand when to switch between remote and standalone"
-    href="/docs/deployment/temporal-modes"
-    icon="GitBranch"
+    title="Memory Mode"
+    description="Dig deeper into configuration options for the default mode."
+    href="/docs/deployment/memory-mode"
+    icon="Rocket"
   />
   <ReferenceCard
-    title="Production Deployment"
-    description="Harden your deployment with a remote Temporal cluster"
-    href="/docs/deployment/production"
-    icon="Shield"
+    title="Persistent Mode"
+    description="Learn how to enable disk-backed persistence for local teams."
+    href="/docs/deployment/persistent-mode"
+    icon="HardDrive"
   />
   <ReferenceCard
-    title="Embedded Temporal"
-    description="Learn how the standalone server is wired into Compozy"
-    href="/docs/architecture/embedded-temporal"
-    icon="Layers"
+    title="Distributed Mode"
+    description="Prepare for production with external PostgreSQL, Temporal, and Redis."
+    href="/docs/deployment/distributed-mode"
+    icon="Server"
   />
   <ReferenceCard
-    title="Troubleshooting"
-    description="Fix startup timeouts, port conflicts, and SQLite issues"
-    href="/docs/troubleshooting/temporal"
-    icon="LifeBuoy"
+    title="Mode Configuration"
+    description="See every configuration knob available across all modes."
+    href="/docs/configuration/mode-configuration"
+    icon="Sliders"
   />
 </ReferenceCardList>

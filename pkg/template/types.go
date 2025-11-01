@@ -1,10 +1,22 @@
 package template
 
 import (
+	"context"
+	"fmt"
 	"os"
+	"strings"
 )
 
-// Template defines the interface for project templates
+const (
+	// DefaultMode is the default deployment mode for generated projects.
+	DefaultMode = "memory"
+)
+
+var validModes = []string{"memory", "persistent", "distributed"}
+
+// Template represents a project template that can generate files.
+// Implementations must respect the selected deployment mode by generating mode-specific configuration,
+// include Docker resources only when required, and provide documentation tailored to the chosen mode.
 type Template interface {
 	// GetMetadata returns template information
 	GetMetadata() Metadata
@@ -41,15 +53,32 @@ type File struct {
 	Permissions os.FileMode
 }
 
-// GenerateOptions contains options for generating a project from a template
+// GenerateOptions contains configuration for template-based project generation.
 type GenerateOptions struct {
-	Path        string
-	Name        string
-	Description string
-	Version     string
-	Author      string
-	AuthorURL   string
-	DockerSetup bool
+	Context     context.Context // Execution context for logging and configuration lookup
+	Path        string          // Target directory that receives the generated files
+	Name        string          // Project name used across generated assets
+	Description string          // Project description for documentation and metadata
+	Version     string          // Initial project version (for example, "0.1.0")
+	Author      string          // Author name for README and metadata files
+	AuthorURL   string          // Author contact URL or email address
+	DockerSetup bool            // Generate Docker scaffolding when true
+	Mode        string          // Deployment mode: memory, persistent, or distributed
+}
+
+// ValidateMode ensures the provided deployment mode is supported.
+func ValidateMode(mode string) error {
+	for _, valid := range validModes {
+		if mode == valid {
+			return nil
+		}
+	}
+	if mode == "standalone" {
+		return fmt.Errorf(
+			"mode 'standalone' has been replaced. Use 'memory' for no persistence or 'persistent' for disk-backed projects",
+		)
+	}
+	return fmt.Errorf("invalid mode '%s'. Must be one of: %s", mode, strings.Join(validModes, ", "))
 }
 
 // Service defines the interface for the template service

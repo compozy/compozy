@@ -3,38 +3,35 @@ package store
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/auth/model"
 	"github.com/compozy/compozy/engine/core"
-	"github.com/compozy/compozy/engine/infra/postgres"
+	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/task"
 	"github.com/compozy/compozy/engine/workflow"
 	"github.com/compozy/compozy/test/helpers"
 )
 
-// setupTestWithSharedContainer creates a test database using the shared container pattern
-// This is 70-90% faster than creating individual containers
-func setupTestWithSharedContainer(t *testing.T) (context.Context, *pgxpool.Pool, func()) {
-	ctx := t.Context()
-	pool, cleanup := helpers.GetSharedPostgresDB(t)
-	// ensure tables exist
-	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
-	return ctx, pool, func() { cleanup() }
+// setupTestDatabase provisions a test database using the lightweight SQLite helper.
+// It returns a context enriched with logger and config along with the repository provider.
+func setupTestDatabase(t *testing.T) (context.Context, *repo.Provider, func()) {
+	t.Helper()
+	ctx := helpers.NewTestContext(t)
+	provider, cleanup := helpers.SetupTestDatabase(t)
+	return ctx, provider, cleanup
 }
 
 // TestStoreOperations_Integration tests comprehensive store repository operations
 func TestStoreOperations_Integration(t *testing.T) {
 	t.Run("Should perform complete auth repository operations", func(t *testing.T) {
-		ctx, pool, cleanup := setupTestWithSharedContainer(t)
+		ctx, provider, cleanup := setupTestDatabase(t)
 		defer cleanup()
-		authRepo := postgres.NewAuthRepo(pool)
+		authRepo := provider.NewAuthRepo()
 
 		// Test user creation
 		userID := core.MustNewID()
@@ -105,10 +102,10 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should perform complete task repository operations", func(t *testing.T) {
-		ctx, pool, cleanup := setupTestWithSharedContainer(t)
+		ctx, provider, cleanup := setupTestDatabase(t)
 		defer cleanup()
-		taskRepo := postgres.NewTaskRepo(pool)
-		workflowRepo := postgres.NewWorkflowRepo(pool)
+		taskRepo := provider.NewTaskRepo()
+		workflowRepo := provider.NewWorkflowRepo()
 
 		// First create a workflow state (required for foreign key constraint)
 		workflowExecID := core.MustNewID()
@@ -173,9 +170,9 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should perform complete workflow repository operations", func(t *testing.T) {
-		ctx, pool, cleanup := setupTestWithSharedContainer(t)
+		ctx, provider, cleanup := setupTestDatabase(t)
 		defer cleanup()
-		workflowRepo := postgres.NewWorkflowRepo(pool)
+		workflowRepo := provider.NewWorkflowRepo()
 
 		// Test workflow state creation
 		workflowExecID := core.MustNewID()
@@ -228,10 +225,10 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should handle concurrent repository operations", func(t *testing.T) {
-		ctx, pool, cleanup := setupTestWithSharedContainer(t)
+		ctx, provider, cleanup := setupTestDatabase(t)
 		defer cleanup()
 
-		authRepo := postgres.NewAuthRepo(pool)
+		authRepo := provider.NewAuthRepo()
 
 		// Test concurrent user creation
 		numUsers := 10
@@ -239,7 +236,7 @@ func TestStoreOperations_Integration(t *testing.T) {
 
 		// Create users concurrently
 		errChan := make(chan error, numUsers)
-		for i := range numUsers {
+		for i := 0; i < numUsers; i++ {
 			go func(index int) {
 				userID := core.MustNewID()
 				userIDs[index] = userID
@@ -253,7 +250,7 @@ func TestStoreOperations_Integration(t *testing.T) {
 		}
 
 		// Wait for all operations to complete
-		for range numUsers {
+		for i := 0; i < numUsers; i++ {
 			err := <-errChan
 			require.NoError(t, err, "concurrent user creation should succeed")
 		}
@@ -268,10 +265,10 @@ func TestStoreOperations_Integration(t *testing.T) {
 	})
 
 	t.Run("Should handle error scenarios gracefully", func(t *testing.T) {
-		ctx, pool, cleanup := setupTestWithSharedContainer(t)
+		ctx, provider, cleanup := setupTestDatabase(t)
 		defer cleanup()
-		authRepo := postgres.NewAuthRepo(pool)
-		taskRepo := postgres.NewTaskRepo(pool)
+		authRepo := provider.NewAuthRepo()
+		taskRepo := provider.NewTaskRepo()
 
 		// Test duplicate user creation
 		userID := core.MustNewID()
@@ -313,15 +310,4 @@ func TestStoreOperations_Integration(t *testing.T) {
 		err = authRepo.CreateUser(ctx, duplicateEmailUser)
 		assert.Error(t, err, "should return error for duplicate email")
 	})
-}
-
-// TestMain handles shared container lifecycle for all tests in this package
-func TestMain(m *testing.M) {
-	// Run tests
-	code := m.Run()
-
-	// Cleanup shared container
-	helpers.CleanupSharedContainer(context.Background())
-
-	os.Exit(code)
 }

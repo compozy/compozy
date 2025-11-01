@@ -1,0 +1,36 @@
+# Minimal memory profile for demos, tutorials, or CI smoke tests.
+name: memory-demo
+version: "0.1.0"
+mode: memory  # Explicit for clarity; resolved automatically if omitted.
+
+database:
+  driver: sqlite
+  path: ":memory:"  # No files are written to disk.
+
+temporal:
+  mode: memory
+  standalone:
+    database_file: ":memory:"  # Clears history on every restart.
+    enable_ui: true  # Optional Temporal UI for quick inspection.
+
+redis:
+  mode: memory
+  standalone:
+    persistence:
+      enabled: false
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "${OPENAI_API_KEY}"
+
+workflows:
+  - source: ./workflows/echo.yaml
+    watch: true  # Enable hot reload for local development.
+
+tasks:
+  - id: echo
+    type: basic
+    action: run
+    prompt: "Echo: {{ .workflow.input.message }}"
+    final: true

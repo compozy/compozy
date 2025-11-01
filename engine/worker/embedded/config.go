@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	pkgconfig "github.com/compozy/compozy/pkg/config"
 )
 
 const (
@@ -30,41 +32,9 @@ var allowedLogLevels = map[string]struct{}{
 	"error": {},
 }
 
-// Config holds embedded Temporal server configuration.
-type Config struct {
-	// DatabaseFile specifies SQLite database location.
-	// Use ":memory:" for ephemeral in-memory storage.
-	// Use file path for persistent storage across restarts.
-	DatabaseFile string
-
-	// FrontendPort is the gRPC port for the frontend service.
-	FrontendPort int
-
-	// BindIP is the IP address to bind all services to.
-	BindIP string
-
-	// Namespace is the default namespace to create on startup.
-	Namespace string
-
-	// ClusterName is the Temporal cluster name.
-	ClusterName string
-
-	// EnableUI enables the Temporal Web UI server.
-	// Set to true to enable the UI server on the specified UIPort.
-	EnableUI bool
-
-	// RequireUI enforces UI availability; Start returns an error if the UI fails to launch.
-	RequireUI bool
-
-	// UIPort is the HTTP port for the Web UI.
-	UIPort int
-
-	// LogLevel controls server logging verbosity.
-	LogLevel string
-
-	// StartTimeout is the maximum time to wait for server startup.
-	StartTimeout time.Duration
-}
+// Config aliases pkgconfig.EmbeddedTemporalConfig to keep embedded worker code aligned with
+// the canonical embedded Temporal configuration.
+type Config = pkgconfig.EmbeddedTemporalConfig
 
 func applyDefaults(cfg *Config) {
 	if cfg == nil {

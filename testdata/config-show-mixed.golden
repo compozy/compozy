@@ -89,7 +89,7 @@ llm.structured_output_retries            2
 llm.tool_call_caps.overrides             
 mcp_proxy.base_url                       
 mcp_proxy.host                           127.0.0.1
-mcp_proxy.mode                           standalone
+mcp_proxy.mode                           memory
 mcp_proxy.port                           6001
 mcp_proxy.shutdown_timeout               10s
 memory.max_entries                       10000
@@ -110,7 +110,7 @@ redis.max_retries                        3
 redis.max_retry_backoff                  512ms
 redis.min_idle_conns                     0
 redis.min_retry_backoff                  8ms
-redis.mode                               standalone
+redis.mode                               persistent
 redis.notification_buffer_size           100
 redis.ping_timeout                       1s
 redis.pool_size                          10
@@ -144,7 +144,7 @@ tasks.stream.max_chunks                  100
 tasks.wait.siblings.poll_interval        200ms
 tasks.wait.siblings.timeout              30s
 temporal.host_port                       localhost:7233
-temporal.mode                            remote
+temporal.mode                            memory
 temporal.namespace                       default
 temporal.task_queue                      compozy-tasks
 webhooks.default_dedupe_ttl              10m0s

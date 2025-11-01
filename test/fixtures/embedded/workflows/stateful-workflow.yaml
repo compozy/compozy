@@ -1,0 +1,42 @@
+id: e2e-stateful
+version: 0.1.0
+description: Two-step workflow to exercise multi-step state handling.
+
+schemas:
+  - id: user_input
+    type: object
+    properties:
+      user_id:
+        type: string
+      message:
+        type: string
+    required:
+      - user_id
+      - message
+
+config:
+  input: user_input
+
+agents:
+  - id: echoer
+    name: Echo Agent
+    instructions: |
+      Respond concisely to confirm receipt. Keep answers short and deterministic.
+
+tasks:
+  - id: step1
+    type: basic
+    agent: echoer
+    with:
+      message: "{{ .workflow.input.message }}"
+    prompt: |
+      Confirm receipt of the message: {{ .with.message }}
+
+  - id: step2
+    type: basic
+    agent: echoer
+    with:
+      previous: "{{ .tasks.step1.output }}"
+    prompt: |
+      Acknowledge the previous confirmation: {{ .with.previous }}
+    final: true

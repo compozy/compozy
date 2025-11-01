@@ -19,6 +19,8 @@ import (
 
 const taskStateSelectColumns = `component, status, task_exec_id, task_id, workflow_id, workflow_exec_id, execution_type, usage, agent_id, tool_id, action_id, parent_state_id, input, output, error, created_at, updated_at`
 
+const taskStateSelectColumnsQualifiedTaskRepo = `ts.component, ts.status, ts.task_exec_id, ts.task_id, ts.workflow_id, ts.workflow_exec_id, ts.execution_type, ts.usage, ts.agent_id, ts.tool_id, ts.action_id, ts.parent_state_id, ts.input, ts.output, ts.error, ts.created_at, ts.updated_at`
+
 const maxTaskTreeDepth = 100
 
 const taskStateUpsertQuery = `
@@ -396,7 +398,7 @@ func (r *TaskRepo) getTaskTreeWith(ctx context.Context, runner execRunner, rootS
         FROM task_states
         WHERE task_exec_id = ?
         UNION ALL
-        SELECT ` + taskStateSelectColumns + `, tt.depth + 1
+        SELECT ` + taskStateSelectColumnsQualifiedTaskRepo + `, tt.depth + 1
         FROM task_states ts
         JOIN task_tree tt ON ts.parent_state_id = tt.task_exec_id
         WHERE tt.depth < ?
@@ -444,6 +446,10 @@ func buildUpsertArgs(state *task.State, now time.Time) ([]any, error) {
 	if createdAt.IsZero() {
 		createdAt = now
 	}
+	execType := state.ExecutionType
+	if execType == "" {
+		execType = task.ExecutionBasic
+	}
 	return []any{
 		string(state.Component),
 		string(state.Status),
@@ -451,7 +457,7 @@ func buildUpsertArgs(state *task.State, now time.Time) ([]any, error) {
 		state.TaskID,
 		state.WorkflowExecID.String(),
 		state.WorkflowID,
-		string(state.ExecutionType),
+		string(execType),
 		jsonArg(usageJSON),
 		nullableString(state.AgentID),
 		nullableString(state.ToolID),

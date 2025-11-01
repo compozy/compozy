@@ -1,4 +1,36 @@
 {
+  "$defs": {
+    "CLIDevConfig": {
+      "additionalProperties": false,
+      "description": "CLIDevConfig contains development tooling settings for the CLI.",
+      "properties": {
+        "WatcherDebounce": {
+          "description": "WatcherDebounce defines the quiet period before restarting the dev server after a file change.\nLower values trigger faster restarts; higher values reduce churn when many files change at once.\n\n**Default**: `200ms`",
+          "type": "integer"
+        },
+        "WatcherRetryInitial": {
+          "description": "WatcherRetryInitial controls the first backoff duration after an unexpected server failure.\nThe delay doubles after each failure until WatcherRetryMax is reached.\n\n**Default**: `500ms`",
+          "type": "integer"
+        },
+        "WatcherRetryMax": {
+          "description": "WatcherRetryMax caps the exponential backoff window when the dev server repeatedly fails to start.\n\n**Default**: `30s`",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "CLIUsersConfig": {
+      "additionalProperties": false,
+      "description": "CLIUsersConfig controls CLI user-management heuristics and filters.",
+      "properties": {
+        "ActiveWindowDays": {
+          "description": "ActiveWindowDays specifies how many days define an \"active\" user.\n\nUsed by commands like `auth users list --active` to determine recent activity.\nDefault: 30 days.",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    }
+  },
   "$id": "config-cli.json",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": false,
@@ -27,13 +59,25 @@
       "description": "DefaultFormat sets the default output format.\n\nOptions:\n  - `\"json\"`: JSON format for programmatic consumption\n  - `\"tui\"`: Terminal UI with tables and formatting (default)\n  - `\"auto\"`: Automatically detect based on terminal capabilities",
       "type": "string"
     },
+    "Dev": {
+      "$ref": "#/$defs/CLIDevConfig",
+      "description": "Dev exposes local development settings, including watcher debounce and restart backoff."
+    },
     "EnvFile": {
       "description": "EnvFile specifies a .env file to load environment variables from.\n\nVariables in this file are loaded before processing configuration.",
       "type": "string"
     },
+    "FileWatchInterval": {
+      "description": "FileWatchInterval controls the polling cadence when filesystem notifications are unavailable.\n\nDefault: 1s\nSet to 0 to use the built-in default.",
+      "type": "integer"
+    },
     "Interactive": {
       "description": "Interactive enables interactive prompts and confirmations.\n\nDefault: true\nSet to false for non-interactive environments.",
       "type": "boolean"
+    },
+    "MaxRetries": {
+      "description": "MaxRetries sets the maximum retry attempts for CLI HTTP requests.\nDefault: 3. Set to a non-negative value; 0 reverts to the default and negative disables retries.",
+      "type": "integer"
     },
     "Mode": {
       "description": "Mode controls the CLI execution behavior.\n\nAvailable modes:\n  - `\"normal\"`: Standard interactive mode (default)\n  - `\"batch\"`: Non-interactive batch processing\n  - `\"script\"`: Optimized for scripting (minimal output)",
@@ -70,6 +114,10 @@
     "Timeout": {
       "description": "Timeout sets the maximum duration for API requests.\n\nDefault: 30s\nIncrease for long-running operations like workflow execution.",
       "type": "integer"
+    },
+    "Users": {
+      "$ref": "#/$defs/CLIUsersConfig",
+      "description": "Users configures CLI behavior for user-management commands.\n\nProvides operator-tunable knobs for filters and heuristics like the active-user window."
     }
   },
   "title": "CLI Configuration",

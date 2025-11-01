@@ -1,0 +1,44 @@
+# Persistent mode example that keeps state across restarts via on-disk storage.
+name: persistent-mode-playground
+version: "0.1.0"
+description: Run Compozy with embedded services that write to the .compozy/ folder.
+mode: persistent
+
+database:
+  driver: sqlite
+  path: ./.compozy/compozy.db
+
+# Temporal runs in-process and stores workflow history on disk.
+temporal:
+  mode: persistent
+  standalone:
+    database_file: ./.compozy/temporal.db
+    enable_ui: true
+    ui_port: 8233
+
+# Miniredis persists snapshots using BadgerDB for durable caches.
+redis:
+  mode: persistent
+  standalone:
+    persistence:
+      enabled: true
+      data_dir: ./.compozy/redis
+      snapshot_interval: 60s
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "${OPENAI_API_KEY}"
+
+workflows:
+  - source: ./workflow.yaml
+    watch: true
+
+tasks:
+  summarize:
+    type: basic
+    action: run
+    prompt: |
+      Summarize this note for tomorrow's stand-up:
+      {{ .workflow.input.note }}
+    final: true

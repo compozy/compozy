@@ -19,7 +19,7 @@ func TestBasicResponseHandler_Integration(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		ts := tkhelpers.NewTestSetup(t)
+		ts := tkhelpers.NewTestSetupWithDriver(t, "postgres")
 
 		// Create basic response handler
 		handler, err := basic.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)
@@ -82,7 +82,7 @@ func TestBasicResponseHandler_Integration(t *testing.T) {
 		t.Parallel()
 
 		// Setup test infrastructure
-		ts := tkhelpers.NewTestSetup(t)
+		ts := tkhelpers.NewTestSetupWithDriver(t, "postgres")
 
 		// Create basic response handler
 		handler, err := basic.NewResponseHandler(ts.TemplateEngine, ts.ContextBuilder, ts.BaseHandler)

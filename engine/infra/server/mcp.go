@@ -195,7 +195,7 @@ func (s *Server) afterMCPReady(ctx context.Context, cfg *config.Config, baseURL,
 	s.onReadinessMaybeChanged("mcp_ready")
 	log := logger.FromContext(ctx)
 	mode := cfg.EffectiveMCPProxyMode()
-	if mode == config.ModeStandalone {
+	if mode == config.ModeMemory || mode == config.ModePersistent {
 		if cfg.LLM.ProxyURL != baseURL {
 			cfg.LLM.ProxyURL = baseURL
 			log.Info("Set LLM proxy URL from embedded MCP proxy", "proxy_url", baseURL)
@@ -277,7 +277,8 @@ func shouldEmbedMCPProxy(ctx context.Context) bool {
 	if cfg == nil {
 		return false
 	}
-	if cfg.EffectiveMCPProxyMode() != config.ModeStandalone {
+	mode := cfg.EffectiveMCPProxyMode()
+	if mode != config.ModeMemory && mode != config.ModePersistent {
 		return false
 	}
 	return true
@@ -307,7 +308,7 @@ func storageConfigForMCP(cfg *config.Config) *mcpproxy.StorageConfig {
 		return mcpproxy.DefaultStorageConfig()
 	}
 	mode := cfg.EffectiveRedisMode()
-	if mode == config.ModeStandalone {
+	if mode == config.ModeMemory || mode == config.ModePersistent {
 		return &mcpproxy.StorageConfig{Type: mcpproxy.StorageTypeMemory}
 	}
 	if mode != config.ModeDistributed {

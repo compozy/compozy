@@ -16,12 +16,14 @@
 
 [Brief description of task]
 
+[**FOR LLM: DON'T CHANGE THIS BLOCK**]
 <critical>
 - **ALWAYS READ** @.cursor/rules/critical-validation.mdc before start
-- **ALWAYS READ** the technicals docs from this PRD before start
+- **ALWAYS READ** the _techspec.md and the _prd.md docs from this PRD before start
 - **YOU SHOULD ALWAYS** have in mind that this should be done in a greenfield approach, we don't need to care about backwards compatibility since the project is in alpha, and support old and new stuff just introduces more complexity in the project; never sacrifice quality because of backwards compatibility
 </critical>
 
+[**FOR LLM: DON'T CHANGE THIS BLOCK**]
 <research>
 # When you need information about a library or external API:
 - use perplexity and context7 to find out how to properly fix/resolve this
@@ -38,7 +40,7 @@
 - [ ] X.1 [Subtask description]
 - [ ] X.2 [Subtask description]
 
-## Implementation Details (**FOR LLM READING THIS: KEEP THIS BRIEFLY AND HIGH-LEVEL, THE IMPLEMENTATION ALREADY EXIST IN THE TECHSPEC**)
+## Implementation Details [**FOR LLM: KEEP THIS BRIEFLY AND HIGH-LEVEL, THE IMPLEMENTATION ALREADY EXIST IN THE TECHSPEC**]
 
 [Relevant sections from tech spec]
 

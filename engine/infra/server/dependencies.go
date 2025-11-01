@@ -33,6 +33,11 @@ const (
 	postgresConcurrencySummary   = "high (25+ workflows)"
 )
 
+const (
+	sqliteMemoryDSN        = ":memory:"
+	sqliteMemoryFilePrefix = "file::memory:"
+)
+
 func (s *Server) setupProjectConfig(
 	store resources.ResourceStore,
 ) (*project.Config, []*workflow.Config, *autoload.ConfigRegistry, error) {
@@ -131,8 +136,13 @@ func (s *Server) validateDatabaseConfig(cfg *config.Config) error {
 		return nil
 	}
 	log := logger.FromContext(s.ctx)
+	mode := strings.TrimSpace(cfg.Mode)
+	if mode == "" {
+		mode = config.ModeMemory
+	}
 	if len(cfg.Knowledge.VectorDBs) == 0 {
-		log.Warn("SQLite mode without vector database - knowledge features will not work",
+		log.Warn("SQLite driver configured without vector database - knowledge features will not work",
+			"mode", mode,
 			"driver", driverSQLite,
 			"recommendation", "Configure Qdrant, Redis, or Filesystem vector DB",
 		)
@@ -151,10 +161,11 @@ func (s *Server) validateDatabaseConfig(cfg *config.Config) error {
 	maxWorkflows := cfg.Worker.MaxConcurrentWorkflowExecutionSize
 	if maxWorkflows > recommendedSQLiteConcurrency {
 		log.Warn("SQLite has concurrency limitations",
+			"mode", mode,
 			"driver", driverSQLite,
 			"max_concurrent_workflows", maxWorkflows,
 			"recommended_max", recommendedSQLiteConcurrency,
-			"note", "Consider using PostgreSQL for high-concurrency production workloads",
+			"note", "Consider using mode: distributed for high-concurrency workloads",
 		)
 	}
 	return nil
@@ -196,7 +207,7 @@ func sqliteMode(path string) string {
 		return "unknown"
 	}
 	lowered := strings.ToLower(trimmed)
-	if lowered == ":memory:" || strings.HasPrefix(lowered, "file::memory:") ||
+	if lowered == sqliteMemoryDSN || strings.HasPrefix(lowered, sqliteMemoryFilePrefix) ||
 		strings.Contains(lowered, "mode=memory") {
 		return "in-memory"
 	}
@@ -229,7 +240,7 @@ func (s *Server) setupDependencies() (*appstate.State, []func(), error) {
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
-	temporalCleanup, err := maybeStartStandaloneTemporal(s.ctx)
+	temporalCleanup, err := maybeStartEmbeddedTemporal(s.ctx)
 	if err != nil {
 		return nil, cleanupFuncs, err
 	}
@@ -375,23 +386,27 @@ func chooseResourceStore(cacheInstance *cache.Cache, cfg *config.Config) resourc
 	return resources.NewMemoryResourceStore()
 }
 
-func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
+func maybeStartEmbeddedTemporal(ctx context.Context) (func(), error) {
 	cfg := config.FromContext(ctx)
 	if cfg == nil {
 		return nil, fmt.Errorf("configuration is required to start Temporal")
 	}
-	if cfg.EffectiveTemporalMode() != modeStandalone {
+	mode := cfg.EffectiveTemporalMode()
+	if mode != config.ModeMemory && mode != config.ModePersistent {
 		return nil, nil
 	}
-	embeddedCfg := standaloneEmbeddedConfig(cfg)
+	embeddedCfg := embeddedTemporalConfig(ctx, cfg)
 	log := logger.FromContext(ctx)
 	log.Info(
-		"Starting in standalone mode",
+		"Starting embedded Temporal",
+		"mode", mode,
 		"database", embeddedCfg.DatabaseFile,
 		"frontend_port", embeddedCfg.FrontendPort,
+		"bind_ip", embeddedCfg.BindIP,
 		"ui_enabled", embeddedCfg.EnableUI,
+		"ui_port", embeddedCfg.UIPort,
 	)
-	log.Warn("Temporal standalone mode is not recommended for production")
+	log.Warn("Embedded Temporal is intended for development and testing only", "mode", mode)
 	server, err := embedded.NewServer(ctx, embeddedCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare embedded Temporal server: %w", err)
@@ -401,8 +416,10 @@ func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
 	}
 	cfg.Temporal.HostPort = server.FrontendAddress()
 	log.Info(
-		"Temporal standalone mode started",
+		"Embedded Temporal started",
+		"mode", mode,
 		"frontend_addr", cfg.Temporal.HostPort,
+		"database", embeddedCfg.DatabaseFile,
 		"ui_enabled", embeddedCfg.EnableUI,
 		"ui_port", embeddedCfg.UIPort,
 	)
@@ -410,26 +427,55 @@ func maybeStartStandaloneTemporal(ctx context.Context) (func(), error) {
 	if shutdownTimeout <= 0 {
 		shutdownTimeout = embeddedCfg.StartTimeout
 	}
-	return standaloneTemporalCleanup(ctx, server, shutdownTimeout), nil
+	return embeddedTemporalCleanup(ctx, server, shutdownTimeout), nil
 }
 
-func standaloneEmbeddedConfig(cfg *config.Config) *embedded.Config {
-	standalone := cfg.Temporal.Standalone
+func embeddedTemporalConfig(ctx context.Context, cfg *config.Config) *embedded.Config {
+	embeddedTemporal := cfg.Temporal.Standalone
+	mode := cfg.EffectiveTemporalMode()
+	dbFile := strings.TrimSpace(embeddedTemporal.DatabaseFile)
+	const persistentDBPath = "./.compozy/temporal.db"
+	log := logger.FromContext(ctx)
+	originalDBFile := dbFile
+	switch mode {
+	case config.ModePersistent:
+		if dbFile == "" || dbFile == sqliteMemoryDSN {
+			fromValue := originalDBFile
+			if fromValue == "" {
+				fromValue = "(empty)"
+			}
+			log.Info(
+				"Overriding Temporal database file for persistent mode",
+				"mode", mode,
+				"from", fromValue,
+				"to", persistentDBPath,
+			)
+			dbFile = persistentDBPath
+		}
+	case config.ModeMemory:
+		if dbFile == "" {
+			dbFile = sqliteMemoryDSN
+		}
+	default:
+		if dbFile == "" {
+			dbFile = sqliteMemoryDSN
+		}
+	}
 	return &embedded.Config{
-		DatabaseFile: standalone.DatabaseFile,
-		FrontendPort: standalone.FrontendPort,
-		BindIP:       standalone.BindIP,
-		Namespace:    standalone.Namespace,
-		ClusterName:  standalone.ClusterName,
-		EnableUI:     standalone.EnableUI,
-		RequireUI:    standalone.RequireUI,
-		UIPort:       standalone.UIPort,
-		LogLevel:     standalone.LogLevel,
-		StartTimeout: standalone.StartTimeout,
+		DatabaseFile: dbFile,
+		FrontendPort: embeddedTemporal.FrontendPort,
+		BindIP:       embeddedTemporal.BindIP,
+		Namespace:    embeddedTemporal.Namespace,
+		ClusterName:  embeddedTemporal.ClusterName,
+		EnableUI:     embeddedTemporal.EnableUI,
+		RequireUI:    embeddedTemporal.RequireUI,
+		UIPort:       embeddedTemporal.UIPort,
+		LogLevel:     embeddedTemporal.LogLevel,
+		StartTimeout: embeddedTemporal.StartTimeout,
 	}
 }
 
-func standaloneTemporalCleanup(
+func embeddedTemporalCleanup(
 	ctx context.Context,
 	server *embedded.Server,
 	shutdownTimeout time.Duration,

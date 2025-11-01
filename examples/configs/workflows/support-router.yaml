@@ -1,0 +1,26 @@
+id: support-router
+version: 1.0.0
+description: Production triage workflow that routes tickets through multiple models
+
+config:
+  input:
+    type: object
+    properties:
+      ticket:
+        type: string
+        description: Full support ticket text to classify and answer
+    required:
+      - ticket
+
+# Reference the tasks defined in the distributed config.
+tasks:
+  - id: classify
+    type: reference
+    target: classify
+  - id: escalate
+    type: reference
+    target: escalate
+
+outputs:
+  classification: "{{ .tasks.classify.output }}"
+  reply: "{{ .tasks.escalate.output }}"

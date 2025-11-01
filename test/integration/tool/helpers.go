@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/compozy/compozy/engine/agent"
 	"github.com/compozy/compozy/engine/core"
+	"github.com/compozy/compozy/engine/infra/repo"
 	"github.com/compozy/compozy/engine/llm"
 	"github.com/compozy/compozy/engine/project"
 	coreruntime "github.com/compozy/compozy/engine/runtime"
@@ -26,9 +26,9 @@ const defaultTestTimeout = 30 * time.Second
 
 // TestEnvironment provides a complete test environment for tool inheritance tests
 type TestEnvironment struct {
-	ctx     context.Context
-	pool    *pgxpool.Pool
-	cleanup func()
+	ctx      context.Context
+	provider *repo.Provider
+	cleanup  func()
 }
 
 // SetupTestEnvironment creates a test environment with real database
@@ -37,11 +37,10 @@ func SetupTestEnvironment(t *testing.T) *TestEnvironment {
 	// NOTE: Bound test contexts to avoid leaked goroutines when tool calls hang.
 	ctx, cancel := context.WithTimeout(t.Context(), defaultTestTimeout)
 	t.Cleanup(cancel)
-	pool, dbCleanup := helpers.GetSharedPostgresDB(t)
-	require.NoError(t, helpers.EnsureTablesExistForTest(pool))
+	provider, dbCleanup := helpers.SetupTestDatabase(t)
 	env := &TestEnvironment{
-		ctx:  ctx,
-		pool: pool,
+		ctx:      ctx,
+		provider: provider,
 		cleanup: func() {
 			dbCleanup()
 			cancel()
@@ -56,6 +55,11 @@ func (env *TestEnvironment) Cleanup() {
 	if env.cleanup != nil {
 		env.cleanup()
 	}
+}
+
+// Provider exposes the repository provider for tests that need database access.
+func (env *TestEnvironment) Provider() *repo.Provider {
+	return env.provider
 }
 
 // CreateTestProjectConfig creates a project config with tools for testing
