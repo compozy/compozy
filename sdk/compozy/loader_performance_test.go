@@ -70,7 +70,7 @@ func TestLoadWorkflowsPerformanceBudget(t *testing.T) {
 			require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 		}
 		start := time.Now()
-		err = engine.LoadWorkflowsFromDir(dir)
+		err = engine.LoadWorkflowsFromDir(ctx, dir)
 		require.NoError(t, err)
 		perFile := time.Since(start) / time.Duration(fileCount)
 		assert.LessOrEqual(t, perFile, 100*time.Millisecond, "per-file load budget exceeded: %v", perFile)

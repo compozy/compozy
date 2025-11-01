@@ -13404,9 +13404,6 @@ const docTemplate = `{
             "enum": [
                 "global",
                 "user",
-                "session",
-                "global",
-                "user",
                 "session"
             ],
             "x-enum-varnames": [

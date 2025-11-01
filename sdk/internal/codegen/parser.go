@@ -20,8 +20,48 @@ func ParseStruct(filePath string, structName string) (*StructInfo, error) {
 		StructName:  structName,
 		Fields:      make([]FieldInfo, 0),
 	}
+	handler := func(field *ast.Field) error {
+		if len(field.Names) == 0 {
+			embeddedType := getEmbeddedTypeName(field.Type)
+			if embeddedType == "" {
+				return nil
+			}
+			embeddedFields, embeddedErr := parseEmbeddedStruct(fset, filePath, embeddedType)
+			if embeddedErr != nil {
+				return embeddedErr
+			}
+			info.Fields = append(info.Fields, embeddedFields...)
+			return nil
+		}
+		fieldName := field.Names[0].Name
+		if !ast.IsExported(fieldName) {
+			return nil
+		}
+		fieldInfo := analyzeFieldType(field)
+		fieldInfo.Name = fieldName
+		if field.Doc != nil {
+			fieldInfo.Comment = strings.TrimSpace(field.Doc.Text())
+		}
+		info.Fields = append(info.Fields, fieldInfo)
+		return nil
+	}
+	found, walkErr := walkStructFields(node, structName, handler)
+	if walkErr != nil {
+		return nil, walkErr
+	}
+	if !found {
+		return nil, fmt.Errorf("struct %s not found in %s", structName, filePath)
+	}
+	return info, nil
+}
+
+func walkStructFields(node ast.Node, structName string, fn func(*ast.Field) error) (bool, error) {
 	found := false
+	var walkErr error
 	ast.Inspect(node, func(n ast.Node) bool {
+		if walkErr != nil {
+			return false
+		}
 		typeSpec, ok := n.(*ast.TypeSpec)
 		if !ok || typeSpec.Name.Name != structName {
 			return true
@@ -32,100 +72,71 @@ func ParseStruct(filePath string, structName string) (*StructInfo, error) {
 			return true
 		}
 		for _, field := range structType.Fields.List {
-			if len(field.Names) == 0 {
-				embeddedType := getEmbeddedTypeName(field.Type)
-				if embeddedType != "" {
-					embeddedFields := parseEmbeddedStruct(fset, filePath, embeddedType)
-					info.Fields = append(info.Fields, embeddedFields...)
-				}
-				continue
+			if err := fn(field); err != nil {
+				walkErr = err
+				return false
 			}
-			fieldName := field.Names[0].Name
-			if !ast.IsExported(fieldName) {
-				continue
-			}
-			fieldInfo := analyzeFieldType(field)
-			fieldInfo.Name = fieldName
-			if field.Doc != nil {
-				fieldInfo.Comment = strings.TrimSpace(field.Doc.Text())
-			}
-			info.Fields = append(info.Fields, fieldInfo)
 		}
 		return false
 	})
-	if !found {
-		return nil, fmt.Errorf("struct %s not found in %s", structName, filePath)
-	}
-	return info, nil
+	return found, walkErr
 }
 
 func analyzeFieldType(field *ast.Field) FieldInfo {
-	info := FieldInfo{}
-	switch t := field.Type.(type) {
-	case *ast.Ident:
-		info.Type = t.Name
-	case *ast.SelectorExpr:
-		info.Type = exprToString(t)
-		if x, ok := t.X.(*ast.Ident); ok {
-			info.PackagePath = x.Name
-		}
-	case *ast.StarExpr:
-		info.IsPtr = true
-		innerInfo := analyzeExpr(t.X)
-		info.Type = innerInfo.Type
-		info.PackagePath = innerInfo.PackagePath
-		info.IsSlice = innerInfo.IsSlice
-		info.IsMap = innerInfo.IsMap
-		info.ValueType = innerInfo.ValueType
-		info.KeyType = innerInfo.KeyType
-	case *ast.ArrayType:
-		info.IsSlice = true
-		innerInfo := analyzeExpr(t.Elt)
-		info.Type = innerInfo.Type
-		info.PackagePath = innerInfo.PackagePath
-		if innerInfo.IsPtr {
-			info.ValueType = "*" + innerInfo.Type
-		} else {
-			info.ValueType = innerInfo.Type
-		}
-	case *ast.MapType:
-		info.IsMap = true
-		keyInfo := analyzeExpr(t.Key)
-		valueInfo := analyzeExpr(t.Value)
-		info.KeyType = keyInfo.Type
-		info.ValueType = valueInfo.Type
-		info.Type = fmt.Sprintf("map[%s]%s", keyInfo.Type, valueInfo.Type)
-	default:
-		info.Type = exprToString(field.Type)
-	}
-	return info
+	return analyzeType(field.Type)
 }
 
-func analyzeExpr(expr ast.Expr) FieldInfo {
-	info := FieldInfo{}
+func analyzeType(expr ast.Expr) FieldInfo {
 	switch t := expr.(type) {
 	case *ast.Ident:
-		info.Type = t.Name
+		return FieldInfo{Type: t.Name}
 	case *ast.SelectorExpr:
-		info.Type = exprToString(t)
+		info := FieldInfo{Type: exprToString(t)}
 		if x, ok := t.X.(*ast.Ident); ok {
 			info.PackagePath = x.Name
 		}
+		return info
 	case *ast.StarExpr:
-		info.IsPtr = true
-		innerInfo := analyzeExpr(t.X)
-		info.Type = innerInfo.Type
-		info.PackagePath = innerInfo.PackagePath
+		inner := analyzeType(t.X)
+		return FieldInfo{
+			Type:        inner.Type,
+			IsPtr:       true,
+			IsSlice:     inner.IsSlice,
+			IsMap:       inner.IsMap,
+			KeyType:     inner.KeyType,
+			ValueType:   inner.ValueType,
+			PackagePath: inner.PackagePath,
+		}
 	case *ast.ArrayType:
-		info.IsSlice = true
-		innerInfo := analyzeExpr(t.Elt)
-		info.Type = innerInfo.Type
-		info.ValueType = innerInfo.Type
-		info.PackagePath = innerInfo.PackagePath
+		inner := analyzeType(t.Elt)
+		valueType := inner.Type
+		if inner.IsPtr {
+			valueType = "*" + inner.Type
+		}
+		return FieldInfo{
+			Type:        inner.Type,
+			IsSlice:     true,
+			IsMap:       inner.IsMap,
+			KeyType:     inner.KeyType,
+			ValueType:   valueType,
+			PackagePath: inner.PackagePath,
+		}
+	case *ast.MapType:
+		keyInfo := analyzeType(t.Key)
+		valueInfo := analyzeType(t.Value)
+		valueType := valueInfo.Type
+		if valueInfo.IsPtr {
+			valueType = "*" + valueInfo.Type
+		}
+		return FieldInfo{
+			Type:      fmt.Sprintf("map[%s]%s", keyInfo.Type, valueType),
+			IsMap:     true,
+			KeyType:   keyInfo.Type,
+			ValueType: valueType,
+		}
 	default:
-		info.Type = exprToString(expr)
+		return FieldInfo{Type: exprToString(expr)}
 	}
-	return info
 }
 
 func exprToString(expr ast.Expr) string {
@@ -156,10 +167,10 @@ func getEmbeddedTypeName(expr ast.Expr) string {
 	}
 }
 
-func parseEmbeddedStruct(fset *token.FileSet, filePath string, typeName string) []FieldInfo {
+func parseEmbeddedStruct(fset *token.FileSet, filePath string, typeName string) ([]FieldInfo, error) {
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("parse embedded struct %s in %s: %w", typeName, filePath, err)
 	}
 	var fields []FieldInfo
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -188,5 +199,5 @@ func parseEmbeddedStruct(fset *token.FileSet, filePath string, typeName string) 
 		}
 		return false
 	})
-	return fields
+	return fields, nil
 }

@@ -15,8 +15,8 @@ func TestGeneratedFilesHashes(t *testing.T) {
 	files := map[string]string{
 		"options_generated.go":   "c827fddefb3ca3a92e9148f83b8ddab434033e3a0b015877ae5686c5312a5a60",
 		"engine_execution.go":    "4a398c36ef0d122a0fa10e4b2deaa4948d524ccaf809264b3ded3ca8ebaa32da",
-		"engine_loading.go":      "25d3c9fa658465605325ed48c3123064b427b496900adde646e11fa86a97ceff",
-		"engine_registration.go": "d89b5092948ea52c758ab5753706661e2731e4f83480947c308ec6acb7a3c810",
+		"engine_loading.go":      "4c67e1323d10f6ebf6d270e4838ae57058fd70488d5930f968e6e79be7bf4058",
+		"engine_registration.go": "d560f5c93bbe9557050fe3066df8a2e855cf0bfee20d7275b844c8d07b877596",
 	}
 	root := filepath.Clean("..")
 	for name, expected := range files {

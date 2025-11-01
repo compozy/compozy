@@ -26,8 +26,10 @@ const (
 	ResourceEmbedder      ResourceType = core.ConfigEmbedder
 	ResourceVectorDB      ResourceType = core.ConfigVectorDB
 	// Resource-specific extensions not yet in core:
-	ResourceSchema ResourceType = "schema"
-	ResourceModel  ResourceType = "model"
+	ResourceSchema   ResourceType = "schema"
+	ResourceModel    ResourceType = "model"
+	ResourceSchedule ResourceType = "schedule"
+	ResourceWebhook  ResourceType = "webhook"
 	// ResourceMeta stores provenance or auxiliary metadata for resources.
 	// Not exposed via public HTTP router; used by importers/admin tooling.
 	ResourceMeta ResourceType = "meta"

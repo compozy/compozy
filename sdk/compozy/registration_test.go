@@ -150,6 +150,14 @@ func TestRegisterSchedule(t *testing.T) {
 			Cron:       "*/5 * * * *",
 		}))
 		assert.Len(t, engine.schedules, 1)
+		projectName := projectNameOf(engine.project)
+		value, _, err := engine.resourceStore.Get(engine.ctx, resources.ResourceKey{
+			Project: projectName,
+			Type:    resources.ResourceSchedule,
+			ID:      "schedule-alpha",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, value)
 		assert.Error(t, engine.RegisterSchedule(&projectschedule.Config{
 			ID:         "schedule-alpha",
 			WorkflowID: "secondary",
@@ -173,8 +181,34 @@ func TestRegisterWebhook(t *testing.T) {
 			},
 		}))
 		assert.Len(t, engine.webhooks, 1)
+		projectName := projectNameOf(engine.project)
+		stored, _, err := engine.resourceStore.Get(engine.ctx, resources.ResourceKey{
+			Project: projectName,
+			Type:    resources.ResourceWebhook,
+			ID:      "webhook-alpha",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, stored)
 		assert.Error(t, engine.RegisterWebhook(&enginewebhook.Config{Slug: "webhook-alpha"}))
 	})
+}
+
+func TestRegisterScheduleRollsBackOnPersistError(t *testing.T) {
+	engine := newSeedEngine(t)
+	requireProjectRegistered(t, engine, "reg-project")
+	engine.resourceStore = &failingStore{ResourceStore: resources.NewMemoryResourceStore()}
+	err := engine.RegisterSchedule(&projectschedule.Config{ID: "schedule-fail", WorkflowID: "seed", Cron: "* * * * *"})
+	require.Error(t, err)
+	assert.Len(t, engine.schedules, 0)
+}
+
+func TestRegisterWebhookRollsBackOnPersistError(t *testing.T) {
+	engine := newSeedEngine(t)
+	requireProjectRegistered(t, engine, "reg-project")
+	engine.resourceStore = &failingStore{ResourceStore: resources.NewMemoryResourceStore()}
+	err := engine.RegisterWebhook(&enginewebhook.Config{Slug: "webhook-fail"})
+	require.Error(t, err)
+	assert.Len(t, engine.webhooks, 0)
 }
 
 func newSeedEngine(t *testing.T) *Engine {

@@ -1,6 +1,7 @@
 package compozy
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,35 +13,44 @@ func TestLoadFunctionsRequireEngineInstance(t *testing.T) {
 	var engine *Engine
 	tests := []struct {
 		name string
-		call func() error
+		call func(context.Context) error
 	}{
-		{"LoadProject", func() error { return engine.LoadProject("config.yaml") }},
-		{"LoadProjectsFromDir", func() error { return engine.LoadProjectsFromDir("configs") }},
-		{"LoadWorkflow", func() error { return engine.LoadWorkflow("workflow.yaml") }},
-		{"LoadWorkflowsFromDir", func() error { return engine.LoadWorkflowsFromDir("workflows") }},
-		{"LoadAgent", func() error { return engine.LoadAgent("agent.yaml") }},
-		{"LoadAgentsFromDir", func() error { return engine.LoadAgentsFromDir("agents") }},
-		{"LoadTool", func() error { return engine.LoadTool("tool.yaml") }},
-		{"LoadToolsFromDir", func() error { return engine.LoadToolsFromDir("tools") }},
-		{"LoadKnowledge", func() error { return engine.LoadKnowledge("knowledge.yaml") }},
-		{"LoadKnowledgeBasesFromDir", func() error { return engine.LoadKnowledgeBasesFromDir("knowledge") }},
-		{"LoadMemory", func() error { return engine.LoadMemory("memory.yaml") }},
-		{"LoadMemoriesFromDir", func() error { return engine.LoadMemoriesFromDir("memories") }},
-		{"LoadMCP", func() error { return engine.LoadMCP("mcp.yaml") }},
-		{"LoadMCPsFromDir", func() error { return engine.LoadMCPsFromDir("mcps") }},
-		{"LoadSchema", func() error { return engine.LoadSchema("schema.yaml") }},
-		{"LoadSchemasFromDir", func() error { return engine.LoadSchemasFromDir("schemas") }},
-		{"LoadModel", func() error { return engine.LoadModel("model.yaml") }},
-		{"LoadModelsFromDir", func() error { return engine.LoadModelsFromDir("models") }},
-		{"LoadSchedule", func() error { return engine.LoadSchedule("schedule.yaml") }},
-		{"LoadSchedulesFromDir", func() error { return engine.LoadSchedulesFromDir("schedules") }},
-		{"LoadWebhook", func() error { return engine.LoadWebhook("webhook.yaml") }},
-		{"LoadWebhooksFromDir", func() error { return engine.LoadWebhooksFromDir("webhooks") }},
+		{"LoadProject", func(ctx context.Context) error { return engine.LoadProject(ctx, "config.yaml") }},
+		{"LoadProjectsFromDir", func(ctx context.Context) error { return engine.LoadProjectsFromDir(ctx, "configs") }},
+		{"LoadWorkflow", func(ctx context.Context) error { return engine.LoadWorkflow(ctx, "workflow.yaml") }},
+		{
+			"LoadWorkflowsFromDir",
+			func(ctx context.Context) error { return engine.LoadWorkflowsFromDir(ctx, "workflows") },
+		},
+		{"LoadAgent", func(ctx context.Context) error { return engine.LoadAgent(ctx, "agent.yaml") }},
+		{"LoadAgentsFromDir", func(ctx context.Context) error { return engine.LoadAgentsFromDir(ctx, "agents") }},
+		{"LoadTool", func(ctx context.Context) error { return engine.LoadTool(ctx, "tool.yaml") }},
+		{"LoadToolsFromDir", func(ctx context.Context) error { return engine.LoadToolsFromDir(ctx, "tools") }},
+		{"LoadKnowledge", func(ctx context.Context) error { return engine.LoadKnowledge(ctx, "knowledge.yaml") }},
+		{
+			"LoadKnowledgeBasesFromDir",
+			func(ctx context.Context) error { return engine.LoadKnowledgeBasesFromDir(ctx, "knowledge") },
+		},
+		{"LoadMemory", func(ctx context.Context) error { return engine.LoadMemory(ctx, "memory.yaml") }},
+		{"LoadMemoriesFromDir", func(ctx context.Context) error { return engine.LoadMemoriesFromDir(ctx, "memories") }},
+		{"LoadMCP", func(ctx context.Context) error { return engine.LoadMCP(ctx, "mcp.yaml") }},
+		{"LoadMCPsFromDir", func(ctx context.Context) error { return engine.LoadMCPsFromDir(ctx, "mcps") }},
+		{"LoadSchema", func(ctx context.Context) error { return engine.LoadSchema(ctx, "schema.yaml") }},
+		{"LoadSchemasFromDir", func(ctx context.Context) error { return engine.LoadSchemasFromDir(ctx, "schemas") }},
+		{"LoadModel", func(ctx context.Context) error { return engine.LoadModel(ctx, "model.yaml") }},
+		{"LoadModelsFromDir", func(ctx context.Context) error { return engine.LoadModelsFromDir(ctx, "models") }},
+		{"LoadSchedule", func(ctx context.Context) error { return engine.LoadSchedule(ctx, "schedule.yaml") }},
+		{
+			"LoadSchedulesFromDir",
+			func(ctx context.Context) error { return engine.LoadSchedulesFromDir(ctx, "schedules") },
+		},
+		{"LoadWebhook", func(ctx context.Context) error { return engine.LoadWebhook(ctx, "webhook.yaml") }},
+		{"LoadWebhooksFromDir", func(ctx context.Context) error { return engine.LoadWebhooksFromDir(ctx, "webhooks") }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			err := tc.call()
+			err := tc.call(t.Context())
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "engine is nil")
 		})

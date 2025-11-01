@@ -1,6 +1,7 @@
 package compozy
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ id: yaml-tool
 type: http
 `)
 	require.NoError(t, os.WriteFile(file, []byte(content), 0o600))
-	cfg, abs, err := loadYAML[*enginetool.Config](engine, file)
+	cfg, abs, err := loadYAML[*enginetool.Config](ctx, engine, file)
 	require.NoError(t, err)
 	assert.Equal(t, "yaml-tool", cfg.ID)
 	assert.Equal(t, "tool", cfg.Resource)
@@ -41,14 +42,14 @@ func TestLoadFromDirAccumulatesErrors(t *testing.T) {
 	require.NoError(t, os.WriteFile(good, []byte("kind: ok"), 0o600))
 	require.NoError(t, os.WriteFile(bad, []byte("kind: bad"), 0o600))
 	seen := make([]string, 0)
-	loader := func(path string) error {
+	loader := func(_ context.Context, path string) error {
 		seen = append(seen, filepath.Base(path))
 		if strings.Contains(path, "bad") {
 			return fmt.Errorf("failed")
 		}
 		return nil
 	}
-	err := engine.loadFromDir(dir, loader)
+	err := engine.loadFromDir(ctx, dir, loader)
 	require.Error(t, err)
 	assert.Len(t, seen, 2)
 	assert.Contains(t, err.Error(), "bad.yml")
@@ -58,23 +59,41 @@ func TestLoadYAMLErrorConditions(t *testing.T) {
 	t.Parallel()
 	ctx := lifecycleTestContext(t)
 	engine := &Engine{ctx: ctx}
-	_, _, err := loadYAML[*enginetool.Config](nil, "file.yaml")
+	_, _, err := loadYAML[*enginetool.Config](ctx, nil, "file.yaml")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "engine is nil")
-	_, _, err = loadYAML[*enginetool.Config](engine, " ")
+	_, _, err = loadYAML[*enginetool.Config](ctx, engine, " ")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "path is required")
+	//lint:ignore SA1012 testing nil context handling
+	_, _, err = loadYAML[*enginetool.Config](nil, engine, "file.yaml")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context is required")
 	engine.ctx = nil
-	_, _, err = loadYAML[*enginetool.Config](engine, "file.yaml")
+	_, _, err = loadYAML[*enginetool.Config](ctx, engine, "file.yaml")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "engine context is not set")
+}
+
+func TestLoadYAMLHandlesCanceledContext(t *testing.T) {
+	t.Parallel()
+	baseCtx := lifecycleTestContext(t)
+	engine := &Engine{ctx: baseCtx}
+	dir := t.TempDir()
+	file := filepath.Join(dir, "tool.yaml")
+	require.NoError(t, os.WriteFile(file, []byte("resource: tool\nid: ctx-tool\ntype: http\n"), 0o600))
+	cancelCtx, cancel := context.WithCancel(baseCtx)
+	cancel()
+	_, _, err := loadYAML[*enginetool.Config](cancelCtx, engine, file)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operation canceled")
 }
 
 func TestLoadYAMLStatFailure(t *testing.T) {
 	t.Parallel()
 	ctx := lifecycleTestContext(t)
 	engine := &Engine{ctx: ctx}
-	_, _, err := loadYAML[*enginetool.Config](engine, "missing.yaml")
+	_, _, err := loadYAML[*enginetool.Config](ctx, engine, "missing.yaml")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "stat missing.yaml")
 }
@@ -87,7 +106,7 @@ func TestLoadYAMLDecodeFailure(t *testing.T) {
 	require.NotNil(t, cfg)
 	bad := filepath.Join(t.TempDir(), "invalid.yaml")
 	require.NoError(t, os.WriteFile(bad, []byte("{"), 0o600))
-	_, _, err := loadYAML[*enginetool.Config](engine, bad)
+	_, _, err := loadYAML[*enginetool.Config](ctx, engine, bad)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decode")
 }
@@ -95,9 +114,22 @@ func TestLoadYAMLDecodeFailure(t *testing.T) {
 func TestLoadFromDirValidatesInputs(t *testing.T) {
 	t.Parallel()
 	var engine *Engine
-	err := engine.loadFromDir("", nil)
+	ctx := context.Background()
+	err := engine.loadFromDir(ctx, "", nil)
 	assert.Error(t, err)
 	engine = &Engine{}
-	err = engine.loadFromDir("", func(string) error { return nil })
+	err = engine.loadFromDir(ctx, "", func(context.Context, string) error { return nil })
 	assert.Error(t, err)
+}
+
+func TestLoadFromDirHandlesCanceledContext(t *testing.T) {
+	t.Parallel()
+	baseCtx := lifecycleTestContext(t)
+	engine := &Engine{ctx: baseCtx}
+	dir := t.TempDir()
+	cancelCtx, cancel := context.WithCancel(baseCtx)
+	cancel()
+	err := engine.loadFromDir(cancelCtx, dir, func(context.Context, string) error { return nil })
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "operation canceled")
 }

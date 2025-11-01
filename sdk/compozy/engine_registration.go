@@ -372,7 +372,6 @@ func (e *Engine) registerSchedule(cfg *projectschedule.Config, source registrati
 	if cfg == nil {
 		return fmt.Errorf("schedule config is required")
 	}
-	_ = source
 	id := strings.TrimSpace(cfg.ID)
 	if id == "" {
 		return fmt.Errorf("schedule id is required")
@@ -385,7 +384,17 @@ func (e *Engine) registerSchedule(cfg *projectschedule.Config, source registrati
 		return fmt.Errorf("schedule %s already registered", id)
 	}
 	e.schedules = append(e.schedules, cfg)
+	store := e.resourceStore
+	projectName := projectNameOf(e.project)
 	e.stateMu.Unlock()
+	if err := e.persistResource(e.ctx, store, projectName, resources.ResourceSchedule, id, cfg, source); err != nil {
+		e.stateMu.Lock()
+		e.schedules = removeConfig(e.schedules, func(value *projectschedule.Config) bool {
+			return value == cfg
+		})
+		e.stateMu.Unlock()
+		return err
+	}
 	return nil
 }
 
@@ -412,7 +421,17 @@ func (e *Engine) registerWebhook(cfg *enginewebhook.Config, source registrationS
 		return fmt.Errorf("webhook %s already registered", slug)
 	}
 	e.webhooks = append(e.webhooks, cfg)
+	store := e.resourceStore
+	projectName := projectNameOf(e.project)
 	e.stateMu.Unlock()
+	if err := e.persistResource(e.ctx, store, projectName, resources.ResourceWebhook, slug, cfg, source); err != nil {
+		e.stateMu.Lock()
+		e.webhooks = removeConfig(e.webhooks, func(value *enginewebhook.Config) bool {
+			return value == cfg
+		})
+		e.stateMu.Unlock()
+		return err
+	}
 	return nil
 }
 

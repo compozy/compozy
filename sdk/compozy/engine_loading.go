@@ -2,6 +2,7 @@
 package compozy
 
 import (
+	"context"
 	"fmt"
 	engineagent "github.com/compozy/compozy/engine/agent"
 	enginecore "github.com/compozy/compozy/engine/core"
@@ -17,11 +18,11 @@ import (
 )
 
 // LoadProject loads a project configuration from disk.
-func (e *Engine) LoadProject(path string) error {
+func (e *Engine) LoadProject(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*engineproject.Config](e, path)
+	cfg, abs, err := loadYAML[*engineproject.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load project config: %w", err)
 	}
@@ -32,19 +33,19 @@ func (e *Engine) LoadProject(path string) error {
 }
 
 // LoadProjectsFromDir loads projects configurations from a directory.
-func (e *Engine) LoadProjectsFromDir(dir string) error {
+func (e *Engine) LoadProjectsFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadProject)
+	return e.loadFromDir(ctx, dir, e.LoadProject)
 }
 
 // LoadWorkflow loads a workflow configuration from disk.
-func (e *Engine) LoadWorkflow(path string) error {
+func (e *Engine) LoadWorkflow(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*engineworkflow.Config](e, path)
+	cfg, abs, err := loadYAML[*engineworkflow.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load workflow config: %w", err)
 	}
@@ -55,19 +56,19 @@ func (e *Engine) LoadWorkflow(path string) error {
 }
 
 // LoadWorkflowsFromDir loads workflows configurations from a directory.
-func (e *Engine) LoadWorkflowsFromDir(dir string) error {
+func (e *Engine) LoadWorkflowsFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadWorkflow)
+	return e.loadFromDir(ctx, dir, e.LoadWorkflow)
 }
 
 // LoadAgent loads a agent configuration from disk.
-func (e *Engine) LoadAgent(path string) error {
+func (e *Engine) LoadAgent(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*engineagent.Config](e, path)
+	cfg, abs, err := loadYAML[*engineagent.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load agent config: %w", err)
 	}
@@ -78,19 +79,19 @@ func (e *Engine) LoadAgent(path string) error {
 }
 
 // LoadAgentsFromDir loads agents configurations from a directory.
-func (e *Engine) LoadAgentsFromDir(dir string) error {
+func (e *Engine) LoadAgentsFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadAgent)
+	return e.loadFromDir(ctx, dir, e.LoadAgent)
 }
 
 // LoadTool loads a tool configuration from disk.
-func (e *Engine) LoadTool(path string) error {
+func (e *Engine) LoadTool(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*enginetool.Config](e, path)
+	cfg, abs, err := loadYAML[*enginetool.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load tool config: %w", err)
 	}
@@ -101,19 +102,19 @@ func (e *Engine) LoadTool(path string) error {
 }
 
 // LoadToolsFromDir loads tools configurations from a directory.
-func (e *Engine) LoadToolsFromDir(dir string) error {
+func (e *Engine) LoadToolsFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadTool)
+	return e.loadFromDir(ctx, dir, e.LoadTool)
 }
 
 // LoadKnowledge loads a knowledge base configuration from disk.
-func (e *Engine) LoadKnowledge(path string) error {
+func (e *Engine) LoadKnowledge(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*engineknowledge.BaseConfig](e, path)
+	cfg, abs, err := loadYAML[*engineknowledge.BaseConfig](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load knowledge config: %w", err)
 	}
@@ -124,19 +125,19 @@ func (e *Engine) LoadKnowledge(path string) error {
 }
 
 // LoadKnowledgeBasesFromDir loads knowledges configurations from a directory.
-func (e *Engine) LoadKnowledgeBasesFromDir(dir string) error {
+func (e *Engine) LoadKnowledgeBasesFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadKnowledge)
+	return e.loadFromDir(ctx, dir, e.LoadKnowledge)
 }
 
 // LoadMemory loads a memory configuration from disk.
-func (e *Engine) LoadMemory(path string) error {
+func (e *Engine) LoadMemory(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*enginememory.Config](e, path)
+	cfg, abs, err := loadYAML[*enginememory.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load memory config: %w", err)
 	}
@@ -147,19 +148,19 @@ func (e *Engine) LoadMemory(path string) error {
 }
 
 // LoadMemoriesFromDir loads memorys configurations from a directory.
-func (e *Engine) LoadMemoriesFromDir(dir string) error {
+func (e *Engine) LoadMemoriesFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadMemory)
+	return e.loadFromDir(ctx, dir, e.LoadMemory)
 }
 
 // LoadMCP loads a mcp configuration from disk.
-func (e *Engine) LoadMCP(path string) error {
+func (e *Engine) LoadMCP(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*enginemcp.Config](e, path)
+	cfg, abs, err := loadYAML[*enginemcp.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load mcp config: %w", err)
 	}
@@ -170,19 +171,19 @@ func (e *Engine) LoadMCP(path string) error {
 }
 
 // LoadMCPsFromDir loads mcps configurations from a directory.
-func (e *Engine) LoadMCPsFromDir(dir string) error {
+func (e *Engine) LoadMCPsFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadMCP)
+	return e.loadFromDir(ctx, dir, e.LoadMCP)
 }
 
 // LoadSchema loads a schema configuration from disk.
-func (e *Engine) LoadSchema(path string) error {
+func (e *Engine) LoadSchema(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*engineschema.Schema](e, path)
+	cfg, abs, err := loadYAML[*engineschema.Schema](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load schema config: %w", err)
 	}
@@ -193,19 +194,19 @@ func (e *Engine) LoadSchema(path string) error {
 }
 
 // LoadSchemasFromDir loads schemas configurations from a directory.
-func (e *Engine) LoadSchemasFromDir(dir string) error {
+func (e *Engine) LoadSchemasFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadSchema)
+	return e.loadFromDir(ctx, dir, e.LoadSchema)
 }
 
 // LoadModel loads a model configuration from disk.
-func (e *Engine) LoadModel(path string) error {
+func (e *Engine) LoadModel(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*enginecore.ProviderConfig](e, path)
+	cfg, abs, err := loadYAML[*enginecore.ProviderConfig](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load model config: %w", err)
 	}
@@ -216,19 +217,19 @@ func (e *Engine) LoadModel(path string) error {
 }
 
 // LoadModelsFromDir loads models configurations from a directory.
-func (e *Engine) LoadModelsFromDir(dir string) error {
+func (e *Engine) LoadModelsFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadModel)
+	return e.loadFromDir(ctx, dir, e.LoadModel)
 }
 
 // LoadSchedule loads a schedule configuration from disk.
-func (e *Engine) LoadSchedule(path string) error {
+func (e *Engine) LoadSchedule(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*projectschedule.Config](e, path)
+	cfg, abs, err := loadYAML[*projectschedule.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load schedule config: %w", err)
 	}
@@ -239,19 +240,19 @@ func (e *Engine) LoadSchedule(path string) error {
 }
 
 // LoadSchedulesFromDir loads schedules configurations from a directory.
-func (e *Engine) LoadSchedulesFromDir(dir string) error {
+func (e *Engine) LoadSchedulesFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadSchedule)
+	return e.loadFromDir(ctx, dir, e.LoadSchedule)
 }
 
 // LoadWebhook loads a webhook configuration from disk.
-func (e *Engine) LoadWebhook(path string) error {
+func (e *Engine) LoadWebhook(ctx context.Context, path string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	cfg, abs, err := loadYAML[*enginewebhook.Config](e, path)
+	cfg, abs, err := loadYAML[*enginewebhook.Config](ctx, e, path)
 	if err != nil {
 		return fmt.Errorf("load webhook config: %w", err)
 	}
@@ -262,9 +263,9 @@ func (e *Engine) LoadWebhook(path string) error {
 }
 
 // LoadWebhooksFromDir loads webhooks configurations from a directory.
-func (e *Engine) LoadWebhooksFromDir(dir string) error {
+func (e *Engine) LoadWebhooksFromDir(ctx context.Context, dir string) error {
 	if e == nil {
 		return fmt.Errorf("engine is nil")
 	}
-	return e.loadFromDir(dir, e.LoadWebhook)
+	return e.loadFromDir(ctx, dir, e.LoadWebhook)
 }

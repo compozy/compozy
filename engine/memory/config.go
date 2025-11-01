@@ -429,6 +429,10 @@ func (c *Config) validateLocking(_ context.Context) error {
 }
 
 func (c *Config) validatePrivacyScope() error {
+	if c.PrivacyScope == "" {
+		c.PrivacyScope = PrivacyGlobalScope
+		return nil
+	}
 	if c.PrivacyScope.IsValid() {
 		return nil
 	}

@@ -35,7 +35,7 @@ tasks:
 `)
 	file := filepath.Join(workflowDir, "workflow.yaml")
 	require.NoError(t, os.WriteFile(file, []byte(yamlWorkflow), 0o600))
-	require.NoError(t, engine.LoadWorkflowsFromDir(workflowDir))
+	require.NoError(t, engine.LoadWorkflowsFromDir(ctx, workflowDir))
 	report, err := engine.ValidateReferences()
 	require.NoError(t, err)
 	assert.True(t, report.Valid)

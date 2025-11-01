@@ -35,7 +35,7 @@ func TestLoadToolsFromDirPropagatesFilePathOnError(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "bad.yaml")
 	require.NoError(t, os.WriteFile(file, []byte("::invalid::"), 0o600))
-	err = engine.LoadToolsFromDir(dir)
+	err = engine.LoadToolsFromDir(ctx, dir)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "bad.yaml")
 }

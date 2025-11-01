@@ -543,17 +543,20 @@ func testNoCacheSDK(ctx context.Context) error {
 		"cd sdk && gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...")
 }
 
+//mage:expose
 func lintMain(ctx context.Context) error {
 	fmt.Println("Linting main module...")
 	return sh.RunV("golangci-lint", "run", "--fix", "--allow-parallel-runners", "./...")
 }
 
+//mage:expose
 func lintSDK(ctx context.Context) error {
 	fmt.Println("Linting sdk module...")
 	return sh.RunWithV(map[string]string{"GO_WORK": "off"}, "sh", "-c",
 		"cd sdk && golangci-lint run --fix --allow-parallel-runners ./...")
 }
 
+//mage:expose
 func lintBun(ctx context.Context) error {
 	return sh.RunV("bun", "run", "lint")
 }
@@ -563,30 +566,36 @@ func checkDriverImports() error {
 	return sh.RunV("./scripts/check-driver-imports.sh")
 }
 
+//mage:expose
 func fmtMain(ctx context.Context) error {
 	fmt.Println("Formatting main module...")
 	return sh.RunV("golangci-lint", "fmt")
 }
 
+//mage:expose
 func fmtSDK(ctx context.Context) error {
 	fmt.Println("Formatting sdk module...")
 	return sh.RunWithV(map[string]string{"GO_WORK": "off"}, "sh", "-c", "cd sdk && golangci-lint fmt")
 }
 
+//mage:expose
 func fmtBun(ctx context.Context) error {
 	return sh.RunV("bun", "run", "format")
 }
 
+//mage:expose
 func typecheckMain(ctx context.Context) error {
 	fmt.Println("Type checking main module...")
 	return sh.RunV("go", "vet", "./...")
 }
 
+//mage:expose
 func typecheckSDK(ctx context.Context) error {
 	fmt.Println("Type checking sdk module...")
 	return sh.RunWithV(map[string]string{"GO_WORK": "off"}, "sh", "-c", "cd sdk && go vet ./...")
 }
 
+//mage:expose
 func modernizeMain(ctx context.Context) error {
 	fmt.Println("Modernizing main module...")
 	return sh.RunV(
@@ -598,6 +607,7 @@ func modernizeMain(ctx context.Context) error {
 	)
 }
 
+//mage:expose
 func modernizeSDK(ctx context.Context) error {
 	fmt.Println("Modernizing sdk module...")
 	return sh.RunWithV(map[string]string{"GO_WORK": "off"}, "sh", "-c",
