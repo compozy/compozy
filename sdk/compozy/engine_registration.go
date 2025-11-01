@@ -59,7 +59,15 @@ func (e *Engine) registerProject(cfg *engineproject.Config, source registrationS
 	e.project = cfg
 	store := e.resourceStore
 	e.stateMu.Unlock()
-	return e.persistResource(e.ctx, store, name, resources.ResourceProject, name, cfg, source)
+	if err := e.persistResource(e.ctx, store, name, resources.ResourceProject, name, cfg, source); err != nil {
+		e.stateMu.Lock()
+		if e.project == cfg {
+			e.project = nil
+		}
+		e.stateMu.Unlock()
+		return err
+	}
+	return nil
 }
 
 func (e *Engine) RegisterWorkflow(cfg *engineworkflow.Config) error {

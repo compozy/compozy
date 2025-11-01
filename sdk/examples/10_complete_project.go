@@ -28,27 +28,62 @@ import (
 
 // RunCompleteProject wires agents, tools, knowledge, memory, and schedules into a single execution.
 func RunCompleteProject(ctx context.Context) error {
-	key, err := ensureOpenAIKey(ctx)
+	setup, err := prepareCompleteProject(ctx)
 	if err != nil {
 		return err
+	}
+	defer setup.cleanup()
+	composition, err := composeCompleteProject(ctx, setup)
+	if err != nil {
+		return err
+	}
+	return executeCompleteProject(ctx, composition)
+}
+
+// completeProjectSetup holds reusable resources for the full project example.
+type completeProjectSetup struct {
+	dir         string
+	embedderCfg *engineknowledge.EmbedderConfig
+	vectorCfg   *engineknowledge.VectorDBConfig
+	kbCfg       *engineknowledge.BaseConfig
+	memoryCfg   *enginememory.Config
+	toolCfg     *enginetool.Config
+}
+
+// cleanup removes temporary assets generated during setup.
+func (s *completeProjectSetup) cleanup() {
+	if s == nil || s.dir == "" {
+		return
+	}
+	_ = os.RemoveAll(s.dir)
+}
+
+// prepareCompleteProject builds shared resources and artifacts used throughout the example.
+func prepareCompleteProject(ctx context.Context) (*completeProjectSetup, error) {
+	key, err := ensureOpenAIKey(ctx)
+	if err != nil {
+		return nil, err
 	}
 	dir, err := writeKnowledgeDocuments()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer func() { _ = os.RemoveAll(dir) }()
+	cleanup := func(e error) (*completeProjectSetup, error) {
+		_ = os.RemoveAll(dir)
+		return nil, e
+	}
 	embedderCfg, vectorCfg, kbCfg, err := createKnowledgeDefinitions(ctx, dir, key)
 	if err != nil {
-		return err
+		return cleanup(err)
 	}
 	memoryCfg, err := sdkmemory.New(ctx, "project-memory", "message_count_based",
 		sdkmemory.WithPersistence(memcore.PersistenceConfig{Type: memcore.InMemoryPersistence, TTL: "1h"}),
 		sdkmemory.WithMaxMessages(50),
 	)
 	if err != nil {
-		return fmt.Errorf("create memory: %w", err)
+		return cleanup(fmt.Errorf("create memory: %w", err))
 	}
-	nativeTool, err := sdktool.New(ctx, "report-clock",
+	toolCfg, err := sdktool.New(ctx, "report-clock",
 		sdktool.WithName("Report Clock"),
 		sdktool.WithDescription("Returns a timestamp for the final report"),
 		sdktool.WithNativeHandler(func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
@@ -56,15 +91,33 @@ func RunCompleteProject(ctx context.Context) error {
 		}),
 	)
 	if err != nil {
-		return fmt.Errorf("create tool: %w", err)
+		return cleanup(fmt.Errorf("create tool: %w", err))
 	}
-	agentCfg, err := buildCompleteAgent(ctx, kbCfg, memoryCfg)
+	return &completeProjectSetup{
+		dir:         dir,
+		embedderCfg: embedderCfg,
+		vectorCfg:   vectorCfg,
+		kbCfg:       kbCfg,
+		memoryCfg:   memoryCfg,
+		toolCfg:     toolCfg,
+	}, nil
+}
+
+// completeProjectComposition stores the runtime configuration for executing the workflow.
+type completeProjectComposition struct {
+	workflowCfg *engineworkflow.Config
+	options     []compozy.Option
+}
+
+// composeCompleteProject assembles engine options alongside workflow definitions.
+func composeCompleteProject(ctx context.Context, setup *completeProjectSetup) (*completeProjectComposition, error) {
+	agentCfg, err := buildCompleteAgent(ctx, setup.kbCfg, setup.memoryCfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	workflowCfg, err := buildCompleteWorkflow(ctx, agentCfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	scheduleCfg := &projectschedule.Config{
 		ID:          "daily-summary",
@@ -76,28 +129,37 @@ func RunCompleteProject(ctx context.Context) error {
 	projectCfg, err := createCompleteProject(
 		ctx,
 		workflowCfg,
-		embedderCfg,
-		vectorCfg,
-		kbCfg,
-		memoryCfg,
-		nativeTool,
+		setup.embedderCfg,
+		setup.vectorCfg,
+		setup.kbCfg,
+		setup.memoryCfg,
+		setup.toolCfg,
 		scheduleCfg,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	options := []compozy.Option{
 		compozy.WithProject(projectCfg),
 		compozy.WithAgent(agentCfg),
-		compozy.WithTool(nativeTool),
-		compozy.WithKnowledge(kbCfg),
-		compozy.WithMemory(memoryCfg),
+		compozy.WithTool(setup.toolCfg),
+		compozy.WithKnowledge(setup.kbCfg),
+		compozy.WithMemory(setup.memoryCfg),
 		compozy.WithWorkflow(workflowCfg),
 		compozy.WithSchedule(scheduleCfg),
 	}
-	return withEngine(ctx, options, func(execCtx context.Context, engine *compozy.Engine) error {
+	return &completeProjectComposition{workflowCfg: workflowCfg, options: options}, nil
+}
+
+// executeCompleteProject runs the composed workflow and prints the final report output.
+func executeCompleteProject(ctx context.Context, composition *completeProjectComposition) error {
+	return withEngine(ctx, composition.options, func(execCtx context.Context, engine *compozy.Engine) error {
 		input := map[string]any{"session_id": "helios-demo", "topic": "Helios launch readiness"}
-		resp, err := engine.ExecuteWorkflowSync(execCtx, workflowCfg.ID, &compozy.ExecuteSyncRequest{Input: input})
+		resp, err := engine.ExecuteWorkflowSync(
+			execCtx,
+			composition.workflowCfg.ID,
+			&compozy.ExecuteSyncRequest{Input: input},
+		)
 		if err != nil {
 			return fmt.Errorf("execute complete project workflow: %w", err)
 		}

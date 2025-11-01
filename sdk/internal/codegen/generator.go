@@ -101,10 +101,13 @@ func buildSimpleType(typeName string, packagePath string, currentPkg string) *je
 	}
 	if strings.Contains(typeName, ".") {
 		parts := strings.Split(typeName, ".")
-		pkgName := parts[0]
-		typeName := parts[1]
-		enginePkg := fmt.Sprintf("%s/%s", engineBaseImport, pkgName)
-		return jen.Qual(enginePkg, typeName)
+		pkgAlias := parts[0]
+		typeIdent := parts[len(parts)-1]
+		importPath := packagePath
+		if importPath == "" {
+			importPath = fmt.Sprintf("%s/%s", engineBaseImport, pkgAlias)
+		}
+		return jen.Qual(importPath, typeIdent)
 	}
 	if packagePath == "" || packagePath == currentPkg {
 		enginePkg := fmt.Sprintf("%s/%s", engineBaseImport, currentPkg)

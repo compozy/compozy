@@ -39,8 +39,11 @@ func TestModeRuntimeStateCleanup(t *testing.T) {
 
 func TestBootstrapModeUnsupported(t *testing.T) {
 	t.Parallel()
-	engine := &Engine{mode: Mode("legacy")}
-	_, err := engine.bootstrapMode(t.Context(), nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported engine mode")
+	t.Run("Should return error for unsupported mode", func(t *testing.T) {
+		t.Parallel()
+		engine := &Engine{mode: Mode("legacy")}
+		_, err := engine.bootstrapMode(t.Context(), nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unsupported engine mode")
+	})
 }

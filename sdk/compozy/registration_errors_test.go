@@ -203,6 +203,18 @@ func TestPersistResourceReportsMetaWriteFailure(t *testing.T) {
 	})
 }
 
+func TestRegisterProjectResetsStateOnPersistFailure(t *testing.T) {
+	store := newResourceStoreStub()
+	store.putErr = errors.New("persist failure")
+	engine := &Engine{ctx: t.Context(), resourceStore: store}
+	cfg := &engineproject.Config{Name: "helios"}
+	err := engine.registerProject(cfg, registrationSourceProgrammatic)
+	require.Error(t, err)
+	engine.stateMu.RLock()
+	defer engine.stateMu.RUnlock()
+	assert.Nil(t, engine.project)
+}
+
 func TestRegisterResourceNilConfigValidation(t *testing.T) {
 	tests := []struct {
 		name string

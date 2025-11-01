@@ -7,9 +7,11 @@ import (
 	"runtime"
 	"sync"
 
+	"dario.cat/mergo"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/compozy/compozy/engine/knowledge"
+	enginememory "github.com/compozy/compozy/engine/memory"
 	"github.com/compozy/compozy/engine/resources"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/pkg/logger"
@@ -273,17 +275,20 @@ func (p *Config) indexProjectMemories(
 		if memory.ID == "" {
 			return fmt.Errorf("project memory at index %d missing id", i)
 		}
-		if memory.Resource == "" {
-			memory.Resource = string(resources.ResourceMemory)
+		memClone := new(enginememory.Config)
+		if err := mergo.Merge(memClone, memory, mergo.WithOverride); err != nil {
+			return fmt.Errorf("memory '%s' clone failed: %w", memory.ID, err)
 		}
-		if err := memory.Validate(groupCtx); err != nil {
+		if memClone.Resource == "" {
+			memClone.Resource = string(resources.ResourceMemory)
+		}
+		if err := memClone.Validate(groupCtx); err != nil {
 			return fmt.Errorf("memory '%s' validation failed: %w", memory.ID, err)
 		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceMemory, ID: memory.ID}
 		keyCopy := key
-		mem := memory
 		group.Go(func() error {
-			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, mem)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, memClone)
 		})
 	}
 	return nil
@@ -388,14 +393,15 @@ func (p *Config) indexProjectKnowledgeBases(
 		if knowledgeBase.ID == "" {
 			return fmt.Errorf("project knowledge_base at index %d missing id", i)
 		}
-		if knowledgeBase.Ingest == "" {
-			knowledgeBase.Ingest = knowledge.IngestManual
-		}
 		key := resources.ResourceKey{Project: p.Name, Type: resources.ResourceKnowledgeBase, ID: knowledgeBase.ID}
 		keyCopy := key
-		knowledgeBaseCopy := knowledgeBase
+		knowledgeBaseCopy := *knowledgeBase
+		if knowledgeBaseCopy.Ingest == "" {
+			knowledgeBaseCopy.Ingest = knowledge.IngestManual
+		}
+		copyValue := knowledgeBaseCopy
 		group.Go(func() error {
-			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, knowledgeBaseCopy)
+			return p.putResourceWithMeta(groupCtx, store, metaSources, keyCopy, &copyValue)
 		})
 	}
 	return nil

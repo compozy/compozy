@@ -19,7 +19,7 @@ func TestGeneratedFilesHashes(t *testing.T) {
 		"options_generated.go":   "c827fddefb3ca3a92e9148f83b8ddab434033e3a0b015877ae5686c5312a5a60",
 		"engine_execution.go":    "4a398c36ef0d122a0fa10e4b2deaa4948d524ccaf809264b3ded3ca8ebaa32da",
 		"engine_loading.go":      "4c67e1323d10f6ebf6d270e4838ae57058fd70488d5930f968e6e79be7bf4058",
-		"engine_registration.go": "d560f5c93bbe9557050fe3066df8a2e855cf0bfee20d7275b844c8d07b877596",
+		"engine_registration.go": "d5af56637e802639fb4d14b5462e799b131072a0437441d1dd83c1e4a3078161",
 	}
 	root := filepath.Clean("..")
 	for name, expected := range files {
