@@ -22,28 +22,40 @@ func (f *failingStore) Put(_ context.Context, _ resources.ResourceKey, _ any) (r
 }
 
 func TestEngineCleanupUtilities(t *testing.T) {
-	ctx := lifecycleTestContext(t)
-	engine := &Engine{ctx: ctx}
-	called := 0
-	engine.modeCleanups = []modeCleanup{
-		func(context.Context) error {
-			called++
-			return nil
-		},
-		func(context.Context) error {
-			called++
-			return errors.New("cleanup failure")
-		},
-	}
-	err := engine.cleanupModeResources(ctx)
-	require.Error(t, err)
-	assert.Equal(t, 2, called)
-
-	store := resources.NewMemoryResourceStore()
-	engine.cleanupStore(ctx, store)
-
-	engine.project = &engineproject.Config{Name: "cleanup"}
-	engine.resourceStore = &failingStore{ResourceStore: resources.NewMemoryResourceStore()}
-	require.Error(t, engine.RegisterTool(&enginetool.Config{ID: "cleanup-tool"}))
-	assert.Empty(t, engine.tools)
+	t.Parallel()
+	t.Run("Should join mode cleanup errors", func(t *testing.T) {
+		t.Parallel()
+		ctx := lifecycleTestContext(t)
+		engine := &Engine{ctx: ctx}
+		called := 0
+		engine.modeCleanups = []modeCleanup{
+			func(context.Context) error {
+				called++
+				return nil
+			},
+			func(context.Context) error {
+				called++
+				return errors.New("cleanup failure")
+			},
+		}
+		err := engine.cleanupModeResources(ctx)
+		require.Error(t, err)
+		assert.Equal(t, 2, called)
+	})
+	t.Run("Should close resource store safely", func(t *testing.T) {
+		t.Parallel()
+		ctx := lifecycleTestContext(t)
+		engine := &Engine{ctx: ctx}
+		store := resources.NewMemoryResourceStore()
+		require.NotPanics(t, func() { engine.cleanupStore(ctx, store) })
+	})
+	t.Run("Should fail tool registration when store errors", func(t *testing.T) {
+		t.Parallel()
+		ctx := lifecycleTestContext(t)
+		engine := &Engine{ctx: ctx}
+		engine.project = &engineproject.Config{Name: "cleanup"}
+		engine.resourceStore = &failingStore{ResourceStore: resources.NewMemoryResourceStore()}
+		require.Error(t, engine.RegisterTool(&enginetool.Config{ID: "cleanup-tool"}))
+		assert.Empty(t, engine.tools)
+	})
 }

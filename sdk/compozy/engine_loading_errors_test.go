@@ -38,8 +38,8 @@ func TestLoadFunctionsRequireEngineInstance(t *testing.T) {
 		{"LoadWebhooksFromDir", func() error { return engine.LoadWebhooksFromDir("webhooks") }},
 	}
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			err := tc.call()
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "engine is nil")

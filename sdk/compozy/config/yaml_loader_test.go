@@ -1,7 +1,6 @@
 package compozy_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +15,7 @@ import (
 )
 
 func TestLoadToolsFromDirPropagatesFilePathOnError(t *testing.T) {
-	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 	service := appconfig.NewService()
 	manager := appconfig.NewManager(ctx, service)
 	_, err := manager.Load(ctx, appconfig.NewDefaultProvider())

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/compozy/compozy/engine/infra/server/routes"
 )
@@ -16,22 +15,17 @@ func (c *Client) ExecuteTask(
 	taskID string,
 	req *TaskExecuteRequest,
 ) (*TaskExecuteResponse, error) {
-	id := strings.TrimSpace(taskID)
-	if id == "" {
-		return nil, fmt.Errorf("task id is required")
-	}
-	path := fmt.Sprintf("%s/%s/executions", routes.Tasks(), url.PathEscape(id))
-	resp, err := c.postJSON(ctx, path, req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	result, err := decodeEnvelope[TaskExecuteResponse](resp, http.StatusAccepted)
-	if err != nil {
-		return nil, err
-	}
-	logExecution(ctx, "task", id, result.ExecID)
-	return &result, nil
+	return executeRequest(ctx, c, executionRequestConfig[TaskExecuteResponse]{
+		ResourceID:    taskID,
+		ResourceLabel: "task",
+		RouteBase:     routes.Tasks(),
+		PathSuffix:    "/executions",
+		Body:          req,
+		ExpectedCode:  http.StatusAccepted,
+		OnSuccess: func(execCtx context.Context, id string, res *TaskExecuteResponse) {
+			logExecution(execCtx, "task", id, res.ExecID)
+		},
+	})
 }
 
 // ExecuteTaskSync executes a task synchronously and waits for completion.
@@ -40,22 +34,17 @@ func (c *Client) ExecuteTaskSync(
 	taskID string,
 	req *TaskExecuteRequest,
 ) (*TaskSyncResponse, error) {
-	id := strings.TrimSpace(taskID)
-	if id == "" {
-		return nil, fmt.Errorf("task id is required")
-	}
-	path := fmt.Sprintf("%s/%s/executions/sync", routes.Tasks(), url.PathEscape(id))
-	resp, err := c.postJSON(ctx, path, req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	result, err := decodeEnvelope[TaskSyncResponse](resp, http.StatusOK)
-	if err != nil {
-		return nil, err
-	}
-	logExecution(ctx, "task_sync", id, result.ExecID)
-	return &result, nil
+	return executeRequest(ctx, c, executionRequestConfig[TaskSyncResponse]{
+		ResourceID:    taskID,
+		ResourceLabel: "task",
+		RouteBase:     routes.Tasks(),
+		PathSuffix:    "/executions/sync",
+		Body:          req,
+		ExpectedCode:  http.StatusOK,
+		OnSuccess: func(execCtx context.Context, id string, res *TaskSyncResponse) {
+			logExecution(execCtx, "task_sync", id, res.ExecID)
+		},
+	})
 }
 
 // ExecuteTaskStream starts a task execution and streams events until completion.

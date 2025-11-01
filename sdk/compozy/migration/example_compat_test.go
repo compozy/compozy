@@ -19,6 +19,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	// maxTemporalPort matches Temporal's documented upper port bound for development clusters.
+	maxTemporalPort = 64535
+	// maxTemporalPortAttempts prevents infinite retries when searching for an available port.
+	maxTemporalPortAttempts = 50
+)
+
 func TestMigrationGuideExampleCompatibility(t *testing.T) {
 	t.Run("Should assemble engine from migrated sdk resources", func(t *testing.T) {
 		ctx := migrationTestContext(t)
@@ -82,15 +89,16 @@ func migrationTestContext(t *testing.T) context.Context {
 	cfg := appconfig.FromContext(ctx)
 	require.NotNil(t, cfg)
 	listenCfg := net.ListenConfig{}
-	for {
+	for attempt := 0; attempt < maxTemporalPortAttempts; attempt++ {
 		ln, err := listenCfg.Listen(context.WithoutCancel(t.Context()), "tcp", "127.0.0.1:0")
 		require.NoError(t, err)
 		addr := ln.Addr().(*net.TCPAddr)
 		require.NoError(t, ln.Close())
-		if addr.Port <= 64535 {
+		if addr.Port <= maxTemporalPort {
 			cfg.Temporal.Standalone.FrontendPort = addr.Port
-			break
+			return ctx
 		}
 	}
-	return ctx
+	t.Fatalf("failed to allocate Temporal frontend port within %d attempts", maxTemporalPortAttempts)
+	return nil
 }

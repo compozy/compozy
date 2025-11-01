@@ -33,22 +33,26 @@ func New(ctx context.Context, opts ...Option) (*Engine, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+	clones, err := buildResourceClones(cfg)
+	if err != nil {
+		return nil, err
+	}
 	engine := &Engine{
 		ctx:                ctx,
 		mode:               cfg.mode,
 		host:               cfg.host,
 		port:               cfg.port,
 		project:            cfg.project,
-		workflows:          cloneWorkflowConfigs(cfg.workflows),
-		agents:             cloneAgentConfigs(cfg.agents),
-		tools:              cloneToolConfigs(cfg.tools),
-		knowledgeBases:     cloneKnowledgeConfigs(cfg.knowledgeBases),
-		memories:           cloneMemoryConfigs(cfg.memories),
-		mcps:               cloneMCPConfigs(cfg.mcps),
-		schemas:            cloneSchemaConfigs(cfg.schemas),
-		models:             cloneModelConfigs(cfg.models),
-		schedules:          cloneScheduleConfigs(cfg.schedules),
-		webhooks:           cloneWebhookConfigs(cfg.webhooks),
+		workflows:          clones.workflows,
+		agents:             clones.agents,
+		tools:              clones.tools,
+		knowledgeBases:     clones.knowledgeBases,
+		memories:           clones.memories,
+		mcps:               clones.mcps,
+		schemas:            clones.schemas,
+		models:             clones.models,
+		schedules:          clones.schedules,
+		webhooks:           clones.webhooks,
 		standaloneTemporal: cfg.standaloneTemporal,
 		standaloneRedis:    cfg.standaloneRedis,
 	}
@@ -87,72 +91,166 @@ func (c *config) resourceCount() int {
 	return count
 }
 
-func cloneWorkflowConfigs(values []*engineworkflow.Config) []*engineworkflow.Config {
-	if len(values) == 0 {
-		return make([]*engineworkflow.Config, 0)
-	}
-	return append(make([]*engineworkflow.Config, 0, len(values)), values...)
+type resourceClones struct {
+	workflows      []*engineworkflow.Config
+	agents         []*engineagent.Config
+	tools          []*enginetool.Config
+	knowledgeBases []*engineknowledge.BaseConfig
+	memories       []*enginememory.Config
+	mcps           []*enginemcp.Config
+	schemas        []*engineschema.Schema
+	models         []*core.ProviderConfig
+	schedules      []*projectschedule.Config
+	webhooks       []*enginewebhook.Config
 }
 
-func cloneAgentConfigs(values []*engineagent.Config) []*engineagent.Config {
-	if len(values) == 0 {
-		return make([]*engineagent.Config, 0)
+func buildResourceClones(cfg *config) (*resourceClones, error) {
+	clones := &resourceClones{}
+	steps := []func() error{
+		func() error {
+			workflows, err := cloneWorkflowConfigs(cfg.workflows)
+			if err != nil {
+				return err
+			}
+			clones.workflows = workflows
+			return nil
+		},
+		func() error {
+			agents, err := cloneAgentConfigs(cfg.agents)
+			if err != nil {
+				return err
+			}
+			clones.agents = agents
+			return nil
+		},
+		func() error {
+			tools, err := cloneToolConfigs(cfg.tools)
+			if err != nil {
+				return err
+			}
+			clones.tools = tools
+			return nil
+		},
+		func() error {
+			knowledge, err := cloneKnowledgeConfigs(cfg.knowledgeBases)
+			if err != nil {
+				return err
+			}
+			clones.knowledgeBases = knowledge
+			return nil
+		},
+		func() error {
+			memories, err := cloneMemoryConfigs(cfg.memories)
+			if err != nil {
+				return err
+			}
+			clones.memories = memories
+			return nil
+		},
+		func() error {
+			mcps, err := cloneMCPConfigs(cfg.mcps)
+			if err != nil {
+				return err
+			}
+			clones.mcps = mcps
+			return nil
+		},
+		func() error {
+			schemas, err := cloneSchemaConfigs(cfg.schemas)
+			if err != nil {
+				return err
+			}
+			clones.schemas = schemas
+			return nil
+		},
+		func() error {
+			models, err := cloneModelConfigs(cfg.models)
+			if err != nil {
+				return err
+			}
+			clones.models = models
+			return nil
+		},
+		func() error {
+			schedules, err := cloneScheduleConfigs(cfg.schedules)
+			if err != nil {
+				return err
+			}
+			clones.schedules = schedules
+			return nil
+		},
+		func() error {
+			webhooks, err := cloneWebhookConfigs(cfg.webhooks)
+			if err != nil {
+				return err
+			}
+			clones.webhooks = webhooks
+			return nil
+		},
 	}
-	return append(make([]*engineagent.Config, 0, len(values)), values...)
+	for _, step := range steps {
+		if err := step(); err != nil {
+			return nil, err
+		}
+	}
+	return clones, nil
 }
 
-func cloneToolConfigs(values []*enginetool.Config) []*enginetool.Config {
-	if len(values) == 0 {
-		return make([]*enginetool.Config, 0)
-	}
-	return append(make([]*enginetool.Config, 0, len(values)), values...)
+func cloneWorkflowConfigs(values []*engineworkflow.Config) ([]*engineworkflow.Config, error) {
+	return cloneConfigSlice(values, "workflow")
 }
 
-func cloneKnowledgeConfigs(values []*engineknowledge.BaseConfig) []*engineknowledge.BaseConfig {
-	if len(values) == 0 {
-		return make([]*engineknowledge.BaseConfig, 0)
-	}
-	return append(make([]*engineknowledge.BaseConfig, 0, len(values)), values...)
+func cloneAgentConfigs(values []*engineagent.Config) ([]*engineagent.Config, error) {
+	return cloneConfigSlice(values, "agent")
 }
 
-func cloneMemoryConfigs(values []*enginememory.Config) []*enginememory.Config {
-	if len(values) == 0 {
-		return make([]*enginememory.Config, 0)
-	}
-	return append(make([]*enginememory.Config, 0, len(values)), values...)
+func cloneToolConfigs(values []*enginetool.Config) ([]*enginetool.Config, error) {
+	return cloneConfigSlice(values, "tool")
 }
 
-func cloneMCPConfigs(values []*enginemcp.Config) []*enginemcp.Config {
-	if len(values) == 0 {
-		return make([]*enginemcp.Config, 0)
-	}
-	return append(make([]*enginemcp.Config, 0, len(values)), values...)
+func cloneKnowledgeConfigs(values []*engineknowledge.BaseConfig) ([]*engineknowledge.BaseConfig, error) {
+	return cloneConfigSlice(values, "knowledge base")
 }
 
-func cloneSchemaConfigs(values []*engineschema.Schema) []*engineschema.Schema {
-	if len(values) == 0 {
-		return make([]*engineschema.Schema, 0)
-	}
-	return append(make([]*engineschema.Schema, 0, len(values)), values...)
+func cloneMemoryConfigs(values []*enginememory.Config) ([]*enginememory.Config, error) {
+	return cloneConfigSlice(values, "memory")
 }
 
-func cloneModelConfigs(values []*core.ProviderConfig) []*core.ProviderConfig {
-	if len(values) == 0 {
-		return make([]*core.ProviderConfig, 0)
-	}
-	return append(make([]*core.ProviderConfig, 0, len(values)), values...)
+func cloneMCPConfigs(values []*enginemcp.Config) ([]*enginemcp.Config, error) {
+	return cloneConfigSlice(values, "mcp")
 }
 
-func cloneScheduleConfigs(values []*projectschedule.Config) []*projectschedule.Config {
-	if len(values) == 0 {
-		return make([]*projectschedule.Config, 0)
-	}
-	return append(make([]*projectschedule.Config, 0, len(values)), values...)
+func cloneSchemaConfigs(values []*engineschema.Schema) ([]*engineschema.Schema, error) {
+	return cloneConfigSlice(values, "schema")
 }
 
-func cloneWebhookConfigs(values []*enginewebhook.Config) []*enginewebhook.Config {
+func cloneModelConfigs(values []*core.ProviderConfig) ([]*core.ProviderConfig, error) {
+	return cloneConfigSlice(values, "model")
+}
+
+func cloneScheduleConfigs(values []*projectschedule.Config) ([]*projectschedule.Config, error) {
+	return cloneConfigSlice(values, "schedule")
+}
+
+func cloneWebhookConfigs(values []*enginewebhook.Config) ([]*enginewebhook.Config, error) {
+	return cloneConfigSlice(values, "webhook")
+}
+
+func cloneConfigSlice[T any](values []*T, label string) ([]*T, error) {
 	if len(values) == 0 {
-		return make([]*enginewebhook.Config, 0)
+		return make([]*T, 0), nil
 	}
-	return append(make([]*enginewebhook.Config, 0, len(values)), values...)
+	cloned := make([]*T, 0, len(values))
+	for _, value := range values {
+		if value == nil {
+			cloned = append(cloned, nil)
+			continue
+		}
+		clonedValue, err := core.DeepCopy(value)
+		if err != nil {
+			return nil, fmt.Errorf("clone %s configs: %w", label, err)
+		}
+		cloned = append(cloned, clonedValue)
+	}
+	return cloned, nil
 }

@@ -9,6 +9,9 @@ import (
 )
 
 func TestGeneratedFilesHashes(t *testing.T) {
+	// This test locks generated outputs to make intentional template changes explicit.
+	// When updates are expected, run `go test -run TestGeneratedFilesHashes -v`
+	// and refresh the hashes from the failure output.
 	files := map[string]string{
 		"options_generated.go":   "c827fddefb3ca3a92e9148f83b8ddab434033e3a0b015877ae5686c5312a5a60",
 		"engine_execution.go":    "4a398c36ef0d122a0fa10e4b2deaa4948d524ccaf809264b3ded3ca8ebaa32da",

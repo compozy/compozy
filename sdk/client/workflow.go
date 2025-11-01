@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"github.com/compozy/compozy/engine/infra/server/routes"
 	"github.com/compozy/compozy/pkg/logger"
@@ -17,22 +16,17 @@ func (c *Client) ExecuteWorkflow(
 	workflowID string,
 	req *WorkflowExecuteRequest,
 ) (*WorkflowExecuteResponse, error) {
-	id := strings.TrimSpace(workflowID)
-	if id == "" {
-		return nil, fmt.Errorf("workflow id is required")
-	}
-	path := fmt.Sprintf("%s/%s/executions", routes.Workflows(), url.PathEscape(id))
-	resp, err := c.postJSON(ctx, path, req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	result, err := decodeEnvelope[WorkflowExecuteResponse](resp, http.StatusAccepted)
-	if err != nil {
-		return nil, err
-	}
-	logExecution(ctx, "workflow", id, result.ExecID)
-	return &result, nil
+	return executeRequest(ctx, c, executionRequestConfig[WorkflowExecuteResponse]{
+		ResourceID:    workflowID,
+		ResourceLabel: "workflow",
+		RouteBase:     routes.Workflows(),
+		PathSuffix:    "/executions",
+		Body:          req,
+		ExpectedCode:  http.StatusAccepted,
+		OnSuccess: func(execCtx context.Context, id string, res *WorkflowExecuteResponse) {
+			logExecution(execCtx, "workflow", id, res.ExecID)
+		},
+	})
 }
 
 // ExecuteWorkflowSync executes a workflow and waits for completion.
@@ -41,22 +35,17 @@ func (c *Client) ExecuteWorkflowSync(
 	workflowID string,
 	req *WorkflowSyncRequest,
 ) (*WorkflowSyncResponse, error) {
-	id := strings.TrimSpace(workflowID)
-	if id == "" {
-		return nil, fmt.Errorf("workflow id is required")
-	}
-	path := fmt.Sprintf("%s/%s/executions/sync", routes.Workflows(), url.PathEscape(id))
-	resp, err := c.postJSON(ctx, path, req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	result, err := decodeEnvelope[WorkflowSyncResponse](resp, http.StatusOK)
-	if err != nil {
-		return nil, err
-	}
-	logExecution(ctx, "workflow_sync", id, result.ExecID)
-	return &result, nil
+	return executeRequest(ctx, c, executionRequestConfig[WorkflowSyncResponse]{
+		ResourceID:    workflowID,
+		ResourceLabel: "workflow",
+		RouteBase:     routes.Workflows(),
+		PathSuffix:    "/executions/sync",
+		Body:          req,
+		ExpectedCode:  http.StatusOK,
+		OnSuccess: func(execCtx context.Context, id string, res *WorkflowSyncResponse) {
+			logExecution(execCtx, "workflow_sync", id, res.ExecID)
+		},
+	})
 }
 
 // ExecuteWorkflowStream starts an asynchronous workflow execution and streams events until completion.

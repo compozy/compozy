@@ -4,13 +4,17 @@
 package compozy
 
 import (
+	"context"
 	"fmt"
-	"net"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/compozy/compozy/engine/resources"
+	"github.com/compozy/compozy/engine/worker/embedded"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 	appconfig "github.com/compozy/compozy/pkg/config"
 	"github.com/stretchr/testify/assert"
@@ -24,13 +28,42 @@ func TestDistributedIntegrationLifecycle(t *testing.T) {
 	cfg.Mode = string(ModeDistributed)
 	mr := miniredis.NewMiniRedis()
 	require.NoError(t, mr.Start())
-	defer mr.Close()
+	t.Cleanup(mr.Close)
 	cfg.Redis.URL = "redis://" + mr.Addr()
 	cfg.Redis.Mode = string(ModeDistributed)
-	temporalListener, err := net.Listen("tcp", "127.0.0.1:0")
+	temporalPort := allocateTemporalFrontendPort(ctx, t)
+	temporalCfg := &embedded.Config{
+		DatabaseFile: filepath.Join(t.TempDir(), "temporal.db"),
+		FrontendPort: temporalPort,
+		BindIP:       "127.0.0.1",
+		Namespace:    cfg.Temporal.Namespace,
+		ClusterName:  "integration-distributed",
+		EnableUI:     false,
+		RequireUI:    false,
+		// Align UI port offset with standalone defaults.
+		UIPort:       temporalPort + 1000,
+		LogLevel:     cfg.Temporal.Standalone.LogLevel,
+		StartTimeout: cfg.Temporal.Standalone.StartTimeout,
+	}
+	if strings.TrimSpace(temporalCfg.LogLevel) == "" {
+		temporalCfg.LogLevel = "warn"
+	}
+	if temporalCfg.StartTimeout <= 0 {
+		temporalCfg.StartTimeout = 30 * time.Second
+	}
+	temporalServer, err := embedded.NewServer(ctx, temporalCfg)
 	require.NoError(t, err)
-	defer temporalListener.Close()
-	cfg.Temporal.HostPort = temporalListener.Addr().String()
+	require.NoError(t, temporalServer.Start(ctx))
+	t.Cleanup(func() {
+		shutdownTimeout := cfg.Server.Timeouts.WorkerShutdown
+		if shutdownTimeout <= 0 {
+			shutdownTimeout = temporalCfg.StartTimeout
+		}
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+		defer cancel()
+		require.NoError(t, temporalServer.Stop(shutdownCtx))
+	})
+	cfg.Temporal.HostPort = temporalServer.FrontendAddress()
 	engine, err := New(
 		ctx,
 		WithMode(ModeDistributed),
