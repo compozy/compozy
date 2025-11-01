@@ -172,7 +172,7 @@ jobs:
           go work sync
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v8
         with:
           version: latest
           working-directory: sdk

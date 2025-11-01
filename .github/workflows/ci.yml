@@ -155,6 +155,7 @@ jobs:
           filters: |
             backend:
               - '**/*.go'
+              - 'magefile.go'
               - 'go.mod'
               - 'go.sum'
               - 'Makefile'
@@ -197,6 +198,11 @@ jobs:
 
       - name: Setup git-cliff for release tests
         uses: ./.github/actions/setup-git-cliff
+
+      - name: Install Mage
+        run: |
+          echo "Installing Mage..."
+          go install github.com/magefile/mage@latest
 
       - name: Run linting
         run: |
