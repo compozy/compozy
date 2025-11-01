@@ -30,6 +30,8 @@ const (
 	goVersion        = "1.25"
 	testParallelism  = "4"
 	testParallelFlag = "-parallel=" + testParallelism
+	// minSDKCoverage enforces the minimum coverage percentage for sdk/compozy packages.
+	minSDKCoverage = 0.85
 )
 
 var (
@@ -482,7 +484,7 @@ func testSDK(ctx context.Context) error {
 		"cd sdk && gotestsum --format pkgname -- -race "+testParallelFlag+" ./..."); err != nil {
 		return err
 	}
-	fmt.Println("Enforcing sdk/compozy coverage >= 85%...")
+	fmt.Printf("Enforcing sdk/compozy coverage >= %.0f%%...\n", minSDKCoverage*100)
 	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("sdk-cover-%d.out", time.Now().UnixNano()))
 	defer os.Remove(tmpFile)
 	if err := sh.RunWithV(map[string]string{"GO_WORK": "off"}, "sh", "-c",
@@ -494,8 +496,8 @@ func testSDK(ctx context.Context) error {
 		return err
 	}
 	fmt.Printf("sdk/compozy coverage: %.2f%%\n", coverage*100)
-	if coverage < 0.85 {
-		return fmt.Errorf("coverage %.2f%% below required 85%%", coverage*100)
+	if coverage < minSDKCoverage {
+		return fmt.Errorf("coverage %.2f%% below required %.0f%%", coverage*100, minSDKCoverage*100)
 	}
 	return nil
 }

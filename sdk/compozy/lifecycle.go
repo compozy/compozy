@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -434,10 +435,11 @@ func (e *Engine) listen(ctx context.Context, host string, port int) (net.Listene
 	if host == "" {
 		host = loopbackHostname
 	}
-	address := fmt.Sprintf("%s:%d", host, port)
-	if port <= 0 {
-		address = fmt.Sprintf("%s:0", host)
+	portStr := "0"
+	if port > 0 {
+		portStr = strconv.Itoa(port)
 	}
+	address := net.JoinHostPort(host, portStr)
 	lc := net.ListenConfig{}
 	listener, err := lc.Listen(ctx, "tcp", address)
 	if err != nil {
@@ -453,7 +455,8 @@ func (e *Engine) listen(ctx context.Context, host string, port int) (net.Listene
 
 func (e *Engine) newClient(ctx context.Context, host string, port int) (*sdkclient.Client, string, error) {
 	clientHost := sanitizeHostForClient(host)
-	baseURL := fmt.Sprintf("%s://%s:%d", httpScheme, clientHost, port)
+	hostPort := net.JoinHostPort(clientHost, strconv.Itoa(port))
+	baseURL := fmt.Sprintf("%s://%s", httpScheme, hostPort)
 	client, err := sdkclient.New(ctx, baseURL)
 	if err != nil {
 		return nil, "", fmt.Errorf("initialize sdk client: %w", err)
