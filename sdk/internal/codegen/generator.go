@@ -72,7 +72,7 @@ func buildParameterType(field *FieldInfo, currentPkg string) *jen.Statement {
 	var stmt *jen.Statement
 	switch {
 	case field.IsMap:
-		keyType := jen.Id(field.KeyType)
+		keyType := buildSimpleType(field.KeyType, field.PackagePath, currentPkg)
 		valueType := buildSimpleType(field.ValueType, field.PackagePath, currentPkg)
 		stmt = jen.Map(keyType).Add(valueType)
 	case field.IsSlice:

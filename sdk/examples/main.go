@@ -67,9 +67,8 @@ func run(name string) int {
 }
 
 func initializeContext() (context.Context, func(), error) {
-	baseCtx, cancel := context.WithCancel(context.WithoutCancel(context.Background()))
-	log := logger.NewLogger(nil)
-	ctx := logger.ContextWithLogger(baseCtx, log)
+	baseCtx, cancel := context.WithCancel(context.Background())
+	ctx := baseCtx
 	manager := config.NewManager(ctx, config.NewService())
 	if _, err := manager.Load(ctx, config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
 		cancel()
@@ -77,6 +76,19 @@ func initializeContext() (context.Context, func(), error) {
 		return nil, nil, fmt.Errorf("load configuration: %w", err)
 	}
 	ctx = config.ContextWithManager(ctx, manager)
+	cfg := config.FromContext(ctx)
+	level := logger.InfoLevel
+	addSource := false
+	if cfg != nil {
+		if cfg.CLI.Quiet {
+			level = logger.DisabledLevel
+		} else if cfg.CLI.Debug {
+			level = logger.DebugLevel
+		}
+		addSource = cfg.CLI.Debug
+	}
+	log := logger.SetupLogger(level, false, addSource)
+	ctx = logger.ContextWithLogger(ctx, log)
 	cleanup := func() {
 		if err := manager.Close(ctx); err != nil {
 			logger.FromContext(ctx).Warn("failed to close configuration manager", "error", err)

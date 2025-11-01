@@ -45,6 +45,8 @@ func WithVectorDBDimension(dimension int) VectorDBOption {
 // WithPGVector sets the PGVector config
 func WithPGVector(pgVector *engineknowledge.PGVectorConfig) VectorDBOption {
 	return func(cfg *engineknowledge.VectorDBConfig) {
-		cfg.Config.PGVector = pgVector
+		if pgVector != nil {
+			cfg.Config.PGVector = pgVector
+		}
 	}
 }

@@ -2,6 +2,7 @@ package sdkcodegen
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"go/format"
 	"os"
@@ -17,7 +18,13 @@ const (
 )
 
 // Generate produces every Compozy SDK helper file under dstDir.
-func Generate(dstDir string) error {
+func Generate(ctx context.Context, dstDir string) error {
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	if err := ensureContext(ctx); err != nil {
+		return err
+	}
 	if strings.TrimSpace(dstDir) == "" {
 		return fmt.Errorf("destination directory is required")
 	}
@@ -44,6 +51,9 @@ func Generate(dstDir string) error {
 		},
 	}
 	for _, item := range files {
+		if err := ensureContext(ctx); err != nil {
+			return err
+		}
 		if item.File == nil {
 			return fmt.Errorf("failed to build %s", item.Name)
 		}
@@ -52,6 +62,15 @@ func Generate(dstDir string) error {
 		}
 	}
 	return nil
+}
+
+func ensureContext(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("generation canceled: %w", ctx.Err())
+	default:
+		return nil
+	}
 }
 
 func writeFormattedFile(path string, file *jen.File) error {

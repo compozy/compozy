@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/compozy/compozy/sdk/v2/internal/sdkcodegen"
 )
@@ -20,8 +24,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("sdkcodegen: resolve output path: %v", err)
 	}
-	if err := sdkcodegen.Generate(absolute); err != nil {
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	if err := sdkcodegen.Generate(ctx, absolute); err != nil {
+		cancel()
 		log.Fatalf("sdkcodegen: %v", err)
 	}
+	cancel()
 	fmt.Printf("sdkcodegen: generated files in %s\n", absolute)
 }

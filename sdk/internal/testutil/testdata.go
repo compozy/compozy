@@ -12,13 +12,19 @@ var repoRoot = detectRepoRoot()
 func detectRepoRoot() string {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		return "."
+		panic("testutil: failed to detect repository root via runtime.Caller")
 	}
 	dir := filepath.Dir(file)
-	for i := 0; i < 3; i++ {
-		dir = filepath.Dir(dir)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return filepath.Clean(dir)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			panic("testutil: repository root not found")
+		}
+		dir = parent
 	}
-	return filepath.Clean(dir)
 }
 
 // TestDataPath returns an absolute path rooted at sdk/testdata for the provided segments.
