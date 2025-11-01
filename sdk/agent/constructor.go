@@ -18,7 +18,9 @@ func New(ctx context.Context, id string, opts ...Option) (*engineagent.Config, e
 		return nil, fmt.Errorf("context is required")
 	}
 	log := logger.FromContext(ctx)
-	log.Debug("creating agent configuration", "agent", id)
+	if log != nil {
+		log.Debug("creating agent configuration", "agent", id)
+	}
 	cfg := &engineagent.Config{
 		Resource: string(core.ConfigAgent),
 		ID:       strings.TrimSpace(id),

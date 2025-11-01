@@ -14,18 +14,18 @@ go run sdk/examples --example <name>
 
 ## Example Catalog
 
-| Example | Command | What it Demonstrates |
-|---------|---------|----------------------|
-| simple-workflow | `go run sdk/examples --example simple-workflow` | Minimal mock-backed agent executed synchronously |
-| parallel-tasks | `go run sdk/examples --example parallel-tasks` | `task.NewParallel` fan-out/fan-in with aggregation |
-| knowledge-rag | `go run sdk/examples --example knowledge-rag` | Markdown ingestion, OpenAI embeddings, retrieval-grounded answer |
-| memory-conversation | `go run sdk/examples --example memory-conversation` | Session memory with multi-turn dialogue |
-| runtime-native-tools | `go run sdk/examples --example runtime-native-tools` | Native Go tool + Bun inline script working side-by-side |
-| scheduled-workflow | `go run sdk/examples --example scheduled-workflow` | Cron schedule config and deterministic first-tick simulation |
-| signal-communication | `go run sdk/examples --example signal-communication` | Signal and wait task coordination with payload hand-off |
-| model-routing | `go run sdk/examples --example model-routing` | Per-task model overrides for routing and fallback chains |
-| debugging-and-tracing | `go run sdk/examples --example debugging-and-tracing` | Capturing exec telemetry for troubleshooting |
-| complete-project | `go run sdk/examples --example complete-project` | Project-level config spanning tools, knowledge, memory, and schedules |
+| Example               | Command                                               | What it Demonstrates                                                  |
+| --------------------- | ----------------------------------------------------- | --------------------------------------------------------------------- |
+| simple-workflow       | `go run sdk/examples --example simple-workflow`       | Minimal mock-backed agent executed synchronously                      |
+| parallel-tasks        | `go run sdk/examples --example parallel-tasks`        | `task.NewParallel` fan-out/fan-in with aggregation                    |
+| knowledge-rag         | `go run sdk/examples --example knowledge-rag`         | Markdown ingestion, OpenAI embeddings, retrieval-grounded answer      |
+| memory-conversation   | `go run sdk/examples --example memory-conversation`   | Session memory with multi-turn dialogue                               |
+| runtime-native-tools  | `go run sdk/examples --example runtime-native-tools`  | Native Go tool + Bun inline script working side-by-side               |
+| scheduled-workflow    | `go run sdk/examples --example scheduled-workflow`    | Cron schedule config and deterministic first-tick simulation          |
+| signal-communication  | `go run sdk/examples --example signal-communication`  | Signal and wait task coordination with payload hand-off               |
+| model-routing         | `go run sdk/examples --example model-routing`         | Per-task model overrides for routing and fallback chains              |
+| debugging-and-tracing | `go run sdk/examples --example debugging-and-tracing` | Capturing exec telemetry for troubleshooting                          |
+| complete-project      | `go run sdk/examples --example complete-project`      | Project-level config spanning tools, knowledge, memory, and schedules |
 
 ## Development Notes
 

@@ -1,6 +1,14 @@
 package schedule
 
-import "time"
+import (
+	"context"
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/robfig/cron/v3"
+)
 
 // Config describes a workflow schedule registration that runs a workflow on a cron cadence.
 //
@@ -31,4 +39,90 @@ type RetryPolicy struct {
 	MaxAttempts int `json:"max_attempts" yaml:"max_attempts" mapstructure:"max_attempts"`
 	// Backoff is the delay between retry attempts.
 	Backoff time.Duration `json:"backoff"      yaml:"backoff"      mapstructure:"backoff"`
+}
+
+func (c *Config) Validate(ctx context.Context) error {
+	if err := ensureContext(ctx); err != nil {
+		return err
+	}
+	c.ID = strings.TrimSpace(c.ID)
+	if err := validateIdentifier(c.ID); err != nil {
+		return fmt.Errorf("schedule id: %w", err)
+	}
+	c.WorkflowID = strings.TrimSpace(c.WorkflowID)
+	if err := validateIdentifier(c.WorkflowID); err != nil {
+		return fmt.Errorf("workflow_id: %w", err)
+	}
+	c.Cron = strings.TrimSpace(c.Cron)
+	if err := validateCronExpression(c.Cron); err != nil {
+		return fmt.Errorf("cron: %w", err)
+	}
+	if tz := strings.TrimSpace(c.Timezone); tz != "" {
+		c.Timezone = tz
+		if err := validateTimezone(tz); err != nil {
+			return fmt.Errorf("timezone: %w", err)
+		}
+	}
+	if c.Retry != nil {
+		if err := c.Retry.Validate(ctx); err != nil {
+			return fmt.Errorf("retry: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *RetryPolicy) Validate(ctx context.Context) error {
+	if err := ensureContext(ctx); err != nil {
+		return err
+	}
+	if r.MaxAttempts <= 0 {
+		return fmt.Errorf("max_attempts must be positive: got %d", r.MaxAttempts)
+	}
+	if err := validateDuration(r.Backoff); err != nil {
+		return fmt.Errorf("backoff: %w", err)
+	}
+	return nil
+}
+
+var scheduleIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+
+func ensureContext(ctx context.Context) error {
+	if ctx == nil {
+		return fmt.Errorf("context is required")
+	}
+	return nil
+}
+
+func validateIdentifier(id string) error {
+	if id == "" {
+		return fmt.Errorf("id is required")
+	}
+	if !scheduleIDPattern.MatchString(id) {
+		return fmt.Errorf("id must contain only letters, numbers, or hyphens")
+	}
+	return nil
+}
+
+func validateCronExpression(expr string) error {
+	if expr == "" {
+		return fmt.Errorf("cron expression is required")
+	}
+	if _, err := cron.ParseStandard(expr); err != nil {
+		return fmt.Errorf("cron expression is invalid: %w", err)
+	}
+	return nil
+}
+
+func validateTimezone(name string) error {
+	if _, err := time.LoadLocation(name); err != nil {
+		return fmt.Errorf("timezone is invalid: %w", err)
+	}
+	return nil
+}
+
+func validateDuration(d time.Duration) error {
+	if d <= 0 {
+		return fmt.Errorf("duration must be positive: got %s", d)
+	}
+	return nil
 }

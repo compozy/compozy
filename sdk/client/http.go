@@ -131,8 +131,8 @@ func statusAllowed(status int, allowed []int) bool {
 	if len(allowed) == 0 {
 		return status >= 200 && status < 300
 	}
-	for i := range allowed {
-		if status == allowed[i] {
+	for _, code := range allowed {
+		if status == code {
 			return true
 		}
 	}

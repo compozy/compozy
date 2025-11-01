@@ -1391,6 +1391,7 @@ func (e *executorLifecycle) onEnterShutdown(_ context.Context, _ *fsm.Event) {
 }
 
 type jobLifecycle struct {
+	ctx            context.Context
 	index          int
 	job            *job
 	execCtx        *jobExecutionContext
@@ -1401,8 +1402,9 @@ type jobLifecycle struct {
 	lastFailure    *failInfo
 }
 
-func newJobLifecycle(index int, jb *job, execCtx *jobExecutionContext) *jobLifecycle {
+func newJobLifecycle(ctx context.Context, index int, jb *job, execCtx *jobExecutionContext) *jobLifecycle {
 	l := &jobLifecycle{
+		ctx:     ctx,
 		index:   index,
 		job:     jb,
 		execCtx: execCtx,
@@ -1496,7 +1498,7 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 }
 
 func (l *jobLifecycle) transition(evt jobEvent) {
-	if err := l.fsm.Event(context.Background(), string(evt)); err != nil {
+	if err := l.fsm.Event(l.ctx, string(evt)); err != nil {
 		var inTransitionErr fsm.InTransitionError
 		var noTransitionErr fsm.NoTransitionError
 		if errors.As(err, &inTransitionErr) || errors.As(err, &noTransitionErr) {
@@ -1584,12 +1586,12 @@ type jobRunner struct {
 	lifecycle *jobLifecycle
 }
 
-func newJobRunner(index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
+func newJobRunner(ctx context.Context, index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
 	return &jobRunner{
 		index:     index,
 		job:       jb,
 		execCtx:   execCtx,
-		lifecycle: newJobLifecycle(index, jb, execCtx),
+		lifecycle: newJobLifecycle(ctx, index, jb, execCtx),
 	}
 }
 
@@ -1737,7 +1739,7 @@ func (j *jobExecutionContext) executeJob(jobCtx context.Context, index int, jb *
 		j.wg.Done()
 		atomic.AddInt32(&j.completed, 1)
 	}()
-	newJobRunner(index, jb, j).run(jobCtx)
+	newJobRunner(jobCtx, index, jb, j).run(jobCtx)
 }
 
 func (j *jobExecutionContext) waitChannel() <-chan struct{} {

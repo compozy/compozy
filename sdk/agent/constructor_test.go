@@ -14,7 +14,7 @@ import (
 
 func TestNew(t *testing.T) {
 	t.Run("Should create agent with minimal configuration", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		cfg, err := New(ctx, "test-agent",
 			WithInstructions("You are a helpful assistant"),
 		)
@@ -35,7 +35,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should trim whitespace from ID and instructions", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		cfg, err := New(ctx, "  test-agent  ",
 			WithInstructions("  You are helpful  "),
 		)
@@ -62,7 +62,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should fail when ID is empty", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := New(ctx, "",
 			WithInstructions("Test"),
 		)
@@ -75,7 +75,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should fail when instructions are empty", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := New(ctx, "test-agent")
 		if err == nil {
 			t.Fatal("expected error for empty instructions")
@@ -86,7 +86,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should create agent with all options", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		cfg, err := New(ctx, "full-agent",
 			WithInstructions("Complex agent"),
 			WithTools([]tool.Config{{ID: "tool1"}}),
@@ -115,7 +115,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should fail with multiple knowledge bindings", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := New(ctx, "test-agent",
 			WithInstructions("Test"),
 			WithKnowledge([]core.KnowledgeBinding{
@@ -128,7 +128,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should fail with empty knowledge binding ID", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := New(ctx, "test-agent",
 			WithInstructions("Test"),
 			WithKnowledge([]core.KnowledgeBinding{{ID: ""}}),
@@ -138,7 +138,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should fail with empty memory reference ID", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		_, err := New(ctx, "test-agent",
 			WithInstructions("Test"),
 			WithMemory([]core.MemoryReference{{ID: ""}}),
@@ -148,7 +148,7 @@ func TestNew(t *testing.T) {
 		}
 	})
 	t.Run("Should create deep copy of configuration", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		cfg1, err := New(ctx, "test-agent",
 			WithInstructions("Test"),
 		)
@@ -166,7 +166,7 @@ func TestNew(t *testing.T) {
 
 func TestWithActions(t *testing.T) {
 	t.Run("Should set actions", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		action := &engineagent.ActionConfig{ID: "action1"}
 		cfg, err := New(ctx, "test",
 			WithInstructions("Test"),
@@ -186,7 +186,7 @@ func TestWithActions(t *testing.T) {
 
 func TestWithModel(t *testing.T) {
 	t.Run("Should set model with ref", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		cfg, err := New(ctx, "test",
 			WithInstructions("Test"),
 			WithModel(engineagent.Model{Ref: "gpt-4"}),
@@ -202,7 +202,7 @@ func TestWithModel(t *testing.T) {
 		}
 	})
 	t.Run("Should set model with config", func(t *testing.T) {
-		ctx := context.Background()
+		ctx := t.Context()
 		cfg, err := New(ctx, "test",
 			WithInstructions("Test"),
 			WithModel(engineagent.Model{

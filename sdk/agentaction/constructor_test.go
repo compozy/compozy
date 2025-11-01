@@ -2,7 +2,6 @@ package agentaction
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +9,8 @@ import (
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 	sdkerrors "github.com/compozy/compozy/sdk/v2/internal/errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -18,95 +19,62 @@ func TestNew(t *testing.T) {
 		action, err := New(ctx, "test-action",
 			WithPrompt("Test prompt"),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if action == nil {
-			t.Fatal("expected action, got nil")
-		}
-		if action.ID != "test-action" {
-			t.Errorf("expected ID 'test-action', got '%s'", action.ID)
-		}
-		if action.Prompt != "Test prompt" {
-			t.Errorf("expected prompt, got '%s'", action.Prompt)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
+		assert.Equal(t, "test-action", action.ID)
+		assert.Equal(t, "Test prompt", action.Prompt)
 	})
 	t.Run("Should trim whitespace from ID and prompt", func(t *testing.T) {
 		ctx := t.Context()
 		action, err := New(ctx, "  test-action  ",
 			WithPrompt("  Test prompt  "),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if action.ID != "test-action" {
-			t.Errorf("expected trimmed ID 'test-action', got '%s'", action.ID)
-		}
-		if action.Prompt != "Test prompt" {
-			t.Errorf("expected trimmed prompt, got '%s'", action.Prompt)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
+		assert.Equal(t, "test-action", action.ID)
+		assert.Equal(t, "Test prompt", action.Prompt)
 	})
 	t.Run("Should fail when context is nil", func(t *testing.T) {
 		var nilCtx context.Context
 		_, err := New(nilCtx, "test-action",
 			WithPrompt("Test"),
 		)
-		if err == nil {
-			t.Fatal("expected error for nil context")
-		}
-		if err.Error() != "context is required" {
-			t.Errorf("unexpected error message: %v", err)
-		}
+		require.Error(t, err)
+		assert.EqualError(t, err, "context is required")
 	})
 	t.Run("Should fail when ID is empty", func(t *testing.T) {
 		ctx := t.Context()
 		_, err := New(ctx, "",
 			WithPrompt("Test"),
 		)
-		if err == nil {
-			t.Fatal("expected error for empty ID")
-		}
+		require.Error(t, err)
 		var buildErr *sdkerrors.BuildError
-		if !errors.As(err, &buildErr) {
-			t.Errorf("expected BuildError, got %T", err)
-		}
+		require.ErrorAs(t, err, &buildErr)
 	})
 	t.Run("Should fail when ID is whitespace only", func(t *testing.T) {
 		ctx := t.Context()
 		_, err := New(ctx, "   ",
 			WithPrompt("Test"),
 		)
-		if err == nil {
-			t.Fatal("expected error for whitespace-only ID")
-		}
+		require.Error(t, err)
 		var buildErr *sdkerrors.BuildError
-		if !errors.As(err, &buildErr) {
-			t.Errorf("expected BuildError, got %T", err)
-		}
+		require.ErrorAs(t, err, &buildErr)
 	})
 	t.Run("Should fail when prompt is empty", func(t *testing.T) {
 		ctx := t.Context()
 		_, err := New(ctx, "test-action")
-		if err == nil {
-			t.Fatal("expected error for empty prompt")
-		}
+		require.Error(t, err)
 		var buildErr *sdkerrors.BuildError
-		if !errors.As(err, &buildErr) {
-			t.Errorf("expected BuildError, got %T", err)
-		}
+		require.ErrorAs(t, err, &buildErr)
 	})
 	t.Run("Should fail when prompt is whitespace only", func(t *testing.T) {
 		ctx := t.Context()
 		_, err := New(ctx, "test-action",
 			WithPrompt("   "),
 		)
-		if err == nil {
-			t.Fatal("expected error for whitespace-only prompt")
-		}
+		require.Error(t, err)
 		var buildErr *sdkerrors.BuildError
-		if !errors.As(err, &buildErr) {
-			t.Errorf("expected BuildError, got %T", err)
-		}
+		require.ErrorAs(t, err, &buildErr)
 	})
 	t.Run("Should create action with all options", func(t *testing.T) {
 		ctx := t.Context()
@@ -128,33 +96,16 @@ func TestNew(t *testing.T) {
 			WithRetryPolicy(retryPolicy),
 			WithTimeout("30s"),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if action.InputSchema == nil {
-			t.Error("expected input schema to be set")
-		}
-		if action.OutputSchema == nil {
-			t.Error("expected output schema to be set")
-		}
-		if action.With == nil {
-			t.Error("expected with to be set")
-		}
-		if len(action.Tools) != 1 {
-			t.Errorf("expected 1 tool, got %d", len(action.Tools))
-		}
-		if action.OnSuccess == nil {
-			t.Error("expected on_success to be set")
-		}
-		if action.OnError == nil {
-			t.Error("expected on_error to be set")
-		}
-		if action.RetryPolicy == nil {
-			t.Error("expected retry_policy to be set")
-		}
-		if action.Timeout != "30s" {
-			t.Errorf("expected timeout '30s', got '%s'", action.Timeout)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
+		assert.NotNil(t, action.InputSchema)
+		assert.NotNil(t, action.OutputSchema)
+		assert.NotNil(t, action.With)
+		assert.Len(t, action.Tools, 1)
+		assert.NotNil(t, action.OnSuccess)
+		assert.NotNil(t, action.OnError)
+		assert.NotNil(t, action.RetryPolicy)
+		assert.Equal(t, "30s", action.Timeout)
 	})
 	t.Run("Should create deep copy", func(t *testing.T) {
 		ctx := t.Context()
@@ -163,27 +114,18 @@ func TestNew(t *testing.T) {
 			WithPrompt("Test prompt"),
 			WithTools(originalTools),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
 		originalTools[0].ID = "modified"
-		if action.Tools[0].ID == "modified" {
-			t.Error("expected deep copy, but got shallow copy")
-		}
+		assert.Equal(t, "tool1", action.Tools[0].ID)
 	})
 	t.Run("Should handle multiple error accumulation", func(t *testing.T) {
 		ctx := t.Context()
 		_, err := New(ctx, "")
-		if err == nil {
-			t.Fatal("expected error for invalid configuration")
-		}
+		require.Error(t, err)
 		var buildErr *sdkerrors.BuildError
-		if !errors.As(err, &buildErr) {
-			t.Fatalf("expected BuildError, got %T", err)
-		}
-		if len(buildErr.Errors) < 2 {
-			t.Errorf("expected at least 2 errors (ID and prompt), got %d", len(buildErr.Errors))
-		}
+		require.ErrorAs(t, err, &buildErr)
+		assert.GreaterOrEqual(t, len(buildErr.Errors), 2)
 	})
 	t.Run("Should work with helper functions for transitions", func(t *testing.T) {
 		ctx := t.Context()
@@ -192,15 +134,12 @@ func TestNew(t *testing.T) {
 			WithOnSuccess(&core.SuccessTransition{Next: strPtr("success-task")}),
 			WithOnError(&core.ErrorTransition{Next: strPtr("error-task")}),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if action.OnSuccess == nil || *action.OnSuccess.Next != "success-task" {
-			t.Error("expected success transition to be set correctly")
-		}
-		if action.OnError == nil || *action.OnError.Next != "error-task" {
-			t.Error("expected error transition to be set correctly")
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
+		require.NotNil(t, action.OnSuccess)
+		require.NotNil(t, action.OnError)
+		assert.Equal(t, "success-task", *action.OnSuccess.Next)
+		assert.Equal(t, "error-task", *action.OnError.Next)
 	})
 	t.Run("Should work with retry policy", func(t *testing.T) {
 		ctx := t.Context()
@@ -212,18 +151,11 @@ func TestNew(t *testing.T) {
 				BackoffCoefficient: 2.0,
 			}),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if action.RetryPolicy == nil {
-			t.Fatal("expected retry policy to be set")
-		}
-		if action.RetryPolicy.MaximumAttempts != 5 {
-			t.Errorf("expected max attempts 5, got %d", action.RetryPolicy.MaximumAttempts)
-		}
-		if action.RetryPolicy.InitialInterval != "2s" {
-			t.Errorf("expected initial interval '2s', got '%s'", action.RetryPolicy.InitialInterval)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
+		require.NotNil(t, action.RetryPolicy)
+		assert.EqualValues(t, 5, action.RetryPolicy.MaximumAttempts)
+		assert.Equal(t, "2s", action.RetryPolicy.InitialInterval)
 	})
 	t.Run("Should work with timeout", func(t *testing.T) {
 		ctx := t.Context()
@@ -231,19 +163,12 @@ func TestNew(t *testing.T) {
 			WithPrompt("Test prompt"),
 			WithTimeout("1m30s"),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if action.Timeout != "1m30s" {
-			t.Errorf("expected timeout '1m30s', got '%s'", action.Timeout)
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
+		assert.Equal(t, "1m30s", action.Timeout)
 		duration, parseErr := time.ParseDuration(action.Timeout)
-		if parseErr != nil {
-			t.Errorf("timeout should be parseable: %v", parseErr)
-		}
-		if duration != 90*time.Second {
-			t.Errorf("expected duration 90s, got %v", duration)
-		}
+		require.NoError(t, parseErr)
+		assert.Equal(t, 90*time.Second, duration)
 	})
 	t.Run("Should work with input and output schemas", func(t *testing.T) {
 		ctx := t.Context()
@@ -264,21 +189,12 @@ func TestNew(t *testing.T) {
 			WithInputSchema(inputSchema),
 			WithOutputSchema(outputSchema),
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if action.InputSchema == nil {
-			t.Error("expected input schema to be set")
-		}
-		if (*action.InputSchema)["type"] != "object" {
-			t.Error("expected input schema type to be object")
-		}
-		if action.OutputSchema == nil {
-			t.Error("expected output schema to be set")
-		}
-		if (*action.OutputSchema)["type"] != "object" {
-			t.Error("expected output schema type to be object")
-		}
+		require.NoError(t, err)
+		require.NotNil(t, action)
+		require.NotNil(t, action.InputSchema)
+		require.NotNil(t, action.OutputSchema)
+		assert.Equal(t, "object", (*action.InputSchema)["type"])
+		assert.Equal(t, "object", (*action.OutputSchema)["type"])
 	})
 }
 

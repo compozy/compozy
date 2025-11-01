@@ -3,7 +3,6 @@ package agent
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"dario.cat/mergo"
 	"github.com/compozy/compozy/engine/attachment"
@@ -145,7 +144,7 @@ func (a *ActionConfig) Validate(ctx context.Context) error {
 		return err
 	}
 	if a.Timeout != "" {
-		duration, err := time.ParseDuration(a.Timeout)
+		duration, err := core.ParseHumanDuration(a.Timeout)
 		if err != nil {
 			return fmt.Errorf("invalid action timeout '%s': %w", a.Timeout, err)
 		}
