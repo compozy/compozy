@@ -5,31 +5,62 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
+	"strings"
 
 	"github.com/compozy/compozy/pkg/config"
 	"github.com/compozy/compozy/pkg/logger"
 )
 
+type exampleRunner func(context.Context) error
+
+var examples = map[string]exampleRunner{
+	"simple-workflow":       RunSimpleWorkflow,
+	"parallel-tasks":        RunParallelTasks,
+	"knowledge-rag":         RunKnowledgeRag,
+	"memory-conversation":   RunMemoryConversation,
+	"runtime-native-tools":  RunRuntimeNativeTools,
+	"scheduled-workflow":    RunScheduledWorkflow,
+	"signal-communication":  RunSignalCommunication,
+	"model-routing":         RunModelRouting,
+	"debugging-and-tracing": RunDebuggingAndTracing,
+	"complete-project":      RunCompleteProject,
+}
+
+var descriptions = map[string]string{
+	"simple-workflow":       "Basic agent workflow executed synchronously",
+	"parallel-tasks":        "Parallel branches with aggregation",
+	"knowledge-rag":         "Retrieval-augmented workflow with OpenAI embeddings",
+	"memory-conversation":   "Conversation that persists state across turns",
+	"runtime-native-tools":  "Hybrid native and inline tool execution",
+	"scheduled-workflow":    "Deterministic scheduled workflow trigger",
+	"signal-communication":  "Signal and wait coordination between tasks",
+	"model-routing":         "Per-task model override and fallback",
+	"debugging-and-tracing": "Runtime observability and tracing options",
+	"complete-project":      "End-to-end project integrating multiple resources",
+}
+
 func main() {
-	exampleName := flag.String("example", "", "Example to run")
+	selected := flag.String("example", "", "Example to run")
 	flag.Usage = showHelp
 	flag.Parse()
-	if *exampleName == "" {
+	if strings.TrimSpace(*selected) == "" {
 		showHelp()
 		os.Exit(1)
 	}
-	os.Exit(run(*exampleName))
+	exit := run(*selected)
+	os.Exit(exit)
 }
 
-func run(exampleName string) int {
+func run(name string) int {
 	ctx, cleanup, err := initializeContext()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to initialize context: %v\n", err)
 		return 1
 	}
 	defer cleanup()
-	if err := runExample(ctx, exampleName); err != nil {
-		logger.FromContext(ctx).Error("example failed", "example", exampleName, "error", err)
+	if err := runExample(ctx, name); err != nil {
+		logger.FromContext(ctx).Error("example failed", "example", name, "error", err)
 		return 1
 	}
 	return 0
@@ -56,157 +87,32 @@ func initializeContext() (context.Context, func(), error) {
 }
 
 func runExample(ctx context.Context, name string) error {
-	examples := map[string]func(context.Context) error{
-		"simple-workflow":      RunSimpleWorkflow,
-		"parallel-tasks":       RunParallelTasks,
-		"knowledge-rag":        RunKnowledgeRag,
-		"memory-conversation":  RunMemoryConversation,
-		"runtime-native-tools": RunRuntimeNativeTools,
-		"scheduled-workflow":   RunScheduledWorkflow,
-		"signal-communication": RunSignalCommunication,
-		"complete-project":     RunCompleteProject,
-		"debugging":            RunDebugging,
+	runner, ok := examples[name]
+	if !ok {
+		return fmt.Errorf("unknown example %q (use --help)", name)
 	}
-	fn, exists := examples[name]
-	if !exists {
-		return fmt.Errorf("unknown example: %s (use --help to see available examples)", name)
+	log := logger.FromContext(ctx)
+	log.Info("starting example", "example", name)
+	if err := runner(ctx); err != nil {
+		return err
 	}
-	return fn(ctx)
+	log.Info("example finished", "example", name)
+	return nil
 }
 
 func showHelp() {
 	fmt.Println("Compozy SDK v2 Examples")
-	fmt.Println()
 	fmt.Println("Usage: go run sdk/examples --example <name>")
 	fmt.Println()
-	fmt.Println("Available examples:")
-	fmt.Println("  simple-workflow        - Basic agent and workflow creation")
-	fmt.Println("  parallel-tasks         - Parallel task execution")
-	fmt.Println("  knowledge-rag          - Agent with knowledge base (RAG)")
-	fmt.Println("  memory-conversation    - Agent with memory for conversations")
-	fmt.Println("  runtime-native-tools   - Runtime with native tool definitions")
-	fmt.Println("  scheduled-workflow     - Workflow with schedule configuration")
-	fmt.Println("  signal-communication   - Signal tasks for workflow communication")
-	fmt.Println("  complete-project       - Full project with multiple components")
-	fmt.Println("  debugging              - Debugging configuration and patterns")
+	names := make([]string, 0, len(examples))
+	for name := range examples {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		desc := descriptions[name]
+		fmt.Printf("  %-22s %s\n", name, desc)
+	}
 	fmt.Println()
-	fmt.Println("Example: go run sdk/examples --example simple-workflow")
-	fmt.Println()
-	fmt.Println("Note: Most examples require OPENAI_API_KEY environment variable")
-}
-
-// RunSimpleWorkflow demonstrates basic agent and workflow creation
-func RunSimpleWorkflow(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running simple workflow example")
-	fmt.Println("✅ Simple workflow example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Basic agent creation with agent.New()")
-	fmt.Println("  - Workflow configuration with workflow.New()")
-	fmt.Println("  - Project setup with project.New()")
-	return nil
-}
-
-// RunParallelTasks demonstrates parallel task execution
-func RunParallelTasks(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running parallel tasks example")
-	fmt.Println("✅ Parallel tasks example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Multiple agents working in parallel")
-	fmt.Println("  - Parallel task configuration with task.NewParallel()")
-	fmt.Println("  - Result aggregation")
-	return nil
-}
-
-// RunKnowledgeRag demonstrates agent with knowledge base
-func RunKnowledgeRag(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running knowledge RAG example")
-	fmt.Println("✅ Knowledge RAG example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Knowledge base configuration with knowledge.NewBase()")
-	fmt.Println("  - Embedder setup with knowledge.NewEmbedder()")
-	fmt.Println("  - Vector DB integration with knowledge.NewVectorDB()")
-	fmt.Println("  - Agent with knowledge binding")
-	return nil
-}
-
-// RunMemoryConversation demonstrates agent with memory
-func RunMemoryConversation(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running memory conversation example")
-	fmt.Println("✅ Memory conversation example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Memory configuration with memory.New()")
-	fmt.Println("  - Conversation persistence")
-	fmt.Println("  - Agent with memory")
-	return nil
-}
-
-// RunRuntimeNativeTools demonstrates runtime with native tool definitions
-func RunRuntimeNativeTools(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running runtime native tools example")
-	fmt.Println("✅ Runtime native tools example")
-	fmt.Println("This walkthrough highlights:")
-	fmt.Println("  1. Inline TypeScript provided via tool.WithCode() now syncs automatically")
-	fmt.Println("     into .compozy/runtime/inline/")
-	fmt.Println("  2. The generated entrypoint merges user exports with inline modules")
-	fmt.Println("     without manual wiring")
-	fmt.Println("  3. Native Go handlers continue to coexist with Bun-executed tools")
-	fmt.Println()
-	fmt.Println("To see it in action, register a tool with tool.WithCode(...) and call engine.Start(...).")
-	fmt.Println("The inline manager writes the module files, composes the entrypoint, and Bun executes")
-	fmt.Println("the generated bundle on demand.")
-	return nil
-}
-
-// RunScheduledWorkflow demonstrates workflow with schedule configuration
-func RunScheduledWorkflow(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running scheduled workflow example")
-	fmt.Println("✅ Scheduled workflow example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Schedule configuration with schedule.New()")
-	fmt.Println("  - Cron-based execution")
-	fmt.Println("  - Workflow scheduling")
-	return nil
-}
-
-// RunSignalCommunication demonstrates signal tasks for workflow communication
-func RunSignalCommunication(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running signal communication example")
-	fmt.Println("✅ Signal communication example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Signal tasks with task.NewSignal()")
-	fmt.Println("  - Wait tasks with task.NewWait()")
-	fmt.Println("  - Workflow communication patterns")
-	return nil
-}
-
-// RunCompleteProject demonstrates full project with multiple components
-func RunCompleteProject(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running complete project example")
-	fmt.Println("✅ Complete project example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Full project with all components")
-	fmt.Println("  - Multiple workflows")
-	fmt.Println("  - Complex integrations")
-	return nil
-}
-
-// RunDebugging demonstrates debugging configuration and patterns
-func RunDebugging(ctx context.Context) error {
-	log := logger.FromContext(ctx)
-	log.Info("running debugging example")
-	fmt.Println("✅ Debugging example (implementation in progress)")
-	fmt.Println("This example will demonstrate:")
-	fmt.Println("  - Debugging configuration")
-	fmt.Println("  - Retry logic")
-	fmt.Println("  - Timeout handling")
-	fmt.Println("  - Error recovery patterns")
-	return nil
+	fmt.Println("Most examples require OPENAI_API_KEY and Bun when inline tools run.")
 }

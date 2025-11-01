@@ -1,213 +1,35 @@
 # Compozy SDK v2 Examples
 
-This directory contains examples demonstrating the SDK v2 functional options API.
-
-## Overview
-
-SDK v2 uses functional options pattern with these key changes from SDK v1:
-
-- **Context-first**: `ctx` is always the first parameter
-- **No Build() call**: Validation happens in constructor
-- **Functional options**: Use `WithX()` functions instead of builder methods
-- **Type-safe**: Full Go type checking at compile time
-
-## Running Examples
-
-Each example demonstrates a specific SDK v2 pattern:
-
-### Simple Workflow
+Every example in this directory is runnable with the functional-options SDK. Execute a scenario using
 
 ```bash
-go run sdk/examples --example simple-workflow
+go run sdk/examples --example <name>
 ```
 
-Demonstrates:
+## Prerequisites
 
-- Basic agent creation with `agent.New()`
-- Workflow configuration with `workflow.New()`
-- Project setup with `project.New()`
+- Go 1.25.2+
+- Bun installed locally (required for `runtime-native-tools`)
+- `OPENAI_API_KEY` exported when running `knowledge-rag` or `complete-project`
 
-### Parallel Tasks
+## Example Catalog
 
-```bash
-go run sdk/examples --example parallel-tasks
-```
+| Example | Command | What it Demonstrates |
+|---------|---------|----------------------|
+| simple-workflow | `go run sdk/examples --example simple-workflow` | Minimal mock-backed agent executed synchronously |
+| parallel-tasks | `go run sdk/examples --example parallel-tasks` | `task.NewParallel` fan-out/fan-in with aggregation |
+| knowledge-rag | `go run sdk/examples --example knowledge-rag` | Markdown ingestion, OpenAI embeddings, retrieval-grounded answer |
+| memory-conversation | `go run sdk/examples --example memory-conversation` | Session memory with multi-turn dialogue |
+| runtime-native-tools | `go run sdk/examples --example runtime-native-tools` | Native Go tool + Bun inline script working side-by-side |
+| scheduled-workflow | `go run sdk/examples --example scheduled-workflow` | Cron schedule config and deterministic first-tick simulation |
+| signal-communication | `go run sdk/examples --example signal-communication` | Signal and wait task coordination with payload hand-off |
+| model-routing | `go run sdk/examples --example model-routing` | Per-task model overrides for routing and fallback chains |
+| debugging-and-tracing | `go run sdk/examples --example debugging-and-tracing` | Capturing exec telemetry for troubleshooting |
+| complete-project | `go run sdk/examples --example complete-project` | Project-level config spanning tools, knowledge, memory, and schedules |
 
-Demonstrates:
+## Development Notes
 
-- Multiple agents working in parallel
-- Parallel task configuration
-- Result aggregation
-
-### Knowledge RAG
-
-```bash
-go run sdk/examples --example knowledge-rag
-```
-
-Demonstrates:
-
-- Knowledge base configuration
-- Embedder setup
-- Vector DB integration
-- Agent with knowledge binding
-
-### Memory Conversation
-
-```bash
-go run sdk/examples --example memory-conversation
-```
-
-Demonstrates:
-
-- Memory configuration
-- Conversation persistence
-- Agent with memory
-
-### Runtime Native Tools
-
-```bash
-go run sdk/examples --example runtime-native-tools
-```
-
-Demonstrates:
-
-- Runtime configuration
-- Native tool definitions
-- Tool execution
-
-### Scheduled Workflow
-
-```bash
-go run sdk/examples --example scheduled-workflow
-```
-
-Demonstrates:
-
-- Schedule configuration
-- Cron-based execution
-- Workflow scheduling
-
-### Signal Communication
-
-```bash
-go run sdk/examples --example signal-communication
-```
-
-Demonstrates:
-
-- Signal tasks
-- Workflow communication patterns
-- Wait and signal coordination
-
-### Complete Project
-
-```bash
-go run sdk/examples --example complete-project
-```
-
-Demonstrates:
-
-- Full project with all components
-- Multiple workflows
-- Complex integrations
-
-### Debugging
-
-```bash
-go run sdk/examples --example debugging
-```
-
-Demonstrates:
-
-- Debugging configuration
-- Retry logic
-- Timeout handling
-- Error recovery patterns
-
-## API Migration Guide
-
-### Before (SDK v1 - Builder Pattern)
-
-```go
-cfg, err := agent.New("assistant").
-    WithInstructions("You are helpful").
-    WithModel("openai", "gpt-4").
-    Build(ctx)
-```
-
-### After (SDK v2 - Functional Options)
-
-```go
-cfg, err := agent.New(ctx, "assistant",
-    agent.WithInstructions("You are helpful"),
-    agent.WithModel(engineagent.Model{
-        Config: core.ProviderConfig{
-            Provider: core.ProviderOpenAI,
-            Model:    "gpt-4",
-        },
-    }),
-)
-```
-
-### Key Differences
-
-1. **Context First**: `ctx` moved to first parameter
-2. **No Build()**: Validation happens in constructor, not at Build()
-3. **Type Safety**: `WithModel()` takes struct, not separate strings
-4. **Collections**: Use plural names with slices:
-   - `WithActions([]*ActionConfig{...})` not `AddAction(...)`
-   - `WithTools([]ToolConfig{...})` not `AddTool(...)`
-5. **Variadic Options**: All options passed as variadic arguments
-
-## Development
-
-### Adding New Examples
-
-1. Add function to `main.go`:
-
-```go
-func RunMyExample(ctx context.Context) error {
-    // Implementation
-}
-```
-
-2. Register in `runExample()` function:
-
-```go
-examples := map[string]func(context.Context) error{
-    "my-example": RunMyExample,
-    // ...
-}
-```
-
-3. Add to help text in `showHelp()` function
-
-### Testing Examples
-
-```bash
-# Run specific example
-go run sdk/examples --example simple-workflow
-
-# Show available examples
-go run sdk/examples --help
-
-# Build for testing
-go build -o /tmp/sdk-examples sdk/examples/main.go
-/tmp/sdk-examples --example simple-workflow
-```
-
-## Environment Variables
-
-Most examples require API keys:
-
-```bash
-export OPENAI_API_KEY="your-key-here"
-export ANTHROPIC_API_KEY="your-key-here" # If using Claude models
-```
-
-## See Also
-
-- [SDK v2 Migration Guide](../MIGRATION_GUIDE.md)
-- [Code Generation Documentation](../internal/codegen/README.md)
-- [Individual Package READMEs](../)
+- Constructors mirror runtime defaults—no builders or `Build()` calls.
+- Context flows top-down from `main`; the helpers avoid `context.Background()` in execution paths.
+- Examples respect `.cursor/rules` (no stray blank lines, functions < 50 lines, named constants for non-trivial values).
+- `knowledge-rag` and `complete-project` create temporary markdown content and rely on OpenAI to embed and answer questions.
