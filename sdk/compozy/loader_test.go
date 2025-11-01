@@ -114,7 +114,7 @@ func TestLoadYAMLDecodeFailure(t *testing.T) {
 func TestLoadFromDirValidatesInputs(t *testing.T) {
 	t.Parallel()
 	var engine *Engine
-	ctx := context.Background()
+	ctx := lifecycleTestContext(t)
 	err := engine.loadFromDir(ctx, "", nil)
 	assert.Error(t, err)
 	engine = &Engine{}

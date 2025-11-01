@@ -155,8 +155,9 @@ func (listenerError) Temporary() bool {
 func TestEngineLaunchServerRecordsFailures(t *testing.T) {
 	engine := &Engine{}
 	log := logger.NewForTests()
+	ctx := logger.ContextWithLogger(t.Context(), log)
 	server := &http.Server{}
-	engine.launchServer(log, server, &failingListener{})
+	engine.launchServer(ctx, server, &failingListener{})
 	engine.serverWG.Wait()
 	err := engine.serverFailure()
 	require.Error(t, err)

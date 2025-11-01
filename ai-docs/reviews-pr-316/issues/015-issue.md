@@ -1,64 +1,42 @@
 # Issue 15 - Review Thread Comment
 
-**File:** `sdk/compozy/config/yaml_loader_test.go:19`
-**Date:** 2025-10-31 14:57:18 America/Sao_Paulo
+**File:** `sdk/compozy/integration/distributed_integration_test.go:89`
+**Date:** 2025-11-01 01:57:02 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Body
 
-_⚠️ Potential issue_ | _🟠 Major_
+_🛠️ Refactor suggestion_ | _🟠 Major_
 
-**Use t.Context() instead of context.Background() in tests.**
+**Use mandated subtest structure.**
 
-Per coding guidelines, tests should never use `context.Background()`; use `t.Context()` instead to enable proper cancellation and cleanup.
-
-
-
-Apply this diff:
-
-```diff
--	ctx := logger.ContextWithLogger(context.Background(), logger.NewForTests())
-+	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
-```
-
-<!-- suggestion_start -->
-
-<details>
-<summary>📝 Committable suggestion</summary>
-
-> ‼️ **IMPORTANT**
-> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
-
-```suggestion
-	ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
-```
-
-</details>
-
-<!-- suggestion_end -->
+Guidelines require wrapping integration test logic in a `t.Run("Should …", func(t *testing.T) { ... })` subtest. Please restructure this test accordingly so it follows the prescribed pattern. As per coding guidelines
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
 
 ```
-In sdk/compozy/config/yaml_loader_test.go around line 19, the test creates a
-context with context.Background(); update this to use the test's cancellable
-context by replacing context.Background() with t.Context() (i.e., ctx :=
-logger.ContextWithLogger(t.Context(), logger.NewForTests())), ensuring the test
-function has the standard *testing.T parameter named t so the t.Context() method
-is available.
+In sdk/compozy/integration/distributed_integration_test.go around lines 24-89,
+the test function body must be wrapped in a mandated subtest; refactor
+TestDistributedIntegrationLifecycle to call t.Run with a descriptive name (e.g.,
+"Should run distributed integration lifecycle") and move all existing test logic
+into the subtest anonymous func(t *testing.T) so the setup, assertions, cleanup,
+and server checks execute inside t.Run while the outer
+TestDistributedIntegrationLifecycle only invokes that subtest.
 ```
 
 </details>
+
+<!-- fingerprinting:phantom:medusa:sabertoothed -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOOlCPts5gJFEr`
+Thread ID: `PRRT_kwDOOlCPts5gLa2n`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gJFEr
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gLa2n
 ```
 
 ---

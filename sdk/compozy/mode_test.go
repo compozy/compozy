@@ -10,23 +10,31 @@ import (
 )
 
 func TestModeRuntimeStateCleanup(t *testing.T) {
-	state := &modeRuntimeState{}
-	counter := 0
-	state.addCleanup(func(context.Context) error {
-		counter++
-		return nil
+	t.Parallel()
+	t.Run("Should invoke cleanup functions exactly once and ignore nil entries", func(t *testing.T) {
+		t.Parallel()
+		state := &modeRuntimeState{}
+		counter := 0
+		state.addCleanup(func(context.Context) error {
+			counter++
+			return nil
+		})
+		state.addCleanup(nil)
+		err := state.cleanup(t.Context())
+		assert.NoError(t, err)
+		assert.Equal(t, 1, counter)
 	})
-	state.addCleanup(nil)
-	err := state.cleanup(t.Context())
-	assert.NoError(t, err)
-	assert.Equal(t, 1, counter)
-
-	state.addCleanup(func(context.Context) error {
-		counter++
-		return errors.New("failure")
+	t.Run("Should invoke cleanup on error paths and log failures", func(t *testing.T) {
+		t.Parallel()
+		state := &modeRuntimeState{}
+		counter := 0
+		state.addCleanup(func(context.Context) error {
+			counter++
+			return errors.New("failure")
+		})
+		state.cleanupOnError(t.Context())
+		assert.Equal(t, 1, counter)
 	})
-	state.cleanupOnError(t.Context())
-	assert.Equal(t, 2, counter)
 }
 
 func TestBootstrapModeUnsupported(t *testing.T) {

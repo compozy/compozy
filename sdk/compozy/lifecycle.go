@@ -20,7 +20,10 @@ import (
 	sdkclient "github.com/compozy/compozy/sdk/v2/client"
 )
 
-const defaultHTTPReadHeaderTimeout = 5 * time.Second
+const (
+	defaultHTTPReadHeaderTimeout = 5 * time.Second
+	defaultHTTPShutdownTimeout   = 5 * time.Second
+)
 
 // Start boots the engine lifecycle by initializing the resource store, HTTP server, and SDK client.
 func (e *Engine) Start(ctx context.Context) error {
@@ -108,7 +111,7 @@ func (e *Engine) startHTTPComponents(ctx context.Context, cfg *appconfig.Config)
 		return nil, err
 	}
 	e.serverWG = sync.WaitGroup{}
-	e.launchServer(logger.FromContext(ctx), server, listener)
+	e.launchServer(ctx, server, listener)
 	return &httpState{
 		router:   router,
 		server:   server,
@@ -165,7 +168,7 @@ func (e *Engine) cleanupHTTPState(ctx context.Context, state *httpState) {
 		state.cancel()
 	}
 	if state.server != nil {
-		shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(ctx, defaultHTTPShutdownTimeout)
 		if cancel != nil {
 			defer cancel()
 		}
@@ -229,7 +232,7 @@ func (e *Engine) Stop(ctx context.Context) error {
 		defer cancel()
 	}
 	errs := e.shutdownResources(shutdownCtx, ctx, state)
-	return e.finalizeStop(errs, log)
+	return e.finalizeStop(ctx, errs)
 }
 
 func (e *Engine) detachStopState() stopState {
@@ -301,7 +304,8 @@ func (e *Engine) shutdownResources(shutdownCtx context.Context, baseCtx context.
 	return errs
 }
 
-func (e *Engine) finalizeStop(errs []error, log logger.Logger) error {
+func (e *Engine) finalizeStop(ctx context.Context, errs []error) error {
+	log := logger.FromContext(ctx)
 	if len(errs) > 0 {
 		err := errors.Join(errs...)
 		e.errMu.Lock()
@@ -457,7 +461,8 @@ func (e *Engine) newClient(ctx context.Context, host string, port int) (*sdkclie
 	return client, baseURL, nil
 }
 
-func (e *Engine) launchServer(log logger.Logger, srv *http.Server, ln net.Listener) {
+func (e *Engine) launchServer(ctx context.Context, srv *http.Server, ln net.Listener) {
+	log := logger.FromContext(ctx)
 	if log != nil {
 		log.Debug("starting http server", "address", ln.Addr().String())
 	}

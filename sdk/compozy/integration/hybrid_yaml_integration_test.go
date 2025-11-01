@@ -18,13 +18,14 @@ import (
 )
 
 func TestHybridYAMLIntegration(t *testing.T) {
-	ctx := lifecycleTestContext(t)
-	engine, err := New(ctx, WithWorkflow(programmaticWorkflow()))
-	require.NoError(t, err)
-	dir := t.TempDir()
-	workflowDir := filepath.Join(dir, "workflows")
-	require.NoError(t, os.MkdirAll(workflowDir, 0o755))
-	yamlWorkflow := strings.TrimSpace(`id: yaml-workflow
+	t.Run("Should validate hybrid YAML integration", func(t *testing.T) {
+		ctx := lifecycleTestContext(t)
+		engine, err := New(ctx, WithWorkflow(programmaticWorkflow()))
+		require.NoError(t, err)
+		dir := t.TempDir()
+		workflowDir := filepath.Join(dir, "workflows")
+		require.NoError(t, os.MkdirAll(workflowDir, 0o755))
+		yamlWorkflow := strings.TrimSpace(`id: yaml-workflow
 tasks:
   - id: entry
     final: true
@@ -33,12 +34,13 @@ tasks:
       id: yaml-tool
       type: http
 `)
-	file := filepath.Join(workflowDir, "workflow.yaml")
-	require.NoError(t, os.WriteFile(file, []byte(yamlWorkflow), 0o600))
-	require.NoError(t, engine.LoadWorkflowsFromDir(ctx, workflowDir))
-	report, err := engine.ValidateReferences()
-	require.NoError(t, err)
-	assert.True(t, report.Valid)
+		file := filepath.Join(workflowDir, "workflow.yaml")
+		require.NoError(t, os.WriteFile(file, []byte(yamlWorkflow), 0o600))
+		require.NoError(t, engine.LoadWorkflowsFromDir(ctx, workflowDir))
+		report, err := engine.ValidateReferences()
+		require.NoError(t, err)
+		assert.True(t, report.Valid)
+	})
 }
 
 func programmaticWorkflow() *engineworkflow.Config {

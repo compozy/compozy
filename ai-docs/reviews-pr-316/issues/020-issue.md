@@ -1,68 +1,68 @@
 # Issue 20 - Review Thread Comment
 
-**File:** `sdk/compozy/migration/example_compat_test.go:94`
-**Date:** 2025-10-31 14:57:19 America/Sao_Paulo
+**File:** `sdk/compozy/loader_test.go:123`
+**Date:** 2025-11-01 01:57:03 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Body
 
-_⚠️ Potential issue_ | _🟡 Minor_
+_⚠️ Potential issue_ | _🟠 Major_
 
-**Risk of infinite loop and unexplained magic number.**
+**Replace `context.Background()` with test context**
 
-The port selection loop at lines 85-94 could theoretically loop indefinitely if no ports <= 64535 are available. Additionally, the threshold value `64535` is a magic number without explanation.
-
-
-
-Consider adding a retry limit and documenting the threshold:
+This test uses `context.Background()`, but our test guidelines require deriving contexts from `t.Context()` (or the shared helpers like `lifecycleTestContext`) so configuration and logger state are wired properly. Please initialize the context via the lifecycle helper instead of `context.Background()`.
 
 ```diff
-+	const (
-+		maxPortRetries = 10
-+		// maxTemporalPort ensures we stay within Temporal's supported port range
-+		maxTemporalPort = 64535
-+	)
- 	listenCfg := net.ListenConfig{}
--	for {
-+	for i := 0; i < maxPortRetries; i++ {
- 		ln, err := listenCfg.Listen(context.WithoutCancel(t.Context()), "tcp", "127.0.0.1:0")
- 		require.NoError(t, err)
- 		addr := ln.Addr().(*net.TCPAddr)
- 		require.NoError(t, ln.Close())
--		if addr.Port <= 64535 {
-+		if addr.Port <= maxTemporalPort {
- 			cfg.Temporal.Standalone.FrontendPort = addr.Port
- 			break
- 		}
- 	}
-+	if cfg.Temporal.Standalone.FrontendPort == 0 {
-+		t.Fatal("failed to allocate valid Temporal port after retries")
-+	}
+-	ctx := context.Background()
++	ctx := lifecycleTestContext(t)
 ```
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	ctx := t.Context()
+	err := engine.loadFromDir(ctx, "", nil)
+	assert.Error(t, err)
+	engine = &Engine{}
+	err = engine.loadFromDir(ctx, "", func(context.Context, string) error { return nil })
+	assert.Error(t, err)
+}
+```
+
+</details>
+
+<!-- suggestion_end -->
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
 
 ```
-In sdk/compozy/migration/example_compat_test.go around lines 84 to 94, the
-port-selection loop can spin forever and uses the magic number 64535 with no
-explanation; introduce a named constant for the upper-port threshold (e.g.
-maxAllowedPort = 64535) with a comment explaining why that bound exists, add a
-retry limit (e.g. maxAttempts = 50) and increment a counter each iteration, and
-if the loop exceeds maxAttempts fail the test with a clear error via
-require.FailNow/require.NoError or similar so the test stops instead of hanging.
+In sdk/compozy/loader_test.go around lines 117 to 123, the test creates a
+context with context.Background() which bypasses test lifecycle wiring; replace
+ctx := context.Background() with a test-derived context (e.g. ctx :=
+lifecycleTestContext(t) or ctx := t.Context() depending on available helper),
+and add the necessary import or helper call if not already present so
+configuration and logger state are correctly wired for the test.
 ```
 
 </details>
+
+<!-- fingerprinting:phantom:medusa:sabertoothed -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOOlCPts5gJFFN`
+Thread ID: `PRRT_kwDOOlCPts5gLa2y`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gJFFN
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gLa2y
 ```
 
 ---

@@ -1,32 +1,30 @@
 # Issue 19 - Review Thread Comment
 
-**File:** `sdk/compozy/integration/standalone_integration_test.go:37`
-**Date:** 2025-10-31 14:57:19 America/Sao_Paulo
+**File:** `sdk/compozy/lifecycle.go:472`
+**Date:** 2025-11-01 01:57:03 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Body
 
-_⚠️ Potential issue_ | _🟠 Major_
+_🛠️ Refactor suggestion_ | _🟠 Major_
 
-**Wrap the integration test in a `t.Run("Should …")` subtest.**
+**Derive the logger inside `launchServer`**
 
-Project guidelines require every Go test to organize its cases with `t.Run("Should describe behavior", …)`. This function runs assertions directly and skips the mandated naming pattern, making the suite fail the convention check. Please wrap the body in a subtest (and consider `t.Parallel()` inside if appropriate) so it follows the required structure.
+`launchServer` also receives a pre-fetched logger, which violates the “no logger parameters” rule. Please pass the context instead, call `logger.FromContext(ctx)` within the helper, and update the `startHTTPComponents` caller. As per coding guidelines.
 
-<details>
-<summary>🤖 Prompt for AI Agents</summary>
-
+```diff
+-func (e *Engine) launchServer(log logger.Logger, srv *http.Server, ln net.Listener) {
++func (e *Engine) launchServer(ctx context.Context, srv *http.Server, ln net.Listener) {
++	log := logger.FromContext(ctx)
 ```
-In sdk/compozy/integration/standalone_integration_test.go around lines 16 to 37,
-the test function TestStandaloneIntegrationLifecycle contains assertions run
-directly and must be wrapped in a t.Run subtest to meet project conventions;
-modify the function so its existing body is executed inside t.Run("Should
-<describe behavior>", func(t *testing.T) { ... }), optionally add t.Parallel()
-at the top of the subtest if parallel execution is appropriate, and keep the
-outer TestStandaloneIntegrationLifecycle signature unchanged while moving
-cleanup and assertions into the subtest closure.
+And in `startHTTPComponents`:
+```diff
+-	e.launchServer(logger.FromContext(ctx), server, listener)
++	e.launchServer(ctx, server, listener)
 ```
 
-</details>
+
+> Committable suggestion skipped: line range outside the PR's diff.
 
 <!-- fingerprinting:phantom:medusa:sabertoothed -->
 
@@ -34,10 +32,10 @@ cleanup and assertions into the subtest closure.
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOOlCPts5gJFFJ`
+Thread ID: `PRRT_kwDOOlCPts5gLa2w`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gJFFJ
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gLa2w
 ```
 
 ---
