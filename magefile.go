@@ -13,21 +13,23 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
+	"golang.org/x/sync/errgroup"
 )
 
 // Default target runs when no target is specified
 var Default = Dev
 
 const (
-	binaryName = "compozy"
-	binaryDir  = "bin"
-	swaggerDir = "docs"
-	goVersion  = "1.25"
+	binaryName       = "compozy"
+	binaryDir        = "bin"
+	swaggerDir       = "docs"
+	goVersion        = "1.25"
+	testParallelism  = "4"
+	testParallelFlag = "-parallel=" + testParallelism
 )
 
 var (
@@ -445,33 +447,30 @@ func swaggerDeps() error {
 }
 
 func runTestsInParallel(ctx context.Context, dirs []string, cmdArgs ...string) error {
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(dirs))
+	g, ctx := errgroup.WithContext(ctx)
 	for _, dir := range dirs {
-		wg.Add(1)
-		go func(testDir string) {
-			defer wg.Done()
+		testDir := dir
+		g.Go(func() error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			fmt.Printf("Testing %s...\n", testDir)
 			pkgPath := "./" + testDir + "/..."
 			args := append(cmdArgs, pkgPath)
 			if err := sh.RunV(args[0], args[1:]...); err != nil {
-				errChan <- fmt.Errorf("%s: %w", testDir, err)
+				return fmt.Errorf("%s: %w", testDir, err)
 			}
-		}(dir)
+			return nil
+		})
 	}
-	wg.Wait()
-	close(errChan)
-	for err := range errChan {
-		return err
-	}
-	return nil
+	return g.Wait()
 }
 
 func testMain(ctx context.Context) error {
 	start := time.Now()
 	fmt.Println("Testing main module...")
 	err := runTestsInParallel(ctx, mainPackages,
-		"gotestsum", "--format", "pkgname", "--", "-race", "-parallel=4")
+		"gotestsum", "--format", "pkgname", "--", "-race", testParallelFlag)
 	duration := time.Since(start)
 	fmt.Printf("✓ Tests completed in %s\n", duration.Round(time.Second))
 	return err
@@ -480,7 +479,7 @@ func testMain(ctx context.Context) error {
 func testSDK(ctx context.Context) error {
 	fmt.Println("Testing sdk module...")
 	if err := sh.RunWithV(map[string]string{"GO_WORK": "off"}, "sh", "-c",
-		"cd sdk && gotestsum --format pkgname -- -race -parallel=4 ./..."); err != nil {
+		"cd sdk && gotestsum --format pkgname -- -race "+testParallelFlag+" ./..."); err != nil {
 		return err
 	}
 	fmt.Println("Enforcing sdk/compozy coverage >= 85%...")
@@ -509,7 +508,7 @@ func testCoverageMain(ctx context.Context) error {
 	start := time.Now()
 	fmt.Println("Testing main module with coverage...")
 	err := runTestsInParallel(ctx, mainPackages,
-		"gotestsum", "--format", "pkgname", "--", "-race", "-parallel=4",
+		"gotestsum", "--format", "pkgname", "--", "-race", testParallelFlag,
 		"-coverprofile=coverage.out", "-covermode=atomic")
 	duration := time.Since(start)
 	fmt.Printf("✓ Tests with coverage completed in %s\n", duration.Round(time.Second))
@@ -522,7 +521,7 @@ func testCoverageSDK(ctx context.Context) error {
 		map[string]string{"GO_WORK": "off"},
 		"sh",
 		"-c",
-		"cd sdk && gotestsum --format pkgname -- -race -parallel=4 -coverprofile=coverage-sdk.out -covermode=atomic ./...",
+		"cd sdk && gotestsum --format pkgname -- -race "+testParallelFlag+" -coverprofile=coverage-sdk.out -covermode=atomic ./...",
 	)
 }
 
@@ -530,7 +529,7 @@ func testNoCacheMain(ctx context.Context) error {
 	start := time.Now()
 	fmt.Println("Testing main module (no cache)...")
 	err := runTestsInParallel(ctx, mainPackages,
-		"gotestsum", "--format", "pkgname", "--", "-race", "-count=1", "-parallel=4")
+		"gotestsum", "--format", "pkgname", "--", "-race", "-count=1", testParallelFlag)
 	duration := time.Since(start)
 	fmt.Printf("✓ Tests (no cache) completed in %s\n", duration.Round(time.Second))
 	return err
@@ -539,7 +538,7 @@ func testNoCacheMain(ctx context.Context) error {
 func testNoCacheSDK(ctx context.Context) error {
 	fmt.Println("Testing sdk module (no cache)...")
 	return sh.RunWithV(map[string]string{"GO_WORK": "off"}, "sh", "-c",
-		"cd sdk && gotestsum --format pkgname -- -race -count=1 -parallel=4 ./...")
+		"cd sdk && gotestsum --format pkgname -- -race -count=1 "+testParallelFlag+" ./...")
 }
 
 //mage:expose

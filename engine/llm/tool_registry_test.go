@@ -242,79 +242,81 @@ func buildNativeToolConfig() *tool.Config {
 	}
 }
 
-func TestNativeToolAdapterExecutesHandler(t *testing.T) {
-	nativeuser.Reset()
-	t.Cleanup(nativeuser.Reset)
-	handler := func(_ context.Context, input map[string]any, cfg map[string]any) (map[string]any, error) {
-		assert.Equal(t, map[string]any{"sample": true}, cfg)
-		assert.Equal(t, "alice", input["name"])
-		return map[string]any{"result": "ok"}, nil
-	}
-	require.NoError(t, nativeuser.Register("native-tool", handler))
-	adapter := NewNativeToolAdapter(buildNativeToolConfig())
-	output, err := adapter.Call(t.Context(), `{"name":"alice"}`)
-	require.NoError(t, err)
-	assert.Contains(t, output, "\"result\":\"ok\"")
-}
+func TestNativeToolAdapter(t *testing.T) {
+	t.Run("Should execute native handler successfully", func(t *testing.T) {
+		nativeuser.Reset()
+		t.Cleanup(nativeuser.Reset)
+		handler := func(_ context.Context, input map[string]any, cfg map[string]any) (map[string]any, error) {
+			assert.Equal(t, map[string]any{"sample": true}, cfg)
+			assert.Equal(t, "alice", input["name"])
+			return map[string]any{"result": "ok"}, nil
+		}
+		require.NoError(t, nativeuser.Register("native-tool", handler))
+		adapter := NewNativeToolAdapter(buildNativeToolConfig())
+		output, err := adapter.Call(t.Context(), `{"name":"alice"}`)
+		require.NoError(t, err)
+		assert.Contains(t, output, "\"result\":\"ok\"")
+	})
 
-func TestNativeToolAdapterValidatesInput(t *testing.T) {
-	nativeuser.Reset()
-	t.Cleanup(nativeuser.Reset)
-	require.NoError(
-		t,
-		nativeuser.Register(
-			"native-tool",
-			func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
-				return map[string]any{"result": "ok"}, nil
-			},
-		),
-	)
-	adapter := NewNativeToolAdapter(buildNativeToolConfig())
-	_, err := adapter.Call(t.Context(), `{"unexpected":true}`)
-	require.Error(t, err)
-	coreErr, ok := err.(*core.Error)
-	require.True(t, ok)
-	assert.Equal(t, "INVALID_TOOL_INPUT", coreErr.Code)
-}
+	t.Run("Should validate input schema", func(t *testing.T) {
+		nativeuser.Reset()
+		t.Cleanup(nativeuser.Reset)
+		require.NoError(
+			t,
+			nativeuser.Register(
+				"native-tool",
+				func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
+					return map[string]any{"result": "ok"}, nil
+				},
+			),
+		)
+		adapter := NewNativeToolAdapter(buildNativeToolConfig())
+		_, err := adapter.Call(t.Context(), `{"unexpected":true}`)
+		require.Error(t, err)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "INVALID_TOOL_INPUT", coreErr.Code)
+	})
 
-func TestNativeToolAdapterRecoversFromPanic(t *testing.T) {
-	nativeuser.Reset()
-	t.Cleanup(nativeuser.Reset)
-	require.NoError(
-		t,
-		nativeuser.Register(
-			"native-tool",
-			func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
-				panic("boom")
-			},
-		),
-	)
-	adapter := NewNativeToolAdapter(buildNativeToolConfig())
-	_, err := adapter.Call(t.Context(), `{"name":"alice"}`)
-	require.Error(t, err)
-	coreErr, ok := err.(*core.Error)
-	require.True(t, ok)
-	assert.Equal(t, "TOOL_EXECUTION_ERROR", coreErr.Code)
-}
+	t.Run("Should recover from panic", func(t *testing.T) {
+		nativeuser.Reset()
+		t.Cleanup(nativeuser.Reset)
+		require.NoError(
+			t,
+			nativeuser.Register(
+				"native-tool",
+				func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
+					panic("boom")
+				},
+			),
+		)
+		adapter := NewNativeToolAdapter(buildNativeToolConfig())
+		_, err := adapter.Call(t.Context(), `{"name":"alice"}`)
+		require.Error(t, err)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "TOOL_EXECUTION_ERROR", coreErr.Code)
+	})
 
-func TestNativeToolAdapterValidatesOutput(t *testing.T) {
-	nativeuser.Reset()
-	t.Cleanup(nativeuser.Reset)
-	require.NoError(
-		t,
-		nativeuser.Register(
-			"native-tool",
-			func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
-				return map[string]any{"unexpected": true}, nil
-			},
-		),
-	)
-	adapter := NewNativeToolAdapter(buildNativeToolConfig())
-	_, err := adapter.Call(t.Context(), `{"name":"alice"}`)
-	require.Error(t, err)
-	coreErr, ok := err.(*core.Error)
-	require.True(t, ok)
-	assert.Equal(t, "TOOL_INVALID_OUTPUT", coreErr.Code)
+	t.Run("Should validate output schema", func(t *testing.T) {
+		nativeuser.Reset()
+		t.Cleanup(nativeuser.Reset)
+		require.NoError(
+			t,
+			nativeuser.Register(
+				"native-tool",
+				func(context.Context, map[string]any, map[string]any) (map[string]any, error) {
+					return map[string]any{"unexpected": true}, nil
+				},
+			),
+		)
+		adapter := NewNativeToolAdapter(buildNativeToolConfig())
+		_, err := adapter.Call(t.Context(), `{"name":"alice"}`)
+		require.Error(t, err)
+		coreErr, ok := err.(*core.Error)
+		require.True(t, ok)
+		assert.Equal(t, "TOOL_INVALID_OUTPUT", coreErr.Code)
+	})
 }
 
 func TestToolRegistry_InvalidateCacheClearsIndex(t *testing.T) {

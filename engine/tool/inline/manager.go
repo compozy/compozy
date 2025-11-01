@@ -162,6 +162,9 @@ func (m *Manager) Close(_ context.Context) error {
 // Sync reconciles inline modules against the current tool registry and writes updated source files.
 // It can be invoked manually and is also used internally by the background watcher.
 func (m *Manager) Sync(ctx context.Context) error {
+	if err := os.MkdirAll(m.inlineDir, defaultDirPerm); err != nil {
+		return fmt.Errorf("ensure inline directory: %w", err)
+	}
 	modules, err := m.collectModules(ctx)
 	if err != nil {
 		return err
