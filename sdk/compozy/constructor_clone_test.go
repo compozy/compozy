@@ -3,6 +3,15 @@ package compozy
 import (
 	"testing"
 
+	engineagent "github.com/compozy/compozy/engine/agent"
+	enginecore "github.com/compozy/compozy/engine/core"
+	engineknowledge "github.com/compozy/compozy/engine/knowledge"
+	enginemcp "github.com/compozy/compozy/engine/mcp"
+	enginememory "github.com/compozy/compozy/engine/memory"
+	projectschedule "github.com/compozy/compozy/engine/project/schedule"
+	engineschema "github.com/compozy/compozy/engine/schema"
+	enginetool "github.com/compozy/compozy/engine/tool"
+	enginewebhook "github.com/compozy/compozy/engine/webhook"
 	engineworkflow "github.com/compozy/compozy/engine/workflow"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,5 +95,45 @@ func TestCloneConfigDeepCopy(t *testing.T) {
 		assert.Equal(t, original, clones[0])
 		clones[0].ID = "mutated"
 		assert.Equal(t, "deep-copy", original.ID)
+	})
+}
+
+func TestBuildResourceClones(t *testing.T) {
+	t.Parallel()
+	t.Run("Should clone all resource configurations", func(t *testing.T) {
+		cfg := &config{
+			workflows:      []*engineworkflow.Config{{ID: "wf"}},
+			agents:         []*engineagent.Config{{ID: "agent"}},
+			tools:          []*enginetool.Config{{ID: "tool"}},
+			knowledgeBases: []*engineknowledge.BaseConfig{{ID: "kb"}},
+			memories:       []*enginememory.Config{{ID: "mem"}},
+			mcps:           []*enginemcp.Config{{ID: "mcp"}},
+			schemas:        []*engineschema.Schema{{"type": "object"}},
+			models:         []*enginecore.ProviderConfig{{Provider: enginecore.ProviderName("openai"), Model: "gpt"}},
+			schedules:      []*projectschedule.Config{{ID: "schedule", WorkflowID: "wf"}},
+			webhooks:       []*enginewebhook.Config{{Slug: "hook"}},
+		}
+		clones, err := buildResourceClones(cfg)
+		require.NoError(t, err)
+		require.Len(t, clones.workflows, 1)
+		require.Len(t, clones.agents, 1)
+		require.Len(t, clones.tools, 1)
+		require.Len(t, clones.knowledgeBases, 1)
+		require.Len(t, clones.memories, 1)
+		require.Len(t, clones.mcps, 1)
+		require.Len(t, clones.schemas, 1)
+		require.Len(t, clones.models, 1)
+		require.Len(t, clones.schedules, 1)
+		require.Len(t, clones.webhooks, 1)
+		assert.NotSame(t, cfg.workflows[0], clones.workflows[0])
+		assert.NotSame(t, cfg.agents[0], clones.agents[0])
+		assert.NotSame(t, cfg.tools[0], clones.tools[0])
+		assert.NotSame(t, cfg.knowledgeBases[0], clones.knowledgeBases[0])
+		assert.NotSame(t, cfg.memories[0], clones.memories[0])
+		assert.NotSame(t, cfg.mcps[0], clones.mcps[0])
+		assert.NotSame(t, cfg.schemas[0], clones.schemas[0])
+		assert.NotSame(t, cfg.models[0], clones.models[0])
+		assert.NotSame(t, cfg.schedules[0], clones.schedules[0])
+		assert.NotSame(t, cfg.webhooks[0], clones.webhooks[0])
 	})
 }

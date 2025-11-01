@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -260,6 +261,7 @@ func lifecycleTestContext(t *testing.T) context.Context {
 	port := allocateTemporalFrontendPort(ctx, t)
 	cfg.Temporal.Standalone.FrontendPort = port
 	cfg.Temporal.Standalone.UIPort = port + 1000
+	cfg.Temporal.Standalone.DatabaseFile = filepath.Join(t.TempDir(), "temporal.db")
 	return ctx
 }
 

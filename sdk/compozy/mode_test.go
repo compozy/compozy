@@ -17,7 +17,7 @@ func TestModeRuntimeStateCleanup(t *testing.T) {
 		return nil
 	})
 	state.addCleanup(nil)
-	err := state.cleanup(context.Background())
+	err := state.cleanup(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, counter)
 
@@ -25,7 +25,7 @@ func TestModeRuntimeStateCleanup(t *testing.T) {
 		counter++
 		return errors.New("failure")
 	})
-	state.cleanupOnError(context.Background())
+	state.cleanupOnError(t.Context())
 	assert.Equal(t, 2, counter)
 }
 

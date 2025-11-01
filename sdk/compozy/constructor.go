@@ -106,92 +106,36 @@ type resourceClones struct {
 
 func buildResourceClones(cfg *config) (*resourceClones, error) {
 	clones := &resourceClones{}
-	steps := []func() error{
-		func() error {
-			workflows, err := cloneWorkflowConfigs(cfg.workflows)
-			if err != nil {
-				return err
-			}
-			clones.workflows = workflows
-			return nil
-		},
-		func() error {
-			agents, err := cloneAgentConfigs(cfg.agents)
-			if err != nil {
-				return err
-			}
-			clones.agents = agents
-			return nil
-		},
-		func() error {
-			tools, err := cloneToolConfigs(cfg.tools)
-			if err != nil {
-				return err
-			}
-			clones.tools = tools
-			return nil
-		},
-		func() error {
-			knowledge, err := cloneKnowledgeConfigs(cfg.knowledgeBases)
-			if err != nil {
-				return err
-			}
-			clones.knowledgeBases = knowledge
-			return nil
-		},
-		func() error {
-			memories, err := cloneMemoryConfigs(cfg.memories)
-			if err != nil {
-				return err
-			}
-			clones.memories = memories
-			return nil
-		},
-		func() error {
-			mcps, err := cloneMCPConfigs(cfg.mcps)
-			if err != nil {
-				return err
-			}
-			clones.mcps = mcps
-			return nil
-		},
-		func() error {
-			schemas, err := cloneSchemaConfigs(cfg.schemas)
-			if err != nil {
-				return err
-			}
-			clones.schemas = schemas
-			return nil
-		},
-		func() error {
-			models, err := cloneModelConfigs(cfg.models)
-			if err != nil {
-				return err
-			}
-			clones.models = models
-			return nil
-		},
-		func() error {
-			schedules, err := cloneScheduleConfigs(cfg.schedules)
-			if err != nil {
-				return err
-			}
-			clones.schedules = schedules
-			return nil
-		},
-		func() error {
-			webhooks, err := cloneWebhookConfigs(cfg.webhooks)
-			if err != nil {
-				return err
-			}
-			clones.webhooks = webhooks
-			return nil
-		},
+	var err error
+	if clones.workflows, err = cloneWorkflowConfigs(cfg.workflows); err != nil {
+		return nil, err
 	}
-	for _, step := range steps {
-		if err := step(); err != nil {
-			return nil, err
-		}
+	if clones.agents, err = cloneAgentConfigs(cfg.agents); err != nil {
+		return nil, err
+	}
+	if clones.tools, err = cloneToolConfigs(cfg.tools); err != nil {
+		return nil, err
+	}
+	if clones.knowledgeBases, err = cloneKnowledgeConfigs(cfg.knowledgeBases); err != nil {
+		return nil, err
+	}
+	if clones.memories, err = cloneMemoryConfigs(cfg.memories); err != nil {
+		return nil, err
+	}
+	if clones.mcps, err = cloneMCPConfigs(cfg.mcps); err != nil {
+		return nil, err
+	}
+	if clones.schemas, err = cloneSchemaConfigs(cfg.schemas); err != nil {
+		return nil, err
+	}
+	if clones.models, err = cloneModelConfigs(cfg.models); err != nil {
+		return nil, err
+	}
+	if clones.schedules, err = cloneScheduleConfigs(cfg.schedules); err != nil {
+		return nil, err
+	}
+	if clones.webhooks, err = cloneWebhookConfigs(cfg.webhooks); err != nil {
+		return nil, err
 	}
 	return clones, nil
 }

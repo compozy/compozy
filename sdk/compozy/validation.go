@@ -195,14 +195,12 @@ func (vc *validationContext) registerTaskBindings(workflowID string, taskID stri
 	if taskCfg.Agent != nil {
 		agentID := strings.TrimSpace(taskCfg.Agent.ID)
 		if agentID != "" {
-			vc.addNode(agentNode(agentID))
 			vc.addEdge(node, agentNode(agentID))
 		}
 	}
 	if taskCfg.Tool != nil {
 		toolID := strings.TrimSpace(taskCfg.Tool.ID)
 		if toolID != "" {
-			vc.addNode(toolNode(toolID))
 			vc.addEdge(node, toolNode(toolID))
 		}
 	}
@@ -378,11 +376,12 @@ func extractCycle(path []string, target string) []string {
 }
 
 func parseNode(node string) (string, string) {
-	parts := strings.SplitN(node, ":", 2)
+	trimmed := strings.TrimSpace(node)
+	parts := strings.SplitN(trimmed, ":", 2)
 	if len(parts) != 2 {
-		return node, ""
+		return strings.TrimSpace(node), ""
 	}
-	return parts[0], parts[1]
+	return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 }
 
 func (e *Engine) ValidateReferences() (*ValidationReport, error) {

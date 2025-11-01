@@ -85,147 +85,95 @@ func TestOptionsApplyBasics(t *testing.T) {
 	}
 }
 
-func TestOptionsApplyPrimaryCollections(t *testing.T) {
+func TestWithWorkflowOption(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name   string
-		option Option
-		check  func(*config)
-	}{
-		{
-			name: "WithWorkflow",
-			option: func() Option {
-				cfg := &engineworkflow.Config{ID: "wf"}
-				return WithWorkflow(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.workflows, 1)
-				assert.Equal(t, "wf", cfg.workflows[0].ID)
-			},
-		},
-		{
-			name: "WithAgent",
-			option: func() Option {
-				cfg := &engineagent.Config{ID: "agent"}
-				return WithAgent(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.agents, 1)
-				assert.Equal(t, "agent", cfg.agents[0].ID)
-			},
-		},
-		{
-			name: "WithTool",
-			option: func() Option {
-				cfg := &enginetool.Config{ID: "tool"}
-				return WithTool(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.tools, 1)
-				assert.Equal(t, "tool", cfg.tools[0].ID)
-			},
-		},
-		{
-			name: "WithKnowledge",
-			option: func() Option {
-				cfg := &engineknowledge.BaseConfig{ID: "kb"}
-				return WithKnowledge(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.knowledgeBases, 1)
-				assert.Equal(t, "kb", cfg.knowledgeBases[0].ID)
-			},
-		},
-		{
-			name: "WithMemory",
-			option: func() Option {
-				cfg := &enginememory.Config{ID: "mem"}
-				return WithMemory(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.memories, 1)
-				assert.Equal(t, "mem", cfg.memories[0].ID)
-			},
-		},
-	}
-	for _, tc := range tests {
-		caseEntry := tc
-		t.Run(caseEntry.name, func(t *testing.T) {
-			applyAndCheckOption(t, caseEntry.option, caseEntry.check)
-		})
-	}
+	cfg := &engineworkflow.Config{ID: "wf"}
+	applyAndCheckOption(t, WithWorkflow(cfg), func(c *config) {
+		require.Len(t, c.workflows, 1)
+		assert.Equal(t, "wf", c.workflows[0].ID)
+	})
 }
 
-func TestOptionsApplySecondaryCollections(t *testing.T) {
+func TestWithAgentOption(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name   string
-		option Option
-		check  func(*config)
-	}{
-		{
-			name: "WithMCP",
-			option: func() Option {
-				cfg := &enginemcp.Config{ID: "mcp"}
-				return WithMCP(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.mcps, 1)
-				assert.Equal(t, "mcp", cfg.mcps[0].ID)
-			},
-		},
-		{
-			name: "WithSchema",
-			option: func() Option {
-				value := engineschema.Schema{"type": "object"}
-				return WithSchema(&value)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.schemas, 1)
-				assert.Equal(t, "object", (*cfg.schemas[0])["type"])
-			},
-		},
-		{
-			name: "WithModel",
-			option: func() Option {
-				cfg := &core.ProviderConfig{Provider: core.ProviderName("openai"), Model: "gpt-4"}
-				return WithModel(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.models, 1)
-				assert.Equal(t, core.ProviderName("openai"), cfg.models[0].Provider)
-				assert.Equal(t, "gpt-4", cfg.models[0].Model)
-			},
-		},
-		{
-			name: "WithSchedule",
-			option: func() Option {
-				cfg := &projectschedule.Config{ID: "schedule"}
-				return WithSchedule(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.schedules, 1)
-				assert.Equal(t, "schedule", cfg.schedules[0].ID)
-			},
-		},
-		{
-			name: "WithWebhook",
-			option: func() Option {
-				cfg := &enginewebhook.Config{Slug: "webhook"}
-				return WithWebhook(cfg)
-			}(),
-			check: func(cfg *config) {
-				require.Len(t, cfg.webhooks, 1)
-				assert.Equal(t, "webhook", cfg.webhooks[0].Slug)
-			},
-		},
-	}
-	for _, tc := range tests {
-		caseEntry := tc
-		t.Run(caseEntry.name, func(t *testing.T) {
-			applyAndCheckOption(t, caseEntry.option, caseEntry.check)
-		})
-	}
+	cfg := &engineagent.Config{ID: "agent"}
+	applyAndCheckOption(t, WithAgent(cfg), func(c *config) {
+		require.Len(t, c.agents, 1)
+		assert.Equal(t, "agent", c.agents[0].ID)
+	})
+}
+
+func TestWithToolOption(t *testing.T) {
+	t.Parallel()
+	cfg := &enginetool.Config{ID: "tool"}
+	applyAndCheckOption(t, WithTool(cfg), func(c *config) {
+		require.Len(t, c.tools, 1)
+		assert.Equal(t, "tool", c.tools[0].ID)
+	})
+}
+
+func TestWithKnowledgeOption(t *testing.T) {
+	t.Parallel()
+	cfg := &engineknowledge.BaseConfig{ID: "kb"}
+	applyAndCheckOption(t, WithKnowledge(cfg), func(c *config) {
+		require.Len(t, c.knowledgeBases, 1)
+		assert.Equal(t, "kb", c.knowledgeBases[0].ID)
+	})
+}
+
+func TestWithMemoryOption(t *testing.T) {
+	t.Parallel()
+	cfg := &enginememory.Config{ID: "mem"}
+	applyAndCheckOption(t, WithMemory(cfg), func(c *config) {
+		require.Len(t, c.memories, 1)
+		assert.Equal(t, "mem", c.memories[0].ID)
+	})
+}
+
+func TestWithMCPOption(t *testing.T) {
+	t.Parallel()
+	cfg := &enginemcp.Config{ID: "mcp"}
+	applyAndCheckOption(t, WithMCP(cfg), func(c *config) {
+		require.Len(t, c.mcps, 1)
+		assert.Equal(t, "mcp", c.mcps[0].ID)
+	})
+}
+
+func TestWithSchemaOption(t *testing.T) {
+	t.Parallel()
+	value := engineschema.Schema{"type": "object"}
+	applyAndCheckOption(t, WithSchema(&value), func(c *config) {
+		require.Len(t, c.schemas, 1)
+		assert.Equal(t, "object", (*c.schemas[0])["type"])
+	})
+}
+
+func TestWithModelOption(t *testing.T) {
+	t.Parallel()
+	cfg := &core.ProviderConfig{Provider: core.ProviderName("openai"), Model: "gpt-4"}
+	applyAndCheckOption(t, WithModel(cfg), func(c *config) {
+		require.Len(t, c.models, 1)
+		assert.Equal(t, core.ProviderName("openai"), c.models[0].Provider)
+		assert.Equal(t, "gpt-4", c.models[0].Model)
+	})
+}
+
+func TestWithScheduleOption(t *testing.T) {
+	t.Parallel()
+	cfg := &projectschedule.Config{ID: "schedule"}
+	applyAndCheckOption(t, WithSchedule(cfg), func(c *config) {
+		require.Len(t, c.schedules, 1)
+		assert.Equal(t, "schedule", c.schedules[0].ID)
+	})
+}
+
+func TestWithWebhookOption(t *testing.T) {
+	t.Parallel()
+	cfg := &enginewebhook.Config{Slug: "webhook"}
+	applyAndCheckOption(t, WithWebhook(cfg), func(c *config) {
+		require.Len(t, c.webhooks, 1)
+		assert.Equal(t, "webhook", c.webhooks[0].Slug)
+	})
 }
 
 func TestOptionsApplyStandaloneConfigs(t *testing.T) {

@@ -99,23 +99,26 @@ func (s *resourceStoreStub) Close() error {
 }
 
 func TestPersistResourceRequiresIdentifiers(t *testing.T) {
-	store := newResourceStoreStub()
-	engine := &Engine{ctx: t.Context()}
-	var nilCtx context.Context
-	err := engine.persistResource(
-		engine.ctx,
-		store,
-		"proj",
-		resources.ResourceWorkflow,
-		"",
-		map[string]any{},
-		registrationSourceProgrammatic,
-	)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "workflow id is required")
-	assert.NoError(
-		t,
-		engine.persistResource(
+	t.Run("Should return error when workflow id missing", func(t *testing.T) {
+		engine := &Engine{ctx: t.Context()}
+		store := newResourceStoreStub()
+		err := engine.persistResource(
+			engine.ctx,
+			store,
+			"proj",
+			resources.ResourceWorkflow,
+			"",
+			map[string]any{},
+			registrationSourceProgrammatic,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "workflow id is required")
+	})
+	t.Run("Should persist workflow with nil context", func(t *testing.T) {
+		engine := &Engine{ctx: t.Context()}
+		store := newResourceStoreStub()
+		var nilCtx context.Context
+		err := engine.persistResource(
 			nilCtx,
 			store,
 			"proj",
@@ -123,11 +126,12 @@ func TestPersistResourceRequiresIdentifiers(t *testing.T) {
 			"wf",
 			map[string]any{},
 			registrationSourceProgrammatic,
-		),
-	)
-	assert.NoError(
-		t,
-		engine.persistResource(
+		)
+		assert.NoError(t, err)
+	})
+	t.Run("Should persist workflow with nil store", func(t *testing.T) {
+		engine := &Engine{ctx: t.Context()}
+		err := engine.persistResource(
 			engine.ctx,
 			nil,
 			"proj",
@@ -135,228 +139,269 @@ func TestPersistResourceRequiresIdentifiers(t *testing.T) {
 			"wf",
 			map[string]any{},
 			registrationSourceProgrammatic,
-		),
-	)
+		)
+		assert.NoError(t, err)
+	})
 }
 
 func TestPersistResourceDetectsExistingResource(t *testing.T) {
-	store := newResourceStoreStub()
-	ctx := t.Context()
-	key := resources.ResourceKey{Project: "proj", Type: resources.ResourceWorkflow, ID: "wf"}
-	store.items[key] = map[string]any{"id": "wf"}
-	engine := &Engine{ctx: ctx}
-	err := engine.persistResource(
-		ctx,
-		store,
-		"proj",
-		resources.ResourceWorkflow,
-		"wf",
-		map[string]any{},
-		registrationSourceProgrammatic,
-	)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "already registered")
+	t.Run("Should detect existing resource", func(t *testing.T) {
+		store := newResourceStoreStub()
+		ctx := t.Context()
+		key := resources.ResourceKey{Project: "proj", Type: resources.ResourceWorkflow, ID: "wf"}
+		store.items[key] = map[string]any{"id": "wf"}
+		engine := &Engine{ctx: ctx}
+		err := engine.persistResource(
+			ctx,
+			store,
+			"proj",
+			resources.ResourceWorkflow,
+			"wf",
+			map[string]any{},
+			registrationSourceProgrammatic,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "already registered")
+	})
 }
 
 func TestPersistResourceHandlesStorePutErrors(t *testing.T) {
-	store := newResourceStoreStub()
-	store.putErr = errors.New("store failure")
-	engine := &Engine{ctx: t.Context()}
-	err := engine.persistResource(
-		engine.ctx,
-		store,
-		"proj",
-		resources.ResourceWorkflow,
-		"wf",
-		map[string]any{},
-		registrationSourceProgrammatic,
-	)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "store workflow wf")
+	t.Run("Should surface store put failures", func(t *testing.T) {
+		store := newResourceStoreStub()
+		store.putErr = errors.New("store failure")
+		engine := &Engine{ctx: t.Context()}
+		err := engine.persistResource(
+			engine.ctx,
+			store,
+			"proj",
+			resources.ResourceWorkflow,
+			"wf",
+			map[string]any{},
+			registrationSourceProgrammatic,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "store workflow wf")
+	})
 }
 
 func TestPersistResourceReportsMetaWriteFailure(t *testing.T) {
-	store := newResourceStoreStub()
-	store.metaErr = true
-	engine := &Engine{ctx: t.Context()}
-	err := engine.persistResource(
-		engine.ctx,
-		store,
-		"proj",
-		resources.ResourceWorkflow,
-		"wf",
-		map[string]any{},
-		registrationSourceProgrammatic,
-	)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "write workflow wf metadata")
+	t.Run("Should report metadata write failure", func(t *testing.T) {
+		store := newResourceStoreStub()
+		store.metaErr = true
+		engine := &Engine{ctx: t.Context()}
+		err := engine.persistResource(
+			engine.ctx,
+			store,
+			"proj",
+			resources.ResourceWorkflow,
+			"wf",
+			map[string]any{},
+			registrationSourceProgrammatic,
+		)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "write workflow wf metadata")
+	})
 }
 
 func TestRegisterResourceNilConfigValidation(t *testing.T) {
-	engine := &Engine{ctx: t.Context(), resourceStore: newResourceStoreStub()}
 	tests := []struct {
 		name string
-		call func() error
+		call func(*Engine) error
 		want string
 	}{
 		{
-			"Project",
-			func() error {
+			name: "return error when project config missing",
+			call: func(engine *Engine) error {
 				var cfg *engineproject.Config
 				return engine.registerProject(cfg, registrationSourceProgrammatic)
 			},
-			"project config is required",
+			want: "project config is required",
 		},
 		{
-			"Workflow",
-			func() error {
+			name: "return error when workflow config missing",
+			call: func(engine *Engine) error {
 				var cfg *engineworkflow.Config
 				return engine.registerWorkflow(cfg, registrationSourceProgrammatic)
 			},
-			"workflow config is required",
+			want: "workflow config is required",
 		},
 		{
-			"Agent",
-			func() error {
+			name: "return error when agent config missing",
+			call: func(engine *Engine) error {
 				var cfg *engineagent.Config
 				return engine.registerAgent(cfg, registrationSourceProgrammatic)
 			},
-			"agent config is required",
+			want: "agent config is required",
 		},
 		{
-			"Tool",
-			func() error {
+			name: "return error when tool config missing",
+			call: func(engine *Engine) error {
 				var cfg *enginetool.Config
 				return engine.registerTool(cfg, registrationSourceProgrammatic)
 			},
-			"tool config is required",
+			want: "tool config is required",
 		},
 		{
-			"Knowledge",
-			func() error {
+			name: "return error when knowledge config missing",
+			call: func(engine *Engine) error {
 				var cfg *engineknowledge.BaseConfig
 				return engine.registerKnowledge(cfg, registrationSourceProgrammatic)
 			},
-			"knowledge config is required",
+			want: "knowledge config is required",
 		},
 		{
-			"Memory",
-			func() error {
+			name: "return error when memory config missing",
+			call: func(engine *Engine) error {
 				var cfg *enginememory.Config
 				return engine.registerMemory(cfg, registrationSourceProgrammatic)
 			},
-			"memory config is required",
+			want: "memory config is required",
 		},
 		{
-			"MCP",
-			func() error {
+			name: "return error when mcp config missing",
+			call: func(engine *Engine) error {
 				var cfg *enginemcp.Config
 				return engine.registerMCP(cfg, registrationSourceProgrammatic)
 			},
-			"mcp config is required",
+			want: "mcp config is required",
 		},
 		{
-			"Schema",
-			func() error {
+			name: "return error when schema config missing",
+			call: func(engine *Engine) error {
 				var cfg *engineschema.Schema
 				return engine.registerSchema(cfg, registrationSourceProgrammatic)
 			},
-			"schema config is required",
+			want: "schema config is required",
 		},
 		{
-			"Model",
-			func() error {
+			name: "return error when model config missing",
+			call: func(engine *Engine) error {
 				var cfg *enginecore.ProviderConfig
 				return engine.registerModel(cfg, registrationSourceProgrammatic)
 			},
-			"model config is required",
+			want: "model config is required",
 		},
 		{
-			"Schedule",
-			func() error {
+			name: "return error when schedule config missing",
+			call: func(engine *Engine) error {
 				var cfg *projectschedule.Config
 				return engine.registerSchedule(cfg, registrationSourceProgrammatic)
 			},
-			"schedule config is required",
+			want: "schedule config is required",
 		},
 		{
-			"Webhook",
-			func() error {
+			name: "return error when webhook config missing",
+			call: func(engine *Engine) error {
 				var cfg *enginewebhook.Config
 				return engine.registerWebhook(cfg, registrationSourceProgrammatic)
 			},
-			"webhook config is required",
+			want: "webhook config is required",
 		},
 	}
 	for _, tc := range tests {
-		err := tc.call()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), tc.want)
+		caseEntry := tc
+		t.Run("Should "+caseEntry.name, func(t *testing.T) {
+			engine := &Engine{ctx: t.Context(), resourceStore: newResourceStoreStub()}
+			err := caseEntry.call(engine)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), caseEntry.want)
+		})
 	}
 }
 
 func TestRegisterResourceEmptyIdentifier(t *testing.T) {
-	engine := &Engine{ctx: t.Context(), resourceStore: newResourceStoreStub()}
-	schema := engineschema.Schema{}
 	tests := []struct {
 		name string
-		call func() error
+		call func(*Engine) error
 		want string
 	}{
 		{
-			"Project",
-			func() error { return engine.registerProject(&engineproject.Config{}, registrationSourceProgrammatic) },
-			"project name is required",
+			name: "return error when project name missing",
+			call: func(engine *Engine) error {
+				return engine.registerProject(&engineproject.Config{}, registrationSourceProgrammatic)
+			},
+			want: "project name is required",
 		},
 		{
-			"Workflow",
-			func() error { return engine.registerWorkflow(&engineworkflow.Config{}, registrationSourceProgrammatic) },
-			"workflow id is required",
+			name: "return error when workflow id missing",
+			call: func(engine *Engine) error {
+				return engine.registerWorkflow(&engineworkflow.Config{}, registrationSourceProgrammatic)
+			},
+			want: "workflow id is required",
 		},
 		{
-			"Agent",
-			func() error { return engine.registerAgent(&engineagent.Config{}, registrationSourceProgrammatic) },
-			"agent id is required",
+			name: "return error when agent id missing",
+			call: func(engine *Engine) error {
+				return engine.registerAgent(&engineagent.Config{}, registrationSourceProgrammatic)
+			},
+			want: "agent id is required",
 		},
 		{
-			"Tool",
-			func() error { return engine.registerTool(&enginetool.Config{}, registrationSourceProgrammatic) },
-			"tool id is required",
-		},
-		{"Knowledge", func() error {
-			return engine.registerKnowledge(&engineknowledge.BaseConfig{}, registrationSourceProgrammatic)
-		}, "knowledge base id is required"},
-		{
-			"Memory",
-			func() error { return engine.registerMemory(&enginememory.Config{}, registrationSourceProgrammatic) },
-			"memory id is required",
+			name: "return error when tool id missing",
+			call: func(engine *Engine) error {
+				return engine.registerTool(&enginetool.Config{}, registrationSourceProgrammatic)
+			},
+			want: "tool id is required",
 		},
 		{
-			"MCP",
-			func() error { return engine.registerMCP(&enginemcp.Config{}, registrationSourceProgrammatic) },
-			"mcp id is required",
+			name: "return error when knowledge id missing",
+			call: func(engine *Engine) error {
+				return engine.registerKnowledge(&engineknowledge.BaseConfig{}, registrationSourceProgrammatic)
+			},
+			want: "knowledge base id is required",
 		},
 		{
-			"Schema",
-			func() error { return engine.registerSchema(&schema, registrationSourceProgrammatic) },
-			"schema id is required",
+			name: "return error when memory id missing",
+			call: func(engine *Engine) error {
+				return engine.registerMemory(&enginememory.Config{}, registrationSourceProgrammatic)
+			},
+			want: "memory id is required",
 		},
-		{"Model", func() error {
-			return engine.registerModel(&enginecore.ProviderConfig{}, registrationSourceProgrammatic)
-		}, "model identifier is required"},
-		{"Schedule", func() error {
-			return engine.registerSchedule(&projectschedule.Config{}, registrationSourceProgrammatic)
-		}, "schedule id is required"},
 		{
-			"Webhook",
-			func() error { return engine.registerWebhook(&enginewebhook.Config{}, registrationSourceProgrammatic) },
-			"webhook slug is required",
+			name: "return error when mcp id missing",
+			call: func(engine *Engine) error {
+				return engine.registerMCP(&enginemcp.Config{}, registrationSourceProgrammatic)
+			},
+			want: "mcp id is required",
+		},
+		{
+			name: "return error when schema id missing",
+			call: func(engine *Engine) error {
+				schema := engineschema.Schema{}
+				return engine.registerSchema(&schema, registrationSourceProgrammatic)
+			},
+			want: "schema id is required",
+		},
+		{
+			name: "return error when model identifier missing",
+			call: func(engine *Engine) error {
+				return engine.registerModel(&enginecore.ProviderConfig{}, registrationSourceProgrammatic)
+			},
+			want: "model identifier is required",
+		},
+		{
+			name: "return error when schedule id missing",
+			call: func(engine *Engine) error {
+				return engine.registerSchedule(&projectschedule.Config{}, registrationSourceProgrammatic)
+			},
+			want: "schedule id is required",
+		},
+		{
+			name: "return error when webhook slug missing",
+			call: func(engine *Engine) error {
+				return engine.registerWebhook(&enginewebhook.Config{}, registrationSourceProgrammatic)
+			},
+			want: "webhook slug is required",
 		},
 	}
 	for _, tc := range tests {
-		err := tc.call()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), tc.want)
+		caseEntry := tc
+		t.Run("Should "+caseEntry.name, func(t *testing.T) {
+			engine := &Engine{ctx: t.Context(), resourceStore: newResourceStoreStub()}
+			err := caseEntry.call(engine)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), caseEntry.want)
+		})
 	}
 }
 
