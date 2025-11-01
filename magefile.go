@@ -18,7 +18,6 @@ import (
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
-	"github.com/magefile/mage/target"
 )
 
 // Default target runs when no target is specified
@@ -630,13 +629,7 @@ func runGoose(args ...string) error {
 }
 
 func swaggerNeedsRebuild() (bool, error) {
-	sourceFiles := []string{"main.go", "go.mod"}
-	targetFile := filepath.Join(swaggerDir, "swagger.json")
-	exists, err := target.Path(targetFile, sourceFiles...)
-	if err != nil {
-		return true, nil
-	}
-	return exists, nil
+	return true, nil
 }
 
 func filterSwaggerWarnings(output string) string {

@@ -33,7 +33,7 @@ func TestExecuteWorkflow(t *testing.T) {
 			require.Nil(t, body["input"])
 			writeJSON(t, w, http.StatusAccepted, map[string]any{
 				"exec_id":     "exec-123",
-				"exec_url":    "/api/v0/executions/workflows/exec-123",
+				"exec_url":    "/api/v0/executions/exec-123",
 				"workflow_id": "sample",
 			})
 		default:
@@ -47,7 +47,7 @@ func TestExecuteWorkflow(t *testing.T) {
 	resp, err := cl.ExecuteWorkflow(ctx, "sample", &client.WorkflowExecuteRequest{TaskID: "subtask"})
 	require.NoError(t, err)
 	require.Equal(t, "exec-123", resp.ExecID)
-	require.Equal(t, "/api/v0/executions/workflows/exec-123", resp.ExecURL)
+	require.Equal(t, "/api/v0/executions/exec-123", resp.ExecURL)
 	require.Equal(t, int32(1), called.Load())
 }
 
@@ -75,13 +75,14 @@ func TestExecuteTaskSync(t *testing.T) {
 
 func TestExecuteWorkflowStream(t *testing.T) {
 	t.Parallel()
-	execPath := "/api/v0/executions/workflows/exec-456/stream"
+	execBase := "/api/v0/executions/exec-456"
+	execPath := execBase + "/stream"
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v0/workflows/streamed/executions":
 			writeJSON(t, w, http.StatusAccepted, map[string]any{
 				"exec_id":     "exec-456",
-				"exec_url":    execPath,
+				"exec_url":    execBase,
 				"workflow_id": "streamed",
 			})
 		case r.Method == http.MethodGet && r.URL.Path == execPath:

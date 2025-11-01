@@ -23,52 +23,52 @@ func TestCloneConfigEmptySlices(t *testing.T) {
 		name string
 		run  func(t *testing.T)
 	}{
-		{"Workflow", func(t *testing.T) {
+		{"Should clone workflow configs when input is nil", func(t *testing.T) {
 			clones, err := cloneWorkflowConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Agent", func(t *testing.T) {
+		{"Should clone agent configs when input is nil", func(t *testing.T) {
 			clones, err := cloneAgentConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Tool", func(t *testing.T) {
+		{"Should clone tool configs when input is nil", func(t *testing.T) {
 			clones, err := cloneToolConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Knowledge", func(t *testing.T) {
+		{"Should clone knowledge configs when input is nil", func(t *testing.T) {
 			clones, err := cloneKnowledgeConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Memory", func(t *testing.T) {
+		{"Should clone memory configs when input is nil", func(t *testing.T) {
 			clones, err := cloneMemoryConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"MCP", func(t *testing.T) {
+		{"Should clone MCP configs when input is nil", func(t *testing.T) {
 			clones, err := cloneMCPConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Schema", func(t *testing.T) {
+		{"Should clone schema configs when input is nil", func(t *testing.T) {
 			clones, err := cloneSchemaConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Model", func(t *testing.T) {
+		{"Should clone model configs when input is nil", func(t *testing.T) {
 			clones, err := cloneModelConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Schedule", func(t *testing.T) {
+		{"Should clone schedule configs when input is nil", func(t *testing.T) {
 			clones, err := cloneScheduleConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)
 		}},
-		{"Webhook", func(t *testing.T) {
+		{"Should clone webhook configs when input is nil", func(t *testing.T) {
 			clones, err := cloneWebhookConfigs(nil)
 			require.NoError(t, err)
 			assert.Empty(t, clones)

@@ -29,7 +29,7 @@ func TestEngineExecutionDelegation(t *testing.T) {
 				http.StatusAccepted,
 				map[string]any{
 					"exec_id":     "exec-123",
-					"exec_url":    "http://testing.local/api/v0/executions/workflows/exec-123",
+					"exec_url":    "http://testing.local/api/v0/executions/exec-123",
 					"workflow_id": "workflow-123",
 				},
 				func(body map[string]any) {
@@ -46,7 +46,7 @@ func TestEngineExecutionDelegation(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.Equal(t, "exec-123", resp.ExecID)
-		assert.Equal(t, "http://testing.local/api/v0/executions/workflows/exec-123", resp.ExecURL)
+		assert.Equal(t, "http://testing.local/api/v0/executions/exec-123", resp.ExecURL)
 		transport.AssertExhausted(t)
 	})
 
@@ -94,7 +94,7 @@ func TestEngineExecutionDelegation(t *testing.T) {
 				http.StatusAccepted,
 				map[string]any{
 					"exec_id":  "exec-stream",
-					"exec_url": "http://testing.local/api/v0/executions/workflows/exec-stream",
+					"exec_url": "http://testing.local/api/v0/executions/exec-stream",
 				},
 				func(body map[string]any) {
 					assert.Equal(t, map[string]any{"foo": "bar"}, body["input"])
@@ -103,7 +103,7 @@ func TestEngineExecutionDelegation(t *testing.T) {
 			streamHandler( //nolint:bodyclose // response closed via test cleanup
 				t,
 				http.MethodGet,
-				"/api/v0/executions/workflows/exec-stream/stream",
+				"/api/v0/executions/exec-stream/stream",
 				sseData,
 			),
 		)

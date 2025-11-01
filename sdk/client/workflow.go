@@ -59,7 +59,7 @@ func (c *Client) ExecuteWorkflowStream(
 	if err != nil {
 		return nil, err
 	}
-	streamPath := fmt.Sprintf("%s/workflows/%s/stream", routes.Executions(), url.PathEscape(handle.ExecID))
+	streamPath := fmt.Sprintf("%s/%s/stream", routes.Executions(), url.PathEscape(handle.ExecID))
 	return c.openStream(ctx, streamPath, nil, opts, handle.ExecID, handle.ExecURL)
 }
 

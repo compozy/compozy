@@ -1,30 +1,27 @@
 # Issue 13 - Review Thread Comment
 
-**File:** `sdk/compozy/cleanup_test.go:48`
-**Date:** 2025-10-31 14:57:18 America/Sao_Paulo
+**File:** `sdk/compozy/config/yaml_loader_test.go:41`
+**Date:** 2025-11-01 01:57:02 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Body
 
-_⚠️ Potential issue_ | _🟠 Major_
+_🛠️ Refactor suggestion_ | _🟠 Major_
 
-**Restructure this test into `t.Run("Should …")` subtests.**
+**Adopt required t.Run wrapper.**
 
-Per the testing guidelines, every Go test must express behaviors via `t.Run("Should …", …)` subtests. This function runs multiple scenarios in a single block with no subtests, so it doesn’t meet the requirement. Break the success and failure paths into clearly named `t.Run("Should …")` blocks (and use testify assertions if they aren’t already in place) to align with the mandated pattern.
+Per the testing guidelines, top-level tests should organize their assertions inside `t.Run("Should …", func(t *testing.T) { ... })`. Please wrap this test body in a suitably named subtest so it conforms to the mandated structure. As per coding guidelines
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
 
 ```
-In sdk/compozy/cleanup_test.go around lines 24 to 48, the test currently
-exercises multiple scenarios in one function; split it into t.Run("Should ...")
-subtests for each behavior: one subtest that verifies cleanupModeResources
-returns an error and increments called twice, one subtest that exercises
-cleanupStore (success path), and one subtest that sets engine.project and a
-failingStore then asserts RegisterTool returns an error and that engine.tools is
-empty; move the relevant setup and assertions into clearly named t.Run blocks
-(using the existing require/assert calls) so each behavior is isolated and
-self-describing.
+In sdk/compozy/config/yaml_loader_test.go around lines 17 to 41, the test body
+is a top-level test but does not use the required t.Run subtest wrapper; wrap
+the existing test logic inside a t.Run call with a descriptive name (e.g.,
+t.Run("Should propagate file path on error", func(t *testing.T) { ... })) so all
+assertions execute within the subtest, using the provided t parameter, and keep
+the current setup and assertions unchanged.
 ```
 
 </details>
@@ -35,10 +32,10 @@ self-describing.
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOOlCPts5gJFEh`
+Thread ID: `PRRT_kwDOOlCPts5gLa2j`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gJFEh
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gLa2j
 ```
 
 ---

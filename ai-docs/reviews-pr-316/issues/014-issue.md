@@ -1,61 +1,120 @@
 # Issue 14 - Review Thread Comment
 
-**File:** `sdk/compozy/codegen/generator_test.go:31`
-**Date:** 2025-10-31 14:57:18 America/Sao_Paulo
+**File:** `sdk/compozy/constructor_clone_test.go:75`
+**Date:** 2025-11-01 01:57:02 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 ## Body
 
-_🧹 Nitpick_ | _🔵 Trivial_
+_⚠️ Potential issue_ | _🟠 Major_
 
-**Consider the maintainability of hard-coded hash validation.**
+**Rename table-driven subtests to follow the “Should …” convention**
 
-This test validates generated files by comparing SHA-256 hashes. While this ensures generated code stability, it will fail and require manual hash updates whenever the codegen logic or templates change intentionally.
+Lines 26-75 name the table-driven subtests “Workflow”, “Agent”, etc., but project guidelines require every `t.Run` label to start with “Should …”. These names will fail the convention check. Please rename each entry to the mandated format (e.g., “Should clone workflow configs when input is nil”).
 
 
-
-Consider one of these approaches:
-1. **Keep as-is if intentional**: If the goal is to force explicit review of all generated code changes, document this in a comment.
-2. **Alternative approach**: Test the generated code's behavior (e.g., that options correctly set fields) rather than its exact bytes.
-3. **Semi-automated updates**: Add a make/mage target that regenerates and updates these hashes when codegen changes are intentional.
-
-Example comment to add if keeping this approach:
+As per coding guidelines.
 
 ```diff
- func TestGeneratedFilesHashes(t *testing.T) {
-+	// This test validates that generated files remain stable.
-+	// When codegen intentionally changes, update hashes by running:
-+	// go test -v -run TestGeneratedFilesHashes and copying the "got" hashes.
- 	files := map[string]string{
+-       {"Workflow", func(t *testing.T) {
++       {"Should clone workflow configs when input is nil", func(t *testing.T) {
+…
+-       {"Agent", func(t *testing.T) {
++       {"Should clone agent configs when input is nil", func(t *testing.T) {
+…
+-       {"Tool", func(t *testing.T) {
++       {"Should clone tool configs when input is nil", func(t *testing.T) {
 ```
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+		{"Should clone workflow configs when input is nil", func(t *testing.T) {
+			clones, err := cloneWorkflowConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone agent configs when input is nil", func(t *testing.T) {
+			clones, err := cloneAgentConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone tool configs when input is nil", func(t *testing.T) {
+			clones, err := cloneToolConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone knowledge configs when input is nil", func(t *testing.T) {
+			clones, err := cloneKnowledgeConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone memory configs when input is nil", func(t *testing.T) {
+			clones, err := cloneMemoryConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone MCP configs when input is nil", func(t *testing.T) {
+			clones, err := cloneMCPConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone schema configs when input is nil", func(t *testing.T) {
+			clones, err := cloneSchemaConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone model configs when input is nil", func(t *testing.T) {
+			clones, err := cloneModelConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone schedule configs when input is nil", func(t *testing.T) {
+			clones, err := cloneScheduleConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+		{"Should clone webhook configs when input is nil", func(t *testing.T) {
+			clones, err := cloneWebhookConfigs(nil)
+			require.NoError(t, err)
+			assert.Empty(t, clones)
+		}},
+```
+
+</details>
+
+<!-- suggestion_end -->
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
 
 ```
-In sdk/compozy/codegen/generator_test.go around lines 11 to 31, the test uses
-hard-coded SHA-256 hashes which will break whenever codegen or templates change;
-either (A) retain the strict byte-level checks but add a clear comment
-explaining this is intentional to force manual review (and document the workflow
-for updating hashes), or (B) replace the hash assertions with behavior-level
-tests that validate generated code semantics (e.g., compile the generated
-package and run/reflection tests that ensure options set fields and exported
-symbols exist), or (C) keep the hashes but add a test helper/make/mage target
-that regenerates and writes updated hashes to this test file so maintainers can
-semi-automate intentional updates — implement one of these approaches and update
-the test accordingly.
+In sdk/compozy/constructor_clone_test.go around lines 26 to 75 the table-driven
+subtest names ("Workflow", "Agent", "Tool", etc.) do not follow the project
+convention requiring labels to start with "Should ..."; update each t.Run entry
+label to a descriptive "Should ..." sentence (for example "Should clone workflow
+configs when input is nil") that begins with "Should" and describes the behavior
+being tested, leaving the test bodies unchanged.
 ```
 
 </details>
+
+<!-- fingerprinting:phantom:medusa:sabertoothed -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Resolve
 
-Thread ID: `PRRT_kwDOOlCPts5gJFEm`
+Thread ID: `PRRT_kwDOOlCPts5gLa2k`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gJFEm
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDOOlCPts5gLa2k
 ```
 
 ---

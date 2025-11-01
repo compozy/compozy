@@ -6,6 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGeneratedFilesHashes(t *testing.T) {
@@ -20,15 +23,15 @@ func TestGeneratedFilesHashes(t *testing.T) {
 	}
 	root := filepath.Clean("..")
 	for name, expected := range files {
-		path := filepath.Join(root, name)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read %s: %v", name, err)
-		}
-		sum := sha256.Sum256(data)
-		hash := hex.EncodeToString(sum[:])
-		if hash != expected {
-			t.Fatalf("unexpected hash for %s: got %s want %s", name, hash, expected)
-		}
+		name := name
+		expected := expected
+		t.Run("Should match generated hash for "+name, func(t *testing.T) {
+			path := filepath.Join(root, name)
+			data, err := os.ReadFile(path)
+			require.NoError(t, err, "failed to read %s", name)
+			sum := sha256.Sum256(data)
+			hash := hex.EncodeToString(sum[:])
+			assert.Equal(t, expected, hash, "hash mismatch for %s", name)
+		})
 	}
 }
