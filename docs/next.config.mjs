@@ -12,6 +12,8 @@ const config = {
         destination: "/docs/core",
         permanent: true,
       },
+      { source: "/code", destination: "https://code.compozy.com", permanent: true },
+      { source: "/code/:path*", destination: "https://code.compozy.com/:path*", permanent: true },
     ];
   },
   async rewrites() {
