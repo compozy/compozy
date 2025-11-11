@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"math"
 	"time"
+
+	"github.com/compozy/compozy/engine/core"
 )
 
 // Type defines the type of memory strategy being used.
@@ -40,6 +42,28 @@ const (
 	TokenAwareLRUFlushing FlushingStrategyType = "token_aware_lru" // #nosec G101
 	// Note: PriorityBasedFlushing removed - use EvictionPolicyConfig with PriorityEviction instead
 )
+
+// PrivacyScope defines the visibility boundary for a memory resource.
+type PrivacyScope string
+
+const (
+	// PrivacyGlobalScope shares memory data across all tenants.
+	PrivacyGlobalScope PrivacyScope = "global"
+	// PrivacyUserScope restricts memory data to a single user.
+	PrivacyUserScope PrivacyScope = "user"
+	// PrivacySessionScope restricts memory data to a single session.
+	PrivacySessionScope PrivacyScope = "session"
+)
+
+// IsValid reports whether the privacy scope is supported. Empty indicates unset.
+func (p PrivacyScope) IsValid() bool {
+	switch p {
+	case PrivacyGlobalScope, PrivacyUserScope, PrivacySessionScope, "":
+		return true
+	default:
+		return false
+	}
+}
 
 // Resource holds the static configuration for a memory resource,
 // typically loaded from a project's configuration files.
@@ -90,6 +114,12 @@ type Resource struct {
 
 	// PrivacyPolicy defines rules for handling sensitive data in memory.
 	PrivacyPolicy *PrivacyPolicyConfig `yaml:"privacy_policy,omitempty" json:"privacy_policy,omitempty"`
+	// PrivacyScope controls how memory data is shared across tenants/users/sessions.
+	PrivacyScope PrivacyScope `yaml:"privacy_scope,omitempty"  json:"privacy_scope,omitempty"`
+	// Expiration specifies how long memory data should live before automatic cleanup.
+	Expiration string `yaml:"expiration,omitempty"     json:"expiration,omitempty"`
+	// ParsedExpiration caches the parsed expiration duration for runtime use.
+	ParsedExpiration time.Duration `yaml:"-"                        json:"-"`
 
 	// Advanced configuration
 	// TokenCounter specifies a custom token counting implementation.
@@ -170,6 +200,12 @@ func (r *Resource) Validate() error {
 	if err := r.validateEvictionPolicy(); err != nil {
 		return err
 	}
+	if err := r.validatePrivacyScope(); err != nil {
+		return err
+	}
+	if err := r.validateExpiration(); err != nil {
+		return err
+	}
 	return r.validateTTLFormats()
 }
 
@@ -199,6 +235,29 @@ func (r *Resource) validateMemoryTypeConstraints() error {
 	default:
 		return fmt.Errorf("invalid memory type: %s", r.Type)
 	}
+	return nil
+}
+
+func (r *Resource) validatePrivacyScope() error {
+	if r.PrivacyScope.IsValid() {
+		return nil
+	}
+	return fmt.Errorf("invalid privacy scope: %s", r.PrivacyScope)
+}
+
+func (r *Resource) validateExpiration() error {
+	if r.Expiration == "" {
+		r.ParsedExpiration = 0
+		return nil
+	}
+	duration, err := core.ParseHumanDuration(r.Expiration)
+	if err != nil {
+		return fmt.Errorf("invalid expiration duration '%s': %w", r.Expiration, err)
+	}
+	if duration < 0 {
+		return fmt.Errorf("expiration duration must be non-negative, got %s", duration)
+	}
+	r.ParsedExpiration = duration
 	return nil
 }
 

@@ -17,7 +17,9 @@ import (
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/infra/monitoring"
 	"github.com/compozy/compozy/engine/knowledge"
+	"github.com/compozy/compozy/engine/mcp"
 	"github.com/compozy/compozy/engine/memory"
+	projectschedule "github.com/compozy/compozy/engine/project/schedule"
 	"github.com/compozy/compozy/engine/schema"
 	"github.com/compozy/compozy/engine/tool"
 )
@@ -310,6 +312,10 @@ type Config struct {
 	// Workflows defines the list of workflow files that compose this project's AI capabilities.
 	Workflows []*WorkflowSourceConfig `json:"workflows" yaml:"workflows" mapstructure:"workflows"`
 
+	// Schedules defines automated workflow executions managed by the SDK.
+	// Each schedule references a workflow by identifier and applies cron-based execution semantics.
+	Schedules []*projectschedule.Config `json:"schedules,omitempty" yaml:"schedules,omitempty" mapstructure:"schedules,omitempty"`
+
 	// Models configures the LLM providers and model settings available to this project.
 	//
 	// $ref: schema://provider
@@ -448,6 +454,9 @@ type Config struct {
 	// Knowledge defines the default binding for tasks or agents within the project scope (MVP single binding).
 	Knowledge []core.KnowledgeBinding `json:"knowledge,omitempty"       yaml:"knowledge,omitempty"       mapstructure:"knowledge,omitempty"`
 
+	// MCPs declares project-scoped MCP server definitions accessible to workflows and agents.
+	MCPs []mcp.Config `json:"mcps,omitempty" yaml:"mcps,omitempty" mapstructure:"mcps,omitempty"`
+
 	// Memories declares project-scoped memory resources that agents and tasks can reference
 	// by ID. These are indexed into the ResourceStore under the current project and can be
 	// used across workflows for conversation and state sharing.
@@ -462,7 +471,7 @@ type Config struct {
 	//
 	// The Resource field on memory.Config is optional in project-level definitions and will
 	// default to "memory" during validation.
-	Memories []memory.Config `json:"memories,omitempty" yaml:"memories,omitempty" mapstructure:"memories,omitempty"`
+	Memories []*memory.Config `json:"memories,omitempty" yaml:"memories,omitempty" mapstructure:"memories,omitempty"`
 
 	// MonitoringConfig enables observability and metrics collection for performance tracking.
 	//
@@ -662,20 +671,23 @@ func (p *Config) validateMemories(ctx context.Context) error {
 		return nil
 	}
 	ids := make(map[string]struct{}, len(p.Memories))
-	for i := range p.Memories {
-		if strings.TrimSpace(p.Memories[i].Resource) == "" {
-			p.Memories[i].Resource = string(core.ConfigMemory)
+	for i, mem := range p.Memories {
+		if mem == nil {
+			return fmt.Errorf("memory[%d] cannot be nil", i)
 		}
-		if p.Memories[i].ID == "" {
+		if strings.TrimSpace(mem.Resource) == "" {
+			mem.Resource = string(core.ConfigMemory)
+		}
+		if mem.ID == "" {
 			return fmt.Errorf("memory[%d] missing required ID field", i)
 		}
-		if _, ok := ids[p.Memories[i].ID]; ok {
-			return fmt.Errorf("duplicate memory ID '%s' found in project memories", p.Memories[i].ID)
+		if _, ok := ids[mem.ID]; ok {
+			return fmt.Errorf("duplicate memory ID '%s' found in project memories", mem.ID)
 		}
-		if err := p.Memories[i].Validate(ctx); err != nil {
+		if err := mem.Validate(ctx); err != nil {
 			return fmt.Errorf("memory[%d] validation failed: %w", i, err)
 		}
-		ids[p.Memories[i].ID] = struct{}{}
+		ids[mem.ID] = struct{}{}
 	}
 	return nil
 }

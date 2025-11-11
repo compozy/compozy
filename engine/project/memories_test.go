@@ -17,7 +17,7 @@ func TestProject_IndexMemoriesToResourceStore(t *testing.T) {
 
 		p := &Config{
 			Name: "demo-mem",
-			Memories: []memory.Config{
+			Memories: []*memory.Config{
 				{
 					ID:   "conversation",
 					Type: memcore.BufferMemory,
@@ -48,7 +48,7 @@ func TestProject_ValidateMemories(t *testing.T) {
 		p := &Config{
 			Name: "demo-validate",
 			CWD:  cwd,
-			Memories: []memory.Config{
+			Memories: []*memory.Config{
 				{
 					// Resource is intentionally omitted to verify defaulting
 					ID:   "conv",

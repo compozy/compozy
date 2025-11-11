@@ -1867,7 +1867,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -1967,7 +1967,7 @@ const docTemplate = `{
         },
         "/executions/agents/{exec_id}/stream": {
             "get": {
-                "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema.",
+                "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema. Served under routes.Base() (e.g., /api/v0/executions/agents/{exec_id}/stream).",
                 "consumes": [
                     "*/*"
                 ],
@@ -2171,7 +2171,7 @@ const docTemplate = `{
         },
         "/executions/tasks/{exec_id}/stream": {
             "get": {
-                "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema.",
+                "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema. Served under routes.Base() (e.g., /api/v0/executions/tasks/{exec_id}/stream).",
                 "consumes": [
                     "*/*"
                 ],
@@ -2354,7 +2354,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2471,7 +2471,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2570,7 +2570,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2669,7 +2669,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2768,7 +2768,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -2894,7 +2894,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10653,7 +10653,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10789,7 +10789,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -10957,7 +10957,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "Streaming infrastructure unavailable",
+                        "description": "Worker unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -11395,6 +11395,22 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "on_error": {
+                    "description": "OnError defines the transition executed when the action encounters an error.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.ErrorTransition"
+                        }
+                    ]
+                },
+                "on_success": {
+                    "description": "OnSuccess defines the transition executed when the action completes successfully.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.SuccessTransition"
+                        }
+                    ]
+                },
                 "output": {
                     "description": "JSON Schema defining the expected output format from this action.\nUsed for validating agent responses and ensuring consistent output structure.\n\nIf ` + "`" + `nil` + "`" + `, no output validation is performed.\n\n**Schema format:** JSON Schema Draft 7",
                     "allOf": [
@@ -11406,6 +11422,25 @@ const docTemplate = `{
                 "prompt": {
                     "description": "Detailed instructions for the agent when executing this action.\nShould clearly define the expected behavior, output format, and any constraints.\n\n**Best practices:**\n- Be specific about the desired outcome\n- Include examples if complex formatting is required\n- Define clear success criteria\n- Specify any limitations or boundaries",
                     "type": "string"
+                },
+                "retry_policy": {
+                    "description": "RetryPolicy configures automatic retries for the action when execution fails.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/core.RetryPolicyConfig"
+                        }
+                    ]
+                },
+                "timeout": {
+                    "description": "Timeout specifies the maximum duration allowed for the action execution.",
+                    "type": "string"
+                },
+                "tools": {
+                    "description": "Tools scoped to this action; override agent-level tool availability when provided.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/tool.Config"
+                    }
                 },
                 "with": {
                     "description": "Default parameters to provide to the action.\nThese are merged with runtime parameters, with runtime values taking precedence.\n\n**Use cases:**\n- Setting default configuration options\n- Providing constant context values\n- Pre-filling common parameters",
@@ -12974,7 +13009,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "max_sessions": {
-                    "description": "MaxSessions defines the **maximum number of concurrent sessions** allowed.\n\nHelps manage resource usage and prevent server overload.\nEach agent connection typically creates one session.\n\n**Values**:\n- ` + "`" + `0` + "`" + ` or negative: Unlimited sessions (default)\n- Positive number: Maximum concurrent sessions\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nmax_sessions: 10  # Allow up to 10 concurrent connections\nmax_sessions: 1   # Single session only (useful for stateful servers)\nmax_sessions: 0   # Unlimited sessions\n` + "`" + `` + "`" + `` + "`" + `",
+                    "description": "MaxSessions defines the **maximum number of concurrent sessions** allowed.\n\nHelps manage resource usage and prevent server overload.\nEach agent connection typically creates one session.\n\n**Values**:\n- ` + "`" + `0` + "`" + `: Unlimited sessions (default)\n- Positive number: Maximum concurrent sessions\n\n- **Examples**:\n` + "`" + `` + "`" + `` + "`" + `yaml\nmax_sessions: 10  # Allow up to 10 concurrent connections\nmax_sessions: 1   # Single session only (useful for stateful servers)\nmax_sessions: 0   # Unlimited sessions\n` + "`" + `` + "`" + `` + "`" + `",
                     "type": "integer"
                 },
                 "proto": {
@@ -13364,6 +13399,19 @@ const docTemplate = `{
                 }
             }
         },
+        "memory.PrivacyScope": {
+            "type": "string",
+            "enum": [
+                "global",
+                "user",
+                "session"
+            ],
+            "x-enum-varnames": [
+                "PrivacyGlobalScope",
+                "PrivacyUserScope",
+                "PrivacySessionScope"
+            ]
+        },
         "memory.SystemHealth": {
             "type": "object",
             "properties": {
@@ -13436,6 +13484,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "expiration": {
+                    "type": "string"
+                },
                 "flushing": {
                     "$ref": "#/definitions/core.FlushingStrategyConfig"
                 },
@@ -13459,6 +13510,9 @@ const docTemplate = `{
                 },
                 "privacy_policy": {
                     "$ref": "#/definitions/core.PrivacyPolicyConfig"
+                },
+                "privacy_scope": {
+                    "$ref": "#/definitions/memory.PrivacyScope"
                 },
                 "resource": {
                     "type": "string"
@@ -13490,6 +13544,9 @@ const docTemplate = `{
                     "type": "string",
                     "example": "abc123"
                 },
+                "expiration": {
+                    "type": "string"
+                },
                 "flushing": {
                     "$ref": "#/definitions/core.FlushingStrategyConfig"
                 },
@@ -13513,6 +13570,9 @@ const docTemplate = `{
                 },
                 "privacy_policy": {
                     "$ref": "#/definitions/core.PrivacyPolicyConfig"
+                },
+                "privacy_scope": {
+                    "$ref": "#/definitions/memory.PrivacyScope"
                 },
                 "resource": {
                     "type": "string"
@@ -15245,6 +15305,10 @@ const docTemplate = `{
         "tool.Config": {
             "type": "object",
             "properties": {
+                "code": {
+                    "description": "Code contains inline source executed by the selected runtime when the tool runs.\nBuilders may supply either inline JavaScript/TypeScript code or references resolved at runtime.",
+                    "type": "string"
+                },
                 "config": {
                     "description": "Configuration parameters passed to the tool separately from input data.\nProvides static configuration that tools can use for initialization and behavior control.\nUnlike input parameters, config is not meant to change between tool invocations.\n\n- **Use cases:** API base URLs, retry policies, timeout settings, feature flags\n- **Separation:** Keeps configuration separate from runtime input data\n- **Override:** Can be overridden at workflow or agent level\n- **Example:**\n  ` + "`" + `` + "`" + `` + "`" + `yaml\n  config:\n    base_url: \"https://api.example.com\"\n    timeout: 30\n    retry_count: 3\n    headers:\n      User-Agent: \"Compozy/1.0\"\n  ` + "`" + `` + "`" + `` + "`" + `",
                     "allOf": [
@@ -15285,6 +15349,10 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "name": {
+                    "description": "Name provides a concise, human-readable label for the tool shown in UIs and logs.\nUnlike the identifier, the name may include spaces and capitalization to improve readability.\nWhen omitted, UIs should fall back to using the identifier.",
+                    "type": "string"
+                },
                 "output": {
                     "description": "JSON schema defining the expected output format from the tool.\nUsed for validation after execution and documentation purposes.\nMust follow JSON Schema Draft 7 specification for compatibility.\n\n- **When nil:** No output validation is performed\n- **Use cases:** Response validation, type safety, workflow data flow verification\n- **Best practice:** Define output schema for tools used in critical workflows",
                     "allOf": [
@@ -15295,6 +15363,10 @@ const docTemplate = `{
                 },
                 "resource": {
                     "description": "Resource identifier for the autoloader system (must be ` + "`" + `\"tool\"` + "`" + `).\nThis field enables automatic discovery and registration of tool configurations.",
+                    "type": "string"
+                },
+                "runtime": {
+                    "description": "Runtime selects the execution environment for custom tool implementations.\nSupported runtimes include ` + "`" + `\"bun\"` + "`" + `, ` + "`" + `\"node\"` + "`" + `, and ` + "`" + `\"deno\"` + "`" + ` for JavaScript/TypeScript execution.\nWhen empty, the project runtime defaults are applied.",
                     "type": "string"
                 },
                 "timeout": {
@@ -15314,6 +15386,9 @@ const docTemplate = `{
         "toolrouter.ToolDTO": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "string"
+                },
                 "config": {
                     "$ref": "#/definitions/core.Input"
                 },
@@ -15332,10 +15407,16 @@ const docTemplate = `{
                 "input": {
                     "$ref": "#/definitions/schema.Schema"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
                 "resource": {
+                    "type": "string"
+                },
+                "runtime": {
                     "type": "string"
                 },
                 "timeout": {
@@ -15349,6 +15430,9 @@ const docTemplate = `{
         "toolrouter.ToolListItem": {
             "type": "object",
             "properties": {
+                "code": {
+                    "type": "string"
+                },
                 "config": {
                     "$ref": "#/definitions/core.Input"
                 },
@@ -15371,10 +15455,16 @@ const docTemplate = `{
                 "input": {
                     "$ref": "#/definitions/schema.Schema"
                 },
+                "name": {
+                    "type": "string"
+                },
                 "output": {
                     "$ref": "#/definitions/schema.Schema"
                 },
                 "resource": {
+                    "type": "string"
+                },
+                "runtime": {
                     "type": "string"
                 },
                 "timeout": {

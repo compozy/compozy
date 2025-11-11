@@ -81,37 +81,40 @@ func registerNativeBuiltins(
 	return builtin.RegisterBuiltins(ctx, registerFn, builtin.Options{Definitions: definitions})
 }
 
-func logNativeTools(ctx context.Context, cfg *appconfig.NativeToolsConfig, result *builtin.Result) {
+func logNativeTools(
+	ctx context.Context,
+	cfg *appconfig.NativeToolsConfig,
+	result *builtin.Result,
+	userNative []string,
+) {
 	log := logger.FromContext(ctx)
 	execAllowlistCount := 0
-	ids := []string{}
+	builtinIDs := []string{}
 	if result != nil {
 		execAllowlistCount = len(result.ExecCommands)
-		ids = append(ids, result.RegisteredIDs...)
+		builtinIDs = append(builtinIDs, result.RegisteredIDs...)
 	}
-	if cfg != nil && cfg.Enabled && len(ids) > 0 {
-		log.Info(
-			"Native builtin tools registered",
-			"count",
-			len(ids),
-			"ids",
-			ids,
-			"exec_allowlist_count",
-			execAllowlistCount,
-			"root_dir",
-			cfg.RootDir,
-			"fetch_timeout_ms",
-			cfg.Fetch.Timeout.Milliseconds(),
-			"fetch_max_body_bytes",
-			cfg.Fetch.MaxBodyBytes,
-		)
+	enabled := cfg != nil && cfg.Enabled
+	if enabled || len(builtinIDs) > 0 || len(userNative) > 0 {
+		fields := []any{
+			"enabled", enabled,
+			"builtin_count", len(builtinIDs),
+			"builtin_ids", builtinIDs,
+			"user_native_count", len(userNative),
+			"user_native_ids", userNative,
+			"exec_allowlist_count", execAllowlistCount,
+		}
+		if cfg != nil {
+			fields = append(fields,
+				"root_dir", cfg.RootDir,
+				"fetch_timeout_ms", cfg.Fetch.Timeout.Milliseconds(),
+				"fetch_max_body_bytes", cfg.Fetch.MaxBodyBytes,
+			)
+		}
+		log.Info("Native tools registered", fields...)
 		return
 	}
-	enabled := false
-	if cfg != nil {
-		enabled = cfg.Enabled
-	}
-	log.Info("Native builtin tools disabled", "enabled", enabled, "exec_allowlist_count", execAllowlistCount)
+	log.Info("Native tools disabled", "enabled", enabled, "exec_allowlist_count", execAllowlistCount)
 }
 
 func configureToolRegistry(
@@ -148,8 +151,8 @@ func configureToolRegistry(
 	if appCfg := appconfig.FromContext(ctx); appCfg != nil {
 		nativeCfg = appCfg.Runtime.NativeTools
 	}
-	logNativeTools(ctx, &nativeCfg, result)
-	registerRuntimeTools(ctx, registry, runtime, tools)
+	userNative := registerRuntimeTools(ctx, registry, runtime, tools)
+	logNativeTools(ctx, &nativeCfg, result, userNative)
 	return nil
 }
 
@@ -168,14 +171,25 @@ func registerRuntimeTools(
 	registry ToolRegistry,
 	runtime runtime.Runtime,
 	configs []tool.Config,
-) {
+) []string {
 	log := logger.FromContext(ctx)
+	userNativeIDs := make([]string, 0)
 	for i := range configs {
-		localTool := NewLocalToolAdapter(&configs[i], &runtimeAdapter{manager: runtime})
+		cfg := &configs[i]
+		if cfg.IsNative() {
+			userNativeIDs = append(userNativeIDs, cfg.ID)
+			nativeTool := NewNativeToolAdapter(cfg)
+			if err := registry.Register(ctx, nativeTool); err != nil {
+				log.Warn("Failed to register native tool", "tool", cfg.ID, "error", err)
+			}
+			continue
+		}
+		localTool := NewLocalToolAdapter(cfg, &runtimeAdapter{manager: runtime})
 		if err := registry.Register(ctx, localTool); err != nil {
-			log.Warn("Failed to register local tool", "tool", configs[i].ID, "error", err)
+			log.Warn("Failed to register local tool", "tool", cfg.ID, "error", err)
 		}
 	}
+	return userNativeIDs
 }
 
 func assembleOrchestratorConfig(

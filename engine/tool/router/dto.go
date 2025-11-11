@@ -11,16 +11,20 @@ import (
 
 // ToolDTO is the canonical typed representation for tools.
 type ToolDTO struct {
-	Resource     string         `json:"resource,omitempty"`
-	ID           string         `json:"id"`
-	Description  string         `json:"description,omitempty"`
-	Timeout      string         `json:"timeout,omitempty"`
-	InputSchema  *schema.Schema `json:"input,omitempty"`
-	OutputSchema *schema.Schema `json:"output,omitempty"`
-	With         *core.Input    `json:"with,omitempty"`
-	Config       *core.Input    `json:"config,omitempty"`
-	Env          *core.EnvMap   `json:"env,omitempty"`
-	Cwd          string         `json:"cwd,omitempty"`
+	Resource       string         `json:"resource,omitempty"`
+	ID             string         `json:"id"`
+	Name           string         `json:"name,omitempty"`
+	Description    string         `json:"description,omitempty"`
+	Runtime        string         `json:"runtime,omitempty"`
+	Implementation string         `json:"implementation,omitempty"`
+	Code           string         `json:"code,omitempty"`
+	Timeout        string         `json:"timeout,omitempty"`
+	InputSchema    *schema.Schema `json:"input,omitempty"`
+	OutputSchema   *schema.Schema `json:"output,omitempty"`
+	With           *core.Input    `json:"with,omitempty"`
+	Config         *core.Input    `json:"config,omitempty"`
+	Env            *core.EnvMap   `json:"env,omitempty"`
+	Cwd            string         `json:"cwd,omitempty"`
 }
 
 // ToolListItem is the list representation and includes an optional ETag.
@@ -50,16 +54,20 @@ func ConvertToolConfigToDTO(cfg *tool.Config) (ToolDTO, error) {
 		return ToolDTO{}, fmt.Errorf("deep copy tool config: %w", err)
 	}
 	return ToolDTO{
-		Resource:     clone.Resource,
-		ID:           clone.ID,
-		Description:  clone.Description,
-		Timeout:      clone.Timeout,
-		InputSchema:  clone.InputSchema,
-		OutputSchema: clone.OutputSchema,
-		With:         clone.With,
-		Config:       clone.Config,
-		Env:          clone.Env,
-		Cwd:          cwdPath(clone.GetCWD()),
+		Resource:       clone.Resource,
+		ID:             clone.ID,
+		Name:           clone.Name,
+		Description:    clone.Description,
+		Runtime:        clone.Runtime,
+		Implementation: clone.Implementation,
+		Code:           clone.Code,
+		Timeout:        clone.Timeout,
+		InputSchema:    clone.InputSchema,
+		OutputSchema:   clone.OutputSchema,
+		With:           clone.With,
+		Config:         clone.Config,
+		Env:            clone.Env,
+		Cwd:            cwdPath(clone.GetCWD()),
 	}, nil
 }
 

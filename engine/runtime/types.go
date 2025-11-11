@@ -21,6 +21,12 @@ var SupportedRuntimeTypes = []string{
 	RuntimeTypeNode,
 }
 
+// NativeToolsConfig controls enablement of builtin runtime-native tools provided by the engine.
+type NativeToolsConfig struct {
+	CallAgents    bool
+	CallWorkflows bool
+}
+
 // IsValidRuntimeType checks if the given runtime type is valid
 func IsValidRuntimeType(runtimeType string) bool {
 	return slices.Contains(SupportedRuntimeTypes, runtimeType)

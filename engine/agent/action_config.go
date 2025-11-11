@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/engine/attachment"
 	"github.com/compozy/compozy/engine/core"
 	"github.com/compozy/compozy/engine/schema"
+	"github.com/compozy/compozy/engine/tool"
 )
 
 // ActionConfig defines a structured action that an agent can perform.
@@ -101,7 +102,17 @@ type ActionConfig struct {
 	CWD  *core.PathCWD
 
 	// Attachments at action scope
-	Attachments attachment.Attachments `json:"attachments,omitempty" yaml:"attachments,omitempty" mapstructure:"attachments,omitempty"`
+	Attachments attachment.Attachments `json:"attachments,omitempty"  yaml:"attachments,omitempty"  mapstructure:"attachments,omitempty"`
+	// Tools scoped to this action; override agent-level tool availability when provided.
+	Tools []tool.Config `json:"tools,omitempty"        yaml:"tools,omitempty"        mapstructure:"tools,omitempty"`
+	// OnSuccess defines the transition executed when the action completes successfully.
+	OnSuccess *core.SuccessTransition `json:"on_success,omitempty"   yaml:"on_success,omitempty"   mapstructure:"on_success,omitempty"`
+	// OnError defines the transition executed when the action encounters an error.
+	OnError *core.ErrorTransition `json:"on_error,omitempty"     yaml:"on_error,omitempty"     mapstructure:"on_error,omitempty"`
+	// RetryPolicy configures automatic retries for the action when execution fails.
+	RetryPolicy *core.RetryPolicyConfig `json:"retry_policy,omitempty" yaml:"retry_policy,omitempty" mapstructure:"retry_policy,omitempty"`
+	// Timeout specifies the maximum duration allowed for the action execution.
+	Timeout string `json:"timeout,omitempty"      yaml:"timeout,omitempty"      mapstructure:"timeout,omitempty"`
 }
 
 func (a *ActionConfig) SetCWD(path string) error {
@@ -129,7 +140,19 @@ func (a *ActionConfig) Validate(ctx context.Context) error {
 		schema.NewCWDValidator(a.CWD, a.ID),
 		schema.NewStructValidator(a),
 	)
-	return v.Validate(ctx)
+	if err := v.Validate(ctx); err != nil {
+		return err
+	}
+	if a.Timeout != "" {
+		duration, err := core.ParseHumanDuration(a.Timeout)
+		if err != nil {
+			return fmt.Errorf("invalid action timeout '%s': %w", a.Timeout, err)
+		}
+		if duration <= 0 {
+			return fmt.Errorf("action timeout must be positive, got: %s", a.Timeout)
+		}
+	}
+	return nil
 }
 
 func (a *ActionConfig) ValidateInput(ctx context.Context, input *core.Input) error {
