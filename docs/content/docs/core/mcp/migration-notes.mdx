@@ -3,18 +3,18 @@ title: "Migration Notes"
 description: "Upgrade guidance for recent MCP proxy configuration changes"
 ---
 
-The MCP proxy defaults changed in September 2025 to support both embedded (standalone) and external deployment modes. Review these notes before upgrading an existing Compozy deployment.
+The MCP proxy defaults changed in September 2025 to support both embedded (memory/persistent) and external deployment modes. Review these notes before upgrading an existing Compozy deployment.
 
 ## Port defaults and modes
 
 - **External proxy (default)** – When `mcp_proxy.mode` is empty, Compozy continues to assume an external MCP proxy. The runtime now normalizes the port back to **6001** if no explicit port is supplied, preserving the legacy listener for existing environments.
-- **Standalone proxy** – Setting `mcp_proxy.mode: standalone` embeds the proxy inside the API server. Standalone mode **requires a fixed, non-ephemeral port**; configure `mcp_proxy.port` (or `MCP_PROXY_PORT`/`--mcp-port`) with the value you want to expose.
+- **Embedded proxy** – Setting `mcp_proxy.mode` to `memory` or `persistent` embeds the proxy inside the API server. Embedded modes **require a fixed, non-ephemeral port**; configure `mcp_proxy.port` (or `MCP_PROXY_PORT`/`--mcp-port`) with the value you want to expose.
 - **Ephemeral ports** – Port `0` remains supported for advanced scenarios when running an external proxy and intentionally requesting an ephemeral port. The effective port is logged on startup; ensure your reverse proxy or load balancer reads that value before routing traffic.
 
 ## Required operator actions
 
-1. **Check your configuration** – Confirm `mcp_proxy.mode` is either empty or set to `standalone`. Any other value now fails validation during startup.
-2. **Verify ports** – If you embed the proxy (`standalone`), set a non-zero port (for example `6001`). Deployments that relied on the previous implicit 6001 default should remain unchanged because the loader backfills that port automatically.
-3. **Update infrastructure automation** – If you operate health checks or security groups that referenced port 6001, review them before switching to ephemeral ports or standalone mode.
+1. **Check your configuration** – Confirm `mcp_proxy.mode` is empty, `memory`, `persistent`, or `distributed`. Any other value now fails validation during startup.
+2. **Verify ports** – If you embed the proxy (`memory` or `persistent`), set a non-zero port (for example `6001`). Deployments that relied on the previous implicit 6001 default should remain unchanged because the loader backfills that port automatically.
+3. **Update infrastructure automation** – If you operate health checks or security groups that referenced port 6001, review them before switching to ephemeral ports or embedded modes.
 
 > Need more background? See the [MCP Proxy Server](/docs/core/mcp/mcp-proxy-server) guide for architecture details and deployment recommendations.

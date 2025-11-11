@@ -1,44 +1,81 @@
 ---
-title: "Distributed (Remote) Mode"
-description: "Production‑ready deployment of Compozy with external Temporal and Redis."
+title: "Distributed Mode Deployment"
+description: "Run Compozy with production-grade PostgreSQL, Temporal, and Redis infrastructure."
 icon: Server
 ---
 
-Distributed ("remote") mode connects Compozy to external infrastructure for durability, scale, and security.
+<Callout type="info" title="Production-ready architecture">
+Distributed mode connects Compozy to managed databases, Temporal clusters, and Redis instances. Choose it when you need HA, compliance, and team-wide reliability.
+</Callout>
 
-## Comparison with Standalone
+## Mode Comparison
 
 <Table>
   <TableHeader>
     <TableRow>
       <TableHead>Aspect</TableHead>
+      <TableHead>Memory</TableHead>
+      <TableHead>Persistent</TableHead>
       <TableHead>Distributed</TableHead>
-      <TableHead>Standalone</TableHead>
     </TableRow>
   </TableHeader>
   <TableBody>
     <TableRow>
-      <TableCell>Use case</TableCell>
+      <TableCell>Primary use case</TableCell>
+      <TableCell>Rapid prototyping, CI</TableCell>
+      <TableCell>Local dev with durability</TableCell>
       <TableCell>Production, staging, shared QA</TableCell>
-      <TableCell>Local dev, CI, demos</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Database</TableCell>
+      <TableCell>In-memory SQLite</TableCell>
+      <TableCell>SQLite files in `./.compozy/`</TableCell>
+      <TableCell>PostgreSQL (with pgvector)</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>Temporal</TableCell>
-      <TableCell>External cluster (`mode: remote`)</TableCell>
-      <TableCell>Embedded server (`mode: standalone`)</TableCell>
+      <TableCell>Embedded server (`temporal.mode: memory`)</TableCell>
+      <TableCell>Embedded server (`temporal.mode: persistent`)</TableCell>
+      <TableCell>External cluster (`temporal.mode: remote`)</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>Cache</TableCell>
-      <TableCell>External Redis (`redis.mode: distributed`)</TableCell>
-      <TableCell>Embedded compatible server (`redis.mode: standalone`)</TableCell>
+      <TableCell>Redis</TableCell>
+      <TableCell>Embedded</TableCell>
+      <TableCell>Embedded with snapshots</TableCell>
+      <TableCell>Managed Redis / Elasticache</TableCell>
     </TableRow>
     <TableRow>
-      <TableCell>Availability</TableCell>
-      <TableCell>Multi‑node, HA</TableCell>
+      <TableCell>Scalability</TableCell>
       <TableCell>Single process</TableCell>
+      <TableCell>Single process</TableCell>
+      <TableCell>Multi-node, HA</TableCell>
+    </TableRow>
+    <TableRow>
+      <TableCell>Persistence</TableCell>
+      <TableCell>No</TableCell>
+      <TableCell>Yes (local disk)</TableCell>
+      <TableCell>Yes (managed services)</TableCell>
     </TableRow>
   </TableBody>
 </Table>
+
+## When to Choose Distributed Mode
+
+<List>
+  <ListItem title="Production deployments" icon="ShieldCheck">
+    Meet uptime, compliance, and scaling requirements with external managed services.
+  </ListItem>
+  <ListItem title="Team environments" icon="Users">
+    Provide shared staging or QA clusters that multiple developers can access concurrently.
+  </ListItem>
+  <ListItem title="Workload scale" icon="Gauge">
+    Unlock pgvector, high-throughput database writes, and Temporal multi-node scheduling.
+  </ListItem>
+</List>
+
+<Callout type="warning">
+Distributed mode assumes networking access to PostgreSQL, Temporal, and Redis. Confirm credentials and TLS configuration before enabling it.
+</Callout>
 
 ## Recommended Configuration
 
@@ -49,6 +86,8 @@ temporal:
   mode: remote
   host_port: temporal.prod.internal:7233
   namespace: compozy-prod
+  tls:
+    enabled: true
 
 redis:
   mode: distributed
@@ -57,26 +96,46 @@ redis:
     password: ${REDIS_PASSWORD}
     tls:
       enabled: true
+
+database:
+  driver: postgres
+  url: postgres://compozy:${PGPASSWORD}@postgres.prod.internal:5432/compozy
 ```
 
-## Migration from Standalone
+### Operational Checklist
 
-Follow the [migration guide](/docs/guides/migrate-standalone-to-distributed) to plan, switch configuration, and validate.
+- Provision managed PostgreSQL with pgvector enabled.
+- Set up a Temporal Cloud namespace or self-hosted cluster and exchange certificates if required.
+- Point Redis to a managed service with the necessary capacity for caching and streaming features.
+- Configure secrets through environment variables or your deployment platform, not static YAML.
 
-## See Also
+## Migration Guidance
 
-<ReferenceCardList>
+Use the [Mode Migration Guide](/docs/guides/mode-migration-guide) to plan upgrades from Memory or Persistent mode. Pay special attention to:
+
+- Database migrations from SQLite to PostgreSQL
+- Namespace and task queue alignment in Temporal
+- Cache eviction policies when moving to a managed Redis cluster
+
+## Next Steps
+
+<ReferenceCardList cols={2}>
   <ReferenceCard
-    title="Standalone Mode"
-    description="End‑to‑end single‑process deployment"
-    href="/docs/deployment/standalone-mode"
+    title="Memory Mode"
+    description="Fast, ephemeral setup for tests and quick prototypes"
+    href="/docs/deployment/memory-mode"
     icon="Rocket"
   />
   <ReferenceCard
-    title="Temporal Modes"
-    description="Detailed trade‑offs and diagrams"
-    href="/docs/deployment/temporal-modes"
+    title="Persistent Mode"
+    description="Embedded services with file-backed durability for local teams"
+    href="/docs/deployment/persistent-mode"
+    icon="Folder"
+  />
+  <ReferenceCard
+    title="Mode Configuration"
+    description="Understand global vs per-component mode selection"
+    href="/docs/configuration/mode-configuration"
     icon="GitBranch"
   />
 </ReferenceCardList>
-

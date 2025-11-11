@@ -16,7 +16,7 @@ import (
 	"github.com/compozy/compozy/test/helpers"
 )
 
-var driverMatrix = []string{"postgres", "sqlite"}
+var driverMatrix = []string{"sqlite", "postgres"}
 
 func forEachDriver(
 	t *testing.T,

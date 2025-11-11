@@ -1960,7 +1960,7 @@
         },
         "/executions/agents/{exec_id}/stream": {
             "get": {
-                "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema.",
+                "description": "Streams agent execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the output schema. Served under routes.Base() (e.g., /api/v0/executions/agents/{exec_id}/stream).",
                 "consumes": [
                     "*/*"
                 ],
@@ -2164,7 +2164,7 @@
         },
         "/executions/tasks/{exec_id}/stream": {
             "get": {
-                "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema.",
+                "description": "Streams task execution updates over Server-Sent Events, emitting structured JSON or llm_chunk text depending on the task output schema. Served under routes.Base() (e.g., /api/v0/executions/tasks/{exec_id}/stream).",
                 "consumes": [
                     "*/*"
                 ],
@@ -2268,7 +2268,7 @@
                         }
                     },
                     "503": {
-                        "description": "Pub/Sub provider unavailable",
+                        "description": "Pubsub provider unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -3013,7 +3013,7 @@
                         }
                     },
                     "503": {
-                        "description": "Worker unavailable",
+                        "description": "Workflow query client unavailable",
                         "schema": {
                             "allOf": [
                                 {

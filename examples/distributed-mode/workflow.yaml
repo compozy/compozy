@@ -1,0 +1,27 @@
+id: support-router
+version: 1.0.0
+description: Demonstrates multi-step processing in distributed mode.
+
+config:
+  input:
+    type: object
+    properties:
+      ticket:
+        type: string
+        description: Full support ticket text to classify and answer
+        default: "Customer cannot access billing invoice after upgrading plan."
+    required:
+      - ticket
+
+# Reference tasks from compozy.yaml to show separation of config and workflow logic.
+tasks:
+  - id: classify
+    type: reference
+    target: classify
+  - id: respond
+    type: reference
+    target: respond
+
+outputs:
+  classification: "{{ .tasks.classify.output }}"
+  reply: "{{ .tasks.respond.output }}"

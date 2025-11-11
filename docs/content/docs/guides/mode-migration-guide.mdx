@@ -1,0 +1,211 @@
+---
+title: "Mode Migration Guide"
+description: "Migrate between memory, persistent, and distributed deployment modes."
+icon: ArrowRightLeft
+---
+
+Use this guide to move between Compozy's three runtime modes and to transition from the alpha `standalone` configuration.
+
+```
+memory (fast, ephemeral)
+  ↓
+persistent (fast, saved)
+  ↓
+distributed (production)
+```
+
+## 1. Migrating from Alpha Versions
+
+### 1.1 Standalone → Memory (ephemeral)
+
+**Before (alpha):**
+```yaml title="compozy.yaml"
+mode: standalone
+```
+
+**After (current):**
+```yaml title="compozy.yaml"
+mode: memory
+```
+
+**What changes:**
+- Identical embedded services, now optimized defaults for in-memory SQLite
+- Default project mode is `memory`, so most quickstarts need no additional flags
+
+### 1.2 Standalone → Persistent (local durability)
+
+**After (current):**
+```yaml title="compozy.yaml"
+mode: persistent
+database:
+  path: ./.compozy/compozy.db
+temporal:
+  standalone:
+    database_file: ./.compozy/temporal.db
+```
+
+**What changes:**
+- Adds file-backed SQLite for Compozy and Temporal state
+- Reuses embedded Redis with automatic snapshotting
+
+### 1.3 Distributed → Distributed
+
+No configuration updates are required. Validate against the latest distributed mode guide to confirm new option names and defaults.
+
+## 2. Memory → Persistent
+
+Memory mode keeps all state in RAM. Migrating to persistent mode gives you local durability without external services.
+
+### Step-by-step
+
+1. Create a working directory for persisted data:
+   ```bash
+   mkdir -p .compozy
+   ```
+2. Update configuration:
+   ```yaml title="compozy.yaml"
+   mode: persistent
+   database:
+     path: ./.compozy/compozy.db
+   temporal:
+     standalone:
+       database_file: ./.compozy/temporal.db
+   redis:
+     mode: persistent
+   ```
+3. Restart Compozy: `compozy start`
+4. Verify persistence by replaying workflows after a restart: `compozy workflow list`
+
+**Data migration:** Not required—memory mode has no durable data. Start with a clean persistent store or reimport workflows/scripts as needed.
+
+## 3. Persistent → Distributed
+
+Switching to distributed mode promotes your deployment to production-grade infrastructure backed by PostgreSQL, external Temporal, and Redis services.
+
+### Step-by-step
+
+1. **Export existing data**
+   ```bash
+   # Export workflows
+   compozy workflow list --format json > workflows.json
+
+   # Export knowledge base or memory data via API
+   curl -s http://localhost:8080/api/v0/memory > memory.json
+   ```
+2. **Provision external services** (PostgreSQL with pgvector, Temporal cluster, Redis)
+3. **Update configuration**
+   ```yaml title="compozy.yaml"
+   mode: distributed
+   database:
+     driver: postgres
+     host: localhost
+     port: 5432
+     user: compozy
+     password: ${DB_PASSWORD}
+     name: compozy
+   temporal:
+     mode: remote
+     host_port: localhost:7233
+     namespace: compozy-prod
+   redis:
+     mode: distributed
+     distributed:
+       addr: localhost:6379
+   ```
+4. **Import exported state**
+   ```bash
+   compozy workflow import workflows.json
+
+   # Restore memory data if needed
+   curl -s -X POST http://localhost:8080/api/v0/memory \
+     -H "Content-Type: application/json" \
+     --data @memory.json
+   ```
+5. **Smoke test** the deployment: `compozy workflow run examples/hello-world.yaml`
+
+## 4. Distributed Hardening Checklist
+
+- Configure TLS, credentials, and firewall rules for PostgreSQL, Temporal, and Redis
+- Set up backups for PostgreSQL and Temporal histories
+- Enable observability integrations (metrics, logs, tracing)
+- Document rollback path (switch back to persistent with local snapshots)
+
+## 5. Data Export and Import Reference
+
+| Artifact | Export | Import |
+| --- | --- | --- |
+| Workflows | `compozy workflow list --format json > workflows.json` | `compozy workflow import workflows.json` |
+| Memory / Knowledge | `curl -s http://localhost:8080/api/v0/memory > memory.json` | `curl -s -X POST http://localhost:8080/api/v0/memory -H "Content-Type: application/json" --data @memory.json` |
+| Snapshots (Redis persistent mode) | Archive `.compozy/cache` directory | Restore directory contents before start |
+
+## 6. Common Issues & Troubleshooting
+
+### 6.1 pgvector with SQLite
+
+**Message:** `pgvector provider is incompatible with SQLite driver`
+
+**Fix:** Switch vector search to supported providers while in memory/persistent mode:
+```yaml
+knowledge:
+  vector_dbs:
+    - name: default
+      provider: qdrant
+      config:
+        host: localhost
+        port: 6333
+```
+
+### 6.2 Concurrent Workflow Limits
+
+**Message:** `SQLite has concurrency limitations (max_concurrent_workflows=50, recommended_max=10)`
+
+**Fix:** Migrate to distributed mode where PostgreSQL and external Temporal handle higher parallelism:
+```yaml
+mode: distributed
+database:
+  driver: postgres
+```
+
+### 6.3 Configuration Validation Errors
+
+**Message:** `mode "memory" cannot use temporal.mode=remote`
+
+**Fix:** Ensure Temporal and Redis mode overrides match the selected mode:
+```yaml
+mode: memory
+temporal:
+  mode: memory
+redis:
+  mode: memory
+```
+
+Re-run `compozy config validate` after each change to confirm the configuration graph is consistent.
+
+## 7. Reference Material
+
+<ReferenceCardList>
+  <ReferenceCard
+    title="Memory Mode"
+    description="Fast, dependency-free development mode"
+    href="/docs/deployment/memory-mode"
+    icon="Cpu"
+  />
+  <ReferenceCard
+    title="Persistent Mode"
+    description="Durable local development configuration"
+    href="/docs/deployment/persistent-mode"
+    icon="Archive"
+  />
+  <ReferenceCard
+    title="Distributed Mode"
+    description="Production-ready deployment guidance"
+    href="/docs/deployment/distributed-mode"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Mode Configuration"
+    description="Detailed option reference"
+    href="/docs/configuration/mode-configuration"
+    icon="Settings"
+  />
+</ReferenceCardList>

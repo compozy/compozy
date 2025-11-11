@@ -13,7 +13,7 @@ import (
 )
 
 func TestMCPHealth_EndpointExposed(t *testing.T) {
-	t.Setenv("MCP_PROXY_MODE", "standalone")
+	t.Setenv("MCP_PROXY_MODE", "memory")
 	ginmode.EnsureGinTestMode()
 	m := config.NewManager(t.Context(), config.NewService())
 	if _, err := m.Load(t.Context(), config.NewDefaultProvider(), config.NewEnvProvider()); err != nil {
@@ -30,6 +30,6 @@ func TestMCPHealth_EndpointExposed(t *testing.T) {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequestWithContext(t.Context(), http.MethodGet, "/health", http.NoBody)
 	r.ServeHTTP(w, req)
-	// On a fresh standalone server (without MCP ready), health should be not ready
+	// On a fresh embedded server (without MCP ready), health should be not ready
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }

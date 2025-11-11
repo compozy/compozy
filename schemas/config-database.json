@@ -8,6 +8,10 @@
       "description": "AutoMigrate enables automatic database migrations on startup.\n\nWhen enabled, the system will automatically apply any pending database\nmigrations when establishing a database connection. This eliminates\nthe need for manual migration commands.\n\nDefault: true",
       "type": "boolean"
     },
+    "busy_timeout": {
+      "description": "BusyTimeout configures SQLite PRAGMA busy_timeout for lock contention.\nWhen unset, a sensible default is applied by the SQLite provider.",
+      "type": "integer"
+    },
     "conn_max_idle_time": {
       "description": "ConnMaxIdleTime bounds how long an idle connection is retained before recycling.\n\nDefault: `1m`",
       "type": "integer"
@@ -19,6 +23,22 @@
     "conn_string": {
       "description": "ConnString provides a complete PostgreSQL connection URL.\n\nFormat: `postgres://user:password@host:port/database?sslmode=mode`\nTakes precedence over individual connection parameters.",
       "type": "string"
+    },
+    "connect_timeout": {
+      "description": "ConnectTimeout bounds how long the driver may spend establishing new PostgreSQL connections.\n\nDefault: `5s`",
+      "type": "integer"
+    },
+    "driver": {
+      "description": "Driver selects the backing database driver implementation.\n\nSupported drivers:\n  - \"postgres\": default, full production deployment\n  - \"sqlite\": lightweight single-node deployments\n\nDefaults to \"postgres\" when omitted for backward compatibility.",
+      "type": "string"
+    },
+    "health_check_period": {
+      "description": "HealthCheckPeriod configures how frequently the pool performs background health checks.\n\nDefault: `30s`",
+      "type": "integer"
+    },
+    "health_check_timeout": {
+      "description": "HealthCheckTimeout limits the runtime health check duration before reporting failure.\n\nDefault: `1s`",
+      "type": "integer"
     },
     "host": {
       "description": "Host specifies the database server hostname or IP address.\n\nDefault: \"localhost\"",
@@ -43,6 +63,14 @@
     "password": {
       "description": "Password specifies the database password for authentication.\n\n**Security**: Use environment variables in production.",
       "type": "string"
+    },
+    "path": {
+      "description": "Path specifies the SQLite database location or \":memory:\".\n\nValues:\n  - \":memory:\" for ephemeral in-memory databases\n  - Relative or absolute file path for persistent storage",
+      "type": "string"
+    },
+    "ping_timeout": {
+      "description": "PingTimeout bounds how long connectivity checks may wait when establishing the pool.\n\nDefault: `3s`",
+      "type": "integer"
     },
     "port": {
       "description": "Port specifies the database server port.\n\nDefault: \"5432\" (PostgreSQL default)",

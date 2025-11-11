@@ -15,6 +15,7 @@ var (
 // This is the SINGLE SOURCE OF TRUTH for all configuration defaults
 func CreateRegistry() *Registry {
 	registry := NewRegistry()
+	registerGlobalModeField(registry)
 	registerServerFields(registry)
 	registerDatabaseFields(registry)
 	registerTemporalFields(registry)
@@ -41,6 +42,18 @@ func registerFieldDefs(registry *Registry, defs ...FieldDef) {
 		def := defs[i]
 		registry.Register(&def)
 	}
+}
+
+func registerGlobalModeField(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "mode",
+		Default: "memory",
+		CLIFlag: "mode",
+		EnvVar:  "COMPOZY_MODE",
+		Type:    reflect.TypeOf(""),
+		Help: "Deployment mode: memory (default, fastest), persistent " +
+			"(file SQLite/local dev), distributed (PostgreSQL/production)",
+	})
 }
 
 func registerStreamFields(registry *Registry) {
@@ -956,7 +969,7 @@ func registerTemporalCoreFields(registry *Registry) {
 		CLIFlag: "temporal-mode",
 		EnvVar:  "TEMPORAL_MODE",
 		Type:    reflect.TypeOf(""),
-		Help:    "Temporal connection mode: remote (production) or standalone (development/testing)",
+		Help:    "Temporal deployment mode (memory/persistent/remote), inherits from global mode if unset",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.host_port",
@@ -989,38 +1002,38 @@ func registerTemporalStandaloneServerFields(registry *Registry) {
 		Path:    "temporal.standalone.database_file",
 		Default: ":memory:",
 		CLIFlag: "temporal-standalone-database",
-		EnvVar:  "TEMPORAL_STANDALONE_DATABASE_FILE",
+		EnvVar:  "TEMPORAL_EMBEDDED_DATABASE_FILE",
 		Type:    reflect.TypeOf(""),
-		Help:    "SQLite database path for standalone Temporal server (:memory: for in-memory)",
+		Help:    "SQLite database path for embedded Temporal server (:memory: for in-memory)",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.frontend_port",
 		Default: 7233,
 		CLIFlag: "temporal-standalone-frontend-port",
-		EnvVar:  "TEMPORAL_STANDALONE_FRONTEND_PORT",
+		EnvVar:  "TEMPORAL_EMBEDDED_FRONTEND_PORT",
 		Type:    reflect.TypeOf(0),
-		Help:    "Frontend gRPC port for standalone Temporal server",
+		Help:    "Frontend gRPC port for embedded Temporal server",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.bind_ip",
 		Default: "127.0.0.1",
-		EnvVar:  "TEMPORAL_STANDALONE_BIND_IP",
+		EnvVar:  "TEMPORAL_EMBEDDED_BIND_IP",
 		Type:    reflect.TypeOf(""),
-		Help:    "IP address to bind standalone Temporal services",
+		Help:    "IP address to bind embedded Temporal services",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.namespace",
 		Default: "default",
-		EnvVar:  "TEMPORAL_STANDALONE_NAMESPACE",
+		EnvVar:  "TEMPORAL_EMBEDDED_NAMESPACE",
 		Type:    reflect.TypeOf(""),
-		Help:    "Default namespace created in standalone Temporal server",
+		Help:    "Default namespace created in embedded Temporal server",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.cluster_name",
 		Default: "compozy-standalone",
-		EnvVar:  "TEMPORAL_STANDALONE_CLUSTER_NAME",
+		EnvVar:  "TEMPORAL_EMBEDDED_CLUSTER_NAME",
 		Type:    reflect.TypeOf(""),
-		Help:    "Cluster name for standalone Temporal server",
+		Help:    "Cluster name for embedded Temporal server",
 	})
 }
 
@@ -1028,38 +1041,38 @@ func registerTemporalStandaloneRuntimeFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.enable_ui",
 		Default: true,
-		EnvVar:  "TEMPORAL_STANDALONE_ENABLE_UI",
+		EnvVar:  "TEMPORAL_EMBEDDED_ENABLE_UI",
 		Type:    reflect.TypeOf(true),
-		Help:    "Enable Temporal Web UI in standalone mode",
+		Help:    "Enable Temporal Web UI in embedded mode",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.require_ui",
 		Default: false,
-		EnvVar:  "TEMPORAL_STANDALONE_REQUIRE_UI",
+		EnvVar:  "TEMPORAL_EMBEDDED_REQUIRE_UI",
 		Type:    reflect.TypeOf(true),
-		Help:    "Fail startup when Temporal Web UI cannot be launched in standalone mode",
+		Help:    "Fail startup when Temporal Web UI cannot be launched in embedded mode",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.ui_port",
 		Default: 8233,
 		CLIFlag: "temporal-standalone-ui-port",
-		EnvVar:  "TEMPORAL_STANDALONE_UI_PORT",
+		EnvVar:  "TEMPORAL_EMBEDDED_UI_PORT",
 		Type:    reflect.TypeOf(0),
-		Help:    "HTTP port for Temporal Web UI in standalone mode",
+		Help:    "HTTP port for Temporal Web UI in embedded mode",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.log_level",
 		Default: "warn",
-		EnvVar:  "TEMPORAL_STANDALONE_LOG_LEVEL",
+		EnvVar:  "TEMPORAL_EMBEDDED_LOG_LEVEL",
 		Type:    reflect.TypeOf(""),
-		Help:    "Temporal server log level (debug, info, warn, error) in standalone mode",
+		Help:    "Temporal server log level (debug, info, warn, error) in embedded mode",
 	})
 	registry.Register(&FieldDef{
 		Path:    "temporal.standalone.start_timeout",
 		Default: 30 * time.Second,
-		EnvVar:  "TEMPORAL_STANDALONE_START_TIMEOUT",
+		EnvVar:  "TEMPORAL_EMBEDDED_START_TIMEOUT",
 		Type:    durationType,
-		Help:    "Maximum duration to wait for standalone Temporal server startup",
+		Help:    "Maximum duration to wait for embedded Temporal server startup",
 	})
 }
 
@@ -2189,11 +2202,23 @@ func registerCLIFields(registry *Registry) {
 }
 
 func registerRedisFields(registry *Registry) {
+	registerRedisModeFields(registry)
 	registerRedisConnectionFields(registry)
 	registerRedisPoolFields(registry)
 	registerRedisTimeoutFields(registry)
 	registerRedisRetryFields(registry)
 	registerRedisTLSFields(registry)
+}
+
+func registerRedisModeFields(registry *Registry) {
+	registry.Register(&FieldDef{
+		Path:    "redis.mode",
+		Default: "",
+		CLIFlag: "redis-mode",
+		EnvVar:  "REDIS_MODE",
+		Type:    reflect.TypeOf(""),
+		Help:    "Redis deployment mode (memory/persistent/distributed), inherits from global mode if unset",
+	})
 }
 
 func registerRedisConnectionFields(registry *Registry) {
@@ -2391,7 +2416,7 @@ func registerBasicCLIFields(registry *Registry) {
 	registry.Register(&FieldDef{
 		Path:    "cli.mode",
 		Default: "auto",
-		CLIFlag: "mode",
+		CLIFlag: "cli-mode",
 		EnvVar:  "COMPOZY_CLI_MODE",
 		Type:    reflect.TypeOf(""),
 		Help:    "CLI mode: auto, json, or tui",
@@ -2869,10 +2894,10 @@ func registerMCPProxyServerFields(registry *Registry) {
 		registry,
 		FieldDef{
 			Path:    "mcp_proxy.mode",
-			Default: "standalone",
+			Default: "memory",
 			EnvVar:  "MCP_PROXY_MODE",
 			Type:    reflect.TypeOf(""),
-			Help:    "MCP proxy mode: 'standalone' embeds the proxy (needs fixed port); empty keeps external proxy defaults",
+			Help:    "MCP proxy mode: 'memory'/'persistent' embed the proxy (fixed port); 'distributed' uses external proxy",
 		},
 		FieldDef{
 			Path:    "mcp_proxy.host",

@@ -5384,7 +5384,7 @@ paths:
       consumes:
         - '*/*'
       description: Streams agent execution updates over Server-Sent Events, emitting structured JSON or
-        llm_chunk text depending on the output schema.
+        llm_chunk text depending on the output schema. Served under routes.Base() (e.g., /api/v0/executions/agents/{exec_id}/stream).
       parameters:
         - description: Agent execution ID
           example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
@@ -5504,7 +5504,7 @@ paths:
       consumes:
         - '*/*'
       description: Streams task execution updates over Server-Sent Events, emitting structured JSON or
-        llm_chunk text depending on the task output schema.
+        llm_chunk text depending on the task output schema. Served under routes.Base() (e.g., /api/v0/executions/tasks/{exec_id}/stream).
       parameters:
         - description: Task execution ID
           example: '"2Z4PVTL6K27XVT4A3NPKMDD5BG"'
@@ -5562,7 +5562,7 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "503":
-          description: Pub/Sub provider unavailable
+          description: Pubsub provider unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'
@@ -5979,7 +5979,7 @@ paths:
                     $ref: '#/definitions/router.ErrorInfo'
                 type: object
         "503":
-          description: Worker unavailable
+          description: Workflow query client unavailable
           schema:
             allOf:
               - $ref: '#/definitions/router.Response'

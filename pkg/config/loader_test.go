@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -113,54 +114,203 @@ func TestValidateNativeToolTimeouts(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("MCPProxy mode validation", func(t *testing.T) {
+		cases := []struct {
+			name           string
+			mode           string
+			global         string
+			port           int
+			wantErr        bool
+			wantSubstrings []string
+		}{
+			{
+				name:   "inherit from global memory",
+				mode:   "",
+				global: ModeMemory,
+				port:   6201,
+			},
+			{
+				name:   "memory explicit",
+				mode:   ModeMemory,
+				global: ModeDistributed,
+				port:   6202,
+			},
+			{
+				name:   "persistent explicit",
+				mode:   ModePersistent,
+				global: ModeDistributed,
+				port:   6203,
+			},
+			{
+				name:   "distributed explicit",
+				mode:   ModeDistributed,
+				global: ModeMemory,
+				port:   0,
+			},
+			{
+				name:           "standalone rejected",
+				mode:           deprecatedModeStandalone,
+				global:         ModeDistributed,
+				port:           6204,
+				wantErr:        true,
+				wantSubstrings: []string{"no longer supported", ModeMemory, ModePersistent, ModeDistributed},
+			},
+			{
+				name:           "invalid value rejected",
+				mode:           "invalid",
+				global:         ModeDistributed,
+				port:           6205,
+				wantErr:        true,
+				wantSubstrings: []string{"must be one of", "invalid"},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				cfg := Default()
+				cfg.Mode = tc.global
+				cfg.MCPProxy.Mode = tc.mode
+				cfg.MCPProxy.Port = tc.port
+				err := validateMCPProxy(cfg)
+				if tc.wantErr {
+					if err == nil {
+						t.Fatalf("expected validation error for mcp_proxy.mode %q", tc.mode)
+					}
+					for _, sub := range tc.wantSubstrings {
+						if !strings.Contains(err.Error(), sub) {
+							t.Fatalf("expected error to contain %q, got: %v", sub, err)
+						}
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("expected nil error for mcp_proxy.mode %q, got: %v", tc.mode, err)
+				}
+			})
+		}
+	})
+}
+
+func TestValidateMCPProxy_PortRequirement(t *testing.T) {
+	t.Run("embedded modes require explicit port", func(t *testing.T) {
+		cases := []struct {
+			name string
+			mode string
+		}{
+			{name: "memory", mode: ModeMemory},
+			{name: "persistent", mode: ModePersistent},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				cfg := Default()
+				cfg.Mode = ModeDistributed
+				cfg.MCPProxy.Mode = tc.mode
+				cfg.MCPProxy.Port = 0
+				err := validateMCPProxy(cfg)
+				if err == nil {
+					t.Fatalf("expected error when mcp_proxy.port is zero for mode %q", tc.mode)
+				}
+				for _, sub := range []string{"mcp_proxy.port", ModeMemory, ModePersistent} {
+					if !strings.Contains(err.Error(), sub) {
+						t.Fatalf("expected error to contain %q, got: %v", sub, err)
+					}
+				}
+			})
+		}
+	})
 }
 
 func TestModeValidation(t *testing.T) {
 	t.Run("Global mode validation", func(t *testing.T) {
-		svc := NewService()
-		cfg := Default()
-		cfg.Mode = "standalone"
-		if err := svc.Validate(cfg); err != nil {
-			t.Fatalf("expected valid global mode, got: %v", err)
+		cases := []struct {
+			name           string
+			mode           string
+			wantErr        bool
+			wantSubstrings []string
+		}{
+			{name: "empty inherits default", mode: ""},
+			{name: "memory valid", mode: ModeMemory},
+			{name: "persistent valid", mode: ModePersistent},
+			{name: "distributed valid", mode: ModeDistributed},
+			{
+				name:           "standalone invalid",
+				mode:           "standalone",
+				wantErr:        true,
+				wantSubstrings: []string{"standalone", "has been replaced", ModeMemory, ModePersistent},
+			},
+			{name: "invalid value", mode: "invalid", wantErr: true, wantSubstrings: []string{"must be one of"}},
 		}
-		cfg.Mode = "distributed"
-		if err := svc.Validate(cfg); err != nil {
-			t.Fatalf("expected valid global mode, got: %v", err)
-		}
-		cfg.Mode = "invalid"
-		if err := svc.Validate(cfg); err == nil {
-			t.Fatalf("expected validation error for invalid global mode")
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				svc := NewService()
+				cfg := Default()
+				cfg.Mode = tc.mode
+				err := svc.Validate(cfg)
+				if tc.wantErr {
+					if err == nil {
+						t.Fatalf("expected validation error for global mode %q", tc.mode)
+					}
+					for _, sub := range tc.wantSubstrings {
+						if !strings.Contains(err.Error(), sub) {
+							t.Fatalf("expected error to contain %q, got: %v", sub, err)
+						}
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("expected valid global mode %q, got: %v", tc.mode, err)
+				}
+			})
 		}
 	})
 
 	t.Run("Component mode validation and inheritance", func(t *testing.T) {
-		svc := NewService()
-		cfg := Default()
-		// Empty is allowed (inheritance)
-		cfg.Redis.Mode = ""
-		if err := svc.Validate(cfg); err != nil {
-			t.Fatalf("expected nil error for empty redis.mode, got: %v", err)
+		cases := []struct {
+			name           string
+			mode           string
+			wantErr        bool
+			wantSubstrings []string
+		}{
+			{name: "inherit from global", mode: ""},
+			{name: "memory valid", mode: ModeMemory},
+			{name: "persistent valid", mode: ModePersistent},
+			{name: "distributed valid", mode: ModeDistributed},
+			{
+				name:           "standalone invalid",
+				mode:           "standalone",
+				wantErr:        true,
+				wantSubstrings: []string{"standalone", "no longer supported", ModeMemory, ModePersistent},
+			},
+			{name: "invalid value", mode: "invalid", wantErr: true, wantSubstrings: []string{"must be one of"}},
 		}
-		// Allowed values
-		cfg.Redis.Mode = "standalone"
-		if err := svc.Validate(cfg); err != nil {
-			t.Fatalf("expected valid redis.mode, got: %v", err)
-		}
-		cfg.Redis.Mode = "distributed"
-		if err := svc.Validate(cfg); err != nil {
-			t.Fatalf("expected valid redis.mode, got: %v", err)
-		}
-		// Invalid value
-		cfg.Redis.Mode = "invalid"
-		if err := svc.Validate(cfg); err == nil {
-			t.Fatalf("expected validation error for invalid redis.mode")
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				svc := NewService()
+				cfg := Default()
+				cfg.Redis.Mode = tc.mode
+				err := svc.Validate(cfg)
+				if tc.wantErr {
+					if err == nil {
+						t.Fatalf("expected validation error for redis.mode %q", tc.mode)
+					}
+					for _, sub := range tc.wantSubstrings {
+						if !strings.Contains(err.Error(), sub) {
+							t.Fatalf("expected error to contain %q, got: %v", sub, err)
+						}
+					}
+					return
+				}
+				if err != nil {
+					t.Fatalf("expected valid redis.mode %q, got: %v", tc.mode, err)
+				}
+			})
 		}
 	})
 
 	t.Run("Redis persistence configuration baseline", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()
-		cfg.Redis.Mode = "standalone"
+		cfg.Redis.Mode = ModePersistent
 		cfg.Redis.Standalone.Persistence.Enabled = true
 		cfg.Redis.Standalone.Persistence.DataDir = "/tmp/compozy-test"
 		cfg.Redis.Standalone.Persistence.SnapshotInterval = time.Minute
@@ -169,11 +319,10 @@ func TestModeValidation(t *testing.T) {
 		}
 	})
 
-	// Validation error messages
 	t.Run("Should provide helpful error for invalid snapshot interval", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()
-		cfg.Redis.Mode = "standalone"
+		cfg.Redis.Mode = ModePersistent
 		cfg.Redis.Standalone.Persistence.Enabled = true
 		cfg.Redis.Standalone.Persistence.DataDir = "/tmp/dir"
 		cfg.Redis.Standalone.Persistence.SnapshotInterval = 0
@@ -185,8 +334,8 @@ func TestModeValidation(t *testing.T) {
 	t.Run("Should allow missing Redis address in distributed mode (server skips client)", func(t *testing.T) {
 		svc := NewService()
 		cfg := Default()
-		cfg.Mode = "distributed"
-		cfg.Redis.Mode = "distributed"
+		cfg.Mode = ModeDistributed
+		cfg.Redis.Mode = ModeDistributed
 		cfg.Redis.URL = ""
 		cfg.Redis.Host = ""
 		cfg.Redis.Port = ""

@@ -248,9 +248,9 @@ func TestCacheAdapter_ModeSwitching(t *testing.T) {
 		ctx := testContext(t)
 		cfg := config.FromContext(ctx)
 
-		// Standalone
+		// Embedded cache backend (memory/persistent modes)
 		cfg.Mode = "distributed"
-		cfg.Redis.Mode = "standalone"
+		cfg.Redis.Mode = config.ModePersistent
 		c1, cleanup1, err := cache.SetupCache(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, c1)

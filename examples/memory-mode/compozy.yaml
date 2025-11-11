@@ -1,0 +1,41 @@
+# Memory mode quickstart example with fully ephemeral services.
+name: memory-mode-quickstart
+version: "0.1.0"
+description: Run Compozy with embedded Temporal and Redis using in-memory state.
+mode: memory
+
+database:
+  driver: sqlite
+  path: ":memory:"
+
+temporal:
+  mode: memory
+  standalone:
+    database_file: ":memory:"
+    enable_ui: true
+    ui_port: 8233
+
+redis:
+  mode: memory
+  standalone:
+    persistence:
+      enabled: false
+
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "${OPENAI_API_KEY}"
+
+workflows:
+  - source: ./workflow.yaml
+    watch: true
+
+tasks:
+  echo:
+    type: basic
+    action: run
+    prompt: |
+      You are verifying that Compozy runs in memory mode with embedded services.
+      Greet the caller and repeat their message: {{ .workflow.input.message }}.
+      Mention that no data is persisted to disk.
+    final: true

@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS task_states (
     FOREIGN KEY (parent_state_id)
         REFERENCES task_states (task_exec_id)
         ON DELETE CASCADE,
-    CHECK (execution_type IN ('basic','router','parallel','collection','composite')),
+    CHECK (execution_type IN ('basic','router','parallel','collection','composite','wait','signal','aggregate')),
     CHECK (
         (execution_type = 'basic' AND (
             (agent_id IS NOT NULL AND action_id IS NOT NULL AND tool_id IS NULL) OR
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS task_states (
             (agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL)
         )) OR
         (execution_type = 'router' AND agent_id IS NULL AND action_id IS NULL AND tool_id IS NULL) OR
-        (execution_type IN ('parallel', 'collection', 'composite'))
+        (execution_type IN ('parallel', 'collection', 'composite', 'wait', 'signal', 'aggregate'))
     ),
     CHECK (usage IS NULL OR json_type(usage) = 'array'),
     CHECK (input IS NULL OR json_valid(input)),

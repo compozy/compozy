@@ -12,6 +12,10 @@
           "description": "DefaultQueueSize bounds queued work waiting for a concurrency slot.\nZero disables queuing and causes immediate rejection when the pool is saturated.",
           "type": "integer"
         },
+        "default_release_slot_before_token_wait": {
+          "description": "DefaultReleaseSlotBeforeTokenWait releases concurrency slots before waiting on token budgets when true.\nThis favors throughput over strict slot ownership and may reduce head-of-line blocking.",
+          "type": "boolean"
+        },
         "default_request_burst": {
           "description": "DefaultRequestBurst overrides the burst size used for request-per-minute limiters.\nZero falls back to ceiling(perSecond) for compatibility.",
           "type": "integer"
@@ -63,6 +67,10 @@
         },
         "queue_size": {
           "type": "integer"
+        },
+        "release_slot_before_token_wait": {
+          "description": "ReleaseSlotBeforeTokenWait releases concurrency slots before token waits when true; nil inherits defaults.",
+          "type": "boolean"
         },
         "request_burst": {
           "description": "RequestBurst overrides the burst size for request-per-minute limiters. Zero defers to defaults.",

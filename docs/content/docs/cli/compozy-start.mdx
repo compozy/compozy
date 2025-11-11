@@ -4,10 +4,10 @@ description: "Production-grade start command with Temporal configuration flags."
 icon: Terminal
 ---
 
-The `compozy start` command boots the Compozy production server. With Temporal standalone mode it can also launch the embedded Temporal server, making end-to-end execution possible without external infrastructure.
+The `compozy start` command boots the Compozy production server. With Temporal embedded modes it can also launch the in-process Temporal server, making end-to-end execution possible without external infrastructure.
 
 <Callout type="warning">
-Use `--temporal-mode=standalone` for development and CI only. Keep production deployments pinned to `--temporal-mode=remote` and an external Temporal cluster.
+Use `--temporal-mode=memory` (or `persistent`) for development and CI only. Keep production deployments pinned to `--temporal-mode=distributed` and an external Temporal cluster.
 </Callout>
 
 ## Usage
@@ -29,12 +29,12 @@ compozy start [flags]
   <TableBody>
     <TableRow>
       <TableCell>`--temporal-mode`</TableCell>
-      <TableCell>Selects Temporal connectivity (`remote` or `standalone`).</TableCell>
+      <TableCell>Selects Temporal connectivity (`distributed`, `memory`, or `persistent`; `remote` remains a legacy alias).</TableCell>
       <TableCell>`remote`</TableCell>
     </TableRow>
     <TableRow>
       <TableCell>`--temporal-host`</TableCell>
-      <TableCell>Overrides the Temporal gRPC endpoint when running in remote mode.</TableCell>
+      <TableCell>Overrides the Temporal gRPC endpoint when running in distributed mode.</TableCell>
       <TableCell>`localhost:7233`</TableCell>
     </TableRow>
     <TableRow>
@@ -110,12 +110,12 @@ When `--db-driver=sqlite`, configure an external vector database (Qdrant, Redis,
 
 ## Examples
 
-<Tabs items={["Remote", "Standalone"]}>
+<Tabs items={["Distributed", "Embedded (memory/persistent)"]}>
   <Tab>
 
   ```bash title="Production"
   compozy start \
-    --temporal-mode=remote \
+    --temporal-mode=distributed \
     --temporal-host=temporal.internal:7233 \
     --temporal-namespace=compozy-prod
   ```
@@ -125,7 +125,7 @@ When `--db-driver=sqlite`, configure an external vector database (Qdrant, Redis,
 
   ```bash title="Local development"
   compozy start \
-    --temporal-mode=standalone \
+    --temporal-mode=memory \
     --temporal-standalone-database=:memory: \
     --temporal-standalone-frontend-port=9733 \
     --temporal-standalone-ui-port=9833
@@ -135,7 +135,7 @@ When `--db-driver=sqlite`, configure an external vector database (Qdrant, Redis,
 </Tabs>
 
 <Callout type="success">
-During development you can keep `temporal.mode=standalone` in `compozy.yaml` and omit the flag entirely; the CLI flag still wins if you need to override temporarily.
+During development you can keep `temporal.mode=memory` (or `persistent`) in `compozy.yaml` and omit the flag entirely; the CLI flag still wins if you need to override temporarily.
 </Callout>
 
 ## Flag Precedence
@@ -151,22 +151,22 @@ During development you can keep `temporal.mode=standalone` in `compozy.yaml` and
     `TEMPORAL_MODE`, `TEMPORAL_HOST_PORT`, and friends populate defaults when neither flags nor config values are provided.
   </ListItem>
   <ListItem title="Defaults" icon="CheckCircle">
-    Registry defaults supply sensible values for local development (remote mode + localhost ports).
+    Registry defaults supply sensible values for local development (memory mode + localhost ports).
   </ListItem>
 </List>
 
 ## Operational Notes
 
-- Port availability checks ensure standalone mode fails fast if 7233-7236 or 8233 are busy.
+- Port availability checks ensure embedded modes fail fast if 7233-7236 or 8233 are busy.
 - `start_timeout` controls how long the CLI waits for the embedded server to go healthy.
-- Logs flow through `logger.FromContext(ctx)`; increase verbosity with `--log-level debug` alongside `--temporal-standalone-log-level=debug` in configuration.
+- Logs flow through `logger.FromContext(ctx)`; increase verbosity with `--log-level debug` and adjust `temporal.standalone.log_level` in configuration.
 
 ## Related Content
 
 <ReferenceCardList>
   <ReferenceCard
     title="Temporal Modes"
-    description="Compare remote and standalone deployments"
+    description="Compare memory, persistent, and distributed deployments"
     href="/docs/deployment/temporal-modes"
     icon="GitBranch"
   />

@@ -15,7 +15,6 @@ import (
 func TestTaskRepoIntegration(t *testing.T) {
 	t.Run("Should upsert and retrieve task state", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-upsert"
@@ -63,7 +62,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 	t.Run("Should manage transactions", func(t *testing.T) {
 		t.Run("Should commit child states when closure succeeds", func(t *testing.T) {
 			env := newRepoTestEnv(t)
-			truncateRepoTables(env.ctx, t, env.pool)
 
 			workflowExecID := core.MustNewID()
 			workflowID := "wf-tx-success"
@@ -133,7 +131,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 
 		t.Run("Should rollback child states when closure fails", func(t *testing.T) {
 			env := newRepoTestEnv(t)
-			truncateRepoTables(env.ctx, t, env.pool)
 
 			workflowExecID := core.MustNewID()
 			workflowID := "wf-tx-rollback"
@@ -186,7 +183,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 
 	t.Run("Should get task state and handle not found", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-get"
@@ -218,7 +214,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 
 	t.Run("Should list task states using available filters", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-list"
@@ -296,7 +291,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 
 	t.Run("Should list children, child outputs, and fetch child by task id", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-children"
@@ -369,7 +363,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 
 	t.Run("Should build task tree for hierarchical executions", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-tree"
@@ -446,7 +439,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 
 	t.Run("Should aggregate task progress information", func(t *testing.T) {
 		env := newRepoTestEnv(t)
-		truncateRepoTables(env.ctx, t, env.pool)
 
 		workflowExecID := core.MustNewID()
 		workflowID := "wf-progress"
@@ -526,7 +518,6 @@ func TestTaskRepoIntegration(t *testing.T) {
 		assert.Equal(t, 0.0, progressInfo.FailureRate)
 		assert.Empty(t, progressInfo.StatusCounts)
 
-		truncateRepoTables(env.ctx, t, env.pool)
 		upsertWorkflowState(t, env, workflowID, workflowExecID, nil)
 		parentExecID = core.MustNewID()
 		parentState.TaskExecID = parentExecID

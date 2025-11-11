@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMaybeStartStandaloneTemporal_ModeResolver(t *testing.T) {
+func TestMaybeStartEmbeddedTemporal_ModeResolver(t *testing.T) {
 	t.Run("Should skip embedded Temporal in remote/distributed mode", func(t *testing.T) {
 		ctx := logger.ContextWithLogger(t.Context(), logger.NewForTests())
 		mgr := config.NewManager(ctx, config.NewService())
@@ -21,7 +21,7 @@ func TestMaybeStartStandaloneTemporal_ModeResolver(t *testing.T) {
 		require.NotNil(t, cfg)
 		cfg.Mode = "distributed"
 		cfg.Temporal.Mode = "remote"
-		cleanup, err := maybeStartStandaloneTemporal(ctx)
+		cleanup, err := maybeStartEmbeddedTemporal(ctx)
 		require.NoError(t, err)
 		assert.Nil(t, cleanup)
 	})

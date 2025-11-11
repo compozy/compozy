@@ -10,8 +10,10 @@ import (
 )
 
 const (
-	modeStandalone  = "standalone"
-	modeDistributed = "distributed"
+	modeMemory                = config.ModeMemory
+	modePersistent            = config.ModePersistent
+	modeDistributed           = config.ModeDistributed
+	defaultPersistenceDataDir = "./.compozy/redis"
 )
 
 // Config represents the cache-specific configuration
@@ -35,16 +37,18 @@ type Cache struct {
 	Redis        *Redis
 	LockManager  LockManager
 	Notification NotificationSystem
-	// embedded holds the standalone miniredis server when running in standalone
-	// mode. It remains nil when using an external (distributed) Redis backend.
-	embedded *MiniredisStandalone
+	// embedded holds the embedded miniredis server when running in memory or
+	// persistent modes. It remains nil when using an external (distributed) Redis
+	// backend.
+	embedded *MiniredisEmbedded
 }
 
 // SetupCache creates a mode-aware cache backend using configuration from context.
 // It returns a unified Cache object plus a cleanup function safe to call multiple times.
 //
 // Modes (resolved via cfg.EffectiveRedisMode()):
-//   - "standalone": starts an embedded miniredis and connects a client to it
+//   - "memory": starts an embedded miniredis without persistence
+//   - "persistent": starts an embedded miniredis with persistence enabled
 //   - "distributed" (default): connects to external Redis using provided settings
 func SetupCache(ctx context.Context) (*Cache, func(), error) {
 	log := logger.FromContext(ctx)
@@ -58,10 +62,14 @@ func SetupCache(ctx context.Context) (*Cache, func(), error) {
 	log.Info("Initializing cache backend", "mode", mode)
 
 	switch mode {
-	case modeStandalone:
-		return setupStandaloneCache(ctx, cacheCfg)
+	case modeMemory:
+		return setupMemoryCache(ctx, cacheCfg)
+
+	case modePersistent:
+		return setupPersistentCache(ctx, cacheCfg)
 
 	case modeDistributed:
+		log.Info("Cache in distributed mode (external Redis)")
 		return setupDistributedCache(ctx, cacheCfg)
 
 	default:
@@ -69,12 +77,51 @@ func SetupCache(ctx context.Context) (*Cache, func(), error) {
 	}
 }
 
-// setupStandaloneCache creates embedded miniredis backend and wraps it with Redis facade.
-func setupStandaloneCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
+func setupMemoryCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
+	redisCfg := cacheCfg.RedisConfig
+	if redisCfg == nil {
+		return nil, nil, fmt.Errorf("missing redis configuration for memory mode")
+	}
+	persistence := &redisCfg.Standalone.Persistence
+	previouslyEnabled := persistence.Enabled
+	persistence.Enabled = false
 	log := logger.FromContext(ctx)
-	mr, err := NewMiniredisStandalone(ctx)
+	log.Info("Cache in memory mode",
+		"persistence_enabled", persistence.Enabled,
+		"previously_enabled", previouslyEnabled,
+	)
+	return setupEmbeddedCache(ctx, cacheCfg, modeMemory)
+}
+
+func setupPersistentCache(ctx context.Context, cacheCfg *Config) (*Cache, func(), error) {
+	redisCfg := cacheCfg.RedisConfig
+	if redisCfg == nil {
+		return nil, nil, fmt.Errorf("missing redis configuration for persistent mode")
+	}
+	persistence := &redisCfg.Standalone.Persistence
+	if !persistence.Enabled {
+		persistence.Enabled = true
+	}
+	defaultedDataDir := false
+	if persistence.DataDir == "" {
+		persistence.DataDir = defaultPersistenceDataDir
+		defaultedDataDir = true
+	}
+	log := logger.FromContext(ctx)
+	log.Info("Cache in persistent mode",
+		"persistence_enabled", persistence.Enabled,
+		"data_dir", persistence.DataDir,
+		"default_data_dir", defaultedDataDir,
+	)
+	return setupEmbeddedCache(ctx, cacheCfg, modePersistent)
+}
+
+// setupEmbeddedCache creates an embedded miniredis backend and wraps it with the Redis facade.
+func setupEmbeddedCache(ctx context.Context, cacheCfg *Config, mode string) (*Cache, func(), error) {
+	log := logger.FromContext(ctx)
+	mr, err := NewMiniredisEmbedded(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create miniredis standalone: %w", err)
+		return nil, nil, fmt.Errorf("create miniredis embedded: %w", err)
 	}
 	r := NewRedisFromClient(ctx, mr.Client(), cacheCfg)
 	lm, err := NewRedisLockManager(r)
@@ -91,7 +138,14 @@ func setupStandaloneCache(ctx context.Context, cacheCfg *Config) (*Cache, func()
 	cleanup := func() {
 		_ = c.Close(context.WithoutCancel(ctx))
 	}
-	log.Info("Standalone cache initialized")
+	persistenceEnabled := false
+	if cacheCfg != nil && cacheCfg.RedisConfig != nil {
+		persistenceEnabled = cacheCfg.Standalone.Persistence.Enabled
+	}
+	log.Info("Embedded cache initialized",
+		"mode", mode,
+		"persistence_enabled", persistenceEnabled,
+	)
 	return c, cleanup, nil
 }
 

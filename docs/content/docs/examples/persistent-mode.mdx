@@ -1,0 +1,100 @@
+---
+title: "Persistent Mode Example"
+description: "Embedded services with on-disk durability for day-to-day development."
+icon: HardDrive
+---
+
+Persistent mode keeps everything local while ensuring state survives process restarts. The example leans on the project-level `.compozy` directory so artifacts stay grouped together and easy to clean.
+
+```yaml title="examples/configs/persistent-mode.yaml"
+# Durable local profile for iterative development with stateful debugging.
+name: persistent-dev
+version: "0.1.0"
+mode: persistent  # Promote the entire stack to durable embedded services.
+
+# SQLite writes to disk so database state survives restarts.
+database:
+  driver: sqlite
+  path: ./.compozy/compozy.db  # Keep project data in a hidden folder.
+
+# Temporal still runs in-process, but stores history and visibility on disk.
+temporal:
+  mode: persistent
+  standalone:
+    database_file: ./.compozy/temporal.db  # Replays workflows across sessions.
+    enable_ui: true
+    ui_port: 8233
+
+# Redis (Miniredis) persists snapshots via BadgerDB.
+redis:
+  mode: persistent
+  standalone:
+    persistence:
+      enabled: true
+      data_dir: ./.compozy/redis  # Holds snapshot and AOF files.
+
+# Shared OpenAI model configuration for local workflows.
+models:
+  - provider: openai
+    model: gpt-4o-mini
+    api_key: "${OPENAI_API_KEY}"
+
+# Reference a workflow file so you can replay durable history.
+workflows:
+  - source: ./workflows/summarize.yaml
+    watch: true
+
+# Example task that produces artifacts you can inspect later.
+tasks:
+  - id: summarize
+    type: basic
+    action: run
+    prompt: |
+      Summarize this note for tomorrow's stand-up:
+      {{ .workflow.input.note }}
+    final: true
+```
+
+## How to Run
+
+1. Create the `.compozy` directory (`mkdir -p .compozy`) if it does not exist.
+2. Export `OPENAI_API_KEY`.
+3. Add `workflows/summarize.yaml` using the snippet below.
+4. Start Compozy: `compozy start --config examples/configs/persistent-mode.yaml`.
+5. Submit a workflow run: `compozy workflow run workflows/summarize.yaml --input '{"note":"Review docs and ship release"}'`.
+6. Restart Compozy and confirm the history is still available in the Temporal UI at `http://localhost:8233`.
+
+```yaml title="workflows/summarize.yaml"
+id: summarize
+version: 0.1.0
+description: Persistent workflow for local debugging
+
+config:
+  input:
+    type: object
+    properties:
+      note:
+        type: string
+        description: Meeting note or TODO to summarize
+        default: "Investigate mode migration backlog"
+    required:
+      - note
+
+tasks:
+  - id: summarize
+    type: reference
+    target: summarize
+
+outputs:
+  summary: "{{ .tasks.summarize.output }}"
+```
+
+## When to Use Persistent Mode
+
+- Local development where you want to resume workflows after editing code
+- Manual QA that benefits from repeatable reproduction steps
+- Feature work that requires inspecting cache entries or Temporal runs over time
+
+<Callout type="tip">
+Need to share services or scale beyond a single machine? Move to the [distributed example](/docs/examples/distributed-mode).
+</Callout>

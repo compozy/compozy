@@ -90,7 +90,11 @@ func TestValidateDatabaseConfig(t *testing.T) {
 		}, buffer)
 		require.NoError(t, srv.validateDatabaseConfig(cfg))
 		logOutput := stripANSI(buffer.String())
-		assert.Contains(t, logOutput, "SQLite mode without vector database - knowledge features will not work")
+		assert.Contains(
+			t,
+			logOutput,
+			"SQLite driver configured without vector database - knowledge features will not work",
+		)
 		assert.Contains(t, logOutput, "recommendation")
 	})
 

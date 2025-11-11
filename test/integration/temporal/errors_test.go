@@ -23,7 +23,7 @@ func TestPortConflict(t *testing.T) {
 	primaryCfg := newEmbeddedConfigFromDefaults()
 	primaryCfg.EnableUI = false
 	primaryCfg.FrontendPort = frontendPort
-	server := startStandaloneServer(ctx, t, primaryCfg)
+	server := startEmbeddedServer(ctx, t, primaryCfg)
 	t.Cleanup(func() {
 		stopTemporalServer(ctx, t, server)
 	})

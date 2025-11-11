@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"embed"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/pkg/logger"
@@ -16,6 +17,7 @@ import (
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
+var gooseMu sync.Mutex
 
 // ApplyMigrations runs database migrations from the embedded SQL files
 // using goose. It expects a DSN understood by database/sql with the
@@ -72,13 +74,18 @@ func ApplyMigrationsWithLock(ctx context.Context, dsn string) error {
 
 // runMigrations applies migrations on the provided *sql.DB.
 func runMigrations(_ context.Context, db *sql.DB) error {
+	gooseMu.Lock()
+	defer gooseMu.Unlock()
 	goose.SetBaseFS(migrationsFS)
 	if err := goose.SetDialect("postgres"); err != nil {
+		goose.SetBaseFS(nil)
 		return fmt.Errorf("set goose dialect: %w", err)
 	}
 	if err := goose.Up(db, "migrations"); err != nil {
+		goose.SetBaseFS(nil)
 		return fmt.Errorf("migrate up: %w", err)
 	}
+	goose.SetBaseFS(nil)
 	return nil
 }
 

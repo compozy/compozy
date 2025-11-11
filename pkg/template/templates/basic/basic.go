@@ -77,6 +77,7 @@ type projectConfig struct {
 	Name        string            `yaml:"name"`
 	Version     string            `yaml:"version"`
 	Description string            `yaml:"description"`
+	Mode        string            `yaml:"mode"`
 	Author      *authorConfig     `yaml:"author,omitempty"`
 	Workflows   []workflowRef     `yaml:"workflows,omitempty"`
 	Models      []modelConfig     `yaml:"models,omitempty"`
@@ -158,6 +159,7 @@ func baseProjectConfig(opts *template.GenerateOptions) *projectConfig {
 		Name:        opts.Name,
 		Version:     opts.Version,
 		Description: opts.Description,
+		Mode:        opts.Mode,
 		Workflows: []workflowRef{
 			{Source: "./workflows/main.yaml"},
 		},
@@ -206,7 +208,7 @@ func authorFromOptions(opts *template.GenerateOptions) *authorConfig {
 
 // AddDockerFiles adds Docker-related files when DockerSetup is enabled
 func (t *Template) AddDockerFiles(opts *template.GenerateOptions) []template.File {
-	if !opts.DockerSetup {
+	if !opts.DockerSetup || opts.Mode != "distributed" {
 		return nil
 	}
 	return []template.File{
@@ -220,7 +222,7 @@ func (t *Template) AddDockerFiles(opts *template.GenerateOptions) []template.Fil
 // GetFilesWithOptions returns all template files including optional Docker files
 func (t *Template) GetFilesWithOptions(opts *template.GenerateOptions) []template.File {
 	files := t.GetFiles()
-	if opts.DockerSetup {
+	if opts.DockerSetup && opts.Mode == "distributed" {
 		files = append(files, template.File{
 			Name:    "docker-compose.yaml",
 			Content: dockerComposeTemplate,

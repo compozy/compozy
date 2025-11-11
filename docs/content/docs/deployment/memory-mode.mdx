@@ -1,0 +1,192 @@
+---
+title: "Memory Mode Deployment"
+description: "Run Compozy entirely in-memory with embedded Temporal and Redis for instant feedback."
+icon: Rocket
+---
+
+<Callout type="info" title="New default mode">
+Memory mode starts Compozy with an in-memory SQLite database plus embedded Temporal and Redis services. It is the default experience for fast local feedback loops.
+</Callout>
+
+<Callout type="tip">
+Previously called `standalone`. Use the migration guide if you still see that name in older configs.
+</Callout>
+
+## When to Choose Memory Mode
+
+<List>
+  <ListItem title="Rapid development" icon="Monitor">
+    Start coding immediately with zero external dependencies and sub-second boot times.
+  </ListItem>
+  <ListItem title="Ephemeral CI pipelines" icon="Workflow">
+    Keep integration tests deterministic and fast by running Temporal and Redis in-process.
+  </ListItem>
+  <ListItem title="Workshops & demos" icon="Sparkles">
+    Share examples that run everywhere without provisioning infrastructure.
+  </ListItem>
+</List>
+
+<Callout type="warning">
+Memory mode keeps state in RAM. Restarting the process clears Temporal history and the cache, and SQLite writes are not persisted. For production or shared environments, choose [Persistent Mode](/docs/deployment/persistent-mode) or [Distributed Mode](/docs/deployment/distributed-mode).
+</Callout>
+
+## Architecture Snapshot
+
+<List>
+  <ListItem title="Database" icon="Database">
+    In-memory SQLite (`mode: memory`) for the primary application database. No files are written to disk.
+  </ListItem>
+  <ListItem title="Temporal" icon="GitBranch">
+    Embedded Temporal server (`temporal.mode: memory`) with optional UI on port 8233.
+  </ListItem>
+  <ListItem title="Redis" icon="Layers">
+    Embedded Redis-compatible cache (`redis.mode: memory`) implemented with Miniredis. Persistence is disabled.
+  </ListItem>
+</List>
+
+## Quick Start
+
+Create `compozy.yaml` with memory mode for every component.
+
+```yaml title="compozy.yaml"
+name: hello-memory
+version: "0.1.0"
+
+mode: memory
+
+temporal:
+  mode: memory
+  host_port: localhost:7233
+  standalone:
+    database_file: :memory:
+    frontend_port: 7233
+    bind_ip: 127.0.0.1
+    namespace: default
+    cluster_name: compozy-memory
+    enable_ui: true
+    ui_port: 8233
+
+redis:
+  mode: memory
+  standalone:
+    persistence:
+      enabled: false
+
+workflows:
+  - source: ./workflows/greeting.yaml
+```
+
+Start Compozy with explicit overrides (YAML still wins):
+
+```bash
+compozy start --mode memory --temporal-mode=memory
+```
+
+Open the Temporal UI at `http://localhost:8233` and run a sample workflow.
+
+## Configuration Reference
+
+- Global mode: see [Mode Configuration](/docs/configuration/mode-configuration)
+- Temporal options: see [Temporal Configuration](/docs/configuration/temporal)
+- Cache options: see [Redis Configuration](/docs/configuration/redis)
+
+### Minimal Memory Mode (Ephemeral)
+
+```yaml
+mode: memory
+
+temporal:
+  mode: memory
+  standalone:
+    database_file: :memory:
+
+redis:
+  mode: memory
+  standalone:
+    persistence:
+      enabled: false
+```
+
+### Enable Temporary Snapshots
+
+```yaml
+mode: memory
+
+temporal:
+  mode: memory
+  standalone:
+    database_file: :memory:
+
+redis:
+  mode: memory
+  standalone:
+    persistence:
+      enabled: true
+      data_dir: /tmp/compozy-snapshots
+      snapshot_interval: 60s
+```
+
+## Verify the Setup
+
+<Steps size="sm">
+  <Step title="Server is running">
+    `compozy start` shows HTTP and Temporal ports; the Temporal UI responds at the configured `ui_port`.
+  </Step>
+  <Step title="Workflow executes">
+    Run `compozy workflow run ./workflows/greeting.yaml --input '{"name":"Ava"}'` and confirm success in the UI.
+  </Step>
+  <Step title="Cache operational">
+    Run features that use caching (rate limits, stores). Snapshot persistence is optional and primarily useful for debugging restarts.
+  </Step>
+</Steps>
+
+## Performance Expectations
+
+- Startup: typically under one second on modern laptops
+- Throughput: limited by single-process concurrency; keep write-heavy workloads small
+- Temporal UI: convenient for debugging, disable in CI for faster boots (`enable_ui: false`)
+
+## Troubleshooting
+
+Common issues and fixes:
+
+- Port conflict on `7233–7236` or `8233`: Adjust `temporal.standalone.frontend_port` or `ui_port`.
+- Temporal fails to start: Increase `temporal.standalone.start_timeout` (e.g. `60s`) for slower machines.
+- Snapshot errors: Verify `redis.standalone.persistence.data_dir` write permissions.
+
+See [Temporal Troubleshooting](/docs/troubleshooting/temporal) and [Common Issues](/docs/troubleshooting/common-issues).
+
+## Next Steps
+
+<ReferenceCardList cols={2}>
+  <ReferenceCard
+    title="Persistent Mode"
+    description="Embedded services with file-backed durability for local teams"
+    href="/docs/deployment/persistent-mode"
+    icon="Folder"
+  />
+  <ReferenceCard
+    title="Distributed Mode"
+    description="Production-grade deployment with durable infrastructure"
+    href="/docs/deployment/distributed-mode"
+    icon="Server"
+  />
+  <ReferenceCard
+    title="Mode Configuration"
+    description="Understand global vs per-component mode selection"
+    href="/docs/configuration/mode-configuration"
+    icon="GitBranch"
+  />
+  <ReferenceCard
+    title="Redis Configuration"
+    description="Cache settings for embedded and distributed environments"
+    href="/docs/configuration/redis"
+    icon="Database"
+  />
+  <ReferenceCard
+    title="Mode Migration Guide"
+    description="Decide between memory, persistent, and distributed deployments"
+    href="/docs/guides/mode-migration-guide"
+    icon="ArrowRight"
+  />
+</ReferenceCardList>

@@ -14,11 +14,18 @@ import (
 )
 
 const (
-	mcpProxyModeStandalone = "standalone"
-
 	databaseDriverPostgres = "postgres"
 	databaseDriverSQLite   = "sqlite"
 )
+
+func isEmbeddedMode(mode string) bool {
+	switch strings.TrimSpace(mode) {
+	case ModeMemory, ModePersistent:
+		return true
+	default:
+		return false
+	}
+}
 
 // Config represents the complete configuration for the Compozy system.
 //
@@ -49,11 +56,12 @@ const (
 //	  environment: development
 //	  log_level: info
 type Config struct {
-	// Mode controls global deployment model.
+	// Mode controls the global deployment model.
 	//
-	// "distributed" (default): External services required
-	// "standalone": Embedded services, single-process
-	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=standalone distributed"`
+	// "memory" (default): In-memory SQLite with embedded services for tests, CI pipelines, and quick prototypes.
+	// "persistent": File-backed SQLite with embedded services for local development that needs state between runs.
+	// "distributed": PostgreSQL with external Temporal/Redis for production-grade deployments.
+	Mode string `koanf:"mode"   env:"COMPOZY_MODE" json:"mode"   yaml:"mode"   mapstructure:"mode"   validate:"omitempty,oneof=memory persistent distributed"`
 	// Server configures the HTTP API server settings.
 	//
 	// $ref: schema://application#server
@@ -543,9 +551,10 @@ type TemporalConfig struct {
 	// Mode controls how the application connects to Temporal.
 	//
 	// Values:
-	//   - "remote": Connect to an external Temporal cluster (default)
-	//   - "standalone": Launch embedded Temporal server for local development and tests
-	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=remote standalone"`
+	//   - "memory": Launch embedded Temporal with in-memory persistence for the fastest feedback loops (default)
+	//   - "persistent": Launch embedded Temporal with file-backed persistence for stateful local development
+	//   - "distributed": Connect to an external Temporal deployment for production workloads
+	Mode string `koanf:"mode" env:"TEMPORAL_MODE" json:"mode" yaml:"mode" mapstructure:"mode" validate:"omitempty,oneof=memory persistent distributed remote"`
 
 	// HostPort specifies the Temporal server endpoint.
 	//
@@ -572,46 +581,46 @@ type TemporalConfig struct {
 	// Default: "compozy-tasks"
 	TaskQueue string `koanf:"task_queue" env:"TEMPORAL_TASK_QUEUE" json:"task_queue" yaml:"task_queue" mapstructure:"task_queue"`
 
-	// Standalone configures embedded Temporal when Mode is set to "standalone".
-	Standalone StandaloneConfig `koanf:"standalone" env_prefix:"TEMPORAL_STANDALONE" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
+	// Standalone configures the embedded Temporal server used by memory and persistent modes.
+	Standalone EmbeddedTemporalConfig `koanf:"standalone" env_prefix:"TEMPORAL_EMBEDDED" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
 }
 
-// StandaloneConfig configures the embedded Temporal server.
+// EmbeddedTemporalConfig configures the embedded Temporal server that powers memory and persistent modes.
 //
 // These options mirror the embedded server configuration so users can manage development
 // and test environments without touching production settings.
-type StandaloneConfig struct {
+type EmbeddedTemporalConfig struct {
 	// DatabaseFile specifies the SQLite database location.
 	//
 	// Use ":memory:" for ephemeral storage or provide a file path for persistence.
-	DatabaseFile string `koanf:"database_file" env:"TEMPORAL_STANDALONE_DATABASE_FILE" json:"database_file" yaml:"database_file" mapstructure:"database_file"`
+	DatabaseFile string `koanf:"database_file" env:"TEMPORAL_EMBEDDED_DATABASE_FILE" json:"database_file" yaml:"database_file" mapstructure:"database_file"`
 
 	// FrontendPort sets the gRPC port for the Temporal frontend service.
-	FrontendPort int `koanf:"frontend_port" env:"TEMPORAL_STANDALONE_FRONTEND_PORT" json:"frontend_port" yaml:"frontend_port" mapstructure:"frontend_port"`
+	FrontendPort int `koanf:"frontend_port" env:"TEMPORAL_EMBEDDED_FRONTEND_PORT" json:"frontend_port" yaml:"frontend_port" mapstructure:"frontend_port"`
 
 	// BindIP determines the IP address Temporal services bind to.
-	BindIP string `koanf:"bind_ip" env:"TEMPORAL_STANDALONE_BIND_IP" json:"bind_ip" yaml:"bind_ip" mapstructure:"bind_ip"`
+	BindIP string `koanf:"bind_ip" env:"TEMPORAL_EMBEDDED_BIND_IP" json:"bind_ip" yaml:"bind_ip" mapstructure:"bind_ip"`
 
 	// Namespace specifies the default namespace created on startup.
-	Namespace string `koanf:"namespace" env:"TEMPORAL_STANDALONE_NAMESPACE" json:"namespace" yaml:"namespace" mapstructure:"namespace"`
+	Namespace string `koanf:"namespace" env:"TEMPORAL_EMBEDDED_NAMESPACE" json:"namespace" yaml:"namespace" mapstructure:"namespace"`
 
-	// ClusterName customizes the Temporal cluster name for standalone mode.
-	ClusterName string `koanf:"cluster_name" env:"TEMPORAL_STANDALONE_CLUSTER_NAME" json:"cluster_name" yaml:"cluster_name" mapstructure:"cluster_name"`
+	// ClusterName customizes the Temporal cluster name for embedded deployments.
+	ClusterName string `koanf:"cluster_name" env:"TEMPORAL_EMBEDDED_CLUSTER_NAME" json:"cluster_name" yaml:"cluster_name" mapstructure:"cluster_name"`
 
 	// EnableUI toggles the Temporal Web UI server.
-	EnableUI bool `koanf:"enable_ui" env:"TEMPORAL_STANDALONE_ENABLE_UI" json:"enable_ui" yaml:"enable_ui" mapstructure:"enable_ui"`
+	EnableUI bool `koanf:"enable_ui" env:"TEMPORAL_EMBEDDED_ENABLE_UI" json:"enable_ui" yaml:"enable_ui" mapstructure:"enable_ui"`
 
 	// RequireUI enforces UI availability; startup fails when UI cannot be launched.
-	RequireUI bool `koanf:"require_ui" env:"TEMPORAL_STANDALONE_REQUIRE_UI" json:"require_ui" yaml:"require_ui" mapstructure:"require_ui"`
+	RequireUI bool `koanf:"require_ui" env:"TEMPORAL_EMBEDDED_REQUIRE_UI" json:"require_ui" yaml:"require_ui" mapstructure:"require_ui"`
 
 	// UIPort sets the HTTP port for the Temporal Web UI.
-	UIPort int `koanf:"ui_port" env:"TEMPORAL_STANDALONE_UI_PORT" json:"ui_port" yaml:"ui_port" mapstructure:"ui_port"`
+	UIPort int `koanf:"ui_port" env:"TEMPORAL_EMBEDDED_UI_PORT" json:"ui_port" yaml:"ui_port" mapstructure:"ui_port"`
 
 	// LogLevel controls Temporal server logging verbosity.
-	LogLevel string `koanf:"log_level" env:"TEMPORAL_STANDALONE_LOG_LEVEL" json:"log_level" yaml:"log_level" mapstructure:"log_level"`
+	LogLevel string `koanf:"log_level" env:"TEMPORAL_EMBEDDED_LOG_LEVEL" json:"log_level" yaml:"log_level" mapstructure:"log_level"`
 
 	// StartTimeout defines the maximum startup wait duration.
-	StartTimeout time.Duration `koanf:"start_timeout" env:"TEMPORAL_STANDALONE_START_TIMEOUT" json:"start_timeout" yaml:"start_timeout" mapstructure:"start_timeout"`
+	StartTimeout time.Duration `koanf:"start_timeout" env:"TEMPORAL_EMBEDDED_START_TIMEOUT" json:"start_timeout" yaml:"start_timeout" mapstructure:"start_timeout"`
 }
 
 // RuntimeConfig contains runtime behavior configuration.
@@ -1315,9 +1324,10 @@ type RedisConfig struct {
 	//
 	// Values:
 	//   - "" (empty): Inherit from global Config.Mode
+	//   - "memory": Use embedded Redis without persistence
+	//   - "persistent": Use embedded Redis with persistence enabled
 	//   - "distributed": Use external Redis (explicit override)
-	//   - "standalone": Use embedded miniredis (explicit override)
-	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty,oneof=standalone distributed"`
+	Mode string `koanf:"mode" json:"mode" yaml:"mode" mapstructure:"mode" env:"REDIS_MODE" validate:"omitempty,oneof=memory persistent distributed"`
 	// URL provides a complete Redis connection string.
 	//
 	// Format: `redis://[user:password@]host:port/db`
@@ -1419,23 +1429,23 @@ type RedisConfig struct {
 	// If nil, default TLS configuration will be used.
 	TLSConfig *tls.Config `koanf:"-" json:"-" yaml:"-" mapstructure:"-"`
 
-	// Standalone config for embedded Redis when Mode is "standalone".
-	Standalone RedisStandaloneConfig `koanf:"standalone" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
+	// Standalone config defines embedded Redis options used in memory and persistent modes.
+	Standalone EmbeddedRedisConfig `koanf:"standalone" json:"standalone" yaml:"standalone" mapstructure:"standalone"`
 }
 
-// RedisStandaloneConfig defines options for embedded Redis in standalone mode.
-type RedisStandaloneConfig struct {
+// EmbeddedRedisConfig defines options for the embedded Redis used by memory and persistent modes.
+type EmbeddedRedisConfig struct {
 	// Persistence configures optional snapshot persistence for embedded Redis.
 	Persistence RedisPersistenceConfig `koanf:"persistence" json:"persistence" yaml:"persistence" mapstructure:"persistence"`
 }
 
 // RedisPersistenceConfig defines snapshot settings for embedded Redis.
 type RedisPersistenceConfig struct {
-	Enabled            bool          `koanf:"enabled"              json:"enabled"              yaml:"enabled"              mapstructure:"enabled"              env:"REDIS_STANDALONE_PERSISTENCE_ENABLED"`
-	DataDir            string        `koanf:"data_dir"             json:"data_dir"             yaml:"data_dir"             mapstructure:"data_dir"             env:"REDIS_STANDALONE_PERSISTENCE_DATA_DIR"`
-	SnapshotInterval   time.Duration `koanf:"snapshot_interval"    json:"snapshot_interval"    yaml:"snapshot_interval"    mapstructure:"snapshot_interval"    env:"REDIS_STANDALONE_PERSISTENCE_SNAPSHOT_INTERVAL"`
-	SnapshotOnShutdown bool          `koanf:"snapshot_on_shutdown" json:"snapshot_on_shutdown" yaml:"snapshot_on_shutdown" mapstructure:"snapshot_on_shutdown" env:"REDIS_STANDALONE_PERSISTENCE_SNAPSHOT_ON_SHUTDOWN"`
-	RestoreOnStartup   bool          `koanf:"restore_on_startup"   json:"restore_on_startup"   yaml:"restore_on_startup"   mapstructure:"restore_on_startup"   env:"REDIS_STANDALONE_PERSISTENCE_RESTORE_ON_STARTUP"`
+	Enabled            bool          `koanf:"enabled"              json:"enabled"              yaml:"enabled"              mapstructure:"enabled"              env:"REDIS_EMBEDDED_PERSISTENCE_ENABLED"`
+	DataDir            string        `koanf:"data_dir"             json:"data_dir"             yaml:"data_dir"             mapstructure:"data_dir"             env:"REDIS_EMBEDDED_PERSISTENCE_DATA_DIR"`
+	SnapshotInterval   time.Duration `koanf:"snapshot_interval"    json:"snapshot_interval"    yaml:"snapshot_interval"    mapstructure:"snapshot_interval"    env:"REDIS_EMBEDDED_PERSISTENCE_SNAPSHOT_INTERVAL"`
+	SnapshotOnShutdown bool          `koanf:"snapshot_on_shutdown" json:"snapshot_on_shutdown" yaml:"snapshot_on_shutdown" mapstructure:"snapshot_on_shutdown" env:"REDIS_EMBEDDED_PERSISTENCE_SNAPSHOT_ON_SHUTDOWN"`
+	RestoreOnStartup   bool          `koanf:"restore_on_startup"   json:"restore_on_startup"   yaml:"restore_on_startup"   mapstructure:"restore_on_startup"   env:"REDIS_EMBEDDED_PERSISTENCE_RESTORE_ON_STARTUP"`
 }
 
 // CacheConfig contains cache-specific configuration settings.
@@ -1702,8 +1712,10 @@ type MCPProxyConfig struct {
 	// Mode controls how the MCP proxy runs within Compozy.
 	//
 	// Values:
-	//   - "standalone": embed MCP proxy inside the server
-	//   - "": external MCP proxy (default)
+	//   - "memory": Embed the MCP proxy inside the server with in-memory state
+	//   - "persistent": Embed the MCP proxy with durable on-disk state
+	//   - "distributed": Delegate to an external MCP proxy endpoint
+	//   - "": Inherit the global deployment mode (default)
 	//
 	// When embedded, the server manages lifecycle and health of the proxy
 	// and will set LLM.ProxyURL if empty.
@@ -2387,7 +2399,7 @@ func buildTemporalConfig(registry *definition.Registry) TemporalConfig {
 		HostPort:  getString(registry, "temporal.host_port"),
 		Namespace: getString(registry, "temporal.namespace"),
 		TaskQueue: getString(registry, "temporal.task_queue"),
-		Standalone: StandaloneConfig{
+		Standalone: EmbeddedTemporalConfig{
 			DatabaseFile: getString(registry, "temporal.standalone.database_file"),
 			FrontendPort: getInt(registry, "temporal.standalone.frontend_port"),
 			BindIP:       getString(registry, "temporal.standalone.bind_ip"),
@@ -2734,7 +2746,7 @@ func buildRedisConfig(registry *definition.Registry) RedisConfig {
 		MaxRetryBackoff:        getDuration(registry, "redis.max_retry_backoff"),
 		NotificationBufferSize: getInt(registry, "redis.notification_buffer_size"),
 		TLSEnabled:             getBool(registry, "redis.tls_enabled"),
-		Standalone: RedisStandaloneConfig{
+		Standalone: EmbeddedRedisConfig{
 			Persistence: RedisPersistenceConfig{
 				Enabled:            getBool(registry, "redis.standalone.persistence.enabled"),
 				DataDir:            getString(registry, "redis.standalone.persistence.data_dir"),
@@ -2781,9 +2793,9 @@ func buildWorkerDispatcherConfig(registry *definition.Registry) WorkerDispatcher
 }
 
 func buildMCPProxyConfig(registry *definition.Registry) MCPProxyConfig {
-	mode := getString(registry, "mcp_proxy.mode")
+	mode := strings.TrimSpace(getString(registry, "mcp_proxy.mode"))
 	port := getInt(registry, "mcp_proxy.port")
-	if mode == mcpProxyModeStandalone && port == 0 {
+	if isEmbeddedMode(mode) && port == 0 {
 		port = 6001
 	}
 	return MCPProxyConfig{

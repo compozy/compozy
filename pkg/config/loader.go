@@ -20,9 +20,8 @@ import (
 )
 
 const (
-	maxTCPPort             = 65535
-	temporalServiceSpan    = 3 // Temporal reserves FrontendPort through FrontendPort+3
-	temporalModeStandalone = "standalone"
+	maxTCPPort          = 65535
+	temporalServiceSpan = 3 // Temporal reserves FrontendPort through FrontendPort+3
 )
 
 // loader implements the Service interface for configuration management.
@@ -309,6 +308,9 @@ func (l *loader) Validate(config *Config) error {
 		return fmt.Errorf("configuration cannot be nil")
 	}
 	if err := l.validator.Struct(config); err != nil {
+		if friendly := friendlyModeValidationError(err, config); friendly != nil {
+			return fmt.Errorf("validation failed: %w", friendly)
+		}
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	if err := l.validateCustom(config); err != nil {
@@ -334,8 +336,44 @@ func (l *loader) trackSource(key string, source SourceType) {
 	l.metadata.Sources[key] = source
 }
 
+func friendlyModeValidationError(err error, cfg *Config) error {
+	validationErrs, ok := err.(validator.ValidationErrors)
+	if !ok {
+		return nil
+	}
+	messages := make([]string, 0, len(validationErrs))
+	for _, fieldErr := range validationErrs {
+		if fieldErr.Tag() != "oneof" {
+			return nil
+		}
+		switch fieldErr.StructNamespace() {
+		case "Config.Mode":
+			if friendly := validateGlobalMode(cfg); friendly != nil {
+				messages = append(messages, friendly.Error())
+			}
+		case "Config.Temporal.Mode":
+			if friendly := validateTemporal(cfg); friendly != nil {
+				messages = append(messages, friendly.Error())
+			}
+		case "Config.Redis.Mode":
+			if friendly := validateRedis(cfg); friendly != nil {
+				messages = append(messages, friendly.Error())
+			}
+		default:
+			return nil
+		}
+	}
+	if len(messages) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s", strings.Join(messages, "; "))
+}
+
 // validateCustom performs custom validation beyond struct tags.
 func (l *loader) validateCustom(config *Config) error {
+	if err := validateGlobalMode(config); err != nil {
+		return err
+	}
 	if err := validateDatabase(config); err != nil {
 		return err
 	}
@@ -369,6 +407,37 @@ func (l *loader) validateCustom(config *Config) error {
 	return nil
 }
 
+const deprecatedModeStandalone = "standalone"
+
+func validateGlobalMode(cfg *Config) error {
+	raw := strings.TrimSpace(cfg.Mode)
+	if raw == "" {
+		cfg.Mode = ""
+		return nil
+	}
+	mode := strings.ToLower(raw)
+	switch mode {
+	case ModeMemory, ModePersistent, ModeDistributed:
+		cfg.Mode = mode
+		return nil
+	case deprecatedModeStandalone:
+		return fmt.Errorf(
+			"mode %q has been replaced by %q (ephemeral) and %q (persistent); choose the mode that fits your workflow",
+			deprecatedModeStandalone,
+			ModeMemory,
+			ModePersistent,
+		)
+	default:
+		return fmt.Errorf(
+			"mode must be one of [%s %s %s], got %q",
+			ModeMemory,
+			ModePersistent,
+			ModeDistributed,
+			raw,
+		)
+	}
+}
+
 func validateDatabase(cfg *Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is required for database validation")
@@ -390,134 +459,168 @@ func validateDatabase(cfg *Config) error {
 }
 
 func validateTemporal(cfg *Config) error {
-	mode := strings.TrimSpace(cfg.Temporal.Mode)
+	raw := strings.TrimSpace(cfg.Temporal.Mode)
+	mode := strings.ToLower(raw)
+	errValue := raw
 	if mode == "" {
-		resolved := cfg.EffectiveTemporalMode()
-		if strings.TrimSpace(resolved) == "" {
+		resolved := strings.ToLower(strings.TrimSpace(cfg.EffectiveTemporalMode()))
+		if resolved == "" {
 			return fmt.Errorf("temporal.mode is required")
 		}
-		cfg.Temporal.Mode = resolved
 		mode = resolved
-	} else {
-		cfg.Temporal.Mode = mode
+		errValue = mode
+	}
+	if mode == ModeDistributed {
+		mode = ModeRemoteTemporal
 	}
 	switch mode {
-	case "remote":
-		if cfg.Temporal.HostPort == "" {
+	case ModeRemoteTemporal:
+		cfg.Temporal.Mode = ModeRemoteTemporal
+		hostPort := strings.TrimSpace(cfg.Temporal.HostPort)
+		if hostPort == "" {
 			return fmt.Errorf("temporal.host_port is required in remote mode")
 		}
+		cfg.Temporal.HostPort = hostPort
 		return nil
-	case temporalModeStandalone:
-		return validateStandaloneTemporalConfig(cfg)
+	case ModeMemory, ModePersistent:
+		cfg.Temporal.Mode = mode
+		return validateEmbeddedTemporalConfig(cfg)
+	case deprecatedModeStandalone:
+		return fmt.Errorf(
+			"temporal.mode %q has been removed; use %q for in-memory Temporal or %q for persistent embedded Temporal",
+			deprecatedModeStandalone,
+			ModeMemory,
+			ModePersistent,
+		)
 	default:
-		return fmt.Errorf("temporal.mode must be one of [remote standalone], got %q", mode)
+		return fmt.Errorf(
+			"temporal.mode must be one of [%s %s %s], got %q",
+			ModeMemory,
+			ModePersistent,
+			ModeRemoteTemporal,
+			errValue,
+		)
 	}
 }
 
-func validateStandaloneTemporalConfig(cfg *Config) error {
-	standalone := &cfg.Temporal.Standalone
-	if err := validateStandaloneDatabase(standalone); err != nil {
+func validateEmbeddedTemporalConfig(cfg *Config) error {
+	embedded := &cfg.Temporal.Standalone
+	if err := validateEmbeddedTemporalDatabase(embedded); err != nil {
 		return err
 	}
-	if err := validateStandalonePorts(standalone); err != nil {
+	if err := validateEmbeddedTemporalPorts(embedded); err != nil {
 		return err
 	}
-	if err := validateStandaloneNetwork(standalone); err != nil {
+	if err := validateEmbeddedTemporalNetwork(embedded); err != nil {
 		return err
 	}
-	if err := validateStandaloneMetadata(standalone); err != nil {
+	if err := validateEmbeddedTemporalMetadata(embedded); err != nil {
 		return err
 	}
-	if err := validateStandaloneLogLevel(standalone); err != nil {
+	if err := validateEmbeddedTemporalLogLevel(embedded); err != nil {
 		return err
 	}
-	return validateStandaloneStartTimeout(standalone)
+	return validateEmbeddedTemporalStartTimeout(embedded)
 }
 
-func validateStandaloneDatabase(standalone *StandaloneConfig) error {
-	if standalone.DatabaseFile == "" {
-		return fmt.Errorf("temporal.standalone.database_file is required when mode=standalone")
+func validateEmbeddedTemporalDatabase(embedded *EmbeddedTemporalConfig) error {
+	if embedded.DatabaseFile == "" {
+		return fmt.Errorf("temporal.standalone.database_file is required when using embedded Temporal")
 	}
 	return nil
 }
 
-func validateStandalonePorts(standalone *StandaloneConfig) error {
-	if standalone.FrontendPort < 1 || standalone.FrontendPort > maxTCPPort {
+func validateEmbeddedTemporalPorts(embedded *EmbeddedTemporalConfig) error {
+	if embedded.FrontendPort < 1 || embedded.FrontendPort > maxTCPPort {
 		return fmt.Errorf("temporal.standalone.frontend_port must be between 1 and %d", maxTCPPort)
 	}
-	if standalone.FrontendPort+temporalServiceSpan > maxTCPPort {
+	if embedded.FrontendPort+temporalServiceSpan > maxTCPPort {
 		return fmt.Errorf("temporal.standalone.frontend_port reserves out-of-range service port")
 	}
-	if standalone.EnableUI {
-		if standalone.UIPort < 1 || standalone.UIPort > maxTCPPort {
+	if embedded.EnableUI {
+		if embedded.UIPort < 1 || embedded.UIPort > maxTCPPort {
 			return fmt.Errorf("temporal.standalone.ui_port must be between 1 and %d when enable_ui is true", maxTCPPort)
 		}
-		start := standalone.FrontendPort
-		end := standalone.FrontendPort + temporalServiceSpan
-		if standalone.UIPort >= start && standalone.UIPort <= end {
+		start := embedded.FrontendPort
+		end := embedded.FrontendPort + temporalServiceSpan
+		if embedded.UIPort >= start && embedded.UIPort <= end {
 			return fmt.Errorf("temporal.standalone.ui_port must not collide with service ports [%d-%d]", start, end)
 		}
-	} else if standalone.UIPort != 0 && (standalone.UIPort < 1 || standalone.UIPort > maxTCPPort) {
+	} else if embedded.UIPort != 0 && (embedded.UIPort < 1 || embedded.UIPort > maxTCPPort) {
 		return fmt.Errorf("temporal.standalone.ui_port must be between 1 and %d when set", maxTCPPort)
 	}
 	return nil
 }
 
-func validateStandaloneNetwork(standalone *StandaloneConfig) error {
-	if standalone.BindIP == "" {
-		return fmt.Errorf("temporal.standalone.bind_ip is required when mode=standalone")
+func validateEmbeddedTemporalNetwork(embedded *EmbeddedTemporalConfig) error {
+	if embedded.BindIP == "" {
+		return fmt.Errorf("temporal.standalone.bind_ip is required when using embedded Temporal")
 	}
-	if net.ParseIP(standalone.BindIP) == nil {
+	if net.ParseIP(embedded.BindIP) == nil {
 		return fmt.Errorf("temporal.standalone.bind_ip must be a valid IP address")
 	}
 	return nil
 }
 
-func validateStandaloneMetadata(standalone *StandaloneConfig) error {
-	if standalone.Namespace == "" {
-		return fmt.Errorf("temporal.standalone.namespace is required when mode=standalone")
+func validateEmbeddedTemporalMetadata(embedded *EmbeddedTemporalConfig) error {
+	if embedded.Namespace == "" {
+		return fmt.Errorf("temporal.standalone.namespace is required when using embedded Temporal")
 	}
-	if standalone.ClusterName == "" {
-		return fmt.Errorf("temporal.standalone.cluster_name is required when mode=standalone")
+	if embedded.ClusterName == "" {
+		return fmt.Errorf("temporal.standalone.cluster_name is required when using embedded Temporal")
 	}
 	return nil
 }
 
-func validateStandaloneLogLevel(standalone *StandaloneConfig) error {
-	switch standalone.LogLevel {
+func validateEmbeddedTemporalLogLevel(embedded *EmbeddedTemporalConfig) error {
+	switch embedded.LogLevel {
 	case "debug", "info", "warn", "error":
 		return nil
 	default:
 		return fmt.Errorf(
 			"temporal.standalone.log_level must be one of [debug info warn error], got %q",
-			standalone.LogLevel,
+			embedded.LogLevel,
 		)
 	}
 }
 
-func validateStandaloneStartTimeout(standalone *StandaloneConfig) error {
-	if standalone.StartTimeout <= 0 {
+func validateEmbeddedTemporalStartTimeout(embedded *EmbeddedTemporalConfig) error {
+	if embedded.StartTimeout <= 0 {
 		return fmt.Errorf("temporal.standalone.start_timeout must be positive")
 	}
 	return nil
 }
 
 // validateRedis performs validation for Redis configuration including
-// deployment mode requirements and standalone persistence settings.
+// deployment mode requirements and embedded persistence settings.
 func validateRedis(cfg *Config) error {
 	// Validate component mode values via struct tags; add friendly errors for clarity.
-	switch strings.TrimSpace(cfg.Redis.Mode) {
-	case "", mcpProxyModeStandalone, "distributed":
-		// ok
+	raw := strings.TrimSpace(cfg.Redis.Mode)
+	mode := strings.ToLower(raw)
+	switch mode {
+	case "":
+		cfg.Redis.Mode = ""
+	case ModeMemory, ModePersistent, ModeDistributed:
+		cfg.Redis.Mode = mode
+	case deprecatedModeStandalone:
+		return fmt.Errorf(
+			"redis.mode %q is no longer supported; switch to %q (ephemeral) or %q (persistent) to run the embedded Redis",
+			deprecatedModeStandalone,
+			ModeMemory,
+			ModePersistent,
+		)
 	default:
 		return fmt.Errorf(
-			"redis.mode must be one of [standalone distributed] or empty for inheritance, got %q",
-			cfg.Redis.Mode,
+			"redis.mode must be one of [%s %s %s] or empty for inheritance, got %q",
+			ModeMemory,
+			ModePersistent,
+			ModeDistributed,
+			raw,
 		)
 	}
 
 	// Validate requirements based on effective mode
-	if cfg.EffectiveRedisMode() == mcpProxyModeStandalone {
+	if isEmbeddedMode(cfg.EffectiveRedisMode()) {
 		// When using embedded redis, validate optional persistence settings when enabled.
 		p := cfg.Redis.Standalone.Persistence
 		if p.Enabled {
@@ -586,11 +689,41 @@ func validateAuth(cfg *Config) error {
 }
 
 func validateMCPProxy(cfg *Config) error {
-	mode := strings.TrimSpace(cfg.MCPProxy.Mode)
-	if mode == mcpProxyModeStandalone && cfg.MCPProxy.Port == 0 {
-		return fmt.Errorf("mcp_proxy.port must be non-zero in standalone mode")
+	if err := validateMCPProxyMode(cfg); err != nil {
+		return err
+	}
+	mode := cfg.EffectiveMCPProxyMode()
+	if isEmbeddedMode(mode) && cfg.MCPProxy.Port == 0 {
+		return fmt.Errorf(
+			"mcp_proxy.port must be non-zero when mode is %q or %q",
+			ModeMemory,
+			ModePersistent,
+		)
 	}
 	return nil
+}
+
+func validateMCPProxyMode(cfg *Config) error {
+	switch mode := strings.TrimSpace(cfg.MCPProxy.Mode); mode {
+	case "", ModeMemory, ModePersistent, ModeDistributed:
+		return nil
+	case deprecatedModeStandalone:
+		return fmt.Errorf(
+			"mcp_proxy.mode %q is no longer supported; switch to %q (ephemeral), %q (persistent), or %q (external)",
+			deprecatedModeStandalone,
+			ModeMemory,
+			ModePersistent,
+			ModeDistributed,
+		)
+	default:
+		return fmt.Errorf(
+			"mcp_proxy.mode must be one of [%s %s %s] or empty for inheritance, got %q",
+			ModeMemory,
+			ModePersistent,
+			ModeDistributed,
+			mode,
+		)
+	}
 }
 
 func validateCache(cfg *Config) error {

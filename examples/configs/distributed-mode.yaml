@@ -1,0 +1,59 @@
+# Production profile for multi-tenant or scale-out deployments.
+name: prod-orchestration
+version: "1.0.0"
+mode: distributed  # Use managed services for database, Temporal, and Redis.
+
+database:
+  driver: postgres
+  url: "${COMPOZY_DATABASE_URL}"  # Prefer a single URL env var for rotate-friendly credentials.
+  migrations:
+    schema: compozy  # Isolate migration history from other applications.
+
+# Connect to an external Temporal cluster with explicit namespace and TLS.
+temporal:
+  mode: remote  # Resolved automatically when global mode is distributed.
+  host_port: temporal.prod.internal:7233
+  namespace: compozy-prod
+  tls:
+    enabled: true
+    ca_file: "/etc/compozy/certs/temporal-ca.pem"
+    cert_file: "${TEMPORAL_TLS_CERT}"
+    key_file: "${TEMPORAL_TLS_KEY}"
+
+# Redis cluster for durable caching and signals with optional TLS.
+redis:
+  mode: distributed
+  distributed:
+    addr: redis.prod.internal:6379
+    username: compozy
+    password: "${REDIS_PASSWORD}"
+    tls:
+      enabled: true
+      ca_file: "/etc/compozy/certs/redis-ca.pem"
+
+# Multiple models with explicit routing for production workloads.
+models:
+  - provider: openai
+    model: gpt-4o
+    api_key: "${OPENAI_API_KEY}"
+  - provider: anthropic
+    model: claude-3-5-sonnet-latest
+    api_key: "${ANTHROPIC_API_KEY}"
+
+# Reference a workflow file that exercises multiple providers.
+workflows:
+  - source: ./workflows/support-router.yaml
+
+# Representative tasks showing cross-model selection.
+tasks:
+  - id: classify
+    type: basic
+    action: run
+    prompt: "Classify the following ticket: {{ .workflow.input.ticket }}"
+    provider: openai
+  - id: escalate
+    type: basic
+    action: run
+    prompt: "Draft a high-touch reply for: {{ .tasks.classify.output }}"
+    provider: anthropic
+    final: true

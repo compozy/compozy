@@ -1,0 +1,16 @@
+# Minimal edge deployment image for Compozy memory mode server
+
+FROM golang:1.25 as build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+COPY . .
+RUN --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/compozy ./
+
+FROM gcr.io/distroless/static:nonroot
+COPY --from=build /out/compozy /usr/local/bin/compozy
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD ["/usr/local/bin/compozy", "api", "health"]
+ENTRYPOINT ["/usr/local/bin/compozy"]

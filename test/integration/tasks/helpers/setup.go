@@ -32,11 +32,16 @@ type TestSetup struct {
 // NewTestSetup creates a new test setup with all common infrastructure
 // This version uses shared database resources for optimal performance
 func NewTestSetup(t *testing.T) *TestSetup {
+	return NewTestSetupWithDriver(t, "")
+}
+
+// NewTestSetupWithDriver creates a test setup using the specified database driver.
+func NewTestSetupWithDriver(t *testing.T, driver string) *TestSetup {
 	if testing.Short() {
 		t.Skip("skipping integration tests")
 	}
 	ctx := t.Context()
-	taskRepo, workflowRepo, cleanup := getSharedTestRepos(ctx, t)
+	taskRepo, workflowRepo, cleanup := getSharedTestRepos(ctx, t, driver)
 	t.Cleanup(cleanup)
 	templateEngine := tplengine.NewEngine(tplengine.FormatJSON)
 	contextBuilder := &shared.ContextBuilder{}
@@ -66,8 +71,15 @@ func NewTestSetup(t *testing.T) *TestSetup {
 
 // getSharedTestRepos provides shared database resources across all tests
 // This eliminates the need for individual container creation
-func getSharedTestRepos(ctx context.Context, t *testing.T) (task.Repository, workflow.Repository, func()) {
-	return utils.SetupTestRepos(ctx, t)
+func getSharedTestRepos(
+	ctx context.Context,
+	t *testing.T,
+	driver string,
+) (task.Repository, workflow.Repository, func()) {
+	if driver == "" {
+		return utils.SetupTestRepos(ctx, t)
+	}
+	return utils.SetupTestRepos(ctx, t, driver)
 }
 
 // CreateWorkflowState creates and saves a workflow state for testing

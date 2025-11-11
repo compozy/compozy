@@ -1,14 +1,14 @@
 ---
 title: "Architecture Overview"
-description: "How Compozy runs in standalone and distributed modes."
+description: "How Compozy runs in embedded (memory/persistent) and distributed modes."
 icon: Layers
 ---
 
-Compozy can run everything on your laptop (standalone) or connect to managed infrastructure (distributed/remote). The workflow engine (Temporal) and cache are the main components that switch behavior between modes.
+Compozy can run everything on your laptop (memory or persistent embedded modes) or connect to managed infrastructure (distributed). The workflow engine (Temporal) and cache are the main components that switch behavior between modes.
 
 ```mermaid
 flowchart LR
-  subgraph Standalone
+  subgraph Embedded (memory & persistent)
     C1[Compozy] --> T1[Embedded Temporal]
     C1 --> R1[Embedded Cache]
     T1 --> UI[Temporal UI]
@@ -24,4 +24,3 @@ See the in‑depth pages for each component:
 
 - [Embedded Temporal](/docs/architecture/embedded-temporal)
 - [Mode Configuration](/docs/configuration/mode-configuration)
-

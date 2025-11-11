@@ -16,6 +16,10 @@
       "description": "IdleConnTimeout is the maximum amount of time an idle (keep-alive) connection will remain\nidle before closing itself.\n\n**Default**: `90s`",
       "type": "integer"
     },
+    "max_conns_per_host": {
+      "description": "MaxConnsPerHost caps the total number of simultaneous connections per host.\n\n**Default**: `128`",
+      "type": "integer"
+    },
     "max_idle_conns": {
       "description": "MaxIdleConns controls the maximum number of idle (keep-alive) connections across all hosts.\n\n**Default**: `128`",
       "type": "integer"
@@ -25,7 +29,7 @@
       "type": "integer"
     },
     "mode": {
-      "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"standalone\": embed MCP proxy inside the server\n  - \"\": external MCP proxy (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
+      "description": "Mode controls how the MCP proxy runs within Compozy.\n\nValues:\n  - \"memory\": Embed the MCP proxy inside the server with in-memory state\n  - \"persistent\": Embed the MCP proxy with durable on-disk state\n  - \"distributed\": Delegate to an external MCP proxy endpoint\n  - \"\": Inherit the global deployment mode (default)\n\nWhen embedded, the server manages lifecycle and health of the proxy\nand will set LLM.ProxyURL if empty.",
       "type": "string"
     },
     "port": {

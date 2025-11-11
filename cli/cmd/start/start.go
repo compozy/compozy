@@ -22,12 +22,6 @@ const (
 	localhost             = "localhost"
 )
 
-// Deployment mode constants (avoid magic strings)
-const (
-	modeStandalone  = "standalone"
-	modeDistributed = "distributed"
-)
-
 // NewStartCommand creates the start command for production server
 func NewStartCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -38,8 +32,8 @@ func NewStartCommand() *cobra.Command {
 		RunE:    executeStartCommand,
 	}
 	// Deployment mode flag controls global runtime mode for this command invocation.
-	// Valid values: standalone, distributed.
-	cmd.Flags().String("mode", "", "Deployment mode: standalone or distributed")
+	// Valid values: memory, persistent, distributed.
+	cmd.Flags().String("mode", "", "Deployment mode: memory (default), persistent, or distributed")
 	return cmd
 }
 
@@ -60,14 +54,17 @@ func handleStartTUI(ctx context.Context, cobraCmd *cobra.Command, _ *cmd.Command
 		return fmt.Errorf("configuration missing from context; attach a manager with config.ContextWithManager")
 	}
 	cfg.Mode = resolveStartMode(cobraCmd, config.ManagerFromContext(ctx).Service, cfg.Mode)
-	if m := strings.TrimSpace(cfg.Mode); m != "" && m != modeStandalone && m != modeDistributed {
-		return fmt.Errorf("invalid --mode value %q: must be one of [standalone distributed]", m)
+	mode := strings.TrimSpace(cfg.Mode)
+	switch mode {
+	case "", config.ModeMemory, config.ModePersistent, config.ModeDistributed:
+	default:
+		return fmt.Errorf("invalid --mode value %q: must be one of [memory persistent distributed]", mode)
 	}
 	cfg.Runtime.Environment = productionEnvironment
 	gin.SetMode(gin.ReleaseMode)
 	modeStr := cfg.Mode
 	if modeStr == "" {
-		modeStr = modeDistributed
+		modeStr = config.ModeMemory
 	}
 	logger.FromContext(ctx).Info("Starting Compozy server", "mode", modeStr)
 	logProductionSecurityWarnings(ctx, cfg)
