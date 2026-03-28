@@ -24,7 +24,7 @@ This file provides project guidance for coding agents working in this repository
 
 ## Project Overview
 
-Looper is a reusable Go module and CLI for processing PR review issue markdown files and PRD task markdown files with Codex, Claude Code, Droid, and Cursor Agent.
+Looper is a Go module and CLI that drives the full lifecycle of AI-assisted development. It covers product ideation (PRD creation), technical specification, task breakdown with codebase-informed enrichment, and automated execution of each task via AI coding agents (Claude Code, Codex, Droid, Cursor). It also handles PR review remediation workflows.
 
 ## Package Layout
 
@@ -39,7 +39,8 @@ Looper is a reusable Go module and CLI for processing PR review issue markdown f
 | `internal/looper/plan`   | Input discovery, filtering, grouping, and batch prep     |
 | `internal/looper/prompt` | Thin prompt builders that emit runtime context and skill names |
 | `internal/looper/run`    | Execution pipeline, logging, shutdown, and Bubble Tea UI |
-| `skills`                 | Bundled installable skills used by looper-generated prompts |
+| `skills`                 | Bundled installable skills (creation + execution workflows) |
+| `tasks/docs`             | Standalone document templates (PRD, TechSpec, ADR)       |
 | `internal/version`       | Build metadata                                           |
 
 ## Build & Development Commands

@@ -18,8 +18,6 @@ func TestClaudeReasoningPromptUsesEmbeddedTemplates(t *testing.T) {
 	}
 
 	for reasoning, snippet := range cases {
-		reasoning := reasoning
-		snippet := snippet
 		t.Run(reasoning, func(t *testing.T) {
 			t.Parallel()
 
@@ -118,8 +116,8 @@ func TestBuildPRDTaskPromptUsesInstalledSkillsAndLeavesOnlyTaskSpecificContext(t
 	t.Parallel()
 
 	task := model.IssueEntry{
-		Name:    "_task_1.md",
-		AbsPath: "/tmp/tasks/prd-demo/_task_1.md",
+		Name:    "task_1.md",
+		AbsPath: "/tmp/tasks/prd-demo/task_1.md",
 		Content: `## status: pending
 <task_context>
   <domain>backend</domain>
@@ -136,7 +134,7 @@ func TestBuildPRDTaskPromptUsesInstalledSkillsAndLeavesOnlyTaskSpecificContext(t
 		"`execute-prd-task`",
 		"`verification-before-completion`",
 		"## Task Files",
-		"Task file: `/tmp/tasks/prd-demo/_task_1.md`",
+		"Task file: `/tmp/tasks/prd-demo/task_1.md`",
 		"Master tasks file: `/tmp/tasks/prd-demo/_tasks.md`",
 		"Automatic commits are disabled for this run (`--auto-commit=false`).",
 	}
@@ -165,8 +163,8 @@ func TestBuildPRDTaskPromptRespectsAutoCommitFlag(t *testing.T) {
 	t.Parallel()
 
 	task := model.IssueEntry{
-		Name:    "_task_2.md",
-		AbsPath: "/tmp/tasks/prd-demo/_task_2.md",
+		Name:    "task_2.md",
+		AbsPath: "/tmp/tasks/prd-demo/task_2.md",
 		Content: `## status: pending
 <task_context>
   <domain>frontend</domain>

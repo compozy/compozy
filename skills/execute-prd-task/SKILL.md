@@ -21,6 +21,7 @@ Execute one PRD task from exploration through tracking updates.
    - Read the provided task specification.
    - Read the repository guidance files named by the caller.
    - Read the PRD documents under the provided directory, especially `_techspec.md` and `_tasks.md`.
+   - Read ADRs from the `adrs/` subdirectory of the PRD directory to understand the architectural decision context for this task.
    - Reconcile the current workspace state before new edits.
 
 2. Build the execution checklist.

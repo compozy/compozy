@@ -1,13 +1,45 @@
-# Looper
+# 🔄 Looper
 
-Looper is a reusable Go module and CLI for running markdown-driven AI work loops.
+**Drive the full lifecycle of AI-assisted development — from idea to shipped code.**
 
-It replaces the copied `scripts/markdown` trees that were spread across multiple repositories and supports two execution modes:
+Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, Codex, Droid, Cursor) to process structured markdown workflows. It covers product ideation, technical specification, task breakdown with codebase-informed enrichment, and automated execution.
 
-- `pr-review`: process PR review issue markdown files in batches
-- `prd-tasks`: process PRD task markdown files one task at a time
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 
-## Install
+## 📑 Table of Contents
+
+- [✨ Features](#-features)
+- [🚀 Installation](#-installation)
+- [📖 Usage](#-usage)
+- [🔧 PRD Workflow](#-prd-workflow)
+  - [How It Works](#how-it-works)
+  - [CLI Usage](#cli-usage)
+  - [Skills](#skills)
+  - [Output Convention](#output-convention)
+- [🔍 PR Review Workflow](#-pr-review-workflow)
+  - [How It Works](#how-it-works-1)
+  - [Prerequisites](#prerequisites)
+  - [CLI Usage](#cli-usage-1)
+  - [Skills](#skills-1)
+- [🧩 Shared Skills](#-shared-skills)
+- [📦 Go Package Usage](#-go-package-usage)
+- [🏗️ Project Layout](#️-project-layout)
+- [🛠️ Development](#️-development)
+- [🔀 Migration Guide](#-migration-guide)
+- [📄 License](#-license)
+
+## ✨ Features
+
+- **End-to-end PRD workflow** — go from a product idea to implemented code through structured phases
+- **PR review automation** — process CodeRabbit review feedback in batches automatically
+- **Multi-agent support** — run tasks through Claude Code, Codex, Droid, or Cursor
+- **Concurrent execution** — run multiple tasks in parallel with configurable batch sizes
+- **Interactive mode** — guided form-based CLI for quick setup
+- **Plain markdown artifacts** — all specs, tasks, and tracking are human-readable markdown files
+- **Embeddable** — use as a standalone CLI or import as a Go package into your own tools
+
+## 🚀 Installation
 
 Install the CLI:
 
@@ -15,7 +47,7 @@ Install the CLI:
 go install github.com/compozy/looper/cmd/looper@latest
 ```
 
-Install the bundled skills that looper prompts expect:
+Install the bundled skills that Looper prompts expect:
 
 ```bash
 npx skills add https://github.com/compozy/looper
@@ -30,35 +62,132 @@ make verify
 go build ./cmd/looper
 ```
 
-## Required Skills
+### Requirements
 
-Looper prompts are intentionally small and rely on bundled skills for reusable workflow doctrine.
+- Go 1.26+
 
-- `fix-coderabbit-review`: required for PR review remediation flows
-- `verification-before-completion`: required before completion claims or automatic commits
-- `execute-prd-task`: required for PRD task execution flows
+## 📖 Usage
 
-The supported install flow is:
+Looper operates in two modes: **[PRD Tasks](#-prd-workflow)** for end-to-end product development, and **[PR Review](#-pr-review-workflow)** for automated PR review remediation. See each workflow section below for details.
 
-```bash
-npx skills add https://github.com/compozy/looper
-```
-
-PR review automation also expects:
-
-- `gh` installed and authenticated for the target repository
-- `python3` available on `PATH`
-- `GITHUB_TOKEN` available if `gh` is using environment-based authentication in your setup
-
-## CLI Usage
-
-Interactive mode:
+Interactive mode prompts for all options:
 
 ```bash
 looper --form
 ```
 
-PR review mode:
+---
+
+## 🔧 PRD Workflow
+
+The PRD workflow takes you from a product idea to implemented code through a structured pipeline. Each step produces plain markdown artifacts that feed into the next, and AI agents execute the final tasks automatically.
+
+### How It Works
+
+```
+💡 Idea
+   │
+   ▼
+/create-prd          ──▶  tasks/prd-<name>/_prd.md
+   │
+   ▼
+/create-techspec     ──▶  tasks/prd-<name>/_techspec.md
+   │
+   ▼
+/create-tasks        ──▶  tasks/prd-<name>/_tasks.md + task_01.md … task_N.md
+   │
+   ▼
+looper --mode prd-tasks  ──▶  AI agents execute each task
+```
+
+Each step is independent — you can start from any point. All artifacts are plain markdown files in `tasks/prd-<name>/`.
+
+### CLI Usage
+
+Execute tasks from a PRD directory:
+
+```bash
+looper \
+  --pr multi-repo \
+  --mode prd-tasks \
+  --issues-dir tasks/prd-multi-repo \
+  --ide claude
+```
+
+Preview generated prompts without executing (dry run):
+
+```bash
+looper \
+  --pr multi-repo \
+  --mode prd-tasks \
+  --issues-dir tasks/prd-multi-repo \
+  --dry-run
+```
+
+### Skills
+
+| Skill | Phase | Purpose |
+|-------|-------|---------|
+| `create-prd` | Creation | Creates PRDs through 5-phase interactive brainstorming with parallel codebase and web research |
+| `create-techspec` | Creation | Translates PRD business requirements into technical specifications with architecture exploration |
+| `create-tasks` | Creation | Decomposes PRDs and TechSpecs into independently implementable task files enriched with codebase context |
+| `execute-prd-task` | Execution | Executes one PRD task end-to-end: implement, validate, track, and optionally commit |
+
+### Output Convention
+
+All PRD workflow artifacts live in `tasks/prd-<name>/`:
+
+```
+tasks/prd-<name>/
+  _prd.md           # Product Requirements Document
+  _techspec.md      # Technical Specification
+  _tasks.md         # Master task list
+  task_01.md        # Individual executable task files
+  task_02.md
+  task_N.md
+```
+
+Files prefixed with `_` are meta documents. Task files (`task_*.md`) are the executable units Looper processes.
+
+Each task file follows a structured format:
+
+```markdown
+## status: pending
+
+<task_context>
+  <domain>Backend</domain>
+  <type>Feature Implementation</type>
+  <scope>Full</scope>
+  <complexity>medium</complexity>
+  <dependencies>task_01</dependencies>
+</task_context>
+
+# Task 2: Implement User Authentication
+...
+```
+
+---
+
+## 🔍 PR Review Workflow
+
+The PR review workflow automates the remediation of code review feedback. It takes review issues (e.g., from CodeRabbit), triages them, batches them for parallel processing, and dispatches AI agents to implement fixes and resolve review threads — all without manual intervention.
+
+### How It Works
+
+1. **Export** — use the `fix-coderabbit-review` skill to export review comments into structured issue files at `ai-docs/reviews-pr-<PR>/issues`
+2. **Batch** — Looper groups and batches the issue files based on `--batch-size` and `--grouped` flags
+3. **Execute** — AI agents process each batch concurrently, implementing fixes and resolving GitHub review threads
+4. **Verify** — each fix is validated before the review thread is marked as resolved
+
+### Prerequisites
+
+- `gh` CLI installed and authenticated for the target repository
+- `python3` available on `PATH`
+- `GITHUB_TOKEN` available if `gh` uses environment-based authentication
+
+### CLI Usage
+
+Process batched PR review issues:
 
 ```bash
 looper \
@@ -70,126 +199,103 @@ looper \
   --grouped
 ```
 
-If the review issue files do not exist yet, use the installed `fix-coderabbit-review` skill to export them into `ai-docs/reviews-pr-<PR>/issues` before running looper.
+### Skills
 
-PRD task mode:
+| Skill | Purpose |
+|-------|---------|
+| `fix-coderabbit-review` | Processes PR review feedback: exports CodeRabbit issues, triages fixes, implements changes, verifies, and resolves GitHub review threads |
 
-```bash
-looper \
-  --pr multi-repo \
-  --mode prd-tasks \
-  --issues-dir tasks/prd-multi-repo \
-  --ide claude
-```
+---
 
-## Go Package Usage
+## 🧩 Shared Skills
+
+These skills are used across both workflows.
+
+| Skill | Purpose |
+|-------|---------|
+| `verification-before-completion` | Enforces fresh verification evidence before any completion claim, commit, or PR creation |
+
+## 📦 Go Package Usage
+
+### PRD Tasks
 
 Prepare work without executing any IDE process:
 
 ```go
-package main
-
-import (
-	"context"
-	"fmt"
-
-	"github.com/compozy/looper"
-)
-
-func main() {
-	prep, err := looper.Prepare(context.Background(), looper.Config{
-		PR:       "multi-repo",
-		IssuesDir: "tasks/prd-multi-repo",
-		Mode:     looper.ModePRDTasks,
-		DryRun:   true,
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	fmt.Println(len(prep.Jobs))
-}
+prep, err := looper.Prepare(context.Background(), looper.Config{
+    PR:        "multi-repo",
+    IssuesDir: "tasks/prd-multi-repo",
+    Mode:      looper.ModePRDTasks,
+    DryRun:    true,
+})
 ```
 
-Execute the loop from your own program:
+### PR Review
+
+Execute the full review remediation loop:
 
 ```go
-package main
-
-import (
-	"context"
-
-	"github.com/compozy/looper"
-)
-
-func main() {
-	_ = looper.Run(context.Background(), looper.Config{
-		PR:              "259",
-		Mode:            looper.ModePRReview,
-		IDE:             looper.IDECodex,
-		ReasoningEffort: "medium",
-	})
-}
+_ = looper.Run(context.Background(), looper.Config{
+    PR:              "259",
+    Mode:            looper.ModePRReview,
+    IDE:             looper.IDECodex,
+    ReasoningEffort: "medium",
+})
 ```
+
+### Embedding
 
 Embed the Cobra command in another CLI:
 
 ```go
-package main
-
-import (
-	"github.com/compozy/looper/command"
-)
-
-func main() {
-	root := command.New()
-	_ = root.Execute()
-}
+root := command.New()
+_ = root.Execute()
 ```
 
-## Migration Guide
+## 🏗️ Project Layout
 
-When migrating a repository that currently vendors `scripts/markdown`:
+```
+cmd/looper/              CLI entry point
+command/                 Public Cobra wrapper for embedding
+internal/cli/            Cobra flags, interactive form, CLI glue
+internal/looper/         Internal facade for preparation and execution
+  agent/                 IDE command validation and process construction
+  model/                 Shared runtime data structures
+  plan/                  Input discovery, filtering, grouping, batch prep
+  prompt/                Prompt builders emitting runtime context + skill names
+  run/                   Execution pipeline, logging, shutdown, Bubble Tea UI
+internal/version/        Build metadata
+skills/                  Bundled installable skills
+tasks/docs/              Standalone document templates (PRD, TechSpec, ADR)
+```
 
-1. Remove the copied script tree.
-2. Install the looper CLI and bundled skills:
-   - `go install github.com/compozy/looper/cmd/looper@latest`
-   - `npx skills add https://github.com/compozy/looper`
-3. Choose whether the repo should:
-   - shell out to the `looper` binary, or
-   - import `github.com/compozy/looper` / `github.com/compozy/looper/command`
-4. Point the repo at the same issue/task directories it already uses:
-   - `ai-docs/reviews-pr-<PR>/issues`
-   - `tasks/prd-<name>`
-5. Keep repo-specific wrappers around looper if needed, but stop copying the looper engine or its skills into each project.
-
-## Development
+## 🛠️ Development
 
 ```bash
-make deps
-make fmt
-make lint
-make test
-make build
-make verify
+make deps      # Install tool dependencies
+make fmt       # Format code
+make lint      # Lint with zero-tolerance policy
+make test      # Run tests with race detector
+make build     # Compile binary
+make verify    # Full pipeline: fmt → lint → test → build
 ```
 
-## Project Layout
+## 🔀 Migration Guide
 
-```text
-cmd/looper/             Standalone CLI entry point
-command/                Public Cobra wrapper
-internal/cli/           Cobra flags, interactive form collection, CLI glue
-internal/looper/        Internal facade for reusable preparation and execution
-internal/looper/agent/  IDE command validation and process construction
-internal/looper/model/  Shared runtime data structures
-internal/looper/plan/   Input discovery, filtering, grouping, and batch preparation
-internal/looper/prompt/ Thin prompt builders that emit runtime context plus required skill names
-internal/looper/run/    Execution pipeline, logging, shutdown, and Bubble Tea UI
-internal/version/       Build metadata
-skills/                 Bundled installable skills consumed by looper-generated prompts
-```
+Migrating from a repository that currently vendors `scripts/markdown`:
 
-## License
+1. Remove the copied script tree
+2. Install the CLI and skills:
+   ```bash
+   go install github.com/compozy/looper/cmd/looper@latest
+   npx skills add https://github.com/compozy/looper
+   ```
+3. Choose whether to shell out to `looper` or import `github.com/compozy/looper` / `github.com/compozy/looper/command`
+4. Point at the same issue/task directories:
+   - `ai-docs/reviews-pr-<PR>/issues` for PR reviews
+   - `tasks/prd-<name>` for PRD task workflows
+5. Use creation skills to define new work, then run `looper --mode prd-tasks` to execute
 
-BSL-1.1
+## 📄 License
+
+Looper is licensed under the [MIT License](LICENSE).

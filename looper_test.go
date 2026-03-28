@@ -18,7 +18,7 @@ func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 		t.Fatalf("mkdir tasks dir: %v", err)
 	}
 
-	taskFile := filepath.Join(tasksDir, "_task_1.md")
+	taskFile := filepath.Join(tasksDir, "task_1.md")
 	taskContent := `## status: pending
 <task_context>
   <domain>backend</domain>

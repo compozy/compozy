@@ -19,10 +19,19 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 		"skills/verification-before-completion/SKILL.md",
 		"skills/execute-prd-task/SKILL.md",
 		"skills/execute-prd-task/references/tracking-checklist.md",
+		"skills/create-prd/SKILL.md",
+		"skills/create-prd/references/prd-template.md",
+		"skills/create-prd/references/question-protocol.md",
+		"skills/create-prd/references/adr-template.md",
+		"skills/create-techspec/SKILL.md",
+		"skills/create-techspec/references/techspec-template.md",
+		"skills/create-techspec/references/adr-template.md",
+		"skills/create-tasks/SKILL.md",
+		"skills/create-tasks/references/task-template.md",
+		"skills/create-tasks/references/task-context-schema.md",
 	}
 
 	for _, relativePath := range requiredPaths {
-		relativePath := relativePath
 		t.Run(relativePath, func(t *testing.T) {
 			t.Parallel()
 
@@ -35,6 +44,9 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 
 	checkPortableContent(t, filepath.Join(root, "skills", "fix-coderabbit-review", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "execute-prd-task", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "create-prd", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "create-techspec", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "create-tasks", "SKILL.md"))
 }
 
 func repoRoot(t *testing.T) string {

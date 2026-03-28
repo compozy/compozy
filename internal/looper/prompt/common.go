@@ -60,12 +60,12 @@ func IsTaskCompleted(task model.TaskEntry) bool {
 }
 
 func ExtractTaskNumber(filename string) int {
-	reTaskFile := regexp.MustCompile(`^_task_\d+\.md$`)
+	reTaskFile := regexp.MustCompile(`^task_\d+\.md$`)
 	if !reTaskFile.MatchString(filename) {
 		return 0
 	}
 
-	numStr := strings.TrimPrefix(filename, "_task_")
+	numStr := strings.TrimPrefix(filename, "task_")
 	numStr = strings.TrimSuffix(numStr, ".md")
 	num, err := strconv.Atoi(numStr)
 	if err != nil {
