@@ -1,0 +1,47 @@
+name: "Setup Go Environment"
+description: "Sets up Go with caching and common tools for Compozy development"
+author: "Compozy Team"
+
+inputs:
+  go-version:
+    description: "Go version to install"
+    required: false
+    default: "1.26.1"
+  install-tools:
+    description: "Install common development tools"
+    required: false
+    default: "true"
+  cache:
+    description: "Cache Go modules"
+    required: false
+    default: "true"
+
+outputs:
+  go-version:
+    description: "The Go version that was installed"
+    value: ${{ steps.setup-go.outputs.go-version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Go
+      id: setup-go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: ${{ inputs.cache }}
+
+    - name: Download Go modules
+      shell: bash
+      run: |
+        echo "Downloading Go modules..."
+        go mod download
+        go mod verify
+
+    - name: Install development tools
+      if: inputs.install-tools == 'true'
+      shell: bash
+      run: |-
+        echo "Installing Go development tools..."
+        go install gotest.tools/gotestsum@latest
+        curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/HEAD/install.sh | sh -s -- -b $(go env GOPATH)/bin v2.11.4

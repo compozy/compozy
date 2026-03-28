@@ -178,12 +178,18 @@ func TestBuildPRDTaskPromptRespectsAutoCommitFlag(t *testing.T) {
 	}
 
 	withAutoCommit := buildPRDTaskPrompt(task, true)
-	if !strings.Contains(withAutoCommit, "Create one local commit after clean verification, self-review, and tracking updates.") {
+	if !strings.Contains(
+		withAutoCommit,
+		"Create one local commit after clean verification, self-review, and tracking updates.",
+	) {
 		t.Fatalf("expected auto-commit prompt to include local commit instructions")
 	}
 
 	withoutAutoCommit := buildPRDTaskPrompt(task, false)
-	if strings.Contains(withoutAutoCommit, "Create one local commit after clean verification, self-review, and tracking updates.") {
+	if strings.Contains(
+		withoutAutoCommit,
+		"Create one local commit after clean verification, self-review, and tracking updates.",
+	) {
 		t.Fatalf("expected no-auto-commit prompt to omit automatic commit instructions")
 	}
 	if !strings.Contains(withoutAutoCommit, "Do not create an automatic commit for this run.") {

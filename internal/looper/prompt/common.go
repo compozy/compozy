@@ -250,7 +250,8 @@ func isAllDigits(s string) bool {
 func sanitizePath(path string) string {
 	runes := make([]rune, 0, len(path))
 	for _, r := range path {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' ||
+			r == '-' {
 			runes = append(runes, r)
 			continue
 		}

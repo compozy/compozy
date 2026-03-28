@@ -44,7 +44,9 @@ func (m *uiModel) renderSummaryHeader() string {
 	headerStyle := lipgloss.NewStyle().Bold(true).MarginTop(1).MarginBottom(1)
 	if m.failed > 0 {
 		headerStyle = headerStyle.Foreground(lipgloss.Color("220"))
-		return headerStyle.Render(fmt.Sprintf("✓ Execution Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed))
+		return headerStyle.Render(
+			fmt.Sprintf("✓ Execution Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed),
+		)
 	}
 	headerStyle = headerStyle.Foreground(lipgloss.Color("42"))
 	return headerStyle.Render(fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total))
@@ -74,10 +76,16 @@ func (m *uiModel) renderSummaryTokenUsage() string {
 		fmt.Sprintf("  Input:  %s tokens", formatNumber(m.aggregateUsage.InputTokens)),
 	}
 	if m.aggregateUsage.CacheReadTokens > 0 {
-		usageLines = append(usageLines, fmt.Sprintf("  Cache Reads: %s tokens", formatNumber(m.aggregateUsage.CacheReadTokens)))
+		usageLines = append(
+			usageLines,
+			fmt.Sprintf("  Cache Reads: %s tokens", formatNumber(m.aggregateUsage.CacheReadTokens)),
+		)
 	}
 	if m.aggregateUsage.CacheCreationTokens > 0 {
-		usageLines = append(usageLines, fmt.Sprintf("  Cache Creation: %s tokens", formatNumber(m.aggregateUsage.CacheCreationTokens)))
+		usageLines = append(
+			usageLines,
+			fmt.Sprintf("  Cache Creation: %s tokens", formatNumber(m.aggregateUsage.CacheCreationTokens)),
+		)
 	}
 	usageLines = append(usageLines,
 		fmt.Sprintf("  Output: %s tokens", formatNumber(m.aggregateUsage.OutputTokens)),
@@ -245,7 +253,11 @@ func (m *uiModel) buildMetaBlock(job *uiJob) string {
 }
 
 func (m *uiModel) renderMainHeader(job *uiJob) string {
-	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).MarginBottom(1).Render(fmt.Sprintf("Batch: %s", job.safeName))
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("99")).
+		MarginBottom(1).
+		Render(fmt.Sprintf("Batch: %s", job.safeName))
 }
 
 func (m *uiModel) renderMainFileList(job *uiJob) string {
@@ -268,7 +280,10 @@ func (m *uiModel) renderMainStatus(job *uiJob) string {
 	if job.state == jobFailed && job.exitCode != 0 {
 		statusLabel = fmt.Sprintf("%s (exit %d)", statusLabel, job.exitCode)
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("81")).MarginBottom(1).Render(fmt.Sprintf("Issues: %d  |  Status: %s", job.issues, statusLabel))
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("81")).
+		MarginBottom(1).
+		Render(fmt.Sprintf("Issues: %d  |  Status: %s", job.issues, statusLabel))
 }
 
 func (m *uiModel) renderLogsHeader() string {
@@ -322,7 +337,10 @@ func (m *uiModel) renderLogPaths(job *uiJob) string {
 	if len(lines) == 0 {
 		return ""
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("245")).MarginBottom(1).Render("Log Files:\n" + strings.Join(lines, "\n"))
+	return lipgloss.NewStyle().
+		Foreground(lipgloss.Color("245")).
+		MarginBottom(1).
+		Render("Log Files:\n" + strings.Join(lines, "\n"))
 }
 
 func (m *uiModel) renderTokenUsage(job *uiJob) string {
@@ -331,7 +349,11 @@ func (m *uiModel) renderTokenUsage(job *uiJob) string {
 	}
 	usage := job.tokenUsage
 	var lines []string
-	lines = append(lines, "Token Usage (Claude API):", fmt.Sprintf("  Input:          %s tokens", formatNumber(usage.InputTokens)))
+	lines = append(
+		lines,
+		"Token Usage (Claude API):",
+		fmt.Sprintf("  Input:          %s tokens", formatNumber(usage.InputTokens)),
+	)
 	if usage.CacheReadTokens > 0 {
 		lines = append(lines, fmt.Sprintf("  Cache Reads:    %s tokens", formatNumber(usage.CacheReadTokens)))
 	}

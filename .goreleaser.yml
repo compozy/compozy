@@ -1,14 +1,32 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema-pro.json
+# vim: set ts=2 sw=2 tw=0 fo=jcroql
 version: 2
+pro: true
 
 project_name: looper
+
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"
+  license: "BSL-1.1"
+  homepage: "https://github.com/compozy/looper"
+  description: "Compozy looper CLI"
+  maintainers:
+    - "Compozy Team <support@compozy.com>"
+
+env:
+  - GO111MODULE=on
+  - CGO_ENABLED=0
+
+git:
+  tag_sort: -version:refname
 
 builds:
   - id: looper
     main: ./cmd/looper
     binary: looper
     goos:
-      - darwin
       - linux
+      - darwin
       - windows
     goarch:
       - amd64
@@ -21,9 +39,14 @@ builds:
       - -X github.com/compozy/looper/internal/version.Version={{ .Version }}
       - -X github.com/compozy/looper/internal/version.Commit={{ .ShortCommit }}
       - -X github.com/compozy/looper/internal/version.Date={{ .Date }}
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: looper
+  - id: looper-archive
     ids:
       - looper
     name_template: >-
@@ -32,20 +55,127 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- with .Arm }}v{{ . }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
     files:
       - README.md
-      - LICENSE
+      - LICENSE*
+    wrap_in_directory: true
 
 checksum:
-  name_template: checksums.txt
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
 
 snapshot:
-  version_template: "{{ .Version }}-next"
+  version_template: "0.0.0-{{ .Timestamp }}"
+
+source:
+  enabled: true
 
 changelog:
+  use: github
   sort: asc
+  abbrev: 7
+  groups:
+    - title: "\U0001F389"
+      regexp: "^.*feat[\\(\\w)]*:+.*$"
+      order: 0
+    - title: "\U0001F41B"
+      regexp: "^.*fix[\\(\\w)]*:+.*$"
+      order: 1
+    - title: "⚡"
+      regexp: "^.*perf[\\(\\w)]*:+.*$"
+      order: 2
+    - title: "\U0001F510"
+      regexp: "^.*security[\\(\\w)]*:+.*$"
+      order: 3
+    - title: "\U0001F4DA"
+      regexp: "^.*docs[\\(\\w)]*:+.*$"
+      order: 4
+    - title: "\U0001F527"
+      regexp: "^.*refactor[\\(\\w)]*:+.*$"
+      order: 5
+    - title: "\U0001F4E6"
+      regexp: "^.*deps[\\(\\w)]*:+.*$"
+      order: 6
+    - title: "\U0001F9EA"
+      regexp: "^.*test[\\(\\w)]*:+.*$"
+      order: 7
+    - title: "\U0001F504"
+      order: 999
+  filters:
+    exclude:
+      - "^(build|ci): "
+      - "^chore: auto-update generated files$"
+      - "^chore: docs$"
+      - "^chore: schema update$"
+      - "^chore: typo$"
+      - "^chore\\(legal\\): "
+      - "^chore\\(deps\\): "
+      - "^docs: update$"
+      - "^test:"
+      - "^test\\("
+      - "merge conflict"
+      - Merge branch
+      - Merge pull request
+      - Merge remote-tracking branch
+      - go mod tidy
+      - "^wip "
+      - "^wip:"
 
 release:
   github:
     owner: compozy
     name: looper
+  name_template: "Release {{ .Version }}"
+  mode: replace
+  draft: false
+  prerelease: auto
+  header: |
+    ## Looper CLI {{ .Version }}
+
+    Welcome to the latest release of the Looper CLI!
+
+    ### Installation
+
+    #### Binary Download
+    Download the appropriate `looper_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
+
+    #### Go Install
+    ```bash
+    go install github.com/compozy/looper/cmd/looper@{{ .Tag }}
+    ```
+
+  footer: |
+    ### Verification
+
+    All release artifacts are signed and can be verified:
+
+    #### Checksums
+    ```bash
+    cosign verify-blob \
+      --signature checksums.txt.sig \
+      --certificate checksums.txt.pem \
+      checksums.txt
+    ```
+
+    **Full Changelog**: https://github.com/compozy/looper/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+sboms:
+  - artifacts: archive
+  - id: source
+    artifacts: source

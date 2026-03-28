@@ -244,7 +244,13 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 		return
 	}
 	if l.lastFailure != nil {
-		fmt.Fprintf(os.Stderr, "\n⚠️ Job %d (%s) canceled: %v\n", l.index+1, strings.Join(l.job.codeFiles, ", "), l.lastFailure.err)
+		fmt.Fprintf(
+			os.Stderr,
+			"\n⚠️ Job %d (%s) canceled: %v\n",
+			l.index+1,
+			strings.Join(l.job.codeFiles, ", "),
+			l.lastFailure.err,
+		)
 	}
 }
 
@@ -608,7 +614,12 @@ func handleCommandCancellation(
 	useUI bool,
 ) jobAttemptResult {
 	if !useUI {
-		fmt.Fprintf(os.Stderr, "\nCanceling job %d (%s) due to shutdown signal\n", index+1, strings.Join(j.codeFiles, ", "))
+		fmt.Fprintf(
+			os.Stderr,
+			"\nCanceling job %d (%s) due to shutdown signal\n",
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+		)
 	}
 	if cmd.Process != nil {
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
@@ -663,7 +674,13 @@ func handleActivityTimeout(
 
 func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
 	if !useUI {
-		fmt.Fprintf(os.Stderr, "\nJob %d (%s) timed out after %v of inactivity\n", index+1, strings.Join(j.codeFiles, ", "), timeout)
+		fmt.Fprintf(
+			os.Stderr,
+			"\nJob %d (%s) timed out after %v of inactivity\n",
+			index+1,
+			strings.Join(j.codeFiles, ", "),
+			timeout,
+		)
 	}
 }
 
@@ -748,13 +765,24 @@ func printAggregateTokenUsage(usage *TokenUsage) {
 }
 
 func summarizeResults(failed int32, failures []failInfo, total int) {
-	fmt.Printf("\nExecution Summary:\n- Total Groups: %d\n- Success: %d\n- Failed: %d\n", total, total-int(failed), int(failed))
+	fmt.Printf(
+		"\nExecution Summary:\n- Total Groups: %d\n- Success: %d\n- Failed: %d\n",
+		total,
+		total-int(failed),
+		int(failed),
+	)
 	if len(failures) == 0 {
 		return
 	}
 	fmt.Println("\nFailures:")
 	for _, f := range failures {
-		fmt.Printf("- Group: %s\n  - Exit Code: %d\n  - Logs: %s (out), %s (err)\n", f.codeFile, f.exitCode, f.outLog, f.errLog)
+		fmt.Printf(
+			"- Group: %s\n  - Exit Code: %d\n  - Logs: %s (out), %s (err)\n",
+			f.codeFile,
+			f.exitCode,
+			f.outLog,
+			f.errLog,
+		)
 	}
 }
 

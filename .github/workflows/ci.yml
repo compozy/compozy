@@ -1,24 +1,80 @@
 name: CI
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
-  pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CGO_ENABLED: 0
+  GO_VERSION: "1.26.1"
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
-  verify:
+  # Detect file changes to conditionally run jobs
+  changes:
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
     steps:
-      - name: Checkout
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - 'Makefile'
+              - '.goreleaser.yml'
+              - 'cmd/**'
+              - 'command/**'
+              - 'internal/**'
+              - 'skills/**'
+
+  # Go backend testing
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+
+    steps:
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
         with:
-          go-version-file: go.mod
-          cache: true
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "true"
 
-      - name: Verify
+      - name: Run verification pipeline
         run: make verify
+        continue-on-error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-go-${{ env.GO_VERSION }}
+          path: |
+            coverage.out
+            test-results.xml
+          retention-days: 7

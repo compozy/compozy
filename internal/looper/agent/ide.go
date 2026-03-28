@@ -159,7 +159,7 @@ func buildCodexCommand(modelName string, addDirs []string, reasoningEffort strin
 		"-m", modelToUse,
 		"-c", fmt.Sprintf("model_reasoning_effort=%s", reasoningEffort),
 	}
-	args = appendRepeatedFlag(args, "--add-dir", addDirs)
+	args = appendAddDirs(args, addDirs)
 	args = append(args, "exec", "--json", "-")
 	return formatShellCommand(args)
 }
@@ -177,7 +177,7 @@ func buildClaudeCommand(modelName string, addDirs []string, reasoningEffort stri
 		"--verbose",
 		"--model", modelToUse,
 	}
-	args = appendRepeatedFlag(args, "--add-dir", addDirs)
+	args = appendAddDirs(args, addDirs)
 	args = append(
 		args,
 		"--dangerously-skip-permissions",
@@ -209,9 +209,9 @@ func buildCursorCommand(modelName string, _ string) string {
 	return fmt.Sprintf("cursor-agent --print --output-format stream-json --model %s", modelToUse)
 }
 
-func appendRepeatedFlag(args []string, flag string, values []string) []string {
+func appendAddDirs(args []string, values []string) []string {
 	for _, value := range normalizeAddDirs(values) {
-		args = append(args, flag, value)
+		args = append(args, "--add-dir", value)
 	}
 	return args
 }
@@ -240,21 +240,23 @@ func codexCommand(ctx context.Context, modelName string, addDirs []string, reaso
 		args = append(args, "-m", modelName)
 	}
 	args = append(args, "-c", fmt.Sprintf("model_reasoning_effort=%s", reasoning))
-	args = appendRepeatedFlag(args, "--add-dir", addDirs)
+	args = appendAddDirs(args, addDirs)
 	args = append(args, "exec", "--json", "-")
 	return exec.CommandContext(ctx, model.IDECodex, args...)
 }
 
 func claudeCommand(ctx context.Context, modelName string, addDirs []string, reasoning string) *exec.Cmd {
 	reasoningPrompt := prompt.ClaudeReasoningPrompt(reasoning)
-	systemPrompt := reasoningPrompt + "\n\n<critical>YOU SHOULD use a team of agents to handle properly the job and avoid do workaround to get it done</critical>"
+	teamDirective := "<critical>YOU SHOULD use a team of agents to handle " +
+		"properly the job and avoid do workaround to get it done</critical>"
+	systemPrompt := reasoningPrompt + "\n\n" + teamDirective
 	args := []string{
 		"--print",
 		"--output-format", "stream-json",
 		"--verbose",
 		"--model", modelName,
 	}
-	args = appendRepeatedFlag(args, "--add-dir", addDirs)
+	args = appendAddDirs(args, addDirs)
 	args = append(
 		args,
 		"--permission-mode", "bypassPermissions",

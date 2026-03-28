@@ -65,7 +65,11 @@ func validateAndFilterEntries(entries []model.IssueEntry, mode model.ExecutionMo
 	return entries, nil
 }
 
-func readIssueEntries(resolvedIssuesDir string, mode model.ExecutionMode, includeCompleted bool) ([]model.IssueEntry, error) {
+func readIssueEntries(
+	resolvedIssuesDir string,
+	mode model.ExecutionMode,
+	includeCompleted bool,
+) ([]model.IssueEntry, error) {
 	if mode == model.ExecutionModePRDTasks {
 		return readTaskEntries(resolvedIssuesDir, includeCompleted)
 	}

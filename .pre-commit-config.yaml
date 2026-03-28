@@ -1,0 +1,46 @@
+default_install_hook_types:
+  - pre-commit
+
+default_stages:
+  - pre-commit
+
+exclude: |
+  (?x)^(
+    CHANGELOG.md|
+    tools/.*/package\.json|
+    .*\.(mp4|pdf|mp3|png)|
+    bun.lockb|
+    node_modules|
+  )$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        exclude: '^(CHANGELOG\.md|tools/.*/package\.json|bun\.lockb|node_modules/)'
+      - id: check-json
+        exclude: '^(tools/.*/package\.json|node_modules/)'
+      - id: check-toml
+      - id: check-added-large-files
+        args:
+          - --maxkb=3000
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: format-go
+        name: format go
+        description: Format Go files using make fmt
+        entry: make fmt
+        language: system
+        files: \.go$
+        pass_filenames: false
+  - repo: https://github.com/lyz-code/yamlfix/
+    rev: 1.17.0
+    hooks:
+      - id: yamlfix
+        args:
+          - -c
+          - .yamlfix.toml

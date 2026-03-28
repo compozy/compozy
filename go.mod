@@ -7,7 +7,6 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/magefile/mage v1.17.0
 	github.com/spf13/cobra v1.10.2
 	github.com/tidwall/pretty v1.2.1
 )

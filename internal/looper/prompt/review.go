@@ -55,17 +55,23 @@ func buildReviewScopeSection(ctx reviewPromptContext) string {
 	var sb strings.Builder
 	sb.WriteString("<critical>\n")
 	sb.WriteString("- Use installed `fix-coderabbit-review` as the source of truth for this review workflow.\n")
-	sb.WriteString("- Apply the skill in looper batch mode only: the files listed in `<batch_issue_files>` are the entire scope for this run.\n")
-	sb.WriteString("- If the skill refers to \"all unresolved issues\", interpret that as \"all unresolved issues from this batch\".\n")
+	sb.WriteString(
+		"- Apply the skill in looper batch mode only: the files listed in `<batch_issue_files>` are the entire scope for this run.\n",
+	)
+	sb.WriteString(
+		"- If the skill refers to \"all unresolved issues\", interpret that as \"all unresolved issues from this batch\".\n",
+	)
 	sb.WriteString("- Skip the export step when the listed batch issue files already exist.\n")
-	sb.WriteString("- Use installed `verification-before-completion` before claiming this batch is complete or creating an automatic commit.\n")
+	sb.WriteString(
+		"- Use installed `verification-before-completion` before claiming this batch is complete or creating an automatic commit.\n",
+	)
 	sb.WriteString("- Do not update issue files or grouped trackers outside this batch.\n")
 	sb.WriteString("</critical>\n\n")
 
 	sb.WriteString("<batch_scope>\n")
-	sb.WriteString(fmt.Sprintf("- PR: `%s`\n", ctx.PR))
+	fmt.Fprintf(&sb, "- PR: `%s`\n", ctx.PR)
 	if ctx.HasIssueRange {
-		sb.WriteString(fmt.Sprintf("- Issue range: `%03d-%03d`\n", ctx.MinIssue, ctx.MaxIssue))
+		fmt.Fprintf(&sb, "- Issue range: `%03d-%03d`\n", ctx.MinIssue, ctx.MaxIssue)
 	} else {
 		sb.WriteString("- Issue range: `UNCONFIRMED`; use the explicit file list below\n")
 	}
@@ -81,7 +87,7 @@ func buildReviewScopeSection(ctx reviewPromptContext) string {
 	}
 	sb.WriteString("- Code files in scope:\n")
 	for _, codeFile := range ctx.CodeFiles {
-		sb.WriteString(fmt.Sprintf("  - `%s`\n", codeFile))
+		fmt.Fprintf(&sb, "  - `%s`\n", codeFile)
 	}
 	sb.WriteString("</batch_scope>")
 	return sb.String()
@@ -91,7 +97,7 @@ func buildBatchIssueFilesSection(batchIssues []model.IssueEntry) string {
 	var sb strings.Builder
 	sb.WriteString("<batch_issue_files>\n")
 	for _, issue := range batchIssues {
-		sb.WriteString(fmt.Sprintf("- `%s` (%s)\n", NormalizeForPrompt(issue.AbsPath), issue.CodeFile))
+		fmt.Fprintf(&sb, "- `%s` (%s)\n", NormalizeForPrompt(issue.AbsPath), issue.CodeFile)
 	}
 	sb.WriteString("</batch_issue_files>")
 	return sb.String()
@@ -100,13 +106,23 @@ func buildBatchIssueFilesSection(batchIssues []model.IssueEntry) string {
 func buildReviewExecutionSection(ctx reviewPromptContext) string {
 	var sb strings.Builder
 	sb.WriteString("<execution_contract>\n")
-	sb.WriteString("1. Triage every listed issue file and record `VALID` or `INVALID` with technical reasoning directly in that issue file.\n")
-	sb.WriteString("2. Implement complete production fixes and add or update tests for every `VALID` issue in this batch.\n")
-	sb.WriteString("3. Use `verification-before-completion` to identify and run the repository's real verification commands before finishing or committing this batch.\n")
+	sb.WriteString(
+		"1. Triage every listed issue file and record `VALID` or `INVALID` with technical reasoning directly in that issue file.\n",
+	)
+	sb.WriteString(
+		"2. Implement complete production fixes and add or update tests for every `VALID` issue in this batch.\n",
+	)
+	sb.WriteString(
+		"3. Use `verification-before-completion` to identify and run the repository's real verification commands before finishing or committing this batch.\n",
+	)
 	if ctx.HasIssueRange {
-		sb.WriteString(fmt.Sprintf("4. Resolve only the review threads for this batch range (`%03d-%03d`).\n", ctx.MinIssue, ctx.MaxIssue))
+		fmt.Fprintf(&sb, "4. Resolve only the review threads for this batch range (`%03d-%03d`).\n",
+			ctx.MinIssue,
+			ctx.MaxIssue)
 	} else {
-		sb.WriteString("4. Resolve only the review threads referenced by the issue files listed in `<batch_issue_files>`.\n")
+		sb.WriteString(
+			"4. Resolve only the review threads referenced by the issue files listed in `<batch_issue_files>`.\n",
+		)
 	}
 	if ctx.Grouped {
 		sb.WriteString("5. Update grouped tracker files only for the touched code files in this batch.\n")
@@ -114,7 +130,9 @@ func buildReviewExecutionSection(ctx reviewPromptContext) string {
 		sb.WriteString("5. Grouped tracker updates are disabled for this run.\n")
 	}
 	if ctx.AutoCommit {
-		sb.WriteString("6. Create exactly one local commit for this batch after clean verification. Do not push automatically.\n")
+		sb.WriteString(
+			"6. Create exactly one local commit for this batch after clean verification. Do not push automatically.\n",
+		)
 	} else {
 		sb.WriteString("6. Leave the changes ready for manual review and commit. Do not create an automatic commit.\n")
 	}

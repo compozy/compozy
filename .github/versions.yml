@@ -1,0 +1,25 @@
+# Centralized version management for CI/CD workflows
+# This file contains all version specifications used across workflows
+# Update this file to change versions across all workflows
+
+versions:
+  # Language versions
+  go: "1.26.1"
+  node: "22"
+
+  # Package manager versions
+  bun: "1.2.22"
+
+  # GitHub Actions versions
+  actions_checkout: "v4"
+  actions_cache: "v4"
+  actions_setup_go: "v5"
+  actions_upload_artifact: "v4"
+
+  # Security scanning tools
+  cosign: "v2.2.4"
+  syft: "v0.95.0"
+
+  # Development tools
+  golangci_lint: "v2.11.4"
+  gotestsum: "latest"

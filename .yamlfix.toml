@@ -1,0 +1,7 @@
+explicit_start = false
+indent_mapping = 2
+line_length = 100
+preserve_quotes = true
+section_whitelines = 1
+sequence_style = "block_style"
+whitelines = 1

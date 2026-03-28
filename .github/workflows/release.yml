@@ -1,33 +1,217 @@
 name: Release
 
 on:
+  # Trigger on push to main for Release PR creation/update
   push:
-    tags:
-      - "v*"
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+
+  # Trigger on PR events for dry-run checks
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    branches:
+      - main
+      - "release/v*"
+
+  # Manual trigger for emergency releases
   workflow_dispatch:
+    inputs:
+      force_release:
+        description: "Force a release even if no changes"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.26.1"
+  INITIAL_VERSION: "v0.0.1"
+  NODE_VERSION: "22"
+  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.15
 
 permissions:
   contents: write
+  packages: write
+  pull-requests: write
+  id-token: write
+  attestations: write
 
 jobs:
-  release:
+  # Job 1: Create or update Release PR
+  release-pr:
+    name: Create/Update Release PR
+    if: |
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       !contains(github.event.head_commit.message, 'release:') &&
+       !startsWith(github.event.head_commit.message, 'ci(release):') &&
+       !startsWith(github.event.head_commit.message, 'Merge pull request') &&
+       github.event.head_commit.author.name != 'github-actions[bot]') ||
+      (github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
 
-      - name: Release
-        uses: goreleaser/goreleaser-action@v6
+      - uses: ./.github/actions/setup-go
         with:
-          version: "~> v2"
-          args: release --clean
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "false"
+
+      - uses: ./.github/actions/setup-node
+      - uses: ./.github/actions/setup-git-cliff
+
+      - name: Run PR Release Orchestrator
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: |
+          go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
+
+  # Job 2: Dry-run checks on Release PR
+  dry-run:
+    name: Dry-Run Release Check
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: false
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Setup Release Tools
+        uses: ./.github/actions/setup-release
+        with:
+          goreleaser-distribution: goreleaser-pro
+          setup-docker: false
+          setup-docker-login: false
+
+      - name: Run Dry-Run Orchestrator
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          GITHUB_HEAD_REF: ${{ github.head_ref }}
+          GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
+
+  # Job 3: Production release on merge
+  release:
+    name: Production Release
+    if: |
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      contains(github.event.head_commit.message, 'ci(release):')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      DOCKER_CLI_EXPERIMENTAL: enabled
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
+
+      - name: Set up Go with caching
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "true"
+
+      - uses: ./.github/actions/setup-node
+
+      - name: Setup Release Tools
+        uses: ./.github/actions/setup-release
+        with:
+          goreleaser-distribution: goreleaser-pro
+          setup-docker: true
+          setup-docker-login: true
+          setup-qemu: true
+          docker-registry: ghcr.io
+          docker-username: ${{ github.actor }}
+          docker-token: ${{ secrets.GITHUB_TOKEN }}
+          cosign-version: "v2.2.4"
+
+      - name: Create Git Tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          # Use git-cliff to get the bumped version
+          VERSION=$(git cliff --bumped-version 2>/dev/null | sed 's/^v//')
+          if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "v$VERSION" -m "Release v$VERSION"
+            git push origin "v$VERSION"
+            echo "Created and pushed tag v$VERSION"
+          else
+            echo "Could not get version from git-cliff. Got: $VERSION"
+            echo "Fallback: Extract from commit message"
+            VERSION=$(git log -1 --pretty=format:"%s" | sed -E 's/.*Release v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+            if [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag -a "v$VERSION" -m "Release v$VERSION"
+              git push origin "v$VERSION"
+              echo "Created and pushed tag v$VERSION"
+            else
+              echo "Could not extract version from any source. Got: $VERSION"
+              exit 1
+            fi
+          fi
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser-pro
+          version: ~> v2
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          AUR_KEY: ${{ secrets.AUR_KEY }}
+          COSIGN_EXPERIMENTAL: 1
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GOTMPDIR: ${{ runner.temp }}/go-tmp

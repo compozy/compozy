@@ -1,14 +1,109 @@
+version: "2"
+
 run:
-  timeout: 3m
+  build-tags:
+    - ""
+  issues-exit-code: 1
+  tests: true
 
 linters:
+  default: none
   enable:
+    - bodyclose
     - errcheck
+    - funlen
+    - goconst
+    - gocritic
+    - gocyclo
+    - gosec
     - govet
     - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - noctx
+    - nolintlint
+    - revive
     - staticcheck
+    - unconvert
+    - unparam
     - unused
+    - whitespace
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    funlen:
+      lines: 80
+      statements: 50
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocritic:
+      enabled-tags:
+        - performance
+        - style
+        - experimental
+        - diagnostic
+      disabled-tags:
+        - opinionated
+      disabled-checks:
+        - evalOrder  # False positive with bubbletea Update pattern
+        - hugeParam  # Value receivers are intentional API design choices
+    gocyclo:
+      min-complexity: 15
+    lll:
+      line-length: 120
+    misspell:
+      locale: US
+    unparam:
+      check-exported: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - funlen
+          - gocyclo
+          - gosec
+          - lll
+          - unparam
+        path: _test\.go
+      - linters:
+          - gosec
+        text: "G204"
+        path: internal/looper/agent/
+      - linters:
+          - gocritic
+        text: unnecessaryDefer
+      - linters:
+          - gochecknoinits
+          - goconst
+        path: _test\.go
+      - linters:
+          - lll
+        source: "`.*`"
+      - linters:
+          - lll
+        source: "^// @"
 
-issues:
-  max-issues-per-linter: 0
-  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+    - golines
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+    golines:
+      max-len: 120
+
+  exclusions:
+    generated: lax
