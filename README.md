@@ -24,6 +24,9 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
   - [Skills](#skills-1)
 - [🧩 Shared Skills](#-shared-skills)
 - [📦 Go Package Usage](#-go-package-usage)
+- [⌨️ CLI Reference](#️-cli-reference)
+  - [`looper start`](#looper-start)
+  - [`looper fix-reviews`](#looper-fix-reviews)
 - [🏗️ Project Layout](#️-project-layout)
 - [🛠️ Development](#️-development)
 - [🔀 Migration Guide](#-migration-guide)
@@ -249,6 +252,61 @@ Embed the Cobra command in another CLI:
 root := command.New()
 _ = root.Execute()
 ```
+
+## ⌨️ CLI Reference
+
+### `looper start`
+
+Execute PRD task files from a PRD workflow directory.
+
+```bash
+looper start [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--name` | `string` | | PRD task workflow name (used for `tasks/prd-<name>`) |
+| `--tasks-dir` | `string` | | Path to PRD tasks directory (`tasks/prd-<name>`) |
+| `--ide` | `string` | `codex` | IDE tool to use: `claude`, `codex`, `cursor`, or `droid` |
+| `--model` | `string` | *(per IDE)* | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
+| `--concurrent` | `int` | `1` | Number of batches to process in parallel |
+| `--reasoning-effort` | `string` | `medium` | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`) |
+| `--timeout` | `string` | `10m` | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period |
+| `--max-retries` | `int` | `0` | Retry failed or timed-out jobs up to N times before marking them failed |
+| `--retry-backoff-multiplier` | `float` | `1.5` | Multiplier applied to activity timeout after each retry |
+| `--tail-lines` | `int` | `30` | Number of log lines to show in UI for each job |
+| `--add-dir` | `strings` | | Additional directory to allow for Codex and Claude (repeatable or comma-separated) |
+| `--auto-commit` | `bool` | `false` | Include automatic commit instructions at task/batch completion |
+| `--include-completed` | `bool` | `false` | Include completed tasks |
+| `--dry-run` | `bool` | `false` | Only generate prompts; do not run IDE tool |
+| `--form` | `bool` | `false` | Use interactive form to collect parameters |
+
+### `looper fix-reviews`
+
+Process CodeRabbit review issue markdown files and dispatch AI agents to remediate feedback.
+
+```bash
+looper fix-reviews [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--pr` | `string` | | Pull request number |
+| `--issues-dir` | `string` | | Path to issues directory (`ai-docs/reviews-pr-<PR>/issues`) |
+| `--ide` | `string` | `codex` | IDE tool to use: `claude`, `codex`, `cursor`, or `droid` |
+| `--model` | `string` | *(per IDE)* | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
+| `--batch-size` | `int` | `1` | Number of file groups to batch together |
+| `--concurrent` | `int` | `1` | Number of batches to process in parallel |
+| `--grouped` | `bool` | `false` | Generate grouped issue summaries in `issues/grouped/` directory |
+| `--reasoning-effort` | `string` | `medium` | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`) |
+| `--timeout` | `string` | `10m` | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period |
+| `--max-retries` | `int` | `0` | Retry failed or timed-out jobs up to N times before marking them failed |
+| `--retry-backoff-multiplier` | `float` | `1.5` | Multiplier applied to activity timeout after each retry |
+| `--tail-lines` | `int` | `30` | Number of log lines to show in UI for each job |
+| `--add-dir` | `strings` | | Additional directory to allow for Codex and Claude (repeatable or comma-separated) |
+| `--auto-commit` | `bool` | `false` | Include automatic commit instructions at task/batch completion |
+| `--dry-run` | `bool` | `false` | Only generate prompts; do not run IDE tool |
+| `--form` | `bool` | `false` | Use interactive form to collect parameters |
 
 ## 🏗️ Project Layout
 
