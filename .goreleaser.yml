@@ -1,0 +1,51 @@
+version: 2
+
+project_name: looper
+
+builds:
+  - id: looper
+    main: ./cmd/looper
+    binary: looper
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X github.com/compozy/looper/internal/version.Version={{ .Version }}
+      - -X github.com/compozy/looper/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/compozy/looper/internal/version.Date={{ .Date }}
+
+archives:
+  - id: looper
+    ids:
+      - looper
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- with .Arm }}v{{ . }}{{ end }}
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ .Version }}-next"
+
+changelog:
+  sort: asc
+
+release:
+  github:
+    owner: compozy
+    name: looper

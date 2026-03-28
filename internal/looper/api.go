@@ -1,0 +1,206 @@
+package looper
+
+import (
+	"context"
+	"errors"
+	"strings"
+	"time"
+
+	"github.com/compozy/looper/internal/looper/agent"
+	"github.com/compozy/looper/internal/looper/model"
+	"github.com/compozy/looper/internal/looper/plan"
+	"github.com/compozy/looper/internal/looper/run"
+)
+
+// ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
+var ErrNoWork = plan.ErrNoWork
+
+// Mode identifies the execution flow used by looper.
+type Mode string
+
+const (
+	// ModePRReview processes PR review issue markdown files.
+	ModePRReview Mode = model.ModeCodeReview
+	// ModePRDTasks processes PRD task markdown files.
+	ModePRDTasks Mode = model.ModePRDTasks
+)
+
+// IDE identifies the downstream coding tool that looper should invoke.
+type IDE string
+
+const (
+	// IDECodex runs Codex jobs.
+	IDECodex IDE = model.IDECodex
+	// IDEClaude runs Claude Code jobs.
+	IDEClaude IDE = model.IDEClaude
+	// IDEDroid runs Droid jobs.
+	IDEDroid IDE = model.IDEDroid
+	// IDECursor runs Cursor Agent jobs.
+	IDECursor IDE = model.IDECursor
+)
+
+// Config configures looper preparation and execution.
+type Config struct {
+	PR                     string
+	IssuesDir              string
+	DryRun                 bool
+	AutoCommit             bool
+	Concurrent             int
+	BatchSize              int
+	IDE                    IDE
+	Model                  string
+	AddDirs                []string
+	Grouped                bool
+	TailLines              int
+	ReasoningEffort        string
+	Mode                   Mode
+	IncludeCompleted       bool
+	Timeout                time.Duration
+	MaxRetries             int
+	RetryBackoffMultiplier float64
+}
+
+// Job is a prepared execution unit with its generated artifacts.
+type Job struct {
+	CodeFiles     []string
+	SafeName      string
+	Prompt        []byte
+	PromptPath    string
+	StdoutLogPath string
+	StderrLogPath string
+	IssueCount    int
+
+	groups map[string][]model.IssueEntry
+}
+
+// Preparation contains the resolved execution plan for a looper run.
+type Preparation struct {
+	Jobs                    []Job
+	InputDir                string
+	ResolvedPR              string
+	InputDirPath            string
+	GroupedSummariesWritten bool
+}
+
+// Validate ensures the configuration is internally consistent.
+func (cfg Config) Validate() error {
+	runtimeCfg := cfg.runtime()
+	return agent.ValidateRuntimeConfig(runtimeCfg)
+}
+
+// Prepare resolves inputs, validates the environment, and generates batch artifacts.
+func Prepare(ctx context.Context, cfg Config) (*Preparation, error) {
+	runtimeCfg := cfg.runtime()
+	if err := agent.ValidateRuntimeConfig(runtimeCfg); err != nil {
+		return nil, err
+	}
+
+	prep, err := plan.Prepare(ctx, runtimeCfg)
+	if err != nil {
+		if errors.Is(err, plan.ErrNoWork) {
+			return nil, ErrNoWork
+		}
+		return nil, err
+	}
+	return newPreparation(prep), nil
+}
+
+// Run executes looper end to end for the provided configuration.
+func Run(ctx context.Context, cfg Config) error {
+	runtimeCfg := cfg.runtime()
+	if err := agent.ValidateRuntimeConfig(runtimeCfg); err != nil {
+		return err
+	}
+
+	prep, err := plan.Prepare(ctx, runtimeCfg)
+	if err != nil {
+		if errors.Is(err, plan.ErrNoWork) {
+			return nil
+		}
+		return err
+	}
+	return run.Execute(ctx, prep.Jobs, runtimeCfg)
+}
+
+// NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.
+func NormalizeAddDirs(dirs []string) []string {
+	if len(dirs) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(dirs))
+	normalized := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		trimmed := strings.TrimSpace(dir)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+func (cfg Config) runtime() *model.RuntimeConfig {
+	runtimeCfg := &model.RuntimeConfig{
+		PR:                     cfg.PR,
+		IssuesDir:              cfg.IssuesDir,
+		DryRun:                 cfg.DryRun,
+		AutoCommit:             cfg.AutoCommit,
+		Concurrent:             cfg.Concurrent,
+		BatchSize:              cfg.BatchSize,
+		IDE:                    string(cfg.IDE),
+		Model:                  cfg.Model,
+		AddDirs:                NormalizeAddDirs(cfg.AddDirs),
+		Grouped:                cfg.Grouped,
+		TailLines:              cfg.TailLines,
+		ReasoningEffort:        cfg.ReasoningEffort,
+		Mode:                   model.ExecutionMode(cfg.Mode),
+		IncludeCompleted:       cfg.IncludeCompleted,
+		Timeout:                cfg.Timeout,
+		MaxRetries:             cfg.MaxRetries,
+		RetryBackoffMultiplier: cfg.RetryBackoffMultiplier,
+	}
+	runtimeCfg.ApplyDefaults()
+	return runtimeCfg
+}
+
+func newPreparation(prep *model.SolvePreparation) *Preparation {
+	if prep == nil {
+		return nil
+	}
+
+	jobs := make([]Job, 0, len(prep.Jobs))
+	for i := range prep.Jobs {
+		jobs = append(jobs, newJob(prep.Jobs[i]))
+	}
+
+	return &Preparation{
+		Jobs:                    jobs,
+		InputDir:                prep.IssuesDir,
+		ResolvedPR:              prep.ResolvedPR,
+		InputDirPath:            prep.IssuesDirPath,
+		GroupedSummariesWritten: prep.GroupedSummarized,
+	}
+}
+
+func newJob(jb model.Job) Job {
+	codeFiles := append([]string(nil), jb.CodeFiles...)
+	prompt := append([]byte(nil), jb.Prompt...)
+	return Job{
+		CodeFiles:     codeFiles,
+		SafeName:      jb.SafeName,
+		Prompt:        prompt,
+		PromptPath:    jb.OutPromptPath,
+		StdoutLogPath: jb.OutLog,
+		StderrLogPath: jb.ErrLog,
+		IssueCount:    jb.IssueCount(),
+		groups:        jb.Groups,
+	}
+}

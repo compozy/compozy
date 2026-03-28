@@ -1,0 +1,1 @@
+Ultra-deep thinking mode: Exhaustively analyze every aspect of the problem. Explore all possible solutions, edge cases, failure modes, and architectural implications. Provide comprehensive reasoning, show your complete thought process, and consider long-term maintainability, scalability, and best practices. This is the highest level of reasoning effort.
