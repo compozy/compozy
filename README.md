@@ -68,12 +68,13 @@ go build ./cmd/looper
 
 ## 📖 Usage
 
-Looper operates in two modes: **[PRD Tasks](#-prd-workflow)** for end-to-end product development, and **[PR Review](#-pr-review-workflow)** for automated PR review remediation. See each workflow section below for details.
+Looper exposes two workflow subcommands: **[PRD Tasks](#-prd-workflow)** via `looper start`, and **[PR Review](#-pr-review-workflow)** via `looper fix-reviews`. See each workflow section below for details.
 
-Interactive mode prompts for all options:
+Interactive mode prompts for workflow-specific options:
 
 ```bash
-looper --form
+looper start --form
+looper fix-reviews --form
 ```
 
 ---
@@ -97,7 +98,7 @@ The PRD workflow takes you from a product idea to implemented code through a str
 /create-tasks        ──▶  tasks/prd-<name>/_tasks.md + task_01.md … task_N.md
    │
    ▼
-looper --mode prd-tasks  ──▶  AI agents execute each task
+looper start --name <name>  ──▶  AI agents execute each task
 ```
 
 Each step is independent — you can start from any point. All artifacts are plain markdown files in `tasks/prd-<name>/`.
@@ -107,20 +108,18 @@ Each step is independent — you can start from any point. All artifacts are pla
 Execute tasks from a PRD directory:
 
 ```bash
-looper \
-  --pr multi-repo \
-  --mode prd-tasks \
-  --issues-dir tasks/prd-multi-repo \
+looper start \
+  --name multi-repo \
+  --tasks-dir tasks/prd-multi-repo \
   --ide claude
 ```
 
 Preview generated prompts without executing (dry run):
 
 ```bash
-looper \
-  --pr multi-repo \
-  --mode prd-tasks \
-  --issues-dir tasks/prd-multi-repo \
+looper start \
+  --name multi-repo \
+  --tasks-dir tasks/prd-multi-repo \
   --dry-run
 ```
 
@@ -190,9 +189,8 @@ The PR review workflow automates the remediation of code review feedback. It tak
 Process batched PR review issues:
 
 ```bash
-looper \
+looper fix-reviews \
   --pr 259 \
-  --mode pr-review \
   --ide codex \
   --concurrent 2 \
   --batch-size 3 \
@@ -294,7 +292,7 @@ Migrating from a repository that currently vendors `scripts/markdown`:
 4. Point at the same issue/task directories:
    - `ai-docs/reviews-pr-<PR>/issues` for PR reviews
    - `tasks/prd-<name>` for PRD task workflows
-5. Use creation skills to define new work, then run `looper --mode prd-tasks` to execute
+5. Use creation skills to define new work, then run `looper start --name <name>` to execute
 
 ## 📄 License
 

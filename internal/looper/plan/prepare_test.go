@@ -66,6 +66,33 @@ func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	}
 }
 
+func TestResolveInputsInfersTaskNameFromTasksDir(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	tasksDir := filepath.Join(tmp, "tasks", "prd-multi-repo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	prValue, inputDir, resolved, err := resolveInputs(&model.RuntimeConfig{
+		IssuesDir: tasksDir,
+		Mode:      model.ExecutionModePRDTasks,
+	})
+	if err != nil {
+		t.Fatalf("resolveInputs: %v", err)
+	}
+	if prValue != "multi-repo" {
+		t.Fatalf("expected inferred task name multi-repo, got %q", prValue)
+	}
+	if inputDir != tasksDir {
+		t.Fatalf("expected input dir to remain unchanged, got %q", inputDir)
+	}
+	if resolved != tasksDir {
+		t.Fatalf("expected resolved dir %q, got %q", tasksDir, resolved)
+	}
+}
+
 func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testing.T) {
 	t.Parallel()
 

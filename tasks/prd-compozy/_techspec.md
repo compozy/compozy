@@ -443,7 +443,7 @@ numStr := strings.TrimPrefix(filename, "task_")
    '-- Enrichment phase: fills each task with full detail
          |
          v
-5. looper --mode prd-tasks --issues-dir tasks/prd-<name>/
+5. looper start --tasks-dir tasks/prd-<name>/
    |-- Reads task_*.md files (updated Go pattern)
    |-- execute-prd-task skill runs each task
    '-- Tasks already enriched — straight to implementation
@@ -469,7 +469,7 @@ Each step is independent. A user can run just `create-prd`, or pick up from any 
 
 ### Integration Validation
 - Create a sample `tasks/prd-test/` with task files using new naming
-- Run `looper --mode prd-tasks --issues-dir tasks/prd-test/ --dry-run` to verify discovery
+- Run `looper start --tasks-dir tasks/prd-test/ --dry-run` to verify discovery
 - Verify generated prompts reference correct file paths
 
 ## Development Sequencing

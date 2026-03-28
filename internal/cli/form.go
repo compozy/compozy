@@ -12,31 +12,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func collectFormParams(cmd *cobra.Command) error {
+func collectFormParams(cmd *cobra.Command, state *commandState) error {
 	fmt.Println("\n🎯 Interactive Parameter Collection")
 	inputs := newFormInputs()
-	builder := newFormBuilder(cmd)
+	builder := newFormBuilder(cmd, state)
 	inputs.register(builder)
 	if err := builder.build().Run(); err != nil {
 		return fmt.Errorf("form canceled or error: %w", err)
 	}
-	inputs.apply(cmd)
+	inputs.apply(cmd, state)
 	fmt.Println("\n✅ Parameters collected successfully!")
 	return nil
 }
 
 type formInputs struct {
-	pr              string
-	issuesDir       string
-	concurrent      string
-	batchSize       string
-	ide             string
-	model           string
-	addDirs         string
-	tailLines       string
-	reasoningEffort string
-	mode            string
-	timeout         string
+	identifier       string
+	inputDir         string
+	concurrent       string
+	batchSize        string
+	ide              string
+	model            string
+	addDirs          string
+	tailLines        string
+	reasoningEffort  string
+	timeout          string
+	includeCompleted bool
+	grouped          bool
+	dryRun           bool
+	autoCommit       bool
 }
 
 func newFormInputs() *formInputs {
@@ -44,11 +47,12 @@ func newFormInputs() *formInputs {
 }
 
 func (fi *formInputs) register(builder *formBuilder) {
-	builder.addModeField(&fi.mode)
-	builder.addPRField(&fi.pr)
-	builder.addOptionalPathField("issues-dir", &fi.issuesDir)
+	builder.addIdentifierField(&fi.identifier)
+	builder.addInputDirField(&fi.inputDir)
 	builder.addConcurrentField(&fi.concurrent)
-	builder.addBatchSizeField(&fi.batchSize)
+	if !builder.state.isTaskWorkflow() {
+		builder.addBatchSizeField(&fi.batchSize)
+	}
 	builder.addIDEField(&fi.ide)
 	builder.addModelField(&fi.model)
 	builder.addAddDirsField(&fi.addDirs)
@@ -59,46 +63,56 @@ func (fi *formInputs) register(builder *formBuilder) {
 		"dry-run",
 		"Dry Run?",
 		"Only generate prompts without running IDE tool",
-		&dryRun,
+		&fi.dryRun,
 	)
-	builder.addConfirmField(
-		"grouped",
-		"Generate Grouped Summaries?",
-		"Create grouped issue summaries in issues/grouped/",
-		&grouped,
-	)
+	if !builder.state.isTaskWorkflow() {
+		builder.addConfirmField(
+			"grouped",
+			"Generate Grouped Summaries?",
+			"Create grouped issue summaries in issues/grouped/",
+			&fi.grouped,
+		)
+	}
 	builder.addConfirmField(
 		"auto-commit",
 		"Auto Commit?",
 		"Include commit instructions at task/batch completion",
-		&autoCommit,
+		&fi.autoCommit,
 	)
-	builder.addIncludeCompletedField(&includeCompleted)
+	if builder.state.isTaskWorkflow() {
+		builder.addIncludeCompletedField(&fi.includeCompleted)
+	}
 }
 
-func (fi *formInputs) apply(cmd *cobra.Command) {
-	applyStringInput(cmd, "mode", fi.mode, func(val string) { mode = val })
-	applyStringInput(cmd, "pr", fi.pr, func(val string) { pr = val })
-	applyStringInput(cmd, "issues-dir", fi.issuesDir, func(val string) { issuesDir = val })
-	applyIntInput(cmd, "concurrent", fi.concurrent, func(val int) { concurrent = val })
-	applyIntInput(cmd, "batch-size", fi.batchSize, func(val int) { batchSize = val })
-	applyStringInput(cmd, "ide", fi.ide, func(val string) { ide = val })
-	applyStringInput(cmd, "model", fi.model, func(val string) { model = val })
-	applyStringSliceInput(cmd, "add-dir", fi.addDirs, func(val []string) { addDirs = val })
-	applyIntInput(cmd, "tail-lines", fi.tailLines, func(val int) { tailLines = val })
+func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
+	applyStringInput(cmd, state.identifierFlagName(), fi.identifier, state.setIdentifierValue)
+	applyStringInput(cmd, state.inputDirFlagName(), fi.inputDir, state.setInputDirValue)
+	applyIntInput(cmd, "concurrent", fi.concurrent, func(val int) { state.concurrent = val })
+	applyIntInput(cmd, "batch-size", fi.batchSize, func(val int) { state.batchSize = val })
+	applyStringInput(cmd, "ide", fi.ide, func(val string) { state.ide = val })
+	applyStringInput(cmd, "model", fi.model, func(val string) { state.model = val })
+	applyStringSliceInput(cmd, "add-dir", fi.addDirs, func(val []string) { state.addDirs = val })
+	applyIntInput(cmd, "tail-lines", fi.tailLines, func(val int) { state.tailLines = val })
 	applyStringInput(cmd, "reasoning-effort", fi.reasoningEffort, func(val string) {
-		reasoningEffort = val
+		state.reasoningEffort = val
 	})
-	applyStringInput(cmd, "timeout", fi.timeout, func(val string) { timeout = val })
+	applyStringInput(cmd, "timeout", fi.timeout, func(val string) { state.timeout = val })
+	applyBoolInput(cmd, "dry-run", fi.dryRun, func(val bool) { state.dryRun = val })
+	applyBoolInput(cmd, "grouped", fi.grouped, func(val bool) { state.grouped = val })
+	applyBoolInput(cmd, "auto-commit", fi.autoCommit, func(val bool) { state.autoCommit = val })
+	applyBoolInput(cmd, "include-completed", fi.includeCompleted, func(val bool) {
+		state.includeCompleted = val
+	})
 }
 
 type formBuilder struct {
 	cmd    *cobra.Command
+	state  *commandState
 	fields []huh.Field
 }
 
-func newFormBuilder(cmd *cobra.Command) *formBuilder {
-	return &formBuilder{cmd: cmd}
+func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
+	return &formBuilder{cmd: cmd, state: state}
 }
 
 func (fb *formBuilder) build() *huh.Form {
@@ -115,59 +129,28 @@ func (fb *formBuilder) addField(flag string, build func() huh.Field) {
 	}
 }
 
-func (fb *formBuilder) addModeField(target *string) {
-	fb.addField("mode", func() huh.Field {
-		return huh.NewSelect[string]().
-			Title("Execution Mode").
-			Description("Choose what to process").
-			Options(
-				huh.NewOption("PR Review Issues (CodeRabbit)", string(core.ModePRReview)),
-				huh.NewOption("PRD Task Files", string(core.ModePRDTasks)),
-			).
-			Value(target)
-	})
-}
-
-func (fb *formBuilder) addPRField(target *string) {
-	fb.addField("pr", func() huh.Field {
-		title := "PR Number"
-		placeholder := "259"
-		description := "Required: Pull request number or identifier to process"
-		errorMsg := "PR number is required"
-		if mode == string(core.ModePRDTasks) {
-			title = "Task Identifier"
-			placeholder = "multi-repo"
-			description = "Required: Task name/identifier (e.g., 'multi-repo' for tasks/prd-multi-repo)"
-			errorMsg = "Task identifier is required"
-		}
+func (fb *formBuilder) addIdentifierField(target *string) {
+	fb.addField(fb.state.identifierFlagName(), func() huh.Field {
 		return huh.NewInput().
-			Title(title).
-			Placeholder(placeholder).
-			Description(description).
+			Title(fb.state.identifierTitle()).
+			Placeholder(fb.state.identifierPlaceholder()).
+			Description(fb.state.identifierDescription()).
 			Value(target).
 			Validate(func(str string) error {
 				if str == "" {
-					return errors.New(errorMsg)
+					return errors.New(fb.state.identifierRequiredMessage())
 				}
 				return nil
 			})
 	})
 }
 
-func (fb *formBuilder) addOptionalPathField(flag string, target *string) {
-	fb.addField(flag, func() huh.Field {
-		title := "Issues Directory (optional)"
-		placeholder := "ai-docs/reviews-pr-<PR>/issues"
-		description := "Leave empty to auto-generate from PR number"
-		if mode == string(core.ModePRDTasks) {
-			title = "Tasks Directory (optional)"
-			placeholder = "tasks/prd-<name>"
-			description = "Leave empty to auto-generate from task identifier"
-		}
+func (fb *formBuilder) addInputDirField(target *string) {
+	fb.addField(fb.state.inputDirFlagName(), func() huh.Field {
 		return huh.NewInput().
-			Title(title).
-			Placeholder(placeholder).
-			Description(description).
+			Title(fb.state.inputDirTitle()).
+			Placeholder(fb.state.inputDirPlaceholder()).
+			Description(fb.state.inputDirDescription()).
 			Value(target)
 	})
 }
@@ -188,10 +171,6 @@ func (fb *formBuilder) addConcurrentField(target *string) {
 
 func (fb *formBuilder) addBatchSizeField(target *string) {
 	fb.addField("batch-size", func() huh.Field {
-		if mode == string(core.ModePRDTasks) {
-			*target = "1"
-			return nil
-		}
 		return numericInput(
 			"Batch Size",
 			"1",
@@ -299,9 +278,6 @@ func (fb *formBuilder) addConfirmField(flag, title, description string, target *
 
 func (fb *formBuilder) addIncludeCompletedField(target *bool) {
 	fb.addField("include-completed", func() huh.Field {
-		if mode != string(core.ModePRDTasks) {
-			return nil
-		}
 		return huh.NewConfirm().
 			Title("Include Completed Tasks?").
 			Description("Process tasks marked as completed").
@@ -357,6 +333,13 @@ func applyIntInput(cmd *cobra.Command, flagName, value string, setter func(int))
 		return
 	}
 	setter(val)
+}
+
+func applyBoolInput(cmd *cobra.Command, flagName string, value bool, setter func(bool)) {
+	if cmd.Flags().Changed(flagName) {
+		return
+	}
+	setter(value)
 }
 
 func applyStringSliceInput(cmd *cobra.Command, flagName, value string, setter func([]string)) {

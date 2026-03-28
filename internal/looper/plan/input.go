@@ -17,23 +17,19 @@ func resolveInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
 	prValue := cfg.PR
 	inputDir := cfg.IssuesDir
 	if prValue == "" && inputDir == "" {
-		return "", "", "", errors.New("missing required flags: either --pr or --issues-dir must be provided")
+		return "", "", "", missingRequiredInputsError(cfg.Mode)
 	}
 
 	var err error
 	if prValue == "" && inputDir != "" {
-		prValue, err = inferPrFromIssuesDir(inputDir)
+		prValue, err = inferIdentifierFromInputDir(inputDir, cfg.Mode)
 		if err != nil {
 			return "", "", "", err
 		}
 	}
 
 	if inputDir == "" {
-		if cfg.Mode == model.ExecutionModePRDTasks {
-			inputDir = fmt.Sprintf("tasks/prd-%s", prValue)
-		} else {
-			inputDir = fmt.Sprintf("ai-docs/reviews-pr-%s/issues", prValue)
-		}
+		inputDir = defaultInputDir(cfg.Mode, prValue)
 	}
 
 	resolvedInputDir, err := filepath.Abs(inputDir)
@@ -41,9 +37,30 @@ func resolveInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
 		return "", "", "", fmt.Errorf("resolve issues dir: %w", err)
 	}
 	if st, statErr := os.Stat(resolvedInputDir); statErr != nil || !st.IsDir() {
-		return "", "", "", fmt.Errorf("issues directory not found: %s", resolvedInputDir)
+		return "", "", "", fmt.Errorf("input directory not found: %s", resolvedInputDir)
 	}
 	return prValue, inputDir, resolvedInputDir, nil
+}
+
+func missingRequiredInputsError(mode model.ExecutionMode) error {
+	if mode == model.ExecutionModePRDTasks {
+		return errors.New("missing required flags: either --name or --tasks-dir must be provided")
+	}
+	return errors.New("missing required flags: either --pr or --issues-dir must be provided")
+}
+
+func inferIdentifierFromInputDir(dir string, mode model.ExecutionMode) (string, error) {
+	if mode == model.ExecutionModePRDTasks {
+		return inferTaskNameFromTasksDir(dir)
+	}
+	return inferPrFromIssuesDir(dir)
+}
+
+func defaultInputDir(mode model.ExecutionMode, identifier string) string {
+	if mode == model.ExecutionModePRDTasks {
+		return fmt.Sprintf("tasks/prd-%s", identifier)
+	}
+	return fmt.Sprintf("ai-docs/reviews-pr-%s/issues", identifier)
 }
 
 func validateAndFilterEntries(entries []model.IssueEntry, mode model.ExecutionMode) ([]model.IssueEntry, error) {
@@ -265,9 +282,18 @@ func buildGroupedResolutionChecklist(items []model.IssueEntry) string {
 
 func inferPrFromIssuesDir(dir string) (string, error) {
 	re := regexp.MustCompile(`reviews-pr-(\d+)`)
-	m := re.FindStringSubmatch(dir)
+	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
 		return "", errors.New("unable to infer PR number from issues dir")
+	}
+	return m[1], nil
+}
+
+func inferTaskNameFromTasksDir(dir string) (string, error) {
+	re := regexp.MustCompile(`(?:^|/)tasks/prd-([^/]+)$`)
+	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
+	if len(m) < 2 {
+		return "", errors.New("unable to infer task name from tasks dir")
 	}
 	return m[1], nil
 }
