@@ -3,6 +3,7 @@ package prompt
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,7 +16,11 @@ import (
 )
 
 type BatchParams struct {
+	Name        string
+	Round       int
+	Provider    string
 	PR          string
+	ReviewsDir  string
 	BatchGroups map[string][]model.IssueEntry
 	Grouped     bool
 	AutoCommit  bool
@@ -60,18 +65,11 @@ func IsTaskCompleted(task model.TaskEntry) bool {
 }
 
 func ExtractTaskNumber(filename string) int {
-	reTaskFile := regexp.MustCompile(`^task_\d+\.md$`)
-	if !reTaskFile.MatchString(filename) {
-		return 0
-	}
+	return extractFileNumber(filename, regexp.MustCompile(`^task_(\d+)\.md$`))
+}
 
-	numStr := strings.TrimPrefix(filename, "task_")
-	numStr = strings.TrimSuffix(numStr, ".md")
-	num, err := strconv.Atoi(numStr)
-	if err != nil {
-		return 0
-	}
-	return num
+func ExtractIssueNumber(filename string) int {
+	return extractFileNumber(filename, regexp.MustCompile(`^issue_(\d+)\.md$`))
 }
 
 func FlattenAndSortIssues(groups map[string][]model.IssueEntry, mode model.ExecutionMode) []model.IssueEntry {
@@ -93,6 +91,11 @@ func FlattenAndSortIssues(groups map[string][]model.IssueEntry, mode model.Execu
 	}
 
 	sort.SliceStable(allIssues, func(i, j int) bool {
+		numI := ExtractIssueNumber(allIssues[i].Name)
+		numJ := ExtractIssueNumber(allIssues[j].Name)
+		if numI != 0 && numJ != 0 && numI != numJ {
+			return numI < numJ
+		}
 		return allIssues[i].Name < allIssues[j].Name
 	})
 	return allIssues
@@ -140,8 +143,8 @@ func batchIssueRange(batchIssues []model.IssueEntry) (int, int, bool) {
 	maxIssue := 0
 	hasIssueRange := false
 	for _, issue := range batchIssues {
-		issueNum, ok := parseIssueNumber(issue.Name)
-		if !ok {
+		issueNum := ExtractIssueNumber(issue.Name)
+		if issueNum == 0 {
 			continue
 		}
 		if !hasIssueRange {
@@ -160,17 +163,56 @@ func batchIssueRange(batchIssues []model.IssueEntry) (int, int, bool) {
 	return minIssue, maxIssue, hasIssueRange
 }
 
-func parseIssueNumber(name string) (int, bool) {
-	base := filepath.Base(name)
-	parts := strings.SplitN(base, "-", 2)
-	if len(parts) == 0 || !isAllDigits(parts[0]) {
-		return 0, false
+func ParseReviewContext(content string) (model.ReviewContext, error) {
+	start := strings.Index(content, "<review_context>")
+	end := strings.Index(content, "</review_context>")
+	if start == -1 || end == -1 || end < start {
+		return model.ReviewContext{}, fmt.Errorf("review_context block not found")
 	}
-	issueNum, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, false
+
+	block := content[start : end+len("</review_context>")]
+	var parsed struct {
+		XMLName     xml.Name `xml:"review_context"`
+		File        string   `xml:"file"`
+		Line        int      `xml:"line"`
+		Severity    string   `xml:"severity"`
+		Author      string   `xml:"author"`
+		ProviderRef string   `xml:"provider_ref"`
 	}
-	return issueNum, true
+	if err := xml.Unmarshal([]byte(block), &parsed); err != nil {
+		return model.ReviewContext{}, fmt.Errorf("parse review_context: %w", err)
+	}
+
+	return model.ReviewContext{
+		File:        strings.TrimSpace(parsed.File),
+		Line:        parsed.Line,
+		Severity:    strings.TrimSpace(parsed.Severity),
+		Author:      strings.TrimSpace(parsed.Author),
+		ProviderRef: strings.TrimSpace(parsed.ProviderRef),
+	}, nil
+}
+
+func ParseReviewStatus(content string) string {
+	statusRe := regexp.MustCompile(`(?mi)^##\s*status:\s*([a-z]+)\b`)
+	if matches := statusRe.FindStringSubmatch(content); len(matches) > 1 {
+		return strings.ToLower(strings.TrimSpace(matches[1]))
+	}
+	return ""
+}
+
+func IsReviewResolved(content string) bool {
+	if ParseReviewStatus(content) == "resolved" {
+		return true
+	}
+	reResolvedLegacy := regexp.MustCompile(`(?mi)^\s*(status|state)\s*:\s*resolved\b`)
+	reResolvedTask := regexp.MustCompile(`(?mi)^\s*-\s*\[(x|X)\]\s*resolved\b`)
+	if strings.Contains(strings.ToUpper(content), "RESOLVED ✓") {
+		return true
+	}
+	if reResolvedLegacy.FindStringIndex(content) != nil {
+		return true
+	}
+	return reResolvedTask.FindStringIndex(content) != nil
 }
 
 func sortCodeFiles(batchGroups map[string][]model.IssueEntry) []string {
@@ -182,33 +224,56 @@ func sortCodeFiles(batchGroups map[string][]model.IssueEntry) []string {
 	return codeFiles
 }
 
-func buildBatchHeader(pr string, codeFiles []string, batchGroups map[string][]model.IssueEntry) string {
+func buildBatchHeader(p BatchParams) string {
 	totalIssues := 0
-	for _, items := range batchGroups {
+	for _, items := range p.BatchGroups {
 		totalIssues += len(items)
 	}
-	return fmt.Sprintf(`<arguments>
-  <type>batched-issues</type>
-  <pr>%s</pr>
-  <files>%d</files>
-  <total-issues>%d</total-issues>
-</arguments>`, pr, len(codeFiles), totalIssues)
+	codeFiles := sortCodeFiles(p.BatchGroups)
+
+	lines := []string{
+		"<arguments>",
+		"  <type>batched-reviews</type>",
+		fmt.Sprintf("  <files>%d</files>", len(codeFiles)),
+		fmt.Sprintf("  <total-issues>%d</total-issues>", totalIssues),
+	}
+	if p.Name != "" {
+		lines = append(lines, fmt.Sprintf("  <name>%s</name>", p.Name))
+	}
+	if p.Provider != "" {
+		lines = append(lines, fmt.Sprintf("  <provider>%s</provider>", p.Provider))
+	}
+	if p.PR != "" {
+		lines = append(lines, fmt.Sprintf("  <pr>%s</pr>", p.PR))
+	}
+	if p.Round > 0 {
+		lines = append(lines, fmt.Sprintf("  <round>%d</round>", p.Round))
+	}
+	lines = append(lines, "</arguments>")
+	return strings.Join(lines, "\n")
 }
 
-func buildBatchChecklist(pr string, batchGroups map[string][]model.IssueEntry, grouped bool) string {
+func buildBatchChecklist(p BatchParams) string {
 	allIssues := make([]model.IssueEntry, 0)
-	for _, items := range batchGroups {
+	for _, items := range p.BatchGroups {
 		allIssues = append(allIssues, items...)
 	}
 	sort.Slice(allIssues, func(i, j int) bool {
+		numI := ExtractIssueNumber(allIssues[i].Name)
+		numJ := ExtractIssueNumber(allIssues[j].Name)
+		if numI != 0 && numJ != 0 && numI != numJ {
+			return numI < numJ
+		}
 		return allIssues[i].Name < allIssues[j].Name
 	})
 
 	var checklistPaths []string
-	if grouped {
+	if p.Grouped {
 		seenGrouped := make(map[string]bool)
 		for _, issue := range allIssues {
-			groupedPath := fmt.Sprintf("ai-docs/reviews-pr-%s/issues/grouped/%s.md", pr, SafeFileName(issue.CodeFile))
+			groupedPath := NormalizeForPrompt(
+				filepath.Join(p.ReviewsDir, "grouped", fmt.Sprintf("group_%s.md", SafeFileName(issue.CodeFile))),
+			)
 			if !seenGrouped[groupedPath] {
 				checklistPaths = append(checklistPaths, groupedPath)
 				seenGrouped[groupedPath] = true
@@ -230,21 +295,24 @@ func buildBatchChecklist(pr string, batchGroups map[string][]model.IssueEntry, g
 	return chk.String()
 }
 
+func extractFileNumber(filename string, pattern *regexp.Regexp) int {
+	matches := pattern.FindStringSubmatch(filepath.Base(filename))
+	if len(matches) < 2 {
+		return 0
+	}
+	num, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0
+	}
+	return num
+}
+
 func extractXMLTag(content, tag string) string {
 	re := regexp.MustCompile(fmt.Sprintf(`<%s>(.*?)</%s>`, tag, tag))
 	if m := re.FindStringSubmatch(content); len(m) > 1 {
 		return strings.TrimSpace(m[1])
 	}
 	return ""
-}
-
-func isAllDigits(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return false
-		}
-	}
-	return true
 }
 
 func sanitizePath(path string) string {

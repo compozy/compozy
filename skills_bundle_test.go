@@ -13,9 +13,7 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 
 	root := repoRoot(t)
 	requiredPaths := []string{
-		"skills/fix-coderabbit-review/SKILL.md",
-		"skills/fix-coderabbit-review/scripts/export_coderabbit_review.py",
-		"skills/fix-coderabbit-review/scripts/resolve_pr_issues.sh",
+		"skills/fix-reviews/SKILL.md",
 		"skills/verification-before-completion/SKILL.md",
 		"skills/execute-prd-task/SKILL.md",
 		"skills/execute-prd-task/references/tracking-checklist.md",
@@ -42,7 +40,7 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 		})
 	}
 
-	checkPortableContent(t, filepath.Join(root, "skills", "fix-coderabbit-review", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "fix-reviews", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "execute-prd-task", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "create-prd", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "create-techspec", "SKILL.md"))

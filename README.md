@@ -25,6 +25,7 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
 - [🧩 Shared Skills](#-shared-skills)
 - [📦 Go Package Usage](#-go-package-usage)
 - [⌨️ CLI Reference](#️-cli-reference)
+  - [`looper fetch-reviews`](#looper-fetch-reviews)
   - [`looper start`](#looper-start)
   - [`looper fix-reviews`](#looper-fix-reviews)
 - [🏗️ Project Layout](#️-project-layout)
@@ -35,7 +36,7 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
 ## ✨ Features
 
 - **End-to-end PRD workflow** — go from a product idea to implemented code through structured phases
-- **PR review automation** — process CodeRabbit review feedback in batches automatically
+- **Provider-agnostic PR review automation** — fetch and remediate review feedback in tracked rounds under each PRD
 - **Multi-agent support** — run tasks through Claude Code, Codex, Droid, or Cursor
 - **Concurrent execution** — run multiple tasks in parallel with configurable batch sizes
 - **Interactive mode** — guided form-based CLI for quick setup
@@ -71,11 +72,12 @@ go build ./cmd/looper
 
 ## 📖 Usage
 
-Looper exposes two workflow subcommands: **[PRD Tasks](#-prd-workflow)** via `looper start`, and **[PR Review](#-pr-review-workflow)** via `looper fix-reviews`. See each workflow section below for details.
+Looper exposes three workflow subcommands: **[PRD Tasks](#-prd-workflow)** via `looper start`, **review fetching** via `looper fetch-reviews`, and **[PR Review](#-pr-review-workflow)** remediation via `looper fix-reviews`. See each workflow section below for details.
 
 Interactive mode prompts for workflow-specific options:
 
 ```bash
+looper fetch-reviews --form
 looper start --form
 looper fix-reviews --form
 ```
@@ -172,28 +174,37 @@ Each task file follows a structured format:
 
 ## 🔍 PR Review Workflow
 
-The PR review workflow automates the remediation of code review feedback. It takes review issues (e.g., from CodeRabbit), triages them, batches them for parallel processing, and dispatches AI agents to implement fixes and resolve review threads — all without manual intervention.
+The PR review workflow automates the remediation of code review feedback. Review comments are fetched into versioned rounds under the PRD directory, then batched for parallel execution. Looper resolves provider threads automatically after a batch succeeds.
 
 ### How It Works
 
-1. **Export** — use the `fix-coderabbit-review` skill to export review comments into structured issue files at `ai-docs/reviews-pr-<PR>/issues`
-2. **Batch** — Looper groups and batches the issue files based on `--batch-size` and `--grouped` flags
-3. **Execute** — AI agents process each batch concurrently, implementing fixes and resolving GitHub review threads
-4. **Verify** — each fix is validated before the review thread is marked as resolved
+1. **Fetch** — `looper fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/prd-<name>/reviews-NNN/`
+2. **Batch** — Looper groups and batches `issue_NNN.md` files based on `--batch-size` and `--grouped`
+3. **Execute** — AI agents process each batch concurrently, triaging issues, implementing fixes, and updating issue statuses
+4. **Resolve** — after a successful batch, Looper resolves provider threads for issue files that changed to `## Status: resolved`
+5. **Verify** — each batch is validated before completion or auto-commit
 
 ### Prerequisites
 
 - `gh` CLI installed and authenticated for the target repository
-- `python3` available on `PATH`
-- `GITHUB_TOKEN` available if `gh` uses environment-based authentication
+- access to the target repository through `gh` (for example via `gh auth login`)
 
 ### CLI Usage
 
-Process batched PR review issues:
+Fetch a new review round:
+
+```bash
+looper fetch-reviews \
+  --provider coderabbit \
+  --pr 259 \
+  --name my-feature
+```
+
+Process batched review issues from the latest round:
 
 ```bash
 looper fix-reviews \
-  --pr 259 \
+  --name my-feature \
   --ide codex \
   --concurrent 2 \
   --batch-size 3 \
@@ -204,7 +215,7 @@ looper fix-reviews \
 
 | Skill | Purpose |
 |-------|---------|
-| `fix-coderabbit-review` | Processes PR review feedback: exports CodeRabbit issues, triages fixes, implements changes, verifies, and resolves GitHub review threads |
+| `fix-reviews` | Processes review issue batches: triages issues, implements fixes, verifies results, and updates review tracking files |
 
 ---
 
@@ -224,20 +235,26 @@ Prepare work without executing any IDE process:
 
 ```go
 prep, err := looper.Prepare(context.Background(), looper.Config{
-    PR:        "multi-repo",
-    IssuesDir: "tasks/prd-multi-repo",
-    Mode:      looper.ModePRDTasks,
-    DryRun:    true,
+    Name:     "multi-repo",
+    TasksDir: "tasks/prd-multi-repo",
+    Mode:     looper.ModePRDTasks,
+    DryRun:   true,
 })
 ```
 
 ### PR Review
 
-Execute the full review remediation loop:
+Fetch a review round, then execute the remediation loop:
 
 ```go
+_, _ = looper.FetchReviews(context.Background(), looper.Config{
+    Name:     "my-feature",
+    Provider: "coderabbit",
+    PR:       "259",
+})
+
 _ = looper.Run(context.Background(), looper.Config{
-    PR:              "259",
+    Name:            "my-feature",
     Mode:            looper.ModePRReview,
     IDE:             looper.IDECodex,
     ReasoningEffort: "medium",
@@ -254,6 +271,22 @@ _ = root.Execute()
 ```
 
 ## ⌨️ CLI Reference
+
+### `looper fetch-reviews`
+
+Fetch provider review comments into a PRD review round.
+
+```bash
+looper fetch-reviews [flags]
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--provider` | `string` | | Review provider name (for example: `coderabbit`) |
+| `--pr` | `string` | | Pull request number |
+| `--name` | `string` | | PRD workflow name (used for `tasks/prd-<name>`) |
+| `--round` | `int` | `0` | Review round number. When omitted, Looper creates the next available round |
+| `--form` | `bool` | `false` | Use interactive form to collect parameters |
 
 ### `looper start`
 
@@ -283,7 +316,7 @@ looper start [flags]
 
 ### `looper fix-reviews`
 
-Process CodeRabbit review issue markdown files and dispatch AI agents to remediate feedback.
+Process review issue markdown files from a PRD review round and dispatch AI agents to remediate feedback.
 
 ```bash
 looper fix-reviews [flags]
@@ -291,13 +324,15 @@ looper fix-reviews [flags]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--pr` | `string` | | Pull request number |
-| `--issues-dir` | `string` | | Path to issues directory (`ai-docs/reviews-pr-<PR>/issues`) |
+| `--name` | `string` | | PRD workflow name (used for `tasks/prd-<name>`) |
+| `--round` | `int` | `0` | Review round number. When omitted, Looper uses the latest existing round |
+| `--reviews-dir` | `string` | | Override path to a review round directory (`tasks/prd-<name>/reviews-NNN`) |
 | `--ide` | `string` | `codex` | IDE tool to use: `claude`, `codex`, `cursor`, or `droid` |
 | `--model` | `string` | *(per IDE)* | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
 | `--batch-size` | `int` | `1` | Number of file groups to batch together |
 | `--concurrent` | `int` | `1` | Number of batches to process in parallel |
-| `--grouped` | `bool` | `false` | Generate grouped issue summaries in `issues/grouped/` directory |
+| `--grouped` | `bool` | `false` | Generate grouped issue summaries in `reviews-NNN/grouped/` |
+| `--include-resolved` | `bool` | `false` | Include review issues already marked as resolved |
 | `--reasoning-effort` | `string` | `medium` | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`) |
 | `--timeout` | `string` | `10m` | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period |
 | `--max-retries` | `int` | `0` | Retry failed or timed-out jobs up to N times before marking them failed |
@@ -347,10 +382,9 @@ Migrating from a repository that currently vendors `scripts/markdown`:
    npx skills add https://github.com/compozy/looper
    ```
 3. Choose whether to shell out to `looper` or import `github.com/compozy/looper` / `github.com/compozy/looper/command`
-4. Point at the same issue/task directories:
-   - `ai-docs/reviews-pr-<PR>/issues` for PR reviews
-   - `tasks/prd-<name>` for PRD task workflows
-5. Use creation skills to define new work, then run `looper start --name <name>` to execute
+4. Point Looper at the current PRD directory under `tasks/prd-<name>`
+5. Fetch reviews into `tasks/prd-<name>/reviews-NNN/` with `looper fetch-reviews --provider <provider> --pr <PR> --name <name>`
+6. Run `looper fix-reviews --name <name>` for review remediation or `looper start --name <name>` for PRD task execution
 
 ## 📄 License
 

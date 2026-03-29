@@ -7,90 +7,155 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/compozy/looper/internal/looper/model"
 	"github.com/compozy/looper/internal/looper/prompt"
+	"github.com/compozy/looper/internal/looper/reviews"
 )
 
 func resolveInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
-	prValue := cfg.PR
-	inputDir := cfg.IssuesDir
-	if prValue == "" && inputDir == "" {
+	if cfg.Mode == model.ExecutionModePRDTasks {
+		return resolveTaskInputs(cfg)
+	}
+	return resolveReviewInputs(cfg)
+}
+
+func resolveTaskInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
+	name := strings.TrimSpace(cfg.Name)
+	tasksDir := strings.TrimSpace(cfg.TasksDir)
+	if name == "" && tasksDir == "" {
 		return "", "", "", missingRequiredInputsError(cfg.Mode)
 	}
 
 	var err error
-	if prValue == "" && inputDir != "" {
-		prValue, err = inferIdentifierFromInputDir(inputDir, cfg.Mode)
+	if name == "" {
+		name, err = inferTaskNameFromTasksDir(tasksDir)
 		if err != nil {
 			return "", "", "", err
 		}
 	}
-
-	if inputDir == "" {
-		inputDir = defaultInputDir(cfg.Mode, prValue)
+	if tasksDir == "" {
+		tasksDir = filepath.Join("tasks", "prd-"+name)
 	}
 
-	resolvedInputDir, err := filepath.Abs(inputDir)
+	resolvedTasksDir, err := filepath.Abs(tasksDir)
 	if err != nil {
-		return "", "", "", fmt.Errorf("resolve issues dir: %w", err)
+		return "", "", "", fmt.Errorf("resolve tasks dir: %w", err)
 	}
-	if st, statErr := os.Stat(resolvedInputDir); statErr != nil || !st.IsDir() {
-		return "", "", "", fmt.Errorf("input directory not found: %s", resolvedInputDir)
+	if err := ensureDirectoryExists(resolvedTasksDir); err != nil {
+		return "", "", "", err
 	}
-	return prValue, inputDir, resolvedInputDir, nil
+
+	cfg.Name = name
+	cfg.TasksDir = resolvedTasksDir
+	return name, tasksDir, resolvedTasksDir, nil
+}
+
+func resolveReviewInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
+	name := strings.TrimSpace(cfg.Name)
+	reviewsDir := strings.TrimSpace(cfg.ReviewsDir)
+	if name == "" && reviewsDir == "" {
+		return "", "", "", missingRequiredInputsError(cfg.Mode)
+	}
+
+	if reviewsDir == "" {
+		prdDir := reviews.PRDDirectory(name)
+		resolvedPRDDir, err := filepath.Abs(prdDir)
+		if err != nil {
+			return "", "", "", fmt.Errorf("resolve prd dir: %w", err)
+		}
+		if err := ensureDirectoryExists(resolvedPRDDir); err != nil {
+			return "", "", "", err
+		}
+
+		round := cfg.Round
+		if round <= 0 {
+			round, err = reviews.LatestRound(resolvedPRDDir)
+			if err != nil {
+				if errors.Is(err, reviews.ErrNoReviewRounds) {
+					return "", "", "", fmt.Errorf("no review rounds found in %s", resolvedPRDDir)
+				}
+				return "", "", "", err
+			}
+		}
+		cfg.Round = round
+		reviewsDir = filepath.Join(prdDir, reviews.RoundDirName(round))
+	}
+
+	resolvedReviewsDir, err := filepath.Abs(reviewsDir)
+	if err != nil {
+		return "", "", "", fmt.Errorf("resolve reviews dir: %w", err)
+	}
+	if err := ensureDirectoryExists(resolvedReviewsDir); err != nil {
+		return "", "", "", err
+	}
+
+	if name == "" {
+		name, err = inferTaskNameFromReviewsDir(resolvedReviewsDir)
+		if err != nil {
+			return "", "", "", err
+		}
+	}
+	if cfg.Round <= 0 {
+		round, err := inferRoundFromReviewsDir(resolvedReviewsDir)
+		if err != nil {
+			return "", "", "", err
+		}
+		cfg.Round = round
+	}
+
+	cfg.Name = name
+	cfg.ReviewsDir = resolvedReviewsDir
+	return name, reviewsDir, resolvedReviewsDir, nil
+}
+
+func ensureDirectoryExists(dir string) error {
+	info, err := os.Stat(dir)
+	if err != nil || !info.IsDir() {
+		return fmt.Errorf("input directory not found: %s", dir)
+	}
+	return nil
 }
 
 func missingRequiredInputsError(mode model.ExecutionMode) error {
 	if mode == model.ExecutionModePRDTasks {
 		return errors.New("missing required flags: either --name or --tasks-dir must be provided")
 	}
-	return errors.New("missing required flags: either --pr or --issues-dir must be provided")
+	return errors.New("missing required flags: either --name or --reviews-dir must be provided")
 }
 
-func inferIdentifierFromInputDir(dir string, mode model.ExecutionMode) (string, error) {
-	if mode == model.ExecutionModePRDTasks {
-		return inferTaskNameFromTasksDir(dir)
-	}
-	return inferPrFromIssuesDir(dir)
-}
-
-func defaultInputDir(mode model.ExecutionMode, identifier string) string {
-	if mode == model.ExecutionModePRDTasks {
-		return fmt.Sprintf("tasks/prd-%s", identifier)
-	}
-	return fmt.Sprintf("ai-docs/reviews-pr-%s/issues", identifier)
-}
-
-func validateAndFilterEntries(entries []model.IssueEntry, mode model.ExecutionMode) ([]model.IssueEntry, error) {
+func validateAndFilterEntries(entries []model.IssueEntry, cfg *model.RuntimeConfig) ([]model.IssueEntry, error) {
 	if len(entries) == 0 {
-		if mode == model.ExecutionModePRDTasks {
+		if cfg.Mode == model.ExecutionModePRDTasks {
 			fmt.Println("No task files found.")
 		} else {
-			fmt.Println("No issue files found.")
+			fmt.Println("No review issue files found.")
 		}
 		return nil, ErrNoWork
 	}
-	if mode == model.ExecutionModePRReview {
+
+	if cfg.Mode == model.ExecutionModePRReview && !cfg.IncludeResolved {
 		entries = filterUnresolved(entries)
 		if len(entries) == 0 {
-			fmt.Println("All issues are already resolved. Nothing to do.")
+			fmt.Println("All review issues are already resolved. Nothing to do.")
 			return nil, ErrNoWork
 		}
 	}
+
 	return entries, nil
 }
 
 func readIssueEntries(
-	resolvedIssuesDir string,
+	resolvedInputDir string,
 	mode model.ExecutionMode,
 	includeCompleted bool,
 ) ([]model.IssueEntry, error) {
 	if mode == model.ExecutionModePRDTasks {
-		return readTaskEntries(resolvedIssuesDir, includeCompleted)
+		return readTaskEntries(resolvedInputDir, includeCompleted)
 	}
-	return readCodeRabbitIssues(resolvedIssuesDir)
+	return reviews.ReadReviewEntries(resolvedInputDir)
 }
 
 func readTaskEntries(tasksDir string, includeCompleted bool) ([]model.IssueEntry, error) {
@@ -138,75 +203,14 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]model.IssueEntry
 	return entries, nil
 }
 
-func readCodeRabbitIssues(resolvedIssuesDir string) ([]model.IssueEntry, error) {
-	entries := []model.IssueEntry{}
-	files, err := os.ReadDir(resolvedIssuesDir)
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, 0, len(files))
-	for _, f := range files {
-		if !f.Type().IsRegular() {
-			continue
-		}
-		if f.Name() == "_summary.md" {
-			continue
-		}
-		if strings.HasSuffix(f.Name(), ".md") {
-			names = append(names, f.Name())
-		}
-	}
-	sort.Strings(names)
-
-	for _, name := range names {
-		absPath := filepath.Join(resolvedIssuesDir, name)
-		body, err := os.ReadFile(absPath)
-		if err != nil {
-			return nil, err
-		}
-
-		content := string(body)
-		codeFile := extractCodeFileFromIssue(content)
-		if codeFile == "" {
-			codeFile = "__unknown__:" + name
-		}
-		entries = append(entries, model.IssueEntry{
-			Name:     name,
-			AbsPath:  absPath,
-			Content:  content,
-			CodeFile: codeFile,
-		})
-	}
-	return entries, nil
-}
-
 func filterUnresolved(all []model.IssueEntry) []model.IssueEntry {
 	out := make([]model.IssueEntry, 0, len(all))
 	for _, entry := range all {
-		if !isIssueResolved(entry.Content) {
+		if !prompt.IsReviewResolved(entry.Content) {
 			out = append(out, entry)
 		}
 	}
 	return out
-}
-
-var (
-	reResolvedStatus = regexp.MustCompile(`(?mi)^\s*(status|state)\s*:\s*resolved\b`)
-	reResolvedTask   = regexp.MustCompile(`(?mi)^\s*-\s*\[(x|X)\]\s*resolved\b`)
-)
-
-func isIssueResolved(content string) bool {
-	if strings.Contains(strings.ToUpper(content), "RESOLVED ✓") {
-		return true
-	}
-	if reResolvedStatus.FindStringIndex(content) != nil {
-		return true
-	}
-	if reResolvedTask.FindStringIndex(content) != nil {
-		return true
-	}
-	return false
 }
 
 func groupIssues(entries []model.IssueEntry) map[string][]model.IssueEntry {
@@ -219,23 +223,14 @@ func groupIssues(entries []model.IssueEntry) map[string][]model.IssueEntry {
 
 func writeGroupedSummaries(groupedDir string, groups map[string][]model.IssueEntry) error {
 	for codeFile, items := range groups {
-		safeName := prompt.SafeFileName(func() string {
-			if strings.HasPrefix(codeFile, "__unknown__") {
-				return model.UnknownFileName
-			}
-			return codeFile
-		}())
-
-		groupFile := filepath.Join(groupedDir, fmt.Sprintf("%s.md", safeName))
-		header := fmt.Sprintf("# Issue Group for %s\n\n", func() string {
-			if strings.HasPrefix(codeFile, "__unknown__") {
-				return "(unknown file)"
-			}
-			return codeFile
-		}())
+		groupFile := reviews.GroupedFilePath(filepath.Dir(groupedDir), codeFile)
+		title := codeFile
+		if strings.HasPrefix(codeFile, "__unknown__") {
+			title = "(unknown file)"
+		}
 
 		var sb strings.Builder
-		sb.WriteString(header)
+		fmt.Fprintf(&sb, "# Issue Group for %s\n\n", title)
 		sb.WriteString(buildGroupedResolutionChecklist(items))
 		sb.WriteString("## Included Issues\n\n")
 		for _, item := range items {
@@ -261,32 +256,24 @@ func buildGroupedResolutionChecklist(items []model.IssueEntry) string {
 	var checklist strings.Builder
 	checklist.WriteString("## Resolution Checklist\n\n")
 	checklist.WriteString(
-		"> ⚠️ This grouped issue contains multiple unresolved review tasks for the same source file.\n",
+		"> This grouped file contains multiple review issues for the same source file.\n",
 	)
-	checklist.WriteString("> Resolve **every** task below before treating this file as complete.\n")
+	checklist.WriteString("> Resolve every item below before treating this group as complete.\n")
 	checklist.WriteString(
-		"> After resolving a task, update the original issue file with `RESOLVED ✓` and run any provided gh command.\n\n",
+		"> Looper resolves provider threads automatically after a successful batch.\n",
 	)
+	checklist.WriteString("> Do not run provider-specific scripts manually.\n\n")
 	for _, item := range items {
 		checklist.WriteString("- [ ] Resolve `")
 		checklist.WriteString(item.Name)
 		checklist.WriteString("` (source issue: `")
 		checklist.WriteString(prompt.NormalizeForPrompt(item.AbsPath))
 		checklist.WriteString("`)\n")
-		checklist.WriteString("      - Apply the requested code changes and update the issue status to `RESOLVED ✓`.\n")
-		checklist.WriteString("      - Run the review thread command if a Thread ID is provided.\n")
+		checklist.WriteString("      - Triage the issue and update `## Status:` in the original issue file.\n")
+		checklist.WriteString("      - Implement and verify any required code changes before marking it resolved.\n")
 	}
-	checklist.WriteString("- [ ] Document the fixes in this grouped file and tick every checklist item above.\n\n")
+	checklist.WriteString("- [ ] Document the outcome in this grouped file after every listed issue is resolved.\n\n")
 	return checklist.String()
-}
-
-func inferPrFromIssuesDir(dir string) (string, error) {
-	re := regexp.MustCompile(`reviews-pr-(\d+)`)
-	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
-	if len(m) < 2 {
-		return "", errors.New("unable to infer PR number from issues dir")
-	}
-	return m[1], nil
 }
 
 func inferTaskNameFromTasksDir(dir string) (string, error) {
@@ -298,41 +285,49 @@ func inferTaskNameFromTasksDir(dir string) (string, error) {
 	return m[1], nil
 }
 
-func extractCodeFileFromIssue(content string) string {
-	re := regexp.MustCompile(`\*\*File:\*\*\s*` + "`" + `([^` + "`" + `]+)` + "`")
-	m := re.FindStringSubmatch(content)
+func inferTaskNameFromReviewsDir(dir string) (string, error) {
+	re := regexp.MustCompile(`(?:^|/)tasks/prd-([^/]+)/reviews-\d+$`)
+	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
-		return ""
+		return "", errors.New("unable to infer task name from reviews dir")
 	}
-	raw := strings.TrimSpace(m[1])
-	if idx := strings.LastIndex(raw, ":"); idx != -1 {
-		tail := raw[idx+1:]
-		if tail != "" && isAllDigits(tail) {
-			raw = strings.TrimSpace(raw[:idx])
-		}
-	}
-	return raw
+	return m[1], nil
 }
 
-func isAllDigits(value string) bool {
-	for i := 0; i < len(value); i++ {
-		if value[i] < '0' || value[i] > '9' {
-			return false
-		}
+func inferRoundFromReviewsDir(dir string) (int, error) {
+	re := regexp.MustCompile(`reviews-(\d+)$`)
+	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
+	if len(m) < 2 {
+		return 0, errors.New("unable to infer review round from reviews dir")
 	}
-	return true
+	round, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0, fmt.Errorf("parse review round: %w", err)
+	}
+	return round, nil
 }
 
-func writeSummaries(resolvedIssuesDir string, groups map[string][]model.IssueEntry) error {
-	groupedDir := filepath.Join(resolvedIssuesDir, "grouped")
+func writeSummaries(reviewDir string, groups map[string][]model.IssueEntry) error {
+	groupedDir := reviews.GroupedDirectory(reviewDir)
 	if err := os.MkdirAll(groupedDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir grouped dir: %w", err)
 	}
 	return writeGroupedSummaries(groupedDir, groups)
 }
 
-func initPromptRoot(pr string) (string, error) {
-	promptRoot, err := filepath.Abs(filepath.Join(".tmp", "codex-prompts", fmt.Sprintf("pr-%s", pr)))
+func initPromptRoot(cfg *model.RuntimeConfig) (string, error) {
+	var label string
+	if cfg.Mode == model.ExecutionModePRDTasks {
+		label = "tasks-" + prompt.SafeFileName(cfg.Name)
+	} else {
+		scope := cfg.Name
+		if scope == "" {
+			scope = "pr-" + cfg.PR
+		}
+		label = fmt.Sprintf("reviews-%s-round-%03d", prompt.SafeFileName(scope), cfg.Round)
+	}
+
+	promptRoot, err := filepath.Abs(filepath.Join(".tmp", "codex-prompts", label))
 	if err != nil {
 		return "", err
 	}

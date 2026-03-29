@@ -32,10 +32,10 @@ func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 	}
 
 	cfg := looper.Config{
-		PR:        "demo",
-		IssuesDir: tasksDir,
-		Mode:      looper.ModePRDTasks,
-		DryRun:    true,
+		Name:     "demo",
+		TasksDir: tasksDir,
+		Mode:     looper.ModePRDTasks,
+		DryRun:   true,
 	}
 
 	prep, err := looper.Prepare(context.Background(), cfg)

@@ -24,8 +24,10 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	}
 
 	required := []string{
+		"looper fetch-reviews",
 		"looper fix-reviews",
 		"looper start",
+		"fetch-reviews",
 		"fix-reviews",
 		"start",
 	}
@@ -33,6 +35,34 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
 		}
+	}
+}
+
+func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "fetch-reviews")
+	output, err := executeRootCommand("fetch-reviews", "--help")
+	if err != nil {
+		t.Fatalf("execute fetch-reviews help: %v", err)
+	}
+
+	required := []string{"--provider", "--pr", "--name", "--round", "--form"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected fetch-reviews help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"--reviews-dir", "--tasks-dir", "--batch-size", "--grouped", "--include-resolved"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected fetch-reviews help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected fetch-reviews to omit mode flag")
 	}
 }
 
@@ -49,14 +79,22 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		t.Fatalf("execute fix-reviews help: %v", err)
 	}
 
-	required := []string{"--pr", "--issues-dir", "--batch-size", "--grouped", "--form"}
+	required := []string{
+		"--name",
+		"--round",
+		"--reviews-dir",
+		"--batch-size",
+		"--grouped",
+		"--include-resolved",
+		"--form",
+	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected fix-reviews help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
-	forbidden := []string{"--name", "--tasks-dir", "--include-completed"}
+	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--include-completed"}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected fix-reviews help to omit %q\noutput:\n%s", snippet, output)
@@ -84,7 +122,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		}
 	}
 
-	forbidden := []string{"--pr", "--issues-dir", "--batch-size", "--grouped"}
+	forbidden := []string{"--pr", "--provider", "--reviews-dir", "--batch-size", "--grouped", "--include-resolved"}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to omit %q\noutput:\n%s", snippet, output)
@@ -95,7 +133,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(core.ModePRReview)
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
 	state.autoCommit = true
 	state.timeout = "10m"
 	state.addDirs = []string{"../shared", "../docs", "../shared"}
@@ -118,7 +156,7 @@ func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(core.ModePRDTasks)
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
 	state.name = "multi-repo"
 	state.tasksDir = "tasks/prd-multi-repo"
 	state.includeCompleted = true
@@ -127,11 +165,11 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildConfig: %v", err)
 	}
-	if cfg.PR != "multi-repo" {
-		t.Fatalf("expected PR field to carry task name, got %q", cfg.PR)
+	if cfg.Name != "multi-repo" {
+		t.Fatalf("expected Name field to carry task name, got %q", cfg.Name)
 	}
-	if cfg.IssuesDir != "tasks/prd-multi-repo" {
-		t.Fatalf("expected IssuesDir to carry tasks dir, got %q", cfg.IssuesDir)
+	if cfg.TasksDir != "tasks/prd-multi-repo" {
+		t.Fatalf("expected TasksDir to carry tasks dir, got %q", cfg.TasksDir)
 	}
 	if !cfg.IncludeCompleted {
 		t.Fatalf("expected IncludeCompleted=true in config")
@@ -141,37 +179,89 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	}
 }
 
-func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
+func TestBuildConfigUsesFetchFlagsForFetchWorkflow(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(core.ModePRReview)
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	state.provider = "coderabbit"
+	state.pr = "259"
+	state.name = "my-feature"
+	state.round = 2
+
+	cfg, err := state.buildConfig()
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	if cfg.Provider != "coderabbit" || cfg.PR != "259" || cfg.Name != "my-feature" || cfg.Round != 2 {
+		t.Fatalf("unexpected fetch config: %#v", cfg)
+	}
+}
+
+func TestFormInputsApplyForFetchWorkflow(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 	cmd := newTestCommand(state)
-	cmd.Flags().String("pr", "", "review identifier")
-	cmd.Flags().String("issues-dir", "", "review dir")
-	cmd.Flags().Int("batch-size", 1, "batch size")
-	cmd.Flags().Bool("grouped", false, "grouped")
+	cmd.Flags().String("provider", "", "provider")
+	cmd.Flags().String("pr", "", "pull request")
+	cmd.Flags().String("name", "", "prd name")
+	cmd.Flags().Int("round", 0, "round")
 
 	fi := &formInputs{
-		identifier: "259",
-		inputDir:   "ai-docs/reviews-pr-259/issues",
-		batchSize:  "3",
-		addDirs:    " ../shared, ../docs ,, ../shared \n ../workspace ",
-		grouped:    true,
+		provider: "coderabbit",
+		pr:       "259",
+		name:     "my-feature",
+		round:    "3",
 	}
 
 	fi.apply(cmd, state)
 
-	if state.pr != "259" {
-		t.Fatalf("expected review identifier to map to pr, got %q", state.pr)
+	if state.provider != "coderabbit" || state.pr != "259" || state.name != "my-feature" || state.round != 3 {
+		t.Fatalf("unexpected fetch form state: %#v", state)
 	}
-	if state.issuesDir != "ai-docs/reviews-pr-259/issues" {
-		t.Fatalf("expected review dir to map to issuesDir, got %q", state.issuesDir)
+}
+
+func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	cmd := newTestCommand(state)
+	cmd.Flags().String("name", "", "prd name")
+	cmd.Flags().String("reviews-dir", "", "review dir")
+	cmd.Flags().Int("round", 0, "round")
+	cmd.Flags().Int("batch-size", 1, "batch size")
+	cmd.Flags().Bool("grouped", false, "grouped")
+	cmd.Flags().Bool("include-resolved", false, "include resolved")
+
+	fi := &formInputs{
+		name:            "my-feature",
+		reviewsDir:      "tasks/prd-my-feature/reviews-001",
+		round:           "2",
+		batchSize:       "3",
+		addDirs:         " ../shared, ../docs ,, ../shared \n ../workspace ",
+		grouped:         true,
+		includeResolved: true,
+	}
+
+	fi.apply(cmd, state)
+
+	if state.name != "my-feature" {
+		t.Fatalf("expected name to be applied, got %q", state.name)
+	}
+	if state.reviewsDir != "tasks/prd-my-feature/reviews-001" {
+		t.Fatalf("expected reviews dir to map to reviewsDir, got %q", state.reviewsDir)
+	}
+	if state.round != 2 {
+		t.Fatalf("expected round 2, got %d", state.round)
 	}
 	if state.batchSize != 3 {
 		t.Fatalf("expected batch size 3, got %d", state.batchSize)
 	}
 	if !state.grouped {
 		t.Fatalf("expected grouped=true")
+	}
+	if !state.includeResolved {
+		t.Fatalf("expected includeResolved=true")
 	}
 	wantDirs := []string{"../shared", "../docs", "../workspace"}
 	if !reflect.DeepEqual(state.addDirs, wantDirs) {
@@ -182,15 +272,15 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 func TestFormInputsApplyForStartWorkflow(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(core.ModePRDTasks)
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 	cmd.Flags().String("name", "", "task name")
 	cmd.Flags().String("tasks-dir", "", "tasks dir")
 	cmd.Flags().Bool("include-completed", false, "include completed")
 
 	fi := &formInputs{
-		identifier:       "multi-repo",
-		inputDir:         "tasks/prd-multi-repo",
+		name:             "multi-repo",
+		tasksDir:         "tasks/prd-multi-repo",
 		includeCompleted: true,
 	}
 

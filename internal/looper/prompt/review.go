@@ -8,7 +8,11 @@ import (
 )
 
 type reviewPromptContext struct {
+	Name          string
+	Round         int
+	Provider      string
 	PR            string
+	ReviewsDir    string
 	CodeFiles     []string
 	BatchIssues   []model.IssueEntry
 	Grouped       bool
@@ -23,7 +27,11 @@ func buildCodeReviewPrompt(p BatchParams) string {
 	batchIssues := FlattenAndSortIssues(p.BatchGroups, model.ExecutionModePRReview)
 	minIssue, maxIssue, hasIssueRange := batchIssueRange(batchIssues)
 	ctx := reviewPromptContext{
+		Name:          p.Name,
+		Round:         p.Round,
+		Provider:      p.Provider,
 		PR:            p.PR,
+		ReviewsDir:    p.ReviewsDir,
 		CodeFiles:     codeFiles,
 		BatchIssues:   batchIssues,
 		Grouped:       p.Grouped,
@@ -34,19 +42,19 @@ func buildCodeReviewPrompt(p BatchParams) string {
 	}
 
 	sections := []string{
-		buildBatchHeader(p.PR, codeFiles, p.BatchGroups),
+		buildBatchHeader(p),
 		buildReviewRequiredSkillsSection(),
 		buildReviewScopeSection(ctx),
 		buildBatchIssueFilesSection(batchIssues),
 		buildReviewExecutionSection(ctx),
-		buildBatchChecklist(p.PR, p.BatchGroups, p.Grouped),
+		buildBatchChecklist(p),
 	}
 	return strings.Join(sections, "\n\n")
 }
 
 func buildReviewRequiredSkillsSection() string {
 	return `<required_skills>
-- ` + "`fix-coderabbit-review`" + `: required remediation workflow for CodeRabbit review batches
+- ` + "`fix-reviews`" + `: required remediation workflow for review issue batches
 - ` + "`verification-before-completion`" + `: required before any completion claim or automatic commit
 </required_skills>`
 }
@@ -54,24 +62,35 @@ func buildReviewRequiredSkillsSection() string {
 func buildReviewScopeSection(ctx reviewPromptContext) string {
 	var sb strings.Builder
 	sb.WriteString("<critical>\n")
-	sb.WriteString("- Use installed `fix-coderabbit-review` as the source of truth for this review workflow.\n")
+	sb.WriteString("- Use installed `fix-reviews` as the source of truth for this review workflow.\n")
+	sb.WriteString("- The files listed in `<batch_issue_files>` are the entire scope for this run.\n")
 	sb.WriteString(
-		"- Apply the skill in looper batch mode only: the files listed in `<batch_issue_files>` are the entire scope for this run.\n",
+		"- Do not call provider-specific scripts, `gh` mutations, or other external resolution commands. Looper resolves provider threads after the batch succeeds.\n",
 	)
-	sb.WriteString(
-		"- If the skill refers to \"all unresolved issues\", interpret that as \"all unresolved issues from this batch\".\n",
-	)
-	sb.WriteString("- Skip the export step when the listed batch issue files already exist.\n")
+	sb.WriteString("- Update only the issue files and grouped trackers that belong to this batch.\n")
 	sb.WriteString(
 		"- Use installed `verification-before-completion` before claiming this batch is complete or creating an automatic commit.\n",
 	)
-	sb.WriteString("- Do not update issue files or grouped trackers outside this batch.\n")
 	sb.WriteString("</critical>\n\n")
 
 	sb.WriteString("<batch_scope>\n")
-	fmt.Fprintf(&sb, "- PR: `%s`\n", ctx.PR)
+	if ctx.Name != "" {
+		fmt.Fprintf(&sb, "- PRD name: `%s`\n", ctx.Name)
+	}
+	if ctx.Provider != "" {
+		fmt.Fprintf(&sb, "- Provider: `%s`\n", ctx.Provider)
+	}
+	if ctx.PR != "" {
+		fmt.Fprintf(&sb, "- Pull request: `%s`\n", ctx.PR)
+	}
+	if ctx.Round > 0 {
+		fmt.Fprintf(&sb, "- Review round: `%03d`\n", ctx.Round)
+	}
+	if ctx.ReviewsDir != "" {
+		fmt.Fprintf(&sb, "- Reviews directory: `%s`\n", NormalizeForPrompt(ctx.ReviewsDir))
+	}
 	if ctx.HasIssueRange {
-		fmt.Fprintf(&sb, "- Issue range: `%03d-%03d`\n", ctx.MinIssue, ctx.MaxIssue)
+		fmt.Fprintf(&sb, "- Issue range: `issue_%03d.md` → `issue_%03d.md`\n", ctx.MinIssue, ctx.MaxIssue)
 	} else {
 		sb.WriteString("- Issue range: `UNCONFIRMED`; use the explicit file list below\n")
 	}
@@ -106,35 +125,33 @@ func buildBatchIssueFilesSection(batchIssues []model.IssueEntry) string {
 func buildReviewExecutionSection(ctx reviewPromptContext) string {
 	var sb strings.Builder
 	sb.WriteString("<execution_contract>\n")
+	sb.WriteString("1. Read every listed issue file completely before editing code.\n")
 	sb.WriteString(
-		"1. Triage every listed issue file and record `VALID` or `INVALID` with technical reasoning directly in that issue file.\n",
+		"2. Triage every listed issue file and update `## Status:` from `pending` to `valid` or `invalid` with concrete technical reasoning in the `## Triage` section.\n",
 	)
 	sb.WriteString(
-		"2. Implement complete production fixes and add or update tests for every `VALID` issue in this batch.\n",
+		"3. Implement complete production fixes and add or update tests for every `valid` issue in this batch.\n",
 	)
 	sb.WriteString(
-		"3. Use `verification-before-completion` to identify and run the repository's real verification commands before finishing or committing this batch.\n",
+		"4. If an issue is `invalid`, document the reasoning clearly and still finish the issue file by setting `## Status: resolved` once the analysis is complete.\n",
 	)
-	if ctx.HasIssueRange {
-		fmt.Fprintf(&sb, "4. Resolve only the review threads for this batch range (`%03d-%03d`).\n",
-			ctx.MinIssue,
-			ctx.MaxIssue)
-	} else {
-		sb.WriteString(
-			"4. Resolve only the review threads referenced by the issue files listed in `<batch_issue_files>`.\n",
-		)
-	}
+	sb.WriteString(
+		"5. For every completed `valid` issue, finish the issue file with `## Status: resolved` only after the code and verification are done.\n",
+	)
+	sb.WriteString(
+		"6. Use `verification-before-completion` to identify and run the repository's real verification commands before finishing or committing this batch.\n",
+	)
 	if ctx.Grouped {
-		sb.WriteString("5. Update grouped tracker files only for the touched code files in this batch.\n")
+		sb.WriteString("7. Update grouped tracker files only for the touched code files in this batch.\n")
 	} else {
-		sb.WriteString("5. Grouped tracker updates are disabled for this run.\n")
+		sb.WriteString("7. Grouped tracker updates are disabled for this run.\n")
 	}
 	if ctx.AutoCommit {
 		sb.WriteString(
-			"6. Create exactly one local commit for this batch after clean verification. Do not push automatically.\n",
+			"8. Create exactly one local commit for this batch after clean verification. Do not push automatically.\n",
 		)
 	} else {
-		sb.WriteString("6. Leave the changes ready for manual review and commit. Do not create an automatic commit.\n")
+		sb.WriteString("8. Leave the changes ready for manual review and commit. Do not create an automatic commit.\n")
 	}
 	sb.WriteString("</execution_contract>")
 	return sb.String()

@@ -41,8 +41,12 @@ const (
 
 // Config configures looper preparation and execution.
 type Config struct {
+	Name                   string
+	Round                  int
+	Provider               string
 	PR                     string
-	IssuesDir              string
+	ReviewsDir             string
+	TasksDir               string
 	DryRun                 bool
 	AutoCommit             bool
 	Concurrent             int
@@ -55,6 +59,7 @@ type Config struct {
 	ReasoningEffort        string
 	Mode                   Mode
 	IncludeCompleted       bool
+	IncludeResolved        bool
 	Timeout                time.Duration
 	MaxRetries             int
 	RetryBackoffMultiplier float64
@@ -78,8 +83,20 @@ type Preparation struct {
 	Jobs                    []Job
 	InputDir                string
 	ResolvedPR              string
+	ResolvedName            string
+	ResolvedProvider        string
+	ResolvedRound           int
 	InputDirPath            string
 	GroupedSummariesWritten bool
+}
+
+type FetchResult struct {
+	Name       string
+	Provider   string
+	PR         string
+	Round      int
+	ReviewsDir string
+	Total      int
 }
 
 // Validate ensures the configuration is internally consistent.
@@ -122,6 +139,10 @@ func Run(ctx context.Context, cfg Config) error {
 	return run.Execute(ctx, prep.Jobs, runtimeCfg)
 }
 
+func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
+	return fetchReviews(ctx, cfg.runtime())
+}
+
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.
 func NormalizeAddDirs(dirs []string) []string {
 	if len(dirs) == 0 {
@@ -149,8 +170,12 @@ func NormalizeAddDirs(dirs []string) []string {
 
 func (cfg Config) runtime() *model.RuntimeConfig {
 	runtimeCfg := &model.RuntimeConfig{
+		Name:                   cfg.Name,
+		Round:                  cfg.Round,
+		Provider:               cfg.Provider,
 		PR:                     cfg.PR,
-		IssuesDir:              cfg.IssuesDir,
+		ReviewsDir:             cfg.ReviewsDir,
+		TasksDir:               cfg.TasksDir,
 		DryRun:                 cfg.DryRun,
 		AutoCommit:             cfg.AutoCommit,
 		Concurrent:             cfg.Concurrent,
@@ -163,6 +188,7 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 		ReasoningEffort:        cfg.ReasoningEffort,
 		Mode:                   model.ExecutionMode(cfg.Mode),
 		IncludeCompleted:       cfg.IncludeCompleted,
+		IncludeResolved:        cfg.IncludeResolved,
 		Timeout:                cfg.Timeout,
 		MaxRetries:             cfg.MaxRetries,
 		RetryBackoffMultiplier: cfg.RetryBackoffMultiplier,
@@ -183,9 +209,12 @@ func newPreparation(prep *model.SolvePreparation) *Preparation {
 
 	return &Preparation{
 		Jobs:                    jobs,
-		InputDir:                prep.IssuesDir,
+		InputDir:                prep.InputDir,
+		ResolvedName:            prep.ResolvedName,
 		ResolvedPR:              prep.ResolvedPR,
-		InputDirPath:            prep.IssuesDirPath,
+		ResolvedProvider:        prep.ResolvedProvider,
+		ResolvedRound:           prep.ResolvedRound,
+		InputDirPath:            prep.InputDirPath,
 		GroupedSummariesWritten: prep.GroupedSummarized,
 	}
 }

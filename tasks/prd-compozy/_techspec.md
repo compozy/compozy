@@ -30,7 +30,7 @@ skills/
       task-context-schema.md     # XML schema for Looper's ParseTaskFile()
 
   execute-prd-task/              # EXISTING — unchanged
-  fix-coderabbit-review/         # EXISTING — unchanged
+  fix-reviews/                   # EXISTING — generic review remediation skill
   verification-before-completion/ # EXISTING — unchanged
 ```
 

@@ -39,6 +39,9 @@ type Config = core.Config
 // Preparation contains the resolved execution plan for a looper run.
 type Preparation = core.Preparation
 
+// FetchResult contains the output of a fetch-reviews operation.
+type FetchResult = core.FetchResult
+
 // Job is a prepared execution unit with its generated artifacts.
 type Job = core.Job
 
@@ -50,4 +53,9 @@ func Prepare(ctx context.Context, cfg Config) (*Preparation, error) {
 // Run executes looper end to end for the provided configuration.
 func Run(ctx context.Context, cfg Config) error {
 	return core.Run(ctx, cfg)
+}
+
+// FetchReviews fetches provider review comments into a PRD review round.
+func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
+	return core.FetchReviews(ctx, cfg)
 }

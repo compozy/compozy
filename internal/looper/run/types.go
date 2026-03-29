@@ -199,8 +199,12 @@ const (
 type uiMsg any
 
 type config struct {
+	name                   string
+	round                  int
+	provider               string
 	pr                     string
-	issuesDir              string
+	reviewsDir             string
+	tasksDir               string
 	dryRun                 bool
 	autoCommit             bool
 	concurrent             int
@@ -213,6 +217,7 @@ type config struct {
 	reasoningEffort        string
 	mode                   model.ExecutionMode
 	includeCompleted       bool
+	includeResolved        bool
 	timeout                time.Duration
 	maxRetries             int
 	retryBackoffMultiplier float64
@@ -233,8 +238,12 @@ func newConfig(src *model.RuntimeConfig) *config {
 		return nil
 	}
 	return &config{
+		name:                   src.Name,
+		round:                  src.Round,
+		provider:               src.Provider,
 		pr:                     src.PR,
-		issuesDir:              src.IssuesDir,
+		reviewsDir:             src.ReviewsDir,
+		tasksDir:               src.TasksDir,
 		dryRun:                 src.DryRun,
 		autoCommit:             src.AutoCommit,
 		concurrent:             src.Concurrent,
@@ -247,6 +256,7 @@ func newConfig(src *model.RuntimeConfig) *config {
 		reasoningEffort:        src.ReasoningEffort,
 		mode:                   src.Mode,
 		includeCompleted:       src.IncludeCompleted,
+		includeResolved:        src.IncludeResolved,
 		timeout:                src.Timeout,
 		maxRetries:             src.MaxRetries,
 		retryBackoffMultiplier: src.RetryBackoffMultiplier,

@@ -48,7 +48,7 @@ func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	}
 
 	prValue, inputDir, resolved, err := resolveInputs(&model.RuntimeConfig{
-		PR:   "demo",
+		Name: "demo",
 		Mode: model.ExecutionModePRDTasks,
 	})
 	if err != nil {
@@ -76,8 +76,8 @@ func TestResolveInputsInfersTaskNameFromTasksDir(t *testing.T) {
 	}
 
 	prValue, inputDir, resolved, err := resolveInputs(&model.RuntimeConfig{
-		IssuesDir: tasksDir,
-		Mode:      model.ExecutionModePRDTasks,
+		TasksDir: tasksDir,
+		Mode:     model.ExecutionModePRDTasks,
 	})
 	if err != nil {
 		t.Fatalf("resolveInputs: %v", err)
@@ -117,16 +117,13 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 		},
 	}
 
-	jobs, groupedWritten, err := prepareJobs(
-		"demo",
-		groups,
-		promptRoot,
-		issuesDir,
-		5,
-		true,
-		false,
-		model.ExecutionModePRDTasks,
-	)
+	jobs, groupedWritten, err := prepareJobs(&model.RuntimeConfig{
+		Name:      "demo",
+		TasksDir:  issuesDir,
+		BatchSize: 5,
+		Grouped:   true,
+		Mode:      model.ExecutionModePRDTasks,
+	}, groups, promptRoot, issuesDir)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}

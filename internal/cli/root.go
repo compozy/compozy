@@ -12,11 +12,22 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type commandKind string
+
+const (
+	commandKindFetchReviews commandKind = "fetch-reviews"
+	commandKindFixReviews   commandKind = "fix-reviews"
+	commandKindStart        commandKind = "start"
+)
+
 type commandState struct {
+	kind                   commandKind
 	mode                   core.Mode
 	pr                     string
 	name                   string
-	issuesDir              string
+	provider               string
+	round                  int
+	reviewsDir             string
 	tasksDir               string
 	dryRun                 bool
 	autoCommit             bool
@@ -30,6 +41,7 @@ type commandState struct {
 	reasoningEffort        string
 	useForm                bool
 	includeCompleted       bool
+	includeResolved        bool
 	timeout                string
 	maxRetries             int
 	retryBackoffMultiplier float64
@@ -39,57 +51,72 @@ type commandState struct {
 func NewRootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:          "looper",
-		Short:        "Run AI issue and PRD task loops from markdown inputs",
+		Short:        "Run AI review remediation and PRD task workflows",
 		SilenceUsage: true,
-		Long: `Looper processes PR review issue markdown files and PRD task markdown files.
+		Long: `Looper manages review rounds and PRD execution workflows.
 
 Use explicit workflow subcommands:
-  looper fix-reviews   Process CodeRabbit review issues
+  looper fetch-reviews Fetch provider review comments into tasks/prd-<name>/reviews-NNN/
+  looper fix-reviews   Process review issue files from a specific review round
   looper start         Execute PRD task files`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
 	}
 
-	root.AddCommand(newFixReviewsCommand(), newStartCommand())
+	root.AddCommand(newFetchReviewsCommand(), newFixReviewsCommand(), newStartCommand())
 	return root
 }
 
+func newFetchReviewsCommand() *cobra.Command {
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	cmd := &cobra.Command{
+		Use:          "fetch-reviews",
+		Short:        "Fetch provider review comments into a PRD review round",
+		SilenceUsage: true,
+		Long:         "Fetch review comments from a provider and write them into tasks/prd-<name>/reviews-NNN/.",
+		Example: `  looper fetch-reviews --provider coderabbit --pr 259 --name my-feature
+  looper fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
+  looper fetch-reviews --form`,
+		RunE: state.fetchReviews,
+	}
+
+	cmd.Flags().StringVar(&state.provider, "provider", "", "Review provider name (for example: coderabbit)")
+	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
+	cmd.Flags().StringVar(&state.name, "name", "", "PRD workflow name (used for tasks/prd-<name>)")
+	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")
+	cmd.Flags().BoolVar(&state.useForm, "form", false, "Use interactive form to collect parameters")
+	return cmd
+}
+
 func newFixReviewsCommand() *cobra.Command {
-	state := newCommandState(core.ModePRReview)
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
 	cmd := &cobra.Command{
 		Use:          "fix-reviews",
-		Short:        "Process PR review issues from markdown inputs",
+		Short:        "Process review issue files from a PRD review round",
 		SilenceUsage: true,
-		Long: `Process CodeRabbit review issue markdown files, batch them, and run the configured AI agent
+		Long: `Process review issue markdown files from tasks/prd-<name>/reviews-NNN/ and run the configured AI agent
 to remediate review feedback.`,
-		Example: `  looper fix-reviews --pr 259 --ide codex --concurrent 2 --batch-size 3 --grouped
-  looper fix-reviews --form --pr 259`,
+		Example: `  looper fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
+  looper fix-reviews --name my-feature --round 2
+  looper fix-reviews --reviews-dir tasks/prd-my-feature/reviews-001`,
 		RunE: state.run,
 	}
 
 	addCommonFlags(cmd, state)
-	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
-	cmd.Flags().StringVar(
-		&state.issuesDir,
-		"issues-dir",
-		"",
-		"Path to issues directory (ai-docs/reviews-pr-<PR>/issues)",
-	)
+	cmd.Flags().StringVar(&state.name, "name", "", "PRD workflow name (used for tasks/prd-<name>)")
+	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: latest existing round)")
+	cmd.Flags().
+		StringVar(&state.reviewsDir, "reviews-dir", "", "Path to a review round directory (tasks/prd-<name>/reviews-NNN)")
 	cmd.Flags().
 		IntVar(&state.batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1 for no batching)")
-	cmd.Flags().BoolVar(
-		&state.grouped,
-		"grouped",
-		false,
-		"Generate grouped issue summaries in issues/grouped/ directory",
-	)
-
+	cmd.Flags().BoolVar(&state.grouped, "grouped", false, "Generate grouped issue summaries in reviews-NNN/grouped/")
+	cmd.Flags().BoolVar(&state.includeResolved, "include-resolved", false, "Include already-resolved review issues")
 	return cmd
 }
 
 func newStartCommand() *cobra.Command {
-	state := newCommandState(core.ModePRDTasks)
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
 	cmd := &cobra.Command{
 		Use:          "start",
 		Short:        "Execute PRD task files from a PRD directory",
@@ -104,18 +131,15 @@ AI agent one task at a time.`,
 	addCommonFlags(cmd, state)
 	cmd.Flags().StringVar(&state.name, "name", "", "PRD task workflow name (used for tasks/prd-<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to PRD tasks directory (tasks/prd-<name>)")
-	cmd.Flags().BoolVar(
-		&state.includeCompleted,
-		"include-completed",
-		false,
-		"Include completed tasks",
-	)
-
+	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	return cmd
 }
 
-func newCommandState(mode core.Mode) *commandState {
-	return &commandState{mode: mode}
+func newCommandState(kind commandKind, mode core.Mode) *commandState {
+	return &commandState{
+		kind: kind,
+		mode: mode,
+	}
 }
 
 func addCommonFlags(cmd *cobra.Command, state *commandState) {
@@ -191,6 +215,36 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 	return core.Run(ctx, cfg)
 }
 
+func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
+	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+		return err
+	}
+
+	cfg, err := s.buildConfig()
+	if err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	result, err := core.FetchReviews(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(
+		cmd.OutOrStdout(),
+		"Fetched %d review issues from %s for PR %s into %s (round %03d)\n",
+		result.Total,
+		result.Provider,
+		result.PR,
+		result.ReviewsDir,
+		result.Round,
+	)
+	return nil
+}
+
 func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {
 	if !s.useForm {
 		return nil
@@ -212,8 +266,12 @@ func (s *commandState) buildConfig() (core.Config, error) {
 	}
 
 	return core.Config{
-		PR:                     s.identifierValue(),
-		IssuesDir:              s.inputDirValue(),
+		Name:                   s.name,
+		Round:                  s.round,
+		Provider:               s.provider,
+		PR:                     s.pr,
+		ReviewsDir:             s.reviewsDir,
+		TasksDir:               s.tasksDir,
 		DryRun:                 s.dryRun,
 		AutoCommit:             s.autoCommit,
 		Concurrent:             s.concurrent,
@@ -226,105 +284,9 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		ReasoningEffort:        s.reasoningEffort,
 		Mode:                   s.mode,
 		IncludeCompleted:       s.includeCompleted,
+		IncludeResolved:        s.includeResolved,
 		Timeout:                timeoutDuration,
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,
 	}, nil
-}
-
-func (s *commandState) isTaskWorkflow() bool {
-	return s.mode == core.ModePRDTasks
-}
-
-func (s *commandState) identifierFlagName() string {
-	if s.isTaskWorkflow() {
-		return "name"
-	}
-	return "pr"
-}
-
-func (s *commandState) inputDirFlagName() string {
-	if s.isTaskWorkflow() {
-		return "tasks-dir"
-	}
-	return "issues-dir"
-}
-
-func (s *commandState) identifierTitle() string {
-	if s.isTaskWorkflow() {
-		return "Task Name"
-	}
-	return "PR Number"
-}
-
-func (s *commandState) identifierPlaceholder() string {
-	if s.isTaskWorkflow() {
-		return "multi-repo"
-	}
-	return "259"
-}
-
-func (s *commandState) identifierDescription() string {
-	if s.isTaskWorkflow() {
-		return "Required: PRD workflow name (e.g., 'multi-repo' for tasks/prd-multi-repo)"
-	}
-	return "Required: Pull request number or identifier to process"
-}
-
-func (s *commandState) identifierRequiredMessage() string {
-	if s.isTaskWorkflow() {
-		return "Task name is required"
-	}
-	return "PR number is required"
-}
-
-func (s *commandState) inputDirTitle() string {
-	if s.isTaskWorkflow() {
-		return "Tasks Directory (optional)"
-	}
-	return "Issues Directory (optional)"
-}
-
-func (s *commandState) inputDirPlaceholder() string {
-	if s.isTaskWorkflow() {
-		return "tasks/prd-<name>"
-	}
-	return "ai-docs/reviews-pr-<PR>/issues"
-}
-
-func (s *commandState) inputDirDescription() string {
-	if s.isTaskWorkflow() {
-		return "Leave empty to auto-generate from task name"
-	}
-	return "Leave empty to auto-generate from PR number"
-}
-
-func (s *commandState) identifierValue() string {
-	if s.isTaskWorkflow() {
-		return s.name
-	}
-	return s.pr
-}
-
-func (s *commandState) setIdentifierValue(value string) {
-	if s.isTaskWorkflow() {
-		s.name = value
-		return
-	}
-	s.pr = value
-}
-
-func (s *commandState) inputDirValue() string {
-	if s.isTaskWorkflow() {
-		return s.tasksDir
-	}
-	return s.issuesDir
-}
-
-func (s *commandState) setInputDirValue(value string) {
-	if s.isTaskWorkflow() {
-		s.tasksDir = value
-		return
-	}
-	s.issuesDir = value
 }

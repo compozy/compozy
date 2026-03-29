@@ -33,20 +33,24 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 	t.Parallel()
 
 	promptText := buildCodeReviewPrompt(BatchParams{
+		Name:       "my-feature",
+		Round:      1,
+		Provider:   "coderabbit",
 		PR:         "259",
+		ReviewsDir: "/tmp/tasks/prd-my-feature/reviews-001",
 		Grouped:    true,
 		AutoCommit: true,
 		Mode:       model.ExecutionModePRReview,
 		BatchGroups: map[string][]model.IssueEntry{
 			"internal/app/service.go": {
 				{
-					Name:     "003-nil-check.md",
-					AbsPath:  "/tmp/ai-docs/reviews-pr-259/issues/003-nil-check.md",
+					Name:     "issue_003.md",
+					AbsPath:  "/tmp/tasks/prd-my-feature/reviews-001/issue_003.md",
 					CodeFile: "internal/app/service.go",
 				},
 				{
-					Name:     "004-timeout.md",
-					AbsPath:  "/tmp/ai-docs/reviews-pr-259/issues/004-timeout.md",
+					Name:     "issue_004.md",
+					AbsPath:  "/tmp/tasks/prd-my-feature/reviews-001/issue_004.md",
 					CodeFile: "internal/app/service.go",
 				},
 			},
@@ -54,10 +58,12 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 	})
 
 	requiredSnippets := []string{
-		"`fix-coderabbit-review`",
+		"`fix-reviews`",
 		"`verification-before-completion`",
 		"<batch_issue_files>",
-		"Issue range: `003-004`",
+		"Review round: `001`",
+		"Issue range: `issue_003.md` → `issue_004.md`",
+		"Looper resolves provider threads after the batch succeeds.",
 		"Grouped summaries: enabled",
 		"Create exactly one local commit for this batch after clean verification.",
 	}
@@ -72,6 +78,7 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 		"scripts/read_pr_issues.sh",
 		"resolve_pr_issues.sh",
 		"pnpm run",
+		"fix-coderabbit-review",
 	}
 	for _, snippet := range forbiddenSnippets {
 		if strings.Contains(promptText, snippet) {
@@ -84,15 +91,19 @@ func TestBuildCodeReviewPromptRespectsDisabledGroupedAndAutoCommitModes(t *testi
 	t.Parallel()
 
 	promptText := buildCodeReviewPrompt(BatchParams{
+		Name:       "my-feature",
+		Round:      2,
+		Provider:   "coderabbit",
 		PR:         "260",
+		ReviewsDir: "/tmp/tasks/prd-my-feature/reviews-002",
 		Grouped:    false,
 		AutoCommit: false,
 		Mode:       model.ExecutionModePRReview,
 		BatchGroups: map[string][]model.IssueEntry{
 			"internal/app/service.go": {
 				{
-					Name:     "007-retry.md",
-					AbsPath:  "/tmp/ai-docs/reviews-pr-260/issues/007-retry.md",
+					Name:     "issue_007.md",
+					AbsPath:  "/tmp/tasks/prd-my-feature/reviews-002/issue_007.md",
 					CodeFile: "internal/app/service.go",
 				},
 			},

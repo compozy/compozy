@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -14,7 +16,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/compozy/looper/internal/looper/model"
+	"github.com/compozy/looper/internal/looper/prompt"
+	"github.com/compozy/looper/internal/looper/provider"
+	"github.com/compozy/looper/internal/looper/providers"
+	"github.com/compozy/looper/internal/looper/reviews"
 )
+
+var reviewProviderRegistry = providers.DefaultRegistry
 
 // Execute runs the prepared jobs and manages shutdown, retries, and summaries.
 func Execute(ctx context.Context, jobs []model.Job, cfg *model.RuntimeConfig) error {
@@ -287,12 +295,30 @@ func (r *jobRunner) run(ctx context.Context) {
 
 		r.lifecycle.startAttempt(attempt, timeout)
 		result := r.executeAttempt(ctx, timeout)
+		if result.Successful() {
+			if err := r.runPostSuccessHook(ctx); err != nil {
+				r.lifecycle.markGiveUp(failInfo{
+					codeFile: strings.Join(r.job.codeFiles, ", "),
+					exitCode: -1,
+					outLog:   r.job.outLog,
+					errLog:   r.job.errLog,
+					err:      err,
+				})
+				return
+			}
+			r.lifecycle.markSuccess()
+			return
+		}
 		nextTimeout, continueLoop := r.handleResult(attempt, attempts, timeout, result)
 		if !continueLoop {
 			return
 		}
 		timeout = nextTimeout
 	}
+}
+
+func (r *jobRunner) runPostSuccessHook(ctx context.Context) error {
+	return r.execCtx.afterJobSuccess(ctx, r.job)
 }
 
 func (r *jobRunner) handleResult(
@@ -435,6 +461,70 @@ func (j *jobExecutionContext) reportAggregateUsage() {
 	j.aggregateMu.Lock()
 	defer j.aggregateMu.Unlock()
 	printAggregateTokenUsage(&j.aggregateUsage)
+}
+
+func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
+	if j.cfg.mode != model.ExecutionModePRReview {
+		return nil
+	}
+	if strings.TrimSpace(j.cfg.reviewsDir) == "" {
+		return fmt.Errorf("missing reviews directory for review post-processing")
+	}
+
+	resolvedIssues, err := collectNewlyResolvedIssues(jb.groups)
+	if err != nil {
+		return err
+	}
+
+	if len(resolvedIssues) > 0 {
+		registry := reviewProviderRegistry()
+		reviewProvider, err := registry.Get(j.cfg.provider)
+		if err != nil {
+			return err
+		}
+		if err := reviewProvider.ResolveIssues(ctx, j.cfg.pr, resolvedIssues); err != nil {
+			slog.Warn(
+				"review provider resolution completed with warnings",
+				"provider",
+				j.cfg.provider,
+				"pr",
+				j.cfg.pr,
+				"resolved_issues",
+				len(resolvedIssues),
+				"error",
+				err,
+			)
+		} else {
+			slog.Info(
+				"resolved review provider issues",
+				"provider",
+				j.cfg.provider,
+				"pr",
+				j.cfg.pr,
+				"resolved_issues",
+				len(resolvedIssues),
+			)
+		}
+	}
+
+	meta, err := reviews.RefreshRoundMeta(j.cfg.reviewsDir)
+	if err != nil {
+		return err
+	}
+	slog.Info(
+		"updated review round metadata",
+		"provider",
+		meta.Provider,
+		"pr",
+		meta.PR,
+		"round",
+		meta.Round,
+		"resolved",
+		meta.Resolved,
+		"unresolved",
+		meta.Unresolved,
+	)
+	return nil
 }
 
 func executeJobWithTimeout(
@@ -802,4 +892,34 @@ func maxInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provider.ResolvedIssue, error) {
+	resolved := make([]provider.ResolvedIssue, 0)
+	for _, entries := range groups {
+		for _, entry := range entries {
+			currentBody, err := os.ReadFile(entry.AbsPath)
+			if err != nil {
+				return nil, fmt.Errorf("read updated issue file %s: %w", entry.AbsPath, err)
+			}
+			currentContent := string(currentBody)
+			if !prompt.IsReviewResolved(currentContent) || prompt.IsReviewResolved(entry.Content) {
+				continue
+			}
+
+			reviewContext, err := prompt.ParseReviewContext(currentContent)
+			if err != nil {
+				return nil, fmt.Errorf("parse review context for %s: %w", entry.AbsPath, err)
+			}
+			resolved = append(resolved, provider.ResolvedIssue{
+				FilePath:    entry.AbsPath,
+				ProviderRef: reviewContext.ProviderRef,
+			})
+		}
+	}
+
+	sort.SliceStable(resolved, func(i, j int) bool {
+		return resolved[i].FilePath < resolved[j].FilePath
+	})
+	return resolved, nil
 }

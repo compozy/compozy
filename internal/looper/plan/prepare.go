@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/looper/internal/looper/agent"
 	"github.com/compozy/looper/internal/looper/model"
 	"github.com/compozy/looper/internal/looper/prompt"
+	"github.com/compozy/looper/internal/looper/reviews"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
@@ -21,38 +22,49 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 	prep := &model.SolvePreparation{}
 
 	var err error
-	prep.ResolvedPR, prep.IssuesDir, prep.IssuesDirPath, err = resolveInputs(cfg)
+	prep.ResolvedName, prep.InputDir, prep.InputDirPath, err = resolveInputs(cfg)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.Mode == model.ExecutionModePRReview {
+		meta, metaErr := reviews.ReadRoundMeta(prep.InputDirPath)
+		if metaErr != nil {
+			return nil, metaErr
+		}
+		cfg.Provider = meta.Provider
+		cfg.PR = meta.PR
+		cfg.Round = meta.Round
+		cfg.ReviewsDir = prep.InputDirPath
+		prep.ResolvedProvider = meta.Provider
+		prep.ResolvedPR = meta.PR
+		prep.ResolvedRound = meta.Round
+	} else {
+		cfg.TasksDir = prep.InputDirPath
 	}
 	if err := agent.EnsureAvailable(cfg); err != nil {
 		return nil, err
 	}
 
-	entries, err := readIssueEntries(prep.IssuesDirPath, cfg.Mode, cfg.IncludeCompleted)
+	entries, err := readIssueEntries(prep.InputDirPath, cfg.Mode, cfg.IncludeCompleted)
 	if err != nil {
 		return nil, err
 	}
-	entries, err = validateAndFilterEntries(entries, cfg.Mode)
+	entries, err = validateAndFilterEntries(entries, cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	groups := groupIssues(entries)
-	promptRoot, err := initPromptRoot(prep.ResolvedPR)
+	promptRoot, err := initPromptRoot(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	prep.Jobs, prep.GroupedSummarized, err = prepareJobs(
-		prep.ResolvedPR,
+		cfg,
 		groups,
 		promptRoot,
-		prep.IssuesDirPath,
-		cfg.BatchSize,
-		cfg.Grouped,
-		cfg.AutoCommit,
-		cfg.Mode,
+		prep.InputDirPath,
 	)
 	if err != nil {
 		return nil, err
@@ -62,18 +74,14 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 }
 
 func prepareJobs(
-	pr string,
+	cfg *model.RuntimeConfig,
 	groups map[string][]model.IssueEntry,
 	promptRoot string,
 	issuesDir string,
-	batchSize int,
-	grouped bool,
-	autoCommit bool,
-	mode model.ExecutionMode,
 ) ([]model.Job, bool, error) {
-	effectiveBatchSize := batchSize
-	effectiveGrouped := grouped
-	if mode == model.ExecutionModePRDTasks {
+	effectiveBatchSize := cfg.BatchSize
+	effectiveGrouped := cfg.Grouped
+	if cfg.Mode == model.ExecutionModePRDTasks {
 		effectiveBatchSize = 1
 		effectiveGrouped = false
 	}
@@ -81,7 +89,7 @@ func prepareJobs(
 		effectiveBatchSize = 1
 	}
 
-	collected := prompt.FlattenAndSortIssues(groups, mode)
+	collected := prompt.FlattenAndSortIssues(groups, cfg.Mode)
 	batches := createIssueBatches(collected, effectiveBatchSize)
 	if len(batches) == 0 {
 		return nil, false, errors.New("no batches created for prompt preparation")
@@ -97,7 +105,7 @@ func prepareJobs(
 
 	jobs := make([]model.Job, 0, len(batches))
 	for idx, batchIssues := range batches {
-		job, err := buildBatchJob(pr, promptRoot, effectiveGrouped, autoCommit, idx, batchIssues, mode)
+		job, err := buildBatchJob(cfg, promptRoot, effectiveGrouped, idx, batchIssues)
 		if err != nil {
 			return nil, groupedWritten, err
 		}
@@ -110,22 +118,24 @@ func prepareJobs(
 }
 
 func buildBatchJob(
-	pr string,
+	cfg *model.RuntimeConfig,
 	promptRoot string,
 	grouped bool,
-	autoCommit bool,
 	batchIdx int,
 	batchIssues []model.IssueEntry,
-	mode model.ExecutionMode,
 ) (model.Job, error) {
 	batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
-	safeName := determineBatchName(batchIdx, batchFiles, mode)
+	safeName := determineBatchName(batchIdx, batchFiles, cfg.Mode)
 	promptText := prompt.Build(prompt.BatchParams{
-		PR:          pr,
+		Name:        cfg.Name,
+		Round:       cfg.Round,
+		Provider:    cfg.Provider,
+		PR:          cfg.PR,
+		ReviewsDir:  cfg.ReviewsDir,
 		BatchGroups: batchGroups,
 		Grouped:     grouped,
-		AutoCommit:  autoCommit,
-		Mode:        mode,
+		AutoCommit:  cfg.AutoCommit,
+		Mode:        cfg.Mode,
 	})
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(promptRoot, safeName, promptText)
 	if err != nil {

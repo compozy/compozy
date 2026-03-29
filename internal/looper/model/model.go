@@ -24,8 +24,12 @@ const (
 )
 
 type RuntimeConfig struct {
+	Name                   string
+	Round                  int
+	Provider               string
 	PR                     string
-	IssuesDir              string
+	ReviewsDir             string
+	TasksDir               string
 	DryRun                 bool
 	AutoCommit             bool
 	Concurrent             int
@@ -38,6 +42,7 @@ type RuntimeConfig struct {
 	ReasoningEffort        string
 	Mode                   ExecutionMode
 	IncludeCompleted       bool
+	IncludeResolved        bool
 	Timeout                time.Duration
 	MaxRetries             int
 	RetryBackoffMultiplier float64
@@ -77,6 +82,24 @@ type IssueEntry struct {
 	CodeFile string
 }
 
+type ReviewContext struct {
+	File        string
+	Line        int
+	Severity    string
+	Author      string
+	ProviderRef string
+}
+
+type RoundMeta struct {
+	Provider   string
+	PR         string
+	Round      int
+	CreatedAt  time.Time
+	Total      int
+	Resolved   int
+	Unresolved int
+}
+
 type TaskEntry struct {
 	Content      string
 	Status       string
@@ -89,9 +112,12 @@ type TaskEntry struct {
 
 type SolvePreparation struct {
 	Jobs              []Job
-	IssuesDir         string
+	InputDir          string
+	InputDirPath      string
+	ResolvedName      string
 	ResolvedPR        string
-	IssuesDirPath     string
+	ResolvedProvider  string
+	ResolvedRound     int
 	GroupedSummarized bool
 }
 

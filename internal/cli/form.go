@@ -26,8 +26,12 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 }
 
 type formInputs struct {
-	identifier       string
-	inputDir         string
+	name             string
+	pr               string
+	provider         string
+	round            string
+	reviewsDir       string
+	tasksDir         string
 	concurrent       string
 	batchSize        string
 	ide              string
@@ -37,6 +41,7 @@ type formInputs struct {
 	reasoningEffort  string
 	timeout          string
 	includeCompleted bool
+	includeResolved  bool
 	grouped          bool
 	dryRun           bool
 	autoCommit       bool
@@ -47,12 +52,14 @@ func newFormInputs() *formInputs {
 }
 
 func (fi *formInputs) register(builder *formBuilder) {
-	builder.addIdentifierField(&fi.identifier)
-	builder.addInputDirField(&fi.inputDir)
+	builder.addNameField(&fi.name)
+	builder.addPRField(&fi.pr)
+	builder.addProviderField(&fi.provider)
+	builder.addRoundField(&fi.round)
+	builder.addReviewsDirField(&fi.reviewsDir)
+	builder.addTasksDirField(&fi.tasksDir)
 	builder.addConcurrentField(&fi.concurrent)
-	if !builder.state.isTaskWorkflow() {
-		builder.addBatchSizeField(&fi.batchSize)
-	}
+	builder.addBatchSizeField(&fi.batchSize)
 	builder.addIDEField(&fi.ide)
 	builder.addModelField(&fi.model)
 	builder.addAddDirsField(&fi.addDirs)
@@ -65,28 +72,39 @@ func (fi *formInputs) register(builder *formBuilder) {
 		"Only generate prompts without running IDE tool",
 		&fi.dryRun,
 	)
-	if !builder.state.isTaskWorkflow() {
-		builder.addConfirmField(
-			"grouped",
-			"Generate Grouped Summaries?",
-			"Create grouped issue summaries in issues/grouped/",
-			&fi.grouped,
-		)
-	}
+	builder.addConfirmField(
+		"grouped",
+		"Generate Grouped Summaries?",
+		"Create grouped issue summaries in reviews-NNN/grouped/",
+		&fi.grouped,
+	)
 	builder.addConfirmField(
 		"auto-commit",
 		"Auto Commit?",
 		"Include commit instructions at task/batch completion",
 		&fi.autoCommit,
 	)
-	if builder.state.isTaskWorkflow() {
-		builder.addIncludeCompletedField(&fi.includeCompleted)
-	}
+	builder.addConfirmField(
+		"include-completed",
+		"Include Completed Tasks?",
+		"Process tasks marked as completed",
+		&fi.includeCompleted,
+	)
+	builder.addConfirmField(
+		"include-resolved",
+		"Include Resolved Review Issues?",
+		"Process issues already marked as resolved",
+		&fi.includeResolved,
+	)
 }
 
 func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
-	applyStringInput(cmd, state.identifierFlagName(), fi.identifier, state.setIdentifierValue)
-	applyStringInput(cmd, state.inputDirFlagName(), fi.inputDir, state.setInputDirValue)
+	applyStringInput(cmd, "name", fi.name, func(val string) { state.name = val })
+	applyStringInput(cmd, "pr", fi.pr, func(val string) { state.pr = val })
+	applyStringInput(cmd, "provider", fi.provider, func(val string) { state.provider = val })
+	applyIntInput(cmd, "round", fi.round, func(val int) { state.round = val })
+	applyStringInput(cmd, "reviews-dir", fi.reviewsDir, func(val string) { state.reviewsDir = val })
+	applyStringInput(cmd, "tasks-dir", fi.tasksDir, func(val string) { state.tasksDir = val })
 	applyIntInput(cmd, "concurrent", fi.concurrent, func(val int) { state.concurrent = val })
 	applyIntInput(cmd, "batch-size", fi.batchSize, func(val int) { state.batchSize = val })
 	applyStringInput(cmd, "ide", fi.ide, func(val string) { state.ide = val })
@@ -102,6 +120,9 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 	applyBoolInput(cmd, "auto-commit", fi.autoCommit, func(val bool) { state.autoCommit = val })
 	applyBoolInput(cmd, "include-completed", fi.includeCompleted, func(val bool) {
 		state.includeCompleted = val
+	})
+	applyBoolInput(cmd, "include-resolved", fi.includeResolved, func(val bool) {
+		state.includeResolved = val
 	})
 }
 
@@ -119,8 +140,12 @@ func (fb *formBuilder) build() *huh.Form {
 	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(huh.ThemeCharm())
 }
 
+func (fb *formBuilder) hasFlag(flag string) bool {
+	return fb.cmd.Flags().Lookup(flag) != nil
+}
+
 func (fb *formBuilder) addField(flag string, build func() huh.Field) {
-	if fb.cmd.Flags().Changed(flag) {
+	if !fb.hasFlag(flag) || fb.cmd.Flags().Changed(flag) {
 		return
 	}
 	field := build()
@@ -129,28 +154,88 @@ func (fb *formBuilder) addField(flag string, build func() huh.Field) {
 	}
 }
 
-func (fb *formBuilder) addIdentifierField(target *string) {
-	fb.addField(fb.state.identifierFlagName(), func() huh.Field {
+func (fb *formBuilder) addNameField(target *string) {
+	fb.addField("name", func() huh.Field {
+		title := "PRD Name"
+		description := "Required: PRD workflow name (for example: my-feature)"
+		if fb.state.kind == commandKindStart {
+			title = "Task Name"
+			description = "Required: PRD workflow name (for example: multi-repo)"
+		}
 		return huh.NewInput().
-			Title(fb.state.identifierTitle()).
-			Placeholder(fb.state.identifierPlaceholder()).
-			Description(fb.state.identifierDescription()).
+			Title(title).
+			Placeholder("my-feature").
+			Description(description).
 			Value(target).
 			Validate(func(str string) error {
-				if str == "" {
-					return errors.New(fb.state.identifierRequiredMessage())
+				if strings.TrimSpace(str) == "" && !fb.hasFlag("reviews-dir") {
+					return errors.New("name is required")
 				}
 				return nil
 			})
 	})
 }
 
-func (fb *formBuilder) addInputDirField(target *string) {
-	fb.addField(fb.state.inputDirFlagName(), func() huh.Field {
+func (fb *formBuilder) addPRField(target *string) {
+	fb.addField("pr", func() huh.Field {
 		return huh.NewInput().
-			Title(fb.state.inputDirTitle()).
-			Placeholder(fb.state.inputDirPlaceholder()).
-			Description(fb.state.inputDirDescription()).
+			Title("Pull Request").
+			Placeholder("259").
+			Description("Required: pull request number to fetch reviews from").
+			Value(target).
+			Validate(func(str string) error {
+				if strings.TrimSpace(str) == "" {
+					return errors.New("pull request number is required")
+				}
+				return nil
+			})
+	})
+}
+
+func (fb *formBuilder) addProviderField(target *string) {
+	fb.addField("provider", func() huh.Field {
+		return huh.NewSelect[string]().
+			Title("Review Provider").
+			Description("Choose which review provider to fetch from").
+			Options(
+				huh.NewOption("CodeRabbit", "coderabbit"),
+			).
+			Value(target)
+	})
+}
+
+func (fb *formBuilder) addRoundField(target *string) {
+	fb.addField("round", func() huh.Field {
+		description := "Leave empty to auto-detect the appropriate round"
+		if fb.state.kind == commandKindFetchReviews {
+			description = "Leave empty to create the next available review round"
+		}
+		return numericInput(
+			"Review Round",
+			"auto",
+			description,
+			target,
+			999,
+		)
+	})
+}
+
+func (fb *formBuilder) addReviewsDirField(target *string) {
+	fb.addField("reviews-dir", func() huh.Field {
+		return huh.NewInput().
+			Title("Reviews Directory (optional)").
+			Placeholder("tasks/prd-<name>/reviews-NNN").
+			Description("Leave empty to resolve from PRD name and round").
+			Value(target)
+	})
+}
+
+func (fb *formBuilder) addTasksDirField(target *string) {
+	fb.addField("tasks-dir", func() huh.Field {
+		return huh.NewInput().
+			Title("Tasks Directory (optional)").
+			Placeholder("tasks/prd-<name>").
+			Description("Leave empty to auto-generate from task name").
 			Value(target)
 	})
 }
@@ -162,9 +247,7 @@ func (fb *formBuilder) addConcurrentField(target *string) {
 			"1",
 			"Number of batches to process in parallel (1-10)",
 			target,
-			1,
 			10,
-			true,
 		)
 	})
 }
@@ -176,9 +259,7 @@ func (fb *formBuilder) addBatchSizeField(target *string) {
 			"1",
 			"Number of file groups per batch (1-50)",
 			target,
-			1,
 			50,
-			true,
 		)
 	})
 }
@@ -222,12 +303,10 @@ func (fb *formBuilder) addTailLinesField(target *string) {
 	fb.addField("tail-lines", func() huh.Field {
 		return numericInput(
 			"Log Tail Lines",
-			"5",
+			"30",
 			"Number of log lines to show in UI (1-100)",
 			target,
-			1,
 			100,
-			true,
 		)
 	})
 }
@@ -276,23 +355,12 @@ func (fb *formBuilder) addConfirmField(flag, title, description string, target *
 	})
 }
 
-func (fb *formBuilder) addIncludeCompletedField(target *bool) {
-	fb.addField("include-completed", func() huh.Field {
-		return huh.NewConfirm().
-			Title("Include Completed Tasks?").
-			Description("Process tasks marked as completed").
-			Value(target)
-	})
-}
-
 func numericInput(
 	title string,
 	placeholder string,
 	description string,
 	target *string,
-	minVal int,
 	maxVal int,
-	allowEmpty bool,
 ) huh.Field {
 	return huh.NewInput().
 		Title(title).
@@ -301,31 +369,28 @@ func numericInput(
 		Value(target).
 		Validate(func(str string) error {
 			if str == "" {
-				if allowEmpty {
-					return nil
-				}
-				return errors.New("value is required")
+				return nil
 			}
 			val, err := strconv.Atoi(str)
 			if err != nil {
 				return errors.New("must be a number")
 			}
-			if val < minVal || val > maxVal {
-				return fmt.Errorf("must be between %d and %d", minVal, maxVal)
+			if val < 1 || val > maxVal {
+				return fmt.Errorf("must be between %d and %d", 1, maxVal)
 			}
 			return nil
 		})
 }
 
 func applyStringInput(cmd *cobra.Command, flagName, value string, setter func(string)) {
-	if cmd.Flags().Changed(flagName) || value == "" {
+	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) || value == "" {
 		return
 	}
 	setter(value)
 }
 
 func applyIntInput(cmd *cobra.Command, flagName, value string, setter func(int)) {
-	if cmd.Flags().Changed(flagName) || value == "" {
+	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) || value == "" {
 		return
 	}
 	val, err := strconv.Atoi(value)
@@ -336,14 +401,14 @@ func applyIntInput(cmd *cobra.Command, flagName, value string, setter func(int))
 }
 
 func applyBoolInput(cmd *cobra.Command, flagName string, value bool, setter func(bool)) {
-	if cmd.Flags().Changed(flagName) {
+	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
 		return
 	}
 	setter(value)
 }
 
 func applyStringSliceInput(cmd *cobra.Command, flagName, value string, setter func([]string)) {
-	if cmd.Flags().Changed(flagName) || value == "" {
+	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) || value == "" {
 		return
 	}
 	values := parseAddDirInput(value)
