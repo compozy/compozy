@@ -87,7 +87,8 @@ source:
   enabled: true
 
 changelog:
-  use: github
+  # Use git history so the first release works before a previous tag exists on GitHub.
+  use: git
   sort: asc
   abbrev: 7
   groups:
@@ -173,7 +174,11 @@ release:
       checksums.txt
     ```
 
+    {{- if .PreviousTag }}
     **Full Changelog**: https://github.com/compozy/looper/compare/{{ .PreviousTag }}...{{ .Tag }}
+    {{- else }}
+    **Source**: https://github.com/compozy/looper/tree/{{ .Tag }}
+    {{- end }}
 
 sboms:
   - artifacts: archive

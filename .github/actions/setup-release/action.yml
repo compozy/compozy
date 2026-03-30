@@ -138,7 +138,8 @@ runs:
         fi
 
         if command -v cosign &> /dev/null; then
-          echo "Cosign version: $(cosign version --short)"
+          echo "Cosign version:"
+          cosign version
         else
           echo "Cosign not found"
           exit 1
