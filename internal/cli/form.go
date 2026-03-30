@@ -145,13 +145,30 @@ func (fb *formBuilder) hasFlag(flag string) bool {
 }
 
 func (fb *formBuilder) addField(flag string, build func() huh.Field) {
-	if !fb.hasFlag(flag) || fb.cmd.Flags().Changed(flag) {
+	if !fb.hasFlag(flag) || fb.cmd.Flags().Changed(flag) || fb.hideField(flag) {
 		return
 	}
 	field := build()
 	if field != nil {
 		fb.fields = append(fb.fields, field)
 	}
+}
+
+func (fb *formBuilder) hideField(flag string) bool {
+	switch fb.state.kind {
+	case commandKindStart:
+		switch flag {
+		case "concurrent", "tail-lines", "dry-run", "include-completed":
+			return true
+		}
+	case commandKindFixReviews:
+		switch flag {
+		case "tail-lines", "dry-run", "include-resolved":
+			return true
+		}
+	}
+
+	return false
 }
 
 func (fb *formBuilder) addNameField(target *string) {
@@ -163,6 +180,7 @@ func (fb *formBuilder) addNameField(target *string) {
 			description = "Required: PRD workflow name (for example: multi-repo)"
 		}
 		return huh.NewInput().
+			Key("name").
 			Title(title).
 			Placeholder("my-feature").
 			Description(description).
@@ -179,6 +197,7 @@ func (fb *formBuilder) addNameField(target *string) {
 func (fb *formBuilder) addPRField(target *string) {
 	fb.addField("pr", func() huh.Field {
 		return huh.NewInput().
+			Key("pr").
 			Title("Pull Request").
 			Placeholder("259").
 			Description("Required: pull request number to fetch reviews from").
@@ -195,6 +214,7 @@ func (fb *formBuilder) addPRField(target *string) {
 func (fb *formBuilder) addProviderField(target *string) {
 	fb.addField("provider", func() huh.Field {
 		return huh.NewSelect[string]().
+			Key("provider").
 			Title("Review Provider").
 			Description("Choose which review provider to fetch from").
 			Options(
@@ -211,6 +231,7 @@ func (fb *formBuilder) addRoundField(target *string) {
 			description = "Leave empty to create the next available review round"
 		}
 		return numericInput(
+			"round",
 			"Review Round",
 			"auto",
 			description,
@@ -223,6 +244,7 @@ func (fb *formBuilder) addRoundField(target *string) {
 func (fb *formBuilder) addReviewsDirField(target *string) {
 	fb.addField("reviews-dir", func() huh.Field {
 		return huh.NewInput().
+			Key("reviews-dir").
 			Title("Reviews Directory (optional)").
 			Placeholder("tasks/prd-<name>/reviews-NNN").
 			Description("Leave empty to resolve from PRD name and round").
@@ -233,6 +255,7 @@ func (fb *formBuilder) addReviewsDirField(target *string) {
 func (fb *formBuilder) addTasksDirField(target *string) {
 	fb.addField("tasks-dir", func() huh.Field {
 		return huh.NewInput().
+			Key("tasks-dir").
 			Title("Tasks Directory (optional)").
 			Placeholder("tasks/prd-<name>").
 			Description("Leave empty to auto-generate from task name").
@@ -243,6 +266,7 @@ func (fb *formBuilder) addTasksDirField(target *string) {
 func (fb *formBuilder) addConcurrentField(target *string) {
 	fb.addField("concurrent", func() huh.Field {
 		return numericInput(
+			"concurrent",
 			"Concurrent Jobs",
 			"1",
 			"Number of batches to process in parallel (1-10)",
@@ -255,6 +279,7 @@ func (fb *formBuilder) addConcurrentField(target *string) {
 func (fb *formBuilder) addBatchSizeField(target *string) {
 	fb.addField("batch-size", func() huh.Field {
 		return numericInput(
+			"batch-size",
 			"Batch Size",
 			"1",
 			"Number of file groups per batch (1-50)",
@@ -267,6 +292,7 @@ func (fb *formBuilder) addBatchSizeField(target *string) {
 func (fb *formBuilder) addIDEField(target *string) {
 	fb.addField("ide", func() huh.Field {
 		return huh.NewSelect[string]().
+			Key("ide").
 			Title("IDE Tool").
 			Description("Choose which IDE tool to use").
 			Options(
@@ -282,6 +308,7 @@ func (fb *formBuilder) addIDEField(target *string) {
 func (fb *formBuilder) addModelField(target *string) {
 	fb.addField("model", func() huh.Field {
 		return huh.NewInput().
+			Key("model").
 			Title("Model (optional)").
 			Placeholder("auto").
 			Description("Specific model to use (default: gpt-5.4 for codex/droid, opus for claude)").
@@ -292,6 +319,7 @@ func (fb *formBuilder) addModelField(target *string) {
 func (fb *formBuilder) addAddDirsField(target *string) {
 	fb.addField("add-dir", func() huh.Field {
 		return huh.NewInput().
+			Key("add-dir").
 			Title("Additional Directories (optional)").
 			Placeholder("../shared, ../docs").
 			Description("Comma-separated directories to pass via --add-dir for Codex and Claude only").
@@ -302,6 +330,7 @@ func (fb *formBuilder) addAddDirsField(target *string) {
 func (fb *formBuilder) addTailLinesField(target *string) {
 	fb.addField("tail-lines", func() huh.Field {
 		return numericInput(
+			"tail-lines",
 			"Log Tail Lines",
 			"30",
 			"Number of log lines to show in UI (1-100)",
@@ -314,6 +343,7 @@ func (fb *formBuilder) addTailLinesField(target *string) {
 func (fb *formBuilder) addReasoningEffortField(target *string) {
 	fb.addField("reasoning-effort", func() huh.Field {
 		return huh.NewSelect[string]().
+			Key("reasoning-effort").
 			Title("Reasoning Effort").
 			Description("Model reasoning effort level (applies to Codex, Claude, and Droid)").
 			Options(
@@ -329,6 +359,7 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 func (fb *formBuilder) addTimeoutField(target *string) {
 	fb.addField("timeout", func() huh.Field {
 		return huh.NewInput().
+			Key("timeout").
 			Title("Activity Timeout").
 			Placeholder("10m").
 			Description("Cancel job if no output received within this period (e.g., 5m, 30s)").
@@ -349,6 +380,7 @@ func (fb *formBuilder) addTimeoutField(target *string) {
 func (fb *formBuilder) addConfirmField(flag, title, description string, target *bool) {
 	fb.addField(flag, func() huh.Field {
 		return huh.NewConfirm().
+			Key(flag).
 			Title(title).
 			Description(description).
 			Value(target)
@@ -356,6 +388,7 @@ func (fb *formBuilder) addConfirmField(flag, title, description string, target *
 }
 
 func numericInput(
+	key string,
 	title string,
 	placeholder string,
 	description string,
@@ -363,6 +396,7 @@ func numericInput(
 	maxVal int,
 ) huh.Field {
 	return huh.NewInput().
+		Key(key).
 		Title(title).
 		Placeholder(placeholder).
 		Description(description).

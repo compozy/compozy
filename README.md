@@ -38,7 +38,7 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
 - **End-to-end PRD workflow** — go from a product idea to implemented code through structured phases
 - **Provider-agnostic PR review automation** — fetch and remediate review feedback in tracked rounds under each PRD
 - **Multi-agent support** — run tasks through Claude Code, Codex, Droid, or Cursor
-- **Concurrent execution** — run multiple tasks in parallel with configurable batch sizes
+- **Concurrent review execution** — run review batches in parallel with configurable batch sizes
 - **Interactive mode** — guided form-based CLI for quick setup
 - **Plain markdown artifacts** — all specs, tasks, and tracking are human-readable markdown files
 - **Embeddable** — use as a standalone CLI or import as a Go package into your own tools
@@ -103,7 +103,7 @@ The PRD workflow takes you from a product idea to implemented code through a str
 /create-tasks        ──▶  tasks/prd-<name>/_tasks.md + task_01.md … task_N.md
    │
    ▼
-looper start --name <name>  ──▶  AI agents execute each task
+looper start --name <name>  ──▶  AI agents execute each task sequentially
 ```
 
 Each step is independent — you can start from any point. All artifacts are plain markdown files in `tasks/prd-<name>/`.
@@ -302,7 +302,6 @@ looper start [flags]
 | `--tasks-dir` | `string` | | Path to PRD tasks directory (`tasks/prd-<name>`) |
 | `--ide` | `string` | `codex` | IDE tool to use: `claude`, `codex`, `cursor`, or `droid` |
 | `--model` | `string` | *(per IDE)* | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
-| `--concurrent` | `int` | `1` | Number of batches to process in parallel |
 | `--reasoning-effort` | `string` | `medium` | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`) |
 | `--timeout` | `string` | `10m` | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period |
 | `--max-retries` | `int` | `0` | Retry failed or timed-out jobs up to N times before marking them failed |

@@ -103,7 +103,7 @@ to remediate review feedback.`,
 		RunE: state.run,
 	}
 
-	addCommonFlags(cmd, state)
+	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
 	cmd.Flags().StringVar(&state.name, "name", "", "PRD workflow name (used for tasks/prd-<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: latest existing round)")
 	cmd.Flags().
@@ -128,7 +128,7 @@ AI agent one task at a time.`,
 		RunE: state.run,
 	}
 
-	addCommonFlags(cmd, state)
+	addCommonFlags(cmd, state, commonFlagOptions{})
 	cmd.Flags().StringVar(&state.name, "name", "", "PRD task workflow name (used for tasks/prd-<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to PRD tasks directory (tasks/prd-<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
@@ -142,7 +142,11 @@ func newCommandState(kind commandKind, mode core.Mode) *commandState {
 	}
 }
 
-func addCommonFlags(cmd *cobra.Command, state *commandState) {
+type commonFlagOptions struct {
+	includeConcurrent bool
+}
+
+func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOptions) {
 	cmd.Flags().BoolVar(&state.dryRun, "dry-run", false, "Only generate prompts; do not run IDE tool")
 	cmd.Flags().BoolVar(
 		&state.autoCommit,
@@ -150,7 +154,9 @@ func addCommonFlags(cmd *cobra.Command, state *commandState) {
 		false,
 		"Include automatic commit instructions at task/batch completion",
 	)
-	cmd.Flags().IntVar(&state.concurrent, "concurrent", 1, "Number of batches to process in parallel")
+	if opts.includeConcurrent {
+		cmd.Flags().IntVar(&state.concurrent, "concurrent", 1, "Number of batches to process in parallel")
+	}
 	cmd.Flags().StringVar(
 		&state.ide,
 		"ide",

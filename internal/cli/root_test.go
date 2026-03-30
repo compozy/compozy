@@ -84,6 +84,7 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		"--round",
 		"--reviews-dir",
 		"--batch-size",
+		"--concurrent",
 		"--grouped",
 		"--include-resolved",
 		"--form",
@@ -122,7 +123,15 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		}
 	}
 
-	forbidden := []string{"--pr", "--provider", "--reviews-dir", "--batch-size", "--grouped", "--include-resolved"}
+	forbidden := []string{
+		"--pr",
+		"--provider",
+		"--reviews-dir",
+		"--batch-size",
+		"--concurrent",
+		"--grouped",
+		"--include-resolved",
+	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to omit %q\noutput:\n%s", snippet, output)
@@ -309,7 +318,7 @@ func executeRootCommand(args ...string) (string, error) {
 
 func newTestCommand(state *commandState) *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
-	addCommonFlags(cmd, state)
+	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: state.kind == commandKindFixReviews})
 	return cmd
 }
 
