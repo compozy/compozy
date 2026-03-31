@@ -9,14 +9,14 @@ Decompose requirements into detailed, actionable task files with codebase-inform
 
 ## Required Inputs
 
-- Feature name identifying the `tasks/prd-<name>/` directory.
+- Feature name identifying the `tasks/<name>/` directory.
 - At minimum, `_prd.md` or `_techspec.md` in that directory.
 
 ## Workflow
 
 1. Load context.
-   - Read `_prd.md` and `_techspec.md` from `tasks/prd-<name>/`.
-   - Read existing ADRs from `tasks/prd-<name>/adrs/` to understand the decision context behind requirements and design choices.
+   - Read `_prd.md` and `_techspec.md` from `tasks/<name>/`.
+   - Read existing ADRs from `tasks/<name>/adrs/` to understand the decision context behind requirements and design choices.
    - Warn the user if `_techspec.md` is missing but continue with available documents.
    - If both `_prd.md` and `_techspec.md` are missing, stop and ask the user to create at least one first.
    - Spawn an Agent tool call to explore the codebase for files to create or modify, test patterns, and coding conventions.

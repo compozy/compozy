@@ -31,7 +31,7 @@ func (s *stubResolverProvider) ResolveIssues(_ context.Context, _ string, issues
 
 func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T) {
 	tmpDir := t.TempDir()
-	reviewDir := filepath.Join(tmpDir, "tasks", "prd-demo", "reviews-001")
+	reviewDir := filepath.Join(tmpDir, "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "stub",
 		PR:        "259",
@@ -108,7 +108,7 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 
 func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T) {
 	tmpDir := t.TempDir()
-	reviewDir := filepath.Join(tmpDir, "tasks", "prd-demo", "reviews-001")
+	reviewDir := filepath.Join(tmpDir, "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "stub",
 		PR:        "259",
@@ -184,7 +184,7 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 
 func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	tmpDir := t.TempDir()
-	reviewDir := filepath.Join(tmpDir, "tasks", "prd-demo", "reviews-001")
+	reviewDir := filepath.Join(tmpDir, "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "stub",
 		PR:        "",

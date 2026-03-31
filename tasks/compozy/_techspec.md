@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Convert Compozy's core prompt workflows (PRD creation, TechSpec generation, Task breakdown) into three self-contained Claude Code skills that integrate natively with the Looper package. Each skill follows the agentskills.io spec, bundles its own templates via progressive disclosure, and writes plain markdown files to `tasks/prd-<name>/`. A small Go code change updates the task file naming convention from `_task_*.md` to `task_*.md`.
+Convert Compozy's core prompt workflows (PRD creation, TechSpec generation, Task breakdown) into three self-contained Claude Code skills that integrate natively with the Looper package. Each skill follows the agentskills.io spec, bundles its own templates via progressive disclosure, and writes plain markdown files to `tasks/<name>/`. A small Go code change updates the task file naming convention from `_task_*.md` to `task_*.md`.
 
 ## System Architecture
 
@@ -43,10 +43,10 @@ internal/looper/prompt/common.go # Update ExtractTaskNumber: _task_ prefix → t
 
 ### Output Convention
 
-All skills write to `tasks/prd-<name>/`:
+All skills write to `tasks/<name>/`:
 
 ```
-tasks/prd-<name>/
+tasks/<name>/
   _prd.md           # Written by create-prd
   _techspec.md      # Written by create-techspec
   _tasks.md         # Master task list, written by create-tasks
@@ -80,7 +80,7 @@ The `_` prefix on `_prd.md`, `_techspec.md`, and `_tasks.md` marks them as meta 
 
 4. **Refinement** — Follow-up questions based on chosen approach. Confirm key decisions before proceeding.
 
-5. **Creation** — Read `references/prd-template.md`, generate `_prd.md`, write to `tasks/prd-<name>/`.
+5. **Creation** — Read `references/prd-template.md`, generate `_prd.md`, write to `tasks/<name>/`.
 
 **Critical Constraints**:
 - Questions focus on WHAT/WHY, never HOW/WHERE/WHICH
@@ -88,7 +88,7 @@ The `_` prefix on `_prd.md`, `_techspec.md`, and `_tasks.md` marks them as meta 
 - PRD describes user capabilities and business outcomes ONLY
 - No databases, APIs, code structure, frameworks, testing, architecture
 - If `_prd.md` already exists, read it first and operate in update mode
-- If `tasks/prd-<name>/` doesn't exist, create it
+- If `tasks/<name>/` doesn't exist, create it
 
 **Template** (`references/prd-template.md`):
 Derived from Compozy's `PRD_TEMPLATE` merged with Looper's `_prd-template.md`:
@@ -145,7 +145,7 @@ Derived from Compozy's `PRD_TEMPLATE` merged with Looper's `_prd-template.md`:
 **Workflow (4 phases)**:
 
 1. **Context Gathering**:
-   - Check for `_prd.md` in `tasks/prd-<name>/`. If exists, read it as primary input.
+   - Check for `_prd.md` in `tasks/<name>/`. If exists, read it as primary input.
    - If no PRD, ask user for a description of what needs technical specification.
    - Spawn Agent to explore codebase: architecture patterns, existing components, dependencies, tech stack.
 
@@ -163,7 +163,7 @@ Derived from Compozy's `PRD_TEMPLATE` merged with Looper's `_prd-template.md`:
    - Trade-offs and risks
    - Wait for user approval before writing
 
-4. **Creation** — Read `references/techspec-template.md`, generate `_techspec.md`, write to `tasks/prd-<name>/`.
+4. **Creation** — Read `references/techspec-template.md`, generate `_techspec.md`, write to `tasks/<name>/`.
 
 **Critical Constraints**:
 - Prefers PRD as input but works without one
@@ -232,7 +232,7 @@ Derived from Looper's `_techspec-template.md`:
 **Workflow (5 phases)**:
 
 1. **Context Loading**:
-   - Read `_prd.md` and `_techspec.md` from `tasks/prd-<name>/`. Warn if TechSpec is missing.
+   - Read `_prd.md` and `_techspec.md` from `tasks/<name>/`. Warn if TechSpec is missing.
    - Spawn Agent to explore codebase: files to create/modify, test patterns, conventions.
 
 2. **Task Breakdown**:
@@ -425,14 +425,14 @@ numStr := strings.TrimPrefix(filename, "task_")
 2. create-prd skill
    |-- Parallel: codebase exploration + web research (Agent tool)
    |-- Brainstorming phases (questions -> options -> refinement)
-   '-- Writes: tasks/prd-<name>/_prd.md
+   '-- Writes: tasks/<name>/_prd.md
          |
          v
 3. create-techspec skill
    |-- Reads _prd.md (if exists, works without)
    |-- Codebase exploration for architecture context
    |-- Technical clarification questions
-   '-- Writes: tasks/prd-<name>/_techspec.md
+   '-- Writes: tasks/<name>/_techspec.md
          |
          v
 4. create-tasks skill
@@ -443,13 +443,13 @@ numStr := strings.TrimPrefix(filename, "task_")
    '-- Enrichment phase: fills each task with full detail
          |
          v
-5. looper start --tasks-dir tasks/prd-<name>/
+5. looper start --tasks-dir tasks/<name>/
    |-- Reads task_*.md files (updated Go pattern)
    |-- execute-prd-task skill runs each task
    '-- Tasks already enriched — straight to implementation
 ```
 
-Each step is independent. A user can run just `create-prd`, or pick up from any point. All artifacts are plain markdown files in `tasks/prd-<name>/`.
+Each step is independent. A user can run just `create-prd`, or pick up from any point. All artifacts are plain markdown files in `tasks/<name>/`.
 
 ## Testing Approach
 
@@ -468,8 +468,8 @@ Each step is independent. A user can run just `create-prd`, or pick up from any 
 - Run `make verify` (fmt + lint + test)
 
 ### Integration Validation
-- Create a sample `tasks/prd-test/` with task files using new naming
-- Run `looper start --tasks-dir tasks/prd-test/ --dry-run` to verify discovery
+- Create a sample `tasks/test/` with task files using new naming
+- Run `looper start --tasks-dir tasks/test/ --dry-run` to verify discovery
 - Verify generated prompts reference correct file paths
 
 ## Development Sequencing

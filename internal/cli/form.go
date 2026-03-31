@@ -173,11 +173,11 @@ func (fb *formBuilder) hideField(flag string) bool {
 
 func (fb *formBuilder) addNameField(target *string) {
 	fb.addField("name", func() huh.Field {
-		title := "PRD Name"
-		description := "Required: PRD workflow name (for example: my-feature)"
+		title := "Workflow Name"
+		description := "Required: workflow name (for example: my-feature)"
 		if fb.state.kind == commandKindStart {
 			title = "Task Name"
-			description = "Required: PRD workflow name (for example: multi-repo)"
+			description = "Required: task workflow name (for example: multi-repo)"
 		}
 		return huh.NewInput().
 			Key("name").
@@ -246,7 +246,7 @@ func (fb *formBuilder) addReviewsDirField(target *string) {
 		return huh.NewInput().
 			Key("reviews-dir").
 			Title("Reviews Directory (optional)").
-			Placeholder("tasks/prd-<name>/reviews-NNN").
+			Placeholder("tasks/<name>/reviews-NNN").
 			Description("Leave empty to resolve from PRD name and round").
 			Value(target)
 	})
@@ -257,7 +257,7 @@ func (fb *formBuilder) addTasksDirField(target *string) {
 		return huh.NewInput().
 			Key("tasks-dir").
 			Title("Tasks Directory (optional)").
-			Placeholder("tasks/prd-<name>").
+			Placeholder("tasks/<name>").
 			Description("Leave empty to auto-generate from task name").
 			Value(target)
 	})

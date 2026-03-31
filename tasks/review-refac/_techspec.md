@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Refactor the PR review workflow to decouple it from CodeRabbit and make it provider-agnostic. The current `fix-reviews` command, `fix-coderabbit-review` skill, and associated Python/Bash scripts are tightly coupled to CodeRabbit's review format and `ai-docs/` directory structure. This refactor introduces a Go-native provider abstraction for fetching and resolving reviews, a new `fetch-reviews` CLI command, a standardized review file format (`issue_NNN.md`), and a generic `fix-reviews` skill. Review files move into the PRD directory structure (`tasks/prd-<name>/reviews-NNN/`) with support for multiple review rounds. Post-execution thread resolution becomes automatic in the looper pipeline instead of being delegated to the LLM.
+Refactor the PR review workflow to decouple it from CodeRabbit and make it provider-agnostic. The current `fix-reviews` command, `fix-coderabbit-review` skill, and associated Python/Bash scripts are tightly coupled to CodeRabbit's review format and `ai-docs/` directory structure. This refactor introduces a Go-native provider abstraction for fetching and resolving reviews, a new `fetch-reviews` CLI command, a standardized review file format (`issue_NNN.md`), and a generic `fix-reviews` skill. Review files move into the PRD directory structure (`tasks/<name>/reviews-NNN/`) with support for multiple review rounds. Post-execution thread resolution becomes automatic in the looper pipeline instead of being delegated to the LLM.
 
 ## System Architecture
 
@@ -43,7 +43,7 @@ Skill Layer (replaced)
 
 ```
 fetch-reviews:
-  CLI → Provider.FetchReviews(pr) → []ReviewItem → writer → tasks/prd-<name>/reviews-NNN/
+  CLI → Provider.FetchReviews(pr) → []ReviewItem → writer → tasks/<name>/reviews-NNN/
 
 fix-reviews:
   CLI → plan.Prepare() → read issue files → batch → prompt → agent execution
@@ -133,7 +133,7 @@ type RoundMeta struct {
 
 ### File Formats
 
-**`_meta.md`** (in `tasks/prd-<name>/reviews-NNN/`):
+**`_meta.md`** (in `tasks/<name>/reviews-NNN/`):
 
 ```markdown
 ---
@@ -188,7 +188,7 @@ created_at: 2026-03-28T10:00:00Z
 ### Directory Structure
 
 ```
-tasks/prd-<name>/
+tasks/<name>/
   _prd.md
   _techspec.md
   _tasks.md
@@ -226,11 +226,11 @@ looper fetch-reviews --provider coderabbit --pr 259 --name my-feature [--round N
 |------|------|----------|---------|-------------|
 | `--provider` | string | yes | - | Provider name (`coderabbit`) |
 | `--pr` | string | yes | - | Pull request number |
-| `--name` | string | yes | - | PRD name (resolves to `tasks/prd-<name>/`) |
+| `--name` | string | yes | - | PRD name (resolves to `tasks/<name>/`) |
 | `--round` | int | no | auto-increment | Round number; auto-detects next round if omitted |
 
 Behavior:
-1. Resolve PRD directory `tasks/prd-<name>/`
+1. Resolve PRD directory `tasks/<name>/`
 2. Determine round number (scan existing `reviews-NNN/` dirs, pick next)
 3. Call `provider.FetchReviews(ctx, pr)` to get `[]ReviewItem`
 4. Write `_meta.md` with provider, PR, round, and counts
@@ -286,7 +286,7 @@ This requires the execution pipeline to receive provider context. The `RuntimeCo
 | `internal/cli/root.go` | Command restructure | `fix-reviews` flags change, new `fetch-reviews` command added. Medium risk. | Update flag registration, add new command builder |
 | `internal/looper/api.go` | API change | `Config` struct gains `Name`, `Round`, `Provider` fields; `PR` semantics change. Medium risk. | Update public API, ensure backward compatibility not needed (CLI-only consumer) |
 | `internal/looper/model/model.go` | Model change | `RuntimeConfig` gains new fields, `RoundMeta` type added. Low risk. | Add fields, add `RoundMeta` |
-| `internal/looper/plan/input.go` | Logic rewrite | Review input resolution changes from `ai-docs/` to `tasks/prd-<name>/reviews-NNN/`. High risk. | Rewrite `resolveInputs()` for review mode, add round discovery |
+| `internal/looper/plan/input.go` | Logic rewrite | Review input resolution changes from `ai-docs/` to `tasks/<name>/reviews-NNN/`. High risk. | Rewrite `resolveInputs()` for review mode, add round discovery |
 | `internal/looper/plan/prepare.go` | Pipeline change | Must pass provider context through to execution. Medium risk. | Thread provider info into `SolvePreparation` |
 | `internal/looper/prompt/review.go` | Prompt rewrite | Remove all CodeRabbit references, reference `fix-reviews` skill. Medium risk. | Rewrite prompt builder |
 | `internal/looper/prompt/common.go` | New parser | Add `ExtractIssueNumber()` for `issue_NNN.md` pattern, `ParseReviewContext()`. Low risk. | Add new functions |
@@ -321,9 +321,9 @@ This requires the execution pipeline to receive provider context. The `RuntimeCo
 
 2. **File format: writer + parser** — Write `issue_NNN.md` and `_meta.md` from `ReviewItem`; parse them back. This establishes the new file format that all subsequent components consume.
 
-3. **`fetch-reviews` CLI command** — New command, no existing code changes. Wires provider + writer to produce review directories in `tasks/prd-<name>/reviews-NNN/`.
+3. **`fetch-reviews` CLI command** — New command, no existing code changes. Wires provider + writer to produce review directories in `tasks/<name>/reviews-NNN/`.
 
-4. **Plan layer refactor** (`input.go`, `prepare.go`) — Update input resolution for review mode to read from `tasks/prd-<name>/reviews-NNN/` instead of `ai-docs/`. Add round discovery. Thread provider context into `SolvePreparation`.
+4. **Plan layer refactor** (`input.go`, `prepare.go`) — Update input resolution for review mode to read from `tasks/<name>/reviews-NNN/` instead of `ai-docs/`. Add round discovery. Thread provider context into `SolvePreparation`.
 
 5. **Prompt layer refactor** (`review.go`, `common.go`) — Update prompts to reference `fix-reviews` skill, use `<review_context>` XML for code file extraction, add `ExtractIssueNumber()`.
 

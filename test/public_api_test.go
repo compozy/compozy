@@ -13,7 +13,7 @@ import (
 func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 	t.Parallel()
 
-	tasksDir := filepath.Join(t.TempDir(), "tasks", "prd-demo")
+	tasksDir := filepath.Join(t.TempDir(), "tasks", "demo")
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 		t.Fatalf("mkdir tasks dir: %v", err)
 	}

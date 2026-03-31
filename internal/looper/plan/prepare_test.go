@@ -48,7 +48,7 @@ func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
 func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	if err := os.MkdirAll(filepath.Join("tasks", "prd-demo"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join("tasks", "demo"), 0o755); err != nil {
 		t.Fatalf("mkdir prd dir: %v", err)
 	}
 
@@ -62,10 +62,10 @@ func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	if prValue != "demo" {
 		t.Fatalf("unexpected pr value: %q", prValue)
 	}
-	if inputDir != "tasks/prd-demo" {
+	if inputDir != "tasks/demo" {
 		t.Fatalf("unexpected input dir: %q", inputDir)
 	}
-	wantResolved := filepath.Join(tmp, "tasks", "prd-demo")
+	wantResolved := filepath.Join(tmp, "tasks", "demo")
 	if resolved != wantResolved {
 		t.Fatalf("unexpected resolved dir\nwant: %q\ngot:  %q", wantResolved, resolved)
 	}
@@ -75,7 +75,7 @@ func TestResolveInputsInfersTaskNameFromTasksDir(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
-	tasksDir := filepath.Join(tmp, "tasks", "prd-multi-repo")
+	tasksDir := filepath.Join(tmp, "tasks", "multi-repo")
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 		t.Fatalf("mkdir tasks dir: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 	t.Parallel()
 
-	reviewDir := filepath.Join(t.TempDir(), "tasks", "prd-review-without-pr", "reviews-007")
+	reviewDir := filepath.Join(t.TempDir(), "tasks", "review-without-pr", "reviews-007")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "coderabbit",
 		PR:        "",

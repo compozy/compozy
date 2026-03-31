@@ -1,6 +1,6 @@
 ---
 name: fix-reviews
-description: Executes provider-agnostic PR review remediation using existing review round files under tasks/prd-<name>/reviews-NNN/. Use when resolving batched review issues, updating issue/grouped markdown files, implementing fixes, and verifying the result. Do not use for PRD task execution, review export/fetch, or generic coding tasks without review issue files.
+description: Executes provider-agnostic PR review remediation using existing review round files under tasks/<name>/reviews-NNN/. Use when resolving batched review issues, updating issue/grouped markdown files, implementing fixes, and verifying the result. Do not use for PRD task execution, review export/fetch, or generic coding tasks without review issue files.
 ---
 
 # Fix Reviews

@@ -169,7 +169,7 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 
 	state := newCommandState(commandKindStart, core.ModePRDTasks)
 	state.name = "multi-repo"
-	state.tasksDir = "tasks/prd-multi-repo"
+	state.tasksDir = "tasks/multi-repo"
 	state.includeCompleted = true
 
 	cfg, err := state.buildConfig()
@@ -179,7 +179,7 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	if cfg.Name != "multi-repo" {
 		t.Fatalf("expected Name field to carry task name, got %q", cfg.Name)
 	}
-	if cfg.TasksDir != "tasks/prd-multi-repo" {
+	if cfg.TasksDir != "tasks/multi-repo" {
 		t.Fatalf("expected TasksDir to carry tasks dir, got %q", cfg.TasksDir)
 	}
 	if !cfg.IncludeCompleted {
@@ -246,7 +246,7 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 
 	fi := &formInputs{
 		name:            "my-feature",
-		reviewsDir:      "tasks/prd-my-feature/reviews-001",
+		reviewsDir:      "tasks/my-feature/reviews-001",
 		round:           "2",
 		batchSize:       "3",
 		addDirs:         " ../shared, ../docs ,, ../shared \n ../workspace ",
@@ -259,7 +259,7 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 	if state.name != "my-feature" {
 		t.Fatalf("expected name to be applied, got %q", state.name)
 	}
-	if state.reviewsDir != "tasks/prd-my-feature/reviews-001" {
+	if state.reviewsDir != "tasks/my-feature/reviews-001" {
 		t.Fatalf("expected reviews dir to map to reviewsDir, got %q", state.reviewsDir)
 	}
 	if state.round != 2 {
@@ -291,7 +291,7 @@ func TestFormInputsApplyForStartWorkflow(t *testing.T) {
 
 	fi := &formInputs{
 		name:             "multi-repo",
-		tasksDir:         "tasks/prd-multi-repo",
+		tasksDir:         "tasks/multi-repo",
 		includeCompleted: true,
 	}
 
@@ -300,7 +300,7 @@ func TestFormInputsApplyForStartWorkflow(t *testing.T) {
 	if state.name != "multi-repo" {
 		t.Fatalf("expected task name to map to name, got %q", state.name)
 	}
-	if state.tasksDir != "tasks/prd-multi-repo" {
+	if state.tasksDir != "tasks/multi-repo" {
 		t.Fatalf("expected tasks dir to map to tasksDir, got %q", state.tasksDir)
 	}
 	if !state.includeCompleted {

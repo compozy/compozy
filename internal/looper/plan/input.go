@@ -37,7 +37,7 @@ func resolveTaskInputs(cfg *model.RuntimeConfig) (string, string, string, error)
 		}
 	}
 	if tasksDir == "" {
-		tasksDir = filepath.Join("tasks", "prd-"+name)
+		tasksDir = filepath.Join("tasks", name)
 	}
 
 	resolvedTasksDir, err := filepath.Abs(tasksDir)
@@ -61,7 +61,7 @@ func resolveReviewInputs(cfg *model.RuntimeConfig) (string, string, string, erro
 	}
 
 	if reviewsDir == "" {
-		prdDir := reviews.PRDDirectory(name)
+		prdDir := reviews.TaskDirectory(name)
 		resolvedPRDDir, err := filepath.Abs(prdDir)
 		if err != nil {
 			return "", "", "", fmt.Errorf("resolve prd dir: %w", err)
@@ -277,7 +277,7 @@ func buildGroupedResolutionChecklist(items []model.IssueEntry) string {
 }
 
 func inferTaskNameFromTasksDir(dir string) (string, error) {
-	re := regexp.MustCompile(`(?:^|/)tasks/prd-([^/]+)$`)
+	re := regexp.MustCompile(`(?:^|/)tasks/([^/]+)$`)
 	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
 		return "", errors.New("unable to infer task name from tasks dir")
@@ -286,7 +286,7 @@ func inferTaskNameFromTasksDir(dir string) (string, error) {
 }
 
 func inferTaskNameFromReviewsDir(dir string) (string, error) {
-	re := regexp.MustCompile(`(?:^|/)tasks/prd-([^/]+)/reviews-\d+$`)
+	re := regexp.MustCompile(`(?:^|/)tasks/([^/]+)/reviews-\d+$`)
 	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
 		return "", errors.New("unable to infer task name from reviews dir")

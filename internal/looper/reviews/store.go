@@ -25,8 +25,8 @@ const (
 
 var ErrNoReviewRounds = errors.New("no review rounds found")
 
-func PRDDirectory(name string) string {
-	return filepath.Join("tasks", "prd-"+name)
+func TaskDirectory(name string) string {
+	return filepath.Join("tasks", name)
 }
 
 func RoundDirName(round int) string {

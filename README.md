@@ -176,19 +176,19 @@ The PRD workflow takes you from a product idea to implemented code through a str
 💡 Idea
    │
    ▼
-/create-prd          ──▶  tasks/prd-<name>/_prd.md
+/create-prd          ──▶  tasks/<name>/_prd.md
    │
    ▼
-/create-techspec     ──▶  tasks/prd-<name>/_techspec.md
+/create-techspec     ──▶  tasks/<name>/_techspec.md
    │
    ▼
-/create-tasks        ──▶  tasks/prd-<name>/_tasks.md + task_01.md … task_N.md
+/create-tasks        ──▶  tasks/<name>/_tasks.md + task_01.md … task_N.md
    │
    ▼
 looper start --name <name>  ──▶  AI agents execute each task sequentially
 ```
 
-Each step is independent — you can start from any point. All artifacts are plain markdown files in `tasks/prd-<name>/`.
+Each step is independent — you can start from any point. All artifacts are plain markdown files in `tasks/<name>/`.
 
 ### CLI Usage
 
@@ -197,7 +197,7 @@ Execute tasks from a PRD directory:
 ```bash
 looper start \
   --name multi-repo \
-  --tasks-dir tasks/prd-multi-repo \
+  --tasks-dir tasks/multi-repo \
   --ide claude
 ```
 
@@ -206,7 +206,7 @@ Preview generated prompts without executing (dry run):
 ```bash
 looper start \
   --name multi-repo \
-  --tasks-dir tasks/prd-multi-repo \
+  --tasks-dir tasks/multi-repo \
   --dry-run
 ```
 
@@ -221,10 +221,10 @@ looper start \
 
 ### Output Convention
 
-All PRD workflow artifacts live in `tasks/prd-<name>/`:
+All PRD workflow artifacts live in `tasks/<name>/`:
 
 ```
-tasks/prd-<name>/
+tasks/<name>/
   _prd.md           # Product Requirements Document
   _techspec.md      # Technical Specification
   _tasks.md         # Master task list
@@ -261,8 +261,8 @@ The PR review workflow automates the remediation of code review feedback. Review
 
 ### How It Works
 
-1. **Review** (optional) — `/review-round` performs a manual code review and creates `tasks/prd-<name>/reviews-NNN/` with issue files
-2. **Fetch** (alternative) — `looper fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/prd-<name>/reviews-NNN/` from a provider
+1. **Review** (optional) — `/review-round` performs a manual code review and creates `tasks/<name>/reviews-NNN/` with issue files
+2. **Fetch** (alternative) — `looper fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/<name>/reviews-NNN/` from a provider
 3. **Batch** — Looper groups and batches `issue_NNN.md` files based on `--batch-size` and `--grouped`
 4. **Execute** — AI agents process each batch concurrently, triaging issues, implementing fixes, and updating issue statuses
 5. **Resolve** — after a successful batch, Looper resolves provider threads for issue files that changed to `## Status: resolved`
@@ -321,7 +321,7 @@ Prepare work without executing any IDE process:
 ```go
 prep, err := looper.Prepare(context.Background(), looper.Config{
     Name:     "multi-repo",
-    TasksDir: "tasks/prd-multi-repo",
+    TasksDir: "tasks/multi-repo",
     Mode:     looper.ModePRDTasks,
     DryRun:   true,
 })
@@ -387,7 +387,7 @@ looper fetch-reviews [flags]
 | ------------ | -------- | ------- | -------------------------------------------------------------------------- |
 | `--provider` | `string` |         | Review provider name (for example: `coderabbit`)                           |
 | `--pr`       | `string` |         | Pull request number                                                        |
-| `--name`     | `string` |         | PRD workflow name (used for `tasks/prd-<name>`)                            |
+| `--name`     | `string` |         | PRD workflow name (used for `tasks/<name>`)                            |
 | `--round`    | `int`    | `0`     | Review round number. When omitted, Looper creates the next available round |
 | `--form`     | `bool`   | `false` | Use interactive form to collect parameters                                 |
 
@@ -401,8 +401,8 @@ looper start [flags]
 
 | Flag                         | Type      | Default     | Description                                                                                   |
 | ---------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `--name`                     | `string`  |             | PRD task workflow name (used for `tasks/prd-<name>`)                                          |
-| `--tasks-dir`                | `string`  |             | Path to PRD tasks directory (`tasks/prd-<name>`)                                              |
+| `--name`                     | `string`  |             | PRD task workflow name (used for `tasks/<name>`)                                          |
+| `--tasks-dir`                | `string`  |             | Path to PRD tasks directory (`tasks/<name>`)                                              |
 | `--ide`                      | `string`  | `codex`     | IDE tool to use: `claude`, `codex`, `cursor`, or `droid`                                      |
 | `--model`                    | `string`  | _(per IDE)_ | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
 | `--reasoning-effort`         | `string`  | `medium`    | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`)                    |
@@ -426,9 +426,9 @@ looper fix-reviews [flags]
 
 | Flag                         | Type      | Default     | Description                                                                                   |
 | ---------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `--name`                     | `string`  |             | PRD workflow name (used for `tasks/prd-<name>`)                                               |
+| `--name`                     | `string`  |             | PRD workflow name (used for `tasks/<name>`)                                               |
 | `--round`                    | `int`     | `0`         | Review round number. When omitted, Looper uses the latest existing round                      |
-| `--reviews-dir`              | `string`  |             | Override path to a review round directory (`tasks/prd-<name>/reviews-NNN`)                    |
+| `--reviews-dir`              | `string`  |             | Override path to a review round directory (`tasks/<name>/reviews-NNN`)                    |
 | `--ide`                      | `string`  | `codex`     | IDE tool to use: `claude`, `codex`, `cursor`, or `droid`                                      |
 | `--model`                    | `string`  | _(per IDE)_ | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
 | `--batch-size`               | `int`     | `1`         | Number of file groups to batch together                                                       |

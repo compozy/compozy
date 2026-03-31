@@ -30,7 +30,7 @@ func TestFetchReviewsWritesRoundFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
-	prdDir := filepath.Join(tmpDir, "tasks", "prd-demo")
+	prdDir := filepath.Join(tmpDir, "tasks", "demo")
 	if err := os.MkdirAll(prdDir, 0o755); err != nil {
 		t.Fatalf("mkdir prd dir: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestFetchReviewsWritesRoundFiles(t *testing.T) {
 	if result.Round != 1 {
 		t.Fatalf("expected round 1, got %d", result.Round)
 	}
-	if !strings.HasSuffix(result.ReviewsDir, filepath.Join("tasks", "prd-demo", "reviews-001")) {
+	if !strings.HasSuffix(result.ReviewsDir, filepath.Join("tasks", "demo", "reviews-001")) {
 		t.Fatalf("unexpected reviews dir: %q", result.ReviewsDir)
 	}
 	if _, err := os.Stat(filepath.Join(result.ReviewsDir, "_meta.md")); err != nil {
@@ -81,7 +81,7 @@ func TestFetchReviewsAutoIncrementsRound(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
-	prdDir := filepath.Join(tmpDir, "tasks", "prd-demo")
+	prdDir := filepath.Join(tmpDir, "tasks", "demo")
 	if err := os.MkdirAll(filepath.Join(prdDir, "reviews-001"), 0o755); err != nil {
 		t.Fatalf("mkdir round dir: %v", err)
 	}

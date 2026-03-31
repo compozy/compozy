@@ -9,20 +9,20 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 ## Required Inputs
 
-- Feature name identifying the `tasks/prd-<name>/` directory.
+- Feature name identifying the `tasks/<name>/` directory.
 - Optional: specific files or directories to scope the review.
 
 ## Workflow
 
 1. Determine the review round directory.
-   - Derive the PRD directory from the feature name: `tasks/prd-<name>/`.
+   - Derive the PRD directory from the feature name: `tasks/<name>/`.
    - Verify the PRD directory exists. If it does not, stop and report the missing directory.
    - List existing `reviews-NNN/` subdirectories to determine the next round number. If none exist, use round 1.
-   - Create the review round directory: `tasks/prd-<name>/reviews-NNN/` with the round number zero-padded to 3 digits.
+   - Create the review round directory: `tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits.
 
 2. Identify the review scope.
    - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from the PRD directory to understand what was implemented and why.
-   - Read ADRs from `tasks/prd-<name>/adrs/` for architectural decision context.
+   - Read ADRs from `tasks/<name>/adrs/` for architectural decision context.
    - If `_prd.md` and `_techspec.md` are both missing, warn that the review will lack requirements context but proceed with a code-quality-only review.
    - If the user provided specific files or directories, scope the review to those paths.
    - If no explicit scope was provided, run `git diff main...HEAD --name-only` to discover all files created or modified on the current branch. If the diff is empty or unhelpful, ask the user to specify files.

@@ -91,7 +91,7 @@ func TestReadRoundMetaAllowsOptionalPR(t *testing.T) {
 func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	t.Parallel()
 
-	reviewDir := filepath.Join(t.TempDir(), "tasks", "prd-demo", "reviews-001")
+	reviewDir := filepath.Join(t.TempDir(), "tasks", "demo", "reviews-001")
 	meta := model.RoundMeta{
 		Provider:  "coderabbit",
 		PR:        "259",
@@ -147,7 +147,7 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 func TestRefreshRoundMetaCountsResolvedIssues(t *testing.T) {
 	t.Parallel()
 
-	reviewDir := filepath.Join(t.TempDir(), "tasks", "prd-demo", "reviews-001")
+	reviewDir := filepath.Join(t.TempDir(), "tasks", "demo", "reviews-001")
 	if err := WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "coderabbit",
 		PR:        "259",
@@ -279,7 +279,7 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 func TestDiscoverRoundsAndNextRound(t *testing.T) {
 	t.Parallel()
 
-	prdDir := filepath.Join(t.TempDir(), "tasks", "prd-demo")
+	prdDir := filepath.Join(t.TempDir(), "tasks", "demo")
 	for _, round := range []int{1, 3, 2} {
 		if err := os.MkdirAll(filepath.Join(prdDir, RoundDirName(round)), 0o755); err != nil {
 			t.Fatalf("mkdir round %d: %v", round, err)

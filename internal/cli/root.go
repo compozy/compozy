@@ -57,7 +57,7 @@ func NewRootCommand() *cobra.Command {
 
 Use explicit workflow subcommands:
   looper setup         Install bundled public skills for supported agents
-  looper fetch-reviews Fetch provider review comments into tasks/prd-<name>/reviews-NNN/
+  looper fetch-reviews Fetch provider review comments into tasks/<name>/reviews-NNN/
   looper fix-reviews   Process review issue files from a specific review round
   looper start         Execute PRD task files`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -75,7 +75,7 @@ func newFetchReviewsCommand() *cobra.Command {
 		Use:          "fetch-reviews",
 		Short:        "Fetch provider review comments into a PRD review round",
 		SilenceUsage: true,
-		Long:         "Fetch review comments from a provider and write them into tasks/prd-<name>/reviews-NNN/.",
+		Long:         "Fetch review comments from a provider and write them into tasks/<name>/reviews-NNN/.",
 		Example: `  looper fetch-reviews --provider coderabbit --pr 259 --name my-feature
   looper fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
   looper fetch-reviews --form`,
@@ -84,7 +84,7 @@ func newFetchReviewsCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&state.provider, "provider", "", "Review provider name (for example: coderabbit)")
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
-	cmd.Flags().StringVar(&state.name, "name", "", "PRD workflow name (used for tasks/prd-<name>)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")
 	cmd.Flags().BoolVar(&state.useForm, "form", false, "Use interactive form to collect parameters")
 	return cmd
@@ -96,19 +96,19 @@ func newFixReviewsCommand() *cobra.Command {
 		Use:          "fix-reviews",
 		Short:        "Process review issue files from a PRD review round",
 		SilenceUsage: true,
-		Long: `Process review issue markdown files from tasks/prd-<name>/reviews-NNN/ and run the configured AI agent
+		Long: `Process review issue markdown files from tasks/<name>/reviews-NNN/ and run the configured AI agent
 to remediate review feedback.`,
 		Example: `  looper fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
   looper fix-reviews --name my-feature --round 2
-  looper fix-reviews --reviews-dir tasks/prd-my-feature/reviews-001`,
+  looper fix-reviews --reviews-dir tasks/my-feature/reviews-001`,
 		RunE: state.run,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
-	cmd.Flags().StringVar(&state.name, "name", "", "PRD workflow name (used for tasks/prd-<name>)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: latest existing round)")
 	cmd.Flags().
-		StringVar(&state.reviewsDir, "reviews-dir", "", "Path to a review round directory (tasks/prd-<name>/reviews-NNN)")
+		StringVar(&state.reviewsDir, "reviews-dir", "", "Path to a review round directory (tasks/<name>/reviews-NNN)")
 	cmd.Flags().
 		IntVar(&state.batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1 for no batching)")
 	cmd.Flags().BoolVar(&state.grouped, "grouped", false, "Generate grouped issue summaries in reviews-NNN/grouped/")
@@ -124,14 +124,14 @@ func newStartCommand() *cobra.Command {
 		SilenceUsage: true,
 		Long: `Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.`,
-		Example: `  looper start --name multi-repo --tasks-dir tasks/prd-multi-repo --ide claude
+		Example: `  looper start --name multi-repo --tasks-dir tasks/multi-repo --ide claude
   looper start --form --name multi-repo`,
 		RunE: state.run,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{})
-	cmd.Flags().StringVar(&state.name, "name", "", "PRD task workflow name (used for tasks/prd-<name>)")
-	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to PRD tasks directory (tasks/prd-<name>)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for tasks/<name>)")
+	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
 	return cmd
 }
