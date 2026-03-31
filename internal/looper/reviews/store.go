@@ -336,7 +336,7 @@ func parseRoundMetaFrontMatter(lines []string) (model.RoundMeta, int, error) {
 		}
 	}
 
-	if meta.Provider == "" || meta.PR == "" || meta.Round <= 0 || meta.CreatedAt.IsZero() {
+	if meta.Provider == "" || meta.Round <= 0 || meta.CreatedAt.IsZero() {
 		return model.RoundMeta{}, 0, errors.New("meta front matter is incomplete")
 	}
 	return meta, idx, nil

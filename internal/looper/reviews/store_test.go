@@ -12,6 +12,82 @@ import (
 	"github.com/compozy/looper/internal/looper/provider"
 )
 
+func TestReadRoundMetaAllowsOptionalPR(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "empty pr field",
+			content: strings.Join([]string{
+				"---",
+				"provider: coderabbit",
+				"pr:",
+				"round: 1",
+				"created_at: 2026-03-28T10:00:00Z",
+				"---",
+				"",
+				"## Summary",
+				"- Total: 1",
+				"- Resolved: 0",
+				"- Unresolved: 1",
+				"",
+			}, "\n"),
+		},
+		{
+			name: "missing pr field",
+			content: strings.Join([]string{
+				"---",
+				"provider: coderabbit",
+				"round: 1",
+				"created_at: 2026-03-28T10:00:00Z",
+				"---",
+				"",
+				"## Summary",
+				"- Total: 1",
+				"- Resolved: 0",
+				"- Unresolved: 1",
+				"",
+			}, "\n"),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reviewDir := t.TempDir()
+			if err := os.WriteFile(MetaPath(reviewDir), []byte(tc.content), 0o600); err != nil {
+				t.Fatalf("write meta: %v", err)
+			}
+
+			meta, err := ReadRoundMeta(reviewDir)
+			if err != nil {
+				t.Fatalf("read round meta: %v", err)
+			}
+			if meta.Provider != "coderabbit" {
+				t.Fatalf("unexpected provider: %q", meta.Provider)
+			}
+			if meta.PR != "" {
+				t.Fatalf("expected empty pr, got %q", meta.PR)
+			}
+			if meta.Round != 1 {
+				t.Fatalf("unexpected round: %d", meta.Round)
+			}
+			if !meta.CreatedAt.Equal(createdAt) {
+				t.Fatalf("unexpected created_at: %s", meta.CreatedAt.Format(time.RFC3339))
+			}
+			if meta.Total != 1 || meta.Resolved != 0 || meta.Unresolved != 1 {
+				t.Fatalf("unexpected counts: %#v", meta)
+			}
+		})
+	}
+}
+
 func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	t.Parallel()
 
@@ -106,6 +182,97 @@ func TestRefreshRoundMetaCountsResolvedIssues(t *testing.T) {
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
 		t.Fatalf("unexpected refreshed counts: %#v", meta)
+	}
+}
+
+func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "empty pr field",
+			content: strings.Join([]string{
+				"---",
+				"provider: coderabbit",
+				"pr:",
+				"round: 1",
+				"created_at: 2026-03-28T10:00:00Z",
+				"---",
+				"",
+				"## Summary",
+				"- Total: 0",
+				"- Resolved: 0",
+				"- Unresolved: 0",
+				"",
+			}, "\n"),
+		},
+		{
+			name: "missing pr field",
+			content: strings.Join([]string{
+				"---",
+				"provider: coderabbit",
+				"round: 1",
+				"created_at: 2026-03-28T10:00:00Z",
+				"---",
+				"",
+				"## Summary",
+				"- Total: 0",
+				"- Resolved: 0",
+				"- Unresolved: 0",
+				"",
+			}, "\n"),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reviewDir := t.TempDir()
+			if err := os.WriteFile(MetaPath(reviewDir), []byte(tc.content), 0o600); err != nil {
+				t.Fatalf("write meta: %v", err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(reviewDir, "issue_001.md"),
+				[]byte("# Issue 001: Example\n\n## Status: resolved\n"),
+				0o600,
+			); err != nil {
+				t.Fatalf("write issue_001.md: %v", err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(reviewDir, "issue_002.md"),
+				[]byte("# Issue 002: Example\n\n## Status: pending\n"),
+				0o600,
+			); err != nil {
+				t.Fatalf("write issue_002.md: %v", err)
+			}
+
+			meta, err := RefreshRoundMeta(reviewDir)
+			if err != nil {
+				t.Fatalf("refresh round meta: %v", err)
+			}
+			if meta.PR != "" {
+				t.Fatalf("expected empty pr, got %q", meta.PR)
+			}
+			if meta.Total != 2 || meta.Resolved != 1 || meta.Unresolved != 1 {
+				t.Fatalf("unexpected refreshed counts: %#v", meta)
+			}
+
+			reloaded, err := ReadRoundMeta(reviewDir)
+			if err != nil {
+				t.Fatalf("read refreshed round meta: %v", err)
+			}
+			if reloaded.PR != "" {
+				t.Fatalf("expected empty pr after refresh, got %q", reloaded.PR)
+			}
+			if reloaded.Total != 2 || reloaded.Resolved != 1 || reloaded.Unresolved != 1 {
+				t.Fatalf("unexpected persisted counts: %#v", reloaded)
+			}
+		})
 	}
 }
 

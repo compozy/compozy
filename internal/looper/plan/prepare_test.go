@@ -1,12 +1,17 @@
 package plan
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/looper/internal/looper/model"
+	"github.com/compozy/looper/internal/looper/provider"
+	"github.com/compozy/looper/internal/looper/reviews"
 )
 
 func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
@@ -140,5 +145,74 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 		if _, err := os.Stat(job.OutPromptPath); err != nil {
 			t.Fatalf("expected prompt artifact to be written: %v", err)
 		}
+	}
+}
+
+func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
+	t.Parallel()
+
+	reviewDir := filepath.Join(t.TempDir(), "tasks", "prd-review-without-pr", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	metaPath := reviews.MetaPath(reviewDir)
+	metaContent, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read meta: %v", err)
+	}
+	withoutPR := strings.Replace(string(metaContent), "pr: \n", "", 1)
+	if err := os.WriteFile(metaPath, []byte(withoutPR), 0o600); err != nil {
+		t.Fatalf("rewrite meta without pr: %v", err)
+	}
+
+	cfg := &model.RuntimeConfig{
+		ReviewsDir: reviewDir,
+		IDE:        model.IDECodex,
+		DryRun:     true,
+		Mode:       model.ExecutionModePRReview,
+	}
+
+	prep, err := Prepare(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if prep.ResolvedName != "review-without-pr" {
+		t.Fatalf("unexpected resolved name: %q", prep.ResolvedName)
+	}
+	if prep.ResolvedProvider != "coderabbit" {
+		t.Fatalf("unexpected resolved provider: %q", prep.ResolvedProvider)
+	}
+	if prep.ResolvedPR != "" {
+		t.Fatalf("expected empty resolved pr, got %q", prep.ResolvedPR)
+	}
+	if prep.ResolvedRound != 7 {
+		t.Fatalf("unexpected resolved round: %d", prep.ResolvedRound)
+	}
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(prep.Jobs))
+	}
+	if cfg.PR != "" {
+		t.Fatalf("expected runtime config pr to remain empty, got %q", cfg.PR)
+	}
+	if cfg.Name != "review-without-pr" {
+		t.Fatalf("unexpected runtime config name: %q", cfg.Name)
+	}
+	if cfg.Round != 7 {
+		t.Fatalf("unexpected runtime config round: %d", cfg.Round)
 	}
 }
