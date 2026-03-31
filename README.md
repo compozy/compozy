@@ -178,11 +178,12 @@ The PR review workflow automates the remediation of code review feedback. Review
 
 ### How It Works
 
-1. **Fetch** — `looper fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/prd-<name>/reviews-NNN/`
-2. **Batch** — Looper groups and batches `issue_NNN.md` files based on `--batch-size` and `--grouped`
-3. **Execute** — AI agents process each batch concurrently, triaging issues, implementing fixes, and updating issue statuses
-4. **Resolve** — after a successful batch, Looper resolves provider threads for issue files that changed to `## Status: resolved`
-5. **Verify** — each batch is validated before completion or auto-commit
+1. **Review** (optional) — `/review-round` performs a manual code review and creates `tasks/prd-<name>/reviews-NNN/` with issue files
+2. **Fetch** (alternative) — `looper fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/prd-<name>/reviews-NNN/` from a provider
+3. **Batch** — Looper groups and batches `issue_NNN.md` files based on `--batch-size` and `--grouped`
+4. **Execute** — AI agents process each batch concurrently, triaging issues, implementing fixes, and updating issue statuses
+5. **Resolve** — after a successful batch, Looper resolves provider threads for issue files that changed to `## Status: resolved`
+6. **Verify** — each batch is validated before completion or auto-commit
 
 ### Prerequisites
 
@@ -215,6 +216,7 @@ looper fix-reviews \
 
 | Skill | Purpose |
 |-------|---------|
+| `review-round` | Performs a comprehensive code review of a PRD implementation and generates a review round directory compatible with `fix-reviews` |
 | `fix-reviews` | Processes review issue batches: triages issues, implements fixes, verifies results, and updates review tracking files |
 
 ---

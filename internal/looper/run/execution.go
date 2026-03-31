@@ -476,34 +476,46 @@ func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) erro
 		return err
 	}
 
-	if len(resolvedIssues) > 0 {
+	providerBackedIssues := filterResolvedIssuesWithProviderRefs(resolvedIssues)
+	if len(providerBackedIssues) > 0 {
 		registry := reviewProviderRegistry()
 		reviewProvider, err := registry.Get(j.cfg.provider)
 		if err != nil {
-			return err
-		}
-		if err := reviewProvider.ResolveIssues(ctx, j.cfg.pr, resolvedIssues); err != nil {
 			slog.Warn(
-				"review provider resolution completed with warnings",
+				"review provider integration unavailable; skipping remote issue resolution",
 				"provider",
 				j.cfg.provider,
 				"pr",
 				j.cfg.pr,
 				"resolved_issues",
-				len(resolvedIssues),
+				len(providerBackedIssues),
 				"error",
 				err,
 			)
 		} else {
-			slog.Info(
-				"resolved review provider issues",
-				"provider",
-				j.cfg.provider,
-				"pr",
-				j.cfg.pr,
-				"resolved_issues",
-				len(resolvedIssues),
-			)
+			if err := reviewProvider.ResolveIssues(ctx, j.cfg.pr, providerBackedIssues); err != nil {
+				slog.Warn(
+					"review provider resolution completed with warnings",
+					"provider",
+					j.cfg.provider,
+					"pr",
+					j.cfg.pr,
+					"resolved_issues",
+					len(providerBackedIssues),
+					"error",
+					err,
+				)
+			} else {
+				slog.Info(
+					"resolved review provider issues",
+					"provider",
+					j.cfg.provider,
+					"pr",
+					j.cfg.pr,
+					"resolved_issues",
+					len(providerBackedIssues),
+				)
+			}
 		}
 	}
 
@@ -922,4 +934,15 @@ func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provide
 		return resolved[i].FilePath < resolved[j].FilePath
 	})
 	return resolved, nil
+}
+
+func filterResolvedIssuesWithProviderRefs(issues []provider.ResolvedIssue) []provider.ResolvedIssue {
+	filtered := make([]provider.ResolvedIssue, 0, len(issues))
+	for _, issue := range issues {
+		if strings.TrimSpace(issue.ProviderRef) == "" {
+			continue
+		}
+		filtered = append(filtered, issue)
+	}
+	return filtered
 }

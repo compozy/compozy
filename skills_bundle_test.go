@@ -27,6 +27,9 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 		"skills/create-tasks/SKILL.md",
 		"skills/create-tasks/references/task-template.md",
 		"skills/create-tasks/references/task-context-schema.md",
+		"skills/review-round/SKILL.md",
+		"skills/review-round/references/review-criteria.md",
+		"skills/review-round/references/issue-template.md",
 	}
 
 	for _, relativePath := range requiredPaths {
@@ -45,6 +48,7 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 	checkPortableContent(t, filepath.Join(root, "skills", "create-prd", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "create-techspec", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "create-tasks", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "review-round", "SKILL.md"))
 }
 
 func repoRoot(t *testing.T) string {
