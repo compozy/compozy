@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/compozy/looper/internal/looper/model"
-	"github.com/compozy/looper/internal/looper/prompt"
 )
 
 type spec struct {
@@ -18,28 +17,36 @@ type spec struct {
 	defaultModel     string
 	supportsAddDirs  bool
 	formatsJSON      bool
-	shellPreviewFunc func(model string, addDirs []string, reasoning string) string
-	commandFunc      func(ctx context.Context, model string, addDirs []string, reasoning string) *exec.Cmd
+	shellPreviewFunc func(cfg *model.RuntimeConfig, modelName string, addDirs []string) string
+	commandFunc      func(ctx context.Context, cfg *model.RuntimeConfig, modelName string, addDirs []string) *exec.Cmd
 }
 
 var specs = map[string]spec{
 	model.IDECodex: {
-		id:               model.IDECodex,
-		displayName:      "Codex",
-		defaultModel:     model.DefaultCodexModel,
-		supportsAddDirs:  true,
-		formatsJSON:      false,
-		shellPreviewFunc: buildCodexCommand,
-		commandFunc:      codexCommand,
+		id:              model.IDECodex,
+		displayName:     "Codex",
+		defaultModel:    model.DefaultCodexModel,
+		supportsAddDirs: true,
+		formatsJSON:     false,
+		shellPreviewFunc: func(cfg *model.RuntimeConfig, modelName string, addDirs []string) string {
+			return buildCodexCommand(modelName, addDirs, cfg.ReasoningEffort)
+		},
+		commandFunc: func(ctx context.Context, cfg *model.RuntimeConfig, modelName string, addDirs []string) *exec.Cmd {
+			return codexCommand(ctx, modelName, addDirs, cfg.ReasoningEffort)
+		},
 	},
 	model.IDEClaude: {
-		id:               model.IDEClaude,
-		displayName:      "Claude",
-		defaultModel:     model.DefaultClaudeModel,
-		supportsAddDirs:  true,
-		formatsJSON:      true,
-		shellPreviewFunc: buildClaudeCommand,
-		commandFunc:      claudeCommand,
+		id:              model.IDEClaude,
+		displayName:     "Claude",
+		defaultModel:    model.DefaultClaudeModel,
+		supportsAddDirs: true,
+		formatsJSON:     true,
+		shellPreviewFunc: func(cfg *model.RuntimeConfig, modelName string, addDirs []string) string {
+			return buildClaudeCommand(modelName, addDirs, cfg.SystemPrompt)
+		},
+		commandFunc: func(ctx context.Context, cfg *model.RuntimeConfig, modelName string, addDirs []string) *exec.Cmd {
+			return claudeCommand(ctx, modelName, addDirs, cfg.SystemPrompt)
+		},
 	},
 	model.IDEDroid: {
 		id:              model.IDEDroid,
@@ -47,11 +54,11 @@ var specs = map[string]spec{
 		defaultModel:    model.DefaultCodexModel,
 		supportsAddDirs: false,
 		formatsJSON:     true,
-		shellPreviewFunc: func(model string, _ []string, reasoning string) string {
-			return buildDroidCommand(model, reasoning)
+		shellPreviewFunc: func(cfg *model.RuntimeConfig, modelName string, _ []string) string {
+			return buildDroidCommand(modelName, cfg.ReasoningEffort)
 		},
-		commandFunc: func(ctx context.Context, model string, _ []string, reasoning string) *exec.Cmd {
-			return droidCommand(ctx, model, reasoning)
+		commandFunc: func(ctx context.Context, cfg *model.RuntimeConfig, modelName string, _ []string) *exec.Cmd {
+			return droidCommand(ctx, modelName, cfg.ReasoningEffort)
 		},
 	},
 	model.IDECursor: {
@@ -60,11 +67,11 @@ var specs = map[string]spec{
 		defaultModel:    model.DefaultCursorModel,
 		supportsAddDirs: false,
 		formatsJSON:     true,
-		shellPreviewFunc: func(model string, _ []string, reasoning string) string {
-			return buildCursorCommand(model, reasoning)
+		shellPreviewFunc: func(_ *model.RuntimeConfig, modelName string, _ []string) string {
+			return buildCursorCommand(modelName, "")
 		},
-		commandFunc: func(ctx context.Context, model string, _ []string, reasoning string) *exec.Cmd {
-			return cursorCommand(ctx, model, reasoning)
+		commandFunc: func(ctx context.Context, _ *model.RuntimeConfig, modelName string, _ []string) *exec.Cmd {
+			return cursorCommand(ctx, modelName, "")
 		},
 	},
 }
@@ -120,19 +127,29 @@ func DisplayName(ide string) string {
 	return ""
 }
 
-func BuildShellCommandString(ide string, modelName string, addDirs []string, reasoningEffort string) string {
-	spec, ok := specs[ide]
+func BuildShellCommandString(cfg *model.RuntimeConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	spec, ok := specs[cfg.IDE]
 	if !ok {
 		return ""
 	}
-	dirs := addDirs
+	modelToUse := cfg.Model
+	if modelToUse == "" {
+		modelToUse = spec.defaultModel
+	}
+	dirs := cfg.AddDirs
 	if !spec.supportsAddDirs {
 		dirs = nil
 	}
-	return spec.shellPreviewFunc(modelName, dirs, reasoningEffort)
+	return spec.shellPreviewFunc(cfg, modelToUse, dirs)
 }
 
 func Command(ctx context.Context, cfg *model.RuntimeConfig) *exec.Cmd {
+	if cfg == nil {
+		return nil
+	}
 	spec, ok := specs[cfg.IDE]
 	if !ok {
 		return nil
@@ -145,7 +162,7 @@ func Command(ctx context.Context, cfg *model.RuntimeConfig) *exec.Cmd {
 	if !spec.supportsAddDirs {
 		dirs = nil
 	}
-	return spec.commandFunc(ctx, modelToUse, dirs, cfg.ReasoningEffort)
+	return spec.commandFunc(ctx, cfg, modelToUse, dirs)
 }
 
 func buildCodexCommand(modelName string, addDirs []string, reasoningEffort string) string {
@@ -164,26 +181,19 @@ func buildCodexCommand(modelName string, addDirs []string, reasoningEffort strin
 	return formatShellCommand(args)
 }
 
-func buildClaudeCommand(modelName string, addDirs []string, reasoningEffort string) string {
-	thinkPrompt := prompt.ClaudeReasoningPrompt(reasoningEffort)
+func buildClaudeCommand(modelName string, addDirs []string, systemPrompt string) string {
 	modelToUse := model.DefaultClaudeModel
 	if modelName != "" && modelName != model.DefaultClaudeModel {
 		modelToUse = modelName
 	}
 	args := []string{
 		model.IDEClaude,
-		"--print",
-		"--output-format", "stream-json",
-		"--verbose",
 		"--model", modelToUse,
+		"--system-prompt", systemPrompt,
+		"--permission-mode", "bypassPermissions",
+		"--dangerously-skip-permissions",
 	}
 	args = appendAddDirs(args, addDirs)
-	args = append(
-		args,
-		"--dangerously-skip-permissions",
-		"--permission-mode", "bypassPermissions",
-		"--append-system-prompt", thinkPrompt,
-	)
 	return "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 " + formatShellCommand(args)
 }
 
@@ -245,24 +255,14 @@ func codexCommand(ctx context.Context, modelName string, addDirs []string, reaso
 	return exec.CommandContext(ctx, model.IDECodex, args...)
 }
 
-func claudeCommand(ctx context.Context, modelName string, addDirs []string, reasoning string) *exec.Cmd {
-	reasoningPrompt := prompt.ClaudeReasoningPrompt(reasoning)
-	teamDirective := "<critical>YOU SHOULD use a team of agents to handle " +
-		"properly the job and avoid do workaround to get it done</critical>"
-	systemPrompt := reasoningPrompt + "\n\n" + teamDirective
+func claudeCommand(ctx context.Context, modelName string, addDirs []string, systemPrompt string) *exec.Cmd {
 	args := []string{
-		"--print",
-		"--output-format", "stream-json",
-		"--verbose",
 		"--model", modelName,
-	}
-	args = appendAddDirs(args, addDirs)
-	args = append(
-		args,
+		"--system-prompt", systemPrompt,
 		"--permission-mode", "bypassPermissions",
 		"--dangerously-skip-permissions",
-		"--append-system-prompt", systemPrompt,
-	)
+	}
+	args = appendAddDirs(args, addDirs)
 	return exec.CommandContext(ctx, model.IDEClaude, args...)
 }
 

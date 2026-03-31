@@ -166,16 +166,7 @@ func (l *jobLifecycle) startAttempt(attempt int, timeout time.Duration) {
 	l.currentTimeout = timeout
 	l.state = jobPhaseRunning
 	if l.attempt == 1 {
-		notifyJobStart(
-			l.execCtx.uiCh != nil,
-			l.execCtx.uiCh,
-			l.index,
-			l.job,
-			l.execCtx.cfg.ide,
-			l.execCtx.cfg.model,
-			l.execCtx.cfg.addDirs,
-			l.execCtx.cfg.reasoningEffort,
-		)
+		notifyJobStart(l.execCtx.uiCh != nil, l.execCtx.uiCh, l.index, l.job, l.execCtx.cfg)
 		return
 	}
 	if l.execCtx.uiCh != nil {
@@ -572,7 +563,7 @@ func setupCommandExecution(
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
 ) (*exec.Cmd, *os.File, *os.File, *activityMonitor, error) {
-	cmd := createIDECommand(ctx, cfg)
+	cmd := createIDECommand(ctx, cfg, j)
 	if cmd == nil {
 		return nil, nil, nil, nil, fmt.Errorf("create IDE command: unsupported ide %q", cfg.ide)
 	}

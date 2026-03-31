@@ -11,25 +11,18 @@ import (
 
 	"github.com/compozy/looper/internal/looper/agent"
 	"github.com/compozy/looper/internal/looper/model"
+	"github.com/compozy/looper/internal/looper/prompt"
 )
 
-func notifyJobStart(
-	useUI bool,
-	uiCh chan uiMsg,
-	index int,
-	job *job,
-	ide string,
-	model string,
-	addDirs []string,
-	reasoningEffort string,
-) {
+func notifyJobStart(useUI bool, uiCh chan uiMsg, index int, job *job, cfg *config) {
 	if useUI {
 		uiCh <- jobStartedMsg{Index: index}
 		return
 	}
 
-	shellCmd := agent.BuildShellCommandString(ide, model, addDirs, reasoningEffort)
-	ideName := agent.DisplayName(ide)
+	commandCfg := buildIDECommandConfig(cfg, job)
+	shellCmd := agent.BuildShellCommandString(commandCfg)
+	ideName := agent.DisplayName(cfg.ide)
 	totalIssues := countTotalIssues(job)
 	codeFileLabel := formatCodeFileLabel(job.codeFiles)
 	fmt.Printf(
@@ -57,13 +50,36 @@ func formatCodeFileLabel(codeFiles []string) string {
 	return label
 }
 
-func createIDECommand(ctx context.Context, cfg *config) *exec.Cmd {
-	return agent.Command(ctx, &model.RuntimeConfig{
+func createIDECommand(ctx context.Context, cfg *config, job *job) *exec.Cmd {
+	return agent.Command(ctx, buildIDECommandConfig(cfg, job))
+}
+
+func buildIDECommandConfig(cfg *config, job *job) *model.RuntimeConfig {
+	commandCfg := &model.RuntimeConfig{
 		IDE:             cfg.ide,
 		Model:           cfg.model,
 		AddDirs:         cfg.addDirs,
 		ReasoningEffort: cfg.reasoningEffort,
-	})
+		SystemPrompt:    "",
+	}
+	if cfg.ide == model.IDEClaude {
+		commandCfg.SystemPrompt = buildClaudeSystemPrompt(cfg.mode, job.safeName, cfg.signalPort, cfg.reasoningEffort)
+	}
+	return commandCfg
+}
+
+func buildClaudeSystemPrompt(
+	mode model.ExecutionMode,
+	jobID string,
+	signalPort int,
+	reasoningEffort string,
+) string {
+	sections := make([]string, 0, 2)
+	if thinking := strings.TrimSpace(prompt.ClaudeReasoningPrompt(reasoningEffort)); thinking != "" {
+		sections = append(sections, thinking)
+	}
+	sections = append(sections, prompt.BuildSystemPrompt(mode, jobID, signalPort))
+	return strings.Join(sections, "\n\n")
 }
 
 func setupCommandIO(

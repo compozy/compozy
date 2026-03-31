@@ -42,6 +42,7 @@ type RuntimeConfig struct {
 	TailLines              int
 	SignalPort             int
 	ReasoningEffort        string
+	SystemPrompt           string
 	Mode                   ExecutionMode
 	IncludeCompleted       bool
 	IncludeResolved        bool
