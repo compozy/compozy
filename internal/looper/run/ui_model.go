@@ -11,14 +11,19 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var newUIProgramFunc = func(model tea.Model) *tea.Program {
+	return tea.NewProgram(model, tea.WithAltScreen())
+}
+
 type uiModel struct {
 	jobs            []uiJob
+	terminals       []*Terminal
 	total           int
 	completed       int
 	failed          int
 	frame           int
 	events          <-chan uiMsg
-	onQuit          func()
+	signalCh        <-chan SignalEvent
 	viewport        viewport.Model
 	sidebarViewport viewport.Model
 	selectedJob     int
@@ -28,12 +33,19 @@ type uiModel struct {
 	mainWidth       int
 	contentHeight   int
 	currentView     uiViewState
+	mode            interactionMode
 	ctx             context.Context
 	failures        []failInfo
-	aggregateUsage  *TokenUsage
 }
 
-func newUIModel(ctx context.Context, total int) *uiModel {
+type interactionMode int
+
+const (
+	modeNavigate interactionMode = iota
+	modeTerminal
+)
+
+func newUIModel(ctx context.Context, total int, terminals []*Terminal, signalCh <-chan SignalEvent) *uiModel {
 	vp := viewport.New(80, 24)
 	sidebarVp := viewport.New(30, 24)
 	defaultWidth := 120
@@ -55,6 +67,8 @@ func newUIModel(ctx context.Context, total int) *uiModel {
 	}
 	return &uiModel{
 		total:           total,
+		terminals:       terminals,
+		signalCh:        signalCh,
 		viewport:        vp,
 		sidebarViewport: sidebarVp,
 		selectedJob:     0,
@@ -64,9 +78,9 @@ func newUIModel(ctx context.Context, total int) *uiModel {
 		mainWidth:       initialMainWidth,
 		contentHeight:   initialContentHeight,
 		currentView:     uiViewJobs,
+		mode:            modeNavigate,
 		ctx:             ctx,
 		failures:        []failInfo{},
-		aggregateUsage:  &TokenUsage{},
 	}
 }
 
@@ -75,7 +89,7 @@ func (m *uiModel) setEventSource(ch <-chan uiMsg) {
 }
 
 func (m *uiModel) Init() tea.Cmd {
-	return tea.Batch(m.waitEvent(), m.tick())
+	return tea.Batch(m.waitEvent(), m.waitSignal(), m.tick())
 }
 
 func (m *uiModel) waitEvent() tea.Cmd {
@@ -90,20 +104,44 @@ func (m *uiModel) waitEvent() tea.Cmd {
 	}
 }
 
+func (m *uiModel) waitSignal() tea.Cmd {
+	if m.signalCh == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		ev, ok := <-m.signalCh
+		if !ok {
+			return drainMsg{}
+		}
+		if ev.Type == SignalEventTypeDone {
+			return jobDoneSignalMsg{JobID: ev.JobID}
+		}
+		return drainMsg{}
+	}
+}
+
 func (m *uiModel) tick() tea.Cmd {
 	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
-func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) (chan uiMsg, *tea.Program) {
+func setupUI(
+	ctx context.Context,
+	jobs []job,
+	terminals []*Terminal,
+	signalCh <-chan SignalEvent,
+	enabled bool,
+) (chan uiMsg, *tea.Program, <-chan struct{}) {
 	if !enabled {
-		return nil, nil
+		return nil, nil, nil
 	}
 	total := len(jobs)
 	uiCh := make(chan uiMsg, total*4)
-	mdl := newUIModel(ctx, total)
+	mdl := newUIModel(ctx, total, terminals, signalCh)
 	mdl.setEventSource(uiCh)
-	prog := tea.NewProgram(mdl, tea.WithAltScreen())
+	prog := newUIProgramFunc(mdl)
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		if _, runErr := prog.Run(); runErr != nil {
 			fmt.Fprintf(os.Stderr, "UI program error: %v\n", runErr)
 		}
@@ -132,5 +170,5 @@ func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) (chan uiM
 		<-ctx.Done()
 		prog.Quit()
 	}()
-	return uiCh, prog
+	return uiCh, prog, done
 }

@@ -41,9 +41,10 @@ type Terminal struct {
 	started bool
 	closed  bool
 
-	outputErr   error
-	responseErr error
-	processErr  error
+	outputErr    error
+	responseErr  error
+	processErr   error
+	outputMirror io.Writer
 
 	closeOnce sync.Once
 	wg        sync.WaitGroup
@@ -121,6 +122,12 @@ func (t *Terminal) Start(cmd *exec.Cmd) error {
 	return nil
 }
 
+func (t *Terminal) SetOutputMirror(dst io.Writer) {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
+	t.outputMirror = dst
+}
+
 // Render returns the emulator's rendered screen buffer.
 func (t *Terminal) Render() string {
 	if t.emu == nil {
@@ -171,6 +178,21 @@ func (t *Terminal) IsAlive() bool {
 	return t.alive
 }
 
+func (t *Terminal) ProcessError() error {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
+	return t.processErr
+}
+
+func (t *Terminal) ExitCode() int {
+	t.stateMu.Lock()
+	defer t.stateMu.Unlock()
+	if t.cmd == nil || t.cmd.ProcessState == nil {
+		return -1
+	}
+	return t.cmd.ProcessState.ExitCode()
+}
+
 // Close terminates the process if needed and shuts down the PTY and emulator.
 func (t *Terminal) Close() error {
 	var closeErr error
@@ -196,8 +218,26 @@ func (t *Terminal) copyPTYToEmulator() {
 		return
 	}
 
-	if _, err := io.Copy(t.emu, t.pty); err != nil && !isTerminalPumpShutdownError(err) {
-		t.recordOutputErr(fmt.Errorf("copy PTY output to emulator: %w", err))
+	buf := make([]byte, 32*1024)
+	for {
+		n, err := t.pty.Read(buf)
+		if n > 0 {
+			chunk := append([]byte(nil), buf[:n]...)
+			if _, writeErr := t.emu.Write(chunk); writeErr != nil {
+				t.recordOutputErr(fmt.Errorf("write PTY output to emulator: %w", writeErr))
+				return
+			}
+			if mirrorErr := t.writeOutputMirror(chunk); mirrorErr != nil {
+				t.recordOutputErr(fmt.Errorf("write PTY output mirror: %w", mirrorErr))
+				return
+			}
+		}
+		if err != nil {
+			if !isTerminalPumpShutdownError(err) {
+				t.recordOutputErr(fmt.Errorf("read PTY output: %w", err))
+			}
+			return
+		}
 	}
 }
 
@@ -320,6 +360,17 @@ func (t *Terminal) recordProcessErr(err error) {
 	t.stateMu.Lock()
 	defer t.stateMu.Unlock()
 	t.processErr = err
+}
+
+func (t *Terminal) writeOutputMirror(chunk []byte) error {
+	t.stateMu.Lock()
+	mirror := t.outputMirror
+	t.stateMu.Unlock()
+	if mirror == nil || len(chunk) == 0 {
+		return nil
+	}
+	_, err := mirror.Write(chunk)
+	return err
 }
 
 func normalizeTerminalSize(width, height int) (int, int) {
