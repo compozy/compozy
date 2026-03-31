@@ -12,6 +12,7 @@ const (
 	DefaultClaudeModel     = "opus"
 	DefaultCursorModel     = "composer-1"
 	DefaultActivityTimeout = 10 * time.Minute
+	DefaultSignalPort      = 9877
 	ModeCodeReview         = "pr-review"
 	ModePRDTasks           = "prd-tasks"
 )
@@ -39,6 +40,7 @@ type RuntimeConfig struct {
 	AddDirs                []string
 	Grouped                bool
 	TailLines              int
+	SignalPort             int
 	ReasoningEffort        string
 	Mode                   ExecutionMode
 	IncludeCompleted       bool
@@ -60,6 +62,9 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	}
 	if cfg.TailLines <= 0 {
 		cfg.TailLines = 30
+	}
+	if cfg.SignalPort <= 0 {
+		cfg.SignalPort = DefaultSignalPort
 	}
 	if cfg.ReasoningEffort == "" {
 		cfg.ReasoningEffort = "medium"

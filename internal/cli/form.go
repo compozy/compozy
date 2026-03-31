@@ -38,6 +38,7 @@ type formInputs struct {
 	model            string
 	addDirs          string
 	tailLines        string
+	signalPort       string
 	reasoningEffort  string
 	timeout          string
 	includeCompleted bool
@@ -64,6 +65,7 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addModelField(&fi.model)
 	builder.addAddDirsField(&fi.addDirs)
 	builder.addTailLinesField(&fi.tailLines)
+	builder.addSignalPortField(&fi.signalPort)
 	builder.addReasoningEffortField(&fi.reasoningEffort)
 	builder.addTimeoutField(&fi.timeout)
 	builder.addConfirmField(
@@ -111,6 +113,7 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 	applyStringInput(cmd, "model", fi.model, func(val string) { state.model = val })
 	applyStringSliceInput(cmd, "add-dir", fi.addDirs, func(val []string) { state.addDirs = val })
 	applyIntInput(cmd, "tail-lines", fi.tailLines, func(val int) { state.tailLines = val })
+	applyIntInput(cmd, "signal-port", fi.signalPort, func(val int) { state.signalPort = val })
 	applyStringInput(cmd, "reasoning-effort", fi.reasoningEffort, func(val string) {
 		state.reasoningEffort = val
 	})
@@ -336,6 +339,19 @@ func (fb *formBuilder) addTailLinesField(target *string) {
 			"Number of log lines to show in UI (1-100)",
 			target,
 			100,
+		)
+	})
+}
+
+func (fb *formBuilder) addSignalPortField(target *string) {
+	fb.addField("signal-port", func() huh.Field {
+		return numericInput(
+			"signal-port",
+			"Signal Server Port",
+			"9877",
+			"Localhost port used by the job signal server (1-65535)",
+			target,
+			65535,
 		)
 	})
 }

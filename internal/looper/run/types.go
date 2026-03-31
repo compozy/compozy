@@ -214,6 +214,7 @@ type config struct {
 	addDirs                []string
 	grouped                bool
 	tailLines              int
+	signalPort             int
 	reasoningEffort        string
 	mode                   model.ExecutionMode
 	includeCompleted       bool
@@ -253,6 +254,7 @@ func newConfig(src *model.RuntimeConfig) *config {
 		addDirs:                append([]string(nil), src.AddDirs...),
 		grouped:                src.Grouped,
 		tailLines:              src.TailLines,
+		signalPort:             src.SignalPort,
 		reasoningEffort:        src.ReasoningEffort,
 		mode:                   src.Mode,
 		includeCompleted:       src.IncludeCompleted,

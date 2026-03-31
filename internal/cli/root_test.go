@@ -87,6 +87,7 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		"--reviews-dir",
 		"--batch-size",
 		"--concurrent",
+		"--signal-port",
 		"--grouped",
 		"--include-resolved",
 		"--form",
@@ -118,7 +119,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		t.Fatalf("execute start help: %v", err)
 	}
 
-	required := []string{"--name", "--tasks-dir", "--include-completed", "--form"}
+	required := []string{"--name", "--tasks-dir", "--include-completed", "--signal-port", "--form"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to include %q\noutput:\n%s", snippet, output)
@@ -171,6 +172,7 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	state.name = "multi-repo"
 	state.tasksDir = "tasks/multi-repo"
 	state.includeCompleted = true
+	state.signalPort = 4321
 
 	cfg, err := state.buildConfig()
 	if err != nil {
@@ -184,6 +186,9 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	}
 	if !cfg.IncludeCompleted {
 		t.Fatalf("expected IncludeCompleted=true in config")
+	}
+	if cfg.SignalPort != 4321 {
+		t.Fatalf("expected SignalPort=4321 in config, got %d", cfg.SignalPort)
 	}
 	if cfg.Mode != core.ModePRDTasks {
 		t.Fatalf("expected start mode, got %q", cfg.Mode)
@@ -249,6 +254,7 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 		reviewsDir:      "tasks/my-feature/reviews-001",
 		round:           "2",
 		batchSize:       "3",
+		signalPort:      "4321",
 		addDirs:         " ../shared, ../docs ,, ../shared \n ../workspace ",
 		grouped:         true,
 		includeResolved: true,
@@ -258,6 +264,9 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 
 	if state.name != "my-feature" {
 		t.Fatalf("expected name to be applied, got %q", state.name)
+	}
+	if state.signalPort != 4321 {
+		t.Fatalf("expected signalPort to be applied, got %d", state.signalPort)
 	}
 	if state.reviewsDir != "tasks/my-feature/reviews-001" {
 		t.Fatalf("expected reviews dir to map to reviewsDir, got %q", state.reviewsDir)

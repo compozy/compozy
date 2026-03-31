@@ -20,6 +20,7 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 		"ide",
 		"model",
 		"add-dir",
+		"signal-port",
 		"reasoning-effort",
 		"timeout",
 		"auto-commit",
@@ -45,6 +46,7 @@ func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 		"ide",
 		"model",
 		"add-dir",
+		"signal-port",
 		"reasoning-effort",
 		"timeout",
 	)

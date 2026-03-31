@@ -38,6 +38,7 @@ type commandState struct {
 	addDirs                []string
 	grouped                bool
 	tailLines              int
+	signalPort             int
 	reasoningEffort        string
 	useForm                bool
 	includeCompleted       bool
@@ -177,6 +178,8 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		"Additional directory to allow for Codex and Claude (repeatable or comma-separated)",
 	)
 	cmd.Flags().IntVar(&state.tailLines, "tail-lines", 30, "Number of log lines to show in UI for each job")
+	cmd.Flags().
+		IntVar(&state.signalPort, "signal-port", 9877, "Localhost port for the job signal server")
 	cmd.Flags().StringVar(
 		&state.reasoningEffort,
 		"reasoning-effort",
@@ -288,6 +291,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		AddDirs:                core.NormalizeAddDirs(s.addDirs),
 		Grouped:                s.grouped,
 		TailLines:              s.tailLines,
+		SignalPort:             s.signalPort,
 		ReasoningEffort:        s.reasoningEffort,
 		Mode:                   s.mode,
 		IncludeCompleted:       s.includeCompleted,
