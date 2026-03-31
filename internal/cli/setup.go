@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/compozy/looper/internal/setup"
 	"github.com/spf13/cobra"
 )
@@ -77,6 +78,10 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 	if s.list {
 		printBundledSkills(cmd, skills)
 		return nil
+	}
+
+	if !s.yes && s.isInteractive() {
+		printWelcomeHeader(cmd)
 	}
 
 	if err := s.prepareRunMode(); err != nil {
@@ -215,9 +220,17 @@ func (s *setupCommandState) resolveSkillSelection(skills []setup.Skill) ([]strin
 	}
 
 	selected := skillNames(skills)
+
+	maxNameLen := 0
+	for _, skill := range skills {
+		if len(skill.Name) > maxNameLen {
+			maxNameLen = len(skill.Name)
+		}
+	}
+
 	options := make([]huh.Option[string], 0, len(skills))
 	for _, skill := range skills {
-		label := fmt.Sprintf("%s: %s", skill.Name, skill.Description)
+		label := fmt.Sprintf("%-*s  %s", maxNameLen, skill.Name, shortDescription(skill.Description))
 		options = append(options, huh.NewOption(label, skill.Name))
 	}
 
@@ -360,9 +373,47 @@ func (s *setupCommandState) resolveInstallMode(
 	return setup.InstallMode(selection), nil
 }
 
+// --- Styled output functions ---
+
+func printWelcomeHeader(cmd *cobra.Command) {
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("Looper Setup")
+	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).
+		Render("Install bundled skills for supported agents")
+
+	content := lipgloss.JoinVertical(lipgloss.Left, title, subtitle)
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62")).
+		Padding(0, 2).
+		MarginBottom(1).
+		Render(content)
+
+	fmt.Fprintln(cmd.OutOrStdout(), box)
+}
+
 func printBundledSkills(cmd *cobra.Command, skills []setup.Skill) {
+	if len(skills) == 0 {
+		return
+	}
+
+	maxNameLen := 0
 	for _, skill := range skills {
-		fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\n", skill.Name, skill.Description)
+		if len(skill.Name) > maxNameLen {
+			maxNameLen = len(skill.Name)
+		}
+	}
+
+	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).
+		MarginBottom(1).Render("Bundled Skills")
+	fmt.Fprintln(cmd.OutOrStdout(), header)
+
+	nameStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
+	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
+	for _, skill := range skills {
+		name := nameStyle.Render(padRight(skill.Name, maxNameLen))
+		desc := descStyle.Render(skill.Description)
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", name, desc)
 	}
 }
 
@@ -378,26 +429,56 @@ func printPreviewSummary(
 
 	cwd, homeDir := displayRoots()
 
-	fmt.Fprintln(cmd.OutOrStdout(), "Installation Summary")
-	fmt.Fprintf(cmd.OutOrStdout(), "  Scope: %s\n", scopeLabel(global))
-	fmt.Fprintf(cmd.OutOrStdout(), "  Method: %s\n", mode)
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).MarginTop(1)
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	valueStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
+	separatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+	skillStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	agentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	pathStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	warnStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220"))
+
+	w := cmd.OutOrStdout()
+	fmt.Fprintln(w, titleStyle.Render("Installation Summary"))
+	fmt.Fprintln(w)
+
+	fmt.Fprintf(w, "  %s  %s\n", labelStyle.Render("Scope "), valueStyle.Render(scopeLabel(global)))
+	fmt.Fprintf(w, "  %s  %s\n", labelStyle.Render("Method"), valueStyle.Render(string(mode)))
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, separatorStyle.Render("  "+strings.Repeat("─", 50)))
+	fmt.Fprintln(w)
+
+	maxSkillLen := 0
+	maxAgentLen := 0
+	for i := range previews {
+		if len(previews[i].Skill.Name) > maxSkillLen {
+			maxSkillLen = len(previews[i].Skill.Name)
+		}
+		if len(previews[i].Agent.DisplayName) > maxAgentLen {
+			maxAgentLen = len(previews[i].Agent.DisplayName)
+		}
+	}
+
 	for i := range previews {
 		preview := &previews[i]
-		fmt.Fprintf(
-			cmd.OutOrStdout(),
-			"  - %s -> %s (%s)",
-			preview.Skill.Name,
-			preview.Agent.DisplayName,
-			shortenPath(preview.TargetPath, cwd, homeDir),
-		)
+		name := skillStyle.Render(padRight(preview.Skill.Name, maxSkillLen))
+		arrow := arrowStyle.Render("->")
+		agent := agentStyle.Render(padRight(preview.Agent.DisplayName, maxAgentLen))
+		path := pathStyle.Render(shortenPath(preview.TargetPath, cwd, homeDir))
+
+		line := fmt.Sprintf("    %s  %s  %s  %s", name, arrow, agent, path)
+
 		if mode == setup.InstallModeSymlink && !sameInstallPath(preview.CanonicalPath, preview.TargetPath) {
-			fmt.Fprintf(cmd.OutOrStdout(), " via %s", shortenPath(preview.CanonicalPath, cwd, homeDir))
+			via := pathStyle.Render("via " + shortenPath(preview.CanonicalPath, cwd, homeDir))
+			line += "  " + via
 		}
 		if preview.WillOverwrite {
-			fmt.Fprint(cmd.OutOrStdout(), " [overwrite]")
+			line += "  " + warnStyle.Render("[overwrite]")
 		}
-		fmt.Fprintln(cmd.OutOrStdout())
+		fmt.Fprintln(w, line)
 	}
+	fmt.Fprintln(w)
 }
 
 func printInstallResult(cmd *cobra.Command, result *setup.Result) {
@@ -407,39 +488,111 @@ func printInstallResult(cmd *cobra.Command, result *setup.Result) {
 
 	cwd, homeDir := displayRoots()
 
+	successHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")).MarginTop(1)
+	successIconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
+	failHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")).MarginTop(1)
+	failIconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	skillStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	agentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	pathStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+	errMsgStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	separatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
+
+	w := cmd.OutOrStdout()
+
+	maxSkillLen, maxAgentLen := computeColumnWidths(result.Successful, result.Failed)
+
 	if len(result.Successful) > 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "Installed")
+		fmt.Fprintln(w, successHeaderStyle.Render(
+			fmt.Sprintf("  ✓ Installed (%d)", len(result.Successful)),
+		))
+		fmt.Fprintln(w)
+
 		for i := range result.Successful {
 			item := &result.Successful[i]
-			fmt.Fprintf(
-				cmd.OutOrStdout(),
-				"  - %s -> %s (%s)",
-				item.Skill.Name,
-				item.Agent.DisplayName,
-				shortenPath(item.Path, cwd, homeDir),
-			)
+			icon := successIconStyle.Render("✓")
+			name := skillStyle.Render(padRight(item.Skill.Name, maxSkillLen))
+			arrow := arrowStyle.Render("->")
+			agent := agentStyle.Render(padRight(item.Agent.DisplayName, maxAgentLen))
+			path := pathStyle.Render(shortenPath(item.Path, cwd, homeDir))
+
+			line := fmt.Sprintf("    %s  %s  %s  %s  %s", icon, name, arrow, agent, path)
 			if item.Mode == setup.InstallModeSymlink && item.SymlinkFailed {
-				fmt.Fprint(cmd.OutOrStdout(), " [copied after symlink failure]")
+				line += "  " + warnStyle.Render("[copied after symlink failure]")
 			}
-			fmt.Fprintln(cmd.OutOrStdout())
+			fmt.Fprintln(w, line)
 		}
 	}
 
 	if len(result.Failed) > 0 {
-		fmt.Fprintln(cmd.OutOrStdout(), "Failed")
+		if len(result.Successful) > 0 {
+			fmt.Fprintln(w)
+			fmt.Fprintln(w, separatorStyle.Render("  "+strings.Repeat("─", 50)))
+		}
+
+		fmt.Fprintln(w, failHeaderStyle.Render(
+			fmt.Sprintf("  ✗ Failed (%d)", len(result.Failed)),
+		))
+		fmt.Fprintln(w)
+
 		for i := range result.Failed {
 			item := &result.Failed[i]
-			fmt.Fprintf(
-				cmd.OutOrStdout(),
-				"  - %s -> %s (%s): %s\n",
-				item.Skill.Name,
-				item.Agent.DisplayName,
-				shortenPath(item.Path, cwd, homeDir),
-				item.Error,
-			)
+			icon := failIconStyle.Render("✗")
+			name := skillStyle.Render(padRight(item.Skill.Name, maxSkillLen))
+			arrow := arrowStyle.Render("->")
+			agent := agentStyle.Render(padRight(item.Agent.DisplayName, maxAgentLen))
+			path := pathStyle.Render(shortenPath(item.Path, cwd, homeDir))
+
+			fmt.Fprintf(w, "    %s  %s  %s  %s  %s\n", icon, name, arrow, agent, path)
+			fmt.Fprintf(w, "       %s\n", errMsgStyle.Render(item.Error))
 		}
 	}
+	fmt.Fprintln(w)
 }
+
+func computeColumnWidths(successful []setup.SuccessItem, failed []setup.FailureItem) (int, int) {
+	maxSkill, maxAgent := 0, 0
+	for i := range successful {
+		if len(successful[i].Skill.Name) > maxSkill {
+			maxSkill = len(successful[i].Skill.Name)
+		}
+		if len(successful[i].Agent.DisplayName) > maxAgent {
+			maxAgent = len(successful[i].Agent.DisplayName)
+		}
+	}
+	for i := range failed {
+		if len(failed[i].Skill.Name) > maxSkill {
+			maxSkill = len(failed[i].Skill.Name)
+		}
+		if len(failed[i].Agent.DisplayName) > maxAgent {
+			maxAgent = len(failed[i].Agent.DisplayName)
+		}
+	}
+	return maxSkill, maxAgent
+}
+
+func shortDescription(desc string) string {
+	if idx := strings.Index(desc, ". "); idx >= 0 {
+		desc = desc[:idx+1]
+	}
+	const maxLen = 80
+	runes := []rune(desc)
+	if len(runes) > maxLen {
+		return string(runes[:maxLen-1]) + "…"
+	}
+	return desc
+}
+
+func padRight(s string, width int) string {
+	if len(s) >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-len(s))
+}
+
+// --- Form and utility functions ---
 
 func confirmSetup() (bool, error) {
 	confirmed := false
