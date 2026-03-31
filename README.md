@@ -14,7 +14,15 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
   - [✨ Features](#-features)
   - [🚀 Installation](#-installation)
     - [Requirements](#requirements)
-  - [📖 Usage](#-usage)
+  - [📖 Usage — Complete Workflow](#-usage--complete-workflow)
+    - [Step 1: Install skills into your AI agents](#step-1-install-skills-into-your-ai-agents)
+    - [Step 2: Create a PRD](#step-2-create-a-prd)
+    - [Step 3: Create a TechSpec](#step-3-create-a-techspec)
+    - [Step 4: Break down into tasks](#step-4-break-down-into-tasks)
+    - [Step 5: Execute tasks with AI agents](#step-5-execute-tasks-with-ai-agents)
+    - [Step 6: Review the implementation](#step-6-review-the-implementation)
+    - [Step 7: Fix review issues](#step-7-fix-review-issues)
+    - [Step 8: Iterate until clean](#step-8-iterate-until-clean)
   - [🛠️ Skills Setup](#️-skills-setup)
     - [How It Works](#how-it-works)
     - [Supported Agents](#supported-agents)
@@ -92,18 +100,151 @@ go build ./cmd/looper
 
 - Go 1.26+
 
-## 📖 Usage
+## 📖 Usage — Complete Workflow
 
-Looper exposes four subcommands: **[Skills Setup](#️-skills-setup)** via `looper setup`, **[PRD Tasks](#-prd-workflow)** via `looper start`, **review fetching** via `looper fetch-reviews`, and **[PR Review](#-pr-review-workflow)** remediation via `looper fix-reviews`. See each section below for details.
+This walkthrough builds a feature called **user-auth** from idea to shipped code. Each step feeds into the next — all artifacts are plain markdown files in `tasks/user-auth/`.
 
-Interactive mode prompts for workflow-specific options:
+> **Tip:** Every CLI command supports `--form` for interactive mode, which guides you through all options.
+
+```
+looper setup                          Install skills (once per project)
+   │
+   ▼
+/create-prd user-auth                 ──▶  tasks/user-auth/_prd.md
+   │
+   ▼
+/create-techspec user-auth            ──▶  tasks/user-auth/_techspec.md
+   │
+   ▼
+/create-tasks user-auth               ──▶  tasks/user-auth/task_01.md … task_N.md
+   │
+   ▼
+looper start --name user-auth         ──▶  AI agents execute each task
+   │
+   ▼
+/review-round user-auth               ──▶  tasks/user-auth/reviews-001/
+   │  (or looper fetch-reviews)
+   ▼
+looper fix-reviews --name user-auth   ──▶  Issues triaged, fixed, resolved
+   │
+   ▼
+🔁 Repeat review → fix until clean   ──▶  Ship it
+```
+
+### Step 1: Install skills into your AI agents
+
+Looper bundles all the skills its workflows depend on. Run `setup` once per project to install them into your AI agents (Claude Code, Codex, Cursor, etc.):
 
 ```bash
-looper setup
-looper fetch-reviews --form
-looper start --form
-looper fix-reviews --form
+looper setup --all --yes
 ```
+
+This auto-detects installed agents and copies (or symlinks) skills into their configuration directories. See [Skills Setup](#️-skills-setup) for agent-specific options.
+
+### Step 2: Create a PRD
+
+Inside your AI agent, invoke the `/create-prd` skill to brainstorm and produce a Product Requirements Document:
+
+```
+/create-prd user-auth
+```
+
+The skill runs an interactive session — it asks clarifying questions about what you're building, who it's for, and why. It also spawns parallel agents to research your codebase and the web for context. The result is a business-focused PRD:
+
+```
+tasks/user-auth/
+  _prd.md            # Product Requirements Document
+  adrs/              # Architecture Decision Records from brainstorming
+```
+
+### Step 3: Create a TechSpec
+
+Next, translate the business requirements into a technical specification:
+
+```
+/create-techspec user-auth
+```
+
+The skill reads your PRD, explores the codebase architecture, and asks technical clarification questions (how to implement, which technologies, where components live). Output:
+
+```
+tasks/user-auth/
+  _techspec.md       # Technical Specification (architecture, APIs, data models)
+```
+
+### Step 4: Break down into tasks
+
+Decompose the PRD and TechSpec into independently implementable tasks enriched with codebase context:
+
+```
+/create-tasks user-auth
+```
+
+The skill analyzes both documents, explores your codebase for relevant files and patterns, and produces individually executable task files. You can review and edit them before execution:
+
+```
+tasks/user-auth/
+  _tasks.md          # Master task list
+  task_01.md         # Individual tasks with status, context, and acceptance criteria
+  task_02.md
+  task_N.md
+```
+
+### Step 5: Execute tasks with AI agents
+
+Now hand the tasks to AI agents for automated implementation:
+
+```bash
+looper start --name user-auth --ide claude
+```
+
+Looper processes each pending task sequentially — the agent reads the task spec, implements the code, validates it, and updates the task status from `pending` to `completed`.
+
+Use `--dry-run` to preview generated prompts without executing. Add `--auto-commit` to automatically commit after each task. See [CLI Reference — `looper start`](#looper-start) for all flags.
+
+### Step 6: Review the implementation
+
+Once tasks are complete, review the code before shipping. You have two options:
+
+**Option A** — AI-powered manual review using the `/review-round` skill inside your agent:
+
+```
+/review-round user-auth
+```
+
+This performs a comprehensive code review across security, correctness, performance, error handling, and more. It generates structured issue files without modifying any source code.
+
+**Option B** — Fetch review comments from an external provider (CodeRabbit, GitHub, etc.):
+
+```bash
+looper fetch-reviews --provider coderabbit --pr 42 --name user-auth
+```
+
+Both options produce the same output format:
+
+```
+tasks/user-auth/
+  reviews-001/
+    _meta.md         # Round metadata
+    issue_001.md     # Individual review issues with severity and context
+    issue_002.md
+```
+
+See [PR Review Workflow](#-pr-review-workflow) for details.
+
+### Step 7: Fix review issues
+
+Dispatch AI agents to triage and fix all review issues:
+
+```bash
+looper fix-reviews --name user-auth --ide claude --concurrent 2 --batch-size 3
+```
+
+Each agent reads the issue files, triages them as valid or invalid, implements fixes for valid issues, and updates the issue status to `resolved`. Looper automatically resolves provider threads (CodeRabbit, GitHub) for resolved issues.
+
+### Step 8: Iterate until clean
+
+Repeat steps 6 and 7 until no issues remain. Each cycle creates a new review round directory (`reviews-002/`, `reviews-003/`, etc.), preserving full history. When the implementation is clean — merge and ship.
 
 ---
 
