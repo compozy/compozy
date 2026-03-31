@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
   <domain>Runtime, Infrastructure</domain>
@@ -31,11 +31,11 @@ Create the foundational `Terminal` component that wraps a pseudo-terminal (xpty)
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add x/vt and x/xpty dependencies to go.mod via `go get`
-- [ ] 1.2 Create `internal/looper/run/terminal.go` with the `Terminal` struct and full lifecycle (New, Start, Render, WriteInput, Resize, IsAlive, Close)
-- [ ] 1.3 Implement PTY→emulator read goroutine and emulator→PTY response forwarding goroutine
-- [ ] 1.4 Implement process exit detection (goroutine that waits on cmd.Wait and updates alive state)
-- [ ] 1.5 Write comprehensive unit tests for the Terminal component
+- [x] 1.1 Add x/vt and x/xpty dependencies to go.mod via `go get`
+- [x] 1.2 Create `internal/looper/run/terminal.go` with the `Terminal` struct and full lifecycle (New, Start, Render, WriteInput, Resize, IsAlive, Close)
+- [x] 1.3 Implement PTY→emulator read goroutine and emulator→PTY response forwarding goroutine
+- [x] 1.4 Implement process exit detection (goroutine that waits on cmd.Wait and updates alive state)
+- [x] 1.5 Write comprehensive unit tests for the Terminal component
 
 ## Implementation Details
 Create a new file `internal/looper/run/terminal.go`. The Terminal struct encapsulates:
@@ -64,13 +64,13 @@ Reference the TechSpec "Core Interfaces" section for the Terminal API surface. R
 
 ## Tests
 - Unit tests:
-  - [ ] Start a simple process (e.g., `echo hello`) in PTY, verify VT emulator captures "hello" in Render() output
-  - [ ] Verify WriteInput() delivers bytes to the PTY and the process receives them
-  - [ ] Verify Resize() updates both PTY and emulator dimensions
-  - [ ] Verify IsAlive() returns true while process runs, false after exit
-  - [ ] Verify Close() terminates process and cleans up PTY and emulator
-  - [ ] Verify concurrent Render() and Write() do not race (SafeEmulator thread safety)
-  - [ ] Verify response forwarding works (emulator responses reach PTY stdin)
+  - [x] Start a simple process (e.g., `echo hello`) in PTY, verify VT emulator captures "hello" in Render() output
+  - [x] Verify WriteInput() delivers bytes to the PTY and the process receives them
+  - [x] Verify Resize() updates both PTY and emulator dimensions
+  - [x] Verify IsAlive() returns true while process runs, false after exit
+  - [x] Verify Close() terminates process and cleans up PTY and emulator
+  - [x] Verify concurrent Render() and Write() do not race (SafeEmulator thread safety)
+  - [x] Verify response forwarding works (emulator responses reach PTY stdin)
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
   <domain>Runtime, Networking</domain>
@@ -32,13 +32,13 @@ Create a local HTTP server using Fiber that receives job lifecycle signals from 
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Add Fiber v3 dependency to go.mod via `go get`
-- [ ] 2.2 Create `internal/looper/run/signal_server.go` with SignalServer struct, SignalEvent type, and endpoint handlers
-- [ ] 2.3 Implement POST /job/done endpoint (validates job ID, sends event on channel)
-- [ ] 2.4 Implement POST /job/status endpoint (optional progress updates)
-- [ ] 2.5 Implement GET /health endpoint (connectivity check)
-- [ ] 2.6 Add SignalPort field to RuntimeConfig in model.go and --signal-port flag to CLI
-- [ ] 2.7 Write comprehensive unit tests for all endpoints and event delivery
+- [x] 2.1 Add Fiber v3 dependency to go.mod via `go get`
+- [x] 2.2 Create `internal/looper/run/signal_server.go` with SignalServer struct, SignalEvent type, and endpoint handlers
+- [x] 2.3 Implement POST /job/done endpoint (validates job ID, sends event on channel)
+- [x] 2.4 Implement POST /job/status endpoint (optional progress updates)
+- [x] 2.5 Implement GET /health endpoint (connectivity check)
+- [x] 2.6 Add SignalPort field to RuntimeConfig in model.go and --signal-port flag to CLI
+- [x] 2.7 Write comprehensive unit tests for all endpoints and event delivery
 
 ## Implementation Details
 Create a new file `internal/looper/run/signal_server.go`. The server lifecycle is:
@@ -70,14 +70,14 @@ Reference the TechSpec "Signal Server Endpoints" section for endpoint specs. Ref
 
 ## Tests
 - Unit tests:
-  - [ ] POST /job/done with valid job ID returns 200 and delivers SignalEvent on channel
-  - [ ] POST /job/done with unknown job ID returns 404
-  - [ ] POST /job/done with malformed JSON returns 400
-  - [ ] POST /job/status delivers status event on channel
-  - [ ] GET /health returns 200 OK
-  - [ ] Event channel does not block handler when buffer is full (non-blocking send)
-  - [ ] Graceful shutdown completes without error
-  - [ ] Server binds to specified port and rejects if port is in use
+  - [x] POST /job/done with valid job ID returns 200 and delivers SignalEvent on channel
+  - [x] POST /job/done with unknown job ID returns 404
+  - [x] POST /job/done with malformed JSON returns 400
+  - [x] POST /job/status delivers status event on channel
+  - [x] GET /health returns 200 OK
+  - [x] Event channel does not block handler when buffer is full (non-blocking send)
+  - [x] Graceful shutdown completes without error
+  - [x] Server binds to specified port and rejects if port is in use
 - Test coverage target: >=80%
 - All tests must pass
 

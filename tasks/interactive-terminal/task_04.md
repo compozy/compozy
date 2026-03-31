@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
   <domain>Agent, Prompt</domain>
@@ -33,12 +33,12 @@ Refactor the Claude Code command construction to drop headless flags (`--print`,
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Create `internal/looper/prompt/system.go` with BuildSystemPrompt() and mode-specific prompt content
-- [ ] 4.2 Refactor `claudeCommand()` in agent/ide.go to accept systemPrompt parameter and use --system-prompt flag
-- [ ] 4.3 Refactor `buildClaudeCommand()` shell preview to match new command structure
-- [ ] 4.4 Update `agent.Command()` public API to pass system prompt through from RuntimeConfig
-- [ ] 4.5 Add SignalPort field to RuntimeConfig in model.go (if not done in task_02)
-- [ ] 4.6 Write unit tests for system prompt builder and updated command construction
+- [x] 4.1 Create `internal/looper/prompt/system.go` with BuildSystemPrompt() and mode-specific prompt content
+- [x] 4.2 Refactor `claudeCommand()` in agent/ide.go to accept systemPrompt parameter and use --system-prompt flag
+- [x] 4.3 Refactor `buildClaudeCommand()` shell preview to match new command structure
+- [x] 4.4 Update `agent.Command()` public API to pass system prompt through from RuntimeConfig
+- [x] 4.5 Add SignalPort field to RuntimeConfig in model.go (if not done in task_02)
+- [x] 4.6 Write unit tests for system prompt builder and updated command construction
 
 ## Implementation Details
 Modify `internal/looper/agent/ide.go` — the `claudeCommand()` function currently builds the command with `--print --output-format stream-json`. These flags must be removed and `--system-prompt` added. The `spec` struct for Claude may need a new field or the `commandFunc` signature may need to change to accept the system prompt.
@@ -67,15 +67,15 @@ Reference the TechSpec "Agent Command Changes" and "System Prompt Structure" sec
 
 ## Tests
 - Unit tests:
-  - [ ] BuildSystemPrompt for ExecutionModePRDTasks includes PRD-specific instructions and job-done curl
-  - [ ] BuildSystemPrompt for ExecutionModePRReview includes review-specific instructions and job-done curl
-  - [ ] BuildSystemPrompt includes correct port number and job ID in curl command
-  - [ ] claudeCommand() does NOT include --print, --output-format, or --verbose flags
-  - [ ] claudeCommand() includes --system-prompt with the built prompt
-  - [ ] claudeCommand() still includes --model, --permission-mode, --dangerously-skip-permissions, --add-dir
-  - [ ] buildClaudeCommand() shell preview reflects new flag structure
-  - [ ] Command() for non-Claude IDEs (codex, droid, cursor) remains unchanged
-  - [ ] agent.Command() passes system prompt correctly for Claude IDE
+  - [x] BuildSystemPrompt for ExecutionModePRDTasks includes PRD-specific instructions and job-done curl
+  - [x] BuildSystemPrompt for ExecutionModePRReview includes review-specific instructions and job-done curl
+  - [x] BuildSystemPrompt includes correct port number and job ID in curl command
+  - [x] claudeCommand() does NOT include --print, --output-format, or --verbose flags
+  - [x] claudeCommand() includes --system-prompt with the built prompt
+  - [x] claudeCommand() still includes --model, --permission-mode, --dangerously-skip-permissions, --add-dir
+  - [x] buildClaudeCommand() shell preview reflects new flag structure
+  - [x] Command() for non-Claude IDEs (codex, droid, cursor) remains unchanged
+  - [x] agent.Command() passes system prompt correctly for Claude IDE
 - Test coverage target: >=80%
 - All tests must pass
 

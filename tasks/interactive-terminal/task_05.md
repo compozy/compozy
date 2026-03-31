@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
   <domain>UI, Execution</domain>
@@ -37,15 +37,15 @@ Wire all components from tasks 1-4 together into the full interactive terminal e
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Create `internal/looper/run/ui_messages.go` with new message types (terminalOutputMsg, terminalReadyMsg, jobDoneSignalMsg, composerSendMsg)
-- [ ] 5.2 Refactor `ui_model.go`: add terminals slice, interaction mode enum, signal channel to uiModel; update setupUI() to accept signal channel
-- [ ] 5.3 Refactor `ui_update.go`: add modeNavigate/modeTerminal key handling, terminal output message handler, job-done signal handler, Enter/Esc mode switching
-- [ ] 5.4 Refactor `ui_view.go`: render VT emulator screen in main pane via Terminal.Render(), update sidebar to show interaction mode indicator
-- [ ] 5.5 Refactor `execution.go`: integrate Signal Server lifecycle (start before jobs, shutdown after), create Terminal per job, wire readiness detection + composer simulation for prompt delivery, handle jobDoneSignalMsg
-- [ ] 5.6 Remove `command_io.go` entirely
-- [ ] 5.7 Simplify `logging.go`: remove jsonFormatter, uiLogTap, lineFilterWriter; keep activityMonitor and lineRing
-- [ ] 5.8 Update existing tests in execution_test.go and logging_test.go for new architecture
-- [ ] 5.9 Write integration tests for the full flow (Terminal + Signal Server + UI)
+- [x] 5.1 Create `internal/looper/run/ui_messages.go` with new message types (terminalOutputMsg, terminalReadyMsg, jobDoneSignalMsg, composerSendMsg)
+- [x] 5.2 Refactor `ui_model.go`: add terminals slice, interaction mode enum, signal channel to uiModel; update setupUI() to accept signal channel
+- [x] 5.3 Refactor `ui_update.go`: add modeNavigate/modeTerminal key handling, terminal output message handler, job-done signal handler, Enter/Esc mode switching
+- [x] 5.4 Refactor `ui_view.go`: render VT emulator screen in main pane via Terminal.Render(), update sidebar to show interaction mode indicator
+- [x] 5.5 Refactor `execution.go`: integrate Signal Server lifecycle (start before jobs, shutdown after), create Terminal per job, wire readiness detection + composer simulation for prompt delivery, handle jobDoneSignalMsg
+- [x] 5.6 Remove `command_io.go` entirely
+- [x] 5.7 Simplify `logging.go`: remove jsonFormatter, uiLogTap, lineFilterWriter; keep activityMonitor and lineRing
+- [x] 5.8 Update existing tests in execution_test.go and logging_test.go for new architecture
+- [x] 5.9 Write integration tests for the full flow (Terminal + Signal Server + UI)
 
 ## Implementation Details
 This is the integration task that connects all prior components. The execution pipeline changes from:
@@ -100,18 +100,18 @@ Reference the TechSpec "UI Model Changes", "Data Flow", and "Execution Layer" se
 
 ## Tests
 - Unit tests:
-  - [ ] modeNavigate: up/down changes selected job, Enter switches to modeTerminal
-  - [ ] modeTerminal: Esc switches back to modeNavigate
-  - [ ] modeTerminal: key messages are translated and forwarded to correct Terminal
-  - [ ] terminalOutputMsg updates the correct job's terminal state and triggers re-render
-  - [ ] jobDoneSignalMsg marks job as completed and auto-selects next pending job
-  - [ ] Completed job terminals remain accessible (Render() still works)
-  - [ ] Signal Server starts before first job and shuts down on cleanup
-  - [ ] Activity timeout still triggers for jobs that never send done signal
+  - [x] modeNavigate: up/down changes selected job, Enter switches to modeTerminal
+  - [x] modeTerminal: Esc switches back to modeNavigate
+  - [x] modeTerminal: key messages are translated and forwarded to correct Terminal
+  - [x] terminalOutputMsg updates the correct job's terminal state and triggers re-render
+  - [x] jobDoneSignalMsg marks job as completed and auto-selects next pending job
+  - [x] Completed job terminals remain accessible (Render() still works)
+  - [x] Signal Server starts before first job and shuts down on cleanup
+  - [x] Activity timeout still triggers for jobs that never send done signal
 - Integration tests:
-  - [ ] Full lifecycle: start job → terminal renders output → agent sends done signal → next job starts
-  - [ ] User interaction: select job → enter terminal mode → send keystrokes → exit back to navigate
-  - [ ] Graceful shutdown: SIGTERM → all terminals closed, Signal Server stopped
+  - [x] Full lifecycle: start job → terminal renders output → agent sends done signal → next job starts
+  - [x] User interaction: select job → enter terminal mode → send keystrokes → exit back to navigate
+  - [x] Graceful shutdown: SIGTERM → all terminals closed, Signal Server stopped
 - Test coverage target: >=80%
 - All tests must pass
 

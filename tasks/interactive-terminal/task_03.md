@@ -1,4 +1,4 @@
-## status: pending
+## status: completed
 
 <task_context>
   <domain>Runtime, Input</domain>
@@ -31,12 +31,12 @@ Create the three input-handling components that enable communication between the
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Create `internal/looper/run/keytranslate.go` with translateKey() function covering all supported key types
-- [ ] 3.2 Create `internal/looper/run/composer.go` with sendComposerInput() function implementing keystroke injection
-- [ ] 3.3 Create `internal/looper/run/readiness.go` with waitForReady() and detectComposerReady() functions
-- [ ] 3.4 Write unit tests for key translation (all key types, edge cases)
-- [ ] 3.5 Write unit tests for composer simulation (single-line, multi-line, special characters)
-- [ ] 3.6 Write unit tests for readiness detection (ready screen, loading screen, timeout, cancellation)
+- [x] 3.1 Create `internal/looper/run/keytranslate.go` with translateKey() function covering all supported key types
+- [x] 3.2 Create `internal/looper/run/composer.go` with sendComposerInput() function implementing keystroke injection
+- [x] 3.3 Create `internal/looper/run/readiness.go` with waitForReady() and detectComposerReady() functions
+- [x] 3.4 Write unit tests for key translation (all key types, edge cases)
+- [x] 3.5 Write unit tests for composer simulation (single-line, multi-line, special characters)
+- [x] 3.6 Write unit tests for readiness detection (ready screen, loading screen, timeout, cancellation)
 
 ## Implementation Details
 Three new files in `internal/looper/run/`. Key translation maps Bubbletea key messages to raw terminal escape sequences. Composer simulation writes to the PTY using the Terminal.WriteInput() method from task_01. Readiness detection uses Terminal.Render() (via SafeEmulator.String()) to poll screen content.
@@ -63,22 +63,22 @@ Reference the TechSpec "Composer Simulation", "Readiness Detection", and "Key Fo
 
 ## Tests
 - Unit tests:
-  - [ ] translateKey: Enter → 0x0d, Tab → 0x09, Backspace → 0x7f
-  - [ ] translateKey: Arrow keys → correct escape sequences (e.g., Up → \x1b[A)
-  - [ ] translateKey: Ctrl+C → 0x03, Ctrl+D → 0x04, Esc → 0x1b
-  - [ ] translateKey: Printable runes → UTF-8 bytes
-  - [ ] translateKey: Unknown key type → nil (no bytes sent)
-  - [ ] sendComposerInput: Single-line message sends text + Enter
-  - [ ] sendComposerInput: Multi-line message uses Ctrl+J between lines and Enter at end
-  - [ ] sendComposerInput: Normalizes \r\n and \r to \n
-  - [ ] sendComposerInput: Handles special characters (quotes, backticks, JSON)
-  - [ ] detectComposerReady: Screen with ">" at last line returns true
-  - [ ] detectComposerReady: Screen with "What can I help" returns true
-  - [ ] detectComposerReady: Empty screen returns false
-  - [ ] detectComposerReady: Loading screen without prompt indicator returns false
-  - [ ] waitForReady: Returns nil when composer detected ready within timeout
-  - [ ] waitForReady: Returns nil (fallback) after 15s timeout
-  - [ ] waitForReady: Returns error on context cancellation
+  - [x] translateKey: Enter → 0x0d, Tab → 0x09, Backspace → 0x7f
+  - [x] translateKey: Arrow keys → correct escape sequences (e.g., Up → \x1b[A)
+  - [x] translateKey: Ctrl+C → 0x03, Ctrl+D → 0x04, Esc → 0x1b
+  - [x] translateKey: Printable runes → UTF-8 bytes
+  - [x] translateKey: Unknown key type → nil (no bytes sent)
+  - [x] sendComposerInput: Single-line message sends text + Enter
+  - [x] sendComposerInput: Multi-line message uses Ctrl+J between lines and Enter at end
+  - [x] sendComposerInput: Normalizes \r\n and \r to \n
+  - [x] sendComposerInput: Handles special characters (quotes, backticks, JSON)
+  - [x] detectComposerReady: Screen with ">" at last line returns true
+  - [x] detectComposerReady: Screen with "What can I help" returns true
+  - [x] detectComposerReady: Empty screen returns false
+  - [x] detectComposerReady: Loading screen without prompt indicator returns false
+  - [x] waitForReady: Returns nil when composer detected ready within timeout
+  - [x] waitForReady: Returns nil (fallback) after 15s timeout
+  - [x] waitForReady: Returns error on context cancellation
 - Test coverage target: >=80%
 - All tests must pass
 
