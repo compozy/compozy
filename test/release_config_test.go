@@ -1,4 +1,4 @@
-package looper_test
+package test
 
 import (
 	"os"

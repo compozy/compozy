@@ -24,9 +24,11 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	}
 
 	required := []string{
+		"looper setup",
 		"looper fetch-reviews",
 		"looper fix-reviews",
 		"looper start",
+		"setup",
 		"fetch-reviews",
 		"fix-reviews",
 		"start",

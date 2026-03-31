@@ -1,9 +1,9 @@
-package looper_test
+package test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -51,14 +51,28 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 	checkPortableContent(t, filepath.Join(root, "skills", "review-round", "SKILL.md"))
 }
 
-func repoRoot(t *testing.T) string {
-	t.Helper()
+func TestBundledSkillMirrorMatchesPublicSkillsTree(t *testing.T) {
+	t.Parallel()
 
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("failed to resolve test file location")
+	root := repoRoot(t)
+	source := filepath.Join(root, "skills")
+	mirror := filepath.Join(root, "internal", "setup", "assets", "skills")
+
+	sourceTree := snapshotTree(t, source)
+	mirrorTree := snapshotTree(t, mirror)
+
+	if len(sourceTree) != len(mirrorTree) {
+		t.Fatalf("expected bundled mirror to contain %d files, got %d", len(sourceTree), len(mirrorTree))
 	}
-	return filepath.Dir(file)
+	for path, sourceContent := range sourceTree {
+		mirrorContent, ok := mirrorTree[path]
+		if !ok {
+			t.Fatalf("expected bundled mirror to contain %s", path)
+		}
+		if sourceContent != mirrorContent {
+			t.Fatalf("expected bundled mirror content for %s to match source skills directory", path)
+		}
+	}
 }
 
 func checkPortableContent(t *testing.T, path string) {
@@ -80,4 +94,33 @@ func checkPortableContent(t *testing.T, path string) {
 			t.Fatalf("expected %s to omit %q", path, snippet)
 		}
 	}
+}
+
+func snapshotTree(t *testing.T, root string) map[string]string {
+	t.Helper()
+
+	snapshot := make(map[string]string)
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		snapshot[filepath.ToSlash(relativePath)] = string(content)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("snapshot %s: %v", root, err)
+	}
+	return snapshot
 }

@@ -56,6 +56,7 @@ func NewRootCommand() *cobra.Command {
 		Long: `Looper manages review rounds and PRD execution workflows.
 
 Use explicit workflow subcommands:
+  looper setup         Install bundled public skills for supported agents
   looper fetch-reviews Fetch provider review comments into tasks/prd-<name>/reviews-NNN/
   looper fix-reviews   Process review issue files from a specific review round
   looper start         Execute PRD task files`,
@@ -64,7 +65,7 @@ Use explicit workflow subcommands:
 		},
 	}
 
-	root.AddCommand(newFetchReviewsCommand(), newFixReviewsCommand(), newStartCommand())
+	root.AddCommand(newSetupCommand(), newFetchReviewsCommand(), newFixReviewsCommand(), newStartCommand())
 	return root
 }
 

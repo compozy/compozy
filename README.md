@@ -9,35 +9,46 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
 
 ## 📑 Table of Contents
 
-- [✨ Features](#-features)
-- [🚀 Installation](#-installation)
-- [📖 Usage](#-usage)
-- [🔧 PRD Workflow](#-prd-workflow)
-  - [How It Works](#how-it-works)
-  - [CLI Usage](#cli-usage)
-  - [Skills](#skills)
-  - [Output Convention](#output-convention)
-- [🔍 PR Review Workflow](#-pr-review-workflow)
-  - [How It Works](#how-it-works-1)
-  - [Prerequisites](#prerequisites)
-  - [CLI Usage](#cli-usage-1)
-  - [Skills](#skills-1)
-- [🧩 Shared Skills](#-shared-skills)
-- [📦 Go Package Usage](#-go-package-usage)
-- [⌨️ CLI Reference](#️-cli-reference)
-  - [`looper fetch-reviews`](#looper-fetch-reviews)
-  - [`looper start`](#looper-start)
-  - [`looper fix-reviews`](#looper-fix-reviews)
-- [🏗️ Project Layout](#️-project-layout)
-- [🛠️ Development](#️-development)
-- [🔀 Migration Guide](#-migration-guide)
-- [📄 License](#-license)
+- [🔄 Looper](#-looper)
+  - [📑 Table of Contents](#-table-of-contents)
+  - [✨ Features](#-features)
+  - [🚀 Installation](#-installation)
+    - [Requirements](#requirements)
+  - [📖 Usage](#-usage)
+  - [🛠️ Skills Setup](#️-skills-setup)
+    - [How It Works](#how-it-works)
+    - [Supported Agents](#supported-agents)
+    - [Installation Modes](#installation-modes)
+  - [🔧 PRD Workflow](#-prd-workflow)
+    - [How It Works](#how-it-works-1)
+    - [CLI Usage](#cli-usage)
+    - [Skills](#skills)
+    - [Output Convention](#output-convention)
+  - [🔍 PR Review Workflow](#-pr-review-workflow)
+    - [How It Works](#how-it-works-2)
+    - [Prerequisites](#prerequisites)
+    - [CLI Usage](#cli-usage-1)
+    - [Skills](#skills-1)
+  - [🧩 Shared Skills](#-shared-skills)
+  - [📦 Go Package Usage](#-go-package-usage)
+    - [PRD Tasks](#prd-tasks)
+    - [PR Review](#pr-review)
+    - [Embedding](#embedding)
+  - [⌨️ CLI Reference](#️-cli-reference)
+    - [`looper setup`](#looper-setup)
+    - [`looper fetch-reviews`](#looper-fetch-reviews)
+    - [`looper start`](#looper-start)
+    - [`looper fix-reviews`](#looper-fix-reviews)
+  - [🏗️ Project Layout](#️-project-layout)
+  - [🛠️ Development](#️-development)
+  - [📄 License](#-license)
 
 ## ✨ Features
 
+- **Built-in skills installer** — `looper setup` installs bundled skills directly into 30+ AI agents with auto-detection, no external tools needed
 - **End-to-end PRD workflow** — go from a product idea to implemented code through structured phases
 - **Provider-agnostic PR review automation** — fetch and remediate review feedback in tracked rounds under each PRD
-- **Multi-agent support** — run tasks through Claude Code, Codex, Droid, or Cursor
+- **Multi-agent support** — run tasks through Claude Code, Codex, Droid, Cursor, and many more
 - **Concurrent review execution** — run review batches in parallel with configurable batch sizes
 - **Interactive mode** — guided form-based CLI for quick setup
 - **Plain markdown artifacts** — all specs, tasks, and tracking are human-readable markdown files
@@ -54,7 +65,18 @@ go install github.com/compozy/looper/cmd/looper@latest
 Install the bundled skills that Looper prompts expect:
 
 ```bash
-npx skills add https://github.com/compozy/looper
+looper setup
+```
+
+Non-interactive example:
+
+```bash
+looper setup \
+  --agent codex \
+  --agent claude \
+  --skill create-prd \
+  --skill create-techspec \
+  --yes
 ```
 
 Or build from source:
@@ -72,15 +94,75 @@ go build ./cmd/looper
 
 ## 📖 Usage
 
-Looper exposes three workflow subcommands: **[PRD Tasks](#-prd-workflow)** via `looper start`, **review fetching** via `looper fetch-reviews`, and **[PR Review](#-pr-review-workflow)** remediation via `looper fix-reviews`. See each workflow section below for details.
+Looper exposes four subcommands: **[Skills Setup](#️-skills-setup)** via `looper setup`, **[PRD Tasks](#-prd-workflow)** via `looper start`, **review fetching** via `looper fetch-reviews`, and **[PR Review](#-pr-review-workflow)** remediation via `looper fix-reviews`. See each section below for details.
 
 Interactive mode prompts for workflow-specific options:
 
 ```bash
+looper setup
 looper fetch-reviews --form
 looper start --form
 looper fix-reviews --form
 ```
+
+---
+
+## 🛠️ Skills Setup
+
+Looper bundles all the skills that its workflows depend on. The `looper setup` command installs them directly into the configuration directories of your AI coding agents — **no external package manager or `npx` required**.
+
+### How It Works
+
+1. **Detect** — Looper scans your system for installed agents (Claude Code, Codex, Cursor, etc.)
+2. **Select** — In interactive mode you pick which skills and agents to install; in non-interactive mode flags or `--all` drive the selection
+3. **Preview** — A summary of every file that will be created is shown before confirmation
+4. **Install** — Skills are copied (or symlinked) into each agent's skills directory
+
+```bash
+# Interactive — walks you through skill/agent selection
+looper setup
+
+# Install everything to every detected agent, no prompts
+looper setup --all
+
+# Target specific agents and skills
+looper setup --agent claude --agent codex --skill create-prd --skill create-techspec --yes
+
+# Install globally (user-level) instead of per-project
+looper setup --global --yes
+
+# List available bundled skills without installing
+looper setup --list
+```
+
+### Supported Agents
+
+Looper auto-detects and supports **30+ agents and editors**, including:
+
+| Agent            | Project Directory  | Notes                                         |
+| ---------------- | ------------------ | --------------------------------------------- |
+| Claude Code      | `.claude/skills`   | Also accepts `--agent claude` alias           |
+| Codex            | `.agents/skills`   | Universal layout                              |
+| Cursor           | `.agents/skills`   | Universal layout                              |
+| Droid            | `.factory/skills`  |                                               |
+| Gemini CLI       | `.agents/skills`   | Universal layout                              |
+| GitHub Copilot   | `.agents/skills`   | Universal layout                              |
+| Windsurf         | `.windsurf/skills` |                                               |
+| Amp              | `.agents/skills`   | Universal layout                              |
+| Continue         | `.continue/skills` |                                               |
+| Goose            | `.goose/skills`    |                                               |
+| Roo Code         | `.roo/skills`      |                                               |
+| Augment          | `.augment/skills`  |                                               |
+| _…and many more_ |                    | Run `looper setup` to see all detected agents |
+
+### Installation Modes
+
+When installing to **multiple agents**, Looper offers two modes:
+
+- **Symlink** _(recommended)_ — One canonical copy in `.agents/skills/`, with symlinks from each agent directory. Keeps all agents in sync automatically.
+- **Copy** — Duplicates skill files into each agent directory independently. Use `--copy` when symlinks are not supported (e.g., some CI environments).
+
+When installing to a **single agent**, Looper copies directly since symlinking offers no benefit.
 
 ---
 
@@ -130,12 +212,12 @@ looper start \
 
 ### Skills
 
-| Skill | Phase | Purpose |
-|-------|-------|---------|
-| `create-prd` | Creation | Creates PRDs through 5-phase interactive brainstorming with parallel codebase and web research |
-| `create-techspec` | Creation | Translates PRD business requirements into technical specifications with architecture exploration |
-| `create-tasks` | Creation | Decomposes PRDs and TechSpecs into independently implementable task files enriched with codebase context |
-| `execute-prd-task` | Execution | Executes one PRD task end-to-end: implement, validate, track, and optionally commit |
+| Skill              | Phase     | Purpose                                                                                                  |
+| ------------------ | --------- | -------------------------------------------------------------------------------------------------------- |
+| `create-prd`       | Creation  | Creates PRDs through 5-phase interactive brainstorming with parallel codebase and web research           |
+| `create-techspec`  | Creation  | Translates PRD business requirements into technical specifications with architecture exploration         |
+| `create-tasks`     | Creation  | Decomposes PRDs and TechSpecs into independently implementable task files enriched with codebase context |
+| `execute-prd-task` | Execution | Executes one PRD task end-to-end: implement, validate, track, and optionally commit                      |
 
 ### Output Convention
 
@@ -159,14 +241,15 @@ Each task file follows a structured format:
 ## status: pending
 
 <task_context>
-  <domain>Backend</domain>
-  <type>Feature Implementation</type>
-  <scope>Full</scope>
-  <complexity>medium</complexity>
-  <dependencies>task_01</dependencies>
+<domain>Backend</domain>
+<type>Feature Implementation</type>
+<scope>Full</scope>
+<complexity>medium</complexity>
+<dependencies>task_01</dependencies>
 </task_context>
 
 # Task 2: Implement User Authentication
+
 ...
 ```
 
@@ -214,10 +297,10 @@ looper fix-reviews \
 
 ### Skills
 
-| Skill | Purpose |
-|-------|---------|
+| Skill          | Purpose                                                                                                                           |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `review-round` | Performs a comprehensive code review of a PRD implementation and generates a review round directory compatible with `fix-reviews` |
-| `fix-reviews` | Processes review issue batches: triages issues, implements fixes, verifies results, and updates review tracking files |
+| `fix-reviews`  | Processes review issue batches: triages issues, implements fixes, verifies results, and updates review tracking files             |
 
 ---
 
@@ -225,8 +308,8 @@ looper fix-reviews \
 
 These skills are used across both workflows.
 
-| Skill | Purpose |
-|-------|---------|
+| Skill                            | Purpose                                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------------------------- |
 | `verification-before-completion` | Enforces fresh verification evidence before any completion claim, commit, or PR creation |
 
 ## 📦 Go Package Usage
@@ -274,6 +357,24 @@ _ = root.Execute()
 
 ## ⌨️ CLI Reference
 
+### `looper setup`
+
+Install Looper bundled public skills for supported agents/editors.
+
+```bash
+looper setup [flags]
+```
+
+| Flag             | Type      | Default | Description                                                               |
+| ---------------- | --------- | ------- | ------------------------------------------------------------------------- |
+| `--agent`, `-a`  | `strings` |         | Target agent/editor name (repeatable)                                     |
+| `--skill`, `-s`  | `strings` |         | Bundled skill name to install (repeatable)                                |
+| `--global`, `-g` | `bool`    | `false` | Install to the user directory instead of the project                      |
+| `--copy`         | `bool`    | `false` | Copy files instead of symlinking to agent directories                     |
+| `--list`, `-l`   | `bool`    | `false` | List bundled public skills without installing                             |
+| `--yes`, `-y`    | `bool`    | `false` | Skip confirmation prompts                                                 |
+| `--all`          | `bool`    | `false` | Install all bundled public skills to all supported agents without prompts |
+
 ### `looper fetch-reviews`
 
 Fetch provider review comments into a PRD review round.
@@ -282,13 +383,13 @@ Fetch provider review comments into a PRD review round.
 looper fetch-reviews [flags]
 ```
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--provider` | `string` | | Review provider name (for example: `coderabbit`) |
-| `--pr` | `string` | | Pull request number |
-| `--name` | `string` | | PRD workflow name (used for `tasks/prd-<name>`) |
-| `--round` | `int` | `0` | Review round number. When omitted, Looper creates the next available round |
-| `--form` | `bool` | `false` | Use interactive form to collect parameters |
+| Flag         | Type     | Default | Description                                                                |
+| ------------ | -------- | ------- | -------------------------------------------------------------------------- |
+| `--provider` | `string` |         | Review provider name (for example: `coderabbit`)                           |
+| `--pr`       | `string` |         | Pull request number                                                        |
+| `--name`     | `string` |         | PRD workflow name (used for `tasks/prd-<name>`)                            |
+| `--round`    | `int`    | `0`     | Review round number. When omitted, Looper creates the next available round |
+| `--form`     | `bool`   | `false` | Use interactive form to collect parameters                                 |
 
 ### `looper start`
 
@@ -298,22 +399,22 @@ Execute PRD task files from a PRD workflow directory.
 looper start [flags]
 ```
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--name` | `string` | | PRD task workflow name (used for `tasks/prd-<name>`) |
-| `--tasks-dir` | `string` | | Path to PRD tasks directory (`tasks/prd-<name>`) |
-| `--ide` | `string` | `codex` | IDE tool to use: `claude`, `codex`, `cursor`, or `droid` |
-| `--model` | `string` | *(per IDE)* | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
-| `--reasoning-effort` | `string` | `medium` | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`) |
-| `--timeout` | `string` | `10m` | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period |
-| `--max-retries` | `int` | `0` | Retry failed or timed-out jobs up to N times before marking them failed |
-| `--retry-backoff-multiplier` | `float` | `1.5` | Multiplier applied to activity timeout after each retry |
-| `--tail-lines` | `int` | `30` | Number of log lines to show in UI for each job |
-| `--add-dir` | `strings` | | Additional directory to allow for Codex and Claude (repeatable or comma-separated) |
-| `--auto-commit` | `bool` | `false` | Include automatic commit instructions at task/batch completion |
-| `--include-completed` | `bool` | `false` | Include completed tasks |
-| `--dry-run` | `bool` | `false` | Only generate prompts; do not run IDE tool |
-| `--form` | `bool` | `false` | Use interactive form to collect parameters |
+| Flag                         | Type      | Default     | Description                                                                                   |
+| ---------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------- |
+| `--name`                     | `string`  |             | PRD task workflow name (used for `tasks/prd-<name>`)                                          |
+| `--tasks-dir`                | `string`  |             | Path to PRD tasks directory (`tasks/prd-<name>`)                                              |
+| `--ide`                      | `string`  | `codex`     | IDE tool to use: `claude`, `codex`, `cursor`, or `droid`                                      |
+| `--model`                    | `string`  | _(per IDE)_ | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
+| `--reasoning-effort`         | `string`  | `medium`    | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`)                    |
+| `--timeout`                  | `string`  | `10m`       | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period   |
+| `--max-retries`              | `int`     | `0`         | Retry failed or timed-out jobs up to N times before marking them failed                       |
+| `--retry-backoff-multiplier` | `float`   | `1.5`       | Multiplier applied to activity timeout after each retry                                       |
+| `--tail-lines`               | `int`     | `30`        | Number of log lines to show in UI for each job                                                |
+| `--add-dir`                  | `strings` |             | Additional directory to allow for Codex and Claude (repeatable or comma-separated)            |
+| `--auto-commit`              | `bool`    | `false`     | Include automatic commit instructions at task/batch completion                                |
+| `--include-completed`        | `bool`    | `false`     | Include completed tasks                                                                       |
+| `--dry-run`                  | `bool`    | `false`     | Only generate prompts; do not run IDE tool                                                    |
+| `--form`                     | `bool`    | `false`     | Use interactive form to collect parameters                                                    |
 
 ### `looper fix-reviews`
 
@@ -323,26 +424,26 @@ Process review issue markdown files from a PRD review round and dispatch AI agen
 looper fix-reviews [flags]
 ```
 
-| Flag | Type | Default | Description |
-|------|------|---------|-------------|
-| `--name` | `string` | | PRD workflow name (used for `tasks/prd-<name>`) |
-| `--round` | `int` | `0` | Review round number. When omitted, Looper uses the latest existing round |
-| `--reviews-dir` | `string` | | Override path to a review round directory (`tasks/prd-<name>/reviews-NNN`) |
-| `--ide` | `string` | `codex` | IDE tool to use: `claude`, `codex`, `cursor`, or `droid` |
-| `--model` | `string` | *(per IDE)* | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
-| `--batch-size` | `int` | `1` | Number of file groups to batch together |
-| `--concurrent` | `int` | `1` | Number of batches to process in parallel |
-| `--grouped` | `bool` | `false` | Generate grouped issue summaries in `reviews-NNN/grouped/` |
-| `--include-resolved` | `bool` | `false` | Include review issues already marked as resolved |
-| `--reasoning-effort` | `string` | `medium` | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`) |
-| `--timeout` | `string` | `10m` | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period |
-| `--max-retries` | `int` | `0` | Retry failed or timed-out jobs up to N times before marking them failed |
-| `--retry-backoff-multiplier` | `float` | `1.5` | Multiplier applied to activity timeout after each retry |
-| `--tail-lines` | `int` | `30` | Number of log lines to show in UI for each job |
-| `--add-dir` | `strings` | | Additional directory to allow for Codex and Claude (repeatable or comma-separated) |
-| `--auto-commit` | `bool` | `false` | Include automatic commit instructions at task/batch completion |
-| `--dry-run` | `bool` | `false` | Only generate prompts; do not run IDE tool |
-| `--form` | `bool` | `false` | Use interactive form to collect parameters |
+| Flag                         | Type      | Default     | Description                                                                                   |
+| ---------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------- |
+| `--name`                     | `string`  |             | PRD workflow name (used for `tasks/prd-<name>`)                                               |
+| `--round`                    | `int`     | `0`         | Review round number. When omitted, Looper uses the latest existing round                      |
+| `--reviews-dir`              | `string`  |             | Override path to a review round directory (`tasks/prd-<name>/reviews-NNN`)                    |
+| `--ide`                      | `string`  | `codex`     | IDE tool to use: `claude`, `codex`, `cursor`, or `droid`                                      |
+| `--model`                    | `string`  | _(per IDE)_ | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
+| `--batch-size`               | `int`     | `1`         | Number of file groups to batch together                                                       |
+| `--concurrent`               | `int`     | `1`         | Number of batches to process in parallel                                                      |
+| `--grouped`                  | `bool`    | `false`     | Generate grouped issue summaries in `reviews-NNN/grouped/`                                    |
+| `--include-resolved`         | `bool`    | `false`     | Include review issues already marked as resolved                                              |
+| `--reasoning-effort`         | `string`  | `medium`    | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`)                    |
+| `--timeout`                  | `string`  | `10m`       | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period   |
+| `--max-retries`              | `int`     | `0`         | Retry failed or timed-out jobs up to N times before marking them failed                       |
+| `--retry-backoff-multiplier` | `float`   | `1.5`       | Multiplier applied to activity timeout after each retry                                       |
+| `--tail-lines`               | `int`     | `30`        | Number of log lines to show in UI for each job                                                |
+| `--add-dir`                  | `strings` |             | Additional directory to allow for Codex and Claude (repeatable or comma-separated)            |
+| `--auto-commit`              | `bool`    | `false`     | Include automatic commit instructions at task/batch completion                                |
+| `--dry-run`                  | `bool`    | `false`     | Only generate prompts; do not run IDE tool                                                    |
+| `--form`                     | `bool`    | `false`     | Use interactive form to collect parameters                                                    |
 
 ## 🏗️ Project Layout
 
@@ -356,6 +457,7 @@ internal/looper/         Internal facade for preparation and execution
   plan/                  Input discovery, filtering, grouping, batch prep
   prompt/                Prompt builders emitting runtime context + skill names
   run/                   Execution pipeline, logging, shutdown, Bubble Tea UI
+internal/setup/          Bundled skill installer (agent detection, symlink/copy)
 internal/version/        Build metadata
 skills/                  Bundled installable skills
 tasks/docs/              Standalone document templates (PRD, TechSpec, ADR)
@@ -371,21 +473,6 @@ make test      # Run tests with race detector
 make build     # Compile binary
 make verify    # Full pipeline: fmt → lint → test → build
 ```
-
-## 🔀 Migration Guide
-
-Migrating from a repository that currently vendors `scripts/markdown`:
-
-1. Remove the copied script tree
-2. Install the CLI and skills:
-   ```bash
-   go install github.com/compozy/looper/cmd/looper@latest
-   npx skills add https://github.com/compozy/looper
-   ```
-3. Choose whether to shell out to `looper` or import `github.com/compozy/looper` / `github.com/compozy/looper/command`
-4. Point Looper at the current PRD directory under `tasks/prd-<name>`
-5. Fetch reviews into `tasks/prd-<name>/reviews-NNN/` with `looper fetch-reviews --provider <provider> --pr <PR> --name <name>`
-6. Run `looper fix-reviews --name <name>` for review remediation or `looper start --name <name>` for PRD task execution
 
 ## 📄 License
 

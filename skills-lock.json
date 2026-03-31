@@ -5,6 +5,31 @@
       "source": "pedronauck/skills",
       "sourceType": "github",
       "computedHash": "c931a8c22160e8925400778fcb2266b5d1df762f3052edba65f72479f79f2d6c"
+    },
+    "create-prd": {
+      "source": "compozy/looper",
+      "sourceType": "github",
+      "computedHash": "270c8f165651c65554df9a4cde39a230c2741ab0c51192df0437fe0f6e866719"
+    },
+    "create-tasks": {
+      "source": "compozy/looper",
+      "sourceType": "github",
+      "computedHash": "805385c653a17c2eb5270d31730eec81e40b34dc1a8ade2f29bd0243c469cae8"
+    },
+    "create-techspec": {
+      "source": "compozy/looper",
+      "sourceType": "github",
+      "computedHash": "4bfd2930b08c696cc2835f8460a9a1c29e56c2e230a650a4728c846dfe65bbac"
+    },
+    "execute-prd-task": {
+      "source": "compozy/looper",
+      "sourceType": "github",
+      "computedHash": "7f3be4642d4f4695349b360d79067a36a28fd2b5170b541e0e88343227a484e5"
+    },
+    "fix-reviews": {
+      "source": "compozy/looper",
+      "sourceType": "github",
+      "computedHash": "92db53a2c5f2b57282bc6becfad0b2d08bb0919e17b5e0a6317b0c62541ce34b"
     }
   }
 }
