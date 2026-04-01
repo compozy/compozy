@@ -158,7 +158,7 @@ features_always_bump_minor = false  # Alpha: features bump patch on 0.x.x
 breaking_always_bump_major = false  # Alpha: breaking changes bump minor on 0.x.x
 
 # Initial tag to use when no tags exist
-initial_tag = "v0.0.1"
+initial_tag = "v0.1.0"
 
 # Custom regex patterns to trigger specific version bumps
 custom_major_increment_regex = "MAJOR|BREAKING[- ]CHANGE"

@@ -30,7 +30,7 @@ concurrency:
 
 env:
   GO_VERSION: "1.26.1"
-  INITIAL_VERSION: "v0.0.1"
+  INITIAL_VERSION: "v0.1.0"
   NODE_VERSION: "22"
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
