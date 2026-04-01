@@ -7,6 +7,20 @@ description: Creates a Technical Specification by translating PRD business requi
 
 Translate business requirements into a detailed technical specification.
 
+<HARD-GATE>
+Do NOT generate the TechSpec document, write any file, or take any implementation action until you have presented the technical design section by section and the user has approved each section. This applies to EVERY TechSpec regardless of perceived simplicity.
+</HARD-GATE>
+
+## Asking Questions
+
+When this skill instructs you to ask the user a question, you MUST use your runtime's dedicated interactive question tool — the tool or function that presents a question to the user and **pauses execution until the user responds**. Do not output questions as plain assistant text and continue generating; always use the mechanism that blocks until the user has answered.
+
+If your runtime does not provide such a tool, present the question as your complete message and stop generating. Do not answer your own question or proceed without user input.
+
+## Anti-Pattern: "This Is Too Simple To Need Technical Design Review"
+
+Every TechSpec goes through the full design review process. A single endpoint, a minor refactor, a configuration change — all of them. "Simple" technical changes are where unexamined assumptions about existing architecture cause the most integration failures. The design review can be brief for genuinely simple changes, but you MUST present it and get approval.
+
 ## Required Inputs
 
 - Feature name identifying the `.compozy/tasks/<name>/` directory.
@@ -29,16 +43,17 @@ Translate business requirements into a detailed technical specification.
    - Cover data models and storage choices.
    - Cover API design and integration points.
    - Cover testing strategy and performance requirements.
-   - Ask at most 3 questions per round and wait for answers before the next round.
+   - Ask only one question per message. If a topic needs more exploration, break it into a sequence of individual questions.
+   - Prefer multiple-choice questions when the options can be predetermined.
 
-3. Present the design proposal for approval.
-   - System architecture overview with component relationships.
-   - Key interfaces and data models.
-   - Implementation sequencing with dependencies.
-   - Trade-offs considered and risks identified.
-   - Wait for user approval before writing the document.
-   - If the user requests changes, revise and present again.
-   - After the user approves the design, create an ADR for each significant technical decision (architecture pattern chosen, technology selected, data model approach, etc.):
+3. Present the technical design incrementally for approval.
+   - Present the design section by section, scaled to each section's complexity: a few sentences if straightforward, up to 200-300 words if nuanced.
+   - Present one section at a time and ask the user whether it looks right before moving to the next.
+   - Sections to cover: System Architecture, Core Interfaces, Data Models, API Design, Integration Points, Testing Approach, Development Sequencing.
+   - Be ready to revise any section based on feedback before proceeding.
+   - Apply YAGNI ruthlessly: remove any component, interface, or abstraction that is not strictly necessary.
+   - If the user requests changes to a section, revise and re-present that section.
+   - After all sections are approved, create an ADR for each significant technical decision (architecture pattern chosen, technology selected, data model approach, etc.):
      - Read `references/adr-template.md`.
      - Determine the next ADR number by listing existing files in `.compozy/tasks/<name>/adrs/`.
      - Fill the template: the chosen design as "Decision", rejected alternatives as "Alternatives Considered", and trade-offs as "Consequences". Set Status to "Accepted" and Date to today.
@@ -52,6 +67,29 @@ Translate business requirements into a detailed technical specification.
    - Reference PRD sections by name but do not duplicate business context.
    - Include code examples only for core interfaces, limited to 20 lines each.
 
+## Process Flow
+
+```dot
+digraph create_techspec {
+    "Gather context (PRD + codebase)" [shape=box];
+    "Ask technical questions (one at a time)" [shape=box];
+    "Present design section by section" [shape=box];
+    "User approves section?" [shape=diamond];
+    "All sections approved?" [shape=diamond];
+    "Create ADRs for key decisions" [shape=box];
+    "Generate TechSpec document" [shape=doublecircle];
+
+    "Gather context (PRD + codebase)" -> "Ask technical questions (one at a time)";
+    "Ask technical questions (one at a time)" -> "Present design section by section";
+    "Present design section by section" -> "User approves section?";
+    "User approves section?" -> "Present design section by section" [label="no, revise"];
+    "User approves section?" -> "All sections approved?" [label="yes"];
+    "All sections approved?" -> "Present design section by section" [label="next section"];
+    "All sections approved?" -> "Create ADRs for key decisions" [label="all done"];
+    "Create ADRs for key decisions" -> "Generate TechSpec document";
+}
+```
+
 ## Error Handling
 
 - If the PRD is missing, proceed with user-provided context and note the absence in the Executive Summary.
@@ -59,3 +97,11 @@ Translate business requirements into a detailed technical specification.
 - If the user rejects the design proposal, incorporate all feedback and present a revised proposal.
 - If the target directory does not exist, create it.
 - If operating in update mode, preserve sections the user has not asked to change.
+
+## Key Principles
+
+- **One question at a time** — Do not overwhelm with multiple questions in a single message
+- **Multiple choice preferred** — Easier for users to answer than open-ended when possible
+- **YAGNI ruthlessly** — Remove unnecessary components, abstractions, and interfaces from all designs
+- **Incremental validation** — Present design section by section, get approval before moving on
+- **Technical focus only** — Never ask business questions; that belongs in the PRD

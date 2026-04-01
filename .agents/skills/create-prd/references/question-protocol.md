@@ -36,6 +36,14 @@ Refine the selected approach with targeted follow-ups.
 - Validate success criteria and metrics.
 - Resolve any remaining open questions.
 
+### 4b. Incremental Design Validation
+
+Present the product design section by section for user approval.
+- Scale each section to its complexity: brief for straightforward topics, detailed for nuanced ones.
+- Present one section at a time; ask whether it looks right before moving on.
+- Apply YAGNI: challenge every feature against MVP necessity.
+- Be ready to revise any section before proceeding to the next.
+
 ### 5. Creation
 
 Generate the PRD document using the gathered context.
@@ -45,10 +53,15 @@ Generate the PRD document using the gathered context.
 
 ## Rules
 
+### Interactive Question Enforcement
+- Every question MUST be asked using the runtime's dedicated interactive question tool — the one that presents the question and pauses execution until the user responds.
+- Do not output questions as plain text and continue generating.
+- If no such tool is available, present the question as your complete message and stop generating.
+
 ### Question Limits
-- Ask at most 3 questions per round.
+- Ask only one question per message. If a topic needs deeper exploration, break it into a sequence of individual questions.
 - Prefer multiple-choice questions when the options can be predetermined.
-- Wait for answers before asking the next round of questions.
+- Wait for the user's answer before asking the next question.
 
 ### Progression Gates
 - Must complete at least one full Understanding round before presenting Options.
@@ -65,3 +78,6 @@ Generate the PRD document using the gathered context.
 - Challenge every feature: does the MVP need this?
 - Defer nice-to-have features to later phases.
 - Prefer smaller, well-defined scope over ambitious breadth.
+
+### Anti-Pattern: Skipping Brainstorming For "Simple" Features
+Every PRD goes through the full question protocol regardless of perceived simplicity. Simple features are where unexamined business assumptions cause the most rework. The brainstorming can be brief, but it must happen.

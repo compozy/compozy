@@ -248,7 +248,7 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		"model",
 		"",
 		"Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, "+
-			"cursor=composer-1, opencode/pi=anthropic/claude-sonnet-4-20250514)",
+			"cursor=composer-1, opencode/pi=anthropic/claude-opus-4-6)",
 	)
 	cmd.Flags().StringSliceVar(
 		&state.addDirs,

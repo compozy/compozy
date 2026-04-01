@@ -2,9 +2,11 @@ package run
 
 import (
 	"context"
+	"fmt"
 	"image/color"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -147,6 +149,50 @@ func TestUIModelAvoidsNestedViewportBackgrounds(t *testing.T) {
 	}
 }
 
+func TestTitleBarOwnsBaseBackground(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t)
+
+	assertRenderedCellsUseBackground(t, m.renderTitleBar(), colorBgBase)
+}
+
+func TestHelpOwnsBaseBackground(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t)
+
+	assertRenderedCellsUseBackground(t, m.renderHelp(), colorBgBase)
+}
+
+func TestSidebarOwnsSurfaceBackground(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t)
+
+	assertRenderedCellsUseBackground(t, m.renderSidebar(), colorBgSurface)
+}
+
+func TestMetaCardOwnsSurfaceBackground(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t)
+	mainWidth, _ := m.mainDimensions()
+	bodyWidth := mainWidth - mainHorizontalPadding
+
+	assertRenderedCellsUseBackground(t, m.buildMetaCard(&m.jobs[m.selectedJob], bodyWidth), colorBgSurface)
+}
+
+func TestLogsHeaderOwnsBaseBackground(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t)
+	mainWidth, _ := m.mainDimensions()
+	bodyWidth := mainWidth - mainHorizontalPadding
+
+	assertRenderedCellsUseBackground(t, m.renderLogsHeader(bodyWidth), colorBgBase)
+}
+
 func newPopulatedUIModelForTest(t *testing.T) *uiModel {
 	t.Helper()
 
@@ -182,4 +228,100 @@ func sameColor(left, right color.Color) bool {
 	lr, lg, lb, la := left.RGBA()
 	rr, rg, rb, ra := right.RGBA()
 	return lr == rr && lg == rg && lb == rb && la == ra
+}
+
+type ansiBackgroundState struct {
+	set  bool
+	code string
+}
+
+func assertRenderedCellsUseBackground(t *testing.T, rendered string, want color.Color) {
+	t.Helper()
+
+	wantCode := backgroundCode(want)
+	var state ansiBackgroundState
+
+	for i := 0; i < len(rendered); {
+		if rendered[i] == '\x1b' {
+			if i+1 >= len(rendered) || rendered[i+1] != '[' {
+				t.Fatalf("unsupported ANSI escape at byte %d in %q", i, rendered)
+			}
+			seqEnd := strings.IndexByte(rendered[i:], 'm')
+			if seqEnd < 0 {
+				t.Fatalf("unterminated ANSI escape at byte %d in %q", i, rendered)
+			}
+			state.apply(rendered[i+2 : i+seqEnd])
+			i += seqEnd + 1
+			continue
+		}
+
+		r, size := utf8.DecodeRuneInString(rendered[i:])
+		if r == utf8.RuneError && size == 1 {
+			t.Fatalf("invalid UTF-8 rune at byte %d in %q", i, rendered)
+		}
+		if r == '\n' || r == '\r' {
+			i += size
+			continue
+		}
+		if !state.set || state.code != wantCode {
+			t.Fatalf(
+				"expected background %s for rune %q at byte %d, got %q in %q",
+				wantCode,
+				r,
+				i,
+				state.code,
+				rendered,
+			)
+		}
+		i += size
+	}
+}
+
+func backgroundCode(c color.Color) string {
+	r, g, b, _ := c.RGBA()
+	return fmt.Sprintf("48;2;%d;%d;%d", r>>8, g>>8, b>>8)
+}
+
+func (s *ansiBackgroundState) apply(seq string) {
+	if seq == "" {
+		s.set = false
+		s.code = ""
+		return
+	}
+
+	params := strings.Split(seq, ";")
+	for i := 0; i < len(params); i++ {
+		if params[i] == "" {
+			params[i] = "0"
+		}
+
+		switch params[i] {
+		case "0":
+			s.set = false
+			s.code = ""
+		case "49":
+			s.set = false
+			s.code = ""
+		case "48":
+			if i+1 >= len(params) {
+				continue
+			}
+			switch params[i+1] {
+			case "2":
+				if i+4 >= len(params) {
+					continue
+				}
+				s.set = true
+				s.code = strings.Join(params[i:i+5], ";")
+				i += 4
+			case "5":
+				if i+2 >= len(params) {
+					continue
+				}
+				s.set = true
+				s.code = strings.Join(params[i:i+3], ";")
+				i += 2
+			}
+		}
+	}
 }

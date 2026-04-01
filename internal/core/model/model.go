@@ -16,8 +16,8 @@ const (
 	DefaultCodexModel      = "gpt-5.4"
 	DefaultClaudeModel     = "opus"
 	DefaultCursorModel     = "composer-1"
-	DefaultOpenCodeModel   = "anthropic/claude-sonnet-4-20250514"
-	DefaultPiModel         = "anthropic/claude-sonnet-4-20250514"
+	DefaultOpenCodeModel   = "anthropic/claude-opus-4-6"
+	DefaultPiModel         = "anthropic/claude-opus-4-6"
 	DefaultActivityTimeout = 10 * time.Minute
 	WorkflowRootDirName    = ".compozy"
 	WorkflowTasksDirName   = "tasks"

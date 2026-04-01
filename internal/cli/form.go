@@ -355,7 +355,7 @@ func (fb *formBuilder) addModelField(target *string) {
 			Title("Model (optional)").
 			Placeholder("auto").
 			Description("Model override (defaults: codex/droid=gpt-5.4, " +
-				"claude=opus, opencode/pi=anthropic/claude-sonnet-4-20250514)").
+				"claude=opus, opencode/pi=anthropic/claude-opus-4-6)").
 			Value(target)
 	})
 }
