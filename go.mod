@@ -1,4 +1,4 @@
-module github.com/compozy/looper
+module github.com/compozy/compozy
 
 go 1.26.1
 

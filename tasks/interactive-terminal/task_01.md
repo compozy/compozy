@@ -32,13 +32,13 @@ Create the foundational `Terminal` component that wraps a pseudo-terminal (xpty)
 
 ## Subtasks
 - [ ] 1.1 Add x/vt and x/xpty dependencies to go.mod via `go get`
-- [ ] 1.2 Create `internal/looper/run/terminal.go` with the `Terminal` struct and full lifecycle (New, Start, Render, WriteInput, Resize, IsAlive, Close)
+- [ ] 1.2 Create `internal/core/run/terminal.go` with the `Terminal` struct and full lifecycle (New, Start, Render, WriteInput, Resize, IsAlive, Close)
 - [ ] 1.3 Implement PTY→emulator read goroutine and emulator→PTY response forwarding goroutine
 - [ ] 1.4 Implement process exit detection (goroutine that waits on cmd.Wait and updates alive state)
 - [ ] 1.5 Write comprehensive unit tests for the Terminal component
 
 ## Implementation Details
-Create a new file `internal/looper/run/terminal.go`. The Terminal struct encapsulates:
+Create a new file `internal/core/run/terminal.go`. The Terminal struct encapsulates:
 - `xpty.Pty` for PTY management
 - `vt.SafeEmulator` for terminal emulation
 - `*exec.Cmd` for the spawned process
@@ -47,18 +47,18 @@ Create a new file `internal/looper/run/terminal.go`. The Terminal struct encapsu
 Reference the TechSpec "Core Interfaces" section for the Terminal API surface. Reference ADR-001 for the architectural rationale.
 
 ### Relevant Files
-- `internal/looper/run/terminal.go` — NEW: Terminal wrapper component
+- `internal/core/run/terminal.go` — NEW: Terminal wrapper component
 - `go.mod` — Add x/vt and x/xpty dependencies
 
 ### Dependent Files
-- `internal/looper/run/execution.go` — Will use Terminal in task_05
-- `internal/looper/run/ui_model.go` — Will hold Terminal refs in task_05
+- `internal/core/run/execution.go` — Will use Terminal in task_05
+- `internal/core/run/ui_model.go` — Will hold Terminal refs in task_05
 
 ### Related ADRs
 - [ADR-001: PTY + VT Emulator for Terminal Embedding](adrs/adr-001.md) — Defines why xpty + x/vt SafeEmulator was chosen over alternatives
 
 ## Deliverables
-- `internal/looper/run/terminal.go` with complete Terminal implementation
+- `internal/core/run/terminal.go` with complete Terminal implementation
 - Updated `go.mod` and `go.sum` with x/vt and x/xpty dependencies
 - Unit tests with 80%+ coverage **(REQUIRED)**
 

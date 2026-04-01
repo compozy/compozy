@@ -1,4 +1,4 @@
-name: "CodeQL Configuration for Looper"
+name: "CodeQL Configuration for Compozy"
 
 # Disable default queries and use security-focused queries
 disable-default-queries: false
@@ -13,7 +13,7 @@ paths:
   - "cmd/"
   - "command/"
   - "internal/"
-  - "looper.go"
+  - "compozy.go"
 
 # Paths to ignore
 paths-ignore:

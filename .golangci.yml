@@ -77,7 +77,7 @@ linters:
       - linters:
           - gosec
         text: "G204"
-        path: internal/looper/agent/
+        path: internal/core/agent/
       - linters:
           - gocritic
         text: unnecessaryDefer

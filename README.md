@@ -1,15 +1,15 @@
-# 🔄 Looper
+# 🔄 Compozy
 
 **Drive the full lifecycle of AI-assisted development — from idea to shipped code.**
 
-Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, Codex, Droid, Cursor) to process structured markdown workflows. It covers product ideation, technical specification, task breakdown with codebase-informed enrichment, and automated execution.
+Compozy is a Go module and CLI that orchestrates AI coding agents (Claude Code, Codex, Droid, Cursor) to process structured markdown workflows. It covers product ideation, technical specification, task breakdown with codebase-informed enrichment, and automated execution.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 
 ## 📑 Table of Contents
 
-- [🔄 Looper](#-looper)
+- [🔄 Compozy](#-compozy)
   - [📑 Table of Contents](#-table-of-contents)
   - [✨ Features](#-features)
   - [🚀 Installation](#-installation)
@@ -43,17 +43,17 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
     - [PR Review](#pr-review)
     - [Embedding](#embedding)
   - [⌨️ CLI Reference](#️-cli-reference)
-    - [`looper setup`](#looper-setup)
-    - [`looper fetch-reviews`](#looper-fetch-reviews)
-    - [`looper start`](#looper-start)
-    - [`looper fix-reviews`](#looper-fix-reviews)
+    - [`compozy setup`](#compozy-setup)
+    - [`compozy fetch-reviews`](#compozy-fetch-reviews)
+    - [`compozy start`](#compozy-start)
+    - [`compozy fix-reviews`](#compozy-fix-reviews)
   - [🏗️ Project Layout](#️-project-layout)
   - [🛠️ Development](#️-development)
   - [📄 License](#-license)
 
 ## ✨ Features
 
-- **Built-in skills installer** — `looper setup` installs bundled skills directly into 30+ AI agents with auto-detection, no external tools needed
+- **Built-in skills installer** — `compozy setup` installs bundled skills directly into 30+ AI agents with auto-detection, no external tools needed
 - **End-to-end PRD workflow** — go from a product idea to implemented code through structured phases
 - **Provider-agnostic PR review automation** — fetch and remediate review feedback in tracked rounds under each PRD
 - **Multi-agent support** — run tasks through Claude Code, Codex, Droid, Cursor, and many more
@@ -68,42 +68,42 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
 
 ```bash
 brew tap compozy/compozy
-brew install --cask looper
+brew install --cask compozy
 ```
 
 #### NPM
 
 ```bash
-npm install -g @compozy/looper
+npm install -g @compozy/cli
 ```
 
 #### Go Install
 
 ```bash
-go install github.com/compozy/looper/cmd/looper@latest
+go install github.com/compozy/compozy/cmd/compozy@latest
 ```
 
 #### From Source
 
 ```bash
-git clone git@github.com:compozy/looper.git
-cd looper
+git clone git@github.com:compozy/compozy.git
+cd compozy
 make verify
-go build ./cmd/looper
+go build ./cmd/compozy
 ```
 
 ### Post-install: Set Up Skills
 
-Install the bundled skills that Looper prompts expect:
+Install the bundled skills that Compozy prompts expect:
 
 ```bash
-looper setup
+compozy setup
 ```
 
 Non-interactive example:
 
 ```bash
-looper setup \
+compozy setup \
   --agent codex \
   --agent claude \
   --skill create-prd \
@@ -122,7 +122,7 @@ This walkthrough builds a feature called **user-auth** from idea to shipped code
 > **Tip:** Every CLI command supports `--form` for interactive mode, which guides you through all options.
 
 ```
-looper setup                          Install skills (once per project)
+compozy setup                          Install skills (once per project)
    │
    ▼
 /create-prd user-auth                 ──▶  tasks/user-auth/_prd.md
@@ -134,13 +134,13 @@ looper setup                          Install skills (once per project)
 /create-tasks user-auth               ──▶  tasks/user-auth/task_01.md … task_N.md
    │
    ▼
-looper start --name user-auth         ──▶  AI agents execute each task
+compozy start --name user-auth         ──▶  AI agents execute each task
    │
    ▼
 /review-round user-auth               ──▶  tasks/user-auth/reviews-001/
-   │  (or looper fetch-reviews)
+   │  (or compozy fetch-reviews)
    ▼
-looper fix-reviews --name user-auth   ──▶  Issues triaged, fixed, resolved
+compozy fix-reviews --name user-auth   ──▶  Issues triaged, fixed, resolved
    │
    ▼
 🔁 Repeat review → fix until clean   ──▶  Ship it
@@ -148,10 +148,10 @@ looper fix-reviews --name user-auth   ──▶  Issues triaged, fixed, resolved
 
 ### Step 1: Install skills into your AI agents
 
-Looper bundles all the skills its workflows depend on. Run `setup` once per project to install them into your AI agents (Claude Code, Codex, Cursor, etc.):
+Compozy bundles all the skills its workflows depend on. Run `setup` once per project to install them into your AI agents (Claude Code, Codex, Cursor, etc.):
 
 ```bash
-looper setup --all --yes
+compozy setup --all --yes
 ```
 
 This auto-detects installed agents and copies (or symlinks) skills into their configuration directories. See [Skills Setup](#️-skills-setup) for agent-specific options.
@@ -210,12 +210,12 @@ tasks/user-auth/
 Now hand the tasks to AI agents for automated implementation:
 
 ```bash
-looper start --name user-auth --ide claude
+compozy start --name user-auth --ide claude
 ```
 
-Looper processes each pending task sequentially — the agent reads the task spec, implements the code, validates it, and updates the task status from `pending` to `completed`.
+Compozy processes each pending task sequentially — the agent reads the task spec, implements the code, validates it, and updates the task status from `pending` to `completed`.
 
-Use `--dry-run` to preview generated prompts without executing. Add `--auto-commit` to automatically commit after each task. See [CLI Reference — `looper start`](#looper-start) for all flags.
+Use `--dry-run` to preview generated prompts without executing. Add `--auto-commit` to automatically commit after each task. See [CLI Reference — `compozy start`](#compozy-start) for all flags.
 
 ### Step 6: Review the implementation
 
@@ -232,7 +232,7 @@ This performs a comprehensive code review across security, correctness, performa
 **Option B** — Fetch review comments from an external provider (CodeRabbit, GitHub, etc.):
 
 ```bash
-looper fetch-reviews --provider coderabbit --pr 42 --name user-auth
+compozy fetch-reviews --provider coderabbit --pr 42 --name user-auth
 ```
 
 Both options produce the same output format:
@@ -252,10 +252,10 @@ See [PR Review Workflow](#-pr-review-workflow) for details.
 Dispatch AI agents to triage and fix all review issues:
 
 ```bash
-looper fix-reviews --name user-auth --ide claude --concurrent 2 --batch-size 3
+compozy fix-reviews --name user-auth --ide claude --concurrent 2 --batch-size 3
 ```
 
-Each agent reads the issue files, triages them as valid or invalid, implements fixes for valid issues, and updates the issue status to `resolved`. Looper automatically resolves provider threads (CodeRabbit, GitHub) for resolved issues.
+Each agent reads the issue files, triages them as valid or invalid, implements fixes for valid issues, and updates the issue status to `resolved`. Compozy automatically resolves provider threads (CodeRabbit, GitHub) for resolved issues.
 
 ### Step 8: Iterate until clean
 
@@ -265,35 +265,35 @@ Repeat steps 6 and 7 until no issues remain. Each cycle creates a new review rou
 
 ## 🛠️ Skills Setup
 
-Looper bundles all the skills that its workflows depend on. The `looper setup` command installs them directly into the configuration directories of your AI coding agents — **no external package manager or `npx` required**.
+Compozy bundles all the skills that its workflows depend on. The `compozy setup` command installs them directly into the configuration directories of your AI coding agents — **no external package manager or `npx` required**.
 
 ### How It Works
 
-1. **Detect** — Looper scans your system for installed agents (Claude Code, Codex, Cursor, etc.)
+1. **Detect** — Compozy scans your system for installed agents (Claude Code, Codex, Cursor, etc.)
 2. **Select** — In interactive mode you pick which skills and agents to install; in non-interactive mode flags or `--all` drive the selection
 3. **Preview** — A summary of every file that will be created is shown before confirmation
 4. **Install** — Skills are copied (or symlinked) into each agent's skills directory
 
 ```bash
 # Interactive — walks you through skill/agent selection
-looper setup
+compozy setup
 
 # Install everything to every detected agent, no prompts
-looper setup --all
+compozy setup --all
 
 # Target specific agents and skills
-looper setup --agent claude --agent codex --skill create-prd --skill create-techspec --yes
+compozy setup --agent claude --agent codex --skill create-prd --skill create-techspec --yes
 
 # Install globally (user-level) instead of per-project
-looper setup --global --yes
+compozy setup --global --yes
 
 # List available bundled skills without installing
-looper setup --list
+compozy setup --list
 ```
 
 ### Supported Agents
 
-Looper auto-detects and supports **30+ agents and editors**, including:
+Compozy auto-detects and supports **30+ agents and editors**, including:
 
 | Agent            | Project Directory  | Notes                                         |
 | ---------------- | ------------------ | --------------------------------------------- |
@@ -309,16 +309,16 @@ Looper auto-detects and supports **30+ agents and editors**, including:
 | Goose            | `.goose/skills`    |                                               |
 | Roo Code         | `.roo/skills`      |                                               |
 | Augment          | `.augment/skills`  |                                               |
-| _…and many more_ |                    | Run `looper setup` to see all detected agents |
+| _…and many more_ |                    | Run `compozy setup` to see all detected agents |
 
 ### Installation Modes
 
-When installing to **multiple agents**, Looper offers two modes:
+When installing to **multiple agents**, Compozy offers two modes:
 
 - **Symlink** _(recommended)_ — One canonical copy in `.agents/skills/`, with symlinks from each agent directory. Keeps all agents in sync automatically.
 - **Copy** — Duplicates skill files into each agent directory independently. Use `--copy` when symlinks are not supported (e.g., some CI environments).
 
-When installing to a **single agent**, Looper copies directly since symlinking offers no benefit.
+When installing to a **single agent**, Compozy copies directly since symlinking offers no benefit.
 
 ---
 
@@ -341,7 +341,7 @@ The PRD workflow takes you from a product idea to implemented code through a str
 /create-tasks        ──▶  tasks/<name>/_tasks.md + task_01.md … task_N.md
    │
    ▼
-looper start --name <name>  ──▶  AI agents execute each task sequentially
+compozy start --name <name>  ──▶  AI agents execute each task sequentially
 ```
 
 Each step is independent — you can start from any point. All artifacts are plain markdown files in `tasks/<name>/`.
@@ -351,7 +351,7 @@ Each step is independent — you can start from any point. All artifacts are pla
 Execute tasks from a PRD directory:
 
 ```bash
-looper start \
+compozy start \
   --name multi-repo \
   --tasks-dir tasks/multi-repo \
   --ide claude
@@ -360,7 +360,7 @@ looper start \
 Preview generated prompts without executing (dry run):
 
 ```bash
-looper start \
+compozy start \
   --name multi-repo \
   --tasks-dir tasks/multi-repo \
   --dry-run
@@ -389,7 +389,7 @@ tasks/<name>/
   task_N.md
 ```
 
-Files prefixed with `_` are meta documents. Task files (`task_*.md`) are the executable units Looper processes.
+Files prefixed with `_` are meta documents. Task files (`task_*.md`) are the executable units Compozy processes.
 
 Each task file follows a structured format:
 
@@ -413,15 +413,15 @@ Each task file follows a structured format:
 
 ## 🔍 PR Review Workflow
 
-The PR review workflow automates the remediation of code review feedback. Review comments are fetched into versioned rounds under the PRD directory, then batched for parallel execution. Looper resolves provider threads automatically after a batch succeeds.
+The PR review workflow automates the remediation of code review feedback. Review comments are fetched into versioned rounds under the PRD directory, then batched for parallel execution. Compozy resolves provider threads automatically after a batch succeeds.
 
 ### How It Works
 
 1. **Review** (optional) — `/review-round` performs a manual code review and creates `tasks/<name>/reviews-NNN/` with issue files
-2. **Fetch** (alternative) — `looper fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/<name>/reviews-NNN/` from a provider
-3. **Batch** — Looper groups and batches `issue_NNN.md` files based on `--batch-size` and `--grouped`
+2. **Fetch** (alternative) — `compozy fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/<name>/reviews-NNN/` from a provider
+3. **Batch** — Compozy groups and batches `issue_NNN.md` files based on `--batch-size` and `--grouped`
 4. **Execute** — AI agents process each batch concurrently, triaging issues, implementing fixes, and updating issue statuses
-5. **Resolve** — after a successful batch, Looper resolves provider threads for issue files that changed to `## Status: resolved`
+5. **Resolve** — after a successful batch, Compozy resolves provider threads for issue files that changed to `## Status: resolved`
 6. **Verify** — each batch is validated before completion or auto-commit
 
 ### Prerequisites
@@ -434,7 +434,7 @@ The PR review workflow automates the remediation of code review feedback. Review
 Fetch a new review round:
 
 ```bash
-looper fetch-reviews \
+compozy fetch-reviews \
   --provider coderabbit \
   --pr 259 \
   --name my-feature
@@ -443,7 +443,7 @@ looper fetch-reviews \
 Process batched review issues from the latest round:
 
 ```bash
-looper fix-reviews \
+compozy fix-reviews \
   --name my-feature \
   --ide codex \
   --concurrent 2 \
@@ -475,10 +475,10 @@ These skills are used across both workflows.
 Prepare work without executing any IDE process:
 
 ```go
-prep, err := looper.Prepare(context.Background(), looper.Config{
+prep, err := compozy.Prepare(context.Background(), compozy.Config{
     Name:     "multi-repo",
     TasksDir: "tasks/multi-repo",
-    Mode:     looper.ModePRDTasks,
+    Mode:     compozy.ModePRDTasks,
     DryRun:   true,
 })
 ```
@@ -488,16 +488,16 @@ prep, err := looper.Prepare(context.Background(), looper.Config{
 Fetch a review round, then execute the remediation loop:
 
 ```go
-_, _ = looper.FetchReviews(context.Background(), looper.Config{
+_, _ = compozy.FetchReviews(context.Background(), compozy.Config{
     Name:     "my-feature",
     Provider: "coderabbit",
     PR:       "259",
 })
 
-_ = looper.Run(context.Background(), looper.Config{
+_ = compozy.Run(context.Background(), compozy.Config{
     Name:            "my-feature",
-    Mode:            looper.ModePRReview,
-    IDE:             looper.IDECodex,
+    Mode:            compozy.ModePRReview,
+    IDE:             compozy.IDECodex,
     ReasoningEffort: "medium",
 })
 ```
@@ -513,12 +513,12 @@ _ = root.Execute()
 
 ## ⌨️ CLI Reference
 
-### `looper setup`
+### `compozy setup`
 
-Install Looper bundled public skills for supported agents/editors.
+Install Compozy bundled public skills for supported agents/editors.
 
 ```bash
-looper setup [flags]
+compozy setup [flags]
 ```
 
 | Flag             | Type      | Default | Description                                                               |
@@ -531,28 +531,28 @@ looper setup [flags]
 | `--yes`, `-y`    | `bool`    | `false` | Skip confirmation prompts                                                 |
 | `--all`          | `bool`    | `false` | Install all bundled public skills to all supported agents without prompts |
 
-### `looper fetch-reviews`
+### `compozy fetch-reviews`
 
 Fetch provider review comments into a PRD review round.
 
 ```bash
-looper fetch-reviews [flags]
+compozy fetch-reviews [flags]
 ```
 
-| Flag         | Type     | Default | Description                                                                |
-| ------------ | -------- | ------- | -------------------------------------------------------------------------- |
-| `--provider` | `string` |         | Review provider name (for example: `coderabbit`)                           |
-| `--pr`       | `string` |         | Pull request number                                                        |
-| `--name`     | `string` |         | PRD workflow name (used for `tasks/<name>`)                            |
-| `--round`    | `int`    | `0`     | Review round number. When omitted, Looper creates the next available round |
-| `--form`     | `bool`   | `false` | Use interactive form to collect parameters                                 |
+| Flag         | Type     | Default | Description                                                                  |
+| ------------ | -------- | ------- | ---------------------------------------------------------------------------- |
+| `--provider` | `string` |         | Review provider name (for example: `coderabbit`)                             |
+| `--pr`       | `string` |         | Pull request number                                                          |
+| `--name`     | `string` |         | PRD workflow name (used for `tasks/<name>`)                                  |
+| `--round`    | `int`    | `0`     | Review round number. When omitted, Compozy creates the next available round  |
+| `--form`     | `bool`   | `false` | Use interactive form to collect parameters                                   |
 
-### `looper start`
+### `compozy start`
 
 Execute PRD task files from a PRD workflow directory.
 
 ```bash
-looper start [flags]
+compozy start [flags]
 ```
 
 | Flag                         | Type      | Default     | Description                                                                                   |
@@ -572,18 +572,18 @@ looper start [flags]
 | `--dry-run`                  | `bool`    | `false`     | Only generate prompts; do not run IDE tool                                                    |
 | `--form`                     | `bool`    | `false`     | Use interactive form to collect parameters                                                    |
 
-### `looper fix-reviews`
+### `compozy fix-reviews`
 
 Process review issue markdown files from a PRD review round and dispatch AI agents to remediate feedback.
 
 ```bash
-looper fix-reviews [flags]
+compozy fix-reviews [flags]
 ```
 
 | Flag                         | Type      | Default     | Description                                                                                   |
 | ---------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------- |
 | `--name`                     | `string`  |             | PRD workflow name (used for `tasks/<name>`)                                               |
-| `--round`                    | `int`     | `0`         | Review round number. When omitted, Looper uses the latest existing round                      |
+| `--round`                    | `int`     | `0`         | Review round number. When omitted, Compozy uses the latest existing round                     |
 | `--reviews-dir`              | `string`  |             | Override path to a review round directory (`tasks/<name>/reviews-NNN`)                    |
 | `--ide`                      | `string`  | `codex`     | IDE tool to use: `claude`, `codex`, `cursor`, or `droid`                                      |
 | `--model`                    | `string`  | _(per IDE)_ | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
@@ -604,10 +604,10 @@ looper fix-reviews [flags]
 ## 🏗️ Project Layout
 
 ```
-cmd/looper/              CLI entry point
+cmd/compozy/             CLI entry point
 command/                 Public Cobra wrapper for embedding
 internal/cli/            Cobra flags, interactive form, CLI glue
-internal/looper/         Internal facade for preparation and execution
+internal/core/           Internal facade for preparation and execution
   agent/                 IDE command validation and process construction
   model/                 Shared runtime data structures
   plan/                  Input discovery, filtering, grouping, batch prep
@@ -632,4 +632,4 @@ make verify    # Full pipeline: fmt → lint → test → build
 
 ## 📄 License
 
-Looper is licensed under the [MIT License](LICENSE).
+Compozy is licensed under the [MIT License](LICENSE).

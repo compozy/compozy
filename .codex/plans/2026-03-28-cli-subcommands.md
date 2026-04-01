@@ -3,18 +3,18 @@
 ## Summary
 
 - Replace the root-level `--mode pr-review|prd-tasks` switch with two explicit Cobra subcommands:
-  - `looper fix-reviews`
-  - `looper start`
+  - `compozy fix-reviews`
+  - `compozy start`
 - Make this a clean breaking CLI change:
   - remove `--mode` entirely from help and parsing
-  - `looper` becomes a help-only parent command
-  - interactive mode moves to `looper fix-reviews --form` and `looper start --form`
+  - `compozy` becomes a help-only parent command
+  - interactive mode moves to `compozy fix-reviews --form` and `compozy start --form`
 - Keep the internal and public Go API mode model intact for library callers; only the CLI surface changes.
 
 ## Implementation Changes
 
 - Refactor `internal/cli/root.go` to build a fresh Cobra command tree per `NewRootCommand()` call instead of reusing one global root command with shared package state.
-- Define a root command with no execution path of its own; running bare `looper` should print help and exit successfully.
+- Define a root command with no execution path of its own; running bare `compozy` should print help and exit successfully.
 - Add two leaf commands with explicit workflow ownership:
   - `fix-reviews` sets `core.ModePRReview`
   - `start` sets `core.ModePRDTasks`
@@ -23,29 +23,29 @@
   - `fix-reviews` only: `--pr`, `--issues-dir`, `--batch-size`, `--grouped`
   - `start` only: `--name`, `--tasks-dir`, `--include-completed`
 - Remove CLI-only prechecks that assume `--pr` is always required, and make subcommands build `core.Config` directly with the correct mode.
-- Preserve `core.Config.Mode`, `looper.ModePRReview`, and `looper.ModePRDTasks` for embedders and Go package usage; the subcommands should set `Mode` explicitly when building config.
+- Preserve `core.Config.Mode`, `compozy.ModePRReview`, and `compozy.ModePRDTasks` for embedders and Go package usage; the subcommands should set `Mode` explicitly when building config.
 - Update the form flow in `internal/cli/form.go`:
   - remove the mode selector entirely
   - make `fix-reviews --form` show only review fields
   - make `start --form` show only PRD-task fields
   - keep the existing Huh/Bubble Tea theme and interaction model; no layout redesign is needed
-- Update input resolution in `internal/looper/plan/input.go` so PRD runs can infer the task name from `tasks/prd-<name>` when `--tasks-dir` is provided without `--name`, mirroring the existing review-side directory inference.
+- Update input resolution in `internal/compozy/plan/input.go` so PRD runs can infer the task name from `tasks/prd-<name>` when `--tasks-dir` is provided without `--name`, mirroring the existing review-side directory inference.
 - Replace mode/flag-specific error text that would leak old CLI wording with workflow-appropriate messaging for review vs PRD task execution.
 
 ## Public CLI / Interface Changes
 
 - New CLI entrypoints:
-  - `looper fix-reviews`
-  - `looper start`
+  - `compozy fix-reviews`
+  - `compozy start`
 - Removed CLI flag:
   - `--mode`
 - New `start` flag names:
   - `--name`
   - `--tasks-dir`
 - Root behavior:
-  - `looper` shows help
-  - `looper --form` is no longer a valid workflow entrypoint
-  - users must run `looper fix-reviews --form` or `looper start --form`
+  - `compozy` shows help
+  - `compozy --form` is no longer a valid workflow entrypoint
+  - users must run `compozy fix-reviews --form` or `compozy start --form`
 - No planned changes to the embeddable Go API beyond the root Cobra command now exposing subcommands.
 
 ## Test Plan

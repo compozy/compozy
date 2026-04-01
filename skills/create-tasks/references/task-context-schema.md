@@ -1,6 +1,6 @@
 # Task Context XML Schema
 
-The `<task_context>` XML block is parsed by Looper's `ParseTaskFile()` function in `internal/looper/prompt/common.go`. Each field is extracted via regex from the content between `<task_context>` and `</task_context>` tags.
+The `<task_context>` XML block is parsed by Compozy's `ParseTaskFile()` function in `internal/core/prompt/common.go`. Each field is extracted via regex from the content between `<task_context>` and `</task_context>` tags.
 
 ## Required Fields
 
@@ -32,4 +32,4 @@ The leading underscore prefix is reserved for meta documents:
 
 ## Parser Compatibility
 
-Looper reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with `## status:` followed by the `<task_context>` block for proper parsing by `ParseTaskFile()`.
+Compozy reads task files matching the regex `^task_\d+\.md$`. Files with the old `_task_` prefix are not recognized. The file MUST start with `## status:` followed by the `<task_context>` block for proper parsing by `ParseTaskFile()`.

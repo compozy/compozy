@@ -1,8 +1,8 @@
-# Technical Specification: Compozy Skills for Looper
+# Technical Specification: Compozy Skills for Compozy
 
 ## Executive Summary
 
-Convert Compozy's core prompt workflows (PRD creation, TechSpec generation, Task breakdown) into three self-contained Claude Code skills that integrate natively with the Looper package. Each skill follows the agentskills.io spec, bundles its own templates via progressive disclosure, and writes plain markdown files to `tasks/<name>/`. A small Go code change updates the task file naming convention from `_task_*.md` to `task_*.md`.
+Convert Compozy's core prompt workflows (PRD creation, TechSpec generation, Task breakdown) into three self-contained Claude Code skills that integrate natively with the Compozy package. Each skill follows the agentskills.io spec, bundles its own templates via progressive disclosure, and writes plain markdown files to `tasks/<name>/`. A small Go code change updates the task file naming convention from `_task_*.md` to `task_*.md`.
 
 ## System Architecture
 
@@ -27,7 +27,7 @@ skills/
     SKILL.md                     # Core logic (<500 lines)
     references/
       task-template.md           # Task file template with <task_context> metadata
-      task-context-schema.md     # XML schema for Looper's ParseTaskFile()
+      task-context-schema.md     # XML schema for Compozy's ParseTaskFile()
 
   execute-prd-task/              # EXISTING — unchanged
   fix-reviews/                   # EXISTING — generic review remediation skill
@@ -37,8 +37,8 @@ skills/
 Go code changes:
 
 ```
-internal/looper/plan/input.go    # Update task file pattern: _task_*.md → task_*.md
-internal/looper/prompt/common.go # Update ExtractTaskNumber: _task_ prefix → task_ prefix
+internal/core/plan/input.go    # Update task file pattern: _task_*.md → task_*.md
+internal/core/prompt/common.go # Update ExtractTaskNumber: _task_ prefix → task_ prefix
 ```
 
 ### Output Convention
@@ -55,7 +55,7 @@ tasks/<name>/
   task_N.md
 ```
 
-The `_` prefix on `_prd.md`, `_techspec.md`, and `_tasks.md` marks them as meta documents. Task files (`task_*.md`) have no prefix — they are the executable units that Looper processes.
+The `_` prefix on `_prd.md`, `_techspec.md`, and `_tasks.md` marks them as meta documents. Task files (`task_*.md`) have no prefix — they are the executable units that Compozy processes.
 
 ## Implementation Design
 
@@ -91,7 +91,7 @@ The `_` prefix on `_prd.md`, `_techspec.md`, and `_tasks.md` marks them as meta 
 - If `tasks/<name>/` doesn't exist, create it
 
 **Template** (`references/prd-template.md`):
-Derived from Compozy's `PRD_TEMPLATE` merged with Looper's `_prd-template.md`:
+Derived from Compozy's `PRD_TEMPLATE` merged with Compozy's `_prd-template.md`:
 
 ```markdown
 ## Overview
@@ -172,7 +172,7 @@ Derived from Compozy's `PRD_TEMPLATE` merged with Looper's `_prd-template.md`:
 - If `_techspec.md` already exists, read it and operate in update mode
 
 **Template** (`references/techspec-template.md`):
-Derived from Looper's `_techspec-template.md`:
+Derived from Compozy's `_techspec-template.md`:
 
 ```markdown
 ## Executive Summary
@@ -350,8 +350,8 @@ Reference TechSpec implementation section for code patterns.]
 ```markdown
 # Task Context XML Schema
 
-The `<task_context>` XML block is parsed by Looper's `ParseTaskFile()` function
-in `internal/looper/prompt/common.go`. Each field is extracted via regex.
+The `<task_context>` XML block is parsed by Compozy's `ParseTaskFile()` function
+in `internal/core/prompt/common.go`. Each field is extracted via regex.
 
 ## Required Fields
 
@@ -371,7 +371,7 @@ The `## status: <value>` line is parsed separately. Valid values:
 
 ## Parser Compatibility
 
-Looper reads task files matching `task_\d+\.md` (no underscore prefix).
+Compozy reads task files matching `task_\d+\.md` (no underscore prefix).
 The file MUST start with `## status:` followed by `<task_context>` for proper parsing.
 ```
 
@@ -379,7 +379,7 @@ The file MUST start with `## status:` followed by `<task_context>` for proper pa
 
 ### Go Code Changes
 
-#### Change 1: `internal/looper/plan/input.go`
+#### Change 1: `internal/core/plan/input.go`
 
 Update the task file regex pattern in `readTaskEntries()`:
 
@@ -391,7 +391,7 @@ reTaskFile := regexp.MustCompile(`^_task_\d+\.md$`)
 reTaskFile := regexp.MustCompile(`^task_\d+\.md$`)
 ```
 
-#### Change 2: `internal/looper/prompt/common.go`
+#### Change 2: `internal/core/prompt/common.go`
 
 Update `ExtractTaskNumber()` to match the new naming:
 
@@ -443,7 +443,7 @@ numStr := strings.TrimPrefix(filename, "task_")
    '-- Enrichment phase: fills each task with full detail
          |
          v
-5. looper start --tasks-dir tasks/<name>/
+5. compozy start --tasks-dir tasks/<name>/
    |-- Reads task_*.md files (updated Go pattern)
    |-- execute-prd-task skill runs each task
    '-- Tasks already enriched — straight to implementation
@@ -469,7 +469,7 @@ Each step is independent. A user can run just `create-prd`, or pick up from any 
 
 ### Integration Validation
 - Create a sample `tasks/test/` with task files using new naming
-- Run `looper start --tasks-dir tasks/test/ --dry-run` to verify discovery
+- Run `compozy start --tasks-dir tasks/test/ --dry-run` to verify discovery
 - Verify generated prompts reference correct file paths
 
 ## Development Sequencing

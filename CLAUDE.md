@@ -24,21 +24,21 @@ This file provides project guidance for coding agents working in this repository
 
 ## Project Overview
 
-Looper is a Go module and CLI that drives the full lifecycle of AI-assisted development. It covers product ideation (PRD creation), technical specification, task breakdown with codebase-informed enrichment, and automated execution of each task via AI coding agents (Claude Code, Codex, Droid, Cursor). It also handles PR review remediation workflows.
+Compozy is a Go module and CLI that drives the full lifecycle of AI-assisted development. It covers product ideation (PRD creation), technical specification, task breakdown with codebase-informed enrichment, and automated execution of each task via AI coding agents (Claude Code, Codex, Droid, Cursor). It also handles PR review remediation workflows.
 
 ## Package Layout
 
 | Path                     | Responsibility                                           |
 | ------------------------ | -------------------------------------------------------- |
-| `cmd/looper`             | Standalone CLI entry point                               |
-| `command`                | Public Cobra wrapper for embedding `looper` as a command |
+| `cmd/compozy`             | Standalone CLI entry point                               |
+| `command`                | Public Cobra wrapper for embedding `compozy` as a command |
 | `internal/cli`           | Cobra flags, interactive form collection, CLI glue       |
-| `internal/looper`        | Internal facade for reusable preparation and execution    |
-| `internal/looper/agent`  | IDE command validation and process command construction   |
-| `internal/looper/model`  | Shared runtime data structures                           |
-| `internal/looper/plan`   | Input discovery, filtering, grouping, and batch prep     |
-| `internal/looper/prompt` | Thin prompt builders that emit runtime context and skill names |
-| `internal/looper/run`    | Execution pipeline, logging, shutdown, and Bubble Tea UI |
+| `internal/core`        | Internal facade for reusable preparation and execution    |
+| `internal/core/agent`  | IDE command validation and process command construction   |
+| `internal/core/model`  | Shared runtime data structures                           |
+| `internal/core/plan`   | Input discovery, filtering, grouping, and batch prep     |
+| `internal/core/prompt` | Thin prompt builders that emit runtime context and skill names |
+| `internal/core/run`    | Execution pipeline, logging, shutdown, and Bubble Tea UI |
 | `skills`                 | Bundled installable skills (creation + execution workflows) |
 | `tasks/docs`             | Standalone document templates (PRD, TechSpec, ADR)       |
 | `internal/version`       | Build metadata                                           |

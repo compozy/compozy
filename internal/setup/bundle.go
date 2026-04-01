@@ -9,7 +9,7 @@ import (
 //go:embed assets/skills/**
 var bundledSkills embed.FS
 
-// ListBundledSkills returns the public skills bundled into the looper binary.
+// ListBundledSkills returns the public skills bundled into the compozy binary.
 func ListBundledSkills() ([]Skill, error) {
 	bundle, err := bundledSkillsRoot()
 	if err != nil {

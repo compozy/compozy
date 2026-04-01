@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	core "github.com/compozy/looper/internal/looper"
+	core "github.com/compozy/compozy/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -24,10 +24,10 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	}
 
 	required := []string{
-		"looper setup",
-		"looper fetch-reviews",
-		"looper fix-reviews",
-		"looper start",
+		"compozy setup",
+		"compozy fetch-reviews",
+		"compozy fix-reviews",
+		"compozy start",
 		"setup",
 		"fetch-reviews",
 		"fix-reviews",

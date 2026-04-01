@@ -101,7 +101,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
      - The review round directory path.
      - The full list of generated issue file names.
      - Well-implemented aspects observed during the review.
-   - Suggest running `looper fix-reviews --name <name>` to process the review round.
+   - Suggest running `compozy fix-reviews --name <name>` to process the review round.
 
 7. Verify before completion.
    - Use installed `verification-before-completion` before claiming the review round is complete.

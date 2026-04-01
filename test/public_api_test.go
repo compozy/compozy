@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/compozy/looper"
-	"github.com/compozy/looper/command"
+	"github.com/compozy/compozy"
+	"github.com/compozy/compozy/command"
 )
 
 func TestPrepareAndRunExposePublicAPI(t *testing.T) {
@@ -31,14 +31,14 @@ func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 		t.Fatalf("write task file: %v", err)
 	}
 
-	cfg := looper.Config{
+	cfg := compozy.Config{
 		Name:     "demo",
 		TasksDir: tasksDir,
-		Mode:     looper.ModePRDTasks,
+		Mode:     compozy.ModePRDTasks,
 		DryRun:   true,
 	}
 
-	prep, err := looper.Prepare(context.Background(), cfg)
+	prep, err := compozy.Prepare(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
@@ -52,19 +52,19 @@ func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 		t.Fatal("expected prompt path to be populated")
 	}
 
-	if err := looper.Run(context.Background(), cfg); err != nil {
+	if err := compozy.Run(context.Background(), cfg); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 }
 
-func TestCommandNewUsesLooperRootCommand(t *testing.T) {
+func TestCommandNewUsesCompozyRootCommand(t *testing.T) {
 	t.Parallel()
 
 	cmd := command.New()
 	if cmd == nil {
 		t.Fatal("expected command")
 	}
-	if cmd.Use != "looper" {
-		t.Fatalf("expected use looper, got %q", cmd.Use)
+	if cmd.Use != "compozy" {
+		t.Fatalf("expected use compozy, got %q", cmd.Use)
 	}
 }

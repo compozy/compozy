@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"time"
 
-	core "github.com/compozy/looper/internal/looper"
+	core "github.com/compozy/compozy/internal/core"
 	"github.com/spf13/cobra"
 )
 
@@ -47,19 +47,19 @@ type commandState struct {
 	retryBackoffMultiplier float64
 }
 
-// NewRootCommand returns the reusable looper Cobra command.
+// NewRootCommand returns the reusable compozy Cobra command.
 func NewRootCommand() *cobra.Command {
 	root := &cobra.Command{
-		Use:          "looper",
+		Use:          "compozy",
 		Short:        "Run AI review remediation and PRD task workflows",
 		SilenceUsage: true,
-		Long: `Looper manages review rounds and PRD execution workflows.
+		Long: `Compozy manages review rounds and PRD execution workflows.
 
 Use explicit workflow subcommands:
-  looper setup         Install bundled public skills for supported agents
-  looper fetch-reviews Fetch provider review comments into tasks/<name>/reviews-NNN/
-  looper fix-reviews   Process review issue files from a specific review round
-  looper start         Execute PRD task files`,
+  compozy setup         Install bundled public skills for supported agents
+  compozy fetch-reviews Fetch provider review comments into tasks/<name>/reviews-NNN/
+  compozy fix-reviews   Process review issue files from a specific review round
+  compozy start         Execute PRD task files`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -76,9 +76,9 @@ func newFetchReviewsCommand() *cobra.Command {
 		Short:        "Fetch provider review comments into a PRD review round",
 		SilenceUsage: true,
 		Long:         "Fetch review comments from a provider and write them into tasks/<name>/reviews-NNN/.",
-		Example: `  looper fetch-reviews --provider coderabbit --pr 259 --name my-feature
-  looper fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
-  looper fetch-reviews --form`,
+		Example: `  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
+  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
+  compozy fetch-reviews --form`,
 		RunE: state.fetchReviews,
 	}
 
@@ -98,9 +98,9 @@ func newFixReviewsCommand() *cobra.Command {
 		SilenceUsage: true,
 		Long: `Process review issue markdown files from tasks/<name>/reviews-NNN/ and run the configured AI agent
 to remediate review feedback.`,
-		Example: `  looper fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
-  looper fix-reviews --name my-feature --round 2
-  looper fix-reviews --reviews-dir tasks/my-feature/reviews-001`,
+		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
+  compozy fix-reviews --name my-feature --round 2
+  compozy fix-reviews --reviews-dir tasks/my-feature/reviews-001`,
 		RunE: state.run,
 	}
 
@@ -124,8 +124,8 @@ func newStartCommand() *cobra.Command {
 		SilenceUsage: true,
 		Long: `Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.`,
-		Example: `  looper start --name multi-repo --tasks-dir tasks/multi-repo --ide claude
-  looper start --form --name multi-repo`,
+		Example: `  compozy start --name multi-repo --tasks-dir tasks/multi-repo --ide claude
+  compozy start --form --name multi-repo`,
 		RunE: state.run,
 	}
 

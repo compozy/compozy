@@ -3,13 +3,13 @@
 version: 2
 pro: true
 
-project_name: looper
+project_name: compozy
 
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
   license: "BSL-1.1"
-  homepage: "https://github.com/compozy/looper"
-  description: "Compozy looper CLI"
+  homepage: "https://github.com/compozy/compozy"
+  description: "Compozy CLI"
   maintainers:
     - "Compozy Team <support@compozy.com>"
 
@@ -21,9 +21,9 @@ git:
   tag_sort: -version:refname
 
 builds:
-  - id: looper
-    main: ./cmd/looper
-    binary: looper
+  - id: compozy
+    main: ./cmd/compozy
+    binary: compozy
     goos:
       - linux
       - darwin
@@ -36,9 +36,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/compozy/looper/internal/version.Version={{ .Version }}
-      - -X github.com/compozy/looper/internal/version.Commit={{ .ShortCommit }}
-      - -X github.com/compozy/looper/internal/version.Date={{ .Date }}
+      - -X github.com/compozy/compozy/internal/version.Version={{ .Version }}
+      - -X github.com/compozy/compozy/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/compozy/compozy/internal/version.Date={{ .Date }}
     env:
       - CGO_ENABLED=0
     flags:
@@ -46,9 +46,9 @@ builds:
     mod_timestamp: "{{ .CommitTimestamp }}"
 
 archives:
-  - id: looper-archive
+  - id: compozy-archive
     ids:
-      - looper
+      - compozy
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
@@ -141,35 +141,35 @@ changelog:
 release:
   github:
     owner: compozy
-    name: looper
+    name: compozy
   name_template: "Release {{ .Version }}"
   mode: replace
   draft: false
   prerelease: auto
   header: |
-    ## Looper CLI {{ .Version }}
+    ## Compozy CLI {{ .Version }}
 
-    Welcome to the latest release of the Looper CLI!
+    Welcome to the latest release of the Compozy CLI!
 
     ### Installation
 
     #### Homebrew
     ```bash
     brew tap compozy/compozy
-    brew install --cask looper
+    brew install --cask compozy
     ```
 
     #### NPM
     ```bash
-    npm install -g @compozy/looper
+    npm install -g @compozy/cli
     ```
 
     #### Binary Download
-    Download the appropriate `looper_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
+    Download the appropriate `compozy_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
 
     #### Go Install
     ```bash
-    go install github.com/compozy/looper/cmd/looper@{{ .Tag }}
+    go install github.com/compozy/compozy/cmd/compozy@{{ .Tag }}
     ```
 
   footer: |
@@ -186,9 +186,9 @@ release:
     ```
 
     {{- if .PreviousTag }}
-    **Full Changelog**: https://github.com/compozy/looper/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/compozy/compozy/compare/{{ .PreviousTag }}...{{ .Tag }}
     {{- else }}
-    **Source**: https://github.com/compozy/looper/tree/{{ .Tag }}
+    **Source**: https://github.com/compozy/compozy/tree/{{ .Tag }}
     {{- end }}
 
 sboms:
@@ -198,7 +198,7 @@ sboms:
 
 # Homebrew cask configuration
 homebrew_casks:
-  - name: looper
+  - name: compozy
     repository:
       owner: compozy
       name: homebrew-compozy
@@ -212,17 +212,17 @@ homebrew_casks:
     commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
     directory: Casks
     caveats: |
-      To get started with Looper, see https://github.com/compozy/looper
-    homepage: "https://github.com/compozy/looper"
-    description: "Compozy Looper CLI"
+      To get started with Compozy, see https://github.com/compozy/compozy
+    homepage: "https://github.com/compozy/compozy"
+    description: "Compozy CLI"
     skip_upload: auto
 
 # NPM package configuration
 npms:
-  - name: "@compozy/looper"
-    description: "Compozy Looper CLI"
-    repository: "git+https://github.com/compozy/looper.git"
-    bugs: https://github.com/compozy/looper/issues
+  - name: "@compozy/cli"
+    description: "Compozy CLI"
+    repository: "git+https://github.com/compozy/compozy.git"
+    bugs: https://github.com/compozy/compozy/issues
     access: public
     license: BSL-1.1
     homepage: "https://compozy.com"

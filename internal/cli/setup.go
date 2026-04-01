@@ -9,7 +9,7 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/compozy/looper/internal/setup"
+	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
 
@@ -34,17 +34,17 @@ func newSetupCommand() *cobra.Command {
 	state := newSetupCommandState()
 	cmd := &cobra.Command{
 		Use:          "setup",
-		Short:        "Install Looper bundled public skills for supported agents",
+		Short:        "Install Compozy bundled public skills for supported agents",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
-		Long: `Install Looper's bundled public skills without relying on an external skills installer.
+		Long: `Install Compozy's bundled public skills without relying on an external skills installer.
 
 The command can run interactively or entirely from flags.`,
-		Example: `  looper setup
-  looper setup --list
-  looper setup --agent codex --agent claude --skill create-prd --skill create-techspec --yes
-  looper setup --all
-  looper setup --agent cursor --global --copy --yes`,
+		Example: `  compozy setup
+  compozy setup --list
+  compozy setup --agent codex --agent claude --skill create-prd --skill create-techspec --yes
+  compozy setup --all
+  compozy setup --agent cursor --global --copy --yes`,
 		RunE: state.run,
 	}
 
@@ -110,7 +110,7 @@ func (s *setupCommandState) prepareRunMode() error {
 		s.yes = true
 	}
 	if !s.yes && !s.isInteractive() {
-		return errors.New("looper setup requires an interactive terminal unless --yes is provided")
+		return errors.New("compozy setup requires an interactive terminal unless --yes is provided")
 	}
 	return nil
 }
@@ -237,7 +237,7 @@ func (s *setupCommandState) resolveSkillSelection(skills []setup.Skill) ([]strin
 	field := huh.NewMultiSelect[string]().
 		Key("skills").
 		Title("Bundled Skills").
-		Description("Select the public Looper skills to install").
+		Description("Select the public Compozy skills to install").
 		Options(options...).
 		Value(&selected).
 		Limit(len(skills)).
@@ -284,7 +284,7 @@ func (s *setupCommandState) resolveAgentSelection(
 	field := huh.NewMultiSelect[string]().
 		Key("agents").
 		Title("Target Agents").
-		Description("Select the editors/agents where Looper should install skills").
+		Description("Select the editors/agents where Compozy should install skills").
 		Options(options...).
 		Value(&preselected).
 		Limit(len(supported)).
@@ -376,7 +376,7 @@ func (s *setupCommandState) resolveInstallMode(
 // --- Styled output functions ---
 
 func printWelcomeHeader(cmd *cobra.Command) {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("Looper Setup")
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("Compozy Setup")
 	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).
 		Render("Install bundled skills for supported agents")
 

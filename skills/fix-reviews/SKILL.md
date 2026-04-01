@@ -38,6 +38,6 @@ Execute the review remediation workflow in a strict sequence. The review files a
 ## Critical Rules
 
 - Do not fetch or export reviews inside this workflow. `fetch-reviews` already produced the round files.
-- Do not call provider-specific scripts or `gh` mutations. Looper resolves provider threads after the batch succeeds.
+- Do not call provider-specific scripts or `gh` mutations. Compozy resolves provider threads after the batch succeeds.
 - Do not modify issue files outside the scoped batch.
 - Do not mark an issue `resolved` before the underlying work and verification are actually complete.

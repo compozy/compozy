@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	core "github.com/compozy/looper/internal/looper"
+	core "github.com/compozy/compozy/internal/core"
 	"github.com/spf13/cobra"
 )
 

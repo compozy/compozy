@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Refactor the PR review workflow to decouple it from CodeRabbit and make it provider-agnostic. The current `fix-reviews` command, `fix-coderabbit-review` skill, and associated Python/Bash scripts are tightly coupled to CodeRabbit's review format and `ai-docs/` directory structure. This refactor introduces a Go-native provider abstraction for fetching and resolving reviews, a new `fetch-reviews` CLI command, a standardized review file format (`issue_NNN.md`), and a generic `fix-reviews` skill. Review files move into the PRD directory structure (`tasks/<name>/reviews-NNN/`) with support for multiple review rounds. Post-execution thread resolution becomes automatic in the looper pipeline instead of being delegated to the LLM.
+Refactor the PR review workflow to decouple it from CodeRabbit and make it provider-agnostic. The current `fix-reviews` command, `fix-coderabbit-review` skill, and associated Python/Bash scripts are tightly coupled to CodeRabbit's review format and `ai-docs/` directory structure. This refactor introduces a Go-native provider abstraction for fetching and resolving reviews, a new `fetch-reviews` CLI command, a standardized review file format (`issue_NNN.md`), and a generic `fix-reviews` skill. Review files move into the PRD directory structure (`tasks/<name>/reviews-NNN/`) with support for multiple review rounds. Post-execution thread resolution becomes automatic in the compozy pipeline instead of being delegated to the LLM.
 
 ## System Architecture
 
@@ -10,28 +10,28 @@ Refactor the PR review workflow to decouple it from CodeRabbit and make it provi
 
 ```
 CLI Layer
-  looper fetch-reviews --provider coderabbit --pr 259 --name my-feature [--round N]
-  looper fix-reviews   --name my-feature [--round N] [--reviews-dir path] [--batch-size N] ...
+  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature [--round N]
+  compozy fix-reviews   --name my-feature [--round N] [--reviews-dir path] [--batch-size N] ...
 
 Provider Layer (new)
-  internal/looper/provider/
+  internal/core/provider/
     provider.go       → Provider interface (FetchReviews + ResolveIssues)
     registry.go       → Provider registry (string → Provider)
     coderabbit/
       coderabbit.go   → CodeRabbit implementation (migrates Python export + Bash resolve)
 
 Plan Layer (modified)
-  internal/looper/plan/
+  internal/core/plan/
     input.go          → New readReviewEntries() + resolveReviewDir() + round discovery
     prepare.go        → Updated to pass provider context through the pipeline
 
 Prompt Layer (modified)
-  internal/looper/prompt/
+  internal/core/prompt/
     review.go         → References generic `fix-reviews` skill, no CodeRabbit mentions
     common.go         → New ExtractIssueNumber() for issue_NNN.md pattern
 
 Execution Layer (modified)
-  internal/looper/run/
+  internal/core/run/
     execution.go      → Post-job hook: call provider.ResolveIssues() for resolved issues
 
 Skill Layer (replaced)
@@ -55,7 +55,7 @@ fix-reviews:
 ### Core Interfaces
 
 ```go
-// internal/looper/provider/provider.go
+// internal/core/provider/provider.go
 
 // ReviewItem is the normalized output of a provider fetch operation.
 type ReviewItem struct {
@@ -86,7 +86,7 @@ type Provider interface {
 ```
 
 ```go
-// internal/looper/provider/registry.go
+// internal/core/provider/registry.go
 
 // Registry maps provider names to implementations.
 type Registry struct {
@@ -101,7 +101,7 @@ func DefaultRegistry() *Registry // returns registry with coderabbit pre-registe
 
 ### Data Models
 
-**RuntimeConfig changes** (`internal/looper/model/model.go`):
+**RuntimeConfig changes** (`internal/core/model/model.go`):
 
 ```go
 type RuntimeConfig struct {
@@ -157,7 +157,7 @@ created_at: 2026-03-28T10:00:00Z
 ## Status: pending
 
 <review_context>
-  <file>internal/looper/plan/prepare.go</file>
+  <file>internal/core/plan/prepare.go</file>
   <line>42</line>
   <severity>warning</severity>
   <author>coderabbitai[bot]</author>
@@ -216,10 +216,10 @@ tasks/<name>/
 
 ### CLI Commands
 
-**`looper fetch-reviews`** (new command):
+**`compozy fetch-reviews`** (new command):
 
 ```
-looper fetch-reviews --provider coderabbit --pr 259 --name my-feature [--round N]
+compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature [--round N]
 ```
 
 | Flag | Type | Required | Default | Description |
@@ -237,10 +237,10 @@ Behavior:
 5. Write `issue_NNN.md` for each `ReviewItem` in standardized format
 6. Print summary: directory path, issue count, round number
 
-**`looper fix-reviews`** (refactored command):
+**`compozy fix-reviews`** (refactored command):
 
 ```
-looper fix-reviews --name my-feature [--round N] [--reviews-dir path] [--batch-size N] [--grouped] ...
+compozy fix-reviews --name my-feature [--round N] [--reviews-dir path] [--batch-size N] [--grouped] ...
 ```
 
 | Flag | Type | Required | Default | Description |
@@ -284,13 +284,13 @@ This requires the execution pipeline to receive provider context. The `RuntimeCo
 | Affected Component | Type of Impact | Description & Risk Level | Required Action |
 |---|---|---|---|
 | `internal/cli/root.go` | Command restructure | `fix-reviews` flags change, new `fetch-reviews` command added. Medium risk. | Update flag registration, add new command builder |
-| `internal/looper/api.go` | API change | `Config` struct gains `Name`, `Round`, `Provider` fields; `PR` semantics change. Medium risk. | Update public API, ensure backward compatibility not needed (CLI-only consumer) |
-| `internal/looper/model/model.go` | Model change | `RuntimeConfig` gains new fields, `RoundMeta` type added. Low risk. | Add fields, add `RoundMeta` |
-| `internal/looper/plan/input.go` | Logic rewrite | Review input resolution changes from `ai-docs/` to `tasks/<name>/reviews-NNN/`. High risk. | Rewrite `resolveInputs()` for review mode, add round discovery |
-| `internal/looper/plan/prepare.go` | Pipeline change | Must pass provider context through to execution. Medium risk. | Thread provider info into `SolvePreparation` |
-| `internal/looper/prompt/review.go` | Prompt rewrite | Remove all CodeRabbit references, reference `fix-reviews` skill. Medium risk. | Rewrite prompt builder |
-| `internal/looper/prompt/common.go` | New parser | Add `ExtractIssueNumber()` for `issue_NNN.md` pattern, `ParseReviewContext()`. Low risk. | Add new functions |
-| `internal/looper/run/execution.go` | Post-job hook | Add provider resolve call after successful job completion. Medium risk. | Add post-success hook in job lifecycle |
+| `internal/core/api.go` | API change | `Config` struct gains `Name`, `Round`, `Provider` fields; `PR` semantics change. Medium risk. | Update public API, ensure backward compatibility not needed (CLI-only consumer) |
+| `internal/core/model/model.go` | Model change | `RuntimeConfig` gains new fields, `RoundMeta` type added. Low risk. | Add fields, add `RoundMeta` |
+| `internal/core/plan/input.go` | Logic rewrite | Review input resolution changes from `ai-docs/` to `tasks/<name>/reviews-NNN/`. High risk. | Rewrite `resolveInputs()` for review mode, add round discovery |
+| `internal/core/plan/prepare.go` | Pipeline change | Must pass provider context through to execution. Medium risk. | Thread provider info into `SolvePreparation` |
+| `internal/core/prompt/review.go` | Prompt rewrite | Remove all CodeRabbit references, reference `fix-reviews` skill. Medium risk. | Rewrite prompt builder |
+| `internal/core/prompt/common.go` | New parser | Add `ExtractIssueNumber()` for `issue_NNN.md` pattern, `ParseReviewContext()`. Low risk. | Add new functions |
+| `internal/core/run/execution.go` | Post-job hook | Add provider resolve call after successful job completion. Medium risk. | Add post-success hook in job lifecycle |
 | `skills/fix-coderabbit-review/` | Deletion | Entire skill directory removed. Low risk. | Delete directory |
 | `skills/fix-reviews/` | New skill | Generic 4-step review remediation skill. Low risk. | Create new skill |
 

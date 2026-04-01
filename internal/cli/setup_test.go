@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/compozy/looper/internal/setup"
+	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
 

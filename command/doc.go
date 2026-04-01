@@ -1,3 +1,3 @@
-// Package command exposes looper as a reusable Cobra command for embedding
+// Package command exposes compozy as a reusable Cobra command for embedding
 // inside other Go CLIs.
 package command

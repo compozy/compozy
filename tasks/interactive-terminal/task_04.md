@@ -33,7 +33,7 @@ Refactor the Claude Code command construction to drop headless flags (`--print`,
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Create `internal/looper/prompt/system.go` with BuildSystemPrompt() and mode-specific prompt content
+- [ ] 4.1 Create `internal/core/prompt/system.go` with BuildSystemPrompt() and mode-specific prompt content
 - [ ] 4.2 Refactor `claudeCommand()` in agent/ide.go to accept systemPrompt parameter and use --system-prompt flag
 - [ ] 4.3 Refactor `buildClaudeCommand()` shell preview to match new command structure
 - [ ] 4.4 Update `agent.Command()` public API to pass system prompt through from RuntimeConfig
@@ -41,27 +41,27 @@ Refactor the Claude Code command construction to drop headless flags (`--print`,
 - [ ] 4.6 Write unit tests for system prompt builder and updated command construction
 
 ## Implementation Details
-Modify `internal/looper/agent/ide.go` — the `claudeCommand()` function currently builds the command with `--print --output-format stream-json`. These flags must be removed and `--system-prompt` added. The `spec` struct for Claude may need a new field or the `commandFunc` signature may need to change to accept the system prompt.
+Modify `internal/core/agent/ide.go` — the `claudeCommand()` function currently builds the command with `--print --output-format stream-json`. These flags must be removed and `--system-prompt` added. The `spec` struct for Claude may need a new field or the `commandFunc` signature may need to change to accept the system prompt.
 
-Create `internal/looper/prompt/system.go` with prompt content per mode. The job-done instruction is appended to every mode's prompt as the final section.
+Create `internal/core/prompt/system.go` with prompt content per mode. The job-done instruction is appended to every mode's prompt as the final section.
 
 Reference the TechSpec "Agent Command Changes" and "System Prompt Structure" sections. Reference ADR-004 for the design rationale.
 
 ### Relevant Files
-- `internal/looper/prompt/system.go` — NEW: Mode-specific system prompt builders
-- `internal/looper/agent/ide.go` — MODIFY: claudeCommand(), buildClaudeCommand(), Command()
+- `internal/core/prompt/system.go` — NEW: Mode-specific system prompt builders
+- `internal/core/agent/ide.go` — MODIFY: claudeCommand(), buildClaudeCommand(), Command()
 
 ### Dependent Files
-- `internal/looper/agent/ide_test.go` — Update existing tests for new command structure
-- `internal/looper/run/command_io.go` — Currently calls agent.Command(); will be replaced in task_05
-- `internal/looper/prompt/common.go` — Existing prompt builders, system.go follows same patterns
+- `internal/core/agent/ide_test.go` — Update existing tests for new command structure
+- `internal/core/run/command_io.go` — Currently calls agent.Command(); will be replaced in task_05
+- `internal/core/prompt/common.go` — Existing prompt builders, system.go follows same patterns
 
 ### Related ADRs
 - [ADR-004: Mode-Specific System Prompts](adrs/adr-004.md) — Defines why --system-prompt over --append-system-prompt or CLAUDE.md
 
 ## Deliverables
-- `internal/looper/prompt/system.go` with complete system prompt builder
-- Refactored `internal/looper/agent/ide.go` with updated Claude command construction
+- `internal/core/prompt/system.go` with complete system prompt builder
+- Refactored `internal/core/agent/ide.go` with updated Claude command construction
 - Updated tests in `ide_test.go`
 - Unit tests with 80%+ coverage **(REQUIRED)**
 

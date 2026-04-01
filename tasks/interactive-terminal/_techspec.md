@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-Replace the current headless execution model (`--print --output-format stream-json`) with an interactive PTY-based terminal embedding that renders live Claude Code TUI sessions inside Looper's Bubbletea UI. Each job spawns Claude Code in a pseudo-terminal, feeds its output through `charmbracelet/x/vt` (a virtual terminal emulator), and renders the result in a Bubbletea viewport. Users can observe agent work in real-time and interact directly with any running instance. Job completion is signaled explicitly by the agent via an HTTP endpoint (`looper job done --id <id>`) served by a local Fiber server, replacing the JSON-based exit code detection. System prompts are mode-specific (PRD tasks, fix reviews, etc.) and the initial task prompt is a short composer message pointing to the full prompt file in `.tmp/`.
+Replace the current headless execution model (`--print --output-format stream-json`) with an interactive PTY-based terminal embedding that renders live Claude Code TUI sessions inside Compozy's Bubbletea UI. Each job spawns Claude Code in a pseudo-terminal, feeds its output through `charmbracelet/x/vt` (a virtual terminal emulator), and renders the result in a Bubbletea viewport. Users can observe agent work in real-time and interact directly with any running instance. Job completion is signaled explicitly by the agent via an HTTP endpoint (`compozy job done --id <id>`) served by a local Fiber server, replacing the JSON-based exit code detection. System prompts are mode-specific (PRD tasks, fix reviews, etc.) and the initial task prompt is a short composer message pointing to the full prompt file in `.tmp/`.
 
 Key trade-offs: dropping stream-json removes structured token usage parsing (to be replaced by hooks or API-level telemetry in the future), and `charmbracelet/x/vt` is pre-v1 (no tagged releases, potential breaking changes). The gain is a fundamentally richer execution experience — full observability, live interaction, and deterministic job signaling.
 
@@ -12,32 +12,32 @@ Key trade-offs: dropping stream-json removes structured token usage parsing (to 
 
 ```
 CLI Layer (unchanged entry point)
-  looper start / looper fix-reviews
+  compozy start / compozy fix-reviews
        |
        v
 Execution Layer (refactored)
-  internal/looper/run/
+  internal/core/run/
     execution.go       → Refactored: PTY-based job execution, Fiber server lifecycle
     terminal.go        → NEW: PTY + VT emulator wrapper component
-    signal_server.go   → NEW: Fiber HTTP server for agent-to-looper signaling
+    signal_server.go   → NEW: Fiber HTTP server for agent-to-compozy signaling
     command_io.go      → REMOVED: stream-json taps replaced by PTY
     logging.go         → SIMPLIFIED: remove jsonFormatter, keep activityMonitor
        |
        v
 Agent Layer (refactored)
-  internal/looper/agent/
+  internal/core/agent/
     ide.go             → Refactored: Claude runs interactive (no --print/--output-format)
        |
        v
 Prompt Layer (modified)
-  internal/looper/prompt/
+  internal/core/prompt/
     system.go          → NEW: mode-specific system prompts (PRD tasks, fix reviews)
     review.go          → Modified: system prompt includes job-done instruction
     task.go            → Modified: system prompt includes job-done instruction
        |
        v
 UI Layer (refactored)
-  internal/looper/run/
+  internal/core/run/
     ui_model.go        → Refactored: terminal viewport replaces log viewport
     ui_update.go       → Refactored: PTY output messages, key forwarding to active terminal
     ui_view.go         → Refactored: render VT emulator screen in main pane
@@ -80,7 +80,7 @@ Readiness Detection:
 ### Core Interfaces
 
 ```go
-// internal/looper/run/terminal.go
+// internal/core/run/terminal.go
 
 // Terminal wraps a PTY process and VT emulator for a single job.
 type Terminal struct {
@@ -104,7 +104,7 @@ func (t *Terminal) Close() error
 ```
 
 ```go
-// internal/looper/run/signal_server.go
+// internal/core/run/signal_server.go
 
 // SignalServer receives job lifecycle signals from agents via HTTP.
 type SignalServer struct {
@@ -127,7 +127,7 @@ func (s *SignalServer) Port() int
 ```
 
 ```go
-// internal/looper/prompt/system.go
+// internal/core/prompt/system.go
 
 // SystemPrompt builds mode-specific system prompts that include
 // job signaling instructions and skill references.
@@ -172,7 +172,7 @@ type RuntimeConfig struct {
 The composer simulation sends the initial prompt to Claude Code after detecting readiness:
 
 ```go
-// internal/looper/run/composer.go
+// internal/core/run/composer.go
 
 func sendComposerInput(pty xpty.Pty, message string) error {
     // Normalize line endings
@@ -243,7 +243,7 @@ New flag: `--system-prompt` (replaces `--append-system-prompt`, full system prom
 ### Readiness Detection
 
 ```go
-// internal/looper/run/readiness.go
+// internal/core/run/readiness.go
 
 const (
     readinessPollInterval = 200 * time.Millisecond
@@ -291,7 +291,7 @@ func detectComposerReady(screen string) bool {
 ### Key Forwarding
 
 ```go
-// internal/looper/run/keytranslate.go
+// internal/core/run/keytranslate.go
 
 // translateKey converts a Bubbletea KeyMsg to terminal escape bytes.
 func translateKey(msg tea.KeyMsg) []byte {
@@ -396,15 +396,15 @@ GET  /health
 
 | Component                           | Impact Type    | Description and Risk                                                         | Required Action                                     |
 | ----------------------------------- | -------------- | ---------------------------------------------------------------------------- | --------------------------------------------------- |
-| `internal/looper/run/execution.go`  | Major refactor | PTY-based execution replaces exec.Command+pipe. High risk.                   | Rewrite job execution to use Terminal wrapper       |
-| `internal/looper/run/command_io.go` | Removed        | stream-json IO taps no longer needed. Low risk.                              | Delete file                                         |
-| `internal/looper/run/logging.go`    | Simplified     | Remove jsonFormatter, uiLogTap. Keep activityMonitor, lineRing. Medium risk. | Remove JSON-specific code, keep monitoring          |
-| `internal/looper/run/ui_model.go`   | Major refactor | Terminal viewport replaces log viewport. High risk.                          | Add Terminal refs, interaction mode, signal channel |
-| `internal/looper/run/ui_update.go`  | Major refactor | Key forwarding, PTY messages, signal handling. High risk.                    | Rewrite Update() for terminal interaction           |
-| `internal/looper/run/ui_view.go`    | Major refactor | Render VT emulator screen instead of log lines. High risk.                   | Rewrite main pane rendering                         |
-| `internal/looper/agent/ide.go`      | Modified       | Claude command drops --print, gains --system-prompt. Medium risk.            | Update claudeCommand() and buildClaudeCommand()     |
-| `internal/looper/prompt/`           | New files      | System prompt builders per mode. Low risk.                                   | Add system.go with mode-specific prompts            |
-| `internal/looper/model/model.go`    | Modified       | Add SignalPort field. Low risk.                                              | Add field to RuntimeConfig                          |
+| `internal/core/run/execution.go`  | Major refactor | PTY-based execution replaces exec.Command+pipe. High risk.                   | Rewrite job execution to use Terminal wrapper       |
+| `internal/core/run/command_io.go` | Removed        | stream-json IO taps no longer needed. Low risk.                              | Delete file                                         |
+| `internal/core/run/logging.go`    | Simplified     | Remove jsonFormatter, uiLogTap. Keep activityMonitor, lineRing. Medium risk. | Remove JSON-specific code, keep monitoring          |
+| `internal/core/run/ui_model.go`   | Major refactor | Terminal viewport replaces log viewport. High risk.                          | Add Terminal refs, interaction mode, signal channel |
+| `internal/core/run/ui_update.go`  | Major refactor | Key forwarding, PTY messages, signal handling. High risk.                    | Rewrite Update() for terminal interaction           |
+| `internal/core/run/ui_view.go`    | Major refactor | Render VT emulator screen instead of log lines. High risk.                   | Rewrite main pane rendering                         |
+| `internal/core/agent/ide.go`      | Modified       | Claude command drops --print, gains --system-prompt. Medium risk.            | Update claudeCommand() and buildClaudeCommand()     |
+| `internal/core/prompt/`           | New files      | System prompt builders per mode. Low risk.                                   | Add system.go with mode-specific prompts            |
+| `internal/core/model/model.go`    | Modified       | Add SignalPort field. Low risk.                                              | Add field to RuntimeConfig                          |
 | `go.mod`                            | New deps       | fiber, x/vt, x/xpty. Medium risk (pre-v1 deps).                              | go get new dependencies                             |
 
 ## Testing Approach
@@ -480,7 +480,7 @@ GET  /health
 
 6. **SafeEmulator (thread-safe) over standard Emulator** — PTY read goroutine calls Write() while Bubbletea render calls Render() concurrently. SafeEmulator uses RWMutex internally. No performance concern for single-terminal rendering.
 
-7. **Completed job PTYs stay alive** — Users can navigate back to completed jobs and see the full terminal history (scrollback). PTYs are only killed on looper exit. Trade-off: memory usage for long-running sessions with many jobs, mitigated by VT scrollback limits.
+7. **Completed job PTYs stay alive** — Users can navigate back to completed jobs and see the full terminal history (scrollback). PTYs are only killed on compozy exit. Trade-off: memory usage for long-running sessions with many jobs, mitigated by VT scrollback limits.
 
 ### Known Risks
 

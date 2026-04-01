@@ -1,5 +1,5 @@
 -include .env
-# Makefile for Looper
+# Makefile for Compozy
 
 # -----------------------------------------------------------------------------
 # Go Parameters & Setup
@@ -9,7 +9,7 @@ GOVERSION ?= $(shell awk '/^go /{print $$2}' go.mod 2>/dev/null || echo "1.26")
 GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
 GOFMT=gofmt -s -w
-BINARY_NAME=looper
+BINARY_NAME=compozy
 BINARY_DIR=bin
 SRC_DIRS=./...
 GOLANGCI_LINT_VERSION=v2.11.4
@@ -31,7 +31,7 @@ VERSION := $(shell git describe --tags --match="v*" --always 2>/dev/null || echo
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 MODULE_PATH := $(shell $(GOCMD) list -m 2>/dev/null)
 ifeq ($(MODULE_PATH),)
-MODULE_PATH := github.com/compozy/looper
+MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
@@ -72,7 +72,7 @@ clean:
 
 build: check-go-version
 	mkdir -p $(BINARY_DIR)
-	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/looper
+	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
 
 # -----------------------------------------------------------------------------
@@ -125,7 +125,7 @@ test-nocache:
 # -----------------------------------------------------------------------------
 help:
 	@echo "Available targets:"
-	@echo "  make build          - Build the looper binary"
+	@echo "  make build          - Build the compozy binary"
 	@echo "  make test           - Run tests with race detector"
 	@echo "  make lint           - Run golangci-lint"
 	@echo "  make fmt            - Format code"

@@ -26,7 +26,7 @@ Wire all components from tasks 1-4 together into the full interactive terminal e
 - Enter in modeNavigate MUST switch to modeTerminal for the selected job
 - Esc in modeTerminal MUST switch back to modeNavigate
 - Main pane MUST render the selected job's VT emulator screen via Terminal.Render()
-- Completed job terminals MUST stay alive for user to revisit (PTYs killed only on looper exit)
+- Completed job terminals MUST stay alive for user to revisit (PTYs killed only on compozy exit)
 - Execution pipeline MUST start Signal Server before launching any jobs
 - Execution pipeline MUST create a Terminal per job, use readiness detection, then send prompt via composer simulation
 - Job completion MUST be driven by jobDoneSignalMsg from Signal Server (not exit code)
@@ -37,7 +37,7 @@ Wire all components from tasks 1-4 together into the full interactive terminal e
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Create `internal/looper/run/ui_messages.go` with new message types (terminalOutputMsg, terminalReadyMsg, jobDoneSignalMsg, composerSendMsg)
+- [ ] 5.1 Create `internal/core/run/ui_messages.go` with new message types (terminalOutputMsg, terminalReadyMsg, jobDoneSignalMsg, composerSendMsg)
 - [ ] 5.2 Refactor `ui_model.go`: add terminals slice, interaction mode enum, signal channel to uiModel; update setupUI() to accept signal channel
 - [ ] 5.3 Refactor `ui_update.go`: add modeNavigate/modeTerminal key handling, terminal output message handler, job-done signal handler, Enter/Esc mode switching
 - [ ] 5.4 Refactor `ui_view.go`: render VT emulator screen in main pane via Terminal.Render(), update sidebar to show interaction mode indicator
@@ -61,26 +61,26 @@ to:
 Reference the TechSpec "UI Model Changes", "Data Flow", and "Execution Layer" sections.
 
 ### Relevant Files
-- `internal/looper/run/ui_messages.go` — NEW: PTY-specific message types
-- `internal/looper/run/ui_model.go` — MODIFY: add terminals, interaction mode, signal channel
-- `internal/looper/run/ui_update.go` — MODIFY: key forwarding, terminal output, signal handling
-- `internal/looper/run/ui_view.go` — MODIFY: render VT emulator screen
-- `internal/looper/run/execution.go` — MODIFY: PTY-based execution, Signal Server lifecycle
-- `internal/looper/run/command_io.go` — DELETE
-- `internal/looper/run/logging.go` — SIMPLIFY: remove JSON-specific code
+- `internal/core/run/ui_messages.go` — NEW: PTY-specific message types
+- `internal/core/run/ui_model.go` — MODIFY: add terminals, interaction mode, signal channel
+- `internal/core/run/ui_update.go` — MODIFY: key forwarding, terminal output, signal handling
+- `internal/core/run/ui_view.go` — MODIFY: render VT emulator screen
+- `internal/core/run/execution.go` — MODIFY: PTY-based execution, Signal Server lifecycle
+- `internal/core/run/command_io.go` — DELETE
+- `internal/core/run/logging.go` — SIMPLIFY: remove JSON-specific code
 
 ### Dependent Files
-- `internal/looper/run/terminal.go` — Uses Terminal from task_01
-- `internal/looper/run/signal_server.go` — Uses SignalServer from task_02
-- `internal/looper/run/keytranslate.go` — Uses translateKey() from task_03
-- `internal/looper/run/composer.go` — Uses sendComposerInput() from task_03
-- `internal/looper/run/readiness.go` — Uses waitForReady() from task_03
-- `internal/looper/prompt/system.go` — Uses BuildSystemPrompt() from task_04
-- `internal/looper/agent/ide.go` — Uses updated Command() from task_04
-- `internal/looper/run/types.go` — Existing message types and job phases
-- `internal/looper/run/ui_layout.go` — Layout calculations (unchanged)
-- `internal/looper/run/execution_test.go` — Existing tests need updating
-- `internal/looper/run/logging_test.go` — Existing tests need updating
+- `internal/core/run/terminal.go` — Uses Terminal from task_01
+- `internal/core/run/signal_server.go` — Uses SignalServer from task_02
+- `internal/core/run/keytranslate.go` — Uses translateKey() from task_03
+- `internal/core/run/composer.go` — Uses sendComposerInput() from task_03
+- `internal/core/run/readiness.go` — Uses waitForReady() from task_03
+- `internal/core/prompt/system.go` — Uses BuildSystemPrompt() from task_04
+- `internal/core/agent/ide.go` — Uses updated Command() from task_04
+- `internal/core/run/types.go` — Existing message types and job phases
+- `internal/core/run/ui_layout.go` — Layout calculations (unchanged)
+- `internal/core/run/execution_test.go` — Existing tests need updating
+- `internal/core/run/logging_test.go` — Existing tests need updating
 
 ### Related ADRs
 - [ADR-001: PTY + VT Emulator for Terminal Embedding](adrs/adr-001.md) — Terminal rendering approach
