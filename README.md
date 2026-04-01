@@ -39,21 +39,10 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 
 #### Homebrew
 
-```bash
-brew tap compozy/compozy
-brew install --cask compozy
-```
-
 #### NPM
 
 ```bash
 npm install -g @compozy/cli
-```
-
-#### Go
-
-```bash
-go install github.com/compozy/compozy/cmd/compozy@latest
 ```
 
 #### From Source
