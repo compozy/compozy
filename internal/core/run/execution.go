@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providers"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 )
 
 var reviewProviderRegistry = providers.DefaultRegistry
@@ -31,6 +32,8 @@ func Execute(ctx context.Context, jobs []model.Job, cfg *model.RuntimeConfig) er
 
 	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(ctx, internalJobs, internalCfg)
 	summarizeResults(failed, failures, total)
+	refreshTaskMetaOnExit(internalCfg)
+
 	if shutdownErr != nil {
 		fmt.Fprintf(os.Stderr, "\nShutdown interrupted: %v\n", shutdownErr)
 		return shutdownErr
@@ -466,9 +469,39 @@ func (j *jobExecutionContext) reportAggregateUsage() {
 }
 
 func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
+	if j.cfg.mode == model.ExecutionModePRDTasks {
+		return j.afterTaskJobSuccess()
+	}
+
 	if j.cfg.mode != model.ExecutionModePRReview {
 		return nil
 	}
+	return j.afterReviewJobSuccess(ctx, jb)
+}
+
+func (j *jobExecutionContext) afterTaskJobSuccess() error {
+	if strings.TrimSpace(j.cfg.tasksDir) == "" {
+		return fmt.Errorf("missing tasks directory for task post-processing")
+	}
+	meta, err := tasks.RefreshTaskMeta(j.cfg.tasksDir)
+	if err != nil {
+		return err
+	}
+	slog.Info(
+		"updated task workflow metadata",
+		"tasks_dir",
+		j.cfg.tasksDir,
+		"completed",
+		meta.Completed,
+		"pending",
+		meta.Pending,
+		"total",
+		meta.Total,
+	)
+	return nil
+}
+
+func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job) error {
 	if strings.TrimSpace(j.cfg.reviewsDir) == "" {
 		return fmt.Errorf("missing reviews directory for review post-processing")
 	}
@@ -477,49 +510,8 @@ func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) erro
 	if err != nil {
 		return err
 	}
-
 	providerBackedIssues := filterResolvedIssuesWithProviderRefs(resolvedIssues)
-	if len(providerBackedIssues) > 0 {
-		registry := reviewProviderRegistry()
-		reviewProvider, err := registry.Get(j.cfg.provider)
-		if err != nil {
-			slog.Warn(
-				"review provider integration unavailable; skipping remote issue resolution",
-				"provider",
-				j.cfg.provider,
-				"pr",
-				j.cfg.pr,
-				"resolved_issues",
-				len(providerBackedIssues),
-				"error",
-				err,
-			)
-		} else {
-			if err := reviewProvider.ResolveIssues(ctx, j.cfg.pr, providerBackedIssues); err != nil {
-				slog.Warn(
-					"review provider resolution completed with warnings",
-					"provider",
-					j.cfg.provider,
-					"pr",
-					j.cfg.pr,
-					"resolved_issues",
-					len(providerBackedIssues),
-					"error",
-					err,
-				)
-			} else {
-				slog.Info(
-					"resolved review provider issues",
-					"provider",
-					j.cfg.provider,
-					"pr",
-					j.cfg.pr,
-					"resolved_issues",
-					len(providerBackedIssues),
-				)
-			}
-		}
-	}
+	j.resolveProviderBackedIssues(ctx, providerBackedIssues)
 
 	meta, err := reviews.RefreshRoundMeta(j.cfg.reviewsDir)
 	if err != nil {
@@ -539,6 +531,87 @@ func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) erro
 		meta.Unresolved,
 	)
 	return nil
+}
+
+func (j *jobExecutionContext) resolveProviderBackedIssues(
+	ctx context.Context,
+	providerBackedIssues []provider.ResolvedIssue,
+) {
+	if len(providerBackedIssues) == 0 {
+		return
+	}
+
+	registry := reviewProviderRegistry()
+	reviewProvider, err := registry.Get(j.cfg.provider)
+	if err != nil {
+		slog.Warn(
+			"review provider integration unavailable; skipping remote issue resolution",
+			"provider",
+			j.cfg.provider,
+			"pr",
+			j.cfg.pr,
+			"resolved_issues",
+			len(providerBackedIssues),
+			"error",
+			err,
+		)
+		return
+	}
+
+	if err := reviewProvider.ResolveIssues(ctx, j.cfg.pr, providerBackedIssues); err != nil {
+		slog.Warn(
+			"review provider resolution completed with warnings",
+			"provider",
+			j.cfg.provider,
+			"pr",
+			j.cfg.pr,
+			"resolved_issues",
+			len(providerBackedIssues),
+			"error",
+			err,
+		)
+		return
+	}
+
+	slog.Info(
+		"resolved review provider issues",
+		"provider",
+		j.cfg.provider,
+		"pr",
+		j.cfg.pr,
+		"resolved_issues",
+		len(providerBackedIssues),
+	)
+}
+
+func refreshTaskMetaOnExit(cfg *config) {
+	if cfg == nil || cfg.mode != model.ExecutionModePRDTasks || strings.TrimSpace(cfg.tasksDir) == "" {
+		return
+	}
+
+	meta, err := tasks.RefreshTaskMeta(cfg.tasksDir)
+	if err != nil {
+		slog.Warn(
+			"failed to refresh task workflow metadata at command exit",
+			"tasks_dir",
+			cfg.tasksDir,
+			"error",
+			err,
+		)
+		return
+	}
+
+	slog.Info(
+		"refreshed task workflow metadata at command exit",
+		"tasks_dir",
+		cfg.tasksDir,
+		"completed",
+		meta.Completed,
+		"pending",
+		meta.Pending,
+		"total",
+		meta.Total,
+	)
 }
 
 func executeJobWithTimeout(

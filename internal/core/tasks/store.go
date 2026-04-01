@@ -1,0 +1,187 @@
+package tasks
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/compozy/compozy/internal/core/frontmatter"
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/prompt"
+)
+
+const metaFileName = "_meta.md"
+
+func MetaPath(tasksDir string) string {
+	return filepath.Join(tasksDir, metaFileName)
+}
+
+func ReadTaskMeta(tasksDir string) (model.TaskMeta, error) {
+	body, err := os.ReadFile(MetaPath(tasksDir))
+	if err != nil {
+		return model.TaskMeta{}, fmt.Errorf("read task meta: %w", err)
+	}
+	return parseTaskMeta(string(body))
+}
+
+func WriteTaskMeta(tasksDir string, meta model.TaskMeta) error {
+	content, err := formatTaskMeta(meta)
+	if err != nil {
+		return fmt.Errorf("format task meta: %w", err)
+	}
+	if err := os.WriteFile(MetaPath(tasksDir), []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write task meta: %w", err)
+	}
+	return nil
+}
+
+func RefreshTaskMeta(tasksDir string) (model.TaskMeta, error) {
+	now := time.Now().UTC()
+	meta := model.TaskMeta{
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+
+	existingMeta, err := ReadTaskMeta(tasksDir)
+	switch {
+	case err == nil:
+		meta.CreatedAt = existingMeta.CreatedAt
+	case errors.Is(err, os.ErrNotExist):
+		// First refresh creates the metadata file.
+	default:
+		return model.TaskMeta{}, err
+	}
+
+	total, completed, err := countTasks(tasksDir)
+	if err != nil {
+		return model.TaskMeta{}, err
+	}
+
+	meta.Total = total
+	meta.Completed = completed
+	meta.Pending = total - completed
+
+	if err := WriteTaskMeta(tasksDir, meta); err != nil {
+		return model.TaskMeta{}, err
+	}
+	return meta, nil
+}
+
+func formatTaskMeta(meta model.TaskMeta) (string, error) {
+	type taskMetaFrontMatter struct {
+		CreatedAt time.Time `yaml:"created_at"`
+		UpdatedAt time.Time `yaml:"updated_at"`
+	}
+
+	summary := strings.Join([]string{
+		"## Summary",
+		fmt.Sprintf("- Total: %d", meta.Total),
+		fmt.Sprintf("- Completed: %d", meta.Completed),
+		fmt.Sprintf("- Pending: %d", meta.Pending),
+		"",
+	}, "\n")
+
+	return frontmatter.Format(taskMetaFrontMatter{
+		CreatedAt: meta.CreatedAt.UTC(),
+		UpdatedAt: meta.UpdatedAt.UTC(),
+	}, summary)
+}
+
+func parseTaskMeta(content string) (model.TaskMeta, error) {
+	type taskMetaFrontMatter struct {
+		CreatedAt time.Time `yaml:"created_at"`
+		UpdatedAt time.Time `yaml:"updated_at"`
+	}
+
+	var frontMatter taskMetaFrontMatter
+	body, err := frontmatter.Parse(content, &frontMatter)
+	if err != nil {
+		return model.TaskMeta{}, fmt.Errorf("parse task meta front matter: %w", err)
+	}
+
+	meta := model.TaskMeta{
+		CreatedAt: frontMatter.CreatedAt,
+		UpdatedAt: frontMatter.UpdatedAt,
+	}
+	if meta.CreatedAt.IsZero() || meta.UpdatedAt.IsZero() {
+		return model.TaskMeta{}, errors.New("task meta front matter is incomplete")
+	}
+
+	if err := parseTaskMetaSummary(strings.Split(body, "\n"), &meta); err != nil {
+		return model.TaskMeta{}, err
+	}
+	if meta.Total != meta.Completed+meta.Pending {
+		return model.TaskMeta{}, errors.New("task meta counts are inconsistent")
+	}
+
+	return meta, nil
+}
+
+func parseTaskMetaSummary(lines []string, meta *model.TaskMeta) error {
+	counts := map[string]*int{
+		"Total":     &meta.Total,
+		"Completed": &meta.Completed,
+		"Pending":   &meta.Pending,
+	}
+	reCount := regexp.MustCompile(`^- (Total|Completed|Pending): (\d+)$`)
+	for _, rawLine := range lines {
+		line := strings.TrimSpace(rawLine)
+		matches := reCount.FindStringSubmatch(line)
+		if len(matches) < 3 {
+			continue
+		}
+		value, err := strconv.Atoi(matches[2])
+		if err != nil {
+			return fmt.Errorf("parse %s count: %w", matches[1], err)
+		}
+		*counts[matches[1]] = value
+	}
+	return nil
+}
+
+func countTasks(tasksDir string) (int, int, error) {
+	files, err := os.ReadDir(tasksDir)
+	if err != nil {
+		return 0, 0, fmt.Errorf("read tasks directory: %w", err)
+	}
+
+	total := 0
+	completed := 0
+	for _, file := range files {
+		if !file.Type().IsRegular() || !strings.HasSuffix(file.Name(), ".md") {
+			continue
+		}
+		if prompt.ExtractTaskNumber(file.Name()) == 0 {
+			continue
+		}
+
+		total++
+		absPath := filepath.Join(tasksDir, file.Name())
+		body, err := os.ReadFile(absPath)
+		if err != nil {
+			return 0, 0, fmt.Errorf("read %s: %w", file.Name(), err)
+		}
+
+		task, err := prompt.ParseTaskFile(string(body))
+		if err != nil {
+			return 0, 0, wrapTaskParseError(absPath, err)
+		}
+		if prompt.IsTaskCompleted(task) {
+			completed++
+		}
+	}
+
+	return total, completed, nil
+}
+
+func wrapTaskParseError(path string, err error) error {
+	if errors.Is(err, prompt.ErrLegacyTaskMetadata) {
+		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)
+	}
+	return fmt.Errorf("parse task artifact %s: %w", path, err)
+}

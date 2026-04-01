@@ -1,8 +1,10 @@
 # Emoji Width Alignment Fix for Terminal UIs
 
-**Date:** 2025-10-27
+**Date:** 2025-10-27 (updated 2026-04 for Bubble Tea v2)
 **Source:** TFE project debugging session
 **Issue:** Emoji alignment breaks in WezTerm/Termux but works in Windows Terminal
+
+> **v2 Note:** Bubble Tea v2 automatically enables mode 2027 for better Unicode support on compatible terminals. The `runeutil` package from Bubbles has been internalized and is no longer importable. The fixes below remain necessary for cross-terminal emoji alignment.
 
 ---
 

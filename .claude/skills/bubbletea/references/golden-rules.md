@@ -148,7 +148,7 @@ If your layout orientation changes (side-by-side vs stacked), but your mouse det
 Check layout mode before processing mouse events:
 
 ```go
-func (m model) handleLeftClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (m model) handleLeftClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
     // ... boundary checks ...
 
     if m.shouldUseVerticalStack() {
@@ -195,6 +195,8 @@ func (m model) handleLeftClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 │ Bottom         │  which panel
 └────────────────┘
 ```
+
+> **v2 Note:** Mouse mode is set declaratively in `View()` via `v.MouseMode = tea.MouseModeCellMotion`. Mouse messages are split: `tea.MouseClickMsg`, `tea.MouseWheelMsg`, `tea.MouseMotionMsg`, `tea.MouseReleaseMsg`.
 
 ## Rule #4: Use Weights, Not Pixels
 

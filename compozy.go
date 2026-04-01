@@ -54,6 +54,12 @@ type MigrationConfig = core.MigrationConfig
 // MigrationResult contains the output of a migration run.
 type MigrationResult = core.MigrationResult
 
+// SyncConfig configures a task metadata sync run.
+type SyncConfig = core.SyncConfig
+
+// SyncResult contains the output of a task metadata sync run.
+type SyncResult = core.SyncResult
+
 // Job is a prepared execution unit with its generated artifacts.
 type Job = core.Job
 
@@ -75,4 +81,9 @@ func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
 // Migrate converts legacy workflow artifacts to frontmatter.
 func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
 	return core.Migrate(ctx, cfg)
+}
+
+// Sync refreshes task workflow metadata files.
+func Sync(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
+	return core.Sync(ctx, cfg)
 }

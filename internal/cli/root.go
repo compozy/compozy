@@ -18,6 +18,7 @@ const (
 	commandKindFetchReviews commandKind = "fetch-reviews"
 	commandKindFixReviews   commandKind = "fix-reviews"
 	commandKindStart        commandKind = "start"
+	commandKindSync         commandKind = "sync"
 )
 
 type commandState struct {
@@ -39,12 +40,13 @@ type commandState struct {
 	grouped                bool
 	tailLines              int
 	reasoningEffort        string
-	useForm                bool
 	includeCompleted       bool
 	includeResolved        bool
 	timeout                string
 	maxRetries             int
 	retryBackoffMultiplier float64
+	isInteractive          func() bool
+	collectForm            func(*cobra.Command, *commandState) error
 }
 
 // NewRootCommand returns the reusable compozy Cobra command.
@@ -58,6 +60,7 @@ func NewRootCommand() *cobra.Command {
 Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
   compozy migrate       Convert legacy workflow artifacts to frontmatter
+  compozy sync          Refresh task workflow metadata files
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
   compozy fix-reviews   Process review issue files from a specific review round
   compozy start         Execute PRD task files`,
@@ -69,6 +72,7 @@ Use explicit workflow subcommands:
 	root.AddCommand(
 		newSetupCommand(),
 		newMigrateCommand(),
+		newSyncCommand(),
 		newFetchReviewsCommand(),
 		newFixReviewsCommand(),
 		newStartCommand(),
@@ -85,7 +89,7 @@ func newFetchReviewsCommand() *cobra.Command {
 		Long:         "Fetch review comments from a provider and write them into .compozy/tasks/<name>/reviews-NNN/.",
 		Example: `  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
   compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
-  compozy fetch-reviews --form`,
+  compozy fetch-reviews`,
 		RunE: state.fetchReviews,
 	}
 
@@ -93,7 +97,6 @@ func newFetchReviewsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")
-	cmd.Flags().BoolVar(&state.useForm, "form", false, "Use interactive form to collect parameters")
 	return cmd
 }
 
@@ -107,7 +110,8 @@ func newFixReviewsCommand() *cobra.Command {
 to remediate review feedback.`,
 		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
   compozy fix-reviews --name my-feature --round 2
-  compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001`,
+  compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001
+  compozy fix-reviews`,
 		RunE: state.run,
 	}
 
@@ -137,7 +141,7 @@ func newStartCommand() *cobra.Command {
 		Long: `Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.`,
 		Example: `  compozy start --name multi-repo --tasks-dir .compozy/tasks/multi-repo --ide claude
-  compozy start --form --name multi-repo`,
+  compozy start`,
 		RunE: state.run,
 	}
 
@@ -154,6 +158,12 @@ type migrateCommandState struct {
 	tasksDir   string
 	reviewsDir string
 	dryRun     bool
+}
+
+type syncCommandState struct {
+	rootDir  string
+	name     string
+	tasksDir string
 }
 
 func newMigrateCommand() *cobra.Command {
@@ -181,10 +191,34 @@ By default, the command scans the whole project workflow root recursively.`,
 	return cmd
 }
 
+func newSyncCommand() *cobra.Command {
+	state := &syncCommandState{}
+	cmd := &cobra.Command{
+		Use:          "sync",
+		Short:        "Refresh task workflow metadata files",
+		SilenceUsage: true,
+		Args:         cobra.NoArgs,
+		Long: `Refresh task workflow _meta.md files under .compozy/tasks.
+
+By default, the command scans the whole workflow root and creates missing task metadata files.`,
+		Example: `  compozy sync
+  compozy sync --name my-feature
+  compozy sync --tasks-dir .compozy/tasks/my-feature`,
+		RunE: state.run,
+	}
+
+	cmd.Flags().StringVar(&state.rootDir, "root-dir", "", "Workflow root to scan (default: .compozy/tasks)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Restrict sync to one workflow name under the workflow root")
+	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Restrict sync to one task workflow directory")
+	return cmd
+}
+
 func newCommandState(kind commandKind, mode core.Mode) *commandState {
 	return &commandState{
-		kind: kind,
-		mode: mode,
+		kind:          kind,
+		mode:          mode,
+		isInteractive: isInteractiveTerminal,
+		collectForm:   collectFormParams,
 	}
 }
 
@@ -229,7 +263,6 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		"medium",
 		"Reasoning effort for codex/claude/droid (low, medium, high, xhigh)",
 	)
-	cmd.Flags().BoolVar(&state.useForm, "form", false, "Use interactive form to collect parameters")
 	cmd.Flags().StringVar(
 		&state.timeout,
 		"timeout",
@@ -334,11 +367,53 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 	return err
 }
 
+func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	result, err := core.Sync(ctx, core.SyncConfig{
+		RootDir:  s.rootDir,
+		Name:     s.name,
+		TasksDir: s.tasksDir,
+	})
+	if result != nil {
+		const summaryFormat = "Sync target: %s\n" +
+			"Workflows scanned: %d\n" +
+			"Meta created: %d\n" +
+			"Meta updated: %d\n"
+		_, _ = fmt.Fprintf(
+			cmd.OutOrStdout(),
+			summaryFormat,
+			result.Target,
+			result.WorkflowsScanned,
+			result.MetaCreated,
+			result.MetaUpdated,
+		)
+	}
+	return err
+}
+
 func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {
-	if !s.useForm {
+	if cmd.Flags().NFlag() > 0 {
 		return nil
 	}
-	if err := collectFormParams(cmd, s); err != nil {
+
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+	if !isInteractive() {
+		return fmt.Errorf(
+			"%s requires an interactive terminal when called without flags; pass flags explicitly",
+			cmd.CommandPath(),
+		)
+	}
+
+	collectForm := s.collectForm
+	if collectForm == nil {
+		collectForm = collectFormParams
+	}
+	if err := collectForm(cmd, s); err != nil {
 		return fmt.Errorf("interactive form failed: %w", err)
 	}
 	return nil

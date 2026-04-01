@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/spf13/cobra"
 )
 
@@ -185,7 +187,12 @@ func (fb *formBuilder) hideField(flag string) bool {
 func (fb *formBuilder) addNameField(target *string) {
 	fb.addField("name", func() huh.Field {
 		if fb.state.kind == commandKindStart || fb.state.kind == commandKindFixReviews {
-			dirs := listTaskSubdirs(fb.tasksBaseDir)
+			var dirs []string
+			if fb.state.kind == commandKindStart {
+				dirs = listStartTaskSubdirs(fb.tasksBaseDir)
+			} else {
+				dirs = listTaskSubdirs(fb.tasksBaseDir)
+			}
 			if len(dirs) > 0 {
 				fb.nameFromDirList = true
 				title := "Task Name"
@@ -508,4 +515,28 @@ func listTaskSubdirs(baseDir string) []string {
 	}
 	sort.Strings(dirs)
 	return dirs
+}
+
+func listStartTaskSubdirs(baseDir string) []string {
+	dirs := listTaskSubdirs(baseDir)
+	if len(dirs) == 0 {
+		return nil
+	}
+
+	filtered := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		meta, err := tasks.RefreshTaskMeta(filepath.Join(baseDir, dir))
+		if err != nil {
+			filtered = append(filtered, dir)
+			continue
+		}
+		if meta.Total > 0 && meta.Pending == 0 {
+			continue
+		}
+		filtered = append(filtered, dir)
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
 }

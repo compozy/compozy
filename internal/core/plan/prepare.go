@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
@@ -39,6 +40,9 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 		prep.ResolvedPR = meta.PR
 		prep.ResolvedRound = meta.Round
 	} else {
+		if _, err := tasks.RefreshTaskMeta(prep.InputDirPath); err != nil {
+			return nil, err
+		}
 		cfg.TasksDir = prep.InputDirPath
 	}
 	if err := agent.EnsureAvailable(cfg); err != nil {

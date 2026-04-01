@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 )
 
 type stubResolverProvider struct {
@@ -269,5 +270,97 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
 		t.Fatalf("unexpected refreshed meta: %#v", meta)
+	}
+}
+
+func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
+	tmpDir := t.TempDir()
+	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+	if _, err := tasks.RefreshTaskMeta(tasksDir); err != nil {
+		t.Fatalf("refresh initial task meta: %v", err)
+	}
+
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file: %v", err)
+	}
+	completedContent := strings.Replace(string(content), "status: pending", "status: completed", 1)
+	if err := os.WriteFile(taskPath, []byte(completedContent), 0o600); err != nil {
+		t.Fatalf("write completed task file: %v", err)
+	}
+
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			mode:     model.ExecutionModePRDTasks,
+			tasksDir: tasksDir,
+		},
+	}
+	if err := execCtx.afterJobSuccess(context.Background(), &job{}); err != nil {
+		t.Fatalf("afterJobSuccess: %v", err)
+	}
+
+	meta, err := tasks.ReadTaskMeta(tasksDir)
+	if err != nil {
+		t.Fatalf("read task meta: %v", err)
+	}
+	if meta.Total != 1 || meta.Completed != 1 || meta.Pending != 0 {
+		t.Fatalf("unexpected refreshed task meta: %#v", meta)
+	}
+}
+
+func TestRefreshTaskMetaOnExitUpdatesAggregateCounts(t *testing.T) {
+	tmpDir := t.TempDir()
+	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+	if err := tasks.WriteTaskMeta(tasksDir, model.TaskMeta{
+		CreatedAt: time.Date(2026, 3, 31, 10, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 3, 31, 10, 5, 0, 0, time.UTC),
+		Total:     1,
+		Completed: 1,
+		Pending:   0,
+	}); err != nil {
+		t.Fatalf("write stale task meta: %v", err)
+	}
+
+	refreshTaskMetaOnExit(&config{
+		mode:     model.ExecutionModePRDTasks,
+		tasksDir: tasksDir,
+	})
+
+	meta, err := tasks.ReadTaskMeta(tasksDir)
+	if err != nil {
+		t.Fatalf("read task meta: %v", err)
+	}
+	if meta.Total != 1 || meta.Completed != 0 || meta.Pending != 1 {
+		t.Fatalf("unexpected exit-refreshed task meta: %#v", meta)
+	}
+}
+
+func writeRunTaskFile(t *testing.T, tasksDir, name, status string) {
+	t.Helper()
+
+	content := strings.Join([]string{
+		"---",
+		"status: " + status,
+		"domain: backend",
+		"type: feature",
+		"scope: small",
+		"complexity: low",
+		"---",
+		"",
+		"# " + name,
+		"",
+	}, "\n")
+
+	if err := os.WriteFile(filepath.Join(tasksDir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", name, err)
 	}
 }

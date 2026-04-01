@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 )
 
 func resolveInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
@@ -129,6 +130,13 @@ func missingRequiredInputsError(mode model.ExecutionMode) error {
 func validateAndFilterEntries(entries []model.IssueEntry, cfg *model.RuntimeConfig) ([]model.IssueEntry, error) {
 	if len(entries) == 0 {
 		if cfg.Mode == model.ExecutionModePRDTasks {
+			if !cfg.IncludeCompleted && strings.TrimSpace(cfg.TasksDir) != "" {
+				meta, err := tasks.ReadTaskMeta(cfg.TasksDir)
+				if err == nil && meta.Total > 0 && meta.Pending == 0 {
+					fmt.Println("All task files are already completed. Nothing to do.")
+					return nil, ErrNoWork
+				}
+			}
 			fmt.Println("No task files found.")
 		} else {
 			fmt.Println("No review issue files found.")

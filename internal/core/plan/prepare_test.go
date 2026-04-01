@@ -2,6 +2,8 @@ package plan
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -12,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
 )
 
 func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
@@ -68,6 +71,77 @@ func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	wantResolved := filepath.Join(tmp, model.TaskDirectory("demo"))
 	if resolved != wantResolved {
 		t.Fatalf("unexpected resolved dir\nwant: %q\ngot:  %q", wantResolved, resolved)
+	}
+}
+
+func TestValidateAndFilterEntriesReportsCompletedTaskWorkflowsSeparately(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"task_1.md": "---\nstatus: completed\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 1\n",
+		"task_2.md": "---\nstatus: done\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 2\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	if _, err := tasks.RefreshTaskMeta(dir); err != nil {
+		t.Fatalf("refresh task meta: %v", err)
+	}
+
+	entries, err := readTaskEntries(dir, false)
+	if err != nil {
+		t.Fatalf("readTaskEntries: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected all completed tasks to be filtered, got %d entries", len(entries))
+	}
+
+	var gotErr error
+	output := captureStandardOutput(t, func() {
+		_, gotErr = validateAndFilterEntries(entries, &model.RuntimeConfig{
+			Mode:             model.ExecutionModePRDTasks,
+			TasksDir:         dir,
+			IncludeCompleted: false,
+		})
+	})
+
+	if gotErr == nil || !errors.Is(gotErr, ErrNoWork) {
+		t.Fatalf("expected ErrNoWork, got %v", gotErr)
+	}
+	if !strings.Contains(output, "All task files are already completed. Nothing to do.") {
+		t.Fatalf("unexpected output: %q", output)
+	}
+}
+
+func TestValidateAndFilterEntriesKeepsEmptyTaskDirectoriesDistinct(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := tasks.RefreshTaskMeta(dir); err != nil {
+		t.Fatalf("refresh task meta: %v", err)
+	}
+
+	entries, err := readTaskEntries(dir, false)
+	if err != nil {
+		t.Fatalf("readTaskEntries: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("expected no task entries, got %d", len(entries))
+	}
+
+	var gotErr error
+	output := captureStandardOutput(t, func() {
+		_, gotErr = validateAndFilterEntries(entries, &model.RuntimeConfig{
+			Mode:             model.ExecutionModePRDTasks,
+			TasksDir:         dir,
+			IncludeCompleted: false,
+		})
+	})
+
+	if gotErr == nil || !errors.Is(gotErr, ErrNoWork) {
+		t.Fatalf("expected ErrNoWork, got %v", gotErr)
+	}
+	if !strings.Contains(output, "No task files found.") {
+		t.Fatalf("unexpected output: %q", output)
 	}
 }
 
@@ -257,4 +331,34 @@ func TestResolveInputsRejectsLegacyReviewsDirInference(t *testing.T) {
 	if !strings.Contains(err.Error(), filepath.ToSlash(model.TasksBaseDir())+"/<name>/reviews-NNN") {
 		t.Fatalf("expected error to mention canonical reviews dir, got %v", err)
 	}
+}
+
+func captureStandardOutput(t *testing.T, fn func()) string {
+	t.Helper()
+
+	originalStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create pipe: %v", err)
+	}
+
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = originalStdout
+	}()
+
+	fn()
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("close write pipe: %v", err)
+	}
+	output, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("read captured output: %v", err)
+	}
+	if err := readPipe.Close(); err != nil {
+		t.Fatalf("close read pipe: %v", err)
+	}
+
+	return string(output)
 }

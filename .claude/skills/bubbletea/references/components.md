@@ -1,6 +1,8 @@
-# Bubbletea Components Catalog
+# Bubble Tea v2 Components Catalog
 
 Reusable components for building TUI applications. All components follow the Elm architecture pattern (Init, Update, View).
+
+> **v2 Note:** All imports use `charm.land/*/v2` paths. Many components have updated APIs — see per-component notes below.
 
 ## Panel System
 
@@ -74,7 +76,7 @@ func (m model) renderDualPane() string {
 - Arrow keys - Focus panel in direction
 
 **Mouse support:**
-- Click panel to focus
+- Click panel to focus (via `tea.MouseClickMsg`)
 - Works in both horizontal and vertical stack modes
 
 ### Multi-Panel
@@ -115,7 +117,7 @@ Multiple views with tab switching.
 **Features:**
 - Tab bar with active indicator
 - Keyboard shortcuts (`1-9`, `Ctrl+Tab`)
-- Mouse click to switch tabs
+- Mouse click to switch tabs (via `tea.MouseClickMsg`)
 - Close tab support
 
 ## Lists
@@ -135,23 +137,27 @@ Basic scrollable list of items.
 - Visual selection indicator
 - Viewport scrolling (only visible items rendered)
 
-**Integration:**
+**Integration (v2):**
 ```go
-import "github.com/charmbracelet/bubbles/list"
+import "charm.land/bubbles/v2/list"
 
 type model struct {
-    list list.Model
+    list   list.Model
+    isDark bool
 }
 
-func (m model) Init() tea.Cmd {
+func newModel(isDark bool) model {
     items := []list.Item{
         item{title: "Item 1", desc: "Description 1"},
         item{title: "Item 2", desc: "Description 2"},
     }
-    m.list = list.New(items, list.NewDefaultDelegate(), 0, 0)
-    return nil
+    l := list.New(items, list.NewDefaultDelegate(), 0, 0)
+    l.Styles = list.DefaultStyles(isDark)
+    return model{list: l, isDark: isDark}
 }
 ```
+
+> **v2 Change:** `list.DefaultStyles()` now requires `isDark bool`. `list.NewDefaultItemStyles()` also requires `isDark bool`. `NewModel` removed — use `New()`.
 
 ### Filtered List
 
@@ -198,21 +204,33 @@ Single-line text field.
 - Search boxes
 - Prompts
 
-**Integration:**
+**Integration (v2):**
 ```go
-import "github.com/charmbracelet/bubbles/textinput"
+import "charm.land/bubbles/v2/textinput"
 
 type model struct {
-    input textinput.Model
+    input  textinput.Model
+    isDark bool
 }
 
-func (m model) Init() tea.Cmd {
-    m.input = textinput.New()
-    m.input.Placeholder = "Enter text..."
-    m.input.Focus()
-    return textinput.Blink
+func newModel(isDark bool) model {
+    ti := textinput.New()
+    ti.Placeholder = "Enter text..."
+    ti.SetStyles(textinput.DefaultStyles(isDark))
+    ti.Focus()
+
+    return model{input: ti, isDark: isDark}
 }
 ```
+
+> **v2 Changes:**
+> - `NewModel()` removed — use `New()`
+> - `Model.Width` field removed — use `Model.SetWidth()` / `Model.Width()`
+> - `DefaultKeyMap` var removed — use `DefaultKeyMap()` func
+> - Style fields (`PromptStyle`, `TextStyle`, `PlaceholderStyle`, `CompletionStyle`, `CursorStyle`) replaced by `Styles` struct with `Focused`/`Blurred` states
+> - `Model.Cursor` (cursor.Model) replaced by `Model.Cursor()` (func returning *tea.Cursor)
+> - Use `Model.SetStyles()` / `Model.Styles()` to get/set styles
+> - `CompletionStyle` renamed to `StyleState.Suggestion`
 
 ### Multiline Input
 
@@ -223,14 +241,29 @@ Text area for longer content.
 - Notes
 - Configuration editing
 
-**Integration:**
+**Integration (v2):**
 ```go
-import "github.com/charmbracelet/bubbles/textarea"
+import "charm.land/bubbles/v2/textarea"
 
 type model struct {
     textarea textarea.Model
+    isDark   bool
+}
+
+func newModel(isDark bool) model {
+    ta := textarea.New()
+    ta.Styles = textarea.DefaultStyles(isDark)
+    return model{textarea: ta, isDark: isDark}
 }
 ```
+
+> **v2 Changes:**
+> - `DefaultKeyMap` var removed — use `DefaultKeyMap()` func
+> - `textarea.Style` type renamed to `textarea.StyleState`
+> - `Model.FocusedStyle` / `Model.BlurredStyle` moved to `Model.Styles.Focused` / `Model.Styles.Blurred`
+> - `DefaultStyles()` now returns single `Styles` struct (not two values) and requires `isDark bool`
+> - `Model.SetCursor(col)` renamed to `Model.SetCursorColumn(col)`
+> - New: `Column()`, `ScrollYOffset()`, `ScrollPosition()`, `MoveToBeginning()`, `MoveToEnd()`
 
 ### Forms
 
@@ -284,11 +317,11 @@ Yes/No confirmation.
 
 **Example:**
 ```
-┌─────────────────────────────┐
-│ Delete this file?           │
-│                             │
-│  [Yes]  [No]                │
-└─────────────────────────────┘
++-----------------------------+
+| Delete this file?           |
+|                             |
+|  [Yes]  [No]               |
++-----------------------------+
 ```
 
 ### Input Dialog
@@ -309,14 +342,32 @@ Show long-running operations.
 - Build processes
 - Data processing
 
-**Integration:**
+**Integration (v2):**
 ```go
-import "github.com/charmbracelet/bubbles/progress"
+import "charm.land/bubbles/v2/progress"
 
 type model struct {
     progress progress.Model
 }
+
+func newModel() model {
+    // v2: Colors use lipgloss.Color (not string), gradient options renamed
+    p := progress.New(
+        progress.WithColors(lipgloss.Color("#5A56E0"), lipgloss.Color("#EE6FF8")),
+    )
+    return model{progress: p}
+}
 ```
+
+> **v2 Changes:**
+> - `Model.Width` field removed — use `Model.SetWidth()` / `Model.Width()`
+> - Color types changed from `string` to `color.Color`
+> - `WithGradient(a, b)` replaced by `WithColors(colors...)`
+> - `WithDefaultGradient()` replaced by `WithDefaultBlend()`
+> - `WithScaledGradient(a, b)` replaced by `WithColors(...) + WithScaled(true)`
+> - `WithSolidFill(string)` replaced by `WithColors(singleColor)`
+> - `WithColorProfile()` removed (automatic)
+> - New: `WithColorFunc()` for dynamic coloring, `WithScaled(bool)`
 
 ### Modal
 
@@ -337,16 +388,6 @@ Right-click or keyboard-triggered menu.
 - File operations
 - Quick actions
 - Tool integration
-
-**Example:**
-```
-┌─────────────┐
-│ Open        │
-│ Copy        │
-│ Delete      │
-│ Properties  │
-└─────────────┘
-```
 
 ### Command Palette
 
@@ -371,11 +412,6 @@ Top-level menu system.
 - Organized commands
 - Discoverability
 
-**Example:**
-```
-File  Edit  View  Help
-```
-
 ## Status Components
 
 ### Status Bar
@@ -386,17 +422,6 @@ Bottom bar showing state and help.
 - Current mode/state
 - Keyboard hints
 - File info
-
-**Example:**
-```
-┌────────────────────────────────────┐
-│                                    │
-│        Content area                │
-│                                    │
-├────────────────────────────────────┤
-│ Normal | file.txt | Line 10/100   │
-└────────────────────────────────────┘
-```
 
 **Pattern:**
 ```go
@@ -428,11 +453,6 @@ Path navigation component.
 - Directory navigation
 - Nested views
 - History trail
-
-**Example:**
-```
-Home > Projects > TUITemplate > components
-```
 
 ## Preview Components
 
@@ -495,22 +515,25 @@ Binary file viewer.
 - Debugging
 - Data analysis
 
-**Example:**
-```
-00000000: 7f45 4c46 0201 0100 0000 0000 0000 0000  .ELF............
-00000010: 0200 3e00 0100 0000 6009 4000 0000 0000  ..>.....`.@.....
-```
-
 ## Tables
 
 ### Simple Table
 
-Static data display.
+Static data display using Bubbles v2 table.
 
-**Use for:**
-- Data display
-- Reports
-- Comparison views
+**Integration (v2):**
+```go
+import "charm.land/bubbles/v2/table"
+
+t := table.New(
+    table.WithColumns(columns),
+    table.WithRows(rows),
+)
+t.SetWidth(80)
+t.SetHeight(20)
+```
+
+> **v2 Change:** `Model.Width`/`Model.Height` fields removed — use `SetWidth()`/`SetHeight()`/`Width()`/`Height()`.
 
 ### Interactive Table
 
@@ -521,7 +544,7 @@ Navigable table with selection.
 - CSV viewers
 - Process lists
 
-**Integration:**
+**Integration (third-party):**
 ```go
 import "github.com/evertras/bubble-table/table"
 
@@ -544,6 +567,46 @@ func (m model) Init() tea.Cmd {
 - Keyboard navigation
 - Column resize
 
+## Viewport (v2)
+
+The viewport component has significant new features in v2.
+
+**Integration (v2):**
+```go
+import "charm.land/bubbles/v2/viewport"
+
+// v2: Constructor uses functional options
+vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(24))
+vp.SetContent("Long content here...")
+```
+
+> **v2 Changes:**
+> - `New(w, h int)` replaced by `New(...Option)` with functional options
+> - `Model.Width`/`Model.Height`/`Model.YOffset` fields removed — use setter/getter methods
+> - `HighPerformanceRendering` removed entirely
+> - New: `SoftWrap`, `LeftGutterFunc`, `SetHighlights()`, `SetContentLines()`, `GetContent()`, `FillHeight`, `StyleLineFunc`, horizontal scrolling
+
+## Spinner (v2)
+
+```go
+import "charm.land/bubbles/v2/spinner"
+
+s := spinner.New()  // NewModel() removed, use New()
+s.Spinner = spinner.Dot
+```
+
+> **v2 Change:** `spinner.Tick()` package function replaced by `model.Tick()` method.
+
+## Help (v2)
+
+```go
+import "charm.land/bubbles/v2/help"
+
+h := help.New()  // NewModel() removed, use New()
+h.SetWidth(80)   // Width field removed, use SetWidth()
+h.Styles = help.DefaultStyles(isDark)  // Requires isDark parameter
+```
+
 ## Component Integration Patterns
 
 ### Composing Components
@@ -559,8 +622,8 @@ type model struct {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     switch msg := msg.(type) {
-    case tea.KeyMsg:
-        // Route to focused component
+    case tea.KeyPressMsg:
+        // Route to focused component (v2: KeyPressMsg not KeyMsg)
         switch m.focused {
         case "list":
             var cmd tea.Cmd
@@ -596,7 +659,7 @@ func (m *model) showPreview(path string) {
 
 ### Component Communication
 
-Use Bubbletea commands to communicate between components:
+Use Bubble Tea commands to communicate between components:
 
 ```go
 type fileSelectedMsg struct {
@@ -604,7 +667,7 @@ type fileSelectedMsg struct {
 }
 
 // In list component Update
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     if key.Matches(msg, m.keymap.Enter) {
         selectedFile := m.list.SelectedItem()
         return m, func() tea.Msg {
@@ -621,18 +684,19 @@ case fileSelectedMsg:
 ## Best Practices
 
 1. **Keep components focused** - Each component should have one responsibility
-2. **Use bubbles package** - Don't reinvent standard components
+2. **Use Bubbles v2 package** - Don't reinvent standard components
 3. **Lazy initialization** - Create components when needed, not upfront
-4. **Proper sizing** - Always pass explicit width/height to components
+4. **Proper sizing** - Always pass explicit width/height to components via setter methods
 5. **Clean interfaces** - Components should expose minimal, clear APIs
+6. **Pass isDark** - Always pass the `isDark` flag when creating component styles
 
-## External Dependencies
+## Dependencies
 
-**Core Charm libraries:**
+**Core Charm libraries (v2):**
 ```
-github.com/charmbracelet/bubbletea    # Framework
-github.com/charmbracelet/lipgloss     # Styling
-github.com/charmbracelet/bubbles      # Standard components
+charm.land/bubbletea/v2    # Framework
+charm.land/lipgloss/v2     # Styling
+charm.land/bubbles/v2      # Standard components
 ```
 
 **Extended functionality:**
@@ -643,5 +707,3 @@ github.com/alecthomas/chroma/v2       # Syntax highlighting
 github.com/evertras/bubble-table      # Interactive tables
 github.com/koki-develop/go-fzf        # Fuzzy finder
 ```
-
-See `go.mod` in template for complete list of optional dependencies.

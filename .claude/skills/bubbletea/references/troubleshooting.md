@@ -1,6 +1,6 @@
-# TUI Troubleshooting Guide
+# TUI Troubleshooting Guide (Bubble Tea v2)
 
-Common issues and their solutions when building Bubbletea applications.
+Common issues and their solutions when building Bubble Tea v2 applications.
 
 ## Layout Issues
 
@@ -70,7 +70,7 @@ func truncateString(s string, maxLen int) string {
     if maxLen < 1 {
         return ""
     }
-    return s[:maxLen-1] + "…"
+    return s[:maxLen-1] + "..."
 }
 ```
 
@@ -84,7 +84,7 @@ Panel borders missing or showing weird characters.
 1. **Terminal doesn't support Unicode box drawing**
    ```go
    // Use ASCII fallback
-   border := lipgloss.NormalBorder()  // Uses +-| instead of ┌─┐
+   border := lipgloss.NormalBorder()  // Uses +-| instead of rounded
    ```
 
 2. **Terminal encoding issue**
@@ -95,14 +95,13 @@ Panel borders missing or showing weird characters.
 
 3. **Wrong border style**
    ```go
-   // Make sure you're using a valid border
-   import "github.com/charmbracelet/lipgloss"
+   import "charm.land/lipgloss/v2"
 
-   border := lipgloss.RoundedBorder()  // ╭─╮
+   border := lipgloss.RoundedBorder()  // rounded corners
    // or
-   border := lipgloss.NormalBorder()   // ┌─┐
+   border := lipgloss.NormalBorder()   // standard box
    // or
-   border := lipgloss.DoubleBorder()   // ╔═╗
+   border := lipgloss.DoubleBorder()   // double lines
    ```
 
 ### Content Overflows Panel
@@ -149,23 +148,29 @@ Clicking panels doesn't change focus or trigger actions.
 
 **Possible Causes:**
 
-1. **Mouse not enabled in program**
+1. **Mouse mode not set in View (v2 declarative pattern)**
    ```go
-   // In main()
-   p := tea.NewProgram(
-       initialModel(),
-       tea.WithAltScreen(),
-       tea.WithMouseCellMotion(),  // Enable mouse
-   )
+   // In View() - v2 declarative approach
+   func (m model) View() tea.View {
+       v := tea.NewView(m.renderContent())
+       v.MouseMode = tea.MouseModeCellMotion  // Enable mouse
+       v.AltScreen = true
+       return v
+   }
    ```
 
-2. **Not handling MouseMsg**
+2. **Not handling the correct mouse message types (v2 split messages)**
    ```go
    func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
        switch msg := msg.(type) {
-       case tea.MouseMsg:
-           return m.handleMouse(msg)
+       case tea.MouseClickMsg:
+           if msg.Button == tea.MouseLeft {
+               return m.handleLeftClick(msg)
+           }
+       case tea.MouseWheelMsg:
+           return m.handleScroll(msg)
        }
+       return m, nil
    }
    ```
 
@@ -184,7 +189,7 @@ Using X coordinates when layout is vertical, or Y coordinates when horizontal.
 Check layout mode before processing mouse events. See [Golden Rules #3](golden-rules.md#rule-3-match-mouse-detection-to-layout).
 
 ```go
-func (m model) handleLeftClick(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+func (m model) handleLeftClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
     if m.shouldUseVerticalStack() {
         // Vertical: use Y coordinates
         if msg.Y < topPanelHeight {
@@ -211,14 +216,13 @@ Mouse wheel doesn't scroll content.
 
 **Solution:**
 ```go
-case tea.MouseMsg:
-    switch msg.Type {
-    case tea.MouseWheelUp:
+case tea.MouseWheelMsg:
+    if msg.Button == tea.MouseWheelUp {
         m.scroll -= 3
         if m.scroll < 0 {
             m.scroll = 0
         }
-    case tea.MouseWheelDown:
+    } else if msg.Button == tea.MouseWheelDown {
         m.scroll += 3
         maxScroll := len(m.content) - m.visibleLines
         if m.scroll > maxScroll {
@@ -255,24 +259,19 @@ Screen flickers or elements jump around during updates.
        cachedLayout  string
        layoutDirty   bool
    }
+   ```
 
-   func (m model) View() string {
-       if m.layoutDirty {
-           m.cachedLayout = m.renderLayout()
-           m.layoutDirty = false
-       }
-       return m.cachedLayout
+3. **Not using alt screen (set declaratively in v2)**
+   ```go
+   // v2: Set in View(), not as program option
+   func (m model) View() tea.View {
+       v := tea.NewView(m.renderContent())
+       v.AltScreen = true  // Essential for full-screen TUIs
+       return v
    }
    ```
 
-3. **Using alt screen incorrectly**
-   ```go
-   // Always use alt screen for full-screen TUIs
-   p := tea.NewProgram(
-       initialModel(),
-       tea.WithAltScreen(),  // Essential!
-   )
-   ```
+> **v2 Note:** Bubble Tea v2 uses synchronized updates (Mode 2026) by default, which reduces tearing and cursor flickering. No action needed.
 
 ### Colors Not Showing
 
@@ -288,17 +287,29 @@ Colors appear as plain text or wrong colors.
    tput colors      # Should show 256 or more
    ```
 
-2. **Not using lipgloss properly**
+2. **Not using Lip Gloss v2 properly**
    ```go
-   // Use lipgloss for color
-   import "github.com/charmbracelet/lipgloss"
+   import "charm.land/lipgloss/v2"
 
    style := lipgloss.NewStyle().
        Foreground(lipgloss.Color("#FF0000")).
        Background(lipgloss.Color("#000000"))
    ```
 
-3. **Environment variables**
+3. **Color downsampling (v2)**
+
+   Bubble Tea v2 has built-in color downsampling. If colors look wrong, check the detected color profile:
+   ```go
+   func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+       switch msg := msg.(type) {
+       case tea.ColorProfileMsg:
+           log.Printf("Color profile: %v", msg.Profile)
+       }
+       return m, nil
+   }
+   ```
+
+4. **Environment variables**
    ```bash
    export TERM=xterm-256color
    export COLORTERM=truecolor
@@ -331,11 +342,12 @@ Different terminals calculate emoji width differently (1 vs 2 cells).
 3. **Use icons from fixed-width sets**
    ```go
    // Use Nerd Fonts or similar fixed-width icon fonts instead
-   // 󰈙 (vs 📁 emoji)
    ```
 
 4. **Terminal-specific settings**
-   For WezTerm, see project's `docs/EMOJI_WIDTH_FIX.md`.
+   See `emoji-width-fix.md` for the battle-tested solution.
+
+> **v2 Note:** Bubble Tea v2 automatically enables mode 2027 for better Unicode support on terminals that support it.
 
 ## Keyboard Issues
 
@@ -346,15 +358,15 @@ Key presses don't trigger expected actions.
 
 **Debugging Steps:**
 
-1. **Log the key events**
+1. **Log the key events (v2 uses KeyPressMsg)**
    ```go
-   case tea.KeyMsg:
-       log.Printf("Key: %s, Type: %s", msg.String(), msg.Type)
+   case tea.KeyPressMsg:
+       log.Printf("Key: %s, Code: %v, Mod: %v", msg.String(), msg.Code, msg.Mod)
    ```
 
 2. **Check key matching**
    ```go
-   import "github.com/charmbracelet/bubbles/key"
+   import "charm.land/bubbles/v2/key"
 
    type keyMap struct {
        Quit key.Binding
@@ -368,7 +380,7 @@ Key presses don't trigger expected actions.
    }
 
    // In Update
-   case tea.KeyMsg:
+   case tea.KeyPressMsg:
        if key.Matches(msg, keys.Quit) {
            return m, tea.Quit
        }
@@ -377,7 +389,7 @@ Key presses don't trigger expected actions.
 3. **Check focus state**
    ```go
    // Make sure the right component has focus
-   case tea.KeyMsg:
+   case tea.KeyPressMsg:
        switch m.focused {
        case "input":
            // Route to input
@@ -386,35 +398,50 @@ Key presses don't trigger expected actions.
        }
    ```
 
-### Special Keys Not Detected
+### Special Keys and Modifier Combos (v2)
 
 **Symptom:**
-Function keys, Ctrl combinations, or other special keys don't work.
+Key combinations like Shift+Enter or Ctrl+H don't work.
 
 **Solution:**
-Use tea.KeyType constants:
+v2 supports progressive keyboard enhancements. Match using `msg.String()`:
 
 ```go
-case tea.KeyMsg:
-    switch msg.Type {
-    case tea.KeyCtrlC:
+case tea.KeyPressMsg:
+    switch msg.String() {
+    case "ctrl+c":
         return m, tea.Quit
-    case tea.KeyTab:
+    case "tab":
         m.nextPanel()
-    case tea.KeyF1:
-        m.showHelp()
-    case tea.KeyEnter:
+    case "enter":
         m.confirm()
+    case "shift+enter":
+        // New in v2: modifier combos
+    case "space":
+        // Note: space bar returns "space" in v2, not " "
     }
 ```
 
-Common keys:
-- `tea.KeyTab`
-- `tea.KeyEnter`
-- `tea.KeyEsc`
-- `tea.KeyCtrlC`
-- `tea.KeyUp/Down/Left/Right`
-- `tea.KeyF1` through `tea.KeyF12`
+Detect keyboard enhancement support:
+```go
+case tea.KeyboardEnhancementsMsg:
+    if msg.SupportsKeyDisambiguation() {
+        // Terminal supports enhanced key detection
+        m.hasEnhancedKeys = true
+    }
+```
+
+### Paste Events (v2)
+
+Paste events are now separate from key events:
+```go
+case tea.PasteMsg:
+    m.text += msg.Content
+case tea.PasteStartMsg:
+    // User started pasting
+case tea.PasteEndMsg:
+    // User stopped pasting
+```
 
 ## Performance Issues
 
@@ -443,14 +470,6 @@ Noticeable lag when updating the display.
        renderedCache string
        contentDirty  bool
    }
-
-   func (m *model) View() string {
-       if m.contentDirty {
-           m.renderedCache = m.renderContent()
-           m.contentDirty = false
-       }
-       return m.renderedCache
-   }
    ```
 
 3. **Avoid string concatenation in loops**
@@ -458,7 +477,7 @@ Noticeable lag when updating the display.
    // SLOW
    var s string
    for _, line := range lines {
-       s += line + "\n"  // Creates new string each iteration
+       s += line + "\n"
    }
 
    // FAST
@@ -472,7 +491,6 @@ Noticeable lag when updating the display.
 
 4. **Lazy load data**
    ```go
-   // Don't load all files upfront
    type model struct {
        fileList    []string
        fileContent map[string]string  // Load on demand
@@ -488,6 +506,8 @@ Noticeable lag when updating the display.
    }
    ```
 
+> **v2 Note:** The Cursed Renderer in v2 is highly optimized. Most rendering performance issues from v1 are resolved. Focus optimization efforts on your own data processing.
+
 ### High Memory Usage
 
 **Symptom:**
@@ -501,7 +521,6 @@ Application uses excessive memory.
 
    func (m *model) addToCache(key, value string) {
        if len(m.cache) >= maxCacheEntries {
-           // Evict oldest entry
            for k := range m.cache {
                delete(m.cache, k)
                break
@@ -513,7 +532,6 @@ Application uses excessive memory.
 
 2. **Stream large files**
    ```go
-   // Don't load entire file into memory
    func readLines(path string, start, count int) ([]string, error) {
        f, err := os.Open(path)
        if err != nil {
@@ -583,6 +601,69 @@ func loadConfig(path string) (*Config, error) {
 }
 ```
 
+## v2-Specific Issues
+
+### AdaptiveColor Removed
+
+**Symptom:**
+Compile error: `AdaptiveColor` not found.
+
+**Solution:**
+Use `isDark` pattern or `compat` package. See `v2-migration.md` for details.
+
+```go
+// Option 1: Bubble Tea integration (recommended)
+case tea.BackgroundColorMsg:
+    m.isDark = msg.IsDark()
+    m.styles = newStyles(m.isDark)
+
+// Option 2: compat package (quick migration)
+import "charm.land/lipgloss/v2/compat"
+color := compat.AdaptiveColor{Light: lipgloss.Color("#f1f1f1"), Dark: lipgloss.Color("#cccccc")}
+```
+
+### View Returns String Instead of tea.View
+
+**Symptom:**
+Compile error: cannot use string as tea.View.
+
+**Solution:**
+Only the top-level model returns `tea.View`. Child components continue returning `string`:
+
+```go
+// Top-level model
+func (m model) View() tea.View {
+    v := tea.NewView(m.renderContent())
+    v.AltScreen = true
+    return v
+}
+
+// Child component (still returns string)
+func (m childModel) View() string {
+    return m.styles.Render("child content")
+}
+```
+
+### tea.WithAltScreen / tea.WithMouseCellMotion Removed
+
+**Symptom:**
+Compile error: undefined `tea.WithAltScreen` or `tea.WithMouseCellMotion`.
+
+**Solution:**
+These are now declarative in `View()`:
+```go
+// v1 (removed)
+p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+// v2 (declarative)
+func (m model) View() tea.View {
+    v := tea.NewView(content)
+    v.AltScreen = true
+    v.MouseMode = tea.MouseModeCellMotion
+    return v
+}
+```
+
 ## Debugging Decision Tree
 
 ```
@@ -595,24 +676,28 @@ Problem?
 │  └─ Content overflow? → Check truncation
 │
 ├─ Mouse issue?
-│  ├─ Clicks not working? → Check mouse enabled + MouseMsg handling
+│  ├─ Clicks not working? → Check MouseMode in View() + MouseClickMsg handling
 │  ├─ Wrong panel focused? → Check layout orientation (Rule #3)
-│  └─ Scrolling broken? → Check MouseWheel handling
+│  └─ Scrolling broken? → Check MouseWheelMsg handling
 │
 ├─ Rendering issue?
-│  ├─ Flickering? → Check update frequency + alt screen
-│  ├─ No colors? → Check terminal support + TERM variable
+│  ├─ Flickering? → v2 Cursed Renderer handles most cases; check update frequency
+│  ├─ No colors? → Check terminal support + COLORTERM variable
 │  └─ Emoji alignment? → Check terminal emoji width settings
 │
 ├─ Keyboard issue?
-│  ├─ Shortcuts not working? → Log KeyMsg, check key.Matches
-│  ├─ Special keys broken? → Use tea.KeyType constants
+│  ├─ Shortcuts not working? → Log KeyPressMsg, check key.Matches
+│  ├─ Modifier combos? → Check KeyboardEnhancementsMsg support
 │  └─ Wrong component responding? → Check focus state
+│
+├─ v2 migration issue?
+│  ├─ AdaptiveColor removed? → Use isDark pattern or compat package
+│  ├─ View returns string? → Top-level returns tea.View
+│  └─ Program options removed? → Set declaratively in View()
 │
 └─ Performance issue?
    ├─ Slow rendering? → Cache, virtual scrolling, visible-only
    └─ High memory? → Limit cache, stream data
-
 ```
 
 ## General Debugging Tips
@@ -620,7 +705,6 @@ Problem?
 ### 1. Enable Debug Logging
 
 ```go
-// Create debug log file
 func setupDebugLog() *os.File {
     f, err := os.OpenFile("debug.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
     if err != nil {
@@ -646,7 +730,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 ```
 
-### 3. Inspect Terminal Capabilities
+### 3. Use Environment Variables (v2)
+
+Bubble Tea v2 sends environment variables via `tea.EnvMsg`, useful for SSH apps:
+```go
+case tea.EnvMsg:
+    m.term = msg.Getenv("TERM")  // Client's TERM, not server's
+```
+
+### 4. Inspect Terminal Capabilities
 
 ```bash
 # Check terminal type
@@ -663,36 +755,24 @@ tput lines
 infocmp $TERM
 ```
 
-### 4. Test in Different Terminals
+### 5. Test in Different Terminals
 
 Try your app in multiple terminals:
+- Ghostty (macOS/Linux) - full keyboard enhancement support
 - iTerm2 (macOS)
-- Alacritty (cross-platform)
-- kitty (cross-platform)
-- WezTerm (cross-platform)
+- Kitty (cross-platform) - full keyboard enhancement support
+- Alacritty (cross-platform) - full keyboard enhancement support
+- WezTerm (cross-platform) - full keyboard enhancement support
 - Windows Terminal (Windows)
 - Termux (Android)
-
-### 5. Use Alt Screen
-
-Always use alt screen for full-screen TUIs:
-
-```go
-p := tea.NewProgram(
-    initialModel(),
-    tea.WithAltScreen(),  // Essential!
-    tea.WithMouseCellMotion(),
-)
-```
-
-This prevents messing up the user's terminal when your app exits.
 
 ## Getting Help
 
 If you're still stuck:
 
 1. Check the [Golden Rules](golden-rules.md) - 90% of issues are layout-related
-2. Review the [Components Guide](components.md) for proper component usage
-3. Check Bubbletea examples: https://github.com/charmbracelet/bubbletea/tree/master/examples
-4. Ask in Charm Discord: https://charm.sh/discord
-5. Search Bubbletea issues: https://github.com/charmbracelet/bubbletea/issues
+2. Check the [v2 Migration Guide](v2-migration.md) - for v2-specific issues
+3. Review the [Components Guide](components.md) for proper component usage
+4. Check Bubble Tea examples: https://github.com/charmbracelet/bubbletea/tree/master/examples
+5. Ask in Charm Discord: https://charm.sh/discord
+6. Search Bubble Tea issues: https://github.com/charmbracelet/bubbletea/issues

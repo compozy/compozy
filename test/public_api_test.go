@@ -100,3 +100,38 @@ func TestMigrateExposePublicAPI(t *testing.T) {
 		t.Fatalf("expected 1 planned migration, got %d", result.FilesMigrated)
 	}
 }
+
+func TestSyncExposePublicAPI(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	workflowDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workflowDir, "task_1.md"), []byte(strings.Join([]string{
+		"---",
+		"status: pending",
+		"domain: backend",
+		"type: feature",
+		"scope: small",
+		"complexity: low",
+		"---",
+		"",
+		"# Task 1: Demo",
+		"",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	result, err := compozy.Sync(context.Background(), compozy.SyncConfig{TasksDir: workflowDir})
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected sync result")
+	}
+	if result.WorkflowsScanned != 1 || result.MetaCreated != 1 || result.MetaUpdated != 0 {
+		t.Fatalf("unexpected sync result: %#v", result)
+	}
+}

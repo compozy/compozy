@@ -69,6 +69,9 @@ compozy setup                           Install skills (once per project)
 /create-tasks user-auth                .compozy/tasks/user-auth/task_01.md … task_N.md
    │
    ▼
+compozy sync --name user-auth          Refresh task workflow _meta.md
+   │
+   ▼
 compozy start --name user-auth         AI agents execute each task
    │
    ▼
@@ -83,7 +86,7 @@ Repeat until clean → Ship
 
 Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can read, edit, or version-control any of them between steps.
 
-Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
+Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
 
 ## Quick Start
 
@@ -230,11 +233,28 @@ compozy migrate [flags]
 </details>
 
 <details>
+<summary><code>compozy sync</code> — Refresh task workflow metadata files</summary>
+
+```bash
+compozy sync [flags]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--root-dir` | `.compozy/tasks` | Workflow root to scan |
+| `--name` | | Restrict sync to one workflow name |
+| `--tasks-dir` | | Restrict sync to one task workflow directory |
+
+</details>
+
+<details>
 <summary><code>compozy start</code> — Execute PRD task files</summary>
 
 ```bash
 compozy start [flags]
 ```
+
+Running `compozy start` with no flags opens the interactive form automatically.
 
 | Flag | Default | Description |
 | --- | --- | --- |
@@ -251,7 +271,6 @@ compozy start [flags]
 | `--auto-commit` | `false` | Auto-commit after each task |
 | `--include-completed` | `false` | Re-run completed tasks |
 | `--dry-run` | `false` | Preview prompts without executing |
-| `--form` | `false` | Interactive parameter collection |
 
 </details>
 
@@ -262,13 +281,14 @@ compozy start [flags]
 compozy fetch-reviews [flags]
 ```
 
+Running `compozy fetch-reviews` with no flags opens the interactive form automatically.
+
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--provider` | | Review provider (`coderabbit`, etc.) |
 | `--pr` | | Pull request number |
 | `--name` | | Workflow name |
 | `--round` | `0` | Round number (auto-increments if omitted) |
-| `--form` | `false` | Interactive parameter collection |
 
 </details>
 
@@ -278,6 +298,8 @@ compozy fetch-reviews [flags]
 ```bash
 compozy fix-reviews [flags]
 ```
+
+Running `compozy fix-reviews` with no flags opens the interactive form automatically.
 
 | Flag | Default | Description |
 | --- | --- | --- |
@@ -298,7 +320,6 @@ compozy fix-reviews [flags]
 | `--add-dir` | | Additional directories to allow (repeatable) |
 | `--auto-commit` | `false` | Auto-commit after each batch |
 | `--dry-run` | `false` | Preview prompts without executing |
-| `--form` | `false` | Interactive parameter collection |
 
 </details>
 

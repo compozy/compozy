@@ -118,6 +118,14 @@ type RoundMeta struct {
 	Unresolved int
 }
 
+type TaskMeta struct {
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Total     int
+	Completed int
+	Pending   int
+}
+
 type TaskEntry struct {
 	Content      string
 	Status       string

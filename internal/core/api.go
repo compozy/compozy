@@ -124,6 +124,20 @@ type MigrationResult struct {
 	InvalidPaths            []string
 }
 
+type SyncConfig struct {
+	RootDir  string
+	Name     string
+	TasksDir string
+}
+
+type SyncResult struct {
+	Target           string
+	WorkflowsScanned int
+	MetaCreated      int
+	MetaUpdated      int
+	SyncedPaths      []string
+}
+
 // Validate ensures the configuration is internally consistent.
 func (cfg Config) Validate() error {
 	runtimeCfg := cfg.runtime()
@@ -170,6 +184,10 @@ func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
 
 func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
 	return migrateArtifacts(ctx, cfg)
+}
+
+func Sync(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
+	return syncTaskMetadata(ctx, cfg)
 }
 
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.

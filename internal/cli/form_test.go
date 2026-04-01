@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
@@ -79,6 +80,28 @@ func TestStartFormFallsBackToInputWhenNoDirs(t *testing.T) {
 
 	tmp := t.TempDir()
 	baseDir := filepath.Join(tmp, ".compozy", "tasks")
+
+	keys := formFieldKeysWithBaseDir(
+		newStartCommand(),
+		newCommandState(commandKindStart, core.ModePRDTasks),
+		baseDir,
+	)
+
+	assertFieldKeysPresent(t, keys, "name", "tasks-dir")
+}
+
+func TestStartFormFallsBackToInputWhenAllTaskDirsAreCompleted(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	baseDir := filepath.Join(tmp, ".compozy", "tasks")
+	for _, name := range []string{"alpha", "beta"} {
+		workflowDir := filepath.Join(baseDir, name)
+		if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+			t.Fatalf("create workflow dir: %v", err)
+		}
+		writeFormTaskFile(t, workflowDir, "task_01.md", "completed")
+	}
 
 	keys := formFieldKeysWithBaseDir(
 		newStartCommand(),
@@ -175,6 +198,40 @@ func TestListTaskSubdirs(t *testing.T) {
 	})
 }
 
+func TestListStartTaskSubdirsFiltersCompletedWorkflowsAndBootstrapsMeta(t *testing.T) {
+	t.Parallel()
+
+	baseDir := filepath.Join(t.TempDir(), ".compozy", "tasks")
+	pendingDir := filepath.Join(baseDir, "alpha")
+	completedDir := filepath.Join(baseDir, "beta")
+	emptyDir := filepath.Join(baseDir, "gamma")
+	for _, dir := range []string{pendingDir, completedDir, emptyDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+
+	writeFormTaskFile(t, pendingDir, "task_01.md", "pending")
+	writeFormTaskFile(t, completedDir, "task_01.md", "completed")
+
+	dirs := listStartTaskSubdirs(baseDir)
+	want := []string{"alpha", "gamma"}
+	if len(dirs) != len(want) {
+		t.Fatalf("got %v, want %v", dirs, want)
+	}
+	for i, dir := range dirs {
+		if dir != want[i] {
+			t.Fatalf("dirs[%d] = %q, want %q", i, dir, want[i])
+		}
+	}
+
+	for _, dir := range []string{pendingDir, completedDir, emptyDir} {
+		if _, err := os.Stat(filepath.Join(dir, "_meta.md")); err != nil {
+			t.Fatalf("expected bootstrapped meta in %s: %v", dir, err)
+		}
+	}
+}
+
 func formFieldKeys(cmd *cobra.Command, state *commandState) map[string]struct{} {
 	return formFieldKeysWithBaseDir(cmd, state, filepath.Join(os.TempDir(), "nonexistent-looper-test-dir"))
 }
@@ -214,5 +271,26 @@ func assertFieldKeysAbsent(t *testing.T, keys map[string]struct{}, forbidden ...
 		if _, ok := keys[key]; ok {
 			t.Fatalf("expected form fields to omit %q, got %#v", key, keys)
 		}
+	}
+}
+
+func writeFormTaskFile(t *testing.T, workflowDir, name, status string) {
+	t.Helper()
+
+	content := strings.Join([]string{
+		"---",
+		"status: " + status,
+		"domain: backend",
+		"type: feature",
+		"scope: small",
+		"complexity: low",
+		"---",
+		"",
+		"# " + name,
+		"",
+	}, "\n")
+
+	if err := os.WriteFile(filepath.Join(workflowDir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("write %s: %v", name, err)
 	}
 }

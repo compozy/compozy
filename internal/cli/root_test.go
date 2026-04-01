@@ -26,11 +26,13 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	required := []string{
 		"compozy setup",
 		"compozy migrate",
+		"compozy sync",
 		"compozy fetch-reviews",
 		"compozy fix-reviews",
 		"compozy start",
 		"setup",
 		"migrate",
+		"sync",
 		"fetch-reviews",
 		"fix-reviews",
 		"start",
@@ -70,6 +72,34 @@ func TestMigrateHelpShowsMigrationFlagsOnly(t *testing.T) {
 	}
 }
 
+func TestSyncHelpShowsSyncFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "sync")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected sync to omit mode flag")
+	}
+
+	output, err := executeRootCommand("sync", "--help")
+	if err != nil {
+		t.Fatalf("execute sync help: %v", err)
+	}
+
+	required := []string{"--root-dir", "--name", "--tasks-dir"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected sync help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"--reviews-dir", "--provider", "--pr", "--batch-size", "--include-completed"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected sync help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
 func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
 	t.Parallel()
 
@@ -79,14 +109,14 @@ func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
 		t.Fatalf("execute fetch-reviews help: %v", err)
 	}
 
-	required := []string{"--provider", "--pr", "--name", "--round", "--form"}
+	required := []string{"--provider", "--pr", "--name", "--round"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected fetch-reviews help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
-	forbidden := []string{"--reviews-dir", "--tasks-dir", "--batch-size", "--grouped", "--include-resolved"}
+	forbidden := []string{"--reviews-dir", "--tasks-dir", "--batch-size", "--grouped", "--include-resolved", "--form"}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected fetch-reviews help to omit %q\noutput:\n%s", snippet, output)
@@ -119,7 +149,6 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		"--concurrent",
 		"--grouped",
 		"--include-resolved",
-		"--form",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -127,7 +156,7 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		}
 	}
 
-	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--include-completed"}
+	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--include-completed", "--form"}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected fix-reviews help to omit %q\noutput:\n%s", snippet, output)
@@ -148,7 +177,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		t.Fatalf("execute start help: %v", err)
 	}
 
-	required := []string{"--name", "--tasks-dir", "--include-completed", "--form"}
+	required := []string{"--name", "--tasks-dir", "--include-completed"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to include %q\noutput:\n%s", snippet, output)
@@ -163,6 +192,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		"--concurrent",
 		"--grouped",
 		"--include-resolved",
+		"--form",
 	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
@@ -335,6 +365,98 @@ func TestFormInputsApplyForStartWorkflow(t *testing.T) {
 	}
 	if !state.includeCompleted {
 		t.Fatalf("expected includeCompleted=true")
+	}
+}
+
+func TestMaybeCollectInteractiveParamsUsesFormWhenNoFlags(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	called := false
+	state.isInteractive = func() bool { return true }
+	state.collectForm = func(_ *cobra.Command, got *commandState) error {
+		called = true
+		if got != state {
+			t.Fatalf("collectForm received unexpected state pointer")
+		}
+		return nil
+	}
+
+	if err := state.maybeCollectInteractiveParams(cmd); err != nil {
+		t.Fatalf("maybeCollectInteractiveParams: %v", err)
+	}
+	if !called {
+		t.Fatal("expected form collection to run when no flags are provided")
+	}
+}
+
+func TestMaybeCollectInteractiveParamsReturnsClearErrorWithoutTTY(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	called := false
+	state.isInteractive = func() bool { return false }
+	state.collectForm = func(_ *cobra.Command, _ *commandState) error {
+		called = true
+		return nil
+	}
+
+	err := state.maybeCollectInteractiveParams(cmd)
+	if err == nil {
+		t.Fatal("expected error without interactive terminal")
+	}
+	if called {
+		t.Fatal("did not expect form collection without interactive terminal")
+	}
+	if !strings.Contains(err.Error(), "requires an interactive terminal when called without flags") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestMaybeCollectInteractiveParamsSkipsFormWhenAnyFlagIsProvided(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	called := false
+	state.isInteractive = func() bool { return false }
+	state.collectForm = func(_ *cobra.Command, _ *commandState) error {
+		called = true
+		return nil
+	}
+
+	if err := cmd.Flags().Set("ide", "claude"); err != nil {
+		t.Fatalf("set ide flag: %v", err)
+	}
+
+	if err := state.maybeCollectInteractiveParams(cmd); err != nil {
+		t.Fatalf("maybeCollectInteractiveParams: %v", err)
+	}
+	if called {
+		t.Fatal("did not expect form collection when flags are provided")
+	}
+}
+
+func TestFetchReviewsWithPartialFlagsSkipsFormAndReturnsValidationError(t *testing.T) {
+	t.Parallel()
+
+	output, err := executeRootCommand("fetch-reviews", "--provider", "coderabbit")
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if strings.Contains(err.Error(), "interactive terminal when called without flags") {
+		t.Fatalf("unexpected interactive-terminal error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "fetch-reviews requires --name") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(output, "Error: fetch-reviews requires --name") {
+		t.Fatalf("unexpected command output: %q", output)
 	}
 }
 
