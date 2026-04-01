@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"path/filepath"
+	"time"
+)
 
 const (
 	UnknownFileName        = "unknown"
@@ -8,10 +11,16 @@ const (
 	IDEClaude              = "claude"
 	IDEDroid               = "droid"
 	IDECursor              = "cursor-agent"
+	IDEOpenCode            = "opencode"
+	IDEPi                  = "pi"
 	DefaultCodexModel      = "gpt-5.4"
 	DefaultClaudeModel     = "opus"
 	DefaultCursorModel     = "composer-1"
+	DefaultOpenCodeModel   = "anthropic/claude-sonnet-4-20250514"
+	DefaultPiModel         = "anthropic/claude-sonnet-4-20250514"
 	DefaultActivityTimeout = 10 * time.Minute
+	WorkflowRootDirName    = ".compozy"
+	WorkflowTasksDirName   = "tasks"
 	ModeCodeReview         = "pr-review"
 	ModePRDTasks           = "prd-tasks"
 )
@@ -75,6 +84,14 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	}
 }
 
+func TasksBaseDir() string {
+	return filepath.Join(WorkflowRootDirName, WorkflowTasksDirName)
+}
+
+func TaskDirectory(name string) string {
+	return filepath.Join(TasksBaseDir(), name)
+}
+
 type IssueEntry struct {
 	Name     string
 	AbsPath  string
@@ -83,6 +100,7 @@ type IssueEntry struct {
 }
 
 type ReviewContext struct {
+	Status      string
 	File        string
 	Line        int
 	Severity    string
@@ -108,6 +126,24 @@ type TaskEntry struct {
 	Scope        string
 	Complexity   string
 	Dependencies []string
+}
+
+type TaskFileMeta struct {
+	Status       string   `yaml:"status"`
+	Domain       string   `yaml:"domain,omitempty"`
+	TaskType     string   `yaml:"type,omitempty"`
+	Scope        string   `yaml:"scope,omitempty"`
+	Complexity   string   `yaml:"complexity,omitempty"`
+	Dependencies []string `yaml:"dependencies,omitempty"`
+}
+
+type ReviewFileMeta struct {
+	Status      string `yaml:"status"`
+	File        string `yaml:"file,omitempty"`
+	Line        int    `yaml:"line,omitempty"`
+	Severity    string `yaml:"severity,omitempty"`
+	Author      string `yaml:"author,omitempty"`
+	ProviderRef string `yaml:"provider_ref,omitempty"`
 }
 
 type SolvePreparation struct {

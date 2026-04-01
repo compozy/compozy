@@ -1,68 +1,25 @@
-# 🔄 Compozy
+# Compozy
 
-**Drive the full lifecycle of AI-assisted development — from idea to shipped code.**
+**Orchestrate AI coding agents from idea to shipped code — in a single pipeline.**
 
-Compozy is a Go module and CLI that orchestrates AI coding agents (Claude Code, Codex, Droid, Cursor) to process structured markdown workflows. It covers product ideation, technical specification, task breakdown with codebase-informed enrichment, and automated execution.
+One CLI to replace scattered prompts, manual task tracking, and copy-paste review cycles. Compozy drives the full lifecycle of AI-assisted development: product ideation, technical specification, task breakdown with codebase-informed enrichment, concurrent execution across agents, and automated PR review remediation.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 
-## 📑 Table of Contents
+## Highlights
 
-- [🔄 Compozy](#-compozy)
-  - [📑 Table of Contents](#-table-of-contents)
-  - [✨ Features](#-features)
-  - [🚀 Installation](#-installation)
-    - [Requirements](#requirements)
-  - [📖 Usage — Complete Workflow](#-usage--complete-workflow)
-    - [Step 1: Install skills into your AI agents](#step-1-install-skills-into-your-ai-agents)
-    - [Step 2: Create a PRD](#step-2-create-a-prd)
-    - [Step 3: Create a TechSpec](#step-3-create-a-techspec)
-    - [Step 4: Break down into tasks](#step-4-break-down-into-tasks)
-    - [Step 5: Execute tasks with AI agents](#step-5-execute-tasks-with-ai-agents)
-    - [Step 6: Review the implementation](#step-6-review-the-implementation)
-    - [Step 7: Fix review issues](#step-7-fix-review-issues)
-    - [Step 8: Iterate until clean](#step-8-iterate-until-clean)
-  - [🛠️ Skills Setup](#️-skills-setup)
-    - [How It Works](#how-it-works)
-    - [Supported Agents](#supported-agents)
-    - [Installation Modes](#installation-modes)
-  - [🔧 PRD Workflow](#-prd-workflow)
-    - [How It Works](#how-it-works-1)
-    - [CLI Usage](#cli-usage)
-    - [Skills](#skills)
-    - [Output Convention](#output-convention)
-  - [🔍 PR Review Workflow](#-pr-review-workflow)
-    - [How It Works](#how-it-works-2)
-    - [Prerequisites](#prerequisites)
-    - [CLI Usage](#cli-usage-1)
-    - [Skills](#skills-1)
-  - [🧩 Shared Skills](#-shared-skills)
-  - [📦 Go Package Usage](#-go-package-usage)
-    - [PRD Tasks](#prd-tasks)
-    - [PR Review](#pr-review)
-    - [Embedding](#embedding)
-  - [⌨️ CLI Reference](#️-cli-reference)
-    - [`compozy setup`](#compozy-setup)
-    - [`compozy fetch-reviews`](#compozy-fetch-reviews)
-    - [`compozy start`](#compozy-start)
-    - [`compozy fix-reviews`](#compozy-fix-reviews)
-  - [🏗️ Project Layout](#️-project-layout)
-  - [🛠️ Development](#️-development)
-  - [📄 License](#-license)
+- **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, and 40+ other agents and editors with `compozy setup` — no npm, pipx, or external tools required.
+- **Idea to code in 5 steps.** Structured pipeline: PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next.
+- **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
+- **Multi-agent execution.** Run tasks through Claude Code, Codex, Cursor, or Droid — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
+- **Provider-agnostic reviews.** Fetch review comments from CodeRabbit, GitHub, or run AI-powered reviews internally. All normalize to the same format. Provider threads resolve automatically after fixes.
+- **Markdown everywhere.** PRDs, specs, tasks, reviews, and ADRs are human-readable markdown files. Version-controlled, diffable, editable between steps. No vendor lock-in.
+- **Frontmatter for machine-readable metadata.** Tasks and review issues keep parseable metadata in standard YAML frontmatter instead of custom XML tags.
+- **Single binary, local-first.** Compiles to one Go binary with zero runtime dependencies. Your code and data stay on your machine.
+- **Embeddable.** Use as a standalone CLI or import as a Go package into your own tools.
 
-## ✨ Features
-
-- **Built-in skills installer** — `compozy setup` installs bundled skills directly into 30+ AI agents with auto-detection, no external tools needed
-- **End-to-end PRD workflow** — go from a product idea to implemented code through structured phases
-- **Provider-agnostic PR review automation** — fetch and remediate review feedback in tracked rounds under each PRD
-- **Multi-agent support** — run tasks through Claude Code, Codex, Droid, Cursor, and many more
-- **Concurrent review execution** — run review batches in parallel with configurable batch sizes
-- **Interactive mode** — guided form-based CLI for quick setup
-- **Plain markdown artifacts** — all specs, tasks, and tracking are human-readable markdown files
-- **Embeddable** — use as a standalone CLI or import as a Go package into your own tools
-
-## 🚀 Installation
+## Installation
 
 #### Homebrew
 
@@ -77,7 +34,7 @@ brew install --cask compozy
 npm install -g @compozy/cli
 ```
 
-#### Go Install
+#### Go
 
 ```bash
 go install github.com/compozy/compozy/cmd/compozy@latest
@@ -87,411 +44,286 @@ go install github.com/compozy/compozy/cmd/compozy@latest
 
 ```bash
 git clone git@github.com:compozy/compozy.git
-cd compozy
-make verify
-go build ./cmd/compozy
+cd compozy && make verify && go build ./cmd/compozy
 ```
 
-### Post-install: Set Up Skills
-
-Install the bundled skills that Compozy prompts expect:
+Then install bundled skills into your AI agents:
 
 ```bash
-compozy setup
+compozy setup          # interactive — pick agents and skills
+compozy setup --all    # install everything to every detected agent
 ```
 
-Non-interactive example:
-
-```bash
-compozy setup \
-  --agent codex \
-  --agent claude \
-  --skill create-prd \
-  --skill create-techspec \
-  --yes
-```
-
-### Requirements
-
-- Go 1.26+ (only for `go install` or building from source)
-
-## 📖 Usage — Complete Workflow
-
-This walkthrough builds a feature called **user-auth** from idea to shipped code. Each step feeds into the next — all artifacts are plain markdown files in `tasks/user-auth/`.
-
-> **Tip:** Every CLI command supports `--form` for interactive mode, which guides you through all options.
+## How It Works
 
 ```
-compozy setup                          Install skills (once per project)
+compozy setup                           Install skills (once per project)
    │
    ▼
-/create-prd user-auth                 ──▶  tasks/user-auth/_prd.md
+/create-prd user-auth                  .compozy/tasks/user-auth/_prd.md
+   │                                    + Architecture Decision Records
+   ▼
+/create-techspec user-auth             .compozy/tasks/user-auth/_techspec.md
    │
    ▼
-/create-techspec user-auth            ──▶  tasks/user-auth/_techspec.md
+/create-tasks user-auth                .compozy/tasks/user-auth/task_01.md … task_N.md
    │
    ▼
-/create-tasks user-auth               ──▶  tasks/user-auth/task_01.md … task_N.md
+compozy start --name user-auth         AI agents execute each task
    │
    ▼
-compozy start --name user-auth         ──▶  AI agents execute each task
+compozy fetch-reviews / /review-round  .compozy/tasks/user-auth/reviews-001/
    │
    ▼
-/review-round user-auth               ──▶  tasks/user-auth/reviews-001/
-   │  (or compozy fetch-reviews)
-   ▼
-compozy fix-reviews --name user-auth   ──▶  Issues triaged, fixed, resolved
+compozy fix-reviews --name user-auth   Issues triaged, fixed, resolved
    │
    ▼
-🔁 Repeat review → fix until clean   ──▶  Ship it
+Repeat until clean → Ship
 ```
 
-### Step 1: Install skills into your AI agents
+Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can read, edit, or version-control any of them between steps.
 
-Compozy bundles all the skills its workflows depend on. Run `setup` once per project to install them into your AI agents (Claude Code, Codex, Cursor, etc.):
+Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
+
+## Quick Start
+
+This walkthrough builds a feature called **user-auth** from idea to shipped code.
+
+### 1. Install skills
 
 ```bash
 compozy setup --all --yes
 ```
 
-This auto-detects installed agents and copies (or symlinks) skills into their configuration directories. See [Skills Setup](#️-skills-setup) for agent-specific options.
+Auto-detects installed agents and copies (or symlinks) skills into their configuration directories.
 
-### Step 2: Create a PRD
+### 2. Create a PRD
 
-Inside your AI agent, invoke the `/create-prd` skill to brainstorm and produce a Product Requirements Document:
+Inside your AI agent (Claude Code, Codex, Cursor, etc.):
 
 ```
 /create-prd user-auth
 ```
 
-The skill runs an interactive session — it asks clarifying questions about what you're building, who it's for, and why. It also spawns parallel agents to research your codebase and the web for context. The result is a business-focused PRD:
+Interactive brainstorming session — asks clarifying questions, spawns parallel agents to research your codebase and the web, produces a business-focused PRD with ADRs.
 
-```
-tasks/user-auth/
-  _prd.md            # Product Requirements Document
-  adrs/              # Architecture Decision Records from brainstorming
-```
-
-### Step 3: Create a TechSpec
-
-Next, translate the business requirements into a technical specification:
+### 3. Create a TechSpec
 
 ```
 /create-techspec user-auth
 ```
 
-The skill reads your PRD, explores the codebase architecture, and asks technical clarification questions (how to implement, which technologies, where components live). Output:
+Reads your PRD, explores the codebase architecture, asks technical clarification questions. Produces architecture specs, API designs, and data models.
 
-```
-tasks/user-auth/
-  _techspec.md       # Technical Specification (architecture, APIs, data models)
-```
-
-### Step 4: Break down into tasks
-
-Decompose the PRD and TechSpec into independently implementable tasks enriched with codebase context:
+### 4. Break down into tasks
 
 ```
 /create-tasks user-auth
 ```
 
-The skill analyzes both documents, explores your codebase for relevant files and patterns, and produces individually executable task files. You can review and edit them before execution:
+Analyzes both documents, explores your codebase for relevant files and patterns, produces individually executable task files with status tracking, context, and acceptance criteria.
 
-```
-tasks/user-auth/
-  _tasks.md          # Master task list
-  task_01.md         # Individual tasks with status, context, and acceptance criteria
-  task_02.md
-  task_N.md
-```
-
-### Step 5: Execute tasks with AI agents
-
-Now hand the tasks to AI agents for automated implementation:
+### 5. Execute tasks
 
 ```bash
 compozy start --name user-auth --ide claude
 ```
 
-Compozy processes each pending task sequentially — the agent reads the task spec, implements the code, validates it, and updates the task status from `pending` to `completed`.
+Each pending task is processed sequentially — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
 
-Use `--dry-run` to preview generated prompts without executing. Add `--auto-commit` to automatically commit after each task. See [CLI Reference — `compozy start`](#compozy-start) for all flags.
+### 6. Review
 
-### Step 6: Review the implementation
-
-Once tasks are complete, review the code before shipping. You have two options:
-
-**Option A** — AI-powered manual review using the `/review-round` skill inside your agent:
+**Option A** — AI-powered review inside your agent:
 
 ```
 /review-round user-auth
 ```
 
-This performs a comprehensive code review across security, correctness, performance, error handling, and more. It generates structured issue files without modifying any source code.
-
-**Option B** — Fetch review comments from an external provider (CodeRabbit, GitHub, etc.):
+**Option B** — Fetch from an external provider:
 
 ```bash
 compozy fetch-reviews --provider coderabbit --pr 42 --name user-auth
 ```
 
-Both options produce the same output format:
+Both produce the same output: `.compozy/tasks/user-auth/reviews-001/issue_*.md`
 
-```
-tasks/user-auth/
-  reviews-001/
-    _meta.md         # Round metadata
-    issue_001.md     # Individual review issues with severity and context
-    issue_002.md
-```
-
-See [PR Review Workflow](#-pr-review-workflow) for details.
-
-### Step 7: Fix review issues
-
-Dispatch AI agents to triage and fix all review issues:
+### 7. Fix review issues
 
 ```bash
 compozy fix-reviews --name user-auth --ide claude --concurrent 2 --batch-size 3
 ```
 
-Each agent reads the issue files, triages them as valid or invalid, implements fixes for valid issues, and updates the issue status to `resolved`. Compozy automatically resolves provider threads (CodeRabbit, GitHub) for resolved issues.
+Agents triage each issue as valid or invalid, implement fixes for valid issues, and update statuses. Provider threads are resolved automatically.
 
-### Step 8: Iterate until clean
+### 8. Iterate and ship
 
-Repeat steps 6 and 7 until no issues remain. Each cycle creates a new review round directory (`reviews-002/`, `reviews-003/`, etc.), preserving full history. When the implementation is clean — merge and ship.
+Repeat steps 6–7. Each cycle creates a new review round (`reviews-002/`, `reviews-003/`), preserving full history. When clean — merge and ship.
 
----
+## Skills
 
-## 🛠️ Skills Setup
+Compozy bundles 7 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
 
-Compozy bundles all the skills that its workflows depend on. The `compozy setup` command installs them directly into the configuration directories of your AI coding agents — **no external package manager or `npx` required**.
-
-### How It Works
-
-1. **Detect** — Compozy scans your system for installed agents (Claude Code, Codex, Cursor, etc.)
-2. **Select** — In interactive mode you pick which skills and agents to install; in non-interactive mode flags or `--all` drive the selection
-3. **Preview** — A summary of every file that will be created is shown before confirmation
-4. **Install** — Skills are copied (or symlinked) into each agent's skills directory
-
-```bash
-# Interactive — walks you through skill/agent selection
-compozy setup
-
-# Install everything to every detected agent, no prompts
-compozy setup --all
-
-# Target specific agents and skills
-compozy setup --agent claude --agent codex --skill create-prd --skill create-techspec --yes
-
-# Install globally (user-level) instead of per-project
-compozy setup --global --yes
-
-# List available bundled skills without installing
-compozy setup --list
-```
+| Skill | Purpose |
+| --- | --- |
+| `create-prd` | Interactive brainstorming → Product Requirements Document with ADRs |
+| `create-techspec` | PRD → Technical Specification with architecture exploration |
+| `create-tasks` | PRD + TechSpec → Independently implementable task files |
+| `execute-prd-task` | Executes one task end-to-end: implement, validate, track, commit |
+| `review-round` | Comprehensive code review → structured issue files |
+| `fix-reviews` | Triage, fix, verify, and resolve review issues |
+| `verification-before-completion` | Enforces verification evidence before any completion claim |
 
 ### Supported Agents
 
-Compozy auto-detects and supports **30+ agents and editors**, including:
+**Execution** (`compozy start`, `compozy fix-reviews`) — 4 agents that can run tasks:
 
-| Agent            | Project Directory  | Notes                                         |
-| ---------------- | ------------------ | --------------------------------------------- |
-| Claude Code      | `.claude/skills`   | Also accepts `--agent claude` alias           |
-| Codex            | `.agents/skills`   | Universal layout                              |
-| Cursor           | `.agents/skills`   | Universal layout                              |
-| Droid            | `.factory/skills`  |                                               |
-| Gemini CLI       | `.agents/skills`   | Universal layout                              |
-| GitHub Copilot   | `.agents/skills`   | Universal layout                              |
-| Windsurf         | `.windsurf/skills` |                                               |
-| Amp              | `.agents/skills`   | Universal layout                              |
-| Continue         | `.continue/skills` |                                               |
-| Goose            | `.goose/skills`    |                                               |
-| Roo Code         | `.roo/skills`      |                                               |
-| Augment          | `.augment/skills`  |                                               |
-| _…and many more_ |                    | Run `compozy setup` to see all detected agents |
+| Agent | `--ide` flag |
+| --- | --- |
+| Claude Code | `claude` |
+| Codex | `codex` |
+| Cursor | `cursor` |
+| Droid | `droid` |
 
-### Installation Modes
+**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. Run `compozy setup` to see all detected agents on your system.
 
-When installing to **multiple agents**, Compozy offers two modes:
+When installing to multiple agents, Compozy offers two modes:
 
-- **Symlink** _(recommended)_ — One canonical copy in `.agents/skills/`, with symlinks from each agent directory. Keeps all agents in sync automatically.
-- **Copy** — Duplicates skill files into each agent directory independently. Use `--copy` when symlinks are not supported (e.g., some CI environments).
+- **Symlink** *(default)* — One canonical copy with symlinks from each agent directory. All agents stay in sync.
+- **Copy** — Independent copies per agent. Use `--copy` when symlinks are not supported.
 
-When installing to a **single agent**, Compozy copies directly since symlinking offers no benefit.
+## CLI Reference
 
----
-
-## 🔧 PRD Workflow
-
-The PRD workflow takes you from a product idea to implemented code through a structured pipeline. Each step produces plain markdown artifacts that feed into the next, and AI agents execute the final tasks automatically.
-
-### How It Works
-
-```
-💡 Idea
-   │
-   ▼
-/create-prd          ──▶  tasks/<name>/_prd.md
-   │
-   ▼
-/create-techspec     ──▶  tasks/<name>/_techspec.md
-   │
-   ▼
-/create-tasks        ──▶  tasks/<name>/_tasks.md + task_01.md … task_N.md
-   │
-   ▼
-compozy start --name <name>  ──▶  AI agents execute each task sequentially
-```
-
-Each step is independent — you can start from any point. All artifacts are plain markdown files in `tasks/<name>/`.
-
-### CLI Usage
-
-Execute tasks from a PRD directory:
+<details>
+<summary><code>compozy setup</code> — Install bundled skills for supported agents</summary>
 
 ```bash
-compozy start \
-  --name multi-repo \
-  --tasks-dir tasks/multi-repo \
-  --ide claude
+compozy setup [flags]
 ```
 
-Preview generated prompts without executing (dry run):
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--agent`, `-a` | | Target agent name (repeatable) |
+| `--skill`, `-s` | | Skill name to install (repeatable) |
+| `--global`, `-g` | `false` | Install to user directory instead of project |
+| `--copy` | `false` | Copy files instead of symlinking |
+| `--list`, `-l` | `false` | List bundled skills without installing |
+| `--yes`, `-y` | `false` | Skip confirmation prompts |
+| `--all` | `false` | Install all skills to all agents |
+
+</details>
+
+<details>
+<summary><code>compozy migrate</code> — Convert legacy XML-tagged artifacts to frontmatter</summary>
 
 ```bash
-compozy start \
-  --name multi-repo \
-  --tasks-dir tasks/multi-repo \
-  --dry-run
+compozy migrate [flags]
 ```
 
-### Skills
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--root-dir` | `.compozy/tasks` | Workflow root to scan recursively |
+| `--name` | | Restrict migration to one workflow name |
+| `--tasks-dir` | | Restrict migration to one task workflow directory |
+| `--reviews-dir` | | Restrict migration to one review round directory |
+| `--dry-run` | `false` | Preview migrations without writing files |
 
-| Skill              | Phase     | Purpose                                                                                                  |
-| ------------------ | --------- | -------------------------------------------------------------------------------------------------------- |
-| `create-prd`       | Creation  | Creates PRDs through 5-phase interactive brainstorming with parallel codebase and web research           |
-| `create-techspec`  | Creation  | Translates PRD business requirements into technical specifications with architecture exploration         |
-| `create-tasks`     | Creation  | Decomposes PRDs and TechSpecs into independently implementable task files enriched with codebase context |
-| `execute-prd-task` | Execution | Executes one PRD task end-to-end: implement, validate, track, and optionally commit                      |
+</details>
 
-### Output Convention
-
-All PRD workflow artifacts live in `tasks/<name>/`:
-
-```
-tasks/<name>/
-  _prd.md           # Product Requirements Document
-  _techspec.md      # Technical Specification
-  _tasks.md         # Master task list
-  task_01.md        # Individual executable task files
-  task_02.md
-  task_N.md
-```
-
-Files prefixed with `_` are meta documents. Task files (`task_*.md`) are the executable units Compozy processes.
-
-Each task file follows a structured format:
-
-```markdown
-## status: pending
-
-<task_context>
-<domain>Backend</domain>
-<type>Feature Implementation</type>
-<scope>Full</scope>
-<complexity>medium</complexity>
-<dependencies>task_01</dependencies>
-</task_context>
-
-# Task 2: Implement User Authentication
-
-...
-```
-
----
-
-## 🔍 PR Review Workflow
-
-The PR review workflow automates the remediation of code review feedback. Review comments are fetched into versioned rounds under the PRD directory, then batched for parallel execution. Compozy resolves provider threads automatically after a batch succeeds.
-
-### How It Works
-
-1. **Review** (optional) — `/review-round` performs a manual code review and creates `tasks/<name>/reviews-NNN/` with issue files
-2. **Fetch** (alternative) — `compozy fetch-reviews --provider <provider> --pr <PR> --name <name>` creates `tasks/<name>/reviews-NNN/` from a provider
-3. **Batch** — Compozy groups and batches `issue_NNN.md` files based on `--batch-size` and `--grouped`
-4. **Execute** — AI agents process each batch concurrently, triaging issues, implementing fixes, and updating issue statuses
-5. **Resolve** — after a successful batch, Compozy resolves provider threads for issue files that changed to `## Status: resolved`
-6. **Verify** — each batch is validated before completion or auto-commit
-
-### Prerequisites
-
-- `gh` CLI installed and authenticated for the target repository
-- access to the target repository through `gh` (for example via `gh auth login`)
-
-### CLI Usage
-
-Fetch a new review round:
+<details>
+<summary><code>compozy start</code> — Execute PRD task files</summary>
 
 ```bash
-compozy fetch-reviews \
-  --provider coderabbit \
-  --pr 259 \
-  --name my-feature
+compozy start [flags]
 ```
 
-Process batched review issues from the latest round:
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--name` | | Workflow name (`.compozy/tasks/<name>`) |
+| `--tasks-dir` | | Path to tasks directory |
+| `--ide` | `codex` | Agent: `claude`, `codex`, `cursor`, `droid` |
+| `--model` | *(per IDE)* | Model override |
+| `--reasoning-effort` | `medium` | `low`, `medium`, `high`, `xhigh` |
+| `--timeout` | `10m` | Activity timeout per job |
+| `--max-retries` | `0` | Retry failed jobs N times |
+| `--retry-backoff-multiplier` | `1.5` | Timeout multiplier per retry |
+| `--tail-lines` | `30` | Log lines shown per job in UI |
+| `--add-dir` | | Additional directories to allow (repeatable) |
+| `--auto-commit` | `false` | Auto-commit after each task |
+| `--include-completed` | `false` | Re-run completed tasks |
+| `--dry-run` | `false` | Preview prompts without executing |
+| `--form` | `false` | Interactive parameter collection |
+
+</details>
+
+<details>
+<summary><code>compozy fetch-reviews</code> — Fetch review comments into a review round</summary>
 
 ```bash
-compozy fix-reviews \
-  --name my-feature \
-  --ide codex \
-  --concurrent 2 \
-  --batch-size 3 \
-  --grouped
+compozy fetch-reviews [flags]
 ```
 
-### Skills
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--provider` | | Review provider (`coderabbit`, etc.) |
+| `--pr` | | Pull request number |
+| `--name` | | Workflow name |
+| `--round` | `0` | Round number (auto-increments if omitted) |
+| `--form` | `false` | Interactive parameter collection |
 
-| Skill          | Purpose                                                                                                                           |
-| -------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `review-round` | Performs a comprehensive code review of a PRD implementation and generates a review round directory compatible with `fix-reviews` |
-| `fix-reviews`  | Processes review issue batches: triages issues, implements fixes, verifies results, and updates review tracking files             |
+</details>
 
----
+<details>
+<summary><code>compozy fix-reviews</code> — Dispatch AI agents to remediate review issues</summary>
 
-## 🧩 Shared Skills
+```bash
+compozy fix-reviews [flags]
+```
 
-These skills are used across both workflows.
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--name` | | Workflow name |
+| `--round` | `0` | Round number (latest if omitted) |
+| `--reviews-dir` | | Override review directory path |
+| `--ide` | `codex` | Agent: `claude`, `codex`, `cursor`, `droid` |
+| `--model` | *(per IDE)* | Model override |
+| `--batch-size` | `1` | Issues per batch |
+| `--concurrent` | `1` | Parallel batches |
+| `--grouped` | `false` | Generate grouped issue summaries |
+| `--include-resolved` | `false` | Re-process resolved issues |
+| `--reasoning-effort` | `medium` | `low`, `medium`, `high`, `xhigh` |
+| `--timeout` | `10m` | Activity timeout per job |
+| `--max-retries` | `0` | Retry failed jobs N times |
+| `--retry-backoff-multiplier` | `1.5` | Timeout multiplier per retry |
+| `--tail-lines` | `30` | Log lines shown per job in UI |
+| `--add-dir` | | Additional directories to allow (repeatable) |
+| `--auto-commit` | `false` | Auto-commit after each batch |
+| `--dry-run` | `false` | Preview prompts without executing |
+| `--form` | `false` | Interactive parameter collection |
 
-| Skill                            | Purpose                                                                                  |
-| -------------------------------- | ---------------------------------------------------------------------------------------- |
-| `verification-before-completion` | Enforces fresh verification evidence before any completion claim, commit, or PR creation |
+</details>
 
-## 📦 Go Package Usage
-
-### PRD Tasks
-
-Prepare work without executing any IDE process:
+<details>
+<summary><strong>Go Package Usage</strong> — Use Compozy as a library in your own tools</summary>
 
 ```go
+// Prepare work without executing
 prep, err := compozy.Prepare(context.Background(), compozy.Config{
     Name:     "multi-repo",
-    TasksDir: "tasks/multi-repo",
+    TasksDir: ".compozy/tasks/multi-repo",
     Mode:     compozy.ModePRDTasks,
     DryRun:   true,
 })
-```
 
-### PR Review
-
-Fetch a review round, then execute the remediation loop:
-
-```go
+// Fetch reviews and run remediation
 _, _ = compozy.FetchReviews(context.Background(), compozy.Config{
     Name:     "my-feature",
     Provider: "coderabbit",
     PR:       "259",
+})
+
+// Preview a legacy artifact migration
+_, _ = compozy.Migrate(context.Background(), compozy.MigrationConfig{
+    DryRun: true,
 })
 
 _ = compozy.Run(context.Background(), compozy.Config{
@@ -500,108 +332,16 @@ _ = compozy.Run(context.Background(), compozy.Config{
     IDE:             compozy.IDECodex,
     ReasoningEffort: "medium",
 })
-```
 
-### Embedding
-
-Embed the Cobra command in another CLI:
-
-```go
+// Embed the Cobra command in another CLI
 root := command.New()
 _ = root.Execute()
 ```
 
-## ⌨️ CLI Reference
+</details>
 
-### `compozy setup`
-
-Install Compozy bundled public skills for supported agents/editors.
-
-```bash
-compozy setup [flags]
-```
-
-| Flag             | Type      | Default | Description                                                               |
-| ---------------- | --------- | ------- | ------------------------------------------------------------------------- |
-| `--agent`, `-a`  | `strings` |         | Target agent/editor name (repeatable)                                     |
-| `--skill`, `-s`  | `strings` |         | Bundled skill name to install (repeatable)                                |
-| `--global`, `-g` | `bool`    | `false` | Install to the user directory instead of the project                      |
-| `--copy`         | `bool`    | `false` | Copy files instead of symlinking to agent directories                     |
-| `--list`, `-l`   | `bool`    | `false` | List bundled public skills without installing                             |
-| `--yes`, `-y`    | `bool`    | `false` | Skip confirmation prompts                                                 |
-| `--all`          | `bool`    | `false` | Install all bundled public skills to all supported agents without prompts |
-
-### `compozy fetch-reviews`
-
-Fetch provider review comments into a PRD review round.
-
-```bash
-compozy fetch-reviews [flags]
-```
-
-| Flag         | Type     | Default | Description                                                                  |
-| ------------ | -------- | ------- | ---------------------------------------------------------------------------- |
-| `--provider` | `string` |         | Review provider name (for example: `coderabbit`)                             |
-| `--pr`       | `string` |         | Pull request number                                                          |
-| `--name`     | `string` |         | PRD workflow name (used for `tasks/<name>`)                                  |
-| `--round`    | `int`    | `0`     | Review round number. When omitted, Compozy creates the next available round  |
-| `--form`     | `bool`   | `false` | Use interactive form to collect parameters                                   |
-
-### `compozy start`
-
-Execute PRD task files from a PRD workflow directory.
-
-```bash
-compozy start [flags]
-```
-
-| Flag                         | Type      | Default     | Description                                                                                   |
-| ---------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `--name`                     | `string`  |             | PRD task workflow name (used for `tasks/<name>`)                                          |
-| `--tasks-dir`                | `string`  |             | Path to PRD tasks directory (`tasks/<name>`)                                              |
-| `--ide`                      | `string`  | `codex`     | IDE tool to use: `claude`, `codex`, `cursor`, or `droid`                                      |
-| `--model`                    | `string`  | _(per IDE)_ | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
-| `--reasoning-effort`         | `string`  | `medium`    | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`)                    |
-| `--timeout`                  | `string`  | `10m`       | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period   |
-| `--max-retries`              | `int`     | `0`         | Retry failed or timed-out jobs up to N times before marking them failed                       |
-| `--retry-backoff-multiplier` | `float`   | `1.5`       | Multiplier applied to activity timeout after each retry                                       |
-| `--tail-lines`               | `int`     | `30`        | Number of log lines to show in UI for each job                                                |
-| `--add-dir`                  | `strings` |             | Additional directory to allow for Codex and Claude (repeatable or comma-separated)            |
-| `--auto-commit`              | `bool`    | `false`     | Include automatic commit instructions at task/batch completion                                |
-| `--include-completed`        | `bool`    | `false`     | Include completed tasks                                                                       |
-| `--dry-run`                  | `bool`    | `false`     | Only generate prompts; do not run IDE tool                                                    |
-| `--form`                     | `bool`    | `false`     | Use interactive form to collect parameters                                                    |
-
-### `compozy fix-reviews`
-
-Process review issue markdown files from a PRD review round and dispatch AI agents to remediate feedback.
-
-```bash
-compozy fix-reviews [flags]
-```
-
-| Flag                         | Type      | Default     | Description                                                                                   |
-| ---------------------------- | --------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `--name`                     | `string`  |             | PRD workflow name (used for `tasks/<name>`)                                               |
-| `--round`                    | `int`     | `0`         | Review round number. When omitted, Compozy uses the latest existing round                     |
-| `--reviews-dir`              | `string`  |             | Override path to a review round directory (`tasks/<name>/reviews-NNN`)                    |
-| `--ide`                      | `string`  | `codex`     | IDE tool to use: `claude`, `codex`, `cursor`, or `droid`                                      |
-| `--model`                    | `string`  | _(per IDE)_ | Model to use (default: `gpt-5.4` for codex/droid, `opus` for claude, `composer-1` for cursor) |
-| `--batch-size`               | `int`     | `1`         | Number of file groups to batch together                                                       |
-| `--concurrent`               | `int`     | `1`         | Number of batches to process in parallel                                                      |
-| `--grouped`                  | `bool`    | `false`     | Generate grouped issue summaries in `reviews-NNN/grouped/`                                    |
-| `--include-resolved`         | `bool`    | `false`     | Include review issues already marked as resolved                                              |
-| `--reasoning-effort`         | `string`  | `medium`    | Reasoning effort for codex/claude/droid (`low`, `medium`, `high`, `xhigh`)                    |
-| `--timeout`                  | `string`  | `10m`       | Activity timeout duration (e.g., `5m`, `30s`). Job canceled if no output within this period   |
-| `--max-retries`              | `int`     | `0`         | Retry failed or timed-out jobs up to N times before marking them failed                       |
-| `--retry-backoff-multiplier` | `float`   | `1.5`       | Multiplier applied to activity timeout after each retry                                       |
-| `--tail-lines`               | `int`     | `30`        | Number of log lines to show in UI for each job                                                |
-| `--add-dir`                  | `strings` |             | Additional directory to allow for Codex and Claude (repeatable or comma-separated)            |
-| `--auto-commit`              | `bool`    | `false`     | Include automatic commit instructions at task/batch completion                                |
-| `--dry-run`                  | `bool`    | `false`     | Only generate prompts; do not run IDE tool                                                    |
-| `--form`                     | `bool`    | `false`     | Use interactive form to collect parameters                                                    |
-
-## 🏗️ Project Layout
+<details>
+<summary><strong>Project Layout</strong></summary>
 
 ```
 cmd/compozy/             CLI entry point
@@ -616,20 +356,26 @@ internal/core/           Internal facade for preparation and execution
 internal/setup/          Bundled skill installer (agent detection, symlink/copy)
 internal/version/        Build metadata
 skills/                  Bundled installable skills
-tasks/docs/              Standalone document templates (PRD, TechSpec, ADR)
+.compozy/tasks/          Default workflow artifact root (PRDs, TechSpecs, tasks, ADRs, reviews)
 ```
 
-## 🛠️ Development
+</details>
+
+## Development
 
 ```bash
-make deps      # Install tool dependencies
-make fmt       # Format code
-make lint      # Lint with zero-tolerance policy
-make test      # Run tests with race detector
-make build     # Compile binary
 make verify    # Full pipeline: fmt → lint → test → build
+make fmt       # Format code
+make lint      # Lint (zero tolerance)
+make test      # Tests with race detector
+make build     # Compile binary
+make deps      # Tidy and verify modules
 ```
 
-## 📄 License
+## Contributing
 
-Compozy is licensed under the [MIT License](LICENSE).
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+[MIT](LICENSE)

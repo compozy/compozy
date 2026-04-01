@@ -1,17 +1,18 @@
 # Task File Template
 
-Use this structure for every individual task file. The file must start with the status line followed by the task context metadata block.
+Use this structure for every individual task file. The file must start with YAML frontmatter containing the parseable metadata.
 
 ```markdown
-## status: pending
-
-<task_context>
-  <domain>[e.g., Authentication, API, Frontend, Database]</domain>
-  <type>[e.g., Feature Implementation, Bug Fix, Refactor, Configuration]</type>
-  <scope>[e.g., Full, Partial]</scope>
-  <complexity>[low, medium, high, critical]</complexity>
-  <dependencies>[comma-separated task numbers e.g., "task_01, task_02", or "none"]</dependencies>
-</task_context>
+---
+status: pending
+domain: [e.g., Authentication, API, Frontend, Database]
+type: [e.g., Feature Implementation, Bug Fix, Refactor, Configuration]
+scope: [e.g., Full, Partial]
+complexity: [low, medium, high, critical]
+dependencies:
+  - task_01
+  - task_02
+---
 
 # Task N: [Title]
 

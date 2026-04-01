@@ -3,17 +3,21 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/huh"
+	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/spf13/cobra"
 )
 
 func collectFormParams(cmd *cobra.Command, state *commandState) error {
-	fmt.Println("\n🎯 Interactive Parameter Collection")
+	fmt.Fprintln(cmd.OutOrStdout())
+	fmt.Fprintln(cmd.OutOrStdout(), renderFormIntro())
 	inputs := newFormInputs()
 	builder := newFormBuilder(cmd, state)
 	inputs.register(builder)
@@ -21,7 +25,8 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 		return fmt.Errorf("form canceled or error: %w", err)
 	}
 	inputs.apply(cmd, state)
-	fmt.Println("\n✅ Parameters collected successfully!")
+	fmt.Fprintln(cmd.OutOrStdout())
+	fmt.Fprintln(cmd.OutOrStdout(), renderFormSuccess())
 	return nil
 }
 
@@ -127,17 +132,19 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 }
 
 type formBuilder struct {
-	cmd    *cobra.Command
-	state  *commandState
-	fields []huh.Field
+	cmd             *cobra.Command
+	state           *commandState
+	fields          []huh.Field
+	nameFromDirList bool
+	tasksBaseDir    string
 }
 
 func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
-	return &formBuilder{cmd: cmd, state: state}
+	return &formBuilder{cmd: cmd, state: state, tasksBaseDir: model.TasksBaseDir()}
 }
 
 func (fb *formBuilder) build() *huh.Form {
-	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(huh.ThemeCharm())
+	return huh.NewForm(huh.NewGroup(fb.fields...)).WithTheme(darkHuhTheme())
 }
 
 func (fb *formBuilder) hasFlag(flag string) bool {
@@ -155,6 +162,10 @@ func (fb *formBuilder) addField(flag string, build func() huh.Field) {
 }
 
 func (fb *formBuilder) hideField(flag string) bool {
+	if flag == "tasks-dir" && fb.nameFromDirList {
+		return true
+	}
+
 	switch fb.state.kind {
 	case commandKindStart:
 		switch flag {
@@ -173,6 +184,29 @@ func (fb *formBuilder) hideField(flag string) bool {
 
 func (fb *formBuilder) addNameField(target *string) {
 	fb.addField("name", func() huh.Field {
+		if fb.state.kind == commandKindStart || fb.state.kind == commandKindFixReviews {
+			dirs := listTaskSubdirs(fb.tasksBaseDir)
+			if len(dirs) > 0 {
+				fb.nameFromDirList = true
+				title := "Task Name"
+				description := "Select the task directory to run"
+				if fb.state.kind == commandKindFixReviews {
+					title = "Workflow Name"
+					description = "Select the workflow directory for review fixes"
+				}
+				options := make([]huh.Option[string], 0, len(dirs))
+				for _, d := range dirs {
+					options = append(options, huh.NewOption(d, d))
+				}
+				return huh.NewSelect[string]().
+					Key("name").
+					Title(title).
+					Description(description).
+					Options(options...).
+					Value(target)
+			}
+		}
+
 		title := "Workflow Name"
 		description := "Required: workflow name (for example: my-feature)"
 		if fb.state.kind == commandKindStart {
@@ -246,7 +280,7 @@ func (fb *formBuilder) addReviewsDirField(target *string) {
 		return huh.NewInput().
 			Key("reviews-dir").
 			Title("Reviews Directory (optional)").
-			Placeholder("tasks/<name>/reviews-NNN").
+			Placeholder(".compozy/tasks/<name>/reviews-NNN").
 			Description("Leave empty to resolve from PRD name and round").
 			Value(target)
 	})
@@ -257,7 +291,7 @@ func (fb *formBuilder) addTasksDirField(target *string) {
 		return huh.NewInput().
 			Key("tasks-dir").
 			Title("Tasks Directory (optional)").
-			Placeholder("tasks/<name>").
+			Placeholder(".compozy/tasks/<name>").
 			Description("Leave empty to auto-generate from task name").
 			Value(target)
 	})
@@ -300,6 +334,8 @@ func (fb *formBuilder) addIDEField(target *string) {
 				huh.NewOption("Claude", string(core.IDEClaude)),
 				huh.NewOption("Cursor", string(core.IDECursor)),
 				huh.NewOption("Droid", string(core.IDEDroid)),
+				huh.NewOption("OpenCode", string(core.IDEOpenCode)),
+				huh.NewOption("Pi", string(core.IDEPi)),
 			).
 			Value(target)
 	})
@@ -311,7 +347,8 @@ func (fb *formBuilder) addModelField(target *string) {
 			Key("model").
 			Title("Model (optional)").
 			Placeholder("auto").
-			Description("Specific model to use (default: gpt-5.4 for codex/droid, opus for claude)").
+			Description("Model override (defaults: codex/droid=gpt-5.4, " +
+				"claude=opus, opencode/pi=anthropic/claude-sonnet-4-20250514)").
 			Value(target)
 	})
 }
@@ -345,7 +382,7 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 		return huh.NewSelect[string]().
 			Key("reasoning-effort").
 			Title("Reasoning Effort").
-			Description("Model reasoning effort level (applies to Codex, Claude, and Droid)").
+			Description("Model reasoning effort level (applies to Codex, Claude, Droid, OpenCode, and Pi)").
 			Options(
 				huh.NewOption("Low", "low"),
 				huh.NewOption("Medium (recommended)", "medium"),
@@ -456,4 +493,19 @@ func parseAddDirInput(value string) []string {
 	return core.NormalizeAddDirs(strings.FieldsFunc(value, func(r rune) bool {
 		return r == ',' || r == '\n'
 	}))
+}
+
+func listTaskSubdirs(baseDir string) []string {
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return nil
+	}
+	var dirs []string
+	for _, e := range entries {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+			dirs = append(dirs, e.Name())
+		}
+	}
+	sort.Strings(dirs)
+	return dirs
 }

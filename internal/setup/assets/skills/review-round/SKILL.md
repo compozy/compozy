@@ -9,20 +9,20 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 ## Required Inputs
 
-- Feature name identifying the `tasks/<name>/` directory.
+- Feature name identifying the `.compozy/tasks/<name>/` directory.
 - Optional: specific files or directories to scope the review.
 
 ## Workflow
 
 1. Determine the review round directory.
-   - Derive the PRD directory from the feature name: `tasks/<name>/`.
+   - Derive the PRD directory from the feature name: `.compozy/tasks/<name>/`.
    - Verify the PRD directory exists. If it does not, stop and report the missing directory.
    - List existing `reviews-NNN/` subdirectories to determine the next round number. If none exist, use round 1.
-   - Create the review round directory: `tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits.
+   - Create the review round directory: `.compozy/tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits.
 
 2. Identify the review scope.
    - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from the PRD directory to understand what was implemented and why.
-   - Read ADRs from `tasks/<name>/adrs/` for architectural decision context.
+   - Read ADRs from `.compozy/tasks/<name>/adrs/` for architectural decision context.
    - If `_prd.md` and `_techspec.md` are both missing, warn that the review will lack requirements context but proceed with a code-quality-only review.
    - If the user provided specific files or directories, scope the review to those paths.
    - If no explicit scope was provided, run `git diff main...HEAD --name-only` to discover all files created or modified on the current branch. If the diff is empty or unhelpful, ask the user to specify files.
@@ -45,17 +45,16 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Each file must use this exact structure:
 
      ```
+     ---
+     status: pending
+     file: path/to/file.go
+     line: 42
+     severity: high
+     author: claude-code
+     provider_ref:
+     ---
+
      # Issue NNN: <title>
-
-     ## Status: pending
-
-     <review_context>
-       <file>path/to/file.go</file>
-       <line>42</line>
-       <severity>high</severity>
-       <author>claude-code</author>
-       <provider_ref></provider_ref>
-     </review_context>
 
      ## Review Comment
 
@@ -67,10 +66,9 @@ Perform a structured code review of a PRD implementation and produce a review ro
      - Notes:
      ```
 
-   - The `<review_context>` XML must be well-formed. Escape XML special characters in field values.
    - The `<author>` field must be `claude-code`.
-   - The `<provider_ref>` field must be empty.
-   - The `<severity>` field must be exactly one of: `critical`, `high`, `medium`, `low`.
+   - The `provider_ref` field must be empty.
+   - The `severity` field must be exactly one of: `critical`, `high`, `medium`, `low`.
 
 5. Generate the round metadata file.
    - Write `_meta.md` in the review round directory with this format:
@@ -105,7 +103,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 7. Verify before completion.
    - Use installed `verification-before-completion` before claiming the review round is complete.
-   - Read back each generated issue file and verify the `<review_context>` XML is well-formed.
+   - Read back each generated issue file and verify the frontmatter parses correctly.
    - Verify `_meta.md` has correct counts matching the actual number of issue files.
    - Confirm the review round directory follows the `reviews-NNN` naming convention.
 
@@ -113,7 +111,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 - Do not fix the issues found. This skill only identifies and documents issues. The `fix-reviews` workflow handles remediation.
 - Do not create issue files for problems that linters or formatters already catch.
-- Every issue file must have well-formed `<review_context>` XML parseable by `encoding/xml.Unmarshal`.
+- Every issue file must have valid YAML frontmatter parseable by `prompt.ParseReviewContext()`.
 - The `_meta.md` must be parseable by `reviews.ReadRoundMeta()`.
 - Do not create empty review rounds. If no issues are found, report a clean review and do not create the round directory.
 - Do not modify any source code files. This is a review-only skill.

@@ -1,6 +1,6 @@
 ---
 name: fix-reviews
-description: Executes provider-agnostic PR review remediation using existing review round files under tasks/<name>/reviews-NNN/. Use when resolving batched review issues, updating issue/grouped markdown files, implementing fixes, and verifying the result. Do not use for PRD task execution, review export/fetch, or generic coding tasks without review issue files.
+description: Executes provider-agnostic PR review remediation using existing review round files under .compozy/tasks/<name>/reviews-NNN/. Use when resolving batched review issues, updating issue/grouped markdown files, implementing fixes, and verifying the result. Do not use for PRD task execution, review export/fetch, or generic coding tasks without review issue files.
 ---
 
 # Fix Reviews
@@ -17,7 +17,7 @@ Execute the review remediation workflow in a strict sequence. The review files a
 
 1. Read and triage the scoped issue files.
    - Read every listed issue file completely before editing code.
-   - Update each issue file `## Status:` from `pending` to `valid` or `invalid`.
+   - Update each issue file frontmatter `status` from `pending` to `valid` or `invalid`.
    - Record concrete technical reasoning in `## Triage`.
 
 2. Fix valid issues completely.
@@ -26,8 +26,8 @@ Execute the review remediation workflow in a strict sequence. The review files a
    - Keep the scope constrained to the listed issue files and their necessary code changes.
 
 3. Close out issue files correctly.
-   - For a `valid` issue, set `## Status: resolved` only after the code and verification are done.
-   - For an `invalid` issue, document why it is invalid and then set `## Status: resolved` once the analysis is complete.
+   - For a `valid` issue, set frontmatter `status: resolved` only after the code and verification are done.
+   - For an `invalid` issue, document why it is invalid and then set frontmatter `status: resolved` once the analysis is complete.
    - Update grouped review trackers only when the prompt explicitly enables them.
 
 4. Verify before completion.

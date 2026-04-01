@@ -45,7 +45,8 @@ func buildUITaps(
 ) (io.Writer, io.Writer) {
 	uiTap := newUILogTap(index, false, outRing, errRing, uiCh, monitor)
 	var outTap io.Writer
-	if ideType == model.IDEClaude || ideType == model.IDECursor || ideType == model.IDEDroid {
+	if ideType == model.IDEClaude || ideType == model.IDECursor || ideType == model.IDEDroid ||
+		ideType == model.IDEOpenCode || ideType == model.IDEPi {
 		usageCallback := func(usage TokenUsage) {
 			if uiCh != nil {
 				uiCh <- tokenUsageUpdateMsg{Index: index, Usage: usage}
@@ -76,7 +77,8 @@ func buildCLITaps(
 	aggregateMu *sync.Mutex,
 	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
-	if ideType == model.IDEClaude || ideType == model.IDECursor || ideType == model.IDEDroid {
+	if ideType == model.IDEClaude || ideType == model.IDECursor || ideType == model.IDEDroid ||
+		ideType == model.IDEOpenCode || ideType == model.IDEPi {
 		usageCallback := func(usage TokenUsage) {
 			if aggregateUsage != nil && aggregateMu != nil {
 				aggregateMu.Lock()

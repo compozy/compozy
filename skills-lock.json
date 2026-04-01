@@ -30,6 +30,11 @@
       "source": "compozy/compozy",
       "sourceType": "github",
       "computedHash": "92db53a2c5f2b57282bc6becfad0b2d08bb0919e17b5e0a6317b0c62541ce34b"
+    },
+    "tui-design": {
+      "source": "hyperb1iss/hyperskills",
+      "sourceType": "github",
+      "computedHash": "848e926c0bb1e9c6b24e8a913baec8377478b82880603c305432a9ce5cf1395a"
     }
   }
 }

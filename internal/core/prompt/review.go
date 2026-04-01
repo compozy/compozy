@@ -127,16 +127,16 @@ func buildReviewExecutionSection(ctx reviewPromptContext) string {
 	sb.WriteString("<execution_contract>\n")
 	sb.WriteString("1. Read every listed issue file completely before editing code.\n")
 	sb.WriteString(
-		"2. Triage every listed issue file and update `## Status:` from `pending` to `valid` or `invalid` with concrete technical reasoning in the `## Triage` section.\n",
+		"2. Triage every listed issue file and update frontmatter `status` from `pending` to `valid` or `invalid` with concrete technical reasoning in the `## Triage` section.\n",
 	)
 	sb.WriteString(
 		"3. Implement complete production fixes and add or update tests for every `valid` issue in this batch.\n",
 	)
 	sb.WriteString(
-		"4. If an issue is `invalid`, document the reasoning clearly and still finish the issue file by setting `## Status: resolved` once the analysis is complete.\n",
+		"4. If an issue is `invalid`, document the reasoning clearly and still finish the issue file by setting frontmatter `status: resolved` once the analysis is complete.\n",
 	)
 	sb.WriteString(
-		"5. For every completed `valid` issue, finish the issue file with `## Status: resolved` only after the code and verification are done.\n",
+		"5. For every completed `valid` issue, finish the issue file with frontmatter `status: resolved` only after the code and verification are done.\n",
 	)
 	sb.WriteString(
 		"6. Use `verification-before-completion` to identify and run the repository's real verification commands before finishing or committing this batch.\n",

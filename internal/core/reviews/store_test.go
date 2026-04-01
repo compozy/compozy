@@ -91,7 +91,7 @@ func TestReadRoundMetaAllowsOptionalPR(t *testing.T) {
 func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	t.Parallel()
 
-	reviewDir := filepath.Join(t.TempDir(), "tasks", "demo", "reviews-001")
+	reviewDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo", "reviews-001")
 	meta := model.RoundMeta{
 		Provider:  "coderabbit",
 		PR:        "259",
@@ -131,7 +131,7 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	if entries[0].CodeFile != "internal/app/service.go" {
 		t.Fatalf("unexpected code file: %q", entries[0].CodeFile)
 	}
-	if !strings.Contains(entries[0].Content, "## Status: pending") {
+	if !strings.Contains(entries[0].Content, "status: pending") {
 		t.Fatalf("expected issue file to start pending, got:\n%s", entries[0].Content)
 	}
 
@@ -147,7 +147,7 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 func TestRefreshRoundMetaCountsResolvedIssues(t *testing.T) {
 	t.Parallel()
 
-	reviewDir := filepath.Join(t.TempDir(), "tasks", "demo", "reviews-001")
+	reviewDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo", "reviews-001")
 	if err := WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "coderabbit",
 		PR:        "259",
@@ -171,7 +171,7 @@ func TestRefreshRoundMetaCountsResolvedIssues(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read issue file: %v", err)
 	}
-	updated := strings.Replace(string(content), "## Status: pending", "## Status: resolved", 1)
+	updated := strings.Replace(string(content), "status: pending", "status: resolved", 1)
 	if err := os.WriteFile(issuePath, []byte(updated), 0o600); err != nil {
 		t.Fatalf("write updated issue file: %v", err)
 	}
@@ -238,14 +238,34 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 			}
 			if err := os.WriteFile(
 				filepath.Join(reviewDir, "issue_001.md"),
-				[]byte("# Issue 001: Example\n\n## Status: resolved\n"),
+				[]byte(strings.Join([]string{
+					"---",
+					"status: resolved",
+					"file: internal/app/service.go",
+					"line: 42",
+					"author: review-bot",
+					"---",
+					"",
+					"# Issue 001: Example",
+					"",
+				}, "\n")),
 				0o600,
 			); err != nil {
 				t.Fatalf("write issue_001.md: %v", err)
 			}
 			if err := os.WriteFile(
 				filepath.Join(reviewDir, "issue_002.md"),
-				[]byte("# Issue 002: Example\n\n## Status: pending\n"),
+				[]byte(strings.Join([]string{
+					"---",
+					"status: pending",
+					"file: internal/app/service.go",
+					"line: 43",
+					"author: review-bot",
+					"---",
+					"",
+					"# Issue 002: Example",
+					"",
+				}, "\n")),
 				0o600,
 			); err != nil {
 				t.Fatalf("write issue_002.md: %v", err)
@@ -279,7 +299,7 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 func TestDiscoverRoundsAndNextRound(t *testing.T) {
 	t.Parallel()
 
-	prdDir := filepath.Join(t.TempDir(), "tasks", "demo")
+	prdDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo")
 	for _, round := range []int{1, 3, 2} {
 		if err := os.MkdirAll(filepath.Join(prdDir, RoundDirName(round)), 0o755); err != nil {
 			t.Fatalf("mkdir round %d: %v", round, err)

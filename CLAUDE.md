@@ -40,7 +40,7 @@ Compozy is a Go module and CLI that drives the full lifecycle of AI-assisted dev
 | `internal/core/prompt` | Thin prompt builders that emit runtime context and skill names |
 | `internal/core/run`    | Execution pipeline, logging, shutdown, and Bubble Tea UI |
 | `skills`                 | Bundled installable skills (creation + execution workflows) |
-| `tasks/docs`             | Standalone document templates (PRD, TechSpec, ADR)       |
+| `.compozy/tasks`         | Default workflow artifact root (PRD, TechSpec, ADR, reviews) |
 | `internal/version`       | Build metadata                                           |
 
 ## Build & Development Commands

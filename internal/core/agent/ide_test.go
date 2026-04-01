@@ -51,6 +51,8 @@ func TestCommandAddsDirsOnlyForSupportedIDEs(t *testing.T) {
 		{name: "claude", ide: model.IDEClaude, wantAdd: true},
 		{name: "cursor", ide: model.IDECursor, wantAdd: false},
 		{name: "droid", ide: model.IDEDroid, wantAdd: false},
+		{name: "opencode", ide: model.IDEOpenCode, wantAdd: false},
+		{name: "pi", ide: model.IDEPi, wantAdd: false},
 	}
 
 	for _, tc := range cases {
@@ -73,6 +75,63 @@ func TestCommandAddsDirsOnlyForSupportedIDEs(t *testing.T) {
 				t.Fatalf("unexpected add-dir presence for %s: %q", tc.ide, got)
 			}
 		})
+	}
+}
+
+func TestBuildOpenCodeCommandFormat(t *testing.T) {
+	t.Parallel()
+
+	cmd := buildOpenCodeCommand("", "medium")
+	want := "opencode run --print --format json --thinking medium --model " + model.DefaultOpenCodeModel
+	if cmd != want {
+		t.Fatalf("unexpected opencode command string\nwant: %s\ngot:  %s", want, cmd)
+	}
+}
+
+func TestBuildOpenCodeCommandCustomModel(t *testing.T) {
+	t.Parallel()
+
+	cmd := buildOpenCodeCommand("openai/gpt-4o", "high")
+	want := "opencode run --print --format json --thinking high --model openai/gpt-4o"
+	if cmd != want {
+		t.Fatalf("unexpected opencode command string\nwant: %s\ngot:  %s", want, cmd)
+	}
+}
+
+func TestBuildPiCommandFormat(t *testing.T) {
+	t.Parallel()
+
+	cmd := buildPiCommand("", "high")
+	want := "pi --print --mode json --thinking high --no-session --model " + model.DefaultPiModel
+	if cmd != want {
+		t.Fatalf("unexpected pi command string\nwant: %s\ngot:  %s", want, cmd)
+	}
+}
+
+func TestBuildPiCommandCustomModel(t *testing.T) {
+	t.Parallel()
+
+	cmd := buildPiCommand("openai/gpt-4o", "low")
+	want := "pi --print --mode json --thinking low --no-session --model openai/gpt-4o"
+	if cmd != want {
+		t.Fatalf("unexpected pi command string\nwant: %s\ngot:  %s", want, cmd)
+	}
+}
+
+func TestValidateRuntimeConfigAcceptsOpenCodeAndPi(t *testing.T) {
+	t.Parallel()
+
+	for _, ide := range []string{model.IDEOpenCode, model.IDEPi} {
+		cfg := &model.RuntimeConfig{
+			Mode:                   model.ExecutionModePRReview,
+			IDE:                    ide,
+			BatchSize:              1,
+			MaxRetries:             0,
+			RetryBackoffMultiplier: 1.5,
+		}
+		if err := ValidateRuntimeConfig(cfg); err != nil {
+			t.Fatalf("expected validation to pass for IDE %q, got: %v", ide, err)
+		}
 	}
 }
 

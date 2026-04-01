@@ -31,7 +31,7 @@ func (s *stubResolverProvider) ResolveIssues(_ context.Context, _ string, issues
 
 func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T) {
 	tmpDir := t.TempDir()
-	reviewDir := filepath.Join(tmpDir, "tasks", "demo", "reviews-001")
+	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "stub",
 		PR:        "259",
@@ -63,7 +63,7 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 	if err != nil {
 		t.Fatalf("read issue file: %v", err)
 	}
-	updated := strings.Replace(string(content), "## Status: pending", "## Status: resolved", 1)
+	updated := strings.Replace(string(content), "status: pending", "status: resolved", 1)
 	if err := os.WriteFile(issuePath, []byte(updated), 0o600); err != nil {
 		t.Fatalf("write issue file: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 
 func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T) {
 	tmpDir := t.TempDir()
-	reviewDir := filepath.Join(tmpDir, "tasks", "demo", "reviews-001")
+	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "stub",
 		PR:        "259",
@@ -139,7 +139,7 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 	if err != nil {
 		t.Fatalf("read issue file: %v", err)
 	}
-	resolvedContent := strings.Replace(string(content), "## Status: pending", "## Status: resolved", 1)
+	resolvedContent := strings.Replace(string(content), "status: pending", "status: resolved", 1)
 	if err := os.WriteFile(issuePath, []byte(resolvedContent), 0o600); err != nil {
 		t.Fatalf("write resolved issue file: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 
 func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	tmpDir := t.TempDir()
-	reviewDir := filepath.Join(tmpDir, "tasks", "demo", "reviews-001")
+	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "stub",
 		PR:        "",
@@ -226,7 +226,7 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read issue file: %v", err)
 	}
-	resolvedContent := strings.Replace(string(content), "## Status: pending", "## Status: resolved", 1)
+	resolvedContent := strings.Replace(string(content), "status: pending", "status: resolved", 1)
 	if err := os.WriteFile(issuePath, []byte(resolvedContent), 0o600); err != nil {
 		t.Fatalf("write resolved issue file: %v", err)
 	}

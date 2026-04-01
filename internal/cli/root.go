@@ -57,7 +57,8 @@ func NewRootCommand() *cobra.Command {
 
 Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
-  compozy fetch-reviews Fetch provider review comments into tasks/<name>/reviews-NNN/
+  compozy migrate       Convert legacy workflow artifacts to frontmatter
+  compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
   compozy fix-reviews   Process review issue files from a specific review round
   compozy start         Execute PRD task files`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -65,7 +66,13 @@ Use explicit workflow subcommands:
 		},
 	}
 
-	root.AddCommand(newSetupCommand(), newFetchReviewsCommand(), newFixReviewsCommand(), newStartCommand())
+	root.AddCommand(
+		newSetupCommand(),
+		newMigrateCommand(),
+		newFetchReviewsCommand(),
+		newFixReviewsCommand(),
+		newStartCommand(),
+	)
 	return root
 }
 
@@ -75,7 +82,7 @@ func newFetchReviewsCommand() *cobra.Command {
 		Use:          "fetch-reviews",
 		Short:        "Fetch provider review comments into a PRD review round",
 		SilenceUsage: true,
-		Long:         "Fetch review comments from a provider and write them into tasks/<name>/reviews-NNN/.",
+		Long:         "Fetch review comments from a provider and write them into .compozy/tasks/<name>/reviews-NNN/.",
 		Example: `  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
   compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
   compozy fetch-reviews --form`,
@@ -84,7 +91,7 @@ func newFetchReviewsCommand() *cobra.Command {
 
 	cmd.Flags().StringVar(&state.provider, "provider", "", "Review provider name (for example: coderabbit)")
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
-	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for tasks/<name>)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")
 	cmd.Flags().BoolVar(&state.useForm, "form", false, "Use interactive form to collect parameters")
 	return cmd
@@ -96,19 +103,24 @@ func newFixReviewsCommand() *cobra.Command {
 		Use:          "fix-reviews",
 		Short:        "Process review issue files from a PRD review round",
 		SilenceUsage: true,
-		Long: `Process review issue markdown files from tasks/<name>/reviews-NNN/ and run the configured AI agent
+		Long: `Process review issue markdown files from .compozy/tasks/<name>/reviews-NNN/ and run the configured AI agent
 to remediate review feedback.`,
 		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
   compozy fix-reviews --name my-feature --round 2
-  compozy fix-reviews --reviews-dir tasks/my-feature/reviews-001`,
+  compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001`,
 		RunE: state.run,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
-	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for tasks/<name>)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: latest existing round)")
 	cmd.Flags().
-		StringVar(&state.reviewsDir, "reviews-dir", "", "Path to a review round directory (tasks/<name>/reviews-NNN)")
+		StringVar(
+			&state.reviewsDir,
+			"reviews-dir",
+			"",
+			"Path to a review round directory (.compozy/tasks/<name>/reviews-NNN)",
+		)
 	cmd.Flags().
 		IntVar(&state.batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1 for no batching)")
 	cmd.Flags().BoolVar(&state.grouped, "grouped", false, "Generate grouped issue summaries in reviews-NNN/grouped/")
@@ -124,15 +136,48 @@ func newStartCommand() *cobra.Command {
 		SilenceUsage: true,
 		Long: `Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.`,
-		Example: `  compozy start --name multi-repo --tasks-dir tasks/multi-repo --ide claude
+		Example: `  compozy start --name multi-repo --tasks-dir .compozy/tasks/multi-repo --ide claude
   compozy start --form --name multi-repo`,
 		RunE: state.run,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{})
-	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for tasks/<name>)")
-	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (tasks/<name>)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for .compozy/tasks/<name>)")
+	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (.compozy/tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
+	return cmd
+}
+
+type migrateCommandState struct {
+	rootDir    string
+	name       string
+	tasksDir   string
+	reviewsDir string
+	dryRun     bool
+}
+
+func newMigrateCommand() *cobra.Command {
+	state := &migrateCommandState{}
+	cmd := &cobra.Command{
+		Use:          "migrate",
+		Short:        "Migrate legacy workflow artifacts to frontmatter",
+		SilenceUsage: true,
+		Args:         cobra.NoArgs,
+		Long: `Convert legacy XML-tagged workflow artifacts under .compozy/tasks into Markdown frontmatter.
+
+By default, the command scans the whole project workflow root recursively.`,
+		Example: `  compozy migrate
+  compozy migrate --dry-run
+  compozy migrate --name my-feature
+  compozy migrate --reviews-dir .compozy/tasks/my-feature/reviews-001`,
+		RunE: state.run,
+	}
+
+	cmd.Flags().StringVar(&state.rootDir, "root-dir", "", "Workflow root to scan (default: .compozy/tasks)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Restrict migration to one workflow name under the workflow root")
+	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Restrict migration to one task workflow directory")
+	cmd.Flags().StringVar(&state.reviewsDir, "reviews-dir", "", "Restrict migration to one review round directory")
+	cmd.Flags().BoolVar(&state.dryRun, "dry-run", false, "Plan migrations without writing files")
 	return cmd
 }
 
@@ -162,13 +207,14 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.ide,
 		"ide",
 		string(core.IDECodex),
-		"IDE tool to use: claude, codex, cursor, or droid",
+		"IDE tool to use: claude, codex, cursor, droid, opencode, or pi",
 	)
 	cmd.Flags().StringVar(
 		&state.model,
 		"model",
 		"",
-		"Model to use (default: gpt-5.4 for codex/droid, opus for claude, composer-1 for cursor)",
+		"Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, "+
+			"cursor=composer-1, opencode/pi=anthropic/claude-sonnet-4-20250514)",
 	)
 	cmd.Flags().StringSliceVar(
 		&state.addDirs,
@@ -250,6 +296,42 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 		result.Round,
 	)
 	return nil
+}
+
+func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	result, err := core.Migrate(ctx, core.MigrationConfig{
+		RootDir:    s.rootDir,
+		Name:       s.name,
+		TasksDir:   s.tasksDir,
+		ReviewsDir: s.reviewsDir,
+		DryRun:     s.dryRun,
+	})
+	if result != nil {
+		const summaryFormat = "Migrate target: %s\n" +
+			"Dry run: %t\n" +
+			"Scanned: %d\n" +
+			"Migrated: %d\n" +
+			"Already frontmatter: %d\n" +
+			"Skipped: %d\n" +
+			"Invalid: %d\n" +
+			"Grouped regenerated: %d\n"
+		_, _ = fmt.Fprintf(
+			cmd.OutOrStdout(),
+			summaryFormat,
+			result.Target,
+			result.DryRun,
+			result.FilesScanned,
+			result.FilesMigrated,
+			result.FilesAlreadyFrontmatter,
+			result.FilesSkipped,
+			result.FilesInvalid,
+			result.GroupedRegenerated,
+		)
+	}
+	return err
 }
 
 func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {

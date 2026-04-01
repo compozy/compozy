@@ -1,6 +1,6 @@
 ---
 name: verification-before-completion
-description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+description: Enforces fresh verification evidence before any completion, fix, or passing claim, and before commits or PR creation. Use when an agent is about to report success, hand off work, or commit code. Do not use for early planning, brainstorming, or tasks that have not yet reached a concrete verification step.
 ---
 
 # Verification Before Completion
@@ -19,7 +19,7 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
-If you haven't run the verification command in this message, you cannot claim it passes.
+If the verification command has not been run in the current message, the result cannot be claimed.
 
 ## The Gate Function
 
@@ -49,22 +49,21 @@ Skip any step = lying, not verifying
 | Agent completed       | VCS diff shows changes          | Agent reports "success"        |
 | Requirements met      | Line-by-line checklist          | Tests passing                  |
 
-## Red Flags - STOP
+## Red Flags
 
-- Using "should", "probably", "seems to"
-- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
-- About to commit/push/PR without verification
-- Trusting agent success reports
+- Using "should", "probably", or "seems to"
+- Expressing satisfaction before verification
+- About to commit, push, or open a PR without verification
+- Trusting another agent's success report
 - Relying on partial verification
 - Thinking "just this once"
-- Tired and wanting work over
-- **ANY wording implying success without having run verification**
+- Any wording that implies success without current evidence
 
 ## Rationalization Prevention
 
 | Excuse                                  | Reality                |
 | --------------------------------------- | ---------------------- |
-| "Should work now"                       | RUN the verification   |
+| "Should work now"                       | Run the verification   |
 | "I'm confident"                         | Confidence ≠ evidence  |
 | "Just this once"                        | No exceptions          |
 | "Linter passed"                         | Linter ≠ compiler      |
@@ -73,75 +72,18 @@ Skip any step = lying, not verifying
 | "Partial check is enough"               | Partial proves nothing |
 | "Different words so rule doesn't apply" | Spirit over letter     |
 
-## Key Patterns
-
-**Tests:**
-
-```
-✅ [Run test command] [See: 34/34 pass] "All tests pass"
-❌ "Should pass now" / "Looks correct"
-```
-
-**Regression tests (TDD Red-Green):**
-
-```
-✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
-❌ "I've written a regression test" (without red-green verification)
-```
-
-**Build:**
-
-```
-✅ [Run build] [See: exit 0] "Build passes"
-❌ "Linter passed" (linter doesn't check compilation)
-```
-
-**Requirements:**
-
-```
-✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
-❌ "Tests pass, phase complete"
-```
-
-**Agent delegation:**
-
-```
-✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
-❌ Trust agent report
-```
-
-## Why This Matters
-
-From 24 failure memories:
-
-- your human partner said "I don't believe you" - trust broken
-- Undefined functions shipped - would crash
-- Missing requirements shipped - incomplete features
-- Time wasted on false completion → redirect → rework
-- Violates: "Honesty is a core value. If you lie, you'll be replaced."
-
 ## When To Apply
 
-**ALWAYS before:**
+Apply this skill before:
 
-- ANY variation of success/completion claims
-- ANY expression of satisfaction
-- ANY positive statement about work state
-- Committing, PR creation, task completion
-- Moving to next task
-- Delegating to agents
+- any success or completion claim
+- any expression of satisfaction with the implementation state
+- any commit or PR creation
+- any handoff that implies correctness
+- moving to the next task based on completion
 
-**Rule applies to:**
+## Error Handling
 
-- Exact phrases
-- Paraphrases and synonyms
-- Implications of success
-- ANY communication suggesting completion/correctness
-
-## The Bottom Line
-
-**No shortcuts for verification.**
-
-Run the command. Read the output. THEN claim the result.
-
-This is non-negotiable.
+- If the correct verification command is unclear, identify it before making any completion claim.
+- If verification fails, report the actual failure and keep the task open.
+- If only partial verification is available, state that limitation explicitly and avoid completion language.

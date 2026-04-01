@@ -137,7 +137,7 @@ Basic scrollable list of items.
 
 **Integration:**
 ```go
-import "github.com/charmbracelet/bubbles/list"
+import "charm.land/bubbles/v2/list"
 
 type model struct {
     list list.Model
@@ -200,7 +200,7 @@ Single-line text field.
 
 **Integration:**
 ```go
-import "github.com/charmbracelet/bubbles/textinput"
+import "charm.land/bubbles/v2/textinput"
 
 type model struct {
     input textinput.Model
@@ -225,7 +225,7 @@ Text area for longer content.
 
 **Integration:**
 ```go
-import "github.com/charmbracelet/bubbles/textarea"
+import "charm.land/bubbles/v2/textarea"
 
 type model struct {
     textarea textarea.Model
@@ -243,7 +243,7 @@ Structured input with multiple fields.
 
 **Integration:**
 ```go
-import "github.com/charmbracelet/huh"
+import "charm.land/huh/v2"
 
 form := huh.NewForm(
     huh.NewGroup(
@@ -311,7 +311,7 @@ Show long-running operations.
 
 **Integration:**
 ```go
-import "github.com/charmbracelet/bubbles/progress"
+import "charm.land/bubbles/v2/progress"
 
 type model struct {
     progress progress.Model
@@ -559,7 +559,7 @@ type model struct {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     switch msg := msg.(type) {
-    case tea.KeyMsg:
+    case tea.KeyPressMsg:
         // Route to focused component
         switch m.focused {
         case "list":
@@ -604,7 +604,7 @@ type fileSelectedMsg struct {
 }
 
 // In list component Update
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     if key.Matches(msg, m.keymap.Enter) {
         selectedFile := m.list.SelectedItem()
         return m, func() tea.Msg {
@@ -630,15 +630,15 @@ case fileSelectedMsg:
 
 **Core Charm libraries:**
 ```
-github.com/charmbracelet/bubbletea    # Framework
-github.com/charmbracelet/lipgloss     # Styling
-github.com/charmbracelet/bubbles      # Standard components
+charm.land/bubbletea/v2              # Framework
+charm.land/lipgloss/v2               # Styling
+charm.land/bubbles/v2                # Standard components
 ```
 
 **Extended functionality:**
 ```
 github.com/charmbracelet/glamour      # Markdown rendering
-github.com/charmbracelet/huh          # Forms
+charm.land/huh/v2                     # Forms
 github.com/alecthomas/chroma/v2       # Syntax highlighting
 github.com/evertras/bubble-table      # Interactive tables
 github.com/koki-develop/go-fzf        # Fuzzy finder

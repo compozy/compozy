@@ -37,6 +37,10 @@ const (
 	IDEDroid IDE = model.IDEDroid
 	// IDECursor runs Cursor Agent jobs.
 	IDECursor IDE = model.IDECursor
+	// IDEOpenCode runs OpenCode jobs.
+	IDEOpenCode IDE = model.IDEOpenCode
+	// IDEPi runs Pi jobs.
+	IDEPi IDE = model.IDEPi
 )
 
 // Config configures compozy preparation and execution.
@@ -99,6 +103,27 @@ type FetchResult struct {
 	Total      int
 }
 
+type MigrationConfig struct {
+	RootDir    string
+	Name       string
+	TasksDir   string
+	ReviewsDir string
+	DryRun     bool
+}
+
+type MigrationResult struct {
+	Target                  string
+	DryRun                  bool
+	FilesScanned            int
+	FilesMigrated           int
+	FilesAlreadyFrontmatter int
+	FilesSkipped            int
+	FilesInvalid            int
+	GroupedRegenerated      int
+	MigratedPaths           []string
+	InvalidPaths            []string
+}
+
 // Validate ensures the configuration is internally consistent.
 func (cfg Config) Validate() error {
 	runtimeCfg := cfg.runtime()
@@ -141,6 +166,10 @@ func Run(ctx context.Context, cfg Config) error {
 
 func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
 	return fetchReviews(ctx, cfg.runtime())
+}
+
+func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
+	return migrateArtifacts(ctx, cfg)
 }
 
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.

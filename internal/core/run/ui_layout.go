@@ -1,35 +1,25 @@
 package run
 
-import "github.com/charmbracelet/lipgloss"
+func paddedContentWidth(width int) int {
+	return max(width-mainHorizontalPadding, 1)
+}
 
 func (m *uiModel) computePaneWidths(totalWidth int) (int, int) {
 	sidebar := m.initialSidebarWidth(totalWidth)
 	main := totalWidth - sidebar
 	if main < mainMinWidth {
 		main = mainMinWidth
-		if main >= totalWidth {
-			main = totalWidth - sidebarMinWidth
-		}
 		sidebar = totalWidth - main
 		if sidebar < sidebarMinWidth {
 			sidebar = sidebarMinWidth
 			main = totalWidth - sidebar
 		}
 	}
-	if main < 0 {
-		main = 0
-	}
-	return sidebar, main
+	return sidebar, max(main, 0)
 }
 
 func (m *uiModel) initialSidebarWidth(totalWidth int) int {
-	sidebar := int(float64(totalWidth) * sidebarWidthRatio)
-	if sidebar < sidebarMinWidth {
-		sidebar = sidebarMinWidth
-	}
-	if sidebar > sidebarMaxWidth {
-		sidebar = sidebarMaxWidth
-	}
+	sidebar := min(max(int(float64(totalWidth)*sidebarWidthRatio), sidebarMinWidth), sidebarMaxWidth)
 	if sidebar >= totalWidth {
 		sidebar = totalWidth / 2
 	}
@@ -37,62 +27,30 @@ func (m *uiModel) initialSidebarWidth(totalWidth int) int {
 }
 
 func (m *uiModel) computeContentHeight(totalHeight int) int {
-	content := totalHeight - chromeHeight
-	if content < minContentHeight {
-		return minContentHeight
-	}
-	return content
+	return max(totalHeight-chromeHeight, minContentHeight)
 }
 
 func (m *uiModel) configureViewports(sidebarWidth, mainWidth, contentHeight int) {
-	sidebarViewportWidth := sidebarWidth - sidebarChromeWidth
-	if sidebarViewportWidth < 10 {
-		sidebarViewportWidth = 10
-	}
-	sidebarViewportHeight := contentHeight - sidebarChromeHeight
-	if sidebarViewportHeight < sidebarViewportMinRows {
-		sidebarViewportHeight = sidebarViewportMinRows
-	}
-	m.sidebarViewport.Width = sidebarViewportWidth
-	if m.sidebarViewport.YOffset > sidebarViewportHeight {
+	sidebarViewportWidth := max(sidebarContentWidth(sidebarWidth), 10)
+	sidebarViewportHeight := max(sidebarContentHeight(contentHeight), sidebarViewportMinRows)
+	m.sidebarViewport.SetWidth(sidebarViewportWidth)
+	if m.sidebarViewport.YOffset() > sidebarViewportHeight {
 		m.sidebarViewport.SetYOffset(sidebarViewportHeight)
 	}
-	m.sidebarViewport.Height = sidebarViewportHeight
+	m.sidebarViewport.SetHeight(sidebarViewportHeight)
 
-	mainViewportWidth := mainWidth - mainHorizontalPadding
-	if mainViewportWidth < 10 {
-		mainViewportWidth = 10
-	}
-	m.viewport.Width = mainViewportWidth
-	if contentHeight < logViewportMinHeight {
-		m.viewport.Height = logViewportMinHeight
-	} else {
-		m.viewport.Height = contentHeight
-	}
-}
-
-func (m *uiModel) availableLogHeight(contentHeight int, metaBlock, logsHeader string) int {
-	usedHeight := lipgloss.Height(metaBlock) + lipgloss.Height(logsHeader)
-	available := contentHeight - usedHeight
-	if available < logViewportMinHeight {
-		return logViewportMinHeight
-	}
-	return available
+	m.viewport.SetWidth(max(paddedContentWidth(mainWidth), 10))
+	m.viewport.SetHeight(max(contentHeight, logViewportMinHeight))
 }
 
 func (m *uiModel) mainDimensions() (int, int) {
-	contentHeight := m.contentHeight
-	if contentHeight < minContentHeight {
-		contentHeight = minContentHeight
-	}
+	contentHeight := max(m.contentHeight, minContentHeight)
 	mainWidth := m.mainWidth
 	if mainWidth <= 0 {
-		mainWidth = int(float64(m.width) * (1 - sidebarWidthRatio))
+		sidebar := min(max(int(float64(m.width)*sidebarWidthRatio), sidebarMinWidth), sidebarMaxWidth)
+		mainWidth = m.width - sidebar
 	}
-	if mainWidth < mainMinWidth {
-		mainWidth = mainMinWidth
-	}
-	return mainWidth, contentHeight
+	return max(mainWidth, 1), contentHeight
 }
 
 func truncateString(s string, maxLen int) string {

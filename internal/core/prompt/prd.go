@@ -9,7 +9,10 @@ import (
 )
 
 func buildPRDTaskPrompt(task model.IssueEntry, autoCommit bool) string {
-	taskData := ParseTaskFile(task.Content)
+	taskData, err := ParseTaskFile(task.Content)
+	if err != nil {
+		taskData = model.TaskEntry{Content: task.Content, Status: "UNCONFIRMED"}
+	}
 	prdDir := filepath.Dir(task.AbsPath)
 	tasksFile := filepath.Join(prdDir, "_tasks.md")
 

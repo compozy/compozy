@@ -79,8 +79,6 @@ const (
 	sidebarMaxWidth        = 50
 	mainMinWidth           = 60
 	minContentHeight       = 10
-	sidebarChromeWidth     = 4
-	sidebarChromeHeight    = 2
 	mainHorizontalPadding  = 2
 	logViewportMinHeight   = 6
 	sidebarViewportMinRows = 5

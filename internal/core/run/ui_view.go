@@ -2,369 +2,400 @@ package run
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
-func (m *uiModel) renderSummaryView() string {
-	sections := []string{m.renderSummaryHeader(), m.renderSummaryCounts()}
+func (m *uiModel) renderRoot(content string) tea.View {
+	v := tea.NewView(rootScreenStyle(m.width, m.height).Render(content))
+	v.AltScreen = true
+	return v
+}
+
+func (m *uiModel) renderSummaryView() tea.View {
+	boxW := min(m.width-4, 80)
+	sections := []string{m.renderSummaryMainBox(boxW)}
 	if len(m.failures) > 0 {
-		sections = append(sections, m.renderSummaryFailures())
+		sections = append(sections, m.renderSummaryFailBox(boxW))
 	}
 	if m.aggregateUsage != nil && m.aggregateUsage.Total() > 0 {
-		sections = append(sections, m.renderSummaryTokenUsage())
+		sections = append(sections, m.renderSummaryTokenBox(boxW))
 	}
 	sections = append(sections, m.renderSummaryHelp())
-	separator := lipgloss.NewStyle().Foreground(lipgloss.Color("238")).Render(strings.Repeat("─", m.width))
-	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
-	return lipgloss.JoinVertical(lipgloss.Left, separator, content)
+
+	content := lipgloss.NewStyle().MarginTop(1).MarginLeft(1).Render(
+		lipgloss.JoinVertical(lipgloss.Left, sections...))
+	return m.renderRoot(content)
 }
 
-func (m *uiModel) renderFailuresView() string {
-	if len(m.failures) == 0 {
-		noteStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).MarginTop(2)
-		return noteStyle.Render("No failures recorded. Return with 'esc'.")
-	}
-	rows := []string{"Failure Details:"}
-	for _, f := range m.failures {
-		rows = append(rows,
-			fmt.Sprintf("• %s (exit %d)", f.codeFile, f.exitCode),
-			fmt.Sprintf("  Logs: %s (out), %s (err)", f.outLog, f.errLog),
-		)
-	}
-	block := lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render(strings.Join(rows, "\n"))
-	return lipgloss.JoinVertical(lipgloss.Left, block, m.renderSummaryHelp())
-}
+func (m *uiModel) renderSummaryMainBox(boxW int) string {
+	innerW := panelContentWidth(boxW)
+	label := styleDimText
+	value := styleBodyText
 
-func (m *uiModel) renderSummaryHeader() string {
-	headerStyle := lipgloss.NewStyle().Bold(true).MarginTop(1).MarginBottom(1)
+	borderColor := colorBorderFocus
+	headerColor := colorSuccess
+	headerText := fmt.Sprintf("All Jobs Complete: %d/%d succeeded", m.completed, m.total)
 	if m.failed > 0 {
-		headerStyle = headerStyle.Foreground(lipgloss.Color("220"))
-		return headerStyle.Render(
-			fmt.Sprintf("✓ Execution Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed),
-		)
+		borderColor = colorWarning
+		headerColor = colorWarning
+		headerText = fmt.Sprintf(
+			"Execution Complete: %d/%d succeeded, %d failed",
+			m.completed, m.total, m.failed)
 	}
-	headerStyle = headerStyle.Foreground(lipgloss.Color("42"))
-	return headerStyle.Render(fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total))
+	title := lipgloss.NewStyle().Bold(true).Foreground(headerColor).Render(headerText)
+
+	pct := 0.0
+	if m.total > 0 {
+		pct = float64(m.completed+m.failed) / float64(m.total)
+	}
+	m.progressBar.SetWidth(max(innerW, 10))
+	stats := []string{
+		label.Render("SUCCEEDED") + " " + lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorSuccess).
+			Render(fmt.Sprintf("%d", m.completed)),
+		label.Render("FAILED    ") + " " + lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colorError).
+			Render(fmt.Sprintf("%d", m.failed)),
+		label.Render("TOTAL     ") + " " + value.Bold(true).Render(fmt.Sprintf("%d", m.total)),
+	}
+
+	lines := []string{
+		renderTechLabel("run.status"),
+		title,
+		m.progressBar.ViewAs(pct),
+		"",
+	}
+	lines = append(lines, stats...)
+
+	return techPanelStyle(boxW, borderColor).Render(strings.Join(lines, "\n"))
 }
 
-func (m *uiModel) renderSummaryCounts() string {
-	summaryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("81")).MarginBottom(1)
-	summaryText := fmt.Sprintf("Total Groups: %d\nSuccess: %d\nFailed: %d", m.total, m.completed, m.failed)
-	return summaryStyle.Render(summaryText)
-}
-
-func (m *uiModel) renderSummaryFailures() string {
-	failuresStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).MarginBottom(1)
-	failureLines := []string{"Failures:"}
+func (m *uiModel) renderSummaryFailBox(boxW int) string {
+	lines := []string{renderTechLabel("run.failures")}
 	for _, f := range m.failures {
-		failureLines = append(failureLines,
-			fmt.Sprintf("  • %s (exit code: %d)", f.codeFile, f.exitCode),
-			fmt.Sprintf("    Logs: %s (out), %s (err)", f.outLog, f.errLog))
+		entry := lipgloss.NewStyle().Bold(true).Foreground(colorError).Render("FAIL "+f.codeFile) +
+			styleDimText.Render(fmt.Sprintf("  EXIT %d", f.exitCode))
+		lines = append(lines, entry)
+		if f.outLog != "" {
+			lines = append(lines, styleMutedText.Render("  "+f.outLog))
+		}
 	}
-	return failuresStyle.Render(strings.Join(failureLines, "\n"))
+	return techPanelStyle(boxW, colorError).Render(strings.Join(lines, "\n"))
 }
 
-func (m *uiModel) renderSummaryTokenUsage() string {
-	usageStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("141")).MarginBottom(1)
-	usageLines := []string{
-		"Token Usage (Claude API - Aggregate):",
-		fmt.Sprintf("  Input:  %s tokens", formatNumber(m.aggregateUsage.InputTokens)),
+func (m *uiModel) renderSummaryTokenBox(boxW int) string {
+	label := styleDimText
+	value := styleBodyText
+	u := m.aggregateUsage
+
+	lines := []string{
+		renderTechLabel("usage.tokens"),
+		label.Render("INPUT  ") + " " + value.Render(formatNumber(u.InputTokens)),
+		label.Render("OUTPUT ") + " " + value.Render(formatNumber(u.OutputTokens)),
 	}
-	if m.aggregateUsage.CacheReadTokens > 0 {
-		usageLines = append(
-			usageLines,
-			fmt.Sprintf("  Cache Reads: %s tokens", formatNumber(m.aggregateUsage.CacheReadTokens)),
-		)
+	if u.CacheReadTokens > 0 {
+		lines = append(lines,
+			label.Render("CACHE  ")+" "+value.Render(formatNumber(u.CacheReadTokens)+" reads"))
 	}
-	if m.aggregateUsage.CacheCreationTokens > 0 {
-		usageLines = append(
-			usageLines,
-			fmt.Sprintf("  Cache Creation: %s tokens", formatNumber(m.aggregateUsage.CacheCreationTokens)),
-		)
-	}
-	usageLines = append(usageLines,
-		fmt.Sprintf("  Output: %s tokens", formatNumber(m.aggregateUsage.OutputTokens)),
-		fmt.Sprintf("  Total:  %s tokens", formatNumber(m.aggregateUsage.Total())),
-	)
-	return usageStyle.Render(strings.Join(usageLines, "\n"))
+	totalValue := lipgloss.NewStyle().Bold(true).Foreground(colorBrand).Render(formatNumber(u.Total()))
+	lines = append(lines, label.Render("TOTAL  ")+" "+totalValue)
+
+	return techPanelStyle(boxW, colorBorder).Render(strings.Join(lines, "\n"))
 }
 
 func (m *uiModel) renderSummaryHelp() string {
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).MarginTop(2)
-	return helpStyle.Render("Press 'esc' to return to job list • Press 'q' to exit")
+	parts := []string{
+		renderKeycap("esc") + " " + styleMutedText.Render("BACK"),
+		renderKeycap("q") + " " + styleMutedText.Render("QUIT"),
+	}
+	return lipgloss.NewStyle().MarginTop(1).Render(" " + strings.Join(parts, "  "))
 }
 
-func (m *uiModel) View() string {
+func (m *uiModel) View() tea.View {
 	switch m.currentView {
-	case uiViewSummary:
+	case uiViewSummary, uiViewFailures:
 		return m.renderSummaryView()
-	case uiViewFailures:
-		return m.renderFailuresView()
 	case uiViewJobs:
-		header, headerStyle := m.renderHeader()
-		helpText, helpStyle := m.renderHelp()
-		separator := m.renderSeparator()
-		splitView := lipgloss.JoinHorizontal(lipgloss.Top, m.renderSidebar(), m.renderMainContent())
-		return lipgloss.JoinVertical(
+		content := lipgloss.JoinVertical(
 			lipgloss.Left,
-			headerStyle.Render(header),
-			helpStyle.Render(helpText),
-			separator,
-			splitView,
+			m.renderTitleBar(),
+			m.renderHelp(),
+			m.renderSeparator(),
+			lipgloss.JoinHorizontal(lipgloss.Top, m.renderSidebar(), m.renderMainContent()),
 		)
+		return m.renderRoot(content)
 	default:
-		return ""
+		return tea.NewView("")
 	}
 }
 
-func (m *uiModel) renderHeader() (string, lipgloss.Style) {
+func (m *uiModel) renderTitleBar() string {
+	title := styleTitle.Render("COMPOZY") + styleTitleMeta.Render(" // AGENT LOOP")
+	status := m.headerStatusText()
+
+	gap := max(m.width-lipgloss.Width(title)-lipgloss.Width(status)-2, 1)
+	titleLine := " " + title + strings.Repeat(" ", gap) + status
+
+	pct := 0.0
+	if m.total > 0 {
+		pct = float64(m.completed+m.failed) / float64(m.total)
+	}
+	pipelineLabel := renderTechLabel("sys.pipeline")
+	m.progressBar.SetWidth(max(m.width-lipgloss.Width(pipelineLabel)-3, 10))
+	progressLine := " " + pipelineLabel + " " + m.progressBar.ViewAs(pct)
+
+	return lipgloss.NewStyle().MarginTop(1).Render(titleLine + "\n" + progressLine)
+}
+
+func (m *uiModel) headerStatusText() string {
 	complete := m.completed+m.failed >= m.total
-	style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62")).MarginTop(1).MarginBottom(1)
 	if !complete {
-		msg := fmt.Sprintf("Processing Jobs: %d/%d completed, %d failed", m.completed, m.total, m.failed)
-		return msg, style
+		if m.failed > 0 {
+			return lipgloss.NewStyle().Bold(true).Foreground(colorWarning).Render(
+				fmt.Sprintf("RUN %d/%d · %d FAIL", m.completed+m.failed, m.total, m.failed))
+		}
+		return styleMutedText.Render(fmt.Sprintf("RUN %d/%d", m.completed+m.failed, m.total))
 	}
 	if m.failed > 0 {
-		style = style.Foreground(lipgloss.Color("220"))
-		return fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded, %d failed", m.completed, m.total, m.failed), style
+		return lipgloss.NewStyle().Bold(true).Foreground(colorWarning).Render(
+			fmt.Sprintf("%d OK · %d FAIL", m.completed, m.failed))
 	}
-	style = style.Foreground(lipgloss.Color("42"))
-	return fmt.Sprintf("✓ All Jobs Complete: %d/%d succeeded!", m.completed, m.total), style
+	return lipgloss.NewStyle().Bold(true).Foreground(colorSuccess).Render(
+		fmt.Sprintf("ALL %d OK", m.total))
 }
 
-func (m *uiModel) renderHelp() (string, lipgloss.Style) {
-	complete := m.completed+m.failed >= m.total
-	text := "↑↓/jk navigate • pgup/pgdn scroll logs • q quit"
-	if complete {
-		text = "↑↓/jk navigate • pgup/pgdn scroll logs • press 's' to view summary • q quit"
+func (m *uiModel) renderHelp() string {
+	type kv struct{ key, desc string }
+
+	pairs := []kv{
+		{"↑↓/jk", "NAV"},
+		{"pgup/pgdn", "SCROLL"},
 	}
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).MarginBottom(1)
-	return text, style
+	if m.completed+m.failed >= m.total {
+		pairs = append(pairs, kv{"s", "SUMMARY"})
+	}
+	pairs = append(pairs, kv{"q", "QUIT"})
+
+	var parts []string
+	for _, p := range pairs {
+		parts = append(parts, renderKeycap(p.key)+" "+styleMutedText.Render(p.desc))
+	}
+	return lipgloss.NewStyle().MarginBottom(1).Render(" " + strings.Join(parts, "  "))
 }
 
 func (m *uiModel) renderSeparator() string {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("238")).Render(strings.Repeat("─", m.width))
+	return styleSeparator.Render(strings.Repeat("─", m.width))
 }
 
 func (m *uiModel) renderSidebar() string {
 	sidebarWidth := m.sidebarWidth
 	if sidebarWidth <= 0 {
-		sidebarWidth = int(float64(m.width) * sidebarWidthRatio)
-		if sidebarWidth < sidebarMinWidth {
-			sidebarWidth = sidebarMinWidth
-		}
-		if sidebarWidth > sidebarMaxWidth {
-			sidebarWidth = sidebarMaxWidth
-		}
+		sidebarWidth = min(max(int(float64(m.width)*sidebarWidthRatio), sidebarMinWidth), sidebarMaxWidth)
 	}
-	contentHeight := m.contentHeight
-	if contentHeight < minContentHeight {
-		contentHeight = minContentHeight
-	}
+
 	var items []string
 	for i := range m.jobs {
 		items = append(items, m.renderSidebarItem(&m.jobs[i], i == m.selectedJob))
 	}
 	m.sidebarViewport.SetContent(strings.Join(items, "\n"))
+
 	if m.selectedJob >= 0 && m.selectedJob < len(m.jobs) {
 		lineOffset := m.selectedJob * 3
-		if lineOffset > m.sidebarViewport.YOffset+m.sidebarViewport.Height-3 {
-			m.sidebarViewport.SetYOffset(lineOffset - m.sidebarViewport.Height + 3)
-		} else if lineOffset < m.sidebarViewport.YOffset {
+		sidebarOffset := m.sidebarViewport.YOffset()
+		sidebarHeight := m.sidebarViewport.Height()
+		if lineOffset > sidebarOffset+sidebarHeight-3 {
+			m.sidebarViewport.SetYOffset(lineOffset - sidebarHeight + 3)
+		} else if lineOffset < sidebarOffset {
 			m.sidebarViewport.SetYOffset(lineOffset)
 		}
 	}
-	return lipgloss.NewStyle().
-		Width(sidebarWidth).
-		Height(contentHeight).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		Padding(0, 1).
-		Render(m.sidebarViewport.View())
+
+	return techSidebarStyle(sidebarWidth, colorBorder).Render(m.sidebarViewport.View())
 }
 
 func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
-	var icon string
-	var color lipgloss.Color
+	statusColor := m.jobStateColor(job.state)
+	icon := m.jobStateIcon(job.state)
+	maxW := m.sidebarViewport.Width()
+
+	marker := "  "
+	markerRendered := marker
+	if selected {
+		marker = "▌ "
+		markerRendered = lipgloss.NewStyle().Foreground(colorAccent).Render(marker)
+	}
+	iconRendered := lipgloss.NewStyle().Foreground(statusColor).Render(icon)
+
+	var timeStr string
 	switch job.state {
-	case jobPending:
-		icon = "⏸"
-		color = lipgloss.Color("245")
 	case jobRunning:
-		icon = spinnerFrames[m.frame%len(spinnerFrames)]
-		color = lipgloss.Color("220")
-	case jobSuccess:
-		icon = "✓"
-		color = lipgloss.Color("42")
-	case jobFailed:
-		icon = "✗"
-		color = lipgloss.Color("196")
+		if !job.startedAt.IsZero() {
+			timeStr = formatDuration(time.Since(job.startedAt))
+		}
+	case jobSuccess, jobFailed:
+		if job.duration > 0 {
+			timeStr = formatDuration(job.duration)
+		}
 	}
 
-	maxTextWidth := m.sidebarViewport.Width - 2
-	line1 := truncateString(fmt.Sprintf("%s %s", icon, job.safeName), maxTextWidth)
-	line2 := truncateString(fmt.Sprintf("  %d file(s), %d issue(s)", len(job.codeFiles), job.issues), maxTextWidth)
+	leadWidth := lipgloss.Width(marker + icon + " ")
+	nameWidth := maxW - leadWidth
+	if timeStr != "" {
+		nameWidth -= lipgloss.Width(timeStr) + 1
+	}
+	nameRaw := truncateString(job.safeName, max(nameWidth, 1))
 
-	style := lipgloss.NewStyle().Foreground(color)
+	nameStyle := styleMutedText
 	if selected {
-		style = style.Bold(true).Background(lipgloss.Color("235")).Foreground(lipgloss.Color("255"))
+		nameStyle = styleBodyText.Bold(true)
 	}
+	line1 := markerRendered + iconRendered + " " + nameStyle.Render(nameRaw)
+	if timeStr != "" {
+		timeStyled := lipgloss.NewStyle().Foreground(statusColor).Render(timeStr)
+		gap := max(maxW-lipgloss.Width(line1)-lipgloss.Width(timeStyled), 1)
+		line1 += strings.Repeat(" ", gap) + timeStyled
+	}
+
+	line2Raw := truncateString(fmt.Sprintf("    FILES %d · ISSUES %d", len(job.codeFiles), job.issues), maxW)
+	metaStyle := styleDimText
 	if selected {
-		line1 = "► " + line1
-	} else {
-		line1 = "  " + line1
+		metaStyle = styleMutedText
 	}
-	line1 = truncateString(line1, maxTextWidth)
-	return style.Render(line1) + "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("245")).Render(line2)
+	row := line1 + "\n" + metaStyle.Render(line2Raw)
+	if selected {
+		return selectedSidebarRowStyle(maxW).Render(row)
+	}
+	return row
 }
 
 func (m *uiModel) renderMainContent() string {
 	if m.selectedJob < 0 || m.selectedJob >= len(m.jobs) {
-		return lipgloss.NewStyle().Padding(2).Foreground(lipgloss.Color("245")).Render("Select a job from the sidebar")
+		return lipgloss.NewStyle().
+			Padding(2).
+			Foreground(colorMuted).
+			Background(colorBgBase).
+			Render("Select a job from the sidebar")
 	}
+
 	job := &m.jobs[m.selectedJob]
 	mainWidth, contentHeight := m.mainDimensions()
-	metaBlock := m.buildMetaBlock(job)
-	logsHeader := m.renderLogsHeader()
-	m.viewport.Height = m.availableLogHeight(contentHeight, metaBlock, logsHeader)
+	bodyWidth := paddedContentWidth(mainWidth)
+
+	metaCard := m.buildMetaCard(job, bodyWidth)
+	logsHeader := m.renderLogsHeader(bodyWidth)
+	metaHeight := lipgloss.Height(metaCard) + lipgloss.Height(logsHeader)
+
+	m.viewport.SetHeight(max(contentHeight-metaHeight, logViewportMinHeight))
+	m.viewport.SetWidth(bodyWidth)
 	m.updateViewportForJob(job)
-	body := lipgloss.JoinVertical(lipgloss.Left, metaBlock, logsHeader, m.viewport.View())
-	return lipgloss.NewStyle().Width(mainWidth).Height(contentHeight).Padding(0, 1).Render(body)
-}
 
-func (m *uiModel) buildMetaBlock(job *uiJob) string {
-	sections := []string{m.renderMainHeader(job)}
-	if fileList := strings.TrimSpace(m.renderMainFileList(job)); fileList != "" {
-		sections = append(sections, fileList)
-	}
-	sections = append(sections, m.renderMainStatus(job), m.renderRuntime(job))
-	if usage := strings.TrimSpace(m.renderTokenUsage(job)); usage != "" {
-		sections = append(sections, usage)
-	}
-	if paths := strings.TrimSpace(m.renderLogPaths(job)); paths != "" {
-		sections = append(sections, paths)
-	}
-	return lipgloss.JoinVertical(lipgloss.Left, sections...)
-}
-
-func (m *uiModel) renderMainHeader(job *uiJob) string {
+	body := lipgloss.JoinVertical(lipgloss.Left, metaCard, logsHeader, m.viewport.View())
 	return lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("99")).
-		MarginBottom(1).
-		Render(fmt.Sprintf("Batch: %s", job.safeName))
+		Width(mainWidth).
+		Height(contentHeight).
+		Padding(0, 1).
+		Background(colorBgBase).
+		Render(body)
 }
 
-func (m *uiModel) renderMainFileList(job *uiJob) string {
-	if len(job.codeFiles) == 0 {
-		return ""
-	}
-	maxTextWidth := m.viewport.Width - 4
-	var b strings.Builder
-	b.WriteString("Files:\n")
-	for _, file := range job.codeFiles {
-		b.WriteString("  • ")
-		b.WriteString(truncateString(file, maxTextWidth))
-		b.WriteString("\n")
-	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("212")).MarginBottom(1).Render(b.String())
-}
+func (m *uiModel) buildMetaCard(job *uiJob, renderWidth int) string {
+	innerW := panelContentWidth(renderWidth)
+	labelStyle := styleDimText
+	valueStyle := styleBodyText
 
-func (m *uiModel) renderMainStatus(job *uiJob) string {
-	statusLabel := m.getStateLabel(job.state)
+	nameRaw := job.safeName
+	elapsed := m.elapsedStr(job)
+	elapsedW := lipgloss.Width(elapsed)
+
+	maxNameW := innerW
+	if elapsed != "" {
+		maxNameW = innerW - elapsedW - 1
+	}
+	nameRaw = truncateString(nameRaw, max(maxNameW, 1))
+	nameStyled := lipgloss.NewStyle().Bold(true).Foreground(colorBrand).Render(nameRaw)
+
+	titleLine := nameStyled
+	if elapsed != "" {
+		gap := max(innerW-lipgloss.Width(nameStyled)-elapsedW, 1)
+		titleLine = nameStyled + strings.Repeat(" ", gap) + elapsed
+	}
+
+	lines := []string{
+		renderTechLabel("run.status"),
+		titleLine,
+	}
+
+	if len(job.codeFiles) > 0 {
+		label := labelStyle.Render("FILES  ")
+		maxLen := innerW - lipgloss.Width(label)
+		files := truncateString(strings.Join(job.codeFiles, ", "), max(maxLen, 1))
+		lines = append(lines, label+lipgloss.NewStyle().Foreground(colorAccentAlt).Render(files))
+	}
+
+	statusVal := m.getStateLabel(job.state)
 	if job.state == jobFailed && job.exitCode != 0 {
-		statusLabel = fmt.Sprintf("%s (exit %d)", statusLabel, job.exitCode)
+		statusVal = fmt.Sprintf("FAILED (EXIT %d)", job.exitCode)
 	}
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("81")).
-		MarginBottom(1).
-		Render(fmt.Sprintf("Issues: %d  |  Status: %s", job.issues, statusLabel))
+	statusLine := labelStyle.Render("STATUS ") +
+		lipgloss.NewStyle().Bold(true).Foreground(m.jobStateColor(job.state)).Render(statusVal) +
+		styleDimText.Render("  ·  ") +
+		labelStyle.Render("ISSUES ") +
+		valueStyle.Bold(true).Render(fmt.Sprintf("%d", job.issues))
+	lines = append(lines, statusLine)
+
+	if job.tokenUsage != nil && job.tokenUsage.Total() > 0 {
+		u := job.tokenUsage
+		tokenLine := labelStyle.Render("TOKENS ") +
+			lipgloss.NewStyle().Foreground(colorAccentAlt).Render(
+				fmt.Sprintf("%s IN / %s OUT", formatNumber(u.InputTokens), formatNumber(u.OutputTokens)))
+		lines = append(lines, tokenLine)
+	}
+
+	return techPanelStyle(renderWidth, m.jobBorderColor(job)).Render(strings.Join(lines, "\n"))
 }
 
-func (m *uiModel) renderLogsHeader() string {
-	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).MarginBottom(1).Render("Live Logs:")
-}
-
-func (m *uiModel) renderRuntime(job *uiJob) string {
-	var label string
-	var duration time.Duration
+func (m *uiModel) elapsedStr(job *uiJob) string {
 	switch job.state {
 	case jobRunning:
-		label = "Runtime"
 		if !job.startedAt.IsZero() {
-			duration = time.Since(job.startedAt)
+			return styleDimText.Render(formatDuration(time.Since(job.startedAt)))
 		}
 	case jobSuccess:
-		label = "Completed in"
-		if job.duration > 0 {
-			duration = job.duration
-		} else if !job.startedAt.IsZero() {
-			duration = time.Since(job.startedAt)
+		d := job.duration
+		if d == 0 && !job.startedAt.IsZero() {
+			d = time.Since(job.startedAt)
+		}
+		if d > 0 {
+			return lipgloss.NewStyle().Foreground(colorSuccess).Render("OK " + formatDuration(d))
 		}
 	case jobFailed:
-		label = "Ran for"
-		if job.duration > 0 {
-			duration = job.duration
-		} else if !job.startedAt.IsZero() {
-			duration = time.Since(job.startedAt)
+		d := job.duration
+		if d == 0 && !job.startedAt.IsZero() {
+			d = time.Since(job.startedAt)
 		}
-	default:
-		label = "Runtime"
-		if !job.startedAt.IsZero() {
-			duration = time.Since(job.startedAt)
+		if d > 0 {
+			return lipgloss.NewStyle().Foreground(colorError).Render("FAIL " + formatDuration(d))
 		}
 	}
-	rendered := fmt.Sprintf("%s: --:--", label)
-	if duration > 0 {
-		rendered = fmt.Sprintf("%s: %s", label, formatDuration(duration))
-	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("117")).MarginBottom(1).Render(rendered)
+	return ""
 }
 
-func (m *uiModel) renderLogPaths(job *uiJob) string {
-	var lines []string
-	if job.outLog != "" {
-		lines = append(lines, fmt.Sprintf("  • stdout: %s", job.outLog))
+func (m *uiModel) renderLogsHeader(width int) string {
+	title := styleLogHeader.Render("SYS.STDOUT // LIVE LOGS")
+	rightLen := max(width-lipgloss.Width(title)-1, 0)
+	if rightLen == 0 {
+		return title
 	}
-	if job.errLog != "" {
-		lines = append(lines, fmt.Sprintf("  • stderr: %s", job.errLog))
-	}
-	if len(lines) == 0 {
-		return ""
-	}
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("245")).
-		MarginBottom(1).
-		Render("Log Files:\n" + strings.Join(lines, "\n"))
-}
-
-func (m *uiModel) renderTokenUsage(job *uiJob) string {
-	if job.tokenUsage == nil {
-		return ""
-	}
-	usage := job.tokenUsage
-	var lines []string
-	lines = append(
-		lines,
-		"Token Usage (Claude API):",
-		fmt.Sprintf("  Input:          %s tokens", formatNumber(usage.InputTokens)),
-	)
-	if usage.CacheReadTokens > 0 {
-		lines = append(lines, fmt.Sprintf("  Cache Reads:    %s tokens", formatNumber(usage.CacheReadTokens)))
-	}
-	if usage.CacheCreationTokens > 0 {
-		lines = append(lines, fmt.Sprintf("  Cache Creation: %s tokens", formatNumber(usage.CacheCreationTokens)))
-	}
-	lines = append(lines,
-		fmt.Sprintf("  Output:         %s tokens", formatNumber(usage.OutputTokens)),
-		fmt.Sprintf("  Total:          %s tokens", formatNumber(usage.Total())),
-	)
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("141")).MarginBottom(1).Render(strings.Join(lines, "\n"))
+	return title + " " + styleSeparator.Render(strings.Repeat("─", rightLen))
 }
 
 func formatDuration(d time.Duration) string {
@@ -404,22 +435,22 @@ func formatNumber(n int) string {
 }
 
 func (m *uiModel) updateViewportForJob(job *uiJob) {
+	maxW := m.viewport.Width()
 	var content strings.Builder
 	if len(job.lastOut) > 0 {
 		for _, line := range job.lastOut {
 			if line != "" {
-				content.WriteString(line)
+				content.WriteString(truncateString(line, maxW))
 				content.WriteString("\n")
 			}
 		}
 	}
 	if len(job.lastErr) > 0 {
-		stderrLabel := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render("[stderr]")
-		content.WriteString(stderrLabel)
+		content.WriteString(styleStderrLabel.Render("[STDERR]"))
 		content.WriteString("\n")
 		for _, line := range job.lastErr {
 			if line != "" {
-				content.WriteString(line)
+				content.WriteString(truncateString(line, maxW))
 				content.WriteString("\n")
 			}
 		}
@@ -434,14 +465,57 @@ func (m *uiModel) updateViewportForJob(job *uiJob) {
 func (m *uiModel) getStateLabel(state jobState) string {
 	switch state {
 	case jobPending:
-		return "Pending"
+		return "PENDING"
 	case jobRunning:
-		return "Running"
+		return "RUNNING"
 	case jobSuccess:
-		return "Success ✓"
+		return "SUCCESS"
 	case jobFailed:
-		return "Failed ✗"
+		return "FAILED"
 	default:
-		return "Unknown"
+		return "UNKNOWN"
+	}
+}
+
+func (m *uiModel) jobStateIcon(state jobState) string {
+	switch state {
+	case jobPending:
+		return "⏸"
+	case jobRunning:
+		return spinnerFrames[m.frame%len(spinnerFrames)]
+	case jobSuccess:
+		return "✓"
+	case jobFailed:
+		return "✗"
+	default:
+		return "•"
+	}
+}
+
+func (m *uiModel) jobStateColor(state jobState) color.Color {
+	switch state {
+	case jobPending:
+		return colorMuted
+	case jobRunning:
+		return colorAccentAlt
+	case jobSuccess:
+		return colorSuccess
+	case jobFailed:
+		return colorError
+	default:
+		return colorInfo
+	}
+}
+
+func (m *uiModel) jobBorderColor(job *uiJob) color.Color {
+	switch job.state {
+	case jobRunning:
+		return colorBorderFocus
+	case jobSuccess:
+		return colorSuccess
+	case jobFailed:
+		return colorError
+	default:
+		return colorBorder
 	}
 }

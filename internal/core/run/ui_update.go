@@ -3,12 +3,12 @@ package run
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		return m, m.handleKey(v)
 	case tea.WindowSizeMsg:
 		m.handleWindowSize(v)
@@ -35,7 +35,7 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 }
 
-func (m *uiModel) handleKey(v tea.KeyMsg) tea.Cmd {
+func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 	key := v.String()
 	switch key {
 	case "ctrl+c", "q":

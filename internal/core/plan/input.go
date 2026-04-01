@@ -37,7 +37,7 @@ func resolveTaskInputs(cfg *model.RuntimeConfig) (string, string, string, error)
 		}
 	}
 	if tasksDir == "" {
-		tasksDir = filepath.Join("tasks", name)
+		tasksDir = model.TaskDirectory(name)
 	}
 
 	resolvedTasksDir, err := filepath.Abs(tasksDir)
@@ -137,7 +137,11 @@ func validateAndFilterEntries(entries []model.IssueEntry, cfg *model.RuntimeConf
 	}
 
 	if cfg.Mode == model.ExecutionModePRReview && !cfg.IncludeResolved {
-		entries = filterUnresolved(entries)
+		filtered, err := filterUnresolved(entries)
+		if err != nil {
+			return nil, err
+		}
+		entries = filtered
 		if len(entries) == 0 {
 			fmt.Println("All review issues are already resolved. Nothing to do.")
 			return nil, ErrNoWork
@@ -188,7 +192,10 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]model.IssueEntry
 		}
 
 		content := string(body)
-		task := prompt.ParseTaskFile(content)
+		task, err := prompt.ParseTaskFile(content)
+		if err != nil {
+			return nil, wrapTaskParseError(absPath, err)
+		}
 		if !includeCompleted && prompt.IsTaskCompleted(task) {
 			continue
 		}
@@ -203,14 +210,18 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]model.IssueEntry
 	return entries, nil
 }
 
-func filterUnresolved(all []model.IssueEntry) []model.IssueEntry {
+func filterUnresolved(all []model.IssueEntry) ([]model.IssueEntry, error) {
 	out := make([]model.IssueEntry, 0, len(all))
 	for _, entry := range all {
-		if !prompt.IsReviewResolved(entry.Content) {
+		resolved, err := prompt.IsReviewResolved(entry.Content)
+		if err != nil {
+			return nil, wrapReviewParseError(entry.AbsPath, err)
+		}
+		if !resolved {
 			out = append(out, entry)
 		}
 	}
-	return out
+	return out, nil
 }
 
 func groupIssues(entries []model.IssueEntry) map[string][]model.IssueEntry {
@@ -221,75 +232,28 @@ func groupIssues(entries []model.IssueEntry) map[string][]model.IssueEntry {
 	return groups
 }
 
-func writeGroupedSummaries(groupedDir string, groups map[string][]model.IssueEntry) error {
-	for codeFile, items := range groups {
-		groupFile := reviews.GroupedFilePath(filepath.Dir(groupedDir), codeFile)
-		title := codeFile
-		if strings.HasPrefix(codeFile, "__unknown__") {
-			title = "(unknown file)"
-		}
-
-		var sb strings.Builder
-		fmt.Fprintf(&sb, "# Issue Group for %s\n\n", title)
-		sb.WriteString(buildGroupedResolutionChecklist(items))
-		sb.WriteString("## Included Issues\n\n")
-		for _, item := range items {
-			sb.WriteString("- ")
-			sb.WriteString(item.Name)
-			sb.WriteString("\n")
-		}
-		for _, item := range items {
-			sb.WriteString("\n---\n\n## ")
-			sb.WriteString(item.Name)
-			sb.WriteString("\n\n")
-			sb.WriteString(item.Content)
-		}
-		sb.WriteString("\n")
-		if err := os.WriteFile(groupFile, []byte(sb.String()), 0o600); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func buildGroupedResolutionChecklist(items []model.IssueEntry) string {
-	var checklist strings.Builder
-	checklist.WriteString("## Resolution Checklist\n\n")
-	checklist.WriteString(
-		"> This grouped file contains multiple review issues for the same source file.\n",
-	)
-	checklist.WriteString("> Resolve every item below before treating this group as complete.\n")
-	checklist.WriteString(
-		"> Compozy resolves provider threads automatically after a successful batch.\n",
-	)
-	checklist.WriteString("> Do not run provider-specific scripts manually.\n\n")
-	for _, item := range items {
-		checklist.WriteString("- [ ] Resolve `")
-		checklist.WriteString(item.Name)
-		checklist.WriteString("` (source issue: `")
-		checklist.WriteString(prompt.NormalizeForPrompt(item.AbsPath))
-		checklist.WriteString("`)\n")
-		checklist.WriteString("      - Triage the issue and update `## Status:` in the original issue file.\n")
-		checklist.WriteString("      - Implement and verify any required code changes before marking it resolved.\n")
-	}
-	checklist.WriteString("- [ ] Document the outcome in this grouped file after every listed issue is resolved.\n\n")
-	return checklist.String()
-}
-
 func inferTaskNameFromTasksDir(dir string) (string, error) {
-	re := regexp.MustCompile(`(?:^|/)tasks/([^/]+)$`)
+	baseDir := regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir()))
+	re := regexp.MustCompile(`(?:^|/)` + baseDir + `/([^/]+)$`)
 	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
-		return "", errors.New("unable to infer task name from tasks dir")
+		return "", fmt.Errorf(
+			"unable to infer task name from tasks dir; expected path ending with %s/<name>",
+			filepath.ToSlash(model.TasksBaseDir()),
+		)
 	}
 	return m[1], nil
 }
 
 func inferTaskNameFromReviewsDir(dir string) (string, error) {
-	re := regexp.MustCompile(`(?:^|/)tasks/([^/]+)/reviews-\d+$`)
+	baseDir := regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir()))
+	re := regexp.MustCompile(`(?:^|/)` + baseDir + `/([^/]+)/reviews-\d+$`)
 	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
-		return "", errors.New("unable to infer task name from reviews dir")
+		return "", fmt.Errorf(
+			"unable to infer task name from reviews dir; expected path ending with %s/<name>/reviews-NNN",
+			filepath.ToSlash(model.TasksBaseDir()),
+		)
 	}
 	return m[1], nil
 }
@@ -305,14 +269,6 @@ func inferRoundFromReviewsDir(dir string) (int, error) {
 		return 0, fmt.Errorf("parse review round: %w", err)
 	}
 	return round, nil
-}
-
-func writeSummaries(reviewDir string, groups map[string][]model.IssueEntry) error {
-	groupedDir := reviews.GroupedDirectory(reviewDir)
-	if err := os.MkdirAll(groupedDir, 0o755); err != nil {
-		return fmt.Errorf("mkdir grouped dir: %w", err)
-	}
-	return writeGroupedSummaries(groupedDir, groups)
 }
 
 func initPromptRoot(cfg *model.RuntimeConfig) (string, error) {
@@ -335,4 +291,18 @@ func initPromptRoot(cfg *model.RuntimeConfig) (string, error) {
 		return "", fmt.Errorf("mkdir prompt root: %w", err)
 	}
 	return promptRoot, nil
+}
+
+func wrapTaskParseError(path string, err error) error {
+	if errors.Is(err, prompt.ErrLegacyTaskMetadata) {
+		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)
+	}
+	return fmt.Errorf("parse task artifact %s: %w", path, err)
+}
+
+func wrapReviewParseError(path string, err error) error {
+	if errors.Is(err, prompt.ErrLegacyReviewMetadata) {
+		return fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", path)
+	}
+	return fmt.Errorf("parse review artifact %s: %w", path, err)
 }

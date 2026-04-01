@@ -19,9 +19,9 @@ func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
 
 	dir := t.TempDir()
 	files := map[string]string{
-		"task_10.md": "## status: pending\n<task_context><domain>x</domain><type>feature</type><scope>s</scope><complexity>low</complexity></task_context>\n",
-		"task_2.md":  "## status: pending\n<task_context><domain>x</domain><type>feature</type><scope>s</scope><complexity>low</complexity></task_context>\n",
-		"task_3.md":  "## status: completed\n<task_context><domain>x</domain><type>feature</type><scope>s</scope><complexity>low</complexity></task_context>\n",
+		"task_10.md": "---\nstatus: pending\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 10\n",
+		"task_2.md":  "---\nstatus: pending\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 2\n",
+		"task_3.md":  "---\nstatus: completed\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 3\n",
 		"notes.md":   "ignored\n",
 	}
 	for name, content := range files {
@@ -48,7 +48,7 @@ func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
 func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	tmp := t.TempDir()
 	t.Chdir(tmp)
-	if err := os.MkdirAll(filepath.Join("tasks", "demo"), 0o755); err != nil {
+	if err := os.MkdirAll(model.TaskDirectory("demo"), 0o755); err != nil {
 		t.Fatalf("mkdir prd dir: %v", err)
 	}
 
@@ -62,10 +62,10 @@ func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	if prValue != "demo" {
 		t.Fatalf("unexpected pr value: %q", prValue)
 	}
-	if inputDir != "tasks/demo" {
+	if inputDir != model.TaskDirectory("demo") {
 		t.Fatalf("unexpected input dir: %q", inputDir)
 	}
-	wantResolved := filepath.Join(tmp, "tasks", "demo")
+	wantResolved := filepath.Join(tmp, model.TaskDirectory("demo"))
 	if resolved != wantResolved {
 		t.Fatalf("unexpected resolved dir\nwant: %q\ngot:  %q", wantResolved, resolved)
 	}
@@ -75,7 +75,7 @@ func TestResolveInputsInfersTaskNameFromTasksDir(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
-	tasksDir := filepath.Join(tmp, "tasks", "multi-repo")
+	tasksDir := filepath.Join(tmp, model.TasksBaseDir(), "multi-repo")
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 		t.Fatalf("mkdir tasks dir: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 			{
 				Name:     "task_1.md",
 				AbsPath:  filepath.Join(issuesDir, "task_1.md"),
-				Content:  "## status: pending\n<task_context><domain>backend</domain><type>feature</type><scope>small</scope><complexity>low</complexity></task_context>\n",
+				Content:  "---\nstatus: pending\ndomain: backend\ntype: feature\nscope: small\ncomplexity: low\n---\n\n# Task 1\n",
 				CodeFile: "task_1",
 			},
 		},
@@ -116,7 +116,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 			{
 				Name:     "task_2.md",
 				AbsPath:  filepath.Join(issuesDir, "task_2.md"),
-				Content:  "## status: pending\n<task_context><domain>backend</domain><type>feature</type><scope>small</scope><complexity>low</complexity></task_context>\n",
+				Content:  "---\nstatus: pending\ndomain: backend\ntype: feature\nscope: small\ncomplexity: low\n---\n\n# Task 2\n",
 				CodeFile: "task_2",
 			},
 		},
@@ -151,7 +151,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 	t.Parallel()
 
-	reviewDir := filepath.Join(t.TempDir(), "tasks", "review-without-pr", "reviews-007")
+	reviewDir := filepath.Join(t.TempDir(), model.TasksBaseDir(), "review-without-pr", "reviews-007")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "coderabbit",
 		PR:        "",
@@ -214,5 +214,47 @@ func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 	}
 	if cfg.Round != 7 {
 		t.Fatalf("unexpected runtime config round: %d", cfg.Round)
+	}
+}
+
+func TestResolveInputsRejectsLegacyTasksDirInference(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	legacyTasksDir := filepath.Join(tmp, "tasks", "legacy")
+	if err := os.MkdirAll(legacyTasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir legacy tasks dir: %v", err)
+	}
+
+	_, _, _, err := resolveInputs(&model.RuntimeConfig{
+		TasksDir: legacyTasksDir,
+		Mode:     model.ExecutionModePRDTasks,
+	})
+	if err == nil {
+		t.Fatal("expected legacy tasks dir inference to fail")
+	}
+	if !strings.Contains(err.Error(), filepath.ToSlash(model.TasksBaseDir())+"/<name>") {
+		t.Fatalf("expected error to mention canonical tasks dir, got %v", err)
+	}
+}
+
+func TestResolveInputsRejectsLegacyReviewsDirInference(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	legacyReviewsDir := filepath.Join(tmp, "tasks", "legacy", "reviews-001")
+	if err := os.MkdirAll(legacyReviewsDir, 0o755); err != nil {
+		t.Fatalf("mkdir legacy reviews dir: %v", err)
+	}
+
+	_, _, _, err := resolveInputs(&model.RuntimeConfig{
+		ReviewsDir: legacyReviewsDir,
+		Mode:       model.ExecutionModePRReview,
+	})
+	if err == nil {
+		t.Fatal("expected legacy reviews dir inference to fail")
+	}
+	if !strings.Contains(err.Error(), filepath.ToSlash(model.TasksBaseDir())+"/<name>/reviews-NNN") {
+		t.Fatalf("expected error to mention canonical reviews dir, got %v", err)
 	}
 }

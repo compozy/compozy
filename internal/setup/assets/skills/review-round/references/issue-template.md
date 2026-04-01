@@ -6,17 +6,16 @@ Use this exact structure for every issue file. The file is parsed by
 ## Format
 
 ```
+---
+status: pending
+file: path/to/file.go
+line: 42
+severity: critical|high|medium|low
+author: claude-code
+provider_ref:
+---
+
 # Issue NNN: <concise title summarizing the problem>
-
-## Status: pending
-
-<review_context>
-  <file>path/to/file.go</file>
-  <line>42</line>
-  <severity>critical|high|medium|low</severity>
-  <author>claude-code</author>
-  <provider_ref></provider_ref>
-</review_context>
 
 ## Review Comment
 
@@ -32,6 +31,7 @@ and a suggested fix with a concise code snippet if helpful>
 ## Field Definitions
 
 - **NNN**: Three-digit zero-padded issue number (001, 002, ...).
+- **status**: Starts as `pending`, then moves through `valid` or `invalid`, and ends as `resolved`.
 - **title**: One-line summary of the problem. Maximum 72 characters.
 - **file**: Relative path from repository root to the affected source file.
   Use `unknown` only when the issue is purely architectural and not tied to a
@@ -45,10 +45,7 @@ and a suggested fix with a concise code snippet if helpful>
 
 ## Parser Compatibility
 
-- The `<review_context>` XML block must be well-formed and parseable by
-  Go `encoding/xml.Unmarshal`. Escape XML special characters in field values:
-  `<` as `&lt;`, `>` as `&gt;`, `&` as `&amp;`.
-- The `## Status:` heading is matched by regex and must appear on its own line.
+- The YAML frontmatter must be valid and parseable by `prompt.ParseReviewContext()`.
 - Issue file names must match the pattern `issue_NNN.md` where NNN is a
   zero-padded number, for `prompt.ExtractIssueNumber()` to recognize them.
 

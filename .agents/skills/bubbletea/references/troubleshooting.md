@@ -96,7 +96,7 @@ Panel borders missing or showing weird characters.
 3. **Wrong border style**
    ```go
    // Make sure you're using a valid border
-   import "github.com/charmbracelet/lipgloss"
+   import "charm.land/lipgloss/v2"
 
    border := lipgloss.RoundedBorder()  // ╭─╮
    // or
@@ -151,12 +151,14 @@ Clicking panels doesn't change focus or trigger actions.
 
 1. **Mouse not enabled in program**
    ```go
-   // In main()
-   p := tea.NewProgram(
-       initialModel(),
-       tea.WithAltScreen(),
-       tea.WithMouseCellMotion(),  // Enable mouse
-   )
+   p := tea.NewProgram(initialModel())
+
+   func (m model) View() tea.View {
+       v := tea.NewView(m.render())
+       v.AltScreen = true
+       v.MouseMode = tea.MouseModeCellMotion
+       return v
+   }
    ```
 
 2. **Not handling MouseMsg**
@@ -256,22 +258,24 @@ Screen flickers or elements jump around during updates.
        layoutDirty   bool
    }
 
-   func (m model) View() string {
+   func (m model) View() tea.View {
        if m.layoutDirty {
            m.cachedLayout = m.renderLayout()
            m.layoutDirty = false
        }
-       return m.cachedLayout
+       v := tea.NewView(m.cachedLayout)
+       v.AltScreen = true
+       return v
    }
    ```
 
 3. **Using alt screen incorrectly**
    ```go
-   // Always use alt screen for full-screen TUIs
-   p := tea.NewProgram(
-       initialModel(),
-       tea.WithAltScreen(),  // Essential!
-   )
+   func (m model) View() tea.View {
+       v := tea.NewView(m.render())
+       v.AltScreen = true
+       return v
+   }
    ```
 
 ### Colors Not Showing
@@ -291,7 +295,7 @@ Colors appear as plain text or wrong colors.
 2. **Not using lipgloss properly**
    ```go
    // Use lipgloss for color
-   import "github.com/charmbracelet/lipgloss"
+   import "charm.land/lipgloss/v2"
 
    style := lipgloss.NewStyle().
        Foreground(lipgloss.Color("#FF0000")).
@@ -348,13 +352,13 @@ Key presses don't trigger expected actions.
 
 1. **Log the key events**
    ```go
-   case tea.KeyMsg:
-       log.Printf("Key: %s, Type: %s", msg.String(), msg.Type)
+   case tea.KeyPressMsg:
+       log.Printf("Key: %s, Keystroke: %s", msg.String(), msg.Keystroke())
    ```
 
 2. **Check key matching**
    ```go
-   import "github.com/charmbracelet/bubbles/key"
+   import "charm.land/bubbles/v2/key"
 
    type keyMap struct {
        Quit key.Binding
@@ -368,7 +372,7 @@ Key presses don't trigger expected actions.
    }
 
    // In Update
-   case tea.KeyMsg:
+   case tea.KeyPressMsg:
        if key.Matches(msg, keys.Quit) {
            return m, tea.Quit
        }
@@ -377,7 +381,7 @@ Key presses don't trigger expected actions.
 3. **Check focus state**
    ```go
    // Make sure the right component has focus
-   case tea.KeyMsg:
+   case tea.KeyPressMsg:
        switch m.focused {
        case "input":
            // Route to input
@@ -392,11 +396,11 @@ Key presses don't trigger expected actions.
 Function keys, Ctrl combinations, or other special keys don't work.
 
 **Solution:**
-Use tea.KeyType constants:
+Use `msg.Key().Code` and `msg.Key().Text`:
 
 ```go
-case tea.KeyMsg:
-    switch msg.Type {
+case tea.KeyPressMsg:
+    switch key := msg.Key(); key.Code {
     case tea.KeyCtrlC:
         return m, tea.Quit
     case tea.KeyTab:
@@ -444,12 +448,12 @@ Noticeable lag when updating the display.
        contentDirty  bool
    }
 
-   func (m *model) View() string {
+   func (m *model) View() tea.View {
        if m.contentDirty {
            m.renderedCache = m.renderContent()
            m.contentDirty = false
        }
-       return m.renderedCache
+       return tea.NewView(m.renderedCache)
    }
    ```
 
@@ -605,8 +609,8 @@ Problem?
 │  └─ Emoji alignment? → Check terminal emoji width settings
 │
 ├─ Keyboard issue?
-│  ├─ Shortcuts not working? → Log KeyMsg, check key.Matches
-│  ├─ Special keys broken? → Use tea.KeyType constants
+│  ├─ Shortcuts not working? → Log key events, check key.Matches
+│  ├─ Special keys broken? → Use msg.Key().Code
 │  └─ Wrong component responding? → Check focus state
 │
 └─ Performance issue?
@@ -678,11 +682,14 @@ Try your app in multiple terminals:
 Always use alt screen for full-screen TUIs:
 
 ```go
-p := tea.NewProgram(
-    initialModel(),
-    tea.WithAltScreen(),  // Essential!
-    tea.WithMouseCellMotion(),
-)
+p := tea.NewProgram(initialModel())
+
+func (m model) View() tea.View {
+    v := tea.NewView(m.render())
+    v.AltScreen = true
+    v.MouseMode = tea.MouseModeCellMotion
+    return v
+}
 ```
 
 This prevents messing up the user's terminal when your app exits.
@@ -693,6 +700,6 @@ If you're still stuck:
 
 1. Check the [Golden Rules](golden-rules.md) - 90% of issues are layout-related
 2. Review the [Components Guide](components.md) for proper component usage
-3. Check Bubbletea examples: https://github.com/charmbracelet/bubbletea/tree/master/examples
+3. Check the Bubble Tea v2 examples and upgrade guide in the installed module cache after `go get charm.land/bubbletea/v2`
 4. Ask in Charm Discord: https://charm.sh/discord
-5. Search Bubbletea issues: https://github.com/charmbracelet/bubbletea/issues
+5. Search upstream Bubble Tea issues/discussions for the exact terminal behavior you're seeing

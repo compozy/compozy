@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/provider"
@@ -455,7 +455,9 @@ func (j *jobExecutionContext) waitChannel() <-chan struct{} {
 }
 
 func (j *jobExecutionContext) reportAggregateUsage() {
-	if j.cfg.ide != model.IDEClaude && j.cfg.ide != model.IDECursor {
+	if j.cfg.ide != model.IDEClaude && j.cfg.ide != model.IDECursor &&
+		j.cfg.ide != model.IDEDroid && j.cfg.ide != model.IDEOpenCode &&
+		j.cfg.ide != model.IDEPi {
 		return
 	}
 	j.aggregateMu.Lock()
@@ -915,7 +917,15 @@ func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provide
 				return nil, fmt.Errorf("read updated issue file %s: %w", entry.AbsPath, err)
 			}
 			currentContent := string(currentBody)
-			if !prompt.IsReviewResolved(currentContent) || prompt.IsReviewResolved(entry.Content) {
+			currentResolved, err := prompt.IsReviewResolved(currentContent)
+			if err != nil {
+				return nil, fmt.Errorf("parse updated review issue %s: %w", entry.AbsPath, err)
+			}
+			previouslyResolved, err := prompt.IsReviewResolved(entry.Content)
+			if err != nil {
+				return nil, fmt.Errorf("parse original review issue %s: %w", entry.AbsPath, err)
+			}
+			if !currentResolved || previouslyResolved {
 				continue
 			}
 

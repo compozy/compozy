@@ -233,16 +233,16 @@ Configuration files are loaded from:
 
 **Required:**
 ```
-github.com/charmbracelet/bubbletea
-github.com/charmbracelet/lipgloss
-github.com/charmbracelet/bubbles
+charm.land/bubbletea/v2
+charm.land/lipgloss/v2
+charm.land/bubbles/v2
 gopkg.in/yaml.v3
 ```
 
 **Optional** (uncomment in go.mod as needed):
 ```
 github.com/charmbracelet/glamour       # Markdown rendering
-github.com/charmbracelet/huh           # Forms
+charm.land/huh/v2                      # Forms
 github.com/alecthomas/chroma/v2        # Syntax highlighting
 github.com/evertras/bubble-table       # Interactive tables
 github.com/koki-develop/go-fzf         # Fuzzy finder
@@ -259,10 +259,10 @@ All reference files are loaded progressively as needed:
 
 ## External Resources
 
-- [Bubbletea Documentation](https://github.com/charmbracelet/bubbletea)
-- [Lipgloss Documentation](https://github.com/charmbracelet/lipgloss)
-- [Bubbles Components](https://github.com/charmbracelet/bubbles)
-- [Charm Ecosystem](https://charm.sh/)
+- [Bubble Tea Documentation](https://charm.land/bubbletea)
+- [Lip Gloss Documentation](https://charm.land/lipgloss)
+- [Bubbles Components](https://charm.land/bubbles)
+- [Charm Ecosystem](https://charm.land/)
 
 ## Best Practices Summary
 

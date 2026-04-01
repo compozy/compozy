@@ -67,6 +67,32 @@ var specs = map[string]spec{
 			return cursorCommand(ctx, model, reasoning)
 		},
 	},
+	model.IDEOpenCode: {
+		id:              model.IDEOpenCode,
+		displayName:     "OpenCode",
+		defaultModel:    model.DefaultOpenCodeModel,
+		supportsAddDirs: false,
+		formatsJSON:     true,
+		shellPreviewFunc: func(modelName string, _ []string, reasoning string) string {
+			return buildOpenCodeCommand(modelName, reasoning)
+		},
+		commandFunc: func(ctx context.Context, modelName string, _ []string, reasoning string) *exec.Cmd {
+			return openCodeCommand(ctx, modelName, reasoning)
+		},
+	},
+	model.IDEPi: {
+		id:              model.IDEPi,
+		displayName:     "Pi",
+		defaultModel:    model.DefaultPiModel,
+		supportsAddDirs: false,
+		formatsJSON:     true,
+		shellPreviewFunc: func(modelName string, _ []string, reasoning string) string {
+			return buildPiCommand(modelName, reasoning)
+		},
+		commandFunc: func(ctx context.Context, modelName string, _ []string, reasoning string) *exec.Cmd {
+			return piCommand(ctx, modelName, reasoning)
+		},
+	},
 }
 
 func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
@@ -80,12 +106,14 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 	}
 	if _, ok := specs[cfg.IDE]; !ok {
 		return fmt.Errorf(
-			"invalid --ide value %q: must be %q, %q, %q, or %q",
+			"invalid --ide value %q: must be %q, %q, %q, %q, %q, or %q",
 			cfg.IDE,
 			model.IDEClaude,
 			model.IDECodex,
 			model.IDEDroid,
 			model.IDECursor,
+			model.IDEOpenCode,
+			model.IDEPi,
 		)
 	}
 	if cfg.Mode == model.ExecutionModePRDTasks && cfg.BatchSize != 1 {
@@ -290,6 +318,63 @@ func cursorCommand(ctx context.Context, modelName, _ string) *exec.Cmd {
 		cursorArgs = append(cursorArgs, "--model", model.DefaultCursorModel)
 	}
 	return exec.CommandContext(ctx, model.IDECursor, cursorArgs...)
+}
+
+func buildOpenCodeCommand(modelName string, reasoningEffort string) string {
+	modelToUse := model.DefaultOpenCodeModel
+	if modelName != "" && modelName != model.DefaultOpenCodeModel {
+		modelToUse = modelName
+	}
+	args := []string{
+		model.IDEOpenCode, "run",
+		"--print",
+		"--format", "json",
+		"--thinking", reasoningEffort,
+		"--model", modelToUse,
+	}
+	return formatShellCommand(args)
+}
+
+func openCodeCommand(ctx context.Context, modelName, reasoning string) *exec.Cmd {
+	args := []string{
+		"run",
+		"--print",
+		"--format", "json",
+		"--thinking", reasoning,
+	}
+	if modelName != "" {
+		args = append(args, "--model", modelName)
+	}
+	return exec.CommandContext(ctx, model.IDEOpenCode, args...)
+}
+
+func buildPiCommand(modelName string, reasoningEffort string) string {
+	modelToUse := model.DefaultPiModel
+	if modelName != "" && modelName != model.DefaultPiModel {
+		modelToUse = modelName
+	}
+	args := []string{
+		model.IDEPi,
+		"--print",
+		"--mode", "json",
+		"--thinking", reasoningEffort,
+		"--no-session",
+		"--model", modelToUse,
+	}
+	return formatShellCommand(args)
+}
+
+func piCommand(ctx context.Context, modelName, reasoning string) *exec.Cmd {
+	args := []string{
+		"--print",
+		"--mode", "json",
+		"--thinking", reasoning,
+		"--no-session",
+	}
+	if modelName != "" {
+		args = append(args, "--model", modelName)
+	}
+	return exec.CommandContext(ctx, model.IDEPi, args...)
 }
 
 func normalizeAddDirs(dirs []string) []string {

@@ -97,7 +97,7 @@ func prepareJobs(
 
 	groupedWritten := false
 	if effectiveGrouped {
-		if err := writeSummaries(issuesDir, groups); err != nil {
+		if err := reviews.WriteGroupedSummaries(issuesDir, groups); err != nil {
 			return nil, false, fmt.Errorf("write grouped summaries: %w", err)
 		}
 		groupedWritten = true

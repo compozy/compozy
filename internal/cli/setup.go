@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/huh/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
@@ -376,25 +376,21 @@ func (s *setupCommandState) resolveInstallMode(
 // --- Styled output functions ---
 
 func printWelcomeHeader(cmd *cobra.Command) {
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).Render("Compozy Setup")
-	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("245")).
-		Render("Install bundled skills for supported agents")
+	styles := newCLIChromeStyles()
+	content := lipgloss.JoinVertical(
+		lipgloss.Left,
+		styles.title.Render("COMPOZY // SETUP"),
+		styles.subtitle.Render("Install bundled skills for supported agents"),
+	)
 
-	content := lipgloss.JoinVertical(lipgloss.Left, title, subtitle)
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62")).
-		Padding(0, 2).
-		MarginBottom(1).
-		Render(content)
-
-	fmt.Fprintln(cmd.OutOrStdout(), box)
+	lipgloss.Fprintln(cmd.OutOrStdout(), styles.box.Render(content))
 }
 
 func printBundledSkills(cmd *cobra.Command, skills []setup.Skill) {
 	if len(skills) == 0 {
 		return
 	}
+	styles := newCLIChromeStyles()
 
 	maxNameLen := 0
 	for _, skill := range skills {
@@ -403,17 +399,12 @@ func printBundledSkills(cmd *cobra.Command, skills []setup.Skill) {
 		}
 	}
 
-	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).
-		MarginBottom(1).Render("Bundled Skills")
-	fmt.Fprintln(cmd.OutOrStdout(), header)
-
-	nameStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+	lipgloss.Fprintln(cmd.OutOrStdout(), styles.sectionTitle.Render("Bundled Skills"))
 
 	for _, skill := range skills {
-		name := nameStyle.Render(padRight(skill.Name, maxNameLen))
-		desc := descStyle.Render(skill.Description)
-		fmt.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", name, desc)
+		name := styles.skill.Render(padRight(skill.Name, maxNameLen))
+		desc := styles.path.Render(skill.Description)
+		lipgloss.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", name, desc)
 	}
 }
 
@@ -426,27 +417,18 @@ func printPreviewSummary(
 	if len(previews) == 0 {
 		return
 	}
+	styles := newCLIChromeStyles()
 
 	cwd, homeDir := displayRoots()
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("99")).MarginTop(1)
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	valueStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("81"))
-	separatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
-	skillStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	agentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	pathStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	warnStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220"))
-
 	w := cmd.OutOrStdout()
-	fmt.Fprintln(w, titleStyle.Render("Installation Summary"))
+	lipgloss.Fprintln(w, styles.sectionTitle.Render("Installation Summary"))
 	fmt.Fprintln(w)
 
-	fmt.Fprintf(w, "  %s  %s\n", labelStyle.Render("Scope "), valueStyle.Render(scopeLabel(global)))
-	fmt.Fprintf(w, "  %s  %s\n", labelStyle.Render("Method"), valueStyle.Render(string(mode)))
+	lipgloss.Fprintf(w, "  %s  %s\n", styles.label.Render("Scope "), styles.value.Render(scopeLabel(global)))
+	lipgloss.Fprintf(w, "  %s  %s\n", styles.label.Render("Method"), styles.value.Render(string(mode)))
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, separatorStyle.Render("  "+strings.Repeat("─", 50)))
+	lipgloss.Fprintln(w, styles.separator.Render("  "+strings.Repeat("─", 50)))
 	fmt.Fprintln(w)
 
 	maxSkillLen := 0
@@ -462,21 +444,21 @@ func printPreviewSummary(
 
 	for i := range previews {
 		preview := &previews[i]
-		name := skillStyle.Render(padRight(preview.Skill.Name, maxSkillLen))
-		arrow := arrowStyle.Render("->")
-		agent := agentStyle.Render(padRight(preview.Agent.DisplayName, maxAgentLen))
-		path := pathStyle.Render(shortenPath(preview.TargetPath, cwd, homeDir))
+		name := styles.skill.Render(padRight(preview.Skill.Name, maxSkillLen))
+		arrow := styles.arrow.Render("->")
+		agent := styles.agent.Render(padRight(preview.Agent.DisplayName, maxAgentLen))
+		path := styles.path.Render(shortenPath(preview.TargetPath, cwd, homeDir))
 
 		line := fmt.Sprintf("    %s  %s  %s  %s", name, arrow, agent, path)
 
 		if mode == setup.InstallModeSymlink && !sameInstallPath(preview.CanonicalPath, preview.TargetPath) {
-			via := pathStyle.Render("via " + shortenPath(preview.CanonicalPath, cwd, homeDir))
+			via := styles.path.Render("via " + shortenPath(preview.CanonicalPath, cwd, homeDir))
 			line += "  " + via
 		}
 		if preview.WillOverwrite {
-			line += "  " + warnStyle.Render("[overwrite]")
+			line += "  " + styles.warn.Render("[overwrite]")
 		}
-		fmt.Fprintln(w, line)
+		lipgloss.Fprintln(w, line)
 	}
 	fmt.Fprintln(w)
 }
@@ -485,68 +467,57 @@ func printInstallResult(cmd *cobra.Command, result *setup.Result) {
 	if result == nil {
 		return
 	}
+	styles := newCLIChromeStyles()
 
 	cwd, homeDir := displayRoots()
-
-	successHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("42")).MarginTop(1)
-	successIconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	failHeaderStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196")).MarginTop(1)
-	failIconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	skillStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("62"))
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	agentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	pathStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
-	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
-	errMsgStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	separatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("238"))
 
 	w := cmd.OutOrStdout()
 
 	maxSkillLen, maxAgentLen := computeColumnWidths(result.Successful, result.Failed)
 
 	if len(result.Successful) > 0 {
-		fmt.Fprintln(w, successHeaderStyle.Render(
+		lipgloss.Fprintln(w, styles.successHeader.Render(
 			fmt.Sprintf("  ✓ Installed (%d)", len(result.Successful)),
 		))
 		fmt.Fprintln(w)
 
 		for i := range result.Successful {
 			item := &result.Successful[i]
-			icon := successIconStyle.Render("✓")
-			name := skillStyle.Render(padRight(item.Skill.Name, maxSkillLen))
-			arrow := arrowStyle.Render("->")
-			agent := agentStyle.Render(padRight(item.Agent.DisplayName, maxAgentLen))
-			path := pathStyle.Render(shortenPath(item.Path, cwd, homeDir))
+			icon := styles.successIcon.Render("✓")
+			name := styles.skill.Render(padRight(item.Skill.Name, maxSkillLen))
+			arrow := styles.arrow.Render("->")
+			agent := styles.agent.Render(padRight(item.Agent.DisplayName, maxAgentLen))
+			path := styles.path.Render(shortenPath(item.Path, cwd, homeDir))
 
 			line := fmt.Sprintf("    %s  %s  %s  %s  %s", icon, name, arrow, agent, path)
 			if item.Mode == setup.InstallModeSymlink && item.SymlinkFailed {
-				line += "  " + warnStyle.Render("[copied after symlink failure]")
+				line += "  " + styles.warn.Render("[copied after symlink failure]")
 			}
-			fmt.Fprintln(w, line)
+			lipgloss.Fprintln(w, line)
 		}
 	}
 
 	if len(result.Failed) > 0 {
 		if len(result.Successful) > 0 {
 			fmt.Fprintln(w)
-			fmt.Fprintln(w, separatorStyle.Render("  "+strings.Repeat("─", 50)))
+			lipgloss.Fprintln(w, styles.separator.Render("  "+strings.Repeat("─", 50)))
 		}
 
-		fmt.Fprintln(w, failHeaderStyle.Render(
+		lipgloss.Fprintln(w, styles.failureHeader.Render(
 			fmt.Sprintf("  ✗ Failed (%d)", len(result.Failed)),
 		))
 		fmt.Fprintln(w)
 
 		for i := range result.Failed {
 			item := &result.Failed[i]
-			icon := failIconStyle.Render("✗")
-			name := skillStyle.Render(padRight(item.Skill.Name, maxSkillLen))
-			arrow := arrowStyle.Render("->")
-			agent := agentStyle.Render(padRight(item.Agent.DisplayName, maxAgentLen))
-			path := pathStyle.Render(shortenPath(item.Path, cwd, homeDir))
+			icon := styles.failureIcon.Render("✗")
+			name := styles.skill.Render(padRight(item.Skill.Name, maxSkillLen))
+			arrow := styles.arrow.Render("->")
+			agent := styles.agent.Render(padRight(item.Agent.DisplayName, maxAgentLen))
+			path := styles.path.Render(shortenPath(item.Path, cwd, homeDir))
 
-			fmt.Fprintf(w, "    %s  %s  %s  %s  %s\n", icon, name, arrow, agent, path)
-			fmt.Fprintf(w, "       %s\n", errMsgStyle.Render(item.Error))
+			lipgloss.Fprintf(w, "    %s  %s  %s  %s  %s\n", icon, name, arrow, agent, path)
+			lipgloss.Fprintf(w, "       %s\n", styles.errorMessage.Render(item.Error))
 		}
 	}
 	fmt.Fprintln(w)
@@ -607,7 +578,7 @@ func confirmSetup() (bool, error) {
 }
 
 func runPromptField(field huh.Field) error {
-	return huh.NewForm(huh.NewGroup(field)).WithTheme(huh.ThemeCharm()).Run()
+	return huh.NewForm(huh.NewGroup(field)).WithTheme(darkHuhTheme()).Run()
 }
 
 func skillNames(skills []setup.Skill) []string {

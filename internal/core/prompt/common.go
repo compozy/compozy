@@ -3,7 +3,7 @@ package prompt
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/xml"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,7 +12,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
+)
+
+var (
+	ErrLegacyTaskMetadata   = errors.New("legacy XML task metadata detected")
+	ErrLegacyReviewMetadata = errors.New("legacy XML review metadata detected")
 )
 
 type BatchParams struct {
@@ -34,7 +40,35 @@ func Build(p BatchParams) string {
 	return buildCodeReviewPrompt(p)
 }
 
-func ParseTaskFile(content string) model.TaskEntry {
+func ParseTaskFile(content string) (model.TaskEntry, error) {
+	var meta model.TaskFileMeta
+	if _, err := frontmatter.Parse(content, &meta); err != nil {
+		if LooksLikeLegacyTaskFile(content) {
+			return model.TaskEntry{}, ErrLegacyTaskMetadata
+		}
+		return model.TaskEntry{}, fmt.Errorf("parse task front matter: %w", err)
+	}
+
+	task := model.TaskEntry{
+		Content:      content,
+		Status:       strings.TrimSpace(meta.Status),
+		Domain:       strings.TrimSpace(meta.Domain),
+		TaskType:     strings.TrimSpace(meta.TaskType),
+		Scope:        strings.TrimSpace(meta.Scope),
+		Complexity:   strings.TrimSpace(meta.Complexity),
+		Dependencies: normalizeDependencies(meta.Dependencies),
+	}
+	if task.Status == "" {
+		return model.TaskEntry{}, errors.New("task front matter missing status")
+	}
+	return task, nil
+}
+
+func ParseLegacyTaskFile(content string) (model.TaskEntry, error) {
+	if !LooksLikeLegacyTaskFile(content) {
+		return model.TaskEntry{}, errors.New("legacy task metadata not found")
+	}
+
 	task := model.TaskEntry{Content: content}
 	statusRe := regexp.MustCompile(`(?m)^##\s*status:\s*(\w+)`)
 	if m := statusRe.FindStringSubmatch(content); len(m) > 1 {
@@ -43,20 +77,54 @@ func ParseTaskFile(content string) model.TaskEntry {
 
 	contextStart := strings.Index(content, "<task_context>")
 	contextEnd := strings.Index(content, "</task_context>")
-	if contextStart > 0 && contextEnd > contextStart {
-		contextBlock := content[contextStart : contextEnd+15]
-		task.Domain = extractXMLTag(contextBlock, "domain")
-		task.TaskType = extractXMLTag(contextBlock, "type")
-		task.Scope = extractXMLTag(contextBlock, "scope")
-		task.Complexity = extractXMLTag(contextBlock, "complexity")
-		if deps := extractXMLTag(contextBlock, "dependencies"); deps != "none" {
-			task.Dependencies = strings.Split(deps, ",")
-			for i := range task.Dependencies {
-				task.Dependencies[i] = strings.TrimSpace(task.Dependencies[i])
-			}
+	if contextStart == -1 || contextEnd <= contextStart {
+		return model.TaskEntry{}, errors.New("task_context block not found")
+	}
+
+	contextBlock := content[contextStart : contextEnd+len("</task_context>")]
+	task.Domain = extractXMLTag(contextBlock, "domain")
+	task.TaskType = extractXMLTag(contextBlock, "type")
+	task.Scope = extractXMLTag(contextBlock, "scope")
+	task.Complexity = extractXMLTag(contextBlock, "complexity")
+	task.Dependencies = normalizeLegacyDependencies(extractXMLTag(contextBlock, "dependencies"))
+	if task.Status == "" {
+		return model.TaskEntry{}, errors.New("legacy task status not found")
+	}
+	return task, nil
+}
+
+func LooksLikeLegacyTaskFile(content string) bool {
+	return strings.Contains(content, "<task_context>") ||
+		regexp.MustCompile(`(?mi)^##\s*status:`).FindStringIndex(content) != nil
+}
+
+func ExtractLegacyTaskBody(content string) (string, error) {
+	if !LooksLikeLegacyTaskFile(content) {
+		return "", errors.New("legacy task metadata not found")
+	}
+
+	lines := strings.Split(content, "\n")
+	body := make([]string, 0, len(lines))
+	inContext := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case regexp.MustCompile(`(?mi)^##\s*status:`).MatchString(line):
+			continue
+		case trimmed == "<task_context>":
+			inContext = true
+			continue
+		case trimmed == "</task_context>":
+			inContext = false
+			continue
+		case inContext:
+			continue
+		default:
+			body = append(body, line)
 		}
 	}
-	return task
+
+	return strings.TrimLeft(strings.Join(body, "\n"), "\n"), nil
 }
 
 func IsTaskCompleted(task model.TaskEntry) bool {
@@ -164,55 +232,102 @@ func batchIssueRange(batchIssues []model.IssueEntry) (int, int, bool) {
 }
 
 func ParseReviewContext(content string) (model.ReviewContext, error) {
-	start := strings.Index(content, "<review_context>")
-	end := strings.Index(content, "</review_context>")
-	if start == -1 || end == -1 || end < start {
-		return model.ReviewContext{}, fmt.Errorf("review_context block not found")
+	var meta model.ReviewFileMeta
+	if _, err := frontmatter.Parse(content, &meta); err != nil {
+		if LooksLikeLegacyReviewFile(content) {
+			return model.ReviewContext{}, ErrLegacyReviewMetadata
+		}
+		return model.ReviewContext{}, fmt.Errorf("parse review front matter: %w", err)
 	}
 
-	block := content[start : end+len("</review_context>")]
-	var parsed struct {
-		XMLName     xml.Name `xml:"review_context"`
-		File        string   `xml:"file"`
-		Line        int      `xml:"line"`
-		Severity    string   `xml:"severity"`
-		Author      string   `xml:"author"`
-		ProviderRef string   `xml:"provider_ref"`
+	ctx := model.ReviewContext{
+		Status:      strings.ToLower(strings.TrimSpace(meta.Status)),
+		File:        strings.TrimSpace(meta.File),
+		Line:        meta.Line,
+		Severity:    strings.TrimSpace(meta.Severity),
+		Author:      strings.TrimSpace(meta.Author),
+		ProviderRef: strings.TrimSpace(meta.ProviderRef),
 	}
-	if err := xml.Unmarshal([]byte(block), &parsed); err != nil {
-		return model.ReviewContext{}, fmt.Errorf("parse review_context: %w", err)
+	if ctx.Status == "" {
+		return model.ReviewContext{}, errors.New("review front matter missing status")
 	}
-
-	return model.ReviewContext{
-		File:        strings.TrimSpace(parsed.File),
-		Line:        parsed.Line,
-		Severity:    strings.TrimSpace(parsed.Severity),
-		Author:      strings.TrimSpace(parsed.Author),
-		ProviderRef: strings.TrimSpace(parsed.ProviderRef),
-	}, nil
+	return ctx, nil
 }
 
-func ParseReviewStatus(content string) string {
-	statusRe := regexp.MustCompile(`(?mi)^##\s*status:\s*([a-z]+)\b`)
-	if matches := statusRe.FindStringSubmatch(content); len(matches) > 1 {
-		return strings.ToLower(strings.TrimSpace(matches[1]))
+func ParseLegacyReviewContext(content string) (model.ReviewContext, error) {
+	if !LooksLikeLegacyReviewFile(content) {
+		return model.ReviewContext{}, errors.New("legacy review metadata not found")
 	}
-	return ""
+
+	ctx := model.ReviewContext{
+		Status:      strings.ToLower(strings.TrimSpace(extractLegacyStatus(content))),
+		File:        extractXMLTag(content, "file"),
+		Severity:    extractXMLTag(content, "severity"),
+		Author:      extractXMLTag(content, "author"),
+		ProviderRef: extractXMLTag(content, "provider_ref"),
+	}
+	lineValue := strings.TrimSpace(extractXMLTag(content, "line"))
+	if lineValue != "" {
+		lineNumber, err := strconv.Atoi(lineValue)
+		if err != nil {
+			return model.ReviewContext{}, fmt.Errorf("parse legacy review line: %w", err)
+		}
+		ctx.Line = lineNumber
+	}
+	if ctx.Status == "" {
+		return model.ReviewContext{}, errors.New("legacy review status not found")
+	}
+	return ctx, nil
 }
 
-func IsReviewResolved(content string) bool {
-	if ParseReviewStatus(content) == "resolved" {
-		return true
+func LooksLikeLegacyReviewFile(content string) bool {
+	return strings.Contains(content, "<review_context>") ||
+		regexp.MustCompile(`(?mi)^##\s*status:`).FindStringIndex(content) != nil
+}
+
+func ExtractLegacyReviewBody(content string) (string, error) {
+	if !LooksLikeLegacyReviewFile(content) {
+		return "", errors.New("legacy review metadata not found")
 	}
-	reResolvedLegacy := regexp.MustCompile(`(?mi)^\s*(status|state)\s*:\s*resolved\b`)
-	reResolvedTask := regexp.MustCompile(`(?mi)^\s*-\s*\[(x|X)\]\s*resolved\b`)
-	if strings.Contains(strings.ToUpper(content), "RESOLVED ✓") {
-		return true
+
+	lines := strings.Split(content, "\n")
+	body := make([]string, 0, len(lines))
+	inContext := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case regexp.MustCompile(`(?mi)^##\s*status:`).MatchString(line):
+			continue
+		case trimmed == "<review_context>":
+			inContext = true
+			continue
+		case trimmed == "</review_context>":
+			inContext = false
+			continue
+		case inContext:
+			continue
+		default:
+			body = append(body, line)
+		}
 	}
-	if reResolvedLegacy.FindStringIndex(content) != nil {
-		return true
+
+	return strings.TrimLeft(strings.Join(body, "\n"), "\n"), nil
+}
+
+func ParseReviewStatus(content string) (string, error) {
+	ctx, err := ParseReviewContext(content)
+	if err != nil {
+		return "", err
 	}
-	return reResolvedTask.FindStringIndex(content) != nil
+	return ctx.Status, nil
+}
+
+func IsReviewResolved(content string) (bool, error) {
+	status, err := ParseReviewStatus(content)
+	if err != nil {
+		return false, err
+	}
+	return status == "resolved", nil
 }
 
 func sortCodeFiles(batchGroups map[string][]model.IssueEntry) []string {
@@ -326,4 +441,38 @@ func sanitizePath(path string) string {
 		runes = append(runes, '_')
 	}
 	return string(runes)
+}
+
+func normalizeDependencies(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" || strings.EqualFold(trimmed, "none") {
+			continue
+		}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+func normalizeLegacyDependencies(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	return normalizeDependencies(strings.Split(raw, ","))
+}
+
+func extractLegacyStatus(content string) string {
+	statusRe := regexp.MustCompile(`(?mi)^##\s*status:\s*([a-z]+)\b`)
+	if matches := statusRe.FindStringSubmatch(content); len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
 }

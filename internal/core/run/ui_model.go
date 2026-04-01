@@ -7,8 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/progress"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 type uiModel struct {
@@ -21,6 +23,7 @@ type uiModel struct {
 	onQuit          func()
 	viewport        viewport.Model
 	sidebarViewport viewport.Model
+	progressBar     progress.Model
 	selectedJob     int
 	width           int
 	height          int
@@ -34,8 +37,19 @@ type uiModel struct {
 }
 
 func newUIModel(ctx context.Context, total int) *uiModel {
-	vp := viewport.New(80, 24)
-	sidebarVp := viewport.New(30, 24)
+	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(24))
+	vp.Style = lipgloss.NewStyle().
+		Foreground(colorFgBright)
+	sidebarVp := viewport.New(viewport.WithWidth(30), viewport.WithHeight(24))
+	sidebarVp.Style = lipgloss.NewStyle().
+		Foreground(colorFgBright)
+	pb := progress.New(
+		progress.WithColors(
+			lipgloss.Color(progressGradientStart),
+			lipgloss.Color(progressGradientEnd),
+		),
+		progress.WithoutPercentage(),
+	)
 	defaultWidth := 120
 	defaultHeight := 40
 	initialSidebarWidth := int(float64(defaultWidth) * sidebarWidthRatio)
@@ -57,6 +71,7 @@ func newUIModel(ctx context.Context, total int) *uiModel {
 		total:           total,
 		viewport:        vp,
 		sidebarViewport: sidebarVp,
+		progressBar:     pb,
 		selectedJob:     0,
 		width:           defaultWidth,
 		height:          defaultHeight,
@@ -102,7 +117,7 @@ func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) (chan uiM
 	uiCh := make(chan uiMsg, total*4)
 	mdl := newUIModel(ctx, total)
 	mdl.setEventSource(uiCh)
-	prog := tea.NewProgram(mdl, tea.WithAltScreen())
+	prog := tea.NewProgram(mdl)
 	go func() {
 		if _, runErr := prog.Run(); runErr != nil {
 			fmt.Fprintf(os.Stderr, "UI program error: %v\n", runErr)

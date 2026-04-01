@@ -1,7 +1,6 @@
 package reviews
 
 import (
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/provider"
@@ -26,7 +26,7 @@ const (
 var ErrNoReviewRounds = errors.New("no review rounds found")
 
 func TaskDirectory(name string) string {
-	return filepath.Join("tasks", name)
+	return model.TaskDirectory(name)
 }
 
 func RoundDirName(round int) string {
@@ -132,7 +132,14 @@ func ReadReviewEntries(reviewDir string) ([]model.IssueEntry, error) {
 
 		content := string(body)
 		codeFile := UnknownCodeFile(name)
-		if ctx, parseErr := prompt.ParseReviewContext(content); parseErr == nil && ctx.File != "" {
+		ctx, parseErr := prompt.ParseReviewContext(content)
+		if parseErr != nil {
+			if errors.Is(parseErr, prompt.ErrLegacyReviewMetadata) {
+				return nil, fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", absPath)
+			}
+			return nil, fmt.Errorf("parse review entry %s: %w", absPath, parseErr)
+		}
+		if ctx.File != "" {
 			codeFile = ctx.File
 		}
 
@@ -175,7 +182,10 @@ func WriteRound(reviewDir string, meta model.RoundMeta, items []provider.ReviewI
 }
 
 func WriteRoundMeta(reviewDir string, meta model.RoundMeta) error {
-	content := formatRoundMeta(meta)
+	content, err := formatRoundMeta(meta)
+	if err != nil {
+		return fmt.Errorf("format round meta: %w", err)
+	}
 	if err := os.WriteFile(MetaPath(reviewDir), []byte(content), 0o600); err != nil {
 		return fmt.Errorf("write round meta: %w", err)
 	}
@@ -204,7 +214,11 @@ func RefreshRoundMeta(reviewDir string) (model.RoundMeta, error) {
 	meta.Total = len(entries)
 	meta.Resolved = 0
 	for _, entry := range entries {
-		if prompt.IsReviewResolved(entry.Content) {
+		resolved, err := prompt.IsReviewResolved(entry.Content)
+		if err != nil {
+			return model.RoundMeta{}, fmt.Errorf("refresh round meta from %s: %w", entry.AbsPath, err)
+		}
+		if resolved {
 			meta.Resolved++
 		}
 	}
@@ -216,58 +230,68 @@ func RefreshRoundMeta(reviewDir string) (model.RoundMeta, error) {
 	return meta, nil
 }
 
-func formatRoundMeta(meta model.RoundMeta) string {
-	createdAt := meta.CreatedAt.UTC().Format(time.RFC3339)
-	return strings.Join([]string{
-		"---",
-		"provider: " + meta.Provider,
-		"pr: " + meta.PR,
-		fmt.Sprintf("round: %d", meta.Round),
-		"created_at: " + createdAt,
-		"---",
-		"",
+func formatRoundMeta(meta model.RoundMeta) (string, error) {
+	type roundMetaFrontMatter struct {
+		Provider  string    `yaml:"provider"`
+		PR        string    `yaml:"pr,omitempty"`
+		Round     int       `yaml:"round"`
+		CreatedAt time.Time `yaml:"created_at"`
+	}
+
+	summary := strings.Join([]string{
 		"## Summary",
 		fmt.Sprintf("- Total: %d", meta.Total),
 		fmt.Sprintf("- Resolved: %d", meta.Resolved),
 		fmt.Sprintf("- Unresolved: %d", meta.Unresolved),
 		"",
 	}, "\n")
+
+	return frontmatter.Format(roundMetaFrontMatter{
+		Provider:  meta.Provider,
+		PR:        meta.PR,
+		Round:     meta.Round,
+		CreatedAt: meta.CreatedAt.UTC(),
+	}, summary)
 }
 
 func parseRoundMeta(content string) (model.RoundMeta, error) {
-	lines := strings.Split(content, "\n")
-	if len(lines) < 2 || strings.TrimSpace(lines[0]) != "---" {
-		return model.RoundMeta{}, errors.New("meta front matter header not found")
+	type roundMetaFrontMatter struct {
+		Provider  string    `yaml:"provider"`
+		PR        string    `yaml:"pr,omitempty"`
+		Round     int       `yaml:"round"`
+		CreatedAt time.Time `yaml:"created_at"`
 	}
 
-	meta, summaryStart, err := parseRoundMetaFrontMatter(lines)
+	var frontMatter roundMetaFrontMatter
+	body, err := frontmatter.Parse(content, &frontMatter)
 	if err != nil {
-		return model.RoundMeta{}, err
+		return model.RoundMeta{}, fmt.Errorf("parse round meta front matter: %w", err)
 	}
-	if err := parseRoundMetaSummary(lines[summaryStart:], &meta); err != nil {
+
+	meta := model.RoundMeta{
+		Provider:  strings.TrimSpace(frontMatter.Provider),
+		PR:        strings.TrimSpace(frontMatter.PR),
+		Round:     frontMatter.Round,
+		CreatedAt: frontMatter.CreatedAt,
+	}
+	if meta.Provider == "" || meta.Round <= 0 || meta.CreatedAt.IsZero() {
+		return model.RoundMeta{}, errors.New("meta front matter is incomplete")
+	}
+
+	if err := parseRoundMetaSummary(strings.Split(body, "\n"), &meta); err != nil {
 		return model.RoundMeta{}, err
 	}
 	return meta, nil
 }
 
 func writeIssueFile(reviewDir string, number int, item provider.ReviewItem) error {
-	ctx := struct {
-		XMLName     xml.Name `xml:"review_context"`
-		File        string   `xml:"file"`
-		Line        int      `xml:"line"`
-		Severity    string   `xml:"severity,omitempty"`
-		Author      string   `xml:"author"`
-		ProviderRef string   `xml:"provider_ref,omitempty"`
-	}{
+	meta := model.ReviewFileMeta{
+		Status:      "pending",
 		File:        fallback(item.File, model.UnknownFileName),
 		Line:        floorAt(item.Line, 0),
 		Severity:    strings.TrimSpace(item.Severity),
 		Author:      fallback(item.Author, "unknown"),
 		ProviderRef: strings.TrimSpace(item.ProviderRef),
-	}
-	xmlBlock, err := xml.MarshalIndent(ctx, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal review context for issue %03d: %w", number, err)
 	}
 
 	title := strings.TrimSpace(item.Title)
@@ -279,13 +303,8 @@ func writeIssueFile(reviewDir string, number int, item provider.ReviewItem) erro
 		body = "_No review comment body provided by provider._"
 	}
 
-	content := strings.Join([]string{
+	contentBody := strings.Join([]string{
 		fmt.Sprintf("# Issue %03d: %s", number, title),
-		"",
-		"## Status: pending",
-		"",
-		string(xmlBlock),
-		"",
 		"## Review Comment",
 		"",
 		body,
@@ -296,6 +315,10 @@ func writeIssueFile(reviewDir string, number int, item provider.ReviewItem) erro
 		"- Notes:",
 		"",
 	}, "\n")
+	content, err := frontmatter.Format(meta, contentBody)
+	if err != nil {
+		return fmt.Errorf("format review issue %03d front matter: %w", number, err)
+	}
 
 	path := filepath.Join(reviewDir, fmt.Sprintf("issue_%03d.md", number))
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -317,58 +340,6 @@ func floorAt(value int, fallbackValue int) int {
 		return fallbackValue
 	}
 	return value
-}
-
-func parseRoundMetaFrontMatter(lines []string) (model.RoundMeta, int, error) {
-	meta := model.RoundMeta{}
-	idx := 1
-	for ; idx < len(lines); idx++ {
-		line := strings.TrimSpace(lines[idx])
-		if line == "---" {
-			idx++
-			break
-		}
-		if line == "" {
-			continue
-		}
-		if err := applyFrontMatterLine(line, &meta); err != nil {
-			return model.RoundMeta{}, 0, err
-		}
-	}
-
-	if meta.Provider == "" || meta.Round <= 0 || meta.CreatedAt.IsZero() {
-		return model.RoundMeta{}, 0, errors.New("meta front matter is incomplete")
-	}
-	return meta, idx, nil
-}
-
-func applyFrontMatterLine(line string, meta *model.RoundMeta) error {
-	key, value, ok := strings.Cut(line, ":")
-	if !ok {
-		return fmt.Errorf("invalid meta front matter line %q", line)
-	}
-
-	key = strings.TrimSpace(key)
-	value = strings.TrimSpace(value)
-	switch key {
-	case "provider":
-		meta.Provider = value
-	case "pr":
-		meta.PR = value
-	case "round":
-		round, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("parse round: %w", err)
-		}
-		meta.Round = round
-	case "created_at":
-		createdAt, err := time.Parse(time.RFC3339, value)
-		if err != nil {
-			return fmt.Errorf("parse created_at: %w", err)
-		}
-		meta.CreatedAt = createdAt
-	}
-	return nil
 }
 
 func parseRoundMetaSummary(lines []string, meta *model.RoundMeta) error {

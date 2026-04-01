@@ -16,10 +16,10 @@ Create a business-focused Product Requirements Document through structured brain
 
 1. Determine the project name and working directory.
    - Derive the slug from the feature name provided by the user.
-   - Use `tasks/<slug>/` as the target directory.
+   - Use `.compozy/tasks/<slug>/` as the target directory.
    - If `_prd.md` already exists in the target directory, read it and operate in update mode.
    - If the directory does not exist, create it.
-   - Create `tasks/<slug>/adrs/` directory if it does not exist.
+   - Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
 
 2. Discover context through parallel research.
    - Spawn one Agent tool call to explore the codebase for relevant patterns, existing features, and architecture.
@@ -39,9 +39,9 @@ Create a business-focused Product Requirements Document through structured brain
    - Wait for the user to select an approach before continuing.
    - After the user selects an approach, create an ADR for this decision:
      - Read `references/adr-template.md`.
-     - Determine the next ADR number by listing existing files in `tasks/<slug>/adrs/`.
+     - Determine the next ADR number by listing existing files in `.compozy/tasks/<slug>/adrs/`.
      - Fill the template: the selected approach as "Decision", rejected approaches as "Alternatives Considered" with their trade-offs, and outcomes as "Consequences". Set Status to "Accepted" and Date to today.
-     - Write the ADR to `tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number, e.g., `adr-001.md`).
+     - Write the ADR to `.compozy/tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number, e.g., `adr-001.md`).
 
 5. Refine the chosen approach.
    - Ask targeted follow-up questions based on the selected approach.
@@ -51,7 +51,7 @@ Create a business-focused Product Requirements Document through structured brain
 6. Generate the PRD document.
    - Read `references/prd-template.md` and fill every section with the gathered context.
    - Include an "Architecture Decision Records" section listing all ADRs created during this session with their numbers, titles, and one-line summaries as links to the `adrs/` directory.
-   - Write the completed document to `tasks/<slug>/_prd.md`.
+   - Write the completed document to `.compozy/tasks/<slug>/_prd.md`.
    - The PRD must describe user capabilities and business outcomes only.
    - No databases, APIs, code structure, frameworks, testing strategies, or architecture decisions.
 

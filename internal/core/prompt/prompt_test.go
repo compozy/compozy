@@ -37,7 +37,7 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 		Round:      1,
 		Provider:   "coderabbit",
 		PR:         "259",
-		ReviewsDir: "/tmp/tasks/my-feature/reviews-001",
+		ReviewsDir: "/tmp/.compozy/tasks/my-feature/reviews-001",
 		Grouped:    true,
 		AutoCommit: true,
 		Mode:       model.ExecutionModePRReview,
@@ -45,12 +45,12 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 			"internal/app/service.go": {
 				{
 					Name:     "issue_003.md",
-					AbsPath:  "/tmp/tasks/my-feature/reviews-001/issue_003.md",
+					AbsPath:  "/tmp/.compozy/tasks/my-feature/reviews-001/issue_003.md",
 					CodeFile: "internal/app/service.go",
 				},
 				{
 					Name:     "issue_004.md",
-					AbsPath:  "/tmp/tasks/my-feature/reviews-001/issue_004.md",
+					AbsPath:  "/tmp/.compozy/tasks/my-feature/reviews-001/issue_004.md",
 					CodeFile: "internal/app/service.go",
 				},
 			},
@@ -95,7 +95,7 @@ func TestBuildCodeReviewPromptRespectsDisabledGroupedAndAutoCommitModes(t *testi
 		Round:      2,
 		Provider:   "coderabbit",
 		PR:         "260",
-		ReviewsDir: "/tmp/tasks/my-feature/reviews-002",
+		ReviewsDir: "/tmp/.compozy/tasks/my-feature/reviews-002",
 		Grouped:    false,
 		AutoCommit: false,
 		Mode:       model.ExecutionModePRReview,
@@ -103,7 +103,7 @@ func TestBuildCodeReviewPromptRespectsDisabledGroupedAndAutoCommitModes(t *testi
 			"internal/app/service.go": {
 				{
 					Name:     "issue_007.md",
-					AbsPath:  "/tmp/tasks/my-feature/reviews-002/issue_007.md",
+					AbsPath:  "/tmp/.compozy/tasks/my-feature/reviews-002/issue_007.md",
 					CodeFile: "internal/app/service.go",
 				},
 			},
@@ -128,14 +128,16 @@ func TestBuildPRDTaskPromptUsesInstalledSkillsAndLeavesOnlyTaskSpecificContext(t
 
 	task := model.IssueEntry{
 		Name:    "task_1.md",
-		AbsPath: "/tmp/tasks/demo/task_1.md",
-		Content: `## status: pending
-<task_context>
-  <domain>backend</domain>
-  <type>feature</type>
-  <scope>small</scope>
-  <complexity>low</complexity>
-</task_context>
+		AbsPath: "/tmp/.compozy/tasks/demo/task_1.md",
+		Content: `---
+status: pending
+domain: backend
+type: feature
+scope: small
+complexity: low
+---
+
+# Task 1: Example
 `,
 	}
 
@@ -145,8 +147,8 @@ func TestBuildPRDTaskPromptUsesInstalledSkillsAndLeavesOnlyTaskSpecificContext(t
 		"`execute-prd-task`",
 		"`verification-before-completion`",
 		"## Task Files",
-		"Task file: `/tmp/tasks/demo/task_1.md`",
-		"Master tasks file: `/tmp/tasks/demo/_tasks.md`",
+		"Task file: `/tmp/.compozy/tasks/demo/task_1.md`",
+		"Master tasks file: `/tmp/.compozy/tasks/demo/_tasks.md`",
 		"Automatic commits are disabled for this run (`--auto-commit=false`).",
 	}
 	for _, snippet := range requiredSnippets {
@@ -175,14 +177,16 @@ func TestBuildPRDTaskPromptRespectsAutoCommitFlag(t *testing.T) {
 
 	task := model.IssueEntry{
 		Name:    "task_2.md",
-		AbsPath: "/tmp/tasks/demo/task_2.md",
-		Content: `## status: pending
-<task_context>
-  <domain>frontend</domain>
-  <type>bugfix</type>
-  <scope>medium</scope>
-  <complexity>medium</complexity>
-</task_context>
+		AbsPath: "/tmp/.compozy/tasks/demo/task_2.md",
+		Content: `---
+status: pending
+domain: frontend
+type: bugfix
+scope: medium
+complexity: medium
+---
+
+# Task 2: Example
 `,
 	}
 

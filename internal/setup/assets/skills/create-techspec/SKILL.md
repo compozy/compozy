@@ -9,17 +9,17 @@ Translate business requirements into a detailed technical specification.
 
 ## Required Inputs
 
-- Feature name identifying the `tasks/<name>/` directory.
+- Feature name identifying the `.compozy/tasks/<name>/` directory.
 - Optional: existing `_prd.md` as primary input.
 - Optional: existing `_techspec.md` for update mode.
 
 ## Workflow
 
 1. Gather context.
-   - Check for `_prd.md` in `tasks/<name>/`. If it exists, read it as the primary input.
+   - Check for `_prd.md` in `.compozy/tasks/<name>/`. If it exists, read it as the primary input.
    - If no PRD exists, ask the user for a description of what needs technical specification.
-   - Read existing ADRs from `tasks/<name>/adrs/` to understand decisions already made during PRD creation.
-   - Create `tasks/<name>/adrs/` directory if it does not exist.
+   - Read existing ADRs from `.compozy/tasks/<name>/adrs/` to understand decisions already made during PRD creation.
+   - Create `.compozy/tasks/<name>/adrs/` directory if it does not exist.
    - Spawn an Agent tool call to explore the codebase for architecture patterns, existing components, dependencies, and technology stack.
    - If `_techspec.md` already exists, read it and operate in update mode.
 
@@ -40,14 +40,14 @@ Translate business requirements into a detailed technical specification.
    - If the user requests changes, revise and present again.
    - After the user approves the design, create an ADR for each significant technical decision (architecture pattern chosen, technology selected, data model approach, etc.):
      - Read `references/adr-template.md`.
-     - Determine the next ADR number by listing existing files in `tasks/<name>/adrs/`.
+     - Determine the next ADR number by listing existing files in `.compozy/tasks/<name>/adrs/`.
      - Fill the template: the chosen design as "Decision", rejected alternatives as "Alternatives Considered", and trade-offs as "Consequences". Set Status to "Accepted" and Date to today.
-     - Write each ADR to `tasks/<name>/adrs/adr-NNN.md` (zero-padded 3-digit sequential number).
+     - Write each ADR to `.compozy/tasks/<name>/adrs/adr-NNN.md` (zero-padded 3-digit sequential number).
 
 4. Generate the TechSpec document.
    - Read `references/techspec-template.md` and fill every applicable section.
    - Include an "Architecture Decision Records" section listing all ADRs (from both PRD brainstorming and technical design) with their numbers, titles, and one-line summaries as links to the `adrs/` directory.
-   - Write the completed document to `tasks/<name>/_techspec.md`.
+   - Write the completed document to `.compozy/tasks/<name>/_techspec.md`.
    - Every PRD goal and user story should map to a technical component.
    - Reference PRD sections by name but do not duplicate business context.
    - Include code examples only for core interfaces, limited to 20 lines each.

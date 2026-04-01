@@ -33,6 +33,10 @@ const (
 	IDEDroid = core.IDEDroid
 	// IDECursor runs Cursor Agent jobs.
 	IDECursor = core.IDECursor
+	// IDEOpenCode runs OpenCode jobs.
+	IDEOpenCode = core.IDEOpenCode
+	// IDEPi runs Pi jobs.
+	IDEPi = core.IDEPi
 )
 
 // Config configures compozy preparation and execution.
@@ -43,6 +47,12 @@ type Preparation = core.Preparation
 
 // FetchResult contains the output of a fetch-reviews operation.
 type FetchResult = core.FetchResult
+
+// MigrationConfig configures a repository artifact migration run.
+type MigrationConfig = core.MigrationConfig
+
+// MigrationResult contains the output of a migration run.
+type MigrationResult = core.MigrationResult
 
 // Job is a prepared execution unit with its generated artifacts.
 type Job = core.Job
@@ -60,4 +70,9 @@ func Run(ctx context.Context, cfg Config) error {
 // FetchReviews fetches provider review comments into a PRD review round.
 func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
 	return core.FetchReviews(ctx, cfg)
+}
+
+// Migrate converts legacy workflow artifacts to frontmatter.
+func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
+	return core.Migrate(ctx, cfg)
 }
