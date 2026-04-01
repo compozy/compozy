@@ -1,11 +1,26 @@
-# Compozy
-
-**Orchestrate AI coding agents from idea to shipped code — in a single pipeline.**
+<div align="center">
+  <h1>Compozy</h1>
+  <p><strong>Orchestrate AI coding agents from idea to shipped code — in a single pipeline.</strong></p>
+  <p>
+    <a href="https://github.com/compozy/compozy/actions/workflows/ci.yml">
+      <img src="https://github.com/compozy/compozy/actions/workflows/ci.yml/badge.svg" alt="CI">
+    </a>
+    <a href="https://pkg.go.dev/github.com/compozy/compozy">
+      <img src="https://pkg.go.dev/badge/github.com/compozy/compozy.svg" alt="Go Reference">
+    </a>
+    <a href="https://goreportcard.com/report/github.com/compozy/compozy">
+      <img src="https://goreportcard.com/badge/github.com/compozy/compozy" alt="Go Report Card">
+    </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT">
+    </a>
+    <a href="https://github.com/compozy/compozy/releases">
+      <img src="https://img.shields.io/github/v/release/compozy/compozy?include_prereleases" alt="Release">
+    </a>
+  </p>
+</div>
 
 One CLI to replace scattered prompts, manual task tracking, and copy-paste review cycles. Compozy drives the full lifecycle of AI-assisted development: product ideation, technical specification, task breakdown with codebase-informed enrichment, concurrent execution across agents, and automated PR review remediation.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 
 ## Highlights
 
