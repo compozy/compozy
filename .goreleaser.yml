@@ -153,6 +153,17 @@ release:
 
     ### Installation
 
+    #### Homebrew
+    ```bash
+    brew tap compozy/compozy
+    brew install --cask looper
+    ```
+
+    #### NPM
+    ```bash
+    npm install -g @compozy/looper
+    ```
+
     #### Binary Download
     Download the appropriate `looper_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
 
@@ -184,3 +195,34 @@ sboms:
   - artifacts: archive
   - id: source
     artifacts: source
+
+# Homebrew cask configuration
+homebrew_casks:
+  - name: looper
+    repository:
+      owner: compozy
+      name: homebrew-compozy
+      branch: main
+      token: "{{ .Env.RELEASE_TOKEN }}"
+
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    directory: Casks
+    caveats: |
+      To get started with Looper, see https://github.com/compozy/looper
+    homepage: "https://github.com/compozy/looper"
+    description: "Compozy Looper CLI"
+    skip_upload: auto
+
+# NPM package configuration
+npms:
+  - name: "@compozy/looper"
+    description: "Compozy Looper CLI"
+    repository: "git+https://github.com/compozy/looper.git"
+    bugs: https://github.com/compozy/looper/issues
+    access: public
+    license: BSL-1.1
+    homepage: "https://compozy.com"

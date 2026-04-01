@@ -64,11 +64,35 @@ Looper is a Go module and CLI that orchestrates AI coding agents (Claude Code, C
 
 ## 🚀 Installation
 
-Install the CLI:
+#### Homebrew
+
+```bash
+brew tap compozy/compozy
+brew install --cask looper
+```
+
+#### NPM
+
+```bash
+npm install -g @compozy/looper
+```
+
+#### Go Install
 
 ```bash
 go install github.com/compozy/looper/cmd/looper@latest
 ```
+
+#### From Source
+
+```bash
+git clone git@github.com:compozy/looper.git
+cd looper
+make verify
+go build ./cmd/looper
+```
+
+### Post-install: Set Up Skills
 
 Install the bundled skills that Looper prompts expect:
 
@@ -87,18 +111,9 @@ looper setup \
   --yes
 ```
 
-Or build from source:
-
-```bash
-git clone git@github.com:compozy/looper.git
-cd looper
-make verify
-go build ./cmd/looper
-```
-
 ### Requirements
 
-- Go 1.26+
+- Go 1.26+ (only for `go install` or building from source)
 
 ## 📖 Usage — Complete Workflow
 
