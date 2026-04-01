@@ -28,6 +28,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 - **Idea to code in 5 steps.** Structured pipeline: PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
 - **Multi-agent execution.** Run tasks through Claude Code, Codex, Cursor, or Droid — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
+- **Workflow memory between runs.** Agents inherit context from every previous task — decisions, learnings, errors, and handoffs. Two-tier markdown memory with automatic compaction keeps context fresh without manual bookkeeping.
 - **Provider-agnostic reviews.** Fetch review comments from CodeRabbit, GitHub, or run AI-powered reviews internally. All normalize to the same format. Provider threads resolve automatically after fixes.
 - **Markdown everywhere.** PRDs, specs, tasks, reviews, and ADRs are human-readable markdown files. Version-controlled, diffable, editable between steps. No vendor lock-in.
 - **Frontmatter for machine-readable metadata.** Tasks and review issues keep parseable metadata in standard YAML frontmatter instead of custom XML tags.
@@ -88,6 +89,7 @@ compozy sync --name user-auth          Refresh task workflow _meta.md
    │
    ▼
 compozy start --name user-auth         AI agents execute each task
+   │                                    ↕ .compozy/tasks/user-auth/memory/
    │
    ▼
 compozy fetch-reviews / /cy-review-round  .compozy/tasks/user-auth/reviews-001/
@@ -179,7 +181,7 @@ Repeat steps 6–7. Each cycle creates a new review round (`reviews-002/`, `revi
 
 ## Skills
 
-Compozy bundles 7 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
+Compozy bundles 8 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
 
 | Skill | Purpose |
 | --- | --- |
@@ -187,9 +189,35 @@ Compozy bundles 7 skills that its workflows depend on. They run inside your AI a
 | `cy-create-techspec` | PRD → Technical Specification with architecture exploration |
 | `cy-create-tasks` | PRD + TechSpec → Independently implementable task files |
 | `cy-execute-task` | Executes one task end-to-end: implement, validate, track, commit |
+| `cy-workflow-memory` | Maintains cross-task context so agents pick up where the last one left off |
 | `cy-review-round` | Comprehensive code review → structured issue files |
 | `cy-fix-reviews` | Triage, fix, verify, and resolve review issues |
 | `cy-final-verify` | Enforces verification evidence before any completion claim |
+
+### Workflow Memory
+
+When agents execute tasks, context gets lost between runs — decisions made, errors hit, patterns discovered. Compozy solves this with a two-tier memory system that gives each agent a running history of the workflow.
+
+Every task execution automatically bootstraps two markdown files inside `.compozy/tasks/<name>/memory/`:
+
+| File | Scope | What goes here |
+| --- | --- | --- |
+| `MEMORY.md` | Cross-task, shared | Architecture decisions, discovered patterns, open risks, handoffs between tasks |
+| `task_01.md` | Single task | Objective snapshot, files touched, errors hit, what's ready for the next run |
+
+**How it works:**
+
+1. Before a task runs, Compozy creates the memory directory and scaffolds both files with section templates if they don't exist yet.
+2. The agent reads both memory files before writing any code — treating them as mandatory context, not optional notes.
+3. During execution, the agent keeps task memory current: decisions, learnings, errors, and corrections.
+4. Only durable, cross-task context gets promoted to shared memory. Task-local details stay in the task file.
+5. Before completion, the agent updates memory with anything that helps the next run start faster.
+
+**Automatic compaction.** Memory files have soft limits (150 lines / 12 KB for shared, 200 lines / 16 KB per task). When a file exceeds its threshold, Compozy flags it for compaction — the agent trims noise and repetition while preserving active risks, decisions, and handoffs.
+
+**No duplication.** Memory files don't copy what's already in the repo, git history, PRD, or task specs. They capture only what would otherwise be lost between runs: the *why* behind decisions, surprising findings, and context that makes the next agent immediately productive.
+
+The `cy-workflow-memory` skill handles all of this automatically when referenced in task prompts. No manual setup required — just run `compozy start` and agents inherit context from every previous run.
 
 ### Supported Agents
 
@@ -385,6 +413,7 @@ command/                 Public Cobra wrapper for embedding
 internal/cli/            Cobra flags, interactive form, CLI glue
 internal/core/           Internal facade for preparation and execution
   agent/                 IDE command validation and process construction
+  memory/                Workflow memory bootstrapping, inspection, and compaction detection
   model/                 Shared runtime data structures
   plan/                  Input discovery, filtering, grouping, batch prep
   prompt/                Prompt builders emitting runtime context + skill names
