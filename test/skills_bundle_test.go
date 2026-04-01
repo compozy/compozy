@@ -13,23 +13,23 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 
 	root := repoRoot(t)
 	requiredPaths := []string{
-		"skills/fix-reviews/SKILL.md",
-		"skills/verification-before-completion/SKILL.md",
-		"skills/execute-prd-task/SKILL.md",
-		"skills/execute-prd-task/references/tracking-checklist.md",
-		"skills/create-prd/SKILL.md",
-		"skills/create-prd/references/prd-template.md",
-		"skills/create-prd/references/question-protocol.md",
-		"skills/create-prd/references/adr-template.md",
-		"skills/create-techspec/SKILL.md",
-		"skills/create-techspec/references/techspec-template.md",
-		"skills/create-techspec/references/adr-template.md",
-		"skills/create-tasks/SKILL.md",
-		"skills/create-tasks/references/task-template.md",
-		"skills/create-tasks/references/task-context-schema.md",
-		"skills/review-round/SKILL.md",
-		"skills/review-round/references/review-criteria.md",
-		"skills/review-round/references/issue-template.md",
+		"skills/cy-fix-reviews/SKILL.md",
+		"skills/cy-final-verify/SKILL.md",
+		"skills/cy-execute-task/SKILL.md",
+		"skills/cy-execute-task/references/tracking-checklist.md",
+		"skills/cy-create-prd/SKILL.md",
+		"skills/cy-create-prd/references/prd-template.md",
+		"skills/cy-create-prd/references/question-protocol.md",
+		"skills/cy-create-prd/references/adr-template.md",
+		"skills/cy-create-techspec/SKILL.md",
+		"skills/cy-create-techspec/references/techspec-template.md",
+		"skills/cy-create-techspec/references/adr-template.md",
+		"skills/cy-create-tasks/SKILL.md",
+		"skills/cy-create-tasks/references/task-template.md",
+		"skills/cy-create-tasks/references/task-context-schema.md",
+		"skills/cy-review-round/SKILL.md",
+		"skills/cy-review-round/references/review-criteria.md",
+		"skills/cy-review-round/references/issue-template.md",
 	}
 
 	for _, relativePath := range requiredPaths {
@@ -43,12 +43,12 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 		})
 	}
 
-	checkPortableContent(t, filepath.Join(root, "skills", "fix-reviews", "SKILL.md"))
-	checkPortableContent(t, filepath.Join(root, "skills", "execute-prd-task", "SKILL.md"))
-	checkPortableContent(t, filepath.Join(root, "skills", "create-prd", "SKILL.md"))
-	checkPortableContent(t, filepath.Join(root, "skills", "create-techspec", "SKILL.md"))
-	checkPortableContent(t, filepath.Join(root, "skills", "create-tasks", "SKILL.md"))
-	checkPortableContent(t, filepath.Join(root, "skills", "review-round", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "cy-fix-reviews", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "cy-execute-task", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "cy-create-prd", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "cy-create-techspec", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "cy-create-tasks", "SKILL.md"))
+	checkPortableContent(t, filepath.Join(root, "skills", "cy-review-round", "SKILL.md"))
 }
 
 func TestBundledSkillMirrorMatchesPublicSkillsTree(t *testing.T) {

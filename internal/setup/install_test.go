@@ -34,10 +34,10 @@ func TestInstallCopyModeCopiesBundledSkillIntoAgentDirectory(t *testing.T) {
 	t.Parallel()
 
 	bundle := newTestBundle(t, map[string]string{
-		"create-prd/SKILL.md":               "---\nname: create-prd\ndescription: Create a PRD\n---\n",
-		"create-prd/references/template.md": "# Template\n",
-		"create-tasks/SKILL.md":             "---\nname: create-tasks\ndescription: Create tasks\n---\n",
-		"create-tasks/references/tasks.md":  "# Tasks\n",
+		"cy-create-prd/SKILL.md":               "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
+		"cy-create-prd/references/template.md": "# Template\n",
+		"cy-create-tasks/SKILL.md":             "---\nname: cy-create-tasks\ndescription: Create tasks\n---\n",
+		"cy-create-tasks/references/tasks.md":  "# Tasks\n",
 	})
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
@@ -48,7 +48,7 @@ func TestInstallCopyModeCopiesBundledSkillIntoAgentDirectory(t *testing.T) {
 			CWD:     projectDir,
 			HomeDir: homeDir,
 		},
-		SkillNames: []string{"create-prd"},
+		SkillNames: []string{"cy-create-prd"},
 		AgentNames: []string{"claude-code"},
 		Mode:       InstallModeCopy,
 	})
@@ -59,7 +59,7 @@ func TestInstallCopyModeCopiesBundledSkillIntoAgentDirectory(t *testing.T) {
 		t.Fatalf("expected no failures, got %#v", result.Failed)
 	}
 
-	skillDir := filepath.Join(projectDir, ".claude", "skills", "create-prd")
+	skillDir := filepath.Join(projectDir, ".claude", "skills", "cy-create-prd")
 	assertFileExists(t, filepath.Join(skillDir, "SKILL.md"))
 	assertFileExists(t, filepath.Join(skillDir, "references", "template.md"))
 }
@@ -68,8 +68,8 @@ func TestInstallSymlinkModeUsesCanonicalDirForUniversalProjectAgent(t *testing.T
 	t.Parallel()
 
 	bundle := newTestBundle(t, map[string]string{
-		"create-prd/SKILL.md":               "---\nname: create-prd\ndescription: Create a PRD\n---\n",
-		"create-prd/references/template.md": "# Template\n",
+		"cy-create-prd/SKILL.md":               "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
+		"cy-create-prd/references/template.md": "# Template\n",
 	})
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
@@ -80,7 +80,7 @@ func TestInstallSymlinkModeUsesCanonicalDirForUniversalProjectAgent(t *testing.T
 			CWD:     projectDir,
 			HomeDir: homeDir,
 		},
-		SkillNames: []string{"create-prd"},
+		SkillNames: []string{"cy-create-prd"},
 		AgentNames: []string{"codex"},
 		Mode:       InstallModeSymlink,
 	})
@@ -94,7 +94,7 @@ func TestInstallSymlinkModeUsesCanonicalDirForUniversalProjectAgent(t *testing.T
 		t.Fatalf("expected 1 success, got %d", len(result.Successful))
 	}
 
-	skillDir := filepath.Join(projectDir, ".agents", "skills", "create-prd")
+	skillDir := filepath.Join(projectDir, ".agents", "skills", "cy-create-prd")
 	info, err := os.Lstat(skillDir)
 	if err != nil {
 		t.Fatalf("lstat skill dir: %v", err)
@@ -110,7 +110,7 @@ func TestPreviewGlobalUniversalAgentUsesCanonicalHomeAgentsDir(t *testing.T) {
 	t.Parallel()
 
 	bundle := newTestBundle(t, map[string]string{
-		"create-prd/SKILL.md": "---\nname: create-prd\ndescription: Create a PRD\n---\n",
+		"cy-create-prd/SKILL.md": "---\nname: cy-create-prd\ndescription: Create a PRD\n---\n",
 	})
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
@@ -121,7 +121,7 @@ func TestPreviewGlobalUniversalAgentUsesCanonicalHomeAgentsDir(t *testing.T) {
 			CWD:     projectDir,
 			HomeDir: homeDir,
 		},
-		SkillNames: []string{"create-prd"},
+		SkillNames: []string{"cy-create-prd"},
 		AgentNames: []string{"codex"},
 		Global:     true,
 		Mode:       InstallModeSymlink,
@@ -133,7 +133,7 @@ func TestPreviewGlobalUniversalAgentUsesCanonicalHomeAgentsDir(t *testing.T) {
 		t.Fatalf("expected 1 preview item, got %d", len(items))
 	}
 
-	want := filepath.Join(homeDir, ".agents", "skills", "create-prd")
+	want := filepath.Join(homeDir, ".agents", "skills", "cy-create-prd")
 	if items[0].CanonicalPath != want {
 		t.Fatalf("unexpected canonical path\nwant: %s\ngot:  %s", want, items[0].CanonicalPath)
 	}

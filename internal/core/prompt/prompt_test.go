@@ -58,8 +58,8 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 	})
 
 	requiredSnippets := []string{
-		"`fix-reviews`",
-		"`verification-before-completion`",
+		"`cy-fix-reviews`",
+		"`cy-final-verify`",
 		"<batch_issue_files>",
 		"Review round: `001`",
 		"Issue range: `issue_003.md` → `issue_004.md`",
@@ -141,11 +141,19 @@ complexity: low
 `,
 	}
 
-	promptText := buildPRDTaskPrompt(task, false)
+	promptText := buildPRDTaskPrompt(task, false, &WorkflowMemoryContext{
+		Directory:    "/tmp/.compozy/tasks/demo/memory",
+		WorkflowPath: "/tmp/.compozy/tasks/demo/memory/MEMORY.md",
+		TaskPath:     "/tmp/.compozy/tasks/demo/memory/task_1.md",
+	})
 
 	requiredSnippets := []string{
-		"`execute-prd-task`",
-		"`verification-before-completion`",
+		"`cy-workflow-memory`",
+		"`cy-execute-task`",
+		"`cy-final-verify`",
+		"## Workflow Memory",
+		"Shared workflow memory: `/tmp/.compozy/tasks/demo/memory/MEMORY.md`",
+		"Current task memory: `/tmp/.compozy/tasks/demo/memory/task_1.md`",
 		"## Task Files",
 		"Task file: `/tmp/.compozy/tasks/demo/task_1.md`",
 		"Master tasks file: `/tmp/.compozy/tasks/demo/_tasks.md`",
@@ -190,7 +198,7 @@ complexity: medium
 `,
 	}
 
-	withAutoCommit := buildPRDTaskPrompt(task, true)
+	withAutoCommit := buildPRDTaskPrompt(task, true, nil)
 	if !strings.Contains(
 		withAutoCommit,
 		"Create one local commit after clean verification, self-review, and tracking updates.",
@@ -198,7 +206,7 @@ complexity: medium
 		t.Fatalf("expected auto-commit prompt to include local commit instructions")
 	}
 
-	withoutAutoCommit := buildPRDTaskPrompt(task, false)
+	withoutAutoCommit := buildPRDTaskPrompt(task, false, nil)
 	if strings.Contains(
 		withoutAutoCommit,
 		"Create one local commit after clean verification, self-review, and tracking updates.",
@@ -207,5 +215,74 @@ complexity: medium
 	}
 	if !strings.Contains(withoutAutoCommit, "Do not create an automatic commit for this run.") {
 		t.Fatalf("expected no-auto-commit prompt to mention disabled automatic commits")
+	}
+}
+
+func TestBuildPRDTaskPromptFlagsOversizedMemoryFiles(t *testing.T) {
+	t.Parallel()
+
+	task := model.IssueEntry{
+		Name:    "task_3.md",
+		AbsPath: "/tmp/.compozy/tasks/demo/task_3.md",
+		Content: `---
+status: pending
+domain: backend
+type: feature
+scope: small
+complexity: low
+---
+
+# Task 3: Example
+`,
+	}
+
+	promptText := buildPRDTaskPrompt(task, false, &WorkflowMemoryContext{
+		Directory:               "/tmp/.compozy/tasks/demo/memory",
+		WorkflowPath:            "/tmp/.compozy/tasks/demo/memory/MEMORY.md",
+		TaskPath:                "/tmp/.compozy/tasks/demo/memory/task_3.md",
+		WorkflowNeedsCompaction: true,
+		TaskNeedsCompaction:     true,
+	})
+
+	requiredSnippets := []string{
+		"Compact the flagged memory files before proceeding with implementation.",
+		"Shared workflow memory is over its soft limit: `/tmp/.compozy/tasks/demo/memory/MEMORY.md`",
+		"Current task memory is over its soft limit: `/tmp/.compozy/tasks/demo/memory/task_3.md`",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(promptText, snippet) {
+			t.Fatalf("expected PRD prompt to include %q", snippet)
+		}
+	}
+}
+
+func TestBuildSystemPromptAddendumIncludesWorkflowMemoryOnlyForPRDTasks(t *testing.T) {
+	t.Parallel()
+
+	prdAddendum := BuildSystemPromptAddendum(BatchParams{
+		Mode: model.ExecutionModePRDTasks,
+		Memory: &WorkflowMemoryContext{
+			WorkflowPath:            "/tmp/.compozy/tasks/demo/memory/MEMORY.md",
+			TaskPath:                "/tmp/.compozy/tasks/demo/memory/task_1.md",
+			TaskNeedsCompaction:     true,
+			WorkflowNeedsCompaction: false,
+		},
+	})
+	requiredSnippets := []string{
+		"<workflow_memory>",
+		"`cy-workflow-memory`",
+		"/tmp/.compozy/tasks/demo/memory/MEMORY.md",
+		"/tmp/.compozy/tasks/demo/memory/task_1.md",
+		"compact current task memory first",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(prdAddendum, snippet) {
+			t.Fatalf("expected system prompt addendum to include %q", snippet)
+		}
+	}
+
+	reviewAddendum := BuildSystemPromptAddendum(BatchParams{Mode: model.ExecutionModePRReview})
+	if reviewAddendum != "" {
+		t.Fatalf("expected review mode to omit system prompt addendum, got %q", reviewAddendum)
 	}
 }

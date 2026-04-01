@@ -54,22 +54,22 @@ func buildCodeReviewPrompt(p BatchParams) string {
 
 func buildReviewRequiredSkillsSection() string {
 	return `<required_skills>
-- ` + "`fix-reviews`" + `: required remediation workflow for review issue batches
-- ` + "`verification-before-completion`" + `: required before any completion claim or automatic commit
+- ` + "`cy-fix-reviews`" + `: required remediation workflow for review issue batches
+- ` + "`cy-final-verify`" + `: required before any completion claim or automatic commit
 </required_skills>`
 }
 
 func buildReviewScopeSection(ctx reviewPromptContext) string {
 	var sb strings.Builder
 	sb.WriteString("<critical>\n")
-	sb.WriteString("- Use installed `fix-reviews` as the source of truth for this review workflow.\n")
+	sb.WriteString("- Use installed `cy-fix-reviews` as the source of truth for this review workflow.\n")
 	sb.WriteString("- The files listed in `<batch_issue_files>` are the entire scope for this run.\n")
 	sb.WriteString(
 		"- Do not call provider-specific scripts, `gh` mutations, or other external resolution commands. Compozy resolves provider threads after the batch succeeds.\n",
 	)
 	sb.WriteString("- Update only the issue files and grouped trackers that belong to this batch.\n")
 	sb.WriteString(
-		"- Use installed `verification-before-completion` before claiming this batch is complete or creating an automatic commit.\n",
+		"- Use installed `cy-final-verify` before claiming this batch is complete or creating an automatic commit.\n",
 	)
 	sb.WriteString("</critical>\n\n")
 
@@ -139,7 +139,7 @@ func buildReviewExecutionSection(ctx reviewPromptContext) string {
 		"5. For every completed `valid` issue, finish the issue file with frontmatter `status: resolved` only after the code and verification are done.\n",
 	)
 	sb.WriteString(
-		"6. Use `verification-before-completion` to identify and run the repository's real verification commands before finishing or committing this batch.\n",
+		"6. Use `cy-final-verify` to identify and run the repository's real verification commands before finishing or committing this batch.\n",
 	)
 	if ctx.Grouped {
 		sb.WriteString("7. Update grouped tracker files only for the touched code files in this batch.\n")

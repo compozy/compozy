@@ -39,6 +39,46 @@ func TestBuildClaudeCommandIncludesAddDirs(t *testing.T) {
 	}
 }
 
+func TestCommandAppendsWorkflowMemorySystemPromptForClaude(t *testing.T) {
+	t.Parallel()
+
+	cmd := Command(context.Background(), &model.RuntimeConfig{
+		IDE:             model.IDEClaude,
+		ReasoningEffort: "medium",
+		SystemPrompt:    "<workflow_memory>use memory</workflow_memory>",
+	})
+	if cmd == nil {
+		t.Fatal("expected claude command")
+	}
+
+	args := strings.Join(cmd.Args, " ")
+	if !strings.Contains(args, "--append-system-prompt") {
+		t.Fatalf("expected claude command to append system prompt, got %q", args)
+	}
+	if !strings.Contains(args, "<workflow_memory>use memory</workflow_memory>") {
+		t.Fatalf("expected claude command args to contain workflow memory addendum, got %q", args)
+	}
+}
+
+func TestCommandIgnoresWorkflowMemorySystemPromptForNonClaude(t *testing.T) {
+	t.Parallel()
+
+	for _, ide := range []string{model.IDECodex, model.IDEDroid, model.IDECursor, model.IDEOpenCode, model.IDEPi} {
+		cmd := Command(context.Background(), &model.RuntimeConfig{
+			IDE:             ide,
+			ReasoningEffort: "medium",
+			SystemPrompt:    "<workflow_memory>use memory</workflow_memory>",
+		})
+		if cmd == nil {
+			t.Fatalf("expected command for ide %q", ide)
+		}
+		args := strings.Join(cmd.Args, " ")
+		if strings.Contains(args, "<workflow_memory>use memory</workflow_memory>") {
+			t.Fatalf("expected non-claude ide %q to ignore workflow memory addendum, got %q", ide, args)
+		}
+	}
+}
+
 func TestCommandAddsDirsOnlyForSupportedIDEs(t *testing.T) {
 	t.Parallel()
 

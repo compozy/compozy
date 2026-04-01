@@ -226,6 +226,7 @@ type job struct {
 	groups        map[string][]model.IssueEntry
 	safeName      string
 	prompt        []byte
+	systemPrompt  string
 	outPromptPath string
 	outLog        string
 	errLog        string
@@ -263,12 +264,14 @@ func newConfig(src *model.RuntimeConfig) *config {
 
 func newJobs(src []model.Job) []job {
 	jobs := make([]job, 0, len(src))
-	for _, item := range src {
+	for i := range src {
+		item := &src[i]
 		jobs = append(jobs, job{
 			codeFiles:     append([]string(nil), item.CodeFiles...),
 			groups:        cloneGroups(item.Groups),
 			safeName:      item.SafeName,
 			prompt:        append([]byte(nil), item.Prompt...),
+			systemPrompt:  item.SystemPrompt,
 			outPromptPath: item.OutPromptPath,
 			outLog:        item.OutLog,
 			errLog:        item.ErrLog,

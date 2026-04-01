@@ -19,7 +19,7 @@ This file provides project guidance for coding agents working in this repository
 - **ALWAYS USE** the `golang-pro` skill before writing any Go code
 - **ALWAYS USE** the `systematic-debugging` + `no-workarounds` skills before fixing any bug
 - **ALWAYS USE** the `testing-anti-patterns` skill before writing or modifying tests
-- **ALWAYS USE** the `verification-before-completion` skill before claiming any task is done
+- **ALWAYS USE** the `cy-final-verify` skill before claiming any task is done
 - **Skipping any verification check will result in IMMEDIATE TASK REJECTION**
 
 ## Project Overview
@@ -143,7 +143,7 @@ Use the `Skill` tool to activate every skill that matches the identified domains
 | Logging                 | `golang-pro`                              |                         |
 | Bug fix                 | `systematic-debugging` + `no-workarounds` | `testing-anti-patterns` |
 | Writing tests           | `testing-anti-patterns` + `golang-pro`    |                         |
-| Task completion         | `verification-before-completion`          |                         |
+| Task completion         | `cy-final-verify`          |                         |
 | Architecture audit      | `architectural-analysis`                  | `adversarial-review`    |
 | Creative / new features | `brainstorming`                           |                         |
 | Git rebase/conflicts    | `git-rebase`                              |                         |
@@ -152,7 +152,7 @@ Use the `Skill` tool to activate every skill that matches the identified domains
 
 Before any agent marks a task as complete:
 
-1. Activate `verification-before-completion` skill
+1. Activate `cy-final-verify` skill
 2. Run `make verify`
 3. Read and verify the full output — no skipping
 4. Only then claim completion
@@ -163,7 +163,7 @@ Before any agent marks a task as complete:
 
 1. **Skip skill activation** because "it's a small change" — every domain change requires its skill
 2. **Activate only one skill** when the code touches multiple domains
-3. **Forget `verification-before-completion`** before marking tasks done
+3. **Forget `cy-final-verify`** before marking tasks done
 4. **Write tests without `testing-anti-patterns`** — leads to mock-testing-mocks and production pollution
 5. **Fix bugs without `systematic-debugging`** — leads to symptom-patching instead of root cause fixes
 6. **Apply workarounds without `no-workarounds`** — type assertions, lint suppressions, error swallowing are rejected

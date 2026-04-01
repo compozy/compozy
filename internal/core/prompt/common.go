@@ -31,6 +31,7 @@ type BatchParams struct {
 	Grouped     bool
 	AutoCommit  bool
 	Mode        model.ExecutionMode
+	Memory      *WorkflowMemoryContext
 }
 
 func Build(p BatchParams) string {
@@ -38,6 +39,13 @@ func Build(p BatchParams) string {
 		return buildPRDTasksPrompt(p)
 	}
 	return buildCodeReviewPrompt(p)
+}
+
+func BuildSystemPromptAddendum(p BatchParams) string {
+	if p.Mode != model.ExecutionModePRDTasks {
+		return ""
+	}
+	return buildPRDSystemPromptAddendum(p.Memory)
 }
 
 func ParseTaskFile(content string) (model.TaskEntry, error) {
@@ -203,7 +211,7 @@ func buildPRDTasksPrompt(p BatchParams) string {
 			break
 		}
 	}
-	return buildPRDTaskPrompt(task, p.AutoCommit)
+	return buildPRDTaskPrompt(task, p.AutoCommit, p.Memory)
 }
 
 func batchIssueRange(batchIssues []model.IssueEntry) (int, int, bool) {

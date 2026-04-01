@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	"github.com/compozy/compozy/internal/core/memory"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
@@ -130,7 +131,7 @@ func buildBatchJob(
 ) (model.Job, error) {
 	batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
 	safeName := determineBatchName(batchIdx, batchFiles, cfg.Mode)
-	promptText := prompt.Build(prompt.BatchParams{
+	params := prompt.BatchParams{
 		Name:        cfg.Name,
 		Round:       cfg.Round,
 		Provider:    cfg.Provider,
@@ -140,7 +141,26 @@ func buildBatchJob(
 		Grouped:     grouped,
 		AutoCommit:  cfg.AutoCommit,
 		Mode:        cfg.Mode,
-	})
+	}
+	if cfg.Mode == model.ExecutionModePRDTasks {
+		if len(batchIssues) == 0 {
+			return model.Job{}, errors.New("prepare prd job: missing task issue")
+		}
+		memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
+		if err != nil {
+			return model.Job{}, err
+		}
+		params.Memory = &prompt.WorkflowMemoryContext{
+			Directory:               memoryCtx.Directory,
+			WorkflowPath:            memoryCtx.Workflow.Path,
+			TaskPath:                memoryCtx.Task.Path,
+			WorkflowNeedsCompaction: memoryCtx.Workflow.NeedsCompaction,
+			TaskNeedsCompaction:     memoryCtx.Task.NeedsCompaction,
+		}
+	}
+
+	promptText := prompt.Build(params)
+	systemPrompt := prompt.BuildSystemPromptAddendum(params)
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(promptRoot, safeName, promptText)
 	if err != nil {
 		return model.Job{}, err
@@ -150,6 +170,7 @@ func buildBatchJob(
 		Groups:        batchGroups,
 		SafeName:      safeName,
 		Prompt:        []byte(promptText),
+		SystemPrompt:  systemPrompt,
 		OutPromptPath: outPromptPath,
 		OutLog:        outLog,
 		ErrLog:        errLog,

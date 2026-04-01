@@ -57,12 +57,17 @@ func formatCodeFileLabel(codeFiles []string) string {
 	return label
 }
 
-func createIDECommand(ctx context.Context, cfg *config) *exec.Cmd {
+func createIDECommand(ctx context.Context, cfg *config, job *job) *exec.Cmd {
+	systemPrompt := ""
+	if job != nil {
+		systemPrompt = job.systemPrompt
+	}
 	return agent.Command(ctx, &model.RuntimeConfig{
 		IDE:             cfg.ide,
 		Model:           cfg.model,
 		AddDirs:         cfg.addDirs,
 		ReasoningEffort: cfg.reasoningEffort,
+		SystemPrompt:    systemPrompt,
 	})
 }
 

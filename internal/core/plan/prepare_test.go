@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/memory"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
@@ -218,6 +219,15 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 		}
 		if _, err := os.Stat(job.OutPromptPath); err != nil {
 			t.Fatalf("expected prompt artifact to be written: %v", err)
+		}
+		if _, err := os.Stat(memory.WorkflowPath(issuesDir)); err != nil {
+			t.Fatalf("expected workflow memory artifact to be written: %v", err)
+		}
+		if _, err := os.Stat(memory.TaskPath(issuesDir, job.CodeFiles[0]+".md")); err != nil {
+			t.Fatalf("expected task memory artifact to be written: %v", err)
+		}
+		if !strings.Contains(job.SystemPrompt, "<workflow_memory>") {
+			t.Fatalf("expected prd job to include workflow-memory system prompt, got %q", job.SystemPrompt)
 		}
 	}
 }

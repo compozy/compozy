@@ -19,7 +19,13 @@ type spec struct {
 	supportsAddDirs  bool
 	formatsJSON      bool
 	shellPreviewFunc func(model string, addDirs []string, reasoning string) string
-	commandFunc      func(ctx context.Context, model string, addDirs []string, reasoning string) *exec.Cmd
+	commandFunc      func(
+		ctx context.Context,
+		model string,
+		addDirs []string,
+		reasoning string,
+		systemPrompt string,
+	) *exec.Cmd
 }
 
 var specs = map[string]spec{
@@ -50,7 +56,7 @@ var specs = map[string]spec{
 		shellPreviewFunc: func(model string, _ []string, reasoning string) string {
 			return buildDroidCommand(model, reasoning)
 		},
-		commandFunc: func(ctx context.Context, model string, _ []string, reasoning string) *exec.Cmd {
+		commandFunc: func(ctx context.Context, model string, _ []string, reasoning string, _ string) *exec.Cmd {
 			return droidCommand(ctx, model, reasoning)
 		},
 	},
@@ -63,7 +69,7 @@ var specs = map[string]spec{
 		shellPreviewFunc: func(model string, _ []string, reasoning string) string {
 			return buildCursorCommand(model, reasoning)
 		},
-		commandFunc: func(ctx context.Context, model string, _ []string, reasoning string) *exec.Cmd {
+		commandFunc: func(ctx context.Context, model string, _ []string, reasoning string, _ string) *exec.Cmd {
 			return cursorCommand(ctx, model, reasoning)
 		},
 	},
@@ -76,7 +82,7 @@ var specs = map[string]spec{
 		shellPreviewFunc: func(modelName string, _ []string, reasoning string) string {
 			return buildOpenCodeCommand(modelName, reasoning)
 		},
-		commandFunc: func(ctx context.Context, modelName string, _ []string, reasoning string) *exec.Cmd {
+		commandFunc: func(ctx context.Context, modelName string, _ []string, reasoning string, _ string) *exec.Cmd {
 			return openCodeCommand(ctx, modelName, reasoning)
 		},
 	},
@@ -89,7 +95,7 @@ var specs = map[string]spec{
 		shellPreviewFunc: func(modelName string, _ []string, reasoning string) string {
 			return buildPiCommand(modelName, reasoning)
 		},
-		commandFunc: func(ctx context.Context, modelName string, _ []string, reasoning string) *exec.Cmd {
+		commandFunc: func(ctx context.Context, modelName string, _ []string, reasoning string, _ string) *exec.Cmd {
 			return piCommand(ctx, modelName, reasoning)
 		},
 	},
@@ -173,7 +179,7 @@ func Command(ctx context.Context, cfg *model.RuntimeConfig) *exec.Cmd {
 	if !spec.supportsAddDirs {
 		dirs = nil
 	}
-	return spec.commandFunc(ctx, modelToUse, dirs, cfg.ReasoningEffort)
+	return spec.commandFunc(ctx, modelToUse, dirs, cfg.ReasoningEffort, cfg.SystemPrompt)
 }
 
 func buildCodexCommand(modelName string, addDirs []string, reasoningEffort string) string {
@@ -262,7 +268,13 @@ func formatShellArg(arg string) string {
 	return arg
 }
 
-func codexCommand(ctx context.Context, modelName string, addDirs []string, reasoning string) *exec.Cmd {
+func codexCommand(
+	ctx context.Context,
+	modelName string,
+	addDirs []string,
+	reasoning string,
+	_ string,
+) *exec.Cmd {
 	args := []string{"--dangerously-bypass-approvals-and-sandbox"}
 	if modelName != "" {
 		args = append(args, "-m", modelName)
@@ -273,11 +285,17 @@ func codexCommand(ctx context.Context, modelName string, addDirs []string, reaso
 	return exec.CommandContext(ctx, model.IDECodex, args...)
 }
 
-func claudeCommand(ctx context.Context, modelName string, addDirs []string, reasoning string) *exec.Cmd {
+func claudeCommand(
+	ctx context.Context,
+	modelName string,
+	addDirs []string,
+	reasoning string,
+	systemPrompt string,
+) *exec.Cmd {
 	reasoningPrompt := prompt.ClaudeReasoningPrompt(reasoning)
 	teamDirective := "<critical>YOU SHOULD use a team of agents to handle " +
 		"properly the job and avoid do workaround to get it done</critical>"
-	systemPrompt := reasoningPrompt + "\n\n" + teamDirective
+	systemPrompt = composeSystemPrompt(reasoningPrompt, teamDirective, systemPrompt)
 	args := []string{
 		"--print",
 		"--output-format", "stream-json",
@@ -292,6 +310,18 @@ func claudeCommand(ctx context.Context, modelName string, addDirs []string, reas
 		"--append-system-prompt", systemPrompt,
 	)
 	return exec.CommandContext(ctx, model.IDEClaude, args...)
+}
+
+func composeSystemPrompt(parts ...string) string {
+	trimmed := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		trimmed = append(trimmed, part)
+	}
+	return strings.Join(trimmed, "\n\n")
 }
 
 func droidCommand(ctx context.Context, modelName, reasoning string) *exec.Cmd {

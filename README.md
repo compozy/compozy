@@ -75,13 +75,13 @@ compozy setup --all    # install everything to every detected agent
 compozy setup                           Install skills (once per project)
    │
    ▼
-/create-prd user-auth                  .compozy/tasks/user-auth/_prd.md
+/cy-create-prd user-auth               .compozy/tasks/user-auth/_prd.md
    │                                    + Architecture Decision Records
    ▼
-/create-techspec user-auth             .compozy/tasks/user-auth/_techspec.md
+/cy-create-techspec user-auth          .compozy/tasks/user-auth/_techspec.md
    │
    ▼
-/create-tasks user-auth                .compozy/tasks/user-auth/task_01.md … task_N.md
+/cy-create-tasks user-auth             .compozy/tasks/user-auth/task_01.md … task_N.md
    │
    ▼
 compozy sync --name user-auth          Refresh task workflow _meta.md
@@ -90,7 +90,7 @@ compozy sync --name user-auth          Refresh task workflow _meta.md
 compozy start --name user-auth         AI agents execute each task
    │
    ▼
-compozy fetch-reviews / /review-round  .compozy/tasks/user-auth/reviews-001/
+compozy fetch-reviews / /cy-review-round  .compozy/tasks/user-auth/reviews-001/
    │
    ▼
 compozy fix-reviews --name user-auth   Issues triaged, fixed, resolved
@@ -120,7 +120,7 @@ Auto-detects installed agents and copies (or symlinks) skills into their configu
 Inside your AI agent (Claude Code, Codex, Cursor, etc.):
 
 ```
-/create-prd user-auth
+/cy-create-prd user-auth
 ```
 
 Interactive brainstorming session — asks clarifying questions, spawns parallel agents to research your codebase and the web, produces a business-focused PRD with ADRs.
@@ -128,7 +128,7 @@ Interactive brainstorming session — asks clarifying questions, spawns parallel
 ### 3. Create a TechSpec
 
 ```
-/create-techspec user-auth
+/cy-create-techspec user-auth
 ```
 
 Reads your PRD, explores the codebase architecture, asks technical clarification questions. Produces architecture specs, API designs, and data models.
@@ -136,7 +136,7 @@ Reads your PRD, explores the codebase architecture, asks technical clarification
 ### 4. Break down into tasks
 
 ```
-/create-tasks user-auth
+/cy-create-tasks user-auth
 ```
 
 Analyzes both documents, explores your codebase for relevant files and patterns, produces individually executable task files with status tracking, context, and acceptance criteria.
@@ -154,7 +154,7 @@ Each pending task is processed sequentially — the agent reads the spec, implem
 **Option A** — AI-powered review inside your agent:
 
 ```
-/review-round user-auth
+/cy-review-round user-auth
 ```
 
 **Option B** — Fetch from an external provider:
@@ -183,13 +183,13 @@ Compozy bundles 7 skills that its workflows depend on. They run inside your AI a
 
 | Skill | Purpose |
 | --- | --- |
-| `create-prd` | Interactive brainstorming → Product Requirements Document with ADRs |
-| `create-techspec` | PRD → Technical Specification with architecture exploration |
-| `create-tasks` | PRD + TechSpec → Independently implementable task files |
-| `execute-prd-task` | Executes one task end-to-end: implement, validate, track, commit |
-| `review-round` | Comprehensive code review → structured issue files |
-| `fix-reviews` | Triage, fix, verify, and resolve review issues |
-| `verification-before-completion` | Enforces verification evidence before any completion claim |
+| `cy-create-prd` | Interactive brainstorming → Product Requirements Document with ADRs |
+| `cy-create-techspec` | PRD → Technical Specification with architecture exploration |
+| `cy-create-tasks` | PRD + TechSpec → Independently implementable task files |
+| `cy-execute-task` | Executes one task end-to-end: implement, validate, track, commit |
+| `cy-review-round` | Comprehensive code review → structured issue files |
+| `cy-fix-reviews` | Triage, fix, verify, and resolve review issues |
+| `cy-final-verify` | Enforces verification evidence before any completion claim |
 
 ### Supported Agents
 

@@ -37,7 +37,7 @@ func TestSetupRunYesFailsWithoutDetectedAgents(t *testing.T) {
 
 	state := newSetupCommandState()
 	state.listSkills = func() ([]setup.Skill, error) {
-		return []setup.Skill{{Name: "create-prd", Description: "Create a PRD"}}, nil
+		return []setup.Skill{{Name: "cy-create-prd", Description: "Create a PRD"}}, nil
 	}
 	state.listAgents = func(setup.ResolverOptions) ([]setup.Agent, error) {
 		return []setup.Agent{

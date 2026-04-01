@@ -647,7 +647,7 @@ func setupCommandExecution(
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
 ) (*exec.Cmd, *os.File, *os.File, *activityMonitor, error) {
-	cmd := createIDECommand(ctx, cfg)
+	cmd := createIDECommand(ctx, cfg, j)
 	if cmd == nil {
 		return nil, nil, nil, nil, fmt.Errorf("create IDE command: unsupported ide %q", cfg.ide)
 	}

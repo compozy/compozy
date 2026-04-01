@@ -49,6 +49,7 @@ type RuntimeConfig struct {
 	Grouped                bool
 	TailLines              int
 	ReasoningEffort        string
+	SystemPrompt           string
 	Mode                   ExecutionMode
 	IncludeCompleted       bool
 	IncludeResolved        bool
@@ -170,6 +171,7 @@ type Job struct {
 	Groups        map[string][]IssueEntry
 	SafeName      string
 	Prompt        []byte
+	SystemPrompt  string
 	OutPromptPath string
 	OutLog        string
 	ErrLog        string
