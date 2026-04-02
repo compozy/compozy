@@ -357,10 +357,13 @@ func buildOpenCodeCommand(modelName string, reasoningEffort string) string {
 	}
 	args := []string{
 		model.IDEOpenCode, "run",
-		"--print",
 		"--format", "json",
-		"--thinking", reasoningEffort,
-		"--model", modelToUse,
+		"--variant", reasoningEffort,
+		"--thinking",
+		"-",
+	}
+	if modelToUse != "" {
+		args = append(args, "--model", modelToUse)
 	}
 	return formatShellCommand(args)
 }
@@ -368,9 +371,10 @@ func buildOpenCodeCommand(modelName string, reasoningEffort string) string {
 func openCodeCommand(ctx context.Context, modelName, reasoning string) *exec.Cmd {
 	args := []string{
 		"run",
-		"--print",
 		"--format", "json",
-		"--thinking", reasoning,
+		"--variant", reasoning,
+		"--thinking",
+		"-",
 	}
 	if modelName != "" {
 		args = append(args, "--model", modelName)
