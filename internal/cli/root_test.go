@@ -27,12 +27,14 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy setup",
 		"compozy migrate",
 		"compozy sync",
+		"compozy archive",
 		"compozy fetch-reviews",
 		"compozy fix-reviews",
 		"compozy start",
 		"setup",
 		"migrate",
 		"sync",
+		"archive",
 		"fetch-reviews",
 		"fix-reviews",
 		"start",
@@ -96,6 +98,34 @@ func TestSyncHelpShowsSyncFlagsOnly(t *testing.T) {
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected sync help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestArchiveHelpShowsArchiveFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "archive")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected archive to omit mode flag")
+	}
+
+	output, err := executeRootCommand("archive", "--help")
+	if err != nil {
+		t.Fatalf("execute archive help: %v", err)
+	}
+
+	required := []string{"--root-dir", "--name", "--tasks-dir"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected archive help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"--reviews-dir", "--provider", "--pr", "--batch-size", "--include-completed"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected archive help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }

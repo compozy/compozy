@@ -57,8 +57,14 @@ type MigrationResult = core.MigrationResult
 // SyncConfig configures a task metadata sync run.
 type SyncConfig = core.SyncConfig
 
+// ArchiveConfig configures a completed workflow archive run.
+type ArchiveConfig = core.ArchiveConfig
+
 // SyncResult contains the output of a task metadata sync run.
 type SyncResult = core.SyncResult
+
+// ArchiveResult contains the output of a workflow archive run.
+type ArchiveResult = core.ArchiveResult
 
 // Job is a prepared execution unit with its generated artifacts.
 type Job = core.Job
@@ -86,4 +92,9 @@ func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error)
 // Sync refreshes task workflow metadata files.
 func Sync(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
 	return core.Sync(ctx, cfg)
+}
+
+// Archive moves fully completed workflows into the archive root.
+func Archive(ctx context.Context, cfg ArchiveConfig) (*ArchiveResult, error) {
+	return core.Archive(ctx, cfg)
 }

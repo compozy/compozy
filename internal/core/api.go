@@ -130,12 +130,28 @@ type SyncConfig struct {
 	TasksDir string
 }
 
+type ArchiveConfig struct {
+	RootDir  string
+	Name     string
+	TasksDir string
+}
+
 type SyncResult struct {
 	Target           string
 	WorkflowsScanned int
 	MetaCreated      int
 	MetaUpdated      int
 	SyncedPaths      []string
+}
+
+type ArchiveResult struct {
+	Target           string
+	ArchiveRoot      string
+	WorkflowsScanned int
+	Archived         int
+	Skipped          int
+	ArchivedPaths    []string
+	SkippedReasons   map[string]string
 }
 
 // Validate ensures the configuration is internally consistent.
@@ -191,6 +207,10 @@ func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error)
 
 func Sync(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
 	return syncTaskMetadata(ctx, cfg)
+}
+
+func Archive(ctx context.Context, cfg ArchiveConfig) (*ArchiveResult, error) {
+	return archiveTaskWorkflows(ctx, cfg)
 }
 
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.

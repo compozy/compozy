@@ -36,7 +36,7 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 		if err := ctx.Err(); err != nil {
 			return result, err
 		}
-		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+		if !entry.IsDir() || !model.IsActiveWorkflowDirName(entry.Name()) {
 			continue
 		}
 		if err := syncWorkflow(filepath.Join(target, entry.Name()), result); err != nil {

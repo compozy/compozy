@@ -517,7 +517,7 @@ func listTaskSubdirs(baseDir string) []string {
 	}
 	var dirs []string
 	for _, e := range entries {
-		if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+		if e.IsDir() && model.IsActiveWorkflowDirName(e.Name()) {
 			dirs = append(dirs, e.Name())
 		}
 	}

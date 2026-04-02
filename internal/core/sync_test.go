@@ -20,7 +20,8 @@ func TestSyncTaskMetadataScansWorkflowRoot(t *testing.T) {
 	alphaDir := filepath.Join(rootDir, "alpha")
 	betaDir := filepath.Join(rootDir, "beta")
 	gammaDir := filepath.Join(rootDir, "gamma")
-	for _, dir := range []string{alphaDir, betaDir, gammaDir} {
+	archivedDir := filepath.Join(rootDir, model.ArchivedWorkflowDirName)
+	for _, dir := range []string{alphaDir, betaDir, gammaDir, archivedDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatalf("mkdir %s: %v", dir, err)
 		}
@@ -52,6 +53,9 @@ func TestSyncTaskMetadataScansWorkflowRoot(t *testing.T) {
 	wantPaths := []string{alphaDir, betaDir, gammaDir}
 	if !reflect.DeepEqual(result.SyncedPaths, wantPaths) {
 		t.Fatalf("unexpected synced paths\nwant: %#v\ngot:  %#v", wantPaths, result.SyncedPaths)
+	}
+	if _, err := os.Stat(tasks.MetaPath(archivedDir)); !os.IsNotExist(err) {
+		t.Fatalf("expected archived root to be skipped, got err=%v", err)
 	}
 
 	alphaMeta, err := tasks.ReadTaskMeta(alphaDir)

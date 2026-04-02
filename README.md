@@ -102,12 +102,15 @@ compozy fetch-reviews / /cy-review-round  .compozy/tasks/user-auth/reviews-001/
 compozy fix-reviews --name user-auth   Issues triaged, fixed, resolved
    │
    ▼
+compozy archive --name user-auth       Move fully completed workflow to _archived/
+   │
+   ▼
 Repeat until clean → Ship
 ```
 
 Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can read, edit, or version-control any of them between steps.
 
-Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
+Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
 
 ## 🚀 Quick Start
 
@@ -293,6 +296,21 @@ compozy sync [flags]
 | `--root-dir` | `.compozy/tasks` | Workflow root to scan |
 | `--name` | | Restrict sync to one workflow name |
 | `--tasks-dir` | | Restrict sync to one task workflow directory |
+
+</details>
+
+<details>
+<summary><code>compozy archive</code> — Move fully completed workflows into the archive root</summary>
+
+```bash
+compozy archive [flags]
+```
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--root-dir` | `.compozy/tasks` | Workflow root to scan |
+| `--name` | | Restrict archiving to one workflow name |
+| `--tasks-dir` | | Restrict archiving to one task workflow directory |
 
 </details>
 

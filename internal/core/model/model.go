@@ -2,27 +2,29 @@ package model
 
 import (
 	"path/filepath"
+	"strings"
 	"time"
 )
 
 const (
-	UnknownFileName        = "unknown"
-	IDECodex               = "codex"
-	IDEClaude              = "claude"
-	IDEDroid               = "droid"
-	IDECursor              = "cursor-agent"
-	IDEOpenCode            = "opencode"
-	IDEPi                  = "pi"
-	DefaultCodexModel      = "gpt-5.4"
-	DefaultClaudeModel     = "opus"
-	DefaultCursorModel     = "composer-1"
-	DefaultOpenCodeModel   = "anthropic/claude-opus-4-6"
-	DefaultPiModel         = "anthropic/claude-opus-4-6"
-	DefaultActivityTimeout = 10 * time.Minute
-	WorkflowRootDirName    = ".compozy"
-	WorkflowTasksDirName   = "tasks"
-	ModeCodeReview         = "pr-review"
-	ModePRDTasks           = "prd-tasks"
+	UnknownFileName         = "unknown"
+	IDECodex                = "codex"
+	IDEClaude               = "claude"
+	IDEDroid                = "droid"
+	IDECursor               = "cursor-agent"
+	IDEOpenCode             = "opencode"
+	IDEPi                   = "pi"
+	DefaultCodexModel       = "gpt-5.4"
+	DefaultClaudeModel      = "opus"
+	DefaultCursorModel      = "composer-1"
+	DefaultOpenCodeModel    = "anthropic/claude-opus-4-6"
+	DefaultPiModel          = "anthropic/claude-opus-4-6"
+	DefaultActivityTimeout  = 10 * time.Minute
+	WorkflowRootDirName     = ".compozy"
+	WorkflowTasksDirName    = "tasks"
+	ArchivedWorkflowDirName = "_archived"
+	ModeCodeReview          = "pr-review"
+	ModePRDTasks            = "prd-tasks"
 )
 
 type ExecutionMode string
@@ -91,6 +93,15 @@ func TasksBaseDir() string {
 
 func TaskDirectory(name string) string {
 	return filepath.Join(TasksBaseDir(), name)
+}
+
+func ArchivedTasksDir(baseDir string) string {
+	return filepath.Join(baseDir, ArchivedWorkflowDirName)
+}
+
+func IsActiveWorkflowDirName(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	return trimmed != "" && !strings.HasPrefix(trimmed, ".") && trimmed != ArchivedWorkflowDirName
 }
 
 type IssueEntry struct {

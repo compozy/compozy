@@ -175,6 +175,21 @@ func TestListTaskSubdirs(t *testing.T) {
 		}
 	})
 
+	t.Run("excludes archived workflows", func(t *testing.T) {
+		t.Parallel()
+		tmp := t.TempDir()
+		for _, name := range []string{"_archived", "visible"} {
+			if err := os.MkdirAll(filepath.Join(tmp, name), 0o755); err != nil {
+				t.Fatalf("create test dir: %v", err)
+			}
+		}
+
+		dirs := listTaskSubdirs(tmp)
+		if len(dirs) != 1 || dirs[0] != "visible" {
+			t.Fatalf("got %v, want [visible]", dirs)
+		}
+	})
+
 	t.Run("excludes files", func(t *testing.T) {
 		t.Parallel()
 		tmp := t.TempDir()

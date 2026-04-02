@@ -17,6 +17,7 @@ type commandKind string
 const (
 	commandKindFetchReviews commandKind = "fetch-reviews"
 	commandKindFixReviews   commandKind = "fix-reviews"
+	commandKindArchive      commandKind = "archive"
 	commandKindStart        commandKind = "start"
 	commandKindSync         commandKind = "sync"
 )
@@ -61,6 +62,7 @@ Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
   compozy migrate       Convert legacy workflow artifacts to frontmatter
   compozy sync          Refresh task workflow metadata files
+  compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
   compozy fix-reviews   Process review issue files from a specific review round
   compozy start         Execute PRD task files`,
@@ -73,6 +75,7 @@ Use explicit workflow subcommands:
 		newSetupCommand(),
 		newMigrateCommand(),
 		newSyncCommand(),
+		newArchiveCommand(),
 		newFetchReviewsCommand(),
 		newFixReviewsCommand(),
 		newStartCommand(),
@@ -166,6 +169,12 @@ type syncCommandState struct {
 	tasksDir string
 }
 
+type archiveCommandState struct {
+	rootDir  string
+	name     string
+	tasksDir string
+}
+
 func newMigrateCommand() *cobra.Command {
 	state := &migrateCommandState{}
 	cmd := &cobra.Command{
@@ -210,6 +219,30 @@ By default, the command scans the whole workflow root and creates missing task m
 	cmd.Flags().StringVar(&state.rootDir, "root-dir", "", "Workflow root to scan (default: .compozy/tasks)")
 	cmd.Flags().StringVar(&state.name, "name", "", "Restrict sync to one workflow name under the workflow root")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Restrict sync to one task workflow directory")
+	return cmd
+}
+
+func newArchiveCommand() *cobra.Command {
+	state := &archiveCommandState{}
+	cmd := &cobra.Command{
+		Use:          "archive",
+		Short:        "Move fully completed workflows into the archive root",
+		SilenceUsage: true,
+		Args:         cobra.NoArgs,
+		Long: `Archive fully completed workflows under .compozy/tasks by moving them into
+.compozy/tasks/_archived/<timestamp>-<name>.
+
+Eligible workflows must already have task _meta.md present, all task files completed, and all
+review round _meta.md files fully resolved when review rounds exist.`,
+		Example: `  compozy archive
+  compozy archive --name my-feature
+  compozy archive --tasks-dir .compozy/tasks/my-feature`,
+		RunE: state.run,
+	}
+
+	cmd.Flags().StringVar(&state.rootDir, "root-dir", "", "Workflow root to scan (default: .compozy/tasks)")
+	cmd.Flags().StringVar(&state.name, "name", "", "Restrict archiving to one workflow name under the workflow root")
+	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Restrict archiving to one task workflow directory")
 	return cmd
 }
 
@@ -393,6 +426,34 @@ func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
 			result.WorkflowsScanned,
 			result.MetaCreated,
 			result.MetaUpdated,
+		)
+	}
+	return err
+}
+
+func (s *archiveCommandState) run(cmd *cobra.Command, _ []string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	result, err := core.Archive(ctx, core.ArchiveConfig{
+		RootDir:  s.rootDir,
+		Name:     s.name,
+		TasksDir: s.tasksDir,
+	})
+	if result != nil {
+		const summaryFormat = "Archive target: %s\n" +
+			"Archive root: %s\n" +
+			"Workflows scanned: %d\n" +
+			"Archived: %d\n" +
+			"Skipped: %d\n"
+		_, _ = fmt.Fprintf(
+			cmd.OutOrStdout(),
+			summaryFormat,
+			result.Target,
+			result.ArchiveRoot,
+			result.WorkflowsScanned,
+			result.Archived,
+			result.Skipped,
 		)
 	}
 	return err

@@ -135,3 +135,60 @@ func TestSyncExposePublicAPI(t *testing.T) {
 		t.Fatalf("unexpected sync result: %#v", result)
 	}
 }
+
+func TestArchiveExposePublicAPI(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	workflowDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(workflowDir, "task_001.md"), []byte(strings.Join([]string{
+		"---",
+		"status: completed",
+		"domain: backend",
+		"type: feature",
+		"scope: small",
+		"complexity: low",
+		"---",
+		"",
+		"# Task 1: Demo",
+		"",
+	}, "\n")), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	metaContent := strings.Join([]string{
+		"---",
+		"created_at: 2026-04-01T12:00:00Z",
+		"updated_at: 2026-04-01T12:00:00Z",
+		"---",
+		"",
+		"## Summary",
+		"- Total: 1",
+		"- Completed: 1",
+		"- Pending: 0",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(workflowDir, "_meta.md"), []byte(metaContent), 0o600); err != nil {
+		t.Fatalf("write task meta: %v", err)
+	}
+
+	result, err := compozy.Archive(context.Background(), compozy.ArchiveConfig{TasksDir: workflowDir})
+	if err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected archive result")
+	}
+	if result.Archived != 1 || result.Skipped != 0 {
+		t.Fatalf("unexpected archive result: %#v", result)
+	}
+	if len(result.ArchivedPaths) != 1 {
+		t.Fatalf("expected one archived path, got %#v", result.ArchivedPaths)
+	}
+	if _, err := os.Stat(result.ArchivedPaths[0]); err != nil {
+		t.Fatalf("expected archived path to exist: %v", err)
+	}
+}
