@@ -18,7 +18,8 @@ Perform a structured code review of a PRD implementation and produce a review ro
    - Derive the PRD directory from the feature name: `.compozy/tasks/<name>/`.
    - Verify the PRD directory exists. If it does not, stop and report the missing directory.
    - List existing `reviews-NNN/` subdirectories to determine the next round number. If none exist, use round 1.
-   - Create the review round directory: `.compozy/tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits.
+   - If prior review rounds exist, read their issue files to build a list of already-known issues. The current round must only contain NEW issues not already tracked in prior rounds. Do not re-flag issues that are pending, valid, or resolved in earlier rounds.
+   - Determine the review round directory path: `.compozy/tasks/<name>/reviews-NNN/` with the round number zero-padded to 3 digits. Do NOT create it yet — wait until step 4 confirms there are issues to write. This avoids leaving empty directories when the review finds no issues.
 
 2. Identify the review scope.
    - Read `_prd.md`, `_techspec.md`, and `_tasks.md` from the PRD directory to understand what was implemented and why.
@@ -30,15 +31,21 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 3. Perform the code review.
    - Read `references/review-criteria.md` for severity definitions and evaluation areas.
-   - Read every file in scope completely before forming conclusions.
+   - **Prioritize the review scope.** If the scope contains more than 15 files, triage before deep-reading: identify the core implementation files (new packages, new exported APIs, files with the most additions) and review those in full first. Review remaining files (tests, minor edits, config changes) for obvious issues only. This prevents shallow reviews spread across too many files.
+   - Read every file in the prioritized scope completely before forming conclusions.
+   - **Requirements validation**: If `_prd.md` or `_techspec.md` were available in step 2, cross-check the implementation against every stated requirement, acceptance criterion, and architectural decision. Flag any requirement that is missing, partially implemented, or implemented differently than specified. These are correctness issues — assign severity based on the gap's impact (critical if a core feature is missing, high if behavior deviates from spec, medium if an edge case from the spec is unhandled).
    - Evaluate each file against the nine evaluation areas: Security, Correctness, Concurrency, Performance and Scalability, Error Handling, Code Quality and Maintainability, Testing, Architecture, and Operations.
    - Identify issues in severity order: critical first, then high, medium, and low.
    - For each issue record: the file path relative to the repository root, the approximate line number, the severity level, a concise title (max 72 characters), and a detailed review comment describing the problem and a suggested fix.
+   - **Deduplicate before writing.** If the same pattern (e.g., missing nil check, missing error wrap) appears in multiple files, create one issue for the most representative instance and list the other affected files in its Review Comment. Do not create N identical issues for N files exhibiting the same root cause. One issue per distinct problem, not per occurrence.
+   - **Verify before flagging.** Before creating an issue, check whether the pattern is intentional: look for adjacent comments explaining the choice, ADR references, or test coverage that validates the behavior. If code looks suspicious but has a clear justification (e.g., `// nolint: intentionally ignoring close error on read-only file`), do not create an issue. Only flag patterns that are genuinely problematic, not merely unconventional.
    - Skip issues that linters or formatters already catch. Run `make lint` first to filter these out.
+   - **Focus on signal, not volume.** Aim for fewer, higher-quality issues rather than an exhaustive list. If you find more than 20 issues, re-evaluate: keep all critical and high issues, but prune medium and low issues to only the most impactful. A review with 8 precise issues is more useful than one with 30 that includes marginal concerns.
    - Also note well-implemented aspects of the code. These observations inform the summary but do not produce issue files.
    - If no issues are found after a thorough review, report that the implementation looks clean and skip steps 4 through 6. Do not create the review round directory.
 
 4. Generate issue files.
+   - Create the review round directory determined in step 1.
    - Read `references/issue-template.md` for the canonical format.
    - For each issue identified in step 3, create an `issue_NNN.md` file in the review round directory.
    - Issue numbering starts at `001` and increments sequentially.
@@ -95,6 +102,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
 
 6. Summarize and present the review.
    - Print a summary listing:
+     - **Merge recommendation**: If any critical or high issues exist, state "Needs fixes before merge" with the blocking issues. If only medium/low issues exist, state "Safe to merge with follow-ups." If no issues, state "Clean — ready to merge."
      - Total issues found, broken down by severity (critical, high, medium, low).
      - The review round directory path.
      - The full list of generated issue file names.
@@ -124,3 +132,4 @@ Perform a structured code review of a PRD implementation and produce a review ro
 - If both `_prd.md` and `_techspec.md` are missing, warn about the lack of requirements context but proceed with code-quality-only review.
 - If the review round directory cannot be created, stop and report the filesystem error.
 - If writing an issue file fails, stop and report which file could not be written.
+- If `make lint` fails to run (build errors, missing tools), note the failure in the summary and proceed with the review. Do not skip the review because linting failed — just acknowledge that linter-overlap filtering could not be applied.

@@ -1,45 +1,29 @@
 package setup
 
 import (
-	"embed"
 	"io/fs"
-)
 
-//go:generate go run ./cmd/generatebundle
-//go:embed assets/skills/**
-var bundledSkills embed.FS
+	"github.com/compozy/compozy/skills"
+)
 
 // ListBundledSkills returns the public skills bundled into the compozy binary.
 func ListBundledSkills() ([]Skill, error) {
-	bundle, err := bundledSkillsRoot()
-	if err != nil {
-		return nil, err
-	}
-	return ListSkills(bundle)
+	return ListSkills(skills.FS)
 }
 
 // PreviewBundledSkillInstall resolves the on-disk install plan for bundled skills.
 func PreviewBundledSkillInstall(cfg InstallConfig) ([]PreviewItem, error) {
-	bundle, err := bundledSkillsRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.Bundle = bundle
+	cfg.Bundle = skills.FS
 	return Preview(cfg)
 }
 
 // InstallBundledSkills materializes bundled public skills for the selected agents.
 func InstallBundledSkills(cfg InstallConfig) (*Result, error) {
-	bundle, err := bundledSkillsRoot()
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.Bundle = bundle
+	cfg.Bundle = skills.FS
 	return Install(cfg)
 }
 
+// bundledSkillsRoot returns the embedded skill filesystem for tests.
 func bundledSkillsRoot() (fs.FS, error) {
-	return fs.Sub(bundledSkills, "assets/skills")
+	return skills.FS, nil
 }

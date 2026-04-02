@@ -21,6 +21,16 @@ If your runtime does not provide such a tool, present the question as your compl
 
 Every PRD goes through the full brainstorming process. A single button, a minor workflow tweak, a configuration option — all of them. "Simple" features are where unexamined business assumptions cause the most rework. The brainstorming can be brief for genuinely simple features, but you MUST ask clarifying questions and present the design for approval.
 
+## Anti-Pattern: Technical Drift On Technical-Sounding Features
+
+When the feature name sounds technical (e.g., "webhook notifications", "CSV export", "dark mode", "API rate limiting"), you will be tempted to discuss HOW to implement it. Resist this. Your job is the WHAT and WHY:
+- WRONG: "Should we use WebSockets or polling for notifications?" (implementation)
+- WRONG: "What CSV library format should we target?" (implementation)
+- RIGHT: "Which events should trigger a notification to the user?" (user need)
+- RIGHT: "What information do users need in their exported reports?" (user need)
+
+Translate every technical-sounding feature into the user experience question behind it.
+
 ## Required Inputs
 
 - Feature name or product idea.
@@ -35,17 +45,32 @@ Every PRD goes through the full brainstorming process. A single button, a minor 
    - If the directory does not exist, create it.
    - Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
 
-2. Discover context through parallel research.
-   - Spawn one Agent tool call to explore the codebase for relevant patterns, existing features, and architecture.
-   - Spawn a second Agent tool call to perform 3-5 web searches for market trends, competitive analysis, and user needs.
-   - Merge findings from both agents before proceeding to questions.
+2. Discover context through parallel research. You MUST perform BOTH tracks before asking any questions.
+
+   **Track A — Codebase exploration** (REQUIRED):
+   - Search the codebase for files, patterns, and features related to the user's request.
+   - Look for existing implementations, data models, and integration points that are relevant.
+   - Summarize what you found in 3-5 bullet points.
+
+   **Track B — Market and user research** (REQUIRED):
+   - Perform 3-5 web searches for market trends, competitive products, and user needs related to the feature.
+   - Look for how similar products solve this problem and what users expect.
+   - Summarize what you found in 3-5 bullet points.
+
+   Run both tracks in parallel (e.g., two Agent tool calls, two search batches, etc.). Present a brief merged summary of findings from BOTH tracks to the user before moving to questions. If web search tools are unavailable, note the limitation explicitly and proceed with codebase findings only.
 
 3. Ask clarifying questions following `references/question-protocol.md`.
    - Focus exclusively on WHAT features users need, WHY it provides business value, and WHO the target users are.
    - Ask about success criteria and constraints.
    - Never ask technical implementation questions about databases, APIs, frameworks, or architecture.
-   - Ask only one question per message. If a topic needs more exploration, break it into a sequence of individual questions.
-   - Prefer multiple-choice questions when the options can be predetermined.
+   - **ONE question per message — strictly enforced.** Your message must contain exactly one question mark. After asking the question, STOP. Do not add follow-up questions, "also" questions, or "additionally" prompts. If a topic needs more exploration, ask a follow-up in the NEXT message after the user responds.
+
+     Anti-pattern (FORBIDDEN):
+     "What is the primary user persona? Also, what are the key success metrics?"
+     This is TWO questions. Split them into two separate messages.
+
+   - Every question MUST be multiple-choice when reasonable options can be predetermined. Format as labeled options (A, B, C, etc.) so the user can respond with a single letter. Only use open-ended questions when the answer space is genuinely unbounded (e.g., "What problem are you trying to solve?").
+   - For complex features with many dimensions, decompose into sub-topics and ask about one dimension at a time. Each sub-topic usually has predeterminable options. Example: instead of the open-ended "What should the collaboration feature include?", ask "Which aspect of team collaboration is most important to start with? A) Shared workspaces B) Real-time presence C) Permission controls D) Activity feeds".
    - Complete at least one full clarification round before presenting approaches.
 
 4. Present product approaches.
@@ -114,7 +139,7 @@ digraph create_prd {
 ## Key Principles
 
 - **One question at a time** — Do not overwhelm with multiple questions in a single message
-- **Multiple choice preferred** — Easier for users to answer than open-ended when possible
+- **Multiple choice mandatory** — Every question MUST be multiple-choice (A/B/C) when options can be predetermined; open-ended only when the answer space is genuinely unbounded
 - **YAGNI ruthlessly** — Challenge every feature; remove anything the MVP does not need
 - **Incremental validation** — Present design section by section, get approval before moving on
 - **Business focus only** — Never ask about implementation; that belongs in TechSpec

@@ -15,25 +15,33 @@ Execute the review remediation workflow in a strict sequence. The review files a
 
 ## Workflow
 
-1. Read and triage the scoped issue files.
+1. Gather round context.
+   - Read `_meta.md` from the review round directory to understand the provider, round number, and issue counts.
+   - Read `<batch_scope>` to identify the PRD name, review round, code files in scope, and conditional flags (auto-commit, grouped summaries).
+
+2. Read and triage the scoped issue files.
    - Read every listed issue file completely before editing code.
    - Update each issue file frontmatter `status` from `pending` to `valid` or `invalid`.
-   - Record concrete technical reasoning in `## Triage`.
+   - Record concrete technical reasoning in `## Triage`: state why the issue is valid or invalid, identify the root cause if valid, and outline the intended fix approach.
 
-2. Fix valid issues completely.
+3. Fix valid issues completely.
+   - Fix issues in severity order: critical first, then high, medium, low. This ensures the most impactful fixes land even if the batch is interrupted.
    - Implement production-quality fixes for every `valid` issue in scope.
-   - Add or update tests when behavior changes or regressions are possible.
-   - Keep the scope constrained to the listed issue files and their necessary code changes.
+   - Add or update tests when behavior changes or regressions are possible. Test file edits are always in scope when they validate a fix.
+   - Keep code changes constrained to the files listed in `<batch_scope>` code files. If a fix absolutely requires touching a file not listed there, limit the change to the minimum needed and document why in the issue file's `## Triage` section.
+   - Do not refactor, clean up, or improve code that is unrelated to the issues being fixed.
 
-3. Close out issue files correctly.
+4. Close out issue files correctly.
    - For a `valid` issue, set frontmatter `status: resolved` only after the code and verification are done.
    - For an `invalid` issue, document why it is invalid and then set frontmatter `status: resolved` once the analysis is complete.
-   - Update grouped review trackers only when the prompt explicitly enables them.
+   - Update grouped review trackers only when `<batch_scope>` shows "Grouped summaries: enabled". If grouped summaries are disabled, do not create or modify any grouped tracker files.
 
-4. Verify before completion.
+5. Verify before completion.
    - Use `cy-final-verify` before any completion claim or automatic commit.
    - Run the repository’s real verification commands; do not stop at partial checks.
-   - Leave the diff ready for manual review unless the prompt explicitly enables auto-commit.
+   - If verification fails, fix the failing checks in the code you changed. Do not revert your fixes to pass verification -- find the root cause of the failure and address it. If the failure is in pre-existing code unrelated to your changes, document it in the relevant issue file’s `## Triage` section and proceed. If two fixes conflict with each other and verification cannot pass after two attempts, document the conflict in both issue files and report the situation rather than looping indefinitely.
+   - If all issues in the batch are invalid and no code was changed, skip the commit step entirely -- do not create an empty commit. Still run verification to confirm no regressions.
+   - Leave the diff ready for manual review unless `<batch_scope>` shows "Automatic commits: enabled".
 
 ## Critical Rules
 

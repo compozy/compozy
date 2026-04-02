@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/skills"
 )
 
 func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
@@ -51,26 +53,54 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 	checkPortableContent(t, filepath.Join(root, "skills", "cy-review-round", "SKILL.md"))
 }
 
-func TestBundledSkillMirrorMatchesPublicSkillsTree(t *testing.T) {
+func TestEmbeddedSkillsFSMatchesOnDisk(t *testing.T) {
 	t.Parallel()
 
 	root := repoRoot(t)
 	source := filepath.Join(root, "skills")
-	mirror := filepath.Join(root, "internal", "setup", "assets", "skills")
-
 	sourceTree := snapshotTree(t, source)
-	mirrorTree := snapshotTree(t, mirror)
 
-	if len(sourceTree) != len(mirrorTree) {
-		t.Fatalf("expected bundled mirror to contain %d files, got %d", len(sourceTree), len(mirrorTree))
-	}
-	for path, sourceContent := range sourceTree {
-		mirrorContent, ok := mirrorTree[path]
-		if !ok {
-			t.Fatalf("expected bundled mirror to contain %s", path)
+	// Filter out non-skill files (embed.go, autoresearch artifacts, etc.)
+	wantTree := make(map[string]string, len(sourceTree))
+	for p, content := range sourceTree {
+		if strings.HasSuffix(p, ".go") {
+			continue
 		}
-		if sourceContent != mirrorContent {
-			t.Fatalf("expected bundled mirror content for %s to match source skills directory", path)
+		if strings.Contains(p, "autoresearch-") {
+			continue
+		}
+		wantTree[p] = content
+	}
+
+	embeddedTree := make(map[string]string)
+	err := fs.WalkDir(skills.FS, ".", func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		data, readErr := fs.ReadFile(skills.FS, p)
+		if readErr != nil {
+			return readErr
+		}
+		embeddedTree[p] = string(data)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk embedded FS: %v", err)
+	}
+
+	if len(embeddedTree) != len(wantTree) {
+		t.Fatalf("expected embedded FS to contain %d files, got %d", len(wantTree), len(embeddedTree))
+	}
+	for p, wantContent := range wantTree {
+		gotContent, ok := embeddedTree[p]
+		if !ok {
+			t.Fatalf("expected embedded FS to contain %s", p)
+		}
+		if gotContent != wantContent {
+			t.Fatalf("expected embedded content for %s to match on-disk source", p)
 		}
 	}
 }

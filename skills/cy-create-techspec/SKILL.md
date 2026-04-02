@@ -50,8 +50,9 @@ Every TechSpec goes through the full design review process. A single endpoint, a
    - Present the design section by section, scaled to each section's complexity: a few sentences if straightforward, up to 200-300 words if nuanced.
    - Present one section at a time and ask the user whether it looks right before moving to the next.
    - Sections to cover: System Architecture, Core Interfaces, Data Models, API Design, Integration Points, Testing Approach, Development Sequencing.
+   - The Development Sequencing section MUST include a numbered Build Order where every step after the first explicitly states which previous steps it depends on (e.g., "depends on step 1" or "depends on steps 1-2"). The first step should state "no dependencies".
    - Be ready to revise any section based on feedback before proceeding.
-   - Apply YAGNI ruthlessly: remove any component, interface, or abstraction that is not strictly necessary.
+   - Apply YAGNI ruthlessly: remove any component, interface, or abstraction that is not strictly necessary. Do NOT propose new packages or directories when the feature can be implemented by adding a single file to an existing package. Do NOT introduce abstraction layers (factory patterns, strategy patterns, adapter layers) unless the design genuinely requires multiple implementations.
    - If the user requests changes to a section, revise and re-present that section.
    - After all sections are approved, create an ADR for each significant technical decision (architecture pattern chosen, technology selected, data model approach, etc.):
      - Read `references/adr-template.md`.
@@ -61,11 +62,11 @@ Every TechSpec goes through the full design review process. A single endpoint, a
 
 4. Generate the TechSpec document.
    - Read `references/techspec-template.md` and fill every applicable section.
-   - Include an "Architecture Decision Records" section listing all ADRs (from both PRD brainstorming and technical design) with their numbers, titles, and one-line summaries as links to the `adrs/` directory.
+   - **MANDATORY — Architecture Decision Records section:** The generated TechSpec MUST end with an "Architecture Decision Records" section listing every ADR created during this process. Each entry must include the ADR number (e.g., ADR-001), title, and a one-line summary formatted as a link to the `adrs/` directory. Even simple features require at least one ADR documenting the primary technical approach chosen and alternatives rejected. If no ADRs were created in step 3, go back and create at least one before generating the document.
    - Write the completed document to `.compozy/tasks/<name>/_techspec.md`.
    - Every PRD goal and user story should map to a technical component.
    - Reference PRD sections by name but do not duplicate business context.
-   - Include code examples only for core interfaces, limited to 20 lines each.
+   - Include code examples only for core interfaces, limited to 20 lines each. The Core Interfaces section must contain at least one Go interface or struct definition as a code block, even for simple features — show the primary type that other components will depend on.
 
 ## Process Flow
 
@@ -105,3 +106,4 @@ digraph create_techspec {
 - **YAGNI ruthlessly** — Remove unnecessary components, abstractions, and interfaces from all designs
 - **Incremental validation** — Present design section by section, get approval before moving on
 - **Technical focus only** — Never ask business questions; that belongs in the PRD
+- **Trade-offs are mandatory** — Every Executive Summary must state the primary technical trade-off of the chosen approach
