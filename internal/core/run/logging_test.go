@@ -45,3 +45,33 @@ func TestLineFilterWriterSuppressesOnlyKnownCodexNoise(t *testing.T) {
 		t.Fatalf("expected real stderr line to remain, got %q", got)
 	}
 }
+
+func TestLineBufferUnlimitedRetentionKeepsFullHistory(t *testing.T) {
+	t.Parallel()
+
+	buffer := newLineBuffer(0)
+	for _, line := range []string{"one", "two", "three", "four"} {
+		buffer.appendLine(line)
+	}
+
+	got := buffer.snapshot()
+	want := []string{"one", "two", "three", "four"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected full history %v, got %v", want, got)
+	}
+}
+
+func TestLineBufferLimitedRetentionKeepsNewestEntries(t *testing.T) {
+	t.Parallel()
+
+	buffer := newLineBuffer(2)
+	for _, line := range []string{"one", "two", "three", "four"} {
+		buffer.appendLine(line)
+	}
+
+	got := buffer.snapshot()
+	want := []string{"three", "four"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("expected capped history %v, got %v", want, got)
+	}
+}

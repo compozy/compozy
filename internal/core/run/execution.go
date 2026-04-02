@@ -14,7 +14,6 @@ import (
 	"syscall"
 	"time"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/provider"
@@ -50,7 +49,7 @@ type jobExecutionContext struct {
 	total          int
 	cwd            string
 	uiCh           chan uiMsg
-	uiProg         *tea.Program
+	ui             uiSession
 	sem            chan struct{}
 	aggregateUsage TokenUsage
 	aggregateMu    sync.Mutex
@@ -96,6 +95,9 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, cfg *confi
 		cancelJobs: cancelJobs,
 		done:       execCtx.waitChannel(),
 	}
+	if execCtx.ui != nil {
+		execCtx.ui.setQuitHandler(cancelJobs)
+	}
 	return controller.awaitCompletion()
 }
 
@@ -104,6 +106,10 @@ func (c *executorController) awaitCompletion() (int32, []failInfo, int, error) {
 	select {
 	case <-c.done:
 		c.state = executorStateShutdown
+		if err := c.execCtx.awaitUIAfterCompletion(); err != nil {
+			c.state = executorStateTerminated
+			return c.result(err)
+		}
 		c.execCtx.reportAggregateUsage()
 		c.state = executorStateTerminated
 		return c.result(nil)
@@ -125,12 +131,19 @@ func (c *executorController) awaitShutdownAfterCancel() (int32, []failInfo, int,
 	case <-c.done:
 		fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v while draining\n", gracefulShutdownTimeout)
 		c.state = executorStateShutdown
+		if err := c.execCtx.shutdownUI(); err != nil {
+			c.state = executorStateTerminated
+			return c.result(err)
+		}
 		c.execCtx.reportAggregateUsage()
 		c.state = executorStateTerminated
 		return c.result(nil)
 	case <-shutdownCtx.Done():
 		fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded (%v), forcing exit\n", gracefulShutdownTimeout)
 		c.state = executorStateTerminated
+		if err := c.execCtx.shutdownUI(); err != nil {
+			return c.result(fmt.Errorf("shutdown timeout exceeded and ui shutdown failed: %w", err))
+		}
 		return c.result(fmt.Errorf("shutdown timeout exceeded"))
 	}
 }
@@ -416,16 +429,38 @@ func newJobExecutionContext(ctx context.Context, jobs []job, cfg *config) (*jobE
 		cwd:   cwd,
 		sem:   make(chan struct{}, maxInt(1, cfg.concurrent)),
 	}
-	execCtx.uiCh, execCtx.uiProg = setupUI(ctx, jobs, cfg, !cfg.dryRun)
+	for idx := range execCtx.jobs {
+		execCtx.jobs[idx].outBuffer = newLineBuffer(cfg.tailLines)
+		execCtx.jobs[idx].errBuffer = newLineBuffer(cfg.tailLines)
+	}
+	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, !cfg.dryRun)
+	if execCtx.ui != nil {
+		execCtx.uiCh = execCtx.ui.events()
+	}
 	return execCtx, nil
 }
 
 func (j *jobExecutionContext) cleanup() {
-	if j.uiProg != nil {
-		close(j.uiCh)
-		time.Sleep(uiMessageDrainDelay)
-		j.uiProg.Quit()
+	if err := j.shutdownUI(); err != nil {
+		fmt.Fprintf(os.Stderr, "UI shutdown error: %v\n", err)
 	}
+}
+
+func (j *jobExecutionContext) awaitUIAfterCompletion() error {
+	if j.ui == nil {
+		return nil
+	}
+	j.ui.closeEvents()
+	return j.ui.wait()
+}
+
+func (j *jobExecutionContext) shutdownUI() error {
+	if j.ui == nil {
+		return nil
+	}
+	j.ui.closeEvents()
+	j.ui.shutdown()
+	return j.ui.wait()
 }
 
 func (j *jobExecutionContext) launchWorkers(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -687,7 +722,6 @@ func setupCommandExecution(
 		useUI,
 		uiCh,
 		index,
-		cfg.tailLines,
 		cfg.ide,
 		aggregateUsage,
 		aggregateMu,

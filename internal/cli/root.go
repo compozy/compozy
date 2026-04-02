@@ -256,7 +256,12 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		nil,
 		"Additional directory to allow for Codex and Claude (repeatable or comma-separated)",
 	)
-	cmd.Flags().IntVar(&state.tailLines, "tail-lines", 30, "Number of log lines to show in UI for each job")
+	cmd.Flags().IntVar(
+		&state.tailLines,
+		"tail-lines",
+		0,
+		"Maximum number of log lines to retain in UI per job (0 = full history)",
+	)
 	cmd.Flags().StringVar(
 		&state.reasoningEffort,
 		"reasoning-effort",

@@ -78,7 +78,6 @@ func setupCommandIO(
 	useUI bool,
 	uiCh chan uiMsg,
 	index int,
-	tailLines int,
 	ideType string,
 	aggregateUsage *TokenUsage,
 	aggregateMu *sync.Mutex,
@@ -96,10 +95,17 @@ func setupCommandIO(
 	}
 
 	monitor := newActivityMonitor()
+	if job.outBuffer == nil {
+		job.outBuffer = newLineBuffer(0)
+	}
+	if job.errBuffer == nil {
+		job.errBuffer = newLineBuffer(0)
+	}
 	outTap, errTap := buildCommandTaps(
 		outFile,
 		errFile,
-		tailLines,
+		job.outBuffer,
+		job.errBuffer,
 		useUI,
 		uiCh,
 		index,

@@ -171,12 +171,12 @@ func (fb *formBuilder) hideField(flag string) bool {
 	switch fb.state.kind {
 	case commandKindStart:
 		switch flag {
-		case "concurrent", "tail-lines", "dry-run", "include-completed":
+		case "concurrent", "dry-run", "include-completed":
 			return true
 		}
 	case commandKindFixReviews:
 		switch flag {
-		case "tail-lines", "dry-run", "include-resolved":
+		case "dry-run", "include-resolved":
 			return true
 		}
 	}
@@ -277,6 +277,7 @@ func (fb *formBuilder) addRoundField(target *string) {
 			"auto",
 			description,
 			target,
+			1,
 			999,
 		)
 	})
@@ -312,6 +313,7 @@ func (fb *formBuilder) addConcurrentField(target *string) {
 			"1",
 			"Number of batches to process in parallel (1-10)",
 			target,
+			1,
 			10,
 		)
 	})
@@ -325,6 +327,7 @@ func (fb *formBuilder) addBatchSizeField(target *string) {
 			"1",
 			"Number of file groups per batch (1-50)",
 			target,
+			1,
 			50,
 		)
 	})
@@ -375,11 +378,12 @@ func (fb *formBuilder) addTailLinesField(target *string) {
 	fb.addField("tail-lines", func() huh.Field {
 		return numericInput(
 			"tail-lines",
-			"Log Tail Lines",
-			"30",
-			"Number of log lines to show in UI (1-100)",
+			"UI Log Retention",
+			"0",
+			"Maximum log lines to retain in UI per job (0 = full history)",
 			target,
-			100,
+			0,
+			0,
 		)
 	})
 }
@@ -437,6 +441,7 @@ func numericInput(
 	placeholder string,
 	description string,
 	target *string,
+	minVal int,
 	maxVal int,
 ) huh.Field {
 	return huh.NewInput().
@@ -453,8 +458,11 @@ func numericInput(
 			if err != nil {
 				return errors.New("must be a number")
 			}
-			if val < 1 || val > maxVal {
-				return fmt.Errorf("must be between %d and %d", 1, maxVal)
+			if val < minVal {
+				return fmt.Errorf("must be %d or greater", minVal)
+			}
+			if maxVal > 0 && val > maxVal {
+				return fmt.Errorf("must be between %d and %d", minVal, maxVal)
 			}
 			return nil
 		})

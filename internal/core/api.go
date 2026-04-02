@@ -140,6 +140,9 @@ type SyncResult struct {
 
 // Validate ensures the configuration is internally consistent.
 func (cfg Config) Validate() error {
+	if cfg.TailLines < 0 {
+		return errors.New("tail-lines must be 0 or greater")
+	}
 	runtimeCfg := cfg.runtime()
 	return agent.ValidateRuntimeConfig(runtimeCfg)
 }

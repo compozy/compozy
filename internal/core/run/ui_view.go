@@ -15,6 +15,7 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 func (m *uiModel) renderRoot(content string) tea.View {
 	v := tea.NewView(rootScreenStyle(m.width, m.height).Render(content))
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
 
@@ -244,13 +245,15 @@ func (m *uiModel) renderHelp() string {
 	type kv struct{ key, desc string }
 
 	pairs := []kv{
-		{"↑↓/jk", "NAV"},
+		{"↑↓/jk", "TASK"},
 		{"pgup/pgdn", "SCROLL"},
+		{"wheel", "SCROLL"},
 	}
 	if m.completed+m.failed >= m.total {
-		pairs = append(pairs, kv{"s", "SUMMARY"})
+		pairs = append(pairs, kv{"s", "SUMMARY"}, kv{"q", "QUIT"})
+	} else {
+		pairs = append(pairs, kv{"q/^c", "CANCEL"})
 	}
-	pairs = append(pairs, kv{"q", "QUIT"})
 
 	var parts []string
 	for _, p := range pairs {
@@ -535,30 +538,49 @@ func formatNumber(n int) string {
 
 func (m *uiModel) updateViewportForJob(job *uiJob) {
 	maxW := m.viewport.Width()
-	var content strings.Builder
-	if len(job.lastOut) > 0 {
-		for _, line := range job.lastOut {
-			if line != "" {
-				content.WriteString(truncateString(line, maxW))
-				content.WriteString("\n")
-			}
-		}
-	}
-	if len(job.lastErr) > 0 {
-		content.WriteString(styleStderrLabel.Render("[STDERR]"))
-		content.WriteString("\n")
-		for _, line := range job.lastErr {
-			if line != "" {
-				content.WriteString(truncateString(line, maxW))
-				content.WriteString("\n")
-			}
-		}
-	}
-	m.viewport.SetContent(content.String())
-	m.viewport.GotoBottom()
-	if len(job.lastOut) == 0 && len(job.lastErr) == 0 {
+	content, hasContent := m.buildViewportContent(job, maxW)
+	m.viewport.SetContent(content)
+	if !hasContent {
 		m.viewport.GotoTop()
+		job.viewportYOffset = 0
+		job.viewportXOffset = 0
+		job.followTail = true
+		return
 	}
+	if job.followTail {
+		m.viewport.GotoBottom()
+	} else {
+		m.viewport.SetYOffset(job.viewportYOffset)
+		m.viewport.SetXOffset(job.viewportXOffset)
+	}
+	job.viewportYOffset = m.viewport.YOffset()
+	job.viewportXOffset = m.viewport.XOffset()
+	job.followTail = m.viewport.AtBottom()
+}
+
+func (m *uiModel) buildViewportContent(job *uiJob, maxW int) (string, bool) {
+	var content strings.Builder
+	hasContent := false
+	if job.outBuffer != nil {
+		for _, line := range job.outBuffer.snapshot() {
+			content.WriteString(truncateString(line, maxW))
+			content.WriteString("\n")
+			hasContent = true
+		}
+	}
+	if job.errBuffer != nil {
+		errLines := job.errBuffer.snapshot()
+		if len(errLines) > 0 {
+			content.WriteString(styleStderrLabel.Render("[STDERR]"))
+			content.WriteString("\n")
+			hasContent = true
+			for _, line := range errLines {
+				content.WriteString(truncateString(line, maxW))
+				content.WriteString("\n")
+			}
+		}
+	}
+	return content.String(), hasContent
 }
 
 func (m *uiModel) getStateLabel(state jobState) string {

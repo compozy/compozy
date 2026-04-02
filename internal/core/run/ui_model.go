@@ -3,8 +3,8 @@ package run
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/progress"
@@ -31,12 +31,21 @@ type uiModel struct {
 	mainWidth       int
 	contentHeight   int
 	currentView     uiViewState
-	ctx             context.Context
 	failures        []failInfo
 	aggregateUsage  *TokenUsage
 }
 
-func newUIModel(ctx context.Context, total int) *uiModel {
+type uiController struct {
+	ch              chan uiMsg
+	prog            *tea.Program
+	done            chan error
+	quitHandler     func()
+	quitHandlerMu   sync.RWMutex
+	closeEventsOnce sync.Once
+	shutdownOnce    sync.Once
+}
+
+func newUIModel(total int) *uiModel {
 	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(24))
 	vp.Style = lipgloss.NewStyle().
 		Foreground(colorFgBright)
@@ -79,7 +88,6 @@ func newUIModel(ctx context.Context, total int) *uiModel {
 		mainWidth:       initialMainWidth,
 		contentHeight:   initialContentHeight,
 		currentView:     uiViewJobs,
-		ctx:             ctx,
 		failures:        []failInfo{},
 		aggregateUsage:  &TokenUsage{},
 	}
@@ -109,20 +117,78 @@ func (m *uiModel) tick() tea.Cmd {
 	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
-func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) (chan uiMsg, *tea.Program) {
-	if !enabled {
-		return nil, nil
-	}
-	total := len(jobs)
-	uiCh := make(chan uiMsg, total*4)
-	mdl := newUIModel(ctx, total)
+func newUIController(ctx context.Context, total int) *uiController {
+	uiCh := make(chan uiMsg, max(total*4, 4))
+	mdl := newUIModel(total)
 	mdl.setEventSource(uiCh)
-	prog := tea.NewProgram(mdl)
+
+	ctrl := &uiController{
+		ch:   uiCh,
+		done: make(chan error, 1),
+	}
+	mdl.onQuit = ctrl.requestQuit
+	ctrl.prog = tea.NewProgram(mdl)
 	go func() {
-		if _, runErr := prog.Run(); runErr != nil {
-			fmt.Fprintf(os.Stderr, "UI program error: %v\n", runErr)
+		_, runErr := ctrl.prog.Run()
+		if runErr != nil {
+			ctrl.done <- runErr
 		}
+		close(ctrl.done)
 	}()
+	go func() {
+		<-ctx.Done()
+		ctrl.shutdown()
+	}()
+	return ctrl
+}
+
+func (c *uiController) events() chan uiMsg {
+	return c.ch
+}
+
+func (c *uiController) setQuitHandler(fn func()) {
+	c.quitHandlerMu.Lock()
+	defer c.quitHandlerMu.Unlock()
+	c.quitHandler = fn
+}
+
+func (c *uiController) requestQuit() {
+	c.quitHandlerMu.RLock()
+	fn := c.quitHandler
+	c.quitHandlerMu.RUnlock()
+	if fn != nil {
+		fn()
+	}
+}
+
+func (c *uiController) closeEvents() {
+	c.closeEventsOnce.Do(func() {
+		close(c.ch)
+	})
+}
+
+func (c *uiController) shutdown() {
+	c.shutdownOnce.Do(func() {
+		if c.prog != nil {
+			c.prog.Quit()
+		}
+	})
+}
+
+func (c *uiController) wait() error {
+	err, ok := <-c.done
+	if !ok {
+		return nil
+	}
+	return err
+}
+
+func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) uiSession {
+	if !enabled {
+		return nil
+	}
+	ctrl := newUIController(ctx, len(jobs))
+	uiCh := ctrl.events()
 	for idx := range jobs {
 		jb := &jobs[idx]
 		totalIssues := 0
@@ -141,11 +207,9 @@ func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) (chan uiM
 			SafeName:  jb.safeName,
 			OutLog:    jb.outLog,
 			ErrLog:    jb.errLog,
+			OutBuffer: jb.outBuffer,
+			ErrBuffer: jb.errBuffer,
 		}
 	}
-	go func() {
-		<-ctx.Done()
-		prog.Quit()
-	}()
-	return uiCh, prog
+	return ctrl
 }

@@ -10,6 +10,9 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
 	case tea.KeyPressMsg:
 		return m, m.handleKey(v)
+	case tea.MouseWheelMsg:
+		m.handleMouseWheel(v)
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.handleWindowSize(v)
 		return m, nil
@@ -39,18 +42,21 @@ func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 	key := v.String()
 	switch key {
 	case "ctrl+c", "q":
+		if m.isRunComplete() {
+			return tea.Quit
+		}
 		if m.onQuit != nil {
 			m.onQuit()
 		}
-		return tea.Quit
+		return nil
 	case "s", "tab", "esc":
 		return m.handleViewSwitchKeys(key)
 	case "up", "k", "down", "j":
 		return m.handleNavigationKeys(key)
-	case "left", "h", "right", "l", "pgup", "b", "u", "pgdown", "f", "d", "home", "end":
+	case "pgup", "pgdown", "home", "end":
 		return m.handleScrollKeys(key)
 	default:
-		return m.waitEvent()
+		return nil
 	}
 }
 
@@ -77,6 +83,10 @@ func (m *uiModel) showSummaryView() {
 }
 
 func (m *uiModel) handleNavigationKeys(key string) tea.Cmd {
+	if m.currentView != uiViewJobs {
+		return nil
+	}
+	m.persistSelectedViewportState()
 	switch key {
 	case "up", "k":
 		if m.selectedJob > 0 {
@@ -92,21 +102,30 @@ func (m *uiModel) handleNavigationKeys(key string) tea.Cmd {
 }
 
 func (m *uiModel) handleScrollKeys(key string) tea.Cmd {
+	if m.currentView != uiViewJobs || len(m.jobs) == 0 {
+		return nil
+	}
 	switch key {
-	case "left", "h":
-		m.viewport.ScrollUp(1)
-	case "right", "l":
-		m.viewport.ScrollDown(1)
-	case "pgup", "b", "u":
-		m.viewport.HalfPageUp()
-	case "pgdown", "f", "d":
-		m.viewport.HalfPageDown()
+	case "pgup":
+		m.viewport.PageUp()
+	case "pgdown":
+		m.viewport.PageDown()
 	case "home":
 		m.viewport.GotoTop()
 	case "end":
 		m.viewport.GotoBottom()
 	}
+	m.persistSelectedViewportState()
 	return nil
+}
+
+func (m *uiModel) handleMouseWheel(v tea.MouseWheelMsg) {
+	if m.currentView != uiViewJobs || len(m.jobs) == 0 {
+		return
+	}
+	updated, _ := m.viewport.Update(v)
+	m.viewport = updated
+	m.persistSelectedViewportState()
 }
 
 func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
@@ -132,6 +151,20 @@ func (m *uiModel) refreshViewportContent() {
 	m.updateViewportForJob(&m.jobs[m.selectedJob])
 }
 
+func (m *uiModel) isRunComplete() bool {
+	return m.completed+m.failed >= m.total
+}
+
+func (m *uiModel) persistSelectedViewportState() {
+	if m.selectedJob < 0 || m.selectedJob >= len(m.jobs) {
+		return
+	}
+	job := &m.jobs[m.selectedJob]
+	job.viewportYOffset = m.viewport.YOffset()
+	job.viewportXOffset = m.viewport.XOffset()
+	job.followTail = m.viewport.AtBottom()
+}
+
 func (m *uiModel) selectNextRunningJob() {
 	for i := range m.jobs {
 		if m.jobs[i].state == jobRunning {
@@ -148,6 +181,9 @@ func (m *uiModel) selectNextRunningJob() {
 }
 
 func (m *uiModel) handleTick() tea.Cmd {
+	if m.isRunComplete() {
+		return nil
+	}
 	m.frame++
 	return m.tick()
 }
@@ -158,13 +194,16 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		m.jobs = append(m.jobs, make([]uiJob, grow)...)
 	}
 	m.jobs[v.Index] = uiJob{
-		codeFile:  v.CodeFile,
-		codeFiles: v.CodeFiles,
-		issues:    v.Issues,
-		safeName:  v.SafeName,
-		outLog:    v.OutLog,
-		errLog:    v.ErrLog,
-		state:     jobPending,
+		codeFile:   v.CodeFile,
+		codeFiles:  v.CodeFiles,
+		issues:     v.Issues,
+		safeName:   v.SafeName,
+		outLog:     v.OutLog,
+		errLog:     v.ErrLog,
+		outBuffer:  v.OutBuffer,
+		errBuffer:  v.ErrBuffer,
+		followTail: true,
+		state:      jobPending,
 	}
 	m.refreshViewportContent()
 	return m.waitEvent()
@@ -172,6 +211,7 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 
 func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 	if v.Index < len(m.jobs) {
+		m.persistSelectedViewportState()
 		job := &m.jobs[v.Index]
 		job.state = jobRunning
 		if job.startedAt.IsZero() {
@@ -186,6 +226,7 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 
 func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 	if v.Index < len(m.jobs) {
+		m.persistSelectedViewportState()
 		job := &m.jobs[v.Index]
 		if v.Success {
 			job.state = jobSuccess
@@ -208,11 +249,7 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 	return m.waitEvent()
 }
 
-func (m *uiModel) handleJobLogUpdate(v jobLogUpdateMsg) tea.Cmd {
-	if v.Index < len(m.jobs) {
-		m.jobs[v.Index].lastOut = v.Out
-		m.jobs[v.Index].lastErr = v.Err
-	}
+func (m *uiModel) handleJobLogUpdate(_ jobLogUpdateMsg) tea.Cmd {
 	m.refreshViewportContent()
 	return m.waitEvent()
 }

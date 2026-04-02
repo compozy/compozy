@@ -12,7 +12,6 @@ const (
 	activityCheckInterval         = 5 * time.Second
 	processTerminationGracePeriod = 5 * time.Second
 	gracefulShutdownTimeout       = 30 * time.Second
-	uiMessageDrainDelay           = 80 * time.Millisecond
 	uiTickInterval                = 120 * time.Millisecond
 )
 
@@ -89,20 +88,23 @@ const (
 )
 
 type uiJob struct {
-	codeFile    string
-	codeFiles   []string
-	issues      int
-	safeName    string
-	outLog      string
-	errLog      string
-	state       jobState
-	exitCode    int
-	lastOut     []string
-	lastErr     []string
-	startedAt   time.Time
-	completedAt time.Time
-	duration    time.Duration
-	tokenUsage  *TokenUsage
+	codeFile        string
+	codeFiles       []string
+	issues          int
+	safeName        string
+	outLog          string
+	errLog          string
+	state           jobState
+	exitCode        int
+	outBuffer       *lineBuffer
+	errBuffer       *lineBuffer
+	followTail      bool
+	viewportYOffset int
+	viewportXOffset int
+	startedAt       time.Time
+	completedAt     time.Time
+	duration        time.Duration
+	tokenUsage      *TokenUsage
 }
 
 type tickMsg struct{}
@@ -115,6 +117,8 @@ type jobQueuedMsg struct {
 	SafeName  string
 	OutLog    string
 	ErrLog    string
+	OutBuffer *lineBuffer
+	ErrBuffer *lineBuffer
 }
 
 type jobStartedMsg struct{ Index int }
@@ -125,11 +129,7 @@ type jobFinishedMsg struct {
 	ExitCode int
 }
 
-type jobLogUpdateMsg struct {
-	Index int
-	Out   []string
-	Err   []string
-}
+type jobLogUpdateMsg struct{ Index int }
 
 type drainMsg struct{}
 
@@ -196,6 +196,14 @@ const (
 
 type uiMsg any
 
+type uiSession interface {
+	events() chan uiMsg
+	setQuitHandler(func())
+	closeEvents()
+	shutdown()
+	wait() error
+}
+
 type config struct {
 	name                   string
 	round                  int
@@ -230,6 +238,8 @@ type job struct {
 	outPromptPath string
 	outLog        string
 	errLog        string
+	outBuffer     *lineBuffer
+	errBuffer     *lineBuffer
 }
 
 func newConfig(src *model.RuntimeConfig) *config {

@@ -1,7 +1,6 @@
 package run
 
 import (
-	"context"
 	"fmt"
 	"image/color"
 	"strings"
@@ -137,7 +136,7 @@ func TestCompozyThemeDefaults(t *testing.T) {
 func TestUIModelAvoidsNestedViewportBackgrounds(t *testing.T) {
 	t.Parallel()
 
-	m := newUIModel(context.Background(), 1)
+	m := newUIModel(1)
 
 	if _, ok := m.viewport.Style.GetBackground().(lipgloss.NoColor); !ok {
 		bg := m.viewport.Style.GetBackground()
@@ -196,7 +195,9 @@ func TestLogsHeaderOwnsBaseBackground(t *testing.T) {
 func newPopulatedUIModelForTest(t *testing.T) *uiModel {
 	t.Helper()
 
-	m := newUIModel(context.Background(), 1)
+	outBuffer := newLineBuffer(0)
+	errBuffer := newLineBuffer(0)
+	m := newUIModel(1)
 	m.handleJobQueued(&jobQueuedMsg{
 		Index:     0,
 		CodeFile:  "task_01",
@@ -205,20 +206,20 @@ func newPopulatedUIModelForTest(t *testing.T) *uiModel {
 		SafeName:  "task_01-c05bd2",
 		OutLog:    "task_01.log",
 		ErrLog:    "task_01.err.log",
+		OutBuffer: outBuffer,
+		ErrBuffer: errBuffer,
 	})
 	m.handleJobStarted(jobStartedMsg{Index: 0})
-	m.handleJobLogUpdate(jobLogUpdateMsg{
-		Index: 0,
-		Out: []string{
-			`{"type":"thread.started","thread_id":"019d4a64-7477-77f2-8cc5-0009576de0d8"}`,
-			`{"type":"turn.started"}`,
-			`{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Ledger Snapshot: Goal is task 1"}}`,
-			`{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"pwd"}}`,
-		},
-		Err: []string{
-			"stderr line",
-		},
-	})
+	for _, line := range []string{
+		`{"type":"thread.started","thread_id":"019d4a64-7477-77f2-8cc5-0009576de0d8"}`,
+		`{"type":"turn.started"}`,
+		`{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"Ledger Snapshot: Goal is task 1"}}`,
+		`{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"pwd"}}`,
+	} {
+		outBuffer.appendLine(line)
+	}
+	errBuffer.appendLine("stderr line")
+	m.handleJobLogUpdate(jobLogUpdateMsg{Index: 0})
 	m.handleWindowSize(tea.WindowSizeMsg{Width: 120, Height: 30})
 
 	return m

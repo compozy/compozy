@@ -68,8 +68,8 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	if cfg.IDE == "" {
 		cfg.IDE = IDECodex
 	}
-	if cfg.TailLines <= 0 {
-		cfg.TailLines = 30
+	if cfg.TailLines < 0 {
+		cfg.TailLines = 0
 	}
 	if cfg.ReasoningEffort == "" {
 		cfg.ReasoningEffort = "medium"

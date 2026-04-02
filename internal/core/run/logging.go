@@ -16,7 +16,7 @@ import (
 
 func buildCommandTaps(
 	outF, errF *os.File,
-	tailLines int,
+	outBuf, errBuf *lineBuffer,
 	useUI bool,
 	uiCh chan uiMsg,
 	index int,
@@ -25,17 +25,15 @@ func buildCommandTaps(
 	aggregateMu *sync.Mutex,
 	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
-	outRing := newLineRing(tailLines)
-	errRing := newLineRing(tailLines)
 	if useUI {
-		return buildUITaps(outF, errF, outRing, errRing, uiCh, index, ideType, aggregateUsage, aggregateMu, monitor)
+		return buildUITaps(outF, errF, outBuf, errBuf, uiCh, index, ideType, aggregateUsage, aggregateMu, monitor)
 	}
 	return buildCLITaps(outF, errF, ideType, aggregateUsage, aggregateMu, monitor)
 }
 
 func buildUITaps(
 	outF, errF *os.File,
-	outRing, errRing *lineRing,
+	outBuf, errBuf *lineBuffer,
 	uiCh chan uiMsg,
 	index int,
 	ideType string,
@@ -43,7 +41,7 @@ func buildUITaps(
 	aggregateMu *sync.Mutex,
 	monitor *activityMonitor,
 ) (io.Writer, io.Writer) {
-	uiTap := newUILogTap(index, false, outRing, errRing, uiCh, monitor)
+	uiTap := newUILogTap(index, false, outBuf, errBuf, uiCh, monitor)
 	var outTap io.Writer
 	if ideType == model.IDEClaude || ideType == model.IDECursor || ideType == model.IDEDroid ||
 		ideType == model.IDEOpenCode || ideType == model.IDEPi {
@@ -62,7 +60,7 @@ func buildUITaps(
 		outTap = io.MultiWriter(outF, uiTap)
 	}
 
-	uiErrTap := io.Writer(newUILogTap(index, true, outRing, errRing, uiCh, monitor))
+	uiErrTap := io.Writer(newUILogTap(index, true, outBuf, errBuf, uiCh, monitor))
 	if ideType == model.IDECodex {
 		uiErrTap = newLineFilterWriter(uiErrTap, monitor, shouldSuppressCodexRolloutStderrLine)
 	}
@@ -149,32 +147,33 @@ func (w *lineFilterWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-type lineRing struct {
+type lineBuffer struct {
 	mu    sync.Mutex
 	capN  int
 	lines []string
 }
 
-func newLineRing(n int) *lineRing {
-	if n <= 0 {
-		n = 1
+func newLineBuffer(n int) *lineBuffer {
+	if n < 0 {
+		n = 0
 	}
-	return &lineRing{capN: n, lines: make([]string, 0, n)}
+	initialCap := n
+	if initialCap <= 0 {
+		initialCap = 32
+	}
+	return &lineBuffer{capN: n, lines: make([]string, 0, initialCap)}
 }
 
-func (r *lineRing) appendLine(s string) {
+func (r *lineBuffer) appendLine(s string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if s == "" {
-		return
-	}
 	r.lines = append(r.lines, s)
-	if len(r.lines) > r.capN {
+	if r.capN > 0 && len(r.lines) > r.capN {
 		r.lines = r.lines[len(r.lines)-r.capN:]
 	}
 }
 
-func (r *lineRing) snapshot() []string {
+func (r *lineBuffer) snapshot() []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	out := make([]string, len(r.lines))
@@ -206,8 +205,8 @@ func (a *activityMonitor) timeSinceLastActivity() time.Duration {
 type uiLogTap struct {
 	idx             int
 	isErr           bool
-	out             *lineRing
-	err             *lineRing
+	out             *lineBuffer
+	err             *lineBuffer
 	ch              chan<- uiMsg
 	buf             []byte
 	activityMonitor *activityMonitor
@@ -216,7 +215,7 @@ type uiLogTap struct {
 func newUILogTap(
 	idx int,
 	isErr bool,
-	outRing, errRing *lineRing,
+	outRing, errRing *lineBuffer,
 	ch chan<- uiMsg,
 	monitor *activityMonitor,
 ) *uiLogTap {
@@ -251,7 +250,7 @@ func (t *uiLogTap) Write(p []byte) (int, error) {
 		t.buf = t.buf[i+1:]
 	}
 	select {
-	case t.ch <- jobLogUpdateMsg{Index: t.idx, Out: t.out.snapshot(), Err: t.err.snapshot()}:
+	case t.ch <- jobLogUpdateMsg{Index: t.idx}:
 	default:
 	}
 	return len(p), nil
