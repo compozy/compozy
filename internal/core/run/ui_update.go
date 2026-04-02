@@ -3,6 +3,8 @@ package run
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/core/model"
+
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -24,10 +26,10 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleJobStarted(v)
 	case jobFinishedMsg:
 		return m, m.handleJobFinished(v)
-	case jobLogUpdateMsg:
-		return m, m.handleJobLogUpdate(v)
-	case tokenUsageUpdateMsg:
-		return m, m.handleTokenUsageUpdate(v)
+	case jobUpdateMsg:
+		return m, m.handleJobUpdate(v)
+	case usageUpdateMsg:
+		return m, m.handleUsageUpdate(v)
 	case jobFailureMsg:
 		m.failures = append(m.failures, v.Failure)
 		return m, nil
@@ -249,15 +251,19 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 	return m.waitEvent()
 }
 
-func (m *uiModel) handleJobLogUpdate(_ jobLogUpdateMsg) tea.Cmd {
+func (m *uiModel) handleJobUpdate(v jobUpdateMsg) tea.Cmd {
+	if v.Index < len(m.jobs) {
+		job := &m.jobs[v.Index]
+		job.blocks = append(job.blocks, cloneContentBlocks(v.Blocks)...)
+	}
 	m.refreshViewportContent()
 	return m.waitEvent()
 }
 
-func (m *uiModel) handleTokenUsageUpdate(v tokenUsageUpdateMsg) tea.Cmd {
+func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
 	if v.Index < len(m.jobs) {
 		if m.jobs[v.Index].tokenUsage == nil {
-			m.jobs[v.Index].tokenUsage = &TokenUsage{}
+			m.jobs[v.Index].tokenUsage = &model.Usage{}
 		}
 		m.jobs[v.Index].tokenUsage.Add(v.Usage)
 	}

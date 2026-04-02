@@ -1,17 +1,40 @@
 package run
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
-	"os/exec"
 	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 )
+
+var newAgentClient = agent.NewClient
+
+type sessionExecution struct {
+	client  agent.Client
+	session agent.Session
+	handler *sessionUpdateHandler
+	outFile *os.File
+	errFile *os.File
+}
+
+func (s *sessionExecution) close() {
+	if s.outFile != nil {
+		_ = s.outFile.Close()
+	}
+	if s.errFile != nil {
+		_ = s.errFile.Close()
+	}
+	if s.client != nil {
+		if err := s.client.Close(); err != nil {
+			slog.Warn("failed to close ACP client cleanly", "error", err)
+		}
+	}
+}
 
 func notifyJobStart(
 	useUI bool,
@@ -57,77 +80,98 @@ func formatCodeFileLabel(codeFiles []string) string {
 	return label
 }
 
-func createIDECommand(ctx context.Context, cfg *config, job *job) *exec.Cmd {
-	systemPrompt := ""
-	if job != nil {
-		systemPrompt = job.systemPrompt
-	}
-	return agent.Command(ctx, &model.RuntimeConfig{
-		IDE:             cfg.ide,
-		Model:           cfg.model,
-		AddDirs:         cfg.addDirs,
-		ReasoningEffort: cfg.reasoningEffort,
-		SystemPrompt:    systemPrompt,
-	})
-}
-
-func setupCommandIO(
-	cmd *exec.Cmd,
+func setupSessionExecution(
+	ctx context.Context,
+	cfg *config,
 	job *job,
 	cwd string,
 	useUI bool,
 	uiCh chan uiMsg,
 	index int,
-	ideType string,
-	aggregateUsage *TokenUsage,
+	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
-) (*os.File, *os.File, *activityMonitor, error) {
-	configureCommandEnvironment(cmd, cwd, job.prompt, ideType)
+) (*sessionExecution, error) {
+	client, err := newAgentClient(ctx, agent.ClientConfig{
+		IDE:             cfg.ide,
+		Model:           cfg.model,
+		AddDirs:         append([]string(nil), cfg.addDirs...),
+		ReasoningEffort: cfg.reasoningEffort,
+		Logger:          slog.Default().With("component", "acp.client", "agent_id", cfg.ide),
+		ShutdownTimeout: processTerminationGracePeriod,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create ACP client: %w", err)
+	}
 
 	outFile, err := createLogFile(job.outLog)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create out log: %w", err)
+		_ = client.Close()
+		return nil, fmt.Errorf("create out log: %w", err)
 	}
 	errFile, err := createLogFile(job.errLog)
 	if err != nil {
-		outFile.Close()
-		return nil, nil, nil, fmt.Errorf("create err log: %w", err)
+		_ = outFile.Close()
+		_ = client.Close()
+		return nil, fmt.Errorf("create err log: %w", err)
 	}
 
-	monitor := newActivityMonitor()
-	if job.outBuffer == nil {
-		job.outBuffer = newLineBuffer(0)
+	session, err := client.CreateSession(ctx, agent.SessionRequest{
+		Prompt:     composeSessionPrompt(job.prompt, job.systemPrompt),
+		WorkingDir: cwd,
+		Model:      cfg.model,
+		ExtraEnv:   buildSessionEnvironment(),
+	})
+	if err != nil {
+		_ = outFile.Close()
+		_ = errFile.Close()
+		_ = client.Close()
+		return nil, fmt.Errorf("create ACP session: %w", err)
 	}
-	if job.errBuffer == nil {
-		job.errBuffer = newLineBuffer(0)
-	}
-	outTap, errTap := buildCommandTaps(
-		outFile,
-		errFile,
-		job.outBuffer,
-		job.errBuffer,
-		useUI,
-		uiCh,
+
+	outWriter, errWriter := createLogWriters(outFile, errFile, useUI)
+	handler := newSessionUpdateHandler(
 		index,
-		ideType,
+		cfg.ide,
+		session.ID(),
+		outWriter,
+		errWriter,
+		uiCh,
 		aggregateUsage,
 		aggregateMu,
-		monitor,
 	)
-	cmd.Stdout = outTap
-	cmd.Stderr = errTap
-	return outFile, errFile, monitor, nil
+	slog.Info(
+		"acp session created",
+		"agent_id",
+		cfg.ide,
+		"session_id",
+		session.ID(),
+		"job_index",
+		index,
+	)
+
+	return &sessionExecution{
+		client:  client,
+		session: session,
+		handler: handler,
+		outFile: outFile,
+		errFile: errFile,
+	}, nil
 }
 
-func configureCommandEnvironment(cmd *exec.Cmd, cwd string, prompt []byte, ideType string) {
-	cmd.Dir = cwd
-	cmd.Stdin = bytes.NewReader(prompt)
-	cmd.Env = append(os.Environ(),
-		"FORCE_COLOR=1",
-		"CLICOLOR_FORCE=1",
-		"TERM=xterm-256color",
-	)
-	if ideType == model.IDEClaude {
-		cmd.Env = append(cmd.Env, "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1")
+func buildSessionEnvironment() map[string]string {
+	return map[string]string{
+		"FORCE_COLOR":    "1",
+		"CLICOLOR_FORCE": "1",
+		"TERM":           "xterm-256color",
 	}
+}
+
+func composeSessionPrompt(prompt []byte, systemPrompt string) []byte {
+	basePrompt := append([]byte(nil), prompt...)
+	if strings.TrimSpace(systemPrompt) == "" {
+		return basePrompt
+	}
+
+	combined := strings.TrimSpace(systemPrompt) + "\n\n" + string(basePrompt)
+	return []byte(combined)
 }

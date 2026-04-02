@@ -10,3 +10,4 @@ coverage.html
 .codex/plans
 .resources/
 .factory/skills
+skills/*/autoresearch-*/

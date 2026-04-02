@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/model"
+
 	"charm.land/bubbles/v2/progress"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -32,7 +34,7 @@ type uiModel struct {
 	contentHeight   int
 	currentView     uiViewState
 	failures        []failInfo
-	aggregateUsage  *TokenUsage
+	aggregateUsage  *model.Usage
 }
 
 type uiController struct {
@@ -89,7 +91,7 @@ func newUIModel(total int) *uiModel {
 		contentHeight:   initialContentHeight,
 		currentView:     uiViewJobs,
 		failures:        []failInfo{},
-		aggregateUsage:  &TokenUsage{},
+		aggregateUsage:  &model.Usage{},
 	}
 }
 

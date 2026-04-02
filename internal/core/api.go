@@ -41,6 +41,8 @@ const (
 	IDEOpenCode IDE = model.IDEOpenCode
 	// IDEPi runs Pi jobs.
 	IDEPi IDE = model.IDEPi
+	// IDEGemini runs Gemini jobs.
+	IDEGemini IDE = model.IDEGemini
 )
 
 // Config configures compozy preparation and execution.

@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/provider"
@@ -51,7 +50,7 @@ type jobExecutionContext struct {
 	uiCh           chan uiMsg
 	ui             uiSession
 	sem            chan struct{}
-	aggregateUsage TokenUsage
+	aggregateUsage model.Usage
 	aggregateMu    sync.Mutex
 	failed         int32
 	failures       []failInfo
@@ -493,14 +492,9 @@ func (j *jobExecutionContext) waitChannel() <-chan struct{} {
 }
 
 func (j *jobExecutionContext) reportAggregateUsage() {
-	if j.cfg.ide != model.IDEClaude && j.cfg.ide != model.IDECursor &&
-		j.cfg.ide != model.IDEDroid && j.cfg.ide != model.IDEOpenCode &&
-		j.cfg.ide != model.IDEPi {
-		return
-	}
 	j.aggregateMu.Lock()
 	defer j.aggregateMu.Unlock()
-	printAggregateTokenUsage(&j.aggregateUsage)
+	printAggregateUsage(&j.aggregateUsage)
 }
 
 func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
@@ -687,49 +681,32 @@ func executeJobWithTimeout(
 	uiCh chan uiMsg,
 	index int,
 	timeout time.Duration,
-	aggregateUsage *TokenUsage,
+	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
 ) jobAttemptResult {
-	cmd, outF, errF, monitor, err := setupCommandExecution(
-		ctx, cfg, j, cwd, useUI, uiCh, index, aggregateUsage, aggregateMu,
-	)
-	if err != nil {
-		fail := recordFailureWithContext(nil, j, nil, err, -1)
-		return jobAttemptResult{status: attemptStatusSetupFailed, exitCode: -1, failure: &fail}
+	attemptCtx := ctx
+	cancel := func() {}
+	if timeout > 0 {
+		attemptCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
-	return executeCommandAndResolve(ctx, timeout, monitor, cmd, outF, errF, j, index, useUI)
-}
+	defer cancel()
 
-func setupCommandExecution(
-	ctx context.Context,
-	cfg *config,
-	j *job,
-	cwd string,
-	useUI bool,
-	uiCh chan uiMsg,
-	index int,
-	aggregateUsage *TokenUsage,
-	aggregateMu *sync.Mutex,
-) (*exec.Cmd, *os.File, *os.File, *activityMonitor, error) {
-	cmd := createIDECommand(ctx, cfg, j)
-	if cmd == nil {
-		return nil, nil, nil, nil, fmt.Errorf("create IDE command: unsupported ide %q", cfg.ide)
-	}
-	outF, errF, monitor, err := setupCommandIO(
-		cmd,
+	execution, err := setupSessionExecution(
+		attemptCtx,
+		cfg,
 		j,
 		cwd,
 		useUI,
 		uiCh,
 		index,
-		cfg.ide,
 		aggregateUsage,
 		aggregateMu,
 	)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("setup command IO: %w", err)
+		fail := recordFailureWithContext(nil, j, nil, err, -1)
+		return jobAttemptResult{status: attemptStatusSetupFailed, exitCode: -1, failure: &fail}
 	}
-	return cmd, outF, errF, monitor, nil
+	return executeSessionAndResolve(attemptCtx, timeout, execution, j, index, useUI)
 }
 
 func createLogFile(path string) (*os.File, error) {
@@ -740,115 +717,106 @@ func createLogFile(path string) (*os.File, error) {
 	return file, nil
 }
 
-func handleNilCommand(j *job, index int) jobAttemptResult {
+func handleNilExecution(j *job, index int) jobAttemptResult {
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
 	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: -1,
 		outLog:   j.outLog,
 		errLog:   j.errLog,
-		err:      fmt.Errorf("failed to set up command (see logs)"),
+		err:      fmt.Errorf("failed to set up ACP session execution"),
 	}
 	fmt.Fprintf(os.Stderr, "\n❌ Failed to set up job %d (%s): %v\n", index+1, codeFileLabel, failure.err)
 	return jobAttemptResult{status: attemptStatusSetupFailed, exitCode: -1, failure: &failure}
 }
 
-func executeCommandAndResolve(
+func executeSessionAndResolve(
 	ctx context.Context,
 	timeout time.Duration,
-	monitor *activityMonitor,
-	cmd *exec.Cmd,
-	outF *os.File,
-	errF *os.File,
+	execution *sessionExecution,
 	j *job,
 	index int,
 	useUI bool,
 ) jobAttemptResult {
-	if cmd == nil {
-		return handleNilCommand(j, index)
+	if execution == nil || execution.session == nil {
+		return handleNilExecution(j, index)
 	}
-	defer func() {
-		if outF != nil {
-			outF.Close()
-		}
-		if errF != nil {
-			errF.Close()
-		}
-	}()
+	defer execution.close()
 
-	cmdDone := make(chan error, 1)
-	cmdDoneSignal := make(chan struct{})
+	streamErrCh := make(chan error, 1)
 	go func() {
-		cmdDone <- cmd.Run()
-		close(cmdDoneSignal)
+		streamErrCh <- streamSessionUpdates(execution.session, execution.handler)
 	}()
 
-	activityTimeout := startActivityWatchdog(ctx, monitor, timeout, cmdDoneSignal)
 	select {
-	case err := <-cmdDone:
-		return handleCommandCompletion(err, j, index, useUI)
-	case <-activityTimeout:
-		return handleActivityTimeout(cmd, cmdDone, j, index, useUI, timeout)
-	case <-ctx.Done():
-		return handleCommandCancellation(cmd, cmdDone, j, index, useUI)
-	}
-}
-
-func startActivityWatchdog(
-	ctx context.Context,
-	monitor *activityMonitor,
-	timeout time.Duration,
-	cmdDone <-chan struct{},
-) <-chan struct{} {
-	if monitor == nil || timeout <= 0 {
-		return nil
-	}
-	activityTimeout := make(chan struct{}, 1)
-	go func() {
-		ticker := time.NewTicker(activityCheckInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				if monitor.timeSinceLastActivity() > timeout {
-					select {
-					case activityTimeout <- struct{}{}:
-					default:
-					}
-					return
-				}
-			case <-cmdDone:
-				return
-			case <-ctx.Done():
-				return
+	case <-execution.session.Done():
+		streamErr := <-streamErrCh
+		if streamErr != nil {
+			if err := execution.handler.HandleCompletion(streamErr); err != nil {
+				slog.Warn("failed to finalize ACP session handler after stream error", "error", err)
 			}
+			appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + streamErr.Error()})
+			return buildFailureResult(streamErr, -1, j, index, useUI)
 		}
-	}()
-	return activityTimeout
-}
 
-func handleCommandCompletion(err error, j *job, index int, useUI bool) jobAttemptResult {
-	if err != nil {
-		ec := exitCodeOf(err)
-		codeFileLabel := strings.Join(j.codeFiles, ", ")
-		failure := failInfo{
-			codeFile: codeFileLabel,
-			exitCode: ec,
-			outLog:   j.outLog,
-			errLog:   j.errLog,
-			err:      err,
+		sessionErr := execution.session.Err()
+		if err := execution.handler.HandleCompletion(sessionErr); err != nil {
+			slog.Warn("failed to finalize ACP session handler", "error", err)
 		}
-		if !useUI {
-			fmt.Fprintf(os.Stderr, "\n❌ Job %d (%s) failed with exit code %d: %v\n", index+1, codeFileLabel, ec, err)
+		if sessionErr != nil {
+			appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + sessionErr.Error()})
 		}
-		return jobAttemptResult{status: attemptStatusFailure, exitCode: ec, failure: &failure}
+		return handleSessionCompletion(ctx, sessionErr, timeout, j, index, useUI)
+	case <-ctx.Done():
+		cancelErr := context.Cause(ctx)
+		if cancelErr == nil {
+			cancelErr = ctx.Err()
+		}
+		if err := execution.handler.HandleCompletion(cancelErr); err != nil {
+			slog.Warn("failed to finalize ACP session handler after context cancellation", "error", err)
+		}
+		appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + cancelErr.Error()})
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return handleSessionTimeout(cancelErr, j, index, useUI, timeout)
+		}
+		return handleSessionCancellation(cancelErr, j, index, useUI)
 	}
-	return jobAttemptResult{status: attemptStatusSuccess, exitCode: 0}
 }
 
-func handleCommandCancellation(
-	cmd *exec.Cmd,
-	cmdDone <-chan error,
+func streamSessionUpdates(session agent.Session, handler *sessionUpdateHandler) error {
+	for update := range session.Updates() {
+		if err := handler.HandleUpdate(update); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func handleSessionCompletion(
+	ctx context.Context,
+	sessionErr error,
+	timeout time.Duration,
+	j *job,
+	index int,
+	useUI bool,
+) jobAttemptResult {
+	if sessionErr == nil {
+		return jobAttemptResult{status: attemptStatusSuccess, exitCode: 0}
+	}
+
+	if errors.Is(sessionErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return handleSessionTimeout(sessionErr, j, index, useUI, timeout)
+	}
+	if errors.Is(sessionErr, context.Canceled) {
+		return handleSessionCancellation(sessionErr, j, index, useUI)
+	}
+
+	exitCode := sessionErrorCode(sessionErr)
+	return buildFailureResult(sessionErr, exitCode, j, index, useUI)
+}
+
+func handleSessionCancellation(
+	cancelErr error,
 	j *job,
 	index int,
 	useUI bool,
@@ -861,47 +829,32 @@ func handleCommandCancellation(
 			strings.Join(j.codeFiles, ", "),
 		)
 	}
-	if cmd.Process != nil {
-		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to send SIGTERM to process: %v\n", err)
-		}
-		select {
-		case <-cmdDone:
-			if !useUI {
-				fmt.Fprintf(os.Stderr, "Job %d terminated gracefully\n", index+1)
-			}
-		case <-time.After(processTerminationGracePeriod):
-			if !useUI {
-				fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
-			}
-			if err := cmd.Process.Kill(); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
-			}
-		}
-	}
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	if cancelErr == nil {
+		cancelErr = fmt.Errorf("job canceled by shutdown")
+	}
 	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: exitCodeCanceled,
 		outLog:   j.outLog,
 		errLog:   j.errLog,
-		err:      fmt.Errorf("job canceled by shutdown"),
+		err:      cancelErr,
 	}
 	return jobAttemptResult{status: attemptStatusCanceled, exitCode: exitCodeCanceled, failure: &failure}
 }
 
-func handleActivityTimeout(
-	cmd *exec.Cmd,
-	cmdDone <-chan error,
+func handleSessionTimeout(
+	timeoutErr error,
 	j *job,
 	index int,
 	useUI bool,
 	timeout time.Duration,
 ) jobAttemptResult {
 	logTimeoutMessage(index, j, timeout, useUI)
-	terminateTimedOutProcess(cmd, cmdDone, index, useUI)
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
-	timeoutErr := fmt.Errorf("activity timeout: no output received for %v", timeout)
+	if timeoutErr == nil {
+		timeoutErr = fmt.Errorf("ACP session timeout after %v", timeout)
+	}
 	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: exitCodeTimeout,
@@ -924,34 +877,27 @@ func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
 	}
 }
 
-func terminateTimedOutProcess(cmd *exec.Cmd, cmdDone <-chan error, index int, useUI bool) {
-	if cmd.Process == nil {
-		return
+func buildFailureResult(err error, exitCode int, j *job, index int, useUI bool) jobAttemptResult {
+	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	failure := failInfo{
+		codeFile: codeFileLabel,
+		exitCode: exitCode,
+		outLog:   j.outLog,
+		errLog:   j.errLog,
+		err:      err,
 	}
-	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil && !useUI {
-		fmt.Fprintf(os.Stderr, "Failed to send SIGTERM to process: %v\n", err)
-	}
-	waitForProcessTermination(cmdDone, cmd, index, useUI)
-}
-
-func waitForProcessTermination(cmdDone <-chan error, cmd *exec.Cmd, index int, useUI bool) {
-	select {
-	case <-cmdDone:
-		if !useUI {
-			fmt.Fprintf(os.Stderr, "Job %d terminated gracefully after timeout\n", index+1)
-		}
-	case <-time.After(processTerminationGracePeriod):
-		forceKillProcess(cmd, index, useUI)
-	}
-}
-
-func forceKillProcess(cmd *exec.Cmd, index int, useUI bool) {
 	if !useUI {
-		fmt.Fprintf(os.Stderr, "Job %d did not terminate gracefully, force killing...\n", index+1)
+		fmt.Fprintf(os.Stderr, "\n❌ Job %d (%s) failed with code %d: %v\n", index+1, codeFileLabel, exitCode, err)
 	}
-	if err := cmd.Process.Kill(); err != nil && !useUI {
-		fmt.Fprintf(os.Stderr, "Failed to kill process: %v\n", err)
+	return jobAttemptResult{status: attemptStatusFailure, exitCode: exitCode, failure: &failure}
+}
+
+func sessionErrorCode(err error) int {
+	var sessionErr *agent.SessionError
+	if errors.As(err, &sessionErr) {
+		return sessionErr.Code
 	}
+	return -1
 }
 
 func recordFailureWithContext(
@@ -984,19 +930,19 @@ func recordFailure(mu *sync.Mutex, list *[]failInfo, f failInfo) {
 	*list = append(*list, f)
 }
 
-func printAggregateTokenUsage(usage *TokenUsage) {
+func printAggregateUsage(usage *model.Usage) {
 	if usage == nil || usage.Total() == 0 {
 		return
 	}
 	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("Claude API Token Usage (Aggregate across all jobs)")
+	fmt.Println("ACP Session Token Usage (Aggregate across all jobs)")
 	fmt.Println(strings.Repeat("=", 60))
 	fmt.Printf("  Input Tokens:          %s\n", formatNumber(usage.InputTokens))
-	if usage.CacheReadTokens > 0 {
-		fmt.Printf("  Cache Read Tokens:     %s\n", formatNumber(usage.CacheReadTokens))
+	if usage.CacheReads > 0 {
+		fmt.Printf("  Cache Reads:           %s\n", formatNumber(usage.CacheReads))
 	}
-	if usage.CacheCreationTokens > 0 {
-		fmt.Printf("  Cache Creation Tokens: %s\n", formatNumber(usage.CacheCreationTokens))
+	if usage.CacheWrites > 0 {
+		fmt.Printf("  Cache Writes:          %s\n", formatNumber(usage.CacheWrites))
 	}
 	fmt.Printf("  Output Tokens:         %s\n", formatNumber(usage.OutputTokens))
 	fmt.Println(strings.Repeat("-", 60))
@@ -1024,17 +970,6 @@ func summarizeResults(failed int32, failures []failInfo, total int) {
 			f.errLog,
 		)
 	}
-}
-
-func exitCodeOf(err error) int {
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		if status, ok := exitErr.Sys().(interface{ ExitStatus() int }); ok {
-			return status.ExitStatus()
-		}
-		return exitErr.ExitCode()
-	}
-	return -1
 }
 
 func maxInt(a, b int) int {

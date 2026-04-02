@@ -9,7 +9,6 @@ import (
 const (
 	exitCodeTimeout               = -2
 	exitCodeCanceled              = -1
-	activityCheckInterval         = 5 * time.Second
 	processTerminationGracePeriod = 5 * time.Second
 	gracefulShutdownTimeout       = 30 * time.Second
 	uiTickInterval                = 120 * time.Millisecond
@@ -104,7 +103,8 @@ type uiJob struct {
 	startedAt       time.Time
 	completedAt     time.Time
 	duration        time.Duration
-	tokenUsage      *TokenUsage
+	tokenUsage      *model.Usage
+	blocks          []model.ContentBlock
 }
 
 type tickMsg struct{}
@@ -129,61 +129,20 @@ type jobFinishedMsg struct {
 	ExitCode int
 }
 
-type jobLogUpdateMsg struct{ Index int }
+type jobUpdateMsg struct {
+	Index  int
+	Blocks []model.ContentBlock
+}
 
 type drainMsg struct{}
 
-type tokenUsageUpdateMsg struct {
+type usageUpdateMsg struct {
 	Index int
-	Usage TokenUsage
+	Usage model.Usage
 }
 
 type jobFailureMsg struct {
 	Failure failInfo
-}
-
-type TokenUsage struct {
-	InputTokens         int
-	CacheCreationTokens int
-	CacheReadTokens     int
-	OutputTokens        int
-	Ephemeral5mTokens   int
-	Ephemeral1hTokens   int
-}
-
-func (u *TokenUsage) Add(other TokenUsage) {
-	u.InputTokens += other.InputTokens
-	u.CacheCreationTokens += other.CacheCreationTokens
-	u.CacheReadTokens += other.CacheReadTokens
-	u.OutputTokens += other.OutputTokens
-	u.Ephemeral5mTokens += other.Ephemeral5mTokens
-	u.Ephemeral1hTokens += other.Ephemeral1hTokens
-}
-
-func (u *TokenUsage) Total() int {
-	return u.InputTokens + u.OutputTokens
-}
-
-type ClaudeMessage struct {
-	Type    string `json:"type"`
-	Message struct {
-		Role    string `json:"role"`
-		Content []struct {
-			Type    string `json:"type"`
-			Text    string `json:"text"`
-			Content string `json:"content"`
-		} `json:"content"`
-		Usage struct {
-			InputTokens         int `json:"input_tokens"`
-			CacheCreationTokens int `json:"cache_creation_input_tokens"`
-			CacheReadTokens     int `json:"cache_read_input_tokens"`
-			OutputTokens        int `json:"output_tokens"`
-			CacheCreation       struct {
-				Ephemeral5mTokens int `json:"ephemeral_5m_input_tokens"`
-				Ephemeral1hTokens int `json:"ephemeral_1h_input_tokens"`
-			} `json:"cache_creation"`
-		} `json:"usage"`
-	} `json:"message"`
 }
 
 type uiViewState string

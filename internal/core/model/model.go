@@ -14,11 +14,13 @@ const (
 	IDECursor               = "cursor-agent"
 	IDEOpenCode             = "opencode"
 	IDEPi                   = "pi"
+	IDEGemini               = "gemini"
 	DefaultCodexModel       = "gpt-5.4"
 	DefaultClaudeModel      = "opus"
 	DefaultCursorModel      = "composer-1"
 	DefaultOpenCodeModel    = "anthropic/claude-opus-4-6"
 	DefaultPiModel          = "anthropic/claude-opus-4-6"
+	DefaultGeminiModel      = "gemini-2.5-pro"
 	DefaultActivityTimeout  = 10 * time.Minute
 	WorkflowRootDirName     = ".compozy"
 	WorkflowTasksDirName    = "tasks"
