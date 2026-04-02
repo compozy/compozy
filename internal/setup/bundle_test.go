@@ -21,6 +21,7 @@ func TestListBundledSkillsExposesOnlyPublicCatalog(t *testing.T) {
 	}
 
 	want := []string{
+		"cy-create-issue",
 		"cy-create-prd",
 		"cy-create-tasks",
 		"cy-create-techspec",
