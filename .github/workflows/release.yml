@@ -211,12 +211,3 @@ jobs:
           COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
-
-      - name: Publish NPM Packages
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          TOOLS_DIR: ${{ github.workspace }}/tools
-          NPM_TIMEOUT: 1800
-          NPM_MAX_RETRIES: 3
-        run: ./scripts/publish-npm.sh --ci-output

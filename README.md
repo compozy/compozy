@@ -22,6 +22,10 @@
 
 One CLI to replace scattered prompts, manual task tracking, and copy-paste review cycles. Compozy drives the full lifecycle of AI-assisted development: product ideation, technical specification, task breakdown with codebase-informed enrichment, concurrent execution across agents, and automated PR review remediation.
 
+<div align="center">
+  <img src="imgs/screenshot.png" alt="Compozy Agent Loop" width="100%">
+</div>
+
 ## ✨ Highlights
 
 - **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, and 40+ other agents and editors with `compozy setup` — no npm, pipx, or external tools required.
