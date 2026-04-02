@@ -124,7 +124,7 @@ You MUST create a task for each phase and complete them in order:
    - Include an "Architecture Decision Records" section listing all ADRs created during this session.
    - Mandatory sections (ALWAYS include): Overview, Problem (enriched with market data), Core Features, KPIs, Feature Assessment, Council Insights, Out of Scope (V1), Architecture Decision Records, Open Questions.
    - Optional sections (include when relevant): Summary/Differentiator, Integration with Existing Features, Sub-Features, Cost Estimate.
-   - Apply `writing-clearly-and-concisely` skill principles: prefer active voice, omit needless words, use definite and specific language over vague generalities. Every sentence should earn its place.
+   - Prefer active voice, omit needless words, use definite and specific language over vague generalities. Every sentence should earn its place.
    - Language: **English**. Tone: clear, technical, consistent with existing project artifacts.
    - Tables: use markdown tables for structured data. Features: minimum 3, maximum 10, ordered by priority. KPIs: minimum 3, maximum 6, with numeric targets. Exclusions: minimum 3 items with justification.
    - Present the complete draft to the user for review.
