@@ -45,182 +45,131 @@ You MUST create a task for each phase and complete them in order:
 
 ## Workflow
 
-### Phase 1: Determine the project name and working directory
+1. Determine the project name and working directory.
+   - Derive the slug from the feature idea provided by the user.
+   - Use `.compozy/tasks/<slug>/` as the target directory.
+   - If `_issue.md` already exists in the target directory, read it and operate in update mode.
+   - If the directory does not exist, create it.
+   - Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
 
-- Derive the slug from the feature idea provided by the user.
-- Use `.compozy/tasks/<slug>/` as the target directory.
-- If `_issue.md` already exists in the target directory, read it and operate in update mode.
-- If the directory does not exist, create it.
-- Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
+2. Understand the idea through targeted questions.
+   - Follow the question protocol in `references/question-protocol.md`.
+   - Ask 3-6 questions to refine scope, intent, target user, and success criteria.
+   - Ask only one question per message.
+   - Prefer multiple-choice questions when the options can be predetermined.
+   - Include a fallback option (e.g., "D) Other — describe") for flexibility.
+   - Complete at least one full clarification round before proceeding to research.
 
-### Phase 2: Understand the idea (3-6 questions)
+3. Discover context through parallel research.
+   - Spawn one Agent tool call to explore the codebase for relevant patterns, existing features, and architecture.
+   - Spawn a second Agent tool call to perform 3-7 web searches for market data and competitive intelligence.
+   - Use any available web search tools. If none are available, note the limitation and proceed with codebase exploration only.
+   - Vary query angles across at least 3 searches:
+     1. **Competitive landscape:** `"{feature category} tools for {domain} 2025 2026"`
+     2. **Market data:** `"{problem} market size OR adoption rate OR statistics"`
+     3. **Technical approach:** `"{technical solution} architecture OR implementation best practices"`
+     4. **User expectations:** `"{feature} UX patterns OR user experience best practices"` (if relevant)
+     5. **Pricing/cost:** `"{service/API} pricing OR cost comparison 2025 2026"` (if relevant)
+   - After both agents complete, merge findings and present a research summary to the user:
+     ```
+     **Codebase findings:**
+     - {Relevant existing feature/pattern}
+     - {Integration point}
 
-- Follow the question protocol in `references/question-protocol.md`.
-- Ask 3-6 questions to refine scope, intent, target user, and success criteria.
-- Ask only one question per message.
-- Prefer multiple-choice questions when the options can be predetermined.
-- Include a fallback option (e.g., "D) Other — describe") for flexibility.
-- Complete at least one full clarification round before proceeding to research.
+     **Market research:**
+     - {Competitor 1}: {what it does}
+     - {Competitor 2}: {what it does}
+     - **Potential differentiator:** {what we can do differently}
+     - **Relevant data:** {statistics found}
+     ```
 
-### Phase 3: Research (codebase + web)
+4. Analyze business viability.
+   - Read `references/business-analyst.md` and adopt the business analyst persona to evaluate the idea with the refined context from steps 2-3.
+   - Deliver: KPI framework, success metrics, personas, and viability assessment.
+   - Define 3-6 KPIs with measurable targets.
+   - Identify success criteria and risk factors.
+   - Assess viability based on research findings.
+   - Score the feature on these 6 criteria:
 
-Spawn two parallel Agent tool calls:
+     | Criteria            | Question                                            | Score                     |
+     | ------------------- | --------------------------------------------------- | ------------------------- |
+     | **Impact**          | How much more valuable does this make the product?  | Must do/Strong/Maybe/Pass |
+     | **Reach**           | What % of users would this affect?                  | Must do/Strong/Maybe/Pass |
+     | **Frequency**       | How often would users encounter this value?         | Must do/Strong/Maybe/Pass |
+     | **Differentiation** | Does this set us apart or just match competitors?   | Must do/Strong/Maybe/Pass |
+     | **Defensibility**   | Is this easy to copy or does it compound over time? | Must do/Strong/Maybe/Pass |
+     | **Feasibility**     | Can we actually build this?                         | Must do/Strong/Maybe/Pass |
 
-**Agent 1 — Codebase exploration:**
-- Explore for relevant patterns, existing features, and architecture.
-- Identify integration points and dependencies.
+   - This evaluation informs the issue's priority and feeds into the council debate.
+   - Present the analysis to the user before proceeding.
 
-**Agent 2 — Web research (3-7 searches):**
-- Use any available web search tools to perform 3-7 searches for market data and competitive intelligence.
-- If no web search tools are available, note the limitation and proceed with codebase exploration only.
-- Vary query angles across at least 3 searches:
-  1. **Competitive landscape:** `"{feature category} tools for {domain} 2025 2026"`
-  2. **Market data:** `"{problem} market size OR adoption rate OR statistics"`
-  3. **Technical approach:** `"{technical solution} architecture OR implementation best practices"`
-  4. **User expectations:** `"{feature} UX patterns OR user experience best practices"` (if relevant)
-  5. **Pricing/cost:** `"{service/API} pricing OR cost comparison 2025 2026"` (if relevant)
+5. Debate trade-offs through multi-advisor council.
+   - Read `references/council.md` and run a council session in embedded mode to debate:
+     - **Scope:** Is the V1 scope right? Too much? Too little?
+     - **Priority:** Where should this rank vs other planned features?
+     - **Technical approach:** Are there simpler alternatives?
+     - **Risks:** What could go wrong? What are the hidden dependencies?
+     - **10x Challenge:** Is this truly high-leverage or just incremental? Is there a more ambitious version worth exploring? Could a simpler version deliver disproportionate value?
+   - Follow the council session structure from the reference: Opening Statements, Tensions & Debate, Position Evolution, Synthesis.
+   - Select 3-5 advisors based on dilemma complexity.
+   - Extract: key trade-offs, recommended approach, items for out-of-scope (V1), optional stretch goal for V2+.
+   - After the debate, create an ADR for the scope decision:
+     - Read `references/adr-template.md`.
+     - Determine the next ADR number by listing existing files in `.compozy/tasks/<slug>/adrs/`.
+     - Fill the template: recommended scope as "Decision", alternatives as "Alternatives Considered", trade-offs as "Consequences". Set Status to "Accepted" and Date to today.
+     - Write the ADR to `.compozy/tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number).
 
-**After both agents complete**, merge findings and present a research summary to the user:
+6. Draft the issue.
+   - Read `references/issue-template.md` and fill every applicable section with gathered context.
+   - Include an "Architecture Decision Records" section listing all ADRs created during this session.
+   - Mandatory sections (ALWAYS include): Overview, Problem (enriched with market data), Core Features, KPIs, Feature Assessment, Council Insights, Out of Scope (V1), Architecture Decision Records, Open Questions.
+   - Optional sections (include when relevant): Summary/Differentiator, Integration with Existing Features, Sub-Features, Cost Estimate.
+   - Apply `writing-clearly-and-concisely` skill principles: prefer active voice, omit needless words, use definite and specific language over vague generalities. Every sentence should earn its place.
+   - Language: **English**. Tone: clear, technical, consistent with existing project artifacts.
+   - Tables: use markdown tables for structured data. Features: minimum 3, maximum 10, ordered by priority. KPIs: minimum 3, maximum 6, with numeric targets. Exclusions: minimum 3 items with justification.
+   - Present the complete draft to the user for review.
 
-```
-**Codebase findings:**
-- {Relevant existing feature/pattern}
-- {Integration point}
+7. Review with the user.
+   - Present the draft and ask using the interactive question tool:
+     - "Here is the issue draft. Please review and let me know:"
+     - A) Approved — save as is
+     - B) Adjust specific sections (tell me which ones)
+     - C) Rewrite section X (tell me what to change)
+     - D) Discard and start over
+   - If B or C: make the changes and present again.
+   - If D: go back to step 2.
 
-**Market research:**
-- {Competitor 1}: {what it does}
-- {Competitor 2}: {what it does}
-- **Potential differentiator:** {what we can do differently}
-- **Relevant data:** {statistics found}
-```
-
-### Phase 4: Business analysis
-
-- Read `references/business-analyst.md` and adopt the business analyst persona to evaluate the idea with the refined context from phases 2-3.
-- Deliver: KPI framework, success metrics, personas, and viability assessment.
-- Define 3-6 KPIs with measurable targets.
-- Identify success criteria and risk factors.
-- Assess viability based on research findings.
-
-**10x Evaluation (6 Criteria):**
-
-After business analysis, score the feature on these 6 criteria:
-
-| Criteria            | Question                                            | Score                  |
-| ------------------- | --------------------------------------------------- | ---------------------- |
-| **Impact**          | How much more valuable does this make the product?  | Must do/Strong/Maybe/Pass |
-| **Reach**           | What % of users would this affect?                  | Must do/Strong/Maybe/Pass |
-| **Frequency**       | How often would users encounter this value?         | Must do/Strong/Maybe/Pass |
-| **Differentiation** | Does this set us apart or just match competitors?   | Must do/Strong/Maybe/Pass |
-| **Defensibility**   | Is this easy to copy or does it compound over time? | Must do/Strong/Maybe/Pass |
-| **Feasibility**     | Can we actually build this?                         | Must do/Strong/Maybe/Pass |
-
-This evaluation informs the issue's priority and feeds into the council debate.
-Present the analysis to the user before proceeding.
-
-### Phase 5: Trade-off debate
-
-- Read `references/council.md` and run a council session in embedded mode to debate:
-  - **Scope:** Is the V1 scope right? Too much? Too little?
-  - **Priority:** Where should this rank vs other planned features?
-  - **Technical approach:** Are there simpler alternatives?
-  - **Risks:** What could go wrong? What are the hidden dependencies?
-  - **10x Challenge:** Is this truly high-leverage or just incremental? Is there a more ambitious version worth exploring? Could a simpler version deliver disproportionate value?
-- Follow the council session structure from the reference: Opening Statements, Tensions & Debate, Position Evolution, Synthesis.
-- Select 3-5 advisors based on dilemma complexity.
-- Extract: key trade-offs, recommended approach, items for out-of-scope (V1), optional stretch goal for V2+.
-- After the debate, create an ADR for the scope decision:
-  - Read the ADR template from the `cy-create-prd` skill references or use the standard ADR format.
-  - Determine the next ADR number by listing existing files in `.compozy/tasks/<slug>/adrs/`.
-  - Fill the template: recommended scope as "Decision", alternatives as "Alternatives Considered", trade-offs as "Consequences". Set Status to "Accepted" and Date to today.
-  - Write the ADR to `.compozy/tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number).
-
-### Phase 6: Draft the issue
-
-- Read `references/issue-template.md` and fill every applicable section with gathered context.
-- Include an "Architecture Decision Records" section listing all ADRs created during this session.
-
-**Mandatory sections** (ALWAYS include):
-1. **Overview** — what, who, why
-2. **Problem** — enriched with market data from Phase 3
-3. **Core Features** — table with numbered features, priorities, descriptions
-4. **KPIs** — from business-analyst output (Phase 4)
-5. **Feature Assessment** — 10x evaluation table from Phase 4
-6. **Council Insights** — key findings from Phase 5
-7. **Out of Scope (V1)** — from council output (Phase 5)
-8. **Architecture Decision Records** — ADRs from this session
-9. **Open Questions** — unresolved items
-
-**Optional sections** (include when relevant):
-
-| Section                            | When to Include                                          |
-| ---------------------------------- | -------------------------------------------------------- |
-| Summary / Differentiator           | Feature has a clear competitive angle                    |
-| Integration with Existing Features | Feature modifies or extends existing features            |
-| Sub-Features                       | Feature is large enough to split into multiple issues    |
-| Cost Estimate                      | Feature has operational costs (paid APIs, storage)       |
-
-**Writing rules:**
-- Apply `writing-clearly-and-concisely` skill principles: prefer active voice, omit needless words, use definite and specific language over vague generalities. Every sentence should earn its place.
-- Language: **English**.
-- Tone: clear, technical, consistent with existing project artifacts.
-- Tables: use markdown tables for structured data.
-- Features: minimum 3, maximum 10, ordered by priority.
-- KPIs: minimum 3, maximum 6, with numeric targets.
-- Exclusions: minimum 3 items with justification.
-
-Present the complete draft to the user for review.
-
-### Phase 7: Review with user
-
-Present the draft and ask using the interactive question tool:
-
-- "Here is the issue draft. Please review and let me know:"
-- A) Approved — save as is
-- B) Adjust specific sections (tell me which ones)
-- C) Rewrite section X (tell me what to change)
-- D) Discard and start over
-
-If B or C: make the changes and present again.
-If D: go back to Phase 2.
-
-### Phase 8: Save the issue file
-
-1. Generate the slug: kebab-case, 2-5 words, descriptive (e.g., `smart-thumbnail-suggestions`).
-2. Ask the user to confirm the filename using the interactive question tool:
-   - "Save as `.compozy/tasks/<slug>/_issue.md`? (A) Yes / (B) Different name"
-3. Write the file to `.compozy/tasks/<slug>/_issue.md`.
-4. Confirm the file path to the user.
-5. Remind the user that the next step is to create a PRD using `cy-create-prd` from this issue.
+8. Save the issue file.
+   - Generate the slug: kebab-case, 2-5 words, descriptive (e.g., `smart-thumbnail-suggestions`).
+   - Ask the user to confirm the filename using the interactive question tool:
+     - "Save as `.compozy/tasks/<slug>/_issue.md`? (A) Yes / (B) Different name"
+   - Write the file to `.compozy/tasks/<slug>/_issue.md`.
+   - Confirm the file path to the user.
+   - Remind the user that the next step is to create a PRD using `cy-create-prd` from this issue.
 
 ## Process Flow
 
 ```dot
 digraph create_issue {
-    rankdir=TB;
-    node [shape=box];
+    "Determine project & directory" [shape=box];
+    "Ask 3-6 targeted questions (one at a time)" [shape=box];
+    "Discover context (codebase + web)" [shape=box];
+    "Analyze business viability" [shape=box];
+    "Debate trade-offs (council)" [shape=box];
+    "Create ADR for scope decision" [shape=box];
+    "Draft issue (canonical template)" [shape=box];
+    "User approves draft?" [shape=diamond];
+    "Save _issue.md" [shape=doublecircle];
 
-    setup [label="Phase 1: Determine project\n& directory"];
-    questions [label="Phase 2: Ask 3-6 questions\n(interactive question tool)"];
-    research [label="Phase 3: Parallel research\n(codebase + web)"];
-    business [label="Phase 4: Business analysis\n(business-analyst skill)"];
-    council [label="Phase 5: Trade-off debate\n(council skill)"];
-    adr [label="Create ADR for\nscope decision"];
-    draft [label="Phase 6: Draft issue\n(canonical template)"];
-    review [label="Phase 7: User review\n(interactive question tool)"];
-    approved [label="User approves?" shape=diamond];
-    save [label="Phase 8: Save _issue.md"];
-
-    setup -> questions;
-    questions -> research;
-    research -> business;
-    business -> council;
-    council -> adr;
-    adr -> draft;
-    draft -> review;
-    review -> approved;
-    approved -> draft [label="revise"];
-    approved -> save [label="approved"];
+    "Determine project & directory" -> "Ask 3-6 targeted questions (one at a time)";
+    "Ask 3-6 targeted questions (one at a time)" -> "Discover context (codebase + web)";
+    "Discover context (codebase + web)" -> "Analyze business viability";
+    "Analyze business viability" -> "Debate trade-offs (council)";
+    "Debate trade-offs (council)" -> "Create ADR for scope decision";
+    "Create ADR for scope decision" -> "Draft issue (canonical template)";
+    "Draft issue (canonical template)" -> "User approves draft?";
+    "User approves draft?" -> "Draft issue (canonical template)" [label="no, revise"];
+    "User approves draft?" -> "Save _issue.md" [label="approved"];
 }
 ```
 
