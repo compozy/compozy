@@ -289,10 +289,6 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read task file: %v", err)
 	}
-	completedContent := strings.Replace(string(content), "status: pending", "status: completed", 1)
-	if err := os.WriteFile(taskPath, []byte(completedContent), 0o600); err != nil {
-		t.Fatalf("write completed task file: %v", err)
-	}
 
 	execCtx := &jobExecutionContext{
 		cfg: &config{
@@ -300,8 +296,25 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 			tasksDir: tasksDir,
 		},
 	}
-	if err := execCtx.afterJobSuccess(context.Background(), &job{}); err != nil {
+	if err := execCtx.afterJobSuccess(context.Background(), &job{
+		groups: map[string][]model.IssueEntry{
+			"task_01": {{
+				Name:     "task_01.md",
+				AbsPath:  taskPath,
+				Content:  string(content),
+				CodeFile: "task_01",
+			}},
+		},
+	}); err != nil {
 		t.Fatalf("afterJobSuccess: %v", err)
+	}
+
+	updatedTask, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read updated task file: %v", err)
+	}
+	if !strings.Contains(string(updatedTask), "status: completed") {
+		t.Fatalf("expected updated task file to be completed, got:\n%s", string(updatedTask))
 	}
 
 	meta, err := tasks.ReadTaskMeta(tasksDir)
@@ -310,6 +323,148 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 	}
 	if meta.Total != 1 || meta.Completed != 1 || meta.Pending != 0 {
 		t.Fatalf("unexpected refreshed task meta: %#v", meta)
+	}
+}
+
+func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
+	tmpDir := t.TempDir()
+	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "stub",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "review-bot",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	entries, err := reviews.ReadReviewEntries(reviewDir)
+	if err != nil {
+		t.Fatalf("read review entries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	issuePath := entries[0].AbsPath
+	content, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read issue file: %v", err)
+	}
+	triagedContent := strings.Replace(string(content), "status: pending", "status: valid", 1)
+	if err := os.WriteFile(issuePath, []byte(triagedContent), 0o600); err != nil {
+		t.Fatalf("write triaged issue file: %v", err)
+	}
+
+	resolver := &stubResolverProvider{name: "stub"}
+	restore := reviewProviderRegistry
+	reviewProviderRegistry = func() *provider.Registry {
+		registry := provider.NewRegistry()
+		registry.Register(resolver)
+		return registry
+	}
+	defer func() { reviewProviderRegistry = restore }()
+
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			mode:       model.ExecutionModePRReview,
+			provider:   "stub",
+			pr:         "259",
+			reviewsDir: reviewDir,
+		},
+	}
+	if err := execCtx.afterJobSuccess(context.Background(), &job{
+		groups: map[string][]model.IssueEntry{
+			entries[0].CodeFile: {entries[0]},
+		},
+	}); err != nil {
+		t.Fatalf("afterJobSuccess: %v", err)
+	}
+
+	updatedIssue, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read updated issue: %v", err)
+	}
+	if !strings.Contains(string(updatedIssue), "status: resolved") {
+		t.Fatalf("expected triaged issue to be finalized as resolved, got:\n%s", string(updatedIssue))
+	}
+	if len(resolver.issues) != 1 {
+		t.Fatalf("expected 1 resolved issue sent to provider, got %d", len(resolver.issues))
+	}
+
+	meta, err := reviews.ReadRoundMeta(reviewDir)
+	if err != nil {
+		t.Fatalf("read round meta: %v", err)
+	}
+	if meta.Resolved != 1 || meta.Unresolved != 0 {
+		t.Fatalf("unexpected refreshed meta: %#v", meta)
+	}
+}
+
+func TestAfterJobSuccessFailsWhenReviewIssueRemainsPending(t *testing.T) {
+	tmpDir := t.TempDir()
+	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "stub",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "review-bot",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	entries, err := reviews.ReadReviewEntries(reviewDir)
+	if err != nil {
+		t.Fatalf("read review entries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			mode:       model.ExecutionModePRReview,
+			provider:   "stub",
+			pr:         "259",
+			reviewsDir: reviewDir,
+		},
+	}
+	err = execCtx.afterJobSuccess(context.Background(), &job{
+		groups: map[string][]model.IssueEntry{
+			entries[0].CodeFile: {entries[0]},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected pending review issue to fail post-success hook")
+	}
+	if !strings.Contains(err.Error(), "remained pending") {
+		t.Fatalf("expected pending issue error, got %v", err)
+	}
+
+	meta, err := reviews.ReadRoundMeta(reviewDir)
+	if err != nil {
+		t.Fatalf("read round meta: %v", err)
+	}
+	if meta.Resolved != 0 || meta.Unresolved != 1 {
+		t.Fatalf("expected round meta to remain unresolved after failure, got %#v", meta)
 	}
 }
 

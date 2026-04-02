@@ -331,6 +331,94 @@ func TestDiscoverRoundsAndNextRound(t *testing.T) {
 	}
 }
 
+func TestFinalizeIssueStatusesResolvesTriagedIssues(t *testing.T) {
+	t.Parallel()
+
+	reviewDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo", "reviews-001")
+	if err := WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "review-bot",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	entries, err := ReadReviewEntries(reviewDir)
+	if err != nil {
+		t.Fatalf("read entries: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	issuePath := entries[0].AbsPath
+	content, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read issue: %v", err)
+	}
+	triaged := strings.Replace(string(content), "status: pending", "status: valid", 1)
+	if err := os.WriteFile(issuePath, []byte(triaged), 0o600); err != nil {
+		t.Fatalf("write triaged issue: %v", err)
+	}
+
+	if err := FinalizeIssueStatuses(reviewDir, entries); err != nil {
+		t.Fatalf("finalize issue statuses: %v", err)
+	}
+
+	rewritten, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read finalized issue: %v", err)
+	}
+	if !strings.Contains(string(rewritten), "status: resolved") {
+		t.Fatalf("expected finalized issue to be resolved, got:\n%s", string(rewritten))
+	}
+}
+
+func TestFinalizeIssueStatusesRejectsPendingIssues(t *testing.T) {
+	t.Parallel()
+
+	reviewDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo", "reviews-001")
+	if err := WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:  "Add nil check",
+			File:   "internal/app/service.go",
+			Line:   42,
+			Author: "review-bot",
+			Body:   "Please add a nil check.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	entries, err := ReadReviewEntries(reviewDir)
+	if err != nil {
+		t.Fatalf("read entries: %v", err)
+	}
+
+	err = FinalizeIssueStatuses(reviewDir, entries)
+	if err == nil {
+		t.Fatal("expected pending issue finalization to fail")
+	}
+	if !strings.Contains(err.Error(), "remained pending") {
+		t.Fatalf("expected pending issue error, got %v", err)
+	}
+}
+
 func equalInts(left []int, right []int) bool {
 	if len(left) != len(right) {
 		return false

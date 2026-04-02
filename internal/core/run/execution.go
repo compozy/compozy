@@ -470,7 +470,7 @@ func (j *jobExecutionContext) reportAggregateUsage() {
 
 func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
 	if j.cfg.mode == model.ExecutionModePRDTasks {
-		return j.afterTaskJobSuccess()
+		return j.afterTaskJobSuccess(jb)
 	}
 
 	if j.cfg.mode != model.ExecutionModePRReview {
@@ -479,10 +479,19 @@ func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) erro
 	return j.afterReviewJobSuccess(ctx, jb)
 }
 
-func (j *jobExecutionContext) afterTaskJobSuccess() error {
+func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 	if strings.TrimSpace(j.cfg.tasksDir) == "" {
 		return fmt.Errorf("missing tasks directory for task post-processing")
 	}
+
+	entry, err := singleTaskEntry(jb)
+	if err != nil {
+		return err
+	}
+	if err := tasks.MarkTaskCompleted(j.cfg.tasksDir, entry.Name); err != nil {
+		return err
+	}
+
 	meta, err := tasks.RefreshTaskMeta(j.cfg.tasksDir)
 	if err != nil {
 		return err
@@ -504,6 +513,14 @@ func (j *jobExecutionContext) afterTaskJobSuccess() error {
 func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job) error {
 	if strings.TrimSpace(j.cfg.reviewsDir) == "" {
 		return fmt.Errorf("missing reviews directory for review post-processing")
+	}
+
+	batchEntries := prompt.FlattenAndSortIssues(jb.groups, model.ExecutionModePRReview)
+	if len(batchEntries) == 0 {
+		return errors.New("missing review entries for review post-processing")
+	}
+	if err := reviews.FinalizeIssueStatuses(j.cfg.reviewsDir, batchEntries); err != nil {
+		return err
 	}
 
 	resolvedIssues, err := collectNewlyResolvedIssues(jb.groups)
@@ -531,6 +548,18 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 		meta.Unresolved,
 	)
 	return nil
+}
+
+func singleTaskEntry(jb *job) (model.IssueEntry, error) {
+	if jb == nil {
+		return model.IssueEntry{}, errors.New("missing job for task post-processing")
+	}
+
+	entries := prompt.FlattenAndSortIssues(jb.groups, model.ExecutionModePRDTasks)
+	if len(entries) != 1 {
+		return model.IssueEntry{}, fmt.Errorf("expected exactly 1 task entry, got %d", len(entries))
+	}
+	return entries[0], nil
 }
 
 func (j *jobExecutionContext) resolveProviderBackedIssues(

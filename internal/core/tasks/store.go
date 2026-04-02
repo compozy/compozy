@@ -72,6 +72,49 @@ func RefreshTaskMeta(tasksDir string) (model.TaskMeta, error) {
 	return meta, nil
 }
 
+func MarkTaskCompleted(tasksDir, taskFileName string) error {
+	root, err := os.OpenRoot(strings.TrimSpace(tasksDir))
+	if err != nil {
+		return fmt.Errorf("open tasks root: %w", err)
+	}
+	defer root.Close()
+
+	taskName, err := resolveTaskName(taskFileName)
+	if err != nil {
+		return err
+	}
+
+	content, err := root.ReadFile(taskName)
+	if err != nil {
+		return fmt.Errorf("read task file %s: %w", taskName, err)
+	}
+
+	task, err := prompt.ParseTaskFile(string(content))
+	if err != nil {
+		return wrapTaskParseError(filepath.Join(strings.TrimSpace(tasksDir), taskName), err)
+	}
+	if strings.EqualFold(strings.TrimSpace(task.Status), "completed") {
+		return nil
+	}
+
+	rewritten, err := frontmatter.RewriteStringField(string(content), "status", "completed")
+	if err != nil {
+		return fmt.Errorf("rewrite task status %s: %w", taskName, err)
+	}
+	if err := root.WriteFile(taskName, []byte(rewritten), 0o600); err != nil {
+		return fmt.Errorf("write task file %s: %w", taskName, err)
+	}
+	return nil
+}
+
+func resolveTaskName(taskFileName string) (string, error) {
+	name := filepath.Base(strings.TrimSpace(taskFileName))
+	if prompt.ExtractTaskNumber(name) == 0 {
+		return "", fmt.Errorf("invalid task file name %q", taskFileName)
+	}
+	return name, nil
+}
+
 func formatTaskMeta(meta model.TaskMeta) (string, error) {
 	type taskMetaFrontMatter struct {
 		CreatedAt time.Time `yaml:"created_at"`

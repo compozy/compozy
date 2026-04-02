@@ -99,6 +99,70 @@ func TestRefreshTaskMetaRejectsLegacyTaskArtifacts(t *testing.T) {
 	}
 }
 
+func TestMarkTaskCompletedRewritesStatusAndPreservesBody(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	content := strings.Join([]string{
+		"---",
+		"status: pending",
+		"domain: backend",
+		"type: feature",
+		"scope: small",
+		"complexity: low",
+		"custom_field: keep-me",
+		"---",
+		"",
+		"# Task 01",
+		"",
+		"- [ ] subtask",
+		"",
+	}, "\n")
+	if err := os.WriteFile(taskPath, []byte(content), 0o600); err != nil {
+		t.Fatalf("write task: %v", err)
+	}
+
+	if err := MarkTaskCompleted(tasksDir, "task_01.md"); err != nil {
+		t.Fatalf("mark task completed: %v", err)
+	}
+
+	rewritten, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read rewritten task: %v", err)
+	}
+	got := string(rewritten)
+	if !strings.Contains(got, "status: completed") {
+		t.Fatalf("expected rewritten task to include completed status, got:\n%s", got)
+	}
+	if !strings.Contains(got, "custom_field: keep-me") {
+		t.Fatalf("expected rewritten task to preserve custom metadata, got:\n%s", got)
+	}
+	if !strings.Contains(got, "# Task 01\n\n- [ ] subtask\n") {
+		t.Fatalf("expected rewritten task to preserve task body, got:\n%s", got)
+	}
+}
+
+func TestMarkTaskCompletedCanonicalizesTerminalStatuses(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	taskPath := filepath.Join(tasksDir, "task_01.md")
+	writeTaskFile(t, tasksDir, "task_01.md", "done")
+
+	if err := MarkTaskCompleted(tasksDir, "task_01.md"); err != nil {
+		t.Fatalf("mark task completed: %v", err)
+	}
+
+	rewritten, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read rewritten task: %v", err)
+	}
+	if !strings.Contains(string(rewritten), "status: completed") {
+		t.Fatalf("expected terminal task status to be canonicalized, got:\n%s", string(rewritten))
+	}
+}
+
 func writeTaskFile(t *testing.T, tasksDir, name, status string) {
 	t.Helper()
 

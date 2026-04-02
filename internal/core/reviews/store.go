@@ -230,6 +230,21 @@ func RefreshRoundMeta(reviewDir string) (model.RoundMeta, error) {
 	return meta, nil
 }
 
+func FinalizeIssueStatuses(reviewDir string, entries []model.IssueEntry) error {
+	root, err := os.OpenRoot(strings.TrimSpace(reviewDir))
+	if err != nil {
+		return fmt.Errorf("open review root: %w", err)
+	}
+	defer root.Close()
+
+	for _, entry := range entries {
+		if err := finalizeIssueStatus(root, reviewDir, entry.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func formatRoundMeta(meta model.RoundMeta) (string, error) {
 	type roundMetaFrontMatter struct {
 		Provider  string    `yaml:"provider"`
@@ -327,6 +342,49 @@ func writeIssueFile(reviewDir string, number int, item provider.ReviewItem) erro
 	return nil
 }
 
+func finalizeIssueStatus(root *os.Root, reviewDir, issueName string) error {
+	issueName, err := resolveIssueName(issueName)
+	if err != nil {
+		return err
+	}
+
+	content, err := root.ReadFile(issueName)
+	if err != nil {
+		return fmt.Errorf("read review issue %s: %w", issueName, err)
+	}
+
+	ctx, err := prompt.ParseReviewContext(string(content))
+	if err != nil {
+		return wrapReviewParseError(filepath.Join(strings.TrimSpace(reviewDir), issueName), err)
+	}
+
+	switch ctx.Status {
+	case "resolved":
+		return nil
+	case "valid", "invalid":
+		rewritten, err := frontmatter.RewriteStringField(string(content), "status", "resolved")
+		if err != nil {
+			return fmt.Errorf("rewrite review issue %s: %w", issueName, err)
+		}
+		if err := root.WriteFile(issueName, []byte(rewritten), 0o600); err != nil {
+			return fmt.Errorf("write review issue %s: %w", issueName, err)
+		}
+		return nil
+	case "pending":
+		return fmt.Errorf("review issue %s remained pending after successful batch", issueName)
+	default:
+		return fmt.Errorf("review issue %s has unsupported status %q after successful batch", issueName, ctx.Status)
+	}
+}
+
+func resolveIssueName(issueName string) (string, error) {
+	name := filepath.Base(strings.TrimSpace(issueName))
+	if prompt.ExtractIssueNumber(name) == 0 {
+		return "", fmt.Errorf("invalid issue file name %q", issueName)
+	}
+	return name, nil
+}
+
 func fallback(value string, fallbackValue string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -362,4 +420,11 @@ func parseRoundMetaSummary(lines []string, meta *model.RoundMeta) error {
 		*counts[matches[1]] = value
 	}
 	return nil
+}
+
+func wrapReviewParseError(path string, err error) error {
+	if errors.Is(err, prompt.ErrLegacyReviewMetadata) {
+		return fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", path)
+	}
+	return fmt.Errorf("parse review artifact %s: %w", path, err)
 }
