@@ -37,8 +37,8 @@ You MUST create a task for each phase and complete them in order:
 1. **Determine project & directory** — derive slug, create `.compozy/tasks/<slug>/` and `adrs/`
 2. **Understand the idea** — ask 3-6 targeted questions to refine scope and intent
 3. **Research the market** — web research for competitive intelligence and market data + codebase exploration
-4. **Analyze business viability** — invoke `business-analyst` skill for KPIs, personas, and success metrics
-5. **Debate trade-offs** — invoke `council` skill to challenge assumptions and surface risks
+4. **Analyze business viability** — adopt business analyst persona (`references/business-analyst.md`) for KPIs, personas, and success metrics
+5. **Debate trade-offs** — run council session (`references/council.md`) to challenge assumptions and surface risks
 6. **Draft the issue** — write using the canonical template from `references/issue-template.md`
 7. **Review with user** — present the draft, iterate until approved
 8. **Save the file** — write to `.compozy/tasks/<slug>/_issue.md`
@@ -71,8 +71,7 @@ Spawn two parallel Agent tool calls:
 - Identify integration points and dependencies.
 
 **Agent 2 — Web research (3-7 searches):**
-- Use Exa MCP tools (`mcp__exa__web_search_exa`, `mcp__exa__get_code_context_exa`) when available.
-- If Exa is unavailable, fall back to any available web search tool.
+- Use any available web search tools to perform 3-7 searches for market data and competitive intelligence.
 - If no web search tools are available, note the limitation and proceed with codebase exploration only.
 - Vary query angles across at least 3 searches:
   1. **Competitive landscape:** `"{feature category} tools for {domain} 2025 2026"`
@@ -97,12 +96,11 @@ Spawn two parallel Agent tool calls:
 
 ### Phase 4: Business analysis
 
-- Use the installed `business-analyst` skill to evaluate the idea with the refined context from phases 2-3.
-- Request: KPI framework, success metrics, personas, and viability assessment.
-- If the `business-analyst` skill is not available, perform the analysis inline:
-  - Define 3-6 KPIs with measurable targets.
-  - Identify success criteria and risk factors.
-  - Assess viability based on research findings.
+- Read `references/business-analyst.md` and adopt the business analyst persona to evaluate the idea with the refined context from phases 2-3.
+- Deliver: KPI framework, success metrics, personas, and viability assessment.
+- Define 3-6 KPIs with measurable targets.
+- Identify success criteria and risk factors.
+- Assess viability based on research findings.
 
 **10x Evaluation (6 Criteria):**
 
@@ -122,16 +120,14 @@ Present the analysis to the user before proceeding.
 
 ### Phase 5: Trade-off debate
 
-- Use the installed `council` skill in embedded mode to debate:
+- Read `references/council.md` and run a council session in embedded mode to debate:
   - **Scope:** Is the V1 scope right? Too much? Too little?
   - **Priority:** Where should this rank vs other planned features?
   - **Technical approach:** Are there simpler alternatives?
   - **Risks:** What could go wrong? What are the hidden dependencies?
   - **10x Challenge:** Is this truly high-leverage or just incremental? Is there a more ambitious version worth exploring? Could a simpler version deliver disproportionate value?
-- If the `council` skill is not available, perform the debate inline:
-  - Present 2-3 perspectives (pragmatic engineer, product mind, devil's advocate).
-  - Surface key trade-offs and risks.
-  - Recommend an approach with justification.
+- Follow the council session structure from the reference: Opening Statements, Tensions & Debate, Position Evolution, Synthesis.
+- Select 3-5 advisors based on dilemma complexity.
 - Extract: key trade-offs, recommended approach, items for out-of-scope (V1), optional stretch goal for V2+.
 - After the debate, create an ADR for the scope decision:
   - Read the ADR template from the `cy-create-prd` skill references or use the standard ADR format.
@@ -232,7 +228,7 @@ digraph create_issue {
 
 - If the user provides insufficient context to complete a section, note it in the Open Questions section rather than guessing.
 - If web research tools (Exa MCP, web search) are unavailable, proceed with codebase exploration only and note the limitation.
-- If the `business-analyst` or `council` skills are not installed, perform the analysis and debate inline as described in phases 4 and 5.
+- If the reference files for business analyst or council are missing, perform the analysis and debate inline using the guidelines described in phases 4 and 5.
 - If the target directory cannot be created, stop and report the filesystem error.
 - If operating in update mode, preserve sections the user has not asked to change.
 

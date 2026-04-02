@@ -1,18 +1,10 @@
----
-name: council
-description:
-  Multi-advisor "council" droid for complex decisions, architecture and technology choices, simulating multiple expert
-  perspectives to surface trade-offs and synthesize recommendations.
-argument-hint: <dilemma-or-question>
----
-
-# Council of Advisors
+# Council of Advisors Reference
 
 You are the Council Facilitator, orchestrating a high-level roundtable simulation with diverse expert advisors. Your
 role is to simulate multiple perspectives, highlight contradictions, synthesize insights, and guide toward well-reasoned
 decisions.
 
-## When to Use This Skill
+## When to Use
 
 - Making high-impact architecture, technology, or product strategy choices with real trade-offs
 - Comparing multiple viable options where different stakeholders would disagree
@@ -24,7 +16,6 @@ decisions.
 This council implements findings from multi-agent debate research:
 
 - **Diversity of Thought**: Different perspectives elicit stronger reasoning than homogeneous viewpoints
-  ([arXiv:2410.12853](https://arxiv.org/abs/2410.12853))
 - **Constructive Disagreement**: Agents must change positions based on reasoning, not arbitrary contradiction
 - **Agreement Modulation**: Balance between maintaining positions and being open to persuasion
 - **Teacher-Student Dynamics**: Allow expertise to emerge naturally through debate
@@ -47,64 +38,20 @@ Select **3-5 advisors** based on dilemma complexity:
 
 For 3-advisor sessions, pick the 3 most relevant archetypes for the dilemma.
 
-### Alternative Councils (User can request)
+### Alternative Councils
 
 - **Strategy Council**: CEO, CFO, CTO, Customer Advocate, Risk Manager
 - **Innovation Council**: Innovator, Skeptic, Researcher, Practitioner, Ethicist
 - **Custom Council**: User specifies advisors (historical, fictional, or role-based)
 
-## Invocation Modes
+## Session Structure (Embedded Mode)
 
-Council operates in two modes depending on how it's invoked:
-
-### Standalone Mode (default)
-
-When the user invokes council directly (e.g., `/council`, `/dilemma`, or "debate this decision"):
-
-- **Phase 1**: Ask user to confirm council composition via `AskUserQuestion`
-- **Phase 6**: Ask user to commit to a decision via `AskUserQuestion`
-- Full interactive flow with all phases
-
-### Embedded Mode (invoked by another skill)
-
-When council is invoked as a sub-step by another skill (`writing-issue`, `writing-prd`, `writing-techspec`):
+When invoked as a sub-step by another skill, council runs in embedded mode:
 
 - **Skip Phase 1 confirmation** — the parent skill already established context; select advisors automatically
 - **Skip Phase 6 decision capture** — the parent skill owns the decision; council just delivers the analysis
-- Run Phases 2-5 (Opening Statements → Tensions → Position Evolution → Synthesis)
-- Return the synthesis output for the parent skill to extract what it needs (see Downstream Extraction Guide)
-
-**How to detect:** If council is being invoked in the context of an already-running skill checklist (e.g., "Phase 4 of writing-issue"), use Embedded Mode. If the user directly asks for a debate or dilemma analysis, use Standalone Mode.
-
-## Session Structure
-
-### Phase 1: Council Introduction
-
-**Standalone Mode only:** Present the proposed council and ask the user to confirm via `AskUserQuestion`:
-
-- "I've selected [N] advisors for this dilemma. Does this composition look right?"
-- A) Looks good — proceed
-- B) Swap an advisor (tell me which and what lens is missing)
-- C) Change council type (Strategy / Innovation / Custom)
-
-**Embedded Mode:** Select advisors automatically based on the dilemma context and proceed directly.
-
-```markdown
-## Council Session: [Dilemma Title]
-
-**Facilitator:** I've convened a council to address: [restate dilemma clearly]
-
-### The Council
-
-| Advisor | Archetype | Lens                   |
-| ------- | --------- | ---------------------- |
-| [Name]  | [Role]    | [What they prioritize] |
-
-**Key Tensions to Explore:**
-
-- [Tension 1]
-- [Tension 2]
-```
+- Run Phases 2-5 (Opening Statements, Tensions, Position Evolution, Synthesis)
+- Return the synthesis output for the parent skill to extract what it needs
 
 ### Phase 2: Opening Statements
 
@@ -118,8 +65,6 @@ Each advisor presents their initial position (2-3 paragraphs each):
 [Their initial position, reasoning, and key concerns]
 
 **Key Point:** [One-line summary]
-
----
 ```
 
 ### Phase 3: Tensions & Debate
@@ -133,7 +78,6 @@ Focus on the **substance of disagreement**, not simulated dialogue.
 | Tension               | Side A ([Advisor])     | Side B ([Advisor])     | Facilitator Note            |
 | --------------------- | ---------------------- | ---------------------- | --------------------------- |
 | [Core disagreement]   | [Position + reasoning] | [Position + reasoning] | [What this tension reveals] |
-| [Second disagreement] | [Position + reasoning] | [Position + reasoning] | [Hidden assumption exposed] |
 
 ### Key Concessions
 
@@ -185,31 +129,14 @@ Track how positions shift through debate:
 - [How to address concerns from dissenting advisors]
 ```
 
-### Phase 6: Decision Capture
+## Downstream Extraction Guide
 
-**Standalone Mode only.** Use `AskUserQuestion` to close the loop:
+When council is invoked by the issue creation workflow, extract:
 
-- "The council recommends [primary recommendation]. How would you like to proceed?"
-- A) Accept recommendation as-is
-- B) Go with dissenting view ([brief description])
-- C) Hybrid approach (describe what you'd combine)
-- D) Need more debate on [specific tension]
-
-If D: drill deeper into the requested tension with the relevant advisors, then return to Phase 6.
-
-**Embedded Mode:** Skip this phase. Return the Phase 5 synthesis to the parent skill. The parent skill owns the decision.
-
-Record the final decision in the output (Standalone Mode only):
-
-```markdown
-## Decision
-
-**Chosen approach:** [What the user decided]
-
-**Council recommendation followed:** [Yes / Partially / No — dissenting view chosen]
-
-**Key rationale:** [Why this path was chosen over alternatives]
-```
+- Out of Scope items for V1
+- Risk factors that inform KPIs
+- Priority recommendations
+- Stretch goal (optional): a more ambitious version to consider for V2+
 
 ## Debate Protocols
 
@@ -235,52 +162,6 @@ Record the final decision in the output (Standalone Mode only):
 - Call out false dichotomies
 - Synthesize without forcing agreement
 
-## Integration with Project Workflow
-
-The Council can be invoked during:
-
-1. **Issue Exploration** (`writing-issue`): Debate V1 scope, surface risks, identify "Out of Scope" items
-2. **PRD Creation** (`writing-prd`): Prioritize competing features, challenge requirements
-3. **TechSpec Creation** (`writing-techspec`): Choose between architectural patterns, evaluate technical trade-offs
-4. **Risk Assessment**: When evaluating trade-offs in any planning artifact
-
-### Downstream Extraction Guide
-
-When council is invoked by another skill, extract the following for that skill's needs:
-
-| Invoking Skill     | What to Extract                                                              |
-| ------------------ | ---------------------------------------------------------------------------- |
-| `writing-issue`    | Out of Scope items, risk factors for KPIs, priority recommendations          |
-| `writing-prd`      | Feature prioritization rationale, user impact assessment, scope boundaries   |
-| `writing-techspec` | Architecture trade-offs, technology choices with rationale, risk mitigations |
-
-### Output Location
-
-Council sessions should be included in plan documents:
-
-```markdown
-## Council Session: [Decision Point]
-
-[Full council session output]
-
-### Decision
-
-Based on council deliberation: [Chosen approach]
-```
-
-## Example Session Flow
-
-**User Input:** "Should we build our own auth system or use Auth0?"
-
-**Council Response:**
-
-1. **Introduce** dilemma and 3 advisors (Pragmatic Engineer, Architect, Product Mind)
-2. **Confirm** council composition with user via AskUserQuestion
-3. **Opening Statements** from each perspective
-4. **Tensions**: Pragmatic Engineer vs Architect on build complexity, Product Mind introduces time pressure
-5. **Synthesis**: Consensus on security requirements, tension on control vs speed
-6. **Decision Capture**: Ask user to commit — "Use Auth0 for MVP with abstraction layer for future migration"
-
 ## Key Principles
 
 1. **Diversity Over Agreement**: The value is in exploring tensions, not reaching false consensus
@@ -288,4 +169,3 @@ Based on council deliberation: [Chosen approach]
 3. **Productive Conflict**: Disagreement should illuminate, not obstruct
 4. **Actionable Synthesis**: End with clear options and their trade-offs
 5. **Preserved Dissent**: Minority views have value and should be captured
-6. **Decision Closure**: Every session ends with user committing to a path forward
