@@ -122,7 +122,7 @@ func TestBuildOpenCodeCommandFormat(t *testing.T) {
 	t.Parallel()
 
 	cmd := buildOpenCodeCommand("", "medium")
-	want := "opencode run --print --format json --thinking medium --model " + model.DefaultOpenCodeModel
+	want := "opencode run --format json --variant medium --thinking - --model " + model.DefaultOpenCodeModel
 	if cmd != want {
 		t.Fatalf("unexpected opencode command string\nwant: %s\ngot:  %s", want, cmd)
 	}
@@ -132,7 +132,7 @@ func TestBuildOpenCodeCommandCustomModel(t *testing.T) {
 	t.Parallel()
 
 	cmd := buildOpenCodeCommand("openai/gpt-4o", "high")
-	want := "opencode run --print --format json --thinking high --model openai/gpt-4o"
+	want := "opencode run --format json --variant high --thinking - --model openai/gpt-4o"
 	if cmd != want {
 		t.Fatalf("unexpected opencode command string\nwant: %s\ngot:  %s", want, cmd)
 	}
