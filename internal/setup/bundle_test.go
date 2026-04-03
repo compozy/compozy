@@ -27,6 +27,7 @@ func TestListBundledSkillsExposesOnlyPublicCatalog(t *testing.T) {
 		"cy-execute-task",
 		"cy-final-verify",
 		"cy-fix-reviews",
+		"cy-idea-factory",
 		"cy-review-round",
 		"cy-workflow-memory",
 	}

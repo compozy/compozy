@@ -1,6 +1,7 @@
 package test
 
 import (
+	"bytes"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -126,6 +127,41 @@ func checkPortableContent(t *testing.T, path string) {
 	for _, snippet := range forbiddenSnippets {
 		if strings.Contains(text, snippet) {
 			t.Fatalf("expected %s to omit %q", path, snippet)
+		}
+	}
+}
+
+func TestSharedReferenceFilesAreIdentical(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+
+	groups := [][]string{
+		{
+			"skills/cy-create-prd/references/adr-template.md",
+			"skills/cy-create-techspec/references/adr-template.md",
+			"skills/cy-idea-factory/references/adr-template.md",
+		},
+	}
+
+	for _, paths := range groups {
+		reference, err := os.ReadFile(filepath.Join(root, paths[0]))
+		if err != nil {
+			t.Fatalf("read %s: %v", paths[0], err)
+		}
+
+		for _, p := range paths[1:] {
+			t.Run("Should keep "+p+" identical to "+paths[0], func(t *testing.T) {
+				t.Parallel()
+
+				content, err := os.ReadFile(filepath.Join(root, p))
+				if err != nil {
+					t.Fatalf("read %s: %v", p, err)
+				}
+				if !bytes.Equal(content, reference) {
+					t.Fatalf("expected %s to be identical to %s", p, paths[0])
+				}
+			})
 		}
 	}
 }
