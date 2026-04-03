@@ -98,6 +98,61 @@ Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can rea
 
 Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
 
+## ⚙️ Workspace Config
+
+Compozy can load project defaults from `.compozy/config.toml`.
+
+- The CLI discovers the nearest `.compozy/` directory by walking upward from the current working directory.
+- If `.compozy/config.toml` exists, Compozy loads it once at command startup.
+- Interactive forms for `compozy start`, `compozy fix-reviews`, and `compozy fetch-reviews` are prefilled from the resolved config.
+- Explicit CLI flags always win over config values.
+
+Precedence is:
+
+```text
+explicit flags > command section > [defaults] > built-in defaults
+```
+
+Example:
+
+```toml
+[defaults]
+ide = "codex"
+model = "gpt-5.4"
+reasoning_effort = "medium"
+timeout = "10m"
+tail_lines = 0
+add_dirs = ["../shared"]
+auto_commit = false
+max_retries = 0
+retry_backoff_multiplier = 1.5
+
+[start]
+include_completed = false
+
+[fix_reviews]
+concurrent = 2
+batch_size = 3
+grouped = true
+include_resolved = false
+
+[fetch_reviews]
+provider = "coderabbit"
+```
+
+Supported sections in v1:
+
+- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
+- `[start]` for `include_completed`
+- `[fix_reviews]` for `concurrent`, `batch_size`, `grouped`, and `include_resolved`
+- `[fetch_reviews]` for `provider`
+
+Notes:
+
+- `.compozy/config.toml` is optional. If it is absent, Compozy keeps the current built-in defaults.
+- `.compozy/tasks` remains the fixed workflow root in this version; the config file does not change the workflow root path.
+- Unknown keys and invalid value types are rejected during config loading.
+
 ## 🚀 Quick Start
 
 This walkthrough builds a feature called **user-auth** from idea to shipped code.
