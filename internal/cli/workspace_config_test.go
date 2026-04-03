@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -42,7 +43,7 @@ include_completed = true
 		t.Fatalf("chdir: %v", err)
 	}
 
-	if err := state.applyWorkspaceDefaults(cmd); err != nil {
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
 		t.Fatalf("apply workspace defaults: %v", err)
 	}
 
@@ -102,7 +103,7 @@ grouped = true
 		t.Fatalf("set grouped: %v", err)
 	}
 
-	if err := state.applyWorkspaceDefaults(cmd); err != nil {
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
 		t.Fatalf("apply workspace defaults: %v", err)
 	}
 
@@ -143,6 +144,19 @@ func TestNewFormInputsFromStatePreservesResolvedDefaults(t *testing.T) {
 	}
 	if !inputs.includeCompleted || !inputs.autoCommit {
 		t.Fatalf("expected boolean defaults to be preserved: %#v", inputs)
+	}
+}
+
+func TestNewFormInputsFromStateQuotesAddDirsContainingCommas(t *testing.T) {
+	t.Parallel()
+
+	state := &commandState{
+		addDirs: []string{"../docs,archive", "../shared"},
+	}
+
+	inputs := newFormInputsFromState(state)
+	if inputs.addDirs != "\"../docs,archive\", ../shared" {
+		t.Fatalf("unexpected addDirs input: %q", inputs.addDirs)
 	}
 }
 

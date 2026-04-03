@@ -337,8 +337,11 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 }
 
 func (s *commandState) run(cmd *cobra.Command, _ []string) error {
-	if err := s.applyWorkspaceDefaults(cmd); err != nil {
-		return err
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
 	}
 	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
 		return err
@@ -352,14 +355,15 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	return core.Run(ctx, cfg)
 }
 
 func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
-	if err := s.applyWorkspaceDefaults(cmd); err != nil {
-		return err
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
 	}
 	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
 		return err
@@ -369,9 +373,6 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	result, err := core.FetchReviews(ctx, cfg)
 	if err != nil {
@@ -391,11 +392,12 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
-	if err := s.loadWorkspaceRoot(); err != nil {
-		return err
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if err := s.loadWorkspaceRoot(ctx); err != nil {
+		return fmt.Errorf("load workspace root for %s: %w", cmd.Name(), err)
+	}
 
 	result, err := core.Migrate(ctx, core.MigrationConfig{
 		WorkspaceRoot: s.workspaceRoot,
@@ -431,11 +433,12 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
-	if err := s.loadWorkspaceRoot(); err != nil {
-		return err
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if err := s.loadWorkspaceRoot(ctx); err != nil {
+		return fmt.Errorf("load workspace root for %s: %w", cmd.Name(), err)
+	}
 
 	result, err := core.Sync(ctx, core.SyncConfig{
 		WorkspaceRoot: s.workspaceRoot,
@@ -461,11 +464,12 @@ func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *archiveCommandState) run(cmd *cobra.Command, _ []string) error {
-	if err := s.loadWorkspaceRoot(); err != nil {
-		return err
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if err := s.loadWorkspaceRoot(ctx); err != nil {
+		return fmt.Errorf("load workspace root for %s: %w", cmd.Name(), err)
+	}
 
 	result, err := core.Archive(ctx, core.ArchiveConfig{
 		WorkspaceRoot: s.workspaceRoot,

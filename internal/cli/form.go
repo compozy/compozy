@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"os"
@@ -81,7 +82,7 @@ func newFormInputsFromState(state *commandState) *formInputs {
 	inputs.ide = state.ide
 	inputs.model = state.model
 	if len(state.addDirs) > 0 {
-		inputs.addDirs = strings.Join(state.addDirs, ", ")
+		inputs.addDirs = formatAddDirInput(state.addDirs)
 	}
 	if state.tailLines >= 0 {
 		inputs.tailLines = strconv.Itoa(state.tailLines)
@@ -413,7 +414,9 @@ func (fb *formBuilder) addAddDirsField(target *string) {
 			Key("add-dir").
 			Title("Additional Directories (optional)").
 			Placeholder("../shared, ../docs").
-			Description("Comma-separated directories to pass via --add-dir for Codex and Claude only").
+			Description(
+				"Comma-separated directories to pass via --add-dir for Codex and Claude only; quote paths that contain commas",
+			).
 			Value(target)
 	})
 }
@@ -513,14 +516,18 @@ func numericInput(
 }
 
 func applyStringInput(cmd *cobra.Command, flagName, value string, setter func(string)) {
-	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) || value == "" {
+	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
 		return
 	}
 	setter(value)
 }
 
 func applyIntInput(cmd *cobra.Command, flagName, value string, setter func(int)) {
-	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) || value == "" {
+	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
+		return
+	}
+	if strings.TrimSpace(value) == "" {
+		setter(0)
 		return
 	}
 	val, err := strconv.Atoi(value)
@@ -538,20 +545,56 @@ func applyBoolInput(cmd *cobra.Command, flagName string, value bool, setter func
 }
 
 func applyStringSliceInput(cmd *cobra.Command, flagName, value string, setter func([]string)) {
-	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) || value == "" {
+	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
 		return
 	}
-	values := parseAddDirInput(value)
-	if len(values) == 0 {
-		return
-	}
-	setter(values)
+	setter(parseAddDirInput(value))
 }
 
 func parseAddDirInput(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+
+	reader := csv.NewReader(strings.NewReader(value))
+	reader.TrimLeadingSpace = true
+	records, err := reader.ReadAll()
+	if err == nil {
+		var values []string
+		for _, record := range records {
+			values = append(values, record...)
+		}
+		return core.NormalizeAddDirs(values)
+	}
+
 	return core.NormalizeAddDirs(strings.FieldsFunc(value, func(r rune) bool {
 		return r == ',' || r == '\n'
 	}))
+}
+
+func formatAddDirInput(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+
+	formatted := make([]string, 0, len(values))
+	for _, value := range values {
+		formatted = append(formatted, formatCSVField(value))
+	}
+	return strings.Join(formatted, ", ")
+}
+
+func formatCSVField(value string) string {
+	var builder strings.Builder
+	writer := csv.NewWriter(&builder)
+	if err := writer.Write([]string{value}); err != nil {
+		return value
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return value
+	}
+	return strings.TrimSuffix(builder.String(), "\n")
 }
 
 func listTaskSubdirs(baseDir string) []string {

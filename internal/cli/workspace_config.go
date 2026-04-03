@@ -1,56 +1,57 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/spf13/cobra"
 )
 
-func resolveWorkspaceContext() (workspace.Context, error) {
-	ctx, err := workspace.Resolve("")
+func resolveWorkspaceContext(ctx context.Context) (workspace.Context, error) {
+	workspaceCtx, err := workspace.Resolve(ctx, "")
 	if err != nil {
 		return workspace.Context{}, fmt.Errorf("resolve workspace: %w", err)
 	}
-	return ctx, nil
+	return workspaceCtx, nil
 }
 
-func (s *commandState) applyWorkspaceDefaults(cmd *cobra.Command) error {
-	ctx, err := resolveWorkspaceContext()
+func (s *commandState) applyWorkspaceDefaults(ctx context.Context, cmd *cobra.Command) error {
+	workspaceCtx, err := resolveWorkspaceContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	s.workspaceRoot = ctx.Root
-	s.projectConfig = ctx.Config
-	s.applyProjectConfig(cmd, ctx.Config)
+	s.workspaceRoot = workspaceCtx.Root
+	s.projectConfig = workspaceCtx.Config
+	s.applyProjectConfig(cmd, workspaceCtx.Config)
 	return nil
 }
 
-func (s *migrateCommandState) loadWorkspaceRoot() error {
-	ctx, err := resolveWorkspaceContext()
+func (s *migrateCommandState) loadWorkspaceRoot(ctx context.Context) error {
+	workspaceCtx, err := resolveWorkspaceContext(ctx)
 	if err != nil {
 		return err
 	}
-	s.workspaceRoot = ctx.Root
+	s.workspaceRoot = workspaceCtx.Root
 	return nil
 }
 
-func (s *syncCommandState) loadWorkspaceRoot() error {
-	ctx, err := resolveWorkspaceContext()
+func (s *syncCommandState) loadWorkspaceRoot(ctx context.Context) error {
+	workspaceCtx, err := resolveWorkspaceContext(ctx)
 	if err != nil {
 		return err
 	}
-	s.workspaceRoot = ctx.Root
+	s.workspaceRoot = workspaceCtx.Root
 	return nil
 }
 
-func (s *archiveCommandState) loadWorkspaceRoot() error {
-	ctx, err := resolveWorkspaceContext()
+func (s *archiveCommandState) loadWorkspaceRoot(ctx context.Context) error {
+	workspaceCtx, err := resolveWorkspaceContext(ctx)
 	if err != nil {
 		return err
 	}
-	s.workspaceRoot = ctx.Root
+	s.workspaceRoot = workspaceCtx.Root
 	return nil
 }
 

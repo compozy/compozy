@@ -63,9 +63,13 @@ func TestGoReleaserConfigUsesReadableChangelogTitlesAndFiltersReleaseCommits(t *
 	}
 
 	for _, title := range expectedTitles {
-		if !strings.Contains(text, title) {
-			t.Fatalf("expected goreleaser changelog config to include readable group title %q", title)
-		}
+		title := title
+		t.Run("Should include readable title "+title, func(t *testing.T) {
+			t.Parallel()
+			if !strings.Contains(text, title) {
+				t.Fatalf("expected goreleaser changelog config to include readable group title %q", title)
+			}
+		})
 	}
 
 	unexpectedTitles := []string{
@@ -81,9 +85,13 @@ func TestGoReleaserConfigUsesReadableChangelogTitlesAndFiltersReleaseCommits(t *
 	}
 
 	for _, title := range unexpectedTitles {
-		if strings.Contains(text, title) {
-			t.Fatalf("expected goreleaser changelog config to avoid emoji-only group title %q", title)
-		}
+		title := title
+		t.Run("Should avoid emoji-only title "+title, func(t *testing.T) {
+			t.Parallel()
+			if strings.Contains(text, title) {
+				t.Fatalf("expected goreleaser changelog config to avoid emoji-only group title %q", title)
+			}
+		})
 	}
 
 	expectedFilters := []string{
@@ -92,12 +100,16 @@ func TestGoReleaserConfigUsesReadableChangelogTitlesAndFiltersReleaseCommits(t *
 	}
 
 	for _, filter := range expectedFilters {
-		if !strings.Contains(text, filter) {
-			t.Fatalf(
-				"expected goreleaser changelog config to exclude release automation commits with filter %q",
-				filter,
-			)
-		}
+		filter := filter
+		t.Run("Should exclude release automation filter "+filter, func(t *testing.T) {
+			t.Parallel()
+			if !strings.Contains(text, filter) {
+				t.Fatalf(
+					"expected goreleaser changelog config to exclude release automation commits with filter %q",
+					filter,
+				)
+			}
+		})
 	}
 }
 

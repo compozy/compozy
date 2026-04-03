@@ -1,6 +1,8 @@
 package workspace
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,11 +21,11 @@ func TestDiscoverFindsNearestWorkspaceRoot(t *testing.T) {
 		t.Fatalf("mkdir nested: %v", err)
 	}
 
-	got, err := Discover(nested)
+	got, err := Discover(context.Background(), nested)
 	if err != nil {
 		t.Fatalf("discover workspace: %v", err)
 	}
-	if got != root {
+	if mustEvalSymlinksWorkspaceTest(t, got) != mustEvalSymlinksWorkspaceTest(t, root) {
 		t.Fatalf("unexpected workspace root\nwant: %q\ngot:  %q", root, got)
 	}
 }
@@ -36,11 +38,11 @@ func TestDiscoverFallsBackToStartDirectoryWhenWorkspaceIsMissing(t *testing.T) {
 		t.Fatalf("mkdir start: %v", err)
 	}
 
-	got, err := Discover(start)
+	got, err := Discover(context.Background(), start)
 	if err != nil {
 		t.Fatalf("discover workspace: %v", err)
 	}
-	if got != start {
+	if mustEvalSymlinksWorkspaceTest(t, got) != mustEvalSymlinksWorkspaceTest(t, start) {
 		t.Fatalf("unexpected fallback root\nwant: %q\ngot:  %q", start, got)
 	}
 }
@@ -53,7 +55,7 @@ func TestLoadConfigReturnsZeroConfigWhenFileIsMissing(t *testing.T) {
 		t.Fatalf("mkdir .compozy: %v", err)
 	}
 
-	cfg, path, err := LoadConfig(root)
+	cfg, path, err := LoadConfig(context.Background(), root)
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
@@ -74,7 +76,7 @@ func TestLoadConfigRejectsUnknownFields(t *testing.T) {
 unknown = "value"
 `)
 
-	_, _, err := LoadConfig(root)
+	_, _, err := LoadConfig(context.Background(), root)
 	if err == nil {
 		t.Fatal("expected unknown field error")
 	}
@@ -92,7 +94,7 @@ func TestLoadConfigRejectsInvalidTimeout(t *testing.T) {
 timeout = "not-a-duration"
 `)
 
-	_, _, err := LoadConfig(root)
+	_, _, err := LoadConfig(context.Background(), root)
 	if err == nil {
 		t.Fatal("expected invalid timeout error")
 	}
@@ -130,7 +132,7 @@ include_resolved = false
 provider = "coderabbit"
 `)
 
-	cfg, _, err := LoadConfig(root)
+	cfg, _, err := LoadConfig(context.Background(), root)
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
@@ -177,15 +179,71 @@ func TestResolveLoadsConfigFromNearestWorkspace(t *testing.T) {
 ide = "claude"
 `)
 
-	ctx, err := Resolve(start)
+	workspaceCtx, err := Resolve(context.Background(), start)
 	if err != nil {
 		t.Fatalf("resolve workspace: %v", err)
 	}
-	if ctx.Root != root {
-		t.Fatalf("unexpected workspace root: %q", ctx.Root)
+	if mustEvalSymlinksWorkspaceTest(t, workspaceCtx.Root) != mustEvalSymlinksWorkspaceTest(t, root) {
+		t.Fatalf("unexpected workspace root: %q", workspaceCtx.Root)
 	}
-	if ctx.Config.Defaults.IDE == nil || *ctx.Config.Defaults.IDE != "claude" {
-		t.Fatalf("unexpected loaded ide: %#v", ctx.Config.Defaults.IDE)
+	if workspaceCtx.Config.Defaults.IDE == nil || *workspaceCtx.Config.Defaults.IDE != "claude" {
+		t.Fatalf("unexpected loaded ide: %#v", workspaceCtx.Config.Defaults.IDE)
+	}
+}
+
+func TestDiscoverResolvesSymlinkStartDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	realStart := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir .compozy: %v", err)
+	}
+	if err := os.MkdirAll(realStart, 0o755); err != nil {
+		t.Fatalf("mkdir real start: %v", err)
+	}
+
+	link := filepath.Join(t.TempDir(), "feature-link")
+	if err := os.Symlink(realStart, link); err != nil {
+		t.Fatalf("symlink start dir: %v", err)
+	}
+
+	got, err := Discover(context.Background(), link)
+	if err != nil {
+		t.Fatalf("discover workspace: %v", err)
+	}
+	if mustEvalSymlinksWorkspaceTest(t, got) != mustEvalSymlinksWorkspaceTest(t, root) {
+		t.Fatalf("unexpected workspace root\nwant: %q\ngot:  %q", root, got)
+	}
+}
+
+func TestDiscoverReturnsContextErrorWhenCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := filepath.Join(t.TempDir(), "pkg", "feature")
+	if err := os.MkdirAll(start, 0o755); err != nil {
+		t.Fatalf("mkdir start: %v", err)
+	}
+
+	_, err := Discover(ctx, start)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context canceled error, got %v", err)
+	}
+}
+
+func TestLoadConfigReturnsContextErrorWhenCanceled(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	root := t.TempDir()
+	_, _, err := LoadConfig(ctx, root)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context canceled error, got %v", err)
 	}
 }
 
@@ -200,4 +258,14 @@ func writeWorkspaceConfig(t *testing.T, workspaceRoot, content string) {
 	if err := os.WriteFile(configPath, []byte(strings.TrimLeft(content, "\n")), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
+}
+
+func mustEvalSymlinksWorkspaceTest(t *testing.T, path string) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatalf("eval symlinks for %s: %v", path, err)
+	}
+	return resolved
 }

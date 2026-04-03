@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -56,13 +57,13 @@ type FetchReviewsConfig struct {
 	Provider *string `toml:"provider"`
 }
 
-func Resolve(startDir string) (Context, error) {
-	root, err := Discover(startDir)
+func Resolve(ctx context.Context, startDir string) (Context, error) {
+	root, err := Discover(ctx, startDir)
 	if err != nil {
 		return Context{}, err
 	}
 
-	cfg, configPath, err := LoadConfig(root)
+	cfg, configPath, err := LoadConfig(ctx, root)
 	if err != nil {
 		return Context{}, err
 	}
@@ -75,7 +76,11 @@ func Resolve(startDir string) (Context, error) {
 	}, nil
 }
 
-func Discover(startDir string) (string, error) {
+func Discover(ctx context.Context, startDir string) (string, error) {
+	if err := context.Cause(ctx); err != nil {
+		return "", fmt.Errorf("discover workspace: %w", err)
+	}
+
 	resolvedStart := strings.TrimSpace(startDir)
 	if resolvedStart == "" {
 		cwd, err := os.Getwd()
@@ -90,8 +95,17 @@ func Discover(startDir string) (string, error) {
 		return "", fmt.Errorf("resolve workspace start dir: %w", err)
 	}
 
-	current := absStart
+	realStart, err := filepath.EvalSymlinks(absStart)
+	if err != nil {
+		return "", fmt.Errorf("resolve workspace start dir symlinks: %w", err)
+	}
+
+	current := realStart
 	for {
+		if err := context.Cause(ctx); err != nil {
+			return "", fmt.Errorf("discover workspace: %w", err)
+		}
+
 		candidate := filepath.Join(current, model.WorkflowRootDirName)
 		info, err := os.Stat(candidate)
 		if err == nil && info.IsDir() {
@@ -103,13 +117,17 @@ func Discover(startDir string) (string, error) {
 
 		parent := filepath.Dir(current)
 		if parent == current {
-			return absStart, nil
+			return realStart, nil
 		}
 		current = parent
 	}
 }
 
-func LoadConfig(workspaceRoot string) (ProjectConfig, string, error) {
+func LoadConfig(ctx context.Context, workspaceRoot string) (ProjectConfig, string, error) {
+	if err := context.Cause(ctx); err != nil {
+		return ProjectConfig{}, "", fmt.Errorf("load workspace config: %w", err)
+	}
+
 	configPath := model.ConfigPathForWorkspace(workspaceRoot)
 	content, err := os.ReadFile(configPath)
 	if err != nil {
