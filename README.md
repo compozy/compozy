@@ -91,7 +91,7 @@ When the direct ACP command is not installed, Compozy can also fall back to supp
 ## 🔄 How It Works
 
 <div align="center">
-  <img src="imgs/how-it-works.png" alt="Compozy workflow from setup to ship with markdown artifacts at each step" width="100%">
+  <img src="imgs/how-it-works-flow.png" alt="Compozy workflow from setup to ship with markdown artifacts at each step" width="100%">
 </div>
 
 Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can read, edit, or version-control any of them between steps.
