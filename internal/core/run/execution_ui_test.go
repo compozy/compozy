@@ -5,6 +5,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/core/agent"
 )
 
 func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
@@ -55,6 +57,188 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 	}
 }
 
+func TestExecutorControllerUIQuitEntersDrainingPath(t *testing.T) {
+	t.Parallel()
+
+	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 4)}
+	execCtx := &jobExecutionContext{
+		total:         2,
+		ui:            ui,
+		uiCh:          ui.eventsCh,
+		activeClients: make(map[agent.Client]struct{}),
+	}
+	done := make(chan struct{})
+	cancelCalls := 0
+	controller := &executorController{
+		ctx:              context.Background(),
+		execCtx:          execCtx,
+		cancelJobs:       func(error) { cancelCalls++ },
+		done:             done,
+		shutdownRequests: make(chan shutdownRequest, 4),
+	}
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, _, _, err := controller.awaitCompletion()
+		resultCh <- err
+	}()
+
+	controller.requestShutdown(uiQuitRequestDrain)
+
+	select {
+	case msg := <-ui.eventsCh:
+		status, ok := msg.(shutdownStatusMsg)
+		if !ok {
+			t.Fatalf("expected shutdown status message, got %T", msg)
+		}
+		if got := status.State.Phase; got != shutdownPhaseDraining {
+			t.Fatalf("expected draining phase, got %s", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for draining status")
+	}
+
+	if cancelCalls != 1 {
+		t.Fatalf("expected one cancel request, got %d", cancelCalls)
+	}
+
+	close(done)
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatalf("awaitCompletion returned unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for draining controller completion")
+	}
+	if ui.shutdownCalls != 1 {
+		t.Fatalf("expected draining path to shut down the UI, got %d calls", ui.shutdownCalls)
+	}
+}
+
+func TestExecutorControllerSecondQuitForcesActiveClients(t *testing.T) {
+	t.Parallel()
+
+	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 8)}
+	client := newFakeACPClient(nil)
+	execCtx := &jobExecutionContext{
+		total: 1,
+		ui:    ui,
+		uiCh:  ui.eventsCh,
+		activeClients: map[agent.Client]struct{}{
+			client: {},
+		},
+	}
+	done := make(chan struct{})
+	controller := &executorController{
+		ctx:              context.Background(),
+		execCtx:          execCtx,
+		cancelJobs:       func(error) {},
+		done:             done,
+		shutdownRequests: make(chan shutdownRequest, 4),
+	}
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, _, _, err := controller.awaitCompletion()
+		resultCh <- err
+	}()
+
+	controller.requestShutdown(uiQuitRequestDrain)
+	controller.requestShutdown(uiQuitRequestForce)
+
+	var sawDrain bool
+	var sawForce bool
+	for !sawDrain || !sawForce {
+		select {
+		case msg := <-ui.eventsCh:
+			status, ok := msg.(shutdownStatusMsg)
+			if !ok {
+				continue
+			}
+			switch status.State.Phase {
+			case shutdownPhaseDraining:
+				sawDrain = true
+			case shutdownPhaseForcing:
+				sawForce = true
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for shutdown status transitions")
+		}
+	}
+
+	if got := client.killCalls.Load(); got != 1 {
+		t.Fatalf("expected force quit to kill active ACP clients, got %d kills", got)
+	}
+
+	close(done)
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatalf("awaitCompletion returned unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for forced controller completion")
+	}
+}
+
+func TestExecutorControllerRootContextCancellationPublishesDrainingState(t *testing.T) {
+	t.Parallel()
+
+	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 4)}
+	execCtx := &jobExecutionContext{
+		total:         1,
+		ui:            ui,
+		uiCh:          ui.eventsCh,
+		activeClients: make(map[agent.Client]struct{}),
+	}
+	done := make(chan struct{})
+	cancelCalls := 0
+	ctx, cancel := context.WithCancel(context.Background())
+	controller := &executorController{
+		ctx:              ctx,
+		execCtx:          execCtx,
+		cancelJobs:       func(error) { cancelCalls++ },
+		done:             done,
+		shutdownRequests: make(chan shutdownRequest, 4),
+	}
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, _, _, err := controller.awaitCompletion()
+		resultCh <- err
+	}()
+
+	cancel()
+
+	select {
+	case msg := <-ui.eventsCh:
+		status, ok := msg.(shutdownStatusMsg)
+		if !ok {
+			t.Fatalf("expected shutdown status message, got %T", msg)
+		}
+		if got := status.State.Source; got != shutdownSourceSignal {
+			t.Fatalf("expected signal-sourced drain status, got %s", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for signal-driven drain status")
+	}
+
+	if cancelCalls != 1 {
+		t.Fatalf("expected one cancel request after root context cancellation, got %d", cancelCalls)
+	}
+
+	close(done)
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatalf("awaitCompletion returned unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for controller completion after root cancellation")
+	}
+}
+
 type fakeUISession struct {
 	ch               chan uiMsg
 	waitCalled       chan struct{}
@@ -76,7 +260,7 @@ func (f *fakeUISession) events() chan uiMsg {
 	return f.ch
 }
 
-func (f *fakeUISession) setQuitHandler(func()) {}
+func (f *fakeUISession) setQuitHandler(func(uiQuitRequest)) {}
 
 func (f *fakeUISession) closeEvents() {
 	f.mu.Lock()

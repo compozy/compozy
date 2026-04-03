@@ -36,6 +36,48 @@ const (
 	StatusFailed SessionStatus = "failed"
 )
 
+// SessionUpdateKind identifies the ACP notification variant carried by a SessionUpdate.
+type SessionUpdateKind string
+
+const (
+	// UpdateKindUnknown marks an update with no additional semantic classification.
+	UpdateKindUnknown SessionUpdateKind = ""
+	// UpdateKindUserMessageChunk marks a streamed user message chunk.
+	UpdateKindUserMessageChunk SessionUpdateKind = "user_message_chunk"
+	// UpdateKindAgentMessageChunk marks a streamed agent message chunk.
+	UpdateKindAgentMessageChunk SessionUpdateKind = "agent_message_chunk"
+	// UpdateKindAgentThoughtChunk marks a streamed agent thought chunk.
+	UpdateKindAgentThoughtChunk SessionUpdateKind = "agent_thought_chunk"
+	// UpdateKindToolCallStarted marks the start of a tool call lifecycle.
+	UpdateKindToolCallStarted SessionUpdateKind = "tool_call_started"
+	// UpdateKindToolCallUpdated marks an update to an existing tool call lifecycle.
+	UpdateKindToolCallUpdated SessionUpdateKind = "tool_call_updated"
+	// UpdateKindPlanUpdated marks a plan update.
+	UpdateKindPlanUpdated SessionUpdateKind = "plan_updated"
+	// UpdateKindAvailableCommandsUpdated marks an available commands update.
+	UpdateKindAvailableCommandsUpdated SessionUpdateKind = "available_commands_updated"
+	// UpdateKindCurrentModeUpdated marks a current mode update.
+	UpdateKindCurrentModeUpdated SessionUpdateKind = "current_mode_updated"
+)
+
+// ToolCallState describes the lifecycle state of a tool call entry.
+type ToolCallState string
+
+const (
+	// ToolCallStateUnknown marks a tool call without an explicit lifecycle state.
+	ToolCallStateUnknown ToolCallState = ""
+	// ToolCallStatePending marks a pending tool call.
+	ToolCallStatePending ToolCallState = "pending"
+	// ToolCallStateInProgress marks an in-flight tool call.
+	ToolCallStateInProgress ToolCallState = "in_progress"
+	// ToolCallStateCompleted marks a completed tool call.
+	ToolCallStateCompleted ToolCallState = "completed"
+	// ToolCallStateFailed marks a failed tool call.
+	ToolCallStateFailed ToolCallState = "failed"
+	// ToolCallStateWaitingForConfirmation is reserved for future permission-aware UX.
+	ToolCallStateWaitingForConfirmation ToolCallState = "waiting_for_confirmation"
+)
+
 // ContentBlock stores one typed content payload in its canonical JSON form.
 type ContentBlock struct {
 	Type ContentBlockType `json:"type"`
@@ -90,11 +132,32 @@ type ImageBlock struct {
 	URI      *string          `json:"uri,omitempty"`
 }
 
+// SessionPlanEntry describes one ACP plan entry.
+type SessionPlanEntry struct {
+	Content  string `json:"content"`
+	Priority string `json:"priority"`
+	Status   string `json:"status"`
+}
+
+// SessionAvailableCommand describes one ACP slash-command style command.
+type SessionAvailableCommand struct {
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+	ArgumentHint string `json:"argumentHint,omitempty"`
+}
+
 // SessionUpdate is the Compozy-owned view of one streamed ACP update.
 type SessionUpdate struct {
-	Blocks []ContentBlock `json:"blocks,omitempty"`
-	Usage  Usage          `json:"usage,omitempty"`
-	Status SessionStatus  `json:"status"`
+	Kind              SessionUpdateKind         `json:"kind,omitempty"`
+	ToolCallID        string                    `json:"toolCallId,omitempty"`
+	ToolCallState     ToolCallState             `json:"toolCallState,omitempty"`
+	Blocks            []ContentBlock            `json:"blocks,omitempty"`
+	ThoughtBlocks     []ContentBlock            `json:"thoughtBlocks,omitempty"`
+	PlanEntries       []SessionPlanEntry        `json:"planEntries,omitempty"`
+	AvailableCommands []SessionAvailableCommand `json:"availableCommands,omitempty"`
+	CurrentModeID     string                    `json:"currentModeId,omitempty"`
+	Usage             Usage                     `json:"usage,omitempty"`
+	Status            SessionStatus             `json:"status"`
 }
 
 // Usage tracks session token consumption.

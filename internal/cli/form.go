@@ -338,7 +338,7 @@ func (fb *formBuilder) addIDEField(target *string) {
 		return huh.NewSelect[string]().
 			Key("ide").
 			Title("IDE Tool").
-			Description("Choose which IDE tool to use").
+			Description("Choose which ACP runtime to use (installed directly or available via a supported launcher).").
 			Options(
 				huh.NewOption("Codex (recommended)", string(core.IDECodex)),
 				huh.NewOption("Claude", string(core.IDEClaude)),
@@ -346,6 +346,7 @@ func (fb *formBuilder) addIDEField(target *string) {
 				huh.NewOption("Droid", string(core.IDEDroid)),
 				huh.NewOption("OpenCode", string(core.IDEOpenCode)),
 				huh.NewOption("Pi", string(core.IDEPi)),
+				huh.NewOption("Gemini", string(core.IDEGemini)),
 			).
 			Value(target)
 	})
@@ -358,7 +359,7 @@ func (fb *formBuilder) addModelField(target *string) {
 			Title("Model (optional)").
 			Placeholder("auto").
 			Description("Model override (defaults: codex/droid=gpt-5.4, " +
-				"claude=opus, opencode/pi=anthropic/claude-opus-4-6)").
+				"claude=opus, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)").
 			Value(target)
 	})
 }

@@ -15,6 +15,7 @@ import (
 
 	acp "github.com/coder/acp-go-sdk"
 
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 )
 
@@ -43,7 +44,7 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 		context.Background(),
 		&config{
 			ide:                    model.IDECodex,
-			model:                  "test-model",
+			model:                  "",
 			reasoningEffort:        "medium",
 			retryBackoffMultiplier: 2,
 		},
@@ -55,6 +56,7 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 		time.Second,
 		&aggregate,
 		&aggregateMu,
+		nil,
 	)
 
 	if got := result.status; got != attemptStatusSuccess {
@@ -72,14 +74,16 @@ drain:
 			if !ok {
 				continue
 			}
-			for _, block := range update.Blocks {
-				switch block.Type {
-				case model.BlockText:
-					sawText = true
-				case model.BlockToolUse:
-					sawToolUse = true
-				case model.BlockToolResult:
-					sawToolResult = true
+			for _, entry := range update.Snapshot.Entries {
+				for _, block := range entry.Blocks {
+					switch block.Type {
+					case model.BlockText:
+						sawText = true
+					case model.BlockToolUse:
+						sawToolUse = true
+					case model.BlockToolResult:
+						sawToolResult = true
+					}
 				}
 			}
 		default:
@@ -119,7 +123,7 @@ func TestJobRunnerACPErrorThenSuccessRetries(t *testing.T) {
 	execCtx := &jobExecutionContext{
 		cfg: &config{
 			ide:                    model.IDECodex,
-			model:                  "test-model",
+			model:                  "",
 			reasoningEffort:        "medium",
 			maxRetries:             1,
 			retryBackoffMultiplier: 2,
@@ -146,6 +150,48 @@ func TestJobRunnerACPErrorThenSuccessRetries(t *testing.T) {
 	}
 }
 
+func TestExecuteJobWithTimeoutACPSubcommandRuntimeUsesLaunchSpec(t *testing.T) {
+	tmpDir := t.TempDir()
+	installACPHelperCommandOnPath(t, "opencode", []runACPHelperScenario{{
+		ExpectedPromptContains: "finish the task",
+		Updates: []acp.SessionUpdate{
+			acp.UpdateAgentMessageText("opencode subcommand path worked"),
+		},
+	}})
+
+	job := newTestACPJob(tmpDir)
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			ide:                    model.IDEOpenCode,
+			model:                  "",
+			reasoningEffort:        "medium",
+			retryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		false,
+		nil,
+		0,
+		time.Second,
+		nil,
+		nil,
+		nil,
+	)
+
+	if got := result.status; got != attemptStatusSuccess {
+		t.Fatalf("expected success status, got %s (%v)", got, result.failure)
+	}
+
+	outLog, err := os.ReadFile(job.outLog)
+	if err != nil {
+		t.Fatalf("read out log: %v", err)
+	}
+	if !strings.Contains(string(outLog), "opencode subcommand path worked") {
+		t.Fatalf("expected subcommand ACP output in out log, got %q", string(outLog))
+	}
+}
+
 func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 	tmpDir := t.TempDir()
 	installACPHelperOnPath(t, []runACPHelperScenario{{
@@ -159,7 +205,7 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 	execCtx := &jobExecutionContext{
 		cfg: &config{
 			ide:                    model.IDECodex,
-			model:                  "test-model",
+			model:                  "",
 			reasoningEffort:        "medium",
 			concurrent:             2,
 			retryBackoffMultiplier: 2,
@@ -171,14 +217,14 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 		sem:   make(chan struct{}, 2),
 	}
 
-	jobCtx, cancel := execCtx.launchWorkers(context.Background())
+	jobCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	execCtx.launchWorkers(jobCtx)
 	select {
 	case <-execCtx.waitChannel():
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for ACP worker execution")
 	}
-	_ = jobCtx
 
 	if got := atomic.LoadInt32(&execCtx.completed); got != 2 {
 		t.Fatalf("expected 2 completed jobs, got %d", got)
@@ -194,6 +240,79 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 		if !strings.Contains(string(outLog), "job completed") {
 			t.Fatalf("expected success output in %s, got %q", job.outLog, string(outLog))
 		}
+	}
+}
+
+func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingACPJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	firstCreated := make(chan struct{}, 1)
+
+	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-blocking")
+		firstCreated <- struct{}{}
+		go func() {
+			<-ctx.Done()
+			session.finish(context.Cause(ctx))
+		}()
+		return session, nil
+	})
+	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-pending")
+		go session.finish(nil)
+		return session, nil
+	})
+	installFakeACPClients(t, firstClient, secondClient)
+
+	jobs := []job{
+		newNamedTestACPJob(tmpDir, "task_01"),
+		newNamedTestACPJob(tmpDir, "task_02"),
+	}
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			concurrent:             1,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		jobs:  jobs,
+		total: len(jobs),
+		cwd:   tmpDir,
+		sem:   make(chan struct{}, 1),
+	}
+
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	launchDone := make(chan struct{})
+	go func() {
+		execCtx.launchWorkers(jobCtx)
+		close(launchDone)
+	}()
+
+	select {
+	case <-launchDone:
+	case <-time.After(time.Second):
+		t.Fatal("launchWorkers blocked on concurrency limits")
+	}
+
+	select {
+	case <-firstCreated:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the first ACP session to start")
+	}
+
+	cancel()
+
+	select {
+	case <-execCtx.waitChannel():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for workers to drain after cancellation")
+	}
+
+	if got := secondClient.createCalls.Load(); got != 0 {
+		t.Fatalf("expected pending job to avoid ACP session creation after cancellation, got %d", got)
 	}
 }
 
@@ -325,6 +444,11 @@ func (e *runACPHelperRequestError) toACPError() error {
 
 func installACPHelperOnPath(t *testing.T, sequences ...[]runACPHelperScenario) {
 	t.Helper()
+	installACPHelperCommandOnPath(t, "codex-acp", sequences...)
+}
+
+func installACPHelperCommandOnPath(t *testing.T, commandName string, sequences ...[]runACPHelperScenario) {
+	t.Helper()
 
 	if len(sequences) == 0 {
 		t.Fatal("expected at least one helper scenario")
@@ -348,7 +472,7 @@ func installACPHelperOnPath(t *testing.T, sequences ...[]runACPHelperScenario) {
 		}
 	}
 
-	scriptPath := filepath.Join(tmpDir, "codex-acp")
+	scriptPath := filepath.Join(tmpDir, commandName)
 	script := fmt.Sprintf("#!/bin/sh\nexec %q -test.run=TestRunACPHelperProcess -- \"$@\"\n", os.Args[0])
 	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
 		t.Fatalf("write helper script: %v", err)

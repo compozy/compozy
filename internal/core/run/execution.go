@@ -47,6 +47,7 @@ type jobExecutionContext struct {
 	jobs           []job
 	total          int
 	cwd            string
+	logger         *slog.Logger
 	uiCh           chan uiMsg
 	ui             uiSession
 	sem            chan struct{}
@@ -57,6 +58,8 @@ type jobExecutionContext struct {
 	failuresMu     sync.Mutex
 	completed      int32
 	wg             sync.WaitGroup
+	clientsMu      sync.Mutex
+	activeClients  map[agent.Client]struct{}
 }
 
 type executorState string
@@ -65,16 +68,23 @@ const (
 	executorStateInitializing executorState = "initializing"
 	executorStateRunning      executorState = "running"
 	executorStateDraining     executorState = "draining"
+	executorStateForcing      executorState = "forcing"
 	executorStateShutdown     executorState = "shutdown"
 	executorStateTerminated   executorState = "terminated"
 )
 
+type shutdownRequest struct {
+	force  bool
+	source shutdownSource
+}
+
 type executorController struct {
-	ctx        context.Context
-	execCtx    *jobExecutionContext
-	state      executorState
-	cancelJobs context.CancelFunc
-	done       <-chan struct{}
+	ctx              context.Context
+	execCtx          *jobExecutionContext
+	state            executorState
+	cancelJobs       context.CancelCauseFunc
+	done             <-chan struct{}
+	shutdownRequests chan shutdownRequest
 }
 
 func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, cfg *config) (int32, []failInfo, int, error) {
@@ -85,71 +95,138 @@ func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, cfg *confi
 	}
 	defer execCtx.cleanup()
 
-	jobCtx, cancelJobs := execCtx.launchWorkers(ctx)
-	_ = jobCtx
+	jobCtx, cancelJobs := context.WithCancelCause(ctx)
 	controller := &executorController{
-		ctx:        ctx,
-		execCtx:    execCtx,
-		state:      executorStateInitializing,
-		cancelJobs: cancelJobs,
-		done:       execCtx.waitChannel(),
+		ctx:              ctx,
+		execCtx:          execCtx,
+		state:            executorStateInitializing,
+		cancelJobs:       cancelJobs,
+		shutdownRequests: make(chan shutdownRequest, 4),
 	}
 	if execCtx.ui != nil {
-		execCtx.ui.setQuitHandler(cancelJobs)
+		execCtx.ui.setQuitHandler(controller.requestShutdown)
 	}
+	execCtx.launchWorkers(jobCtx)
+	controller.done = execCtx.waitChannel()
 	return controller.awaitCompletion()
 }
 
 func (c *executorController) awaitCompletion() (int32, []failInfo, int, error) {
 	c.state = executorStateRunning
-	select {
-	case <-c.done:
-		c.state = executorStateShutdown
-		if err := c.execCtx.awaitUIAfterCompletion(); err != nil {
-			c.state = executorStateTerminated
-			return c.result(err)
-		}
-		c.execCtx.reportAggregateUsage()
-		c.state = executorStateTerminated
-		return c.result(nil)
-	case <-c.ctx.Done():
-		fmt.Fprintf(os.Stderr, "\nReceived shutdown signal while executor in %s state; requesting drain...\n", c.state)
-		c.state = executorStateDraining
-		if c.cancelJobs != nil {
-			c.cancelJobs()
-		}
-		return c.awaitShutdownAfterCancel()
-	}
-}
+	ctxDone := c.ctx.Done()
+	var shutdownTimer *time.Timer
+	var shutdownTimerCh <-chan time.Time
 
-func (c *executorController) awaitShutdownAfterCancel() (int32, []failInfo, int, error) {
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.WithoutCancel(c.ctx), gracefulShutdownTimeout)
-	defer shutdownCancel()
-
-	select {
-	case <-c.done:
-		fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v while draining\n", gracefulShutdownTimeout)
-		c.state = executorStateShutdown
-		if err := c.execCtx.shutdownUI(); err != nil {
+	for {
+		select {
+		case <-c.done:
+			if shutdownTimer != nil {
+				shutdownTimer.Stop()
+			}
+			if c.state == executorStateRunning {
+				c.state = executorStateShutdown
+				if err := c.execCtx.awaitUIAfterCompletion(); err != nil {
+					c.state = executorStateTerminated
+					return c.result(err)
+				}
+				c.execCtx.reportAggregateUsage()
+				c.state = executorStateTerminated
+				return c.result(nil)
+			}
+			fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v while draining\n", gracefulShutdownTimeout)
+			c.state = executorStateShutdown
+			if err := c.execCtx.shutdownUI(); err != nil {
+				c.state = executorStateTerminated
+				return c.result(err)
+			}
+			c.execCtx.reportAggregateUsage()
 			c.state = executorStateTerminated
-			return c.result(err)
+			return c.result(nil)
+		case req := <-c.shutdownRequests:
+			if req.force {
+				c.beginForce(req.source)
+				continue
+			}
+			if c.beginDrain(req.source) {
+				if shutdownTimer != nil {
+					shutdownTimer.Stop()
+				}
+				shutdownTimer = time.NewTimer(gracefulShutdownTimeout)
+				shutdownTimerCh = shutdownTimer.C
+			}
+		case <-ctxDone:
+			ctxDone = nil
+			if c.beginDrain(shutdownSourceSignal) {
+				if shutdownTimer != nil {
+					shutdownTimer.Stop()
+				}
+				shutdownTimer = time.NewTimer(gracefulShutdownTimeout)
+				shutdownTimerCh = shutdownTimer.C
+			}
+		case <-shutdownTimerCh:
+			shutdownTimerCh = nil
+			c.beginForce(shutdownSourceTimer)
 		}
-		c.execCtx.reportAggregateUsage()
-		c.state = executorStateTerminated
-		return c.result(nil)
-	case <-shutdownCtx.Done():
-		fmt.Fprintf(os.Stderr, "Shutdown timeout exceeded (%v), forcing exit\n", gracefulShutdownTimeout)
-		c.state = executorStateTerminated
-		if err := c.execCtx.shutdownUI(); err != nil {
-			return c.result(fmt.Errorf("shutdown timeout exceeded and ui shutdown failed: %w", err))
-		}
-		return c.result(fmt.Errorf("shutdown timeout exceeded"))
 	}
 }
 
 func (c *executorController) result(err error) (int32, []failInfo, int, error) {
 	failed := atomic.LoadInt32(&c.execCtx.failed)
 	return failed, c.execCtx.failures, c.execCtx.total, err
+}
+
+func (c *executorController) requestShutdown(req uiQuitRequest) {
+	force := req == uiQuitRequestForce
+	select {
+	case c.shutdownRequests <- shutdownRequest{force: force, source: shutdownSourceUI}:
+	default:
+	}
+}
+
+func (c *executorController) beginDrain(source shutdownSource) bool {
+	if c.state != executorStateRunning && c.state != executorStateInitializing {
+		return false
+	}
+	fmt.Fprintf(
+		os.Stderr,
+		"\nReceived shutdown request (%s) while executor in %s state; requesting drain...\n",
+		source,
+		c.state,
+	)
+	c.state = executorStateDraining
+	if c.cancelJobs != nil {
+		c.cancelJobs(context.Canceled)
+	}
+	now := time.Now()
+	c.execCtx.publishShutdownStatus(shutdownState{
+		Phase:       shutdownPhaseDraining,
+		Source:      source,
+		RequestedAt: now,
+		DeadlineAt:  now.Add(gracefulShutdownTimeout),
+	})
+	return true
+}
+
+func (c *executorController) beginForce(source shutdownSource) {
+	if c.state == executorStateForcing || c.state == executorStateShutdown || c.state == executorStateTerminated {
+		return
+	}
+	if c.state == executorStateRunning || c.state == executorStateInitializing {
+		if !c.beginDrain(source) {
+			return
+		}
+	}
+	fmt.Fprintf(os.Stderr, "Escalating shutdown via %s; forcing exit\n", source)
+	c.state = executorStateForcing
+	if c.cancelJobs != nil {
+		c.cancelJobs(context.Canceled)
+	}
+	c.execCtx.publishShutdownStatus(shutdownState{
+		Phase:       shutdownPhaseForcing,
+		Source:      source,
+		RequestedAt: time.Now(),
+	})
+	c.execCtx.forceActiveClients()
 }
 
 type jobLifecycle struct {
@@ -385,6 +462,7 @@ func (r *jobRunner) executeAttempt(ctx context.Context, timeout time.Duration) j
 		timeout,
 		&r.execCtx.aggregateUsage,
 		&r.execCtx.aggregateMu,
+		r.execCtx.trackClient,
 	)
 }
 
@@ -422,11 +500,13 @@ func newJobExecutionContext(ctx context.Context, jobs []job, cfg *config) (*jobE
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
 	}
 	execCtx := &jobExecutionContext{
-		cfg:   cfg,
-		jobs:  jobs,
-		total: len(jobs),
-		cwd:   cwd,
-		sem:   make(chan struct{}, maxInt(1, cfg.concurrent)),
+		cfg:           cfg,
+		jobs:          jobs,
+		total:         len(jobs),
+		cwd:           cwd,
+		logger:        runtimeLogger(!cfg.dryRun),
+		sem:           make(chan struct{}, maxInt(1, cfg.concurrent)),
+		activeClients: make(map[agent.Client]struct{}),
 	}
 	for idx := range execCtx.jobs {
 		execCtx.jobs[idx].outBuffer = newLineBuffer(cfg.tailLines)
@@ -443,6 +523,13 @@ func (j *jobExecutionContext) cleanup() {
 	if err := j.shutdownUI(); err != nil {
 		fmt.Fprintf(os.Stderr, "UI shutdown error: %v\n", err)
 	}
+}
+
+func (j *jobExecutionContext) runtimeLogger() *slog.Logger {
+	if j != nil && j.logger != nil {
+		return j.logger
+	}
+	return runtimeLogger(false)
 }
 
 func (j *jobExecutionContext) awaitUIAfterCompletion() error {
@@ -462,24 +549,85 @@ func (j *jobExecutionContext) shutdownUI() error {
 	return j.ui.wait()
 }
 
-func (j *jobExecutionContext) launchWorkers(ctx context.Context) (context.Context, context.CancelFunc) {
-	jobCtx, cancel := context.WithCancel(ctx)
+func (j *jobExecutionContext) publishShutdownStatus(state shutdownState) {
+	if j.uiCh == nil {
+		return
+	}
+	j.uiCh <- shutdownStatusMsg{State: state}
+}
+
+func (j *jobExecutionContext) launchWorkers(jobCtx context.Context) {
 	for idx := range j.jobs {
 		jb := &j.jobs[idx]
 		j.wg.Add(1)
-		j.sem <- struct{}{}
 		go j.executeJob(jobCtx, idx, jb)
 	}
-	return jobCtx, cancel
 }
 
 func (j *jobExecutionContext) executeJob(jobCtx context.Context, index int, jb *job) {
 	defer func() {
-		<-j.sem
 		j.wg.Done()
 		atomic.AddInt32(&j.completed, 1)
 	}()
+
+	if !j.acquireWorkerSlot(jobCtx) {
+		newJobRunner(index, jb, j).run(jobCtx)
+		return
+	}
+	defer j.releaseWorkerSlot()
+
 	newJobRunner(index, jb, j).run(jobCtx)
+}
+
+func (j *jobExecutionContext) trackClient(client agent.Client) func() {
+	if client == nil {
+		return func() {}
+	}
+	j.clientsMu.Lock()
+	if j.activeClients == nil {
+		j.activeClients = make(map[agent.Client]struct{})
+	}
+	j.activeClients[client] = struct{}{}
+	j.clientsMu.Unlock()
+	return func() {
+		j.clientsMu.Lock()
+		delete(j.activeClients, client)
+		j.clientsMu.Unlock()
+	}
+}
+
+func (j *jobExecutionContext) forceActiveClients() {
+	j.clientsMu.Lock()
+	clients := make([]agent.Client, 0, len(j.activeClients))
+	for client := range j.activeClients {
+		clients = append(clients, client)
+	}
+	j.clientsMu.Unlock()
+
+	for _, client := range clients {
+		if err := client.Kill(); err != nil {
+			j.runtimeLogger().Warn("failed to force-kill ACP client", "error", err)
+		}
+	}
+}
+
+func (j *jobExecutionContext) acquireWorkerSlot(ctx context.Context) bool {
+	if j.sem == nil {
+		return true
+	}
+	select {
+	case j.sem <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
+	}
+}
+
+func (j *jobExecutionContext) releaseWorkerSlot() {
+	if j.sem == nil {
+		return
+	}
+	<-j.sem
 }
 
 func (j *jobExecutionContext) waitChannel() <-chan struct{} {
@@ -525,7 +673,7 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 	if err != nil {
 		return err
 	}
-	slog.Info(
+	j.runtimeLogger().Info(
 		"updated task workflow metadata",
 		"tasks_dir",
 		j.cfg.tasksDir,
@@ -563,7 +711,7 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 	if err != nil {
 		return err
 	}
-	slog.Info(
+	j.runtimeLogger().Info(
 		"updated review round metadata",
 		"provider",
 		meta.Provider,
@@ -602,7 +750,7 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 	registry := reviewProviderRegistry()
 	reviewProvider, err := registry.Get(j.cfg.provider)
 	if err != nil {
-		slog.Warn(
+		j.runtimeLogger().Warn(
 			"review provider integration unavailable; skipping remote issue resolution",
 			"provider",
 			j.cfg.provider,
@@ -617,7 +765,7 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 	}
 
 	if err := reviewProvider.ResolveIssues(ctx, j.cfg.pr, providerBackedIssues); err != nil {
-		slog.Warn(
+		j.runtimeLogger().Warn(
 			"review provider resolution completed with warnings",
 			"provider",
 			j.cfg.provider,
@@ -631,7 +779,7 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 		return
 	}
 
-	slog.Info(
+	j.runtimeLogger().Info(
 		"resolved review provider issues",
 		"provider",
 		j.cfg.provider,
@@ -649,7 +797,7 @@ func refreshTaskMetaOnExit(cfg *config) {
 
 	meta, err := tasks.RefreshTaskMeta(cfg.tasksDir)
 	if err != nil {
-		slog.Warn(
+		runtimeLogger(cfg != nil && !cfg.dryRun).Warn(
 			"failed to refresh task workflow metadata at command exit",
 			"tasks_dir",
 			cfg.tasksDir,
@@ -659,7 +807,7 @@ func refreshTaskMetaOnExit(cfg *config) {
 		return
 	}
 
-	slog.Info(
+	runtimeLogger(cfg != nil && !cfg.dryRun).Info(
 		"refreshed task workflow metadata at command exit",
 		"tasks_dir",
 		cfg.tasksDir,
@@ -683,6 +831,7 @@ func executeJobWithTimeout(
 	timeout time.Duration,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
+	trackClient func(agent.Client) func(),
 ) jobAttemptResult {
 	attemptCtx := ctx
 	cancel := func() {}
@@ -701,6 +850,8 @@ func executeJobWithTimeout(
 		index,
 		aggregateUsage,
 		aggregateMu,
+		runtimeLogger(useUI),
+		trackClient,
 	)
 	if err != nil {
 		fail := recordFailureWithContext(nil, j, nil, err, -1)
@@ -753,7 +904,7 @@ func executeSessionAndResolve(
 		streamErr := <-streamErrCh
 		if streamErr != nil {
 			if err := execution.handler.HandleCompletion(streamErr); err != nil {
-				slog.Warn("failed to finalize ACP session handler after stream error", "error", err)
+				execution.logger.Warn("failed to finalize ACP session handler after stream error", "error", err)
 			}
 			appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + streamErr.Error()})
 			return buildFailureResult(streamErr, -1, j, index, useUI)
@@ -761,7 +912,7 @@ func executeSessionAndResolve(
 
 		sessionErr := execution.session.Err()
 		if err := execution.handler.HandleCompletion(sessionErr); err != nil {
-			slog.Warn("failed to finalize ACP session handler", "error", err)
+			execution.logger.Warn("failed to finalize ACP session handler", "error", err)
 		}
 		if sessionErr != nil {
 			appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + sessionErr.Error()})
@@ -773,7 +924,7 @@ func executeSessionAndResolve(
 			cancelErr = ctx.Err()
 		}
 		if err := execution.handler.HandleCompletion(cancelErr); err != nil {
-			slog.Warn("failed to finalize ACP session handler after context cancellation", "error", err)
+			execution.logger.Warn("failed to finalize ACP session handler after context cancellation", "error", err)
 		}
 		appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + cancelErr.Error()})
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {

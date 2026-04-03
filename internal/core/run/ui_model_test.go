@@ -35,10 +35,10 @@ func TestUIControllerHelpers(t *testing.T) {
 	}
 
 	called := 0
-	ctrl.setQuitHandler(func() {
+	ctrl.setQuitHandler(func(uiQuitRequest) {
 		called++
 	})
-	ctrl.requestQuit()
+	ctrl.requestQuit(uiQuitRequestDrain)
 	if called != 1 {
 		t.Fatalf("expected quit handler to be invoked once, got %d", called)
 	}

@@ -1,6 +1,11 @@
 package agent
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -12,71 +17,70 @@ func TestAgentRegistryEntries(t *testing.T) {
 	cases := []struct {
 		name       string
 		ide        string
-		wantBinary string
-		wantArgs   []string
-		modelName  string
 		reasoning  string
 		addDirs    []string
+		wantLaunch []string
+		wantProbe  []string
 	}{
 		{
 			name:       "claude",
 			ide:        model.IDEClaude,
-			wantBinary: "claude-agent-acp",
-			wantArgs:   []string{"--model", model.DefaultClaudeModel, "--add-dir", "../shared", "--add-dir", "../docs"},
 			reasoning:  "medium",
 			addDirs:    []string{"../shared", "../docs"},
+			wantLaunch: []string{"claude-agent-acp"},
+			wantProbe:  []string{"claude-agent-acp", "--help"},
 		},
 		{
 			name:       "codex",
 			ide:        model.IDECodex,
-			wantBinary: "codex-acp",
-			wantArgs: []string{
+			reasoning:  "medium",
+			addDirs:    []string{"../shared", "../docs"},
+			wantLaunch: []string{"codex-acp"},
+			wantProbe:  []string{"codex-acp", "--help"},
+		},
+		{
+			name:      "droid",
+			ide:       model.IDEDroid,
+			reasoning: "medium",
+			wantLaunch: []string{
+				"droid",
+				"exec",
+				"--output-format",
+				"acp",
 				"--model",
 				model.DefaultCodexModel,
 				"--reasoning-effort",
 				"medium",
-				"--add-dir",
-				"../shared",
-				"--add-dir",
-				"../docs",
 			},
-			reasoning: "medium",
-			addDirs:   []string{"../shared", "../docs"},
-		},
-		{
-			name:       "droid",
-			ide:        model.IDEDroid,
-			wantBinary: "droid",
-			wantArgs:   []string{"--model", model.DefaultCodexModel, "--reasoning-effort", "medium"},
-			reasoning:  "medium",
+			wantProbe: []string{"droid", "exec", "--help"},
 		},
 		{
 			name:       "cursor",
 			ide:        model.IDECursor,
-			wantBinary: "cursor-acp",
-			wantArgs:   []string{"--model", model.DefaultCursorModel},
 			reasoning:  "medium",
+			wantLaunch: []string{"cursor-agent", "acp"},
+			wantProbe:  []string{"cursor-agent", "acp", "--help"},
 		},
 		{
 			name:       "opencode",
 			ide:        model.IDEOpenCode,
-			wantBinary: "opencode",
-			wantArgs:   []string{"--model", model.DefaultOpenCodeModel, "--thinking", "medium"},
 			reasoning:  "medium",
+			wantLaunch: []string{"opencode", "acp"},
+			wantProbe:  []string{"opencode", "acp", "--help"},
 		},
 		{
 			name:       "pi",
 			ide:        model.IDEPi,
-			wantBinary: "pi",
-			wantArgs:   []string{"--model", model.DefaultPiModel, "--thinking", "medium"},
 			reasoning:  "medium",
+			wantLaunch: []string{"pi-acp"},
+			wantProbe:  []string{"pi-acp", "--help"},
 		},
 		{
 			name:       "gemini",
 			ide:        model.IDEGemini,
-			wantBinary: "gemini",
-			wantArgs:   []string{"--experimental-acp", "--model", model.DefaultGeminiModel},
 			reasoning:  "medium",
+			wantLaunch: []string{"gemini", "--acp"},
+			wantProbe:  []string{"gemini", "--acp", "--help"},
 		},
 	}
 
@@ -90,20 +94,78 @@ func TestAgentRegistryEntries(t *testing.T) {
 				t.Fatalf("lookup agent spec: %v", err)
 			}
 
-			if spec.Binary != tc.wantBinary {
-				t.Fatalf("unexpected binary for %s: got %q want %q", tc.ide, spec.Binary, tc.wantBinary)
+			gotLaunch := spec.launchCommand(resolveModel(spec, ""), tc.reasoning, tc.addDirs)
+			if !slices.Equal(gotLaunch, tc.wantLaunch) {
+				t.Fatalf("unexpected launch command for %s: got %v want %v", tc.ide, gotLaunch, tc.wantLaunch)
 			}
-
-			gotArgs := spec.BootstrapArgs(resolveModel(spec, tc.modelName), tc.reasoning, tc.addDirs)
-			if len(gotArgs) != len(tc.wantArgs) {
-				t.Fatalf("unexpected arg count for %s: got %v want %v", tc.ide, gotArgs, tc.wantArgs)
-			}
-			for idx := range tc.wantArgs {
-				if gotArgs[idx] != tc.wantArgs[idx] {
-					t.Fatalf("unexpected args for %s: got %v want %v", tc.ide, gotArgs, tc.wantArgs)
-				}
+			if gotProbe := spec.probeCommand(); !slices.Equal(gotProbe, tc.wantProbe) {
+				t.Fatalf("unexpected probe command for %s: got %v want %v", tc.ide, gotProbe, tc.wantProbe)
 			}
 		})
+	}
+}
+
+func TestBuildShellCommandStringUsesFallbackLauncherWhenPrimaryMissing(t *testing.T) {
+	tmpDir := t.TempDir()
+	npxPath := filepath.Join(tmpDir, "npx")
+	script := "#!/bin/sh\nexit 0\n"
+	if err := os.WriteFile(npxPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake npx: %v", err)
+	}
+
+	t.Setenv("PATH", tmpDir)
+	registerTestSpec(t, Spec{
+		ID:           "fallback-shell-test",
+		DisplayName:  "Fallback Shell",
+		DefaultModel: "test-model",
+		Command:      "missing-acp",
+		Fallbacks: []Launcher{
+			{
+				Command:   "npx",
+				FixedArgs: []string{"--yes", "@scope/test-acp"},
+			},
+		},
+	})
+
+	got := BuildShellCommandString("fallback-shell-test", "", nil, "medium")
+	if got != `npx --yes @scope/test-acp` {
+		t.Fatalf("unexpected shell command: %s", got)
+	}
+}
+
+func TestResolveLaunchCommandUsesFallbackCandidate(t *testing.T) {
+	tmpDir := t.TempDir()
+	npxPath := filepath.Join(tmpDir, "npx")
+	script := "#!/bin/sh\nexit 0\n"
+	if err := os.WriteFile(npxPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write fake npx: %v", err)
+	}
+
+	t.Setenv("PATH", tmpDir)
+	registerTestSpec(t, Spec{
+		ID:           "fallback-launch-test",
+		DisplayName:  "Fallback Launch",
+		DefaultModel: "test-model",
+		Command:      "missing-acp",
+		Fallbacks: []Launcher{
+			{
+				Command:   "npx",
+				FixedArgs: []string{"--yes", "@scope/test-acp"},
+			},
+		},
+	})
+
+	spec, err := lookupAgentSpec("fallback-launch-test")
+	if err != nil {
+		t.Fatalf("lookup test spec: %v", err)
+	}
+
+	command, err := resolveLaunchCommand(spec, spec.DefaultModel, "medium", nil, true)
+	if err != nil {
+		t.Fatalf("resolve launch command: %v", err)
+	}
+	if want := []string{"npx", "--yes", "@scope/test-acp"}; !slices.Equal(command, want) {
+		t.Fatalf("unexpected fallback command: got %v want %v", command, want)
 	}
 }
 
@@ -202,15 +264,14 @@ func TestValidateRuntimeConfigRejectsInvalidRetryConfig(t *testing.T) {
 	}
 }
 
-func TestEnsureAvailableReturnsErrorWhenBinaryMissing(t *testing.T) {
+func TestEnsureAvailableReturnsTypedErrorWhenCommandMissing(t *testing.T) {
 	testSpec := Spec{
 		ID:           "missing-binary-test",
 		DisplayName:  "Missing",
 		DefaultModel: "test-model",
-		Binary:       "definitely-not-installed-binary",
-		BootstrapArgs: func(_, _ string, _ []string) []string {
-			return nil
-		},
+		Command:      "definitely-not-installed-binary",
+		DocsURL:      "https://example.com/docs",
+		InstallHint:  "Install the missing ACP adapter.",
 	}
 	registerTestSpec(t, testSpec)
 
@@ -219,8 +280,54 @@ func TestEnsureAvailableReturnsErrorWhenBinaryMissing(t *testing.T) {
 		t.Fatal("expected EnsureAvailable error")
 	}
 
+	var availabilityErr *AvailabilityError
+	if !errors.As(err, &availabilityErr) {
+		t.Fatalf("expected AvailabilityError, got %T", err)
+	}
+	if !strings.Contains(err.Error(), `tried definitely-not-installed-binary`) {
+		t.Fatalf("expected attempted command in error, got %q", err)
+	}
+	if !strings.Contains(err.Error(), testSpec.InstallHint) {
+		t.Fatalf("expected install hint in error, got %q", err)
+	}
+
 	if err := EnsureAvailable(&model.RuntimeConfig{IDE: testSpec.ID, DryRun: true}); err != nil {
 		t.Fatalf("expected dry-run EnsureAvailable to bypass checks: %v", err)
+	}
+}
+
+func TestEnsureAvailableReturnsProbeOutputWhenCommandIsBroken(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "broken-acp")
+	script := "#!/bin/sh\nprintf 'adapter exploded' >&2\nexit 7\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write helper script: %v", err)
+	}
+
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	registerTestSpec(t, Spec{
+		ID:           "broken-probe-test",
+		DisplayName:  "Broken ACP",
+		DefaultModel: "test-model",
+		Command:      "broken-acp",
+		ProbeArgs:    []string{"probe"},
+		InstallHint:  "Reinstall the broken ACP adapter.",
+	})
+
+	err := EnsureAvailable(&model.RuntimeConfig{IDE: "broken-probe-test"})
+	if err == nil {
+		t.Fatal("expected EnsureAvailable error")
+	}
+
+	var availabilityErr *AvailabilityError
+	if !errors.As(err, &availabilityErr) {
+		t.Fatalf("expected AvailabilityError, got %T", err)
+	}
+	if got := strings.TrimSpace(availabilityErr.Output); got != "adapter exploded" {
+		t.Fatalf("unexpected probe output: %q", got)
+	}
+	if !strings.Contains(err.Error(), "adapter exploded") {
+		t.Fatalf("expected probe output in error, got %q", err)
 	}
 }
 
@@ -244,63 +351,110 @@ func TestDisplayNameReturnsCorrectDisplayNames(t *testing.T) {
 	}
 }
 
-func TestBuildShellCommandString(t *testing.T) {
+func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 	t.Parallel()
 
+	entries := DriverCatalog()
+	if len(entries) != len(supportedRegistryIDEOrder) {
+		t.Fatalf("expected %d driver catalog entries, got %d", len(supportedRegistryIDEOrder), len(entries))
+	}
+
+	byIDE := make(map[string]DriverCatalogEntry, len(entries))
+	for _, entry := range entries {
+		byIDE[entry.IDE] = entry
+	}
+
 	cases := []struct {
-		name    string
-		ide     string
-		addDirs []string
-		want    string
+		ide               string
+		wantCommand       []string
+		wantProbe         []string
+		wantFallbackCount int
 	}{
 		{
-			name:    "claude",
-			ide:     model.IDEClaude,
-			addDirs: []string{"../shared", "../docs"},
-			want:    "claude-agent-acp --model opus --add-dir ../shared --add-dir ../docs",
+			ide:               model.IDEClaude,
+			wantCommand:       []string{"claude-agent-acp"},
+			wantProbe:         []string{"claude-agent-acp", "--help"},
+			wantFallbackCount: 1,
 		},
 		{
-			name:    "codex",
-			ide:     model.IDECodex,
-			addDirs: []string{"../shared", "../docs"},
-			want:    "codex-acp --model gpt-5.4 --reasoning-effort medium --add-dir ../shared --add-dir ../docs",
+			ide:               model.IDECodex,
+			wantCommand:       []string{"codex-acp"},
+			wantProbe:         []string{"codex-acp", "--help"},
+			wantFallbackCount: 1,
 		},
 		{
-			name: "droid",
-			ide:  model.IDEDroid,
-			want: "droid --model gpt-5.4 --reasoning-effort medium",
+			ide:               model.IDEDroid,
+			wantCommand:       []string{"droid", "exec", "--output-format", "acp"},
+			wantProbe:         []string{"droid", "exec", "--help"},
+			wantFallbackCount: 1,
 		},
 		{
-			name: "cursor",
-			ide:  model.IDECursor,
-			want: "cursor-acp --model composer-1",
+			ide:               model.IDECursor,
+			wantCommand:       []string{"cursor-agent", "acp"},
+			wantProbe:         []string{"cursor-agent", "acp", "--help"},
+			wantFallbackCount: 0,
 		},
 		{
-			name: "opencode",
-			ide:  model.IDEOpenCode,
-			want: "opencode --model anthropic/claude-opus-4-6 --thinking medium",
+			ide:               model.IDEOpenCode,
+			wantCommand:       []string{"opencode", "acp"},
+			wantProbe:         []string{"opencode", "acp", "--help"},
+			wantFallbackCount: 0,
 		},
 		{
-			name: "pi",
-			ide:  model.IDEPi,
-			want: "pi --model anthropic/claude-opus-4-6 --thinking medium",
+			ide:               model.IDEPi,
+			wantCommand:       []string{"pi-acp"},
+			wantProbe:         []string{"pi-acp", "--help"},
+			wantFallbackCount: 1,
 		},
 		{
-			name: "gemini",
-			ide:  model.IDEGemini,
-			want: "gemini --experimental-acp --model gemini-2.5-pro",
+			ide:               model.IDEGemini,
+			wantCommand:       []string{"gemini", "--acp"},
+			wantProbe:         []string{"gemini", "--acp", "--help"},
+			wantFallbackCount: 1,
 		},
 	}
 
 	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			got := BuildShellCommandString(tc.ide, "", tc.addDirs, "medium")
-			if got != tc.want {
-				t.Fatalf("unexpected shell command\nwant: %s\ngot:  %s", tc.want, got)
-			}
-		})
+		entry, ok := byIDE[tc.ide]
+		if !ok {
+			t.Fatalf("missing driver catalog entry for %s", tc.ide)
+		}
+		if !slices.Equal(entry.CanonicalCommand, tc.wantCommand) {
+			t.Fatalf(
+				"unexpected canonical command for %s: got %v want %v",
+				tc.ide,
+				entry.CanonicalCommand,
+				tc.wantCommand,
+			)
+		}
+		if !slices.Equal(entry.CanonicalProbe, tc.wantProbe) {
+			t.Fatalf("unexpected canonical probe for %s: got %v want %v", tc.ide, entry.CanonicalProbe, tc.wantProbe)
+		}
+		if len(entry.FallbackLaunchers) != tc.wantFallbackCount {
+			t.Fatalf(
+				"unexpected fallback count for %s: got %d want %d",
+				tc.ide,
+				len(entry.FallbackLaunchers),
+				tc.wantFallbackCount,
+			)
+		}
+	}
+}
+
+func TestDriverCatalogCanonicalCommandExcludesDynamicBootstrapArgs(t *testing.T) {
+	t.Parallel()
+
+	entry, err := DriverCatalogEntryForIDE(model.IDEDroid)
+	if err != nil {
+		t.Fatalf("driver catalog entry for droid: %v", err)
+	}
+
+	if slices.Contains(entry.CanonicalCommand, "--model") ||
+		slices.Contains(entry.CanonicalCommand, "--reasoning-effort") {
+		t.Fatalf("expected canonical command to exclude dynamic bootstrap args, got %v", entry.CanonicalCommand)
+	}
+	if !entry.UsesBootstrapModel {
+		t.Fatalf("expected droid catalog entry to report bootstrap-model support, got %#v", entry)
 	}
 }
 

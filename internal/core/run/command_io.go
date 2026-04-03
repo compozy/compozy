@@ -15,14 +15,19 @@ import (
 var newAgentClient = agent.NewClient
 
 type sessionExecution struct {
-	client  agent.Client
-	session agent.Session
-	handler *sessionUpdateHandler
-	outFile *os.File
-	errFile *os.File
+	client        agent.Client
+	releaseClient func()
+	session       agent.Session
+	handler       *sessionUpdateHandler
+	outFile       *os.File
+	errFile       *os.File
+	logger        *slog.Logger
 }
 
 func (s *sessionExecution) close() {
+	if s.releaseClient != nil {
+		defer s.releaseClient()
+	}
 	if s.outFile != nil {
 		_ = s.outFile.Close()
 	}
@@ -31,7 +36,7 @@ func (s *sessionExecution) close() {
 	}
 	if s.client != nil {
 		if err := s.client.Close(); err != nil {
-			slog.Warn("failed to close ACP client cleanly", "error", err)
+			s.logger.Warn("failed to close ACP client cleanly", "error", err)
 		}
 	}
 }
@@ -90,29 +95,25 @@ func setupSessionExecution(
 	index int,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
+	logger *slog.Logger,
+	trackClient func(agent.Client) func(),
 ) (*sessionExecution, error) {
-	client, err := newAgentClient(ctx, agent.ClientConfig{
-		IDE:             cfg.ide,
-		Model:           cfg.model,
-		AddDirs:         append([]string(nil), cfg.addDirs...),
-		ReasoningEffort: cfg.reasoningEffort,
-		Logger:          slog.Default().With("component", "acp.client", "agent_id", cfg.ide),
-		ShutdownTimeout: processTerminationGracePeriod,
-	})
+	logger = resolveSessionLogger(logger, useUI)
+
+	client, err := createACPClient(ctx, cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("create ACP client: %w", err)
+		return nil, err
+	}
+	releaseClient := func() {}
+	if trackClient != nil {
+		releaseClient = trackClient(client)
 	}
 
-	outFile, err := createLogFile(job.outLog)
+	outFile, errFile, err := createSessionLogFiles(job)
 	if err != nil {
 		_ = client.Close()
-		return nil, fmt.Errorf("create out log: %w", err)
-	}
-	errFile, err := createLogFile(job.errLog)
-	if err != nil {
-		_ = outFile.Close()
-		_ = client.Close()
-		return nil, fmt.Errorf("create err log: %w", err)
+		releaseClient()
+		return nil, err
 	}
 
 	session, err := client.CreateSession(ctx, agent.SessionRequest{
@@ -125,6 +126,7 @@ func setupSessionExecution(
 		_ = outFile.Close()
 		_ = errFile.Close()
 		_ = client.Close()
+		releaseClient()
 		return nil, fmt.Errorf("create ACP session: %w", err)
 	}
 
@@ -133,13 +135,14 @@ func setupSessionExecution(
 		index,
 		cfg.ide,
 		session.ID(),
+		logger.With("component", "acp.session", "agent_id", cfg.ide, "session_id", session.ID()),
 		outWriter,
 		errWriter,
 		uiCh,
 		aggregateUsage,
 		aggregateMu,
 	)
-	slog.Info(
+	logger.Info(
 		"acp session created",
 		"agent_id",
 		cfg.ide,
@@ -150,12 +153,49 @@ func setupSessionExecution(
 	)
 
 	return &sessionExecution{
-		client:  client,
-		session: session,
-		handler: handler,
-		outFile: outFile,
-		errFile: errFile,
+		client:        client,
+		releaseClient: releaseClient,
+		session:       session,
+		handler:       handler,
+		outFile:       outFile,
+		errFile:       errFile,
+		logger:        logger,
 	}, nil
+}
+
+func resolveSessionLogger(logger *slog.Logger, useUI bool) *slog.Logger {
+	if logger != nil {
+		return logger
+	}
+	return runtimeLogger(useUI)
+}
+
+func createACPClient(ctx context.Context, cfg *config, logger *slog.Logger) (agent.Client, error) {
+	client, err := newAgentClient(ctx, agent.ClientConfig{
+		IDE:             cfg.ide,
+		Model:           cfg.model,
+		AddDirs:         append([]string(nil), cfg.addDirs...),
+		ReasoningEffort: cfg.reasoningEffort,
+		Logger:          logger.With("component", "acp.client", "agent_id", cfg.ide),
+		ShutdownTimeout: processTerminationGracePeriod,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create ACP client: %w", err)
+	}
+	return client, nil
+}
+
+func createSessionLogFiles(job *job) (*os.File, *os.File, error) {
+	outFile, err := createLogFile(job.outLog)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create out log: %w", err)
+	}
+	errFile, err := createLogFile(job.errLog)
+	if err != nil {
+		_ = outFile.Close()
+		return nil, nil, fmt.Errorf("create err log: %w", err)
+	}
+	return outFile, errFile, nil
 }
 
 func buildSessionEnvironment() map[string]string {

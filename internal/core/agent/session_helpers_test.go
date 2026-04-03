@@ -16,46 +16,77 @@ func TestConvertACPUpdateVariants(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name      string
-		update    acp.SessionUpdate
-		wantTypes []model.ContentBlockType
+		name              string
+		update            acp.SessionUpdate
+		wantKind          model.SessionUpdateKind
+		wantTypes         []model.ContentBlockType
+		wantThoughtTypes  []model.ContentBlockType
+		wantPlanEntries   []model.SessionPlanEntry
+		wantCommands      []model.SessionAvailableCommand
+		wantCurrentModeID string
 	}{
 		{
-			name:      "user message",
-			update:    acp.UpdateUserMessageText("hello"),
+			name:     "user message",
+			update:   acp.UpdateUserMessageText("hello"),
+			wantKind: model.UpdateKindUserMessageChunk,
+		},
+		{
+			name:             "agent thought",
+			update:           acp.UpdateAgentThoughtText("thinking"),
+			wantKind:         model.UpdateKindAgentThoughtChunk,
+			wantThoughtTypes: []model.ContentBlockType{model.BlockText},
+		},
+		{
+			name:      "agent message",
+			update:    acp.UpdateAgentMessageText("hello"),
+			wantKind:  model.UpdateKindAgentMessageChunk,
 			wantTypes: []model.ContentBlockType{model.BlockText},
 		},
 		{
-			name:      "agent thought",
-			update:    acp.UpdateAgentThoughtText("thinking"),
-			wantTypes: []model.ContentBlockType{model.BlockText},
-		},
-		{
-			name: "plan",
+			name:     "plan",
+			wantKind: model.UpdateKindPlanUpdated,
 			update: acp.UpdatePlan(acp.PlanEntry{
 				Content:  "step",
 				Status:   acp.PlanEntryStatusInProgress,
 				Priority: acp.PlanEntryPriorityHigh,
 			}),
-			wantTypes: []model.ContentBlockType{model.BlockText},
+			wantPlanEntries: []model.SessionPlanEntry{{
+				Content:  "step",
+				Status:   string(acp.PlanEntryStatusInProgress),
+				Priority: string(acp.PlanEntryPriorityHigh),
+			}},
 		},
 		{
-			name: "available commands",
+			name:     "available commands",
+			wantKind: model.UpdateKindAvailableCommandsUpdated,
 			update: acp.SessionUpdate{
 				AvailableCommandsUpdate: &acp.SessionAvailableCommandsUpdate{
-					AvailableCommands: []acp.AvailableCommand{{Name: "run"}},
+					AvailableCommands: []acp.AvailableCommand{{
+						Name:        "run",
+						Description: "Run the task",
+						Input: &acp.AvailableCommandInput{
+							UnstructuredCommandInput: &acp.AvailableCommandUnstructuredCommandInput{
+								Hint: "--fast",
+							},
+						},
+					}},
 				},
 			},
-			wantTypes: []model.ContentBlockType{model.BlockText},
+			wantCommands: []model.SessionAvailableCommand{{
+				Name:         "run",
+				Description:  "Run the task",
+				ArgumentHint: "--fast",
+			}},
 		},
 		{
-			name: "current mode",
+			name:     "current mode",
+			wantKind: model.UpdateKindCurrentModeUpdated,
 			update: acp.SessionUpdate{
 				CurrentModeUpdate: &acp.SessionCurrentModeUpdate{
 					CurrentModeId: "review",
 				},
 			},
-			wantTypes: []model.ContentBlockType{model.BlockText},
+			wantCurrentModeID: "review",
 		},
 	}
 
@@ -71,7 +102,20 @@ func TestConvertACPUpdateVariants(t *testing.T) {
 			if converted.Status != model.StatusRunning {
 				t.Fatalf("unexpected status: %q", converted.Status)
 			}
+			if converted.Kind != tc.wantKind {
+				t.Fatalf("unexpected kind: got %q want %q", converted.Kind, tc.wantKind)
+			}
 			assertBlockTypes(t, converted.Blocks, tc.wantTypes...)
+			assertBlockTypes(t, converted.ThoughtBlocks, tc.wantThoughtTypes...)
+			if diff := comparePlanEntries(converted.PlanEntries, tc.wantPlanEntries); diff != "" {
+				t.Fatalf("unexpected plan entries: %s", diff)
+			}
+			if diff := compareAvailableCommands(converted.AvailableCommands, tc.wantCommands); diff != "" {
+				t.Fatalf("unexpected commands: %s", diff)
+			}
+			if converted.CurrentModeID != tc.wantCurrentModeID {
+				t.Fatalf("unexpected current mode id: got %q want %q", converted.CurrentModeID, tc.wantCurrentModeID)
+			}
 		})
 	}
 }
@@ -87,6 +131,15 @@ func TestConvertACPUpdateToolCallVariants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert start tool call: %v", err)
 	}
+	if startUpdate.Kind != model.UpdateKindToolCallStarted {
+		t.Fatalf("unexpected start update kind: %q", startUpdate.Kind)
+	}
+	if startUpdate.ToolCallID != "tool-1" {
+		t.Fatalf("unexpected start tool call id: %q", startUpdate.ToolCallID)
+	}
+	if startUpdate.ToolCallState != model.ToolCallStatePending {
+		t.Fatalf("unexpected start tool call state: %q", startUpdate.ToolCallState)
+	}
 	assertBlockTypes(t, startUpdate.Blocks, model.BlockToolUse)
 
 	update, err := convertACPUpdate(acp.UpdateToolCall(
@@ -101,6 +154,15 @@ func TestConvertACPUpdateToolCallVariants(t *testing.T) {
 	))
 	if err != nil {
 		t.Fatalf("convert tool call update: %v", err)
+	}
+	if update.Kind != model.UpdateKindToolCallUpdated {
+		t.Fatalf("unexpected update kind: %q", update.Kind)
+	}
+	if update.ToolCallID != "tool-1" {
+		t.Fatalf("unexpected update tool call id: %q", update.ToolCallID)
+	}
+	if update.ToolCallState != model.ToolCallStateFailed {
+		t.Fatalf("unexpected update tool call state: %q", update.ToolCallState)
 	}
 	assertBlockTypes(t, update.Blocks, model.BlockToolResult, model.BlockDiff, model.BlockTerminalOutput)
 }
@@ -167,7 +229,10 @@ func TestRegistryHelperFunctions(t *testing.T) {
 	if quoted := quotedSupportedIDEs(); !strings.Contains(quoted, `"gemini"`) {
 		t.Fatalf("expected gemini in supported ide list: %s", quoted)
 	}
-	if err := assertBinaryExists("definitely-not-installed-binary"); err == nil {
+	if err := assertCommandExists(
+		Spec{ID: "missing", DisplayName: "Missing", Command: "definitely-not-installed-binary"},
+		[]string{"definitely-not-installed-binary", "--help"},
+	); err == nil {
 		t.Fatal("expected missing binary error")
 	}
 
@@ -176,8 +241,14 @@ func TestRegistryHelperFunctions(t *testing.T) {
 	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
 		t.Fatalf("write fake helper script: %v", err)
 	}
-	if err := assertBinarySupported(scriptPath); err != nil {
-		t.Fatalf("assert binary supported: %v", err)
+	if _, err := resolveLaunchCommand(
+		Spec{ID: "fake", DisplayName: "Fake", Command: scriptPath},
+		"test-model",
+		"medium",
+		nil,
+		true,
+	); err != nil {
+		t.Fatalf("resolve launch command: %v", err)
 	}
 }
 
@@ -203,4 +274,28 @@ func TestWrapACPErrorPassthrough(t *testing.T) {
 	if normalizeProcessWaitError(nil) != nil {
 		t.Fatal("expected nil normalized wait error")
 	}
+}
+
+func comparePlanEntries(got, want []model.SessionPlanEntry) string {
+	if len(got) != len(want) {
+		return "length mismatch"
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return "value mismatch"
+		}
+	}
+	return ""
+}
+
+func compareAvailableCommands(got, want []model.SessionAvailableCommand) string {
+	if len(got) != len(want) {
+		return "length mismatch"
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return "value mismatch"
+		}
+	}
+	return ""
 }

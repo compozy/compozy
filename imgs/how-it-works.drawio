@@ -1,0 +1,132 @@
+<mxfile host="app.diagrams.net" agent="Codex" version="26.0.0" modified="2026-04-03T00:00:00.000Z">
+  <diagram id="how-it-works" name="How It Works">
+    <mxGraphModel dx="1400" dy="2200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="2200" math="0" shadow="0" adaptiveColors="auto">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="Compozy How It Works" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=28;fontStyle=1;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="60" y="30" width="360" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="A vertical workflow that moves from setup to shipped code while generating markdown artifacts at each stage." style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=14;fontColor=#475569;" vertex="1" parent="1">
+          <mxGeometry x="60" y="72" width="760" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="setup" value="1. compozy setup&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Install skills once per project&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0f766e;strokeColor=#115e59;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="150" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="prd" value="2. /cy-create-prd user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Define the workflow and capture ADRs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0284c7;strokeColor=#0369a1;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="300" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="techspec" value="3. /cy-create-techspec user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Translate the PRD into an implementation design&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2563eb;strokeColor=#1d4ed8;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="450" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="tasks" value="4. /cy-create-tasks user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Break the workflow into executable task files&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4f46e5;strokeColor=#4338ca;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="600" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="sync" value="5. compozy sync --name user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Refresh workflow metadata before execution&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7c3aed;strokeColor=#6d28d9;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="750" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="start" value="6. compozy start --name user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;AI agents execute tasks with shared workflow memory&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#db2777;strokeColor=#be185d;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="900" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="reviews" value="7. fetch-reviews or /cy-review-round&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Normalize review feedback into issue files&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ea580c;strokeColor=#c2410c;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1050" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="fix" value="8. compozy fix-reviews --name user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Triaged issues get fixed and resolved&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ca8a04;strokeColor=#a16207;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1200" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="archive" value="9. compozy archive --name user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Move completed workflows into _archived/&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#65a30d;strokeColor=#4d7c0f;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+          <mxGeometry x="80" y="1350" width="300" height="84" as="geometry" />
+        </mxCell>
+        <mxCell id="ship" value="Ship" style="ellipse;whiteSpace=wrap;html=1;fillColor=#111827;strokeColor=#0f172a;fontColor=#ffffff;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="145" y="1495" width="170" height="76" as="geometry" />
+        </mxCell>
+        <mxCell id="artifactPrd" value=".compozy/tasks/user-auth/_prd.md&#xa;+ Architecture Decision Records" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="500" y="300" width="300" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="artifactSpec" value=".compozy/tasks/user-auth/_techspec.md" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="500" y="450" width="300" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="artifactTasks" value=".compozy/tasks/user-auth/task_01.md ... task_N.md" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="500" y="600" width="300" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="artifactMeta" value="workflow _meta.md" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="500" y="750" width="300" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="artifactMemory" value=".compozy/tasks/user-auth/memory/" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#fdf2f8;strokeColor=#f472b6;fontColor=#831843;" vertex="1" parent="1">
+          <mxGeometry x="500" y="900" width="300" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="artifactReviews" value=".compozy/tasks/user-auth/reviews-001/" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#fdba74;fontColor=#9a3412;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1050" width="300" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="artifactArchive" value="_archived/" style="shape=mxgraph.flowchart.document;whiteSpace=wrap;html=1;fillColor=#f7fee7;strokeColor=#bef264;fontColor=#365314;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1350" width="300" height="92" as="geometry" />
+        </mxCell>
+        <mxCell id="noteArtifacts" value="Every artifact stays in plain markdown, so you can diff, edit, and version-control the workflow between steps." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#93c5fd;fontColor=#1e3a8a;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1640" width="760" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="noteMetadata" value="Task and review issue files use YAML frontmatter for parseable metadata such as status, domain, severity, and provider_ref." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fffbeb;strokeColor=#fcd34d;fontColor=#854d0e;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1740" width="760" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="noteRepeat" value="Repeat the execution and review loop until the workflow is clean, then archive and ship." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0fdf4;strokeColor=#86efac;fontColor=#166534;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="60" y="1840" width="760" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="setup" target="prd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="prd" target="techspec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="techspec" target="tasks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="tasks" target="sync">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="sync" target="start">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge6" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="start" target="reviews">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge7" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="reviews" target="fix">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge8" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="fix" target="archive">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge9" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="archive" target="ship">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgePrdArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#94a3b8;endArrow=none;" edge="1" parent="1" source="prd" target="artifactPrd">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeSpecArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#94a3b8;endArrow=none;" edge="1" parent="1" source="techspec" target="artifactSpec">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeTasksArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#94a3b8;endArrow=none;" edge="1" parent="1" source="tasks" target="artifactTasks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeMetaArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#94a3b8;endArrow=none;" edge="1" parent="1" source="sync" target="artifactMeta">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeMemoryArtifact" value="workflow memory" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#f472b6;fontColor=#9d174d;endArrow=none;" edge="1" parent="1" source="start" target="artifactMemory">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeReviewsArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#fdba74;endArrow=none;" edge="1" parent="1" source="reviews" target="artifactReviews">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeArchiveArtifact" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#bef264;endArrow=none;" edge="1" parent="1" source="archive" target="artifactArchive">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edgeRepeat" value="repeat until clean" style="edgeStyle=orthogonalEdgeStyle;rounded=1;jettySize=auto;html=1;dashed=1;strokeColor=#16a34a;fontColor=#166534;strokeWidth=2;endArrow=block;endFill=1;" edge="1" parent="1" source="fix" target="start">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="450" y="1242" />
+              <mxPoint x="450" y="942" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

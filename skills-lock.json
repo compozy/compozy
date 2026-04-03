@@ -5,6 +5,11 @@
       "source": "pedronauck/skills",
       "sourceType": "github",
       "computedHash": "f8efb7dc97667bc62269aaa924ef176d50aaa11d34bd4882c6e42d6506315a27"
+    },
+    "drawio": {
+      "source": "jgraph/drawio-mcp",
+      "sourceType": "github",
+      "computedHash": "c0cafc1ad6a5b474d2e5c7d92c07f69298a79eb4f9ae4bd31fde0bfe039aa3c5"
     }
   }
 }

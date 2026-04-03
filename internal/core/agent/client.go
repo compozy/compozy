@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +25,8 @@ type Client interface {
 	CreateSession(ctx context.Context, req SessionRequest) (Session, error)
 	// Close terminates the agent subprocess.
 	Close() error
+	// Kill force-terminates the agent subprocess immediately.
+	Kill() error
 }
 
 // ClientConfig describes how to bootstrap an ACP agent process.
@@ -68,20 +71,22 @@ type clientImpl struct {
 	logger          *slog.Logger
 	shutdownTimeout time.Duration
 
-	mu            sync.Mutex
-	processCancel context.CancelFunc
-	cmd           *exec.Cmd
-	stdin         io.WriteCloser
-	conn          *acp.ClientSideConnection
-	started       bool
-	closed        bool
-	startModel    string
-	waitDone      chan struct{}
-	waitErr       error
-	sessions      map[string]*sessionImpl
+	mu             sync.Mutex
+	processCancel  context.CancelFunc
+	cmd            *exec.Cmd
+	stdin          io.WriteCloser
+	conn           *acp.ClientSideConnection
+	started        bool
+	closed         bool
+	startModel     string
+	waitDone       chan struct{}
+	waitErr        error
+	sessions       map[string]*sessionImpl
+	forcedShutdown bool
 
-	wg        sync.WaitGroup
-	closeOnce sync.Once
+	wg             sync.WaitGroup
+	closeInputOnce sync.Once
+	forceOnce      sync.Once
 }
 
 var _ Client = (*clientImpl)(nil)
@@ -120,6 +125,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		return nil, err
 	}
 
+	requestedModel := resolveModel(c.spec, firstNonEmpty(req.Model, c.cfg.Model))
 	sessionResp, err := c.conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        workingDir,
 		McpServers: []acp.McpServer{},
@@ -131,7 +137,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	session := newSession(string(sessionResp.SessionId))
 	c.storeSession(session)
 
-	if requestedModel := resolveModel(c.spec, req.Model); requestedModel != c.startModel {
+	if requestedModel != c.startModel {
 		if _, err := c.conn.SetSessionModel(ctx, acp.SetSessionModelRequest{
 			SessionId: sessionResp.SessionId,
 			ModelId:   acp.ModelId(requestedModel),
@@ -152,46 +158,39 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 
 // Close terminates the agent subprocess and waits for background goroutines to exit.
 func (c *clientImpl) Close() error {
-	var closeErr error
-	c.closeOnce.Do(func() {
-		c.mu.Lock()
-		c.closed = true
-		started := c.started
-		stdin := c.stdin
-		processCancel := c.processCancel
-		waitDone := c.waitDone
-		c.mu.Unlock()
+	c.markClosed()
 
-		if !started {
-			return
-		}
+	if !c.startedProcess() {
+		return nil
+	}
 
-		if stdin != nil {
-			_ = stdin.Close()
-		}
+	c.closeProcessInput()
 
-		timer := time.NewTimer(c.shutdownTimeout)
-		defer timer.Stop()
+	timer := time.NewTimer(c.shutdownTimeout)
+	defer timer.Stop()
 
-		select {
-		case <-waitDone:
-		case <-timer.C:
-			if processCancel != nil {
-				processCancel()
-			}
-			<-waitDone
-		}
+	select {
+	case <-c.waitDone:
+	case <-timer.C:
+		c.forceProcessExit()
+		<-c.waitDone
+	}
 
-		c.wg.Wait()
+	return c.awaitBackgroundShutdown()
+}
 
-		c.mu.Lock()
-		c.sessions = make(map[string]*sessionImpl)
-		defer c.mu.Unlock()
-		if c.waitErr != nil {
-			closeErr = c.waitErr
-		}
-	})
-	return closeErr
+// Kill force-terminates the agent subprocess and waits for background goroutines to exit.
+func (c *clientImpl) Kill() error {
+	c.markClosed()
+
+	if !c.startedProcess() {
+		return nil
+	}
+
+	c.closeProcessInput()
+	c.forceProcessExit()
+	<-c.waitDone
+	return c.awaitBackgroundShutdown()
 }
 
 // ReadTextFile handles ACP file read requests from the agent.
@@ -295,36 +294,23 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		return nil
 	}
 
-	startModel := resolveModel(c.spec, firstNonEmpty(req.Model, c.cfg.Model))
+	startModel, command, err := c.resolveStartCommand(req)
+	if err != nil {
+		c.mu.Unlock()
+		return err
+	}
+
 	processCtx, processCancel := context.WithCancel(context.Background())
-	cmd := exec.CommandContext(
+	cmd, stdin, stdout, stderr, err := startACPProcess(
 		processCtx,
-		c.spec.Binary,
-		c.spec.BootstrapArgs(startModel, c.cfg.ReasoningEffort, c.cfg.AddDirs)...,
+		command,
+		mergeEnvironment(c.spec.EnvVars, req.ExtraEnv),
+		c.shutdownTimeout,
 	)
-	cmd.Env = mergeEnvironment(c.spec.EnvVars, req.ExtraEnv)
-
-	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		c.mu.Unlock()
 		processCancel()
-		return fmt.Errorf("create ACP stdin pipe: %w", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		c.mu.Unlock()
-		_ = stdin.Close()
-		processCancel()
-		return fmt.Errorf("create ACP stdout pipe: %w", err)
-	}
-
-	stderr := &lockedBuffer{}
-	cmd.Stderr = stderr
-	if err := cmd.Start(); err != nil {
-		c.mu.Unlock()
-		_ = stdin.Close()
-		processCancel()
-		return fmt.Errorf("start ACP agent process: %w", err)
+		return wrapACPLaunchError(c.spec, command, "", "start ACP agent process", err)
 	}
 
 	conn := acp.NewClientSideConnection(c, stdin, stdout)
@@ -357,10 +343,59 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		},
 	}); err != nil {
 		_ = c.Close()
-		return wrapACPError(err)
+		return wrapACPLaunchError(c.spec, command, stderr.String(), "initialize ACP agent", wrapACPError(err))
 	}
 
 	return nil
+}
+
+func (c *clientImpl) resolveStartCommand(req SessionRequest) (string, []string, error) {
+	requestedModel := resolveModel(c.spec, firstNonEmpty(req.Model, c.cfg.Model))
+	startModel := c.spec.DefaultModel
+	if c.spec.UsesBootstrapModel {
+		startModel = requestedModel
+	}
+	command, err := resolveLaunchCommand(c.spec, startModel, c.cfg.ReasoningEffort, c.cfg.AddDirs, false)
+	if err != nil {
+		return "", nil, err
+	}
+	return startModel, command, nil
+}
+
+func startACPProcess(
+	processCtx context.Context,
+	command []string,
+	env []string,
+	waitDelay time.Duration,
+) (*exec.Cmd, io.WriteCloser, io.ReadCloser, *lockedBuffer, error) {
+	cmd := exec.CommandContext(processCtx, command[0], command[1:]...)
+	cmd.Env = env
+	cmd.WaitDelay = waitDelay
+	cmd.Cancel = func() error {
+		return forceTerminateProcess(cmd)
+	}
+	if err := configureACPCommand(cmd); err != nil {
+		return nil, nil, nil, nil, err
+	}
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("create ACP stdin pipe: %w", err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		_ = stdin.Close()
+		return nil, nil, nil, nil, fmt.Errorf("create ACP stdout pipe: %w", err)
+	}
+
+	stderr := &lockedBuffer{}
+	cmd.Stderr = stderr
+	if err := cmd.Start(); err != nil {
+		_ = stdin.Close()
+		return nil, nil, nil, nil, err
+	}
+
+	return cmd, stdin, stdout, stderr, nil
 }
 
 func (c *clientImpl) waitForProcess() {
@@ -369,7 +404,11 @@ func (c *clientImpl) waitForProcess() {
 	err := c.cmd.Wait()
 
 	c.mu.Lock()
+	forced := c.forcedShutdown
 	c.waitErr = normalizeProcessWaitError(err)
+	if forced {
+		c.waitErr = nil
+	}
 	close(c.waitDone)
 	c.mu.Unlock()
 
@@ -377,7 +416,64 @@ func (c *clientImpl) waitForProcess() {
 		c.failOpenSessions(errors.New("ACP agent process exited before all sessions completed"))
 		return
 	}
+	if forced {
+		c.failOpenSessions(context.Canceled)
+		return
+	}
 	c.failOpenSessions(c.waitErr)
+}
+
+func (c *clientImpl) markClosed() {
+	c.mu.Lock()
+	c.closed = true
+	c.mu.Unlock()
+}
+
+func (c *clientImpl) startedProcess() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.started
+}
+
+func (c *clientImpl) closeProcessInput() {
+	c.closeInputOnce.Do(func() {
+		c.mu.Lock()
+		stdin := c.stdin
+		c.mu.Unlock()
+		if stdin != nil {
+			_ = stdin.Close()
+		}
+	})
+}
+
+func (c *clientImpl) forceProcessExit() {
+	c.forceOnce.Do(func() {
+		c.mu.Lock()
+		c.forcedShutdown = true
+		processCancel := c.processCancel
+		c.mu.Unlock()
+		if processCancel != nil {
+			processCancel()
+		}
+	})
+}
+
+func (c *clientImpl) awaitBackgroundShutdown() error {
+	c.wg.Wait()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sessions = make(map[string]*sessionImpl)
+	if errors.Is(c.waitErr, exec.ErrWaitDelay) {
+		return nil
+	}
+	return c.waitErr
+}
+
+func (c *clientImpl) isForcedShutdown() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.forcedShutdown
 }
 
 func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt acp.PromptRequest) {
@@ -391,6 +487,10 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 				cancelErr = context.Canceled
 			}
 			session.finish(model.StatusFailed, cancelErr)
+			return
+		}
+		if c.isForcedShutdown() {
+			session.finish(model.StatusFailed, context.Canceled)
 			return
 		}
 		session.finish(model.StatusFailed, wrapACPError(err))
@@ -488,6 +588,27 @@ func wrapACPError(err error) error {
 		}
 	}
 	return err
+}
+
+func wrapACPLaunchError(spec Spec, command []string, stderr, stage string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	parts := []string{
+		fmt.Sprintf("%s while running %s", stage, formatShellCommand(command)),
+		err.Error(),
+	}
+	if trimmed := strings.TrimSpace(stderr); trimmed != "" {
+		parts = append(parts, "adapter stderr: "+trimmed)
+	}
+	if trimmed := strings.TrimSpace(spec.InstallHint); trimmed != "" {
+		parts = append(parts, trimmed)
+	}
+	if trimmed := strings.TrimSpace(spec.DocsURL); trimmed != "" {
+		parts = append(parts, "docs: "+trimmed)
+	}
+	return errors.New(strings.Join(parts, ". "))
 }
 
 func firstNonEmpty(values ...string) string {

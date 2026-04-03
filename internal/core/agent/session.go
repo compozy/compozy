@@ -120,47 +120,167 @@ func (s *sessionImpl) waitForIdle(ctx context.Context, idleWindow time.Duration)
 }
 
 func convertACPUpdate(update acp.SessionUpdate) (model.SessionUpdate, error) {
-	blocks, err := extractACPUpdateBlocks(update)
-	if err != nil {
-		return model.SessionUpdate{}, err
+	if converted, ok, err := convertACPMessageUpdate(update); ok || err != nil {
+		return converted, err
 	}
-
-	return model.SessionUpdate{
-		Blocks: blocks,
-		Status: model.StatusRunning,
-	}, nil
+	if converted, ok, err := convertACPToolLifecycleUpdate(update); ok || err != nil {
+		return converted, err
+	}
+	if converted, ok := convertACPSessionStateUpdate(update); ok {
+		return converted, nil
+	}
+	return model.SessionUpdate{Status: model.StatusRunning}, nil
 }
 
-func extractACPUpdateBlocks(update acp.SessionUpdate) ([]model.ContentBlock, error) {
+func convertACPMessageUpdate(update acp.SessionUpdate) (model.SessionUpdate, bool, error) {
 	switch {
 	case update.UserMessageChunk != nil:
-		return convertACPContentBlock(update.UserMessageChunk.Content)
+		return model.SessionUpdate{
+			Kind:   model.UpdateKindUserMessageChunk,
+			Status: model.StatusRunning,
+		}, true, nil
 	case update.AgentMessageChunk != nil:
-		return convertACPContentBlock(update.AgentMessageChunk.Content)
+		blocks, err := convertACPContentBlock(update.AgentMessageChunk.Content)
+		if err != nil {
+			return model.SessionUpdate{}, true, err
+		}
+		return model.SessionUpdate{
+			Kind:   model.UpdateKindAgentMessageChunk,
+			Blocks: blocks,
+			Status: model.StatusRunning,
+		}, true, nil
 	case update.AgentThoughtChunk != nil:
-		return convertACPContentBlock(update.AgentThoughtChunk.Content)
+		blocks, err := convertACPContentBlock(update.AgentThoughtChunk.Content)
+		if err != nil {
+			return model.SessionUpdate{}, true, err
+		}
+		return model.SessionUpdate{
+			Kind:          model.UpdateKindAgentThoughtChunk,
+			ThoughtBlocks: blocks,
+			Status:        model.StatusRunning,
+		}, true, nil
+	default:
+		return model.SessionUpdate{}, false, nil
+	}
+}
+
+func convertACPToolLifecycleUpdate(update acp.SessionUpdate) (model.SessionUpdate, bool, error) {
+	switch {
 	case update.ToolCall != nil:
-		return convertACPToolCallStart(update.ToolCall)
+		blocks, err := convertACPToolCallStart(update.ToolCall)
+		if err != nil {
+			return model.SessionUpdate{}, true, err
+		}
+		state := convertACPToolCallState(update.ToolCall.Status)
+		if state == model.ToolCallStateUnknown {
+			state = model.ToolCallStatePending
+		}
+		return model.SessionUpdate{
+			Kind:          model.UpdateKindToolCallStarted,
+			ToolCallID:    string(update.ToolCall.ToolCallId),
+			ToolCallState: state,
+			Blocks:        blocks,
+			Status:        model.StatusRunning,
+		}, true, nil
 	case update.ToolCallUpdate != nil:
-		return convertToolCallContent(
+		blocks, err := convertToolCallContent(
 			string(update.ToolCallUpdate.ToolCallId),
 			update.ToolCallUpdate.Content,
 			update.ToolCallUpdate.RawOutput,
 			update.ToolCallUpdate.Status != nil && *update.ToolCallUpdate.Status == acp.ToolCallStatusFailed,
 		)
-	case update.Plan != nil:
-		return convertACPJSONTextBlock(update.Plan.Entries, "plan update")
-	case update.AvailableCommandsUpdate != nil:
-		return convertACPJSONTextBlock(update.AvailableCommandsUpdate.AvailableCommands, "available commands update")
-	case update.CurrentModeUpdate != nil:
-		block, err := model.NewContentBlock(model.TextBlock{Text: string(update.CurrentModeUpdate.CurrentModeId)})
 		if err != nil {
-			return nil, err
+			return model.SessionUpdate{}, true, err
 		}
-		return []model.ContentBlock{block}, nil
+		state := model.ToolCallStateUnknown
+		if update.ToolCallUpdate.Status != nil {
+			state = convertACPToolCallState(*update.ToolCallUpdate.Status)
+		}
+		return model.SessionUpdate{
+			Kind:          model.UpdateKindToolCallUpdated,
+			ToolCallID:    string(update.ToolCallUpdate.ToolCallId),
+			ToolCallState: state,
+			Blocks:        blocks,
+			Status:        model.StatusRunning,
+		}, true, nil
 	default:
-		return nil, nil
+		return model.SessionUpdate{}, false, nil
 	}
+}
+
+func convertACPSessionStateUpdate(update acp.SessionUpdate) (model.SessionUpdate, bool) {
+	switch {
+	case update.Plan != nil:
+		return model.SessionUpdate{
+			Kind:        model.UpdateKindPlanUpdated,
+			PlanEntries: convertACPPlanEntries(update.Plan.Entries),
+			Status:      model.StatusRunning,
+		}, true
+	case update.AvailableCommandsUpdate != nil:
+		return model.SessionUpdate{
+			Kind:              model.UpdateKindAvailableCommandsUpdated,
+			AvailableCommands: convertACPAvailableCommands(update.AvailableCommandsUpdate.AvailableCommands),
+			Status:            model.StatusRunning,
+		}, true
+	case update.CurrentModeUpdate != nil:
+		return model.SessionUpdate{
+			Kind:          model.UpdateKindCurrentModeUpdated,
+			CurrentModeID: string(update.CurrentModeUpdate.CurrentModeId),
+			Status:        model.StatusRunning,
+		}, true
+	default:
+		return model.SessionUpdate{}, false
+	}
+}
+
+func convertACPToolCallState(status acp.ToolCallStatus) model.ToolCallState {
+	switch status {
+	case acp.ToolCallStatusPending:
+		return model.ToolCallStatePending
+	case acp.ToolCallStatusInProgress:
+		return model.ToolCallStateInProgress
+	case acp.ToolCallStatusCompleted:
+		return model.ToolCallStateCompleted
+	case acp.ToolCallStatusFailed:
+		return model.ToolCallStateFailed
+	default:
+		return model.ToolCallStateUnknown
+	}
+}
+
+func convertACPPlanEntries(entries []acp.PlanEntry) []model.SessionPlanEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	converted := make([]model.SessionPlanEntry, 0, len(entries))
+	for _, entry := range entries {
+		converted = append(converted, model.SessionPlanEntry{
+			Content:  entry.Content,
+			Priority: string(entry.Priority),
+			Status:   string(entry.Status),
+		})
+	}
+	return converted
+}
+
+func convertACPAvailableCommands(commands []acp.AvailableCommand) []model.SessionAvailableCommand {
+	if len(commands) == 0 {
+		return nil
+	}
+
+	converted := make([]model.SessionAvailableCommand, 0, len(commands))
+	for _, command := range commands {
+		item := model.SessionAvailableCommand{
+			Name:        command.Name,
+			Description: command.Description,
+		}
+		if command.Input != nil && command.Input.UnstructuredCommandInput != nil {
+			item.ArgumentHint = command.Input.UnstructuredCommandInput.Hint
+		}
+		converted = append(converted, item)
+	}
+	return converted
 }
 
 func convertACPToolCallStart(toolCall *acp.SessionUpdateToolCall) ([]model.ContentBlock, error) {
@@ -185,18 +305,6 @@ func convertACPToolCallStart(toolCall *acp.SessionUpdateToolCall) ([]model.Conte
 	}
 	blocks = append(blocks, converted...)
 	return blocks, nil
-}
-
-func convertACPJSONTextBlock(value any, label string) ([]model.ContentBlock, error) {
-	payload, err := json.Marshal(value)
-	if err != nil {
-		return nil, fmt.Errorf("marshal %s: %w", label, err)
-	}
-	block, err := model.NewContentBlock(model.TextBlock{Text: string(payload)})
-	if err != nil {
-		return nil, err
-	}
-	return []model.ContentBlock{block}, nil
 }
 
 func convertACPContentBlock(block acp.ContentBlock) ([]model.ContentBlock, error) {

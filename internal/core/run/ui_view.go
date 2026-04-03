@@ -1,8 +1,6 @@
 package run
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"image/color"
 	"strings"
@@ -16,11 +14,59 @@ import (
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+type timelineRender struct {
+	content string
+	offsets []int
+}
+
 func (m *uiModel) renderRoot(content string) tea.View {
 	v := tea.NewView(rootScreenStyle(m.width, m.height).Render(content))
 	v.AltScreen = true
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
+}
+
+func (m *uiModel) View() tea.View {
+	switch m.currentView {
+	case uiViewSummary, uiViewFailures:
+		return m.renderSummaryView()
+	case uiViewJobs:
+		body := m.renderJobsBody()
+		content := lipgloss.JoinVertical(
+			lipgloss.Left,
+			m.renderTitleBar(),
+			m.renderSeparator(),
+			body,
+			m.renderHelp(),
+		)
+		return m.renderRoot(content)
+	default:
+		return tea.NewView("")
+	}
+}
+
+func (m *uiModel) renderJobsBody() string {
+	if m.layoutMode == uiLayoutResizeBlocked {
+		return m.renderResizeGate()
+	}
+
+	sidebar := m.renderSidebar()
+	main := m.renderMainPanels()
+	return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
+}
+
+func (m *uiModel) renderResizeGate() string {
+	message := []string{
+		renderOwnedLine(m.width-4, colorBgSurface, renderTechLabel("ui.resize", colorBgSurface)),
+		renderOwnedLine(m.width-4, colorBgSurface, "ACP cockpit needs at least 80x24."),
+		renderOwnedLine(m.width-4, colorBgSurface, fmt.Sprintf("Current size: %dx%d", m.width, m.height)),
+	}
+	return lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.contentHeight).
+		Padding(1, 1).
+		Background(colorBgBase).
+		Render(techPanelStyle(max(m.width-2, 10), colorWarning).Render(strings.Join(message, "\n")))
 }
 
 func (m *uiModel) renderSummaryView() tea.View {
@@ -182,28 +228,36 @@ func (m *uiModel) renderSummaryHelp(width int) string {
 	return lipgloss.NewStyle().MarginTop(1).Render(renderOwnedLine(width, bg, line))
 }
 
-func (m *uiModel) View() tea.View {
-	switch m.currentView {
-	case uiViewSummary, uiViewFailures:
-		return m.renderSummaryView()
-	case uiViewJobs:
-		content := lipgloss.JoinVertical(
-			lipgloss.Left,
-			m.renderTitleBar(),
-			m.renderHelp(),
-			m.renderSeparator(),
-			lipgloss.JoinHorizontal(lipgloss.Top, m.renderSidebar(), m.renderMainContent()),
-		)
-		return m.renderRoot(content)
-	default:
-		return tea.NewView("")
+func (m *uiModel) elapsedStr(job *uiJob, bg color.Color) string {
+	switch job.state {
+	case jobRunning:
+		if !job.startedAt.IsZero() {
+			return renderStyledOnBackground(styleDimText, bg, formatDuration(time.Since(job.startedAt)))
+		}
+	case jobSuccess:
+		d := job.duration
+		if d == 0 && !job.startedAt.IsZero() {
+			d = time.Since(job.startedAt)
+		}
+		if d > 0 {
+			return lipgloss.NewStyle().Foreground(colorSuccess).Background(bg).Render("OK " + formatDuration(d))
+		}
+	case jobFailed:
+		d := job.duration
+		if d == 0 && !job.startedAt.IsZero() {
+			d = time.Since(job.startedAt)
+		}
+		if d > 0 {
+			return lipgloss.NewStyle().Foreground(colorError).Background(bg).Render("FAIL " + formatDuration(d))
+		}
 	}
+	return ""
 }
 
 func (m *uiModel) renderTitleBar() string {
 	bg := colorBgBase
 	title := renderStyledOnBackground(styleTitle, bg, "COMPOZY") +
-		renderStyledOnBackground(styleTitleMeta, bg, " // AGENT LOOP")
+		renderStyledOnBackground(styleTitleMeta, bg, " // ACP COCKPIT")
 	status := m.headerStatusText(bg)
 
 	gap := max(m.width-lipgloss.Width(title)-lipgloss.Width(status)-2, 1)
@@ -229,6 +283,11 @@ func (m *uiModel) renderTitleBar() string {
 func (m *uiModel) headerStatusText(bg color.Color) string {
 	complete := m.completed+m.failed >= m.total
 	if !complete {
+		if m.shutdown.active() {
+			return lipgloss.NewStyle().Bold(true).Foreground(colorWarning).Background(bg).Render(
+				m.shutdownHeaderLabel(),
+			)
+		}
 		if m.failed > 0 {
 			return lipgloss.NewStyle().Bold(true).Foreground(colorWarning).Background(bg).Render(
 				fmt.Sprintf("RUN %d/%d · %d FAIL", m.completed+m.failed, m.total, m.failed))
@@ -247,30 +306,31 @@ func (m *uiModel) headerStatusText(bg color.Color) string {
 		fmt.Sprintf("ALL %d OK", m.total))
 }
 
-func (m *uiModel) renderHelp() string {
-	bg := colorBgBase
-	type kv struct{ key, desc string }
+func (m *uiModel) shutdownHeaderLabel() string {
+	progress := fmt.Sprintf("%d/%d", m.completed+m.failed, m.total)
+	switch m.shutdown.Phase {
+	case shutdownPhaseDraining:
+		countdown := m.shutdownCountdownLabel()
+		if countdown == "" {
+			return "DRAINING " + progress
+		}
+		return fmt.Sprintf("DRAINING %s · %s", progress, countdown)
+	case shutdownPhaseForcing:
+		return "FORCING " + progress
+	default:
+		return "RUN " + progress
+	}
+}
 
-	pairs := []kv{
-		{"↑↓/jk", "TASK"},
-		{"pgup/pgdn", "SCROLL"},
-		{"wheel", "SCROLL"},
+func (m *uiModel) shutdownCountdownLabel() string {
+	if m.shutdown.DeadlineAt.IsZero() {
+		return ""
 	}
-	if m.completed+m.failed >= m.total {
-		pairs = append(pairs, kv{"s", "SUMMARY"}, kv{"q", "QUIT"})
-	} else {
-		pairs = append(pairs, kv{"q/^c", "CANCEL"})
+	remaining := time.Until(m.shutdown.DeadlineAt)
+	if remaining < 0 {
+		remaining = 0
 	}
-
-	var parts []string
-	for _, p := range pairs {
-		parts = append(
-			parts,
-			renderKeycap(p.key, bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, p.desc),
-		)
-	}
-	line := renderGap(bg, 1) + strings.Join(parts, renderGap(bg, 2))
-	return renderOwnedLine(m.width, bg, line) + "\n" + renderOwnedLine(m.width, bg, "")
+	return remaining.Round(100 * time.Millisecond).String()
 }
 
 func (m *uiModel) renderSeparator() string {
@@ -281,31 +341,54 @@ func (m *uiModel) renderSeparator() string {
 	)
 }
 
+func (m *uiModel) renderHelp() string {
+	bg := colorBgBase
+	paneLabel := strings.ToUpper(string(m.focusedPane))
+	pairs := []string{}
+
+	switch m.focusedPane {
+	case uiPaneJobs:
+		pairs = append(pairs,
+			renderKeycap("↑↓/jk", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "JOB"),
+			renderKeycap("tab", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "FOCUS"),
+		)
+	case uiPaneTimeline:
+		pairs = append(pairs,
+			renderKeycap("↑↓/jk", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "ENTRY"),
+			renderKeycap("enter", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "EXPAND"),
+			renderKeycap("pg/home/end", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "SCROLL"),
+		)
+	}
+	if m.isRunComplete() {
+		pairs = append(
+			pairs,
+			renderKeycap("s", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, "SUMMARY"),
+		)
+	}
+	quitLabel := "QUIT"
+	switch m.shutdown.Phase {
+	case shutdownPhaseDraining:
+		quitLabel = "FORCE QUIT"
+	case shutdownPhaseForcing:
+		quitLabel = "FORCING"
+	}
+	pairs = append(
+		pairs,
+		renderKeycap("q", bg)+renderGap(bg, 1)+renderStyledOnBackground(styleMutedText, bg, quitLabel),
+	)
+
+	label := renderStyledOnBackground(styleDimText, bg, "FOCUS "+paneLabel)
+	line := renderGap(bg, 1) + label + renderGap(bg, 2) + strings.Join(pairs, renderGap(bg, 2))
+	return renderOwnedLine(m.width, bg, line) + "\n" + renderOwnedLine(m.width, bg, "")
+}
+
 func (m *uiModel) renderSidebar() string {
-	sidebarWidth := m.sidebarWidth
-	if sidebarWidth <= 0 {
-		sidebarWidth = min(max(int(float64(m.width)*sidebarWidthRatio), sidebarMinWidth), sidebarMaxWidth)
+	borderColor := colorBorder
+	if m.focusedPane == uiPaneJobs {
+		borderColor = colorBorderFocus
 	}
-
-	var items []string
-	for i := range m.jobs {
-		items = append(items, m.renderSidebarItem(&m.jobs[i], i == m.selectedJob))
-	}
-	m.sidebarViewport.SetContent(strings.Join(items, "\n"))
-
-	if m.selectedJob >= 0 && m.selectedJob < len(m.jobs) {
-		lineOffset := m.selectedJob * 3
-		sidebarOffset := m.sidebarViewport.YOffset()
-		sidebarHeight := m.sidebarViewport.Height()
-		if lineOffset > sidebarOffset+sidebarHeight-3 {
-			m.sidebarViewport.SetYOffset(lineOffset - sidebarHeight + 3)
-		} else if lineOffset < sidebarOffset {
-			m.sidebarViewport.SetYOffset(lineOffset)
-		}
-	}
-
 	content := renderOwnedBlock(m.sidebarViewport.Width(), colorBgSurface, m.sidebarViewport.View())
-	return techSidebarStyle(sidebarWidth, colorBorder).Render(content)
+	return techSidebarStyle(m.sidebarWidth, borderColor).Render(content)
 }
 
 func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
@@ -369,157 +452,292 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 	return row
 }
 
-func (m *uiModel) renderMainContent() string {
-	if m.selectedJob < 0 || m.selectedJob >= len(m.jobs) {
-		return lipgloss.NewStyle().
-			Padding(2).
-			Foreground(colorMuted).
-			Background(colorBgBase).
-			Render("Select a job from the sidebar")
+func (m *uiModel) renderMainPanels() string {
+	job := m.currentJob()
+	if job == nil {
+		return lipgloss.NewStyle().Width(max(m.width-m.sidebarWidth, 1)).Render("")
 	}
 
-	job := &m.jobs[m.selectedJob]
-	mainWidth, contentHeight := m.mainDimensions()
-	bodyWidth := paddedContentWidth(mainWidth)
-
-	metaCard := m.buildMetaCard(job, bodyWidth)
-	logsHeader := m.renderLogsHeader(bodyWidth)
-	metaHeight := lipgloss.Height(metaCard) + lipgloss.Height(logsHeader)
-
-	m.viewport.SetHeight(max(contentHeight-metaHeight, logViewportMinHeight))
-	m.viewport.SetWidth(bodyWidth)
-	m.updateViewportForJob(job)
-
-	logsView := renderOwnedBlock(bodyWidth, colorBgBase, m.viewport.View())
-	body := lipgloss.JoinVertical(lipgloss.Left, metaCard, logsHeader, logsView)
-	return lipgloss.NewStyle().
-		Width(mainWidth).
-		Height(contentHeight).
-		Padding(0, 1).
-		Background(colorBgBase).
-		Render(body)
+	return m.renderTimelinePanel(job, m.timelineWidth)
 }
 
-func (m *uiModel) buildMetaCard(job *uiJob, renderWidth int) string {
-	innerW := panelContentWidth(renderWidth)
-	labelStyle := styleDimText
-	valueStyle := styleBodyText
-	bg := colorBgSurface
-
-	nameRaw := job.safeName
-	elapsed := m.elapsedStr(job, bg)
-	elapsedW := lipgloss.Width(elapsed)
-
-	maxNameW := innerW
-	if elapsed != "" {
-		maxNameW = innerW - elapsedW - 1
-	}
-	nameRaw = truncateString(nameRaw, max(maxNameW, 1))
-	nameStyled := lipgloss.NewStyle().Bold(true).Foreground(colorBrand).Background(bg).Render(nameRaw)
-
-	titleLine := nameStyled
-	if elapsed != "" {
-		gap := max(innerW-lipgloss.Width(nameStyled)-elapsedW, 1)
-		titleLine = nameStyled + renderGap(bg, gap) + elapsed
-	}
-	titleLine = renderOwnedLine(innerW, bg, titleLine)
+func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
+	contentWidth := panelContentWidth(panelWidth)
+	m.transcriptViewport.SetWidth(contentWidth)
+	m.transcriptViewport.SetHeight(max(m.contentHeight-4, logViewportMinHeight))
+	rendered := m.buildTimelineContent(job, contentWidth)
+	m.transcriptViewport.SetContent(rendered.content)
+	m.restoreTranscriptViewport(job, rendered.offsets)
 
 	lines := []string{
-		renderOwnedLine(innerW, bg, renderTechLabel("run.status", bg)),
-		titleLine,
+		renderOwnedLine(contentWidth, colorBgSurface, renderTechLabel("session.timeline", colorBgSurface)),
+		renderOwnedLine(
+			contentWidth,
+			colorBgSurface,
+			renderStyledOnBackground(styleDimText, colorBgSurface, m.timelineMeta(job)),
+		),
+		renderOwnedBlock(contentWidth, colorBgSurface, m.transcriptViewport.View()),
 	}
 
-	if len(job.codeFiles) > 0 {
-		label := renderStyledOnBackground(labelStyle, bg, "FILES  ")
-		maxLen := innerW - lipgloss.Width(label)
-		files := truncateString(strings.Join(job.codeFiles, ", "), max(maxLen, 1))
-		lines = append(
-			lines,
-			renderOwnedLine(
-				innerW,
-				bg,
-				label+lipgloss.NewStyle().Foreground(colorAccentAlt).Background(bg).Render(files),
-			),
-		)
+	borderColor := colorBorder
+	if m.focusedPane == uiPaneTimeline {
+		borderColor = colorBorderFocus
 	}
-
-	statusVal := m.getStateLabel(job.state)
-	if job.state == jobFailed && job.exitCode != 0 {
-		statusVal = fmt.Sprintf("FAILED (EXIT %d)", job.exitCode)
-	}
-	statusLine := renderStyledOnBackground(labelStyle, bg, "STATUS ") +
-		lipgloss.NewStyle().Bold(true).Foreground(m.jobStateColor(job.state)).Background(bg).Render(statusVal) +
-		renderStyledOnBackground(styleDimText, bg, "  ·  ") +
-		renderStyledOnBackground(labelStyle, bg, "ISSUES ") +
-		renderStyledOnBackground(valueStyle.Bold(true), bg, fmt.Sprintf("%d", job.issues))
-	lines = append(lines, renderOwnedLine(innerW, bg, statusLine))
-
-	if job.tokenUsage != nil && hasUsage(*job.tokenUsage) {
-		u := job.tokenUsage
-		tokenSummary := fmt.Sprintf(
-			"%s IN / %s OUT / %s TOTAL",
-			formatNumber(u.InputTokens),
-			formatNumber(u.OutputTokens),
-			formatNumber(u.Total()),
-		)
-		tokenLine := renderStyledOnBackground(labelStyle, bg, "TOKENS ") +
-			lipgloss.NewStyle().Foreground(colorAccentAlt).Background(bg).Render(tokenSummary)
-		cacheLine := renderStyledOnBackground(labelStyle, bg, "CACHE  ") +
-			renderStyledOnBackground(
-				valueStyle,
-				bg,
-				fmt.Sprintf("%s READ / %s WRITE", formatNumber(u.CacheReads), formatNumber(u.CacheWrites)),
-			)
-		lines = append(
-			lines,
-			renderOwnedLine(innerW, bg, tokenLine),
-			renderOwnedLine(innerW, bg, cacheLine),
-		)
-	}
-
-	return techPanelStyle(renderWidth, m.jobBorderColor(job)).Render(strings.Join(lines, "\n"))
+	return techPanelStyle(panelWidth, borderColor).Render(strings.Join(lines, "\n"))
 }
 
-func (m *uiModel) elapsedStr(job *uiJob, bg color.Color) string {
-	switch job.state {
-	case jobRunning:
-		if !job.startedAt.IsZero() {
-			return renderStyledOnBackground(styleDimText, bg, formatDuration(time.Since(job.startedAt)))
-		}
-	case jobSuccess:
-		d := job.duration
-		if d == 0 && !job.startedAt.IsZero() {
-			d = time.Since(job.startedAt)
-		}
-		if d > 0 {
-			return lipgloss.NewStyle().Foreground(colorSuccess).Background(bg).Render("OK " + formatDuration(d))
-		}
-	case jobFailed:
-		d := job.duration
-		if d == 0 && !job.startedAt.IsZero() {
-			d = time.Since(job.startedAt)
-		}
-		if d > 0 {
-			return lipgloss.NewStyle().Foreground(colorError).Background(bg).Render("FAIL " + formatDuration(d))
-		}
+func (m *uiModel) timelineMeta(job *uiJob) string {
+	total := len(job.snapshot.Entries)
+	if total == 0 {
+		return "No ACP transcript yet"
 	}
-	return ""
+	selected := job.selectedEntry + 1
+	return fmt.Sprintf("%d entries · selected %d/%d", total, selected, total)
 }
 
-func (m *uiModel) renderLogsHeader(width int) string {
-	bg := colorBgBase
-	title := renderStyledOnBackground(styleLogHeader, bg, "SYS.STDOUT // LIVE LOGS")
-	rightLen := max(width-lipgloss.Width(title)-1, 0)
-	if rightLen == 0 {
-		return renderOwnedLine(width, bg, title)
+func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
+	if job != nil && job.timelineCacheValid &&
+		job.timelineCacheWidth == width &&
+		job.timelineCacheRev == job.snapshot.Revision &&
+		job.timelineCacheSel == job.selectedEntry &&
+		job.timelineCacheExpand == job.expansionRevision {
+		return job.timelineCache
 	}
-	return renderOwnedLine(
-		width,
-		bg,
-		title+
-			renderGap(bg, 1)+
-			renderStyledOnBackground(styleSeparator, bg, strings.Repeat("─", rightLen)),
-	)
+
+	if len(job.snapshot.Entries) == 0 {
+		rendered := timelineRender{
+			content: renderStyledOnBackground(styleMutedText, colorBgSurface, "Waiting for ACP updates..."),
+		}
+		job.timelineCache = rendered
+		job.timelineCacheWidth = width
+		job.timelineCacheRev = job.snapshot.Revision
+		job.timelineCacheSel = job.selectedEntry
+		job.timelineCacheExpand = job.expansionRevision
+		job.timelineCacheValid = true
+		return rendered
+	}
+
+	var lines []string
+	offsets := make([]int, 0, len(job.snapshot.Entries))
+	for idx := range job.snapshot.Entries {
+		entry := job.snapshot.Entries[idx]
+		offsets = append(offsets, len(lines))
+		entryLines := m.renderTimelineEntry(job, entry, idx, width)
+		lines = append(lines, entryLines...)
+		if idx < len(job.snapshot.Entries)-1 {
+			lines = append(lines, "")
+		}
+	}
+	rendered := timelineRender{
+		content: strings.Join(lines, "\n"),
+		offsets: offsets,
+	}
+	job.timelineCache = rendered
+	job.timelineCacheWidth = width
+	job.timelineCacheRev = job.snapshot.Revision
+	job.timelineCacheSel = job.selectedEntry
+	job.timelineCacheExpand = job.expansionRevision
+	job.timelineCacheValid = true
+	return rendered
+}
+
+func (m *uiModel) renderTimelineEntry(job *uiJob, entry TranscriptEntry, index int, width int) []string {
+	selected := index == job.selectedEntry
+	bg := colorBgSurface
+	marker := "  "
+	if selected {
+		marker = "▌ "
+	}
+
+	title := m.timelineEntryTitle(entry)
+	headerStyle := m.timelineEntryHeaderStyle(entry, selected)
+	line := renderStyledOnBackground(headerStyle, bg, truncateString(marker+title, width))
+	lines := []string{line}
+
+	preview := entry.Preview
+	if preview != "" && m.shouldRenderEntryPreview(job, entry) {
+		lines = append(lines, renderStyledOnBackground(styleDimText, bg, truncateString("   "+preview, width)))
+	}
+
+	if m.isEntryExpanded(job, entry) {
+		for _, detail := range m.renderEntryDetailLines(entry, max(width-3, 1)) {
+			lines = append(lines, renderStyledOnBackground(styleBodyText, bg, truncateString("   "+detail, width)))
+		}
+	}
+
+	return lines
+}
+
+func (m *uiModel) timelineEntryTitle(entry TranscriptEntry) string {
+	switch entry.Kind {
+	case transcriptEntryToolCall:
+		return fmt.Sprintf(
+			"%s %s [%s]",
+			toolCallStateIcon(entry.ToolCallState),
+			entry.Title,
+			toolCallStateLabel(entry.ToolCallState),
+		)
+	case transcriptEntryAssistantThinking:
+		return "Thinking"
+	default:
+		return entry.Title
+	}
+}
+
+func (m *uiModel) timelineEntryHeaderStyle(entry TranscriptEntry, selected bool) lipgloss.Style {
+	style := styleMutedText
+	switch entry.Kind {
+	case transcriptEntryAssistantMessage:
+		style = styleBodyText
+	case transcriptEntryAssistantThinking:
+		style = styleDimText.Foreground(colorAccentAlt)
+	case transcriptEntryToolCall:
+		style = styleBodyText.Foreground(toolCallStateColor(entry.ToolCallState))
+	case transcriptEntryRuntimeNotice:
+		style = styleBodyText.Foreground(colorInfo)
+	case transcriptEntryStderrEvent:
+		style = styleBodyText.Foreground(colorError)
+	}
+	if selected {
+		style = style.Bold(true)
+	}
+	return style
+}
+
+func (m *uiModel) shouldRenderEntryPreview(job *uiJob, entry TranscriptEntry) bool {
+	if !m.isEntryExpanded(job, entry) {
+		return true
+	}
+	switch entry.Kind {
+	case transcriptEntryAssistantMessage,
+		transcriptEntryAssistantThinking,
+		transcriptEntryRuntimeNotice,
+		transcriptEntryStderrEvent:
+		return false
+	default:
+		return true
+	}
+}
+
+func (m *uiModel) renderEntryDetailLines(entry TranscriptEntry, width int) []string {
+	return m.renderBlocksLines(entry.Blocks, width)
+}
+
+func (m *uiModel) renderBlocksLines(blocks []model.ContentBlock, width int) []string {
+	if len(blocks) == 0 {
+		return nil
+	}
+	outLines, errLines := renderContentBlocks(blocks)
+	lines := make([]string, 0, len(outLines)+len(errLines)+1)
+	lines = append(lines, truncateViewportLines(outLines, width, lipgloss.NewStyle())...)
+	if len(errLines) > 0 {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, truncateViewportLines(errLines, width, lipgloss.NewStyle())...)
+	}
+	return lines
+}
+
+func (m *uiModel) restoreTranscriptViewport(job *uiJob, offsets []int) {
+	if len(offsets) == 0 {
+		m.transcriptViewport.GotoTop()
+		job.transcriptYOffset = 0
+		job.transcriptXOffset = 0
+		job.transcriptFollowTail = true
+		return
+	}
+	if job.transcriptFollowTail {
+		m.transcriptViewport.GotoBottom()
+	} else {
+		m.transcriptViewport.SetYOffset(job.transcriptYOffset)
+		m.transcriptViewport.SetXOffset(job.transcriptXOffset)
+	}
+
+	selectedLine := offsets[job.selectedEntry]
+	yOffset := m.transcriptViewport.YOffset()
+	height := max(m.transcriptViewport.Height(), 1)
+	if selectedLine < yOffset {
+		m.transcriptViewport.SetYOffset(selectedLine)
+	} else if selectedLine >= yOffset+height {
+		m.transcriptViewport.SetYOffset(max(selectedLine-height+1, 0))
+	}
+
+	job.transcriptYOffset = m.transcriptViewport.YOffset()
+	job.transcriptXOffset = m.transcriptViewport.XOffset()
+	job.transcriptFollowTail = m.transcriptViewport.AtBottom()
+}
+
+func toolCallStateLabel(state model.ToolCallState) string {
+	switch state {
+	case model.ToolCallStatePending:
+		return "PENDING"
+	case model.ToolCallStateInProgress:
+		return "RUNNING"
+	case model.ToolCallStateCompleted:
+		return "COMPLETED"
+	case model.ToolCallStateFailed:
+		return "FAILED"
+	case model.ToolCallStateWaitingForConfirmation:
+		return "CONFIRM"
+	default:
+		return "READY"
+	}
+}
+
+func toolCallStateIcon(state model.ToolCallState) string {
+	switch state {
+	case model.ToolCallStatePending:
+		return "○"
+	case model.ToolCallStateInProgress:
+		return "●"
+	case model.ToolCallStateCompleted:
+		return "✓"
+	case model.ToolCallStateFailed:
+		return "✗"
+	case model.ToolCallStateWaitingForConfirmation:
+		return "!"
+	default:
+		return "•"
+	}
+}
+
+func toolCallStateColor(state model.ToolCallState) color.Color {
+	switch state {
+	case model.ToolCallStatePending:
+		return colorAccentAlt
+	case model.ToolCallStateInProgress:
+		return colorBrand
+	case model.ToolCallStateCompleted:
+		return colorSuccess
+	case model.ToolCallStateFailed:
+		return colorError
+	case model.ToolCallStateWaitingForConfirmation:
+		return colorWarning
+	default:
+		return colorInfo
+	}
+}
+
+func (m *uiModel) isEntryExpanded(job *uiJob, entry TranscriptEntry) bool {
+	if job == nil {
+		return false
+	}
+	if job.expandedEntryIDs != nil {
+		if expanded, ok := job.expandedEntryIDs[entry.ID]; ok {
+			return expanded
+		}
+	}
+	switch entry.Kind {
+	case transcriptEntryAssistantMessage, transcriptEntryRuntimeNotice, transcriptEntryStderrEvent:
+		return true
+	case transcriptEntryToolCall:
+		switch entry.ToolCallState {
+		case model.ToolCallStateFailed, model.ToolCallStateWaitingForConfirmation:
+			return true
+		}
+	}
+	return false
 }
 
 func formatDuration(d time.Duration) string {
@@ -558,234 +776,6 @@ func formatNumber(n int) string {
 	return result.String()
 }
 
-func (m *uiModel) updateViewportForJob(job *uiJob) {
-	maxW := m.viewport.Width()
-	content, hasContent := m.buildViewportContent(job, maxW)
-	m.viewport.SetContent(content)
-	if !hasContent {
-		m.viewport.GotoTop()
-		job.viewportYOffset = 0
-		job.viewportXOffset = 0
-		job.followTail = true
-		return
-	}
-	if job.followTail {
-		m.viewport.GotoBottom()
-	} else {
-		m.viewport.SetYOffset(job.viewportYOffset)
-		m.viewport.SetXOffset(job.viewportXOffset)
-	}
-	job.viewportYOffset = m.viewport.YOffset()
-	job.viewportXOffset = m.viewport.XOffset()
-	job.followTail = m.viewport.AtBottom()
-}
-
-func (m *uiModel) buildViewportContent(job *uiJob, maxW int) (string, bool) {
-	lines := renderViewportBlocks(job.blocks, maxW)
-	if job.errBuffer != nil {
-		errLines := job.errBuffer.snapshot()
-		if len(errLines) > 0 {
-			if len(lines) > 0 {
-				lines = append(lines, "")
-			}
-			lines = append(lines, styleStderrLabel.Render(truncateString("SESSION STDERR", maxW)))
-			for _, line := range errLines {
-				lines = append(lines, styleToolError.Render(truncateString(line, maxW)))
-			}
-		}
-	}
-	if len(lines) == 0 {
-		return "", false
-	}
-	return strings.Join(lines, "\n"), true
-}
-
-func renderViewportBlocks(blocks []model.ContentBlock, maxW int) []string {
-	if len(blocks) == 0 {
-		return nil
-	}
-
-	lines := make([]string, 0, len(blocks)*4)
-	for i, block := range blocks {
-		blockLines := renderViewportBlock(block, maxW)
-		if len(blockLines) == 0 {
-			continue
-		}
-		if len(lines) > 0 && i > 0 {
-			lines = append(lines, "")
-		}
-		lines = append(lines, blockLines...)
-	}
-	return lines
-}
-
-func renderViewportBlock(block model.ContentBlock, maxW int) []string {
-	switch block.Type {
-	case model.BlockText:
-		return renderViewportTextBlock(block, maxW)
-	case model.BlockToolUse:
-		return renderViewportToolUseBlock(block, maxW)
-	case model.BlockToolResult:
-		return renderViewportToolResultBlock(block, maxW)
-	case model.BlockDiff:
-		return renderViewportDiffBlock(block, maxW)
-	case model.BlockTerminalOutput:
-		return renderViewportTerminalBlock(block, maxW)
-	case model.BlockImage:
-		return renderViewportImageBlock(block, maxW)
-	default:
-		return renderViewportRawFallback(block, maxW, "")
-	}
-}
-
-func renderViewportTextBlock(block model.ContentBlock, maxW int) []string {
-	textBlock, err := block.AsText()
-	if err != nil {
-		return renderViewportRawFallback(block, maxW, err.Error())
-	}
-	return truncateViewportLines(splitRenderedText(textBlock.Text), maxW, lipgloss.NewStyle())
-}
-
-func renderViewportToolUseBlock(block model.ContentBlock, maxW int) []string {
-	toolUse, err := block.AsToolUse()
-	if err != nil {
-		return renderViewportRawFallback(block, maxW, err.Error())
-	}
-
-	header := styleToolName.Render(
-		truncateString(fmt.Sprintf("TOOL %s", toolUse.Name), maxW),
-	)
-	if toolUse.ID != "" {
-		header += styleBlockMeta.Render(truncateString("  ["+toolUse.ID+"]", max(maxW-lipgloss.Width(header), 1)))
-	}
-
-	lines := []string{header}
-	if len(toolUse.Input) == 0 {
-		return lines
-	}
-
-	lines = append(lines, styleBlockMeta.Render(truncateString("input", maxW)))
-	inputText := formatRawJSON(toolUse.Input)
-	lines = append(lines, truncateViewportLines(splitRenderedText(inputText), maxW, styleToolInput)...)
-	return lines
-}
-
-func renderViewportToolResultBlock(block model.ContentBlock, maxW int) []string {
-	toolResult, err := block.AsToolResult()
-	if err != nil {
-		return renderViewportRawFallback(block, maxW, err.Error())
-	}
-
-	headerStyle := styleBlockLabel
-	bodyStyle := styleToolResult
-	if toolResult.IsError {
-		headerStyle = styleToolError
-		bodyStyle = styleToolError
-	}
-
-	header := "TOOL RESULT"
-	if toolResult.ToolUseID != "" {
-		header += " " + toolResult.ToolUseID
-	}
-	lines := []string{headerStyle.Render(truncateString(header, maxW))}
-
-	contentLines := splitRenderedText(toolResult.Content)
-	if len(contentLines) == 0 {
-		return lines
-	}
-	lines = append(lines, truncateViewportLines(contentLines, maxW, bodyStyle)...)
-	return lines
-}
-
-func renderViewportDiffBlock(block model.ContentBlock, maxW int) []string {
-	diffBlock, err := block.AsDiff()
-	if err != nil {
-		return renderViewportRawFallback(block, maxW, err.Error())
-	}
-
-	lines := []string{
-		styleDiffHeader.Render(truncateString(fmt.Sprintf("DIFF %s", diffBlock.FilePath), maxW)),
-	}
-	for _, line := range splitRenderedText(diffBlock.Diff) {
-		lines = append(lines, renderViewportDiffLine(line, maxW))
-	}
-	return lines
-}
-
-func renderViewportDiffLine(line string, maxW int) string {
-	truncated := truncateString(line, maxW)
-	switch {
-	case strings.HasPrefix(line, "@@"):
-		return styleDiffHunk.Render(truncated)
-	case strings.HasPrefix(line, "+++"), strings.HasPrefix(line, "---"), strings.HasPrefix(line, "diff "):
-		return styleBlockMeta.Render(truncated)
-	case strings.HasPrefix(line, "+"):
-		return styleDiffAdd.Render(truncated)
-	case strings.HasPrefix(line, "-"):
-		return styleDiffRemove.Render(truncated)
-	default:
-		return styleBodyText.Render(truncated)
-	}
-}
-
-func renderViewportTerminalBlock(block model.ContentBlock, maxW int) []string {
-	terminalBlock, err := block.AsTerminalOutput()
-	if err != nil {
-		return renderViewportRawFallback(block, maxW, err.Error())
-	}
-
-	header := "TERMINAL OUTPUT"
-	if terminalBlock.TerminalID != "" {
-		header += " " + terminalBlock.TerminalID
-	}
-	lines := []string{styleBlockLabel.Render(truncateString(header, maxW))}
-	if terminalBlock.Command != "" {
-		lines = append(lines, styleCommandLine.Render(truncateString("$ "+terminalBlock.Command, maxW)))
-	}
-	if terminalBlock.Output != "" {
-		lines = append(lines, truncateViewportLines(splitRenderedText(terminalBlock.Output), maxW, styleBodyText)...)
-	}
-	exitStyle := styleExitSuccess
-	if terminalBlock.ExitCode != 0 {
-		exitStyle = styleExitFailure
-	}
-	lines = append(
-		lines,
-		exitStyle.Render(truncateString(fmt.Sprintf("exit code %d", terminalBlock.ExitCode), maxW)),
-	)
-	return lines
-}
-
-func renderViewportImageBlock(block model.ContentBlock, maxW int) []string {
-	imageBlock, err := block.AsImage()
-	if err != nil {
-		return renderViewportRawFallback(block, maxW, err.Error())
-	}
-
-	location := "inline"
-	if imageBlock.URI != nil && *imageBlock.URI != "" {
-		location = *imageBlock.URI
-	}
-	return []string{
-		styleImageBlock.Render(
-			truncateString(fmt.Sprintf("IMAGE %s %s", imageBlock.MimeType, location), maxW),
-		),
-	}
-}
-
-func renderViewportRawFallback(block model.ContentBlock, maxW int, decodeErr string) []string {
-	lines := make([]string, 0, 4)
-	label := fmt.Sprintf("RAW BLOCK %s", block.Type)
-	if decodeErr != "" {
-		label = fmt.Sprintf("RAW BLOCK %s (%s)", block.Type, decodeErr)
-	}
-	lines = append(lines, styleFallbackRaw.Render(truncateString(label, maxW)))
-	lines = append(
-		lines,
-		truncateViewportLines(splitRenderedText(formatRawJSON(block.Data)), maxW, styleFallbackRaw)...)
-	return lines
-}
-
 func truncateViewportLines(lines []string, maxW int, style lipgloss.Style) []string {
 	if len(lines) == 0 {
 		return nil
@@ -795,18 +785,6 @@ func truncateViewportLines(lines []string, maxW int, style lipgloss.Style) []str
 		rendered = append(rendered, style.Render(truncateString(line, maxW)))
 	}
 	return rendered
-}
-
-func formatRawJSON(raw []byte) string {
-	if len(raw) == 0 {
-		return ""
-	}
-
-	var pretty bytes.Buffer
-	if err := json.Indent(&pretty, raw, "", "  "); err == nil {
-		return pretty.String()
-	}
-	return strings.TrimSpace(string(raw))
 }
 
 func (m *uiModel) getStateLabel(state jobState) string {

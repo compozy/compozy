@@ -42,21 +42,18 @@ func TestLineBufferLimitedRetentionKeepsNewestEntries(t *testing.T) {
 	}
 }
 
-func TestSessionUpdateHandlerRoutesTextBlocksToLogAndUI(t *testing.T) {
+func TestSessionUpdateHandlerRoutesTextBlocksToLogAndSnapshot(t *testing.T) {
 	t.Parallel()
 
 	var out bytes.Buffer
 	var err bytes.Buffer
 	uiCh := make(chan uiMsg, 2)
 	var aggregate model.Usage
-	handler := newSessionUpdateHandler(3, model.IDECodex, "sess-123", &out, &err, uiCh, &aggregate, &sync.Mutex{})
+	handler := newSessionUpdateHandler(3, model.IDECodex, "sess-123", nil, &out, &err, uiCh, &aggregate, &sync.Mutex{})
 
-	textBlock, blockErr := model.NewContentBlock(model.TextBlock{Text: "hello from ACP"})
-	if blockErr != nil {
-		t.Fatalf("new content block: %v", blockErr)
-	}
-
+	textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "hello from ACP"})
 	if handleErr := handler.HandleUpdate(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
 		Blocks: []model.ContentBlock{textBlock},
 		Status: model.StatusRunning,
 	}); handleErr != nil {
@@ -79,11 +76,79 @@ func TestSessionUpdateHandlerRoutesTextBlocksToLogAndUI(t *testing.T) {
 		if updateMsg.Index != 3 {
 			t.Fatalf("expected job update index 3, got %d", updateMsg.Index)
 		}
-		if len(updateMsg.Blocks) != 1 || updateMsg.Blocks[0].Type != model.BlockText {
-			t.Fatalf("unexpected job update blocks: %#v", updateMsg.Blocks)
+		if len(updateMsg.Snapshot.Entries) != 1 ||
+			updateMsg.Snapshot.Entries[0].Kind != transcriptEntryAssistantMessage {
+			t.Fatalf("unexpected snapshot entries: %#v", updateMsg.Snapshot.Entries)
 		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("timed out waiting for UI update")
+	}
+}
+
+func TestSessionUpdateHandlerMergesTranscriptAndCarriesSessionState(t *testing.T) {
+	t.Parallel()
+
+	uiCh := make(chan uiMsg, 8)
+	handler := newSessionUpdateHandler(1, model.IDECodex, "sess-merge", nil, io.Discard, io.Discard, uiCh, nil, nil)
+
+	updates := []model.SessionUpdate{
+		{
+			Kind:   model.UpdateKindAgentMessageChunk,
+			Blocks: []model.ContentBlock{mustContentBlockLoggingTest(t, model.TextBlock{Text: "Ledger Snapshot: "})},
+			Status: model.StatusRunning,
+		},
+		{
+			Kind:   model.UpdateKindAgentMessageChunk,
+			Blocks: []model.ContentBlock{mustContentBlockLoggingTest(t, model.TextBlock{Text: "Goal is fix the TUI"})},
+			Status: model.StatusRunning,
+		},
+		{
+			Kind: model.UpdateKindPlanUpdated,
+			PlanEntries: []model.SessionPlanEntry{{
+				Content:  "Ship redesign",
+				Priority: "high",
+				Status:   "in_progress",
+			}},
+			Status: model.StatusRunning,
+		},
+		{
+			Kind:          model.UpdateKindCurrentModeUpdated,
+			CurrentModeID: "review",
+			Status:        model.StatusRunning,
+		},
+	}
+
+	for _, update := range updates {
+		if err := handler.HandleUpdate(update); err != nil {
+			t.Fatalf("handle update: %v", err)
+		}
+	}
+
+	var last jobUpdateMsg
+	for i := 0; i < len(updates); i++ {
+		msg := <-uiCh
+		update, ok := msg.(jobUpdateMsg)
+		if !ok {
+			t.Fatalf("expected jobUpdateMsg, got %T", msg)
+		}
+		last = update
+	}
+
+	if len(last.Snapshot.Entries) != 1 {
+		t.Fatalf("expected merged assistant entry, got %#v", last.Snapshot.Entries)
+	}
+	textBlock, err := last.Snapshot.Entries[0].Blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("decode merged text block: %v", err)
+	}
+	if want := "Ledger Snapshot: Goal is fix the TUI"; textBlock.Text != want {
+		t.Fatalf("unexpected merged transcript text: got %q want %q", textBlock.Text, want)
+	}
+	if last.Snapshot.Plan.RunningCount != 1 {
+		t.Fatalf("expected plan state in snapshot, got %#v", last.Snapshot.Plan)
+	}
+	if last.Snapshot.Session.CurrentModeID != "review" {
+		t.Fatalf("expected current mode in snapshot, got %q", last.Snapshot.Session.CurrentModeID)
 	}
 }
 
@@ -95,34 +160,26 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	uiCh := make(chan uiMsg, 4)
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-mixed", &out, &err, uiCh, &aggregate, &aggregateMu)
+	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-mixed", nil, &out, &err, uiCh, &aggregate, &aggregateMu)
 
-	toolUseBlock, blockErr := model.NewContentBlock(model.ToolUseBlock{
+	toolUseBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
 		ID:    "tool-1",
 		Name:  "read_file",
 		Input: []byte(`{"path":"README.md"}`),
 	})
-	if blockErr != nil {
-		t.Fatalf("new tool_use block: %v", blockErr)
-	}
-	diffBlock, blockErr := model.NewContentBlock(model.DiffBlock{
+	diffBlock := mustContentBlockLoggingTest(t, model.DiffBlock{
 		FilePath: "README.md",
 		Diff:     "@@ -1 +1 @@\n-old\n+new",
 		NewText:  "new",
 	})
-	if blockErr != nil {
-		t.Fatalf("new diff block: %v", blockErr)
-	}
-	toolErrBlock, blockErr := model.NewContentBlock(model.ToolResultBlock{
+	toolErrBlock := mustContentBlockLoggingTest(t, model.ToolResultBlock{
 		ToolUseID: "tool-1",
 		Content:   "permission denied",
 		IsError:   true,
 	})
-	if blockErr != nil {
-		t.Fatalf("new tool_result block: %v", blockErr)
-	}
 
 	update := model.SessionUpdate{
+		Kind:   model.UpdateKindToolCallUpdated,
 		Blocks: []model.ContentBlock{toolUseBlock, diffBlock, toolErrBlock},
 		Usage: model.Usage{
 			InputTokens:  10,
@@ -146,16 +203,16 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 		t.Fatalf("unexpected aggregate usage: %#v", got)
 	}
 
-	var sawBlocks bool
+	var sawSnapshot bool
 	var sawUsage bool
 	for i := 0; i < 2; i++ {
 		select {
 		case msg := <-uiCh:
 			switch v := msg.(type) {
 			case jobUpdateMsg:
-				sawBlocks = true
-				if len(v.Blocks) != 3 {
-					t.Fatalf("expected 3 blocks in job update, got %d", len(v.Blocks))
+				sawSnapshot = true
+				if len(v.Snapshot.Entries) < 1 {
+					t.Fatalf("expected at least one snapshot entry, got %#v", v.Snapshot.Entries)
 				}
 			case usageUpdateMsg:
 				sawUsage = true
@@ -169,15 +226,15 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 			t.Fatal("timed out waiting for mixed update messages")
 		}
 	}
-	if !sawBlocks || !sawUsage {
-		t.Fatalf("expected both job and usage updates, got blocks=%v usage=%v", sawBlocks, sawUsage)
+	if !sawSnapshot || !sawUsage {
+		t.Fatalf("expected both snapshot and usage updates, got snapshot=%v usage=%v", sawSnapshot, sawUsage)
 	}
 }
 
 func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	t.Parallel()
 
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-done", io.Discard, io.Discard, nil, nil, nil)
+	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-done", nil, io.Discard, io.Discard, nil, nil, nil)
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusCompleted}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -198,7 +255,7 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 	t.Parallel()
 
 	var errBuf bytes.Buffer
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-failed", io.Discard, &errBuf, nil, nil, nil)
+	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-failed", nil, io.Discard, &errBuf, nil, nil, nil)
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusFailed}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -221,21 +278,15 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 func TestRenderContentBlocksHandlesTerminalImageAndDecodeFallback(t *testing.T) {
 	t.Parallel()
 
-	terminalBlock, err := model.NewContentBlock(model.TerminalOutputBlock{
+	terminalBlock := mustContentBlockLoggingTest(t, model.TerminalOutputBlock{
 		Command:  "pwd",
 		Output:   "/tmp/project",
 		ExitCode: 0,
 	})
-	if err != nil {
-		t.Fatalf("new terminal block: %v", err)
-	}
-	imageBlock, err := model.NewContentBlock(model.ImageBlock{
+	imageBlock := mustContentBlockLoggingTest(t, model.ImageBlock{
 		Data:     "ZGF0YQ==",
 		MimeType: "image/png",
 	})
-	if err != nil {
-		t.Fatalf("new image block: %v", err)
-	}
 	invalidBlock := model.ContentBlock{
 		Type: model.BlockDiff,
 		Data: []byte(`{"type":"diff","filePath":1}`),
@@ -251,4 +302,14 @@ func TestRenderContentBlocksHandlesTerminalImageAndDecodeFallback(t *testing.T) 
 			t.Fatalf("expected rendered output to contain %q, got %q", want, joined)
 		}
 	}
+}
+
+func mustContentBlockLoggingTest(t *testing.T, payload any) model.ContentBlock {
+	t.Helper()
+
+	block, err := model.NewContentBlock(payload)
+	if err != nil {
+		t.Fatalf("new content block: %v", err)
+	}
+	return block
 }

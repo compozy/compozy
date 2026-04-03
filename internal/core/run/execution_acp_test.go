@@ -1,9 +1,11 @@
 package run
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -265,6 +267,7 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 		25*time.Millisecond,
 		&aggregate,
 		&aggregateMu,
+		nil,
 	)
 
 	if got := result.status; got != attemptStatusTimeout {
@@ -272,6 +275,66 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	}
 	if got := timeoutClient.closeCalls.Load(); got != 1 {
 		t.Fatalf("expected client close to run as timeout backstop, got %d closes", got)
+	}
+}
+
+func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	var logBuf bytes.Buffer
+	previousLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logBuf, nil)))
+	t.Cleanup(func() {
+		slog.SetDefault(previousLogger)
+	})
+
+	successClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-ui")
+		go func() {
+			textBlock, err := model.NewContentBlock(model.TextBlock{Text: "hello from ACP"})
+			if err != nil {
+				t.Errorf("new content block: %v", err)
+				return
+			}
+			session.publish(model.SessionUpdate{
+				Kind:   model.UpdateKindAgentMessageChunk,
+				Blocks: []model.ContentBlock{textBlock},
+				Status: model.StatusRunning,
+			})
+			session.finish(nil)
+		}()
+		return session, nil
+	})
+	installFakeACPClients(t, successClient)
+
+	job := newTestACPJob(tmpDir)
+	var aggregate model.Usage
+	var aggregateMu sync.Mutex
+	uiCh := make(chan uiMsg, 4)
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			retryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		true,
+		uiCh,
+		0,
+		time.Second,
+		&aggregate,
+		&aggregateMu,
+		nil,
+	)
+
+	if got := result.status; got != attemptStatusSuccess {
+		t.Fatalf("expected success status, got %s", got)
+	}
+	if got := strings.TrimSpace(logBuf.String()); got != "" {
+		t.Fatalf("expected interactive ACP execution to suppress default logger output, got %q", got)
 	}
 }
 
@@ -338,7 +401,7 @@ func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 	cancelController := &executorController{
 		ctx:        ctx,
 		execCtx:    cancelExecCtx,
-		cancelJobs: func() {},
+		cancelJobs: func(error) {},
 		done:       cancelDone,
 	}
 
@@ -414,6 +477,7 @@ type fakeACPClient struct {
 	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
 	createCalls     atomic.Int32
 	closeCalls      atomic.Int32
+	killCalls       atomic.Int32
 }
 
 func newFakeACPClient(
@@ -432,6 +496,11 @@ func (c *fakeACPClient) CreateSession(ctx context.Context, req agent.SessionRequ
 
 func (c *fakeACPClient) Close() error {
 	c.closeCalls.Add(1)
+	return nil
+}
+
+func (c *fakeACPClient) Kill() error {
+	c.killCalls.Add(1)
 	return nil
 }
 
@@ -464,7 +533,7 @@ func (f *fakeLifecycleUISession) events() chan uiMsg {
 	return f.eventsCh
 }
 
-func (f *fakeLifecycleUISession) setQuitHandler(func()) {}
+func (f *fakeLifecycleUISession) setQuitHandler(func(uiQuitRequest)) {}
 
 func (f *fakeLifecycleUISession) closeEvents() {
 	f.closeEventsCalls++

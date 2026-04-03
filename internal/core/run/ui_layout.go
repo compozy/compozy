@@ -1,56 +1,55 @@
 package run
 
-func paddedContentWidth(width int) int {
-	return max(width-mainHorizontalPadding, 1)
+type uiLayoutState struct {
+	mode          uiLayoutMode
+	sidebarWidth  int
+	timelineWidth int
+	contentHeight int
 }
 
-func (m *uiModel) computePaneWidths(totalWidth int) (int, int) {
-	sidebar := m.initialSidebarWidth(totalWidth)
-	main := totalWidth - sidebar
-	if main < mainMinWidth {
-		main = mainMinWidth
-		sidebar = totalWidth - main
-		if sidebar < sidebarMinWidth {
-			sidebar = sidebarMinWidth
-			main = totalWidth - sidebar
+func (m *uiModel) computeLayout(totalWidth, totalHeight int) uiLayoutState {
+	if totalWidth < 80 || totalHeight < 24 {
+		return uiLayoutState{
+			mode:          uiLayoutResizeBlocked,
+			sidebarWidth:  max(totalWidth, 1),
+			timelineWidth: 0,
+			contentHeight: max(totalHeight-chromeHeight, 1),
 		}
 	}
-	return sidebar, max(main, 0)
-}
 
-func (m *uiModel) initialSidebarWidth(totalWidth int) int {
-	sidebar := min(max(int(float64(totalWidth)*sidebarWidthRatio), sidebarMinWidth), sidebarMaxWidth)
-	if sidebar >= totalWidth {
-		sidebar = totalWidth / 2
+	contentHeight := max(totalHeight-chromeHeight, minContentHeight)
+	sidebar := clamp(int(float64(totalWidth)*0.28), sidebarMinWidth, min(sidebarMaxWidth, totalWidth/2))
+	main := totalWidth - sidebar
+	if main < mainMinWidth {
+		sidebar = max(totalWidth-mainMinWidth, sidebarMinWidth)
+		main = max(totalWidth-sidebar, 1)
 	}
-	return sidebar
+	return uiLayoutState{
+		mode:          uiLayoutSplit,
+		sidebarWidth:  sidebar,
+		timelineWidth: max(main, timelineMinWidth),
+		contentHeight: contentHeight,
+	}
 }
 
-func (m *uiModel) computeContentHeight(totalHeight int) int {
-	return max(totalHeight-chromeHeight, minContentHeight)
-}
-
-func (m *uiModel) configureViewports(sidebarWidth, mainWidth, contentHeight int) {
-	sidebarViewportWidth := max(sidebarContentWidth(sidebarWidth), 10)
-	sidebarViewportHeight := max(sidebarContentHeight(contentHeight), sidebarViewportMinRows)
+func (m *uiModel) configureViewports(layout uiLayoutState) {
+	sidebarViewportWidth := max(sidebarContentWidth(layout.sidebarWidth), 10)
+	sidebarViewportHeight := max(sidebarContentHeight(layout.contentHeight), sidebarViewportMinRows)
 	m.sidebarViewport.SetWidth(sidebarViewportWidth)
-	if m.sidebarViewport.YOffset() > sidebarViewportHeight {
-		m.sidebarViewport.SetYOffset(sidebarViewportHeight)
-	}
 	m.sidebarViewport.SetHeight(sidebarViewportHeight)
 
-	m.viewport.SetWidth(max(paddedContentWidth(mainWidth), 10))
-	m.viewport.SetHeight(max(contentHeight, logViewportMinHeight))
+	m.transcriptViewport.SetWidth(max(panelContentWidth(layout.timelineWidth), 10))
+	m.transcriptViewport.SetHeight(max(layout.contentHeight-4, logViewportMinHeight))
 }
 
-func (m *uiModel) mainDimensions() (int, int) {
-	contentHeight := max(m.contentHeight, minContentHeight)
-	mainWidth := m.mainWidth
-	if mainWidth <= 0 {
-		sidebar := min(max(int(float64(m.width)*sidebarWidthRatio), sidebarMinWidth), sidebarMaxWidth)
-		mainWidth = m.width - sidebar
+func clamp(value, minValue, maxValue int) int {
+	if value < minValue {
+		return minValue
 	}
-	return max(mainWidth, 1), contentHeight
+	if value > maxValue {
+		return maxValue
+	}
+	return value
 }
 
 func truncateString(s string, maxLen int) string {

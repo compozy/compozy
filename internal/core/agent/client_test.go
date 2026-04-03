@@ -221,6 +221,39 @@ func TestClientCloseTerminatesSubprocessGracefully(t *testing.T) {
 	}
 }
 
+func TestClientKillForceTerminatesSubprocess(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:      t.TempDir(),
+		ExpectedPrompt:   "kill immediately",
+		BlockUntilCancel: true,
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	if err := client.Kill(); err != nil {
+		t.Fatalf("kill client: %v", err)
+	}
+
+	select {
+	case <-session.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session shutdown after kill")
+	}
+
+	if !errors.Is(session.Err(), context.Canceled) {
+		t.Fatalf("expected forced kill to finish sessions as canceled, got %v", session.Err())
+	}
+}
+
 func TestClientHelperMethods(t *testing.T) {
 	t.Parallel()
 
@@ -362,6 +395,51 @@ func TestClientUtilityHelpers(t *testing.T) {
 	noDataErr := (&SessionError{Code: 7, Message: "plain"}).Error()
 	if !strings.Contains(noDataErr, "plain") {
 		t.Fatalf("unexpected no-data session error string: %q", noDataErr)
+	}
+}
+
+func TestClientCreateSessionSurfacesStartupCommandAndStderr(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "broken-agent")
+	script := "#!/bin/sh\nprintf 'adapter boot failed' >&2\nexit 23\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write broken helper: %v", err)
+	}
+
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	registerTestSpec(t, Spec{
+		ID:           "broken-agent-test",
+		DisplayName:  "Broken Agent",
+		DefaultModel: "test-model",
+		Command:      "broken-agent",
+		FixedArgs:    []string{"acp"},
+		ProbeArgs:    []string{"--help"},
+		InstallHint:  "Install the working ACP adapter.",
+		DocsURL:      "https://example.com/acp",
+	})
+
+	client, err := NewClient(context.Background(), ClientConfig{
+		IDE:             "broken-agent-test",
+		Model:           "test-model",
+		ReasoningEffort: "medium",
+		ShutdownTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	_, err = client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: t.TempDir(),
+		Prompt:     []byte("hello"),
+	})
+	if err == nil {
+		t.Fatal("expected create session error")
+	}
+	if !strings.Contains(err.Error(), "broken-agent acp") {
+		t.Fatalf("expected attempted command in error, got %q", err)
+	}
+	if !strings.Contains(err.Error(), "adapter boot failed") {
+		t.Fatalf("expected adapter stderr in error, got %q", err)
 	}
 }
 
@@ -510,11 +588,12 @@ func newTestClient(t *testing.T, scenario helperScenario) Client {
 		ID:           ide,
 		DisplayName:  "Test ACP",
 		DefaultModel: "test-model",
-		Binary:       os.Args[0],
+		Command:      os.Args[0],
 		EnvVars: map[string]string{
 			"GO_WANT_ACP_HELPER_PROCESS": "1",
 			"GO_ACP_SCENARIO":            string(scenarioJSON),
 		},
+		UsesBootstrapModel: true,
 		BootstrapArgs: func(_, _ string, _ []string) []string {
 			return []string{"-test.run=TestACPHelperProcess", "--"}
 		},
@@ -551,8 +630,8 @@ func collectSessionUpdates(t *testing.T, session Session) []model.SessionUpdate 
 
 func flattenBlocks(updates []model.SessionUpdate) []model.ContentBlock {
 	blocks := make([]model.ContentBlock, 0)
-	for _, update := range updates {
-		blocks = append(blocks, update.Blocks...)
+	for i := range updates {
+		blocks = append(blocks, updates[i].Blocks...)
 	}
 	return blocks
 }

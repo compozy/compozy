@@ -28,6 +28,7 @@ type sessionUpdateHandler struct {
 	mu          sync.Mutex
 	err         error
 	blockCounts map[model.ContentBlockType]int
+	sessionView *sessionViewModel
 	done        chan struct{}
 	doneOnce    sync.Once
 }
@@ -36,13 +37,16 @@ func newSessionUpdateHandler(
 	index int,
 	agentID string,
 	sessionID string,
+	logger *slog.Logger,
 	outWriter io.Writer,
 	errWriter io.Writer,
 	uiCh chan<- uiMsg,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
 ) *sessionUpdateHandler {
-	logger := slog.Default()
+	if logger == nil {
+		logger = silentLogger()
+	}
 	return &sessionUpdateHandler{
 		index:          index,
 		agentID:        agentID,
@@ -55,6 +59,7 @@ func newSessionUpdateHandler(
 		aggregateUsage: aggregateUsage,
 		aggregateMu:    aggregateMu,
 		blockCounts:    make(map[model.ContentBlockType]int),
+		sessionView:    newSessionViewModel(),
 		done:           make(chan struct{}),
 	}
 }
@@ -79,8 +84,11 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 			return fmt.Errorf("write ACP session stderr: %w", err)
 		}
 		h.recordBlockCounts(update.Blocks)
-		if h.uiCh != nil {
-			h.uiCh <- jobUpdateMsg{Index: h.index, Blocks: cloneContentBlocks(update.Blocks)}
+	}
+
+	if h.uiCh != nil {
+		if snapshot, changed := h.sessionView.Apply(update); changed {
+			h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}
 		}
 	}
 
@@ -103,6 +111,8 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 		h.sessionID,
 		"status",
 		update.Status,
+		"kind",
+		update.Kind,
 		"blocks",
 		len(update.Blocks),
 		"block_types",
