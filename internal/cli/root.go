@@ -10,6 +10,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
 
@@ -51,6 +52,11 @@ type commandState struct {
 	retryBackoffMultiplier float64
 	isInteractive          func() bool
 	collectForm            func(*cobra.Command, *commandState) error
+	listBundledSkills      func() ([]setup.Skill, error)
+	verifyBundledSkills    func(setup.VerifyConfig) (setup.VerifyResult, error)
+	installBundledSkills   func(setup.InstallConfig) (*setup.Result, error)
+	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
+	runWorkflow            func(context.Context, core.Config) error
 }
 
 // NewRootCommand returns the reusable compozy Cobra command.
@@ -262,10 +268,15 @@ review round _meta.md files fully resolved when review rounds exist.`,
 
 func newCommandState(kind commandKind, mode core.Mode) *commandState {
 	return &commandState{
-		kind:          kind,
-		mode:          mode,
-		isInteractive: isInteractiveTerminal,
-		collectForm:   collectFormParams,
+		kind:                 kind,
+		mode:                 mode,
+		isInteractive:        isInteractiveTerminal,
+		collectForm:          collectFormParams,
+		listBundledSkills:    setup.ListBundledSkills,
+		verifyBundledSkills:  setup.VerifyBundledSkills,
+		installBundledSkills: setup.InstallBundledSkills,
+		confirmSkillRefresh:  confirmSkillRefreshPrompt,
+		runWorkflow:          core.Run,
 	}
 }
 
@@ -355,7 +366,7 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	return core.Run(ctx, cfg)
+	return s.runPrepared(ctx, cmd, cfg)
 }
 
 func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
@@ -557,4 +568,16 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,
 	}, nil
+}
+
+func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
+	if err := s.preflightBundledSkills(cmd, cfg); err != nil {
+		return err
+	}
+
+	runWorkflow := s.runWorkflow
+	if runWorkflow == nil {
+		runWorkflow = core.Run
+	}
+	return runWorkflow(ctx, cfg)
 }

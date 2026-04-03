@@ -23,6 +23,12 @@ func InstallBundledSkills(cfg InstallConfig) (*Result, error) {
 	return Install(cfg)
 }
 
+// VerifyBundledSkills checks whether bundled public skills are installed and current.
+func VerifyBundledSkills(cfg VerifyConfig) (VerifyResult, error) {
+	cfg.Bundle = skills.FS
+	return Verify(cfg)
+}
+
 // bundledSkillsRoot returns the embedded skill filesystem for tests.
 func bundledSkillsRoot() (fs.FS, error) {
 	return skills.FS, nil

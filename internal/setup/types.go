@@ -12,6 +12,18 @@ const (
 	InstallModeCopy InstallMode = "copy"
 )
 
+// InstallScope identifies whether a skill installation is project-local or global.
+type InstallScope string
+
+const (
+	// InstallScopeUnknown indicates that no existing installation scope could be resolved.
+	InstallScopeUnknown InstallScope = "unknown"
+	// InstallScopeProject identifies a project-local installation.
+	InstallScopeProject InstallScope = "project"
+	// InstallScopeGlobal identifies a global installation.
+	InstallScopeGlobal InstallScope = "global"
+)
+
 // Skill describes one bundled skill available for installation.
 type Skill struct {
 	Name        string
@@ -48,6 +60,100 @@ type InstallConfig struct {
 	AgentNames []string
 	Global     bool
 	Mode       InstallMode
+}
+
+// VerifyState describes the verification status for one installed skill.
+type VerifyState string
+
+const (
+	// VerifyStateCurrent indicates the installed skill matches the bundled version.
+	VerifyStateCurrent VerifyState = "current"
+	// VerifyStateMissing indicates the installed skill is missing from the selected scope.
+	VerifyStateMissing VerifyState = "missing"
+	// VerifyStateDrifted indicates the installed skill differs from the bundled version.
+	VerifyStateDrifted VerifyState = "drifted"
+)
+
+// VerifyConfig describes one bundled-skill verification run.
+type VerifyConfig struct {
+	Bundle fs.FS
+
+	ResolverOptions
+
+	AgentName  string
+	SkillNames []string
+}
+
+// SkillDrift describes how an installed skill differs from the bundled version.
+type SkillDrift struct {
+	MissingFiles []string
+	ExtraFiles   []string
+	ChangedFiles []string
+	Reason       string
+}
+
+// VerifiedSkill captures the verification result for one skill.
+type VerifiedSkill struct {
+	Skill         Skill
+	CanonicalPath string
+	TargetPath    string
+	ResolvedPath  string
+	State         VerifyState
+	Drift         SkillDrift
+}
+
+// VerifyResult summarizes one bundled-skill verification run.
+type VerifyResult struct {
+	Agent  Agent
+	Scope  InstallScope
+	Mode   InstallMode
+	Skills []VerifiedSkill
+}
+
+// MissingSkillNames returns every missing skill name in sorted order.
+func (r VerifyResult) MissingSkillNames() []string {
+	names := make([]string, 0, len(r.Skills))
+	for i := range r.Skills {
+		skill := &r.Skills[i]
+		if skill.State != VerifyStateMissing {
+			continue
+		}
+		names = append(names, skill.Skill.Name)
+	}
+	return names
+}
+
+// DriftedSkillNames returns every drifted skill name in sorted order.
+func (r VerifyResult) DriftedSkillNames() []string {
+	names := make([]string, 0, len(r.Skills))
+	for i := range r.Skills {
+		skill := &r.Skills[i]
+		if skill.State != VerifyStateDrifted {
+			continue
+		}
+		names = append(names, skill.Skill.Name)
+	}
+	return names
+}
+
+// HasMissing reports whether any skill is missing.
+func (r VerifyResult) HasMissing() bool {
+	for i := range r.Skills {
+		if r.Skills[i].State == VerifyStateMissing {
+			return true
+		}
+	}
+	return false
+}
+
+// HasDrift reports whether any installed skill differs from the bundled version.
+func (r VerifyResult) HasDrift() bool {
+	for i := range r.Skills {
+		if r.Skills[i].State == VerifyStateDrifted {
+			return true
+		}
+	}
+	return false
 }
 
 // PreviewItem describes the on-disk plan for one skill/agent install pair.

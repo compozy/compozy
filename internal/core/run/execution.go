@@ -557,11 +557,36 @@ func (j *jobExecutionContext) publishShutdownStatus(state shutdownState) {
 }
 
 func (j *jobExecutionContext) launchWorkers(jobCtx context.Context) {
+	if j.cfg.mode == model.ExecutionModePRDTasks {
+		j.launchSequentialTaskWorkers(jobCtx)
+		return
+	}
 	for idx := range j.jobs {
 		jb := &j.jobs[idx]
 		j.wg.Add(1)
 		go j.executeJob(jobCtx, idx, jb)
 	}
+}
+
+func (j *jobExecutionContext) launchSequentialTaskWorkers(jobCtx context.Context) {
+	if len(j.jobs) == 0 {
+		return
+	}
+	j.wg.Add(len(j.jobs))
+	go func() {
+		for idx := range j.jobs {
+			j.executeSequentialJob(jobCtx, idx, &j.jobs[idx])
+		}
+	}()
+}
+
+func (j *jobExecutionContext) executeSequentialJob(jobCtx context.Context, index int, jb *job) {
+	defer func() {
+		j.wg.Done()
+		atomic.AddInt32(&j.completed, 1)
+	}()
+
+	newJobRunner(index, jb, j).run(jobCtx)
 }
 
 func (j *jobExecutionContext) executeJob(jobCtx context.Context, index int, jb *job) {

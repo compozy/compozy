@@ -304,6 +304,117 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 	}
 }
 
+func TestJobExecutionContextLaunchWorkersRunsPRDTasksSequentially(t *testing.T) {
+	tmpDir := t.TempDir()
+	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	for _, name := range []string{"task_01.md", "task_02.md", "task_03.md"} {
+		writeRunTaskFile(t, tasksDir, name, "pending")
+	}
+
+	started := make(chan string, 3)
+	finished := make(chan string, 3)
+	releaseFirst := make(chan struct{})
+	releaseSecond := make(chan struct{})
+
+	installFakeACPClients(t,
+		newPromptReportingACPClient(started, finished, releaseFirst),
+		newPromptReportingACPClient(started, finished, releaseSecond),
+		newPromptReportingACPClient(started, finished, nil),
+	)
+
+	jobs := []job{
+		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_01.md"),
+		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_02.md"),
+		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_03.md"),
+	}
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			mode:                   model.ExecutionModePRDTasks,
+			tasksDir:               tasksDir,
+			concurrent:             3,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		jobs:  jobs,
+		total: len(jobs),
+		cwd:   tmpDir,
+		sem:   make(chan struct{}, 3),
+	}
+
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	launchDone := make(chan struct{})
+	go func() {
+		execCtx.launchWorkers(jobCtx)
+		close(launchDone)
+	}()
+
+	select {
+	case <-launchDone:
+	case <-time.After(time.Second):
+		t.Fatal("launchWorkers blocked for sequential PRD execution")
+	}
+
+	if got := waitForACPTaskEvent(t, started); got != "task_01" {
+		t.Fatalf("expected first PRD task to start task_01, got %q", got)
+	}
+	assertNoACPTaskEvent(
+		t,
+		started,
+		150*time.Millisecond,
+		"expected task_02 to remain pending while task_01 was blocked",
+	)
+
+	close(releaseFirst)
+	if got := waitForACPTaskEvent(t, finished); got != "task_01" {
+		t.Fatalf("expected task_01 to finish before task_02 starts, got %q", got)
+	}
+	if got := waitForACPTaskEvent(t, started); got != "task_02" {
+		t.Fatalf("expected second PRD task to start task_02, got %q", got)
+	}
+	assertNoACPTaskEvent(
+		t,
+		started,
+		150*time.Millisecond,
+		"expected task_03 to remain pending while task_02 was blocked",
+	)
+
+	close(releaseSecond)
+	if got := waitForACPTaskEvent(t, finished); got != "task_02" {
+		t.Fatalf("expected task_02 to finish before task_03 starts, got %q", got)
+	}
+	if got := waitForACPTaskEvent(t, started); got != "task_03" {
+		t.Fatalf("expected third PRD task to start task_03, got %q", got)
+	}
+
+	select {
+	case <-execCtx.waitChannel():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for sequential PRD worker execution")
+	}
+
+	if got := waitForACPTaskEvent(t, finished); got != "task_03" {
+		t.Fatalf("expected task_03 to finish last, got %q", got)
+	}
+	assertNoACPTaskEvent(t, started, 50*time.Millisecond, "unexpected extra PRD task start recorded")
+	assertNoACPTaskEvent(t, finished, 50*time.Millisecond, "unexpected extra PRD task finish recorded")
+
+	if got := atomic.LoadInt32(&execCtx.completed); got != 3 {
+		t.Fatalf("expected 3 completed PRD jobs, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+		t.Fatalf("expected 0 failed PRD jobs, got %d", got)
+	}
+}
+
 func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingACPJobs(t *testing.T) {
 	tmpDir := t.TempDir()
 	firstCreated := make(chan struct{}, 1)
@@ -374,6 +485,89 @@ func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingACPJobs(t *te
 
 	if got := secondClient.createCalls.Load(); got != 0 {
 		t.Fatalf("expected pending job to avoid ACP session creation after cancellation, got %d", got)
+	}
+}
+
+func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingPRDTasks(t *testing.T) {
+	tmpDir := t.TempDir()
+	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	for _, name := range []string{"task_01.md", "task_02.md"} {
+		writeRunTaskFile(t, tasksDir, name, "pending")
+	}
+
+	firstCreated := make(chan struct{}, 1)
+	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-prd-blocking")
+		firstCreated <- struct{}{}
+		go func() {
+			<-ctx.Done()
+			session.finish(context.Cause(ctx))
+		}()
+		return session, nil
+	})
+	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-prd-pending")
+		go session.finish(nil)
+		return session, nil
+	})
+	installFakeACPClients(t, firstClient, secondClient)
+
+	jobs := []job{
+		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_01.md"),
+		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_02.md"),
+	}
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			mode:                   model.ExecutionModePRDTasks,
+			tasksDir:               tasksDir,
+			concurrent:             1,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		jobs:  jobs,
+		total: len(jobs),
+		cwd:   tmpDir,
+		sem:   make(chan struct{}, 1),
+	}
+
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	launchDone := make(chan struct{})
+	go func() {
+		execCtx.launchWorkers(jobCtx)
+		close(launchDone)
+	}()
+
+	select {
+	case <-launchDone:
+	case <-time.After(time.Second):
+		t.Fatal("launchWorkers blocked for pending PRD tasks")
+	}
+
+	select {
+	case <-firstCreated:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the first PRD ACP session to start")
+	}
+
+	cancel()
+
+	select {
+	case <-execCtx.waitChannel():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for sequential PRD workers to drain after cancellation")
+	}
+
+	if got := secondClient.createCalls.Load(); got != 0 {
+		t.Fatalf("expected later PRD task to avoid ACP session creation after cancellation, got %d", got)
 	}
 }
 
@@ -617,4 +811,70 @@ func newNamedTestACPJob(tmpDir, safeName string) job {
 	job.outLog = filepath.Join(tmpDir, safeName+".out.log")
 	job.errLog = filepath.Join(tmpDir, safeName+".err.log")
 	return job
+}
+
+func newPromptReportingACPClient(
+	started chan<- string,
+	finished chan<- string,
+	release <-chan struct{},
+) *fakeACPClient {
+	return newFakeACPClient(func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+		taskName := strings.TrimSpace(string(req.Prompt))
+		started <- taskName
+		session := newFakeACPSession("sess-" + taskName)
+		go func() {
+			if release != nil {
+				<-release
+			}
+			finished <- taskName
+			session.finish(nil)
+		}()
+		return session, nil
+	})
+}
+
+func newPRDTaskACPJob(t *testing.T, tmpDir, tasksDir, fileName string) job {
+	t.Helper()
+
+	taskPath := filepath.Join(tasksDir, fileName)
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("read task file %s: %v", fileName, err)
+	}
+
+	codeFile := strings.TrimSuffix(fileName, ".md")
+	job := newNamedTestACPJob(tmpDir, codeFile)
+	job.prompt = []byte(codeFile)
+	job.systemPrompt = ""
+	job.groups = map[string][]model.IssueEntry{
+		codeFile: {{
+			Name:     fileName,
+			AbsPath:  taskPath,
+			Content:  string(content),
+			CodeFile: codeFile,
+		}},
+	}
+	return job
+}
+
+func waitForACPTaskEvent(t *testing.T, ch <-chan string) string {
+	t.Helper()
+
+	select {
+	case got := <-ch:
+		return got
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for ACP task event")
+		return ""
+	}
+}
+
+func assertNoACPTaskEvent(t *testing.T, ch <-chan string, window time.Duration, failure string) {
+	t.Helper()
+
+	select {
+	case got := <-ch:
+		t.Fatalf("%s: %q", failure, got)
+	case <-time.After(window):
+	}
 }

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
 
@@ -608,6 +610,313 @@ timeout = "not-a-duration"
 	}
 	if !strings.Contains(err.Error(), "load workspace root for sync") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunPreparedBlocksStartWhenBundledSkillsAreMissing(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{
+			{Name: "cy-execute-task", Description: "Execute a task"},
+			{Name: "cy-final-verify", Description: "Verify completion"},
+		}, nil
+	}
+	state.verifyBundledSkills = func(setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{
+			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+			Scope: setup.InstallScopeUnknown,
+			Skills: []setup.VerifiedSkill{
+				{Skill: setup.Skill{Name: "cy-execute-task"}, State: setup.VerifyStateMissing},
+				{Skill: setup.Skill{Name: "cy-final-verify"}, State: setup.VerifyStateMissing},
+			},
+		}, nil
+	}
+
+	called := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		called = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{IDE: core.IDECodex, Mode: core.ModePRDTasks})
+	if err == nil {
+		t.Fatal("expected missing skills to block execution")
+	}
+	if called {
+		t.Fatal("did not expect workflow runner when skills are missing")
+	}
+	if !strings.Contains(err.Error(), "compozy setup --agent codex") {
+		t.Fatalf("expected setup instruction, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "cy-execute-task, cy-final-verify") {
+		t.Fatalf("expected missing skill list, got %v", err)
+	}
+}
+
+func TestRunPreparedBlocksFixReviewsWhenBundledSkillsAreMissing(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{
+			{Name: "cy-fix-reviews", Description: "Fix reviews"},
+			{Name: "cy-final-verify", Description: "Verify completion"},
+		}, nil
+	}
+	state.verifyBundledSkills = func(setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{
+			Agent: setup.Agent{Name: "claude-code", DisplayName: "Claude Code"},
+			Scope: setup.InstallScopeProject,
+			Skills: []setup.VerifiedSkill{
+				{Skill: setup.Skill{Name: "cy-fix-reviews"}, State: setup.VerifyStateCurrent},
+				{Skill: setup.Skill{Name: "cy-final-verify"}, State: setup.VerifyStateMissing},
+			},
+		}, nil
+	}
+
+	called := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		called = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "fix-reviews"
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{IDE: core.IDEClaude, Mode: core.ModePRReview})
+	if err == nil {
+		t.Fatal("expected missing skills to block execution")
+	}
+	if called {
+		t.Fatal("did not expect workflow runner when skills are missing")
+	}
+	if !strings.Contains(err.Error(), "compozy setup --agent claude-code") {
+		t.Fatalf("expected setup instruction, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "project-local install is missing: cy-final-verify") {
+		t.Fatalf("expected project scope error, got %v", err)
+	}
+}
+
+func TestRunPreparedRefreshesDriftedSkillsBeforeRunningWorkflow(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.isInteractive = func() bool { return true }
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{
+			{Name: "cy-execute-task", Description: "Execute a task"},
+			{Name: "cy-final-verify", Description: "Verify completion"},
+		}, nil
+	}
+
+	verifyCalls := 0
+	state.verifyBundledSkills = func(cfg setup.VerifyConfig) (setup.VerifyResult, error) {
+		verifyCalls++
+		if !reflect.DeepEqual(cfg.SkillNames, []string{"cy-execute-task", "cy-final-verify"}) {
+			t.Fatalf("unexpected verify skill names: %#v", cfg.SkillNames)
+		}
+		if cfg.AgentName != "codex" {
+			t.Fatalf("expected codex verify agent, got %q", cfg.AgentName)
+		}
+
+		if verifyCalls == 1 {
+			return setup.VerifyResult{
+				Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+				Scope: setup.InstallScopeProject,
+				Mode:  setup.InstallModeCopy,
+				Skills: []setup.VerifiedSkill{
+					{Skill: setup.Skill{Name: "cy-execute-task"}, State: setup.VerifyStateDrifted},
+					{Skill: setup.Skill{Name: "cy-final-verify"}, State: setup.VerifyStateCurrent},
+				},
+			}, nil
+		}
+		return setup.VerifyResult{
+			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+			Scope: setup.InstallScopeProject,
+			Mode:  setup.InstallModeCopy,
+			Skills: []setup.VerifiedSkill{
+				{Skill: setup.Skill{Name: "cy-execute-task"}, State: setup.VerifyStateCurrent},
+				{Skill: setup.Skill{Name: "cy-final-verify"}, State: setup.VerifyStateCurrent},
+			},
+		}, nil
+	}
+
+	confirmed := false
+	state.confirmSkillRefresh = func(_ *cobra.Command, prompt skillRefreshPrompt) (bool, error) {
+		confirmed = true
+		if prompt.AgentName != "codex" {
+			t.Fatalf("expected codex prompt, got %q", prompt.AgentName)
+		}
+		if !reflect.DeepEqual(prompt.DriftedSkills, []string{"cy-execute-task"}) {
+			t.Fatalf("unexpected drifted skills in prompt: %#v", prompt.DriftedSkills)
+		}
+		return true, nil
+	}
+
+	installed := false
+	state.installBundledSkills = func(cfg setup.InstallConfig) (*setup.Result, error) {
+		installed = true
+		if cfg.Global {
+			t.Fatal("did not expect global refresh for project drift")
+		}
+		if cfg.Mode != setup.InstallModeCopy {
+			t.Fatalf("expected copy mode refresh, got %q", cfg.Mode)
+		}
+		if !reflect.DeepEqual(cfg.SkillNames, []string{"cy-execute-task", "cy-final-verify"}) {
+			t.Fatalf("unexpected install skill names: %#v", cfg.SkillNames)
+		}
+		if !reflect.DeepEqual(cfg.AgentNames, []string{"codex"}) {
+			t.Fatalf("unexpected install agents: %#v", cfg.AgentNames)
+		}
+		return &setup.Result{}, nil
+	}
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{IDE: core.IDECodex, Mode: core.ModePRDTasks})
+	if err != nil {
+		t.Fatalf("runPrepared: %v", err)
+	}
+	if !confirmed {
+		t.Fatal("expected refresh confirmation prompt")
+	}
+	if !installed {
+		t.Fatal("expected inline setup install")
+	}
+	if !runnerCalled {
+		t.Fatal("expected workflow runner after successful refresh")
+	}
+	if verifyCalls != 2 {
+		t.Fatalf("expected verify to run twice, got %d", verifyCalls)
+	}
+	if !strings.Contains(output.String(), "Updated bundled Compozy skills for Codex (project scope).") {
+		t.Fatalf("expected refresh success output, got %q", output.String())
+	}
+}
+
+func TestRunPreparedContinuesWhenInteractiveRefreshIsDeclined(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.isInteractive = func() bool { return true }
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{
+			{Name: "cy-execute-task", Description: "Execute a task"},
+		}, nil
+	}
+	state.verifyBundledSkills = func(setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{
+			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+			Scope: setup.InstallScopeProject,
+			Mode:  setup.InstallModeCopy,
+			Skills: []setup.VerifiedSkill{
+				{Skill: setup.Skill{Name: "cy-execute-task"}, State: setup.VerifyStateDrifted},
+			},
+		}, nil
+	}
+	state.confirmSkillRefresh = func(*cobra.Command, skillRefreshPrompt) (bool, error) {
+		return false, nil
+	}
+
+	installed := false
+	state.installBundledSkills = func(setup.InstallConfig) (*setup.Result, error) {
+		installed = true
+		return &setup.Result{}, nil
+	}
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{IDE: core.IDECodex, Mode: core.ModePRDTasks})
+	if err != nil {
+		t.Fatalf("runPrepared: %v", err)
+	}
+	if installed {
+		t.Fatal("did not expect install when refresh is declined")
+	}
+	if !runnerCalled {
+		t.Fatal("expected workflow runner after declining refresh")
+	}
+	if !strings.Contains(output.String(), "continuing with the installed skills") {
+		t.Fatalf("expected decline warning, got %q", output.String())
+	}
+}
+
+func TestRunPreparedWarnsAndContinuesOnNonInteractiveDrift(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.isInteractive = func() bool { return false }
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return []setup.Skill{
+			{Name: "cy-execute-task", Description: "Execute a task"},
+		}, nil
+	}
+	state.verifyBundledSkills = func(setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{
+			Agent: setup.Agent{Name: "codex", DisplayName: "Codex"},
+			Scope: setup.InstallScopeGlobal,
+			Mode:  setup.InstallModeSymlink,
+			Skills: []setup.VerifiedSkill{
+				{Skill: setup.Skill{Name: "cy-execute-task"}, State: setup.VerifyStateDrifted},
+			},
+		}, nil
+	}
+	state.confirmSkillRefresh = func(*cobra.Command, skillRefreshPrompt) (bool, error) {
+		t.Fatal("did not expect prompt in non-interactive mode")
+		return false, nil
+	}
+	state.installBundledSkills = func(setup.InstallConfig) (*setup.Result, error) {
+		t.Fatal("did not expect install in non-interactive mode")
+		return nil, nil
+	}
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{IDE: core.IDECodex, Mode: core.ModePRDTasks})
+	if err != nil {
+		t.Fatalf("runPrepared: %v", err)
+	}
+	if !runnerCalled {
+		t.Fatal("expected workflow runner in non-interactive drift mode")
+	}
+	if !strings.Contains(output.String(), "installed global scope") {
+		t.Fatalf("expected non-interactive warning output, got %q", output.String())
 	}
 }
 

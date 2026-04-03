@@ -116,6 +116,10 @@ func (s *setupCommandState) prepareRunMode() error {
 }
 
 func (s *setupCommandState) resolverOptions() setup.ResolverOptions {
+	return currentResolverOptions()
+}
+
+func currentResolverOptions() setup.ResolverOptions {
 	return setup.ResolverOptions{
 		CodeXHome:       strings.TrimSpace(os.Getenv("CODEX_HOME")),
 		ClaudeConfigDir: strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")),
@@ -620,9 +624,9 @@ func defaultAgentSelection(supported []setup.Agent, detected []setup.Agent) []st
 
 func scopeLabel(global bool) string {
 	if global {
-		return "global"
+		return string(setup.InstallScopeGlobal)
 	}
-	return "project"
+	return string(setup.InstallScopeProject)
 }
 
 func displayRoots() (string, string) {

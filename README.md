@@ -164,6 +164,7 @@ compozy setup
 ```
 
 Auto-detects installed agents and copies (or symlinks) skills into their configuration directories.
+`compozy start` and `compozy fix-reviews` now verify that bundled Compozy skills are installed for the selected agent before running. Missing installs block the run, and outdated installs prompt for refresh in interactive terminals.
 
 ### 2. (Optional) Create an Issue
 
