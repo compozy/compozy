@@ -1,6 +1,7 @@
 ---
 name: cy-create-prd
 description: Creates a Product Requirements Document through interactive brainstorming with parallel codebase and web research. Use when starting a new feature or product, building a PRD, or brainstorming requirements. Do not use for technical specifications, task breakdowns, or code implementation.
+argument-hint: [feature-name-or-idea] [issue-file]
 ---
 
 # Create PRD
@@ -8,7 +9,11 @@ description: Creates a Product Requirements Document through interactive brainst
 Create a business-focused Product Requirements Document through structured brainstorming.
 
 <HARD-GATE>
-Do NOT generate the PRD document, write any file, or take any implementation action until clarification is complete and the user has selected a product approach. The approved approach is the final mandatory approval gate. Do NOT require section-by-section approval of the final PRD before writing it.
+Do NOT write the PRD file until ALL phases are complete and the user has approved the final draft.
+Do NOT skip the research phase — every PRD MUST be enriched with codebase and market context.
+Do NOT skip user interactions — the user MUST participate in shaping the PRD at every decision point.
+Do NOT require section-by-section approval — generate the complete draft, then let the user review it.
+This applies to EVERY PRD regardless of perceived simplicity.
 </HARD-GATE>
 
 ## Asking Questions
@@ -39,13 +44,27 @@ Translate every technical-sounding feature into the user experience question beh
 ## Required Inputs
 
 - Feature name or product idea.
+- Optional: existing `_issue.md` file as primary input for context.
 - Optional: existing `_prd.md` file for update mode.
+
+## Checklist
+
+You MUST create a task for each phase and complete them in order:
+
+1. **Determine project & directory** — derive slug, create `.compozy/tasks/<slug>/` and `adrs/`
+2. **Discover context** — parallel codebase exploration and web research
+3. **Understand the need** — ask 3-6 targeted questions to refine scope and intent
+4. **Present product approaches** — offer 2-3 approaches with trade-offs, create ADR for the chosen one
+5. **Draft the PRD** — write using the canonical template from `references/prd-template.md`
+6. **Review with user** — present the draft, iterate until approved
+7. **Save the file** — write to `.compozy/tasks/<slug>/_prd.md`
 
 ## Workflow
 
 1. Determine the project name and working directory.
    - Derive the slug from the feature name provided by the user.
    - Use `.compozy/tasks/<slug>/` as the target directory.
+   - If `_issue.md` exists in the target directory, read it as primary context input.
    - If `_prd.md` already exists in the target directory, read it and operate in update mode.
    - If the directory does not exist, create it.
    - Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
@@ -75,6 +94,7 @@ Translate every technical-sounding feature into the user experience question beh
      This is TWO questions. Split them into two separate messages.
 
    - Every question MUST be multiple-choice when reasonable options can be predetermined. Format as labeled options (A, B, C, etc.) so the user can respond with a single letter. Only use open-ended questions when the answer space is genuinely unbounded (e.g., "What problem are you trying to solve?").
+   - Include a fallback option (e.g., "D) Other — describe") for flexibility.
    - For complex features with many dimensions, decompose into sub-topics and ask about one dimension at a time. Each sub-topic usually has predeterminable options. Example: instead of the open-ended "What should the collaboration feature include?", ask "Which aspect of team collaboration is most important to start with? A) Shared workspaces B) Real-time presence C) Permission controls D) Activity feeds".
    - Complete at least one full clarification round before presenting approaches.
 
@@ -88,19 +108,35 @@ Translate every technical-sounding feature into the user experience question beh
      - Fill the template: the selected approach as "Decision", rejected approaches as "Alternatives Considered" with their trade-offs, and outcomes as "Consequences". Set Status to "Accepted" and Date to today.
      - Write the ADR to `.compozy/tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number, e.g., `adr-001.md`).
 
-5. Synthesize the product design after approach approval.
-   - After the user selects an approach, synthesize the final product design internally instead of presenting each PRD section for separate approval.
-   - Cover these sections in the generated document: Overview, Goals, User Stories, Core Features, User Experience, Phased Rollout, Success Metrics.
-   - Apply YAGNI ruthlessly: challenge every feature and remove anything the MVP does not need.
-   - If the user makes a significant scope decision during clarification or approach selection (e.g., including or excluding a major feature, choosing a phasing strategy), create an additional ADR following the same process as step 4.
+5. Draft the PRD.
+   - After the user selects an approach, synthesize the final product design. Do not present each section for separate approval.
+   - If the user makes a significant scope decision during clarification or approach selection, create an additional ADR following the same process as step 4.
    - Only pause before writing if a blocking ambiguity remains that would force guessing; otherwise proceed directly to document generation.
-
-6. Generate the PRD document directly.
-   - Read `references/prd-template.md` and fill every section with the gathered context.
+   - Read `references/prd-template.md` and fill every section with gathered context.
    - Include an "Architecture Decision Records" section listing all ADRs created during this session with their numbers, titles, and one-line summaries as links to the `adrs/` directory.
-   - Write the completed document to `.compozy/tasks/<slug>/_prd.md`.
+   - Apply YAGNI ruthlessly: challenge every feature and remove anything the MVP does not need.
    - The PRD must describe user capabilities and business outcomes only.
    - No databases, APIs, code structure, frameworks, testing strategies, or architecture decisions.
+   - Mandatory sections (ALWAYS include): Overview, Goals, User Stories, Core Features, User Experience, Non-Goals, Phased Rollout Plan, Success Metrics, Risks and Mitigations, Architecture Decision Records, Open Questions.
+   - Optional sections (include when relevant): High-Level Technical Constraints.
+   - Prefer active voice, omit needless words, use definite and specific language over vague generalities. Every sentence should earn its place.
+   - Language: **English**. Tone: clear, technical, consistent with existing project artifacts.
+   - Present the complete draft to the user for review.
+
+6. Review with the user.
+   - Present the draft and ask using the interactive question tool:
+     - "Here is the PRD draft. Please review and let me know:"
+     - A) Approved — save as is
+     - B) Adjust specific sections (tell me which ones)
+     - C) Rewrite section X (tell me what to change)
+     - D) Discard and start over
+   - If B or C: make the changes and present again.
+   - If D: go back to step 3.
+
+7. Save the PRD file.
+   - Write the completed document to `.compozy/tasks/<slug>/_prd.md`.
+   - Confirm the file path to the user.
+   - Remind the user that the next step is to create a TechSpec using `cy-create-techspec` from this PRD.
 
 ## Process Flow
 
@@ -112,8 +148,9 @@ digraph create_prd {
     "Present 2-3 product approaches" [shape=box];
     "User selects approach?" [shape=diamond];
     "Create ADR for approach decision" [shape=box];
-    "Synthesize product design" [shape=box];
-    "Generate PRD document" [shape=doublecircle];
+    "Draft PRD (canonical template)" [shape=box];
+    "User approves draft?" [shape=diamond];
+    "Save _prd.md" [shape=doublecircle];
 
     "Determine project & directory" -> "Discover context (codebase + web)";
     "Discover context (codebase + web)" -> "Ask clarifying questions (one at a time)";
@@ -121,8 +158,10 @@ digraph create_prd {
     "Present 2-3 product approaches" -> "User selects approach?";
     "User selects approach?" -> "Present 2-3 product approaches" [label="no, revise"];
     "User selects approach?" -> "Create ADR for approach decision" [label="yes"];
-    "Create ADR for approach decision" -> "Synthesize product design";
-    "Synthesize product design" -> "Generate PRD document";
+    "Create ADR for approach decision" -> "Draft PRD (canonical template)";
+    "Draft PRD (canonical template)" -> "User approves draft?";
+    "User approves draft?" -> "Draft PRD (canonical template)" [label="no, revise"];
+    "User approves draft?" -> "Save _prd.md" [label="approved"];
 }
 ```
 
@@ -138,5 +177,9 @@ digraph create_prd {
 - **One question at a time** — Do not overwhelm with multiple questions in a single message
 - **Multiple choice mandatory** — Every question MUST be multiple-choice (A/B/C) when options can be predetermined; open-ended only when the answer space is genuinely unbounded
 - **YAGNI ruthlessly** — Challenge every feature; remove anything the MVP does not need
-- **Approach-first validation** — Get approval on the product approach, then synthesize and write the artifact directly
+- **Draft then review** — Get approval on the product approach, generate the complete draft, then iterate with the user until approved
 - **Business focus only** — Never ask about implementation; that belongs in TechSpec
+- **Issue as input** — When `_issue.md` exists, use it as primary context to accelerate brainstorming
+- **Pipeline awareness** — The PRD feeds into `cy-create-techspec`; focus on WHAT and WHY, not HOW
+- **Template compliance** — Every PRD MUST follow the canonical template
+- **Language consistency** — Write all PRD content in English
