@@ -35,7 +35,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build deps help verify tidy test-coverage test-nocache check-go-version setup
+.PHONY: all test lint fmt clean build deps help verify tidy test-coverage test-nocache check-go-version setup link-skills
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -58,7 +58,10 @@ check-go-version:
 		echo "$(GREEN)Go version $$GO_VERSION is compatible$(NC)"; \
 	fi
 
-setup: check-go-version deps
+link-skills:
+	@bash scripts/link-skills.sh
+
+setup: check-go-version deps link-skills
 	@echo "$(GREEN)Setup complete! You can now run 'make build' or 'make verify'$(NC)"
 
 # -----------------------------------------------------------------------------

@@ -12,3 +12,4 @@ coverage.html
 .factory/skills
 skills/*/autoresearch-*/
 skills-lock.json
+.claude/skills
