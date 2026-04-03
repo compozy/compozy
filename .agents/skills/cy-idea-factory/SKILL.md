@@ -1,12 +1,12 @@
 ---
-name: cy-create-issue
-description: Transforms a raw idea into a structured issue spec in .compozy/tasks/<slug>/_issue.md through interactive brainstorming, web research, business analysis, and multi-advisor debate. Use when the user has a feature idea and wants to structure it before creating a PRD. Do not use for PRD creation, technical specifications, task breakdown, or code implementation.
+name: cy-idea-factory
+description: Expands a raw idea into a structured, research-backed spec in .compozy/tasks/<slug>/_issue.md through interactive brainstorming, web research, business analysis, and multi-advisor debate. Use when the user has a feature idea and wants to explore and structure it before creating a PRD. Do not use for PRD creation, technical specifications, task breakdown, or code implementation.
 argument-hint: [feature-idea]
 ---
 
-# Create Issue
+# Idea Factory
 
-Transform a raw feature idea into a structured, research-backed issue spec that serves as the foundation for PRD creation.
+Expand a raw feature idea into a structured, research-backed spec that serves as the foundation for PRD creation.
 
 <HARD-GATE>
 Do NOT write the issue file until ALL phases are complete and the user has approved the final draft.

@@ -115,7 +115,7 @@ Auto-detects installed agents and copies (or symlinks) skills into their configu
 Inside your AI agent (Claude Code, Codex, Cursor, OpenCode, Pi, etc.):
 
 ```
-/cy-create-issue user-auth
+/cy-idea-factory user-auth
 ```
 
 Transforms a raw idea into a structured issue spec — asks targeted questions, researches market and codebase in parallel, runs business analysis and council debate, suggests high-leverage alternatives, and produces a research-backed issue. Skip this step if you already have a clear feature scope.
@@ -186,7 +186,7 @@ Compozy bundles 9 skills that its workflows depend on. They run inside your AI a
 
 | Skill                | Purpose                                                                    |
 | -------------------- | -------------------------------------------------------------------------- |
-| `cy-create-issue`    | Raw idea → structured issue spec with market research, business analysis, and council debate |
+| `cy-idea-factory`    | Raw idea → structured issue spec with market research, business analysis, and council debate |
 | `cy-create-prd`      | Issue/idea → Product Requirements Document with ADRs                       |
 | `cy-create-techspec` | PRD → Technical Specification with architecture exploration                |
 | `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                    |
