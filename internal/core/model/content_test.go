@@ -286,23 +286,26 @@ func TestContentBlockConstructorErrorsAndPointerVariants(t *testing.T) {
 		t.Fatalf("unexpected decoded text: %q", decoded.Text)
 	}
 
-	if _, err := model.NewContentBlock((*model.TextBlock)(nil)); err == nil {
-		t.Fatal("expected nil pointer error")
+	if _, err := model.NewContentBlock((*model.TextBlock)(nil)); err == nil ||
+		!strings.Contains(err.Error(), "nil *model.TextBlock") {
+		t.Fatalf("expected nil pointer error, got %v", err)
 	}
-	if _, err := model.NewContentBlock(struct{}{}); err == nil {
-		t.Fatal("expected unsupported payload error")
+	if _, err := model.NewContentBlock(struct{}{}); err == nil ||
+		!strings.Contains(err.Error(), "unsupported payload type struct {}") {
+		t.Fatalf("expected unsupported payload error, got %v", err)
 	}
 }
 
 func TestContentBlockMarshalErrors(t *testing.T) {
 	t.Parallel()
 
-	if _, err := json.Marshal(model.ContentBlock{}); err == nil {
-		t.Fatal("expected missing type error")
+	if _, err := json.Marshal(model.ContentBlock{}); err == nil || !strings.Contains(err.Error(), "missing type") {
+		t.Fatalf("expected missing type error, got %v", err)
 	}
 
-	if _, err := json.Marshal(model.ContentBlock{Type: model.BlockText}); err == nil {
-		t.Fatal("expected missing data error")
+	if _, err := json.Marshal(model.ContentBlock{Type: model.BlockText}); err == nil ||
+		!strings.Contains(err.Error(), "missing data") {
+		t.Fatalf("expected missing data error, got %v", err)
 	}
 }
 

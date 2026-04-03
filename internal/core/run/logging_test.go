@@ -231,6 +231,51 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	}
 }
 
+func TestSessionUpdateHandlerDoesNotBlockWhenUIChannelIsFull(t *testing.T) {
+	t.Parallel()
+
+	uiCh := make(chan uiMsg, 1)
+	uiCh <- jobUpdateMsg{Index: 99}
+
+	var aggregate model.Usage
+	var aggregateMu sync.Mutex
+	handler := newSessionUpdateHandler(
+		0,
+		model.IDECodex,
+		"sess-full",
+		nil,
+		io.Discard,
+		io.Discard,
+		uiCh,
+		&aggregate,
+		&aggregateMu,
+	)
+	textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "non-blocking"})
+
+	done := make(chan error, 1)
+	go func() {
+		done <- handler.HandleUpdate(model.SessionUpdate{
+			Kind:   model.UpdateKindAgentMessageChunk,
+			Blocks: []model.ContentBlock{textBlock},
+			Usage:  model.Usage{InputTokens: 4, OutputTokens: 3, TotalTokens: 7},
+			Status: model.StatusRunning,
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("handle update: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler with full UI channel")
+	}
+
+	if got := aggregate.TotalTokens; got != 7 {
+		t.Fatalf("expected aggregate usage update despite full UI channel, got %#v", aggregate)
+	}
+}
+
 func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	t.Parallel()
 
@@ -275,6 +320,36 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 	}
 }
 
+func TestSessionUpdateHandlerCompletionWriteFailureStillSignalsDone(t *testing.T) {
+	t.Parallel()
+
+	handler := newSessionUpdateHandler(
+		0,
+		model.IDECodex,
+		"sess-write-fail",
+		nil,
+		io.Discard,
+		failingWriter{},
+		nil,
+		nil,
+		nil,
+	)
+	err := handler.HandleCompletion(errors.New("boom"))
+	if err == nil || !strings.Contains(err.Error(), "write ACP session completion error") {
+		t.Fatalf("expected completion write failure, got %v", err)
+	}
+
+	select {
+	case <-handler.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for handler done after write failure")
+	}
+
+	if got := handler.Err(); got == nil || !strings.Contains(got.Error(), "boom") {
+		t.Fatalf("expected original completion error to be preserved, got %v", got)
+	}
+}
+
 func TestRenderContentBlocksHandlesTerminalImageAndDecodeFallback(t *testing.T) {
 	t.Parallel()
 
@@ -312,4 +387,10 @@ func mustContentBlockLoggingTest(t *testing.T, payload any) model.ContentBlock {
 		t.Fatalf("new content block: %v", err)
 	}
 	return block
+}
+
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) {
+	return 0, errors.New("write failed")
 }

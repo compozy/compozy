@@ -134,7 +134,12 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		return nil, wrapACPError(err)
 	}
 
-	session := newSession(string(sessionResp.SessionId))
+	allowedRoots, err := resolveSessionAllowedRoots(workingDir, c.cfg.AddDirs)
+	if err != nil {
+		return nil, err
+	}
+
+	session := newSessionWithAccess(string(sessionResp.SessionId), workingDir, allowedRoots)
 	c.storeSession(session)
 
 	if requestedModel != c.startModel {
@@ -195,7 +200,12 @@ func (c *clientImpl) Kill() error {
 
 // ReadTextFile handles ACP file read requests from the agent.
 func (c *clientImpl) ReadTextFile(_ context.Context, params acp.ReadTextFileRequest) (acp.ReadTextFileResponse, error) {
-	content, err := os.ReadFile(params.Path)
+	path, err := c.resolveSessionFilePath(params.SessionId, params.Path)
+	if err != nil {
+		return acp.ReadTextFileResponse{}, err
+	}
+
+	content, err := os.ReadFile(path)
 	if err != nil {
 		return acp.ReadTextFileResponse{}, err
 	}
@@ -207,7 +217,19 @@ func (c *clientImpl) WriteTextFile(
 	_ context.Context,
 	params acp.WriteTextFileRequest,
 ) (acp.WriteTextFileResponse, error) {
-	if err := os.WriteFile(params.Path, []byte(params.Content), 0o600); err != nil {
+	path, err := c.resolveSessionFilePath(params.SessionId, params.Path)
+	if err != nil {
+		return acp.WriteTextFileResponse{}, err
+	}
+
+	mode := os.FileMode(0o600)
+	if info, statErr := os.Stat(path); statErr == nil {
+		mode = info.Mode().Perm()
+	} else if !errors.Is(statErr, os.ErrNotExist) {
+		return acp.WriteTextFileResponse{}, fmt.Errorf("stat session file %q: %w", path, statErr)
+	}
+
+	if err := os.WriteFile(path, []byte(params.Content), mode); err != nil {
 		return acp.WriteTextFileResponse{}, err
 	}
 	return acp.WriteTextFileResponse{}, nil
@@ -528,6 +550,22 @@ func (c *clientImpl) lookupSession(id string) *sessionImpl {
 	return c.sessions[id]
 }
 
+func (c *clientImpl) resolveSessionFilePath(sessionID acp.SessionId, rawPath string) (string, error) {
+	session := c.lookupSession(string(sessionID))
+	if session == nil {
+		return "", fmt.Errorf("received file request for unknown session %q", sessionID)
+	}
+
+	path, err := resolveSessionPath(session.workingDir, rawPath)
+	if err != nil {
+		return "", err
+	}
+	if !pathWithinRoots(path, session.allowedRoots) {
+		return "", fmt.Errorf("path %q is outside allowed session roots", rawPath)
+	}
+	return path, nil
+}
+
 func (c *clientImpl) failOpenSessions(err error) {
 	c.mu.Lock()
 	sessions := make([]*sessionImpl, 0, len(c.sessions))
@@ -564,14 +602,67 @@ func resolveWorkingDir(dir string) (string, error) {
 	if trimmed == "." || trimmed == "" {
 		return "", errors.New("session working directory must not be empty")
 	}
-	if filepath.IsAbs(trimmed) {
-		return trimmed, nil
-	}
-	abs, err := filepath.Abs(trimmed)
+	abs, err := resolveAbsolutePath(trimmed)
 	if err != nil {
 		return "", fmt.Errorf("resolve session working directory: %w", err)
 	}
 	return abs, nil
+}
+
+func resolveSessionAllowedRoots(workingDir string, addDirs []string) ([]string, error) {
+	roots := make([]string, 0, len(addDirs)+1)
+	roots = append(roots, workingDir)
+	for _, dir := range addDirs {
+		if strings.TrimSpace(dir) == "" {
+			continue
+		}
+		absDir, err := resolveAbsolutePath(dir)
+		if err != nil {
+			return nil, fmt.Errorf("resolve add-dir %q: %w", dir, err)
+		}
+		roots = append(roots, absDir)
+	}
+	return roots, nil
+}
+
+func resolveSessionPath(workingDir string, rawPath string) (string, error) {
+	trimmed := strings.TrimSpace(rawPath)
+	if trimmed == "" {
+		return "", errors.New("session file path must not be empty")
+	}
+
+	if filepath.IsAbs(trimmed) {
+		return filepath.Clean(trimmed), nil
+	}
+	if workingDir == "" {
+		return "", fmt.Errorf("resolve relative session file path %q: missing working directory", rawPath)
+	}
+	return filepath.Clean(filepath.Join(workingDir, trimmed)), nil
+}
+
+func resolveAbsolutePath(path string) (string, error) {
+	cleaned := filepath.Clean(path)
+	if filepath.IsAbs(cleaned) {
+		return cleaned, nil
+	}
+	abs, err := filepath.Abs(cleaned)
+	if err != nil {
+		return "", err
+	}
+	return abs, nil
+}
+
+func pathWithinRoots(path string, roots []string) bool {
+	for _, root := range roots {
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			continue
+		}
+		if rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))) {
+			return true
+		}
+	}
+	return false
 }
 
 func wrapACPError(err error) error {

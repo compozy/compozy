@@ -88,13 +88,19 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 
 	if h.uiCh != nil {
 		if snapshot, changed := h.sessionView.Apply(update); changed {
-			h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}
+			select {
+			case h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}:
+			default:
+			}
 		}
 	}
 
 	if hasUsage(update.Usage) {
 		if h.uiCh != nil {
-			h.uiCh <- usageUpdateMsg{Index: h.index, Usage: update.Usage}
+			select {
+			case h.uiCh <- usageUpdateMsg{Index: h.index, Usage: update.Usage}:
+			default:
+			}
 		}
 		if h.aggregateUsage != nil && h.aggregateMu != nil {
 			h.aggregateMu.Lock()
@@ -136,6 +142,7 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 func (h *sessionUpdateHandler) HandleCompletion(err error) error {
 	if err != nil {
 		if writeErr := writeRenderedLines(h.errWriter, []string{"ACP session error: " + err.Error()}); writeErr != nil {
+			h.markDone(err, true)
 			return fmt.Errorf("write ACP session completion error: %w", writeErr)
 		}
 		h.logger.Error(

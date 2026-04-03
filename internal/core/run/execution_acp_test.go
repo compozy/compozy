@@ -60,12 +60,13 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 		go session.finish(&agent.SessionError{Code: 4901, Message: "temporary failure"})
 		return session, nil
 	})
+	secondClientErrCh := make(chan error, 1)
 	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
 		session := newFakeACPSession("sess-2")
 		go func() {
 			textBlock, err := model.NewContentBlock(model.TextBlock{Text: "retry succeeded"})
 			if err != nil {
-				t.Errorf("new content block: %v", err)
+				secondClientErrCh <- err
 				return
 			}
 			session.publish(model.SessionUpdate{
@@ -73,6 +74,7 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 				Status: model.StatusRunning,
 			})
 			session.finish(nil)
+			secondClientErrCh <- nil
 		}()
 		return session, nil
 	})
@@ -117,6 +119,9 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	}
 	if !strings.Contains(string(errLog), "temporary failure") {
 		t.Fatalf("expected first failure in err log, got %q", string(errLog))
+	}
+	if err := waitForAsyncTestError(t, secondClientErrCh); err != nil {
+		t.Fatalf("new content block: %v", err)
 	}
 }
 
@@ -288,12 +293,13 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 		slog.SetDefault(previousLogger)
 	})
 
+	successClientErrCh := make(chan error, 1)
 	successClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
 		session := newFakeACPSession("sess-ui")
 		go func() {
 			textBlock, err := model.NewContentBlock(model.TextBlock{Text: "hello from ACP"})
 			if err != nil {
-				t.Errorf("new content block: %v", err)
+				successClientErrCh <- err
 				return
 			}
 			session.publish(model.SessionUpdate{
@@ -302,6 +308,7 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 				Status: model.StatusRunning,
 			})
 			session.finish(nil)
+			successClientErrCh <- nil
 		}()
 		return session, nil
 	})
@@ -332,6 +339,9 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 
 	if got := result.status; got != attemptStatusSuccess {
 		t.Fatalf("expected success status, got %s", got)
+	}
+	if err := waitForAsyncTestError(t, successClientErrCh); err != nil {
+		t.Fatalf("new content block: %v", err)
 	}
 	if got := strings.TrimSpace(logBuf.String()); got != "" {
 		t.Fatalf("expected interactive ACP execution to suppress default logger output, got %q", got)
@@ -567,12 +577,11 @@ func (s *fakeACPSession) Err() error {
 }
 
 func (s *fakeACPSession) publish(update model.SessionUpdate) {
-	s.mu.RLock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.finished {
-		s.mu.RUnlock()
 		return
 	}
-	s.mu.RUnlock()
 	s.updates <- update
 }
 
@@ -621,5 +630,17 @@ func newTestACPJob(tmpDir string) job {
 		errLog:       filepath.Join(tmpDir, "task_01.err.log"),
 		outBuffer:    newLineBuffer(0),
 		errBuffer:    newLineBuffer(0),
+	}
+}
+
+func waitForAsyncTestError(t *testing.T, errCh <-chan error) error {
+	t.Helper()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for async test result")
+		return nil
 	}
 }

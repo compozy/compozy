@@ -56,53 +56,57 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 func TestEmbeddedSkillsFSMatchesOnDisk(t *testing.T) {
 	t.Parallel()
 
-	root := repoRoot(t)
-	source := filepath.Join(root, "skills")
-	sourceTree := snapshotTree(t, source)
+	t.Run("Should match embedded skills filesystem with the filtered on-disk skills tree", func(t *testing.T) {
+		t.Parallel()
 
-	// Filter out non-skill files (embed.go, autoresearch artifacts, etc.)
-	wantTree := make(map[string]string, len(sourceTree))
-	for p, content := range sourceTree {
-		if strings.HasSuffix(p, ".go") {
-			continue
-		}
-		if strings.Contains(p, "autoresearch-") {
-			continue
-		}
-		wantTree[p] = content
-	}
+		root := repoRoot(t)
+		source := filepath.Join(root, "skills")
+		sourceTree := snapshotTree(t, source)
 
-	embeddedTree := make(map[string]string)
-	err := fs.WalkDir(skills.FS, ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+		// Filter out non-skill files (embed.go, autoresearch artifacts, etc.)
+		wantTree := make(map[string]string, len(sourceTree))
+		for p, content := range sourceTree {
+			if strings.HasSuffix(p, ".go") {
+				continue
+			}
+			if strings.Contains(p, "autoresearch-") {
+				continue
+			}
+			wantTree[p] = content
 		}
-		if d.IsDir() {
+
+		embeddedTree := make(map[string]string)
+		err := fs.WalkDir(skills.FS, ".", func(p string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			data, readErr := fs.ReadFile(skills.FS, p)
+			if readErr != nil {
+				return readErr
+			}
+			embeddedTree[p] = string(data)
 			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk embedded FS: %v", err)
 		}
-		data, readErr := fs.ReadFile(skills.FS, p)
-		if readErr != nil {
-			return readErr
-		}
-		embeddedTree[p] = string(data)
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk embedded FS: %v", err)
-	}
 
-	if len(embeddedTree) != len(wantTree) {
-		t.Fatalf("expected embedded FS to contain %d files, got %d", len(wantTree), len(embeddedTree))
-	}
-	for p, wantContent := range wantTree {
-		gotContent, ok := embeddedTree[p]
-		if !ok {
-			t.Fatalf("expected embedded FS to contain %s", p)
+		if len(embeddedTree) != len(wantTree) {
+			t.Fatalf("expected embedded FS to contain %d files, got %d", len(wantTree), len(embeddedTree))
 		}
-		if gotContent != wantContent {
-			t.Fatalf("expected embedded content for %s to match on-disk source", p)
+		for p, wantContent := range wantTree {
+			gotContent, ok := embeddedTree[p]
+			if !ok {
+				t.Fatalf("expected embedded FS to contain %s", p)
+			}
+			if gotContent != wantContent {
+				t.Fatalf("expected embedded content for %s to match on-disk source", p)
+			}
 		}
-	}
+	})
 }
 
 func checkPortableContent(t *testing.T, path string) {

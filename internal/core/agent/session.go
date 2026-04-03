@@ -25,9 +25,11 @@ type Session interface {
 }
 
 type sessionImpl struct {
-	id      string
-	updates chan model.SessionUpdate
-	done    chan struct{}
+	id           string
+	workingDir   string
+	allowedRoots []string
+	updates      chan model.SessionUpdate
+	done         chan struct{}
 
 	mu          sync.RWMutex
 	err         error
@@ -41,6 +43,13 @@ func newSession(id string) *sessionImpl {
 		updates: make(chan model.SessionUpdate, 128),
 		done:    make(chan struct{}),
 	}
+}
+
+func newSessionWithAccess(id string, workingDir string, allowedRoots []string) *sessionImpl {
+	session := newSession(id)
+	session.workingDir = workingDir
+	session.allowedRoots = append([]string(nil), allowedRoots...)
+	return session
 }
 
 func (s *sessionImpl) Updates() <-chan model.SessionUpdate {

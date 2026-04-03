@@ -258,22 +258,102 @@ func TestClientHelperMethods(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
+	addDir := t.TempDir()
 	filePath := filepath.Join(tempDir, "helper.txt")
-	client := &clientImpl{}
+	relativePath := filepath.Join("nested", "helper.txt")
+	client := &clientImpl{
+		sessions: map[string]*sessionImpl{
+			"sess-1": newSessionWithAccess("sess-1", tempDir, []string{tempDir, addDir}),
+		},
+	}
 
 	if _, err := client.WriteTextFile(context.Background(), acp.WriteTextFileRequest{
-		Path:    filePath,
-		Content: "hello",
+		SessionId: "sess-1",
+		Path:      filePath,
+		Content:   "hello",
 	}); err != nil {
 		t.Fatalf("write text file: %v", err)
 	}
 
-	readResp, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{Path: filePath})
+	readResp, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      filePath,
+	})
 	if err != nil {
 		t.Fatalf("read text file: %v", err)
 	}
 	if readResp.Content != "hello" {
 		t.Fatalf("unexpected read content: %q", readResp.Content)
+	}
+
+	relativeFilePath := filepath.Join(tempDir, relativePath)
+	if err := os.MkdirAll(filepath.Dir(relativeFilePath), 0o755); err != nil {
+		t.Fatalf("mkdir relative helper dir: %v", err)
+	}
+	if err := os.WriteFile(relativeFilePath, []byte("nested"), 0o600); err != nil {
+		t.Fatalf("write relative helper file: %v", err)
+	}
+	relativeResp, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      relativePath,
+	})
+	if err != nil {
+		t.Fatalf("read relative text file: %v", err)
+	}
+	if relativeResp.Content != "nested" {
+		t.Fatalf("unexpected relative read content: %q", relativeResp.Content)
+	}
+
+	modeFilePath := filepath.Join(tempDir, "mode.txt")
+	if err := os.WriteFile(modeFilePath, []byte("old"), 0o644); err != nil {
+		t.Fatalf("write mode helper file: %v", err)
+	}
+	if _, err := client.WriteTextFile(context.Background(), acp.WriteTextFileRequest{
+		SessionId: "sess-1",
+		Path:      modeFilePath,
+		Content:   "updated",
+	}); err != nil {
+		t.Fatalf("overwrite text file: %v", err)
+	}
+	modeInfo, err := os.Stat(modeFilePath)
+	if err != nil {
+		t.Fatalf("stat mode helper file: %v", err)
+	}
+	if got := modeInfo.Mode().Perm(); got != 0o644 {
+		t.Fatalf("expected overwrite to preserve file mode 0644, got %04o", got)
+	}
+
+	addDirFile := filepath.Join(addDir, "shared.txt")
+	if err := os.WriteFile(addDirFile, []byte("shared"), 0o600); err != nil {
+		t.Fatalf("write add-dir helper file: %v", err)
+	}
+	addDirResp, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      addDirFile,
+	})
+	if err != nil {
+		t.Fatalf("read add-dir text file: %v", err)
+	}
+	if addDirResp.Content != "shared" {
+		t.Fatalf("unexpected add-dir read content: %q", addDirResp.Content)
+	}
+
+	outsideFile := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outsideFile, []byte("outside"), 0o600); err != nil {
+		t.Fatalf("write outside helper file: %v", err)
+	}
+	if _, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      outsideFile,
+	}); err == nil || !strings.Contains(err.Error(), "outside allowed session roots") {
+		t.Fatalf("expected outside-root read failure, got %v", err)
+	}
+	if _, err := client.WriteTextFile(context.Background(), acp.WriteTextFileRequest{
+		SessionId: "missing",
+		Path:      filepath.Join(tempDir, "other.txt"),
+		Content:   "nope",
+	}); err == nil || !strings.Contains(err.Error(), "unknown session") {
+		t.Fatalf("expected unknown session write failure, got %v", err)
 	}
 
 	permResp, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{
