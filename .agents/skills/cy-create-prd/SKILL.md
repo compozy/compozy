@@ -8,7 +8,7 @@ description: Creates a Product Requirements Document through interactive brainst
 Create a business-focused Product Requirements Document through structured brainstorming.
 
 <HARD-GATE>
-Do NOT generate the PRD document, write any file, or take any implementation action until you have presented the product design section by section and the user has approved each section. This applies to EVERY PRD regardless of perceived simplicity.
+Do NOT generate the PRD document, write any file, or take any implementation action until clarification is complete and the user has selected a product approach. The approved approach is the final mandatory approval gate. Do NOT require section-by-section approval of the final PRD before writing it.
 </HARD-GATE>
 
 ## Asking Questions
@@ -19,11 +19,16 @@ If your runtime does not provide such a tool, present the question as your compl
 
 ## Anti-Pattern: "This Feature Is Too Simple For Full Brainstorming"
 
-Every PRD goes through the full brainstorming process. A single button, a minor workflow tweak, a configuration option — all of them. "Simple" features are where unexamined business assumptions cause the most rework. The brainstorming can be brief for genuinely simple features, but you MUST ask clarifying questions and present the design for approval.
+Every PRD goes through the full brainstorming process. A single button, a minor workflow tweak, a configuration option — all of them. "Simple" features are where unexamined business assumptions cause the most rework. The brainstorming can be brief for genuinely simple features, but you MUST ask clarifying questions and get approval on the product approach before writing the artifact.
+
+## Anti-Pattern: End-Of-Flow Bureaucracy
+
+Once the user has answered the clarifying questions and approved an approach, do not force them through a second approval loop for Overview, Goals, User Stories, or any other final document section. Synthesize the approved direction into the PRD directly. The user can review and request edits in the generated file afterward.
 
 ## Anti-Pattern: Technical Drift On Technical-Sounding Features
 
 When the feature name sounds technical (e.g., "webhook notifications", "CSV export", "dark mode", "API rate limiting"), you will be tempted to discuss HOW to implement it. Resist this. Your job is the WHAT and WHY:
+
 - WRONG: "Should we use WebSockets or polling for notifications?" (implementation)
 - WRONG: "What CSV library format should we target?" (implementation)
 - RIGHT: "Which events should trigger a notification to the user?" (user need)
@@ -83,16 +88,14 @@ Translate every technical-sounding feature into the user experience question beh
      - Fill the template: the selected approach as "Decision", rejected approaches as "Alternatives Considered" with their trade-offs, and outcomes as "Consequences". Set Status to "Accepted" and Date to today.
      - Write the ADR to `.compozy/tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number, e.g., `adr-001.md`).
 
-5. Present product design incrementally for approval.
-   - After the user selects an approach, present the product design section by section.
-   - Scale each section to its complexity: a few sentences if straightforward, up to 200-300 words if nuanced.
-   - Present one section at a time and ask the user whether it looks right before moving to the next.
-   - Sections to cover: Overview, Goals, User Stories, Core Features, User Experience, Phased Rollout, Success Metrics.
-   - Be ready to revise any section based on feedback before proceeding.
+5. Synthesize the product design after approach approval.
+   - After the user selects an approach, synthesize the final product design internally instead of presenting each PRD section for separate approval.
+   - Cover these sections in the generated document: Overview, Goals, User Stories, Core Features, User Experience, Phased Rollout, Success Metrics.
    - Apply YAGNI ruthlessly: challenge every feature and remove anything the MVP does not need.
-   - If the user makes a significant scope decision during refinement (e.g., including or excluding a major feature, choosing a phasing strategy), create an additional ADR following the same process as step 4.
+   - If the user makes a significant scope decision during clarification or approach selection (e.g., including or excluding a major feature, choosing a phasing strategy), create an additional ADR following the same process as step 4.
+   - Only pause before writing if a blocking ambiguity remains that would force guessing; otherwise proceed directly to document generation.
 
-6. Generate the PRD document.
+6. Generate the PRD document directly.
    - Read `references/prd-template.md` and fill every section with the gathered context.
    - Include an "Architecture Decision Records" section listing all ADRs created during this session with their numbers, titles, and one-line summaries as links to the `adrs/` directory.
    - Write the completed document to `.compozy/tasks/<slug>/_prd.md`.
@@ -109,9 +112,7 @@ digraph create_prd {
     "Present 2-3 product approaches" [shape=box];
     "User selects approach?" [shape=diamond];
     "Create ADR for approach decision" [shape=box];
-    "Present design section by section" [shape=box];
-    "User approves section?" [shape=diamond];
-    "All sections approved?" [shape=diamond];
+    "Synthesize product design" [shape=box];
     "Generate PRD document" [shape=doublecircle];
 
     "Determine project & directory" -> "Discover context (codebase + web)";
@@ -120,12 +121,8 @@ digraph create_prd {
     "Present 2-3 product approaches" -> "User selects approach?";
     "User selects approach?" -> "Present 2-3 product approaches" [label="no, revise"];
     "User selects approach?" -> "Create ADR for approach decision" [label="yes"];
-    "Create ADR for approach decision" -> "Present design section by section";
-    "Present design section by section" -> "User approves section?";
-    "User approves section?" -> "Present design section by section" [label="no, revise"];
-    "User approves section?" -> "All sections approved?" [label="yes"];
-    "All sections approved?" -> "Present design section by section" [label="next section"];
-    "All sections approved?" -> "Generate PRD document" [label="all done"];
+    "Create ADR for approach decision" -> "Synthesize product design";
+    "Synthesize product design" -> "Generate PRD document";
 }
 ```
 
@@ -141,5 +138,5 @@ digraph create_prd {
 - **One question at a time** — Do not overwhelm with multiple questions in a single message
 - **Multiple choice mandatory** — Every question MUST be multiple-choice (A/B/C) when options can be predetermined; open-ended only when the answer space is genuinely unbounded
 - **YAGNI ruthlessly** — Challenge every feature; remove anything the MVP does not need
-- **Incremental validation** — Present design section by section, get approval before moving on
+- **Approach-first validation** — Get approval on the product approach, then synthesize and write the artifact directly
 - **Business focus only** — Never ask about implementation; that belongs in TechSpec

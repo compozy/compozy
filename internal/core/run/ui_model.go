@@ -64,6 +64,8 @@ func newUIModel(total int) *uiModel {
 		),
 		progress.WithoutPercentage(),
 	)
+	pb.Empty = progress.DefaultFullCharFullBlock
+	pb.EmptyColor = colorBorder
 	defaultWidth := 120
 	defaultHeight := 40
 	initialSidebarWidth := int(float64(defaultWidth) * sidebarWidthRatio)

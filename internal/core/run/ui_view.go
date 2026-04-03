@@ -14,6 +14,8 @@ import (
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
+const timelineDetailIndent = "   "
+
 type timelineRender struct {
 	content string
 	offsets []int
@@ -506,7 +508,12 @@ func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
 
 	if len(job.snapshot.Entries) == 0 {
 		rendered := timelineRender{
-			content: renderStyledOnBackground(styleMutedText, colorBgSurface, "Waiting for ACP updates..."),
+			content: renderStyledOwnedLine(
+				width,
+				styleMutedText,
+				colorBgSurface,
+				"Waiting for ACP updates...",
+			),
 		}
 		job.timelineCache = rendered
 		job.timelineCacheWidth = width
@@ -525,7 +532,7 @@ func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
 		entryLines := m.renderTimelineEntry(job, entry, idx, width)
 		lines = append(lines, entryLines...)
 		if idx < len(job.snapshot.Entries)-1 {
-			lines = append(lines, "")
+			lines = append(lines, renderOwnedLine(width, colorBgSurface, ""))
 		}
 	}
 	rendered := timelineRender{
@@ -551,17 +558,20 @@ func (m *uiModel) renderTimelineEntry(job *uiJob, entry TranscriptEntry, index i
 
 	title := m.timelineEntryTitle(entry)
 	headerStyle := m.timelineEntryHeaderStyle(entry, selected)
-	line := renderStyledOnBackground(headerStyle, bg, truncateString(marker+title, width))
+	line := renderStyledOwnedLine(width, headerStyle, bg, truncateString(marker+title, width))
 	lines := []string{line}
 
 	preview := entry.Preview
 	if preview != "" && m.shouldRenderEntryPreview(job, entry) {
-		lines = append(lines, renderStyledOnBackground(styleDimText, bg, truncateString("   "+preview, width)))
+		lines = append(
+			lines,
+			renderStyledOwnedLine(width, styleDimText, bg, truncateString(timelineDetailIndent+preview, width)),
+		)
 	}
 
 	if m.isEntryExpanded(job, entry) {
-		for _, detail := range m.renderEntryDetailLines(entry, max(width-3, 1)) {
-			lines = append(lines, renderStyledOnBackground(styleBodyText, bg, truncateString("   "+detail, width)))
+		for _, detail := range m.renderEntryDetailLines(entry, width) {
+			lines = append(lines, renderStyledOwnedLine(width, styleBodyText, bg, truncateString(detail, width)))
 		}
 	}
 
@@ -608,19 +618,26 @@ func (m *uiModel) shouldRenderEntryPreview(job *uiJob, entry TranscriptEntry) bo
 	if !m.isEntryExpanded(job, entry) {
 		return true
 	}
-	switch entry.Kind {
-	case transcriptEntryAssistantMessage,
-		transcriptEntryAssistantThinking,
-		transcriptEntryRuntimeNotice,
-		transcriptEntryStderrEvent:
-		return false
-	default:
-		return true
-	}
+	return !isNarrativeEntryKind(entry.Kind)
 }
 
 func (m *uiModel) renderEntryDetailLines(entry TranscriptEntry, width int) []string {
-	return m.renderBlocksLines(entry.Blocks, width)
+	contentWidth := max(width-len(timelineDetailIndent), 1)
+	var lines []string
+	if isNarrativeEntryKind(entry.Kind) {
+		lines = m.renderWrappedBlocksLines(entry.Blocks, contentWidth)
+	} else {
+		lines = m.renderBlocksLines(entry.Blocks, contentWidth)
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+
+	prefixed := make([]string, 0, len(lines))
+	for _, line := range lines {
+		prefixed = append(prefixed, timelineDetailIndent+line)
+	}
+	return prefixed
 }
 
 func (m *uiModel) renderBlocksLines(blocks []model.ContentBlock, width int) []string {
@@ -629,12 +646,28 @@ func (m *uiModel) renderBlocksLines(blocks []model.ContentBlock, width int) []st
 	}
 	outLines, errLines := renderContentBlocks(blocks)
 	lines := make([]string, 0, len(outLines)+len(errLines)+1)
-	lines = append(lines, truncateViewportLines(outLines, width, lipgloss.NewStyle())...)
+	lines = append(lines, truncateViewportLines(outLines, width)...)
 	if len(errLines) > 0 {
 		if len(lines) > 0 {
 			lines = append(lines, "")
 		}
-		lines = append(lines, truncateViewportLines(errLines, width, lipgloss.NewStyle())...)
+		lines = append(lines, truncateViewportLines(errLines, width)...)
+	}
+	return lines
+}
+
+func (m *uiModel) renderWrappedBlocksLines(blocks []model.ContentBlock, width int) []string {
+	if len(blocks) == 0 {
+		return nil
+	}
+	outLines, errLines := renderContentBlocks(blocks)
+	lines := make([]string, 0, len(outLines)+len(errLines)+1)
+	lines = append(lines, wrapViewportLines(outLines, width)...)
+	if len(errLines) > 0 {
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, wrapViewportLines(errLines, width)...)
 	}
 	return lines
 }
@@ -776,15 +809,42 @@ func formatNumber(n int) string {
 	return result.String()
 }
 
-func truncateViewportLines(lines []string, maxW int, style lipgloss.Style) []string {
+func truncateViewportLines(lines []string, maxW int) []string {
 	if len(lines) == 0 {
 		return nil
 	}
 	rendered := make([]string, 0, len(lines))
 	for _, line := range lines {
-		rendered = append(rendered, style.Render(truncateString(line, maxW)))
+		rendered = append(rendered, truncateString(line, maxW))
 	}
 	return rendered
+}
+
+func wrapViewportLines(lines []string, maxW int) []string {
+	if len(lines) == 0 {
+		return nil
+	}
+	rendered := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			rendered = append(rendered, "")
+			continue
+		}
+		rendered = append(rendered, splitRenderedText(lipgloss.Wrap(line, maxW, ""))...)
+	}
+	return rendered
+}
+
+func isNarrativeEntryKind(kind transcriptEntryKind) bool {
+	switch kind {
+	case transcriptEntryAssistantMessage,
+		transcriptEntryAssistantThinking,
+		transcriptEntryRuntimeNotice,
+		transcriptEntryStderrEvent:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m *uiModel) getStateLabel(state jobState) string {

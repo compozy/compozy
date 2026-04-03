@@ -1,6 +1,7 @@
 package run
 
 import (
+	"fmt"
 	"image/color"
 	"strings"
 
@@ -110,11 +111,16 @@ func renderGap(bg color.Color, width int) string {
 }
 
 func renderOwnedLine(width int, bg color.Color, content string) string {
+	content = reapplyOwnedBackground(content, bg)
 	return lipgloss.NewStyle().
 		Width(max(width, 1)).
 		Foreground(colorFgBright).
 		Background(bg).
 		Render(content)
+}
+
+func renderStyledOwnedLine(width int, style lipgloss.Style, bg color.Color, text string) string {
+	return renderOwnedLine(width, bg, renderStyledOnBackground(style, bg, text))
 }
 
 func renderOwnedBlock(width int, bg color.Color, content string) string {
@@ -133,4 +139,56 @@ func renderKeycap(key string, bg color.Color) string {
 	return renderStyledOnBackground(styleMutedText, bg, "[") +
 		renderStyledOnBackground(styleKeycap, bg, strings.ToUpper(key)) +
 		renderStyledOnBackground(styleMutedText, bg, "]")
+}
+
+func reapplyOwnedBackground(content string, bg color.Color) string {
+	if content == "" || !strings.Contains(content, "\x1b[") {
+		return content
+	}
+
+	bgSeq := ansiBackgroundSequence(bg)
+	var builder strings.Builder
+	builder.Grow(len(content) + len(bgSeq)*4)
+
+	for idx := 0; idx < len(content); idx++ {
+		if content[idx] != '\x1b' || idx+1 >= len(content) || content[idx+1] != '[' {
+			builder.WriteByte(content[idx])
+			continue
+		}
+
+		end := idx + 2
+		for end < len(content) && content[end] != 'm' {
+			end++
+		}
+		if end >= len(content) || content[end] != 'm' {
+			builder.WriteByte(content[idx])
+			continue
+		}
+
+		params := content[idx+2 : end]
+		builder.WriteString(content[idx : end+1])
+		if sgrClearsBackground(params) {
+			builder.WriteString(bgSeq)
+		}
+		idx = end
+	}
+
+	return builder.String()
+}
+
+func ansiBackgroundSequence(bg color.Color) string {
+	r, g, b, _ := bg.RGBA()
+	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r>>8, g>>8, b>>8)
+}
+
+func sgrClearsBackground(params string) bool {
+	if params == "" {
+		return true
+	}
+	for _, part := range strings.Split(params, ";") {
+		if part == "" || part == "0" || part == "49" {
+			return true
+		}
+	}
+	return false
 }
