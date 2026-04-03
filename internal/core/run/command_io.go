@@ -50,13 +50,14 @@ func notifyJobStart(
 	model string,
 	addDirs []string,
 	reasoningEffort string,
+	accessMode string,
 ) {
 	if useUI {
 		uiCh <- jobStartedMsg{Index: index}
 		return
 	}
 
-	shellCmd := agent.BuildShellCommandString(ide, model, addDirs, reasoningEffort)
+	shellCmd := agent.BuildShellCommandString(ide, model, addDirs, reasoningEffort, accessMode)
 	ideName := agent.DisplayName(ide)
 	totalIssues := countTotalIssues(job)
 	codeFileLabel := formatCodeFileLabel(job.codeFiles)
@@ -176,6 +177,7 @@ func createACPClient(ctx context.Context, cfg *config, logger *slog.Logger) (age
 		Model:           cfg.model,
 		AddDirs:         append([]string(nil), cfg.addDirs...),
 		ReasoningEffort: cfg.reasoningEffort,
+		AccessMode:      cfg.accessMode,
 		Logger:          logger.With("component", "acp.client", "agent_id", cfg.ide),
 		ShutdownTimeout: processTerminationGracePeriod,
 	})

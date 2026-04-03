@@ -28,6 +28,8 @@ const (
 	ArchivedWorkflowDirName = "_archived"
 	ModeCodeReview          = "pr-review"
 	ModePRDTasks            = "prd-tasks"
+	AccessModeDefault       = "default"
+	AccessModeFull          = "full"
 )
 
 type ExecutionMode string
@@ -55,6 +57,7 @@ type RuntimeConfig struct {
 	Grouped                bool
 	TailLines              int
 	ReasoningEffort        string
+	AccessMode             string
 	SystemPrompt           string
 	Mode                   ExecutionMode
 	IncludeCompleted       bool
@@ -79,6 +82,9 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	}
 	if cfg.ReasoningEffort == "" {
 		cfg.ReasoningEffort = "medium"
+	}
+	if cfg.AccessMode == "" {
+		cfg.AccessMode = AccessModeFull
 	}
 	if cfg.Mode == "" {
 		cfg.Mode = ExecutionModePRReview

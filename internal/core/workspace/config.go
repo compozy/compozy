@@ -34,6 +34,7 @@ type DefaultsConfig struct {
 	IDE                    *string   `toml:"ide"`
 	Model                  *string   `toml:"model"`
 	ReasoningEffort        *string   `toml:"reasoning_effort"`
+	AccessMode             *string   `toml:"access_mode"`
 	Timeout                *string   `toml:"timeout"`
 	TailLines              *int      `toml:"tail_lines"`
 	AddDirs                *[]string `toml:"add_dirs"`
@@ -169,6 +170,7 @@ func validateDefaults(cfg DefaultsConfig) error {
 	validators := []func(DefaultsConfig) error{
 		validateDefaultIDE,
 		validateDefaultReasoningEffort,
+		validateDefaultAccessMode,
 		validateDefaultTimeout,
 		validateDefaultTailLines,
 		validateDefaultMaxRetries,
@@ -234,6 +236,23 @@ func validateDefaultReasoningEffort(cfg DefaultsConfig) error {
 		return fmt.Errorf(
 			"workspace config defaults.reasoning_effort must be one of low, medium, high, xhigh (got %q)",
 			strings.TrimSpace(*cfg.ReasoningEffort),
+		)
+	}
+}
+
+func validateDefaultAccessMode(cfg DefaultsConfig) error {
+	if cfg.AccessMode == nil {
+		return nil
+	}
+	switch strings.TrimSpace(*cfg.AccessMode) {
+	case model.AccessModeDefault, model.AccessModeFull:
+		return nil
+	default:
+		return fmt.Errorf(
+			"workspace config defaults.access_mode must be %q or %q (got %q)",
+			model.AccessModeDefault,
+			model.AccessModeFull,
+			strings.TrimSpace(*cfg.AccessMode),
 		)
 	}
 }

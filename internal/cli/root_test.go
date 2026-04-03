@@ -242,6 +242,7 @@ func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 	state.autoCommit = true
 	state.timeout = "10m"
 	state.addDirs = []string{"../shared", "../docs", "../shared"}
+	state.accessMode = core.AccessModeDefault
 
 	cfg, err := state.buildConfig()
 	if err != nil {
@@ -255,6 +256,9 @@ func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 	}
 	if cfg.Mode != core.ModePRReview {
 		t.Fatalf("expected review mode, got %q", cfg.Mode)
+	}
+	if cfg.AccessMode != core.AccessModeDefault {
+		t.Fatalf("expected access mode in config, got %q", cfg.AccessMode)
 	}
 }
 
@@ -378,13 +382,14 @@ func TestFormInputsApplyClearsPrefilledOptionalValues(t *testing.T) {
 	t.Parallel()
 
 	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	cmd := newTestCommand(state)
 	state.round = 2
 	state.reviewsDir = ".compozy/tasks/my-feature/reviews-001"
 	state.model = "gpt-5.4"
 	state.addDirs = []string{"../shared", "../docs,archive"}
+	state.tailLines = 25
+	state.accessMode = core.AccessModeFull
 	state.timeout = "5m"
-
-	cmd := newTestCommand(state)
 	cmd.Flags().Int("round", 0, "round")
 	cmd.Flags().String("reviews-dir", "", "review dir")
 
@@ -400,11 +405,17 @@ func TestFormInputsApplyClearsPrefilledOptionalValues(t *testing.T) {
 	if state.model != "" {
 		t.Fatalf("expected model to clear, got %q", state.model)
 	}
-	if state.timeout != "" {
-		t.Fatalf("expected timeout to clear, got %q", state.timeout)
+	if state.timeout != "5m" {
+		t.Fatalf("expected timeout to remain config-only, got %q", state.timeout)
 	}
 	if state.addDirs != nil {
 		t.Fatalf("expected addDirs to clear, got %#v", state.addDirs)
+	}
+	if state.tailLines != 25 {
+		t.Fatalf("expected tailLines to remain config-only, got %d", state.tailLines)
+	}
+	if state.accessMode != core.AccessModeFull {
+		t.Fatalf("expected accessMode to remain config-only, got %q", state.accessMode)
 	}
 }
 

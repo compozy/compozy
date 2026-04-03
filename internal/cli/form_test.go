@@ -23,12 +23,10 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 		"ide",
 		"model",
 		"add-dir",
-		"tail-lines",
 		"reasoning-effort",
-		"timeout",
 		"auto-commit",
 	)
-	assertFieldKeysAbsent(t, keys, "concurrent", "dry-run", "include-completed")
+	assertFieldKeysAbsent(t, keys, "concurrent", "dry-run", "include-completed", "tail-lines", "access-mode", "timeout")
 }
 
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
@@ -49,11 +47,9 @@ func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 		"ide",
 		"model",
 		"add-dir",
-		"tail-lines",
 		"reasoning-effort",
-		"timeout",
 	)
-	assertFieldKeysAbsent(t, keys, "dry-run", "include-resolved")
+	assertFieldKeysAbsent(t, keys, "dry-run", "include-resolved", "tail-lines", "access-mode", "timeout")
 }
 
 func TestStartFormUsesSelectWhenTaskDirsExist(t *testing.T) {

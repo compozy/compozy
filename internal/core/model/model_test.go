@@ -29,6 +29,9 @@ func TestRuntimeConfigApplyDefaults(t *testing.T) {
 		if cfg.ReasoningEffort != "medium" {
 			t.Fatalf("unexpected reasoning default: %q", cfg.ReasoningEffort)
 		}
+		if cfg.AccessMode != model.AccessModeFull {
+			t.Fatalf("unexpected access mode default: %q", cfg.AccessMode)
+		}
 		if cfg.Mode != model.ExecutionModePRReview {
 			t.Fatalf("unexpected mode default: %q", cfg.Mode)
 		}
@@ -190,6 +193,7 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 			IDE:                    model.IDEClaude,
 			TailLines:              10,
 			ReasoningEffort:        "high",
+			AccessMode:             model.AccessModeDefault,
 			Mode:                   model.ExecutionModePRDTasks,
 			Timeout:                30 * time.Second,
 			RetryBackoffMultiplier: 2,
@@ -197,6 +201,7 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 		cfg.ApplyDefaults()
 
 		if cfg.Concurrent != 3 || cfg.BatchSize != 2 || cfg.IDE != model.IDEClaude ||
+			cfg.AccessMode != model.AccessModeDefault ||
 			cfg.Mode != model.ExecutionModePRDTasks {
 			t.Fatalf("apply defaults should preserve explicit values: %#v", cfg)
 		}

@@ -19,6 +19,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 		ide        string
 		reasoning  string
 		addDirs    []string
+		accessMode string
 		wantLaunch []string
 		wantProbe  []string
 	}{
@@ -27,6 +28,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			ide:        model.IDEClaude,
 			reasoning:  "medium",
 			addDirs:    []string{"../shared", "../docs"},
+			accessMode: model.AccessModeFull,
 			wantLaunch: []string{"claude-agent-acp"},
 			wantProbe:  []string{"claude-agent-acp", "--help"},
 		},
@@ -35,18 +37,29 @@ func TestAgentRegistryEntries(t *testing.T) {
 			ide:        model.IDECodex,
 			reasoning:  "medium",
 			addDirs:    []string{"../shared", "../docs"},
-			wantLaunch: []string{"codex-acp"},
-			wantProbe:  []string{"codex-acp", "--help"},
+			accessMode: model.AccessModeFull,
+			wantLaunch: []string{
+				"codex-acp",
+				"-c",
+				`approval_policy="never"`,
+				"-c",
+				`sandbox_mode="danger-full-access"`,
+				"-c",
+				`web_search="live"`,
+			},
+			wantProbe: []string{"codex-acp", "--help"},
 		},
 		{
-			name:      "droid",
-			ide:       model.IDEDroid,
-			reasoning: "medium",
+			name:       "droid",
+			ide:        model.IDEDroid,
+			reasoning:  "medium",
+			accessMode: model.AccessModeFull,
 			wantLaunch: []string{
 				"droid",
 				"exec",
 				"--output-format",
 				"acp",
+				"--skip-permissions-unsafe",
 				"--model",
 				model.DefaultCodexModel,
 				"--reasoning-effort",
@@ -58,6 +71,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			name:       "cursor",
 			ide:        model.IDECursor,
 			reasoning:  "medium",
+			accessMode: model.AccessModeFull,
 			wantLaunch: []string{"cursor-agent", "acp"},
 			wantProbe:  []string{"cursor-agent", "acp", "--help"},
 		},
@@ -65,6 +79,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			name:       "opencode",
 			ide:        model.IDEOpenCode,
 			reasoning:  "medium",
+			accessMode: model.AccessModeFull,
 			wantLaunch: []string{"opencode", "acp"},
 			wantProbe:  []string{"opencode", "acp", "--help"},
 		},
@@ -72,6 +87,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			name:       "pi",
 			ide:        model.IDEPi,
 			reasoning:  "medium",
+			accessMode: model.AccessModeFull,
 			wantLaunch: []string{"pi-acp"},
 			wantProbe:  []string{"pi-acp", "--help"},
 		},
@@ -79,6 +95,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 			name:       "gemini",
 			ide:        model.IDEGemini,
 			reasoning:  "medium",
+			accessMode: model.AccessModeFull,
 			wantLaunch: []string{"gemini", "--acp"},
 			wantProbe:  []string{"gemini", "--acp", "--help"},
 		},
@@ -94,7 +111,7 @@ func TestAgentRegistryEntries(t *testing.T) {
 				t.Fatalf("lookup agent spec: %v", err)
 			}
 
-			gotLaunch := spec.launchCommand(resolveModel(spec, ""), tc.reasoning, tc.addDirs)
+			gotLaunch := spec.launchCommand(resolveModel(spec, ""), tc.reasoning, tc.addDirs, tc.accessMode)
 			if !slices.Equal(gotLaunch, tc.wantLaunch) {
 				t.Fatalf("unexpected launch command for %s: got %v want %v", tc.ide, gotLaunch, tc.wantLaunch)
 			}
@@ -127,7 +144,7 @@ func TestBuildShellCommandStringUsesFallbackLauncherWhenPrimaryMissing(t *testin
 		},
 	})
 
-	got := BuildShellCommandString("fallback-shell-test", "", nil, "medium")
+	got := BuildShellCommandString("fallback-shell-test", "", nil, "medium", model.AccessModeFull)
 	if got != `npx --yes @scope/test-acp` {
 		t.Fatalf("unexpected shell command: %s", got)
 	}
@@ -160,7 +177,7 @@ func TestResolveLaunchCommandUsesFallbackCandidate(t *testing.T) {
 		t.Fatalf("lookup test spec: %v", err)
 	}
 
-	command, err := resolveLaunchCommand(spec, spec.DefaultModel, "medium", nil, true)
+	command, err := resolveLaunchCommand(spec, spec.DefaultModel, "medium", nil, model.AccessModeDefault, true)
 	if err != nil {
 		t.Fatalf("resolve launch command: %v", err)
 	}
@@ -261,6 +278,27 @@ func TestValidateRuntimeConfigRejectsInvalidRetryConfig(t *testing.T) {
 				t.Fatal("expected validation error")
 			}
 		})
+	}
+}
+
+func TestValidateRuntimeConfigRejectsInvalidAccessMode(t *testing.T) {
+	t.Parallel()
+
+	cfg := &model.RuntimeConfig{
+		Mode:                   model.ExecutionModePRReview,
+		IDE:                    model.IDECodex,
+		BatchSize:              1,
+		AccessMode:             "invalid",
+		MaxRetries:             0,
+		RetryBackoffMultiplier: 1.5,
+	}
+
+	err := ValidateRuntimeConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "--access-mode") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

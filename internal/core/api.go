@@ -45,6 +45,13 @@ const (
 	IDEGemini IDE = model.IDEGemini
 )
 
+const (
+	// AccessModeDefault leaves runtime permissions at the agent's native defaults.
+	AccessModeDefault = model.AccessModeDefault
+	// AccessModeFull requests the most permissive execution mode Compozy knows how to configure.
+	AccessModeFull = model.AccessModeFull
+)
+
 // Config configures compozy preparation and execution.
 type Config struct {
 	WorkspaceRoot          string
@@ -64,6 +71,7 @@ type Config struct {
 	Grouped                bool
 	TailLines              int
 	ReasoningEffort        string
+	AccessMode             string
 	Mode                   Mode
 	IncludeCompleted       bool
 	IncludeResolved        bool
@@ -263,6 +271,7 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 		Grouped:                cfg.Grouped,
 		TailLines:              cfg.TailLines,
 		ReasoningEffort:        cfg.ReasoningEffort,
+		AccessMode:             cfg.AccessMode,
 		Mode:                   model.ExecutionMode(cfg.Mode),
 		IncludeCompleted:       cfg.IncludeCompleted,
 		IncludeResolved:        cfg.IncludeResolved,

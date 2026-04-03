@@ -19,6 +19,7 @@ func TestApplyWorkspaceDefaultsLoadsNearestWorkspaceConfig(t *testing.T) {
 	writeCLIWorkspaceConfig(t, root, `
 [defaults]
 ide = "claude"
+access_mode = "default"
 timeout = "5m"
 add_dirs = ["../shared", "../docs"]
 
@@ -52,6 +53,9 @@ include_completed = true
 	}
 	if state.ide != "claude" {
 		t.Fatalf("unexpected ide default: %q", state.ide)
+	}
+	if state.accessMode != "default" {
+		t.Fatalf("unexpected access mode default: %q", state.accessMode)
 	}
 	if state.timeout != "5m" {
 		t.Fatalf("unexpected timeout default: %q", state.timeout)
@@ -124,9 +128,7 @@ func TestNewFormInputsFromStatePreservesResolvedDefaults(t *testing.T) {
 		ide:              "claude",
 		model:            "sonnet",
 		addDirs:          []string{"../shared", "../docs"},
-		tailLines:        0,
 		reasoningEffort:  "high",
-		timeout:          "5m",
 		includeCompleted: true,
 		autoCommit:       true,
 	}
@@ -138,9 +140,6 @@ func TestNewFormInputsFromStatePreservesResolvedDefaults(t *testing.T) {
 	}
 	if inputs.addDirs != "../shared, ../docs" {
 		t.Fatalf("unexpected addDirs input: %q", inputs.addDirs)
-	}
-	if inputs.tailLines != "0" {
-		t.Fatalf("unexpected tailLines input: %q", inputs.tailLines)
 	}
 	if !inputs.includeCompleted || !inputs.autoCommit {
 		t.Fatalf("expected boolean defaults to be preserved: %#v", inputs)

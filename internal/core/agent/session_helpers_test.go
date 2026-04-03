@@ -246,6 +246,7 @@ func TestRegistryHelperFunctions(t *testing.T) {
 		"test-model",
 		"medium",
 		nil,
+		model.AccessModeDefault,
 		true,
 	); err != nil {
 		t.Fatalf("resolve launch command: %v", err)

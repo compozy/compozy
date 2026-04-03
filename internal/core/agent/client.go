@@ -35,6 +35,7 @@ type ClientConfig struct {
 	Model           string
 	AddDirs         []string
 	ReasoningEffort string
+	AccessMode      string
 	Logger          *slog.Logger
 	ShutdownTimeout time.Duration
 }
@@ -63,6 +64,20 @@ func (e *SessionError) Error() string {
 		return fmt.Sprintf("ACP error %d: %s", e.Code, e.Message)
 	}
 	return fmt.Sprintf("ACP error %d: %s (%s)", e.Code, e.Message, string(e.Data))
+}
+
+func (e *SessionError) toolCallID() string {
+	if e == nil || len(e.Data) == 0 {
+		return ""
+	}
+
+	var payload struct {
+		ToolCallID string `json:"tool_call_id"`
+	}
+	if err := json.Unmarshal(e.Data, &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.ToolCallID)
 }
 
 type clientImpl struct {
@@ -146,6 +161,15 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		if _, err := c.conn.SetSessionModel(ctx, acp.SetSessionModelRequest{
 			SessionId: sessionResp.SessionId,
 			ModelId:   acp.ModelId(requestedModel),
+		}); err != nil {
+			c.removeSession(session.id)
+			return nil, wrapACPError(err)
+		}
+	}
+	if modeID := c.spec.sessionModeForAccess(c.cfg.AccessMode); modeID != "" {
+		if _, err := c.conn.SetSessionMode(ctx, acp.SetSessionModeRequest{
+			SessionId: sessionResp.SessionId,
+			ModeId:    acp.SessionModeId(modeID),
 		}); err != nil {
 			c.removeSession(session.id)
 			return nil, wrapACPError(err)
@@ -377,7 +401,14 @@ func (c *clientImpl) resolveStartCommand(req SessionRequest) (string, []string, 
 	if c.spec.UsesBootstrapModel {
 		startModel = requestedModel
 	}
-	command, err := resolveLaunchCommand(c.spec, startModel, c.cfg.ReasoningEffort, c.cfg.AddDirs, false)
+	command, err := resolveLaunchCommand(
+		c.spec,
+		startModel,
+		c.cfg.ReasoningEffort,
+		c.cfg.AddDirs,
+		c.cfg.AccessMode,
+		false,
+	)
 	if err != nil {
 		return "", nil, err
 	}
@@ -539,12 +570,18 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 }
 
 func shouldDowngradePromptErrorAfterToolFailure(session *sessionImpl, err error) bool {
-	if session == nil || err == nil || !session.lastUpdateFailedToolCall() {
+	if err == nil {
 		return false
 	}
 
 	var sessionErr *SessionError
-	return errors.As(err, &sessionErr)
+	if !errors.As(err, &sessionErr) {
+		return false
+	}
+	if sessionErr.toolCallID() != "" {
+		return true
+	}
+	return session != nil && session.lastUpdateFailedToolCall()
 }
 
 func (c *clientImpl) storeSession(session *sessionImpl) {

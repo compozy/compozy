@@ -9,7 +9,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
@@ -45,9 +44,7 @@ type formInputs struct {
 	ide              string
 	model            string
 	addDirs          string
-	tailLines        string
 	reasoningEffort  string
-	timeout          string
 	includeCompleted bool
 	includeResolved  bool
 	grouped          bool
@@ -84,11 +81,7 @@ func newFormInputsFromState(state *commandState) *formInputs {
 	if len(state.addDirs) > 0 {
 		inputs.addDirs = formatAddDirInput(state.addDirs)
 	}
-	if state.tailLines >= 0 {
-		inputs.tailLines = strconv.Itoa(state.tailLines)
-	}
 	inputs.reasoningEffort = state.reasoningEffort
-	inputs.timeout = state.timeout
 	inputs.includeCompleted = state.includeCompleted
 	inputs.includeResolved = state.includeResolved
 	inputs.grouped = state.grouped
@@ -110,9 +103,7 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addIDEField(&fi.ide)
 	builder.addModelField(&fi.model)
 	builder.addAddDirsField(&fi.addDirs)
-	builder.addTailLinesField(&fi.tailLines)
 	builder.addReasoningEffortField(&fi.reasoningEffort)
-	builder.addTimeoutField(&fi.timeout)
 	builder.addConfirmField(
 		"dry-run",
 		"Dry Run?",
@@ -157,11 +148,9 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 	applyStringInput(cmd, "ide", fi.ide, func(val string) { state.ide = val })
 	applyStringInput(cmd, "model", fi.model, func(val string) { state.model = val })
 	applyStringSliceInput(cmd, "add-dir", fi.addDirs, func(val []string) { state.addDirs = val })
-	applyIntInput(cmd, "tail-lines", fi.tailLines, func(val int) { state.tailLines = val })
 	applyStringInput(cmd, "reasoning-effort", fi.reasoningEffort, func(val string) {
 		state.reasoningEffort = val
 	})
-	applyStringInput(cmd, "timeout", fi.timeout, func(val string) { state.timeout = val })
 	applyBoolInput(cmd, "dry-run", fi.dryRun, func(val bool) { state.dryRun = val })
 	applyBoolInput(cmd, "grouped", fi.grouped, func(val bool) { state.grouped = val })
 	applyBoolInput(cmd, "auto-commit", fi.autoCommit, func(val bool) { state.autoCommit = val })
@@ -421,20 +410,6 @@ func (fb *formBuilder) addAddDirsField(target *string) {
 	})
 }
 
-func (fb *formBuilder) addTailLinesField(target *string) {
-	fb.addField("tail-lines", func() huh.Field {
-		return numericInput(
-			"tail-lines",
-			"UI Log Retention",
-			"0",
-			"Maximum log lines to retain in UI per job (0 = full history)",
-			target,
-			0,
-			0,
-		)
-	})
-}
-
 func (fb *formBuilder) addReasoningEffortField(target *string) {
 	fb.addField("reasoning-effort", func() huh.Field {
 		return huh.NewSelect[string]().
@@ -448,27 +423,6 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 				huh.NewOption("Extra High", "xhigh"),
 			).
 			Value(target)
-	})
-}
-
-func (fb *formBuilder) addTimeoutField(target *string) {
-	fb.addField("timeout", func() huh.Field {
-		return huh.NewInput().
-			Key("timeout").
-			Title("Activity Timeout").
-			Placeholder("10m").
-			Description("Cancel job if no output received within this period (e.g., 5m, 30s)").
-			Value(target).
-			Validate(func(str string) error {
-				if str == "" {
-					return nil
-				}
-				_, err := time.ParseDuration(str)
-				if err != nil {
-					return errors.New("invalid duration format (e.g., 5m, 30s, 1h)")
-				}
-				return nil
-			})
 	})
 }
 

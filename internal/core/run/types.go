@@ -242,6 +242,7 @@ type config struct {
 	grouped                bool
 	tailLines              int
 	reasoningEffort        string
+	accessMode             string
 	mode                   model.ExecutionMode
 	includeCompleted       bool
 	includeResolved        bool
@@ -284,6 +285,7 @@ func newConfig(src *model.RuntimeConfig) *config {
 		grouped:                src.Grouped,
 		tailLines:              src.TailLines,
 		reasoningEffort:        src.ReasoningEffort,
+		accessMode:             src.AccessMode,
 		mode:                   src.Mode,
 		includeCompleted:       src.IncludeCompleted,
 		includeResolved:        src.IncludeResolved,

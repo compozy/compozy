@@ -28,7 +28,8 @@ type Spec struct {
 	EnvVars            map[string]string
 	DocsURL            string
 	InstallHint        string
-	BootstrapArgs      func(modelName, reasoningEffort string, addDirs []string) []string
+	FullAccessModeID   string
+	BootstrapArgs      func(modelName, reasoningEffort string, addDirs []string, accessMode string) []string
 }
 
 // Launcher defines one ACP-compatible command shape for a runtime.
@@ -81,9 +82,10 @@ var (
 					FixedArgs: []string{"--yes", "@agentclientprotocol/claude-agent-acp"},
 				},
 			},
-			DocsURL:     "https://github.com/agentclientprotocol/claude-agent-acp",
-			InstallHint: "Install `@agentclientprotocol/claude-agent-acp` and expose `claude-agent-acp` on PATH.",
-			BootstrapArgs: func(_ string, _ string, _ []string) []string {
+			DocsURL:          "https://github.com/agentclientprotocol/claude-agent-acp",
+			InstallHint:      "Install `@agentclientprotocol/claude-agent-acp` and expose `claude-agent-acp` on PATH.",
+			FullAccessModeID: "bypassPermissions",
+			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
 		},
@@ -100,8 +102,15 @@ var (
 			},
 			DocsURL:     "https://github.com/zed-industries/codex-acp",
 			InstallHint: "Install the Codex ACP adapter from the GitHub releases or via `npx @zed-industries/codex-acp`, then expose `codex-acp` on PATH.",
-			BootstrapArgs: func(_ string, _ string, _ []string) []string {
-				return nil
+			BootstrapArgs: func(_ string, _ string, _ []string, accessMode string) []string {
+				if accessMode != model.AccessModeFull {
+					return nil
+				}
+				return []string{
+					"-c", `approval_policy="never"`,
+					"-c", `sandbox_mode="danger-full-access"`,
+					"-c", `web_search="live"`,
+				}
 			},
 		},
 		model.IDEDroid: {
@@ -125,8 +134,13 @@ var (
 			},
 			DocsURL:     "https://factory.ai/product/cli",
 			InstallHint: "Install or upgrade Droid so `droid exec --output-format acp` is available.",
-			BootstrapArgs: func(modelName, reasoningEffort string, _ []string) []string {
-				return []string{"--model", modelName, "--reasoning-effort", reasoningEffort}
+			BootstrapArgs: func(modelName, reasoningEffort string, _ []string, accessMode string) []string {
+				args := make([]string, 0, 5)
+				if accessMode == model.AccessModeFull {
+					args = append(args, "--skip-permissions-unsafe")
+				}
+				args = append(args, "--model", modelName, "--reasoning-effort", reasoningEffort)
+				return args
 			},
 		},
 		model.IDECursor: {
@@ -138,7 +152,7 @@ var (
 			ProbeArgs:    []string{"acp", "--help"},
 			DocsURL:      "https://cursor.com/docs/cli/acp",
 			InstallHint:  "Install the Cursor agent CLI package and expose `cursor-agent` on PATH so `cursor-agent acp` works.",
-			BootstrapArgs: func(_ string, _ string, _ []string) []string {
+			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
 		},
@@ -151,7 +165,7 @@ var (
 			ProbeArgs:    []string{"acp", "--help"},
 			DocsURL:      "https://opencode.ai",
 			InstallHint:  "Install or upgrade OpenCode so the `opencode acp` subcommand is available.",
-			BootstrapArgs: func(_ string, _ string, _ []string) []string {
+			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
 		},
@@ -168,7 +182,7 @@ var (
 			},
 			DocsURL:     "https://github.com/svkozak/pi-acp",
 			InstallHint: "Install `pi-acp` and expose the `pi-acp` binary on PATH.",
-			BootstrapArgs: func(_ string, _ string, _ []string) []string {
+			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
 		},
@@ -188,7 +202,7 @@ var (
 			},
 			DocsURL:     "https://geminicli.com",
 			InstallHint: "Install Gemini CLI with ACP support so `gemini --acp` succeeds.",
-			BootstrapArgs: func(_ string, _ string, _ []string) []string {
+			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
 		},
@@ -255,6 +269,16 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 	if _, err := lookupAgentSpec(cfg.IDE); err != nil {
 		return fmt.Errorf("invalid --ide value %q: must be %s", cfg.IDE, quotedSupportedIDEs())
 	}
+	switch cfg.AccessMode {
+	case "", model.AccessModeDefault, model.AccessModeFull:
+	default:
+		return fmt.Errorf(
+			"invalid --access-mode value %q: must be %q or %q",
+			cfg.AccessMode,
+			model.AccessModeDefault,
+			model.AccessModeFull,
+		)
+	}
 	if cfg.Mode == model.ExecutionModePRDTasks && cfg.BatchSize != 1 {
 		return fmt.Errorf("batch size must be 1 for prd-tasks mode (got %d)", cfg.BatchSize)
 	}
@@ -277,7 +301,14 @@ func EnsureAvailable(cfg *model.RuntimeConfig) error {
 	if err != nil {
 		return err
 	}
-	if _, err := resolveLaunchCommand(spec, spec.DefaultModel, cfg.ReasoningEffort, cfg.AddDirs, true); err != nil {
+	if _, err := resolveLaunchCommand(
+		spec,
+		spec.DefaultModel,
+		cfg.ReasoningEffort,
+		cfg.AddDirs,
+		cfg.AccessMode,
+		true,
+	); err != nil {
 		return err
 	}
 	return nil
@@ -318,7 +349,13 @@ func DriverCatalogEntryForIDE(ide string) (DriverCatalogEntry, error) {
 }
 
 // BuildShellCommandString renders a shell preview for the configured ACP agent bootstrap command.
-func BuildShellCommandString(ide string, modelName string, addDirs []string, reasoningEffort string) string {
+func BuildShellCommandString(
+	ide string,
+	modelName string,
+	addDirs []string,
+	reasoningEffort string,
+	accessMode string,
+) string {
 	spec, err := lookupAgentSpec(ide)
 	if err != nil {
 		return ""
@@ -333,7 +370,7 @@ func BuildShellCommandString(ide string, modelName string, addDirs []string, rea
 	if !spec.UsesBootstrapModel {
 		launchModel = spec.DefaultModel
 	}
-	args := spec.launchCommandForPreview(launchModel, reasoningEffort, resolvedDirs)
+	args := spec.launchCommandForPreview(launchModel, reasoningEffort, resolvedDirs, accessMode)
 
 	parts := make([]string, 0, len(spec.EnvVars)+1)
 	parts = append(parts, sortedEnvAssignments(spec.EnvVars)...)
@@ -468,22 +505,29 @@ func formatShellArg(arg string) string {
 	return arg
 }
 
-func (s Spec) launchCommand(modelName, reasoningEffort string, addDirs []string) []string {
-	return s.primaryLauncher().launchCommand(s, modelName, reasoningEffort, addDirs)
+func (s Spec) launchCommand(modelName, reasoningEffort string, addDirs []string, accessMode string) []string {
+	return s.primaryLauncher().launchCommand(s, modelName, reasoningEffort, addDirs, accessMode)
 }
 
 func (s Spec) probeCommand() []string {
 	return s.primaryLauncher().probeCommand()
 }
 
-func (s Spec) launchCommandForPreview(modelName, reasoningEffort string, addDirs []string) []string {
+func (s Spec) sessionModeForAccess(accessMode string) string {
+	if accessMode == model.AccessModeFull {
+		return s.FullAccessModeID
+	}
+	return ""
+}
+
+func (s Spec) launchCommandForPreview(modelName, reasoningEffort string, addDirs []string, accessMode string) []string {
 	for _, launcher := range s.launchers() {
-		command := launcher.launchCommand(s, modelName, reasoningEffort, addDirs)
+		command := launcher.launchCommand(s, modelName, reasoningEffort, addDirs, accessMode)
 		if err := assertCommandExists(s, command); err == nil {
 			return command
 		}
 	}
-	return s.launchCommand(modelName, reasoningEffort, addDirs)
+	return s.launchCommand(modelName, reasoningEffort, addDirs, accessMode)
 }
 
 func (s Spec) primaryLauncher() Launcher {
@@ -500,10 +544,15 @@ func (s Spec) launchers() []Launcher {
 	return launchers
 }
 
-func (l Launcher) launchCommand(spec Spec, modelName, reasoningEffort string, addDirs []string) []string {
+func (l Launcher) launchCommand(
+	spec Spec,
+	modelName, reasoningEffort string,
+	addDirs []string,
+	accessMode string,
+) []string {
 	args := append([]string{l.Command}, slices.Clone(l.FixedArgs)...)
 	if spec.BootstrapArgs != nil {
-		args = append(args, spec.BootstrapArgs(modelName, reasoningEffort, addDirs)...)
+		args = append(args, spec.BootstrapArgs(modelName, reasoningEffort, addDirs, accessMode)...)
 	}
 	return args
 }
@@ -526,11 +575,12 @@ func resolveLaunchCommand(
 	modelName string,
 	reasoningEffort string,
 	addDirs []string,
+	accessMode string,
 	verify bool,
 ) ([]string, error) {
 	var attemptErrs []error
 	for _, launcher := range spec.launchers() {
-		command := launcher.launchCommand(spec, modelName, reasoningEffort, addDirs)
+		command := launcher.launchCommand(spec, modelName, reasoningEffort, addDirs, accessMode)
 		if err := assertCommandExists(spec, command); err != nil {
 			attemptErrs = append(attemptErrs, err)
 			continue

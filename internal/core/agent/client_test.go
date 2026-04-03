@@ -110,6 +110,39 @@ func TestSessionUpdatesStreamAndComplete(t *testing.T) {
 	}
 }
 
+func TestClientCreateSessionAppliesFullAccessSessionModeWhenSupported(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:           t.TempDir(),
+		ExpectedPrompt:        "run with full access",
+		ExpectedSessionModeID: "bypassPermissions",
+		StopReason:            string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClientWithConfig(t, scenario, func(cfg *ClientConfig) {
+		cfg.AccessMode = model.AccessModeFull
+	})
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 {
+		t.Fatalf("unexpected updates length: %d", len(updates))
+	}
+	if updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected final status: %q", updates[0].Status)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
 func TestSessionErrReturnsStructuredPromptError(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +248,26 @@ func TestFailedToolCallPromptErrorFinishesSessionSuccessfully(t *testing.T) {
 
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestShouldDowngradePromptErrorAfterToolFailureUsesErrorToolCallID(t *testing.T) {
+	t.Parallel()
+
+	if !shouldDowngradePromptErrorAfterToolFailure(nil, &SessionError{
+		Code:    4242,
+		Message: "tool call failed",
+		Data:    json.RawMessage(`{"tool_call_id":"tool-1"}`),
+	}) {
+		t.Fatal("expected tool_call_id in session error payload to trigger downgrade")
+	}
+
+	if shouldDowngradePromptErrorAfterToolFailure(nil, &SessionError{
+		Code:    4242,
+		Message: "plain prompt failure",
+		Data:    json.RawMessage(`{"reason":"boom"}`),
+	}) {
+		t.Fatal("expected generic session error payload to remain terminal")
 	}
 }
 
@@ -607,6 +660,7 @@ type helperScenario struct {
 	SessionID               string              `json:"session_id,omitempty"`
 	ExpectedCWD             string              `json:"expected_cwd,omitempty"`
 	ExpectedPrompt          string              `json:"expected_prompt,omitempty"`
+	ExpectedSessionModeID   string              `json:"expected_session_mode_id,omitempty"`
 	Updates                 []acp.SessionUpdate `json:"updates,omitempty"`
 	StopReason              string              `json:"stop_reason,omitempty"`
 	BlockUntilCancel        bool                `json:"block_until_cancel,omitempty"`
@@ -698,7 +752,16 @@ func (a *helperAgent) Cancel(context.Context, acp.CancelNotification) error {
 	return nil
 }
 
-func (a *helperAgent) SetSessionMode(context.Context, acp.SetSessionModeRequest) (acp.SetSessionModeResponse, error) {
+func (a *helperAgent) SetSessionMode(
+	_ context.Context,
+	req acp.SetSessionModeRequest,
+) (acp.SetSessionModeResponse, error) {
+	if a.scenario.ExpectedSessionModeID != "" && string(req.ModeId) != a.scenario.ExpectedSessionModeID {
+		return acp.SetSessionModeResponse{}, &acp.RequestError{
+			Code:    4002,
+			Message: fmt.Sprintf("unexpected session mode %q", req.ModeId),
+		}
+	}
 	return acp.SetSessionModeResponse{}, nil
 }
 
@@ -721,6 +784,12 @@ func (e *helperRequestError) toACPError() error {
 func newTestClient(t *testing.T, scenario helperScenario) Client {
 	t.Helper()
 
+	return newTestClientWithConfig(t, scenario, nil)
+}
+
+func newTestClientWithConfig(t *testing.T, scenario helperScenario, configure func(*ClientConfig)) Client {
+	t.Helper()
+
 	scenarioJSON, err := json.Marshal(scenario)
 	if err != nil {
 		t.Fatalf("marshal helper scenario: %v", err)
@@ -736,18 +805,24 @@ func newTestClient(t *testing.T, scenario helperScenario) Client {
 			"GO_WANT_ACP_HELPER_PROCESS": "1",
 			"GO_ACP_SCENARIO":            string(scenarioJSON),
 		},
+		FullAccessModeID:   scenario.ExpectedSessionModeID,
 		UsesBootstrapModel: true,
-		BootstrapArgs: func(_, _ string, _ []string) []string {
+		BootstrapArgs: func(_, _ string, _ []string, _ string) []string {
 			return []string{"-test.run=TestACPHelperProcess", "--"}
 		},
 	})
 
-	client, err := NewClient(context.Background(), ClientConfig{
+	cfg := ClientConfig{
 		IDE:             ide,
 		Model:           "test-model",
 		ReasoningEffort: "medium",
 		ShutdownTimeout: 3 * time.Second,
-	})
+	}
+	if configure != nil {
+		configure(&cfg)
+	}
+
+	client, err := NewClient(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}

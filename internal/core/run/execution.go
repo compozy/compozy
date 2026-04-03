@@ -267,6 +267,7 @@ func (l *jobLifecycle) startAttempt(attempt int, timeout time.Duration) {
 			l.execCtx.cfg.model,
 			l.execCtx.cfg.addDirs,
 			l.execCtx.cfg.reasoningEffort,
+			l.execCtx.cfg.accessMode,
 		)
 		return
 	}

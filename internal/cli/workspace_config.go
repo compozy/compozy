@@ -61,6 +61,7 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 	applyStringConfig(cmd, "reasoning-effort", cfg.Defaults.ReasoningEffort, func(val string) {
 		s.reasoningEffort = val
 	})
+	applyStringConfig(cmd, "access-mode", cfg.Defaults.AccessMode, func(val string) { s.accessMode = val })
 	applyStringConfig(cmd, "timeout", cfg.Defaults.Timeout, func(val string) { s.timeout = val })
 	applyIntConfig(cmd, "tail-lines", cfg.Defaults.TailLines, func(val int) { s.tailLines = val })
 	applyStringSliceConfig(cmd, "add-dir", cfg.Defaults.AddDirs, func(val []string) { s.addDirs = val })

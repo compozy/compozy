@@ -45,6 +45,7 @@ type commandState struct {
 	grouped                bool
 	tailLines              int
 	reasoningEffort        string
+	accessMode             string
 	includeCompleted       bool
 	includeResolved        bool
 	timeout                string
@@ -328,6 +329,13 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		"Reasoning effort for runtimes that support bootstrap reasoning flags, such as droid (low, medium, high, xhigh)",
 	)
 	cmd.Flags().StringVar(
+		&state.accessMode,
+		"access-mode",
+		core.AccessModeFull,
+		"Runtime access policy: default keeps native safeguards; "+
+			"full requests the most permissive mode Compozy can configure",
+	)
+	cmd.Flags().StringVar(
 		&state.timeout,
 		"timeout",
 		"10m",
@@ -561,6 +569,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		Grouped:                s.grouped,
 		TailLines:              s.tailLines,
 		ReasoningEffort:        s.reasoningEffort,
+		AccessMode:             s.accessMode,
 		Mode:                   s.mode,
 		IncludeCompleted:       s.includeCompleted,
 		IncludeResolved:        s.includeResolved,

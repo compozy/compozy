@@ -120,6 +120,7 @@ Example:
 ide = "codex"
 model = "gpt-5.4"
 reasoning_effort = "medium"
+access_mode = "full"
 timeout = "10m"
 tail_lines = 0
 add_dirs = ["../shared"]
@@ -142,7 +143,7 @@ provider = "coderabbit"
 
 Supported sections in v1:
 
-- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
+- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[start]` for `include_completed`
 - `[fix_reviews]` for `concurrent`, `batch_size`, `grouped`, and `include_resolved`
 - `[fetch_reviews]` for `provider`
@@ -375,7 +376,7 @@ compozy start [flags]
 
 Running `compozy start` with no flags opens the interactive form automatically.
 When present, `.compozy/config.toml` can provide defaults for runtime flags such as
-`--ide`, `--model`, `--reasoning-effort`, `--timeout`, `--add-dir`, and `--auto-commit`.
+`--ide`, `--model`, `--reasoning-effort`, `--access-mode`, `--timeout`, `--add-dir`, and `--auto-commit`.
 
 | Flag                         | Default     | Description                                                   |
 | ---------------------------- | ----------- | ------------------------------------------------------------- |
@@ -384,6 +385,7 @@ When present, `.compozy/config.toml` can provide defaults for runtime flags such
 | `--ide`                      | `codex`     | Agent: `claude`, `codex`, `cursor`, `droid`, `opencode`, `pi` |
 | `--model`                    | _(per IDE)_ | Model override                                                |
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
+| `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
 | `--timeout`                  | `10m`       | Activity timeout per job                                      |
 | `--max-retries`              | `0`         | Retry failed jobs N times                                     |
 | `--retry-backoff-multiplier` | `1.5`       | Timeout multiplier per retry                                  |
@@ -437,6 +439,7 @@ defaults such as `--concurrent`, `--batch-size`, `--grouped`, and `--include-res
 | `--grouped`                  | `false`     | Generate grouped issue summaries                              |
 | `--include-resolved`         | `false`     | Re-process resolved issues                                    |
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
+| `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
 | `--timeout`                  | `10m`       | Activity timeout per job                                      |
 | `--max-retries`              | `0`         | Retry failed jobs N times                                     |
 | `--retry-backoff-multiplier` | `1.5`       | Timeout multiplier per retry                                  |

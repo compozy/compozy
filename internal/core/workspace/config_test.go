@@ -112,6 +112,7 @@ func TestLoadConfigParsesValidSections(t *testing.T) {
 ide = "claude"
 model = "sonnet"
 reasoning_effort = "high"
+access_mode = "full"
 timeout = "5m"
 tail_lines = 0
 add_dirs = []
@@ -139,6 +140,9 @@ provider = "coderabbit"
 
 	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
 		t.Fatalf("unexpected defaults.ide: %#v", cfg.Defaults.IDE)
+	}
+	if cfg.Defaults.AccessMode == nil || *cfg.Defaults.AccessMode != "full" {
+		t.Fatalf("unexpected defaults.access_mode: %#v", cfg.Defaults.AccessMode)
 	}
 	if cfg.Defaults.Timeout == nil || *cfg.Defaults.Timeout != "5m" {
 		t.Fatalf("unexpected defaults.timeout: %#v", cfg.Defaults.Timeout)
@@ -188,6 +192,24 @@ ide = "claude"
 	}
 	if workspaceCtx.Config.Defaults.IDE == nil || *workspaceCtx.Config.Defaults.IDE != "claude" {
 		t.Fatalf("unexpected loaded ide: %#v", workspaceCtx.Config.Defaults.IDE)
+	}
+}
+
+func TestLoadConfigRejectsInvalidAccessMode(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[defaults]
+access_mode = "invalid"
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid access mode error")
+	}
+	if !strings.Contains(err.Error(), "defaults.access_mode") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
