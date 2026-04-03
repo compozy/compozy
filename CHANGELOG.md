@@ -8,11 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🎉 Features
 
+- Add cy-idea-factory skill and improve planning skills DX (#35)
+### 🐛 Bug Fixes
+
+- Failed tool call crash
+## 0.1.3 - 2026-04-03
+
+### 🎉 Features
+
 - *(repo)* Add archive command
 - Use acp instead of stream raw json (#34)
 ### 📚 Documentation
 
 - Archive old prds- Update readme
+### 🔧 CI/CD
+
+- *(release)* Prepare release v0.1.3 (#36)
+
 ## 0.1.2 - 2026-04-02
 
 ### 🐛 Bug Fixes
@@ -94,7 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
-[unreleased]: https://github.com///compare/v0.1.2...HEAD
+[unreleased]: https://github.com///compare/v0.1.3...HEAD
+[0.1.3]: https://github.com///compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com///compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com///compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com///releases/tag/v0.1.0
