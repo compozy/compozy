@@ -70,7 +70,7 @@ func resolveArchiveTarget(cfg ArchiveConfig) (string, string, bool, error) {
 
 	rootDir := strings.TrimSpace(cfg.RootDir)
 	if rootDir == "" {
-		rootDir = model.TasksBaseDir()
+		rootDir = model.TasksBaseDirForWorkspace(cfg.WorkspaceRoot)
 	}
 
 	target := rootDir

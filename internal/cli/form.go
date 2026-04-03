@@ -20,7 +20,7 @@ import (
 func collectFormParams(cmd *cobra.Command, state *commandState) error {
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormIntro())
-	inputs := newFormInputs()
+	inputs := newFormInputsFromState(state)
 	builder := newFormBuilder(cmd, state)
 	inputs.register(builder)
 	if err := builder.build().Run(); err != nil {
@@ -56,6 +56,45 @@ type formInputs struct {
 
 func newFormInputs() *formInputs {
 	return &formInputs{}
+}
+
+func newFormInputsFromState(state *commandState) *formInputs {
+	inputs := newFormInputs()
+	if state == nil {
+		return inputs
+	}
+
+	inputs.name = state.name
+	inputs.pr = state.pr
+	inputs.provider = state.provider
+	if state.round > 0 {
+		inputs.round = strconv.Itoa(state.round)
+	}
+	inputs.reviewsDir = state.reviewsDir
+	inputs.tasksDir = state.tasksDir
+	if state.concurrent > 0 {
+		inputs.concurrent = strconv.Itoa(state.concurrent)
+	}
+	if state.batchSize > 0 {
+		inputs.batchSize = strconv.Itoa(state.batchSize)
+	}
+	inputs.ide = state.ide
+	inputs.model = state.model
+	if len(state.addDirs) > 0 {
+		inputs.addDirs = strings.Join(state.addDirs, ", ")
+	}
+	if state.tailLines >= 0 {
+		inputs.tailLines = strconv.Itoa(state.tailLines)
+	}
+	inputs.reasoningEffort = state.reasoningEffort
+	inputs.timeout = state.timeout
+	inputs.includeCompleted = state.includeCompleted
+	inputs.includeResolved = state.includeResolved
+	inputs.grouped = state.grouped
+	inputs.dryRun = state.dryRun
+	inputs.autoCommit = state.autoCommit
+
+	return inputs
 }
 
 func (fi *formInputs) register(builder *formBuilder) {
@@ -142,7 +181,11 @@ type formBuilder struct {
 }
 
 func newFormBuilder(cmd *cobra.Command, state *commandState) *formBuilder {
-	return &formBuilder{cmd: cmd, state: state, tasksBaseDir: model.TasksBaseDir()}
+	return &formBuilder{
+		cmd:          cmd,
+		state:        state,
+		tasksBaseDir: model.TasksBaseDirForWorkspace(state.workspaceRoot),
+	}
 }
 
 func (fb *formBuilder) build() *huh.Form {

@@ -90,7 +90,7 @@ func resolveMigrationTarget(cfg MigrationConfig) (string, error) {
 
 	rootDir := strings.TrimSpace(cfg.RootDir)
 	if rootDir == "" {
-		rootDir = model.TasksBaseDir()
+		rootDir = model.TasksBaseDirForWorkspace(cfg.WorkspaceRoot)
 	}
 
 	target := rootDir

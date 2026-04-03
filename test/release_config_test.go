@@ -40,6 +40,67 @@ func TestGoReleaserConfigSupportsFirstRelease(t *testing.T) {
 	}
 }
 
+func TestGoReleaserConfigUsesReadableChangelogTitlesAndFiltersReleaseCommits(t *testing.T) {
+	t.Parallel()
+
+	content, err := os.ReadFile(filepath.Join(repoRoot(t), ".goreleaser.yml"))
+	if err != nil {
+		t.Fatalf("read goreleaser config: %v", err)
+	}
+
+	text := string(content)
+
+	expectedTitles := []string{
+		`title: "🎉 Features"`,
+		`title: "🐛 Bug Fixes"`,
+		`title: "⚡ Performance Improvements"`,
+		`title: "🔒 Security"`,
+		`title: "📚 Documentation"`,
+		`title: "♻️ Refactoring"`,
+		`title: "📦 Dependencies"`,
+		`title: "🧪 Testing"`,
+		`title: "Other Changes"`,
+	}
+
+	for _, title := range expectedTitles {
+		if !strings.Contains(text, title) {
+			t.Fatalf("expected goreleaser changelog config to include readable group title %q", title)
+		}
+	}
+
+	unexpectedTitles := []string{
+		`title: "\U0001F389"`,
+		`title: "\U0001F41B"`,
+		`title: "⚡"`,
+		`title: "\U0001F510"`,
+		`title: "\U0001F4DA"`,
+		`title: "\U0001F527"`,
+		`title: "\U0001F4E6"`,
+		`title: "\U0001F9EA"`,
+		`title: "\U0001F504"`,
+	}
+
+	for _, title := range unexpectedTitles {
+		if strings.Contains(text, title) {
+			t.Fatalf("expected goreleaser changelog config to avoid emoji-only group title %q", title)
+		}
+	}
+
+	expectedFilters := []string{
+		`- "^ci\\(release\\): "`,
+		`- "^chore\\(release\\): "`,
+	}
+
+	for _, filter := range expectedFilters {
+		if !strings.Contains(text, filter) {
+			t.Fatalf(
+				"expected goreleaser changelog config to exclude release automation commits with filter %q",
+				filter,
+			)
+		}
+	}
+}
+
 func TestSetupReleaseActionUsesSupportedCosignVersionCommand(t *testing.T) {
 	t.Parallel()
 

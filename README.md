@@ -318,6 +318,8 @@ compozy start [flags]
 ```
 
 Running `compozy start` with no flags opens the interactive form automatically.
+When present, `.compozy/config.toml` can provide defaults for runtime flags such as
+`--ide`, `--model`, `--reasoning-effort`, `--timeout`, `--add-dir`, and `--auto-commit`.
 
 | Flag                         | Default     | Description                                                   |
 | ---------------------------- | ----------- | ------------------------------------------------------------- |
@@ -345,6 +347,7 @@ compozy fetch-reviews [flags]
 ```
 
 Running `compozy fetch-reviews` with no flags opens the interactive form automatically.
+When present, `.compozy/config.toml` can provide defaults such as `--provider`.
 
 | Flag         | Default | Description                               |
 | ------------ | ------- | ----------------------------------------- |
@@ -363,6 +366,8 @@ compozy fix-reviews [flags]
 ```
 
 Running `compozy fix-reviews` with no flags opens the interactive form automatically.
+When present, `.compozy/config.toml` can provide runtime defaults as well as review workflow
+defaults such as `--concurrent`, `--batch-size`, `--grouped`, and `--include-resolved`.
 
 | Flag                         | Default     | Description                                                   |
 | ---------------------------- | ----------- | ------------------------------------------------------------- |
@@ -441,6 +446,7 @@ internal/core/           Internal facade for preparation and execution
 internal/setup/          Bundled skill installer (agent detection, symlink/copy)
 internal/version/        Build metadata
 skills/                  Bundled installable skills
+.compozy/config.toml     Optional workspace defaults for CLI execution
 .compozy/tasks/          Default workflow artifact root (PRDs, TechSpecs, tasks, ADRs, reviews)
 ```
 

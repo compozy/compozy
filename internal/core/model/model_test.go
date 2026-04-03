@@ -60,6 +60,44 @@ func TestPathHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should build workspace-aware paths", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := filepath.Join(string(filepath.Separator), "tmp", "workspace")
+		if got := model.CompozyDir(workspaceRoot); got != filepath.Join(workspaceRoot, ".compozy") {
+			t.Fatalf("unexpected compozy dir: %q", got)
+		}
+		if got := model.ConfigPathForWorkspace(
+			workspaceRoot,
+		); got != filepath.Join(
+			workspaceRoot,
+			".compozy",
+			"config.toml",
+		) {
+			t.Fatalf("unexpected config path: %q", got)
+		}
+		if got := model.TasksBaseDirForWorkspace(
+			workspaceRoot,
+		); got != filepath.Join(
+			workspaceRoot,
+			".compozy",
+			"tasks",
+		) {
+			t.Fatalf("unexpected workspace tasks dir: %q", got)
+		}
+		if got := model.TaskDirectoryForWorkspace(
+			workspaceRoot,
+			"demo",
+		); got != filepath.Join(
+			workspaceRoot,
+			".compozy",
+			"tasks",
+			"demo",
+		) {
+			t.Fatalf("unexpected workspace task dir: %q", got)
+		}
+	})
+
 	t.Run("Should build the archived tasks directory", func(t *testing.T) {
 		t.Parallel()
 

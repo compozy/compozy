@@ -23,6 +23,7 @@ const (
 	DefaultGeminiModel      = "gemini-2.5-pro"
 	DefaultActivityTimeout  = 10 * time.Minute
 	WorkflowRootDirName     = ".compozy"
+	WorkflowConfigFileName  = "config.toml"
 	WorkflowTasksDirName    = "tasks"
 	ArchivedWorkflowDirName = "_archived"
 	ModeCodeReview          = "pr-review"
@@ -37,6 +38,7 @@ const (
 )
 
 type RuntimeConfig struct {
+	WorkspaceRoot          string
 	Name                   string
 	Round                  int
 	Provider               string
@@ -90,11 +92,31 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 }
 
 func TasksBaseDir() string {
-	return filepath.Join(WorkflowRootDirName, WorkflowTasksDirName)
+	return TasksBaseDirForWorkspace("")
 }
 
 func TaskDirectory(name string) string {
-	return filepath.Join(TasksBaseDir(), name)
+	return TaskDirectoryForWorkspace("", name)
+}
+
+func CompozyDir(workspaceRoot string) string {
+	trimmed := strings.TrimSpace(workspaceRoot)
+	if trimmed == "" {
+		return WorkflowRootDirName
+	}
+	return filepath.Join(filepath.Clean(trimmed), WorkflowRootDirName)
+}
+
+func ConfigPathForWorkspace(workspaceRoot string) string {
+	return filepath.Join(CompozyDir(workspaceRoot), WorkflowConfigFileName)
+}
+
+func TasksBaseDirForWorkspace(workspaceRoot string) string {
+	return filepath.Join(CompozyDir(workspaceRoot), WorkflowTasksDirName)
+}
+
+func TaskDirectoryForWorkspace(workspaceRoot, name string) string {
+	return filepath.Join(TasksBaseDirForWorkspace(workspaceRoot), name)
 }
 
 func ArchivedTasksDir(baseDir string) string {

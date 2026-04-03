@@ -26,7 +26,11 @@ const (
 var ErrNoReviewRounds = errors.New("no review rounds found")
 
 func TaskDirectory(name string) string {
-	return model.TaskDirectory(name)
+	return TaskDirectoryForWorkspace("", name)
+}
+
+func TaskDirectoryForWorkspace(workspaceRoot, name string) string {
+	return model.TaskDirectoryForWorkspace(workspaceRoot, name)
 }
 
 func RoundDirName(round int) string {

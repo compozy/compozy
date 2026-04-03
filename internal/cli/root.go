@@ -9,6 +9,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +24,8 @@ const (
 )
 
 type commandState struct {
+	workspaceRoot          string
+	projectConfig          workspace.ProjectConfig
 	kind                   commandKind
 	mode                   core.Mode
 	pr                     string
@@ -58,6 +61,9 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage: true,
 		Long: `Compozy manages review rounds and PRD execution workflows.
 
+Project-level defaults can be stored in .compozy/config.toml. Explicit CLI flags
+always override values loaded from the workspace config.
+
 Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
   compozy migrate       Convert legacy workflow artifacts to frontmatter
@@ -89,7 +95,8 @@ func newFetchReviewsCommand() *cobra.Command {
 		Use:          "fetch-reviews",
 		Short:        "Fetch provider review comments into a PRD review round",
 		SilenceUsage: true,
-		Long:         "Fetch review comments from a provider and write them into .compozy/tasks/<name>/reviews-NNN/.",
+		Long: "Fetch review comments from a provider and write them into .compozy/tasks/<name>/reviews-NNN/.\n\n" +
+			"When --provider is omitted, Compozy can load its default from .compozy/config.toml.",
 		Example: `  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
   compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
   compozy fetch-reviews`,
@@ -110,7 +117,9 @@ func newFixReviewsCommand() *cobra.Command {
 		Short:        "Process review issue files from a PRD review round",
 		SilenceUsage: true,
 		Long: `Process review issue markdown files from .compozy/tasks/<name>/reviews-NNN/ and run the configured AI agent
-to remediate review feedback.`,
+to remediate review feedback.
+
+Most runtime defaults can be supplied by .compozy/config.toml.`,
 		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
   compozy fix-reviews --name my-feature --round 2
   compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001
@@ -142,7 +151,9 @@ func newStartCommand() *cobra.Command {
 		Short:        "Execute PRD task files from a PRD directory",
 		SilenceUsage: true,
 		Long: `Execute task markdown files from a PRD workflow directory and dispatch them to the configured
-AI agent one task at a time.`,
+AI agent one task at a time.
+
+Most runtime defaults can be supplied by .compozy/config.toml.`,
 		Example: `  compozy start --name multi-repo --tasks-dir .compozy/tasks/multi-repo --ide claude
   compozy start`,
 		RunE: state.run,
@@ -156,23 +167,26 @@ AI agent one task at a time.`,
 }
 
 type migrateCommandState struct {
-	rootDir    string
-	name       string
-	tasksDir   string
-	reviewsDir string
-	dryRun     bool
+	workspaceRoot string
+	rootDir       string
+	name          string
+	tasksDir      string
+	reviewsDir    string
+	dryRun        bool
 }
 
 type syncCommandState struct {
-	rootDir  string
-	name     string
-	tasksDir string
+	workspaceRoot string
+	rootDir       string
+	name          string
+	tasksDir      string
 }
 
 type archiveCommandState struct {
-	rootDir  string
-	name     string
-	tasksDir string
+	workspaceRoot string
+	rootDir       string
+	name          string
+	tasksDir      string
 }
 
 func newMigrateCommand() *cobra.Command {
@@ -323,6 +337,9 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 }
 
 func (s *commandState) run(cmd *cobra.Command, _ []string) error {
+	if err := s.applyWorkspaceDefaults(cmd); err != nil {
+		return err
+	}
 	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
 		return err
 	}
@@ -341,6 +358,9 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
+	if err := s.applyWorkspaceDefaults(cmd); err != nil {
+		return err
+	}
 	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
 		return err
 	}
@@ -371,15 +391,19 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
+	if err := s.loadWorkspaceRoot(); err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	result, err := core.Migrate(ctx, core.MigrationConfig{
-		RootDir:    s.rootDir,
-		Name:       s.name,
-		TasksDir:   s.tasksDir,
-		ReviewsDir: s.reviewsDir,
-		DryRun:     s.dryRun,
+		WorkspaceRoot: s.workspaceRoot,
+		RootDir:       s.rootDir,
+		Name:          s.name,
+		TasksDir:      s.tasksDir,
+		ReviewsDir:    s.reviewsDir,
+		DryRun:        s.dryRun,
 	})
 	if result != nil {
 		const summaryFormat = "Migrate target: %s\n" +
@@ -407,13 +431,17 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
+	if err := s.loadWorkspaceRoot(); err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	result, err := core.Sync(ctx, core.SyncConfig{
-		RootDir:  s.rootDir,
-		Name:     s.name,
-		TasksDir: s.tasksDir,
+		WorkspaceRoot: s.workspaceRoot,
+		RootDir:       s.rootDir,
+		Name:          s.name,
+		TasksDir:      s.tasksDir,
 	})
 	if result != nil {
 		const summaryFormat = "Sync target: %s\n" +
@@ -433,13 +461,17 @@ func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *archiveCommandState) run(cmd *cobra.Command, _ []string) error {
+	if err := s.loadWorkspaceRoot(); err != nil {
+		return err
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	result, err := core.Archive(ctx, core.ArchiveConfig{
-		RootDir:  s.rootDir,
-		Name:     s.name,
-		TasksDir: s.tasksDir,
+		WorkspaceRoot: s.workspaceRoot,
+		RootDir:       s.rootDir,
+		Name:          s.name,
+		TasksDir:      s.tasksDir,
 	})
 	if result != nil {
 		const summaryFormat = "Archive target: %s\n" +
@@ -497,6 +529,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 	}
 
 	return core.Config{
+		WorkspaceRoot:          s.workspaceRoot,
 		Name:                   s.name,
 		Round:                  s.round,
 		Provider:               s.provider,

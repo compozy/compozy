@@ -62,7 +62,7 @@ func resolveSyncTarget(cfg SyncConfig) (string, bool, error) {
 
 	rootDir := strings.TrimSpace(cfg.RootDir)
 	if rootDir == "" {
-		rootDir = model.TasksBaseDir()
+		rootDir = model.TasksBaseDirForWorkspace(cfg.WorkspaceRoot)
 	}
 
 	target := rootDir
