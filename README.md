@@ -77,10 +77,10 @@ compozy setup --all    # install everything to every detected agent
 ## 🔄 How It Works
 
 ```
-compozy setup                           Install skills (once per project)
+compozy setup                          Install skills (once per project)
    │
    ▼
-/cy-create-prd user-auth               .compozy/tasks/user-auth/_prd.md
+/cy-create-prd <prompt>                .compozy/tasks/user-auth/_prd.md
    │                                    + Architecture Decision Records
    ▼
 /cy-create-techspec user-auth          .compozy/tasks/user-auth/_techspec.md
@@ -89,14 +89,13 @@ compozy setup                           Install skills (once per project)
 /cy-create-tasks user-auth             .compozy/tasks/user-auth/task_01.md … task_N.md
    │
    ▼
-compozy sync --name user-auth          Refresh task workflow _meta.md
-   │
-   ▼
 compozy start --name user-auth         AI agents execute each task
    │                                    ↕ .compozy/tasks/user-auth/memory/
    │
    ▼
-compozy fetch-reviews / /cy-review-round  .compozy/tasks/user-auth/reviews-001/
+/cy-review-round  .compozy/tasks/user-auth/reviews-001 
+or 
+looper fetch-reviews --provider coderabbit --pr <number> --name user-auth
    │
    ▼
 compozy fix-reviews --name user-auth   Issues triaged, fixed, resolved
@@ -119,7 +118,7 @@ This walkthrough builds a feature called **user-auth** from idea to shipped code
 ### 1. Install skills
 
 ```bash
-compozy setup --all --yes
+compozy setup
 ```
 
 Auto-detects installed agents and copies (or symlinks) skills into their configuration directories.
@@ -129,7 +128,7 @@ Auto-detects installed agents and copies (or symlinks) skills into their configu
 Inside your AI agent (Claude Code, Codex, Cursor, OpenCode, Pi, etc.):
 
 ```
-/cy-create-prd user-auth
+/cy-create-prd <prompt>
 ```
 
 Interactive brainstorming session — asks clarifying questions, spawns parallel agents to research your codebase and the web, produces a business-focused PRD with ADRs.
