@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/skills"
 )
 
@@ -52,6 +53,46 @@ func TestBundledSkillsExistAndUsePortableReferences(t *testing.T) {
 	checkPortableContent(t, filepath.Join(root, "skills", "cy-create-techspec", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "cy-create-tasks", "SKILL.md"))
 	checkPortableContent(t, filepath.Join(root, "skills", "cy-review-round", "SKILL.md"))
+}
+
+func TestBundledSkillFrontmatterParses(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	paths, err := filepath.Glob(filepath.Join(root, "skills", "*", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("glob bundled skills: %v", err)
+	}
+	if len(paths) == 0 {
+		t.Fatal("expected bundled skills to exist")
+	}
+
+	for _, skillPath := range paths {
+		skillPath := skillPath
+		t.Run(filepath.Base(filepath.Dir(skillPath)), func(t *testing.T) {
+			t.Parallel()
+
+			content, err := os.ReadFile(skillPath)
+			if err != nil {
+				t.Fatalf("read %s: %v", skillPath, err)
+			}
+
+			var metadata struct {
+				Name         string `yaml:"name"`
+				Description  string `yaml:"description"`
+				ArgumentHint any    `yaml:"argument-hint,omitempty"`
+			}
+			if _, err := frontmatter.Parse(string(content), &metadata); err != nil {
+				t.Fatalf("parse frontmatter %s: %v", skillPath, err)
+			}
+			if metadata.Name == "" {
+				t.Fatalf("expected %s to define a non-empty name", skillPath)
+			}
+			if metadata.Description == "" {
+				t.Fatalf("expected %s to define a non-empty description", skillPath)
+			}
+		})
+	}
 }
 
 func TestEmbeddedSkillsFSMatchesOnDisk(t *testing.T) {

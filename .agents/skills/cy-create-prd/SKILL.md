@@ -1,7 +1,7 @@
 ---
 name: cy-create-prd
 description: Creates a Product Requirements Document through interactive brainstorming with parallel codebase and web research. Use when starting a new feature or product, building a PRD, or brainstorming requirements. Do not use for technical specifications, task breakdowns, or code implementation.
-argument-hint: [feature-name-or-idea] [issue-file]
+argument-hint: "[feature-name-or-idea] [issue-file]"
 ---
 
 # Create PRD

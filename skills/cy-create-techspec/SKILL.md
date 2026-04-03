@@ -1,7 +1,7 @@
 ---
 name: cy-create-techspec
 description: Creates a Technical Specification by translating PRD business requirements into implementation designs through interactive technical clarification. Use when a PRD exists and needs a technical plan, or when technical architecture decisions need documentation. Do not use for PRD creation, task breakdown, or direct code implementation.
-argument-hint: [feature-name] [prd-file]
+argument-hint: "[feature-name] [prd-file]"
 ---
 
 # Create TechSpec

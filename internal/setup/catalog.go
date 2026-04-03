@@ -1,12 +1,13 @@
 package setup
 
 import (
-	"bufio"
 	"fmt"
 	"io/fs"
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/core/frontmatter"
 )
 
 // ListSkills enumerates bundled public skills from the provided bundle.
@@ -41,64 +42,26 @@ func ListSkills(bundle fs.FS) ([]Skill, error) {
 
 func parseSkill(bundle fs.FS, dir string) (Skill, error) {
 	skillPath := path.Join(dir, "SKILL.md")
-	file, err := bundle.Open(skillPath)
+	content, err := fs.ReadFile(bundle, skillPath)
 	if err != nil {
 		return Skill{}, fmt.Errorf("read bundled skill %q: %w", dir, err)
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	if !scanner.Scan() {
-		return Skill{}, fmt.Errorf("read bundled skill %q: empty SKILL.md", dir)
+	var metadata struct {
+		Name         string `yaml:"name"`
+		Description  string `yaml:"description"`
+		ArgumentHint any    `yaml:"argument-hint,omitempty"`
 	}
-	if strings.TrimSpace(scanner.Text()) != "---" {
-		return Skill{}, fmt.Errorf("read bundled skill %q: missing YAML frontmatter", dir)
-	}
-
-	var (
-		name        string
-		description string
-	)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "---" {
-			break
-		}
-		key, value, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
-		}
-
-		key = strings.TrimSpace(key)
-		value = trimYAMLString(value)
-		switch key {
-		case "name":
-			name = value
-		case "description":
-			description = value
-		}
-	}
-	if err := scanner.Err(); err != nil {
+	if _, err := frontmatter.Parse(string(content), &metadata); err != nil {
 		return Skill{}, fmt.Errorf("read bundled skill %q: %w", dir, err)
 	}
-	if name == "" || description == "" {
+	if metadata.Name == "" || metadata.Description == "" {
 		return Skill{}, fmt.Errorf("read bundled skill %q: missing name or description", dir)
 	}
 
 	return Skill{
-		Name:        name,
-		Description: description,
+		Name:        metadata.Name,
+		Description: metadata.Description,
 		Directory:   dir,
 	}, nil
-}
-
-func trimYAMLString(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if len(trimmed) >= 2 {
-		if (trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"') ||
-			(trimmed[0] == '\'' && trimmed[len(trimmed)-1] == '\'') {
-			return trimmed[1 : len(trimmed)-1]
-		}
-	}
-	return trimmed
 }

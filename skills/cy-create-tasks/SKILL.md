@@ -1,7 +1,7 @@
 ---
 name: cy-create-tasks
 description: Decomposes PRDs and TechSpecs into detailed, independently implementable task files with enrichment from codebase exploration. Use when a PRD or TechSpec exists and needs to be broken down into executable tasks, or when task files need enrichment with implementation context. Do not use for PRD creation, TechSpec generation, or direct task execution.
-argument-hint: [feature-name] [prd-file]
+argument-hint: "[feature-name] [prd-file]"
 ---
 
 # Create Tasks
