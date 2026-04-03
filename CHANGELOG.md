@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### 🎉 Features
 
+- Add config.toml (#40)
+### 🐛 Bug Fixes
+
+- Check skills shift before run- Acp permission
+## 0.1.4 - 2026-04-03
+
+### 🎉 Features
+
 - Add cy-idea-factory skill and improve planning skills DX (#35)
 ### 🐛 Bug Fixes
 
@@ -15,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 📦 Build System
 
 - Fix skills symlink
+### 🔧 CI/CD
+
+- *(release)* Prepare release v0.1.4 (#39)
+
 ## 0.1.3 - 2026-04-03
 
 ### 🎉 Features
@@ -109,7 +121,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
-[unreleased]: https://github.com///compare/v0.1.3...HEAD
+[unreleased]: https://github.com///compare/v0.1.4...HEAD
+[0.1.4]: https://github.com///compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com///compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com///compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com///compare/v0.1.0...v0.1.1
