@@ -94,8 +94,6 @@ When the direct ACP command is not installed, Compozy can also fall back to supp
   <img src="imgs/how-it-works.png" alt="Compozy workflow from setup to ship with markdown artifacts at each step" width="100%">
 </div>
 
-The editable source for this graph lives in [`imgs/how-it-works.drawio`](imgs/how-it-works.drawio).
-
 Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can read, edit, or version-control any of them between steps.
 
 Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
