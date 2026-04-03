@@ -151,7 +151,7 @@ func TestSharedReferenceFilesAreIdentical(t *testing.T) {
 		}
 
 		for _, p := range paths[1:] {
-			t.Run(p, func(t *testing.T) {
+			t.Run("Should keep "+p+" identical to "+paths[0], func(t *testing.T) {
 				t.Parallel()
 
 				content, err := os.ReadFile(filepath.Join(root, p))
