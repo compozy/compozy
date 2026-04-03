@@ -1,7 +1,7 @@
 ---
 name: cy-create-issue
 description: Transforms a raw idea into a structured issue spec in .compozy/tasks/<slug>/_issue.md through interactive brainstorming, web research, business analysis, and multi-advisor debate. Use when the user has a feature idea and wants to structure it before creating a PRD. Do not use for PRD creation, technical specifications, task breakdown, or code implementation.
-argument-hint: <feature-idea>
+argument-hint: [feature-idea]
 ---
 
 # Create Issue
@@ -39,9 +39,10 @@ You MUST create a task for each phase and complete them in order:
 3. **Research the market** — web research for competitive intelligence and market data + codebase exploration
 4. **Analyze business viability** — adopt business analyst persona (`references/business-analyst.md`) for KPIs, personas, and success metrics
 5. **Debate trade-offs** — run council session (`references/council.md`) to challenge assumptions and surface risks
-6. **Draft the issue** — write using the canonical template from `references/issue-template.md`
-7. **Review with user** — present the draft, iterate until approved
-8. **Save the file** — write to `.compozy/tasks/<slug>/_issue.md`
+6. **Scan for opportunities** — adopt product strategist persona (`references/product-strategist.md`) to suggest higher-leverage alternatives before committing to the draft
+7. **Draft the issue** — write using the canonical template from `references/issue-template.md`
+8. **Review with user** — present the draft, iterate until approved
+9. **Save the file** — write to `.compozy/tasks/<slug>/_issue.md`
 
 ## Workflow
 
@@ -119,7 +120,23 @@ You MUST create a task for each phase and complete them in order:
      - Fill the template: recommended scope as "Decision", alternatives as "Alternatives Considered", trade-offs as "Consequences". Set Status to "Accepted" and Date to today.
      - Write the ADR to `.compozy/tasks/<slug>/adrs/adr-NNN.md` (zero-padded 3-digit number).
 
-6. Draft the issue.
+6. Scan for opportunities.
+   - Read `references/product-strategist.md` and adopt the product strategist persona.
+   - Using all context gathered so far (research, business analysis, council output), evaluate whether the original idea is the highest-leverage move.
+   - Suggest up to 3 alternatives spanning different scales:
+     - One more ambitious version (what if we thought bigger?)
+     - One simpler version (what if we stripped it to the essence?)
+     - One adjacent opportunity (what related problem could we solve instead?)
+   - Score each alternative using the evaluation framework from the reference.
+   - Present the opportunity scan to the user with a clear recommendation:
+     - "Here is the opportunity scan. I recommend proceeding with [Original / Alternative N / Hybrid]. Which direction do you prefer?"
+     - A) Proceed with the original idea
+     - B) Adopt alternative N (specify which)
+     - C) Hybrid approach (combine elements)
+     - D) Other — describe
+   - Incorporate the chosen direction into the draft. If the user picks an alternative, update the feature scope accordingly before proceeding.
+
+7. Draft the issue.
    - Read `references/issue-template.md` and fill every applicable section with gathered context.
    - Include an "Architecture Decision Records" section listing all ADRs created during this session.
    - Mandatory sections (ALWAYS include): Overview, Problem (enriched with market data), Core Features, KPIs, Feature Assessment, Council Insights, Out of Scope (V1), Architecture Decision Records, Open Questions.
@@ -129,7 +146,7 @@ You MUST create a task for each phase and complete them in order:
    - Tables: use markdown tables for structured data. Features: minimum 3, maximum 10, ordered by priority. KPIs: minimum 3, maximum 6, with numeric targets. Exclusions: minimum 3 items with justification.
    - Present the complete draft to the user for review.
 
-7. Review with the user.
+8. Review with the user.
    - Present the draft and ask using the interactive question tool:
      - "Here is the issue draft. Please review and let me know:"
      - A) Approved — save as is
@@ -139,7 +156,7 @@ You MUST create a task for each phase and complete them in order:
    - If B or C: make the changes and present again.
    - If D: go back to step 2.
 
-8. Save the issue file.
+9. Save the issue file.
    - Generate the slug: kebab-case, 2-5 words, descriptive (e.g., `smart-thumbnail-suggestions`).
    - Ask the user to confirm the filename using the interactive question tool:
      - "Save as `.compozy/tasks/<slug>/_issue.md`? (A) Yes / (B) Different name"
@@ -157,6 +174,8 @@ digraph create_issue {
     "Analyze business viability" [shape=box];
     "Debate trade-offs (council)" [shape=box];
     "Create ADR for scope decision" [shape=box];
+    "Opportunity scan (product strategist)" [shape=box];
+    "User picks direction?" [shape=diamond];
     "Draft issue (canonical template)" [shape=box];
     "User approves draft?" [shape=diamond];
     "Save _issue.md" [shape=doublecircle];
@@ -166,7 +185,9 @@ digraph create_issue {
     "Discover context (codebase + web)" -> "Analyze business viability";
     "Analyze business viability" -> "Debate trade-offs (council)";
     "Debate trade-offs (council)" -> "Create ADR for scope decision";
-    "Create ADR for scope decision" -> "Draft issue (canonical template)";
+    "Create ADR for scope decision" -> "Opportunity scan (product strategist)";
+    "Opportunity scan (product strategist)" -> "User picks direction?";
+    "User picks direction?" -> "Draft issue (canonical template)" [label="confirmed"];
     "Draft issue (canonical template)" -> "User approves draft?";
     "User approves draft?" -> "Draft issue (canonical template)" [label="no, revise"];
     "User approves draft?" -> "Save _issue.md" [label="approved"];
