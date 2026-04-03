@@ -75,6 +75,38 @@ func TestResolveInputsUsesDefaultPRDDirectory(t *testing.T) {
 	}
 }
 
+func TestResolveInputsUsesWorkspaceRootForDefaultTaskDirectory(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+	t.Chdir(nested)
+
+	tasksDir := filepath.Join(root, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	name, inputDir, resolved, err := resolveInputs(&model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: root,
+		Mode:          model.ExecutionModePRDTasks,
+	})
+	if err != nil {
+		t.Fatalf("resolveInputs: %v", err)
+	}
+	if name != "demo" {
+		t.Fatalf("unexpected resolved name: %q", name)
+	}
+	if inputDir != tasksDir {
+		t.Fatalf("unexpected input dir\nwant: %q\ngot:  %q", tasksDir, inputDir)
+	}
+	if resolved != tasksDir {
+		t.Fatalf("unexpected resolved dir\nwant: %q\ngot:  %q", tasksDir, resolved)
+	}
+}
+
 func TestValidateAndFilterEntriesReportsCompletedTaskWorkflowsSeparately(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{

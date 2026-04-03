@@ -21,7 +21,7 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		return nil, err
 	}
 
-	prdDir := reviews.TaskDirectory(cfg.Name)
+	prdDir := reviews.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, cfg.Name)
 	resolvedPRDDir, err := filepath.Abs(prdDir)
 	if err != nil {
 		return nil, fmt.Errorf("resolve prd dir: %w", err)

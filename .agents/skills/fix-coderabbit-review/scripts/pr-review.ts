@@ -1,0 +1,1182 @@
+#!/usr/bin/env node
+/**
+ * PR Review Exporter (fixed)
+ *
+ * What changed:
+ * - Correctly detects resolved vs unresolved by mapping REST review comments to
+ *   GraphQL review thread comments via IDs (databaseId / node_id).
+ * - Removed brittle body+author matching.
+ * - Summary language corrected (review threads can be resolved; general PR comments cannot).
+ *
+ * Usage:
+ *   GITHUB_TOKEN=ghp_... pnpm exec pr-review.ts <PR_NUMBER> [--unresolve-missing-marker]
+ *
+ * Flags:
+ *   --unresolve-missing-marker  If set, any GitHub review thread that is currently
+ *                               resolved BUT does not contain the ADDRESSED_MARKER
+ *                               in any comment will be un-resolved via GraphQL.
+ *   --hide-resolved            If set, resolved review threads will not have issue
+ *                               files generated (only unresolved issues will be created).
+ *   --grouped                  If set, files will be generated per file path instead of
+ *                               per individual issue/nitpick (grouped output).
+ *   --skip-outdated            If set, outdated review comments (where position is null)
+ *                               will be excluded from the export.
+ */
+
+import { config } from "dotenv";
+import { graphql } from "@octokit/graphql";
+import { Octokit } from "@octokit/rest";
+import { promises as fs } from "fs";
+import { basename, join, resolve } from "path";
+import { execSync } from "child_process";
+
+// Load environment variables from .env file in the root directory
+// Script runs from repo root via pnpm, so .env should be in process.cwd()
+config({ path: resolve(process.cwd(), ".env") });
+
+// ---------- Constants ----------
+const CODERABBIT_BOT_LOGIN = "coderabbitai[bot]";
+const ADDRESSED_MARKER = "✅ Addressed in commit";
+
+// ---------- Types ----------
+interface BaseUser {
+  login: string;
+}
+
+interface Comment {
+  body: string;
+  user: BaseUser;
+  created_at: string;
+
+  // Present only for review (inline) comments:
+  path?: string;
+  line?: number;
+
+  // Present only for review (inline) comments from REST:
+  id?: number; // REST numeric id
+  node_id?: string; // REST relay/global ID (matches GraphQL id)
+  position?: number | null; // null if comment is outdated (line no longer exists in current diff)
+  original_position?: number | null; // original position when comment was created
+  outdated?: boolean; // explicit flag indicating if comment is outdated (true = outdated, false/undefined = not outdated)
+}
+
+interface ReviewComment extends Comment {
+  path: string;
+  line: number;
+  id: number;
+  node_id: string;
+}
+
+interface IssueComment extends Comment {
+  // General PR comments; no path/line/id resolution
+}
+
+interface SimpleReviewComment {
+  // Pull Request Review (summary) comments, e.g., Approve/Comment with body
+  id: number; // review id (used by GitHub anchors: pullrequestreview-<id>)
+  body: string;
+  user: BaseUser;
+  created_at: string; // submitted_at from API
+  state: string; // APPROVED | COMMENTED | CHANGES_REQUESTED | DISMISSED
+}
+
+interface ReviewThread {
+  id: string;
+  isResolved: boolean;
+  comments: {
+    nodes: Array<{
+      id: string; // GraphQL relay/global ID
+      databaseId: number | null; // GraphQL numeric DB id
+      body: string;
+      author: { login: string | null };
+      createdAt: string;
+    }>;
+  };
+}
+
+type ResolutionPolicy = "strict" | "github";
+
+type DetailSection = "nitpick" | "outside" | "duplicate";
+
+interface GroupedFile {
+  filePath: string;
+  relativePath: string;
+  displayPath: string;
+  entries: string[];
+  index: number;
+}
+
+type GroupCollection = Map<string, GroupedFile>;
+
+interface PageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface GraphQLThreadsPage {
+  repository: {
+    pullRequest: {
+      reviewThreads: {
+        nodes: Array<
+          ReviewThread & {
+            comments: ReviewThread["comments"] & { pageInfo: PageInfo };
+          }
+        >;
+        pageInfo: PageInfo;
+      };
+    };
+  };
+}
+
+interface GraphQLThreadCommentsPage {
+  node:
+    | null
+    | (ReviewThread & {
+        comments: ReviewThread["comments"] & { pageInfo: PageInfo };
+      });
+}
+
+// ---------- Main ----------
+async function main() {
+  const args = process.argv.slice(2);
+  if (args.length === 0) {
+    console.error(
+      "Usage: pnpm exec pr-review.ts <pr_number> [--unresolve-missing-marker] [--hide-resolved] [--grouped] [--skip-outdated]"
+    );
+    process.exit(1);
+  }
+
+  const prNumber = Number(args[0]);
+  const unresolveMissingMarker = args.includes("--unresolve-missing-marker");
+  const hideResolved = args.includes("--hide-resolved");
+  const groupedOutput = args.includes("--grouped");
+  const skipOutdated = args.includes("--skip-outdated");
+  let resolutionPolicy: ResolutionPolicy = "github";
+  const policyArg = args.find(a => a.startsWith("--resolution-policy="));
+  if (policyArg) {
+    const val = policyArg.split("=")[1]?.trim().toLowerCase();
+    if (val === "github" || val === "strict") {
+      resolutionPolicy = val as ResolutionPolicy;
+    } else {
+      console.warn(
+        `Warning: unknown --resolution-policy value '${val}'. Falling back to 'strict'.`
+      );
+    }
+  }
+  if (!Number.isInteger(prNumber)) {
+    console.error("Error: PR number must be a valid integer");
+    process.exit(1);
+  }
+
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    console.error("Error: GITHUB_TOKEN environment variable is not set.");
+    process.exit(1);
+  }
+
+  const { owner, repo } = await getRepoInfo();
+
+  console.log(`Fetching PR #${prNumber} from ${owner}/${repo} ...`);
+  const octokit = new Octokit({ auth: token });
+
+  // Fetch data
+  console.log("  → review comments (REST) ...");
+  const allReviewComments = await fetchAllReviewComments(octokit, owner, repo, prNumber);
+
+  console.log("  → issue comments (REST) ...");
+  const allIssueComments = await fetchAllIssueComments(octokit, owner, repo, prNumber);
+
+  console.log("  → review threads (GraphQL) ...");
+  const reviewThreads = await fetchReviewThreads(token, owner, repo, prNumber);
+
+  if (unresolveMissingMarker) {
+    console.log("  → enforcing policy by unresolving threads missing the ADDRESSED_MARKER ...");
+    const { attempted, changed } = await unresolveThreadsMissingMarker(token, reviewThreads);
+    console.log(`    Unresolve attempts: ${attempted} • actually changed: ${changed}`);
+  }
+
+  console.log("  → pull request reviews (REST) ...");
+  const allSimpleReviews = await fetchAllPullRequestReviews(octokit, owner, repo, prNumber);
+
+  // Filter to CodeRabbit bot comments only
+  let coderabbitReviewComments = allReviewComments.filter(
+    c => c.user?.login === CODERABBIT_BOT_LOGIN
+  );
+
+  // Track original count before filtering outdated comments
+  const originalReviewCommentsCount = coderabbitReviewComments.length;
+  let skippedOutdatedCount = 0;
+
+  if (skipOutdated) {
+    const beforeCount = coderabbitReviewComments.length;
+    // GitHub API marks outdated comments with outdated: true OR position: null
+    // Note: outdated is true (outdated), false or undefined (not outdated)
+    coderabbitReviewComments = coderabbitReviewComments.filter(c => {
+      // Explicit outdated flag
+      if (c.outdated === true) return false;
+      // Position is null means outdated (line no longer exists in current diff)
+      if (c.position === null) return false;
+      return true;
+    });
+    skippedOutdatedCount = beforeCount - coderabbitReviewComments.length;
+    if (skippedOutdatedCount > 0) {
+      console.log(`    Skipped ${skippedOutdatedCount} outdated comment(s)`);
+    }
+  }
+  const coderabbitIssueComments = allIssueComments.filter(
+    c => c.user?.login === CODERABBIT_BOT_LOGIN
+  );
+  const coderabbitSimpleReviews = allSimpleReviews.filter(
+    r => r.user?.login === CODERABBIT_BOT_LOGIN && (r.body?.trim()?.length ?? 0) > 0
+  );
+
+  if (
+    coderabbitReviewComments.length +
+      coderabbitIssueComments.length +
+      coderabbitSimpleReviews.length ===
+    0
+  ) {
+    console.log(`No CodeRabbit AI comments found for PR #${prNumber}.`);
+    return;
+  }
+
+  const outputDir = `./ai-docs/reviews-pr-${prNumber}`;
+  const issuesDir = join(outputDir, "issues");
+  const outsideDir = join(outputDir, "outside");
+  const summaryFile = join(outputDir, "_summary.md");
+  await fs.mkdir(outputDir, { recursive: true });
+  await fs.mkdir(issuesDir, { recursive: true });
+  await fs.mkdir(outsideDir, { recursive: true });
+
+  const groupedIssues: GroupCollection = new Map();
+  const groupedOutside: GroupCollection = new Map();
+  const groupedOutsideCounter = { value: 0 };
+  let groupedIssueCounter = 0;
+
+  const issueFilePaths: string[] = [];
+
+  // Categories:
+  // - issues: resolvable review comments (inline threads)
+  // - outside: extracted outside-of-diff details from simple comments
+  const reviewComments = coderabbitReviewComments.slice();
+  const issueComments = coderabbitIssueComments.slice();
+  const simpleReviewComments = coderabbitSimpleReviews.slice();
+
+  // Sort each category chronologically by creation time
+  reviewComments.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  issueComments.sort((a, b) => a.created_at.localeCompare(b.created_at));
+  simpleReviewComments.sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+  // Count resolution by policy: thread resolved AND contains "✅ Addressed in commit"
+  const resolvedCount = reviewComments.filter(c =>
+    isCommentResolvedByPolicy(c, reviewThreads, resolutionPolicy)
+  ).length;
+  const unresolvedCount = reviewComments.length - resolvedCount;
+
+  console.log("Creating issue files (resolvable review threads) in issues/ ...");
+  let createdIssueCount = 0;
+  for (let i = 0; i < reviewComments.length; i++) {
+    const comment = reviewComments[i];
+    const isResolved = isCommentResolvedByPolicy(comment, reviewThreads, resolutionPolicy);
+
+    if (hideResolved && isResolved) {
+      console.log(`  Skipped resolved issue ${i + 1}: ${comment.path}:${comment.line}`);
+      continue;
+    }
+
+    createdIssueCount++;
+    let issueRelativePath: string;
+    if (groupedOutput) {
+      const groupKey = comment.path || "unknown";
+      const grouped = ensureGroup(groupedIssues, groupKey, () => {
+        groupedIssueCounter++;
+        const fileBase = buildGroupedIssueFileName(comment);
+        const fileName = `${formatIndex(groupedIssueCounter)}-${fileBase}`;
+        return {
+          filePath: join(issuesDir, fileName),
+          relativePath: `issues/${fileName}`,
+          displayPath: groupKey,
+          entries: [],
+          index: groupedIssueCounter,
+        };
+      });
+      grouped.entries.push(
+        renderIssueContent(createdIssueCount, comment, reviewThreads, resolutionPolicy, 2)
+      );
+      issueRelativePath = grouped.relativePath;
+    } else {
+      issueRelativePath = await createIssueFile(
+        issuesDir,
+        createdIssueCount,
+        comment,
+        reviewThreads,
+        resolutionPolicy
+      );
+    }
+    issueFilePaths.push(issueRelativePath);
+  }
+
+  if (groupedOutput) {
+    await writeGroupedFiles(groupedIssues, pathLabel => `# Issues for \`${pathLabel}\``);
+  }
+
+  console.log("Extracting outside-of-diff details from simple comments into outside/ ...");
+  // Merge general PR comments and simple PR review bodies into one sequence
+  type SimpleItem =
+    | { kind: "issue_comment"; data: IssueComment }
+    | { kind: "review"; data: SimpleReviewComment };
+  const simpleItems: SimpleItem[] = [
+    ...issueComments.map(c => ({ kind: "issue_comment" as const, data: c })),
+    ...simpleReviewComments.map(r => ({ kind: "review" as const, data: r })),
+  ].sort((a, b) => a.data.created_at.localeCompare(b.data.created_at));
+  type ExtractedInfo = {
+    file: string;
+    resolved: boolean;
+    summaryPath: string;
+    section: DetailSection;
+  };
+  const allExtracted: ExtractedInfo[] = [];
+  for (let i = 0; i < simpleItems.length; i++) {
+    const created = await createOutsideFilesFromSimpleComment(i + 1, simpleItems[i], {
+      outsideDir,
+      grouped: groupedOutput,
+      groupedMap: groupedOutside,
+      groupedCounter: groupedOutsideCounter,
+    });
+    allExtracted.push(...created);
+  }
+
+  if (groupedOutput) {
+    await writeGroupedFiles(groupedOutside, pathLabel => `# Outside-of-diff for \`${pathLabel}\``);
+  }
+
+  await createSummaryFile(
+    summaryFile,
+    prNumber,
+    reviewComments,
+    issueFilePaths,
+    resolvedCount,
+    unresolvedCount,
+    reviewThreads,
+    resolutionPolicy,
+    allExtracted,
+    createdIssueCount,
+    hideResolved,
+    skipOutdated,
+    skippedOutdatedCount,
+    originalReviewCommentsCount
+  );
+
+  const generatedOutsideFileCount = new Set(allExtracted.map(item => item.file)).size;
+  const totalGenerated = createdIssueCount + generatedOutsideFileCount;
+  const hiddenResolvedCount = hideResolved
+    ? Math.max(
+        0,
+        originalReviewCommentsCount - createdIssueCount - (skipOutdated ? skippedOutdatedCount : 0)
+      )
+    : 0;
+  const hiddenNoteParts = [
+    ...(skipOutdated && skippedOutdatedCount > 0
+      ? [`${skippedOutdatedCount} outdated comments skipped`]
+      : []),
+    ...(hideResolved && hiddenResolvedCount > 0
+      ? [`${hiddenResolvedCount} resolved issues hidden`]
+      : []),
+  ];
+  const hiddenNote = hiddenNoteParts.length > 0 ? ` (${hiddenNoteParts.join(", ")})` : "";
+  console.log(`\n✅ Done. ${totalGenerated} files in ${outputDir}${hiddenNote}`);
+  console.log(`ℹ️ Threads resolved: ${resolvedCount} • unresolved: ${unresolvedCount}`);
+}
+
+// ---------- Helpers ----------
+async function getRepoInfo(): Promise<{ owner: string; repo: string }> {
+  try {
+    const remoteUrl = execSync("git config --get remote.origin.url", {
+      encoding: "utf8",
+      stdio: "pipe",
+    }).trim();
+    const match = remoteUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/);
+    if (match) return { owner: match[1], repo: match[2] };
+    throw new Error("Could not parse repository information from git remote");
+  } catch (error) {
+    console.error(
+      "Error getting repository info. Ensure you're in a git repository with a GitHub remote."
+    );
+    throw error;
+  }
+}
+
+async function fetchAllReviewComments(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<ReviewComment[]> {
+  try {
+    const comments = await octokit.paginate(octokit.rest.pulls.listReviewComments, {
+      owner,
+      repo,
+      pull_number: prNumber,
+      per_page: 500,
+    });
+
+    // Normalize to the fields we use (and ensure id/node_id present)
+    return comments.map((c: any) => ({
+      id: c.id,
+      node_id: c.node_id,
+      body: c.body || "",
+      user: { login: c.user?.login || "" },
+      created_at: c.created_at,
+      path: c.path,
+      line: c.line,
+      position: c.position !== undefined ? c.position : null, // null if outdated (line no longer exists in current diff)
+      original_position: c.original_position !== undefined ? c.original_position : null,
+      outdated: c.outdated === true ? true : c.outdated === false ? false : undefined,
+    })) as ReviewComment[];
+  } catch (error) {
+    console.warn("Warning: Could not fetch review comments:", error);
+    return [];
+  }
+}
+
+async function fetchAllIssueComments(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<IssueComment[]> {
+  try {
+    const comments = await octokit.paginate(octokit.rest.issues.listComments, {
+      owner,
+      repo,
+      issue_number: prNumber,
+      per_page: 500,
+    });
+
+    return comments.map((c: any) => ({
+      body: c.body || "",
+      user: { login: c.user?.login || "" },
+      created_at: c.created_at,
+    })) as IssueComment[];
+  } catch (error) {
+    console.warn("Warning: Could not fetch issue comments:", error);
+    return [];
+  }
+}
+
+async function fetchAllPullRequestReviews(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<SimpleReviewComment[]> {
+  try {
+    const reviews = await octokit.paginate(octokit.rest.pulls.listReviews, {
+      owner,
+      repo,
+      pull_number: prNumber,
+      per_page: 500,
+    });
+
+    return reviews.map((r: any) => ({
+      id: r.id,
+      body: r.body || "",
+      user: { login: r.user?.login || "" },
+      created_at: r.submitted_at || r.created_at,
+      state: r.state,
+    })) as SimpleReviewComment[];
+  } catch (error) {
+    console.warn("Warning: Could not fetch pull request reviews:", error);
+    return [];
+  }
+}
+
+async function fetchReviewThreads(
+  token: string,
+  owner: string,
+  repo: string,
+  prNumber: number
+): Promise<ReviewThread[]> {
+  try {
+    const perPage = 100; // GitHub GraphQL max for connections
+
+    const threadsQuery = `
+      query($owner: String!, $repo: String!, $number: Int!, $cursor: String) {
+        repository(owner: $owner, name: $repo) {
+          pullRequest(number: $number) {
+            reviewThreads(first: ${perPage}, after: $cursor) {
+              nodes {
+                id
+                isResolved
+                comments(first: ${perPage}) {
+                  nodes {
+                    id
+                    databaseId
+                    body
+                    author { login }
+                    createdAt
+                  }
+                  pageInfo { hasNextPage endCursor }
+                }
+              }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+      }
+    `;
+
+    const threadCommentsQuery = `
+      query($id: ID!, $cursor: String) {
+        node(id: $id) {
+          ... on PullRequestReviewThread {
+            id
+            isResolved
+            comments(first: ${perPage}, after: $cursor) {
+              nodes {
+                id
+                databaseId
+                body
+                author { login }
+                createdAt
+              }
+              pageInfo { hasNextPage endCursor }
+            }
+          }
+        }
+      }
+    `;
+
+    const headers = { authorization: `token ${token}` } as const;
+    const all = new Map<
+      string,
+      ReviewThread & { comments: { nodes: ReviewThread["comments"]["nodes"] } }
+    >();
+
+    let cursor: string | null = null;
+    let hasNext = true;
+    while (hasNext) {
+      const page = await graphql<GraphQLThreadsPage>(threadsQuery, {
+        owner,
+        repo,
+        number: prNumber,
+        cursor,
+        headers,
+      });
+
+      const rt = page.repository.pullRequest.reviewThreads;
+      for (const node of rt.nodes) {
+        // Initialize or merge thread entry
+        const existing = all.get(node.id);
+        if (!existing) {
+          all.set(node.id, {
+            id: node.id,
+            isResolved: node.isResolved,
+            comments: { nodes: [...node.comments.nodes] },
+          });
+        } else {
+          // Update resolution status and append comments
+          existing.isResolved = node.isResolved;
+          existing.comments.nodes.push(...node.comments.nodes);
+        }
+
+        // Paginate comments for this thread if needed
+        let cHasNext = node.comments.pageInfo.hasNextPage;
+        let cCursor = node.comments.pageInfo.endCursor;
+        while (cHasNext) {
+          const cPage = await graphql<GraphQLThreadCommentsPage>(threadCommentsQuery, {
+            id: node.id,
+            cursor: cCursor,
+            headers,
+          });
+          const n = cPage.node;
+          if (!n) break;
+          const entry = all.get(n.id)!;
+          entry.isResolved = n.isResolved;
+          entry.comments.nodes.push(...n.comments.nodes);
+          cHasNext = n.comments.pageInfo.hasNextPage;
+          cCursor = n.comments.pageInfo.endCursor;
+        }
+      }
+
+      hasNext = rt.pageInfo.hasNextPage;
+      cursor = rt.pageInfo.endCursor;
+    }
+
+    return Array.from(all.values());
+  } catch (error) {
+    console.warn("Warning: Could not fetch review threads:", error);
+    return [];
+  }
+}
+
+// Policy-level resolution: the thread must be resolved AND contain
+// a confirmation marker "✅ Addressed in commit" somewhere in the thread.
+function isCommentResolvedByPolicy(
+  comment: Comment,
+  reviewThreads: ReviewThread[],
+  policy: ResolutionPolicy = "strict"
+): boolean {
+  if (!("path" in comment && "line" in comment)) return false;
+  const rc = comment as ReviewComment;
+  for (const thread of reviewThreads) {
+    const match = thread.comments.nodes.some(
+      tc =>
+        (tc.databaseId != null && rc.id != null && tc.databaseId === rc.id) ||
+        (!!rc.node_id && tc.id === rc.node_id)
+    );
+    if (match) {
+      if (policy === "github") {
+        return Boolean(thread.isResolved);
+      }
+      // strict policy (default): require marker
+      const hasAddressed = thread.comments.nodes.some(tc =>
+        (tc.body || "").includes(ADDRESSED_MARKER)
+      );
+      return Boolean(thread.isResolved && hasAddressed);
+    }
+  }
+  return false;
+}
+
+function renderIssueContent(
+  issueNumber: number,
+  comment: ReviewComment,
+  reviewThreads: ReviewThread[],
+  resolutionPolicy: ResolutionPolicy,
+  headingLevel = 1
+): string {
+  const formattedDate = formatDate(comment.created_at);
+  const resolvedStatus = isCommentResolvedByPolicy(comment, reviewThreads, resolutionPolicy)
+    ? "- [x] RESOLVED ✓"
+    : "- [ ] UNRESOLVED";
+  const thread = findThreadForReviewComment(comment, reviewThreads);
+  const threadId = thread?.id ?? "";
+  const heading = `${"#".repeat(headingLevel)} Issue ${issueNumber} - Review Thread Comment`;
+  return `${heading}
+
+**File:** \`${comment.path}:${comment.line}\`
+**Date:** ${formattedDate}
+**Status:** ${resolvedStatus}
+
+## Body
+
+${comment.body}
+
+## Resolve
+
+Thread ID: ${threadId ? `\`${threadId}\`` : "(not found)"}
+
+\`\`\`bash
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=${threadId || "<THREAD_ID>"}
+\`\`\`
+
+---
+*Generated from PR review - CodeRabbit AI*
+`;
+}
+
+async function createIssueFile(
+  outputDir: string,
+  issueNumber: number,
+  comment: ReviewComment,
+  reviewThreads: ReviewThread[],
+  resolutionPolicy: ResolutionPolicy
+): Promise<string> {
+  const fileName = `${formatIndex(issueNumber)}-issue.md`;
+  const file = join(outputDir, fileName);
+  const content = renderIssueContent(issueNumber, comment, reviewThreads, resolutionPolicy);
+  await fs.writeFile(file, content, "utf8");
+  console.log(`  Created ${file}`);
+  return `issues/${fileName}`;
+}
+
+function buildGroupedIssueFileName(comment: ReviewComment): string {
+  const rawPath = comment.path || "unknown_file";
+  const sanitized = sanitizePath(rawPath);
+  const base = sanitized || "unknown_file";
+  return `${base}.md`;
+}
+
+function buildGroupedDetailFileName(section: DetailSection, summaryPath: string): string {
+  const prefix =
+    section === "outside" ? "outside" : section === "duplicate" ? "duplicate" : "nitpick";
+  const sanitized = sanitizePath(summaryPath || "unknown_detail");
+  const base = sanitized || "unknown_detail";
+  return `${prefix}_${base}.md`;
+}
+
+function formatIndex(index: number): string {
+  return index.toString().padStart(3, "0");
+}
+
+function ensureGroup(
+  collection: GroupCollection,
+  key: string,
+  factory: () => GroupedFile
+): GroupedFile {
+  let group = collection.get(key);
+  if (!group) {
+    group = factory();
+    collection.set(key, group);
+  }
+  return group;
+}
+
+async function writeGroupedFiles(
+  collection: GroupCollection,
+  headerBuilder: (displayPath: string) => string
+): Promise<void> {
+  const groups = Array.from(collection.values()).sort((a, b) => a.index - b.index);
+  for (const group of groups) {
+    const header = headerBuilder(group.displayPath || "unknown");
+    const normalizedHeader = header.endsWith("\n") ? header : `${header}\n`;
+    const content = `${normalizedHeader}\n${group.entries.join("\n\n---\n\n")}`;
+    await fs.writeFile(group.filePath, content, "utf8");
+    console.log(`  Created ${group.filePath}`);
+  }
+}
+
+// Maps a REST review comment to its GraphQL review thread, if available.
+function findThreadForReviewComment(
+  comment: ReviewComment,
+  reviewThreads: ReviewThread[]
+): ReviewThread | undefined {
+  for (const thread of reviewThreads) {
+    const match = thread.comments.nodes.some(
+      tc =>
+        (tc.databaseId != null && comment.id != null && tc.databaseId === comment.id) ||
+        (!!comment.node_id && tc.id === comment.node_id)
+    );
+    if (match) return thread;
+  }
+  return undefined;
+}
+
+function renderDetailContent(
+  section: DetailSection,
+  commentNumber: number,
+  formattedDate: string,
+  summaryPath: string,
+  resolved: boolean,
+  detailsHtml: string,
+  headingLevel = 1
+): string {
+  const headingPrefix = "#".repeat(headingLevel);
+  const title =
+    section === "outside" ? "Outside-of-diff" : section === "duplicate" ? "Duplicate" : "Nitpick";
+  const status = resolved ? "- [x] RESOLVED ✓" : "- [ ] UNRESOLVED";
+  return `${headingPrefix} ${title} from Comment ${commentNumber}\n\n**File:** \`${summaryPath}\`\n**Date:** ${formattedDate}\n**Status:** ${status}\n\n## Details\n\n${detailsHtml}\n`;
+}
+
+async function createOutsideFilesFromSimpleComment(
+  commentNumber: number,
+  item:
+    | { kind: "issue_comment"; data: IssueComment }
+    | { kind: "review"; data: SimpleReviewComment },
+  dirs: {
+    outsideDir: string;
+    grouped?: boolean;
+    groupedMap?: GroupCollection;
+    groupedCounter?: { value: number };
+  }
+): Promise<
+  {
+    file: string;
+    resolved: boolean;
+    summaryPath: string;
+    section: DetailSection;
+  }[]
+> {
+  const d = item.data;
+  const formattedDate = formatDate(d.created_at);
+  // Parse and extract details blocks from simple comments; only outside-of-diff is exported.
+  const perFile = extractPerFileDetailsFromMarkdown(d.body);
+  const createdFiles: {
+    file: string;
+    resolved: boolean;
+    summaryPath: string;
+    section: DetailSection;
+  }[] = [];
+  for (let i = 0; i < perFile.length; i++) {
+    const { detailsHtml, summaryPath, section } = perFile[i];
+    if (section !== "outside") {
+      continue;
+    }
+    const resolved = isNitpickResolved(detailsHtml);
+    const base = sanitizePath(summaryPath);
+    const targetDir = dirs.outsideDir;
+    const writeIndividual = async () => {
+      const nitFileName = `${formatIndex(commentNumber)}-outside_${(i + 1).toString().padStart(2, "0")}_${base}.md`;
+      const nitFile = join(targetDir, nitFileName);
+      const nitContent = renderDetailContent(
+        section,
+        commentNumber,
+        formattedDate,
+        summaryPath,
+        resolved,
+        detailsHtml
+      );
+      await fs.writeFile(nitFile, nitContent, "utf8");
+      createdFiles.push({ file: nitFile, resolved, summaryPath, section });
+      console.log(`    ↳ Outside-of-diff ${i + 1}: ${nitFile}`);
+    };
+
+    if (dirs.grouped && dirs.groupedMap) {
+      if (!dirs.groupedCounter) {
+        console.warn("    Warning: grouped outside counter missing. Falling back.");
+        await writeIndividual();
+        continue;
+      }
+      const collection = dirs.groupedMap;
+      const fileBase = buildGroupedDetailFileName(section, summaryPath);
+      const groupKey = summaryPath || "unknown_detail";
+      const groupedFile = ensureGroup(collection, groupKey, () => {
+        dirs.groupedCounter.value += 1;
+        const fileName = `${formatIndex(dirs.groupedCounter.value)}-${fileBase}`;
+        return {
+          filePath: join(targetDir, fileName),
+          relativePath: `outside/${fileName}`,
+          displayPath: summaryPath,
+          entries: [],
+          index: dirs.groupedCounter.value,
+        };
+      });
+      groupedFile.entries.push(
+        renderDetailContent(
+          section,
+          commentNumber,
+          formattedDate,
+          summaryPath,
+          resolved,
+          detailsHtml,
+          2
+        )
+      );
+      createdFiles.push({ file: groupedFile.filePath, resolved, summaryPath, section });
+      continue;
+    }
+
+    if (dirs.grouped && !dirs.groupedMap) {
+      console.warn("    Warning: grouped outside map missing. Falling back.");
+    }
+
+    await writeIndividual();
+  }
+  return createdFiles;
+}
+
+async function createSummaryFile(
+  summaryFile: string,
+  prNumber: number,
+  reviewComments: ReviewComment[],
+  issueFiles: string[],
+  resolvedCount: number,
+  unresolvedCount: number,
+  reviewThreads: ReviewThread[],
+  resolutionPolicy: ResolutionPolicy,
+  extracted: {
+    file: string;
+    resolved: boolean;
+    summaryPath: string;
+    section: DetailSection;
+  }[],
+  createdIssueCount: number,
+  hideResolved: boolean,
+  skipOutdated: boolean,
+  skippedOutdatedCount: number,
+  originalReviewCommentsCount: number
+): Promise<void> {
+  const now = new Date().toISOString();
+  const filteredNoteParts = [
+    ...(skipOutdated && skippedOutdatedCount > 0
+      ? [`${skippedOutdatedCount} outdated skipped`]
+      : []),
+    ...(hideResolved ? [`filtered from ${originalReviewCommentsCount} total`] : []),
+  ];
+  const filteredNote = filteredNoteParts.length > 0 ? ` (${filteredNoteParts.join(", ")})` : "";
+  const outsideEntries = extracted.filter(entry => entry.section === "outside");
+  let content = `# PR Review #${prNumber} - CodeRabbit AI Export
+
+This folder contains exported issues (resolvable review threads) and outside-of-diff details for PR #${prNumber}.
+
+## Summary
+
+- **Issues (resolvable review comments):** ${createdIssueCount}${filteredNote}
+- **Outside-of-diff entries:** ${outsideEntries.length}
+  - **Resolved issues:** ${resolvedCount} ✓
+  - **Unresolved issues:** ${unresolvedCount}
+
+**Generated on:** ${formatDate(now)}
+
+## Issues
+
+`;
+
+  let issueIndex = 0;
+  for (let i = 0; i < reviewComments.length; i++) {
+    const comment = reviewComments[i];
+    const isResolved = isCommentResolvedByPolicy(comment, reviewThreads, resolutionPolicy);
+
+    if (hideResolved && isResolved) {
+      continue; // Skip resolved issues when hideResolved is true
+    }
+
+    issueIndex++;
+    const checked = isResolved ? "x" : " ";
+    const issueFile = issueFiles[issueIndex - 1] || `issues/${formatIndex(issueIndex)}-issue.md`;
+    const loc = ` ${comment.path}:${comment.line}`;
+    content += `- [${checked}] [Issue ${issueIndex}](${issueFile}) -${loc}\n`;
+  }
+
+  if (outsideEntries.length > 0) {
+    const resolvedOutsideCount = outsideEntries.filter(entry => entry.resolved).length;
+    const unresolvedOutsideCount = outsideEntries.length - resolvedOutsideCount;
+    content += `\n## Outside-of-diff\n\n`;
+    content += `- Resolved: ${resolvedOutsideCount} ✓\n`;
+    content += `- Unresolved: ${unresolvedOutsideCount}\n\n`;
+    for (const entry of outsideEntries) {
+      const rel = `outside/${basename(entry.file)}`;
+      const checked = entry.resolved ? "x" : " ";
+      content += `- [${checked}] [${entry.summaryPath}](${rel})\n`;
+    }
+  }
+
+  await fs.writeFile(summaryFile, content, "utf8");
+  console.log(`  Created summary file: ${summaryFile}`);
+}
+
+// ---- Nitpicks extraction ----
+function extractPerFileDetailsFromMarkdown(
+  body: string
+): { detailsHtml: string; summaryPath: string; section: DetailSection }[] {
+  if (!body) return [];
+  // Limit extraction strictly to known sections to avoid pulling from
+  // "Review details" (e.g., Code graph analysis, Additional comments).
+  // We compute the ranges of the outer <details> blocks for:
+  //  - Nitpick comments
+  //  - Outside-of-diff / Outside diff range comments
+  //  - Duplicate comments
+  // Then only accept per-file <details> whose <summary> falls within one of these ranges.
+  const allowedRanges = findAllowedSectionRanges(body);
+  const out: {
+    detailsHtml: string;
+    summaryPath: string;
+    section: DetailSection;
+  }[] = [];
+  const summaryRe = /<summary[^>]*>([\s\S]*?)<\/summary>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = summaryRe.exec(body)) !== null) {
+    const rawSummary = m[1] || "";
+    const cleanSummary = cleanupHtmlText(rawSummary);
+    const pathMatch = cleanSummary.match(/(.+?)\s*\((\d+)\)\s*$/);
+    if (!pathMatch) continue; // Not a per-file summary
+    const pathLike = (pathMatch[1] || "").trim();
+    if (!pathLike.includes("/")) continue;
+    // Skip if this summary is not inside an allowed section range
+    const sumIdx = m.index;
+    if (!isWithinAnyRange(sumIdx, allowedRanges)) continue;
+    // Find nearest preceding <details ...> before this summary (the per-file block)
+    const detailsOpenIdx = body.lastIndexOf("<details", sumIdx);
+    if (detailsOpenIdx < 0) continue;
+    // Find the matching closing </details> for this specific open, handling nesting
+    const { end: detailsCloseIdx } = matchDetailsRangeFromOpen(body, detailsOpenIdx) || ({} as any);
+    if (typeof detailsCloseIdx !== "number") continue;
+    const block = body.slice(detailsOpenIdx, detailsCloseIdx);
+    const section = inferSection(body, detailsOpenIdx);
+    out.push({ detailsHtml: block.trim(), summaryPath: pathLike, section });
+  }
+  return dedupeByContent(out);
+}
+
+type Range = { start: number; end: number; section: DetailSection };
+
+function findAllowedSectionRanges(body: string): Range[] {
+  const ranges: Range[] = [];
+  const lower = body.toLowerCase();
+  const add = (section: Range["section"], marker: RegExp) => {
+    const m = marker.exec(lower);
+    if (!m) return;
+    const titleIdx = m.index;
+    const detailsOpenIdx = lower.lastIndexOf("<details", titleIdx);
+    if (detailsOpenIdx < 0) return;
+    const match = matchDetailsRangeFromOpen(body, detailsOpenIdx);
+    if (!match) return;
+    ranges.push({ start: match.start, end: match.end, section });
+  };
+  add("nitpick", /<summary[^>]*>[^<]*nitpick\s+comments[^<]*<\/summary>/i);
+  add(
+    "outside",
+    /<summary[^>]*>[^<]*(outside\s*(?:-?of\s*diff|diff\s*range\s*comments))[^<]*<\/summary>/i
+  );
+  add("duplicate", /<summary[^>]*>[^<]*duplicate\s+comments[^<]*<\/summary>/i);
+  return ranges;
+}
+
+function isWithinAnyRange(index: number, ranges: Range[]): boolean {
+  for (const r of ranges) {
+    if (index > r.start && index < r.end) return true;
+  }
+  return false;
+}
+
+function matchDetailsRangeFromOpen(
+  body: string,
+  openIdx: number
+): { start: number; end: number } | null {
+  const len = body.length;
+  let pos = openIdx;
+  let depth = 0;
+  // Sanity check the token at openIdx
+  if (body.slice(openIdx, openIdx + 8).toLowerCase() !== "<details") return null;
+  depth = 1;
+  pos = openIdx + 8;
+  while (pos < len) {
+    const nextOpen = body.indexOf("<details", pos);
+    const nextClose = body.indexOf("</details>", pos);
+    if (nextClose === -1) return null;
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth++;
+      pos = nextOpen + 8;
+      continue;
+    }
+    // close comes first
+    depth--;
+    pos = nextClose + "</details>".length;
+    if (depth === 0) {
+      return { start: openIdx, end: pos };
+    }
+  }
+  return null;
+}
+
+function dedupeByContent<T extends { detailsHtml: string; summaryPath: string }>(items: T[]) {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const it of items) {
+    const key = it.summaryPath + "\n" + it.detailsHtml;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
+  }
+  return out;
+}
+
+function inferSection(body: string, beforeIndex: number): DetailSection {
+  const prefix = body.slice(0, beforeIndex).toLowerCase();
+  const idxOutside = Math.max(
+    prefix.lastIndexOf("outside diff range comments"),
+    prefix.lastIndexOf("outside of diff")
+  );
+  const idxNitpick = prefix.lastIndexOf("nitpick comments");
+  const idxDuplicate = prefix.lastIndexOf("duplicate comments");
+  const maxIdx = Math.max(idxOutside, idxNitpick, idxDuplicate);
+  if (maxIdx === idxOutside) return "outside";
+  if (maxIdx === idxDuplicate) return "duplicate";
+  if (maxIdx === idxNitpick) return "nitpick";
+  return "nitpick"; // default bucket
+}
+
+function isNitpickResolved(detailsHtml: string): boolean {
+  if (!detailsHtml) return false;
+  const lower = detailsHtml.toLowerCase();
+  // Heuristic: consider resolved if the details block contains this explicit marker.
+  return lower.includes(ADDRESSED_MARKER.toLowerCase());
+}
+
+// ---- Optional policy enforcement (unresolve on missing marker) ----
+async function unresolveThreadsMissingMarker(
+  token: string,
+  threads: ReviewThread[]
+): Promise<{ attempted: number; changed: number }> {
+  let attempted = 0;
+  let changed = 0;
+  for (const t of threads) {
+    const hasMarker = t.comments.nodes.some(tc => (tc.body || "").includes(ADDRESSED_MARKER));
+    if (t.isResolved && !hasMarker) {
+      attempted++;
+      try {
+        const ok = await unresolveReviewThread(token, t.id);
+        if (ok) changed++;
+      } catch (e) {
+        console.warn(`    Warning: failed to unresolve thread ${t.id.substring(0, 12)}...`, e);
+      }
+    }
+  }
+  return { attempted, changed };
+}
+
+async function unresolveReviewThread(token: string, threadId: string): Promise<boolean> {
+  const mutation = `
+    mutation($threadId: ID!) {
+      unresolveReviewThread(input: { threadId: $threadId }) {
+        thread { id isResolved }
+      }
+    }
+  `;
+  try {
+    const result = await graphql<{
+      unresolveReviewThread: { thread: { id: string; isResolved: boolean } };
+    }>(mutation, {
+      threadId,
+      headers: { authorization: `token ${token}` },
+    });
+    return result.unresolveReviewThread.thread?.isResolved === false;
+  } catch (error) {
+    console.warn(
+      `    Warning: GraphQL failed to unresolve thread ${threadId.substring(0, 12)}...`,
+      error
+    );
+    return false;
+  }
+}
+
+function sanitizePath(p: string): string {
+  return p.replace(/[^a-zA-Z0-9._-]+/g, "_");
+}
+
+function cleanupHtmlText(s: string): string {
+  // Remove any nested tags and collapse whitespace
+  const noTags = s.replace(/<[^>]+>/g, "");
+  return noTags.replace(/\s+/g, " ").trim();
+}
+
+function getConfiguredTimeZone(): string {
+  const env = process.env.PR_REVIEW_TZ;
+  if (!env || env.toLowerCase() === "local") {
+    const sys = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return sys || "UTC";
+  }
+  return env;
+}
+
+function formatDate(dateString: string): string {
+  try {
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return dateString;
+    const tz = getConfiguredTimeZone();
+    const parts = new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+      timeZone: tz,
+    })
+      .formatToParts(d)
+      .reduce(
+        (acc: Record<string, string>, p) => {
+          acc[p.type] = p.value;
+          return acc;
+        },
+        {} as Record<string, string>
+      );
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${tz}`;
+  } catch {
+    return dateString; // fallback to original format
+  }
+}
+
+main().catch(console.error);

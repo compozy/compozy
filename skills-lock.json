@@ -15,6 +15,11 @@
       "source": "jgraph/drawio-mcp",
       "sourceType": "github",
       "computedHash": "c0cafc1ad6a5b474d2e5c7d92c07f69298a79eb4f9ae4bd31fde0bfe039aa3c5"
+    },
+    "fix-coderabbit-review": {
+      "source": "pedronauck/skills",
+      "sourceType": "github",
+      "computedHash": "3b8c91501866e5591903ff6eb06106dd17915269776c49f407c72961d13a4cee"
     }
   }
 }

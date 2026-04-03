@@ -32,13 +32,17 @@ func resolveTaskInputs(cfg *model.RuntimeConfig) (string, string, string, error)
 
 	var err error
 	if name == "" {
-		name, err = inferTaskNameFromTasksDir(tasksDir)
+		resolvedTasksDir, resolveErr := filepath.Abs(tasksDir)
+		if resolveErr != nil {
+			return "", "", "", fmt.Errorf("resolve tasks dir: %w", resolveErr)
+		}
+		name, err = inferTaskNameFromTasksDir(resolvedTasksDir, cfg.WorkspaceRoot)
 		if err != nil {
 			return "", "", "", err
 		}
 	}
 	if tasksDir == "" {
-		tasksDir = model.TaskDirectory(name)
+		tasksDir = model.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, name)
 	}
 
 	resolvedTasksDir, err := filepath.Abs(tasksDir)
@@ -62,7 +66,7 @@ func resolveReviewInputs(cfg *model.RuntimeConfig) (string, string, string, erro
 	}
 
 	if reviewsDir == "" {
-		prdDir := reviews.TaskDirectory(name)
+		prdDir := reviews.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, name)
 		resolvedPRDDir, err := filepath.Abs(prdDir)
 		if err != nil {
 			return "", "", "", fmt.Errorf("resolve prd dir: %w", err)
@@ -94,7 +98,7 @@ func resolveReviewInputs(cfg *model.RuntimeConfig) (string, string, string, erro
 	}
 
 	if name == "" {
-		name, err = inferTaskNameFromReviewsDir(resolvedReviewsDir)
+		name, err = inferTaskNameFromReviewsDir(resolvedReviewsDir, cfg.WorkspaceRoot)
 		if err != nil {
 			return "", "", "", err
 		}
@@ -240,7 +244,7 @@ func groupIssues(entries []model.IssueEntry) map[string][]model.IssueEntry {
 	return groups
 }
 
-func inferTaskNameFromTasksDir(dir string) (string, error) {
+func inferTaskNameFromTasksDir(dir, _ string) (string, error) {
 	baseDir := regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir()))
 	re := regexp.MustCompile(`(?:^|/)` + baseDir + `/([^/]+)$`)
 	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
@@ -253,7 +257,7 @@ func inferTaskNameFromTasksDir(dir string) (string, error) {
 	return m[1], nil
 }
 
-func inferTaskNameFromReviewsDir(dir string) (string, error) {
+func inferTaskNameFromReviewsDir(dir, _ string) (string, error) {
 	baseDir := regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir()))
 	re := regexp.MustCompile(`(?:^|/)` + baseDir + `/([^/]+)/reviews-\d+$`)
 	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))

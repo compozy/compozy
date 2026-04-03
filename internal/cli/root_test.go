@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -370,6 +372,57 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 	}
 }
 
+func TestFormInputsApplyClearsPrefilledOptionalValues(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	state.round = 2
+	state.reviewsDir = ".compozy/tasks/my-feature/reviews-001"
+	state.model = "gpt-5.4"
+	state.addDirs = []string{"../shared", "../docs,archive"}
+	state.timeout = "5m"
+
+	cmd := newTestCommand(state)
+	cmd.Flags().Int("round", 0, "round")
+	cmd.Flags().String("reviews-dir", "", "review dir")
+
+	fi := &formInputs{}
+	fi.apply(cmd, state)
+
+	if state.round != 0 {
+		t.Fatalf("expected round to clear, got %d", state.round)
+	}
+	if state.reviewsDir != "" {
+		t.Fatalf("expected reviewsDir to clear, got %q", state.reviewsDir)
+	}
+	if state.model != "" {
+		t.Fatalf("expected model to clear, got %q", state.model)
+	}
+	if state.timeout != "" {
+		t.Fatalf("expected timeout to clear, got %q", state.timeout)
+	}
+	if state.addDirs != nil {
+		t.Fatalf("expected addDirs to clear, got %#v", state.addDirs)
+	}
+}
+
+func TestFormInputsApplyParsesQuotedAddDirs(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	cmd := newTestCommand(state)
+
+	fi := &formInputs{
+		addDirs: "\"../docs,archive\", ../shared",
+	}
+	fi.apply(cmd, state)
+
+	want := []string{"../docs,archive", "../shared"}
+	if !reflect.DeepEqual(state.addDirs, want) {
+		t.Fatalf("unexpected addDirs from quoted form input\nwant: %#v\ngot:  %#v", want, state.addDirs)
+	}
+}
+
 func TestFormInputsApplyForStartWorkflow(t *testing.T) {
 	t.Parallel()
 
@@ -487,6 +540,74 @@ func TestFetchReviewsWithPartialFlagsSkipsFormAndReturnsValidationError(t *testi
 	}
 	if !strings.Contains(output, "Error: fetch-reviews requires --name") {
 		t.Fatalf("unexpected command output: %q", output)
+	}
+}
+
+func TestStartCommandWrapsWorkspaceDefaultErrors(t *testing.T) {
+	root := t.TempDir()
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+timeout = "not-a-duration"
+`)
+
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
+			t.Fatalf("restore cwd: %v", chdirErr)
+		}
+	})
+	if err := os.Chdir(startDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	_, err = executeRootCommand("start", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	if err == nil {
+		t.Fatal("expected workspace default error")
+	}
+	if !strings.Contains(err.Error(), "apply workspace defaults for start") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSyncCommandWrapsWorkspaceRootErrors(t *testing.T) {
+	root := t.TempDir()
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+timeout = "not-a-duration"
+`)
+
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
+			t.Fatalf("restore cwd: %v", chdirErr)
+		}
+	})
+	if err := os.Chdir(startDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	_, err = executeRootCommand("sync", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	if err == nil {
+		t.Fatal("expected workspace root error")
+	}
+	if !strings.Contains(err.Error(), "load workspace root for sync") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

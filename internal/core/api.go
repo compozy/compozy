@@ -47,6 +47,7 @@ const (
 
 // Config configures compozy preparation and execution.
 type Config struct {
+	WorkspaceRoot          string
 	Name                   string
 	Round                  int
 	Provider               string
@@ -106,11 +107,12 @@ type FetchResult struct {
 }
 
 type MigrationConfig struct {
-	RootDir    string
-	Name       string
-	TasksDir   string
-	ReviewsDir string
-	DryRun     bool
+	WorkspaceRoot string
+	RootDir       string
+	Name          string
+	TasksDir      string
+	ReviewsDir    string
+	DryRun        bool
 }
 
 type MigrationResult struct {
@@ -127,15 +129,17 @@ type MigrationResult struct {
 }
 
 type SyncConfig struct {
-	RootDir  string
-	Name     string
-	TasksDir string
+	WorkspaceRoot string
+	RootDir       string
+	Name          string
+	TasksDir      string
 }
 
 type ArchiveConfig struct {
-	RootDir  string
-	Name     string
-	TasksDir string
+	WorkspaceRoot string
+	RootDir       string
+	Name          string
+	TasksDir      string
 }
 
 type SyncResult struct {
@@ -242,6 +246,7 @@ func NormalizeAddDirs(dirs []string) []string {
 
 func (cfg Config) runtime() *model.RuntimeConfig {
 	runtimeCfg := &model.RuntimeConfig{
+		WorkspaceRoot:          cfg.WorkspaceRoot,
 		Name:                   cfg.Name,
 		Round:                  cfg.Round,
 		Provider:               cfg.Provider,
