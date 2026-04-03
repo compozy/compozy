@@ -31,10 +31,11 @@ type sessionImpl struct {
 	updates      chan model.SessionUpdate
 	done         chan struct{}
 
-	mu          sync.RWMutex
-	err         error
-	finished    bool
-	updatesSeen int
+	mu                          sync.RWMutex
+	err                         error
+	finished                    bool
+	updatesSeen                 int
+	lastUpdateWasFailedToolCall bool
 }
 
 func newSession(id string) *sessionImpl {
@@ -80,6 +81,8 @@ func (s *sessionImpl) publish(update model.SessionUpdate) {
 		update.Status = model.StatusRunning
 	}
 	s.updatesSeen++
+	s.lastUpdateWasFailedToolCall = update.Kind == model.UpdateKindToolCallUpdated &&
+		update.ToolCallState == model.ToolCallStateFailed
 	select {
 	case s.updates <- update:
 	default:
@@ -126,6 +129,12 @@ func (s *sessionImpl) waitForIdle(ctx context.Context, idleWindow time.Duration)
 			timer.Reset(idleWindow)
 		}
 	}
+}
+
+func (s *sessionImpl) lastUpdateFailedToolCall() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.lastUpdateWasFailedToolCall
 }
 
 func convertACPUpdate(update acp.SessionUpdate) (model.SessionUpdate, error) {

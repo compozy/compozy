@@ -150,6 +150,67 @@ func TestJobRunnerACPErrorThenSuccessRetries(t *testing.T) {
 	}
 }
 
+func TestExecuteJobWithTimeoutACPFailedToolCallDoesNotFailJob(t *testing.T) {
+	tmpDir := t.TempDir()
+	installACPHelperOnPath(t, []runACPHelperScenario{{
+		Updates: []acp.SessionUpdate{
+			acp.StartToolCall(
+				acp.ToolCallId("tool-1"),
+				"Read missing file",
+				acp.WithStartRawInput(map[string]any{"path": "missing.txt"}),
+			),
+			acp.UpdateToolCall(
+				acp.ToolCallId("tool-1"),
+				acp.WithUpdateStatus(acp.ToolCallStatusFailed),
+				acp.WithUpdateContent([]acp.ToolCallContent{
+					acp.ToolContent(acp.TextBlock("open missing.txt: no such file")),
+				}),
+			),
+		},
+		PromptError: &runACPHelperRequestError{
+			Code:    4242,
+			Message: "tool call failed",
+			Data:    json.RawMessage(`{"tool_call_id":"tool-1"}`),
+		},
+		PromptErrorAfterUpdates: true,
+	}})
+
+	job := newTestACPJob(tmpDir)
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			ide:                    model.IDECodex,
+			model:                  "",
+			reasoningEffort:        "medium",
+			retryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		false,
+		nil,
+		0,
+		time.Second,
+		nil,
+		nil,
+		nil,
+	)
+
+	if got := result.status; got != attemptStatusSuccess {
+		t.Fatalf("expected success status, got %s (%v)", got, result.failure)
+	}
+
+	errLog, err := os.ReadFile(job.errLog)
+	if err != nil {
+		t.Fatalf("read err log: %v", err)
+	}
+	if !strings.Contains(string(errLog), "open missing.txt: no such file") {
+		t.Fatalf("expected tool failure details in err log, got %q", string(errLog))
+	}
+	if strings.Contains(string(errLog), "ACP session error:") {
+		t.Fatalf("expected no terminal ACP session error in err log, got %q", string(errLog))
+	}
+}
+
 func TestExecuteJobWithTimeoutACPSubcommandRuntimeUsesLaunchSpec(t *testing.T) {
 	tmpDir := t.TempDir()
 	installACPHelperCommandOnPath(t, "opencode", []runACPHelperScenario{{
@@ -339,13 +400,14 @@ func TestRunACPHelperProcess(_ *testing.T) {
 }
 
 type runACPHelperScenario struct {
-	SessionID              string                    `json:"session_id,omitempty"`
-	ExpectedPromptContains string                    `json:"expected_prompt_contains,omitempty"`
-	Updates                []acp.SessionUpdate       `json:"updates,omitempty"`
-	StopReason             string                    `json:"stop_reason,omitempty"`
-	BlockUntilCancel       bool                      `json:"block_until_cancel,omitempty"`
-	NewSessionError        *runACPHelperRequestError `json:"new_session_error,omitempty"`
-	PromptError            *runACPHelperRequestError `json:"prompt_error,omitempty"`
+	SessionID               string                    `json:"session_id,omitempty"`
+	ExpectedPromptContains  string                    `json:"expected_prompt_contains,omitempty"`
+	Updates                 []acp.SessionUpdate       `json:"updates,omitempty"`
+	StopReason              string                    `json:"stop_reason,omitempty"`
+	BlockUntilCancel        bool                      `json:"block_until_cancel,omitempty"`
+	NewSessionError         *runACPHelperRequestError `json:"new_session_error,omitempty"`
+	PromptError             *runACPHelperRequestError `json:"prompt_error,omitempty"`
+	PromptErrorAfterUpdates bool                      `json:"prompt_error_after_updates,omitempty"`
 }
 
 type runACPHelperRequestError struct {
@@ -390,7 +452,7 @@ func (a *runACPHelperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (
 		}
 	}
 
-	if a.scenario.PromptError != nil {
+	if a.scenario.PromptError != nil && !a.scenario.PromptErrorAfterUpdates {
 		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
 	}
 
@@ -401,6 +463,10 @@ func (a *runACPHelperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (
 		}); err != nil {
 			return acp.PromptResponse{}, err
 		}
+	}
+
+	if a.scenario.PromptError != nil && a.scenario.PromptErrorAfterUpdates {
+		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
 	}
 
 	if a.scenario.BlockUntilCancel {

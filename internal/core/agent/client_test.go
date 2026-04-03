@@ -160,6 +160,64 @@ func TestSessionErrReturnsStructuredPromptError(t *testing.T) {
 	}
 }
 
+func TestFailedToolCallPromptErrorFinishesSessionSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "recover from tool failure",
+		Updates: []acp.SessionUpdate{
+			acp.StartToolCall(
+				acp.ToolCallId("tool-1"),
+				"Read missing file",
+				acp.WithStartRawInput(map[string]any{"path": "missing.txt"}),
+			),
+			acp.UpdateToolCall(
+				acp.ToolCallId("tool-1"),
+				acp.WithUpdateStatus(acp.ToolCallStatusFailed),
+				acp.WithUpdateContent([]acp.ToolCallContent{
+					acp.ToolContent(acp.TextBlock("open missing.txt: no such file")),
+				}),
+			),
+		},
+		PromptError: &helperRequestError{
+			Code:    4242,
+			Message: "tool call failed",
+			Data:    json.RawMessage(`{"tool_call_id":"tool-1"}`),
+		},
+		PromptErrorAfterUpdates: true,
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 3 {
+		t.Fatalf("unexpected updates length: %d", len(updates))
+	}
+	if updates[len(updates)-1].Status != model.StatusCompleted {
+		t.Fatalf("unexpected final status: %q", updates[len(updates)-1].Status)
+	}
+	if session.Err() != nil {
+		t.Fatalf("expected nil session error, got %v", session.Err())
+	}
+
+	assertBlockTypes(t, flattenBlocks(updates),
+		model.BlockToolUse,
+		model.BlockToolResult,
+	)
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
 func TestSessionDoneClosesOnContextCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -546,14 +604,15 @@ func TestACPHelperProcess(_ *testing.T) {
 }
 
 type helperScenario struct {
-	SessionID        string              `json:"session_id,omitempty"`
-	ExpectedCWD      string              `json:"expected_cwd,omitempty"`
-	ExpectedPrompt   string              `json:"expected_prompt,omitempty"`
-	Updates          []acp.SessionUpdate `json:"updates,omitempty"`
-	StopReason       string              `json:"stop_reason,omitempty"`
-	BlockUntilCancel bool                `json:"block_until_cancel,omitempty"`
-	NewSessionError  *helperRequestError `json:"new_session_error,omitempty"`
-	PromptError      *helperRequestError `json:"prompt_error,omitempty"`
+	SessionID               string              `json:"session_id,omitempty"`
+	ExpectedCWD             string              `json:"expected_cwd,omitempty"`
+	ExpectedPrompt          string              `json:"expected_prompt,omitempty"`
+	Updates                 []acp.SessionUpdate `json:"updates,omitempty"`
+	StopReason              string              `json:"stop_reason,omitempty"`
+	BlockUntilCancel        bool                `json:"block_until_cancel,omitempty"`
+	NewSessionError         *helperRequestError `json:"new_session_error,omitempty"`
+	PromptError             *helperRequestError `json:"prompt_error,omitempty"`
+	PromptErrorAfterUpdates bool                `json:"prompt_error_after_updates,omitempty"`
 }
 
 type helperRequestError struct {
@@ -606,7 +665,7 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 		}
 	}
 
-	if a.scenario.PromptError != nil {
+	if a.scenario.PromptError != nil && !a.scenario.PromptErrorAfterUpdates {
 		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
 	}
 
@@ -617,6 +676,10 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 		}); err != nil {
 			return acp.PromptResponse{}, err
 		}
+	}
+
+	if a.scenario.PromptError != nil && a.scenario.PromptErrorAfterUpdates {
+		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
 	}
 
 	if a.scenario.BlockUntilCancel {

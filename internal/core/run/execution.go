@@ -221,12 +221,12 @@ func (c *executorController) beginForce(source shutdownSource) {
 	if c.cancelJobs != nil {
 		c.cancelJobs(context.Canceled)
 	}
+	c.execCtx.forceActiveClients()
 	c.execCtx.publishShutdownStatus(shutdownState{
 		Phase:       shutdownPhaseForcing,
 		Source:      source,
 		RequestedAt: time.Now(),
 	})
-	c.execCtx.forceActiveClients()
 }
 
 type jobLifecycle struct {

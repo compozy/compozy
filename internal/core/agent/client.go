@@ -515,7 +515,13 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 			session.finish(model.StatusFailed, context.Canceled)
 			return
 		}
-		session.finish(model.StatusFailed, wrapACPError(err))
+		wrappedErr := wrapACPError(err)
+		session.waitForIdle(ctx, 15*time.Millisecond)
+		if shouldDowngradePromptErrorAfterToolFailure(session, wrappedErr) {
+			session.finish(model.StatusCompleted, nil)
+			return
+		}
+		session.finish(model.StatusFailed, wrappedErr)
 		return
 	}
 
@@ -530,6 +536,15 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 
 	session.waitForIdle(ctx, 15*time.Millisecond)
 	session.finish(model.StatusCompleted, nil)
+}
+
+func shouldDowngradePromptErrorAfterToolFailure(session *sessionImpl, err error) bool {
+	if session == nil || err == nil || !session.lastUpdateFailedToolCall() {
+		return false
+	}
+
+	var sessionErr *SessionError
+	return errors.As(err, &sessionErr)
 }
 
 func (c *clientImpl) storeSession(session *sessionImpl) {
