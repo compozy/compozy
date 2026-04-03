@@ -1,150 +1,393 @@
 package run
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/tidwall/pretty"
 )
 
-func buildCommandTaps(
-	outF, errF *os.File,
-	outBuf, errBuf *lineBuffer,
-	useUI bool,
-	uiCh chan uiMsg,
+type sessionUpdateHandler struct {
+	index          int
+	agentID        string
+	sessionID      string
+	logger         *slog.Logger
+	startedAt      time.Time
+	outWriter      io.Writer
+	errWriter      io.Writer
+	uiCh           chan<- uiMsg
+	aggregateUsage *model.Usage
+	aggregateMu    *sync.Mutex
+
+	mu          sync.Mutex
+	err         error
+	blockCounts map[model.ContentBlockType]int
+	sessionView *sessionViewModel
+	done        chan struct{}
+	doneOnce    sync.Once
+}
+
+func newSessionUpdateHandler(
 	index int,
-	ideType string,
-	aggregateUsage *TokenUsage,
+	agentID string,
+	sessionID string,
+	logger *slog.Logger,
+	outWriter io.Writer,
+	errWriter io.Writer,
+	uiCh chan<- uiMsg,
+	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
-	monitor *activityMonitor,
-) (io.Writer, io.Writer) {
-	if useUI {
-		return buildUITaps(outF, errF, outBuf, errBuf, uiCh, index, ideType, aggregateUsage, aggregateMu, monitor)
+) *sessionUpdateHandler {
+	if logger == nil {
+		logger = silentLogger()
 	}
-	return buildCLITaps(outF, errF, ideType, aggregateUsage, aggregateMu, monitor)
+	return &sessionUpdateHandler{
+		index:          index,
+		agentID:        agentID,
+		sessionID:      sessionID,
+		logger:         logger,
+		startedAt:      time.Now(),
+		outWriter:      outWriter,
+		errWriter:      errWriter,
+		uiCh:           uiCh,
+		aggregateUsage: aggregateUsage,
+		aggregateMu:    aggregateMu,
+		blockCounts:    make(map[model.ContentBlockType]int),
+		sessionView:    newSessionViewModel(),
+		done:           make(chan struct{}),
+	}
 }
 
-func buildUITaps(
-	outF, errF *os.File,
-	outBuf, errBuf *lineBuffer,
-	uiCh chan uiMsg,
-	index int,
-	ideType string,
-	aggregateUsage *TokenUsage,
-	aggregateMu *sync.Mutex,
-	monitor *activityMonitor,
-) (io.Writer, io.Writer) {
-	uiTap := newUILogTap(index, false, outBuf, errBuf, uiCh, monitor)
-	var outTap io.Writer
-	if ideType == model.IDEClaude || ideType == model.IDECursor || ideType == model.IDEDroid ||
-		ideType == model.IDEOpenCode || ideType == model.IDEPi {
-		usageCallback := func(usage TokenUsage) {
-			if uiCh != nil {
-				uiCh <- tokenUsageUpdateMsg{Index: index, Usage: usage}
-			}
-			if aggregateUsage != nil && aggregateMu != nil {
-				aggregateMu.Lock()
-				aggregateUsage.Add(usage)
-				aggregateMu.Unlock()
-			}
+func (h *sessionUpdateHandler) Done() <-chan struct{} {
+	return h.done
+}
+
+func (h *sessionUpdateHandler) Err() error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.err
+}
+
+func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
+	if len(update.Blocks) > 0 {
+		outLines, errLines := renderContentBlocks(update.Blocks)
+		if err := writeRenderedLines(h.outWriter, outLines); err != nil {
+			return fmt.Errorf("write ACP session output: %w", err)
 		}
-		outTap = io.MultiWriter(outF, newJSONFormatterWithCallbackAndMonitor(uiTap, usageCallback, monitor))
-	} else {
-		outTap = io.MultiWriter(outF, uiTap)
+		if err := writeRenderedLines(h.errWriter, errLines); err != nil {
+			return fmt.Errorf("write ACP session stderr: %w", err)
+		}
+		h.recordBlockCounts(update.Blocks)
 	}
 
-	uiErrTap := io.Writer(newUILogTap(index, true, outBuf, errBuf, uiCh, monitor))
-	if ideType == model.IDECodex {
-		uiErrTap = newLineFilterWriter(uiErrTap, monitor, shouldSuppressCodexRolloutStderrLine)
-	}
-	errTap := io.MultiWriter(errF, uiErrTap)
-	return outTap, errTap
-}
-
-func buildCLITaps(
-	outF, errF *os.File,
-	ideType string,
-	aggregateUsage *TokenUsage,
-	aggregateMu *sync.Mutex,
-	monitor *activityMonitor,
-) (io.Writer, io.Writer) {
-	if ideType == model.IDEClaude || ideType == model.IDECursor || ideType == model.IDEDroid ||
-		ideType == model.IDEOpenCode || ideType == model.IDEPi {
-		usageCallback := func(usage TokenUsage) {
-			if aggregateUsage != nil && aggregateMu != nil {
-				aggregateMu.Lock()
-				aggregateUsage.Add(usage)
-				aggregateMu.Unlock()
+	if h.uiCh != nil {
+		if snapshot, changed := h.sessionView.Apply(update); changed {
+			select {
+			case h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}:
+			default:
 			}
 		}
-		return io.MultiWriter(
-				outF,
-				newJSONFormatterWithCallbackAndMonitor(os.Stdout, usageCallback, monitor),
-			), io.MultiWriter(
-				errF,
-				os.Stderr,
-			)
 	}
 
-	stderrWriter := io.Writer(os.Stderr)
-	if ideType == model.IDECodex {
-		stderrWriter = newLineFilterWriter(os.Stderr, monitor, shouldSuppressCodexRolloutStderrLine)
-	}
-	return io.MultiWriter(outF, os.Stdout), io.MultiWriter(errF, stderrWriter)
-}
-
-func shouldSuppressCodexRolloutStderrLine(line string) bool {
-	return strings.Contains(line, "codex_core::rollout::list") &&
-		strings.Contains(line, "state db missing rollout path for thread")
-}
-
-type lineFilterWriter struct {
-	dst             io.Writer
-	buf             []byte
-	shouldDrop      func(string) bool
-	activityMonitor *activityMonitor
-}
-
-func newLineFilterWriter(
-	dst io.Writer,
-	monitor *activityMonitor,
-	shouldDrop func(string) bool,
-) *lineFilterWriter {
-	return &lineFilterWriter{
-		dst:             dst,
-		buf:             make([]byte, 0, 1024),
-		shouldDrop:      shouldDrop,
-		activityMonitor: monitor,
-	}
-}
-
-func (w *lineFilterWriter) Write(p []byte) (int, error) {
-	if len(p) > 0 && w.activityMonitor != nil {
-		w.activityMonitor.recordActivity()
-	}
-	cleaned := bytes.ReplaceAll(p, []byte{'\r'}, []byte{'\n'})
-	w.buf = append(w.buf, cleaned...)
-	for {
-		i := bytes.IndexByte(w.buf, '\n')
-		if i < 0 {
-			break
-		}
-		rawLine := bytes.TrimRight(w.buf[:i], "\r\n")
-		if !w.shouldDrop(string(rawLine)) {
-			if _, err := w.dst.Write(append(rawLine, '\n')); err != nil {
-				return 0, err
+	if hasUsage(update.Usage) {
+		if h.uiCh != nil {
+			select {
+			case h.uiCh <- usageUpdateMsg{Index: h.index, Usage: update.Usage}:
+			default:
 			}
 		}
-		w.buf = w.buf[i+1:]
+		if h.aggregateUsage != nil && h.aggregateMu != nil {
+			h.aggregateMu.Lock()
+			h.aggregateUsage.Add(update.Usage)
+			h.aggregateMu.Unlock()
+		}
 	}
-	return len(p), nil
+
+	h.logger.Info(
+		"acp session update",
+		"agent_id",
+		h.agentID,
+		"session_id",
+		h.sessionID,
+		"status",
+		update.Status,
+		"kind",
+		update.Kind,
+		"blocks",
+		len(update.Blocks),
+		"block_types",
+		formatBlockTypes(update.Blocks),
+		"usage_total",
+		update.Usage.Total(),
+		"duration",
+		time.Since(h.startedAt),
+	)
+
+	switch update.Status {
+	case model.StatusCompleted:
+		h.markDone(nil, false)
+	case model.StatusFailed:
+		h.markDone(fmt.Errorf("ACP session reported failed status"), false)
+	}
+
+	return nil
+}
+
+func (h *sessionUpdateHandler) HandleCompletion(err error) error {
+	if err != nil {
+		if writeErr := writeRenderedLines(h.errWriter, []string{"ACP session error: " + err.Error()}); writeErr != nil {
+			h.markDone(err, true)
+			return fmt.Errorf("write ACP session completion error: %w", writeErr)
+		}
+		h.logger.Error(
+			"acp session error",
+			"agent_id",
+			h.agentID,
+			"session_id",
+			h.sessionID,
+			"duration",
+			time.Since(h.startedAt),
+			"error",
+			err,
+			"block_counts",
+			h.snapshotBlockCounts(),
+		)
+		h.markDone(err, true)
+		return nil
+	}
+
+	h.logger.Info(
+		"acp session completed",
+		"agent_id",
+		h.agentID,
+		"session_id",
+		h.sessionID,
+		"duration",
+		time.Since(h.startedAt),
+		"block_counts",
+		h.snapshotBlockCounts(),
+	)
+	h.markDone(nil, false)
+	return nil
+}
+
+func (h *sessionUpdateHandler) recordBlockCounts(blocks []model.ContentBlock) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, block := range blocks {
+		h.blockCounts[block.Type]++
+	}
+}
+
+func (h *sessionUpdateHandler) snapshotBlockCounts() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.blockCounts) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(h.blockCounts))
+	for blockType, count := range h.blockCounts {
+		keys = append(keys, fmt.Sprintf("%s=%d", blockType, count))
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ",")
+}
+
+func (h *sessionUpdateHandler) markDone(err error, override bool) {
+	h.mu.Lock()
+	if err != nil && (override || h.err == nil) {
+		h.err = err
+	}
+	h.mu.Unlock()
+
+	h.doneOnce.Do(func() {
+		close(h.done)
+	})
+}
+
+func hasUsage(usage model.Usage) bool {
+	return usage.InputTokens != 0 ||
+		usage.OutputTokens != 0 ||
+		usage.TotalTokens != 0 ||
+		usage.CacheReads != 0 ||
+		usage.CacheWrites != 0
+}
+
+func cloneContentBlocks(blocks []model.ContentBlock) []model.ContentBlock {
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	cloned := make([]model.ContentBlock, len(blocks))
+	for i, block := range blocks {
+		cloned[i] = model.ContentBlock{
+			Type: block.Type,
+			Data: append([]byte(nil), block.Data...),
+		}
+	}
+	return cloned
+}
+
+func formatBlockTypes(blocks []model.ContentBlock) string {
+	if len(blocks) == 0 {
+		return ""
+	}
+
+	counts := make(map[model.ContentBlockType]int)
+	for _, block := range blocks {
+		counts[block.Type]++
+	}
+	keys := make([]string, 0, len(counts))
+	for blockType, count := range counts {
+		keys = append(keys, fmt.Sprintf("%s=%d", blockType, count))
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ",")
+}
+
+func writeRenderedLines(dst io.Writer, lines []string) error {
+	if dst == nil || len(lines) == 0 {
+		return nil
+	}
+
+	var builder strings.Builder
+	for _, line := range lines {
+		builder.WriteString(line)
+		builder.WriteByte('\n')
+	}
+	_, err := io.WriteString(dst, builder.String())
+	return err
+}
+
+func renderContentBlocks(blocks []model.ContentBlock) ([]string, []string) {
+	var outLines []string
+	var errLines []string
+	for _, block := range blocks {
+		renderedOut, renderedErr := renderContentBlock(block)
+		outLines = append(outLines, renderedOut...)
+		errLines = append(errLines, renderedErr...)
+	}
+	return outLines, errLines
+}
+
+func renderContentBlock(block model.ContentBlock) ([]string, []string) {
+	switch block.Type {
+	case model.BlockText:
+		return renderTextBlock(block)
+	case model.BlockToolUse:
+		return renderToolUseBlock(block)
+	case model.BlockToolResult:
+		return renderToolResultBlock(block)
+	case model.BlockDiff:
+		return renderDiffBlock(block)
+	case model.BlockTerminalOutput:
+		return renderTerminalOutputBlock(block)
+	case model.BlockImage:
+		return renderImageBlock(block)
+	default:
+		return []string{strings.TrimSpace(string(block.Data))}, nil
+	}
+}
+
+func renderTextBlock(block model.ContentBlock) ([]string, []string) {
+	textBlock, err := block.AsText()
+	if err != nil {
+		return renderDecodeFailure(block, err), nil
+	}
+	return splitRenderedText(textBlock.Text), nil
+}
+
+func renderToolUseBlock(block model.ContentBlock) ([]string, []string) {
+	toolUse, err := block.AsToolUse()
+	if err != nil {
+		return renderDecodeFailure(block, err), nil
+	}
+
+	line := fmt.Sprintf("[TOOL] %s (%s)", toolUse.Name, toolUse.ID)
+	outLines := []string{line}
+	if len(toolUse.Input) > 0 {
+		outLines = append(outLines, splitRenderedText(string(toolUse.Input))...)
+	}
+	return outLines, nil
+}
+
+func renderToolResultBlock(block model.ContentBlock) ([]string, []string) {
+	toolResult, err := block.AsToolResult()
+	if err != nil {
+		return renderDecodeFailure(block, err), nil
+	}
+
+	lines := splitRenderedText(toolResult.Content)
+	if len(lines) == 0 {
+		lines = []string{fmt.Sprintf("[TOOL RESULT] %s", toolResult.ToolUseID)}
+	}
+	if toolResult.IsError {
+		return nil, lines
+	}
+	return lines, nil
+}
+
+func renderDiffBlock(block model.ContentBlock) ([]string, []string) {
+	diffBlock, err := block.AsDiff()
+	if err != nil {
+		return renderDecodeFailure(block, err), nil
+	}
+	return splitRenderedText(diffBlock.Diff), nil
+}
+
+func renderTerminalOutputBlock(block model.ContentBlock) ([]string, []string) {
+	terminalBlock, err := block.AsTerminalOutput()
+	if err != nil {
+		return renderDecodeFailure(block, err), nil
+	}
+
+	lines := make([]string, 0, 4)
+	if terminalBlock.Command != "" {
+		lines = append(lines, "$ "+terminalBlock.Command)
+	}
+	lines = append(lines, splitRenderedText(terminalBlock.Output)...)
+	if terminalBlock.ExitCode != 0 {
+		lines = append(lines, fmt.Sprintf("[exit code: %d]", terminalBlock.ExitCode))
+	}
+	return lines, nil
+}
+
+func renderImageBlock(block model.ContentBlock) ([]string, []string) {
+	imageBlock, err := block.AsImage()
+	if err != nil {
+		return renderDecodeFailure(block, err), nil
+	}
+
+	location := "inline"
+	if imageBlock.URI != nil && *imageBlock.URI != "" {
+		location = *imageBlock.URI
+	}
+	return []string{fmt.Sprintf("[IMAGE] %s %s", imageBlock.MimeType, location)}, nil
+}
+
+func renderDecodeFailure(block model.ContentBlock, err error) []string {
+	payload := strings.TrimSpace(string(block.Data))
+	if payload == "" {
+		payload = fmt.Sprintf("type=%s", block.Type)
+	}
+	return []string{fmt.Sprintf("[decode %s block failed] %v", block.Type, err), payload}
+}
+
+func splitRenderedText(text string) []string {
+	if text == "" {
+		return nil
+	}
+
+	normalized := strings.ReplaceAll(text, "\r\n", "\n")
+	normalized = strings.ReplaceAll(normalized, "\r", "\n")
+	return strings.Split(normalized, "\n")
 }
 
 type lineBuffer struct {
@@ -181,180 +424,18 @@ func (r *lineBuffer) snapshot() []string {
 	return out
 }
 
-type activityMonitor struct {
-	mu           sync.Mutex
-	lastActivity time.Time
-}
-
-func newActivityMonitor() *activityMonitor {
-	return &activityMonitor{lastActivity: time.Now()}
-}
-
-func (a *activityMonitor) recordActivity() {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.lastActivity = time.Now()
-}
-
-func (a *activityMonitor) timeSinceLastActivity() time.Duration {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return time.Since(a.lastActivity)
-}
-
-type uiLogTap struct {
-	idx             int
-	isErr           bool
-	out             *lineBuffer
-	err             *lineBuffer
-	ch              chan<- uiMsg
-	buf             []byte
-	activityMonitor *activityMonitor
-}
-
-func newUILogTap(
-	idx int,
-	isErr bool,
-	outRing, errRing *lineBuffer,
-	ch chan<- uiMsg,
-	monitor *activityMonitor,
-) *uiLogTap {
-	return &uiLogTap{
-		idx:             idx,
-		isErr:           isErr,
-		out:             outRing,
-		err:             errRing,
-		ch:              ch,
-		buf:             make([]byte, 0, 1024),
-		activityMonitor: monitor,
-	}
-}
-
-func (t *uiLogTap) Write(p []byte) (int, error) {
-	if len(p) > 0 && t.activityMonitor != nil {
-		t.activityMonitor.recordActivity()
-	}
-	cleaned := bytes.ReplaceAll(p, []byte{'\r'}, []byte{'\n'})
-	t.buf = append(t.buf, cleaned...)
-	for {
-		i := bytes.IndexByte(t.buf, '\n')
-		if i < 0 {
-			break
-		}
-		line := string(bytes.TrimRight(t.buf[:i], "\r\n"))
-		if t.isErr {
-			t.err.appendLine(line)
-		} else {
-			t.out.appendLine(line)
-		}
-		t.buf = t.buf[i+1:]
-	}
-	select {
-	case t.ch <- jobLogUpdateMsg{Index: t.idx}:
-	default:
-	}
-	return len(p), nil
-}
-
-type jsonFormatter struct {
-	w               io.Writer
-	buf             []byte
-	usageCallback   func(TokenUsage)
-	activityMonitor *activityMonitor
-}
-
-func newJSONFormatterWithCallbackAndMonitor(
-	w io.Writer,
-	callback func(TokenUsage),
-	monitor *activityMonitor,
-) *jsonFormatter {
-	return &jsonFormatter{
-		w:               w,
-		buf:             make([]byte, 0, 4096),
-		usageCallback:   callback,
-		activityMonitor: monitor,
-	}
-}
-
-func (f *jsonFormatter) Write(p []byte) (int, error) {
-	if len(p) > 0 && f.activityMonitor != nil {
-		f.activityMonitor.recordActivity()
-	}
-	f.buf = append(f.buf, p...)
-	for {
-		i := bytes.IndexByte(f.buf, '\n')
-		if i < 0 {
-			break
-		}
-		line := bytes.TrimRight(f.buf[:i], "\r\n")
-		f.buf = f.buf[i+1:]
-		formatted := f.formatLine(line)
-		if _, err := f.w.Write(append(formatted, '\n')); err != nil {
-			return 0, err
-		}
-	}
-	return len(p), nil
-}
-
-func (f *jsonFormatter) formatLine(line []byte) []byte {
-	line = bytes.TrimSpace(line)
-	if len(line) == 0 {
-		return line
-	}
-	if !json.Valid(line) {
-		return line
-	}
-
-	var msg ClaudeMessage
-	if err := json.Unmarshal(line, &msg); err == nil {
-		if f.usageCallback != nil {
-			f.tryParseUsage(&msg)
-		}
-		if formatted := f.formatClaudeMessage(&msg); formatted != nil {
-			return formatted
-		}
-	}
-
-	return pretty.Color(pretty.Pretty(line), nil)
-}
-
-func (f *jsonFormatter) formatClaudeMessage(msg *ClaudeMessage) []byte {
-	switch msg.Type {
-	case "user", "assistant":
-		if len(msg.Message.Content) > 0 {
-			var contentParts []string
-			for _, content := range msg.Message.Content {
-				if content.Type == "text" && content.Text != "" {
-					contentParts = append(contentParts, content.Text)
-				} else if content.Type == "tool_result" && content.Content != "" {
-					contentParts = append(contentParts, content.Content)
-				}
-			}
-			if len(contentParts) > 0 {
-				return []byte(strings.Join(contentParts, "\n"))
-			}
-		}
-	case "system":
-		return []byte(fmt.Sprintf("[System: %s]", msg.Type))
-	}
-	return nil
-}
-
-func (f *jsonFormatter) tryParseUsage(msg *ClaudeMessage) {
-	if msg.Type != "assistant" {
+func appendLinesToBuffer(buf *lineBuffer, lines []string) {
+	if buf == nil {
 		return
 	}
-	usage := msg.Message.Usage
-	if usage.InputTokens == 0 && usage.OutputTokens == 0 {
-		return
+	for _, line := range lines {
+		buf.appendLine(line)
 	}
-	tokenUsage := TokenUsage{
-		InputTokens:         usage.InputTokens,
-		CacheCreationTokens: usage.CacheCreationTokens,
-		CacheReadTokens:     usage.CacheReadTokens,
-		OutputTokens:        usage.OutputTokens,
-		Ephemeral5mTokens:   usage.CacheCreation.Ephemeral5mTokens,
-		Ephemeral1hTokens:   usage.CacheCreation.Ephemeral1hTokens,
+}
+
+func createLogWriters(outFile *os.File, errFile *os.File, useUI bool) (io.Writer, io.Writer) {
+	if useUI {
+		return outFile, errFile
 	}
-	f.usageCallback(tokenUsage)
+	return io.MultiWriter(outFile, os.Stdout), io.MultiWriter(errFile, os.Stderr)
 }

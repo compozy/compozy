@@ -274,20 +274,21 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.ide,
 		"ide",
 		string(core.IDECodex),
-		"IDE tool to use: claude, codex, cursor, droid, opencode, or pi",
+		"ACP runtime to use: claude, codex, cursor-agent, droid, opencode, pi, or gemini "+
+			"(requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx)",
 	)
 	cmd.Flags().StringVar(
 		&state.model,
 		"model",
 		"",
 		"Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, "+
-			"cursor=composer-1, opencode/pi=anthropic/claude-opus-4-6)",
+			"cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)",
 	)
 	cmd.Flags().StringSliceVar(
 		&state.addDirs,
 		"add-dir",
 		nil,
-		"Additional directory to allow for Codex and Claude (repeatable or comma-separated)",
+		"Additional directory to allow for ACP runtimes that support extra writable roots (repeatable or comma-separated)",
 	)
 	cmd.Flags().IntVar(
 		&state.tailLines,
@@ -299,7 +300,7 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.reasoningEffort,
 		"reasoning-effort",
 		"medium",
-		"Reasoning effort for codex/claude/droid (low, medium, high, xhigh)",
+		"Reasoning effort for runtimes that support bootstrap reasoning flags, such as droid (low, medium, high, xhigh)",
 	)
 	cmd.Flags().StringVar(
 		&state.timeout,

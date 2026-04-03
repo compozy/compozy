@@ -28,10 +28,10 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 
 ## ✨ Highlights
 
-- **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, and 40+ other agents and editors with `compozy setup` — no npm, pipx, or external tools required.
+- **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`.
 - **Idea to code in 5 steps.** Structured pipeline: PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
-- **Multi-agent execution.** Run tasks through Claude Code, Codex, Cursor, Droid, OpenCode, or Pi — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
+- **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
 - **Workflow memory between runs.** Agents inherit context from every previous task — decisions, learnings, errors, and handoffs. Two-tier markdown memory with automatic compaction keeps context fresh without manual bookkeeping.
 - **Provider-agnostic reviews.** Fetch review comments from CodeRabbit, GitHub, or run AI-powered reviews internally. All normalize to the same format. Provider threads resolve automatically after fixes.
 - **Markdown everywhere.** PRDs, specs, tasks, reviews, and ADRs are human-readable markdown files. Version-controlled, diffable, editable between steps. No vendor lock-in.
@@ -74,38 +74,25 @@ compozy setup          # interactive — pick agents and skills
 compozy setup --all    # install everything to every detected agent
 ```
 
+Execution runtimes are separate from skill installation. To run `compozy start` or `compozy fix-reviews`, install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
+
+| Runtime      | `--ide` flag   | Expected ACP command             |
+| ------------ | -------------- | -------------------------------- |
+| Claude Agent | `claude`       | `claude-agent-acp`               |
+| Codex CLI    | `codex`        | `codex-acp`                      |
+| Cursor       | `cursor-agent` | `cursor-agent acp`               |
+| Droid        | `droid`        | `droid exec --output-format acp` |
+| OpenCode     | `opencode`     | `opencode acp`                   |
+| pi ACP       | `pi`           | `pi-acp`                         |
+| Gemini CLI   | `gemini`       | `gemini --acp`                   |
+
+When the direct ACP command is not installed, Compozy can also fall back to supported launchers such as `npx @zed-industries/codex-acp` when the launcher is available locally.
+
 ## 🔄 How It Works
 
-```
-compozy setup                          Install skills (once per project)
-   │
-   ▼
-/cy-create-prd <prompt>                .compozy/tasks/user-auth/_prd.md
-   │                                    + Architecture Decision Records
-   ▼
-/cy-create-techspec user-auth          .compozy/tasks/user-auth/_techspec.md
-   │
-   ▼
-/cy-create-tasks user-auth             .compozy/tasks/user-auth/task_01.md … task_N.md
-   │
-   ▼
-compozy start --name user-auth         AI agents execute each task
-   │                                    ↕ .compozy/tasks/user-auth/memory/
-   │
-   ▼
-/cy-review-round  .compozy/tasks/user-auth/reviews-001 
-or 
-looper fetch-reviews --provider coderabbit --pr <number> --name user-auth
-   │
-   ▼
-compozy fix-reviews --name user-auth   Issues triaged, fixed, resolved
-   │
-   ▼
-compozy archive --name user-auth       Move fully completed workflow to _archived/
-   │
-   ▼
-Repeat until clean → Ship
-```
+<div align="center">
+  <img src="imgs/how-it-works-flow.png" alt="Compozy workflow from setup to ship with markdown artifacts at each step" width="100%">
+</div>
 
 Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can read, edit, or version-control any of them between steps.
 
@@ -189,16 +176,16 @@ Repeat steps 6–7. Each cycle creates a new review round (`reviews-002/`, `revi
 
 Compozy bundles 8 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
 
-| Skill | Purpose |
-| --- | --- |
-| `cy-create-prd` | Interactive brainstorming → Product Requirements Document with ADRs |
-| `cy-create-techspec` | PRD → Technical Specification with architecture exploration |
-| `cy-create-tasks` | PRD + TechSpec → Independently implementable task files |
-| `cy-execute-task` | Executes one task end-to-end: implement, validate, track, commit |
+| Skill                | Purpose                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `cy-create-prd`      | Interactive brainstorming → Product Requirements Document with ADRs        |
+| `cy-create-techspec` | PRD → Technical Specification with architecture exploration                |
+| `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                    |
+| `cy-execute-task`    | Executes one task end-to-end: implement, validate, track, commit           |
 | `cy-workflow-memory` | Maintains cross-task context so agents pick up where the last one left off |
-| `cy-review-round` | Comprehensive code review → structured issue files |
-| `cy-fix-reviews` | Triage, fix, verify, and resolve review issues |
-| `cy-final-verify` | Enforces verification evidence before any completion claim |
+| `cy-review-round`    | Comprehensive code review → structured issue files                         |
+| `cy-fix-reviews`     | Triage, fix, verify, and resolve review issues                             |
+| `cy-final-verify`    | Enforces verification evidence before any completion claim                 |
 
 ### 🧠 Workflow Memory
 
@@ -206,10 +193,10 @@ When agents execute tasks, context gets lost between runs — decisions made, er
 
 Every task execution automatically bootstraps two markdown files inside `.compozy/tasks/<name>/memory/`:
 
-| File | Scope | What goes here |
-| --- | --- | --- |
-| `MEMORY.md` | Cross-task, shared | Architecture decisions, discovered patterns, open risks, handoffs between tasks |
-| `task_01.md` | Single task | Objective snapshot, files touched, errors hit, what's ready for the next run |
+| File         | Scope              | What goes here                                                                  |
+| ------------ | ------------------ | ------------------------------------------------------------------------------- |
+| `MEMORY.md`  | Cross-task, shared | Architecture decisions, discovered patterns, open risks, handoffs between tasks |
+| `task_01.md` | Single task        | Objective snapshot, files touched, errors hit, what's ready for the next run    |
 
 **How it works:**
 
@@ -221,28 +208,29 @@ Every task execution automatically bootstraps two markdown files inside `.compoz
 
 **Automatic compaction.** Memory files have soft limits (150 lines / 12 KB for shared, 200 lines / 16 KB per task). When a file exceeds its threshold, Compozy flags it for compaction — the agent trims noise and repetition while preserving active risks, decisions, and handoffs.
 
-**No duplication.** Memory files don't copy what's already in the repo, git history, PRD, or task specs. They capture only what would otherwise be lost between runs: the *why* behind decisions, surprising findings, and context that makes the next agent immediately productive.
+**No duplication.** Memory files don't copy what's already in the repo, git history, PRD, or task specs. They capture only what would otherwise be lost between runs: the _why_ behind decisions, surprising findings, and context that makes the next agent immediately productive.
 
 The `cy-workflow-memory` skill handles all of this automatically when referenced in task prompts. No manual setup required — just run `compozy start` and agents inherit context from every previous run.
 
 ### 🤖 Supported Agents
 
-**Execution** (`compozy start`, `compozy fix-reviews`) — 6 agents that can run tasks:
+**Execution** (`compozy start`, `compozy fix-reviews`) — ACP-capable runtimes that can run tasks:
 
-| Agent | `--ide` flag |
-| --- | --- |
-| Claude Code | `claude` |
-| Codex | `codex` |
-| Cursor | `cursor` |
-| Droid | `droid` |
-| OpenCode | `opencode` |
-| Pi | `pi` |
+| Agent       | `--ide` flag   |
+| ----------- | -------------- |
+| Claude Code | `claude`       |
+| Codex       | `codex`        |
+| Cursor      | `cursor-agent` |
+| Droid       | `droid`        |
+| OpenCode    | `opencode`     |
+| Pi          | `pi`           |
+| Gemini      | `gemini`       |
 
 **Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. Run `compozy setup` to see all detected agents on your system.
 
 When installing to multiple agents, Compozy offers two modes:
 
-- **Symlink** *(default)* — One canonical copy with symlinks from each agent directory. All agents stay in sync.
+- **Symlink** _(default)_ — One canonical copy with symlinks from each agent directory. All agents stay in sync.
 - **Copy** — Independent copies per agent. Use `--copy` when symlinks are not supported.
 
 ## 📖 CLI Reference
@@ -254,15 +242,15 @@ When installing to multiple agents, Compozy offers two modes:
 compozy setup [flags]
 ```
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--agent`, `-a` | | Target agent name (repeatable) |
-| `--skill`, `-s` | | Skill name to install (repeatable) |
+| Flag             | Default | Description                                  |
+| ---------------- | ------- | -------------------------------------------- |
+| `--agent`, `-a`  |         | Target agent name (repeatable)               |
+| `--skill`, `-s`  |         | Skill name to install (repeatable)           |
 | `--global`, `-g` | `false` | Install to user directory instead of project |
-| `--copy` | `false` | Copy files instead of symlinking |
-| `--list`, `-l` | `false` | List bundled skills without installing |
-| `--yes`, `-y` | `false` | Skip confirmation prompts |
-| `--all` | `false` | Install all skills to all agents |
+| `--copy`         | `false` | Copy files instead of symlinking             |
+| `--list`, `-l`   | `false` | List bundled skills without installing       |
+| `--yes`, `-y`    | `false` | Skip confirmation prompts                    |
+| `--all`          | `false` | Install all skills to all agents             |
 
 </details>
 
@@ -273,13 +261,13 @@ compozy setup [flags]
 compozy migrate [flags]
 ```
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--root-dir` | `.compozy/tasks` | Workflow root to scan recursively |
-| `--name` | | Restrict migration to one workflow name |
-| `--tasks-dir` | | Restrict migration to one task workflow directory |
-| `--reviews-dir` | | Restrict migration to one review round directory |
-| `--dry-run` | `false` | Preview migrations without writing files |
+| Flag            | Default          | Description                                       |
+| --------------- | ---------------- | ------------------------------------------------- |
+| `--root-dir`    | `.compozy/tasks` | Workflow root to scan recursively                 |
+| `--name`        |                  | Restrict migration to one workflow name           |
+| `--tasks-dir`   |                  | Restrict migration to one task workflow directory |
+| `--reviews-dir` |                  | Restrict migration to one review round directory  |
+| `--dry-run`     | `false`          | Preview migrations without writing files          |
 
 </details>
 
@@ -290,11 +278,11 @@ compozy migrate [flags]
 compozy sync [flags]
 ```
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--root-dir` | `.compozy/tasks` | Workflow root to scan |
-| `--name` | | Restrict sync to one workflow name |
-| `--tasks-dir` | | Restrict sync to one task workflow directory |
+| Flag          | Default          | Description                                  |
+| ------------- | ---------------- | -------------------------------------------- |
+| `--root-dir`  | `.compozy/tasks` | Workflow root to scan                        |
+| `--name`      |                  | Restrict sync to one workflow name           |
+| `--tasks-dir` |                  | Restrict sync to one task workflow directory |
 
 </details>
 
@@ -305,11 +293,11 @@ compozy sync [flags]
 compozy archive [flags]
 ```
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--root-dir` | `.compozy/tasks` | Workflow root to scan |
-| `--name` | | Restrict archiving to one workflow name |
-| `--tasks-dir` | | Restrict archiving to one task workflow directory |
+| Flag          | Default          | Description                                       |
+| ------------- | ---------------- | ------------------------------------------------- |
+| `--root-dir`  | `.compozy/tasks` | Workflow root to scan                             |
+| `--name`      |                  | Restrict archiving to one workflow name           |
+| `--tasks-dir` |                  | Restrict archiving to one task workflow directory |
 
 </details>
 
@@ -322,21 +310,21 @@ compozy start [flags]
 
 Running `compozy start` with no flags opens the interactive form automatically.
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--name` | | Workflow name (`.compozy/tasks/<name>`) |
-| `--tasks-dir` | | Path to tasks directory |
-| `--ide` | `codex` | Agent: `claude`, `codex`, `cursor`, `droid`, `opencode`, `pi` |
-| `--model` | *(per IDE)* | Model override |
-| `--reasoning-effort` | `medium` | `low`, `medium`, `high`, `xhigh` |
-| `--timeout` | `10m` | Activity timeout per job |
-| `--max-retries` | `0` | Retry failed jobs N times |
-| `--retry-backoff-multiplier` | `1.5` | Timeout multiplier per retry |
-| `--tail-lines` | `30` | Log lines shown per job in UI |
-| `--add-dir` | | Additional directories to allow (repeatable) |
-| `--auto-commit` | `false` | Auto-commit after each task |
-| `--include-completed` | `false` | Re-run completed tasks |
-| `--dry-run` | `false` | Preview prompts without executing |
+| Flag                         | Default     | Description                                                   |
+| ---------------------------- | ----------- | ------------------------------------------------------------- |
+| `--name`                     |             | Workflow name (`.compozy/tasks/<name>`)                       |
+| `--tasks-dir`                |             | Path to tasks directory                                       |
+| `--ide`                      | `codex`     | Agent: `claude`, `codex`, `cursor`, `droid`, `opencode`, `pi` |
+| `--model`                    | _(per IDE)_ | Model override                                                |
+| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
+| `--timeout`                  | `10m`       | Activity timeout per job                                      |
+| `--max-retries`              | `0`         | Retry failed jobs N times                                     |
+| `--retry-backoff-multiplier` | `1.5`       | Timeout multiplier per retry                                  |
+| `--tail-lines`               | `30`        | Log lines shown per job in UI                                 |
+| `--add-dir`                  |             | Additional directories to allow (repeatable)                  |
+| `--auto-commit`              | `false`     | Auto-commit after each task                                   |
+| `--include-completed`        | `false`     | Re-run completed tasks                                        |
+| `--dry-run`                  | `false`     | Preview prompts without executing                             |
 
 </details>
 
@@ -349,12 +337,12 @@ compozy fetch-reviews [flags]
 
 Running `compozy fetch-reviews` with no flags opens the interactive form automatically.
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--provider` | | Review provider (`coderabbit`, etc.) |
-| `--pr` | | Pull request number |
-| `--name` | | Workflow name |
-| `--round` | `0` | Round number (auto-increments if omitted) |
+| Flag         | Default | Description                               |
+| ------------ | ------- | ----------------------------------------- |
+| `--provider` |         | Review provider (`coderabbit`, etc.)      |
+| `--pr`       |         | Pull request number                       |
+| `--name`     |         | Workflow name                             |
+| `--round`    | `0`     | Round number (auto-increments if omitted) |
 
 </details>
 
@@ -367,25 +355,25 @@ compozy fix-reviews [flags]
 
 Running `compozy fix-reviews` with no flags opens the interactive form automatically.
 
-| Flag | Default | Description |
-| --- | --- | --- |
-| `--name` | | Workflow name |
-| `--round` | `0` | Round number (latest if omitted) |
-| `--reviews-dir` | | Override review directory path |
-| `--ide` | `codex` | Agent: `claude`, `codex`, `cursor`, `droid`, `opencode`, `pi` |
-| `--model` | *(per IDE)* | Model override |
-| `--batch-size` | `1` | Issues per batch |
-| `--concurrent` | `1` | Parallel batches |
-| `--grouped` | `false` | Generate grouped issue summaries |
-| `--include-resolved` | `false` | Re-process resolved issues |
-| `--reasoning-effort` | `medium` | `low`, `medium`, `high`, `xhigh` |
-| `--timeout` | `10m` | Activity timeout per job |
-| `--max-retries` | `0` | Retry failed jobs N times |
-| `--retry-backoff-multiplier` | `1.5` | Timeout multiplier per retry |
-| `--tail-lines` | `30` | Log lines shown per job in UI |
-| `--add-dir` | | Additional directories to allow (repeatable) |
-| `--auto-commit` | `false` | Auto-commit after each batch |
-| `--dry-run` | `false` | Preview prompts without executing |
+| Flag                         | Default     | Description                                                   |
+| ---------------------------- | ----------- | ------------------------------------------------------------- |
+| `--name`                     |             | Workflow name                                                 |
+| `--round`                    | `0`         | Round number (latest if omitted)                              |
+| `--reviews-dir`              |             | Override review directory path                                |
+| `--ide`                      | `codex`     | Agent: `claude`, `codex`, `cursor`, `droid`, `opencode`, `pi` |
+| `--model`                    | _(per IDE)_ | Model override                                                |
+| `--batch-size`               | `1`         | Issues per batch                                              |
+| `--concurrent`               | `1`         | Parallel batches                                              |
+| `--grouped`                  | `false`     | Generate grouped issue summaries                              |
+| `--include-resolved`         | `false`     | Re-process resolved issues                                    |
+| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
+| `--timeout`                  | `10m`       | Activity timeout per job                                      |
+| `--max-retries`              | `0`         | Retry failed jobs N times                                     |
+| `--retry-backoff-multiplier` | `1.5`       | Timeout multiplier per retry                                  |
+| `--tail-lines`               | `30`        | Log lines shown per job in UI                                 |
+| `--add-dir`                  |             | Additional directories to allow (repeatable)                  |
+| `--auto-commit`              | `false`     | Auto-commit after each batch                                  |
+| `--dry-run`                  | `false`     | Preview prompts without executing                             |
 
 </details>
 

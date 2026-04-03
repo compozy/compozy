@@ -1,0 +1,758 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+
+	acp "github.com/coder/acp-go-sdk"
+
+	"github.com/compozy/compozy/internal/core/model"
+)
+
+func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "hello from compozy",
+		StopReason:     string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 {
+		t.Fatalf("unexpected updates length: %d", len(updates))
+	}
+	if updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected final status: %q", updates[0].Status)
+	}
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestSessionUpdatesStreamAndComplete(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "stream updates",
+		Updates: []acp.SessionUpdate{
+			acp.UpdateAgentMessageText("hello"),
+			acp.StartToolCall(
+				acp.ToolCallId("tool-1"),
+				"Read README",
+				acp.WithStartRawInput(map[string]any{"path": "README.md"}),
+			),
+			acp.UpdateToolCall(
+				acp.ToolCallId("tool-1"),
+				acp.WithUpdateStatus(acp.ToolCallStatusCompleted),
+				acp.WithUpdateContent([]acp.ToolCallContent{
+					acp.ToolContent(acp.TextBlock("done")),
+					acp.ToolDiffContent("README.md", "new content", "old content"),
+				}),
+			),
+			acp.UpdateAgentMessage(acp.ImageBlock("ZmFrZQ==", "image/png")),
+		},
+		StopReason: string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 5 {
+		t.Fatalf("unexpected update count: got %d want 5", len(updates))
+	}
+
+	blocks := flattenBlocks(updates)
+	assertBlockTypes(t, blocks,
+		model.BlockText,
+		model.BlockToolUse,
+		model.BlockToolResult,
+		model.BlockDiff,
+		model.BlockImage,
+	)
+
+	if updates[len(updates)-1].Status != model.StatusCompleted {
+		t.Fatalf("unexpected final status: %q", updates[len(updates)-1].Status)
+	}
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestSessionErrReturnsStructuredPromptError(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "fail me",
+		PromptError: &helperRequestError{
+			Code:    4242,
+			Message: "prompt failed",
+			Data:    json.RawMessage(`{"reason":"mock"}`),
+		},
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 {
+		t.Fatalf("unexpected updates length: %d", len(updates))
+	}
+	if updates[0].Status != model.StatusFailed {
+		t.Fatalf("unexpected final status: %q", updates[0].Status)
+	}
+
+	sessionErr := session.Err()
+	if sessionErr == nil {
+		t.Fatal("expected session error")
+	}
+
+	var structuredErr *SessionError
+	if !errors.As(sessionErr, &structuredErr) {
+		t.Fatalf("expected SessionError, got %T", sessionErr)
+	}
+	if structuredErr.Code != 4242 {
+		t.Fatalf("unexpected error code: %d", structuredErr.Code)
+	}
+	if structuredErr.Message != "prompt failed" {
+		t.Fatalf("unexpected error message: %q", structuredErr.Message)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestSessionDoneClosesOnContextCancellation(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:      t.TempDir(),
+		ExpectedPrompt:   "cancel me",
+		BlockUntilCancel: true,
+	}
+
+	client := newTestClient(t, scenario)
+	ctx, cancel := context.WithCancel(context.Background())
+	session, err := client.CreateSession(ctx, SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	cancel()
+
+	select {
+	case <-session.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session cancellation")
+	}
+
+	if !errors.Is(session.Err(), context.Canceled) {
+		t.Fatalf("expected context cancellation error, got %v", session.Err())
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientCloseTerminatesSubprocessGracefully(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "close gracefully",
+		StopReason:     string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	_ = collectSessionUpdates(t, session)
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientKillForceTerminatesSubprocess(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:      t.TempDir(),
+		ExpectedPrompt:   "kill immediately",
+		BlockUntilCancel: true,
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	if err := client.Kill(); err != nil {
+		t.Fatalf("kill client: %v", err)
+	}
+
+	select {
+	case <-session.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session shutdown after kill")
+	}
+
+	if !errors.Is(session.Err(), context.Canceled) {
+		t.Fatalf("expected forced kill to finish sessions as canceled, got %v", session.Err())
+	}
+}
+
+func TestClientHelperMethods(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	addDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "helper.txt")
+	relativePath := filepath.Join("nested", "helper.txt")
+	client := &clientImpl{
+		sessions: map[string]*sessionImpl{
+			"sess-1": newSessionWithAccess("sess-1", tempDir, []string{tempDir, addDir}),
+		},
+	}
+
+	if _, err := client.WriteTextFile(context.Background(), acp.WriteTextFileRequest{
+		SessionId: "sess-1",
+		Path:      filePath,
+		Content:   "hello",
+	}); err != nil {
+		t.Fatalf("write text file: %v", err)
+	}
+
+	readResp, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      filePath,
+	})
+	if err != nil {
+		t.Fatalf("read text file: %v", err)
+	}
+	if readResp.Content != "hello" {
+		t.Fatalf("unexpected read content: %q", readResp.Content)
+	}
+
+	relativeFilePath := filepath.Join(tempDir, relativePath)
+	if err := os.MkdirAll(filepath.Dir(relativeFilePath), 0o755); err != nil {
+		t.Fatalf("mkdir relative helper dir: %v", err)
+	}
+	if err := os.WriteFile(relativeFilePath, []byte("nested"), 0o600); err != nil {
+		t.Fatalf("write relative helper file: %v", err)
+	}
+	relativeResp, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      relativePath,
+	})
+	if err != nil {
+		t.Fatalf("read relative text file: %v", err)
+	}
+	if relativeResp.Content != "nested" {
+		t.Fatalf("unexpected relative read content: %q", relativeResp.Content)
+	}
+
+	modeFilePath := filepath.Join(tempDir, "mode.txt")
+	if err := os.WriteFile(modeFilePath, []byte("old"), 0o644); err != nil {
+		t.Fatalf("write mode helper file: %v", err)
+	}
+	if _, err := client.WriteTextFile(context.Background(), acp.WriteTextFileRequest{
+		SessionId: "sess-1",
+		Path:      modeFilePath,
+		Content:   "updated",
+	}); err != nil {
+		t.Fatalf("overwrite text file: %v", err)
+	}
+	modeInfo, err := os.Stat(modeFilePath)
+	if err != nil {
+		t.Fatalf("stat mode helper file: %v", err)
+	}
+	if got := modeInfo.Mode().Perm(); got != 0o644 {
+		t.Fatalf("expected overwrite to preserve file mode 0644, got %04o", got)
+	}
+
+	addDirFile := filepath.Join(addDir, "shared.txt")
+	if err := os.WriteFile(addDirFile, []byte("shared"), 0o600); err != nil {
+		t.Fatalf("write add-dir helper file: %v", err)
+	}
+	addDirResp, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      addDirFile,
+	})
+	if err != nil {
+		t.Fatalf("read add-dir text file: %v", err)
+	}
+	if addDirResp.Content != "shared" {
+		t.Fatalf("unexpected add-dir read content: %q", addDirResp.Content)
+	}
+
+	outsideFile := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outsideFile, []byte("outside"), 0o600); err != nil {
+		t.Fatalf("write outside helper file: %v", err)
+	}
+	if _, err := client.ReadTextFile(context.Background(), acp.ReadTextFileRequest{
+		SessionId: "sess-1",
+		Path:      outsideFile,
+	}); err == nil || !strings.Contains(err.Error(), "outside allowed session roots") {
+		t.Fatalf("expected outside-root read failure, got %v", err)
+	}
+	if _, err := client.WriteTextFile(context.Background(), acp.WriteTextFileRequest{
+		SessionId: "missing",
+		Path:      filepath.Join(tempDir, "other.txt"),
+		Content:   "nope",
+	}); err == nil || !strings.Contains(err.Error(), "unknown session") {
+		t.Fatalf("expected unknown session write failure, got %v", err)
+	}
+
+	permResp, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{
+		Options: []acp.PermissionOption{{OptionId: "allow"}},
+	})
+	if err != nil {
+		t.Fatalf("request permission: %v", err)
+	}
+	if permResp.Outcome.Selected == nil || permResp.Outcome.Selected.OptionId != "allow" {
+		t.Fatalf("unexpected permission selection: %#v", permResp.Outcome)
+	}
+
+	cancelledResp, err := client.RequestPermission(context.Background(), acp.RequestPermissionRequest{})
+	if err != nil {
+		t.Fatalf("request permission without options: %v", err)
+	}
+	if !outcomeHasVariant(cancelledResp.Outcome, "Cancel"+"led") {
+		t.Fatalf("expected canceled permission outcome: %#v", cancelledResp.Outcome)
+	}
+}
+
+func TestClientTerminalMethodsReturnUnsupported(t *testing.T) {
+	t.Parallel()
+
+	client := &clientImpl{}
+	cases := []struct {
+		name string
+		call func() error
+	}{
+		{
+			name: "create",
+			call: func() error {
+				_, err := client.CreateTerminal(context.Background(), acp.CreateTerminalRequest{})
+				return err
+			},
+		},
+		{
+			name: "kill",
+			call: func() error {
+				_, err := client.KillTerminalCommand(context.Background(), acp.KillTerminalCommandRequest{})
+				return err
+			},
+		},
+		{
+			name: "output",
+			call: func() error {
+				_, err := client.TerminalOutput(context.Background(), acp.TerminalOutputRequest{})
+				return err
+			},
+		},
+		{
+			name: "release",
+			call: func() error {
+				_, err := client.ReleaseTerminal(context.Background(), acp.ReleaseTerminalRequest{})
+				return err
+			},
+		},
+		{
+			name: "wait_for_exit",
+			call: func() error {
+				_, err := client.WaitForTerminalExit(context.Background(), acp.WaitForTerminalExitRequest{})
+				return err
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if err := tc.call(); err == nil {
+				t.Fatal("expected unsupported terminal error")
+			}
+		})
+	}
+}
+
+func TestClientUtilityHelpers(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewClient(context.Background(), ClientConfig{IDE: "unknown"}); err == nil {
+		t.Fatal("expected unknown ide error")
+	}
+
+	relativeDir, err := resolveWorkingDir(".")
+	if err == nil || relativeDir != "" {
+		t.Fatalf("expected empty directory validation error, got %q err=%v", relativeDir, err)
+	}
+
+	absoluteDir, err := resolveWorkingDir("..")
+	if err != nil {
+		t.Fatalf("resolve working dir: %v", err)
+	}
+	if !filepath.IsAbs(absoluteDir) {
+		t.Fatalf("expected absolute path, got %q", absoluteDir)
+	}
+
+	buffer := &lockedBuffer{}
+	if _, err := buffer.Write([]byte("stderr")); err != nil {
+		t.Fatalf("write locked buffer: %v", err)
+	}
+	if got := buffer.String(); got != "stderr" {
+		t.Fatalf("unexpected buffer contents: %q", got)
+	}
+
+	wrapped := wrapACPError(&acp.RequestError{
+		Code:    42,
+		Message: "boom",
+		Data:    map[string]any{"status": "bad"},
+	})
+	var sessionErr *SessionError
+	if !errors.As(wrapped, &sessionErr) {
+		t.Fatalf("expected SessionError, got %T", wrapped)
+	}
+	if !strings.Contains(sessionErr.Error(), "boom") {
+		t.Fatalf("unexpected session error string: %q", sessionErr.Error())
+	}
+
+	noDataErr := (&SessionError{Code: 7, Message: "plain"}).Error()
+	if !strings.Contains(noDataErr, "plain") {
+		t.Fatalf("unexpected no-data session error string: %q", noDataErr)
+	}
+}
+
+func TestClientCreateSessionSurfacesStartupCommandAndStderr(t *testing.T) {
+	tmpDir := t.TempDir()
+	scriptPath := filepath.Join(tmpDir, "broken-agent")
+	script := "#!/bin/sh\nprintf 'adapter boot failed' >&2\nexit 23\n"
+	if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write broken helper: %v", err)
+	}
+
+	t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	registerTestSpec(t, Spec{
+		ID:           "broken-agent-test",
+		DisplayName:  "Broken Agent",
+		DefaultModel: "test-model",
+		Command:      "broken-agent",
+		FixedArgs:    []string{"acp"},
+		ProbeArgs:    []string{"--help"},
+		InstallHint:  "Install the working ACP adapter.",
+		DocsURL:      "https://example.com/acp",
+	})
+
+	client, err := NewClient(context.Background(), ClientConfig{
+		IDE:             "broken-agent-test",
+		Model:           "test-model",
+		ReasoningEffort: "medium",
+		ShutdownTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	_, err = client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: t.TempDir(),
+		Prompt:     []byte("hello"),
+	})
+	if err == nil {
+		t.Fatal("expected create session error")
+	}
+	if !strings.Contains(err.Error(), "broken-agent acp") {
+		t.Fatalf("expected attempted command in error, got %q", err)
+	}
+	if !strings.Contains(err.Error(), "adapter boot failed") {
+		t.Fatalf("expected adapter stderr in error, got %q", err)
+	}
+}
+
+func TestACPHelperProcess(_ *testing.T) {
+	if os.Getenv("GO_WANT_ACP_HELPER_PROCESS") != "1" {
+		return
+	}
+
+	var scenario helperScenario
+	if err := json.Unmarshal([]byte(os.Getenv("GO_ACP_SCENARIO")), &scenario); err != nil {
+		fmt.Fprintf(os.Stderr, "unmarshal helper scenario: %v\n", err)
+		os.Exit(2)
+	}
+
+	agent := &helperAgent{
+		scenario:  scenario,
+		sessionID: firstNonEmpty(scenario.SessionID, "sess-1"),
+	}
+	conn := acp.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
+	agent.conn = conn
+
+	<-conn.Done()
+	os.Exit(0)
+}
+
+type helperScenario struct {
+	SessionID        string              `json:"session_id,omitempty"`
+	ExpectedCWD      string              `json:"expected_cwd,omitempty"`
+	ExpectedPrompt   string              `json:"expected_prompt,omitempty"`
+	Updates          []acp.SessionUpdate `json:"updates,omitempty"`
+	StopReason       string              `json:"stop_reason,omitempty"`
+	BlockUntilCancel bool                `json:"block_until_cancel,omitempty"`
+	NewSessionError  *helperRequestError `json:"new_session_error,omitempty"`
+	PromptError      *helperRequestError `json:"prompt_error,omitempty"`
+}
+
+type helperRequestError struct {
+	Code    int             `json:"code"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data,omitempty"`
+}
+
+type helperAgent struct {
+	conn      *acp.AgentSideConnection
+	scenario  helperScenario
+	sessionID string
+}
+
+func (a *helperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
+	return acp.InitializeResponse{
+		ProtocolVersion: acp.ProtocolVersionNumber,
+	}, nil
+}
+
+func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (acp.NewSessionResponse, error) {
+	if a.scenario.NewSessionError != nil {
+		return acp.NewSessionResponse{}, a.scenario.NewSessionError.toACPError()
+	}
+	if a.scenario.ExpectedCWD != "" && req.Cwd != a.scenario.ExpectedCWD {
+		return acp.NewSessionResponse{}, &acp.RequestError{
+			Code:    4001,
+			Message: fmt.Sprintf("unexpected cwd %q", req.Cwd),
+		}
+	}
+	return acp.NewSessionResponse{SessionId: acp.SessionId(a.sessionID)}, nil
+}
+
+func (a *helperAgent) LoadSession(context.Context, acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
+	return acp.LoadSessionResponse{}, nil
+}
+
+func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
+	return acp.AuthenticateResponse{}, nil
+}
+
+func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.PromptResponse, error) {
+	if a.scenario.ExpectedPrompt != "" {
+		gotPrompt := firstPromptText(req.Prompt)
+		if gotPrompt != a.scenario.ExpectedPrompt {
+			return acp.PromptResponse{}, &acp.RequestError{
+				Code:    4000,
+				Message: fmt.Sprintf("unexpected prompt %q", gotPrompt),
+			}
+		}
+	}
+
+	if a.scenario.PromptError != nil {
+		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
+	}
+
+	for _, update := range a.scenario.Updates {
+		if err := a.conn.SessionUpdate(ctx, acp.SessionNotification{
+			SessionId: acp.SessionId(a.sessionID),
+			Update:    update,
+		}); err != nil {
+			return acp.PromptResponse{}, err
+		}
+	}
+
+	if a.scenario.BlockUntilCancel {
+		<-ctx.Done()
+		return acp.PromptResponse{StopReason: acp.StopReasonCancelled}, nil
+	}
+
+	stopReason := acp.StopReasonEndTurn
+	if a.scenario.StopReason != "" {
+		stopReason = acp.StopReason(a.scenario.StopReason)
+	}
+	return acp.PromptResponse{StopReason: stopReason}, nil
+}
+
+func (a *helperAgent) Cancel(context.Context, acp.CancelNotification) error {
+	return nil
+}
+
+func (a *helperAgent) SetSessionMode(context.Context, acp.SetSessionModeRequest) (acp.SetSessionModeResponse, error) {
+	return acp.SetSessionModeResponse{}, nil
+}
+
+func (e *helperRequestError) toACPError() error {
+	if e == nil {
+		return nil
+	}
+
+	var data any
+	if len(e.Data) > 0 {
+		data = e.Data
+	}
+	return &acp.RequestError{
+		Code:    e.Code,
+		Message: e.Message,
+		Data:    data,
+	}
+}
+
+func newTestClient(t *testing.T, scenario helperScenario) Client {
+	t.Helper()
+
+	scenarioJSON, err := json.Marshal(scenario)
+	if err != nil {
+		t.Fatalf("marshal helper scenario: %v", err)
+	}
+
+	ide := "test-acp-" + sanitizeTestName(t.Name())
+	registerTestSpec(t, Spec{
+		ID:           ide,
+		DisplayName:  "Test ACP",
+		DefaultModel: "test-model",
+		Command:      os.Args[0],
+		EnvVars: map[string]string{
+			"GO_WANT_ACP_HELPER_PROCESS": "1",
+			"GO_ACP_SCENARIO":            string(scenarioJSON),
+		},
+		UsesBootstrapModel: true,
+		BootstrapArgs: func(_, _ string, _ []string) []string {
+			return []string{"-test.run=TestACPHelperProcess", "--"}
+		},
+	})
+
+	client, err := NewClient(context.Background(), ClientConfig{
+		IDE:             ide,
+		Model:           "test-model",
+		ReasoningEffort: "medium",
+		ShutdownTimeout: 3 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	return client
+}
+
+func collectSessionUpdates(t *testing.T, session Session) []model.SessionUpdate {
+	t.Helper()
+
+	var updates []model.SessionUpdate
+	for update := range session.Updates() {
+		updates = append(updates, update)
+	}
+
+	select {
+	case <-session.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session.Done")
+	}
+
+	return updates
+}
+
+func flattenBlocks(updates []model.SessionUpdate) []model.ContentBlock {
+	blocks := make([]model.ContentBlock, 0)
+	for i := range updates {
+		blocks = append(blocks, updates[i].Blocks...)
+	}
+	return blocks
+}
+
+func assertBlockTypes(t *testing.T, blocks []model.ContentBlock, wantTypes ...model.ContentBlockType) {
+	t.Helper()
+
+	gotTypes := make([]model.ContentBlockType, 0, len(blocks))
+	for _, block := range blocks {
+		gotTypes = append(gotTypes, block.Type)
+	}
+
+	for _, want := range wantTypes {
+		found := false
+		for _, got := range gotTypes {
+			if got == want {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("missing block type %q in %v", want, gotTypes)
+		}
+	}
+}
+
+func sanitizeTestName(name string) string {
+	replacer := strings.NewReplacer("/", "-", " ", "-", ":", "-", "_", "-")
+	return replacer.Replace(strings.ToLower(name))
+}
+
+func firstPromptText(blocks []acp.ContentBlock) string {
+	for _, block := range blocks {
+		if block.Text != nil {
+			return block.Text.Text
+		}
+	}
+	return ""
+}
+
+func outcomeHasVariant(outcome acp.RequestPermissionOutcome, variant string) bool {
+	field := reflect.ValueOf(outcome).FieldByName(variant)
+	return field.IsValid() && field.Kind() == reflect.Pointer && !field.IsNil()
+}

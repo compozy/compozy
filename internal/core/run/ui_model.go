@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/model"
+
 	"charm.land/bubbles/v2/progress"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -14,40 +16,43 @@ import (
 )
 
 type uiModel struct {
-	jobs            []uiJob
-	total           int
-	completed       int
-	failed          int
-	frame           int
-	events          <-chan uiMsg
-	onQuit          func()
-	viewport        viewport.Model
-	sidebarViewport viewport.Model
-	progressBar     progress.Model
-	selectedJob     int
-	width           int
-	height          int
-	sidebarWidth    int
-	mainWidth       int
-	contentHeight   int
-	currentView     uiViewState
-	failures        []failInfo
-	aggregateUsage  *TokenUsage
+	jobs               []uiJob
+	total              int
+	completed          int
+	failed             int
+	frame              int
+	events             <-chan uiMsg
+	onQuit             func(uiQuitRequest)
+	transcriptViewport viewport.Model
+	sidebarViewport    viewport.Model
+	progressBar        progress.Model
+	selectedJob        int
+	width              int
+	height             int
+	sidebarWidth       int
+	timelineWidth      int
+	contentHeight      int
+	layoutMode         uiLayoutMode
+	currentView        uiViewState
+	focusedPane        uiPane
+	shutdown           shutdownState
+	failures           []failInfo
+	aggregateUsage     *model.Usage
 }
 
 type uiController struct {
 	ch              chan uiMsg
 	prog            *tea.Program
 	done            chan error
-	quitHandler     func()
+	quitHandler     func(uiQuitRequest)
 	quitHandlerMu   sync.RWMutex
 	closeEventsOnce sync.Once
 	shutdownOnce    sync.Once
 }
 
 func newUIModel(total int) *uiModel {
-	vp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(24))
-	vp.Style = lipgloss.NewStyle().
+	transcriptVp := viewport.New(viewport.WithWidth(80), viewport.WithHeight(24))
+	transcriptVp.Style = lipgloss.NewStyle().
 		Foreground(colorFgBright)
 	sidebarVp := viewport.New(viewport.WithWidth(30), viewport.WithHeight(24))
 	sidebarVp.Style = lipgloss.NewStyle().
@@ -59,6 +64,8 @@ func newUIModel(total int) *uiModel {
 		),
 		progress.WithoutPercentage(),
 	)
+	pb.Empty = progress.DefaultFullCharFullBlock
+	pb.EmptyColor = colorBorder
 	defaultWidth := 120
 	defaultHeight := 40
 	initialSidebarWidth := int(float64(defaultWidth) * sidebarWidthRatio)
@@ -76,21 +83,30 @@ func newUIModel(total int) *uiModel {
 	if initialContentHeight < minContentHeight {
 		initialContentHeight = minContentHeight
 	}
-	return &uiModel{
-		total:           total,
-		viewport:        vp,
-		sidebarViewport: sidebarVp,
-		progressBar:     pb,
-		selectedJob:     0,
-		width:           defaultWidth,
-		height:          defaultHeight,
-		sidebarWidth:    initialSidebarWidth,
-		mainWidth:       initialMainWidth,
-		contentHeight:   initialContentHeight,
-		currentView:     uiViewJobs,
-		failures:        []failInfo{},
-		aggregateUsage:  &TokenUsage{},
+	mdl := &uiModel{
+		total:              total,
+		transcriptViewport: transcriptVp,
+		sidebarViewport:    sidebarVp,
+		progressBar:        pb,
+		selectedJob:        0,
+		width:              defaultWidth,
+		height:             defaultHeight,
+		sidebarWidth:       initialSidebarWidth,
+		timelineWidth:      initialMainWidth,
+		contentHeight:      initialContentHeight,
+		layoutMode:         uiLayoutSplit,
+		currentView:        uiViewJobs,
+		focusedPane:        uiPaneJobs,
+		failures:           []failInfo{},
+		aggregateUsage:     &model.Usage{},
 	}
+	layout := mdl.computeLayout(defaultWidth, defaultHeight)
+	mdl.layoutMode = layout.mode
+	mdl.sidebarWidth = layout.sidebarWidth
+	mdl.timelineWidth = layout.timelineWidth
+	mdl.contentHeight = layout.contentHeight
+	mdl.configureViewports(layout)
+	return mdl
 }
 
 func (m *uiModel) setEventSource(ch <-chan uiMsg) {
@@ -117,7 +133,7 @@ func (m *uiModel) tick() tea.Cmd {
 	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
-func newUIController(ctx context.Context, total int) *uiController {
+func newUIController(_ context.Context, total int) *uiController {
 	uiCh := make(chan uiMsg, max(total*4, 4))
 	mdl := newUIModel(total)
 	mdl.setEventSource(uiCh)
@@ -127,17 +143,13 @@ func newUIController(ctx context.Context, total int) *uiController {
 		done: make(chan error, 1),
 	}
 	mdl.onQuit = ctrl.requestQuit
-	ctrl.prog = tea.NewProgram(mdl)
+	ctrl.prog = tea.NewProgram(mdl, tea.WithoutSignalHandler())
 	go func() {
 		_, runErr := ctrl.prog.Run()
 		if runErr != nil {
 			ctrl.done <- runErr
 		}
 		close(ctrl.done)
-	}()
-	go func() {
-		<-ctx.Done()
-		ctrl.shutdown()
 	}()
 	return ctrl
 }
@@ -146,18 +158,18 @@ func (c *uiController) events() chan uiMsg {
 	return c.ch
 }
 
-func (c *uiController) setQuitHandler(fn func()) {
+func (c *uiController) setQuitHandler(fn func(uiQuitRequest)) {
 	c.quitHandlerMu.Lock()
 	defer c.quitHandlerMu.Unlock()
 	c.quitHandler = fn
 }
 
-func (c *uiController) requestQuit() {
+func (c *uiController) requestQuit(req uiQuitRequest) {
 	c.quitHandlerMu.RLock()
 	fn := c.quitHandler
 	c.quitHandlerMu.RUnlock()
 	if fn != nil {
-		fn()
+		fn(req)
 	}
 }
 
