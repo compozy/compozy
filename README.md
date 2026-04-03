@@ -29,7 +29,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 ## ✨ Highlights
 
 - **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`.
-- **Idea to code in 5 steps.** Structured pipeline: PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next.
+- **Idea to code in a structured pipeline.** Optional Issue → PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next. Start from an issue for full research and debate, or jump straight to PRD if you already have a clear scope.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
 - **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
 - **Workflow memory between runs.** Agents inherit context from every previous task — decisions, learnings, errors, and handoffs. Two-tier markdown memory with automatic compaction keeps context fresh without manual bookkeeping.
@@ -110,17 +110,25 @@ compozy setup
 
 Auto-detects installed agents and copies (or symlinks) skills into their configuration directories.
 
-### 2. Create a PRD
+### 2. (Optional) Create an Issue
 
 Inside your AI agent (Claude Code, Codex, Cursor, OpenCode, Pi, etc.):
 
 ```
-/cy-create-prd <prompt>
+/cy-create-issue user-auth
 ```
 
-Interactive brainstorming session — asks clarifying questions, spawns parallel agents to research your codebase and the web, produces a business-focused PRD with ADRs.
+Transforms a raw idea into a structured issue spec — asks targeted questions, researches market and codebase in parallel, runs business analysis and council debate, suggests high-leverage alternatives, and produces a research-backed issue. Skip this step if you already have a clear feature scope.
 
-### 3. Create a TechSpec
+### 3. Create a PRD
+
+```
+/cy-create-prd user-auth
+```
+
+Interactive brainstorming session — reads the issue if one exists, asks clarifying questions, spawns parallel agents to research your codebase and the web, produces a business-focused PRD with ADRs.
+
+### 4. Create a TechSpec
 
 ```
 /cy-create-techspec user-auth
@@ -128,7 +136,7 @@ Interactive brainstorming session — asks clarifying questions, spawns parallel
 
 Reads your PRD, explores the codebase architecture, asks technical clarification questions. Produces architecture specs, API designs, and data models.
 
-### 4. Break down into tasks
+### 5. Break down into tasks
 
 ```
 /cy-create-tasks user-auth
@@ -136,7 +144,7 @@ Reads your PRD, explores the codebase architecture, asks technical clarification
 
 Analyzes both documents, explores your codebase for relevant files and patterns, produces individually executable task files with status tracking, context, and acceptance criteria.
 
-### 5. Execute tasks
+### 6. Execute tasks
 
 ```bash
 compozy start --name user-auth --ide claude
@@ -144,7 +152,7 @@ compozy start --name user-auth --ide claude
 
 Each pending task is processed sequentially — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
 
-### 6. Review
+### 7. Review
 
 **Option A** — AI-powered review inside your agent:
 
@@ -160,7 +168,7 @@ compozy fetch-reviews --provider coderabbit --pr 42 --name user-auth
 
 Both produce the same output: `.compozy/tasks/user-auth/reviews-001/issue_*.md`
 
-### 7. Fix review issues
+### 8. Fix review issues
 
 ```bash
 compozy fix-reviews --name user-auth --ide claude --concurrent 2 --batch-size 3
@@ -168,17 +176,18 @@ compozy fix-reviews --name user-auth --ide claude --concurrent 2 --batch-size 3
 
 Agents triage each issue as valid or invalid, implement fixes for valid issues, and update statuses. Provider threads are resolved automatically.
 
-### 8. Iterate and ship
+### 9. Iterate and ship
 
-Repeat steps 6–7. Each cycle creates a new review round (`reviews-002/`, `reviews-003/`), preserving full history. When clean — merge and ship.
+Repeat steps 7–8. Each cycle creates a new review round (`reviews-002/`, `reviews-003/`), preserving full history. When clean — merge and ship.
 
 ## 🧩 Skills
 
-Compozy bundles 8 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
+Compozy bundles 9 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
 
 | Skill                | Purpose                                                                    |
 | -------------------- | -------------------------------------------------------------------------- |
-| `cy-create-prd`      | Interactive brainstorming → Product Requirements Document with ADRs        |
+| `cy-create-issue`    | Raw idea → structured issue spec with market research, business analysis, and council debate |
+| `cy-create-prd`      | Issue/idea → Product Requirements Document with ADRs                       |
 | `cy-create-techspec` | PRD → Technical Specification with architecture exploration                |
 | `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                    |
 | `cy-execute-task`    | Executes one task end-to-end: implement, validate, track, commit           |
