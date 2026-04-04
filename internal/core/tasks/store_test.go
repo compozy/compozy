@@ -99,6 +99,35 @@ func TestRefreshTaskMetaRejectsLegacyTaskArtifacts(t *testing.T) {
 	}
 }
 
+func TestRefreshTaskMetaRejectsV1TaskArtifacts(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	v1Task := strings.Join([]string{
+		"---",
+		"status: pending",
+		"domain: backend",
+		"type: backend",
+		"scope: small",
+		"complexity: low",
+		"---",
+		"",
+		"# Task 1: Example",
+		"",
+	}, "\n")
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(v1Task), 0o600); err != nil {
+		t.Fatalf("write v1 task: %v", err)
+	}
+
+	_, err := RefreshTaskMeta(tasksDir)
+	if err == nil {
+		t.Fatal("expected refresh to fail for v1 task metadata")
+	}
+	if !strings.Contains(err.Error(), "run `compozy migrate`") {
+		t.Fatalf("expected migrate guidance, got %v", err)
+	}
+}
+
 func TestMarkTaskCompletedRewritesStatusAndPreservesBody(t *testing.T) {
 	t.Parallel()
 
@@ -107,9 +136,8 @@ func TestMarkTaskCompletedRewritesStatusAndPreservesBody(t *testing.T) {
 	content := strings.Join([]string{
 		"---",
 		"status: pending",
-		"domain: backend",
-		"type: feature",
-		"scope: small",
+		"title: Task 01",
+		"type: backend",
 		"complexity: low",
 		"custom_field: keep-me",
 		"---",
@@ -169,9 +197,8 @@ func writeTaskFile(t *testing.T, tasksDir, name, status string) {
 	content := strings.Join([]string{
 		"---",
 		"status: " + status,
-		"domain: backend",
-		"type: feature",
-		"scope: small",
+		"title: " + name,
+		"type: backend",
 		"complexity: low",
 		"---",
 		"",

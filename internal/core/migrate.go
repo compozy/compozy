@@ -207,6 +207,9 @@ func inspectTaskArtifact(path string, result *MigrationResult) (*pendingFileMigr
 	if _, err := prompt.ParseTaskFile(string(content)); err == nil {
 		result.FilesAlreadyFrontmatter++
 		return nil, nil
+	} else if errors.Is(err, prompt.ErrV1TaskMetadata) {
+		result.FilesAlreadyFrontmatter++
+		return nil, nil
 	} else if !errors.Is(err, prompt.ErrLegacyTaskMetadata) {
 		return nil, err
 	}
@@ -221,9 +224,7 @@ func inspectTaskArtifact(path string, result *MigrationResult) (*pendingFileMigr
 	}
 	migrated, err := frontmatter.Format(model.TaskFileMeta{
 		Status:       legacyTask.Status,
-		Domain:       legacyTask.Domain,
 		TaskType:     legacyTask.TaskType,
-		Scope:        legacyTask.Scope,
 		Complexity:   legacyTask.Complexity,
 		Dependencies: legacyTask.Dependencies,
 	}, body)

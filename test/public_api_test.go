@@ -22,9 +22,8 @@ func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 	taskFile := filepath.Join(tasksDir, "task_1.md")
 	taskContent := `---
 status: pending
-domain: backend
-type: feature
-scope: small
+title: Demo
+type: backend
 complexity: low
 ---
 
@@ -112,9 +111,8 @@ func TestSyncExposePublicAPI(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workflowDir, "task_1.md"), []byte(strings.Join([]string{
 		"---",
 		"status: pending",
-		"domain: backend",
-		"type: feature",
-		"scope: small",
+		"title: Demo",
+		"type: backend",
 		"complexity: low",
 		"---",
 		"",
@@ -147,9 +145,8 @@ func TestArchiveExposePublicAPI(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(workflowDir, "task_001.md"), []byte(strings.Join([]string{
 		"---",
 		"status: completed",
-		"domain: backend",
-		"type: feature",
-		"scope: small",
+		"title: Demo",
+		"type: backend",
 		"complexity: low",
 		"---",
 		"",

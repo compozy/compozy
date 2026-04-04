@@ -170,18 +170,16 @@ type TaskMeta struct {
 type TaskEntry struct {
 	Content      string
 	Status       string
-	Domain       string
+	Title        string
 	TaskType     string
-	Scope        string
 	Complexity   string
 	Dependencies []string
 }
 
 type TaskFileMeta struct {
 	Status       string   `yaml:"status"`
-	Domain       string   `yaml:"domain,omitempty"`
+	Title        string   `yaml:"title,omitempty"`
 	TaskType     string   `yaml:"type,omitempty"`
-	Scope        string   `yaml:"scope,omitempty"`
 	Complexity   string   `yaml:"complexity,omitempty"`
 	Dependencies []string `yaml:"dependencies,omitempty"`
 }
