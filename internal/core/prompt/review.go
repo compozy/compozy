@@ -15,7 +15,6 @@ type reviewPromptContext struct {
 	ReviewsDir    string
 	CodeFiles     []string
 	BatchIssues   []model.IssueEntry
-	Grouped       bool
 	AutoCommit    bool
 	MinIssue      int
 	MaxIssue      int
@@ -34,7 +33,6 @@ func buildCodeReviewPrompt(p BatchParams) string {
 		ReviewsDir:    p.ReviewsDir,
 		CodeFiles:     codeFiles,
 		BatchIssues:   batchIssues,
-		Grouped:       p.Grouped,
 		AutoCommit:    p.AutoCommit,
 		MinIssue:      minIssue,
 		MaxIssue:      maxIssue,
@@ -67,7 +65,7 @@ func buildReviewScopeSection(ctx reviewPromptContext) string {
 	sb.WriteString(
 		"- Do not call provider-specific scripts, `gh` mutations, or other external resolution commands. Compozy resolves provider threads after the batch succeeds.\n",
 	)
-	sb.WriteString("- Update only the issue files and grouped trackers that belong to this batch.\n")
+	sb.WriteString("- Update only the issue files that belong to this batch.\n")
 	sb.WriteString(
 		"- Use installed `cy-final-verify` before claiming this batch is complete or creating an automatic commit.\n",
 	)
@@ -93,11 +91,6 @@ func buildReviewScopeSection(ctx reviewPromptContext) string {
 		fmt.Fprintf(&sb, "- Issue range: `issue_%03d.md` → `issue_%03d.md`\n", ctx.MinIssue, ctx.MaxIssue)
 	} else {
 		sb.WriteString("- Issue range: `UNCONFIRMED`; use the explicit file list below\n")
-	}
-	if ctx.Grouped {
-		sb.WriteString("- Grouped summaries: enabled\n")
-	} else {
-		sb.WriteString("- Grouped summaries: disabled\n")
 	}
 	if ctx.AutoCommit {
 		sb.WriteString("- Automatic commits: enabled after clean verification\n")
@@ -141,17 +134,12 @@ func buildReviewExecutionSection(ctx reviewPromptContext) string {
 	sb.WriteString(
 		"6. Use `cy-final-verify` to identify and run the repository's real verification commands before finishing or committing this batch.\n",
 	)
-	if ctx.Grouped {
-		sb.WriteString("7. Update grouped tracker files only for the touched code files in this batch.\n")
-	} else {
-		sb.WriteString("7. Grouped tracker updates are disabled for this run.\n")
-	}
 	if ctx.AutoCommit {
 		sb.WriteString(
-			"8. Create exactly one local commit for this batch after clean verification. Do not push automatically.\n",
+			"7. Create exactly one local commit for this batch after clean verification. Do not push automatically.\n",
 		)
 	} else {
-		sb.WriteString("8. Leave the changes ready for manual review and commit. Do not create an automatic commit.\n")
+		sb.WriteString("7. Leave the changes ready for manual review and commit. Do not create an automatic commit.\n")
 	}
 	sb.WriteString("</execution_contract>")
 	return sb.String()

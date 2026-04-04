@@ -68,7 +68,6 @@ type Config struct {
 	IDE                    IDE
 	Model                  string
 	AddDirs                []string
-	Grouped                bool
 	TailLines              int
 	ReasoningEffort        string
 	AccessMode             string
@@ -95,14 +94,13 @@ type Job struct {
 
 // Preparation contains the resolved execution plan for a compozy run.
 type Preparation struct {
-	Jobs                    []Job
-	InputDir                string
-	ResolvedPR              string
-	ResolvedName            string
-	ResolvedProvider        string
-	ResolvedRound           int
-	InputDirPath            string
-	GroupedSummariesWritten bool
+	Jobs             []Job
+	InputDir         string
+	ResolvedPR       string
+	ResolvedName     string
+	ResolvedProvider string
+	ResolvedRound    int
+	InputDirPath     string
 }
 
 type FetchResult struct {
@@ -131,7 +129,6 @@ type MigrationResult struct {
 	FilesAlreadyFrontmatter int
 	FilesSkipped            int
 	FilesInvalid            int
-	GroupedRegenerated      int
 	MigratedPaths           []string
 	InvalidPaths            []string
 }
@@ -268,7 +265,6 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 		IDE:                    string(cfg.IDE),
 		Model:                  cfg.Model,
 		AddDirs:                NormalizeAddDirs(cfg.AddDirs),
-		Grouped:                cfg.Grouped,
 		TailLines:              cfg.TailLines,
 		ReasoningEffort:        cfg.ReasoningEffort,
 		AccessMode:             cfg.AccessMode,
@@ -294,14 +290,13 @@ func newPreparation(prep *model.SolvePreparation) *Preparation {
 	}
 
 	return &Preparation{
-		Jobs:                    jobs,
-		InputDir:                prep.InputDir,
-		ResolvedName:            prep.ResolvedName,
-		ResolvedPR:              prep.ResolvedPR,
-		ResolvedProvider:        prep.ResolvedProvider,
-		ResolvedRound:           prep.ResolvedRound,
-		InputDirPath:            prep.InputDirPath,
-		GroupedSummariesWritten: prep.GroupedSummarized,
+		Jobs:             jobs,
+		InputDir:         prep.InputDir,
+		ResolvedName:     prep.ResolvedName,
+		ResolvedPR:       prep.ResolvedPR,
+		ResolvedProvider: prep.ResolvedProvider,
+		ResolvedRound:    prep.ResolvedRound,
+		InputDirPath:     prep.InputDirPath,
 	}
 }
 

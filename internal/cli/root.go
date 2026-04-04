@@ -42,7 +42,6 @@ type commandState struct {
 	ide                    string
 	model                  string
 	addDirs                []string
-	grouped                bool
 	tailLines              int
 	reasoningEffort        string
 	accessMode             string
@@ -127,7 +126,7 @@ func newFixReviewsCommand() *cobra.Command {
 to remediate review feedback.
 
 Most runtime defaults can be supplied by .compozy/config.toml.`,
-		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3 --grouped
+		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3
   compozy fix-reviews --name my-feature --round 2
   compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001
   compozy fix-reviews`,
@@ -146,7 +145,6 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 		)
 	cmd.Flags().
 		IntVar(&state.batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1 for no batching)")
-	cmd.Flags().BoolVar(&state.grouped, "grouped", false, "Generate grouped issue summaries in reviews-NNN/grouped/")
 	cmd.Flags().BoolVar(&state.includeResolved, "include-resolved", false, "Include already-resolved review issues")
 	return cmd
 }
@@ -433,8 +431,7 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			"Migrated: %d\n" +
 			"Already frontmatter: %d\n" +
 			"Skipped: %d\n" +
-			"Invalid: %d\n" +
-			"Grouped regenerated: %d\n"
+			"Invalid: %d\n"
 		_, _ = fmt.Fprintf(
 			cmd.OutOrStdout(),
 			summaryFormat,
@@ -445,7 +442,6 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			result.FilesAlreadyFrontmatter,
 			result.FilesSkipped,
 			result.FilesInvalid,
-			result.GroupedRegenerated,
 		)
 	}
 	return err
@@ -566,7 +562,6 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		IDE:                    core.IDE(s.ide),
 		Model:                  s.model,
 		AddDirs:                core.NormalizeAddDirs(s.addDirs),
-		Grouped:                s.grouped,
 		TailLines:              s.tailLines,
 		ReasoningEffort:        s.reasoningEffort,
 		AccessMode:             s.accessMode,

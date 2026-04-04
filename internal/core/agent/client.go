@@ -322,7 +322,7 @@ func (c *clientImpl) SessionUpdate(_ context.Context, params acp.SessionNotifica
 		return fmt.Errorf("received update for unknown session %q", params.SessionId)
 	}
 
-	update, err := convertACPUpdate(params.Update)
+	update, err := convertACPUpdate(c.spec.ID, params.Update)
 	if err != nil {
 		return err
 	}

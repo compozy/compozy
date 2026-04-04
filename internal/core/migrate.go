@@ -22,10 +22,8 @@ type pendingFileMigration struct {
 }
 
 type migrationScanState struct {
-	result                        *MigrationResult
-	pending                       []pendingFileMigration
-	groupedDirs                   map[string]struct{}
-	reviewDirsWithIssueMigrations map[string]struct{}
+	result  *MigrationResult
+	pending []pendingFileMigration
 }
 
 func migrateArtifacts(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
@@ -38,7 +36,7 @@ func migrateArtifacts(ctx context.Context, cfg MigrationConfig) (*MigrationResul
 		return result, err
 	}
 
-	pending, groupedReviewDirs, err := scanMigrationTarget(ctx, target, result)
+	pending, err := scanMigrationTarget(ctx, target, result)
 	if err != nil {
 		return result, err
 	}
@@ -46,7 +44,6 @@ func migrateArtifacts(ctx context.Context, cfg MigrationConfig) (*MigrationResul
 	sort.Strings(result.MigratedPaths)
 	sort.Strings(result.InvalidPaths)
 	result.FilesMigrated = len(pending)
-	result.GroupedRegenerated = len(groupedReviewDirs)
 
 	if len(result.InvalidPaths) > 0 {
 		return result, fmt.Errorf("migration aborted: %d invalid artifact(s) found", len(result.InvalidPaths))
@@ -61,12 +58,6 @@ func migrateArtifacts(ctx context.Context, cfg MigrationConfig) (*MigrationResul
 	for _, file := range pending {
 		if err := os.WriteFile(file.path, []byte(file.content), 0o600); err != nil {
 			return result, fmt.Errorf("write migrated artifact %s: %w", file.path, err)
-		}
-	}
-
-	for _, reviewDir := range groupedReviewDirs {
-		if err := reviews.RegenerateGroupedSummaries(reviewDir); err != nil {
-			return result, fmt.Errorf("regenerate grouped summaries for %s: %w", reviewDir, err)
 		}
 	}
 
@@ -121,12 +112,10 @@ func scanMigrationTarget(
 	ctx context.Context,
 	target string,
 	result *MigrationResult,
-) ([]pendingFileMigration, []string, error) {
+) ([]pendingFileMigration, error) {
 	state := migrationScanState{
-		result:                        result,
-		pending:                       make([]pendingFileMigration, 0),
-		groupedDirs:                   make(map[string]struct{}),
-		reviewDirsWithIssueMigrations: make(map[string]struct{}),
+		result:  result,
+		pending: make([]pendingFileMigration, 0),
 	}
 
 	err := filepath.WalkDir(target, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -139,23 +128,14 @@ func scanMigrationTarget(
 		return state.handlePath(path, entry)
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-
-	groupedReviewDirs := make([]string, 0)
-	for reviewDir := range state.reviewDirsWithIssueMigrations {
-		if _, ok := state.groupedDirs[reviewDir]; ok {
-			groupedReviewDirs = append(groupedReviewDirs, reviewDir)
-		}
-	}
-	sort.Strings(groupedReviewDirs)
-	return state.pending, groupedReviewDirs, nil
+	return state.pending, nil
 }
 
 func (s *migrationScanState) handlePath(path string, entry fs.DirEntry) error {
 	if entry.IsDir() {
 		if entry.Name() == "grouped" {
-			s.groupedDirs[filepath.Dir(path)] = struct{}{}
 			s.result.FilesSkipped++
 			return filepath.SkipDir
 		}
@@ -202,7 +182,6 @@ func (s *migrationScanState) appendReviewMigration(path string) error {
 	}
 	if fileMigration != nil {
 		s.pending = append(s.pending, *fileMigration)
-		s.reviewDirsWithIssueMigrations[filepath.Dir(path)] = struct{}{}
 	}
 	return nil
 }

@@ -134,7 +134,6 @@ include_completed = false
 [fix_reviews]
 concurrent = 2
 batch_size = 3
-grouped = true
 include_resolved = false
 
 [fetch_reviews]
@@ -145,7 +144,7 @@ Supported sections in v1:
 
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[start]` for `include_completed`
-- `[fix_reviews]` for `concurrent`, `batch_size`, `grouped`, and `include_resolved`
+- `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider`
 
 Notes:
@@ -427,7 +426,7 @@ compozy fix-reviews [flags]
 
 Running `compozy fix-reviews` with no flags opens the interactive form automatically.
 When present, `.compozy/config.toml` can provide runtime defaults as well as review workflow
-defaults such as `--concurrent`, `--batch-size`, `--grouped`, and `--include-resolved`.
+defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 
 | Flag                         | Default     | Description                                                   |
 | ---------------------------- | ----------- | ------------------------------------------------------------- |
@@ -438,7 +437,6 @@ defaults such as `--concurrent`, `--batch-size`, `--grouped`, and `--include-res
 | `--model`                    | _(per IDE)_ | Model override                                                |
 | `--batch-size`               | `1`         | Issues per batch                                              |
 | `--concurrent`               | `1`         | Parallel batches                                              |
-| `--grouped`                  | `false`     | Generate grouped issue summaries                              |
 | `--include-resolved`         | `false`     | Re-process resolved issues                                    |
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |

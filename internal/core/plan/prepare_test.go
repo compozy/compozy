@@ -205,7 +205,7 @@ func TestResolveInputsInfersTaskNameFromTasksDir(t *testing.T) {
 	}
 }
 
-func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testing.T) {
+func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	t.Parallel()
 
 	promptRoot := t.TempDir()
@@ -229,18 +229,14 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchWithoutGroupedSummaries(t *testi
 		},
 	}
 
-	jobs, groupedWritten, err := prepareJobs(&model.RuntimeConfig{
+	jobs, err := prepareJobs(&model.RuntimeConfig{
 		Name:      "demo",
 		TasksDir:  issuesDir,
 		BatchSize: 5,
-		Grouped:   true,
 		Mode:      model.ExecutionModePRDTasks,
-	}, groups, promptRoot, issuesDir)
+	}, groups, promptRoot)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
-	}
-	if groupedWritten {
-		t.Fatalf("expected grouped summaries to be disabled in prd mode")
 	}
 	if len(jobs) != 2 {
 		t.Fatalf("expected one batch per task in prd mode, got %d", len(jobs))

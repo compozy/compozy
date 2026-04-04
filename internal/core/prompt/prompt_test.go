@@ -38,7 +38,6 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 		Provider:   "coderabbit",
 		PR:         "259",
 		ReviewsDir: "/tmp/.compozy/tasks/my-feature/reviews-001",
-		Grouped:    true,
 		AutoCommit: true,
 		Mode:       model.ExecutionModePRReview,
 		BatchGroups: map[string][]model.IssueEntry{
@@ -64,7 +63,6 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 		"Review round: `001`",
 		"Issue range: `issue_003.md` → `issue_004.md`",
 		"Compozy resolves provider threads after the batch succeeds.",
-		"Grouped summaries: enabled",
 		"Create exactly one local commit for this batch after clean verification.",
 	}
 	for _, snippet := range requiredSnippets {
@@ -85,9 +83,14 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 			t.Fatalf("expected review prompt to omit %q", snippet)
 		}
 	}
+	for _, snippet := range []string{"Grouped summaries:", "grouped tracker", "/grouped/"} {
+		if strings.Contains(promptText, snippet) {
+			t.Fatalf("expected review prompt to omit grouped-summary reference %q", snippet)
+		}
+	}
 }
 
-func TestBuildCodeReviewPromptRespectsDisabledGroupedAndAutoCommitModes(t *testing.T) {
+func TestBuildCodeReviewPromptRespectsManualCommitMode(t *testing.T) {
 	t.Parallel()
 
 	promptText := buildCodeReviewPrompt(BatchParams{
@@ -96,7 +99,6 @@ func TestBuildCodeReviewPromptRespectsDisabledGroupedAndAutoCommitModes(t *testi
 		Provider:   "coderabbit",
 		PR:         "260",
 		ReviewsDir: "/tmp/.compozy/tasks/my-feature/reviews-002",
-		Grouped:    false,
 		AutoCommit: false,
 		Mode:       model.ExecutionModePRReview,
 		BatchGroups: map[string][]model.IssueEntry{
@@ -111,9 +113,7 @@ func TestBuildCodeReviewPromptRespectsDisabledGroupedAndAutoCommitModes(t *testi
 	})
 
 	requiredSnippets := []string{
-		"Grouped summaries: disabled",
 		"Automatic commits: disabled (`--auto-commit=false`)",
-		"Grouped tracker updates are disabled for this run.",
 		"Do not create an automatic commit.",
 	}
 	for _, snippet := range requiredSnippets {

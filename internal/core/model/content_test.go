@@ -35,9 +35,12 @@ func TestContentBlockRoundTrip(t *testing.T) {
 		{
 			name: "tool_use",
 			payload: model.ToolUseBlock{
-				ID:    "tool-1",
-				Name:  "read_file",
-				Input: json.RawMessage(`{"path":"README.md"}`),
+				ID:       "tool-1",
+				Name:     "Read",
+				Title:    "Reading README.md",
+				ToolName: "read_file",
+				Input:    json.RawMessage(`{"file_path":"README.md"}`),
+				RawInput: json.RawMessage(`{"path":"README.md"}`),
 			},
 			assert: func(t *testing.T, block model.ContentBlock) {
 				t.Helper()
@@ -46,10 +49,13 @@ func TestContentBlockRoundTrip(t *testing.T) {
 					t.Fatalf("decode tool use block: %v", err)
 				}
 				want := model.ToolUseBlock{
-					Type:  model.BlockToolUse,
-					ID:    "tool-1",
-					Name:  "read_file",
-					Input: json.RawMessage(`{"path":"README.md"}`),
+					Type:     model.BlockToolUse,
+					ID:       "tool-1",
+					Name:     "Read",
+					Title:    "Reading README.md",
+					ToolName: "read_file",
+					Input:    json.RawMessage(`{"file_path":"README.md"}`),
+					RawInput: json.RawMessage(`{"path":"README.md"}`),
 				}
 				if !reflect.DeepEqual(got, want) {
 					t.Fatalf("unexpected tool use block: %#v", got)
@@ -178,7 +184,9 @@ func TestContentBlockRoundTrip(t *testing.T) {
 func TestContentBlockValidJSONDecodesTypedStructs(t *testing.T) {
 	t.Parallel()
 
-	raw := []byte(`{"type":"tool_use","id":"tool-7","name":"write_file","input":{"path":"main.go"}}`)
+	raw := []byte(
+		`{"type":"tool_use","id":"tool-7","name":"Write","title":"Editing main.go","toolName":"write_file","input":{"file_path":"main.go"},"rawInput":{"path":"main.go"}}`,
+	)
 
 	var block model.ContentBlock
 	if err := json.Unmarshal(raw, &block); err != nil {
@@ -192,8 +200,17 @@ func TestContentBlockValidJSONDecodesTypedStructs(t *testing.T) {
 	if toolUse.ID != "tool-7" {
 		t.Fatalf("unexpected tool id: %q", toolUse.ID)
 	}
-	if string(toolUse.Input) != `{"path":"main.go"}` {
+	if toolUse.ToolName != "write_file" {
+		t.Fatalf("unexpected tool name: %q", toolUse.ToolName)
+	}
+	if toolUse.Title != "Editing main.go" {
+		t.Fatalf("unexpected tool title: %q", toolUse.Title)
+	}
+	if string(toolUse.Input) != `{"file_path":"main.go"}` {
 		t.Fatalf("unexpected tool input: %s", string(toolUse.Input))
+	}
+	if string(toolUse.RawInput) != `{"path":"main.go"}` {
+		t.Fatalf("unexpected raw tool input: %s", string(toolUse.RawInput))
 	}
 }
 

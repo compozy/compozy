@@ -80,12 +80,12 @@ func TestApplyWorkspaceDefaultsDoesNotOverrideChangedFlags(t *testing.T) {
 ide = "claude"
 
 [fix_reviews]
-grouped = true
+batch_size = 4
 `)
 
 	state := newCommandState(commandKindFixReviews, core.ModePRReview)
 	cmd := newTestCommand(state)
-	cmd.Flags().Bool("grouped", false, "grouped")
+	cmd.Flags().Int("batch-size", 1, "batch size")
 
 	originalWD, err := os.Getwd()
 	if err != nil {
@@ -103,9 +103,10 @@ grouped = true
 	if err := cmd.Flags().Set("ide", "gemini"); err != nil {
 		t.Fatalf("set ide: %v", err)
 	}
-	if err := cmd.Flags().Set("grouped", "false"); err != nil {
-		t.Fatalf("set grouped: %v", err)
+	if err := cmd.Flags().Set("batch-size", "2"); err != nil {
+		t.Fatalf("set batch-size: %v", err)
 	}
+	state.batchSize = 2
 
 	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
 		t.Fatalf("apply workspace defaults: %v", err)
@@ -114,8 +115,8 @@ grouped = true
 	if state.ide != "gemini" {
 		t.Fatalf("expected explicit ide flag to win, got %q", state.ide)
 	}
-	if state.grouped {
-		t.Fatalf("expected explicit grouped flag to win")
+	if state.batchSize != 2 {
+		t.Fatalf("expected explicit batch-size flag to win, got %d", state.batchSize)
 	}
 }
 

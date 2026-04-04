@@ -126,7 +126,6 @@ include_completed = false
 [fix_reviews]
 concurrent = 2
 batch_size = 3
-grouped = true
 include_resolved = false
 
 [fetch_reviews]
@@ -161,9 +160,6 @@ provider = "coderabbit"
 	}
 	if cfg.FixReviews.Concurrent == nil || *cfg.FixReviews.Concurrent != 2 {
 		t.Fatalf("unexpected fix_reviews.concurrent: %#v", cfg.FixReviews.Concurrent)
-	}
-	if cfg.FixReviews.Grouped == nil || !*cfg.FixReviews.Grouped {
-		t.Fatalf("unexpected fix_reviews.grouped: %#v", cfg.FixReviews.Grouped)
 	}
 	if cfg.FetchReviews.Provider == nil || *cfg.FetchReviews.Provider != "coderabbit" {
 		t.Fatalf("unexpected fetch_reviews.provider: %#v", cfg.FetchReviews.Provider)

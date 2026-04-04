@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/spf13/cobra"
 )
@@ -42,7 +43,6 @@ func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 		"reviews-dir",
 		"concurrent",
 		"batch-size",
-		"grouped",
 		"auto-commit",
 		"ide",
 		"model",
@@ -245,6 +245,42 @@ func TestListStartTaskSubdirsFiltersCompletedWorkflowsAndBootstrapsMeta(t *testi
 	}
 }
 
+func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ide field", func(t *testing.T) {
+		t.Parallel()
+
+		var selected string
+		builder := newFormBuilder(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
+		builder.addIDEField(&selected)
+
+		view := renderSingleFormFieldForTest(t, builder.fields, "ide")
+		if !strings.Contains(view, "Codex") {
+			t.Fatalf("expected IDE selector to contain Codex, got %q", view)
+		}
+		if strings.Contains(view, "Codex (recommended)") {
+			t.Fatalf("expected IDE selector to omit recommended suffix, got %q", view)
+		}
+	})
+
+	t.Run("reasoning effort field", func(t *testing.T) {
+		t.Parallel()
+
+		var selected string
+		builder := newFormBuilder(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
+		builder.addReasoningEffortField(&selected)
+
+		view := renderSingleFormFieldForTest(t, builder.fields, "reasoning-effort")
+		if !strings.Contains(view, "Medium") {
+			t.Fatalf("expected reasoning selector to contain Medium, got %q", view)
+		}
+		if strings.Contains(view, "Medium (recommended)") {
+			t.Fatalf("expected reasoning selector to omit recommended suffix, got %q", view)
+		}
+	})
+}
+
 func formFieldKeys(cmd *cobra.Command, state *commandState) map[string]struct{} {
 	return formFieldKeysWithBaseDir(cmd, state, filepath.Join(os.TempDir(), "nonexistent-looper-test-dir"))
 }
@@ -306,4 +342,20 @@ func writeFormTaskFile(t *testing.T, workflowDir, name, status string) {
 	if err := os.WriteFile(filepath.Join(workflowDir, name), []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
+}
+
+func renderSingleFormFieldForTest(t *testing.T, fields []huh.Field, key string) string {
+	t.Helper()
+
+	for _, field := range fields {
+		if field.GetKey() != key {
+			continue
+		}
+		field = field.WithTheme(darkHuhTheme()).WithWidth(80).WithHeight(8)
+		_ = field.Focus()
+		return field.View()
+	}
+
+	t.Fatalf("field %q not found", key)
+	return ""
 }

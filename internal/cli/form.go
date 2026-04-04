@@ -47,7 +47,6 @@ type formInputs struct {
 	reasoningEffort  string
 	includeCompleted bool
 	includeResolved  bool
-	grouped          bool
 	dryRun           bool
 	autoCommit       bool
 }
@@ -84,7 +83,6 @@ func newFormInputsFromState(state *commandState) *formInputs {
 	inputs.reasoningEffort = state.reasoningEffort
 	inputs.includeCompleted = state.includeCompleted
 	inputs.includeResolved = state.includeResolved
-	inputs.grouped = state.grouped
 	inputs.dryRun = state.dryRun
 	inputs.autoCommit = state.autoCommit
 
@@ -109,12 +107,6 @@ func (fi *formInputs) register(builder *formBuilder) {
 		"Dry Run?",
 		"Only generate prompts without running IDE tool",
 		&fi.dryRun,
-	)
-	builder.addConfirmField(
-		"grouped",
-		"Generate Grouped Summaries?",
-		"Create grouped issue summaries in reviews-NNN/grouped/",
-		&fi.grouped,
 	)
 	builder.addConfirmField(
 		"auto-commit",
@@ -152,7 +144,6 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 		state.reasoningEffort = val
 	})
 	applyBoolInput(cmd, "dry-run", fi.dryRun, func(val bool) { state.dryRun = val })
-	applyBoolInput(cmd, "grouped", fi.grouped, func(val bool) { state.grouped = val })
 	applyBoolInput(cmd, "auto-commit", fi.autoCommit, func(val bool) { state.autoCommit = val })
 	applyBoolInput(cmd, "include-completed", fi.includeCompleted, func(val bool) {
 		state.includeCompleted = val
@@ -373,7 +364,7 @@ func (fb *formBuilder) addIDEField(target *string) {
 			Title("IDE Tool").
 			Description("Choose which ACP runtime to use (installed directly or available via a supported launcher).").
 			Options(
-				huh.NewOption("Codex (recommended)", string(core.IDECodex)),
+				huh.NewOption("Codex", string(core.IDECodex)),
 				huh.NewOption("Claude", string(core.IDEClaude)),
 				huh.NewOption("Cursor", string(core.IDECursor)),
 				huh.NewOption("Droid", string(core.IDEDroid)),
@@ -418,7 +409,7 @@ func (fb *formBuilder) addReasoningEffortField(target *string) {
 			Description("Model reasoning effort level (applies to Codex, Claude, Droid, OpenCode, and Pi)").
 			Options(
 				huh.NewOption("Low", "low"),
-				huh.NewOption("Medium (recommended)", "medium"),
+				huh.NewOption("Medium", "medium"),
 				huh.NewOption("High", "high"),
 				huh.NewOption("Extra High", "xhigh"),
 			).

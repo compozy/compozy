@@ -92,10 +92,13 @@ type TextBlock struct {
 
 // ToolUseBlock describes the start of a tool invocation.
 type ToolUseBlock struct {
-	Type  ContentBlockType `json:"type"`
-	ID    string           `json:"id"`
-	Name  string           `json:"name"`
-	Input json.RawMessage  `json:"input,omitempty"`
+	Type     ContentBlockType `json:"type"`
+	ID       string           `json:"id"`
+	Name     string           `json:"name"`
+	Title    string           `json:"title,omitempty"`
+	ToolName string           `json:"toolName,omitempty"`
+	Input    json.RawMessage  `json:"input,omitempty"`
+	RawInput json.RawMessage  `json:"rawInput,omitempty"`
 }
 
 // ToolResultBlock carries tool output when a richer block type is not available.

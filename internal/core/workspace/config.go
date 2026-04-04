@@ -50,7 +50,6 @@ type StartConfig struct {
 type FixReviewsConfig struct {
 	Concurrent      *int  `toml:"concurrent"`
 	BatchSize       *int  `toml:"batch_size"`
-	Grouped         *bool `toml:"grouped"`
 	IncludeResolved *bool `toml:"include_resolved"`
 }
 
