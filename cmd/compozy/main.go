@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/compozy/compozy/command"
@@ -9,7 +8,6 @@ import (
 
 func main() {
 	if err := command.New().Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		os.Exit(command.ExitCode(err))
 	}
 }

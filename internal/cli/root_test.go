@@ -30,6 +30,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	required := []string{
 		"compozy setup",
 		"compozy migrate",
+		"compozy validate-tasks",
 		"compozy sync",
 		"compozy archive",
 		"compozy fetch-reviews",
@@ -37,6 +38,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy start",
 		"setup",
 		"migrate",
+		"validate-tasks",
 		"sync",
 		"archive",
 		"fetch-reviews",
@@ -46,6 +48,34 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestValidateTasksHelpShowsValidationFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "validate-tasks")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected validate-tasks to omit mode flag")
+	}
+
+	output, err := executeRootCommand("validate-tasks", "--help")
+	if err != nil {
+		t.Fatalf("execute validate-tasks help: %v", err)
+	}
+
+	required := []string{"--name", "--tasks-dir", "--format"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected validate-tasks help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"--pr", "--provider", "--reviews-dir", "--batch-size", "--concurrent", "--include-completed"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected validate-tasks help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }

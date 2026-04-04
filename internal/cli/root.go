@@ -73,6 +73,7 @@ always override values loaded from the workspace config.
 Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
   compozy migrate       Convert legacy workflow artifacts to frontmatter
+  compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy sync          Refresh task workflow metadata files
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
@@ -86,6 +87,7 @@ Use explicit workflow subcommands:
 	root.AddCommand(
 		newSetupCommand(),
 		newMigrateCommand(),
+		newValidateTasksCommand(),
 		newSyncCommand(),
 		newArchiveCommand(),
 		newFetchReviewsCommand(),
