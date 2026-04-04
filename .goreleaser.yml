@@ -243,8 +243,11 @@ aurs:
       - compozy
     conflicts:
       - compozy
+      - compozy-git
     package: |-
       # Binaries
+      # GoReleaser wraps files in a directory named after the archive
+      cd "${srcdir}/${pkgname%-bin}_${pkgver}_linux_"*
       install -Dm755 "${pkgname%-bin}" "${pkgdir}/usr/bin/${pkgname%-bin}"
 
       # License

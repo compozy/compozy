@@ -7,13 +7,17 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/compozy/compozy"
 license=('MIT')
 provides=('compozy')
-conflicts=('compozy')
+conflicts=('compozy' 'compozy-git')
 source_x86_64=("${pkgname}-${pkgver}-x86_64.tar.gz::${url}/releases/download/v${pkgver}/compozy_${pkgver}_linux_x86_64.tar.gz")
 source_aarch64=("${pkgname}-${pkgver}-aarch64.tar.gz::${url}/releases/download/v${pkgver}/compozy_${pkgver}_linux_arm64.tar.gz")
-sha256sums_x86_64=('SKIP')
-sha256sums_aarch64=('SKIP')
+sha256sums_x86_64=('eaec0ad0fc33bb2821b90d9f96d483edc30b1f5e064f04ffbc6a72193aee69af')
+sha256sums_aarch64=('5e36dddb31320c70fded3bdff5ca4bfa2923c7291cc145a8f43fd12044dea7fe')
 
 package() {
+  local _arch_dir="compozy_${pkgver}_linux_x86_64"
+  [[ "${CARCH}" == "aarch64" ]] && _arch_dir="compozy_${pkgver}_linux_arm64"
+
+  cd "${_arch_dir}"
   install -Dm755 compozy "${pkgdir}/usr/bin/compozy"
   install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
   install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"

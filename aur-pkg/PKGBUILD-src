@@ -9,9 +9,9 @@ license=('MIT')
 depends=('glibc')
 makedepends=('go')
 provides=('compozy')
-conflicts=('compozy-git' 'compozy-bin')
+conflicts=('compozy' 'compozy-git' 'compozy-bin')
 source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/v${pkgver}.tar.gz")
-sha256sums=('SKIP')
+sha256sums=('56cfbc5ebe55f8a93527eb87d86ad163a0eb774518751ea561070e9abe421bad')
 
 build() {
   cd "${pkgname}-${pkgver}"
@@ -22,7 +22,7 @@ build() {
   export GOFLAGS="-buildmode=pie -trimpath -ldflags=-linkmode=external -mod=readonly -modcacherw"
 
   local _commit=$(git rev-parse --short HEAD 2>/dev/null || echo "v${pkgver}")
-  local _date=$(date -u -d "@${SOURCE_DATE_EPOCH:- $(date +%s)}" +'%Y-%m-%dT%H:%M:%SZ')
+  local _date=$(date -u -d "@${SOURCE_DATE_EPOCH:-$(date +%s)}" +'%Y-%m-%dT%H:%M:%SZ')
 
   go build -o build/compozy \
     -ldflags "-X github.com/compozy/compozy/internal/version.Version=v${pkgver} \
