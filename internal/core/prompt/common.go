@@ -28,7 +28,6 @@ type BatchParams struct {
 	PR          string
 	ReviewsDir  string
 	BatchGroups map[string][]model.IssueEntry
-	Grouped     bool
 	AutoCommit  bool
 	Mode        model.ExecutionMode
 	Memory      *WorkflowMemoryContext
@@ -391,18 +390,6 @@ func buildBatchChecklist(p BatchParams) string {
 	})
 
 	var checklistPaths []string
-	if p.Grouped {
-		seenGrouped := make(map[string]bool)
-		for _, issue := range allIssues {
-			groupedPath := NormalizeForPrompt(
-				filepath.Join(p.ReviewsDir, "grouped", fmt.Sprintf("group_%s.md", SafeFileName(issue.CodeFile))),
-			)
-			if !seenGrouped[groupedPath] {
-				checklistPaths = append(checklistPaths, groupedPath)
-				seenGrouped[groupedPath] = true
-			}
-		}
-	}
 	for _, item := range allIssues {
 		checklistPaths = append(checklistPaths, NormalizeForPrompt(item.AbsPath))
 	}

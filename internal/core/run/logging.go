@@ -323,10 +323,14 @@ func renderToolUseBlock(block model.ContentBlock) ([]string, []string) {
 		return renderDecodeFailure(block, err), nil
 	}
 
-	line := fmt.Sprintf("[TOOL] %s (%s)", toolUse.Name, toolUse.ID)
+	line := fmt.Sprintf("[TOOL] %s (%s)", toolUseDisplayTitle(toolUse), toolUse.ID)
 	outLines := []string{line}
-	if len(toolUse.Input) > 0 {
-		outLines = append(outLines, splitRenderedText(string(toolUse.Input))...)
+	payload := toolUse.Input
+	if len(payload) == 0 {
+		payload = toolUse.RawInput
+	}
+	if len(payload) > 0 {
+		outLines = append(outLines, splitRenderedText(string(payload))...)
 	}
 	return outLines, nil
 }

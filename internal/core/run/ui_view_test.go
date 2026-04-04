@@ -258,10 +258,13 @@ func TestExpandedTimelineEntryRendersDetailsInline(t *testing.T) {
 
 	m.handleKey(keyCode(tea.KeyEnter))
 	view = m.View().Content
-	for _, want := range []string{"read_file [COMPLETED]", "loaded README.md"} {
+	for _, want := range []string{"✓ read_file", "loaded README.md"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected expanded timeline to contain %q, got %q", want, view)
 		}
+	}
+	if strings.Contains(view, "[COMPLETED]") {
+		t.Fatalf("expected completed tool entries to omit the completed badge, got %q", view)
 	}
 }
 

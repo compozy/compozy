@@ -12,7 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/core/reviews"
 )
 
-func TestMigrateConvertsLegacyArtifactsAndRegeneratesGroupedSummaries(t *testing.T) {
+func TestMigrateConvertsLegacyArtifactsAndIgnoresLegacyGroupedDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
@@ -77,7 +77,7 @@ func TestMigrateConvertsLegacyArtifactsAndRegeneratesGroupedSummaries(t *testing
 	if err := os.WriteFile(legacyIssuePath, []byte(legacyIssue), 0o600); err != nil {
 		t.Fatalf("write legacy issue: %v", err)
 	}
-	groupedPath := reviews.GroupedFilePath(reviewDir, "internal/app/service.go")
+	groupedPath := filepath.Join(reviewDir, "grouped", "group_internal_app_service.go.md")
 	if err := os.WriteFile(groupedPath, []byte("stale grouped content\n"), 0o600); err != nil {
 		t.Fatalf("write grouped placeholder: %v", err)
 	}
@@ -91,9 +91,6 @@ func TestMigrateConvertsLegacyArtifactsAndRegeneratesGroupedSummaries(t *testing
 	}
 	if result.FilesAlreadyFrontmatter != 1 {
 		t.Fatalf("expected 1 already-frontmatter file, got %d", result.FilesAlreadyFrontmatter)
-	}
-	if result.GroupedRegenerated != 1 {
-		t.Fatalf("expected 1 grouped regeneration, got %d", result.GroupedRegenerated)
 	}
 
 	taskContent, err := os.ReadFile(filepath.Join(workflowDir, "task_1.md"))
@@ -120,10 +117,10 @@ func TestMigrateConvertsLegacyArtifactsAndRegeneratesGroupedSummaries(t *testing
 
 	groupedContent, err := os.ReadFile(groupedPath)
 	if err != nil {
-		t.Fatalf("read regenerated grouped file: %v", err)
+		t.Fatalf("read legacy grouped file: %v", err)
 	}
-	if strings.Contains(string(groupedContent), "stale grouped content") {
-		t.Fatalf("expected grouped file to be regenerated, got:\n%s", string(groupedContent))
+	if string(groupedContent) != "stale grouped content\n" {
+		t.Fatalf("expected migrate to leave legacy grouped file untouched, got:\n%s", string(groupedContent))
 	}
 }
 

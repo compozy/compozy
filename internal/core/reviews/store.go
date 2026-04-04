@@ -19,7 +19,6 @@ import (
 
 const (
 	metaFileName  = "_meta.md"
-	groupedDir    = "grouped"
 	reviewsPrefix = "reviews-"
 )
 
@@ -39,14 +38,6 @@ func RoundDirName(round int) string {
 
 func ReviewDirectory(prdDir string, round int) string {
 	return filepath.Join(prdDir, RoundDirName(round))
-}
-
-func GroupedDirectory(reviewDir string) string {
-	return filepath.Join(reviewDir, groupedDir)
-}
-
-func GroupedFilePath(reviewDir string, codeFile string) string {
-	return filepath.Join(GroupedDirectory(reviewDir), fmt.Sprintf("group_%s.md", prompt.SafeFileName(codeFile)))
 }
 
 func MetaPath(reviewDir string) string {

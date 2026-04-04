@@ -621,12 +621,11 @@ func (m *uiModel) renderTimelineEntry(job *uiJob, entry TranscriptEntry, index i
 func (m *uiModel) timelineEntryTitle(entry TranscriptEntry) string {
 	switch entry.Kind {
 	case transcriptEntryToolCall:
-		return fmt.Sprintf(
-			"%s %s [%s]",
-			toolCallStateIcon(entry.ToolCallState),
-			entry.Title,
-			toolCallStateLabel(entry.ToolCallState),
-		)
+		label := toolCallStateLabel(entry.ToolCallState)
+		if label == "" {
+			return fmt.Sprintf("%s %s", toolCallStateIcon(entry.ToolCallState), entry.Title)
+		}
+		return fmt.Sprintf("%s %s [%s]", toolCallStateIcon(entry.ToolCallState), entry.Title, label)
 	case transcriptEntryAssistantThinking:
 		return "Thinking"
 	default:
@@ -748,7 +747,7 @@ func toolCallStateLabel(state model.ToolCallState) string {
 	case model.ToolCallStateInProgress:
 		return "RUNNING"
 	case model.ToolCallStateCompleted:
-		return "COMPLETED"
+		return ""
 	case model.ToolCallStateFailed:
 		return "FAILED"
 	case model.ToolCallStateWaitingForConfirmation:

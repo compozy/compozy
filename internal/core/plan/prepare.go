@@ -65,11 +65,10 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 		return nil, err
 	}
 
-	prep.Jobs, prep.GroupedSummarized, err = prepareJobs(
+	prep.Jobs, err = prepareJobs(
 		cfg,
 		groups,
 		promptRoot,
-		prep.InputDirPath,
 	)
 	if err != nil {
 		return nil, err
@@ -82,13 +81,10 @@ func prepareJobs(
 	cfg *model.RuntimeConfig,
 	groups map[string][]model.IssueEntry,
 	promptRoot string,
-	issuesDir string,
-) ([]model.Job, bool, error) {
+) ([]model.Job, error) {
 	effectiveBatchSize := cfg.BatchSize
-	effectiveGrouped := cfg.Grouped
 	if cfg.Mode == model.ExecutionModePRDTasks {
 		effectiveBatchSize = 1
-		effectiveGrouped = false
 	}
 	if effectiveBatchSize <= 0 {
 		effectiveBatchSize = 1
@@ -97,35 +93,26 @@ func prepareJobs(
 	collected := prompt.FlattenAndSortIssues(groups, cfg.Mode)
 	batches := createIssueBatches(collected, effectiveBatchSize)
 	if len(batches) == 0 {
-		return nil, false, errors.New("no batches created for prompt preparation")
-	}
-
-	groupedWritten := false
-	if effectiveGrouped {
-		if err := reviews.WriteGroupedSummaries(issuesDir, groups); err != nil {
-			return nil, false, fmt.Errorf("write grouped summaries: %w", err)
-		}
-		groupedWritten = true
+		return nil, errors.New("no batches created for prompt preparation")
 	}
 
 	jobs := make([]model.Job, 0, len(batches))
 	for idx, batchIssues := range batches {
-		job, err := buildBatchJob(cfg, promptRoot, effectiveGrouped, idx, batchIssues)
+		job, err := buildBatchJob(cfg, promptRoot, idx, batchIssues)
 		if err != nil {
-			return nil, groupedWritten, err
+			return nil, err
 		}
 		jobs = append(jobs, job)
 	}
 	if len(jobs) == 0 {
-		return nil, groupedWritten, errors.New("no jobs finalized")
+		return nil, errors.New("no jobs finalized")
 	}
-	return jobs, groupedWritten, nil
+	return jobs, nil
 }
 
 func buildBatchJob(
 	cfg *model.RuntimeConfig,
 	promptRoot string,
-	grouped bool,
 	batchIdx int,
 	batchIssues []model.IssueEntry,
 ) (model.Job, error) {
@@ -138,7 +125,6 @@ func buildBatchJob(
 		PR:          cfg.PR,
 		ReviewsDir:  cfg.ReviewsDir,
 		BatchGroups: batchGroups,
-		Grouped:     grouped,
 		AutoCommit:  cfg.AutoCommit,
 		Mode:        cfg.Mode,
 	}

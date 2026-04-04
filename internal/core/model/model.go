@@ -54,7 +54,6 @@ type RuntimeConfig struct {
 	IDE                    string
 	Model                  string
 	AddDirs                []string
-	Grouped                bool
 	TailLines              int
 	ReasoningEffort        string
 	AccessMode             string
@@ -197,14 +196,13 @@ type ReviewFileMeta struct {
 }
 
 type SolvePreparation struct {
-	Jobs              []Job
-	InputDir          string
-	InputDirPath      string
-	ResolvedName      string
-	ResolvedPR        string
-	ResolvedProvider  string
-	ResolvedRound     int
-	GroupedSummarized bool
+	Jobs             []Job
+	InputDir         string
+	InputDirPath     string
+	ResolvedName     string
+	ResolvedPR       string
+	ResolvedProvider string
+	ResolvedRound    int
 }
 
 type Job struct {

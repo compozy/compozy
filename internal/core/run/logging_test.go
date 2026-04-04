@@ -196,9 +196,12 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	)
 
 	toolUseBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
-		ID:    "tool-1",
-		Name:  "read_file",
-		Input: []byte(`{"path":"README.md"}`),
+		ID:       "tool-1",
+		Name:     "Read",
+		Title:    "Read",
+		ToolName: "read_file",
+		Input:    []byte(`{"file_path":"README.md"}`),
+		RawInput: []byte(`{"path":"README.md"}`),
 	})
 	diffBlock := mustContentBlockLoggingTest(t, model.DiffBlock{
 		FilePath: "README.md",
@@ -226,7 +229,8 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 		t.Fatalf("handle update: %v", handleErr)
 	}
 
-	if got := out.String(); !strings.Contains(got, "[TOOL] read_file") || !strings.Contains(got, "README.md") {
+	if got := out.String(); !strings.Contains(got, "[TOOL] Read README.md") ||
+		!strings.Contains(got, `"file_path":"README.md"`) {
 		t.Fatalf("expected mixed stdout rendering, got %q", got)
 	}
 	if got := err.String(); !strings.Contains(got, "permission denied") {

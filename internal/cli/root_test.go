@@ -181,7 +181,6 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		"--reviews-dir",
 		"--batch-size",
 		"--concurrent",
-		"--grouped",
 		"--include-resolved",
 	}
 	for _, snippet := range required {
@@ -339,7 +338,6 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 	cmd.Flags().String("reviews-dir", "", "review dir")
 	cmd.Flags().Int("round", 0, "round")
 	cmd.Flags().Int("batch-size", 1, "batch size")
-	cmd.Flags().Bool("grouped", false, "grouped")
 	cmd.Flags().Bool("include-resolved", false, "include resolved")
 
 	fi := &formInputs{
@@ -348,7 +346,6 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 		round:           "2",
 		batchSize:       "3",
 		addDirs:         " ../shared, ../docs ,, ../shared \n ../workspace ",
-		grouped:         true,
 		includeResolved: true,
 	}
 
@@ -365,9 +362,6 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 	}
 	if state.batchSize != 3 {
 		t.Fatalf("expected batch size 3, got %d", state.batchSize)
-	}
-	if !state.grouped {
-		t.Fatalf("expected grouped=true")
 	}
 	if !state.includeResolved {
 		t.Fatalf("expected includeResolved=true")

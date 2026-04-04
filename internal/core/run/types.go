@@ -257,7 +257,6 @@ type config struct {
 	ide                    string
 	model                  string
 	addDirs                []string
-	grouped                bool
 	tailLines              int
 	reasoningEffort        string
 	accessMode             string
@@ -300,7 +299,6 @@ func newConfig(src *model.RuntimeConfig) *config {
 		ide:                    src.IDE,
 		model:                  src.Model,
 		addDirs:                append([]string(nil), src.AddDirs...),
-		grouped:                src.Grouped,
 		tailLines:              src.TailLines,
 		reasoningEffort:        src.ReasoningEffort,
 		accessMode:             src.AccessMode,

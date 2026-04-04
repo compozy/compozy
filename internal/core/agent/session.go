@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -137,11 +138,11 @@ func (s *sessionImpl) lastUpdateFailedToolCall() bool {
 	return s.lastUpdateWasFailedToolCall
 }
 
-func convertACPUpdate(update acp.SessionUpdate) (model.SessionUpdate, error) {
+func convertACPUpdate(driverID string, update acp.SessionUpdate) (model.SessionUpdate, error) {
 	if converted, ok, err := convertACPMessageUpdate(update); ok || err != nil {
 		return converted, err
 	}
-	if converted, ok, err := convertACPToolLifecycleUpdate(update); ok || err != nil {
+	if converted, ok, err := convertACPToolLifecycleUpdate(driverID, update); ok || err != nil {
 		return converted, err
 	}
 	if converted, ok := convertACPSessionStateUpdate(update); ok {
@@ -182,10 +183,10 @@ func convertACPMessageUpdate(update acp.SessionUpdate) (model.SessionUpdate, boo
 	}
 }
 
-func convertACPToolLifecycleUpdate(update acp.SessionUpdate) (model.SessionUpdate, bool, error) {
+func convertACPToolLifecycleUpdate(driverID string, update acp.SessionUpdate) (model.SessionUpdate, bool, error) {
 	switch {
 	case update.ToolCall != nil:
-		blocks, err := convertACPToolCallStart(update.ToolCall)
+		blocks, err := convertACPToolCallStart(driverID, update.ToolCall)
 		if err != nil {
 			return model.SessionUpdate{}, true, err
 		}
@@ -201,6 +202,10 @@ func convertACPToolLifecycleUpdate(update acp.SessionUpdate) (model.SessionUpdat
 			Status:        model.StatusRunning,
 		}, true, nil
 	case update.ToolCallUpdate != nil:
+		header, err := convertACPToolCallUpdateHeader(driverID, update.ToolCallUpdate)
+		if err != nil {
+			return model.SessionUpdate{}, true, err
+		}
 		blocks, err := convertToolCallContent(
 			string(update.ToolCallUpdate.ToolCallId),
 			update.ToolCallUpdate.Content,
@@ -209,6 +214,9 @@ func convertACPToolLifecycleUpdate(update acp.SessionUpdate) (model.SessionUpdat
 		)
 		if err != nil {
 			return model.SessionUpdate{}, true, err
+		}
+		if len(header) > 0 {
+			blocks = append(header, blocks...)
 		}
 		state := model.ToolCallStateUnknown
 		if update.ToolCallUpdate.Status != nil {
@@ -301,12 +309,16 @@ func convertACPAvailableCommands(commands []acp.AvailableCommand) []model.Sessio
 	return converted
 }
 
-func convertACPToolCallStart(toolCall *acp.SessionUpdateToolCall) ([]model.ContentBlock, error) {
-	toolUseBlock, err := model.NewContentBlock(model.ToolUseBlock{
-		ID:    string(toolCall.ToolCallId),
-		Name:  toolCall.Title,
-		Input: marshalRawJSON(toolCall.RawInput),
-	})
+func convertACPToolCallStart(driverID string, toolCall *acp.SessionUpdateToolCall) ([]model.ContentBlock, error) {
+	toolUseBlock, err := buildNormalizedToolUseBlock(
+		driverID,
+		string(toolCall.ToolCallId),
+		toolCall.Title,
+		toolCall.Kind,
+		toolCall.RawInput,
+		toolCall.Locations,
+		toolCall.Meta,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -323,6 +335,89 @@ func convertACPToolCallStart(toolCall *acp.SessionUpdateToolCall) ([]model.Conte
 	}
 	blocks = append(blocks, converted...)
 	return blocks, nil
+}
+
+func convertACPToolCallUpdateHeader(
+	driverID string,
+	update *acp.SessionToolCallUpdate,
+) ([]model.ContentBlock, error) {
+	if update == nil {
+		return nil, nil
+	}
+	hasTitle := update.Title != nil && meaningfulToolHeaderTitle(*update.Title)
+	hasKind := update.Kind != nil && *update.Kind != "" && *update.Kind != acp.ToolKindOther
+	hasRawInput := meaningfulToolHeaderRawInput(update.RawInput)
+	hasLocations := len(update.Locations) > 0
+	hasMeta := meaningfulToolHeaderMeta(update.Meta)
+	if !hasTitle && !hasKind && !hasRawInput && !hasLocations && !hasMeta {
+		return nil, nil
+	}
+
+	title := ""
+	if hasTitle {
+		title = *update.Title
+	}
+	kind := acp.ToolKindOther
+	if hasKind {
+		kind = *update.Kind
+	}
+
+	block, err := buildNormalizedToolUseBlock(
+		driverID,
+		string(update.ToolCallId),
+		title,
+		kind,
+		update.RawInput,
+		update.Locations,
+		update.Meta,
+	)
+	if err != nil {
+		return nil, err
+	}
+	toolUse, err := block.AsToolUse()
+	if err != nil {
+		return nil, err
+	}
+	if strings.EqualFold(strings.TrimSpace(toolUse.Name), "Tool Call") {
+		return nil, nil
+	}
+	return []model.ContentBlock{block}, nil
+}
+
+func meaningfulToolHeaderTitle(title string) bool {
+	trimmed := strings.TrimSpace(title)
+	if trimmed == "" {
+		return false
+	}
+	return !strings.EqualFold(trimmed, toolNameToolCall)
+}
+
+func meaningfulToolHeaderRawInput(rawInput any) bool {
+	if rawInput == nil {
+		return false
+	}
+	if object := coerceJSONObject(rawInput); len(object) > 0 {
+		return true
+	}
+	switch typed := rawInput.(type) {
+	case json.RawMessage:
+		trimmed := strings.TrimSpace(string(typed))
+		return trimmed != "" && trimmed != jsonNullLiteral && trimmed != emptyObjectLiteral
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		return trimmed != "" && trimmed != emptyObjectLiteral && trimmed != emptyMapSentinel
+	case []any:
+		return len(typed) > 0
+	case []string:
+		return len(typed) > 0
+	default:
+		text := strings.TrimSpace(fmt.Sprint(rawInput))
+		return text != "" && text != "<nil>" && text != "{}" && text != emptyMapSentinel
+	}
+}
+
+func meaningfulToolHeaderMeta(meta any) bool {
+	return extractACPToolName(meta) != ""
 }
 
 func convertACPContentBlock(block acp.ContentBlock) ([]model.ContentBlock, error) {

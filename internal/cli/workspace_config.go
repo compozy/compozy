@@ -85,7 +85,6 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 	case commandKindFixReviews:
 		applyIntConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
 		applyIntConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
-		applyBoolConfig(cmd, "grouped", cfg.FixReviews.Grouped, func(val bool) { s.grouped = val })
 		applyBoolConfig(
 			cmd,
 			"include-resolved",

@@ -1,6 +1,6 @@
 ---
 name: cy-fix-reviews
-description: Executes provider-agnostic PR review remediation using existing review round files under .compozy/tasks/<name>/reviews-NNN/. Use when resolving batched review issues, updating issue/grouped markdown files, implementing fixes, and verifying the result. Do not use for PRD task execution, review export/fetch, or generic coding tasks without review issue files.
+description: Executes provider-agnostic PR review remediation using existing review round files under .compozy/tasks/<name>/reviews-NNN/. Use when resolving batched review issues, updating issue markdown files, implementing fixes, and verifying the result. Do not use for PRD task execution, review export/fetch, or generic coding tasks without review issue files.
 ---
 
 # Fix Reviews
@@ -17,7 +17,7 @@ Execute the review remediation workflow in a strict sequence. The review files a
 
 1. Gather round context.
    - Read `_meta.md` from the review round directory to understand the provider, round number, and issue counts.
-   - Read `<batch_scope>` to identify the PRD name, review round, code files in scope, and conditional flags (auto-commit, grouped summaries).
+   - Read `<batch_scope>` to identify the PRD name, review round, code files in scope, and conditional flags such as auto-commit.
 
 2. Read and triage the scoped issue files.
    - Read every listed issue file completely before editing code.
@@ -34,7 +34,6 @@ Execute the review remediation workflow in a strict sequence. The review files a
 4. Close out issue files correctly.
    - For a `valid` issue, set frontmatter `status: resolved` only after the code and verification are done.
    - For an `invalid` issue, document why it is invalid and then set frontmatter `status: resolved` once the analysis is complete.
-   - Update grouped review trackers only when `<batch_scope>` shows "Grouped summaries: enabled". If grouped summaries are disabled, do not create or modify any grouped tracker files.
 
 5. Verify before completion.
    - Use `cy-final-verify` before any completion claim or automatic commit.

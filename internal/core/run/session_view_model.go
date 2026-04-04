@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -200,16 +201,31 @@ func (m *sessionViewModel) upsertToolCall(
 				}
 			}
 		} else if len(blocks) > 0 {
-			header := extractToolUseHeader(entry.Blocks)
-			nextBlocks := make([]model.ContentBlock, 0, len(header)+len(blocks))
+			header := mergeToolUseHeaders(extractToolUseHeader(entry.Blocks), extractToolUseHeader(blocks))
+			content := stripToolUseHeader(blocks)
+			nextBlocks := make([]model.ContentBlock, 0, len(header)+len(content))
 			nextBlocks = append(nextBlocks, header...)
-			nextBlocks = append(nextBlocks, cloneContentBlocks(blocks)...)
+			nextBlocks = append(nextBlocks, content...)
 			if !contentBlocksEqual(entry.Blocks, nextBlocks) {
 				entry.Blocks = nextBlocks
 				changed = true
 			}
 		}
 		return changed
+	}
+
+	if !started {
+		placeholder, err := missingToolCallBlocks(toolCallID)
+		if err == nil {
+			m.entries = append(m.entries, sessionViewEntry{
+				ID:            nextEntryID(transcriptEntryToolCall, len(m.entries)),
+				Kind:          transcriptEntryToolCall,
+				ToolCallID:    toolCallID,
+				ToolCallState: model.ToolCallStateFailed,
+				Blocks:        placeholder,
+			})
+			return true
+		}
 	}
 
 	if len(blocks) == 0 {
@@ -326,18 +342,23 @@ func buildVisibleEntry(entry sessionViewEntry) TranscriptEntry {
 	switch entry.Kind {
 	case transcriptEntryAssistantMessage:
 		result.Title = "Assistant"
+		result.Preview = buildBlocksPreview(entry.Blocks)
 	case transcriptEntryAssistantThinking:
 		result.Title = "Thinking"
+		result.Preview = buildBlocksPreview(entry.Blocks)
 	case transcriptEntryToolCall:
 		result.Title = extractToolTitle(entry.Blocks)
+		result.Preview = buildToolCallPreview(entry.Blocks)
 	case transcriptEntryStderrEvent:
 		result.Title = "stderr"
+		result.Preview = buildBlocksPreview(entry.Blocks)
 	case transcriptEntryRuntimeNotice:
 		result.Title = "Runtime"
+		result.Preview = buildBlocksPreview(entry.Blocks)
 	default:
 		result.Title = "Entry"
+		result.Preview = buildBlocksPreview(entry.Blocks)
 	}
-	result.Preview = buildBlocksPreview(entry.Blocks)
 	return result
 }
 
@@ -382,11 +403,23 @@ func buildBlocksPreview(blocks []model.ContentBlock) string {
 func extractToolTitle(blocks []model.ContentBlock) string {
 	if len(blocks) > 0 && blocks[0].Type == model.BlockToolUse {
 		toolUse, err := blocks[0].AsToolUse()
-		if err == nil && toolUse.Name != "" {
-			return toolUse.Name
+		if err == nil {
+			return toolUseDisplayTitle(toolUse)
 		}
 	}
-	return "Tool Call"
+	return toolNameGeneric
+}
+
+func buildToolCallPreview(blocks []model.ContentBlock) string {
+	if len(blocks) > 0 && blocks[0].Type == model.BlockToolUse {
+		toolUse, err := blocks[0].AsToolUse()
+		if err == nil {
+			if summary := toolUseSummary(toolUse); summary != "" {
+				return summary
+			}
+		}
+	}
+	return buildBlocksPreview(stripToolUseHeader(blocks))
 }
 
 func clonePlanEntries(entries []model.SessionPlanEntry) []model.SessionPlanEntry {
@@ -420,6 +453,134 @@ func extractToolUseHeader(blocks []model.ContentBlock) []model.ContentBlock {
 		return nil
 	}
 	return cloneContentBlocks(blocks[:1])
+}
+
+func stripToolUseHeader(blocks []model.ContentBlock) []model.ContentBlock {
+	if len(blocks) == 0 {
+		return nil
+	}
+	if blocks[0].Type != model.BlockToolUse {
+		return cloneContentBlocks(blocks)
+	}
+	return cloneContentBlocks(blocks[1:])
+}
+
+func mergeToolUseHeaders(existing []model.ContentBlock, updated []model.ContentBlock) []model.ContentBlock {
+	if len(updated) == 0 {
+		return existing
+	}
+	if len(existing) == 0 {
+		return updated
+	}
+
+	existingTool, err := existing[0].AsToolUse()
+	if err != nil {
+		return updated
+	}
+	updatedTool, err := updated[0].AsToolUse()
+	if err != nil {
+		return updated
+	}
+
+	merged := existingTool
+	if name := strings.TrimSpace(updatedTool.Name); name != "" && name != "Tool Call" {
+		merged.Name = name
+	}
+	if title := strings.TrimSpace(updatedTool.Title); title != "" && title != toolNameGeneric {
+		merged.Title = title
+	}
+	if toolName := strings.TrimSpace(updatedTool.ToolName); toolName != "" {
+		merged.ToolName = toolName
+	}
+	if input := mergeToolUseInputJSON(existingTool.Input, updatedTool.Input); len(input) > 0 {
+		merged.Input = input
+	}
+	if rawInput := copyJSONPayload(updatedTool.RawInput); len(rawInput) > 0 {
+		merged.RawInput = rawInput
+	}
+
+	block, err := model.NewContentBlock(merged)
+	if err != nil {
+		return updated
+	}
+	return []model.ContentBlock{block}
+}
+
+func mergeToolUseInputJSON(existing json.RawMessage, updated json.RawMessage) json.RawMessage {
+	if len(updated) == 0 {
+		return append(json.RawMessage(nil), existing...)
+	}
+	if len(existing) == 0 {
+		return append(json.RawMessage(nil), updated...)
+	}
+
+	existingMap, existingIsObject := decodeJSONObjectPayload(existing)
+	updatedMap, updatedIsObject := decodeJSONObjectPayload(updated)
+	switch {
+	case !updatedIsObject:
+		if isJSONNullPayload(updated) {
+			return append(json.RawMessage(nil), existing...)
+		}
+		return append(json.RawMessage(nil), updated...)
+	case !existingIsObject:
+		return append(json.RawMessage(nil), updated...)
+	}
+	for key, value := range updatedMap {
+		existingMap[key] = value
+	}
+	merged, err := json.Marshal(existingMap)
+	if err != nil {
+		return append(json.RawMessage(nil), updated...)
+	}
+	return merged
+}
+
+func decodeJSONObjectPayload(payload json.RawMessage) (map[string]any, bool) {
+	if len(payload) == 0 {
+		return nil, false
+	}
+
+	var decoded any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		return nil, false
+	}
+	record, ok := decoded.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	return record, true
+}
+
+func isJSONNullPayload(payload json.RawMessage) bool {
+	trimmed := bytes.TrimSpace(payload)
+	return bytes.Equal(trimmed, []byte("null"))
+}
+
+func copyJSONPayload(payload json.RawMessage) json.RawMessage {
+	if len(payload) == 0 {
+		return nil
+	}
+	return append(json.RawMessage(nil), payload...)
+}
+
+func missingToolCallBlocks(toolCallID string) ([]model.ContentBlock, error) {
+	header, err := model.NewContentBlock(model.ToolUseBlock{
+		ID:    toolCallID,
+		Name:  toolNameGeneric,
+		Title: "Tool call not found",
+	})
+	if err != nil {
+		return nil, err
+	}
+	result, err := model.NewContentBlock(model.ToolResultBlock{
+		ToolUseID: toolCallID,
+		Content:   "Tool call not found",
+		IsError:   true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []model.ContentBlock{header, result}, nil
 }
 
 func mergeTextContentBlocks(existing, incoming model.ContentBlock) (model.ContentBlock, bool) {
