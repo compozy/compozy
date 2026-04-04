@@ -91,7 +91,7 @@ Refer to TechSpec "Core Interfaces" for the `Report`/`Issue` contract and to ADR
   - [ ] `FixPrompt(report, registry)` includes every offending path, every `Issue.Message`, and the full `registry.Values()` list.
   - [ ] `Validate` on an empty directory returns `Report{Scanned:0}` with no issues and no error.
 - Integration tests:
-  - [ ] Run `compozy validate-tasks --tasks-dir <tempdir> --format json` on a mixed fixture (2 valid, 2 invalid files); assert exit code 1, JSON has `issues` array length 2, includes `fix_prompt` string.
+  - [ ] Run `compozy validate-tasks --tasks-dir <tempdir> --format json` on a mixed fixture (2 valid, 2 invalid files with one known issue each); assert exit code 1, JSON has `issues` array covering exactly the two offending file paths (assert by distinct `path` values, not array length), and a non-empty `fix_prompt` string.
   - [ ] Run the command on an all-valid fixture; assert exit code 0 and text output contains `"all tasks valid"`.
   - [ ] Run the command with a non-existent `--tasks-dir`; assert exit code 2 and a clear error message.
 - Test coverage target: >=80%

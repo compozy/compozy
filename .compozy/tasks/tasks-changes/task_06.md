@@ -7,6 +7,7 @@ complexity: low
 dependencies:
   - task_01
   - task_02
+  - task_04
 ---
 
 # Task 6: Skill and Documentation Updates
@@ -65,7 +66,7 @@ Refer to the approved TechSpec "Impact Analysis" for the full file list.
 ### Dependent Files
 - `.compozy/tasks/tasks-changes/*.md` (these task files) — they themselves are in v1 format and will be migrated to v2 by task_03.
 - Any other skills under `skills/` that reference task metadata (grep-audit in subtask 6.6).
-- Any additional docs under `ai-docs/` or in-repo guides that reference the old schema.
+- Any additional in-repo guides that reference the old schema (there is no `ai-docs/` directory at the repo root; audit whatever markdown exists).
 
 ### Related ADRs
 - [ADR-001: Task Metadata Schema v2](adrs/adr-001.md) — What's documented in the skill and template.
@@ -84,8 +85,8 @@ Refer to the approved TechSpec "Impact Analysis" for the full file list.
   - [ ] Snapshot test (or golden file) of the rendered `compozy start --help` output showing `--skip-validation` and `--force` descriptions.
   - [ ] Grep-based test (executable via `go test` using `os.ReadFile` over `skills/` + `README.md`) asserting zero occurrences of `^domain:` and `^scope:` on any line.
 - Integration tests:
-  - [ ] Build the binary and run `compozy start --help`; assert stdout contains `--skip-validation` and `--force`.
-  - [ ] Render the updated SKILL.md through a markdown parser (if available) and assert both new workflow steps are present by heading/text match.
+  - [ ] Using the existing Cobra help-text harness at `internal/cli/root_test.go:200-218,928-935`, capture `compozy start --help` output and assert it contains `--skip-validation` and `--force`.
+  - [ ] Read `skills/cy-create-tasks/SKILL.md` via `os.ReadFile` and assert both the new "read .compozy/config.toml" step and the "run compozy validate-tasks" step are present by substring match.
 - Test coverage target: >=80% (help strings are thin; the key coverage is the grep test and the CLI help assertion)
 - All tests must pass
 

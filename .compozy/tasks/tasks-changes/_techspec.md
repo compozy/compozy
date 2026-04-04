@@ -11,7 +11,7 @@ This change upgrades Compozy's task metadata from a free-text schema (v1) to a c
 ### Component Overview
 
 - **`internal/core/model/model.go`** — `TaskFileMeta` / `TaskEntry` structs gain `Title`, drop `Domain`/`Scope`. Canonical v2 schema.
-- **`internal/core/tasks/` (new package)** — Houses `TypeRegistry`, validator, and v1→v2 type mapping table. Pure, dependency-light; imported by CLI, migrate, run, and prompt.
+- **`internal/core/tasks/` (existing package — extend)** — Already contains `store.go` / `store_test.go`. Add `types.go` (TypeRegistry, BuiltinTypes), `validate.go` (Validate, Report, Issue), `fix_prompt.go`, and the v1→v2 type mapping table. Keep the package pure and dependency-light; it is imported by CLI, migrate, run, and prompt.
 - **`internal/core/workspace/config.go`** — Gains `TasksConfig` struct and `[tasks].types` TOML section. Validates the user list at config load.
 - **`internal/core/prompt/common.go`** — `ParseTaskFile` updated to populate `Title`, reject files with `scope`/`domain`, surface legacy-v1 detection.
 - **`internal/core/migrate.go`** — New v1→v2 pass chained after the existing legacy→v1 pass. Reuses existing walker and dry-run plumbing.
@@ -194,12 +194,14 @@ None outside the codebase. All changes are internal to the Compozy CLI/workspace
 |-----------|-------------|---------------------|-----------------|
 | `internal/core/model/model.go` | modified | `TaskFileMeta`/`TaskEntry` field changes; ALL consumers of `Domain`/`Scope` break at compile time. Low risk — compile catches everything. | Add `Title`, remove `Domain`/`Scope` fields, update all call sites. |
 | `internal/core/prompt/common.go` | modified | `ParseTaskFile` populates `Title`; rejects files with legacy v1 `scope`/`domain` fields by producing a specific error that migrate knows how to detect. | Update parser; add `ErrV1TaskMetadata` sentinel. |
-| `internal/core/tasks/` | new package | Holds `TypeRegistry`, `Validate`, `FixPrompt`, and type-remap table. | Create package. |
+| `internal/core/tasks/` | extended (existing) | Adds `types.go`, `validate.go`, `fix_prompt.go`, type-remap table alongside existing `store.go`. | Add files in-place. |
 | `internal/core/workspace/config.go` | modified | Add `TasksConfig` + validation. | Add struct, validator, TOML section. |
 | `internal/core/migrate.go` | modified | Add v1→v2 detection and migration; chain after legacy→v1. | Extend detection switch; add `migrateV1ToV2`. |
 | `internal/core/run/ui_view.go` | modified | Timeline panel header renders title + type badge + provider/model row. | Replace `session.timeline` static label with dynamic title; add right-aligned meta. |
 | `internal/core/run/types.go` | modified | `uiJob` gains `taskTitle`, `taskType`; job setup wires them from parsed task metadata. | Add fields + wiring. |
-| `internal/core/run/execution.go` | modified | When preparing PRD-task jobs, set `taskTitle`/`taskType` on the `uiJob` from parsed task entries. | Extend `jobQueuedMsg` and emission logic. |
+| `internal/core/model/model.go` (`type Job`) | modified | Add `TaskTitle`/`TaskType` so parsed task metadata flows from plan preparation into the runner. | Add fields + populate from `TaskEntry` at `plan/prepare.go:156-165`. |
+| `internal/core/run/ui_model.go` | modified | Populate `jobQueuedMsg.TaskTitle`/`.TaskType` inside `newUIController` at lines 214-224 (this is the actual emission site, NOT `execution.go`). | Extend emitter + message shape. |
+| `internal/core/run/types.go` (internal `job`) | modified | Copy the new fields inside `newJobs()` at line 316 so they travel with the in-process job. | Add fields to the internal job struct. |
 | `internal/core/run/validation_form.go` | new file | Bubble Tea modal for preflight failures. | Implement model + view + update. |
 | `internal/cli/validate_tasks.go` | new file | Cobra command wiring. | Implement. |
 | `internal/cli/root.go` | modified | Register `validate-tasks`; add preflight in `start`; add `--skip-validation`/`--force`. | Edit. |
@@ -215,7 +217,7 @@ None outside the codebase. All changes are internal to the Compozy CLI/workspace
 - **`internal/core/tasks/types_test.go`** — `NewRegistry` happy path, duplicate rejection, invalid slug rejection, empty-list rejection, fallback to defaults when configured is nil. Table-driven.
 - **`internal/core/tasks/validate_test.go`** — Every issue type exercised: missing title, title/H1 desync, invalid type, legacy scope/domain present, unknown dependency, bad status, bad complexity. Table-driven with `t.TempDir()` fixtures.
 - **`internal/core/tasks/fix_prompt_test.go`** — Golden-file test for the LLM prompt formatting given a synthetic report.
-- **`internal/core/prompt/common_test.go`** — Extend existing table: v2 frontmatter parses; v1 frontmatter (with scope/domain) returns `ErrV1TaskMetadata`; legacy XML still returns `ErrLegacyTaskMetadata`.
+- **`internal/core/prompt/prompt_test.go`** (lines 130-199) — Extend existing table: v2 frontmatter parses; v1 frontmatter (with scope/domain) returns `ErrV1TaskMetadata`; legacy XML still returns `ErrLegacyTaskMetadata`. (The test file is `prompt_test.go`, not `common_test.go`.)
 - **`internal/core/workspace/config_test.go`** — Extend with `[tasks].types` variants: absent, empty list (rejected), duplicates (rejected), invalid slug (rejected), valid custom list.
 - **`internal/core/migrate_test.go`** — v1→v2 happy path, unmappable type flagged, mixed legacy+v1 in same directory, already-v2 no-op, H1 extraction fallbacks.
 - **`internal/core/run/validation_form_test.go`** — Bubble Tea model update/view test: all three actions produce expected messages; keyboard focus transitions.
@@ -223,7 +225,7 @@ None outside the codebase. All changes are internal to the Compozy CLI/workspace
 ### Integration Tests
 
 - **`internal/cli/validate_tasks_test.go`** — Run the Cobra command against a synthetic tasks dir; assert exit code + JSON output shape.
-- **`internal/core/run/execution_acp_integration_test.go`** — Extend existing test with a v2 task fixture; assert `uiJob.taskTitle` / `taskType` flow through to `jobQueuedMsg` and render in the timeline panel output.
+- **`internal/core/run/ui_update_test.go`** (lines 263-301, around `handleJobQueued`) and **`internal/core/run/ui_view_test.go`** (lines 142-166, 476-479) — Extend with v2 metadata cases asserting `taskTitle`/`taskType` reach `uiJob` via `jobQueuedMsg` and render in the timeline panel output. (`execution_acp_integration_test.go` exercises the ACP session flow, not the timeline renderer.)
 - **`compozy start` e2e** (existing harness) — Add scenario: bad task metadata → preflight blocks → `--force` bypass succeeds.
 
 ## Development Sequencing

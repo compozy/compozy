@@ -341,25 +341,9 @@ func convertACPToolCallUpdateHeader(
 	driverID string,
 	update *acp.SessionToolCallUpdate,
 ) ([]model.ContentBlock, error) {
-	if update == nil {
+	title, kind, hasRawInput, hasLocations, ok := collectACPToolCallUpdateHeader(update)
+	if !ok {
 		return nil, nil
-	}
-	hasTitle := update.Title != nil && meaningfulToolHeaderTitle(*update.Title)
-	hasKind := update.Kind != nil && *update.Kind != "" && *update.Kind != acp.ToolKindOther
-	hasRawInput := meaningfulToolHeaderRawInput(update.RawInput)
-	hasLocations := len(update.Locations) > 0
-	hasMeta := meaningfulToolHeaderMeta(update.Meta)
-	if !hasTitle && !hasKind && !hasRawInput && !hasLocations && !hasMeta {
-		return nil, nil
-	}
-
-	title := ""
-	if hasTitle {
-		title = *update.Title
-	}
-	kind := acp.ToolKindOther
-	if hasKind {
-		kind = *update.Kind
 	}
 
 	block, err := buildNormalizedToolUseBlock(
@@ -378,10 +362,36 @@ func convertACPToolCallUpdateHeader(
 	if err != nil {
 		return nil, err
 	}
-	if strings.EqualFold(strings.TrimSpace(toolUse.Name), "Tool Call") {
+	if strings.EqualFold(strings.TrimSpace(toolUse.Name), toolNameToolCall) && !hasRawInput && !hasLocations {
 		return nil, nil
 	}
 	return []model.ContentBlock{block}, nil
+}
+
+func collectACPToolCallUpdateHeader(
+	update *acp.SessionToolCallUpdate,
+) (title string, kind acp.ToolKind, hasRawInput bool, hasLocations bool, ok bool) {
+	if update == nil {
+		return "", acp.ToolKindOther, false, false, false
+	}
+
+	hasTitle := update.Title != nil && meaningfulToolHeaderTitle(*update.Title)
+	hasKind := update.Kind != nil && *update.Kind != "" && *update.Kind != acp.ToolKindOther
+	hasRawInput = meaningfulToolHeaderRawInput(update.RawInput)
+	hasLocations = len(update.Locations) > 0
+	hasMeta := meaningfulToolHeaderMeta(update.Meta)
+	if !hasTitle && !hasKind && !hasRawInput && !hasLocations && !hasMeta {
+		return "", acp.ToolKindOther, false, false, false
+	}
+
+	kind = acp.ToolKindOther
+	if hasTitle {
+		title = *update.Title
+	}
+	if hasKind {
+		kind = *update.Kind
+	}
+	return title, kind, hasRawInput, hasLocations, true
 }
 
 func meaningfulToolHeaderTitle(title string) bool {

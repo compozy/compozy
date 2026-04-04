@@ -29,7 +29,7 @@ Wire the validator into `compozy start` as a preflight gate: when invalid task m
 - MUST write the fix prompt to stderr (not stdout) when the user picks "Copy fix prompt" (clipboard access is out of scope — we print so users can pipe/select)
 - MUST exit with code 0 only when validation passes OR the user picked "Continue anyway" OR `--force` was set
 - MUST exit with code 1 when the user picks Abort, when non-TTY is detected without `--force`, or when `--force` is absent in a non-TTY environment
-- MUST detect TTY via the existing `isInteractive` callback pattern used in `internal/cli/root.go` (line 54)
+- MUST detect TTY via the existing `isInteractive` callback injected into `commandState` at `internal/cli/root.go:54` (default impl: `isInteractiveTerminal()` at `internal/cli/setup.go:659-669`)
 - MUST log the user's preflight decision via `slog` (ok | continued | aborted | forced | skipped) so CI post-mortems can see it
 - SHOULD render the modal using existing `ui_styles.go` constants for visual consistency with the main TUI
 </requirements>
@@ -37,8 +37,8 @@ Wire the validator into `compozy start` as a preflight gate: when invalid task m
 ## Subtasks
 - [ ] 4.1 Create `internal/core/run/validation_form.go` with a Bubble Tea model (state, update, view) exposing the three actions and the fix-prompt text.
 - [ ] 4.2 Add a `PreflightCheck(ctx, tasksDir, registry, isInteractive, force) (PreflightDecision, error)` entry-point (in `internal/core/run/` or a new `internal/core/run/preflight.go`) that runs `tasks.Validate` and dispatches to the modal or non-TTY path.
-- [ ] 4.3 Add `--skip-validation` and `--force` flags to `newStartCommand()` in `internal/cli/root.go` (lines 154-174).
-- [ ] 4.4 Call the preflight hook from the start command before `core.Run(...)` (line 280 area); short-circuit on abort.
+- [ ] 4.3 Add `--skip-validation` and `--force` flags to `newStartCommand()` in `internal/cli/root.go` (lines 152-171).
+- [ ] 4.4 Call the preflight hook inside `(*commandState).runPrepared` at `internal/cli/root.go:577-586`, before handing off to `core.Run(...)`; short-circuit on abort with exit code 1.
 - [ ] 4.5 Add structured `slog` log entries for each preflight outcome.
 - [ ] 4.6 Add Bubble Tea unit tests (model update/view) and an integration test for the non-TTY path.
 
@@ -46,7 +46,7 @@ Wire the validator into `compozy start` as a preflight gate: when invalid task m
 
 The modal component lives as a standalone Bubble Tea model (`tea.Model` with `Init`, `Update`, `View`); it is NOT merged into the main `uiModel`. It is a short-lived, blocking program started only when the report has issues. Reuse Lipgloss styles from `internal/core/run/ui_styles.go` for borders, colors, and highlights.
 
-`PreflightCheck` is the clean seam between CLI and TUI: it takes a `*tasks.TypeRegistry` (built from the resolved `workspace.ProjectConfig`), calls `tasks.Validate`, decides the path, returns a typed `PreflightDecision` (one of `PreflightOK`, `PreflightContinued`, `PreflightAborted`, `PreflightSkipped`, `PreflightForced`). The CLI maps the decision to exit codes.
+`PreflightCheck` is the clean seam between CLI and TUI: it takes a `*tasks.TypeRegistry` (built from the resolved `workspace.ProjectConfig`), calls `tasks.Validate`, decides the path, returns a typed `PreflightDecision` (one of `PreflightOK`, `PreflightContinued`, `PreflightAborted`, `PreflightSkipped`, `PreflightForced`). The CLI maps the decision to exit codes. The CLI invokes it from `(*commandState).runPrepared` at `internal/cli/root.go:577-586` — NOT from the Cobra `RunE` that lives at line 375 (`runStart` is a wrapper around `runPrepared`).
 
 In non-TTY mode, print a concise summary + the fix prompt to stderr and return `PreflightAborted` (unless `--force`). The CLI converts `PreflightAborted` → exit 1.
 
@@ -56,7 +56,8 @@ Refer to TechSpec "API Endpoints" for the flag contract and to ADR-003 for the m
 - `internal/core/run/validation_form.go` — NEW, Bubble Tea modal.
 - `internal/core/run/validation_form_test.go` — NEW, model update/view tests.
 - `internal/core/run/preflight.go` — NEW, `PreflightCheck` entry-point (or inline in an existing run/ file).
-- `internal/cli/root.go` (lines 27-61, 154-174, 280) — add flags, call preflight before `core.Run`.
+- `internal/cli/root.go` (`commandState` at lines 27-61; `newStartCommand()` at lines 152-171; `runPrepared` at lines 577-586) — add flags, call preflight before `core.Run`.
+- `internal/cli/setup.go` (lines 659-669) — existing `isInteractiveTerminal()` helper used for TTY detection.
 - `internal/core/run/ui_styles.go` (lines 27-29) — reuse color constants.
 
 ### Dependent Files

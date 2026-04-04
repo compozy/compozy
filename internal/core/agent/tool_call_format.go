@@ -71,9 +71,9 @@ func buildNormalizedToolUseBlock(
 	meta any,
 ) (model.ContentBlock, error) {
 	metaToolName := extractACPToolName(meta)
-	nameHint := title
+	nameHint := metaToolName
 	if strings.TrimSpace(nameHint) == "" {
-		nameHint = metaToolName
+		nameHint = title
 	}
 
 	normalizedInput := normalizeACPToolInput(driverID, nameHint, kind, rawInput, locations)
@@ -144,8 +144,10 @@ func normalizeToolNameByKind(token string, kind acp.ToolKind, input map[string]a
 		return "Think"
 	case acp.ToolKindSearch:
 		switch token {
-		case "glob", "find", "fd", "file_search":
+		case "glob", "fd", "file_search":
 			return "Glob"
+		case "find":
+			return "Find"
 		case "grep", "rg", "ripgrep", "codebase_search", "grep_search":
 			return toolNameGrep
 		}

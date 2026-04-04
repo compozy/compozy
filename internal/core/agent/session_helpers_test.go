@@ -198,116 +198,231 @@ func TestConvertACPUpdateToolCallVariants(t *testing.T) {
 	}
 }
 
-func TestConvertACPUpdateNormalizesCodexWebSearchToolCall(t *testing.T) {
+func TestConvertACPUpdateToolCallNormalizationScenarios(t *testing.T) {
 	t.Parallel()
 
-	update, err := convertACPUpdate(model.IDECodex, acp.StartToolCall(
-		acp.ToolCallId("tool-web"),
-		"search_query",
-		acp.WithStartKind(acp.ToolKindOther),
-		acp.WithStartRawInput(map[string]any{
-			"search_query": []map[string]any{
-				{"q": "agent client protocol official docs"},
-				{"q": "site:agentclientprotocol.com protocol docs"},
+	cases := []struct {
+		name      string
+		driverID  string
+		update    func() acp.SessionUpdate
+		wantTypes []model.ContentBlockType
+		verify    func(t *testing.T, converted model.SessionUpdate)
+	}{
+		{
+			name:     "normalize Codex web search tool call",
+			driverID: model.IDECodex,
+			update: func() acp.SessionUpdate {
+				return acp.StartToolCall(
+					acp.ToolCallId("tool-web"),
+					"search_query",
+					acp.WithStartKind(acp.ToolKindOther),
+					acp.WithStartRawInput(map[string]any{
+						"search_query": []map[string]any{
+							{"q": "agent client protocol official docs"},
+							{"q": "site:agentclientprotocol.com protocol docs"},
+						},
+						"response_length": "short",
+					}),
+				)
 			},
-			"response_length": "short",
-		}),
-	))
-	if err != nil {
-		t.Fatalf("convert codex web search tool call: %v", err)
+			wantTypes: []model.ContentBlockType{model.BlockToolUse},
+			verify: func(t *testing.T, converted model.SessionUpdate) {
+				t.Helper()
+
+				toolUse, err := converted.Blocks[0].AsToolUse()
+				if err != nil {
+					t.Fatalf("decode web search tool use block: %v", err)
+				}
+				if toolUse.Name != toolNameWebSearch {
+					t.Fatalf("unexpected web search tool name: %q", toolUse.Name)
+				}
+				if got := string(
+					toolUse.Input,
+				); got != `{"queries":["agent client protocol official docs","site:agentclientprotocol.com protocol docs"],"query":"agent client protocol official docs","response_length":"short"}` {
+					t.Fatalf("unexpected normalized web search input: %s", got)
+				}
+			},
+		},
+		{
+			name:     "ignore generic tool call update header without metadata",
+			driverID: model.IDEClaude,
+			update: func() acp.SessionUpdate {
+				return acp.UpdateToolCall(
+					acp.ToolCallId("tool-1"),
+					acp.WithUpdateTitle(toolNameToolCall),
+					acp.WithUpdateRawInput(map[string]any{}),
+					acp.WithUpdateContent([]acp.ToolCallContent{
+						acp.ToolDiffContent("README.md", "new", "old"),
+					}),
+				)
+			},
+			wantTypes: []model.ContentBlockType{model.BlockDiff},
+		},
+		{
+			name:     "preserve generic tool call update header when raw input is meaningful",
+			driverID: model.IDEClaude,
+			update: func() acp.SessionUpdate {
+				return acp.UpdateToolCall(
+					acp.ToolCallId("tool-raw"),
+					acp.WithUpdateTitle(toolNameToolCall),
+					acp.WithUpdateRawInput(map[string]any{"selection": "README.md"}),
+				)
+			},
+			wantTypes: []model.ContentBlockType{model.BlockToolUse},
+			verify: func(t *testing.T, converted model.SessionUpdate) {
+				t.Helper()
+
+				toolUse, err := converted.Blocks[0].AsToolUse()
+				if err != nil {
+					t.Fatalf("decode generic header-preserving tool use block: %v", err)
+				}
+				if toolUse.Name != toolNameToolCall {
+					t.Fatalf("unexpected generic tool name: %q", toolUse.Name)
+				}
+				if got := string(toolUse.Input); got != `{"selection":"README.md"}` {
+					t.Fatalf("unexpected preserved generic tool input: %s", got)
+				}
+			},
+		},
+		{
+			name:     "omit null tool call input",
+			driverID: model.IDEClaude,
+			update: func() acp.SessionUpdate {
+				return acp.StartToolCall(
+					acp.ToolCallId("tool-null"),
+					toolNameRead,
+					acp.WithStartKind(acp.ToolKindRead),
+					acp.WithStartRawInput(json.RawMessage(`null`)),
+				)
+			},
+			wantTypes: []model.ContentBlockType{model.BlockToolUse},
+			verify: func(t *testing.T, converted model.SessionUpdate) {
+				t.Helper()
+
+				toolUse, err := converted.Blocks[0].AsToolUse()
+				if err != nil {
+					t.Fatalf("decode null-input tool use block: %v", err)
+				}
+				if len(toolUse.Input) != 0 {
+					t.Fatalf("expected null tool input to be omitted, got %s", string(toolUse.Input))
+				}
+			},
+		},
+		{
+			name:     "preserve tool title name and raw input",
+			driverID: model.IDEClaude,
+			update: func() acp.SessionUpdate {
+				update := acp.StartToolCall(
+					acp.ToolCallId("tool-meta"),
+					toolNameRead,
+					acp.WithStartKind(acp.ToolKindRead),
+					acp.WithStartRawInput(map[string]any{"path": "README.md"}),
+				)
+				update.ToolCall.Meta = map[string]any{"tool_name": "read_file"}
+				return update
+			},
+			wantTypes: []model.ContentBlockType{model.BlockToolUse},
+			verify: func(t *testing.T, converted model.SessionUpdate) {
+				t.Helper()
+
+				toolUse, err := converted.Blocks[0].AsToolUse()
+				if err != nil {
+					t.Fatalf("decode meta-aware tool use block: %v", err)
+				}
+				if toolUse.Name != toolNameRead {
+					t.Fatalf("unexpected normalized display name: %q", toolUse.Name)
+				}
+				if toolUse.Title != toolNameRead {
+					t.Fatalf("unexpected tool title: %q", toolUse.Title)
+				}
+				if toolUse.ToolName != "read_file" {
+					t.Fatalf("unexpected programmatic tool name: %q", toolUse.ToolName)
+				}
+				if got := string(toolUse.Input); got != `{"file_path":"README.md"}` {
+					t.Fatalf("unexpected normalized tool input: %s", got)
+				}
+				if got := string(toolUse.RawInput); got != `{"path":"README.md"}` {
+					t.Fatalf("unexpected raw tool input: %s", got)
+				}
+			},
+		},
+		{
+			name:     "prefer ACP meta tool name over descriptive title",
+			driverID: model.IDEClaude,
+			update: func() acp.SessionUpdate {
+				update := acp.StartToolCall(
+					acp.ToolCallId("tool-meta-hint"),
+					"Searching docs",
+					acp.WithStartKind(acp.ToolKindOther),
+				)
+				update.ToolCall.Meta = map[string]any{"tool_name": "search_query"}
+				return update
+			},
+			wantTypes: []model.ContentBlockType{model.BlockToolUse},
+			verify: func(t *testing.T, converted model.SessionUpdate) {
+				t.Helper()
+
+				toolUse, err := converted.Blocks[0].AsToolUse()
+				if err != nil {
+					t.Fatalf("decode meta-priority tool use block: %v", err)
+				}
+				if toolUse.Name != toolNameWebSearch {
+					t.Fatalf("expected meta-aware tool normalization, got %q", toolUse.Name)
+				}
+				if toolUse.Title != "Searching docs" {
+					t.Fatalf("expected descriptive title to remain visible, got %q", toolUse.Title)
+				}
+				if toolUse.ToolName != "search_query" {
+					t.Fatalf("expected canonical tool name metadata to be preserved, got %q", toolUse.ToolName)
+				}
+			},
+		},
+		{
+			name:     "route find search tools to find normalization",
+			driverID: model.IDEClaude,
+			update: func() acp.SessionUpdate {
+				return acp.StartToolCall(
+					acp.ToolCallId("tool-find"),
+					"find",
+					acp.WithStartKind(acp.ToolKindSearch),
+					acp.WithStartRawInput(map[string]any{
+						"pattern": "Annie Case",
+						"ref_id":  "turn0search0",
+					}),
+				)
+			},
+			wantTypes: []model.ContentBlockType{model.BlockToolUse},
+			verify: func(t *testing.T, converted model.SessionUpdate) {
+				t.Helper()
+
+				toolUse, err := converted.Blocks[0].AsToolUse()
+				if err != nil {
+					t.Fatalf("decode find tool use block: %v", err)
+				}
+				if toolUse.Name != "Find" {
+					t.Fatalf("unexpected find tool normalization: %q", toolUse.Name)
+				}
+				if got := string(toolUse.Input); got != `{"pattern":"Annie Case","ref_id":"turn0search0"}` {
+					t.Fatalf("unexpected normalized find input: %s", got)
+				}
+			},
+		},
 	}
 
-	assertBlockTypes(t, update.Blocks, model.BlockToolUse)
-	toolUse, err := update.Blocks[0].AsToolUse()
-	if err != nil {
-		t.Fatalf("decode web search tool use block: %v", err)
-	}
-	if toolUse.Name != "WebSearch" {
-		t.Fatalf("unexpected web search tool name: %q", toolUse.Name)
-	}
-	if got := string(
-		toolUse.Input,
-	); got != `{"queries":["agent client protocol official docs","site:agentclientprotocol.com protocol docs"],"query":"agent client protocol official docs","response_length":"short"}` {
-		t.Fatalf("unexpected normalized web search input: %s", got)
-	}
-}
+	for _, tc := range cases {
+		tc := tc
+		t.Run("Should "+tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestConvertACPUpdateIgnoresGenericToolCallUpdateHeader(t *testing.T) {
-	t.Parallel()
-
-	update, err := convertACPUpdate(model.IDEClaude, acp.UpdateToolCall(
-		acp.ToolCallId("tool-1"),
-		acp.WithUpdateTitle("Tool Call"),
-		acp.WithUpdateRawInput(map[string]any{}),
-		acp.WithUpdateContent([]acp.ToolCallContent{
-			acp.ToolDiffContent("README.md", "new", "old"),
-		}),
-	))
-	if err != nil {
-		t.Fatalf("convert generic tool call update: %v", err)
-	}
-
-	assertBlockTypes(t, update.Blocks, model.BlockDiff)
-}
-
-func TestConvertACPUpdateOmitsNullToolCallInput(t *testing.T) {
-	t.Parallel()
-
-	update, err := convertACPUpdate(model.IDEClaude, acp.StartToolCall(
-		acp.ToolCallId("tool-null"),
-		"Read",
-		acp.WithStartKind(acp.ToolKindRead),
-		acp.WithStartRawInput(json.RawMessage(`null`)),
-	))
-	if err != nil {
-		t.Fatalf("convert null-input tool call: %v", err)
-	}
-
-	assertBlockTypes(t, update.Blocks, model.BlockToolUse)
-	toolUse, err := update.Blocks[0].AsToolUse()
-	if err != nil {
-		t.Fatalf("decode null-input tool use block: %v", err)
-	}
-	if len(toolUse.Input) != 0 {
-		t.Fatalf("expected null tool input to be omitted, got %s", string(toolUse.Input))
-	}
-}
-
-func TestConvertACPUpdatePreservesToolTitleNameAndRawInput(t *testing.T) {
-	t.Parallel()
-
-	update := acp.StartToolCall(
-		acp.ToolCallId("tool-meta"),
-		"Read",
-		acp.WithStartKind(acp.ToolKindRead),
-		acp.WithStartRawInput(map[string]any{"path": "README.md"}),
-	)
-	update.ToolCall.Meta = map[string]any{"tool_name": "read_file"}
-
-	converted, err := convertACPUpdate(model.IDEClaude, update)
-	if err != nil {
-		t.Fatalf("convert meta-aware tool call: %v", err)
-	}
-
-	assertBlockTypes(t, converted.Blocks, model.BlockToolUse)
-	toolUse, err := converted.Blocks[0].AsToolUse()
-	if err != nil {
-		t.Fatalf("decode meta-aware tool use block: %v", err)
-	}
-	if toolUse.Name != "Read" {
-		t.Fatalf("unexpected normalized display name: %q", toolUse.Name)
-	}
-	if toolUse.Title != "Read" {
-		t.Fatalf("unexpected tool title: %q", toolUse.Title)
-	}
-	if toolUse.ToolName != "read_file" {
-		t.Fatalf("unexpected programmatic tool name: %q", toolUse.ToolName)
-	}
-	if got := string(toolUse.Input); got != `{"file_path":"README.md"}` {
-		t.Fatalf("unexpected normalized tool input: %s", got)
-	}
-	if got := string(toolUse.RawInput); got != `{"path":"README.md"}` {
-		t.Fatalf("unexpected raw tool input: %s", got)
+			converted, err := convertACPUpdate(tc.driverID, tc.update())
+			if err != nil {
+				t.Fatalf("convert acp tool call update: %v", err)
+			}
+			assertBlockTypes(t, converted.Blocks, tc.wantTypes...)
+			if tc.verify != nil {
+				tc.verify(t, converted)
+			}
+		})
 	}
 }
 

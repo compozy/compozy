@@ -22,23 +22,25 @@ Establish the data foundation for the typed-task system: a new `internal/core/ta
 </critical>
 
 <requirements>
-- MUST create a new `internal/core/tasks` package exporting `BuiltinTypes` (`frontend, backend, docs, test, infra, refactor, chore, bugfix`), `TypeRegistry` struct, `NewRegistry([]string) (*TypeRegistry, error)`, `(*TypeRegistry).IsAllowed(string) bool`, `(*TypeRegistry).Values() []string` (see TechSpec "Core Interfaces")
+- MUST extend the existing `internal/core/tasks` package (already contains `store.go` / `store_test.go`) by adding `types.go` exporting `BuiltinTypes` (`frontend, backend, docs, test, infra, refactor, chore, bugfix`), `TypeRegistry` struct, `NewRegistry([]string) (*TypeRegistry, error)`, `(*TypeRegistry).IsAllowed(string) bool`, `(*TypeRegistry).Values() []string` (see TechSpec "Core Interfaces")
 - MUST validate type slugs against regex `^[a-z][a-z0-9_-]{1,31}$` and reject duplicates and empty lists at construction time
 - MUST extend `workspace.ProjectConfig` with a `Tasks TasksConfig` field carrying `Types *[]string` under TOML section `[tasks]`
 - MUST wire `workspace.ProjectConfig.Validate()` (config.go:153) to validate the new section and surface clear error messages consistent with existing validators
 - MUST add `Title string` to `model.TaskFileMeta` and `model.TaskEntry` (model.go:171-188)
 - MUST remove `Domain` and `Scope` from both `TaskFileMeta` and `TaskEntry` — update every caller that reads these fields
 - MUST update `prompt.ParseTaskFile` (common.go:51-73) to populate `Title` from frontmatter and return a new `ErrV1TaskMetadata` sentinel when frontmatter contains legacy `scope` or `domain` keys
+- MUST update every existing call site that special-cases `ErrLegacyTaskMetadata` so it also routes `ErrV1TaskMetadata` correctly. The known sites are: `internal/core/migrate.go:210`, `internal/core/plan/input.go:309`, `internal/core/tasks/store.go:226`. Missing any of them means `compozy start` or `compozy migrate` will mis-handle v1 files between task_01 and task_03
 - MUST NOT validate `type` against the registry inside the parser (that responsibility belongs to task_02's validator); the parser only reads the raw string
 - SHOULD keep `TasksConfig.Types == nil` meaning "use built-in defaults" and `len(*TasksConfig.Types) == 0` being a validation error (ADR-002)
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Create `internal/core/tasks/types.go` with `BuiltinTypes`, `TypeRegistry`, and constructors; add table-driven tests.
+- [ ] 1.1 Add `internal/core/tasks/types.go` (new file in existing package) with `BuiltinTypes`, `TypeRegistry`, and constructors; add table-driven tests in `internal/core/tasks/types_test.go`.
 - [ ] 1.2 Extend `workspace.ProjectConfig` with `Tasks TasksConfig` and add the `[tasks].types` TOML section with validation (duplicates, slug format, empty list).
 - [ ] 1.3 Update `model.TaskFileMeta` and `model.TaskEntry` to add `Title`, remove `Domain` and `Scope`.
 - [ ] 1.4 Update `prompt.ParseTaskFile` to populate `Title` and return `ErrV1TaskMetadata` when legacy `scope`/`domain` keys are present in the frontmatter.
-- [ ] 1.5 Update every caller of `TaskEntry.Domain` / `TaskEntry.Scope` (notably `internal/core/prompt/prd.go` and `internal/core/migrate.go`) to stop reading the removed fields.
+- [ ] 1.5 Update every caller of `TaskEntry.Domain` / `TaskEntry.Scope` to stop reading the removed fields: `internal/core/prompt/common.go:60-67,93-97`, `internal/core/prompt/prd.go:41-45`, `internal/core/migrate.go:243-249`.
+- [ ] 1.5b Update every `errors.Is(err, prompt.ErrLegacyTaskMetadata)` site to also handle the new `ErrV1TaskMetadata` sentinel: `internal/core/migrate.go:210`, `internal/core/plan/input.go:309`, `internal/core/tasks/store.go:226`.
 - [ ] 1.6 Extend `workspace/config_test.go`, `model/model_test.go`, and `prompt/prompt_test.go` with table-driven cases covering the new fields and errors.
 
 ## Implementation Details
@@ -54,18 +56,21 @@ In `prompt.ParseTaskFile`, detect v1 frontmatter by decoding into an intermediat
 Refer to TechSpec "Core Interfaces" for the exact `TypeRegistry` contract and to TechSpec "Data Models" for the frontmatter shape.
 
 ### Relevant Files
-- `internal/core/tasks/types.go` — NEW package, holds `BuiltinTypes`, `TypeRegistry`, constructors.
+- `internal/core/tasks/types.go` — NEW file in the existing `tasks` package; holds `BuiltinTypes`, `TypeRegistry`, constructors.
 - `internal/core/tasks/types_test.go` — NEW, table-driven registry tests.
 - `internal/core/workspace/config.go` (lines 26-59, 153-213) — extend `ProjectConfig`, add `TasksConfig` + validator.
 - `internal/core/workspace/config_test.go` — extend with `[tasks].types` TOML parsing cases.
 - `internal/core/model/model.go` (lines 171-188) — add `Title`, remove `Domain`/`Scope` from `TaskFileMeta`/`TaskEntry`.
 - `internal/core/model/model_test.go` — update tests that reference removed fields.
-- `internal/core/prompt/common.go` (lines 51-73) — update `ParseTaskFile`, add `ErrV1TaskMetadata` sentinel.
-- `internal/core/prompt/prompt_test.go` — extend to cover new fields + v1 detection error.
+- `internal/core/prompt/common.go` (lines 20-22, 51-73) — update `ParseTaskFile`, add `ErrV1TaskMetadata` sentinel alongside the existing `ErrLegacyTaskMetadata`.
+- `internal/core/prompt/prompt_test.go` (lines 130-199) — extend to cover new fields + v1 detection error.
 
 ### Dependent Files
-- `internal/core/prompt/prd.go` — currently reads `task.Domain`, `task.Scope` in the PRD prompt builder; must stop.
+- `internal/core/prompt/prd.go` (lines 41-45) — currently reads `task.Domain`, `task.Scope` in the PRD prompt builder; must stop.
 - `internal/core/migrate.go` (lines 243-250) — the legacy→v1 migration currently writes `Domain`/`Scope` into `TaskFileMeta`; must stop writing those keys (and task_03 will layer v1→v2 on top).
+- `internal/core/migrate.go` (line 210) — `errors.Is(err, prompt.ErrLegacyTaskMetadata)` gate; must also accept `ErrV1TaskMetadata`.
+- `internal/core/plan/input.go` (line 309) — `errors.Is(err, prompt.ErrLegacyTaskMetadata)` gate; must also accept `ErrV1TaskMetadata` so `compozy start` recognizes v1 files.
+- `internal/core/tasks/store.go` (lines 92-95, 213-229, especially line 226) — `errors.Is(err, prompt.ErrLegacyTaskMetadata)` gate; must also accept `ErrV1TaskMetadata` so task refresh/meta computation handles v1 files.
 - `internal/core/prompt/common.go` (legacy parser at lines 75-102) — still populates `TaskEntry.Domain`/`.Scope`; those assignments must be removed along with the struct fields.
 
 ### Related ADRs
@@ -95,7 +100,9 @@ Refer to TechSpec "Core Interfaces" for the exact `TypeRegistry` contract and to
   - [ ] `workspace.LoadConfig` with no `[tasks]` section leaves `ProjectConfig.Tasks.Types == nil`.
   - [ ] `prompt.ParseTaskFile` with v2 frontmatter (containing `title` and no `scope`/`domain`) populates `TaskEntry.Title` and returns no error.
   - [ ] `prompt.ParseTaskFile` with v1 frontmatter (containing `scope` or `domain`) returns `errors.Is(err, prompt.ErrV1TaskMetadata) == true`.
+  - [ ] `prompt.ParseTaskFile` with legacy XML markers still returns `errors.Is(err, prompt.ErrLegacyTaskMetadata) == true` (regression guard — legacy path unchanged).
   - [ ] `prompt.ParseTaskFile` with v2 frontmatter missing `title` still succeeds (parser is not the validator); `TaskEntry.Title == ""`.
+  - [ ] Each of `internal/core/migrate.go:210`, `internal/core/plan/input.go:309`, and `internal/core/tasks/store.go:226` has a test that exercises the v1 branch and confirms the callsite does not silently misclassify.
 - Integration tests:
   - [ ] Load a fixture `.compozy/config.toml` declaring `[tasks].types = ["mobile","api"]`, resolve workspace, assert `ProjectConfig.Tasks.Types` equals those values.
   - [ ] Parse a v2 task file (title+type+complexity+deps) from a `t.TempDir()` fixture and assert all fields populate correctly.
@@ -106,5 +113,6 @@ Refer to TechSpec "Core Interfaces" for the exact `TypeRegistry` contract and to
 - All tests passing
 - Test coverage >=80%
 - `make verify` passes (fmt + lint + test + build with zero issues)
-- `internal/core/tasks` package compiles without importing `workspace`, `prompt`, `run`, or `cli` (no cycles)
+- `internal/core/tasks/types.go` introduces no new imports beyond standard library, `fmt`, and `regexp`; does not import `workspace`, `run`, or `cli`
 - Every grep for `TaskEntry.Domain` / `TaskEntry.Scope` / `TaskFileMeta.Domain` / `TaskFileMeta.Scope` in the repo returns zero hits after this task
+- Every grep for `ErrLegacyTaskMetadata` in the repo is paired with an `ErrV1TaskMetadata` branch in the same expression or immediately adjacent

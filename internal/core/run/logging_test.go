@@ -230,7 +230,9 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	}
 
 	if got := out.String(); !strings.Contains(got, "[TOOL] Read README.md") ||
-		!strings.Contains(got, `"file_path":"README.md"`) {
+		strings.Contains(got, "[TOOL] read_file") ||
+		!strings.Contains(got, `"file_path":"README.md"`) ||
+		strings.Contains(got, `"path":"README.md"`) {
 		t.Fatalf("expected mixed stdout rendering, got %q", got)
 	}
 	if got := err.String(); !strings.Contains(got, "permission denied") {

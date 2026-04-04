@@ -6,6 +6,7 @@ scope: Full
 complexity: medium
 dependencies:
   - task_01
+  - task_02
 ---
 
 # Task 3: compozy migrate v1→v2 Pass + Fixture Migration
@@ -91,6 +92,7 @@ Refer to TechSpec "Core Interfaces" / "Data Models" and to ADR-004 for the full 
   - [ ] v1 fixture with `type: "Documentation"` maps to `docs`.
   - [ ] v1 fixture with `type: "Feature Implementation"` leaves `type: ""` and appends the path to `UnmappedTypeFiles`.
   - [ ] v1 fixture with `type: "Frontend"` (case-insensitive exact match against registry `frontend`) maps to `frontend`.
+  - [ ] Detection precedence: a file whose frontmatter has no `scope`/`domain` but is also missing `title` is classified as v1 and triggers title extraction (ADR-004 clause 3).
   - [ ] H1 extractor handles `# Task 1: ACP Agent Layer` → `"ACP Agent Layer"`.
   - [ ] H1 extractor handles `# Task 10 - Cleanup` → `"Cleanup"`.
   - [ ] H1 extractor handles `# Plain Title` → `"Plain Title"`.

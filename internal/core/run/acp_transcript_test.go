@@ -94,179 +94,304 @@ func TestSessionViewModelUpsertsToolCallByIDWithoutSyntheticSummary(t *testing.T
 	}
 }
 
-func TestSessionViewModelToolCallUpdateReplacesHeaderMetadata(t *testing.T) {
+func TestSessionViewModelToolCallScenarios(t *testing.T) {
 	t.Parallel()
 
-	viewModel := newSessionViewModel()
-	start := []model.ContentBlock{
-		mustContentBlockTranscriptTest(t, model.ToolUseBlock{
-			ID:   "tool-1",
-			Name: "Read",
-		}),
-	}
-	if _, changed := viewModel.Apply(model.SessionUpdate{
-		Kind:          model.UpdateKindToolCallStarted,
-		ToolCallID:    "tool-1",
-		ToolCallState: model.ToolCallStatePending,
-		Blocks:        start,
-	}); !changed {
-		t.Fatal("expected tool call start to change session view")
+	cases := []struct {
+		name   string
+		setup  func(t *testing.T) []model.SessionUpdate
+		update func(t *testing.T) model.SessionUpdate
+		verify func(t *testing.T, snapshot SessionViewSnapshot)
+	}{
+		{
+			name: "replace header metadata when tool call updates",
+			setup: func(t *testing.T) []model.SessionUpdate {
+				t.Helper()
+
+				start := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:   "tool-1",
+						Name: "Read",
+					}),
+				}
+				return []model.SessionUpdate{{
+					Kind:          model.UpdateKindToolCallStarted,
+					ToolCallID:    "tool-1",
+					ToolCallState: model.ToolCallStatePending,
+					Blocks:        start,
+				}}
+			},
+			update: func(t *testing.T) model.SessionUpdate {
+				t.Helper()
+
+				update := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:    "tool-1",
+						Name:  "Read",
+						Input: []byte(`{"file_path":"README.md","start_line":5,"end_line":12}`),
+					}),
+					mustContentBlockTranscriptTest(t, model.ToolResultBlock{
+						ToolUseID: "tool-1",
+						Content:   "updated",
+					}),
+				}
+				return model.SessionUpdate{
+					Kind:          model.UpdateKindToolCallUpdated,
+					ToolCallID:    "tool-1",
+					ToolCallState: model.ToolCallStateCompleted,
+					Blocks:        update,
+				}
+			},
+			verify: func(t *testing.T, snapshot SessionViewSnapshot) {
+				t.Helper()
+
+				if got := snapshot.Entries[0].Title; got != "Read README.md:5-12" {
+					t.Fatalf("expected updated tool title to include line range, got %q", got)
+				}
+				if got := snapshot.Entries[0].Preview; got != "README.md:5-12" {
+					t.Fatalf("expected updated tool preview to include line range, got %q", got)
+				}
+			},
+		},
+		{
+			name: "merge null header input when tool call updates",
+			setup: func(t *testing.T) []model.SessionUpdate {
+				t.Helper()
+
+				start := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:    "tool-1",
+						Name:  "Read",
+						Input: []byte(`null`),
+					}),
+				}
+				return []model.SessionUpdate{{
+					Kind:          model.UpdateKindToolCallStarted,
+					ToolCallID:    "tool-1",
+					ToolCallState: model.ToolCallStatePending,
+					Blocks:        start,
+				}}
+			},
+			update: func(t *testing.T) model.SessionUpdate {
+				t.Helper()
+
+				update := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:    "tool-1",
+						Name:  "Read",
+						Input: []byte(`{"file_path":"README.md"}`),
+					}),
+				}
+				return model.SessionUpdate{
+					Kind:          model.UpdateKindToolCallUpdated,
+					ToolCallID:    "tool-1",
+					ToolCallState: model.ToolCallStateInProgress,
+					Blocks:        update,
+				}
+			},
+			verify: func(t *testing.T, snapshot SessionViewSnapshot) {
+				t.Helper()
+
+				if got := snapshot.Entries[0].Title; got != "Read README.md" {
+					t.Fatalf("expected merged tool title to use updated object input, got %q", got)
+				}
+				if got := snapshot.Entries[0].Preview; got != "README.md" {
+					t.Fatalf("expected merged tool preview to use updated object input, got %q", got)
+				}
+			},
+		},
+		{
+			name: "create a failure placeholder when tool call updates arrive before start",
+			setup: func(t *testing.T) []model.SessionUpdate {
+				t.Helper()
+				return nil
+			},
+			update: func(t *testing.T) model.SessionUpdate {
+				t.Helper()
+
+				update := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:       "tool-missing",
+						Name:     "Read",
+						Title:    "Read",
+						Input:    []byte(`{"file_path":"README.md"}`),
+						RawInput: []byte(`{"path":"README.md"}`),
+					}),
+					mustContentBlockTranscriptTest(t, model.ToolResultBlock{
+						ToolUseID: "tool-missing",
+						Content:   "loaded README.md",
+					}),
+				}
+				return model.SessionUpdate{
+					Kind:          model.UpdateKindToolCallUpdated,
+					ToolCallID:    "tool-missing",
+					ToolCallState: model.ToolCallStateCompleted,
+					Blocks:        update,
+				}
+			},
+			verify: func(t *testing.T, snapshot SessionViewSnapshot) {
+				t.Helper()
+
+				if len(snapshot.Entries) != 1 {
+					t.Fatalf("expected one tool placeholder entry, got %#v", snapshot.Entries)
+				}
+				entry := snapshot.Entries[0]
+				if entry.Kind != transcriptEntryToolCall {
+					t.Fatalf("expected tool entry, got %#v", entry)
+				}
+				if entry.ToolCallState != model.ToolCallStateFailed {
+					t.Fatalf("expected failed placeholder state, got %q", entry.ToolCallState)
+				}
+				if entry.Title != "Tool call not found" {
+					t.Fatalf("expected missing-tool title, got %q", entry.Title)
+				}
+				if entry.Preview != "Tool call not found" {
+					t.Fatalf("expected missing-tool preview, got %q", entry.Preview)
+				}
+			},
+		},
+		{
+			name: "use display title instead of the programmatic tool name",
+			setup: func(t *testing.T) []model.SessionUpdate {
+				t.Helper()
+				return nil
+			},
+			update: func(t *testing.T) model.SessionUpdate {
+				t.Helper()
+
+				start := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:       "tool-1",
+						Name:     "Read",
+						Title:    "Read",
+						ToolName: "read_file",
+						Input:    []byte(`{"file_path":"README.md"}`),
+						RawInput: []byte(`{"path":"README.md"}`),
+					}),
+				}
+				return model.SessionUpdate{
+					Kind:          model.UpdateKindToolCallStarted,
+					ToolCallID:    "tool-1",
+					ToolCallState: model.ToolCallStatePending,
+					Blocks:        start,
+				}
+			},
+			verify: func(t *testing.T, snapshot SessionViewSnapshot) {
+				t.Helper()
+
+				if got := snapshot.Entries[0].Title; got != "Read README.md" {
+					t.Fatalf("expected visible title to use display label, got %q", got)
+				}
+				if got := snapshot.Entries[0].Preview; got != "README.md" {
+					t.Fatalf("expected visible preview to use normalized input, got %q", got)
+				}
+
+				toolUse, err := snapshot.Entries[0].Blocks[0].AsToolUse()
+				if err != nil {
+					t.Fatalf("decode preserved tool header: %v", err)
+				}
+				if toolUse.ToolName != "read_file" {
+					t.Fatalf("expected preserved programmatic tool name, got %q", toolUse.ToolName)
+				}
+			},
+		},
+		{
+			name: "preserve prior tool output when a header-only update arrives",
+			setup: func(t *testing.T) []model.SessionUpdate {
+				t.Helper()
+
+				start := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:    "tool-keep",
+						Name:  "Read",
+						Input: []byte(`{"file_path":"README.md"}`),
+					}),
+				}
+				withOutput := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:    "tool-keep",
+						Name:  "Read",
+						Input: []byte(`{"file_path":"README.md"}`),
+					}),
+					mustContentBlockTranscriptTest(t, model.ToolResultBlock{
+						ToolUseID: "tool-keep",
+						Content:   "loaded README.md",
+					}),
+				}
+				return []model.SessionUpdate{
+					{
+						Kind:          model.UpdateKindToolCallStarted,
+						ToolCallID:    "tool-keep",
+						ToolCallState: model.ToolCallStatePending,
+						Blocks:        start,
+					},
+					{
+						Kind:          model.UpdateKindToolCallUpdated,
+						ToolCallID:    "tool-keep",
+						ToolCallState: model.ToolCallStateInProgress,
+						Blocks:        withOutput,
+					},
+				}
+			},
+			update: func(t *testing.T) model.SessionUpdate {
+				t.Helper()
+
+				headerOnly := []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.ToolUseBlock{
+						ID:    "tool-keep",
+						Name:  "Read",
+						Input: []byte(`{"file_path":"README.md","start_line":5,"end_line":12}`),
+					}),
+				}
+				return model.SessionUpdate{
+					Kind:          model.UpdateKindToolCallUpdated,
+					ToolCallID:    "tool-keep",
+					ToolCallState: model.ToolCallStateCompleted,
+					Blocks:        headerOnly,
+				}
+			},
+			verify: func(t *testing.T, snapshot SessionViewSnapshot) {
+				t.Helper()
+
+				entry := snapshot.Entries[0]
+				if got := entry.Title; got != "Read README.md:5-12" {
+					t.Fatalf("expected header-only update to refresh tool title, got %q", got)
+				}
+				if got := entry.Preview; got != "README.md:5-12" {
+					t.Fatalf("expected header-only update to refresh tool preview, got %q", got)
+				}
+				if len(entry.Blocks) != 2 {
+					t.Fatalf("expected preserved tool output blocks, got %#v", entry.Blocks)
+				}
+				result, err := entry.Blocks[1].AsToolResult()
+				if err != nil {
+					t.Fatalf("decode preserved tool result block: %v", err)
+				}
+				if result.Content != "loaded README.md" {
+					t.Fatalf("expected existing tool output to be preserved, got %q", result.Content)
+				}
+			},
+		},
 	}
 
-	update := []model.ContentBlock{
-		mustContentBlockTranscriptTest(t, model.ToolUseBlock{
-			ID:    "tool-1",
-			Name:  "Read",
-			Input: []byte(`{"file_path":"README.md","start_line":5,"end_line":12}`),
-		}),
-		mustContentBlockTranscriptTest(t, model.ToolResultBlock{
-			ToolUseID: "tool-1",
-			Content:   "updated",
-		}),
-	}
-	snapshot, changed := viewModel.Apply(model.SessionUpdate{
-		Kind:          model.UpdateKindToolCallUpdated,
-		ToolCallID:    "tool-1",
-		ToolCallState: model.ToolCallStateCompleted,
-		Blocks:        update,
-	})
-	if !changed {
-		t.Fatal("expected tool call update to replace tool header")
-	}
-	if got := snapshot.Entries[0].Title; got != "Read README.md:5-12" {
-		t.Fatalf("expected updated tool title to include line range, got %q", got)
-	}
-	if got := snapshot.Entries[0].Preview; got != "README.md:5-12" {
-		t.Fatalf("expected updated tool preview to include line range, got %q", got)
-	}
-}
+	for _, tc := range cases {
+		tc := tc
+		t.Run("Should "+tc.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestSessionViewModelToolCallUpdateMergesNullHeaderInput(t *testing.T) {
-	t.Parallel()
+			viewModel := newSessionViewModel()
+			for index, setupUpdate := range tc.setup(t) {
+				if _, changed := viewModel.Apply(setupUpdate); !changed {
+					t.Fatalf("expected setup update %d to change session view", index)
+				}
+			}
 
-	viewModel := newSessionViewModel()
-	start := []model.ContentBlock{
-		mustContentBlockTranscriptTest(t, model.ToolUseBlock{
-			ID:    "tool-1",
-			Name:  "Read",
-			Input: []byte(`null`),
-		}),
-	}
-	if _, changed := viewModel.Apply(model.SessionUpdate{
-		Kind:          model.UpdateKindToolCallStarted,
-		ToolCallID:    "tool-1",
-		ToolCallState: model.ToolCallStatePending,
-		Blocks:        start,
-	}); !changed {
-		t.Fatal("expected tool call start to change session view")
-	}
-
-	update := []model.ContentBlock{
-		mustContentBlockTranscriptTest(t, model.ToolUseBlock{
-			ID:    "tool-1",
-			Name:  "Read",
-			Input: []byte(`{"file_path":"README.md"}`),
-		}),
-	}
-	snapshot, changed := viewModel.Apply(model.SessionUpdate{
-		Kind:          model.UpdateKindToolCallUpdated,
-		ToolCallID:    "tool-1",
-		ToolCallState: model.ToolCallStateInProgress,
-		Blocks:        update,
-	})
-	if !changed {
-		t.Fatal("expected null-to-object header update to change session view")
-	}
-	if got := snapshot.Entries[0].Title; got != "Read README.md" {
-		t.Fatalf("expected merged tool title to use updated object input, got %q", got)
-	}
-	if got := snapshot.Entries[0].Preview; got != "README.md" {
-		t.Fatalf("expected merged tool preview to use updated object input, got %q", got)
-	}
-}
-
-func TestSessionViewModelToolCallUpdateWithoutStartCreatesFailurePlaceholder(t *testing.T) {
-	t.Parallel()
-
-	viewModel := newSessionViewModel()
-	update := []model.ContentBlock{
-		mustContentBlockTranscriptTest(t, model.ToolUseBlock{
-			ID:       "tool-missing",
-			Name:     "Read",
-			Title:    "Read",
-			Input:    []byte(`{"file_path":"README.md"}`),
-			RawInput: []byte(`{"path":"README.md"}`),
-		}),
-		mustContentBlockTranscriptTest(t, model.ToolResultBlock{
-			ToolUseID: "tool-missing",
-			Content:   "loaded README.md",
-		}),
-	}
-
-	snapshot, changed := viewModel.Apply(model.SessionUpdate{
-		Kind:          model.UpdateKindToolCallUpdated,
-		ToolCallID:    "tool-missing",
-		ToolCallState: model.ToolCallStateCompleted,
-		Blocks:        update,
-	})
-	if !changed {
-		t.Fatal("expected update-first tool call to materialize a failed placeholder")
-	}
-	if len(snapshot.Entries) != 1 {
-		t.Fatalf("expected one tool placeholder entry, got %#v", snapshot.Entries)
-	}
-	entry := snapshot.Entries[0]
-	if entry.Kind != transcriptEntryToolCall {
-		t.Fatalf("expected tool entry, got %#v", entry)
-	}
-	if entry.ToolCallState != model.ToolCallStateFailed {
-		t.Fatalf("expected failed placeholder state, got %q", entry.ToolCallState)
-	}
-	if entry.Title != "Tool call not found" {
-		t.Fatalf("expected missing-tool title, got %q", entry.Title)
-	}
-	if entry.Preview != "Tool call not found" {
-		t.Fatalf("expected missing-tool preview, got %q", entry.Preview)
-	}
-}
-
-func TestSessionViewModelUsesDisplayTitleInsteadOfProgrammaticToolName(t *testing.T) {
-	t.Parallel()
-
-	viewModel := newSessionViewModel()
-	start := []model.ContentBlock{
-		mustContentBlockTranscriptTest(t, model.ToolUseBlock{
-			ID:       "tool-1",
-			Name:     "Read",
-			Title:    "Read",
-			ToolName: "read_file",
-			Input:    []byte(`{"file_path":"README.md"}`),
-			RawInput: []byte(`{"path":"README.md"}`),
-		}),
-	}
-
-	snapshot, changed := viewModel.Apply(model.SessionUpdate{
-		Kind:          model.UpdateKindToolCallStarted,
-		ToolCallID:    "tool-1",
-		ToolCallState: model.ToolCallStatePending,
-		Blocks:        start,
-	})
-	if !changed {
-		t.Fatal("expected tool call start to change session view")
-	}
-	if got := snapshot.Entries[0].Title; got != "Read README.md" {
-		t.Fatalf("expected visible title to use display label, got %q", got)
-	}
-	if got := snapshot.Entries[0].Preview; got != "README.md" {
-		t.Fatalf("expected visible preview to use normalized input, got %q", got)
-	}
-
-	toolUse, err := snapshot.Entries[0].Blocks[0].AsToolUse()
-	if err != nil {
-		t.Fatalf("decode preserved tool header: %v", err)
-	}
-	if toolUse.ToolName != "read_file" {
-		t.Fatalf("expected preserved programmatic tool name, got %q", toolUse.ToolName)
+			snapshot, changed := viewModel.Apply(tc.update(t))
+			if !changed {
+				t.Fatal("expected tool call scenario to change session view")
+			}
+			tc.verify(t, snapshot)
+		})
 	}
 }
 

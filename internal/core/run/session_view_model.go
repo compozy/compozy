@@ -203,6 +203,9 @@ func (m *sessionViewModel) upsertToolCall(
 		} else if len(blocks) > 0 {
 			header := mergeToolUseHeaders(extractToolUseHeader(entry.Blocks), extractToolUseHeader(blocks))
 			content := stripToolUseHeader(blocks)
+			if len(content) == 0 {
+				content = stripToolUseHeader(entry.Blocks)
+			}
 			nextBlocks := make([]model.ContentBlock, 0, len(header)+len(content))
 			nextBlocks = append(nextBlocks, header...)
 			nextBlocks = append(nextBlocks, content...)
@@ -570,7 +573,7 @@ func missingToolCallBlocks(toolCallID string) ([]model.ContentBlock, error) {
 		Title: "Tool call not found",
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating placeholder blocks: %w", err)
 	}
 	result, err := model.NewContentBlock(model.ToolResultBlock{
 		ToolUseID: toolCallID,
@@ -578,7 +581,7 @@ func missingToolCallBlocks(toolCallID string) ([]model.ContentBlock, error) {
 		IsError:   true,
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating placeholder blocks: %w", err)
 	}
 	return []model.ContentBlock{header, result}, nil
 }
