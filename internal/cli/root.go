@@ -345,13 +345,13 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.maxRetries,
 		"max-retries",
 		0,
-		"Retry failed or timed-out jobs up to N times before marking them failed",
+		"Retry execution-stage ACP failures or timeouts up to N times before marking them failed",
 	)
 	cmd.Flags().Float64Var(
 		&state.retryBackoffMultiplier,
 		"retry-backoff-multiplier",
 		1.5,
-		"Multiplier applied to activity timeout after each retry",
+		"Multiplier applied to the next activity timeout after each retry",
 	)
 }
 

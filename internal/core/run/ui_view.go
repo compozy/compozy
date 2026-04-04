@@ -236,6 +236,11 @@ func (m *uiModel) elapsedStr(job *uiJob, bg color.Color) string {
 		if !job.startedAt.IsZero() {
 			return renderStyledOnBackground(styleDimText, bg, formatDuration(time.Since(job.startedAt)))
 		}
+	case jobRetrying:
+		if label := m.retryAttemptLabel(job); label != "" {
+			return lipgloss.NewStyle().Foreground(colorWarning).Background(bg).Render("RETRY " + label)
+		}
+		return lipgloss.NewStyle().Foreground(colorWarning).Background(bg).Render("RETRY")
 	case jobSuccess:
 		d := job.duration
 		if d == 0 && !job.startedAt.IsZero() {
@@ -413,6 +418,8 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 		if !job.startedAt.IsZero() {
 			timeStr = formatDuration(time.Since(job.startedAt))
 		}
+	case jobRetrying:
+		timeStr = m.retryAttemptLabel(job)
 	case jobSuccess, jobFailed:
 		if job.duration > 0 {
 			timeStr = formatDuration(job.duration)
@@ -441,7 +448,7 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 	}
 	line1 = renderOwnedLine(maxW, bg, line1)
 
-	line2Raw := truncateString(fmt.Sprintf("    FILES %d · ISSUES %d", len(job.codeFiles), job.issues), maxW)
+	line2Raw := truncateString(m.sidebarMeta(job), maxW)
 	metaStyle := styleDimText
 	if selected {
 		metaStyle = styleMutedText
@@ -491,10 +498,43 @@ func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 func (m *uiModel) timelineMeta(job *uiJob) string {
 	total := len(job.snapshot.Entries)
 	if total == 0 {
-		return "No ACP transcript yet"
+		return m.timelineAttemptMeta(job, "No ACP transcript yet")
 	}
 	selected := job.selectedEntry + 1
-	return fmt.Sprintf("%d entries · selected %d/%d", total, selected, total)
+	return m.timelineAttemptMeta(job, fmt.Sprintf("%d entries · selected %d/%d", total, selected, total))
+}
+
+func (m *uiModel) timelineAttemptMeta(job *uiJob, base string) string {
+	parts := []string{base}
+	if attemptLabel := m.retryAttemptLabel(job); attemptLabel != "" {
+		parts = append(parts, "attempt "+attemptLabel)
+	}
+	if job != nil && job.retrying && strings.TrimSpace(job.retryReason) != "" {
+		parts = append(parts, "retrying: "+truncateString(job.retryReason, 72))
+	}
+	return strings.Join(parts, " · ")
+}
+
+func (m *uiModel) retryAttemptLabel(job *uiJob) string {
+	if job == nil || job.maxAttempts <= 1 || job.attempt <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d/%d", job.attempt, job.maxAttempts)
+}
+
+func (m *uiModel) sidebarMeta(job *uiJob) string {
+	parts := make([]string, 0, 4)
+	if label := m.getStateLabel(job.state); label != "" {
+		parts = append(parts, label)
+	}
+	if attempt := m.retryAttemptLabel(job); attempt != "" {
+		parts = append(parts, "ATTEMPT "+attempt)
+	}
+	parts = append(parts,
+		fmt.Sprintf("FILES %d", len(job.codeFiles)),
+		fmt.Sprintf("ISSUES %d", job.issues),
+	)
+	return "    " + strings.Join(parts, " · ")
 }
 
 func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
@@ -853,6 +893,8 @@ func (m *uiModel) getStateLabel(state jobState) string {
 		return "PENDING"
 	case jobRunning:
 		return "RUNNING"
+	case jobRetrying:
+		return "RETRY"
 	case jobSuccess:
 		return "SUCCESS"
 	case jobFailed:
@@ -868,6 +910,8 @@ func (m *uiModel) jobStateIcon(state jobState) string {
 		return "⏸"
 	case jobRunning:
 		return spinnerFrames[m.frame%len(spinnerFrames)]
+	case jobRetrying:
+		return "↻"
 	case jobSuccess:
 		return "✓"
 	case jobFailed:
@@ -883,6 +927,8 @@ func (m *uiModel) jobStateColor(state jobState) color.Color {
 		return colorMuted
 	case jobRunning:
 		return colorAccentAlt
+	case jobRetrying:
+		return colorWarning
 	case jobSuccess:
 		return colorSuccess
 	case jobFailed:
@@ -896,6 +942,8 @@ func (m *uiModel) jobBorderColor(job *uiJob) color.Color {
 	switch job.state {
 	case jobRunning:
 		return colorBorderFocus
+	case jobRetrying:
+		return colorWarning
 	case jobSuccess:
 		return colorSuccess
 	case jobFailed:

@@ -45,6 +45,8 @@ func notifyJobStart(
 	useUI bool,
 	uiCh chan uiMsg,
 	index int,
+	attempt int,
+	maxAttempts int,
 	job *job,
 	ide string,
 	model string,
@@ -53,7 +55,7 @@ func notifyJobStart(
 	accessMode string,
 ) {
 	if useUI {
-		uiCh <- jobStartedMsg{Index: index}
+		uiCh <- jobStartedMsg{Index: index, Attempt: attempt, MaxAttempts: maxAttempts}
 		return
 	}
 
@@ -96,6 +98,7 @@ func setupSessionExecution(
 	index int,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
+	activity *activityMonitor,
 	logger *slog.Logger,
 	trackClient func(agent.Client) func(),
 ) (*sessionExecution, error) {
@@ -142,6 +145,7 @@ func setupSessionExecution(
 		uiCh,
 		aggregateUsage,
 		aggregateMu,
+		activity,
 	)
 	logger.Info(
 		"acp session created",

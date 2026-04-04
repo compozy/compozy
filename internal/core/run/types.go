@@ -9,6 +9,7 @@ import (
 const (
 	exitCodeTimeout               = -2
 	exitCodeCanceled              = -1
+	activityCheckInterval         = 5 * time.Second
 	processTerminationGracePeriod = 3 * time.Second
 	gracefulShutdownTimeout       = 3 * time.Second
 	uiTickInterval                = 120 * time.Millisecond
@@ -45,9 +46,10 @@ const (
 )
 
 type jobAttemptResult struct {
-	status   jobAttemptStatus
-	exitCode int
-	failure  *failInfo
+	status    jobAttemptStatus
+	exitCode  int
+	failure   *failInfo
+	retryable bool
 }
 
 func (r jobAttemptResult) Successful() bool {
@@ -55,7 +57,7 @@ func (r jobAttemptResult) Successful() bool {
 }
 
 func (r jobAttemptResult) NeedsRetry() bool {
-	return r.status == attemptStatusFailure || r.status == attemptStatusTimeout
+	return r.retryable
 }
 
 func (r jobAttemptResult) IsCanceled() bool {
@@ -67,6 +69,7 @@ type jobState int
 const (
 	jobPending jobState = iota
 	jobRunning
+	jobRetrying
 	jobSuccess
 	jobFailed
 )
@@ -101,6 +104,10 @@ type uiJob struct {
 	startedAt            time.Time
 	completedAt          time.Time
 	duration             time.Duration
+	attempt              int
+	maxAttempts          int
+	retrying             bool
+	retryReason          string
 	tokenUsage           *model.Usage
 	snapshot             SessionViewSnapshot
 	selectedEntry        int
@@ -165,7 +172,18 @@ type jobQueuedMsg struct {
 	ErrBuffer *lineBuffer
 }
 
-type jobStartedMsg struct{ Index int }
+type jobStartedMsg struct {
+	Index       int
+	Attempt     int
+	MaxAttempts int
+}
+
+type jobRetryMsg struct {
+	Index       int
+	Attempt     int
+	MaxAttempts int
+	Reason      string
+}
 
 type jobFinishedMsg struct {
 	Index    int

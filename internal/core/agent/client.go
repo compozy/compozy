@@ -55,6 +55,47 @@ type SessionError struct {
 	Data    json.RawMessage
 }
 
+// SessionSetupStage identifies which ACP bootstrap or session-configuration step failed.
+type SessionSetupStage string
+
+const (
+	// SessionSetupStageStartProcess indicates that starting the ACP subprocess failed.
+	SessionSetupStageStartProcess SessionSetupStage = "start_process"
+	// SessionSetupStageInitialize indicates that ACP protocol initialization failed.
+	SessionSetupStageInitialize SessionSetupStage = "initialize"
+	// SessionSetupStageNewSession indicates that ACP session creation failed.
+	SessionSetupStageNewSession SessionSetupStage = "new_session"
+	// SessionSetupStageSetModel indicates that ACP session model configuration failed.
+	SessionSetupStageSetModel SessionSetupStage = "set_model"
+	// SessionSetupStageSetMode indicates that ACP session mode configuration failed.
+	SessionSetupStageSetMode SessionSetupStage = "set_mode"
+)
+
+// SessionSetupError wraps an ACP setup failure with its stage for retry classification.
+type SessionSetupError struct {
+	Stage SessionSetupStage
+	Err   error
+}
+
+// Error implements the error interface.
+func (e *SessionSetupError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return string(e.Stage)
+	}
+	return fmt.Sprintf("%s: %v", e.Stage, e.Err)
+}
+
+// Unwrap returns the underlying setup failure.
+func (e *SessionSetupError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.Err
+}
+
 // Error implements the error interface.
 func (e *SessionError) Error() string {
 	if e == nil {
@@ -146,7 +187,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		McpServers: []acp.McpServer{},
 	})
 	if err != nil {
-		return nil, wrapACPError(err)
+		return nil, wrapSessionSetupError(SessionSetupStageNewSession, wrapACPError(err))
 	}
 
 	allowedRoots, err := resolveSessionAllowedRoots(workingDir, c.cfg.AddDirs)
@@ -163,7 +204,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 			ModelId:   acp.ModelId(requestedModel),
 		}); err != nil {
 			c.removeSession(session.id)
-			return nil, wrapACPError(err)
+			return nil, wrapSessionSetupError(SessionSetupStageSetModel, wrapACPError(err))
 		}
 	}
 	if modeID := c.spec.sessionModeForAccess(c.cfg.AccessMode); modeID != "" {
@@ -172,7 +213,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 			ModeId:    acp.SessionModeId(modeID),
 		}); err != nil {
 			c.removeSession(session.id)
-			return nil, wrapACPError(err)
+			return nil, wrapSessionSetupError(SessionSetupStageSetMode, wrapACPError(err))
 		}
 	}
 
@@ -356,7 +397,10 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 	if err != nil {
 		c.mu.Unlock()
 		processCancel()
-		return wrapACPLaunchError(c.spec, command, "", "start ACP agent process", err)
+		return wrapSessionSetupError(
+			SessionSetupStageStartProcess,
+			wrapACPLaunchError(c.spec, command, "", "start ACP agent process", err),
+		)
 	}
 
 	conn := acp.NewClientSideConnection(c, stdin, stdout)
@@ -389,7 +433,10 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		},
 	}); err != nil {
 		_ = c.Close()
-		return wrapACPLaunchError(c.spec, command, stderr.String(), "initialize ACP agent", wrapACPError(err))
+		return wrapSessionSetupError(
+			SessionSetupStageInitialize,
+			wrapACPLaunchError(c.spec, command, stderr.String(), "initialize ACP agent", wrapACPError(err)),
+		)
 	}
 
 	return nil
@@ -752,6 +799,13 @@ func wrapACPLaunchError(spec Spec, command []string, stderr, stage string, err e
 		parts = append(parts, "docs: "+trimmed)
 	}
 	return errors.New(strings.Join(parts, ". "))
+}
+
+func wrapSessionSetupError(stage SessionSetupStage, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &SessionSetupError{Stage: stage, Err: err}
 }
 
 func firstNonEmpty(values ...string) string {

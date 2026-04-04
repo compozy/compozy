@@ -32,6 +32,8 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleJobQueued(&v)
 	case jobStartedMsg:
 		return m, m.handleJobStarted(v)
+	case jobRetryMsg:
+		return m, m.handleJobRetry(v)
 	case jobFinishedMsg:
 		return m, m.handleJobFinished(v)
 	case jobUpdateMsg:
@@ -366,7 +368,7 @@ func (m *uiModel) persistSelectedViewportState() {
 
 func (m *uiModel) selectNextRunningJob() {
 	for i := range m.jobs {
-		if m.jobs[i].state == jobRunning {
+		if m.jobs[i].state == jobRunning || m.jobs[i].state == jobRetrying {
 			m.selectedJob = i
 			return
 		}
@@ -418,6 +420,10 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 		m.persistSelectedViewportState()
 		job := &m.jobs[v.Index]
 		job.state = jobRunning
+		job.attempt = max(v.Attempt, 1)
+		job.maxAttempts = max(v.MaxAttempts, job.attempt)
+		job.retrying = false
+		job.retryReason = ""
 		if job.startedAt.IsZero() {
 			job.startedAt = time.Now()
 			job.duration = 0
@@ -428,10 +434,27 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 	return m.waitEvent()
 }
 
+func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
+	if v.Index < len(m.jobs) {
+		m.persistSelectedViewportState()
+		job := &m.jobs[v.Index]
+		job.state = jobRetrying
+		job.attempt = max(v.Attempt, 1)
+		job.maxAttempts = max(v.MaxAttempts, job.attempt)
+		job.retrying = true
+		job.retryReason = v.Reason
+		m.selectedJob = v.Index
+	}
+	m.refreshViewportContent()
+	return m.waitEvent()
+}
+
 func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 	if v.Index < len(m.jobs) {
 		m.persistSelectedViewportState()
 		job := &m.jobs[v.Index]
+		job.retrying = false
+		job.retryReason = ""
 		if v.Success {
 			job.state = jobSuccess
 			m.completed++

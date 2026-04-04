@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -304,6 +305,62 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 	}
 }
 
+func TestJobExecutionContextLaunchWorkersRetriesRetryableSetupFailureForReviewBatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	started := make(chan string, 1)
+	finished := make(chan string, 1)
+
+	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
+		return nil, &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageNewSession,
+			Err:   errors.New("temporary review batch setup failure"),
+		}
+	})
+	secondClient := newPromptReportingACPClient(started, finished, nil)
+	installFakeACPClients(t, firstClient, secondClient)
+
+	jobs := []job{newNamedTestACPJob(tmpDir, "task_01")}
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			concurrent:             1,
+			maxRetries:             1,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		jobs:  jobs,
+		total: len(jobs),
+		cwd:   tmpDir,
+		sem:   make(chan struct{}, 1),
+	}
+
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	execCtx.launchWorkers(jobCtx)
+
+	if got := waitForACPTaskEvent(t, started); !strings.Contains(got, "finish the task") {
+		t.Fatalf("expected retry attempt prompt to include review batch instructions, got %q", got)
+	}
+
+	select {
+	case <-execCtx.waitChannel():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for retried review batch execution")
+	}
+
+	if got := firstClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected one retryable setup failure attempt, got %d", got)
+	}
+	if got := secondClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected one successful retry attempt, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+		t.Fatalf("expected 0 failed jobs after retry, got %d", got)
+	}
+}
+
 func TestJobExecutionContextLaunchWorkersRunsPRDTasksSequentially(t *testing.T) {
 	tmpDir := t.TempDir()
 	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
@@ -412,6 +469,90 @@ func TestJobExecutionContextLaunchWorkersRunsPRDTasksSequentially(t *testing.T) 
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
 		t.Fatalf("expected 0 failed PRD jobs, got %d", got)
+	}
+}
+
+func TestJobExecutionContextLaunchWorkersRetriesPRDSetupFailureBeforeLaterTasks(t *testing.T) {
+	tmpDir := t.TempDir()
+	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	for _, name := range []string{"task_01.md", "task_02.md"} {
+		writeRunTaskFile(t, tasksDir, name, "pending")
+	}
+
+	started := make(chan string, 2)
+	finished := make(chan string, 2)
+	releaseFirst := make(chan struct{})
+
+	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
+		return nil, &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageNewSession,
+			Err:   errors.New("temporary PRD setup failure"),
+		}
+	})
+	secondClient := newPromptReportingACPClient(started, finished, releaseFirst)
+	thirdClient := newPromptReportingACPClient(started, finished, nil)
+	installFakeACPClients(t, firstClient, secondClient, thirdClient)
+
+	jobs := []job{
+		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_01.md"),
+		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_02.md"),
+	}
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			mode:                   model.ExecutionModePRDTasks,
+			tasksDir:               tasksDir,
+			concurrent:             2,
+			maxRetries:             1,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		jobs:  jobs,
+		total: len(jobs),
+		cwd:   tmpDir,
+		sem:   make(chan struct{}, 2),
+	}
+
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	execCtx.launchWorkers(jobCtx)
+
+	if got := waitForACPTaskEvent(t, started); got != "task_01" {
+		t.Fatalf("expected retried PRD task_01 to start first, got %q", got)
+	}
+	assertNoACPTaskEvent(
+		t,
+		started,
+		150*time.Millisecond,
+		"expected task_02 to remain pending until task_01 retry succeeded",
+	)
+
+	close(releaseFirst)
+	if got := waitForACPTaskEvent(t, finished); got != "task_01" {
+		t.Fatalf("expected task_01 retry to finish before task_02 starts, got %q", got)
+	}
+	if got := waitForACPTaskEvent(t, started); got != "task_02" {
+		t.Fatalf("expected task_02 to start after task_01 retry success, got %q", got)
+	}
+
+	select {
+	case <-execCtx.waitChannel():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for retried sequential PRD execution")
+	}
+
+	if got := firstClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected one retryable PRD setup failure attempt, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+		t.Fatalf("expected 0 failed PRD jobs after retry, got %d", got)
 	}
 }
 

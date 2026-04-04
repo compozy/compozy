@@ -70,6 +70,7 @@ func TestFormattingAndStateHelpersCoverBranches(t *testing.T) {
 
 	m := newUIModel(1)
 	running := &uiJob{state: jobRunning, startedAt: time.Now().Add(-2 * time.Minute)}
+	retrying := &uiJob{state: jobRetrying, attempt: 2, maxAttempts: 3}
 	success := &uiJob{state: jobSuccess, duration: 42 * time.Second}
 	failed := &uiJob{state: jobFailed, duration: 15 * time.Second}
 
@@ -79,6 +80,7 @@ func TestFormattingAndStateHelpersCoverBranches(t *testing.T) {
 	}{
 		{jobPending, "PENDING"},
 		{jobRunning, "RUNNING"},
+		{jobRetrying, "RETRY"},
 		{jobSuccess, "SUCCESS"},
 		{jobFailed, "FAILED"},
 	} {
@@ -98,6 +100,7 @@ func TestFormattingAndStateHelpersCoverBranches(t *testing.T) {
 
 	for _, rendered := range []string{
 		m.elapsedStr(running, colorBgBase),
+		m.elapsedStr(retrying, colorBgBase),
 		m.elapsedStr(success, colorBgBase),
 		m.elapsedStr(failed, colorBgBase),
 	} {

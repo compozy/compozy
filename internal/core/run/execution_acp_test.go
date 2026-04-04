@@ -125,6 +125,96 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	}
 }
 
+func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
+	tmpDir := t.TempDir()
+	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
+		return nil, &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageNewSession,
+			Err:   errors.New("temporary session bootstrap failure"),
+		}
+	})
+	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-setup-retry")
+		go session.finish(nil)
+		return session, nil
+	})
+	installFakeACPClients(t, firstClient, secondClient)
+
+	job := newTestACPJob(tmpDir)
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			maxRetries:             1,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		cwd: tmpDir,
+	}
+
+	runner := newJobRunner(0, &job, execCtx)
+	runner.run(context.Background())
+
+	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
+		t.Fatalf("expected succeeded lifecycle state, got %s", got)
+	}
+	if got := firstClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected first setup-failure client to be attempted once, got %d", got)
+	}
+	if got := secondClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected retry attempt to create one successful session, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+		t.Fatalf("expected no failed jobs, got %d", got)
+	}
+}
+
+func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
+	tmpDir := t.TempDir()
+	firstClient := newFakeACPClient(func(context.Context, agent.SessionRequest) (agent.Session, error) {
+		return nil, &agent.SessionSetupError{
+			Stage: agent.SessionSetupStageSetModel,
+			Err:   errors.New("invalid session model override"),
+		}
+	})
+	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-should-not-run")
+		go session.finish(nil)
+		return session, nil
+	})
+	installFakeACPClients(t, firstClient, secondClient)
+
+	job := newTestACPJob(tmpDir)
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			maxRetries:             3,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		cwd: tmpDir,
+	}
+
+	runner := newJobRunner(0, &job, execCtx)
+	runner.run(context.Background())
+
+	if got := runner.lifecycle.state; got != jobPhaseFailed {
+		t.Fatalf("expected failed lifecycle state, got %s", got)
+	}
+	if got := firstClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected non-retryable setup failure to run once, got %d", got)
+	}
+	if got := secondClient.createCalls.Load(); got != 0 {
+		t.Fatalf("expected no retry after non-retryable setup failure, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 1 {
+		t.Fatalf("expected failed jobs counter to be 1, got %d", got)
+	}
+}
+
 func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 	tmpDir := t.TempDir()
 	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
@@ -278,8 +368,105 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 	if got := result.status; got != attemptStatusTimeout {
 		t.Fatalf("expected timeout status, got %s", got)
 	}
+	if result.failure == nil || !strings.Contains(result.failure.err.Error(), "activity timeout") {
+		t.Fatalf("expected activity-timeout failure, got %#v", result.failure)
+	}
 	if got := timeoutClient.closeCalls.Load(); got != 1 {
 		t.Fatalf("expected client close to run as timeout backstop, got %d closes", got)
+	}
+}
+
+func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+	activeClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-active")
+		go func() {
+			for i := 0; i < 6; i++ {
+				time.Sleep(20 * time.Millisecond)
+				session.publish(model.SessionUpdate{
+					Kind: model.UpdateKindPlanUpdated,
+					PlanEntries: []model.SessionPlanEntry{{
+						Content:  fmt.Sprintf("step-%d", i+1),
+						Priority: "high",
+						Status:   "in_progress",
+					}},
+					Status: model.StatusRunning,
+				})
+			}
+			session.finish(nil)
+		}()
+		return session, nil
+	})
+	installFakeACPClients(t, activeClient)
+
+	job := newTestACPJob(tmpDir)
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			retryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		false,
+		nil,
+		0,
+		50*time.Millisecond,
+		nil,
+		nil,
+		nil,
+	)
+
+	if got := result.status; got != attemptStatusSuccess {
+		t.Fatalf("expected success status, got %s (%#v)", got, result.failure)
+	}
+	errLog, err := os.ReadFile(job.errLog)
+	if err != nil {
+		t.Fatalf("read err log: %v", err)
+	}
+	if strings.Contains(string(errLog), "activity timeout") {
+		t.Fatalf("expected no activity-timeout error, got %q", string(errLog))
+	}
+}
+
+func TestExecuteJobWithTimeoutSetupHangUsesActivityTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+	blockingSetupClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		<-ctx.Done()
+		return nil, context.Cause(ctx)
+	})
+	installFakeACPClients(t, blockingSetupClient)
+
+	job := newTestACPJob(tmpDir)
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			retryBackoffMultiplier: 2,
+		},
+		&job,
+		tmpDir,
+		false,
+		nil,
+		0,
+		25*time.Millisecond,
+		nil,
+		nil,
+		nil,
+	)
+
+	if got := result.status; got != attemptStatusTimeout {
+		t.Fatalf("expected timeout status for blocked setup, got %s (%#v)", got, result.failure)
+	}
+	if result.failure == nil || !strings.Contains(result.failure.err.Error(), "activity timeout") {
+		t.Fatalf("expected activity-timeout failure, got %#v", result.failure)
+	}
+	if got := blockingSetupClient.closeCalls.Load(); got != 1 {
+		t.Fatalf("expected blocked setup client to be closed, got %d closes", got)
 	}
 }
 
@@ -464,6 +651,52 @@ func TestHandleNilExecutionReturnsSetupFailure(t *testing.T) {
 	if result.failure == nil ||
 		!strings.Contains(result.failure.err.Error(), "failed to set up ACP session execution") {
 		t.Fatalf("unexpected failure payload: %#v", result.failure)
+	}
+}
+
+func TestRetryableSetupFailureMatchesExpectedStages(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "retryable start process",
+			err:  &agent.SessionSetupError{Stage: agent.SessionSetupStageStartProcess, Err: errors.New("boom")},
+			want: true,
+		},
+		{
+			name: "retryable initialize",
+			err:  &agent.SessionSetupError{Stage: agent.SessionSetupStageInitialize, Err: errors.New("boom")},
+			want: true,
+		},
+		{
+			name: "retryable new session",
+			err:  &agent.SessionSetupError{Stage: agent.SessionSetupStageNewSession, Err: errors.New("boom")},
+			want: true,
+		},
+		{
+			name: "non retryable set model",
+			err:  &agent.SessionSetupError{Stage: agent.SessionSetupStageSetModel, Err: errors.New("boom")},
+			want: false,
+		},
+		{
+			name: "non retryable plain error",
+			err:  errors.New("plain"),
+			want: false,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := retryableSetupFailure(tc.err); got != tc.want {
+				t.Fatalf("unexpected retryableSetupFailure result: got %v want %v", got, tc.want)
+			}
+		})
 	}
 }
 

@@ -253,7 +253,7 @@ func (l *jobLifecycle) schedule() {
 	l.state = jobPhaseScheduled
 }
 
-func (l *jobLifecycle) startAttempt(attempt int, timeout time.Duration) {
+func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.Duration) {
 	l.attempt = attempt
 	l.currentTimeout = timeout
 	l.state = jobPhaseRunning
@@ -262,6 +262,8 @@ func (l *jobLifecycle) startAttempt(attempt int, timeout time.Duration) {
 			l.execCtx.uiCh != nil,
 			l.execCtx.uiCh,
 			l.index,
+			attempt,
+			maxAttempts,
 			l.job,
 			l.execCtx.cfg.ide,
 			l.execCtx.cfg.model,
@@ -272,14 +274,23 @@ func (l *jobLifecycle) startAttempt(attempt int, timeout time.Duration) {
 		return
 	}
 	if l.execCtx.uiCh != nil {
-		l.execCtx.uiCh <- jobStartedMsg{Index: l.index}
+		l.execCtx.uiCh <- jobStartedMsg{Index: l.index, Attempt: attempt, MaxAttempts: maxAttempts}
 	}
 }
 
-func (l *jobLifecycle) markRetry(failure failInfo) {
+func (l *jobLifecycle) markRetry(failure failInfo, nextAttempt int, maxAttempts int) {
 	l.lastFailure = &failure
 	l.lastExitCode = failure.exitCode
 	l.state = jobPhaseRetrying
+	l.attempt = nextAttempt
+	if l.execCtx.uiCh != nil {
+		l.execCtx.uiCh <- jobRetryMsg{
+			Index:       l.index,
+			Attempt:     nextAttempt,
+			MaxAttempts: maxAttempts,
+			Reason:      failure.err.Error(),
+		}
+	}
 }
 
 func (l *jobLifecycle) markGiveUp(failure failInfo) {
@@ -378,15 +389,15 @@ func (r *jobRunner) run(ctx context.Context) {
 		return
 	}
 
-	attempts := maxInt(1, r.execCtx.cfg.maxRetries+1)
+	maxAttempts := maxInt(1, r.execCtx.cfg.maxRetries+1)
 	timeout := r.execCtx.cfg.timeout
-	for attempt := 1; attempt <= attempts; attempt++ {
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if ctx.Err() != nil {
 			r.lifecycle.markCanceled(exitCodeCanceled)
 			return
 		}
 
-		r.lifecycle.startAttempt(attempt, timeout)
+		r.lifecycle.startAttempt(attempt, maxAttempts, timeout)
 		result := r.executeAttempt(ctx, timeout)
 		if result.Successful() {
 			if err := r.runPostSuccessHook(ctx); err != nil {
@@ -402,7 +413,7 @@ func (r *jobRunner) run(ctx context.Context) {
 			r.lifecycle.markSuccess()
 			return
 		}
-		nextTimeout, continueLoop := r.handleResult(attempt, attempts, timeout, result)
+		nextTimeout, continueLoop := r.handleResult(attempt, maxAttempts, timeout, result)
 		if !continueLoop {
 			return
 		}
@@ -433,8 +444,9 @@ func (r *jobRunner) handleResult(
 		return timeout, false
 	}
 	nextTimeout := r.nextTimeout(timeout)
-	r.lifecycle.markRetry(r.ensureFailure(result, "retrying job"))
-	r.logRetry(attempt, attempts-1, nextTimeout)
+	nextAttempt := attempt + 1
+	r.lifecycle.markRetry(r.ensureFailure(result, "retrying job"), nextAttempt, attempts)
+	r.logRetry(nextAttempt, attempts, nextTimeout)
 	return nextTimeout, true
 }
 
@@ -479,7 +491,7 @@ func (r *jobRunner) nextTimeout(current time.Duration) time.Duration {
 	return next
 }
 
-func (r *jobRunner) logRetry(attempt int, maxRetries int, timeout time.Duration) {
+func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration) {
 	if r.execCtx.uiCh != nil {
 		return
 	}
@@ -490,7 +502,7 @@ func (r *jobRunner) logRetry(attempt int, maxRetries int, timeout time.Duration)
 		r.index+1,
 		strings.Join(r.job.codeFiles, ", "),
 		attempt,
-		maxRetries,
+		maxAttempts,
 		timeout,
 	)
 }
@@ -860,11 +872,18 @@ func executeJobWithTimeout(
 	trackClient func(agent.Client) func(),
 ) jobAttemptResult {
 	attemptCtx := ctx
-	cancel := func() {}
+	cancel := func(error) {}
+	stopActivityWatchdog := func() {}
+	var activity *activityMonitor
 	if timeout > 0 {
-		attemptCtx, cancel = context.WithTimeout(ctx, timeout)
+		activity = newActivityMonitor()
+		attemptCtx, cancel = context.WithCancelCause(ctx)
+		stopActivityWatchdog = startACPActivityWatchdog(attemptCtx, activity, timeout, cancel)
 	}
-	defer cancel()
+	defer func() {
+		stopActivityWatchdog()
+		cancel(nil)
+	}()
 
 	execution, err := setupSessionExecution(
 		attemptCtx,
@@ -876,14 +895,77 @@ func executeJobWithTimeout(
 		index,
 		aggregateUsage,
 		aggregateMu,
+		activity,
 		runtimeLogger(useUI),
 		trackClient,
 	)
 	if err != nil {
+		if timeout > 0 && isActivityTimeout(err) {
+			return handleSessionTimeout(resolveTimeoutError(timeout, err), j, index, useUI, timeout)
+		}
 		fail := recordFailureWithContext(nil, j, nil, err, -1)
-		return jobAttemptResult{status: attemptStatusSetupFailed, exitCode: -1, failure: &fail}
+		return jobAttemptResult{
+			status:    attemptStatusSetupFailed,
+			exitCode:  -1,
+			failure:   &fail,
+			retryable: retryableSetupFailure(err),
+		}
 	}
 	return executeSessionAndResolve(attemptCtx, timeout, execution, j, index, useUI)
+}
+
+type activityTimeoutError struct {
+	timeout time.Duration
+}
+
+func (e *activityTimeoutError) Error() string {
+	return fmt.Sprintf("activity timeout: no output received for %v", e.timeout)
+}
+
+func startACPActivityWatchdog(
+	ctx context.Context,
+	monitor *activityMonitor,
+	timeout time.Duration,
+	cancel context.CancelCauseFunc,
+) func() {
+	if monitor == nil || timeout <= 0 || cancel == nil {
+		return func() {}
+	}
+
+	stopCh := make(chan struct{})
+	var stopOnce sync.Once
+	interval := timeout / 2
+	if interval <= 0 || interval > activityCheckInterval {
+		interval = activityCheckInterval
+	}
+	if interval < time.Millisecond {
+		interval = time.Millisecond
+	}
+
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				if monitor.timeSinceLastActivity() > timeout {
+					cancel(&activityTimeoutError{timeout: timeout})
+					return
+				}
+			case <-ctx.Done():
+				return
+			case <-stopCh:
+				return
+			}
+		}
+	}()
+
+	return func() {
+		stopOnce.Do(func() {
+			close(stopCh)
+		})
+	}
 }
 
 func createLogFile(path string) (*os.File, error) {
@@ -953,8 +1035,14 @@ func executeSessionAndResolve(
 			execution.logger.Warn("failed to finalize ACP session handler after context cancellation", "error", err)
 		}
 		appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + cancelErr.Error()})
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return handleSessionTimeout(cancelErr, j, index, useUI, timeout)
+		if isSessionTimeout(ctx, cancelErr) {
+			return handleSessionTimeout(
+				resolveTimeoutError(timeout, cancelErr, context.Cause(ctx), ctx.Err()),
+				j,
+				index,
+				useUI,
+				timeout,
+			)
 		}
 		return handleSessionCancellation(cancelErr, j, index, useUI)
 	}
@@ -981,8 +1069,14 @@ func handleSessionCompletion(
 		return jobAttemptResult{status: attemptStatusSuccess, exitCode: 0}
 	}
 
-	if errors.Is(sessionErr, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return handleSessionTimeout(sessionErr, j, index, useUI, timeout)
+	if isSessionTimeout(ctx, sessionErr) {
+		return handleSessionTimeout(
+			resolveTimeoutError(timeout, sessionErr, context.Cause(ctx), ctx.Err()),
+			j,
+			index,
+			useUI,
+			timeout,
+		)
 	}
 	if errors.Is(sessionErr, context.Canceled) {
 		return handleSessionCancellation(sessionErr, j, index, useUI)
@@ -990,6 +1084,33 @@ func handleSessionCompletion(
 
 	exitCode := sessionErrorCode(sessionErr)
 	return buildFailureResult(sessionErr, exitCode, j, index, useUI)
+}
+
+func isSessionTimeout(ctx context.Context, err error) bool {
+	return isActivityTimeout(err) ||
+		isActivityTimeout(context.Cause(ctx)) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(ctx.Err(), context.DeadlineExceeded)
+}
+
+func isActivityTimeout(err error) bool {
+	var timeoutErr *activityTimeoutError
+	return errors.As(err, &timeoutErr)
+}
+
+func resolveTimeoutError(timeout time.Duration, errs ...error) error {
+	for _, err := range errs {
+		var timeoutErr *activityTimeoutError
+		if errors.As(err, &timeoutErr) {
+			return timeoutErr
+		}
+	}
+	for _, err := range errs {
+		if err != nil {
+			return err
+		}
+	}
+	return &activityTimeoutError{timeout: timeout}
 }
 
 func handleSessionCancellation(
@@ -1039,7 +1160,12 @@ func handleSessionTimeout(
 		errLog:   j.errLog,
 		err:      timeoutErr,
 	}
-	return jobAttemptResult{status: attemptStatusTimeout, exitCode: exitCodeTimeout, failure: &failure}
+	return jobAttemptResult{
+		status:    attemptStatusTimeout,
+		exitCode:  exitCodeTimeout,
+		failure:   &failure,
+		retryable: true,
+	}
 }
 
 func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
@@ -1066,7 +1192,26 @@ func buildFailureResult(err error, exitCode int, j *job, index int, useUI bool) 
 	if !useUI {
 		fmt.Fprintf(os.Stderr, "\n❌ Job %d (%s) failed with code %d: %v\n", index+1, codeFileLabel, exitCode, err)
 	}
-	return jobAttemptResult{status: attemptStatusFailure, exitCode: exitCode, failure: &failure}
+	return jobAttemptResult{
+		status:    attemptStatusFailure,
+		exitCode:  exitCode,
+		failure:   &failure,
+		retryable: true,
+	}
+}
+
+func retryableSetupFailure(err error) bool {
+	var setupErr *agent.SessionSetupError
+	if !errors.As(err, &setupErr) {
+		return false
+	}
+
+	switch setupErr.Stage {
+	case agent.SessionSetupStageStartProcess, agent.SessionSetupStageInitialize, agent.SessionSetupStageNewSession:
+		return true
+	default:
+		return false
+	}
 }
 
 func sessionErrorCode(err error) int {

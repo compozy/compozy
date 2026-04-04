@@ -49,7 +49,18 @@ func TestSessionUpdateHandlerRoutesTextBlocksToLogAndSnapshot(t *testing.T) {
 	var err bytes.Buffer
 	uiCh := make(chan uiMsg, 2)
 	var aggregate model.Usage
-	handler := newSessionUpdateHandler(3, model.IDECodex, "sess-123", nil, &out, &err, uiCh, &aggregate, &sync.Mutex{})
+	handler := newSessionUpdateHandler(
+		3,
+		model.IDECodex,
+		"sess-123",
+		nil,
+		&out,
+		&err,
+		uiCh,
+		&aggregate,
+		&sync.Mutex{},
+		nil,
+	)
 
 	textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "hello from ACP"})
 	if handleErr := handler.HandleUpdate(model.SessionUpdate{
@@ -89,7 +100,18 @@ func TestSessionUpdateHandlerMergesTranscriptAndCarriesSessionState(t *testing.T
 	t.Parallel()
 
 	uiCh := make(chan uiMsg, 8)
-	handler := newSessionUpdateHandler(1, model.IDECodex, "sess-merge", nil, io.Discard, io.Discard, uiCh, nil, nil)
+	handler := newSessionUpdateHandler(
+		1,
+		model.IDECodex,
+		"sess-merge",
+		nil,
+		io.Discard,
+		io.Discard,
+		uiCh,
+		nil,
+		nil,
+		nil,
+	)
 
 	updates := []model.SessionUpdate{
 		{
@@ -160,7 +182,18 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	uiCh := make(chan uiMsg, 4)
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-mixed", nil, &out, &err, uiCh, &aggregate, &aggregateMu)
+	handler := newSessionUpdateHandler(
+		0,
+		model.IDECodex,
+		"sess-mixed",
+		nil,
+		&out,
+		&err,
+		uiCh,
+		&aggregate,
+		&aggregateMu,
+		nil,
+	)
 
 	toolUseBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
 		ID:    "tool-1",
@@ -249,6 +282,7 @@ func TestSessionUpdateHandlerDoesNotBlockWhenUIChannelIsFull(t *testing.T) {
 		uiCh,
 		&aggregate,
 		&aggregateMu,
+		nil,
 	)
 	textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "non-blocking"})
 
@@ -279,7 +313,7 @@ func TestSessionUpdateHandlerDoesNotBlockWhenUIChannelIsFull(t *testing.T) {
 func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	t.Parallel()
 
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-done", nil, io.Discard, io.Discard, nil, nil, nil)
+	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-done", nil, io.Discard, io.Discard, nil, nil, nil, nil)
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusCompleted}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -300,7 +334,7 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 	t.Parallel()
 
 	var errBuf bytes.Buffer
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-failed", nil, io.Discard, &errBuf, nil, nil, nil)
+	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-failed", nil, io.Discard, &errBuf, nil, nil, nil, nil)
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusFailed}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -330,6 +364,7 @@ func TestSessionUpdateHandlerCompletionWriteFailureStillSignalsDone(t *testing.T
 		nil,
 		io.Discard,
 		failingWriter{},
+		nil,
 		nil,
 		nil,
 		nil,

@@ -149,6 +149,35 @@ func TestHandleJobUpdateStoresSnapshotAndSelectsLatestEntry(t *testing.T) {
 	}
 }
 
+func TestHandleJobRetryMarksRetryingStateWithoutIncrementingFailures(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.handleJobRetry(jobRetryMsg{
+		Index:       0,
+		Attempt:     2,
+		MaxAttempts: 3,
+		Reason:      "temporary setup failure",
+	})
+
+	job := m.jobs[0]
+	if got := job.state; got != jobRetrying {
+		t.Fatalf("expected retrying state, got %v", got)
+	}
+	if !job.retrying {
+		t.Fatal("expected retrying flag to be true")
+	}
+	if job.attempt != 2 || job.maxAttempts != 3 {
+		t.Fatalf("unexpected retry attempt metadata: %#v", job)
+	}
+	if job.retryReason != "temporary setup failure" {
+		t.Fatalf("unexpected retry reason: %q", job.retryReason)
+	}
+	if m.failed != 0 {
+		t.Fatalf("expected retry state not to increment failed count, got %d", m.failed)
+	}
+}
+
 func TestPaneNavigationCyclesVisiblePanes(t *testing.T) {
 	t.Parallel()
 

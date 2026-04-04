@@ -24,6 +24,7 @@ type sessionUpdateHandler struct {
 	uiCh           chan<- uiMsg
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
+	activity       *activityMonitor
 
 	mu          sync.Mutex
 	err         error
@@ -43,6 +44,7 @@ func newSessionUpdateHandler(
 	uiCh chan<- uiMsg,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
+	activity *activityMonitor,
 ) *sessionUpdateHandler {
 	if logger == nil {
 		logger = silentLogger()
@@ -58,6 +60,7 @@ func newSessionUpdateHandler(
 		uiCh:           uiCh,
 		aggregateUsage: aggregateUsage,
 		aggregateMu:    aggregateMu,
+		activity:       activity,
 		blockCounts:    make(map[model.ContentBlockType]int),
 		sessionView:    newSessionViewModel(),
 		done:           make(chan struct{}),
@@ -75,6 +78,8 @@ func (h *sessionUpdateHandler) Err() error {
 }
 
 func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
+	h.recordActivity()
+
 	if len(update.Blocks) > 0 {
 		outLines, errLines := renderContentBlocks(update.Blocks)
 		if err := writeRenderedLines(h.outWriter, outLines); err != nil {
@@ -140,6 +145,8 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 }
 
 func (h *sessionUpdateHandler) HandleCompletion(err error) error {
+	h.recordActivity()
+
 	if err != nil {
 		if writeErr := writeRenderedLines(h.errWriter, []string{"ACP session error: " + err.Error()}); writeErr != nil {
 			h.markDone(err, true)
@@ -175,6 +182,12 @@ func (h *sessionUpdateHandler) HandleCompletion(err error) error {
 	)
 	h.markDone(nil, false)
 	return nil
+}
+
+func (h *sessionUpdateHandler) recordActivity() {
+	if h.activity != nil {
+		h.activity.recordActivity()
+	}
 }
 
 func (h *sessionUpdateHandler) recordBlockCounts(blocks []model.ContentBlock) {
@@ -422,6 +435,33 @@ func (r *lineBuffer) snapshot() []string {
 	out := make([]string, len(r.lines))
 	copy(out, r.lines)
 	return out
+}
+
+type activityMonitor struct {
+	mu           sync.Mutex
+	lastActivity time.Time
+}
+
+func newActivityMonitor() *activityMonitor {
+	return &activityMonitor{lastActivity: time.Now()}
+}
+
+func (a *activityMonitor) recordActivity() {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.lastActivity = time.Now()
+}
+
+func (a *activityMonitor) timeSinceLastActivity() time.Duration {
+	if a == nil {
+		return 0
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return time.Since(a.lastActivity)
 }
 
 func appendLinesToBuffer(buf *lineBuffer, lines []string) {

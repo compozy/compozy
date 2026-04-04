@@ -153,6 +153,8 @@ Notes:
 - `.compozy/config.toml` is optional. If it is absent, Compozy keeps the current built-in defaults.
 - `.compozy/tasks` remains the fixed workflow root in this version; the config file does not change the workflow root path.
 - Unknown keys and invalid value types are rejected during config loading.
+- `max_retries` applies to execution-stage ACP failures and inactivity timeouts for both `compozy start` and `compozy fix-reviews`.
+- `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
 
 ## 🚀 Quick Start
 
@@ -387,8 +389,8 @@ When present, `.compozy/config.toml` can provide defaults for runtime flags such
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
 | `--timeout`                  | `10m`       | Activity timeout per job                                      |
-| `--max-retries`              | `0`         | Retry failed jobs N times                                     |
-| `--retry-backoff-multiplier` | `1.5`       | Timeout multiplier per retry                                  |
+| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
+| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
 | `--tail-lines`               | `30`        | Log lines shown per job in UI                                 |
 | `--add-dir`                  |             | Additional directories to allow (repeatable)                  |
 | `--auto-commit`              | `false`     | Auto-commit after each task                                   |
@@ -441,8 +443,8 @@ defaults such as `--concurrent`, `--batch-size`, `--grouped`, and `--include-res
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
 | `--timeout`                  | `10m`       | Activity timeout per job                                      |
-| `--max-retries`              | `0`         | Retry failed jobs N times                                     |
-| `--retry-backoff-multiplier` | `1.5`       | Timeout multiplier per retry                                  |
+| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
+| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
 | `--tail-lines`               | `30`        | Log lines shown per job in UI                                 |
 | `--add-dir`                  |             | Additional directories to allow (repeatable)                  |
 | `--auto-commit`              | `false`     | Auto-commit after each batch                                  |

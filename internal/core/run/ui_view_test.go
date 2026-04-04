@@ -139,6 +139,32 @@ func TestRenderSummaryViewIncludesFailuresAndHelp(t *testing.T) {
 	}
 }
 
+func TestRetryingJobRendersAttemptMetadata(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.handleJobRetry(jobRetryMsg{
+		Index:       0,
+		Attempt:     2,
+		MaxAttempts: 3,
+		Reason:      "temporary setup failure",
+	})
+
+	row := m.renderSidebarItem(&m.jobs[0], true)
+	for _, want := range []string{"RETRY", "ATTEMPT 2/3"} {
+		if !strings.Contains(row, want) {
+			t.Fatalf("expected retry sidebar row to contain %q, got %q", want, row)
+		}
+	}
+
+	meta := m.timelineMeta(&m.jobs[0])
+	for _, want := range []string{"attempt 2/3", "retrying: temporary setup failure"} {
+		if !strings.Contains(meta, want) {
+			t.Fatalf("expected retry timeline meta to contain %q, got %q", want, meta)
+		}
+	}
+}
+
 func TestCompozyThemeDefaults(t *testing.T) {
 	t.Parallel()
 
