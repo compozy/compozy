@@ -332,6 +332,22 @@ func TestValidateRuntimeConfigAcceptsExecModeWithSinglePromptSource(t *testing.T
 	}
 }
 
+func TestValidateRuntimeConfigTreatsZeroValueOutputFormatAsText(t *testing.T) {
+	t.Parallel()
+
+	cfg := &model.RuntimeConfig{
+		Mode:                   model.ExecutionModePRReview,
+		IDE:                    model.IDECodex,
+		BatchSize:              1,
+		MaxRetries:             1,
+		RetryBackoffMultiplier: 1.5,
+	}
+
+	if err := ValidateRuntimeConfig(cfg); err != nil {
+		t.Fatalf("validate runtime config with zero-value output format: %v", err)
+	}
+}
+
 func TestValidateRuntimeConfigRejectsInvalidExecCombinations(t *testing.T) {
 	t.Parallel()
 

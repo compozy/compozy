@@ -339,19 +339,24 @@ func validateRuntimeAccessMode(accessMode string) error {
 }
 
 func validateRuntimeOutputFormat(cfg *model.RuntimeConfig) error {
-	switch cfg.OutputFormat {
+	format := cfg.OutputFormat
+	if format == "" {
+		format = model.OutputFormatText
+	}
+
+	switch format {
 	case model.OutputFormatText, model.OutputFormatJSON, model.OutputFormatRawJSON:
 	default:
 		return fmt.Errorf(
 			"invalid output format %q: must be %q, %q, or %q",
-			cfg.OutputFormat,
+			format,
 			model.OutputFormatText,
 			model.OutputFormatJSON,
 			model.OutputFormatRawJSON,
 		)
 	}
-	if cfg.Mode != model.ExecutionModeExec && cfg.OutputFormat != model.OutputFormatText {
-		return fmt.Errorf("output format %q is only supported for exec mode", cfg.OutputFormat)
+	if cfg.Mode != model.ExecutionModeExec && format != model.OutputFormatText {
+		return fmt.Errorf("output format %q is only supported for exec mode", format)
 	}
 	return nil
 }

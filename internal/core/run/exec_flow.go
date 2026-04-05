@@ -1052,7 +1052,11 @@ func renderAssistantOutput(snapshot SessionViewSnapshot) string {
 }
 
 func buildExecRunID() string {
-	return fmt.Sprintf("exec-%s", time.Now().UTC().Format("20060102-150405-000000000"))
+	return formatExecRunID(time.Now().UTC())
+}
+
+func formatExecRunID(now time.Time) string {
+	return fmt.Sprintf("exec-%s-%09d", now.Format("20060102-150405"), now.Nanosecond())
 }
 
 func isExecRetryableError(err error) bool {

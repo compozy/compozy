@@ -182,7 +182,7 @@ func (cfg ProjectConfig) Validate() error {
 	if err := validateFetchReviews(cfg.FetchReviews); err != nil {
 		return err
 	}
-	if err := validateExec(cfg.Exec); err != nil {
+	if err := validateExec(cfg.Defaults, cfg.Exec); err != nil {
 		return err
 	}
 	return nil
@@ -233,12 +233,17 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 	return nil
 }
 
-func validateExec(cfg ExecConfig) error {
+func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
 	if err := validateRuntimeOverrides("exec", cfg.RuntimeOverrides); err != nil {
 		return err
 	}
-	if cfg.TUI != nil && cfg.OutputFormat != nil && *cfg.TUI &&
-		isExecJSONOutputFormat(*cfg.OutputFormat) {
+
+	effectiveOutputFormat := cfg.OutputFormat
+	if effectiveOutputFormat == nil {
+		effectiveOutputFormat = defaults.OutputFormat
+	}
+	if cfg.TUI != nil && effectiveOutputFormat != nil && *cfg.TUI &&
+		isExecJSONOutputFormat(*effectiveOutputFormat) {
 		return fmt.Errorf(
 			"workspace config exec.tui cannot be true when exec.output_format is %q or %q",
 			model.OutputFormatJSONValue,

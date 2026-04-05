@@ -163,13 +163,10 @@ func (c *executorController) handleDone(shutdownTimer *time.Timer) (int32, []fai
 		c.state = executorStateTerminated
 		return c.result(nil)
 	}
-	if c.execCtx.cfg.humanOutputEnabled() {
-		fmt.Fprintf(
-			os.Stderr,
-			"All jobs completed gracefully within %v while draining\n",
-			gracefulShutdownTimeout,
-		)
-	}
+	c.emitShutdownFallback(
+		"Controller shutdown complete after shutdown grace period (%v)\n",
+		gracefulShutdownTimeout,
+	)
 	c.state = executorStateShutdown
 	if err := c.execCtx.shutdownUI(); err != nil {
 		c.state = executorStateTerminated
@@ -193,6 +190,16 @@ func (c *executorController) result(err error) (int32, []failInfo, int, error) {
 	return failed, c.execCtx.failures, c.execCtx.total, err
 }
 
+func (c *executorController) emitShutdownFallback(format string, args ...any) {
+	if c == nil || c.execCtx == nil || c.execCtx.cfg == nil {
+		return
+	}
+	if !c.execCtx.cfg.humanOutputEnabled() || c.execCtx.uiCh != nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, format, args...)
+}
+
 func (c *executorController) requestShutdown(req uiQuitRequest) {
 	force := req == uiQuitRequestForce
 	select {
@@ -205,14 +212,11 @@ func (c *executorController) beginDrain(source shutdownSource) bool {
 	if c.state != executorStateRunning && c.state != executorStateInitializing {
 		return false
 	}
-	if c.execCtx.cfg.humanOutputEnabled() {
-		fmt.Fprintf(
-			os.Stderr,
-			"\nReceived shutdown request (%s) while executor in %s state; requesting drain...\n",
-			source,
-			c.state,
-		)
-	}
+	c.emitShutdownFallback(
+		"\nReceived shutdown request (%s) while executor in %s state; requesting drain...\n",
+		source,
+		c.state,
+	)
 	c.state = executorStateDraining
 	if c.cancelJobs != nil {
 		c.cancelJobs(context.Canceled)
@@ -236,9 +240,7 @@ func (c *executorController) beginForce(source shutdownSource) {
 			return
 		}
 	}
-	if c.execCtx.cfg.humanOutputEnabled() {
-		fmt.Fprintf(os.Stderr, "Escalating shutdown via %s; forcing exit\n", source)
-	}
+	c.emitShutdownFallback("Escalating shutdown via %s; forcing exit\n", source)
 	c.state = executorStateForcing
 	if c.cancelJobs != nil {
 		c.cancelJobs(context.Canceled)

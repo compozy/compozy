@@ -370,6 +370,27 @@ output_format = "yaml"
 	}
 }
 
+func TestLoadConfigRejectsExecTUIWhenDefaultsOutputFormatIsJSON(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[defaults]
+output_format = "json"
+
+[exec]
+tui = true
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid exec tui/output format combination")
+	}
+	if !strings.Contains(err.Error(), "exec.tui cannot be true") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestLoadConfigRejectsInvalidSharedRuntimeOverrideValues(t *testing.T) {
 	t.Parallel()
 

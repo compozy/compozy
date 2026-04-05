@@ -1155,6 +1155,22 @@ func captureExecuteStreams(t *testing.T, fn func() error) (string, string, error
 		os.Stderr = originalStderr
 	}()
 
+	type pipeReadResult struct {
+		content string
+		err     error
+	}
+
+	readPipe := func(file *os.File) <-chan pipeReadResult {
+		resultCh := make(chan pipeReadResult, 1)
+		go func() {
+			bytes, err := io.ReadAll(file)
+			resultCh <- pipeReadResult{content: string(bytes), err: err}
+		}()
+		return resultCh
+	}
+
+	stdoutResultCh := readPipe(stdoutRead)
+	stderrResultCh := readPipe(stderrRead)
 	runErr := fn()
 
 	if err := stdoutWrite.Close(); err != nil {
@@ -1164,13 +1180,13 @@ func captureExecuteStreams(t *testing.T, fn func() error) (string, string, error
 		t.Fatalf("close stderr writer: %v", err)
 	}
 
-	stdoutBytes, err := io.ReadAll(stdoutRead)
-	if err != nil {
-		t.Fatalf("read stdout: %v", err)
+	stdoutResult := <-stdoutResultCh
+	if stdoutResult.err != nil {
+		t.Fatalf("read stdout: %v", stdoutResult.err)
 	}
-	stderrBytes, err := io.ReadAll(stderrRead)
-	if err != nil {
-		t.Fatalf("read stderr: %v", err)
+	stderrResult := <-stderrResultCh
+	if stderrResult.err != nil {
+		t.Fatalf("read stderr: %v", stderrResult.err)
 	}
 	if err := stdoutRead.Close(); err != nil {
 		t.Fatalf("close stdout reader: %v", err)
@@ -1179,7 +1195,47 @@ func captureExecuteStreams(t *testing.T, fn func() error) (string, string, error
 		t.Fatalf("close stderr reader: %v", err)
 	}
 
-	return string(stdoutBytes), string(stderrBytes), runErr
+	return stdoutResult.content, stderrResult.content, runErr
+}
+
+func TestCaptureExecuteStreamsDrainsPipesWhileFunctionRuns(t *testing.T) {
+	t.Parallel()
+
+	type captureResult struct {
+		stdout string
+		stderr string
+		err    error
+	}
+
+	resultCh := make(chan captureResult, 1)
+	go func() {
+		stdout, stderr, err := captureExecuteStreams(t, func() error {
+			largeChunk := strings.Repeat("x", 256*1024)
+			if _, writeErr := fmt.Fprint(os.Stdout, largeChunk); writeErr != nil {
+				return writeErr
+			}
+			if _, writeErr := fmt.Fprint(os.Stderr, largeChunk); writeErr != nil {
+				return writeErr
+			}
+			return nil
+		})
+		resultCh <- captureResult{stdout: stdout, stderr: stderr, err: err}
+	}()
+
+	select {
+	case result := <-resultCh:
+		if result.err != nil {
+			t.Fatalf("captureExecuteStreams: %v", result.err)
+		}
+		if len(result.stdout) != 256*1024 {
+			t.Fatalf("unexpected stdout size: got %d want %d", len(result.stdout), 256*1024)
+		}
+		if len(result.stderr) != 256*1024 {
+			t.Fatalf("unexpected stderr size: got %d want %d", len(result.stderr), 256*1024)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("captureExecuteStreams blocked instead of draining the pipes")
+	}
 }
 
 func helperFirstNonEmpty(values ...string) string {

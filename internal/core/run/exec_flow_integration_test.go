@@ -301,22 +301,22 @@ func TestShouldEmitLeanSessionUpdateKeepsOnlyUserFacingAndTerminalUpdates(t *tes
 		want   bool
 	}{
 		{
-			name:   "keeps agent message chunks",
+			name:   "Should keep agent message chunks",
 			update: model.SessionUpdate{Kind: model.UpdateKindAgentMessageChunk, Status: model.StatusRunning},
 			want:   true,
 		},
 		{
-			name:   "drops plan updates",
+			name:   "Should drop plan updates",
 			update: model.SessionUpdate{Kind: model.UpdateKindPlanUpdated, Status: model.StatusRunning},
 			want:   false,
 		},
 		{
-			name:   "keeps unknown completed updates",
+			name:   "Should keep unknown completed updates",
 			update: model.SessionUpdate{Status: model.StatusCompleted},
 			want:   true,
 		},
 		{
-			name:   "drops unknown running updates",
+			name:   "Should drop unknown running updates",
 			update: model.SessionUpdate{Status: model.StatusRunning},
 			want:   false,
 		},

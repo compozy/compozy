@@ -156,3 +156,42 @@ func TestBuildExecutionResultDoesNotCancelSuccessfulJobsOnTeardownFailure(t *tes
 		t.Fatalf("unexpected teardown error: %q", result.TeardownError)
 	}
 }
+
+func TestBuildExecutionResultKeepsCanceledStatusWhenFailuresArePresent(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "exec-test-run")
+	cfg := &config{
+		mode:         model.ExecutionModeExec,
+		ide:          model.IDECodex,
+		model:        "gpt-5.4",
+		outputFormat: model.OutputFormatJSON,
+		runArtifacts: runArtifacts,
+	}
+	jobs := []job{{
+		safeName:      "exec",
+		codeFiles:     []string{"exec"},
+		status:        runStatusCanceled,
+		exitCode:      130,
+		outPromptPath: filepath.Join(runArtifacts.JobsDir, "exec.prompt.md"),
+		outLog:        filepath.Join(runArtifacts.JobsDir, "exec.out.log"),
+		errLog:        filepath.Join(runArtifacts.JobsDir, "exec.err.log"),
+	}}
+
+	result := buildExecutionResult(
+		cfg,
+		jobs,
+		[]failInfo{{err: errors.New("job failed")}},
+		errors.New("teardown failed"),
+	)
+
+	if result.Status != runStatusCanceled {
+		t.Fatalf("unexpected result status: %q", result.Status)
+	}
+	if result.Error != "job failed" {
+		t.Fatalf("unexpected primary result error: %q", result.Error)
+	}
+	if result.TeardownError != "teardown failed" {
+		t.Fatalf("unexpected teardown error: %q", result.TeardownError)
+	}
+}

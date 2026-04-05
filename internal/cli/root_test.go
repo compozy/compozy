@@ -543,19 +543,19 @@ func TestResolveExecPromptSourceHandlesPromptVariants(t *testing.T) {
 		wantResolved        string
 	}{
 		{
-			name:           "positional prompt",
+			name:           "Should resolve prompt from positional argument",
 			args:           []string{"Summarize the repo"},
 			wantPromptText: "Summarize the repo",
 			wantResolved:   "Summarize the repo",
 		},
 		{
-			name:           "prompt file",
+			name:           "Should resolve prompt from --prompt-file",
 			promptFile:     promptPath,
 			wantPromptFile: promptPath,
 			wantResolved:   "Prompt from file\n",
 		},
 		{
-			name:                "stdin prompt",
+			name:                "Should resolve prompt from stdin",
 			stdin:               strings.NewReader("Prompt from stdin\n"),
 			wantReadPromptStdin: true,
 			wantResolved:        "Prompt from stdin\n",
@@ -593,13 +593,63 @@ func TestResolveExecPromptSourceHandlesPromptVariants(t *testing.T) {
 	}
 }
 
-func TestResolveExecPromptSourceRejectsAmbiguousSources(t *testing.T) {
+func TestResolveExecPromptSourceSkipsStdinWhenPromptIsResolvedExplicitly(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.md")
+	if err := os.WriteFile(promptPath, []byte("Prompt from file\n"), 0o600); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	cases := []struct {
+		name       string
+		args       []string
+		promptFile string
+		want       string
+	}{
+		{
+			name: "Should ignore stdin when positional prompt is present",
+			args: []string{"Prompt from args"},
+			want: "Prompt from args",
+		},
+		{
+			name:       "Should ignore stdin when --prompt-file is present",
+			promptFile: promptPath,
+			want:       "Prompt from file\n",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := &failOnReadReader{err: errors.New("stdin should not be read")}
+			state := newCommandState(commandKindExec, core.ModeExec)
+			state.promptFile = tc.promptFile
+			cmd := &cobra.Command{Use: "exec"}
+			cmd.SetIn(reader)
+
+			if err := state.resolveExecPromptSource(cmd, tc.args); err != nil {
+				t.Fatalf("resolveExecPromptSource: %v", err)
+			}
+			if reader.called {
+				t.Fatal("expected explicit prompt source to bypass stdin reads")
+			}
+			if state.resolvedPromptText != tc.want {
+				t.Fatalf("unexpected resolved prompt text: %q", state.resolvedPromptText)
+			}
+		})
+	}
+}
+
+func TestResolveExecPromptSourceRejectsAmbiguousExplicitSources(t *testing.T) {
 	t.Parallel()
 
 	state := newCommandState(commandKindExec, core.ModeExec)
 	state.promptFile = "prompt.md"
 	cmd := &cobra.Command{Use: "exec"}
-	cmd.SetIn(strings.NewReader("Prompt from stdin"))
 
 	err := state.resolveExecPromptSource(cmd, []string{"Prompt from args"})
 	if err == nil {
@@ -1336,22 +1386,51 @@ func TestRunPreparedStartNonInteractiveForceContinuesPastValidationFailure(t *te
 }
 
 func executeRootCommand(args ...string) (string, error) {
-	stdout, stderr, err := executeRootCommandWithIO(nil, args...)
-	return stdout + stderr, err
+	return executeCommandCombinedOutput(NewRootCommand(), nil, args...)
 }
 
-func executeRootCommandWithIO(in io.Reader, args ...string) (string, string, error) {
-	cmd := NewRootCommand()
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	cmd.SetOut(&stdout)
-	cmd.SetErr(&stderr)
+func executeCommandCombinedOutput(
+	cmd *cobra.Command,
+	in io.Reader,
+	args ...string,
+) (string, error) {
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
 	if in != nil {
 		cmd.SetIn(in)
 	}
 	cmd.SetArgs(args)
 	err := cmd.Execute()
-	return stdout.String(), stderr.String(), err
+	return output.String(), err
+}
+
+func TestExecuteCommandCombinedOutputPreservesEmissionOrder(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{
+		Use: "test",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if _, err := cmd.OutOrStdout().Write([]byte("stdout-1\n")); err != nil {
+				return err
+			}
+			if _, err := cmd.ErrOrStderr().Write([]byte("stderr-1\n")); err != nil {
+				return err
+			}
+			if _, err := cmd.OutOrStdout().Write([]byte("stdout-2\n")); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+
+	output, err := executeCommandCombinedOutput(cmd, nil)
+	if err != nil {
+		t.Fatalf("execute combined output command: %v", err)
+	}
+	if output != "stdout-1\nstderr-1\nstdout-2\n" {
+		t.Fatalf("unexpected combined output order: %q", output)
+	}
 }
 
 func newTestCommand(state *commandState) *cobra.Command {
@@ -1400,4 +1479,17 @@ func mustCLIRepoRootPath(t *testing.T, elems ...string) string {
 	}
 	parts := append([]string{filepath.Dir(currentFile), "..", ".."}, elems...)
 	return filepath.Join(parts...)
+}
+
+type failOnReadReader struct {
+	called bool
+	err    error
+}
+
+func (r *failOnReadReader) Read(_ []byte) (int, error) {
+	r.called = true
+	if r.err != nil {
+		return 0, r.err
+	}
+	return 0, io.EOF
 }

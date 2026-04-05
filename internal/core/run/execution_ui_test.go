@@ -2,11 +2,13 @@ package run
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	"github.com/compozy/compozy/internal/core/model"
 )
 
 func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
@@ -236,6 +238,68 @@ func TestExecutorControllerRootContextCancellationPublishesDrainingState(t *test
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for controller completion after root cancellation")
+	}
+}
+
+func TestExecutorControllerSuppressesFallbackShutdownLogsWhileUIIsActive(t *testing.T) {
+	t.Parallel()
+
+	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 4)}
+	controller := &executorController{
+		ctx: context.Background(),
+		execCtx: &jobExecutionContext{
+			cfg:   &config{outputFormat: model.OutputFormatText},
+			ui:    ui,
+			uiCh:  ui.eventsCh,
+			total: 1,
+		},
+		cancelJobs: func(error) {},
+		state:      executorStateRunning,
+	}
+
+	stdout, stderr, err := captureExecuteStreams(t, func() error {
+		if !controller.beginDrain(shutdownSourceSignal) {
+			t.Fatal("expected drain to start")
+		}
+		controller.beginForce(shutdownSourceSignal)
+		_, _, _, doneErr := controller.handleDone(nil)
+		return doneErr
+	})
+	if err != nil {
+		t.Fatalf("handleDone: %v", err)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout fallback output, got %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected UI mode to suppress stderr fallback output, got %q", stderr)
+	}
+}
+
+func TestExecutorControllerUsesNeutralFallbackCompletionMessage(t *testing.T) {
+	t.Parallel()
+
+	controller := &executorController{
+		ctx: context.Background(),
+		execCtx: &jobExecutionContext{
+			cfg:   &config{outputFormat: model.OutputFormatText},
+			total: 1,
+		},
+		state: executorStateForcing,
+	}
+
+	_, stderr, err := captureExecuteStreams(t, func() error {
+		_, _, _, doneErr := controller.handleDone(nil)
+		return doneErr
+	})
+	if err != nil {
+		t.Fatalf("handleDone: %v", err)
+	}
+	if !strings.Contains(stderr, "Controller shutdown complete after shutdown grace period") {
+		t.Fatalf("expected neutral shutdown completion message, got %q", stderr)
+	}
+	if strings.Contains(stderr, "gracefully") {
+		t.Fatalf("expected forced shutdown message to avoid graceful wording, got %q", stderr)
 	}
 }
 
