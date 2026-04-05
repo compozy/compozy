@@ -111,6 +111,7 @@ func TestLoadConfigParsesValidSections(t *testing.T) {
 [defaults]
 ide = "claude"
 model = "sonnet"
+output_format = "text"
 reasoning_effort = "high"
 access_mode = "full"
 timeout = "5m"
@@ -130,6 +131,10 @@ include_resolved = false
 
 [fetch_reviews]
 provider = "coderabbit"
+
+[exec]
+model = "gpt-5.4"
+output_format = "json"
 `)
 
 	cfg, _, err := LoadConfig(context.Background(), root)
@@ -139,6 +144,9 @@ provider = "coderabbit"
 
 	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
 		t.Fatalf("unexpected defaults.ide: %#v", cfg.Defaults.IDE)
+	}
+	if cfg.Defaults.OutputFormat == nil || *cfg.Defaults.OutputFormat != "text" {
+		t.Fatalf("unexpected defaults.output_format: %#v", cfg.Defaults.OutputFormat)
 	}
 	if cfg.Defaults.AccessMode == nil || *cfg.Defaults.AccessMode != "full" {
 		t.Fatalf("unexpected defaults.access_mode: %#v", cfg.Defaults.AccessMode)
@@ -163,6 +171,12 @@ provider = "coderabbit"
 	}
 	if cfg.FetchReviews.Provider == nil || *cfg.FetchReviews.Provider != "coderabbit" {
 		t.Fatalf("unexpected fetch_reviews.provider: %#v", cfg.FetchReviews.Provider)
+	}
+	if cfg.Exec.Model == nil || *cfg.Exec.Model != "gpt-5.4" {
+		t.Fatalf("unexpected exec.model: %#v", cfg.Exec.Model)
+	}
+	if cfg.Exec.OutputFormat == nil || *cfg.Exec.OutputFormat != "json" {
+		t.Fatalf("unexpected exec.output_format: %#v", cfg.Exec.OutputFormat)
 	}
 }
 
@@ -316,6 +330,24 @@ access_mode = "invalid"
 		t.Fatal("expected invalid access mode error")
 	}
 	if !strings.Contains(err.Error(), "defaults.access_mode") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsInvalidExecOutputFormat(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[exec]
+output_format = "yaml"
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid exec output format error")
+	}
+	if !strings.Contains(err.Error(), "exec.output_format") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

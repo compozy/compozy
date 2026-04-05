@@ -279,29 +279,23 @@ func (e *AvailabilityError) Unwrap() error {
 
 // ValidateRuntimeConfig verifies that the runtime config references a supported agent runtime.
 func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
-	if cfg.Mode != model.ExecutionModePRReview && cfg.Mode != model.ExecutionModePRDTasks {
-		return fmt.Errorf(
-			"invalid --mode value %q: must be %q or %q",
-			cfg.Mode,
-			model.ModeCodeReview,
-			model.ModePRDTasks,
-		)
+	if err := validateRuntimeMode(cfg.Mode); err != nil {
+		return err
 	}
 	if _, err := lookupAgentSpec(cfg.IDE); err != nil {
 		return fmt.Errorf("invalid --ide value %q: must be %s", cfg.IDE, quotedSupportedIDEs())
 	}
-	switch cfg.AccessMode {
-	case "", model.AccessModeDefault, model.AccessModeFull:
-	default:
-		return fmt.Errorf(
-			"invalid --access-mode value %q: must be %q or %q",
-			cfg.AccessMode,
-			model.AccessModeDefault,
-			model.AccessModeFull,
-		)
+	if err := validateRuntimeAccessMode(cfg.AccessMode); err != nil {
+		return err
 	}
 	if cfg.Mode == model.ExecutionModePRDTasks && cfg.BatchSize != 1 {
 		return fmt.Errorf("batch size must be 1 for prd-tasks mode (got %d)", cfg.BatchSize)
+	}
+	if err := validateRuntimeOutputFormat(cfg); err != nil {
+		return err
+	}
+	if err := validateRuntimePromptSource(cfg); err != nil {
+		return err
 	}
 	if cfg.MaxRetries < 0 {
 		return fmt.Errorf("max-retries cannot be negative (got %d)", cfg.MaxRetries)
@@ -310,6 +304,84 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 		return fmt.Errorf("retry-backoff-multiplier must be positive (got %.2f)", cfg.RetryBackoffMultiplier)
 	}
 	return nil
+}
+
+func validateRuntimeMode(mode model.ExecutionMode) error {
+	switch mode {
+	case model.ExecutionModePRReview, model.ExecutionModePRDTasks, model.ExecutionModeExec:
+		return nil
+	default:
+		return fmt.Errorf(
+			"invalid --mode value %q: must be %q, %q, or %q",
+			mode,
+			model.ModeCodeReview,
+			model.ModePRDTasks,
+			model.ModeExec,
+		)
+	}
+}
+
+func validateRuntimeAccessMode(accessMode string) error {
+	switch accessMode {
+	case "", model.AccessModeDefault, model.AccessModeFull:
+		return nil
+	default:
+		return fmt.Errorf(
+			"invalid --access-mode value %q: must be %q or %q",
+			accessMode,
+			model.AccessModeDefault,
+			model.AccessModeFull,
+		)
+	}
+}
+
+func validateRuntimeOutputFormat(cfg *model.RuntimeConfig) error {
+	switch cfg.OutputFormat {
+	case model.OutputFormatText, model.OutputFormatJSON:
+	default:
+		return fmt.Errorf(
+			"invalid output format %q: must be %q or %q",
+			cfg.OutputFormat,
+			model.OutputFormatText,
+			model.OutputFormatJSON,
+		)
+	}
+	if cfg.Mode != model.ExecutionModeExec && cfg.OutputFormat != model.OutputFormatText {
+		return fmt.Errorf("output format %q is only supported for exec mode", cfg.OutputFormat)
+	}
+	return nil
+}
+
+func validateRuntimePromptSource(cfg *model.RuntimeConfig) error {
+	sources := runtimePromptSourceCount(cfg)
+	if cfg.Mode != model.ExecutionModeExec {
+		if sources > 0 {
+			return errors.New("prompt source fields are only supported for exec mode")
+		}
+		return nil
+	}
+	switch {
+	case sources == 0:
+		return errors.New("exec mode requires exactly one prompt source: prompt text, prompt file, or stdin")
+	case sources > 1:
+		return errors.New("exec mode accepts only one prompt source: prompt text, prompt file, or stdin")
+	default:
+		return nil
+	}
+}
+
+func runtimePromptSourceCount(cfg *model.RuntimeConfig) int {
+	sources := 0
+	if strings.TrimSpace(cfg.PromptText) != "" {
+		sources++
+	}
+	if strings.TrimSpace(cfg.PromptFile) != "" {
+		sources++
+	}
+	if cfg.ReadPromptStdin {
+		sources++
+	}
+	return sources
 }
 
 // EnsureAvailable verifies that the configured ACP agent binary is installed and executable.

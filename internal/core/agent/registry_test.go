@@ -215,6 +215,7 @@ func TestValidateRuntimeConfigAcceptsSupportedIDEs(t *testing.T) {
 			cfg := &model.RuntimeConfig{
 				Mode:                   model.ExecutionModePRReview,
 				IDE:                    ide,
+				OutputFormat:           model.OutputFormatText,
 				BatchSize:              1,
 				MaxRetries:             1,
 				RetryBackoffMultiplier: 1.5,
@@ -230,9 +231,10 @@ func TestValidateRuntimeConfigRejectsPRDTaskBatching(t *testing.T) {
 	t.Parallel()
 
 	cfg := &model.RuntimeConfig{
-		Mode:      model.ExecutionModePRDTasks,
-		IDE:       model.IDECodex,
-		BatchSize: 2,
+		Mode:         model.ExecutionModePRDTasks,
+		IDE:          model.IDECodex,
+		OutputFormat: model.OutputFormatText,
+		BatchSize:    2,
 	}
 
 	err := ValidateRuntimeConfig(cfg)
@@ -253,6 +255,7 @@ func TestValidateRuntimeConfigRejectsInvalidRetryConfig(t *testing.T) {
 			cfg: &model.RuntimeConfig{
 				Mode:                   model.ExecutionModePRReview,
 				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormatText,
 				BatchSize:              1,
 				MaxRetries:             -1,
 				RetryBackoffMultiplier: 1.5,
@@ -263,6 +266,7 @@ func TestValidateRuntimeConfigRejectsInvalidRetryConfig(t *testing.T) {
 			cfg: &model.RuntimeConfig{
 				Mode:                   model.ExecutionModePRReview,
 				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormatText,
 				BatchSize:              1,
 				MaxRetries:             1,
 				RetryBackoffMultiplier: 0,
@@ -287,6 +291,7 @@ func TestValidateRuntimeConfigRejectsInvalidAccessMode(t *testing.T) {
 	cfg := &model.RuntimeConfig{
 		Mode:                   model.ExecutionModePRReview,
 		IDE:                    model.IDECodex,
+		OutputFormat:           model.OutputFormatText,
 		BatchSize:              1,
 		AccessMode:             "invalid",
 		MaxRetries:             0,
@@ -299,6 +304,114 @@ func TestValidateRuntimeConfigRejectsInvalidAccessMode(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "--access-mode") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateRuntimeConfigAcceptsExecModeWithSinglePromptSource(t *testing.T) {
+	t.Parallel()
+
+	cfg := &model.RuntimeConfig{
+		Mode:                   model.ExecutionModeExec,
+		IDE:                    model.IDECodex,
+		OutputFormat:           model.OutputFormatJSON,
+		PromptFile:             "prompt.md",
+		BatchSize:              1,
+		MaxRetries:             1,
+		RetryBackoffMultiplier: 1.5,
+	}
+
+	if err := ValidateRuntimeConfig(cfg); err != nil {
+		t.Fatalf("validate exec runtime config: %v", err)
+	}
+}
+
+func TestValidateRuntimeConfigRejectsInvalidExecCombinations(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		cfg     *model.RuntimeConfig
+		wantErr string
+	}{
+		{
+			name: "missing prompt source",
+			cfg: &model.RuntimeConfig{
+				Mode:                   model.ExecutionModeExec,
+				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormatText,
+				BatchSize:              1,
+				MaxRetries:             1,
+				RetryBackoffMultiplier: 1.5,
+			},
+			wantErr: "requires exactly one prompt source",
+		},
+		{
+			name: "multiple prompt sources",
+			cfg: &model.RuntimeConfig{
+				Mode:                   model.ExecutionModeExec,
+				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormatText,
+				PromptText:             "hello",
+				PromptFile:             "prompt.md",
+				BatchSize:              1,
+				MaxRetries:             1,
+				RetryBackoffMultiplier: 1.5,
+			},
+			wantErr: "accepts only one prompt source",
+		},
+		{
+			name: "unsupported output format",
+			cfg: &model.RuntimeConfig{
+				Mode:                   model.ExecutionModeExec,
+				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormat("yaml"),
+				PromptText:             "hello",
+				BatchSize:              1,
+				MaxRetries:             1,
+				RetryBackoffMultiplier: 1.5,
+			},
+			wantErr: "invalid output format",
+		},
+		{
+			name: "prompt source outside exec mode",
+			cfg: &model.RuntimeConfig{
+				Mode:                   model.ExecutionModePRReview,
+				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormatText,
+				PromptText:             "hello",
+				BatchSize:              1,
+				MaxRetries:             1,
+				RetryBackoffMultiplier: 1.5,
+			},
+			wantErr: "prompt source fields are only supported for exec mode",
+		},
+		{
+			name: "json format outside exec mode",
+			cfg: &model.RuntimeConfig{
+				Mode:                   model.ExecutionModePRReview,
+				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormatJSON,
+				BatchSize:              1,
+				MaxRetries:             1,
+				RetryBackoffMultiplier: 1.5,
+			},
+			wantErr: "only supported for exec mode",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := ValidateRuntimeConfig(tt.cfg)
+			if err == nil {
+				t.Fatal("expected validation error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
 	}
 }
 

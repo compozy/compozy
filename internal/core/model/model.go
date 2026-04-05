@@ -30,8 +30,11 @@ const (
 	ArchivedWorkflowDirName = "_archived"
 	ModeCodeReview          = "pr-review"
 	ModePRDTasks            = "prd-tasks"
+	ModeExec                = "exec"
 	AccessModeDefault       = "default"
 	AccessModeFull          = "full"
+	OutputFormatTextValue   = "text"
+	OutputFormatJSONValue   = "json"
 )
 
 type ExecutionMode string
@@ -39,6 +42,14 @@ type ExecutionMode string
 const (
 	ExecutionModePRReview ExecutionMode = ModeCodeReview
 	ExecutionModePRDTasks ExecutionMode = ModePRDTasks
+	ExecutionModeExec     ExecutionMode = ModeExec
+)
+
+type OutputFormat string
+
+const (
+	OutputFormatText OutputFormat = OutputFormatTextValue
+	OutputFormatJSON OutputFormat = OutputFormatJSONValue
 )
 
 type RuntimeConfig struct {
@@ -61,6 +72,10 @@ type RuntimeConfig struct {
 	AccessMode             string
 	SystemPrompt           string
 	Mode                   ExecutionMode
+	OutputFormat           OutputFormat
+	PromptText             string
+	PromptFile             string
+	ReadPromptStdin        bool
 	IncludeCompleted       bool
 	IncludeResolved        bool
 	Timeout                time.Duration
@@ -89,6 +104,9 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	}
 	if cfg.Mode == "" {
 		cfg.Mode = ExecutionModePRReview
+	}
+	if cfg.OutputFormat == "" {
+		cfg.OutputFormat = OutputFormatText
 	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = DefaultActivityTimeout

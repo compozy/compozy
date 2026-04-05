@@ -120,6 +120,105 @@ batch_size = 4
 	}
 }
 
+func TestApplyWorkspaceDefaultsUsesExecOverridesOverDefaults(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+ide = "claude"
+model = "sonnet"
+output_format = "text"
+
+[exec]
+ide = "codex"
+model = "gpt-5.4"
+output_format = "json"
+`)
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+	cmd.Flags().String("format", "", "output format")
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
+			t.Fatalf("restore cwd: %v", chdirErr)
+		}
+	})
+	if err := os.Chdir(startDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.ide != "codex" {
+		t.Fatalf("expected exec.ide to override defaults.ide, got %q", state.ide)
+	}
+	if state.model != "gpt-5.4" {
+		t.Fatalf("expected exec.model to override defaults.model, got %q", state.model)
+	}
+	if state.outputFormat != "json" {
+		t.Fatalf("expected exec.output_format to override defaults.output_format, got %q", state.outputFormat)
+	}
+}
+
+func TestApplyWorkspaceDefaultsPreservesExplicitExecFormatFlag(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+output_format = "text"
+
+[exec]
+output_format = "json"
+`)
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+	cmd.Flags().String("format", "", "output format")
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	t.Cleanup(func() {
+		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
+			t.Fatalf("restore cwd: %v", chdirErr)
+		}
+	})
+	if err := os.Chdir(startDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	if err := cmd.Flags().Set("format", "text"); err != nil {
+		t.Fatalf("set format: %v", err)
+	}
+	state.outputFormat = "text"
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.outputFormat != "text" {
+		t.Fatalf("expected explicit format flag to win, got %q", state.outputFormat)
+	}
+}
+
 func TestNewFormInputsFromStatePreservesResolvedDefaults(t *testing.T) {
 	t.Parallel()
 

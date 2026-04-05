@@ -21,6 +21,7 @@ type commandKind string
 const (
 	commandKindFetchReviews commandKind = "fetch-reviews"
 	commandKindFixReviews   commandKind = "fix-reviews"
+	commandKindExec         commandKind = "exec"
 	commandKindArchive      commandKind = "archive"
 	commandKindStart        commandKind = "start"
 	commandKindSync         commandKind = "sync"
@@ -49,6 +50,10 @@ type commandState struct {
 	tailLines              int
 	reasoningEffort        string
 	accessMode             string
+	outputFormat           string
+	promptText             string
+	promptFile             string
+	readPromptStdin        bool
 	includeCompleted       bool
 	includeResolved        bool
 	timeout                string
@@ -623,6 +628,10 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		ReasoningEffort:        s.reasoningEffort,
 		AccessMode:             s.accessMode,
 		Mode:                   s.mode,
+		OutputFormat:           core.OutputFormat(s.outputFormat),
+		PromptText:             s.promptText,
+		PromptFile:             s.promptFile,
+		ReadPromptStdin:        s.readPromptStdin,
 		IncludeCompleted:       s.includeCompleted,
 		IncludeResolved:        s.includeResolved,
 		Timeout:                timeoutDuration,

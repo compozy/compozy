@@ -30,11 +30,13 @@ type ProjectConfig struct {
 	Tasks        TasksConfig        `toml:"tasks"`
 	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
 	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
+	Exec         ExecConfig         `toml:"exec"`
 }
 
 type DefaultsConfig struct {
 	IDE                    *string   `toml:"ide"`
 	Model                  *string   `toml:"model"`
+	OutputFormat           *string   `toml:"output_format"`
 	ReasoningEffort        *string   `toml:"reasoning_effort"`
 	AccessMode             *string   `toml:"access_mode"`
 	Timeout                *string   `toml:"timeout"`
@@ -61,6 +63,20 @@ type FixReviewsConfig struct {
 
 type FetchReviewsConfig struct {
 	Provider *string `toml:"provider"`
+}
+
+type ExecConfig struct {
+	IDE                    *string   `toml:"ide"`
+	Model                  *string   `toml:"model"`
+	OutputFormat           *string   `toml:"output_format"`
+	ReasoningEffort        *string   `toml:"reasoning_effort"`
+	AccessMode             *string   `toml:"access_mode"`
+	Timeout                *string   `toml:"timeout"`
+	TailLines              *int      `toml:"tail_lines"`
+	AddDirs                *[]string `toml:"add_dirs"`
+	AutoCommit             *bool     `toml:"auto_commit"`
+	MaxRetries             *int      `toml:"max_retries"`
+	RetryBackoffMultiplier *float64  `toml:"retry_backoff_multiplier"`
 }
 
 func Resolve(ctx context.Context, startDir string) (Context, error) {
@@ -171,12 +187,16 @@ func (cfg ProjectConfig) Validate() error {
 	if err := validateFetchReviews(cfg.FetchReviews); err != nil {
 		return err
 	}
+	if err := validateExec(cfg.Exec); err != nil {
+		return err
+	}
 	return nil
 }
 
 func validateDefaults(cfg DefaultsConfig) error {
 	validators := []func(DefaultsConfig) error{
 		validateDefaultIDE,
+		validateDefaultOutputFormat,
 		validateDefaultReasoningEffort,
 		validateDefaultAccessMode,
 		validateDefaultTimeout,
@@ -233,6 +253,25 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 	return nil
 }
 
+func validateExec(cfg ExecConfig) error {
+	validators := []func(ExecConfig) error{
+		validateExecIDE,
+		validateExecOutputFormat,
+		validateExecReasoningEffort,
+		validateExecAccessMode,
+		validateExecTimeout,
+		validateExecTailLines,
+		validateExecMaxRetries,
+		validateExecRetryBackoffMultiplier,
+	}
+	for _, validate := range validators {
+		if err := validate(cfg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func validateDefaultIDE(cfg DefaultsConfig) error {
 	if cfg.IDE == nil {
 		return nil
@@ -244,6 +283,10 @@ func validateDefaultIDE(cfg DefaultsConfig) error {
 		return fmt.Errorf("workspace config defaults.ide: %w", err)
 	}
 	return nil
+}
+
+func validateDefaultOutputFormat(cfg DefaultsConfig) error {
+	return validateOutputFormatValue("workspace config defaults.output_format", cfg.OutputFormat)
 }
 
 func validateDefaultReasoningEffort(cfg DefaultsConfig) error {
@@ -319,4 +362,116 @@ func validateDefaultRetryBackoffMultiplier(cfg DefaultsConfig) error {
 		)
 	}
 	return nil
+}
+
+func validateExecIDE(cfg ExecConfig) error {
+	if cfg.IDE == nil {
+		return nil
+	}
+	if strings.TrimSpace(*cfg.IDE) == "" {
+		return errors.New("workspace config exec.ide cannot be empty")
+	}
+	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
+		return fmt.Errorf("workspace config exec.ide: %w", err)
+	}
+	return nil
+}
+
+func validateExecOutputFormat(cfg ExecConfig) error {
+	return validateOutputFormatValue("workspace config exec.output_format", cfg.OutputFormat)
+}
+
+func validateExecReasoningEffort(cfg ExecConfig) error {
+	if cfg.ReasoningEffort == nil {
+		return nil
+	}
+	switch strings.TrimSpace(*cfg.ReasoningEffort) {
+	case "low", "medium", "high", "xhigh":
+		return nil
+	default:
+		return fmt.Errorf(
+			"workspace config exec.reasoning_effort must be one of low, medium, high, xhigh (got %q)",
+			strings.TrimSpace(*cfg.ReasoningEffort),
+		)
+	}
+}
+
+func validateExecAccessMode(cfg ExecConfig) error {
+	if cfg.AccessMode == nil {
+		return nil
+	}
+	switch strings.TrimSpace(*cfg.AccessMode) {
+	case model.AccessModeDefault, model.AccessModeFull:
+		return nil
+	default:
+		return fmt.Errorf(
+			"workspace config exec.access_mode must be %q or %q (got %q)",
+			model.AccessModeDefault,
+			model.AccessModeFull,
+			strings.TrimSpace(*cfg.AccessMode),
+		)
+	}
+}
+
+func validateExecTimeout(cfg ExecConfig) error {
+	if cfg.Timeout == nil {
+		return nil
+	}
+
+	timeout := strings.TrimSpace(*cfg.Timeout)
+	if timeout == "" {
+		return errors.New("workspace config exec.timeout cannot be empty")
+	}
+	duration, err := time.ParseDuration(timeout)
+	if err != nil {
+		return fmt.Errorf("workspace config exec.timeout: %w", err)
+	}
+	if duration <= 0 {
+		return fmt.Errorf("workspace config exec.timeout must be greater than zero (got %s)", timeout)
+	}
+	return nil
+}
+
+func validateExecTailLines(cfg ExecConfig) error {
+	if cfg.TailLines != nil && *cfg.TailLines < 0 {
+		return fmt.Errorf("workspace config exec.tail_lines must be 0 or greater (got %d)", *cfg.TailLines)
+	}
+	return nil
+}
+
+func validateExecMaxRetries(cfg ExecConfig) error {
+	if cfg.MaxRetries != nil && *cfg.MaxRetries < 0 {
+		return fmt.Errorf("workspace config exec.max_retries cannot be negative (got %d)", *cfg.MaxRetries)
+	}
+	return nil
+}
+
+func validateExecRetryBackoffMultiplier(cfg ExecConfig) error {
+	if cfg.RetryBackoffMultiplier != nil && *cfg.RetryBackoffMultiplier <= 0 {
+		return fmt.Errorf(
+			"workspace config exec.retry_backoff_multiplier must be positive (got %.2f)",
+			*cfg.RetryBackoffMultiplier,
+		)
+	}
+	return nil
+}
+
+func validateOutputFormatValue(field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+	switch strings.TrimSpace(*value) {
+	case "":
+		return fmt.Errorf("%s cannot be empty", field)
+	case model.OutputFormatTextValue, model.OutputFormatJSONValue:
+		return nil
+	default:
+		return fmt.Errorf(
+			"%s must be %q or %q (got %q)",
+			field,
+			model.OutputFormatTextValue,
+			model.OutputFormatJSONValue,
+			strings.TrimSpace(*value),
+		)
+	}
 }

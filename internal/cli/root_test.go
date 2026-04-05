@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -281,7 +282,7 @@ func TestStartHelpMatchesGolden(t *testing.T) {
 		t.Fatalf("execute start help: %v", err)
 	}
 
-	goldenPath := filepath.Join("testdata", "start_help.golden")
+	goldenPath := mustCLITestDataPath(t, "start_help.golden")
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("read golden file %s: %v", goldenPath, err)
@@ -360,6 +361,32 @@ func TestBuildConfigUsesFetchFlagsForFetchWorkflow(t *testing.T) {
 	}
 	if cfg.Provider != "coderabbit" || cfg.PR != "259" || cfg.Name != "my-feature" || cfg.Round != 2 {
 		t.Fatalf("unexpected fetch config: %#v", cfg)
+	}
+}
+
+func TestBuildConfigUsesExecFieldsForExecWorkflow(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	state.outputFormat = string(core.OutputFormatJSON)
+	state.promptFile = "prompt.md"
+	state.readPromptStdin = false
+
+	cfg, err := state.buildConfig()
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	if cfg.Mode != core.ModeExec {
+		t.Fatalf("expected exec mode, got %q", cfg.Mode)
+	}
+	if cfg.OutputFormat != core.OutputFormatJSON {
+		t.Fatalf("expected json output format, got %q", cfg.OutputFormat)
+	}
+	if cfg.PromptFile != "prompt.md" {
+		t.Fatalf("expected prompt file to carry through, got %q", cfg.PromptFile)
+	}
+	if cfg.ReadPromptStdin {
+		t.Fatal("did not expect stdin prompt source")
 	}
 }
 
@@ -1147,4 +1174,14 @@ func findCommand(t *testing.T, root *cobra.Command, use string) *cobra.Command {
 	}
 	t.Fatalf("command %q not found", use)
 	return nil
+}
+
+func mustCLITestDataPath(t *testing.T, name string) string {
+	t.Helper()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file path")
+	}
+	return filepath.Join(filepath.Dir(currentFile), "testdata", name)
 }

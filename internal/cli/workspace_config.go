@@ -59,6 +59,7 @@ func (s *archiveCommandState) loadWorkspaceRoot(ctx context.Context) error {
 func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
 	applyStringConfig(cmd, "ide", cfg.Defaults.IDE, func(val string) { s.ide = val })
 	applyStringConfig(cmd, "model", cfg.Defaults.Model, func(val string) { s.model = val })
+	applyStringConfig(cmd, "format", cfg.Defaults.OutputFormat, func(val string) { s.outputFormat = val })
 	applyStringConfig(cmd, "reasoning-effort", cfg.Defaults.ReasoningEffort, func(val string) {
 		s.reasoningEffort = val
 	})
@@ -94,6 +95,25 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 		)
 	case commandKindFetchReviews:
 		applyStringConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })
+	case commandKindExec:
+		applyStringConfig(cmd, "ide", cfg.Exec.IDE, func(val string) { s.ide = val })
+		applyStringConfig(cmd, "model", cfg.Exec.Model, func(val string) { s.model = val })
+		applyStringConfig(cmd, "format", cfg.Exec.OutputFormat, func(val string) { s.outputFormat = val })
+		applyStringConfig(cmd, "reasoning-effort", cfg.Exec.ReasoningEffort, func(val string) {
+			s.reasoningEffort = val
+		})
+		applyStringConfig(cmd, "access-mode", cfg.Exec.AccessMode, func(val string) { s.accessMode = val })
+		applyStringConfig(cmd, "timeout", cfg.Exec.Timeout, func(val string) { s.timeout = val })
+		applyIntConfig(cmd, "tail-lines", cfg.Exec.TailLines, func(val int) { s.tailLines = val })
+		applyStringSliceConfig(cmd, "add-dir", cfg.Exec.AddDirs, func(val []string) { s.addDirs = val })
+		applyBoolConfig(cmd, "auto-commit", cfg.Exec.AutoCommit, func(val bool) { s.autoCommit = val })
+		applyIntConfig(cmd, "max-retries", cfg.Exec.MaxRetries, func(val int) { s.maxRetries = val })
+		applyFloat64Config(
+			cmd,
+			"retry-backoff-multiplier",
+			cfg.Exec.RetryBackoffMultiplier,
+			func(val float64) { s.retryBackoffMultiplier = val },
+		)
 	}
 }
 

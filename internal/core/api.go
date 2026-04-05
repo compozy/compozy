@@ -23,6 +23,8 @@ const (
 	ModePRReview Mode = model.ModeCodeReview
 	// ModePRDTasks processes PRD task markdown files.
 	ModePRDTasks Mode = model.ModePRDTasks
+	// ModeExec processes one ad hoc prompt through the shared runtime.
+	ModeExec Mode = model.ModeExec
 )
 
 // IDE identifies the downstream coding tool that compozy should invoke.
@@ -54,6 +56,16 @@ const (
 	AccessModeFull = model.AccessModeFull
 )
 
+// OutputFormat identifies the user-facing result contract for a run.
+type OutputFormat string
+
+const (
+	// OutputFormatText keeps the standard human-oriented presentation.
+	OutputFormatText OutputFormat = OutputFormat(model.OutputFormatText)
+	// OutputFormatJSON emits a machine-readable result contract.
+	OutputFormatJSON OutputFormat = OutputFormat(model.OutputFormatJSON)
+)
+
 // Config configures compozy preparation and execution.
 type Config struct {
 	WorkspaceRoot          string
@@ -74,6 +86,10 @@ type Config struct {
 	ReasoningEffort        string
 	AccessMode             string
 	Mode                   Mode
+	OutputFormat           OutputFormat
+	PromptText             string
+	PromptFile             string
+	ReadPromptStdin        bool
 	IncludeCompleted       bool
 	IncludeResolved        bool
 	Timeout                time.Duration
@@ -273,6 +289,10 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 		ReasoningEffort:        cfg.ReasoningEffort,
 		AccessMode:             cfg.AccessMode,
 		Mode:                   model.ExecutionMode(cfg.Mode),
+		OutputFormat:           model.OutputFormat(cfg.OutputFormat),
+		PromptText:             cfg.PromptText,
+		PromptFile:             cfg.PromptFile,
+		ReadPromptStdin:        cfg.ReadPromptStdin,
 		IncludeCompleted:       cfg.IncludeCompleted,
 		IncludeResolved:        cfg.IncludeResolved,
 		Timeout:                cfg.Timeout,
