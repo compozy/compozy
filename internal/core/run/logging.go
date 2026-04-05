@@ -22,6 +22,7 @@ type sessionUpdateHandler struct {
 	outWriter      io.Writer
 	errWriter      io.Writer
 	uiCh           chan<- uiMsg
+	jobUsage       *model.Usage
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
 	activity       *activityMonitor
@@ -42,6 +43,7 @@ func newSessionUpdateHandler(
 	outWriter io.Writer,
 	errWriter io.Writer,
 	uiCh chan<- uiMsg,
+	jobUsage *model.Usage,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
 	activity *activityMonitor,
@@ -58,6 +60,7 @@ func newSessionUpdateHandler(
 		outWriter:      outWriter,
 		errWriter:      errWriter,
 		uiCh:           uiCh,
+		jobUsage:       jobUsage,
 		aggregateUsage: aggregateUsage,
 		aggregateMu:    aggregateMu,
 		activity:       activity,
@@ -91,16 +94,24 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 		h.recordBlockCounts(update.Blocks)
 	}
 
-	if h.uiCh != nil {
-		if snapshot, changed := h.sessionView.Apply(update); changed {
-			select {
-			case h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}:
-			default:
-			}
+	var (
+		snapshot SessionViewSnapshot
+		changed  bool
+	)
+	h.mu.Lock()
+	snapshot, changed = h.sessionView.Apply(update)
+	h.mu.Unlock()
+	if h.uiCh != nil && changed {
+		select {
+		case h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}:
+		default:
 		}
 	}
 
 	if hasUsage(update.Usage) {
+		if h.jobUsage != nil {
+			h.jobUsage.Add(update.Usage)
+		}
 		if h.uiCh != nil {
 			select {
 			case h.uiCh <- usageUpdateMsg{Index: h.index, Usage: update.Usage}:
@@ -223,6 +234,15 @@ func (h *sessionUpdateHandler) markDone(err error, override bool) {
 	h.doneOnce.Do(func() {
 		close(h.done)
 	})
+}
+
+func (h *sessionUpdateHandler) Snapshot() SessionViewSnapshot {
+	if h == nil {
+		return SessionViewSnapshot{}
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.sessionView.snapshot()
 }
 
 func hasUsage(usage model.Usage) bool {
@@ -477,9 +497,16 @@ func appendLinesToBuffer(buf *lineBuffer, lines []string) {
 	}
 }
 
-func createLogWriters(outFile *os.File, errFile *os.File, useUI bool) (io.Writer, io.Writer) {
-	if useUI {
-		return outFile, errFile
+func createLogWriters(outFile *os.File, errFile *os.File, useUI bool, emitHuman bool) (io.Writer, io.Writer) {
+	if useUI || !emitHuman {
+		return writerOrNil(outFile), writerOrNil(errFile)
 	}
-	return io.MultiWriter(outFile, os.Stdout), io.MultiWriter(errFile, os.Stderr)
+	return io.MultiWriter(writerOrNil(outFile), os.Stdout), io.MultiWriter(writerOrNil(errFile), os.Stderr)
+}
+
+func writerOrNil(file *os.File) io.Writer {
+	if file == nil {
+		return nil
+	}
+	return file
 }

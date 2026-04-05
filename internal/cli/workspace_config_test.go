@@ -5,10 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
 )
+
+var cliWorkingDirMu sync.Mutex
 
 func TestApplyWorkspaceDefaultsLoadsNearestWorkspaceConfig(t *testing.T) {
 	root := t.TempDir()
@@ -31,18 +34,7 @@ include_completed = true
 	cmd := newTestCommand(state)
 	cmd.Flags().Bool("include-completed", false, "include completed")
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-	})
-	if err := os.Chdir(startDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	chdirCLITest(t, startDir)
 
 	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
 		t.Fatalf("apply workspace defaults: %v", err)
@@ -87,18 +79,7 @@ batch_size = 4
 	cmd := newTestCommand(state)
 	cmd.Flags().Int("batch-size", 1, "batch size")
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-	})
-	if err := os.Chdir(startDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	chdirCLITest(t, startDir)
 
 	if err := cmd.Flags().Set("ide", "gemini"); err != nil {
 		t.Fatalf("set ide: %v", err)
@@ -117,6 +98,88 @@ batch_size = 4
 	}
 	if state.batchSize != 2 {
 		t.Fatalf("expected explicit batch-size flag to win, got %d", state.batchSize)
+	}
+}
+
+func TestApplyWorkspaceDefaultsUsesExecOverridesOverDefaults(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+ide = "claude"
+model = "sonnet"
+output_format = "text"
+
+[exec]
+ide = "codex"
+model = "gpt-5.4"
+output_format = "raw-json"
+verbose = true
+`)
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+	cmd.Flags().String("format", "", "output format")
+	cmd.Flags().Bool("verbose", false, "verbose logging")
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.ide != "codex" {
+		t.Fatalf("expected exec.ide to override defaults.ide, got %q", state.ide)
+	}
+	if state.model != "gpt-5.4" {
+		t.Fatalf("expected exec.model to override defaults.model, got %q", state.model)
+	}
+	if state.outputFormat != "raw-json" {
+		t.Fatalf("expected exec.output_format to override defaults.output_format, got %q", state.outputFormat)
+	}
+	if !state.verbose {
+		t.Fatal("expected exec.verbose to enable verbose logging")
+	}
+}
+
+func TestApplyWorkspaceDefaultsPreservesExplicitExecFormatFlag(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+output_format = "text"
+
+[exec]
+output_format = "json"
+`)
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+	cmd.Flags().String("format", "", "output format")
+
+	chdirCLITest(t, startDir)
+
+	if err := cmd.Flags().Set("format", "text"); err != nil {
+		t.Fatalf("set format: %v", err)
+	}
+	state.outputFormat = "text"
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.outputFormat != "text" {
+		t.Fatalf("expected explicit format flag to win, got %q", state.outputFormat)
 	}
 }
 
@@ -180,4 +243,27 @@ func mustEvalSymlinksCLITest(t *testing.T, path string) string {
 		t.Fatalf("eval symlinks for %s: %v", path, err)
 	}
 	return resolved
+}
+
+func chdirCLITest(t *testing.T, dir string) {
+	t.Helper()
+
+	cliWorkingDirMu.Lock()
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		cliWorkingDirMu.Unlock()
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		cliWorkingDirMu.Unlock()
+		t.Fatalf("chdir: %v", err)
+	}
+
+	t.Cleanup(func() {
+		defer cliWorkingDirMu.Unlock()
+		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
+			t.Fatalf("restore cwd: %v", chdirErr)
+		}
+	})
 }

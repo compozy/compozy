@@ -36,6 +36,9 @@ func TestRuntimeConfigApplyDefaults(t *testing.T) {
 		if cfg.Mode != model.ExecutionModePRReview {
 			t.Fatalf("unexpected mode default: %q", cfg.Mode)
 		}
+		if cfg.OutputFormat != model.OutputFormatText {
+			t.Fatalf("unexpected output format default: %q", cfg.OutputFormat)
+		}
 		if cfg.Timeout != model.DefaultActivityTimeout {
 			t.Fatalf("unexpected timeout default: %s", cfg.Timeout)
 		}
@@ -89,6 +92,15 @@ func TestPathHelpers(t *testing.T) {
 		) {
 			t.Fatalf("unexpected workspace tasks dir: %q", got)
 		}
+		if got := model.RunsBaseDirForWorkspace(
+			workspaceRoot,
+		); got != filepath.Join(
+			workspaceRoot,
+			".compozy",
+			"runs",
+		) {
+			t.Fatalf("unexpected workspace runs dir: %q", got)
+		}
 		if got := model.TaskDirectoryForWorkspace(
 			workspaceRoot,
 			"demo",
@@ -108,6 +120,90 @@ func TestPathHelpers(t *testing.T) {
 		baseDir := filepath.Join(string(filepath.Separator), "tmp", "workflows")
 		if got := model.ArchivedTasksDir(baseDir); got != filepath.Join(baseDir, "_archived") {
 			t.Fatalf("unexpected archived tasks dir: %q", got)
+		}
+	})
+
+	t.Run("Should build run artifact paths under the workspace runs directory", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := filepath.Join(string(filepath.Separator), "tmp", "workspace")
+		runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-demo-20260405-120000-000000000")
+		if got, want := runArtifacts.RunDir, filepath.Join(
+			workspaceRoot,
+			".compozy",
+			"runs",
+			"tasks-demo-20260405-120000-000000000",
+		); got != want {
+			t.Fatalf("unexpected run dir\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.RunMetaPath, filepath.Join(runArtifacts.RunDir, "run.json"); got != want {
+			t.Fatalf("unexpected run meta path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.JobsDir, filepath.Join(runArtifacts.RunDir, "jobs"); got != want {
+			t.Fatalf("unexpected jobs dir\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.ResultPath, filepath.Join(runArtifacts.RunDir, "result.json"); got != want {
+			t.Fatalf("unexpected result path\nwant: %q\ngot:  %q", want, got)
+		}
+
+		jobArtifacts := runArtifacts.JobArtifacts("task_01-abc123")
+		if got, want := jobArtifacts.PromptPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"task_01-abc123.prompt.md",
+		); got != want {
+			t.Fatalf("unexpected prompt path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := jobArtifacts.OutLogPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"task_01-abc123.out.log",
+		); got != want {
+			t.Fatalf("unexpected stdout log path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := jobArtifacts.ErrLogPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"task_01-abc123.err.log",
+		); got != want {
+			t.Fatalf("unexpected stderr log path\nwant: %q\ngot:  %q", want, got)
+		}
+	})
+
+	t.Run("Should sanitize unsafe run identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		runArtifacts := model.NewRunArtifacts("", " review/demo\\nested ")
+		if got, want := runArtifacts.RunID, "review-demo-nested"; got != want {
+			t.Fatalf("unexpected sanitized run id\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.RunDir, filepath.Join(".compozy", "runs", "review-demo-nested"); got != want {
+			t.Fatalf("unexpected sanitized run dir\nwant: %q\ngot:  %q", want, got)
+		}
+	})
+
+	t.Run("Should reject dot-segment run identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name  string
+			runID string
+		}{
+			{name: "current directory", runID: "."},
+			{name: "parent directory", runID: ".."},
+			{name: "punctuation only", runID: " !!! "},
+		}
+
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				runArtifacts := model.NewRunArtifacts("", tc.runID)
+				if got, want := runArtifacts.RunID, "run"; got != want {
+					t.Fatalf("unexpected sanitized run id for %q\nwant: %q\ngot:  %q", tc.runID, want, got)
+				}
+				if got, want := runArtifacts.RunDir, filepath.Join(".compozy", "runs", "run"); got != want {
+					t.Fatalf("unexpected sanitized run dir for %q\nwant: %q\ngot:  %q", tc.runID, want, got)
+				}
+			})
 		}
 	})
 }
@@ -196,6 +292,7 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 			ReasoningEffort:        "high",
 			AccessMode:             model.AccessModeDefault,
 			Mode:                   model.ExecutionModePRDTasks,
+			OutputFormat:           model.OutputFormatJSON,
 			Timeout:                30 * time.Second,
 			RetryBackoffMultiplier: 2,
 		}
@@ -203,8 +300,31 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 
 		if cfg.Concurrent != 3 || cfg.BatchSize != 2 || cfg.IDE != model.IDEClaude ||
 			cfg.AccessMode != model.AccessModeDefault ||
-			cfg.Mode != model.ExecutionModePRDTasks {
+			cfg.Mode != model.ExecutionModePRDTasks ||
+			cfg.OutputFormat != model.OutputFormatJSON {
 			t.Fatalf("apply defaults should preserve explicit values: %#v", cfg)
+		}
+	})
+}
+
+func TestRuntimeConfigSurfaceOmitsSystemPromptWhileJobsRetainIt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep runtime config free of unreachable system prompt fields", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeType := reflect.TypeOf(model.RuntimeConfig{})
+		if _, ok := runtimeType.FieldByName("SystemPrompt"); ok {
+			t.Fatal("expected runtime config to omit SystemPrompt")
+		}
+	})
+
+	t.Run("Should keep job system prompt support for prepared prompts", func(t *testing.T) {
+		t.Parallel()
+
+		jobType := reflect.TypeOf(model.Job{})
+		if _, ok := jobType.FieldByName("SystemPrompt"); !ok {
+			t.Fatal("expected prepared jobs to retain SystemPrompt")
 		}
 	})
 }

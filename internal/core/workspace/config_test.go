@@ -111,6 +111,7 @@ func TestLoadConfigParsesValidSections(t *testing.T) {
 [defaults]
 ide = "claude"
 model = "sonnet"
+output_format = "text"
 reasoning_effort = "high"
 access_mode = "full"
 timeout = "5m"
@@ -130,6 +131,10 @@ include_resolved = false
 
 [fetch_reviews]
 provider = "coderabbit"
+
+[exec]
+model = "gpt-5.4"
+output_format = "json"
 `)
 
 	cfg, _, err := LoadConfig(context.Background(), root)
@@ -139,6 +144,9 @@ provider = "coderabbit"
 
 	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
 		t.Fatalf("unexpected defaults.ide: %#v", cfg.Defaults.IDE)
+	}
+	if cfg.Defaults.OutputFormat == nil || *cfg.Defaults.OutputFormat != "text" {
+		t.Fatalf("unexpected defaults.output_format: %#v", cfg.Defaults.OutputFormat)
 	}
 	if cfg.Defaults.AccessMode == nil || *cfg.Defaults.AccessMode != "full" {
 		t.Fatalf("unexpected defaults.access_mode: %#v", cfg.Defaults.AccessMode)
@@ -163,6 +171,30 @@ provider = "coderabbit"
 	}
 	if cfg.FetchReviews.Provider == nil || *cfg.FetchReviews.Provider != "coderabbit" {
 		t.Fatalf("unexpected fetch_reviews.provider: %#v", cfg.FetchReviews.Provider)
+	}
+	if cfg.Exec.Model == nil || *cfg.Exec.Model != "gpt-5.4" {
+		t.Fatalf("unexpected exec.model: %#v", cfg.Exec.Model)
+	}
+	if cfg.Exec.OutputFormat == nil || *cfg.Exec.OutputFormat != "json" {
+		t.Fatalf("unexpected exec.output_format: %#v", cfg.Exec.OutputFormat)
+	}
+}
+
+func TestLoadConfigAcceptsRawJSONExecOutputFormat(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[exec]
+output_format = "raw-json"
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Exec.OutputFormat == nil || *cfg.Exec.OutputFormat != "raw-json" {
+		t.Fatalf("unexpected exec.output_format: %#v", cfg.Exec.OutputFormat)
 	}
 }
 
@@ -317,6 +349,90 @@ access_mode = "invalid"
 	}
 	if !strings.Contains(err.Error(), "defaults.access_mode") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsInvalidExecOutputFormat(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[exec]
+output_format = "yaml"
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid exec output format error")
+	}
+	if !strings.Contains(err.Error(), "exec.output_format") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsExecTUIWhenDefaultsOutputFormatIsJSON(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[defaults]
+output_format = "json"
+
+[exec]
+tui = true
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid exec tui/output format combination")
+	}
+	if !strings.Contains(err.Error(), "exec.tui cannot be true") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsInvalidSharedRuntimeOverrideValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "defaults reasoning effort uses shared validation",
+			content: `
+[defaults]
+reasoning_effort = "turbo"
+`,
+			wantErr: "defaults.reasoning_effort",
+		},
+		{
+			name: "exec retry backoff uses shared validation",
+			content: `
+[exec]
+retry_backoff_multiplier = 0
+`,
+			wantErr: "exec.retry_backoff_multiplier",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			_, _, err := LoadConfig(context.Background(), root)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
 	}
 }
 

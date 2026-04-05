@@ -265,6 +265,12 @@ type config struct {
 	reasoningEffort        string
 	accessMode             string
 	mode                   model.ExecutionMode
+	outputFormat           model.OutputFormat
+	verbose                bool
+	tui                    bool
+	persist                bool
+	runID                  string
+	runArtifacts           model.RunArtifacts
 	includeCompleted       bool
 	includeResolved        bool
 	timeout                time.Duration
@@ -280,14 +286,28 @@ type job struct {
 	safeName      string
 	prompt        []byte
 	systemPrompt  string
+	resumeRunID   string
+	resumeSession string
 	outPromptPath string
 	outLog        string
 	errLog        string
+	status        string
+	failure       string
+	exitCode      int
+	usage         model.Usage
 	outBuffer     *lineBuffer
 	errBuffer     *lineBuffer
 }
 
-func newConfig(src *model.RuntimeConfig) *config {
+func (cfg *config) humanOutputEnabled() bool {
+	return cfg != nil && (cfg.outputFormat == "" || cfg.outputFormat == model.OutputFormatText)
+}
+
+func (cfg *config) uiEnabled() bool {
+	return cfg != nil && cfg.humanOutputEnabled() && !cfg.dryRun
+}
+
+func newConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *config {
 	if src == nil {
 		return nil
 	}
@@ -309,6 +329,12 @@ func newConfig(src *model.RuntimeConfig) *config {
 		reasoningEffort:        src.ReasoningEffort,
 		accessMode:             src.AccessMode,
 		mode:                   src.Mode,
+		outputFormat:           src.OutputFormat,
+		verbose:                src.Verbose,
+		tui:                    src.TUI,
+		persist:                src.Persist,
+		runID:                  src.RunID,
+		runArtifacts:           runArtifacts,
 		includeCompleted:       src.IncludeCompleted,
 		includeResolved:        src.IncludeResolved,
 		timeout:                src.Timeout,

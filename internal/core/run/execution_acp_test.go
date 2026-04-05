@@ -39,7 +39,7 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 			OutLog:   filepath.Join(tmpDir, "task_01.out.log"),
 			ErrLog:   filepath.Join(tmpDir, "task_01.err.log"),
 		},
-	}, &model.RuntimeConfig{
+	}, model.NewRunArtifacts(tmpDir, "dry-run-test"), &model.RuntimeConfig{
 		DryRun:                 true,
 		Concurrent:             1,
 		IDE:                    model.IDECodex,
@@ -212,6 +212,59 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&execCtx.failed); got != 1 {
 		t.Fatalf("expected failed jobs counter to be 1, got %d", got)
+	}
+}
+
+func TestExecuteExecJobDoesNotRetryResumedSessions(t *testing.T) {
+	tmpDir := t.TempDir()
+	firstClient := &fakeACPClient{
+		supportsLoad: true,
+		resumeSessionFn: func(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
+			session := newFakeACPSession("sess-existing")
+			go session.finish(&agent.SessionError{Code: 4901, Message: "retry me"})
+			return session, nil
+		},
+	}
+	secondClient := &fakeACPClient{
+		supportsLoad: true,
+		resumeSessionFn: func(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
+			session := newFakeACPSession("sess-existing")
+			go session.finish(nil)
+			return session, nil
+		},
+	}
+	installFakeACPClients(t, firstClient, secondClient)
+
+	execJob := newTestACPJob(tmpDir)
+	execJob.resumeSession = "sess-existing"
+	result := executeExecJob(
+		context.Background(),
+		&config{
+			ide:                    model.IDECodex,
+			model:                  "test-model",
+			reasoningEffort:        "medium",
+			maxRetries:             1,
+			retryBackoffMultiplier: 2,
+			timeout:                time.Second,
+		},
+		&execJob,
+		tmpDir,
+		false,
+		nil,
+		nil,
+	)
+
+	if result.err == nil {
+		t.Fatal("expected resumed exec attempt to fail without retry")
+	}
+	if !strings.Contains(result.err.Error(), "retry me") {
+		t.Fatalf("unexpected resumed exec error: %v", result.err)
+	}
+	if got := firstClient.resumeCalls.Load(); got != 1 {
+		t.Fatalf("expected one resume attempt, got %d", got)
+	}
+	if got := secondClient.resumeCalls.Load(); got != 0 {
+		t.Fatalf("expected no retry on resumed exec turn, got %d", got)
 	}
 }
 
@@ -470,6 +523,56 @@ func TestExecuteJobWithTimeoutSetupHangUsesActivityTimeout(t *testing.T) {
 	}
 }
 
+func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+	blockingSetupClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		<-ctx.Done()
+		return nil, context.Cause(ctx)
+	})
+	installFakeACPClients(t, blockingSetupClient)
+
+	job := newTestACPJob(tmpDir)
+	uiCh := make(chan uiMsg, 4)
+
+	var result jobAttemptResult
+	stdout, stderr, captureErr := captureExecuteStreams(t, func() error {
+		result = executeJobWithTimeout(
+			context.Background(),
+			&config{
+				ide:                    model.IDECodex,
+				model:                  "test-model",
+				reasoningEffort:        "medium",
+				retryBackoffMultiplier: 2,
+			},
+			&job,
+			tmpDir,
+			true,
+			uiCh,
+			0,
+			25*time.Millisecond,
+			nil,
+			nil,
+			nil,
+		)
+		return nil
+	})
+	if captureErr != nil {
+		t.Fatalf("capture execute streams: %v", captureErr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout fallback for interactive timeout, got %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr fallback for interactive timeout, got %q", stderr)
+	}
+	if got := result.status; got != attemptStatusTimeout {
+		t.Fatalf("expected timeout status, got %s", got)
+	}
+	if result.failure == nil || !strings.Contains(result.failure.err.Error(), "activity timeout") {
+		t.Fatalf("expected activity-timeout failure, got %#v", result.failure)
+	}
+}
+
 func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -643,7 +746,7 @@ func TestHandleNilExecutionReturnsSetupFailure(t *testing.T) {
 		codeFiles: []string{"task_01"},
 		outLog:    "task_01.out.log",
 		errLog:    "task_01.err.log",
-	}, 0)
+	}, 0, true)
 
 	if got := result.status; got != attemptStatusSetupFailed {
 		t.Fatalf("expected setup failure status, got %s", got)
@@ -718,7 +821,10 @@ func TestRecordFailureWithContextAddsFailure(t *testing.T) {
 
 type fakeACPClient struct {
 	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
+	resumeSessionFn func(context.Context, agent.ResumeSessionRequest) (agent.Session, error)
+	supportsLoad    bool
 	createCalls     atomic.Int32
+	resumeCalls     atomic.Int32
 	closeCalls      atomic.Int32
 	killCalls       atomic.Int32
 }
@@ -735,6 +841,18 @@ func (c *fakeACPClient) CreateSession(ctx context.Context, req agent.SessionRequ
 		return nil, errors.New("missing fake session factory")
 	}
 	return c.createSessionFn(ctx, req)
+}
+
+func (c *fakeACPClient) ResumeSession(ctx context.Context, req agent.ResumeSessionRequest) (agent.Session, error) {
+	c.resumeCalls.Add(1)
+	if c.resumeSessionFn == nil {
+		return nil, errors.New("missing fake resume session factory")
+	}
+	return c.resumeSessionFn(ctx, req)
+}
+
+func (c *fakeACPClient) SupportsLoadSession() bool {
+	return c.supportsLoad
 }
 
 func (c *fakeACPClient) Close() error {
@@ -793,6 +911,10 @@ func (f *fakeLifecycleUISession) wait() error {
 
 func (s *fakeACPSession) ID() string {
 	return s.id
+}
+
+func (s *fakeACPSession) Identity() agent.SessionIdentity {
+	return agent.SessionIdentity{ACPSessionID: s.id}
 }
 
 func (s *fakeACPSession) Updates() <-chan model.SessionUpdate {

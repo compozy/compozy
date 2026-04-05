@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -44,6 +46,8 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"archive",
 		"fetch-reviews",
 		"fix-reviews",
+		"compozy exec",
+		"exec",
 		"start",
 	}
 	for _, snippet := range required {
@@ -273,6 +277,133 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 	}
 }
 
+func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "exec [prompt]")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected exec to omit mode flag")
+	}
+
+	output, err := executeRootCommand("exec", "--help")
+	if err != nil {
+		t.Fatalf("execute exec help: %v", err)
+	}
+
+	required := []string{
+		"--prompt-file",
+		"--format",
+		"--dry-run",
+		"--ide",
+		"--persist",
+		"--run-id",
+		"--tui",
+		"--verbose",
+		".compozy/runs/<run-id>/",
+		"JSONL events",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected exec help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{
+		"--name",
+		"--tasks-dir",
+		"--reviews-dir",
+		"--batch-size",
+		"--concurrent",
+		"--include-resolved",
+	}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected exec help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestExecHelpMatchesGolden(t *testing.T) {
+	t.Parallel()
+
+	output, err := executeRootCommand("exec", "--help")
+	if err != nil {
+		t.Fatalf("execute exec help: %v", err)
+	}
+
+	goldenPath := mustCLITestDataPath(t, "exec_help.golden")
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden file %s: %v", goldenPath, err)
+	}
+
+	if output != string(want) {
+		t.Fatalf("exec help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
+	}
+}
+
+func TestREADMEExecDocumentationMatchesCurrentContract(t *testing.T) {
+	t.Parallel()
+
+	readmePath := mustCLIRepoRootPath(t, "README.md")
+	body, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", readmePath, err)
+	}
+
+	content := string(body)
+	required := []string{
+		"## ⚡ Ad Hoc Exec",
+		"compozy exec \"Summarize the current repository changes\"",
+		"compozy exec --prompt-file prompt.md",
+		"cat prompt.md | compozy exec --format json",
+		"compozy exec --persist \"Review the latest changes\"",
+		".compozy/runs/<run-id>/run.json",
+		".compozy/runs/<run-id>/events.jsonl",
+		".compozy/runs/<run-id>/turns/0001/prompt.md",
+		".compozy/runs/<run-id>/turns/0001/result.json",
+		"flags > [exec] > [defaults] > built-in defaults",
+		"[exec]",
+		"`copilot`",
+		"`cursor-agent`",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(content, snippet) {
+			t.Fatalf("expected README to include %q", snippet)
+		}
+	}
+
+	forbidden := []string{
+		".tmp/codex-prompts",
+		"Agent: `claude`, `codex`, `cursor`, `droid`, `opencode`, `pi`",
+		"| `--tail-lines`               | `30`",
+	}
+	for _, snippet := range forbidden {
+		if strings.Contains(content, snippet) {
+			t.Fatalf("expected README to omit stale snippet %q", snippet)
+		}
+	}
+}
+
+func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{
+		mustCLIRepoRootPath(t, "README.md"),
+		mustCLITestDataPath(t, "exec_help.golden"),
+		mustCLITestDataPath(t, "start_help.golden"),
+	}
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if strings.Contains(string(body), ".tmp/codex-prompts") {
+			t.Fatalf("expected %s to omit legacy artifact root", path)
+		}
+	}
+}
+
 func TestStartHelpMatchesGolden(t *testing.T) {
 	t.Parallel()
 
@@ -281,7 +412,7 @@ func TestStartHelpMatchesGolden(t *testing.T) {
 		t.Fatalf("execute start help: %v", err)
 	}
 
-	goldenPath := filepath.Join("testdata", "start_help.golden")
+	goldenPath := mustCLITestDataPath(t, "start_help.golden")
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("read golden file %s: %v", goldenPath, err)
@@ -360,6 +491,172 @@ func TestBuildConfigUsesFetchFlagsForFetchWorkflow(t *testing.T) {
 	}
 	if cfg.Provider != "coderabbit" || cfg.PR != "259" || cfg.Name != "my-feature" || cfg.Round != 2 {
 		t.Fatalf("unexpected fetch config: %#v", cfg)
+	}
+}
+
+func TestBuildConfigUsesExecFieldsForExecWorkflow(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	state.outputFormat = string(core.OutputFormatJSON)
+	state.promptFile = "prompt.md"
+	state.readPromptStdin = false
+
+	cfg, err := state.buildConfig()
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	if cfg.Mode != core.ModeExec {
+		t.Fatalf("expected exec mode, got %q", cfg.Mode)
+	}
+	if cfg.OutputFormat != core.OutputFormatJSON {
+		t.Fatalf("expected json output format, got %q", cfg.OutputFormat)
+	}
+	if cfg.PromptFile != "prompt.md" {
+		t.Fatalf("expected prompt file to carry through, got %q", cfg.PromptFile)
+	}
+	if cfg.ReadPromptStdin {
+		t.Fatal("did not expect stdin prompt source")
+	}
+	if cfg.ResolvedPromptText != "" {
+		t.Fatalf("did not expect resolved prompt text by default, got %q", cfg.ResolvedPromptText)
+	}
+}
+
+func TestResolveExecPromptSourceHandlesPromptVariants(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.md")
+	if err := os.WriteFile(promptPath, []byte("Prompt from file\n"), 0o600); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	cases := []struct {
+		name                string
+		args                []string
+		promptFile          string
+		stdin               io.Reader
+		wantPromptText      string
+		wantPromptFile      string
+		wantReadPromptStdin bool
+		wantResolved        string
+	}{
+		{
+			name:           "Should resolve prompt from positional argument",
+			args:           []string{"Summarize the repo"},
+			wantPromptText: "Summarize the repo",
+			wantResolved:   "Summarize the repo",
+		},
+		{
+			name:           "Should resolve prompt from --prompt-file",
+			promptFile:     promptPath,
+			wantPromptFile: promptPath,
+			wantResolved:   "Prompt from file\n",
+		},
+		{
+			name:                "Should resolve prompt from stdin",
+			stdin:               strings.NewReader("Prompt from stdin\n"),
+			wantReadPromptStdin: true,
+			wantResolved:        "Prompt from stdin\n",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindExec, core.ModeExec)
+			state.promptFile = tc.promptFile
+			cmd := &cobra.Command{Use: "exec"}
+			if tc.stdin != nil {
+				cmd.SetIn(tc.stdin)
+			}
+
+			if err := state.resolveExecPromptSource(cmd, tc.args); err != nil {
+				t.Fatalf("resolveExecPromptSource: %v", err)
+			}
+			if state.promptText != tc.wantPromptText {
+				t.Fatalf("unexpected promptText: %q", state.promptText)
+			}
+			if state.promptFile != tc.wantPromptFile {
+				t.Fatalf("unexpected promptFile: %q", state.promptFile)
+			}
+			if state.readPromptStdin != tc.wantReadPromptStdin {
+				t.Fatalf("unexpected readPromptStdin: %t", state.readPromptStdin)
+			}
+			if state.resolvedPromptText != tc.wantResolved {
+				t.Fatalf("unexpected resolvedPromptText: %q", state.resolvedPromptText)
+			}
+		})
+	}
+}
+
+func TestResolveExecPromptSourceSkipsStdinWhenPromptIsResolvedExplicitly(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	promptPath := filepath.Join(tmpDir, "prompt.md")
+	if err := os.WriteFile(promptPath, []byte("Prompt from file\n"), 0o600); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	cases := []struct {
+		name       string
+		args       []string
+		promptFile string
+		want       string
+	}{
+		{
+			name: "Should ignore stdin when positional prompt is present",
+			args: []string{"Prompt from args"},
+			want: "Prompt from args",
+		},
+		{
+			name:       "Should ignore stdin when --prompt-file is present",
+			promptFile: promptPath,
+			want:       "Prompt from file\n",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			reader := &failOnReadReader{err: errors.New("stdin should not be read")}
+			state := newCommandState(commandKindExec, core.ModeExec)
+			state.promptFile = tc.promptFile
+			cmd := &cobra.Command{Use: "exec"}
+			cmd.SetIn(reader)
+
+			if err := state.resolveExecPromptSource(cmd, tc.args); err != nil {
+				t.Fatalf("resolveExecPromptSource: %v", err)
+			}
+			if reader.called {
+				t.Fatal("expected explicit prompt source to bypass stdin reads")
+			}
+			if state.resolvedPromptText != tc.want {
+				t.Fatalf("unexpected resolved prompt text: %q", state.resolvedPromptText)
+			}
+		})
+	}
+}
+
+func TestResolveExecPromptSourceRejectsAmbiguousExplicitSources(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	state.promptFile = "prompt.md"
+	cmd := &cobra.Command{Use: "exec"}
+
+	err := state.resolveExecPromptSource(cmd, []string{"Prompt from args"})
+	if err == nil {
+		t.Fatal("expected ambiguous prompt sources to fail")
+	}
+	if !strings.Contains(err.Error(), "accepts only one prompt source") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -619,21 +916,9 @@ timeout = "not-a-duration"
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
 		t.Fatalf("mkdir start dir: %v", err)
 	}
+	chdirCLITest(t, startDir)
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-	})
-	if err := os.Chdir(startDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-
-	_, err = executeRootCommand("start", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	_, err := executeRootCommand("start", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
 	if err == nil {
 		t.Fatal("expected workspace default error")
 	}
@@ -653,21 +938,9 @@ timeout = "not-a-duration"
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
 		t.Fatalf("mkdir start dir: %v", err)
 	}
+	chdirCLITest(t, startDir)
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-	})
-	if err := os.Chdir(startDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-
-	_, err = executeRootCommand("sync", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	_, err := executeRootCommand("sync", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
 	if err == nil {
 		t.Fatal("expected workspace root error")
 	}
@@ -1113,13 +1386,51 @@ func TestRunPreparedStartNonInteractiveForceContinuesPastValidationFailure(t *te
 }
 
 func executeRootCommand(args ...string) (string, error) {
-	cmd := NewRootCommand()
+	return executeCommandCombinedOutput(NewRootCommand(), nil, args...)
+}
+
+func executeCommandCombinedOutput(
+	cmd *cobra.Command,
+	in io.Reader,
+	args ...string,
+) (string, error) {
 	var output bytes.Buffer
 	cmd.SetOut(&output)
 	cmd.SetErr(&output)
+	if in != nil {
+		cmd.SetIn(in)
+	}
 	cmd.SetArgs(args)
 	err := cmd.Execute()
 	return output.String(), err
+}
+
+func TestExecuteCommandCombinedOutputPreservesEmissionOrder(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{
+		Use: "test",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if _, err := cmd.OutOrStdout().Write([]byte("stdout-1\n")); err != nil {
+				return err
+			}
+			if _, err := cmd.ErrOrStderr().Write([]byte("stderr-1\n")); err != nil {
+				return err
+			}
+			if _, err := cmd.OutOrStdout().Write([]byte("stdout-2\n")); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+
+	output, err := executeCommandCombinedOutput(cmd, nil)
+	if err != nil {
+		t.Fatalf("execute combined output command: %v", err)
+	}
+	if output != "stdout-1\nstderr-1\nstdout-2\n" {
+		t.Fatalf("unexpected combined output order: %q", output)
+	}
 }
 
 func newTestCommand(state *commandState) *cobra.Command {
@@ -1147,4 +1458,38 @@ func findCommand(t *testing.T, root *cobra.Command, use string) *cobra.Command {
 	}
 	t.Fatalf("command %q not found", use)
 	return nil
+}
+
+func mustCLITestDataPath(t *testing.T, name string) string {
+	t.Helper()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file path")
+	}
+	return filepath.Join(filepath.Dir(currentFile), "testdata", name)
+}
+
+func mustCLIRepoRootPath(t *testing.T, elems ...string) string {
+	t.Helper()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file path")
+	}
+	parts := append([]string{filepath.Dir(currentFile), "..", ".."}, elems...)
+	return filepath.Join(parts...)
+}
+
+type failOnReadReader struct {
+	called bool
+	err    error
+}
+
+func (r *failOnReadReader) Read(_ []byte) (int, error) {
+	r.called = true
+	if r.err != nil {
+		return 0, r.err
+	}
+	return 0, io.EOF
 }

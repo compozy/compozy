@@ -143,6 +143,53 @@ func TestClientCreateSessionAppliesFullAccessSessionModeWhenSupported(t *testing
 	}
 }
 
+func TestClientResumeSessionLoadsExistingSessionAndSuppressesReplay(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		SessionID:             "sess-existing",
+		ExpectedCWD:           t.TempDir(),
+		ExpectedLoadSessionID: "sess-existing",
+		ExpectedPrompt:        "continue the conversation",
+		SupportsLoadSession:   true,
+		SessionMeta:           map[string]any{"agentSessionId": "agent-123"},
+		ReplayUpdatesOnLoad:   []acp.SessionUpdate{acp.UpdateAgentMessageText("replayed")},
+		Updates:               []acp.SessionUpdate{acp.UpdateAgentMessageText("fresh response")},
+		StopReason:            string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("resume session: %v", err)
+	}
+	if !client.SupportsLoadSession() {
+		t.Fatal("expected load session support after initialization")
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 2 {
+		t.Fatalf("unexpected update count: got %d want 2", len(updates))
+	}
+	if got := mustFirstTextBlock(t, updates[0].Blocks).Text; got != "fresh response" {
+		t.Fatalf("expected replay updates to be suppressed, got %q", got)
+	}
+	identity := session.Identity()
+	if identity.ACPSessionID != scenario.SessionID {
+		t.Fatalf("unexpected acp session id: %q", identity.ACPSessionID)
+	}
+	if identity.AgentSessionID != "agent-123" {
+		t.Fatalf("unexpected agent session id: %q", identity.AgentSessionID)
+	}
+	if !identity.Resumed {
+		t.Fatal("expected resumed identity")
+	}
+}
+
 func TestSessionErrReturnsStructuredPromptError(t *testing.T) {
 	t.Parallel()
 
@@ -659,8 +706,12 @@ func TestACPHelperProcess(_ *testing.T) {
 type helperScenario struct {
 	SessionID               string              `json:"session_id,omitempty"`
 	ExpectedCWD             string              `json:"expected_cwd,omitempty"`
+	ExpectedLoadSessionID   string              `json:"expected_load_session_id,omitempty"`
 	ExpectedPrompt          string              `json:"expected_prompt,omitempty"`
 	ExpectedSessionModeID   string              `json:"expected_session_mode_id,omitempty"`
+	SupportsLoadSession     bool                `json:"supports_load_session,omitempty"`
+	SessionMeta             map[string]any      `json:"session_meta,omitempty"`
+	ReplayUpdatesOnLoad     []acp.SessionUpdate `json:"replay_updates_on_load,omitempty"`
 	Updates                 []acp.SessionUpdate `json:"updates,omitempty"`
 	StopReason              string              `json:"stop_reason,omitempty"`
 	BlockUntilCancel        bool                `json:"block_until_cancel,omitempty"`
@@ -684,6 +735,9 @@ type helperAgent struct {
 func (a *helperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
 	return acp.InitializeResponse{
 		ProtocolVersion: acp.ProtocolVersionNumber,
+		AgentCapabilities: acp.AgentCapabilities{
+			LoadSession: a.scenario.SupportsLoadSession,
+		},
 	}, nil
 }
 
@@ -697,11 +751,34 @@ func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (
 			Message: fmt.Sprintf("unexpected cwd %q", req.Cwd),
 		}
 	}
-	return acp.NewSessionResponse{SessionId: acp.SessionId(a.sessionID)}, nil
+	return acp.NewSessionResponse{
+		SessionId: acp.SessionId(a.sessionID),
+		Meta:      a.scenario.SessionMeta,
+	}, nil
 }
 
-func (a *helperAgent) LoadSession(context.Context, acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
-	return acp.LoadSessionResponse{}, nil
+func (a *helperAgent) LoadSession(ctx context.Context, req acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
+	if a.scenario.ExpectedLoadSessionID != "" && string(req.SessionId) != a.scenario.ExpectedLoadSessionID {
+		return acp.LoadSessionResponse{}, &acp.RequestError{
+			Code:    4002,
+			Message: fmt.Sprintf("unexpected load session id %q", req.SessionId),
+		}
+	}
+	if a.scenario.ExpectedCWD != "" && req.Cwd != a.scenario.ExpectedCWD {
+		return acp.LoadSessionResponse{}, &acp.RequestError{
+			Code:    4003,
+			Message: fmt.Sprintf("unexpected load cwd %q", req.Cwd),
+		}
+	}
+	for _, update := range a.scenario.ReplayUpdatesOnLoad {
+		if err := a.conn.SessionUpdate(ctx, acp.SessionNotification{
+			SessionId: acp.SessionId(a.sessionID),
+			Update:    update,
+		}); err != nil {
+			return acp.LoadSessionResponse{}, err
+		}
+	}
+	return acp.LoadSessionResponse{Meta: a.scenario.SessionMeta}, nil
 }
 
 func (a *helperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {
@@ -852,6 +929,19 @@ func flattenBlocks(updates []model.SessionUpdate) []model.ContentBlock {
 		blocks = append(blocks, updates[i].Blocks...)
 	}
 	return blocks
+}
+
+func mustFirstTextBlock(t *testing.T, blocks []model.ContentBlock) model.TextBlock {
+	t.Helper()
+
+	if len(blocks) == 0 {
+		t.Fatal("expected at least one content block")
+	}
+	textBlock, err := blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("decode first text block: %v", err)
+	}
+	return textBlock
 }
 
 func assertBlockTypes(t *testing.T, blocks []model.ContentBlock, wantTypes ...model.ContentBlockType) {

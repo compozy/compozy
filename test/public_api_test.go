@@ -14,7 +14,8 @@ import (
 func TestPrepareAndRunExposePublicAPI(t *testing.T) {
 	t.Parallel()
 
-	tasksDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo")
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 		t.Fatalf("mkdir tasks dir: %v", err)
 	}
@@ -34,10 +35,11 @@ complexity: low
 	}
 
 	cfg := compozy.Config{
-		Name:     "demo",
-		TasksDir: tasksDir,
-		Mode:     compozy.ModePRDTasks,
-		DryRun:   true,
+		Name:          "demo",
+		TasksDir:      tasksDir,
+		WorkspaceRoot: workspaceRoot,
+		Mode:          compozy.ModePRDTasks,
+		DryRun:        true,
 	}
 
 	prep, err := compozy.Prepare(context.Background(), cfg)

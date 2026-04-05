@@ -1,9 +1,16 @@
 package cli
 
 import (
+	"encoding/json"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/core/model"
+	coreRun "github.com/compozy/compozy/internal/core/run"
 )
 
 func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
@@ -75,21 +82,393 @@ func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) 
 	}
 }
 
+func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"Summarize the repository state",
+	)
+	if err != nil {
+		t.Fatalf("execute exec: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+
+	if got := strings.TrimSpace(stdout); got != "Summarize the repository state" {
+		t.Fatalf("unexpected exec stdout: %q", got)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for dry-run exec, got %q", stderr)
+	}
+	assertNoRunArtifactsForCLI(t, workspaceRoot)
+}
+
+func TestExecCommandExecutePromptFileJSONEmitsJSONLByDefault(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	promptPath := filepath.Join(workspaceRoot, "prompt.md")
+	if err := os.WriteFile(promptPath, []byte("Prompt from file\n"), 0o600); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"--prompt-file",
+		promptPath,
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute exec json: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected json exec to suppress stderr, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 2 {
+		t.Fatalf("expected two jsonl events, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if events[0]["type"] != "run.started" {
+		t.Fatalf("unexpected first event: %#v", events[0])
+	}
+	if events[1]["type"] != "run.succeeded" {
+		t.Fatalf("unexpected second event: %#v", events[1])
+	}
+	if output, ok := events[1]["output"].(string); !ok || output != "Prompt from file\n" {
+		t.Fatalf("unexpected final output payload: %#v", events[1])
+	}
+	assertNoRunArtifactsForCLI(t, workspaceRoot)
+}
+
+func TestExecCommandExecutePersistCreatesTurnArtifacts(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"--persist",
+		"Persist this prompt",
+	)
+	if err != nil {
+		t.Fatalf("execute persisted exec: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if strings.TrimSpace(stdout) != "Persist this prompt" {
+		t.Fatalf("unexpected stdout: %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for dry-run persisted exec, got %q", stderr)
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	for _, relPath := range []string{
+		"run.json",
+		"events.jsonl",
+		filepath.Join("turns", "0001", "prompt.md"),
+		filepath.Join("turns", "0001", "response.txt"),
+		filepath.Join("turns", "0001", "result.json"),
+	} {
+		if _, statErr := os.Stat(filepath.Join(runDir, relPath)); statErr != nil {
+			t.Fatalf("expected persisted exec artifact %s: %v", relPath, statErr)
+		}
+	}
+}
+
+func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	runID := "exec-resume"
+	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
+		Version:         1,
+		Mode:            model.ModeExec,
+		RunID:           runID,
+		Status:          "succeeded",
+		WorkspaceRoot:   workspaceRoot,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5-codex",
+		ReasoningEffort: "high",
+		AccessMode:      model.AccessModeDefault,
+		AddDirs:         []string{filepath.Join(workspaceRoot, "docs")},
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+		TurnCount:       1,
+		ACPSessionID:    "sess-existing",
+	})
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"--run-id",
+		runID,
+		"Resume this conversation",
+	)
+	if err != nil {
+		t.Fatalf("execute resumed exec dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if strings.TrimSpace(stdout) != "Resume this conversation" {
+		t.Fatalf("unexpected resumed dry-run stdout: %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for resumed dry-run exec, got %q", stderr)
+	}
+}
+
+func TestExecCommandExecuteJSONMissingPromptEmitsFailureJSON(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "json")
+	if err == nil {
+		t.Fatalf("expected exec json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected json exec failure to suppress stderr, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 1 {
+		t.Fatalf("expected one json failure event, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if events[0]["type"] != "run.failed" {
+		t.Fatalf("unexpected failure event: %#v", events[0])
+	}
+	errorMessage, _ := events[0]["error"].(string)
+	if !strings.Contains(errorMessage, "requires exactly one prompt source") {
+		t.Fatalf("unexpected json error message: %#v", events[0])
+	}
+}
+
+func TestExecCommandExecuteRawJSONMissingPromptEmitsFailureJSON(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "raw-json")
+	if err == nil {
+		t.Fatalf("expected exec raw-json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected raw-json exec failure to suppress stderr, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 1 {
+		t.Fatalf("expected one raw-json failure event, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if events[0]["type"] != "run.failed" {
+		t.Fatalf("unexpected failure event: %#v", events[0])
+	}
+	errorMessage, _ := events[0]["error"].(string)
+	if !strings.Contains(errorMessage, "requires exactly one prompt source") {
+		t.Fatalf("unexpected raw-json error message: %#v", events[0])
+	}
+}
+
+func TestExecCommandExecuteJSONValidationFailureEmitsFailureJSON(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--format",
+		"json",
+		"--tui",
+		"Prompt for validation failure",
+	)
+	if err == nil {
+		t.Fatalf("expected exec json validation failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected json exec validation failure to suppress stderr, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 1 {
+		t.Fatalf("expected one json validation failure event, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if events[0]["type"] != "run.failed" {
+		t.Fatalf("unexpected validation failure event: %#v", events[0])
+	}
+	errorMessage, _ := events[0]["error"].(string)
+	if !strings.Contains(errorMessage, "tui mode is not supported with json or raw-json output") {
+		t.Fatalf("unexpected validation error message: %#v", events[0])
+	}
+}
+
+func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		strings.NewReader("Prompt from stdin\n"),
+		"exec",
+		"--dry-run",
+	)
+	if err != nil {
+		t.Fatalf("execute exec stdin: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+
+	if got := strings.TrimSpace(stdout); got != "Prompt from stdin" {
+		t.Fatalf("unexpected stdin stdout: %q", got)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for dry-run stdin exec, got %q", stderr)
+	}
+	assertNoRunArtifactsForCLI(t, workspaceRoot)
+}
+
+func latestRunDirForCLI(t *testing.T, workspaceRoot string) string {
+	t.Helper()
+
+	entries, err := os.ReadDir(filepath.Join(workspaceRoot, ".compozy", "runs"))
+	if err != nil {
+		t.Fatalf("read runs dir: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected exactly one run dir, got %d", len(entries))
+	}
+	return filepath.Join(workspaceRoot, ".compozy", "runs", entries[0].Name())
+}
+
+func assertNoRunArtifactsForCLI(t *testing.T, workspaceRoot string) {
+	t.Helper()
+
+	if _, err := os.Stat(filepath.Join(workspaceRoot, ".compozy", "runs")); !os.IsNotExist(err) {
+		t.Fatalf("expected no persisted exec artifacts by default, got stat err=%v", err)
+	}
+}
+
+func writePersistedExecRunForCLI(t *testing.T, workspaceRoot string, record coreRun.PersistedExecRun) {
+	t.Helper()
+
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, record.RunID)
+	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir persisted exec run dir: %v", err)
+	}
+	payload, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("marshal persisted exec run: %v", err)
+	}
+	if err := os.WriteFile(runArtifacts.RunMetaPath, payload, 0o600); err != nil {
+		t.Fatalf("write persisted exec run: %v", err)
+	}
+}
+
+func decodeExecJSONLEvents(t *testing.T, stdout string) []map[string]any {
+	t.Helper()
+
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	events := make([]map[string]any, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(line), &payload); err != nil {
+			t.Fatalf("decode exec jsonl line: %v\nline:\n%s", err, line)
+		}
+		events = append(events, payload)
+	}
+	return events
+}
+
 func withWorkingDir(t *testing.T, dir string) {
 	t.Helper()
 
+	cliWorkingDirMu.Lock()
+
 	originalWD, err := os.Getwd()
 	if err != nil {
+		cliWorkingDirMu.Unlock()
 		t.Fatalf("getwd: %v", err)
 	}
 	t.Cleanup(func() {
+		defer cliWorkingDirMu.Unlock()
 		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
 			t.Fatalf("restore cwd: %v", chdirErr)
 		}
 	})
 	if err := os.Chdir(dir); err != nil {
+		cliWorkingDirMu.Unlock()
 		t.Fatalf("chdir: %v", err)
 	}
+}
+
+func executeRootCommandCapturingProcessIO(t *testing.T, in io.Reader, args ...string) (string, string, error) {
+	t.Helper()
+
+	cmd := NewRootCommand()
+	stdoutRead, stdoutWrite, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdout pipe: %v", err)
+	}
+	stderrRead, stderrWrite, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stderr pipe: %v", err)
+	}
+
+	originalStdout := os.Stdout
+	originalStderr := os.Stderr
+	os.Stdout = stdoutWrite
+	os.Stderr = stderrWrite
+	defer func() {
+		os.Stdout = originalStdout
+		os.Stderr = originalStderr
+	}()
+
+	cmd.SetOut(stdoutWrite)
+	cmd.SetErr(stderrWrite)
+	if in != nil {
+		cmd.SetIn(in)
+	}
+	cmd.SetArgs(args)
+
+	runErr := cmd.Execute()
+
+	if err := stdoutWrite.Close(); err != nil {
+		t.Fatalf("close stdout writer: %v", err)
+	}
+	if err := stderrWrite.Close(); err != nil {
+		t.Fatalf("close stderr writer: %v", err)
+	}
+	stdoutBytes, err := io.ReadAll(stdoutRead)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	stderrBytes, err := io.ReadAll(stderrRead)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	if err := stdoutRead.Close(); err != nil {
+		t.Fatalf("close stdout reader: %v", err)
+	}
+	if err := stderrRead.Close(); err != nil {
+		t.Fatalf("close stderr reader: %v", err)
+	}
+
+	return string(stdoutBytes), string(stderrBytes), runErr
 }
 
 func containsAll(s string, fragments ...string) bool {

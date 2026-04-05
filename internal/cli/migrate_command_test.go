@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -71,7 +72,10 @@ func TestValidateTasksCommandPassesCommittedACPFixtures(t *testing.T) {
 		t.Fatalf("resolve repo root: %v", err)
 	}
 
-	tasksDir := filepath.Join(repoRoot, ".compozy", "tasks", "acp-integration")
+	tasksDir, err := committedACPFixtureDir(repoRoot)
+	if err != nil {
+		t.Fatalf("resolve committed acp fixture dir: %v", err)
+	}
 	stdout, stderr, exitCode := runCLICommand(t, repoRoot, "validate-tasks", "--tasks-dir", tasksDir)
 	if exitCode != 0 {
 		t.Fatalf("expected acp fixture validation to pass, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
@@ -79,4 +83,22 @@ func TestValidateTasksCommandPassesCommittedACPFixtures(t *testing.T) {
 	if !strings.Contains(stdout, "all tasks valid") {
 		t.Fatalf("expected success output, got:\n%s", stdout)
 	}
+}
+
+func committedACPFixtureDir(repoRoot string) (string, error) {
+	activePath := filepath.Join(repoRoot, ".compozy", "tasks", "acp-integration")
+	if info, err := os.Stat(activePath); err == nil && info.IsDir() {
+		return activePath, nil
+	}
+
+	matches, err := filepath.Glob(filepath.Join(repoRoot, ".compozy", "tasks", "_archived", "*-acp-integration"))
+	if err != nil {
+		return "", err
+	}
+	for _, match := range matches {
+		if info, err := os.Stat(match); err == nil && info.IsDir() {
+			return match, nil
+		}
+	}
+	return "", os.ErrNotExist
 }

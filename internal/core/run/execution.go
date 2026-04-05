@@ -24,16 +24,24 @@ import (
 var reviewProviderRegistry = providers.DefaultRegistry
 
 // Execute runs the prepared jobs and manages shutdown, retries, and summaries.
-func Execute(ctx context.Context, jobs []model.Job, cfg *model.RuntimeConfig) error {
-	internalCfg := newConfig(cfg)
+func Execute(ctx context.Context, jobs []model.Job, runArtifacts model.RunArtifacts, cfg *model.RuntimeConfig) error {
+	internalCfg := newConfig(cfg, runArtifacts)
 	internalJobs := newJobs(jobs)
 
 	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(ctx, internalJobs, internalCfg)
-	summarizeResults(failed, failures, total)
+	result := buildExecutionResult(internalCfg, internalJobs, failures, shutdownErr)
+	if err := emitExecutionResult(internalCfg, result); err != nil {
+		return err
+	}
+	if internalCfg.humanOutputEnabled() {
+		summarizeResults(failed, failures, total)
+	}
 	refreshTaskMetaOnExit(internalCfg)
 
 	if shutdownErr != nil {
-		fmt.Fprintf(os.Stderr, "\nShutdown interrupted: %v\n", shutdownErr)
+		if internalCfg.humanOutputEnabled() {
+			fmt.Fprintf(os.Stderr, "\nShutdown interrupted: %v\n", shutdownErr)
+		}
 		return shutdownErr
 	}
 	if len(failures) > 0 {
@@ -120,48 +128,19 @@ func (c *executorController) awaitCompletion() (int32, []failInfo, int, error) {
 	for {
 		select {
 		case <-c.done:
-			if shutdownTimer != nil {
-				shutdownTimer.Stop()
-			}
-			if c.state == executorStateRunning {
-				c.state = executorStateShutdown
-				if err := c.execCtx.awaitUIAfterCompletion(); err != nil {
-					c.state = executorStateTerminated
-					return c.result(err)
-				}
-				c.execCtx.reportAggregateUsage()
-				c.state = executorStateTerminated
-				return c.result(nil)
-			}
-			fmt.Fprintf(os.Stderr, "All jobs completed gracefully within %v while draining\n", gracefulShutdownTimeout)
-			c.state = executorStateShutdown
-			if err := c.execCtx.shutdownUI(); err != nil {
-				c.state = executorStateTerminated
-				return c.result(err)
-			}
-			c.execCtx.reportAggregateUsage()
-			c.state = executorStateTerminated
-			return c.result(nil)
+			return c.handleDone(shutdownTimer)
 		case req := <-c.shutdownRequests:
 			if req.force {
 				c.beginForce(req.source)
 				continue
 			}
 			if c.beginDrain(req.source) {
-				if shutdownTimer != nil {
-					shutdownTimer.Stop()
-				}
-				shutdownTimer = time.NewTimer(gracefulShutdownTimeout)
-				shutdownTimerCh = shutdownTimer.C
+				shutdownTimer, shutdownTimerCh = resetShutdownTimer(shutdownTimer)
 			}
 		case <-ctxDone:
 			ctxDone = nil
 			if c.beginDrain(shutdownSourceSignal) {
-				if shutdownTimer != nil {
-					shutdownTimer.Stop()
-				}
-				shutdownTimer = time.NewTimer(gracefulShutdownTimeout)
-				shutdownTimerCh = shutdownTimer.C
+				shutdownTimer, shutdownTimerCh = resetShutdownTimer(shutdownTimer)
 			}
 		case <-shutdownTimerCh:
 			shutdownTimerCh = nil
@@ -170,9 +149,55 @@ func (c *executorController) awaitCompletion() (int32, []failInfo, int, error) {
 	}
 }
 
+func (c *executorController) handleDone(shutdownTimer *time.Timer) (int32, []failInfo, int, error) {
+	if shutdownTimer != nil {
+		shutdownTimer.Stop()
+	}
+	if c.state == executorStateRunning {
+		c.state = executorStateShutdown
+		if err := c.execCtx.awaitUIAfterCompletion(); err != nil {
+			c.state = executorStateTerminated
+			return c.result(err)
+		}
+		c.execCtx.reportAggregateUsage()
+		c.state = executorStateTerminated
+		return c.result(nil)
+	}
+	c.emitShutdownFallback(
+		"Controller shutdown complete after shutdown grace period (%v)\n",
+		gracefulShutdownTimeout,
+	)
+	c.state = executorStateShutdown
+	if err := c.execCtx.shutdownUI(); err != nil {
+		c.state = executorStateTerminated
+		return c.result(err)
+	}
+	c.execCtx.reportAggregateUsage()
+	c.state = executorStateTerminated
+	return c.result(nil)
+}
+
+func resetShutdownTimer(current *time.Timer) (*time.Timer, <-chan time.Time) {
+	if current != nil {
+		current.Stop()
+	}
+	next := time.NewTimer(gracefulShutdownTimeout)
+	return next, next.C
+}
+
 func (c *executorController) result(err error) (int32, []failInfo, int, error) {
 	failed := atomic.LoadInt32(&c.execCtx.failed)
 	return failed, c.execCtx.failures, c.execCtx.total, err
+}
+
+func (c *executorController) emitShutdownFallback(format string, args ...any) {
+	if c == nil || c.execCtx == nil || c.execCtx.cfg == nil {
+		return
+	}
+	if !c.execCtx.cfg.humanOutputEnabled() || c.execCtx.uiCh != nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, format, args...)
 }
 
 func (c *executorController) requestShutdown(req uiQuitRequest) {
@@ -187,8 +212,7 @@ func (c *executorController) beginDrain(source shutdownSource) bool {
 	if c.state != executorStateRunning && c.state != executorStateInitializing {
 		return false
 	}
-	fmt.Fprintf(
-		os.Stderr,
+	c.emitShutdownFallback(
 		"\nReceived shutdown request (%s) while executor in %s state; requesting drain...\n",
 		source,
 		c.state,
@@ -216,7 +240,7 @@ func (c *executorController) beginForce(source shutdownSource) {
 			return
 		}
 	}
-	fmt.Fprintf(os.Stderr, "Escalating shutdown via %s; forcing exit\n", source)
+	c.emitShutdownFallback("Escalating shutdown via %s; forcing exit\n", source)
 	c.state = executorStateForcing
 	if c.cancelJobs != nil {
 		c.cancelJobs(context.Canceled)
@@ -260,6 +284,7 @@ func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.D
 	if l.attempt == 1 {
 		notifyJobStart(
 			l.execCtx.uiCh != nil,
+			l.execCtx.cfg.humanOutputEnabled(),
 			l.execCtx.uiCh,
 			l.index,
 			attempt,
@@ -283,6 +308,8 @@ func (l *jobLifecycle) markRetry(failure failInfo, nextAttempt int, maxAttempts 
 	l.lastExitCode = failure.exitCode
 	l.state = jobPhaseRetrying
 	l.attempt = nextAttempt
+	l.job.exitCode = failure.exitCode
+	l.job.failure = failure.err.Error()
 	if l.execCtx.uiCh != nil {
 		l.execCtx.uiCh <- jobRetryMsg{
 			Index:       l.index,
@@ -297,6 +324,9 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 	l.lastFailure = &failure
 	l.lastExitCode = failure.exitCode
 	l.state = jobPhaseFailed
+	l.job.status = runStatusFailed
+	l.job.exitCode = failure.exitCode
+	l.job.failure = failure.err.Error()
 	if l.lastFailure != nil {
 		recordFailure(&l.execCtx.failuresMu, &l.execCtx.failures, *l.lastFailure)
 	}
@@ -308,7 +338,7 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 		}
 		return
 	}
-	if l.lastFailure != nil {
+	if l.lastFailure != nil && l.execCtx.cfg.humanOutputEnabled() {
 		fmt.Fprintf(
 			os.Stderr,
 			"\n❌ Job %d (%s) failed with exit code %d: %v\n",
@@ -324,6 +354,9 @@ func (l *jobLifecycle) markSuccess() {
 	l.lastFailure = nil
 	l.lastExitCode = 0
 	l.state = jobPhaseSucceeded
+	l.job.status = runStatusSucceeded
+	l.job.exitCode = 0
+	l.job.failure = ""
 	if l.execCtx.uiCh != nil {
 		l.execCtx.uiCh <- jobFinishedMsg{Index: l.index, Success: true, ExitCode: 0}
 	}
@@ -332,6 +365,8 @@ func (l *jobLifecycle) markSuccess() {
 func (l *jobLifecycle) markCanceled(exitCode int) {
 	l.lastExitCode = exitCode
 	l.state = jobPhaseCanceled
+	l.job.status = runStatusCanceled
+	l.job.exitCode = exitCode
 	if exitCode == exitCodeCanceled {
 		l.lastFailure = &failInfo{
 			codeFile: strings.Join(l.job.codeFiles, ", "),
@@ -342,6 +377,9 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 		}
 	} else {
 		l.lastFailure = nil
+	}
+	if l.lastFailure != nil {
+		l.job.failure = l.lastFailure.err.Error()
 	}
 
 	if l.lastFailure != nil {
@@ -355,7 +393,7 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 		}
 		return
 	}
-	if l.lastFailure != nil {
+	if l.lastFailure != nil && l.execCtx.cfg.humanOutputEnabled() {
 		fmt.Fprintf(
 			os.Stderr,
 			"\n⚠️ Job %d (%s) canceled: %v\n",
@@ -389,7 +427,7 @@ func (r *jobRunner) run(ctx context.Context) {
 		return
 	}
 
-	maxAttempts := maxInt(1, r.execCtx.cfg.maxRetries+1)
+	maxAttempts := atLeastOne(r.execCtx.cfg.maxRetries + 1)
 	timeout := r.execCtx.cfg.timeout
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if ctx.Err() != nil {
@@ -495,6 +533,9 @@ func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration
 	if r.execCtx.uiCh != nil {
 		return
 	}
+	if !r.execCtx.cfg.humanOutputEnabled() {
+		return
+	}
 	fmt.Fprintf(
 		os.Stderr,
 		"\n🔄 [%s] Job %d (%s) retry attempt %d/%d with timeout %v\n",
@@ -517,15 +558,15 @@ func newJobExecutionContext(ctx context.Context, jobs []job, cfg *config) (*jobE
 		jobs:          jobs,
 		total:         len(jobs),
 		cwd:           cwd,
-		logger:        runtimeLogger(!cfg.dryRun),
-		sem:           make(chan struct{}, maxInt(1, cfg.concurrent)),
+		logger:        runtimeLoggerFor(cfg, cfg.uiEnabled()),
+		sem:           make(chan struct{}, atLeastOne(cfg.concurrent)),
 		activeClients: make(map[agent.Client]struct{}),
 	}
 	for idx := range execCtx.jobs {
 		execCtx.jobs[idx].outBuffer = newLineBuffer(cfg.tailLines)
 		execCtx.jobs[idx].errBuffer = newLineBuffer(cfg.tailLines)
 	}
-	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, !cfg.dryRun)
+	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, cfg.uiEnabled())
 	if execCtx.ui != nil {
 		execCtx.uiCh = execCtx.ui.events()
 	}
@@ -534,13 +575,18 @@ func newJobExecutionContext(ctx context.Context, jobs []job, cfg *config) (*jobE
 
 func (j *jobExecutionContext) cleanup() {
 	if err := j.shutdownUI(); err != nil {
-		fmt.Fprintf(os.Stderr, "UI shutdown error: %v\n", err)
+		if j != nil && j.cfg.humanOutputEnabled() {
+			fmt.Fprintf(os.Stderr, "UI shutdown error: %v\n", err)
+		}
 	}
 }
 
 func (j *jobExecutionContext) runtimeLogger() *slog.Logger {
 	if j != nil && j.logger != nil {
 		return j.logger
+	}
+	if j != nil {
+		return runtimeLoggerFor(j.cfg, j.cfg != nil && j.cfg.uiEnabled())
 	}
 	return runtimeLogger(false)
 }
@@ -678,6 +724,9 @@ func (j *jobExecutionContext) waitChannel() <-chan struct{} {
 }
 
 func (j *jobExecutionContext) reportAggregateUsage() {
+	if j == nil || !j.cfg.humanOutputEnabled() {
+		return
+	}
 	j.aggregateMu.Lock()
 	defer j.aggregateMu.Unlock()
 	printAggregateUsage(&j.aggregateUsage)
@@ -835,7 +884,7 @@ func refreshTaskMetaOnExit(cfg *config) {
 
 	meta, err := tasks.RefreshTaskMeta(cfg.tasksDir)
 	if err != nil {
-		runtimeLogger(cfg != nil && !cfg.dryRun).Warn(
+		runtimeLoggerFor(cfg, cfg != nil && cfg.uiEnabled()).Warn(
 			"failed to refresh task workflow metadata at command exit",
 			"tasks_dir",
 			cfg.tasksDir,
@@ -845,7 +894,7 @@ func refreshTaskMetaOnExit(cfg *config) {
 		return
 	}
 
-	runtimeLogger(cfg != nil && !cfg.dryRun).Info(
+	runtimeLoggerFor(cfg, cfg != nil && cfg.uiEnabled()).Info(
 		"refreshed task workflow metadata at command exit",
 		"tasks_dir",
 		cfg.tasksDir,
@@ -871,6 +920,7 @@ func executeJobWithTimeout(
 	aggregateMu *sync.Mutex,
 	trackClient func(agent.Client) func(),
 ) jobAttemptResult {
+	emitHuman := cfg.humanOutputEnabled() && !useUI
 	attemptCtx := ctx
 	cancel := func(error) {}
 	stopActivityWatchdog := func() {}
@@ -891,17 +941,18 @@ func executeJobWithTimeout(
 		j,
 		cwd,
 		useUI,
+		cfg.humanOutputEnabled(),
 		uiCh,
 		index,
 		aggregateUsage,
 		aggregateMu,
 		activity,
-		runtimeLogger(useUI),
+		runtimeLoggerFor(cfg, useUI),
 		trackClient,
 	)
 	if err != nil {
 		if timeout > 0 && isActivityTimeout(err) {
-			return handleSessionTimeout(resolveTimeoutError(timeout, err), j, index, useUI, timeout)
+			return handleSessionTimeout(resolveTimeoutError(timeout, err), j, index, emitHuman, timeout)
 		}
 		fail := recordFailureWithContext(nil, j, nil, err, -1)
 		return jobAttemptResult{
@@ -911,7 +962,7 @@ func executeJobWithTimeout(
 			retryable: retryableSetupFailure(err),
 		}
 	}
-	return executeSessionAndResolve(attemptCtx, timeout, execution, j, index, useUI)
+	return executeSessionAndResolve(attemptCtx, timeout, execution, j, index, emitHuman)
 }
 
 type activityTimeoutError struct {
@@ -969,6 +1020,9 @@ func startACPActivityWatchdog(
 }
 
 func createLogFile(path string) (*os.File, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, nil
+	}
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
@@ -976,7 +1030,7 @@ func createLogFile(path string) (*os.File, error) {
 	return file, nil
 }
 
-func handleNilExecution(j *job, index int) jobAttemptResult {
+func handleNilExecution(j *job, index int, emitHuman bool) jobAttemptResult {
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
 	failure := failInfo{
 		codeFile: codeFileLabel,
@@ -985,7 +1039,9 @@ func handleNilExecution(j *job, index int) jobAttemptResult {
 		errLog:   j.errLog,
 		err:      fmt.Errorf("failed to set up ACP session execution"),
 	}
-	fmt.Fprintf(os.Stderr, "\n❌ Failed to set up job %d (%s): %v\n", index+1, codeFileLabel, failure.err)
+	if emitHuman {
+		fmt.Fprintf(os.Stderr, "\n❌ Failed to set up job %d (%s): %v\n", index+1, codeFileLabel, failure.err)
+	}
 	return jobAttemptResult{status: attemptStatusSetupFailed, exitCode: -1, failure: &failure}
 }
 
@@ -995,10 +1051,10 @@ func executeSessionAndResolve(
 	execution *sessionExecution,
 	j *job,
 	index int,
-	useUI bool,
+	emitHuman bool,
 ) jobAttemptResult {
 	if execution == nil || execution.session == nil {
-		return handleNilExecution(j, index)
+		return handleNilExecution(j, index, emitHuman)
 	}
 	defer execution.close()
 
@@ -1015,7 +1071,7 @@ func executeSessionAndResolve(
 				execution.logger.Warn("failed to finalize ACP session handler after stream error", "error", err)
 			}
 			appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + streamErr.Error()})
-			return buildFailureResult(streamErr, -1, j, index, useUI)
+			return buildFailureResult(streamErr, -1, j, index, emitHuman)
 		}
 
 		sessionErr := execution.session.Err()
@@ -1025,7 +1081,7 @@ func executeSessionAndResolve(
 		if sessionErr != nil {
 			appendLinesToBuffer(j.errBuffer, []string{"ACP session error: " + sessionErr.Error()})
 		}
-		return handleSessionCompletion(ctx, sessionErr, timeout, j, index, useUI)
+		return handleSessionCompletion(ctx, sessionErr, timeout, j, index, emitHuman)
 	case <-ctx.Done():
 		cancelErr := context.Cause(ctx)
 		if cancelErr == nil {
@@ -1040,11 +1096,11 @@ func executeSessionAndResolve(
 				resolveTimeoutError(timeout, cancelErr, context.Cause(ctx), ctx.Err()),
 				j,
 				index,
-				useUI,
+				emitHuman,
 				timeout,
 			)
 		}
-		return handleSessionCancellation(cancelErr, j, index, useUI)
+		return handleSessionCancellation(cancelErr, j, index, emitHuman)
 	}
 }
 
@@ -1063,7 +1119,7 @@ func handleSessionCompletion(
 	timeout time.Duration,
 	j *job,
 	index int,
-	useUI bool,
+	emitHuman bool,
 ) jobAttemptResult {
 	if sessionErr == nil {
 		return jobAttemptResult{status: attemptStatusSuccess, exitCode: 0}
@@ -1074,16 +1130,16 @@ func handleSessionCompletion(
 			resolveTimeoutError(timeout, sessionErr, context.Cause(ctx), ctx.Err()),
 			j,
 			index,
-			useUI,
+			emitHuman,
 			timeout,
 		)
 	}
 	if errors.Is(sessionErr, context.Canceled) {
-		return handleSessionCancellation(sessionErr, j, index, useUI)
+		return handleSessionCancellation(sessionErr, j, index, emitHuman)
 	}
 
 	exitCode := sessionErrorCode(sessionErr)
-	return buildFailureResult(sessionErr, exitCode, j, index, useUI)
+	return buildFailureResult(sessionErr, exitCode, j, index, emitHuman)
 }
 
 func isSessionTimeout(ctx context.Context, err error) bool {
@@ -1117,9 +1173,9 @@ func handleSessionCancellation(
 	cancelErr error,
 	j *job,
 	index int,
-	useUI bool,
+	emitHuman bool,
 ) jobAttemptResult {
-	if !useUI {
+	if emitHuman {
 		fmt.Fprintf(
 			os.Stderr,
 			"\nCanceling job %d (%s) due to shutdown signal\n",
@@ -1145,10 +1201,10 @@ func handleSessionTimeout(
 	timeoutErr error,
 	j *job,
 	index int,
-	useUI bool,
+	emitHuman bool,
 	timeout time.Duration,
 ) jobAttemptResult {
-	logTimeoutMessage(index, j, timeout, useUI)
+	logTimeoutMessage(index, j, timeout, emitHuman)
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
 	if timeoutErr == nil {
 		timeoutErr = fmt.Errorf("ACP session timeout after %v", timeout)
@@ -1168,8 +1224,8 @@ func handleSessionTimeout(
 	}
 }
 
-func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
-	if !useUI {
+func logTimeoutMessage(index int, j *job, timeout time.Duration, emitHuman bool) {
+	if emitHuman {
 		fmt.Fprintf(
 			os.Stderr,
 			"\nJob %d (%s) timed out after %v of inactivity\n",
@@ -1180,7 +1236,7 @@ func logTimeoutMessage(index int, j *job, timeout time.Duration, useUI bool) {
 	}
 }
 
-func buildFailureResult(err error, exitCode int, j *job, index int, useUI bool) jobAttemptResult {
+func buildFailureResult(err error, exitCode int, j *job, index int, emitHuman bool) jobAttemptResult {
 	codeFileLabel := strings.Join(j.codeFiles, ", ")
 	failure := failInfo{
 		codeFile: codeFileLabel,
@@ -1189,7 +1245,7 @@ func buildFailureResult(err error, exitCode int, j *job, index int, useUI bool) 
 		errLog:   j.errLog,
 		err:      err,
 	}
-	if !useUI {
+	if emitHuman {
 		fmt.Fprintf(os.Stderr, "\n❌ Job %d (%s) failed with code %d: %v\n", index+1, codeFileLabel, exitCode, err)
 	}
 	return jobAttemptResult{
@@ -1294,11 +1350,11 @@ func summarizeResults(failed int32, failures []failInfo, total int) {
 	}
 }
 
-func maxInt(a, b int) int {
-	if a > b {
-		return a
+func atLeastOne(value int) int {
+	if value < 1 {
+		return 1
 	}
-	return b
+	return value
 }
 
 func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provider.ResolvedIssue, error) {
