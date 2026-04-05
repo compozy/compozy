@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### ♻️  Refactoring
 
+- Rename idea-factory artifacts from issue to idea (#56)
+## 0.1.7 - 2026-04-05
+
+### ♻️  Refactoring
+
 - Tool calls (#48)- Task artifacts changes (#52)
 ### 🎉 Features
 
@@ -19,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### 📦 Build System
 
 - Comment AUR release for now
+### 🔧 CI/CD
+
+- *(release)* Prepare release v0.1.7 (#55)
+
 ## 0.1.6 - 2026-04-04
 
 ### 🐛 Bug Fixes
@@ -152,7 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(release)* Prepare release v0.1.0 (#21)
 - *(repo)* Fix tests
 
-[unreleased]: https://github.com///compare/v0.1.6...HEAD
+[unreleased]: https://github.com///compare/v0.1.7...HEAD
+[0.1.7]: https://github.com///compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com///compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com///compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com///compare/v0.1.3...v0.1.4
