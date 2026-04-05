@@ -470,6 +470,56 @@ func TestExecuteJobWithTimeoutSetupHangUsesActivityTimeout(t *testing.T) {
 	}
 }
 
+func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *testing.T) {
+	tmpDir := t.TempDir()
+	blockingSetupClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		<-ctx.Done()
+		return nil, context.Cause(ctx)
+	})
+	installFakeACPClients(t, blockingSetupClient)
+
+	job := newTestACPJob(tmpDir)
+	uiCh := make(chan uiMsg, 4)
+
+	var result jobAttemptResult
+	stdout, stderr, captureErr := captureExecuteStreams(t, func() error {
+		result = executeJobWithTimeout(
+			context.Background(),
+			&config{
+				ide:                    model.IDECodex,
+				model:                  "test-model",
+				reasoningEffort:        "medium",
+				retryBackoffMultiplier: 2,
+			},
+			&job,
+			tmpDir,
+			true,
+			uiCh,
+			0,
+			25*time.Millisecond,
+			nil,
+			nil,
+			nil,
+		)
+		return nil
+	})
+	if captureErr != nil {
+		t.Fatalf("capture execute streams: %v", captureErr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout fallback for interactive timeout, got %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr fallback for interactive timeout, got %q", stderr)
+	}
+	if got := result.status; got != attemptStatusTimeout {
+		t.Fatalf("expected timeout status, got %s", got)
+	}
+	if result.failure == nil || !strings.Contains(result.failure.err.Error(), "activity timeout") {
+		t.Fatalf("expected activity-timeout failure, got %#v", result.failure)
+	}
+}
+
 func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *testing.T) {
 	tmpDir := t.TempDir()
 

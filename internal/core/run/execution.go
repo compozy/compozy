@@ -915,7 +915,7 @@ func executeJobWithTimeout(
 	aggregateMu *sync.Mutex,
 	trackClient func(agent.Client) func(),
 ) jobAttemptResult {
-	emitHuman := cfg.humanOutputEnabled()
+	emitHuman := cfg.humanOutputEnabled() && !useUI
 	attemptCtx := ctx
 	cancel := func(error) {}
 	stopActivityWatchdog := func() {}

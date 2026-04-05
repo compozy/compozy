@@ -17,18 +17,19 @@ const (
 )
 
 type executionResult struct {
-	RunID        string             `json:"run_id"`
-	Mode         string             `json:"mode"`
-	Status       string             `json:"status"`
-	IDE          string             `json:"ide"`
-	Model        string             `json:"model"`
-	OutputFormat string             `json:"output_format"`
-	ArtifactsDir string             `json:"artifacts_dir"`
-	RunMetaPath  string             `json:"run_meta_path"`
-	ResultPath   string             `json:"result_path,omitempty"`
-	Usage        model.Usage        `json:"usage,omitempty"`
-	Error        string             `json:"error,omitempty"`
-	Jobs         []executionJobInfo `json:"jobs"`
+	RunID         string             `json:"run_id"`
+	Mode          string             `json:"mode"`
+	Status        string             `json:"status"`
+	IDE           string             `json:"ide"`
+	Model         string             `json:"model"`
+	OutputFormat  string             `json:"output_format"`
+	ArtifactsDir  string             `json:"artifacts_dir"`
+	RunMetaPath   string             `json:"run_meta_path"`
+	ResultPath    string             `json:"result_path,omitempty"`
+	Usage         model.Usage        `json:"usage,omitempty"`
+	Error         string             `json:"error,omitempty"`
+	TeardownError string             `json:"teardown_error,omitempty"`
+	Jobs          []executionJobInfo `json:"jobs"`
 }
 
 type executionJobInfo struct {
@@ -47,7 +48,7 @@ func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdown
 	result := executionResult{
 		RunID:        cfg.runArtifacts.RunID,
 		Mode:         string(cfg.mode),
-		Status:       deriveRunStatus(jobs, failures, shutdownErr),
+		Status:       deriveRunStatus(jobs, failures),
 		IDE:          cfg.ide,
 		Model:        cfg.model,
 		OutputFormat: string(cfg.outputFormat),
@@ -71,26 +72,22 @@ func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdown
 		})
 		result.Usage.Add(item.usage)
 	}
-	if shutdownErr != nil {
-		result.Error = shutdownErr.Error()
-		return result
-	}
 	if len(failures) > 0 {
 		result.Error = failures[0].err.Error()
+	}
+	if shutdownErr != nil {
+		result.TeardownError = shutdownErr.Error()
 	}
 	return result
 }
 
-func deriveRunStatus(jobs []job, failures []failInfo, shutdownErr error) string {
-	if shutdownErr != nil {
-		return runStatusCanceled
+func deriveRunStatus(jobs []job, failures []failInfo) string {
+	for idx := range jobs {
+		if jobs[idx].status == runStatusCanceled {
+			return runStatusCanceled
+		}
 	}
 	if len(failures) > 0 {
-		for idx := range jobs {
-			if jobs[idx].status == runStatusCanceled {
-				return runStatusCanceled
-			}
-		}
 		return runStatusFailed
 	}
 	return runStatusSucceeded

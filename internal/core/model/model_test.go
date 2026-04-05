@@ -178,6 +178,34 @@ func TestPathHelpers(t *testing.T) {
 			t.Fatalf("unexpected sanitized run dir\nwant: %q\ngot:  %q", want, got)
 		}
 	})
+
+	t.Run("Should reject dot-segment run identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			name  string
+			runID string
+		}{
+			{name: "current directory", runID: "."},
+			{name: "parent directory", runID: ".."},
+			{name: "punctuation only", runID: " !!! "},
+		}
+
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				runArtifacts := model.NewRunArtifacts("", tc.runID)
+				if got, want := runArtifacts.RunID, "run"; got != want {
+					t.Fatalf("unexpected sanitized run id for %q\nwant: %q\ngot:  %q", tc.runID, want, got)
+				}
+				if got, want := runArtifacts.RunDir, filepath.Join(".compozy", "runs", "run"); got != want {
+					t.Fatalf("unexpected sanitized run dir for %q\nwant: %q\ngot:  %q", tc.runID, want, got)
+				}
+			})
+		}
+	})
 }
 
 func TestIsActiveWorkflowDirName(t *testing.T) {

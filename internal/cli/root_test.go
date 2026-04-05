@@ -860,21 +860,9 @@ timeout = "not-a-duration"
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
 		t.Fatalf("mkdir start dir: %v", err)
 	}
+	chdirCLITest(t, startDir)
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-	})
-	if err := os.Chdir(startDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-
-	_, err = executeRootCommand("start", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	_, err := executeRootCommand("start", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
 	if err == nil {
 		t.Fatal("expected workspace default error")
 	}
@@ -894,21 +882,9 @@ timeout = "not-a-duration"
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
 		t.Fatalf("mkdir start dir: %v", err)
 	}
+	chdirCLITest(t, startDir)
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
-			t.Fatalf("restore cwd: %v", chdirErr)
-		}
-	})
-	if err := os.Chdir(startDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-
-	_, err = executeRootCommand("sync", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	_, err := executeRootCommand("sync", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
 	if err == nil {
 		t.Fatal("expected workspace root error")
 	}

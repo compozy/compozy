@@ -180,8 +180,35 @@ func sanitizeRunID(runID string) string {
 	if trimmed == "" {
 		return "run"
 	}
-	replacer := strings.NewReplacer("/", "-", "\\", "-")
-	return replacer.Replace(trimmed)
+	normalized := strings.NewReplacer("/", "-", "\\", "-").Replace(trimmed)
+
+	var builder strings.Builder
+	builder.Grow(len(normalized))
+	lastDash := false
+	for _, r := range normalized {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '_':
+			builder.WriteRune(r)
+			lastDash = false
+		case r == '-':
+			builder.WriteRune(r)
+			lastDash = true
+		default:
+			if lastDash {
+				continue
+			}
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+
+	safe := strings.Trim(builder.String(), "-")
+	switch safe {
+	case "", ".", "..":
+		return "run"
+	default:
+		return safe
+	}
 }
 
 func (artifacts RunArtifacts) JobArtifacts(safeName string) JobArtifacts {

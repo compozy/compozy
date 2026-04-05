@@ -83,3 +83,76 @@ func TestBuildExecutionResultDoesNotInventSuccessForBlankJobStatus(t *testing.T)
 		t.Fatalf("expected blank job status to remain non-success, got %q", result.Jobs[0].Status)
 	}
 }
+
+func TestBuildExecutionResultKeepsPrimaryFailureWhenTeardownAlsoFails(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "exec-test-run")
+	cfg := &config{
+		mode:         model.ExecutionModeExec,
+		ide:          model.IDECodex,
+		model:        "gpt-5.4",
+		outputFormat: model.OutputFormatJSON,
+		runArtifacts: runArtifacts,
+	}
+	jobs := []job{{
+		safeName:      "exec",
+		codeFiles:     []string{"exec"},
+		status:        runStatusFailed,
+		exitCode:      42,
+		outPromptPath: filepath.Join(runArtifacts.JobsDir, "exec.prompt.md"),
+		outLog:        filepath.Join(runArtifacts.JobsDir, "exec.out.log"),
+		errLog:        filepath.Join(runArtifacts.JobsDir, "exec.err.log"),
+	}}
+
+	result := buildExecutionResult(
+		cfg,
+		jobs,
+		[]failInfo{{err: errors.New("job failed")}},
+		errors.New("ui shutdown failed"),
+	)
+
+	if result.Status != runStatusFailed {
+		t.Fatalf("unexpected result status: %q", result.Status)
+	}
+	if result.Error != "job failed" {
+		t.Fatalf("unexpected primary result error: %q", result.Error)
+	}
+	if result.TeardownError != "ui shutdown failed" {
+		t.Fatalf("unexpected teardown error: %q", result.TeardownError)
+	}
+}
+
+func TestBuildExecutionResultDoesNotCancelSuccessfulJobsOnTeardownFailure(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "exec-test-run")
+	cfg := &config{
+		mode:         model.ExecutionModeExec,
+		ide:          model.IDECodex,
+		model:        "gpt-5.4",
+		outputFormat: model.OutputFormatJSON,
+		runArtifacts: runArtifacts,
+	}
+	jobs := []job{{
+		safeName:      "exec",
+		codeFiles:     []string{"exec"},
+		status:        runStatusSucceeded,
+		exitCode:      0,
+		outPromptPath: filepath.Join(runArtifacts.JobsDir, "exec.prompt.md"),
+		outLog:        filepath.Join(runArtifacts.JobsDir, "exec.out.log"),
+		errLog:        filepath.Join(runArtifacts.JobsDir, "exec.err.log"),
+	}}
+
+	result := buildExecutionResult(cfg, jobs, nil, errors.New("await UI failed"))
+
+	if result.Status != runStatusSucceeded {
+		t.Fatalf("unexpected result status: %q", result.Status)
+	}
+	if result.Error != "" {
+		t.Fatalf("expected no primary error, got %q", result.Error)
+	}
+	if result.TeardownError != "await UI failed" {
+		t.Fatalf("unexpected teardown error: %q", result.TeardownError)
+	}
+}
