@@ -342,34 +342,34 @@ func TestRenderTimelinePanelDynamicHeaderGoldenWidth80(t *testing.T) {
 	})
 
 	got := normalizedStrippedPanelText(m.renderTimelinePanel(&m.jobs[0], 80))
-	want := `
-┌──────────────────────────────────────────────────────────────────────────────┐
-│ ACP AGENT LAYER  [backend]                                                   │
-│ 3 entries · selected 3/3                                 Claude · sonnet-4.5 │
-│                                                                              │
-│   Assistant                                                                  │
-│    hello from ACP                                                            │
-│                                                                              │
-│   ✓ read_file                                                                │
-│                                                                              │
-│ ▌ Assistant                                                                  │
-│    task complete                                                             │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-│                                                                              │
-└──────────────────────────────────────────────────────────────────────────────┘`
-	if got != strings.TrimSpace(want) {
-		t.Fatalf("unexpected width-80 timeline panel\nwant:\n%s\n\ngot:\n%s", strings.TrimSpace(want), got)
+	want := strings.Join([]string{
+		"┌──────────────────────────────────────────────────────────────────────────────┐",
+		"│ ACP AGENT LAYER  [backend]                                                   │",
+		"│ 3 entries · selected 3/3                                 Claude · sonnet-4.5 │",
+		"│                                                                              │",
+		"│   Assistant                                                                  │",
+		"│    hello from ACP                                                            │",
+		"│                                                                              │",
+		"│   ✓ read_file                                                                │",
+		"│                                                                              │",
+		"│ ▌ Assistant                                                                  │",
+		"│    task complete                                                             │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"│                                                                              │",
+		"└──────────────────────────────────────────────────────────────────────────────┘",
+	}, "\n")
+	if got != want {
+		t.Fatalf("unexpected width-80 timeline panel\nwant:\n%s\n\ngot:\n%s", want, got)
 	}
 }
 
@@ -384,6 +384,28 @@ func TestRenderTimelinePanelMinWidthPreservesRuntimeLabel(t *testing.T) {
 
 	if !strings.Contains(panel, "Claude · sonnet-4.5") {
 		t.Fatalf("expected runtime label to remain visible at min width, got %q", panel)
+	}
+}
+
+func TestRenderTimelinePanelTaskTitleConsumesTranscriptViewportRow(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.jobs[0].taskTitle = ""
+	m.renderTimelinePanel(&m.jobs[0], 80)
+	withoutTitle := m.transcriptViewport.Height()
+
+	m.jobs[0].taskTitle = "acp agent layer"
+	m.renderTimelinePanel(&m.jobs[0], 80)
+	withTitle := m.transcriptViewport.Height()
+
+	if want := withoutTitle - 1; withTitle != want {
+		t.Fatalf(
+			"expected task-title timeline spacer to reduce transcript height from %d to %d, got %d",
+			withoutTitle,
+			want,
+			withTitle,
+		)
 	}
 }
 

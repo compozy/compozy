@@ -6,6 +6,9 @@ type commandExitError struct {
 }
 
 func (e *commandExitError) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
 	return e.err.Error()
 }
 

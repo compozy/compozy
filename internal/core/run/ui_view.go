@@ -474,7 +474,11 @@ func (m *uiModel) renderMainPanels() string {
 func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	contentWidth := panelContentWidth(panelWidth)
 	m.transcriptViewport.SetWidth(contentWidth)
-	m.transcriptViewport.SetHeight(max(m.contentHeight-4, logViewportMinHeight))
+	transcriptHeight := max(m.contentHeight-4, logViewportMinHeight)
+	if job != nil && strings.TrimSpace(job.taskTitle) != "" {
+		transcriptHeight = max(transcriptHeight-1, logViewportMinHeight)
+	}
+	m.transcriptViewport.SetHeight(transcriptHeight)
 	rendered := m.buildTimelineContent(job, contentWidth)
 	m.transcriptViewport.SetContent(rendered.content)
 	m.restoreTranscriptViewport(job, rendered.offsets)

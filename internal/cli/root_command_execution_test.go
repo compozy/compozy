@@ -29,7 +29,7 @@ func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 		"V1->V2 migrated: 1",
 		"Unmapped type files: 1",
 		"Fix prompt:",
-		"type \"\" must be one of:",
+		"type value is unmapped; must be one of:",
 	) {
 		t.Fatalf("unexpected migrate output:\n%s", output)
 	}

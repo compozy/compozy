@@ -152,6 +152,64 @@ func TestWriteValidateTasksJSONAndHelpers(t *testing.T) {
 	}
 }
 
+func TestValidateTasksCommandTrimsFormatBeforeSelectingJSONWriter(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "type: backend", "complexity: low"},
+		"# Task 1: Missing Title",
+	))
+
+	stdout, stderr, exitCode := runValidateTasksCommand(
+		t,
+		workspaceRoot,
+		"validate-tasks",
+		"--tasks-dir",
+		tasksDir,
+		"--format",
+		" json ",
+	)
+	if exitCode != 1 {
+		t.Fatalf("expected exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+
+	var payload validateTasksOutput
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf(
+			"expected trimmed json format to produce json output: %v\nstdout:\n%s\nstderr:\n%s",
+			err,
+			stdout,
+			stderr,
+		)
+	}
+}
+
+func TestValidateTasksCommandResolvesRelativeTasksDirFromWorkspaceRoot(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "title: Valid One", "type: backend", "complexity: low"},
+		"# Task 1: Valid One",
+	))
+
+	nested := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+
+	stdout, stderr, exitCode := runValidateTasksCommand(
+		t,
+		nested,
+		"validate-tasks",
+		"--tasks-dir",
+		filepath.Join(".compozy", "tasks", "demo"),
+	)
+	if exitCode != 0 {
+		t.Fatalf("expected exit code 0, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "all tasks valid") {
+		t.Fatalf("expected success output, got %q", stdout)
+	}
+}
+
 func TestResolveTaskWorkflowDir(t *testing.T) {
 	t.Parallel()
 

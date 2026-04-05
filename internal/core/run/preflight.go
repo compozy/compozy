@@ -8,14 +8,10 @@ import (
 	"os"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/compozy/compozy/internal/core/tasks"
 
 	tea "charm.land/bubbletea/v2"
-)
-
-var (
-	validationFormInput  io.Reader = os.Stdin
-	validationFormOutput io.Writer = os.Stdout
 )
 
 type PreflightDecision string
@@ -35,6 +31,9 @@ type PreflightConfig struct {
 	Force          bool
 	SkipValidation bool
 	Stderr         io.Writer
+	FormInput      io.Reader
+	FormOutput     io.Writer
+	ClipboardWrite func(string) error
 	Logger         *slog.Logger
 	ValidationFn   func(context.Context, string, *tasks.TypeRegistry) (tasks.Report, error)
 	ValidationForm func(tasks.Report, *tasks.TypeRegistry, io.Writer) (PreflightDecision, error)
@@ -66,10 +65,6 @@ func PreflightCheckConfig(ctx context.Context, cfg PreflightConfig) (PreflightDe
 		validate = tasks.Validate
 	}
 	form := cfg.ValidationForm
-	if form == nil {
-		form = runValidationForm
-	}
-
 	report, err := validate(ctx, cfg.TasksDir, cfg.Registry)
 	if err != nil {
 		return "", fmt.Errorf("run task metadata validation: %w", err)
@@ -83,7 +78,19 @@ func PreflightCheckConfig(ctx context.Context, cfg PreflightConfig) (PreflightDe
 		return PreflightForced, nil
 	}
 	if isInteractive(cfg.IsInteractive) {
-		decision, err := form(report, cfg.Registry, resolvePreflightStderr(cfg.Stderr))
+		var decision PreflightDecision
+		if form == nil {
+			decision, err = runValidationFormWithIO(
+				report,
+				cfg.Registry,
+				resolvePreflightStderr(cfg.Stderr),
+				cfg.FormInput,
+				cfg.FormOutput,
+				cfg.ClipboardWrite,
+			)
+		} else {
+			decision, err = form(report, cfg.Registry, resolvePreflightStderr(cfg.Stderr))
+		}
 		if err != nil {
 			return "", err
 		}
@@ -97,12 +104,19 @@ func PreflightCheckConfig(ctx context.Context, cfg PreflightConfig) (PreflightDe
 	return PreflightAborted, nil
 }
 
-func runValidationForm(report tasks.Report, registry *tasks.TypeRegistry, stderr io.Writer) (PreflightDecision, error) {
-	model := newValidationFormModel(report, registry, stderr)
+func runValidationFormWithIO(
+	report tasks.Report,
+	registry *tasks.TypeRegistry,
+	stderr io.Writer,
+	input io.Reader,
+	output io.Writer,
+	clipboardWrite func(string) error,
+) (PreflightDecision, error) {
+	model := newValidationFormModel(report, registry, stderr, clipboardWrite)
 	program := tea.NewProgram(
 		model,
-		tea.WithInput(validationFormInput),
-		tea.WithOutput(validationFormOutput),
+		tea.WithInput(resolveValidationFormInput(input)),
+		tea.WithOutput(resolveValidationFormOutput(output)),
 		tea.WithoutSignalHandler(),
 	)
 	result, err := program.Run()
@@ -114,10 +128,62 @@ func runValidationForm(report tasks.Report, registry *tasks.TypeRegistry, stderr
 	if !ok {
 		return "", fmt.Errorf("unexpected validation form result type %T", result)
 	}
+	if typed.shouldCopyFixPrompt {
+		if err := typed.copyFixPrompt(); err != nil {
+			return "", err
+		}
+	}
 	if typed.decision == "" {
 		return PreflightAborted, nil
 	}
 	return typed.decision, nil
+}
+
+func resolveValidationFormInput(input io.Reader) io.Reader {
+	if input != nil {
+		return input
+	}
+	return os.Stdin
+}
+
+func resolveValidationFormOutput(output io.Writer) io.Writer {
+	if output != nil {
+		return output
+	}
+	return os.Stdout
+}
+
+func (m *validationFormModel) copyFixPrompt() error {
+	if strings.TrimSpace(m.fixPrompt) == "" {
+		return nil
+	}
+
+	clipboardWriter := m.clipboardWrite
+	if clipboardWriter == nil {
+		clipboardWriter = clipboard.WriteAll
+	}
+	err := clipboardWriter(m.fixPrompt)
+	if err == nil {
+		if m.stderr == nil {
+			return nil
+		}
+		if _, writeErr := fmt.Fprintln(m.stderr, "Fix prompt copied to clipboard."); writeErr != nil {
+			return fmt.Errorf("write clipboard confirmation: %w", writeErr)
+		}
+		return nil
+	} else if m.stderr != nil {
+		if _, writeErr := fmt.Fprintf(
+			m.stderr,
+			"Unable to copy fix prompt to clipboard: %v\n\nFix prompt:\n%s\n",
+			err,
+			m.fixPrompt,
+		); writeErr != nil {
+			return fmt.Errorf("write validation fix prompt fallback: %w", writeErr)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("copy validation fix prompt to clipboard: %w", err)
 }
 
 func writePreflightFailure(stderr io.Writer, report tasks.Report, registry *tasks.TypeRegistry) error {

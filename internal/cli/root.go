@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
@@ -376,7 +373,7 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 }
 
 func (s *commandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
@@ -398,7 +395,7 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
@@ -431,7 +428,7 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.loadWorkspaceRoot(ctx); err != nil {
@@ -491,7 +488,7 @@ func migrationFixPrompt(result *core.MigrationResult, registry *tasks.TypeRegist
 		report.Issues = append(report.Issues, tasks.Issue{
 			Path:    path,
 			Field:   "type",
-			Message: fmt.Sprintf(`type %q must be one of: %s`, "", strings.Join(registry.Values(), ", ")),
+			Message: fmt.Sprintf(`type value is unmapped; must be one of: %s`, strings.Join(registry.Values(), ", ")),
 		})
 	}
 	return tasks.FixPrompt(report, registry)
@@ -508,7 +505,7 @@ func migrationTasksDir(result *core.MigrationResult) string {
 }
 
 func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.loadWorkspaceRoot(ctx); err != nil {
@@ -539,7 +536,7 @@ func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *archiveCommandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.loadWorkspaceRoot(ctx); err != nil {

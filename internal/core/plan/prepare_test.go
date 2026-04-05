@@ -293,6 +293,40 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	}
 }
 
+func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
+	t.Parallel()
+
+	promptRoot := t.TempDir()
+	tasksDirFile := filepath.Join(t.TempDir(), "tasks.md")
+	if err := os.WriteFile(tasksDirFile, []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write tasks dir sentinel file: %v", err)
+	}
+
+	issuePath := filepath.Join(t.TempDir(), "task_01.md")
+	_, err := buildBatchJob(
+		&model.RuntimeConfig{
+			Name:     "demo",
+			TasksDir: tasksDirFile,
+			Mode:     model.ExecutionModePRDTasks,
+		},
+		promptRoot,
+		0,
+		[]model.IssueEntry{
+			{
+				Name:    "task_01.md",
+				AbsPath: issuePath,
+				Content: "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
+			},
+		},
+	)
+	if err == nil {
+		t.Fatal("expected buildBatchJob to fail when workflow memory cannot be prepared")
+	}
+	if !strings.Contains(err.Error(), "prepare memory for "+issuePath) {
+		t.Fatalf("expected wrapped task path in memory preparation error, got %v", err)
+	}
+}
+
 func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 	t.Parallel()
 

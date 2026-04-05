@@ -142,7 +142,7 @@ func buildBatchJob(
 		}
 		memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
 		if err != nil {
-			return model.Job{}, err
+			return model.Job{}, fmt.Errorf("prepare memory for %s: %w", batchIssues[0].AbsPath, err)
 		}
 		params.Memory = &prompt.WorkflowMemoryContext{
 			Directory:               memoryCtx.Directory,

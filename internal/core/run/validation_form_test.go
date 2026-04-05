@@ -2,6 +2,7 @@ package run
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -13,7 +14,7 @@ import (
 func TestValidationFormContinueKeyQuitsWithContinuedDecision(t *testing.T) {
 	t.Parallel()
 
-	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{})
+	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{}, nil)
 
 	next, cmd := model.Update(keyText("c"))
 	if cmd == nil {
@@ -44,7 +45,7 @@ func TestValidationFormAbortKeysQuitWithAbortedDecision(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{})
+			model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{}, nil)
 			next, cmd := model.Update(tc.key)
 			if cmd == nil {
 				t.Fatal("expected abort key to return quit command")
@@ -61,11 +62,11 @@ func TestValidationFormAbortKeysQuitWithAbortedDecision(t *testing.T) {
 	}
 }
 
-func TestValidationFormCopyPromptWritesToStderrAndQuits(t *testing.T) {
+func TestValidationFormCopyPromptDefersClipboardWriteUntilProgramExit(t *testing.T) {
 	t.Parallel()
 
 	var stderr bytes.Buffer
-	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &stderr)
+	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &stderr, nil)
 
 	next, cmd := model.Update(keyText("p"))
 	if cmd == nil {
@@ -77,17 +78,20 @@ func TestValidationFormCopyPromptWritesToStderrAndQuits(t *testing.T) {
 
 	typed := next.(*validationFormModel)
 	if got := typed.decision; got != PreflightAborted {
-		t.Fatalf("expected copy action to abort after printing the prompt, got %q", got)
+		t.Fatalf("expected copy action to abort, got %q", got)
 	}
-	if got := stderr.String(); !strings.Contains(got, "Fix the Compozy task metadata files below.") {
-		t.Fatalf("expected fix prompt on stderr, got %q", got)
+	if !typed.shouldCopyFixPrompt {
+		t.Fatal("expected copy action to defer clipboard copy until the program exits")
+	}
+	if got := stderr.String(); got != "" {
+		t.Fatalf("expected no clipboard feedback during the live Bubble Tea update, got %q", got)
 	}
 }
 
 func TestValidationFormViewRendersOffendingFilesAndIssues(t *testing.T) {
 	t.Parallel()
 
-	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{})
+	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{}, nil)
 	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 
 	view := model.View().Content
@@ -106,10 +110,52 @@ func TestValidationFormViewRendersOffendingFilesAndIssues(t *testing.T) {
 	}
 }
 
+func TestValidationFormBodyOwnsSurfaceBackground(t *testing.T) {
+	t.Parallel()
+
+	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{}, nil)
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	assertRenderedCellsUseBackground(t, model.renderBody(model.contentWidth()), colorBgSurface)
+}
+
+func TestValidationFormScrollKeysMoveIssueViewport(t *testing.T) {
+	t.Parallel()
+
+	model := newValidationFormModel(testScrollableValidationReport(12), testValidationRegistry(t), &bytes.Buffer{}, nil)
+	model.Update(tea.WindowSizeMsg{Width: 80, Height: 18})
+	if model.issueViewport.TotalLineCount() <= model.issueViewport.Height() {
+		t.Fatalf(
+			"expected long validation report to exceed viewport height, got total=%d height=%d",
+			model.issueViewport.TotalLineCount(),
+			model.issueViewport.Height(),
+		)
+	}
+
+	next, _ := model.Update(keyText("end"))
+	typed := next.(*validationFormModel)
+	if got := typed.issueViewport.YOffset(); got == 0 {
+		t.Fatal("expected end key to move the issue viewport")
+	}
+	view := typed.View().Content
+	if !strings.Contains(view, "/tmp/tasks/task_12.md") {
+		t.Fatalf("expected scrolled view to include the final issue, got:\n%s", view)
+	}
+	if strings.Contains(view, "/tmp/tasks/task_01.md") {
+		t.Fatalf("expected scrolled view to move past the first issue, got:\n%s", view)
+	}
+
+	next, _ = typed.Update(keyText("home"))
+	typed = next.(*validationFormModel)
+	if got := typed.issueViewport.YOffset(); got != 0 {
+		t.Fatalf("expected home key to restore the viewport to the top, got offset %d", got)
+	}
+}
+
 func TestValidationFormInitAndHelpers(t *testing.T) {
 	t.Parallel()
 
-	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), nil)
+	model := newValidationFormModel(testValidationReport(), testValidationRegistry(t), nil, nil)
 	if cmd := model.Init(); cmd != nil {
 		t.Fatalf("expected nil init command, got %v", cmd)
 	}
@@ -124,8 +170,9 @@ func TestValidationFormInitAndHelpers(t *testing.T) {
 		t.Fatalf("expected unclamped value, got %d", got)
 	}
 
-	if err := model.writeFixPrompt(); err != nil {
-		t.Fatalf("expected nil writer to be ignored, got %v", err)
+	model.fixPrompt = ""
+	if err := model.copyFixPrompt(); err != nil {
+		t.Fatalf("expected empty clipboard copy to be ignored, got %v", err)
 	}
 }
 
@@ -155,5 +202,21 @@ func testValidationReport() tasks.Report {
 				Message: `type "" must be one of: backend, bugfix, chore, docs, frontend, infra, refactor, test`,
 			},
 		},
+	}
+}
+
+func testScrollableValidationReport(total int) tasks.Report {
+	issues := make([]tasks.Issue, 0, total)
+	for i := 1; i <= total; i++ {
+		issues = append(issues, tasks.Issue{
+			Path:    fmt.Sprintf("/tmp/tasks/task_%02d.md", i),
+			Field:   "title",
+			Message: fmt.Sprintf("title %d is required", i),
+		})
+	}
+	return tasks.Report{
+		TasksDir: "/tmp/tasks",
+		Scanned:  total,
+		Issues:   issues,
 	}
 }

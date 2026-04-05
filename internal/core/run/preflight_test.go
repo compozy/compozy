@@ -3,6 +3,7 @@ package run
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -183,22 +184,83 @@ func TestPreflightCheckWrapperUsesActualValidator(t *testing.T) {
 func TestRunValidationFormUsesInjectedInputAndOutput(t *testing.T) {
 	t.Parallel()
 
-	originalInput := validationFormInput
-	originalOutput := validationFormOutput
-	t.Cleanup(func() {
-		validationFormInput = originalInput
-		validationFormOutput = originalOutput
-	})
-
-	validationFormInput = strings.NewReader("c")
-	validationFormOutput = &bytes.Buffer{}
-
-	decision, err := runValidationForm(testValidationReport(), testValidationRegistry(t), &bytes.Buffer{})
+	decision, err := runValidationFormWithIO(
+		testValidationReport(),
+		testValidationRegistry(t),
+		&bytes.Buffer{},
+		strings.NewReader("c"),
+		&bytes.Buffer{},
+		nil,
+	)
 	if err != nil {
 		t.Fatalf("run validation form: %v", err)
 	}
 	if got := decision; got != PreflightContinued {
 		t.Fatalf("expected continued decision, got %q", got)
+	}
+}
+
+func TestRunValidationFormCopyPromptCopiesToClipboardAfterExit(t *testing.T) {
+	t.Parallel()
+
+	var copied string
+	var stderr bytes.Buffer
+	decision, err := runValidationFormWithIO(
+		testValidationReport(),
+		testValidationRegistry(t),
+		&stderr,
+		strings.NewReader("p"),
+		&bytes.Buffer{},
+		func(text string) error {
+			copied = text
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("run validation form copy prompt: %v", err)
+	}
+	if got := decision; got != PreflightAborted {
+		t.Fatalf("expected aborted decision after copy prompt, got %q", got)
+	}
+	if !strings.Contains(copied, "Fix the Compozy task metadata files below.") {
+		t.Fatalf("expected fix prompt copied to clipboard, got %q", copied)
+	}
+	if got := stderr.String(); !strings.Contains(got, "Fix prompt copied to clipboard.") {
+		t.Fatalf("expected clipboard confirmation on stderr, got %q", got)
+	}
+	if strings.Contains(stderr.String(), "Fix the Compozy task metadata files below.") {
+		t.Fatalf("expected clipboard success path not to dump prompt text to stderr, got %q", stderr.String())
+	}
+}
+
+func TestRunValidationFormCopyPromptFallsBackToStderrWhenClipboardFails(t *testing.T) {
+	t.Parallel()
+
+	var stderr bytes.Buffer
+	decision, err := runValidationFormWithIO(
+		testValidationReport(),
+		testValidationRegistry(t),
+		&stderr,
+		strings.NewReader("p"),
+		&bytes.Buffer{},
+		func(string) error {
+			return fmt.Errorf("clipboard unavailable")
+		},
+	)
+	if err != nil {
+		t.Fatalf("run validation form copy prompt fallback: %v", err)
+	}
+	if got := decision; got != PreflightAborted {
+		t.Fatalf("expected aborted decision after copy prompt fallback, got %q", got)
+	}
+	for _, want := range []string{
+		"Unable to copy fix prompt to clipboard: clipboard unavailable",
+		"Fix prompt:",
+		"Fix the Compozy task metadata files below.",
+	} {
+		if !strings.Contains(stderr.String(), want) {
+			t.Fatalf("expected stderr fallback to contain %q, got %q", want, stderr.String())
+		}
 	}
 }
 

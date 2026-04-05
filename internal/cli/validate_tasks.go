@@ -1,16 +1,12 @@
 package cli
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/tasks"
@@ -64,7 +60,7 @@ Validation failures return exit code 1. Filesystem, config, or flag errors retur
 }
 
 func (s *validateTasksCommandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	workspaceCtx, err := resolveWorkspaceContext(ctx)
@@ -108,7 +104,8 @@ func (s *validateTasksCommandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *validateTasksCommandState) validateFormat() error {
-	switch strings.TrimSpace(s.format) {
+	s.format = strings.TrimSpace(s.format)
+	switch s.format {
 	case validateTasksFormatText, validateTasksFormatJSON:
 		return nil
 	default:
@@ -216,6 +213,9 @@ func resolveTaskWorkflowDir(workspaceRoot, name, tasksDir string) (string, error
 	}
 	if resolvedTasksDir == "" {
 		resolvedTasksDir = model.TaskDirectoryForWorkspace(workspaceRoot, resolvedName)
+	}
+	if !filepath.IsAbs(resolvedTasksDir) {
+		resolvedTasksDir = filepath.Join(workspaceRoot, resolvedTasksDir)
 	}
 	absPath, err := filepath.Abs(resolvedTasksDir)
 	if err != nil {
