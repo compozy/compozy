@@ -230,33 +230,34 @@ npms:
     homepage: "https://compozy.com"
 
 # Arch User Repository (AUR) configuration
-aurs:
-  - name: compozy-bin
-    homepage: "https://github.com/compozy/compozy"
-    description: "Compozy CLI"
-    maintainers:
-      - "Compozy Team <support@compozy.com>"
-    license: "MIT"
-    private_key: '{{ .Env.AUR_KEY }}'
-    git_url: 'ssh://aur@aur.archlinux.org/compozy-bin.git'
-    provides:
-      - compozy
-    conflicts:
-      - compozy
-      - compozy-git
-    package: |-
-      # Binaries
-      # GoReleaser wraps files in a directory named after the archive
-      cd "${srcdir}/${pkgname%-bin}_${pkgver}_linux_"*
-      install -Dm755 "${pkgname%-bin}" "${pkgdir}/usr/bin/${pkgname%-bin}"
-
-      # License
-      install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
-
-      # README
-      install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
-    commit_author:
-      name: goreleaserbot
-      email: bot@goreleaser.com
-    commit_msg_template: "AUR package update for {{ .ProjectName }} version {{ .Tag }}"
-
+# Temporarily disabled until the AUR package exists and `AUR_KEY` is configured.
+# Uncomment this block to re-enable AUR publishing.
+# aurs:
+#   - name: compozy-bin
+#     homepage: "https://github.com/compozy/compozy"
+#     description: "Compozy CLI"
+#     maintainers:
+#       - "Compozy Team <support@compozy.com>"
+#     license: "MIT"
+#     private_key: '{{ .Env.AUR_KEY }}'
+#     git_url: 'ssh://aur@aur.archlinux.org/compozy-bin.git'
+#     provides:
+#       - compozy
+#     conflicts:
+#       - compozy
+#       - compozy-git
+#     package: |-
+#       # Binaries
+#       # GoReleaser wraps files in a directory named after the archive
+#       cd "${srcdir}/${pkgname%-bin}_${pkgver}_linux_"*
+#       install -Dm755 "${pkgname%-bin}" "${pkgdir}/usr/bin/${pkgname%-bin}"
+#
+#       # License
+#       install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+#
+#       # README
+#       install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+#     commit_author:
+#       name: goreleaserbot
+#       email: bot@goreleaser.com
+#     commit_msg_template: "AUR package update for {{ .ProjectName }} version {{ .Tag }}"

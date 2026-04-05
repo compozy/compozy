@@ -207,7 +207,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          AUR_KEY: ${{ secrets.AUR_KEY }}
+          # Re-enable after uncommenting the AUR block in `.goreleaser.yml`.
+          # AUR_KEY: ${{ secrets.AUR_KEY }}
           COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
