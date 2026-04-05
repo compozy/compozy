@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
+	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
@@ -44,6 +46,8 @@ type commandState struct {
 	batchSize              int
 	ide                    string
 	model                  string
+	force                  bool
+	skipValidation         bool
 	addDirs                []string
 	tailLines              int
 	reasoningEffort        string
@@ -173,6 +177,8 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (.compozy/tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
+	cmd.Flags().BoolVar(&state.skipValidation, "skip-validation", false, "Skip task metadata preflight validation")
+	cmd.Flags().BoolVar(&state.force, "force", false, "Continue past task metadata validation failures")
 	return cmd
 }
 
@@ -622,10 +628,48 @@ func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg 
 	if err := s.preflightBundledSkills(cmd, cfg); err != nil {
 		return err
 	}
+	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
+		return err
+	}
 
 	runWorkflow := s.runWorkflow
 	if runWorkflow == nil {
 		runWorkflow = core.Run
 	}
 	return runWorkflow(ctx, cfg)
+}
+
+func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
+	if s.kind != commandKindStart || cfg.Mode != core.ModePRDTasks {
+		return nil
+	}
+
+	preflightCfg := coreRun.PreflightConfig{
+		Force:          s.force,
+		SkipValidation: s.skipValidation,
+		IsInteractive:  s.isInteractive,
+		Stderr:         cmd.ErrOrStderr(),
+		Logger:         slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
+	}
+	if !s.skipValidation {
+		registry, err := taskTypeRegistryFromConfig(s.projectConfig)
+		if err != nil {
+			return fmt.Errorf("resolve task type registry: %w", err)
+		}
+		resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, cfg.Name, cfg.TasksDir)
+		if err != nil {
+			return err
+		}
+		preflightCfg.TasksDir = resolvedTasksDir
+		preflightCfg.Registry = registry
+	}
+
+	decision, err := coreRun.PreflightCheckConfig(ctx, preflightCfg)
+	if err != nil {
+		return err
+	}
+	if decision == coreRun.PreflightAborted {
+		return withExitCode(1, fmt.Errorf("task validation failed"))
+	}
+	return nil
 }

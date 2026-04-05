@@ -122,19 +122,7 @@ func (s *validateTasksCommandState) validateFormat() error {
 }
 
 func (s *validateTasksCommandState) resolveTasksDir() (string, error) {
-	resolvedName := strings.TrimSpace(s.name)
-	resolvedTasksDir := strings.TrimSpace(s.tasksDir)
-	if resolvedName == "" && resolvedTasksDir == "" {
-		return "", errors.New("validate-tasks requires either --name or --tasks-dir")
-	}
-	if resolvedTasksDir == "" {
-		resolvedTasksDir = model.TaskDirectoryForWorkspace(s.workspaceRoot, resolvedName)
-	}
-	absPath, err := filepath.Abs(resolvedTasksDir)
-	if err != nil {
-		return "", fmt.Errorf("resolve tasks dir: %w", err)
-	}
-	return absPath, nil
+	return resolveTaskWorkflowDir(s.workspaceRoot, s.name, s.tasksDir)
 }
 
 func taskTypeRegistryFromConfig(cfg workspace.ProjectConfig) (*tasks.TypeRegistry, error) {
@@ -218,4 +206,20 @@ func distinctIssuePaths(issues []tasks.Issue) int {
 		paths[issue.Path] = struct{}{}
 	}
 	return len(paths)
+}
+
+func resolveTaskWorkflowDir(workspaceRoot, name, tasksDir string) (string, error) {
+	resolvedName := strings.TrimSpace(name)
+	resolvedTasksDir := strings.TrimSpace(tasksDir)
+	if resolvedName == "" && resolvedTasksDir == "" {
+		return "", errors.New("missing required flags: either --name or --tasks-dir must be provided")
+	}
+	if resolvedTasksDir == "" {
+		resolvedTasksDir = model.TaskDirectoryForWorkspace(workspaceRoot, resolvedName)
+	}
+	absPath, err := filepath.Abs(resolvedTasksDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve tasks dir: %w", err)
+	}
+	return absPath, nil
 }

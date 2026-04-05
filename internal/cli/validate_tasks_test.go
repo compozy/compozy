@@ -110,6 +110,67 @@ func TestValidateTasksCommandMissingDir(t *testing.T) {
 	}
 }
 
+func TestWriteValidateTasksJSONAndHelpers(t *testing.T) {
+	t.Parallel()
+
+	registry, err := tasks.NewRegistry(nil)
+	if err != nil {
+		t.Fatalf("new registry: %v", err)
+	}
+	report := tasks.Report{
+		TasksDir: "/tmp/tasks",
+		Scanned:  1,
+		Issues: []tasks.Issue{
+			{
+				Path:    "/tmp/tasks/task_01.md",
+				Field:   "title",
+				Message: "title is required",
+			},
+		},
+	}
+
+	var out bytes.Buffer
+	if err := writeValidateTasksJSON(&out, report, registry); err != nil {
+		t.Fatalf("write validate tasks json: %v", err)
+	}
+
+	var payload validateTasksOutput
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("decode validate tasks json: %v", err)
+	}
+	if payload.OK {
+		t.Fatal("expected invalid payload")
+	}
+	if payload.FixPrompt == "" {
+		t.Fatal("expected fix prompt in json payload")
+	}
+	if got := validateTasksMessage(tasks.Report{Scanned: 1}); got != "all tasks valid" {
+		t.Fatalf("unexpected ok message: %q", got)
+	}
+	if got := validateTasksMessage(tasks.Report{}); got != "no tasks found" {
+		t.Fatalf("unexpected no-tasks message: %q", got)
+	}
+}
+
+func TestResolveTaskWorkflowDir(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+
+	got, err := resolveTaskWorkflowDir(root, "demo", "")
+	if err != nil {
+		t.Fatalf("resolve task workflow dir from name: %v", err)
+	}
+	want := filepath.Join(root, ".compozy", "tasks", "demo")
+	if got != want {
+		t.Fatalf("unexpected resolved dir\nwant: %q\ngot:  %q", want, got)
+	}
+
+	if _, err := resolveTaskWorkflowDir(root, "", ""); err == nil {
+		t.Fatal("expected missing-input error")
+	}
+}
+
 func runValidateTasksCommand(t *testing.T, dir string, args ...string) (string, string, int) {
 	t.Helper()
 	return runCLICommand(t, dir, args...)
