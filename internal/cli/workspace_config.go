@@ -34,6 +34,7 @@ func (s *migrateCommandState) loadWorkspaceRoot(ctx context.Context) error {
 		return err
 	}
 	s.workspaceRoot = workspaceCtx.Root
+	s.projectConfig = workspaceCtx.Config
 	return nil
 }
 

@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
@@ -175,6 +178,7 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 
 type migrateCommandState struct {
 	workspaceRoot string
+	projectConfig workspace.ProjectConfig
 	rootDir       string
 	name          string
 	tasksDir      string
@@ -431,6 +435,7 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			"Dry run: %t\n" +
 			"Scanned: %d\n" +
 			"Migrated: %d\n" +
+			"V1->V2 migrated: %d\n" +
 			"Already frontmatter: %d\n" +
 			"Skipped: %d\n" +
 			"Invalid: %d\n"
@@ -441,12 +446,49 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			result.DryRun,
 			result.FilesScanned,
 			result.FilesMigrated,
+			result.V1ToV2Migrated,
 			result.FilesAlreadyFrontmatter,
 			result.FilesSkipped,
 			result.FilesInvalid,
 		)
+		if len(result.UnmappedTypeFiles) > 0 {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Unmapped type files: %d\n", len(result.UnmappedTypeFiles))
+			for _, path := range result.UnmappedTypeFiles {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "- %s\n", path)
+			}
+
+			registry, regErr := taskTypeRegistryFromConfig(s.projectConfig)
+			if regErr == nil {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nFix prompt:\n%s\n", migrationFixPrompt(result, registry))
+			}
+		}
 	}
 	return err
+}
+
+func migrationFixPrompt(result *core.MigrationResult, registry *tasks.TypeRegistry) string {
+	report := tasks.Report{
+		TasksDir: migrationTasksDir(result),
+		Issues:   make([]tasks.Issue, 0, len(result.UnmappedTypeFiles)),
+	}
+	for _, path := range result.UnmappedTypeFiles {
+		report.Issues = append(report.Issues, tasks.Issue{
+			Path:    path,
+			Field:   "type",
+			Message: fmt.Sprintf(`type %q must be one of: %s`, "", strings.Join(registry.Values(), ", ")),
+		})
+	}
+	return tasks.FixPrompt(report, registry)
+}
+
+func migrationTasksDir(result *core.MigrationResult) string {
+	if result == nil {
+		return ""
+	}
+	if len(result.UnmappedTypeFiles) == 0 {
+		return result.Target
+	}
+	return filepath.Dir(result.UnmappedTypeFiles[0])
 }
 
 func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {

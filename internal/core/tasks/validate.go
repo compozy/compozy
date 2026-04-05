@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -15,8 +14,6 @@ import (
 	"github.com/compozy/compozy/internal/core/prompt"
 	"gopkg.in/yaml.v3"
 )
-
-var taskTitlePrefixPattern = regexp.MustCompile(`^Task\s+\d+\s*(?::|-)\s*`)
 
 var validTaskStatuses = []string{"pending", "in_progress", "completed", "blocked"}
 
@@ -205,7 +202,7 @@ func validateTaskFile(
 	issues := make([]Issue, 0, 8)
 	if task.Title == "" {
 		issues = append(issues, Issue{Path: path, Field: "title", Message: "title is required"})
-	} else if bodyTitle := extractTaskBodyTitle(body); bodyTitle == "" || bodyTitle != task.Title {
+	} else if bodyTitle := ExtractTaskBodyTitle(body); bodyTitle == "" || bodyTitle != task.Title {
 		issues = append(issues, Issue{
 			Path:    path,
 			Field:   "title_h1_sync",
@@ -272,17 +269,4 @@ func missingDependencies(dependencies []string, existingTasks map[string]struct{
 		missing = append(missing, dependency)
 	}
 	return missing
-}
-
-func extractTaskBodyTitle(body string) string {
-	for _, line := range strings.Split(body, "\n") {
-		trimmed := strings.TrimSpace(line)
-		if !strings.HasPrefix(trimmed, "# ") {
-			continue
-		}
-		return strings.TrimSpace(
-			taskTitlePrefixPattern.ReplaceAllString(strings.TrimSpace(strings.TrimPrefix(trimmed, "# ")), ""),
-		)
-	}
-	return ""
 }

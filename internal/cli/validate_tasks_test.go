@@ -112,6 +112,11 @@ func TestValidateTasksCommandMissingDir(t *testing.T) {
 
 func runValidateTasksCommand(t *testing.T, dir string, args ...string) (string, string, int) {
 	t.Helper()
+	return runCLICommand(t, dir, args...)
+}
+
+func runCLICommand(t *testing.T, dir string, args ...string) (string, string, int) {
+	t.Helper()
 
 	cmd := exec.CommandContext(context.Background(), validateTasksBinary(t), args...)
 	cmd.Dir = dir

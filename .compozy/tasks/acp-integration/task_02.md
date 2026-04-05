@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: Execution
-type: Feature Implementation
-scope: Full
+title: Execution & Logging Pipeline Migration
+type: backend
 complexity: critical
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 2: Execution & Logging Pipeline Migration
