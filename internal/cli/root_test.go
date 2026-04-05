@@ -295,6 +295,8 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 		"--format",
 		"--dry-run",
 		"--ide",
+		".compozy/runs/<run-id>/",
+		"result.json",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -333,6 +335,66 @@ func TestExecHelpMatchesGolden(t *testing.T) {
 
 	if output != string(want) {
 		t.Fatalf("exec help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
+	}
+}
+
+func TestREADMEExecDocumentationMatchesCurrentContract(t *testing.T) {
+	t.Parallel()
+
+	readmePath := mustCLIRepoRootPath(t, "README.md")
+	body, err := os.ReadFile(readmePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", readmePath, err)
+	}
+
+	content := string(body)
+	required := []string{
+		"## ⚡ Ad Hoc Exec",
+		"compozy exec \"Summarize the current repository changes\"",
+		"compozy exec --prompt-file prompt.md",
+		"cat prompt.md | compozy exec --format json",
+		".compozy/runs/<run-id>/run.json",
+		".compozy/runs/<run-id>/jobs/exec.prompt.md",
+		".compozy/runs/<run-id>/result.json",
+		"flags > [exec] > [defaults] > built-in defaults",
+		"[exec]",
+		"`copilot`",
+		"`cursor-agent`",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(content, snippet) {
+			t.Fatalf("expected README to include %q", snippet)
+		}
+	}
+
+	forbidden := []string{
+		".tmp/codex-prompts",
+		"Agent: `claude`, `codex`, `cursor`, `droid`, `opencode`, `pi`",
+		"| `--tail-lines`               | `30`",
+	}
+	for _, snippet := range forbidden {
+		if strings.Contains(content, snippet) {
+			t.Fatalf("expected README to omit stale snippet %q", snippet)
+		}
+	}
+}
+
+func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{
+		mustCLIRepoRootPath(t, "README.md"),
+		mustCLITestDataPath(t, "exec_help.golden"),
+		mustCLITestDataPath(t, "start_help.golden"),
+	}
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if strings.Contains(string(body), ".tmp/codex-prompts") {
+			t.Fatalf("expected %s to omit legacy artifact root", path)
+		}
 	}
 }
 
@@ -1345,4 +1407,15 @@ func mustCLITestDataPath(t *testing.T, name string) string {
 		t.Fatal("resolve current test file path")
 	}
 	return filepath.Join(filepath.Dir(currentFile), "testdata", name)
+}
+
+func mustCLIRepoRootPath(t *testing.T, elems ...string) string {
+	t.Helper()
+
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve current test file path")
+	}
+	parts := append([]string{filepath.Dir(currentFile), "..", ".."}, elems...)
+	return filepath.Join(parts...)
 }

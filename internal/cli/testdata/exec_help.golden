@@ -1,7 +1,9 @@
 Execute a single ad hoc prompt using the shared Compozy planning and ACP execution pipeline.
 
-Provide the prompt as one positional argument, with --prompt-file, or via stdin. JSON mode emits
-stable machine-readable run results and suppresses the human-oriented runtime presentation.
+Provide the prompt as one positional argument, with --prompt-file, or via stdin. Every run writes
+artifacts under .compozy/runs/<run-id>/, including run.json plus prompt/log files in jobs/.
+JSON mode also writes result.json, emits the same machine-readable payload on stdout, and suppresses
+the human-oriented runtime presentation.
 
 Usage:
   compozy exec [prompt] [flags]

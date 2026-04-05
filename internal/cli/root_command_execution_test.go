@@ -108,6 +108,9 @@ func TestExecCommandExecuteDirectPromptWritesRunArtifacts(t *testing.T) {
 	if !containsAll(stdout, "Execution Summary:", "- Total Groups: 1", "- Failed: 0") {
 		t.Fatalf("unexpected exec stdout:\n%s", stdout)
 	}
+	if json.Valid([]byte(strings.TrimSpace(stdout))) {
+		t.Fatalf("expected text exec output, got JSON:\n%s", stdout)
+	}
 	if stderr != "" {
 		t.Fatalf("expected no stderr for dry-run exec, got %q", stderr)
 	}
@@ -140,11 +143,15 @@ func TestExecCommandExecutePromptFileJSONEmitsStructuredOutput(t *testing.T) {
 	}
 
 	var payload struct {
-		Status     string `json:"status"`
-		ResultPath string `json:"result_path"`
-		Jobs       []struct {
-			Status     string `json:"status"`
-			PromptPath string `json:"prompt_path"`
+		Status       string `json:"status"`
+		ArtifactsDir string `json:"artifacts_dir"`
+		RunMetaPath  string `json:"run_meta_path"`
+		ResultPath   string `json:"result_path"`
+		Jobs         []struct {
+			Status        string `json:"status"`
+			PromptPath    string `json:"prompt_path"`
+			StdoutLogPath string `json:"stdout_log_path"`
+			StderrLogPath string `json:"stderr_log_path"`
 		} `json:"jobs"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
@@ -152,6 +159,14 @@ func TestExecCommandExecutePromptFileJSONEmitsStructuredOutput(t *testing.T) {
 	}
 	if payload.Status != "succeeded" {
 		t.Fatalf("unexpected run status: %q", payload.Status)
+	}
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	resolvedRunDir := resolveCLIPath(t, runDir)
+	if resolveCLIPath(t, payload.ArtifactsDir) != resolvedRunDir {
+		t.Fatalf("expected artifacts dir %q, got %q", resolvedRunDir, payload.ArtifactsDir)
+	}
+	if resolveCLIPath(t, payload.RunMetaPath) != resolveCLIPath(t, filepath.Join(runDir, "run.json")) {
+		t.Fatalf("unexpected run meta path: %q", payload.RunMetaPath)
 	}
 	if len(payload.Jobs) != 1 || payload.Jobs[0].Status != "succeeded" {
 		t.Fatalf("unexpected job payload: %#v", payload.Jobs)
@@ -161,6 +176,14 @@ func TestExecCommandExecutePromptFileJSONEmitsStructuredOutput(t *testing.T) {
 	}
 	if _, statErr := os.Stat(payload.Jobs[0].PromptPath); statErr != nil {
 		t.Fatalf("expected prompt artifact to exist: %v", statErr)
+	}
+	for _, path := range []string{payload.RunMetaPath, payload.Jobs[0].StdoutLogPath, payload.Jobs[0].StderrLogPath} {
+		if _, statErr := os.Stat(path); statErr != nil {
+			t.Fatalf("expected exec artifact to exist at %s: %v", path, statErr)
+		}
+		if !strings.HasPrefix(resolveCLIPath(t, path), resolvedRunDir) {
+			t.Fatalf("expected artifact path %q to stay under %q", path, resolvedRunDir)
+		}
 	}
 
 	resultBytes, err := os.ReadFile(payload.ResultPath)
@@ -197,6 +220,9 @@ func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "Execution Summary:") {
 		t.Fatalf("expected text exec summary, got %q", stdout)
+	}
+	if json.Valid([]byte(strings.TrimSpace(stdout))) {
+		t.Fatalf("expected human-readable stdin exec output, got JSON:\n%s", stdout)
 	}
 	if stderr != "" {
 		t.Fatalf("expected no stderr for dry-run stdin exec, got %q", stderr)
@@ -291,6 +317,20 @@ func executeRootCommandCapturingProcessIO(t *testing.T, in io.Reader, args ...st
 	}
 
 	return string(stdoutBytes), string(stderrBytes), runErr
+}
+
+func resolveCLIPath(t *testing.T, path string) string {
+	t.Helper()
+
+	resolved, err := filepath.EvalSymlinks(path)
+	if err == nil {
+		return resolved
+	}
+	if os.IsNotExist(err) {
+		return filepath.Clean(path)
+	}
+	t.Fatalf("resolve path %s: %v", path, err)
+	return ""
 }
 
 func containsAll(s string, fragments ...string) bool {

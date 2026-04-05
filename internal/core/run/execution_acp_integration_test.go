@@ -265,6 +265,15 @@ func TestExecuteACPJSONModeWritesStructuredFailureResult(t *testing.T) {
 	if payload.Error == "" || !strings.Contains(payload.Error, "json failure") {
 		t.Fatalf("unexpected run error: %q", payload.Error)
 	}
+	if payload.ArtifactsDir != runArtifacts.RunDir {
+		t.Fatalf("unexpected artifacts dir: %q", payload.ArtifactsDir)
+	}
+	if payload.RunMetaPath != runArtifacts.RunMetaPath {
+		t.Fatalf("unexpected run meta path: %q", payload.RunMetaPath)
+	}
+	if payload.ResultPath != runArtifacts.ResultPath {
+		t.Fatalf("unexpected result path: %q", payload.ResultPath)
+	}
 	if len(payload.Jobs) != 1 || payload.Jobs[0].Status != runStatusFailed {
 		t.Fatalf("unexpected job payload: %#v", payload.Jobs)
 	}
@@ -273,6 +282,102 @@ func TestExecuteACPJSONModeWritesStructuredFailureResult(t *testing.T) {
 	}
 	if _, err := os.Stat(payload.Jobs[0].StderrLogPath); err != nil {
 		t.Fatalf("expected stderr log path to exist: %v", err)
+	}
+	if !strings.HasPrefix(payload.ResultPath, filepath.Join(tmpDir, ".compozy", "runs")) {
+		t.Fatalf("expected result path under shared runs dir, got %q", payload.ResultPath)
+	}
+}
+
+func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	installACPHelperOnPath(t, []runACPHelperScenario{{
+		ExpectedPromptContains: "finish the task",
+		Updates: []acp.SessionUpdate{
+			acp.UpdateAgentMessageText("json success"),
+		},
+	}})
+
+	runArtifacts := model.NewRunArtifacts(tmpDir, "exec-json-success")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	jobArtifacts := runArtifacts.JobArtifacts("exec")
+	for _, path := range []string{jobArtifacts.PromptPath, jobArtifacts.OutLogPath, jobArtifacts.ErrLogPath} {
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatalf("seed artifact %s: %v", path, err)
+		}
+	}
+
+	stdout, stderr, execErr := captureExecuteStreams(t, func() error {
+		return Execute(context.Background(), []model.Job{{
+			CodeFiles:     []string{"exec"},
+			Groups:        map[string][]model.IssueEntry{"exec": {{Name: "exec", CodeFile: "exec"}}},
+			SafeName:      "exec",
+			Prompt:        []byte("finish the task"),
+			SystemPrompt:  "workflow memory",
+			OutPromptPath: jobArtifacts.PromptPath,
+			OutLog:        jobArtifacts.OutLogPath,
+			ErrLog:        jobArtifacts.ErrLogPath,
+		}}, runArtifacts, &model.RuntimeConfig{
+			IDE:                    model.IDECodex,
+			Mode:                   model.ExecutionModeExec,
+			OutputFormat:           model.OutputFormatJSON,
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+		})
+	})
+	if execErr != nil {
+		t.Fatalf("expected JSON execution success: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected JSON mode to suppress human stderr, got %q", stderr)
+	}
+
+	var payload executionResult
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("decode stdout json: %v\nstdout:\n%s", err, stdout)
+	}
+	if payload.Status != runStatusSucceeded {
+		t.Fatalf("unexpected run status: %q", payload.Status)
+	}
+	if payload.OutputFormat != string(model.OutputFormatJSON) {
+		t.Fatalf("unexpected output format: %q", payload.OutputFormat)
+	}
+	if payload.ArtifactsDir != runArtifacts.RunDir {
+		t.Fatalf("unexpected artifacts dir: %q", payload.ArtifactsDir)
+	}
+	if payload.RunMetaPath != runArtifacts.RunMetaPath {
+		t.Fatalf("unexpected run meta path: %q", payload.RunMetaPath)
+	}
+	if payload.ResultPath != runArtifacts.ResultPath {
+		t.Fatalf("unexpected result path: %q", payload.ResultPath)
+	}
+	if len(payload.Jobs) != 1 || payload.Jobs[0].Status != runStatusSucceeded {
+		t.Fatalf("unexpected job payload: %#v", payload.Jobs)
+	}
+	if payload.Jobs[0].PromptPath != jobArtifacts.PromptPath {
+		t.Fatalf("unexpected prompt path: %q", payload.Jobs[0].PromptPath)
+	}
+	for _, path := range []string{
+		payload.ResultPath,
+		payload.Jobs[0].PromptPath,
+		payload.Jobs[0].StdoutLogPath,
+		payload.Jobs[0].StderrLogPath,
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected exec artifact to exist at %s: %v", path, err)
+		}
+		if !strings.HasPrefix(path, filepath.Join(tmpDir, ".compozy", "runs")) {
+			t.Fatalf("expected artifact path under shared runs dir, got %q", path)
+		}
+	}
+
+	resultBytes, err := os.ReadFile(payload.ResultPath)
+	if err != nil {
+		t.Fatalf("read result.json: %v", err)
+	}
+	if strings.TrimSpace(stdout) != strings.TrimSpace(string(resultBytes)) {
+		t.Fatalf("expected stdout JSON to match result.json\nstdout:\n%s\nresult:\n%s", stdout, string(resultBytes))
 	}
 }
 
