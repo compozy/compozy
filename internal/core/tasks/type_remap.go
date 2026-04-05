@@ -31,7 +31,13 @@ func RemapLegacyTaskType(raw string, registry *TypeRegistry) string {
 	}
 
 	if mapped, ok := legacyTypeRemap[normalized]; ok {
-		return mapped
+		if mapped == "" {
+			return ""
+		}
+		if registry != nil && registry.IsAllowed(mapped) {
+			return mapped
+		}
+		return ""
 	}
 
 	for _, candidate := range registry.Values() {

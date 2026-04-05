@@ -156,6 +156,9 @@ func TestMigrateV1ToV2RemapsTypesAndExtractsTitle(t *testing.T) {
 			if tt.wantEmptyType && !strings.Contains(migrated.content, "type: \"\"") {
 				t.Fatalf("expected explicit empty type in migrated output, got:\n%s", migrated.content)
 			}
+			if !strings.Contains(migrated.content, "dependencies: []") {
+				t.Fatalf("expected migrated output to preserve empty dependencies, got:\n%s", migrated.content)
+			}
 		})
 	}
 }
@@ -246,6 +249,9 @@ func TestMigrateConvertsLegacyArtifactsAndIgnoresLegacyGroupedDirectory(t *testi
 	}
 	if !strings.Contains(taskContent, "title: Demo") {
 		t.Fatalf("expected migrated task to include extracted title, got:\n%s", taskContent)
+	}
+	if !strings.Contains(taskContent, "dependencies: []") {
+		t.Fatalf("expected migrated task to preserve empty dependencies, got:\n%s", taskContent)
 	}
 	if !strings.Contains(taskContent, "type: \"\"") {
 		t.Fatalf("expected migrated task to record unmapped type explicitly, got:\n%s", taskContent)
@@ -460,6 +466,46 @@ func TestMigrateMixedDirectoryCountsV1ToV2AndTracksUnmappedTypes(t *testing.T) {
 	}
 	if got := readMigrationFile(t, legacyPath); !strings.Contains(got, "type: \"\"") {
 		t.Fatalf("expected legacy file to keep empty type for manual follow-up, got:\n%s", got)
+	}
+}
+
+func TestMigrateUsesConfiguredTaskRegistryForLegacyTypeRemap(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot, workflowDir := makeMigrationWorkspace(t, "demo")
+	writeMigrationFile(t, filepath.Join(workspaceRoot, ".compozy", "config.toml"), strings.TrimSpace(`
+[tasks]
+types = ["backend", "refactor"]
+`)+"\n")
+
+	taskPath := filepath.Join(workflowDir, "task_01.md")
+	writeMigrationFile(t, taskPath, taskMarkdown(
+		[]string{
+			"status: pending",
+			"domain: backend",
+			"type: Documentation",
+			"scope: full",
+			"complexity: low",
+			"dependencies: []",
+		},
+		"# Task 1: Docs Task",
+		"Body.",
+	))
+
+	result, err := Migrate(context.Background(), MigrationConfig{WorkspaceRoot: workspaceRoot, TasksDir: workflowDir})
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if !slices.Equal(result.UnmappedTypeFiles, []string{taskPath}) {
+		t.Fatalf("unexpected unmapped paths\nwant: %#v\ngot:  %#v", []string{taskPath}, result.UnmappedTypeFiles)
+	}
+
+	content := readMigrationFile(t, taskPath)
+	if !strings.Contains(content, "type: \"\"") {
+		t.Fatalf("expected disallowed remap to stay unmapped, got:\n%s", content)
+	}
+	if !strings.Contains(content, "dependencies: []") {
+		t.Fatalf("expected migrated file to preserve empty dependencies, got:\n%s", content)
 	}
 }
 

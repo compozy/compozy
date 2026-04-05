@@ -181,7 +181,7 @@ type TaskFileMeta struct {
 	Title        string   `yaml:"title"`
 	TaskType     string   `yaml:"type"`
 	Complexity   string   `yaml:"complexity,omitempty"`
-	Dependencies []string `yaml:"dependencies,omitempty"`
+	Dependencies []string `yaml:"dependencies"`
 }
 
 type ReviewFileMeta struct {
