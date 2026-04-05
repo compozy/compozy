@@ -66,6 +66,7 @@ var supportedRegistryIDEOrder = []string{
 	model.IDEOpenCode,
 	model.IDEPi,
 	model.IDEGemini,
+	model.IDECopilot,
 }
 
 var (
@@ -202,6 +203,26 @@ var (
 			},
 			DocsURL:     "https://geminicli.com",
 			InstallHint: "Install Gemini CLI with ACP support so `gemini --acp` succeeds.",
+			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
+				return nil
+			},
+		},
+		model.IDECopilot: {
+			ID:           model.IDECopilot,
+			DisplayName:  "Copilot CLI",
+			DefaultModel: model.DefaultCopilotModel,
+			Command:      "copilot",
+			FixedArgs:    []string{"--acp"},
+			ProbeArgs:    []string{"--acp", "--help"},
+			Fallbacks: []Launcher{
+				{
+					Command:   "npx",
+					FixedArgs: []string{"--yes", "@github/copilot", "--acp"},
+					ProbeArgs: []string{"--yes", "@github/copilot", "--acp", "--help"},
+				},
+			},
+			DocsURL:     "https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server",
+			InstallHint: "Install GitHub Copilot CLI so `copilot --acp` succeeds.",
 			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},

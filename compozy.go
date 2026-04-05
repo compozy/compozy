@@ -37,6 +37,10 @@ const (
 	IDEOpenCode = core.IDEOpenCode
 	// IDEPi runs Pi jobs.
 	IDEPi = core.IDEPi
+	// IDEGemini runs Gemini jobs.
+	IDEGemini = core.IDEGemini
+	// IDECopilot runs GitHub Copilot CLI jobs.
+	IDECopilot = core.IDECopilot
 )
 
 // Config configures compozy preparation and execution.

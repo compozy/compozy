@@ -43,6 +43,8 @@ const (
 	IDEPi IDE = model.IDEPi
 	// IDEGemini runs Gemini jobs.
 	IDEGemini IDE = model.IDEGemini
+	// IDECopilot runs GitHub Copilot CLI jobs.
+	IDECopilot IDE = model.IDECopilot
 )
 
 const (

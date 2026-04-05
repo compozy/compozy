@@ -317,14 +317,14 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.ide,
 		"ide",
 		string(core.IDECodex),
-		"ACP runtime to use: claude, codex, cursor-agent, droid, opencode, pi, or gemini "+
+		"ACP runtime to use: claude, codex, copilot, cursor-agent, droid, gemini, opencode, or pi "+
 			"(requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx)",
 	)
 	cmd.Flags().StringVar(
 		&state.model,
 		"model",
 		"",
-		"Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, "+
+		"Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, copilot=claude-sonnet-4.6, "+
 			"cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)",
 	)
 	cmd.Flags().StringSliceVar(
