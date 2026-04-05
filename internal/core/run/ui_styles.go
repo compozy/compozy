@@ -41,14 +41,16 @@ var techBorder = charmtheme.TechBorder
 
 // Pre-built styles reused across the UI.
 var (
-	styleSeparator  = lipgloss.NewStyle().Foreground(colorBorder)
-	styleTitle      = lipgloss.NewStyle().Bold(true).Foreground(colorBrand)
-	styleTitleMeta  = lipgloss.NewStyle().Foreground(colorMuted)
-	styleBodyText   = lipgloss.NewStyle().Foreground(colorFgBright)
-	styleMutedText  = lipgloss.NewStyle().Foreground(colorMuted)
-	styleDimText    = lipgloss.NewStyle().Foreground(colorDim)
-	stylePanelLabel = lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep)
-	styleKeycap     = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	styleSeparator     = lipgloss.NewStyle().Foreground(colorBorder)
+	styleTitle         = lipgloss.NewStyle().Bold(true).Foreground(colorBrand)
+	styleTitleMeta     = lipgloss.NewStyle().Foreground(colorMuted)
+	styleBodyText      = lipgloss.NewStyle().Foreground(colorFgBright)
+	styleMutedText     = lipgloss.NewStyle().Foreground(colorMuted)
+	styleDimText       = lipgloss.NewStyle().Foreground(colorDim)
+	stylePanelLabel    = lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep)
+	styleTimelineTitle = lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep)
+	styleTimelineBadge = lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
+	styleKeycap        = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
 )
 
 func rootScreenStyle(width, height int) lipgloss.Style {

@@ -38,6 +38,7 @@ type uiModel struct {
 	shutdown           shutdownState
 	failures           []failInfo
 	aggregateUsage     *model.Usage
+	cfg                *config
 }
 
 type uiController struct {
@@ -133,9 +134,10 @@ func (m *uiModel) tick() tea.Cmd {
 	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
-func newUIController(_ context.Context, total int) *uiController {
+func newUIController(_ context.Context, total int, cfg *config) *uiController {
 	uiCh := make(chan uiMsg, max(total*4, 4))
 	mdl := newUIModel(total)
+	mdl.cfg = cfg
 	mdl.setEventSource(uiCh)
 
 	ctrl := &uiController{
@@ -195,11 +197,11 @@ func (c *uiController) wait() error {
 	return err
 }
 
-func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) uiSession {
+func setupUI(ctx context.Context, jobs []job, cfg *config, enabled bool) uiSession {
 	if !enabled {
 		return nil
 	}
-	ctrl := newUIController(ctx, len(jobs))
+	ctrl := newUIController(ctx, len(jobs), cfg)
 	uiCh := ctrl.events()
 	for idx := range jobs {
 		jb := &jobs[idx]
@@ -216,6 +218,8 @@ func setupUI(ctx context.Context, jobs []job, _ *config, enabled bool) uiSession
 			CodeFile:  codeFileLabel,
 			CodeFiles: jb.codeFiles,
 			Issues:    totalIssues,
+			TaskTitle: jb.taskTitle,
+			TaskType:  jb.taskType,
 			SafeName:  jb.safeName,
 			OutLog:    jb.outLog,
 			ErrLog:    jb.errLog,

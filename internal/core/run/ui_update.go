@@ -401,6 +401,8 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		codeFile:             v.CodeFile,
 		codeFiles:            v.CodeFiles,
 		issues:               v.Issues,
+		taskTitle:            v.TaskTitle,
+		taskType:             v.TaskType,
 		safeName:             v.SafeName,
 		outLog:               v.OutLog,
 		errLog:               v.ErrLog,

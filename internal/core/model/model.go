@@ -206,6 +206,8 @@ type SolvePreparation struct {
 type Job struct {
 	CodeFiles     []string
 	Groups        map[string][]IssueEntry
+	TaskTitle     string
+	TaskType      string
 	SafeName      string
 	Prompt        []byte
 	SystemPrompt  string

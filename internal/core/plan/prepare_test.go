@@ -272,6 +272,12 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		if len(job.CodeFiles) != 1 {
 			t.Fatalf("expected single-file jobs in prd mode, got %#v", job.CodeFiles)
 		}
+		if job.TaskTitle == "" {
+			t.Fatalf("expected prd job to carry task title, got %#v", job)
+		}
+		if got, want := job.TaskType, "backend"; got != want {
+			t.Fatalf("expected prd job type %q, got %q", want, got)
+		}
 		if _, err := os.Stat(job.OutPromptPath); err != nil {
 			t.Fatalf("expected prompt artifact to be written: %v", err)
 		}

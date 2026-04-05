@@ -157,11 +157,472 @@ func TestRetryingJobRendersAttemptMetadata(t *testing.T) {
 		}
 	}
 
-	meta := m.timelineMeta(&m.jobs[0])
-	for _, want := range []string{"attempt 2/3", "retrying: temporary setup failure"} {
+	meta := m.timelineMetaForWidth(&m.jobs[0], 80)
+	for _, want := range []string{"attempt 2/3", "retrying:"} {
 		if !strings.Contains(meta, want) {
 			t.Fatalf("expected retry timeline meta to contain %q, got %q", want, meta)
 		}
+	}
+}
+
+func TestTimelineHeaderLabel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		job  *uiJob
+		want string
+	}{
+		{
+			name: "fallback without title",
+			job:  &uiJob{},
+			want: "session.timeline",
+		},
+		{
+			name: "title and badge",
+			job: &uiJob{
+				taskTitle: "acp agent layer",
+				taskType:  "backend",
+			},
+			want: "ACP AGENT LAYER  [backend]",
+		},
+		{
+			name: "title without badge",
+			job: &uiJob{
+				taskTitle: "acp agent layer",
+			},
+			want: "ACP AGENT LAYER",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := timelineHeaderLabel(tt.job); got != tt.want {
+				t.Fatalf("expected header %q, got %q", tt.want, got)
+			}
+		})
+	}
+}
+
+func TestTimelineMetaRightAlignsRuntimeLabel(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	meta := m.timelineMetaForWidth(&m.jobs[0], 48)
+
+	if !strings.Contains(meta, "selected 2/2") {
+		t.Fatalf("expected left-side counter in meta row, got %q", meta)
+	}
+	if !strings.HasSuffix(meta, "Claude · sonnet-4.5") {
+		t.Fatalf("expected right-aligned runtime label suffix, got %q", meta)
+	}
+	if got, want := lipgloss.Width(meta), 48; got != want {
+		t.Fatalf("expected meta row width %d, got %d in %q", want, got, meta)
+	}
+}
+
+func TestTimelineMetaUsesCurrentTimelineWidth(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	got := m.timelineMeta(&m.jobs[0])
+	wantWidth := panelContentWidth(m.timelineWidth)
+	if width := lipgloss.Width(got); width != wantWidth {
+		t.Fatalf("expected meta width %d from current timeline width, got %d", wantWidth, width)
+	}
+}
+
+func TestTimelineEntryMetaHandlesNilAndEmptySnapshots(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	if got := m.timelineEntryMeta(nil); got != "No ACP transcript yet" {
+		t.Fatalf("expected nil job fallback meta, got %q", got)
+	}
+
+	job := &uiJob{}
+	if got := m.timelineEntryMeta(job); got != "No ACP transcript yet" {
+		t.Fatalf("expected empty snapshot fallback meta, got %q", got)
+	}
+}
+
+func TestTimelineMetaTruncatesLeftSideFirst(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.handleJobRetry(jobRetryMsg{
+		Index:       0,
+		Attempt:     2,
+		MaxAttempts: 3,
+		Reason:      "temporary setup failure while loading a very large artifact",
+	})
+
+	meta := m.timelineMetaForWidth(&m.jobs[0], 32)
+
+	if !strings.HasSuffix(meta, "Claude · sonnet-4.5") {
+		t.Fatalf("expected runtime label to remain intact, got %q", meta)
+	}
+	if !strings.Contains(meta, "…") {
+		t.Fatalf("expected left side to truncate first, got %q", meta)
+	}
+}
+
+func TestTimelineRuntimeMetaFallbacks(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	if got := m.timelineRuntimeMeta(); got != "" {
+		t.Fatalf("expected empty runtime meta without cfg, got %q", got)
+	}
+
+	m.cfg = &config{model: "sonnet-4.5"}
+	if got := m.timelineRuntimeMeta(); got != "sonnet-4.5" {
+		t.Fatalf("expected model-only runtime meta, got %q", got)
+	}
+
+	m.cfg = &config{ide: model.IDEClaude}
+	if got := m.timelineRuntimeMeta(); got != "Claude" {
+		t.Fatalf("expected provider-only runtime meta, got %q", got)
+	}
+}
+
+func TestRenderTimelinePanelKeepsFallbackHeaderWithoutTaskTitle(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	panel := normalizedStrippedPanelText(m.renderTimelinePanel(&m.jobs[0], 80))
+
+	if !strings.Contains(panel, "SESSION.TIMELINE") {
+		t.Fatalf("expected fallback timeline label, got %q", panel)
+	}
+	if strings.Contains(panel, "[backend]") {
+		t.Fatalf("expected no badge without task title, got %q", panel)
+	}
+	if !strings.Contains(panel, "Claude · sonnet-4.5") {
+		t.Fatalf("expected provider/model meta in fallback layout, got %q", panel)
+	}
+}
+
+func TestRenderTimelinePanelDynamicHeaderGoldenWidth80(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.jobs[0].taskTitle = "acp agent layer"
+	m.jobs[0].taskType = "backend"
+	m.handleJobUpdate(jobUpdateMsg{
+		Index: 0,
+		Snapshot: buildSnapshotWithEntries(t,
+			TranscriptEntry{
+				ID:     "assistant-1",
+				Kind:   transcriptEntryAssistantMessage,
+				Title:  "Assistant",
+				Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: "hello from ACP"})},
+			},
+			TranscriptEntry{
+				ID:            "tool-1",
+				Kind:          transcriptEntryToolCall,
+				Title:         "read_file",
+				ToolCallID:    "tool-1",
+				ToolCallState: model.ToolCallStateCompleted,
+				Blocks: []model.ContentBlock{
+					mustContentBlockUITest(t, model.ToolUseBlock{ID: "tool-1", Name: "read_file"}),
+					mustContentBlockUITest(t, model.ToolResultBlock{ToolUseID: "tool-1", Content: "loaded README.md"}),
+				},
+			},
+			TranscriptEntry{
+				ID:     "assistant-2",
+				Kind:   transcriptEntryAssistantMessage,
+				Title:  "Assistant",
+				Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: "task complete"})},
+			},
+		),
+	})
+
+	got := normalizedStrippedPanelText(m.renderTimelinePanel(&m.jobs[0], 80))
+	want := `
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ ACP AGENT LAYER  [backend]                                                   │
+│ 3 entries · selected 3/3                                 Claude · sonnet-4.5 │
+│                                                                              │
+│   Assistant                                                                  │
+│    hello from ACP                                                            │
+│                                                                              │
+│   ✓ read_file                                                                │
+│                                                                              │
+│ ▌ Assistant                                                                  │
+│    task complete                                                             │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘`
+	if got != strings.TrimSpace(want) {
+		t.Fatalf("unexpected width-80 timeline panel\nwant:\n%s\n\ngot:\n%s", strings.TrimSpace(want), got)
+	}
+}
+
+func TestRenderTimelinePanelMinWidthPreservesRuntimeLabel(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.jobs[0].taskTitle = "acp agent layer"
+	m.jobs[0].taskType = "backend"
+
+	panel := normalizedStrippedPanelText(m.renderTimelinePanel(&m.jobs[0], timelineMinWidth))
+
+	if !strings.Contains(panel, "Claude · sonnet-4.5") {
+		t.Fatalf("expected runtime label to remain visible at min width, got %q", panel)
+	}
+}
+
+func TestRenderMainPanelsReturnsBlankWithoutCurrentJob(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	m.width = 100
+	m.sidebarWidth = 30
+
+	content := m.renderMainPanels()
+	if got, want := lipgloss.Width(content), 70; got != want {
+		t.Fatalf("expected blank main panel width %d, got %d", want, got)
+	}
+}
+
+func TestHeaderStatusAndShutdownLabels(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(3)
+	bg := colorBgBase
+
+	if got := xansi.Strip(m.headerStatusText(bg)); got != "RUN 0/3" {
+		t.Fatalf("expected running status text, got %q", got)
+	}
+
+	m.failed = 1
+	if got := xansi.Strip(m.headerStatusText(bg)); got != "RUN 1/3 · 1 FAIL" {
+		t.Fatalf("expected partial failure status text, got %q", got)
+	}
+
+	m.shutdown = shutdownState{
+		Phase:      shutdownPhaseDraining,
+		DeadlineAt: time.Now().Add(1500 * time.Millisecond),
+	}
+	draining := xansi.Strip(m.headerStatusText(bg))
+	if !strings.Contains(draining, "DRAINING 1/3") || !strings.Contains(draining, "s") {
+		t.Fatalf("expected draining status with countdown, got %q", draining)
+	}
+
+	m.shutdown = shutdownState{Phase: shutdownPhaseForcing}
+	if got := m.shutdownHeaderLabel(); got != "FORCING 1/3" {
+		t.Fatalf("expected forcing header label, got %q", got)
+	}
+	m.shutdown = shutdownState{Phase: shutdownPhaseDraining}
+	if got := m.shutdownHeaderLabel(); got != "DRAINING 1/3" {
+		t.Fatalf("expected draining header without countdown, got %q", got)
+	}
+	m.shutdown = shutdownState{}
+	if got := m.shutdownHeaderLabel(); got != "RUN 1/3" {
+		t.Fatalf("expected default run header label, got %q", got)
+	}
+	if got := m.shutdownCountdownLabel(); got != "" {
+		t.Fatalf("expected empty countdown without deadline, got %q", got)
+	}
+	m.shutdown = shutdownState{DeadlineAt: time.Now().Add(-time.Second)}
+	if got := m.shutdownCountdownLabel(); got != "0s" {
+		t.Fatalf("expected expired countdown to clamp to 0s, got %q", got)
+	}
+
+	m.completed = 2
+	m.failed = 1
+	if got := xansi.Strip(m.headerStatusText(bg)); got != "2 OK · 1 FAIL" {
+		t.Fatalf("expected completed failure summary, got %q", got)
+	}
+
+	m.shutdown = shutdownState{}
+	m.completed = 3
+	m.failed = 0
+	if got := xansi.Strip(m.headerStatusText(bg)); got != "ALL 3 OK" {
+		t.Fatalf("expected success summary, got %q", got)
+	}
+}
+
+func TestShouldRenderEntryPreview(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	job := &m.jobs[0]
+
+	assistant := TranscriptEntry{
+		ID:    "assistant",
+		Kind:  transcriptEntryAssistantMessage,
+		Title: "Assistant",
+	}
+	job.expandedEntryIDs[assistant.ID] = false
+	if !m.shouldRenderEntryPreview(job, assistant) {
+		t.Fatal("expected collapsed assistant entry to render preview")
+	}
+
+	job.expandedEntryIDs[assistant.ID] = true
+	if m.shouldRenderEntryPreview(job, assistant) {
+		t.Fatal("expected expanded narrative entry to suppress preview")
+	}
+
+	tool := TranscriptEntry{
+		ID:            "tool",
+		Kind:          transcriptEntryToolCall,
+		Title:         "read_file",
+		ToolCallState: model.ToolCallStateCompleted,
+	}
+	job.expandedEntryIDs[tool.ID] = true
+	if !m.shouldRenderEntryPreview(job, tool) {
+		t.Fatal("expected expanded tool entry to keep preview")
+	}
+}
+
+func TestToolCallStateMappings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		state     model.ToolCallState
+		wantLabel string
+		wantIcon  string
+		wantColor color.Color
+	}{
+		{state: model.ToolCallStatePending, wantLabel: "PENDING", wantIcon: "○", wantColor: colorAccentAlt},
+		{state: model.ToolCallStateInProgress, wantLabel: "RUNNING", wantIcon: "●", wantColor: colorBrand},
+		{state: model.ToolCallStateCompleted, wantLabel: "", wantIcon: "✓", wantColor: colorSuccess},
+		{state: model.ToolCallStateFailed, wantLabel: "FAILED", wantIcon: "✗", wantColor: colorError},
+		{
+			state:     model.ToolCallStateWaitingForConfirmation,
+			wantLabel: "CONFIRM",
+			wantIcon:  "!",
+			wantColor: colorWarning,
+		},
+		{state: model.ToolCallState("mystery"), wantLabel: "READY", wantIcon: "•", wantColor: colorInfo},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(string(tt.state), func(t *testing.T) {
+			t.Parallel()
+
+			if got := toolCallStateLabel(tt.state); got != tt.wantLabel {
+				t.Fatalf("expected label %q, got %q", tt.wantLabel, got)
+			}
+			if got := toolCallStateIcon(tt.state); got != tt.wantIcon {
+				t.Fatalf("expected icon %q, got %q", tt.wantIcon, got)
+			}
+			if !sameColor(toolCallStateColor(tt.state), tt.wantColor) {
+				t.Fatalf("expected matching color for state %q", tt.state)
+			}
+		})
+	}
+}
+
+func TestBuildTimelineContentUsesWaitingAndCachePaths(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	job := &uiJob{
+		selectedEntry:    -1,
+		expandedEntryIDs: make(map[string]bool),
+	}
+
+	waiting := m.buildTimelineContent(job, 40)
+	if !strings.Contains(waiting.content, "Waiting for ACP updates") {
+		t.Fatalf("expected waiting content, got %q", waiting.content)
+	}
+	if !job.timelineCacheValid {
+		t.Fatal("expected waiting content to populate cache")
+	}
+
+	job.snapshot = buildSnapshotWithEntries(t,
+		TranscriptEntry{
+			ID:     "assistant-1",
+			Kind:   transcriptEntryAssistantMessage,
+			Title:  "Assistant",
+			Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: "cached content"})},
+		},
+	)
+	job.selectedEntry = 0
+	job.timelineCacheValid = false
+
+	first := m.buildTimelineContent(job, 40)
+	second := m.buildTimelineContent(job, 40)
+	if first.content != second.content {
+		t.Fatalf("expected cached timeline content to be reused")
+	}
+}
+
+func TestRenderWrappedBlocksLinesAndWrapViewportLines(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	lines := m.renderWrappedBlocksLines(
+		[]model.ContentBlock{
+			mustContentBlockUITest(
+				t,
+				model.TextBlock{Text: narrativeWrapText("assistant") + "\n\n" + narrativeWrapText("followup")},
+			),
+		},
+		18,
+	)
+	if len(lines) < 4 {
+		t.Fatalf("expected wrapped narrative lines, got %#v", lines)
+	}
+	if !containsString(lines, "") {
+		t.Fatalf("expected wrapped lines to preserve blank separators, got %#v", lines)
+	}
+
+	withErrLines := m.renderWrappedBlocksLines(
+		[]model.ContentBlock{
+			mustContentBlockUITest(t, model.TextBlock{Text: "stdout line"}),
+			mustContentBlockUITest(t, model.ToolResultBlock{
+				ToolUseID: "tool-1",
+				Content:   "stderr line one\nstderr line two",
+				IsError:   true,
+			}),
+		},
+		18,
+	)
+	if !containsString(withErrLines, "") {
+		t.Fatalf("expected wrapped err lines to be separated, got %#v", withErrLines)
+	}
+}
+
+func TestRestoreTranscriptViewportTracksOffsets(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	job := &uiJob{
+		selectedEntry:        0,
+		transcriptFollowTail: false,
+	}
+	m.transcriptViewport.SetContent(strings.Repeat("line\n", 20))
+	m.transcriptViewport.SetHeight(3)
+	m.restoreTranscriptViewport(job, nil)
+	if !job.transcriptFollowTail || job.transcriptYOffset != 0 || job.transcriptXOffset != 0 {
+		t.Fatalf("expected empty offsets to reset transcript state, got %#v", job)
+	}
+
+	job.selectedEntry = 2
+	job.transcriptFollowTail = false
+	job.transcriptYOffset = 0
+	m.restoreTranscriptViewport(job, []int{0, 3, 8})
+	if got := m.transcriptViewport.YOffset(); got == 0 {
+		t.Fatalf("expected selected entry to be scrolled into view, got offset %d", got)
 	}
 }
 
@@ -638,4 +1099,21 @@ func narrativeWrapText(kind string) string {
 
 func compactTruncationText() string {
 	return "tool output alpha bravo charlie delta echo foxtrot gulf hotel india juliet kilo tail-marker"
+}
+
+func normalizedStrippedPanelText(content string) string {
+	lines := strings.Split(xansi.Strip(content), "\n")
+	for i := range lines {
+		lines[i] = strings.TrimRight(lines[i], " ")
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func containsString(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+	return false
 }
