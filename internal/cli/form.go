@@ -371,6 +371,7 @@ func (fb *formBuilder) addIDEField(target *string) {
 				huh.NewOption("OpenCode", string(core.IDEOpenCode)),
 				huh.NewOption("Pi", string(core.IDEPi)),
 				huh.NewOption("Gemini", string(core.IDEGemini)),
+				huh.NewOption("Copilot CLI", string(core.IDECopilot)),
 			).
 			Value(target)
 	})
