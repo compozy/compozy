@@ -94,12 +94,17 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 		h.recordBlockCounts(update.Blocks)
 	}
 
-	if h.uiCh != nil {
-		if snapshot, changed := h.sessionView.Apply(update); changed {
-			select {
-			case h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}:
-			default:
-			}
+	var (
+		snapshot SessionViewSnapshot
+		changed  bool
+	)
+	h.mu.Lock()
+	snapshot, changed = h.sessionView.Apply(update)
+	h.mu.Unlock()
+	if h.uiCh != nil && changed {
+		select {
+		case h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}:
+		default:
 		}
 	}
 
@@ -229,6 +234,15 @@ func (h *sessionUpdateHandler) markDone(err error, override bool) {
 	h.doneOnce.Do(func() {
 		close(h.done)
 	})
+}
+
+func (h *sessionUpdateHandler) Snapshot() SessionViewSnapshot {
+	if h == nil {
+		return SessionViewSnapshot{}
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.sessionView.snapshot()
 }
 
 func hasUsage(usage model.Usage) bool {
@@ -485,7 +499,14 @@ func appendLinesToBuffer(buf *lineBuffer, lines []string) {
 
 func createLogWriters(outFile *os.File, errFile *os.File, useUI bool, emitHuman bool) (io.Writer, io.Writer) {
 	if useUI || !emitHuman {
-		return outFile, errFile
+		return writerOrNil(outFile), writerOrNil(errFile)
 	}
-	return io.MultiWriter(outFile, os.Stdout), io.MultiWriter(errFile, os.Stderr)
+	return io.MultiWriter(writerOrNil(outFile), os.Stdout), io.MultiWriter(writerOrNil(errFile), os.Stderr)
+}
+
+func writerOrNil(file *os.File) io.Writer {
+	if file == nil {
+		return nil
+	}
+	return file
 }

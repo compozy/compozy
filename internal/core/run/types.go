@@ -266,6 +266,10 @@ type config struct {
 	accessMode             string
 	mode                   model.ExecutionMode
 	outputFormat           model.OutputFormat
+	verbose                bool
+	tui                    bool
+	persist                bool
+	runID                  string
 	runArtifacts           model.RunArtifacts
 	includeCompleted       bool
 	includeResolved        bool
@@ -282,6 +286,8 @@ type job struct {
 	safeName      string
 	prompt        []byte
 	systemPrompt  string
+	resumeRunID   string
+	resumeSession string
 	outPromptPath string
 	outLog        string
 	errLog        string
@@ -324,6 +330,10 @@ func newConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *confi
 		accessMode:             src.AccessMode,
 		mode:                   src.Mode,
 		outputFormat:           src.OutputFormat,
+		verbose:                src.Verbose,
+		tui:                    src.TUI,
+		persist:                src.Persist,
+		runID:                  src.RunID,
 		runArtifacts:           runArtifacts,
 		includeCompleted:       src.IncludeCompleted,
 		includeResolved:        src.IncludeResolved,

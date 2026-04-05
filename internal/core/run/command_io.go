@@ -98,6 +98,7 @@ func setupSessionExecution(
 	job *job,
 	cwd string,
 	useUI bool,
+	streamHumanOutput bool,
 	uiCh chan uiMsg,
 	index int,
 	aggregateUsage *model.Usage,
@@ -106,7 +107,7 @@ func setupSessionExecution(
 	logger *slog.Logger,
 	trackClient func(agent.Client) func(),
 ) (*sessionExecution, error) {
-	logger = resolveSessionLogger(logger, useUI)
+	logger = resolveSessionLogger(logger)
 
 	client, err := createACPClient(ctx, cfg, logger)
 	if err != nil {
@@ -124,12 +125,7 @@ func setupSessionExecution(
 		return nil, err
 	}
 
-	session, err := client.CreateSession(ctx, agent.SessionRequest{
-		Prompt:     composeSessionPrompt(job.prompt, job.systemPrompt),
-		WorkingDir: cwd,
-		Model:      cfg.model,
-		ExtraEnv:   buildSessionEnvironment(),
-	})
+	session, err := createACPSession(ctx, client, cfg, job, cwd)
 	if err != nil {
 		_ = outFile.Close()
 		_ = errFile.Close()
@@ -138,7 +134,7 @@ func setupSessionExecution(
 		return nil, fmt.Errorf("create ACP session: %w", err)
 	}
 
-	outWriter, errWriter := createLogWriters(outFile, errFile, useUI, cfg.humanOutputEnabled())
+	outWriter, errWriter := createLogWriters(outFile, errFile, useUI, streamHumanOutput)
 	handler := newSessionUpdateHandler(
 		index,
 		cfg.ide,
@@ -173,11 +169,11 @@ func setupSessionExecution(
 	}, nil
 }
 
-func resolveSessionLogger(logger *slog.Logger, useUI bool) *slog.Logger {
+func resolveSessionLogger(logger *slog.Logger) *slog.Logger {
 	if logger != nil {
 		return logger
 	}
-	return runtimeLogger(useUI)
+	return runtimeLogger(false)
 }
 
 func createACPClient(ctx context.Context, cfg *config, logger *slog.Logger) (agent.Client, error) {
@@ -194,6 +190,31 @@ func createACPClient(ctx context.Context, cfg *config, logger *slog.Logger) (age
 		return nil, fmt.Errorf("create ACP client: %w", err)
 	}
 	return client, nil
+}
+
+func createACPSession(
+	ctx context.Context,
+	client agent.Client,
+	cfg *config,
+	job *job,
+	cwd string,
+) (agent.Session, error) {
+	prompt := composeSessionPrompt(job.prompt, job.systemPrompt)
+	if strings.TrimSpace(job.resumeSession) == "" {
+		return client.CreateSession(ctx, agent.SessionRequest{
+			Prompt:     prompt,
+			WorkingDir: cwd,
+			Model:      cfg.model,
+			ExtraEnv:   buildSessionEnvironment(),
+		})
+	}
+	return client.ResumeSession(ctx, agent.ResumeSessionRequest{
+		SessionID:  job.resumeSession,
+		Prompt:     prompt,
+		WorkingDir: cwd,
+		Model:      cfg.model,
+		ExtraEnv:   buildSessionEnvironment(),
+	})
 }
 
 func createSessionLogFiles(job *job) (*os.File, *os.File, error) {

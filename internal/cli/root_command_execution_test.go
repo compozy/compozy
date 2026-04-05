@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/compozy/compozy/internal/core/model"
+	coreRun "github.com/compozy/compozy/internal/core/run"
 )
 
 func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
@@ -78,7 +82,7 @@ func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) 
 	}
 }
 
-func TestExecCommandExecuteDirectPromptWritesRunArtifacts(t *testing.T) {
+func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
@@ -94,29 +98,16 @@ func TestExecCommandExecuteDirectPromptWritesRunArtifacts(t *testing.T) {
 		t.Fatalf("execute exec: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	for _, relPath := range []string{
-		"run.json",
-		filepath.Join("jobs", "exec.prompt.md"),
-		filepath.Join("jobs", "exec.out.log"),
-		filepath.Join("jobs", "exec.err.log"),
-	} {
-		if _, statErr := os.Stat(filepath.Join(runDir, relPath)); statErr != nil {
-			t.Fatalf("expected exec artifact %s: %v", relPath, statErr)
-		}
-	}
-	if !containsAll(stdout, "Execution Summary:", "- Total Groups: 1", "- Failed: 0") {
-		t.Fatalf("unexpected exec stdout:\n%s", stdout)
-	}
-	if json.Valid([]byte(strings.TrimSpace(stdout))) {
-		t.Fatalf("expected text exec output, got JSON:\n%s", stdout)
+	if got := strings.TrimSpace(stdout); got != "Summarize the repository state" {
+		t.Fatalf("unexpected exec stdout: %q", got)
 	}
 	if stderr != "" {
 		t.Fatalf("expected no stderr for dry-run exec, got %q", stderr)
 	}
+	assertNoRunArtifactsForCLI(t, workspaceRoot)
 }
 
-func TestExecCommandExecutePromptFileJSONEmitsStructuredOutput(t *testing.T) {
+func TestExecCommandExecutePromptFileJSONEmitsJSONLByDefault(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	promptPath := filepath.Join(workspaceRoot, "prompt.md")
@@ -142,56 +133,185 @@ func TestExecCommandExecutePromptFileJSONEmitsStructuredOutput(t *testing.T) {
 		t.Fatalf("expected json exec to suppress stderr, got %q", stderr)
 	}
 
-	var payload struct {
-		Status       string `json:"status"`
-		ArtifactsDir string `json:"artifacts_dir"`
-		RunMetaPath  string `json:"run_meta_path"`
-		ResultPath   string `json:"result_path"`
-		Jobs         []struct {
-			Status        string `json:"status"`
-			PromptPath    string `json:"prompt_path"`
-			StdoutLogPath string `json:"stdout_log_path"`
-			StderrLogPath string `json:"stderr_log_path"`
-		} `json:"jobs"`
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 2 {
+		t.Fatalf("expected two jsonl events, got %d\nstdout:\n%s", len(events), stdout)
 	}
-	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("decode exec stdout json: %v\nstdout:\n%s", err, stdout)
+	if events[0]["type"] != "run.started" {
+		t.Fatalf("unexpected first event: %#v", events[0])
 	}
-	if payload.Status != "succeeded" {
-		t.Fatalf("unexpected run status: %q", payload.Status)
+	if events[1]["type"] != "run.succeeded" {
+		t.Fatalf("unexpected second event: %#v", events[1])
 	}
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	resolvedRunDir := resolveCLIPath(t, runDir)
-	if resolveCLIPath(t, payload.ArtifactsDir) != resolvedRunDir {
-		t.Fatalf("expected artifacts dir %q, got %q", resolvedRunDir, payload.ArtifactsDir)
+	if output, ok := events[1]["output"].(string); !ok || output != "Prompt from file\n" {
+		t.Fatalf("unexpected final output payload: %#v", events[1])
 	}
-	if resolveCLIPath(t, payload.RunMetaPath) != resolveCLIPath(t, filepath.Join(runDir, "run.json")) {
-		t.Fatalf("unexpected run meta path: %q", payload.RunMetaPath)
+	assertNoRunArtifactsForCLI(t, workspaceRoot)
+}
+
+func TestExecCommandExecutePersistCreatesTurnArtifacts(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"--persist",
+		"Persist this prompt",
+	)
+	if err != nil {
+		t.Fatalf("execute persisted exec: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
-	if len(payload.Jobs) != 1 || payload.Jobs[0].Status != "succeeded" {
-		t.Fatalf("unexpected job payload: %#v", payload.Jobs)
+	if strings.TrimSpace(stdout) != "Persist this prompt" {
+		t.Fatalf("unexpected stdout: %q", stdout)
 	}
-	if _, statErr := os.Stat(payload.ResultPath); statErr != nil {
-		t.Fatalf("expected result.json to exist: %v", statErr)
-	}
-	if _, statErr := os.Stat(payload.Jobs[0].PromptPath); statErr != nil {
-		t.Fatalf("expected prompt artifact to exist: %v", statErr)
-	}
-	for _, path := range []string{payload.RunMetaPath, payload.Jobs[0].StdoutLogPath, payload.Jobs[0].StderrLogPath} {
-		if _, statErr := os.Stat(path); statErr != nil {
-			t.Fatalf("expected exec artifact to exist at %s: %v", path, statErr)
-		}
-		if !strings.HasPrefix(resolveCLIPath(t, path), resolvedRunDir) {
-			t.Fatalf("expected artifact path %q to stay under %q", path, resolvedRunDir)
-		}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for dry-run persisted exec, got %q", stderr)
 	}
 
-	resultBytes, err := os.ReadFile(payload.ResultPath)
-	if err != nil {
-		t.Fatalf("read result.json: %v", err)
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	for _, relPath := range []string{
+		"run.json",
+		"events.jsonl",
+		filepath.Join("turns", "0001", "prompt.md"),
+		filepath.Join("turns", "0001", "response.txt"),
+		filepath.Join("turns", "0001", "result.json"),
+	} {
+		if _, statErr := os.Stat(filepath.Join(runDir, relPath)); statErr != nil {
+			t.Fatalf("expected persisted exec artifact %s: %v", relPath, statErr)
+		}
 	}
-	if strings.TrimSpace(stdout) != strings.TrimSpace(string(resultBytes)) {
-		t.Fatalf("expected stdout JSON to match result.json\nstdout:\n%s\nresult:\n%s", stdout, string(resultBytes))
+}
+
+func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	runID := "exec-resume"
+	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
+		Version:         1,
+		Mode:            model.ModeExec,
+		RunID:           runID,
+		Status:          "succeeded",
+		WorkspaceRoot:   workspaceRoot,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5-codex",
+		ReasoningEffort: "high",
+		AccessMode:      model.AccessModeDefault,
+		AddDirs:         []string{filepath.Join(workspaceRoot, "docs")},
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+		TurnCount:       1,
+		ACPSessionID:    "sess-existing",
+	})
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"--run-id",
+		runID,
+		"Resume this conversation",
+	)
+	if err != nil {
+		t.Fatalf("execute resumed exec dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if strings.TrimSpace(stdout) != "Resume this conversation" {
+		t.Fatalf("unexpected resumed dry-run stdout: %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for resumed dry-run exec, got %q", stderr)
+	}
+}
+
+func TestExecCommandExecuteJSONMissingPromptEmitsFailureJSON(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "json")
+	if err == nil {
+		t.Fatalf("expected exec json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected json exec failure to suppress stderr, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 1 {
+		t.Fatalf("expected one json failure event, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if events[0]["type"] != "run.failed" {
+		t.Fatalf("unexpected failure event: %#v", events[0])
+	}
+	errorMessage, _ := events[0]["error"].(string)
+	if !strings.Contains(errorMessage, "requires exactly one prompt source") {
+		t.Fatalf("unexpected json error message: %#v", events[0])
+	}
+}
+
+func TestExecCommandExecuteRawJSONMissingPromptEmitsFailureJSON(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "raw-json")
+	if err == nil {
+		t.Fatalf("expected exec raw-json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected raw-json exec failure to suppress stderr, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 1 {
+		t.Fatalf("expected one raw-json failure event, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if events[0]["type"] != "run.failed" {
+		t.Fatalf("unexpected failure event: %#v", events[0])
+	}
+	errorMessage, _ := events[0]["error"].(string)
+	if !strings.Contains(errorMessage, "requires exactly one prompt source") {
+		t.Fatalf("unexpected raw-json error message: %#v", events[0])
+	}
+}
+
+func TestExecCommandExecuteJSONValidationFailureEmitsFailureJSON(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	withWorkingDir(t, workspaceRoot)
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--format",
+		"json",
+		"--tui",
+		"Prompt for validation failure",
+	)
+	if err == nil {
+		t.Fatalf("expected exec json validation failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected json exec validation failure to suppress stderr, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) != 1 {
+		t.Fatalf("expected one json validation failure event, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if events[0]["type"] != "run.failed" {
+		t.Fatalf("unexpected validation failure event: %#v", events[0])
+	}
+	errorMessage, _ := events[0]["error"].(string)
+	if !strings.Contains(errorMessage, "tui mode is not supported with json or raw-json output") {
+		t.Fatalf("unexpected validation error message: %#v", events[0])
 	}
 }
 
@@ -210,23 +330,13 @@ func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
 		t.Fatalf("execute exec stdin: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	promptBytes, err := os.ReadFile(filepath.Join(runDir, "jobs", "exec.prompt.md"))
-	if err != nil {
-		t.Fatalf("read prompt artifact: %v", err)
-	}
-	if string(promptBytes) != "Prompt from stdin\n" {
-		t.Fatalf("unexpected stdin prompt artifact: %q", string(promptBytes))
-	}
-	if !strings.Contains(stdout, "Execution Summary:") {
-		t.Fatalf("expected text exec summary, got %q", stdout)
-	}
-	if json.Valid([]byte(strings.TrimSpace(stdout))) {
-		t.Fatalf("expected human-readable stdin exec output, got JSON:\n%s", stdout)
+	if got := strings.TrimSpace(stdout); got != "Prompt from stdin" {
+		t.Fatalf("unexpected stdin stdout: %q", got)
 	}
 	if stderr != "" {
 		t.Fatalf("expected no stderr for dry-run stdin exec, got %q", stderr)
 	}
+	assertNoRunArtifactsForCLI(t, workspaceRoot)
 }
 
 func latestRunDirForCLI(t *testing.T, workspaceRoot string) string {
@@ -240,6 +350,48 @@ func latestRunDirForCLI(t *testing.T, workspaceRoot string) string {
 		t.Fatalf("expected exactly one run dir, got %d", len(entries))
 	}
 	return filepath.Join(workspaceRoot, ".compozy", "runs", entries[0].Name())
+}
+
+func assertNoRunArtifactsForCLI(t *testing.T, workspaceRoot string) {
+	t.Helper()
+
+	if _, err := os.Stat(filepath.Join(workspaceRoot, ".compozy", "runs")); !os.IsNotExist(err) {
+		t.Fatalf("expected no persisted exec artifacts by default, got stat err=%v", err)
+	}
+}
+
+func writePersistedExecRunForCLI(t *testing.T, workspaceRoot string, record coreRun.PersistedExecRun) {
+	t.Helper()
+
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, record.RunID)
+	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir persisted exec run dir: %v", err)
+	}
+	payload, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("marshal persisted exec run: %v", err)
+	}
+	if err := os.WriteFile(runArtifacts.RunMetaPath, payload, 0o600); err != nil {
+		t.Fatalf("write persisted exec run: %v", err)
+	}
+}
+
+func decodeExecJSONLEvents(t *testing.T, stdout string) []map[string]any {
+	t.Helper()
+
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	events := make([]map[string]any, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(line), &payload); err != nil {
+			t.Fatalf("decode exec jsonl line: %v\nline:\n%s", err, line)
+		}
+		events = append(events, payload)
+	}
+	return events
 }
 
 func withWorkingDir(t *testing.T, dir string) {
@@ -317,20 +469,6 @@ func executeRootCommandCapturingProcessIO(t *testing.T, in io.Reader, args ...st
 	}
 
 	return string(stdoutBytes), string(stderrBytes), runErr
-}
-
-func resolveCLIPath(t *testing.T, path string) string {
-	t.Helper()
-
-	resolved, err := filepath.EvalSymlinks(path)
-	if err == nil {
-		return resolved
-	}
-	if os.IsNotExist(err) {
-		return filepath.Clean(path)
-	}
-	t.Fatalf("resolve path %s: %v", path, err)
-	return ""
 }
 
 func containsAll(s string, fragments ...string) bool {

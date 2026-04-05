@@ -7,35 +7,36 @@ import (
 )
 
 const (
-	UnknownFileName         = "unknown"
-	IDECodex                = "codex"
-	IDEClaude               = "claude"
-	IDEDroid                = "droid"
-	IDECursor               = "cursor-agent"
-	IDEOpenCode             = "opencode"
-	IDEPi                   = "pi"
-	IDEGemini               = "gemini"
-	IDECopilot              = "copilot"
-	DefaultCodexModel       = "gpt-5.4"
-	DefaultClaudeModel      = "opus"
-	DefaultCursorModel      = "composer-1"
-	DefaultOpenCodeModel    = "anthropic/claude-opus-4-6"
-	DefaultPiModel          = "anthropic/claude-opus-4-6"
-	DefaultGeminiModel      = "gemini-2.5-pro"
-	DefaultCopilotModel     = "claude-sonnet-4.6"
-	DefaultActivityTimeout  = 10 * time.Minute
-	WorkflowRootDirName     = ".compozy"
-	WorkflowConfigFileName  = "config.toml"
-	WorkflowTasksDirName    = "tasks"
-	WorkflowRunsDirName     = "runs"
-	ArchivedWorkflowDirName = "_archived"
-	ModeCodeReview          = "pr-review"
-	ModePRDTasks            = "prd-tasks"
-	ModeExec                = "exec"
-	AccessModeDefault       = "default"
-	AccessModeFull          = "full"
-	OutputFormatTextValue   = "text"
-	OutputFormatJSONValue   = "json"
+	UnknownFileName          = "unknown"
+	IDECodex                 = "codex"
+	IDEClaude                = "claude"
+	IDEDroid                 = "droid"
+	IDECursor                = "cursor-agent"
+	IDEOpenCode              = "opencode"
+	IDEPi                    = "pi"
+	IDEGemini                = "gemini"
+	IDECopilot               = "copilot"
+	DefaultCodexModel        = "gpt-5.4"
+	DefaultClaudeModel       = "opus"
+	DefaultCursorModel       = "composer-1"
+	DefaultOpenCodeModel     = "anthropic/claude-opus-4-6"
+	DefaultPiModel           = "anthropic/claude-opus-4-6"
+	DefaultGeminiModel       = "gemini-2.5-pro"
+	DefaultCopilotModel      = "claude-sonnet-4.6"
+	DefaultActivityTimeout   = 10 * time.Minute
+	WorkflowRootDirName      = ".compozy"
+	WorkflowConfigFileName   = "config.toml"
+	WorkflowTasksDirName     = "tasks"
+	WorkflowRunsDirName      = "runs"
+	ArchivedWorkflowDirName  = "_archived"
+	ModeCodeReview           = "pr-review"
+	ModePRDTasks             = "prd-tasks"
+	ModeExec                 = "exec"
+	AccessModeDefault        = "default"
+	AccessModeFull           = "full"
+	OutputFormatTextValue    = "text"
+	OutputFormatJSONValue    = "json"
+	OutputFormatRawJSONValue = "raw-json"
 )
 
 type ExecutionMode string
@@ -49,8 +50,9 @@ const (
 type OutputFormat string
 
 const (
-	OutputFormatText OutputFormat = OutputFormatTextValue
-	OutputFormatJSON OutputFormat = OutputFormatJSONValue
+	OutputFormatText    OutputFormat = OutputFormatTextValue
+	OutputFormatJSON    OutputFormat = OutputFormatJSONValue
+	OutputFormatRawJSON OutputFormat = OutputFormatRawJSONValue
 )
 
 type RuntimeConfig struct {
@@ -73,6 +75,10 @@ type RuntimeConfig struct {
 	AccessMode             string
 	Mode                   ExecutionMode
 	OutputFormat           OutputFormat
+	Verbose                bool
+	TUI                    bool
+	Persist                bool
+	RunID                  string
 	PromptText             string
 	PromptFile             string
 	ReadPromptStdin        bool
@@ -153,6 +159,8 @@ type RunArtifacts struct {
 	RunID       string
 	RunDir      string
 	RunMetaPath string
+	EventsPath  string
+	TurnsDir    string
 	JobsDir     string
 	ResultPath  string
 }
@@ -170,6 +178,8 @@ func NewRunArtifacts(workspaceRoot, runID string) RunArtifacts {
 		RunID:       safeRunID,
 		RunDir:      runDir,
 		RunMetaPath: filepath.Join(runDir, "run.json"),
+		EventsPath:  filepath.Join(runDir, "events.jsonl"),
+		TurnsDir:    filepath.Join(runDir, "turns"),
 		JobsDir:     filepath.Join(runDir, "jobs"),
 		ResultPath:  filepath.Join(runDir, "result.json"),
 	}

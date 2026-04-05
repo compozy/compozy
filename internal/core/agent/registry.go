@@ -294,6 +294,9 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 	if err := validateRuntimeOutputFormat(cfg); err != nil {
 		return err
 	}
+	if err := validateRuntimeExecMode(cfg); err != nil {
+		return err
+	}
 	if err := validateRuntimePromptSource(cfg); err != nil {
 		return err
 	}
@@ -337,13 +340,14 @@ func validateRuntimeAccessMode(accessMode string) error {
 
 func validateRuntimeOutputFormat(cfg *model.RuntimeConfig) error {
 	switch cfg.OutputFormat {
-	case model.OutputFormatText, model.OutputFormatJSON:
+	case model.OutputFormatText, model.OutputFormatJSON, model.OutputFormatRawJSON:
 	default:
 		return fmt.Errorf(
-			"invalid output format %q: must be %q or %q",
+			"invalid output format %q: must be %q, %q, or %q",
 			cfg.OutputFormat,
 			model.OutputFormatText,
 			model.OutputFormatJSON,
+			model.OutputFormatRawJSON,
 		)
 	}
 	if cfg.Mode != model.ExecutionModeExec && cfg.OutputFormat != model.OutputFormatText {
@@ -368,6 +372,25 @@ func validateRuntimePromptSource(cfg *model.RuntimeConfig) error {
 	default:
 		return nil
 	}
+}
+
+func validateRuntimeExecMode(cfg *model.RuntimeConfig) error {
+	if cfg.Mode != model.ExecutionModeExec {
+		switch {
+		case cfg.TUI:
+			return errors.New("tui mode is only supported for exec mode")
+		case cfg.Persist:
+			return errors.New("persist is only supported for exec mode")
+		case strings.TrimSpace(cfg.RunID) != "":
+			return errors.New("run-id is only supported for exec mode")
+		default:
+			return nil
+		}
+	}
+	if (cfg.OutputFormat == model.OutputFormatJSON || cfg.OutputFormat == model.OutputFormatRawJSON) && cfg.TUI {
+		return errors.New("tui mode is not supported with json or raw-json output")
+	}
+	return nil
 }
 
 func runtimePromptSourceCount(cfg *model.RuntimeConfig) int {
@@ -469,6 +492,15 @@ func BuildShellCommandString(
 	parts = append(parts, sortedEnvAssignments(spec.EnvVars)...)
 	parts = append(parts, formatShellCommand(args))
 	return strings.Join(parts, " ")
+}
+
+// ResolveRuntimeModel returns the effective model after applying the IDE default when needed.
+func ResolveRuntimeModel(ide string, modelName string) (string, error) {
+	spec, err := lookupAgentSpec(ide)
+	if err != nil {
+		return "", err
+	}
+	return resolveModel(spec, modelName), nil
 }
 
 func assertCommandExists(spec Spec, command []string) error {

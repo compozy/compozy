@@ -905,7 +905,11 @@ func TestRunACPHelperProcess(_ *testing.T) {
 
 type runACPHelperScenario struct {
 	SessionID               string                    `json:"session_id,omitempty"`
+	ExpectedLoadSessionID   string                    `json:"expected_load_session_id,omitempty"`
 	ExpectedPromptContains  string                    `json:"expected_prompt_contains,omitempty"`
+	SupportsLoadSession     bool                      `json:"supports_load_session,omitempty"`
+	ReplayUpdatesOnLoad     []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
+	SessionMeta             map[string]any            `json:"session_meta,omitempty"`
 	Updates                 []acp.SessionUpdate       `json:"updates,omitempty"`
 	StopReason              string                    `json:"stop_reason,omitempty"`
 	BlockUntilCancel        bool                      `json:"block_until_cancel,omitempty"`
@@ -927,18 +931,43 @@ type runACPHelperAgent struct {
 }
 
 func (a *runACPHelperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
-	return acp.InitializeResponse{ProtocolVersion: acp.ProtocolVersionNumber}, nil
+	return acp.InitializeResponse{
+		ProtocolVersion: acp.ProtocolVersionNumber,
+		AgentCapabilities: acp.AgentCapabilities{
+			LoadSession: a.scenario.SupportsLoadSession,
+		},
+	}, nil
 }
 
 func (a *runACPHelperAgent) NewSession(_ context.Context, _ acp.NewSessionRequest) (acp.NewSessionResponse, error) {
 	if a.scenario.NewSessionError != nil {
 		return acp.NewSessionResponse{}, a.scenario.NewSessionError.toACPError()
 	}
-	return acp.NewSessionResponse{SessionId: acp.SessionId(a.sessionID)}, nil
+	return acp.NewSessionResponse{
+		SessionId: acp.SessionId(a.sessionID),
+		Meta:      a.scenario.SessionMeta,
+	}, nil
 }
 
-func (a *runACPHelperAgent) LoadSession(context.Context, acp.LoadSessionRequest) (acp.LoadSessionResponse, error) {
-	return acp.LoadSessionResponse{}, nil
+func (a *runACPHelperAgent) LoadSession(
+	ctx context.Context,
+	req acp.LoadSessionRequest,
+) (acp.LoadSessionResponse, error) {
+	if a.scenario.ExpectedLoadSessionID != "" && string(req.SessionId) != a.scenario.ExpectedLoadSessionID {
+		return acp.LoadSessionResponse{}, &acp.RequestError{
+			Code:    4002,
+			Message: fmt.Sprintf("unexpected load session id %q", req.SessionId),
+		}
+	}
+	for _, update := range a.scenario.ReplayUpdatesOnLoad {
+		if err := a.conn.SessionUpdate(ctx, acp.SessionNotification{
+			SessionId: acp.SessionId(a.sessionID),
+			Update:    update,
+		}); err != nil {
+			return acp.LoadSessionResponse{}, err
+		}
+	}
+	return acp.LoadSessionResponse{Meta: a.scenario.SessionMeta}, nil
 }
 
 func (a *runACPHelperAgent) Authenticate(context.Context, acp.AuthenticateRequest) (acp.AuthenticateResponse, error) {

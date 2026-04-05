@@ -17,6 +17,8 @@ import (
 type Session interface {
 	// ID returns the ACP session identifier.
 	ID() string
+	// Identity returns the canonical session identifiers known for this session.
+	Identity() SessionIdentity
 	// Updates returns the streamed session updates in arrival order.
 	Updates() <-chan model.SessionUpdate
 	// Done closes when the session has fully completed.
@@ -25,8 +27,16 @@ type Session interface {
 	Err() error
 }
 
+// SessionIdentity captures the stable ACP and provider-specific ids for a session.
+type SessionIdentity struct {
+	ACPSessionID   string
+	AgentSessionID string
+	Resumed        bool
+}
+
 type sessionImpl struct {
 	id           string
+	identity     SessionIdentity
 	workingDir   string
 	allowedRoots []string
 	updates      chan model.SessionUpdate
@@ -35,13 +45,17 @@ type sessionImpl struct {
 	mu                          sync.RWMutex
 	err                         error
 	finished                    bool
+	suppressUpdates             bool
 	updatesSeen                 int
 	lastUpdateWasFailedToolCall bool
 }
 
 func newSession(id string) *sessionImpl {
 	return &sessionImpl{
-		id:      id,
+		id: id,
+		identity: SessionIdentity{
+			ACPSessionID: id,
+		},
 		updates: make(chan model.SessionUpdate, 128),
 		done:    make(chan struct{}),
 	}
@@ -54,12 +68,25 @@ func newSessionWithAccess(id string, workingDir string, allowedRoots []string) *
 	return session
 }
 
+func newLoadedSession(id string, workingDir string, allowedRoots []string) *sessionImpl {
+	session := newSessionWithAccess(id, workingDir, allowedRoots)
+	session.identity.Resumed = true
+	session.suppressUpdates = true
+	return session
+}
+
 func (s *sessionImpl) Updates() <-chan model.SessionUpdate {
 	return s.updates
 }
 
 func (s *sessionImpl) ID() string {
 	return s.id
+}
+
+func (s *sessionImpl) Identity() SessionIdentity {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.identity
 }
 
 func (s *sessionImpl) Done() <-chan struct{} {
@@ -84,6 +111,9 @@ func (s *sessionImpl) publish(update model.SessionUpdate) {
 	s.updatesSeen++
 	s.lastUpdateWasFailedToolCall = update.Kind == model.UpdateKindToolCallUpdated &&
 		update.ToolCallState == model.ToolCallStateFailed
+	if s.suppressUpdates {
+		return
+	}
 	select {
 	case s.updates <- update:
 	default:
@@ -105,6 +135,22 @@ func (s *sessionImpl) finish(status model.SessionStatus, err error) {
 	close(s.updates)
 	close(s.done)
 	s.mu.Unlock()
+}
+
+func (s *sessionImpl) setAgentSessionID(agentSessionID string) {
+	trimmed := strings.TrimSpace(agentSessionID)
+	if trimmed == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.identity.AgentSessionID = trimmed
+}
+
+func (s *sessionImpl) resumeUpdates() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.suppressUpdates = false
 }
 
 func (s *sessionImpl) waitForIdle(ctx context.Context, idleWindow time.Duration) {

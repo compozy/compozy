@@ -67,7 +67,12 @@ type FetchReviewsConfig struct {
 	Provider *string `toml:"provider"`
 }
 
-type ExecConfig RuntimeOverrides
+type ExecConfig struct {
+	RuntimeOverrides
+	Verbose *bool `toml:"verbose"`
+	TUI     *bool `toml:"tui"`
+	Persist *bool `toml:"persist"`
+}
 
 func Resolve(ctx context.Context, startDir string) (Context, error) {
 	root, err := Discover(ctx, startDir)
@@ -229,7 +234,18 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 }
 
 func validateExec(cfg ExecConfig) error {
-	return validateRuntimeOverrides("exec", RuntimeOverrides(cfg))
+	if err := validateRuntimeOverrides("exec", cfg.RuntimeOverrides); err != nil {
+		return err
+	}
+	if cfg.TUI != nil && cfg.OutputFormat != nil && *cfg.TUI &&
+		isExecJSONOutputFormat(*cfg.OutputFormat) {
+		return fmt.Errorf(
+			"workspace config exec.tui cannot be true when exec.output_format is %q or %q",
+			model.OutputFormatJSONValue,
+			model.OutputFormatRawJSONValue,
+		)
+	}
+	return nil
 }
 
 func validateRuntimeOverrides(section string, cfg RuntimeOverrides) error {
@@ -353,16 +369,26 @@ func validateOutputFormatValue(field string, value *string) error {
 	switch strings.TrimSpace(*value) {
 	case "":
 		return fmt.Errorf("%s cannot be empty", field)
-	case model.OutputFormatTextValue, model.OutputFormatJSONValue:
+	case model.OutputFormatTextValue, model.OutputFormatJSONValue, model.OutputFormatRawJSONValue:
 		return nil
 	default:
 		return fmt.Errorf(
-			"%s must be %q or %q (got %q)",
+			"%s must be %q, %q, or %q (got %q)",
 			field,
 			model.OutputFormatTextValue,
 			model.OutputFormatJSONValue,
+			model.OutputFormatRawJSONValue,
 			strings.TrimSpace(*value),
 		)
+	}
+}
+
+func isExecJSONOutputFormat(value string) bool {
+	switch strings.TrimSpace(value) {
+	case model.OutputFormatJSONValue, model.OutputFormatRawJSONValue:
+		return true
+	default:
+		return false
 	}
 }
 

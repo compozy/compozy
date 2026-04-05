@@ -310,18 +310,25 @@ func TestValidateRuntimeConfigRejectsInvalidAccessMode(t *testing.T) {
 func TestValidateRuntimeConfigAcceptsExecModeWithSinglePromptSource(t *testing.T) {
 	t.Parallel()
 
-	cfg := &model.RuntimeConfig{
-		Mode:                   model.ExecutionModeExec,
-		IDE:                    model.IDECodex,
-		OutputFormat:           model.OutputFormatJSON,
-		PromptFile:             "prompt.md",
-		BatchSize:              1,
-		MaxRetries:             1,
-		RetryBackoffMultiplier: 1.5,
-	}
+	for _, format := range []model.OutputFormat{model.OutputFormatJSON, model.OutputFormatRawJSON} {
+		format := format
+		t.Run(string(format), func(t *testing.T) {
+			t.Parallel()
 
-	if err := ValidateRuntimeConfig(cfg); err != nil {
-		t.Fatalf("validate exec runtime config: %v", err)
+			cfg := &model.RuntimeConfig{
+				Mode:                   model.ExecutionModeExec,
+				IDE:                    model.IDECodex,
+				OutputFormat:           format,
+				PromptFile:             "prompt.md",
+				BatchSize:              1,
+				MaxRetries:             1,
+				RetryBackoffMultiplier: 1.5,
+			}
+
+			if err := ValidateRuntimeConfig(cfg); err != nil {
+				t.Fatalf("validate exec runtime config: %v", err)
+			}
+		})
 	}
 }
 
@@ -396,6 +403,20 @@ func TestValidateRuntimeConfigRejectsInvalidExecCombinations(t *testing.T) {
 				RetryBackoffMultiplier: 1.5,
 			},
 			wantErr: "only supported for exec mode",
+		},
+		{
+			name: "raw-json with tui",
+			cfg: &model.RuntimeConfig{
+				Mode:                   model.ExecutionModeExec,
+				IDE:                    model.IDECodex,
+				OutputFormat:           model.OutputFormatRawJSON,
+				PromptText:             "hello",
+				TUI:                    true,
+				BatchSize:              1,
+				MaxRetries:             1,
+				RetryBackoffMultiplier: 1.5,
+			},
+			wantErr: "json or raw-json output",
 		},
 	}
 

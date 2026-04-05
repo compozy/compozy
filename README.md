@@ -97,7 +97,7 @@ When the direct ACP command is not installed, Compozy can also fall back to supp
 
 Workflow artifacts stay in `.compozy/tasks/<name>/`. These are the PRDs, TechSpecs, ADRs, tasks, reviews, and memory files that you read and edit between steps.
 
-Every execution also writes runtime artifacts under `.compozy/runs/<run-id>/`. That run directory contains `run.json`, per-job prompt and log files under `jobs/`, and `result.json` when `compozy exec --format json` is used.
+`compozy start` and `compozy fix-reviews` write runtime artifacts under `.compozy/runs/<run-id>/`. `compozy exec` is ephemeral by default and only writes resumable artifacts when `--persist` is enabled.
 
 Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `title`, `type`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
 
@@ -191,6 +191,8 @@ Use `compozy exec` when you want one prompt through the same ACP-backed executio
 compozy exec "Summarize the current repository changes"
 compozy exec --prompt-file prompt.md
 cat prompt.md | compozy exec --format json
+compozy exec --persist "Review the latest changes"
+compozy exec --run-id exec-20260405-120000-000000000 "Continue from the previous session"
 ```
 
 Prompt source rules are explicit:
@@ -202,17 +204,23 @@ Prompt source rules are explicit:
 
 Output modes:
 
-- `--format text` keeps the standard human-oriented execution summary and log flow
-- `--format json` suppresses the human/TUI presentation path, writes `result.json`, and emits the same machine-readable payload on stdout
+- `--format text` is headless by default and writes only the final assistant response to stdout
+- `--format json` streams the lean JSONL contract to stdout and filters ACP metadata that is mostly useful for debugging
+- `--format raw-json` streams the full raw JSONL event trace to stdout
+- when `--persist` is enabled, `.compozy/runs/<run-id>/events.jsonl` always stores the full raw event stream regardless of the selected stdout format
+- operational ACP/runtime logs stay silent by default; use `--verbose` when you want lifecycle logs on stderr
+- `--tui` opts back into the Bubble Tea interface for interactive inspection
+- `--persist` stores a resumable conversation under `.compozy/runs/<run-id>/`
+- `--run-id` loads a previously persisted ACP session and appends a new turn
 
-Run artifacts for `exec` and every other execution mode live under `.compozy/runs/<run-id>/`:
+Persisted `exec` runs use this layout:
 
 ```text
 .compozy/runs/<run-id>/run.json
-.compozy/runs/<run-id>/jobs/exec.prompt.md
-.compozy/runs/<run-id>/jobs/exec.out.log
-.compozy/runs/<run-id>/jobs/exec.err.log
-.compozy/runs/<run-id>/result.json
+.compozy/runs/<run-id>/events.jsonl
+.compozy/runs/<run-id>/turns/0001/prompt.md
+.compozy/runs/<run-id>/turns/0001/response.txt
+.compozy/runs/<run-id>/turns/0001/result.json
 ```
 
 `compozy exec` uses the same config merge rule as the rest of the CLI: `flags > [exec] > [defaults] > built-in defaults`.
@@ -442,7 +450,7 @@ compozy exec [prompt] [flags]
 
 Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `stdin`. When present, `.compozy/config.toml` can provide exec defaults through `[exec]` and shared runtime defaults through `[defaults]`.
 
-`compozy exec` writes run artifacts under `.compozy/runs/<run-id>/`. JSON mode also writes `result.json` and emits that same payload on stdout.
+`compozy exec` is headless and ephemeral by default. Use `--persist` to create `.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for JSONL, and `--tui` to opt back into the interactive UI.
 
 | Flag                         | Default     | Description                                                                 |
 | ---------------------------- | ----------- | --------------------------------------------------------------------------- |
@@ -600,7 +608,7 @@ internal/setup/          Bundled skill installer (agent detection, symlink/copy)
 internal/version/        Build metadata
 skills/                  Bundled installable skills
 .compozy/config.toml     Optional workspace defaults for CLI execution
-.compozy/runs/           Runtime artifacts for each execution (run.json, prompt/log files, result.json)
+.compozy/runs/           Runtime artifacts for persisted executions and resumable exec sessions
 .compozy/tasks/          Default workflow artifact root (PRDs, TechSpecs, tasks, ADRs, reviews)
 ```
 

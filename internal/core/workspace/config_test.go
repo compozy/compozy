@@ -180,6 +180,24 @@ output_format = "json"
 	}
 }
 
+func TestLoadConfigAcceptsRawJSONExecOutputFormat(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[exec]
+output_format = "raw-json"
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Exec.OutputFormat == nil || *cfg.Exec.OutputFormat != "raw-json" {
+		t.Fatalf("unexpected exec.output_format: %#v", cfg.Exec.OutputFormat)
+	}
+}
+
 func TestLoadConfigTaskTypes(t *testing.T) {
 	t.Parallel()
 

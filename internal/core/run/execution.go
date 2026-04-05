@@ -425,7 +425,7 @@ func (r *jobRunner) run(ctx context.Context) {
 		return
 	}
 
-	maxAttempts := maxInt(1, r.execCtx.cfg.maxRetries+1)
+	maxAttempts := atLeastOne(r.execCtx.cfg.maxRetries + 1)
 	timeout := r.execCtx.cfg.timeout
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if ctx.Err() != nil {
@@ -556,8 +556,8 @@ func newJobExecutionContext(ctx context.Context, jobs []job, cfg *config) (*jobE
 		jobs:          jobs,
 		total:         len(jobs),
 		cwd:           cwd,
-		logger:        runtimeLogger(cfg.uiEnabled()),
-		sem:           make(chan struct{}, maxInt(1, cfg.concurrent)),
+		logger:        runtimeLoggerFor(cfg, cfg.uiEnabled()),
+		sem:           make(chan struct{}, atLeastOne(cfg.concurrent)),
 		activeClients: make(map[agent.Client]struct{}),
 	}
 	for idx := range execCtx.jobs {
@@ -582,6 +582,9 @@ func (j *jobExecutionContext) cleanup() {
 func (j *jobExecutionContext) runtimeLogger() *slog.Logger {
 	if j != nil && j.logger != nil {
 		return j.logger
+	}
+	if j != nil {
+		return runtimeLoggerFor(j.cfg, j.cfg != nil && j.cfg.uiEnabled())
 	}
 	return runtimeLogger(false)
 }
@@ -879,7 +882,7 @@ func refreshTaskMetaOnExit(cfg *config) {
 
 	meta, err := tasks.RefreshTaskMeta(cfg.tasksDir)
 	if err != nil {
-		runtimeLogger(cfg != nil && cfg.uiEnabled()).Warn(
+		runtimeLoggerFor(cfg, cfg != nil && cfg.uiEnabled()).Warn(
 			"failed to refresh task workflow metadata at command exit",
 			"tasks_dir",
 			cfg.tasksDir,
@@ -889,7 +892,7 @@ func refreshTaskMetaOnExit(cfg *config) {
 		return
 	}
 
-	runtimeLogger(cfg != nil && cfg.uiEnabled()).Info(
+	runtimeLoggerFor(cfg, cfg != nil && cfg.uiEnabled()).Info(
 		"refreshed task workflow metadata at command exit",
 		"tasks_dir",
 		cfg.tasksDir,
@@ -936,12 +939,13 @@ func executeJobWithTimeout(
 		j,
 		cwd,
 		useUI,
+		cfg.humanOutputEnabled(),
 		uiCh,
 		index,
 		aggregateUsage,
 		aggregateMu,
 		activity,
-		runtimeLogger(useUI),
+		runtimeLoggerFor(cfg, useUI),
 		trackClient,
 	)
 	if err != nil {
@@ -1014,6 +1018,9 @@ func startACPActivityWatchdog(
 }
 
 func createLogFile(path string) (*os.File, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, nil
+	}
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return nil, err
@@ -1341,11 +1348,11 @@ func summarizeResults(failed int32, failures []failInfo, total int) {
 	}
 }
 
-func maxInt(a, b int) int {
-	if a > b {
-		return a
+func atLeastOne(value int) int {
+	if value < 1 {
+		return 1
 	}
-	return b
+	return value
 }
 
 func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provider.ResolvedIssue, error) {

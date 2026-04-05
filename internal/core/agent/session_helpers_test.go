@@ -121,6 +121,34 @@ func TestConvertACPUpdateVariants(t *testing.T) {
 	}
 }
 
+func TestLoadedSessionTracksSuppressedReplayUpdatesWithoutPublishingThem(t *testing.T) {
+	t.Parallel()
+
+	session := newLoadedSession("sess-1", t.TempDir(), nil)
+	update := model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallState: model.ToolCallStateFailed,
+	}
+
+	session.publish(update)
+
+	session.mu.RLock()
+	updatesSeen := session.updatesSeen
+	session.mu.RUnlock()
+	if updatesSeen != 1 {
+		t.Fatalf("expected suppressed replay update to be tracked, got %d", updatesSeen)
+	}
+	if !session.lastUpdateFailedToolCall() {
+		t.Fatal("expected suppressed replay update to retain failed tool-call state")
+	}
+
+	select {
+	case got := <-session.Updates():
+		t.Fatalf("expected suppressed replay update to stay hidden, got %#v", got)
+	default:
+	}
+}
+
 func TestConvertACPUpdateToolCallVariants(t *testing.T) {
 	t.Parallel()
 

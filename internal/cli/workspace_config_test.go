@@ -118,12 +118,14 @@ output_format = "text"
 [exec]
 ide = "codex"
 model = "gpt-5.4"
-output_format = "json"
+output_format = "raw-json"
+verbose = true
 `)
 
 	state := newCommandState(commandKindExec, core.ModeExec)
 	cmd := newTestCommand(state)
 	cmd.Flags().String("format", "", "output format")
+	cmd.Flags().Bool("verbose", false, "verbose logging")
 
 	chdirCLITest(t, startDir)
 
@@ -137,8 +139,11 @@ output_format = "json"
 	if state.model != "gpt-5.4" {
 		t.Fatalf("expected exec.model to override defaults.model, got %q", state.model)
 	}
-	if state.outputFormat != "json" {
+	if state.outputFormat != "raw-json" {
 		t.Fatalf("expected exec.output_format to override defaults.output_format, got %q", state.outputFormat)
+	}
+	if !state.verbose {
+		t.Fatal("expected exec.verbose to enable verbose logging")
 	}
 }
 

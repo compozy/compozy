@@ -99,6 +99,9 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 		applyStringConfig(cmd, "ide", cfg.Exec.IDE, func(val string) { s.ide = val })
 		applyStringConfig(cmd, "model", cfg.Exec.Model, func(val string) { s.model = val })
 		applyStringConfig(cmd, "format", cfg.Exec.OutputFormat, func(val string) { s.outputFormat = val })
+		applyBoolConfig(cmd, "verbose", cfg.Exec.Verbose, func(val bool) { s.verbose = val })
+		applyBoolConfig(cmd, "tui", cfg.Exec.TUI, func(val bool) { s.tui = val })
+		applyBoolConfig(cmd, "persist", cfg.Exec.Persist, func(val bool) { s.persist = val })
 		applyStringConfig(cmd, "reasoning-effort", cfg.Exec.ReasoningEffort, func(val string) {
 			s.reasoningEffort = val
 		})

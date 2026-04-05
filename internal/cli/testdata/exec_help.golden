@@ -1,9 +1,11 @@
 Execute a single ad hoc prompt using the shared Compozy planning and ACP execution pipeline.
 
-Provide the prompt as one positional argument, with --prompt-file, or via stdin. Every run writes
-artifacts under .compozy/runs/<run-id>/, including run.json plus prompt/log files in jobs/.
-JSON mode also writes result.json, emits the same machine-readable payload on stdout, and suppresses
-the human-oriented runtime presentation.
+Provide the prompt as one positional argument, with --prompt-file, or via stdin. By default the
+command is headless and ephemeral: text mode writes only the final assistant response to stdout and
+json mode streams lean JSONL events to stdout, while raw-json preserves the full event stream.
+Operational runtime logs stay silent unless you opt into --verbose. Use --tui to open the
+interactive TUI and --persist to save resumable artifacts under
+.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.
 
 Usage:
   compozy exec [prompt] [flags]
@@ -12,19 +14,26 @@ Examples:
   compozy exec "Summarize the current repository changes"
   compozy exec --prompt-file prompt.md
   cat prompt.md | compozy exec --format json
+  compozy exec --format raw-json "Inspect every streamed event"
+  compozy exec --persist "Review the latest changes"
+  compozy exec --run-id exec-20260405-120000-000000000 "Continue from the previous session"
 
 Flags:
       --access-mode string               Runtime access policy: default keeps native safeguards; full requests the most permissive mode Compozy can configure (default "full")
       --add-dir strings                  Additional directory to allow for ACP runtimes that support extra writable roots (repeatable or comma-separated)
       --auto-commit                      Include automatic commit instructions at task/batch completion
       --dry-run                          Only generate prompts; do not run IDE tool
-      --format string                    Output format: text or json (default "text")
+      --format string                    Output format: text, json, or raw-json (default "text")
   -h, --help                             help for exec
       --ide string                       ACP runtime to use: claude, codex, copilot, cursor-agent, droid, gemini, opencode, or pi (requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx) (default "codex")
       --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
       --model string                     Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)
+      --persist                          Persist exec artifacts under .compozy/runs/<run-id>/
       --prompt-file string               Path to a file containing the prompt text
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags, such as droid (low, medium, high, xhigh) (default "medium")
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
+      --run-id string                    Resume a previously persisted exec session by run id
       --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)
       --timeout string                   Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period. (default "10m")
+      --tui                              Open the interactive TUI instead of using headless stdout output
+      --verbose                          Emit operational runtime logs to stderr during exec

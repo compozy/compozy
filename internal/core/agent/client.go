@@ -23,6 +23,10 @@ import (
 type Client interface {
 	// CreateSession starts a new ACP session with the given prompt.
 	CreateSession(ctx context.Context, req SessionRequest) (Session, error)
+	// ResumeSession attaches to an existing ACP session and sends a new prompt into it.
+	ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error)
+	// SupportsLoadSession reports whether the connected ACP agent advertised session/load support.
+	SupportsLoadSession() bool
 	// Close terminates the agent subprocess.
 	Close() error
 	// Kill force-terminates the agent subprocess immediately.
@@ -48,6 +52,15 @@ type SessionRequest struct {
 	ExtraEnv   map[string]string
 }
 
+// ResumeSessionRequest contains the parameters for loading and continuing an existing ACP session.
+type ResumeSessionRequest struct {
+	SessionID  string
+	Prompt     []byte
+	WorkingDir string
+	Model      string
+	ExtraEnv   map[string]string
+}
+
 // SessionError wraps JSON-RPC/ACP request errors without leaking SDK types.
 type SessionError struct {
 	Code    int
@@ -65,6 +78,8 @@ const (
 	SessionSetupStageInitialize SessionSetupStage = "initialize"
 	// SessionSetupStageNewSession indicates that ACP session creation failed.
 	SessionSetupStageNewSession SessionSetupStage = "new_session"
+	// SessionSetupStageLoadSession indicates that ACP session loading failed.
+	SessionSetupStageLoadSession SessionSetupStage = "load_session"
 	// SessionSetupStageSetModel indicates that ACP session model configuration failed.
 	SessionSetupStageSetModel SessionSetupStage = "set_model"
 	// SessionSetupStageSetMode indicates that ACP session mode configuration failed.
@@ -139,6 +154,7 @@ type clientImpl struct {
 	waitErr        error
 	sessions       map[string]*sessionImpl
 	forcedShutdown bool
+	loadSupported  bool
 
 	wg             sync.WaitGroup
 	closeInputOnce sync.Once
@@ -196,6 +212,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	}
 
 	session := newSessionWithAccess(string(sessionResp.SessionId), workingDir, allowedRoots)
+	session.setAgentSessionID(extractAgentSessionID(sessionResp.Meta))
 	c.storeSession(session)
 
 	if requestedModel != c.startModel {
@@ -224,6 +241,70 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	})
 
 	return session, nil
+}
+
+// ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
+func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest) (Session, error) {
+	workingDir, err := resolveWorkingDir(req.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(req.SessionID) == "" {
+		return nil, errors.New("resume ACP session: missing session id")
+	}
+
+	sessionReq := SessionRequest{
+		Prompt:     req.Prompt,
+		WorkingDir: workingDir,
+		Model:      req.Model,
+		ExtraEnv:   req.ExtraEnv,
+	}
+	if err := c.ensureStarted(ctx, sessionReq); err != nil {
+		return nil, err
+	}
+	if !c.SupportsLoadSession() {
+		return nil, wrapSessionSetupError(
+			SessionSetupStageLoadSession,
+			errors.New("ACP agent does not support session/load"),
+		)
+	}
+
+	allowedRoots, err := resolveSessionAllowedRoots(workingDir, c.cfg.AddDirs)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionID := strings.TrimSpace(req.SessionID)
+	session := newLoadedSession(sessionID, workingDir, allowedRoots)
+	c.storeSession(session)
+
+	loadResp, err := c.conn.LoadSession(ctx, acp.LoadSessionRequest{
+		SessionId:  acp.SessionId(sessionID),
+		Cwd:        workingDir,
+		McpServers: []acp.McpServer{},
+	})
+	if err != nil {
+		c.removeSession(session.id)
+		return nil, wrapSessionSetupError(SessionSetupStageLoadSession, wrapACPError(err))
+	}
+	session.setAgentSessionID(extractAgentSessionID(loadResp.Meta))
+	session.waitForIdle(ctx, 15*time.Millisecond)
+	session.resumeUpdates()
+
+	c.wg.Add(1)
+	go c.runPrompt(ctx, session, acp.PromptRequest{
+		SessionId: acp.SessionId(sessionID),
+		Prompt:    []acp.ContentBlock{acp.TextBlock(string(req.Prompt))},
+	})
+
+	return session, nil
+}
+
+// SupportsLoadSession reports whether the connected ACP runtime advertised session/load support.
+func (c *clientImpl) SupportsLoadSession() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.loadSupported
 }
 
 // Close terminates the agent subprocess and waits for background goroutines to exit.
@@ -418,7 +499,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 	go c.waitForProcess()
 	c.mu.Unlock()
 
-	if _, err := conn.Initialize(ctx, acp.InitializeRequest{
+	initResp, err := conn.Initialize(ctx, acp.InitializeRequest{
 		ProtocolVersion: acp.ProtocolVersionNumber,
 		ClientCapabilities: acp.ClientCapabilities{
 			Fs: acp.FileSystemCapability{
@@ -431,13 +512,18 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 			Name:    "compozy",
 			Version: "dev",
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		_ = c.Close()
 		return wrapSessionSetupError(
 			SessionSetupStageInitialize,
 			wrapACPLaunchError(c.spec, command, stderr.String(), "initialize ACP agent", wrapACPError(err)),
 		)
 	}
+
+	c.mu.Lock()
+	c.loadSupported = initResp.AgentCapabilities.LoadSession
+	c.mu.Unlock()
 
 	return nil
 }
@@ -641,6 +727,28 @@ func (c *clientImpl) removeSession(id string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.sessions, id)
+}
+
+func extractAgentSessionID(meta any) string {
+	record, ok := meta.(map[string]any)
+	if !ok {
+		return ""
+	}
+	for _, key := range []string{"agentSessionId", "sessionId"} {
+		value, ok := record[key]
+		if !ok {
+			continue
+		}
+		text, ok := value.(string)
+		if !ok {
+			continue
+		}
+		trimmed := strings.TrimSpace(text)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func (c *clientImpl) lookupSession(id string) *sessionImpl {

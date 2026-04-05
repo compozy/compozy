@@ -14,18 +14,25 @@ func TestConfigValidateRejectsNegativeTailLines(t *testing.T) {
 func TestConfigValidateAcceptsExecMode(t *testing.T) {
 	t.Parallel()
 
-	err := Config{
-		Mode:            ModeExec,
-		IDE:             IDECodex,
-		OutputFormat:    OutputFormatJSON,
-		PromptText:      "Summarize the repo state",
-		BatchSize:       1,
-		MaxRetries:      1,
-		AccessMode:      AccessModeFull,
-		ReasoningEffort: "medium",
-	}.Validate()
-	if err != nil {
-		t.Fatalf("expected exec config to validate: %v", err)
+	for _, format := range []OutputFormat{OutputFormatJSON, OutputFormatRawJSON} {
+		format := format
+		t.Run(string(format), func(t *testing.T) {
+			t.Parallel()
+
+			err := Config{
+				Mode:            ModeExec,
+				IDE:             IDECodex,
+				OutputFormat:    format,
+				PromptText:      "Summarize the repo state",
+				BatchSize:       1,
+				MaxRetries:      1,
+				AccessMode:      AccessModeFull,
+				ReasoningEffort: "medium",
+			}.Validate()
+			if err != nil {
+				t.Fatalf("expected exec config to validate: %v", err)
+			}
+		})
 	}
 }
 

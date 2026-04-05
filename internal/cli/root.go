@@ -2,11 +2,13 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -53,6 +55,10 @@ type commandState struct {
 	reasoningEffort        string
 	accessMode             string
 	outputFormat           string
+	verbose                bool
+	tui                    bool
+	persist                bool
+	runID                  string
 	promptText             string
 	promptFile             string
 	readPromptStdin        bool
@@ -208,13 +214,18 @@ func newExecCommand() *cobra.Command {
 		Args:         cobra.MaximumNArgs(1),
 		Long: `Execute a single ad hoc prompt using the shared Compozy planning and ACP execution pipeline.
 
-Provide the prompt as one positional argument, with --prompt-file, or via stdin. Every run writes
-artifacts under .compozy/runs/<run-id>/, including run.json plus prompt/log files in jobs/.
-JSON mode also writes result.json, emits the same machine-readable payload on stdout, and suppresses
-the human-oriented runtime presentation.`,
+Provide the prompt as one positional argument, with --prompt-file, or via stdin. By default the
+command is headless and ephemeral: text mode writes only the final assistant response to stdout and
+json mode streams lean JSONL events to stdout, while raw-json preserves the full event stream.
+Operational runtime logs stay silent unless you opt into --verbose. Use --tui to open the
+interactive TUI and --persist to save resumable artifacts under
+.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.`,
 		Example: `  compozy exec "Summarize the current repository changes"
   compozy exec --prompt-file prompt.md
-  cat prompt.md | compozy exec --format json`,
+  cat prompt.md | compozy exec --format json
+  compozy exec --format raw-json "Inspect every streamed event"
+  compozy exec --persist "Review the latest changes"
+  compozy exec --run-id exec-20260405-120000-000000000 "Continue from the previous session"`,
 		RunE: state.exec,
 	}
 
@@ -224,8 +235,12 @@ the human-oriented runtime presentation.`,
 		&state.outputFormat,
 		"format",
 		string(core.OutputFormatText),
-		"Output format: text or json",
+		"Output format: text, json, or raw-json",
 	)
+	cmd.Flags().BoolVar(&state.verbose, "verbose", false, "Emit operational runtime logs to stderr during exec")
+	cmd.Flags().BoolVar(&state.tui, "tui", false, "Open the interactive TUI instead of using headless stdout output")
+	cmd.Flags().BoolVar(&state.persist, "persist", false, "Persist exec artifacts under .compozy/runs/<run-id>/")
+	cmd.Flags().StringVar(&state.runID, "run-id", "", "Resume a previously persisted exec session by run id")
 	return cmd
 }
 
@@ -425,13 +440,19 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 
 	cfg, err := s.buildConfig()
 	if err != nil {
-		return err
+		return s.handleExecError(cmd, err)
+	}
+	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
+		return s.handleExecError(cmd, err)
 	}
 	if err := cfg.Validate(); err != nil {
-		return err
+		return s.handleExecError(cmd, err)
 	}
 
-	return s.runPrepared(ctx, cmd, cfg)
+	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	return nil
 }
 
 func (s *commandState) exec(cmd *cobra.Command, args []string) error {
@@ -439,21 +460,27 @@ func (s *commandState) exec(cmd *cobra.Command, args []string) error {
 	defer stop()
 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
-		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
+		return s.handleExecError(cmd, fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err))
 	}
 	if err := s.resolveExecPromptSource(cmd, args); err != nil {
-		return err
+		return s.handleExecError(cmd, err)
 	}
 
 	cfg, err := s.buildConfig()
 	if err != nil {
-		return err
+		return s.handleExecError(cmd, err)
+	}
+	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
+		return s.handleExecError(cmd, err)
 	}
 	if err := cfg.Validate(); err != nil {
-		return err
+		return s.handleExecError(cmd, err)
 	}
 
-	return s.runPrepared(ctx, cmd, cfg)
+	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	return nil
 }
 
 func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
@@ -686,6 +713,10 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		AccessMode:             s.accessMode,
 		Mode:                   s.mode,
 		OutputFormat:           core.OutputFormat(s.outputFormat),
+		Verbose:                s.verbose,
+		TUI:                    s.tui,
+		Persist:                s.persist,
+		RunID:                  s.runID,
 		PromptText:             s.promptText,
 		PromptFile:             s.promptFile,
 		ReadPromptStdin:        s.readPromptStdin,
@@ -696,6 +727,74 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,
 	}, nil
+}
+
+func (s *commandState) applyPersistedExecConfig(cmd *cobra.Command, cfg *core.Config) error {
+	if cfg == nil || strings.TrimSpace(s.runID) == "" {
+		return nil
+	}
+
+	record, err := coreRun.LoadPersistedExecRun(s.workspaceRoot, s.runID)
+	if err != nil {
+		return err
+	}
+	cfg.Persist = true
+	cfg.RunID = record.RunID
+	if err := s.assertPersistedExecCompatibility(cmd, *cfg, record); err != nil {
+		return err
+	}
+
+	cfg.WorkspaceRoot = record.WorkspaceRoot
+	cfg.IDE = core.IDE(record.IDE)
+	cfg.Model = record.Model
+	cfg.ReasoningEffort = record.ReasoningEffort
+	cfg.AccessMode = record.AccessMode
+	cfg.AddDirs = core.NormalizeAddDirs(record.AddDirs)
+	return nil
+}
+
+func (s *commandState) assertPersistedExecCompatibility(
+	cmd *cobra.Command,
+	cfg core.Config,
+	record coreRun.PersistedExecRun,
+) error {
+	if cmd.Flags().Changed("ide") && string(cfg.IDE) != record.IDE {
+		return fmt.Errorf("--run-id %q must continue with persisted --ide %q", record.RunID, record.IDE)
+	}
+	if cmd.Flags().Changed("model") && cfg.Model != record.Model {
+		return fmt.Errorf("--run-id %q must continue with persisted --model %q", record.RunID, record.Model)
+	}
+	if cmd.Flags().Changed("reasoning-effort") && cfg.ReasoningEffort != record.ReasoningEffort {
+		return fmt.Errorf(
+			"--run-id %q must continue with persisted --reasoning-effort %q",
+			record.RunID,
+			record.ReasoningEffort,
+		)
+	}
+	if cmd.Flags().Changed("access-mode") && cfg.AccessMode != record.AccessMode {
+		return fmt.Errorf("--run-id %q must continue with persisted --access-mode %q", record.RunID, record.AccessMode)
+	}
+	if cmd.Flags().Changed("add-dir") &&
+		!reflect.DeepEqual(core.NormalizeAddDirs(cfg.AddDirs), core.NormalizeAddDirs(record.AddDirs)) {
+		return fmt.Errorf("--run-id %q must continue with persisted --add-dir values", record.RunID)
+	}
+	return nil
+}
+
+func (s *commandState) handleExecError(cmd *cobra.Command, err error) error {
+	if err == nil {
+		return nil
+	}
+	if isExecJSONOutputFormatFlag(s.outputFormat) && !coreRun.IsExecErrorReported(err) {
+		cmd.SilenceErrors = true
+		if root := cmd.Root(); root != nil {
+			root.SilenceErrors = true
+		}
+		if emitErr := coreRun.WriteExecJSONFailure(cmd.OutOrStdout(), strings.TrimSpace(s.runID), err); emitErr != nil {
+			return errors.Join(err, emitErr)
+		}
+	}
+	return err
 }
 
 func (s *commandState) resolveExecPromptSource(cmd *cobra.Command, args []string) error {
@@ -834,4 +933,13 @@ func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Com
 		return withExitCode(1, fmt.Errorf("task validation failed"))
 	}
 	return nil
+}
+
+func isExecJSONOutputFormatFlag(value string) bool {
+	switch strings.TrimSpace(value) {
+	case string(core.OutputFormatJSON), string(core.OutputFormatRawJSON):
+		return true
+	default:
+		return false
+	}
 }

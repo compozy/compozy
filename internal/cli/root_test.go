@@ -295,8 +295,12 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 		"--format",
 		"--dry-run",
 		"--ide",
+		"--persist",
+		"--run-id",
+		"--tui",
+		"--verbose",
 		".compozy/runs/<run-id>/",
-		"result.json",
+		"JSONL events",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -353,9 +357,11 @@ func TestREADMEExecDocumentationMatchesCurrentContract(t *testing.T) {
 		"compozy exec \"Summarize the current repository changes\"",
 		"compozy exec --prompt-file prompt.md",
 		"cat prompt.md | compozy exec --format json",
+		"compozy exec --persist \"Review the latest changes\"",
 		".compozy/runs/<run-id>/run.json",
-		".compozy/runs/<run-id>/jobs/exec.prompt.md",
-		".compozy/runs/<run-id>/result.json",
+		".compozy/runs/<run-id>/events.jsonl",
+		".compozy/runs/<run-id>/turns/0001/prompt.md",
+		".compozy/runs/<run-id>/turns/0001/result.json",
 		"flags > [exec] > [defaults] > built-in defaults",
 		"[exec]",
 		"`copilot`",
