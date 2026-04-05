@@ -377,7 +377,8 @@ func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
 func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 	t.Parallel()
 
-	reviewDir := filepath.Join(t.TempDir(), model.TasksBaseDir(), "review-without-pr", "reviews-007")
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "review-without-pr", "reviews-007")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
 		Provider:  "coderabbit",
 		PR:        "",
@@ -407,10 +408,11 @@ func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 	}
 
 	cfg := &model.RuntimeConfig{
-		ReviewsDir: reviewDir,
-		IDE:        model.IDECodex,
-		DryRun:     true,
-		Mode:       model.ExecutionModePRReview,
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		IDE:           model.IDECodex,
+		DryRun:        true,
+		Mode:          model.ExecutionModePRReview,
 	}
 
 	prep, err := Prepare(context.Background(), cfg)
@@ -566,6 +568,50 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 		t.Fatalf("expected run dir under workspace runs root, got %q", runArtifacts.RunDir)
 	}
 	assertJobUsesRunArtifacts(t, runArtifacts, prep.Jobs[0])
+}
+
+func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	promptPath := filepath.Join(workspaceRoot, "prompt.md")
+	if err := os.WriteFile(promptPath, []byte("Summarize the repository state\n"), 0o600); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+
+	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: workspaceRoot,
+		PromptFile:    promptPath,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModeExec,
+		OutputFormat:  model.OutputFormatJSON,
+	})
+	if err != nil {
+		t.Fatalf("prepare exec: %v", err)
+	}
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one exec job, got %d", len(prep.Jobs))
+	}
+
+	job := prep.Jobs[0]
+	if got, want := job.CodeFiles, []string{"exec"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected exec code files\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if got := string(job.Prompt); got != "Summarize the repository state\n" {
+		t.Fatalf("unexpected exec prompt: %q", got)
+	}
+	assertJobUsesRunArtifacts(t, prep.RunArtifacts, job)
+	for _, path := range []string{
+		prep.RunArtifacts.RunMetaPath,
+		job.OutPromptPath,
+		job.OutLog,
+		job.ErrLog,
+	} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected exec artifact %s: %v", path, err)
+		}
+	}
 }
 
 func TestResolveInputsRejectsLegacyTasksDirInference(t *testing.T) {

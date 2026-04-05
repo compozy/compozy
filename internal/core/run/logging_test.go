@@ -57,6 +57,7 @@ func TestSessionUpdateHandlerRoutesTextBlocksToLogAndSnapshot(t *testing.T) {
 		&out,
 		&err,
 		uiCh,
+		nil,
 		&aggregate,
 		&sync.Mutex{},
 		nil,
@@ -108,6 +109,7 @@ func TestSessionUpdateHandlerMergesTranscriptAndCarriesSessionState(t *testing.T
 		io.Discard,
 		io.Discard,
 		uiCh,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -190,6 +192,7 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 		&out,
 		&err,
 		uiCh,
+		nil,
 		&aggregate,
 		&aggregateMu,
 		nil,
@@ -286,6 +289,7 @@ func TestSessionUpdateHandlerDoesNotBlockWhenUIChannelIsFull(t *testing.T) {
 		io.Discard,
 		io.Discard,
 		uiCh,
+		nil,
 		&aggregate,
 		&aggregateMu,
 		nil,
@@ -319,7 +323,19 @@ func TestSessionUpdateHandlerDoesNotBlockWhenUIChannelIsFull(t *testing.T) {
 func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	t.Parallel()
 
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-done", nil, io.Discard, io.Discard, nil, nil, nil, nil)
+	handler := newSessionUpdateHandler(
+		0,
+		model.IDECodex,
+		"sess-done",
+		nil,
+		io.Discard,
+		io.Discard,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusCompleted}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -340,7 +356,19 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 	t.Parallel()
 
 	var errBuf bytes.Buffer
-	handler := newSessionUpdateHandler(0, model.IDECodex, "sess-failed", nil, io.Discard, &errBuf, nil, nil, nil, nil)
+	handler := newSessionUpdateHandler(
+		0,
+		model.IDECodex,
+		"sess-failed",
+		nil,
+		io.Discard,
+		&errBuf,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusFailed}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -370,6 +398,7 @@ func TestSessionUpdateHandlerCompletionWriteFailureStillSignalsDone(t *testing.T
 		nil,
 		io.Discard,
 		failingWriter{},
+		nil,
 		nil,
 		nil,
 		nil,

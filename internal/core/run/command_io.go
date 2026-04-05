@@ -43,6 +43,7 @@ func (s *sessionExecution) close() {
 
 func notifyJobStart(
 	useUI bool,
+	emitHuman bool,
 	uiCh chan uiMsg,
 	index int,
 	attempt int,
@@ -56,6 +57,9 @@ func notifyJobStart(
 ) {
 	if useUI {
 		uiCh <- jobStartedMsg{Index: index, Attempt: attempt, MaxAttempts: maxAttempts}
+		return
+	}
+	if !emitHuman {
 		return
 	}
 
@@ -134,7 +138,7 @@ func setupSessionExecution(
 		return nil, fmt.Errorf("create ACP session: %w", err)
 	}
 
-	outWriter, errWriter := createLogWriters(outFile, errFile, useUI)
+	outWriter, errWriter := createLogWriters(outFile, errFile, useUI, cfg.humanOutputEnabled())
 	handler := newSessionUpdateHandler(
 		index,
 		cfg.ide,
@@ -143,6 +147,7 @@ func setupSessionExecution(
 		outWriter,
 		errWriter,
 		uiCh,
+		&job.usage,
 		aggregateUsage,
 		aggregateMu,
 		activity,

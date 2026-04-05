@@ -77,6 +77,7 @@ type RuntimeConfig struct {
 	PromptText             string
 	PromptFile             string
 	ReadPromptStdin        bool
+	ResolvedPromptText     string
 	IncludeCompleted       bool
 	IncludeResolved        bool
 	Timeout                time.Duration

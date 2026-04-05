@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -209,6 +210,69 @@ func TestExecuteJobWithTimeoutACPFailedToolCallDoesNotFailJob(t *testing.T) {
 	}
 	if strings.Contains(string(errLog), "ACP session error:") {
 		t.Fatalf("expected no terminal ACP session error in err log, got %q", string(errLog))
+	}
+}
+
+func TestExecuteACPJSONModeWritesStructuredFailureResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	installACPHelperOnPath(t, []runACPHelperScenario{{
+		PromptError: &runACPHelperRequestError{Code: 4901, Message: "json failure"},
+	}})
+
+	runArtifacts := model.NewRunArtifacts(tmpDir, "exec-json-failure")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	jobArtifacts := runArtifacts.JobArtifacts("exec")
+	for _, path := range []string{jobArtifacts.PromptPath, jobArtifacts.OutLogPath, jobArtifacts.ErrLogPath} {
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatalf("seed artifact %s: %v", path, err)
+		}
+	}
+
+	stdout, stderr, execErr := captureExecuteStreams(t, func() error {
+		return Execute(context.Background(), []model.Job{{
+			CodeFiles:     []string{"exec"},
+			Groups:        map[string][]model.IssueEntry{"exec": {{Name: "exec", CodeFile: "exec"}}},
+			SafeName:      "exec",
+			Prompt:        []byte("finish the task"),
+			SystemPrompt:  "workflow memory",
+			OutPromptPath: jobArtifacts.PromptPath,
+			OutLog:        jobArtifacts.OutLogPath,
+			ErrLog:        jobArtifacts.ErrLogPath,
+		}}, runArtifacts, &model.RuntimeConfig{
+			IDE:                    model.IDECodex,
+			Mode:                   model.ExecutionModeExec,
+			OutputFormat:           model.OutputFormatJSON,
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+		})
+	})
+	if execErr == nil {
+		t.Fatal("expected JSON execution failure")
+	}
+	if stderr != "" {
+		t.Fatalf("expected JSON mode to suppress human stderr, got %q", stderr)
+	}
+
+	var payload executionResult
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("decode stdout json: %v\nstdout:\n%s", err, stdout)
+	}
+	if payload.Status != runStatusFailed {
+		t.Fatalf("unexpected run status: %q", payload.Status)
+	}
+	if payload.Error == "" || !strings.Contains(payload.Error, "json failure") {
+		t.Fatalf("unexpected run error: %q", payload.Error)
+	}
+	if len(payload.Jobs) != 1 || payload.Jobs[0].Status != runStatusFailed {
+		t.Fatalf("unexpected job payload: %#v", payload.Jobs)
+	}
+	if _, err := os.Stat(payload.ResultPath); err != nil {
+		t.Fatalf("expected result.json to exist: %v", err)
+	}
+	if _, err := os.Stat(payload.Jobs[0].StderrLogPath); err != nil {
+		t.Fatalf("expected stderr log path to exist: %v", err)
 	}
 }
 
@@ -934,6 +998,54 @@ func helperPromptText(blocks []acp.ContentBlock) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func captureExecuteStreams(t *testing.T, fn func() error) (string, string, error) {
+	t.Helper()
+
+	originalStdout := os.Stdout
+	originalStderr := os.Stderr
+	stdoutRead, stdoutWrite, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdout pipe: %v", err)
+	}
+	stderrRead, stderrWrite, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stderr pipe: %v", err)
+	}
+
+	os.Stdout = stdoutWrite
+	os.Stderr = stderrWrite
+	defer func() {
+		os.Stdout = originalStdout
+		os.Stderr = originalStderr
+	}()
+
+	runErr := fn()
+
+	if err := stdoutWrite.Close(); err != nil {
+		t.Fatalf("close stdout writer: %v", err)
+	}
+	if err := stderrWrite.Close(); err != nil {
+		t.Fatalf("close stderr writer: %v", err)
+	}
+
+	stdoutBytes, err := io.ReadAll(stdoutRead)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	stderrBytes, err := io.ReadAll(stderrRead)
+	if err != nil {
+		t.Fatalf("read stderr: %v", err)
+	}
+	if err := stdoutRead.Close(); err != nil {
+		t.Fatalf("close stdout reader: %v", err)
+	}
+	if err := stderrRead.Close(); err != nil {
+		t.Fatalf("close stderr reader: %v", err)
+	}
+
+	return string(stdoutBytes), string(stderrBytes), runErr
 }
 
 func helperFirstNonEmpty(values ...string) string {

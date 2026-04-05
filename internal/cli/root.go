@@ -3,7 +3,9 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -54,6 +56,7 @@ type commandState struct {
 	promptText             string
 	promptFile             string
 	readPromptStdin        bool
+	resolvedPromptText     string
 	includeCompleted       bool
 	includeResolved        bool
 	timeout                string
@@ -87,6 +90,7 @@ Use explicit workflow subcommands:
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
   compozy fix-reviews   Process review issue files from a specific review round
+  compozy exec          Execute one ad hoc prompt through the shared ACP runtime
   compozy start         Execute PRD task files`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -101,6 +105,7 @@ Use explicit workflow subcommands:
 		newArchiveCommand(),
 		newFetchReviewsCommand(),
 		newFixReviewsCommand(),
+		newExecCommand(),
 		newStartCommand(),
 	)
 	return root
@@ -190,6 +195,34 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 		"force",
 		false,
 		"Continue after task metadata validation fails in non-interactive mode",
+	)
+	return cmd
+}
+
+func newExecCommand() *cobra.Command {
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := &cobra.Command{
+		Use:          "exec [prompt]",
+		Short:        "Execute one ad hoc prompt through the shared ACP runtime",
+		SilenceUsage: true,
+		Args:         cobra.MaximumNArgs(1),
+		Long: `Execute a single ad hoc prompt using the shared Compozy planning and ACP execution pipeline.
+
+Provide the prompt as one positional argument, with --prompt-file, or via stdin. JSON mode emits
+stable machine-readable run results and suppresses the human-oriented runtime presentation.`,
+		Example: `  compozy exec "Summarize the current repository changes"
+  compozy exec --prompt-file prompt.md
+  cat prompt.md | compozy exec --format json`,
+		RunE: state.exec,
+	}
+
+	addCommonFlags(cmd, state, commonFlagOptions{})
+	cmd.Flags().StringVar(&state.promptFile, "prompt-file", "", "Path to a file containing the prompt text")
+	cmd.Flags().StringVar(
+		&state.outputFormat,
+		"format",
+		string(core.OutputFormatText),
+		"Output format: text or json",
 	)
 	return cmd
 }
@@ -385,6 +418,28 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
 	}
 	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+		return err
+	}
+
+	cfg, err := s.buildConfig()
+	if err != nil {
+		return err
+	}
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
+
+	return s.runPrepared(ctx, cmd, cfg)
+}
+
+func (s *commandState) exec(cmd *cobra.Command, args []string) error {
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
+	}
+	if err := s.resolveExecPromptSource(cmd, args); err != nil {
 		return err
 	}
 
@@ -632,12 +687,101 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		PromptText:             s.promptText,
 		PromptFile:             s.promptFile,
 		ReadPromptStdin:        s.readPromptStdin,
+		ResolvedPromptText:     s.resolvedPromptText,
 		IncludeCompleted:       s.includeCompleted,
 		IncludeResolved:        s.includeResolved,
 		Timeout:                timeoutDuration,
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,
 	}, nil
+}
+
+func (s *commandState) resolveExecPromptSource(cmd *cobra.Command, args []string) error {
+	s.promptText = ""
+	s.readPromptStdin = false
+	s.resolvedPromptText = ""
+
+	positionalPrompt := ""
+	if len(args) == 1 && strings.TrimSpace(args[0]) != "" {
+		positionalPrompt = args[0]
+	}
+	promptFile := strings.TrimSpace(s.promptFile)
+
+	stdinPrompt, hasStdinPrompt, err := readPromptFromCommandInput(cmd.InOrStdin())
+	if err != nil {
+		return err
+	}
+
+	sourceCount := 0
+	if positionalPrompt != "" {
+		sourceCount++
+	}
+	if promptFile != "" {
+		sourceCount++
+	}
+	if hasStdinPrompt {
+		sourceCount++
+	}
+
+	switch {
+	case sourceCount == 0:
+		return fmt.Errorf(
+			"%s requires exactly one prompt source: positional prompt, --prompt-file, or non-empty stdin",
+			cmd.CommandPath(),
+		)
+	case sourceCount > 1:
+		return fmt.Errorf(
+			"%s accepts only one prompt source at a time: positional prompt, --prompt-file, or stdin",
+			cmd.CommandPath(),
+		)
+	}
+
+	switch {
+	case positionalPrompt != "":
+		s.promptText = positionalPrompt
+		s.resolvedPromptText = positionalPrompt
+		return nil
+	case promptFile != "":
+		content, err := os.ReadFile(promptFile)
+		if err != nil {
+			return fmt.Errorf("read prompt file %s: %w", promptFile, err)
+		}
+		if strings.TrimSpace(string(content)) == "" {
+			return fmt.Errorf("prompt file %s is empty", promptFile)
+		}
+		s.promptFile = promptFile
+		s.resolvedPromptText = string(content)
+		return nil
+	default:
+		s.readPromptStdin = true
+		s.resolvedPromptText = stdinPrompt
+		return nil
+	}
+}
+
+func readPromptFromCommandInput(reader io.Reader) (string, bool, error) {
+	if reader == nil {
+		return "", false, nil
+	}
+
+	if file, ok := reader.(*os.File); ok {
+		info, err := file.Stat()
+		if err != nil {
+			return "", false, fmt.Errorf("inspect stdin: %w", err)
+		}
+		if info.Mode()&os.ModeCharDevice != 0 {
+			return "", false, nil
+		}
+	}
+
+	content, err := io.ReadAll(reader)
+	if err != nil {
+		return "", false, fmt.Errorf("read stdin prompt: %w", err)
+	}
+	if strings.TrimSpace(string(content)) == "" {
+		return "", false, nil
+	}
+	return string(content), true, nil
 }
 
 func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {

@@ -17,10 +17,49 @@ import (
 )
 
 func resolveInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
+	if cfg.Mode == model.ExecutionModeExec {
+		return resolveExecInputs(cfg)
+	}
 	if cfg.Mode == model.ExecutionModePRDTasks {
 		return resolveTaskInputs(cfg)
 	}
 	return resolveReviewInputs(cfg)
+}
+
+func resolveExecInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
+	if strings.TrimSpace(cfg.Name) == "" {
+		cfg.Name = "exec"
+	}
+	return cfg.Name, "", "", nil
+}
+
+func resolveExecPrompt(cfg *model.RuntimeConfig) (string, error) {
+	if trimmed := strings.TrimSpace(cfg.ResolvedPromptText); trimmed != "" {
+		return cfg.ResolvedPromptText, nil
+	}
+	if trimmed := strings.TrimSpace(cfg.PromptText); trimmed != "" {
+		return cfg.PromptText, nil
+	}
+	if strings.TrimSpace(cfg.PromptFile) != "" {
+		resolvedPath, err := filepath.Abs(cfg.PromptFile)
+		if err != nil {
+			return "", fmt.Errorf("resolve prompt file: %w", err)
+		}
+		content, err := os.ReadFile(resolvedPath)
+		if err != nil {
+			return "", fmt.Errorf("read prompt file %s: %w", resolvedPath, err)
+		}
+		if strings.TrimSpace(string(content)) == "" {
+			return "", fmt.Errorf("prompt file %s is empty", resolvedPath)
+		}
+		cfg.PromptFile = resolvedPath
+		cfg.ResolvedPromptText = string(content)
+		return cfg.ResolvedPromptText, nil
+	}
+	if cfg.ReadPromptStdin {
+		return "", errors.New("exec stdin prompt was not resolved before planning")
+	}
+	return "", errors.New("exec prompt is empty")
 }
 
 func resolveTaskInputs(cfg *model.RuntimeConfig) (string, string, string, error) {

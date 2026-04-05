@@ -22,6 +22,7 @@ type sessionUpdateHandler struct {
 	outWriter      io.Writer
 	errWriter      io.Writer
 	uiCh           chan<- uiMsg
+	jobUsage       *model.Usage
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
 	activity       *activityMonitor
@@ -42,6 +43,7 @@ func newSessionUpdateHandler(
 	outWriter io.Writer,
 	errWriter io.Writer,
 	uiCh chan<- uiMsg,
+	jobUsage *model.Usage,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
 	activity *activityMonitor,
@@ -58,6 +60,7 @@ func newSessionUpdateHandler(
 		outWriter:      outWriter,
 		errWriter:      errWriter,
 		uiCh:           uiCh,
+		jobUsage:       jobUsage,
 		aggregateUsage: aggregateUsage,
 		aggregateMu:    aggregateMu,
 		activity:       activity,
@@ -101,6 +104,9 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 	}
 
 	if hasUsage(update.Usage) {
+		if h.jobUsage != nil {
+			h.jobUsage.Add(update.Usage)
+		}
 		if h.uiCh != nil {
 			select {
 			case h.uiCh <- usageUpdateMsg{Index: h.index, Usage: update.Usage}:
@@ -477,8 +483,8 @@ func appendLinesToBuffer(buf *lineBuffer, lines []string) {
 	}
 }
 
-func createLogWriters(outFile *os.File, errFile *os.File, useUI bool) (io.Writer, io.Writer) {
-	if useUI {
+func createLogWriters(outFile *os.File, errFile *os.File, useUI bool, emitHuman bool) (io.Writer, io.Writer) {
+	if useUI || !emitHuman {
 		return outFile, errFile
 	}
 	return io.MultiWriter(outFile, os.Stdout), io.MultiWriter(errFile, os.Stderr)

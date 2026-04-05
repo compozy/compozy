@@ -90,6 +90,7 @@ type Config struct {
 	PromptText             string
 	PromptFile             string
 	ReadPromptStdin        bool
+	ResolvedPromptText     string
 	IncludeCompleted       bool
 	IncludeResolved        bool
 	Timeout                time.Duration
@@ -225,7 +226,7 @@ func Run(ctx context.Context, cfg Config) error {
 		}
 		return err
 	}
-	return run.Execute(ctx, prep.Jobs, runtimeCfg)
+	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, runtimeCfg)
 }
 
 func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
@@ -293,6 +294,7 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 		PromptText:             cfg.PromptText,
 		PromptFile:             cfg.PromptFile,
 		ReadPromptStdin:        cfg.ReadPromptStdin,
+		ResolvedPromptText:     cfg.ResolvedPromptText,
 		IncludeCompleted:       cfg.IncludeCompleted,
 		IncludeResolved:        cfg.IncludeResolved,
 		Timeout:                cfg.Timeout,

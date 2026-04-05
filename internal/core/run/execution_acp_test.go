@@ -39,7 +39,7 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 			OutLog:   filepath.Join(tmpDir, "task_01.out.log"),
 			ErrLog:   filepath.Join(tmpDir, "task_01.err.log"),
 		},
-	}, &model.RuntimeConfig{
+	}, model.NewRunArtifacts(tmpDir, "dry-run-test"), &model.RuntimeConfig{
 		DryRun:                 true,
 		Concurrent:             1,
 		IDE:                    model.IDECodex,
@@ -643,7 +643,7 @@ func TestHandleNilExecutionReturnsSetupFailure(t *testing.T) {
 		codeFiles: []string{"task_01"},
 		outLog:    "task_01.out.log",
 		errLog:    "task_01.err.log",
-	}, 0)
+	}, 0, true)
 
 	if got := result.status; got != attemptStatusSetupFailed {
 		t.Fatalf("expected setup failure status, got %s", got)
