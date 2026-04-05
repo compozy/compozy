@@ -134,9 +134,8 @@ func writeSyncTaskFile(t *testing.T, workflowDir, name, status string) {
 	content := strings.Join([]string{
 		"---",
 		"status: " + status,
-		"domain: backend",
-		"type: feature",
-		"scope: small",
+		"title: " + name,
+		"type: backend",
 		"complexity: low",
 		"---",
 		"",

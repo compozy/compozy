@@ -39,9 +39,8 @@ func buildPRDTaskPrompt(task model.IssueEntry, autoCommit bool, memory *Workflow
 func buildTaskContextSection(taskData model.TaskEntry) string {
 	var sb strings.Builder
 	sb.WriteString("## Task Context\n\n")
-	fmt.Fprintf(&sb, "- **Domain**: %s\n", taskData.Domain)
+	fmt.Fprintf(&sb, "- **Title**: %s\n", taskData.Title)
 	fmt.Fprintf(&sb, "- **Type**: %s\n", taskData.TaskType)
-	fmt.Fprintf(&sb, "- **Scope**: %s\n", taskData.Scope)
 	fmt.Fprintf(&sb, "- **Complexity**: %s\n", taskData.Complexity)
 	if len(taskData.Dependencies) > 0 {
 		fmt.Fprintf(&sb, "- **Dependencies**: %s\n", strings.Join(taskData.Dependencies, ", "))

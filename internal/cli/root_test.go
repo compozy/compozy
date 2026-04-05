@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -30,6 +31,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	required := []string{
 		"compozy setup",
 		"compozy migrate",
+		"compozy validate-tasks",
 		"compozy sync",
 		"compozy archive",
 		"compozy fetch-reviews",
@@ -37,6 +39,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy start",
 		"setup",
 		"migrate",
+		"validate-tasks",
 		"sync",
 		"archive",
 		"fetch-reviews",
@@ -46,6 +49,34 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestValidateTasksHelpShowsValidationFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "validate-tasks")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected validate-tasks to omit mode flag")
+	}
+
+	output, err := executeRootCommand("validate-tasks", "--help")
+	if err != nil {
+		t.Fatalf("execute validate-tasks help: %v", err)
+	}
+
+	required := []string{"--name", "--tasks-dir", "--format"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected validate-tasks help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"--pr", "--provider", "--reviews-dir", "--batch-size", "--concurrent", "--include-completed"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected validate-tasks help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
@@ -210,7 +241,15 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		t.Fatalf("execute start help: %v", err)
 	}
 
-	required := []string{"--name", "--tasks-dir", "--include-completed"}
+	required := []string{
+		"--name",
+		"--tasks-dir",
+		"--include-completed",
+		"--skip-validation",
+		"Skip task metadata preflight; use only when tasks were validated separately",
+		"--force",
+		"Continue after task metadata validation fails in non-interactive mode",
+	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to include %q\noutput:\n%s", snippet, output)
@@ -231,6 +270,25 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to omit %q\noutput:\n%s", snippet, output)
 		}
+	}
+}
+
+func TestStartHelpMatchesGolden(t *testing.T) {
+	t.Parallel()
+
+	output, err := executeRootCommand("start", "--help")
+	if err != nil {
+		t.Fatalf("execute start help: %v", err)
+	}
+
+	goldenPath := filepath.Join("testdata", "start_help.golden")
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden file %s: %v", goldenPath, err)
+	}
+
+	if output != string(want) {
+		t.Fatalf("start help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
 	}
 }
 
@@ -713,6 +771,7 @@ func TestRunPreparedRefreshesDriftedSkillsBeforeRunningWorkflow(t *testing.T) {
 
 	state := newCommandState(commandKindStart, core.ModePRDTasks)
 	state.isInteractive = func() bool { return true }
+	state.skipValidation = true
 	state.listBundledSkills = func() ([]setup.Skill, error) {
 		return []setup.Skill{
 			{Name: "cy-execute-task", Description: "Execute a task"},
@@ -820,6 +879,7 @@ func TestRunPreparedContinuesWhenInteractiveRefreshIsDeclined(t *testing.T) {
 
 	state := newCommandState(commandKindStart, core.ModePRDTasks)
 	state.isInteractive = func() bool { return true }
+	state.skipValidation = true
 	state.listBundledSkills = func() ([]setup.Skill, error) {
 		return []setup.Skill{
 			{Name: "cy-execute-task", Description: "Execute a task"},
@@ -877,6 +937,7 @@ func TestRunPreparedWarnsAndContinuesOnNonInteractiveDrift(t *testing.T) {
 
 	state := newCommandState(commandKindStart, core.ModePRDTasks)
 	state.isInteractive = func() bool { return false }
+	state.skipValidation = true
 	state.listBundledSkills = func() ([]setup.Skill, error) {
 		return []setup.Skill{
 			{Name: "cy-execute-task", Description: "Execute a task"},
@@ -925,6 +986,132 @@ func TestRunPreparedWarnsAndContinuesOnNonInteractiveDrift(t *testing.T) {
 	}
 }
 
+func TestRunPreparedStartSkipValidationBypassesTaskValidation(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	allowBundledSkillsForStartTest(state)
+	state.skipValidation = true
+	state.workspaceRoot = t.TempDir()
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{IDE: core.IDECodex, Mode: core.ModePRDTasks})
+	if err != nil {
+		t.Fatalf("runPrepared skip validation: %v", err)
+	}
+	if !runnerCalled {
+		t.Fatal("expected workflow runner when validation is skipped")
+	}
+	if !strings.Contains(output.String(), "preflight=skipped") {
+		t.Fatalf("expected skipped preflight log, got %q", output.String())
+	}
+}
+
+func TestRunPreparedStartNonInteractiveValidationFailureBlocksWorkflow(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "type: backend", "complexity: low"},
+		"# Task 1: Missing Title",
+	))
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	allowBundledSkillsForStartTest(state)
+	state.isInteractive = func() bool { return false }
+	state.workspaceRoot = workspaceRoot
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{
+		IDE:      core.IDECodex,
+		Mode:     core.ModePRDTasks,
+		TasksDir: tasksDir,
+	})
+	if err == nil {
+		t.Fatal("expected task validation failure")
+	}
+	if runnerCalled {
+		t.Fatal("did not expect workflow runner when preflight aborts")
+	}
+
+	var exitErr interface{ ExitCode() int }
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+		t.Fatalf("expected exit code 1 error, got %v", err)
+	}
+
+	got := output.String()
+	for _, want := range []string{"Fix prompt:", "title is required", "preflight=aborted"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected output to contain %q\noutput:\n%s", want, got)
+		}
+	}
+}
+
+func TestRunPreparedStartNonInteractiveForceContinuesPastValidationFailure(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{"status: pending", "type: backend", "complexity: low"},
+		"# Task 1: Missing Title",
+	))
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	allowBundledSkillsForStartTest(state)
+	state.isInteractive = func() bool { return false }
+	state.workspaceRoot = workspaceRoot
+	state.force = true
+
+	runnerCalled := false
+	state.runWorkflow = func(context.Context, core.Config) error {
+		runnerCalled = true
+		return nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.Use = "start"
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	err := state.runPrepared(context.Background(), cmd, core.Config{
+		IDE:      core.IDECodex,
+		Mode:     core.ModePRDTasks,
+		TasksDir: tasksDir,
+	})
+	if err != nil {
+		t.Fatalf("runPrepared forced validation: %v", err)
+	}
+	if !runnerCalled {
+		t.Fatal("expected workflow runner after forced preflight")
+	}
+	if got := output.String(); !strings.Contains(got, "preflight=forced") {
+		t.Fatalf("expected forced preflight log, got %q", got)
+	}
+}
+
 func executeRootCommand(args ...string) (string, error) {
 	cmd := NewRootCommand()
 	var output bytes.Buffer
@@ -939,6 +1126,15 @@ func newTestCommand(state *commandState) *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: state.kind == commandKindFixReviews})
 	return cmd
+}
+
+func allowBundledSkillsForStartTest(state *commandState) {
+	state.listBundledSkills = func() ([]setup.Skill, error) {
+		return nil, nil
+	}
+	state.verifyBundledSkills = func(setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{}, nil
+	}
 }
 
 func findCommand(t *testing.T, root *cobra.Command, use string) *cobra.Command {

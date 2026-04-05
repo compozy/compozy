@@ -223,7 +223,7 @@ func countTasks(tasksDir string) (int, int, error) {
 }
 
 func wrapTaskParseError(path string, err error) error {
-	if errors.Is(err, prompt.ErrLegacyTaskMetadata) {
+	if errors.Is(err, prompt.ErrLegacyTaskMetadata) || errors.Is(err, prompt.ErrV1TaskMetadata) {
 		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)
 	}
 	return fmt.Errorf("parse task artifact %s: %w", path, err)

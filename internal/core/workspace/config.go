@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/providers"
+	"github.com/compozy/compozy/internal/core/tasks"
 	toml "github.com/pelletier/go-toml/v2"
 )
 
@@ -26,6 +27,7 @@ type Context struct {
 type ProjectConfig struct {
 	Defaults     DefaultsConfig     `toml:"defaults"`
 	Start        StartConfig        `toml:"start"`
+	Tasks        TasksConfig        `toml:"tasks"`
 	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
 	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
 }
@@ -45,6 +47,10 @@ type DefaultsConfig struct {
 
 type StartConfig struct {
 	IncludeCompleted *bool `toml:"include_completed"`
+}
+
+type TasksConfig struct {
+	Types *[]string `toml:"types"`
 }
 
 type FixReviewsConfig struct {
@@ -156,6 +162,9 @@ func (cfg ProjectConfig) Validate() error {
 	if err := validateStart(cfg.Start); err != nil {
 		return err
 	}
+	if err := validateTasks(cfg.Tasks); err != nil {
+		return err
+	}
 	if err := validateFixReviews(cfg.FixReviews); err != nil {
 		return err
 	}
@@ -184,6 +193,19 @@ func validateDefaults(cfg DefaultsConfig) error {
 }
 
 func validateStart(_ StartConfig) error {
+	return nil
+}
+
+func validateTasks(cfg TasksConfig) error {
+	if cfg.Types == nil {
+		return nil
+	}
+	if len(*cfg.Types) == 0 {
+		return errors.New("workspace config tasks.types cannot be empty; omit tasks.types to use built-in defaults")
+	}
+	if _, err := tasks.NewRegistry(*cfg.Types); err != nil {
+		return fmt.Errorf("workspace config tasks.types: %w", err)
+	}
 	return nil
 }
 

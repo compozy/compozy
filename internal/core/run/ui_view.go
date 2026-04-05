@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 
 	tea "charm.land/bubbletea/v2"
@@ -473,20 +474,27 @@ func (m *uiModel) renderMainPanels() string {
 func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	contentWidth := panelContentWidth(panelWidth)
 	m.transcriptViewport.SetWidth(contentWidth)
-	m.transcriptViewport.SetHeight(max(m.contentHeight-4, logViewportMinHeight))
+	transcriptHeight := max(m.contentHeight-4, logViewportMinHeight)
+	if job != nil && strings.TrimSpace(job.taskTitle) != "" {
+		transcriptHeight = max(transcriptHeight-1, logViewportMinHeight)
+	}
+	m.transcriptViewport.SetHeight(transcriptHeight)
 	rendered := m.buildTimelineContent(job, contentWidth)
 	m.transcriptViewport.SetContent(rendered.content)
 	m.restoreTranscriptViewport(job, rendered.offsets)
 
 	lines := []string{
-		renderOwnedLine(contentWidth, colorBgSurface, renderTechLabel("session.timeline", colorBgSurface)),
+		renderOwnedLine(contentWidth, colorBgSurface, m.renderTimelineHeader(job, contentWidth)),
 		renderOwnedLine(
 			contentWidth,
 			colorBgSurface,
-			renderStyledOnBackground(styleDimText, colorBgSurface, m.timelineMeta(job)),
+			renderStyledOnBackground(styleDimText, colorBgSurface, m.timelineMetaForWidth(job, contentWidth)),
 		),
-		renderOwnedBlock(contentWidth, colorBgSurface, m.transcriptViewport.View()),
 	}
+	if job != nil && strings.TrimSpace(job.taskTitle) != "" {
+		lines = append(lines, renderOwnedLine(contentWidth, colorBgSurface, ""))
+	}
+	lines = append(lines, renderOwnedBlock(contentWidth, colorBgSurface, m.transcriptViewport.View()))
 
 	borderColor := colorBorder
 	if m.focusedPane == uiPaneTimeline {
@@ -496,12 +504,50 @@ func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 }
 
 func (m *uiModel) timelineMeta(job *uiJob) string {
+	return m.timelineMetaForWidth(job, panelContentWidth(m.timelineWidth))
+}
+
+func (m *uiModel) timelineMetaForWidth(job *uiJob, contentWidth int) string {
+	left := m.timelineEntryMeta(job)
+	right := m.timelineRuntimeMeta()
+	if right == "" {
+		return truncateString(left, contentWidth)
+	}
+	rightWidth := lipgloss.Width(right)
+	if rightWidth >= contentWidth {
+		return truncateString(right, contentWidth)
+	}
+	left = truncateString(left, max(contentWidth-rightWidth-1, 0))
+	padding := max(contentWidth-lipgloss.Width(left)-rightWidth, 1)
+	return left + strings.Repeat(" ", padding) + right
+}
+
+func (m *uiModel) timelineEntryMeta(job *uiJob) string {
+	if job == nil {
+		return m.timelineAttemptMeta(nil, "No ACP transcript yet")
+	}
 	total := len(job.snapshot.Entries)
 	if total == 0 {
 		return m.timelineAttemptMeta(job, "No ACP transcript yet")
 	}
 	selected := job.selectedEntry + 1
 	return m.timelineAttemptMeta(job, fmt.Sprintf("%d entries · selected %d/%d", total, selected, total))
+}
+
+func (m *uiModel) timelineRuntimeMeta() string {
+	if m == nil || m.cfg == nil {
+		return ""
+	}
+	provider := strings.TrimSpace(agent.DisplayName(m.cfg.ide))
+	modelName := strings.TrimSpace(m.cfg.model)
+	switch {
+	case provider != "" && modelName != "":
+		return provider + " · " + modelName
+	case provider != "":
+		return provider
+	default:
+		return modelName
+	}
 }
 
 func (m *uiModel) timelineAttemptMeta(job *uiJob, base string) string {
@@ -513,6 +559,41 @@ func (m *uiModel) timelineAttemptMeta(job *uiJob, base string) string {
 		parts = append(parts, "retrying: "+truncateString(job.retryReason, 72))
 	}
 	return strings.Join(parts, " · ")
+}
+
+func timelineHeaderLabel(job *uiJob) string {
+	if job == nil || strings.TrimSpace(job.taskTitle) == "" {
+		return "session.timeline"
+	}
+	title := strings.ToUpper(strings.TrimSpace(job.taskTitle))
+	taskType := strings.TrimSpace(job.taskType)
+	if taskType == "" {
+		return title
+	}
+	return title + "  [" + taskType + "]"
+}
+
+func (m *uiModel) renderTimelineHeader(job *uiJob, contentWidth int) string {
+	label := timelineHeaderLabel(job)
+	if label == "session.timeline" {
+		return renderTechLabel(label, colorBgSurface)
+	}
+
+	title := strings.ToUpper(strings.TrimSpace(job.taskTitle))
+	taskType := strings.TrimSpace(job.taskType)
+	if taskType == "" {
+		return renderStyledOnBackground(styleTimelineTitle, colorBgSurface, truncateString(title, contentWidth))
+	}
+
+	badgeWidth := lipgloss.Width("[" + taskType + "]")
+	titleWidth := max(contentWidth-badgeWidth-2, 1)
+	title = truncateString(title, titleWidth)
+
+	return renderStyledOnBackground(styleTimelineTitle, colorBgSurface, title) +
+		renderGap(colorBgSurface, 2) +
+		renderStyledOnBackground(styleMutedText, colorBgSurface, "[") +
+		renderStyledOnBackground(styleTimelineBadge, colorBgSurface, taskType) +
+		renderStyledOnBackground(styleMutedText, colorBgSurface, "]")
 }
 
 func (m *uiModel) retryAttemptLabel(job *uiJob) string {

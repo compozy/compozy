@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -14,6 +15,9 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/core/workspace"
+	"gopkg.in/yaml.v3"
 )
 
 type pendingFileMigration struct {
@@ -21,10 +25,20 @@ type pendingFileMigration struct {
 	content string
 }
 
+type migrationOutcome int
+
+const (
+	migrationOutcomeSkipped migrationOutcome = iota
+	migrationOutcomeV1ToV2
+)
+
 type migrationScanState struct {
-	result  *MigrationResult
-	pending []pendingFileMigration
+	result   *MigrationResult
+	registry *tasks.TypeRegistry
+	pending  []pendingFileMigration
 }
+
+var reviewRoundDirPattern = regexp.MustCompile(`^reviews-\d+$`)
 
 func migrateArtifacts(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
 	target, err := resolveMigrationTarget(cfg)
@@ -36,13 +50,19 @@ func migrateArtifacts(ctx context.Context, cfg MigrationConfig) (*MigrationResul
 		return result, err
 	}
 
-	pending, err := scanMigrationTarget(ctx, target, result)
+	registry, err := migrationTaskTypeRegistry(ctx, cfg.WorkspaceRoot)
+	if err != nil {
+		return result, err
+	}
+
+	pending, err := scanMigrationTarget(ctx, target, result, registry)
 	if err != nil {
 		return result, err
 	}
 
 	sort.Strings(result.MigratedPaths)
 	sort.Strings(result.InvalidPaths)
+	sort.Strings(result.UnmappedTypeFiles)
 	result.FilesMigrated = len(pending)
 
 	if len(result.InvalidPaths) > 0 {
@@ -112,10 +132,12 @@ func scanMigrationTarget(
 	ctx context.Context,
 	target string,
 	result *MigrationResult,
+	registry *tasks.TypeRegistry,
 ) ([]pendingFileMigration, error) {
 	state := migrationScanState{
-		result:  result,
-		pending: make([]pendingFileMigration, 0),
+		result:   result,
+		registry: registry,
+		pending:  make([]pendingFileMigration, 0),
 	}
 
 	err := filepath.WalkDir(target, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -135,7 +157,7 @@ func scanMigrationTarget(
 
 func (s *migrationScanState) handlePath(path string, entry fs.DirEntry) error {
 	if entry.IsDir() {
-		if entry.Name() == "grouped" {
+		if entry.Name() == "grouped" || entry.Name() == "memory" {
 			s.result.FilesSkipped++
 			return filepath.SkipDir
 		}
@@ -146,24 +168,25 @@ func (s *migrationScanState) handlePath(path string, entry fs.DirEntry) error {
 	switch {
 	case prompt.ExtractTaskNumber(base) > 0:
 		s.result.FilesScanned++
-		return s.appendMigration(path, inspectTaskArtifact)
+		return s.appendTaskMigration(path)
 	case prompt.ExtractIssueNumber(base) > 0:
 		s.result.FilesScanned++
 		return s.appendReviewMigration(path)
 	case base == "_meta.md":
-		s.result.FilesScanned++
-		return s.recordRoundMeta(path)
+		if reviewRoundDirPattern.MatchString(filepath.Base(filepath.Dir(path))) {
+			s.result.FilesScanned++
+			return s.recordRoundMeta(path)
+		}
+		s.result.FilesSkipped++
+		return nil
 	default:
 		s.result.FilesSkipped++
 		return nil
 	}
 }
 
-func (s *migrationScanState) appendMigration(
-	path string,
-	inspect func(string, *MigrationResult) (*pendingFileMigration, error),
-) error {
-	fileMigration, err := inspect(path, s.result)
+func (s *migrationScanState) appendTaskMigration(path string) error {
+	fileMigration, err := inspectTaskArtifact(path, s.result, s.registry)
 	if err != nil {
 		s.recordInvalid(path)
 		return nil
@@ -198,41 +221,59 @@ func (s *migrationScanState) recordInvalid(path string) {
 	s.result.InvalidPaths = append(s.result.InvalidPaths, path)
 }
 
-func inspectTaskArtifact(path string, result *MigrationResult) (*pendingFileMigration, error) {
+func inspectTaskArtifact(
+	path string,
+	result *MigrationResult,
+	registry *tasks.TypeRegistry,
+) (*pendingFileMigration, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read task artifact: %w", err)
 	}
 
-	if _, err := prompt.ParseTaskFile(string(content)); err == nil {
-		result.FilesAlreadyFrontmatter++
-		return nil, nil
-	} else if !errors.Is(err, prompt.ErrLegacyTaskMetadata) {
+	var node yaml.Node
+	if _, err := frontmatter.Parse(string(content), &node); err == nil {
+		if !taskFrontMatterNeedsV1ToV2(&node) {
+			if _, parseErr := prompt.ParseTaskFile(string(content)); parseErr != nil {
+				return nil, parseErr
+			}
+			result.FilesAlreadyFrontmatter++
+			return nil, nil
+		}
+
+		fileMigration, outcome, migrateErr := migrateV1ToV2(path, string(content), registry)
+		if migrateErr != nil {
+			return nil, migrateErr
+		}
+		if outcome == migrationOutcomeV1ToV2 {
+			result.MigratedPaths = append(result.MigratedPaths, path)
+			result.V1ToV2Migrated++
+			if migratedTypeIsUnmapped(fileMigration.content) {
+				result.UnmappedTypeFiles = append(result.UnmappedTypeFiles, path)
+			}
+		}
+		return fileMigration, nil
+	} else if !prompt.LooksLikeLegacyTaskFile(string(content)) {
+		return nil, fmt.Errorf("parse task artifact: %w", err)
+	}
+
+	legacyV1, err := migrateLegacyTaskToV1(string(content))
+	if err != nil {
 		return nil, err
 	}
 
-	legacyTask, err := prompt.ParseLegacyTaskFile(string(content))
+	fileMigration, outcome, err := migrateV1ToV2(path, legacyV1, registry)
 	if err != nil {
 		return nil, err
 	}
-	body, err := prompt.ExtractLegacyTaskBody(string(content))
-	if err != nil {
-		return nil, err
+	if outcome == migrationOutcomeV1ToV2 {
+		result.MigratedPaths = append(result.MigratedPaths, path)
+		result.V1ToV2Migrated++
+		if migratedTypeIsUnmapped(fileMigration.content) {
+			result.UnmappedTypeFiles = append(result.UnmappedTypeFiles, path)
+		}
 	}
-	migrated, err := frontmatter.Format(model.TaskFileMeta{
-		Status:       legacyTask.Status,
-		Domain:       legacyTask.Domain,
-		TaskType:     legacyTask.TaskType,
-		Scope:        legacyTask.Scope,
-		Complexity:   legacyTask.Complexity,
-		Dependencies: legacyTask.Dependencies,
-	}, body)
-	if err != nil {
-		return nil, err
-	}
-
-	result.MigratedPaths = append(result.MigratedPaths, path)
-	return &pendingFileMigration{path: path, content: migrated}, nil
+	return fileMigration, nil
 }
 
 func inspectReviewArtifact(path string, result *MigrationResult) (*pendingFileMigration, error) {
@@ -282,4 +323,103 @@ func inspectRoundMeta(path string, result *MigrationResult) error {
 	}
 	result.FilesAlreadyFrontmatter++
 	return nil
+}
+
+func migrationTaskTypeRegistry(ctx context.Context, workspaceRoot string) (*tasks.TypeRegistry, error) {
+	cfg, _, err := workspace.LoadConfig(ctx, workspaceRoot)
+	if err != nil {
+		return nil, fmt.Errorf("load workspace config for migrate: %w", err)
+	}
+	if cfg.Tasks.Types == nil {
+		return tasks.NewRegistry(nil)
+	}
+	return tasks.NewRegistry(*cfg.Tasks.Types)
+}
+
+func migrateLegacyTaskToV1(content string) (string, error) {
+	legacyTask, err := prompt.ParseLegacyTaskFile(content)
+	if err != nil {
+		return "", err
+	}
+
+	body, err := prompt.ExtractLegacyTaskBody(content)
+	if err != nil {
+		return "", err
+	}
+
+	migrated, err := frontmatter.Format(model.TaskFileMeta{
+		Status:       legacyTask.Status,
+		TaskType:     legacyTask.TaskType,
+		Complexity:   legacyTask.Complexity,
+		Dependencies: legacyTask.Dependencies,
+	}, body)
+	if err != nil {
+		return "", err
+	}
+	return migrated, nil
+}
+
+func migrateV1ToV2(
+	path string,
+	content string,
+	registry *tasks.TypeRegistry,
+) (*pendingFileMigration, migrationOutcome, error) {
+	var meta model.TaskFileMeta
+	body, err := frontmatter.Parse(content, &meta)
+	if err != nil {
+		return nil, migrationOutcomeSkipped, fmt.Errorf("parse v1 task front matter: %w", err)
+	}
+	if strings.TrimSpace(meta.Status) == "" {
+		return nil, migrationOutcomeSkipped, errors.New("task front matter missing status")
+	}
+
+	migrated, err := frontmatter.Format(model.TaskFileMeta{
+		Status:       strings.TrimSpace(meta.Status),
+		Title:        tasks.ExtractTaskBodyTitle(body),
+		TaskType:     tasks.RemapLegacyTaskType(meta.TaskType, registry),
+		Complexity:   strings.TrimSpace(meta.Complexity),
+		Dependencies: meta.Dependencies,
+	}, body)
+	if err != nil {
+		return nil, migrationOutcomeSkipped, err
+	}
+
+	return &pendingFileMigration{path: path, content: migrated}, migrationOutcomeV1ToV2, nil
+}
+
+func taskFrontMatterNeedsV1ToV2(node *yaml.Node) bool {
+	mapping := node
+	if node.Kind == yaml.DocumentNode {
+		if len(node.Content) != 1 {
+			return false
+		}
+		mapping = node.Content[0]
+	}
+	if mapping.Kind != yaml.MappingNode {
+		return false
+	}
+
+	hasTitle := false
+	for idx := 0; idx+1 < len(mapping.Content); idx += 2 {
+		keyNode := mapping.Content[idx]
+		if keyNode.Kind != yaml.ScalarNode {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(keyNode.Value)) {
+		case "domain", "scope":
+			return true
+		case "title":
+			hasTitle = true
+		}
+	}
+
+	return !hasTitle
+}
+
+func migratedTypeIsUnmapped(content string) bool {
+	var meta model.TaskFileMeta
+	if _, err := frontmatter.Parse(content, &meta); err != nil {
+		return false
+	}
+	return strings.TrimSpace(meta.TaskType) == ""
 }

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Core Runtime
 type: Feature Implementation
 scope: Full
@@ -35,13 +35,13 @@ Establish the data foundation for the typed-task system: a new `internal/core/ta
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add `internal/core/tasks/types.go` (new file in existing package) with `BuiltinTypes`, `TypeRegistry`, and constructors; add table-driven tests in `internal/core/tasks/types_test.go`.
-- [ ] 1.2 Extend `workspace.ProjectConfig` with `Tasks TasksConfig` and add the `[tasks].types` TOML section with validation (duplicates, slug format, empty list).
-- [ ] 1.3 Update `model.TaskFileMeta` and `model.TaskEntry` to add `Title`, remove `Domain` and `Scope`.
-- [ ] 1.4 Update `prompt.ParseTaskFile` to populate `Title` and return `ErrV1TaskMetadata` when legacy `scope`/`domain` keys are present in the frontmatter.
-- [ ] 1.5 Update every caller of `TaskEntry.Domain` / `TaskEntry.Scope` to stop reading the removed fields: `internal/core/prompt/common.go:60-67,93-97`, `internal/core/prompt/prd.go:41-45`, `internal/core/migrate.go:243-249`.
-- [ ] 1.5b Update every `errors.Is(err, prompt.ErrLegacyTaskMetadata)` site to also handle the new `ErrV1TaskMetadata` sentinel: `internal/core/migrate.go:210`, `internal/core/plan/input.go:309`, `internal/core/tasks/store.go:226`.
-- [ ] 1.6 Extend `workspace/config_test.go`, `model/model_test.go`, and `prompt/prompt_test.go` with table-driven cases covering the new fields and errors.
+- [x] 1.1 Add `internal/core/tasks/types.go` (new file in existing package) with `BuiltinTypes`, `TypeRegistry`, and constructors; add table-driven tests in `internal/core/tasks/types_test.go`.
+- [x] 1.2 Extend `workspace.ProjectConfig` with `Tasks TasksConfig` and add the `[tasks].types` TOML section with validation (duplicates, slug format, empty list).
+- [x] 1.3 Update `model.TaskFileMeta` and `model.TaskEntry` to add `Title`, remove `Domain` and `Scope`.
+- [x] 1.4 Update `prompt.ParseTaskFile` to populate `Title` and return `ErrV1TaskMetadata` when legacy `scope`/`domain` keys are present in the frontmatter.
+- [x] 1.5 Update every caller of `TaskEntry.Domain` / `TaskEntry.Scope` to stop reading the removed fields: `internal/core/prompt/common.go:60-67,93-97`, `internal/core/prompt/prd.go:41-45`, `internal/core/migrate.go:243-249`.
+- [x] 1.5b Update every `errors.Is(err, prompt.ErrLegacyTaskMetadata)` site to also handle the new `ErrV1TaskMetadata` sentinel: `internal/core/migrate.go:210`, `internal/core/plan/input.go:309`, `internal/core/tasks/store.go:226`.
+- [x] 1.6 Extend `workspace/config_test.go`, `model/model_test.go`, and `prompt/prompt_test.go` with table-driven cases covering the new fields and errors.
 
 ## Implementation Details
 
@@ -88,24 +88,24 @@ Refer to TechSpec "Core Interfaces" for the exact `TypeRegistry` contract and to
 
 ## Tests
 - Unit tests:
-  - [ ] `NewRegistry(nil)` returns a registry whose `Values()` equals `BuiltinTypes` sorted.
-  - [ ] `NewRegistry([]string{"frontend","backend"})` returns a registry whose `Values()` equals `["backend","frontend"]`.
-  - [ ] `NewRegistry([]string{"frontend","frontend"})` returns a duplicate error mentioning `"frontend"`.
-  - [ ] `NewRegistry([]string{"Invalid Slug"})` returns a slug-format error mentioning `"Invalid Slug"`.
-  - [ ] `NewRegistry([]string{})` returns an empty-list error.
-  - [ ] `(*TypeRegistry).IsAllowed("backend")` returns true; `IsAllowed("nope")` returns false.
-  - [ ] `workspace.LoadConfig` with `[tasks].types = []` returns a validation error.
-  - [ ] `workspace.LoadConfig` with `[tasks].types = ["frontend","frontend"]` returns a duplicate error.
-  - [ ] `workspace.LoadConfig` with `[tasks].types = ["frontend","backend"]` populates `ProjectConfig.Tasks.Types` with exactly those values.
-  - [ ] `workspace.LoadConfig` with no `[tasks]` section leaves `ProjectConfig.Tasks.Types == nil`.
-  - [ ] `prompt.ParseTaskFile` with v2 frontmatter (containing `title` and no `scope`/`domain`) populates `TaskEntry.Title` and returns no error.
-  - [ ] `prompt.ParseTaskFile` with v1 frontmatter (containing `scope` or `domain`) returns `errors.Is(err, prompt.ErrV1TaskMetadata) == true`.
-  - [ ] `prompt.ParseTaskFile` with legacy XML markers still returns `errors.Is(err, prompt.ErrLegacyTaskMetadata) == true` (regression guard — legacy path unchanged).
-  - [ ] `prompt.ParseTaskFile` with v2 frontmatter missing `title` still succeeds (parser is not the validator); `TaskEntry.Title == ""`.
-  - [ ] Each of `internal/core/migrate.go:210`, `internal/core/plan/input.go:309`, and `internal/core/tasks/store.go:226` has a test that exercises the v1 branch and confirms the callsite does not silently misclassify.
+  - [x] `NewRegistry(nil)` returns a registry whose `Values()` equals `BuiltinTypes` sorted.
+  - [x] `NewRegistry([]string{"frontend","backend"})` returns a registry whose `Values()` equals `["backend","frontend"]`.
+  - [x] `NewRegistry([]string{"frontend","frontend"})` returns a duplicate error mentioning `"frontend"`.
+  - [x] `NewRegistry([]string{"Invalid Slug"})` returns a slug-format error mentioning `"Invalid Slug"`.
+  - [x] `NewRegistry([]string{})` returns an empty-list error.
+  - [x] `(*TypeRegistry).IsAllowed("backend")` returns true; `IsAllowed("nope")` returns false.
+  - [x] `workspace.LoadConfig` with `[tasks].types = []` returns a validation error.
+  - [x] `workspace.LoadConfig` with `[tasks].types = ["frontend","frontend"]` returns a duplicate error.
+  - [x] `workspace.LoadConfig` with `[tasks].types = ["frontend","backend"]` populates `ProjectConfig.Tasks.Types` with exactly those values.
+  - [x] `workspace.LoadConfig` with no `[tasks]` section leaves `ProjectConfig.Tasks.Types == nil`.
+  - [x] `prompt.ParseTaskFile` with v2 frontmatter (containing `title` and no `scope`/`domain`) populates `TaskEntry.Title` and returns no error.
+  - [x] `prompt.ParseTaskFile` with v1 frontmatter (containing `scope` or `domain`) returns `errors.Is(err, prompt.ErrV1TaskMetadata) == true`.
+  - [x] `prompt.ParseTaskFile` with legacy XML markers still returns `errors.Is(err, prompt.ErrLegacyTaskMetadata) == true` (regression guard — legacy path unchanged).
+  - [x] `prompt.ParseTaskFile` with v2 frontmatter missing `title` still succeeds (parser is not the validator); `TaskEntry.Title == ""`.
+  - [x] Each of `internal/core/migrate.go:210`, `internal/core/plan/input.go:309`, and `internal/core/tasks/store.go:226` has a test that exercises the v1 branch and confirms the callsite does not silently misclassify.
 - Integration tests:
-  - [ ] Load a fixture `.compozy/config.toml` declaring `[tasks].types = ["mobile","api"]`, resolve workspace, assert `ProjectConfig.Tasks.Types` equals those values.
-  - [ ] Parse a v2 task file (title+type+complexity+deps) from a `t.TempDir()` fixture and assert all fields populate correctly.
+  - [x] Load a fixture `.compozy/config.toml` declaring `[tasks].types = ["mobile","api"]`, resolve workspace, assert `ProjectConfig.Tasks.Types` equals those values.
+  - [x] Parse a v2 task file (title+type+complexity+deps) from a `t.TempDir()` fixture and assert all fields populate correctly.
 - Test coverage target: >=80%
 - All tests must pass
 

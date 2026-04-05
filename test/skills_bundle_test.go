@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -90,6 +91,68 @@ func TestBundledSkillFrontmatterParses(t *testing.T) {
 			}
 			if metadata.Description == "" {
 				t.Fatalf("expected %s to define a non-empty description", skillPath)
+			}
+		})
+	}
+}
+
+func TestCreateTasksSkillDocumentsTaskTypeRegistryAndValidation(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	skillPath := filepath.Join(root, "skills", "cy-create-tasks", "SKILL.md")
+	content, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", skillPath, err)
+	}
+
+	text := string(content)
+	required := []string{
+		"Read `.compozy/config.toml`.",
+		"[tasks].types",
+		"`frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`",
+		"Run `compozy validate-tasks --name <feature>`.",
+		"Do not mark the skill complete until it exits 0.",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(text, snippet) {
+			t.Fatalf("expected %s to include %q", skillPath, snippet)
+		}
+	}
+}
+
+func TestTaskDocsOmitLegacyTaskFrontmatterKeys(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	legacyKeyPattern := regexp.MustCompile(`(?m)^[ \t]*(domain|scope):`)
+
+	paths := []string{filepath.Join(root, "README.md")}
+	err := filepath.WalkDir(filepath.Join(root, "skills"), func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk skills directory: %v", err)
+	}
+
+	for _, path := range paths {
+		path := path
+		t.Run(filepath.ToSlash(strings.TrimPrefix(path, root+string(filepath.Separator))), func(t *testing.T) {
+			t.Parallel()
+
+			content, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatalf("read %s: %v", path, err)
+			}
+			if match := legacyKeyPattern.FindString(string(content)); match != "" {
+				t.Fatalf("expected %s to omit legacy task frontmatter keys, found %q", path, match)
 			}
 		})
 	}

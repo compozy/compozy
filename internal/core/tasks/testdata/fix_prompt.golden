@@ -1,0 +1,12 @@
+Fix the Compozy task metadata files below.
+Allowed task types: backend, bugfix, chore, docs, frontend, infra, refactor, test
+
+Rewrite the YAML front matter to schema v2, remove legacy keys, preserve the body content, and keep the front matter title synced with the first H1 after stripping any `Task N:` or `Task N -` prefix.
+
+/tmp/tasks/task_01.md
+- title: title is required
+
+/tmp/tasks/task_02.md
+- type: type "nope" must be one of: backend, bugfix, chore, docs, frontend, infra, refactor, test
+
+Return only the corrected Markdown for each file.

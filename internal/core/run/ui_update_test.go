@@ -1,6 +1,7 @@
 package run
 
 import (
+	"strings"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -260,10 +261,234 @@ func TestHandleTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 	}
 }
 
+func TestCurrentJobHandlesSelectionBounds(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(2)
+	if got := m.currentJob(); got != nil {
+		t.Fatalf("expected nil current job without queued jobs, got %#v", got)
+	}
+
+	m.jobs = []uiJob{{codeFile: "task_01"}, {codeFile: "task_02"}}
+	m.selectedJob = 1
+	if got := m.currentJob(); got != &m.jobs[1] {
+		t.Fatalf("expected selected job pointer, got %#v", got)
+	}
+
+	m.selectedJob = 5
+	if got := m.currentJob(); got != nil {
+		t.Fatalf("expected nil for out-of-range selection, got %#v", got)
+	}
+}
+
+func TestHandleJobStartedMarksRunningState(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.handleJobStarted(jobStartedMsg{
+		Index:       0,
+		Attempt:     2,
+		MaxAttempts: 3,
+	})
+
+	job := m.currentJob()
+	if job == nil {
+		t.Fatal("expected selected job")
+	}
+	if got := job.state; got != jobRunning {
+		t.Fatalf("expected running state, got %v", got)
+	}
+	if got := job.attempt; got != 2 {
+		t.Fatalf("expected attempt 2, got %d", got)
+	}
+	if got := job.maxAttempts; got != 3 {
+		t.Fatalf("expected max attempts 3, got %d", got)
+	}
+	if job.startedAt.IsZero() {
+		t.Fatal("expected startedAt to be set")
+	}
+}
+
+func TestScrollSidebarViewportRoutesNavigationKeys(t *testing.T) {
+	t.Parallel()
+
+	vp := &testScrollableViewport{}
+	scrollSidebarViewport(vp, keyPageUp)
+	scrollSidebarViewport(vp, keyPageDown)
+	scrollSidebarViewport(vp, keyHome)
+	scrollSidebarViewport(vp, keyEnd)
+
+	if vp.pageUpCalls != 1 || vp.pageDownCalls != 1 || vp.gotoTopCalls != 1 || vp.gotoBottomCalls != 1 {
+		t.Fatalf("unexpected key routing counts: %#v", vp)
+	}
+}
+
+func TestScrollFocusedPaneUpdatesSelectedViewportState(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.currentView = uiViewJobs
+	m.focusedPane = uiPaneJobs
+	m.sidebarViewport.SetContent(strings.Repeat("sidebar row\n", 20))
+	m.sidebarViewport.SetHeight(3)
+	m.sidebarViewport.GotoBottom()
+	m.scrollFocusedPane(keyHome)
+	if got := m.sidebarViewport.YOffset(); got != 0 {
+		t.Fatalf("expected sidebar viewport home offset 0, got %d", got)
+	}
+
+	m.focusedPane = uiPaneTimeline
+	job := m.currentJob()
+	if job == nil {
+		t.Fatal("expected current job")
+	}
+	m.transcriptViewport.SetContent(strings.Repeat("timeline row\n", 20))
+	m.transcriptViewport.SetHeight(3)
+	m.transcriptViewport.GotoBottom()
+	job.transcriptFollowTail = true
+	m.scrollFocusedPane(keyHome)
+	if got := m.transcriptViewport.YOffset(); got != 0 {
+		t.Fatalf("expected transcript viewport home offset 0, got %d", got)
+	}
+	if job.transcriptFollowTail {
+		t.Fatal("expected follow-tail to disable after manual timeline scroll")
+	}
+}
+
+func TestHandleMouseWheelUpdatesFocusedViewport(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.currentView = uiViewJobs
+
+	m.focusedPane = uiPaneJobs
+	m.sidebarViewport.SetContent(strings.Repeat("sidebar row\n", 20))
+	m.sidebarViewport.SetHeight(3)
+	m.handleMouseWheel(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelDown}))
+	if got := m.sidebarViewport.YOffset(); got == 0 {
+		t.Fatalf("expected sidebar mouse wheel to scroll, got offset %d", got)
+	}
+
+	m.focusedPane = uiPaneTimeline
+	job := m.currentJob()
+	if job == nil {
+		t.Fatal("expected current job")
+	}
+	m.transcriptViewport.SetContent(strings.Repeat("timeline row\n", 20))
+	m.transcriptViewport.SetHeight(3)
+	m.transcriptViewport.GotoBottom()
+	job.transcriptFollowTail = true
+	m.handleMouseWheel(tea.MouseWheelMsg(tea.Mouse{Button: tea.MouseWheelUp}))
+	if job.transcriptFollowTail {
+		t.Fatal("expected timeline mouse wheel to disable follow-tail")
+	}
+}
+
+func TestSelectNextRunningJobPrefersRunningThenPending(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(3)
+	m.jobs = []uiJob{
+		{state: jobSuccess},
+		{state: jobRetrying},
+		{state: jobPending},
+	}
+	m.selectNextRunningJob()
+	if got := m.selectedJob; got != 1 {
+		t.Fatalf("expected retrying job to be selected first, got %d", got)
+	}
+
+	m.jobs[1].state = jobSuccess
+	m.selectNextRunningJob()
+	if got := m.selectedJob; got != 2 {
+		t.Fatalf("expected pending job fallback, got %d", got)
+	}
+}
+
+func TestHandleJobFinishedUpdatesCountsAndViewState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("success clears shutdown when run completes", func(t *testing.T) {
+		t.Parallel()
+
+		m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+		m.jobs[0].startedAt = time.Now().Add(-2 * time.Second)
+		m.total = 1
+		m.shutdown = shutdownState{Phase: shutdownPhaseDraining}
+
+		m.handleJobFinished(jobFinishedMsg{Index: 0, Success: true})
+
+		if got := m.jobs[0].state; got != jobSuccess {
+			t.Fatalf("expected success state, got %v", got)
+		}
+		if got := m.completed; got != 1 {
+			t.Fatalf("expected completed count 1, got %d", got)
+		}
+		if m.shutdown.active() {
+			t.Fatalf("expected shutdown state to clear when run completes, got %#v", m.shutdown)
+		}
+		if m.jobs[0].duration <= 0 {
+			t.Fatalf("expected job duration to be recorded, got %v", m.jobs[0].duration)
+		}
+	})
+
+	t.Run("failure switches to summary when run completes with errors", func(t *testing.T) {
+		t.Parallel()
+
+		m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+		m.total = 1
+
+		m.handleJobFinished(jobFinishedMsg{Index: 0, Success: false, ExitCode: 23})
+
+		if got := m.jobs[0].state; got != jobFailed {
+			t.Fatalf("expected failed state, got %v", got)
+		}
+		if got := m.jobs[0].exitCode; got != 23 {
+			t.Fatalf("expected exit code 23, got %d", got)
+		}
+		if got := m.failed; got != 1 {
+			t.Fatalf("expected failed count 1, got %d", got)
+		}
+		if got := m.currentView; got != uiViewSummary {
+			t.Fatalf("expected summary view on completed failure, got %s", got)
+		}
+	})
+}
+
+func TestHandleJobQueuedStoresTaskMetadata(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(1)
+	m.handleJobQueued(&jobQueuedMsg{
+		Index:     0,
+		CodeFile:  "task_01",
+		CodeFiles: []string{"task_01"},
+		Issues:    1,
+		TaskTitle: "acp agent layer",
+		TaskType:  "backend",
+		SafeName:  "task_01-safe",
+		OutLog:    "task_01.out.log",
+		ErrLog:    "task_01.err.log",
+		OutBuffer: newLineBuffer(0),
+		ErrBuffer: newLineBuffer(0),
+	})
+
+	if got, want := m.jobs[0].taskTitle, "acp agent layer"; got != want {
+		t.Fatalf("expected task title %q, got %q", want, got)
+	}
+	if got, want := m.jobs[0].taskType, "backend"; got != want {
+		t.Fatalf("expected task type %q, got %q", want, got)
+	}
+}
+
 func newTestUIModelWithSnapshot(t *testing.T, size tea.WindowSizeMsg) *uiModel {
 	t.Helper()
 
 	m := newUIModel(1)
+	m.cfg = &config{
+		ide:   model.IDEClaude,
+		model: "sonnet-4.5",
+	}
 	m.handleJobQueued(&jobQueuedMsg{
 		Index:     0,
 		CodeFile:  "task_01",
@@ -338,6 +563,31 @@ func mustContentBlockUITest(t *testing.T, payload any) model.ContentBlock {
 func keyText(text string) tea.KeyPressMsg {
 	r, _ := utf8.DecodeRuneInString(text)
 	return tea.KeyPressMsg(tea.Key{Text: text, Code: r})
+}
+
+type testScrollableViewport struct {
+	pageUpCalls     int
+	pageDownCalls   int
+	gotoTopCalls    int
+	gotoBottomCalls int
+}
+
+func (v *testScrollableViewport) PageUp() {
+	v.pageUpCalls++
+}
+
+func (v *testScrollableViewport) PageDown() {
+	v.pageDownCalls++
+}
+
+func (v *testScrollableViewport) GotoTop() []string {
+	v.gotoTopCalls++
+	return nil
+}
+
+func (v *testScrollableViewport) GotoBottom() []string {
+	v.gotoBottomCalls++
+	return nil
 }
 
 func keyCode(code rune) tea.KeyPressMsg {

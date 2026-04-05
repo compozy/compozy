@@ -2,6 +2,7 @@ package model_test
 
 import (
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -206,4 +207,46 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 			t.Fatalf("apply defaults should preserve explicit values: %#v", cfg)
 		}
 	})
+}
+
+func TestTaskMetadataUsesV2Fields(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		typ       reflect.Type
+		required  []string
+		forbidden []string
+	}{
+		{
+			name:      "task entry includes title and drops domain scope",
+			typ:       reflect.TypeOf(model.TaskEntry{}),
+			required:  []string{"Title", "Status", "TaskType", "Complexity", "Dependencies"},
+			forbidden: []string{"Domain", "Scope"},
+		},
+		{
+			name:      "task file meta includes title and drops domain scope",
+			typ:       reflect.TypeOf(model.TaskFileMeta{}),
+			required:  []string{"Title", "Status", "TaskType", "Complexity", "Dependencies"},
+			forbidden: []string{"Domain", "Scope"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, fieldName := range tt.required {
+				if _, ok := tt.typ.FieldByName(fieldName); !ok {
+					t.Fatalf("expected %s to contain field %q", tt.typ.Name(), fieldName)
+				}
+			}
+			for _, fieldName := range tt.forbidden {
+				if _, ok := tt.typ.FieldByName(fieldName); ok {
+					t.Fatalf("expected %s to omit field %q", tt.typ.Name(), fieldName)
+				}
+			}
+		})
+	}
 }

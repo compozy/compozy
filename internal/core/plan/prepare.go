@@ -118,6 +118,10 @@ func buildBatchJob(
 ) (model.Job, error) {
 	batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
 	safeName := determineBatchName(batchIdx, batchFiles, cfg.Mode)
+	var (
+		taskData model.TaskEntry
+		err      error
+	)
 	params := prompt.BatchParams{
 		Name:        cfg.Name,
 		Round:       cfg.Round,
@@ -132,9 +136,13 @@ func buildBatchJob(
 		if len(batchIssues) == 0 {
 			return model.Job{}, errors.New("prepare prd job: missing task issue")
 		}
+		taskData, err = prompt.ParseTaskFile(batchIssues[0].Content)
+		if err != nil {
+			return model.Job{}, wrapTaskParseError(batchIssues[0].AbsPath, err)
+		}
 		memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
 		if err != nil {
-			return model.Job{}, err
+			return model.Job{}, fmt.Errorf("prepare memory for %s: %w", batchIssues[0].AbsPath, err)
 		}
 		params.Memory = &prompt.WorkflowMemoryContext{
 			Directory:               memoryCtx.Directory,
@@ -154,6 +162,8 @@ func buildBatchJob(
 	return model.Job{
 		CodeFiles:     batchFiles,
 		Groups:        batchGroups,
+		TaskTitle:     taskData.Title,
+		TaskType:      taskData.TaskType,
 		SafeName:      safeName,
 		Prompt:        []byte(promptText),
 		SystemPrompt:  systemPrompt,

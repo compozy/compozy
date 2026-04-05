@@ -1,11 +1,10 @@
 ---
 status: completed
-domain: UI
-type: Feature Implementation
-scope: Full
+title: UI Adaptation & Legacy Cleanup
+type: frontend
 complexity: high
 dependencies:
-  - task_02
+    - task_02
 ---
 
 # Task 3: UI Adaptation & Legacy Cleanup

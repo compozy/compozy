@@ -170,20 +170,18 @@ type TaskMeta struct {
 type TaskEntry struct {
 	Content      string
 	Status       string
-	Domain       string
+	Title        string
 	TaskType     string
-	Scope        string
 	Complexity   string
 	Dependencies []string
 }
 
 type TaskFileMeta struct {
 	Status       string   `yaml:"status"`
-	Domain       string   `yaml:"domain,omitempty"`
-	TaskType     string   `yaml:"type,omitempty"`
-	Scope        string   `yaml:"scope,omitempty"`
+	Title        string   `yaml:"title"`
+	TaskType     string   `yaml:"type"`
 	Complexity   string   `yaml:"complexity,omitempty"`
-	Dependencies []string `yaml:"dependencies,omitempty"`
+	Dependencies []string `yaml:"dependencies"`
 }
 
 type ReviewFileMeta struct {
@@ -208,6 +206,8 @@ type SolvePreparation struct {
 type Job struct {
 	CodeFiles     []string
 	Groups        map[string][]IssueEntry
+	TaskTitle     string
+	TaskType      string
 	SafeName      string
 	Prompt        []byte
 	SystemPrompt  string

@@ -94,6 +94,8 @@ type uiJob struct {
 	codeFile             string
 	codeFiles            []string
 	issues               int
+	taskTitle            string
+	taskType             string
 	safeName             string
 	outLog               string
 	errLog               string
@@ -165,6 +167,8 @@ type jobQueuedMsg struct {
 	CodeFile  string
 	CodeFiles []string
 	Issues    int
+	TaskTitle string
+	TaskType  string
 	SafeName  string
 	OutLog    string
 	ErrLog    string
@@ -271,6 +275,8 @@ type config struct {
 type job struct {
 	codeFiles     []string
 	groups        map[string][]model.IssueEntry
+	taskTitle     string
+	taskType      string
 	safeName      string
 	prompt        []byte
 	systemPrompt  string
@@ -318,6 +324,8 @@ func newJobs(src []model.Job) []job {
 		jobs = append(jobs, job{
 			codeFiles:     append([]string(nil), item.CodeFiles...),
 			groups:        cloneGroups(item.Groups),
+			taskTitle:     item.TaskTitle,
+			taskType:      item.TaskType,
 			safeName:      item.SafeName,
 			prompt:        append([]byte(nil), item.Prompt...),
 			systemPrompt:  item.SystemPrompt,

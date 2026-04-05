@@ -5,9 +5,8 @@ Task metadata is parsed from YAML frontmatter by Compozy's `ParseTaskFile()` fun
 ## Required Fields
 
 - `status`: Task lifecycle state.
-- `domain`: Feature area the task belongs to. Examples: "Authentication", "API", "Frontend", "Database", "Infrastructure", "CLI".
-- `type`: Type of work. Examples: "Feature Implementation", "Bug Fix", "Refactor", "Configuration", "Migration".
-- `scope`: Coverage of the task. Examples: "Full", "Partial".
+- `title`: Human-readable task title. It must match the first H1 in the task body.
+- `type`: Allowed work type slug. Use `[tasks].types` from `.compozy/config.toml` when configured; otherwise use the built-in defaults `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`.
 - `complexity`: Difficulty rating. Must be one of: `low`, `medium`, `high`, `critical`.
 - `dependencies`: YAML list of task file names that must be completed before this task. Use `[]` when there are no dependencies.
 

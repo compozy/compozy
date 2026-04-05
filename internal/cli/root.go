@@ -3,12 +3,14 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
+	"log/slog"
+	"path/filepath"
+	"strings"
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
+	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
@@ -41,6 +43,8 @@ type commandState struct {
 	batchSize              int
 	ide                    string
 	model                  string
+	force                  bool
+	skipValidation         bool
 	addDirs                []string
 	tailLines              int
 	reasoningEffort        string
@@ -73,6 +77,7 @@ always override values loaded from the workspace config.
 Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
   compozy migrate       Convert legacy workflow artifacts to frontmatter
+  compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy sync          Refresh task workflow metadata files
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
@@ -86,6 +91,7 @@ Use explicit workflow subcommands:
 	root.AddCommand(
 		newSetupCommand(),
 		newMigrateCommand(),
+		newValidateTasksCommand(),
 		newSyncCommand(),
 		newArchiveCommand(),
 		newFetchReviewsCommand(),
@@ -168,11 +174,24 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (.compozy/tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
+	cmd.Flags().BoolVar(
+		&state.skipValidation,
+		"skip-validation",
+		false,
+		"Skip task metadata preflight; use only when tasks were validated separately",
+	)
+	cmd.Flags().BoolVar(
+		&state.force,
+		"force",
+		false,
+		"Continue after task metadata validation fails in non-interactive mode",
+	)
 	return cmd
 }
 
 type migrateCommandState struct {
 	workspaceRoot string
+	projectConfig workspace.ProjectConfig
 	rootDir       string
 	name          string
 	tasksDir      string
@@ -354,7 +373,7 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 }
 
 func (s *commandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
@@ -376,7 +395,7 @@ func (s *commandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
@@ -409,7 +428,7 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.loadWorkspaceRoot(ctx); err != nil {
@@ -429,6 +448,7 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			"Dry run: %t\n" +
 			"Scanned: %d\n" +
 			"Migrated: %d\n" +
+			"V1->V2 migrated: %d\n" +
 			"Already frontmatter: %d\n" +
 			"Skipped: %d\n" +
 			"Invalid: %d\n"
@@ -439,16 +459,53 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 			result.DryRun,
 			result.FilesScanned,
 			result.FilesMigrated,
+			result.V1ToV2Migrated,
 			result.FilesAlreadyFrontmatter,
 			result.FilesSkipped,
 			result.FilesInvalid,
 		)
+		if len(result.UnmappedTypeFiles) > 0 {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Unmapped type files: %d\n", len(result.UnmappedTypeFiles))
+			for _, path := range result.UnmappedTypeFiles {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "- %s\n", path)
+			}
+
+			registry, regErr := taskTypeRegistryFromConfig(s.projectConfig)
+			if regErr == nil {
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nFix prompt:\n%s\n", migrationFixPrompt(result, registry))
+			}
+		}
 	}
 	return err
 }
 
+func migrationFixPrompt(result *core.MigrationResult, registry *tasks.TypeRegistry) string {
+	report := tasks.Report{
+		TasksDir: migrationTasksDir(result),
+		Issues:   make([]tasks.Issue, 0, len(result.UnmappedTypeFiles)),
+	}
+	for _, path := range result.UnmappedTypeFiles {
+		report.Issues = append(report.Issues, tasks.Issue{
+			Path:    path,
+			Field:   "type",
+			Message: fmt.Sprintf(`type value is unmapped; must be one of: %s`, strings.Join(registry.Values(), ", ")),
+		})
+	}
+	return tasks.FixPrompt(report, registry)
+}
+
+func migrationTasksDir(result *core.MigrationResult) string {
+	if result == nil {
+		return ""
+	}
+	if len(result.UnmappedTypeFiles) == 0 {
+		return result.Target
+	}
+	return filepath.Dir(result.UnmappedTypeFiles[0])
+}
+
 func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.loadWorkspaceRoot(ctx); err != nil {
@@ -479,7 +536,7 @@ func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
 }
 
 func (s *archiveCommandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.loadWorkspaceRoot(ctx); err != nil {
@@ -578,10 +635,48 @@ func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg 
 	if err := s.preflightBundledSkills(cmd, cfg); err != nil {
 		return err
 	}
+	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
+		return err
+	}
 
 	runWorkflow := s.runWorkflow
 	if runWorkflow == nil {
 		runWorkflow = core.Run
 	}
 	return runWorkflow(ctx, cfg)
+}
+
+func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
+	if s.kind != commandKindStart || cfg.Mode != core.ModePRDTasks {
+		return nil
+	}
+
+	preflightCfg := coreRun.PreflightConfig{
+		Force:          s.force,
+		SkipValidation: s.skipValidation,
+		IsInteractive:  s.isInteractive,
+		Stderr:         cmd.ErrOrStderr(),
+		Logger:         slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
+	}
+	if !s.skipValidation {
+		registry, err := taskTypeRegistryFromConfig(s.projectConfig)
+		if err != nil {
+			return fmt.Errorf("resolve task type registry: %w", err)
+		}
+		resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, cfg.Name, cfg.TasksDir)
+		if err != nil {
+			return err
+		}
+		preflightCfg.TasksDir = resolvedTasksDir
+		preflightCfg.Registry = registry
+	}
+
+	decision, err := coreRun.PreflightCheckConfig(ctx, preflightCfg)
+	if err != nil {
+		return err
+	}
+	if decision == coreRun.PreflightAborted {
+		return withExitCode(1, fmt.Errorf("task validation failed"))
+	}
+	return nil
 }

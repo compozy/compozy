@@ -126,10 +126,12 @@ type MigrationResult struct {
 	DryRun                  bool
 	FilesScanned            int
 	FilesMigrated           int
+	V1ToV2Migrated          int
 	FilesAlreadyFrontmatter int
 	FilesSkipped            int
 	FilesInvalid            int
 	MigratedPaths           []string
+	UnmappedTypeFiles       []string
 	InvalidPaths            []string
 }
 

@@ -14,10 +14,12 @@ import (
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
+	"gopkg.in/yaml.v3"
 )
 
 var (
 	ErrLegacyTaskMetadata   = errors.New("legacy XML task metadata detected")
+	ErrV1TaskMetadata       = errors.New("v1 task front matter detected")
 	ErrLegacyReviewMetadata = errors.New("legacy XML review metadata detected")
 )
 
@@ -48,20 +50,27 @@ func BuildSystemPromptAddendum(p BatchParams) string {
 }
 
 func ParseTaskFile(content string) (model.TaskEntry, error) {
-	var meta model.TaskFileMeta
-	if _, err := frontmatter.Parse(content, &meta); err != nil {
+	var node yaml.Node
+	if _, err := frontmatter.Parse(content, &node); err != nil {
 		if LooksLikeLegacyTaskFile(content) {
 			return model.TaskEntry{}, ErrLegacyTaskMetadata
 		}
 		return model.TaskEntry{}, fmt.Errorf("parse task front matter: %w", err)
 	}
+	if hasTaskV1FrontMatterKeys(&node) {
+		return model.TaskEntry{}, ErrV1TaskMetadata
+	}
+
+	var meta model.TaskFileMeta
+	if err := node.Decode(&meta); err != nil {
+		return model.TaskEntry{}, fmt.Errorf("decode task front matter: %w", err)
+	}
 
 	task := model.TaskEntry{
 		Content:      content,
 		Status:       strings.TrimSpace(meta.Status),
-		Domain:       strings.TrimSpace(meta.Domain),
+		Title:        strings.TrimSpace(meta.Title),
 		TaskType:     strings.TrimSpace(meta.TaskType),
-		Scope:        strings.TrimSpace(meta.Scope),
 		Complexity:   strings.TrimSpace(meta.Complexity),
 		Dependencies: normalizeDependencies(meta.Dependencies),
 	}
@@ -89,15 +98,37 @@ func ParseLegacyTaskFile(content string) (model.TaskEntry, error) {
 	}
 
 	contextBlock := content[contextStart : contextEnd+len("</task_context>")]
-	task.Domain = extractXMLTag(contextBlock, "domain")
 	task.TaskType = extractXMLTag(contextBlock, "type")
-	task.Scope = extractXMLTag(contextBlock, "scope")
 	task.Complexity = extractXMLTag(contextBlock, "complexity")
 	task.Dependencies = normalizeLegacyDependencies(extractXMLTag(contextBlock, "dependencies"))
 	if task.Status == "" {
 		return model.TaskEntry{}, errors.New("legacy task status not found")
 	}
 	return task, nil
+}
+
+func hasTaskV1FrontMatterKeys(node *yaml.Node) bool {
+	mapping := node
+	if node.Kind == yaml.DocumentNode {
+		if len(node.Content) != 1 {
+			return false
+		}
+		mapping = node.Content[0]
+	}
+	if mapping.Kind != yaml.MappingNode {
+		return false
+	}
+	for idx := 0; idx+1 < len(mapping.Content); idx += 2 {
+		keyNode := mapping.Content[idx]
+		if keyNode.Kind != yaml.ScalarNode {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(keyNode.Value)) {
+		case "domain", "scope":
+			return true
+		}
+	}
+	return false
 }
 
 func LooksLikeLegacyTaskFile(content string) bool {

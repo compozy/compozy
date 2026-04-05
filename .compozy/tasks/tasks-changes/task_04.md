@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: CLI & TUI
 type: Feature Implementation
 scope: Full
@@ -35,12 +35,12 @@ Wire the validator into `compozy start` as a preflight gate: when invalid task m
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Create `internal/core/run/validation_form.go` with a Bubble Tea model (state, update, view) exposing the three actions and the fix-prompt text.
-- [ ] 4.2 Add a `PreflightCheck(ctx, tasksDir, registry, isInteractive, force) (PreflightDecision, error)` entry-point (in `internal/core/run/` or a new `internal/core/run/preflight.go`) that runs `tasks.Validate` and dispatches to the modal or non-TTY path.
-- [ ] 4.3 Add `--skip-validation` and `--force` flags to `newStartCommand()` in `internal/cli/root.go` (lines 152-171).
-- [ ] 4.4 Call the preflight hook inside `(*commandState).runPrepared` at `internal/cli/root.go:577-586`, before handing off to `core.Run(...)`; short-circuit on abort with exit code 1.
-- [ ] 4.5 Add structured `slog` log entries for each preflight outcome.
-- [ ] 4.6 Add Bubble Tea unit tests (model update/view) and an integration test for the non-TTY path.
+- [x] 4.1 Create `internal/core/run/validation_form.go` with a Bubble Tea model (state, update, view) exposing the three actions and the fix-prompt text.
+- [x] 4.2 Add a `PreflightCheck(ctx, tasksDir, registry, isInteractive, force) (PreflightDecision, error)` entry-point (in `internal/core/run/` or a new `internal/core/run/preflight.go`) that runs `tasks.Validate` and dispatches to the modal or non-TTY path.
+- [x] 4.3 Add `--skip-validation` and `--force` flags to `newStartCommand()` in `internal/cli/root.go` (lines 152-171).
+- [x] 4.4 Call the preflight hook inside `(*commandState).runPrepared` at `internal/cli/root.go:577-586`, before handing off to `core.Run(...)`; short-circuit on abort with exit code 1.
+- [x] 4.5 Add structured `slog` log entries for each preflight outcome.
+- [x] 4.6 Add Bubble Tea unit tests (model update/view) and an integration test for the non-TTY path.
 
 ## Implementation Details
 
@@ -78,18 +78,18 @@ Refer to TechSpec "API Endpoints" for the flag contract and to ADR-003 for the m
 
 ## Tests
 - Unit tests:
-  - [ ] Model `Update` on key `c` transitions state to "continued" and quits with `PreflightContinued`.
-  - [ ] Model `Update` on key `a` or `esc` quits with `PreflightAborted`.
-  - [ ] Model `Update` on key `p` writes the fix prompt to stderr and quits.
-  - [ ] Model `View` renders the list of offending files and issues from the supplied Report.
-  - [ ] `PreflightCheck` with `skipValidation=true` returns `PreflightSkipped` without calling `tasks.Validate`.
-  - [ ] `PreflightCheck` with a clean report returns `PreflightOK`.
-  - [ ] `PreflightCheck` in non-TTY with `force=false` and issues returns `PreflightAborted` and writes fix prompt to stderr.
-  - [ ] `PreflightCheck` in non-TTY with `force=true` and issues returns `PreflightForced`.
+  - [x] Model `Update` on key `c` transitions state to "continued" and quits with `PreflightContinued`.
+  - [x] Model `Update` on key `a` or `esc` quits with `PreflightAborted`.
+  - [x] Model `Update` on key `p` writes the fix prompt to stderr and quits.
+  - [x] Model `View` renders the list of offending files and issues from the supplied Report.
+  - [x] `PreflightCheck` with `skipValidation=true` returns `PreflightSkipped` without calling `tasks.Validate`.
+  - [x] `PreflightCheck` with a clean report returns `PreflightOK`.
+  - [x] `PreflightCheck` in non-TTY with `force=false` and issues returns `PreflightAborted` and writes fix prompt to stderr.
+  - [x] `PreflightCheck` in non-TTY with `force=true` and issues returns `PreflightForced`.
 - Integration tests:
-  - [ ] Run `compozy start --tasks-dir <invalid-fixtures> --skip-validation` — skips validation, attempts job setup (assert by log line or a fake runner).
-  - [ ] Run `compozy start --tasks-dir <invalid-fixtures>` in non-TTY → exit code 1, stderr contains fix prompt.
-  - [ ] Run `compozy start --tasks-dir <invalid-fixtures> --force` in non-TTY → continues past preflight, logs `preflight=forced`.
+  - [x] Run `compozy start --tasks-dir <invalid-fixtures> --skip-validation` — skips validation, attempts job setup (assert by log line or a fake runner).
+  - [x] Run `compozy start --tasks-dir <invalid-fixtures>` in non-TTY → exit code 1, stderr contains fix prompt.
+  - [x] Run `compozy start --tasks-dir <invalid-fixtures> --force` in non-TTY → continues past preflight, logs `preflight=forced`.
 - Test coverage target: >=80%
 - All tests must pass
 

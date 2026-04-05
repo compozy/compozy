@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Migration
 type: Feature Implementation
 scope: Full
@@ -36,13 +36,13 @@ Extend `compozy migrate` with a v1→v2 pass that chains after the existing lega
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add `migrateV1ToV2(path string, content string, registry *tasks.TypeRegistry) (*pendingFileMigration, migrationOutcome, error)` to `internal/core/migrate.go`.
-- [ ] 3.2 Add an H1 title extractor helper with the three-format fallback and `Task N:` / `Task N -` prefix stripping.
-- [ ] 3.3 Add the type-remap table (either inline in `migrate.go` as a `var` or in a new `internal/core/tasks/type_remap.go`).
-- [ ] 3.4 Extend detection in `inspectTaskArtifact` (`migrate.go:222-257`) to route v1 files into the new pass and chain legacy→v1→v2 when both apply.
-- [ ] 3.5 Extend `MigrationResult` (`internal/core/api.go:126-137`) with `V1ToV2Migrated int` and `UnmappedTypeFiles []string`; print them in the migrate summary.
-- [ ] 3.6 Execute `compozy migrate` against `.compozy/tasks/acp-integration/` and hand-fix the three fixture files to valid v2 (and commit them in this task).
-- [ ] 3.7 Add table-driven tests covering mapping hits, mapping misses, title-extractor fallbacks, idempotency, and legacy→v2 chaining.
+- [x] 3.1 Add `migrateV1ToV2(path string, content string, registry *tasks.TypeRegistry) (*pendingFileMigration, migrationOutcome, error)` to `internal/core/migrate.go`.
+- [x] 3.2 Add an H1 title extractor helper with the three-format fallback and `Task N:` / `Task N -` prefix stripping.
+- [x] 3.3 Add the type-remap table (either inline in `migrate.go` as a `var` or in a new `internal/core/tasks/type_remap.go`).
+- [x] 3.4 Extend detection in `inspectTaskArtifact` (`migrate.go:222-257`) to route v1 files into the new pass and chain legacy→v1→v2 when both apply.
+- [x] 3.5 Extend `MigrationResult` (`internal/core/api.go:126-137`) with `V1ToV2Migrated int` and `UnmappedTypeFiles []string`; print them in the migrate summary.
+- [x] 3.6 Execute `compozy migrate` against `.compozy/tasks/acp-integration/` and hand-fix the three fixture files to valid v2 (and commit them in this task).
+- [x] 3.7 Add table-driven tests covering mapping hits, mapping misses, title-extractor fallbacks, idempotency, and legacy→v2 chaining.
 
 ## Implementation Details
 
@@ -87,22 +87,22 @@ Refer to TechSpec "Core Interfaces" / "Data Models" and to ADR-004 for the full 
 
 ## Tests
 - Unit tests:
-  - [ ] v1 fixture with `type: "Bug Fix"` maps to `bugfix` after migration.
-  - [ ] v1 fixture with `type: "Refactor"` maps to `refactor`.
-  - [ ] v1 fixture with `type: "Documentation"` maps to `docs`.
-  - [ ] v1 fixture with `type: "Feature Implementation"` leaves `type: ""` and appends the path to `UnmappedTypeFiles`.
-  - [ ] v1 fixture with `type: "Frontend"` (case-insensitive exact match against registry `frontend`) maps to `frontend`.
-  - [ ] Detection precedence: a file whose frontmatter has no `scope`/`domain` but is also missing `title` is classified as v1 and triggers title extraction (ADR-004 clause 3).
-  - [ ] H1 extractor handles `# Task 1: ACP Agent Layer` → `"ACP Agent Layer"`.
-  - [ ] H1 extractor handles `# Task 10 - Cleanup` → `"Cleanup"`.
-  - [ ] H1 extractor handles `# Plain Title` → `"Plain Title"`.
-  - [ ] H1 extractor returns empty when the body has no H1.
-  - [ ] Running migrate on an already-v2 file is a no-op (content unchanged).
-  - [ ] Legacy XML fixture chains through legacy→v1→v2 in a single pass (no `Domain`/`Scope` in output, `Title` populated).
+  - [x] v1 fixture with `type: "Bug Fix"` maps to `bugfix` after migration.
+  - [x] v1 fixture with `type: "Refactor"` maps to `refactor`.
+  - [x] v1 fixture with `type: "Documentation"` maps to `docs`.
+  - [x] v1 fixture with `type: "Feature Implementation"` leaves `type: ""` and appends the path to `UnmappedTypeFiles`.
+  - [x] v1 fixture with `type: "Frontend"` (case-insensitive exact match against registry `frontend`) maps to `frontend`.
+  - [x] Detection precedence: a file whose frontmatter has no `scope`/`domain` but is also missing `title` is classified as v1 and triggers title extraction (ADR-004 clause 3).
+  - [x] H1 extractor handles `# Task 1: ACP Agent Layer` → `"ACP Agent Layer"`.
+  - [x] H1 extractor handles `# Task 10 - Cleanup` → `"Cleanup"`.
+  - [x] H1 extractor handles `# Plain Title` → `"Plain Title"`.
+  - [x] H1 extractor returns empty when the body has no H1.
+  - [x] Running migrate on an already-v2 file is a no-op (content unchanged).
+  - [x] Legacy XML fixture chains through legacy→v1→v2 in a single pass (no `Domain`/`Scope` in output, `Title` populated).
 - Integration tests:
-  - [ ] Running `compozy migrate` on a directory with mixed v1/v2/legacy files writes exactly the v1/legacy ones and leaves v2 untouched; `MigrationResult.V1ToV2Migrated` equals the v1-input count.
-  - [ ] After migration, `compozy validate-tasks` run on the same directory returns exit 0 only when `UnmappedTypeFiles` is empty; otherwise exit 1 with the fix prompt.
-  - [ ] The committed `.compozy/tasks/acp-integration/` fixtures pass `compozy validate-tasks` (exit 0).
+  - [x] Running `compozy migrate` on a directory with mixed v1/v2/legacy files writes exactly the v1/legacy ones and leaves v2 untouched; `MigrationResult.V1ToV2Migrated` equals the v1-input count.
+  - [x] After migration, `compozy validate-tasks` run on the same directory returns exit 0 only when `UnmappedTypeFiles` is empty; otherwise exit 1 with the fix prompt.
+  - [x] The committed `.compozy/tasks/acp-integration/` fixtures pass `compozy validate-tasks` (exit 0).
 - Test coverage target: >=80%
 - All tests must pass
 

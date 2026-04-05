@@ -1,10 +1,8 @@
 ---
 status: completed
-domain: Agent Runtime
-type: Feature Implementation
-scope: Full
+title: ACP Agent Layer & Content Model
+type: backend
 complexity: high
-dependencies: []
 ---
 
 # Task 1: ACP Agent Layer & Content Model

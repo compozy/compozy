@@ -23,9 +23,9 @@ func TestReadTaskEntriesSortsNumericallyAndFiltersCompleted(t *testing.T) {
 
 	dir := t.TempDir()
 	files := map[string]string{
-		"task_10.md": "---\nstatus: pending\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 10\n",
-		"task_2.md":  "---\nstatus: pending\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 2\n",
-		"task_3.md":  "---\nstatus: completed\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 3\n",
+		"task_10.md": "---\nstatus: pending\ntitle: Task 10\ntype: backend\ncomplexity: low\n---\n\n# Task 10\n",
+		"task_2.md":  "---\nstatus: pending\ntitle: Task 2\ntype: backend\ncomplexity: low\n---\n\n# Task 2\n",
+		"task_3.md":  "---\nstatus: completed\ntitle: Task 3\ntype: backend\ncomplexity: low\n---\n\n# Task 3\n",
 		"notes.md":   "ignored\n",
 	}
 	for name, content := range files {
@@ -110,8 +110,8 @@ func TestResolveInputsUsesWorkspaceRootForDefaultTaskDirectory(t *testing.T) {
 func TestValidateAndFilterEntriesReportsCompletedTaskWorkflowsSeparately(t *testing.T) {
 	dir := t.TempDir()
 	files := map[string]string{
-		"task_1.md": "---\nstatus: completed\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 1\n",
-		"task_2.md": "---\nstatus: done\ndomain: x\ntype: feature\nscope: s\ncomplexity: low\n---\n\n# Task 2\n",
+		"task_1.md": "---\nstatus: completed\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
+		"task_2.md": "---\nstatus: done\ntitle: Task 2\ntype: backend\ncomplexity: low\n---\n\n# Task 2\n",
 	}
 	for name, content := range files {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
@@ -205,6 +205,33 @@ func TestResolveInputsInfersTaskNameFromTasksDir(t *testing.T) {
 	}
 }
 
+func TestReadTaskEntriesRejectsV1TaskArtifactsWithMigrateGuidance(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	content := `---
+status: pending
+domain: backend
+type: backend
+scope: full
+complexity: low
+---
+
+# Task 1: Example
+`
+	if err := os.WriteFile(filepath.Join(dir, "task_1.md"), []byte(content), 0o600); err != nil {
+		t.Fatalf("write v1 task: %v", err)
+	}
+
+	_, err := readTaskEntries(dir, false)
+	if err == nil {
+		t.Fatal("expected readTaskEntries to fail for v1 task metadata")
+	}
+	if !strings.Contains(err.Error(), "run `compozy migrate`") {
+		t.Fatalf("expected migrate guidance, got %v", err)
+	}
+}
+
 func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	t.Parallel()
 
@@ -215,7 +242,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 			{
 				Name:     "task_1.md",
 				AbsPath:  filepath.Join(issuesDir, "task_1.md"),
-				Content:  "---\nstatus: pending\ndomain: backend\ntype: feature\nscope: small\ncomplexity: low\n---\n\n# Task 1\n",
+				Content:  "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
 				CodeFile: "task_1",
 			},
 		},
@@ -223,7 +250,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 			{
 				Name:     "task_2.md",
 				AbsPath:  filepath.Join(issuesDir, "task_2.md"),
-				Content:  "---\nstatus: pending\ndomain: backend\ntype: feature\nscope: small\ncomplexity: low\n---\n\n# Task 2\n",
+				Content:  "---\nstatus: pending\ntitle: Task 2\ntype: backend\ncomplexity: low\n---\n\n# Task 2\n",
 				CodeFile: "task_2",
 			},
 		},
@@ -245,6 +272,12 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		if len(job.CodeFiles) != 1 {
 			t.Fatalf("expected single-file jobs in prd mode, got %#v", job.CodeFiles)
 		}
+		if job.TaskTitle == "" {
+			t.Fatalf("expected prd job to carry task title, got %#v", job)
+		}
+		if got, want := job.TaskType, "backend"; got != want {
+			t.Fatalf("expected prd job type %q, got %q", want, got)
+		}
 		if _, err := os.Stat(job.OutPromptPath); err != nil {
 			t.Fatalf("expected prompt artifact to be written: %v", err)
 		}
@@ -257,6 +290,40 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		if !strings.Contains(job.SystemPrompt, "<workflow_memory>") {
 			t.Fatalf("expected prd job to include workflow-memory system prompt, got %q", job.SystemPrompt)
 		}
+	}
+}
+
+func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
+	t.Parallel()
+
+	promptRoot := t.TempDir()
+	tasksDirFile := filepath.Join(t.TempDir(), "tasks.md")
+	if err := os.WriteFile(tasksDirFile, []byte("not a directory"), 0o600); err != nil {
+		t.Fatalf("write tasks dir sentinel file: %v", err)
+	}
+
+	issuePath := filepath.Join(t.TempDir(), "task_01.md")
+	_, err := buildBatchJob(
+		&model.RuntimeConfig{
+			Name:     "demo",
+			TasksDir: tasksDirFile,
+			Mode:     model.ExecutionModePRDTasks,
+		},
+		promptRoot,
+		0,
+		[]model.IssueEntry{
+			{
+				Name:    "task_01.md",
+				AbsPath: issuePath,
+				Content: "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
+			},
+		},
+	)
+	if err == nil {
+		t.Fatal("expected buildBatchJob to fail when workflow memory cannot be prepared")
+	}
+	if !strings.Contains(err.Error(), "prepare memory for "+issuePath) {
+		t.Fatalf("expected wrapped task path in memory preparation error, got %v", err)
 	}
 }
 

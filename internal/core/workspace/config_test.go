@@ -166,6 +166,92 @@ provider = "coderabbit"
 	}
 }
 
+func TestLoadConfigTaskTypes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		content   string
+		wantErr   string
+		wantTypes []string
+		wantNil   bool
+	}{
+		{
+			name:    "leaves task types nil when section is absent",
+			content: ``,
+			wantNil: true,
+		},
+		{
+			name: "rejects explicit empty list",
+			content: `
+[tasks]
+types = []
+`,
+			wantErr: "workspace config tasks.types cannot be empty",
+		},
+		{
+			name: "rejects duplicates",
+			content: `
+[tasks]
+types = ["frontend", "frontend"]
+`,
+			wantErr: `duplicate task type "frontend"`,
+		},
+		{
+			name: "rejects invalid slug",
+			content: `
+[tasks]
+types = ["Invalid Slug"]
+`,
+			wantErr: `Invalid Slug`,
+		},
+		{
+			name: "preserves valid custom list",
+			content: `
+[tasks]
+types = ["frontend", "backend"]
+`,
+			wantTypes: []string{"frontend", "backend"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			cfg, _, err := LoadConfig(context.Background(), root)
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			if tt.wantNil {
+				if cfg.Tasks.Types != nil {
+					t.Fatalf("expected tasks.types to be nil, got %#v", cfg.Tasks.Types)
+				}
+				return
+			}
+			if cfg.Tasks.Types == nil {
+				t.Fatal("expected tasks.types to be populated")
+			}
+			if !equalStrings(*cfg.Tasks.Types, tt.wantTypes) {
+				t.Fatalf("unexpected task types\nwant: %#v\ngot:  %#v", tt.wantTypes, *cfg.Tasks.Types)
+			}
+		})
+	}
+}
+
 func TestResolveLoadsConfigFromNearestWorkspace(t *testing.T) {
 	t.Parallel()
 
@@ -191,6 +277,31 @@ ide = "claude"
 	}
 }
 
+func TestResolveLoadsTaskTypesFromNearestWorkspace(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	start := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(start, 0o755); err != nil {
+		t.Fatalf("mkdir start: %v", err)
+	}
+	writeWorkspaceConfig(t, root, `
+[tasks]
+types = ["mobile", "api"]
+`)
+
+	workspaceCtx, err := Resolve(context.Background(), start)
+	if err != nil {
+		t.Fatalf("resolve workspace: %v", err)
+	}
+	if workspaceCtx.Config.Tasks.Types == nil {
+		t.Fatal("expected task types to be populated")
+	}
+	if !equalStrings(*workspaceCtx.Config.Tasks.Types, []string{"mobile", "api"}) {
+		t.Fatalf("unexpected loaded task types: %#v", *workspaceCtx.Config.Tasks.Types)
+	}
+}
+
 func TestLoadConfigRejectsInvalidAccessMode(t *testing.T) {
 	t.Parallel()
 
@@ -205,6 +316,69 @@ access_mode = "invalid"
 		t.Fatal("expected invalid access mode error")
 	}
 	if !strings.Contains(err.Error(), "defaults.access_mode") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsInvalidFixReviewsValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "concurrent must be positive",
+			content: `
+[fix_reviews]
+concurrent = 0
+`,
+			wantErr: "fix_reviews.concurrent",
+		},
+		{
+			name: "batch size must be positive",
+			content: `
+[fix_reviews]
+batch_size = 0
+`,
+			wantErr: "fix_reviews.batch_size",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			_, _, err := LoadConfig(context.Background(), root)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigRejectsEmptyFetchReviewsProvider(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[fetch_reviews]
+provider = "   "
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected empty provider error")
+	}
+	if !strings.Contains(err.Error(), "fetch_reviews.provider") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -286,4 +460,16 @@ func mustEvalSymlinksWorkspaceTest(t *testing.T, path string) string {
 		t.Fatalf("eval symlinks for %s: %v", path, err)
 	}
 	return resolved
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for idx := range got {
+		if got[idx] != want[idx] {
+			return false
+		}
+	}
+	return true
 }
