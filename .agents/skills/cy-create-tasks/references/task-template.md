@@ -5,9 +5,8 @@ Use this structure for every individual task file. The file must start with YAML
 ```markdown
 ---
 status: pending
-domain: [e.g., Authentication, API, Frontend, Database]
-type: [e.g., Feature Implementation, Bug Fix, Refactor, Configuration]
-scope: [e.g., Full, Partial]
+title: [Task title]
+type: [one of frontend, backend, docs, test, infra, refactor, chore, bugfix, or a project-specific [tasks].types override]
 complexity: [low, medium, high, critical]
 dependencies:
   - task_01

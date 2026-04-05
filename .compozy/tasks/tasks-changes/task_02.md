@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Validation
 type: Feature Implementation
 scope: Full
@@ -34,12 +34,12 @@ Build the authoritative task-metadata validator as a pure function (`tasks.Valid
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Create `internal/core/tasks/validate.go` with `Issue`, `Report`, `Validate()`; table-driven tests covering each of the 7 rules.
-- [ ] 2.2 Implement the title/H1 sync check with prefix-stripping (`Task N:` / `Task N -`) and a golden-file test suite.
-- [ ] 2.3 Create `internal/core/tasks/fix_prompt.go` with `FixPrompt()`; golden-file test for the rendered prompt.
-- [ ] 2.4 Create `internal/cli/validate_tasks.go` implementing the Cobra command with `--name`, `--tasks-dir`, `--format` flags and exit-code contract.
-- [ ] 2.5 Register the new command in `internal/cli/root.go` alongside the existing subcommands (follow the `newMigrateCommand()` / `newSetupCommand()` pattern).
-- [ ] 2.6 Add an integration test that invokes the command against a `t.TempDir()` fixture and asserts exit code + JSON schema.
+- [x] 2.1 Create `internal/core/tasks/validate.go` with `Issue`, `Report`, `Validate()`; table-driven tests covering each of the 7 rules.
+- [x] 2.2 Implement the title/H1 sync check with prefix-stripping (`Task N:` / `Task N -`) and a golden-file test suite.
+- [x] 2.3 Create `internal/core/tasks/fix_prompt.go` with `FixPrompt()`; golden-file test for the rendered prompt.
+- [x] 2.4 Create `internal/cli/validate_tasks.go` implementing the Cobra command with `--name`, `--tasks-dir`, `--format` flags and exit-code contract.
+- [x] 2.5 Register the new command in `internal/cli/root.go` alongside the existing subcommands (follow the `newMigrateCommand()` / `newSetupCommand()` pattern).
+- [x] 2.6 Add an integration test that invokes the command against a `t.TempDir()` fixture and asserts exit code + JSON schema.
 
 ## Implementation Details
 
@@ -79,21 +79,21 @@ Refer to TechSpec "Core Interfaces" for the `Report`/`Issue` contract and to ADR
 
 ## Tests
 - Unit tests:
-  - [ ] A task file with empty `title` frontmatter produces an `Issue{Field:"title"}`.
-  - [ ] A task file whose frontmatter `title` differs from its body H1 (after prefix stripping) produces `Issue{Field:"title_h1_sync"}`.
-  - [ ] A task file with `type: nope` against a registry containing only built-ins produces `Issue{Field:"type"}` listing the allowed values.
-  - [ ] A task file with `status: in-progress` (hyphenated) produces `Issue{Field:"status"}`.
-  - [ ] A task file with `complexity: extreme` produces `Issue{Field:"complexity"}`.
-  - [ ] A task file whose `dependencies: [task_99]` references a missing file produces `Issue{Field:"dependencies"}`.
-  - [ ] A task file containing legacy `scope:` or `domain:` frontmatter keys produces `Issue{Field:"scope"}` / `Issue{Field:"domain"}`.
-  - [ ] A clean v2 fixture produces `Report.OK() == true` with zero issues.
-  - [ ] Title/H1 sync accepts `# Task 1: ACP Agent Layer`, `# Task 1 - ACP Agent Layer`, and `# ACP Agent Layer` when frontmatter says `title: ACP Agent Layer`.
-  - [ ] `FixPrompt(report, registry)` includes every offending path, every `Issue.Message`, and the full `registry.Values()` list.
-  - [ ] `Validate` on an empty directory returns `Report{Scanned:0}` with no issues and no error.
+  - [x] A task file with empty `title` frontmatter produces an `Issue{Field:"title"}`.
+  - [x] A task file whose frontmatter `title` differs from its body H1 (after prefix stripping) produces `Issue{Field:"title_h1_sync"}`.
+  - [x] A task file with `type: nope` against a registry containing only built-ins produces `Issue{Field:"type"}` listing the allowed values.
+  - [x] A task file with `status: in-progress` (hyphenated) produces `Issue{Field:"status"}`.
+  - [x] A task file with `complexity: extreme` produces `Issue{Field:"complexity"}`.
+  - [x] A task file whose `dependencies: [task_99]` references a missing file produces `Issue{Field:"dependencies"}`.
+  - [x] A task file containing legacy `scope:` or `domain:` frontmatter keys produces `Issue{Field:"scope"}` / `Issue{Field:"domain"}`.
+  - [x] A clean v2 fixture produces `Report.OK() == true` with zero issues.
+  - [x] Title/H1 sync accepts `# Task 1: ACP Agent Layer`, `# Task 1 - ACP Agent Layer`, and `# ACP Agent Layer` when frontmatter says `title: ACP Agent Layer`.
+  - [x] `FixPrompt(report, registry)` includes every offending path, every `Issue.Message`, and the full `registry.Values()` list.
+  - [x] `Validate` on an empty directory returns `Report{Scanned:0}` with no issues and no error.
 - Integration tests:
-  - [ ] Run `compozy validate-tasks --tasks-dir <tempdir> --format json` on a mixed fixture (2 valid, 2 invalid files with one known issue each); assert exit code 1, JSON has `issues` array covering exactly the two offending file paths (assert by distinct `path` values, not array length), and a non-empty `fix_prompt` string.
-  - [ ] Run the command on an all-valid fixture; assert exit code 0 and text output contains `"all tasks valid"`.
-  - [ ] Run the command with a non-existent `--tasks-dir`; assert exit code 2 and a clear error message.
+  - [x] Run `compozy validate-tasks --tasks-dir <tempdir> --format json` on a mixed fixture (2 valid, 2 invalid files with one known issue each); assert exit code 1, JSON has `issues` array covering exactly the two offending file paths (assert by distinct `path` values, not array length), and a non-empty `fix_prompt` string.
+  - [x] Run the command on an all-valid fixture; assert exit code 0 and text output contains `"all tasks valid"`.
+  - [x] Run the command with a non-existent `--tasks-dir`; assert exit code 2 and a clear error message.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: TUI
 type: Feature Implementation
 scope: Full
@@ -38,13 +38,13 @@ Transform the session timeline panel header from the static `session.timeline` l
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Extend `model.Job` (`internal/core/model/model.go:208-214`) with `TaskTitle` / `TaskType` so task metadata flows end-to-end from plan preparation into the runner.
-- [ ] 5.2 Populate `model.Job.TaskTitle`/`.TaskType` from `model.TaskEntry` in `internal/core/plan/prepare.go` (around the `model.Job` construction at lines 156-165).
-- [ ] 5.3 Extend the internal `job` struct (`internal/core/run/types.go:271-282`) and the `newJobs(src []model.Job)` converter (`types.go:316`) to copy the new fields.
-- [ ] 5.4 Extend `uiJob` and `jobQueuedMsg` with `taskTitle` / `taskType` fields; populate `jobQueuedMsg` at the emission site `internal/core/run/ui_model.go:214-224` and copy into `uiJob` inside the message handler.
-- [ ] 5.5 Update `renderTimelinePanel` (`internal/core/run/ui_view.go:473-496`) to render the title+badge header when `taskTitle != ""`, else the existing `session.timeline` label.
-- [ ] 5.6 Update `timelineMeta` (`ui_view.go:498-516`) to build a two-sided row: existing counter on the left, `agent.DisplayName(ide) · model` right-aligned.
-- [ ] 5.7 Extend the timeline rendering tests (`internal/core/run/ui_view_test.go:142-166,476-479` + `ui_update_test.go:263-301`) with table-driven cases covering the fallback, the badge, the right-alignment truncation, and narrow widths.
+- [x] 5.1 Extend `model.Job` (`internal/core/model/model.go:208-214`) with `TaskTitle` / `TaskType` so task metadata flows end-to-end from plan preparation into the runner.
+- [x] 5.2 Populate `model.Job.TaskTitle`/`.TaskType` from `model.TaskEntry` in `internal/core/plan/prepare.go` (around the `model.Job` construction at lines 156-165).
+- [x] 5.3 Extend the internal `job` struct (`internal/core/run/types.go:271-282`) and the `newJobs(src []model.Job)` converter (`types.go:316`) to copy the new fields.
+- [x] 5.4 Extend `uiJob` and `jobQueuedMsg` with `taskTitle` / `taskType` fields; populate `jobQueuedMsg` at the emission site `internal/core/run/ui_model.go:214-224` and copy into `uiJob` inside the message handler.
+- [x] 5.5 Update `renderTimelinePanel` (`internal/core/run/ui_view.go:473-496`) to render the title+badge header when `taskTitle != ""`, else the existing `session.timeline` label.
+- [x] 5.6 Update `timelineMeta` (`ui_view.go:498-516`) to build a two-sided row: existing counter on the left, `agent.DisplayName(ide) · model` right-aligned.
+- [x] 5.7 Extend the timeline rendering tests (`internal/core/run/ui_view_test.go:142-166,476-479` + `ui_update_test.go:263-301`) with table-driven cases covering the fallback, the badge, the right-alignment truncation, and narrow widths.
 
 ## Implementation Details
 
@@ -86,16 +86,16 @@ Refer to TechSpec "TUI layout" and the ADR-003/ADR-001 preview in the approved a
 
 ## Tests
 - Unit tests:
-  - [ ] `timelineHeaderLabel` with empty `taskTitle` returns `"session.timeline"` (lowercase tech label).
-  - [ ] `timelineHeaderLabel` with `taskTitle="acp agent layer"` and `taskType="backend"` returns `"ACP AGENT LAYER  [backend]"`.
-  - [ ] `timelineHeaderLabel` with `taskTitle="acp agent layer"` and empty `taskType` returns `"ACP AGENT LAYER"` (no badge).
-  - [ ] The two-sided meta row pads so that `"claude · sonnet-4.5"` sits at the right edge for a given width.
-  - [ ] When the combined left+right length exceeds the width, the left counter is truncated (not the provider/model).
-  - [ ] `renderTimelinePanel` with a job whose `taskTitle` is empty still renders exactly the current layout (regression guard).
-  - [ ] `renderTimelinePanel` with title+type+provider+model renders a three-line header (title, meta, blank) plus the transcript viewport.
+  - [x] `timelineHeaderLabel` with empty `taskTitle` returns `"session.timeline"` (lowercase tech label).
+  - [x] `timelineHeaderLabel` with `taskTitle="acp agent layer"` and `taskType="backend"` returns `"ACP AGENT LAYER  [backend]"`.
+  - [x] `timelineHeaderLabel` with `taskTitle="acp agent layer"` and empty `taskType` returns `"ACP AGENT LAYER"` (no badge).
+  - [x] The two-sided meta row pads so that `"claude · sonnet-4.5"` sits at the right edge for a given width.
+  - [x] When the combined left+right length exceeds the width, the left counter is truncated (not the provider/model).
+  - [x] `renderTimelinePanel` with a job whose `taskTitle` is empty still renders exactly the current layout (regression guard).
+  - [x] `renderTimelinePanel` with title+type+provider+model renders a three-line header (title, meta, blank) plus the transcript viewport.
 - Integration tests:
-  - [ ] Build a `uiJob` with a snapshot of 3 entries, set `taskTitle/taskType/provider/model`, render the panel, and golden-compare the output at width 80.
-  - [ ] Render the same panel at width 44 (min) and assert no panic, no truncation of the provider/model fragment.
+  - [x] Build a `uiJob` with a snapshot of 3 entries, set `taskTitle/taskType/provider/model`, render the panel, and golden-compare the output at width 80.
+  - [x] Render the same panel at width 44 (min) and assert no panic, no truncation of the provider/model fragment.
 - Test coverage target: >=80%
 - All tests must pass
 

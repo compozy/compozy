@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 domain: Documentation
 type: Documentation
 scope: Full
@@ -35,12 +35,12 @@ Bring every piece of documentation and every installable skill up to date with t
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Update `skills/cy-create-tasks/SKILL.md`: add "Load type registry" step and "Run validate-tasks" step; remove references to `domain`/`scope`.
-- [ ] 6.2 Update `skills/cy-create-tasks/references/task-template.md` to the v2 frontmatter example.
-- [ ] 6.3 Update `skills/cy-create-tasks/references/task-context-schema.md` with the v2 field definitions and the 8 built-in types.
-- [ ] 6.4 Update `README.md` with a "Task Schema v2" subsection + mention of `validate-tasks` and new `start` flags.
-- [ ] 6.5 Update CLI help strings for `newStartCommand()` in `internal/cli/root.go` to describe `--skip-validation` and `--force`.
-- [ ] 6.6 Grep the repo for remaining `domain:` / `scope:` references in docs and skills and remove or migrate them.
+- [x] 6.1 Update `skills/cy-create-tasks/SKILL.md`: add "Load type registry" step and "Run validate-tasks" step; remove references to `domain`/`scope`.
+- [x] 6.2 Update `skills/cy-create-tasks/references/task-template.md` to the v2 frontmatter example.
+- [x] 6.3 Update `skills/cy-create-tasks/references/task-context-schema.md` with the v2 field definitions and the 8 built-in types.
+- [x] 6.4 Update `README.md` with a "Task Schema v2" subsection + mention of `validate-tasks` and new `start` flags.
+- [x] 6.5 Update CLI help strings for `newStartCommand()` in `internal/cli/root.go` to describe `--skip-validation` and `--force`.
+- [x] 6.6 Grep the repo for remaining `domain:` / `scope:` references in docs and skills and remove or migrate them.
 
 ## Implementation Details
 
@@ -82,11 +82,11 @@ Refer to the approved TechSpec "Impact Analysis" for the full file list.
 
 ## Tests
 - Unit tests:
-  - [ ] Snapshot test (or golden file) of the rendered `compozy start --help` output showing `--skip-validation` and `--force` descriptions.
-  - [ ] Grep-based test (executable via `go test` using `os.ReadFile` over `skills/` + `README.md`) asserting zero occurrences of `^domain:` and `^scope:` on any line.
+  - [x] Snapshot test (or golden file) of the rendered `compozy start --help` output showing `--skip-validation` and `--force` descriptions.
+  - [x] Grep-based test (executable via `go test` using `os.ReadFile` over `skills/` + `README.md`) asserting zero occurrences of `^domain:` and `^scope:` on any line.
 - Integration tests:
-  - [ ] Using the existing Cobra help-text harness at `internal/cli/root_test.go:200-218,928-935`, capture `compozy start --help` output and assert it contains `--skip-validation` and `--force`.
-  - [ ] Read `skills/cy-create-tasks/SKILL.md` via `os.ReadFile` and assert both the new "read .compozy/config.toml" step and the "run compozy validate-tasks" step are present by substring match.
+  - [x] Using the existing Cobra help-text harness at `internal/cli/root_test.go:200-218,928-935`, capture `compozy start --help` output and assert it contains `--skip-validation` and `--force`.
+  - [x] Read `skills/cy-create-tasks/SKILL.md` via `os.ReadFile` and assert both the new "read .compozy/config.toml" step and the "run compozy validate-tasks" step are present by substring match.
 - Test coverage target: >=80% (help strings are thin; the key coverage is the grep test and the CLI help assertion)
 - All tests must pass
 
