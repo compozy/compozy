@@ -13,6 +13,7 @@ const (
 	runStatusSucceeded = "succeeded"
 	runStatusFailed    = "failed"
 	runStatusCanceled  = "canceled"
+	runStatusUnknown   = "unknown"
 )
 
 type executionResult struct {
@@ -97,7 +98,7 @@ func deriveRunStatus(jobs []job, failures []failInfo, shutdownErr error) string 
 
 func jobStatusOrDefault(status string) string {
 	if strings.TrimSpace(status) == "" {
-		return runStatusSucceeded
+		return runStatusUnknown
 	}
 	return status
 }

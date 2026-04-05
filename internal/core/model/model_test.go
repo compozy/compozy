@@ -279,6 +279,28 @@ func TestRuntimeConfigApplyDefaultsPreservesExplicitValues(t *testing.T) {
 	})
 }
 
+func TestRuntimeConfigSurfaceOmitsSystemPromptWhileJobsRetainIt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep runtime config free of unreachable system prompt fields", func(t *testing.T) {
+		t.Parallel()
+
+		runtimeType := reflect.TypeOf(model.RuntimeConfig{})
+		if _, ok := runtimeType.FieldByName("SystemPrompt"); ok {
+			t.Fatal("expected runtime config to omit SystemPrompt")
+		}
+	})
+
+	t.Run("Should keep job system prompt support for prepared prompts", func(t *testing.T) {
+		t.Parallel()
+
+		jobType := reflect.TypeOf(model.Job{})
+		if _, ok := jobType.FieldByName("SystemPrompt"); !ok {
+			t.Fatal("expected prepared jobs to retain SystemPrompt")
+		}
+	})
+}
+
 func TestTaskMetadataUsesV2Fields(t *testing.T) {
 	t.Parallel()
 

@@ -352,6 +352,51 @@ output_format = "yaml"
 	}
 }
 
+func TestLoadConfigRejectsInvalidSharedRuntimeOverrideValues(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "defaults reasoning effort uses shared validation",
+			content: `
+[defaults]
+reasoning_effort = "turbo"
+`,
+			wantErr: "defaults.reasoning_effort",
+		},
+		{
+			name: "exec retry backoff uses shared validation",
+			content: `
+[exec]
+retry_backoff_multiplier = 0
+`,
+			wantErr: "exec.retry_backoff_multiplier",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			_, _, err := LoadConfig(context.Background(), root)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestLoadConfigRejectsInvalidFixReviewsValues(t *testing.T) {
 	t.Parallel()
 

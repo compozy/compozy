@@ -71,7 +71,6 @@ type RuntimeConfig struct {
 	TailLines              int
 	ReasoningEffort        string
 	AccessMode             string
-	SystemPrompt           string
 	Mode                   ExecutionMode
 	OutputFormat           OutputFormat
 	PromptText             string

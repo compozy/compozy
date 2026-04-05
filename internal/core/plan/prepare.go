@@ -104,7 +104,7 @@ func prepareExec(prep *model.SolvePreparation, cfg *model.RuntimeConfig) (*model
 		return nil, err
 	}
 
-	job, err := buildExecJob(cfg, prep.RunArtifacts, promptText)
+	job, err := buildExecJob(prep.RunArtifacts, promptText)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +212,7 @@ func buildBatchJob(
 	}, nil
 }
 
-func buildExecJob(cfg *model.RuntimeConfig, runArtifacts model.RunArtifacts, promptText string) (model.Job, error) {
+func buildExecJob(runArtifacts model.RunArtifacts, promptText string) (model.Job, error) {
 	const safeName = "exec"
 
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(runArtifacts, safeName, promptText)
@@ -231,7 +231,6 @@ func buildExecJob(cfg *model.RuntimeConfig, runArtifacts model.RunArtifacts, pro
 		},
 		SafeName:      safeName,
 		Prompt:        []byte(promptText),
-		SystemPrompt:  strings.TrimSpace(cfg.SystemPrompt),
 		OutPromptPath: outPromptPath,
 		OutLog:        outLog,
 		ErrLog:        errLog,

@@ -33,7 +33,7 @@ type ProjectConfig struct {
 	Exec         ExecConfig         `toml:"exec"`
 }
 
-type DefaultsConfig struct {
+type RuntimeOverrides struct {
 	IDE                    *string   `toml:"ide"`
 	Model                  *string   `toml:"model"`
 	OutputFormat           *string   `toml:"output_format"`
@@ -46,6 +46,8 @@ type DefaultsConfig struct {
 	MaxRetries             *int      `toml:"max_retries"`
 	RetryBackoffMultiplier *float64  `toml:"retry_backoff_multiplier"`
 }
+
+type DefaultsConfig RuntimeOverrides
 
 type StartConfig struct {
 	IncludeCompleted *bool `toml:"include_completed"`
@@ -65,19 +67,7 @@ type FetchReviewsConfig struct {
 	Provider *string `toml:"provider"`
 }
 
-type ExecConfig struct {
-	IDE                    *string   `toml:"ide"`
-	Model                  *string   `toml:"model"`
-	OutputFormat           *string   `toml:"output_format"`
-	ReasoningEffort        *string   `toml:"reasoning_effort"`
-	AccessMode             *string   `toml:"access_mode"`
-	Timeout                *string   `toml:"timeout"`
-	TailLines              *int      `toml:"tail_lines"`
-	AddDirs                *[]string `toml:"add_dirs"`
-	AutoCommit             *bool     `toml:"auto_commit"`
-	MaxRetries             *int      `toml:"max_retries"`
-	RetryBackoffMultiplier *float64  `toml:"retry_backoff_multiplier"`
-}
+type ExecConfig RuntimeOverrides
 
 func Resolve(ctx context.Context, startDir string) (Context, error) {
 	root, err := Discover(ctx, startDir)
@@ -194,22 +184,7 @@ func (cfg ProjectConfig) Validate() error {
 }
 
 func validateDefaults(cfg DefaultsConfig) error {
-	validators := []func(DefaultsConfig) error{
-		validateDefaultIDE,
-		validateDefaultOutputFormat,
-		validateDefaultReasoningEffort,
-		validateDefaultAccessMode,
-		validateDefaultTimeout,
-		validateDefaultTailLines,
-		validateDefaultMaxRetries,
-		validateDefaultRetryBackoffMultiplier,
-	}
-	for _, validate := range validators {
-		if err := validate(cfg); err != nil {
-			return err
-		}
-	}
-	return nil
+	return validateRuntimeOverrides("defaults", RuntimeOverrides(cfg))
 }
 
 func validateStart(_ StartConfig) error {
@@ -254,42 +229,46 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 }
 
 func validateExec(cfg ExecConfig) error {
-	validators := []func(ExecConfig) error{
-		validateExecIDE,
-		validateExecOutputFormat,
-		validateExecReasoningEffort,
-		validateExecAccessMode,
-		validateExecTimeout,
-		validateExecTailLines,
-		validateExecMaxRetries,
-		validateExecRetryBackoffMultiplier,
+	return validateRuntimeOverrides("exec", RuntimeOverrides(cfg))
+}
+
+func validateRuntimeOverrides(section string, cfg RuntimeOverrides) error {
+	validators := []func(string, RuntimeOverrides) error{
+		validateRuntimeIDE,
+		validateRuntimeOutputFormat,
+		validateRuntimeReasoningEffort,
+		validateRuntimeAccessMode,
+		validateRuntimeTimeout,
+		validateRuntimeTailLines,
+		validateRuntimeMaxRetries,
+		validateRuntimeRetryBackoffMultiplier,
 	}
 	for _, validate := range validators {
-		if err := validate(cfg); err != nil {
+		if err := validate(section, cfg); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateDefaultIDE(cfg DefaultsConfig) error {
+func validateRuntimeIDE(section string, cfg RuntimeOverrides) error {
 	if cfg.IDE == nil {
 		return nil
 	}
 	if strings.TrimSpace(*cfg.IDE) == "" {
-		return errors.New("workspace config defaults.ide cannot be empty")
+		return fmt.Errorf("workspace config %s.ide cannot be empty", section)
 	}
 	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
-		return fmt.Errorf("workspace config defaults.ide: %w", err)
+		return fmt.Errorf("workspace config %s.ide: %w", section, err)
 	}
 	return nil
 }
 
-func validateDefaultOutputFormat(cfg DefaultsConfig) error {
-	return validateOutputFormatValue("workspace config defaults.output_format", cfg.OutputFormat)
+func validateRuntimeOutputFormat(section string, cfg RuntimeOverrides) error {
+	return validateOutputFormatValue(runtimeFieldName(section, "output_format"), cfg.OutputFormat)
 }
 
-func validateDefaultReasoningEffort(cfg DefaultsConfig) error {
+func validateRuntimeReasoningEffort(section string, cfg RuntimeOverrides) error {
 	if cfg.ReasoningEffort == nil {
 		return nil
 	}
@@ -298,13 +277,14 @@ func validateDefaultReasoningEffort(cfg DefaultsConfig) error {
 		return nil
 	default:
 		return fmt.Errorf(
-			"workspace config defaults.reasoning_effort must be one of low, medium, high, xhigh (got %q)",
+			"%s must be one of low, medium, high, xhigh (got %q)",
+			runtimeFieldName(section, "reasoning_effort"),
 			strings.TrimSpace(*cfg.ReasoningEffort),
 		)
 	}
 }
 
-func validateDefaultAccessMode(cfg DefaultsConfig) error {
+func validateRuntimeAccessMode(section string, cfg RuntimeOverrides) error {
 	if cfg.AccessMode == nil {
 		return nil
 	}
@@ -313,7 +293,8 @@ func validateDefaultAccessMode(cfg DefaultsConfig) error {
 		return nil
 	default:
 		return fmt.Errorf(
-			"workspace config defaults.access_mode must be %q or %q (got %q)",
+			"%s must be %q or %q (got %q)",
+			runtimeFieldName(section, "access_mode"),
 			model.AccessModeDefault,
 			model.AccessModeFull,
 			strings.TrimSpace(*cfg.AccessMode),
@@ -321,135 +302,44 @@ func validateDefaultAccessMode(cfg DefaultsConfig) error {
 	}
 }
 
-func validateDefaultTimeout(cfg DefaultsConfig) error {
+func validateRuntimeTimeout(section string, cfg RuntimeOverrides) error {
 	if cfg.Timeout == nil {
 		return nil
 	}
 
 	timeout := strings.TrimSpace(*cfg.Timeout)
 	if timeout == "" {
-		return errors.New("workspace config defaults.timeout cannot be empty")
+		return fmt.Errorf("%s cannot be empty", runtimeFieldName(section, "timeout"))
 	}
 	duration, err := time.ParseDuration(timeout)
 	if err != nil {
-		return fmt.Errorf("workspace config defaults.timeout: %w", err)
+		return fmt.Errorf("%s: %w", runtimeFieldName(section, "timeout"), err)
 	}
 	if duration <= 0 {
-		return fmt.Errorf("workspace config defaults.timeout must be greater than zero (got %s)", timeout)
+		return fmt.Errorf("%s must be greater than zero (got %s)", runtimeFieldName(section, "timeout"), timeout)
 	}
 	return nil
 }
 
-func validateDefaultTailLines(cfg DefaultsConfig) error {
+func validateRuntimeTailLines(section string, cfg RuntimeOverrides) error {
 	if cfg.TailLines != nil && *cfg.TailLines < 0 {
-		return fmt.Errorf("workspace config defaults.tail_lines must be 0 or greater (got %d)", *cfg.TailLines)
+		return fmt.Errorf("%s must be 0 or greater (got %d)", runtimeFieldName(section, "tail_lines"), *cfg.TailLines)
 	}
 	return nil
 }
 
-func validateDefaultMaxRetries(cfg DefaultsConfig) error {
+func validateRuntimeMaxRetries(section string, cfg RuntimeOverrides) error {
 	if cfg.MaxRetries != nil && *cfg.MaxRetries < 0 {
-		return fmt.Errorf("workspace config defaults.max_retries cannot be negative (got %d)", *cfg.MaxRetries)
+		return fmt.Errorf("%s cannot be negative (got %d)", runtimeFieldName(section, "max_retries"), *cfg.MaxRetries)
 	}
 	return nil
 }
 
-func validateDefaultRetryBackoffMultiplier(cfg DefaultsConfig) error {
+func validateRuntimeRetryBackoffMultiplier(section string, cfg RuntimeOverrides) error {
 	if cfg.RetryBackoffMultiplier != nil && *cfg.RetryBackoffMultiplier <= 0 {
 		return fmt.Errorf(
-			"workspace config defaults.retry_backoff_multiplier must be positive (got %.2f)",
-			*cfg.RetryBackoffMultiplier,
-		)
-	}
-	return nil
-}
-
-func validateExecIDE(cfg ExecConfig) error {
-	if cfg.IDE == nil {
-		return nil
-	}
-	if strings.TrimSpace(*cfg.IDE) == "" {
-		return errors.New("workspace config exec.ide cannot be empty")
-	}
-	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
-		return fmt.Errorf("workspace config exec.ide: %w", err)
-	}
-	return nil
-}
-
-func validateExecOutputFormat(cfg ExecConfig) error {
-	return validateOutputFormatValue("workspace config exec.output_format", cfg.OutputFormat)
-}
-
-func validateExecReasoningEffort(cfg ExecConfig) error {
-	if cfg.ReasoningEffort == nil {
-		return nil
-	}
-	switch strings.TrimSpace(*cfg.ReasoningEffort) {
-	case "low", "medium", "high", "xhigh":
-		return nil
-	default:
-		return fmt.Errorf(
-			"workspace config exec.reasoning_effort must be one of low, medium, high, xhigh (got %q)",
-			strings.TrimSpace(*cfg.ReasoningEffort),
-		)
-	}
-}
-
-func validateExecAccessMode(cfg ExecConfig) error {
-	if cfg.AccessMode == nil {
-		return nil
-	}
-	switch strings.TrimSpace(*cfg.AccessMode) {
-	case model.AccessModeDefault, model.AccessModeFull:
-		return nil
-	default:
-		return fmt.Errorf(
-			"workspace config exec.access_mode must be %q or %q (got %q)",
-			model.AccessModeDefault,
-			model.AccessModeFull,
-			strings.TrimSpace(*cfg.AccessMode),
-		)
-	}
-}
-
-func validateExecTimeout(cfg ExecConfig) error {
-	if cfg.Timeout == nil {
-		return nil
-	}
-
-	timeout := strings.TrimSpace(*cfg.Timeout)
-	if timeout == "" {
-		return errors.New("workspace config exec.timeout cannot be empty")
-	}
-	duration, err := time.ParseDuration(timeout)
-	if err != nil {
-		return fmt.Errorf("workspace config exec.timeout: %w", err)
-	}
-	if duration <= 0 {
-		return fmt.Errorf("workspace config exec.timeout must be greater than zero (got %s)", timeout)
-	}
-	return nil
-}
-
-func validateExecTailLines(cfg ExecConfig) error {
-	if cfg.TailLines != nil && *cfg.TailLines < 0 {
-		return fmt.Errorf("workspace config exec.tail_lines must be 0 or greater (got %d)", *cfg.TailLines)
-	}
-	return nil
-}
-
-func validateExecMaxRetries(cfg ExecConfig) error {
-	if cfg.MaxRetries != nil && *cfg.MaxRetries < 0 {
-		return fmt.Errorf("workspace config exec.max_retries cannot be negative (got %d)", *cfg.MaxRetries)
-	}
-	return nil
-}
-
-func validateExecRetryBackoffMultiplier(cfg ExecConfig) error {
-	if cfg.RetryBackoffMultiplier != nil && *cfg.RetryBackoffMultiplier <= 0 {
-		return fmt.Errorf(
-			"workspace config exec.retry_backoff_multiplier must be positive (got %.2f)",
+			"%s must be positive (got %.2f)",
+			runtimeFieldName(section, "retry_backoff_multiplier"),
 			*cfg.RetryBackoffMultiplier,
 		)
 	}
@@ -474,4 +364,8 @@ func validateOutputFormatValue(field string, value *string) error {
 			strings.TrimSpace(*value),
 		)
 	}
+}
+
+func runtimeFieldName(section, field string) string {
+	return fmt.Sprintf("workspace config %s.%s", section, field)
 }

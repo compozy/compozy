@@ -1,6 +1,7 @@
 package run
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -49,5 +50,36 @@ func TestBuildExecutionResultIncludesStatusUsageAndArtifactPaths(t *testing.T) {
 	}
 	if result.Jobs[0].PromptPath != jobs[0].outPromptPath {
 		t.Fatalf("unexpected prompt path: %q", result.Jobs[0].PromptPath)
+	}
+}
+
+func TestBuildExecutionResultDoesNotInventSuccessForBlankJobStatus(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "exec-test-run")
+	cfg := &config{
+		mode:         model.ExecutionModeExec,
+		ide:          model.IDECodex,
+		model:        "gpt-5.4",
+		outputFormat: model.OutputFormatJSON,
+		runArtifacts: runArtifacts,
+	}
+
+	result := buildExecutionResult(cfg, []job{{
+		safeName:      "exec",
+		codeFiles:     []string{"exec"},
+		outPromptPath: filepath.Join(runArtifacts.JobsDir, "exec.prompt.md"),
+		outLog:        filepath.Join(runArtifacts.JobsDir, "exec.out.log"),
+		errLog:        filepath.Join(runArtifacts.JobsDir, "exec.err.log"),
+	}}, []failInfo{{err: errors.New("setup failed")}}, nil)
+
+	if result.Status != runStatusFailed {
+		t.Fatalf("unexpected result status: %q", result.Status)
+	}
+	if len(result.Jobs) != 1 {
+		t.Fatalf("expected one job result, got %d", len(result.Jobs))
+	}
+	if result.Jobs[0].Status != runStatusUnknown {
+		t.Fatalf("expected blank job status to remain non-success, got %q", result.Jobs[0].Status)
 	}
 }
