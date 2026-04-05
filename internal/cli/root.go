@@ -177,8 +177,18 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (.compozy/tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
-	cmd.Flags().BoolVar(&state.skipValidation, "skip-validation", false, "Skip task metadata preflight validation")
-	cmd.Flags().BoolVar(&state.force, "force", false, "Continue past task metadata validation failures")
+	cmd.Flags().BoolVar(
+		&state.skipValidation,
+		"skip-validation",
+		false,
+		"Skip task metadata preflight; use only when tasks were validated separately",
+	)
+	cmd.Flags().BoolVar(
+		&state.force,
+		"force",
+		false,
+		"Continue after task metadata validation fails in non-interactive mode",
+	)
 	return cmd
 }
 

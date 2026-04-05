@@ -1,0 +1,30 @@
+Execute task markdown files from a PRD workflow directory and dispatch them to the configured
+AI agent one task at a time.
+
+Most runtime defaults can be supplied by .compozy/config.toml.
+
+Usage:
+  compozy start [flags]
+
+Examples:
+  compozy start --name multi-repo --tasks-dir .compozy/tasks/multi-repo --ide claude
+  compozy start
+
+Flags:
+      --access-mode string               Runtime access policy: default keeps native safeguards; full requests the most permissive mode Compozy can configure (default "full")
+      --add-dir strings                  Additional directory to allow for ACP runtimes that support extra writable roots (repeatable or comma-separated)
+      --auto-commit                      Include automatic commit instructions at task/batch completion
+      --dry-run                          Only generate prompts; do not run IDE tool
+      --force                            Continue after task metadata validation fails in non-interactive mode
+  -h, --help                             help for start
+      --ide string                       ACP runtime to use: claude, codex, cursor-agent, droid, opencode, pi, or gemini (requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx) (default "codex")
+      --include-completed                Include completed tasks
+      --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
+      --model string                     Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)
+      --name string                      Task workflow name (used for .compozy/tasks/<name>)
+      --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags, such as droid (low, medium, high, xhigh) (default "medium")
+      --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
+      --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately
+      --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)
+      --tasks-dir string                 Path to tasks directory (.compozy/tasks/<name>)
+      --timeout string                   Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period. (default "10m")

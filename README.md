@@ -96,7 +96,24 @@ When the direct ACP command is not installed, Compozy can also fall back to supp
 
 Every artifact is a plain markdown file in `.compozy/tasks/<name>/`. You can read, edit, or version-control any of them between steps.
 
-Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `domain`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
+Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `title`, `type`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
+
+### Task Schema v2
+
+Task files now use the v2 frontmatter shape: `status`, `title`, `type`, `complexity`, and `dependencies`. Legacy v1 task-only keys are no longer part of the schema. `type` must come from the workspace task type registry: either `[tasks].types` in `.compozy/config.toml` or the built-in defaults `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`.
+
+```md
+---
+status: pending
+title: Add validate-tasks preflight to start
+type: backend
+complexity: medium
+dependencies:
+  - task_02
+---
+```
+
+Validate task files at any time with `compozy validate-tasks --name <feature>`. `compozy start` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
 
 ## ⚙️ Workspace Config
 
@@ -131,6 +148,9 @@ retry_backoff_multiplier = 1.5
 [start]
 include_completed = false
 
+[tasks]
+types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "bugfix"]
+
 [fix_reviews]
 concurrent = 2
 batch_size = 3
@@ -140,10 +160,11 @@ include_resolved = false
 provider = "coderabbit"
 ```
 
-Supported sections in v1:
+Supported sections:
 
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[start]` for `include_completed`
+- `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy validate-tasks`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider`
 
@@ -201,6 +222,7 @@ Reads your PRD, explores the codebase architecture, asks technical clarification
 ```
 
 Analyzes both documents, explores your codebase for relevant files and patterns, produces individually executable task files with status tracking, context, and acceptance criteria.
+Generated task files use task schema v2 (`status`, `title`, `type`, `complexity`, `dependencies`). Validate them any time with `compozy validate-tasks --name user-auth`.
 
 ### 6. Execute tasks
 
@@ -209,6 +231,7 @@ compozy start --name user-auth --ide claude
 ```
 
 Each pending task is processed sequentially — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
+`compozy start` validates task metadata before execution. Use `--skip-validation` when validation already ran elsewhere, or `--force` to continue after validation failures in non-interactive environments.
 
 ### 7. Review
 

@@ -241,7 +241,15 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		t.Fatalf("execute start help: %v", err)
 	}
 
-	required := []string{"--name", "--tasks-dir", "--include-completed", "--skip-validation", "--force"}
+	required := []string{
+		"--name",
+		"--tasks-dir",
+		"--include-completed",
+		"--skip-validation",
+		"Skip task metadata preflight; use only when tasks were validated separately",
+		"--force",
+		"Continue after task metadata validation fails in non-interactive mode",
+	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to include %q\noutput:\n%s", snippet, output)
@@ -262,6 +270,25 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected start help to omit %q\noutput:\n%s", snippet, output)
 		}
+	}
+}
+
+func TestStartHelpMatchesGolden(t *testing.T) {
+	t.Parallel()
+
+	output, err := executeRootCommand("start", "--help")
+	if err != nil {
+		t.Fatalf("execute start help: %v", err)
+	}
+
+	goldenPath := filepath.Join("testdata", "start_help.golden")
+	want, err := os.ReadFile(goldenPath)
+	if err != nil {
+		t.Fatalf("read golden file %s: %v", goldenPath, err)
+	}
+
+	if output != string(want) {
+		t.Fatalf("start help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
 	}
 }
 
