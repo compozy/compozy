@@ -1,7 +1,7 @@
 ---
 name: cy-create-prd
 description: Creates a Product Requirements Document through interactive brainstorming with parallel codebase and web research. Use when starting a new feature or product, building a PRD, or brainstorming requirements. Do not use for technical specifications, task breakdowns, or code implementation.
-argument-hint: "[feature-name-or-idea] [issue-file]"
+argument-hint: "[feature-name-or-idea] [idea-file]"
 ---
 
 # Create PRD
@@ -44,7 +44,7 @@ Translate every technical-sounding feature into the user experience question beh
 ## Required Inputs
 
 - Feature name or product idea.
-- Optional: existing `_issue.md` file as primary input for context.
+- Optional: existing `_idea.md` file as primary input for context.
 - Optional: existing `_prd.md` file for update mode.
 
 ## Checklist
@@ -64,7 +64,7 @@ You MUST create a task for each phase and complete them in order:
 1. Determine the project name and working directory.
    - Derive the slug from the feature name provided by the user.
    - Use `.compozy/tasks/<slug>/` as the target directory.
-   - If `_issue.md` exists in the target directory, read it as primary context input.
+   - If `_idea.md` exists in the target directory, read it as primary context input.
    - If `_prd.md` already exists in the target directory, read it and operate in update mode.
    - If the directory does not exist, create it.
    - Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
@@ -179,7 +179,7 @@ digraph create_prd {
 - **YAGNI ruthlessly** — Challenge every feature; remove anything the MVP does not need
 - **Draft then review** — Get approval on the product approach, generate the complete draft, then iterate with the user until approved
 - **Business focus only** — Never ask about implementation; that belongs in TechSpec
-- **Issue as input** — When `_issue.md` exists, use it as primary context to accelerate brainstorming
+- **Idea as input** — When `_idea.md` exists, use it as primary context to accelerate brainstorming
 - **Pipeline awareness** — The PRD feeds into `cy-create-techspec`; focus on WHAT and WHY, not HOW
 - **Template compliance** — Every PRD MUST follow the canonical template
 - **Language consistency** — Write all PRD content in English

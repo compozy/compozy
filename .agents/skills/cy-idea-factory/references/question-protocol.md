@@ -1,6 +1,6 @@
 # Question Protocol
 
-Structured brainstorming protocol for issue creation. Follow these phases and rules to guide the conversation from raw idea to structured spec.
+Structured brainstorming protocol for idea creation. Follow these phases and rules to guide the conversation from raw idea to structured spec.
 
 ## Phases
 
@@ -79,4 +79,4 @@ Define how to measure success (if not already clear from earlier answers).
 - Prefer smaller, well-defined scope over ambitious breadth.
 
 ### Anti-Pattern: Skipping Questions For "Obvious" Ideas
-Every issue goes through the question protocol regardless of perceived simplicity. Simple ideas are where unexamined business assumptions cause the most rework. The questioning can be brief, but it must happen.
+Every idea goes through the question protocol regardless of perceived simplicity. Simple ideas are where unexamined business assumptions cause the most rework. The questioning can be brief, but it must happen.
