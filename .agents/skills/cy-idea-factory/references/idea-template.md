@@ -1,6 +1,6 @@
-# Issue Template
+# Idea Template
 
-Use this template to structure every issue in `.compozy/tasks/<slug>/_issue.md`. Fill each section based on research and brainstorming outcomes. Leave placeholder guidance in sections where information is insufficient and note them in Open Questions.
+Use this template to structure every idea in `.compozy/tasks/<slug>/_idea.md`. Fill each section based on research and brainstorming outcomes. Leave placeholder guidance in sections where information is insufficient and note them in Open Questions.
 
 ## Overview
 
@@ -81,7 +81,7 @@ Rules:
 
 ## Architecture Decision Records
 
-ADRs documenting key decisions made during issue creation:
+ADRs documenting key decisions made during idea creation:
 - [ADR-NNN: Title](adrs/adr-NNN.md) — One-line summary of the decision
 
 ## Open Questions
@@ -111,7 +111,7 @@ Use when the feature modifies or extends already implemented features.
 
 - **{Name}** — {Brief description of the sub-scope}
 
-Use when the feature is large enough to be split into multiple issues or PRDs.
+Use when the feature is large enough to be split into multiple ideas or PRDs.
 
 ### Cost Estimate
 

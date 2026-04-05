@@ -1,6 +1,6 @@
 ---
 name: cy-idea-factory
-description: Expands a raw idea into a structured, research-backed spec in .compozy/tasks/<slug>/_issue.md through interactive brainstorming, web research, business analysis, and multi-advisor debate. Use when the user has a feature idea and wants to explore and structure it before creating a PRD. Do not use for PRD creation, technical specifications, task breakdown, or code implementation.
+description: Expands a raw idea into a structured, research-backed spec in .compozy/tasks/<slug>/_idea.md through interactive brainstorming, web research, business analysis, and multi-advisor debate. Use when the user has a feature idea and wants to explore and structure it before creating a PRD. Do not use for PRD creation, technical specifications, task breakdown, or code implementation.
 argument-hint: [feature-idea]
 ---
 
@@ -9,10 +9,10 @@ argument-hint: [feature-idea]
 Expand a raw feature idea into a structured, research-backed spec that serves as the foundation for PRD creation.
 
 <HARD-GATE>
-Do NOT write the issue file until ALL phases are complete and the user has approved the final draft.
-Do NOT skip the research phase — every issue MUST be enriched with market data.
-Do NOT skip user interactions — the user MUST participate in shaping the issue at every decision point.
-This applies to EVERY issue regardless of perceived simplicity.
+Do NOT write the idea file until ALL phases are complete and the user has approved the final draft.
+Do NOT skip the research phase — every idea MUST be enriched with market data.
+Do NOT skip user interactions — the user MUST participate in shaping the idea at every decision point.
+This applies to EVERY idea regardless of perceived simplicity.
 </HARD-GATE>
 
 ## Asking Questions
@@ -23,12 +23,12 @@ If your runtime does not provide such a tool, present the question as your compl
 
 ## Anti-Pattern: "This Idea Is Too Simple For Full Research"
 
-Every issue goes through the full research and debate process. A single button, a minor workflow tweak, a configuration option — all of them. "Simple" ideas are where unexamined business assumptions cause the most rework downstream in the PRD. The process can be brief for genuinely simple ideas, but you MUST research and debate before writing.
+Every idea goes through the full research and debate process. A single button, a minor workflow tweak, a configuration option — all of them. "Simple" ideas are where unexamined business assumptions cause the most rework downstream in the PRD. The process can be brief for genuinely simple ideas, but you MUST research and debate before writing.
 
 ## Required Inputs
 
 - Feature idea or problem description.
-- Optional: existing `_issue.md` file for update mode.
+- Optional: existing `_idea.md` file for update mode.
 
 ## Checklist
 
@@ -40,16 +40,16 @@ You MUST create a task for each phase and complete them in order:
 4. **Analyze business viability** — adopt business analyst persona (`references/business-analyst.md`) for KPIs, personas, and success metrics
 5. **Debate trade-offs** — run council session (`references/council.md`) to challenge assumptions and surface risks
 6. **Scan for opportunities** — adopt product strategist persona (`references/product-strategist.md`) to suggest higher-leverage alternatives before committing to the draft
-7. **Draft the issue** — write using the canonical template from `references/issue-template.md`
+7. **Draft the idea** — write using the canonical template from `references/idea-template.md`
 8. **Review with user** — present the draft, iterate until approved
-9. **Save the file** — write to `.compozy/tasks/<slug>/_issue.md`
+9. **Save the file** — write to `.compozy/tasks/<slug>/_idea.md`
 
 ## Workflow
 
 1. Determine the project name and working directory.
    - Derive the slug from the feature idea provided by the user.
    - Use `.compozy/tasks/<slug>/` as the target directory.
-   - If `_issue.md` already exists in the target directory, read it and operate in update mode.
+   - If `_idea.md` already exists in the target directory, read it and operate in update mode.
    - If the directory does not exist, create it.
    - Create `.compozy/tasks/<slug>/adrs/` directory if it does not exist.
 
@@ -101,7 +101,7 @@ You MUST create a task for each phase and complete them in order:
      | **Defensibility**   | Is this easy to copy or does it compound over time? | Must do/Strong/Maybe/Pass |
      | **Feasibility**     | Can we actually build this?                         | Must do/Strong/Maybe/Pass |
 
-   - This evaluation informs the issue's priority and feeds into the council debate.
+   - This evaluation informs the idea's priority and feeds into the council debate.
    - Present the analysis to the user before proceeding.
 
 5. Debate trade-offs through multi-advisor council.
@@ -136,8 +136,8 @@ You MUST create a task for each phase and complete them in order:
      - D) Other — describe
    - Incorporate the chosen direction into the draft. If the user picks an alternative, update the feature scope accordingly before proceeding.
 
-7. Draft the issue.
-   - Read `references/issue-template.md` and fill every applicable section with gathered context.
+7. Draft the idea.
+   - Read `references/idea-template.md` and fill every applicable section with gathered context.
    - Include an "Architecture Decision Records" section listing all ADRs created during this session.
    - Mandatory sections (ALWAYS include): Overview, Problem (enriched with market data), Core Features, KPIs, Feature Assessment, Council Insights, Out of Scope (V1), Architecture Decision Records, Open Questions.
    - Optional sections (include when relevant): Summary/Differentiator, Integration with Existing Features, Sub-Features, Cost Estimate.
@@ -148,7 +148,7 @@ You MUST create a task for each phase and complete them in order:
 
 8. Review with the user.
    - Present the draft and ask using the interactive question tool:
-     - "Here is the issue draft. Please review and let me know:"
+     - "Here is the idea draft. Please review and let me know:"
      - A) Approved — save as is
      - B) Adjust specific sections (tell me which ones)
      - C) Rewrite section X (tell me what to change)
@@ -156,18 +156,18 @@ You MUST create a task for each phase and complete them in order:
    - If B or C: make the changes and present again.
    - If D: go back to step 2.
 
-9. Save the issue file.
+9. Save the idea file.
    - Generate the slug: kebab-case, 2-5 words, descriptive (e.g., `smart-thumbnail-suggestions`).
    - Ask the user to confirm the filename using the interactive question tool:
-     - "Save as `.compozy/tasks/<slug>/_issue.md`? (A) Yes / (B) Different name"
-   - Write the file to `.compozy/tasks/<slug>/_issue.md`.
+     - "Save as `.compozy/tasks/<slug>/_idea.md`? (A) Yes / (B) Different name"
+   - Write the file to `.compozy/tasks/<slug>/_idea.md`.
    - Confirm the file path to the user.
-   - Remind the user that the next step is to create a PRD using `cy-create-prd` from this issue.
+   - Remind the user that the next step is to create a PRD using `cy-create-prd` from this idea.
 
 ## Process Flow
 
 ```dot
-digraph create_issue {
+digraph idea_factory {
     "Determine project & directory" [shape=box];
     "Ask 3-6 targeted questions (one at a time)" [shape=box];
     "Discover context (codebase + web)" [shape=box];
@@ -176,9 +176,9 @@ digraph create_issue {
     "Create ADR for scope decision" [shape=box];
     "Opportunity scan (product strategist)" [shape=box];
     "User picks direction?" [shape=diamond];
-    "Draft issue (canonical template)" [shape=box];
+    "Draft idea (canonical template)" [shape=box];
     "User approves draft?" [shape=diamond];
-    "Save _issue.md" [shape=doublecircle];
+    "Save _idea.md" [shape=doublecircle];
 
     "Determine project & directory" -> "Ask 3-6 targeted questions (one at a time)";
     "Ask 3-6 targeted questions (one at a time)" -> "Discover context (codebase + web)";
@@ -187,10 +187,10 @@ digraph create_issue {
     "Debate trade-offs (council)" -> "Create ADR for scope decision";
     "Create ADR for scope decision" -> "Opportunity scan (product strategist)";
     "Opportunity scan (product strategist)" -> "User picks direction?";
-    "User picks direction?" -> "Draft issue (canonical template)" [label="confirmed"];
-    "Draft issue (canonical template)" -> "User approves draft?";
-    "User approves draft?" -> "Draft issue (canonical template)" [label="no, revise"];
-    "User approves draft?" -> "Save _issue.md" [label="approved"];
+    "User picks direction?" -> "Draft idea (canonical template)" [label="confirmed"];
+    "Draft idea (canonical template)" -> "User approves draft?";
+    "User approves draft?" -> "Draft idea (canonical template)" [label="no, revise"];
+    "User approves draft?" -> "Save _idea.md" [label="approved"];
 }
 ```
 
@@ -206,10 +206,10 @@ digraph create_issue {
 
 - **One question at a time** — Do not overwhelm with multiple questions in a single message
 - **Multiple choice preferred** — Always offer options before open-ended questions
-- **Research before writing** — Never write an issue without market data
+- **Research before writing** — Never write an idea without market data
 - **Incremental validation** — Present analysis and draft for approval before saving
 - **Business focus only** — Never ask about implementation; that belongs in TechSpec
 - **Scope discipline** — Aggressively trim scope to a viable V1
-- **Pipeline awareness** — The issue feeds into `cy-create-prd`; focus on WHAT and WHY, not HOW
-- **Template compliance** — Every issue MUST follow the canonical template
-- **Language consistency** — Write all issue content in English
+- **Pipeline awareness** — The idea feeds into `cy-create-prd`; focus on WHAT and WHY, not HOW
+- **Template compliance** — Every idea MUST follow the canonical template
+- **Language consistency** — Write all idea content in English

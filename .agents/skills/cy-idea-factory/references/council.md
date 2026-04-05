@@ -131,7 +131,7 @@ Track how positions shift through debate:
 
 ## Downstream Extraction Guide
 
-When council is invoked by the issue creation workflow, extract:
+When council is invoked by the idea creation workflow, extract:
 
 - Out of Scope items for V1
 - Risk factors that inform KPIs

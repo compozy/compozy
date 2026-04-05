@@ -29,7 +29,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 ## ✨ Highlights
 
 - **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`.
-- **Idea to code in a structured pipeline.** Optional Issue → PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next. Start from an issue for full research and debate, or jump straight to PRD if you already have a clear scope.
+- **Idea to code in a structured pipeline.** Optional Idea → PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next. Start from an idea for full research and debate, or jump straight to PRD if you already have a clear scope.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
 - **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
 - **Workflow memory between runs.** Agents inherit context from every previous task — decisions, learnings, errors, and handoffs. Two-tier markdown memory with automatic compaction keeps context fresh without manual bookkeeping.
@@ -197,7 +197,7 @@ Inside your AI agent (Claude Code, Codex, Cursor, OpenCode, Pi, etc.):
 /cy-idea-factory user-auth
 ```
 
-Transforms a raw idea into a structured issue spec — asks targeted questions, researches market and codebase in parallel, runs business analysis and council debate, suggests high-leverage alternatives, and produces a research-backed issue. Skip this step if you already have a clear feature scope.
+Transforms a raw idea into a structured idea spec — asks targeted questions, researches market and codebase in parallel, runs business analysis and council debate, suggests high-leverage alternatives, and produces a research-backed idea. Skip this step if you already have a clear feature scope.
 
 ### 3. Create a PRD
 
@@ -205,7 +205,7 @@ Transforms a raw idea into a structured issue spec — asks targeted questions, 
 /cy-create-prd user-auth
 ```
 
-Interactive brainstorming session — reads the issue if one exists, asks clarifying questions, spawns parallel agents to research your codebase and the web, produces a business-focused PRD with ADRs.
+Interactive brainstorming session — reads the idea if one exists, asks clarifying questions, spawns parallel agents to research your codebase and the web, produces a business-focused PRD with ADRs.
 
 ### 4. Create a TechSpec
 
@@ -267,8 +267,8 @@ Compozy bundles 9 skills that its workflows depend on. They run inside your AI a
 
 | Skill                | Purpose                                                                    |
 | -------------------- | -------------------------------------------------------------------------- |
-| `cy-idea-factory`    | Raw idea → structured issue spec with market research, business analysis, and council debate |
-| `cy-create-prd`      | Issue/idea → Product Requirements Document with ADRs                       |
+| `cy-idea-factory`    | Raw idea → structured idea spec with market research, business analysis, and council debate |
+| `cy-create-prd`      | Idea → Product Requirements Document with ADRs                             |
 | `cy-create-techspec` | PRD → Technical Specification with architecture exploration                |
 | `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                    |
 | `cy-execute-task`    | Executes one task end-to-end: implement, validate, track, commit           |
