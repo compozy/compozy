@@ -92,6 +92,15 @@ func TestPathHelpers(t *testing.T) {
 		) {
 			t.Fatalf("unexpected workspace tasks dir: %q", got)
 		}
+		if got := model.RunsBaseDirForWorkspace(
+			workspaceRoot,
+		); got != filepath.Join(
+			workspaceRoot,
+			".compozy",
+			"runs",
+		) {
+			t.Fatalf("unexpected workspace runs dir: %q", got)
+		}
 		if got := model.TaskDirectoryForWorkspace(
 			workspaceRoot,
 			"demo",
@@ -111,6 +120,62 @@ func TestPathHelpers(t *testing.T) {
 		baseDir := filepath.Join(string(filepath.Separator), "tmp", "workflows")
 		if got := model.ArchivedTasksDir(baseDir); got != filepath.Join(baseDir, "_archived") {
 			t.Fatalf("unexpected archived tasks dir: %q", got)
+		}
+	})
+
+	t.Run("Should build run artifact paths under the workspace runs directory", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := filepath.Join(string(filepath.Separator), "tmp", "workspace")
+		runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-demo-20260405-120000-000000000")
+		if got, want := runArtifacts.RunDir, filepath.Join(
+			workspaceRoot,
+			".compozy",
+			"runs",
+			"tasks-demo-20260405-120000-000000000",
+		); got != want {
+			t.Fatalf("unexpected run dir\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.RunMetaPath, filepath.Join(runArtifacts.RunDir, "run.json"); got != want {
+			t.Fatalf("unexpected run meta path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.JobsDir, filepath.Join(runArtifacts.RunDir, "jobs"); got != want {
+			t.Fatalf("unexpected jobs dir\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.ResultPath, filepath.Join(runArtifacts.RunDir, "result.json"); got != want {
+			t.Fatalf("unexpected result path\nwant: %q\ngot:  %q", want, got)
+		}
+
+		jobArtifacts := runArtifacts.JobArtifacts("task_01-abc123")
+		if got, want := jobArtifacts.PromptPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"task_01-abc123.prompt.md",
+		); got != want {
+			t.Fatalf("unexpected prompt path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := jobArtifacts.OutLogPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"task_01-abc123.out.log",
+		); got != want {
+			t.Fatalf("unexpected stdout log path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := jobArtifacts.ErrLogPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"task_01-abc123.err.log",
+		); got != want {
+			t.Fatalf("unexpected stderr log path\nwant: %q\ngot:  %q", want, got)
+		}
+	})
+
+	t.Run("Should sanitize unsafe run identifiers", func(t *testing.T) {
+		t.Parallel()
+
+		runArtifacts := model.NewRunArtifacts("", " review/demo\\nested ")
+		if got, want := runArtifacts.RunID, "review-demo-nested"; got != want {
+			t.Fatalf("unexpected sanitized run id\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := runArtifacts.RunDir, filepath.Join(".compozy", "runs", "review-demo-nested"); got != want {
+			t.Fatalf("unexpected sanitized run dir\nwant: %q\ngot:  %q", want, got)
 		}
 	})
 }

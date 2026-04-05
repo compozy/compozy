@@ -27,6 +27,7 @@ const (
 	WorkflowRootDirName     = ".compozy"
 	WorkflowConfigFileName  = "config.toml"
 	WorkflowTasksDirName    = "tasks"
+	WorkflowRunsDirName     = "runs"
 	ArchivedWorkflowDirName = "_archived"
 	ModeCodeReview          = "pr-review"
 	ModePRDTasks            = "prd-tasks"
@@ -140,8 +141,55 @@ func TasksBaseDirForWorkspace(workspaceRoot string) string {
 	return filepath.Join(CompozyDir(workspaceRoot), WorkflowTasksDirName)
 }
 
+func RunsBaseDirForWorkspace(workspaceRoot string) string {
+	return filepath.Join(CompozyDir(workspaceRoot), WorkflowRunsDirName)
+}
+
 func TaskDirectoryForWorkspace(workspaceRoot, name string) string {
 	return filepath.Join(TasksBaseDirForWorkspace(workspaceRoot), name)
+}
+
+type RunArtifacts struct {
+	RunID       string
+	RunDir      string
+	RunMetaPath string
+	JobsDir     string
+	ResultPath  string
+}
+
+type JobArtifacts struct {
+	PromptPath string
+	OutLogPath string
+	ErrLogPath string
+}
+
+func NewRunArtifacts(workspaceRoot, runID string) RunArtifacts {
+	safeRunID := sanitizeRunID(runID)
+	runDir := filepath.Join(RunsBaseDirForWorkspace(workspaceRoot), safeRunID)
+	return RunArtifacts{
+		RunID:       safeRunID,
+		RunDir:      runDir,
+		RunMetaPath: filepath.Join(runDir, "run.json"),
+		JobsDir:     filepath.Join(runDir, "jobs"),
+		ResultPath:  filepath.Join(runDir, "result.json"),
+	}
+}
+
+func sanitizeRunID(runID string) string {
+	trimmed := strings.TrimSpace(runID)
+	if trimmed == "" {
+		return "run"
+	}
+	replacer := strings.NewReplacer("/", "-", "\\", "-")
+	return replacer.Replace(trimmed)
+}
+
+func (artifacts RunArtifacts) JobArtifacts(safeName string) JobArtifacts {
+	return JobArtifacts{
+		PromptPath: filepath.Join(artifacts.JobsDir, safeName+".prompt.md"),
+		OutLogPath: filepath.Join(artifacts.JobsDir, safeName+".out.log"),
+		ErrLogPath: filepath.Join(artifacts.JobsDir, safeName+".err.log"),
+	}
 }
 
 func ArchivedTasksDir(baseDir string) string {
@@ -215,6 +263,7 @@ type ReviewFileMeta struct {
 
 type SolvePreparation struct {
 	Jobs             []Job
+	RunArtifacts     RunArtifacts
 	InputDir         string
 	InputDirPath     string
 	ResolvedName     string

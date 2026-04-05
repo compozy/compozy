@@ -283,28 +283,6 @@ func inferRoundFromReviewsDir(dir string) (int, error) {
 	return round, nil
 }
 
-func initPromptRoot(cfg *model.RuntimeConfig) (string, error) {
-	var label string
-	if cfg.Mode == model.ExecutionModePRDTasks {
-		label = "tasks-" + prompt.SafeFileName(cfg.Name)
-	} else {
-		scope := cfg.Name
-		if scope == "" {
-			scope = "pr-" + cfg.PR
-		}
-		label = fmt.Sprintf("reviews-%s-round-%03d", prompt.SafeFileName(scope), cfg.Round)
-	}
-
-	promptRoot, err := filepath.Abs(filepath.Join(".tmp", "codex-prompts", label))
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(promptRoot, 0o755); err != nil {
-		return "", fmt.Errorf("mkdir prompt root: %w", err)
-	}
-	return promptRoot, nil
-}
-
 func wrapTaskParseError(path string, err error) error {
 	if errors.Is(err, prompt.ErrLegacyTaskMetadata) || errors.Is(err, prompt.ErrV1TaskMetadata) {
 		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)

@@ -235,7 +235,11 @@ complexity: low
 func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	t.Parallel()
 
-	promptRoot := t.TempDir()
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-demo-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
 	issuesDir := t.TempDir()
 	groups := map[string][]model.IssueEntry{
 		"task_1": {
@@ -257,11 +261,12 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	}
 
 	jobs, err := prepareJobs(&model.RuntimeConfig{
-		Name:      "demo",
-		TasksDir:  issuesDir,
-		BatchSize: 5,
-		Mode:      model.ExecutionModePRDTasks,
-	}, groups, promptRoot)
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      issuesDir,
+		BatchSize:     5,
+		Mode:          model.ExecutionModePRDTasks,
+	}, groups, runArtifacts)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -278,6 +283,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		if got, want := job.TaskType, "backend"; got != want {
 			t.Fatalf("expected prd job type %q, got %q", want, got)
 		}
+		assertJobUsesRunArtifacts(t, runArtifacts, job)
 		if _, err := os.Stat(job.OutPromptPath); err != nil {
 			t.Fatalf("expected prompt artifact to be written: %v", err)
 		}
@@ -296,7 +302,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
 	t.Parallel()
 
-	promptRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "tasks-demo-test-run")
 	tasksDirFile := filepath.Join(t.TempDir(), "tasks.md")
 	if err := os.WriteFile(tasksDirFile, []byte("not a directory"), 0o600); err != nil {
 		t.Fatalf("write tasks dir sentinel file: %v", err)
@@ -309,7 +315,7 @@ func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
 			TasksDir: tasksDirFile,
 			Mode:     model.ExecutionModePRDTasks,
 		},
-		promptRoot,
+		runArtifacts,
 		0,
 		[]model.IssueEntry{
 			{
@@ -324,6 +330,47 @@ func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "prepare memory for "+issuePath) {
 		t.Fatalf("expected wrapped task path in memory preparation error, got %v", err)
+	}
+}
+
+func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "reviews-demo-round-007-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	groups := map[string][]model.IssueEntry{
+		"internal/app/service.go": {
+			{
+				Name:     "issue_001.md",
+				AbsPath:  filepath.Join(t.TempDir(), "issue_001.md"),
+				Content:  "---\nstatus: pending\nfile: internal/app/service.go\n---\n\n# Issue 1\n",
+				CodeFile: "internal/app/service.go",
+			},
+		},
+	}
+
+	jobs, err := prepareJobs(&model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		Round:         7,
+		BatchSize:     3,
+		Mode:          model.ExecutionModePRReview,
+	}, groups, runArtifacts)
+	if err != nil {
+		t.Fatalf("prepareJobs: %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected one review batch, got %d", len(jobs))
+	}
+
+	job := jobs[0]
+	assertJobUsesRunArtifacts(t, runArtifacts, job)
+	baseName := filepath.Base(job.OutPromptPath)
+	if !strings.HasPrefix(baseName, "internal_app_service.go-") || !strings.HasSuffix(baseName, ".prompt.md") {
+		t.Fatalf("unexpected review prompt filename: %q", baseName)
 	}
 }
 
@@ -396,6 +443,131 @@ func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 	}
 }
 
+func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	files := map[string]string{
+		"task_10.md": "---\nstatus: pending\ntitle: Task 10\ntype: backend\ncomplexity: low\n---\n\n# Task 10\n",
+		"task_2.md":  "---\nstatus: pending\ntitle: Task 2\ntype: backend\ncomplexity: low\n---\n\n# Task 2\n",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(tasksDir, name), []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+	})
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if len(prep.Jobs) != 2 {
+		t.Fatalf("expected two prepared jobs, got %d", len(prep.Jobs))
+	}
+
+	if got, want := prep.Jobs[0].CodeFiles, []string{"task_2"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected first job order\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if got, want := prep.Jobs[1].CodeFiles, []string{"task_10"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected second job order\nwant: %#v\ngot:  %#v", want, got)
+	}
+
+	runArtifacts := prep.RunArtifacts
+	if !strings.HasPrefix(
+		runArtifacts.RunDir,
+		filepath.Join(workspaceRoot, ".compozy", "runs")+string(filepath.Separator),
+	) {
+		t.Fatalf("expected run dir under workspace runs root, got %q", runArtifacts.RunDir)
+	}
+	for _, job := range prep.Jobs {
+		assertJobUsesRunArtifacts(t, runArtifacts, job)
+	}
+}
+
+func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+		{
+			Title:       "Trim whitespace",
+			File:        "internal/app/service.go",
+			Line:        54,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_2,comment:RC_2",
+			Body:        "Trim the incoming value before using it.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	resolvedIssuePath := filepath.Join(reviewDir, "issue_002.md")
+	resolvedContent, err := os.ReadFile(resolvedIssuePath)
+	if err != nil {
+		t.Fatalf("read issue_002: %v", err)
+	}
+	resolvedContent = []byte(strings.Replace(string(resolvedContent), "status: pending", "status: resolved", 1))
+	if err := os.WriteFile(resolvedIssuePath, resolvedContent, 0o600); err != nil {
+		t.Fatalf("mark issue_002 resolved: %v", err)
+	}
+	if _, err := reviews.RefreshRoundMeta(reviewDir); err != nil {
+		t.Fatalf("refresh round meta: %v", err)
+	}
+
+	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+		ReviewsDir:      reviewDir,
+		WorkspaceRoot:   workspaceRoot,
+		DryRun:          true,
+		IDE:             model.IDECodex,
+		BatchSize:       10,
+		Mode:            model.ExecutionModePRReview,
+		IncludeResolved: false,
+	})
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one prepared review job, got %d", len(prep.Jobs))
+	}
+	if got := prep.Jobs[0].IssueCount(); got != 1 {
+		t.Fatalf("expected only unresolved review issue to remain, got %d", got)
+	}
+
+	runArtifacts := prep.RunArtifacts
+	if !strings.HasPrefix(
+		runArtifacts.RunDir,
+		filepath.Join(workspaceRoot, ".compozy", "runs")+string(filepath.Separator),
+	) {
+		t.Fatalf("expected run dir under workspace runs root, got %q", runArtifacts.RunDir)
+	}
+	assertJobUsesRunArtifacts(t, runArtifacts, prep.Jobs[0])
+}
+
 func TestResolveInputsRejectsLegacyTasksDirInference(t *testing.T) {
 	t.Parallel()
 
@@ -466,4 +638,29 @@ func captureStandardOutput(t *testing.T, fn func()) string {
 	}
 
 	return string(output)
+}
+
+func assertJobUsesRunArtifacts(t *testing.T, runArtifacts model.RunArtifacts, job model.Job) {
+	t.Helper()
+
+	if got, want := filepath.Dir(job.OutPromptPath), runArtifacts.JobsDir; got != want {
+		t.Fatalf("unexpected prompt directory\nwant: %q\ngot:  %q", want, got)
+	}
+	if got, want := filepath.Dir(job.OutLog), runArtifacts.JobsDir; got != want {
+		t.Fatalf("unexpected stdout log directory\nwant: %q\ngot:  %q", want, got)
+	}
+	if got, want := filepath.Dir(job.ErrLog), runArtifacts.JobsDir; got != want {
+		t.Fatalf("unexpected stderr log directory\nwant: %q\ngot:  %q", want, got)
+	}
+
+	jobArtifacts := runArtifacts.JobArtifacts(job.SafeName)
+	if got, want := job.OutPromptPath, jobArtifacts.PromptPath; got != want {
+		t.Fatalf("unexpected prompt path\nwant: %q\ngot:  %q", want, got)
+	}
+	if got, want := job.OutLog, jobArtifacts.OutLogPath; got != want {
+		t.Fatalf("unexpected stdout log path\nwant: %q\ngot:  %q", want, got)
+	}
+	if got, want := job.ErrLog, jobArtifacts.ErrLogPath; got != want {
+		t.Fatalf("unexpected stderr log path\nwant: %q\ngot:  %q", want, got)
+	}
 }

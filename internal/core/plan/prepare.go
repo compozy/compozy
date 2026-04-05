@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/memory"
@@ -60,7 +60,7 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 	}
 
 	groups := groupIssues(entries)
-	promptRoot, err := initPromptRoot(cfg)
+	prep.RunArtifacts, err = allocateRunArtifacts(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 	prep.Jobs, err = prepareJobs(
 		cfg,
 		groups,
-		promptRoot,
+		prep.RunArtifacts,
 	)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 func prepareJobs(
 	cfg *model.RuntimeConfig,
 	groups map[string][]model.IssueEntry,
-	promptRoot string,
+	runArtifacts model.RunArtifacts,
 ) ([]model.Job, error) {
 	effectiveBatchSize := cfg.BatchSize
 	if cfg.Mode == model.ExecutionModePRDTasks {
@@ -98,7 +98,7 @@ func prepareJobs(
 
 	jobs := make([]model.Job, 0, len(batches))
 	for idx, batchIssues := range batches {
-		job, err := buildBatchJob(cfg, promptRoot, idx, batchIssues)
+		job, err := buildBatchJob(cfg, runArtifacts, idx, batchIssues)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +112,7 @@ func prepareJobs(
 
 func buildBatchJob(
 	cfg *model.RuntimeConfig,
-	promptRoot string,
+	runArtifacts model.RunArtifacts,
 	batchIdx int,
 	batchIssues []model.IssueEntry,
 ) (model.Job, error) {
@@ -155,7 +155,7 @@ func buildBatchJob(
 
 	promptText := prompt.Build(params)
 	systemPrompt := prompt.BuildSystemPromptAddendum(params)
-	outPromptPath, outLog, errLog, err := writeBatchArtifacts(promptRoot, safeName, promptText)
+	outPromptPath, outLog, errLog, err := writeBatchArtifacts(runArtifacts, safeName, promptText)
 	if err != nil {
 		return model.Job{}, err
 	}
@@ -171,6 +171,31 @@ func buildBatchJob(
 		OutLog:        outLog,
 		ErrLog:        errLog,
 	}, nil
+}
+
+func allocateRunArtifacts(cfg *model.RuntimeConfig) (model.RunArtifacts, error) {
+	runArtifacts := model.NewRunArtifacts(cfg.WorkspaceRoot, buildRunID(cfg))
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		return model.RunArtifacts{}, fmt.Errorf("mkdir run artifacts: %w", err)
+	}
+	return runArtifacts, nil
+}
+
+func buildRunID(cfg *model.RuntimeConfig) string {
+	label := runLabel(cfg)
+	timestamp := time.Now().UTC().Format("20060102-150405-000000000")
+	return fmt.Sprintf("%s-%s", label, timestamp)
+}
+
+func runLabel(cfg *model.RuntimeConfig) string {
+	if cfg.Mode == model.ExecutionModePRDTasks {
+		return "tasks-" + prompt.SafeFileName(cfg.Name)
+	}
+	scope := cfg.Name
+	if scope == "" {
+		scope = "pr-" + cfg.PR
+	}
+	return fmt.Sprintf("reviews-%s-round-%03d", prompt.SafeFileName(scope), cfg.Round)
 }
 
 func determineBatchName(batchIdx int, batchFiles []string, mode model.ExecutionMode) string {
@@ -190,13 +215,14 @@ func determineBatchName(batchIdx int, batchFiles []string, mode model.ExecutionM
 	return fmt.Sprintf("batch_%03d", batchIdx+1)
 }
 
-func writeBatchArtifacts(promptRoot, safeName, promptText string) (string, string, string, error) {
-	outPromptPath := filepath.Join(promptRoot, fmt.Sprintf("%s.prompt.md", safeName))
+func writeBatchArtifacts(runArtifacts model.RunArtifacts, safeName, promptText string) (string, string, string, error) {
+	jobArtifacts := runArtifacts.JobArtifacts(safeName)
+	outPromptPath := jobArtifacts.PromptPath
 	if err := os.WriteFile(outPromptPath, []byte(promptText), 0o600); err != nil {
 		return "", "", "", fmt.Errorf("write prompt: %w", err)
 	}
-	outLog := filepath.Join(promptRoot, fmt.Sprintf("%s.out.log", safeName))
-	errLog := filepath.Join(promptRoot, fmt.Sprintf("%s.err.log", safeName))
+	outLog := jobArtifacts.OutLogPath
+	errLog := jobArtifacts.ErrLogPath
 	return outPromptPath, outLog, errLog, nil
 }
 
