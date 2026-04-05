@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "4cf3387527d25a0ef4d07d0a6b01d041f18b91151f0528c5859040dbdb1f1a55"
     },
+    "context7": {
+      "source": "pedronauck/skills",
+      "sourceType": "github",
+      "computedHash": "23f0178420043f01cd0f00745eb06eaac6f3eee4ef58f87f1ae353c2a408f79c"
+    },
     "council": {
       "source": "pedronauck/skills",
       "sourceType": "github",
@@ -20,6 +25,11 @@
       "source": "jgraph/drawio-mcp",
       "sourceType": "github",
       "computedHash": "c0cafc1ad6a5b474d2e5c7d92c07f69298a79eb4f9ae4bd31fde0bfe039aa3c5"
+    },
+    "exa-web-search-free": {
+      "source": "pedronauck/skills",
+      "sourceType": "github",
+      "computedHash": "4456756ff2cf096cc7c6d2fc9d6771e2a1ea0084868f28b69f68157757ee50c8"
     },
     "fix-coderabbit-review": {
       "source": "pedronauck/skills",

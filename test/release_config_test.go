@@ -5,7 +5,24 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
+
+type goReleaserConfig struct {
+	Archives      []goReleaserArchive      `yaml:"archives"`
+	HomebrewCasks []goReleaserHomebrewCask `yaml:"homebrew_casks"`
+}
+
+type goReleaserArchive struct {
+	ID              string `yaml:"id"`
+	WrapInDirectory bool   `yaml:"wrap_in_directory"`
+}
+
+type goReleaserHomebrewCask struct {
+	Name string   `yaml:"name"`
+	IDs  []string `yaml:"ids"`
+}
 
 func TestGoReleaserConfigSupportsFirstRelease(t *testing.T) {
 	t.Parallel()
@@ -135,5 +152,62 @@ func TestSetupReleaseActionUsesSupportedCosignVersionCommand(t *testing.T) {
 		t.Fatal(
 			"expected setup-release to run `cosign version` as a standalone command so failures are not hidden inside command substitution",
 		)
+	}
+}
+
+func TestGoReleaserConfigKeepsHomebrewCaskArchivesUnwrapped(t *testing.T) {
+	t.Parallel()
+
+	content, err := os.ReadFile(filepath.Join(repoRoot(t), ".goreleaser.yml"))
+	if err != nil {
+		t.Fatalf("read goreleaser config: %v", err)
+	}
+
+	var cfg goReleaserConfig
+	if err := yaml.Unmarshal(content, &cfg); err != nil {
+		t.Fatalf("unmarshal goreleaser config: %v", err)
+	}
+
+	if len(cfg.HomebrewCasks) == 0 {
+		t.Fatal("expected goreleaser config to define at least one Homebrew cask")
+	}
+
+	archiveByID := make(map[string]goReleaserArchive, len(cfg.Archives))
+	archiveIDs := make([]string, 0, len(cfg.Archives))
+	for _, archive := range cfg.Archives {
+		if strings.TrimSpace(archive.ID) == "" {
+			continue
+		}
+		archiveByID[archive.ID] = archive
+		archiveIDs = append(archiveIDs, archive.ID)
+	}
+
+	if len(archiveByID) == 0 {
+		t.Fatal("expected goreleaser config to define archive IDs")
+	}
+
+	for _, cask := range cfg.HomebrewCasks {
+		cask := cask
+		t.Run(cask.Name, func(t *testing.T) {
+			t.Parallel()
+
+			targetIDs := cask.IDs
+			if len(targetIDs) == 0 {
+				targetIDs = archiveIDs
+			}
+
+			for _, id := range targetIDs {
+				archive, ok := archiveByID[id]
+				if !ok {
+					t.Fatalf("expected Homebrew cask %q to reference a known archive id %q", cask.Name, id)
+				}
+				if archive.WrapInDirectory {
+					t.Fatalf(
+						"expected Homebrew cask archive %q to keep the binary at the archive root so brew does not depend on rename",
+						id,
+					)
+				}
+			}
+		})
 	}
 }
