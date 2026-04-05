@@ -62,7 +62,7 @@ archives:
     files:
       - README.md
       - LICENSE*
-    wrap_in_directory: true
+    # Keep the binary at the archive root so Homebrew casks can link it directly.
 
 checksum:
   name_template: "checksums.txt"
@@ -248,15 +248,13 @@ npms:
 #       - compozy-git
 #     package: |-
 #       # Binaries
-#       # GoReleaser wraps files in a directory named after the archive
-#       cd "${srcdir}/${pkgname%-bin}_${pkgver}_linux_"*
-#       install -Dm755 "${pkgname%-bin}" "${pkgdir}/usr/bin/${pkgname%-bin}"
+#       install -Dm755 "${srcdir}/${pkgname%-bin}" "${pkgdir}/usr/bin/${pkgname%-bin}"
 #
 #       # License
-#       install -Dm644 LICENSE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+#       install -Dm644 "${srcdir}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 #
 #       # README
-#       install -Dm644 README.md "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+#       install -Dm644 "${srcdir}/README.md" "${pkgdir}/usr/share/doc/${pkgname}/README.md"
 #     commit_author:
 #       name: goreleaserbot
 #       email: bot@goreleaser.com
