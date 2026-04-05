@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "4cf3387527d25a0ef4d07d0a6b01d041f18b91151f0528c5859040dbdb1f1a55"
     },
+    "council": {
+      "source": "pedronauck/skills",
+      "sourceType": "github",
+      "computedHash": "d4f069a475431390f46fb826fdfc1dd1e68183136f8fe58ebe252f2b90e0a8c4"
+    },
     "drawio": {
       "source": "jgraph/drawio-mcp",
       "sourceType": "github",

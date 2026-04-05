@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Exec Command, Prompt-Backed Preparation, and Structured Output
 type: backend
 complexity: critical
@@ -32,12 +32,12 @@ Deliver the actual `compozy exec` feature on top of the shared runtime and artif
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Add `newExecCommand()` and command-state plumbing for prompt source, output format, and workspace defaults
-- [ ] 3.2 Implement prompt-source resolution across positional input, `--prompt-file`, and `stdin`, with explicit validation for ambiguous combinations
-- [ ] 3.3 Extend planning to build one ad hoc job and run metadata from prompt-backed inputs using the shared artifact layout
-- [ ] 3.4 Extend the shared executor to support `text` and `json` output modes without duplicating ACP runtime logic
-- [ ] 3.5 Persist JSON-mode run results and expose stable result payloads for automation
-- [ ] 3.6 Add unit, CLI, and execution integration tests for prompt sources, JSON mode, and failure behavior
+- [x] 3.1 Add `newExecCommand()` and command-state plumbing for prompt source, output format, and workspace defaults
+- [x] 3.2 Implement prompt-source resolution across positional input, `--prompt-file`, and `stdin`, with explicit validation for ambiguous combinations
+- [x] 3.3 Extend planning to build one ad hoc job and run metadata from prompt-backed inputs using the shared artifact layout
+- [x] 3.4 Extend the shared executor to support `text` and `json` output modes without duplicating ACP runtime logic
+- [x] 3.5 Persist JSON-mode run results and expose stable result payloads for automation
+- [x] 3.6 Add unit, CLI, and execution integration tests for prompt sources, JSON mode, and failure behavior
 
 ## Implementation Details
 
@@ -72,15 +72,15 @@ Use the TechSpec sections "Component Overview", "Prompt source resolution rules"
 
 ## Tests
 - Unit tests:
-  - [ ] Positional prompt, `--prompt-file`, and `stdin` resolve correctly and ambiguous combinations fail with descriptive errors
-  - [ ] `exec` config defaults merge correctly with explicit flags and workspace defaults
-  - [ ] Prompt-backed planning produces exactly one prepared job with prompt and log artifacts under the shared run directory
-  - [ ] JSON result payloads include run status, job summaries, usage, and artifact paths
+  - [x] Positional prompt, `--prompt-file`, and `stdin` resolve correctly and ambiguous combinations fail with descriptive errors
+  - [x] `exec` config defaults merge correctly with explicit flags and workspace defaults
+  - [x] Prompt-backed planning produces exactly one prepared job with prompt and log artifacts under the shared run directory
+  - [x] JSON result payloads include run status, job summaries, usage, and artifact paths
 - Integration tests:
-  - [ ] `compozy exec "prompt"` runs through the shared pipeline in text mode and writes prompt/log artifacts under `.compozy/runs/`
-  - [ ] `compozy exec --prompt-file <path> --format json` emits machine-readable output, persists `result.json`, and suppresses the human/TUI path
-  - [ ] `compozy exec` using `stdin` works end-to-end without breaking existing `start` or `fix-reviews` execution behavior
-  - [ ] Runtime failures in JSON mode still produce structured results and usable artifact paths for debugging
+  - [x] `compozy exec "prompt"` runs through the shared pipeline in text mode and writes prompt/log artifacts under `.compozy/runs/`
+  - [x] `compozy exec --prompt-file <path> --format json` emits machine-readable output, persists `result.json`, and suppresses the human/TUI path
+  - [x] `compozy exec` using `stdin` works end-to-end without breaking existing `start` or `fix-reviews` execution behavior
+  - [x] Runtime failures in JSON mode still produce structured results and usable artifact paths for debugging
 - Test coverage target: >=80%
 - All tests must pass
 

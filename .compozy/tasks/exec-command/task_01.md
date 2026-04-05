@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runtime Mode & Workspace Config Surface
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ Introduce `exec` as a first-class execution mode in the shared runtime model and
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add shared model and API fields for `exec`, output format, and prompt-source metadata
-- [ ] 1.2 Extend workspace config structs, decoding, and validation to support `[exec]` defaults
-- [ ] 1.3 Apply `[exec]` defaults in the CLI config merge path without regressing existing command precedence
-- [ ] 1.4 Update runtime validation to recognize `exec` and reject invalid configuration combinations early
-- [ ] 1.5 Add unit and command-level tests for defaults, precedence, and validation behavior
+- [x] 1.1 Add shared model and API fields for `exec`, output format, and prompt-source metadata
+- [x] 1.2 Extend workspace config structs, decoding, and validation to support `[exec]` defaults
+- [x] 1.3 Apply `[exec]` defaults in the CLI config merge path without regressing existing command precedence
+- [x] 1.4 Update runtime validation to recognize `exec` and reject invalid configuration combinations early
+- [x] 1.5 Add unit and command-level tests for defaults, precedence, and validation behavior
 
 ## Implementation Details
 
@@ -66,13 +66,13 @@ Use the TechSpec sections "Core Interfaces", "Data Models", and "Component Overv
 
 ## Tests
 - Unit tests:
-  - [ ] `RuntimeConfig.ApplyDefaults()` preserves existing defaults and initializes `exec`-specific fields safely
-  - [ ] Workspace config decoding accepts `[exec]` and rejects unknown or invalid keys with descriptive errors
-  - [ ] Config precedence resolves `flags > [exec] > [defaults] > internal defaults` for IDE, model, and output format
-  - [ ] Runtime validation accepts `exec` and rejects unsupported output formats or missing prompt-source intent
+  - [x] `RuntimeConfig.ApplyDefaults()` preserves existing defaults and initializes `exec`-specific fields safely
+  - [x] Workspace config decoding accepts `[exec]` and rejects unknown or invalid keys with descriptive errors
+  - [x] Config precedence resolves `flags > [exec] > [defaults] > internal defaults` for IDE, model, and output format
+  - [x] Runtime validation accepts `exec` and rejects unsupported output formats or missing prompt-source intent
 - Integration tests:
-  - [ ] CLI config application keeps `start` and `fix-reviews` behavior unchanged after adding `[exec]`
-  - [ ] A constructed `core.Config` for `exec` converts into a valid runtime config accepted by shared validation
+  - [x] CLI config application keeps `start` and `fix-reviews` behavior unchanged after adding `[exec]`
+  - [x] A constructed `core.Config` for `exec` converts into a valid runtime config accepted by shared validation
 - Test coverage target: >=80%
 - All tests must pass
 

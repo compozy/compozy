@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Unified Run Artifact Layout & Existing Mode Migration
 type: refactor
 complexity: high
@@ -30,11 +30,11 @@ Replace the legacy `.tmp/codex-prompts` artifact path with a shared workspace-sc
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Introduce shared run-artifact path helpers and run-directory allocation under `.compozy/runs/`
-- [ ] 2.2 Refactor planning to allocate run-level metadata and job artifact paths through the new helpers
-- [ ] 2.3 Update existing PRD-task and review-mode preparation to use the new artifact root
-- [ ] 2.4 Remove remaining hardcoded assumptions that the artifact root is `.tmp/codex-prompts`
-- [ ] 2.5 Add regression tests that prove existing modes now write artifacts under `.compozy/runs/`
+- [x] 2.1 Introduce shared run-artifact path helpers and run-directory allocation under `.compozy/runs/`
+- [x] 2.2 Refactor planning to allocate run-level metadata and job artifact paths through the new helpers
+- [x] 2.3 Update existing PRD-task and review-mode preparation to use the new artifact root
+- [x] 2.4 Remove remaining hardcoded assumptions that the artifact root is `.tmp/codex-prompts`
+- [x] 2.5 Add regression tests that prove existing modes now write artifacts under `.compozy/runs/`
 
 ## Implementation Details
 
@@ -66,13 +66,13 @@ Use the TechSpec sections "Run artifact layout", "Component Overview", and "Deve
 
 ## Tests
 - Unit tests:
-  - [ ] Workspace path helpers return `.compozy/runs/` paths relative to the discovered workspace root
-  - [ ] Run-directory allocation produces stable job prompt/log paths within one run directory
-  - [ ] Planning writes prompt artifacts under `.compozy/runs/<run-id>/jobs/` for PRD task mode
-  - [ ] Planning writes prompt artifacts under `.compozy/runs/<run-id>/jobs/` for review mode
+  - [x] Workspace path helpers return `.compozy/runs/` paths relative to the discovered workspace root
+  - [x] Run-directory allocation produces stable job prompt/log paths within one run directory
+  - [x] Planning writes prompt artifacts under `.compozy/runs/<run-id>/jobs/` for PRD task mode
+  - [x] Planning writes prompt artifacts under `.compozy/runs/<run-id>/jobs/` for review mode
 - Integration tests:
-  - [ ] Preparing a `start` workflow creates prompt and log paths under `.compozy/runs/` without changing task ordering behavior
-  - [ ] Preparing a review workflow creates prompt and log paths under `.compozy/runs/` without changing review filtering behavior
+  - [x] Preparing a `start` workflow creates prompt and log paths under `.compozy/runs/` without changing task ordering behavior
+  - [x] Preparing a review workflow creates prompt and log paths under `.compozy/runs/` without changing review filtering behavior
 - Test coverage target: >=80%
 - All tests must pass
 

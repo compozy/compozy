@@ -10,6 +10,9 @@ rules:
     - 2
     - always
     - [build, ci, docs, feat, fix, perf, refactor, test]
+  scope-empty:
+    - 2
+    - always
   subject-case:
     - 0
     - always

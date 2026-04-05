@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Documentation, Help, and Regression Cleanup
 type: docs
 complexity: medium
@@ -30,11 +30,11 @@ Finish the feature by aligning user-facing documentation, command help snapshots
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Update README and active user-facing docs to describe `compozy exec` and `.compozy/runs/`
-- [ ] 4.2 Add or refresh help snapshot fixtures and command-help tests for the new `exec` contract
-- [ ] 4.3 Remove active-product references to `.tmp/codex-prompts` where they no longer reflect runtime behavior
-- [ ] 4.4 Add final regression assertions proving docs/help/test fixtures match the shipped CLI surface
-- [ ] 4.5 Re-run task metadata validation and repository verification after all documentation and regression updates
+- [x] 4.1 Update README and active user-facing docs to describe `compozy exec` and `.compozy/runs/`
+- [x] 4.2 Add or refresh help snapshot fixtures and command-help tests for the new `exec` contract
+- [x] 4.3 Remove active-product references to `.tmp/codex-prompts` where they no longer reflect runtime behavior
+- [x] 4.4 Add final regression assertions proving docs/help/test fixtures match the shipped CLI surface
+- [x] 4.5 Re-run task metadata validation and repository verification after all documentation and regression updates
 
 ## Implementation Details
 
@@ -65,11 +65,11 @@ Use the TechSpec sections "Executive Summary", "Monitoring and Observability", a
 
 ## Tests
 - Unit tests:
-  - [ ] Help-text regression tests assert `exec` flags, examples, and descriptions accurately
-  - [ ] Snapshot or golden-fixture tests fail if `.tmp/codex-prompts` reappears in active CLI help or documented runtime paths
+  - [x] Help-text regression tests assert `exec` flags, examples, and descriptions accurately
+  - [x] Snapshot or golden-fixture tests fail if `.tmp/codex-prompts` reappears in active CLI help or documented runtime paths
 - Integration tests:
-  - [ ] README examples and command-help expectations match the shipped `exec` behavior and `.compozy/runs/` artifact model
-  - [ ] End-to-end regression coverage confirms the final user-facing output contract for `exec` in both text and JSON modes
+  - [x] README examples and command-help expectations match the shipped `exec` behavior and `.compozy/runs/` artifact model
+  - [x] End-to-end regression coverage confirms the final user-facing output contract for `exec` in both text and JSON modes
 - Test coverage target: >=80%
 - All tests must pass
 
