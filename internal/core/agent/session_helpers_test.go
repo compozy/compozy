@@ -399,7 +399,7 @@ func TestConvertACPUpdateToolCallNormalizationScenarios(t *testing.T) {
 				if err != nil {
 					t.Fatalf("decode find tool use block: %v", err)
 				}
-				if toolUse.Name != "Find" {
+				if toolUse.Name != toolNameFind {
 					t.Fatalf("unexpected find tool normalization: %q", toolUse.Name)
 				}
 				if got := string(toolUse.Input); got != `{"pattern":"Annie Case","ref_id":"turn0search0"}` {

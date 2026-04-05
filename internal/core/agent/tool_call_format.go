@@ -14,6 +14,7 @@ import (
 const (
 	toolNameBash       = "Bash"
 	toolNameEdit       = "Edit"
+	toolNameFind       = "Find"
 	toolNameGrep       = "Grep"
 	toolNameRead       = "Read"
 	toolNameTask       = "Task"
@@ -37,7 +38,7 @@ var commonToolTitleAliases = map[string]string{
 	"fd":              "Glob",
 	"file_search":     "Glob",
 	"finance":         "Finance",
-	"find":            "Find",
+	"find":            toolNameFind,
 	"glob":            "Glob",
 	"grep":            "Grep",
 	"grep_search":     "Grep",
@@ -147,7 +148,7 @@ func normalizeToolNameByKind(token string, kind acp.ToolKind, input map[string]a
 		case "glob", "fd", "file_search":
 			return "Glob"
 		case "find":
-			return "Find"
+			return toolNameFind
 		case "grep", "rg", "ripgrep", "codebase_search", "grep_search":
 			return toolNameGrep
 		}
@@ -213,7 +214,7 @@ func inferToolNameFromInputShape(input map[string]any) string {
 			return "Click"
 		}
 		if extractString(input, "pattern") != "" {
-			return "Find"
+			return toolNameFind
 		}
 		if extractString(input, "url") != "" || refID != "" {
 			return "OpenURL"
@@ -297,7 +298,7 @@ func normalizeToolInputByName(
 		mergeWebSearchInput(normalized, raw, title)
 	case "Click":
 		normalizeClickInput(normalized, raw)
-	case "Find":
+	case toolNameFind:
 		normalizeFindInput(normalized, raw)
 	case toolNameTask:
 		normalizeTaskToolInput(normalized, raw)

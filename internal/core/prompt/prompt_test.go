@@ -16,10 +16,10 @@ func TestClaudeReasoningPromptUsesEmbeddedTemplates(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"low":    "Think concisely and act quickly. Prefer direct solutions.",
-		"medium": "Think hard through problems carefully before acting. Balance speed with thoroughness.",
-		"high":   "Ultrathink deeply and comprehensively before taking action.",
-		"xhigh":  "Ultra-deep thinking mode: Exhaustively analyze every aspect of the problem.",
+		reasoningEffortLow:    "Think concisely and act quickly. Prefer direct solutions.",
+		reasoningEffortMedium: "Think hard through problems carefully before acting. Balance speed with thoroughness.",
+		reasoningEffortHigh:   "Ultrathink deeply and comprehensively before taking action.",
+		reasoningEffortXHigh:  "Ultra-deep thinking mode: Exhaustively analyze every aspect of the problem.",
 	}
 
 	for reasoning, snippet := range cases {

@@ -7,13 +7,20 @@ import (
 //go:embed prompts/*.txt
 var templateFS embed.FS
 
+const (
+	reasoningEffortLow    = "low"
+	reasoningEffortMedium = "medium"
+	reasoningEffortHigh   = "high"
+	reasoningEffortXHigh  = "xhigh"
+)
+
 func ClaudeReasoningPrompt(reasoning string) string {
 	switch reasoning {
-	case "low":
+	case reasoningEffortLow:
 		return mustReadTemplate("claude-reasoning-low.txt")
-	case "high":
+	case reasoningEffortHigh:
 		return mustReadTemplate("claude-reasoning-high.txt")
-	case "xhigh":
+	case reasoningEffortXHigh:
 		return mustReadTemplate("claude-reasoning-xhigh.txt")
 	default:
 		return mustReadTemplate("claude-reasoning-medium.txt")
