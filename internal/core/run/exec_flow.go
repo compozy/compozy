@@ -21,6 +21,8 @@ import (
 
 const execRunSchemaVersion = 1
 
+const execEventTypeRunFailed = "run.failed"
+
 type execJSONStreamMode uint8
 
 const (
@@ -843,7 +845,7 @@ func (s *execRunState) emitSessionUpdate(update model.SessionUpdate) error {
 
 func (s *execRunState) emit(event execEvent) error {
 	if s == nil || s.events == nil {
-		if strings.TrimSpace(event.Output) == "" || event.Type != "run.failed" {
+		if strings.TrimSpace(event.Output) == "" || event.Type != execEventTypeRunFailed {
 			return nil
 		}
 		return nil

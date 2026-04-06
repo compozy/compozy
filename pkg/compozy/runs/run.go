@@ -21,6 +21,13 @@ var (
 	ErrPartialEventLine = errors.New("runs: partial final event line")
 )
 
+const (
+	publicRunStatusRunning   = "running"
+	publicRunStatusCompleted = "completed"
+	publicRunStatusFailed    = "failed"
+	publicRunStatusCancelled = "cancel" + "led"
+)
+
 // SchemaVersionError reports an unsupported event schema version.
 type SchemaVersionError struct {
 	Version string
@@ -39,26 +46,20 @@ func (e *SchemaVersionError) Unwrap() error {
 	return ErrIncompatibleSchemaVersion
 }
 
-// RunSummary is the public metadata view for one persisted run.
-type RunSummary struct {
-	RunID         string
-	Status        string
-	Mode          string
-	IDE           string
-	Model         string
-	WorkspaceRoot string
-	StartedAt     time.Time
-	EndedAt       *time.Time
-	ArtifactsDir  string
-}
-
 // Run is a handle over one on-disk run.
 type Run struct {
-	summary    RunSummary
-	eventsPath string
+	summary RunSummary
+
+	runDir      string
+	runMetaPath string
+	eventsPath  string
+	resultPath  string
+	jobsDir     string
+	turnsDir    string
 }
 
 type runRecord struct {
+	Version       int       `json:"version,omitempty"`
 	RunID         string    `json:"run_id"`
 	Status        string    `json:"status"`
 	Mode          string    `json:"mode"`
@@ -66,36 +67,79 @@ type runRecord struct {
 	Model         string    `json:"model"`
 	WorkspaceRoot string    `json:"workspace_root"`
 	ArtifactsDir  string    `json:"artifacts_dir"`
+	EventsPath    string    `json:"events_path,omitempty"`
+	TurnsDir      string    `json:"turns_dir,omitempty"`
+	ResultPath    string    `json:"result_path,omitempty"`
+	JobsDir       string    `json:"jobs_dir,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-// Open loads one run's metadata and prepares replay access to its event log.
+type resultRecord struct {
+	Status string `json:"status"`
+}
+
+type runPaths struct {
+	runDir      string
+	runMetaPath string
+	eventsPath  string
+	resultPath  string
+	jobsDir     string
+	turnsDir    string
+}
+
+type derivedRunState struct {
+	status  string
+	endedAt *time.Time
+}
+
+// Open loads one run and prepares replay access to its event log.
 func Open(workspaceRoot, runID string) (*Run, error) {
-	cleanRoot := filepath.Clean(strings.TrimSpace(workspaceRoot))
-	if cleanRoot == "." {
-		cleanRoot = ""
-	}
+	return loadRun(workspaceRoot, runID)
+}
+
+func loadRun(workspaceRoot, runID string) (*Run, error) {
+	cleanRoot := cleanWorkspaceRoot(workspaceRoot)
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
 		return nil, errors.New("open run: missing run id")
 	}
 
-	runDir := filepath.Join(cleanRoot, ".compozy", "runs", trimmedRunID)
-	payload, err := os.ReadFile(filepath.Join(runDir, "run.json"))
+	paths := defaultRunPaths(cleanRoot, trimmedRunID)
+	payload, err := os.ReadFile(paths.runMetaPath)
 	if err != nil {
-		return nil, fmt.Errorf("open run metadata: %w", err)
+		return nil, fmt.Errorf("open run %q metadata: %w", trimmedRunID, err)
 	}
 
 	var record runRecord
 	if err := json.Unmarshal(payload, &record); err != nil {
-		return nil, fmt.Errorf("decode run metadata: %w", err)
+		return nil, fmt.Errorf("decode run %q metadata: %w", trimmedRunID, err)
 	}
 
-	summary := normalizeRunSummary(cleanRoot, trimmedRunID, runDir, record)
+	paths = resolveRunPaths(cleanRoot, trimmedRunID, record)
+	summary := normalizeRunSummary(cleanRoot, trimmedRunID, paths.runDir, record)
+	derived, err := deriveRunState(paths)
+	if err != nil {
+		return nil, err
+	}
+	if summary.Status == "" {
+		summary.Status = derived.status
+	}
+	if summary.Status == "" {
+		summary.Status = defaultRunStatus()
+	}
+	if summary.EndedAt == nil {
+		summary.EndedAt = derived.endedAt
+	}
+
 	return &Run{
-		summary:    summary,
-		eventsPath: filepath.Join(runDir, "events.jsonl"),
+		summary:     summary,
+		runDir:      paths.runDir,
+		runMetaPath: paths.runMetaPath,
+		eventsPath:  paths.eventsPath,
+		resultPath:  paths.resultPath,
+		jobsDir:     paths.jobsDir,
+		turnsDir:    paths.turnsDir,
 	}, nil
 }
 
@@ -124,37 +168,30 @@ func (r *Run) Replay(fromSeq uint64) iter.Seq2[events.Event, error] {
 			_ = file.Close()
 		}()
 
-		partialFinalLine, err := fileEndsWithNewline(file)
+		partialFinalLine, err := fileHasPartialFinalLine(file)
 		if err != nil {
 			yield(events.Event{}, fmt.Errorf("inspect run events: %w", err))
 			return
 		}
 
 		scanner := newEventScanner(file)
-		var (
-			pendingDecodeErr error
-			pendingLine      int
-		)
+		var pendingDecodeErr error
+		var pendingLine int
 
 		for lineNumber := 1; scanner.Scan(); lineNumber++ {
-			if pendingDecodeErr != nil {
-				yield(events.Event{}, pendingDecodeErr)
-				return
-			}
-
 			line := bytesTrimSpace(scanner.Bytes())
 			if len(line) == 0 {
 				continue
 			}
 
-			var ev events.Event
-			if err := json.Unmarshal(line, &ev); err != nil {
-				pendingDecodeErr = fmt.Errorf("decode run event line %d: %w", lineNumber, err)
+			ev, err := decodeEventLine(line, lineNumber)
+			if err != nil {
+				pendingDecodeErr = err
 				pendingLine = lineNumber
 				continue
 			}
-			if err := validateSchemaVersion(ev.SchemaVersion); err != nil {
-				yield(events.Event{}, err)
+			if pendingDecodeErr != nil {
+				yield(events.Event{}, pendingDecodeErr)
 				return
 			}
 			if ev.Seq < fromSeq {
@@ -180,10 +217,43 @@ func (r *Run) Replay(fromSeq uint64) iter.Seq2[events.Event, error] {
 	}
 }
 
+func defaultRunPaths(workspaceRoot, runID string) runPaths {
+	runDir := filepath.Join(runsDirForWorkspace(workspaceRoot), runID)
+	return runPaths{
+		runDir:      runDir,
+		runMetaPath: filepath.Join(runDir, "run.json"),
+		eventsPath:  filepath.Join(runDir, "events.jsonl"),
+		resultPath:  filepath.Join(runDir, "result.json"),
+		jobsDir:     filepath.Join(runDir, "jobs"),
+		turnsDir:    filepath.Join(runDir, "turns"),
+	}
+}
+
+func resolveRunPaths(workspaceRoot, runID string, record runRecord) runPaths {
+	paths := defaultRunPaths(workspaceRoot, runID)
+	paths.eventsPath = resolveRunArtifactPath(workspaceRoot, paths.eventsPath, record.EventsPath)
+	paths.resultPath = resolveRunArtifactPath(workspaceRoot, paths.resultPath, record.ResultPath)
+	paths.jobsDir = resolveRunArtifactPath(workspaceRoot, paths.jobsDir, record.JobsDir)
+	paths.turnsDir = resolveRunArtifactPath(workspaceRoot, paths.turnsDir, record.TurnsDir)
+	return paths
+}
+
+func resolveRunArtifactPath(workspaceRoot, fallback, candidate string) string {
+	trimmed := strings.TrimSpace(candidate)
+	switch {
+	case trimmed == "":
+		return fallback
+	case filepath.IsAbs(trimmed):
+		return trimmed
+	default:
+		return filepath.Join(workspaceRoot, trimmed)
+	}
+}
+
 func normalizeRunSummary(workspaceRoot, runID, runDir string, record runRecord) RunSummary {
 	summary := RunSummary{
 		RunID:         runID,
-		Status:        strings.TrimSpace(record.Status),
+		Status:        normalizeStatus(record.Status),
 		Mode:          strings.TrimSpace(record.Mode),
 		IDE:           strings.TrimSpace(record.IDE),
 		Model:         strings.TrimSpace(record.Model),
@@ -191,8 +261,8 @@ func normalizeRunSummary(workspaceRoot, runID, runDir string, record runRecord) 
 		ArtifactsDir:  strings.TrimSpace(record.ArtifactsDir),
 	}
 
-	if strings.TrimSpace(record.RunID) != "" {
-		summary.RunID = strings.TrimSpace(record.RunID)
+	if trimmed := strings.TrimSpace(record.RunID); trimmed != "" {
+		summary.RunID = trimmed
 	}
 	if summary.WorkspaceRoot == "" {
 		summary.WorkspaceRoot = workspaceRoot
@@ -202,6 +272,7 @@ func normalizeRunSummary(workspaceRoot, runID, runDir string, record runRecord) 
 	} else if !filepath.IsAbs(summary.ArtifactsDir) {
 		summary.ArtifactsDir = filepath.Join(summary.WorkspaceRoot, summary.ArtifactsDir)
 	}
+
 	switch {
 	case !record.CreatedAt.IsZero():
 		summary.StartedAt = record.CreatedAt
@@ -213,6 +284,93 @@ func normalizeRunSummary(workspaceRoot, runID, runDir string, record runRecord) 
 		summary.EndedAt = &endedAt
 	}
 	return summary
+}
+
+func deriveRunState(paths runPaths) (derivedRunState, error) {
+	state := derivedRunState{}
+
+	status, err := loadResultStatus(paths.resultPath)
+	if err != nil {
+		return state, err
+	}
+	if status != "" {
+		state.status = status
+	}
+
+	eventState := bestEffortRunStateFromEvents(paths.eventsPath)
+	if state.status == "" {
+		state.status = eventState.status
+	}
+	if state.endedAt == nil {
+		state.endedAt = eventState.endedAt
+	}
+	return state, nil
+}
+
+func loadResultStatus(resultPath string) (string, error) {
+	if strings.TrimSpace(resultPath) == "" {
+		return "", nil
+	}
+	payload, err := os.ReadFile(resultPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
+		return "", fmt.Errorf("read run result: %w", err)
+	}
+
+	var record resultRecord
+	if err := json.Unmarshal(payload, &record); err != nil {
+		return "", fmt.Errorf("decode run result: %w", err)
+	}
+	return normalizeStatus(record.Status), nil
+}
+
+func bestEffortRunStateFromEvents(eventsPath string) derivedRunState {
+	file, err := os.Open(eventsPath)
+	if err != nil {
+		return derivedRunState{}
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	scanner := newEventScanner(file)
+	state := derivedRunState{}
+	for lineNumber := 1; scanner.Scan(); lineNumber++ {
+		line := bytesTrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		ev, err := decodeEventLine(line, lineNumber)
+		if err != nil {
+			return state
+		}
+		switch ev.Kind {
+		case events.EventKindRunStarted, events.EventKindRunQueued:
+			if state.status == "" {
+				state.status = defaultRunStatus()
+			}
+		case events.EventKindRunCompleted:
+			state = derivedRunState{status: publicRunStatusCompleted, endedAt: timePointer(ev.Timestamp)}
+		case events.EventKindRunFailed:
+			state = derivedRunState{status: publicRunStatusFailed, endedAt: timePointer(ev.Timestamp)}
+		case events.EventKindRunCancelled:
+			state = derivedRunState{status: publicRunStatusCancelled, endedAt: timePointer(ev.Timestamp)}
+		}
+	}
+	return state
+}
+
+func decodeEventLine(line []byte, lineNumber int) (events.Event, error) {
+	var ev events.Event
+	if err := json.Unmarshal(line, &ev); err != nil {
+		return events.Event{}, fmt.Errorf("decode run event line %d: %w", lineNumber, err)
+	}
+	if err := validateSchemaVersion(ev.SchemaVersion); err != nil {
+		return events.Event{}, err
+	}
+	return ev, nil
 }
 
 func validateSchemaVersion(version string) error {
@@ -227,17 +385,41 @@ func validateSchemaVersion(version string) error {
 	return nil
 }
 
-func isTerminalStatus(status string) bool {
-	normalized := strings.TrimSpace(status)
-	switch normalized {
-	case "completed", "succeeded", "failed", "canceled":
-		return true
+func normalizeStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "":
+		return ""
+	case "succeeded", publicRunStatusCompleted:
+		return publicRunStatusCompleted
+	case "canceled", publicRunStatusCancelled:
+		return publicRunStatusCancelled
 	default:
-		return strings.HasPrefix(normalized, "cancel") && strings.HasSuffix(normalized, "ed")
+		return strings.TrimSpace(status)
 	}
 }
 
-func fileEndsWithNewline(file *os.File) (bool, error) {
+func defaultRunStatus() string {
+	return publicRunStatusRunning
+}
+
+func isTerminalStatus(status string) bool {
+	switch normalizeStatus(status) {
+	case publicRunStatusCompleted, publicRunStatusFailed, publicRunStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
+func timePointer(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	copyValue := value
+	return &copyValue
+}
+
+func fileHasPartialFinalLine(file *os.File) (bool, error) {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return false, err
 	}

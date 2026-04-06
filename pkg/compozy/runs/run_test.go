@@ -3,37 +3,37 @@ package runs
 import (
 	"encoding/json"
 	"errors"
-	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-func TestOpenLoadsRunSummaryAndReplayFromSequence(t *testing.T) {
-	t.Parallel()
-
+func TestOpenLoadsRunSummary(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	runID := "run-open"
 	startedAt := time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC)
 	endedAt := startedAt.Add(3 * time.Minute)
-	writeRunFixture(t, workspaceRoot, runID, map[string]any{
-		"run_id":         runID,
-		"status":         "completed",
-		"mode":           "prd-tasks",
-		"ide":            "codex",
-		"model":          "gpt-5.4",
-		"workspace_root": workspaceRoot,
-		"artifacts_dir":  filepath.Join(workspaceRoot, ".compozy", "runs", runID),
-		"created_at":     startedAt,
-		"updated_at":     endedAt,
-	}, []events.Event{
-		testReplayEvent(runID, 1),
-		testReplayEvent(runID, 2),
-		testReplayEvent(runID, 3),
-	}, "")
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":        runID,
+			"mode":          "prd-tasks",
+			"ide":           "codex",
+			"model":         "gpt-5.4",
+			"artifacts_dir": filepath.Join(workspaceRoot, ".compozy", "runs", runID),
+			"created_at":    startedAt,
+		},
+		resultJSON: map[string]any{
+			"status": "succeeded",
+		},
+		events: []events.Event{
+			testEvent(runID, 1, events.EventKindRunStarted),
+			testEvent(runID, 2, events.EventKindRunCompleted),
+		},
+	})
 
 	run, err := Open(workspaceRoot, runID)
 	if err != nil {
@@ -56,8 +56,73 @@ func TestOpenLoadsRunSummaryAndReplayFromSequence(t *testing.T) {
 	if !summary.StartedAt.Equal(startedAt) {
 		t.Fatalf("Summary().StartedAt = %s, want %s", summary.StartedAt, startedAt)
 	}
-	if summary.EndedAt == nil || !summary.EndedAt.Equal(endedAt) {
-		t.Fatalf("Summary().EndedAt = %v, want %s", summary.EndedAt, endedAt)
+	if summary.EndedAt == nil || !summary.EndedAt.Equal(time.Unix(2, 0).UTC()) {
+		t.Fatalf("Summary().EndedAt = %v, want terminal event timestamp", summary.EndedAt)
+	}
+	if summary.ArtifactsDir != filepath.Join(workspaceRoot, ".compozy", "runs", runID) {
+		t.Fatalf("Summary().ArtifactsDir = %q, want run dir", summary.ArtifactsDir)
+	}
+	_ = endedAt
+}
+
+func TestOpenReturnsDescriptiveErrorForMissingRunID(t *testing.T) {
+	_, err := Open(t.TempDir(), "")
+	if err == nil || !strings.Contains(err.Error(), "missing run id") {
+		t.Fatalf("Open() error = %v, want missing run id", err)
+	}
+}
+
+func TestReplayYieldsAllEventsFromBeginning(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	runID := "run-replay"
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":         runID,
+			"mode":           "exec",
+			"workspace_root": workspaceRoot,
+			"created_at":     time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC),
+		},
+		events: []events.Event{
+			testEvent(runID, 1, events.EventKindRunStarted),
+			testEvent(runID, 2, events.EventKindJobStarted),
+			testEvent(runID, 3, events.EventKindRunCompleted),
+		},
+	})
+
+	run, err := Open(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	gotEvents, gotErrors := collectReplay(run, 0)
+	if len(gotErrors) != 0 {
+		t.Fatalf("Replay() unexpected errors: %v", gotErrors)
+	}
+	if seqs := collectedSeqs(gotEvents); !slices.Equal(seqs, []uint64{1, 2, 3}) {
+		t.Fatalf("Replay() seqs = %v, want [1 2 3]", seqs)
+	}
+}
+
+func TestReplaySkipsEventsBeforeSequence(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	runID := "run-replay-seq"
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":         runID,
+			"mode":           "exec",
+			"workspace_root": workspaceRoot,
+			"created_at":     time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC),
+		},
+		events: []events.Event{
+			testEvent(runID, 1, events.EventKindRunStarted),
+			testEvent(runID, 2, events.EventKindJobStarted),
+			testEvent(runID, 3, events.EventKindRunCompleted),
+		},
+	})
+
+	run, err := Open(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
 	}
 
 	gotEvents, gotErrors := collectReplay(run, 2)
@@ -70,18 +135,21 @@ func TestOpenLoadsRunSummaryAndReplayFromSequence(t *testing.T) {
 }
 
 func TestReplayReportsPartialFinalLineWithoutDroppingCompleteEvents(t *testing.T) {
-	t.Parallel()
-
 	workspaceRoot := t.TempDir()
 	runID := "run-partial"
-	writeRunFixture(t, workspaceRoot, runID, map[string]any{
-		"run_id":         runID,
-		"mode":           "prd-tasks",
-		"workspace_root": workspaceRoot,
-	}, []events.Event{
-		testReplayEvent(runID, 1),
-		testReplayEvent(runID, 2),
-	}, `{"schema_version":"1.0","run_id":"run-partial"`)
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":         runID,
+			"mode":           "prd-tasks",
+			"workspace_root": workspaceRoot,
+			"created_at":     time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC),
+		},
+		events: []events.Event{
+			testEvent(runID, 1, events.EventKindRunStarted),
+			testEvent(runID, 2, events.EventKindJobStarted),
+		},
+		partialTail: `{"schema_version":"1.0","run_id":"run-partial"`,
+	})
 
 	run, err := Open(workspaceRoot, runID)
 	if err != nil {
@@ -98,16 +166,18 @@ func TestReplayReportsPartialFinalLineWithoutDroppingCompleteEvents(t *testing.T
 }
 
 func TestReplayRejectsIncompatibleSchemaVersion(t *testing.T) {
-	t.Parallel()
-
 	workspaceRoot := t.TempDir()
 	runID := "run-schema"
-	ev := testReplayEvent(runID, 1)
-	ev.SchemaVersion = "99.0"
-	writeRunFixture(t, workspaceRoot, runID, map[string]any{
-		"run_id":         runID,
-		"workspace_root": workspaceRoot,
-	}, []events.Event{ev}, "")
+	rawLine := `{"schema_version":"99.0","run_id":"run-schema","seq":1,"ts":"2026-04-05T12:00:00Z","kind":"job.started","payload":{}}`
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":         runID,
+			"mode":           "exec",
+			"workspace_root": workspaceRoot,
+			"created_at":     time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC),
+		},
+		rawEventLines: []string{rawLine},
+	})
 
 	run, err := Open(workspaceRoot, runID)
 	if err != nil {
@@ -121,109 +191,66 @@ func TestReplayRejectsIncompatibleSchemaVersion(t *testing.T) {
 	if len(gotErrors) != 1 || !errors.Is(gotErrors[0], ErrIncompatibleSchemaVersion) {
 		t.Fatalf("Replay() errors = %v, want incompatible-schema error", gotErrors)
 	}
+	var schemaErr *SchemaVersionError
+	if !errors.As(gotErrors[0], &schemaErr) || schemaErr.Version != "99.0" {
+		t.Fatalf("Replay() schema error = %#v, want version 99.0", gotErrors[0])
+	}
 }
 
-func TestOpenTreatsCancelledStatusAsTerminal(t *testing.T) {
-	t.Parallel()
-
+func TestReplayAcceptsAdditiveSchemaFields(t *testing.T) {
 	workspaceRoot := t.TempDir()
-	runID := "run-canceled"
-	startedAt := time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC)
-	endedAt := startedAt.Add(2 * time.Minute)
-	writeRunFixture(t, workspaceRoot, runID, map[string]any{
-		"run_id":         runID,
-		"status":         "canceled",
-		"workspace_root": workspaceRoot,
-		"created_at":     startedAt,
-		"updated_at":     endedAt,
-	}, []events.Event{testReplayEvent(runID, 1)}, "")
+	runID := "run-additive"
+	rawLine := `{"schema_version":"1.0","run_id":"run-additive","seq":1,"ts":"2026-04-05T12:00:00Z","kind":"job.started","payload":{},"new_field":"ignored"}`
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":         runID,
+			"mode":           "exec",
+			"workspace_root": workspaceRoot,
+			"created_at":     time.Date(2026, 4, 5, 12, 0, 0, 0, time.UTC),
+		},
+		rawEventLines: []string{rawLine},
+	})
 
 	run, err := Open(workspaceRoot, runID)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
 
-	summary := run.Summary()
-	if summary.EndedAt == nil || !summary.EndedAt.Equal(endedAt) {
-		t.Fatalf("Summary().EndedAt = %v, want %s", summary.EndedAt, endedAt)
+	gotEvents, gotErrors := collectReplay(run, 0)
+	if len(gotErrors) != 0 {
+		t.Fatalf("Replay() unexpected errors: %v", gotErrors)
+	}
+	if len(gotEvents) != 1 || gotEvents[0].Seq != 1 {
+		t.Fatalf("Replay() events = %#v, want one seq=1 event", gotEvents)
 	}
 }
 
-func writeRunFixture(
-	t *testing.T,
-	workspaceRoot string,
-	runID string,
-	runJSON map[string]any,
-	eventsToWrite []events.Event,
-	partialTail string,
-) {
-	t.Helper()
-
-	runDir := filepath.Join(workspaceRoot, ".compozy", "runs", runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		t.Fatalf("mkdir run dir: %v", err)
+func TestNormalizeStatusSupportsCancelledSpellings(t *testing.T) {
+	if got := normalizeStatus("canceled"); got != publicRunStatusCancelled {
+		t.Fatalf("normalizeStatus(canceled) = %q, want %s", got, publicRunStatusCancelled)
 	}
-
-	payload, err := json.Marshal(runJSON)
-	if err != nil {
-		t.Fatalf("marshal run.json: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(runDir, "run.json"), payload, 0o600); err != nil {
-		t.Fatalf("write run.json: %v", err)
-	}
-
-	file, err := os.OpenFile(filepath.Join(runDir, "events.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-	if err != nil {
-		t.Fatalf("open events.jsonl: %v", err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
-	encoder := json.NewEncoder(file)
-	for _, ev := range eventsToWrite {
-		if err := encoder.Encode(ev); err != nil {
-			t.Fatalf("encode event: %v", err)
-		}
-	}
-	if partialTail != "" {
-		if _, err := file.WriteString(partialTail); err != nil {
-			t.Fatalf("write partial tail: %v", err)
-		}
+	if got := normalizeStatus(publicRunStatusCancelled); got != publicRunStatusCancelled {
+		t.Fatalf("normalizeStatus(canceled) = %q, want %s", got, publicRunStatusCancelled)
 	}
 }
 
-func collectReplay(run *Run, fromSeq uint64) ([]events.Event, []error) {
-	var (
-		gotEvents []events.Event
-		gotErrors []error
+func TestEventDecoderAcceptsRawJSONPayloads(t *testing.T) {
+	line := []byte(
+		`{"schema_version":"1.0","run_id":"run","seq":7,"ts":"2026-04-05T12:00:00Z","kind":"job.started","payload":{"value":1}}`,
 	)
-
-	for ev, err := range run.Replay(fromSeq) {
-		if err != nil {
-			gotErrors = append(gotErrors, err)
-			continue
-		}
-		gotEvents = append(gotEvents, ev)
+	ev, err := decodeEventLine(line, 1)
+	if err != nil {
+		t.Fatalf("decodeEventLine() error = %v", err)
 	}
-	return gotEvents, gotErrors
-}
-
-func collectedSeqs(items []events.Event) []uint64 {
-	seqs := make([]uint64, 0, len(items))
-	for _, item := range items {
-		seqs = append(seqs, item.Seq)
+	if ev.Seq != 7 || ev.Kind != events.EventKindJobStarted {
+		t.Fatalf("decodeEventLine() = %#v, want seq=7 kind=job.started", ev)
 	}
-	return seqs
-}
 
-func testReplayEvent(runID string, seq uint64) events.Event {
-	return events.Event{
-		SchemaVersion: events.SchemaVersion,
-		RunID:         runID,
-		Seq:           seq,
-		Timestamp:     time.Unix(int64(seq), 0).UTC(),
-		Kind:          events.EventKindJobStarted,
-		Payload:       json.RawMessage(`{"seq":1}`),
+	var payload map[string]int
+	if err := json.Unmarshal(ev.Payload, &payload); err != nil {
+		t.Fatalf("unmarshal payload: %v", err)
+	}
+	if payload["value"] != 1 {
+		t.Fatalf("payload = %#v, want value=1", payload)
 	}
 }
