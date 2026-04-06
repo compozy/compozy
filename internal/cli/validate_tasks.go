@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
@@ -36,7 +37,7 @@ type validateTasksOutput struct {
 	FixPrompt string        `json:"fix_prompt,omitempty"`
 }
 
-func newValidateTasksCommand() *cobra.Command {
+func newValidateTasksCommand(_ *kernel.Dispatcher) *cobra.Command {
 	state := &validateTasksCommandState{format: validateTasksFormatText}
 	cmd := &cobra.Command{
 		Use:          "validate-tasks",

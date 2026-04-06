@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Executor integration and post-execution event emission
 type: refactor
 complexity: critical
@@ -38,15 +38,15 @@ Thread the journal and event bus through `run.Execute` and `plan.Prepare`, repla
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Extend `plan.Prepare` to construct the `*journal.Journal` and return it in `SolvePreparation`
-- [ ] 5.2 Thread journal + bus through `run.Execute` signature and jobExecutionContext
-- [ ] 5.3 Replace 7 `uiCh <- ...` send sites in `execution.go` with `journal.Submit` and corresponding typed event payloads
-- [ ] 5.4 Rewrite `HandleUpdate` in `logging.go` to emit `session.update` events via journal (no uiCh writes)
-- [ ] 5.5 Instrument `afterTaskJobSuccess` with `task.file_updated` + `task.metadata_refreshed` emit-after-success calls
-- [ ] 5.6 Instrument `afterReviewJobSuccess` with `review.status_finalized` + `review.round_refreshed` emit-after-success calls
-- [ ] 5.7 Instrument `resolveProviderBackedIssues` with provider call lifecycle events and `review.issue_resolved`
-- [ ] 5.8 Update executor tests to assert events on the bus rather than on `uiCh`
-- [ ] 5.9 Write integration tests for full executor → journal → events.jsonl roundtrip including post-exec events
+- [x] 5.1 Extend `plan.Prepare` to construct the `*journal.Journal` and return it in `SolvePreparation`
+- [x] 5.2 Thread journal + bus through `run.Execute` signature and jobExecutionContext
+- [x] 5.3 Replace 7 `uiCh <- ...` send sites in `execution.go` with `journal.Submit` and corresponding typed event payloads
+- [x] 5.4 Rewrite `HandleUpdate` in `logging.go` to emit `session.update` events via journal (no uiCh writes)
+- [x] 5.5 Instrument `afterTaskJobSuccess` with `task.file_updated` + `task.metadata_refreshed` emit-after-success calls
+- [x] 5.6 Instrument `afterReviewJobSuccess` with `review.status_finalized` + `review.round_refreshed` emit-after-success calls
+- [x] 5.7 Instrument `resolveProviderBackedIssues` with provider call lifecycle events and `review.issue_resolved`
+- [x] 5.8 Update executor tests to assert events on the bus rather than on `uiCh`
+- [x] 5.9 Write integration tests for full executor → journal → events.jsonl roundtrip including post-exec events
 
 ## Implementation Details
 See TechSpec "Core Interfaces" + "Build Order" steps 7 and 10. ADR-004 specifies the journal-upstream-of-fanout semantics that this integration implements. ADR-003 "Mutation/Event Ordering Policy" defines emit-after-success for task/review events and emit-on-attempt+completion for provider events, plus the warn-and-continue failure policy. The 7 `uiCh` send sites and the 2 `HandleUpdate` drop sites are located at the exact line numbers from the explore map. This task does NOT remove the `uiCh` field — task_06 does that once the TUI adapter is in place.
@@ -86,22 +86,22 @@ See TechSpec "Core Interfaces" + "Build Order" steps 7 and 10. ADR-004 specifies
 
 ## Tests
 - Unit tests:
-  - [ ] `plan.Prepare` returns a `SolvePreparation` carrying a non-nil journal handle pointing at `RunArtifacts.EventsPath`
-  - [ ] Executor worker emits `job.started` event on job begin, `job.completed` on successful finish, `job.failed` on permanent failure, `job.retry_scheduled` on retry
-  - [ ] Executor shutdown controller state transitions emit `shutdown.draining` and `shutdown.terminated` events
-  - [ ] `HandleUpdate` emits one `session.update` event per ACP session update with payload wrapping `model.SessionUpdate`
-  - [ ] `HandleUpdate` emits `usage.updated` event when ACP session update includes non-zero usage
-  - [ ] `afterTaskJobSuccess` emits `task.file_updated` AFTER `MarkTaskCompleted` returns nil
-  - [ ] `afterTaskJobSuccess` does NOT emit `task.file_updated` when `MarkTaskCompleted` returns error
-  - [ ] `afterReviewJobSuccess` emits `review.status_finalized` AFTER `FinalizeIssueStatuses` returns nil, then `review.round_refreshed` after `RefreshRoundMeta`
-  - [ ] `resolveProviderBackedIssues` emits `provider.call_started` BEFORE provider API call, then `provider.call_completed` with status code on 2xx
-  - [ ] `resolveProviderBackedIssues` emits `provider.call_failed` on non-2xx, run continues without error propagation
-  - [ ] `review.issue_resolved` carries `provider_posted=false` when provider call failed
+  - [x] `plan.Prepare` returns a `SolvePreparation` carrying a non-nil journal handle pointing at `RunArtifacts.EventsPath`
+  - [x] Executor worker emits `job.started` event on job begin, `job.completed` on successful finish, `job.failed` on permanent failure, `job.retry_scheduled` on retry
+  - [x] Executor shutdown controller state transitions emit `shutdown.draining` and `shutdown.terminated` events
+  - [x] `HandleUpdate` emits one `session.update` event per ACP session update with payload wrapping `model.SessionUpdate`
+  - [x] `HandleUpdate` emits `usage.updated` event when ACP session update includes non-zero usage
+  - [x] `afterTaskJobSuccess` emits `task.file_updated` AFTER `MarkTaskCompleted` returns nil
+  - [x] `afterTaskJobSuccess` does NOT emit `task.file_updated` when `MarkTaskCompleted` returns error
+  - [x] `afterReviewJobSuccess` emits `review.status_finalized` AFTER `FinalizeIssueStatuses` returns nil, then `review.round_refreshed` after `RefreshRoundMeta`
+  - [x] `resolveProviderBackedIssues` emits `provider.call_started` BEFORE provider API call, then `provider.call_completed` with status code on 2xx
+  - [x] `resolveProviderBackedIssues` emits `provider.call_failed` on non-2xx, run continues without error propagation
+  - [x] `review.issue_resolved` carries `provider_posted=false` when provider call failed
 - Integration tests:
-  - [ ] PRD-tasks mode run end-to-end: asserts seq-ordered events.jsonl contains `run.started`, N × `job.started`, N × `session.update`, N × `job.completed`, N × `task.file_updated`, N × `task.metadata_refreshed`, `run.completed`
-  - [ ] PR-review mode run with successful provider resolution: events.jsonl contains expected sequence including `provider.call_completed` and `review.issue_resolved{provider_posted=true}`
-  - [ ] PR-review mode run with failing provider API: events.jsonl contains `provider.call_failed`, `review.issue_resolved{provider_posted=false}`, run still completes with `run.completed`
-  - [ ] Bus subscriber receives same events (with identical seq) that are written to `events.jsonl`
+  - [x] PRD-tasks mode run end-to-end: asserts seq-ordered events.jsonl contains `run.started`, N × `job.started`, N × `session.update`, N × `job.completed`, N × `task.file_updated`, N × `task.metadata_refreshed`, `run.completed`
+  - [x] PR-review mode run with successful provider resolution: events.jsonl contains expected sequence including `provider.call_completed` and `review.issue_resolved{provider_posted=true}`
+  - [x] PR-review mode run with failing provider API: events.jsonl contains `provider.call_failed`, `review.issue_resolved{provider_posted=false}`, run still completes with `run.completed`
+  - [x] Bus subscriber receives same events (with identical seq) that are written to `events.jsonl`
 - Test coverage target: >=80%
 - All tests must pass
 

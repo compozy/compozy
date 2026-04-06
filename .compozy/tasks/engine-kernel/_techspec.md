@@ -324,7 +324,7 @@ Not applicable in Phase A. The kernel exposes typed Go APIs; Cobra wraps them in
 | Component | Impact Type | Description and Risk | Required Action |
 |-----------|-------------|---------------------|-----------------|
 | `pkg/compozy/events/` (new, public) | new | `Bus[T]`, `Event` envelope, `EventKind`, `SubID` types. Low risk. | Create package, ~200 LOC + tests |
-| `pkg/compozy/events/kinds/` (new, public) | new | Payload structs per domain (run, job, session, prompt, tool_call, usage, task, review, provider, shutdown). Low risk. | Create 10 Go files, one per domain |
+| `pkg/compozy/events/kinds/` (new, public) | new | Payload structs per domain (run, job, session, tool_call, usage, task, review, provider, shutdown). Low risk. | Create 9 Go files, one per domain |
 | `pkg/compozy/runs/` (new, public) | new | `List`, `Open`, `Replay`, `Tail`, `WatchWorkspace`, `RunSummary`, `RunEvent`, `RunEventKind`. Medium risk (public API stability). | Create public package with nxadm/tail + fsnotify |
 | `internal/core/kernel/` (new) | new | `Dispatcher`, `Handler[C,R]`, `Register`, `Dispatch`, `KernelDeps`, `BuildDefault`. Low risk. | Create package, register 6 Phase A handlers |
 | `internal/core/kernel/commands/` (new) | new | 6 typed command/result structs (RunStart, WorkflowPrepare, WorkflowSync, WorkflowArchive, WorkspaceMigrate, ReviewsFetch) + `*FromConfig` translators. Low risk. | 6 command files |
@@ -397,7 +397,7 @@ Not applicable in Phase A. The kernel exposes typed Go APIs; Cobra wraps them in
 
 ### Build Order
 
-1. **Event types + taxonomy** (`pkg/compozy/events/`, `pkg/compozy/events/kinds/`) — no dependencies. Define `Event`, `EventKind`, `SubID`, payload structs per domain (run/job/session/prompt/tool_call/usage/task/review/provider/shutdown). Unit tests for serialization round-trip.
+1. **Event types + taxonomy** (`pkg/compozy/events/`, `pkg/compozy/events/kinds/`) — no dependencies. Define `Event`, `EventKind`, `SubID`, payload structs per domain (run/job/session/tool_call/usage/task/review/provider/shutdown). Unit tests for serialization round-trip.
 2. **Event bus** (`pkg/compozy/events/bus.go`) — depends on step 1. Implement `Bus[T]`, per-subscriber subscription struct with drop counter, snapshot-and-publish, `Close(ctx)`. Unit tests: fanout, backpressure, unsubscribe-during-publish, leak detection, Close idempotency.
 3. **Journal writer** (`internal/core/run/journal/`) — depends on steps 1, 2. Writer goroutine owns seq as loop-local, batch flush on size/interval, fsync on terminal, ctx-aware Close. Unit tests: ordering, crash recovery (via injectable flush hook), ctx cancel, concurrent Submit.
 4. **ACP buffer fix** (`internal/core/agent/session.go`) — no dependencies. Grow buffer 128→1024, `publish(ctx, update)` with 5s timed backpressure + per-session drop counters (ADR-006). Unit tests: fast path, backpressure path, timeout path, ctx cancel path.
@@ -504,7 +504,7 @@ Not applicable in Phase A. The kernel exposes typed Go APIs; Cobra wraps them in
 
 - [ADR-001: Service Kernel Pattern with Typed Per-Command Handlers](adrs/adr-001.md) — Introduces a typed command dispatcher at `internal/core/kernel/` so CLI and future RPC share one execution layer.
 - [ADR-002: Custom Event Bus with Bounded Per-Subscriber Backpressure](adrs/adr-002.md) — Builds a ~150 LOC generic event bus with non-blocking fanout and drop metrics rather than adopting watermill, cskr/pubsub, or NATS.
-- [ADR-003: Event Taxonomy with Schema Versioning and Complete Side-Effect Coverage](adrs/adr-003.md) — Defines 30+ event kinds including post-execution mutations and provider I/O so `events.jsonl` is a complete source of truth.
+- [ADR-003: Event Taxonomy with Schema Versioning and Complete Side-Effect Coverage](adrs/adr-003.md) — Defines 27 event kinds across 9 domains including post-execution mutations and provider I/O so `events.jsonl` is a complete source of truth.
 - [ADR-004: Journal Upstream of Fanout with Single-Writer Per-Run Model](adrs/adr-004.md) — Assigns seq numbers and appends to `events.jsonl` BEFORE bus fanout, making durability a precondition of live delivery.
 - [ADR-005: Reader Library over `.compozy/runs/` using nxadm/tail and fsnotify](adrs/adr-005.md) — Publishes `pkg/compozy/runs/` as the first public API, with typed List/Open/Replay/Tail/WatchWorkspace operations.
 - [ADR-006: ACP Ingress Buffer with Grown Capacity and Timed Backpressure](adrs/adr-006.md) — Grows `sessionImpl.updates` from 128 to 1024 and replaces silent drop with 5-second backpressure plus explicit metrics.

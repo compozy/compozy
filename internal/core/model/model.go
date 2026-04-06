@@ -1,9 +1,12 @@
 package model
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/core/run/journal"
 )
 
 const (
@@ -298,15 +301,50 @@ type ReviewFileMeta struct {
 	ProviderRef string `yaml:"provider_ref,omitempty"`
 }
 
+type JournalHandle interface {
+	Journal() *journal.Journal
+	Close(context.Context) error
+}
+
 type SolvePreparation struct {
-	Jobs             []Job
-	RunArtifacts     RunArtifacts
+	Jobs         []Job
+	RunArtifacts RunArtifacts
+	// JournalHandle carries the run journal while keeping cleanup ownership
+	// explicit. Kernel/runtime flows retain responsibility for closing it.
+	JournalHandle    JournalHandle
 	InputDir         string
 	InputDirPath     string
 	ResolvedName     string
 	ResolvedPR       string
 	ResolvedProvider string
 	ResolvedRound    int
+}
+
+func (p *SolvePreparation) Journal() *journal.Journal {
+	if p == nil || p.JournalHandle == nil {
+		return nil
+	}
+	return p.JournalHandle.Journal()
+}
+
+func (p *SolvePreparation) SetJournal(j *journal.Journal) {
+	if p == nil {
+		return
+	}
+	if j == nil {
+		p.JournalHandle = nil
+		return
+	}
+	p.JournalHandle = journal.NewOwner(j)
+}
+
+func (p *SolvePreparation) CloseJournal(ctx context.Context) error {
+	if p == nil || p.JournalHandle == nil {
+		return nil
+	}
+	handle := p.JournalHandle
+	p.JournalHandle = nil
+	return handle.Close(ctx)
 }
 
 type Job struct {

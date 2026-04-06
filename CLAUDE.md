@@ -28,20 +28,24 @@ Compozy is a Go module and CLI that drives the full lifecycle of AI-assisted dev
 
 ## Package Layout
 
-| Path                     | Responsibility                                           |
-| ------------------------ | -------------------------------------------------------- |
-| `cmd/compozy`             | Standalone CLI entry point                               |
-| `command`                | Public Cobra wrapper for embedding `compozy` as a command |
-| `internal/cli`           | Cobra flags, interactive form collection, CLI glue       |
-| `internal/core`        | Internal facade for reusable preparation and execution    |
-| `internal/core/agent`  | IDE command validation and process command construction   |
-| `internal/core/model`  | Shared runtime data structures                           |
-| `internal/core/plan`   | Input discovery, filtering, grouping, and batch prep     |
-| `internal/core/prompt` | Thin prompt builders that emit runtime context and skill names |
-| `internal/core/run`    | Execution pipeline, logging, shutdown, and Bubble Tea UI |
-| `skills`                 | Bundled installable skills (creation + execution workflows) |
-| `.compozy/tasks`         | Default workflow artifact root (PRD, TechSpec, ADR, reviews) |
-| `internal/version`       | Build metadata                                           |
+| Path                        | Responsibility                                                    |
+| --------------------------- | ----------------------------------------------------------------- |
+| `cmd/compozy`               | Standalone CLI entry point                                        |
+| `command`                   | Public Cobra wrapper for embedding `compozy` as a command         |
+| `internal/cli`              | Cobra flags, interactive form collection, CLI glue                |
+| `internal/core`             | Internal facade for reusable preparation and execution            |
+| `internal/core/agent`       | IDE command validation and process command construction            |
+| `internal/core/kernel`      | Typed command dispatcher, handler registry, and legacy adapters    |
+| `internal/core/model`       | Shared runtime data structures                                     |
+| `internal/core/plan`        | Input discovery, filtering, grouping, and batch prep              |
+| `internal/core/prompt`      | Thin prompt builders that emit runtime context and skill names    |
+| `internal/core/run`         | Execution pipeline, logging, shutdown, and Bubble Tea UI          |
+| `internal/core/run/journal` | Durable append-before-publish event journal for run artifacts     |
+| `pkg/compozy/events`        | Public event envelope, kind constants, and documented payload API |
+| `pkg/compozy/runs`          | Public run reader library for list/open/replay/tail/watch flows   |
+| `skills`                    | Bundled installable skills (creation + execution workflows)       |
+| `.compozy/tasks`            | Default workflow artifact root (PRD, TechSpec, ADR, reviews)      |
+| `internal/version`          | Build metadata                                                    |
 
 ## Build & Development Commands
 

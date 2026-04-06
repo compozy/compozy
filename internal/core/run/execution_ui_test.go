@@ -2,6 +2,8 @@ package run
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -9,6 +11,9 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
@@ -21,6 +26,7 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 	controller := &executorController{
 		ctx: context.Background(),
 		execCtx: &jobExecutionContext{
+			ctx:   context.Background(),
 			total: 1,
 			ui:    ui,
 			cfg:   &config{},
@@ -59,14 +65,74 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 	}
 }
 
+func TestEnsureRuntimeEventBusCreatesFallbackBusForUI(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "ui-fallback")
+	if err := os.MkdirAll(filepath.Dir(runArtifacts.EventsPath), 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	runJournal, err := journal.Open(runArtifacts.EventsPath, nil, 8)
+	if err != nil {
+		t.Fatalf("open journal: %v", err)
+	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := runJournal.Close(closeCtx); err != nil {
+			t.Fatalf("close journal: %v", err)
+		}
+	}()
+
+	cfg := &config{outputFormat: model.OutputFormatText}
+	bus := ensureRuntimeEventBus(cfg, runJournal, nil)
+	if bus == nil {
+		t.Fatal("expected fallback bus for UI-enabled execution")
+	}
+	defer func() {
+		if err := bus.Close(context.Background()); err != nil {
+			t.Fatalf("close bus: %v", err)
+		}
+	}()
+
+	_, ch, unsub := bus.Subscribe()
+	defer unsub()
+
+	ev, err := newRuntimeEvent(
+		runArtifacts.RunID,
+		eventspkg.EventKindRunStarted,
+		kinds.RunStartedPayload{JobsTotal: 1},
+	)
+	if err != nil {
+		t.Fatalf("new runtime event: %v", err)
+	}
+	if err := runJournal.Submit(context.Background(), ev); err != nil {
+		t.Fatalf("submit event: %v", err)
+	}
+
+	select {
+	case got := <-ch:
+		if got.Kind != eventspkg.EventKindRunStarted {
+			t.Fatalf("expected fallback bus to receive run.started, got %s", got.Kind)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for fallback bus event")
+	}
+}
+
 func TestExecutorControllerUIQuitEntersDrainingPath(t *testing.T) {
 	t.Parallel()
 
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 4)}
 	execCtx := &jobExecutionContext{
+		ctx:           context.Background(),
 		total:         2,
+		cfg:           &config{runArtifacts: model.RunArtifacts{RunID: runID}},
 		ui:            ui,
-		uiCh:          ui.eventsCh,
+		journal:       runJournal,
 		activeClients: make(map[agent.Client]struct{}),
 	}
 	done := make(chan struct{})
@@ -87,17 +153,12 @@ func TestExecutorControllerUIQuitEntersDrainingPath(t *testing.T) {
 
 	controller.requestShutdown(uiQuitRequestDrain)
 
-	select {
-	case msg := <-ui.eventsCh:
-		status, ok := msg.(shutdownStatusMsg)
-		if !ok {
-			t.Fatalf("expected shutdown status message, got %T", msg)
-		}
-		if got := status.State.Phase; got != shutdownPhaseDraining {
-			t.Fatalf("expected draining phase, got %s", got)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for draining status")
+	events := collectRuntimeEvents(t, eventsCh, 2)
+	if got := events[0].Kind; got != eventspkg.EventKindShutdownRequested {
+		t.Fatalf("expected shutdown.requested, got %s", got)
+	}
+	if got := events[1].Kind; got != eventspkg.EventKindShutdownDraining {
+		t.Fatalf("expected shutdown.draining, got %s", got)
 	}
 
 	if cancelCalls != 1 {
@@ -121,12 +182,17 @@ func TestExecutorControllerUIQuitEntersDrainingPath(t *testing.T) {
 func TestExecutorControllerSecondQuitForcesActiveClients(t *testing.T) {
 	t.Parallel()
 
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 8)}
 	client := newFakeACPClient(nil)
 	execCtx := &jobExecutionContext{
-		total: 1,
-		ui:    ui,
-		uiCh:  ui.eventsCh,
+		ctx:     context.Background(),
+		total:   1,
+		cfg:     &config{runArtifacts: model.RunArtifacts{RunID: runID}},
+		ui:      ui,
+		journal: runJournal,
 		activeClients: map[agent.Client]struct{}{
 			client: {},
 		},
@@ -149,24 +215,12 @@ func TestExecutorControllerSecondQuitForcesActiveClients(t *testing.T) {
 	controller.requestShutdown(uiQuitRequestDrain)
 	controller.requestShutdown(uiQuitRequestForce)
 
-	var sawDrain bool
-	var sawForce bool
-	for !sawDrain || !sawForce {
-		select {
-		case msg := <-ui.eventsCh:
-			status, ok := msg.(shutdownStatusMsg)
-			if !ok {
-				continue
-			}
-			switch status.State.Phase {
-			case shutdownPhaseDraining:
-				sawDrain = true
-			case shutdownPhaseForcing:
-				sawForce = true
-			}
-		case <-time.After(time.Second):
-			t.Fatal("timed out waiting for shutdown status transitions")
-		}
+	events := collectRuntimeEvents(t, eventsCh, 2)
+	if got := events[0].Kind; got != eventspkg.EventKindShutdownRequested {
+		t.Fatalf("expected first shutdown event to be shutdown.requested, got %s", got)
+	}
+	if got := events[1].Kind; got != eventspkg.EventKindShutdownDraining {
+		t.Fatalf("expected second shutdown event to be shutdown.draining, got %s", got)
 	}
 
 	if got := client.killCalls.Load(); got != 1 {
@@ -182,16 +236,32 @@ func TestExecutorControllerSecondQuitForcesActiveClients(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for forced controller completion")
 	}
+
+	events = collectRuntimeEvents(t, eventsCh, 1)
+	if got := events[0].Kind; got != eventspkg.EventKindShutdownTerminated {
+		t.Fatalf("expected terminal shutdown event, got %s", got)
+	}
+
+	var payload kinds.ShutdownTerminatedPayload
+	decodeRuntimeEventPayload(t, events[0], &payload)
+	if !payload.Forced {
+		t.Fatalf("expected forced shutdown payload, got %#v", payload)
+	}
 }
 
 func TestExecutorControllerRootContextCancellationPublishesDrainingState(t *testing.T) {
 	t.Parallel()
 
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 4)}
 	execCtx := &jobExecutionContext{
+		ctx:           context.Background(),
 		total:         1,
+		cfg:           &config{runArtifacts: model.RunArtifacts{RunID: runID}},
 		ui:            ui,
-		uiCh:          ui.eventsCh,
+		journal:       runJournal,
 		activeClients: make(map[agent.Client]struct{}),
 	}
 	done := make(chan struct{})
@@ -213,17 +283,18 @@ func TestExecutorControllerRootContextCancellationPublishesDrainingState(t *test
 
 	cancel()
 
-	select {
-	case msg := <-ui.eventsCh:
-		status, ok := msg.(shutdownStatusMsg)
-		if !ok {
-			t.Fatalf("expected shutdown status message, got %T", msg)
-		}
-		if got := status.State.Source; got != shutdownSourceSignal {
-			t.Fatalf("expected signal-sourced drain status, got %s", got)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for signal-driven drain status")
+	events := collectRuntimeEvents(t, eventsCh, 2)
+	if got := events[0].Kind; got != eventspkg.EventKindShutdownRequested {
+		t.Fatalf("expected shutdown.requested, got %s", got)
+	}
+	if got := events[1].Kind; got != eventspkg.EventKindShutdownDraining {
+		t.Fatalf("expected shutdown.draining, got %s", got)
+	}
+
+	var payload kinds.ShutdownDrainingPayload
+	decodeRuntimeEventPayload(t, events[1], &payload)
+	if got := payload.Source; got != string(shutdownSourceSignal) {
+		t.Fatalf("expected signal-sourced drain payload, got %s", got)
 	}
 
 	if cancelCalls != 1 {
@@ -248,9 +319,9 @@ func TestExecutorControllerSuppressesFallbackShutdownLogsWhileUIIsActive(t *test
 	controller := &executorController{
 		ctx: context.Background(),
 		execCtx: &jobExecutionContext{
+			ctx:   context.Background(),
 			cfg:   &config{outputFormat: model.OutputFormatText},
 			ui:    ui,
-			uiCh:  ui.eventsCh,
 			total: 1,
 		},
 		cancelJobs: func(error) {},
@@ -282,6 +353,7 @@ func TestExecutorControllerUsesNeutralFallbackCompletionMessage(t *testing.T) {
 	controller := &executorController{
 		ctx: context.Background(),
 		execCtx: &jobExecutionContext{
+			ctx:   context.Background(),
 			cfg:   &config{outputFormat: model.OutputFormatText},
 			total: 1,
 		},
@@ -314,14 +386,17 @@ type fakeUISession struct {
 
 func newFakeUISession() *fakeUISession {
 	return &fakeUISession{
-		ch:          make(chan uiMsg),
+		ch:          make(chan uiMsg, 8),
 		waitCalled:  make(chan struct{}, 1),
 		waitRelease: make(chan error, 1),
 	}
 }
 
-func (f *fakeUISession) events() chan uiMsg {
-	return f.ch
+func (f *fakeUISession) enqueue(msg uiMsg) {
+	select {
+	case f.ch <- msg:
+	default:
+	}
 }
 
 func (f *fakeUISession) setQuitHandler(func(uiQuitRequest)) {}

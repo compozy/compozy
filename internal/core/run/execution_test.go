@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,11 +13,14 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 type stubResolverProvider struct {
-	name   string
-	issues []provider.ResolvedIssue
+	name       string
+	issues     []provider.ResolvedIssue
+	resolveErr error
 }
 
 func (s *stubResolverProvider) Name() string { return s.name }
@@ -27,7 +31,7 @@ func (s *stubResolverProvider) FetchReviews(context.Context, string) ([]provider
 
 func (s *stubResolverProvider) ResolveIssues(_ context.Context, _ string, issues []provider.ResolvedIssue) error {
 	s.issues = append(s.issues, issues...)
-	return nil
+	return s.resolveErr
 }
 
 func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T) {
@@ -79,6 +83,7 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 	defer func() { reviewProviderRegistry = restore }()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -155,6 +160,7 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 	defer func() { reviewProviderRegistry = restore }()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -242,6 +248,7 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	defer func() { reviewProviderRegistry = restore }()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -289,12 +296,19 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read task file: %v", err)
 	}
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:     model.ExecutionModePRDTasks,
 			tasksDir: tasksDir,
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
 		},
+		journal: runJournal,
 	}
 	if err := execCtx.afterJobSuccess(context.Background(), &job{
 		groups: map[string][]model.IssueEntry{
@@ -323,6 +337,27 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 	}
 	if meta.Total != 1 || meta.Completed != 1 || meta.Pending != 0 {
 		t.Fatalf("unexpected refreshed task meta: %#v", meta)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 2)
+	if got := events[0].Kind; got != eventspkg.EventKindTaskFileUpdated {
+		t.Fatalf("expected task.file_updated event, got %s", got)
+	}
+	if got := events[1].Kind; got != eventspkg.EventKindTaskMetadataRefreshed {
+		t.Fatalf("expected task.metadata_refreshed event, got %s", got)
+	}
+
+	var filePayload kinds.TaskFileUpdatedPayload
+	decodeRuntimeEventPayload(t, events[0], &filePayload)
+	if filePayload.TaskName != "task_01.md" || filePayload.OldStatus != "pending" ||
+		filePayload.NewStatus != "completed" {
+		t.Fatalf("unexpected task file payload: %#v", filePayload)
+	}
+
+	var metaPayload kinds.TaskMetadataRefreshedPayload
+	decodeRuntimeEventPayload(t, events[1], &metaPayload)
+	if metaPayload.Completed != 1 || metaPayload.Pending != 0 || metaPayload.Total != 1 {
+		t.Fatalf("unexpected task metadata payload: %#v", metaPayload)
 	}
 }
 
@@ -373,14 +408,21 @@ func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
 		return registry
 	}
 	defer func() { reviewProviderRegistry = restore }()
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
 			pr:         "259",
 			reviewsDir: reviewDir,
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
 		},
+		journal: runJournal,
 	}
 	if err := execCtx.afterJobSuccess(context.Background(), &job{
 		groups: map[string][]model.IssueEntry{
@@ -407,6 +449,204 @@ func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
 		t.Fatalf("unexpected refreshed meta: %#v", meta)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 5)
+	gotKinds := []eventspkg.EventKind{
+		events[0].Kind,
+		events[1].Kind,
+		events[2].Kind,
+		events[3].Kind,
+		events[4].Kind,
+	}
+	wantKinds := []eventspkg.EventKind{
+		eventspkg.EventKindReviewStatusFinalized,
+		eventspkg.EventKindProviderCallStarted,
+		eventspkg.EventKindProviderCallCompleted,
+		eventspkg.EventKindReviewIssueResolved,
+		eventspkg.EventKindReviewRoundRefreshed,
+	}
+	for i := range wantKinds {
+		if gotKinds[i] != wantKinds[i] {
+			t.Fatalf("unexpected review event order: got %v want %v", gotKinds, wantKinds)
+		}
+	}
+
+	var resolvedPayload kinds.ReviewIssueResolvedPayload
+	decodeRuntimeEventPayload(t, events[3], &resolvedPayload)
+	if !resolvedPayload.ProviderPosted || resolvedPayload.ProviderRef == "" {
+		t.Fatalf("unexpected review issue resolved payload: %#v", resolvedPayload)
+	}
+}
+
+func TestAfterTaskJobSuccessDoesNotEmitTaskFileUpdatedWhenMarkTaskCompletedFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			mode:     model.ExecutionModePRDTasks,
+			tasksDir: tasksDir,
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+
+	err := execCtx.afterTaskJobSuccess(&job{
+		groups: map[string][]model.IssueEntry{
+			"task_missing": {{
+				Name:     "task_missing.md",
+				AbsPath:  filepath.Join(tasksDir, "task_missing.md"),
+				Content:  "---\nstatus: pending\ntitle: Missing\ntype: backend\ncomplexity: low\n---\n",
+				CodeFile: "task_missing",
+			}},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected missing task file to fail completion")
+	}
+
+	assertNoRuntimeEvents(t, eventsCh, 200*time.Millisecond)
+}
+
+func TestResolveProviderBackedIssuesWarnsAndContinuesOnProviderFailure(t *testing.T) {
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	resolver := &stubResolverProvider{
+		name:       "stub",
+		resolveErr: &statusCodeErr{code: 502, err: errors.New("provider unavailable")},
+	}
+	restore := reviewProviderRegistry
+	reviewProviderRegistry = func() *provider.Registry {
+		registry := provider.NewRegistry()
+		registry.Register(resolver)
+		return registry
+	}
+	defer func() { reviewProviderRegistry = restore }()
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			mode:       model.ExecutionModePRReview,
+			provider:   "stub",
+			pr:         "259",
+			reviewsDir: "/tmp/reviews",
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+
+	err := execCtx.resolveProviderBackedIssues(context.Background(), []provider.ResolvedIssue{{
+		FilePath:    "/tmp/reviews/issue_001.md",
+		ProviderRef: "thread:PRT_1,comment:RC_1",
+	}})
+	if err != nil {
+		t.Fatalf("resolveProviderBackedIssues: %v", err)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 3)
+	if got := events[0].Kind; got != eventspkg.EventKindProviderCallStarted {
+		t.Fatalf("expected provider.call_started, got %s", got)
+	}
+	if got := events[1].Kind; got != eventspkg.EventKindProviderCallFailed {
+		t.Fatalf("expected provider.call_failed, got %s", got)
+	}
+	if got := events[2].Kind; got != eventspkg.EventKindReviewIssueResolved {
+		t.Fatalf("expected review.issue_resolved, got %s", got)
+	}
+
+	var failedPayload kinds.ProviderCallFailedPayload
+	decodeRuntimeEventPayload(t, events[1], &failedPayload)
+	if failedPayload.StatusCode != 502 || !strings.Contains(failedPayload.Error, "provider unavailable") {
+		t.Fatalf("unexpected provider failure payload: %#v", failedPayload)
+	}
+
+	var resolvedPayload kinds.ReviewIssueResolvedPayload
+	decodeRuntimeEventPayload(t, events[2], &resolvedPayload)
+	if resolvedPayload.ProviderPosted {
+		t.Fatalf("expected provider_posted=false after provider failure, got %#v", resolvedPayload)
+	}
+}
+
+func TestEmitRunTerminalEventPublishesCancelledAndFailedKinds(t *testing.T) {
+	cases := []struct {
+		name     string
+		result   executionResult
+		jobs     []job
+		wantKind eventspkg.EventKind
+	}{
+		{
+			name: "successful run",
+			result: executionResult{
+				Status:       runStatusSucceeded,
+				ArtifactsDir: "/tmp/run",
+				ResultPath:   "/tmp/run/result.json",
+			},
+			jobs:     []job{{status: runStatusSucceeded}},
+			wantKind: eventspkg.EventKindRunCompleted,
+		},
+		{
+			name: "canceled run",
+			result: executionResult{
+				Status:        runStatusCanceled,
+				Error:         "canceled by user",
+				ArtifactsDir:  "/tmp/run",
+				ResultPath:    "/tmp/run/result.json",
+				TeardownError: "",
+			},
+			jobs:     []job{{status: runStatusCanceled}},
+			wantKind: eventspkg.EventKindRunCancelled,
+		},
+		{
+			name: "failed run",
+			result: executionResult{
+				Status:        runStatusFailed,
+				Error:         "boom",
+				ArtifactsDir:  "/tmp/run",
+				ResultPath:    "/tmp/run/result.json",
+				TeardownError: "",
+			},
+			jobs:     []job{{status: runStatusFailed}},
+			wantKind: eventspkg.EventKindRunFailed,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+			defer cleanup()
+
+			tc.result.RunID = runID
+			if err := emitRunTerminalEvent(
+				context.Background(),
+				runJournal,
+				tc.result,
+				tc.jobs,
+				time.Now().Add(-2*time.Second),
+			); err != nil {
+				t.Fatalf("emitRunTerminalEvent: %v", err)
+			}
+
+			events := collectRuntimeEvents(t, eventsCh, 1)
+			if got := events[0].Kind; got != tc.wantKind {
+				t.Fatalf("expected terminal event %s, got %s", tc.wantKind, got)
+			}
+		})
 	}
 }
 
@@ -440,6 +680,7 @@ func TestAfterJobSuccessFailsWhenReviewIssueRemainsPending(t *testing.T) {
 	}
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -517,4 +758,43 @@ func writeRunTaskFile(t *testing.T, tasksDir, name, status string) {
 	if err := os.WriteFile(filepath.Join(tasksDir, name), []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
+}
+
+func assertNoRuntimeEvents(t *testing.T, ch <-chan eventspkg.Event, wait time.Duration) {
+	t.Helper()
+
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+
+	select {
+	case ev := <-ch:
+		t.Fatalf("expected no runtime events, got %s", ev.Kind)
+	case <-timer.C:
+	}
+}
+
+type statusCodeErr struct {
+	code int
+	err  error
+}
+
+func (e *statusCodeErr) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e *statusCodeErr) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func (e *statusCodeErr) StatusCode() int {
+	if e == nil {
+		return 0
+	}
+	return e.code
 }

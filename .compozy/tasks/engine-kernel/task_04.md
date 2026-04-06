@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Service Kernel with typed commands
 type: refactor
 complexity: medium
@@ -20,6 +20,10 @@ Create `internal/core/kernel/` with a generic typed-command dispatcher, `KernelD
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
 
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
+
 <requirements>
 - MUST create package `internal/core/kernel/` with `Dispatcher`, `Handler[C,R]` interface, `Register`, `Dispatch`, `NewDispatcher`
 - MUST define `KernelDeps` struct holding `Logger *slog.Logger`, `EventBus *events.Bus[events.Event]`, `Workspace workspace.Context`, `AgentRegistry agent.Registry`
@@ -34,13 +38,13 @@ Create `internal/core/kernel/` with a generic typed-command dispatcher, `KernelD
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Create `internal/core/kernel/dispatcher.go` with `Dispatcher`, `Handler[C,R]`, `Register`, `Dispatch`, `NewDispatcher`
-- [ ] 4.2 Create `internal/core/kernel/deps.go` with `KernelDeps` struct and `BuildDefault` factory
-- [ ] 4.3 Create `internal/core/kernel/commands/` with six Command+Result struct pairs (RunStart, WorkflowPrepare, WorkflowSync, WorkflowArchive, WorkspaceMigrate, ReviewsFetch)
-- [ ] 4.4 Implement `*FromConfig(cfg core.Config)` translator for each command
-- [ ] 4.5 Implement handler types that wrap calls to existing engine functions (plan.Prepare, run.Execute, fetchReviews, etc.)
-- [ ] 4.6 Implement `BuildDefault` that registers all six handlers and verifies completeness via self-test
-- [ ] 4.7 Write unit tests for dispatcher routing, registry self-test, concurrent safety, FromConfig translators
+- [x] 4.1 Create `internal/core/kernel/dispatcher.go` with `Dispatcher`, `Handler[C,R]`, `Register`, `Dispatch`, `NewDispatcher`
+- [x] 4.2 Create `internal/core/kernel/deps.go` with `KernelDeps` struct and `BuildDefault` factory
+- [x] 4.3 Create `internal/core/kernel/commands/` with six Command+Result struct pairs (RunStart, WorkflowPrepare, WorkflowSync, WorkflowArchive, WorkspaceMigrate, ReviewsFetch)
+- [x] 4.4 Implement `*FromConfig(cfg core.Config)` translator for each command
+- [x] 4.5 Implement handler types that wrap calls to existing engine functions (plan.Prepare, run.Execute, fetchReviews, etc.)
+- [x] 4.6 Implement `BuildDefault` that registers all six handlers and verifies completeness via self-test
+- [x] 4.7 Write unit tests for dispatcher routing, registry self-test, concurrent safety, FromConfig translators
 
 ## Implementation Details
 See TechSpec "Core Interfaces" section for the `Handler[C,R]` + `Dispatcher` skeleton and ADR-001 for the full decision on typed per-command handlers, command list split between Phase A and deferred, `KernelDeps` composition, and CLI injection path. Handlers delegate to existing engine code — they are thin adapters, not rewrites.
@@ -75,18 +79,18 @@ See TechSpec "Core Interfaces" section for the `Handler[C,R]` + `Dispatcher` ske
 
 ## Tests
 - Unit tests:
-  - [ ] Register+Dispatch routes `RunStartCommand` to `RunStart` handler and returns `RunStartResult`
-  - [ ] Dispatch of unregistered command type returns typed error naming the command type
-  - [ ] Dispatch with type mismatch between registered handler and call site returns typed error
-  - [ ] Registry self-test fails if any of the six Phase A commands is NOT registered by BuildDefault
-  - [ ] Registry self-test passes when all six are registered
-  - [ ] Concurrent Register+Dispatch from 100 goroutines produces no race (with -race)
-  - [ ] `FromConfig` translator correctly maps `core.Config.Mode`, `IDE`, `Model`, `Name` into `RunStartCommand`
-  - [ ] `FromConfig` for WorkflowSync passes through `TasksDir`, `DryRun` fields
-  - [ ] Each of the six `FromConfig` translators covers every field the legacy handler reads
+  - [x] Register+Dispatch routes `RunStartCommand` to `RunStart` handler and returns `RunStartResult`
+  - [x] Dispatch of unregistered command type returns typed error naming the command type
+  - [x] Dispatch with type mismatch between registered handler and call site returns typed error
+  - [x] Registry self-test fails if any of the six Phase A commands is NOT registered by BuildDefault
+  - [x] Registry self-test passes when all six are registered
+  - [x] Concurrent Register+Dispatch from 100 goroutines produces no race (with -race)
+  - [x] `FromConfig` translator correctly maps `core.Config.Mode`, `IDE`, `Model`, `Name` into `RunStartCommand`
+  - [x] `FromConfig` for WorkflowSync passes through `TasksDir`, `DryRun` fields
+  - [x] Each of the six `FromConfig` translators covers every field the legacy handler reads
 - Integration tests:
-  - [ ] Full dispatch path: construct `KernelDeps` with fakes, `BuildDefault`, dispatch `RunStartCommand`, assert handler invokes `plan.Prepare` and `run.Execute` with expected arguments
-  - [ ] Dispatching all six commands sequentially with appropriate inputs succeeds against mocked deps
+  - [x] Full dispatch path: construct `KernelDeps` with fakes, `BuildDefault`, dispatch `RunStartCommand`, assert handler invokes `plan.Prepare` and `run.Execute` with expected arguments
+  - [x] Dispatching all six commands sequentially with appropriate inputs succeeds against mocked deps
 - Test coverage target: >=80%
 - All tests must pass
 

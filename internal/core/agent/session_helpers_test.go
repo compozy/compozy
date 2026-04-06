@@ -130,7 +130,7 @@ func TestLoadedSessionTracksSuppressedReplayUpdatesWithoutPublishingThem(t *test
 		ToolCallState: model.ToolCallStateFailed,
 	}
 
-	session.publish(update)
+	session.publish(context.Background(), update)
 
 	session.mu.RLock()
 	updatesSeen := session.updatesSeen
@@ -493,7 +493,7 @@ func TestSessionPublishAndRemoveHelpers(t *testing.T) {
 	t.Parallel()
 
 	session := newSession("session-1")
-	session.publish(model.SessionUpdate{})
+	session.publish(context.Background(), model.SessionUpdate{})
 	session.finish(model.StatusCompleted, nil)
 	if err := session.Err(); err != nil {
 		t.Fatalf("unexpected session error: %v", err)

@@ -58,6 +58,19 @@ type DriverCatalogLauncher struct {
 	Probe   []string
 }
 
+// RuntimeRegistry captures the ACP runtime validation surface needed by
+// execution and kernel code.
+type RuntimeRegistry interface {
+	ValidateRuntimeConfig(cfg *model.RuntimeConfig) error
+	EnsureAvailable(cfg *model.RuntimeConfig) error
+}
+
+// Registry exposes the supported ACP runtime catalog through a value that can be
+// passed around as a dependency.
+type Registry struct{}
+
+var _ RuntimeRegistry = Registry{}
+
 var supportedRegistryIDEOrder = []string{
 	model.IDEClaude,
 	model.IDECodex,
@@ -231,6 +244,21 @@ var (
 		},
 	}
 )
+
+// DefaultRegistry returns the default ACP runtime registry handle.
+func DefaultRegistry() RuntimeRegistry {
+	return Registry{}
+}
+
+// ValidateRuntimeConfig verifies that the runtime config references a supported agent runtime.
+func (Registry) ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
+	return ValidateRuntimeConfig(cfg)
+}
+
+// EnsureAvailable verifies that the configured ACP agent binary is installed and executable.
+func (Registry) EnsureAvailable(cfg *model.RuntimeConfig) error {
+	return EnsureAvailable(cfg)
+}
 
 // AvailabilityError reports an ACP runtime that is missing or incorrectly installed.
 type AvailabilityError struct {

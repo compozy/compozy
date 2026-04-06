@@ -240,7 +240,7 @@ const (
 )
 
 type uiSession interface {
-	events() chan uiMsg
+	enqueue(uiMsg)
 	setQuitHandler(func(uiQuitRequest))
 	closeEvents()
 	shutdown()
@@ -248,6 +248,7 @@ type uiSession interface {
 }
 
 type config struct {
+	workspaceRoot          string
 	name                   string
 	round                  int
 	provider               string
@@ -312,6 +313,7 @@ func newConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *confi
 		return nil
 	}
 	return &config{
+		workspaceRoot:          src.WorkspaceRoot,
 		name:                   src.Name,
 		round:                  src.Round,
 		provider:               src.Provider,

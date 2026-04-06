@@ -6,6 +6,8 @@ import (
 	"context"
 
 	core "github.com/compozy/compozy/internal/core"
+	// Register dispatcher-backed adapters for the legacy public core API surface.
+	_ "github.com/compozy/compozy/internal/core/kernel"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.

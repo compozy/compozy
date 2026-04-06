@@ -14,6 +14,9 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const execRunSchemaVersion = 1
@@ -98,9 +101,11 @@ type execTurnPaths struct {
 }
 
 type execRunState struct {
+	ctx          context.Context
 	record       PersistedExecRun
 	runArtifacts model.RunArtifacts
 	events       *execEventEmitter
+	journal      *journal.Journal
 	turn         int
 	turnDir      string
 	turnPaths    execTurnPaths
@@ -204,7 +209,7 @@ func IsExecErrorReported(err error) bool {
 
 // ExecuteExec runs one headless-or-TUI exec turn with optional persistence and ACP resume.
 func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
-	promptText, state, internalCfg, execJob, err := prepareExecExecution(cfg)
+	promptText, state, internalCfg, execJob, err := prepareExecExecution(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -214,8 +219,8 @@ func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
 	}
 
 	useUI := cfg.TUI
-	ui, uiCh := setupExecUI(ctx, internalCfg, useUI, execJob)
-	result := executeExecJob(ctx, internalCfg, &execJob, cfg.WorkspaceRoot, useUI, uiCh, state)
+	ui := setupExecUI(ctx, internalCfg, useUI, execJob)
+	result := executeExecJob(ctx, internalCfg, &execJob, cfg.WorkspaceRoot, useUI, state)
 	if waitErr := waitExecUI(ui); waitErr != nil && result.err == nil {
 		result.status = runStatusFailed
 		result.err = waitErr
@@ -223,7 +228,7 @@ func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
 	return finalizeExecResult(state, result)
 }
 
-func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *config, job, error) {
+func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string, *execRunState, *config, job, error) {
 	promptText, err := resolveExecPromptText(cfg)
 	if err != nil {
 		return "", nil, nil, job{}, err
@@ -231,7 +236,7 @@ func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *con
 	if err := agent.EnsureAvailable(cfg); err != nil {
 		return "", nil, nil, job{}, err
 	}
-	state, err := prepareExecRunState(cfg)
+	state, err := prepareExecRunState(ctx, cfg)
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
@@ -243,6 +248,11 @@ func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *con
 		state.close()
 		return "", nil, nil, job{}, err
 	}
+	if cfg.Persist {
+		// Exec callers read cfg.RunID after ExecuteExec returns to discover the
+		// persisted run artifacts for newly allocated exec runs.
+		cfg.RunID = state.runArtifacts.RunID
+	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
 	execJob, err := newExecRuntimeJob(promptText, state)
 	if err != nil {
@@ -252,15 +262,11 @@ func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *con
 	return promptText, state, internalCfg, execJob, nil
 }
 
-func setupExecUI(ctx context.Context, cfg *config, enabled bool, execJob job) (uiSession, chan uiMsg) {
+func setupExecUI(ctx context.Context, cfg *config, enabled bool, execJob job) uiSession {
 	if !enabled {
-		return nil, nil
+		return nil
 	}
-	ui := setupUI(ctx, []job{execJob}, cfg, true)
-	if ui == nil {
-		return nil, nil
-	}
-	return ui, ui.events()
+	return setupUI(ctx, []job{execJob}, cfg, nil, true)
 }
 
 func waitExecUI(ui uiSession) error {
@@ -287,13 +293,11 @@ func executeExecJob(
 	j *job,
 	cwd string,
 	useUI bool,
-	uiCh chan uiMsg,
 	state *execRunState,
 ) execExecutionResult {
 	notifyJobStart(
 		useUI,
 		false,
-		uiCh,
 		0,
 		1,
 		atLeastOne(cfg.maxRetries+1),
@@ -307,40 +311,29 @@ func executeExecJob(
 
 	attemptTimeout := cfg.timeout
 	for attempt := 1; ; attempt++ {
-		result := runSingleExecAttempt(ctx, cfg, j, cwd, useUI, uiCh, attemptTimeout, state)
+		result := runSingleExecAttempt(ctx, cfg, j, cwd, useUI, attemptTimeout, state)
 		if result.err == nil {
-			publishExecFinish(useUI, uiCh, true, 0)
+			publishExecFinish(useUI, true, 0)
 			return result
 		}
 
 		if !shouldRetryExecAttempt(result.err, attempt, cfg.maxRetries, j) {
-			publishExecFinish(useUI, uiCh, false, sessionErrorCode(result.err))
+			publishExecFinish(useUI, false, sessionErrorCode(result.err))
 			return result
 		}
 
-		publishExecRetry(useUI, uiCh, attempt+1, cfg.maxRetries+1, result.err)
+		publishExecRetry(useUI, attempt+1, cfg.maxRetries+1, result.err)
 		attemptTimeout = nextRetryTimeout(attemptTimeout, cfg.retryBackoffMultiplier)
 	}
 }
 
-func publishExecFinish(useUI bool, uiCh chan uiMsg, success bool, exitCode int) {
-	if !useUI || uiCh == nil {
-		return
-	}
-	uiCh <- jobFinishedMsg{Index: 0, Success: success, ExitCode: exitCode}
-}
+// publishExecFinish is a placeholder until exec-mode retry/finish events gain
+// dedicated UI rendering.
+func publishExecFinish(bool, bool, int) {}
 
-func publishExecRetry(useUI bool, uiCh chan uiMsg, attempt int, maxAttempts int, err error) {
-	if !useUI || uiCh == nil || err == nil {
-		return
-	}
-	uiCh <- jobRetryMsg{
-		Index:       0,
-		Attempt:     attempt,
-		MaxAttempts: maxAttempts,
-		Reason:      err.Error(),
-	}
-}
+// publishExecRetry is a placeholder until exec-mode retry events gain dedicated
+// UI rendering.
+func publishExecRetry(bool, int, int, error) {}
 
 func shouldRetryExecAttempt(err error, attempt int, maxRetries int, j *job) bool {
 	if j != nil && strings.TrimSpace(j.resumeSession) != "" {
@@ -355,7 +348,6 @@ func runSingleExecAttempt(
 	j *job,
 	cwd string,
 	useUI bool,
-	uiCh chan uiMsg,
 	timeout time.Duration,
 	state *execRunState,
 ) execExecutionResult {
@@ -380,8 +372,8 @@ func runSingleExecAttempt(
 		cwd,
 		useUI,
 		false,
-		uiCh,
 		0,
+		stateJournal(state),
 		nil,
 		nil,
 		activity,
@@ -480,7 +472,7 @@ func failExecAttempt(execution *sessionExecution, err error) execExecutionResult
 	}
 }
 
-func prepareExecRunState(cfg *model.RuntimeConfig) (*execRunState, error) {
+func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig) (*execRunState, error) {
 	record, runID, err := resolvePersistedExecRecord(cfg)
 	if err != nil {
 		return nil, err
@@ -490,6 +482,7 @@ func prepareExecRunState(cfg *model.RuntimeConfig) (*execRunState, error) {
 		return nil, err
 	}
 	state := &execRunState{
+		ctx:      ctx,
 		record:   record,
 		turn:     atLeastOne(record.TurnCount + 1),
 		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI,
@@ -541,11 +534,12 @@ func preparePersistentExecRunState(
 	if err := ensureExecRunDirectories(state); err != nil {
 		return err
 	}
-	eventFile, err := os.OpenFile(state.runArtifacts.EventsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	runJournal, err := journal.Open(state.runArtifacts.EventsPath, nil, 0)
 	if err != nil {
-		return fmt.Errorf("open exec events: %w", err)
+		return fmt.Errorf("open exec events journal: %w", err)
 	}
-	state.events = newExecEventEmitter(eventFile, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.journal = runJournal
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, runID, resolvedModel)
 	}
@@ -600,6 +594,11 @@ func (s *execRunState) close() {
 	if s == nil {
 		return
 	}
+	if s.journal != nil {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_ = s.journal.Close(closeCtx)
+		cancel()
+	}
 	if s.events != nil {
 		_ = s.events.Close()
 	}
@@ -618,6 +617,21 @@ func (s *execRunState) writeStarted(cfg *model.RuntimeConfig) error {
 		if err := s.writeRecord(); err != nil {
 			return err
 		}
+	}
+	if err := s.submitRuntimeEvent(
+		eventspkg.EventKindRunStarted,
+		kinds.RunStartedPayload{
+			Mode:            model.ModeExec,
+			WorkspaceRoot:   cfg.WorkspaceRoot,
+			IDE:             cfg.IDE,
+			Model:           s.record.Model,
+			ReasoningEffort: cfg.ReasoningEffort,
+			AccessMode:      cfg.AccessMode,
+			ArtifactsDir:    s.runArtifacts.RunDir,
+			JobsTotal:       1,
+		},
+	); err != nil {
+		return err
 	}
 	return s.emit(execEvent{
 		Type:   "run.started",
@@ -659,7 +673,7 @@ func (s *execRunState) completeTurn(result execExecutionResult) error {
 	if err := s.persistTurnResult(); err != nil {
 		return err
 	}
-	if err := s.emitTurnResult(result, now); err != nil {
+	if err := s.emitTurnResult(result, turnRecord.StartedAt, now); err != nil {
 		return err
 	}
 	if err := s.writeTextOutput(result); err != nil {
@@ -728,7 +742,48 @@ func (s *execRunState) persistTurnResult() error {
 	return s.writeRecord()
 }
 
-func (s *execRunState) emitTurnResult(result execExecutionResult, completedAt time.Time) error {
+func (s *execRunState) emitTurnResult(result execExecutionResult, startedAt time.Time, completedAt time.Time) error {
+	durationMs := completedAt.Sub(startedAt).Milliseconds()
+	switch result.status {
+	case runStatusSucceeded:
+		if err := s.submitRuntimeEvent(
+			eventspkg.EventKindRunCompleted,
+			kinds.RunCompletedPayload{
+				ArtifactsDir:   s.runArtifacts.RunDir,
+				JobsTotal:      1,
+				JobsSucceeded:  1,
+				JobsFailed:     0,
+				JobsCancelled:  0,
+				DurationMs:     durationMs,
+				ResultPath:     s.turnPaths.resultPath,
+				SummaryMessage: "completed",
+			},
+		); err != nil {
+			return err
+		}
+	case runStatusCanceled:
+		if err := s.submitRuntimeEvent(
+			eventspkg.EventKindRunCancelled,
+			kinds.RunCancelledPayload{
+				Reason:     errorString(result.err),
+				DurationMs: durationMs,
+			},
+		); err != nil {
+			return err
+		}
+	default:
+		if err := s.submitRuntimeEvent(
+			eventspkg.EventKindRunFailed,
+			kinds.RunFailedPayload{
+				ArtifactsDir: s.runArtifacts.RunDir,
+				DurationMs:   durationMs,
+				Error:        errorString(result.err),
+				ResultPath:   s.turnPaths.resultPath,
+			},
+		); err != nil {
+			return err
+		}
+	}
 	return s.emit(execEvent{
 		Type:   "run." + result.status,
 		RunID:  s.runArtifacts.RunID,
@@ -790,12 +845,31 @@ func (s *execRunState) emitSessionUpdate(update model.SessionUpdate) error {
 
 func (s *execRunState) emit(event execEvent) error {
 	if s == nil || s.events == nil {
-		if strings.TrimSpace(event.Output) == "" || event.Type != "run.failed" {
-			return nil
-		}
 		return nil
 	}
 	return s.events.Write(event)
+}
+
+func (s *execRunState) submitRuntimeEvent(kind eventspkg.EventKind, payload any) error {
+	if s == nil || s.journal == nil {
+		return nil
+	}
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	event, err := newRuntimeEvent(s.runArtifacts.RunID, kind, payload)
+	if err != nil {
+		return err
+	}
+	return s.journal.Submit(ctx, event)
+}
+
+func stateJournal(state *execRunState) *journal.Journal {
+	if state == nil {
+		return nil
+	}
+	return state.journal
 }
 
 func (s *execRunState) writeRecord() error {

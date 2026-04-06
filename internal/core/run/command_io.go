@@ -10,6 +10,9 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 var newAgentClient = agent.NewClient
@@ -44,10 +47,9 @@ func (s *sessionExecution) close() {
 func notifyJobStart(
 	useUI bool,
 	emitHuman bool,
-	uiCh chan uiMsg,
-	index int,
-	attempt int,
-	maxAttempts int,
+	_ int,
+	_ int,
+	_ int,
 	job *job,
 	ide string,
 	model string,
@@ -55,10 +57,7 @@ func notifyJobStart(
 	reasoningEffort string,
 	accessMode string,
 ) {
-	if useUI {
-		uiCh <- jobStartedMsg{Index: index, Attempt: attempt, MaxAttempts: maxAttempts}
-		return
-	}
+	_ = useUI
 	if !emitHuman {
 		return
 	}
@@ -99,8 +98,8 @@ func setupSessionExecution(
 	cwd string,
 	useUI bool,
 	streamHumanOutput bool,
-	uiCh chan uiMsg,
 	index int,
+	runJournal *journal.Journal,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
 	activity *activityMonitor,
@@ -134,15 +133,61 @@ func setupSessionExecution(
 		return nil, fmt.Errorf("create ACP session: %w", err)
 	}
 
+	execution := buildSessionExecution(
+		ctx,
+		cfg,
+		job,
+		useUI,
+		streamHumanOutput,
+		index,
+		runJournal,
+		aggregateUsage,
+		aggregateMu,
+		activity,
+		logger,
+		client,
+		releaseClient,
+		session,
+		outFile,
+		errFile,
+	)
+	if err := emitSessionStartedEvent(ctx, runJournal, cfg.runArtifacts.RunID, index, session.Identity()); err != nil {
+		execution.close()
+		return nil, err
+	}
+
+	return execution, nil
+}
+
+func buildSessionExecution(
+	ctx context.Context,
+	cfg *config,
+	job *job,
+	useUI bool,
+	streamHumanOutput bool,
+	index int,
+	runJournal *journal.Journal,
+	aggregateUsage *model.Usage,
+	aggregateMu *sync.Mutex,
+	activity *activityMonitor,
+	logger *slog.Logger,
+	client agent.Client,
+	releaseClient func(),
+	session agent.Session,
+	outFile *os.File,
+	errFile *os.File,
+) *sessionExecution {
 	outWriter, errWriter := createLogWriters(outFile, errFile, useUI, streamHumanOutput)
 	handler := newSessionUpdateHandler(
+		ctx,
 		index,
 		cfg.ide,
 		session.ID(),
 		logger.With("component", "acp.session", "agent_id", cfg.ide, "session_id", session.ID()),
+		cfg.runArtifacts.RunID,
 		outWriter,
 		errWriter,
-		uiCh,
+		runJournal,
 		&job.usage,
 		aggregateUsage,
 		aggregateMu,
@@ -157,7 +202,6 @@ func setupSessionExecution(
 		"job_index",
 		index,
 	)
-
 	return &sessionExecution{
 		client:        client,
 		releaseClient: releaseClient,
@@ -166,7 +210,40 @@ func setupSessionExecution(
 		outFile:       outFile,
 		errFile:       errFile,
 		logger:        logger,
-	}, nil
+	}
+}
+
+func emitSessionStartedEvent(
+	ctx context.Context,
+	runJournal *journal.Journal,
+	runID string,
+	index int,
+	identity agent.SessionIdentity,
+) error {
+	if runJournal == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	event, err := newRuntimeEvent(
+		runID,
+		events.EventKindSessionStarted,
+		kinds.SessionStartedPayload{
+			Index:          index,
+			ACPSessionID:   identity.ACPSessionID,
+			AgentSessionID: identity.AgentSessionID,
+			Resumed:        identity.Resumed,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if err := runJournal.Submit(ctx, event); err != nil {
+		return fmt.Errorf("submit session started event: %w", err)
+	}
+	return nil
 }
 
 func resolveSessionLogger(logger *slog.Logger) *slog.Logger {

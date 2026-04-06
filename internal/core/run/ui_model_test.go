@@ -30,8 +30,9 @@ func TestUIControllerHelpers(t *testing.T) {
 		ch:   make(chan uiMsg, 1),
 		done: done,
 	}
-	if got := ctrl.events(); got != ctrl.ch {
-		t.Fatal("expected events to expose controller channel")
+	ctrl.enqueue(jobStartedMsg{Index: 0})
+	if got := <-ctrl.ch; got != (jobStartedMsg{Index: 0}) {
+		t.Fatalf("unexpected enqueued message: %#v", got)
 	}
 
 	called := 0
@@ -53,7 +54,7 @@ func TestUIControllerHelpers(t *testing.T) {
 func TestSetupUIDisabledReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	if ui := setupUI(context.Background(), nil, nil, false); ui != nil {
+	if ui := setupUI(context.Background(), nil, nil, nil, false); ui != nil {
 		t.Fatalf("expected disabled setupUI to return nil, got %T", ui)
 	}
 }

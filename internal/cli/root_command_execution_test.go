@@ -5,12 +5,18 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/provider"
+	"github.com/compozy/compozy/internal/core/reviews"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/setup"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/spf13/cobra"
 )
 
 func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
@@ -339,6 +345,151 @@ func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
 	assertNoRunArtifactsForCLI(t, workspaceRoot)
 }
 
+func TestStartCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"start",
+		"--name",
+		"demo",
+		"--tasks-dir",
+		".compozy/tasks/demo",
+		"--dry-run",
+	)
+	if err != nil {
+		t.Fatalf("execute start dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	runMeta := readCLIArtifactJSON(t, filepath.Join(runDir, "run.json"))
+	if got := runMeta["mode"]; got != string(model.ModePRDTasks) {
+		t.Fatalf("unexpected run mode: %#v", runMeta)
+	}
+
+	result := readCLIArtifactJSON(t, filepath.Join(runDir, "result.json"))
+	if got := result["status"]; got != "succeeded" {
+		t.Fatalf("unexpected result payload: %#v", result)
+	}
+
+	promptPath := singleCLIJobArtifact(t, runDir, "*.prompt.md")
+	outLogPath := singleCLIJobArtifact(t, runDir, "*.out.log")
+	errLogPath := singleCLIJobArtifact(t, runDir, "*.err.log")
+	for _, path := range []string{promptPath, outLogPath, errLogPath} {
+		if _, statErr := os.Stat(path); statErr != nil {
+			t.Fatalf("expected job artifact %s: %v", path, statErr)
+		}
+	}
+
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil {
+		t.Fatalf("read prompt artifact: %v", err)
+	}
+	if !strings.Contains(string(promptBytes), "`cy-execute-task`") {
+		t.Fatalf("expected task prompt to reference cy-execute-task, got:\n%s", string(promptBytes))
+	}
+
+	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobCompleted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(eventKinds, want) {
+			t.Fatalf("expected runtime events to include %s, got %v", want, eventKinds)
+		}
+	}
+}
+
+func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title:       "Add nil check",
+		File:        "internal/app/service.go",
+		Line:        42,
+		Author:      "coderabbitai[bot]",
+		ProviderRef: "thread:PRT_1,comment:RC_1",
+		Body:        "Please add a nil check before dereferencing the pointer.",
+	}}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"fix-reviews",
+		"--name",
+		"demo",
+		"--round",
+		"1",
+		"--dry-run",
+	)
+	if err != nil {
+		t.Fatalf("execute fix-reviews dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for dry-run fix-reviews, got %q", stderr)
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	runMeta := readCLIArtifactJSON(t, filepath.Join(runDir, "run.json"))
+	if got := runMeta["mode"]; got != string(model.ModeCodeReview) {
+		t.Fatalf("unexpected review run mode: %#v", runMeta)
+	}
+
+	result := readCLIArtifactJSON(t, filepath.Join(runDir, "result.json"))
+	if got := result["status"]; got != "succeeded" {
+		t.Fatalf("unexpected review result payload: %#v", result)
+	}
+
+	promptPath := singleCLIJobArtifact(t, runDir, "*.prompt.md")
+	promptBytes, err := os.ReadFile(promptPath)
+	if err != nil {
+		t.Fatalf("read review prompt artifact: %v", err)
+	}
+	for _, want := range []string{"`cy-fix-reviews`", "issue_001.md", "internal/app/service.go"} {
+		if !strings.Contains(string(promptBytes), want) {
+			t.Fatalf("expected review prompt to contain %q, got:\n%s", want, string(promptBytes))
+		}
+	}
+
+	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobCompleted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(eventKinds, want) {
+			t.Fatalf("expected runtime events to include %s, got %v", want, eventKinds)
+		}
+	}
+}
+
 func latestRunDirForCLI(t *testing.T, workspaceRoot string) string {
 	t.Helper()
 
@@ -419,7 +570,17 @@ func withWorkingDir(t *testing.T, dir string) {
 func executeRootCommandCapturingProcessIO(t *testing.T, in io.Reader, args ...string) (string, string, error) {
 	t.Helper()
 
-	cmd := NewRootCommand()
+	return executeCommandCapturingProcessIO(t, NewRootCommand(), in, args...)
+}
+
+func executeCommandCapturingProcessIO(
+	t *testing.T,
+	cmd *cobra.Command,
+	in io.Reader,
+	args ...string,
+) (string, string, error) {
+	t.Helper()
+
 	stdoutRead, stdoutWrite, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("create stdout pipe: %v", err)
@@ -469,6 +630,68 @@ func executeRootCommandCapturingProcessIO(t *testing.T, in io.Reader, args ...st
 	}
 
 	return string(stdoutBytes), string(stderrBytes), runErr
+}
+
+func allowBundledSkillsForExecutionTests() commandStateDefaults {
+	defaults := defaultCommandStateDefaults()
+	defaults.listBundledSkills = func() ([]setup.Skill, error) {
+		return nil, nil
+	}
+	defaults.verifyBundledSkills = func(setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{}, nil
+	}
+	return defaults
+}
+
+func readCLIArtifactJSON(t *testing.T, path string) map[string]any {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read artifact %s: %v", path, err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(content, &payload); err != nil {
+		t.Fatalf("decode artifact %s: %v", path, err)
+	}
+	return payload
+}
+
+func singleCLIJobArtifact(t *testing.T, runDir string, pattern string) string {
+	t.Helper()
+
+	matches, err := filepath.Glob(filepath.Join(runDir, "jobs", pattern))
+	if err != nil {
+		t.Fatalf("glob job artifact %s: %v", pattern, err)
+	}
+	if len(matches) != 1 {
+		t.Fatalf("expected exactly one %s artifact, got %d (%v)", pattern, len(matches), matches)
+	}
+	return matches[0]
+}
+
+func cliRuntimeEventKinds(t *testing.T, eventsPath string) []eventspkg.EventKind {
+	t.Helper()
+
+	content, err := os.ReadFile(eventsPath)
+	if err != nil {
+		t.Fatalf("read events artifact %s: %v", eventsPath, err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	kinds := make([]eventspkg.EventKind, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		var event eventspkg.Event
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("decode runtime event line: %v\nline:\n%s", err, line)
+		}
+		kinds = append(kinds, event.Kind)
+	}
+	return kinds
 }
 
 func containsAll(s string, fragments ...string) bool {

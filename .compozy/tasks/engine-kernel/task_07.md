@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Reader library over .compozy/runs/
 type: backend
 complexity: high
@@ -20,6 +20,10 @@ Create the public `pkg/compozy/runs/` package with typed operations for enumerat
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
 
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
+
 <requirements>
 - MUST create public package `pkg/compozy/runs/`
 - MUST add direct dependencies `github.com/nxadm/tail` and `github.com/fsnotify/fsnotify` via `go get`
@@ -38,14 +42,14 @@ Create the public `pkg/compozy/runs/` package with typed operations for enumerat
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add `nxadm/tail` and `fsnotify` dependencies via `go get`; run `go mod tidy`
-- [ ] 7.2 Create `pkg/compozy/runs/summary.go` with `RunSummary`, `ListOptions` types
-- [ ] 7.3 Implement `List` with directory scan + `run.json` parsing + filter application
-- [ ] 7.4 Implement `Open` + `Run` handle + `Summary()` accessor
-- [ ] 7.5 Implement `Replay` using `bufio.Scanner` over `events.jsonl`, yielding `iter.Seq2`, tolerating partial last line
-- [ ] 7.6 Implement `Tail` using `nxadm/tail` with replay-from-cursor then live-follow handoff
-- [ ] 7.7 Implement `RunEvent`, `RunEventKind` constants, `WatchWorkspace` using `fsnotify.Watcher`
-- [ ] 7.8 Write unit and integration tests for all five public operations
+- [x] 7.1 Add `nxadm/tail` and `fsnotify` dependencies via `go get`; run `go mod tidy`
+- [x] 7.2 Create `pkg/compozy/runs/summary.go` with `RunSummary`, `ListOptions` types
+- [x] 7.3 Implement `List` with directory scan + `run.json` parsing + filter application
+- [x] 7.4 Implement `Open` + `Run` handle + `Summary()` accessor
+- [x] 7.5 Implement `Replay` using `bufio.Scanner` over `events.jsonl`, yielding `iter.Seq2`, tolerating partial last line
+- [x] 7.6 Implement `Tail` using `nxadm/tail` with replay-from-cursor then live-follow handoff
+- [x] 7.7 Implement `RunEvent`, `RunEventKind` constants, `WatchWorkspace` using `fsnotify.Watcher`
+- [x] 7.8 Write unit and integration tests for all five public operations
 
 ## Implementation Details
 See TechSpec "Core Interfaces" — `RunSummary`, `Run`, and on-disk layout — and ADR-005 for the full decision on the public API contract, dependencies (`nxadm/tail`, `fsnotify`), and versioning posture. The package depends on `pkg/compozy/events/` from task_01 for the `events.Event` type exposed in `Replay` and `Tail` return types. Directory layout under `.compozy/runs/<run-id>/` is already established by exec-command task_02 (run.json, events.jsonl, jobs/, etc.).
@@ -73,28 +77,28 @@ See TechSpec "Core Interfaces" — `RunSummary`, `Run`, and on-disk layout — a
 
 ## Tests
 - Unit tests:
-  - [ ] `List` returns all runs when no filters applied, sorted by StartedAt descending
-  - [ ] `List` filters by `Status=["failed"]` excluding completed runs
-  - [ ] `List` filters by `Mode=["exec"]` excluding batch runs
-  - [ ] `List` applies `Since` and `Until` time bounds correctly
-  - [ ] `List` applies `Limit` capping result count
-  - [ ] `List` skips subdirectories missing `run.json` with warning log instead of erroring
-  - [ ] `Open` loads run.json and returns `*Run` with populated `Summary`
-  - [ ] `Open` returns descriptive error for missing run ID
-  - [ ] `Replay` yields all events from `fromSeq=0` matching the sequence written
-  - [ ] `Replay` starting from `fromSeq=N` skips events with seq < N
-  - [ ] `Replay` tolerates truncated last line: yields all complete events, emits error for truncated line, iteration terminates
-  - [ ] `Tail` replays historical events from fromSeq before delivering live events
-  - [ ] `Tail` cancels cleanly when ctx is cancelled; both channels close
-  - [ ] `WatchWorkspace` emits `RunEvent{Kind: RunEventCreated}` when a new run directory appears
-  - [ ] `WatchWorkspace` emits `RunEvent{Kind: RunEventStatusChanged}` when run.json status field is rewritten
-  - [ ] `WatchWorkspace` emits `RunEvent{Kind: RunEventRemoved}` when a run directory is removed
-  - [ ] `WatchWorkspace` cancels cleanly on ctx cancel
+  - [x] `List` returns all runs when no filters applied, sorted by StartedAt descending
+  - [x] `List` filters by `Status=["failed"]` excluding completed runs
+  - [x] `List` filters by `Mode=["exec"]` excluding batch runs
+  - [x] `List` applies `Since` and `Until` time bounds correctly
+  - [x] `List` applies `Limit` capping result count
+  - [x] `List` skips subdirectories missing `run.json` with warning log instead of erroring
+  - [x] `Open` loads run.json and returns `*Run` with populated `Summary`
+  - [x] `Open` returns descriptive error for missing run ID
+  - [x] `Replay` yields all events from `fromSeq=0` matching the sequence written
+  - [x] `Replay` starting from `fromSeq=N` skips events with seq < N
+  - [x] `Replay` tolerates truncated last line: yields all complete events, emits error for truncated line, iteration terminates
+  - [x] `Tail` replays historical events from fromSeq before delivering live events
+  - [x] `Tail` cancels cleanly when ctx is cancelled; both channels close
+  - [x] `WatchWorkspace` emits `RunEvent{Kind: RunEventCreated}` when a new run directory appears
+  - [x] `WatchWorkspace` emits `RunEvent{Kind: RunEventStatusChanged}` when run.json status field is rewritten
+  - [x] `WatchWorkspace` emits `RunEvent{Kind: RunEventRemoved}` when a run directory is removed
+  - [x] `WatchWorkspace` cancels cleanly on ctx cancel
 - Integration tests:
-  - [ ] Round-trip: journal writes 100 events to events.jsonl; Replay yields identical sequence with matching seq numbers
-  - [ ] Live-tail: start Tail on existing file, append 50 new events; all 50 delivered via channel in order
-  - [ ] Schema version compat: events with `schema_version="1.0"` + unknown additive field parse successfully; events with `schema_version="99.0"` yield typed error
-  - [ ] WatchWorkspace integration: external process creates `.compozy/runs/new-run/run.json`; WatchWorkspace delivers RunEventCreated within 1s
+  - [x] Round-trip: journal writes 100 events to events.jsonl; Replay yields identical sequence with matching seq numbers
+  - [x] Live-tail: start Tail on existing file, append 50 new events; all 50 delivered via channel in order
+  - [x] Schema version compat: events with `schema_version="1.0"` + unknown additive field parse successfully; events with `schema_version="99.0"` yield typed error
+  - [x] WatchWorkspace integration: external process creates `.compozy/runs/new-run/run.json`; WatchWorkspace delivers RunEventCreated within 1s
 - Test coverage target: >=80%
 - All tests must pass
 

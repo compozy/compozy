@@ -18,17 +18,62 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providers"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 var reviewProviderRegistry = providers.DefaultRegistry
 
+const runtimeEventBusBufferSize = 64
+
 // Execute runs the prepared jobs and manages shutdown, retries, and summaries.
-func Execute(ctx context.Context, jobs []model.Job, runArtifacts model.RunArtifacts, cfg *model.RuntimeConfig) error {
+func Execute(
+	ctx context.Context,
+	jobs []model.Job,
+	runArtifacts model.RunArtifacts,
+	runJournal *journal.Journal,
+	bus *events.Bus[events.Event],
+	cfg *model.RuntimeConfig,
+) (retErr error) {
 	internalCfg := newConfig(cfg, runArtifacts)
 	internalJobs := newJobs(jobs)
+	bus = ensureRuntimeEventBus(internalCfg, runJournal, bus)
+	startedAt := time.Now().UTC()
+	defer func() {
+		if err := closeRunJournal(runJournal); err != nil {
+			retErr = errors.Join(retErr, err)
+		}
+	}()
 
-	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(ctx, internalJobs, internalCfg)
+	if err := submitRunEvent(
+		ctx,
+		runJournal,
+		runArtifacts.RunID,
+		events.EventKindRunStarted,
+		kinds.RunStartedPayload{
+			Mode:            string(internalCfg.mode),
+			Name:            internalCfg.name,
+			WorkspaceRoot:   internalCfg.workspaceRoot,
+			IDE:             internalCfg.ide,
+			Model:           internalCfg.model,
+			ReasoningEffort: internalCfg.reasoningEffort,
+			AccessMode:      internalCfg.accessMode,
+			ArtifactsDir:    runArtifacts.RunDir,
+			JobsTotal:       len(internalJobs),
+		},
+	); err != nil {
+		return err
+	}
+
+	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(
+		ctx,
+		internalJobs,
+		internalCfg,
+		runJournal,
+		bus,
+	)
 	result := buildExecutionResult(internalCfg, internalJobs, failures, shutdownErr)
 	if err := emitExecutionResult(internalCfg, result); err != nil {
 		return err
@@ -37,6 +82,9 @@ func Execute(ctx context.Context, jobs []model.Job, runArtifacts model.RunArtifa
 		summarizeResults(failed, failures, total)
 	}
 	refreshTaskMetaOnExit(internalCfg)
+	if err := emitRunTerminalEvent(ctx, runJournal, result, internalJobs, startedAt); err != nil {
+		return err
+	}
 
 	if shutdownErr != nil {
 		if internalCfg.humanOutputEnabled() {
@@ -50,13 +98,29 @@ func Execute(ctx context.Context, jobs []model.Job, runArtifacts model.RunArtifa
 	return nil
 }
 
+func ensureRuntimeEventBus(
+	cfg *config,
+	runJournal *journal.Journal,
+	bus *events.Bus[events.Event],
+) *events.Bus[events.Event] {
+	if cfg != nil && cfg.uiEnabled() && bus == nil {
+		bus = events.New[events.Event](runtimeEventBusBufferSize)
+	}
+	if runJournal != nil && bus != nil {
+		runJournal.SetBus(bus)
+	}
+	return bus
+}
+
 type jobExecutionContext struct {
+	ctx            context.Context
 	cfg            *config
 	jobs           []job
 	total          int
 	cwd            string
 	logger         *slog.Logger
-	uiCh           chan uiMsg
+	journal        *journal.Journal
+	bus            *events.Bus[events.Event]
 	ui             uiSession
 	sem            chan struct{}
 	aggregateUsage model.Usage
@@ -90,13 +154,20 @@ type executorController struct {
 	ctx              context.Context
 	execCtx          *jobExecutionContext
 	state            executorState
+	shutdownState    shutdownState
 	cancelJobs       context.CancelCauseFunc
 	done             <-chan struct{}
 	shutdownRequests chan shutdownRequest
 }
 
-func executeJobsWithGracefulShutdown(ctx context.Context, jobs []job, cfg *config) (int32, []failInfo, int, error) {
-	execCtx, err := newJobExecutionContext(ctx, jobs, cfg)
+func executeJobsWithGracefulShutdown(
+	ctx context.Context,
+	jobs []job,
+	cfg *config,
+	runJournal *journal.Journal,
+	bus *events.Bus[events.Event],
+) (int32, []failInfo, int, error) {
+	execCtx, err := newJobExecutionContext(ctx, jobs, cfg, runJournal, bus)
 	if err != nil {
 		total := len(jobs)
 		return 0, []failInfo{{err: err}}, total, nil
@@ -167,12 +238,14 @@ func (c *executorController) handleDone(shutdownTimer *time.Timer) (int32, []fai
 		"Controller shutdown complete after shutdown grace period (%v)\n",
 		gracefulShutdownTimeout,
 	)
+	forced := c.state == executorStateForcing
 	c.state = executorStateShutdown
 	if err := c.execCtx.shutdownUI(); err != nil {
 		c.state = executorStateTerminated
 		return c.result(err)
 	}
 	c.execCtx.reportAggregateUsage()
+	c.execCtx.emitShutdownTerminated(c.shutdownState, forced)
 	c.state = executorStateTerminated
 	return c.result(nil)
 }
@@ -194,7 +267,7 @@ func (c *executorController) emitShutdownFallback(format string, args ...any) {
 	if c == nil || c.execCtx == nil || c.execCtx.cfg == nil {
 		return
 	}
-	if !c.execCtx.cfg.humanOutputEnabled() || c.execCtx.uiCh != nil {
+	if !c.execCtx.cfg.humanOutputEnabled() || c.execCtx.ui != nil {
 		return
 	}
 	fmt.Fprintf(os.Stderr, format, args...)
@@ -222,12 +295,15 @@ func (c *executorController) beginDrain(source shutdownSource) bool {
 		c.cancelJobs(context.Canceled)
 	}
 	now := time.Now()
-	c.execCtx.publishShutdownStatus(shutdownState{
+	state := shutdownState{
 		Phase:       shutdownPhaseDraining,
 		Source:      source,
 		RequestedAt: now,
 		DeadlineAt:  now.Add(gracefulShutdownTimeout),
-	})
+	}
+	c.shutdownState = state
+	c.execCtx.emitShutdownRequested(state)
+	c.execCtx.publishShutdownStatus(state)
 	return true
 }
 
@@ -246,11 +322,16 @@ func (c *executorController) beginForce(source shutdownSource) {
 		c.cancelJobs(context.Canceled)
 	}
 	c.execCtx.forceActiveClients()
-	c.execCtx.publishShutdownStatus(shutdownState{
+	requestedAt := c.shutdownState.RequestedAt
+	if requestedAt.IsZero() {
+		requestedAt = time.Now()
+	}
+	c.shutdownState = shutdownState{
 		Phase:       shutdownPhaseForcing,
 		Source:      source,
-		RequestedAt: time.Now(),
-	})
+		RequestedAt: requestedAt,
+		DeadlineAt:  c.shutdownState.DeadlineAt,
+	}
 }
 
 type jobLifecycle struct {
@@ -259,6 +340,7 @@ type jobLifecycle struct {
 	execCtx        *jobExecutionContext
 	state          jobPhase
 	attempt        int
+	startedAt      time.Time
 	currentTimeout time.Duration
 	lastExitCode   int
 	lastFailure    *failInfo
@@ -281,25 +363,32 @@ func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.D
 	l.attempt = attempt
 	l.currentTimeout = timeout
 	l.state = jobPhaseRunning
+	if l.startedAt.IsZero() {
+		l.startedAt = time.Now().UTC()
+	}
+	cfg := l.execConfig()
 	if l.attempt == 1 {
+		l.execCtx.submitEventOrWarn(
+			events.EventKindJobStarted,
+			kinds.JobStartedPayload{
+				Index:       l.index,
+				Attempt:     attempt,
+				MaxAttempts: maxAttempts,
+			},
+		)
 		notifyJobStart(
-			l.execCtx.uiCh != nil,
-			l.execCtx.cfg.humanOutputEnabled(),
-			l.execCtx.uiCh,
+			false,
+			cfg != nil && cfg.humanOutputEnabled() && l.execCtx.ui == nil,
 			l.index,
 			attempt,
 			maxAttempts,
 			l.job,
-			l.execCtx.cfg.ide,
-			l.execCtx.cfg.model,
-			l.execCtx.cfg.addDirs,
-			l.execCtx.cfg.reasoningEffort,
-			l.execCtx.cfg.accessMode,
+			l.configIDE(),
+			l.configModel(),
+			l.configAddDirs(),
+			l.configReasoningEffort(),
+			l.configAccessMode(),
 		)
-		return
-	}
-	if l.execCtx.uiCh != nil {
-		l.execCtx.uiCh <- jobStartedMsg{Index: l.index, Attempt: attempt, MaxAttempts: maxAttempts}
 	}
 }
 
@@ -310,14 +399,15 @@ func (l *jobLifecycle) markRetry(failure failInfo, nextAttempt int, maxAttempts 
 	l.attempt = nextAttempt
 	l.job.exitCode = failure.exitCode
 	l.job.failure = failure.err.Error()
-	if l.execCtx.uiCh != nil {
-		l.execCtx.uiCh <- jobRetryMsg{
+	l.execCtx.submitEventOrWarn(
+		events.EventKindJobRetryScheduled,
+		kinds.JobRetryScheduledPayload{
 			Index:       l.index,
 			Attempt:     nextAttempt,
 			MaxAttempts: maxAttempts,
 			Reason:      failure.err.Error(),
-		}
-	}
+		},
+	)
 }
 
 func (l *jobLifecycle) markGiveUp(failure failInfo) {
@@ -331,14 +421,20 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 		recordFailure(&l.execCtx.failuresMu, &l.execCtx.failures, *l.lastFailure)
 	}
 	atomic.AddInt32(&l.execCtx.failed, 1)
-	if l.execCtx.uiCh != nil {
-		l.execCtx.uiCh <- jobFinishedMsg{Index: l.index, Success: false, ExitCode: l.lastExitCode}
-		if l.lastFailure != nil {
-			l.execCtx.uiCh <- jobFailureMsg{Failure: *l.lastFailure}
-		}
-		return
-	}
-	if l.lastFailure != nil && l.execCtx.cfg.humanOutputEnabled() {
+	l.execCtx.submitEventOrWarn(
+		events.EventKindJobFailed,
+		kinds.JobFailedPayload{
+			Index:       l.index,
+			Attempt:     l.attempt,
+			MaxAttempts: l.maxAttempts(),
+			CodeFile:    strings.Join(l.job.codeFiles, ", "),
+			ExitCode:    l.lastExitCode,
+			OutLog:      l.job.outLog,
+			ErrLog:      l.job.errLog,
+			Error:       l.job.failure,
+		},
+	)
+	if l.lastFailure != nil && l.humanOutputEnabled() {
 		fmt.Fprintf(
 			os.Stderr,
 			"\n❌ Job %d (%s) failed with exit code %d: %v\n",
@@ -351,15 +447,25 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 }
 
 func (l *jobLifecycle) markSuccess() {
+	if l.startedAt.IsZero() {
+		l.startedAt = time.Now().UTC()
+	}
 	l.lastFailure = nil
 	l.lastExitCode = 0
 	l.state = jobPhaseSucceeded
 	l.job.status = runStatusSucceeded
 	l.job.exitCode = 0
 	l.job.failure = ""
-	if l.execCtx.uiCh != nil {
-		l.execCtx.uiCh <- jobFinishedMsg{Index: l.index, Success: true, ExitCode: 0}
-	}
+	l.execCtx.submitEventOrWarn(
+		events.EventKindJobCompleted,
+		kinds.JobCompletedPayload{
+			Index:       l.index,
+			Attempt:     l.attempt,
+			MaxAttempts: l.maxAttempts(),
+			ExitCode:    0,
+			DurationMs:  time.Since(l.startedAt).Milliseconds(),
+		},
+	)
 }
 
 func (l *jobLifecycle) markCanceled(exitCode int) {
@@ -386,14 +492,20 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 		recordFailure(&l.execCtx.failuresMu, &l.execCtx.failures, *l.lastFailure)
 	}
 	atomic.AddInt32(&l.execCtx.failed, 1)
-	if l.execCtx.uiCh != nil {
-		l.execCtx.uiCh <- jobFinishedMsg{Index: l.index, Success: false, ExitCode: exitCodeCanceled}
-		if l.lastFailure != nil {
-			l.execCtx.uiCh <- jobFailureMsg{Failure: *l.lastFailure}
-		}
-		return
+	reason := ""
+	if l.lastFailure != nil && l.lastFailure.err != nil {
+		reason = l.lastFailure.err.Error()
 	}
-	if l.lastFailure != nil && l.execCtx.cfg.humanOutputEnabled() {
+	l.execCtx.submitEventOrWarn(
+		events.EventKindJobCancelled,
+		kinds.JobCancelledPayload{
+			Index:       l.index,
+			Attempt:     l.attempt,
+			MaxAttempts: l.maxAttempts(),
+			Reason:      reason,
+		},
+	)
+	if l.lastFailure != nil && l.humanOutputEnabled() {
 		fmt.Fprintf(
 			os.Stderr,
 			"\n⚠️ Job %d (%s) canceled: %v\n",
@@ -402,6 +514,66 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 			l.lastFailure.err,
 		)
 	}
+}
+
+func (l *jobLifecycle) execConfig() *config {
+	if l == nil || l.execCtx == nil {
+		return nil
+	}
+	return l.execCtx.cfg
+}
+
+func (l *jobLifecycle) maxAttempts() int {
+	cfg := l.execConfig()
+	if cfg == nil {
+		return 1
+	}
+	return atLeastOne(cfg.maxRetries + 1)
+}
+
+func (l *jobLifecycle) humanOutputEnabled() bool {
+	cfg := l.execConfig()
+	return cfg != nil && cfg.humanOutputEnabled()
+}
+
+func (l *jobLifecycle) configIDE() string {
+	cfg := l.execConfig()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.ide
+}
+
+func (l *jobLifecycle) configModel() string {
+	cfg := l.execConfig()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.model
+}
+
+func (l *jobLifecycle) configAddDirs() []string {
+	cfg := l.execConfig()
+	if cfg == nil {
+		return nil
+	}
+	return cfg.addDirs
+}
+
+func (l *jobLifecycle) configReasoningEffort() string {
+	cfg := l.execConfig()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.reasoningEffort
+}
+
+func (l *jobLifecycle) configAccessMode() string {
+	cfg := l.execConfig()
+	if cfg == nil {
+		return ""
+	}
+	return cfg.accessMode
 }
 
 type jobRunner struct {
@@ -507,10 +679,10 @@ func (r *jobRunner) executeAttempt(ctx context.Context, timeout time.Duration) j
 		r.execCtx.cfg,
 		r.job,
 		r.execCtx.cwd,
-		r.execCtx.uiCh != nil,
-		r.execCtx.uiCh,
+		r.execCtx.ui != nil,
 		r.index,
 		timeout,
+		r.execCtx.journal,
 		&r.execCtx.aggregateUsage,
 		&r.execCtx.aggregateMu,
 		r.execCtx.trackClient,
@@ -530,7 +702,7 @@ func (r *jobRunner) nextTimeout(current time.Duration) time.Duration {
 }
 
 func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration) {
-	if r.execCtx.uiCh != nil {
+	if r.execCtx.ui != nil {
 		return
 	}
 	if !r.execCtx.cfg.humanOutputEnabled() {
@@ -548,17 +720,26 @@ func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration
 	)
 }
 
-func newJobExecutionContext(ctx context.Context, jobs []job, cfg *config) (*jobExecutionContext, error) {
+func newJobExecutionContext(
+	ctx context.Context,
+	jobs []job,
+	cfg *config,
+	runJournal *journal.Journal,
+	bus *events.Bus[events.Event],
+) (*jobExecutionContext, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
 	}
 	execCtx := &jobExecutionContext{
+		ctx:           ctx,
 		cfg:           cfg,
 		jobs:          jobs,
 		total:         len(jobs),
 		cwd:           cwd,
 		logger:        runtimeLoggerFor(cfg, cfg.uiEnabled()),
+		journal:       runJournal,
+		bus:           bus,
 		sem:           make(chan struct{}, atLeastOne(cfg.concurrent)),
 		activeClients: make(map[agent.Client]struct{}),
 	}
@@ -566,10 +747,7 @@ func newJobExecutionContext(ctx context.Context, jobs []job, cfg *config) (*jobE
 		execCtx.jobs[idx].outBuffer = newLineBuffer(cfg.tailLines)
 		execCtx.jobs[idx].errBuffer = newLineBuffer(cfg.tailLines)
 	}
-	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, cfg.uiEnabled())
-	if execCtx.ui != nil {
-		execCtx.uiCh = execCtx.ui.events()
-	}
+	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, bus, cfg.uiEnabled())
 	return execCtx, nil
 }
 
@@ -609,10 +787,17 @@ func (j *jobExecutionContext) shutdownUI() error {
 }
 
 func (j *jobExecutionContext) publishShutdownStatus(state shutdownState) {
-	if j.uiCh == nil {
+	if state.Phase != shutdownPhaseDraining {
 		return
 	}
-	j.uiCh <- shutdownStatusMsg{State: state}
+	j.submitEventOrWarn(
+		events.EventKindShutdownDraining,
+		kinds.ShutdownDrainingPayload{
+			Source:      string(state.Source),
+			RequestedAt: state.RequestedAt,
+			DeadlineAt:  state.DeadlineAt,
+		},
+	)
 }
 
 func (j *jobExecutionContext) launchWorkers(jobCtx context.Context) {
@@ -732,6 +917,53 @@ func (j *jobExecutionContext) reportAggregateUsage() {
 	printAggregateUsage(&j.aggregateUsage)
 }
 
+func (j *jobExecutionContext) submitEvent(kind events.EventKind, payload any) error {
+	if j == nil || j.journal == nil || j.cfg == nil {
+		return nil
+	}
+	ctx := j.ctx
+	if ctx == nil {
+		return errors.New("job execution context missing context")
+	}
+	event, err := newRuntimeEvent(j.cfg.runArtifacts.RunID, kind, payload)
+	if err != nil {
+		return err
+	}
+	return j.journal.Submit(ctx, event)
+}
+
+func (j *jobExecutionContext) submitEventOrWarn(kind events.EventKind, payload any) {
+	if err := j.submitEvent(kind, payload); err != nil {
+		j.runtimeLogger().Warn("failed to submit runtime event", "kind", kind, "error", err)
+	}
+}
+
+func (j *jobExecutionContext) emitShutdownRequested(state shutdownState) {
+	j.submitEventOrWarn(
+		events.EventKindShutdownRequested,
+		kinds.ShutdownRequestedPayload{
+			Source:      string(state.Source),
+			RequestedAt: state.RequestedAt,
+			DeadlineAt:  state.DeadlineAt,
+		},
+	)
+}
+
+func (j *jobExecutionContext) emitShutdownTerminated(state shutdownState, forced bool) {
+	if !state.active() {
+		return
+	}
+	j.submitEventOrWarn(
+		events.EventKindShutdownTerminated,
+		kinds.ShutdownTerminatedPayload{
+			Source:      string(state.Source),
+			RequestedAt: state.RequestedAt,
+			DeadlineAt:  state.DeadlineAt,
+			Forced:      forced,
+		},
+	)
+}
+
 func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
 	if j.cfg.mode == model.ExecutionModePRDTasks {
 		return j.afterTaskJobSuccess(jb)
@@ -752,14 +984,39 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 	if err != nil {
 		return err
 	}
+	oldTask, err := prompt.ParseTaskFile(entry.Content)
+	if err != nil {
+		return fmt.Errorf("parse task file %s before completion: %w", entry.AbsPath, err)
+	}
 	if err := tasks.MarkTaskCompleted(j.cfg.tasksDir, entry.Name); err != nil {
 		return err
 	}
+	j.submitEventOrWarn(
+		events.EventKindTaskFileUpdated,
+		kinds.TaskFileUpdatedPayload{
+			TasksDir:  j.cfg.tasksDir,
+			TaskName:  entry.Name,
+			FilePath:  entry.AbsPath,
+			OldStatus: oldTask.Status,
+			NewStatus: "completed",
+		},
+	)
 
 	meta, err := tasks.RefreshTaskMeta(j.cfg.tasksDir)
 	if err != nil {
 		return err
 	}
+	j.submitEventOrWarn(
+		events.EventKindTaskMetadataRefreshed,
+		kinds.TaskMetadataRefreshedPayload{
+			TasksDir:  j.cfg.tasksDir,
+			CreatedAt: meta.CreatedAt,
+			UpdatedAt: meta.UpdatedAt,
+			Total:     meta.Total,
+			Completed: meta.Completed,
+			Pending:   meta.Pending,
+		},
+	)
 	j.runtimeLogger().Info(
 		"updated task workflow metadata",
 		"tasks_dir",
@@ -786,18 +1043,44 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 	if err := reviews.FinalizeIssueStatuses(j.cfg.reviewsDir, batchEntries); err != nil {
 		return err
 	}
+	issueIDs := make([]string, 0, len(batchEntries))
+	for _, entry := range batchEntries {
+		issueIDs = append(issueIDs, entry.Name)
+	}
+	j.submitEventOrWarn(
+		events.EventKindReviewStatusFinalized,
+		kinds.ReviewStatusFinalizedPayload{
+			ReviewsDir: j.cfg.reviewsDir,
+			IssueIDs:   issueIDs,
+		},
+	)
 
 	resolvedIssues, err := collectNewlyResolvedIssues(jb.groups)
 	if err != nil {
 		return err
 	}
 	providerBackedIssues := filterResolvedIssuesWithProviderRefs(resolvedIssues)
-	j.resolveProviderBackedIssues(ctx, providerBackedIssues)
+	if err := j.resolveProviderBackedIssues(ctx, providerBackedIssues); err != nil {
+		return err
+	}
 
 	meta, err := reviews.RefreshRoundMeta(j.cfg.reviewsDir)
 	if err != nil {
 		return err
 	}
+	j.submitEventOrWarn(
+		events.EventKindReviewRoundRefreshed,
+		kinds.ReviewRoundRefreshedPayload{
+			ReviewsDir: j.cfg.reviewsDir,
+			Provider:   meta.Provider,
+			PR:         meta.PR,
+			Round:      meta.Round,
+			CreatedAt:  meta.CreatedAt,
+			Total:      meta.Total,
+			Resolved:   meta.Resolved,
+			Unresolved: meta.Unresolved,
+		},
+	)
 	j.runtimeLogger().Info(
 		"updated review round metadata",
 		"provider",
@@ -829,42 +1112,39 @@ func singleTaskEntry(jb *job) (model.IssueEntry, error) {
 func (j *jobExecutionContext) resolveProviderBackedIssues(
 	ctx context.Context,
 	providerBackedIssues []provider.ResolvedIssue,
-) {
+) error {
 	if len(providerBackedIssues) == 0 {
-		return
+		return nil
 	}
 
-	registry := reviewProviderRegistry()
-	reviewProvider, err := registry.Get(j.cfg.provider)
+	startedAt := time.Now().UTC()
+	callID := fmt.Sprintf("%s-%d", strings.TrimSpace(j.cfg.provider), startedAt.UnixNano())
+	j.emitProviderCallStarted(callID, len(providerBackedIssues))
+
+	reviewProvider, err := j.lookupReviewProvider()
 	if err != nil {
-		j.runtimeLogger().Warn(
-			"review provider integration unavailable; skipping remote issue resolution",
-			"provider",
-			j.cfg.provider,
-			"pr",
-			j.cfg.pr,
-			"resolved_issues",
-			len(providerBackedIssues),
-			"error",
+		return j.handleProviderResolveFailure(
+			callID,
+			providerBackedIssues,
+			startedAt,
 			err,
+			"review provider integration unavailable; skipping remote issue resolution",
 		)
-		return
 	}
 
 	if err := reviewProvider.ResolveIssues(ctx, j.cfg.pr, providerBackedIssues); err != nil {
-		j.runtimeLogger().Warn(
-			"review provider resolution completed with warnings",
-			"provider",
-			j.cfg.provider,
-			"pr",
-			j.cfg.pr,
-			"resolved_issues",
-			len(providerBackedIssues),
-			"error",
+		return j.handleProviderResolveFailure(
+			callID,
+			providerBackedIssues,
+			startedAt,
 			err,
+			"review provider resolution completed with warnings",
 		)
-		return
 	}
+
+	completedAt := time.Now().UTC()
+	j.emitProviderCallCompleted(callID, startedAt, completedAt, 0)
+	j.emitReviewIssueResolved(providerBackedIssues, true, completedAt)
 
 	j.runtimeLogger().Info(
 		"resolved review provider issues",
@@ -875,6 +1155,106 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 		"resolved_issues",
 		len(providerBackedIssues),
 	)
+	return nil
+}
+
+func (j *jobExecutionContext) emitProviderCallStarted(callID string, issueCount int) {
+	j.submitEventOrWarn(
+		events.EventKindProviderCallStarted,
+		kinds.ProviderCallStartedPayload{
+			CallID:     callID,
+			Provider:   j.cfg.provider,
+			Method:     "resolve_issues",
+			PR:         j.cfg.pr,
+			IssueCount: issueCount,
+		},
+	)
+}
+
+func (j *jobExecutionContext) emitProviderCallCompleted(
+	callID string,
+	startedAt time.Time,
+	completedAt time.Time,
+	statusCode int,
+) {
+	j.submitEventOrWarn(
+		events.EventKindProviderCallCompleted,
+		kinds.ProviderCallCompletedPayload{
+			CallID:     callID,
+			Provider:   j.cfg.provider,
+			Method:     "resolve_issues",
+			StatusCode: statusCode,
+			DurationMs: completedAt.Sub(startedAt).Milliseconds(),
+		},
+	)
+}
+
+func (j *jobExecutionContext) lookupReviewProvider() (provider.Provider, error) {
+	registry := reviewProviderRegistry()
+	return registry.Get(j.cfg.provider)
+}
+
+func (j *jobExecutionContext) handleProviderResolveFailure(
+	callID string,
+	providerBackedIssues []provider.ResolvedIssue,
+	startedAt time.Time,
+	err error,
+	message string,
+) error {
+	j.emitProviderCallFailed(callID, startedAt, err)
+	j.emitReviewIssueResolved(providerBackedIssues, false, time.Time{})
+	j.runtimeLogger().Warn(
+		message,
+		"provider",
+		j.cfg.provider,
+		"pr",
+		j.cfg.pr,
+		"resolved_issues",
+		len(providerBackedIssues),
+		"error",
+		err,
+	)
+	return nil
+}
+
+func (j *jobExecutionContext) emitProviderCallFailed(
+	callID string,
+	startedAt time.Time,
+	err error,
+) {
+	j.submitEventOrWarn(
+		events.EventKindProviderCallFailed,
+		kinds.ProviderCallFailedPayload{
+			CallID:     callID,
+			Provider:   j.cfg.provider,
+			Method:     "resolve_issues",
+			StatusCode: providerStatusCode(err),
+			DurationMs: time.Since(startedAt).Milliseconds(),
+			Error:      err.Error(),
+		},
+	)
+}
+
+func (j *jobExecutionContext) emitReviewIssueResolved(
+	issues []provider.ResolvedIssue,
+	providerPosted bool,
+	postedAt time.Time,
+) {
+	for _, issue := range issues {
+		payload := kinds.ReviewIssueResolvedPayload{
+			ReviewsDir:     j.cfg.reviewsDir,
+			IssueID:        issueIDFromPath(issue.FilePath),
+			FilePath:       issue.FilePath,
+			Provider:       j.cfg.provider,
+			PR:             j.cfg.pr,
+			ProviderRef:    issue.ProviderRef,
+			ProviderPosted: providerPosted,
+		}
+		if providerPosted {
+			payload.PostedAt = postedAt
+		}
+		j.submitEventOrWarn(events.EventKindReviewIssueResolved, payload)
+	}
 }
 
 func refreshTaskMetaOnExit(cfg *config) {
@@ -913,9 +1293,9 @@ func executeJobWithTimeout(
 	j *job,
 	cwd string,
 	useUI bool,
-	uiCh chan uiMsg,
 	index int,
 	timeout time.Duration,
+	runJournal *journal.Journal,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
 	trackClient func(agent.Client) func(),
@@ -942,8 +1322,8 @@ func executeJobWithTimeout(
 		cwd,
 		useUI,
 		cfg.humanOutputEnabled(),
-		uiCh,
 		index,
+		runJournal,
 		aggregateUsage,
 		aggregateMu,
 		activity,
@@ -1348,6 +1728,119 @@ func summarizeResults(failed int32, failures []failInfo, total int) {
 			f.errLog,
 		)
 	}
+}
+
+func submitRunEvent(
+	ctx context.Context,
+	runJournal *journal.Journal,
+	runID string,
+	kind events.EventKind,
+	payload any,
+) error {
+	if runJournal == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	event, err := newRuntimeEvent(runID, kind, payload)
+	if err != nil {
+		return err
+	}
+	return runJournal.Submit(ctx, event)
+}
+
+func emitRunTerminalEvent(
+	ctx context.Context,
+	runJournal *journal.Journal,
+	result executionResult,
+	jobs []job,
+	startedAt time.Time,
+) error {
+	if runJournal == nil {
+		return nil
+	}
+
+	var (
+		succeeded int
+		failed    int
+		canceled  int
+	)
+	for idx := range jobs {
+		switch jobs[idx].status {
+		case runStatusSucceeded:
+			succeeded++
+		case runStatusCanceled:
+			canceled++
+		case runStatusFailed:
+			failed++
+		}
+	}
+
+	durationMs := time.Since(startedAt).Milliseconds()
+	switch result.Status {
+	case runStatusSucceeded:
+		return submitRunEvent(
+			ctx,
+			runJournal,
+			result.RunID,
+			events.EventKindRunCompleted,
+			kinds.RunCompletedPayload{
+				ArtifactsDir:   result.ArtifactsDir,
+				JobsTotal:      len(jobs),
+				JobsSucceeded:  succeeded,
+				JobsFailed:     failed,
+				JobsCancelled:  canceled,
+				DurationMs:     durationMs,
+				ResultPath:     result.ResultPath,
+				SummaryMessage: "completed",
+			},
+		)
+	case runStatusCanceled:
+		reason := strings.TrimSpace(result.Error)
+		if reason == "" {
+			reason = strings.TrimSpace(result.TeardownError)
+		}
+		return submitRunEvent(
+			ctx,
+			runJournal,
+			result.RunID,
+			events.EventKindRunCancelled,
+			kinds.RunCancelledPayload{
+				Reason:     reason,
+				DurationMs: durationMs,
+			},
+		)
+	default:
+		errText := strings.TrimSpace(result.Error)
+		if errText == "" {
+			errText = strings.TrimSpace(result.TeardownError)
+		}
+		return submitRunEvent(
+			ctx,
+			runJournal,
+			result.RunID,
+			events.EventKindRunFailed,
+			kinds.RunFailedPayload{
+				ArtifactsDir: result.ArtifactsDir,
+				DurationMs:   durationMs,
+				Error:        errText,
+				ResultPath:   result.ResultPath,
+			},
+		)
+	}
+}
+
+func closeRunJournal(runJournal *journal.Journal) error {
+	if runJournal == nil {
+		return nil
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := runJournal.Close(closeCtx); err != nil {
+		return fmt.Errorf("close run journal: %w", err)
+	}
+	return nil
 }
 
 func atLeastOne(value int) int {

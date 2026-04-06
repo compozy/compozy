@@ -13,10 +13,14 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/agent"
+	"github.com/compozy/compozy/internal/core/kernel"
+	"github.com/compozy/compozy/internal/core/kernel/commands"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
+	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/spf13/cobra"
 )
 
@@ -74,11 +78,87 @@ type commandState struct {
 	verifyBundledSkills    func(setup.VerifyConfig) (setup.VerifyResult, error)
 	installBundledSkills   func(setup.InstallConfig) (*setup.Result, error)
 	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
+	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
 	runWorkflow            func(context.Context, core.Config) error
+}
+
+type commandStateDefaults struct {
+	isInteractive        func() bool
+	collectForm          func(*cobra.Command, *commandState) error
+	listBundledSkills    func() ([]setup.Skill, error)
+	verifyBundledSkills  func(setup.VerifyConfig) (setup.VerifyResult, error)
+	installBundledSkills func(setup.InstallConfig) (*setup.Result, error)
+	confirmSkillRefresh  func(*cobra.Command, skillRefreshPrompt) (bool, error)
+}
+
+var validateRootDispatcher = kernel.ValidateDefaultRegistry
+
+func defaultCommandStateDefaults() commandStateDefaults {
+	return commandStateDefaults{
+		isInteractive:        isInteractiveTerminal,
+		collectForm:          collectFormParams,
+		listBundledSkills:    setup.ListBundledSkills,
+		verifyBundledSkills:  setup.VerifyBundledSkills,
+		installBundledSkills: setup.InstallBundledSkills,
+		confirmSkillRefresh:  confirmSkillRefreshPrompt,
+	}
+}
+
+func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
+	builtin := defaultCommandStateDefaults()
+	if defaults.isInteractive == nil {
+		defaults.isInteractive = builtin.isInteractive
+	}
+	if defaults.collectForm == nil {
+		defaults.collectForm = builtin.collectForm
+	}
+	if defaults.listBundledSkills == nil {
+		defaults.listBundledSkills = builtin.listBundledSkills
+	}
+	if defaults.verifyBundledSkills == nil {
+		defaults.verifyBundledSkills = builtin.verifyBundledSkills
+	}
+	if defaults.installBundledSkills == nil {
+		defaults.installBundledSkills = builtin.installBundledSkills
+	}
+	if defaults.confirmSkillRefresh == nil {
+		defaults.confirmSkillRefresh = builtin.confirmSkillRefresh
+	}
+	return defaults
+}
+
+func newRootDispatcher() *kernel.Dispatcher {
+	deps := kernel.KernelDeps{
+		Logger:        slog.Default(),
+		EventBus:      events.New[events.Event](0),
+		Workspace:     bestEffortRootWorkspaceContext(),
+		AgentRegistry: agent.DefaultRegistry(),
+	}
+
+	dispatcher := kernel.BuildDefault(deps)
+	if err := validateRootDispatcher(dispatcher); err != nil {
+		panic(err)
+	}
+	return dispatcher
+}
+
+func bestEffortRootWorkspaceContext() workspace.Context {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	workspaceCtx, err := resolveWorkspaceContext(ctx)
+	if err != nil {
+		return workspace.Context{}
+	}
+	return workspaceCtx
 }
 
 // NewRootCommand returns the reusable compozy Cobra command.
 func NewRootCommand() *cobra.Command {
+	return newRootCommandWithDefaults(newRootDispatcher(), defaultCommandStateDefaults())
+}
+
+func newRootCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	root := &cobra.Command{
 		Use:          "compozy",
 		Short:        "Run AI review remediation and PRD task workflows",
@@ -104,21 +184,26 @@ Use explicit workflow subcommands:
 	}
 
 	root.AddCommand(
-		newSetupCommand(),
-		newMigrateCommand(),
-		newValidateTasksCommand(),
-		newSyncCommand(),
-		newArchiveCommand(),
-		newFetchReviewsCommand(),
-		newFixReviewsCommand(),
-		newExecCommand(),
-		newStartCommand(),
+		newSetupCommand(dispatcher),
+		newMigrateCommand(dispatcher),
+		newValidateTasksCommand(dispatcher),
+		newSyncCommand(dispatcher),
+		newArchiveCommand(dispatcher),
+		newFetchReviewsCommandWithDefaults(dispatcher, defaults),
+		newFixReviewsCommandWithDefaults(dispatcher, defaults),
+		newExecCommandWithDefaults(dispatcher, defaults),
+		newStartCommandWithDefaults(dispatcher, defaults),
 	)
 	return root
 }
 
-func newFetchReviewsCommand() *cobra.Command {
-	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+func newFetchReviewsCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+	return newFetchReviewsCommandWithDefaults(dispatcher, defaultCommandStateDefaults())
+}
+
+func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+	state := newCommandStateWithDefaults(commandKindFetchReviews, core.ModePRReview, defaults)
+	state.fetchReviewsFn = newFetchReviewsRunner(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "fetch-reviews",
 		Short:        "Fetch provider review comments into a PRD review round",
@@ -138,8 +223,13 @@ func newFetchReviewsCommand() *cobra.Command {
 	return cmd
 }
 
-func newFixReviewsCommand() *cobra.Command {
-	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+func newFixReviewsCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+	return newFixReviewsCommandWithDefaults(dispatcher, defaultCommandStateDefaults())
+}
+
+func newFixReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+	state := newCommandStateWithDefaults(commandKindFixReviews, core.ModePRReview, defaults)
+	state.runWorkflow = newRunWorkflow(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "fix-reviews",
 		Short:        "Process review issue files from a PRD review round",
@@ -172,7 +262,12 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 }
 
 func newStartCommand() *cobra.Command {
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	return newStartCommandWithDefaults(nil, defaultCommandStateDefaults())
+}
+
+func newStartCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+	state := newCommandStateWithDefaults(commandKindStart, core.ModePRDTasks, defaults)
+	state.runWorkflow = newRunWorkflow(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "start",
 		Short:        "Execute PRD task files from a PRD directory",
@@ -205,8 +300,9 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 	return cmd
 }
 
-func newExecCommand() *cobra.Command {
-	state := newCommandState(commandKindExec, core.ModeExec)
+func newExecCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+	state := newCommandStateWithDefaults(commandKindExec, core.ModeExec, defaults)
+	state.runWorkflow = newRunWorkflow(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "exec [prompt]",
 		Short:        "Execute one ad hoc prompt through the shared ACP runtime",
@@ -252,6 +348,7 @@ type migrateCommandState struct {
 	tasksDir      string
 	reviewsDir    string
 	dryRun        bool
+	migrateFn     func(context.Context, core.MigrationConfig) (*core.MigrationResult, error)
 }
 
 type syncCommandState struct {
@@ -259,6 +356,7 @@ type syncCommandState struct {
 	rootDir       string
 	name          string
 	tasksDir      string
+	syncFn        func(context.Context, core.SyncConfig) (*core.SyncResult, error)
 }
 
 type archiveCommandState struct {
@@ -266,10 +364,13 @@ type archiveCommandState struct {
 	rootDir       string
 	name          string
 	tasksDir      string
+	archiveFn     func(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error)
 }
 
-func newMigrateCommand() *cobra.Command {
-	state := &migrateCommandState{}
+func newMigrateCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+	state := &migrateCommandState{
+		migrateFn: newMigrateRunner(dispatcher),
+	}
 	cmd := &cobra.Command{
 		Use:          "migrate",
 		Short:        "Migrate legacy workflow artifacts to frontmatter",
@@ -293,8 +394,10 @@ By default, the command scans the whole project workflow root recursively.`,
 	return cmd
 }
 
-func newSyncCommand() *cobra.Command {
-	state := &syncCommandState{}
+func newSyncCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+	state := &syncCommandState{
+		syncFn: newSyncRunner(dispatcher),
+	}
 	cmd := &cobra.Command{
 		Use:          "sync",
 		Short:        "Refresh task workflow metadata files",
@@ -315,8 +418,10 @@ By default, the command scans the whole workflow root and creates missing task m
 	return cmd
 }
 
-func newArchiveCommand() *cobra.Command {
-	state := &archiveCommandState{}
+func newArchiveCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+	state := &archiveCommandState{
+		archiveFn: newArchiveRunner(dispatcher),
+	}
 	cmd := &cobra.Command{
 		Use:          "archive",
 		Short:        "Move fully completed workflows into the archive root",
@@ -340,16 +445,139 @@ review round _meta.md files fully resolved when review rounds exist.`,
 }
 
 func newCommandState(kind commandKind, mode core.Mode) *commandState {
+	return newCommandStateWithDefaults(kind, mode, defaultCommandStateDefaults())
+}
+
+func newCommandStateWithDefaults(kind commandKind, mode core.Mode, defaults commandStateDefaults) *commandState {
+	defaults = defaults.withFallbacks()
+
 	return &commandState{
 		kind:                 kind,
 		mode:                 mode,
-		isInteractive:        isInteractiveTerminal,
-		collectForm:          collectFormParams,
-		listBundledSkills:    setup.ListBundledSkills,
-		verifyBundledSkills:  setup.VerifyBundledSkills,
-		installBundledSkills: setup.InstallBundledSkills,
-		confirmSkillRefresh:  confirmSkillRefreshPrompt,
+		isInteractive:        defaults.isInteractive,
+		collectForm:          defaults.collectForm,
+		listBundledSkills:    defaults.listBundledSkills,
+		verifyBundledSkills:  defaults.verifyBundledSkills,
+		installBundledSkills: defaults.installBundledSkills,
+		confirmSkillRefresh:  defaults.confirmSkillRefresh,
+		fetchReviewsFn:       core.FetchReviews,
 		runWorkflow:          core.Run,
+	}
+}
+
+func newRunWorkflow(dispatcher *kernel.Dispatcher) func(context.Context, core.Config) error {
+	if dispatcher == nil {
+		return core.Run
+	}
+
+	return func(ctx context.Context, cfg core.Config) error {
+		_, err := kernel.Dispatch[commands.RunStartCommand, commands.RunStartResult](
+			ctx,
+			dispatcher,
+			commands.RunStartFromConfig(cfg),
+		)
+		return err
+	}
+}
+
+func newFetchReviewsRunner(
+	dispatcher *kernel.Dispatcher,
+) func(context.Context, core.Config) (*core.FetchResult, error) {
+	if dispatcher == nil {
+		return core.FetchReviews
+	}
+
+	return func(ctx context.Context, cfg core.Config) (*core.FetchResult, error) {
+		result, err := kernel.Dispatch[commands.ReviewsFetchCommand, commands.ReviewsFetchResult](
+			ctx,
+			dispatcher,
+			commands.ReviewsFetchFromConfig(cfg),
+		)
+		if err != nil {
+			return nil, err
+		}
+		return result.Result, nil
+	}
+}
+
+func newMigrateRunner(
+	dispatcher *kernel.Dispatcher,
+) func(context.Context, core.MigrationConfig) (*core.MigrationResult, error) {
+	if dispatcher == nil {
+		return core.Migrate
+	}
+
+	return func(ctx context.Context, cfg core.MigrationConfig) (*core.MigrationResult, error) {
+		typedCommand := commands.WorkspaceMigrateFromConfig(core.Config{
+			WorkspaceRoot: cfg.WorkspaceRoot,
+			Name:          cfg.Name,
+			TasksDir:      cfg.TasksDir,
+			ReviewsDir:    cfg.ReviewsDir,
+			DryRun:        cfg.DryRun,
+		})
+		typedCommand.RootDir = cfg.RootDir
+
+		result, err := kernel.Dispatch[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult](
+			ctx,
+			dispatcher,
+			typedCommand,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return result.Result, nil
+	}
+}
+
+func newSyncRunner(dispatcher *kernel.Dispatcher) func(context.Context, core.SyncConfig) (*core.SyncResult, error) {
+	if dispatcher == nil {
+		return core.Sync
+	}
+
+	return func(ctx context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
+		typedCommand := commands.WorkflowSyncFromConfig(core.Config{
+			WorkspaceRoot: cfg.WorkspaceRoot,
+			Name:          cfg.Name,
+			TasksDir:      cfg.TasksDir,
+		})
+		typedCommand.RootDir = cfg.RootDir
+
+		result, err := kernel.Dispatch[commands.WorkflowSyncCommand, commands.WorkflowSyncResult](
+			ctx,
+			dispatcher,
+			typedCommand,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return result.Result, nil
+	}
+}
+
+func newArchiveRunner(
+	dispatcher *kernel.Dispatcher,
+) func(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error) {
+	if dispatcher == nil {
+		return core.Archive
+	}
+
+	return func(ctx context.Context, cfg core.ArchiveConfig) (*core.ArchiveResult, error) {
+		typedCommand := commands.WorkflowArchiveFromConfig(core.Config{
+			WorkspaceRoot: cfg.WorkspaceRoot,
+			Name:          cfg.Name,
+			TasksDir:      cfg.TasksDir,
+		})
+		typedCommand.RootDir = cfg.RootDir
+
+		result, err := kernel.Dispatch[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult](
+			ctx,
+			dispatcher,
+			typedCommand,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return result.Result, nil
 	}
 }
 
@@ -500,7 +728,12 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	result, err := core.FetchReviews(ctx, cfg)
+	fetchReviewsFn := s.fetchReviewsFn
+	if fetchReviewsFn == nil {
+		fetchReviewsFn = core.FetchReviews
+	}
+
+	result, err := fetchReviewsFn(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -525,7 +758,12 @@ func (s *migrateCommandState) run(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("load workspace root for %s: %w", cmd.Name(), err)
 	}
 
-	result, err := core.Migrate(ctx, core.MigrationConfig{
+	migrateFn := s.migrateFn
+	if migrateFn == nil {
+		migrateFn = core.Migrate
+	}
+
+	result, err := migrateFn(ctx, core.MigrationConfig{
 		WorkspaceRoot: s.workspaceRoot,
 		RootDir:       s.rootDir,
 		Name:          s.name,
@@ -602,7 +840,12 @@ func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("load workspace root for %s: %w", cmd.Name(), err)
 	}
 
-	result, err := core.Sync(ctx, core.SyncConfig{
+	syncFn := s.syncFn
+	if syncFn == nil {
+		syncFn = core.Sync
+	}
+
+	result, err := syncFn(ctx, core.SyncConfig{
 		WorkspaceRoot: s.workspaceRoot,
 		RootDir:       s.rootDir,
 		Name:          s.name,
@@ -633,7 +876,12 @@ func (s *archiveCommandState) run(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("load workspace root for %s: %w", cmd.Name(), err)
 	}
 
-	result, err := core.Archive(ctx, core.ArchiveConfig{
+	archiveFn := s.archiveFn
+	if archiveFn == nil {
+		archiveFn = core.Archive
+	}
+
+	result, err := archiveFn(ctx, core.ArchiveConfig{
 		WorkspaceRoot: s.workspaceRoot,
 		RootDir:       s.rootDir,
 		Name:          s.name,

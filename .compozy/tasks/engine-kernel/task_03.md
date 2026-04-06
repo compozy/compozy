@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: Journal writer upstream of fanout
 type: refactor
 complexity: high
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 03: Journal writer upstream of fanout
@@ -19,6 +19,10 @@ Create the per-run Journal package that owns the `events.jsonl` file, assigns mo
 - MINIMIZE CODE — show code only to illustrate current structure or problem areas
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
+
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
 
 <requirements>
 - MUST create package `internal/core/run/journal/`

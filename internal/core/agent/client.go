@@ -397,7 +397,7 @@ func (c *clientImpl) RequestPermission(
 }
 
 // SessionUpdate routes streamed ACP notifications to the correct Compozy session.
-func (c *clientImpl) SessionUpdate(_ context.Context, params acp.SessionNotification) error {
+func (c *clientImpl) SessionUpdate(ctx context.Context, params acp.SessionNotification) error {
 	session := c.lookupSession(string(params.SessionId))
 	if session == nil {
 		return fmt.Errorf("received update for unknown session %q", params.SessionId)
@@ -407,7 +407,7 @@ func (c *clientImpl) SessionUpdate(_ context.Context, params acp.SessionNotifica
 	if err != nil {
 		return err
 	}
-	session.publish(update)
+	session.publish(ctx, update)
 	return nil
 }
 

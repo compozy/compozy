@@ -9,11 +9,31 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/run"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
 var ErrNoWork = plan.ErrNoWork
+
+// DispatcherAdapters lets the kernel register dispatcher-backed core adapters
+// without creating an import cycle from core back to kernel.
+type DispatcherAdapters struct {
+	Prepare      func(context.Context, Config) (*Preparation, error)
+	Run          func(context.Context, Config) error
+	FetchReviews func(context.Context, Config) (*FetchResult, error)
+	Migrate      func(context.Context, MigrationConfig) (*MigrationResult, error)
+	Sync         func(context.Context, SyncConfig) (*SyncResult, error)
+	Archive      func(context.Context, ArchiveConfig) (*ArchiveResult, error)
+}
+
+var registeredDispatcherAdapters DispatcherAdapters
+
+// RegisterDispatcherAdapters installs dispatcher-backed adapters for the legacy
+// core API entry points.
+func RegisterDispatcherAdapters(adapters DispatcherAdapters) {
+	registeredDispatcherAdapters = adapters
+}
 
 // Mode identifies the execution flow used by compozy.
 type Mode string
@@ -69,6 +89,10 @@ const (
 )
 
 // Config configures compozy preparation and execution.
+//
+// Transitional note: during Phase A of the kernel refactor this struct remains
+// exported as the legacy translation shape used by CLI flag parsing and older
+// call sites before they move to typed kernel commands directly.
 type Config struct {
 	WorkspaceRoot          string
 	Name                   string
@@ -203,23 +227,86 @@ func (cfg Config) Validate() error {
 
 // Prepare resolves inputs, validates the environment, and generates batch artifacts.
 func Prepare(ctx context.Context, cfg Config) (*Preparation, error) {
+	if registeredDispatcherAdapters.Prepare != nil {
+		return registeredDispatcherAdapters.Prepare(ctx, cfg)
+	}
+	return prepareDirect(ctx, cfg)
+}
+
+// Run executes compozy end to end for the provided configuration.
+func Run(ctx context.Context, cfg Config) error {
+	if registeredDispatcherAdapters.Run != nil {
+		return registeredDispatcherAdapters.Run(ctx, cfg)
+	}
+	return runDirect(ctx, cfg)
+}
+
+func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
+	if registeredDispatcherAdapters.FetchReviews != nil {
+		return registeredDispatcherAdapters.FetchReviews(ctx, cfg)
+	}
+	return FetchReviewsDirect(ctx, cfg)
+}
+
+func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
+	if registeredDispatcherAdapters.Migrate != nil {
+		return registeredDispatcherAdapters.Migrate(ctx, cfg)
+	}
+	return MigrateDirect(ctx, cfg)
+}
+
+func Sync(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
+	if registeredDispatcherAdapters.Sync != nil {
+		return registeredDispatcherAdapters.Sync(ctx, cfg)
+	}
+	return SyncDirect(ctx, cfg)
+}
+
+func Archive(ctx context.Context, cfg ArchiveConfig) (*ArchiveResult, error) {
+	if registeredDispatcherAdapters.Archive != nil {
+		return registeredDispatcherAdapters.Archive(ctx, cfg)
+	}
+	return ArchiveDirect(ctx, cfg)
+}
+
+// FetchReviewsDirect preserves access to the pre-dispatch fetch implementation for kernel handlers.
+func FetchReviewsDirect(ctx context.Context, cfg Config) (*FetchResult, error) {
+	return fetchReviews(ctx, cfg.runtime())
+}
+
+// MigrateDirect preserves access to the pre-dispatch migration implementation for kernel handlers.
+func MigrateDirect(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
+	return migrateArtifacts(ctx, cfg)
+}
+
+// SyncDirect preserves access to the pre-dispatch sync implementation for kernel handlers.
+func SyncDirect(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
+	return syncTaskMetadata(ctx, cfg)
+}
+
+// ArchiveDirect preserves access to the pre-dispatch archive implementation for kernel handlers.
+func ArchiveDirect(ctx context.Context, cfg ArchiveConfig) (*ArchiveResult, error) {
+	return archiveTaskWorkflows(ctx, cfg)
+}
+
+func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 	runtimeCfg := cfg.runtime()
 	if err := agent.ValidateRuntimeConfig(runtimeCfg); err != nil {
 		return nil, err
 	}
 
-	prep, err := plan.Prepare(ctx, runtimeCfg)
+	prep, err := plan.Prepare(ctx, runtimeCfg, nil)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return nil, ErrNoWork
 		}
 		return nil, err
 	}
+	defer preputil.ClosePreparationJournal(ctx, prep)
 	return newPreparation(prep), nil
 }
 
-// Run executes compozy end to end for the provided configuration.
-func Run(ctx context.Context, cfg Config) error {
+func runDirect(ctx context.Context, cfg Config) error {
 	runtimeCfg := cfg.runtime()
 	if err := agent.ValidateRuntimeConfig(runtimeCfg); err != nil {
 		return err
@@ -229,30 +316,14 @@ func Run(ctx context.Context, cfg Config) error {
 		return run.ExecuteExec(ctx, runtimeCfg)
 	}
 
-	prep, err := plan.Prepare(ctx, runtimeCfg)
+	prep, err := plan.Prepare(ctx, runtimeCfg, nil)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return nil
 		}
 		return err
 	}
-	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, runtimeCfg)
-}
-
-func FetchReviews(ctx context.Context, cfg Config) (*FetchResult, error) {
-	return fetchReviews(ctx, cfg.runtime())
-}
-
-func Migrate(ctx context.Context, cfg MigrationConfig) (*MigrationResult, error) {
-	return migrateArtifacts(ctx, cfg)
-}
-
-func Sync(ctx context.Context, cfg SyncConfig) (*SyncResult, error) {
-	return syncTaskMetadata(ctx, cfg)
-}
-
-func Archive(ctx context.Context, cfg ArchiveConfig) (*ArchiveResult, error) {
-	return archiveTaskWorkflows(ctx, cfg)
+	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), nil, runtimeCfg)
 }
 
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.

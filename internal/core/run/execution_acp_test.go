@@ -16,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 )
 
 func TestComposeSessionPromptPrependsSystemPrompt(t *testing.T) {
@@ -39,7 +40,7 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 			OutLog:   filepath.Join(tmpDir, "task_01.out.log"),
 			ErrLog:   filepath.Join(tmpDir, "task_01.err.log"),
 		},
-	}, model.NewRunArtifacts(tmpDir, "dry-run-test"), &model.RuntimeConfig{
+	}, model.NewRunArtifacts(tmpDir, "dry-run-test"), nil, nil, &model.RuntimeConfig{
 		DryRun:                 true,
 		Concurrent:             1,
 		IDE:                    model.IDECodex,
@@ -82,6 +83,7 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -142,6 +144,7 @@ func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -187,6 +190,7 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -251,7 +255,6 @@ func TestExecuteExecJobDoesNotRetryResumedSessions(t *testing.T) {
 		tmpDir,
 		false,
 		nil,
-		nil,
 	)
 
 	if result.err == nil {
@@ -299,6 +302,7 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 		}},
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -342,6 +346,7 @@ func TestJobRunnerCancellationDoesNotRetry(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -410,9 +415,9 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 		&job,
 		tmpDir,
 		false,
-		nil,
 		0,
 		25*time.Millisecond,
+		nil,
 		&aggregate,
 		&aggregateMu,
 		nil,
@@ -464,9 +469,9 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 		&job,
 		tmpDir,
 		false,
-		nil,
 		0,
 		50*time.Millisecond,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -504,9 +509,9 @@ func TestExecuteJobWithTimeoutSetupHangUsesActivityTimeout(t *testing.T) {
 		&job,
 		tmpDir,
 		false,
-		nil,
 		0,
 		25*time.Millisecond,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -532,7 +537,6 @@ func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *tes
 	installFakeACPClients(t, blockingSetupClient)
 
 	job := newTestACPJob(tmpDir)
-	uiCh := make(chan uiMsg, 4)
 
 	var result jobAttemptResult
 	stdout, stderr, captureErr := captureExecuteStreams(t, func() error {
@@ -547,9 +551,9 @@ func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *tes
 			&job,
 			tmpDir,
 			true,
-			uiCh,
 			0,
 			25*time.Millisecond,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -607,7 +611,6 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 	job := newTestACPJob(tmpDir)
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
-	uiCh := make(chan uiMsg, 4)
 	result := executeJobWithTimeout(
 		context.Background(),
 		&config{
@@ -619,9 +622,9 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 		&job,
 		tmpDir,
 		true,
-		uiCh,
 		0,
 		time.Second,
+		nil,
 		&aggregate,
 		&aggregateMu,
 		nil,
@@ -640,7 +643,7 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 
 func TestJobExecutionContextUICleanupHelpers(t *testing.T) {
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
-	execCtx := &jobExecutionContext{ui: ui}
+	execCtx := &jobExecutionContext{ctx: context.Background(), ui: ui}
 
 	if err := execCtx.awaitUIAfterCompletion(); err != nil {
 		t.Fatalf("awaitUIAfterCompletion: %v", err)
@@ -672,6 +675,7 @@ func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
 	execCtx := &jobExecutionContext{
+		ctx:   context.Background(),
 		ui:    ui,
 		total: 1,
 	}
@@ -693,6 +697,7 @@ func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 	close(cancelDone)
 	cancelUI := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
 	cancelExecCtx := &jobExecutionContext{
+		ctx:   context.Background(),
 		ui:    cancelUI,
 		total: 2,
 	}
@@ -715,7 +720,7 @@ func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 }
 
 func TestJobLifecycleMarkGiveUpRecordsFailure(t *testing.T) {
-	execCtx := &jobExecutionContext{}
+	execCtx := &jobExecutionContext{ctx: context.Background()}
 	lifecycle := newJobLifecycle(0, &job{
 		codeFiles: []string{"task_01"},
 		outLog:    "task_01.out.log",
@@ -738,6 +743,89 @@ func TestJobLifecycleMarkGiveUpRecordsFailure(t *testing.T) {
 	}
 	if len(execCtx.failures) != 1 || execCtx.failures[0].exitCode != 23 {
 		t.Fatalf("expected recorded failure, got %#v", execCtx.failures)
+	}
+}
+
+func TestJobLifecycleEmitsStartedRetryAndCompletedEvents(t *testing.T) {
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			maxRetries: 1,
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+	lifecycle := newJobLifecycle(2, &job{
+		codeFiles: []string{"task_03"},
+		outLog:    "task_03.out.log",
+		errLog:    "task_03.err.log",
+	}, execCtx)
+
+	lifecycle.startAttempt(1, 2, time.Second)
+	lifecycle.markRetry(failInfo{
+		codeFile: "task_03",
+		exitCode: 75,
+		outLog:   "task_03.out.log",
+		errLog:   "task_03.err.log",
+		err:      errors.New("retry me"),
+	}, 2, 2)
+	lifecycle.startAttempt(2, 2, time.Second)
+	lifecycle.markSuccess()
+
+	events := collectRuntimeEvents(t, eventsCh, 3)
+	gotKinds := []eventspkg.EventKind{events[0].Kind, events[1].Kind, events[2].Kind}
+	wantKinds := []eventspkg.EventKind{
+		eventspkg.EventKindJobStarted,
+		eventspkg.EventKindJobRetryScheduled,
+		eventspkg.EventKindJobCompleted,
+	}
+	for i := range wantKinds {
+		if gotKinds[i] != wantKinds[i] {
+			t.Fatalf("unexpected job lifecycle event order: got %v want %v", gotKinds, wantKinds)
+		}
+	}
+}
+
+func TestJobLifecycleEmitsFailedEvent(t *testing.T) {
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			maxRetries: 2,
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+	lifecycle := newJobLifecycle(0, &job{
+		codeFiles: []string{"task_01"},
+		outLog:    "task_01.out.log",
+		errLog:    "task_01.err.log",
+	}, execCtx)
+
+	lifecycle.startAttempt(1, 3, time.Second)
+	lifecycle.markGiveUp(failInfo{
+		codeFile: "task_01",
+		exitCode: 23,
+		outLog:   "task_01.out.log",
+		errLog:   "task_01.err.log",
+		err:      errors.New("boom"),
+	})
+
+	events := collectRuntimeEvents(t, eventsCh, 2)
+	if got := events[0].Kind; got != eventspkg.EventKindJobStarted {
+		t.Fatalf("expected job.started event, got %s", got)
+	}
+	if got := events[1].Kind; got != eventspkg.EventKindJobFailed {
+		t.Fatalf("expected job.failed event, got %s", got)
 	}
 }
 
@@ -890,8 +978,11 @@ type fakeLifecycleUISession struct {
 	waitCalls        int
 }
 
-func (f *fakeLifecycleUISession) events() chan uiMsg {
-	return f.eventsCh
+func (f *fakeLifecycleUISession) enqueue(msg uiMsg) {
+	if f.eventsCh == nil {
+		return
+	}
+	f.eventsCh <- msg
 }
 
 func (f *fakeLifecycleUISession) setQuitHandler(func(uiQuitRequest)) {}
@@ -929,6 +1020,14 @@ func (s *fakeACPSession) Err() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.err
+}
+
+func (s *fakeACPSession) SlowPublishes() uint64 {
+	return 0
+}
+
+func (s *fakeACPSession) DroppedUpdates() uint64 {
+	return 0
 }
 
 func (s *fakeACPSession) publish(update model.SessionUpdate) {
