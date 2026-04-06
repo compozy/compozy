@@ -68,7 +68,6 @@ func TestSessionUpdateHandlerRoutesTextBlocksToLogAndSnapshot(t *testing.T) {
 		&out,
 		&err,
 		runJournal,
-		nil,
 		&jobUsage,
 		&aggregate,
 		&sync.Mutex{},
@@ -126,7 +125,6 @@ func TestSessionUpdateHandlerMergesTranscriptAndCarriesSessionState(t *testing.T
 		io.Discard,
 		io.Discard,
 		runJournal,
-		nil,
 		nil,
 		nil,
 		nil,
@@ -212,7 +210,6 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 		&out,
 		&err,
 		runJournal,
-		nil,
 		&jobUsage,
 		&aggregate,
 		&aggregateMu,
@@ -289,11 +286,8 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	}
 }
 
-func TestSessionUpdateHandlerDoesNotBlockWhenUIChannelIsFull(t *testing.T) {
+func TestSessionUpdateHandlerDoesNotBlockWhenSessionStateIsTracked(t *testing.T) {
 	t.Parallel()
-
-	uiCh := make(chan uiMsg, 1)
-	uiCh <- jobUpdateMsg{Index: 99}
 
 	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 	defer cleanup()
@@ -310,7 +304,6 @@ func TestSessionUpdateHandlerDoesNotBlockWhenUIChannelIsFull(t *testing.T) {
 		io.Discard,
 		io.Discard,
 		runJournal,
-		uiCh,
 		&jobUsage,
 		&aggregate,
 		&aggregateMu,
@@ -369,7 +362,6 @@ func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil,
 	)
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusCompleted}); err != nil {
@@ -403,7 +395,6 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 		io.Discard,
 		&errBuf,
 		runJournal,
-		nil,
 		nil,
 		nil,
 		nil,
@@ -457,7 +448,6 @@ func TestSessionUpdateHandlerCompletionWriteFailureStillSignalsDone(t *testing.T
 		io.Discard,
 		failingWriter{},
 		runJournal,
-		nil,
 		nil,
 		nil,
 		nil,

@@ -252,7 +252,6 @@ func TestExecuteExecJobDoesNotRetryResumedSessions(t *testing.T) {
 		tmpDir,
 		false,
 		nil,
-		nil,
 	)
 
 	if result.err == nil {
@@ -411,7 +410,6 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 		&job,
 		tmpDir,
 		false,
-		nil,
 		0,
 		25*time.Millisecond,
 		nil,
@@ -466,7 +464,6 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 		&job,
 		tmpDir,
 		false,
-		nil,
 		0,
 		50*time.Millisecond,
 		nil,
@@ -507,7 +504,6 @@ func TestExecuteJobWithTimeoutSetupHangUsesActivityTimeout(t *testing.T) {
 		&job,
 		tmpDir,
 		false,
-		nil,
 		0,
 		25*time.Millisecond,
 		nil,
@@ -536,7 +532,6 @@ func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *tes
 	installFakeACPClients(t, blockingSetupClient)
 
 	job := newTestACPJob(tmpDir)
-	uiCh := make(chan uiMsg, 4)
 
 	var result jobAttemptResult
 	stdout, stderr, captureErr := captureExecuteStreams(t, func() error {
@@ -551,7 +546,6 @@ func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *tes
 			&job,
 			tmpDir,
 			true,
-			uiCh,
 			0,
 			25*time.Millisecond,
 			nil,
@@ -612,7 +606,6 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 	job := newTestACPJob(tmpDir)
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
-	uiCh := make(chan uiMsg, 4)
 	result := executeJobWithTimeout(
 		context.Background(),
 		&config{
@@ -624,7 +617,6 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 		&job,
 		tmpDir,
 		true,
-		uiCh,
 		0,
 		time.Second,
 		nil,
@@ -977,8 +969,11 @@ type fakeLifecycleUISession struct {
 	waitCalls        int
 }
 
-func (f *fakeLifecycleUISession) events() chan uiMsg {
-	return f.eventsCh
+func (f *fakeLifecycleUISession) enqueue(msg uiMsg) {
+	if f.eventsCh == nil {
+		return
+	}
+	f.eventsCh <- msg
 }
 
 func (f *fakeLifecycleUISession) setQuitHandler(func(uiQuitRequest)) {}

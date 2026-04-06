@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: TUI decoupling via bus-to-uiMsg adapter
 type: refactor
 complexity: medium
@@ -37,13 +37,13 @@ Add a subscriber goroutine that attaches to the event bus, translates `events.Ev
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Add bus subscription to `ui_model.go`: subscribe in UI session constructor, return unsubscribe closure
-- [ ] 6.2 Implement `translateEvent(events.Event) (uiMsg, bool)` mapping function (bool = whether TUI cares about this kind)
-- [ ] 6.3 Launch adapter goroutine that reads from subscription channel, translates, forwards to TUI-owned `events chan uiMsg`
-- [ ] 6.4 Ensure adapter goroutine exits on ctx cancel and closes TUI channel cleanly
-- [ ] 6.5 Verify TUI still renders correctly end-to-end with bus subscriber in place
-- [ ] 6.6 Delete `uiCh` field from `jobExecutionContext`, remove related wiring from `types.go`, `command_io.go`
-- [ ] 6.7 Update executor tests and TUI tests for new subscription model
+- [x] 6.1 Add bus subscription to `ui_model.go`: subscribe in UI session constructor, return unsubscribe closure
+- [x] 6.2 Implement `translateEvent(events.Event) (uiMsg, bool)` mapping function (bool = whether TUI cares about this kind)
+- [x] 6.3 Launch adapter goroutine that reads from subscription channel, translates, forwards to TUI-owned `events chan uiMsg`
+- [x] 6.4 Ensure adapter goroutine exits on ctx cancel and closes TUI channel cleanly
+- [x] 6.5 Verify TUI still renders correctly end-to-end with bus subscriber in place
+- [x] 6.6 Delete `uiCh` field from `jobExecutionContext`, remove related wiring from `types.go`, `command_io.go`
+- [x] 6.7 Update executor tests and TUI tests for new subscription model
 
 ## Implementation Details
 See TechSpec "Build Order" steps 8 and 9 for the two-phase TUI decoupling (adapter first, then legacy removal). The TUI's `tea.Model` implementation in `ui_update.go` and `ui_view.go` consumes `uiMsg` concrete types — those remain the TUI's internal protocol. The adapter is the ONLY consumer of `events.Event` in the TUI path. Event types not relevant to TUI (task.*, review.*, provider.*) are filtered by `translateEvent` returning `(nil, false)`.
@@ -77,18 +77,18 @@ See TechSpec "Build Order" steps 8 and 9 for the two-phase TUI decoupling (adapt
 
 ## Tests
 - Unit tests:
-  - [ ] `translateEvent` maps `job.started` event to `jobStartedMsg{Index, Attempt, MaxAttempts}` with correct fields
-  - [ ] `translateEvent` maps `session.update` event to `jobUpdateMsg{Index, Snapshot}` preserving session view snapshot
-  - [ ] `translateEvent` maps `usage.updated` event to `usageUpdateMsg{Index, Usage}`
-  - [ ] `translateEvent` maps `job.retry_scheduled` event to `jobRetryMsg{Index, Attempt, MaxAttempts, Reason}`
-  - [ ] `translateEvent` maps `job.failed` event to `jobFailureMsg{Failure}`
-  - [ ] `translateEvent` returns `(_, false)` for `task.file_updated`, `review.*`, `provider.*` events (TUI ignores them)
-  - [ ] Adapter goroutine exits cleanly on ctx cancel and closes TUI channel exactly once
-  - [ ] Adapter drops messages when TUI channel is full (non-blocking forward)
+  - [x] `translateEvent` maps `job.started` event to `jobStartedMsg{Index, Attempt, MaxAttempts}` with correct fields
+  - [x] `translateEvent` maps `session.update` event to `jobUpdateMsg{Index, Snapshot}` preserving session view snapshot
+  - [x] `translateEvent` maps `usage.updated` event to `usageUpdateMsg{Index, Usage}`
+  - [x] `translateEvent` maps `job.retry_scheduled` event to `jobRetryMsg{Index, Attempt, MaxAttempts, Reason}`
+  - [x] `translateEvent` maps `job.failed` event to `jobFailureMsg{Failure}`
+  - [x] `translateEvent` returns `(_, false)` for `task.file_updated`, `review.*`, `provider.*` events (TUI ignores them)
+  - [x] Adapter goroutine exits cleanly on ctx cancel and closes TUI channel exactly once
+  - [x] Adapter drops messages when TUI channel is full (non-blocking forward)
 - Integration tests:
-  - [ ] End-to-end: executor emits events via journal → bus → adapter → TUI renders expected frames (asserted via recorded TUI state)
-  - [ ] TUI session close triggers unsubscribe from bus and goroutine exit without leak (`runtime.NumGoroutine` check)
-  - [ ] Executor `jobExecutionContext` compiles and runs without `uiCh` field reference
+  - [x] End-to-end: executor emits events via journal → bus → adapter → TUI renders expected frames (asserted via recorded TUI state)
+  - [x] TUI session close triggers unsubscribe from bus and goroutine exit without leak (`runtime.NumGoroutine` check)
+  - [x] Executor `jobExecutionContext` compiles and runs without `uiCh` field reference
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -281,8 +281,6 @@ func TestWritePreflightFailureRendersSummaryAndFixPrompt(t *testing.T) {
 }
 
 func TestResolvePreflightStderrAndIsInteractiveHelpers(t *testing.T) {
-	t.Parallel()
-
 	buf := &bytes.Buffer{}
 	if got := resolvePreflightStderr(buf); got != buf {
 		t.Fatalf("expected explicit stderr writer to be preserved")

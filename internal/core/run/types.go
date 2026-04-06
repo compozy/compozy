@@ -240,7 +240,7 @@ const (
 )
 
 type uiSession interface {
-	events() chan uiMsg
+	enqueue(uiMsg)
 	setQuitHandler(func(uiQuitRequest))
 	closeEvents()
 	shutdown()

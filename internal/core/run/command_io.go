@@ -47,7 +47,6 @@ func (s *sessionExecution) close() {
 func notifyJobStart(
 	useUI bool,
 	emitHuman bool,
-	uiCh chan uiMsg,
 	_ int,
 	_ int,
 	_ int,
@@ -59,7 +58,6 @@ func notifyJobStart(
 	accessMode string,
 ) {
 	_ = useUI
-	_ = uiCh
 	if !emitHuman {
 		return
 	}
@@ -100,7 +98,6 @@ func setupSessionExecution(
 	cwd string,
 	useUI bool,
 	streamHumanOutput bool,
-	uiCh chan uiMsg,
 	index int,
 	runJournal *journal.Journal,
 	aggregateUsage *model.Usage,
@@ -146,7 +143,6 @@ func setupSessionExecution(
 		outWriter,
 		errWriter,
 		runJournal,
-		uiCh,
 		&job.usage,
 		aggregateUsage,
 		aggregateMu,

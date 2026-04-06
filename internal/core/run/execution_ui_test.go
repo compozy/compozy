@@ -328,8 +328,8 @@ func newFakeUISession() *fakeUISession {
 	}
 }
 
-func (f *fakeUISession) events() chan uiMsg {
-	return f.ch
+func (f *fakeUISession) enqueue(msg uiMsg) {
+	f.ch <- msg
 }
 
 func (f *fakeUISession) setQuitHandler(func(uiQuitRequest)) {}

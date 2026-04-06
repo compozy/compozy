@@ -218,8 +218,8 @@ func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
 	}
 
 	useUI := cfg.TUI
-	ui, uiCh := setupExecUI(ctx, internalCfg, useUI, execJob)
-	result := executeExecJob(ctx, internalCfg, &execJob, cfg.WorkspaceRoot, useUI, uiCh, state)
+	ui := setupExecUI(ctx, internalCfg, useUI, execJob)
+	result := executeExecJob(ctx, internalCfg, &execJob, cfg.WorkspaceRoot, useUI, state)
 	if waitErr := waitExecUI(ui); waitErr != nil && result.err == nil {
 		result.status = runStatusFailed
 		result.err = waitErr
@@ -256,15 +256,11 @@ func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *con
 	return promptText, state, internalCfg, execJob, nil
 }
 
-func setupExecUI(ctx context.Context, cfg *config, enabled bool, execJob job) (uiSession, chan uiMsg) {
+func setupExecUI(ctx context.Context, cfg *config, enabled bool, execJob job) uiSession {
 	if !enabled {
-		return nil, nil
+		return nil
 	}
-	ui := setupUI(ctx, []job{execJob}, cfg, true)
-	if ui == nil {
-		return nil, nil
-	}
-	return ui, ui.events()
+	return setupUI(ctx, []job{execJob}, cfg, nil, true)
 }
 
 func waitExecUI(ui uiSession) error {
@@ -291,13 +287,11 @@ func executeExecJob(
 	j *job,
 	cwd string,
 	useUI bool,
-	uiCh chan uiMsg,
 	state *execRunState,
 ) execExecutionResult {
 	notifyJobStart(
 		useUI,
 		false,
-		uiCh,
 		0,
 		1,
 		atLeastOne(cfg.maxRetries+1),
@@ -311,32 +305,30 @@ func executeExecJob(
 
 	attemptTimeout := cfg.timeout
 	for attempt := 1; ; attempt++ {
-		result := runSingleExecAttempt(ctx, cfg, j, cwd, useUI, uiCh, attemptTimeout, state)
+		result := runSingleExecAttempt(ctx, cfg, j, cwd, useUI, attemptTimeout, state)
 		if result.err == nil {
-			publishExecFinish(useUI, uiCh, true, 0)
+			publishExecFinish(useUI, true, 0)
 			return result
 		}
 
 		if !shouldRetryExecAttempt(result.err, attempt, cfg.maxRetries, j) {
-			publishExecFinish(useUI, uiCh, false, sessionErrorCode(result.err))
+			publishExecFinish(useUI, false, sessionErrorCode(result.err))
 			return result
 		}
 
-		publishExecRetry(useUI, uiCh, attempt+1, cfg.maxRetries+1, result.err)
+		publishExecRetry(useUI, attempt+1, cfg.maxRetries+1, result.err)
 		attemptTimeout = nextRetryTimeout(attemptTimeout, cfg.retryBackoffMultiplier)
 	}
 }
 
-func publishExecFinish(useUI bool, uiCh chan uiMsg, success bool, exitCode int) {
+func publishExecFinish(useUI bool, success bool, exitCode int) {
 	_ = useUI
-	_ = uiCh
 	_ = success
 	_ = exitCode
 }
 
-func publishExecRetry(useUI bool, uiCh chan uiMsg, attempt int, maxAttempts int, err error) {
+func publishExecRetry(useUI bool, attempt int, maxAttempts int, err error) {
 	_ = useUI
-	_ = uiCh
 	_ = attempt
 	_ = maxAttempts
 	_ = err
@@ -355,7 +347,6 @@ func runSingleExecAttempt(
 	j *job,
 	cwd string,
 	useUI bool,
-	uiCh chan uiMsg,
 	timeout time.Duration,
 	state *execRunState,
 ) execExecutionResult {
@@ -380,7 +371,6 @@ func runSingleExecAttempt(
 		cwd,
 		useUI,
 		false,
-		uiCh,
 		0,
 		stateJournal(state),
 		nil,

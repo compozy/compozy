@@ -27,7 +27,6 @@ type sessionUpdateHandler struct {
 	outWriter      io.Writer
 	errWriter      io.Writer
 	journal        *journal.Journal
-	uiCh           chan<- uiMsg
 	jobUsage       *model.Usage
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
@@ -50,7 +49,6 @@ func newSessionUpdateHandler(
 	outWriter io.Writer,
 	errWriter io.Writer,
 	runJournal *journal.Journal,
-	uiCh chan<- uiMsg,
 	jobUsage *model.Usage,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
@@ -69,7 +67,6 @@ func newSessionUpdateHandler(
 		outWriter:      outWriter,
 		errWriter:      errWriter,
 		journal:        runJournal,
-		uiCh:           uiCh,
 		jobUsage:       jobUsage,
 		aggregateUsage: aggregateUsage,
 		aggregateMu:    aggregateMu,

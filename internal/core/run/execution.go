@@ -98,7 +98,6 @@ type jobExecutionContext struct {
 	logger         *slog.Logger
 	journal        *journal.Journal
 	bus            *events.Bus[events.Event]
-	uiCh           chan uiMsg
 	ui             uiSession
 	sem            chan struct{}
 	aggregateUsage model.Usage
@@ -356,8 +355,7 @@ func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.D
 		)
 		notifyJobStart(
 			false,
-			cfg != nil && cfg.humanOutputEnabled() && l.execCtx.uiCh == nil,
-			nil,
+			cfg != nil && cfg.humanOutputEnabled() && l.execCtx.ui == nil,
 			l.index,
 			attempt,
 			maxAttempts,
@@ -655,8 +653,7 @@ func (r *jobRunner) executeAttempt(ctx context.Context, timeout time.Duration) j
 		r.execCtx.cfg,
 		r.job,
 		r.execCtx.cwd,
-		r.execCtx.uiCh != nil,
-		r.execCtx.uiCh,
+		r.execCtx.ui != nil,
 		r.index,
 		timeout,
 		r.execCtx.journal,
@@ -679,7 +676,7 @@ func (r *jobRunner) nextTimeout(current time.Duration) time.Duration {
 }
 
 func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration) {
-	if r.execCtx.uiCh != nil {
+	if r.execCtx.ui != nil {
 		return
 	}
 	if !r.execCtx.cfg.humanOutputEnabled() {
@@ -723,10 +720,7 @@ func newJobExecutionContext(
 		execCtx.jobs[idx].outBuffer = newLineBuffer(cfg.tailLines)
 		execCtx.jobs[idx].errBuffer = newLineBuffer(cfg.tailLines)
 	}
-	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, cfg.uiEnabled())
-	if execCtx.ui != nil {
-		execCtx.uiCh = execCtx.ui.events()
-	}
+	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, bus, cfg.uiEnabled())
 	return execCtx, nil
 }
 
@@ -1288,7 +1282,6 @@ func executeJobWithTimeout(
 	j *job,
 	cwd string,
 	useUI bool,
-	uiCh chan uiMsg,
 	index int,
 	timeout time.Duration,
 	runJournal *journal.Journal,
@@ -1318,7 +1311,6 @@ func executeJobWithTimeout(
 		cwd,
 		useUI,
 		cfg.humanOutputEnabled(),
-		uiCh,
 		index,
 		runJournal,
 		aggregateUsage,
