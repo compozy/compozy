@@ -20,6 +20,10 @@ Create `internal/core/kernel/` with a generic typed-command dispatcher, `KernelD
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
 
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
+
 <requirements>
 - MUST create package `internal/core/kernel/` with `Dispatcher`, `Handler[C,R]` interface, `Register`, `Dispatch`, `NewDispatcher`
 - MUST define `KernelDeps` struct holding `Logger *slog.Logger`, `EventBus *events.Bus[events.Event]`, `Workspace workspace.Context`, `AgentRegistry agent.Registry`

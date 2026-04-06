@@ -22,15 +22,6 @@ type ToolCallUpdatedPayload struct {
 	RawInput   json.RawMessage `json:"raw_input,omitempty"`
 }
 
-// ToolCallCompletedPayload describes a completed tool call.
-type ToolCallCompletedPayload struct {
-	Index      int             `json:"index"`
-	ToolCallID string          `json:"tool_call_id"`
-	State      ToolCallState   `json:"state,omitempty"`
-	Content    string          `json:"content,omitempty"`
-	Output     json.RawMessage `json:"output,omitempty"`
-}
-
 // ToolCallFailedPayload describes a failed tool call.
 type ToolCallFailedPayload struct {
 	Index      int           `json:"index"`

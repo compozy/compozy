@@ -20,6 +20,10 @@ Add a subscriber goroutine that attaches to the event bus, translates `events.Ev
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
 
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
+
 <requirements>
 - MUST add an adapter goroutine in `internal/core/run/ui_model.go` that subscribes to `*events.Bus[events.Event]`
 - MUST translate each relevant `events.Event` kind into the corresponding `uiMsg` concrete type (jobStartedMsg, jobFinishedMsg, jobUpdateMsg, usageUpdateMsg, jobRetryMsg, jobFailureMsg, shutdownStatusMsg)

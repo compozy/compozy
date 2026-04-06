@@ -21,6 +21,10 @@ Wire the Service Kernel into the Cobra CLI: construct `KernelDeps` at root start
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
 
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
+
 <requirements>
 - MUST construct `KernelDeps{Logger, EventBus, Workspace, AgentRegistry}` once at root command initialization
 - MUST call `kernel.BuildDefault(deps)` and pass the returned `*kernel.Dispatcher` into each command constructor

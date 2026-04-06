@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: ACP ingress buffer strategy
 type: refactor
 complexity: medium
@@ -19,6 +19,10 @@ Grow the ACP session update channel from 128 to 1024 entries, replace the silent
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
 
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
+
 <requirements>
 - MUST grow `sessionImpl.updates` channel capacity from 128 to 1024 in `internal/core/agent/session.go`
 - MUST replace existing `select { case s.updates <- update: default: }` silent-drop pattern with timed backpressure
@@ -33,13 +37,13 @@ Grow the ACP session update channel from 128 to 1024 entries, replace the silent
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Change buffer capacity from 128 to 1024 in `sessionImpl` constructor
-- [ ] 2.2 Add `droppedUpdates` and `slowPublishes` `atomic.Uint64` fields to `sessionImpl`
-- [ ] 2.3 Refactor `publish()` to take `ctx context.Context` parameter with fast/slow/timeout/cancel paths
-- [ ] 2.4 Add rate-limited drop logging via slog with structured attributes
-- [ ] 2.5 Expose accessor methods `SlowPublishes()` and `DroppedUpdates()` on Session interface or concrete type
-- [ ] 2.6 Update every caller of `publish()` in the agent package to pass ctx
-- [ ] 2.7 Write unit tests for fast path, backpressure path, timeout path, ctx cancel path
+- [x] 2.1 Change buffer capacity from 128 to 1024 in `sessionImpl` constructor
+- [x] 2.2 Add `droppedUpdates` and `slowPublishes` `atomic.Uint64` fields to `sessionImpl`
+- [x] 2.3 Refactor `publish()` to take `ctx context.Context` parameter with fast/slow/timeout/cancel paths
+- [x] 2.4 Add rate-limited drop logging via slog with structured attributes
+- [x] 2.5 Expose accessor methods `SlowPublishes()` and `DroppedUpdates()` on Session interface or concrete type
+- [x] 2.6 Update every caller of `publish()` in the agent package to pass ctx
+- [x] 2.7 Write unit tests for fast path, backpressure path, timeout path, ctx cancel path
 
 ## Implementation Details
 The refactor is localized to `internal/core/agent/session.go` and its callers within the same package. See TechSpec "Core Interfaces" note on ACP ingress and ADR-006 for the complete backpressure semantics (buffer size rationale, timeout duration, drop-vs-backpressure policy). The kernel, event bus, and journal do not depend on this internal change — they consume events from `Session.Updates()` with unchanged semantics.
@@ -68,17 +72,17 @@ The refactor is localized to `internal/core/agent/session.go` and its callers wi
 
 ## Tests
 - Unit tests:
-  - [ ] Fast path: buffer under capacity, publish returns immediately without incrementing counters
-  - [ ] Backpressure success: slow consumer holds channel full, publish blocks briefly, then drains within 5s; `slowPublishes` counter increments once
-  - [ ] Timeout path: consumer permanently stalled, publish blocks full 5s then drops; `droppedUpdates` counter increments and warn log fires with correct attributes
-  - [ ] Context cancel during backpressure: `publish(ctx)` returns cleanly when ctx is cancelled before timeout; neither counter increments
-  - [ ] Drop log rate limiting: 100 sequential drops within 1 second produce at most 1 warn log
-  - [ ] `SlowPublishes()` and `DroppedUpdates()` accessors return accurate atomic counter values
-  - [ ] After `finished=true`, publish returns early without touching channel (preserves existing behavior)
-  - [ ] After `suppressUpdates=true`, publish returns early without touching channel (preserves existing behavior)
+  - [x] Fast path: buffer under capacity, publish returns immediately without incrementing counters
+  - [x] Backpressure success: slow consumer holds channel full, publish blocks briefly, then drains within 5s; `slowPublishes` counter increments once
+  - [x] Timeout path: consumer permanently stalled, publish blocks full 5s then drops; `droppedUpdates` counter increments and warn log fires with correct attributes
+  - [x] Context cancel during backpressure: `publish(ctx)` returns cleanly when ctx is cancelled before timeout; neither counter increments
+  - [x] Drop log rate limiting: 100 sequential drops within 1 second produce at most 1 warn log
+  - [x] `SlowPublishes()` and `DroppedUpdates()` accessors return accurate atomic counter values
+  - [x] After `finished=true`, publish returns early without touching channel (preserves existing behavior)
+  - [x] After `suppressUpdates=true`, publish returns early without touching channel (preserves existing behavior)
 - Integration tests:
-  - [ ] Existing session lifecycle tests in `internal/core/agent/session_test.go` still pass unchanged
-  - [ ] Live ACP session test: 1000 updates at 100/sec through full pipeline, zero drops with 1024 buffer
+  - [x] Existing session lifecycle tests in `internal/core/agent/session_test.go` still pass unchanged
+  - [x] Live ACP session test: 1000 updates at 100/sec through full pipeline, zero drops with 1024 buffer
 - Test coverage target: >=80%
 - All tests must pass
 

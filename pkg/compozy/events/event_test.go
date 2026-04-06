@@ -243,25 +243,6 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			},
 		},
 		{
-			name: "prompt built",
-			payload: kinds.PromptBuiltPayload{
-				Index:     1,
-				SafeName:  "task_01",
-				TaskTitle: "Events package",
-				TaskType:  "refactor",
-				CodeFiles: []string{"task_01.md"},
-			},
-		},
-		{
-			name: "prompt written",
-			payload: kinds.PromptWrittenPayload{
-				Index:    1,
-				SafeName: "task_01",
-				Path:     "/tmp/task_01.prompt.md",
-				Bytes:    512,
-			},
-		},
-		{
 			name: "tool call started",
 			payload: kinds.ToolCallStartedPayload{
 				Index:      1,
@@ -281,16 +262,6 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 				State:      kinds.ToolCallStateInProgress,
 				Input:      json.RawMessage(`{"cmd":"echo hi"}`),
 				RawInput:   json.RawMessage(`{"cmd":"echo hi","cwd":"/repo"}`),
-			},
-		},
-		{
-			name: "tool call completed",
-			payload: kinds.ToolCallCompletedPayload{
-				Index:      1,
-				ToolCallID: "tool-1",
-				State:      kinds.ToolCallStateCompleted,
-				Content:    "done",
-				Output:     json.RawMessage(`{"stdout":"ok"}`),
 			},
 		},
 		{

@@ -20,6 +20,10 @@ Create the public `pkg/compozy/runs/` package with typed operations for enumerat
 - TESTS REQUIRED — every task MUST include tests in deliverables
 </critical>
 
+<note>
+**Greenfield approach**: This project is in alpha (`v0.x`). Prioritize clean architecture and code quality over backwards compatibility. Do not add compatibility shims, legacy adapters, or deprecation wrappers — replace existing code directly. Breaking changes are expected and acceptable.
+</note>
+
 <requirements>
 - MUST create public package `pkg/compozy/runs/`
 - MUST add direct dependencies `github.com/nxadm/tail` and `github.com/fsnotify/fsnotify` via `go get`

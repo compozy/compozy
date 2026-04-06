@@ -45,15 +45,10 @@ const (
 	EventKindSessionCompleted EventKind = "session.completed"
 	EventKindSessionFailed    EventKind = "session.failed"
 
-	// Prompt events.
-	EventKindPromptBuilt   EventKind = "prompt.built"
-	EventKindPromptWritten EventKind = "prompt.written"
-
 	// Tool call events.
-	EventKindToolCallStarted   EventKind = "tool_call.started"
-	EventKindToolCallUpdated   EventKind = "tool_call.updated"
-	EventKindToolCallCompleted EventKind = "tool_call.completed"
-	EventKindToolCallFailed    EventKind = "tool_call.failed"
+	EventKindToolCallStarted EventKind = "tool_call.started"
+	EventKindToolCallUpdated EventKind = "tool_call.updated"
+	EventKindToolCallFailed  EventKind = "tool_call.failed"
 
 	// Usage events.
 	EventKindUsageUpdated    EventKind = "usage.updated"

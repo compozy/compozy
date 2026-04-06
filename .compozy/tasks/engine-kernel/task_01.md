@@ -22,7 +22,7 @@ Create the public `pkg/compozy/events/` package that defines the typed event env
 <requirements>
 - MUST create package at `pkg/compozy/events/` (public, semver-stable post-Phase B)
 - MUST expose `Event` envelope with `SchemaVersion`, `RunID`, `Seq`, `Timestamp`, `Kind`, `Payload` fields
-- MUST define `EventKind` typed string enum with 30+ const values across 10 domains (run/job/session/prompt/tool_call/usage/task/review/provider/shutdown)
+- MUST define `EventKind` typed string enum with 27 const values across 9 domains (run/job/session/tool_call/usage/task/review/provider/shutdown)
 - MUST place per-domain payload structs under `pkg/compozy/events/kinds/` (one Go file per domain)
 - MUST implement `Bus[T any]` with per-subscriber subscription struct carrying its own `dropped atomic.Uint64` counter
 - MUST use snapshot-and-publish pattern (acquire RLock, copy subscribers, release, then send)
@@ -34,14 +34,14 @@ Create the public `pkg/compozy/events/` package that defines the typed event env
 
 ## Subtasks
 - [ ] 1.1 Define `Event` envelope type and `SchemaVersion = "1.0"` constant
-- [ ] 1.2 Define `EventKind` string enum with all 30+ const values per ADR-003 taxonomy
-- [ ] 1.3 Create `kinds/` subpackage with one Go file per domain; define typed payload structs
+- [ ] 1.2 Define `EventKind` string enum with all 27 const values per ADR-003 taxonomy (prompt domain removed, tool_call.completed removed — see ADR-003 "Removed Event Kinds")
+- [ ] 1.3 Create `kinds/` subpackage with 9 Go files (one per domain, no prompt.go); define typed payload structs
 - [ ] 1.4 Implement `Bus[T]` with snapshot publish, per-subscriber drop counter, rate-limited warn
 - [ ] 1.5 Implement `Subscribe`/`Publish`/`Close`/`DroppedFor`/`SubscriberCount` public methods
 - [ ] 1.6 Write unit tests covering fanout, backpressure, unsubscribe-during-publish, Close idempotency, goroutine leak
 
 ## Implementation Details
-Create the package at `pkg/compozy/events/`. The `Event` envelope, bus contract, and subscription struct layout are defined in the TechSpec "Core Interfaces" section and ADR-002. The complete event taxonomy (30+ kinds across 10 domains) with payload struct contracts is defined in ADR-003. No executor or journal integration in this task — those come in task_03 and task_05.
+Create the package at `pkg/compozy/events/`. The `Event` envelope, bus contract, and subscription struct layout are defined in the TechSpec "Core Interfaces" section and ADR-002. The event taxonomy (27 kinds across 9 domains) with payload struct contracts is defined in ADR-003. The prompt domain was removed (no emission site) and `tool_call.completed` was removed (redundant with `tool_call.updated{state=completed}`) — see ADR-003 "Removed Event Kinds". No executor or journal integration in this task — those come in task_03 and task_05.
 
 ### Relevant Files
 - `internal/core/model/content.go:9-25` — existing `ContentBlock` types referenced by `session.update` payload
@@ -57,12 +57,12 @@ Create the package at `pkg/compozy/events/`. The `Event` envelope, bus contract,
 
 ### Related ADRs
 - [ADR-002: Custom Event Bus with Bounded Per-Subscriber Backpressure](adrs/adr-002.md) — defines bus contract and snapshot pattern
-- [ADR-003: Event Taxonomy with Schema Versioning](adrs/adr-003.md) — defines complete 30+ event kind catalog
+- [ADR-003: Event Taxonomy with Schema Versioning](adrs/adr-003.md) — defines 27 event kind catalog across 9 domains
 
 ## Deliverables
 - `pkg/compozy/events/event.go` with `Event`, `EventKind`, `SchemaVersion`, `SubID` types
 - `pkg/compozy/events/bus.go` implementing `Bus[T]` (~150 LOC)
-- `pkg/compozy/events/kinds/` subpackage with 10 files (run.go, job.go, session.go, prompt.go, tool_call.go, usage.go, task.go, review.go, provider.go, shutdown.go)
+- `pkg/compozy/events/kinds/` subpackage with 9 files (run.go, job.go, session.go, tool_call.go, usage.go, task.go, review.go, provider.go, shutdown.go)
 - Unit tests with 80%+ coverage **(REQUIRED)**
 - Integration test asserting bus + 3 concurrent subscribers deliver in order **(REQUIRED)**
 
