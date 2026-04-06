@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	acp "github.com/coder/acp-go-sdk"
@@ -25,6 +27,10 @@ type Session interface {
 	Done() <-chan struct{}
 	// Err returns the terminal session error, if any.
 	Err() error
+	// SlowPublishes returns the number of publishes that waited for backpressure to clear.
+	SlowPublishes() uint64
+	// DroppedUpdates returns the number of updates dropped after backpressure timed out.
+	DroppedUpdates() uint64
 }
 
 // SessionIdentity captures the stable ACP and provider-specific ids for a session.
@@ -34,6 +40,13 @@ type SessionIdentity struct {
 	Resumed        bool
 }
 
+const (
+	sessionUpdatesBufferCap = 1024
+	sessionDropLogInterval  = time.Second
+)
+
+var sessionPublishBackpressureTimeout = 5 * time.Second
+
 type sessionImpl struct {
 	id           string
 	identity     SessionIdentity
@@ -42,13 +55,19 @@ type sessionImpl struct {
 	updates      chan model.SessionUpdate
 	done         chan struct{}
 
+	slowPublishes  atomic.Uint64
+	droppedUpdates atomic.Uint64
+
 	mu                          sync.RWMutex
 	err                         error
 	finished                    bool
 	suppressUpdates             bool
 	updatesSeen                 int
 	lastUpdateWasFailedToolCall bool
+	lastDropLogAt               time.Time
 }
+
+var _ Session = (*sessionImpl)(nil)
 
 func newSession(id string) *sessionImpl {
 	return &sessionImpl{
@@ -56,7 +75,7 @@ func newSession(id string) *sessionImpl {
 		identity: SessionIdentity{
 			ACPSessionID: id,
 		},
-		updates: make(chan model.SessionUpdate, 128),
+		updates: make(chan model.SessionUpdate, sessionUpdatesBufferCap),
 		done:    make(chan struct{}),
 	}
 }
@@ -99,7 +118,15 @@ func (s *sessionImpl) Err() error {
 	return s.err
 }
 
-func (s *sessionImpl) publish(update model.SessionUpdate) {
+func (s *sessionImpl) SlowPublishes() uint64 {
+	return s.slowPublishes.Load()
+}
+
+func (s *sessionImpl) DroppedUpdates() uint64 {
+	return s.droppedUpdates.Load()
+}
+
+func (s *sessionImpl) publish(ctx context.Context, update model.SessionUpdate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.finished {
@@ -116,8 +143,37 @@ func (s *sessionImpl) publish(update model.SessionUpdate) {
 	}
 	select {
 	case s.updates <- update:
+		return
 	default:
 	}
+
+	timer := time.NewTimer(sessionPublishBackpressureTimeout)
+	defer timer.Stop()
+
+	select {
+	case s.updates <- update:
+		s.slowPublishes.Add(1)
+	case <-timer.C:
+		droppedTotal := s.droppedUpdates.Add(1)
+		s.warnDroppedUpdate(update.Kind, droppedTotal)
+	case <-ctx.Done():
+		return
+	}
+}
+
+func (s *sessionImpl) warnDroppedUpdate(kind model.SessionUpdateKind, droppedTotal uint64) {
+	now := time.Now()
+	if !s.lastDropLogAt.IsZero() && now.Sub(s.lastDropLogAt) < sessionDropLogInterval {
+		return
+	}
+	s.lastDropLogAt = now
+	slog.Warn(
+		"acp session update dropped after backpressure timeout",
+		"session_id", s.id,
+		"buffer_cap", cap(s.updates),
+		"dropped_total", droppedTotal,
+		"kind", kind,
+	)
 }
 
 func (s *sessionImpl) finish(status model.SessionStatus, err error) {

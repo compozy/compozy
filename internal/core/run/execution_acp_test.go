@@ -931,6 +931,14 @@ func (s *fakeACPSession) Err() error {
 	return s.err
 }
 
+func (s *fakeACPSession) SlowPublishes() uint64 {
+	return 0
+}
+
+func (s *fakeACPSession) DroppedUpdates() uint64 {
+	return 0
+}
+
 func (s *fakeACPSession) publish(update model.SessionUpdate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

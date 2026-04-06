@@ -709,6 +709,7 @@ type helperScenario struct {
 	ExpectedLoadSessionID   string              `json:"expected_load_session_id,omitempty"`
 	ExpectedPrompt          string              `json:"expected_prompt,omitempty"`
 	ExpectedSessionModeID   string              `json:"expected_session_mode_id,omitempty"`
+	UpdateIntervalMillis    int                 `json:"update_interval_millis,omitempty"`
 	SupportsLoadSession     bool                `json:"supports_load_session,omitempty"`
 	SessionMeta             map[string]any      `json:"session_meta,omitempty"`
 	ReplayUpdatesOnLoad     []acp.SessionUpdate `json:"replay_updates_on_load,omitempty"`
@@ -770,13 +771,8 @@ func (a *helperAgent) LoadSession(ctx context.Context, req acp.LoadSessionReques
 			Message: fmt.Sprintf("unexpected load cwd %q", req.Cwd),
 		}
 	}
-	for _, update := range a.scenario.ReplayUpdatesOnLoad {
-		if err := a.conn.SessionUpdate(ctx, acp.SessionNotification{
-			SessionId: acp.SessionId(a.sessionID),
-			Update:    update,
-		}); err != nil {
-			return acp.LoadSessionResponse{}, err
-		}
+	if err := a.emitUpdates(ctx, a.scenario.ReplayUpdatesOnLoad); err != nil {
+		return acp.LoadSessionResponse{}, err
 	}
 	return acp.LoadSessionResponse{Meta: a.scenario.SessionMeta}, nil
 }
@@ -800,13 +796,8 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 		return acp.PromptResponse{}, a.scenario.PromptError.toACPError()
 	}
 
-	for _, update := range a.scenario.Updates {
-		if err := a.conn.SessionUpdate(ctx, acp.SessionNotification{
-			SessionId: acp.SessionId(a.sessionID),
-			Update:    update,
-		}); err != nil {
-			return acp.PromptResponse{}, err
-		}
+	if err := a.emitUpdates(ctx, a.scenario.Updates); err != nil {
+		return acp.PromptResponse{}, err
 	}
 
 	if a.scenario.PromptError != nil && a.scenario.PromptErrorAfterUpdates {
@@ -823,6 +814,28 @@ func (a *helperAgent) Prompt(ctx context.Context, req acp.PromptRequest) (acp.Pr
 		stopReason = acp.StopReason(a.scenario.StopReason)
 	}
 	return acp.PromptResponse{StopReason: stopReason}, nil
+}
+
+func (a *helperAgent) emitUpdates(ctx context.Context, updates []acp.SessionUpdate) error {
+	for i, update := range updates {
+		if i > 0 && a.scenario.UpdateIntervalMillis > 0 {
+			timer := time.NewTimer(time.Duration(a.scenario.UpdateIntervalMillis) * time.Millisecond)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+		}
+
+		if err := a.conn.SessionUpdate(ctx, acp.SessionNotification{
+			SessionId: acp.SessionId(a.sessionID),
+			Update:    update,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (a *helperAgent) Cancel(context.Context, acp.CancelNotification) error {
