@@ -21,6 +21,8 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
+var captureExecuteStreamsMu sync.Mutex
+
 func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
 	installACPHelperOnPath(t, []runACPHelperScenario{{
@@ -1136,6 +1138,10 @@ func helperPromptText(blocks []acp.ContentBlock) string {
 
 func captureExecuteStreams(t *testing.T, fn func() error) (string, string, error) {
 	t.Helper()
+
+	// Process stdio is global state; parallel tests must serialize replacement.
+	captureExecuteStreamsMu.Lock()
+	defer captureExecuteStreamsMu.Unlock()
 
 	originalStdout := os.Stdout
 	originalStderr := os.Stderr
