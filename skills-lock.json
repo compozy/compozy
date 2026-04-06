@@ -35,6 +35,11 @@
       "source": "pedronauck/skills",
       "sourceType": "github",
       "computedHash": "3b8c91501866e5591903ff6eb06106dd17915269776c49f407c72961d13a4cee"
+    },
+    "refactoring-analysis": {
+      "source": "pedronauck/skills",
+      "sourceType": "github",
+      "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
     }
   }
 }
