@@ -1,10 +1,10 @@
 ---
-status: pending
+status: completed
 title: Journal writer upstream of fanout
 type: refactor
 complexity: high
 dependencies:
-  - task_01
+    - task_01
 ---
 
 # Task 03: Journal writer upstream of fanout

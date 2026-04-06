@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Events package (types + taxonomy + bus)
 type: refactor
 complexity: medium
@@ -33,12 +33,12 @@ Create the public `pkg/compozy/events/` package that defines the typed event env
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Define `Event` envelope type and `SchemaVersion = "1.0"` constant
-- [ ] 1.2 Define `EventKind` string enum with all 27 const values per ADR-003 taxonomy (prompt domain removed, tool_call.completed removed — see ADR-003 "Removed Event Kinds")
-- [ ] 1.3 Create `kinds/` subpackage with 9 Go files (one per domain, no prompt.go); define typed payload structs
-- [ ] 1.4 Implement `Bus[T]` with snapshot publish, per-subscriber drop counter, rate-limited warn
-- [ ] 1.5 Implement `Subscribe`/`Publish`/`Close`/`DroppedFor`/`SubscriberCount` public methods
-- [ ] 1.6 Write unit tests covering fanout, backpressure, unsubscribe-during-publish, Close idempotency, goroutine leak
+- [x] 1.1 Define `Event` envelope type and `SchemaVersion = "1.0"` constant
+- [x] 1.2 Define `EventKind` string enum with all 27 const values per ADR-003 taxonomy (prompt domain removed, tool_call.completed removed — see ADR-003 "Removed Event Kinds")
+- [x] 1.3 Create `kinds/` subpackage with 9 Go files (one per domain, no prompt.go); define typed payload structs
+- [x] 1.4 Implement `Bus[T]` with snapshot publish, per-subscriber drop counter, rate-limited warn
+- [x] 1.5 Implement `Subscribe`/`Publish`/`Close`/`DroppedFor`/`SubscriberCount` public methods
+- [x] 1.6 Write unit tests covering fanout, backpressure, unsubscribe-during-publish, Close idempotency, goroutine leak
 
 ## Implementation Details
 Create the package at `pkg/compozy/events/`. The `Event` envelope, bus contract, and subscription struct layout are defined in the TechSpec "Core Interfaces" section and ADR-002. The event taxonomy (27 kinds across 9 domains) with payload struct contracts is defined in ADR-003. The prompt domain was removed (no emission site) and `tool_call.completed` was removed (redundant with `tool_call.updated{state=completed}`) — see ADR-003 "Removed Event Kinds". No executor or journal integration in this task — those come in task_03 and task_05.
@@ -68,20 +68,20 @@ Create the package at `pkg/compozy/events/`. The `Event` envelope, bus contract,
 
 ## Tests
 - Unit tests:
-  - [ ] `Event` struct marshals to JSON with snake_case field names and round-trips unchanged
-  - [ ] Each payload struct in `kinds/` round-trips through `json.Marshal`+`json.Unmarshal`
-  - [ ] `Bus.Subscribe` returns unique monotonic `SubID` values across 1000 subscriptions
-  - [ ] `Bus.Publish` delivers the same event to all active subscribers in fanout order
-  - [ ] Slow subscriber (channel never read) causes `dropped` counter to increment while fast subscribers continue receiving
-  - [ ] `Bus.DroppedFor(id)` returns accurate counter for each subscriber independently
-  - [ ] Unsubscribe-during-publish: 100 subscribers with random unsubscribe calls and concurrent publish produces no panic and no goroutine leak
-  - [ ] `Bus.Close(ctx)` closes all subscriber channels exactly once and is idempotent on second call
-  - [ ] `Bus.Close(ctx)` with expired ctx returns error without hanging
-  - [ ] Drop warning log fires at most once per second per subscriber via CAS on `lastWarnedAt`
-  - [ ] `Publish` with already-cancelled ctx returns immediately without sending to any subscriber
+  - [x] `Event` struct marshals to JSON with snake_case field names and round-trips unchanged
+  - [x] Each payload struct in `kinds/` round-trips through `json.Marshal`+`json.Unmarshal`
+  - [x] `Bus.Subscribe` returns unique monotonic `SubID` values across 1000 subscriptions
+  - [x] `Bus.Publish` delivers the same event to all active subscribers in fanout order
+  - [x] Slow subscriber (channel never read) causes `dropped` counter to increment while fast subscribers continue receiving
+  - [x] `Bus.DroppedFor(id)` returns accurate counter for each subscriber independently
+  - [x] Unsubscribe-during-publish: 100 subscribers with random unsubscribe calls and concurrent publish produces no panic and no goroutine leak
+  - [x] `Bus.Close(ctx)` closes all subscriber channels exactly once and is idempotent on second call
+  - [x] `Bus.Close(ctx)` with expired ctx returns error without hanging
+  - [x] Drop warning log fires at most once per second per subscriber via CAS on `lastWarnedAt`
+  - [x] `Publish` with already-cancelled ctx returns immediately without sending to any subscriber
 - Integration tests:
-  - [ ] 3 concurrent subscribers with different processing speeds all receive events in monotonic seq order; slow subscriber drops quantified while fast ones stay current
-  - [ ] After 10000 Subscribe+unsub cycles, `runtime.NumGoroutine` delta is ≤ 2 (no leaks)
+  - [x] 3 concurrent subscribers with different processing speeds all receive events in monotonic seq order; slow subscriber drops quantified while fast ones stay current
+  - [x] After 10000 Subscribe+unsub cycles, `runtime.NumGoroutine` delta is ≤ 2 (no leaks)
 - Test coverage target: >=80%
 - All tests must pass
 
