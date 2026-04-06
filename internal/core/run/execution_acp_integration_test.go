@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,10 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/plan"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
+	"github.com/compozy/compozy/pkg/compozy/runs"
 )
 
 var captureExecuteStreamsMu sync.Mutex
@@ -41,7 +46,9 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	}})
 
 	job := newTestACPJob(tmpDir)
-	uiCh := make(chan uiMsg, 16)
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
 	result := executeJobWithTimeout(
@@ -51,13 +58,15 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 			model:                  "",
 			reasoningEffort:        "medium",
 			retryBackoffMultiplier: 2,
+			runArtifacts:           model.RunArtifacts{RunID: runID},
 		},
 		&job,
 		tmpDir,
-		true,
-		uiCh,
+		false,
+		nil,
 		0,
 		time.Second,
+		runJournal,
 		&aggregate,
 		&aggregateMu,
 		nil,
@@ -70,28 +79,23 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	var sawText bool
 	var sawToolUse bool
 	var sawToolResult bool
-drain:
-	for {
-		select {
-		case msg := <-uiCh:
-			update, ok := msg.(jobUpdateMsg)
-			if !ok {
-				continue
+	events := collectRuntimeEvents(t, eventsCh, 5)
+	for _, event := range events {
+		if event.Kind != eventspkg.EventKindSessionUpdate {
+			continue
+		}
+
+		var payload kinds.SessionUpdatePayload
+		decodeRuntimeEventPayload(t, event, &payload)
+		for _, block := range payload.Update.Blocks {
+			switch block.Type {
+			case kinds.BlockText:
+				sawText = true
+			case kinds.BlockToolUse:
+				sawToolUse = true
+			case kinds.BlockToolResult:
+				sawToolResult = true
 			}
-			for _, entry := range update.Snapshot.Entries {
-				for _, block := range entry.Blocks {
-					switch block.Type {
-					case model.BlockText:
-						sawText = true
-					case model.BlockToolUse:
-						sawToolUse = true
-					case model.BlockToolResult:
-						sawToolResult = true
-					}
-				}
-			}
-		default:
-			break drain
 		}
 	}
 	if !sawText || !sawToolUse || !sawToolResult {
@@ -197,6 +201,7 @@ func TestExecuteJobWithTimeoutACPFailedToolCallDoesNotFailJob(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	if got := result.status; got != attemptStatusSuccess {
@@ -242,7 +247,7 @@ func TestExecuteACPJSONModeWritesStructuredFailureResult(t *testing.T) {
 			OutPromptPath: jobArtifacts.PromptPath,
 			OutLog:        jobArtifacts.OutLogPath,
 			ErrLog:        jobArtifacts.ErrLogPath,
-		}}, runArtifacts, &model.RuntimeConfig{
+		}}, runArtifacts, nil, nil, &model.RuntimeConfig{
 			IDE:                    model.IDECodex,
 			Mode:                   model.ExecutionModeExec,
 			OutputFormat:           model.OutputFormatJSON,
@@ -320,7 +325,7 @@ func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
 			OutPromptPath: jobArtifacts.PromptPath,
 			OutLog:        jobArtifacts.OutLogPath,
 			ErrLog:        jobArtifacts.ErrLogPath,
-		}}, runArtifacts, &model.RuntimeConfig{
+		}}, runArtifacts, nil, nil, &model.RuntimeConfig{
 			IDE:                    model.IDECodex,
 			Mode:                   model.ExecutionModeExec,
 			OutputFormat:           model.OutputFormatJSON,
@@ -383,6 +388,90 @@ func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
 	}
 }
 
+func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
+	tmpDir := t.TempDir()
+	tasksDir := filepath.Join(tmpDir, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeRunTaskFile(t, tasksDir, "task_01.md", "pending")
+
+	installACPHelperOnPath(t, []runACPHelperScenario{{
+		Updates: []acp.SessionUpdate{
+			acp.UpdateAgentMessageText("task completed"),
+		},
+	}})
+
+	bus := eventspkg.New[eventspkg.Event](32)
+	defer func() {
+		if err := bus.Close(context.Background()); err != nil {
+			t.Fatalf("close bus: %v", err)
+		}
+	}()
+	_, busCh, unsubscribe := bus.Subscribe()
+	defer unsubscribe()
+
+	cfg := &model.RuntimeConfig{
+		Name:                   "demo",
+		WorkspaceRoot:          tmpDir,
+		IDE:                    model.IDECodex,
+		Mode:                   model.ExecutionModePRDTasks,
+		OutputFormat:           model.OutputFormatRawJSON,
+		ReasoningEffort:        "medium",
+		RetryBackoffMultiplier: 2,
+		Concurrent:             1,
+	}
+	prep, err := plan.Prepare(context.Background(), cfg, bus)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if prep.Journal == nil {
+		t.Fatal("expected prepare to return a journal")
+	}
+
+	if err := Execute(context.Background(), prep.Jobs, prep.RunArtifacts, prep.Journal, bus, cfg); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	busEvents := collectRuntimeEvents(t, busCh, 10)
+	wantKinds := []eventspkg.EventKind{
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobStarted,
+		eventspkg.EventKindSessionStarted,
+		eventspkg.EventKindSessionUpdate,
+		eventspkg.EventKindSessionUpdate,
+		eventspkg.EventKindSessionCompleted,
+		eventspkg.EventKindTaskFileUpdated,
+		eventspkg.EventKindTaskMetadataRefreshed,
+		eventspkg.EventKindJobCompleted,
+		eventspkg.EventKindRunCompleted,
+	}
+	if got := runtimeEventKinds(busEvents); !slices.Equal(got, wantKinds) {
+		t.Fatalf("unexpected bus event kinds: got %v want %v", got, wantKinds)
+	}
+
+	run, err := runs.Open(tmpDir, prep.RunArtifacts.RunID)
+	if err != nil {
+		t.Fatalf("open run: %v", err)
+	}
+	replayed := replayRuntimeEvents(t, run)
+	if got := runtimeEventKinds(replayed); !slices.Equal(got, wantKinds) {
+		t.Fatalf("unexpected replayed event kinds: got %v want %v", got, wantKinds)
+	}
+	for i := range busEvents {
+		if busEvents[i].Seq != replayed[i].Seq || busEvents[i].Kind != replayed[i].Kind {
+			t.Fatalf(
+				"bus event %d = (%d,%s), replayed = (%d,%s)",
+				i,
+				busEvents[i].Seq,
+				busEvents[i].Kind,
+				replayed[i].Seq,
+				replayed[i].Kind,
+			)
+		}
+	}
+}
+
 func TestExecuteJobWithTimeoutACPSubcommandRuntimeUsesLaunchSpec(t *testing.T) {
 	tmpDir := t.TempDir()
 	installACPHelperCommandOnPath(t, "opencode", []runACPHelperScenario{{
@@ -407,6 +496,7 @@ func TestExecuteJobWithTimeoutACPSubcommandRuntimeUsesLaunchSpec(t *testing.T) {
 		nil,
 		0,
 		time.Second,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -1326,4 +1416,25 @@ func assertNoACPTaskEvent(t *testing.T, ch <-chan string, window time.Duration, 
 		t.Fatalf("%s: %q", failure, got)
 	case <-time.After(window):
 	}
+}
+
+func runtimeEventKinds(events []eventspkg.Event) []eventspkg.EventKind {
+	kinds := make([]eventspkg.EventKind, 0, len(events))
+	for _, event := range events {
+		kinds = append(kinds, event.Kind)
+	}
+	return kinds
+}
+
+func replayRuntimeEvents(t *testing.T, run *runs.Run) []eventspkg.Event {
+	t.Helper()
+
+	var replayed []eventspkg.Event
+	for event, err := range run.Replay(0) {
+		if err != nil {
+			t.Fatalf("replay runtime events: %v", err)
+		}
+		replayed = append(replayed, event)
+	}
+	return replayed
 }

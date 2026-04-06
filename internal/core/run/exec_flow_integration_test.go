@@ -13,6 +13,8 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/core/model"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestExecuteExecTextModePrintsOnlyFinalAssistantResponse(t *testing.T) {
@@ -241,8 +243,8 @@ func TestExecuteExecJSONModeEmitsLeanJSONLAndPersistsRawEvents(t *testing.T) {
 	)
 
 	runID := latestPersistedExecRunID(t, tmpDir)
-	rawEvents := readExecEventFile(t, filepath.Join(tmpDir, ".compozy", "runs", runID, "events.jsonl"))
-	assertSessionUpdateKindsPresent(t, rawEvents,
+	rawEvents := readRuntimeEventFile(t, filepath.Join(tmpDir, ".compozy", "runs", runID, "events.jsonl"))
+	assertRuntimeSessionUpdateKindsPresent(t, rawEvents,
 		string(model.UpdateKindUserMessageChunk),
 		string(model.UpdateKindAgentThoughtChunk),
 		string(model.UpdateKindAgentMessageChunk),
@@ -382,14 +384,27 @@ func execJSONProjectionScenarioUpdates() []acp.SessionUpdate {
 	}
 }
 
-func readExecEventFile(t *testing.T, path string) []map[string]any {
+func readRuntimeEventFile(t *testing.T, path string) []eventspkg.Event {
 	t.Helper()
 
 	content, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("read exec event file %s: %v", path, err)
+		t.Fatalf("read runtime event file %s: %v", path, err)
 	}
-	return decodeExecJSONLEventsForRunTest(t, string(content))
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	events := make([]eventspkg.Event, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var event eventspkg.Event
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("decode runtime event: %v\nline:\n%s", err, line)
+		}
+		events = append(events, event)
+	}
+	return events
 }
 
 func decodeExecJSONLEventsForRunTest(t *testing.T, data string) []map[string]any {
@@ -432,6 +447,17 @@ func assertSessionUpdateKindsAbsent(t *testing.T, events []map[string]any, want 
 	}
 }
 
+func assertRuntimeSessionUpdateKindsPresent(t *testing.T, events []eventspkg.Event, want ...string) {
+	t.Helper()
+
+	kinds := collectedRuntimeSessionUpdateKinds(t, events)
+	for _, kind := range want {
+		if !slices.Contains(kinds, kind) {
+			t.Fatalf("expected runtime session.update kind %q in %v", kind, kinds)
+		}
+	}
+}
+
 func collectedSessionUpdateKinds(events []map[string]any) []string {
 	kinds := make([]string, 0, len(events))
 	for _, event := range events {
@@ -444,4 +470,21 @@ func collectedSessionUpdateKinds(events []map[string]any) []string {
 		kinds = append(kinds, kind)
 	}
 	return kinds
+}
+
+func collectedRuntimeSessionUpdateKinds(t *testing.T, events []eventspkg.Event) []string {
+	t.Helper()
+
+	updateKinds := make([]string, 0, len(events))
+	for _, event := range events {
+		if event.Kind != eventspkg.EventKindSessionUpdate {
+			continue
+		}
+		var payload kinds.SessionUpdatePayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode runtime session.update payload: %v", err)
+		}
+		updateKinds = append(updateKinds, string(payload.Update.Kind))
+	}
+	return updateKinds
 }

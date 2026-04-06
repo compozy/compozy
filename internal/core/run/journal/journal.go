@@ -186,6 +186,14 @@ func (j *Journal) EventsWritten() uint64 {
 	return j.eventsWritten.Load()
 }
 
+// Path reports the events.jsonl path owned by the journal.
+func (j *Journal) Path() string {
+	if j == nil {
+		return ""
+	}
+	return j.path
+}
+
 // DropsOnSubmit reports the number of submits dropped after backpressure timeout.
 func (j *Journal) DropsOnSubmit() uint64 {
 	if j == nil {

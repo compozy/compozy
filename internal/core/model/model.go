@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/core/run/journal"
 )
 
 const (
@@ -301,6 +303,7 @@ type ReviewFileMeta struct {
 type SolvePreparation struct {
 	Jobs             []Job
 	RunArtifacts     RunArtifacts
+	Journal          *journal.Journal
 	InputDir         string
 	InputDirPath     string
 	ResolvedName     string

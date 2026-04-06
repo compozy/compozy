@@ -10,6 +10,9 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 var newAgentClient = agent.NewClient
@@ -45,9 +48,9 @@ func notifyJobStart(
 	useUI bool,
 	emitHuman bool,
 	uiCh chan uiMsg,
-	index int,
-	attempt int,
-	maxAttempts int,
+	_ int,
+	_ int,
+	_ int,
 	job *job,
 	ide string,
 	model string,
@@ -55,10 +58,8 @@ func notifyJobStart(
 	reasoningEffort string,
 	accessMode string,
 ) {
-	if useUI {
-		uiCh <- jobStartedMsg{Index: index, Attempt: attempt, MaxAttempts: maxAttempts}
-		return
-	}
+	_ = useUI
+	_ = uiCh
 	if !emitHuman {
 		return
 	}
@@ -101,6 +102,7 @@ func setupSessionExecution(
 	streamHumanOutput bool,
 	uiCh chan uiMsg,
 	index int,
+	runJournal *journal.Journal,
 	aggregateUsage *model.Usage,
 	aggregateMu *sync.Mutex,
 	activity *activityMonitor,
@@ -140,8 +142,10 @@ func setupSessionExecution(
 		cfg.ide,
 		session.ID(),
 		logger.With("component", "acp.session", "agent_id", cfg.ide, "session_id", session.ID()),
+		cfg.runArtifacts.RunID,
 		outWriter,
 		errWriter,
+		runJournal,
 		uiCh,
 		&job.usage,
 		aggregateUsage,
@@ -157,6 +161,9 @@ func setupSessionExecution(
 		"job_index",
 		index,
 	)
+	if err := emitSessionStartedEvent(runJournal, cfg.runArtifacts.RunID, index, session.Identity()); err != nil {
+		return nil, err
+	}
 
 	return &sessionExecution{
 		client:        client,
@@ -167,6 +174,35 @@ func setupSessionExecution(
 		errFile:       errFile,
 		logger:        logger,
 	}, nil
+}
+
+func emitSessionStartedEvent(
+	runJournal *journal.Journal,
+	runID string,
+	index int,
+	identity agent.SessionIdentity,
+) error {
+	if runJournal == nil {
+		return nil
+	}
+
+	event, err := newRuntimeEvent(
+		runID,
+		events.EventKindSessionStarted,
+		kinds.SessionStartedPayload{
+			Index:          index,
+			ACPSessionID:   identity.ACPSessionID,
+			AgentSessionID: identity.AgentSessionID,
+			Resumed:        identity.Resumed,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if err := runJournal.Submit(context.Background(), event); err != nil {
+		return fmt.Errorf("submit session started event: %w", err)
+	}
+	return nil
 }
 
 func resolveSessionLogger(logger *slog.Logger) *slog.Logger {

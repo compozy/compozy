@@ -15,41 +15,80 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
 var ErrNoWork = errors.New("no issues to process")
 
-func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparation, error) {
+func Prepare(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	bus *events.Bus[events.Event],
+) (*model.SolvePreparation, error) {
 	prep := &model.SolvePreparation{}
+	var prepared bool
+	defer func() {
+		if prepared {
+			return
+		}
+		closePreparedJournal(ctx, prep)
+	}()
 
 	if cfg.Mode == model.ExecutionModeExec {
-		return prepareExec(prep, cfg)
+		execPrep, err := prepareExec(prep, cfg, bus)
+		if err != nil {
+			return nil, err
+		}
+		prepared = true
+		return execPrep, nil
 	}
 
+	if err := prepareWorkflowRun(prep, cfg, bus); err != nil {
+		return nil, err
+	}
+
+	prepared = true
+	return prep, nil
+}
+
+func prepareWorkflowRun(
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+	bus *events.Bus[events.Event],
+) error {
+	entries, err := resolvePreparedEntries(prep, cfg)
+	if err != nil {
+		return err
+	}
+
+	prep.RunArtifacts, err = allocateRunArtifacts(cfg)
+	if err != nil {
+		return err
+	}
+	prep.Journal, err = journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
+	if err != nil {
+		return fmt.Errorf("open run journal: %w", err)
+	}
+
+	prep.Jobs, err = prepareJobs(cfg, groupIssues(entries), prep.RunArtifacts)
+	if err != nil {
+		return err
+	}
+
+	return writeRunMetadata(prep, cfg)
+}
+
+func resolvePreparedEntries(prep *model.SolvePreparation, cfg *model.RuntimeConfig) ([]model.IssueEntry, error) {
 	var err error
 	prep.ResolvedName, prep.InputDir, prep.InputDirPath, err = resolveInputs(cfg)
 	if err != nil {
 		return nil, err
 	}
-	if cfg.Mode == model.ExecutionModePRReview {
-		meta, metaErr := reviews.ReadRoundMeta(prep.InputDirPath)
-		if metaErr != nil {
-			return nil, metaErr
-		}
-		cfg.Provider = meta.Provider
-		cfg.PR = meta.PR
-		cfg.Round = meta.Round
-		cfg.ReviewsDir = prep.InputDirPath
-		prep.ResolvedProvider = meta.Provider
-		prep.ResolvedPR = meta.PR
-		prep.ResolvedRound = meta.Round
-	} else {
-		if _, err := tasks.RefreshTaskMeta(prep.InputDirPath); err != nil {
-			return nil, err
-		}
-		cfg.TasksDir = prep.InputDirPath
+	if err := configureWorkflowInput(prep, cfg); err != nil {
+		return nil, err
 	}
 	if err := agent.EnsureAvailable(cfg); err != nil {
 		return nil, err
@@ -59,34 +98,41 @@ func Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparati
 	if err != nil {
 		return nil, err
 	}
-	entries, err = validateAndFilterEntries(entries, cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	groups := groupIssues(entries)
-	prep.RunArtifacts, err = allocateRunArtifacts(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	prep.Jobs, err = prepareJobs(
-		cfg,
-		groups,
-		prep.RunArtifacts,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := writeRunMetadata(prep, cfg); err != nil {
-		return nil, err
-	}
-
-	return prep, nil
+	return validateAndFilterEntries(entries, cfg)
 }
 
-func prepareExec(prep *model.SolvePreparation, cfg *model.RuntimeConfig) (*model.SolvePreparation, error) {
+func configureWorkflowInput(prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+	if cfg.Mode == model.ExecutionModePRReview {
+		return configureReviewInput(prep, cfg)
+	}
+
+	if _, err := tasks.RefreshTaskMeta(prep.InputDirPath); err != nil {
+		return err
+	}
+	cfg.TasksDir = prep.InputDirPath
+	return nil
+}
+
+func configureReviewInput(prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+	meta, err := reviews.ReadRoundMeta(prep.InputDirPath)
+	if err != nil {
+		return err
+	}
+	cfg.Provider = meta.Provider
+	cfg.PR = meta.PR
+	cfg.Round = meta.Round
+	cfg.ReviewsDir = prep.InputDirPath
+	prep.ResolvedProvider = meta.Provider
+	prep.ResolvedPR = meta.PR
+	prep.ResolvedRound = meta.Round
+	return nil
+}
+
+func prepareExec(
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+	bus *events.Bus[events.Event],
+) (*model.SolvePreparation, error) {
 	promptText, err := resolveExecPrompt(cfg)
 	if err != nil {
 		return nil, err
@@ -103,6 +149,10 @@ func prepareExec(prep *model.SolvePreparation, cfg *model.RuntimeConfig) (*model
 	if err != nil {
 		return nil, err
 	}
+	prep.Journal, err = journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open run journal: %w", err)
+	}
 
 	job, err := buildExecJob(prep.RunArtifacts, promptText)
 	if err != nil {
@@ -114,6 +164,24 @@ func prepareExec(prep *model.SolvePreparation, cfg *model.RuntimeConfig) (*model
 		return nil, err
 	}
 	return prep, nil
+}
+
+func closePreparedJournal(ctx context.Context, prep *model.SolvePreparation) {
+	if prep == nil || prep.Journal == nil {
+		return
+	}
+
+	closeCtx := ctx
+	if closeCtx == nil {
+		closeCtx = context.Background()
+	}
+	if _, hasDeadline := closeCtx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		closeCtx, cancel = context.WithTimeout(closeCtx, time.Second)
+		defer cancel()
+	}
+	_ = prep.Journal.Close(closeCtx)
+	prep.Journal = nil
 }
 
 func prepareJobs(

@@ -415,10 +415,11 @@ func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 		Mode:          model.ExecutionModePRReview,
 	}
 
-	prep, err := Prepare(context.Background(), cfg)
+	prep, err := Prepare(context.Background(), cfg, nil)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
+	defer closePreparedJournalForTest(t, prep)
 	if prep.ResolvedName != "review-without-pr" {
 		t.Fatalf("unexpected resolved name: %q", prep.ResolvedName)
 	}
@@ -470,10 +471,11 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 		DryRun:        true,
 		IDE:           model.IDECodex,
 		Mode:          model.ExecutionModePRDTasks,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
+	defer closePreparedJournalForTest(t, prep)
 	if len(prep.Jobs) != 2 {
 		t.Fatalf("expected two prepared jobs, got %d", len(prep.Jobs))
 	}
@@ -549,10 +551,11 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 		BatchSize:       10,
 		Mode:            model.ExecutionModePRReview,
 		IncludeResolved: false,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
+	defer closePreparedJournalForTest(t, prep)
 	if len(prep.Jobs) != 1 {
 		t.Fatalf("expected one prepared review job, got %d", len(prep.Jobs))
 	}
@@ -586,12 +589,19 @@ func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T)
 		IDE:           model.IDECodex,
 		Mode:          model.ExecutionModeExec,
 		OutputFormat:  model.OutputFormatJSON,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("prepare exec: %v", err)
 	}
+	defer closePreparedJournalForTest(t, prep)
 	if len(prep.Jobs) != 1 {
 		t.Fatalf("expected one exec job, got %d", len(prep.Jobs))
+	}
+	if prep.Journal == nil {
+		t.Fatal("expected prepare to return a run journal")
+	}
+	if got := prep.Journal.Path(); got != prep.RunArtifacts.EventsPath {
+		t.Fatalf("expected journal path %q, got %q", prep.RunArtifacts.EventsPath, got)
 	}
 
 	job := prep.Jobs[0]
@@ -611,6 +621,20 @@ func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T)
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("expected exec artifact %s: %v", path, err)
 		}
+	}
+}
+
+func closePreparedJournalForTest(t *testing.T, prep *model.SolvePreparation) {
+	t.Helper()
+
+	if prep == nil || prep.Journal == nil {
+		return
+	}
+
+	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := prep.Journal.Close(closeCtx); err != nil {
+		t.Fatalf("close prepared journal: %v", err)
 	}
 }
 

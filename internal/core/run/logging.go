@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,9 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 type sessionUpdateHandler struct {
@@ -18,9 +22,11 @@ type sessionUpdateHandler struct {
 	agentID        string
 	sessionID      string
 	logger         *slog.Logger
+	runID          string
 	startedAt      time.Time
 	outWriter      io.Writer
 	errWriter      io.Writer
+	journal        *journal.Journal
 	uiCh           chan<- uiMsg
 	jobUsage       *model.Usage
 	aggregateUsage *model.Usage
@@ -40,8 +46,10 @@ func newSessionUpdateHandler(
 	agentID string,
 	sessionID string,
 	logger *slog.Logger,
+	runID string,
 	outWriter io.Writer,
 	errWriter io.Writer,
+	runJournal *journal.Journal,
 	uiCh chan<- uiMsg,
 	jobUsage *model.Usage,
 	aggregateUsage *model.Usage,
@@ -56,9 +64,11 @@ func newSessionUpdateHandler(
 		agentID:        agentID,
 		sessionID:      sessionID,
 		logger:         logger,
+		runID:          runID,
 		startedAt:      time.Now(),
 		outWriter:      outWriter,
 		errWriter:      errWriter,
+		journal:        runJournal,
 		uiCh:           uiCh,
 		jobUsage:       jobUsage,
 		aggregateUsage: aggregateUsage,
@@ -83,46 +93,15 @@ func (h *sessionUpdateHandler) Err() error {
 func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 	h.recordActivity()
 
-	if len(update.Blocks) > 0 {
-		outLines, errLines := renderContentBlocks(update.Blocks)
-		if err := writeRenderedLines(h.outWriter, outLines); err != nil {
-			return fmt.Errorf("write ACP session output: %w", err)
-		}
-		if err := writeRenderedLines(h.errWriter, errLines); err != nil {
-			return fmt.Errorf("write ACP session stderr: %w", err)
-		}
-		h.recordBlockCounts(update.Blocks)
+	if err := h.renderUpdateBlocks(update.Blocks); err != nil {
+		return err
 	}
-
-	var (
-		snapshot SessionViewSnapshot
-		changed  bool
-	)
-	h.mu.Lock()
-	snapshot, changed = h.sessionView.Apply(update)
-	h.mu.Unlock()
-	if h.uiCh != nil && changed {
-		select {
-		case h.uiCh <- jobUpdateMsg{Index: h.index, Snapshot: snapshot}:
-		default:
-		}
+	h.applySessionUpdate(update)
+	if err := h.emitSessionUpdateEvent(update); err != nil {
+		return err
 	}
-
-	if hasUsage(update.Usage) {
-		if h.jobUsage != nil {
-			h.jobUsage.Add(update.Usage)
-		}
-		if h.uiCh != nil {
-			select {
-			case h.uiCh <- usageUpdateMsg{Index: h.index, Usage: update.Usage}:
-			default:
-			}
-		}
-		if h.aggregateUsage != nil && h.aggregateMu != nil {
-			h.aggregateMu.Lock()
-			h.aggregateUsage.Add(update.Usage)
-			h.aggregateMu.Unlock()
-		}
+	if err := h.recordUsageUpdate(update.Usage); err != nil {
+		return err
 	}
 
 	h.logger.Info(
@@ -144,21 +123,94 @@ func (h *sessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 		"duration",
 		time.Since(h.startedAt),
 	)
+	h.updateCompletionStatus(update.Status)
+	return nil
+}
 
-	switch update.Status {
+func (h *sessionUpdateHandler) renderUpdateBlocks(blocks []model.ContentBlock) error {
+	if len(blocks) == 0 {
+		return nil
+	}
+
+	outLines, errLines := renderContentBlocks(blocks)
+	if err := writeRenderedLines(h.outWriter, outLines); err != nil {
+		return fmt.Errorf("write ACP session output: %w", err)
+	}
+	if err := writeRenderedLines(h.errWriter, errLines); err != nil {
+		return fmt.Errorf("write ACP session stderr: %w", err)
+	}
+	h.recordBlockCounts(blocks)
+	return nil
+}
+
+func (h *sessionUpdateHandler) applySessionUpdate(update model.SessionUpdate) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.sessionView.Apply(update)
+}
+
+func (h *sessionUpdateHandler) emitSessionUpdateEvent(update model.SessionUpdate) error {
+	publicUpdate, err := publicSessionUpdate(update)
+	if err != nil {
+		return fmt.Errorf("convert session update event payload: %w", err)
+	}
+
+	return h.submitRuntimeEvent(
+		events.EventKindSessionUpdate,
+		kinds.SessionUpdatePayload{
+			Index:  h.index,
+			Update: publicUpdate,
+		},
+		"session update",
+	)
+}
+
+func (h *sessionUpdateHandler) recordUsageUpdate(usage model.Usage) error {
+	if !hasUsage(usage) {
+		return nil
+	}
+	if h.jobUsage != nil {
+		h.jobUsage.Add(usage)
+	}
+	if err := h.submitRuntimeEvent(
+		events.EventKindUsageUpdated,
+		usagePayload(h.index, usage),
+		"usage update",
+	); err != nil {
+		return err
+	}
+	if h.aggregateUsage != nil && h.aggregateMu != nil {
+		h.aggregateMu.Lock()
+		h.aggregateUsage.Add(usage)
+		h.aggregateMu.Unlock()
+	}
+	return nil
+}
+
+func (h *sessionUpdateHandler) updateCompletionStatus(status model.SessionStatus) {
+	switch status {
 	case model.StatusCompleted:
 		h.markDone(nil, false)
 	case model.StatusFailed:
 		h.markDone(fmt.Errorf("ACP session reported failed status"), false)
 	}
-
-	return nil
 }
 
 func (h *sessionUpdateHandler) HandleCompletion(err error) error {
 	h.recordActivity()
 
 	if err != nil {
+		if emitErr := h.submitRuntimeEvent(
+			events.EventKindSessionFailed,
+			kinds.SessionFailedPayload{
+				Index: h.index,
+				Error: err.Error(),
+				Usage: publicUsage(sessionHandlerUsage(h.jobUsage)),
+			},
+			"session failed",
+		); emitErr != nil {
+			return emitErr
+		}
 		if writeErr := writeRenderedLines(h.errWriter, []string{"ACP session error: " + err.Error()}); writeErr != nil {
 			h.markDone(err, true)
 			return fmt.Errorf("write ACP session completion error: %w", writeErr)
@@ -179,6 +231,16 @@ func (h *sessionUpdateHandler) HandleCompletion(err error) error {
 		h.markDone(err, true)
 		return nil
 	}
+	if err := h.submitRuntimeEvent(
+		events.EventKindSessionCompleted,
+		kinds.SessionCompletedPayload{
+			Index: h.index,
+			Usage: publicUsage(sessionHandlerUsage(h.jobUsage)),
+		},
+		"session completed",
+	); err != nil {
+		return err
+	}
 
 	h.logger.Info(
 		"acp session completed",
@@ -192,6 +254,25 @@ func (h *sessionUpdateHandler) HandleCompletion(err error) error {
 		h.snapshotBlockCounts(),
 	)
 	h.markDone(nil, false)
+	return nil
+}
+
+func (h *sessionUpdateHandler) submitRuntimeEvent(
+	kind events.EventKind,
+	payload any,
+	description string,
+) error {
+	if h.journal == nil {
+		return nil
+	}
+
+	event, err := newRuntimeEvent(h.runID, kind, payload)
+	if err != nil {
+		return err
+	}
+	if err := h.journal.Submit(context.Background(), event); err != nil {
+		return fmt.Errorf("submit %s event: %w", description, err)
+	}
 	return nil
 }
 
@@ -251,6 +332,13 @@ func hasUsage(usage model.Usage) bool {
 		usage.TotalTokens != 0 ||
 		usage.CacheReads != 0 ||
 		usage.CacheWrites != 0
+}
+
+func sessionHandlerUsage(usage *model.Usage) model.Usage {
+	if usage == nil {
+		return model.Usage{}
+	}
+	return *usage
 }
 
 func cloneContentBlocks(blocks []model.ContentBlock) []model.ContentBlock {

@@ -14,6 +14,9 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const execRunSchemaVersion = 1
@@ -101,6 +104,7 @@ type execRunState struct {
 	record       PersistedExecRun
 	runArtifacts model.RunArtifacts
 	events       *execEventEmitter
+	journal      *journal.Journal
 	turn         int
 	turnDir      string
 	turnPaths    execTurnPaths
@@ -324,22 +328,18 @@ func executeExecJob(
 }
 
 func publishExecFinish(useUI bool, uiCh chan uiMsg, success bool, exitCode int) {
-	if !useUI || uiCh == nil {
-		return
-	}
-	uiCh <- jobFinishedMsg{Index: 0, Success: success, ExitCode: exitCode}
+	_ = useUI
+	_ = uiCh
+	_ = success
+	_ = exitCode
 }
 
 func publishExecRetry(useUI bool, uiCh chan uiMsg, attempt int, maxAttempts int, err error) {
-	if !useUI || uiCh == nil || err == nil {
-		return
-	}
-	uiCh <- jobRetryMsg{
-		Index:       0,
-		Attempt:     attempt,
-		MaxAttempts: maxAttempts,
-		Reason:      err.Error(),
-	}
+	_ = useUI
+	_ = uiCh
+	_ = attempt
+	_ = maxAttempts
+	_ = err
 }
 
 func shouldRetryExecAttempt(err error, attempt int, maxRetries int, j *job) bool {
@@ -382,6 +382,7 @@ func runSingleExecAttempt(
 		false,
 		uiCh,
 		0,
+		stateJournal(state),
 		nil,
 		nil,
 		activity,
@@ -541,11 +542,12 @@ func preparePersistentExecRunState(
 	if err := ensureExecRunDirectories(state); err != nil {
 		return err
 	}
-	eventFile, err := os.OpenFile(state.runArtifacts.EventsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	runJournal, err := journal.Open(state.runArtifacts.EventsPath, nil, 0)
 	if err != nil {
-		return fmt.Errorf("open exec events: %w", err)
+		return fmt.Errorf("open exec events journal: %w", err)
 	}
-	state.events = newExecEventEmitter(eventFile, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.journal = runJournal
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, runID, resolvedModel)
 	}
@@ -600,6 +602,11 @@ func (s *execRunState) close() {
 	if s == nil {
 		return
 	}
+	if s.journal != nil {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		_ = s.journal.Close(closeCtx)
+		cancel()
+	}
 	if s.events != nil {
 		_ = s.events.Close()
 	}
@@ -618,6 +625,21 @@ func (s *execRunState) writeStarted(cfg *model.RuntimeConfig) error {
 		if err := s.writeRecord(); err != nil {
 			return err
 		}
+	}
+	if err := s.submitRuntimeEvent(
+		eventspkg.EventKindRunStarted,
+		kinds.RunStartedPayload{
+			Mode:            model.ModeExec,
+			WorkspaceRoot:   cfg.WorkspaceRoot,
+			IDE:             cfg.IDE,
+			Model:           s.record.Model,
+			ReasoningEffort: cfg.ReasoningEffort,
+			AccessMode:      cfg.AccessMode,
+			ArtifactsDir:    s.runArtifacts.RunDir,
+			JobsTotal:       1,
+		},
+	); err != nil {
+		return err
 	}
 	return s.emit(execEvent{
 		Type:   "run.started",
@@ -659,7 +681,7 @@ func (s *execRunState) completeTurn(result execExecutionResult) error {
 	if err := s.persistTurnResult(); err != nil {
 		return err
 	}
-	if err := s.emitTurnResult(result, now); err != nil {
+	if err := s.emitTurnResult(result, turnRecord.StartedAt, now); err != nil {
 		return err
 	}
 	if err := s.writeTextOutput(result); err != nil {
@@ -728,7 +750,48 @@ func (s *execRunState) persistTurnResult() error {
 	return s.writeRecord()
 }
 
-func (s *execRunState) emitTurnResult(result execExecutionResult, completedAt time.Time) error {
+func (s *execRunState) emitTurnResult(result execExecutionResult, startedAt time.Time, completedAt time.Time) error {
+	durationMs := completedAt.Sub(startedAt).Milliseconds()
+	switch result.status {
+	case runStatusSucceeded:
+		if err := s.submitRuntimeEvent(
+			eventspkg.EventKindRunCompleted,
+			kinds.RunCompletedPayload{
+				ArtifactsDir:   s.runArtifacts.RunDir,
+				JobsTotal:      1,
+				JobsSucceeded:  1,
+				JobsFailed:     0,
+				JobsCancelled:  0,
+				DurationMs:     durationMs,
+				ResultPath:     s.turnPaths.resultPath,
+				SummaryMessage: "completed",
+			},
+		); err != nil {
+			return err
+		}
+	case runStatusCanceled:
+		if err := s.submitRuntimeEvent(
+			eventspkg.EventKindRunCancelled,
+			kinds.RunCancelledPayload{
+				Reason:     errorString(result.err),
+				DurationMs: durationMs,
+			},
+		); err != nil {
+			return err
+		}
+	default:
+		if err := s.submitRuntimeEvent(
+			eventspkg.EventKindRunFailed,
+			kinds.RunFailedPayload{
+				ArtifactsDir: s.runArtifacts.RunDir,
+				DurationMs:   durationMs,
+				Error:        errorString(result.err),
+				ResultPath:   s.turnPaths.resultPath,
+			},
+		); err != nil {
+			return err
+		}
+	}
 	return s.emit(execEvent{
 		Type:   "run." + result.status,
 		RunID:  s.runArtifacts.RunID,
@@ -796,6 +859,24 @@ func (s *execRunState) emit(event execEvent) error {
 		return nil
 	}
 	return s.events.Write(event)
+}
+
+func (s *execRunState) submitRuntimeEvent(kind eventspkg.EventKind, payload any) error {
+	if s == nil || s.journal == nil {
+		return nil
+	}
+	event, err := newRuntimeEvent(s.runArtifacts.RunID, kind, payload)
+	if err != nil {
+		return err
+	}
+	return s.journal.Submit(context.Background(), event)
+}
+
+func stateJournal(state *execRunState) *journal.Journal {
+	if state == nil {
+		return nil
+	}
+	return state.journal
 }
 
 func (s *execRunState) writeRecord() error {

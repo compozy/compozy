@@ -46,6 +46,7 @@ func (deps KernelDeps) resolveOperations() operations {
 	}
 	return realOperations{
 		agentRegistry: deps.AgentRegistry,
+		eventBus:      deps.EventBus,
 	}
 }
 

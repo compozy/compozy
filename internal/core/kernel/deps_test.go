@@ -16,9 +16,8 @@ import (
 )
 
 type executeCall struct {
-	jobs         []model.Job
-	runArtifacts model.RunArtifacts
-	cfg          *model.RuntimeConfig
+	prep *model.SolvePreparation
+	cfg  *model.RuntimeConfig
 }
 
 type fakeOperations struct {
@@ -65,14 +64,12 @@ func (f *fakeOperations) Prepare(_ context.Context, cfg *model.RuntimeConfig) (*
 
 func (f *fakeOperations) Execute(
 	_ context.Context,
-	jobs []model.Job,
-	runArtifacts model.RunArtifacts,
+	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
 ) error {
 	f.executeCalls = append(f.executeCalls, executeCall{
-		jobs:         append([]model.Job(nil), jobs...),
-		runArtifacts: runArtifacts,
-		cfg:          cloneRuntimeConfig(cfg),
+		prep: cloneSolvePreparation(prep),
+		cfg:  cloneRuntimeConfig(cfg),
 	})
 	return f.executeErr
 }
@@ -264,11 +261,14 @@ func TestBuildDefaultDispatchesRunStartAndDelegatesToPrepareAndExecute(t *testin
 	}
 
 	gotExec := fake.executeCalls[0]
-	if len(gotExec.jobs) != 1 {
-		t.Fatalf("unexpected execute job count: %d", len(gotExec.jobs))
+	if gotExec.prep == nil {
+		t.Fatal("expected execute preparation")
 	}
-	if gotExec.runArtifacts.RunID != "run-123" {
-		t.Fatalf("unexpected run id: %q", gotExec.runArtifacts.RunID)
+	if len(gotExec.prep.Jobs) != 1 {
+		t.Fatalf("unexpected execute job count: %d", len(gotExec.prep.Jobs))
+	}
+	if gotExec.prep.RunArtifacts.RunID != "run-123" {
+		t.Fatalf("unexpected run id: %q", gotExec.prep.RunArtifacts.RunID)
 	}
 
 	if result.RunID != "run-123" {
@@ -620,5 +620,15 @@ func cloneRuntimeConfig(cfg *model.RuntimeConfig) *model.RuntimeConfig {
 	}
 	cloned := *cfg
 	cloned.AddDirs = append([]string(nil), cfg.AddDirs...)
+	return &cloned
+}
+
+func cloneSolvePreparation(prep *model.SolvePreparation) *model.SolvePreparation {
+	if prep == nil {
+		return nil
+	}
+	cloned := *prep
+	cloned.Jobs = append([]model.Job(nil), prep.Jobs...)
+	cloned.Journal = prep.Journal
 	return &cloned
 }

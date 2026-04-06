@@ -16,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 )
 
 func TestComposeSessionPromptPrependsSystemPrompt(t *testing.T) {
@@ -39,7 +40,7 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 			OutLog:   filepath.Join(tmpDir, "task_01.out.log"),
 			ErrLog:   filepath.Join(tmpDir, "task_01.err.log"),
 		},
-	}, model.NewRunArtifacts(tmpDir, "dry-run-test"), &model.RuntimeConfig{
+	}, model.NewRunArtifacts(tmpDir, "dry-run-test"), nil, nil, &model.RuntimeConfig{
 		DryRun:                 true,
 		Concurrent:             1,
 		IDE:                    model.IDECodex,
@@ -413,6 +414,7 @@ func TestExecuteJobWithTimeoutUsesContextBackstop(t *testing.T) {
 		nil,
 		0,
 		25*time.Millisecond,
+		nil,
 		&aggregate,
 		&aggregateMu,
 		nil,
@@ -470,6 +472,7 @@ func TestExecuteJobWithTimeoutActiveACPUpdatesExtendTimeout(t *testing.T) {
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	if got := result.status; got != attemptStatusSuccess {
@@ -507,6 +510,7 @@ func TestExecuteJobWithTimeoutSetupHangUsesActivityTimeout(t *testing.T) {
 		nil,
 		0,
 		25*time.Millisecond,
+		nil,
 		nil,
 		nil,
 		nil,
@@ -550,6 +554,7 @@ func TestExecuteJobWithTimeoutInteractiveSuppressesHumanFallbackOnTimeout(t *tes
 			uiCh,
 			0,
 			25*time.Millisecond,
+			nil,
 			nil,
 			nil,
 			nil,
@@ -622,6 +627,7 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 		uiCh,
 		0,
 		time.Second,
+		nil,
 		&aggregate,
 		&aggregateMu,
 		nil,
@@ -738,6 +744,87 @@ func TestJobLifecycleMarkGiveUpRecordsFailure(t *testing.T) {
 	}
 	if len(execCtx.failures) != 1 || execCtx.failures[0].exitCode != 23 {
 		t.Fatalf("expected recorded failure, got %#v", execCtx.failures)
+	}
+}
+
+func TestJobLifecycleEmitsStartedRetryAndCompletedEvents(t *testing.T) {
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			maxRetries: 1,
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+	lifecycle := newJobLifecycle(2, &job{
+		codeFiles: []string{"task_03"},
+		outLog:    "task_03.out.log",
+		errLog:    "task_03.err.log",
+	}, execCtx)
+
+	lifecycle.startAttempt(1, 2, time.Second)
+	lifecycle.markRetry(failInfo{
+		codeFile: "task_03",
+		exitCode: 75,
+		outLog:   "task_03.out.log",
+		errLog:   "task_03.err.log",
+		err:      errors.New("retry me"),
+	}, 2, 2)
+	lifecycle.startAttempt(2, 2, time.Second)
+	lifecycle.markSuccess()
+
+	events := collectRuntimeEvents(t, eventsCh, 3)
+	gotKinds := []eventspkg.EventKind{events[0].Kind, events[1].Kind, events[2].Kind}
+	wantKinds := []eventspkg.EventKind{
+		eventspkg.EventKindJobStarted,
+		eventspkg.EventKindJobRetryScheduled,
+		eventspkg.EventKindJobCompleted,
+	}
+	for i := range wantKinds {
+		if gotKinds[i] != wantKinds[i] {
+			t.Fatalf("unexpected job lifecycle event order: got %v want %v", gotKinds, wantKinds)
+		}
+	}
+}
+
+func TestJobLifecycleEmitsFailedEvent(t *testing.T) {
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	execCtx := &jobExecutionContext{
+		cfg: &config{
+			maxRetries: 2,
+			runArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		journal: runJournal,
+	}
+	lifecycle := newJobLifecycle(0, &job{
+		codeFiles: []string{"task_01"},
+		outLog:    "task_01.out.log",
+		errLog:    "task_01.err.log",
+	}, execCtx)
+
+	lifecycle.startAttempt(1, 3, time.Second)
+	lifecycle.markGiveUp(failInfo{
+		codeFile: "task_01",
+		exitCode: 23,
+		outLog:   "task_01.out.log",
+		errLog:   "task_01.err.log",
+		err:      errors.New("boom"),
+	})
+
+	events := collectRuntimeEvents(t, eventsCh, 2)
+	if got := events[0].Kind; got != eventspkg.EventKindJobStarted {
+		t.Fatalf("expected job.started event, got %s", got)
+	}
+	if got := events[1].Kind; got != eventspkg.EventKindJobFailed {
+		t.Fatalf("expected job.failed event, got %s", got)
 	}
 }
 
