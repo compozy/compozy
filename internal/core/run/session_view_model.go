@@ -148,8 +148,8 @@ func (m *sessionViewModel) applyMergedEntry(kind transcriptEntryKind, blocks []m
 	if len(blocks) == 0 {
 		return false
 	}
-	if merged := m.mergeIntoLast(kind, blocks); merged {
-		return true
+	if changed, handled := m.mergeIntoLast(kind, blocks); handled {
+		return changed
 	}
 	m.entries = append(m.entries, sessionViewEntry{
 		ID:     nextEntryID(kind, len(m.entries)),
@@ -159,21 +159,24 @@ func (m *sessionViewModel) applyMergedEntry(kind transcriptEntryKind, blocks []m
 	return true
 }
 
-func (m *sessionViewModel) mergeIntoLast(kind transcriptEntryKind, blocks []model.ContentBlock) bool {
+func (m *sessionViewModel) mergeIntoLast(kind transcriptEntryKind, blocks []model.ContentBlock) (bool, bool) {
 	if len(m.entries) == 0 || len(blocks) != 1 {
-		return false
+		return false, false
 	}
 	last := &m.entries[len(m.entries)-1]
 	if last.Kind != kind || len(last.Blocks) != 1 {
-		return false
+		return false, false
 	}
 
 	merged, ok := mergeTextContentBlocks(last.Blocks[0], blocks[0])
 	if !ok {
-		return false
+		return false, false
+	}
+	if bytes.Equal(last.Blocks[0].Data, merged.Data) {
+		return false, true
 	}
 	last.Blocks[0] = merged
-	return true
+	return true, true
 }
 
 func (m *sessionViewModel) upsertToolCall(
@@ -600,11 +603,77 @@ func mergeTextContentBlocks(existing, incoming model.ContentBlock) (model.Conten
 		return model.ContentBlock{}, false
 	}
 
-	merged, err := model.NewContentBlock(model.TextBlock{Text: existingText.Text + incomingText.Text})
+	merged, err := model.NewContentBlock(model.TextBlock{
+		Text: mergeNarrativeText(existingText.Text, incomingText.Text),
+	})
 	if err != nil {
 		return model.ContentBlock{}, false
 	}
 	return merged, true
+}
+
+func mergeNarrativeText(existing, incoming string) string {
+	switch {
+	case incoming == "":
+		return existing
+	case existing == "":
+		return incoming
+	case incoming == existing:
+		return existing
+	case strings.HasPrefix(incoming, existing):
+		return incoming
+	}
+
+	existingRunes := []rune(existing)
+	incomingRunes := []rune(incoming)
+	if overlap := longestSuffixPrefixOverlap(existingRunes, incomingRunes); overlap > 0 {
+		return string(existingRunes) + string(incomingRunes[overlap:])
+	}
+
+	if shouldReplaceNarrativeText(existingRunes, incomingRunes) {
+		return incoming
+	}
+
+	return existing + incoming
+}
+
+func shouldReplaceNarrativeText(existing, incoming []rune) bool {
+	shorter := min(len(existing), len(incoming))
+	if shorter == 0 {
+		return false
+	}
+
+	prefix := commonPrefixLength(existing, incoming)
+	switch {
+	case prefix == 0:
+		return false
+	case prefix == shorter:
+		return shorter >= 8
+	case shorter < 12:
+		return false
+	default:
+		return prefix >= 12 && prefix*4 >= shorter
+	}
+}
+
+func commonPrefixLength(left, right []rune) int {
+	limit := min(len(left), len(right))
+	for i := range limit {
+		if left[i] != right[i] {
+			return i
+		}
+	}
+	return limit
+}
+
+func longestSuffixPrefixOverlap(existing, incoming []rune) int {
+	limit := min(len(existing), len(incoming))
+	for size := limit; size > 0; size-- {
+		if slices.Equal(existing[len(existing)-size:], incoming[:size]) {
+			return size
+		}
+	}
+	return 0
 }
 
 func contentBlocksEqual(left, right []model.ContentBlock) bool {

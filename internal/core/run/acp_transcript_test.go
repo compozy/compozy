@@ -40,6 +40,75 @@ func TestSessionViewModelMergesChunkedAgentText(t *testing.T) {
 	}
 }
 
+func TestSessionViewModelMergesOverlappingAgentTextWithoutDuplicatingBoundary(t *testing.T) {
+	t.Parallel()
+
+	viewModel := newSessionViewModel()
+	first := mustContentBlockTranscriptTest(t, model.TextBlock{Text: "Ledger Snapshot: Goal"})
+	second := mustContentBlockTranscriptTest(t, model.TextBlock{Text: "Goal is fix the TUI"})
+
+	if _, changed := viewModel.Apply(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{first},
+	}); !changed {
+		t.Fatal("expected first chunk to change the snapshot")
+	}
+
+	snapshot, changed := viewModel.Apply(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{second},
+	})
+	if !changed {
+		t.Fatal("expected overlapping chunk to update visible transcript")
+	}
+
+	textBlock, err := snapshot.Entries[0].Blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("decode overlapping text block: %v", err)
+	}
+	if want := "Ledger Snapshot: Goal is fix the TUI"; textBlock.Text != want {
+		t.Fatalf("unexpected overlap-aware merge: got %q want %q", textBlock.Text, want)
+	}
+}
+
+func TestSessionViewModelReplacesDivergingNonDeltaAgentSnapshot(t *testing.T) {
+	t.Parallel()
+
+	viewModel := newSessionViewModel()
+	first := mustContentBlockTranscriptTest(t, model.TextBlock{
+		Text: "Ledger Snapshot: Goal close review issues with scoped production fixes.",
+	})
+	second := mustContentBlockTranscriptTest(t, model.TextBlock{
+		Text: "Ledger Snapshot: Goal remediate entity review safely against the implementation.",
+	})
+
+	if _, changed := viewModel.Apply(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{first},
+	}); !changed {
+		t.Fatal("expected first snapshot update to change the transcript")
+	}
+
+	snapshot, changed := viewModel.Apply(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{second},
+	})
+	if !changed {
+		t.Fatal("expected newer non-delta snapshot to change the transcript")
+	}
+
+	if len(snapshot.Entries) != 1 {
+		t.Fatalf("expected snapshot replacement to keep one entry, got %#v", snapshot.Entries)
+	}
+	textBlock, err := snapshot.Entries[0].Blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("decode replacement text block: %v", err)
+	}
+	if want := "Ledger Snapshot: Goal remediate entity review safely against the implementation."; textBlock.Text != want {
+		t.Fatalf("unexpected replacement merge: got %q want %q", textBlock.Text, want)
+	}
+}
+
 func TestSessionViewModelUpsertsToolCallByIDWithoutSyntheticSummary(t *testing.T) {
 	t.Parallel()
 

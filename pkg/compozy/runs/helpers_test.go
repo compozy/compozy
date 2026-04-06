@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -468,5 +470,56 @@ func TestHandleWorkspaceEventRemovesRunOnRunMetaRemovalWhenDirectoryDisappears(t
 	event := <-out
 	if event.Kind != RunEventRemoved || event.RunID != "run-meta-remove" {
 		t.Fatalf("handleWorkspaceEvent() event = %#v, want removed run-meta-remove", event)
+	}
+}
+
+func TestIsIgnorableWatchRemoveError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{
+			name: "non-existent watch",
+			err:  fsnotify.ErrNonExistentWatch,
+			want: true,
+		},
+		{
+			name: "closed watcher",
+			err:  fsnotify.ErrClosed,
+			want: true,
+		},
+		{
+			name: "path missing",
+			err:  os.ErrNotExist,
+			want: true,
+		},
+		{
+			name: "linux invalid argument after delete",
+			err:  syscall.EINVAL,
+			want: true,
+		},
+		{
+			name: "wrapped linux invalid argument after delete",
+			err:  fmt.Errorf("remove watch: %w", syscall.EINVAL),
+			want: true,
+		},
+		{
+			name: "unrelated error",
+			err:  syscall.EPERM,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := isIgnorableWatchRemoveError(tt.err); got != tt.want {
+				t.Fatalf("isIgnorableWatchRemoveError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }

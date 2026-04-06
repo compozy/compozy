@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -518,10 +519,7 @@ func removeWorkspaceRun(
 ) error {
 	if runDir, ok := watchedRunDirs[runID]; ok {
 		delete(watchedRunDirs, runID)
-		if err := watcher.Remove(runDir); err != nil &&
-			!errors.Is(err, fsnotify.ErrNonExistentWatch) &&
-			!errors.Is(err, fsnotify.ErrClosed) &&
-			!errors.Is(err, os.ErrNotExist) {
+		if err := watcher.Remove(runDir); err != nil && !isIgnorableWatchRemoveError(err) {
 			return fmt.Errorf("remove run watch %q: %w", runID, err)
 		}
 	}
@@ -533,6 +531,15 @@ func removeWorkspaceRun(
 		Kind:  RunEventRemoved,
 		RunID: runID,
 	})
+}
+
+func isIgnorableWatchRemoveError(err error) bool {
+	// Linux inotify returns EINVAL when the watched file or directory was
+	// already deleted and the kernel invalidated the watch descriptor first.
+	return errors.Is(err, fsnotify.ErrNonExistentWatch) ||
+		errors.Is(err, fsnotify.ErrClosed) ||
+		errors.Is(err, os.ErrNotExist) ||
+		errors.Is(err, syscall.EINVAL)
 }
 
 func sendWorkspaceEvent(ctx context.Context, dst chan<- RunEvent, event RunEvent) error {
