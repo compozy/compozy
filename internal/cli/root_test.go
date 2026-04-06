@@ -1433,6 +1433,31 @@ func TestExecuteCommandCombinedOutputPreservesEmissionOrder(t *testing.T) {
 	}
 }
 
+func TestCommandStateDefaultsWithFallbacksPreservesExplicitFunctions(t *testing.T) {
+	t.Parallel()
+
+	customInteractive := func() bool { return false }
+	customCollectForm := func(*cobra.Command, *commandState) error { return nil }
+
+	filled := (commandStateDefaults{
+		isInteractive: customInteractive,
+		collectForm:   customCollectForm,
+	}).withFallbacks()
+
+	if got := reflect.ValueOf(filled.isInteractive).Pointer(); got != reflect.ValueOf(customInteractive).Pointer() {
+		t.Fatal("expected withFallbacks to preserve explicit isInteractive function")
+	}
+	if got := reflect.ValueOf(filled.collectForm).Pointer(); got != reflect.ValueOf(customCollectForm).Pointer() {
+		t.Fatal("expected withFallbacks to preserve explicit collectForm function")
+	}
+	if filled.listBundledSkills == nil ||
+		filled.verifyBundledSkills == nil ||
+		filled.installBundledSkills == nil ||
+		filled.confirmSkillRefresh == nil {
+		t.Fatalf("expected withFallbacks to populate bundled skill defaults: %#v", filled)
+	}
+}
+
 func newTestCommand(state *commandState) *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: state.kind == commandKindFixReviews})

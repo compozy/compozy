@@ -9,6 +9,7 @@ import (
 
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +31,7 @@ type setupCommandState struct {
 	isInteractive func() bool
 }
 
-func newSetupCommand() *cobra.Command {
+func newSetupCommand(_ *kernel.Dispatcher) *cobra.Command {
 	state := newSetupCommandState()
 	cmd := &cobra.Command{
 		Use:          "setup",

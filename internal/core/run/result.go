@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -101,7 +102,7 @@ func jobStatusOrDefault(status string) string {
 }
 
 func emitExecutionResult(cfg *config, result executionResult) error {
-	if cfg == nil || cfg.outputFormat != model.OutputFormatJSON {
+	if cfg == nil {
 		return nil
 	}
 
@@ -109,8 +110,14 @@ func emitExecutionResult(cfg *config, result executionResult) error {
 	if err != nil {
 		return fmt.Errorf("marshal exec result: %w", err)
 	}
+	if err := os.MkdirAll(filepath.Dir(cfg.runArtifacts.ResultPath), 0o755); err != nil {
+		return fmt.Errorf("create exec result directory: %w", err)
+	}
 	if err := os.WriteFile(cfg.runArtifacts.ResultPath, payload, 0o600); err != nil {
 		return fmt.Errorf("write exec result: %w", err)
+	}
+	if cfg.outputFormat != model.OutputFormatJSON {
+		return nil
 	}
 	if _, err := fmt.Fprintf(os.Stdout, "%s\n", payload); err != nil {
 		return fmt.Errorf("write exec result stdout: %w", err)

@@ -40,6 +40,11 @@ func BuildDefault(deps KernelDeps) *Dispatcher {
 	return dispatcher
 }
 
+// ValidateDefaultRegistry ensures the default Phase A command set is registered.
+func ValidateDefaultRegistry(d *Dispatcher) error {
+	return selfTestDefaultRegistry(d)
+}
+
 func (deps KernelDeps) resolveOperations() operations {
 	if deps.ops != nil {
 		return deps.ops

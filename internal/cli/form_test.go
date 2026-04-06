@@ -33,7 +33,7 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	t.Parallel()
 
-	keys := formFieldKeys(newFixReviewsCommand(), newCommandState(commandKindFixReviews, core.ModePRReview))
+	keys := formFieldKeys(newFixReviewsCommand(nil), newCommandState(commandKindFixReviews, core.ModePRReview))
 
 	assertFieldKeysPresent(
 		t,
@@ -119,7 +119,7 @@ func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
 		t.Fatalf("create test dir: %v", err)
 	}
 
-	cmd := newFetchReviewsCommand()
+	cmd := newFetchReviewsCommand(nil)
 	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 	builder := newFormBuilder(cmd, state)
 	builder.tasksBaseDir = baseDir

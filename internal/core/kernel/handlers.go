@@ -59,19 +59,19 @@ func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig)
 }
 
 func (realOperations) FetchReviews(ctx context.Context, cfg core.Config) (*core.FetchResult, error) {
-	return core.FetchReviews(ctx, cfg)
+	return core.FetchReviewsDirect(ctx, cfg)
 }
 
 func (realOperations) Migrate(ctx context.Context, cfg core.MigrationConfig) (*core.MigrationResult, error) {
-	return core.Migrate(ctx, cfg)
+	return core.MigrateDirect(ctx, cfg)
 }
 
 func (realOperations) Sync(ctx context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
-	return core.Sync(ctx, cfg)
+	return core.SyncDirect(ctx, cfg)
 }
 
 func (realOperations) Archive(ctx context.Context, cfg core.ArchiveConfig) (*core.ArchiveResult, error) {
-	return core.Archive(ctx, cfg)
+	return core.ArchiveDirect(ctx, cfg)
 }
 
 type runStartHandler struct {
