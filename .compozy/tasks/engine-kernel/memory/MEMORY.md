@@ -19,6 +19,8 @@ Keep only durable, cross-task context here. Do not duplicate facts that are obvi
 - Later journal and execution tasks can assume the upstream ACP ingress no longer silently drops on a full channel; any loss after the 5-second backpressure window is counted and logged per session.
 - `golangci-lint --fix` can rewrite `"cancelled"` string literals to `"canceled"`, so any code that must accept both spellings should normalize input rather than relying on two literal switch cases.
 - Task 05 made the shared journal the canonical writer for workflow and exec `events.jsonl` output; exec mode still keeps a separate stdout JSON projection for CLI-facing resume/status consumers.
+- Task 08 resolved the `core` ↔ `kernel` import-cycle risk by having `internal/core/kernel` register dispatcher-backed legacy adapters through `core.RegisterDispatcherAdapters(...)`, while kernel handlers keep calling the preserved `*Direct` core functions.
+- Task 08 made workflow runs persist `.compozy/runs/<run-id>/result.json` even in human/text CLI mode, so later reader, daemon, and SDK work can rely on that artifact across workflow modes instead of only in JSON output mode.
 
 ## Open Risks
 - `DroppedFor(id)` only reports counters for active subscriptions because counters live on the subscription entry; callers that need a terminal drop count must read it before unsubscribe/close or persist it elsewhere.

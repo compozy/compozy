@@ -11,4 +11,4 @@
 | 05 | Executor integration and post-execution event emission | completed | critical | task_01, task_02, task_03, task_04 |
 | 06 | TUI decoupling via bus-to-uiMsg adapter | completed | medium | task_05 |
 | 07 | Reader library over .compozy/runs/ | completed | high | task_01 |
-| 08 | CLI kernel bootstrap, command refactor, and documentation | pending | high | task_04, task_05 |
+| 08 | CLI kernel bootstrap, command refactor, and documentation | completed | high | task_04, task_05 |

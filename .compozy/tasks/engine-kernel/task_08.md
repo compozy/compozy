@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI kernel bootstrap, command refactor, and documentation
 type: refactor
 complexity: high
@@ -40,15 +40,15 @@ Wire the Service Kernel into the Cobra CLI: construct `KernelDeps` at root start
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add kernel bootstrap in `root.go`: construct bus, KernelDeps, dispatcher at command setup
-- [ ] 8.2 Update `newCommandState` / command constructors to accept and capture the dispatcher
-- [ ] 8.3 Refactor `runWorkflow` closure in each of the nine command files to build typed command + call Dispatch
-- [ ] 8.4 Rewrite `internal/core/api.go` exported functions as thin dispatcher adapters
-- [ ] 8.5 Mark `core.Config` as transitional in doc comments
-- [ ] 8.6 Generate `docs/events.md` from `pkg/compozy/events/kinds/` struct definitions
-- [ ] 8.7 Write `docs/reader-library.md` with copy-pasteable, tested examples
-- [ ] 8.8 Run `make verify` and resolve any issues
-- [ ] 8.9 Update integration tests for stable external contracts per ADR and TechSpec "CLI → kernel parity" test definition
+- [x] 8.1 Add kernel bootstrap in `root.go`: construct bus, KernelDeps, dispatcher at command setup
+- [x] 8.2 Update `newCommandState` / command constructors to accept and capture the dispatcher
+- [x] 8.3 Refactor `runWorkflow` closure in each of the nine command files to build typed command + call Dispatch
+- [x] 8.4 Rewrite `internal/core/api.go` exported functions as thin dispatcher adapters
+- [x] 8.5 Mark `core.Config` as transitional in doc comments
+- [x] 8.6 Generate `docs/events.md` from `pkg/compozy/events/kinds/` struct definitions
+- [x] 8.7 Write `docs/reader-library.md` with copy-pasteable, tested examples
+- [x] 8.8 Run `make verify` and resolve any issues
+- [x] 8.9 Update integration tests for stable external contracts per ADR and TechSpec "CLI → kernel parity" test definition
 
 ## Implementation Details
 See TechSpec "Build Order" steps 12-14 and ADR-001 "Implementation Notes" for the CLI injection pattern (dispatcher captured via closure, `commandState.runWorkflow` signature preserved). The nine command files at `internal/cli/` follow the same mechanical pattern: each closure calls `kernel.Dispatch[CommandType, ResultType](ctx, dispatcher, commands.FromConfig(cfg))`. `core.Config` stays as a translation shape during Phase A and is scheduled for removal in a later phase.
@@ -83,22 +83,22 @@ See TechSpec "Build Order" steps 12-14 and ADR-001 "Implementation Notes" for th
 
 ## Tests
 - Unit tests:
-  - [ ] `runWorkflow` closure for `start` command builds `RunStartCommand` with fields from flags and calls `kernel.Dispatch`
-  - [ ] `runWorkflow` closure for `fix-reviews` passes `Mode=ModePRReview` in the command
-  - [ ] `runWorkflow` closure for `exec` builds command with prompt text/file/stdin source correctly
-  - [ ] `runWorkflow` closure for `migrate` builds `WorkspaceMigrateCommand` from migration flags
-  - [ ] `runWorkflow` closure for `sync` builds `WorkflowSyncCommand` from sync flags
-  - [ ] `runWorkflow` closure for `archive` builds `WorkflowArchiveCommand` from archive flags
-  - [ ] `runWorkflow` closure for `fetch-reviews` builds `ReviewsFetchCommand` with provider+PR+round
-  - [ ] `core.Run(ctx, cfg)` adapter dispatches `RunStartCommand` and returns dispatcher error unchanged
-  - [ ] `core.Prepare(ctx, cfg)` adapter dispatches `WorkflowPrepareCommand` and returns Preparation
-  - [ ] Registry self-test (from task_04) is invoked at CLI startup and fails build if any handler is missing
+  - [x] `runWorkflow` closure for `start` command builds `RunStartCommand` with fields from flags and calls `kernel.Dispatch`
+  - [x] `runWorkflow` closure for `fix-reviews` passes `Mode=ModePRReview` in the command
+  - [x] `runWorkflow` closure for `exec` builds command with prompt text/file/stdin source correctly
+  - [x] `runWorkflow` closure for `migrate` builds `WorkspaceMigrateCommand` from migration flags
+  - [x] `runWorkflow` closure for `sync` builds `WorkflowSyncCommand` from sync flags
+  - [x] `runWorkflow` closure for `archive` builds `WorkflowArchiveCommand` from archive flags
+  - [x] `runWorkflow` closure for `fetch-reviews` builds `ReviewsFetchCommand` with provider+PR+round
+  - [x] `core.Run(ctx, cfg)` adapter dispatches `RunStartCommand` and returns dispatcher error unchanged
+  - [x] `core.Prepare(ctx, cfg)` adapter dispatches `WorkflowPrepareCommand` and returns Preparation
+  - [x] Registry self-test (from task_04) is invoked at CLI startup and fails build if any handler is missing
 - Integration tests:
-  - [ ] CLI → kernel parity per TechSpec definition: run `compozy start --name ...` end-to-end; assert exit code, stdout JSON shape (when --format json), presence and content of run.json, result.json, events.jsonl, per-job .prompt.md, .out.log, .err.log
-  - [ ] CLI → kernel parity for `compozy exec` with --format json assertions match pre-refactor baseline
-  - [ ] CLI → kernel parity for `compozy fix-reviews` assertions match pre-refactor baseline
-  - [ ] `make verify` (fmt + lint + test + build) passes end-to-end
-  - [ ] `docs/reader-library.md` examples compile and execute successfully (doc tests or standalone example files)
+  - [x] CLI → kernel parity per TechSpec definition: run `compozy start --name ...` end-to-end; assert exit code, stdout JSON shape (when --format json), presence and content of run.json, result.json, events.jsonl, per-job .prompt.md, .out.log, .err.log
+  - [x] CLI → kernel parity for `compozy exec` with --format json assertions match pre-refactor baseline
+  - [x] CLI → kernel parity for `compozy fix-reviews` assertions match pre-refactor baseline
+  - [x] `make verify` (fmt + lint + test + build) passes end-to-end
+  - [x] `docs/reader-library.md` examples compile and execute successfully (doc tests or standalone example files)
 - Test coverage target: >=80%
 - All tests must pass
 
