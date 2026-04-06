@@ -450,6 +450,9 @@ func hasConfiguredAddDirs(addDirs []string) bool {
 }
 
 func supportedAddDirIDEs() []string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
 	ides := make([]string, 0, len(supportedRegistryIDEOrder))
 	for _, ide := range supportedRegistryIDEOrder {
 		spec, ok := registry[ide]
