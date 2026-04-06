@@ -83,6 +83,7 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 	defer func() { reviewProviderRegistry = restore }()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -159,6 +160,7 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 	defer func() { reviewProviderRegistry = restore }()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -246,6 +248,7 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	defer func() { reviewProviderRegistry = restore }()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -297,6 +300,7 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 	defer cleanup()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:     model.ExecutionModePRDTasks,
 			tasksDir: tasksDir,
@@ -408,6 +412,7 @@ func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
 	defer cleanup()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -485,6 +490,7 @@ func TestAfterTaskJobSuccessDoesNotEmitTaskFileUpdatedWhenMarkTaskCompletedFails
 	defer cleanup()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:     model.ExecutionModePRDTasks,
 			tasksDir: tasksDir,
@@ -529,6 +535,7 @@ func TestResolveProviderBackedIssuesWarnsAndContinuesOnProviderFailure(t *testin
 	defer func() { reviewProviderRegistry = restore }()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",
@@ -619,6 +626,8 @@ func TestEmitRunTerminalEventPublishesCancelledAndFailedKinds(t *testing.T) {
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
 			runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 			defer cleanup()
 
@@ -671,6 +680,7 @@ func TestAfterJobSuccessFailsWhenReviewIssueRemainsPending(t *testing.T) {
 	}
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			mode:       model.ExecutionModePRReview,
 			provider:   "stub",

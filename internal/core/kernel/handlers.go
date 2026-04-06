@@ -3,13 +3,13 @@ package kernel
 import (
 	"context"
 	"errors"
-	"time"
 
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/kernel/commands"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
@@ -31,7 +31,7 @@ type operations interface {
 }
 
 type realOperations struct {
-	agentRegistry agent.Registry
+	agentRegistry agent.RuntimeRegistry
 	eventBus      *events.Bus[events.Event]
 }
 
@@ -51,7 +51,7 @@ func (o realOperations) Execute(
 	if prep == nil {
 		return errors.New("execute run: missing preparation")
 	}
-	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal, o.eventBus, cfg)
+	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), o.eventBus, cfg)
 }
 
 func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
@@ -158,7 +158,7 @@ func (h *workflowPrepareHandler) Handle(
 		}
 		return zero, err
 	}
-	defer closePreparationJournal(ctx, prep)
+	defer preputil.ClosePreparationJournal(ctx, prep)
 
 	return commands.WorkflowPrepareResult{
 		Preparation:  newPreparation(prep),
@@ -274,19 +274,6 @@ func newPreparation(prep *model.SolvePreparation) *core.Preparation {
 		ResolvedRound:    prep.ResolvedRound,
 		InputDirPath:     prep.InputDirPath,
 	}
-}
-
-func closePreparationJournal(_ context.Context, prep *model.SolvePreparation) {
-	if prep == nil || prep.Journal == nil {
-		return
-	}
-
-	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := prep.Journal.Close(closeCtx); err != nil {
-		return
-	}
-	prep.Journal = nil
 }
 
 func newJob(job model.Job) core.Job {

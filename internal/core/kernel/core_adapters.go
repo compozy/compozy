@@ -93,14 +93,7 @@ func dispatchFetchReviewsAdapter(ctx context.Context, cfg core.Config) (*core.Fe
 }
 
 func dispatchMigrateAdapter(ctx context.Context, cfg core.MigrationConfig) (*core.MigrationResult, error) {
-	command := commands.WorkspaceMigrateFromConfig(core.Config{
-		WorkspaceRoot: cfg.WorkspaceRoot,
-		Name:          cfg.Name,
-		TasksDir:      cfg.TasksDir,
-		ReviewsDir:    cfg.ReviewsDir,
-		DryRun:        cfg.DryRun,
-	})
-	command.RootDir = cfg.RootDir
+	command := commands.WorkspaceMigrateFromMigrationConfig(cfg)
 
 	dispatcher, err := coreAdapterDispatcherFn()
 	if err != nil {
@@ -118,12 +111,7 @@ func dispatchMigrateAdapter(ctx context.Context, cfg core.MigrationConfig) (*cor
 }
 
 func dispatchSyncAdapter(ctx context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
-	command := commands.WorkflowSyncFromConfig(core.Config{
-		WorkspaceRoot: cfg.WorkspaceRoot,
-		Name:          cfg.Name,
-		TasksDir:      cfg.TasksDir,
-	})
-	command.RootDir = cfg.RootDir
+	command := commands.WorkflowSyncFromSyncConfig(cfg)
 
 	dispatcher, err := coreAdapterDispatcherFn()
 	if err != nil {
@@ -141,12 +129,7 @@ func dispatchSyncAdapter(ctx context.Context, cfg core.SyncConfig) (*core.SyncRe
 }
 
 func dispatchArchiveAdapter(ctx context.Context, cfg core.ArchiveConfig) (*core.ArchiveResult, error) {
-	command := commands.WorkflowArchiveFromConfig(core.Config{
-		WorkspaceRoot: cfg.WorkspaceRoot,
-		Name:          cfg.Name,
-		TasksDir:      cfg.TasksDir,
-	})
-	command.RootDir = cfg.RootDir
+	command := commands.WorkflowArchiveFromArchiveConfig(cfg)
 
 	dispatcher, err := coreAdapterDispatcherFn()
 	if err != nil {

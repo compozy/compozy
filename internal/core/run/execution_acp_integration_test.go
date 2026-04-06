@@ -128,6 +128,7 @@ func TestJobRunnerACPErrorThenSuccessRetries(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "",
@@ -423,11 +424,11 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
-	if prep.Journal == nil {
+	if prep.Journal() == nil {
 		t.Fatal("expected prepare to return a journal")
 	}
 
-	if err := Execute(context.Background(), prep.Jobs, prep.RunArtifacts, prep.Journal, bus, cfg); err != nil {
+	if err := Execute(context.Background(), prep.Jobs, prep.RunArtifacts, prep.Journal(), bus, cfg); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 
@@ -523,6 +524,7 @@ func TestJobExecutionContextLaunchWorkersRunsMultipleACPJobs(t *testing.T) {
 		newNamedTestACPJob(tmpDir, "task_02"),
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "",
@@ -579,6 +581,7 @@ func TestJobExecutionContextLaunchWorkersRetriesRetryableSetupFailureForReviewBa
 
 	jobs := []job{newNamedTestACPJob(tmpDir, "task_01")}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -647,6 +650,7 @@ func TestJobExecutionContextLaunchWorkersRunsPRDTasksSequentially(t *testing.T) 
 		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_03.md"),
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -760,6 +764,7 @@ func TestJobExecutionContextLaunchWorkersRetriesPRDSetupFailureBeforeLaterTasks(
 		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_02.md"),
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -839,6 +844,7 @@ func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingACPJobs(t *te
 		newNamedTestACPJob(tmpDir, "task_02"),
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -920,6 +926,7 @@ func TestJobExecutionContextLaunchWorkersReturnsPromptlyWithPendingPRDTasks(t *t
 		newPRDTaskACPJob(t, tmpDir, tasksDir, "task_02.md"),
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",

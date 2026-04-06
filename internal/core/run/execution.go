@@ -26,6 +26,8 @@ import (
 
 var reviewProviderRegistry = providers.DefaultRegistry
 
+const runtimeEventBusBufferSize = 64
+
 // Execute runs the prepared jobs and manages shutdown, retries, and summaries.
 func Execute(
 	ctx context.Context,
@@ -37,6 +39,7 @@ func Execute(
 ) (retErr error) {
 	internalCfg := newConfig(cfg, runArtifacts)
 	internalJobs := newJobs(jobs)
+	bus = ensureRuntimeEventBus(internalCfg, runJournal, bus)
 	startedAt := time.Now().UTC()
 	defer func() {
 		if err := closeRunJournal(runJournal); err != nil {
@@ -93,6 +96,20 @@ func Execute(
 		return errors.New("one or more groups failed; see logs above")
 	}
 	return nil
+}
+
+func ensureRuntimeEventBus(
+	cfg *config,
+	runJournal *journal.Journal,
+	bus *events.Bus[events.Event],
+) *events.Bus[events.Event] {
+	if cfg != nil && cfg.uiEnabled() && bus == nil {
+		bus = events.New[events.Event](runtimeEventBusBufferSize)
+	}
+	if runJournal != nil && bus != nil {
+		runJournal.SetBus(bus)
+	}
+	return bus
 }
 
 type jobExecutionContext struct {
@@ -906,7 +923,7 @@ func (j *jobExecutionContext) submitEvent(kind events.EventKind, payload any) er
 	}
 	ctx := j.ctx
 	if ctx == nil {
-		ctx = context.Background()
+		return errors.New("job execution context missing context")
 	}
 	event, err := newRuntimeEvent(j.cfg.runArtifacts.RunID, kind, payload)
 	if err != nil {
@@ -1126,7 +1143,7 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 	}
 
 	completedAt := time.Now().UTC()
-	j.emitProviderCallCompleted(callID, startedAt, completedAt)
+	j.emitProviderCallCompleted(callID, startedAt, completedAt, 0)
 	j.emitReviewIssueResolved(providerBackedIssues, true, completedAt)
 
 	j.runtimeLogger().Info(
@@ -1158,6 +1175,7 @@ func (j *jobExecutionContext) emitProviderCallCompleted(
 	callID string,
 	startedAt time.Time,
 	completedAt time.Time,
+	statusCode int,
 ) {
 	j.submitEventOrWarn(
 		events.EventKindProviderCallCompleted,
@@ -1165,7 +1183,7 @@ func (j *jobExecutionContext) emitProviderCallCompleted(
 			CallID:     callID,
 			Provider:   j.cfg.provider,
 			Method:     "resolve_issues",
-			StatusCode: 200,
+			StatusCode: statusCode,
 			DurationMs: completedAt.Sub(startedAt).Milliseconds(),
 		},
 	)

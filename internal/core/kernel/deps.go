@@ -20,7 +20,7 @@ type KernelDeps struct {
 	Logger        *slog.Logger
 	EventBus      *events.Bus[events.Event]
 	Workspace     workspace.Context
-	AgentRegistry agent.Registry
+	AgentRegistry agent.RuntimeRegistry
 
 	ops operations
 }

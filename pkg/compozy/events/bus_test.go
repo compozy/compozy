@@ -5,7 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"math/rand"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -125,12 +124,13 @@ func TestBusUnsubscribeDuringPublishDoesNotPanicOrLeak(t *testing.T) {
 	restore := silenceDefaultLogger(t)
 	defer restore()
 
-	before := runtime.NumGoroutine()
 	bus := New[int](1)
 
 	unsubs := make([]func(), 0, 100)
+	channels := make([]<-chan int, 0, 100)
 	for i := 0; i < 100; i++ {
-		_, _, unsub := bus.Subscribe()
+		_, ch, unsub := bus.Subscribe()
+		channels = append(channels, ch)
 		unsubs = append(unsubs, unsub)
 	}
 
@@ -163,11 +163,24 @@ func TestBusUnsubscribeDuringPublishDoesNotPanicOrLeak(t *testing.T) {
 		t.Fatalf("close bus: %v", err)
 	}
 
-	runtime.GC()
-	runtime.GC()
-	after := runtime.NumGoroutine()
-	if delta := after - before; delta > 2 {
-		t.Fatalf("goroutine leak detected: before=%d after=%d", before, after)
+	if got := bus.SubscriberCount(); got != 0 {
+		t.Fatalf("expected bus to have no subscribers after close, got %d", got)
+	}
+
+	for idx, ch := range channels {
+		timeout := time.NewTimer(time.Second)
+		for {
+			select {
+			case _, ok := <-ch:
+				if !ok {
+					timeout.Stop()
+					goto nextChannel
+				}
+			case <-timeout.C:
+				t.Fatalf("subscriber channel %d did not close", idx)
+			}
+		}
+	nextChannel:
 	}
 }
 

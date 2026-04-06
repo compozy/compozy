@@ -116,10 +116,18 @@ func emitExecutionResult(cfg *config, result executionResult) error {
 	if err := os.WriteFile(cfg.runArtifacts.ResultPath, payload, 0o600); err != nil {
 		return fmt.Errorf("write exec result: %w", err)
 	}
-	if cfg.outputFormat != model.OutputFormatJSON {
+	stdoutPayload := payload
+	switch cfg.outputFormat {
+	case model.OutputFormatJSON:
+	case model.OutputFormatRawJSON:
+		stdoutPayload, err = json.Marshal(result)
+		if err != nil {
+			return fmt.Errorf("marshal raw exec result: %w", err)
+		}
+	default:
 		return nil
 	}
-	if _, err := fmt.Fprintf(os.Stdout, "%s\n", payload); err != nil {
+	if _, err := fmt.Fprintf(os.Stdout, "%s\n", stdoutPayload); err != nil {
 		return fmt.Errorf("write exec result stdout: %w", err)
 	}
 	return nil

@@ -4,9 +4,9 @@
 **Date:** 2026-04-06 10:19:05 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
-- Disposition: VALID
+**Disposition:** INVALID
 
-- Rationale: O problema era real, mas o código atual já cobre o caso. `HandleCompletion()` chama `markDone(...)` em todos os caminhos de retorno relevantes, inclusive quando a emissão do evento terminal falha, então `Done()` não fica pendurado no encerramento da sessão.
+**Rationale:** `HandleCompletion` já chama `markDone` em todos os retornos terminais relevantes: falha ao emitir `session.failed`, falha ao escrever o erro renderizado, falha ao emitir `session.completed`, caminho de falha normal e caminho de sucesso normal. Não havia leak reproduzível do `Done()`.
 
 ## Details
 

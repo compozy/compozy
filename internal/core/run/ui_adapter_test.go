@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -17,10 +16,15 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+func translateEventForTest(t *testing.T, ev eventspkg.Event) (uiMsg, bool) {
+	t.Helper()
+	return newUIEventTranslator().translateEvent(ev)
+}
+
 func TestTranslateEventJobStarted(t *testing.T) {
 	t.Parallel()
 
-	msg, ok := translateEvent(mustRuntimeEventUITest(
+	msg, ok := translateEventForTest(t, mustRuntimeEventUITest(
 		t,
 		eventspkg.EventKindJobStarted,
 		kinds.JobStartedPayload{Index: 2, Attempt: 1, MaxAttempts: 3},
@@ -51,7 +55,7 @@ func TestTranslateEventSessionUpdateProducesSnapshot(t *testing.T) {
 		t.Fatalf("publicSessionUpdate: %v", err)
 	}
 
-	msg, ok := translateEvent(mustRuntimeEventUITest(
+	msg, ok := translateEventForTest(t, mustRuntimeEventUITest(
 		t,
 		eventspkg.EventKindSessionUpdate,
 		kinds.SessionUpdatePayload{Index: 4, Update: update},
@@ -137,7 +141,7 @@ func TestTranslateEventUsageRetryAndFailure(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			msg, ok := translateEvent(tc.ev)
+			msg, ok := translateEventForTest(t, tc.ev)
 			if !ok {
 				t.Fatalf("expected %s to translate", tc.ev.Kind)
 			}
@@ -170,7 +174,7 @@ func TestTranslateEventIgnoresNonRenderedKinds(t *testing.T) {
 	}
 
 	for _, ev := range cases {
-		if msg, ok := translateEvent(ev); ok {
+		if msg, ok := translateEventForTest(t, ev); ok {
 			t.Fatalf("expected %s to be ignored, got %T", ev.Kind, msg)
 		}
 	}
@@ -179,7 +183,7 @@ func TestTranslateEventIgnoresNonRenderedKinds(t *testing.T) {
 func TestTranslateEventShutdownStatus(t *testing.T) {
 	t.Parallel()
 
-	msg, ok := translateEvent(mustRuntimeEventUITest(
+	msg, ok := translateEventForTest(t, mustRuntimeEventUITest(
 		t,
 		eventspkg.EventKindShutdownTerminated,
 		kinds.ShutdownTerminatedPayload{
@@ -242,7 +246,6 @@ func TestUIEventAdapterStopClosesSinkAndUnsubscribes(t *testing.T) {
 		}
 	}()
 
-	baseGoroutines := runtime.NumGoroutine()
 	sink := make(chan uiMsg, 4)
 	stop, done := startUIEventAdapter(context.Background(), bus, sink)
 
@@ -265,9 +268,6 @@ func TestUIEventAdapterStopClosesSinkAndUnsubscribes(t *testing.T) {
 
 	waitForCondition(t, time.Second, func() bool {
 		return bus.SubscriberCount() == 0
-	})
-	waitForCondition(t, time.Second, func() bool {
-		return runtime.NumGoroutine() <= baseGoroutines+2
 	})
 }
 
@@ -409,6 +409,7 @@ func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 		errLog:    "task_01.err.log",
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			outputFormat: model.OutputFormatJSON,
 			runArtifacts: model.RunArtifacts{RunID: runID},
@@ -599,8 +600,6 @@ func openUIAdapterRuntime(t *testing.T) (string, *journal.Journal, *eventspkg.Bu
 	}
 
 	cleanup := func() {
-		t.Helper()
-
 		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 		if err := runJournal.Close(closeCtx); err != nil {

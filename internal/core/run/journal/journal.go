@@ -39,8 +39,10 @@ type Journal struct {
 	path  string
 	runID string
 	inbox chan events.Event
-	bus   *events.Bus[events.Event]
 	done  chan struct{}
+
+	busMu sync.RWMutex
+	bus   *events.Bus[events.Event]
 
 	closeOnce sync.Once
 	submitMu  sync.RWMutex
@@ -72,6 +74,43 @@ type writeState struct {
 	writer  *bufio.Writer
 	encoder *json.Encoder
 	pending []events.Event
+}
+
+// Owner retains explicit close ownership for a journal that is passed through
+// preparation objects.
+type Owner struct {
+	mu      sync.Mutex
+	journal *Journal
+}
+
+// NewOwner wraps a journal with explicit cleanup ownership.
+func NewOwner(j *Journal) *Owner {
+	return &Owner{journal: j}
+}
+
+// Journal returns the owned journal instance, if any.
+func (o *Owner) Journal() *Journal {
+	if o == nil {
+		return nil
+	}
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.journal
+}
+
+// Close closes the owned journal at most once and releases ownership.
+func (o *Owner) Close(ctx context.Context) error {
+	if o == nil {
+		return nil
+	}
+	o.mu.Lock()
+	j := o.journal
+	o.journal = nil
+	o.mu.Unlock()
+	if j == nil {
+		return nil
+	}
+	return j.Close(ctx)
 }
 
 // Open creates a new journal writer for one run.
@@ -205,6 +244,16 @@ func (j *Journal) DropsOnSubmit() uint64 {
 	return j.dropsOnSubmit.Load()
 }
 
+// SetBus updates the live fan-out bus used for published journal events.
+func (j *Journal) SetBus(bus *events.Bus[events.Event]) {
+	if j == nil {
+		return
+	}
+	j.busMu.Lock()
+	j.bus = bus
+	j.busMu.Unlock()
+}
+
 // CurrentBufferDepth reports the current enqueue depth.
 func (j *Journal) CurrentBufferDepth() int {
 	if j == nil {
@@ -230,6 +279,15 @@ func (j *Journal) closedError() error {
 		}
 		return nil
 	}
+}
+
+func (j *Journal) liveBus() *events.Bus[events.Event] {
+	if j == nil {
+		return nil
+	}
+	j.busMu.RLock()
+	defer j.busMu.RUnlock()
+	return j.bus
 }
 
 func (j *Journal) writeLoop(file *os.File, lastSeq uint64) {
@@ -470,10 +528,10 @@ func (j *Journal) flushBatch(writer *bufio.Writer, file *os.File, pending []even
 			"seq", lastSeq,
 			"flush_latency_ms", latency.Milliseconds(),
 		)
-		if j.bus != nil {
+		if bus := j.liveBus(); bus != nil {
 			ctx := context.Background()
 			for _, ev := range pending {
-				j.bus.Publish(ctx, ev)
+				bus.Publish(ctx, ev)
 			}
 		}
 	}

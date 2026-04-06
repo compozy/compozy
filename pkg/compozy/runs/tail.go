@@ -115,7 +115,7 @@ func (r *Run) openTailFollower(startOffset int64) (*tailpkg.Tail, error) {
 		Location:      &tailpkg.SeekInfo{Offset: startOffset, Whence: io.SeekStart},
 		Follow:        true,
 		ReOpen:        true,
-		MustExist:     false,
+		MustExist:     true,
 		CompleteLines: true,
 		Logger:        tailpkg.DiscardingLogger,
 	})

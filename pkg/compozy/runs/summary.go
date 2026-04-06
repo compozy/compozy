@@ -2,6 +2,7 @@ package runs
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -43,7 +44,7 @@ func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("list runs in %q: %w", runsDir, err)
 	}
 
 	summaries := make([]RunSummary, 0, len(entries))
@@ -56,7 +57,7 @@ func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
 		runMetaPath := filepath.Join(runsDir, runID, "run.json")
 		run, err := loadRun(cleanRoot, runID)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) || os.IsNotExist(err) {
+			if errors.Is(err, os.ErrNotExist) {
 				slog.Warn(
 					"skipping run without run.json",
 					"component", "runs",
@@ -120,5 +121,5 @@ func cleanWorkspaceRoot(workspaceRoot string) string {
 }
 
 func runsDirForWorkspace(workspaceRoot string) string {
-	return filepath.Join(cleanWorkspaceRoot(workspaceRoot), ".compozy", "runs")
+	return filepath.Join(workspaceRoot, ".compozy", "runs")
 }

@@ -260,3 +260,63 @@ func TestEmitExecutionResultWritesArtifactForTextModeWithoutStdout(t *testing.T)
 		t.Fatalf("expected text mode to keep stdout quiet, got %q", string(stdoutBytes))
 	}
 }
+
+func TestEmitExecutionResultWritesRawJSONToStdout(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "workflow-run")
+	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+
+	cfg := &config{
+		mode:         model.ExecutionModePRDTasks,
+		ide:          model.IDECodex,
+		model:        "gpt-5.4",
+		outputFormat: model.OutputFormatRawJSON,
+		runArtifacts: runArtifacts,
+	}
+	result := executionResult{
+		RunID:        runArtifacts.RunID,
+		Mode:         string(cfg.mode),
+		Status:       runStatusSucceeded,
+		IDE:          cfg.ide,
+		Model:        cfg.model,
+		OutputFormat: string(cfg.outputFormat),
+		ArtifactsDir: runArtifacts.RunDir,
+		RunMetaPath:  runArtifacts.RunMetaPath,
+		ResultPath:   runArtifacts.ResultPath,
+	}
+
+	originalStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdout pipe: %v", err)
+	}
+	os.Stdout = writePipe
+	t.Cleanup(func() {
+		os.Stdout = originalStdout
+	})
+
+	if err := emitExecutionResult(cfg, result); err != nil {
+		t.Fatalf("emitExecutionResult: %v", err)
+	}
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("close stdout writer: %v", err)
+	}
+
+	stdoutBytes, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("read stdout pipe: %v", err)
+	}
+	if err := readPipe.Close(); err != nil {
+		t.Fatalf("close stdout reader: %v", err)
+	}
+
+	if bytes.Contains(stdoutBytes, []byte("\n  ")) {
+		t.Fatalf("expected compact raw-json stdout, got %q", string(stdoutBytes))
+	}
+	if !bytes.Contains(stdoutBytes, []byte(`"status":"succeeded"`)) {
+		t.Fatalf("expected raw-json stdout payload, got %q", string(stdoutBytes))
+	}
+}

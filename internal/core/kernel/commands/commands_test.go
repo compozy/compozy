@@ -149,6 +149,24 @@ func TestWorkspaceMigrateCommandCoreConfigMapsFields(t *testing.T) {
 	}
 }
 
+func TestWorkspaceMigrateFromMigrationConfigMapsAllFields(t *testing.T) {
+	t.Parallel()
+
+	cfg := core.MigrationConfig{
+		WorkspaceRoot: "/workspace",
+		RootDir:       "/workspace/.compozy/tasks",
+		Name:          "demo",
+		TasksDir:      "/workspace/.compozy/tasks/demo",
+		ReviewsDir:    "/workspace/.compozy/tasks/demo/reviews-001",
+		DryRun:        true,
+	}
+	cmd := WorkspaceMigrateFromMigrationConfig(cfg)
+
+	if cmd.WorkspaceRoot != cfg.WorkspaceRoot || cmd.RootDir != cfg.RootDir || cmd.ReviewsDir != cfg.ReviewsDir {
+		t.Fatalf("unexpected migrate command: %#v", cmd)
+	}
+}
+
 func TestWorkflowSyncFromConfigPassesThroughTasksDirAndDryRun(t *testing.T) {
 	t.Parallel()
 
@@ -185,6 +203,22 @@ func TestWorkflowSyncCommandCoreConfigMapsFields(t *testing.T) {
 	}
 }
 
+func TestWorkflowSyncFromSyncConfigMapsAllFields(t *testing.T) {
+	t.Parallel()
+
+	cfg := core.SyncConfig{
+		WorkspaceRoot: "/workspace",
+		RootDir:       "/workspace/.compozy/tasks",
+		Name:          "demo",
+		TasksDir:      "/workspace/.compozy/tasks/demo",
+	}
+	cmd := WorkflowSyncFromSyncConfig(cfg)
+
+	if cmd.WorkspaceRoot != cfg.WorkspaceRoot || cmd.RootDir != cfg.RootDir || cmd.TasksDir != cfg.TasksDir {
+		t.Fatalf("unexpected sync command: %#v", cmd)
+	}
+}
+
 func TestWorkflowArchiveFromConfigMapsLegacyFields(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +249,22 @@ func TestWorkflowArchiveCommandCoreConfigMapsFields(t *testing.T) {
 
 	if cfg.WorkspaceRoot != cmd.WorkspaceRoot || cfg.RootDir != cmd.RootDir || cfg.TasksDir != cmd.TasksDir {
 		t.Fatalf("unexpected archive config: %#v", cfg)
+	}
+}
+
+func TestWorkflowArchiveFromArchiveConfigMapsAllFields(t *testing.T) {
+	t.Parallel()
+
+	cfg := core.ArchiveConfig{
+		WorkspaceRoot: "/workspace",
+		RootDir:       "/workspace/.compozy/tasks",
+		Name:          "demo",
+		TasksDir:      "/workspace/.compozy/tasks/demo",
+	}
+	cmd := WorkflowArchiveFromArchiveConfig(cfg)
+
+	if cmd.WorkspaceRoot != cfg.WorkspaceRoot || cmd.RootDir != cfg.RootDir || cmd.TasksDir != cfg.TasksDir {
+		t.Fatalf("unexpected archive command: %#v", cmd)
 	}
 }
 

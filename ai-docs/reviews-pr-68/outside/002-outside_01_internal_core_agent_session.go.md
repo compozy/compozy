@@ -4,9 +4,9 @@
 **Date:** 2026-04-06 10:19:05 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
-- Disposition: VALID
+**Disposition:** INVALID
 
-- Rationale: O comentário procede, mas já estava corrigido no worktree atual. `publish()` não segura mais `s.mu` durante a espera de backpressure; ele contabiliza o publish ativo, libera o lock antes da espera bloqueante e `finish()` aguarda os publishes em voo antes de fechar o canal.
+**Rationale:** A implementação atual já solta `s.mu` antes da espera potencialmente bloqueante em `s.updates <- update`. O contador `activePublishes` é incrementado antes do unlock e o rate limiting do drop log é feito em `warnDroppedUpdate` com lock próprio, então a contenção descrita no comentário já não se reproduz no código atual.
 
 ## Details
 

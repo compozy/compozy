@@ -26,6 +26,17 @@ func WorkflowSyncFromConfig(cfg core.Config) WorkflowSyncCommand {
 	}
 }
 
+// WorkflowSyncFromSyncConfig translates the direct sync config into a typed sync
+// command without caller-side field copying.
+func WorkflowSyncFromSyncConfig(cfg core.SyncConfig) WorkflowSyncCommand {
+	return WorkflowSyncCommand{
+		WorkspaceRoot: cfg.WorkspaceRoot,
+		RootDir:       cfg.RootDir,
+		Name:          cfg.Name,
+		TasksDir:      cfg.TasksDir,
+	}
+}
+
 // CoreConfig converts the command into the existing sync configuration shape.
 func (c WorkflowSyncCommand) CoreConfig() core.SyncConfig {
 	return core.SyncConfig{

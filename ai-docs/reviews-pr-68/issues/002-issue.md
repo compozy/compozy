@@ -1,93 +1,55 @@
 # Issue 2 - Review Thread Comment
 
-**File:** `internal/core/run/journal/journal.go:162`
-**Date:** 2026-04-06 10:19:04 America/Sao_Paulo
+**File:** `internal/core/run/exec_flow.go:858`
+**Date:** 2026-04-06 11:28:05 America/Sao_Paulo
 **Status:** - [x] RESOLVED
 
 **Disposition:** VALID
 
-**Rationale:** Havia uma corrida real entre `Submit()` e `Close()`: com `closeRequested` fechado e `inbox` pronto para envio, o `select` podia aceitar um evento depois do início do fechamento. O journal agora usa um gate explícito entre submitters e fechamento, fecha o `inbox` de forma coordenada e impede novos envios a partir do início do close.
+**Rationale:** O ramo redundante em `execRunState.emit` foi removido. O método agora só faz short-circuit para `nil` receiver/event sink e delega todo o resto para `s.events.Write(event)`.
 
 ## Body
 
-_⚠️ Potential issue_ | _🔴 Critical_
+_⚠️ Potential issue_ | _🟡 Minor_
+
+**Redundant return statement.**
+
+Lines 853-856 contain duplicate logic - if `Output` is empty or type isn't `run.failed`, return nil, then immediately return nil again.
+
+```diff
+ func (s *execRunState) emit(event execEvent) error {
+ 	if s == nil || s.events == nil {
+-		if strings.TrimSpace(event.Output) == "" || event.Type != execEventTypeRunFailed {
+-			return nil
+-		}
+ 		return nil
+ 	}
+ 	return s.events.Write(event)
+ }
+```
+
+The conditional check appears to be vestigial code that no longer serves a purpose since both branches return nil.
+
+<!-- suggestion_start -->
 
 <details>
-<summary>🧩 Analysis chain</summary>
+<summary>📝 Committable suggestion</summary>
 
-🏁 Script executed:
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
 
-```shell
-cat -n internal/core/run/journal/journal.go | head -350
+```suggestion
+func (s *execRunState) emit(event execEvent) error {
+	if s == nil || s.events == nil {
+		return nil
+	}
+	return s.events.Write(event)
+}
 ```
-
-Repository: compozy/compozy
-
-Length of output: 10511
-
----
-
-🏁 Script executed:
-
-```shell
-# Check if there are any other threads/goroutines that could interact with closeRequested
-rg -A 5 -B 5 "closeRequested" internal/core/run/journal/journal.go
-```
-
-Repository: compozy/compozy
-
-Length of output: 1465
-
----
-
-🏁 Script executed:
-
-```shell
-# Also check if there's any logic that might allow submissions after closeRequested is closed
-rg -A 3 "close\(j.closeRequested\)" internal/core/run/journal/journal.go
-```
-
-Repository: compozy/compozy
-
-Length of output: 114
-
----
-
-🏁 Script executed:
-
-```shell
-# Get line numbers around runDrainLoop to understand the full drain lifecycle
-sed -n '244,290p' internal/core/run/journal/journal.go | cat -n
-```
-
-Repository: compozy/compozy
-
-Length of output: 1448
-
----
-
-🏁 Script executed:
-
-```shell
-# Check the storeResult and result methods to understand the done closure path
-rg -A 5 "storeResult\|func.*result" internal/core/run/journal/journal.go | head -40
-```
-
-Repository: compozy/compozy
-
-Length of output: 41
-
----
-
-
 
 </details>
 
-**Race condition: `Submit` can succeed after `Close` has started, orphaning events.**
-
-When `closeRequested` is closed, both the `case <-j.closeRequested:` and `case j.inbox <- ev:` become ready in `Submit`'s select statements. Go's select randomly picks one among ready cases, so the send can win, delivering the event to an unmonitored channel. If `runDrainLoop` has already hit its `default` and exited (inbox was empty), no one is draining anymore and the event is lost, yet the caller still gets `nil`.
-
-Also applies to lines 170-178, 269-279.
+<!-- suggestion_end -->
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -95,31 +57,28 @@ Also applies to lines 170-178, 269-279.
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/core/run/journal/journal.go` around lines 130 - 162, Submit can race
-with Close: a send to j.inbox can succeed after closeRequested is closed,
-orphaning events. Add an explicit "closing"/closed atomic flag (e.g., j.closing
-int32) or mutex and use it to prevent sends once Close begins: set the flag at
-the start of Close/runDrainLoop, and in Submit check the flag before attempting
-to send; after a successful send re-check the flag and if it became set, remove
-the just-sent event from j.inbox (non-blocking receive) and return ErrClosed (or
-otherwise handle/drop consistently). Update Submit (the select blocks around
-j.inbox) and Close/runDrainLoop to set/read that flag so sends cannot win the
-race with closeRequested; apply the same change to the other affected regions
-noted (lines ~170-178 and ~269-279) that perform j.inbox sends.
+In `@internal/core/run/exec_flow.go` around lines 851 - 858, The emit method on
+execRunState contains a redundant conditional that always returns nil when s or
+s.events is nil; remove the inner if block and simply return nil in that
+nil-check branch (keep the check for s == nil || s.events == nil and the final
+return of s.events.Write(event)); update execRunState.emit to only short-circuit
+with nil for the nil receiver/events case and otherwise call
+s.events.Write(event) so execEvent and execEventTypeRunFailed logic is not
+duplicated.
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:medusa:grasshopper:4154d49c-3d7e-4c97-8137-5703c38da1a3 -->
+<!-- fingerprinting:phantom:medusa:ocelot:5b822d4e-4e36-42b5-aa0e-6cd659c9f3e5 -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Resolve
 
-Thread ID: `PRRT_kwDORy7nkc55CGQt`
+Thread ID: `PRRT_kwDORy7nkc55C9uA`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55CGQt
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55C9uA
 ```
 
 ---

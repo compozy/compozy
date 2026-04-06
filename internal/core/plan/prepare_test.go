@@ -597,10 +597,10 @@ func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T)
 	if len(prep.Jobs) != 1 {
 		t.Fatalf("expected one exec job, got %d", len(prep.Jobs))
 	}
-	if prep.Journal == nil {
+	if prep.Journal() == nil {
 		t.Fatal("expected prepare to return a run journal")
 	}
-	if got := prep.Journal.Path(); got != prep.RunArtifacts.EventsPath {
+	if got := prep.Journal().Path(); got != prep.RunArtifacts.EventsPath {
 		t.Fatalf("expected journal path %q, got %q", prep.RunArtifacts.EventsPath, got)
 	}
 
@@ -627,13 +627,13 @@ func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T)
 func closePreparedJournalForTest(t *testing.T, prep *model.SolvePreparation) {
 	t.Helper()
 
-	if prep == nil || prep.Journal == nil {
+	if prep == nil || prep.Journal() == nil {
 		return
 	}
 
 	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := prep.Journal.Close(closeCtx); err != nil {
+	if err := prep.CloseJournal(closeCtx); err != nil {
 		t.Fatalf("close prepared journal: %v", err)
 	}
 }

@@ -83,6 +83,7 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -143,6 +144,7 @@ func TestJobRunnerRetriesRetryableACPSetupFailureThenSucceeds(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -188,6 +190,7 @@ func TestJobRunnerDoesNotRetryNonRetryableACPSetupFailure(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -299,6 +302,7 @@ func TestJobRunnerSuccessRunsTaskPostSuccessHook(t *testing.T) {
 		}},
 	}
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -342,6 +346,7 @@ func TestJobRunnerCancellationDoesNotRetry(t *testing.T) {
 
 	job := newTestACPJob(tmpDir)
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			ide:                    model.IDECodex,
 			model:                  "test-model",
@@ -638,7 +643,7 @@ func TestExecuteJobWithTimeoutInteractiveDoesNotLeakACPLogsToDefaultLogger(t *te
 
 func TestJobExecutionContextUICleanupHelpers(t *testing.T) {
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
-	execCtx := &jobExecutionContext{ui: ui}
+	execCtx := &jobExecutionContext{ctx: context.Background(), ui: ui}
 
 	if err := execCtx.awaitUIAfterCompletion(); err != nil {
 		t.Fatalf("awaitUIAfterCompletion: %v", err)
@@ -670,6 +675,7 @@ func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
 	execCtx := &jobExecutionContext{
+		ctx:   context.Background(),
 		ui:    ui,
 		total: 1,
 	}
@@ -691,6 +697,7 @@ func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 	close(cancelDone)
 	cancelUI := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
 	cancelExecCtx := &jobExecutionContext{
+		ctx:   context.Background(),
 		ui:    cancelUI,
 		total: 2,
 	}
@@ -713,7 +720,7 @@ func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 }
 
 func TestJobLifecycleMarkGiveUpRecordsFailure(t *testing.T) {
-	execCtx := &jobExecutionContext{}
+	execCtx := &jobExecutionContext{ctx: context.Background()}
 	lifecycle := newJobLifecycle(0, &job{
 		codeFiles: []string{"task_01"},
 		outLog:    "task_01.out.log",
@@ -744,6 +751,7 @@ func TestJobLifecycleEmitsStartedRetryAndCompletedEvents(t *testing.T) {
 	defer cleanup()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			maxRetries: 1,
 			runArtifacts: model.RunArtifacts{
@@ -788,6 +796,7 @@ func TestJobLifecycleEmitsFailedEvent(t *testing.T) {
 	defer cleanup()
 
 	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
 		cfg: &config{
 			maxRetries: 2,
 			runArtifacts: model.RunArtifacts{

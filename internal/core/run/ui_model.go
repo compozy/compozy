@@ -264,10 +264,6 @@ func newUIEventTranslator() *uiEventTranslator {
 	}
 }
 
-func translateEvent(ev events.Event) (uiMsg, bool) {
-	return newUIEventTranslator().translateEvent(ev)
-}
-
 func startUIEventAdapter(
 	parent context.Context,
 	bus *events.Bus[events.Event],

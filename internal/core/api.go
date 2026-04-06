@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
+	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/run"
 )
 
@@ -301,7 +302,7 @@ func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 		}
 		return nil, err
 	}
-	defer closePreparationJournal(ctx, prep)
+	defer preputil.ClosePreparationJournal(ctx, prep)
 	return newPreparation(prep), nil
 }
 
@@ -322,7 +323,7 @@ func runDirect(ctx context.Context, cfg Config) error {
 		}
 		return err
 	}
-	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal, nil, runtimeCfg)
+	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), nil, runtimeCfg)
 }
 
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.
@@ -408,24 +409,6 @@ func newPreparation(prep *model.SolvePreparation) *Preparation {
 		ResolvedRound:    prep.ResolvedRound,
 		InputDirPath:     prep.InputDirPath,
 	}
-}
-
-func closePreparationJournal(ctx context.Context, prep *model.SolvePreparation) {
-	if prep == nil || prep.Journal == nil {
-		return
-	}
-
-	closeCtx := ctx
-	if closeCtx == nil {
-		closeCtx = context.Background()
-	}
-	if _, hasDeadline := closeCtx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		closeCtx, cancel = context.WithTimeout(closeCtx, time.Second)
-		defer cancel()
-	}
-	_ = prep.Journal.Close(closeCtx)
-	prep.Journal = nil
 }
 
 func newJob(jb model.Job) Job {

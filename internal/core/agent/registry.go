@@ -58,9 +58,18 @@ type DriverCatalogLauncher struct {
 	Probe   []string
 }
 
+// RuntimeRegistry captures the ACP runtime validation surface needed by
+// execution and kernel code.
+type RuntimeRegistry interface {
+	ValidateRuntimeConfig(cfg *model.RuntimeConfig) error
+	EnsureAvailable(cfg *model.RuntimeConfig) error
+}
+
 // Registry exposes the supported ACP runtime catalog through a value that can be
 // passed around as a dependency.
 type Registry struct{}
+
+var _ RuntimeRegistry = Registry{}
 
 var supportedRegistryIDEOrder = []string{
 	model.IDEClaude,
@@ -237,7 +246,7 @@ var (
 )
 
 // DefaultRegistry returns the default ACP runtime registry handle.
-func DefaultRegistry() Registry {
+func DefaultRegistry() RuntimeRegistry {
 	return Registry{}
 }
 

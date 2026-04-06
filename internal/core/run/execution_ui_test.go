@@ -2,6 +2,8 @@ package run
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -9,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -23,6 +26,7 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 	controller := &executorController{
 		ctx: context.Background(),
 		execCtx: &jobExecutionContext{
+			ctx:   context.Background(),
 			total: 1,
 			ui:    ui,
 			cfg:   &config{},
@@ -61,6 +65,61 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 	}
 }
 
+func TestEnsureRuntimeEventBusCreatesFallbackBusForUI(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "ui-fallback")
+	if err := os.MkdirAll(filepath.Dir(runArtifacts.EventsPath), 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	runJournal, err := journal.Open(runArtifacts.EventsPath, nil, 8)
+	if err != nil {
+		t.Fatalf("open journal: %v", err)
+	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := runJournal.Close(closeCtx); err != nil {
+			t.Fatalf("close journal: %v", err)
+		}
+	}()
+
+	cfg := &config{outputFormat: model.OutputFormatText}
+	bus := ensureRuntimeEventBus(cfg, runJournal, nil)
+	if bus == nil {
+		t.Fatal("expected fallback bus for UI-enabled execution")
+	}
+	defer func() {
+		if err := bus.Close(context.Background()); err != nil {
+			t.Fatalf("close bus: %v", err)
+		}
+	}()
+
+	_, ch, unsub := bus.Subscribe()
+	defer unsub()
+
+	ev, err := newRuntimeEvent(
+		runArtifacts.RunID,
+		eventspkg.EventKindRunStarted,
+		kinds.RunStartedPayload{JobsTotal: 1},
+	)
+	if err != nil {
+		t.Fatalf("new runtime event: %v", err)
+	}
+	if err := runJournal.Submit(context.Background(), ev); err != nil {
+		t.Fatalf("submit event: %v", err)
+	}
+
+	select {
+	case got := <-ch:
+		if got.Kind != eventspkg.EventKindRunStarted {
+			t.Fatalf("expected fallback bus to receive run.started, got %s", got.Kind)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for fallback bus event")
+	}
+}
+
 func TestExecutorControllerUIQuitEntersDrainingPath(t *testing.T) {
 	t.Parallel()
 
@@ -69,6 +128,7 @@ func TestExecutorControllerUIQuitEntersDrainingPath(t *testing.T) {
 
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 4)}
 	execCtx := &jobExecutionContext{
+		ctx:           context.Background(),
 		total:         2,
 		cfg:           &config{runArtifacts: model.RunArtifacts{RunID: runID}},
 		ui:            ui,
@@ -128,6 +188,7 @@ func TestExecutorControllerSecondQuitForcesActiveClients(t *testing.T) {
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 8)}
 	client := newFakeACPClient(nil)
 	execCtx := &jobExecutionContext{
+		ctx:     context.Background(),
 		total:   1,
 		cfg:     &config{runArtifacts: model.RunArtifacts{RunID: runID}},
 		ui:      ui,
@@ -196,6 +257,7 @@ func TestExecutorControllerRootContextCancellationPublishesDrainingState(t *test
 
 	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg, 4)}
 	execCtx := &jobExecutionContext{
+		ctx:           context.Background(),
 		total:         1,
 		cfg:           &config{runArtifacts: model.RunArtifacts{RunID: runID}},
 		ui:            ui,
@@ -257,6 +319,7 @@ func TestExecutorControllerSuppressesFallbackShutdownLogsWhileUIIsActive(t *test
 	controller := &executorController{
 		ctx: context.Background(),
 		execCtx: &jobExecutionContext{
+			ctx:   context.Background(),
 			cfg:   &config{outputFormat: model.OutputFormatText},
 			ui:    ui,
 			total: 1,
@@ -290,6 +353,7 @@ func TestExecutorControllerUsesNeutralFallbackCompletionMessage(t *testing.T) {
 	controller := &executorController{
 		ctx: context.Background(),
 		execCtx: &jobExecutionContext{
+			ctx:   context.Background(),
 			cfg:   &config{outputFormat: model.OutputFormatText},
 			total: 1,
 		},
@@ -322,14 +386,17 @@ type fakeUISession struct {
 
 func newFakeUISession() *fakeUISession {
 	return &fakeUISession{
-		ch:          make(chan uiMsg),
+		ch:          make(chan uiMsg, 8),
 		waitCalled:  make(chan struct{}, 1),
 		waitRelease: make(chan error, 1),
 	}
 }
 
 func (f *fakeUISession) enqueue(msg uiMsg) {
-	f.ch <- msg
+	select {
+	case f.ch <- msg:
+	default:
+	}
 }
 
 func (f *fakeUISession) setQuitHandler(func(uiQuitRequest)) {}

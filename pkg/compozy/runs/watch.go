@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,6 +205,7 @@ func sendSetupError(dst chan<- error, err error) {
 	select {
 	case dst <- err:
 	default:
+		slog.Error("dropped setup error sending to dst channel", "component", "runs", "error", err)
 	}
 }
 
@@ -476,7 +477,6 @@ func isTransientRunLoadError(err error) bool {
 	}
 	var syntaxErr *json.SyntaxError
 	return errors.As(err, &syntaxErr) ||
-		errors.Is(err, io.ErrUnexpectedEOF) ||
 		strings.Contains(err.Error(), "unexpected end of JSON input")
 }
 

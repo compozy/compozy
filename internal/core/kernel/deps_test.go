@@ -650,6 +650,6 @@ func cloneSolvePreparation(prep *model.SolvePreparation) *model.SolvePreparation
 	}
 	cloned := *prep
 	cloned.Jobs = append([]model.Job(nil), prep.Jobs...)
-	cloned.Journal = prep.Journal
+	cloned.JournalHandle = prep.JournalHandle
 	return &cloned
 }

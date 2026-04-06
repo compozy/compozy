@@ -337,69 +337,57 @@ func validateContentBlock(blockType ContentBlockType, data []byte) error {
 }
 
 func decodeTextBlock(data []byte) (TextBlock, error) {
-	var block TextBlock
-	if err := json.Unmarshal(data, &block); err != nil {
-		return TextBlock{}, fmt.Errorf("decode %s block: %w", BlockText, err)
-	}
-	if block.Type != BlockText {
-		return TextBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockText, block.Type)
-	}
-	return ensureTextBlock(block), nil
+	return decodeContentBlock(data, BlockText, func(block TextBlock) ContentBlockType {
+		return block.Type
+	}, ensureTextBlock)
 }
 
 func decodeToolUseBlock(data []byte) (ToolUseBlock, error) {
-	var block ToolUseBlock
-	if err := json.Unmarshal(data, &block); err != nil {
-		return ToolUseBlock{}, fmt.Errorf("decode %s block: %w", BlockToolUse, err)
-	}
-	if block.Type != BlockToolUse {
-		return ToolUseBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockToolUse, block.Type)
-	}
-	return ensureToolUseBlock(block), nil
+	return decodeContentBlock(data, BlockToolUse, func(block ToolUseBlock) ContentBlockType {
+		return block.Type
+	}, ensureToolUseBlock)
 }
 
 func decodeToolResultBlock(data []byte) (ToolResultBlock, error) {
-	var block ToolResultBlock
-	if err := json.Unmarshal(data, &block); err != nil {
-		return ToolResultBlock{}, fmt.Errorf("decode %s block: %w", BlockToolResult, err)
-	}
-	if block.Type != BlockToolResult {
-		return ToolResultBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockToolResult, block.Type)
-	}
-	return ensureToolResultBlock(block), nil
+	return decodeContentBlock(data, BlockToolResult, func(block ToolResultBlock) ContentBlockType {
+		return block.Type
+	}, ensureToolResultBlock)
 }
 
 func decodeDiffBlock(data []byte) (DiffBlock, error) {
-	var block DiffBlock
-	if err := json.Unmarshal(data, &block); err != nil {
-		return DiffBlock{}, fmt.Errorf("decode %s block: %w", BlockDiff, err)
-	}
-	if block.Type != BlockDiff {
-		return DiffBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockDiff, block.Type)
-	}
-	return ensureDiffBlock(block), nil
+	return decodeContentBlock(data, BlockDiff, func(block DiffBlock) ContentBlockType {
+		return block.Type
+	}, ensureDiffBlock)
 }
 
 func decodeTerminalOutputBlock(data []byte) (TerminalOutputBlock, error) {
-	var block TerminalOutputBlock
-	if err := json.Unmarshal(data, &block); err != nil {
-		return TerminalOutputBlock{}, fmt.Errorf("decode %s block: %w", BlockTerminalOutput, err)
-	}
-	if block.Type != BlockTerminalOutput {
-		return TerminalOutputBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockTerminalOutput, block.Type)
-	}
-	return ensureTerminalOutputBlock(block), nil
+	return decodeContentBlock(data, BlockTerminalOutput, func(block TerminalOutputBlock) ContentBlockType {
+		return block.Type
+	}, ensureTerminalOutputBlock)
 }
 
 func decodeImageBlock(data []byte) (ImageBlock, error) {
-	var block ImageBlock
+	return decodeContentBlock(data, BlockImage, func(block ImageBlock) ContentBlockType {
+		return block.Type
+	}, ensureImageBlock)
+}
+
+func decodeContentBlock[T any](
+	data []byte,
+	expected ContentBlockType,
+	blockType func(T) ContentBlockType,
+	ensure func(T) T,
+) (T, error) {
+	var block T
 	if err := json.Unmarshal(data, &block); err != nil {
-		return ImageBlock{}, fmt.Errorf("decode %s block: %w", BlockImage, err)
+		var zero T
+		return zero, fmt.Errorf("decode %s block: %w", expected, err)
 	}
-	if block.Type != BlockImage {
-		return ImageBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockImage, block.Type)
+	if got := blockType(block); got != expected {
+		var zero T
+		return zero, fmt.Errorf("decode %s block: unexpected type %q", expected, got)
 	}
-	return ensureImageBlock(block), nil
+	return ensure(block), nil
 }
 
 func ensureTextBlock(block TextBlock) TextBlock {

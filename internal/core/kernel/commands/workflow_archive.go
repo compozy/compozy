@@ -24,6 +24,17 @@ func WorkflowArchiveFromConfig(cfg core.Config) WorkflowArchiveCommand {
 	}
 }
 
+// WorkflowArchiveFromArchiveConfig translates the direct archive config into a
+// typed archive command without caller-side field copying.
+func WorkflowArchiveFromArchiveConfig(cfg core.ArchiveConfig) WorkflowArchiveCommand {
+	return WorkflowArchiveCommand{
+		WorkspaceRoot: cfg.WorkspaceRoot,
+		RootDir:       cfg.RootDir,
+		Name:          cfg.Name,
+		TasksDir:      cfg.TasksDir,
+	}
+}
+
 // CoreConfig converts the command into the existing archive configuration shape.
 func (c WorkflowArchiveCommand) CoreConfig() core.ArchiveConfig {
 	return core.ArchiveConfig{

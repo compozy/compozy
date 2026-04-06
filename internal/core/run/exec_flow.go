@@ -21,8 +21,6 @@ import (
 
 const execRunSchemaVersion = 1
 
-const execEventTypeRunFailed = "run.failed"
-
 type execJSONStreamMode uint8
 
 const (
@@ -251,6 +249,8 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 		return "", nil, nil, job{}, err
 	}
 	if cfg.Persist {
+		// Exec callers read cfg.RunID after ExecuteExec returns to discover the
+		// persisted run artifacts for newly allocated exec runs.
 		cfg.RunID = state.runArtifacts.RunID
 	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
@@ -327,18 +327,13 @@ func executeExecJob(
 	}
 }
 
-func publishExecFinish(useUI bool, success bool, exitCode int) {
-	_ = useUI
-	_ = success
-	_ = exitCode
-}
+// publishExecFinish is a placeholder until exec-mode retry/finish events gain
+// dedicated UI rendering.
+func publishExecFinish(bool, bool, int) {}
 
-func publishExecRetry(useUI bool, attempt int, maxAttempts int, err error) {
-	_ = useUI
-	_ = attempt
-	_ = maxAttempts
-	_ = err
-}
+// publishExecRetry is a placeholder until exec-mode retry events gain dedicated
+// UI rendering.
+func publishExecRetry(bool, int, int, error) {}
 
 func shouldRetryExecAttempt(err error, attempt int, maxRetries int, j *job) bool {
 	if j != nil && strings.TrimSpace(j.resumeSession) != "" {
@@ -850,9 +845,6 @@ func (s *execRunState) emitSessionUpdate(update model.SessionUpdate) error {
 
 func (s *execRunState) emit(event execEvent) error {
 	if s == nil || s.events == nil {
-		if strings.TrimSpace(event.Output) == "" || event.Type != execEventTypeRunFailed {
-			return nil
-		}
 		return nil
 	}
 	return s.events.Write(event)

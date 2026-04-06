@@ -296,6 +296,6 @@ func exampleEvent(runID string, seq uint64, kind events.EventKind) events.Event 
 		Seq:           seq,
 		Timestamp:     time.Unix(int64(seq), 0).UTC(),
 		Kind:          kind,
-		Payload:       json.RawMessage(`{"seq":1}`),
+		Payload:       json.RawMessage(fmt.Sprintf(`{"seq":%d}`, seq)),
 	}
 }

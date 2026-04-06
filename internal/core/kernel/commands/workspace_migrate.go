@@ -28,6 +28,19 @@ func WorkspaceMigrateFromConfig(cfg core.Config) WorkspaceMigrateCommand {
 	}
 }
 
+// WorkspaceMigrateFromMigrationConfig translates the direct migration config into
+// a typed migration command without lossy field remapping at the caller.
+func WorkspaceMigrateFromMigrationConfig(cfg core.MigrationConfig) WorkspaceMigrateCommand {
+	return WorkspaceMigrateCommand{
+		WorkspaceRoot: cfg.WorkspaceRoot,
+		RootDir:       cfg.RootDir,
+		Name:          cfg.Name,
+		TasksDir:      cfg.TasksDir,
+		ReviewsDir:    cfg.ReviewsDir,
+		DryRun:        cfg.DryRun,
+	}
+}
+
 // CoreConfig converts the command into the existing migration configuration shape.
 func (c WorkspaceMigrateCommand) CoreConfig() core.MigrationConfig {
 	return core.MigrationConfig{

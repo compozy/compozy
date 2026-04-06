@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/memory"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/run/journal"
@@ -34,7 +35,7 @@ func Prepare(
 		if prepared {
 			return
 		}
-		closePreparedJournal(ctx, prep)
+		preputil.ClosePreparationJournal(ctx, prep)
 	}()
 
 	if cfg.Mode == model.ExecutionModeExec {
@@ -68,10 +69,11 @@ func prepareWorkflowRun(
 	if err != nil {
 		return err
 	}
-	prep.Journal, err = journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
+	runJournal, err := journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
 	if err != nil {
 		return fmt.Errorf("open run journal: %w", err)
 	}
+	prep.SetJournal(runJournal)
 
 	prep.Jobs, err = prepareJobs(cfg, groupIssues(entries), prep.RunArtifacts)
 	if err != nil {
@@ -149,10 +151,11 @@ func prepareExec(
 	if err != nil {
 		return nil, err
 	}
-	prep.Journal, err = journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
+	runJournal, err := journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
 	if err != nil {
 		return nil, fmt.Errorf("open run journal: %w", err)
 	}
+	prep.SetJournal(runJournal)
 
 	job, err := buildExecJob(prep.RunArtifacts, promptText)
 	if err != nil {
@@ -164,17 +167,6 @@ func prepareExec(
 		return nil, err
 	}
 	return prep, nil
-}
-
-func closePreparedJournal(_ context.Context, prep *model.SolvePreparation) {
-	if prep == nil || prep.Journal == nil {
-		return
-	}
-
-	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	_ = prep.Journal.Close(closeCtx)
-	prep.Journal = nil
 }
 
 func prepareJobs(
