@@ -59,8 +59,10 @@ type sessionImpl struct {
 	droppedUpdates atomic.Uint64
 
 	mu                          sync.RWMutex
+	publishCond                 *sync.Cond
 	err                         error
 	finished                    bool
+	activePublishes             int
 	suppressUpdates             bool
 	updatesSeen                 int
 	lastUpdateWasFailedToolCall bool
@@ -70,7 +72,7 @@ type sessionImpl struct {
 var _ Session = (*sessionImpl)(nil)
 
 func newSession(id string) *sessionImpl {
-	return &sessionImpl{
+	session := &sessionImpl{
 		id: id,
 		identity: SessionIdentity{
 			ACPSessionID: id,
@@ -78,6 +80,8 @@ func newSession(id string) *sessionImpl {
 		updates: make(chan model.SessionUpdate, sessionUpdatesBufferCap),
 		done:    make(chan struct{}),
 	}
+	session.publishCond = sync.NewCond(&session.mu)
+	return session
 }
 
 func newSessionWithAccess(id string, workingDir string, allowedRoots []string) *sessionImpl {
@@ -128,8 +132,8 @@ func (s *sessionImpl) DroppedUpdates() uint64 {
 
 func (s *sessionImpl) publish(ctx context.Context, update model.SessionUpdate) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.finished {
+		s.mu.Unlock()
 		return
 	}
 	if update.Status == "" {
@@ -139,8 +143,13 @@ func (s *sessionImpl) publish(ctx context.Context, update model.SessionUpdate) {
 	s.lastUpdateWasFailedToolCall = update.Kind == model.UpdateKindToolCallUpdated &&
 		update.ToolCallState == model.ToolCallStateFailed
 	if s.suppressUpdates {
+		s.mu.Unlock()
 		return
 	}
+	s.activePublishes++
+	s.mu.Unlock()
+	defer s.endPublish()
+
 	select {
 	case s.updates <- update:
 		return
@@ -162,18 +171,33 @@ func (s *sessionImpl) publish(ctx context.Context, update model.SessionUpdate) {
 }
 
 func (s *sessionImpl) warnDroppedUpdate(kind model.SessionUpdateKind, droppedTotal uint64) {
+	s.mu.Lock()
 	now := time.Now()
 	if !s.lastDropLogAt.IsZero() && now.Sub(s.lastDropLogAt) < sessionDropLogInterval {
+		s.mu.Unlock()
 		return
 	}
 	s.lastDropLogAt = now
+	sessionID := s.id
+	bufferCap := cap(s.updates)
+	s.mu.Unlock()
+
 	slog.Warn(
 		"acp session update dropped after backpressure timeout",
-		"session_id", s.id,
-		"buffer_cap", cap(s.updates),
+		"session_id", sessionID,
+		"buffer_cap", bufferCap,
 		"dropped_total", droppedTotal,
 		"kind", kind,
 	)
+}
+
+func (s *sessionImpl) endPublish() {
+	s.mu.Lock()
+	s.activePublishes--
+	if s.activePublishes == 0 {
+		s.publishCond.Broadcast()
+	}
+	s.mu.Unlock()
 }
 
 func (s *sessionImpl) finish(status model.SessionStatus, err error) {
@@ -184,6 +208,9 @@ func (s *sessionImpl) finish(status model.SessionStatus, err error) {
 	}
 	s.finished = true
 	s.err = err
+	for s.activePublishes > 0 {
+		s.publishCond.Wait()
+	}
 	select {
 	case s.updates <- model.SessionUpdate{Status: status}:
 	default:

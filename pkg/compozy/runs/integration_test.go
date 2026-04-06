@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -39,7 +40,7 @@ func TestReplayRoundTripWithJournal(t *testing.T) {
 			RunID:     runID,
 			Timestamp: time.Unix(int64(index), 0).UTC(),
 			Kind:      kind,
-			Payload:   []byte(`{"index":1}`),
+			Payload:   []byte(fmt.Sprintf(`{"index":%d}`, index)),
 		}); err != nil {
 			t.Fatalf("Submit() error = %v", err)
 		}

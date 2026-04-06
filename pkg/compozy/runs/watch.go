@@ -38,6 +38,12 @@ type RunEvent struct {
 	Summary *RunSummary
 }
 
+type workspaceWatchState struct {
+	known            map[string]RunSummary
+	watchedRunDirs   map[string]string
+	watchedInfraDirs map[string]struct{}
+}
+
 // WatchWorkspace emits RunEvent notifications for runs under workspaceRoot.
 func WatchWorkspace(ctx context.Context, workspaceRoot string) (<-chan RunEvent, <-chan error) {
 	out := make(chan RunEvent)
@@ -45,71 +51,151 @@ func WatchWorkspace(ctx context.Context, workspaceRoot string) (<-chan RunEvent,
 	cleanRoot := cleanWorkspaceRoot(workspaceRoot)
 	runsDir := runsDirForWorkspace(cleanRoot)
 
-	watcher, err := fsnotify.NewWatcher()
+	watcher, state, err := prepareWorkspaceWatcher(cleanRoot, runsDir)
 	if err != nil {
-		sendSetupError(errs, fmt.Errorf("create workspace watcher: %w", err))
-		close(out)
-		close(errs)
-		return out, errs
-	}
-
-	if err := watcher.Add(runsDir); err != nil {
-		_ = watcher.Close()
-		sendSetupError(errs, fmt.Errorf("watch runs directory: %w", err))
-		close(out)
-		close(errs)
-		return out, errs
-	}
-
-	known := make(map[string]RunSummary)
-	watchedRunDirs := make(map[string]string)
-	if err := seedWorkspaceWatcher(cleanRoot, runsDir, watcher, known, watchedRunDirs); err != nil {
-		_ = watcher.Close()
 		sendSetupError(errs, err)
 		close(out)
 		close(errs)
 		return out, errs
 	}
 
-	go func() {
-		defer close(out)
-		defer close(errs)
-		defer watcher.Close()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				if !sendRunError(ctx, errs, err) {
-					return
-				}
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				if err := handleWorkspaceEvent(
-					ctx,
-					cleanRoot,
-					runsDir,
-					watcher,
-					known,
-					watchedRunDirs,
-					out,
-					event,
-				); err != nil {
-					if !sendRunError(ctx, errs, err) {
-						return
-					}
-				}
-			}
-		}
-	}()
+	go runWorkspaceWatcherLoop(ctx, cleanRoot, runsDir, watcher, state, out, errs)
 
 	return out, errs
+}
+
+func prepareWorkspaceWatcher(
+	workspaceRoot string,
+	runsDir string,
+) (*fsnotify.Watcher, *workspaceWatchState, error) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return nil, nil, fmt.Errorf("create workspace watcher: %w", err)
+	}
+
+	state := &workspaceWatchState{
+		known:            make(map[string]RunSummary),
+		watchedRunDirs:   make(map[string]string),
+		watchedInfraDirs: make(map[string]struct{}),
+	}
+	if err := ensureWorkspaceInfrastructureWatches(
+		watcher,
+		state.watchedInfraDirs,
+		workspaceRoot,
+		runsDir,
+	); err != nil {
+		_ = watcher.Close()
+		return nil, nil, err
+	}
+	if runsDirExists(runsDir) {
+		if err := seedWorkspaceWatcher(workspaceRoot, runsDir, watcher, state.known, state.watchedRunDirs); err != nil {
+			_ = watcher.Close()
+			return nil, nil, err
+		}
+	}
+	return watcher, state, nil
+}
+
+func runWorkspaceWatcherLoop(
+	ctx context.Context,
+	workspaceRoot string,
+	runsDir string,
+	watcher *fsnotify.Watcher,
+	state *workspaceWatchState,
+	out chan<- RunEvent,
+	errs chan<- error,
+) {
+	defer close(out)
+	defer close(errs)
+	defer watcher.Close()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			if !sendRunError(ctx, errs, err) {
+				return
+			}
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			if !processWorkspaceWatcherEvent(ctx, workspaceRoot, runsDir, watcher, state, out, errs, event) {
+				return
+			}
+		}
+	}
+}
+
+func processWorkspaceWatcherEvent(
+	ctx context.Context,
+	workspaceRoot string,
+	runsDir string,
+	watcher *fsnotify.Watcher,
+	state *workspaceWatchState,
+	out chan<- RunEvent,
+	errs chan<- error,
+	event fsnotify.Event,
+) bool {
+	if handled, err := handleInfrastructureEvent(
+		ctx,
+		workspaceRoot,
+		runsDir,
+		watcher,
+		state.watchedInfraDirs,
+		state.known,
+		state.watchedRunDirs,
+		out,
+		event,
+	); err != nil {
+		return sendRunError(ctx, errs, err)
+	} else if handled {
+		return true
+	}
+	if err := handleWorkspaceEvent(
+		ctx,
+		workspaceRoot,
+		runsDir,
+		watcher,
+		state.known,
+		state.watchedRunDirs,
+		out,
+		event,
+	); err != nil {
+		return sendRunError(ctx, errs, err)
+	}
+	return true
+}
+
+func handleInfrastructureEvent(
+	ctx context.Context,
+	workspaceRoot string,
+	runsDir string,
+	watcher *fsnotify.Watcher,
+	watchedInfraDirs map[string]struct{},
+	known map[string]RunSummary,
+	watchedRunDirs map[string]string,
+	out chan<- RunEvent,
+	event fsnotify.Event,
+) (bool, error) {
+	compozyDir := filepath.Join(workspaceRoot, ".compozy")
+	if event.Name != compozyDir && event.Name != runsDir {
+		return false, nil
+	}
+	if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) && !event.Has(fsnotify.Rename) {
+		return true, nil
+	}
+	if err := ensureWorkspaceInfrastructureWatches(watcher, watchedInfraDirs, workspaceRoot, runsDir); err != nil {
+		return true, err
+	}
+	if !runsDirExists(runsDir) {
+		return true, nil
+	}
+	return true, syncWorkspaceRuns(ctx, workspaceRoot, runsDir, watcher, known, watchedRunDirs, out)
 }
 
 func sendSetupError(dst chan<- error, err error) {
@@ -153,6 +239,100 @@ func seedWorkspaceWatcher(
 		known[runID] = run.Summary()
 	}
 	return nil
+}
+
+func syncWorkspaceRuns(
+	ctx context.Context,
+	workspaceRoot string,
+	runsDir string,
+	watcher *fsnotify.Watcher,
+	known map[string]RunSummary,
+	watchedRunDirs map[string]string,
+	out chan<- RunEvent,
+) error {
+	entries, err := os.ReadDir(runsDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read runs directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		runID := entry.Name()
+		runDir := filepath.Join(runsDir, runID)
+		if err := addRunDirWatch(watcher, watchedRunDirs, runID, runDir); err != nil {
+			return err
+		}
+		run, err := loadRun(workspaceRoot, runID)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) || isTransientRunLoadError(err) {
+				continue
+			}
+			return err
+		}
+		if err := applyWorkspaceRunSummary(ctx, runID, run.Summary(), known, out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func ensureWorkspaceInfrastructureWatches(
+	watcher *fsnotify.Watcher,
+	watchedInfraDirs map[string]struct{},
+	workspaceRoot string,
+	runsDir string,
+) error {
+	if err := addInfrastructureWatch(watcher, watchedInfraDirs, workspaceRoot); err != nil {
+		return fmt.Errorf("watch workspace root: %w", err)
+	}
+
+	compozyDir := filepath.Join(workspaceRoot, ".compozy")
+	if info, err := os.Stat(compozyDir); err == nil {
+		if info.IsDir() {
+			if err := addInfrastructureWatch(watcher, watchedInfraDirs, compozyDir); err != nil {
+				return fmt.Errorf("watch compozy directory: %w", err)
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat compozy directory: %w", err)
+	}
+
+	if info, err := os.Stat(runsDir); err == nil {
+		if info.IsDir() {
+			if err := addInfrastructureWatch(watcher, watchedInfraDirs, runsDir); err != nil {
+				return fmt.Errorf("watch runs directory: %w", err)
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat runs directory: %w", err)
+	}
+
+	return nil
+}
+
+func addInfrastructureWatch(
+	watcher *fsnotify.Watcher,
+	watchedInfraDirs map[string]struct{},
+	path string,
+) error {
+	if _, ok := watchedInfraDirs[path]; ok {
+		return nil
+	}
+	if err := watcher.Add(path); err != nil {
+		return err
+	}
+	watchedInfraDirs[path] = struct{}{}
+	return nil
+}
+
+func runsDirExists(runsDir string) bool {
+	info, err := os.Stat(runsDir)
+	return err == nil && info.IsDir()
 }
 
 func handleWorkspaceEvent(

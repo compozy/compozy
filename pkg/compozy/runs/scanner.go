@@ -4,18 +4,30 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"io"
 	"os"
 )
 
 const (
-	maxEventLineSize    = 1024 * 1024
 	tailOffsetChunkSize = 64 * 1024
 )
 
-func newEventScanner(file *os.File) *bufio.Scanner {
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxEventLineSize)
-	return scanner
+func forEachEventLine(file *os.File, fn func(line []byte, lineNumber int) error) error {
+	reader := bufio.NewReader(file)
+	for lineNumber := 1; ; lineNumber++ {
+		line, err := reader.ReadBytes('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+		if len(line) > 0 {
+			if err := fn(line, lineNumber); err != nil {
+				return err
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+	}
 }
 
 func bytesTrimSpace(line []byte) []byte {

@@ -18,6 +18,7 @@ import (
 )
 
 type sessionUpdateHandler struct {
+	ctx            context.Context
 	index          int
 	agentID        string
 	sessionID      string
@@ -41,6 +42,7 @@ type sessionUpdateHandler struct {
 }
 
 func newSessionUpdateHandler(
+	ctx context.Context,
 	index int,
 	agentID string,
 	sessionID string,
@@ -54,10 +56,14 @@ func newSessionUpdateHandler(
 	aggregateMu *sync.Mutex,
 	activity *activityMonitor,
 ) *sessionUpdateHandler {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if logger == nil {
 		logger = silentLogger()
 	}
 	return &sessionUpdateHandler{
+		ctx:            ctx,
 		index:          index,
 		agentID:        agentID,
 		sessionID:      sessionID,
@@ -206,6 +212,7 @@ func (h *sessionUpdateHandler) HandleCompletion(err error) error {
 			},
 			"session failed",
 		); emitErr != nil {
+			h.markDone(err, true)
 			return emitErr
 		}
 		if writeErr := writeRenderedLines(h.errWriter, []string{"ACP session error: " + err.Error()}); writeErr != nil {
@@ -236,6 +243,7 @@ func (h *sessionUpdateHandler) HandleCompletion(err error) error {
 		},
 		"session completed",
 	); err != nil {
+		h.markDone(nil, false)
 		return err
 	}
 
@@ -267,7 +275,7 @@ func (h *sessionUpdateHandler) submitRuntimeEvent(
 	if err != nil {
 		return err
 	}
-	if err := h.journal.Submit(context.Background(), event); err != nil {
+	if err := h.journal.Submit(h.ctx, event); err != nil {
 		return fmt.Errorf("submit %s event: %w", description, err)
 	}
 	return nil

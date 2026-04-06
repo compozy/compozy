@@ -276,21 +276,16 @@ func newPreparation(prep *model.SolvePreparation) *core.Preparation {
 	}
 }
 
-func closePreparationJournal(ctx context.Context, prep *model.SolvePreparation) {
+func closePreparationJournal(_ context.Context, prep *model.SolvePreparation) {
 	if prep == nil || prep.Journal == nil {
 		return
 	}
 
-	closeCtx := ctx
-	if closeCtx == nil {
-		closeCtx = context.Background()
+	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := prep.Journal.Close(closeCtx); err != nil {
+		return
 	}
-	if _, hasDeadline := closeCtx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		closeCtx, cancel = context.WithTimeout(closeCtx, time.Second)
-		defer cancel()
-	}
-	_ = prep.Journal.Close(closeCtx)
 	prep.Journal = nil
 }
 

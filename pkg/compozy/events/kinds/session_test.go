@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -154,35 +155,89 @@ func TestContentBlockValidationErrors(t *testing.T) {
 	t.Parallel()
 
 	var nilText *TextBlock
-	if _, err := NewContentBlock(nil); err == nil {
-		t.Fatal("expected nil block error")
-	}
-	if _, err := NewContentBlock(nilText); err == nil {
-		t.Fatal("expected nil pointer block error")
-	}
-	if _, err := NewContentBlock(struct{}{}); err == nil {
-		t.Fatal("expected unsupported block error")
+	tests := []struct {
+		name        string
+		run         func() error
+		wantMessage string
+	}{
+		{
+			name: "nil payload",
+			run: func() error {
+				_, err := NewContentBlock(nil)
+				return err
+			},
+			wantMessage: "marshal content block: nil payload",
+		},
+		{
+			name: "nil typed pointer payload",
+			run: func() error {
+				_, err := NewContentBlock(nilText)
+				return err
+			},
+			wantMessage: "marshal content block: nil *kinds.TextBlock",
+		},
+		{
+			name: "unsupported payload type",
+			run: func() error {
+				_, err := NewContentBlock(struct{}{})
+				return err
+			},
+			wantMessage: "marshal content block: unsupported payload type struct {}",
+		},
+		{
+			name: "marshal missing type and data",
+			run: func() error {
+				_, err := (ContentBlock{}).MarshalJSON()
+				return err
+			},
+			wantMessage: "marshal content block: missing type",
+		},
+		{
+			name: "marshal missing data",
+			run: func() error {
+				_, err := (ContentBlock{Type: BlockText}).MarshalJSON()
+				return err
+			},
+			wantMessage: "marshal text block: missing data",
+		},
+		{
+			name: "unmarshal missing type",
+			run: func() error {
+				var missingType ContentBlock
+				return json.Unmarshal([]byte(`{"text":"missing type"}`), &missingType)
+			},
+			wantMessage: "decode content block envelope: missing type",
+		},
+		{
+			name: "unmarshal invalid type",
+			run: func() error {
+				var invalidType ContentBlock
+				return json.Unmarshal([]byte(`{"type":"nope"}`), &invalidType)
+			},
+			wantMessage: `decode content block: unsupported type "nope"`,
+		},
+		{
+			name: "validate invalid type",
+			run: func() error {
+				return validateContentBlock(ContentBlockType("invalid"), []byte(`{}`))
+			},
+			wantMessage: `decode content block: unsupported type "invalid"`,
+		},
 	}
 
-	if _, err := (ContentBlock{}).MarshalJSON(); err == nil {
-		t.Fatal("expected marshal error for missing type and data")
-	}
-	if _, err := (ContentBlock{Type: BlockText}).MarshalJSON(); err == nil {
-		t.Fatal("expected marshal error for missing data")
-	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	var missingType ContentBlock
-	if err := json.Unmarshal([]byte(`{"text":"missing type"}`), &missingType); err == nil {
-		t.Fatal("expected missing type error")
-	}
-
-	var invalidType ContentBlock
-	if err := json.Unmarshal([]byte(`{"type":"nope"}`), &invalidType); err == nil {
-		t.Fatal("expected unsupported type error")
-	}
-
-	if err := validateContentBlock(ContentBlockType("invalid"), []byte(`{}`)); err == nil {
-		t.Fatal("expected decode error for invalid type")
+			err := tt.run()
+			if err == nil {
+				t.Fatal("expected error")
+			}
+			if !strings.Contains(err.Error(), tt.wantMessage) {
+				t.Fatalf("error = %q, want substring %q", err.Error(), tt.wantMessage)
+			}
+		})
 	}
 }
 

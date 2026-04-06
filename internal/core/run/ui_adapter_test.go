@@ -244,7 +244,7 @@ func TestUIEventAdapterStopClosesSinkAndUnsubscribes(t *testing.T) {
 
 	baseGoroutines := runtime.NumGoroutine()
 	sink := make(chan uiMsg, 4)
-	stop, done := startUIEventAdapter(bus, sink)
+	stop, done := startUIEventAdapter(context.Background(), bus, sink)
 
 	waitForCondition(t, time.Second, func() bool {
 		return bus.SubscriberCount() == 1
@@ -282,7 +282,7 @@ func TestUIEventAdapterDropsMessagesWhenSinkIsFull(t *testing.T) {
 	}()
 
 	sink := make(chan uiMsg, 1)
-	stop, done := startUIEventAdapter(bus, sink)
+	stop, done := startUIEventAdapter(context.Background(), bus, sink)
 	defer func() {
 		stop()
 		<-done
@@ -385,7 +385,7 @@ func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 	defer cleanup()
 
 	sink := make(chan uiMsg, 16)
-	stop, done := startUIEventAdapter(bus, sink)
+	stop, done := startUIEventAdapter(context.Background(), bus, sink)
 	defer func() {
 		stop()
 		<-done
@@ -421,6 +421,7 @@ func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		0,
 		model.IDECodex,
 		"sess-ui",
@@ -541,7 +542,10 @@ func collectUIMessages(t *testing.T, ch <-chan uiMsg, want int) []uiMsg {
 
 	for len(got) < want {
 		select {
-		case msg := <-ch:
+		case msg, ok := <-ch:
+			if !ok {
+				t.Fatalf("UI message channel closed after %d/%d messages", len(got), want)
+			}
 			got = append(got, msg)
 		case <-deadline.C:
 			t.Fatalf("timed out waiting for %d UI messages, got %d", want, len(got))

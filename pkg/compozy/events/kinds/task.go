@@ -14,8 +14,8 @@ type TaskFileUpdatedPayload struct {
 // TaskMetadataRefreshedPayload describes refreshed task workflow metadata.
 type TaskMetadataRefreshedPayload struct {
 	TasksDir  string    `json:"tasks_dir"`
-	CreatedAt time.Time `json:"created_at,omitempty"`
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	CreatedAt time.Time `json:"created_at,omitzero"`
+	UpdatedAt time.Time `json:"updated_at,omitzero"`
 	Total     int       `json:"total,omitempty"`
 	Completed int       `json:"completed,omitempty"`
 	Pending   int       `json:"pending,omitempty"`

@@ -174,36 +174,42 @@ func (r *Run) Replay(fromSeq uint64) iter.Seq2[events.Event, error] {
 			return
 		}
 
-		scanner := newEventScanner(file)
+		stopReplay := errors.New("stop replay")
+		stopPendingDecode := errors.New("stop pending decode")
 		var pendingDecodeErr error
 		var pendingLine int
 
-		for lineNumber := 1; scanner.Scan(); lineNumber++ {
-			line := bytesTrimSpace(scanner.Bytes())
+		readErr := forEachEventLine(file, func(rawLine []byte, lineNumber int) error {
+			line := bytesTrimSpace(rawLine)
 			if len(line) == 0 {
-				continue
+				return nil
 			}
 
 			ev, err := decodeEventLine(line, lineNumber)
 			if err != nil {
 				pendingDecodeErr = err
 				pendingLine = lineNumber
-				continue
+				return nil
 			}
 			if pendingDecodeErr != nil {
-				yield(events.Event{}, pendingDecodeErr)
-				return
+				return stopPendingDecode
 			}
 			if ev.Seq < fromSeq {
-				continue
+				return nil
 			}
 			if !yield(ev, nil) {
-				return
+				return stopReplay
 			}
-		}
-
-		if err := scanner.Err(); err != nil {
-			yield(events.Event{}, fmt.Errorf("scan run events: %w", err))
+			return nil
+		})
+		switch {
+		case errors.Is(readErr, stopReplay):
+			return
+		case errors.Is(readErr, stopPendingDecode):
+			yield(events.Event{}, pendingDecodeErr)
+			return
+		case readErr != nil:
+			yield(events.Event{}, fmt.Errorf("scan run events: %w", readErr))
 			return
 		}
 		if pendingDecodeErr == nil {
@@ -335,16 +341,15 @@ func bestEffortRunStateFromEvents(eventsPath string) derivedRunState {
 		_ = file.Close()
 	}()
 
-	scanner := newEventScanner(file)
 	state := derivedRunState{}
-	for lineNumber := 1; scanner.Scan(); lineNumber++ {
-		line := bytesTrimSpace(scanner.Bytes())
+	if err := forEachEventLine(file, func(rawLine []byte, lineNumber int) error {
+		line := bytesTrimSpace(rawLine)
 		if len(line) == 0 {
-			continue
+			return nil
 		}
 		ev, err := decodeEventLine(line, lineNumber)
 		if err != nil {
-			return state
+			return err
 		}
 		switch ev.Kind {
 		case events.EventKindRunStarted, events.EventKindRunQueued:
@@ -358,6 +363,9 @@ func bestEffortRunStateFromEvents(eventsPath string) derivedRunState {
 		case events.EventKindRunCancelled:
 			state = derivedRunState{status: publicRunStatusCancelled, endedAt: timePointer(ev.Timestamp)}
 		}
+		return nil
+	}); err != nil {
+		return state
 	}
 	return state
 }

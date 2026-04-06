@@ -90,8 +90,8 @@ func (r *Run) followTailStream(
 		sendRunError(ctx, errs, fmt.Errorf("start run tail: %w", err))
 		return
 	}
-	defer tailer.Kill(nil)
 	defer tailer.Cleanup()
+	defer tailer.Kill(nil)
 
 	for {
 		select {

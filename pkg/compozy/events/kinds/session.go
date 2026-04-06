@@ -341,11 +341,10 @@ func decodeTextBlock(data []byte) (TextBlock, error) {
 	if err := json.Unmarshal(data, &block); err != nil {
 		return TextBlock{}, fmt.Errorf("decode %s block: %w", BlockText, err)
 	}
-	block = ensureTextBlock(block)
 	if block.Type != BlockText {
 		return TextBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockText, block.Type)
 	}
-	return block, nil
+	return ensureTextBlock(block), nil
 }
 
 func decodeToolUseBlock(data []byte) (ToolUseBlock, error) {
@@ -353,11 +352,10 @@ func decodeToolUseBlock(data []byte) (ToolUseBlock, error) {
 	if err := json.Unmarshal(data, &block); err != nil {
 		return ToolUseBlock{}, fmt.Errorf("decode %s block: %w", BlockToolUse, err)
 	}
-	block = ensureToolUseBlock(block)
 	if block.Type != BlockToolUse {
 		return ToolUseBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockToolUse, block.Type)
 	}
-	return block, nil
+	return ensureToolUseBlock(block), nil
 }
 
 func decodeToolResultBlock(data []byte) (ToolResultBlock, error) {
@@ -365,11 +363,10 @@ func decodeToolResultBlock(data []byte) (ToolResultBlock, error) {
 	if err := json.Unmarshal(data, &block); err != nil {
 		return ToolResultBlock{}, fmt.Errorf("decode %s block: %w", BlockToolResult, err)
 	}
-	block = ensureToolResultBlock(block)
 	if block.Type != BlockToolResult {
 		return ToolResultBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockToolResult, block.Type)
 	}
-	return block, nil
+	return ensureToolResultBlock(block), nil
 }
 
 func decodeDiffBlock(data []byte) (DiffBlock, error) {
@@ -377,11 +374,10 @@ func decodeDiffBlock(data []byte) (DiffBlock, error) {
 	if err := json.Unmarshal(data, &block); err != nil {
 		return DiffBlock{}, fmt.Errorf("decode %s block: %w", BlockDiff, err)
 	}
-	block = ensureDiffBlock(block)
 	if block.Type != BlockDiff {
 		return DiffBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockDiff, block.Type)
 	}
-	return block, nil
+	return ensureDiffBlock(block), nil
 }
 
 func decodeTerminalOutputBlock(data []byte) (TerminalOutputBlock, error) {
@@ -389,11 +385,10 @@ func decodeTerminalOutputBlock(data []byte) (TerminalOutputBlock, error) {
 	if err := json.Unmarshal(data, &block); err != nil {
 		return TerminalOutputBlock{}, fmt.Errorf("decode %s block: %w", BlockTerminalOutput, err)
 	}
-	block = ensureTerminalOutputBlock(block)
 	if block.Type != BlockTerminalOutput {
 		return TerminalOutputBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockTerminalOutput, block.Type)
 	}
-	return block, nil
+	return ensureTerminalOutputBlock(block), nil
 }
 
 func decodeImageBlock(data []byte) (ImageBlock, error) {
@@ -401,11 +396,10 @@ func decodeImageBlock(data []byte) (ImageBlock, error) {
 	if err := json.Unmarshal(data, &block); err != nil {
 		return ImageBlock{}, fmt.Errorf("decode %s block: %w", BlockImage, err)
 	}
-	block = ensureImageBlock(block)
 	if block.Type != BlockImage {
 		return ImageBlock{}, fmt.Errorf("decode %s block: unexpected type %q", BlockImage, block.Type)
 	}
-	return block, nil
+	return ensureImageBlock(block), nil
 }
 
 func ensureTextBlock(block TextBlock) TextBlock {

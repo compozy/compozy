@@ -97,7 +97,9 @@ func (b *Bus[T]) Publish(ctx context.Context, evt T) {
 // Close unsubscribes all subscribers and closes their channels.
 func (b *Bus[T]) Close(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("close bus: %w", err)
+		if !b.closed.Load() {
+			return fmt.Errorf("close bus: %w", err)
+		}
 	}
 	if !b.closed.CompareAndSwap(false, true) {
 		return nil
@@ -111,14 +113,15 @@ func (b *Bus[T]) Close(ctx context.Context) error {
 	b.subs = make(map[SubID]*subscription[T])
 	b.mu.Unlock()
 
+	var closeErr error
+	if err := ctx.Err(); err != nil {
+		closeErr = fmt.Errorf("close bus: %w", err)
+	}
 	for _, sub := range snapshot {
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("close bus: %w", err)
-		}
 		sub.close()
 	}
 
-	return nil
+	return closeErr
 }
 
 // DroppedFor returns the number of dropped events recorded for a subscriber.

@@ -623,7 +623,13 @@ func TestEmitRunTerminalEventPublishesCancelledAndFailedKinds(t *testing.T) {
 			defer cleanup()
 
 			tc.result.RunID = runID
-			if err := emitRunTerminalEvent(runJournal, tc.result, tc.jobs, time.Now().Add(-2*time.Second)); err != nil {
+			if err := emitRunTerminalEvent(
+				context.Background(),
+				runJournal,
+				tc.result,
+				tc.jobs,
+				time.Now().Add(-2*time.Second),
+			); err != nil {
 				t.Fatalf("emitRunTerminalEvent: %v", err)
 			}
 

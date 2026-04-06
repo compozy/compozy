@@ -60,6 +60,7 @@ func TestSessionUpdateHandlerRoutesTextBlocksToLogAndSnapshot(t *testing.T) {
 	var jobUsage model.Usage
 	var aggregate model.Usage
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		3,
 		model.IDECodex,
 		"sess-123",
@@ -117,6 +118,7 @@ func TestSessionUpdateHandlerMergesTranscriptAndCarriesSessionState(t *testing.T
 	defer cleanup()
 
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		1,
 		model.IDECodex,
 		"sess-merge",
@@ -202,6 +204,7 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		0,
 		model.IDECodex,
 		"sess-mixed",
@@ -296,6 +299,7 @@ func TestSessionUpdateHandlerDoesNotBlockWhenSessionStateIsTracked(t *testing.T)
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		0,
 		model.IDECodex,
 		"sess-full",
@@ -350,6 +354,7 @@ func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	defer cleanup()
 
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		0,
 		model.IDECodex,
 		"sess-done",
@@ -387,6 +392,7 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 	defer cleanup()
 
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		0,
 		model.IDECodex,
 		"sess-failed",
@@ -440,6 +446,7 @@ func TestSessionUpdateHandlerCompletionWriteFailureStillSignalsDone(t *testing.T
 	defer cleanup()
 
 	handler := newSessionUpdateHandler(
+		context.Background(),
 		0,
 		model.IDECodex,
 		"sess-write-fail",

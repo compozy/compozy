@@ -430,14 +430,24 @@ func TestBuildDefaultDispatchesAllPhaseACommandsSequentially(t *testing.T) {
 func TestHandlersPropagateOperationErrors(t *testing.T) {
 	t.Parallel()
 
+	validateErr := errors.New("validate failed")
+	execErr := errors.New("exec failed")
+	executeErr := errors.New("execute failed")
+	fetchErr := errors.New("fetch failed")
+	migrateErr := errors.New("migrate failed")
+	syncErr := errors.New("sync failed")
+	archiveErr := errors.New("archive failed")
+
 	tests := []struct {
 		name     string
 		fake     *fakeOperations
 		dispatch func(*Dispatcher) error
+		wantErr  error
 	}{
 		{
-			name: "run start validate",
-			fake: &fakeOperations{validateErr: errors.New("validate failed")},
+			name:    "run start validate",
+			wantErr: validateErr,
+			fake:    &fakeOperations{validateErr: validateErr},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
 					context.Background(),
@@ -454,8 +464,9 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "run start exec",
-			fake: &fakeOperations{execErr: errors.New("exec failed")},
+			name:    "run start exec",
+			wantErr: execErr,
+			fake:    &fakeOperations{execErr: execErr},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
 					context.Background(),
@@ -471,10 +482,11 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "run start execute",
+			name:    "run start execute",
+			wantErr: executeErr,
 			fake: &fakeOperations{
 				prepareResult: &model.SolvePreparation{RunArtifacts: model.NewRunArtifacts("/workspace", "run-123")},
-				executeErr:    errors.New("execute failed"),
+				executeErr:    executeErr,
 			},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
@@ -493,8 +505,9 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "workflow prepare validate",
-			fake: &fakeOperations{validateErr: errors.New("validate failed")},
+			name:    "workflow prepare validate",
+			wantErr: validateErr,
+			fake:    &fakeOperations{validateErr: validateErr},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.WorkflowPrepareCommand, commands.WorkflowPrepareResult](
 					context.Background(),
@@ -511,8 +524,9 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "reviews fetch",
-			fake: &fakeOperations{fetchErr: errors.New("fetch failed")},
+			name:    "reviews fetch",
+			wantErr: fetchErr,
+			fake:    &fakeOperations{fetchErr: fetchErr},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.ReviewsFetchCommand, commands.ReviewsFetchResult](
 					context.Background(),
@@ -523,8 +537,9 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "workspace migrate",
-			fake: &fakeOperations{migrateErr: errors.New("migrate failed")},
+			name:    "workspace migrate",
+			wantErr: migrateErr,
+			fake:    &fakeOperations{migrateErr: migrateErr},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult](
 					context.Background(),
@@ -535,8 +550,9 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "workflow sync",
-			fake: &fakeOperations{syncErr: errors.New("sync failed")},
+			name:    "workflow sync",
+			wantErr: syncErr,
+			fake:    &fakeOperations{syncErr: syncErr},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.WorkflowSyncCommand, commands.WorkflowSyncResult](
 					context.Background(),
@@ -547,8 +563,9 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			},
 		},
 		{
-			name: "workflow archive",
-			fake: &fakeOperations{archiveErr: errors.New("archive failed")},
+			name:    "workflow archive",
+			wantErr: archiveErr,
+			fake:    &fakeOperations{archiveErr: archiveErr},
 			dispatch: func(dispatcher *Dispatcher) error {
 				_, err := Dispatch[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult](
 					context.Background(),
@@ -566,8 +583,12 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 			t.Parallel()
 
 			dispatcher := BuildDefault(testKernelDeps(tt.fake))
-			if err := tt.dispatch(dispatcher); err == nil {
+			err := tt.dispatch(dispatcher)
+			if err == nil {
 				t.Fatal("expected error")
+			}
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tt.wantErr)
 			}
 		})
 	}

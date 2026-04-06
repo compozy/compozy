@@ -133,8 +133,53 @@ func setupSessionExecution(
 		return nil, fmt.Errorf("create ACP session: %w", err)
 	}
 
+	execution := buildSessionExecution(
+		ctx,
+		cfg,
+		job,
+		useUI,
+		streamHumanOutput,
+		index,
+		runJournal,
+		aggregateUsage,
+		aggregateMu,
+		activity,
+		logger,
+		client,
+		releaseClient,
+		session,
+		outFile,
+		errFile,
+	)
+	if err := emitSessionStartedEvent(ctx, runJournal, cfg.runArtifacts.RunID, index, session.Identity()); err != nil {
+		execution.close()
+		return nil, err
+	}
+
+	return execution, nil
+}
+
+func buildSessionExecution(
+	ctx context.Context,
+	cfg *config,
+	job *job,
+	useUI bool,
+	streamHumanOutput bool,
+	index int,
+	runJournal *journal.Journal,
+	aggregateUsage *model.Usage,
+	aggregateMu *sync.Mutex,
+	activity *activityMonitor,
+	logger *slog.Logger,
+	client agent.Client,
+	releaseClient func(),
+	session agent.Session,
+	outFile *os.File,
+	errFile *os.File,
+) *sessionExecution {
 	outWriter, errWriter := createLogWriters(outFile, errFile, useUI, streamHumanOutput)
 	handler := newSessionUpdateHandler(
+		ctx,
 		index,
 		cfg.ide,
 		session.ID(),
@@ -157,10 +202,6 @@ func setupSessionExecution(
 		"job_index",
 		index,
 	)
-	if err := emitSessionStartedEvent(runJournal, cfg.runArtifacts.RunID, index, session.Identity()); err != nil {
-		return nil, err
-	}
-
 	return &sessionExecution{
 		client:        client,
 		releaseClient: releaseClient,
@@ -169,10 +210,11 @@ func setupSessionExecution(
 		outFile:       outFile,
 		errFile:       errFile,
 		logger:        logger,
-	}, nil
+	}
 }
 
 func emitSessionStartedEvent(
+	ctx context.Context,
 	runJournal *journal.Journal,
 	runID string,
 	index int,
@@ -180,6 +222,9 @@ func emitSessionStartedEvent(
 ) error {
 	if runJournal == nil {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	event, err := newRuntimeEvent(
@@ -195,7 +240,7 @@ func emitSessionStartedEvent(
 	if err != nil {
 		return err
 	}
-	if err := runJournal.Submit(context.Background(), event); err != nil {
+	if err := runJournal.Submit(ctx, event); err != nil {
 		return fmt.Errorf("submit session started event: %w", err)
 	}
 	return nil

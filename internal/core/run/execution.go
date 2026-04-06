@@ -34,13 +34,18 @@ func Execute(
 	runJournal *journal.Journal,
 	bus *events.Bus[events.Event],
 	cfg *model.RuntimeConfig,
-) error {
+) (retErr error) {
 	internalCfg := newConfig(cfg, runArtifacts)
 	internalJobs := newJobs(jobs)
 	startedAt := time.Now().UTC()
-	defer closeRunJournal(runJournal)
+	defer func() {
+		if err := closeRunJournal(runJournal); err != nil {
+			retErr = errors.Join(retErr, err)
+		}
+	}()
 
 	if err := submitRunEvent(
+		ctx,
 		runJournal,
 		runArtifacts.RunID,
 		events.EventKindRunStarted,
@@ -74,7 +79,7 @@ func Execute(
 		summarizeResults(failed, failures, total)
 	}
 	refreshTaskMetaOnExit(internalCfg)
-	if err := emitRunTerminalEvent(runJournal, result, internalJobs, startedAt); err != nil {
+	if err := emitRunTerminalEvent(ctx, runJournal, result, internalJobs, startedAt); err != nil {
 		return err
 	}
 
@@ -91,6 +96,7 @@ func Execute(
 }
 
 type jobExecutionContext struct {
+	ctx            context.Context
 	cfg            *config
 	jobs           []job
 	total          int
@@ -424,6 +430,9 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 }
 
 func (l *jobLifecycle) markSuccess() {
+	if l.startedAt.IsZero() {
+		l.startedAt = time.Now().UTC()
+	}
 	l.lastFailure = nil
 	l.lastExitCode = 0
 	l.state = jobPhaseSucceeded
@@ -706,6 +715,7 @@ func newJobExecutionContext(
 		return nil, fmt.Errorf("failed to get current working directory: %w", err)
 	}
 	execCtx := &jobExecutionContext{
+		ctx:           ctx,
 		cfg:           cfg,
 		jobs:          jobs,
 		total:         len(jobs),
@@ -894,11 +904,15 @@ func (j *jobExecutionContext) submitEvent(kind events.EventKind, payload any) er
 	if j == nil || j.journal == nil || j.cfg == nil {
 		return nil
 	}
+	ctx := j.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	event, err := newRuntimeEvent(j.cfg.runArtifacts.RunID, kind, payload)
 	if err != nil {
 		return err
 	}
-	return j.journal.Submit(context.Background(), event)
+	return j.journal.Submit(ctx, event)
 }
 
 func (j *jobExecutionContext) submitEventOrWarn(kind events.EventKind, payload any) {
@@ -960,7 +974,7 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 	if err := tasks.MarkTaskCompleted(j.cfg.tasksDir, entry.Name); err != nil {
 		return err
 	}
-	if err := j.submitEvent(
+	j.submitEventOrWarn(
 		events.EventKindTaskFileUpdated,
 		kinds.TaskFileUpdatedPayload{
 			TasksDir:  j.cfg.tasksDir,
@@ -969,15 +983,13 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 			OldStatus: oldTask.Status,
 			NewStatus: "completed",
 		},
-	); err != nil {
-		return err
-	}
+	)
 
 	meta, err := tasks.RefreshTaskMeta(j.cfg.tasksDir)
 	if err != nil {
 		return err
 	}
-	if err := j.submitEvent(
+	j.submitEventOrWarn(
 		events.EventKindTaskMetadataRefreshed,
 		kinds.TaskMetadataRefreshedPayload{
 			TasksDir:  j.cfg.tasksDir,
@@ -987,9 +999,7 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 			Completed: meta.Completed,
 			Pending:   meta.Pending,
 		},
-	); err != nil {
-		return err
-	}
+	)
 	j.runtimeLogger().Info(
 		"updated task workflow metadata",
 		"tasks_dir",
@@ -1020,15 +1030,13 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 	for _, entry := range batchEntries {
 		issueIDs = append(issueIDs, entry.Name)
 	}
-	if err := j.submitEvent(
+	j.submitEventOrWarn(
 		events.EventKindReviewStatusFinalized,
 		kinds.ReviewStatusFinalizedPayload{
 			ReviewsDir: j.cfg.reviewsDir,
 			IssueIDs:   issueIDs,
 		},
-	); err != nil {
-		return err
-	}
+	)
 
 	resolvedIssues, err := collectNewlyResolvedIssues(jb.groups)
 	if err != nil {
@@ -1043,7 +1051,7 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 	if err != nil {
 		return err
 	}
-	if err := j.submitEvent(
+	j.submitEventOrWarn(
 		events.EventKindReviewRoundRefreshed,
 		kinds.ReviewRoundRefreshedPayload{
 			ReviewsDir: j.cfg.reviewsDir,
@@ -1055,9 +1063,7 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 			Resolved:   meta.Resolved,
 			Unresolved: meta.Unresolved,
 		},
-	); err != nil {
-		return err
-	}
+	)
 	j.runtimeLogger().Info(
 		"updated review round metadata",
 		"provider",
@@ -1096,9 +1102,7 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 
 	startedAt := time.Now().UTC()
 	callID := fmt.Sprintf("%s-%d", strings.TrimSpace(j.cfg.provider), startedAt.UnixNano())
-	if err := j.emitProviderCallStarted(callID, len(providerBackedIssues)); err != nil {
-		return err
-	}
+	j.emitProviderCallStarted(callID, len(providerBackedIssues))
 
 	reviewProvider, err := j.lookupReviewProvider()
 	if err != nil {
@@ -1122,12 +1126,8 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 	}
 
 	completedAt := time.Now().UTC()
-	if err := j.emitProviderCallCompleted(callID, startedAt, completedAt); err != nil {
-		return err
-	}
-	if err := j.emitReviewIssueResolved(providerBackedIssues, true, completedAt); err != nil {
-		return err
-	}
+	j.emitProviderCallCompleted(callID, startedAt, completedAt)
+	j.emitReviewIssueResolved(providerBackedIssues, true, completedAt)
 
 	j.runtimeLogger().Info(
 		"resolved review provider issues",
@@ -1141,8 +1141,8 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 	return nil
 }
 
-func (j *jobExecutionContext) emitProviderCallStarted(callID string, issueCount int) error {
-	return j.submitEvent(
+func (j *jobExecutionContext) emitProviderCallStarted(callID string, issueCount int) {
+	j.submitEventOrWarn(
 		events.EventKindProviderCallStarted,
 		kinds.ProviderCallStartedPayload{
 			CallID:     callID,
@@ -1158,8 +1158,8 @@ func (j *jobExecutionContext) emitProviderCallCompleted(
 	callID string,
 	startedAt time.Time,
 	completedAt time.Time,
-) error {
-	return j.submitEvent(
+) {
+	j.submitEventOrWarn(
 		events.EventKindProviderCallCompleted,
 		kinds.ProviderCallCompletedPayload{
 			CallID:     callID,
@@ -1183,12 +1183,8 @@ func (j *jobExecutionContext) handleProviderResolveFailure(
 	err error,
 	message string,
 ) error {
-	if emitErr := j.emitProviderCallFailed(callID, startedAt, err); emitErr != nil {
-		return emitErr
-	}
-	if emitErr := j.emitReviewIssueResolved(providerBackedIssues, false, time.Time{}); emitErr != nil {
-		return emitErr
-	}
+	j.emitProviderCallFailed(callID, startedAt, err)
+	j.emitReviewIssueResolved(providerBackedIssues, false, time.Time{})
 	j.runtimeLogger().Warn(
 		message,
 		"provider",
@@ -1207,8 +1203,8 @@ func (j *jobExecutionContext) emitProviderCallFailed(
 	callID string,
 	startedAt time.Time,
 	err error,
-) error {
-	return j.submitEvent(
+) {
+	j.submitEventOrWarn(
 		events.EventKindProviderCallFailed,
 		kinds.ProviderCallFailedPayload{
 			CallID:     callID,
@@ -1225,7 +1221,7 @@ func (j *jobExecutionContext) emitReviewIssueResolved(
 	issues []provider.ResolvedIssue,
 	providerPosted bool,
 	postedAt time.Time,
-) error {
+) {
 	for _, issue := range issues {
 		payload := kinds.ReviewIssueResolvedPayload{
 			ReviewsDir:     j.cfg.reviewsDir,
@@ -1239,11 +1235,8 @@ func (j *jobExecutionContext) emitReviewIssueResolved(
 		if providerPosted {
 			payload.PostedAt = postedAt
 		}
-		if err := j.submitEvent(events.EventKindReviewIssueResolved, payload); err != nil {
-			return err
-		}
+		j.submitEventOrWarn(events.EventKindReviewIssueResolved, payload)
 	}
-	return nil
 }
 
 func refreshTaskMetaOnExit(cfg *config) {
@@ -1720,6 +1713,7 @@ func summarizeResults(failed int32, failures []failInfo, total int) {
 }
 
 func submitRunEvent(
+	ctx context.Context,
 	runJournal *journal.Journal,
 	runID string,
 	kind events.EventKind,
@@ -1728,14 +1722,18 @@ func submitRunEvent(
 	if runJournal == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	event, err := newRuntimeEvent(runID, kind, payload)
 	if err != nil {
 		return err
 	}
-	return runJournal.Submit(context.Background(), event)
+	return runJournal.Submit(ctx, event)
 }
 
 func emitRunTerminalEvent(
+	ctx context.Context,
 	runJournal *journal.Journal,
 	result executionResult,
 	jobs []job,
@@ -1765,6 +1763,7 @@ func emitRunTerminalEvent(
 	switch result.Status {
 	case runStatusSucceeded:
 		return submitRunEvent(
+			ctx,
 			runJournal,
 			result.RunID,
 			events.EventKindRunCompleted,
@@ -1785,6 +1784,7 @@ func emitRunTerminalEvent(
 			reason = strings.TrimSpace(result.TeardownError)
 		}
 		return submitRunEvent(
+			ctx,
 			runJournal,
 			result.RunID,
 			events.EventKindRunCancelled,
@@ -1799,6 +1799,7 @@ func emitRunTerminalEvent(
 			errText = strings.TrimSpace(result.TeardownError)
 		}
 		return submitRunEvent(
+			ctx,
 			runJournal,
 			result.RunID,
 			events.EventKindRunFailed,
@@ -1812,13 +1813,16 @@ func emitRunTerminalEvent(
 	}
 }
 
-func closeRunJournal(runJournal *journal.Journal) {
+func closeRunJournal(runJournal *journal.Journal) error {
 	if runJournal == nil {
-		return
+		return nil
 	}
 	closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_ = runJournal.Close(closeCtx)
+	if err := runJournal.Close(closeCtx); err != nil {
+		return fmt.Errorf("close run journal: %w", err)
+	}
+	return nil
 }
 
 func atLeastOne(value int) int {

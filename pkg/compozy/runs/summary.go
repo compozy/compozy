@@ -54,8 +54,9 @@ func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
 
 		runID := entry.Name()
 		runMetaPath := filepath.Join(runsDir, runID, "run.json")
-		if _, err := os.Stat(runMetaPath); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
+		run, err := loadRun(cleanRoot, runID)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) || os.IsNotExist(err) {
 				slog.Warn(
 					"skipping run without run.json",
 					"component", "runs",
@@ -64,11 +65,6 @@ func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
 				)
 				continue
 			}
-			return nil, err
-		}
-
-		run, err := loadRun(cleanRoot, runID)
-		if err != nil {
 			return nil, err
 		}
 		summary := run.Summary()

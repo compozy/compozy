@@ -134,6 +134,38 @@ func TestDispatchReturnsTypedErrorForHandlerTypeMismatch(t *testing.T) {
 	}
 }
 
+func TestRegisterIgnoresNilDispatcher(t *testing.T) {
+	t.Parallel()
+
+	Register[commands.RunStartCommand, commands.RunStartResult](nil, runStartStubHandler{})
+}
+
+func TestRegisterKeepsFirstHandlerForCommandType(t *testing.T) {
+	t.Parallel()
+
+	dispatcher := NewDispatcher()
+	first := runStartStubHandler{
+		result: commands.RunStartResult{RunID: "first", Status: runStartStatusSucceeded},
+	}
+	second := runStartStubHandler{
+		result: commands.RunStartResult{RunID: "second", Status: runStartStatusSucceeded},
+	}
+	Register(dispatcher, first)
+	Register(dispatcher, second)
+
+	result, err := Dispatch[commands.RunStartCommand, commands.RunStartResult](
+		context.Background(),
+		dispatcher,
+		commands.RunStartCommand{},
+	)
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if result.RunID != "first" {
+		t.Fatalf("expected first handler to remain registered, got %q", result.RunID)
+	}
+}
+
 func TestTypedErrorMessagesNameCommandType(t *testing.T) {
 	t.Parallel()
 

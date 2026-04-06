@@ -65,6 +65,44 @@ func TestOpenLoadsRunSummary(t *testing.T) {
 	_ = endedAt
 }
 
+func TestReplayHandlesEventLinesLargerThanOneMiB(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	runID := "run-large-line"
+	largeBlob := strings.Repeat("x", 2*1024*1024)
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":         runID,
+			"mode":           "exec",
+			"workspace_root": workspaceRoot,
+			"created_at":     time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
+		},
+		events: []events.Event{{
+			SchemaVersion: events.SchemaVersion,
+			RunID:         runID,
+			Seq:           1,
+			Timestamp:     time.Date(2026, 4, 6, 12, 0, 1, 0, time.UTC),
+			Kind:          events.EventKindSessionUpdate,
+			Payload:       json.RawMessage(`{"blob":"` + largeBlob + `"}`),
+		}},
+	})
+
+	run, err := Open(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	gotEvents, gotErrors := collectReplay(run, 0)
+	if len(gotErrors) != 0 {
+		t.Fatalf("Replay() unexpected errors: %v", gotErrors)
+	}
+	if len(gotEvents) != 1 {
+		t.Fatalf("Replay() returned %d events, want 1", len(gotEvents))
+	}
+	if got := string(gotEvents[0].Payload); got != `{"blob":"`+largeBlob+`"}` {
+		t.Fatalf("Replay() payload length = %d, want %d", len(got), len(`{"blob":"`+largeBlob+`"}`))
+	}
+}
+
 func TestOpenReturnsDescriptiveErrorForMissingRunID(t *testing.T) {
 	_, err := Open(t.TempDir(), "")
 	if err == nil || !strings.Contains(err.Error(), "missing run id") {

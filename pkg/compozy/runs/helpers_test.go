@@ -193,20 +193,31 @@ func TestTailReportsLiveDecodeErrors(t *testing.T) {
 	cancelAndAwaitClose(t, cancel, eventsCh, errsCh)
 }
 
-func TestWatchWorkspaceReportsSetupErrorForMissingRunsDir(t *testing.T) {
-	eventsCh, errsCh := WatchWorkspace(context.Background(), t.TempDir())
+func TestWatchWorkspaceHandlesMissingRunsDirUntilFirstRunAppears(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	select {
-	case err, ok := <-errsCh:
-		if !ok || err == nil {
-			t.Fatalf("WatchWorkspace() setup error = %v, want non-nil", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatalf("timed out waiting for setup error")
+	eventsCh, errsCh := WatchWorkspace(ctx, workspaceRoot)
+	writeRunFixture(t, workspaceRoot, "run-created-late", runFixture{
+		runJSON: map[string]any{
+			"run_id":         "run-created-late",
+			"mode":           "exec",
+			"status":         "running",
+			"workspace_root": workspaceRoot,
+			"created_at":     time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
+		},
+	})
+
+	event := awaitRunEvent(t, eventsCh, errsCh, time.Second)
+	if event.Kind != RunEventCreated || event.RunID != "run-created-late" {
+		t.Fatalf("RunEvent = %#v, want created for run-created-late", event)
+	}
+	if event.Summary == nil || event.Summary.Status != "running" {
+		t.Fatalf("RunEvent summary = %#v, want running summary", event.Summary)
 	}
 
-	waitForEventChannelClose(t, eventsCh, "events", time.Second)
-	waitForEventChannelClose(t, errsCh, "errors", time.Second)
+	cancelAndAwaitClose(t, cancel, eventsCh, errsCh)
 }
 
 func TestTransientRunLoadErrorsAndPathClassification(t *testing.T) {

@@ -18,7 +18,7 @@ func TestDispatchRunAdapterBuildsRunStartCommand(t *testing.T) {
 	Register(dispatcher, handler)
 
 	previous := coreAdapterDispatcherFn
-	coreAdapterDispatcherFn = func() *Dispatcher { return dispatcher }
+	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
 	t.Cleanup(func() {
 		coreAdapterDispatcherFn = previous
 	})
@@ -38,6 +38,9 @@ func TestDispatchRunAdapterBuildsRunStartCommand(t *testing.T) {
 	})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("dispatchRunAdapter error = %v, want %v", err, wantErr)
+	}
+	if got := err.Error(); got != "run: dispatch run failed" {
+		t.Fatalf("dispatchRunAdapter error = %q, want wrapped context", got)
 	}
 	if !handler.called {
 		t.Fatal("expected run adapter to dispatch")
@@ -59,7 +62,7 @@ func TestDispatchPrepareAdapterBuildsWorkflowPrepareCommand(t *testing.T) {
 	Register(dispatcher, handler)
 
 	previous := coreAdapterDispatcherFn
-	coreAdapterDispatcherFn = func() *Dispatcher { return dispatcher }
+	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
 	t.Cleanup(func() {
 		coreAdapterDispatcherFn = previous
 	})

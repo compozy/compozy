@@ -141,12 +141,12 @@ func (m *uiModel) tick() tea.Cmd {
 	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
-func newUIController(total int, cfg *config, bus *events.Bus[events.Event]) *uiController {
+func newUIController(ctx context.Context, total int, cfg *config, bus *events.Bus[events.Event]) *uiController {
 	uiCh := make(chan uiMsg, max(total*4, 4))
 	mdl := newUIModel(total)
 	mdl.cfg = cfg
 	mdl.setEventSource(uiCh)
-	stopEvents, adapterDone := startUIEventAdapter(bus, uiCh)
+	stopEvents, adapterDone := startUIEventAdapter(ctx, bus, uiCh)
 
 	ctrl := &uiController{
 		ch:          uiCh,
@@ -222,11 +222,11 @@ func (c *uiController) wait() error {
 	return err
 }
 
-func setupUI(_ context.Context, jobs []job, cfg *config, bus *events.Bus[events.Event], enabled bool) uiSession {
+func setupUI(ctx context.Context, jobs []job, cfg *config, bus *events.Bus[events.Event], enabled bool) uiSession {
 	if !enabled {
 		return nil
 	}
-	ctrl := newUIController(len(jobs), cfg, bus)
+	ctrl := newUIController(ctx, len(jobs), cfg, bus)
 	for idx := range jobs {
 		jb := &jobs[idx]
 		totalIssues := 0
@@ -268,7 +268,11 @@ func translateEvent(ev events.Event) (uiMsg, bool) {
 	return newUIEventTranslator().translateEvent(ev)
 }
 
-func startUIEventAdapter(bus *events.Bus[events.Event], sink chan uiMsg) (func(), <-chan struct{}) {
+func startUIEventAdapter(
+	parent context.Context,
+	bus *events.Bus[events.Event],
+	sink chan uiMsg,
+) (func(), <-chan struct{}) {
 	done := make(chan struct{})
 	var closeSinkOnce sync.Once
 	closeSink := func() {
@@ -282,7 +286,10 @@ func startUIEventAdapter(bus *events.Bus[events.Event], sink chan uiMsg) (func()
 	}
 
 	_, updates, unsubscribe := bus.Subscribe()
-	ctx, cancel := context.WithCancel(context.Background())
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
 	go func() {
 		defer closeSink()
 		defer unsubscribe()
@@ -298,8 +305,9 @@ func startUIEventAdapter(bus *events.Bus[events.Event], sink chan uiMsg) (func()
 				}
 				for _, msg := range translator.translateMessages(ev) {
 					select {
+					case <-ctx.Done():
+						return
 					case sink <- msg:
-					default:
 					}
 				}
 			}

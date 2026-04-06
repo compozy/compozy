@@ -63,10 +63,19 @@ func NewDispatcher() *Dispatcher {
 // Register stores one handler for the command type C.
 func Register[C any, R any](d *Dispatcher, h Handler[C, R]) {
 	commandType := reflect.TypeFor[C]()
+	if d == nil {
+		return
+	}
 
 	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.handlers == nil {
+		d.handlers = make(map[reflect.Type]any)
+	}
+	if _, exists := d.handlers[commandType]; exists {
+		return
+	}
 	d.handlers[commandType] = h
-	d.mu.Unlock()
 }
 
 // Dispatch routes cmd to its registered handler and returns the typed result.

@@ -103,6 +103,7 @@ type execTurnPaths struct {
 }
 
 type execRunState struct {
+	ctx          context.Context
 	record       PersistedExecRun
 	runArtifacts model.RunArtifacts
 	events       *execEventEmitter
@@ -210,7 +211,7 @@ func IsExecErrorReported(err error) bool {
 
 // ExecuteExec runs one headless-or-TUI exec turn with optional persistence and ACP resume.
 func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
-	promptText, state, internalCfg, execJob, err := prepareExecExecution(cfg)
+	promptText, state, internalCfg, execJob, err := prepareExecExecution(ctx, cfg)
 	if err != nil {
 		return err
 	}
@@ -229,7 +230,7 @@ func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
 	return finalizeExecResult(state, result)
 }
 
-func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *config, job, error) {
+func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string, *execRunState, *config, job, error) {
 	promptText, err := resolveExecPromptText(cfg)
 	if err != nil {
 		return "", nil, nil, job{}, err
@@ -237,7 +238,7 @@ func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *con
 	if err := agent.EnsureAvailable(cfg); err != nil {
 		return "", nil, nil, job{}, err
 	}
-	state, err := prepareExecRunState(cfg)
+	state, err := prepareExecRunState(ctx, cfg)
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
@@ -248,6 +249,9 @@ func prepareExecExecution(cfg *model.RuntimeConfig) (string, *execRunState, *con
 	if err := state.writeStarted(cfg); err != nil {
 		state.close()
 		return "", nil, nil, job{}, err
+	}
+	if cfg.Persist {
+		cfg.RunID = state.runArtifacts.RunID
 	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
 	execJob, err := newExecRuntimeJob(promptText, state)
@@ -473,7 +477,7 @@ func failExecAttempt(execution *sessionExecution, err error) execExecutionResult
 	}
 }
 
-func prepareExecRunState(cfg *model.RuntimeConfig) (*execRunState, error) {
+func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig) (*execRunState, error) {
 	record, runID, err := resolvePersistedExecRecord(cfg)
 	if err != nil {
 		return nil, err
@@ -483,6 +487,7 @@ func prepareExecRunState(cfg *model.RuntimeConfig) (*execRunState, error) {
 		return nil, err
 	}
 	state := &execRunState{
+		ctx:      ctx,
 		record:   record,
 		turn:     atLeastOne(record.TurnCount + 1),
 		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI,
@@ -857,11 +862,15 @@ func (s *execRunState) submitRuntimeEvent(kind eventspkg.EventKind, payload any)
 	if s == nil || s.journal == nil {
 		return nil
 	}
+	ctx := s.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	event, err := newRuntimeEvent(s.runArtifacts.RunID, kind, payload)
 	if err != nil {
 		return err
 	}
-	return s.journal.Submit(context.Background(), event)
+	return s.journal.Submit(ctx, event)
 }
 
 func stateJournal(state *execRunState) *journal.Journal {

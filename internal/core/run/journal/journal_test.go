@@ -203,6 +203,104 @@ func TestJournalCloseDrainsQueuedEvents(t *testing.T) {
 	}
 }
 
+func TestJournalReopenContinuesSequenceAfterExistingEvents(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runID := "journal-reopen"
+	prepareRunLayout(t, workspaceRoot, runID)
+
+	firstJournal, _ := openTestJournal(t, workspaceRoot, runID, nil, 16, openOptions{
+		batchSize:     32,
+		flushInterval: time.Hour,
+	})
+	for i := 1; i <= 2; i++ {
+		if err := firstJournal.Submit(
+			context.Background(),
+			testJournalEvent(runID, events.EventKindJobStarted, i),
+		); err != nil {
+			t.Fatalf("firstJournal.Submit() error = %v", err)
+		}
+	}
+	if err := firstJournal.Close(context.Background()); err != nil {
+		t.Fatalf("firstJournal.Close() error = %v", err)
+	}
+
+	secondJournal, _ := openTestJournal(t, workspaceRoot, runID, nil, 16, openOptions{
+		batchSize:     32,
+		flushInterval: time.Hour,
+	})
+	if err := secondJournal.Submit(
+		context.Background(),
+		testJournalEvent(runID, events.EventKindJobStarted, 3),
+	); err != nil {
+		t.Fatalf("secondJournal.Submit() error = %v", err)
+	}
+	if err := secondJournal.Close(context.Background()); err != nil {
+		t.Fatalf("secondJournal.Close() error = %v", err)
+	}
+
+	replayed := replayRunEvents(t, workspaceRoot, runID, 0)
+	if got := collectedSeqs(replayed); !slices.Equal(got, []uint64{1, 2, 3}) {
+		t.Fatalf("replayed seqs = %v, want [1 2 3]", got)
+	}
+}
+
+func TestJournalOpenTruncatesPartialTailBeforeResuming(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runID := "journal-recover-tail"
+	prepareRunLayout(t, workspaceRoot, runID)
+
+	firstJournal, eventsPath := openTestJournal(t, workspaceRoot, runID, nil, 16, openOptions{
+		batchSize:     32,
+		flushInterval: time.Hour,
+	})
+	for i := 1; i <= 2; i++ {
+		if err := firstJournal.Submit(
+			context.Background(),
+			testJournalEvent(runID, events.EventKindJobStarted, i),
+		); err != nil {
+			t.Fatalf("firstJournal.Submit() error = %v", err)
+		}
+	}
+	if err := firstJournal.Close(context.Background()); err != nil {
+		t.Fatalf("firstJournal.Close() error = %v", err)
+	}
+
+	file, err := os.OpenFile(eventsPath, os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatalf("open events for partial tail: %v", err)
+	}
+	if _, err := file.WriteString(`{"schema_version":"1.0","run_id":"journal-recover-tail"`); err != nil {
+		_ = file.Close()
+		t.Fatalf("write partial tail: %v", err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatalf("close events after partial tail: %v", err)
+	}
+
+	secondJournal, _ := openTestJournal(t, workspaceRoot, runID, nil, 16, openOptions{
+		batchSize:     32,
+		flushInterval: time.Hour,
+	})
+	if err := secondJournal.Submit(
+		context.Background(),
+		testJournalEvent(runID, events.EventKindJobStarted, 3),
+	); err != nil {
+		t.Fatalf("secondJournal.Submit() error = %v", err)
+	}
+	if err := secondJournal.Close(context.Background()); err != nil {
+		t.Fatalf("secondJournal.Close() error = %v", err)
+	}
+
+	replayed := replayRunEvents(t, workspaceRoot, runID, 0)
+	if got := collectedSeqs(replayed); !slices.Equal(got, []uint64{1, 2, 3}) {
+		t.Fatalf("replayed seqs = %v, want [1 2 3]", got)
+	}
+}
+
 func TestJournalCloseReturnsContextErrorWithoutHanging(t *testing.T) {
 	t.Parallel()
 
@@ -232,11 +330,10 @@ func TestJournalSubmitReturnsContextErrorBeforeInboxAccepts(t *testing.T) {
 	t.Parallel()
 
 	journal := &Journal{
-		runID:          "journal-submit-context",
-		inbox:          make(chan events.Event, 1),
-		closeRequested: make(chan struct{}),
-		done:           make(chan struct{}),
-		submitTimeout:  time.Second,
+		runID:         "journal-submit-context",
+		inbox:         make(chan events.Event, 1),
+		done:          make(chan struct{}),
+		submitTimeout: time.Second,
 	}
 	journal.inbox <- testJournalEvent("journal-submit-context", events.EventKindJobStarted, 1)
 
@@ -258,11 +355,10 @@ func TestJournalSubmitTimeoutIncrementsDrops(t *testing.T) {
 	t.Parallel()
 
 	journal := &Journal{
-		runID:          "journal-submit-timeout",
-		inbox:          make(chan events.Event, 1),
-		closeRequested: make(chan struct{}),
-		done:           make(chan struct{}),
-		submitTimeout:  10 * time.Millisecond,
+		runID:         "journal-submit-timeout",
+		inbox:         make(chan events.Event, 1),
+		done:          make(chan struct{}),
+		submitTimeout: 10 * time.Millisecond,
 	}
 	journal.inbox <- testJournalEvent("journal-submit-timeout", events.EventKindJobStarted, 1)
 
@@ -275,6 +371,43 @@ func TestJournalSubmitTimeoutIncrementsDrops(t *testing.T) {
 	}
 	if journal.DropsOnSubmit() != 1 {
 		t.Fatalf("DropsOnSubmit() = %d, want 1", journal.DropsOnSubmit())
+	}
+}
+
+func TestJournalSubmitReturnsErrClosedAfterCloseBegins(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runID := "journal-submit-close-race"
+	prepareRunLayout(t, workspaceRoot, runID)
+
+	journal, _ := openTestJournal(t, workspaceRoot, runID, nil, 16, openOptions{
+		batchSize:     32,
+		flushInterval: time.Hour,
+	})
+
+	closeErrCh := make(chan error, 1)
+	go func() {
+		closeErrCh <- journal.Close(context.Background())
+	}()
+
+	waitForJournalClosing(t, journal)
+
+	err := journal.Submit(
+		context.Background(),
+		testJournalEvent(runID, events.EventKindJobStarted, 1),
+	)
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("Submit() error = %v, want ErrClosed", err)
+	}
+
+	if err := <-closeErrCh; err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	replayed := replayRunEvents(t, workspaceRoot, runID, 0)
+	if len(replayed) != 0 {
+		t.Fatalf("replayed events = %d, want 0", len(replayed))
 	}
 }
 
@@ -456,7 +589,10 @@ func collectBusEvents(
 
 	for len(got) < want {
 		select {
-		case ev := <-ch:
+		case ev, ok := <-ch:
+			if !ok {
+				t.Fatalf("event channel closed before receiving %d events, got %d", want, len(got))
+			}
 			got = append(got, ev)
 		case <-deadline.C:
 			t.Fatalf("timed out waiting for %d bus events, got %d", want, len(got))
@@ -489,6 +625,30 @@ func collectedSeqs(items []events.Event) []uint64 {
 		seqs = append(seqs, item.Seq)
 	}
 	return seqs
+}
+
+func waitForJournalClosing(t *testing.T, journal *Journal) {
+	t.Helper()
+
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		journal.submitMu.RLock()
+		closing := journal.closing
+		journal.submitMu.RUnlock()
+		if closing {
+			return
+		}
+
+		select {
+		case <-tick.C:
+		case <-deadline.C:
+			t.Fatal("timed out waiting for journal closing state")
+		}
+	}
 }
 
 func testJournalEvent(runID string, kind events.EventKind, index int) events.Event {
