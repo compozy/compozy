@@ -415,6 +415,35 @@ retry_backoff_multiplier = 0
 `,
 			wantErr: "exec.retry_backoff_multiplier",
 		},
+		{
+			name: "defaults add dirs reject unsupported defaults ide",
+			content: `
+[defaults]
+ide = "cursor-agent"
+add_dirs = ["../shared"]
+`,
+			wantErr: "defaults.add_dirs",
+		},
+		{
+			name: "exec add dirs reject unsupported exec ide",
+			content: `
+[exec]
+ide = "cursor-agent"
+add_dirs = ["../shared"]
+`,
+			wantErr: "exec.add_dirs",
+		},
+		{
+			name: "defaults add dirs inherited by exec reject unsupported exec ide",
+			content: `
+[defaults]
+add_dirs = ["../shared"]
+
+[exec]
+ide = "cursor-agent"
+`,
+			wantErr: "defaults.add_dirs",
+		},
 	}
 
 	for _, tt := range tests {

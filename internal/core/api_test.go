@@ -48,3 +48,27 @@ func TestConfigValidateRejectsExecModeWithoutPromptSource(t *testing.T) {
 		t.Fatal("expected exec config without prompt source to fail validation")
 	}
 }
+
+func TestConfigValidateRejectsAddDirsForUnsupportedIDE(t *testing.T) {
+	t.Parallel()
+
+	err := Config{
+		IDE:     IDECursor,
+		AddDirs: []string{"../shared"},
+	}.Validate()
+	if err == nil {
+		t.Fatal("expected unsupported add-dir runtime to fail validation")
+	}
+}
+
+func TestConfigValidateAcceptsAddDirsForSupportedIDE(t *testing.T) {
+	t.Parallel()
+
+	err := Config{
+		IDE:     IDEClaude,
+		AddDirs: []string{"../shared"},
+	}.Validate()
+	if err != nil {
+		t.Fatalf("expected supported add-dir runtime to validate: %v", err)
+	}
+}

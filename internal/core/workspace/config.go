@@ -189,7 +189,11 @@ func (cfg ProjectConfig) Validate() error {
 }
 
 func validateDefaults(cfg DefaultsConfig) error {
-	return validateRuntimeOverrides("defaults", RuntimeOverrides(cfg))
+	overrides := RuntimeOverrides(cfg)
+	if err := validateRuntimeOverrides("defaults", overrides); err != nil {
+		return err
+	}
+	return validateRuntimeAddDirs("defaults", overrides, nil)
 }
 
 func validateStart(_ StartConfig) error {
@@ -235,6 +239,9 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 
 func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
 	if err := validateRuntimeOverrides("exec", cfg.RuntimeOverrides); err != nil {
+		return err
+	}
+	if err := validateRuntimeAddDirs("exec", cfg.RuntimeOverrides, &defaults); err != nil {
 		return err
 	}
 
@@ -340,6 +347,35 @@ func validateRuntimeTimeout(section string, cfg RuntimeOverrides) error {
 		return fmt.Errorf("%s must be greater than zero (got %s)", runtimeFieldName(section, "timeout"), timeout)
 	}
 	return nil
+}
+
+func validateRuntimeAddDirs(section string, cfg RuntimeOverrides, defaults *DefaultsConfig) error {
+	addDirs, fieldName := effectiveAddDirs(section, cfg, defaults)
+	if len(addDirs) == 0 {
+		return nil
+	}
+
+	return agent.ValidateAddDirSupport(fieldName, effectiveIDE(cfg, defaults), addDirs)
+}
+
+func effectiveIDE(cfg RuntimeOverrides, defaults *DefaultsConfig) string {
+	if cfg.IDE != nil && strings.TrimSpace(*cfg.IDE) != "" {
+		return strings.TrimSpace(*cfg.IDE)
+	}
+	if defaults != nil && defaults.IDE != nil && strings.TrimSpace(*defaults.IDE) != "" {
+		return strings.TrimSpace(*defaults.IDE)
+	}
+	return model.IDECodex
+}
+
+func effectiveAddDirs(section string, cfg RuntimeOverrides, defaults *DefaultsConfig) ([]string, string) {
+	if cfg.AddDirs != nil {
+		return *cfg.AddDirs, runtimeFieldName(section, "add_dirs")
+	}
+	if defaults != nil && defaults.AddDirs != nil {
+		return *defaults.AddDirs, runtimeFieldName("defaults", "add_dirs")
+	}
+	return nil, ""
 }
 
 func validateRuntimeTailLines(section string, cfg RuntimeOverrides) error {

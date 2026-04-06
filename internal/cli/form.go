@@ -396,7 +396,7 @@ func (fb *formBuilder) addAddDirsField(target *string) {
 			Title("Additional Directories (optional)").
 			Placeholder("../shared, ../docs").
 			Description(
-				"Comma-separated directories to pass via --add-dir for Codex and Claude only; quote paths that contain commas",
+				"Comma-separated directories to pass via --add-dir for Claude and Codex only; quote paths that contain commas",
 			).
 			Value(target)
 	})

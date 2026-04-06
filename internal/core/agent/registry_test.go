@@ -15,29 +15,32 @@ func TestAgentRegistryEntries(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name       string
-		ide        string
-		reasoning  string
-		addDirs    []string
-		accessMode string
-		wantLaunch []string
-		wantProbe  []string
+		name                string
+		ide                 string
+		reasoning           string
+		addDirs             []string
+		accessMode          string
+		wantSupportsAddDirs bool
+		wantLaunch          []string
+		wantProbe           []string
 	}{
 		{
-			name:       "claude",
-			ide:        model.IDEClaude,
-			reasoning:  "medium",
-			addDirs:    []string{"../shared", "../docs"},
-			accessMode: model.AccessModeFull,
-			wantLaunch: []string{"claude-agent-acp"},
-			wantProbe:  []string{"claude-agent-acp", "--help"},
+			name:                "claude",
+			ide:                 model.IDEClaude,
+			reasoning:           "medium",
+			addDirs:             []string{"../shared", "../docs"},
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: true,
+			wantLaunch:          []string{"claude-agent-acp"},
+			wantProbe:           []string{"claude-agent-acp", "--help"},
 		},
 		{
-			name:       "codex",
-			ide:        model.IDECodex,
-			reasoning:  "medium",
-			addDirs:    []string{"../shared", "../docs"},
-			accessMode: model.AccessModeFull,
+			name:                "codex",
+			ide:                 model.IDECodex,
+			reasoning:           "medium",
+			addDirs:             []string{"../shared", "../docs"},
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: true,
 			wantLaunch: []string{
 				"codex-acp",
 				"-c",
@@ -50,10 +53,11 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe: []string{"codex-acp", "--help"},
 		},
 		{
-			name:       "droid",
-			ide:        model.IDEDroid,
-			reasoning:  "medium",
-			accessMode: model.AccessModeFull,
+			name:                "droid",
+			ide:                 model.IDEDroid,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
 			wantLaunch: []string{
 				"droid",
 				"exec",
@@ -68,36 +72,40 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantProbe: []string{"droid", "exec", "--help"},
 		},
 		{
-			name:       "cursor",
-			ide:        model.IDECursor,
-			reasoning:  "medium",
-			accessMode: model.AccessModeFull,
-			wantLaunch: []string{"cursor-agent", "acp"},
-			wantProbe:  []string{"cursor-agent", "acp", "--help"},
+			name:                "cursor",
+			ide:                 model.IDECursor,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"cursor-agent", "acp"},
+			wantProbe:           []string{"cursor-agent", "acp", "--help"},
 		},
 		{
-			name:       "opencode",
-			ide:        model.IDEOpenCode,
-			reasoning:  "medium",
-			accessMode: model.AccessModeFull,
-			wantLaunch: []string{"opencode", "acp"},
-			wantProbe:  []string{"opencode", "acp", "--help"},
+			name:                "opencode",
+			ide:                 model.IDEOpenCode,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"opencode", "acp"},
+			wantProbe:           []string{"opencode", "acp", "--help"},
 		},
 		{
-			name:       "pi",
-			ide:        model.IDEPi,
-			reasoning:  "medium",
-			accessMode: model.AccessModeFull,
-			wantLaunch: []string{"pi-acp"},
-			wantProbe:  []string{"pi-acp", "--help"},
+			name:                "pi",
+			ide:                 model.IDEPi,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"pi-acp"},
+			wantProbe:           []string{"pi-acp", "--help"},
 		},
 		{
-			name:       "gemini",
-			ide:        model.IDEGemini,
-			reasoning:  "medium",
-			accessMode: model.AccessModeFull,
-			wantLaunch: []string{"gemini", "--acp"},
-			wantProbe:  []string{"gemini", "--acp", "--help"},
+			name:                "gemini",
+			ide:                 model.IDEGemini,
+			reasoning:           "medium",
+			accessMode:          model.AccessModeFull,
+			wantSupportsAddDirs: false,
+			wantLaunch:          []string{"gemini", "--acp"},
+			wantProbe:           []string{"gemini", "--acp", "--help"},
 		},
 	}
 
@@ -110,6 +118,14 @@ func TestAgentRegistryEntries(t *testing.T) {
 			if err != nil {
 				t.Fatalf("lookup agent spec: %v", err)
 			}
+			if spec.SupportsAddDirs != tc.wantSupportsAddDirs {
+				t.Fatalf(
+					"unexpected add-dir support for %s: got %t want %t",
+					tc.ide,
+					spec.SupportsAddDirs,
+					tc.wantSupportsAddDirs,
+				)
+			}
 
 			gotLaunch := spec.launchCommand(resolveModel(spec, ""), tc.reasoning, tc.addDirs, tc.accessMode)
 			if !slices.Equal(gotLaunch, tc.wantLaunch) {
@@ -119,6 +135,46 @@ func TestAgentRegistryEntries(t *testing.T) {
 				t.Fatalf("unexpected probe command for %s: got %v want %v", tc.ide, gotProbe, tc.wantProbe)
 			}
 		})
+	}
+}
+
+func TestValidateRuntimeConfigRejectsAddDirsForUnsupportedIDE(t *testing.T) {
+	t.Parallel()
+
+	cfg := &model.RuntimeConfig{
+		Mode:                   model.ExecutionModePRReview,
+		IDE:                    model.IDECursor,
+		OutputFormat:           model.OutputFormatText,
+		BatchSize:              1,
+		AddDirs:                []string{"../shared"},
+		MaxRetries:             1,
+		RetryBackoffMultiplier: 1.5,
+	}
+
+	err := ValidateRuntimeConfig(cfg)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if !strings.Contains(err.Error(), "--add-dir") || !strings.Contains(err.Error(), model.IDECursor) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateRuntimeConfigAcceptsAddDirsForSupportedIDE(t *testing.T) {
+	t.Parallel()
+
+	cfg := &model.RuntimeConfig{
+		Mode:                   model.ExecutionModePRReview,
+		IDE:                    model.IDECodex,
+		OutputFormat:           model.OutputFormatText,
+		BatchSize:              1,
+		AddDirs:                []string{"../shared"},
+		MaxRetries:             1,
+		RetryBackoffMultiplier: 1.5,
+	}
+
+	if err := ValidateRuntimeConfig(cfg); err != nil {
+		t.Fatalf("validate runtime config: %v", err)
 	}
 }
 
@@ -553,52 +609,60 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 	}
 
 	cases := []struct {
-		ide               string
-		wantCommand       []string
-		wantProbe         []string
-		wantFallbackCount int
+		ide                 string
+		wantCommand         []string
+		wantProbe           []string
+		wantFallbackCount   int
+		wantSupportsAddDirs bool
 	}{
 		{
-			ide:               model.IDEClaude,
-			wantCommand:       []string{"claude-agent-acp"},
-			wantProbe:         []string{"claude-agent-acp", "--help"},
-			wantFallbackCount: 1,
+			ide:                 model.IDEClaude,
+			wantCommand:         []string{"claude-agent-acp"},
+			wantProbe:           []string{"claude-agent-acp", "--help"},
+			wantFallbackCount:   1,
+			wantSupportsAddDirs: true,
 		},
 		{
-			ide:               model.IDECodex,
-			wantCommand:       []string{"codex-acp"},
-			wantProbe:         []string{"codex-acp", "--help"},
-			wantFallbackCount: 1,
+			ide:                 model.IDECodex,
+			wantCommand:         []string{"codex-acp"},
+			wantProbe:           []string{"codex-acp", "--help"},
+			wantFallbackCount:   1,
+			wantSupportsAddDirs: true,
 		},
 		{
-			ide:               model.IDEDroid,
-			wantCommand:       []string{"droid", "exec", "--output-format", "acp"},
-			wantProbe:         []string{"droid", "exec", "--help"},
-			wantFallbackCount: 1,
+			ide:                 model.IDEDroid,
+			wantCommand:         []string{"droid", "exec", "--output-format", "acp"},
+			wantProbe:           []string{"droid", "exec", "--help"},
+			wantFallbackCount:   1,
+			wantSupportsAddDirs: false,
 		},
 		{
-			ide:               model.IDECursor,
-			wantCommand:       []string{"cursor-agent", "acp"},
-			wantProbe:         []string{"cursor-agent", "acp", "--help"},
-			wantFallbackCount: 0,
+			ide:                 model.IDECursor,
+			wantCommand:         []string{"cursor-agent", "acp"},
+			wantProbe:           []string{"cursor-agent", "acp", "--help"},
+			wantFallbackCount:   0,
+			wantSupportsAddDirs: false,
 		},
 		{
-			ide:               model.IDEOpenCode,
-			wantCommand:       []string{"opencode", "acp"},
-			wantProbe:         []string{"opencode", "acp", "--help"},
-			wantFallbackCount: 0,
+			ide:                 model.IDEOpenCode,
+			wantCommand:         []string{"opencode", "acp"},
+			wantProbe:           []string{"opencode", "acp", "--help"},
+			wantFallbackCount:   0,
+			wantSupportsAddDirs: false,
 		},
 		{
-			ide:               model.IDEPi,
-			wantCommand:       []string{"pi-acp"},
-			wantProbe:         []string{"pi-acp", "--help"},
-			wantFallbackCount: 1,
+			ide:                 model.IDEPi,
+			wantCommand:         []string{"pi-acp"},
+			wantProbe:           []string{"pi-acp", "--help"},
+			wantFallbackCount:   1,
+			wantSupportsAddDirs: false,
 		},
 		{
-			ide:               model.IDEGemini,
-			wantCommand:       []string{"gemini", "--acp"},
-			wantProbe:         []string{"gemini", "--acp", "--help"},
-			wantFallbackCount: 1,
+			ide:                 model.IDEGemini,
+			wantCommand:         []string{"gemini", "--acp"},
+			wantProbe:           []string{"gemini", "--acp", "--help"},
+			wantFallbackCount:   1,
+			wantSupportsAddDirs: false,
 		},
 	}
 
@@ -624,6 +688,14 @@ func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {
 				tc.ide,
 				len(entry.FallbackLaunchers),
 				tc.wantFallbackCount,
+			)
+		}
+		if entry.SupportsAddDirs != tc.wantSupportsAddDirs {
+			t.Fatalf(
+				"unexpected add-dir support for %s: got %t want %t",
+				tc.ide,
+				entry.SupportsAddDirs,
+				tc.wantSupportsAddDirs,
 			)
 		}
 	}

@@ -12,7 +12,7 @@ Examples:
 
 Flags:
       --access-mode string               Runtime access policy: default keeps native safeguards; full requests the most permissive mode Compozy can configure (default "full")
-      --add-dir strings                  Additional directory to allow for ACP runtimes that support extra writable roots (repeatable or comma-separated)
+      --add-dir strings                  Additional directory to allow for ACP runtimes that support extra writable roots (currently claude and codex; repeatable or comma-separated)
       --auto-commit                      Include automatic commit instructions at task/batch completion
       --dry-run                          Only generate prompts; do not run IDE tool
       --force                            Continue after task metadata validation fails in non-interactive mode
