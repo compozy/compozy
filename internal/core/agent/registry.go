@@ -73,10 +73,11 @@ var (
 	registryMu = sync.RWMutex{}
 	registry   = map[string]Spec{
 		model.IDEClaude: {
-			ID:           model.IDEClaude,
-			DisplayName:  "Claude",
-			DefaultModel: model.DefaultClaudeModel,
-			Command:      "claude-agent-acp",
+			ID:              model.IDEClaude,
+			DisplayName:     "Claude",
+			DefaultModel:    model.DefaultClaudeModel,
+			Command:         "claude-agent-acp",
+			SupportsAddDirs: true,
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
@@ -91,10 +92,11 @@ var (
 			},
 		},
 		model.IDECodex: {
-			ID:           model.IDECodex,
-			DisplayName:  "Codex",
-			DefaultModel: model.DefaultCodexModel,
-			Command:      "codex-acp",
+			ID:              model.IDECodex,
+			DisplayName:     "Codex",
+			DefaultModel:    model.DefaultCodexModel,
+			Command:         "codex-acp",
+			SupportsAddDirs: true,
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
@@ -282,10 +284,14 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 	if err := validateRuntimeMode(cfg.Mode); err != nil {
 		return err
 	}
-	if _, err := lookupAgentSpec(cfg.IDE); err != nil {
+	spec, err := lookupAgentSpec(cfg.IDE)
+	if err != nil {
 		return fmt.Errorf("invalid --ide value %q: must be %s", cfg.IDE, quotedSupportedIDEs())
 	}
 	if err := validateRuntimeAccessMode(cfg.AccessMode); err != nil {
+		return err
+	}
+	if err := validateAddDirSupport("--add-dir", spec, cfg.AddDirs); err != nil {
 		return err
 	}
 	if cfg.Mode == model.ExecutionModePRDTasks && cfg.BatchSize != 1 {
@@ -307,6 +313,15 @@ func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 		return fmt.Errorf("retry-backoff-multiplier must be positive (got %.2f)", cfg.RetryBackoffMultiplier)
 	}
 	return nil
+}
+
+// ValidateAddDirSupport verifies that the selected runtime supports extra writable roots.
+func ValidateAddDirSupport(fieldName string, ide string, addDirs []string) error {
+	spec, err := lookupAgentSpec(strings.TrimSpace(ide))
+	if err != nil {
+		return err
+	}
+	return validateAddDirSupport(fieldName, spec, addDirs)
 }
 
 func validateRuntimeMode(mode model.ExecutionMode) error {
@@ -410,6 +425,43 @@ func runtimePromptSourceCount(cfg *model.RuntimeConfig) int {
 		sources++
 	}
 	return sources
+}
+
+func validateAddDirSupport(fieldName string, spec Spec, addDirs []string) error {
+	if !hasConfiguredAddDirs(addDirs) || spec.SupportsAddDirs {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"%s is only supported for %s; runtime %q does not support extra writable roots",
+		fieldName,
+		strings.Join(supportedAddDirIDEs(), ", "),
+		spec.ID,
+	)
+}
+
+func hasConfiguredAddDirs(addDirs []string) bool {
+	for _, dir := range addDirs {
+		if strings.TrimSpace(dir) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func supportedAddDirIDEs() []string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
+	ides := make([]string, 0, len(supportedRegistryIDEOrder))
+	for _, ide := range supportedRegistryIDEOrder {
+		spec, ok := registry[ide]
+		if !ok || !spec.SupportsAddDirs {
+			continue
+		}
+		ides = append(ides, spec.ID)
+	}
+	return ides
 }
 
 // EnsureAvailable verifies that the configured ACP agent binary is installed and executable.

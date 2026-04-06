@@ -464,7 +464,7 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                      |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                     |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)               |
-| `--add-dir`                  |             | Additional directories to allow (repeatable)                                |
+| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
 | `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes |
 | `--dry-run`                  | `false`     | Preview prompts without executing                                           |
 
@@ -493,7 +493,7 @@ When present, `.compozy/config.toml` can provide defaults for runtime flags such
 | `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
-| `--add-dir`                  |             | Additional directories to allow (repeatable)                  |
+| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
 | `--auto-commit`              | `false`     | Auto-commit after each task                                   |
 | `--include-completed`        | `false`     | Re-run completed tasks                                        |
 | `--dry-run`                  | `false`     | Preview prompts without executing                             |
@@ -546,7 +546,7 @@ defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 | `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
-| `--add-dir`                  |             | Additional directories to allow (repeatable)                  |
+| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
 | `--auto-commit`              | `false`     | Auto-commit after each batch                                  |
 | `--dry-run`                  | `false`     | Preview prompts without executing                             |
 

@@ -386,7 +386,8 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.addDirs,
 		"add-dir",
 		nil,
-		"Additional directory to allow for ACP runtimes that support extra writable roots (repeatable or comma-separated)",
+		"Additional directory to allow for ACP runtimes that support extra writable roots "+
+			"(currently claude and codex; repeatable or comma-separated)",
 	)
 	cmd.Flags().IntVar(
 		&state.tailLines,
