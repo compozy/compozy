@@ -296,11 +296,7 @@ func executeExecJob(
 	state *execRunState,
 ) execExecutionResult {
 	notifyJobStart(
-		useUI,
 		false,
-		0,
-		1,
-		atLeastOne(cfg.maxRetries+1),
 		j,
 		cfg.ide,
 		cfg.model,

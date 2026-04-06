@@ -303,7 +303,7 @@ func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 		return nil, err
 	}
 	defer preputil.ClosePreparationJournal(ctx, prep)
-	return newPreparation(prep), nil
+	return NewPreparation(prep), nil
 }
 
 func runDirect(ctx context.Context, cfg Config) error {
@@ -390,14 +390,15 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 	return runtimeCfg
 }
 
-func newPreparation(prep *model.SolvePreparation) *Preparation {
+// NewPreparation clones a solve preparation into the public core API shape.
+func NewPreparation(prep *model.SolvePreparation) *Preparation {
 	if prep == nil {
 		return nil
 	}
 
 	jobs := make([]Job, 0, len(prep.Jobs))
 	for i := range prep.Jobs {
-		jobs = append(jobs, newJob(prep.Jobs[i]))
+		jobs = append(jobs, NewJob(prep.Jobs[i]))
 	}
 
 	return &Preparation{
@@ -411,7 +412,8 @@ func newPreparation(prep *model.SolvePreparation) *Preparation {
 	}
 }
 
-func newJob(jb model.Job) Job {
+// NewJob clones a model job into the public core API shape.
+func NewJob(jb model.Job) Job {
 	codeFiles := append([]string(nil), jb.CodeFiles...)
 	prompt := append([]byte(nil), jb.Prompt...)
 	return Job{

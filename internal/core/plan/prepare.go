@@ -75,7 +75,8 @@ func prepareWorkflowRun(
 	}
 	prep.SetJournal(runJournal)
 
-	prep.Jobs, err = prepareJobs(cfg, groupIssues(entries), prep.RunArtifacts)
+	groupedEntries, _ := groupIssuesByCodeFile(entries)
+	prep.Jobs, err = prepareJobs(cfg, groupedEntries, prep.RunArtifacts)
 	if err != nil {
 		return err
 	}
@@ -230,7 +231,7 @@ func buildBatchJob(
 		}
 		taskData, err = prompt.ParseTaskFile(batchIssues[0].Content)
 		if err != nil {
-			return model.Job{}, wrapTaskParseError(batchIssues[0].AbsPath, err)
+			return model.Job{}, tasks.WrapTaskParseError(batchIssues[0].AbsPath, err)
 		}
 		memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
 		if err != nil {

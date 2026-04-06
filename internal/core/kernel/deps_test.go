@@ -621,7 +621,7 @@ func TestWorkflowPrepareReturnsCoreNoWork(t *testing.T) {
 func TestNewPreparationReturnsNilForNilInput(t *testing.T) {
 	t.Parallel()
 
-	if prep := newPreparation(nil); prep != nil {
+	if prep := core.NewPreparation(nil); prep != nil {
 		t.Fatalf("expected nil preparation, got %#v", prep)
 	}
 }

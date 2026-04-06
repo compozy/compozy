@@ -27,7 +27,9 @@ func TestTranslateEventJobStarted(t *testing.T) {
 	msg, ok := translateEventForTest(t, mustRuntimeEventUITest(
 		t,
 		eventspkg.EventKindJobStarted,
-		kinds.JobStartedPayload{Index: 2, Attempt: 1, MaxAttempts: 3},
+		kinds.JobStartedPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{Index: 2, Attempt: 1, MaxAttempts: 3},
+		},
 	))
 	if !ok {
 		t.Fatal("expected job.started to translate")
@@ -104,7 +106,10 @@ func TestTranslateEventUsageRetryAndFailure(t *testing.T) {
 			ev: mustRuntimeEventUITest(
 				t,
 				eventspkg.EventKindJobRetryScheduled,
-				kinds.JobRetryScheduledPayload{Index: 1, Attempt: 2, MaxAttempts: 4, Reason: "retry me"},
+				kinds.JobRetryScheduledPayload{
+					JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 2, MaxAttempts: 4},
+					Reason:         "retry me",
+				},
 			),
 			want: jobRetryMsg{Index: 1, Attempt: 2, MaxAttempts: 4, Reason: "retry me"},
 		},
@@ -114,14 +119,12 @@ func TestTranslateEventUsageRetryAndFailure(t *testing.T) {
 				t,
 				eventspkg.EventKindJobFailed,
 				kinds.JobFailedPayload{
-					Index:       1,
-					Attempt:     2,
-					MaxAttempts: 4,
-					CodeFile:    "task_01.md",
-					ExitCode:    23,
-					OutLog:      "task_01.out.log",
-					ErrLog:      "task_01.err.log",
-					Error:       "boom",
+					JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 2, MaxAttempts: 4},
+					CodeFile:       "task_01.md",
+					ExitCode:       23,
+					OutLog:         "task_01.out.log",
+					ErrLog:         "task_01.err.log",
+					Error:          "boom",
 				},
 			),
 			want: jobFailureMsg{
@@ -187,10 +190,12 @@ func TestTranslateEventShutdownStatus(t *testing.T) {
 		t,
 		eventspkg.EventKindShutdownTerminated,
 		kinds.ShutdownTerminatedPayload{
-			Source:      string(shutdownSourceTimer),
-			RequestedAt: time.Unix(10, 0).UTC(),
-			DeadlineAt:  time.Unix(20, 0).UTC(),
-			Forced:      true,
+			ShutdownBase: kinds.ShutdownBase{
+				Source:      string(shutdownSourceTimer),
+				RequestedAt: time.Unix(10, 0).UTC(),
+				DeadlineAt:  time.Unix(20, 0).UTC(),
+			},
+			Forced: true,
 		},
 	))
 	if !ok {
@@ -217,10 +222,10 @@ func TestUIEventTranslatorAddsFailureTerminalMessage(t *testing.T) {
 		t,
 		eventspkg.EventKindJobFailed,
 		kinds.JobFailedPayload{
-			Index:    0,
-			CodeFile: "task_01.md",
-			ExitCode: 23,
-			Error:    "boom",
+			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
+			CodeFile:       "task_01.md",
+			ExitCode:       23,
+			Error:          "boom",
 		},
 	))
 	if len(msgs) != 2 {
@@ -291,7 +296,9 @@ func TestUIEventAdapterDropsMessagesWhenSinkIsFull(t *testing.T) {
 	bus.Publish(context.Background(), mustRuntimeEventUITest(
 		t,
 		eventspkg.EventKindJobStarted,
-		kinds.JobStartedPayload{Index: 0, Attempt: 1, MaxAttempts: 1},
+		kinds.JobStartedPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+		},
 	))
 	waitForCondition(t, time.Second, func() bool {
 		return len(sink) == 1
@@ -305,7 +312,10 @@ func TestUIEventAdapterDropsMessagesWhenSinkIsFull(t *testing.T) {
 	bus.Publish(context.Background(), mustRuntimeEventUITest(
 		t,
 		eventspkg.EventKindJobCompleted,
-		kinds.JobCompletedPayload{Index: 0, ExitCode: 0},
+		kinds.JobCompletedPayload{
+			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
+			ExitCode:       0,
+		},
 	))
 
 	stop()

@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +15,16 @@ import (
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
+)
+
+var (
+	tasksDirNameRe = regexp.MustCompile(
+		`(?:^|/)` + regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir())) + `/([^/]+)$`,
+	)
+	reviewsDirNameRe = regexp.MustCompile(
+		`(?:^|/)` + regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir())) + `/([^/]+)/reviews-\d+$`,
+	)
+	reviewRoundDirRe = regexp.MustCompile(`reviews-(\d+)$`)
 )
 
 func resolveInputs(cfg *model.RuntimeConfig) (string, string, string, error) {
@@ -176,13 +187,13 @@ func validateAndFilterEntries(entries []model.IssueEntry, cfg *model.RuntimeConf
 			if !cfg.IncludeCompleted && strings.TrimSpace(cfg.TasksDir) != "" {
 				meta, err := tasks.ReadTaskMeta(cfg.TasksDir)
 				if err == nil && meta.Total > 0 && meta.Pending == 0 {
-					fmt.Println("All task files are already completed. Nothing to do.")
+					slog.Info("All task files are already completed. Nothing to do.")
 					return nil, ErrNoWork
 				}
 			}
-			fmt.Println("No task files found.")
+			slog.Info("No task files found.")
 		} else {
-			fmt.Println("No review issue files found.")
+			slog.Info("No review issue files found.")
 		}
 		return nil, ErrNoWork
 	}
@@ -194,7 +205,7 @@ func validateAndFilterEntries(entries []model.IssueEntry, cfg *model.RuntimeConf
 		}
 		entries = filtered
 		if len(entries) == 0 {
-			fmt.Println("All review issues are already resolved. Nothing to do.")
+			slog.Info("All review issues are already resolved. Nothing to do.")
 			return nil, ErrNoWork
 		}
 	}
@@ -245,7 +256,7 @@ func readTaskEntries(tasksDir string, includeCompleted bool) ([]model.IssueEntry
 		content := string(body)
 		task, err := prompt.ParseTaskFile(content)
 		if err != nil {
-			return nil, wrapTaskParseError(absPath, err)
+			return nil, tasks.WrapTaskParseError(absPath, err)
 		}
 		if !includeCompleted && prompt.IsTaskCompleted(task) {
 			continue
@@ -266,7 +277,7 @@ func filterUnresolved(all []model.IssueEntry) ([]model.IssueEntry, error) {
 	for _, entry := range all {
 		resolved, err := prompt.IsReviewResolved(entry.Content)
 		if err != nil {
-			return nil, wrapReviewParseError(entry.AbsPath, err)
+			return nil, reviews.WrapReviewParseError(entry.AbsPath, err)
 		}
 		if !resolved {
 			out = append(out, entry)
@@ -275,18 +286,8 @@ func filterUnresolved(all []model.IssueEntry) ([]model.IssueEntry, error) {
 	return out, nil
 }
 
-func groupIssues(entries []model.IssueEntry) map[string][]model.IssueEntry {
-	groups := make(map[string][]model.IssueEntry)
-	for _, entry := range entries {
-		groups[entry.CodeFile] = append(groups[entry.CodeFile], entry)
-	}
-	return groups
-}
-
 func inferTaskNameFromTasksDir(dir, _ string) (string, error) {
-	baseDir := regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir()))
-	re := regexp.MustCompile(`(?:^|/)` + baseDir + `/([^/]+)$`)
-	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
+	m := tasksDirNameRe.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
 		return "", fmt.Errorf(
 			"unable to infer task name from tasks dir; expected path ending with %s/<name>",
@@ -297,9 +298,7 @@ func inferTaskNameFromTasksDir(dir, _ string) (string, error) {
 }
 
 func inferTaskNameFromReviewsDir(dir, _ string) (string, error) {
-	baseDir := regexp.QuoteMeta(filepath.ToSlash(model.TasksBaseDir()))
-	re := regexp.MustCompile(`(?:^|/)` + baseDir + `/([^/]+)/reviews-\d+$`)
-	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
+	m := reviewsDirNameRe.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
 		return "", fmt.Errorf(
 			"unable to infer task name from reviews dir; expected path ending with %s/<name>/reviews-NNN",
@@ -310,8 +309,7 @@ func inferTaskNameFromReviewsDir(dir, _ string) (string, error) {
 }
 
 func inferRoundFromReviewsDir(dir string) (int, error) {
-	re := regexp.MustCompile(`reviews-(\d+)$`)
-	m := re.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
+	m := reviewRoundDirRe.FindStringSubmatch(filepath.ToSlash(filepath.Clean(dir)))
 	if len(m) < 2 {
 		return 0, errors.New("unable to infer review round from reviews dir")
 	}
@@ -320,18 +318,4 @@ func inferRoundFromReviewsDir(dir string) (int, error) {
 		return 0, fmt.Errorf("parse review round: %w", err)
 	}
 	return round, nil
-}
-
-func wrapTaskParseError(path string, err error) error {
-	if errors.Is(err, prompt.ErrLegacyTaskMetadata) || errors.Is(err, prompt.ErrV1TaskMetadata) {
-		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)
-	}
-	return fmt.Errorf("parse task artifact %s: %w", path, err)
-}
-
-func wrapReviewParseError(path string, err error) error {
-	if errors.Is(err, prompt.ErrLegacyReviewMetadata) {
-		return fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", path)
-	}
-	return fmt.Errorf("parse review artifact %s: %w", path, err)
 }

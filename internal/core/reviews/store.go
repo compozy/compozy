@@ -129,10 +129,7 @@ func ReadReviewEntries(reviewDir string) ([]model.IssueEntry, error) {
 		codeFile := UnknownCodeFile(name)
 		ctx, parseErr := prompt.ParseReviewContext(content)
 		if parseErr != nil {
-			if errors.Is(parseErr, prompt.ErrLegacyReviewMetadata) {
-				return nil, fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", absPath)
-			}
-			return nil, fmt.Errorf("parse review entry %s: %w", absPath, parseErr)
+			return nil, WrapReviewParseError(absPath, parseErr)
 		}
 		if ctx.File != "" {
 			codeFile = ctx.File
@@ -350,7 +347,7 @@ func finalizeIssueStatus(root *os.Root, reviewDir, issueName string) error {
 
 	ctx, err := prompt.ParseReviewContext(string(content))
 	if err != nil {
-		return wrapReviewParseError(filepath.Join(strings.TrimSpace(reviewDir), issueName), err)
+		return WrapReviewParseError(filepath.Join(strings.TrimSpace(reviewDir), issueName), err)
 	}
 
 	switch ctx.Status {
@@ -417,7 +414,8 @@ func parseRoundMetaSummary(lines []string, meta *model.RoundMeta) error {
 	return nil
 }
 
-func wrapReviewParseError(path string, err error) error {
+// WrapReviewParseError preserves review parsing migration guidance across packages.
+func WrapReviewParseError(path string, err error) error {
 	if errors.Is(err, prompt.ErrLegacyReviewMetadata) {
 		return fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", path)
 	}

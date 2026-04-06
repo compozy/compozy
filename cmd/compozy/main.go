@@ -4,10 +4,13 @@ import (
 	"os"
 
 	"github.com/compozy/compozy/command"
+	"github.com/compozy/compozy/internal/version"
 )
 
 func main() {
-	if err := command.New().Execute(); err != nil {
+	cmd := command.New()
+	cmd.Version = version.String()
+	if err := cmd.Execute(); err != nil {
 		os.Exit(command.ExitCode(err))
 	}
 }

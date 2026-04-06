@@ -160,13 +160,13 @@ func TestValidationFormInitAndHelpers(t *testing.T) {
 		t.Fatalf("expected nil init command, got %v", cmd)
 	}
 
-	if got := clampInt(5, 10, 20); got != 10 {
+	if got := clamp(5, 10, 20); got != 10 {
 		t.Fatalf("expected lower clamp, got %d", got)
 	}
-	if got := clampInt(25, 10, 20); got != 20 {
+	if got := clamp(25, 10, 20); got != 20 {
 		t.Fatalf("expected upper clamp, got %d", got)
 	}
-	if got := clampInt(15, 10, 20); got != 15 {
+	if got := clamp(15, 10, 20); got != 15 {
 		t.Fatalf("expected unclamped value, got %d", got)
 	}
 

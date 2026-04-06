@@ -91,7 +91,7 @@ func MarkTaskCompleted(tasksDir, taskFileName string) error {
 
 	task, err := prompt.ParseTaskFile(string(content))
 	if err != nil {
-		return wrapTaskParseError(filepath.Join(strings.TrimSpace(tasksDir), taskName), err)
+		return WrapTaskParseError(filepath.Join(strings.TrimSpace(tasksDir), taskName), err)
 	}
 	if strings.EqualFold(strings.TrimSpace(task.Status), "completed") {
 		return nil
@@ -212,7 +212,7 @@ func countTasks(tasksDir string) (int, int, error) {
 
 		task, err := prompt.ParseTaskFile(string(body))
 		if err != nil {
-			return 0, 0, wrapTaskParseError(absPath, err)
+			return 0, 0, WrapTaskParseError(absPath, err)
 		}
 		if prompt.IsTaskCompleted(task) {
 			completed++
@@ -222,7 +222,8 @@ func countTasks(tasksDir string) (int, int, error) {
 	return total, completed, nil
 }
 
-func wrapTaskParseError(path string, err error) error {
+// WrapTaskParseError preserves task parsing migration guidance across packages.
+func WrapTaskParseError(path string, err error) error {
 	if errors.Is(err, prompt.ErrLegacyTaskMetadata) || errors.Is(err, prompt.ErrV1TaskMetadata) {
 		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)
 	}

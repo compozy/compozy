@@ -371,17 +371,15 @@ func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.D
 		l.execCtx.submitEventOrWarn(
 			events.EventKindJobStarted,
 			kinds.JobStartedPayload{
-				Index:       l.index,
-				Attempt:     attempt,
-				MaxAttempts: maxAttempts,
+				JobAttemptInfo: kinds.JobAttemptInfo{
+					Index:       l.index,
+					Attempt:     attempt,
+					MaxAttempts: maxAttempts,
+				},
 			},
 		)
 		notifyJobStart(
-			false,
 			cfg != nil && cfg.humanOutputEnabled() && l.execCtx.ui == nil,
-			l.index,
-			attempt,
-			maxAttempts,
 			l.job,
 			l.configIDE(),
 			l.configModel(),
@@ -402,10 +400,12 @@ func (l *jobLifecycle) markRetry(failure failInfo, nextAttempt int, maxAttempts 
 	l.execCtx.submitEventOrWarn(
 		events.EventKindJobRetryScheduled,
 		kinds.JobRetryScheduledPayload{
-			Index:       l.index,
-			Attempt:     nextAttempt,
-			MaxAttempts: maxAttempts,
-			Reason:      failure.err.Error(),
+			JobAttemptInfo: kinds.JobAttemptInfo{
+				Index:       l.index,
+				Attempt:     nextAttempt,
+				MaxAttempts: maxAttempts,
+			},
+			Reason: failure.err.Error(),
 		},
 	)
 }
@@ -424,14 +424,16 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 	l.execCtx.submitEventOrWarn(
 		events.EventKindJobFailed,
 		kinds.JobFailedPayload{
-			Index:       l.index,
-			Attempt:     l.attempt,
-			MaxAttempts: l.maxAttempts(),
-			CodeFile:    strings.Join(l.job.codeFiles, ", "),
-			ExitCode:    l.lastExitCode,
-			OutLog:      l.job.outLog,
-			ErrLog:      l.job.errLog,
-			Error:       l.job.failure,
+			JobAttemptInfo: kinds.JobAttemptInfo{
+				Index:       l.index,
+				Attempt:     l.attempt,
+				MaxAttempts: l.maxAttempts(),
+			},
+			CodeFile: l.job.codeFileLabel(),
+			ExitCode: l.lastExitCode,
+			OutLog:   l.job.outLog,
+			ErrLog:   l.job.errLog,
+			Error:    l.job.failure,
 		},
 	)
 	if l.lastFailure != nil && l.humanOutputEnabled() {
@@ -439,7 +441,7 @@ func (l *jobLifecycle) markGiveUp(failure failInfo) {
 			os.Stderr,
 			"\n❌ Job %d (%s) failed with exit code %d: %v\n",
 			l.index+1,
-			strings.Join(l.job.codeFiles, ", "),
+			l.job.codeFileLabel(),
 			l.lastExitCode,
 			l.lastFailure.err,
 		)
@@ -459,11 +461,13 @@ func (l *jobLifecycle) markSuccess() {
 	l.execCtx.submitEventOrWarn(
 		events.EventKindJobCompleted,
 		kinds.JobCompletedPayload{
-			Index:       l.index,
-			Attempt:     l.attempt,
-			MaxAttempts: l.maxAttempts(),
-			ExitCode:    0,
-			DurationMs:  time.Since(l.startedAt).Milliseconds(),
+			JobAttemptInfo: kinds.JobAttemptInfo{
+				Index:       l.index,
+				Attempt:     l.attempt,
+				MaxAttempts: l.maxAttempts(),
+			},
+			ExitCode:   0,
+			DurationMs: time.Since(l.startedAt).Milliseconds(),
 		},
 	)
 }
@@ -475,7 +479,7 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 	l.job.exitCode = exitCode
 	if exitCode == exitCodeCanceled {
 		l.lastFailure = &failInfo{
-			codeFile: strings.Join(l.job.codeFiles, ", "),
+			codeFile: l.job.codeFileLabel(),
 			exitCode: exitCodeCanceled,
 			outLog:   l.job.outLog,
 			errLog:   l.job.errLog,
@@ -499,10 +503,12 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 	l.execCtx.submitEventOrWarn(
 		events.EventKindJobCancelled,
 		kinds.JobCancelledPayload{
-			Index:       l.index,
-			Attempt:     l.attempt,
-			MaxAttempts: l.maxAttempts(),
-			Reason:      reason,
+			JobAttemptInfo: kinds.JobAttemptInfo{
+				Index:       l.index,
+				Attempt:     l.attempt,
+				MaxAttempts: l.maxAttempts(),
+			},
+			Reason: reason,
 		},
 	)
 	if l.lastFailure != nil && l.humanOutputEnabled() {
@@ -510,7 +516,7 @@ func (l *jobLifecycle) markCanceled(exitCode int) {
 			os.Stderr,
 			"\n⚠️ Job %d (%s) canceled: %v\n",
 			l.index+1,
-			strings.Join(l.job.codeFiles, ", "),
+			l.job.codeFileLabel(),
 			l.lastFailure.err,
 		)
 	}
@@ -612,7 +618,7 @@ func (r *jobRunner) run(ctx context.Context) {
 		if result.Successful() {
 			if err := r.runPostSuccessHook(ctx); err != nil {
 				r.lifecycle.markGiveUp(failInfo{
-					codeFile: strings.Join(r.job.codeFiles, ", "),
+					codeFile: r.job.codeFileLabel(),
 					exitCode: -1,
 					outLog:   r.job.outLog,
 					errLog:   r.job.errLog,
@@ -665,7 +671,7 @@ func (r *jobRunner) ensureFailure(result jobAttemptResult, fallback string) fail
 		return *result.failure
 	}
 	return failInfo{
-		codeFile: strings.Join(r.job.codeFiles, ", "),
+		codeFile: r.job.codeFileLabel(),
 		exitCode: result.exitCode,
 		outLog:   r.job.outLog,
 		errLog:   r.job.errLog,
@@ -713,7 +719,7 @@ func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration
 		"\n🔄 [%s] Job %d (%s) retry attempt %d/%d with timeout %v\n",
 		time.Now().Format("15:04:05"),
 		r.index+1,
-		strings.Join(r.job.codeFiles, ", "),
+		r.job.codeFileLabel(),
 		attempt,
 		maxAttempts,
 		timeout,
@@ -793,9 +799,11 @@ func (j *jobExecutionContext) publishShutdownStatus(state shutdownState) {
 	j.submitEventOrWarn(
 		events.EventKindShutdownDraining,
 		kinds.ShutdownDrainingPayload{
-			Source:      string(state.Source),
-			RequestedAt: state.RequestedAt,
-			DeadlineAt:  state.DeadlineAt,
+			ShutdownBase: kinds.ShutdownBase{
+				Source:      string(state.Source),
+				RequestedAt: state.RequestedAt,
+				DeadlineAt:  state.DeadlineAt,
+			},
 		},
 	)
 }
@@ -942,9 +950,11 @@ func (j *jobExecutionContext) emitShutdownRequested(state shutdownState) {
 	j.submitEventOrWarn(
 		events.EventKindShutdownRequested,
 		kinds.ShutdownRequestedPayload{
-			Source:      string(state.Source),
-			RequestedAt: state.RequestedAt,
-			DeadlineAt:  state.DeadlineAt,
+			ShutdownBase: kinds.ShutdownBase{
+				Source:      string(state.Source),
+				RequestedAt: state.RequestedAt,
+				DeadlineAt:  state.DeadlineAt,
+			},
 		},
 	)
 }
@@ -956,10 +966,12 @@ func (j *jobExecutionContext) emitShutdownTerminated(state shutdownState, forced
 	j.submitEventOrWarn(
 		events.EventKindShutdownTerminated,
 		kinds.ShutdownTerminatedPayload{
-			Source:      string(state.Source),
-			RequestedAt: state.RequestedAt,
-			DeadlineAt:  state.DeadlineAt,
-			Forced:      forced,
+			ShutdownBase: kinds.ShutdownBase{
+				Source:      string(state.Source),
+				RequestedAt: state.RequestedAt,
+				DeadlineAt:  state.DeadlineAt,
+			},
+			Forced: forced,
 		},
 	)
 }
@@ -1411,7 +1423,7 @@ func createLogFile(path string) (*os.File, error) {
 }
 
 func handleNilExecution(j *job, index int, emitHuman bool) jobAttemptResult {
-	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	codeFileLabel := j.codeFileLabel()
 	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: -1,
@@ -1560,10 +1572,10 @@ func handleSessionCancellation(
 			os.Stderr,
 			"\nCanceling job %d (%s) due to shutdown signal\n",
 			index+1,
-			strings.Join(j.codeFiles, ", "),
+			j.codeFileLabel(),
 		)
 	}
-	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	codeFileLabel := j.codeFileLabel()
 	if cancelErr == nil {
 		cancelErr = fmt.Errorf("job canceled by shutdown")
 	}
@@ -1585,7 +1597,7 @@ func handleSessionTimeout(
 	timeout time.Duration,
 ) jobAttemptResult {
 	logTimeoutMessage(index, j, timeout, emitHuman)
-	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	codeFileLabel := j.codeFileLabel()
 	if timeoutErr == nil {
 		timeoutErr = fmt.Errorf("ACP session timeout after %v", timeout)
 	}
@@ -1610,14 +1622,14 @@ func logTimeoutMessage(index int, j *job, timeout time.Duration, emitHuman bool)
 			os.Stderr,
 			"\nJob %d (%s) timed out after %v of inactivity\n",
 			index+1,
-			strings.Join(j.codeFiles, ", "),
+			j.codeFileLabel(),
 			timeout,
 		)
 	}
 }
 
 func buildFailureResult(err error, exitCode int, j *job, index int, emitHuman bool) jobAttemptResult {
-	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	codeFileLabel := j.codeFileLabel()
 	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: exitCode,
@@ -1665,7 +1677,7 @@ func recordFailureWithContext(
 	err error,
 	exitCode int,
 ) failInfo {
-	codeFileLabel := strings.Join(j.codeFiles, ", ")
+	codeFileLabel := j.codeFileLabel()
 	failure := failInfo{
 		codeFile: codeFileLabel,
 		exitCode: exitCode,

@@ -21,6 +21,11 @@ var (
 	ErrLegacyTaskMetadata   = errors.New("legacy XML task metadata detected")
 	ErrV1TaskMetadata       = errors.New("v1 task front matter detected")
 	ErrLegacyReviewMetadata = errors.New("legacy XML review metadata detected")
+	legacyStatusHeadingRe   = regexp.MustCompile(`(?mi)^##\s*status:`)
+	legacyTaskStatusRe      = regexp.MustCompile(`(?m)^##\s*status:\s*(\w+)`)
+	legacyReviewStatusRe    = regexp.MustCompile(`(?mi)^##\s*status:\s*([a-z]+)\b`)
+	taskFileNumberRe        = regexp.MustCompile(`^task_(\d+)\.md$`)
+	issueFileNumberRe       = regexp.MustCompile(`^issue_(\d+)\.md$`)
 )
 
 type BatchParams struct {
@@ -86,8 +91,7 @@ func ParseLegacyTaskFile(content string) (model.TaskEntry, error) {
 	}
 
 	task := model.TaskEntry{Content: content}
-	statusRe := regexp.MustCompile(`(?m)^##\s*status:\s*(\w+)`)
-	if m := statusRe.FindStringSubmatch(content); len(m) > 1 {
+	if m := legacyTaskStatusRe.FindStringSubmatch(content); len(m) > 1 {
 		task.Status = strings.TrimSpace(m[1])
 	}
 
@@ -133,7 +137,7 @@ func hasTaskV1FrontMatterKeys(node *yaml.Node) bool {
 
 func LooksLikeLegacyTaskFile(content string) bool {
 	return strings.Contains(content, "<task_context>") ||
-		regexp.MustCompile(`(?mi)^##\s*status:`).FindStringIndex(content) != nil
+		legacyStatusHeadingRe.MatchString(content)
 }
 
 func ExtractLegacyTaskBody(content string) (string, error) {
@@ -147,7 +151,7 @@ func ExtractLegacyTaskBody(content string) (string, error) {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		switch {
-		case regexp.MustCompile(`(?mi)^##\s*status:`).MatchString(line):
+		case legacyStatusHeadingRe.MatchString(line):
 			continue
 		case trimmed == "<task_context>":
 			inContext = true
@@ -171,11 +175,11 @@ func IsTaskCompleted(task model.TaskEntry) bool {
 }
 
 func ExtractTaskNumber(filename string) int {
-	return extractFileNumber(filename, regexp.MustCompile(`^task_(\d+)\.md$`))
+	return extractFileNumber(filename, taskFileNumberRe)
 }
 
 func ExtractIssueNumber(filename string) int {
-	return extractFileNumber(filename, regexp.MustCompile(`^issue_(\d+)\.md$`))
+	return extractFileNumber(filename, issueFileNumberRe)
 }
 
 func FlattenAndSortIssues(groups map[string][]model.IssueEntry, mode model.ExecutionMode) []model.IssueEntry {
@@ -320,7 +324,7 @@ func ParseLegacyReviewContext(content string) (model.ReviewContext, error) {
 
 func LooksLikeLegacyReviewFile(content string) bool {
 	return strings.Contains(content, "<review_context>") ||
-		regexp.MustCompile(`(?mi)^##\s*status:`).FindStringIndex(content) != nil
+		legacyStatusHeadingRe.MatchString(content)
 }
 
 func ExtractLegacyReviewBody(content string) (string, error) {
@@ -334,7 +338,7 @@ func ExtractLegacyReviewBody(content string) (string, error) {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		switch {
-		case regexp.MustCompile(`(?mi)^##\s*status:`).MatchString(line):
+		case legacyStatusHeadingRe.MatchString(line):
 			continue
 		case trimmed == "<review_context>":
 			inContext = true
@@ -449,11 +453,17 @@ func extractFileNumber(filename string, pattern *regexp.Regexp) int {
 }
 
 func extractXMLTag(content, tag string) string {
-	re := regexp.MustCompile(fmt.Sprintf(`<%s>(.*?)</%s>`, tag, tag))
-	if m := re.FindStringSubmatch(content); len(m) > 1 {
-		return strings.TrimSpace(m[1])
+	openTag := "<" + tag + ">"
+	start := strings.Index(content, openTag)
+	if start < 0 {
+		return ""
 	}
-	return ""
+	start += len(openTag)
+	end := strings.Index(content[start:], "</"+tag+">")
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(content[start : start+end])
 }
 
 func sanitizePath(path string) string {
@@ -496,8 +506,7 @@ func normalizeLegacyDependencies(raw string) []string {
 }
 
 func extractLegacyStatus(content string) string {
-	statusRe := regexp.MustCompile(`(?mi)^##\s*status:\s*([a-z]+)\b`)
-	if matches := statusRe.FindStringSubmatch(content); len(matches) > 1 {
+	if matches := legacyReviewStatusRe.FindStringSubmatch(content); len(matches) > 1 {
 		return matches[1]
 	}
 	return ""

@@ -151,44 +151,60 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 				ErrLog:    "/tmp/err.log",
 			},
 		},
-		{name: "job started", payload: kinds.JobStartedPayload{Index: 1, Attempt: 1, MaxAttempts: 3}},
-		{name: "job attempt started", payload: kinds.JobAttemptStartedPayload{Index: 1, Attempt: 2, MaxAttempts: 3}},
 		{
-			name: "job attempt finished",
-			payload: kinds.JobAttemptFinishedPayload{
-				Index:       1,
-				Attempt:     2,
-				MaxAttempts: 3,
-				Status:      "failure",
-				ExitCode:    1,
-				Retryable:   true,
-				Error:       "transient",
+			name: "job started",
+			payload: kinds.JobStartedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 3},
 			},
 		},
 		{
-			name:    "job retry scheduled",
-			payload: kinds.JobRetryScheduledPayload{Index: 1, Attempt: 2, MaxAttempts: 3, Reason: "retryable"},
+			name: "job attempt started",
+			payload: kinds.JobAttemptStartedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 2, MaxAttempts: 3},
+			},
 		},
 		{
-			name:    "job completed",
-			payload: kinds.JobCompletedPayload{Index: 1, Attempt: 1, MaxAttempts: 3, ExitCode: 0, DurationMs: 900},
+			name: "job attempt finished",
+			payload: kinds.JobAttemptFinishedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 2, MaxAttempts: 3},
+				Status:         "failure",
+				ExitCode:       1,
+				Retryable:      true,
+				Error:          "transient",
+			},
+		},
+		{
+			name: "job retry scheduled",
+			payload: kinds.JobRetryScheduledPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 2, MaxAttempts: 3},
+				Reason:         "retryable",
+			},
+		},
+		{
+			name: "job completed",
+			payload: kinds.JobCompletedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 3},
+				ExitCode:       0,
+				DurationMs:     900,
+			},
 		},
 		{
 			name: "job failed",
 			payload: kinds.JobFailedPayload{
-				Index:       1,
-				Attempt:     3,
-				MaxAttempts: 3,
-				CodeFile:    "task_01.md",
-				ExitCode:    1,
-				OutLog:      "/tmp/out.log",
-				ErrLog:      "/tmp/err.log",
-				Error:       "failed",
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 3, MaxAttempts: 3},
+				CodeFile:       "task_01.md",
+				ExitCode:       1,
+				OutLog:         "/tmp/out.log",
+				ErrLog:         "/tmp/err.log",
+				Error:          "failed",
 			},
 		},
 		{
-			name:    "job canceled",
-			payload: kinds.JobCancelledPayload{Index: 1, Attempt: 1, MaxAttempts: 3, Reason: "shutdown"},
+			name: "job canceled",
+			payload: kinds.JobCancelledPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 3},
+				Reason:         "shutdown",
+			},
 		},
 		{
 			name: "session started",
@@ -379,26 +395,32 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 		{
 			name: "shutdown requested",
 			payload: kinds.ShutdownRequestedPayload{
-				Source:      "signal",
-				RequestedAt: now,
-				DeadlineAt:  now.Add(3 * time.Second),
+				ShutdownBase: kinds.ShutdownBase{
+					Source:      "signal",
+					RequestedAt: now,
+					DeadlineAt:  now.Add(3 * time.Second),
+				},
 			},
 		},
 		{
 			name: "shutdown draining",
 			payload: kinds.ShutdownDrainingPayload{
-				Source:      "signal",
-				RequestedAt: now,
-				DeadlineAt:  now.Add(3 * time.Second),
+				ShutdownBase: kinds.ShutdownBase{
+					Source:      "signal",
+					RequestedAt: now,
+					DeadlineAt:  now.Add(3 * time.Second),
+				},
 			},
 		},
 		{
 			name: "shutdown terminated",
 			payload: kinds.ShutdownTerminatedPayload{
-				Source:      "signal",
-				RequestedAt: now,
-				DeadlineAt:  now.Add(3 * time.Second),
-				Forced:      true,
+				ShutdownBase: kinds.ShutdownBase{
+					Source:      "signal",
+					RequestedAt: now,
+					DeadlineAt:  now.Add(3 * time.Second),
+				},
+				Forced: true,
 			},
 		},
 		{name: "standalone text block", payload: kinds.TextBlock{Text: "hello"}},

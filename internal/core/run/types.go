@@ -1,6 +1,7 @@
 package run
 
 import (
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -298,6 +299,10 @@ type job struct {
 	usage         model.Usage
 	outBuffer     *lineBuffer
 	errBuffer     *lineBuffer
+}
+
+func (j job) codeFileLabel() string {
+	return strings.Join(j.codeFiles, ", ")
 }
 
 func (cfg *config) humanOutputEnabled() bool {

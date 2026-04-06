@@ -126,7 +126,7 @@ func (m *validationFormModel) syncIssueViewport() {
 }
 
 func (m *validationFormModel) panelWidth() int {
-	return clampInt(m.width-6, validationFormMinWidth, validationFormMaxWidth)
+	return clamp(m.width-6, validationFormMinWidth, validationFormMaxWidth)
 }
 
 func (m *validationFormModel) panelStyle() lipgloss.Style {
@@ -220,14 +220,4 @@ func distinctValidationIssuePaths(issues []tasks.Issue) int {
 		paths[issue.Path] = struct{}{}
 	}
 	return len(paths)
-}
-
-func clampInt(value, minValue, maxValue int) int {
-	if value < minValue {
-		return minValue
-	}
-	if value > maxValue {
-		return maxValue
-	}
-	return value
 }

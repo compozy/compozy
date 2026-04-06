@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -1024,7 +1024,7 @@ func (s *commandState) assertPersistedExecCompatibility(
 		return fmt.Errorf("--run-id %q must continue with persisted --access-mode %q", record.RunID, record.AccessMode)
 	}
 	if cmd.Flags().Changed("add-dir") &&
-		!reflect.DeepEqual(core.NormalizeAddDirs(cfg.AddDirs), core.NormalizeAddDirs(record.AddDirs)) {
+		!slices.Equal(core.NormalizeAddDirs(cfg.AddDirs), core.NormalizeAddDirs(record.AddDirs)) {
 		return fmt.Errorf("--run-id %q must continue with persisted --add-dir values", record.RunID)
 	}
 	return nil

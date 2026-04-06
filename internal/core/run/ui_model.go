@@ -233,7 +233,7 @@ func setupUI(ctx context.Context, jobs []job, cfg *config, bus *events.Bus[event
 		for _, items := range jb.groups {
 			totalIssues += len(items)
 		}
-		codeFileLabel := strings.Join(jb.codeFiles, ", ")
+		codeFileLabel := jb.codeFileLabel()
 		if len(jb.codeFiles) > 3 {
 			codeFileLabel = fmt.Sprintf("%s and %d more", strings.Join(jb.codeFiles[:3], ", "), len(jb.codeFiles)-3)
 		}

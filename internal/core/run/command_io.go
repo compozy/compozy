@@ -45,11 +45,7 @@ func (s *sessionExecution) close() {
 }
 
 func notifyJobStart(
-	useUI bool,
 	emitHuman bool,
-	_ int,
-	_ int,
-	_ int,
 	job *job,
 	ide string,
 	model string,
@@ -57,7 +53,6 @@ func notifyJobStart(
 	reasoningEffort string,
 	accessMode string,
 ) {
-	_ = useUI
 	if !emitHuman {
 		return
 	}
@@ -65,7 +60,10 @@ func notifyJobStart(
 	shellCmd := agent.BuildShellCommandString(ide, model, addDirs, reasoningEffort, accessMode)
 	ideName := agent.DisplayName(ide)
 	totalIssues := countTotalIssues(job)
-	codeFileLabel := formatCodeFileLabel(job.codeFiles)
+	codeFileLabel := job.codeFileLabel()
+	if len(job.codeFiles) > 1 {
+		codeFileLabel = fmt.Sprintf("%d files: %s", len(job.codeFiles), codeFileLabel)
+	}
 	fmt.Printf(
 		"\n=== Running %s (non-interactive) for batch: %s (%d issues)\n$ %s\n",
 		ideName,
@@ -81,14 +79,6 @@ func countTotalIssues(job *job) int {
 		total += len(items)
 	}
 	return total
-}
-
-func formatCodeFileLabel(codeFiles []string) string {
-	label := strings.Join(codeFiles, ", ")
-	if len(codeFiles) > 1 {
-		return fmt.Sprintf("%d files: %s", len(codeFiles), label)
-	}
-	return label
 }
 
 func setupSessionExecution(

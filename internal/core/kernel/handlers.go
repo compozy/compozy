@@ -161,7 +161,7 @@ func (h *workflowPrepareHandler) Handle(
 	defer preputil.ClosePreparationJournal(ctx, prep)
 
 	return commands.WorkflowPrepareResult{
-		Preparation:  newPreparation(prep),
+		Preparation:  core.NewPreparation(prep),
 		RunID:        prep.RunArtifacts.RunID,
 		ArtifactsDir: prep.RunArtifacts.RunDir,
 	}, nil
@@ -253,37 +253,4 @@ func (h *reviewsFetchHandler) Handle(
 		return commands.ReviewsFetchResult{}, err
 	}
 	return commands.ReviewsFetchResult{Result: result}, nil
-}
-
-func newPreparation(prep *model.SolvePreparation) *core.Preparation {
-	if prep == nil {
-		return nil
-	}
-
-	jobs := make([]core.Job, 0, len(prep.Jobs))
-	for idx := range prep.Jobs {
-		jobs = append(jobs, newJob(prep.Jobs[idx]))
-	}
-
-	return &core.Preparation{
-		Jobs:             jobs,
-		InputDir:         prep.InputDir,
-		ResolvedPR:       prep.ResolvedPR,
-		ResolvedName:     prep.ResolvedName,
-		ResolvedProvider: prep.ResolvedProvider,
-		ResolvedRound:    prep.ResolvedRound,
-		InputDirPath:     prep.InputDirPath,
-	}
-}
-
-func newJob(job model.Job) core.Job {
-	return core.Job{
-		CodeFiles:     append([]string(nil), job.CodeFiles...),
-		SafeName:      job.SafeName,
-		Prompt:        append([]byte(nil), job.Prompt...),
-		PromptPath:    job.OutPromptPath,
-		StdoutLogPath: job.OutLog,
-		StderrLogPath: job.ErrLog,
-		IssueCount:    job.IssueCount(),
-	}
 }

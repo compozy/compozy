@@ -501,7 +501,7 @@ func mergeToolUseHeaders(existing []model.ContentBlock, updated []model.ContentB
 	if input := mergeToolUseInputJSON(existingTool.Input, updatedTool.Input); len(input) > 0 {
 		merged.Input = input
 	}
-	if rawInput := copyJSONPayload(updatedTool.RawInput); len(rawInput) > 0 {
+	if rawInput := copyJSON(updatedTool.RawInput); len(rawInput) > 0 {
 		merged.RawInput = rawInput
 	}
 
@@ -560,13 +560,6 @@ func decodeJSONObjectPayload(payload json.RawMessage) (map[string]any, bool) {
 func isJSONNullPayload(payload json.RawMessage) bool {
 	trimmed := bytes.TrimSpace(payload)
 	return bytes.Equal(trimmed, []byte("null"))
-}
-
-func copyJSONPayload(payload json.RawMessage) json.RawMessage {
-	if len(payload) == 0 {
-		return nil
-	}
-	return append(json.RawMessage(nil), payload...)
 }
 
 func missingToolCallBlocks(toolCallID string) ([]model.ContentBlock, error) {
