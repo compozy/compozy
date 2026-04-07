@@ -13,7 +13,7 @@ coverage.html
 skills/*/autoresearch-*/
 skills-lock.json
 .claude/skills
-ai-docs/
+ai-docs
 **/**/node_modules
 node_modules/
 .compozy/runs
