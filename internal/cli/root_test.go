@@ -32,6 +32,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 
 	required := []string{
 		"compozy setup",
+		"compozy upgrade",
 		"compozy migrate",
 		"compozy validate-tasks",
 		"compozy sync",
@@ -40,6 +41,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy fix-reviews",
 		"compozy start",
 		"setup",
+		"upgrade",
 		"migrate",
 		"validate-tasks",
 		"sync",
@@ -53,6 +55,37 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestUpgradeHelpShowsNoUnexpectedFlags(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "upgrade")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected upgrade to omit mode flag")
+	}
+
+	output, err := executeRootCommand("upgrade", "--help")
+	if err != nil {
+		t.Fatalf("execute upgrade help: %v", err)
+	}
+
+	required := []string{
+		"Upgrade compozy using the appropriate installation flow for this machine.",
+		"Package-manager installs print the correct command",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected upgrade help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--batch-size", "--include-completed"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected upgrade help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }

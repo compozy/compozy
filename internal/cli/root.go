@@ -68,6 +68,7 @@ always override values loaded from the workspace config.
 
 Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
+  compozy upgrade       Update the CLI to the latest release
   compozy migrate       Convert legacy workflow artifacts to frontmatter
   compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy sync          Refresh task workflow metadata files
@@ -83,6 +84,7 @@ Use explicit workflow subcommands:
 
 	root.AddCommand(
 		newSetupCommand(dispatcher),
+		newUpgradeCommand(),
 		newMigrateCommand(dispatcher),
 		newValidateTasksCommand(dispatcher),
 		newSyncCommand(dispatcher),
