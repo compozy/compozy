@@ -2,7 +2,7 @@
 
 **File:** `internal/core/agent/registry_test.go:695`
 **Date:** 2026-04-07 15:21:57 UTC
-**Status:** - [ ] UNRESOLVED
+**Status:** - [x] RESOLVED
 
 ## Technical Disposition
 

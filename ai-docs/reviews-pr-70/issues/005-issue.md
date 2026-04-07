@@ -2,7 +2,7 @@
 
 **File:** `internal/cli/state.go:261`
 **Date:** 2026-04-07 15:52:02 UTC
-**Status:** - [ ] UNRESOLVED
+**Status:** - [x] RESOLVED
 
 ## Technical Disposition
 
