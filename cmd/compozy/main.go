@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -24,13 +25,21 @@ func run() int {
 	cmd := command.New()
 	cmd.Version = version.String()
 
-	updateResult, cancel := startUpdateCheck(version.Version)
+	updateResult, cancelUpdateCheck, updateDone := startUpdateCheck(context.Background(), version.Version)
 	err := cmd.Execute()
-	cancel()
+	cancelUpdateCheck()
 
 	if release := waitForUpdateResult(updateResult); release != nil {
-		_, _ = fmt.Fprintln(cmd.ErrOrStderr(), renderUpdateNotification(version.Version, release))
+		if writeErr := writeUpdateNotification(
+			cmd.ErrOrStderr(),
+			version.Version,
+			release,
+		); writeErr != nil &&
+			err == nil {
+			err = fmt.Errorf("write update notification: %w", writeErr)
+		}
 	}
+	<-updateDone
 
 	if err != nil {
 		return command.ExitCode(err)
@@ -38,11 +47,16 @@ func run() int {
 	return 0
 }
 
-func startUpdateCheck(currentVersion string) (<-chan *update.ReleaseInfo, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
+func startUpdateCheck(
+	parent context.Context,
+	currentVersion string,
+) (<-chan *update.ReleaseInfo, context.CancelFunc, <-chan struct{}) {
+	ctx, cancel := context.WithCancel(parent)
 	result := make(chan *update.ReleaseInfo, 1)
+	done := make(chan struct{})
 
 	go func() {
+		defer close(done)
 		defer close(result)
 
 		statePath, err := update.StateFilePath()
@@ -58,7 +72,7 @@ func startUpdateCheck(currentVersion string) (<-chan *update.ReleaseInfo, contex
 		result <- release
 	}()
 
-	return result, cancel
+	return result, cancel, done
 }
 
 func waitForUpdateResult(result <-chan *update.ReleaseInfo) *update.ReleaseInfo {
@@ -95,6 +109,14 @@ func renderUpdateNotification(currentVersion string, release *update.ReleaseInfo
 	lineTwo := styles.body.Render("Run 'compozy upgrade' to update")
 
 	return lipgloss.JoinVertical(lipgloss.Left, lineOne, lineTwo)
+}
+
+func writeUpdateNotification(w io.Writer, currentVersion string, release *update.ReleaseInfo) error {
+	if release == nil {
+		return nil
+	}
+	_, err := fmt.Fprintln(w, renderUpdateNotification(currentVersion, release))
+	return err
 }
 
 type updateNotificationStyles struct {

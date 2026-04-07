@@ -487,8 +487,16 @@ func TestSessionConversionHelpers(t *testing.T) {
 	if got := stringifyValue("plain"); got != "plain" {
 		t.Fatalf("unexpected plain string: %q", got)
 	}
-	if got := renderDiffText("main.go", "new", nil); !strings.Contains(got, "+++ main.go") {
+	if got := renderDiffText("main.go", "new", nil); !strings.Contains(got, "+++ main.go\nnew\n") {
 		t.Fatalf("unexpected rendered diff: %q", got)
+	}
+	oldText := "old"
+	if got := renderDiffText(
+		"dir\nmain\t.go",
+		"new",
+		&oldText,
+	); got != "--- dir\\nmain\\t.go\nold\n+++ dir\\nmain\\t.go\nnew\n" {
+		t.Fatalf("unexpected sanitized rendered diff: %q", got)
 	}
 }
 

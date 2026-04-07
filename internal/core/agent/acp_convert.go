@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"unicode"
 
 	acp "github.com/coder/acp-go-sdk"
 
@@ -464,8 +465,41 @@ func stringifyValue(value any) string {
 }
 
 func renderDiffText(path string, newText string, oldText *string) string {
+	path = sanitizeDiffPath(path)
+	newText = ensureTrailingNewline(newText)
 	if oldText == nil {
 		return fmt.Sprintf("+++ %s\n%s", path, newText)
 	}
-	return fmt.Sprintf("--- %s\n%s\n+++ %s\n%s", path, *oldText, path, newText)
+	old := ensureTrailingNewline(*oldText)
+	return fmt.Sprintf("--- %s\n%s+++ %s\n%s", path, old, path, newText)
+}
+
+func sanitizeDiffPath(path string) string {
+	var builder strings.Builder
+	for _, r := range path {
+		switch {
+		case r == '\n':
+			builder.WriteString(`\n`)
+		case r == '\r':
+			builder.WriteString(`\r`)
+		case r == '\t':
+			builder.WriteString(`\t`)
+		case unicode.IsControl(r):
+			if r <= 0xFF {
+				fmt.Fprintf(&builder, `\x%02X`, r)
+				continue
+			}
+			fmt.Fprintf(&builder, `\u%04X`, r)
+		default:
+			builder.WriteRune(r)
+		}
+	}
+	return builder.String()
+}
+
+func ensureTrailingNewline(text string) string {
+	if strings.HasSuffix(text, "\n") {
+		return text
+	}
+	return text + "\n"
 }

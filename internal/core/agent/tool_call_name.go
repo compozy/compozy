@@ -173,9 +173,7 @@ func inferToolNameFromInputShape(input map[string]any) string {
 		if extractString(input, "pattern") != "" {
 			return toolNameFind
 		}
-		if extractString(input, "url") != "" || refID != "" {
-			return toolNameOpenURL
-		}
+		return toolNameOpenURL
 	}
 	if extractString(input, "url") != "" {
 		return toolNameWebFetch
@@ -220,7 +218,7 @@ func looksLikeWebSearchInput(input map[string]any) bool {
 	if input == nil {
 		return false
 	}
-	for _, key := range []string{"query", "queries", "action_query", "action_type", "url", "search_query", "image_query"} {
+	for _, key := range []string{"query", "queries", "action_query", "action_type", "search_query", "image_query"} {
 		if value, ok := input[key]; ok && value != nil {
 			return true
 		}

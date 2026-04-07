@@ -258,6 +258,9 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		if err != nil {
 			return core.Config{}, fmt.Errorf("parse timeout: %w", err)
 		}
+		if parsed <= 0 {
+			return core.Config{}, fmt.Errorf("invalid timeout %q: must be > 0", s.timeout)
+		}
 		timeoutDuration = parsed
 	}
 
@@ -369,7 +372,9 @@ func (s *commandState) handleExecError(cmd *cobra.Command, err error) error {
 }
 
 func (s *commandState) resolveExecPromptSource(cmd *cobra.Command, args []string) error {
+	promptFile := currentExecPromptFile(cmd, s.promptFile)
 	s.promptText = ""
+	s.promptFile = ""
 	s.readPromptStdin = false
 	s.resolvedPromptText = ""
 
@@ -377,7 +382,6 @@ func (s *commandState) resolveExecPromptSource(cmd *cobra.Command, args []string
 	if len(args) == 1 && strings.TrimSpace(args[0]) != "" {
 		positionalPrompt = args[0]
 	}
-	promptFile := strings.TrimSpace(s.promptFile)
 	stdinPrompt, hasStdinPrompt, err := readPromptFromCommandInput(cmd.InOrStdin())
 	if err != nil {
 		return err
@@ -427,6 +431,20 @@ func (s *commandState) resolveExecPromptSource(cmd *cobra.Command, args []string
 			cmd.CommandPath(),
 		)
 	}
+}
+
+func currentExecPromptFile(cmd *cobra.Command, raw string) string {
+	if cmd == nil {
+		return strings.TrimSpace(raw)
+	}
+	flag := cmd.Flags().Lookup("prompt-file")
+	if flag == nil {
+		return strings.TrimSpace(raw)
+	}
+	if !flag.Changed {
+		return ""
+	}
+	return strings.TrimSpace(raw)
 }
 
 func readPromptFromCommandInput(reader io.Reader) (string, bool, error) {

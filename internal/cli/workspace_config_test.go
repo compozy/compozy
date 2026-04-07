@@ -427,9 +427,9 @@ ide = "claude"
 		name string
 		base *simpleCommandBase
 	}{
-		{name: "migrate", base: &migrateState.simpleCommandBase},
-		{name: "sync", base: &syncState.simpleCommandBase},
-		{name: "archive", base: &archiveState.simpleCommandBase},
+		{name: "Should migrate workspace", base: &migrateState.simpleCommandBase},
+		{name: "Should sync workspace", base: &syncState.simpleCommandBase},
+		{name: "Should archive workspace", base: &archiveState.simpleCommandBase},
 	}
 
 	for _, tc := range cases {

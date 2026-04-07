@@ -509,6 +509,36 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	}
 }
 
+func TestBuildConfigRejectsNonPositiveTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		timeout string
+	}{
+		{name: "Should reject zero timeout", timeout: "0s"},
+		{name: "Should reject negative timeout", timeout: "-1s"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindStart, core.ModePRDTasks)
+			state.timeout = tt.timeout
+
+			_, err := state.buildConfig()
+			if err == nil {
+				t.Fatal("expected buildConfig to reject non-positive timeout")
+			}
+			if !strings.Contains(err.Error(), "must be > 0") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestBuildConfigUsesFetchFlagsForFetchWorkflow(t *testing.T) {
 	t.Parallel()
 
@@ -724,6 +754,66 @@ func TestResolveExecPromptSourceRejectsExplicitPromptWhenStdinIsAlsoPresent(t *t
 			}
 			if !strings.Contains(err.Error(), "accepts only one prompt source") {
 				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveExecPromptSourceClearsStalePromptFileBetweenRuns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		args       []string
+		stdin      io.Reader
+		wantPrompt string
+	}{
+		{
+			name:       "Should clear stale prompt file when positional prompt wins",
+			args:       []string{"Prompt from args"},
+			stdin:      strings.NewReader("   \n"),
+			wantPrompt: "Prompt from args",
+		},
+		{
+			name:       "Should clear stale prompt file when stdin prompt wins",
+			stdin:      strings.NewReader("Prompt from stdin\n"),
+			wantPrompt: "Prompt from stdin\n",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindExec, core.ModeExec)
+			initialPromptPath := mustWritePromptFile(t, "Prompt from file\n")
+			initialCmd := &cobra.Command{Use: "exec"}
+			initialCmd.Flags().String("prompt-file", "", "prompt file")
+			initialCmd.SetIn(strings.NewReader("   \n"))
+			if err := initialCmd.Flags().Set("prompt-file", initialPromptPath); err != nil {
+				t.Fatalf("set prompt-file flag: %v", err)
+			}
+			state.promptFile = initialPromptPath
+
+			if err := state.resolveExecPromptSource(initialCmd, nil); err != nil {
+				t.Fatalf("resolve initial prompt file source: %v", err)
+			}
+			if state.promptFile != initialPromptPath {
+				t.Fatalf("expected initial prompt file to remain active, got %q", state.promptFile)
+			}
+
+			nextCmd := &cobra.Command{Use: "exec"}
+			nextCmd.Flags().String("prompt-file", "", "prompt file")
+			nextCmd.SetIn(tt.stdin)
+			if err := state.resolveExecPromptSource(nextCmd, tt.args); err != nil {
+				t.Fatalf("resolve subsequent prompt source: %v", err)
+			}
+			if state.promptFile != "" {
+				t.Fatalf("expected stale prompt file to be cleared, got %q", state.promptFile)
+			}
+			if state.resolvedPromptText != tt.wantPrompt {
+				t.Fatalf("unexpected resolved prompt text: %q", state.resolvedPromptText)
 			}
 		})
 	}
