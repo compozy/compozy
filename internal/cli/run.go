@@ -1,0 +1,155 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	core "github.com/compozy/compozy/internal/core"
+	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/spf13/cobra"
+)
+
+func (s *commandState) run(cmd *cobra.Command, _ []string) error {
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
+	}
+	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+		return err
+	}
+
+	cfg, err := s.buildConfig()
+	if err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+
+	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	return nil
+}
+
+func (s *commandState) exec(cmd *cobra.Command, args []string) error {
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return s.handleExecError(cmd, fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err))
+	}
+	if err := s.resolveExecPromptSource(cmd, args); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+
+	cfg, err := s.buildConfig()
+	if err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+
+	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	return nil
+}
+
+func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
+	}
+	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+		return err
+	}
+
+	cfg, err := s.buildConfig()
+	if err != nil {
+		return err
+	}
+
+	fetchReviewsFn := s.fetchReviewsFn
+	if fetchReviewsFn == nil {
+		fetchReviewsFn = core.FetchReviews
+	}
+
+	result, err := fetchReviewsFn(ctx, cfg)
+	if err != nil {
+		return err
+	}
+
+	_, _ = fmt.Fprintf(
+		cmd.OutOrStdout(),
+		"Fetched %d review issues from %s for PR %s into %s (round %03d)\n",
+		result.Total,
+		result.Provider,
+		result.PR,
+		result.ReviewsDir,
+		result.Round,
+	)
+	return nil
+}
+
+func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
+	if err := s.preflightBundledSkills(cmd, cfg); err != nil {
+		return err
+	}
+	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
+		return err
+	}
+
+	runWorkflow := s.runWorkflow
+	if runWorkflow == nil {
+		runWorkflow = core.Run
+	}
+	return runWorkflow(ctx, cfg)
+}
+
+func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
+	if s.kind != commandKindStart || cfg.Mode != core.ModePRDTasks {
+		return nil
+	}
+
+	preflightCfg := coreRun.PreflightConfig{
+		Force:          s.force,
+		SkipValidation: s.skipValidation,
+		IsInteractive:  s.isInteractive,
+		Stderr:         cmd.ErrOrStderr(),
+		Logger:         slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
+	}
+	if !s.skipValidation {
+		registry, err := taskTypeRegistryFromConfig(s.projectConfig)
+		if err != nil {
+			return fmt.Errorf("resolve task type registry: %w", err)
+		}
+		resolvedTasksDir, err := resolveTaskWorkflowDir(s.workspaceRoot, cfg.Name, cfg.TasksDir)
+		if err != nil {
+			return err
+		}
+		preflightCfg.TasksDir = resolvedTasksDir
+		preflightCfg.Registry = registry
+	}
+
+	decision, err := coreRun.PreflightCheckConfig(ctx, preflightCfg)
+	if err != nil {
+		return err
+	}
+	if decision == coreRun.PreflightAborted {
+		return withExitCode(1, fmt.Errorf("task validation failed"))
+	}
+	return nil
+}
