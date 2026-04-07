@@ -12,14 +12,14 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/provider"
-	"github.com/compozy/compozy/internal/core/providers"
+	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
-var reviewProviderRegistry = providers.DefaultRegistry
+var reviewProviderRegistry = providerdefaults.DefaultRegistry
 
 func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
 	if j.cfg.mode == model.ExecutionModePRDTasks {
@@ -41,7 +41,7 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 	if err != nil {
 		return err
 	}
-	oldTask, err := prompt.ParseTaskFile(entry.Content)
+	oldTask, err := tasks.ParseTaskFile(entry.Content)
 	if err != nil {
 		return fmt.Errorf("parse task file %s before completion: %w", entry.AbsPath, err)
 	}
@@ -323,11 +323,11 @@ func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provide
 				return nil, fmt.Errorf("read updated issue file %s: %w", entry.AbsPath, err)
 			}
 			currentContent := string(currentBody)
-			currentResolved, err := prompt.IsReviewResolved(currentContent)
+			currentResolved, err := reviews.IsReviewResolved(currentContent)
 			if err != nil {
 				return nil, fmt.Errorf("parse updated review issue %s: %w", entry.AbsPath, err)
 			}
-			previouslyResolved, err := prompt.IsReviewResolved(entry.Content)
+			previouslyResolved, err := reviews.IsReviewResolved(entry.Content)
 			if err != nil {
 				return nil, fmt.Errorf("parse original review issue %s: %w", entry.AbsPath, err)
 			}
@@ -335,7 +335,7 @@ func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provide
 				continue
 			}
 
-			reviewContext, err := prompt.ParseReviewContext(currentContent)
+			reviewContext, err := reviews.ParseReviewContext(currentContent)
 			if err != nil {
 				return nil, fmt.Errorf("parse review context for %s: %w", entry.AbsPath, err)
 			}

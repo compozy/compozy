@@ -1,6 +1,9 @@
 package commands
 
-import core "github.com/compozy/compozy/internal/core"
+import (
+	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
+)
 
 // ReviewsFetchCommand fetches provider review comments into a workflow review round.
 type ReviewsFetchCommand struct {
@@ -13,7 +16,7 @@ type ReviewsFetchCommand struct {
 
 // ReviewsFetchResult wraps the existing review fetch result contract.
 type ReviewsFetchResult struct {
-	Result *core.FetchResult
+	Result *model.FetchResult
 }
 
 // ReviewsFetchFromConfig translates the legacy core.Config shape into a typed review-fetch command.

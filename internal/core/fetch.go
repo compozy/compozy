@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/providers"
+	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/reviews"
 )
 
-var defaultProviderRegistry = providers.DefaultRegistry
+var defaultProviderRegistry = providerdefaults.DefaultRegistry
 
 func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, error) {
 	if err := validateFetchConfig(cfg); err != nil {

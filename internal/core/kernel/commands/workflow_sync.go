@@ -1,6 +1,9 @@
 package commands
 
-import core "github.com/compozy/compozy/internal/core"
+import (
+	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
+)
 
 // WorkflowSyncCommand refreshes task workflow metadata.
 type WorkflowSyncCommand struct {
@@ -13,7 +16,7 @@ type WorkflowSyncCommand struct {
 
 // WorkflowSyncResult wraps the existing sync result contract.
 type WorkflowSyncResult struct {
-	Result *core.SyncResult
+	Result *model.SyncResult
 }
 
 // WorkflowSyncFromConfig translates the legacy core.Config shape into a typed sync command.
@@ -28,7 +31,7 @@ func WorkflowSyncFromConfig(cfg core.Config) WorkflowSyncCommand {
 
 // WorkflowSyncFromSyncConfig translates the direct sync config into a typed sync
 // command without caller-side field copying.
-func WorkflowSyncFromSyncConfig(cfg core.SyncConfig) WorkflowSyncCommand {
+func WorkflowSyncFromSyncConfig(cfg model.SyncConfig) WorkflowSyncCommand {
 	return WorkflowSyncCommand{
 		WorkspaceRoot: cfg.WorkspaceRoot,
 		RootDir:       cfg.RootDir,
@@ -38,8 +41,8 @@ func WorkflowSyncFromSyncConfig(cfg core.SyncConfig) WorkflowSyncCommand {
 }
 
 // CoreConfig converts the command into the existing sync configuration shape.
-func (c WorkflowSyncCommand) CoreConfig() core.SyncConfig {
-	return core.SyncConfig{
+func (c WorkflowSyncCommand) CoreConfig() model.SyncConfig {
+	return model.SyncConfig{
 		WorkspaceRoot: c.WorkspaceRoot,
 		RootDir:       c.RootDir,
 		Name:          c.Name,

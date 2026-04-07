@@ -7,12 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
 )
@@ -225,59 +223,15 @@ func readIssueEntries(
 }
 
 func readTaskEntries(tasksDir string, includeCompleted bool) ([]model.IssueEntry, error) {
-	entries := []model.IssueEntry{}
-	files, err := os.ReadDir(tasksDir)
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, 0, len(files))
-	for _, f := range files {
-		if !f.Type().IsRegular() || !strings.HasSuffix(f.Name(), ".md") {
-			continue
-		}
-		if prompt.ExtractTaskNumber(f.Name()) == 0 {
-			continue
-		}
-		names = append(names, f.Name())
-	}
-
-	sort.SliceStable(names, func(i, j int) bool {
-		return prompt.ExtractTaskNumber(names[i]) < prompt.ExtractTaskNumber(names[j])
-	})
-
-	for _, name := range names {
-		absPath := filepath.Join(tasksDir, name)
-		body, err := os.ReadFile(absPath)
-		if err != nil {
-			return nil, err
-		}
-
-		content := string(body)
-		task, err := prompt.ParseTaskFile(content)
-		if err != nil {
-			return nil, tasks.WrapTaskParseError(absPath, err)
-		}
-		if !includeCompleted && prompt.IsTaskCompleted(task) {
-			continue
-		}
-
-		entries = append(entries, model.IssueEntry{
-			Name:     name,
-			AbsPath:  absPath,
-			Content:  content,
-			CodeFile: strings.TrimSuffix(name, ".md"),
-		})
-	}
-	return entries, nil
+	return tasks.ReadTaskEntries(tasksDir, includeCompleted)
 }
 
 func filterUnresolved(all []model.IssueEntry) ([]model.IssueEntry, error) {
 	out := make([]model.IssueEntry, 0, len(all))
 	for _, entry := range all {
-		resolved, err := prompt.IsReviewResolved(entry.Content)
+		resolved, err := reviews.IsReviewResolved(entry.Content)
 		if err != nil {
-			return nil, reviews.WrapReviewParseError(entry.AbsPath, err)
+			return nil, reviews.WrapParseError(entry.AbsPath, err)
 		}
 		if !resolved {
 			out = append(out, entry)

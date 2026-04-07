@@ -13,7 +13,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
@@ -85,47 +84,19 @@ func migrateArtifacts(ctx context.Context, cfg MigrationConfig) (*MigrationResul
 }
 
 func resolveMigrationTarget(cfg MigrationConfig) (string, error) {
-	specificTargets := 0
-	if strings.TrimSpace(cfg.Name) != "" {
-		specificTargets++
-	}
-	if strings.TrimSpace(cfg.TasksDir) != "" {
-		specificTargets++
-	}
-	if strings.TrimSpace(cfg.ReviewsDir) != "" {
-		specificTargets++
-	}
-	if specificTargets > 1 {
-		return "", errors.New("migrate accepts only one of --name, --tasks-dir, or --reviews-dir")
-	}
-
-	rootDir := strings.TrimSpace(cfg.RootDir)
-	if rootDir == "" {
-		rootDir = model.TasksBaseDirForWorkspace(cfg.WorkspaceRoot)
-	}
-
-	target := rootDir
-	switch {
-	case strings.TrimSpace(cfg.ReviewsDir) != "":
-		target = strings.TrimSpace(cfg.ReviewsDir)
-	case strings.TrimSpace(cfg.TasksDir) != "":
-		target = strings.TrimSpace(cfg.TasksDir)
-	case strings.TrimSpace(cfg.Name) != "":
-		target = filepath.Join(rootDir, strings.TrimSpace(cfg.Name))
-	}
-
-	resolved, err := filepath.Abs(target)
+	resolved, err := resolveWorkflowTarget(workflowTargetOptions{
+		command:       "migrate",
+		workspaceRoot: cfg.WorkspaceRoot,
+		rootDir:       cfg.RootDir,
+		name:          cfg.Name,
+		tasksDir:      cfg.TasksDir,
+		reviewsDir:    cfg.ReviewsDir,
+		selectorFlags: "--name, --tasks-dir, or --reviews-dir",
+	})
 	if err != nil {
-		return "", fmt.Errorf("resolve migration target: %w", err)
+		return "", err
 	}
-	info, err := os.Stat(resolved)
-	if err != nil {
-		return "", fmt.Errorf("stat migration target: %w", err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("migration target is not a directory: %s", resolved)
-	}
-	return resolved, nil
+	return resolved.target, nil
 }
 
 func scanMigrationTarget(
@@ -166,10 +137,10 @@ func (s *migrationScanState) handlePath(path string, entry fs.DirEntry) error {
 
 	base := filepath.Base(path)
 	switch {
-	case prompt.ExtractTaskNumber(base) > 0:
+	case tasks.ExtractTaskNumber(base) > 0:
 		s.result.FilesScanned++
 		return s.appendTaskMigration(path)
-	case prompt.ExtractIssueNumber(base) > 0:
+	case reviews.ExtractIssueNumber(base) > 0:
 		s.result.FilesScanned++
 		return s.appendReviewMigration(path)
 	case base == "_meta.md":
@@ -234,7 +205,7 @@ func inspectTaskArtifact(
 	var node yaml.Node
 	if _, err := frontmatter.Parse(string(content), &node); err == nil {
 		if !taskFrontMatterNeedsV1ToV2(&node) {
-			if _, parseErr := prompt.ParseTaskFile(string(content)); parseErr != nil {
+			if _, parseErr := tasks.ParseTaskFile(string(content)); parseErr != nil {
 				return nil, parseErr
 			}
 			result.FilesAlreadyFrontmatter++
@@ -253,7 +224,7 @@ func inspectTaskArtifact(
 			}
 		}
 		return fileMigration, nil
-	} else if !prompt.LooksLikeLegacyTaskFile(string(content)) {
+	} else if !tasks.LooksLikeLegacyTaskFile(string(content)) {
 		return nil, fmt.Errorf("parse task artifact: %w", err)
 	}
 
@@ -282,18 +253,18 @@ func inspectReviewArtifact(path string, result *MigrationResult) (*pendingFileMi
 		return nil, fmt.Errorf("read review artifact: %w", err)
 	}
 
-	if _, err := prompt.ParseReviewContext(string(content)); err == nil {
+	if _, err := reviews.ParseReviewContext(string(content)); err == nil {
 		result.FilesAlreadyFrontmatter++
 		return nil, nil
-	} else if !errors.Is(err, prompt.ErrLegacyReviewMetadata) {
+	} else if !errors.Is(err, reviews.ErrLegacyReviewMetadata) {
 		return nil, err
 	}
 
-	legacyReview, err := prompt.ParseLegacyReviewContext(string(content))
+	legacyReview, err := reviews.ParseLegacyReviewContext(string(content))
 	if err != nil {
 		return nil, err
 	}
-	body, err := prompt.ExtractLegacyReviewBody(string(content))
+	body, err := reviews.ExtractLegacyReviewBody(string(content))
 	if err != nil {
 		return nil, err
 	}
@@ -337,12 +308,12 @@ func migrationTaskTypeRegistry(ctx context.Context, workspaceRoot string) (*task
 }
 
 func migrateLegacyTaskToV1(content string) (string, error) {
-	legacyTask, err := prompt.ParseLegacyTaskFile(content)
+	legacyTask, err := tasks.ParseLegacyTaskFile(content)
 	if err != nil {
 		return "", err
 	}
 
-	body, err := prompt.ExtractLegacyTaskBody(content)
+	body, err := tasks.ExtractLegacyTaskBody(content)
 	if err != nil {
 		return "", err
 	}

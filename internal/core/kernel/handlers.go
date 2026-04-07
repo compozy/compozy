@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/core/kernel/commands"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
-	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
@@ -24,10 +23,10 @@ type operations interface {
 	Prepare(context.Context, *model.RuntimeConfig) (*model.SolvePreparation, error)
 	Execute(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	ExecuteExec(context.Context, *model.RuntimeConfig) error
-	FetchReviews(context.Context, core.Config) (*core.FetchResult, error)
-	Migrate(context.Context, core.MigrationConfig) (*core.MigrationResult, error)
-	Sync(context.Context, core.SyncConfig) (*core.SyncResult, error)
-	Archive(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error)
+	FetchReviews(context.Context, core.Config) (*model.FetchResult, error)
+	Migrate(context.Context, model.MigrationConfig) (*model.MigrationResult, error)
+	Sync(context.Context, model.SyncConfig) (*model.SyncResult, error)
+	Archive(context.Context, model.ArchiveConfig) (*model.ArchiveResult, error)
 }
 
 type realOperations struct {
@@ -58,19 +57,19 @@ func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig)
 	return run.ExecuteExec(ctx, cfg)
 }
 
-func (realOperations) FetchReviews(ctx context.Context, cfg core.Config) (*core.FetchResult, error) {
+func (realOperations) FetchReviews(ctx context.Context, cfg core.Config) (*model.FetchResult, error) {
 	return core.FetchReviewsDirect(ctx, cfg)
 }
 
-func (realOperations) Migrate(ctx context.Context, cfg core.MigrationConfig) (*core.MigrationResult, error) {
+func (realOperations) Migrate(ctx context.Context, cfg model.MigrationConfig) (*model.MigrationResult, error) {
 	return core.MigrateDirect(ctx, cfg)
 }
 
-func (realOperations) Sync(ctx context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
+func (realOperations) Sync(ctx context.Context, cfg model.SyncConfig) (*model.SyncResult, error) {
 	return core.SyncDirect(ctx, cfg)
 }
 
-func (realOperations) Archive(ctx context.Context, cfg core.ArchiveConfig) (*core.ArchiveResult, error) {
+func (realOperations) Archive(ctx context.Context, cfg model.ArchiveConfig) (*model.ArchiveResult, error) {
 	return core.ArchiveDirect(ctx, cfg)
 }
 
@@ -158,7 +157,7 @@ func (h *workflowPrepareHandler) Handle(
 		}
 		return zero, err
 	}
-	defer preputil.ClosePreparationJournal(ctx, prep)
+	defer plan.ClosePreparationJournal(ctx, prep)
 
 	return commands.WorkflowPrepareResult{
 		Preparation:  core.NewPreparation(prep),

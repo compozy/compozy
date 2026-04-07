@@ -152,7 +152,7 @@ func TestWorkspaceMigrateCommandCoreConfigMapsFields(t *testing.T) {
 func TestWorkspaceMigrateFromMigrationConfigMapsAllFields(t *testing.T) {
 	t.Parallel()
 
-	cfg := core.MigrationConfig{
+	cfg := model.MigrationConfig{
 		WorkspaceRoot: "/workspace",
 		RootDir:       "/workspace/.compozy/tasks",
 		Name:          "demo",
@@ -206,7 +206,7 @@ func TestWorkflowSyncCommandCoreConfigMapsFields(t *testing.T) {
 func TestWorkflowSyncFromSyncConfigMapsAllFields(t *testing.T) {
 	t.Parallel()
 
-	cfg := core.SyncConfig{
+	cfg := model.SyncConfig{
 		WorkspaceRoot: "/workspace",
 		RootDir:       "/workspace/.compozy/tasks",
 		Name:          "demo",
@@ -255,7 +255,7 @@ func TestWorkflowArchiveCommandCoreConfigMapsFields(t *testing.T) {
 func TestWorkflowArchiveFromArchiveConfigMapsAllFields(t *testing.T) {
 	t.Parallel()
 
-	cfg := core.ArchiveConfig{
+	cfg := model.ArchiveConfig{
 		WorkspaceRoot: "/workspace",
 		RootDir:       "/workspace/.compozy/tasks",
 		Name:          "demo",

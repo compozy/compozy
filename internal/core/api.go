@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
-	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/run"
 )
 
@@ -152,69 +151,19 @@ type Preparation struct {
 	InputDirPath     string
 }
 
-type FetchResult struct {
-	Name       string
-	Provider   string
-	PR         string
-	Round      int
-	ReviewsDir string
-	Total      int
-}
+type FetchResult = model.FetchResult
 
-type MigrationConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
-	ReviewsDir    string
-	DryRun        bool
-}
+type MigrationConfig = model.MigrationConfig
 
-type MigrationResult struct {
-	Target                  string
-	DryRun                  bool
-	FilesScanned            int
-	FilesMigrated           int
-	V1ToV2Migrated          int
-	FilesAlreadyFrontmatter int
-	FilesSkipped            int
-	FilesInvalid            int
-	MigratedPaths           []string
-	UnmappedTypeFiles       []string
-	InvalidPaths            []string
-}
+type MigrationResult = model.MigrationResult
 
-type SyncConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
-}
+type SyncConfig = model.SyncConfig
 
-type ArchiveConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
-}
+type ArchiveConfig = model.ArchiveConfig
 
-type SyncResult struct {
-	Target           string
-	WorkflowsScanned int
-	MetaCreated      int
-	MetaUpdated      int
-	SyncedPaths      []string
-}
+type SyncResult = model.SyncResult
 
-type ArchiveResult struct {
-	Target           string
-	ArchiveRoot      string
-	WorkflowsScanned int
-	Archived         int
-	Skipped          int
-	ArchivedPaths    []string
-	SkippedReasons   map[string]string
-}
+type ArchiveResult = model.ArchiveResult
 
 // Validate ensures the configuration is internally consistent.
 func (cfg Config) Validate() error {
@@ -302,7 +251,7 @@ func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 		}
 		return nil, err
 	}
-	defer preputil.ClosePreparationJournal(ctx, prep)
+	defer plan.ClosePreparationJournal(ctx, prep)
 	return NewPreparation(prep), nil
 }
 

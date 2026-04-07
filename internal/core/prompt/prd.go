@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/tasks"
 )
 
 type WorkflowMemoryContext struct {
@@ -17,7 +18,7 @@ type WorkflowMemoryContext struct {
 }
 
 func buildPRDTaskPrompt(task model.IssueEntry, autoCommit bool, memory *WorkflowMemoryContext) string {
-	taskData, err := ParseTaskFile(task.Content)
+	taskData, err := tasks.ParseTaskFile(task.Content)
 	if err != nil {
 		taskData = model.TaskEntry{Content: task.Content, Status: "UNCONFIRMED"}
 	}

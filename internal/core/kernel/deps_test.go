@@ -26,9 +26,9 @@ type fakeOperations struct {
 	executeCalls  []executeCall
 	execCalls     []*model.RuntimeConfig
 	fetchCalls    []core.Config
-	migrateCalls  []core.MigrationConfig
-	syncCalls     []core.SyncConfig
-	archiveCalls  []core.ArchiveConfig
+	migrateCalls  []model.MigrationConfig
+	syncCalls     []model.SyncConfig
+	archiveCalls  []model.ArchiveConfig
 
 	validateErr error
 	prepareErr  error
@@ -40,10 +40,10 @@ type fakeOperations struct {
 	archiveErr  error
 
 	prepareResult *model.SolvePreparation
-	fetchResult   *core.FetchResult
-	migrateResult *core.MigrationResult
-	syncResult    *core.SyncResult
-	archiveResult *core.ArchiveResult
+	fetchResult   *model.FetchResult
+	migrateResult *model.MigrationResult
+	syncResult    *model.SyncResult
+	archiveResult *model.ArchiveResult
 }
 
 func (f *fakeOperations) ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
@@ -79,52 +79,52 @@ func (f *fakeOperations) ExecuteExec(_ context.Context, cfg *model.RuntimeConfig
 	return f.execErr
 }
 
-func (f *fakeOperations) FetchReviews(_ context.Context, cfg core.Config) (*core.FetchResult, error) {
+func (f *fakeOperations) FetchReviews(_ context.Context, cfg core.Config) (*model.FetchResult, error) {
 	f.fetchCalls = append(f.fetchCalls, cfg)
 	if f.fetchErr != nil {
 		return nil, f.fetchErr
 	}
 	if f.fetchResult == nil {
-		return &core.FetchResult{}, nil
+		return &model.FetchResult{}, nil
 	}
 	return f.fetchResult, nil
 }
 
 func (f *fakeOperations) Migrate(
 	_ context.Context,
-	cfg core.MigrationConfig,
-) (*core.MigrationResult, error) {
+	cfg model.MigrationConfig,
+) (*model.MigrationResult, error) {
 	f.migrateCalls = append(f.migrateCalls, cfg)
 	if f.migrateErr != nil {
 		return nil, f.migrateErr
 	}
 	if f.migrateResult == nil {
-		return &core.MigrationResult{}, nil
+		return &model.MigrationResult{}, nil
 	}
 	return f.migrateResult, nil
 }
 
-func (f *fakeOperations) Sync(_ context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
+func (f *fakeOperations) Sync(_ context.Context, cfg model.SyncConfig) (*model.SyncResult, error) {
 	f.syncCalls = append(f.syncCalls, cfg)
 	if f.syncErr != nil {
 		return nil, f.syncErr
 	}
 	if f.syncResult == nil {
-		return &core.SyncResult{}, nil
+		return &model.SyncResult{}, nil
 	}
 	return f.syncResult, nil
 }
 
 func (f *fakeOperations) Archive(
 	_ context.Context,
-	cfg core.ArchiveConfig,
-) (*core.ArchiveResult, error) {
+	cfg model.ArchiveConfig,
+) (*model.ArchiveResult, error) {
 	f.archiveCalls = append(f.archiveCalls, cfg)
 	if f.archiveErr != nil {
 		return nil, f.archiveErr
 	}
 	if f.archiveResult == nil {
-		return &core.ArchiveResult{}, nil
+		return &model.ArchiveResult{}, nil
 	}
 	return f.archiveResult, nil
 }
@@ -316,10 +316,10 @@ func TestBuildDefaultDispatchesAllPhaseACommandsSequentially(t *testing.T) {
 			Jobs:         []model.Job{{SafeName: "task-001"}},
 			RunArtifacts: model.NewRunArtifacts("/workspace", "run-200"),
 		},
-		fetchResult:   &core.FetchResult{Name: "demo", Round: 2},
-		migrateResult: &core.MigrationResult{Target: "/workspace/.compozy/tasks/demo"},
-		syncResult:    &core.SyncResult{Target: "/workspace/.compozy/tasks/demo"},
-		archiveResult: &core.ArchiveResult{Target: "/workspace/.compozy/tasks/demo"},
+		fetchResult:   &model.FetchResult{Name: "demo", Round: 2},
+		migrateResult: &model.MigrationResult{Target: "/workspace/.compozy/tasks/demo"},
+		syncResult:    &model.SyncResult{Target: "/workspace/.compozy/tasks/demo"},
+		archiveResult: &model.ArchiveResult{Target: "/workspace/.compozy/tasks/demo"},
 	}
 	dispatcher := BuildDefault(testKernelDeps(fake))
 

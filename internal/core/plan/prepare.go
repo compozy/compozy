@@ -13,7 +13,6 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/memory"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
 	"github.com/compozy/compozy/internal/core/run/journal"
@@ -35,7 +34,7 @@ func Prepare(
 		if prepared {
 			return
 		}
-		preputil.ClosePreparationJournal(ctx, prep)
+		ClosePreparationJournal(ctx, prep)
 	}()
 
 	if cfg.Mode == model.ExecutionModeExec {
@@ -229,9 +228,9 @@ func buildBatchJob(
 		if len(batchIssues) == 0 {
 			return model.Job{}, errors.New("prepare prd job: missing task issue")
 		}
-		taskData, err = prompt.ParseTaskFile(batchIssues[0].Content)
+		taskData, err = tasks.ParseTaskFile(batchIssues[0].Content)
 		if err != nil {
-			return model.Job{}, tasks.WrapTaskParseError(batchIssues[0].AbsPath, err)
+			return model.Job{}, tasks.WrapParseError(batchIssues[0].AbsPath, err)
 		}
 		memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
 		if err != nil {

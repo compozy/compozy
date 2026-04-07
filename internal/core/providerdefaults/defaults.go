@@ -1,4 +1,4 @@
-package providers
+package providerdefaults
 
 import (
 	"github.com/compozy/compozy/internal/core/provider"

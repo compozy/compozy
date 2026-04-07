@@ -12,7 +12,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/prompt"
 )
 
 const metaFileName = "_meta.md"
@@ -89,9 +88,9 @@ func MarkTaskCompleted(tasksDir, taskFileName string) error {
 		return fmt.Errorf("read task file %s: %w", taskName, err)
 	}
 
-	task, err := prompt.ParseTaskFile(string(content))
+	task, err := ParseTaskFile(string(content))
 	if err != nil {
-		return WrapTaskParseError(filepath.Join(strings.TrimSpace(tasksDir), taskName), err)
+		return WrapParseError(filepath.Join(strings.TrimSpace(tasksDir), taskName), err)
 	}
 	if strings.EqualFold(strings.TrimSpace(task.Status), "completed") {
 		return nil
@@ -109,7 +108,7 @@ func MarkTaskCompleted(tasksDir, taskFileName string) error {
 
 func resolveTaskName(taskFileName string) (string, error) {
 	name := filepath.Base(strings.TrimSpace(taskFileName))
-	if prompt.ExtractTaskNumber(name) == 0 {
+	if ExtractTaskNumber(name) == 0 {
 		return "", fmt.Errorf("invalid task file name %q", taskFileName)
 	}
 	return name, nil
@@ -188,44 +187,17 @@ func parseTaskMetaSummary(lines []string, meta *model.TaskMeta) error {
 }
 
 func countTasks(tasksDir string) (int, int, error) {
-	files, err := os.ReadDir(tasksDir)
-	if err != nil {
-		return 0, 0, fmt.Errorf("read tasks directory: %w", err)
-	}
-
 	total := 0
 	completed := 0
-	for _, file := range files {
-		if !file.Type().IsRegular() || !strings.HasSuffix(file.Name(), ".md") {
-			continue
-		}
-		if prompt.ExtractTaskNumber(file.Name()) == 0 {
-			continue
-		}
-
+	err := walkTaskFiles(tasksDir, func(_ model.IssueEntry, task model.TaskEntry) error {
 		total++
-		absPath := filepath.Join(tasksDir, file.Name())
-		body, err := os.ReadFile(absPath)
-		if err != nil {
-			return 0, 0, fmt.Errorf("read %s: %w", file.Name(), err)
-		}
-
-		task, err := prompt.ParseTaskFile(string(body))
-		if err != nil {
-			return 0, 0, WrapTaskParseError(absPath, err)
-		}
-		if prompt.IsTaskCompleted(task) {
+		if IsTaskCompleted(task) {
 			completed++
 		}
+		return nil
+	})
+	if err != nil {
+		return 0, 0, err
 	}
-
 	return total, completed, nil
-}
-
-// WrapTaskParseError preserves task parsing migration guidance across packages.
-func WrapTaskParseError(path string, err error) error {
-	if errors.Is(err, prompt.ErrLegacyTaskMetadata) || errors.Is(err, prompt.ErrV1TaskMetadata) {
-		return fmt.Errorf("legacy task artifact detected at %s; run `compozy migrate`", path)
-	}
-	return fmt.Errorf("parse task artifact %s: %w", path, err)
 }
