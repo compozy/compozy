@@ -37,7 +37,9 @@ func (p *SolvePreparation) SetJournal(j *journal.Journal) {
 		return
 	}
 	if j == nil {
-		p.JournalHandle = nil
+		return
+	}
+	if p.JournalHandle != nil {
 		return
 	}
 	p.JournalHandle = journal.NewOwner(j)
@@ -48,8 +50,11 @@ func (p *SolvePreparation) CloseJournal(ctx context.Context) error {
 		return nil
 	}
 	handle := p.JournalHandle
+	if err := handle.Close(ctx); err != nil {
+		return err
+	}
 	p.JournalHandle = nil
-	return handle.Close(ctx)
+	return nil
 }
 
 type Job struct {

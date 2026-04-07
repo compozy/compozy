@@ -38,7 +38,7 @@ func Prepare(
 	}()
 
 	if cfg.Mode == model.ExecutionModeExec {
-		execPrep, err := prepareExec(prep, cfg, bus)
+		execPrep, err := prepareExec(ctx, prep, cfg, bus)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +46,7 @@ func Prepare(
 		return execPrep, nil
 	}
 
-	if err := prepareWorkflowRun(prep, cfg, bus); err != nil {
+	if err := prepareWorkflowRun(ctx, prep, cfg, bus); err != nil {
 		return nil, err
 	}
 
@@ -55,11 +55,12 @@ func Prepare(
 }
 
 func prepareWorkflowRun(
+	ctx context.Context,
 	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
 	bus *events.Bus[events.Event],
 ) error {
-	entries, err := resolvePreparedEntries(prep, cfg)
+	entries, err := resolvePreparedEntries(ctx, prep, cfg)
 	if err != nil {
 		return err
 	}
@@ -83,7 +84,11 @@ func prepareWorkflowRun(
 	return writeRunMetadata(prep, cfg)
 }
 
-func resolvePreparedEntries(prep *model.SolvePreparation, cfg *model.RuntimeConfig) ([]model.IssueEntry, error) {
+func resolvePreparedEntries(
+	ctx context.Context,
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+) ([]model.IssueEntry, error) {
 	var err error
 	prep.ResolvedName, prep.InputDir, prep.InputDirPath, err = resolveInputs(cfg)
 	if err != nil {
@@ -92,7 +97,7 @@ func resolvePreparedEntries(prep *model.SolvePreparation, cfg *model.RuntimeConf
 	if err := configureWorkflowInput(prep, cfg); err != nil {
 		return nil, err
 	}
-	if err := agent.EnsureAvailable(cfg); err != nil {
+	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return nil, err
 	}
 
@@ -131,6 +136,7 @@ func configureReviewInput(prep *model.SolvePreparation, cfg *model.RuntimeConfig
 }
 
 func prepareExec(
+	ctx context.Context,
 	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
 	bus *events.Bus[events.Event],
@@ -139,7 +145,7 @@ func prepareExec(
 	if err != nil {
 		return nil, err
 	}
-	if err := agent.EnsureAvailable(cfg); err != nil {
+	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return nil, err
 	}
 

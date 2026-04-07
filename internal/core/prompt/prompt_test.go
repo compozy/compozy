@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -288,9 +289,48 @@ func TestBuildSystemPromptAddendumIncludesWorkflowMemoryOnlyForPRDTasks(t *testi
 func TestSafeFileName(t *testing.T) {
 	t.Parallel()
 
-	if got := SafeFileName(`dir\subdir/file.go`); !strings.HasPrefix(got, "dir_subdir_file.go-") {
-		t.Fatalf("unexpected safe file name: %q", got)
+	cases := []struct {
+		name       string
+		input      string
+		wantPrefix string
+	}{
+		{
+			name:       "Should preserve a sanitized prefix for windows separators",
+			input:      `dir\subdir/file.go`,
+			wantPrefix: "dir_subdir_file.go-",
+		},
+		{
+			name:       "Should preserve a sanitized prefix for spaced paths",
+			input:      "dir with spaces/file.go",
+			wantPrefix: "dir_with_spaces_file.go-",
+		},
 	}
+
+	suffixPattern := regexp.MustCompile(`-[a-f0-9]{6}$`)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := SafeFileName(tc.input)
+			if !strings.HasPrefix(got, tc.wantPrefix) {
+				t.Fatalf("unexpected safe file name prefix: %q", got)
+			}
+			if !suffixPattern.MatchString(got) {
+				t.Fatalf("expected hashed suffix in %q", got)
+			}
+		})
+	}
+
+	t.Run("Should produce different names for inputs with the same sanitized base", func(t *testing.T) {
+		t.Parallel()
+
+		first := SafeFileName("dir file.go")
+		second := SafeFileName("dir\tfile.go")
+		if first == second {
+			t.Fatalf("expected collision-resistant file names, got %q", first)
+		}
+	})
 }
 
 func TestBuildDispatchesByMode(t *testing.T) {

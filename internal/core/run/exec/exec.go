@@ -233,7 +233,7 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
-	if err := agent.EnsureAvailable(cfg); err != nil {
+	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return "", nil, nil, job{}, err
 	}
 	state, err := prepareExecRunState(ctx, cfg)

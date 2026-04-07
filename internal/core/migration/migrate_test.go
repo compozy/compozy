@@ -527,10 +527,41 @@ func TestMigrateRejectsInvalidArtifactsWithoutWriting(t *testing.T) {
 	if result.FilesInvalid != 1 {
 		t.Fatalf("expected 1 invalid file, got %d", result.FilesInvalid)
 	}
+	if !strings.Contains(err.Error(), "parse task artifact") {
+		t.Fatalf("expected invalid artifact error to preserve the parse cause, got %v", err)
+	}
 
 	content := readMigrationFile(t, taskPath)
 	if content != invalidTask {
 		t.Fatalf("expected failed migrate to leave file unchanged\nwant:\n%s\ngot:\n%s", invalidTask, content)
+	}
+}
+
+func TestWritePendingFilesHonorsCancellationBetweenWrites(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	pending := []pendingFileMigration{
+		{path: filepath.Join(t.TempDir(), "task_01.md"), content: "first"},
+		{path: filepath.Join(t.TempDir(), "task_02.md"), content: "second"},
+	}
+	writeCount := 0
+
+	err := writePendingFiles(ctx, pending, func(path string, data []byte, perm os.FileMode) error {
+		writeCount++
+		if writeCount == 1 {
+			cancel()
+		}
+		return os.WriteFile(path, data, perm)
+	})
+	if err == nil {
+		t.Fatal("expected writePendingFiles to stop after cancellation")
+	}
+	if !strings.Contains(err.Error(), "migration canceled during write") {
+		t.Fatalf("unexpected cancellation error: %v", err)
+	}
+	if writeCount != 1 {
+		t.Fatalf("expected a single write before cancellation, got %d", writeCount)
 	}
 }
 

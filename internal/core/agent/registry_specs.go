@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"sync"
@@ -56,7 +57,7 @@ type DriverCatalogLauncher struct {
 // execution and kernel code.
 type RuntimeRegistry interface {
 	ValidateRuntimeConfig(cfg *model.RuntimeConfig) error
-	EnsureAvailable(cfg *model.RuntimeConfig) error
+	EnsureAvailable(ctx context.Context, cfg *model.RuntimeConfig) error
 }
 
 // Registry exposes the supported ACP runtime catalog through a value that can be
@@ -250,8 +251,8 @@ func (Registry) ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 }
 
 // EnsureAvailable verifies that the configured ACP agent binary is installed and executable.
-func (Registry) EnsureAvailable(cfg *model.RuntimeConfig) error {
-	return EnsureAvailable(cfg)
+func (Registry) EnsureAvailable(ctx context.Context, cfg *model.RuntimeConfig) error {
+	return EnsureAvailable(ctx, cfg)
 }
 
 // DisplayName returns the human-readable display name for an agent runtime.

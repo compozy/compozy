@@ -72,9 +72,18 @@ func sanitizeRunID(runID string) string {
 }
 
 func (artifacts RunArtifacts) JobArtifacts(safeName string) JobArtifacts {
+	sanitizedName := sanitizeJobArtifactName(safeName)
 	return JobArtifacts{
-		PromptPath: filepath.Join(artifacts.JobsDir, safeName+".prompt.md"),
-		OutLogPath: filepath.Join(artifacts.JobsDir, safeName+".out.log"),
-		ErrLogPath: filepath.Join(artifacts.JobsDir, safeName+".err.log"),
+		PromptPath: filepath.Join(artifacts.JobsDir, sanitizedName+".prompt.md"),
+		OutLogPath: filepath.Join(artifacts.JobsDir, sanitizedName+".out.log"),
+		ErrLogPath: filepath.Join(artifacts.JobsDir, sanitizedName+".err.log"),
 	}
+}
+
+func sanitizeJobArtifactName(name string) string {
+	safe := strings.TrimLeft(sanitizeRunID(name), ".-")
+	if safe == "" {
+		return "job"
+	}
+	return safe
 }

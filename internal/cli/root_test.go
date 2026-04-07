@@ -658,7 +658,7 @@ func TestResolveExecPromptSourceSkipsStdinWhenPromptIsResolvedExplicitly(t *test
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			reader := &failOnReadReader{err: errors.New("stdin should not be read")}
+			reader := strings.NewReader("   \n")
 			state := newCommandState(commandKindExec, core.ModeExec)
 			state.promptFile = tc.promptFile
 			cmd := &cobra.Command{Use: "exec"}
@@ -666,9 +666,6 @@ func TestResolveExecPromptSourceSkipsStdinWhenPromptIsResolvedExplicitly(t *test
 
 			if err := state.resolveExecPromptSource(cmd, tc.args); err != nil {
 				t.Fatalf("resolveExecPromptSource: %v", err)
-			}
-			if reader.called {
-				t.Fatal("expected explicit prompt source to bypass stdin reads")
 			}
 			if state.resolvedPromptText != tc.want {
 				t.Fatalf("unexpected resolved prompt text: %q", state.resolvedPromptText)
@@ -689,6 +686,74 @@ func TestResolveExecPromptSourceRejectsAmbiguousExplicitSources(t *testing.T) {
 		t.Fatal("expected ambiguous prompt sources to fail")
 	}
 	if !strings.Contains(err.Error(), "accepts only one prompt source") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveExecPromptSourceRejectsExplicitPromptWhenStdinIsAlsoPresent(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		args       []string
+		promptFile string
+	}{
+		{
+			name: "Should reject positional prompt plus stdin",
+			args: []string{"Prompt from args"},
+		},
+		{
+			name:       "Should reject prompt file plus stdin",
+			promptFile: mustWritePromptFile(t, "Prompt from file\n"),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindExec, core.ModeExec)
+			state.promptFile = tc.promptFile
+			cmd := &cobra.Command{Use: "exec"}
+			cmd.SetIn(strings.NewReader("Prompt from stdin\n"))
+
+			err := state.resolveExecPromptSource(cmd, tc.args)
+			if err == nil {
+				t.Fatal("expected ambiguous prompt sources to fail")
+			}
+			if !strings.Contains(err.Error(), "accepts only one prompt source") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestFetchReviewsReturnsWriterErrors(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	state.fetchReviewsFn = func(context.Context, core.Config) (*core.FetchResult, error) {
+		return &core.FetchResult{
+			Provider:   "coderabbit",
+			PR:         "70",
+			Round:      1,
+			ReviewsDir: "/tmp/reviews",
+			Total:      19,
+		}, nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.SetOut(&failOnWriteWriter{err: errors.New("broken stdout")})
+	if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+		t.Fatalf("set dry-run flag: %v", err)
+	}
+
+	err := state.fetchReviews(cmd, nil)
+	if err == nil {
+		t.Fatal("expected fetchReviews to return a write error")
+	}
+	if !strings.Contains(err.Error(), "write fetch summary") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -1541,15 +1606,23 @@ func mustCLIRepoRootPath(t *testing.T, elems ...string) string {
 	return filepath.Join(parts...)
 }
 
-type failOnReadReader struct {
-	called bool
-	err    error
+func mustWritePromptFile(t *testing.T, content string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "prompt.md")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+	return path
 }
 
-func (r *failOnReadReader) Read(_ []byte) (int, error) {
-	r.called = true
-	if r.err != nil {
-		return 0, r.err
+type failOnWriteWriter struct {
+	err error
+}
+
+func (w *failOnWriteWriter) Write(_ []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
 	}
-	return 0, io.EOF
+	return 0, io.ErrClosedPipe
 }

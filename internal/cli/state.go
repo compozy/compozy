@@ -375,12 +375,19 @@ func (s *commandState) resolveExecPromptSource(cmd *cobra.Command, args []string
 		positionalPrompt = args[0]
 	}
 	promptFile := strings.TrimSpace(s.promptFile)
+	stdinPrompt, hasStdinPrompt, err := readPromptFromCommandInput(cmd.InOrStdin())
+	if err != nil {
+		return err
+	}
 
 	sourceCount := 0
 	if positionalPrompt != "" {
 		sourceCount++
 	}
 	if promptFile != "" {
+		sourceCount++
+	}
+	if hasStdinPrompt {
 		sourceCount++
 	}
 
@@ -407,20 +414,15 @@ func (s *commandState) resolveExecPromptSource(cmd *cobra.Command, args []string
 		s.promptFile = promptFile
 		s.resolvedPromptText = string(content)
 		return nil
-	default:
-		stdinPrompt, hasStdinPrompt, err := readPromptFromCommandInput(cmd.InOrStdin())
-		if err != nil {
-			return err
-		}
-		if !hasStdinPrompt {
-			return fmt.Errorf(
-				"%s requires exactly one prompt source: positional prompt, --prompt-file, or non-empty stdin",
-				cmd.CommandPath(),
-			)
-		}
+	case hasStdinPrompt:
 		s.readPromptStdin = true
 		s.resolvedPromptText = stdinPrompt
 		return nil
+	default:
+		return fmt.Errorf(
+			"%s requires exactly one prompt source: positional prompt, --prompt-file, or non-empty stdin",
+			cmd.CommandPath(),
+		)
 	}
 }
 

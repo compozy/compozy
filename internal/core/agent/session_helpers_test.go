@@ -529,6 +529,7 @@ func TestRegistryHelperFunctions(t *testing.T) {
 		t.Fatalf("write fake helper script: %v", err)
 	}
 	if _, err := resolveLaunchCommand(
+		context.Background(),
 		Spec{ID: "fake", DisplayName: "Fake", Command: scriptPath},
 		"test-model",
 		"medium",

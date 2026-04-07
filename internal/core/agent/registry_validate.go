@@ -10,6 +10,9 @@ import (
 
 // ValidateRuntimeConfig verifies that the runtime config references a supported agent runtime.
 func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
+	if cfg == nil {
+		return errors.New("runtime config is nil")
+	}
 	if err := validateRuntimeMode(cfg.Mode); err != nil {
 		return err
 	}
@@ -152,6 +155,9 @@ func runtimePromptSourceCount(cfg *model.RuntimeConfig) int {
 	}
 	if cfg.ReadPromptStdin {
 		sources++
+	}
+	if sources == 0 && strings.TrimSpace(cfg.ResolvedPromptText) != "" {
+		sources = 1
 	}
 	return sources
 }

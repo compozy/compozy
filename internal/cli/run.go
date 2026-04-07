@@ -92,7 +92,7 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	_, _ = fmt.Fprintf(
+	if _, err := fmt.Fprintf(
 		cmd.OutOrStdout(),
 		"Fetched %d review issues from %s for PR %s into %s (round %03d)\n",
 		result.Total,
@@ -100,7 +100,9 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 		result.PR,
 		result.ReviewsDir,
 		result.Round,
-	)
+	); err != nil {
+		return fmt.Errorf("write fetch summary: %w", err)
+	}
 	return nil
 }
 

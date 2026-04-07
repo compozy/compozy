@@ -26,8 +26,13 @@ type workflowTargetResolution struct {
 }
 
 func resolveWorkflowTarget(cfg workflowTargetOptions) (workflowTargetResolution, error) {
+	workflowName, err := normalizeWorkflowName(cfg.command, cfg.name)
+	if err != nil {
+		return workflowTargetResolution{}, err
+	}
+
 	specificTargets := 0
-	if strings.TrimSpace(cfg.name) != "" {
+	if workflowName != "" {
 		specificTargets++
 	}
 	if strings.TrimSpace(cfg.tasksDir) != "" {
@@ -58,8 +63,8 @@ func resolveWorkflowTarget(cfg workflowTargetOptions) (workflowTargetResolution,
 	case strings.TrimSpace(cfg.tasksDir) != "":
 		target = strings.TrimSpace(cfg.tasksDir)
 		specificTarget = true
-	case strings.TrimSpace(cfg.name) != "":
-		target = filepath.Join(rootDir, strings.TrimSpace(cfg.name))
+	case workflowName != "":
+		target = filepath.Join(rootDir, workflowName)
 		specificTarget = true
 	}
 
@@ -89,4 +94,15 @@ func resolveWorkflowTarget(cfg workflowTargetOptions) (workflowTargetResolution,
 		rootDir:        resolvedRoot,
 		specificTarget: specificTarget,
 	}, nil
+}
+
+func normalizeWorkflowName(command, name string) (string, error) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "", nil
+	}
+	if filepath.IsAbs(trimmed) || strings.ContainsAny(trimmed, `/\`) || !model.IsActiveWorkflowDirName(trimmed) {
+		return "", fmt.Errorf("%s name must be a single active workflow directory name", command)
+	}
+	return trimmed, nil
 }

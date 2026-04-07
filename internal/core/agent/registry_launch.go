@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os/exec"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -61,9 +60,12 @@ func (e *AvailabilityError) Unwrap() error {
 }
 
 // EnsureAvailable verifies that the configured ACP agent binary is installed and executable.
-func EnsureAvailable(cfg *model.RuntimeConfig) error {
+func EnsureAvailable(ctx context.Context, cfg *model.RuntimeConfig) error {
 	if cfg.DryRun {
 		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
 	}
 
 	spec, err := lookupAgentSpec(cfg.IDE)
@@ -71,6 +73,7 @@ func EnsureAvailable(cfg *model.RuntimeConfig) error {
 		return err
 	}
 	if _, err := resolveLaunchCommand(
+		ctx,
 		spec,
 		spec.DefaultModel,
 		cfg.ReasoningEffort,
@@ -179,10 +182,10 @@ func formatShellCommand(args []string) string {
 
 func formatShellArg(arg string) string {
 	if arg == "" {
-		return `""`
+		return `''`
 	}
 	if strings.ContainsAny(arg, " \t\n\"'\\$`|&;<>*?[]{}()") {
-		return strconv.Quote(arg)
+		return "'" + strings.ReplaceAll(arg, "'", `'\"'\"'`) + "'"
 	}
 	return arg
 }
@@ -253,6 +256,7 @@ func (l Launcher) probeCommand() []string {
 }
 
 func resolveLaunchCommand(
+	ctx context.Context,
 	spec Spec,
 	modelName string,
 	reasoningEffort string,
@@ -268,7 +272,7 @@ func resolveLaunchCommand(
 			continue
 		}
 		if verify {
-			if err := verifyLauncher(spec, launcher); err != nil {
+			if err := verifyLauncher(ctx, spec, launcher); err != nil {
 				attemptErrs = append(attemptErrs, err)
 				continue
 			}
@@ -278,13 +282,16 @@ func resolveLaunchCommand(
 	return nil, joinAvailabilityErrors(spec, attemptErrs)
 }
 
-func verifyLauncher(spec Spec, launcher Launcher) error {
+func verifyLauncher(ctx context.Context, spec Spec, launcher Launcher) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	command := launcher.probeCommand()
 	if err := assertCommandExists(spec, command); err != nil {
 		return err
 	}
 
-	cmd := exec.CommandContext(context.Background(), command[0], command[1:]...)
+	cmd := exec.CommandContext(ctx, command[0], command[1:]...)
 	cmd.Env = mergeEnvironment(spec.EnvVars, nil)
 	var output bytes.Buffer
 	cmd.Stdout = &output
@@ -317,9 +324,5 @@ func joinAvailabilityErrors(spec Spec, errs []error) error {
 		return errs[0]
 	}
 
-	parts := make([]string, 0, len(errs))
-	for _, err := range errs {
-		parts = append(parts, err.Error())
-	}
-	return errors.New(strings.Join(parts, " | "))
+	return errors.Join(errs...)
 }

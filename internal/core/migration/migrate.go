@@ -38,6 +38,7 @@ type migrationScanState struct {
 	result   *Result
 	registry *tasks.TypeRegistry
 	pending  []pendingFileMigration
+	invalid  []error
 }
 
 var reviewRoundDirPattern = regexp.MustCompile(`^reviews-\d+$`)
@@ -61,7 +62,7 @@ func migrateArtifacts(ctx context.Context, cfg Config) (*Result, error) {
 		return result, err
 	}
 
-	pending, err := scanMigrationTarget(ctx, target, result, registry)
+	pending, invalidErrs, err := scanMigrationTarget(ctx, target, result, registry)
 	if err != nil {
 		return result, err
 	}
@@ -72,7 +73,11 @@ func migrateArtifacts(ctx context.Context, cfg Config) (*Result, error) {
 	result.FilesMigrated = len(pending)
 
 	if len(result.InvalidPaths) > 0 {
-		return result, fmt.Errorf("migration aborted: %d invalid artifact(s) found", len(result.InvalidPaths))
+		invalidErr := fmt.Errorf("migration aborted: %d invalid artifact(s) found", len(result.InvalidPaths))
+		if len(invalidErrs) == 0 {
+			return result, invalidErr
+		}
+		return result, errors.Join(invalidErr, errors.Join(invalidErrs...))
 	}
 	if cfg.DryRun {
 		return result, nil
@@ -81,13 +86,27 @@ func migrateArtifacts(ctx context.Context, cfg Config) (*Result, error) {
 	sort.Slice(pending, func(i, j int) bool {
 		return pending[i].path < pending[j].path
 	})
-	for _, file := range pending {
-		if err := os.WriteFile(file.path, []byte(file.content), 0o600); err != nil {
-			return result, fmt.Errorf("write migrated artifact %s: %w", file.path, err)
-		}
+	if err := writePendingFiles(ctx, pending, os.WriteFile); err != nil {
+		return result, err
 	}
 
 	return result, nil
+}
+
+func writePendingFiles(
+	ctx context.Context,
+	pending []pendingFileMigration,
+	writeFile func(string, []byte, os.FileMode) error,
+) error {
+	for _, file := range pending {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("migration canceled during write: %w", err)
+		}
+		if err := writeFile(file.path, []byte(file.content), 0o600); err != nil {
+			return fmt.Errorf("write migrated artifact %s: %w", file.path, err)
+		}
+	}
+	return nil
 }
 
 func resolveMigrationTarget(cfg Config) (string, error) {
@@ -111,11 +130,12 @@ func scanMigrationTarget(
 	target string,
 	result *Result,
 	registry *tasks.TypeRegistry,
-) ([]pendingFileMigration, error) {
+) ([]pendingFileMigration, []error, error) {
 	state := migrationScanState{
 		result:   result,
 		registry: registry,
 		pending:  make([]pendingFileMigration, 0),
+		invalid:  make([]error, 0),
 	}
 
 	err := filepath.WalkDir(target, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -128,9 +148,9 @@ func scanMigrationTarget(
 		return state.handlePath(path, entry)
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return state.pending, nil
+	return state.pending, state.invalid, nil
 }
 
 func (s *migrationScanState) handlePath(path string, entry fs.DirEntry) error {
@@ -166,7 +186,7 @@ func (s *migrationScanState) handlePath(path string, entry fs.DirEntry) error {
 func (s *migrationScanState) appendTaskMigration(path string) error {
 	fileMigration, err := inspectTaskArtifact(path, s.result, s.registry)
 	if err != nil {
-		s.recordInvalid(path)
+		s.recordInvalid(path, fmt.Errorf("inspect task artifact %s: %w", path, err))
 		return nil
 	}
 	if fileMigration != nil {
@@ -178,7 +198,7 @@ func (s *migrationScanState) appendTaskMigration(path string) error {
 func (s *migrationScanState) appendReviewMigration(path string) error {
 	fileMigration, err := inspectReviewArtifact(path, s.result)
 	if err != nil {
-		s.recordInvalid(path)
+		s.recordInvalid(path, fmt.Errorf("inspect review artifact %s: %w", path, err))
 		return nil
 	}
 	if fileMigration != nil {
@@ -189,14 +209,17 @@ func (s *migrationScanState) appendReviewMigration(path string) error {
 
 func (s *migrationScanState) recordRoundMeta(path string) error {
 	if err := inspectRoundMeta(path, s.result); err != nil {
-		s.recordInvalid(path)
+		s.recordInvalid(path, fmt.Errorf("inspect review round metadata %s: %w", path, err))
 	}
 	return nil
 }
 
-func (s *migrationScanState) recordInvalid(path string) {
+func (s *migrationScanState) recordInvalid(path string, err error) {
 	s.result.FilesInvalid++
 	s.result.InvalidPaths = append(s.result.InvalidPaths, path)
+	if err != nil {
+		s.invalid = append(s.invalid, err)
+	}
 }
 
 func inspectTaskArtifact(

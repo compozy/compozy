@@ -535,6 +535,7 @@ func (c *clientImpl) resolveStartCommand(req SessionRequest) (string, []string, 
 		startModel = requestedModel
 	}
 	command, err := resolveLaunchCommand(
+		context.Background(),
 		c.spec,
 		startModel,
 		c.cfg.ReasoningEffort,

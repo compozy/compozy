@@ -56,7 +56,17 @@ func MarshalEnvelopeJSON[T ~string](blockType T, data json.RawMessage) ([]byte, 
 	if len(data) == 0 {
 		return nil, fmt.Errorf("marshal %s block: missing data", blockType)
 	}
-	return data, nil
+
+	var envelope struct {
+		Type T `json:"type"`
+	}
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		return nil, fmt.Errorf("marshal %s block: invalid data: %w", blockType, err)
+	}
+	if envelope.Type != blockType {
+		return nil, fmt.Errorf("marshal %s block: unexpected type %q", blockType, envelope.Type)
+	}
+	return append(json.RawMessage(nil), data...), nil
 }
 
 // UnmarshalEnvelopeJSON validates one content-block payload and stores its canonical JSON form.

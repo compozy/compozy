@@ -142,6 +142,11 @@ func extractFileNumber(filename string, pattern *regexp.Regexp) int {
 }
 
 func extractXMLTag(content, tag string) string {
+	content = extractReviewContextBlock(content)
+	if content == "" {
+		return ""
+	}
+
 	openTag := "<" + tag + ">"
 	start := strings.Index(content, openTag)
 	if start < 0 {
@@ -153,6 +158,23 @@ func extractXMLTag(content, tag string) string {
 		return ""
 	}
 	return strings.TrimSpace(content[start : start+end])
+}
+
+func extractReviewContextBlock(content string) string {
+	const openTag = "<review_context>"
+	const closeTag = "</review_context>"
+
+	start := strings.Index(content, openTag)
+	if start < 0 {
+		return ""
+	}
+	start += len(openTag)
+
+	end := strings.Index(content[start:], closeTag)
+	if end < 0 {
+		return ""
+	}
+	return content[start : start+end]
 }
 
 func extractLegacyStatus(content string) string {
