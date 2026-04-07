@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Phase 1: File-level splits"
 type: refactor
 complexity: high
@@ -42,13 +42,13 @@ Split 12 oversized files into focused, single-responsibility files within their 
 
 ## Subtasks
 
-- [ ] 2.1 Split `model/model.go` into 6 focused files (foundational — other packages import model)
-- [ ] 2.2 Split `cli/root.go` into 5 focused files
-- [ ] 2.3 Split `run/execution.go` into 5 focused files
-- [ ] 2.4 Split `run/types.go` into 4 files and rename `logging.go` to `session_handler.go` with extractions
-- [ ] 2.5 Split `run/ui_view.go` into 3 panel files
-- [ ] 2.6 Split `agent/session.go`, `agent/tool_call_format.go`, and `agent/registry.go`
-- [ ] 2.7 Split remaining files: `workspace/config.go`, `events/kinds/session.go`, `pkg/runs/run.go`
+- [x] 2.1 Split `model/model.go` into 6 focused files (foundational — other packages import model)
+- [x] 2.2 Split `cli/root.go` into 5 focused files
+- [x] 2.3 Split `run/execution.go` into 5 focused files
+- [x] 2.4 Split `run/types.go` into 4 files and rename `logging.go` to `session_handler.go` with extractions
+- [x] 2.5 Split `run/ui_view.go` into 3 panel files
+- [x] 2.6 Split `agent/session.go`, `agent/tool_call_format.go`, and `agent/registry.go`
+- [x] 2.7 Split remaining files: `workspace/config.go`, `events/kinds/session.go`, `pkg/runs/run.go`
 
 ## Implementation Details
 
@@ -84,15 +84,15 @@ Every split follows the same mechanical pattern: create new file with the same `
 ## Tests
 
 - Unit tests:
-  - [ ] All existing tests in `internal/cli/` pass after root.go split
-  - [ ] All existing tests in `internal/core/run/` pass after execution.go, types.go, ui_view.go, logging.go splits
-  - [ ] All existing tests in `internal/core/agent/` pass after session.go, tool_call_format.go, registry.go splits
-  - [ ] All existing tests in `internal/core/model/` pass after model.go split
-  - [ ] All existing tests in `internal/core/workspace/` pass after config.go split
-  - [ ] All existing tests in `pkg/compozy/runs/` pass after run.go split
-  - [ ] All existing tests in `pkg/compozy/events/` pass after session.go split
+  - [x] All existing tests in `internal/cli/` pass after root.go split
+  - [x] All existing tests in `internal/core/run/` pass after execution.go, types.go, ui_view.go, logging.go splits
+  - [x] All existing tests in `internal/core/agent/` pass after session.go, tool_call_format.go, registry.go splits
+  - [x] All existing tests in `internal/core/model/` pass after model.go split
+  - [x] All existing tests in `internal/core/workspace/` pass after config.go split
+  - [x] All existing tests in `pkg/compozy/runs/` pass after run.go split
+  - [x] All existing tests in `pkg/compozy/events/` pass after session.go split
 - Integration tests:
-  - [ ] `make verify` passes (fmt + lint + test + build)
+  - [x] `make verify` passes (fmt + lint + test + build)
 - All tests must pass
 
 ## Success Criteria

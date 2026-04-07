@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Phase 2: Domain restructuring"
 type: refactor
 complexity: critical
@@ -42,12 +42,12 @@ Fix the most critical architectural inversions in the codebase by relocating dom
 
 ## Subtasks
 
-- [ ] 3.1 Move task parsing functions and sentinels from `prompt` to `tasks` package, update all callers
-- [ ] 3.2 Move review parsing functions and sentinels from `prompt` to `reviews` package, update all callers
-- [ ] 3.3 Clean up `prompt/common.go` -- only prompt-building functions should remain
-- [ ] 3.4 Move result/config types from `core` to `model`, update `kernel/handlers.go` and `kernel/commands/*.go`
-- [ ] 3.5 Extract shared `resolveWorkflowTarget` helper and shared task file walker
-- [ ] 3.6 Fold `preputil` into `plan` and clarify the `providers` composition package naming/wiring
+- [x] 3.1 Move task parsing functions and sentinels from `prompt` to `tasks` package, update all callers
+- [x] 3.2 Move review parsing functions and sentinels from `prompt` to `reviews` package, update all callers
+- [x] 3.3 Clean up `prompt/common.go` -- only prompt-building functions should remain
+- [x] 3.4 Move result/config types from `core` to `model`, update `kernel/handlers.go` and `kernel/commands/*.go`
+- [x] 3.5 Extract shared `resolveWorkflowTarget` helper and shared task file walker
+- [x] 3.6 Fold `preputil` into `plan` and clarify the `providers` composition package naming/wiring
 
 ## Implementation Details
 
@@ -95,17 +95,17 @@ The `prompt` package should retain only: `Build`, `BuildSystemPromptAddendum`, `
 ## Tests
 
 - Unit tests:
-  - [ ] `tasks.ParseTaskFile` returns identical results to former `prompt.ParseTaskFile` for all test cases
-  - [ ] `reviews.ParseReviewContext` returns identical results to former `prompt.ParseReviewContext` for all test cases
-  - [ ] `tasks.WrapParseError` handles both `ErrLegacyTaskMetadata` and `ErrV1TaskMetadata`
-  - [ ] `reviews.WrapParseError` handles `ErrLegacyReviewMetadata`
-  - [ ] Shared `resolveWorkflowTarget` returns correct paths for sync, archive, and migrate configs
-  - [ ] Shared task file walker produces identical results to `plan/input.readTaskEntries` and `tasks/store.countTasks`
-  - [ ] All existing tests in `kernel/` pass with `model.*` types
-  - [ ] All existing tests in `commands/` pass after removing `core` dependencies for the relocated result/config types
+  - [x] `tasks.ParseTaskFile` returns identical results to former `prompt.ParseTaskFile` for all test cases
+  - [x] `reviews.ParseReviewContext` returns identical results to former `prompt.ParseReviewContext` for all test cases
+  - [x] `tasks.WrapParseError` handles both `ErrLegacyTaskMetadata` and `ErrV1TaskMetadata`
+  - [x] `reviews.WrapParseError` handles `ErrLegacyReviewMetadata`
+  - [x] Shared `resolveWorkflowTarget` returns correct paths for sync, archive, and migrate configs
+  - [x] Shared task file walker produces identical results to `plan/input.readTaskEntries` and `tasks/store.countTasks`
+  - [x] All existing tests in `kernel/` pass with `model.*` types
+  - [x] All existing tests in `commands/` pass after removing `core` dependencies for the relocated result/config types
 - Integration tests:
-  - [ ] `make verify` passes (fmt + lint + test + build)
-  - [ ] No `prompt.ParseTaskFile` or `prompt.ParseReviewContext` calls remain in the codebase
+  - [x] `make verify` passes (fmt + lint + test + build)
+  - [x] No `prompt.ParseTaskFile` or `prompt.ParseReviewContext` calls remain in the codebase
 - All tests must pass
 
 ## Success Criteria

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Phase 4: DRY and generics consolidation"
 type: refactor
 complexity: high
@@ -45,12 +45,12 @@ Leverage Go generics and shared abstractions to eliminate the remaining systemic
 
 ## Subtasks
 
-- [ ] 5.1 Unify content-block type hierarchies between `model/content.go` and `kinds/session.go` via shared generic engine
-- [ ] 5.2 Introduce generic CLI helpers: `applyConfig[T]`, `applyInput[T]`, `simpleCommandBase`, `commandState` sub-structs
-- [ ] 5.3 Introduce generic kernel helpers: `decodeBlock[T]`, generic dispatch adapter, generic delegating handler
-- [ ] 5.4 Collapse the triple config translation chain (`core.Config` -> `RuntimeFields` -> `RuntimeConfig`)
-- [ ] 5.5 Replace agent spec closures with declarative table and extract `selectByName[T]`
-- [ ] 5.6 Introduce parameter objects for `setupSessionExecution` and `newSessionUpdateHandler`
+- [x] 5.1 Unify content-block type hierarchies between `model/content.go` and `kinds/session.go` via shared generic engine
+- [x] 5.2 Introduce generic CLI helpers: `applyConfig[T]`, `applyInput[T]`, `simpleCommandBase`, `commandState` sub-structs
+- [x] 5.3 Introduce generic kernel helpers: `decodeBlock[T]`, generic dispatch adapter, generic delegating handler
+- [x] 5.4 Collapse the triple config translation chain (`core.Config` -> `RuntimeFields` -> `RuntimeConfig`)
+- [x] 5.5 Replace agent spec closures with declarative table and extract `selectByName[T]`
+- [x] 5.6 Introduce parameter objects for `setupSessionExecution` and `newSessionUpdateHandler`
 
 ## Implementation Details
 
@@ -95,20 +95,20 @@ For the config chain collapse (5.4), the recommended approach is to embed `comma
 ## Tests
 
 - Unit tests:
-  - [ ] Generic `applyConfig[T]` handles string, int, float64, bool, and []string types correctly
-  - [ ] Generic `decodeBlock[T]` correctly decodes all 6 block types with type validation
-  - [ ] Content-block unification preserves JSON serialization compatibility for both camelCase and snake_case
-  - [ ] Generic dispatch adapter produces identical results to the 6 individual adapters
-  - [ ] Generic delegating handler produces identical results to the 4 thin handlers
-  - [ ] `simpleCommandBase.loadWorkspaceRoot` works for migrate, sync, and archive commands
-  - [ ] `commandState` sub-structs correctly map to `core.Config` via `buildConfig()`
-  - [ ] Declarative agent spec table produces identical `agentSpecs` as the closure-based version
-  - [ ] `selectByName[T]` handles skills and agents with deduplication and alias resolution
-  - [ ] `SessionSetupRequest` parameter object correctly initializes session execution
-  - [ ] Collapsed config chain produces identical `RuntimeConfig` output
+  - [x] Generic `applyConfig[T]` handles string, int, float64, bool, and []string types correctly
+  - [x] Generic `decodeBlock[T]` correctly decodes all 6 block types with type validation
+  - [x] Content-block unification preserves JSON serialization compatibility for both camelCase and snake_case
+  - [x] Generic dispatch adapter produces identical results to the 6 individual adapters
+  - [x] Generic delegating handler produces identical results to the 4 thin handlers
+  - [x] `simpleCommandBase.loadWorkspaceRoot` works for migrate, sync, and archive commands
+  - [x] `commandState` sub-structs correctly map to `core.Config` via `buildConfig()`
+  - [x] Declarative agent spec table produces identical `agentSpecs` as the closure-based version
+  - [x] `selectByName[T]` handles skills and agents with deduplication and alias resolution
+  - [x] `SessionSetupRequest` parameter object correctly initializes session execution
+  - [x] Collapsed config chain produces identical `RuntimeConfig` output
 - Integration tests:
-  - [ ] `make verify` passes (fmt + lint + test + build)
-  - [ ] JSON round-trip tests for both camelCase and snake_case content blocks
+  - [x] `make verify` passes (fmt + lint + test + build)
+  - [x] JSON round-trip tests for both camelCase and snake_case content blocks
 - All tests must pass
 
 ## Success Criteria

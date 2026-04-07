@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Phase 3: Package-level splits"
 type: refactor
 complexity: critical
@@ -37,12 +37,12 @@ Decompose the God Package `internal/core/run/` (17 files, 8,700+ lines, 7+ respo
 
 ## Subtasks
 
-- [ ] 4.1 Create `internal/core/contentconv/` with bidirectional content-block and session-update converters (prerequisite for ui/ and executor/)
-- [ ] 4.2 Extract `internal/core/run/exec/` package from exec_flow files
-- [ ] 4.3 Extract `internal/core/run/transcript/` from session_view_model and render_blocks
-- [ ] 4.4 Extract `internal/core/run/ui/` from all ui_* files (depends on transcript/ for session view model)
-- [ ] 4.5 Extract `internal/core/run/executor/` from execution files (depends on exec/, ui/ being separate)
-- [ ] 4.6 Extract `internal/core/migration/` from core/migrate.go
+- [x] 4.1 Create `internal/core/contentconv/` with bidirectional content-block and session-update converters (prerequisite for ui/ and executor/)
+- [x] 4.2 Extract `internal/core/run/exec/` package from exec_flow files
+- [x] 4.3 Extract `internal/core/run/transcript/` from session_view_model and render_blocks
+- [x] 4.4 Extract `internal/core/run/ui/` from all ui_* files (depends on transcript/ for session view model)
+- [x] 4.5 Extract `internal/core/run/executor/` from execution files (depends on exec/, ui/ being separate)
+- [x] 4.6 Extract `internal/core/migration/` from core/migrate.go
 
 ## Implementation Details
 
@@ -99,17 +99,17 @@ migration/            — V1-to-V2 workspace migration
 ## Tests
 
 - Unit tests:
-  - [ ] `contentconv.PublicContentBlock` produces identical output to the former `events.go:publicContentBlock`
-  - [ ] `contentconv.InternalContentBlock` produces identical output to the former `ui_model.go:internalContentBlock`
-  - [ ] `run.Execute()` facade delegates correctly to `executor.Execute()`
-  - [ ] `run.ExecuteExec()` facade delegates correctly to `exec.Execute()`
-  - [ ] All existing `run/` tests pass in their new sub-package locations
-  - [ ] All existing `migrate_test.go` tests pass in `migration/` package
-  - [ ] No import cycles are introduced by the new package graph
+  - [x] `contentconv.PublicContentBlock` produces identical output to the former `events.go:publicContentBlock`
+  - [x] `contentconv.InternalContentBlock` produces identical output to the former `ui_model.go:internalContentBlock`
+  - [x] `run.Execute()` facade delegates correctly to `executor.Execute()`
+  - [x] `run.ExecuteExec()` facade delegates correctly to `exec.Execute()`
+  - [x] All existing `run/` tests pass in their new sub-package locations
+  - [x] All existing `migrate_test.go` tests pass in `migration/` package
+  - [x] No import cycles are introduced by the new package graph
 - Integration tests:
-  - [ ] `make verify` passes (fmt + lint + test + build)
-  - [ ] Exec flow integration tests pass from new `run/exec/` location
-  - [ ] ACP integration tests pass from new `run/executor/` location
+  - [x] `make verify` passes (fmt + lint + test + build)
+  - [x] Exec flow integration tests pass from new `run/exec/` location
+  - [x] ACP integration tests pass from new `run/executor/` location
 - All tests must pass
 
 ## Success Criteria

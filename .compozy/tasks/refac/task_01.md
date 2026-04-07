@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: "Phase 0: Trivial quick wins"
 type: refactor
 complexity: medium
@@ -41,13 +41,13 @@ Eliminate 15 zero-risk DRY violations, dead code, and coding style issues across
 
 ## Subtasks
 
-- [ ] 1.1 Eliminate cross-package duplicate functions (`newPreparation`/`newJob`, `wrapTaskParseError`, `wrapReviewParseError`, `clampInt`, `copyJSON`, `groupIssues`)
-- [ ] 1.2 Hoist `regexp.MustCompile` calls to package-level vars in `prompt/common.go` and `plan/input.go`
-- [ ] 1.3 Fix coding style violations (`reflect.DeepEqual` -> `slices.Equal`, `fmt.Println` -> `slog.Info`, unused params, `mustReadTemplate` panic)
-- [ ] 1.4 Add `job.codeFileLabel()` method and replace scattered `strings.Join` calls
-- [ ] 1.5 Extract shared embedded structs in event payloads (`ShutdownBase`, `JobAttemptInfo`)
-- [ ] 1.6 Wire `internal/version` import or document linker-only usage
-- [ ] 1.7 Run `make verify` and fix any issues
+- [x] 1.1 Eliminate cross-package duplicate functions (`newPreparation`/`newJob`, `wrapTaskParseError`, `wrapReviewParseError`, `clampInt`, `copyJSON`, `groupIssues`)
+- [x] 1.2 Hoist `regexp.MustCompile` calls to package-level vars in `prompt/common.go` and `plan/input.go`
+- [x] 1.3 Fix coding style violations (`reflect.DeepEqual` -> `slices.Equal`, `fmt.Println` -> `slog.Info`, unused params, `mustReadTemplate` panic)
+- [x] 1.4 Add `job.codeFileLabel()` method and replace scattered `strings.Join` calls
+- [x] 1.5 Extract shared embedded structs in event payloads (`ShutdownBase`, `JobAttemptInfo`)
+- [x] 1.6 Wire `internal/version` import or document linker-only usage
+- [x] 1.7 Run `make verify` and fix any issues
 
 ## Implementation Details
 
@@ -92,15 +92,15 @@ All changes are localized within existing packages. No import path changes, no n
 ## Tests
 
 - Unit tests:
-  - [ ] Existing tests for `kernel/handlers.go` still pass after `newPreparation`/`newJob` deletion
-  - [ ] Existing tests for `tasks/store.go` still pass after `wrapTaskParseError` becomes the single source
-  - [ ] Existing tests for `reviews/store.go` still pass after `wrapReviewParseError` becomes the single source
-  - [ ] `clamp` function handles all cases previously covered by `clampInt`
-  - [ ] `job.codeFileLabel()` returns the same output as inline `strings.Join` calls
-  - [ ] `ShutdownBase` embedding preserves JSON serialization compatibility
-  - [ ] `JobAttemptInfo` embedding preserves JSON serialization compatibility
+  - [x] Existing tests for `kernel/handlers.go` still pass after `newPreparation`/`newJob` deletion
+  - [x] Existing tests for `tasks/store.go` still pass after `wrapTaskParseError` becomes the single source
+  - [x] Existing tests for `reviews/store.go` still pass after `wrapReviewParseError` becomes the single source
+  - [x] `clamp` function handles all cases previously covered by `clampInt`
+  - [x] `job.codeFileLabel()` returns the same output as inline `strings.Join` calls
+  - [x] `ShutdownBase` embedding preserves JSON serialization compatibility
+  - [x] `JobAttemptInfo` embedding preserves JSON serialization compatibility
 - Integration tests:
-  - [ ] `make verify` passes (fmt + lint + test + build)
+  - [x] `make verify` passes (fmt + lint + test + build)
 - All tests must pass
 
 ## Success Criteria
