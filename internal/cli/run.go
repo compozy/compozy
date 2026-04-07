@@ -11,42 +11,39 @@ import (
 )
 
 func (s *commandState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signalCommandContext(cmd)
-	defer stop()
-
-	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
-		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
-	}
-	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
-		return err
-	}
-
-	cfg, err := s.buildConfig()
-	if err != nil {
-		return s.handleExecError(cmd, err)
-	}
-	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
-		return s.handleExecError(cmd, err)
-	}
-	if err := cfg.Validate(); err != nil {
-		return s.handleExecError(cmd, err)
-	}
-
-	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
-		return s.handleExecError(cmd, err)
-	}
-	return nil
+	return s.prepareAndRun(cmd, func(cmd *cobra.Command) error {
+		return s.maybeCollectInteractiveParams(cmd)
+	}, false)
 }
 
 func (s *commandState) exec(cmd *cobra.Command, args []string) error {
+	return s.prepareAndRun(cmd, func(cmd *cobra.Command) error {
+		return s.resolveExecPromptSource(cmd, args)
+	}, true)
+}
+
+func (s *commandState) prepareAndRun(
+	cmd *cobra.Command,
+	setupFn func(*cobra.Command) error,
+	handleSetupErrors bool,
+) error {
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
-		return s.handleExecError(cmd, fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err))
+		wrapped := fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
+		if handleSetupErrors {
+			return s.handleExecError(cmd, wrapped)
+		}
+		return wrapped
 	}
-	if err := s.resolveExecPromptSource(cmd, args); err != nil {
-		return s.handleExecError(cmd, err)
+	if setupFn != nil {
+		if err := setupFn(cmd); err != nil {
+			if handleSetupErrors {
+				return s.handleExecError(cmd, err)
+			}
+			return err
+		}
 	}
 
 	cfg, err := s.buildConfig()

@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/core/run/journal"
 )
@@ -10,6 +11,8 @@ type JournalHandle interface {
 	Journal() *journal.Journal
 	Close(context.Context) error
 }
+
+var _ JournalHandle = (*journal.Owner)(nil)
 
 type SolvePreparation struct {
 	Jobs         []Job
@@ -51,7 +54,7 @@ func (p *SolvePreparation) CloseJournal(ctx context.Context) error {
 	}
 	handle := p.JournalHandle
 	if err := handle.Close(ctx); err != nil {
-		return err
+		return fmt.Errorf("close preparation journal: %w", err)
 	}
 	p.JournalHandle = nil
 	return nil

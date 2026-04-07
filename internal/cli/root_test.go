@@ -1620,9 +1620,11 @@ type failOnWriteWriter struct {
 	err error
 }
 
+var errFailOnWriteWriterUnset = errors.New("failOnWriteWriter: missing injected error")
+
 func (w *failOnWriteWriter) Write(_ []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
 	}
-	return 0, io.ErrClosedPipe
+	return 0, errFailOnWriteWriterUnset
 }

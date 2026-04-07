@@ -234,76 +234,177 @@ func TestNewFormInputsFromStateQuotesAddDirsContainingCommas(t *testing.T) {
 func TestApplyConfigHandlesSupportedTypes(t *testing.T) {
 	t.Parallel()
 
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("string", "", "")
-	cmd.Flags().Int("int", 0, "")
-	cmd.Flags().Float64("float", 0, "")
-	cmd.Flags().Bool("bool", false, "")
-	cmd.Flags().StringSlice("slice", nil, "")
-
-	stringValue := "claude"
-	intValue := 3
-	floatValue := 2.5
-	boolValue := true
-	sliceValue := []string{"../shared", "../docs"}
-
-	var gotString string
-	var gotInt int
-	var gotFloat float64
-	var gotBool bool
-	var gotSlice []string
-
-	applyConfig(cmd, "string", &stringValue, func(value string) { gotString = value })
-	applyConfig(cmd, "int", &intValue, func(value int) { gotInt = value })
-	applyConfig(cmd, "float", &floatValue, func(value float64) { gotFloat = value })
-	applyConfig(cmd, "bool", &boolValue, func(value bool) { gotBool = value })
-	applyConfig(cmd, "slice", &sliceValue, func(value []string) { gotSlice = value }, slices.Clone[[]string])
-
-	if gotString != stringValue || gotInt != intValue || gotFloat != floatValue || gotBool != boolValue {
-		t.Fatalf("unexpected primitive config values: %q %d %v %t", gotString, gotInt, gotFloat, gotBool)
-	}
-	if !reflect.DeepEqual(gotSlice, sliceValue) {
-		t.Fatalf("unexpected string slice config: %#v", gotSlice)
+	newCommand := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("string", "", "")
+		cmd.Flags().Int("int", 0, "")
+		cmd.Flags().Float64("float", 0, "")
+		cmd.Flags().Bool("bool", false, "")
+		cmd.Flags().StringSlice("slice", nil, "")
+		return cmd
 	}
 
-	gotSlice[0] = "../changed"
-	if sliceValue[0] != "../shared" {
-		t.Fatalf("applyConfig should clone []string values, got source %#v", sliceValue)
+	cases := []struct {
+		name string
+		run  func(t *testing.T, cmd *cobra.Command)
+	}{
+		{
+			name: "Should apply string config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := "claude"
+				var got string
+				applyConfig(cmd, "string", &value, func(applied string) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected string config value: %q", got)
+				}
+			},
+		},
+		{
+			name: "Should apply integer config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := 3
+				var got int
+				applyConfig(cmd, "int", &value, func(applied int) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected int config value: %d", got)
+				}
+			},
+		},
+		{
+			name: "Should apply float config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := 2.5
+				var got float64
+				applyConfig(cmd, "float", &value, func(applied float64) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected float config value: %v", got)
+				}
+			},
+		},
+		{
+			name: "Should apply boolean config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := true
+				var got bool
+				applyConfig(cmd, "bool", &value, func(applied bool) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected bool config value: %t", got)
+				}
+			},
+		},
+		{
+			name: "Should clone string slice config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := []string{"../shared", "../docs"}
+				var got []string
+				applyConfig(cmd, "slice", &value, func(applied []string) { got = applied }, slices.Clone[[]string])
+				if !reflect.DeepEqual(got, value) {
+					t.Fatalf("unexpected string slice config: %#v", got)
+				}
+
+				got[0] = "../changed"
+				if value[0] != "../shared" {
+					t.Fatalf("applyConfig should clone []string values, got source %#v", value)
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t, newCommand())
+		})
 	}
 }
 
 func TestApplyInputHandlesSupportedTypes(t *testing.T) {
 	t.Parallel()
 
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("name", "", "")
-	cmd.Flags().String("round", "", "")
-	cmd.Flags().Bool("dry-run", false, "")
-	cmd.Flags().String("add-dir", "", "")
-
-	var gotName string
-	var gotRound int
-	var gotDryRun bool
-	var gotAddDirs []string
-
-	applyInput(cmd, "name", "demo", passThroughInput[string], func(value string) { gotName = value })
-	applyInput(cmd, "round", "7", parseIntInput, func(value int) { gotRound = value })
-	applyInput(cmd, "dry-run", true, passThroughInput[bool], func(value bool) { gotDryRun = value })
-	applyInput(cmd, "add-dir", "../shared, ../docs", parseStringSliceInput, func(value []string) {
-		gotAddDirs = value
-	})
-
-	if gotName != "demo" {
-		t.Fatalf("unexpected name input: %q", gotName)
+	newCommand := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("name", "", "")
+		cmd.Flags().String("round", "", "")
+		cmd.Flags().Bool("dry-run", false, "")
+		cmd.Flags().String("add-dir", "", "")
+		return cmd
 	}
-	if gotRound != 7 {
-		t.Fatalf("unexpected round input: %d", gotRound)
+
+	cases := []struct {
+		name string
+		run  func(t *testing.T, cmd *cobra.Command)
+	}{
+		{
+			name: "Should apply string input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got string
+				applyInput(cmd, "name", "demo", passThroughInput[string], func(value string) { got = value })
+				if got != "demo" {
+					t.Fatalf("unexpected name input: %q", got)
+				}
+			},
+		},
+		{
+			name: "Should apply integer input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got int
+				applyInput(cmd, "round", "7", parseIntInput, func(value int) { got = value })
+				if got != 7 {
+					t.Fatalf("unexpected round input: %d", got)
+				}
+			},
+		},
+		{
+			name: "Should apply boolean input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got bool
+				applyInput(cmd, "dry-run", true, passThroughInput[bool], func(value bool) { got = value })
+				if !got {
+					t.Fatal("expected dry-run input to be applied")
+				}
+			},
+		},
+		{
+			name: "Should parse string slice input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got []string
+				applyInput(
+					cmd,
+					"add-dir",
+					"../shared, ../docs",
+					parseStringSliceInput,
+					func(value []string) { got = value },
+				)
+				if !reflect.DeepEqual(got, []string{"../shared", "../docs"}) {
+					t.Fatalf("unexpected add-dir input: %#v", got)
+				}
+			},
+		},
 	}
-	if !gotDryRun {
-		t.Fatal("expected dry-run input to be applied")
-	}
-	if !reflect.DeepEqual(gotAddDirs, []string{"../shared", "../docs"}) {
-		t.Fatalf("unexpected add-dir input: %#v", gotAddDirs)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t, newCommand())
+		})
 	}
 }
 

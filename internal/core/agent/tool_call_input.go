@@ -29,12 +29,22 @@ func buildNormalizedToolUseBlock(
 	normalizedInput := normalizeACPToolInput(driverID, nameHint, kind, rawInput, locations)
 	name := normalizeACPToolName(driverID, nameHint, kind, normalizedInput)
 
-	inputPayload := marshalRawJSON(normalizedInput)
+	inputPayload, err := marshalRawJSON(normalizedInput)
+	if err != nil {
+		return model.ContentBlock{}, fmt.Errorf("marshal normalized tool input: %w", err)
+	}
 	if len(inputPayload) == 0 {
-		inputPayload = marshalRawJSON(rawInput)
+		inputPayload, err = marshalRawJSON(rawInput)
+		if err != nil {
+			return model.ContentBlock{}, fmt.Errorf("marshal fallback tool input: %w", err)
+		}
 	}
 	inputPayload = sanitizeToolUseInputPayload(inputPayload)
-	rawInputPayload := sanitizeToolUseInputPayload(marshalRawJSON(rawInput))
+	rawInputPayload, err := marshalRawJSON(rawInput)
+	if err != nil {
+		return model.ContentBlock{}, fmt.Errorf("marshal raw tool input: %w", err)
+	}
+	rawInputPayload = sanitizeToolUseInputPayload(rawInputPayload)
 
 	displayTitle := ""
 	if meaningfulToolHeaderTitle(title) {
@@ -90,13 +100,13 @@ func normalizeToolInputByName(
 		normalizeBashToolInput(normalized, rawInput, raw)
 	case toolNameGrep:
 		normalizeGrepToolInput(normalized, rawInput, raw)
-	case "Glob":
+	case toolNameGlob:
 		normalizeGlobToolInput(normalized, rawInput, raw)
-	case toolNameWebFetch, "OpenURL":
+	case toolNameWebFetch, toolNameOpenURL:
 		normalizeOpenURLInput(normalized, raw)
-	case toolNameWebSearch, "ImageSearch":
+	case toolNameWebSearch, toolNameImageSearch:
 		mergeWebSearchInput(normalized, raw, title)
-	case "Click":
+	case toolNameClick:
 		normalizeClickInput(normalized, raw)
 	case toolNameFind:
 		normalizeFindInput(normalized, raw)
@@ -116,7 +126,7 @@ func normalizeToolInputByName(
 
 func isFileToolName(name string) bool {
 	switch name {
-	case toolNameRead, "Write", toolNameEdit, "Delete":
+	case toolNameRead, toolNameWrite, toolNameEdit, toolNameDelete:
 		return true
 	default:
 		return false

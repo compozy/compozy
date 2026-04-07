@@ -17,11 +17,7 @@ func TestDispatchRunAdapterBuildsRunStartCommand(t *testing.T) {
 	handler := &coreAdapterRunStartCaptureHandler{err: wantErr}
 	Register(dispatcher, handler)
 
-	previous := coreAdapterDispatcherFn
-	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
-	t.Cleanup(func() {
-		coreAdapterDispatcherFn = previous
-	})
+	useCoreAdapterDispatcher(t, dispatcher)
 
 	err := dispatchRunAdapter(context.Background(), core.Config{
 		WorkspaceRoot:          "/workspace",
@@ -62,11 +58,7 @@ func TestDispatchPrepareAdapterBuildsWorkflowPrepareCommand(t *testing.T) {
 	}
 	Register(dispatcher, handler)
 
-	previous := coreAdapterDispatcherFn
-	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
-	t.Cleanup(func() {
-		coreAdapterDispatcherFn = previous
-	})
+	useCoreAdapterDispatcher(t, dispatcher)
 
 	prep, err := dispatchPrepareAdapter(context.Background(), core.Config{
 		WorkspaceRoot:    "/workspace",
@@ -95,129 +87,148 @@ func TestDispatchPrepareAdapterBuildsWorkflowPrepareCommand(t *testing.T) {
 	}
 }
 
-func TestDispatchFetchReviewsAdapterBuildsReviewsFetchCommand(t *testing.T) {
-	dispatcher := NewDispatcher()
-	handler := &reviewsFetchCaptureHandler{
-		result: commands.ReviewsFetchResult{Result: &model.FetchResult{Name: "demo", Round: 3}},
-	}
-	Register(dispatcher, handler)
+func TestDispatchCoreWorkflowAdaptersBuildTypedCommands(t *testing.T) {
+	cases := []struct {
+		name string
+		run  func(t *testing.T, dispatcher *Dispatcher)
+	}{
+		{
+			name: "Should build reviews fetch commands",
+			run: func(t *testing.T, dispatcher *Dispatcher) {
+				t.Helper()
 
-	previous := coreAdapterDispatcherFn
-	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
-	t.Cleanup(func() {
-		coreAdapterDispatcherFn = previous
-	})
+				handler := &reviewsFetchCaptureHandler{
+					result: commands.ReviewsFetchResult{Result: &model.FetchResult{Name: "demo", Round: 3}},
+				}
+				Register(dispatcher, handler)
 
-	result, err := dispatchFetchReviewsAdapter(context.Background(), core.Config{
-		WorkspaceRoot: "/workspace",
-		Name:          "demo",
-		Round:         3,
-		Provider:      "coderabbit",
-		PR:            "259",
-	})
-	if err != nil {
-		t.Fatalf("dispatchFetchReviewsAdapter: %v", err)
-	}
-	if result == nil || result.Round != 3 {
-		t.Fatalf("unexpected fetch result: %#v", result)
-	}
-	if handler.got.Name != "demo" || handler.got.Provider != "coderabbit" || handler.got.PR != "259" {
-		t.Fatalf("unexpected fetch command: %#v", handler.got)
-	}
-}
+				result, err := dispatchFetchReviewsAdapter(context.Background(), core.Config{
+					WorkspaceRoot: "/workspace",
+					Name:          "demo",
+					Round:         3,
+					Provider:      "coderabbit",
+					PR:            "259",
+				})
+				if err != nil {
+					t.Fatalf("dispatchFetchReviewsAdapter: %v", err)
+				}
+				if result == nil || result.Round != 3 {
+					t.Fatalf("unexpected fetch result: %#v", result)
+				}
+				if handler.got.Name != "demo" || handler.got.Provider != "coderabbit" || handler.got.PR != "259" {
+					t.Fatalf("unexpected fetch command: %#v", handler.got)
+				}
+			},
+		},
+		{
+			name: "Should build workspace migrate commands",
+			run: func(t *testing.T, dispatcher *Dispatcher) {
+				t.Helper()
 
-func TestDispatchMigrateAdapterBuildsWorkspaceMigrateCommand(t *testing.T) {
-	dispatcher := NewDispatcher()
-	handler := &workspaceMigrateCaptureHandler{
-		result: commands.WorkspaceMigrateResult{
-			Result: &model.MigrationResult{Target: "/workspace/.compozy/tasks/demo"},
+				handler := &workspaceMigrateCaptureHandler{
+					result: commands.WorkspaceMigrateResult{
+						Result: &model.MigrationResult{Target: "/workspace/.compozy/tasks/demo"},
+					},
+				}
+				Register(dispatcher, handler)
+
+				result, err := dispatchMigrateAdapter(context.Background(), core.MigrationConfig{
+					WorkspaceRoot: "/workspace",
+					RootDir:       "/workspace/.compozy/tasks",
+					Name:          "demo",
+					TasksDir:      "/workspace/.compozy/tasks/demo",
+					ReviewsDir:    "/workspace/.compozy/tasks/demo/reviews-001",
+					DryRun:        true,
+				})
+				if err != nil {
+					t.Fatalf("dispatchMigrateAdapter: %v", err)
+				}
+				if result == nil || result.Target == "" {
+					t.Fatalf("unexpected migrate result: %#v", result)
+				}
+				if handler.got.RootDir != "/workspace/.compozy/tasks" || handler.got.ReviewsDir == "" ||
+					!handler.got.DryRun {
+					t.Fatalf("unexpected migrate command: %#v", handler.got)
+				}
+			},
+		},
+		{
+			name: "Should build workflow sync commands",
+			run: func(t *testing.T, dispatcher *Dispatcher) {
+				t.Helper()
+
+				handler := &workflowSyncCaptureHandler{
+					result: commands.WorkflowSyncResult{
+						Result: &model.SyncResult{Target: "/workspace/.compozy/tasks/demo"},
+					},
+				}
+				Register(dispatcher, handler)
+
+				result, err := dispatchSyncAdapter(context.Background(), core.SyncConfig{
+					WorkspaceRoot: "/workspace",
+					RootDir:       "/workspace/.compozy/tasks",
+					Name:          "demo",
+					TasksDir:      "/workspace/.compozy/tasks/demo",
+				})
+				if err != nil {
+					t.Fatalf("dispatchSyncAdapter: %v", err)
+				}
+				if result == nil || result.Target == "" {
+					t.Fatalf("unexpected sync result: %#v", result)
+				}
+				if handler.got.RootDir != "/workspace/.compozy/tasks" || handler.got.TasksDir == "" {
+					t.Fatalf("unexpected sync command: %#v", handler.got)
+				}
+			},
+		},
+		{
+			name: "Should build workflow archive commands",
+			run: func(t *testing.T, dispatcher *Dispatcher) {
+				t.Helper()
+
+				handler := &workflowArchiveCaptureHandler{
+					result: commands.WorkflowArchiveResult{
+						Result: &model.ArchiveResult{Target: "/workspace/.compozy/tasks/demo"},
+					},
+				}
+				Register(dispatcher, handler)
+
+				result, err := dispatchArchiveAdapter(context.Background(), core.ArchiveConfig{
+					WorkspaceRoot: "/workspace",
+					RootDir:       "/workspace/.compozy/tasks",
+					Name:          "demo",
+					TasksDir:      "/workspace/.compozy/tasks/demo",
+				})
+				if err != nil {
+					t.Fatalf("dispatchArchiveAdapter: %v", err)
+				}
+				if result == nil || result.Target == "" {
+					t.Fatalf("unexpected archive result: %#v", result)
+				}
+				if handler.got.RootDir != "/workspace/.compozy/tasks" || handler.got.TasksDir == "" {
+					t.Fatalf("unexpected archive command: %#v", handler.got)
+				}
+			},
 		},
 	}
-	Register(dispatcher, handler)
 
-	previous := coreAdapterDispatcherFn
-	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
-	t.Cleanup(func() {
-		coreAdapterDispatcherFn = previous
-	})
-
-	result, err := dispatchMigrateAdapter(context.Background(), core.MigrationConfig{
-		WorkspaceRoot: "/workspace",
-		RootDir:       "/workspace/.compozy/tasks",
-		Name:          "demo",
-		TasksDir:      "/workspace/.compozy/tasks/demo",
-		ReviewsDir:    "/workspace/.compozy/tasks/demo/reviews-001",
-		DryRun:        true,
-	})
-	if err != nil {
-		t.Fatalf("dispatchMigrateAdapter: %v", err)
-	}
-	if result == nil || result.Target == "" {
-		t.Fatalf("unexpected migrate result: %#v", result)
-	}
-	if handler.got.RootDir != "/workspace/.compozy/tasks" || handler.got.ReviewsDir == "" || !handler.got.DryRun {
-		t.Fatalf("unexpected migrate command: %#v", handler.got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dispatcher := NewDispatcher()
+			useCoreAdapterDispatcher(t, dispatcher)
+			tc.run(t, dispatcher)
+		})
 	}
 }
 
-func TestDispatchSyncAdapterBuildsWorkflowSyncCommand(t *testing.T) {
-	dispatcher := NewDispatcher()
-	handler := &workflowSyncCaptureHandler{
-		result: commands.WorkflowSyncResult{Result: &model.SyncResult{Target: "/workspace/.compozy/tasks/demo"}},
-	}
-	Register(dispatcher, handler)
+func useCoreAdapterDispatcher(t *testing.T, dispatcher *Dispatcher) {
+	t.Helper()
 
 	previous := coreAdapterDispatcherFn
 	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
 	t.Cleanup(func() {
 		coreAdapterDispatcherFn = previous
 	})
-
-	result, err := dispatchSyncAdapter(context.Background(), core.SyncConfig{
-		WorkspaceRoot: "/workspace",
-		RootDir:       "/workspace/.compozy/tasks",
-		Name:          "demo",
-		TasksDir:      "/workspace/.compozy/tasks/demo",
-	})
-	if err != nil {
-		t.Fatalf("dispatchSyncAdapter: %v", err)
-	}
-	if result == nil || result.Target == "" {
-		t.Fatalf("unexpected sync result: %#v", result)
-	}
-	if handler.got.RootDir != "/workspace/.compozy/tasks" || handler.got.TasksDir == "" {
-		t.Fatalf("unexpected sync command: %#v", handler.got)
-	}
-}
-
-func TestDispatchArchiveAdapterBuildsWorkflowArchiveCommand(t *testing.T) {
-	dispatcher := NewDispatcher()
-	handler := &workflowArchiveCaptureHandler{
-		result: commands.WorkflowArchiveResult{Result: &model.ArchiveResult{Target: "/workspace/.compozy/tasks/demo"}},
-	}
-	Register(dispatcher, handler)
-
-	previous := coreAdapterDispatcherFn
-	coreAdapterDispatcherFn = func() (*Dispatcher, error) { return dispatcher, nil }
-	t.Cleanup(func() {
-		coreAdapterDispatcherFn = previous
-	})
-
-	result, err := dispatchArchiveAdapter(context.Background(), core.ArchiveConfig{
-		WorkspaceRoot: "/workspace",
-		RootDir:       "/workspace/.compozy/tasks",
-		Name:          "demo",
-		TasksDir:      "/workspace/.compozy/tasks/demo",
-	})
-	if err != nil {
-		t.Fatalf("dispatchArchiveAdapter: %v", err)
-	}
-	if result == nil || result.Target == "" {
-		t.Fatalf("unexpected archive result: %#v", result)
-	}
-	if handler.got.RootDir != "/workspace/.compozy/tasks" || handler.got.TasksDir == "" {
-		t.Fatalf("unexpected archive command: %#v", handler.got)
-	}
 }
 
 type coreAdapterRunStartCaptureHandler struct {

@@ -106,31 +106,32 @@ func defaultCommandStateDefaults() commandStateDefaults {
 
 func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
 	builtin := defaultCommandStateDefaults()
-	if defaults.isInteractive == nil {
-		defaults.isInteractive = builtin.isInteractive
+	result := defaults
+	if result.isInteractive == nil {
+		result.isInteractive = builtin.isInteractive
 	}
-	if defaults.collectForm == nil {
-		defaults.collectForm = builtin.collectForm
+	if result.collectForm == nil {
+		result.collectForm = builtin.collectForm
 	}
-	if defaults.listBundledSkills == nil {
-		defaults.listBundledSkills = builtin.listBundledSkills
+	if result.listBundledSkills == nil {
+		result.listBundledSkills = builtin.listBundledSkills
 	}
-	if defaults.verifyBundledSkills == nil {
-		defaults.verifyBundledSkills = builtin.verifyBundledSkills
+	if result.verifyBundledSkills == nil {
+		result.verifyBundledSkills = builtin.verifyBundledSkills
 	}
-	if defaults.installBundledSkills == nil {
-		defaults.installBundledSkills = builtin.installBundledSkills
+	if result.installBundledSkills == nil {
+		result.installBundledSkills = builtin.installBundledSkills
 	}
-	if defaults.confirmSkillRefresh == nil {
-		defaults.confirmSkillRefresh = builtin.confirmSkillRefresh
+	if result.confirmSkillRefresh == nil {
+		result.confirmSkillRefresh = builtin.confirmSkillRefresh
 	}
-	if defaults.fetchReviewsFn == nil {
-		defaults.fetchReviewsFn = builtin.fetchReviewsFn
+	if result.fetchReviewsFn == nil {
+		result.fetchReviewsFn = builtin.fetchReviewsFn
 	}
-	if defaults.runWorkflow == nil {
-		defaults.runWorkflow = builtin.runWorkflow
+	if result.runWorkflow == nil {
+		result.runWorkflow = builtin.runWorkflow
 	}
-	return defaults
+	return result
 }
 
 func newCommandState(kind commandKind, mode core.Mode) *commandState {
@@ -227,6 +228,8 @@ func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {
 		return nil
 	}
 
+	// newCommandStateWithDefaults wires these callbacks, but tests and focused
+	// helpers also construct commandState directly.
 	isInteractive := s.isInteractive
 	if isInteractive == nil {
 		isInteractive = isInteractiveTerminal

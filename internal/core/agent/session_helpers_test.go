@@ -474,7 +474,10 @@ func TestConvertACPContentBlockFallbacks(t *testing.T) {
 func TestSessionConversionHelpers(t *testing.T) {
 	t.Parallel()
 
-	raw := marshalRawJSON(map[string]string{"path": "main.go"})
+	raw, err := marshalRawJSON(map[string]string{"path": "main.go"})
+	if err != nil {
+		t.Fatalf("marshal raw json: %v", err)
+	}
 	if string(raw) != `{"path":"main.go"}` {
 		t.Fatalf("unexpected raw json: %s", string(raw))
 	}

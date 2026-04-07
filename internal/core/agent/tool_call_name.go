@@ -9,54 +9,66 @@ import (
 )
 
 const (
-	toolNameBash       = "Bash"
-	toolNameEdit       = "Edit"
-	toolNameFind       = "Find"
-	toolNameGrep       = "Grep"
-	toolNameRead       = "Read"
-	toolNameTask       = "Task"
-	toolNameTodoWrite  = "TodoWrite"
-	toolNameToolCall   = "Tool Call"
-	toolNameWebFetch   = "WebFetch"
-	toolNameWebSearch  = "WebSearch"
-	emptyMapSentinel   = "map[]"
-	emptyObjectLiteral = "{}"
-	jsonNullLiteral    = "null"
-	toolNameMetaKey    = "tool_name"
+	toolNameBash        = "Bash"
+	toolNameClick       = "Click"
+	toolNameDelete      = "Delete"
+	toolNameEdit        = "Edit"
+	toolNameFinance     = "Finance"
+	toolNameFind        = "Find"
+	toolNameGlob        = "Glob"
+	toolNameGrep        = "Grep"
+	toolNameImageSearch = "ImageSearch"
+	toolNameOpenURL     = "OpenURL"
+	toolNameRead        = "Read"
+	toolNameSearch      = "Search"
+	toolNameSports      = "Sports"
+	toolNameTask        = "Task"
+	toolNameThink       = "Think"
+	toolNameTime        = "Time"
+	toolNameTodoWrite   = "TodoWrite"
+	toolNameToolCall    = "Tool Call"
+	toolNameWeather     = "Weather"
+	toolNameWebFetch    = "WebFetch"
+	toolNameWebSearch   = "WebSearch"
+	toolNameWrite       = "Write"
+	emptyMapSentinel    = "map[]"
+	emptyObjectLiteral  = "{}"
+	jsonNullLiteral     = "null"
+	toolNameMetaKey     = "tool_name"
 )
 
 var commonToolTitleAliases = map[string]string{
-	"agent":           "Task",
-	"click":           "Click",
-	"codebase_search": "Grep",
-	"create_file":     "Write",
-	"create_new_file": "Write",
-	"edit_file":       "Edit",
-	"fd":              "Glob",
-	"file_search":     "Glob",
-	"finance":         "Finance",
+	"agent":           toolNameTask,
+	"click":           toolNameClick,
+	"codebase_search": toolNameGrep,
+	"create_file":     toolNameWrite,
+	"create_new_file": toolNameWrite,
+	"edit_file":       toolNameEdit,
+	"fd":              toolNameGlob,
+	"file_search":     toolNameGlob,
+	"finance":         toolNameFinance,
 	"find":            toolNameFind,
-	"glob":            "Glob",
-	"grep":            "Grep",
-	"grep_search":     "Grep",
-	"image_query":     "ImageSearch",
-	"insert_text":     "Edit",
-	"list_dir":        "Read",
-	"open":            "OpenURL",
-	"read_file":       "Read",
-	"replace_in_file": "Edit",
-	"rg":              "Grep",
-	"ripgrep":         "Grep",
-	"run_subagent":    "Task",
-	"search_query":    "WebSearch",
-	"sports":          "Sports",
-	"task":            "Task",
-	"time":            "Time",
-	"update_todo":     "TodoWrite",
-	"weather":         "Weather",
-	"web_search":      "WebSearch",
-	"write_file":      "Write",
-	"write_to_file":   "Edit",
+	"glob":            toolNameGlob,
+	"grep":            toolNameGrep,
+	"grep_search":     toolNameGrep,
+	"image_query":     toolNameImageSearch,
+	"insert_text":     toolNameEdit,
+	"list_dir":        toolNameRead,
+	"open":            toolNameOpenURL,
+	"read_file":       toolNameRead,
+	"replace_in_file": toolNameEdit,
+	"rg":              toolNameGrep,
+	"ripgrep":         toolNameGrep,
+	"run_subagent":    toolNameTask,
+	"search_query":    toolNameWebSearch,
+	"sports":          toolNameSports,
+	"task":            toolNameTask,
+	"time":            toolNameTime,
+	"update_todo":     toolNameTodoWrite,
+	"weather":         toolNameWeather,
+	"web_search":      toolNameWebSearch,
+	"write_file":      toolNameWrite,
+	"write_to_file":   toolNameEdit,
 }
 
 func normalizeACPToolName(
@@ -88,14 +100,14 @@ func normalizeACPToolName(
 func normalizeToolNameByKind(token string, kind acp.ToolKind, input map[string]any) string {
 	switch kind {
 	case acp.ToolKindThink:
-		if token == "update_todo" || input != nil && input["todos"] != nil {
+		if token == "update_todo" || (input != nil && input["todos"] != nil) {
 			return toolNameTodoWrite
 		}
-		return "Think"
+		return toolNameThink
 	case acp.ToolKindSearch:
 		switch token {
 		case "glob", "fd", "file_search":
-			return "Glob"
+			return toolNameGlob
 		case "find":
 			return toolNameFind
 		case "grep", "rg", "ripgrep", "codebase_search", "grep_search":
@@ -115,7 +127,7 @@ func normalizeToolNameFallback(kind acp.ToolKind, input map[string]any, title st
 	case acp.ToolKindEdit:
 		return toolNameEdit
 	case acp.ToolKindDelete:
-		return "Delete"
+		return toolNameDelete
 	case acp.ToolKindExecute:
 		return toolNameBash
 	case acp.ToolKindSearch:
@@ -125,16 +137,12 @@ func normalizeToolNameFallback(kind acp.ToolKind, input map[string]any, title st
 		if looksLikeWebSearchInput(input) {
 			return toolNameWebSearch
 		}
-		return "Search"
+		return toolNameSearch
 	case acp.ToolKindFetch:
 		if looksLikeWebSearchInput(input) {
 			return toolNameWebSearch
 		}
 		return toolNameWebFetch
-	case acp.ToolKindOther:
-		if trimmed := strings.TrimSpace(title); trimmed != "" {
-			return trimmed
-		}
 	}
 	if trimmed := strings.TrimSpace(title); trimmed != "" {
 		return trimmed
@@ -160,13 +168,13 @@ func inferToolNameFromInputShape(input map[string]any) string {
 	}
 	if refID := extractString(input, "ref_id", "refId"); refID != "" {
 		if _, ok := extractInt(input, "id"); ok {
-			return "Click"
+			return toolNameClick
 		}
 		if extractString(input, "pattern") != "" {
 			return toolNameFind
 		}
 		if extractString(input, "url") != "" || refID != "" {
-			return "OpenURL"
+			return toolNameOpenURL
 		}
 	}
 	if extractString(input, "url") != "" {
@@ -198,9 +206,9 @@ func driverToolTitleAlias(driverID string, token string) (string, bool) {
 	case model.IDECodex:
 		switch token {
 		case "search_query":
-			return "WebSearch", true
+			return toolNameWebSearch, true
 		case "image_query":
-			return "ImageSearch", true
+			return toolNameImageSearch, true
 		}
 	case model.IDEClaude, model.IDECursor, model.IDEDroid, model.IDEOpenCode, model.IDEPi, model.IDEGemini:
 		// Use common aliases only.
@@ -228,6 +236,8 @@ func cloneMap(src map[string]any) map[string]any {
 	if len(src) == 0 {
 		return nil
 	}
+	// Tool input normalization treats nested values as read-only and only needs
+	// ownership of the top-level map keys.
 	dst := make(map[string]any, len(src))
 	for key, value := range src {
 		dst[key] = value

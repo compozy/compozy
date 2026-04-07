@@ -433,19 +433,19 @@ func convertToolContentBlock(
 	}
 }
 
-func marshalRawJSON(value any) json.RawMessage {
+func marshalRawJSON(value any) (json.RawMessage, error) {
 	if value == nil {
-		return nil
+		return nil, nil
 	}
 	if raw, ok := value.(json.RawMessage); ok {
-		return append(json.RawMessage(nil), raw...)
+		return append(json.RawMessage(nil), raw...), nil
 	}
 
 	payload, err := json.Marshal(value)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("marshal raw JSON: %w", err)
 	}
-	return payload
+	return payload, nil
 }
 
 func stringifyValue(value any) string {

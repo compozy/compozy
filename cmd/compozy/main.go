@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy/command"
@@ -12,6 +13,8 @@ import (
 	"github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
 )
+
+const updateResultWaitTimeout = 250 * time.Millisecond
 
 func main() {
 	os.Exit(run())
@@ -62,7 +65,15 @@ func waitForUpdateResult(result <-chan *update.ReleaseInfo) *update.ReleaseInfo 
 	if result == nil {
 		return nil
 	}
-	return <-result
+	select {
+	case release, ok := <-result:
+		if !ok {
+			return nil
+		}
+		return release
+	case <-time.After(updateResultWaitTimeout):
+		return nil
+	}
 }
 
 func renderUpdateNotification(currentVersion string, release *update.ReleaseInfo) string {
