@@ -17,7 +17,7 @@ func ClosePreparationJournal(ctx context.Context, prep *model.SolvePreparation) 
 
 	closeCtx := ctx
 	if closeCtx == nil {
-		closeCtx = context.Background()
+		closeCtx = context.TODO()
 	}
 	if _, hasDeadline := closeCtx.Deadline(); !hasDeadline {
 		var cancel context.CancelFunc

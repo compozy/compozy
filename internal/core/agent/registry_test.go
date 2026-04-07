@@ -592,6 +592,18 @@ func TestValidateRuntimeConfigRejectsNilConfig(t *testing.T) {
 	}
 }
 
+func TestEnsureAvailableRejectsNilConfig(t *testing.T) {
+	t.Parallel()
+
+	if err := EnsureAvailable(
+		context.Background(),
+		nil,
+	); err == nil ||
+		!strings.Contains(err.Error(), "runtime config is nil") {
+		t.Fatalf("expected nil runtime config error, got %v", err)
+	}
+}
+
 func TestValidateRuntimeConfigAcceptsResolvedPromptTextAsExecPromptSource(t *testing.T) {
 	t.Parallel()
 

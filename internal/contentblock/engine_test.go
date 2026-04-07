@@ -2,6 +2,7 @@ package contentblock
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -57,4 +58,62 @@ func TestMarshalEnvelopeJSONValidatesRawPayloadShape(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUnmarshalEnvelopeJSONValidatesDecoderHooks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a missing validator", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := UnmarshalEnvelopeJSON[string]([]byte(`{"type":"text","text":"hello"}`), nil)
+		if err == nil {
+			t.Fatal("expected missing validator error")
+		}
+		if !strings.Contains(err.Error(), "missing validator") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("Should wrap validator failures with the block type", func(t *testing.T) {
+		t.Parallel()
+
+		validateErr := errors.New("validator exploded")
+		_, err := UnmarshalEnvelopeJSON[string](
+			[]byte(`{"type":"text","text":"hello"}`),
+			func(string, []byte) error {
+				return validateErr
+			},
+		)
+		if err == nil {
+			t.Fatal("expected validator failure")
+		}
+		if !errors.Is(err, validateErr) {
+			t.Fatalf("expected validator error to be wrapped, got %v", err)
+		}
+		if !strings.Contains(err.Error(), "decode text block") {
+			t.Fatalf("expected block type context, got %v", err)
+		}
+	})
+}
+
+func TestDecodeBlockValidatesTypeExtractor(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a missing type extractor", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := DecodeBlock[map[string]string](
+			[]byte(`{"type":"text","text":"hello"}`),
+			"text",
+			nil,
+			nil,
+		)
+		if err == nil {
+			t.Fatal("expected missing type extractor error")
+		}
+		if !strings.Contains(err.Error(), "missing type extractor") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
 }

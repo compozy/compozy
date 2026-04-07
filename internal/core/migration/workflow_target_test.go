@@ -1,8 +1,8 @@
 package migration
 
 import (
+	"errors"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -36,7 +36,7 @@ func TestResolveWorkflowTargetRejectsEscapingWorkflowNames(t *testing.T) {
 			if err == nil {
 				t.Fatal("expected invalid workflow name error")
 			}
-			if !strings.Contains(err.Error(), "single active workflow directory name") {
+			if !errors.Is(err, ErrInvalidWorkflowName) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})

@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 )
+
+var ErrInvalidWorkflowName = errors.New("invalid workflow name")
 
 type workflowTargetOptions struct {
 	command       string
@@ -102,7 +105,11 @@ func normalizeWorkflowName(command, name string) (string, error) {
 		return "", nil
 	}
 	if filepath.IsAbs(trimmed) || strings.ContainsAny(trimmed, `/\`) || !model.IsActiveWorkflowDirName(trimmed) {
-		return "", fmt.Errorf("%s name must be a single active workflow directory name", command)
+		return "", fmt.Errorf(
+			"%w: %s name must be a single active workflow directory name",
+			ErrInvalidWorkflowName,
+			command,
+		)
 	}
 	return trimmed, nil
 }

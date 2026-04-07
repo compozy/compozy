@@ -83,8 +83,11 @@ func UnmarshalEnvelopeJSON[T ~string](
 	if envelope.Type == "" {
 		return Envelope[T]{}, fmt.Errorf("decode content block envelope: missing type")
 	}
+	if validate == nil {
+		return Envelope[T]{}, fmt.Errorf("decode %s block: missing validator", envelope.Type)
+	}
 	if err := validate(envelope.Type, data); err != nil {
-		return Envelope[T]{}, err
+		return Envelope[T]{}, fmt.Errorf("decode %s block: %w", envelope.Type, err)
 	}
 
 	return Envelope[T]{
@@ -101,6 +104,10 @@ func DecodeBlock[T any, B ~string](
 	normalize func(*T, B),
 ) (T, error) {
 	var block T
+	if blockType == nil {
+		var zero T
+		return zero, fmt.Errorf("decode %s block: missing type extractor", expected)
+	}
 	if err := json.Unmarshal(data, &block); err != nil {
 		var zero T
 		return zero, fmt.Errorf("decode %s block: %w", expected, err)

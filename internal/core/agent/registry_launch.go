@@ -61,6 +61,9 @@ func (e *AvailabilityError) Unwrap() error {
 
 // EnsureAvailable verifies that the configured ACP agent binary is installed and executable.
 func EnsureAvailable(ctx context.Context, cfg *model.RuntimeConfig) error {
+	if cfg == nil {
+		return errors.New("runtime config is nil")
+	}
 	if cfg.DryRun {
 		return nil
 	}
