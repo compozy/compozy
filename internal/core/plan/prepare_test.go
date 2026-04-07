@@ -1,9 +1,10 @@
 package plan
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -131,7 +132,7 @@ func TestValidateAndFilterEntriesReportsCompletedTaskWorkflowsSeparately(t *test
 	}
 
 	var gotErr error
-	output := captureStandardOutput(t, func() {
+	output := captureSlogOutput(t, func() {
 		_, gotErr = validateAndFilterEntries(entries, &model.RuntimeConfig{
 			Mode:             model.ExecutionModePRDTasks,
 			TasksDir:         dir,
@@ -162,7 +163,7 @@ func TestValidateAndFilterEntriesKeepsEmptyTaskDirectoriesDistinct(t *testing.T)
 	}
 
 	var gotErr error
-	output := captureStandardOutput(t, func() {
+	output := captureSlogOutput(t, func() {
 		_, gotErr = validateAndFilterEntries(entries, &model.RuntimeConfig{
 			Mode:             model.ExecutionModePRDTasks,
 			TasksDir:         dir,
@@ -680,34 +681,18 @@ func TestResolveInputsRejectsLegacyReviewsDirInference(t *testing.T) {
 	}
 }
 
-func captureStandardOutput(t *testing.T, fn func()) string {
+func captureSlogOutput(t *testing.T, fn func()) string {
 	t.Helper()
 
-	originalStdout := os.Stdout
-	readPipe, writePipe, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("create pipe: %v", err)
-	}
-
-	os.Stdout = writePipe
-	defer func() {
-		os.Stdout = originalStdout
-	}()
+	originalLogger := slog.Default()
+	var buffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buffer, nil))
+	slog.SetDefault(logger)
+	defer slog.SetDefault(originalLogger)
 
 	fn()
 
-	if err := writePipe.Close(); err != nil {
-		t.Fatalf("close write pipe: %v", err)
-	}
-	output, err := io.ReadAll(readPipe)
-	if err != nil {
-		t.Fatalf("read captured output: %v", err)
-	}
-	if err := readPipe.Close(); err != nil {
-		t.Fatalf("close read pipe: %v", err)
-	}
-
-	return string(output)
+	return buffer.String()
 }
 
 func assertJobUsesRunArtifacts(t *testing.T, runArtifacts model.RunArtifacts, job model.Job) {

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -233,7 +234,15 @@ func TestResolveLaunchCommandUsesFallbackCandidate(t *testing.T) {
 		t.Fatalf("lookup test spec: %v", err)
 	}
 
-	command, err := resolveLaunchCommand(spec, spec.DefaultModel, "medium", nil, model.AccessModeDefault, true)
+	command, err := resolveLaunchCommand(
+		context.Background(),
+		spec,
+		spec.DefaultModel,
+		"medium",
+		nil,
+		model.AccessModeDefault,
+		true,
+	)
 	if err != nil {
 		t.Fatalf("resolve launch command: %v", err)
 	}
@@ -519,7 +528,7 @@ func TestEnsureAvailableReturnsTypedErrorWhenCommandMissing(t *testing.T) {
 	}
 	registerTestSpec(t, testSpec)
 
-	err := EnsureAvailable(&model.RuntimeConfig{IDE: testSpec.ID})
+	err := EnsureAvailable(context.Background(), &model.RuntimeConfig{IDE: testSpec.ID})
 	if err == nil {
 		t.Fatal("expected EnsureAvailable error")
 	}
@@ -535,7 +544,7 @@ func TestEnsureAvailableReturnsTypedErrorWhenCommandMissing(t *testing.T) {
 		t.Fatalf("expected install hint in error, got %q", err)
 	}
 
-	if err := EnsureAvailable(&model.RuntimeConfig{IDE: testSpec.ID, DryRun: true}); err != nil {
+	if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{IDE: testSpec.ID, DryRun: true}); err != nil {
 		t.Fatalf("expected dry-run EnsureAvailable to bypass checks: %v", err)
 	}
 }
@@ -558,7 +567,7 @@ func TestEnsureAvailableReturnsProbeOutputWhenCommandIsBroken(t *testing.T) {
 		InstallHint:  "Reinstall the broken ACP adapter.",
 	})
 
-	err := EnsureAvailable(&model.RuntimeConfig{IDE: "broken-probe-test"})
+	err := EnsureAvailable(context.Background(), &model.RuntimeConfig{IDE: "broken-probe-test"})
 	if err == nil {
 		t.Fatal("expected EnsureAvailable error")
 	}
@@ -573,6 +582,134 @@ func TestEnsureAvailableReturnsProbeOutputWhenCommandIsBroken(t *testing.T) {
 	if !strings.Contains(err.Error(), "adapter exploded") {
 		t.Fatalf("expected probe output in error, got %q", err)
 	}
+}
+
+func TestValidateRuntimeConfigRejectsNilConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a nil runtime config", func(t *testing.T) {
+		t.Parallel()
+
+		if err := ValidateRuntimeConfig(nil); !errors.Is(err, ErrRuntimeConfigNil) {
+			t.Fatalf("expected ErrRuntimeConfigNil, got %v", err)
+		}
+	})
+}
+
+func TestEnsureAvailableRejectsNilConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject a nil runtime config", func(t *testing.T) {
+		t.Parallel()
+
+		if err := EnsureAvailable(
+			context.Background(),
+			nil,
+		); !errors.Is(err, ErrRuntimeConfigNil) {
+			t.Fatalf("expected ErrRuntimeConfigNil, got %v", err)
+		}
+	})
+}
+
+func TestValidateRuntimeConfigAcceptsResolvedPromptTextAsExecPromptSource(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept resolved prompt text as an exec prompt source", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			Mode:                   model.ExecutionModeExec,
+			IDE:                    model.IDECodex,
+			OutputFormat:           model.OutputFormatText,
+			ResolvedPromptText:     "prompt from caller",
+			BatchSize:              1,
+			MaxRetries:             1,
+			RetryBackoffMultiplier: 1.5,
+		}
+
+		if err := ValidateRuntimeConfig(cfg); err != nil {
+			t.Fatalf("expected resolved prompt text to satisfy exec prompt validation: %v", err)
+		}
+	})
+}
+
+func TestBuildShellCommandStringShellEscapesInterpolatedArguments(t *testing.T) {
+	t.Run("Should shell-escape interpolated arguments", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		commandPath := filepath.Join(tmpDir, "quoted-acp")
+		if err := os.WriteFile(commandPath, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+			t.Fatalf("write helper script: %v", err)
+		}
+
+		t.Setenv("PATH", tmpDir)
+		registerTestSpec(t, Spec{
+			ID:                 "shell-quote-test",
+			DisplayName:        "Quoted ACP",
+			DefaultModel:       "default-model",
+			Command:            "quoted-acp",
+			UsesBootstrapModel: true,
+			BootstrapArgs: func(modelName, _ string, _ []string, _ string) []string {
+				return []string{"--model", modelName}
+			},
+		})
+
+		got := BuildShellCommandString("shell-quote-test", "$HOME", nil, "medium", model.AccessModeDefault)
+		if !strings.Contains(got, "'$HOME'") {
+			t.Fatalf("expected shell-safe single-quoted model argument, got %q", got)
+		}
+		if strings.Contains(got, "\"$HOME\"") {
+			t.Fatalf("expected preview command to avoid double-quoted shell expansion, got %q", got)
+		}
+	})
+}
+
+func TestEnsureAvailableHonorsCallerContext(t *testing.T) {
+	t.Run("Should honor the caller context", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		scriptPath := filepath.Join(tmpDir, "slow-acp")
+		script := "#!/bin/sh\nsleep 5\n"
+		if err := os.WriteFile(scriptPath, []byte(script), 0o700); err != nil {
+			t.Fatalf("write helper script: %v", err)
+		}
+
+		t.Setenv("PATH", tmpDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+		registerTestSpec(t, Spec{
+			ID:           "slow-probe-test",
+			DisplayName:  "Slow ACP",
+			DefaultModel: "test-model",
+			Command:      "slow-acp",
+		})
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		err := EnsureAvailable(ctx, &model.RuntimeConfig{IDE: "slow-probe-test"})
+		if err == nil {
+			t.Fatal("expected EnsureAvailable error")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("expected context cancellation, got %v", err)
+		}
+	})
+}
+
+func TestJoinAvailabilityErrorsPreservesAvailabilityErrorTypes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve availability error types", func(t *testing.T) {
+		t.Parallel()
+
+		spec := Spec{ID: "codex", DisplayName: "Codex"}
+		err := joinAvailabilityErrors(spec, []error{
+			&AvailabilityError{IDE: "codex", Cause: errors.New("missing primary")},
+			&AvailabilityError{IDE: "codex", Cause: errors.New("missing fallback")},
+		})
+
+		var availabilityErr *AvailabilityError
+		if !errors.As(err, &availabilityErr) {
+			t.Fatalf("expected joined error to preserve AvailabilityError types, got %T", err)
+		}
+	})
 }
 
 func TestDisplayNameReturnsCorrectDisplayNames(t *testing.T) {

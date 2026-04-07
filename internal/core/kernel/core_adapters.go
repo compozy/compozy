@@ -44,104 +44,86 @@ func sharedCoreAdapterDispatcher() (*Dispatcher, error) {
 	return coreAdapterDispatcher, coreAdapterDispatcherErr
 }
 
-func dispatchPrepareAdapter(ctx context.Context, cfg core.Config) (*core.Preparation, error) {
+func dispatchAdapter[C any, R any](ctx context.Context, label string, cmd C) (R, error) {
+	var zero R
+
 	dispatcher, err := coreAdapterDispatcherFn()
 	if err != nil {
-		return nil, fmt.Errorf("prepare: %w", err)
+		return zero, fmt.Errorf("%s: %w", label, err)
 	}
-	result, err := Dispatch[commands.WorkflowPrepareCommand, commands.WorkflowPrepareResult](
+
+	result, err := Dispatch[C, R](ctx, dispatcher, cmd)
+	if err != nil {
+		return zero, fmt.Errorf("%s: %w", label, err)
+	}
+	return result, nil
+}
+
+func dispatchPrepareAdapter(ctx context.Context, cfg core.Config) (*core.Preparation, error) {
+	result, err := dispatchAdapter[commands.WorkflowPrepareCommand, commands.WorkflowPrepareResult](
 		ctx,
-		dispatcher,
+		"prepare",
 		commands.WorkflowPrepareFromConfig(cfg),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("prepare: %w", err)
+		return nil, err
 	}
 	return result.Preparation, nil
 }
 
 func dispatchRunAdapter(ctx context.Context, cfg core.Config) error {
-	dispatcher, err := coreAdapterDispatcherFn()
-	if err != nil {
-		return fmt.Errorf("run: %w", err)
-	}
-	_, err = Dispatch[commands.RunStartCommand, commands.RunStartResult](
+	_, err := dispatchAdapter[commands.RunStartCommand, commands.RunStartResult](
 		ctx,
-		dispatcher,
+		"run",
 		commands.RunStartFromConfig(cfg),
 	)
-	if err != nil {
-		return fmt.Errorf("run: %w", err)
-	}
-	return nil
+	return err
 }
 
 func dispatchFetchReviewsAdapter(ctx context.Context, cfg core.Config) (*core.FetchResult, error) {
-	dispatcher, err := coreAdapterDispatcherFn()
-	if err != nil {
-		return nil, fmt.Errorf("fetch reviews: %w", err)
-	}
-	result, err := Dispatch[commands.ReviewsFetchCommand, commands.ReviewsFetchResult](
+	result, err := dispatchAdapter[commands.ReviewsFetchCommand, commands.ReviewsFetchResult](
 		ctx,
-		dispatcher,
+		"fetch reviews",
 		commands.ReviewsFetchFromConfig(cfg),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("fetch reviews: %w", err)
+		return nil, err
 	}
 	return result.Result, nil
 }
 
 func dispatchMigrateAdapter(ctx context.Context, cfg core.MigrationConfig) (*core.MigrationResult, error) {
-	command := commands.WorkspaceMigrateFromMigrationConfig(cfg)
-
-	dispatcher, err := coreAdapterDispatcherFn()
-	if err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
-	}
-	result, err := Dispatch[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult](
+	result, err := dispatchAdapter[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult](
 		ctx,
-		dispatcher,
-		command,
+		"migrate",
+		commands.WorkspaceMigrateFromMigrationConfig(cfg),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("migrate: %w", err)
+		return nil, err
 	}
 	return result.Result, nil
 }
 
 func dispatchSyncAdapter(ctx context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
-	command := commands.WorkflowSyncFromSyncConfig(cfg)
-
-	dispatcher, err := coreAdapterDispatcherFn()
-	if err != nil {
-		return nil, fmt.Errorf("sync: %w", err)
-	}
-	result, err := Dispatch[commands.WorkflowSyncCommand, commands.WorkflowSyncResult](
+	result, err := dispatchAdapter[commands.WorkflowSyncCommand, commands.WorkflowSyncResult](
 		ctx,
-		dispatcher,
-		command,
+		"sync",
+		commands.WorkflowSyncFromSyncConfig(cfg),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("sync: %w", err)
+		return nil, err
 	}
 	return result.Result, nil
 }
 
 func dispatchArchiveAdapter(ctx context.Context, cfg core.ArchiveConfig) (*core.ArchiveResult, error) {
-	command := commands.WorkflowArchiveFromArchiveConfig(cfg)
-
-	dispatcher, err := coreAdapterDispatcherFn()
-	if err != nil {
-		return nil, fmt.Errorf("archive: %w", err)
-	}
-	result, err := Dispatch[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult](
+	result, err := dispatchAdapter[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult](
 		ctx,
-		dispatcher,
-		command,
+		"archive",
+		commands.WorkflowArchiveFromArchiveConfig(cfg),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("archive: %w", err)
+		return nil, err
 	}
 	return result.Result, nil
 }

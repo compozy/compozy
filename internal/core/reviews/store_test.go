@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
@@ -135,7 +134,7 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 		t.Fatalf("expected issue file to start pending, got:\n%s", entries[0].Content)
 	}
 
-	ctx, err := prompt.ParseReviewContext(entries[0].Content)
+	ctx, err := ParseReviewContext(entries[0].Content)
 	if err != nil {
 		t.Fatalf("parse review context: %v", err)
 	}

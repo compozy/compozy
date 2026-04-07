@@ -11,7 +11,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/prompt"
 	"gopkg.in/yaml.v3"
 )
 
@@ -96,13 +95,13 @@ func Validate(ctx context.Context, tasksDir string, registry *TypeRegistry) (Rep
 func collectTaskFileNames(entries []os.DirEntry) []string {
 	names := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.Type().IsRegular() || prompt.ExtractTaskNumber(entry.Name()) == 0 {
+		if !entry.Type().IsRegular() || ExtractTaskNumber(entry.Name()) == 0 {
 			continue
 		}
 		names = append(names, entry.Name())
 	}
 	slices.SortStableFunc(names, func(a, b string) int {
-		if numA, numB := prompt.ExtractTaskNumber(a), prompt.ExtractTaskNumber(b); numA != numB {
+		if numA, numB := ExtractTaskNumber(a), ExtractTaskNumber(b); numA != numB {
 			return numA - numB
 		}
 		return strings.Compare(a, b)
@@ -111,13 +110,13 @@ func collectTaskFileNames(entries []os.DirEntry) []string {
 }
 
 func parseTaskForValidation(content string) (model.TaskEntry, string, []string, error) {
-	parsedTask, parseErr := prompt.ParseTaskFile(content)
+	parsedTask, parseErr := ParseTaskFile(content)
 
 	var node yaml.Node
 	body, err := frontmatter.Parse(content, &node)
 	if err != nil {
-		if errors.Is(parseErr, prompt.ErrLegacyTaskMetadata) {
-			return model.TaskEntry{}, "", nil, prompt.ErrLegacyTaskMetadata
+		if errors.Is(parseErr, ErrLegacyTaskMetadata) {
+			return model.TaskEntry{}, "", nil, ErrLegacyTaskMetadata
 		}
 		return model.TaskEntry{}, "", nil, err
 	}
@@ -125,7 +124,7 @@ func parseTaskForValidation(content string) (model.TaskEntry, string, []string, 
 	if parseErr == nil {
 		return parsedTask, body, taskLegacyKeys(&node), nil
 	}
-	if errors.Is(parseErr, prompt.ErrLegacyTaskMetadata) {
+	if errors.Is(parseErr, ErrLegacyTaskMetadata) {
 		return model.TaskEntry{}, "", nil, parseErr
 	}
 
@@ -143,26 +142,8 @@ func taskEntryFromMeta(content string, meta model.TaskFileMeta) model.TaskEntry 
 		Title:        strings.TrimSpace(meta.Title),
 		TaskType:     strings.TrimSpace(meta.TaskType),
 		Complexity:   strings.TrimSpace(meta.Complexity),
-		Dependencies: normalizeValidationDependencies(meta.Dependencies),
+		Dependencies: normalizeDependencies(meta.Dependencies),
 	}
-}
-
-func normalizeValidationDependencies(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	normalized := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" || strings.EqualFold(trimmed, "none") {
-			continue
-		}
-		normalized = append(normalized, trimmed)
-	}
-	if len(normalized) == 0 {
-		return nil
-	}
-	return normalized
 }
 
 func taskLegacyKeys(node *yaml.Node) []string {

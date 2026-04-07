@@ -129,26 +129,26 @@ func (fi *formInputs) register(builder *formBuilder) {
 }
 
 func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
-	applyStringInput(cmd, "name", fi.name, func(val string) { state.name = val })
-	applyStringInput(cmd, "pr", fi.pr, func(val string) { state.pr = val })
-	applyStringInput(cmd, "provider", fi.provider, func(val string) { state.provider = val })
-	applyIntInput(cmd, "round", fi.round, func(val int) { state.round = val })
-	applyStringInput(cmd, "reviews-dir", fi.reviewsDir, func(val string) { state.reviewsDir = val })
-	applyStringInput(cmd, "tasks-dir", fi.tasksDir, func(val string) { state.tasksDir = val })
-	applyIntInput(cmd, "concurrent", fi.concurrent, func(val int) { state.concurrent = val })
-	applyIntInput(cmd, "batch-size", fi.batchSize, func(val int) { state.batchSize = val })
-	applyStringInput(cmd, "ide", fi.ide, func(val string) { state.ide = val })
-	applyStringInput(cmd, "model", fi.model, func(val string) { state.model = val })
-	applyStringSliceInput(cmd, "add-dir", fi.addDirs, func(val []string) { state.addDirs = val })
-	applyStringInput(cmd, "reasoning-effort", fi.reasoningEffort, func(val string) {
+	applyInput(cmd, "name", fi.name, passThroughInput[string], func(val string) { state.name = val })
+	applyInput(cmd, "pr", fi.pr, passThroughInput[string], func(val string) { state.pr = val })
+	applyInput(cmd, "provider", fi.provider, passThroughInput[string], func(val string) { state.provider = val })
+	applyInput(cmd, "round", fi.round, parseIntInput, func(val int) { state.round = val })
+	applyInput(cmd, "reviews-dir", fi.reviewsDir, passThroughInput[string], func(val string) { state.reviewsDir = val })
+	applyInput(cmd, "tasks-dir", fi.tasksDir, passThroughInput[string], func(val string) { state.tasksDir = val })
+	applyInput(cmd, "concurrent", fi.concurrent, parseIntInput, func(val int) { state.concurrent = val })
+	applyInput(cmd, "batch-size", fi.batchSize, parseIntInput, func(val int) { state.batchSize = val })
+	applyInput(cmd, "ide", fi.ide, passThroughInput[string], func(val string) { state.ide = val })
+	applyInput(cmd, "model", fi.model, passThroughInput[string], func(val string) { state.model = val })
+	applyInput(cmd, "add-dir", fi.addDirs, parseStringSliceInput, func(val []string) { state.addDirs = val })
+	applyInput(cmd, "reasoning-effort", fi.reasoningEffort, passThroughInput[string], func(val string) {
 		state.reasoningEffort = val
 	})
-	applyBoolInput(cmd, "dry-run", fi.dryRun, func(val bool) { state.dryRun = val })
-	applyBoolInput(cmd, "auto-commit", fi.autoCommit, func(val bool) { state.autoCommit = val })
-	applyBoolInput(cmd, "include-completed", fi.includeCompleted, func(val bool) {
+	applyInput(cmd, "dry-run", fi.dryRun, passThroughInput[bool], func(val bool) { state.dryRun = val })
+	applyInput(cmd, "auto-commit", fi.autoCommit, passThroughInput[bool], func(val bool) { state.autoCommit = val })
+	applyInput(cmd, "include-completed", fi.includeCompleted, passThroughInput[bool], func(val bool) {
 		state.includeCompleted = val
 	})
-	applyBoolInput(cmd, "include-resolved", fi.includeResolved, func(val bool) {
+	applyInput(cmd, "include-resolved", fi.includeResolved, passThroughInput[bool], func(val bool) {
 		state.includeResolved = val
 	})
 }
@@ -461,40 +461,40 @@ func numericInput(
 		})
 }
 
-func applyStringInput(cmd *cobra.Command, flagName, value string, setter func(string)) {
+func applyInput[T any, V any](
+	cmd *cobra.Command,
+	flagName string,
+	value V,
+	parse func(V) (T, bool),
+	setter func(T),
+) {
 	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
 		return
 	}
-	setter(value)
+	resolved, ok := parse(value)
+	if !ok {
+		return
+	}
+	setter(resolved)
 }
 
-func applyIntInput(cmd *cobra.Command, flagName, value string, setter func(int)) {
-	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
-		return
-	}
+func passThroughInput[T any](value T) (T, bool) {
+	return value, true
+}
+
+func parseIntInput(value string) (int, bool) {
 	if strings.TrimSpace(value) == "" {
-		setter(0)
-		return
+		return 0, true
 	}
 	val, err := strconv.Atoi(value)
 	if err != nil {
-		return
+		return 0, false
 	}
-	setter(val)
+	return val, true
 }
 
-func applyBoolInput(cmd *cobra.Command, flagName string, value bool, setter func(bool)) {
-	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
-		return
-	}
-	setter(value)
-}
-
-func applyStringSliceInput(cmd *cobra.Command, flagName, value string, setter func([]string)) {
-	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
-		return
-	}
-	setter(parseAddDirInput(value))
+func parseStringSliceInput(value string) ([]string, bool) {
+	return parseAddDirInput(value), true
 }
 
 func parseAddDirInput(value string) []string {

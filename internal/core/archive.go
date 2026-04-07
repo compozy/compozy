@@ -57,58 +57,26 @@ func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResul
 }
 
 func resolveArchiveTarget(cfg ArchiveConfig) (string, string, bool, error) {
-	specificTargets := 0
-	if strings.TrimSpace(cfg.Name) != "" {
-		specificTargets++
-	}
-	if strings.TrimSpace(cfg.TasksDir) != "" {
-		specificTargets++
-	}
-	if specificTargets > 1 {
-		return "", "", false, errors.New("archive accepts only one of --name or --tasks-dir")
+	name := strings.TrimSpace(cfg.Name)
+	if name == model.ArchivedWorkflowDirName {
+		return "", "", false, fmt.Errorf("archive target cannot be %s", model.ArchivedWorkflowDirName)
 	}
 
-	rootDir := strings.TrimSpace(cfg.RootDir)
-	if rootDir == "" {
-		rootDir = model.TasksBaseDirForWorkspace(cfg.WorkspaceRoot)
-	}
-
-	target := rootDir
-	singleWorkflow := false
-	switch {
-	case strings.TrimSpace(cfg.TasksDir) != "":
-		target = strings.TrimSpace(cfg.TasksDir)
-		singleWorkflow = true
-	case strings.TrimSpace(cfg.Name) != "":
-		name := strings.TrimSpace(cfg.Name)
-		if name == model.ArchivedWorkflowDirName {
-			return "", "", false, fmt.Errorf("archive target cannot be %s", model.ArchivedWorkflowDirName)
-		}
-		target = filepath.Join(rootDir, name)
-		singleWorkflow = true
-	}
-
-	resolvedTarget, err := filepath.Abs(target)
+	resolved, err := resolveWorkflowTarget(workflowTargetOptions{
+		command:       "archive",
+		workspaceRoot: cfg.WorkspaceRoot,
+		rootDir:       cfg.RootDir,
+		name:          name,
+		tasksDir:      cfg.TasksDir,
+		selectorFlags: "--name or --tasks-dir",
+	})
 	if err != nil {
-		return "", "", false, fmt.Errorf("resolve archive target: %w", err)
+		return "", "", false, err
 	}
-	info, err := os.Stat(resolvedTarget)
-	if err != nil {
-		return "", "", false, fmt.Errorf("stat archive target: %w", err)
-	}
-	if !info.IsDir() {
-		return "", "", false, fmt.Errorf("archive target is not a directory: %s", resolvedTarget)
-	}
-	if pathContainsArchivedComponent(resolvedTarget) {
+	if pathContainsArchivedComponent(resolved.target) {
 		return "", "", false, fmt.Errorf("archive target cannot be inside %s", model.ArchivedWorkflowDirName)
 	}
-
-	resolvedRoot := resolvedTarget
-	if singleWorkflow {
-		resolvedRoot = filepath.Dir(resolvedTarget)
-	}
-
-	return resolvedTarget, resolvedRoot, singleWorkflow, nil
+	return resolved.target, resolved.rootDir, resolved.specificTarget, nil
 }
 
 func archiveWorkflow(tasksDir string, result *ArchiveResult) error {

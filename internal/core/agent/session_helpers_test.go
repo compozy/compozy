@@ -474,7 +474,10 @@ func TestConvertACPContentBlockFallbacks(t *testing.T) {
 func TestSessionConversionHelpers(t *testing.T) {
 	t.Parallel()
 
-	raw := marshalRawJSON(map[string]string{"path": "main.go"})
+	raw, err := marshalRawJSON(map[string]string{"path": "main.go"})
+	if err != nil {
+		t.Fatalf("marshal raw json: %v", err)
+	}
 	if string(raw) != `{"path":"main.go"}` {
 		t.Fatalf("unexpected raw json: %s", string(raw))
 	}
@@ -484,8 +487,16 @@ func TestSessionConversionHelpers(t *testing.T) {
 	if got := stringifyValue("plain"); got != "plain" {
 		t.Fatalf("unexpected plain string: %q", got)
 	}
-	if got := renderDiffText("main.go", "new", nil); !strings.Contains(got, "+++ main.go") {
+	if got := renderDiffText("main.go", "new", nil); !strings.Contains(got, "+++ main.go\nnew\n") {
 		t.Fatalf("unexpected rendered diff: %q", got)
+	}
+	oldText := "old"
+	if got := renderDiffText(
+		"dir\nmain\t.go",
+		"new",
+		&oldText,
+	); got != "--- dir\\nmain\\t.go\nold\n+++ dir\\nmain\\t.go\nnew\n" {
+		t.Fatalf("unexpected sanitized rendered diff: %q", got)
 	}
 }
 
@@ -529,6 +540,7 @@ func TestRegistryHelperFunctions(t *testing.T) {
 		t.Fatalf("write fake helper script: %v", err)
 	}
 	if _, err := resolveLaunchCommand(
+		context.Background(),
 		Spec{ID: "fake", DisplayName: "Fake", Command: scriptPath},
 		"test-model",
 		"medium",

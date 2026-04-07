@@ -32,6 +32,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 
 	required := []string{
 		"compozy setup",
+		"compozy upgrade",
 		"compozy migrate",
 		"compozy validate-tasks",
 		"compozy sync",
@@ -40,6 +41,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy fix-reviews",
 		"compozy start",
 		"setup",
+		"upgrade",
 		"migrate",
 		"validate-tasks",
 		"sync",
@@ -53,6 +55,37 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestUpgradeHelpShowsNoUnexpectedFlags(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "upgrade")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected upgrade to omit mode flag")
+	}
+
+	output, err := executeRootCommand("upgrade", "--help")
+	if err != nil {
+		t.Fatalf("execute upgrade help: %v", err)
+	}
+
+	required := []string{
+		"Upgrade compozy using the appropriate installation flow for this machine.",
+		"Package-manager installs print the correct command",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected upgrade help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--batch-size", "--include-completed"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected upgrade help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
@@ -476,6 +509,36 @@ func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	}
 }
 
+func TestBuildConfigRejectsNonPositiveTimeout(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		timeout string
+	}{
+		{name: "Should reject zero timeout", timeout: "0s"},
+		{name: "Should reject negative timeout", timeout: "-1s"},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindStart, core.ModePRDTasks)
+			state.timeout = tt.timeout
+
+			_, err := state.buildConfig()
+			if err == nil {
+				t.Fatal("expected buildConfig to reject non-positive timeout")
+			}
+			if !strings.Contains(err.Error(), "must be > 0") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestBuildConfigUsesFetchFlagsForFetchWorkflow(t *testing.T) {
 	t.Parallel()
 
@@ -625,7 +688,7 @@ func TestResolveExecPromptSourceSkipsStdinWhenPromptIsResolvedExplicitly(t *test
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			reader := &failOnReadReader{err: errors.New("stdin should not be read")}
+			reader := strings.NewReader("   \n")
 			state := newCommandState(commandKindExec, core.ModeExec)
 			state.promptFile = tc.promptFile
 			cmd := &cobra.Command{Use: "exec"}
@@ -633,9 +696,6 @@ func TestResolveExecPromptSourceSkipsStdinWhenPromptIsResolvedExplicitly(t *test
 
 			if err := state.resolveExecPromptSource(cmd, tc.args); err != nil {
 				t.Fatalf("resolveExecPromptSource: %v", err)
-			}
-			if reader.called {
-				t.Fatal("expected explicit prompt source to bypass stdin reads")
 			}
 			if state.resolvedPromptText != tc.want {
 				t.Fatalf("unexpected resolved prompt text: %q", state.resolvedPromptText)
@@ -656,6 +716,134 @@ func TestResolveExecPromptSourceRejectsAmbiguousExplicitSources(t *testing.T) {
 		t.Fatal("expected ambiguous prompt sources to fail")
 	}
 	if !strings.Contains(err.Error(), "accepts only one prompt source") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestResolveExecPromptSourceRejectsExplicitPromptWhenStdinIsAlsoPresent(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		args       []string
+		promptFile string
+	}{
+		{
+			name: "Should reject positional prompt plus stdin",
+			args: []string{"Prompt from args"},
+		},
+		{
+			name:       "Should reject prompt file plus stdin",
+			promptFile: mustWritePromptFile(t, "Prompt from file\n"),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindExec, core.ModeExec)
+			state.promptFile = tc.promptFile
+			cmd := &cobra.Command{Use: "exec"}
+			cmd.SetIn(strings.NewReader("Prompt from stdin\n"))
+
+			err := state.resolveExecPromptSource(cmd, tc.args)
+			if err == nil {
+				t.Fatal("expected ambiguous prompt sources to fail")
+			}
+			if !strings.Contains(err.Error(), "accepts only one prompt source") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveExecPromptSourceClearsStalePromptFileBetweenRuns(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		args       []string
+		stdin      io.Reader
+		wantPrompt string
+	}{
+		{
+			name:       "Should clear stale prompt file when positional prompt wins",
+			args:       []string{"Prompt from args"},
+			stdin:      strings.NewReader("   \n"),
+			wantPrompt: "Prompt from args",
+		},
+		{
+			name:       "Should clear stale prompt file when stdin prompt wins",
+			stdin:      strings.NewReader("Prompt from stdin\n"),
+			wantPrompt: "Prompt from stdin\n",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(commandKindExec, core.ModeExec)
+			initialPromptPath := mustWritePromptFile(t, "Prompt from file\n")
+			initialCmd := &cobra.Command{Use: "exec"}
+			initialCmd.Flags().String("prompt-file", "", "prompt file")
+			initialCmd.SetIn(strings.NewReader("   \n"))
+			if err := initialCmd.Flags().Set("prompt-file", initialPromptPath); err != nil {
+				t.Fatalf("set prompt-file flag: %v", err)
+			}
+			state.promptFile = initialPromptPath
+
+			if err := state.resolveExecPromptSource(initialCmd, nil); err != nil {
+				t.Fatalf("resolve initial prompt file source: %v", err)
+			}
+			if state.promptFile != initialPromptPath {
+				t.Fatalf("expected initial prompt file to remain active, got %q", state.promptFile)
+			}
+
+			nextCmd := &cobra.Command{Use: "exec"}
+			nextCmd.Flags().String("prompt-file", "", "prompt file")
+			nextCmd.SetIn(tt.stdin)
+			if err := state.resolveExecPromptSource(nextCmd, tt.args); err != nil {
+				t.Fatalf("resolve subsequent prompt source: %v", err)
+			}
+			if state.promptFile != "" {
+				t.Fatalf("expected stale prompt file to be cleared, got %q", state.promptFile)
+			}
+			if state.resolvedPromptText != tt.wantPrompt {
+				t.Fatalf("unexpected resolved prompt text: %q", state.resolvedPromptText)
+			}
+		})
+	}
+}
+
+func TestFetchReviewsReturnsWriterErrors(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	state.fetchReviewsFn = func(context.Context, core.Config) (*core.FetchResult, error) {
+		return &core.FetchResult{
+			Provider:   "coderabbit",
+			PR:         "70",
+			Round:      1,
+			ReviewsDir: "/tmp/reviews",
+			Total:      19,
+		}, nil
+	}
+
+	cmd := newTestCommand(state)
+	cmd.SetOut(&failOnWriteWriter{err: errors.New("broken stdout")})
+	if err := cmd.Flags().Set("dry-run", "true"); err != nil {
+		t.Fatalf("set dry-run flag: %v", err)
+	}
+
+	err := state.fetchReviews(cmd, nil)
+	if err == nil {
+		t.Fatal("expected fetchReviews to return a write error")
+	}
+	if !strings.Contains(err.Error(), "write fetch summary") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -1440,8 +1628,10 @@ func TestCommandStateDefaultsWithFallbacksPreservesExplicitFunctions(t *testing.
 	customCollectForm := func(*cobra.Command, *commandState) error { return nil }
 
 	filled := (commandStateDefaults{
-		isInteractive: customInteractive,
-		collectForm:   customCollectForm,
+		commandStateCallbacks: commandStateCallbacks{
+			isInteractive: customInteractive,
+			collectForm:   customCollectForm,
+		},
 	}).withFallbacks()
 
 	if got := reflect.ValueOf(filled.isInteractive).Pointer(); got != reflect.ValueOf(customInteractive).Pointer() {
@@ -1506,15 +1696,25 @@ func mustCLIRepoRootPath(t *testing.T, elems ...string) string {
 	return filepath.Join(parts...)
 }
 
-type failOnReadReader struct {
-	called bool
-	err    error
+func mustWritePromptFile(t *testing.T, content string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "prompt.md")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write prompt file: %v", err)
+	}
+	return path
 }
 
-func (r *failOnReadReader) Read(_ []byte) (int, error) {
-	r.called = true
-	if r.err != nil {
-		return 0, r.err
+type failOnWriteWriter struct {
+	err error
+}
+
+var errFailOnWriteWriterUnset = errors.New("failOnWriteWriter: missing injected error")
+
+func (w *failOnWriteWriter) Write(_ []byte) (int, error) {
+	if w.err != nil {
+		return 0, w.err
 	}
-	return 0, io.EOF
+	return 0, errFailOnWriteWriterUnset
 }

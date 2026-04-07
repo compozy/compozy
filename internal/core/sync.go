@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/tasks"
@@ -49,45 +48,18 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 }
 
 func resolveSyncTarget(cfg SyncConfig) (string, bool, error) {
-	specificTargets := 0
-	if strings.TrimSpace(cfg.Name) != "" {
-		specificTargets++
-	}
-	if strings.TrimSpace(cfg.TasksDir) != "" {
-		specificTargets++
-	}
-	if specificTargets > 1 {
-		return "", false, errors.New("sync accepts only one of --name or --tasks-dir")
-	}
-
-	rootDir := strings.TrimSpace(cfg.RootDir)
-	if rootDir == "" {
-		rootDir = model.TasksBaseDirForWorkspace(cfg.WorkspaceRoot)
-	}
-
-	target := rootDir
-	singleWorkflow := false
-	switch {
-	case strings.TrimSpace(cfg.TasksDir) != "":
-		target = strings.TrimSpace(cfg.TasksDir)
-		singleWorkflow = true
-	case strings.TrimSpace(cfg.Name) != "":
-		target = filepath.Join(rootDir, strings.TrimSpace(cfg.Name))
-		singleWorkflow = true
-	}
-
-	resolved, err := filepath.Abs(target)
+	resolved, err := resolveWorkflowTarget(workflowTargetOptions{
+		command:       "sync",
+		workspaceRoot: cfg.WorkspaceRoot,
+		rootDir:       cfg.RootDir,
+		name:          cfg.Name,
+		tasksDir:      cfg.TasksDir,
+		selectorFlags: "--name or --tasks-dir",
+	})
 	if err != nil {
-		return "", false, fmt.Errorf("resolve sync target: %w", err)
+		return "", false, err
 	}
-	info, err := os.Stat(resolved)
-	if err != nil {
-		return "", false, fmt.Errorf("stat sync target: %w", err)
-	}
-	if !info.IsDir() {
-		return "", false, fmt.Errorf("sync target is not a directory: %s", resolved)
-	}
-	return resolved, singleWorkflow, nil
+	return resolved.target, resolved.specificTarget, nil
 }
 
 func syncWorkflow(tasksDir string, result *SyncResult) error {

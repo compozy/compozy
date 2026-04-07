@@ -31,7 +31,7 @@ Use bundled exporter script:
 
 ```bash
 PR_NUMBER=<pr-number>
-pnpm exec tsx .claude/skills/fix-coderabbit-review/scripts/pr-review.ts "$PR_NUMBER" --hide-resolved
+uv run .claude/skills/fix-coderabbit-review/scripts/pr_review.py "$PR_NUMBER" --hide-resolved
 ```
 
 Read generated files in:
@@ -95,7 +95,7 @@ After the single commit is created, resolve exported issue threads.
 Determine the issue range from issue files (example: `001` to `018`) and run:
 
 ```bash
-bash .claude/skills/fix-coderabbit-review/scripts/resolve_pr_issues.sh \
+uv run .claude/skills/fix-coderabbit-review/scripts/resolve_pr_issues.py \
   --pr-dir ai-docs/reviews-pr-<PR_NUMBER> \
   --from <first-issue-number> \
   --to <last-issue-number>

@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
-	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/run"
 )
 
@@ -152,69 +151,19 @@ type Preparation struct {
 	InputDirPath     string
 }
 
-type FetchResult struct {
-	Name       string
-	Provider   string
-	PR         string
-	Round      int
-	ReviewsDir string
-	Total      int
-}
+type FetchResult = model.FetchResult
 
-type MigrationConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
-	ReviewsDir    string
-	DryRun        bool
-}
+type MigrationConfig = model.MigrationConfig
 
-type MigrationResult struct {
-	Target                  string
-	DryRun                  bool
-	FilesScanned            int
-	FilesMigrated           int
-	V1ToV2Migrated          int
-	FilesAlreadyFrontmatter int
-	FilesSkipped            int
-	FilesInvalid            int
-	MigratedPaths           []string
-	UnmappedTypeFiles       []string
-	InvalidPaths            []string
-}
+type MigrationResult = model.MigrationResult
 
-type SyncConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
-}
+type SyncConfig = model.SyncConfig
 
-type ArchiveConfig struct {
-	WorkspaceRoot string
-	RootDir       string
-	Name          string
-	TasksDir      string
-}
+type ArchiveConfig = model.ArchiveConfig
 
-type SyncResult struct {
-	Target           string
-	WorkflowsScanned int
-	MetaCreated      int
-	MetaUpdated      int
-	SyncedPaths      []string
-}
+type SyncResult = model.SyncResult
 
-type ArchiveResult struct {
-	Target           string
-	ArchiveRoot      string
-	WorkflowsScanned int
-	Archived         int
-	Skipped          int
-	ArchivedPaths    []string
-	SkippedReasons   map[string]string
-}
+type ArchiveResult = model.ArchiveResult
 
 // Validate ensures the configuration is internally consistent.
 func (cfg Config) Validate() error {
@@ -302,8 +251,8 @@ func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 		}
 		return nil, err
 	}
-	defer preputil.ClosePreparationJournal(ctx, prep)
-	return newPreparation(prep), nil
+	defer plan.ClosePreparationJournal(ctx, prep)
+	return NewPreparation(prep), nil
 }
 
 func runDirect(ctx context.Context, cfg Config) error {
@@ -351,7 +300,8 @@ func NormalizeAddDirs(dirs []string) []string {
 	return normalized
 }
 
-func (cfg Config) runtime() *model.RuntimeConfig {
+// RuntimeConfig converts the legacy core.Config shape into the shared runtime configuration.
+func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:          cfg.WorkspaceRoot,
 		Name:                   cfg.Name,
@@ -390,14 +340,19 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 	return runtimeCfg
 }
 
-func newPreparation(prep *model.SolvePreparation) *Preparation {
+func (cfg Config) runtime() *model.RuntimeConfig {
+	return cfg.RuntimeConfig()
+}
+
+// NewPreparation clones a solve preparation into the public core API shape.
+func NewPreparation(prep *model.SolvePreparation) *Preparation {
 	if prep == nil {
 		return nil
 	}
 
 	jobs := make([]Job, 0, len(prep.Jobs))
 	for i := range prep.Jobs {
-		jobs = append(jobs, newJob(prep.Jobs[i]))
+		jobs = append(jobs, NewJob(prep.Jobs[i]))
 	}
 
 	return &Preparation{
@@ -411,7 +366,8 @@ func newPreparation(prep *model.SolvePreparation) *Preparation {
 	}
 }
 
-func newJob(jb model.Job) Job {
+// NewJob clones a model job into the public core API shape.
+func NewJob(jb model.Job) Job {
 	codeFiles := append([]string(nil), jb.CodeFiles...)
 	prompt := append([]byte(nil), jb.Prompt...)
 	return Job{

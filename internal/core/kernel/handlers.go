@@ -9,7 +9,6 @@ import (
 	"github.com/compozy/compozy/internal/core/kernel/commands"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
-	"github.com/compozy/compozy/internal/core/preputil"
 	"github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
@@ -24,10 +23,10 @@ type operations interface {
 	Prepare(context.Context, *model.RuntimeConfig) (*model.SolvePreparation, error)
 	Execute(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	ExecuteExec(context.Context, *model.RuntimeConfig) error
-	FetchReviews(context.Context, core.Config) (*core.FetchResult, error)
-	Migrate(context.Context, core.MigrationConfig) (*core.MigrationResult, error)
-	Sync(context.Context, core.SyncConfig) (*core.SyncResult, error)
-	Archive(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error)
+	FetchReviews(context.Context, core.Config) (*model.FetchResult, error)
+	Migrate(context.Context, model.MigrationConfig) (*model.MigrationResult, error)
+	Sync(context.Context, model.SyncConfig) (*model.SyncResult, error)
+	Archive(context.Context, model.ArchiveConfig) (*model.ArchiveResult, error)
 }
 
 type realOperations struct {
@@ -58,19 +57,19 @@ func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig)
 	return run.ExecuteExec(ctx, cfg)
 }
 
-func (realOperations) FetchReviews(ctx context.Context, cfg core.Config) (*core.FetchResult, error) {
+func (realOperations) FetchReviews(ctx context.Context, cfg core.Config) (*model.FetchResult, error) {
 	return core.FetchReviewsDirect(ctx, cfg)
 }
 
-func (realOperations) Migrate(ctx context.Context, cfg core.MigrationConfig) (*core.MigrationResult, error) {
+func (realOperations) Migrate(ctx context.Context, cfg model.MigrationConfig) (*model.MigrationResult, error) {
 	return core.MigrateDirect(ctx, cfg)
 }
 
-func (realOperations) Sync(ctx context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
+func (realOperations) Sync(ctx context.Context, cfg model.SyncConfig) (*model.SyncResult, error) {
 	return core.SyncDirect(ctx, cfg)
 }
 
-func (realOperations) Archive(ctx context.Context, cfg core.ArchiveConfig) (*core.ArchiveResult, error) {
+func (realOperations) Archive(ctx context.Context, cfg model.ArchiveConfig) (*model.ArchiveResult, error) {
 	return core.ArchiveDirect(ctx, cfg)
 }
 
@@ -158,132 +157,91 @@ func (h *workflowPrepareHandler) Handle(
 		}
 		return zero, err
 	}
-	defer preputil.ClosePreparationJournal(ctx, prep)
+	defer plan.ClosePreparationJournal(ctx, prep)
 
 	return commands.WorkflowPrepareResult{
-		Preparation:  newPreparation(prep),
+		Preparation:  core.NewPreparation(prep),
 		RunID:        prep.RunArtifacts.RunID,
 		ArtifactsDir: prep.RunArtifacts.RunDir,
 	}, nil
 }
 
-type workflowSyncHandler struct {
-	deps KernelDeps
-	ops  operations
+type delegatingHandler[C any, R any, M any] struct {
+	execute func(context.Context, C) (M, error)
+	wrap    func(M) R
 }
 
-var _ Handler[commands.WorkflowSyncCommand, commands.WorkflowSyncResult] = (*workflowSyncHandler)(nil)
-
-func newWorkflowSyncHandler(deps KernelDeps, ops operations) *workflowSyncHandler {
-	return &workflowSyncHandler{deps: deps, ops: ops}
-}
-
-func (h *workflowSyncHandler) Handle(
-	ctx context.Context,
-	cmd commands.WorkflowSyncCommand,
-) (commands.WorkflowSyncResult, error) {
-	result, err := h.ops.Sync(ctx, cmd.CoreConfig())
+func (h delegatingHandler[C, R, M]) Handle(ctx context.Context, cmd C) (R, error) {
+	var zero R
+	result, err := h.execute(ctx, cmd)
 	if err != nil {
-		return commands.WorkflowSyncResult{}, err
+		return zero, err
 	}
-	return commands.WorkflowSyncResult{Result: result}, nil
+	return h.wrap(result), nil
 }
 
-type workflowArchiveHandler struct {
-	deps KernelDeps
-	ops  operations
-}
-
-var _ Handler[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult] = (*workflowArchiveHandler)(nil)
-
-func newWorkflowArchiveHandler(deps KernelDeps, ops operations) *workflowArchiveHandler {
-	return &workflowArchiveHandler{deps: deps, ops: ops}
-}
-
-func (h *workflowArchiveHandler) Handle(
-	ctx context.Context,
-	cmd commands.WorkflowArchiveCommand,
-) (commands.WorkflowArchiveResult, error) {
-	result, err := h.ops.Archive(ctx, cmd.CoreConfig())
-	if err != nil {
-		return commands.WorkflowArchiveResult{}, err
-	}
-	return commands.WorkflowArchiveResult{Result: result}, nil
-}
-
-type workspaceMigrateHandler struct {
-	deps KernelDeps
-	ops  operations
-}
-
-var _ Handler[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult] = (*workspaceMigrateHandler)(nil)
-
-func newWorkspaceMigrateHandler(deps KernelDeps, ops operations) *workspaceMigrateHandler {
-	return &workspaceMigrateHandler{deps: deps, ops: ops}
-}
-
-func (h *workspaceMigrateHandler) Handle(
-	ctx context.Context,
-	cmd commands.WorkspaceMigrateCommand,
-) (commands.WorkspaceMigrateResult, error) {
-	result, err := h.ops.Migrate(ctx, cmd.CoreConfig())
-	if err != nil {
-		return commands.WorkspaceMigrateResult{}, err
-	}
-	return commands.WorkspaceMigrateResult{Result: result}, nil
-}
-
-type reviewsFetchHandler struct {
-	deps KernelDeps
-	ops  operations
-}
-
-var _ Handler[commands.ReviewsFetchCommand, commands.ReviewsFetchResult] = (*reviewsFetchHandler)(nil)
-
-func newReviewsFetchHandler(deps KernelDeps, ops operations) *reviewsFetchHandler {
-	return &reviewsFetchHandler{deps: deps, ops: ops}
-}
-
-func (h *reviewsFetchHandler) Handle(
-	ctx context.Context,
-	cmd commands.ReviewsFetchCommand,
-) (commands.ReviewsFetchResult, error) {
-	result, err := h.ops.FetchReviews(ctx, cmd.CoreConfig())
-	if err != nil {
-		return commands.ReviewsFetchResult{}, err
-	}
-	return commands.ReviewsFetchResult{Result: result}, nil
-}
-
-func newPreparation(prep *model.SolvePreparation) *core.Preparation {
-	if prep == nil {
-		return nil
-	}
-
-	jobs := make([]core.Job, 0, len(prep.Jobs))
-	for idx := range prep.Jobs {
-		jobs = append(jobs, newJob(prep.Jobs[idx]))
-	}
-
-	return &core.Preparation{
-		Jobs:             jobs,
-		InputDir:         prep.InputDir,
-		ResolvedPR:       prep.ResolvedPR,
-		ResolvedName:     prep.ResolvedName,
-		ResolvedProvider: prep.ResolvedProvider,
-		ResolvedRound:    prep.ResolvedRound,
-		InputDirPath:     prep.InputDirPath,
+func newDelegatingHandler[C any, R any, M any](
+	execute func(context.Context, C) (M, error),
+	wrap func(M) R,
+) Handler[C, R] {
+	return delegatingHandler[C, R, M]{
+		execute: execute,
+		wrap:    wrap,
 	}
 }
 
-func newJob(job model.Job) core.Job {
-	return core.Job{
-		CodeFiles:     append([]string(nil), job.CodeFiles...),
-		SafeName:      job.SafeName,
-		Prompt:        append([]byte(nil), job.Prompt...),
-		PromptPath:    job.OutPromptPath,
-		StdoutLogPath: job.OutLog,
-		StderrLogPath: job.ErrLog,
-		IssueCount:    job.IssueCount(),
-	}
+func newWorkflowSyncHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.WorkflowSyncCommand, commands.WorkflowSyncResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.WorkflowSyncCommand) (*model.SyncResult, error) {
+			return ops.Sync(ctx, cmd.CoreConfig())
+		},
+		func(result *model.SyncResult) commands.WorkflowSyncResult {
+			return commands.WorkflowSyncResult{Result: result}
+		},
+	)
+}
+
+func newWorkflowArchiveHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.WorkflowArchiveCommand) (*model.ArchiveResult, error) {
+			return ops.Archive(ctx, cmd.CoreConfig())
+		},
+		func(result *model.ArchiveResult) commands.WorkflowArchiveResult {
+			return commands.WorkflowArchiveResult{Result: result}
+		},
+	)
+}
+
+func newWorkspaceMigrateHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.WorkspaceMigrateCommand) (*model.MigrationResult, error) {
+			return ops.Migrate(ctx, cmd.CoreConfig())
+		},
+		func(result *model.MigrationResult) commands.WorkspaceMigrateResult {
+			return commands.WorkspaceMigrateResult{Result: result}
+		},
+	)
+}
+
+func newReviewsFetchHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.ReviewsFetchCommand, commands.ReviewsFetchResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.ReviewsFetchCommand) (*model.FetchResult, error) {
+			return ops.FetchReviews(ctx, cmd.CoreConfig())
+		},
+		func(result *model.FetchResult) commands.ReviewsFetchResult {
+			return commands.ReviewsFetchResult{Result: result}
+		},
+	)
 }

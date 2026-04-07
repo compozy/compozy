@@ -179,6 +179,31 @@ func TestPathHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should sanitize unsafe job artifact names into the jobs namespace", func(t *testing.T) {
+		t.Parallel()
+
+		runArtifacts := model.NewRunArtifacts("", "demo-run")
+		jobArtifacts := runArtifacts.JobArtifacts("../nested/task 01")
+		if got, want := jobArtifacts.PromptPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"nested-task-01.prompt.md",
+		); got != want {
+			t.Fatalf("unexpected sanitized prompt path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := jobArtifacts.OutLogPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"nested-task-01.out.log",
+		); got != want {
+			t.Fatalf("unexpected sanitized stdout path\nwant: %q\ngot:  %q", want, got)
+		}
+		if got, want := jobArtifacts.ErrLogPath, filepath.Join(
+			runArtifacts.JobsDir,
+			"nested-task-01.err.log",
+		); got != want {
+			t.Fatalf("unexpected sanitized stderr path\nwant: %q\ngot:  %q", want, got)
+		}
+	})
+
 	t.Run("Should reject dot-segment run identifiers", func(t *testing.T) {
 		t.Parallel()
 

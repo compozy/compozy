@@ -2,6 +2,7 @@ package prompt
 
 import (
 	"embed"
+	"fmt"
 )
 
 //go:embed prompts/*.txt
@@ -30,7 +31,7 @@ func ClaudeReasoningPrompt(reasoning string) string {
 func mustReadTemplate(name string) string {
 	content, err := templateFS.ReadFile("prompts/" + name)
 	if err != nil {
-		return ""
+		panic(fmt.Errorf("read embedded template %q: %w", name, err))
 	}
 	return string(content)
 }

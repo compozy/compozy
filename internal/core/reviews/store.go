@@ -13,7 +13,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/frontmatter"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
@@ -107,14 +106,14 @@ func ReadReviewEntries(reviewDir string) ([]model.IssueEntry, error) {
 		if !entry.Type().IsRegular() {
 			continue
 		}
-		if prompt.ExtractIssueNumber(entry.Name()) == 0 {
+		if ExtractIssueNumber(entry.Name()) == 0 {
 			continue
 		}
 		names = append(names, entry.Name())
 	}
 
 	sort.SliceStable(names, func(i, j int) bool {
-		return prompt.ExtractIssueNumber(names[i]) < prompt.ExtractIssueNumber(names[j])
+		return ExtractIssueNumber(names[i]) < ExtractIssueNumber(names[j])
 	})
 
 	entries := make([]model.IssueEntry, 0, len(names))
@@ -127,12 +126,9 @@ func ReadReviewEntries(reviewDir string) ([]model.IssueEntry, error) {
 
 		content := string(body)
 		codeFile := UnknownCodeFile(name)
-		ctx, parseErr := prompt.ParseReviewContext(content)
+		ctx, parseErr := ParseReviewContext(content)
 		if parseErr != nil {
-			if errors.Is(parseErr, prompt.ErrLegacyReviewMetadata) {
-				return nil, fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", absPath)
-			}
-			return nil, fmt.Errorf("parse review entry %s: %w", absPath, parseErr)
+			return nil, WrapParseError(absPath, parseErr)
 		}
 		if ctx.File != "" {
 			codeFile = ctx.File
@@ -209,7 +205,7 @@ func RefreshRoundMeta(reviewDir string) (model.RoundMeta, error) {
 	meta.Total = len(entries)
 	meta.Resolved = 0
 	for _, entry := range entries {
-		resolved, err := prompt.IsReviewResolved(entry.Content)
+		resolved, err := IsReviewResolved(entry.Content)
 		if err != nil {
 			return model.RoundMeta{}, fmt.Errorf("refresh round meta from %s: %w", entry.AbsPath, err)
 		}
@@ -296,7 +292,7 @@ func parseRoundMeta(content string) (model.RoundMeta, error) {
 
 func writeIssueFile(reviewDir string, number int, item provider.ReviewItem) error {
 	meta := model.ReviewFileMeta{
-		Status:      "pending",
+		Status:      reviewStatusPending,
 		File:        fallback(item.File, model.UnknownFileName),
 		Line:        floorAt(item.Line, 0),
 		Severity:    strings.TrimSpace(item.Severity),
@@ -348,16 +344,16 @@ func finalizeIssueStatus(root *os.Root, reviewDir, issueName string) error {
 		return fmt.Errorf("read review issue %s: %w", issueName, err)
 	}
 
-	ctx, err := prompt.ParseReviewContext(string(content))
+	ctx, err := ParseReviewContext(string(content))
 	if err != nil {
-		return wrapReviewParseError(filepath.Join(strings.TrimSpace(reviewDir), issueName), err)
+		return WrapParseError(filepath.Join(strings.TrimSpace(reviewDir), issueName), err)
 	}
 
 	switch ctx.Status {
-	case "resolved":
+	case reviewStatusResolved:
 		return nil
-	case "valid", "invalid":
-		rewritten, err := frontmatter.RewriteStringField(string(content), "status", "resolved")
+	case reviewStatusValid, reviewStatusInvalid:
+		rewritten, err := frontmatter.RewriteStringField(string(content), "status", reviewStatusResolved)
 		if err != nil {
 			return fmt.Errorf("rewrite review issue %s: %w", issueName, err)
 		}
@@ -365,7 +361,7 @@ func finalizeIssueStatus(root *os.Root, reviewDir, issueName string) error {
 			return fmt.Errorf("write review issue %s: %w", issueName, err)
 		}
 		return nil
-	case "pending":
+	case reviewStatusPending:
 		return fmt.Errorf("review issue %s remained pending after successful batch", issueName)
 	default:
 		return fmt.Errorf("review issue %s has unsupported status %q after successful batch", issueName, ctx.Status)
@@ -374,7 +370,7 @@ func finalizeIssueStatus(root *os.Root, reviewDir, issueName string) error {
 
 func resolveIssueName(issueName string) (string, error) {
 	name := filepath.Base(strings.TrimSpace(issueName))
-	if prompt.ExtractIssueNumber(name) == 0 {
+	if ExtractIssueNumber(name) == 0 {
 		return "", fmt.Errorf("invalid issue file name %q", issueName)
 	}
 	return name, nil
@@ -415,11 +411,4 @@ func parseRoundMetaSummary(lines []string, meta *model.RoundMeta) error {
 		*counts[matches[1]] = value
 	}
 	return nil
-}
-
-func wrapReviewParseError(path string, err error) error {
-	if errors.Is(err, prompt.ErrLegacyReviewMetadata) {
-		return fmt.Errorf("legacy review artifact detected at %s; run `compozy migrate`", path)
-	}
-	return fmt.Errorf("parse review artifact %s: %w", path, err)
 }

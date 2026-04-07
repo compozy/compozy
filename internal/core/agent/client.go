@@ -462,7 +462,7 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		return nil
 	}
 
-	startModel, command, err := c.resolveStartCommand(req)
+	startModel, command, err := c.resolveStartCommand(ctx, req)
 	if err != nil {
 		c.mu.Unlock()
 		return err
@@ -528,13 +528,14 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 	return nil
 }
 
-func (c *clientImpl) resolveStartCommand(req SessionRequest) (string, []string, error) {
+func (c *clientImpl) resolveStartCommand(ctx context.Context, req SessionRequest) (string, []string, error) {
 	requestedModel := resolveModel(c.spec, firstNonEmpty(req.Model, c.cfg.Model))
 	startModel := c.spec.DefaultModel
 	if c.spec.UsesBootstrapModel {
 		startModel = requestedModel
 	}
 	command, err := resolveLaunchCommand(
+		ctx,
 		c.spec,
 		startModel,
 		c.cfg.ReasoningEffort,
@@ -879,11 +880,16 @@ func wrapACPError(err error) error {
 
 	var requestErr *acp.RequestError
 	if errors.As(err, &requestErr) {
-		return &SessionError{
+		sessionErr := &SessionError{
 			Code:    requestErr.Code,
 			Message: requestErr.Message,
-			Data:    marshalRawJSON(requestErr.Data),
 		}
+		data, marshalErr := marshalRawJSON(requestErr.Data)
+		if marshalErr != nil {
+			return errors.Join(sessionErr, fmt.Errorf("marshal ACP request error data: %w", marshalErr))
+		}
+		sessionErr.Data = data
+		return sessionErr
 	}
 	return err
 }

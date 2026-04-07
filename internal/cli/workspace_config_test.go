@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/spf13/cobra"
 )
 
 var cliWorkingDirMu sync.Mutex
@@ -187,14 +189,18 @@ func TestNewFormInputsFromStatePreservesResolvedDefaults(t *testing.T) {
 	t.Parallel()
 
 	state := &commandState{
-		name:             "demo",
-		tasksDir:         "/tmp/demo/.compozy/tasks/demo",
-		ide:              "claude",
-		model:            "sonnet",
-		addDirs:          []string{"../shared", "../docs"},
-		reasoningEffort:  "high",
-		includeCompleted: true,
-		autoCommit:       true,
+		workflowIdentity: workflowIdentity{
+			name:     "demo",
+			tasksDir: "/tmp/demo/.compozy/tasks/demo",
+		},
+		runtimeConfig: runtimeConfig{
+			ide:              "claude",
+			model:            "sonnet",
+			addDirs:          []string{"../shared", "../docs"},
+			reasoningEffort:  "high",
+			includeCompleted: true,
+			autoCommit:       true,
+		},
 	}
 
 	inputs := newFormInputsFromState(state)
@@ -214,12 +220,298 @@ func TestNewFormInputsFromStateQuotesAddDirsContainingCommas(t *testing.T) {
 	t.Parallel()
 
 	state := &commandState{
-		addDirs: []string{"../docs,archive", "../shared"},
+		runtimeConfig: runtimeConfig{
+			addDirs: []string{"../docs,archive", "../shared"},
+		},
 	}
 
 	inputs := newFormInputsFromState(state)
 	if inputs.addDirs != "\"../docs,archive\", ../shared" {
 		t.Fatalf("unexpected addDirs input: %q", inputs.addDirs)
+	}
+}
+
+func TestApplyConfigHandlesSupportedTypes(t *testing.T) {
+	t.Parallel()
+
+	newCommand := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("string", "", "")
+		cmd.Flags().Int("int", 0, "")
+		cmd.Flags().Float64("float", 0, "")
+		cmd.Flags().Bool("bool", false, "")
+		cmd.Flags().StringSlice("slice", nil, "")
+		return cmd
+	}
+
+	cases := []struct {
+		name string
+		run  func(t *testing.T, cmd *cobra.Command)
+	}{
+		{
+			name: "Should apply string config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := "claude"
+				var got string
+				applyConfig(cmd, "string", &value, func(applied string) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected string config value: %q", got)
+				}
+			},
+		},
+		{
+			name: "Should apply integer config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := 3
+				var got int
+				applyConfig(cmd, "int", &value, func(applied int) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected int config value: %d", got)
+				}
+			},
+		},
+		{
+			name: "Should apply float config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := 2.5
+				var got float64
+				applyConfig(cmd, "float", &value, func(applied float64) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected float config value: %v", got)
+				}
+			},
+		},
+		{
+			name: "Should apply boolean config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := true
+				var got bool
+				applyConfig(cmd, "bool", &value, func(applied bool) { got = applied })
+				if got != value {
+					t.Fatalf("unexpected bool config value: %t", got)
+				}
+			},
+		},
+		{
+			name: "Should clone string slice config values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				value := []string{"../shared", "../docs"}
+				var got []string
+				applyConfig(cmd, "slice", &value, func(applied []string) { got = applied }, slices.Clone[[]string])
+				if !reflect.DeepEqual(got, value) {
+					t.Fatalf("unexpected string slice config: %#v", got)
+				}
+
+				got[0] = "../changed"
+				if value[0] != "../shared" {
+					t.Fatalf("applyConfig should clone []string values, got source %#v", value)
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t, newCommand())
+		})
+	}
+}
+
+func TestApplyInputHandlesSupportedTypes(t *testing.T) {
+	t.Parallel()
+
+	newCommand := func() *cobra.Command {
+		cmd := &cobra.Command{Use: "test"}
+		cmd.Flags().String("name", "", "")
+		cmd.Flags().String("round", "", "")
+		cmd.Flags().Bool("dry-run", false, "")
+		cmd.Flags().String("add-dir", "", "")
+		return cmd
+	}
+
+	cases := []struct {
+		name string
+		run  func(t *testing.T, cmd *cobra.Command)
+	}{
+		{
+			name: "Should apply string input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got string
+				applyInput(cmd, "name", "demo", passThroughInput[string], func(value string) { got = value })
+				if got != "demo" {
+					t.Fatalf("unexpected name input: %q", got)
+				}
+			},
+		},
+		{
+			name: "Should apply integer input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got int
+				applyInput(cmd, "round", "7", parseIntInput, func(value int) { got = value })
+				if got != 7 {
+					t.Fatalf("unexpected round input: %d", got)
+				}
+			},
+		},
+		{
+			name: "Should apply boolean input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got bool
+				applyInput(cmd, "dry-run", true, passThroughInput[bool], func(value bool) { got = value })
+				if !got {
+					t.Fatal("expected dry-run input to be applied")
+				}
+			},
+		},
+		{
+			name: "Should parse string slice input values",
+			run: func(t *testing.T, cmd *cobra.Command) {
+				t.Helper()
+
+				var got []string
+				applyInput(
+					cmd,
+					"add-dir",
+					"../shared, ../docs",
+					parseStringSliceInput,
+					func(value []string) { got = value },
+				)
+				if !reflect.DeepEqual(got, []string{"../shared", "../docs"}) {
+					t.Fatalf("unexpected add-dir input: %#v", got)
+				}
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t, newCommand())
+		})
+	}
+}
+
+func TestSimpleCommandBaseLoadWorkspaceRootWorksForSimpleCommands(t *testing.T) {
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+ide = "claude"
+`)
+	chdirCLITest(t, startDir)
+
+	migrateState := &migrateCommandState{}
+	syncState := &syncCommandState{}
+	archiveState := &archiveCommandState{}
+	cases := []struct {
+		name string
+		base *simpleCommandBase
+	}{
+		{name: "Should migrate workspace", base: &migrateState.simpleCommandBase},
+		{name: "Should sync workspace", base: &syncState.simpleCommandBase},
+		{name: "Should archive workspace", base: &archiveState.simpleCommandBase},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.base.loadWorkspaceRoot(context.Background()); err != nil {
+				t.Fatalf("load workspace root: %v", err)
+			}
+			if mustEvalSymlinksCLITest(t, tc.base.workspaceRoot) != mustEvalSymlinksCLITest(t, root) {
+				t.Fatalf("unexpected workspace root for %s: %q", tc.name, tc.base.workspaceRoot)
+			}
+		})
+	}
+}
+
+func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
+	t.Parallel()
+
+	state := &commandState{
+		workspaceRoot: "/workspace",
+		kind:          commandKindExec,
+		mode:          core.ModeExec,
+		workflowIdentity: workflowIdentity{
+			name:       "demo",
+			pr:         "259",
+			provider:   "coderabbit",
+			round:      4,
+			reviewsDir: "/workspace/.compozy/tasks/demo/reviews-004",
+			tasksDir:   "/workspace/.compozy/tasks/demo",
+		},
+		runtimeConfig: runtimeConfig{
+			dryRun:           true,
+			autoCommit:       true,
+			concurrent:       2,
+			batchSize:        3,
+			ide:              "codex",
+			model:            "gpt-5.4",
+			addDirs:          []string{"../shared", "../docs", "../shared"},
+			tailLines:        40,
+			reasoningEffort:  "high",
+			accessMode:       core.AccessModeDefault,
+			includeCompleted: true,
+			includeResolved:  true,
+		},
+		execConfig: execConfig{
+			outputFormat:       string(core.OutputFormatJSON),
+			verbose:            true,
+			tui:                true,
+			persist:            true,
+			runID:              "run-123",
+			promptText:         "prompt",
+			promptFile:         "prompt.md",
+			readPromptStdin:    true,
+			resolvedPromptText: "resolved prompt",
+		},
+		retryConfig: retryConfig{
+			timeout:                "2m",
+			maxRetries:             2,
+			retryBackoffMultiplier: 2.0,
+		},
+	}
+
+	cfg, err := state.buildConfig()
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+
+	if cfg.Name != "demo" || cfg.PR != "259" || cfg.Provider != "coderabbit" || cfg.Round != 4 {
+		t.Fatalf("unexpected identity config: %#v", cfg)
+	}
+	if cfg.IDE != core.IDECodex || cfg.Model != "gpt-5.4" || cfg.AccessMode != core.AccessModeDefault {
+		t.Fatalf("unexpected runtime config: %#v", cfg)
+	}
+	if !reflect.DeepEqual(cfg.AddDirs, []string{"../shared", "../docs"}) {
+		t.Fatalf("unexpected normalized add dirs: %#v", cfg.AddDirs)
+	}
+	if cfg.OutputFormat != core.OutputFormatJSON || cfg.RunID != "run-123" ||
+		cfg.ResolvedPromptText != "resolved prompt" {
+		t.Fatalf("unexpected exec config: %#v", cfg)
+	}
+	if cfg.Timeout.String() != "2m0s" || cfg.MaxRetries != 2 || cfg.RetryBackoffMultiplier != 2.0 {
+		t.Fatalf("unexpected retry config: %#v", cfg)
 	}
 }
 
