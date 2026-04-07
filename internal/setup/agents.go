@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 )
 
@@ -16,12 +15,35 @@ type resolvedEnvironment struct {
 	claudeConfigDir string
 }
 
+type envRoot uint8
+
+const (
+	envRootCWD envRoot = iota + 1
+	envRootHome
+	envRootXDGConfig
+	envRootCodeX
+	envRootClaudeConfig
+	envRootAbsolute
+)
+
+type pathSpec struct {
+	root     envRoot
+	path     string
+	absolute string
+}
+
+type pathChoice struct {
+	detect pathSpec
+	target pathSpec
+}
+
 type agentSpec struct {
-	name        string
-	displayName string
-	projectDir  string
-	globalDir   func(resolvedEnvironment) string
-	detect      func(resolvedEnvironment) bool
+	name             string
+	displayName      string
+	projectDir       string
+	globalDir        pathSpec
+	globalDirChoices []pathChoice
+	detectPaths      []pathSpec
 }
 
 func SupportedAgents(options ResolverOptions) ([]Agent, error) {
@@ -31,7 +53,8 @@ func SupportedAgents(options ResolverOptions) ([]Agent, error) {
 	}
 
 	agents := make([]Agent, 0, len(agentSpecs))
-	for _, spec := range agentSpecs {
+	for i := range agentSpecs {
+		spec := &agentSpecs[i]
 		agents = append(agents, spec.agent(env))
 	}
 	return agents, nil
@@ -44,8 +67,9 @@ func DetectInstalledAgents(options ResolverOptions) ([]Agent, error) {
 	}
 
 	var detected []Agent
-	for _, spec := range agentSpecs {
-		if !spec.detect(env) {
+	for i := range agentSpecs {
+		spec := &agentSpecs[i]
+		if !spec.detected(env) {
 			continue
 		}
 		detected = append(detected, spec.agent(env))
@@ -54,49 +78,19 @@ func DetectInstalledAgents(options ResolverOptions) ([]Agent, error) {
 }
 
 func SelectAgents(all []Agent, names []string) ([]Agent, error) {
-	if len(names) == 0 {
-		return nil, fmt.Errorf("select setup agents: no agents requested")
-	}
-
-	index := make(map[string]Agent, len(all))
-	aliases := make(map[string]string, len(agentAliases))
-	for _, agent := range all {
-		index[agent.Name] = agent
-	}
-	for alias, canonical := range agentAliases {
-		aliases[alias] = canonical
-	}
-
-	selected := make([]Agent, 0, len(names))
-	seen := make(map[string]struct{}, len(names))
-	var invalid []string
-	for _, name := range names {
-		canonical := normalizeAgentName(name, aliases)
-		agent, ok := index[canonical]
-		if !ok {
-			invalid = append(invalid, name)
-			continue
-		}
-		if _, ok := seen[agent.Name]; ok {
-			continue
-		}
-		seen[agent.Name] = struct{}{}
-		selected = append(selected, agent)
-	}
-	if len(invalid) > 0 {
-		slices.Sort(invalid)
-		return nil, fmt.Errorf("select setup agents: invalid agent(s): %s", strings.Join(invalid, ", "))
-	}
-
-	slices.SortFunc(selected, func(left, right Agent) int {
-		return strings.Compare(left.DisplayName, right.DisplayName)
+	return selectByName(all, names, selectByNameConfig[Agent]{
+		subject:      "setup agents",
+		emptyLabel:   "agents",
+		invalidLabel: "agent(s)",
+		getName:      func(agent Agent) string { return agent.Name },
+		normalize:    normalizeAgentName,
+		less:         func(left, right Agent) int { return strings.Compare(left.DisplayName, right.DisplayName) },
 	})
-	return selected, nil
 }
 
-func normalizeAgentName(name string, aliases map[string]string) string {
+func normalizeAgentName(name string) string {
 	normalized := strings.TrimSpace(strings.ToLower(name))
-	if canonical, ok := aliases[normalized]; ok {
+	if canonical, ok := agentAliases[normalized]; ok {
 		return canonical
 	}
 	return normalized
@@ -148,20 +142,90 @@ func resolveEnvironment(options ResolverOptions) (resolvedEnvironment, error) {
 }
 
 func (spec agentSpec) agent(env resolvedEnvironment) Agent {
-	globalDir := spec.globalDir(env)
 	return Agent{
 		Name:           spec.name,
 		DisplayName:    spec.displayName,
 		ProjectRootDir: spec.projectDir,
-		GlobalRootDir:  globalDir,
+		GlobalRootDir:  spec.resolveGlobalDir(env),
 		Universal:      spec.projectDir == ".agents/skills",
-		Detected:       spec.detect(env),
+		Detected:       spec.detected(env),
 	}
+}
+
+func (spec agentSpec) resolveGlobalDir(env resolvedEnvironment) string {
+	if len(spec.globalDirChoices) == 0 {
+		return spec.globalDir.resolve(env)
+	}
+
+	for _, choice := range spec.globalDirChoices {
+		if pathExists(choice.detect.resolve(env)) {
+			return choice.target.resolve(env)
+		}
+	}
+
+	return spec.globalDirChoices[0].target.resolve(env)
+}
+
+func (spec agentSpec) detected(env resolvedEnvironment) bool {
+	for _, detectPath := range spec.detectPaths {
+		if pathExists(detectPath.resolve(env)) {
+			return true
+		}
+	}
+	return false
+}
+
+func (spec pathSpec) resolve(env resolvedEnvironment) string {
+	if spec.absolute != "" {
+		return filepath.Clean(spec.absolute)
+	}
+
+	var base string
+	switch spec.root {
+	case envRootCWD:
+		base = env.cwd
+	case envRootHome:
+		base = env.homeDir
+	case envRootXDGConfig:
+		base = env.xdgConfigHome
+	case envRootCodeX:
+		base = env.codeXHome
+	case envRootClaudeConfig:
+		base = env.claudeConfigDir
+	default:
+		return ""
+	}
+
+	return filepath.Clean(filepath.Join(base, spec.path))
 }
 
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+func cwdPath(path string) pathSpec {
+	return pathSpec{root: envRootCWD, path: path}
+}
+
+func homePath(path string) pathSpec {
+	return pathSpec{root: envRootHome, path: path}
+}
+
+func xdgPath(path string) pathSpec {
+	return pathSpec{root: envRootXDGConfig, path: path}
+}
+
+func codexPath(path string) pathSpec {
+	return pathSpec{root: envRootCodeX, path: path}
+}
+
+func claudeConfigPath(path string) pathSpec {
+	return pathSpec{root: envRootClaudeConfig, path: path}
+}
+
+func absolutePath(path string) pathSpec {
+	return pathSpec{root: envRootAbsolute, absolute: path}
 }
 
 var agentAliases = map[string]string{
@@ -170,251 +234,114 @@ var agentAliases = map[string]string{
 }
 
 var agentSpecs = []agentSpec{
-	universalAgent("amp", "Amp", func(env resolvedEnvironment) string {
-		return filepath.Join(env.xdgConfigHome, "agents", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.xdgConfigHome, "amp"))
-	}),
-	universalAgent("kimi-cli", "Kimi Code CLI", func(env resolvedEnvironment) string {
-		return filepath.Join(env.xdgConfigHome, "agents", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".kimi"))
-	}),
-	universalAgent("replit", "Replit", func(env resolvedEnvironment) string {
-		return filepath.Join(env.xdgConfigHome, "agents", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.cwd, ".replit"))
-	}),
-	universalAgent("universal", "Universal", func(env resolvedEnvironment) string {
-		return filepath.Join(env.xdgConfigHome, "agents", "skills")
-	}, func(resolvedEnvironment) bool {
-		return false
-	}),
-	universalAgent("antigravity", "Antigravity", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".gemini", "antigravity", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".gemini", "antigravity"))
-	}),
-	specificAgent("augment", "Augment", ".augment/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".augment", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".augment"))
-	}),
-	specificAgent("claude-code", "Claude Code", ".claude/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.claudeConfigDir, "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(env.claudeConfigDir)
-	}),
-	specificAgent("openclaw", "OpenClaw", "skills", func(env resolvedEnvironment) string {
-		if pathExists(filepath.Join(env.homeDir, ".openclaw")) {
-			return filepath.Join(env.homeDir, ".openclaw", "skills")
-		}
-		if pathExists(filepath.Join(env.homeDir, ".clawdbot")) {
-			return filepath.Join(env.homeDir, ".clawdbot", "skills")
-		}
-		if pathExists(filepath.Join(env.homeDir, ".moltbot")) {
-			return filepath.Join(env.homeDir, ".moltbot", "skills")
-		}
-		return filepath.Join(env.homeDir, ".openclaw", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".openclaw")) ||
-			pathExists(filepath.Join(env.homeDir, ".clawdbot")) ||
-			pathExists(filepath.Join(env.homeDir, ".moltbot"))
-	}),
-	universalAgent("cline", "Cline", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".agents", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".cline"))
-	}),
-	specificAgent("codebuddy", "CodeBuddy", ".codebuddy/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".codebuddy", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.cwd, ".codebuddy")) || pathExists(filepath.Join(env.homeDir, ".codebuddy"))
-	}),
-	universalAgent("codex", "Codex", func(env resolvedEnvironment) string {
-		return filepath.Join(env.codeXHome, "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(env.codeXHome) || pathExists("/etc/codex")
-	}),
-	specificAgent("command-code", "Command Code", ".commandcode/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".commandcode", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".commandcode"))
-	}),
-	specificAgent("continue", "Continue", ".continue/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".continue", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.cwd, ".continue")) || pathExists(filepath.Join(env.homeDir, ".continue"))
-	}),
-	specificAgent("cortex", "Cortex Code", ".cortex/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".snowflake", "cortex", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".snowflake", "cortex"))
-	}),
-	specificAgent("crush", "Crush", ".crush/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".config", "crush", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".config", "crush"))
-	}),
-	universalAgent("cursor", "Cursor", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".cursor", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".cursor"))
-	}),
-	universalAgent("deepagents", "Deep Agents", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".deepagents", "agent", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".deepagents"))
-	}),
-	specificAgent("droid", "Droid", ".factory/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".factory", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".factory"))
-	}),
-	universalAgent("firebender", "Firebender", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".firebender", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".firebender"))
-	}),
-	universalAgent("gemini-cli", "Gemini CLI", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".gemini", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".gemini"))
-	}),
-	universalAgent("github-copilot", "GitHub Copilot", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".copilot", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".copilot"))
-	}),
-	specificAgent("goose", "Goose", ".goose/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.xdgConfigHome, "goose", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.xdgConfigHome, "goose"))
-	}),
-	specificAgent("junie", "Junie", ".junie/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".junie", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".junie"))
-	}),
-	specificAgent("iflow-cli", "iFlow CLI", ".iflow/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".iflow", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".iflow"))
-	}),
-	specificAgent("kilo", "Kilo Code", ".kilocode/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".kilocode", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".kilocode"))
-	}),
-	specificAgent("kiro-cli", "Kiro CLI", ".kiro/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".kiro", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".kiro"))
-	}),
-	specificAgent("kode", "Kode", ".kode/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".kode", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".kode"))
-	}),
-	specificAgent("mcpjam", "MCPJam", ".mcpjam/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".mcpjam", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".mcpjam"))
-	}),
-	specificAgent("mistral-vibe", "Mistral Vibe", ".vibe/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".vibe", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".vibe"))
-	}),
-	specificAgent("mux", "Mux", ".mux/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".mux", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".mux"))
-	}),
-	universalAgent("opencode", "OpenCode", func(env resolvedEnvironment) string {
-		return filepath.Join(env.xdgConfigHome, "opencode", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.xdgConfigHome, "opencode"))
-	}),
-	specificAgent("openhands", "OpenHands", ".openhands/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".openhands", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".openhands"))
-	}),
-	specificAgent("pi", "Pi", ".pi/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".pi", "agent", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".pi", "agent"))
-	}),
-	specificAgent("qoder", "Qoder", ".qoder/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".qoder", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".qoder"))
-	}),
-	specificAgent("qwen-code", "Qwen Code", ".qwen/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".qwen", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".qwen"))
-	}),
-	specificAgent("roo", "Roo Code", ".roo/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".roo", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".roo"))
-	}),
-	specificAgent("trae", "Trae", ".trae/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".trae", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".trae"))
-	}),
-	specificAgent("trae-cn", "Trae CN", ".trae/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".trae-cn", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".trae-cn"))
-	}),
-	universalAgent("warp", "Warp", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".agents", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".warp"))
-	}),
-	specificAgent("windsurf", "Windsurf", ".windsurf/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".codeium", "windsurf", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".codeium", "windsurf"))
-	}),
-	specificAgent("zencoder", "Zencoder", ".zencoder/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".zencoder", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".zencoder"))
-	}),
-	specificAgent("neovate", "Neovate", ".neovate/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".neovate", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".neovate"))
-	}),
-	specificAgent("pochi", "Pochi", ".pochi/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".pochi", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".pochi"))
-	}),
-	specificAgent("adal", "AdaL", ".adal/skills", func(env resolvedEnvironment) string {
-		return filepath.Join(env.homeDir, ".adal", "skills")
-	}, func(env resolvedEnvironment) bool {
-		return pathExists(filepath.Join(env.homeDir, ".adal"))
-	}),
+	universalAgent("amp", "Amp", xdgPath("agents/skills"), xdgPath("amp")),
+	universalAgent("kimi-cli", "Kimi Code CLI", xdgPath("agents/skills"), homePath(".kimi")),
+	universalAgent("replit", "Replit", xdgPath("agents/skills"), cwdPath(".replit")),
+	universalAgent("universal", "Universal", xdgPath("agents/skills")),
+	universalAgent(
+		"antigravity",
+		"Antigravity",
+		homePath(".gemini/antigravity/skills"),
+		homePath(".gemini/antigravity"),
+	),
+	specificAgent("augment", "Augment", ".augment/skills", homePath(".augment/skills"), homePath(".augment")),
+	specificAgent("claude-code", "Claude Code", ".claude/skills", claudeConfigPath("skills"), claudeConfigPath("")),
+	choiceAgent(
+		"openclaw",
+		"OpenClaw",
+		"skills",
+		[]pathChoice{
+			{detect: homePath(".openclaw"), target: homePath(".openclaw/skills")},
+			{detect: homePath(".clawdbot"), target: homePath(".clawdbot/skills")},
+			{detect: homePath(".moltbot"), target: homePath(".moltbot/skills")},
+		},
+		homePath(".openclaw"),
+		homePath(".clawdbot"),
+		homePath(".moltbot"),
+	),
+	universalAgent("cline", "Cline", homePath(".agents/skills"), homePath(".cline")),
+	specificAgent(
+		"codebuddy",
+		"CodeBuddy",
+		".codebuddy/skills",
+		homePath(".codebuddy/skills"),
+		cwdPath(".codebuddy"),
+		homePath(".codebuddy"),
+	),
+	universalAgent("codex", "Codex", codexPath("skills"), codexPath(""), absolutePath("/etc/codex")),
+	specificAgent(
+		"command-code",
+		"Command Code",
+		".commandcode/skills",
+		homePath(".commandcode/skills"),
+		homePath(".commandcode"),
+	),
+	specificAgent(
+		"continue",
+		"Continue",
+		".continue/skills",
+		homePath(".continue/skills"),
+		cwdPath(".continue"),
+		homePath(".continue"),
+	),
+	specificAgent(
+		"cortex",
+		"Cortex Code",
+		".cortex/skills",
+		homePath(".snowflake/cortex/skills"),
+		homePath(".snowflake/cortex"),
+	),
+	specificAgent("crush", "Crush", ".crush/skills", xdgPath("crush/skills"), xdgPath("crush")),
+	universalAgent("cursor", "Cursor", homePath(".cursor/skills"), homePath(".cursor")),
+	universalAgent("deepagents", "Deep Agents", homePath(".deepagents/agent/skills"), homePath(".deepagents")),
+	specificAgent("droid", "Droid", ".factory/skills", homePath(".factory/skills"), homePath(".factory")),
+	universalAgent("firebender", "Firebender", homePath(".firebender/skills"), homePath(".firebender")),
+	universalAgent("gemini-cli", "Gemini CLI", homePath(".gemini/skills"), homePath(".gemini")),
+	universalAgent("github-copilot", "GitHub Copilot", homePath(".copilot/skills"), homePath(".copilot")),
+	specificAgent("goose", "Goose", ".goose/skills", xdgPath("goose/skills"), xdgPath("goose")),
+	specificAgent("junie", "Junie", ".junie/skills", homePath(".junie/skills"), homePath(".junie")),
+	specificAgent("iflow-cli", "iFlow CLI", ".iflow/skills", homePath(".iflow/skills"), homePath(".iflow")),
+	specificAgent("kilo", "Kilo Code", ".kilocode/skills", homePath(".kilocode/skills"), homePath(".kilocode")),
+	specificAgent("kiro-cli", "Kiro CLI", ".kiro/skills", homePath(".kiro/skills"), homePath(".kiro")),
+	specificAgent("kode", "Kode", ".kode/skills", homePath(".kode/skills"), homePath(".kode")),
+	specificAgent("mcpjam", "MCPJam", ".mcpjam/skills", homePath(".mcpjam/skills"), homePath(".mcpjam")),
+	specificAgent(
+		"mistral-vibe",
+		"Mistral Vibe",
+		".vibe/skills",
+		homePath(".vibe/skills"),
+		homePath(".vibe"),
+	),
+	specificAgent("mux", "Mux", ".mux/skills", homePath(".mux/skills"), homePath(".mux")),
+	universalAgent("opencode", "OpenCode", xdgPath("opencode/skills"), xdgPath("opencode")),
+	specificAgent("openhands", "OpenHands", ".openhands/skills", homePath(".openhands/skills"), homePath(".openhands")),
+	specificAgent("pi", "Pi", ".pi/skills", homePath(".pi/agent/skills"), homePath(".pi/agent")),
+	specificAgent("qoder", "Qoder", ".qoder/skills", homePath(".qoder/skills"), homePath(".qoder")),
+	specificAgent("qwen-code", "Qwen Code", ".qwen/skills", homePath(".qwen/skills"), homePath(".qwen")),
+	specificAgent("roo", "Roo Code", ".roo/skills", homePath(".roo/skills"), homePath(".roo")),
+	specificAgent("trae", "Trae", ".trae/skills", homePath(".trae/skills"), homePath(".trae")),
+	specificAgent("trae-cn", "Trae CN", ".trae/skills", homePath(".trae-cn/skills"), homePath(".trae-cn")),
+	universalAgent("warp", "Warp", homePath(".agents/skills"), homePath(".warp")),
+	specificAgent(
+		"windsurf",
+		"Windsurf",
+		".windsurf/skills",
+		homePath(".codeium/windsurf/skills"),
+		homePath(".codeium/windsurf"),
+	),
+	specificAgent("zencoder", "Zencoder", ".zencoder/skills", homePath(".zencoder/skills"), homePath(".zencoder")),
+	specificAgent("neovate", "Neovate", ".neovate/skills", homePath(".neovate/skills"), homePath(".neovate")),
+	specificAgent("pochi", "Pochi", ".pochi/skills", homePath(".pochi/skills"), homePath(".pochi")),
+	specificAgent("adal", "AdaL", ".adal/skills", homePath(".adal/skills"), homePath(".adal")),
 }
 
-func universalAgent(
-	name string,
-	displayName string,
-	globalDir func(resolvedEnvironment) string,
-	detect func(resolvedEnvironment) bool,
-) agentSpec {
+func universalAgent(name string, displayName string, globalDir pathSpec, detectPaths ...pathSpec) agentSpec {
 	return agentSpec{
 		name:        name,
 		displayName: displayName,
 		projectDir:  ".agents/skills",
 		globalDir:   globalDir,
-		detect:      detect,
+		detectPaths: detectPaths,
 	}
 }
 
@@ -422,14 +349,30 @@ func specificAgent(
 	name string,
 	displayName string,
 	projectDir string,
-	globalDir func(resolvedEnvironment) string,
-	detect func(resolvedEnvironment) bool,
+	globalDir pathSpec,
+	detectPaths ...pathSpec,
 ) agentSpec {
 	return agentSpec{
 		name:        name,
 		displayName: displayName,
 		projectDir:  projectDir,
 		globalDir:   globalDir,
-		detect:      detect,
+		detectPaths: detectPaths,
+	}
+}
+
+func choiceAgent(
+	name string,
+	displayName string,
+	projectDir string,
+	globalDirChoices []pathChoice,
+	detectPaths ...pathSpec,
+) agentSpec {
+	return agentSpec{
+		name:             name,
+		displayName:      displayName,
+		projectDir:       projectDir,
+		globalDirChoices: globalDirChoices,
+		detectPaths:      detectPaths,
 	}
 }

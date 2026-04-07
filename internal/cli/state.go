@@ -17,70 +17,90 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type commandState struct {
-	workspaceRoot          string
-	projectConfig          workspace.ProjectConfig
-	kind                   commandKind
-	mode                   core.Mode
-	pr                     string
-	name                   string
-	provider               string
-	round                  int
-	reviewsDir             string
-	tasksDir               string
-	dryRun                 bool
-	autoCommit             bool
-	concurrent             int
-	batchSize              int
-	ide                    string
-	model                  string
-	force                  bool
-	skipValidation         bool
-	addDirs                []string
-	tailLines              int
-	reasoningEffort        string
-	accessMode             string
-	outputFormat           string
-	verbose                bool
-	tui                    bool
-	persist                bool
-	runID                  string
-	promptText             string
-	promptFile             string
-	readPromptStdin        bool
-	resolvedPromptText     string
-	includeCompleted       bool
-	includeResolved        bool
+type workflowIdentity struct {
+	pr         string
+	name       string
+	provider   string
+	round      int
+	reviewsDir string
+	tasksDir   string
+}
+
+type runtimeConfig struct {
+	dryRun           bool
+	autoCommit       bool
+	concurrent       int
+	batchSize        int
+	ide              string
+	model            string
+	addDirs          []string
+	tailLines        int
+	reasoningEffort  string
+	accessMode       string
+	includeCompleted bool
+	includeResolved  bool
+}
+
+type execConfig struct {
+	outputFormat       string
+	verbose            bool
+	tui                bool
+	persist            bool
+	runID              string
+	promptText         string
+	promptFile         string
+	readPromptStdin    bool
+	resolvedPromptText string
+}
+
+type retryConfig struct {
 	timeout                string
 	maxRetries             int
 	retryBackoffMultiplier float64
-	isInteractive          func() bool
-	collectForm            func(*cobra.Command, *commandState) error
-	listBundledSkills      func() ([]setup.Skill, error)
-	verifyBundledSkills    func(setup.VerifyConfig) (setup.VerifyResult, error)
-	installBundledSkills   func(setup.InstallConfig) (*setup.Result, error)
-	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
-	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
-	runWorkflow            func(context.Context, core.Config) error
 }
 
-type commandStateDefaults struct {
+type commandStateCallbacks struct {
 	isInteractive        func() bool
 	collectForm          func(*cobra.Command, *commandState) error
 	listBundledSkills    func() ([]setup.Skill, error)
 	verifyBundledSkills  func(setup.VerifyConfig) (setup.VerifyResult, error)
 	installBundledSkills func(setup.InstallConfig) (*setup.Result, error)
 	confirmSkillRefresh  func(*cobra.Command, skillRefreshPrompt) (bool, error)
+	fetchReviewsFn       func(context.Context, core.Config) (*core.FetchResult, error)
+	runWorkflow          func(context.Context, core.Config) error
+}
+
+type commandState struct {
+	workspaceRoot  string
+	projectConfig  workspace.ProjectConfig
+	kind           commandKind
+	mode           core.Mode
+	force          bool
+	skipValidation bool
+
+	workflowIdentity
+	runtimeConfig
+	execConfig
+	retryConfig
+	commandStateCallbacks
+}
+
+type commandStateDefaults struct {
+	commandStateCallbacks
 }
 
 func defaultCommandStateDefaults() commandStateDefaults {
 	return commandStateDefaults{
-		isInteractive:        isInteractiveTerminal,
-		collectForm:          collectFormParams,
-		listBundledSkills:    setup.ListBundledSkills,
-		verifyBundledSkills:  setup.VerifyBundledSkills,
-		installBundledSkills: setup.InstallBundledSkills,
-		confirmSkillRefresh:  confirmSkillRefreshPrompt,
+		commandStateCallbacks: commandStateCallbacks{
+			isInteractive:        isInteractiveTerminal,
+			collectForm:          collectFormParams,
+			listBundledSkills:    setup.ListBundledSkills,
+			verifyBundledSkills:  setup.VerifyBundledSkills,
+			installBundledSkills: setup.InstallBundledSkills,
+			confirmSkillRefresh:  confirmSkillRefreshPrompt,
+			fetchReviewsFn:       core.FetchReviews,
+			runWorkflow:          core.Run,
+		},
 	}
 }
 
@@ -104,6 +124,12 @@ func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
 	if defaults.confirmSkillRefresh == nil {
 		defaults.confirmSkillRefresh = builtin.confirmSkillRefresh
 	}
+	if defaults.fetchReviewsFn == nil {
+		defaults.fetchReviewsFn = builtin.fetchReviewsFn
+	}
+	if defaults.runWorkflow == nil {
+		defaults.runWorkflow = builtin.runWorkflow
+	}
 	return defaults
 }
 
@@ -115,16 +141,9 @@ func newCommandStateWithDefaults(kind commandKind, mode core.Mode, defaults comm
 	defaults = defaults.withFallbacks()
 
 	return &commandState{
-		kind:                 kind,
-		mode:                 mode,
-		isInteractive:        defaults.isInteractive,
-		collectForm:          defaults.collectForm,
-		listBundledSkills:    defaults.listBundledSkills,
-		verifyBundledSkills:  defaults.verifyBundledSkills,
-		installBundledSkills: defaults.installBundledSkills,
-		confirmSkillRefresh:  defaults.confirmSkillRefresh,
-		fetchReviewsFn:       core.FetchReviews,
-		runWorkflow:          core.Run,
+		kind:                  kind,
+		mode:                  mode,
+		commandStateCallbacks: defaults.commandStateCallbacks,
 	}
 }
 
@@ -240,35 +259,38 @@ func (s *commandState) buildConfig() (core.Config, error) {
 	}
 
 	return core.Config{
-		WorkspaceRoot:          s.workspaceRoot,
-		Name:                   s.name,
-		Round:                  s.round,
-		Provider:               s.provider,
-		PR:                     s.pr,
-		ReviewsDir:             s.reviewsDir,
-		TasksDir:               s.tasksDir,
-		DryRun:                 s.dryRun,
-		AutoCommit:             s.autoCommit,
-		Concurrent:             s.concurrent,
-		BatchSize:              s.batchSize,
-		IDE:                    core.IDE(s.ide),
-		Model:                  s.model,
-		AddDirs:                core.NormalizeAddDirs(s.addDirs),
-		TailLines:              s.tailLines,
-		ReasoningEffort:        s.reasoningEffort,
-		AccessMode:             s.accessMode,
-		Mode:                   s.mode,
-		OutputFormat:           core.OutputFormat(s.outputFormat),
-		Verbose:                s.verbose,
-		TUI:                    s.tui,
-		Persist:                s.persist,
-		RunID:                  s.runID,
-		PromptText:             s.promptText,
-		PromptFile:             s.promptFile,
-		ReadPromptStdin:        s.readPromptStdin,
-		ResolvedPromptText:     s.resolvedPromptText,
-		IncludeCompleted:       s.includeCompleted,
-		IncludeResolved:        s.includeResolved,
+		WorkspaceRoot: s.workspaceRoot,
+		Name:          s.name,
+		Round:         s.round,
+		Provider:      s.provider,
+		PR:            s.pr,
+		ReviewsDir:    s.reviewsDir,
+		TasksDir:      s.tasksDir,
+
+		DryRun:           s.dryRun,
+		AutoCommit:       s.autoCommit,
+		Concurrent:       s.concurrent,
+		BatchSize:        s.batchSize,
+		IDE:              core.IDE(s.ide),
+		Model:            s.model,
+		AddDirs:          core.NormalizeAddDirs(s.addDirs),
+		TailLines:        s.tailLines,
+		ReasoningEffort:  s.reasoningEffort,
+		AccessMode:       s.accessMode,
+		IncludeCompleted: s.includeCompleted,
+		IncludeResolved:  s.includeResolved,
+
+		Mode:               s.mode,
+		OutputFormat:       core.OutputFormat(s.outputFormat),
+		Verbose:            s.verbose,
+		TUI:                s.tui,
+		Persist:            s.persist,
+		RunID:              s.runID,
+		PromptText:         s.promptText,
+		PromptFile:         s.promptFile,
+		ReadPromptStdin:    s.readPromptStdin,
+		ResolvedPromptText: s.resolvedPromptText,
+
 		Timeout:                timeoutDuration,
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,

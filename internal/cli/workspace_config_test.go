@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/spf13/cobra"
 )
 
 var cliWorkingDirMu sync.Mutex
@@ -187,14 +189,18 @@ func TestNewFormInputsFromStatePreservesResolvedDefaults(t *testing.T) {
 	t.Parallel()
 
 	state := &commandState{
-		name:             "demo",
-		tasksDir:         "/tmp/demo/.compozy/tasks/demo",
-		ide:              "claude",
-		model:            "sonnet",
-		addDirs:          []string{"../shared", "../docs"},
-		reasoningEffort:  "high",
-		includeCompleted: true,
-		autoCommit:       true,
+		workflowIdentity: workflowIdentity{
+			name:     "demo",
+			tasksDir: "/tmp/demo/.compozy/tasks/demo",
+		},
+		runtimeConfig: runtimeConfig{
+			ide:              "claude",
+			model:            "sonnet",
+			addDirs:          []string{"../shared", "../docs"},
+			reasoningEffort:  "high",
+			includeCompleted: true,
+			autoCommit:       true,
+		},
 	}
 
 	inputs := newFormInputsFromState(state)
@@ -214,12 +220,197 @@ func TestNewFormInputsFromStateQuotesAddDirsContainingCommas(t *testing.T) {
 	t.Parallel()
 
 	state := &commandState{
-		addDirs: []string{"../docs,archive", "../shared"},
+		runtimeConfig: runtimeConfig{
+			addDirs: []string{"../docs,archive", "../shared"},
+		},
 	}
 
 	inputs := newFormInputsFromState(state)
 	if inputs.addDirs != "\"../docs,archive\", ../shared" {
 		t.Fatalf("unexpected addDirs input: %q", inputs.addDirs)
+	}
+}
+
+func TestApplyConfigHandlesSupportedTypes(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("string", "", "")
+	cmd.Flags().Int("int", 0, "")
+	cmd.Flags().Float64("float", 0, "")
+	cmd.Flags().Bool("bool", false, "")
+	cmd.Flags().StringSlice("slice", nil, "")
+
+	stringValue := "claude"
+	intValue := 3
+	floatValue := 2.5
+	boolValue := true
+	sliceValue := []string{"../shared", "../docs"}
+
+	var gotString string
+	var gotInt int
+	var gotFloat float64
+	var gotBool bool
+	var gotSlice []string
+
+	applyConfig(cmd, "string", &stringValue, func(value string) { gotString = value })
+	applyConfig(cmd, "int", &intValue, func(value int) { gotInt = value })
+	applyConfig(cmd, "float", &floatValue, func(value float64) { gotFloat = value })
+	applyConfig(cmd, "bool", &boolValue, func(value bool) { gotBool = value })
+	applyConfig(cmd, "slice", &sliceValue, func(value []string) { gotSlice = value }, slices.Clone[[]string])
+
+	if gotString != stringValue || gotInt != intValue || gotFloat != floatValue || gotBool != boolValue {
+		t.Fatalf("unexpected primitive config values: %q %d %v %t", gotString, gotInt, gotFloat, gotBool)
+	}
+	if !reflect.DeepEqual(gotSlice, sliceValue) {
+		t.Fatalf("unexpected string slice config: %#v", gotSlice)
+	}
+
+	gotSlice[0] = "../changed"
+	if sliceValue[0] != "../shared" {
+		t.Fatalf("applyConfig should clone []string values, got source %#v", sliceValue)
+	}
+}
+
+func TestApplyInputHandlesSupportedTypes(t *testing.T) {
+	t.Parallel()
+
+	cmd := &cobra.Command{Use: "test"}
+	cmd.Flags().String("name", "", "")
+	cmd.Flags().String("round", "", "")
+	cmd.Flags().Bool("dry-run", false, "")
+	cmd.Flags().String("add-dir", "", "")
+
+	var gotName string
+	var gotRound int
+	var gotDryRun bool
+	var gotAddDirs []string
+
+	applyInput(cmd, "name", "demo", passThroughInput[string], func(value string) { gotName = value })
+	applyInput(cmd, "round", "7", parseIntInput, func(value int) { gotRound = value })
+	applyInput(cmd, "dry-run", true, passThroughInput[bool], func(value bool) { gotDryRun = value })
+	applyInput(cmd, "add-dir", "../shared, ../docs", parseStringSliceInput, func(value []string) {
+		gotAddDirs = value
+	})
+
+	if gotName != "demo" {
+		t.Fatalf("unexpected name input: %q", gotName)
+	}
+	if gotRound != 7 {
+		t.Fatalf("unexpected round input: %d", gotRound)
+	}
+	if !gotDryRun {
+		t.Fatal("expected dry-run input to be applied")
+	}
+	if !reflect.DeepEqual(gotAddDirs, []string{"../shared", "../docs"}) {
+		t.Fatalf("unexpected add-dir input: %#v", gotAddDirs)
+	}
+}
+
+func TestSimpleCommandBaseLoadWorkspaceRootWorksForSimpleCommands(t *testing.T) {
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+ide = "claude"
+`)
+	chdirCLITest(t, startDir)
+
+	migrateState := &migrateCommandState{}
+	syncState := &syncCommandState{}
+	archiveState := &archiveCommandState{}
+	cases := []struct {
+		name string
+		base *simpleCommandBase
+	}{
+		{name: "migrate", base: &migrateState.simpleCommandBase},
+		{name: "sync", base: &syncState.simpleCommandBase},
+		{name: "archive", base: &archiveState.simpleCommandBase},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			if err := tc.base.loadWorkspaceRoot(context.Background()); err != nil {
+				t.Fatalf("load workspace root: %v", err)
+			}
+			if mustEvalSymlinksCLITest(t, tc.base.workspaceRoot) != mustEvalSymlinksCLITest(t, root) {
+				t.Fatalf("unexpected workspace root for %s: %q", tc.name, tc.base.workspaceRoot)
+			}
+		})
+	}
+}
+
+func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
+	t.Parallel()
+
+	state := &commandState{
+		workspaceRoot: "/workspace",
+		kind:          commandKindExec,
+		mode:          core.ModeExec,
+		workflowIdentity: workflowIdentity{
+			name:       "demo",
+			pr:         "259",
+			provider:   "coderabbit",
+			round:      4,
+			reviewsDir: "/workspace/.compozy/tasks/demo/reviews-004",
+			tasksDir:   "/workspace/.compozy/tasks/demo",
+		},
+		runtimeConfig: runtimeConfig{
+			dryRun:           true,
+			autoCommit:       true,
+			concurrent:       2,
+			batchSize:        3,
+			ide:              "codex",
+			model:            "gpt-5.4",
+			addDirs:          []string{"../shared", "../docs", "../shared"},
+			tailLines:        40,
+			reasoningEffort:  "high",
+			accessMode:       core.AccessModeDefault,
+			includeCompleted: true,
+			includeResolved:  true,
+		},
+		execConfig: execConfig{
+			outputFormat:       string(core.OutputFormatJSON),
+			verbose:            true,
+			tui:                true,
+			persist:            true,
+			runID:              "run-123",
+			promptText:         "prompt",
+			promptFile:         "prompt.md",
+			readPromptStdin:    true,
+			resolvedPromptText: "resolved prompt",
+		},
+		retryConfig: retryConfig{
+			timeout:                "2m",
+			maxRetries:             2,
+			retryBackoffMultiplier: 2.0,
+		},
+	}
+
+	cfg, err := state.buildConfig()
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+
+	if cfg.Name != "demo" || cfg.PR != "259" || cfg.Provider != "coderabbit" || cfg.Round != 4 {
+		t.Fatalf("unexpected identity config: %#v", cfg)
+	}
+	if cfg.IDE != core.IDECodex || cfg.Model != "gpt-5.4" || cfg.AccessMode != core.AccessModeDefault {
+		t.Fatalf("unexpected runtime config: %#v", cfg)
+	}
+	if !reflect.DeepEqual(cfg.AddDirs, []string{"../shared", "../docs"}) {
+		t.Fatalf("unexpected normalized add dirs: %#v", cfg.AddDirs)
+	}
+	if cfg.OutputFormat != core.OutputFormatJSON || cfg.RunID != "run-123" ||
+		cfg.ResolvedPromptText != "resolved prompt" {
+		t.Fatalf("unexpected exec config: %#v", cfg)
+	}
+	if cfg.Timeout.String() != "2m0s" || cfg.MaxRetries != 2 || cfg.RetryBackoffMultiplier != 2.0 {
+		t.Fatalf("unexpected retry config: %#v", cfg)
 	}
 }
 

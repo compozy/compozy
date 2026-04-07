@@ -8,24 +8,24 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
-func TestRunStartFromConfigMapsLegacyRuntimeFields(t *testing.T) {
+func TestRunStartFromConfigMapsLegacyRuntimeConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := testCoreConfig()
 	cmd := RunStartFromConfig(cfg)
 
-	assertRuntimeFields(t, cmd.RuntimeFields, cfg)
-	if cmd.Mode != model.ExecutionModePRDTasks {
-		t.Fatalf("unexpected mode: %q", cmd.Mode)
+	assertRuntimeConfig(t, cmd.RuntimeConfig(), cfg)
+	if cmd.Runtime.Mode != model.ExecutionModePRDTasks {
+		t.Fatalf("unexpected mode: %q", cmd.Runtime.Mode)
 	}
-	if cmd.IDE != model.IDECodex {
-		t.Fatalf("unexpected ide: %q", cmd.IDE)
+	if cmd.Runtime.IDE != model.IDECodex {
+		t.Fatalf("unexpected ide: %q", cmd.Runtime.IDE)
 	}
-	if cmd.Model != "gpt-5.4" {
-		t.Fatalf("unexpected model: %q", cmd.Model)
+	if cmd.Runtime.Model != "gpt-5.4" {
+		t.Fatalf("unexpected model: %q", cmd.Runtime.Model)
 	}
-	if cmd.Name != "demo" {
-		t.Fatalf("unexpected name: %q", cmd.Name)
+	if cmd.Runtime.Name != "demo" {
+		t.Fatalf("unexpected name: %q", cmd.Runtime.Name)
 	}
 }
 
@@ -44,13 +44,13 @@ func TestRunStartCommandRuntimeConfigUsesSharedConversion(t *testing.T) {
 	}
 }
 
-func TestWorkflowPrepareFromConfigMapsLegacyRuntimeFields(t *testing.T) {
+func TestWorkflowPrepareFromConfigMapsLegacyRuntimeConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := testCoreConfig()
 	cmd := WorkflowPrepareFromConfig(cfg)
 
-	assertRuntimeFields(t, cmd.RuntimeFields, cfg)
+	assertRuntimeConfig(t, cmd.RuntimeConfig(), cfg)
 }
 
 func TestWorkflowPrepareCommandRuntimeConfigUsesSharedConversion(t *testing.T) {
@@ -271,32 +271,35 @@ func TestWorkflowArchiveFromArchiveConfigMapsAllFields(t *testing.T) {
 func TestRuntimeConfigNormalizesAddDirsAndAppliesDefaults(t *testing.T) {
 	t.Parallel()
 
-	fields := RuntimeFields{
+	cfg := core.Config{
 		WorkspaceRoot: "/workspace",
 		Name:          "demo",
-		Mode:          model.ExecutionModePRDTasks,
-		IDE:           model.IDECodex,
+		Mode:          core.ModePRDTasks,
+		IDE:           core.IDECodex,
 		AddDirs:       []string{" docs ", "docs", "", "src"},
 	}
 
-	cfg := fields.RuntimeConfig()
-	if cfg.Concurrent != 1 {
-		t.Fatalf("unexpected concurrent default: %d", cfg.Concurrent)
+	runtimeCfg := runtimeConfigFromCore(cfg)
+	if runtimeCfg.Concurrent != 1 {
+		t.Fatalf("unexpected concurrent default: %d", runtimeCfg.Concurrent)
 	}
-	if cfg.BatchSize != 1 {
-		t.Fatalf("unexpected batch size default: %d", cfg.BatchSize)
+	if runtimeCfg.BatchSize != 1 {
+		t.Fatalf("unexpected batch size default: %d", runtimeCfg.BatchSize)
 	}
-	if cfg.Timeout != model.DefaultActivityTimeout {
-		t.Fatalf("unexpected timeout default: %s", cfg.Timeout)
+	if runtimeCfg.Timeout != model.DefaultActivityTimeout {
+		t.Fatalf("unexpected timeout default: %s", runtimeCfg.Timeout)
 	}
-	if len(cfg.AddDirs) != 2 || cfg.AddDirs[0] != "docs" || cfg.AddDirs[1] != "src" {
-		t.Fatalf("unexpected add dirs: %#v", cfg.AddDirs)
+	if len(runtimeCfg.AddDirs) != 2 || runtimeCfg.AddDirs[0] != "docs" || runtimeCfg.AddDirs[1] != "src" {
+		t.Fatalf("unexpected add dirs: %#v", runtimeCfg.AddDirs)
 	}
 }
 
-func assertRuntimeFields(t *testing.T, got RuntimeFields, want core.Config) {
+func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Config) {
 	t.Helper()
 
+	if got == nil {
+		t.Fatal("expected runtime config")
+	}
 	if got.WorkspaceRoot != want.WorkspaceRoot {
 		t.Fatalf("unexpected workspace root: %q", got.WorkspaceRoot)
 	}

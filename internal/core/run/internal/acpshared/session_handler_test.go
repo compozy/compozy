@@ -60,21 +60,19 @@ func TestSessionUpdateHandlerRoutesTextBlocksToLogAndSnapshot(t *testing.T) {
 
 	var jobUsage model.Usage
 	var aggregate model.Usage
-	handler := newSessionUpdateHandler(
-		context.Background(),
-		3,
-		model.IDECodex,
-		"sess-123",
-		nil,
-		runID,
-		&out,
-		&err,
-		runJournal,
-		&jobUsage,
-		&aggregate,
-		&sync.Mutex{},
-		nil,
-	)
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:        context.Background(),
+		Index:          3,
+		AgentID:        model.IDECodex,
+		SessionID:      "sess-123",
+		RunID:          runID,
+		OutWriter:      &out,
+		ErrWriter:      &err,
+		RunJournal:     runJournal,
+		JobUsage:       &jobUsage,
+		AggregateUsage: &aggregate,
+		AggregateMu:    &sync.Mutex{},
+	})
 
 	textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "hello from ACP"})
 	if handleErr := handler.HandleUpdate(model.SessionUpdate{
@@ -118,21 +116,16 @@ func TestSessionUpdateHandlerMergesTranscriptAndCarriesSessionState(t *testing.T
 	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 	defer cleanup()
 
-	handler := newSessionUpdateHandler(
-		context.Background(),
-		1,
-		model.IDECodex,
-		"sess-merge",
-		nil,
-		runID,
-		io.Discard,
-		io.Discard,
-		runJournal,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      1,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-merge",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+	})
 
 	updates := []model.SessionUpdate{
 		{
@@ -204,21 +197,19 @@ func TestSessionUpdateHandlerRoutesMixedBlocksAndUsage(t *testing.T) {
 	var jobUsage model.Usage
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
-	handler := newSessionUpdateHandler(
-		context.Background(),
-		0,
-		model.IDECodex,
-		"sess-mixed",
-		nil,
-		runID,
-		&out,
-		&err,
-		runJournal,
-		&jobUsage,
-		&aggregate,
-		&aggregateMu,
-		nil,
-	)
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:        context.Background(),
+		Index:          0,
+		AgentID:        model.IDECodex,
+		SessionID:      "sess-mixed",
+		RunID:          runID,
+		OutWriter:      &out,
+		ErrWriter:      &err,
+		RunJournal:     runJournal,
+		JobUsage:       &jobUsage,
+		AggregateUsage: &aggregate,
+		AggregateMu:    &aggregateMu,
+	})
 
 	toolUseBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
 		ID:       "tool-1",
@@ -299,21 +290,19 @@ func TestSessionUpdateHandlerDoesNotBlockWhenSessionStateIsTracked(t *testing.T)
 	var jobUsage model.Usage
 	var aggregate model.Usage
 	var aggregateMu sync.Mutex
-	handler := newSessionUpdateHandler(
-		context.Background(),
-		0,
-		model.IDECodex,
-		"sess-full",
-		nil,
-		runID,
-		io.Discard,
-		io.Discard,
-		runJournal,
-		&jobUsage,
-		&aggregate,
-		&aggregateMu,
-		nil,
-	)
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:        context.Background(),
+		Index:          0,
+		AgentID:        model.IDECodex,
+		SessionID:      "sess-full",
+		RunID:          runID,
+		OutWriter:      io.Discard,
+		ErrWriter:      io.Discard,
+		RunJournal:     runJournal,
+		JobUsage:       &jobUsage,
+		AggregateUsage: &aggregate,
+		AggregateMu:    &aggregateMu,
+	})
 	textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "non-blocking"})
 
 	done := make(chan error, 1)
@@ -354,21 +343,16 @@ func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	runID, runJournal, _, cleanup := openRuntimeEventCapture(t)
 	defer cleanup()
 
-	handler := newSessionUpdateHandler(
-		context.Background(),
-		0,
-		model.IDECodex,
-		"sess-done",
-		nil,
-		runID,
-		io.Discard,
-		io.Discard,
-		runJournal,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-done",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+	})
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusCompleted}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -392,21 +376,16 @@ func TestSessionUpdateHandlerFailedStatusPropagatesError(t *testing.T) {
 	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 	defer cleanup()
 
-	handler := newSessionUpdateHandler(
-		context.Background(),
-		0,
-		model.IDECodex,
-		"sess-failed",
-		nil,
-		runID,
-		io.Discard,
-		&errBuf,
-		runJournal,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-failed",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  &errBuf,
+		RunJournal: runJournal,
+	})
 
 	if err := handler.HandleUpdate(model.SessionUpdate{Status: model.StatusFailed}); err != nil {
 		t.Fatalf("handle update: %v", err)
@@ -446,21 +425,16 @@ func TestSessionUpdateHandlerCompletionWriteFailureStillSignalsDone(t *testing.T
 	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
 	defer cleanup()
 
-	handler := newSessionUpdateHandler(
-		context.Background(),
-		0,
-		model.IDECodex,
-		"sess-write-fail",
-		nil,
-		runID,
-		io.Discard,
-		failingWriter{},
-		runJournal,
-		nil,
-		nil,
-		nil,
-		nil,
-	)
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-write-fail",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  failingWriter{},
+		RunJournal: runJournal,
+	})
 	err := handler.HandleCompletion(errors.New("boom"))
 	if err == nil || !strings.Contains(err.Error(), "write ACP session completion error") {
 		t.Fatalf("expected completion write failure, got %v", err)

@@ -13,31 +13,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type migrateCommandState struct {
+type simpleCommandBase struct {
 	workspaceRoot string
 	projectConfig workspace.ProjectConfig
 	rootDir       string
 	name          string
 	tasksDir      string
-	reviewsDir    string
-	dryRun        bool
-	migrateFn     func(context.Context, core.MigrationConfig) (*core.MigrationResult, error)
+}
+
+type migrateCommandState struct {
+	simpleCommandBase
+	reviewsDir string
+	dryRun     bool
+	migrateFn  func(context.Context, core.MigrationConfig) (*core.MigrationResult, error)
 }
 
 type syncCommandState struct {
-	workspaceRoot string
-	rootDir       string
-	name          string
-	tasksDir      string
-	syncFn        func(context.Context, core.SyncConfig) (*core.SyncResult, error)
+	simpleCommandBase
+	syncFn func(context.Context, core.SyncConfig) (*core.SyncResult, error)
 }
 
 type archiveCommandState struct {
-	workspaceRoot string
-	rootDir       string
-	name          string
-	tasksDir      string
-	archiveFn     func(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error)
+	simpleCommandBase
+	archiveFn func(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error)
 }
 
 func newMigrateCommand(dispatcher *kernel.Dispatcher) *cobra.Command {

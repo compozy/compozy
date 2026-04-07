@@ -166,90 +166,82 @@ func (h *workflowPrepareHandler) Handle(
 	}, nil
 }
 
-type workflowSyncHandler struct {
-	deps KernelDeps
-	ops  operations
+type delegatingHandler[C any, R any, M any] struct {
+	execute func(context.Context, C) (M, error)
+	wrap    func(M) R
 }
 
-var _ Handler[commands.WorkflowSyncCommand, commands.WorkflowSyncResult] = (*workflowSyncHandler)(nil)
-
-func newWorkflowSyncHandler(deps KernelDeps, ops operations) *workflowSyncHandler {
-	return &workflowSyncHandler{deps: deps, ops: ops}
-}
-
-func (h *workflowSyncHandler) Handle(
-	ctx context.Context,
-	cmd commands.WorkflowSyncCommand,
-) (commands.WorkflowSyncResult, error) {
-	result, err := h.ops.Sync(ctx, cmd.CoreConfig())
+func (h delegatingHandler[C, R, M]) Handle(ctx context.Context, cmd C) (R, error) {
+	var zero R
+	result, err := h.execute(ctx, cmd)
 	if err != nil {
-		return commands.WorkflowSyncResult{}, err
+		return zero, err
 	}
-	return commands.WorkflowSyncResult{Result: result}, nil
+	return h.wrap(result), nil
 }
 
-type workflowArchiveHandler struct {
-	deps KernelDeps
-	ops  operations
-}
-
-var _ Handler[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult] = (*workflowArchiveHandler)(nil)
-
-func newWorkflowArchiveHandler(deps KernelDeps, ops operations) *workflowArchiveHandler {
-	return &workflowArchiveHandler{deps: deps, ops: ops}
-}
-
-func (h *workflowArchiveHandler) Handle(
-	ctx context.Context,
-	cmd commands.WorkflowArchiveCommand,
-) (commands.WorkflowArchiveResult, error) {
-	result, err := h.ops.Archive(ctx, cmd.CoreConfig())
-	if err != nil {
-		return commands.WorkflowArchiveResult{}, err
+func newDelegatingHandler[C any, R any, M any](
+	execute func(context.Context, C) (M, error),
+	wrap func(M) R,
+) Handler[C, R] {
+	return delegatingHandler[C, R, M]{
+		execute: execute,
+		wrap:    wrap,
 	}
-	return commands.WorkflowArchiveResult{Result: result}, nil
 }
 
-type workspaceMigrateHandler struct {
-	deps KernelDeps
-	ops  operations
+func newWorkflowSyncHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.WorkflowSyncCommand, commands.WorkflowSyncResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.WorkflowSyncCommand) (*model.SyncResult, error) {
+			return ops.Sync(ctx, cmd.CoreConfig())
+		},
+		func(result *model.SyncResult) commands.WorkflowSyncResult {
+			return commands.WorkflowSyncResult{Result: result}
+		},
+	)
 }
 
-var _ Handler[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult] = (*workspaceMigrateHandler)(nil)
-
-func newWorkspaceMigrateHandler(deps KernelDeps, ops operations) *workspaceMigrateHandler {
-	return &workspaceMigrateHandler{deps: deps, ops: ops}
+func newWorkflowArchiveHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.WorkflowArchiveCommand, commands.WorkflowArchiveResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.WorkflowArchiveCommand) (*model.ArchiveResult, error) {
+			return ops.Archive(ctx, cmd.CoreConfig())
+		},
+		func(result *model.ArchiveResult) commands.WorkflowArchiveResult {
+			return commands.WorkflowArchiveResult{Result: result}
+		},
+	)
 }
 
-func (h *workspaceMigrateHandler) Handle(
-	ctx context.Context,
-	cmd commands.WorkspaceMigrateCommand,
-) (commands.WorkspaceMigrateResult, error) {
-	result, err := h.ops.Migrate(ctx, cmd.CoreConfig())
-	if err != nil {
-		return commands.WorkspaceMigrateResult{}, err
-	}
-	return commands.WorkspaceMigrateResult{Result: result}, nil
+func newWorkspaceMigrateHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.WorkspaceMigrateCommand, commands.WorkspaceMigrateResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.WorkspaceMigrateCommand) (*model.MigrationResult, error) {
+			return ops.Migrate(ctx, cmd.CoreConfig())
+		},
+		func(result *model.MigrationResult) commands.WorkspaceMigrateResult {
+			return commands.WorkspaceMigrateResult{Result: result}
+		},
+	)
 }
 
-type reviewsFetchHandler struct {
-	deps KernelDeps
-	ops  operations
-}
-
-var _ Handler[commands.ReviewsFetchCommand, commands.ReviewsFetchResult] = (*reviewsFetchHandler)(nil)
-
-func newReviewsFetchHandler(deps KernelDeps, ops operations) *reviewsFetchHandler {
-	return &reviewsFetchHandler{deps: deps, ops: ops}
-}
-
-func (h *reviewsFetchHandler) Handle(
-	ctx context.Context,
-	cmd commands.ReviewsFetchCommand,
-) (commands.ReviewsFetchResult, error) {
-	result, err := h.ops.FetchReviews(ctx, cmd.CoreConfig())
-	if err != nil {
-		return commands.ReviewsFetchResult{}, err
-	}
-	return commands.ReviewsFetchResult{Result: result}, nil
+func newReviewsFetchHandler(
+	_ KernelDeps,
+	ops operations,
+) Handler[commands.ReviewsFetchCommand, commands.ReviewsFetchResult] {
+	return newDelegatingHandler(
+		func(ctx context.Context, cmd commands.ReviewsFetchCommand) (*model.FetchResult, error) {
+			return ops.FetchReviews(ctx, cmd.CoreConfig())
+		},
+		func(result *model.FetchResult) commands.ReviewsFetchResult {
+			return commands.ReviewsFetchResult{Result: result}
+		},
+	)
 }

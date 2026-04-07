@@ -282,3 +282,36 @@ func TestSessionUpdateRoundTripsJSON(t *testing.T) {
 		t.Fatalf("update changed after round trip:\noriginal: %s\nroundtrip: %s", string(data), string(roundTrip))
 	}
 }
+
+func TestContentBlockMarshalUsesSnakeCaseJSONTags(t *testing.T) {
+	t.Parallel()
+
+	block, err := NewContentBlock(ToolResultBlock{
+		ToolUseID: "tool-7",
+		Content:   "ok",
+		IsError:   true,
+	})
+	if err != nil {
+		t.Fatalf("new content block: %v", err)
+	}
+
+	data, err := json.Marshal(block)
+	if err != nil {
+		t.Fatalf("marshal content block: %v", err)
+	}
+
+	encoded := string(data)
+	required := []string{`"tool_use_id":"tool-7"`, `"is_error":true`}
+	for _, field := range required {
+		if !strings.Contains(encoded, field) {
+			t.Fatalf("expected snake_case field %q in %s", field, encoded)
+		}
+	}
+
+	forbidden := []string{`"toolUseId"`, `"isError"`}
+	for _, field := range forbidden {
+		if strings.Contains(encoded, field) {
+			t.Fatalf("did not expect camelCase field %q in %s", field, encoded)
+		}
+	}
+}

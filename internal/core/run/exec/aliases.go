@@ -3,15 +3,12 @@ package exec
 import (
 	"context"
 	"log/slog"
-	"sync"
 	"time"
 
-	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 	"github.com/compozy/compozy/internal/core/run/internal/runshared"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/run/transcript"
 	uipkg "github.com/compozy/compozy/internal/core/run/ui"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -24,6 +21,7 @@ type activityMonitor = runshared.ActivityMonitor
 type lineBuffer = runshared.LineBuffer
 type SessionViewSnapshot = transcript.SessionViewSnapshot
 type sessionExecution = acpshared.SessionExecution
+type sessionSetupRequest = acpshared.SessionSetupRequest
 
 const (
 	runStatusSucceeded = runshared.RunStatusSucceeded
@@ -77,36 +75,8 @@ func startACPActivityWatchdog(
 	return acpshared.StartACPActivityWatchdog(ctx, monitor, timeout, cancel)
 }
 
-func setupSessionExecution(
-	ctx context.Context,
-	cfg *config,
-	job *job,
-	cwd string,
-	useUI bool,
-	streamHumanOutput bool,
-	index int,
-	runJournal *journal.Journal,
-	aggregateUsage *model.Usage,
-	aggregateMu *sync.Mutex,
-	activity *activityMonitor,
-	logger *slog.Logger,
-	trackClient func(agent.Client) func(),
-) (*sessionExecution, error) {
-	return acpshared.SetupSessionExecution(
-		ctx,
-		cfg,
-		job,
-		cwd,
-		useUI,
-		streamHumanOutput,
-		index,
-		runJournal,
-		aggregateUsage,
-		aggregateMu,
-		activity,
-		logger,
-		trackClient,
-	)
+func setupSessionExecution(req sessionSetupRequest) (*sessionExecution, error) {
+	return acpshared.SetupSessionExecution(req)
 }
 
 func isActivityTimeout(err error) bool {

@@ -1440,8 +1440,10 @@ func TestCommandStateDefaultsWithFallbacksPreservesExplicitFunctions(t *testing.
 	customCollectForm := func(*cobra.Command, *commandState) error { return nil }
 
 	filled := (commandStateDefaults{
-		isInteractive: customInteractive,
-		collectForm:   customCollectForm,
+		commandStateCallbacks: commandStateCallbacks{
+			isInteractive: customInteractive,
+			collectForm:   customCollectForm,
+		},
 	}).withFallbacks()
 
 	if got := reflect.ValueOf(filled.isInteractive).Pointer(); got != reflect.ValueOf(customInteractive).Pointer() {

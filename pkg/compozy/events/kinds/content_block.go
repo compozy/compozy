@@ -3,7 +3,8 @@ package kinds
 import (
 	"encoding/json"
 	"fmt"
-	"reflect"
+
+	"github.com/compozy/compozy/internal/contentblock"
 )
 
 // ContentBlockType identifies the serialized content block variant.
@@ -83,13 +84,8 @@ type ImageBlock struct {
 
 // NewContentBlock encodes a typed block into the generic ContentBlock envelope.
 func NewContentBlock(block any) (ContentBlock, error) {
-	if block == nil {
-		return ContentBlock{}, fmt.Errorf("marshal content block: nil payload")
-	}
-
-	value := reflect.ValueOf(block)
-	if value.Kind() == reflect.Ptr && value.IsNil() {
-		return ContentBlock{}, fmt.Errorf("marshal content block: nil %T", block)
+	if err := contentblock.ValidatePayload(block); err != nil {
+		return ContentBlock{}, err
 	}
 
 	normalizer, ok := block.(contentBlockNormalizer)
@@ -121,194 +117,153 @@ func (b ContentBlock) Decode() (any, error) {
 
 // AsText decodes the block as a TextBlock.
 func (b ContentBlock) AsText() (TextBlock, error) {
-	return decodeTextBlock(b.Data)
+	return decodeBlock(
+		b.Data,
+		BlockText,
+		func(block TextBlock) ContentBlockType { return block.Type },
+		func(block *TextBlock, expected ContentBlockType) { block.Type = expected },
+	)
 }
 
 // AsToolUse decodes the block as a ToolUseBlock.
 func (b ContentBlock) AsToolUse() (ToolUseBlock, error) {
-	return decodeToolUseBlock(b.Data)
+	return decodeBlock(
+		b.Data,
+		BlockToolUse,
+		func(block ToolUseBlock) ContentBlockType { return block.Type },
+		func(block *ToolUseBlock, expected ContentBlockType) { block.Type = expected },
+	)
 }
 
 // AsToolResult decodes the block as a ToolResultBlock.
 func (b ContentBlock) AsToolResult() (ToolResultBlock, error) {
-	return decodeToolResultBlock(b.Data)
+	return decodeBlock(
+		b.Data,
+		BlockToolResult,
+		func(block ToolResultBlock) ContentBlockType { return block.Type },
+		func(block *ToolResultBlock, expected ContentBlockType) { block.Type = expected },
+	)
 }
 
 // AsDiff decodes the block as a DiffBlock.
 func (b ContentBlock) AsDiff() (DiffBlock, error) {
-	return decodeDiffBlock(b.Data)
+	return decodeBlock(
+		b.Data,
+		BlockDiff,
+		func(block DiffBlock) ContentBlockType { return block.Type },
+		func(block *DiffBlock, expected ContentBlockType) { block.Type = expected },
+	)
 }
 
 // AsTerminalOutput decodes the block as a TerminalOutputBlock.
 func (b ContentBlock) AsTerminalOutput() (TerminalOutputBlock, error) {
-	return decodeTerminalOutputBlock(b.Data)
+	return decodeBlock(
+		b.Data,
+		BlockTerminalOutput,
+		func(block TerminalOutputBlock) ContentBlockType { return block.Type },
+		func(block *TerminalOutputBlock, expected ContentBlockType) { block.Type = expected },
+	)
 }
 
 // AsImage decodes the block as an ImageBlock.
 func (b ContentBlock) AsImage() (ImageBlock, error) {
-	return decodeImageBlock(b.Data)
+	return decodeBlock(
+		b.Data,
+		BlockImage,
+		func(block ImageBlock) ContentBlockType { return block.Type },
+		func(block *ImageBlock, expected ContentBlockType) { block.Type = expected },
+	)
 }
 
 // MarshalJSON preserves the canonical JSON payload stored in Data.
 func (b ContentBlock) MarshalJSON() ([]byte, error) {
-	if b.Type == "" {
-		return nil, fmt.Errorf("marshal content block: missing type")
-	}
-	if len(b.Data) == 0 {
-		return nil, fmt.Errorf("marshal %s block: missing data", b.Type)
-	}
-	return b.Data, nil
+	return contentblock.MarshalEnvelopeJSON(b.Type, b.Data)
 }
 
 // UnmarshalJSON validates the payload and stores its canonical JSON form.
 func (b *ContentBlock) UnmarshalJSON(data []byte) error {
-	var envelope struct {
-		Type ContentBlockType `json:"type"`
-	}
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return fmt.Errorf("decode content block envelope: %w", err)
-	}
-	if envelope.Type == "" {
-		return fmt.Errorf("decode content block envelope: missing type")
-	}
-	if err := validateContentBlock(envelope.Type, data); err != nil {
+	envelope, err := contentblock.UnmarshalEnvelopeJSON(data, validateContentBlock)
+	if err != nil {
 		return err
 	}
-
 	b.Type = envelope.Type
-	b.Data = append(b.Data[:0], data...)
+	b.Data = envelope.Data
 	return nil
 }
 
 func marshalContentBlock(block any) (ContentBlock, error) {
-	data, err := json.Marshal(block)
+	envelope, err := contentblock.MarshalEnvelope[ContentBlockType](block)
 	if err != nil {
-		return ContentBlock{}, fmt.Errorf("marshal content block payload: %w", err)
+		return ContentBlock{}, err
 	}
-
-	var envelope struct {
-		Type ContentBlockType `json:"type"`
-	}
-	if err := json.Unmarshal(data, &envelope); err != nil {
-		return ContentBlock{}, fmt.Errorf("decode marshaled content block envelope: %w", err)
-	}
-	if envelope.Type == "" {
-		return ContentBlock{}, fmt.Errorf("marshal content block payload: missing type")
-	}
-
 	return ContentBlock{
 		Type: envelope.Type,
-		Data: data,
+		Data: envelope.Data,
 	}, nil
 }
 
 func validateContentBlock(blockType ContentBlockType, data []byte) error {
 	switch blockType {
 	case BlockText:
-		_, err := decodeTextBlock(data)
+		_, err := decodeBlock(
+			data,
+			BlockText,
+			func(block TextBlock) ContentBlockType { return block.Type },
+			func(block *TextBlock, expected ContentBlockType) { block.Type = expected },
+		)
 		return err
 	case BlockToolUse:
-		_, err := decodeToolUseBlock(data)
+		_, err := decodeBlock(
+			data,
+			BlockToolUse,
+			func(block ToolUseBlock) ContentBlockType { return block.Type },
+			func(block *ToolUseBlock, expected ContentBlockType) { block.Type = expected },
+		)
 		return err
 	case BlockToolResult:
-		_, err := decodeToolResultBlock(data)
+		_, err := decodeBlock(
+			data,
+			BlockToolResult,
+			func(block ToolResultBlock) ContentBlockType { return block.Type },
+			func(block *ToolResultBlock, expected ContentBlockType) { block.Type = expected },
+		)
 		return err
 	case BlockDiff:
-		_, err := decodeDiffBlock(data)
+		_, err := decodeBlock(
+			data,
+			BlockDiff,
+			func(block DiffBlock) ContentBlockType { return block.Type },
+			func(block *DiffBlock, expected ContentBlockType) { block.Type = expected },
+		)
 		return err
 	case BlockTerminalOutput:
-		_, err := decodeTerminalOutputBlock(data)
+		_, err := decodeBlock(
+			data,
+			BlockTerminalOutput,
+			func(block TerminalOutputBlock) ContentBlockType { return block.Type },
+			func(block *TerminalOutputBlock, expected ContentBlockType) { block.Type = expected },
+		)
 		return err
 	case BlockImage:
-		_, err := decodeImageBlock(data)
+		_, err := decodeBlock(
+			data,
+			BlockImage,
+			func(block ImageBlock) ContentBlockType { return block.Type },
+			func(block *ImageBlock, expected ContentBlockType) { block.Type = expected },
+		)
 		return err
 	default:
 		return fmt.Errorf("decode content block: unsupported type %q", blockType)
 	}
 }
 
-func decodeTextBlock(data []byte) (TextBlock, error) {
-	return decodeContentBlock(data, BlockText, func(block TextBlock) ContentBlockType {
-		return block.Type
-	}, ensureTextBlock)
-}
-
-func decodeToolUseBlock(data []byte) (ToolUseBlock, error) {
-	return decodeContentBlock(data, BlockToolUse, func(block ToolUseBlock) ContentBlockType {
-		return block.Type
-	}, ensureToolUseBlock)
-}
-
-func decodeToolResultBlock(data []byte) (ToolResultBlock, error) {
-	return decodeContentBlock(data, BlockToolResult, func(block ToolResultBlock) ContentBlockType {
-		return block.Type
-	}, ensureToolResultBlock)
-}
-
-func decodeDiffBlock(data []byte) (DiffBlock, error) {
-	return decodeContentBlock(data, BlockDiff, func(block DiffBlock) ContentBlockType {
-		return block.Type
-	}, ensureDiffBlock)
-}
-
-func decodeTerminalOutputBlock(data []byte) (TerminalOutputBlock, error) {
-	return decodeContentBlock(data, BlockTerminalOutput, func(block TerminalOutputBlock) ContentBlockType {
-		return block.Type
-	}, ensureTerminalOutputBlock)
-}
-
-func decodeImageBlock(data []byte) (ImageBlock, error) {
-	return decodeContentBlock(data, BlockImage, func(block ImageBlock) ContentBlockType {
-		return block.Type
-	}, ensureImageBlock)
-}
-
-func decodeContentBlock[T any](
+func decodeBlock[T any](
 	data []byte,
 	expected ContentBlockType,
 	blockType func(T) ContentBlockType,
-	ensure func(T) T,
+	normalize func(*T, ContentBlockType),
 ) (T, error) {
-	var block T
-	if err := json.Unmarshal(data, &block); err != nil {
-		var zero T
-		return zero, fmt.Errorf("decode %s block: %w", expected, err)
-	}
-	if got := blockType(block); got != expected {
-		var zero T
-		return zero, fmt.Errorf("decode %s block: unexpected type %q", expected, got)
-	}
-	return ensure(block), nil
-}
-
-func ensureTextBlock(block TextBlock) TextBlock {
-	block.Type = BlockText
-	return block
-}
-
-func ensureToolUseBlock(block ToolUseBlock) ToolUseBlock {
-	block.Type = BlockToolUse
-	return block
-}
-
-func ensureToolResultBlock(block ToolResultBlock) ToolResultBlock {
-	block.Type = BlockToolResult
-	return block
-}
-
-func ensureDiffBlock(block DiffBlock) DiffBlock {
-	block.Type = BlockDiff
-	return block
-}
-
-func ensureTerminalOutputBlock(block TerminalOutputBlock) TerminalOutputBlock {
-	block.Type = BlockTerminalOutput
-	return block
-}
-
-func ensureImageBlock(block ImageBlock) ImageBlock {
-	block.Type = BlockImage
-	return block
+	return contentblock.DecodeBlock(data, expected, blockType, normalize)
 }
 
 type contentBlockNormalizer interface {
@@ -316,25 +271,32 @@ type contentBlockNormalizer interface {
 }
 
 func (b TextBlock) normalizeContentBlock() any {
-	return ensureTextBlock(b)
+	return normalizeBlock(b, func(block *TextBlock) { block.Type = BlockText })
 }
 
 func (b ToolUseBlock) normalizeContentBlock() any {
-	return ensureToolUseBlock(b)
+	return normalizeBlock(b, func(block *ToolUseBlock) { block.Type = BlockToolUse })
 }
 
 func (b ToolResultBlock) normalizeContentBlock() any {
-	return ensureToolResultBlock(b)
+	return normalizeBlock(b, func(block *ToolResultBlock) { block.Type = BlockToolResult })
 }
 
 func (b DiffBlock) normalizeContentBlock() any {
-	return ensureDiffBlock(b)
+	return normalizeBlock(b, func(block *DiffBlock) { block.Type = BlockDiff })
 }
 
 func (b TerminalOutputBlock) normalizeContentBlock() any {
-	return ensureTerminalOutputBlock(b)
+	return normalizeBlock(b, func(block *TerminalOutputBlock) { block.Type = BlockTerminalOutput })
 }
 
 func (b ImageBlock) normalizeContentBlock() any {
-	return ensureImageBlock(b)
+	return normalizeBlock(b, func(block *ImageBlock) { block.Type = BlockImage })
+}
+
+func normalizeBlock[T any](block T, normalize func(*T)) T {
+	if normalize != nil {
+		normalize(&block)
+	}
+	return block
 }

@@ -300,7 +300,8 @@ func NormalizeAddDirs(dirs []string) []string {
 	return normalized
 }
 
-func (cfg Config) runtime() *model.RuntimeConfig {
+// RuntimeConfig converts the legacy core.Config shape into the shared runtime configuration.
+func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 	runtimeCfg := &model.RuntimeConfig{
 		WorkspaceRoot:          cfg.WorkspaceRoot,
 		Name:                   cfg.Name,
@@ -337,6 +338,10 @@ func (cfg Config) runtime() *model.RuntimeConfig {
 	}
 	runtimeCfg.ApplyDefaults()
 	return runtimeCfg
+}
+
+func (cfg Config) runtime() *model.RuntimeConfig {
+	return cfg.RuntimeConfig()
 }
 
 // NewPreparation clones a solve preparation into the public core API shape.

@@ -361,21 +361,21 @@ func runSingleExecAttempt(
 		cancel(nil)
 	}()
 
-	execution, err := setupSessionExecution(
-		attemptCtx,
-		cfg,
-		j,
-		cwd,
-		useUI,
-		false,
-		0,
-		stateJournal(state),
-		nil,
-		nil,
-		activity,
-		runtimeLoggerFor(cfg, useUI),
-		nil,
-	)
+	execution, err := setupSessionExecution(sessionSetupRequest{
+		Context:           attemptCtx,
+		Config:            cfg,
+		Job:               j,
+		CWD:               cwd,
+		UseUI:             useUI,
+		StreamHumanOutput: false,
+		Index:             0,
+		RunJournal:        stateJournal(state),
+		AggregateUsage:    nil,
+		AggregateMu:       nil,
+		Activity:          activity,
+		Logger:            runtimeLoggerFor(cfg, useUI),
+		TrackClient:       nil,
+	})
 	if err != nil {
 		return execExecutionResult{status: runStatusFailed, err: err}
 	}

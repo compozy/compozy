@@ -39,6 +39,22 @@ type SessionExecution struct {
 	Logger        *slog.Logger
 }
 
+type SessionSetupRequest struct {
+	Context           context.Context
+	Config            *config
+	Job               *job
+	CWD               string
+	UseUI             bool
+	StreamHumanOutput bool
+	Index             int
+	RunJournal        *journal.Journal
+	AggregateUsage    *model.Usage
+	AggregateMu       *sync.Mutex
+	Activity          *activityMonitor
+	Logger            *slog.Logger
+	TrackClient       func(agent.Client) func()
+}
+
 func (s *SessionExecution) Close() {
 	if s.ReleaseClient != nil {
 		defer s.ReleaseClient()
@@ -85,40 +101,29 @@ func NotifyJobStart(
 	)
 }
 
-func SetupSessionExecution(
-	ctx context.Context,
-	cfg *config,
-	job *job,
-	cwd string,
-	useUI bool,
-	streamHumanOutput bool,
-	index int,
-	runJournal *journal.Journal,
-	aggregateUsage *model.Usage,
-	aggregateMu *sync.Mutex,
-	activity *activityMonitor,
-	logger *slog.Logger,
-	trackClient func(agent.Client) func(),
-) (*SessionExecution, error) {
-	logger = resolveSessionLogger(logger)
+func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
+	if req.Context == nil {
+		req.Context = context.Background()
+	}
+	logger := resolveSessionLogger(req.Logger)
 
-	client, err := createACPClient(ctx, cfg, logger)
+	client, err := createACPClient(req.Context, req.Config, logger)
 	if err != nil {
 		return nil, err
 	}
 	releaseClient := func() {}
-	if trackClient != nil {
-		releaseClient = trackClient(client)
+	if req.TrackClient != nil {
+		releaseClient = req.TrackClient(client)
 	}
 
-	outFile, errFile, err := createSessionLogFiles(job)
+	outFile, errFile, err := createSessionLogFiles(req.Job)
 	if err != nil {
 		_ = client.Close()
 		releaseClient()
 		return nil, err
 	}
 
-	session, err := createACPSession(ctx, client, cfg, job, cwd)
+	session, err := createACPSession(req.Context, client, req.Config, req.Job, req.CWD)
 	if err != nil {
 		_ = outFile.Close()
 		_ = errFile.Close()
@@ -128,24 +133,23 @@ func SetupSessionExecution(
 	}
 
 	execution := buildSessionExecution(
-		ctx,
-		cfg,
-		job,
-		useUI,
-		streamHumanOutput,
-		index,
-		runJournal,
-		aggregateUsage,
-		aggregateMu,
-		activity,
-		logger,
-		client,
-		releaseClient,
-		session,
-		outFile,
-		errFile,
+		req,
+		sessionExecutionResources{
+			client:        client,
+			releaseClient: releaseClient,
+			session:       session,
+			outFile:       outFile,
+			errFile:       errFile,
+			logger:        logger,
+		},
 	)
-	if err := emitSessionStartedEvent(ctx, runJournal, cfg.RunArtifacts.RunID, index, session.Identity()); err != nil {
+	if err := emitSessionStartedEvent(
+		req.Context,
+		req.RunJournal,
+		req.Config.RunArtifacts.RunID,
+		req.Index,
+		session.Identity(),
+	); err != nil {
 		execution.Close()
 		return nil, err
 	}
@@ -153,57 +157,61 @@ func SetupSessionExecution(
 	return execution, nil
 }
 
-func buildSessionExecution(
-	ctx context.Context,
-	cfg *config,
-	job *job,
-	useUI bool,
-	streamHumanOutput bool,
-	index int,
-	runJournal *journal.Journal,
-	aggregateUsage *model.Usage,
-	aggregateMu *sync.Mutex,
-	activity *activityMonitor,
-	logger *slog.Logger,
-	client agent.Client,
-	releaseClient func(),
-	session agent.Session,
-	outFile *os.File,
-	errFile *os.File,
-) *SessionExecution {
-	outWriter, errWriter := createLogWriters(outFile, errFile, useUI, streamHumanOutput)
-	handler := NewSessionUpdateHandler(
-		ctx,
-		index,
-		cfg.IDE,
-		session.ID(),
-		logger.With("component", "acp.session", "agent_id", cfg.IDE, "session_id", session.ID()),
-		cfg.RunArtifacts.RunID,
-		outWriter,
-		errWriter,
-		runJournal,
-		&job.Usage,
-		aggregateUsage,
-		aggregateMu,
-		activity,
+type sessionExecutionResources struct {
+	client        agent.Client
+	releaseClient func()
+	session       agent.Session
+	outFile       *os.File
+	errFile       *os.File
+	logger        *slog.Logger
+}
+
+func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionResources) *SessionExecution {
+	outWriter, errWriter := createLogWriters(
+		resources.outFile,
+		resources.errFile,
+		req.UseUI,
+		req.StreamHumanOutput,
 	)
-	logger.Info(
+	handler := NewSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:   req.Context,
+		Index:     req.Index,
+		AgentID:   req.Config.IDE,
+		SessionID: resources.session.ID(),
+		Logger: resources.logger.With(
+			"component",
+			"acp.session",
+			"agent_id",
+			req.Config.IDE,
+			"session_id",
+			resources.session.ID(),
+		),
+		RunID:          req.Config.RunArtifacts.RunID,
+		OutWriter:      outWriter,
+		ErrWriter:      errWriter,
+		RunJournal:     req.RunJournal,
+		JobUsage:       &req.Job.Usage,
+		AggregateUsage: req.AggregateUsage,
+		AggregateMu:    req.AggregateMu,
+		Activity:       req.Activity,
+	})
+	resources.logger.Info(
 		"acp session created",
 		"agent_id",
-		cfg.IDE,
+		req.Config.IDE,
 		"session_id",
-		session.ID(),
+		resources.session.ID(),
 		"job_index",
-		index,
+		req.Index,
 	)
 	return &SessionExecution{
-		Client:        client,
-		ReleaseClient: releaseClient,
-		Session:       session,
+		Client:        resources.client,
+		ReleaseClient: resources.releaseClient,
+		Session:       resources.session,
 		Handler:       handler,
-		OutFile:       outFile,
-		ErrFile:       errFile,
-		Logger:        logger,
+		OutFile:       resources.outFile,
+		ErrFile:       resources.errFile,
+		Logger:        resources.logger,
 	}
 }
 

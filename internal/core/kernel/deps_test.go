@@ -179,7 +179,7 @@ func TestRunStartExecPathDelegatesToExecuteExec(t *testing.T) {
 		context.Background(),
 		dispatcher,
 		commands.RunStartCommand{
-			RuntimeFields: commands.RuntimeFields{
+			Runtime: model.RuntimeConfig{
 				WorkspaceRoot: "/workspace",
 				Name:          "demo",
 				Mode:          model.ExecutionModeExec,
@@ -221,7 +221,7 @@ func TestBuildDefaultDispatchesRunStartAndDelegatesToPrepareAndExecute(t *testin
 		context.Background(),
 		dispatcher,
 		commands.RunStartCommand{
-			RuntimeFields: commands.RuntimeFields{
+			Runtime: model.RuntimeConfig{
 				WorkspaceRoot: "/workspace",
 				Name:          "demo",
 				Mode:          model.ExecutionModePRDTasks,
@@ -293,7 +293,7 @@ func TestRunStartNoWorkReturnsTypedStatusWithoutError(t *testing.T) {
 		context.Background(),
 		dispatcher,
 		commands.RunStartCommand{
-			RuntimeFields: commands.RuntimeFields{
+			Runtime: model.RuntimeConfig{
 				WorkspaceRoot: "/workspace",
 				Name:          "demo",
 				Mode:          model.ExecutionModePRDTasks,
@@ -327,7 +327,7 @@ func TestBuildDefaultDispatchesAllPhaseACommandsSequentially(t *testing.T) {
 		context.Background(),
 		dispatcher,
 		commands.RunStartCommand{
-			RuntimeFields: commands.RuntimeFields{
+			Runtime: model.RuntimeConfig{
 				WorkspaceRoot: "/workspace",
 				Name:          "demo",
 				Mode:          model.ExecutionModePRDTasks,
@@ -343,7 +343,7 @@ func TestBuildDefaultDispatchesAllPhaseACommandsSequentially(t *testing.T) {
 		context.Background(),
 		dispatcher,
 		commands.WorkflowPrepareCommand{
-			RuntimeFields: commands.RuntimeFields{
+			Runtime: model.RuntimeConfig{
 				WorkspaceRoot: "/workspace",
 				Name:          "demo",
 				Mode:          model.ExecutionModePRDTasks,
@@ -453,7 +453,7 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 					context.Background(),
 					dispatcher,
 					commands.RunStartCommand{
-						RuntimeFields: commands.RuntimeFields{
+						Runtime: model.RuntimeConfig{
 							Mode:      model.ExecutionModePRDTasks,
 							IDE:       model.IDECodex,
 							BatchSize: 1,
@@ -472,7 +472,7 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 					context.Background(),
 					dispatcher,
 					commands.RunStartCommand{
-						RuntimeFields: commands.RuntimeFields{
+						Runtime: model.RuntimeConfig{
 							Mode: model.ExecutionModeExec,
 							IDE:  model.IDECodex,
 						},
@@ -493,7 +493,7 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 					context.Background(),
 					dispatcher,
 					commands.RunStartCommand{
-						RuntimeFields: commands.RuntimeFields{
+						Runtime: model.RuntimeConfig{
 							WorkspaceRoot: "/workspace",
 							Mode:          model.ExecutionModePRDTasks,
 							IDE:           model.IDECodex,
@@ -513,7 +513,7 @@ func TestHandlersPropagateOperationErrors(t *testing.T) {
 					context.Background(),
 					dispatcher,
 					commands.WorkflowPrepareCommand{
-						RuntimeFields: commands.RuntimeFields{
+						Runtime: model.RuntimeConfig{
 							Mode:      model.ExecutionModePRDTasks,
 							IDE:       model.IDECodex,
 							BatchSize: 1,
@@ -604,7 +604,7 @@ func TestWorkflowPrepareReturnsCoreNoWork(t *testing.T) {
 		context.Background(),
 		dispatcher,
 		commands.WorkflowPrepareCommand{
-			RuntimeFields: commands.RuntimeFields{
+			Runtime: model.RuntimeConfig{
 				WorkspaceRoot: "/workspace",
 				Name:          "demo",
 				Mode:          model.ExecutionModePRDTasks,

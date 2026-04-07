@@ -214,6 +214,39 @@ func TestContentBlockValidJSONDecodesTypedStructs(t *testing.T) {
 	}
 }
 
+func TestContentBlockMarshalUsesCamelCaseJSONTags(t *testing.T) {
+	t.Parallel()
+
+	block, err := model.NewContentBlock(model.ToolResultBlock{
+		ToolUseID: "tool-7",
+		Content:   "ok",
+		IsError:   true,
+	})
+	if err != nil {
+		t.Fatalf("new content block: %v", err)
+	}
+
+	data, err := json.Marshal(block)
+	if err != nil {
+		t.Fatalf("marshal content block: %v", err)
+	}
+
+	encoded := string(data)
+	required := []string{`"toolUseId":"tool-7"`, `"isError":true`}
+	for _, field := range required {
+		if !strings.Contains(encoded, field) {
+			t.Fatalf("expected camelCase field %q in %s", field, encoded)
+		}
+	}
+
+	forbidden := []string{`"tool_use_id"`, `"is_error"`}
+	for _, field := range forbidden {
+		if strings.Contains(encoded, field) {
+			t.Fatalf("did not expect snake_case field %q in %s", field, encoded)
+		}
+	}
+}
+
 func TestContentBlockMalformedJSONReturnsDescriptiveError(t *testing.T) {
 	t.Parallel()
 

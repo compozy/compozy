@@ -42,21 +42,21 @@ func ExecuteJobWithTimeout(
 		cancel(nil)
 	}()
 
-	execution, err := SetupSessionExecution(
-		attemptCtx,
-		cfg,
-		j,
-		cwd,
-		useUI,
-		cfg.HumanOutputEnabled(),
-		index,
-		runJournal,
-		aggregateUsage,
-		aggregateMu,
-		activity,
-		runtimeLoggerFor(cfg, useUI),
-		trackClient,
-	)
+	execution, err := SetupSessionExecution(SessionSetupRequest{
+		Context:           attemptCtx,
+		Config:            cfg,
+		Job:               j,
+		CWD:               cwd,
+		UseUI:             useUI,
+		StreamHumanOutput: cfg.HumanOutputEnabled(),
+		Index:             index,
+		RunJournal:        runJournal,
+		AggregateUsage:    aggregateUsage,
+		AggregateMu:       aggregateMu,
+		Activity:          activity,
+		Logger:            runtimeLoggerFor(cfg, useUI),
+		TrackClient:       trackClient,
+	})
 	if err != nil {
 		if timeout > 0 && IsActivityTimeout(err) {
 			return HandleSessionTimeout(ResolveTimeoutError(timeout, err), j, index, emitHuman, timeout)

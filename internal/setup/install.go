@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 )
 
@@ -15,40 +14,18 @@ var invalidNamePattern = regexp.MustCompile(`[^a-z0-9._]+`)
 
 // SelectSkills filters a discovered catalog to the requested bundled skill names.
 func SelectSkills(all []Skill, names []string) ([]Skill, error) {
-	if len(names) == 0 {
-		return nil, fmt.Errorf("select bundled skills: no skills requested")
-	}
-
-	index := make(map[string]Skill, len(all))
-	for _, skill := range all {
-		index[skill.Name] = skill
-	}
-
-	selected := make([]Skill, 0, len(names))
-	seen := make(map[string]struct{}, len(names))
-	var invalid []string
-	for _, name := range names {
-		canonical := strings.TrimSpace(name)
-		skill, ok := index[canonical]
-		if !ok {
-			invalid = append(invalid, name)
-			continue
-		}
-		if _, ok := seen[skill.Name]; ok {
-			continue
-		}
-		seen[skill.Name] = struct{}{}
-		selected = append(selected, skill)
-	}
-	if len(invalid) > 0 {
-		slices.Sort(invalid)
-		return nil, fmt.Errorf("select bundled skills: invalid skill(s): %s", strings.Join(invalid, ", "))
-	}
-
-	slices.SortFunc(selected, func(left, right Skill) int {
-		return strings.Compare(left.Name, right.Name)
+	return selectByName(all, names, selectByNameConfig[Skill]{
+		subject:      "bundled skills",
+		emptyLabel:   "skills",
+		invalidLabel: "skill(s)",
+		getName: func(skill Skill) string {
+			return skill.Name
+		},
+		normalize: strings.TrimSpace,
+		less: func(left, right Skill) int {
+			return strings.Compare(left.Name, right.Name)
+		},
 	})
-	return selected, nil
 }
 
 // Preview resolves selected bundled skills and agents to on-disk install targets.

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/spf13/cobra"
@@ -28,7 +29,7 @@ func (s *commandState) applyWorkspaceDefaults(ctx context.Context, cmd *cobra.Co
 	return nil
 }
 
-func (s *migrateCommandState) loadWorkspaceRoot(ctx context.Context) error {
+func (s *simpleCommandBase) loadWorkspaceRoot(ctx context.Context) error {
 	workspaceCtx, err := resolveWorkspaceContext(ctx)
 	if err != nil {
 		return err
@@ -38,38 +39,20 @@ func (s *migrateCommandState) loadWorkspaceRoot(ctx context.Context) error {
 	return nil
 }
 
-func (s *syncCommandState) loadWorkspaceRoot(ctx context.Context) error {
-	workspaceCtx, err := resolveWorkspaceContext(ctx)
-	if err != nil {
-		return err
-	}
-	s.workspaceRoot = workspaceCtx.Root
-	return nil
-}
-
-func (s *archiveCommandState) loadWorkspaceRoot(ctx context.Context) error {
-	workspaceCtx, err := resolveWorkspaceContext(ctx)
-	if err != nil {
-		return err
-	}
-	s.workspaceRoot = workspaceCtx.Root
-	return nil
-}
-
 func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
-	applyStringConfig(cmd, "ide", cfg.Defaults.IDE, func(val string) { s.ide = val })
-	applyStringConfig(cmd, "model", cfg.Defaults.Model, func(val string) { s.model = val })
-	applyStringConfig(cmd, "format", cfg.Defaults.OutputFormat, func(val string) { s.outputFormat = val })
-	applyStringConfig(cmd, "reasoning-effort", cfg.Defaults.ReasoningEffort, func(val string) {
+	applyConfig(cmd, "ide", cfg.Defaults.IDE, func(val string) { s.ide = val })
+	applyConfig(cmd, "model", cfg.Defaults.Model, func(val string) { s.model = val })
+	applyConfig(cmd, "format", cfg.Defaults.OutputFormat, func(val string) { s.outputFormat = val })
+	applyConfig(cmd, "reasoning-effort", cfg.Defaults.ReasoningEffort, func(val string) {
 		s.reasoningEffort = val
 	})
-	applyStringConfig(cmd, "access-mode", cfg.Defaults.AccessMode, func(val string) { s.accessMode = val })
-	applyStringConfig(cmd, "timeout", cfg.Defaults.Timeout, func(val string) { s.timeout = val })
-	applyIntConfig(cmd, "tail-lines", cfg.Defaults.TailLines, func(val int) { s.tailLines = val })
-	applyStringSliceConfig(cmd, "add-dir", cfg.Defaults.AddDirs, func(val []string) { s.addDirs = val })
-	applyBoolConfig(cmd, "auto-commit", cfg.Defaults.AutoCommit, func(val bool) { s.autoCommit = val })
-	applyIntConfig(cmd, "max-retries", cfg.Defaults.MaxRetries, func(val int) { s.maxRetries = val })
-	applyFloat64Config(
+	applyConfig(cmd, "access-mode", cfg.Defaults.AccessMode, func(val string) { s.accessMode = val })
+	applyConfig(cmd, "timeout", cfg.Defaults.Timeout, func(val string) { s.timeout = val })
+	applyConfig(cmd, "tail-lines", cfg.Defaults.TailLines, func(val int) { s.tailLines = val })
+	applyConfig(cmd, "add-dir", cfg.Defaults.AddDirs, func(val []string) { s.addDirs = val }, slices.Clone[[]string])
+	applyConfig(cmd, "auto-commit", cfg.Defaults.AutoCommit, func(val bool) { s.autoCommit = val })
+	applyConfig(cmd, "max-retries", cfg.Defaults.MaxRetries, func(val int) { s.maxRetries = val })
+	applyConfig(
 		cmd,
 		"retry-backoff-multiplier",
 		cfg.Defaults.RetryBackoffMultiplier,
@@ -78,40 +61,40 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 
 	switch s.kind {
 	case commandKindStart:
-		applyBoolConfig(
+		applyConfig(
 			cmd,
 			"include-completed",
 			cfg.Start.IncludeCompleted,
 			func(val bool) { s.includeCompleted = val },
 		)
 	case commandKindFixReviews:
-		applyIntConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
-		applyIntConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
-		applyBoolConfig(
+		applyConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
+		applyConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
+		applyConfig(
 			cmd,
 			"include-resolved",
 			cfg.FixReviews.IncludeResolved,
 			func(val bool) { s.includeResolved = val },
 		)
 	case commandKindFetchReviews:
-		applyStringConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })
+		applyConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })
 	case commandKindExec:
-		applyStringConfig(cmd, "ide", cfg.Exec.IDE, func(val string) { s.ide = val })
-		applyStringConfig(cmd, "model", cfg.Exec.Model, func(val string) { s.model = val })
-		applyStringConfig(cmd, "format", cfg.Exec.OutputFormat, func(val string) { s.outputFormat = val })
-		applyBoolConfig(cmd, "verbose", cfg.Exec.Verbose, func(val bool) { s.verbose = val })
-		applyBoolConfig(cmd, "tui", cfg.Exec.TUI, func(val bool) { s.tui = val })
-		applyBoolConfig(cmd, "persist", cfg.Exec.Persist, func(val bool) { s.persist = val })
-		applyStringConfig(cmd, "reasoning-effort", cfg.Exec.ReasoningEffort, func(val string) {
+		applyConfig(cmd, "ide", cfg.Exec.IDE, func(val string) { s.ide = val })
+		applyConfig(cmd, "model", cfg.Exec.Model, func(val string) { s.model = val })
+		applyConfig(cmd, "format", cfg.Exec.OutputFormat, func(val string) { s.outputFormat = val })
+		applyConfig(cmd, "verbose", cfg.Exec.Verbose, func(val bool) { s.verbose = val })
+		applyConfig(cmd, "tui", cfg.Exec.TUI, func(val bool) { s.tui = val })
+		applyConfig(cmd, "persist", cfg.Exec.Persist, func(val bool) { s.persist = val })
+		applyConfig(cmd, "reasoning-effort", cfg.Exec.ReasoningEffort, func(val string) {
 			s.reasoningEffort = val
 		})
-		applyStringConfig(cmd, "access-mode", cfg.Exec.AccessMode, func(val string) { s.accessMode = val })
-		applyStringConfig(cmd, "timeout", cfg.Exec.Timeout, func(val string) { s.timeout = val })
-		applyIntConfig(cmd, "tail-lines", cfg.Exec.TailLines, func(val int) { s.tailLines = val })
-		applyStringSliceConfig(cmd, "add-dir", cfg.Exec.AddDirs, func(val []string) { s.addDirs = val })
-		applyBoolConfig(cmd, "auto-commit", cfg.Exec.AutoCommit, func(val bool) { s.autoCommit = val })
-		applyIntConfig(cmd, "max-retries", cfg.Exec.MaxRetries, func(val int) { s.maxRetries = val })
-		applyFloat64Config(
+		applyConfig(cmd, "access-mode", cfg.Exec.AccessMode, func(val string) { s.accessMode = val })
+		applyConfig(cmd, "timeout", cfg.Exec.Timeout, func(val string) { s.timeout = val })
+		applyConfig(cmd, "tail-lines", cfg.Exec.TailLines, func(val int) { s.tailLines = val })
+		applyConfig(cmd, "add-dir", cfg.Exec.AddDirs, func(val []string) { s.addDirs = val }, slices.Clone[[]string])
+		applyConfig(cmd, "auto-commit", cfg.Exec.AutoCommit, func(val bool) { s.autoCommit = val })
+		applyConfig(cmd, "max-retries", cfg.Exec.MaxRetries, func(val int) { s.maxRetries = val })
+		applyConfig(
 			cmd,
 			"retry-backoff-multiplier",
 			cfg.Exec.RetryBackoffMultiplier,
@@ -120,38 +103,14 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 	}
 }
 
-func applyStringConfig(cmd *cobra.Command, flagName string, value *string, setter func(string)) {
+func applyConfig[T any](cmd *cobra.Command, flagName string, value *T, setter func(T), transform ...func(T) T) {
 	if value == nil || cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
 		return
 	}
-	setter(*value)
-}
 
-func applyIntConfig(cmd *cobra.Command, flagName string, value *int, setter func(int)) {
-	if value == nil || cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
-		return
+	resolved := *value
+	if len(transform) > 0 && transform[0] != nil {
+		resolved = transform[0](resolved)
 	}
-	setter(*value)
-}
-
-func applyFloat64Config(cmd *cobra.Command, flagName string, value *float64, setter func(float64)) {
-	if value == nil || cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
-		return
-	}
-	setter(*value)
-}
-
-func applyBoolConfig(cmd *cobra.Command, flagName string, value *bool, setter func(bool)) {
-	if value == nil || cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
-		return
-	}
-	setter(*value)
-}
-
-func applyStringSliceConfig(cmd *cobra.Command, flagName string, value *[]string, setter func([]string)) {
-	if value == nil || cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
-		return
-	}
-	resolved := append([]string(nil), (*value)...)
 	setter(resolved)
 }

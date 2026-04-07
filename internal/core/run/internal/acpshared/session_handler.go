@@ -41,42 +41,44 @@ type SessionUpdateHandler struct {
 	doneOnce    sync.Once
 }
 
-func NewSessionUpdateHandler(
-	ctx context.Context,
-	index int,
-	agentID string,
-	sessionID string,
-	logger *slog.Logger,
-	runID string,
-	outWriter io.Writer,
-	errWriter io.Writer,
-	runJournal *journal.Journal,
-	jobUsage *model.Usage,
-	aggregateUsage *model.Usage,
-	aggregateMu *sync.Mutex,
-	activity *activityMonitor,
-) *SessionUpdateHandler {
-	if ctx == nil {
-		ctx = context.Background()
+type SessionUpdateHandlerConfig struct {
+	Context        context.Context
+	Index          int
+	AgentID        string
+	SessionID      string
+	Logger         *slog.Logger
+	RunID          string
+	OutWriter      io.Writer
+	ErrWriter      io.Writer
+	RunJournal     *journal.Journal
+	JobUsage       *model.Usage
+	AggregateUsage *model.Usage
+	AggregateMu    *sync.Mutex
+	Activity       *activityMonitor
+}
+
+func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandler {
+	if cfg.Context == nil {
+		cfg.Context = context.Background()
 	}
-	if logger == nil {
-		logger = silentLogger()
+	if cfg.Logger == nil {
+		cfg.Logger = silentLogger()
 	}
 	return &SessionUpdateHandler{
-		ctx:            ctx,
-		index:          index,
-		agentID:        agentID,
-		sessionID:      sessionID,
-		logger:         logger,
-		runID:          runID,
+		ctx:            cfg.Context,
+		index:          cfg.Index,
+		agentID:        cfg.AgentID,
+		sessionID:      cfg.SessionID,
+		logger:         cfg.Logger,
+		runID:          cfg.RunID,
 		startedAt:      time.Now(),
-		outWriter:      outWriter,
-		errWriter:      errWriter,
-		journal:        runJournal,
-		jobUsage:       jobUsage,
-		aggregateUsage: aggregateUsage,
-		aggregateMu:    aggregateMu,
-		activity:       activity,
+		outWriter:      cfg.OutWriter,
+		errWriter:      cfg.ErrWriter,
+		journal:        cfg.RunJournal,
+		jobUsage:       cfg.JobUsage,
+		aggregateUsage: cfg.AggregateUsage,
+		aggregateMu:    cfg.AggregateMu,
+		activity:       cfg.Activity,
 		blockCounts:    make(map[model.ContentBlockType]int),
 		sessionView:    newSessionViewModel(),
 		done:           make(chan struct{}),

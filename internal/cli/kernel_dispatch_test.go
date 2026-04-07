@@ -123,26 +123,30 @@ func TestNewRunWorkflowDispatchesStartCommand(t *testing.T) {
 	if !handler.called {
 		t.Fatal("expected dispatcher handler to be called")
 	}
-	if handler.got.WorkspaceRoot != "/workspace" {
-		t.Fatalf("unexpected workspace root: %q", handler.got.WorkspaceRoot)
+	runtime := handler.got.RuntimeConfig()
+	if runtime == nil {
+		t.Fatal("expected runtime config")
 	}
-	if handler.got.Name != "demo" {
-		t.Fatalf("unexpected workflow name: %q", handler.got.Name)
+	if runtime.WorkspaceRoot != "/workspace" {
+		t.Fatalf("unexpected workspace root: %q", runtime.WorkspaceRoot)
 	}
-	if handler.got.TasksDir != "/workspace/.compozy/tasks/demo" {
-		t.Fatalf("unexpected tasks dir: %q", handler.got.TasksDir)
+	if runtime.Name != "demo" {
+		t.Fatalf("unexpected workflow name: %q", runtime.Name)
 	}
-	if !handler.got.IncludeCompleted {
+	if runtime.TasksDir != "/workspace/.compozy/tasks/demo" {
+		t.Fatalf("unexpected tasks dir: %q", runtime.TasksDir)
+	}
+	if !runtime.IncludeCompleted {
 		t.Fatal("expected include completed to pass through")
 	}
-	if handler.got.Mode != model.ExecutionModePRDTasks {
-		t.Fatalf("unexpected mode: %q", handler.got.Mode)
+	if runtime.Mode != model.ExecutionModePRDTasks {
+		t.Fatalf("unexpected mode: %q", runtime.Mode)
 	}
-	if handler.got.IDE != model.IDECodex {
-		t.Fatalf("unexpected ide: %q", handler.got.IDE)
+	if runtime.IDE != model.IDECodex {
+		t.Fatalf("unexpected ide: %q", runtime.IDE)
 	}
-	if handler.got.Model != "gpt-5.4" {
-		t.Fatalf("unexpected model: %q", handler.got.Model)
+	if runtime.Model != "gpt-5.4" {
+		t.Fatalf("unexpected model: %q", runtime.Model)
 	}
 }
 
@@ -174,13 +178,17 @@ func TestNewRunWorkflowUsesPRReviewModeForFixReviews(t *testing.T) {
 	if !handler.called {
 		t.Fatal("expected dispatcher handler to be called")
 	}
-	if handler.got.Mode != model.ExecutionModePRReview {
-		t.Fatalf("unexpected mode: %q", handler.got.Mode)
+	runtime := handler.got.RuntimeConfig()
+	if runtime == nil {
+		t.Fatal("expected runtime config")
 	}
-	if handler.got.ReviewsDir != "/workspace/.compozy/tasks/demo/reviews-001" {
-		t.Fatalf("unexpected reviews dir: %q", handler.got.ReviewsDir)
+	if runtime.Mode != model.ExecutionModePRReview {
+		t.Fatalf("unexpected mode: %q", runtime.Mode)
 	}
-	if !handler.got.IncludeResolved {
+	if runtime.ReviewsDir != "/workspace/.compozy/tasks/demo/reviews-001" {
+		t.Fatalf("unexpected reviews dir: %q", runtime.ReviewsDir)
+	}
+	if !runtime.IncludeResolved {
 		t.Fatal("expected include resolved to pass through")
 	}
 }
@@ -252,20 +260,24 @@ func TestNewRunWorkflowDispatchesExecPromptSources(t *testing.T) {
 			if !handler.called {
 				t.Fatal("expected dispatcher handler to be called")
 			}
-			if handler.got.Mode != model.ExecutionModeExec {
-				t.Fatalf("unexpected mode: %q", handler.got.Mode)
+			runtime := handler.got.RuntimeConfig()
+			if runtime == nil {
+				t.Fatal("expected runtime config")
 			}
-			if handler.got.PromptText != tt.wantPromptText {
-				t.Fatalf("unexpected prompt text: %q", handler.got.PromptText)
+			if runtime.Mode != model.ExecutionModeExec {
+				t.Fatalf("unexpected mode: %q", runtime.Mode)
 			}
-			if handler.got.PromptFile != tt.wantPromptFile {
-				t.Fatalf("unexpected prompt file: %q", handler.got.PromptFile)
+			if runtime.PromptText != tt.wantPromptText {
+				t.Fatalf("unexpected prompt text: %q", runtime.PromptText)
 			}
-			if handler.got.ReadPromptStdin != tt.wantReadPromptStdin {
-				t.Fatalf("unexpected stdin flag: %t", handler.got.ReadPromptStdin)
+			if runtime.PromptFile != tt.wantPromptFile {
+				t.Fatalf("unexpected prompt file: %q", runtime.PromptFile)
 			}
-			if handler.got.ResolvedPromptText != tt.wantResolved {
-				t.Fatalf("unexpected resolved prompt text: %q", handler.got.ResolvedPromptText)
+			if runtime.ReadPromptStdin != tt.wantReadPromptStdin {
+				t.Fatalf("unexpected stdin flag: %t", runtime.ReadPromptStdin)
+			}
+			if runtime.ResolvedPromptText != tt.wantResolved {
+				t.Fatalf("unexpected resolved prompt text: %q", runtime.ResolvedPromptText)
 			}
 		})
 	}
