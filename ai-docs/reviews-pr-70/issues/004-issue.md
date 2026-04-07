@@ -1,18 +1,16 @@
 # Issue 4 - Review Thread Comment
 
-**File:** `internal/core/migration/workflow_target_test.go:40`
-**Date:** 2026-04-07 11:44:37 America/Sao_Paulo
-**Status:** - [x] ADDRESSED
+**File:** `internal/cli/state.go:252`
+**Date:** 2026-04-07 15:52:02 UTC
+**Status:** - [ ] UNRESOLVED
 
 ## Technical Disposition
 
-`VALID` - the workflow-name validation path was string-matched in the test, which is inconsistent with the package guidance. The fix introduces `ErrInvalidWorkflowName`, wraps it from `normalizeWorkflowName`, and asserts with `errors.Is` in `internal/core/migration/workflow_target_test.go`.
-
-The comment's extra note about `migrate_test.go` did not apply to the same validation path, so only the workflow-name case was changed.
+`INVALID` - the current exec flow no longer routes through `maybeCollectInteractiveParams`. `internal/cli/run.go` calls `resolveExecPromptSource(cmd, args)` as the exec setup step, and `prepareAndRun` does not invoke the interactive gate afterward for exec commands. A positional exec prompt therefore remains valid on non-interactive terminals, so the reported failure mode is obsolete in the current tree.
 
 ## Body
 
-_⚠️ Potential issue_ | _🟠 Major_
+_⚠️ Potential issue_ | _🔴 Critical_
 
 <details>
 <summary>🧩 Analysis chain</summary>
@@ -20,156 +18,20 @@ _⚠️ Potential issue_ | _🟠 Major_
 🏁 Script executed:
 
 ```shell
-cd internal/core/migration && pwd && ls -la
+#!/bin/bash
+set -euo pipefail
+
+echo "==> internal/cli/run.go"
+rg -n -C4 'func \(s \*commandState\) exec|maybeCollectInteractiveParams|resolveExecPromptSource' internal/cli/run.go
+
+echo
+echo "==> internal/cli/commands.go"
+rg -n -C4 'RunE|maybeCollectInteractiveParams|resolveExecPromptSource' internal/cli/commands.go
 ```
 
 Repository: compozy/compozy
 
-Length of output: 491
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n internal/core/migration/workflow_target_test.go | head -60
-```
-
-Repository: compozy/compozy
-
-Length of output: 1450
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n internal/core/migration/workflow_target.go | grep -A 10 -B 5 "single active workflow"
-```
-
-Repository: compozy/compozy
-
-Length of output: 426
-
----
-
-🏁 Script executed:
-
-```shell
-rg "ErrWorkflow|ErrorWorkflow|Workflow.*Error" internal/core/migration/ -A 2 -B 2
-```
-
-Repository: compozy/compozy
-
-Length of output: 41
-
----
-
-🏁 Script executed:
-
-```shell
-rg "errors\.Is|errors\.As" internal/core/migration/ -l
-```
-
-Repository: compozy/compozy
-
-Length of output: 93
-
----
-
-🏁 Script executed:
-
-```shell
-rg "ErrorContains|ErrorAs" --type go -l | head -20
-```
-
-Repository: compozy/compozy
-
-Length of output: 41
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n internal/core/migration/migrate_test.go | grep -A 3 -B 1 "ErrorContains\|errors\.Is\|errors\.As\|err\.Error()" | head -40
-```
-
-Repository: compozy/compozy
-
-Length of output: 438
-
----
-
-🏁 Script executed:
-
-```shell
-fd -name "assert*" -o -name "*helper*" -o -name "*util*" internal/ | grep -i test
-```
-
-Repository: compozy/compozy
-
-Length of output: 289
-
----
-
-🏁 Script executed:
-
-```shell
-rg "var.*Error.*=" internal/core/migration/ -B 2 -A 2
-```
-
-Repository: compozy/compozy
-
-Length of output: 41
-
----
-
-🏁 Script executed:
-
-```shell
-rg "var \(" internal/ --type go -A 5 | grep -A 5 "Error"
-```
-
-Repository: compozy/compozy
-
-Length of output: 41
-
----
-
-🏁 Script executed:
-
-```shell
-rg "errors\." internal/ --type go | grep -v "errors.New\|errors.Is\|errors.As\|errors.Unwrap" | head -20
-```
-
-Repository: compozy/compozy
-
-Length of output: 770
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n internal/core/migration/migrate_test.go | sed -n '525,565p'
-```
-
-Repository: compozy/compozy
-
-Length of output: 1688
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n internal/core/migration/workflow_target.go
-```
-
-Repository: compozy/compozy
-
-Length of output: 3403
+Length of output: 2698
 
 ---
 
@@ -177,11 +39,11 @@ Length of output: 3403
 
 </details>
 
-**Use typed error matching instead of string matching.**
+**Fix the order of interactivity check and prompt source resolution for the `exec` command.**
 
-Line 39 uses `strings.Contains(err.Error(), ...)` which violates the coding guidelines: "Use `errors.Is()` and `errors.As()` for error matching; do not compare error strings." To fix this, define a sentinel error for the invalid workflow name validation failure in `normalizeWorkflowName` (line 105), wrap the error with `fmt.Errorf("%w", err)`, and assert with `errors.Is()` in the test instead of string matching.
+The `maybeCollectInteractiveParams()` check at line 73 in `prepareAndRun` evaluates `cmd.Flags().NFlag()`, which counts only flag arguments and ignores positional arguments. For the `exec` command, this means `exec "my prompt"` will fail the interactivity requirement on non-interactive terminals even though the positional argument provides a valid prompt source. The `resolveExecPromptSource()` callback (which would validate the positional prompt) is invoked after this interactivity gate, making it unreachable.
 
-Note: This same pattern appears in `migrate_test.go` at lines 530 and 560, indicating a codebase-wide refactoring opportunity.
+Move the prompt source resolution before the interactivity check for the exec path, or gate the interactivity requirement to skip it when a positional prompt is already provided.
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -189,29 +51,31 @@ Note: This same pattern appears in `migrate_test.go` at lines 530 and 560, indic
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/core/migration/workflow_target_test.go` around lines 39 - 40,
-Replace string-based error checks by introducing a sentinel error (e.g.,
-ErrInvalidWorkflowName) in the package, have normalizeWorkflowName wrap/return
-that sentinel (use fmt.Errorf("%w: %s", ErrInvalidWorkflowName, details) or
-similar) so callers can detect the failure, and update the test in
-workflow_target_test.go to assert with errors.Is(err, ErrInvalidWorkflowName)
-instead of strings.Contains(err.Error(), ...); apply the same
-replace-for-string-match change in the other tests noted in migrate_test.go that
-check the same validation.
+In `@internal/cli/state.go` around lines 226 - 252, The interactivity gate in
+maybeCollectInteractiveParams blocks the exec command when a positional prompt
+exists because cmd.Flags().NFlag() only counts flags; update prepareAndRun/exec
+flow so resolveExecPromptSource is called (or positional prompt presence is
+checked) before calling maybeCollectInteractiveParams, or alter
+maybeCollectInteractiveParams to skip the interactive-terminal check when
+resolveExecPromptSource (or a positional prompt) indicates a provided prompt;
+specifically locate prepareAndRun and the exec path that calls
+resolveExecPromptSource and reorder or add a conditional that if
+resolveExecPromptSource returns a valid prompt (or if positional args exist)
+then do not enforce the isInteractive() check that uses cmd.Flags().NFlag().
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:poseidon:hawk:8a265f76-06eb-4087-817e-00119a58516d -->
+<!-- fingerprinting:phantom:medusa:grasshopper:f9f66184-5b4a-4f5a-94d3-2e0f7df9fe75 -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Resolve
 
-Thread ID: `PRRT_kwDORy7nkc55T4Lp`
+Thread ID: `PRRT_kwDORy7nkc55VFa9`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55T4Lp
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55VFa9
 ```
 
 ---

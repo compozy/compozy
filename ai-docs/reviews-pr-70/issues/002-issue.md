@@ -1,12 +1,12 @@
 # Issue 2 - Review Thread Comment
 
-**File:** `internal/contentblock/engine.go:111`
-**Date:** 2026-04-07 11:44:37 America/Sao_Paulo
-**Status:** - [x] ADDRESSED
+**File:** `internal/core/agent/registry_test.go:603`
+**Date:** 2026-04-07 15:21:57 UTC
+**Status:** - [ ] UNRESOLVED
 
 ## Technical Disposition
 
-`VALID` - `DecodeBlock` invoked `blockType` unconditionally, so a nil callback would panic. The fix adds an explicit nil guard and a regression test in `internal/contentblock/engine_test.go`.
+`VALID` - the nil-runtime-config assertions were matching strings. The fix introduced package sentinel `ErrRuntimeConfigNil`, returned it from `ValidateRuntimeConfig` and `EnsureAvailable`, and updated the relevant tests in `internal/core/agent/registry_test.go` to use `errors.Is`.
 
 ## Body
 
@@ -18,86 +18,26 @@ _⚠️ Potential issue_ | _🟠 Major_
 🏁 Script executed:
 
 ```shell
-fd -t f "engine.go" | grep contentblock
+#!/bin/bash
+# Verify whether sentinel errors exist and whether tests rely on string matching.
+
+set -euo pipefail
+
+echo "== Potential sentinel/runtime-config error definitions =="
+rg -n 'runtime config is nil|Err[A-Za-z0-9_]*Runtime|errors\.New\('
+
+echo
+echo "== String-based checks in agent registry tests =="
+rg -n 'strings\.Contains\(err\.Error\(\),\s*"runtime config is nil"\)|ValidateRuntimeConfig\(nil\)|EnsureAvailable\(\s*context\.Background\(\),\s*nil' internal/core/agent/registry_test.go
+
+echo
+echo "== errors.Is/errors.As usage around related tests =="
+rg -n 'errors\.(Is|As)\(' internal/core/agent/registry_test.go
 ```
 
 Repository: compozy/compozy
 
-Length of output: 90
-
----
-
-🏁 Script executed:
-
-```shell
-cat -n internal/contentblock/engine.go | sed -n '95,120p'
-```
-
-Repository: compozy/compozy
-
-Length of output: 810
-
----
-
-🏁 Script executed:
-
-```shell
-ast-grep --pattern $'func DecodeBlock[$$$]($$$) ($$$) {
-  $$$
-}'
-```
-
-Repository: compozy/compozy
-
-Length of output: 1340
-
----
-
-🏁 Script executed:
-
-```shell
-rg "DecodeBlock" internal/contentblock/ -A 3 -B 1
-```
-
-Repository: compozy/compozy
-
-Length of output: 426
-
----
-
-🏁 Script executed:
-
-```shell
-rg "DecodeBlock" --type go -A 5
-```
-
-Repository: compozy/compozy
-
-Length of output: 1230
-
----
-
-🏁 Script executed:
-
-```shell
-rg "DecodeBlock" internal/core/model/content.go -B 15 -A 8
-```
-
-Repository: compozy/compozy
-
-Length of output: 751
-
----
-
-🏁 Script executed:
-
-```shell
-rg "DecodeBlock" pkg/compozy/events/kinds/content_block.go -B 15 -A 8
-```
-
-Repository: compozy/compozy
-
-Length of output: 744
+Length of output: 16702
 
 ---
 
@@ -105,32 +45,9 @@ Length of output: 744
 
 </details>
 
-**Add a nil guard for `blockType` callback to prevent runtime panic.**
+**Define a sentinel error and use `errors.Is()` for nil-config assertions.**
 
-Line 109 dereferences `blockType` unconditionally. In contrast, the `normalize` parameter at line 114 includes a nil check. For consistency and to align with the coding guideline against panic in production paths, `blockType` should also be guarded:
-
-<details>
-<summary>Suggested fix</summary>
-
-```diff
- func DecodeBlock[T any, B ~string](
- 	data []byte,
- 	expected B,
- 	blockType func(T) B,
- 	normalize func(*T, B),
- ) (T, error) {
- 	var block T
-+	if blockType == nil {
-+		var zero T
-+		return zero, fmt.Errorf("decode %s block: missing type extractor", expected)
-+	}
- 	if err := json.Unmarshal(data, &block); err != nil {
- 		var zero T
- 		return zero, fmt.Errorf("decode %s block: %w", expected, err)
- 	}
-```
-
-</details>
+The tests at lines 590 and 602 use `strings.Contains(err.Error(), "runtime config is nil")` to match errors. Per coding guidelines, use `errors.Is()`/`errors.As()` instead. Define a sentinel error constant (e.g., `var ErrRuntimeConfigNil = errors.New("runtime config is nil")`) in the package, then update both test assertions and the two error returns in `registry_validate.go` and `registry_launch.go` to use it.
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -138,27 +55,30 @@ Line 109 dereferences `blockType` unconditionally. In contrast, the `normalize` 
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/contentblock/engine.go` around lines 100 - 111, The code calls the
-blockType callback without checking for nil (unlike normalize); add a nil guard
-before invoking blockType in the decode function: verify blockType != nil and
-return a descriptive error (e.g., "decode <expected> block: missing blockType
-callback") if it's nil, then proceed to call blockType(block) and compare to
-expected; reference the blockType and normalize parameters and the existing
-error-return pattern used after json.Unmarshal to keep behavior consistent.
+In `@internal/core/agent/registry_test.go` around lines 590 - 603, Add a
+package-level sentinel error (e.g., var ErrRuntimeConfigNil =
+errors.New("runtime config is nil")) and replace the string-based error checks
+and string-returned errors with that sentinel: change the error returns in the
+functions that currently return the "runtime config is nil" message (refer to
+the error returns in registry_validate.go and registry_launch.go) to return
+ErrRuntimeConfigNil, and update the tests that call ValidateRuntimeConfig and
+EnsureAvailable to use errors.Is(err, ErrRuntimeConfigNil) (or errors.As where
+appropriate) instead of strings.Contains(err.Error(), ...); ensure imports
+include "errors" where added.
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:poseidon:hawk:8cb42230-60c5-42d8-8c7f-6e72b85fe631 -->
+<!-- fingerprinting:phantom:poseidon:hawk:1c95559b-1220-4d4f-8066-bd9bc9b6b6b3 -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Resolve
 
-Thread ID: `PRRT_kwDORy7nkc55T4LU`
+Thread ID: `PRRT_kwDORy7nkc55UjZO`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55T4LU
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55UjZO
 ```
 
 ---

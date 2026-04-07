@@ -1,23 +1,63 @@
 # Issue 5 - Review Thread Comment
 
-**File:** `internal/core/model/preparation_test.go:62`
-**Date:** 2026-04-07 11:44:37 America/Sao_Paulo
-**Status:** - [x] ADDRESSED
+**File:** `internal/cli/state.go:261`
+**Date:** 2026-04-07 15:52:02 UTC
+**Status:** - [ ] UNRESOLVED
 
 ## Technical Disposition
 
-`VALID` - the preparation tests were still top-level only. They now run through explicit `t.Run("Should ...")` subtests while preserving the original assertions and behavior.
+`VALID` - the current tree already rejects non-positive timeouts. `internal/cli/state.go` checks `parsed <= 0` after `time.ParseDuration` and returns `invalid timeout %q: must be > 0`, so no further code change is needed for this review item.
 
 ## Body
 
-_⚠️ Potential issue_ | _🟠 Major_
+_⚠️ Potential issue_ | _🟡 Minor_
 
-**Wrap test cases in `t.Run("Should...")` subtests (table-driven default).**
+**Reject non-positive timeouts.**
 
-These cases are currently top-level only. Please move them into `t.Run("Should...")` subtests (preferably table-driven) to align with the repo’s required Go test pattern.
+`time.ParseDuration` accepts `0` and negative values, so `--timeout=0` or `--timeout=-1m` currently builds a config that can fail jobs immediately instead of surfacing a bad input error.
 
+<details>
+<summary>Suggested fix</summary>
 
-As per coding guidelines, "`**/*_test.go`: Use table-driven tests with subtests (`t.Run`) as the default pattern for Go tests" and "MUST use `t.Run(\"Should...\")` pattern for ALL test cases".
+```diff
+ 	if s.timeout != "" {
+ 		parsed, err := time.ParseDuration(s.timeout)
+ 		if err != nil {
+ 			return core.Config{}, fmt.Errorf("parse timeout: %w", err)
+ 		}
++		if parsed <= 0 {
++			return core.Config{}, fmt.Errorf("parse timeout: must be > 0")
++		}
+ 		timeoutDuration = parsed
+ 	}
+```
+</details>
+
+<!-- suggestion_start -->
+
+<details>
+<summary>📝 Committable suggestion</summary>
+
+> ‼️ **IMPORTANT**
+> Carefully review the code before committing. Ensure that it accurately replaces the highlighted code, contains no missing lines, and has no issues with indentation. Thoroughly test & benchmark the code to ensure it meets the requirements.
+
+```suggestion
+	timeoutDuration := time.Duration(0)
+	if s.timeout != "" {
+		parsed, err := time.ParseDuration(s.timeout)
+		if err != nil {
+			return core.Config{}, fmt.Errorf("parse timeout: %w", err)
+		}
+		if parsed <= 0 {
+			return core.Config{}, fmt.Errorf("parse timeout: must be > 0")
+		}
+		timeoutDuration = parsed
+	}
+```
+
+</details>
+
+<!-- suggestion_end -->
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -25,30 +65,29 @@ As per coding guidelines, "`**/*_test.go`: Use table-driven tests with subtests 
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@internal/core/model/preparation_test.go` around lines 13 - 62, Split the two
-top-level tests TestSolvePreparationSetJournalPreservesExistingOwnership and
-TestSolvePreparationCloseJournalPreservesHandleOnFailure into t.Run subtests
-(preferably table-driven): create a table of cases describing the scenario and
-expected outcome and for each case call t.Run("Should <description>", func(t
-*testing.T){ ... }); move the existing setup/assert logic into the subtest body
-and preserve use of SolvePreparation.SetJournal, SolvePreparation.Journal(),
-CloseJournal, and the stubJournalHandle (err) to drive the failure case; ensure
-each subtest calls t.Parallel() where appropriate and that the original
-assertions remain unchanged.
+In `@internal/cli/state.go` around lines 255 - 261, The code currently accepts
+zero or negative durations from s.timeout because time.ParseDuration allows
+them; update the parsing logic in the function that builds the core.Config
+(where s.timeout is parsed into timeoutDuration) to validate parsed > 0 and
+return an error when parsed <= 0, e.g., after calling
+time.ParseDuration(s.timeout) check the parsed value and return
+fmt.Errorf("invalid timeout: must be > 0") (or similar) rather than using a
+non-positive timeoutDuration; keep the variable names timeoutDuration, s.timeout
+and the time.ParseDuration call so the change is localized.
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:poseidon:hawk:5863e1b4-cf18-4de0-81c6-bd40921cf292 -->
+<!-- fingerprinting:phantom:medusa:grasshopper:f9f66184-5b4a-4f5a-94d3-2e0f7df9fe75 -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Resolve
 
-Thread ID: `PRRT_kwDORy7nkc55T4L1`
+Thread ID: `PRRT_kwDORy7nkc55VFbD`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55T4L1
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc55VFbD
 ```
 
 ---

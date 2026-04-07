@@ -8,10 +8,12 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
+var ErrRuntimeConfigNil = errors.New("runtime config is nil")
+
 // ValidateRuntimeConfig verifies that the runtime config references a supported agent runtime.
 func ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 	if cfg == nil {
-		return errors.New("runtime config is nil")
+		return ErrRuntimeConfigNil
 	}
 	if err := validateRuntimeMode(cfg.Mode); err != nil {
 		return err

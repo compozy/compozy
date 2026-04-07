@@ -4,25 +4,25 @@ This folder contains exported issues (resolvable review threads) and outside-of-
 
 ## Summary
 
-- **Issues (resolvable review comments):** 6 (filtered from 25 total)
+- **Issues (resolvable review comments):** 6 (filtered from 31 total)
 - **Outside-of-diff entries:** 1
   - **Resolved issues:** 25 ✓
-  - **Unresolved issues:** 0
+  - **Unresolved issues:** 6
 
-**Generated on:** 2026-04-07 11:55:14 America/Sao_Paulo
+**Generated on:** 2026-04-07 17:25:15 UTC
 
 ## Issues
 
-- [x] [Issue 1](issues/001-issue.md) - internal/contentblock/engine.go:87
-- [x] [Issue 2](issues/002-issue.md) - internal/contentblock/engine.go:111
-- [x] [Issue 3](issues/003-issue.md) - internal/core/agent/registry_launch.go:87
-- [x] [Issue 4](issues/004-issue.md) - internal/core/migration/workflow_target_test.go:40
-- [x] [Issue 5](issues/005-issue.md) - internal/core/model/preparation_test.go:62
-- [x] [Issue 6](issues/006-issue.md) - internal/core/model/preparation_test.go:58
+- [ ] [Issue 1](issues/001-issue.md) - internal/core/agent/registry_test.go:695
+- [ ] [Issue 2](issues/002-issue.md) - internal/core/agent/registry_test.go:603
+- [ ] [Issue 3](issues/003-issue.md) - cmd/compozy/main.go:33
+- [ ] [Issue 4](issues/004-issue.md) - internal/cli/state.go:252
+- [ ] [Issue 5](issues/005-issue.md) - internal/cli/state.go:261
+- [ ] [Issue 6](issues/006-issue.md) - internal/cli/state.go:423
 
 ## Outside-of-diff
 
-- Resolved: 1 ✓
-- Unresolved: 0
+- Resolved: 0 ✓
+- Unresolved: 1
 
-- [x] [internal/core/plan/journal.go](outside/002-outside_01_internal_core_plan_journal.go.md)
+- [ ] [internal/core/plan/journal.go](outside/002-outside_01_internal_core_plan_journal.go.md)

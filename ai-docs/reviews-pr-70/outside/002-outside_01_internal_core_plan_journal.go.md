@@ -1,12 +1,12 @@
 # Outside-of-diff from Comment 2
 
 **File:** `internal/core/plan/journal.go`
-**Date:** 2026-04-07 01:31:29 America/Sao_Paulo
-**Status:** - [x] ADDRESSED
+**Date:** 2026-04-07 04:31:29 UTC
+**Status:** - [ ] UNRESOLVED
 
 ## Technical Disposition
 
-`VALID` - `ClosePreparationJournal` used `context.Background()` when the caller provided no context. That fallback now uses `context.TODO()` to keep the production signal explicit without changing the timeout behavior.
+`VALID` - the current tree already uses `context.TODO()` for the nil-context fallback in `internal/core/plan/journal.go`, so the review concern has been addressed and does not require a fresh code change in this pass.
 
 ## Details
 
