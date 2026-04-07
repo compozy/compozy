@@ -57,8 +57,11 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 		t.Fatal("awaitCompletion did not finish after UI exit")
 	}
 
-	if ui.closeEventsCalls != 1 {
-		t.Fatalf("expected closeEvents to be called once, got %d", ui.closeEventsCalls)
+	if ui.closeEventsCalls != 0 {
+		t.Fatalf(
+			"expected normal completion to keep events open until the UI exits, got %d close calls",
+			ui.closeEventsCalls,
+		)
 	}
 	if ui.shutdownCalls != 0 {
 		t.Fatalf("expected normal completion not to force UI shutdown, got %d calls", ui.shutdownCalls)

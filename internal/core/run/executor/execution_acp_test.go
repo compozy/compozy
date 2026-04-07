@@ -597,9 +597,9 @@ func TestJobExecutionContextUICleanupHelpers(t *testing.T) {
 	if err := execCtx.awaitUIAfterCompletion(); err != nil {
 		t.Fatalf("awaitUIAfterCompletion: %v", err)
 	}
-	if ui.closeEventsCalls != 1 || ui.waitCalls != 1 {
+	if ui.closeEventsCalls != 0 || ui.waitCalls != 1 {
 		t.Fatalf(
-			"expected awaitUIAfterCompletion to close events and wait once, got close=%d wait=%d",
+			"expected awaitUIAfterCompletion to keep events open and wait once, got close=%d wait=%d",
 			ui.closeEventsCalls,
 			ui.waitCalls,
 		)
@@ -608,13 +608,23 @@ func TestJobExecutionContextUICleanupHelpers(t *testing.T) {
 	if err := execCtx.shutdownUI(); err != nil {
 		t.Fatalf("shutdownUI: %v", err)
 	}
-	if ui.shutdownCalls != 1 {
-		t.Fatalf("expected shutdownUI to invoke shutdown once, got %d", ui.shutdownCalls)
+	if ui.closeEventsCalls != 1 || ui.shutdownCalls != 1 || ui.waitCalls != 2 {
+		t.Fatalf(
+			"expected shutdownUI to close events, request shutdown, and wait again, got close=%d shutdown=%d wait=%d",
+			ui.closeEventsCalls,
+			ui.shutdownCalls,
+			ui.waitCalls,
+		)
 	}
 
 	execCtx.cleanup()
-	if ui.shutdownCalls != 2 {
-		t.Fatalf("expected cleanup to call shutdownUI again, got %d", ui.shutdownCalls)
+	if ui.closeEventsCalls != 2 || ui.shutdownCalls != 2 || ui.waitCalls != 3 {
+		t.Fatalf(
+			"expected cleanup to rerun the shutdown path, got close=%d shutdown=%d wait=%d",
+			ui.closeEventsCalls,
+			ui.shutdownCalls,
+			ui.waitCalls,
+		)
 	}
 }
 

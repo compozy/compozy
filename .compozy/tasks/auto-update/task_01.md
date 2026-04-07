@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Implement CLI auto-update with upgrade command and background notification
 type: backend
 complexity: high
@@ -35,13 +35,13 @@ Add the full auto-update system to the Compozy CLI: a new `internal/update` pack
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Add `creativeprojects/go-selfupdate` dependency and create `internal/update/` package
-- [ ] 1.2 Implement state file persistence with XDG path resolution and YAML read/write
-- [ ] 1.3 Implement `CheckForUpdate` with 24h cache, dev-build skip, and env var opt-out
-- [ ] 1.4 Implement `DetectInstallMethod` and `Upgrade` with per-method behavior
-- [ ] 1.5 Create `compozy upgrade` Cobra command and register it in root command
-- [ ] 1.6 Add background goroutine in `main.go` with channel-based notification after command execution
-- [ ] 1.7 Write unit tests for all `internal/update/` functions
+- [x] 1.1 Add `creativeprojects/go-selfupdate` dependency and create `internal/update/` package
+- [x] 1.2 Implement state file persistence with XDG path resolution and YAML read/write
+- [x] 1.3 Implement `CheckForUpdate` with 24h cache, dev-build skip, and env var opt-out
+- [x] 1.4 Implement `DetectInstallMethod` and `Upgrade` with per-method behavior
+- [x] 1.5 Create `compozy upgrade` Cobra command and register it in root command
+- [x] 1.6 Add background goroutine in `main.go` with channel-based notification after command execution
+- [x] 1.7 Write unit tests for all `internal/update/` functions
 
 ## Implementation Details
 
@@ -85,23 +85,23 @@ See TechSpec sections: 'Core Interfaces' for type definitions, 'Data Models' for
 
 ## Tests
 - Unit tests:
-  - [ ] `ReadState` returns nil for missing state file (no error)
-  - [ ] `ReadState` returns nil for corrupted YAML file (no error)
-  - [ ] `ReadState` / `WriteState` round-trip preserves all fields via `t.TempDir()`
-  - [ ] `StateFilePath` returns `$XDG_CONFIG_HOME/compozy/state.yml` when env var is set
-  - [ ] `StateFilePath` returns `~/.config/compozy/state.yml` when `$XDG_CONFIG_HOME` is unset
-  - [ ] `CheckForUpdate` skips check when `version == "dev"`
-  - [ ] `CheckForUpdate` skips check when `COMPOZY_NO_UPDATE_NOTIFIER` is set
-  - [ ] `CheckForUpdate` skips check when state is less than 24h old (cache hit)
-  - [ ] `CheckForUpdate` queries GitHub when state is older than 24h (cache miss)
-  - [ ] `CheckForUpdate` returns nil when current version >= latest version
-  - [ ] `CheckForUpdate` returns ReleaseInfo when latest version > current version
-  - [ ] `DetectInstallMethod` returns `InstallHomebrew` for path containing `/Cellar/`
-  - [ ] `DetectInstallMethod` returns `InstallNPM` for path containing `node_modules`
-  - [ ] `DetectInstallMethod` returns `InstallGo` for path under `$GOPATH/bin`
-  - [ ] `DetectInstallMethod` returns `InstallBinary` for unknown path (default fallback)
-  - [ ] `Upgrade` prints `brew upgrade --cask compozy` for Homebrew installs
-  - [ ] `Upgrade` prints `npm install -g @compozy/cli@latest` for NPM installs
+  - [x] `ReadState` returns nil for missing state file (no error)
+  - [x] `ReadState` returns nil for corrupted YAML file (no error)
+  - [x] `ReadState` / `WriteState` round-trip preserves all fields via `t.TempDir()`
+  - [x] `StateFilePath` returns `$XDG_CONFIG_HOME/compozy/state.yml` when env var is set
+  - [x] `StateFilePath` returns `~/.config/compozy/state.yml` when `$XDG_CONFIG_HOME` is unset
+  - [x] `CheckForUpdate` skips check when `version == "dev"`
+  - [x] `CheckForUpdate` skips check when `COMPOZY_NO_UPDATE_NOTIFIER` is set
+  - [x] `CheckForUpdate` skips check when state is less than 24h old (cache hit)
+  - [x] `CheckForUpdate` queries GitHub when state is older than 24h (cache miss)
+  - [x] `CheckForUpdate` returns nil when current version >= latest version
+  - [x] `CheckForUpdate` returns ReleaseInfo when latest version > current version
+  - [x] `DetectInstallMethod` returns `InstallHomebrew` for path containing `/Cellar/`
+  - [x] `DetectInstallMethod` returns `InstallNPM` for path containing `node_modules`
+  - [x] `DetectInstallMethod` returns `InstallGo` for path under `$GOPATH/bin`
+  - [x] `DetectInstallMethod` returns `InstallBinary` for unknown path (default fallback)
+  - [x] `Upgrade` prints `brew upgrade --cask compozy` for Homebrew installs
+  - [x] `Upgrade` prints `npm install -g @compozy/cli@latest` for NPM installs
 - Test coverage target: >=80%
 - All tests must pass
 

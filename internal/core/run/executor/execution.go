@@ -179,7 +179,9 @@ func (j *jobExecutionContext) awaitUIAfterCompletion() error {
 	if j.ui == nil {
 		return nil
 	}
-	j.ui.CloseEvents()
+	// Normal completion must leave the event adapter running until the operator
+	// exits the completed cockpit. Closing it early can drop the final
+	// session/job completion events and leave the UI visually stuck in RUNNING.
 	return j.ui.Wait()
 }
 
