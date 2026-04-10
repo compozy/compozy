@@ -33,6 +33,7 @@ type runtimeConfig struct {
 	autoCommit       bool
 	concurrent       int
 	batchSize        int
+	agentName        string
 	ide              string
 	model            string
 	addDirs          []string
@@ -281,6 +282,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		AutoCommit:       s.autoCommit,
 		Concurrent:       s.concurrent,
 		BatchSize:        s.batchSize,
+		AgentName:        s.agentName,
 		IDE:              core.IDE(s.ide),
 		Model:            s.model,
 		AddDirs:          core.NormalizeAddDirs(s.addDirs),

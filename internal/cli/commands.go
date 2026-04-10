@@ -132,6 +132,7 @@ Operational runtime logs stay silent unless you opt into --verbose. Use --tui to
 interactive TUI and --persist to save resumable artifacts under
 .compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.`,
 		Example: `  compozy exec "Summarize the current repository changes"
+  compozy exec --agent council "Decide between two designs"
   compozy exec --prompt-file prompt.md
   cat prompt.md | compozy exec --format json
   compozy exec --format raw-json "Inspect every streamed event"
@@ -141,6 +142,12 @@ interactive TUI and --persist to save resumable artifacts under
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{})
+	cmd.Flags().StringVar(
+		&state.agentName,
+		"agent",
+		"",
+		"Reusable agent to execute from .compozy/agents or ~/.compozy/agents",
+	)
 	cmd.Flags().StringVar(&state.promptFile, "prompt-file", "", "Path to a file containing the prompt text")
 	cmd.Flags().StringVar(
 		&state.outputFormat,

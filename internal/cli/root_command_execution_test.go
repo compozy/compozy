@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/spf13/cobra"
 )
+
+var cliProcessIOMu sync.Mutex
 
 func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
@@ -580,6 +583,9 @@ func executeCommandCapturingProcessIO(
 	args ...string,
 ) (string, string, error) {
 	t.Helper()
+
+	cliProcessIOMu.Lock()
+	defer cliProcessIOMu.Unlock()
 
 	stdoutRead, stdoutWrite, err := os.Pipe()
 	if err != nil {

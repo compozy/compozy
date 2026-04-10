@@ -32,6 +32,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 
 	required := []string{
 		"compozy setup",
+		"compozy agents",
 		"compozy upgrade",
 		"compozy migrate",
 		"compozy validate-tasks",
@@ -41,6 +42,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy fix-reviews",
 		"compozy start",
 		"setup",
+		"agents",
 		"upgrade",
 		"migrate",
 		"validate-tasks",
@@ -56,6 +58,10 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
 		}
+	}
+
+	if strings.Contains(output, "mcp-serve") {
+		t.Fatalf("expected root help to omit hidden mcp-serve command\noutput:\n%s", output)
 	}
 }
 
@@ -324,6 +330,7 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 	}
 
 	required := []string{
+		"--agent",
 		"--prompt-file",
 		"--format",
 		"--dry-run",
@@ -372,6 +379,23 @@ func TestExecHelpMatchesGolden(t *testing.T) {
 
 	if output != string(want) {
 		t.Fatalf("exec help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
+	}
+}
+
+func TestHiddenMCPServeCommandIsRegisteredButHidden(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "mcp-serve")
+	if !cmd.Hidden {
+		t.Fatal("expected mcp-serve command to be hidden")
+	}
+
+	output, err := executeRootCommand("mcp-serve", "--help")
+	if err != nil {
+		t.Fatalf("execute hidden mcp-serve help: %v", err)
+	}
+	if !strings.Contains(output, "--server") {
+		t.Fatalf("expected hidden mcp-serve help to remain invokable\noutput:\n%s", output)
 	}
 }
 
