@@ -254,24 +254,3 @@ func hasCapability(security SecurityConfig, target Capability) bool {
 	}
 	return false
 }
-
-func capabilityForHook(hook HookName) Capability {
-	switch {
-	case strings.HasPrefix(string(hook), "plan."):
-		return CapabilityPlanMutate
-	case strings.HasPrefix(string(hook), "prompt."):
-		return CapabilityPromptMutate
-	case strings.HasPrefix(string(hook), "agent."):
-		return CapabilityAgentMutate
-	case strings.HasPrefix(string(hook), "job."):
-		return CapabilityJobMutate
-	case strings.HasPrefix(string(hook), "run."):
-		return CapabilityRunMutate
-	case strings.HasPrefix(string(hook), "review."):
-		return CapabilityReviewMutate
-	case strings.HasPrefix(string(hook), "artifact."):
-		return CapabilityArtifactsWrite
-	default:
-		return ""
-	}
-}
