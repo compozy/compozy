@@ -43,6 +43,39 @@ func NewShutdownInProgressError(deadline time.Duration) *subprocess.RequestError
 	}
 }
 
+func NewCapabilityDeniedReasonError(
+	method string,
+	reason string,
+	data map[string]any,
+) *subprocess.RequestError {
+	payload := map[string]any{
+		"method": strings.TrimSpace(method),
+		"reason": strings.TrimSpace(reason),
+	}
+	for key, value := range data {
+		payload[key] = value
+	}
+	return &subprocess.RequestError{
+		Code:    capabilityDeniedCode,
+		Message: capabilityDeniedMessage,
+		Data:    payload,
+	}
+}
+
+func NewPathOutOfScopeError(method string, path string, allowedRoots []string) *subprocess.RequestError {
+	return NewCapabilityDeniedReasonError(method, "path_out_of_scope", map[string]any{
+		"path":          strings.TrimSpace(path),
+		"allowed_roots": allowedRoots,
+	})
+}
+
+func NewRecursionDepthExceededError(method string, parentRunID string, depth int) *subprocess.RequestError {
+	return NewCapabilityDeniedReasonError(method, "recursion_depth_exceeded", map[string]any{
+		"parent_run_id": strings.TrimSpace(parentRunID),
+		"depth":         depth,
+	})
+}
+
 func toRequestError(err error, method string) error {
 	if err == nil {
 		return nil

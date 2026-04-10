@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	runtimeevents "github.com/compozy/compozy/pkg/compozy/events"
 )
 
 // ExtensionCaller abstracts a transport capable of issuing one JSON-RPC-style
@@ -48,6 +50,8 @@ type RuntimeExtension struct {
 	mu               sync.RWMutex
 	state            ExtensionState
 	shutdownDeadline time.Duration
+	eventSubID       string
+	eventKinds       []runtimeevents.EventKind
 }
 
 // State reports the current runtime state.
@@ -102,6 +106,51 @@ func (e *RuntimeExtension) SetShutdownDeadline(deadline time.Duration) {
 	defer e.mu.Unlock()
 
 	e.shutdownDeadline = deadline
+}
+
+// SetEventSubscription records the server-side event filter for the extension.
+func (e *RuntimeExtension) SetEventSubscription(subscriptionID string, kinds []runtimeevents.EventKind) {
+	if e == nil {
+		return
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.eventSubID = strings.TrimSpace(subscriptionID)
+	e.eventKinds = slices.Clone(kinds)
+}
+
+// EventSubscription reports the current subscription identifier and filter.
+func (e *RuntimeExtension) EventSubscription() (string, []runtimeevents.EventKind) {
+	if e == nil {
+		return "", nil
+	}
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.eventSubID, slices.Clone(e.eventKinds)
+}
+
+// WantsEvent reports whether the extension should receive one bus event.
+func (e *RuntimeExtension) WantsEvent(kind runtimeevents.EventKind) bool {
+	if e == nil {
+		return false
+	}
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if len(e.eventKinds) == 0 {
+		return true
+	}
+	for _, candidate := range e.eventKinds {
+		if candidate == kind {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *RuntimeExtension) normalizedName() string {

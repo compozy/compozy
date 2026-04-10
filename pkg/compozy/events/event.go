@@ -60,6 +60,11 @@ const (
 	// Task mutation events.
 	EventKindTaskFileUpdated       EventKind = "task.file_updated"
 	EventKindTaskMetadataRefreshed EventKind = "task.metadata_refreshed"
+	EventKindTaskMemoryUpdated     EventKind = "task.memory_updated"
+
+	// Artifact and extension events.
+	EventKindArtifactUpdated EventKind = "artifact.updated"
+	EventKindExtensionEvent  EventKind = "extension.event"
 
 	// Review mutation events.
 	EventKindReviewStatusFinalized EventKind = "review.status_finalized"

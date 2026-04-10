@@ -38,6 +38,7 @@ type RuntimeConfig struct {
 	TUI                    bool
 	Persist                bool
 	RunID                  string
+	ParentRunID            string
 	PromptText             string
 	PromptFile             string
 	ReadPromptStdin        bool
