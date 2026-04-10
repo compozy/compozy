@@ -32,6 +32,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 - **Idea to code in a structured pipeline.** Optional Idea → PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next. Start from an idea for full research and debate, or jump straight to PRD if you already have a clear scope.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
 - **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
+- **Reusable agents.** Package a prompt, runtime defaults, and optional agent-local MCP servers under `.compozy/agents/<name>/`, then run it from `compozy exec --agent <name>` or through nested `run_agent` calls.
 - **Workflow memory between runs.** Agents inherit context from every previous task — decisions, learnings, errors, and handoffs. Two-tier markdown memory with automatic compaction keeps context fresh without manual bookkeeping.
 - **Provider-agnostic reviews.** Fetch review comments from CodeRabbit, GitHub, or run AI-powered reviews internally. All normalize to the same format. Provider threads resolve automatically after fixes.
 - **Markdown everywhere.** PRDs, specs, tasks, reviews, and ADRs are human-readable markdown files. Version-controlled, diffable, editable between steps. No vendor lock-in.
@@ -182,6 +183,45 @@ Notes:
 - Unknown keys and invalid value types are rejected during config loading.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy start`, and `compozy fix-reviews`.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
+
+## Reusable Agents
+
+Reusable agents are flat filesystem bundles discovered from two scopes:
+
+- workspace: `.compozy/agents/<name>/`
+- global: `~/.compozy/agents/<name>/`
+
+When the same agent name exists in both places, the workspace directory wins as a whole. Compozy does not merge `AGENT.md` from one scope with `mcp.json` from the other.
+
+Each agent directory contains:
+
+- required `AGENT.md` with YAML frontmatter plus a markdown body
+- optional `mcp.json` using the standard top-level `mcpServers` shape
+
+Agent directory names are the canonical agent ids. They must match `^[a-z][a-z0-9-]{0,63}$`, and `compozy` is reserved.
+
+Quick start:
+
+```bash
+compozy agents list
+compozy agents inspect reviewer
+compozy exec --agent reviewer "Review the staged changes"
+```
+
+Runtime precedence for `compozy exec --agent ...` is:
+
+```text
+explicit CLI flags > AGENT.md runtime defaults > .compozy/config.toml > built-in defaults
+```
+
+`mcp.json` is only for agent-local MCP servers. The reserved Compozy MCP server is also named `compozy`, but it is injected by the host and must not appear in `mcp.json`. That reserved server exists only to expose host-owned tools such as `run_agent`. Child agent runs receive the reserved `compozy` server plus the child agent's own `mcp.json`; they do not inherit the parent agent's local MCP servers.
+
+Use these committed example fixtures as starting points:
+
+- [`docs/examples/agents/reviewer/AGENT.md`](docs/examples/agents/reviewer/AGENT.md) for a minimal reusable agent
+- [`docs/examples/agents/repo-copilot/AGENT.md`](docs/examples/agents/repo-copilot/AGENT.md) and [`docs/examples/agents/repo-copilot/mcp.json`](docs/examples/agents/repo-copilot/mcp.json) for an agent with external MCP dependencies
+
+The detailed guide lives in [`docs/reusable-agents.md`](docs/reusable-agents.md).
 
 ## ⚡ Ad Hoc Exec
 
@@ -450,14 +490,15 @@ compozy exec [prompt] [flags]
 
 Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `stdin`. When present, `.compozy/config.toml` can provide exec defaults through `[exec]` and shared runtime defaults through `[defaults]`.
 
-`compozy exec` is headless and ephemeral by default. Use `--persist` to create `.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for JSONL, and `--tui` to opt back into the interactive UI.
+`compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
 | Flag                         | Default     | Description                                                                 |
 | ---------------------------- | ----------- | --------------------------------------------------------------------------- |
 | `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
 | `--model`                    | _(per IDE)_ | Model override                                                              |
+| `--agent`                    |             | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/` |
 | `--prompt-file`              |             | Read prompt text from a file                                                |
-| `--format`                   | `text`      | Output contract: `text` or `json`                                           |
+| `--format`                   | `text`      | Output contract: `text`, `json`, or `raw-json`                              |
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                            |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                                   |
 | `--timeout`                  | `10m`       | Activity timeout per job                                                    |
@@ -466,7 +507,31 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)               |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
 | `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes |
+| `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                         |
+| `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                  |
+| `--persist`                  | `false`     | Persist exec artifacts under `.compozy/runs/<run-id>/`                      |
+| `--run-id`                   |             | Resume a previously persisted exec session by run id                        |
 | `--dry-run`                  | `false`     | Preview prompts without executing                                           |
+
+</details>
+
+<details>
+<summary><code>compozy agents</code> — Discover and inspect reusable agents</summary>
+
+```bash
+compozy agents list
+compozy agents inspect <name>
+```
+
+`compozy agents list` prints resolved agents from workspace and global scope, then reports any invalid definitions without hiding the valid ones. `compozy agents inspect <name>` prints the resolved source, runtime defaults, MCP summary, and validation status for one agent. Invalid inspections print the validation report first and then exit non-zero.
+
+Examples:
+
+```bash
+compozy agents list
+compozy agents inspect reviewer
+compozy agents inspect repo-copilot
+```
 
 </details>
 
@@ -599,6 +664,7 @@ command/                 Public Cobra wrapper for embedding
 internal/cli/            Cobra flags, interactive form, CLI glue
 internal/core/           Internal facade for preparation and execution
   agent/                 IDE command validation and process construction
+  agents/                Reusable agent discovery, validation, MCP merge, nested execution
   memory/                Workflow memory bootstrapping, inspection, and compaction detection
   model/                 Shared runtime data structures
   plan/                  Input discovery, filtering, grouping, batch prep
@@ -608,6 +674,7 @@ internal/setup/          Bundled skill installer (agent detection, symlink/copy)
 internal/version/        Build metadata
 skills/                  Bundled installable skills
 .compozy/config.toml     Optional workspace defaults for CLI execution
+.compozy/agents/         Optional reusable agents (`AGENT.md` + optional `mcp.json`)
 .compozy/runs/           Runtime artifacts for persisted executions and resumable exec sessions
 .compozy/tasks/          Default workflow artifact root (PRDs, TechSpecs, tasks, ADRs, reviews)
 ```
