@@ -145,6 +145,14 @@ func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
 	}
 }
 
+func TestFetchReviewsFormIncludesNitpicksToggle(t *testing.T) {
+	t.Parallel()
+
+	keys := formFieldKeys(newFetchReviewsCommand(nil), newCommandState(commandKindFetchReviews, core.ModePRReview))
+
+	assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round", "nitpicks")
+}
+
 func TestListTaskSubdirs(t *testing.T) {
 	t.Parallel()
 

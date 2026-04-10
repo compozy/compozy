@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/reviews"
 )
@@ -21,12 +22,8 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		return nil, err
 	}
 
-	prdDir := reviews.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, cfg.Name)
-	resolvedPRDDir, err := filepath.Abs(prdDir)
+	resolvedPRDDir, err := resolveFetchPRDDirectory(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("resolve prd dir: %w", err)
-	}
-	if err := ensureFetchPRDDirectory(resolvedPRDDir); err != nil {
 		return nil, err
 	}
 
@@ -39,10 +36,8 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 	}
 
 	reviewsDir := reviews.ReviewDirectory(resolvedPRDDir, round)
-	if _, err := os.Stat(reviewsDir); err == nil {
-		return nil, fmt.Errorf("review round already exists: %s", reviewsDir)
-	} else if !os.IsNotExist(err) {
-		return nil, fmt.Errorf("check review round directory: %w", err)
+	if err := ensureReviewRoundDoesNotExist(reviewsDir); err != nil {
+		return nil, err
 	}
 
 	registry := defaultProviderRegistry()
@@ -51,7 +46,14 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		return nil, err
 	}
 
-	items, err := reviewProvider.FetchReviews(ctx, cfg.PR)
+	items, err := reviewProvider.FetchReviews(ctx, provider.FetchRequest{
+		PR:              cfg.PR,
+		IncludeNitpicks: cfg.Nitpicks,
+	})
+	if err != nil {
+		return nil, err
+	}
+	items, err = filterFetchedNitpicks(resolvedPRDDir, round, items)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +96,18 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 	}, nil
 }
 
+func resolveFetchPRDDirectory(cfg *model.RuntimeConfig) (string, error) {
+	prdDir := reviews.TaskDirectoryForWorkspace(cfg.WorkspaceRoot, cfg.Name)
+	resolvedPRDDir, err := filepath.Abs(prdDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve prd dir: %w", err)
+	}
+	if err := ensureFetchPRDDirectory(resolvedPRDDir); err != nil {
+		return "", err
+	}
+	return resolvedPRDDir, nil
+}
+
 func validateFetchConfig(cfg *model.RuntimeConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("runtime config is nil")
@@ -125,4 +139,115 @@ func ensureFetchPRDDirectory(dir string) error {
 		return fmt.Errorf("prd path is not a directory: %s", dir)
 	}
 	return nil
+}
+
+func ensureReviewRoundDoesNotExist(reviewsDir string) error {
+	if _, err := os.Stat(reviewsDir); err == nil {
+		return fmt.Errorf("review round already exists: %s", reviewsDir)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("check review round directory: %w", err)
+	}
+	return nil
+}
+
+type nitpickHistoryState struct {
+	Resolved                bool
+	Round                   int
+	SourceReviewSubmittedAt time.Time
+}
+
+func filterFetchedNitpicks(
+	prdDir string,
+	currentRound int,
+	items []provider.ReviewItem,
+) ([]provider.ReviewItem, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+
+	history, err := loadNitpickHistory(prdDir, currentRound)
+	if err != nil {
+		return nil, err
+	}
+	if len(history) == 0 {
+		return items, nil
+	}
+
+	filtered := make([]provider.ReviewItem, 0, len(items))
+	for idx := range items {
+		item := &items[idx]
+		if strings.TrimSpace(item.ReviewHash) == "" {
+			filtered = append(filtered, *item)
+			continue
+		}
+
+		record, ok := history[item.ReviewHash]
+		if !ok || !record.Resolved {
+			filtered = append(filtered, *item)
+			continue
+		}
+
+		if parseReviewSubmittedAt(item.SourceReviewSubmittedAt).After(record.SourceReviewSubmittedAt) {
+			filtered = append(filtered, *item)
+		}
+	}
+
+	return filtered, nil
+}
+
+func loadNitpickHistory(prdDir string, currentRound int) (map[string]nitpickHistoryState, error) {
+	rounds, err := reviews.DiscoverRounds(prdDir)
+	if err != nil {
+		return nil, err
+	}
+
+	history := make(map[string]nitpickHistoryState)
+	for _, round := range rounds {
+		if round >= currentRound {
+			continue
+		}
+
+		reviewDir := reviews.ReviewDirectory(prdDir, round)
+		entries, err := reviews.ReadReviewEntries(reviewDir)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, entry := range entries {
+			ctx, err := reviews.ParseReviewContext(entry.Content)
+			if err != nil {
+				return nil, fmt.Errorf("parse nitpick history %s: %w", entry.AbsPath, err)
+			}
+			hash := strings.TrimSpace(ctx.ReviewHash)
+			if hash == "" {
+				continue
+			}
+
+			next := nitpickHistoryState{
+				Resolved:                strings.EqualFold(strings.TrimSpace(ctx.Status), "resolved"),
+				Round:                   round,
+				SourceReviewSubmittedAt: parseReviewSubmittedAt(ctx.SourceReviewSubmittedAt),
+			}
+			current, ok := history[hash]
+			if !ok || next.Round > current.Round ||
+				(next.Round == current.Round && next.SourceReviewSubmittedAt.After(current.SourceReviewSubmittedAt)) {
+				history[hash] = next
+			}
+		}
+	}
+
+	return history, nil
+}
+
+func parseReviewSubmittedAt(value string) time.Time {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return time.Time{}
+	}
+
+	parsed, err := time.Parse(time.RFC3339, trimmed)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed
 }

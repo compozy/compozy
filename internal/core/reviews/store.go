@@ -164,8 +164,8 @@ func WriteRound(reviewDir string, meta model.RoundMeta, items []provider.ReviewI
 	if err := WriteRoundMeta(reviewDir, meta); err != nil {
 		return err
 	}
-	for index, item := range items {
-		if err := writeIssueFile(reviewDir, index+1, item); err != nil {
+	for index := range items {
+		if err := writeIssueFile(reviewDir, index+1, items[index]); err != nil {
 			return err
 		}
 	}
@@ -298,6 +298,10 @@ func writeIssueFile(reviewDir string, number int, item provider.ReviewItem) erro
 		Severity:    strings.TrimSpace(item.Severity),
 		Author:      fallback(item.Author, "unknown"),
 		ProviderRef: strings.TrimSpace(item.ProviderRef),
+		ReviewHash:  strings.TrimSpace(item.ReviewHash),
+
+		SourceReviewID:          strings.TrimSpace(item.SourceReviewID),
+		SourceReviewSubmittedAt: strings.TrimSpace(item.SourceReviewSubmittedAt),
 	}
 
 	title := strings.TrimSpace(item.Title)

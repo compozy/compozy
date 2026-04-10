@@ -89,6 +89,9 @@ func TestReviewsFetchFromConfigMapsLegacyFields(t *testing.T) {
 	if cmd.PR != cfg.PR {
 		t.Fatalf("unexpected pr: %q", cmd.PR)
 	}
+	if cmd.Nitpicks != cfg.Nitpicks {
+		t.Fatalf("unexpected nitpicks: %t", cmd.Nitpicks)
+	}
 }
 
 func TestReviewsFetchCommandCoreConfigMapsFields(t *testing.T) {
@@ -100,11 +103,15 @@ func TestReviewsFetchCommandCoreConfigMapsFields(t *testing.T) {
 		Round:         3,
 		Provider:      "coderabbit",
 		PR:            "259",
+		Nitpicks:      true,
 	}
 	cfg := cmd.CoreConfig()
 
 	if cfg.WorkspaceRoot != cmd.WorkspaceRoot || cfg.Name != cmd.Name || cfg.Round != cmd.Round {
 		t.Fatalf("unexpected fetch config: %#v", cfg)
+	}
+	if cfg.Nitpicks != cmd.Nitpicks {
+		t.Fatalf("unexpected fetch nitpicks flag: %t", cfg.Nitpicks)
 	}
 }
 
@@ -315,6 +322,9 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 	if got.PR != want.PR {
 		t.Fatalf("unexpected pr: %q", got.PR)
 	}
+	if got.Nitpicks != want.Nitpicks {
+		t.Fatalf("unexpected nitpicks: %t", got.Nitpicks)
+	}
 	if got.ReviewsDir != want.ReviewsDir {
 		t.Fatalf("unexpected reviews dir: %q", got.ReviewsDir)
 	}
@@ -410,6 +420,7 @@ func testCoreConfig() core.Config {
 		Round:                  7,
 		Provider:               "coderabbit",
 		PR:                     "259",
+		Nitpicks:               true,
 		ReviewsDir:             "/workspace/.compozy/tasks/demo/reviews-007",
 		TasksDir:               "/workspace/.compozy/tasks/demo",
 		DryRun:                 true,

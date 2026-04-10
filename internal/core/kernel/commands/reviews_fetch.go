@@ -12,6 +12,7 @@ type ReviewsFetchCommand struct {
 	Round         int
 	Provider      string
 	PR            string
+	Nitpicks      bool
 }
 
 // ReviewsFetchResult wraps the existing review fetch result contract.
@@ -27,6 +28,7 @@ func ReviewsFetchFromConfig(cfg core.Config) ReviewsFetchCommand {
 		Round:         cfg.Round,
 		Provider:      cfg.Provider,
 		PR:            cfg.PR,
+		Nitpicks:      cfg.Nitpicks,
 	}
 }
 
@@ -38,5 +40,6 @@ func (c ReviewsFetchCommand) CoreConfig() core.Config {
 		Round:         c.Round,
 		Provider:      c.Provider,
 		PR:            c.PR,
+		Nitpicks:      c.Nitpicks,
 	}
 }

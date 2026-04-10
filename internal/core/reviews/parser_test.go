@@ -16,6 +16,9 @@ line: 42
 severity: high
 author: review-bot
 provider_ref: thread:1
+review_hash: abc123def456
+source_review_id: 4089982130
+source_review_submitted_at: 2026-04-10T13:33:25Z
 ---
 
 Review body.
@@ -52,6 +55,15 @@ Review body.
 				}
 				if ctx.Status != "resolved" || ctx.File != "internal/app/service.go" || ctx.Line != 42 {
 					t.Fatalf("unexpected review context: %#v", ctx)
+				}
+				if ctx.ReviewHash != "abc123def456" {
+					t.Fatalf("unexpected review hash: %q", ctx.ReviewHash)
+				}
+				if ctx.SourceReviewID != "4089982130" {
+					t.Fatalf("unexpected source review id: %q", ctx.SourceReviewID)
+				}
+				if ctx.SourceReviewSubmittedAt != "2026-04-10T13:33:25Z" {
+					t.Fatalf("unexpected source review submitted_at: %q", ctx.SourceReviewSubmittedAt)
 				}
 			},
 		},

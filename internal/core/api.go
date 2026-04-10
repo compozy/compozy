@@ -98,6 +98,7 @@ type Config struct {
 	Round                  int
 	Provider               string
 	PR                     string
+	Nitpicks               bool
 	ReviewsDir             string
 	TasksDir               string
 	DryRun                 bool
@@ -308,6 +309,7 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		Round:                  cfg.Round,
 		Provider:               cfg.Provider,
 		PR:                     cfg.PR,
+		Nitpicks:               cfg.Nitpicks,
 		ReviewsDir:             cfg.ReviewsDir,
 		TasksDir:               cfg.TasksDir,
 		DryRun:                 cfg.DryRun,

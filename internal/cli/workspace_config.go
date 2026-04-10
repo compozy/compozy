@@ -78,6 +78,7 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 		)
 	case commandKindFetchReviews:
 		applyConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })
+		applyConfig(cmd, "nitpicks", cfg.FetchReviews.Nitpicks, func(val bool) { s.nitpicks = val })
 	case commandKindExec:
 		applyConfig(cmd, "ide", cfg.Exec.IDE, func(val string) { s.ide = val })
 		applyConfig(cmd, "model", cfg.Exec.Model, func(val string) { s.model = val })

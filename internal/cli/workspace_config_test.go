@@ -149,6 +149,64 @@ verbose = true
 	}
 }
 
+func TestApplyWorkspaceDefaultsAppliesFetchReviewsNitpicks(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[fetch_reviews]
+nitpicks = true
+`)
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	cmd := &cobra.Command{Use: "fetch-reviews"}
+	cmd.Flags().Bool("nitpicks", false, "include nitpicks")
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if !state.nitpicks {
+		t.Fatal("expected fetch_reviews.nitpicks workspace default to apply")
+	}
+}
+
+func TestApplyWorkspaceDefaultsPreservesExplicitFetchReviewsNitpicksFlag(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[fetch_reviews]
+nitpicks = true
+`)
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	cmd := &cobra.Command{Use: "fetch-reviews"}
+	cmd.Flags().Bool("nitpicks", false, "include nitpicks")
+	if err := cmd.Flags().Set("nitpicks", "false"); err != nil {
+		t.Fatalf("set nitpicks flag: %v", err)
+	}
+	state.nitpicks = false
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.nitpicks {
+		t.Fatal("expected explicit --nitpicks flag to override workspace config")
+	}
+}
+
 func TestApplyWorkspaceDefaultsPreservesExplicitExecFormatFlag(t *testing.T) {
 	t.Parallel()
 
@@ -457,6 +515,7 @@ func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 			pr:         "259",
 			provider:   "coderabbit",
 			round:      4,
+			nitpicks:   true,
 			reviewsDir: "/workspace/.compozy/tasks/demo/reviews-004",
 			tasksDir:   "/workspace/.compozy/tasks/demo",
 		},
@@ -499,6 +558,9 @@ func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 
 	if cfg.Name != "demo" || cfg.PR != "259" || cfg.Provider != "coderabbit" || cfg.Round != 4 {
 		t.Fatalf("unexpected identity config: %#v", cfg)
+	}
+	if !cfg.Nitpicks {
+		t.Fatal("expected nitpicks to pass through buildConfig")
 	}
 	if cfg.IDE != core.IDECodex || cfg.Model != "gpt-5.4" || cfg.AccessMode != core.AccessModeDefault {
 		t.Fatalf("unexpected runtime config: %#v", cfg)

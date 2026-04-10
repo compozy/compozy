@@ -8,6 +8,7 @@ type RuntimeConfig struct {
 	Round                  int
 	Provider               string
 	PR                     string
+	Nitpicks               bool
 	ReviewsDir             string
 	TasksDir               string
 	DryRun                 bool

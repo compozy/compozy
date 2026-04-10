@@ -22,6 +22,7 @@ type workflowIdentity struct {
 	name       string
 	provider   string
 	round      int
+	nitpicks   bool
 	reviewsDir string
 	tasksDir   string
 }
@@ -270,6 +271,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		Round:         s.round,
 		Provider:      s.provider,
 		PR:            s.pr,
+		Nitpicks:      s.nitpicks,
 		ReviewsDir:    s.reviewsDir,
 		TasksDir:      s.tasksDir,
 

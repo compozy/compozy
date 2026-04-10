@@ -11,7 +11,7 @@ type stubProvider struct {
 
 func (s stubProvider) Name() string { return s.name }
 
-func (s stubProvider) FetchReviews(context.Context, string) ([]ReviewItem, error) {
+func (s stubProvider) FetchReviews(context.Context, FetchRequest) ([]ReviewItem, error) {
 	return nil, nil
 }
 

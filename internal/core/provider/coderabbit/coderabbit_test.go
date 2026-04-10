@@ -43,7 +43,7 @@ func TestFetchReviewsFiltersResolvedThreadsAndNonBotComments(t *testing.T) {
 		}
 	}
 
-	items, err := New(WithCommandRunner(run)).FetchReviews(context.Background(), "259")
+	items, err := New(WithCommandRunner(run)).FetchReviews(context.Background(), provider.FetchRequest{PR: "259"})
 	if err != nil {
 		t.Fatalf("fetch reviews: %v", err)
 	}
