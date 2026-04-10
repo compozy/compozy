@@ -10,6 +10,7 @@ import (
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy/internal/core/kernel"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
@@ -28,6 +29,7 @@ type setupCommandState struct {
 	detectAgents  func(setup.ResolverOptions) ([]setup.Agent, error)
 	preview       func(setup.InstallConfig) ([]setup.PreviewItem, error)
 	install       func(setup.InstallConfig) (*setup.Result, error)
+	writeREADME   func(string) error
 	isInteractive func() bool
 }
 
@@ -67,6 +69,7 @@ func newSetupCommandState() *setupCommandState {
 		detectAgents:  setup.DetectInstalledAgents,
 		preview:       setup.PreviewBundledSkillInstall,
 		install:       setup.InstallBundledSkills,
+		writeREADME:   setup.WriteWorkflowREADME,
 		isInteractive: isInteractiveTerminal,
 	}
 }
@@ -213,6 +216,18 @@ func (s *setupCommandState) executeInstall(cmd *cobra.Command, cfg setup.Install
 	if len(result.Failed) > 0 {
 		return fmt.Errorf("setup completed with %d failure(s)", len(result.Failed))
 	}
+
+	if !cfg.Global {
+		cwd, cwdErr := os.Getwd()
+		if cwdErr != nil {
+			return fmt.Errorf("resolve working directory for README: %w", cwdErr)
+		}
+		compozyDir := model.CompozyDir(cwd)
+		if writeErr := s.writeREADME(compozyDir); writeErr != nil {
+			return fmt.Errorf("write workflow README: %w", writeErr)
+		}
+	}
+
 	return nil
 }
 
