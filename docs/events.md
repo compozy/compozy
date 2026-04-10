@@ -14,7 +14,7 @@ Every line in `events.jsonl` is one `events.Event` object:
 | `run_id` | `string` | Stable identifier for the workflow or exec run that emitted the event. |
 | `seq` | `uint64` | Monotonic sequence number within a run. |
 | `ts` | `RFC3339 timestamp` | Event timestamp in UTC. |
-| `kind` | `string` | One of the 33 public event kinds below. |
+| `kind` | `string` | One of the 34 public event kinds below. |
 | `payload` | `object` | Kind-specific payload from `pkg/compozy/events/kinds`. |
 
 ## Run Events
@@ -214,6 +214,29 @@ Payload type: `kinds.SessionFailedPayload`
 - `index`
 - `error`
 - `usage`: `kinds.Usage`
+
+## Reusable Agent Events
+
+### `reusable_agent.lifecycle`
+
+Payload type: `kinds.ReusableAgentLifecyclePayload`
+
+- `stage`: one of `resolved`, `prompt-assembled`, `mcp-merged`, `nested-started`, `nested-completed`, or `nested-blocked`
+- `agent_name`: resolved reusable-agent name for the stage being reported
+- `agent_source`: source scope such as `workspace` or `global`
+- `parent_agent_name`: parent reusable agent when the stage refers to a nested `run_agent` call
+- `available_agents`: number of other reusable agents visible to the assembled discovery catalog
+- `system_prompt_bytes`: byte size of the assembled reusable-agent system prompt
+- `mcp_servers`: ordered MCP server names attached to the ACP session after reserved-server merge
+- `resumed`: true when the reusable-agent lifecycle event belongs to a resumed ACP session
+- `tool_call_id`: ACP tool-call id when the stage is tied to `run_agent`
+- `nested_depth`: attempted child depth for nested execution
+- `max_nested_depth`: configured host-owned depth ceiling
+- `output_run_id`: nested child run id when the child run was started
+- `success`: nested child completion status
+- `blocked`: true when nested execution was blocked instead of run
+- `blocked_reason`: one of `depth-limit`, `cycle-detected`, `access-denied`, `invalid-agent`, or `invalid-mcp`
+- `error`: structured diagnostic text for blocked or failed nested runs
 
 ## Tool Call Events
 

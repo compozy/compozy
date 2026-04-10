@@ -1063,12 +1063,13 @@ func newExecRuntimeJobWithMCP(
 				CodeFile: "exec",
 			}},
 		},
-		SafeName:     "exec",
-		Prompt:       []byte(promptText),
-		SystemPrompt: systemPrompt,
-		MCPServers:   model.CloneMCPServers(mcpServers),
-		OutBuffer:    newLineBuffer(0),
-		ErrBuffer:    newLineBuffer(0),
+		SafeName:      "exec",
+		ReusableAgent: newReusableAgentExecution(agentExecution),
+		Prompt:        []byte(promptText),
+		SystemPrompt:  systemPrompt,
+		MCPServers:    model.CloneMCPServers(mcpServers),
+		OutBuffer:     newLineBuffer(0),
+		ErrBuffer:     newLineBuffer(0),
 	}
 	if state == nil {
 		return jb, nil
@@ -1084,6 +1085,26 @@ func newExecRuntimeJobWithMCP(
 		}
 	}
 	return jb, nil
+}
+
+func newReusableAgentExecution(agentExecution *reusableagents.ExecutionContext) *reusableAgentExecution {
+	if agentExecution == nil {
+		return nil
+	}
+
+	available := 0
+	for idx := range agentExecution.Catalog.Agents {
+		if agentExecution.Catalog.Agents[idx].Name == agentExecution.Agent.Name {
+			continue
+		}
+		available++
+	}
+
+	return &reusableAgentExecution{
+		Name:                agentExecution.Agent.Name,
+		Source:              string(agentExecution.Agent.Source.Scope),
+		AvailableAgentCount: available,
+	}
 }
 
 func resolveExecPromptText(cfg *model.RuntimeConfig) (string, error) {

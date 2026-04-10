@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	execpkg "github.com/compozy/compozy/internal/core/run/exec"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestRunAgentReturnsStructuredFailureForMissingAgent(t *testing.T) {
@@ -125,6 +127,9 @@ func TestRunAgentCapsChildAccessAndKeepsChildMCPIsolation(t *testing.T) {
 			if runtimeContext.Nested.ParentAccessMode != model.AccessModeDefault {
 				t.Fatalf("unexpected capped access mode in reserved context: %#v", runtimeContext.Nested)
 			}
+			if got, want := runtimeContext.Nested.AgentPath, []string{"parent", "child"}; !slices.Equal(got, want) {
+				t.Fatalf("unexpected child agent path: got %v want %v", got, want)
+			}
 			return execpkg.PreparedPromptResult{
 				RunID:  "run-child-1",
 				Output: "child complete",
@@ -195,8 +200,189 @@ func TestRunAgentBlocksWhenMaxDepthReached(t *testing.T) {
 	if result.Success {
 		t.Fatalf("expected max-depth block result, got %#v", result)
 	}
+	if !result.Blocked || result.BlockedReason != kinds.ReusableAgentBlockedReasonDepthLimit {
+		t.Fatalf("expected depth-limit blocked result, got %#v", result)
+	}
 	if !strings.Contains(result.Error, "max depth") {
 		t.Fatalf("expected deterministic max-depth error, got %#v", result)
+	}
+}
+
+func TestRunAgentBlocksCyclesWithStructuredReason(t *testing.T) {
+	t.Parallel()
+
+	engine := NewEngine(WithPromptExecutor(
+		func(
+			context.Context,
+			*model.RuntimeConfig,
+			string,
+			*reusableagents.ExecutionContext,
+			execpkg.SessionMCPBuilder,
+		) (execpkg.PreparedPromptResult, error) {
+			t.Fatal("prompt executor should not run for cyclic nested execution")
+			return execpkg.PreparedPromptResult{}, nil
+		},
+	))
+
+	result := engine.RunAgent(context.Background(), HostContext{
+		BaseRuntime: reusableagents.NestedBaseRuntime{
+			WorkspaceRoot: t.TempDir(),
+			IDE:           model.IDECodex,
+		},
+		Nested: reusableagents.NestedExecutionContext{
+			Depth:            1,
+			MaxDepth:         3,
+			ParentAgentName:  "child",
+			ParentAccessMode: model.AccessModeFull,
+			AgentPath:        []string{"parent", "child"},
+		},
+	}, RunAgentRequest{
+		Name:  "parent",
+		Input: "delegate back to parent",
+	})
+
+	if result.Success {
+		t.Fatalf("expected cycle-detected block result, got %#v", result)
+	}
+	if !result.Blocked || result.BlockedReason != kinds.ReusableAgentBlockedReasonCycleDetected {
+		t.Fatalf("expected cycle-detected blocked reason, got %#v", result)
+	}
+	if !strings.Contains(result.Error, "parent -> child -> parent") {
+		t.Fatalf("expected cycle path in error, got %#v", result)
+	}
+}
+
+func TestRunAgentClassifiesInvalidMCPFailures(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	writeAgentFixture(
+		t,
+		workspaceRoot,
+		"child",
+		strings.Join([]string{
+			"---",
+			"title: Child",
+			"description: Child agent",
+			"ide: codex",
+			"---",
+			"",
+			"Child prompt.",
+			"",
+		}, "\n"),
+		`{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"],"env":{"ROOT":"${MISSING_AGENT_ROOT}"}}}}`,
+	)
+
+	engine := NewEngine()
+	result := engine.RunAgent(context.Background(), HostContext{
+		BaseRuntime: reusableagents.NestedBaseRuntime{
+			WorkspaceRoot: workspaceRoot,
+			IDE:           model.IDECodex,
+		},
+		Nested: reusableagents.NestedExecutionContext{
+			ParentAgentName:  "parent",
+			ParentAccessMode: model.AccessModeFull,
+		},
+	}, RunAgentRequest{
+		Name:  "child",
+		Input: "delegate this",
+	})
+
+	if result.Success {
+		t.Fatalf("expected invalid-mcp block result, got %#v", result)
+	}
+	if !result.Blocked || result.BlockedReason != kinds.ReusableAgentBlockedReasonInvalidMCP {
+		t.Fatalf("expected invalid-mcp blocked reason, got %#v", result)
+	}
+	if !strings.Contains(result.Error, "MISSING_AGENT_ROOT") {
+		t.Fatalf("expected actionable missing env detail, got %#v", result)
+	}
+}
+
+func TestRunAgentHonorsWorkspaceOverrideDuringNestedResolution(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	writeAgentFixture(
+		t,
+		workspaceRoot,
+		"helper",
+		strings.Join([]string{
+			"---",
+			"title: Workspace Helper",
+			"description: Workspace helper",
+			"ide: codex",
+			"---",
+			"",
+			"Workspace prompt.",
+			"",
+		}, "\n"),
+		"",
+	)
+
+	globalDir := filepath.Join(homeDir, model.WorkflowRootDirName, "agents", "helper")
+	if err := os.MkdirAll(globalDir, 0o755); err != nil {
+		t.Fatalf("mkdir global agent dir: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(globalDir, "AGENT.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"title: Global Helper",
+			"description: Global helper",
+			"ide: codex",
+			"---",
+			"",
+			"Global prompt.",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write global AGENT.md: %v", err)
+	}
+
+	engine := NewEngine(WithPromptExecutor(
+		func(
+			_ context.Context,
+			_ *model.RuntimeConfig,
+			prompt string,
+			agentExecution *reusableagents.ExecutionContext,
+			_ execpkg.SessionMCPBuilder,
+		) (execpkg.PreparedPromptResult, error) {
+			if prompt != "delegate this" {
+				t.Fatalf("unexpected nested prompt: %q", prompt)
+			}
+			if agentExecution == nil {
+				t.Fatal("expected nested agent execution context")
+			}
+			if agentExecution.Agent.Source.Scope != reusableagents.ScopeWorkspace {
+				t.Fatalf("expected workspace override source, got %#v", agentExecution.Agent.Source)
+			}
+			if agentExecution.Agent.Prompt != "Workspace prompt.\n" &&
+				agentExecution.Agent.Prompt != "Workspace prompt." {
+				t.Fatalf("expected workspace prompt body, got %q", agentExecution.Agent.Prompt)
+			}
+			return execpkg.PreparedPromptResult{RunID: "run-helper", Output: "workspace helper"}, nil
+		},
+	))
+
+	result := engine.RunAgent(context.Background(), HostContext{
+		BaseRuntime: reusableagents.NestedBaseRuntime{
+			WorkspaceRoot: workspaceRoot,
+			IDE:           model.IDECodex,
+		},
+		Nested: reusableagents.NestedExecutionContext{
+			ParentAgentName:  "parent",
+			ParentAccessMode: model.AccessModeFull,
+		},
+	}, RunAgentRequest{
+		Name:  "helper",
+		Input: "delegate this",
+	})
+
+	if !result.Success {
+		t.Fatalf("expected workspace override nested success, got %#v", result)
 	}
 }
 

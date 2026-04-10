@@ -55,11 +55,12 @@ func (r NestedBaseRuntime) RuntimeConfig() model.RuntimeConfig {
 // NestedExecutionContext is the host-owned recursion state propagated to the
 // reserved `compozy` MCP server. Tool callers do not control these values.
 type NestedExecutionContext struct {
-	Depth            int    `json:"depth"`
-	MaxDepth         int    `json:"max_depth"`
-	ParentRunID      string `json:"parent_run_id,omitempty"`
-	ParentAgentName  string `json:"parent_agent_name,omitempty"`
-	ParentAccessMode string `json:"parent_access_mode,omitempty"`
+	Depth            int      `json:"depth"`
+	MaxDepth         int      `json:"max_depth"`
+	ParentRunID      string   `json:"parent_run_id,omitempty"`
+	ParentAgentName  string   `json:"parent_agent_name,omitempty"`
+	ParentAccessMode string   `json:"parent_access_mode,omitempty"`
+	AgentPath        []string `json:"agent_path,omitempty"`
 }
 
 // ReservedServerRuntimeContext is serialized into the reserved server
@@ -77,6 +78,7 @@ type SessionMCPContext struct {
 	EffectiveAccessMode  string
 	NestedDepth          int
 	MaxNestedDepth       int
+	AgentPath            []string
 	ReservedServerBinary string
 	ReservedServerArgs   []string
 }
@@ -143,12 +145,16 @@ func buildReservedSessionMCPServer(
 		ParentRunID:      strings.TrimSpace(ctx.RunID),
 		ParentAgentName:  strings.TrimSpace(ctx.ParentAgentName),
 		ParentAccessMode: effectiveAccessMode,
+		AgentPath:        cloneStringSlice(ctx.AgentPath),
 	}
 	if nested.MaxDepth <= 0 {
 		nested.MaxDepth = DefaultMaxNestedDepth
 	}
 	if nested.ParentAgentName == "" {
 		nested.ParentAgentName = execution.Agent.Name
+	}
+	if len(nested.AgentPath) == 0 {
+		nested.AgentPath = []string{execution.Agent.Name}
 	}
 
 	payload, err := json.Marshal(ReservedServerRuntimeContext{
@@ -217,4 +223,11 @@ func cloneStringMap(src map[string]string) map[string]string {
 		cloned[key] = value
 	}
 	return cloned
+}
+
+func cloneStringSlice(src []string) []string {
+	if len(src) == 0 {
+		return nil
+	}
+	return append([]string(nil), src...)
 }

@@ -11,6 +11,7 @@ import (
 
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -92,6 +93,9 @@ func TestRunAgentToolMarksStructuredFailuresAsToolErrors(t *testing.T) {
 	}
 	if output.Name != "missing-agent" {
 		t.Fatalf("unexpected structured output: %#v", output)
+	}
+	if !output.Blocked || output.BlockedReason != kinds.ReusableAgentBlockedReasonInvalidAgent {
+		t.Fatalf("expected invalid-agent blocked output, got %#v", output)
 	}
 }
 

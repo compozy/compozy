@@ -19,6 +19,7 @@ type job = runshared.Job
 type uiSession = runshared.UISession
 type activityMonitor = runshared.ActivityMonitor
 type lineBuffer = runshared.LineBuffer
+type reusableAgentExecution = runshared.ReusableAgentExecution
 type SessionViewSnapshot = transcript.SessionViewSnapshot
 type sessionExecution = acpshared.SessionExecution
 type sessionSetupRequest = acpshared.SessionSetupRequest

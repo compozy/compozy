@@ -98,6 +98,9 @@ func TestBuildSessionMCPServersPrependsReservedServerAndSerializesHostContext(t 
 	if runtimeContext.Nested.Depth != 1 || runtimeContext.Nested.MaxDepth != 4 {
 		t.Fatalf("unexpected nested depth context: %#v", runtimeContext.Nested)
 	}
+	if got, want := runtimeContext.Nested.AgentPath, []string{"planner"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("unexpected nested agent path: got %v want %v", got, want)
+	}
 
 	local := servers[1].Stdio
 	if local == nil || local.Name != "filesystem" {
@@ -148,6 +151,9 @@ func TestBuildSessionMCPServersUsesDefaultReservedCommandAndNestedDefaults(t *te
 	}
 	if runtimeContext.Nested.MaxDepth != DefaultMaxNestedDepth {
 		t.Fatalf("expected reserved server to default max depth, got %#v", runtimeContext.Nested)
+	}
+	if got, want := runtimeContext.Nested.AgentPath, []string{"planner"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("expected reserved server to default agent path, got %#v", runtimeContext.Nested)
 	}
 }
 

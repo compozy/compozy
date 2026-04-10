@@ -122,6 +122,18 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		releaseClient()
 		return nil, err
 	}
+	if err := emitReusableAgentSetupLifecycle(
+		req.Context,
+		req.RunJournal,
+		req.Config.RunArtifacts.RunID,
+		req.Job,
+	); err != nil {
+		_ = outFile.Close()
+		_ = errFile.Close()
+		_ = client.Close()
+		releaseClient()
+		return nil, err
+	}
 
 	session, err := createACPSession(req.Context, client, req.Config, req.Job, req.CWD)
 	if err != nil {
@@ -194,6 +206,7 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 		AggregateUsage: req.AggregateUsage,
 		AggregateMu:    req.AggregateMu,
 		Activity:       req.Activity,
+		ReusableAgent:  req.Job.ReusableAgent,
 	})
 	resources.logger.Info(
 		"acp session created",

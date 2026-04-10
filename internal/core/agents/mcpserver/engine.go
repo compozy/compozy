@@ -8,6 +8,7 @@ import (
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	execpkg "github.com/compozy/compozy/internal/core/run/exec"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 // HostContext carries the host-owned state that a reserved `run_agent` tool
@@ -25,12 +26,17 @@ type RunAgentRequest struct {
 
 // RunAgentResult is the deterministic nested-agent success/failure payload.
 type RunAgentResult struct {
-	Name    string `json:"name"`
-	Source  string `json:"source"`
-	Output  string `json:"output"`
-	RunID   string `json:"run_id,omitempty"`
-	Success bool   `json:"success"`
-	Error   string `json:"error,omitempty"`
+	Name            string                           `json:"name"`
+	Source          string                           `json:"source"`
+	Output          string                           `json:"output"`
+	RunID           string                           `json:"run_id,omitempty"`
+	Success         bool                             `json:"success"`
+	Error           string                           `json:"error,omitempty"`
+	Blocked         bool                             `json:"blocked,omitempty"`
+	BlockedReason   kinds.ReusableAgentBlockedReason `json:"blocked_reason,omitempty"`
+	ParentAgentName string                           `json:"parent_agent_name,omitempty"`
+	Depth           int                              `json:"depth,omitempty"`
+	MaxDepth        int                              `json:"max_depth,omitempty"`
 }
 
 // Engine resolves child agents and executes them as real nested ACP sessions.
@@ -86,15 +92,23 @@ func (e *Engine) RunAgent(
 ) RunAgentResult {
 	name := strings.TrimSpace(req.Name)
 	if name == "" {
-		return failureResult(name, "", execpkg.PreparedPromptResult{}, "missing agent name")
-	}
-
-	nested := normalizeNestedContext(host)
-	if nested.Depth >= nested.MaxDepth {
 		return failureResult(
 			name,
 			"",
 			execpkg.PreparedPromptResult{},
+			normalizeNestedContext(host),
+			"missing agent name",
+		)
+	}
+
+	nested := normalizeNestedContext(host)
+	if nested.Depth >= nested.MaxDepth {
+		return blockedResult(
+			name,
+			"",
+			execpkg.PreparedPromptResult{},
+			nested,
+			kinds.ReusableAgentBlockedReasonDepthLimit,
 			fmt.Sprintf(
 				"nested execution blocked: max depth %d reached at depth %d",
 				nested.MaxDepth,
@@ -102,20 +116,36 @@ func (e *Engine) RunAgent(
 			),
 		)
 	}
+	if cycle := cycleDetected(name, nested.AgentPath); cycle != "" {
+		return blockedResult(
+			name,
+			"",
+			execpkg.PreparedPromptResult{},
+			nested,
+			kinds.ReusableAgentBlockedReasonCycleDetected,
+			fmt.Sprintf("nested execution blocked: cycle detected for agent %q via %s", name, cycle),
+		)
+	}
 
 	baseRuntime := buildChildRuntime(host.BaseRuntime, name, req.Input)
 	agentExecution, err := reusableagents.ResolveExecutionContext(ctx, &baseRuntime)
 	if err != nil {
-		return failureResult(name, "", execpkg.PreparedPromptResult{}, err.Error())
+		if reason, ok := reusableagents.BlockedReasonForError(err); ok {
+			return blockedResult(name, "", execpkg.PreparedPromptResult{}, nested, reason, err.Error())
+		}
+		return failureResult(name, "", execpkg.PreparedPromptResult{}, nested, err.Error())
 	}
 
 	source := string(agentExecution.Agent.Source.Scope)
 	baseRuntime.AccessMode = capAccessMode(baseRuntime.AccessMode, nested.ParentAccessMode)
 	prepared, err := e.executeChild(ctx, &baseRuntime, req.Input, agentExecution, nested)
 	if err != nil {
-		return failureResult(agentExecution.Agent.Name, source, prepared, err.Error())
+		if reason, ok := reusableagents.BlockedReasonForError(err); ok {
+			return blockedResult(agentExecution.Agent.Name, source, prepared, nested, reason, err.Error())
+		}
+		return failureResult(agentExecution.Agent.Name, source, prepared, nested, err.Error())
 	}
-	return successResult(agentExecution.Agent.Name, source, prepared)
+	return successResult(agentExecution.Agent.Name, source, prepared, nested)
 }
 
 func (e *Engine) executeChild(
@@ -139,6 +169,7 @@ func (e *Engine) executeChild(
 					EffectiveAccessMode: cfg.AccessMode,
 					NestedDepth:         nested.Depth + 1,
 					MaxNestedDepth:      nested.MaxDepth,
+					AgentPath:           append(cloneAgentPath(nested.AgentPath), agentExecution.Agent.Name),
 				},
 			)
 		},
@@ -157,6 +188,9 @@ func normalizeNestedContext(host HostContext) reusableagents.NestedExecutionCont
 		base := host.BaseRuntime.RuntimeConfig()
 		base.ApplyDefaults()
 		nested.ParentAccessMode = base.AccessMode
+	}
+	if len(nested.AgentPath) == 0 && strings.TrimSpace(nested.ParentAgentName) != "" {
+		nested.AgentPath = []string{nested.ParentAgentName}
 	}
 	return nested
 }
@@ -189,13 +223,21 @@ func buildChildRuntime(
 	return runtime
 }
 
-func successResult(name, source string, prepared execpkg.PreparedPromptResult) RunAgentResult {
+func successResult(
+	name string,
+	source string,
+	prepared execpkg.PreparedPromptResult,
+	nested reusableagents.NestedExecutionContext,
+) RunAgentResult {
 	return RunAgentResult{
-		Name:    name,
-		Source:  source,
-		Output:  prepared.Output,
-		RunID:   prepared.RunID,
-		Success: true,
+		Name:            name,
+		Source:          source,
+		Output:          prepared.Output,
+		RunID:           prepared.RunID,
+		Success:         true,
+		ParentAgentName: nested.ParentAgentName,
+		Depth:           nested.Depth + 1,
+		MaxDepth:        nested.MaxDepth,
 	}
 }
 
@@ -203,14 +245,52 @@ func failureResult(
 	name string,
 	source string,
 	prepared execpkg.PreparedPromptResult,
+	nested reusableagents.NestedExecutionContext,
 	errText string,
 ) RunAgentResult {
 	return RunAgentResult{
-		Name:    name,
-		Source:  source,
-		Output:  prepared.Output,
-		RunID:   prepared.RunID,
-		Success: false,
-		Error:   errText,
+		Name:            name,
+		Source:          source,
+		Output:          prepared.Output,
+		RunID:           prepared.RunID,
+		Success:         false,
+		Error:           errText,
+		ParentAgentName: nested.ParentAgentName,
+		Depth:           nested.Depth + 1,
+		MaxDepth:        nested.MaxDepth,
 	}
+}
+
+func blockedResult(
+	name string,
+	source string,
+	prepared execpkg.PreparedPromptResult,
+	nested reusableagents.NestedExecutionContext,
+	reason kinds.ReusableAgentBlockedReason,
+	errText string,
+) RunAgentResult {
+	result := failureResult(name, source, prepared, nested, errText)
+	result.Blocked = true
+	result.BlockedReason = reason
+	return result
+}
+
+func cycleDetected(name string, path []string) string {
+	normalized := strings.TrimSpace(name)
+	if normalized == "" {
+		return ""
+	}
+	for _, entry := range path {
+		if strings.TrimSpace(entry) == normalized {
+			return strings.Join(append(cloneAgentPath(path), normalized), " -> ")
+		}
+	}
+	return ""
+}
+
+func cloneAgentPath(path []string) []string {
+	if len(path) == 0 {
+		return nil
+	}
+	return append([]string(nil), path...)
 }

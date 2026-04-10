@@ -45,6 +45,7 @@ type Job struct {
 	TaskTitle     string
 	TaskType      string
 	SafeName      string
+	ReusableAgent *ReusableAgentExecution
 	Prompt        []byte
 	SystemPrompt  string
 	MCPServers    []model.MCPServer

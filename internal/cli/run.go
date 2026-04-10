@@ -132,6 +132,10 @@ func decorateReusableAgentError(cmd *cobra.Command, agentName string, err error)
 		rootPath = cmd.Root().CommandPath()
 	}
 
+	if reason, ok := reusableagents.BlockedReasonForError(err); ok {
+		err = fmt.Errorf("reusable agent blocked (%s): %w", reason, err)
+	}
+
 	switch {
 	case errors.Is(err, reusableagents.ErrAgentNotFound):
 		return fmt.Errorf("%w; run `%s agents list` to inspect available reusable agents", err, rootPath)
@@ -148,28 +152,7 @@ func decorateReusableAgentError(cmd *cobra.Command, agentName string, err error)
 }
 
 func isReusableAgentValidationError(err error) bool {
-	switch {
-	case errors.Is(err, reusableagents.ErrInvalidAgentName):
-		return true
-	case errors.Is(err, reusableagents.ErrReservedAgentName):
-		return true
-	case errors.Is(err, reusableagents.ErrMissingAgentDefinition):
-		return true
-	case errors.Is(err, reusableagents.ErrMalformedFrontmatter):
-		return true
-	case errors.Is(err, reusableagents.ErrUnsupportedMetadataField):
-		return true
-	case errors.Is(err, reusableagents.ErrInvalidRuntimeDefaults):
-		return true
-	case errors.Is(err, reusableagents.ErrMalformedMCPConfig):
-		return true
-	case errors.Is(err, reusableagents.ErrMissingEnvironmentVariable):
-		return true
-	case errors.Is(err, reusableagents.ErrReservedMCPServerName):
-		return true
-	default:
-		return false
-	}
+	return reusableagents.IsValidationError(err)
 }
 
 func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {

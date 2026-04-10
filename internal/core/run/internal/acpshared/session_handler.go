@@ -32,13 +32,15 @@ type SessionUpdateHandler struct {
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
 	activity       *activityMonitor
+	reusableAgent  *reusableAgentExecution
 
-	mu          sync.Mutex
-	err         error
-	blockCounts map[model.ContentBlockType]int
-	sessionView *sessionViewModel
-	done        chan struct{}
-	doneOnce    sync.Once
+	mu              sync.Mutex
+	err             error
+	blockCounts     map[model.ContentBlockType]int
+	nestedToolCalls map[string]nestedReusableAgentCall
+	sessionView     *sessionViewModel
+	done            chan struct{}
+	doneOnce        sync.Once
 }
 
 type SessionUpdateHandlerConfig struct {
@@ -55,6 +57,7 @@ type SessionUpdateHandlerConfig struct {
 	AggregateUsage *model.Usage
 	AggregateMu    *sync.Mutex
 	Activity       *activityMonitor
+	ReusableAgent  *reusableAgentExecution
 }
 
 func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandler {
@@ -65,23 +68,25 @@ func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandl
 		cfg.Logger = silentLogger()
 	}
 	return &SessionUpdateHandler{
-		ctx:            cfg.Context,
-		index:          cfg.Index,
-		agentID:        cfg.AgentID,
-		sessionID:      cfg.SessionID,
-		logger:         cfg.Logger,
-		runID:          cfg.RunID,
-		startedAt:      time.Now(),
-		outWriter:      cfg.OutWriter,
-		errWriter:      cfg.ErrWriter,
-		journal:        cfg.RunJournal,
-		jobUsage:       cfg.JobUsage,
-		aggregateUsage: cfg.AggregateUsage,
-		aggregateMu:    cfg.AggregateMu,
-		activity:       cfg.Activity,
-		blockCounts:    make(map[model.ContentBlockType]int),
-		sessionView:    newSessionViewModel(),
-		done:           make(chan struct{}),
+		ctx:             cfg.Context,
+		index:           cfg.Index,
+		agentID:         cfg.AgentID,
+		sessionID:       cfg.SessionID,
+		logger:          cfg.Logger,
+		runID:           cfg.RunID,
+		startedAt:       time.Now(),
+		outWriter:       cfg.OutWriter,
+		errWriter:       cfg.ErrWriter,
+		journal:         cfg.RunJournal,
+		jobUsage:        cfg.JobUsage,
+		aggregateUsage:  cfg.AggregateUsage,
+		aggregateMu:     cfg.AggregateMu,
+		activity:        cfg.Activity,
+		reusableAgent:   cfg.ReusableAgent,
+		blockCounts:     make(map[model.ContentBlockType]int),
+		nestedToolCalls: make(map[string]nestedReusableAgentCall),
+		sessionView:     newSessionViewModel(),
+		done:            make(chan struct{}),
 	}
 }
 
@@ -102,6 +107,9 @@ func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 		return err
 	}
 	h.applySessionUpdate(update)
+	if err := h.emitReusableAgentLifecycleFromUpdate(update); err != nil {
+		return err
+	}
 	if err := h.emitSessionUpdateEvent(update); err != nil {
 		return err
 	}
