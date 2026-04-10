@@ -566,7 +566,7 @@ func listStartTaskSubdirs(baseDir string) []string {
 
 	filtered := make([]string, 0, len(dirs))
 	for _, dir := range dirs {
-		meta, err := tasks.RefreshTaskMeta(filepath.Join(baseDir, dir))
+		meta, err := tasks.ReadTaskMeta(filepath.Join(baseDir, dir))
 		if err != nil {
 			filtered = append(filtered, dir)
 			continue
