@@ -1,7 +1,9 @@
 Goal (incl. success criteria):
+
 - Produce a TechSpec for reusable `.compozy/agents` in Compozy, adapted from the AGH agent pattern, covering CLI execution via `compozy exec --agent <name>` and ACP-driver execution via tools, with enough architectural detail to guide implementation and later task breakdown.
 
 Constraints/Assumptions:
+
 - Follow `AGENTS.md`, `CLAUDE.md`, and the `cy-create-techspec` skill workflow.
 - This is design/spec work only for now; do not implement code in this session unless the user explicitly pivots.
 - Required skills in use: `cy-create-techspec`, `brainstorming`, `find-docs`.
@@ -9,6 +11,7 @@ Constraints/Assumptions:
 - Existing ledgers in `.codex/ledger/` are unrelated completed work; keep read-only awareness and do not modify them.
 
 Key decisions:
+
 - Use the AGH RFC and implementation as reference input, but adapt the design to Compozy's current package layout and execution pipeline rather than copying package boundaries mechanically.
 - Keep the scope centered on agent definition, resolution, and execution contracts; avoid speculative expansion into unrelated workflow features unless the current architecture requires it.
 - User clarified the desired v1 scope:
@@ -42,9 +45,11 @@ Key decisions:
 - User selected the full v1 direction rather than the reduced variant: keep `exec --agent`, prompt assembly, discovery, agent-local `mcp.json`, and the generic `run_agent` tool exposed through the reserved Compozy MCP server.
 
 State:
+
 - Completed. The `agents` task breakdown was approved, the task artifacts were generated, `go run ./cmd/compozy validate-tasks --name agents` passed, and `make verify` passed.
 
 Done:
+
 - Read the explicit user request and the provided `cy-create-techspec` skill instructions.
 - Read the `brainstorming` skill because the request introduces a new feature.
 - Read the `find-docs` skill because the user requested protocol research against current documentation.
@@ -109,15 +114,19 @@ Done:
 - Re-ran repository verification successfully with `make verify`.
 
 Now:
+
 - None.
 
 Next:
+
 - None.
 
 Open questions (UNCONFIRMED if needed):
+
 - None currently blocking.
 
 Working set (files/ids/commands):
+
 - `.codex/ledger/2026-04-10-MEMORY-compozy-agents-techspec.md`
 - `.compozy/tasks/agents/adrs/{adr-001.md,adr-002.md,adr-003.md,adr-004.md}`
 - `/Users/pedronauck/Dev/compozy/looper/.agents/skills/cy-create-techspec/SKILL.md`

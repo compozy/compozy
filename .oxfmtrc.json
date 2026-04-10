@@ -1,0 +1,28 @@
+{
+    "$schema": "./node_modules/oxfmt/configuration_schema.json",
+    "printWidth": 100,
+    "singleQuote": false,
+    "semi": true,
+    "useTabs": false,
+    "trailingComma": "es5",
+    "bracketSpacing": true,
+    "bracketSameLine": false,
+    "arrowParens": "avoid",
+    "endOfLine": "lf",
+    "editorconfig": true,
+    "ignorePatterns": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/bin/**",
+        "**/.turbo/**",
+        "**/.tmp/**",
+        "**/coverage/**",
+        "**/*.min.js",
+        ".resources/**",
+        ".claude/skills/**",
+        ".agents/skills/**",
+        ".compozy/tasks/**",
+        ".compozy/runs/**",
+        "skills/**"
+    ]
+}
