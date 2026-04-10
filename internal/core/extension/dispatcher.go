@@ -169,6 +169,13 @@ func (d *HookDispatcher) invokeHook(
 	if entry.extension == nil {
 		return fmt.Errorf("hook %q: missing runtime extension", hook)
 	}
+	if entry.extension.State() != ExtensionStateReady {
+		return fmt.Errorf(
+			"hook %q extension %q is not ready",
+			hook,
+			entry.extension.normalizedName(),
+		)
+	}
 	if entry.extension.Caller == nil {
 		return fmt.Errorf("hook %q extension %q: missing extension caller", hook, entry.extension.normalizedName())
 	}
@@ -178,8 +185,12 @@ func (d *HookDispatcher) invokeHook(
 
 	callCtx := ctx
 	cancel := func() {}
-	if entry.hook.Timeout > 0 {
-		callCtx, cancel = context.WithTimeout(ctx, entry.hook.Timeout)
+	timeout := entry.hook.Timeout
+	if timeout <= 0 {
+		timeout = entry.extension.DefaultHookTimeout()
+	}
+	if timeout > 0 {
+		callCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
 	defer cancel()
 

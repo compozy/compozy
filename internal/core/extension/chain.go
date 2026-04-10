@@ -50,6 +50,7 @@ type RuntimeExtension struct {
 	mu               sync.RWMutex
 	state            ExtensionState
 	shutdownDeadline time.Duration
+	defaultHookDelay time.Duration
 	eventSubID       string
 	eventKinds       []runtimeevents.EventKind
 }
@@ -106,6 +107,32 @@ func (e *RuntimeExtension) SetShutdownDeadline(deadline time.Duration) {
 	defer e.mu.Unlock()
 
 	e.shutdownDeadline = deadline
+}
+
+// DefaultHookTimeout reports the per-run default timeout applied when a hook
+// declaration omits an explicit timeout.
+func (e *RuntimeExtension) DefaultHookTimeout() time.Duration {
+	if e == nil {
+		return 0
+	}
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.defaultHookDelay
+}
+
+// SetDefaultHookTimeout stores the per-run default hook timeout negotiated for
+// this extension session.
+func (e *RuntimeExtension) SetDefaultHookTimeout(timeout time.Duration) {
+	if e == nil {
+		return
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.defaultHookDelay = timeout
 }
 
 // SetEventSubscription records the server-side event filter for the extension.

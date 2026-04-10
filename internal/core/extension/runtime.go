@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/internal/core/subprocess"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
@@ -26,18 +27,29 @@ type RunScope struct {
 
 var _ model.RunScope = (*RunScope)(nil)
 
-// Manager owns the extension runtime state for one run. Task 07 only constructs
-// the manager and prepares its registry/host API surface; subprocess startup
-// remains part of task 08.
+// Manager owns the extension runtime state for one run.
 type Manager struct {
-	runID         string
-	workspaceRoot string
-	journal       *journal.Journal
-	eventBus      *events.Bus[events.Event]
-	registry      *Registry
-	dispatcher    *HookDispatcher
-	hostAPI       *HostAPIRouter
-	audit         *AuditLogger
+	runID           string
+	parentRunID     string
+	workspaceRoot   string
+	invokingCommand string
+	journal         *journal.Journal
+	eventBus        *events.Bus[events.Event]
+	registry        *Registry
+	dispatcher      *HookDispatcher
+	hostAPI         *HostAPIRouter
+	audit           *AuditLogger
+
+	mu              sync.RWMutex
+	backgroundCtx   context.Context
+	backgroundStop  context.CancelFunc
+	eventSubID      events.SubID
+	eventUnsub      func()
+	subprocs        map[string]*subprocess.Process
+	sessions        map[string]*extensionSession
+	started         bool
+	startErr        error
+	backgroundGroup sync.WaitGroup
 
 	shutdownOnce sync.Once
 	shutdownErr  error
@@ -169,38 +181,6 @@ func (s *RunScope) Close(ctx context.Context) error {
 	return closeErr
 }
 
-// Shutdown transitions the manager to draining, waits for observer hooks, and
-// closes the audit log. More advanced process lifecycle work lands in task 08.
-func (m *Manager) Shutdown(ctx context.Context) error {
-	if m == nil {
-		return nil
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	m.shutdownOnce.Do(func() {
-		m.setAllStates(ExtensionStateDraining)
-		defer m.setAllStates(ExtensionStateStopped)
-
-		if m.shutdownHook != nil {
-			m.shutdownErr = m.shutdownHook(ctx)
-			return
-		}
-
-		if err := m.waitForObservers(ctx); err != nil {
-			m.shutdownErr = err
-			if closeErr := m.closeAudit(contextWithoutCancel(ctx)); closeErr != nil {
-				m.shutdownErr = errors.Join(m.shutdownErr, closeErr)
-			}
-			return
-		}
-		m.shutdownErr = m.closeAudit(ctx)
-	})
-
-	return m.shutdownErr
-}
-
 func newRunScopeManager(
 	ctx context.Context,
 	cfg *model.RuntimeConfig,
@@ -260,14 +240,18 @@ func newRunScopeManager(
 	}
 
 	return &Manager{
-		runID:         scope.Artifacts.RunID,
-		workspaceRoot: cfg.WorkspaceRoot,
-		journal:       scope.Journal,
-		eventBus:      scope.EventBus,
-		registry:      registry,
-		dispatcher:    dispatcher,
-		hostAPI:       hostAPI,
-		audit:         audit,
+		runID:           scope.Artifacts.RunID,
+		parentRunID:     cfg.ParentRunID,
+		workspaceRoot:   cfg.WorkspaceRoot,
+		invokingCommand: invokingCommandForMode(cfg.Mode),
+		journal:         scope.Journal,
+		eventBus:        scope.EventBus,
+		registry:        registry,
+		dispatcher:      dispatcher,
+		hostAPI:         hostAPI,
+		audit:           audit,
+		subprocs:        make(map[string]*subprocess.Process),
+		sessions:        make(map[string]*extensionSession),
 	}, nil
 }
 

@@ -302,7 +302,7 @@ func hostGeneratedRunID(mode model.ExecutionMode) string {
 	label := "run"
 	switch mode {
 	case model.ExecutionModeExec:
-		label = "exec"
+		label = executionModeLabelExec
 	case model.ExecutionModePRDTasks:
 		label = "tasks"
 	case model.ExecutionModePRReview:

@@ -14,7 +14,7 @@ Every line in `events.jsonl` is one `events.Event` object:
 | `run_id`         | `string`            | Stable identifier for the workflow or exec run that emitted the event. |
 | `seq`            | `uint64`            | Monotonic sequence number within a run.                                |
 | `ts`             | `RFC3339 timestamp` | Event timestamp in UTC.                                                |
-| `kind`           | `string`            | One of the 37 public event kinds below.                                |
+| `kind`           | `string`            | One of the 40 public event kinds below.                                |
 | `payload`        | `object`            | Kind-specific payload from `pkg/compozy/events/kinds`.                 |
 
 ## Run Events
@@ -337,6 +337,36 @@ Payload type: `kinds.ArtifactUpdatedPayload`
 - `bytes_written`
 
 ## Extension Events
+
+### `extension.loaded`
+
+Payload type: `kinds.ExtensionLoadedPayload`
+
+- `extension`
+- `source`
+- `version`
+- `manifest_path`
+
+### `extension.ready`
+
+Payload type: `kinds.ExtensionReadyPayload`
+
+- `extension`
+- `source`
+- `version`
+- `protocol_version`
+- `accepted_capabilities`
+- `supported_hook_events`
+
+### `extension.failed`
+
+Payload type: `kinds.ExtensionFailedPayload`
+
+- `extension`
+- `source`
+- `version`
+- `phase`
+- `error`
 
 ### `extension.event`
 

@@ -64,6 +64,9 @@ const (
 
 	// Artifact and extension events.
 	EventKindArtifactUpdated EventKind = "artifact.updated"
+	EventKindExtensionLoaded EventKind = "extension.loaded"
+	EventKindExtensionReady  EventKind = "extension.ready"
+	EventKindExtensionFailed EventKind = "extension.failed"
 	EventKindExtensionEvent  EventKind = "extension.event"
 
 	// Review mutation events.

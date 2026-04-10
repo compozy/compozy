@@ -62,6 +62,32 @@ func TestJobAttemptPayloadJSONCompatibility(t *testing.T) {
 	}
 }
 
+func TestExtensionReadyPayloadJSONCompatibility(t *testing.T) {
+	t.Parallel()
+
+	payload := ExtensionReadyPayload{
+		Extension:            "mock-ext",
+		Source:               "workspace",
+		Version:              "1.0.0",
+		ProtocolVersion:      "1",
+		AcceptedCapabilities: []string{"events.read", "tasks.read"},
+		SupportedHookEvents:  []string{"prompt.post_build"},
+	}
+
+	got := mustMarshalMap(t, payload)
+	want := map[string]any{
+		"extension":             "mock-ext",
+		"source":                "workspace",
+		"version":               "1.0.0",
+		"protocol_version":      "1",
+		"accepted_capabilities": []any{"events.read", "tasks.read"},
+		"supported_hook_events": []any{"prompt.post_build"},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("extension ready payload JSON mismatch: got %#v want %#v", got, want)
+	}
+}
+
 func mustMarshalMap(t *testing.T, payload any) map[string]any {
 	t.Helper()
 
