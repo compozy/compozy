@@ -20,13 +20,39 @@ import (
 func TestExecutePreparedPromptValidatesInputs(t *testing.T) {
 	t.Parallel()
 
-	if _, err := ExecutePreparedPrompt(context.Background(), nil, "delegate", nil, nil); err == nil {
-		t.Fatal("expected missing config error")
+	testCases := []struct {
+		name        string
+		cfg         *model.RuntimeConfig
+		promptText  string
+		expectedErr string
+	}{
+		{
+			name:        "Should error when runtime config is nil",
+			cfg:         nil,
+			promptText:  "delegate",
+			expectedErr: "missing runtime config",
+		},
+		{
+			name:        "Should error when prompt is empty",
+			cfg:         &model.RuntimeConfig{},
+			promptText:  "   ",
+			expectedErr: "prompt is empty",
+		},
 	}
 
-	_, err := ExecutePreparedPrompt(context.Background(), &model.RuntimeConfig{}, "   ", nil, nil)
-	if err == nil {
-		t.Fatal("expected empty prompt error")
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := ExecutePreparedPrompt(context.Background(), tt.cfg, tt.promptText, nil, nil)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tt.expectedErr)
+			}
+			if !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Fatalf("expected error containing %q, got %v", tt.expectedErr, err)
+			}
+		})
 	}
 }
 
@@ -42,6 +68,9 @@ func TestExecutePreparedPromptReturnsEnsureAvailableError(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("expected runtime availability error")
+	}
+	if !strings.Contains(err.Error(), `unknown agent runtime "missing-runtime"`) {
+		t.Fatalf("expected unknown runtime error, got %v", err)
 	}
 }
 
@@ -83,6 +112,44 @@ func TestExecutePreparedPromptReturnsBuilderError(t *testing.T) {
 	}
 }
 
+func TestExecutePreparedPromptReturnsBuilderAndCompletionFailure(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
+	builderErr := errors.New("mcp builder failed")
+
+	result, err := ExecutePreparedPrompt(
+		context.Background(),
+		&model.RuntimeConfig{
+			WorkspaceRoot: workspaceRoot,
+			IDE:           model.IDECodex,
+			Model:         "gpt-5.4",
+			AccessMode:    model.AccessModeDefault,
+			OutputFormat:  model.OutputFormatText,
+			Persist:       true,
+		},
+		"delegate this",
+		nil,
+		func(runID string) ([]model.MCPServer, error) {
+			responsePath := filepath.Join(model.NewRunArtifacts(workspaceRoot, runID).TurnsDir, "0001", "response.txt")
+			if err := os.Mkdir(responsePath, 0o755); err != nil {
+				t.Fatalf("make response path unwritable: %v", err)
+			}
+			return nil, builderErr
+		},
+	)
+	if err == nil {
+		t.Fatal("expected prepared prompt to retain builder and completion failures")
+	}
+	if strings.TrimSpace(result.RunID) == "" {
+		t.Fatalf("expected failed prepared prompt to retain run id, got %#v", result)
+	}
+	if !errors.Is(err, builderErr) {
+		t.Fatalf("expected returned error to retain builder failure, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "write exec response") {
+		t.Fatalf("expected returned error to retain completion failure, got %v", err)
+	}
+}
+
 func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
 	workspaceRoot := workspaceRootForExecTest(t)
 
@@ -96,7 +163,7 @@ func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
 					session.updates <- model.SessionUpdate{
 						Kind:   model.UpdateKindAgentMessageChunk,
 						Status: model.StatusRunning,
-						Blocks: []model.ContentBlock{preparedPromptTextContentBlock("nested reply")},
+						Blocks: []model.ContentBlock{preparedPromptTextContentBlock(t, "nested reply")},
 					}
 					go session.finish(nil)
 					return session, nil
@@ -456,13 +523,15 @@ func installRuntimeProbeStub(t *testing.T, command string) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
-func preparedPromptTextContentBlock(text string) model.ContentBlock {
+func preparedPromptTextContentBlock(t *testing.T, text string) model.ContentBlock {
+	t.Helper()
+
 	payload, err := json.Marshal(model.TextBlock{
 		Type: model.BlockText,
 		Text: text,
 	})
 	if err != nil {
-		panic(err)
+		t.Fatalf("marshal text content block: %v", err)
 	}
 	return model.ContentBlock{
 		Type: model.BlockText,

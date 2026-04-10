@@ -61,7 +61,10 @@ func ExecutePreparedPrompt(
 				status: runStatusFailed,
 				err:    err,
 			}
-			if completeErr := state.completeTurn(failure); completeErr != nil && !errors.Is(completeErr, err) {
+			if completeErr := state.completeTurn(failure); completeErr != nil {
+				if !errors.Is(completeErr, err) {
+					return buildPreparedPromptResult(state, failure), errors.Join(err, completeErr)
+				}
 				return buildPreparedPromptResult(state, failure), completeErr
 			}
 			return buildPreparedPromptResult(state, failure), err
