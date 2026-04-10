@@ -247,7 +247,12 @@ func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 		return nil, err
 	}
 
-	prep, err := plan.Prepare(ctx, runtimeCfg, nil)
+	scope, err := model.OpenRunScope(ctx, runtimeCfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	prep, err := plan.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return nil, ErrNoWork
@@ -268,14 +273,23 @@ func runDirect(ctx context.Context, cfg Config) error {
 		return run.ExecuteExec(ctx, runtimeCfg)
 	}
 
-	prep, err := plan.Prepare(ctx, runtimeCfg, nil)
+	scope, err := model.OpenRunScope(ctx, runtimeCfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		return err
+	}
+
+	prep, err := plan.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return nil
 		}
 		return err
 	}
-	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), nil, runtimeCfg)
+
+	runErr := run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), prep.EventBus(), runtimeCfg)
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	return errors.Join(runErr, prep.CloseJournal(closeCtx))
 }
 
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.

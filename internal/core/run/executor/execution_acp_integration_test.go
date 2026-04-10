@@ -488,15 +488,6 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 		},
 	}})
 
-	bus := eventspkg.New[eventspkg.Event](32)
-	defer func() {
-		if err := bus.Close(context.Background()); err != nil {
-			t.Fatalf("close bus: %v", err)
-		}
-	}()
-	_, busCh, unsubscribe := bus.Subscribe()
-	defer unsubscribe()
-
 	cfg := &model.RuntimeConfig{
 		Name:                   "demo",
 		WorkspaceRoot:          tmpDir,
@@ -507,15 +498,37 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 		RetryBackoffMultiplier: 2,
 		Concurrent:             1,
 	}
-	prep, err := plan.Prepare(context.Background(), cfg, bus)
+	scope, err := model.OpenRunScope(context.Background(), cfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		t.Fatalf("OpenRunScope() error = %v", err)
+	}
+	prep, err := plan.Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
+	defer func() {
+		if err := prep.CloseJournal(context.Background()); err != nil {
+			t.Fatalf("close preparation scope: %v", err)
+		}
+	}()
 	if prep.Journal() == nil {
 		t.Fatal("expected prepare to return a journal")
 	}
+	bus := prep.EventBus()
+	if bus == nil {
+		t.Fatal("expected prepare to return an event bus")
+	}
+	_, busCh, unsubscribe := bus.Subscribe()
+	defer unsubscribe()
 
-	if err := Execute(context.Background(), prep.Jobs, prep.RunArtifacts, prep.Journal(), bus, cfg); err != nil {
+	if err := Execute(
+		context.Background(),
+		prep.Jobs,
+		prep.RunArtifacts,
+		prep.Journal(),
+		prep.EventBus(),
+		cfg,
+	); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 

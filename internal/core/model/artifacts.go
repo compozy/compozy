@@ -5,6 +5,8 @@ import (
 	"strings"
 )
 
+const defaultRunID = "run"
+
 type RunArtifacts struct {
 	RunID       string
 	RunDir      string
@@ -65,7 +67,7 @@ func sanitizeRunID(runID string) string {
 	safe := strings.Trim(builder.String(), "-")
 	switch safe {
 	case "", ".", "..":
-		return "run"
+		return defaultRunID
 	default:
 		return safe
 	}

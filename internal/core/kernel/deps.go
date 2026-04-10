@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/kernel/commands"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
@@ -21,6 +22,9 @@ type KernelDeps struct {
 	EventBus      *events.Bus[events.Event]
 	Workspace     workspace.Context
 	AgentRegistry agent.RuntimeRegistry
+	// OpenRunScopeOptions controls whether executable extensions should be
+	// initialized for run-aware commands handled by this dispatcher.
+	OpenRunScopeOptions model.OpenRunScopeOptions
 
 	ops operations
 }
@@ -51,7 +55,6 @@ func (deps KernelDeps) resolveOperations() operations {
 	}
 	return realOperations{
 		agentRegistry: deps.AgentRegistry,
-		eventBus:      deps.EventBus,
 	}
 }
 

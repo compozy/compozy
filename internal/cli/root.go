@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	// Register the extension-backed run-scope factory used by kernel dispatchers.
+	_ "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/pkg/compozy/events"

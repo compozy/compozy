@@ -532,7 +532,8 @@ func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 		Mode:          model.ExecutionModePRReview,
 	}
 
-	prep, err := Prepare(context.Background(), cfg, nil)
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
@@ -582,13 +583,15 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 		}
 	}
 
-	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+	cfg := &model.RuntimeConfig{
 		Name:          "demo",
 		WorkspaceRoot: workspaceRoot,
 		DryRun:        true,
 		IDE:           model.IDECodex,
 		Mode:          model.ExecutionModePRDTasks,
-	}, nil)
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
@@ -613,6 +616,54 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 	}
 	for _, job := range prep.Jobs {
 		assertJobUsesRunArtifacts(t, runArtifacts, job)
+	}
+}
+
+func TestPrepareWithNilManagerPreservesWorkflowPreparationBehavior(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	taskFile := filepath.Join(tasksDir, "task_01.md")
+	if err := os.WriteFile(taskFile, []byte(`---
+status: pending
+title: Demo task
+type: backend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if prep.RuntimeManager() != nil {
+		t.Fatalf("expected nil runtime manager when executable extensions are disabled, got %T", prep.RuntimeManager())
+	}
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one prepared job, got %d", len(prep.Jobs))
+	}
+	assertJobUsesRunArtifacts(t, prep.RunArtifacts, prep.Jobs[0])
+	if got, want := prep.Journal().Path(), prep.RunArtifacts.EventsPath; got != want {
+		t.Fatalf("journal path = %q, want %q", got, want)
 	}
 }
 
@@ -660,7 +711,7 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 		t.Fatalf("refresh round meta: %v", err)
 	}
 
-	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+	cfg := &model.RuntimeConfig{
 		ReviewsDir:      reviewDir,
 		WorkspaceRoot:   workspaceRoot,
 		DryRun:          true,
@@ -668,7 +719,9 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 		BatchSize:       10,
 		Mode:            model.ExecutionModePRReview,
 		IncludeResolved: false,
-	}, nil)
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
@@ -699,14 +752,16 @@ func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T)
 		t.Fatalf("write prompt file: %v", err)
 	}
 
-	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+	cfg := &model.RuntimeConfig{
 		WorkspaceRoot: workspaceRoot,
 		PromptFile:    promptPath,
 		DryRun:        true,
 		IDE:           model.IDECodex,
 		Mode:          model.ExecutionModeExec,
 		OutputFormat:  model.OutputFormatJSON,
-	}, nil)
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare exec: %v", err)
 	}
@@ -834,4 +889,14 @@ func assertJobUsesRunArtifacts(t *testing.T, runArtifacts model.RunArtifacts, jo
 	if got, want := job.ErrLog, jobArtifacts.ErrLogPath; got != want {
 		t.Fatalf("unexpected stderr log path\nwant: %q\ngot:  %q", want, got)
 	}
+}
+
+func openRunScopeForTest(t *testing.T, cfg *model.RuntimeConfig) model.RunScope {
+	t.Helper()
+
+	scope, err := model.OpenRunScope(context.Background(), cfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		t.Fatalf("OpenRunScope() error = %v", err)
+	}
+	return scope
 }

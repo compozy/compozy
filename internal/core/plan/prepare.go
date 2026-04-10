@@ -16,9 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
 	"github.com/compozy/compozy/internal/core/reviews"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/internal/core/tasks"
-	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
@@ -27,9 +25,15 @@ var ErrNoWork = errors.New("no issues to process")
 func Prepare(
 	ctx context.Context,
 	cfg *model.RuntimeConfig,
-	bus *events.Bus[events.Event],
+	scope model.RunScope,
 ) (*model.SolvePreparation, error) {
+	if scope == nil {
+		return nil, errors.New("prepare run: missing run scope")
+	}
+
 	prep := &model.SolvePreparation{}
+	prep.RunArtifacts = scope.RunArtifacts()
+	prep.SetRunScope(scope)
 	var prepared bool
 	defer func() {
 		if prepared {
@@ -44,7 +48,7 @@ func Prepare(
 	}
 
 	if cfg.Mode == model.ExecutionModeExec {
-		execPrep, err := prepareExec(ctx, prep, cfg, agentExecution, bus)
+		execPrep, err := prepareExec(ctx, prep, cfg, agentExecution)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +56,7 @@ func Prepare(
 		return execPrep, nil
 	}
 
-	if err := prepareWorkflowRun(ctx, prep, cfg, agentExecution, bus); err != nil {
+	if err := prepareWorkflowRun(ctx, prep, cfg, agentExecution); err != nil {
 		return nil, err
 	}
 
@@ -65,22 +69,11 @@ func prepareWorkflowRun(
 	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
 	agentExecution *reusableagents.ExecutionContext,
-	bus *events.Bus[events.Event],
 ) error {
 	entries, err := resolvePreparedEntries(ctx, prep, cfg)
 	if err != nil {
 		return err
 	}
-
-	prep.RunArtifacts, err = allocateRunArtifacts(cfg)
-	if err != nil {
-		return err
-	}
-	runJournal, err := journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
-	if err != nil {
-		return fmt.Errorf("open run journal: %w", err)
-	}
-	prep.SetJournal(runJournal)
 
 	groupedEntries, _ := groupIssuesByCodeFile(entries)
 	prep.Jobs, err = prepareJobs(cfg, groupedEntries, prep.RunArtifacts, agentExecution)
@@ -147,7 +140,6 @@ func prepareExec(
 	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
 	agentExecution *reusableagents.ExecutionContext,
-	bus *events.Bus[events.Event],
 ) (*model.SolvePreparation, error) {
 	promptText, err := resolveExecPrompt(cfg)
 	if err != nil {
@@ -161,15 +153,6 @@ func prepareExec(
 	if err != nil {
 		return nil, err
 	}
-	prep.RunArtifacts, err = allocateRunArtifacts(cfg)
-	if err != nil {
-		return nil, err
-	}
-	runJournal, err := journal.Open(prep.RunArtifacts.EventsPath, bus, 0)
-	if err != nil {
-		return nil, fmt.Errorf("open run journal: %w", err)
-	}
-	prep.SetJournal(runJournal)
 
 	job, err := buildExecJob(prep.RunArtifacts, promptText, agentExecution, cfg)
 	if err != nil {
@@ -342,34 +325,6 @@ func buildExecJob(
 		OutLog:        outLog,
 		ErrLog:        errLog,
 	}, nil
-}
-
-func allocateRunArtifacts(cfg *model.RuntimeConfig) (model.RunArtifacts, error) {
-	runArtifacts := model.NewRunArtifacts(cfg.WorkspaceRoot, buildRunID(cfg))
-	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
-		return model.RunArtifacts{}, fmt.Errorf("mkdir run artifacts: %w", err)
-	}
-	return runArtifacts, nil
-}
-
-func buildRunID(cfg *model.RuntimeConfig) string {
-	label := runLabel(cfg)
-	timestamp := time.Now().UTC().Format("20060102-150405-000000000")
-	return fmt.Sprintf("%s-%s", label, timestamp)
-}
-
-func runLabel(cfg *model.RuntimeConfig) string {
-	if cfg.Mode == model.ExecutionModeExec {
-		return "exec"
-	}
-	if cfg.Mode == model.ExecutionModePRDTasks {
-		return "tasks-" + prompt.SafeFileName(cfg.Name)
-	}
-	scope := cfg.Name
-	if scope == "" {
-		scope = "pr-" + cfg.PR
-	}
-	return fmt.Sprintf("reviews-%s-round-%03d", prompt.SafeFileName(scope), cfg.Round)
 }
 
 func determineBatchName(batchIdx int, batchFiles []string, mode model.ExecutionMode) string {

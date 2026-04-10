@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"errors"
+	"time"
 
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
@@ -10,7 +11,6 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/run"
-	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
 const (
@@ -20,7 +20,8 @@ const (
 
 type operations interface {
 	ValidateRuntimeConfig(*model.RuntimeConfig) error
-	Prepare(context.Context, *model.RuntimeConfig) (*model.SolvePreparation, error)
+	OpenRunScope(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	Prepare(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	Execute(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	ExecuteExec(context.Context, *model.RuntimeConfig) error
 	FetchReviews(context.Context, core.Config) (*model.FetchResult, error)
@@ -31,15 +32,26 @@ type operations interface {
 
 type realOperations struct {
 	agentRegistry agent.RuntimeRegistry
-	eventBus      *events.Bus[events.Event]
 }
 
 func (o realOperations) ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 	return o.agentRegistry.ValidateRuntimeConfig(cfg)
 }
 
-func (o realOperations) Prepare(ctx context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparation, error) {
-	return plan.Prepare(ctx, cfg, o.eventBus)
+func (realOperations) OpenRunScope(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	opts model.OpenRunScopeOptions,
+) (model.RunScope, error) {
+	return model.OpenRunScope(ctx, cfg, opts)
+}
+
+func (o realOperations) Prepare(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+) (*model.SolvePreparation, error) {
+	return plan.Prepare(ctx, cfg, scope)
 }
 
 func (o realOperations) Execute(
@@ -50,7 +62,10 @@ func (o realOperations) Execute(
 	if prep == nil {
 		return errors.New("execute run: missing preparation")
 	}
-	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), o.eventBus, cfg)
+
+	runErr := run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), prep.EventBus(), cfg)
+	closeErr := closePreparationRunScope(ctx, prep)
+	return errors.Join(runErr, closeErr)
 }
 
 func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
@@ -109,7 +124,12 @@ func (h *runStartHandler) Handle(
 		return result, nil
 	}
 
-	prep, err := h.ops.Prepare(ctx, runtimeCfg)
+	scope, err := h.ops.OpenRunScope(ctx, runtimeCfg, h.deps.OpenRunScopeOptions)
+	if err != nil {
+		return zero, err
+	}
+
+	prep, err := h.ops.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return commands.RunStartResult{Status: runStartStatusNoWork}, nil
@@ -150,7 +170,12 @@ func (h *workflowPrepareHandler) Handle(
 		return zero, err
 	}
 
-	prep, err := h.ops.Prepare(ctx, runtimeCfg)
+	scope, err := h.ops.OpenRunScope(ctx, runtimeCfg, h.deps.OpenRunScopeOptions)
+	if err != nil {
+		return zero, err
+	}
+
+	prep, err := h.ops.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return zero, core.ErrNoWork
@@ -164,6 +189,25 @@ func (h *workflowPrepareHandler) Handle(
 		RunID:        prep.RunArtifacts.RunID,
 		ArtifactsDir: prep.RunArtifacts.RunDir,
 	}, nil
+}
+
+func closePreparationRunScope(ctx context.Context, prep *model.SolvePreparation) error {
+	if prep == nil || prep.RunScope == nil {
+		return nil
+	}
+
+	closeCtx := contextWithoutCancel(ctx)
+	closeCtx, cancel := context.WithTimeout(closeCtx, time.Second)
+	defer cancel()
+
+	return prep.CloseJournal(closeCtx)
+}
+
+func contextWithoutCancel(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(ctx)
 }
 
 type delegatingHandler[C any, R any, M any] struct {

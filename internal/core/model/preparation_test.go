@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
 func TestSolvePreparationSetJournalPreservesExistingOwnership(t *testing.T) {
@@ -57,27 +58,39 @@ func TestSolvePreparationCloseJournalPreservesHandleOnFailure(t *testing.T) {
 		t.Parallel()
 
 		closeErr := errors.New("close failed")
-		handle := &stubJournalHandle{err: closeErr}
-		prep := &SolvePreparation{JournalHandle: handle}
+		handle := &stubRunScope{err: closeErr}
+		prep := &SolvePreparation{RunScope: handle}
 
 		err := prep.CloseJournal(context.Background())
 		if !errors.Is(err, closeErr) {
 			t.Fatalf("expected close error %v, got %v", closeErr, err)
 		}
-		if prep.JournalHandle != handle {
+		if prep.RunScope != handle {
 			t.Fatal("expected failed close to preserve the journal handle for retry")
 		}
 	})
 }
 
-type stubJournalHandle struct {
+type stubRunScope struct {
 	err error
 }
 
-func (s *stubJournalHandle) Journal() *journal.Journal {
+func (*stubRunScope) RunArtifacts() RunArtifacts {
+	return RunArtifacts{}
+}
+
+func (*stubRunScope) RunJournal() *journal.Journal {
 	return nil
 }
 
-func (s *stubJournalHandle) Close(context.Context) error {
+func (*stubRunScope) RunEventBus() *events.Bus[events.Event] {
+	return nil
+}
+
+func (*stubRunScope) RunManager() RuntimeManager {
+	return nil
+}
+
+func (s *stubRunScope) Close(context.Context) error {
 	return s.err
 }
