@@ -22,6 +22,12 @@ func (m *managerSpy) Start(context.Context) error {
 	return m.startErr
 }
 
+func (*managerSpy) DispatchMutableHook(_ context.Context, _ string, input any) (any, error) {
+	return input, nil
+}
+
+func (*managerSpy) DispatchObserverHook(context.Context, string, any) {}
+
 func (m *managerSpy) Shutdown(context.Context) error {
 	m.shutdownCalls++
 	return nil

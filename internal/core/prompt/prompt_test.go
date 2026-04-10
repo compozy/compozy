@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"context"
 	"reflect"
 	"regexp"
 	"strings"
@@ -258,7 +259,7 @@ complexity: low
 func TestBuildSystemPromptAddendumIncludesWorkflowMemoryOnlyForPRDTasks(t *testing.T) {
 	t.Parallel()
 
-	prdAddendum := BuildSystemPromptAddendum(BatchParams{
+	prdAddendum, err := BuildSystemPromptAddendum(BatchParams{
 		Mode: model.ExecutionModePRDTasks,
 		Memory: &WorkflowMemoryContext{
 			WorkflowPath:            "/tmp/.compozy/tasks/demo/memory/MEMORY.md",
@@ -267,6 +268,9 @@ func TestBuildSystemPromptAddendumIncludesWorkflowMemoryOnlyForPRDTasks(t *testi
 			WorkflowNeedsCompaction: false,
 		},
 	})
+	if err != nil {
+		t.Fatalf("BuildSystemPromptAddendum() error = %v", err)
+	}
 	requiredSnippets := []string{
 		"<workflow_memory>",
 		"`cy-workflow-memory`",
@@ -280,9 +284,107 @@ func TestBuildSystemPromptAddendumIncludesWorkflowMemoryOnlyForPRDTasks(t *testi
 		}
 	}
 
-	reviewAddendum := BuildSystemPromptAddendum(BatchParams{Mode: model.ExecutionModePRReview})
+	reviewAddendum, err := BuildSystemPromptAddendum(BatchParams{Mode: model.ExecutionModePRReview})
+	if err != nil {
+		t.Fatalf("BuildSystemPromptAddendum() error = %v", err)
+	}
 	if reviewAddendum != "" {
 		t.Fatalf("expected review mode to omit system prompt addendum, got %q", reviewAddendum)
+	}
+}
+
+func TestBuildAppliesPromptHookMutations(t *testing.T) {
+	t.Parallel()
+
+	const preBuildMarker = "PRE-BUILD-HOOK"
+	const postBuildMarker = "\nPOST-BUILD-HOOK"
+
+	manager := &promptHookManager{
+		mutators: map[string]func(any) (any, error){
+			"prompt.pre_build": func(input any) (any, error) {
+				payload := input.(promptPreBuildPayload)
+				payload.BatchParams.BatchGroups["task_1"][0].Content += "\n" + preBuildMarker + "\n"
+				return payload, nil
+			},
+			"prompt.post_build": func(input any) (any, error) {
+				payload := input.(promptPostBuildPayload)
+				payload.PromptText += postBuildMarker
+				return payload, nil
+			},
+		},
+	}
+
+	promptText, err := Build(BatchParams{
+		Mode:       model.ExecutionModePRDTasks,
+		RunID:      "run-123",
+		JobID:      "job-123",
+		RuntimeMgr: manager,
+		BatchGroups: map[string][]model.IssueEntry{
+			"task_1": {{
+				Name:    "task_1.md",
+				AbsPath: "/tmp/.compozy/tasks/demo/task_1.md",
+				Content: `---
+status: pending
+title: Demo
+type: backend
+complexity: low
+---
+
+# Task 1: Demo
+`,
+			}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
+	if !strings.Contains(promptText, preBuildMarker) {
+		t.Fatalf("expected prompt to include pre-build marker, got:\n%s", promptText)
+	}
+	if !strings.Contains(promptText, postBuildMarker) {
+		t.Fatalf("expected prompt to include post-build marker, got:\n%s", promptText)
+	}
+
+	wantHooks := []string{"prompt.pre_build", "prompt.post_build"}
+	if got := manager.mutableHooks; !reflect.DeepEqual(got, wantHooks) {
+		t.Fatalf("unexpected prompt hook order\nwant: %#v\ngot:  %#v", wantHooks, got)
+	}
+}
+
+func TestBuildSystemPromptAddendumAppliesPreSystemMutation(t *testing.T) {
+	t.Parallel()
+
+	const marker = "\nPRE-SYSTEM-HOOK"
+	manager := &promptHookManager{
+		mutators: map[string]func(any) (any, error){
+			"prompt.pre_system": func(input any) (any, error) {
+				payload := input.(promptPreSystemPayload)
+				payload.SystemAddendum += marker
+				return payload, nil
+			},
+		},
+	}
+
+	addendum, err := BuildSystemPromptAddendum(BatchParams{
+		Mode:       model.ExecutionModePRDTasks,
+		RunID:      "run-321",
+		JobID:      "job-321",
+		RuntimeMgr: manager,
+		Memory: &WorkflowMemoryContext{
+			WorkflowPath: "/tmp/.compozy/tasks/demo/memory/MEMORY.md",
+			TaskPath:     "/tmp/.compozy/tasks/demo/memory/task_1.md",
+		},
+	})
+	if err != nil {
+		t.Fatalf("BuildSystemPromptAddendum() error = %v", err)
+	}
+	if !strings.Contains(addendum, marker) {
+		t.Fatalf("expected system addendum to include pre-system marker, got:\n%s", addendum)
+	}
+
+	wantHooks := []string{"prompt.pre_system"}
+	if got := manager.mutableHooks; !reflect.DeepEqual(got, wantHooks) {
+		t.Fatalf("unexpected system hook order\nwant: %#v\ngot:  %#v", wantHooks, got)
 	}
 }
 
@@ -336,7 +438,7 @@ func TestSafeFileName(t *testing.T) {
 func TestBuildDispatchesByMode(t *testing.T) {
 	t.Parallel()
 
-	prdPrompt := Build(BatchParams{
+	prdPrompt, err := Build(BatchParams{
 		Mode:       model.ExecutionModePRDTasks,
 		AutoCommit: false,
 		BatchGroups: map[string][]model.IssueEntry{
@@ -355,11 +457,14 @@ complexity: low
 			}},
 		},
 	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
 	if !strings.Contains(prdPrompt, "# Implementation Task: task_1.md") {
 		t.Fatalf("expected PRD build dispatch, got:\n%s", prdPrompt)
 	}
 
-	reviewPrompt := Build(BatchParams{
+	reviewPrompt, err := Build(BatchParams{
 		Mode:       model.ExecutionModePRReview,
 		Name:       "demo",
 		Provider:   "coderabbit",
@@ -374,6 +479,9 @@ complexity: low
 			}},
 		},
 	})
+	if err != nil {
+		t.Fatalf("Build() error = %v", err)
+	}
 	if !strings.Contains(reviewPrompt, "<arguments>") {
 		t.Fatalf("expected review build dispatch, got:\n%s", reviewPrompt)
 	}
@@ -412,3 +520,32 @@ func TestFlattenAndSortIssues(t *testing.T) {
 		t.Fatalf("unexpected review ordering: %#v", got)
 	}
 }
+
+type promptHookManager struct {
+	mutators     map[string]func(any) (any, error)
+	mutableHooks []string
+}
+
+func (*promptHookManager) Start(context.Context) error { return nil }
+
+func (*promptHookManager) Shutdown(context.Context) error { return nil }
+
+func (m *promptHookManager) DispatchMutableHook(
+	_ context.Context,
+	hook string,
+	input any,
+) (any, error) {
+	if m == nil {
+		return input, nil
+	}
+	m.mutableHooks = append(m.mutableHooks, hook)
+	if m.mutators == nil {
+		return input, nil
+	}
+	if mutate := m.mutators[hook]; mutate != nil {
+		return mutate(input)
+	}
+	return input, nil
+}
+
+func (*promptHookManager) DispatchObserverHook(context.Context, string, any) {}

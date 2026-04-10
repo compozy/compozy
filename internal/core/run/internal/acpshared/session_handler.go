@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
 	"github.com/compozy/compozy/pkg/compozy/events"
@@ -20,9 +21,11 @@ type SessionUpdateHandler struct {
 	ctx            context.Context
 	index          int
 	agentID        string
+	jobID          string
 	sessionID      string
 	logger         *slog.Logger
 	runID          string
+	runManager     model.RuntimeManager
 	startedAt      time.Time
 	outWriter      io.Writer
 	errWriter      io.Writer
@@ -46,12 +49,14 @@ type SessionUpdateHandlerConfig struct {
 	Context        context.Context
 	Index          int
 	AgentID        string
+	JobID          string
 	SessionID      string
 	Logger         *slog.Logger
 	RunID          string
 	OutWriter      io.Writer
 	ErrWriter      io.Writer
 	RunJournal     runtimeEventSubmitter
+	RunManager     model.RuntimeManager
 	JobUsage       *model.Usage
 	AggregateUsage *model.Usage
 	AggregateMu    *sync.Mutex
@@ -70,9 +75,11 @@ func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandl
 		ctx:             cfg.Context,
 		index:           cfg.Index,
 		agentID:         cfg.AgentID,
+		jobID:           cfg.JobID,
 		sessionID:       cfg.SessionID,
 		logger:          cfg.Logger,
 		runID:           cfg.RunID,
+		runManager:      cfg.RunManager,
 		startedAt:       time.Now(),
 		outWriter:       cfg.OutWriter,
 		errWriter:       cfg.ErrWriter,
@@ -102,6 +109,22 @@ func (h *SessionUpdateHandler) Err() error {
 func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 	h.recordActivity()
 
+	publicUpdate, err := runtimeevents.PublicSessionUpdate(update)
+	if err != nil {
+		return fmt.Errorf("convert session update hook payload: %w", err)
+	}
+	model.DispatchObserverHook(
+		h.ctx,
+		h.runManager,
+		"agent.on_session_update",
+		sessionUpdateHookPayload{
+			RunID:     h.runID,
+			JobID:     h.jobID,
+			SessionID: h.sessionID,
+			Update:    publicUpdate,
+		},
+	)
+
 	if err := h.renderUpdateBlocks(update.Blocks); err != nil {
 		return err
 	}
@@ -119,7 +142,7 @@ func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 			err,
 		)
 	}
-	if err := h.emitSessionUpdateEvent(update); err != nil {
+	if err := h.emitSessionUpdateEvent(publicUpdate); err != nil {
 		return err
 	}
 	if err := h.recordUsageUpdate(update.Usage); err != nil {
@@ -171,17 +194,12 @@ func (h *SessionUpdateHandler) applySessionUpdate(update model.SessionUpdate) {
 	h.sessionView.Apply(update)
 }
 
-func (h *SessionUpdateHandler) emitSessionUpdateEvent(update model.SessionUpdate) error {
-	publicUpdate, err := runtimeevents.PublicSessionUpdate(update)
-	if err != nil {
-		return fmt.Errorf("convert session update event payload: %w", err)
-	}
-
+func (h *SessionUpdateHandler) emitSessionUpdateEvent(update kinds.SessionUpdate) error {
 	return h.submitRuntimeEvent(
 		events.EventKindSessionUpdate,
 		kinds.SessionUpdatePayload{
 			Index:  h.index,
-			Update: publicUpdate,
+			Update: update,
 		},
 		"session update",
 	)
@@ -220,6 +238,22 @@ func (h *SessionUpdateHandler) updateCompletionStatus(status model.SessionStatus
 
 func (h *SessionUpdateHandler) HandleCompletion(err error) error {
 	h.recordActivity()
+	outcome := agent.SessionOutcome{Status: model.StatusCompleted}
+	if err != nil {
+		outcome.Status = model.StatusFailed
+		outcome.Error = err.Error()
+	}
+	model.DispatchObserverHook(
+		h.ctx,
+		h.runManager,
+		"agent.post_session_end",
+		sessionEndedHookPayload{
+			RunID:     h.runID,
+			JobID:     h.jobID,
+			SessionID: h.sessionID,
+			Outcome:   outcome,
+		},
+	)
 
 	if err != nil {
 		if emitErr := h.submitRuntimeEvent(
@@ -380,4 +414,18 @@ func formatBlockTypes(blocks []model.ContentBlock) string {
 	}
 	sort.Strings(keys)
 	return strings.Join(keys, ",")
+}
+
+type sessionUpdateHookPayload struct {
+	RunID     string              `json:"run_id"`
+	JobID     string              `json:"job_id"`
+	SessionID string              `json:"session_id"`
+	Update    kinds.SessionUpdate `json:"update"`
+}
+
+type sessionEndedHookPayload struct {
+	RunID     string               `json:"run_id"`
+	JobID     string               `json:"job_id"`
+	SessionID string               `json:"session_id"`
+	Outcome   agent.SessionOutcome `json:"outcome"`
 }

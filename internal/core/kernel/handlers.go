@@ -63,7 +63,15 @@ func (o realOperations) Execute(
 		return errors.New("execute run: missing preparation")
 	}
 
-	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), prep.EventBus(), cfg)
+	return run.Execute(
+		ctx,
+		prep.Jobs,
+		prep.RunArtifacts,
+		prep.Journal(),
+		prep.EventBus(),
+		cfg,
+		prep.RuntimeManager(),
+	)
 }
 
 func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {

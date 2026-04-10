@@ -20,8 +20,9 @@ func Execute(
 	runJournal *journal.Journal,
 	bus *events.Bus[events.Event],
 	cfg *model.RuntimeConfig,
+	manager model.RuntimeManager,
 ) error {
-	return execute(ctx, jobs, runArtifacts, runJournal, bus, cfg)
+	return execute(ctx, jobs, runArtifacts, runJournal, bus, cfg, manager)
 }
 
 func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {

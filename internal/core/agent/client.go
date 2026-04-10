@@ -46,21 +46,29 @@ type ClientConfig struct {
 
 // SessionRequest contains the parameters for creating a new ACP session.
 type SessionRequest struct {
-	Prompt     []byte
-	WorkingDir string
-	Model      string
-	MCPServers []model.MCPServer
-	ExtraEnv   map[string]string
+	Prompt     []byte               `json:"prompt,omitempty"`
+	WorkingDir string               `json:"working_dir,omitempty"`
+	Model      string               `json:"model,omitempty"`
+	MCPServers []model.MCPServer    `json:"mcp_servers,omitempty"`
+	ExtraEnv   map[string]string    `json:"extra_env,omitempty"`
+	Context    context.Context      `json:"-"`
+	RunID      string               `json:"-"`
+	JobID      string               `json:"-"`
+	RuntimeMgr model.RuntimeManager `json:"-"`
 }
 
 // ResumeSessionRequest contains the parameters for loading and continuing an existing ACP session.
 type ResumeSessionRequest struct {
-	SessionID  string
-	Prompt     []byte
-	WorkingDir string
-	Model      string
-	MCPServers []model.MCPServer
-	ExtraEnv   map[string]string
+	SessionID  string               `json:"session_id,omitempty"`
+	Prompt     []byte               `json:"prompt,omitempty"`
+	WorkingDir string               `json:"working_dir,omitempty"`
+	Model      string               `json:"model,omitempty"`
+	MCPServers []model.MCPServer    `json:"mcp_servers,omitempty"`
+	ExtraEnv   map[string]string    `json:"extra_env,omitempty"`
+	Context    context.Context      `json:"-"`
+	RunID      string               `json:"-"`
+	JobID      string               `json:"-"`
+	RuntimeMgr model.RuntimeManager `json:"-"`
 }
 
 // SessionError wraps JSON-RPC/ACP request errors without leaking SDK types.
@@ -186,6 +194,17 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	if err != nil {
 		return nil, err
 	}
+	req.Context = ctx
+	req.WorkingDir = workingDir
+	req, err = req.dispatchPreCreateHook()
+	if err != nil {
+		return nil, err
+	}
+	workingDir, err = resolveWorkingDir(req.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+	req.WorkingDir = workingDir
 
 	if err := c.ensureStarted(ctx, req); err != nil {
 		return nil, err
@@ -232,6 +251,18 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 		}
 	}
 
+	model.DispatchObserverHook(
+		ctx,
+		req.RuntimeMgr,
+		"agent.post_session_create",
+		sessionCreatedHookPayload{
+			RunID:     req.RunID,
+			JobID:     req.JobID,
+			SessionID: session.id,
+			Identity:  session.Identity(),
+		},
+	)
+
 	c.wg.Add(1)
 	go c.runPrompt(ctx, session, acp.PromptRequest{
 		SessionId: sessionResp.SessionId,
@@ -247,6 +278,20 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	if err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(req.SessionID) == "" {
+		return nil, errors.New("resume ACP session: missing session id")
+	}
+	req.Context = ctx
+	req.WorkingDir = workingDir
+	req, err = req.dispatchPreResumeHook()
+	if err != nil {
+		return nil, err
+	}
+	workingDir, err = resolveWorkingDir(req.WorkingDir)
+	if err != nil {
+		return nil, err
+	}
+	req.WorkingDir = workingDir
 	if strings.TrimSpace(req.SessionID) == "" {
 		return nil, errors.New("resume ACP session: missing session id")
 	}

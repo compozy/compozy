@@ -339,6 +339,61 @@ func TestSessionUpdateHandlerDoesNotBlockWhenSessionStateIsTracked(t *testing.T)
 	}
 }
 
+func TestSessionUpdateHandlerDispatchesUpdateObserverWithoutBlocking(t *testing.T) {
+	t.Parallel()
+
+	runID, runJournal, _, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	manager := newAsyncObserverManager()
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		JobID:      "job-123",
+		SessionID:  "sess-observer",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+		RunManager: manager,
+	})
+
+	update := model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{mustContentBlockLoggingTest(t, model.TextBlock{Text: "observer update"})},
+		Status: model.StatusRunning,
+	}
+
+	for i := 0; i < 2; i++ {
+		done := make(chan error, 1)
+		go func() {
+			done <- handler.HandleUpdate(update)
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("handle update %d: %v", i, err)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatalf("handle update %d blocked on observer dispatch", i)
+		}
+	}
+
+	manager.release()
+	calls := manager.waitForCalls(t, 2)
+	for _, call := range calls {
+		if call.hook != "agent.on_session_update" {
+			t.Fatalf("unexpected observer hook %q", call.hook)
+		}
+		payload := call.payload.(sessionUpdateHookPayload)
+		if payload.JobID != "job-123" || payload.SessionID != "sess-observer" {
+			t.Fatalf("unexpected observer payload: %#v", payload)
+		}
+	}
+}
+
 func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	t.Parallel()
 
@@ -783,6 +838,69 @@ func TestSessionUpdateHandlerRetainsNestedTrackingWhenLifecycleCompletionSubmitF
 	}
 }
 
+func TestSessionUpdateHandlerDispatchesPostSessionEndOncePerCompletion(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus model.SessionStatus
+		wantError  string
+	}{
+		{
+			name:       "success",
+			wantStatus: model.StatusCompleted,
+		},
+		{
+			name:       "error",
+			err:        errors.New("boom"),
+			wantStatus: model.StatusFailed,
+			wantError:  "boom",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runID, runJournal, _, cleanup := openRuntimeEventCapture(t)
+			defer cleanup()
+
+			manager := newAsyncObserverManager()
+			manager.release()
+			handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+				Context:    context.Background(),
+				Index:      0,
+				AgentID:    model.IDECodex,
+				JobID:      "job-456",
+				SessionID:  "sess-complete",
+				RunID:      runID,
+				OutWriter:  io.Discard,
+				ErrWriter:  io.Discard,
+				RunJournal: runJournal,
+				RunManager: manager,
+			})
+
+			if err := handler.HandleCompletion(tc.err); err != nil {
+				t.Fatalf("handle completion: %v", err)
+			}
+
+			calls := manager.waitForCalls(t, 1)
+			if len(calls) != 1 {
+				t.Fatalf("expected one observer call, got %d", len(calls))
+			}
+			if calls[0].hook != "agent.post_session_end" {
+				t.Fatalf("unexpected observer hook %q", calls[0].hook)
+			}
+
+			payload := calls[0].payload.(sessionEndedHookPayload)
+			if payload.Outcome.Status != tc.wantStatus || payload.Outcome.Error != tc.wantError {
+				t.Fatalf("unexpected completion payload: %#v", payload)
+			}
+		})
+	}
+}
 func TestRenderContentBlocksHandlesTerminalImageAndDecodeFallback(t *testing.T) {
 	t.Parallel()
 
@@ -826,6 +944,66 @@ type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) {
 	return 0, errors.New("write failed")
+}
+
+type asyncObserverCall struct {
+	hook    string
+	payload any
+}
+
+type asyncObserverManager struct {
+	releaseCh chan struct{}
+	callsCh   chan asyncObserverCall
+}
+
+func newAsyncObserverManager() *asyncObserverManager {
+	return &asyncObserverManager{
+		releaseCh: make(chan struct{}),
+		callsCh:   make(chan asyncObserverCall, 16),
+	}
+}
+
+func (*asyncObserverManager) Start(context.Context) error { return nil }
+
+func (*asyncObserverManager) Shutdown(context.Context) error { return nil }
+
+func (m *asyncObserverManager) DispatchMutableHook(
+	context.Context,
+	string,
+	any,
+) (any, error) {
+	return nil, nil
+}
+
+func (m *asyncObserverManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
+	go func() {
+		<-m.releaseCh
+		m.callsCh <- asyncObserverCall{hook: hook, payload: payload}
+	}()
+}
+
+func (m *asyncObserverManager) release() {
+	select {
+	case <-m.releaseCh:
+	default:
+		close(m.releaseCh)
+	}
+}
+
+func (m *asyncObserverManager) waitForCalls(t *testing.T, count int) []asyncObserverCall {
+	t.Helper()
+
+	calls := make([]asyncObserverCall, 0, count)
+	deadline := time.After(2 * time.Second)
+	for len(calls) < count {
+		select {
+		case call := <-m.callsCh:
+			calls = append(calls, call)
+		case <-deadline:
+			t.Fatalf("timed out waiting for %d observer calls, got %d", count, len(calls))
+		}
+	}
+	return calls
 }
 
 func openRuntimeEventCapture(

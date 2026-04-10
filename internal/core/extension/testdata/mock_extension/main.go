@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -117,15 +118,15 @@ func run(transport *subprocess.Transport, rec recorder) error {
 		"extension_source": os.Getenv("COMPOZY_EXTENSION_SOURCE"),
 	})
 	rec.write("initialize_request", map[string]any{
-		"protocol_version":       request.ProtocolVersion,
-		"granted_capabilities":   request.GrantedCapabilities,
-		"run_id":                 request.Runtime.RunID,
-		"parent_run_id":          request.Runtime.ParentRunID,
-		"workspace_root":         request.Runtime.WorkspaceRoot,
-		"invoking_command":       request.Runtime.InvokingCommand,
-		"shutdown_timeout_ms":    request.Runtime.ShutdownTimeoutMS,
-		"default_hook_timeout":   request.Runtime.DefaultHookTimeoutMS,
-		"health_check_interval":  request.Runtime.HealthCheckIntervalMS,
+		"protocol_version":      request.ProtocolVersion,
+		"granted_capabilities":  request.GrantedCapabilities,
+		"run_id":                request.Runtime.RunID,
+		"parent_run_id":         request.Runtime.ParentRunID,
+		"workspace_root":        request.Runtime.WorkspaceRoot,
+		"invoking_command":      request.Runtime.InvokingCommand,
+		"shutdown_timeout_ms":   request.Runtime.ShutdownTimeoutMS,
+		"default_hook_timeout":  request.Runtime.DefaultHookTimeoutMS,
+		"health_check_interval": request.Runtime.HealthCheckIntervalMS,
 	})
 
 	response := buildInitializeResponse(mode, request)
@@ -170,7 +171,7 @@ func run(transport *subprocess.Transport, rec recorder) error {
 			})
 			if err := transport.WriteMessage(subprocess.Message{
 				ID:     message.ID,
-				Result: mustMarshal(executeHookResponse{Patch: patchPayload()}),
+				Result: mustMarshal(executeHookResponse{Patch: patchPayload(request)}),
 			}); err != nil {
 				return err
 			}
@@ -353,12 +354,112 @@ func contains(values []string, target string) bool {
 	return false
 }
 
-func patchPayload() json.RawMessage {
+func patchPayload(request executeHookRequest) json.RawMessage {
+	if patch := appendPatchPayload(request); len(patch) > 0 {
+		return patch
+	}
+
 	raw := strings.TrimSpace(os.Getenv("COMPOZY_MOCK_PATCH_JSON"))
 	if raw == "" {
 		return json.RawMessage(`{}`)
 	}
 	return json.RawMessage(raw)
+}
+
+func appendPatchPayload(request executeHookRequest) json.RawMessage {
+	raw := strings.TrimSpace(os.Getenv("COMPOZY_MOCK_APPEND_SUFFIXES_JSON"))
+	if raw == "" {
+		return nil
+	}
+
+	var suffixes map[string]string
+	if err := json.Unmarshal([]byte(raw), &suffixes); err != nil {
+		return nil
+	}
+	suffix := suffixes[strings.TrimSpace(request.Hook.Event)]
+	if suffix == "" {
+		return nil
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(request.Payload, &payload); err != nil {
+		return nil
+	}
+
+	switch {
+	case updatePromptText(payload, suffix):
+		return mustMarshal(map[string]any{"prompt_text": payload["prompt_text"]})
+	case updateSystemAddendum(payload, suffix):
+		return mustMarshal(map[string]any{"system_addendum": payload["system_addendum"]})
+	case updateEntries(payload, suffix):
+		return mustMarshal(map[string]any{"entries": payload["entries"]})
+	case updateSessionRequestPrompt(payload, suffix):
+		return mustMarshal(map[string]any{"session_request": payload["session_request"]})
+	default:
+		return nil
+	}
+}
+
+func updatePromptText(payload map[string]any, suffix string) bool {
+	current, ok := payload["prompt_text"].(string)
+	if !ok {
+		return false
+	}
+	payload["prompt_text"] = current + suffix
+	return true
+}
+
+func updateSystemAddendum(payload map[string]any, suffix string) bool {
+	current, ok := payload["system_addendum"].(string)
+	if !ok {
+		return false
+	}
+	payload["system_addendum"] = current + suffix
+	return true
+}
+
+func updateEntries(payload map[string]any, suffix string) bool {
+	rawEntries, ok := payload["entries"].([]any)
+	if !ok {
+		return false
+	}
+
+	updated := false
+	for _, rawEntry := range rawEntries {
+		entry, ok := rawEntry.(map[string]any)
+		if !ok {
+			continue
+		}
+		current, ok := entry["Content"].(string)
+		if !ok {
+			continue
+		}
+		entry["Content"] = current + suffix
+		updated = true
+	}
+	if updated {
+		payload["entries"] = rawEntries
+	}
+	return updated
+}
+
+func updateSessionRequestPrompt(payload map[string]any, suffix string) bool {
+	rawSessionRequest, ok := payload["session_request"].(map[string]any)
+	if !ok {
+		return false
+	}
+	encodedPrompt, ok := rawSessionRequest["prompt"].(string)
+	if !ok {
+		return false
+	}
+	decodedPrompt, err := base64.StdEncoding.DecodeString(encodedPrompt)
+	if err != nil {
+		return false
+	}
+
+	rawSessionRequest["prompt"] = base64.StdEncoding.EncodeToString(append(decodedPrompt, []byte(suffix)...))
+	payload["session_request"] = rawSessionRequest
+	return true
 }
 
 func durationFromEnv(name string, fallback time.Duration) time.Duration {

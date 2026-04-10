@@ -31,9 +31,9 @@ type Session interface {
 
 // SessionIdentity captures the stable ACP and provider-specific ids for a session.
 type SessionIdentity struct {
-	ACPSessionID   string
-	AgentSessionID string
-	Resumed        bool
+	ACPSessionID   string `json:"acp_session_id"`
+	AgentSessionID string `json:"agent_session_id,omitempty"`
+	Resumed        bool   `json:"resumed,omitempty"`
 }
 
 const (

@@ -339,7 +339,7 @@ func TestExecuteACPJSONModeWritesStructuredFailureResult(t *testing.T) {
 			OutputFormat:           model.OutputFormatJSON,
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 2,
-		})
+		}, nil)
 	})
 	if execErr == nil {
 		t.Fatal("expected JSON execution failure")
@@ -417,7 +417,7 @@ func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
 			OutputFormat:           model.OutputFormatJSON,
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 2,
-		})
+		}, nil)
 	})
 	if execErr != nil {
 		t.Fatalf("expected JSON execution success: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)
@@ -528,6 +528,7 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 		prep.Journal(),
 		prep.EventBus(),
 		cfg,
+		nil,
 	); err != nil {
 		t.Fatalf("execute: %v", err)
 	}

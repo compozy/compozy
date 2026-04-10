@@ -19,6 +19,8 @@ import (
 // extension-aware runtime manager.
 type RuntimeManager interface {
 	Start(context.Context) error
+	DispatchMutableHook(context.Context, string, any) (any, error)
+	DispatchObserverHook(context.Context, string, any)
 	Shutdown(context.Context) error
 }
 

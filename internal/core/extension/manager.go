@@ -109,6 +109,12 @@ func (m *Manager) DispatchMutable(ctx context.Context, hook HookName, input any)
 	return m.dispatcher.DispatchMutable(ctx, hook, input)
 }
 
+// DispatchMutableHook adapts the generic runtime-manager hook interface onto
+// the extension hook dispatcher.
+func (m *Manager) DispatchMutableHook(ctx context.Context, hook string, input any) (any, error) {
+	return m.DispatchMutable(ctx, HookName(strings.TrimSpace(hook)), input)
+}
+
 // DispatchObserver fans out one observe-only hook using the dispatcher’s
 // existing best-effort semantics.
 func (m *Manager) DispatchObserver(ctx context.Context, hook HookName, payload any) {
@@ -116,6 +122,12 @@ func (m *Manager) DispatchObserver(ctx context.Context, hook HookName, payload a
 		return
 	}
 	m.dispatcher.DispatchObserver(ctx, hook, payload)
+}
+
+// DispatchObserverHook adapts the generic runtime-manager hook interface onto
+// the extension hook dispatcher.
+func (m *Manager) DispatchObserverHook(ctx context.Context, hook string, payload any) {
+	m.DispatchObserver(ctx, HookName(strings.TrimSpace(hook)), payload)
 }
 
 func (m *Manager) executableExtensions() []*RuntimeExtension {

@@ -287,7 +287,15 @@ func runDirect(ctx context.Context, cfg Config) error {
 		return err
 	}
 
-	runErr := run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), prep.EventBus(), runtimeCfg)
+	runErr := run.Execute(
+		ctx,
+		prep.Jobs,
+		prep.RunArtifacts,
+		prep.Journal(),
+		prep.EventBus(),
+		runtimeCfg,
+		prep.RuntimeManager(),
+	)
 	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
 	return errors.Join(runErr, prep.CloseJournal(closeCtx))

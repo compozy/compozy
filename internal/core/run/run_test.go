@@ -25,6 +25,7 @@ func TestExecuteDelegatesToExecutorPackage(t *testing.T) {
 		_ *journal.Journal,
 		_ *events.Bus[events.Event],
 		cfg *model.RuntimeConfig,
+		_ model.RuntimeManager,
 	) error {
 		called = true
 		if len(jobs) != 1 || jobs[0].SafeName != "task_01" {
@@ -46,6 +47,7 @@ func TestExecuteDelegatesToExecutorPackage(t *testing.T) {
 		nil,
 		nil,
 		&model.RuntimeConfig{WorkspaceRoot: "/tmp/workspace"},
+		nil,
 	)
 	if !called {
 		t.Fatal("expected Execute to delegate to executor package")

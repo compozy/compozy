@@ -49,7 +49,7 @@ func TestExecuteDryRunCompletesTopLevelFlow(t *testing.T) {
 		ReasoningEffort:        "medium",
 		RetryBackoffMultiplier: 2,
 		Mode:                   model.ExecutionModePRReview,
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("execute dry run: %v", err)
 	}

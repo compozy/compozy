@@ -410,14 +410,20 @@ func (o *defaultKernelOps) RenderPrompt(
 		}
 	}
 
-	var rendered string
+	var (
+		rendered string
+		err      error
+	)
 	switch strings.TrimSpace(req.Template) {
 	case hostPromptTemplateBuild:
-		rendered = coreprompt.Build(params)
+		rendered, err = coreprompt.Build(params)
 	case hostPromptTemplateSystemAddendum:
-		rendered = coreprompt.BuildSystemPromptAddendum(params)
+		rendered, err = coreprompt.BuildSystemPromptAddendum(params)
 	default:
 		return nil, NewMethodNotFoundError("host.prompts.render." + strings.TrimSpace(req.Template))
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	return &PromptRenderResult{Rendered: rendered}, nil

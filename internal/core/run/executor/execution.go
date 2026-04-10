@@ -28,8 +28,10 @@ func Execute(
 	runJournal *journal.Journal,
 	bus *events.Bus[events.Event],
 	cfg *model.RuntimeConfig,
+	manager model.RuntimeManager,
 ) (retErr error) {
 	internalCfg := newConfig(cfg, runArtifacts)
+	internalCfg.RuntimeManager = manager
 	internalJobs := newJobs(jobs)
 	bus = ensureRuntimeEventBus(internalCfg, runJournal, bus)
 	startedAt := time.Now().UTC()

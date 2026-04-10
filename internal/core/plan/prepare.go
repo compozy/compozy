@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -75,11 +76,70 @@ func prepareWorkflowRun(
 		return err
 	}
 
-	groupedEntries, _ := groupIssuesByCodeFile(entries)
-	prep.Jobs, err = prepareJobs(cfg, groupedEntries, prep.RunArtifacts, agentExecution)
+	preGroup, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"plan.pre_group",
+		planEntriesPayload{
+			RunID:   prep.RunArtifacts.RunID,
+			Entries: entries,
+		},
+	)
 	if err != nil {
 		return err
 	}
+
+	groupedEntries, _ := groupIssuesByCodeFile(preGroup.Entries)
+	postGroup, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"plan.post_group",
+		planGroupsPayload{
+			RunID:  prep.RunArtifacts.RunID,
+			Groups: groupedEntries,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	prePrepareJobs, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"plan.pre_prepare_jobs",
+		planGroupsPayload{
+			RunID:  prep.RunArtifacts.RunID,
+			Groups: postGroup.Groups,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	prep.Jobs, err = prepareJobs(
+		ctx,
+		cfg,
+		prePrepareJobs.Groups,
+		prep.RunArtifacts,
+		prep.RuntimeManager(),
+		agentExecution,
+	)
+	if err != nil {
+		return err
+	}
+	postPrepareJobs, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"plan.post_prepare_jobs",
+		planJobsPayload{
+			RunID: prep.RunArtifacts.RunID,
+			Jobs:  prep.Jobs,
+		},
+	)
+	if err != nil {
+		return err
+	}
+	prep.Jobs = postPrepareJobs.Jobs
 
 	return writeRunMetadata(prep, cfg)
 }
@@ -101,11 +161,55 @@ func resolvePreparedEntries(
 		return nil, err
 	}
 
+	preDiscover, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"plan.pre_discover",
+		planPreDiscoverPayload{
+			RunID:    prep.RunArtifacts.RunID,
+			Workflow: prep.ResolvedName,
+			Mode:     cfg.Mode,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	entries, err := readIssueEntries(prep.InputDirPath, cfg.Mode, cfg.IncludeCompleted)
 	if err != nil {
 		return nil, err
 	}
-	return validateAndFilterEntries(entries, cfg)
+	if len(preDiscover.ExtraSources) > 0 {
+		extraEntries, err := readExtraIssueEntries(
+			resolveExtraSourceBaseDir(prep.InputDirPath, cfg.WorkspaceRoot),
+			cfg,
+			preDiscover.ExtraSources,
+		)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, extraEntries...)
+		entries = dedupeIssueEntries(entries)
+	}
+
+	entries, err = validateAndFilterEntries(entries, cfg)
+	if err != nil {
+		return nil, err
+	}
+	postDiscover, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"plan.post_discover",
+		planPostDiscoverPayload{
+			RunID:    prep.RunArtifacts.RunID,
+			Workflow: prep.ResolvedName,
+			Entries:  entries,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return postDiscover.Entries, nil
 }
 
 func configureWorkflowInput(prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
@@ -167,9 +271,11 @@ func prepareExec(
 }
 
 func prepareJobs(
+	ctx context.Context,
 	cfg *model.RuntimeConfig,
 	groups map[string][]model.IssueEntry,
 	runArtifacts model.RunArtifacts,
+	manager model.RuntimeManager,
 	agentExecution *reusableagents.ExecutionContext,
 ) ([]model.Job, error) {
 	effectiveBatchSize := cfg.BatchSize
@@ -188,7 +294,7 @@ func prepareJobs(
 
 	jobs := make([]model.Job, 0, len(batches))
 	for idx, batchIssues := range batches {
-		job, err := buildBatchJob(cfg, runArtifacts, idx, batchIssues, agentExecution)
+		job, err := buildBatchJob(ctx, cfg, runArtifacts, manager, idx, batchIssues, agentExecution)
 		if err != nil {
 			return nil, err
 		}
@@ -201,8 +307,10 @@ func prepareJobs(
 }
 
 func buildBatchJob(
+	ctx context.Context,
 	cfg *model.RuntimeConfig,
 	runArtifacts model.RunArtifacts,
+	manager model.RuntimeManager,
 	batchIdx int,
 	batchIssues []model.IssueEntry,
 	agentExecution *reusableagents.ExecutionContext,
@@ -222,6 +330,10 @@ func buildBatchJob(
 		BatchGroups: batchGroups,
 		AutoCommit:  cfg.AutoCommit,
 		Mode:        cfg.Mode,
+		Context:     ctx,
+		RunID:       runArtifacts.RunID,
+		JobID:       safeName,
+		RuntimeMgr:  manager,
 	}
 	if cfg.Mode == model.ExecutionModePRDTasks {
 		if len(batchIssues) == 0 {
@@ -244,8 +356,14 @@ func buildBatchJob(
 		}
 	}
 
-	promptText := prompt.Build(params)
-	systemPrompt := prompt.BuildSystemPromptAddendum(params)
+	promptText, err := prompt.Build(params)
+	if err != nil {
+		return model.Job{}, err
+	}
+	systemPrompt, err := prompt.BuildSystemPromptAddendum(params)
+	if err != nil {
+		return model.Job{}, err
+	}
 	if agentExecution != nil {
 		systemPrompt = agentExecution.SystemPrompt(systemPrompt)
 	}
@@ -446,4 +564,125 @@ func groupIssuesByCodeFile(issues []model.IssueEntry) (map[string][]model.IssueE
 	}
 	sort.Strings(batchFiles)
 	return batchGroups, batchFiles
+}
+
+type planPreDiscoverPayload struct {
+	RunID        string              `json:"run_id"`
+	Workflow     string              `json:"workflow"`
+	Mode         model.ExecutionMode `json:"mode"`
+	ExtraSources []string            `json:"extra_sources,omitempty"`
+}
+
+type planPostDiscoverPayload struct {
+	RunID    string             `json:"run_id"`
+	Workflow string             `json:"workflow"`
+	Entries  []model.IssueEntry `json:"entries,omitempty"`
+}
+
+type planEntriesPayload struct {
+	RunID   string             `json:"run_id"`
+	Entries []model.IssueEntry `json:"entries,omitempty"`
+}
+
+type planGroupsPayload struct {
+	RunID  string                        `json:"run_id"`
+	Groups map[string][]model.IssueEntry `json:"groups,omitempty"`
+}
+
+type planJobsPayload struct {
+	RunID string      `json:"run_id"`
+	Jobs  []model.Job `json:"jobs,omitempty"`
+}
+
+func resolveExtraSourceBaseDir(inputDir string, workspaceRoot string) string {
+	if strings.TrimSpace(workspaceRoot) != "" {
+		return workspaceRoot
+	}
+	return inputDir
+}
+
+func readExtraIssueEntries(
+	baseDir string,
+	cfg *model.RuntimeConfig,
+	sources []string,
+) ([]model.IssueEntry, error) {
+	entries := make([]model.IssueEntry, 0)
+	for _, source := range sources {
+		resolvedSource, err := resolveExtraSourcePath(baseDir, source)
+		if err != nil {
+			return nil, fmt.Errorf("resolve extra issue source %q: %w", source, err)
+		}
+		items, err := readIssueEntriesFromSource(resolvedSource, cfg.Mode, cfg.IncludeCompleted)
+		if err != nil {
+			return nil, fmt.Errorf("read extra issue source %q: %w", source, err)
+		}
+		entries = append(entries, items...)
+	}
+	return entries, nil
+}
+
+func resolveExtraSourcePath(baseDir string, source string) (string, error) {
+	trimmed := strings.TrimSpace(source)
+	if trimmed == "" {
+		return "", errors.New("empty extra source")
+	}
+	if filepath.IsAbs(trimmed) {
+		return filepath.Clean(trimmed), nil
+	}
+	if strings.TrimSpace(baseDir) == "" {
+		return filepath.Abs(trimmed)
+	}
+	return filepath.Abs(filepath.Join(baseDir, trimmed))
+}
+
+func readIssueEntriesFromSource(
+	resolvedSource string,
+	mode model.ExecutionMode,
+	includeCompleted bool,
+) ([]model.IssueEntry, error) {
+	info, err := os.Stat(resolvedSource)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		return readIssueEntries(resolvedSource, mode, includeCompleted)
+	}
+
+	parent := filepath.Dir(resolvedSource)
+	entries, err := readIssueEntries(parent, mode, includeCompleted)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]model.IssueEntry, 0, 1)
+	for _, entry := range entries {
+		if filepath.Clean(entry.AbsPath) != filepath.Clean(resolvedSource) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	if len(filtered) == 0 {
+		return nil, fmt.Errorf("no issue entries found for %q", resolvedSource)
+	}
+	return filtered, nil
+}
+
+func dedupeIssueEntries(entries []model.IssueEntry) []model.IssueEntry {
+	if len(entries) <= 1 {
+		return entries
+	}
+
+	seen := make(map[string]struct{}, len(entries))
+	deduped := make([]model.IssueEntry, 0, len(entries))
+	for _, entry := range entries {
+		key := strings.TrimSpace(entry.AbsPath)
+		if key == "" {
+			key = entry.Name + "::" + entry.CodeFile
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		deduped = append(deduped, entry)
+	}
+	return deduped
 }

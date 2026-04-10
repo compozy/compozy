@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +47,67 @@ func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) 
 	if session.Err() != nil {
 		t.Fatalf("unexpected session error: %v", session.Err())
 	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientCreateSessionAppliesPreSessionCreateMutationAndPostCreateObserver(t *testing.T) {
+	t.Parallel()
+
+	const promptSuffix = " ::mutated"
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_create": func(input any) (any, error) {
+				payload := input.(sessionCreateHookPayload)
+				payload.SessionRequest.Prompt = append(payload.SessionRequest.Prompt, []byte(promptSuffix)...)
+				return payload, nil
+			},
+		},
+	}
+
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "hook me" + promptSuffix,
+		StopReason:     string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		Prompt:     []byte("hook me"),
+		WorkingDir: scenario.ExpectedCWD,
+		RunID:      "run-123",
+		JobID:      "job-123",
+		RuntimeMgr: manager,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected updates: %#v", updates)
+	}
+
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if got, want := manager.mutableHooks, []string{"agent.pre_session_create"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected mutable hook order\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if got, want := manager.observerHooks, []string{"agent.post_session_create"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected observer hooks\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if len(manager.observerPayloads) != 1 {
+		t.Fatalf("expected one post-create payload, got %d", len(manager.observerPayloads))
+	}
+	payload := manager.observerPayloads[0].(sessionCreatedHookPayload)
+	if payload.RunID != "run-123" || payload.JobID != "job-123" {
+		t.Fatalf("unexpected observer payload ids: %#v", payload)
+	}
+	if payload.SessionID == "" {
+		t.Fatalf("expected observer payload to carry session id, got %#v", payload)
+	}
+
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
 	}
@@ -326,6 +388,107 @@ func TestClientResumeSessionRejectsUnsupportedMCPTransport(t *testing.T) {
 	}
 }
 
+func TestClientResumeSessionAppliesPreSessionResumeMutation(t *testing.T) {
+	t.Parallel()
+
+	const promptSuffix = " ::resume-mutated"
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_resume": func(input any) (any, error) {
+				payload := input.(sessionResumeHookPayload)
+				payload.ResumeRequest.Prompt = append(payload.ResumeRequest.Prompt, []byte(promptSuffix)...)
+				return payload, nil
+			},
+		},
+	}
+
+	scenario := helperScenario{
+		SessionID:             "sess-existing",
+		ExpectedCWD:           t.TempDir(),
+		ExpectedLoadSessionID: "sess-existing",
+		ExpectedPrompt:        "continue" + promptSuffix,
+		SupportsLoadSession:   true,
+		Updates:               []acp.SessionUpdate{acp.UpdateAgentMessageText("fresh response")},
+		StopReason:            string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		Prompt:     []byte("continue"),
+		WorkingDir: scenario.ExpectedCWD,
+		RunID:      "run-456",
+		JobID:      "job-456",
+		RuntimeMgr: manager,
+	})
+	if err != nil {
+		t.Fatalf("resume session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 2 {
+		t.Fatalf("unexpected update count: got %d want 2", len(updates))
+	}
+
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if got, want := manager.mutableHooks, []string{"agent.pre_session_resume"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected resume hook order\nwant: %#v\ngot:  %#v", want, got)
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestSessionRequestDispatchPreCreateHookWithoutManagerReturnsOriginal(t *testing.T) {
+	t.Parallel()
+
+	request := SessionRequest{
+		Prompt:     []byte("keep me"),
+		WorkingDir: t.TempDir(),
+	}
+
+	got, err := request.dispatchPreCreateHook()
+	if err != nil {
+		t.Fatalf("dispatchPreCreateHook() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, request) {
+		t.Fatalf("expected original request, got %#v", got)
+	}
+}
+
+func TestResumeSessionRequestDispatchPreResumeHookWithoutManagerReturnsOriginal(t *testing.T) {
+	t.Parallel()
+
+	request := ResumeSessionRequest{
+		SessionID:  "sess-123",
+		Prompt:     []byte("keep me"),
+		WorkingDir: t.TempDir(),
+	}
+
+	got, err := request.dispatchPreResumeHook()
+	if err != nil {
+		t.Fatalf("dispatchPreResumeHook() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, request) {
+		t.Fatalf("expected original resume request, got %#v", got)
+	}
+}
+
+func TestNewSessionOutcome(t *testing.T) {
+	t.Parallel()
+
+	success := newSessionOutcome(model.StatusCompleted, nil)
+	if success.Status != model.StatusCompleted || success.Error != "" {
+		t.Fatalf("unexpected success outcome: %#v", success)
+	}
+
+	failure := newSessionOutcome(model.StatusFailed, errors.New("boom"))
+	if failure.Status != model.StatusFailed || failure.Error != "boom" {
+		t.Fatalf("unexpected failure outcome: %#v", failure)
+	}
+}
 func TestSessionErrReturnsStructuredPromptError(t *testing.T) {
 	t.Parallel()
 
@@ -1148,4 +1311,38 @@ func firstPromptText(blocks []acp.ContentBlock) string {
 func outcomeHasVariant(outcome acp.RequestPermissionOutcome, variant string) bool {
 	field := reflect.ValueOf(outcome).FieldByName(variant)
 	return field.IsValid() && field.Kind() == reflect.Pointer && !field.IsNil()
+}
+
+type agentHookManager struct {
+	mu               sync.Mutex
+	mutators         map[string]func(any) (any, error)
+	mutableHooks     []string
+	observerHooks    []string
+	observerPayloads []any
+}
+
+func (*agentHookManager) Start(context.Context) error { return nil }
+
+func (*agentHookManager) Shutdown(context.Context) error { return nil }
+
+func (m *agentHookManager) DispatchMutableHook(
+	_ context.Context,
+	hook string,
+	input any,
+) (any, error) {
+	m.mu.Lock()
+	m.mutableHooks = append(m.mutableHooks, hook)
+	mutate := m.mutators[hook]
+	m.mu.Unlock()
+	if mutate == nil {
+		return input, nil
+	}
+	return mutate(input)
+}
+
+func (m *agentHookManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.observerHooks = append(m.observerHooks, hook)
+	m.observerPayloads = append(m.observerPayloads, payload)
 }

@@ -265,6 +265,9 @@ func prepareExecExecution(
 		cfg.RunID = state.runArtifacts.RunID
 	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
+	if scope != nil {
+		internalCfg.RuntimeManager = scope.RunManager()
+	}
 	execJob, err := newExecRuntimeJob(promptText, state, agentExecution, cfg)
 	if err != nil {
 		state.close()
