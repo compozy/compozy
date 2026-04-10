@@ -586,6 +586,36 @@ func TestBuildConfigUsesExecFieldsForExecWorkflow(t *testing.T) {
 	}
 }
 
+func TestCaptureExplicitRuntimeFlagsUsesCobraChangedSemantics(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+
+	unset := captureExplicitRuntimeFlags(cmd)
+	if unset.Model || unset.IDE || unset.ReasoningEffort || unset.AccessMode {
+		t.Fatalf("expected no runtime flags to be marked explicit when unset, got %#v", unset)
+	}
+
+	if err := cmd.Flags().Set("model", ""); err != nil {
+		t.Fatalf("set model flag: %v", err)
+	}
+	if err := cmd.Flags().Set("access-mode", core.AccessModeFull); err != nil {
+		t.Fatalf("set access-mode flag: %v", err)
+	}
+
+	explicit := captureExplicitRuntimeFlags(cmd)
+	if !explicit.Model {
+		t.Fatalf("expected explicit empty model flag to be preserved, got %#v", explicit)
+	}
+	if !explicit.AccessMode {
+		t.Fatalf("expected access-mode flag set to its default value to still count as explicit, got %#v", explicit)
+	}
+	if explicit.IDE || explicit.ReasoningEffort {
+		t.Fatalf("expected only changed flags to be explicit, got %#v", explicit)
+	}
+}
+
 func TestResolveExecPromptSourceHandlesPromptVariants(t *testing.T) {
 	t.Parallel()
 

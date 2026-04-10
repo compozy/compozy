@@ -2,6 +2,15 @@ package model
 
 import "time"
 
+// ExplicitRuntimeFlags tracks which runtime fields were explicitly overridden
+// by the current caller, using CLI-compatible `Flags().Changed(...)` semantics.
+type ExplicitRuntimeFlags struct {
+	IDE             bool
+	Model           bool
+	ReasoningEffort bool
+	AccessMode      bool
+}
+
 type RuntimeConfig struct {
 	WorkspaceRoot          string
 	Name                   string
@@ -21,6 +30,8 @@ type RuntimeConfig struct {
 	TailLines              int
 	ReasoningEffort        string
 	AccessMode             string
+	AgentName              string
+	ExplicitRuntime        ExplicitRuntimeFlags
 	Mode                   ExecutionMode
 	OutputFormat           OutputFormat
 	Verbose                bool

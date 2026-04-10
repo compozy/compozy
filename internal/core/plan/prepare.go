@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/memory"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/prompt"
@@ -37,8 +38,13 @@ func Prepare(
 		ClosePreparationJournal(ctx, prep)
 	}()
 
+	agentExecution, err := reusableagents.ResolveExecutionContext(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	if cfg.Mode == model.ExecutionModeExec {
-		execPrep, err := prepareExec(ctx, prep, cfg, bus)
+		execPrep, err := prepareExec(ctx, prep, cfg, agentExecution, bus)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +52,7 @@ func Prepare(
 		return execPrep, nil
 	}
 
-	if err := prepareWorkflowRun(ctx, prep, cfg, bus); err != nil {
+	if err := prepareWorkflowRun(ctx, prep, cfg, agentExecution, bus); err != nil {
 		return nil, err
 	}
 
@@ -58,6 +64,7 @@ func prepareWorkflowRun(
 	ctx context.Context,
 	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
+	agentExecution *reusableagents.ExecutionContext,
 	bus *events.Bus[events.Event],
 ) error {
 	entries, err := resolvePreparedEntries(ctx, prep, cfg)
@@ -76,7 +83,7 @@ func prepareWorkflowRun(
 	prep.SetJournal(runJournal)
 
 	groupedEntries, _ := groupIssuesByCodeFile(entries)
-	prep.Jobs, err = prepareJobs(cfg, groupedEntries, prep.RunArtifacts)
+	prep.Jobs, err = prepareJobs(cfg, groupedEntries, prep.RunArtifacts, agentExecution)
 	if err != nil {
 		return err
 	}
@@ -139,6 +146,7 @@ func prepareExec(
 	ctx context.Context,
 	prep *model.SolvePreparation,
 	cfg *model.RuntimeConfig,
+	agentExecution *reusableagents.ExecutionContext,
 	bus *events.Bus[events.Event],
 ) (*model.SolvePreparation, error) {
 	promptText, err := resolveExecPrompt(cfg)
@@ -163,7 +171,7 @@ func prepareExec(
 	}
 	prep.SetJournal(runJournal)
 
-	job, err := buildExecJob(prep.RunArtifacts, promptText)
+	job, err := buildExecJob(prep.RunArtifacts, promptText, agentExecution)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +187,7 @@ func prepareJobs(
 	cfg *model.RuntimeConfig,
 	groups map[string][]model.IssueEntry,
 	runArtifacts model.RunArtifacts,
+	agentExecution *reusableagents.ExecutionContext,
 ) ([]model.Job, error) {
 	effectiveBatchSize := cfg.BatchSize
 	if cfg.Mode == model.ExecutionModePRDTasks {
@@ -196,7 +205,7 @@ func prepareJobs(
 
 	jobs := make([]model.Job, 0, len(batches))
 	for idx, batchIssues := range batches {
-		job, err := buildBatchJob(cfg, runArtifacts, idx, batchIssues)
+		job, err := buildBatchJob(cfg, runArtifacts, idx, batchIssues, agentExecution)
 		if err != nil {
 			return nil, err
 		}
@@ -213,6 +222,7 @@ func buildBatchJob(
 	runArtifacts model.RunArtifacts,
 	batchIdx int,
 	batchIssues []model.IssueEntry,
+	agentExecution *reusableagents.ExecutionContext,
 ) (model.Job, error) {
 	batchGroups, batchFiles := groupIssuesByCodeFile(batchIssues)
 	safeName := determineBatchName(batchIdx, batchFiles, cfg.Mode)
@@ -253,6 +263,9 @@ func buildBatchJob(
 
 	promptText := prompt.Build(params)
 	systemPrompt := prompt.BuildSystemPromptAddendum(params)
+	if agentExecution != nil {
+		systemPrompt = agentExecution.SystemPrompt(systemPrompt)
+	}
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(runArtifacts, safeName, promptText)
 	if err != nil {
 		return model.Job{}, err
@@ -271,8 +284,17 @@ func buildBatchJob(
 	}, nil
 }
 
-func buildExecJob(runArtifacts model.RunArtifacts, promptText string) (model.Job, error) {
+func buildExecJob(
+	runArtifacts model.RunArtifacts,
+	promptText string,
+	agentExecution *reusableagents.ExecutionContext,
+) (model.Job, error) {
 	const safeName = "exec"
+
+	systemPrompt := ""
+	if agentExecution != nil {
+		systemPrompt = agentExecution.SystemPrompt("")
+	}
 
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(runArtifacts, safeName, promptText)
 	if err != nil {
@@ -290,6 +312,7 @@ func buildExecJob(runArtifacts model.RunArtifacts, promptText string) (model.Job
 		},
 		SafeName:      safeName,
 		Prompt:        []byte(promptText),
+		SystemPrompt:  systemPrompt,
 		OutPromptPath: outPromptPath,
 		OutLog:        outLog,
 		ErrLog:        errLog,

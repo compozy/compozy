@@ -8,11 +8,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	acp "github.com/coder/acp-go-sdk"
 
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -336,6 +339,135 @@ func TestShouldEmitLeanSessionUpdateKeepsOnlyUserFacingAndTerminalUpdates(t *tes
 	}
 }
 
+func TestExecuteExecWithSelectedAgentResolvesRuntimeAndCanonicalSystemPrompt(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	plannerDir := filepath.Join(workspaceRoot, model.WorkflowRootDirName, "agents", "planner")
+	if err := os.MkdirAll(plannerDir, 0o755); err != nil {
+		t.Fatalf("mkdir planner agent dir: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(plannerDir, "AGENT.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"title: Planner",
+			"description: Plans the work",
+			"ide: claude",
+			"model: agent-model",
+			"access_mode: default",
+			"---",
+			"",
+			"Plan the work carefully.",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write planner agent: %v", err)
+	}
+
+	reviewerDir := filepath.Join(workspaceRoot, model.WorkflowRootDirName, "agents", "reviewer")
+	if err := os.MkdirAll(reviewerDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviewer agent dir: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(reviewerDir, "AGENT.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"title: Reviewer",
+			"description: Reviews code",
+			"ide: codex",
+			"---",
+			"",
+			"Review the code.",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write reviewer agent: %v", err)
+	}
+
+	var (
+		gotClientCfg agent.ClientConfig
+		gotReq       agent.SessionRequest
+	)
+	restore := acpshared.SwapNewAgentClientForTest(
+		func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
+			gotClientCfg = cfg
+			return &capturingExecACPClient{
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+					gotReq = req
+					session := newCapturingExecSession("sess-agent")
+					go session.finish(nil)
+					return session, nil
+				},
+			}, nil
+		},
+	)
+	t.Cleanup(restore)
+
+	err := ExecuteExec(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot:          workspaceRoot,
+		IDE:                    model.IDECodex,
+		Model:                  "cli-model",
+		ReasoningEffort:        "workspace-reasoning",
+		AccessMode:             model.AccessModeFull,
+		Mode:                   model.ExecutionModeExec,
+		OutputFormat:           model.OutputFormatText,
+		PromptText:             "finish the task",
+		RetryBackoffMultiplier: 1.5,
+		AgentName:              "planner",
+		ExplicitRuntime: model.ExplicitRuntimeFlags{
+			Model: true,
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute exec with selected agent: %v", err)
+	}
+
+	if gotClientCfg.IDE != model.IDEClaude {
+		t.Fatalf("expected agent ide to reach ACP client config, got %q", gotClientCfg.IDE)
+	}
+	if gotClientCfg.Model != "cli-model" {
+		t.Fatalf("expected explicit model to reach ACP client config, got %q", gotClientCfg.Model)
+	}
+	if gotClientCfg.ReasoningEffort != "workspace-reasoning" {
+		t.Fatalf("expected existing reasoning effort to be preserved, got %q", gotClientCfg.ReasoningEffort)
+	}
+	if gotClientCfg.AccessMode != model.AccessModeDefault {
+		t.Fatalf("expected agent access mode to reach ACP client config, got %q", gotClientCfg.AccessMode)
+	}
+	if gotReq.Model != "cli-model" {
+		t.Fatalf("expected session request model to use explicit override, got %q", gotReq.Model)
+	}
+
+	promptText := string(gotReq.Prompt)
+	requiredSnippets := []string{
+		"<agent_metadata>",
+		"name: planner",
+		"title: Planner",
+		"description: Plans the work",
+		"source: workspace",
+		"<available_agents>",
+		"- reviewer: Reviews code (workspace)",
+		"Plan the work carefully.",
+		"finish the task",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(promptText, snippet) {
+			t.Fatalf("expected composed ACP prompt to include %q, got:\n%s", snippet, promptText)
+		}
+	}
+	if strings.Count(promptText, "<agent_metadata>") != 1 ||
+		strings.Count(promptText, "Plan the work carefully.") != 1 {
+		t.Fatalf("expected selected agent metadata and prompt body exactly once, got:\n%s", promptText)
+	}
+	if strings.Contains(promptText, "- planner:") {
+		t.Fatalf("expected discovery catalog to exclude selected agent, got:\n%s", promptText)
+	}
+}
+
 func latestPersistedExecRunID(t *testing.T, workspaceRoot string) string {
 	t.Helper()
 
@@ -487,4 +619,88 @@ func collectedRuntimeSessionUpdateKinds(t *testing.T, events []eventspkg.Event) 
 		updateKinds = append(updateKinds, string(payload.Update.Kind))
 	}
 	return updateKinds
+}
+
+type capturingExecACPClient struct {
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
+}
+
+func (c *capturingExecACPClient) CreateSession(ctx context.Context, req agent.SessionRequest) (agent.Session, error) {
+	return c.createSessionFn(ctx, req)
+}
+
+func (*capturingExecACPClient) ResumeSession(context.Context, agent.ResumeSessionRequest) (agent.Session, error) {
+	return nil, nil
+}
+
+func (*capturingExecACPClient) SupportsLoadSession() bool {
+	return false
+}
+
+func (*capturingExecACPClient) Close() error {
+	return nil
+}
+
+func (*capturingExecACPClient) Kill() error {
+	return nil
+}
+
+type capturingExecSession struct {
+	id      string
+	updates chan model.SessionUpdate
+	done    chan struct{}
+
+	mu       sync.RWMutex
+	err      error
+	finished bool
+}
+
+func newCapturingExecSession(id string) *capturingExecSession {
+	return &capturingExecSession{
+		id:      id,
+		updates: make(chan model.SessionUpdate, 1),
+		done:    make(chan struct{}),
+	}
+}
+
+func (s *capturingExecSession) ID() string {
+	return s.id
+}
+
+func (s *capturingExecSession) Identity() agent.SessionIdentity {
+	return agent.SessionIdentity{ACPSessionID: s.id}
+}
+
+func (s *capturingExecSession) Updates() <-chan model.SessionUpdate {
+	return s.updates
+}
+
+func (s *capturingExecSession) Done() <-chan struct{} {
+	return s.done
+}
+
+func (s *capturingExecSession) Err() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.err
+}
+
+func (*capturingExecSession) SlowPublishes() uint64 {
+	return 0
+}
+
+func (*capturingExecSession) DroppedUpdates() uint64 {
+	return 0
+}
+
+func (s *capturingExecSession) finish(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.finished {
+		return
+	}
+	s.finished = true
+	s.err = err
+	close(s.updates)
+	close(s.done)
 }
