@@ -157,6 +157,7 @@ func (m *Manager) initializeExtensionSession(
 ) (*extensionSession, initializeResponse, error) {
 	transport := subprocess.NewTransport(process.Stdout(), process.Stdin())
 	request := m.initializeRequestForExtension(extension)
+	startedAt := time.Now()
 	response, err := initializeExtensionTransport(ctx, transport, request)
 	if err != nil {
 		shutdownErr := process.Kill()
@@ -164,6 +165,7 @@ func (m *Manager) initializeExtensionSession(
 			fmt.Errorf("initialize extension %q: %w%s", extension.normalizedName(), err, formatProcessStderr(process)),
 			shutdownErr,
 		)
+		m.recordLifecycleAudit(extension, "initialize", time.Since(startedAt), combined)
 		return nil, initializeResponse{}, m.failExtensionStart(
 			ctx,
 			extension,
@@ -177,6 +179,7 @@ func (m *Manager) initializeExtensionSession(
 			fmt.Errorf("validate initialize response for %q: %w", extension.normalizedName(), err),
 			shutdownErr,
 		)
+		m.recordLifecycleAudit(extension, "initialize", time.Since(startedAt), combined)
 		return nil, initializeResponse{}, m.failExtensionStart(
 			ctx,
 			extension,
@@ -206,6 +209,7 @@ func (m *Manager) initializeExtensionSession(
 
 	m.registerSession(session)
 	m.startSessionWorkers(session)
+	m.recordLifecycleAudit(extension, "initialize", time.Since(startedAt), nil)
 
 	return session, response, nil
 }

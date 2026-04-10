@@ -63,15 +63,18 @@ func TestExecuteExecDelegatesToExecPackage(t *testing.T) {
 
 	wantErr := errors.New("exec called")
 	called := false
-	executeExec = func(_ context.Context, cfg *model.RuntimeConfig) error {
+	executeExec = func(_ context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {
 		called = true
 		if cfg == nil || cfg.PromptText != "run it" {
 			t.Fatalf("unexpected delegated config: %#v", cfg)
 		}
+		if scope != nil {
+			t.Fatalf("unexpected delegated scope: %#v", scope)
+		}
 		return wantErr
 	}
 
-	err := ExecuteExec(context.Background(), &model.RuntimeConfig{PromptText: "run it"})
+	err := ExecuteExec(context.Background(), &model.RuntimeConfig{PromptText: "run it"}, nil)
 	if !called {
 		t.Fatal("expected ExecuteExec to delegate to exec package")
 	}

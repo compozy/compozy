@@ -18,6 +18,7 @@ import (
 // RuntimeManager captures the lifecycle hook the planner/executor needs from an
 // extension-aware runtime manager.
 type RuntimeManager interface {
+	Start(context.Context) error
 	Shutdown(context.Context) error
 }
 
@@ -182,6 +183,9 @@ func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
 }
 
 func buildRunID(cfg *RuntimeConfig) string {
+	if cfg != nil && strings.TrimSpace(cfg.RunID) != "" {
+		return cfg.RunID
+	}
 	label := runLabel(cfg)
 	timestamp := time.Now().UTC().Format("20060102-150405-000000000")
 	return fmt.Sprintf("%s-%s", label, timestamp)

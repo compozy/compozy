@@ -316,13 +316,13 @@ func TestRuntimeHelpersHandleNilAndInvalidInputs(t *testing.T) {
 	if scope.RunManager() != nil {
 		t.Fatal("expected nil run manager")
 	}
-	if err := scope.Close(nil); err != nil {
-		t.Fatalf("Close(nil) error = %v", err)
+	if err := scope.Close(context.Background()); err != nil {
+		t.Fatalf("Close(background) error = %v", err)
 	}
 
 	var manager *Manager
-	if err := manager.Shutdown(nil); err != nil {
-		t.Fatalf("Shutdown(nil) error = %v", err)
+	if err := manager.Shutdown(context.Background()); err != nil {
+		t.Fatalf("Shutdown(background) error = %v", err)
 	}
 	if err := manager.closeAudit(context.Background()); err != nil {
 		t.Fatalf("closeAudit(nil manager) error = %v", err)

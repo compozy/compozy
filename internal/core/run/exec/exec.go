@@ -107,6 +107,7 @@ type execRunState struct {
 	runArtifacts model.RunArtifacts
 	events       *execEventEmitter
 	journal      *journal.Journal
+	ownsJournal  bool
 	turn         int
 	turnDir      string
 	turnPaths    execTurnPaths
@@ -208,9 +209,10 @@ func IsExecErrorReported(err error) bool {
 	return errors.As(err, &reported)
 }
 
-// ExecuteExec runs one headless-or-TUI exec turn with optional persistence and ACP resume.
-func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
-	promptText, state, internalCfg, execJob, err := prepareExecExecution(ctx, cfg)
+// ExecuteExec runs one headless-or-TUI exec turn with optional persistence,
+// ACP resume, and an optional pre-opened run scope.
+func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {
+	promptText, state, internalCfg, execJob, err := prepareExecExecution(ctx, cfg, scope)
 	if err != nil {
 		return err
 	}
@@ -229,7 +231,11 @@ func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
 	return finalizeExecResult(state, result)
 }
 
-func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string, *execRunState, *config, job, error) {
+func prepareExecExecution(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+) (string, *execRunState, *config, job, error) {
 	promptText, err := resolveExecPromptText(cfg)
 	if err != nil {
 		return "", nil, nil, job{}, err
@@ -241,7 +247,7 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return "", nil, nil, job{}, err
 	}
-	state, err := prepareExecRunState(ctx, cfg)
+	state, err := prepareExecRunState(ctx, cfg, scope)
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
@@ -473,21 +479,36 @@ func failExecAttempt(execution *sessionExecution, err error) execExecutionResult
 	}
 }
 
-func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig) (*execRunState, error) {
-	record, runID, err := resolvePersistedExecRecord(cfg)
-	if err != nil {
-		return nil, err
-	}
+func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) (*execRunState, error) {
 	resolvedModel, err := agent.ResolveRuntimeModel(cfg.IDE, cfg.Model)
 	if err != nil {
 		return nil, err
 	}
 	state := &execRunState{
 		ctx:      ctx,
-		record:   record,
-		turn:     atLeastOne(record.TurnCount + 1),
 		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI,
 	}
+	if scope != nil {
+		if strings.TrimSpace(cfg.RunID) != "" {
+			record, _, err := resolvePersistedExecRecord(cfg)
+			if err != nil {
+				return nil, err
+			}
+			state.record = record
+		}
+		state.turn = atLeastOne(state.record.TurnCount + 1)
+		if err := prepareScopedExecRunState(state, cfg, scope, resolvedModel); err != nil {
+			return nil, err
+		}
+		return state, nil
+	}
+
+	record, runID, err := resolvePersistedExecRecord(cfg)
+	if err != nil {
+		return nil, err
+	}
+	state.record = record
+	state.turn = atLeastOne(record.TurnCount + 1)
 	if !cfg.Persist {
 		return prepareEphemeralExecRunState(state, cfg, runID)
 	}
@@ -540,11 +561,37 @@ func preparePersistentExecRunState(
 		return fmt.Errorf("open exec events journal: %w", err)
 	}
 	state.journal = runJournal
+	state.ownsJournal = true
 	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, runID, resolvedModel)
 	}
 	return nil
+}
+
+func prepareScopedExecRunState(
+	state *execRunState,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+	resolvedModel string,
+) error {
+	if state == nil {
+		return fmt.Errorf("prepare scoped exec state: missing state")
+	}
+	if scope == nil {
+		return fmt.Errorf("prepare scoped exec state: missing run scope")
+	}
+
+	state.runArtifacts = scope.RunArtifacts()
+	state.journal = scope.RunJournal()
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	if strings.TrimSpace(state.record.RunID) == "" {
+		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, state.runArtifacts.RunID, resolvedModel)
+	}
+	if !cfg.Persist {
+		return nil
+	}
+	return ensureExecRunDirectories(state)
 }
 
 func ensureExecRunDirectories(state *execRunState) error {
@@ -595,7 +642,7 @@ func (s *execRunState) close() {
 	if s == nil {
 		return
 	}
-	if s.journal != nil {
+	if s.ownsJournal && s.journal != nil {
 		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_ = s.journal.Close(closeCtx)
 		cancel()

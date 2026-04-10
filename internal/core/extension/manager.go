@@ -218,6 +218,39 @@ func (m *Manager) emitFailureEvent(
 	})
 }
 
+func (m *Manager) recordLifecycleAudit(
+	extension *RuntimeExtension,
+	method string,
+	latency time.Duration,
+	callErr error,
+) {
+	if m == nil || m.audit == nil || extension == nil {
+		return
+	}
+
+	entry := AuditEntry{
+		Timestamp: time.Now().UTC(),
+		Extension: extension.normalizedName(),
+		Direction: AuditDirectionHostToExt,
+		Method:    strings.TrimSpace(method),
+		Latency:   latency,
+		Result:    AuditResultOK,
+	}
+	if callErr != nil {
+		entry.Result = AuditResultError
+		entry.ErrorDetail = callErr.Error()
+	}
+	if err := m.audit.Record(entry); err != nil {
+		slog.Warn(
+			"record extension lifecycle audit",
+			"component", "extension.manager",
+			"extension", extension.normalizedName(),
+			"method", method,
+			"error", err,
+		)
+	}
+}
+
 func (m *Manager) backgroundContext() context.Context {
 	if m == nil {
 		return context.Background()

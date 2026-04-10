@@ -331,6 +331,7 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 
 	required := []string{
 		"--agent",
+		"--extensions",
 		"--prompt-file",
 		"--format",
 		"--dry-run",

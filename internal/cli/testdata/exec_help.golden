@@ -25,6 +25,7 @@ Flags:
       --agent string                     Reusable agent to execute from .compozy/agents or ~/.compozy/agents
       --auto-commit                      Include automatic commit instructions at task/batch completion
       --dry-run                          Only generate prompts; do not run IDE tool
+      --extensions                       Enable executable extensions for this exec run
       --format string                    Output format: text, json, or raw-json (default "text")
   -h, --help                             help for exec
       --ide string                       ACP runtime to use: claude, codex, copilot, cursor-agent, droid, gemini, opencode, or pi (requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx) (default "codex")

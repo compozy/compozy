@@ -23,7 +23,7 @@ type operations interface {
 	OpenRunScope(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
 	Prepare(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	Execute(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	ExecuteExec(context.Context, *model.RuntimeConfig) error
+	ExecuteExec(context.Context, *model.RuntimeConfig, model.RunScope) error
 	FetchReviews(context.Context, core.Config) (*model.FetchResult, error)
 	Migrate(context.Context, model.MigrationConfig) (*model.MigrationResult, error)
 	Sync(context.Context, model.SyncConfig) (*model.SyncResult, error)
@@ -63,13 +63,11 @@ func (o realOperations) Execute(
 		return errors.New("execute run: missing preparation")
 	}
 
-	runErr := run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), prep.EventBus(), cfg)
-	closeErr := closePreparationRunScope(ctx, prep)
-	return errors.Join(runErr, closeErr)
+	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), prep.EventBus(), cfg)
 }
 
-func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
-	return run.ExecuteExec(ctx, cfg)
+func (realOperations) ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {
+	return run.ExecuteExec(ctx, cfg, scope)
 }
 
 func (realOperations) FetchReviews(ctx context.Context, cfg core.Config) (*model.FetchResult, error) {
@@ -102,48 +100,89 @@ func newRunStartHandler(deps KernelDeps, ops operations) *runStartHandler {
 func (h *runStartHandler) Handle(
 	ctx context.Context,
 	cmd commands.RunStartCommand,
-) (commands.RunStartResult, error) {
-	var zero commands.RunStartResult
-
+) (result commands.RunStartResult, retErr error) {
 	runtimeCfg := cmd.RuntimeConfig()
 	if err := h.ops.ValidateRuntimeConfig(runtimeCfg); err != nil {
-		return zero, err
+		return commands.RunStartResult{}, err
+	}
+
+	opts := h.runScopeOptions(runtimeCfg)
+	if runtimeCfg.Mode == model.ExecutionModeExec && !opts.EnableExecutableExtensions {
+		return h.handleFastExec(ctx, runtimeCfg)
+	}
+
+	scope, err := h.openStartedRunScope(ctx, runtimeCfg, opts)
+	if err != nil {
+		return commands.RunStartResult{}, err
 	}
 
 	if runtimeCfg.Mode == model.ExecutionModeExec {
-		if err := h.ops.ExecuteExec(ctx, runtimeCfg); err != nil {
-			return zero, err
-		}
-
-		result := commands.RunStartResult{Status: runStartStatusSucceeded}
-		if runtimeCfg.RunID != "" {
-			runArtifacts := model.NewRunArtifacts(runtimeCfg.WorkspaceRoot, runtimeCfg.RunID)
-			result.RunID = runArtifacts.RunID
-			result.ArtifactsDir = runArtifacts.RunDir
-		}
-		return result, nil
+		return h.handleScopedExec(ctx, runtimeCfg, scope)
 	}
 
-	scope, err := h.ops.OpenRunScope(ctx, runtimeCfg, h.deps.OpenRunScopeOptions)
+	return h.handlePreparedRun(ctx, runtimeCfg, scope)
+}
+
+func (h *runStartHandler) runScopeOptions(runtimeCfg *model.RuntimeConfig) model.OpenRunScopeOptions {
+	opts := h.deps.OpenRunScopeOptions
+	if runtimeCfg.EnableExecutableExtensions {
+		opts.EnableExecutableExtensions = true
+	}
+	return opts
+}
+
+func (h *runStartHandler) handleFastExec(
+	ctx context.Context,
+	runtimeCfg *model.RuntimeConfig,
+) (commands.RunStartResult, error) {
+	if err := h.ops.ExecuteExec(ctx, runtimeCfg, nil); err != nil {
+		return commands.RunStartResult{}, err
+	}
+
+	result := commands.RunStartResult{Status: runStartStatusSucceeded}
+	if runtimeCfg.RunID != "" {
+		runArtifacts := model.NewRunArtifacts(runtimeCfg.WorkspaceRoot, runtimeCfg.RunID)
+		result.RunID = runArtifacts.RunID
+		result.ArtifactsDir = runArtifacts.RunDir
+	}
+
+	return result, nil
+}
+
+func (h *runStartHandler) openStartedRunScope(
+	ctx context.Context,
+	runtimeCfg *model.RuntimeConfig,
+	opts model.OpenRunScopeOptions,
+) (model.RunScope, error) {
+	scope, err := h.ops.OpenRunScope(ctx, runtimeCfg, opts)
 	if err != nil {
-		return zero, err
+		return nil, err
 	}
 
-	prep, err := h.ops.Prepare(ctx, runtimeCfg, scope)
-	if err != nil {
-		if errors.Is(err, plan.ErrNoWork) {
-			return commands.RunStartResult{Status: runStartStatusNoWork}, nil
-		}
-		return zero, err
+	if err := startRunManager(ctx, scope); err != nil {
+		return nil, errors.Join(err, scope.Close(ctx))
 	}
 
-	if err := h.ops.Execute(ctx, prep, runtimeCfg); err != nil {
-		return zero, err
+	return scope, nil
+}
+
+func (h *runStartHandler) handleScopedExec(
+	ctx context.Context,
+	runtimeCfg *model.RuntimeConfig,
+	scope model.RunScope,
+) (result commands.RunStartResult, retErr error) {
+	defer func() {
+		retErr = errors.Join(retErr, scope.Close(ctx))
+	}()
+
+	if err := h.ops.ExecuteExec(ctx, runtimeCfg, scope); err != nil {
+		return commands.RunStartResult{}, err
 	}
 
+	artifacts := scope.RunArtifacts()
 	return commands.RunStartResult{
-		RunID:        prep.RunArtifacts.RunID,
-		ArtifactsDir: prep.RunArtifacts.RunDir,
+		RunID:        artifacts.RunID,
+		ArtifactsDir: artifacts.RunDir,
 		Status:       runStartStatusSucceeded,
 	}, nil
 }
@@ -159,30 +198,80 @@ func newWorkflowPrepareHandler(deps KernelDeps, ops operations) *workflowPrepare
 	return &workflowPrepareHandler{deps: deps, ops: ops}
 }
 
+func (h *runStartHandler) handlePreparedRun(
+	ctx context.Context,
+	runtimeCfg *model.RuntimeConfig,
+	scope model.RunScope,
+) (result commands.RunStartResult, retErr error) {
+	scopeOwned := true
+	defer func() {
+		if !scopeOwned || scope == nil {
+			return
+		}
+		retErr = errors.Join(retErr, scope.Close(ctx))
+	}()
+
+	prep, err := h.ops.Prepare(ctx, runtimeCfg, scope)
+	if err != nil {
+		if errors.Is(err, plan.ErrNoWork) {
+			return commands.RunStartResult{Status: runStartStatusNoWork}, nil
+		}
+		return commands.RunStartResult{}, err
+	}
+	prep.SetRunScope(scope)
+	scopeOwned = false
+	defer func() {
+		retErr = errors.Join(retErr, closePreparationRunScope(ctx, prep))
+	}()
+
+	if err := h.ops.Execute(ctx, prep, runtimeCfg); err != nil {
+		return commands.RunStartResult{}, err
+	}
+
+	return commands.RunStartResult{
+		RunID:        prep.RunArtifacts.RunID,
+		ArtifactsDir: prep.RunArtifacts.RunDir,
+		Status:       runStartStatusSucceeded,
+	}, nil
+}
+
 func (h *workflowPrepareHandler) Handle(
 	ctx context.Context,
 	cmd commands.WorkflowPrepareCommand,
-) (commands.WorkflowPrepareResult, error) {
-	var zero commands.WorkflowPrepareResult
-
+) (result commands.WorkflowPrepareResult, retErr error) {
 	runtimeCfg := cmd.RuntimeConfig()
 	if err := h.ops.ValidateRuntimeConfig(runtimeCfg); err != nil {
-		return zero, err
+		return commands.WorkflowPrepareResult{}, err
 	}
 
 	scope, err := h.ops.OpenRunScope(ctx, runtimeCfg, h.deps.OpenRunScopeOptions)
 	if err != nil {
-		return zero, err
+		return commands.WorkflowPrepareResult{}, err
+	}
+	scopeOwned := true
+	defer func() {
+		if !scopeOwned || scope == nil {
+			return
+		}
+		retErr = errors.Join(retErr, scope.Close(ctx))
+	}()
+
+	if err := startRunManager(ctx, scope); err != nil {
+		return commands.WorkflowPrepareResult{}, err
 	}
 
 	prep, err := h.ops.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
-			return zero, core.ErrNoWork
+			return commands.WorkflowPrepareResult{}, core.ErrNoWork
 		}
-		return zero, err
+		return commands.WorkflowPrepareResult{}, err
 	}
-	defer plan.ClosePreparationJournal(ctx, prep)
+	prep.SetRunScope(scope)
+	scopeOwned = false
+	defer func() {
+		retErr = errors.Join(retErr, closePreparationRunScope(ctx, prep))
+	}()
 
 	return commands.WorkflowPrepareResult{
 		Preparation:  core.NewPreparation(prep),
@@ -191,23 +280,36 @@ func (h *workflowPrepareHandler) Handle(
 	}, nil
 }
 
+func startRunManager(ctx context.Context, scope model.RunScope) error {
+	if scope == nil {
+		return nil
+	}
+
+	if manager := scope.RunManager(); manager != nil {
+		if err := manager.Start(ctx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func closePreparationRunScope(ctx context.Context, prep *model.SolvePreparation) error {
 	if prep == nil || prep.RunScope == nil {
 		return nil
 	}
 
-	closeCtx := contextWithoutCancel(ctx)
-	closeCtx, cancel := context.WithTimeout(closeCtx, time.Second)
-	defer cancel()
+	closeCtx := ctx
+	if closeCtx == nil {
+		closeCtx = context.Background()
+	}
+	if _, hasDeadline := closeCtx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		closeCtx, cancel = context.WithTimeout(closeCtx, time.Second)
+		defer cancel()
+	}
 
 	return prep.CloseJournal(closeCtx)
-}
-
-func contextWithoutCancel(ctx context.Context) context.Context {
-	if ctx == nil {
-		return context.Background()
-	}
-	return context.WithoutCancel(ctx)
 }
 
 type delegatingHandler[C any, R any, M any] struct {

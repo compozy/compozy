@@ -118,6 +118,7 @@ func (m *Manager) shutdownSession(ctx context.Context, session *extensionSession
 		}
 
 		session.runtime.SetState(ExtensionStateStopped)
+		m.recordLifecycleAudit(session.runtime, "shutdown", time.Since(startedAt), shutdownErr)
 	})
 
 	return shutdownErr

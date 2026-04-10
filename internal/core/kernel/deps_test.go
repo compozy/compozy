@@ -20,12 +20,18 @@ type executeCall struct {
 	cfg  *model.RuntimeConfig
 }
 
+type execCall struct {
+	cfg   *model.RuntimeConfig
+	scope model.RunScope
+}
+
 type fakeOperations struct {
 	validateCalls []*model.RuntimeConfig
 	openCalls     []*model.RuntimeConfig
+	openOptions   []model.OpenRunScopeOptions
 	prepareCalls  []*model.RuntimeConfig
 	executeCalls  []executeCall
-	execCalls     []*model.RuntimeConfig
+	execCalls     []execCall
 	fetchCalls    []core.Config
 	migrateCalls  []model.MigrationConfig
 	syncCalls     []model.SyncConfig
@@ -44,6 +50,7 @@ type fakeOperations struct {
 	openResult model.RunScope
 
 	prepareResult *model.SolvePreparation
+	prepareHook   func(model.RunScope)
 	fetchResult   *model.FetchResult
 	migrateResult *model.MigrationResult
 	syncResult    *model.SyncResult
@@ -58,11 +65,15 @@ func (f *fakeOperations) ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 func (f *fakeOperations) OpenRunScope(
 	_ context.Context,
 	cfg *model.RuntimeConfig,
-	_ model.OpenRunScopeOptions,
+	opts model.OpenRunScopeOptions,
 ) (model.RunScope, error) {
 	f.openCalls = append(f.openCalls, cloneRuntimeConfig(cfg))
+	f.openOptions = append(f.openOptions, opts)
 	if f.openErr != nil {
 		return nil, f.openErr
+	}
+	if f.openResult == nil {
+		return &model.BaseRunScope{}, nil
 	}
 	return f.openResult, nil
 }
@@ -70,9 +81,12 @@ func (f *fakeOperations) OpenRunScope(
 func (f *fakeOperations) Prepare(
 	_ context.Context,
 	cfg *model.RuntimeConfig,
-	_ model.RunScope,
+	scope model.RunScope,
 ) (*model.SolvePreparation, error) {
 	f.prepareCalls = append(f.prepareCalls, cloneRuntimeConfig(cfg))
+	if f.prepareHook != nil {
+		f.prepareHook(scope)
+	}
 	if f.prepareErr != nil {
 		return nil, f.prepareErr
 	}
@@ -94,8 +108,15 @@ func (f *fakeOperations) Execute(
 	return f.executeErr
 }
 
-func (f *fakeOperations) ExecuteExec(_ context.Context, cfg *model.RuntimeConfig) error {
-	f.execCalls = append(f.execCalls, cloneRuntimeConfig(cfg))
+func (f *fakeOperations) ExecuteExec(
+	_ context.Context,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+) error {
+	f.execCalls = append(f.execCalls, execCall{
+		cfg:   cloneRuntimeConfig(cfg),
+		scope: scope,
+	})
 	return f.execErr
 }
 

@@ -39,7 +39,7 @@ func TestExecuteExecTextModePrintsOnlyFinalAssistantResponse(t *testing.T) {
 			PromptText:             "finish the task",
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 1.5,
-		})
+		}, nil)
 	})
 	if execErr != nil {
 		t.Fatalf("execute exec text: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)
@@ -77,7 +77,7 @@ func TestExecuteExecHeadlessDefaultDoesNotEmitOperationalLogs(t *testing.T) {
 			PromptText:             "finish the task",
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 1.5,
-		})
+		}, nil)
 	})
 	if execErr != nil {
 		t.Fatalf("execute exec default logging: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)
@@ -113,7 +113,7 @@ func TestExecuteExecVerboseEmitsOperationalLogsToStderr(t *testing.T) {
 			PromptText:             "finish the task",
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 1.5,
-		})
+		}, nil)
 	})
 	if execErr != nil {
 		t.Fatalf("execute exec verbose logging: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)
@@ -198,7 +198,7 @@ func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 		RetryBackoffMultiplier: 1.5,
 		Persist:                true,
 		AgentName:              "planner",
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("execute first persisted exec: %v", err)
 	}
 
@@ -214,7 +214,7 @@ func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 		Persist:                true,
 		RunID:                  runID,
 		AgentName:              "planner",
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("execute resumed exec: %v", err)
 	}
 
@@ -257,7 +257,7 @@ func TestExecuteExecJSONModeEmitsLeanJSONLAndPersistsRawEvents(t *testing.T) {
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 1.5,
 			Persist:                true,
-		})
+		}, nil)
 	})
 	if execErr != nil {
 		t.Fatalf("execute exec json projection: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)
@@ -310,7 +310,7 @@ func TestExecuteExecRawJSONModeEmitsFullJSONL(t *testing.T) {
 			PromptText:             "stream everything",
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 1.5,
-		})
+		}, nil)
 	})
 	if execErr != nil {
 		t.Fatalf("execute exec raw-json: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)

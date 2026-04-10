@@ -24,6 +24,6 @@ func Execute(
 	return execute(ctx, jobs, runArtifacts, runJournal, bus, cfg)
 }
 
-func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
-	return executeExec(ctx, cfg)
+func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {
+	return executeExec(ctx, cfg, scope)
 }
