@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +18,8 @@ type stubReviewProvider struct {
 	name  string
 	items []provider.ReviewItem
 }
+
+var fetchReviewProviderRegistryMu sync.Mutex
 
 func (s stubReviewProvider) Name() string { return s.name }
 
@@ -109,38 +112,31 @@ func TestFetchReviewsAutoIncrementsRound(t *testing.T) {
 	}
 }
 
-func TestFetchReviewsSkipsResolvedStaleNitpickHashes(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Chdir(tmpDir)
+func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
+	t.Parallel()
 
-	prdDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
-	if err := os.MkdirAll(prdDir, 0o755); err != nil {
-		t.Fatalf("mkdir prd dir: %v", err)
-	}
-	writeHistoricalNitpickRound(
-		t,
-		prdDir,
-		1,
-		provider.ReviewItem{
-			Title:                   "Keep helper reuse consistent",
-			File:                    "internal/app/service.go",
-			Line:                    42,
-			Severity:                "nitpick",
-			Author:                  "coderabbitai[bot]",
-			Body:                    "Use the existing helper instead of duplicating logic.",
-			ReviewHash:              "hash-stale",
-			SourceReviewID:          "4001",
-			SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
-		},
-		true,
-	)
-
-	restore := defaultProviderRegistry
-	defaultProviderRegistry = func() *provider.Registry {
-		registry := provider.NewRegistry()
-		registry.Register(stubReviewProvider{
-			name: "stub",
-			items: []provider.ReviewItem{
+	cases := []struct {
+		name            string
+		historicalItem  provider.ReviewItem
+		historicalState string
+		fetchedItems    []provider.ReviewItem
+		wantTotal       int
+	}{
+		{
+			name: "filter resolved nitpicks when the fetched review is older",
+			historicalItem: provider.ReviewItem{
+				Title:                   "Keep helper reuse consistent",
+				File:                    "internal/app/service.go",
+				Line:                    42,
+				Severity:                "nitpick",
+				Author:                  "coderabbitai[bot]",
+				Body:                    "Use the existing helper instead of duplicating logic.",
+				ReviewHash:              "hash-stale",
+				SourceReviewID:          "4002",
+				SourceReviewSubmittedAt: "2026-04-10T10:30:00Z",
+			},
+			historicalState: "resolved",
+			fetchedItems: []provider.ReviewItem{
 				{
 					Title:                   "Keep helper reuse consistent",
 					File:                    "internal/app/service.go",
@@ -149,7 +145,7 @@ func TestFetchReviewsSkipsResolvedStaleNitpickHashes(t *testing.T) {
 					Author:                  "coderabbitai[bot]",
 					Body:                    "Use the existing helper instead of duplicating logic.",
 					ReviewHash:              "hash-stale",
-					SourceReviewID:          "4002",
+					SourceReviewID:          "4003",
 					SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
 				},
 				{
@@ -161,56 +157,23 @@ func TestFetchReviewsSkipsResolvedStaleNitpickHashes(t *testing.T) {
 					ProviderRef: "thread:PRT_1,comment:RC_1",
 				},
 			},
-		})
-		return registry
-	}
-	t.Cleanup(func() { defaultProviderRegistry = restore })
-
-	result, err := fetchReviews(context.Background(), &model.RuntimeConfig{
-		Name:     "demo",
-		Provider: "stub",
-		PR:       "259",
-	})
-	if err != nil {
-		t.Fatalf("fetch reviews: %v", err)
-	}
-	if result.Total != 1 {
-		t.Fatalf("expected stale resolved nitpick to be filtered, got total %d", result.Total)
-	}
-}
-
-func TestFetchReviewsReimportsUnresolvedNitpickHashes(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Chdir(tmpDir)
-
-	prdDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
-	if err := os.MkdirAll(prdDir, 0o755); err != nil {
-		t.Fatalf("mkdir prd dir: %v", err)
-	}
-	writeHistoricalNitpickRound(
-		t,
-		prdDir,
-		1,
-		provider.ReviewItem{
-			Title:                   "Keep helper reuse consistent",
-			File:                    "internal/app/service.go",
-			Line:                    42,
-			Severity:                "nitpick",
-			Author:                  "coderabbitai[bot]",
-			Body:                    "Use the existing helper instead of duplicating logic.",
-			ReviewHash:              "hash-open",
-			SourceReviewID:          "4001",
-			SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
+			wantTotal: 1,
 		},
-		false,
-	)
-
-	restore := defaultProviderRegistry
-	defaultProviderRegistry = func() *provider.Registry {
-		registry := provider.NewRegistry()
-		registry.Register(stubReviewProvider{
-			name: "stub",
-			items: []provider.ReviewItem{
+		{
+			name: "re-import unresolved nitpick hashes",
+			historicalItem: provider.ReviewItem{
+				Title:                   "Keep helper reuse consistent",
+				File:                    "internal/app/service.go",
+				Line:                    42,
+				Severity:                "nitpick",
+				Author:                  "coderabbitai[bot]",
+				Body:                    "Use the existing helper instead of duplicating logic.",
+				ReviewHash:              "hash-open",
+				SourceReviewID:          "4001",
+				SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
+			},
+			historicalState: "pending",
+			fetchedItems: []provider.ReviewItem{
 				{
 					Title:                   "Keep helper reuse consistent",
 					File:                    "internal/app/service.go",
@@ -223,56 +186,23 @@ func TestFetchReviewsReimportsUnresolvedNitpickHashes(t *testing.T) {
 					SourceReviewSubmittedAt: "2026-04-10T10:05:00Z",
 				},
 			},
-		})
-		return registry
-	}
-	t.Cleanup(func() { defaultProviderRegistry = restore })
-
-	result, err := fetchReviews(context.Background(), &model.RuntimeConfig{
-		Name:     "demo",
-		Provider: "stub",
-		PR:       "259",
-	})
-	if err != nil {
-		t.Fatalf("fetch reviews: %v", err)
-	}
-	if result.Total != 1 {
-		t.Fatalf("expected unresolved nitpick to be re-imported, got total %d", result.Total)
-	}
-}
-
-func TestFetchReviewsReimportsResolvedNitpickWhenProviderReviewIsNewer(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Chdir(tmpDir)
-
-	prdDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
-	if err := os.MkdirAll(prdDir, 0o755); err != nil {
-		t.Fatalf("mkdir prd dir: %v", err)
-	}
-	writeHistoricalNitpickRound(
-		t,
-		prdDir,
-		1,
-		provider.ReviewItem{
-			Title:                   "Keep helper reuse consistent",
-			File:                    "internal/app/service.go",
-			Line:                    42,
-			Severity:                "nitpick",
-			Author:                  "coderabbitai[bot]",
-			Body:                    "Use the existing helper instead of duplicating logic.",
-			ReviewHash:              "hash-returned",
-			SourceReviewID:          "4001",
-			SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
+			wantTotal: 1,
 		},
-		true,
-	)
-
-	restore := defaultProviderRegistry
-	defaultProviderRegistry = func() *provider.Registry {
-		registry := provider.NewRegistry()
-		registry.Register(stubReviewProvider{
-			name: "stub",
-			items: []provider.ReviewItem{
+		{
+			name: "re-import resolved nitpicks when the fetched review has a newer timestamp",
+			historicalItem: provider.ReviewItem{
+				Title:                   "Keep helper reuse consistent",
+				File:                    "internal/app/service.go",
+				Line:                    42,
+				Severity:                "nitpick",
+				Author:                  "coderabbitai[bot]",
+				Body:                    "Use the existing helper instead of duplicating logic.",
+				ReviewHash:              "hash-returned",
+				SourceReviewID:          "4001",
+				SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
+			},
+			historicalState: "resolved",
+			fetchedItems: []provider.ReviewItem{
 				{
 					Title:                   "Keep helper reuse consistent",
 					File:                    "internal/app/service.go",
@@ -285,22 +215,87 @@ func TestFetchReviewsReimportsResolvedNitpickWhenProviderReviewIsNewer(t *testin
 					SourceReviewSubmittedAt: "2026-04-10T10:30:00Z",
 				},
 			},
+			wantTotal: 1,
+		},
+		{
+			name: "re-import resolved nitpicks when the fetched review has the same timestamp but a newer review id",
+			historicalItem: provider.ReviewItem{
+				Title:                   "Keep helper reuse consistent",
+				File:                    "internal/app/service.go",
+				Line:                    42,
+				Severity:                "nitpick",
+				Author:                  "coderabbitai[bot]",
+				Body:                    "Use the existing helper instead of duplicating logic.",
+				ReviewHash:              "hash-same-second",
+				SourceReviewID:          "4001",
+				SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
+			},
+			historicalState: "resolved",
+			fetchedItems: []provider.ReviewItem{
+				{
+					Title:                   "Keep helper reuse consistent",
+					File:                    "internal/app/service.go",
+					Line:                    42,
+					Severity:                "nitpick",
+					Author:                  "coderabbitai[bot]",
+					Body:                    "Use the existing helper instead of duplicating logic.",
+					ReviewHash:              "hash-same-second",
+					SourceReviewID:          "4002",
+					SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
+				},
+			},
+			wantTotal: 1,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run("Should "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tmpDir := t.TempDir()
+			prdDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
+			if err := os.MkdirAll(prdDir, 0o755); err != nil {
+				t.Fatalf("mkdir prd dir: %v", err)
+			}
+			writeHistoricalNitpickRound(t, prdDir, 1, tc.historicalItem, tc.historicalState == "resolved")
+			installStubReviewProviderRegistry(t, tc.fetchedItems)
+
+			result, err := fetchReviews(context.Background(), &model.RuntimeConfig{
+				Name:          "demo",
+				Provider:      "stub",
+				PR:            "259",
+				WorkspaceRoot: tmpDir,
+			})
+			if err != nil {
+				t.Fatalf("fetch reviews: %v", err)
+			}
+			if result.Total != tc.wantTotal {
+				t.Fatalf("unexpected fetched total: got %d, want %d", result.Total, tc.wantTotal)
+			}
+		})
+	}
+}
+
+func installStubReviewProviderRegistry(t *testing.T, items []provider.ReviewItem) {
+	t.Helper()
+
+	fetchReviewProviderRegistryMu.Lock()
+
+	restore := defaultProviderRegistry
+	defaultProviderRegistry = func() *provider.Registry {
+		registry := provider.NewRegistry()
+		registry.Register(stubReviewProvider{
+			name:  "stub",
+			items: items,
 		})
 		return registry
 	}
-	t.Cleanup(func() { defaultProviderRegistry = restore })
 
-	result, err := fetchReviews(context.Background(), &model.RuntimeConfig{
-		Name:     "demo",
-		Provider: "stub",
-		PR:       "259",
+	t.Cleanup(func() {
+		defaultProviderRegistry = restore
+		fetchReviewProviderRegistryMu.Unlock()
 	})
-	if err != nil {
-		t.Fatalf("fetch reviews: %v", err)
-	}
-	if result.Total != 1 {
-		t.Fatalf("expected newer nitpick to be re-imported, got total %d", result.Total)
-	}
 }
 
 func writeHistoricalNitpickRound(

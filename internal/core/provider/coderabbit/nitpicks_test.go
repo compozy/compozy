@@ -65,7 +65,7 @@ func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testin
 		t.Fatalf("expected 2 deduped nitpicks, got %d (%#v)", len(items), items)
 	}
 
-	hash := buildNitpickHash("internal/session/query.go", sharedTitle, sharedBody)
+	hash := buildNitpickHash("internal/session/query.go", "213-216", sharedTitle, sharedBody)
 	itemByHash := make(map[string]provider.ReviewItem, len(items))
 	for _, item := range items {
 		itemByHash[item.ReviewHash] = item
@@ -84,6 +84,52 @@ func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testin
 	if queryItem.Line != 213 || queryItem.Severity != nitpickSeverity {
 		t.Fatalf("unexpected query nitpick metadata: %#v", queryItem)
 	}
+}
+
+func TestParseNitpickReviewItemsKeepsLocationsDistinct(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep identical nitpicks at different locations as separate items", func(t *testing.T) {
+		t.Parallel()
+
+		sharedTitle := "Prefer reusing existing stop-reason helper to avoid duplicated normalization."
+		sharedBody := "This block duplicates logic already present in the same package (`sessionMetaStopReason`). Reusing the helper keeps stop normalization behavior centralized."
+		reviews := []pullRequestReview{
+			{
+				ID: 4090314487,
+				Body: testNitpickReviewBody(
+					testNitpickFileSection("internal/session/query.go", "213-216", sharedTitle, sharedBody),
+					testNitpickFileSection("internal/session/query.go", "240-243", sharedTitle, sharedBody),
+				),
+				SubmittedAt: "2026-04-10T14:24:56Z",
+				User: struct {
+					Login string `json:"login"`
+				}{Login: defaultBotLogin},
+			},
+		}
+
+		items := parseNitpickReviewItems(reviews, defaultBotLogin)
+		if len(items) != 2 {
+			t.Fatalf("expected 2 nitpick items, got %d (%#v)", len(items), items)
+		}
+
+		firstHash := buildNitpickHash("internal/session/query.go", "213-216", sharedTitle, sharedBody)
+		secondHash := buildNitpickHash("internal/session/query.go", "240-243", sharedTitle, sharedBody)
+		if firstHash == secondHash {
+			t.Fatalf("expected distinct hashes for distinct locations, got %q", firstHash)
+		}
+
+		itemByHash := make(map[string]provider.ReviewItem, len(items))
+		for _, item := range items {
+			itemByHash[item.ReviewHash] = item
+		}
+		if _, ok := itemByHash[firstHash]; !ok {
+			t.Fatalf("expected first nitpick hash %q, got %#v", firstHash, itemByHash)
+		}
+		if _, ok := itemByHash[secondHash]; !ok {
+			t.Fatalf("expected second nitpick hash %q, got %#v", secondHash, itemByHash)
+		}
+	})
 }
 
 func TestFetchReviewsSkipsPullRequestReviewsWhenNitpicksDisabled(t *testing.T) {

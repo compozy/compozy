@@ -153,7 +153,7 @@ func parseNitpicksForFile(review pullRequestReview, filePath string, body string
 		}
 
 		reviewID := strconv.Itoa(review.ID)
-		reviewHash := buildNitpickHash(filePath, title, nitpickBody)
+		reviewHash := buildNitpickHash(filePath, lineRange, title, nitpickBody)
 		items = append(items, provider.ReviewItem{
 			Title:                   title,
 			File:                    filePath,
@@ -343,10 +343,11 @@ func normalizeNitpickBody(body string) string {
 	return strings.TrimSpace(strings.Join(normalized, "\n"))
 }
 
-func buildNitpickHash(filePath string, title string, body string) string {
+func buildNitpickHash(filePath string, location string, title string, body string) string {
 	canonical := strings.Join([]string{
 		"provider:" + name,
 		"file:" + canonicalHashValue(filePath),
+		"location:" + canonicalHashValue(location),
 		"title:" + canonicalHashValue(title),
 		"body:" + canonicalHashValue(firstParagraph(body)),
 	}, "\n")

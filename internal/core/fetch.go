@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -153,6 +154,7 @@ func ensureReviewRoundDoesNotExist(reviewsDir string) error {
 type nitpickHistoryState struct {
 	Resolved                bool
 	Round                   int
+	SourceReviewID          string
 	SourceReviewSubmittedAt time.Time
 }
 
@@ -187,7 +189,7 @@ func filterFetchedNitpicks(
 			continue
 		}
 
-		if parseReviewSubmittedAt(item.SourceReviewSubmittedAt).After(record.SourceReviewSubmittedAt) {
+		if fetchedNitpickIsNewer(*item, record) {
 			filtered = append(filtered, *item)
 		}
 	}
@@ -226,11 +228,11 @@ func loadNitpickHistory(prdDir string, currentRound int) (map[string]nitpickHist
 			next := nitpickHistoryState{
 				Resolved:                strings.EqualFold(strings.TrimSpace(ctx.Status), "resolved"),
 				Round:                   round,
+				SourceReviewID:          strings.TrimSpace(ctx.SourceReviewID),
 				SourceReviewSubmittedAt: parseReviewSubmittedAt(ctx.SourceReviewSubmittedAt),
 			}
 			current, ok := history[hash]
-			if !ok || next.Round > current.Round ||
-				(next.Round == current.Round && next.SourceReviewSubmittedAt.After(current.SourceReviewSubmittedAt)) {
+			if !ok || nitpickHistoryEntryIsNewer(next, current) {
 				history[hash] = next
 			}
 		}
@@ -250,4 +252,49 @@ func parseReviewSubmittedAt(value string) time.Time {
 		return time.Time{}
 	}
 	return parsed
+}
+
+func fetchedNitpickIsNewer(item provider.ReviewItem, record nitpickHistoryState) bool {
+	itemTime := parseReviewSubmittedAt(item.SourceReviewSubmittedAt)
+	if itemTime.After(record.SourceReviewSubmittedAt) {
+		return true
+	}
+	if record.SourceReviewSubmittedAt.After(itemTime) {
+		return false
+	}
+	return compareSourceReviewIDs(item.SourceReviewID, record.SourceReviewID) > 0
+}
+
+func nitpickHistoryEntryIsNewer(candidate nitpickHistoryState, current nitpickHistoryState) bool {
+	if candidate.Round != current.Round {
+		return candidate.Round > current.Round
+	}
+	if candidate.SourceReviewSubmittedAt.After(current.SourceReviewSubmittedAt) {
+		return true
+	}
+	if current.SourceReviewSubmittedAt.After(candidate.SourceReviewSubmittedAt) {
+		return false
+	}
+	return compareSourceReviewIDs(candidate.SourceReviewID, current.SourceReviewID) > 0
+}
+
+func compareSourceReviewIDs(left string, right string) int {
+	leftID, leftErr := parseSourceReviewID(left)
+	rightID, rightErr := parseSourceReviewID(right)
+	if leftErr == nil && rightErr == nil {
+		switch {
+		case leftID > rightID:
+			return 1
+		case leftID < rightID:
+			return -1
+		default:
+			return 0
+		}
+	}
+
+	return strings.Compare(strings.TrimSpace(left), strings.TrimSpace(right))
+}
+
+func parseSourceReviewID(value string) (int64, error) {
+	return strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 }
