@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,18 +41,20 @@ func TestRunACPHelperProcess(_ *testing.T) {
 }
 
 type runACPHelperScenario struct {
-	SessionID               string                    `json:"session_id,omitempty"`
-	ExpectedLoadSessionID   string                    `json:"expected_load_session_id,omitempty"`
-	ExpectedPromptContains  string                    `json:"expected_prompt_contains,omitempty"`
-	SupportsLoadSession     bool                      `json:"supports_load_session,omitempty"`
-	ReplayUpdatesOnLoad     []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
-	SessionMeta             map[string]any            `json:"session_meta,omitempty"`
-	Updates                 []acp.SessionUpdate       `json:"updates,omitempty"`
-	StopReason              string                    `json:"stop_reason,omitempty"`
-	BlockUntilCancel        bool                      `json:"block_until_cancel,omitempty"`
-	NewSessionError         *runACPHelperRequestError `json:"new_session_error,omitempty"`
-	PromptError             *runACPHelperRequestError `json:"prompt_error,omitempty"`
-	PromptErrorAfterUpdates bool                      `json:"prompt_error_after_updates,omitempty"`
+	SessionID                         string                    `json:"session_id,omitempty"`
+	ExpectedLoadSessionID             string                    `json:"expected_load_session_id,omitempty"`
+	ExpectedPromptContains            string                    `json:"expected_prompt_contains,omitempty"`
+	ExpectedNewSessionMCPServerNames  []string                  `json:"expected_new_session_mcp_server_names,omitempty"`
+	ExpectedLoadSessionMCPServerNames []string                  `json:"expected_load_session_mcp_server_names,omitempty"`
+	SupportsLoadSession               bool                      `json:"supports_load_session,omitempty"`
+	ReplayUpdatesOnLoad               []acp.SessionUpdate       `json:"replay_updates_on_load,omitempty"`
+	SessionMeta                       map[string]any            `json:"session_meta,omitempty"`
+	Updates                           []acp.SessionUpdate       `json:"updates,omitempty"`
+	StopReason                        string                    `json:"stop_reason,omitempty"`
+	BlockUntilCancel                  bool                      `json:"block_until_cancel,omitempty"`
+	NewSessionError                   *runACPHelperRequestError `json:"new_session_error,omitempty"`
+	PromptError                       *runACPHelperRequestError `json:"prompt_error,omitempty"`
+	PromptErrorAfterUpdates           bool                      `json:"prompt_error_after_updates,omitempty"`
 }
 
 type runACPHelperRequestError struct {
@@ -75,9 +78,17 @@ func (a *runACPHelperAgent) Initialize(context.Context, acp.InitializeRequest) (
 	}, nil
 }
 
-func (a *runACPHelperAgent) NewSession(_ context.Context, _ acp.NewSessionRequest) (acp.NewSessionResponse, error) {
+func (a *runACPHelperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (acp.NewSessionResponse, error) {
 	if a.scenario.NewSessionError != nil {
 		return acp.NewSessionResponse{}, a.scenario.NewSessionError.toACPError()
+	}
+	if want := a.scenario.ExpectedNewSessionMCPServerNames; len(want) > 0 {
+		if got := helperMCPServerNames(req.McpServers); !slices.Equal(got, want) {
+			return acp.NewSessionResponse{}, &acp.RequestError{
+				Code:    4001,
+				Message: fmt.Sprintf("unexpected new-session MCP servers %v", got),
+			}
+		}
 	}
 	return acp.NewSessionResponse{
 		SessionId: acp.SessionId(a.sessionID),
@@ -93,6 +104,14 @@ func (a *runACPHelperAgent) LoadSession(
 		return acp.LoadSessionResponse{}, &acp.RequestError{
 			Code:    4002,
 			Message: fmt.Sprintf("unexpected load session id %q", req.SessionId),
+		}
+	}
+	if want := a.scenario.ExpectedLoadSessionMCPServerNames; len(want) > 0 {
+		if got := helperMCPServerNames(req.McpServers); !slices.Equal(got, want) {
+			return acp.LoadSessionResponse{}, &acp.RequestError{
+				Code:    4003,
+				Message: fmt.Sprintf("unexpected load-session MCP servers %v", got),
+			}
 		}
 	}
 	for _, update := range a.scenario.ReplayUpdatesOnLoad {
@@ -268,6 +287,21 @@ func helperPromptText(blocks []acp.ContentBlock) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+func helperMCPServerNames(servers []acp.McpServer) []string {
+	names := make([]string, 0, len(servers))
+	for _, server := range servers {
+		switch {
+		case server.Stdio != nil:
+			names = append(names, server.Stdio.Name)
+		case server.Http != nil:
+			names = append(names, server.Http.Name)
+		case server.Sse != nil:
+			names = append(names, server.Sse.Name)
+		}
+	}
+	return names
 }
 
 func captureExecuteStreams(t *testing.T, fn func() error) (string, string, error) {

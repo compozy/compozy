@@ -284,6 +284,7 @@ func createACPSession(
 			Prompt:     prompt,
 			WorkingDir: cwd,
 			Model:      cfg.Model,
+			MCPServers: model.CloneMCPServers(job.MCPServers),
 			ExtraEnv:   buildSessionEnvironment(),
 		})
 	}
@@ -292,6 +293,7 @@ func createACPSession(
 		Prompt:     prompt,
 		WorkingDir: cwd,
 		Model:      cfg.Model,
+		MCPServers: model.CloneMCPServers(job.MCPServers),
 		ExtraEnv:   buildSessionEnvironment(),
 	})
 }

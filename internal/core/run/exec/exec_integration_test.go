@@ -14,6 +14,7 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -127,25 +128,57 @@ func TestExecuteExecVerboseEmitsOperationalLogsToStderr(t *testing.T) {
 
 func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 	tmpDir := t.TempDir()
+	plannerDir := filepath.Join(tmpDir, model.WorkflowRootDirName, "agents", "planner")
+	if err := os.MkdirAll(plannerDir, 0o755); err != nil {
+		t.Fatalf("mkdir planner agent dir: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(plannerDir, "AGENT.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"title: Planner",
+			"description: Plans the work",
+			"ide: codex",
+			"---",
+			"",
+			"Plan the work carefully.",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write planner agent: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(plannerDir, "mcp.json"),
+		[]byte(`{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"]}}}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write planner mcp.json: %v", err)
+	}
 	installACPHelperOnPath(
 		t,
-		[]runACPHelperScenario{{SupportsLoadSession: true}},
 		[]runACPHelperScenario{{
-			SessionID:              "sess-1",
-			ExpectedPromptContains: "first turn",
-			SupportsLoadSession:    true,
-			SessionMeta:            map[string]any{"agentSessionId": "agent-1"},
+			SupportsLoadSession:              true,
+			ExpectedNewSessionMCPServerNames: []string{"compozy", "filesystem"},
+		}},
+		[]runACPHelperScenario{{
+			SessionID:                        "sess-1",
+			ExpectedPromptContains:           "first turn",
+			ExpectedNewSessionMCPServerNames: []string{"compozy", "filesystem"},
+			SupportsLoadSession:              true,
+			SessionMeta:                      map[string]any{"agentSessionId": "agent-1"},
 			Updates: []acp.SessionUpdate{
 				acp.UpdateAgentMessageText("first response"),
 			},
 		}},
 		[]runACPHelperScenario{{SupportsLoadSession: true}},
 		[]runACPHelperScenario{{
-			SessionID:              "sess-1",
-			ExpectedLoadSessionID:  "sess-1",
-			ExpectedPromptContains: "second turn",
-			SupportsLoadSession:    true,
-			SessionMeta:            map[string]any{"agentSessionId": "agent-1"},
+			SessionID:                         "sess-1",
+			ExpectedLoadSessionID:             "sess-1",
+			ExpectedPromptContains:            "second turn",
+			ExpectedLoadSessionMCPServerNames: []string{"compozy", "filesystem"},
+			SupportsLoadSession:               true,
+			SessionMeta:                       map[string]any{"agentSessionId": "agent-1"},
 			ReplayUpdatesOnLoad: []acp.SessionUpdate{
 				acp.UpdateAgentMessageText("replayed response"),
 			},
@@ -164,6 +197,7 @@ func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 		ReasoningEffort:        "medium",
 		RetryBackoffMultiplier: 1.5,
 		Persist:                true,
+		AgentName:              "planner",
 	}); err != nil {
 		t.Fatalf("execute first persisted exec: %v", err)
 	}
@@ -179,6 +213,7 @@ func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 		RetryBackoffMultiplier: 1.5,
 		Persist:                true,
 		RunID:                  runID,
+		AgentName:              "planner",
 	}); err != nil {
 		t.Fatalf("execute resumed exec: %v", err)
 	}
@@ -366,6 +401,13 @@ func TestExecuteExecWithSelectedAgentResolvesRuntimeAndCanonicalSystemPrompt(t *
 	); err != nil {
 		t.Fatalf("write planner agent: %v", err)
 	}
+	if err := os.WriteFile(
+		filepath.Join(plannerDir, "mcp.json"),
+		[]byte(`{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"]}}}`),
+		0o600,
+	); err != nil {
+		t.Fatalf("write planner mcp.json: %v", err)
+	}
 
 	reviewerDir := filepath.Join(workspaceRoot, model.WorkflowRootDirName, "agents", "reviewer")
 	if err := os.MkdirAll(reviewerDir, 0o755); err != nil {
@@ -440,6 +482,15 @@ func TestExecuteExecWithSelectedAgentResolvesRuntimeAndCanonicalSystemPrompt(t *
 	}
 	if gotReq.Model != "cli-model" {
 		t.Fatalf("expected session request model to use explicit override, got %q", gotReq.Model)
+	}
+	if len(gotReq.MCPServers) != 2 {
+		t.Fatalf("expected reserved plus agent-local MCP servers, got %#v", gotReq.MCPServers)
+	}
+	if gotReq.MCPServers[0].Stdio == nil || gotReq.MCPServers[0].Stdio.Name != reusableagents.ReservedMCPServerName {
+		t.Fatalf("unexpected reserved MCP server wiring: %#v", gotReq.MCPServers)
+	}
+	if gotReq.MCPServers[1].Stdio == nil || gotReq.MCPServers[1].Stdio.Name != "filesystem" {
+		t.Fatalf("unexpected agent-local MCP server wiring: %#v", gotReq.MCPServers)
 	}
 
 	promptText := string(gotReq.Prompt)

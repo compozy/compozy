@@ -171,7 +171,7 @@ func prepareExec(
 	}
 	prep.SetJournal(runJournal)
 
-	job, err := buildExecJob(prep.RunArtifacts, promptText, agentExecution)
+	job, err := buildExecJob(prep.RunArtifacts, promptText, agentExecution, cfg.AccessMode)
 	if err != nil {
 		return nil, err
 	}
@@ -266,6 +266,16 @@ func buildBatchJob(
 	if agentExecution != nil {
 		systemPrompt = agentExecution.SystemPrompt(systemPrompt)
 	}
+	mcpServers, err := reusableagents.BuildSessionMCPServers(
+		agentExecution,
+		reusableagents.SessionMCPContext{
+			RunID:               runArtifacts.RunID,
+			EffectiveAccessMode: cfg.AccessMode,
+		},
+	)
+	if err != nil {
+		return model.Job{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
+	}
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(runArtifacts, safeName, promptText)
 	if err != nil {
 		return model.Job{}, err
@@ -278,6 +288,7 @@ func buildBatchJob(
 		SafeName:      safeName,
 		Prompt:        []byte(promptText),
 		SystemPrompt:  systemPrompt,
+		MCPServers:    mcpServers,
 		OutPromptPath: outPromptPath,
 		OutLog:        outLog,
 		ErrLog:        errLog,
@@ -288,12 +299,23 @@ func buildExecJob(
 	runArtifacts model.RunArtifacts,
 	promptText string,
 	agentExecution *reusableagents.ExecutionContext,
+	effectiveAccessMode string,
 ) (model.Job, error) {
 	const safeName = "exec"
 
 	systemPrompt := ""
 	if agentExecution != nil {
 		systemPrompt = agentExecution.SystemPrompt("")
+	}
+	mcpServers, err := reusableagents.BuildSessionMCPServers(
+		agentExecution,
+		reusableagents.SessionMCPContext{
+			RunID:               runArtifacts.RunID,
+			EffectiveAccessMode: effectiveAccessMode,
+		},
+	)
+	if err != nil {
+		return model.Job{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
 	}
 
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(runArtifacts, safeName, promptText)
@@ -313,6 +335,7 @@ func buildExecJob(
 		SafeName:      safeName,
 		Prompt:        []byte(promptText),
 		SystemPrompt:  systemPrompt,
+		MCPServers:    mcpServers,
 		OutPromptPath: outPromptPath,
 		OutLog:        outLog,
 		ErrLog:        errLog,

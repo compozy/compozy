@@ -47,6 +47,7 @@ type Job struct {
 	SafeName      string
 	Prompt        []byte
 	SystemPrompt  string
+	MCPServers    []model.MCPServer
 	ResumeRunID   string
 	ResumeSession string
 	OutPromptPath string
@@ -121,6 +122,7 @@ func NewJobs(src []model.Job) []Job {
 			SafeName:      item.SafeName,
 			Prompt:        append([]byte(nil), item.Prompt...),
 			SystemPrompt:  item.SystemPrompt,
+			MCPServers:    model.CloneMCPServers(item.MCPServers),
 			OutPromptPath: item.OutPromptPath,
 			OutLog:        item.OutLog,
 			ErrLog:        item.ErrLog,

@@ -2,6 +2,7 @@ package exec
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -12,7 +13,109 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 )
+
+func TestExecutePreparedPromptValidatesInputs(t *testing.T) {
+	t.Parallel()
+
+	if _, err := ExecutePreparedPrompt(context.Background(), nil, "delegate", nil, nil); err == nil {
+		t.Fatal("expected missing config error")
+	}
+
+	_, err := ExecutePreparedPrompt(context.Background(), &model.RuntimeConfig{}, "   ", nil, nil)
+	if err == nil {
+		t.Fatal("expected empty prompt error")
+	}
+}
+
+func TestExecutePreparedPromptReturnsEnsureAvailableError(t *testing.T) {
+	t.Parallel()
+
+	_, err := ExecutePreparedPrompt(
+		context.Background(),
+		&model.RuntimeConfig{IDE: "missing-runtime"},
+		"delegate this",
+		nil,
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected runtime availability error")
+	}
+}
+
+func TestExecutePreparedPromptReturnsBuilderError(t *testing.T) {
+	cfg := &model.RuntimeConfig{
+		WorkspaceRoot: workspaceRootForExecTest(t),
+		IDE:           model.IDECodex,
+		Model:         "gpt-5.4",
+		AccessMode:    model.AccessModeDefault,
+		OutputFormat:  model.OutputFormatText,
+	}
+
+	_, err := ExecutePreparedPrompt(
+		context.Background(),
+		cfg,
+		"delegate this",
+		nil,
+		func(runID string) ([]model.MCPServer, error) {
+			if strings.TrimSpace(runID) == "" {
+				t.Fatal("expected run id before MCP builder executes")
+			}
+			return nil, errors.New("mcp builder failed")
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "mcp builder failed") {
+		t.Fatalf("expected MCP builder error, got %v", err)
+	}
+}
+
+func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
+
+	var gotReq agent.SessionRequest
+	restore := acpshared.SwapNewAgentClientForTest(
+		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+			return &capturingExecACPClient{
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+					gotReq = req
+					session := newCapturingExecSession("sess-prepared")
+					session.updates <- model.SessionUpdate{
+						Kind:   model.UpdateKindAgentMessageChunk,
+						Status: model.StatusRunning,
+						Blocks: []model.ContentBlock{preparedPromptTextContentBlock("nested reply")},
+					}
+					go session.finish(nil)
+					return session, nil
+				},
+			}, nil
+		},
+	)
+	t.Cleanup(restore)
+
+	result, err := ExecutePreparedPrompt(
+		context.Background(),
+		&model.RuntimeConfig{
+			WorkspaceRoot: workspaceRoot,
+			IDE:           model.IDECodex,
+			Model:         "gpt-5.4",
+			AccessMode:    model.AccessModeDefault,
+			OutputFormat:  model.OutputFormatText,
+		},
+		"delegate this",
+		nil,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("execute prepared prompt: %v", err)
+	}
+	if result.RunID == "" || result.Output != "nested reply" {
+		t.Fatalf("unexpected prepared prompt result: %#v", result)
+	}
+	if len(gotReq.MCPServers) != 0 {
+		t.Fatalf("expected nil MCP builder to skip MCP servers, got %#v", gotReq.MCPServers)
+	}
+}
 
 func TestWriteExecJSONFailureAndReportedErrorHelpers(t *testing.T) {
 	t.Parallel()
@@ -241,5 +344,41 @@ func TestRuntimeEventHelperUtilities(t *testing.T) {
 	}
 	if got := issueIDFromPath("/tmp/reviews/issue_001.md"); got != "issue_001.md" {
 		t.Fatalf("unexpected issue id from path: %q", got)
+	}
+}
+
+func workspaceRootForExecTest(t *testing.T) string {
+	t.Helper()
+
+	workspaceRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, model.WorkflowRootDirName), 0o755); err != nil {
+		t.Fatalf("mkdir workflow root: %v", err)
+	}
+	installRuntimeProbeStub(t, "codex-acp")
+	return workspaceRoot
+}
+
+func installRuntimeProbeStub(t *testing.T, command string) {
+	t.Helper()
+
+	binDir := t.TempDir()
+	scriptPath := filepath.Join(binDir, command)
+	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatalf("write runtime probe stub: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func preparedPromptTextContentBlock(text string) model.ContentBlock {
+	payload, err := json.Marshal(model.TextBlock{
+		Type: model.BlockText,
+		Text: text,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return model.ContentBlock{
+		Type: model.BlockText,
+		Data: payload,
 	}
 }

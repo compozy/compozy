@@ -103,6 +103,59 @@ func TestResolveExecutionContextAppliesAgentModelWhenModelFlagIsUnset(t *testing
 	}
 }
 
+func TestResolveExecutionContextPublicWrapperCapturesBaseRuntimeBeforeOverrides(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	writeWorkspaceAgent(
+		t,
+		workspaceRoot,
+		"planner",
+		strings.Join([]string{
+			"---",
+			"title: Planner",
+			"description: Plans the work",
+			"ide: claude",
+			"model: agent-model",
+			"access_mode: default",
+			"---",
+			"",
+			"Plan the work.",
+			"",
+		}, "\n"),
+		"",
+	)
+
+	cfg := &model.RuntimeConfig{
+		WorkspaceRoot:   workspaceRoot,
+		AgentName:       "planner",
+		IDE:             model.IDECodex,
+		Model:           "base-model",
+		AddDirs:         []string{"/tmp/shared"},
+		ReasoningEffort: "medium",
+		AccessMode:      model.AccessModeFull,
+	}
+
+	execution, err := ResolveExecutionContext(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("resolve execution context: %v", err)
+	}
+	if execution == nil {
+		t.Fatal("expected execution context")
+	}
+	if execution.BaseRuntime.IDE != model.IDECodex ||
+		execution.BaseRuntime.Model != "base-model" ||
+		execution.BaseRuntime.AccessMode != model.AccessModeFull {
+		t.Fatalf("expected base runtime to capture caller config before overrides, got %#v", execution.BaseRuntime)
+	}
+	if len(execution.BaseRuntime.AddDirs) != 1 || execution.BaseRuntime.AddDirs[0] != "/tmp/shared" {
+		t.Fatalf("unexpected base runtime add_dirs: %#v", execution.BaseRuntime)
+	}
+	if cfg.IDE != model.IDEClaude || cfg.AccessMode != model.AccessModeDefault {
+		t.Fatalf("expected agent defaults to apply after capture, got %#v", cfg)
+	}
+}
+
 func TestExecutionContextSystemPromptUsesCanonicalOrder(t *testing.T) {
 	t.Parallel()
 

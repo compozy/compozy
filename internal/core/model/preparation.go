@@ -68,6 +68,7 @@ type Job struct {
 	SafeName      string
 	Prompt        []byte
 	SystemPrompt  string
+	MCPServers    []MCPServer
 	OutPromptPath string
 	OutLog        string
 	ErrLog        string

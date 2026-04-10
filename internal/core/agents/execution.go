@@ -14,8 +14,9 @@ var errRuntimeConfigNil = errors.New("runtime config is nil")
 // ExecutionContext captures the resolved reusable-agent inputs needed by the
 // execution pipeline after runtime precedence has been applied.
 type ExecutionContext struct {
-	Agent   ResolvedAgent
-	Catalog Catalog
+	Agent       ResolvedAgent
+	Catalog     Catalog
+	BaseRuntime NestedBaseRuntime
 }
 
 // ResolveExecutionContext resolves the selected reusable agent, applies its
@@ -43,6 +44,7 @@ func resolveExecutionContext(
 		registry = New()
 	}
 
+	baseRuntime := captureNestedBaseRuntime(cfg)
 	catalog, err := registry.Discover(ctx, cfg.WorkspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("discover reusable agents: %w", err)
@@ -57,8 +59,9 @@ func resolveExecutionContext(
 	cfg.AgentName = resolved.Name
 
 	return &ExecutionContext{
-		Agent:   resolved,
-		Catalog: catalog,
+		Agent:       resolved,
+		Catalog:     catalog,
+		BaseRuntime: baseRuntime,
 	}, nil
 }
 

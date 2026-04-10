@@ -21,6 +21,10 @@ const (
 	ReservedAgentName = "compozy"
 	// ReservedMCPServerName is the host-owned MCP server name that agents may not override.
 	ReservedMCPServerName = "compozy"
+	reasoningEffortLow    = "low"
+	reasoningEffortMedium = "medium"
+	reasoningEffortHigh   = "high"
+	reasoningEffortXHigh  = "xhigh"
 )
 
 const (
@@ -418,7 +422,7 @@ func validateRuntimeDefaults(path string, runtime RuntimeDefaults) error {
 	}
 	if runtime.ReasoningEffort != "" {
 		switch runtime.ReasoningEffort {
-		case "low", "medium", "high", "xhigh":
+		case reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh:
 		default:
 			return fmt.Errorf(
 				"%w: %s reasoning_effort must be one of low, medium, high, xhigh (got %q)",

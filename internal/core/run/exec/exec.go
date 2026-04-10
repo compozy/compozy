@@ -259,7 +259,7 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 		cfg.RunID = state.runArtifacts.RunID
 	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
-	execJob, err := newExecRuntimeJob(promptText, state, agentExecution)
+	execJob, err := newExecRuntimeJob(promptText, state, agentExecution, cfg.AccessMode)
 	if err != nil {
 		state.close()
 		return "", nil, nil, job{}, err
@@ -1024,6 +1024,30 @@ func newExecRuntimeJob(
 	promptText string,
 	state *execRunState,
 	agentExecution *reusableagents.ExecutionContext,
+	effectiveAccessMode string,
+) (job, error) {
+	var runID string
+	if state != nil {
+		runID = state.runArtifacts.RunID
+	}
+	mcpServers, err := reusableagents.BuildSessionMCPServers(
+		agentExecution,
+		reusableagents.SessionMCPContext{
+			RunID:               runID,
+			EffectiveAccessMode: effectiveAccessMode,
+		},
+	)
+	if err != nil {
+		return job{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
+	}
+	return newExecRuntimeJobWithMCP(promptText, state, agentExecution, mcpServers)
+}
+
+func newExecRuntimeJobWithMCP(
+	promptText string,
+	state *execRunState,
+	agentExecution *reusableagents.ExecutionContext,
+	mcpServers []model.MCPServer,
 ) (job, error) {
 	systemPrompt := ""
 	if agentExecution != nil {
@@ -1042,6 +1066,7 @@ func newExecRuntimeJob(
 		SafeName:     "exec",
 		Prompt:       []byte(promptText),
 		SystemPrompt: systemPrompt,
+		MCPServers:   model.CloneMCPServers(mcpServers),
 		OutBuffer:    newLineBuffer(0),
 		ErrBuffer:    newLineBuffer(0),
 	}

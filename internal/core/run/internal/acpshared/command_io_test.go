@@ -96,6 +96,85 @@ func TestBuildSessionExecutionUsesSessionSetupRequest(t *testing.T) {
 	}
 }
 
+func TestCreateACPSessionForwardsMCPServersOnNewSession(t *testing.T) {
+	t.Parallel()
+
+	client := &capturingCommandIOClient{}
+	servers := []model.MCPServer{{
+		Stdio: &model.MCPServerStdio{
+			Name:    "compozy",
+			Command: "/tmp/compozy-test",
+			Args:    []string{"mcp-serve", "--server", "compozy"},
+		},
+	}}
+
+	session, err := createACPSession(
+		context.Background(),
+		client,
+		&config{Model: "model-1"},
+		&job{
+			Prompt:       []byte("solve it"),
+			SystemPrompt: "system framing",
+			MCPServers:   servers,
+		},
+		t.TempDir(),
+	)
+	if err != nil {
+		t.Fatalf("create ACP session: %v", err)
+	}
+	if session == nil {
+		t.Fatal("expected session")
+	}
+	if len(client.createReq.MCPServers) != 1 {
+		t.Fatalf("expected one forwarded MCP server, got %#v", client.createReq.MCPServers)
+	}
+	if client.createReq.MCPServers[0].Stdio == nil ||
+		client.createReq.MCPServers[0].Stdio.Name != "compozy" {
+		t.Fatalf("unexpected forwarded MCP servers: %#v", client.createReq.MCPServers)
+	}
+}
+
+func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
+	t.Parallel()
+
+	client := &capturingCommandIOClient{}
+	servers := []model.MCPServer{{
+		Stdio: &model.MCPServerStdio{
+			Name:    "filesystem",
+			Command: "/tmp/fs-mcp",
+			Args:    []string{"--serve"},
+		},
+	}}
+
+	session, err := createACPSession(
+		context.Background(),
+		client,
+		&config{Model: "model-1"},
+		&job{
+			Prompt:        []byte("solve it"),
+			ResumeSession: "sess-existing",
+			MCPServers:    servers,
+		},
+		t.TempDir(),
+	)
+	if err != nil {
+		t.Fatalf("resume ACP session: %v", err)
+	}
+	if session == nil {
+		t.Fatal("expected session")
+	}
+	if client.resumeReq.SessionID != "sess-existing" {
+		t.Fatalf("unexpected resumed session id: %#v", client.resumeReq)
+	}
+	if len(client.resumeReq.MCPServers) != 1 {
+		t.Fatalf("expected one forwarded MCP server, got %#v", client.resumeReq.MCPServers)
+	}
+	if client.resumeReq.MCPServers[0].Stdio == nil ||
+		client.resumeReq.MCPServers[0].Stdio.Name != "filesystem" {
+		t.Fatalf("unexpected forwarded MCP servers: %#v", client.resumeReq.MCPServers)
+	}
+}
+
 type fakeSessionExecutionSession struct {
 	id       string
 	identity agent.SessionIdentity
@@ -130,3 +209,36 @@ func (s fakeSessionExecutionSession) SlowPublishes() uint64 {
 func (s fakeSessionExecutionSession) DroppedUpdates() uint64 {
 	return 0
 }
+
+type capturingCommandIOClient struct {
+	createReq agent.SessionRequest
+	resumeReq agent.ResumeSessionRequest
+}
+
+func (c *capturingCommandIOClient) CreateSession(
+	_ context.Context,
+	req agent.SessionRequest,
+) (agent.Session, error) {
+	c.createReq = req
+	return fakeSessionExecutionSession{
+		id:      "sess-create",
+		updates: make(chan model.SessionUpdate),
+		done:    make(chan struct{}),
+	}, nil
+}
+
+func (c *capturingCommandIOClient) ResumeSession(
+	_ context.Context,
+	req agent.ResumeSessionRequest,
+) (agent.Session, error) {
+	c.resumeReq = req
+	return fakeSessionExecutionSession{
+		id:      "sess-resume",
+		updates: make(chan model.SessionUpdate),
+		done:    make(chan struct{}),
+	}, nil
+}
+
+func (*capturingCommandIOClient) SupportsLoadSession() bool { return true }
+func (*capturingCommandIOClient) Close() error              { return nil }
+func (*capturingCommandIOClient) Kill() error               { return nil }
