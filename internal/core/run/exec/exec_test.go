@@ -130,6 +130,57 @@ func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
 	}
 }
 
+func TestExecutePreparedPromptReturnsCompletionFailureWhenExecAlsoFails(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
+	execErr := errors.New("session failed")
+
+	restore := acpshared.SwapNewAgentClientForTest(
+		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+			return &capturingExecACPClient{
+				createSessionFn: func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+					session := newCapturingExecSession("sess-prepared-failure")
+					go session.finish(execErr)
+					return session, nil
+				},
+			}, nil
+		},
+	)
+	t.Cleanup(restore)
+
+	result, err := ExecutePreparedPrompt(
+		context.Background(),
+		&model.RuntimeConfig{
+			WorkspaceRoot: workspaceRoot,
+			IDE:           model.IDECodex,
+			Model:         "gpt-5.4",
+			AccessMode:    model.AccessModeDefault,
+			OutputFormat:  model.OutputFormatText,
+			Persist:       true,
+		},
+		"delegate this",
+		nil,
+		func(runID string) ([]model.MCPServer, error) {
+			responsePath := filepath.Join(model.NewRunArtifacts(workspaceRoot, runID).TurnsDir, "0001", "response.txt")
+			if err := os.Mkdir(responsePath, 0o755); err != nil {
+				t.Fatalf("make response path unwritable: %v", err)
+			}
+			return nil, nil
+		},
+	)
+	if err == nil {
+		t.Fatal("expected prepared prompt to surface completion failure")
+	}
+	if strings.TrimSpace(result.RunID) == "" {
+		t.Fatalf("expected failed prepared prompt to retain run id, got %#v", result)
+	}
+	if !errors.Is(err, execErr) {
+		t.Fatalf("expected returned error to retain exec failure, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "write exec response") {
+		t.Fatalf("expected returned error to retain completion failure, got %v", err)
+	}
+}
+
 func TestNewExecRuntimeJobAttachesReservedServerWithoutReusableAgent(t *testing.T) {
 	jb, err := newExecRuntimeJob(
 		"delegate this",

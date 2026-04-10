@@ -156,7 +156,7 @@ func (c Catalog) Resolve(name string) (ResolvedAgent, error) {
 	}
 	for _, problem := range c.Problems {
 		if problem.Name == normalized {
-			return ResolvedAgent{}, fmt.Errorf("resolve agent %q: %w", normalized, problem.Err)
+			return ResolvedAgent{}, fmt.Errorf("resolve agent %q: %w", normalized, problem)
 		}
 	}
 	return ResolvedAgent{}, fmt.Errorf("%w: %q", ErrAgentNotFound, normalized)

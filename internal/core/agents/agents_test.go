@@ -414,6 +414,8 @@ func TestDiscoverInvalidWorkspaceOverrideDoesNotFallBackToGlobal(t *testing.T) {
 	}
 	if _, err := catalog.Resolve("planner"); !errors.Is(err, ErrMalformedFrontmatter) {
 		t.Fatalf("expected resolve to expose malformed override, got %v", err)
+	} else if !strings.Contains(err.Error(), "planner (workspace)") {
+		t.Fatalf("expected resolve error to preserve problem context, got %v", err)
 	}
 }
 

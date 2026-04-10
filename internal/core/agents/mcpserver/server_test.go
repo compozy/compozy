@@ -73,10 +73,15 @@ func TestLoadHostContextFromEnvRejectsMissingPayload(t *testing.T) {
 }
 
 func TestRunAgentToolMarksStructuredFailuresAsToolErrors(t *testing.T) {
-	t.Parallel()
-
+	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	server := NewServer()
-	handler := server.runAgentTool(HostContext{})
+	handler := server.runAgentTool(HostContext{
+		BaseRuntime: reusableagents.NestedBaseRuntime{
+			WorkspaceRoot: workspaceRoot,
+		},
+	})
 
 	result, output, err := handler(context.Background(), nil, RunAgentRequest{
 		Name:  "missing-agent",

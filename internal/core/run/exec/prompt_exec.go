@@ -79,11 +79,11 @@ func ExecutePreparedPrompt(
 		return PreparedPromptResult{}, err
 	}
 	result := executeExecJob(ctx, internalCfg, &execJob, cfg.WorkspaceRoot, false, state)
-	if err := state.completeTurn(result); err != nil && result.err == nil {
-		return buildPreparedPromptResult(state, result), err
-	}
-	if result.err != nil {
-		return buildPreparedPromptResult(state, result), result.err
+	if completeErr := state.completeTurn(result); completeErr != nil {
+		if result.err != nil && !errors.Is(completeErr, result.err) {
+			return buildPreparedPromptResult(state, result), errors.Join(result.err, completeErr)
+		}
+		return buildPreparedPromptResult(state, result), completeErr
 	}
 	return buildPreparedPromptResult(state, result), nil
 }
