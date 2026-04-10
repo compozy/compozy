@@ -201,9 +201,13 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	}
 
 	requestedModel := resolveModel(c.spec, firstNonEmpty(req.Model, c.cfg.Model))
+	mcpServers, err := toACPMCPServers(req.MCPServers)
+	if err != nil {
+		return nil, fmt.Errorf("prepare ACP MCP servers for new session: %w", err)
+	}
 	sessionResp, err := c.conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        workingDir,
-		McpServers: toACPMCPServers(req.MCPServers),
+		McpServers: mcpServers,
 	})
 	if err != nil {
 		return nil, wrapSessionSetupError(SessionSetupStageNewSession, wrapACPError(err))
@@ -282,10 +286,15 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 	session := newLoadedSession(sessionID, workingDir, allowedRoots)
 	c.storeSession(session)
 
+	mcpServers, err := toACPMCPServers(req.MCPServers)
+	if err != nil {
+		c.removeSession(session.id)
+		return nil, fmt.Errorf("prepare ACP MCP servers for load session: %w", err)
+	}
 	loadResp, err := c.conn.LoadSession(ctx, acp.LoadSessionRequest{
 		SessionId:  acp.SessionId(sessionID),
 		Cwd:        workingDir,
-		McpServers: toACPMCPServers(req.MCPServers),
+		McpServers: mcpServers,
 	})
 	if err != nil {
 		c.removeSession(session.id)
@@ -762,16 +771,16 @@ func (c *clientImpl) lookupSession(id string) *sessionImpl {
 	return c.sessions[id]
 }
 
-func toACPMCPServers(src []model.MCPServer) []acp.McpServer {
+func toACPMCPServers(src []model.MCPServer) ([]acp.McpServer, error) {
 	if len(src) == 0 {
-		return []acp.McpServer{}
+		return []acp.McpServer{}, nil
 	}
 
 	servers := make([]acp.McpServer, 0, len(src))
 	for idx := range src {
 		item := src[idx]
 		if item.Stdio == nil {
-			continue
+			return nil, fmt.Errorf("unsupported ACP MCP server transport at index %d: only stdio is supported", idx)
 		}
 		servers = append(servers, acp.McpServer{
 			Stdio: &acp.McpServerStdio{
@@ -783,9 +792,9 @@ func toACPMCPServers(src []model.MCPServer) []acp.McpServer {
 		})
 	}
 	if len(servers) == 0 {
-		return []acp.McpServer{}
+		return []acp.McpServer{}, nil
 	}
-	return servers
+	return servers, nil
 }
 
 func toACPEnvVars(src map[string]string) []acp.EnvVariable {

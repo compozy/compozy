@@ -11,6 +11,14 @@ import (
 
 var errRuntimeConfigNil = errors.New("runtime config is nil")
 
+var promptMetadataEscaper = strings.NewReplacer(
+	"&", "&amp;",
+	"<", "&lt;",
+	">", "&gt;",
+	"\r", "\\r",
+	"\n", "\\n",
+)
+
 // ExecutionContext captures the resolved reusable-agent inputs needed by the
 // execution pipeline after runtime precedence has been applied.
 type ExecutionContext struct {
@@ -109,9 +117,9 @@ func applyRuntimePrecedence(cfg *model.RuntimeConfig, defaults RuntimeDefaults) 
 func buildAgentMetadataBlock(agent ResolvedAgent) string {
 	lines := []string{
 		"<agent_metadata>",
-		"name: " + agent.Name,
-		"title: " + strings.TrimSpace(agent.Metadata.Title),
-		"description: " + strings.TrimSpace(agent.Metadata.Description),
+		"name: " + escapePromptMetadataValue(agent.Name),
+		"title: " + escapePromptMetadataValue(agent.Metadata.Title),
+		"description: " + escapePromptMetadataValue(agent.Metadata.Description),
 		"source: " + string(agent.Source.Scope),
 		"</agent_metadata>",
 	}
@@ -133,14 +141,18 @@ func buildAvailableAgentsBlock(selectedName string, agents []ResolvedAgent) stri
 func formatDiscoveryCatalogEntry(agent *ResolvedAgent) string {
 	var entry strings.Builder
 	entry.WriteString("- ")
-	entry.WriteString(agent.Name)
+	entry.WriteString(escapePromptMetadataValue(agent.Name))
 	entry.WriteString(":")
 	if description := strings.TrimSpace(agent.Metadata.Description); description != "" {
 		entry.WriteString(" ")
-		entry.WriteString(description)
+		entry.WriteString(escapePromptMetadataValue(description))
 	}
 	entry.WriteString(" (")
 	entry.WriteString(string(agent.Source.Scope))
 	entry.WriteString(")")
 	return entry.String()
+}
+
+func escapePromptMetadataValue(value string) string {
+	return promptMetadataEscaper.Replace(strings.TrimSpace(value))
 }

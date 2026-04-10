@@ -209,14 +209,16 @@ func (r *Registry) Discover(ctx context.Context, workspaceRoot string) (Catalog,
 		return Catalog{}, fmt.Errorf("discover agents: %w", err)
 	}
 
+	var (
+		globalCandidates map[string]agentCandidate
+		globalProblems   []Problem
+	)
 	globalRoot, err := r.globalAgentsRoot()
-	if err != nil {
-		return Catalog{}, err
-	}
-
-	globalCandidates, globalProblems, err := scanScope(ctx, ScopeGlobal, globalRoot)
-	if err != nil {
-		return Catalog{}, err
+	if err == nil {
+		globalCandidates, globalProblems, err = scanScope(ctx, ScopeGlobal, globalRoot)
+		if err != nil {
+			return Catalog{}, err
+		}
 	}
 	workspaceCandidates, workspaceProblems, err := scanScope(
 		ctx,

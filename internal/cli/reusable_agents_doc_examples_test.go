@@ -15,6 +15,8 @@ import (
 
 func TestDocumentedAgentsInspectExampleMatchesReviewerFixture(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	copyCLIDocumentedAgentFixture(t, workspaceRoot, "reviewer")
 	withWorkingDir(t, workspaceRoot)
@@ -42,6 +44,8 @@ func TestDocumentedAgentsInspectExampleMatchesReviewerFixture(t *testing.T) {
 
 func TestDocumentedExecAgentExampleWorksWithReviewerFixture(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	copyCLIDocumentedAgentFixture(t, workspaceRoot, "reviewer")
 	withWorkingDir(t, workspaceRoot)

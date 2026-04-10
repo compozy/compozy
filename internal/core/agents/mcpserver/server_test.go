@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -57,18 +58,17 @@ func TestLoadHostContextFromEnvParsesReservedPayload(t *testing.T) {
 	}
 }
 
-func TestLoadHostContextFromEnvTreatsMissingPayloadAsEmpty(t *testing.T) {
+func TestLoadHostContextFromEnvRejectsMissingPayload(t *testing.T) {
 	t.Parallel()
 
-	host, err := loadHostContextFromEnv(func(string) (string, bool) {
+	_, err := loadHostContextFromEnv(func(string) (string, bool) {
 		return "", false
 	})
-	if err != nil {
-		t.Fatalf("load empty host context: %v", err)
+	if err == nil {
+		t.Fatal("expected missing host context error")
 	}
-	if host.BaseRuntime.WorkspaceRoot != "" || host.BaseRuntime.IDE != "" || host.Nested.Depth != 0 ||
-		host.Nested.MaxDepth != 0 {
-		t.Fatalf("expected zero host context, got %#v", host)
+	if !strings.Contains(err.Error(), reusableagents.RunAgentContextEnvVar) {
+		t.Fatalf("expected missing env var in error, got %v", err)
 	}
 }
 

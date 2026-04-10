@@ -12,7 +12,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -27,7 +26,7 @@ type SessionUpdateHandler struct {
 	startedAt      time.Time
 	outWriter      io.Writer
 	errWriter      io.Writer
-	journal        *journal.Journal
+	journal        runtimeEventSubmitter
 	jobUsage       *model.Usage
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
@@ -52,7 +51,7 @@ type SessionUpdateHandlerConfig struct {
 	RunID          string
 	OutWriter      io.Writer
 	ErrWriter      io.Writer
-	RunJournal     *journal.Journal
+	RunJournal     runtimeEventSubmitter
 	JobUsage       *model.Usage
 	AggregateUsage *model.Usage
 	AggregateMu    *sync.Mutex
@@ -108,7 +107,17 @@ func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 	}
 	h.applySessionUpdate(update)
 	if err := h.emitReusableAgentLifecycleFromUpdate(update); err != nil {
-		return err
+		h.logger.Warn(
+			"failed to emit reusable agent lifecycle from session update; continuing",
+			"session_id",
+			h.sessionID,
+			"update_kind",
+			update.Kind,
+			"tool_call_id",
+			strings.TrimSpace(update.ToolCallID),
+			"error",
+			err,
+		)
 	}
 	if err := h.emitSessionUpdateEvent(update); err != nil {
 		return err
@@ -277,7 +286,7 @@ func (h *SessionUpdateHandler) submitRuntimeEvent(
 	payload any,
 	description string,
 ) error {
-	if h.journal == nil {
+	if !hasRuntimeEventSubmitter(h.journal) {
 		return nil
 	}
 

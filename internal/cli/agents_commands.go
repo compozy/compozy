@@ -62,6 +62,7 @@ Workspace agents live under .compozy/agents/<name>/ and override same-name agent
 	cmd.AddCommand(
 		newAgentsListCommand(),
 		newAgentsInspectCommand(),
+		newMCPServeCommand(),
 	)
 	return cmd
 }
@@ -444,7 +445,10 @@ func optionalExistingPath(path string) string {
 		return ""
 	}
 	if _, err := os.Stat(path); err != nil {
-		return ""
+		if os.IsNotExist(err) {
+			return ""
+		}
+		return path
 	}
 	return path
 }

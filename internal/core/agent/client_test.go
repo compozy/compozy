@@ -186,6 +186,28 @@ func TestClientCreateSessionForwardsMCPServersIntoNewSessionRequest(t *testing.T
 	_ = collectSessionUpdates(t, session)
 }
 
+func TestClientCreateSessionRejectsUnsupportedMCPTransport(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD: t.TempDir(),
+	}
+
+	client := newTestClient(t, scenario)
+	defer client.Close()
+	_, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("hello"),
+		MCPServers: []model.MCPServer{{}},
+	})
+	if err == nil {
+		t.Fatal("expected unsupported MCP transport error")
+	}
+	if !strings.Contains(err.Error(), "unsupported ACP MCP server transport at index 0") {
+		t.Fatalf("unexpected unsupported MCP transport error: %v", err)
+	}
+}
+
 func TestClientResumeSessionLoadsExistingSessionAndSuppressesReplay(t *testing.T) {
 	t.Parallel()
 
@@ -276,6 +298,31 @@ func TestClientResumeSessionForwardsMCPServersIntoLoadSessionRequest(t *testing.
 	}
 
 	_ = collectSessionUpdates(t, session)
+}
+
+func TestClientResumeSessionRejectsUnsupportedMCPTransport(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		SessionID:           "sess-existing",
+		ExpectedCWD:         t.TempDir(),
+		SupportsLoadSession: true,
+	}
+
+	client := newTestClient(t, scenario)
+	defer client.Close()
+	_, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("continue"),
+		MCPServers: []model.MCPServer{{}},
+	})
+	if err == nil {
+		t.Fatal("expected unsupported MCP transport error")
+	}
+	if !strings.Contains(err.Error(), "unsupported ACP MCP server transport at index 0") {
+		t.Fatalf("unexpected unsupported MCP transport error: %v", err)
+	}
 }
 
 func TestSessionErrReturnsStructuredPromptError(t *testing.T) {

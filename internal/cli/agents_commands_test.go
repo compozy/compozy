@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -357,7 +358,15 @@ func TestHiddenMCPServeCommandHostsReservedServer(t *testing.T) {
 		reusableagents.ReservedMCPServerName,
 	)
 	cmd.Dir = repoRoot
-	cmd.Env = append(os.Environ(), "GO_WANT_CLI_MCP_HELPER=1")
+	payload, err := json.Marshal(reusableagents.ReservedServerRuntimeContext{})
+	if err != nil {
+		t.Fatalf("marshal reserved host context: %v", err)
+	}
+	cmd.Env = append(
+		os.Environ(),
+		"GO_WANT_CLI_MCP_HELPER=1",
+		reusableagents.RunAgentContextEnvVar+"="+string(payload),
+	)
 
 	client := mcp.NewClient(&mcp.Implementation{Name: "cli-test", Version: "1.0.0"}, nil)
 	session, err := client.Connect(ctx, &mcp.CommandTransport{Command: cmd}, nil)
@@ -595,6 +604,10 @@ func TestDecorateReusableAgentErrorAndHelperFormatting(t *testing.T) {
 	if got := optionalExistingPath(filepath.Join(dir, "missing.json")); got != "" {
 		t.Fatalf("expected missing optional path to be blank, got %q", got)
 	}
+	notADirectory := filepath.Join(path, "nested.json")
+	if got := optionalExistingPath(notADirectory); got != notADirectory {
+		t.Fatalf("expected non-ENOENT optional path to remain visible, got %q", got)
+	}
 }
 
 func TestAgentsCommandHelpersAndMCPServeState(t *testing.T) {
@@ -606,6 +619,13 @@ func TestAgentsCommandHelpersAndMCPServeState(t *testing.T) {
 	}
 	if group.RunE == nil {
 		t.Fatal("expected agents group help runner")
+	}
+	mcpServeCommand, _, findErr := group.Find([]string{"mcp-serve"})
+	if findErr != nil {
+		t.Fatalf("expected hidden mcp-serve command to be registered: %v", findErr)
+	}
+	if !mcpServeCommand.Hidden {
+		t.Fatalf("expected mcp-serve command to remain hidden, got %#v", mcpServeCommand)
 	}
 
 	if registry := (&agentsListCommandState{}).registry(); registry == nil {

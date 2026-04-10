@@ -45,11 +45,11 @@ type ReusableAgentLifecyclePayload struct {
 	MCPServers        []string                    `json:"mcp_servers,omitempty"`
 	Resumed           bool                        `json:"resumed,omitempty"`
 	ToolCallID        string                      `json:"tool_call_id,omitempty"`
-	NestedDepth       int                         `json:"nested_depth,omitempty"`
-	MaxNestedDepth    int                         `json:"max_nested_depth,omitempty"`
+	NestedDepth       int                         `json:"nested_depth"`
+	MaxNestedDepth    int                         `json:"max_nested_depth"`
 	OutputRunID       string                      `json:"output_run_id,omitempty"`
-	Success           bool                        `json:"success,omitempty"`
-	Blocked           bool                        `json:"blocked,omitempty"`
+	Success           bool                        `json:"success"`
+	Blocked           bool                        `json:"blocked"`
 	BlockedReason     ReusableAgentBlockedReason  `json:"blocked_reason,omitempty"`
 	Error             string                      `json:"error,omitempty"`
 }

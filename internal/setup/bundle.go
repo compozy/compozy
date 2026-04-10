@@ -1,11 +1,14 @@
 package setup
 
 import (
+	"fmt"
 	"io/fs"
 
 	"github.com/compozy/compozy/bundledagents"
 	"github.com/compozy/compozy/skills"
 )
+
+var installBundledReusableAgents = InstallBundledReusableAgents
 
 // ListBundledSkills returns the public skills bundled into the compozy binary.
 func ListBundledSkills() ([]Skill, error) {
@@ -32,9 +35,9 @@ func InstallBundledSetupAssets(cfg InstallConfig) (*Result, error) {
 		return nil, err
 	}
 
-	successes, failures, err := InstallBundledReusableAgents(cfg.ResolverOptions)
+	successes, failures, err := installBundledReusableAgents(cfg.ResolverOptions)
 	if err != nil {
-		return nil, err
+		return result, fmt.Errorf("install bundled reusable agents: %w", err)
 	}
 	result.ReusableAgentsSuccessful = append(result.ReusableAgentsSuccessful, successes...)
 	result.ReusableAgentsFailed = append(result.ReusableAgentsFailed, failures...)

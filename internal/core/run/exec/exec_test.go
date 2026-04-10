@@ -46,15 +46,17 @@ func TestExecutePreparedPromptReturnsEnsureAvailableError(t *testing.T) {
 }
 
 func TestExecutePreparedPromptReturnsBuilderError(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
 	cfg := &model.RuntimeConfig{
-		WorkspaceRoot: workspaceRootForExecTest(t),
+		WorkspaceRoot: workspaceRoot,
 		IDE:           model.IDECodex,
 		Model:         "gpt-5.4",
 		AccessMode:    model.AccessModeDefault,
 		OutputFormat:  model.OutputFormatText,
+		Persist:       true,
 	}
 
-	_, err := ExecutePreparedPrompt(
+	result, err := ExecutePreparedPrompt(
 		context.Background(),
 		cfg,
 		"delegate this",
@@ -68,6 +70,16 @@ func TestExecutePreparedPromptReturnsBuilderError(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), "mcp builder failed") {
 		t.Fatalf("expected MCP builder error, got %v", err)
+	}
+	if strings.TrimSpace(result.RunID) == "" {
+		t.Fatalf("expected failed prepared prompt to retain run id, got %#v", result)
+	}
+	record, loadErr := LoadPersistedExecRun(workspaceRoot, result.RunID)
+	if loadErr != nil {
+		t.Fatalf("load persisted exec run: %v", loadErr)
+	}
+	if record.Status != runStatusFailed {
+		t.Fatalf("expected failed exec record after MCP builder error, got %#v", record)
 	}
 }
 

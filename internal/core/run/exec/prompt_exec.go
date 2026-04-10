@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -56,7 +57,14 @@ func ExecutePreparedPrompt(
 	if buildMCPServers != nil {
 		mcpServers, err = buildMCPServers(state.runArtifacts.RunID)
 		if err != nil {
-			return PreparedPromptResult{}, err
+			failure := execExecutionResult{
+				status: runStatusFailed,
+				err:    err,
+			}
+			if completeErr := state.completeTurn(failure); completeErr != nil && !errors.Is(completeErr, err) {
+				return buildPreparedPromptResult(state, failure), completeErr
+			}
+			return buildPreparedPromptResult(state, failure), err
 		}
 	}
 

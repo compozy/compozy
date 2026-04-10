@@ -77,8 +77,7 @@ func (s *Server) RunStdio(ctx context.Context, host HostContext) error {
 }
 
 // LoadHostContextFromEnv loads the host-owned reserved-server runtime payload from
-// COMPOZY_RUN_AGENT_CONTEXT. When the variable is unset, it returns a zero-value
-// HostContext so the internal server can still be exercised in tests.
+// COMPOZY_RUN_AGENT_CONTEXT.
 func LoadHostContextFromEnv() (HostContext, error) {
 	return loadHostContextFromEnv(os.LookupEnv)
 }
@@ -125,7 +124,7 @@ func loadHostContextFromEnv(lookupEnv func(string) (string, bool)) (HostContext,
 
 	raw, ok := lookupEnv(reusableagents.RunAgentContextEnvVar)
 	if !ok || strings.TrimSpace(raw) == "" {
-		return HostContext{}, nil
+		return HostContext{}, fmt.Errorf("missing %s", reusableagents.RunAgentContextEnvVar)
 	}
 
 	var payload reusableagents.ReservedServerRuntimeContext

@@ -8,7 +8,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -38,11 +37,11 @@ type runAgentToolResult struct {
 
 func emitReusableAgentSetupLifecycle(
 	ctx context.Context,
-	runJournal *journal.Journal,
+	runJournal runtimeEventSubmitter,
 	runID string,
 	jb *job,
 ) error {
-	if jb == nil || jb.ReusableAgent == nil || runJournal == nil {
+	if jb == nil || jb.ReusableAgent == nil || !hasRuntimeEventSubmitter(runJournal) {
 		return nil
 	}
 
@@ -87,11 +86,11 @@ func buildReusableAgentSetupLifecycle(jb *job) []kinds.ReusableAgentLifecyclePay
 
 func submitReusableAgentLifecycle(
 	ctx context.Context,
-	runJournal *journal.Journal,
+	runJournal runtimeEventSubmitter,
 	runID string,
 	payload kinds.ReusableAgentLifecyclePayload,
 ) error {
-	if runJournal == nil {
+	if !hasRuntimeEventSubmitter(runJournal) {
 		return nil
 	}
 	if ctx == nil {
@@ -124,7 +123,7 @@ func reusableAgentMCPServerNames(servers []model.MCPServer) []string {
 }
 
 func (h *SessionUpdateHandler) emitReusableAgentLifecycleFromUpdate(update model.SessionUpdate) error {
-	if h == nil || h.journal == nil {
+	if h == nil || !hasRuntimeEventSubmitter(h.journal) {
 		return nil
 	}
 
@@ -161,20 +160,28 @@ func (h *SessionUpdateHandler) handleNestedReusableAgentToolUse(
 		h.mu.Unlock()
 		return nil
 	}
+	h.mu.Unlock()
 
 	call := nestedReusableAgentCall{}
 	if input, ok := decodeRunAgentToolInput(block); ok {
 		call.Name = input.Name
 	}
-	h.nestedToolCalls[toolCallID] = call
-	h.mu.Unlock()
 
-	return submitReusableAgentLifecycle(h.ctx, h.journal, h.runID, kinds.ReusableAgentLifecyclePayload{
+	if err := submitReusableAgentLifecycle(h.ctx, h.journal, h.runID, kinds.ReusableAgentLifecyclePayload{
 		Stage:           kinds.ReusableAgentLifecycleStageNestedStarted,
 		AgentName:       call.Name,
 		ParentAgentName: h.currentReusableAgentName(),
 		ToolCallID:      toolCallID,
-	})
+	}); err != nil {
+		return err
+	}
+
+	h.mu.Lock()
+	if _, exists := h.nestedToolCalls[toolCallID]; !exists {
+		h.nestedToolCalls[toolCallID] = call
+	}
+	h.mu.Unlock()
+	return nil
 }
 
 func (h *SessionUpdateHandler) handleNestedReusableAgentToolResult(
@@ -216,11 +223,14 @@ func (h *SessionUpdateHandler) handleNestedReusableAgentToolResult(
 		payload.BlockedReason = result.BlockedReason
 	}
 
+	if err := submitReusableAgentLifecycle(h.ctx, h.journal, h.runID, payload); err != nil {
+		return err
+	}
+
 	h.mu.Lock()
 	delete(h.nestedToolCalls, toolCallID)
 	h.mu.Unlock()
-
-	return submitReusableAgentLifecycle(h.ctx, h.journal, h.runID, payload)
+	return nil
 }
 
 func (h *SessionUpdateHandler) currentReusableAgentName() string {

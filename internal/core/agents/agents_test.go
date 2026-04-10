@@ -296,6 +296,38 @@ func TestDiscoverReturnsBothScopesWithoutCollisions(t *testing.T) {
 	}
 }
 
+func TestDiscoverKeepsWorkspaceAgentsWhenGlobalHomeLookupFails(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	writeWorkspaceAgent(
+		t,
+		workspaceRoot,
+		"workspace-reviewer",
+		validAgentMarkdown("Workspace Reviewer", "Review locally."),
+		"",
+	)
+
+	registry := New(
+		WithHomeDir(func() (string, error) {
+			return "", errors.New("home lookup failed")
+		}),
+	)
+	catalog, err := registry.Discover(context.Background(), workspaceRoot)
+	if err != nil {
+		t.Fatalf("discover agents: %v", err)
+	}
+	if len(catalog.Problems) != 0 {
+		t.Fatalf("expected no discovery problems, got %#v", catalog.Problems)
+	}
+	if len(catalog.Agents) != 1 {
+		t.Fatalf("expected one workspace agent, got %#v", catalog.Agents)
+	}
+	if catalog.Agents[0].Name != "workspace-reviewer" || catalog.Agents[0].Source.Scope != ScopeWorkspace {
+		t.Fatalf("unexpected workspace agent result: %#v", catalog.Agents[0])
+	}
+}
+
 func TestDiscoverUsesWorkspaceDirectoryAsWholeOverride(t *testing.T) {
 	t.Parallel()
 

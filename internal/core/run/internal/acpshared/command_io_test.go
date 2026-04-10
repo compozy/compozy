@@ -1,10 +1,14 @@
 package acpshared
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -282,6 +286,71 @@ func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResu
 	}
 }
 
+func TestSetupSessionExecutionWarnsButContinuesWhenReusableAgentSetupLifecycleSubmitFails(t *testing.T) {
+	var logs bytes.Buffer
+	submitter := &stubRuntimeEventSubmitter{
+		submitFn: func(ev eventspkg.Event) error {
+			if ev.Kind == eventspkg.EventKindReusableAgentLifecycle {
+				return errors.New("journal unavailable")
+			}
+			return nil
+		},
+	}
+
+	restore := SwapNewAgentClientForTest(
+		func(context.Context, agent.ClientConfig) (agent.Client, error) {
+			return &lifecycleCommandIOClient{
+				session: fakeSessionExecutionSession{
+					id: "sess-lifecycle",
+					identity: agent.SessionIdentity{
+						ACPSessionID: "sess-lifecycle",
+					},
+					updates: make(chan model.SessionUpdate),
+					done:    make(chan struct{}),
+				},
+			}, nil
+		},
+	)
+	defer restore()
+
+	tmpDir := t.TempDir()
+	execution, err := SetupSessionExecution(SessionSetupRequest{
+		Context: context.Background(),
+		Config: &config{
+			IDE:          model.IDECodex,
+			RunArtifacts: model.RunArtifacts{RunID: "run-lifecycle"},
+		},
+		Job: &job{
+			SafeName:     "exec",
+			Prompt:       []byte("finish the task"),
+			SystemPrompt: "workflow memory",
+			ReusableAgent: &reusableAgentExecution{
+				Name:                "planner",
+				Source:              "workspace",
+				AvailableAgentCount: 2,
+			},
+			OutLog: filepath.Join(tmpDir, "exec.out.log"),
+			ErrLog: filepath.Join(tmpDir, "exec.err.log"),
+		},
+		CWD:        tmpDir,
+		RunJournal: submitter,
+		Logger: slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{
+			Level: slog.LevelWarn,
+		})),
+	})
+	if err != nil {
+		t.Fatalf("setup session execution: %v", err)
+	}
+	execution.Close()
+
+	if !strings.Contains(logs.String(), "failed to emit reusable agent setup lifecycle; continuing") {
+		t.Fatalf("expected reusable-agent lifecycle warning, got %q", logs.String())
+	}
+	if got := submitter.countKind(eventspkg.EventKindSessionStarted); got != 1 {
+		t.Fatalf("expected session started event to still be submitted, got %d", got)
+	}
+}
+
 type fakeSessionExecutionSession struct {
 	id       string
 	identity agent.SessionIdentity
@@ -324,6 +393,36 @@ type capturingCommandIOClient struct {
 
 type lifecycleCommandIOClient struct {
 	session agent.Session
+}
+
+type stubRuntimeEventSubmitter struct {
+	mu       sync.Mutex
+	events   []eventspkg.Event
+	submitFn func(eventspkg.Event) error
+}
+
+func (s *stubRuntimeEventSubmitter) Submit(_ context.Context, ev eventspkg.Event) error {
+	s.mu.Lock()
+	s.events = append(s.events, ev)
+	submitFn := s.submitFn
+	s.mu.Unlock()
+	if submitFn != nil {
+		return submitFn(ev)
+	}
+	return nil
+}
+
+func (s *stubRuntimeEventSubmitter) countKind(kind eventspkg.EventKind) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	total := 0
+	for _, ev := range s.events {
+		if ev.Kind == kind {
+			total++
+		}
+	}
+	return total
 }
 
 func (c *capturingCommandIOClient) CreateSession(

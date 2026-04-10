@@ -387,6 +387,7 @@ func TestPrepareJobsWithSelectedAgentAppendsCanonicalSystemPrompt(t *testing.T) 
 	workspaceRoot := t.TempDir()
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-demo-agent-test-run")
 	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
