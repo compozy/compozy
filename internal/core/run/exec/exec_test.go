@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 )
@@ -114,6 +115,29 @@ func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
 	}
 	if len(gotReq.MCPServers) != 0 {
 		t.Fatalf("expected nil MCP builder to skip MCP servers, got %#v", gotReq.MCPServers)
+	}
+}
+
+func TestNewExecRuntimeJobAttachesReservedServerWithoutReusableAgent(t *testing.T) {
+	jb, err := newExecRuntimeJob(
+		"delegate this",
+		nil,
+		nil,
+		&model.RuntimeConfig{
+			WorkspaceRoot: workspaceRootForExecTest(t),
+			IDE:           model.IDECodex,
+			Model:         "gpt-5.4",
+			AccessMode:    model.AccessModeDefault,
+		},
+	)
+	if err != nil {
+		t.Fatalf("newExecRuntimeJob: %v", err)
+	}
+	if len(jb.MCPServers) != 1 {
+		t.Fatalf("expected reserved MCP server for plain exec job, got %#v", jb.MCPServers)
+	}
+	if jb.MCPServers[0].Stdio == nil || jb.MCPServers[0].Stdio.Name != reusableagents.ReservedMCPServerName {
+		t.Fatalf("unexpected reserved MCP server wiring: %#v", jb.MCPServers)
 	}
 }
 

@@ -1,171 +1,169 @@
 # Council of Advisors Reference
 
-You are the Council Facilitator, orchestrating a high-level roundtable simulation with diverse expert advisors. Your
-role is to simulate multiple perspectives, highlight contradictions, synthesize insights, and guide toward well-reasoned
-decisions.
+Run the council as a real embedded subagent workflow, not as inline roleplay. The facilitator remains inside `cy-idea-factory`, but every advisor is dispatched through the host-owned `run_agent` tool using canonical reusable-agent ids.
+
+## Runtime Contract
+
+- The standard council roster is provisioned by `compozy setup` under `~/.compozy/agents/<name>/`.
+- A workspace may override any advisor by defining `.compozy/agents/<name>/`.
+- Dispatch advisors by id, never by driver-specific paths:
+  - `pragmatic-engineer`
+  - `architect-advisor`
+  - `security-advocate`
+  - `product-mind`
+  - `devils-advocate`
+  - `the-thinker`
+- If `run_agent` is unavailable or any selected advisor cannot be resolved, stop and tell the user to run `compozy setup`.
 
 ## When to Use
 
-- Making high-impact architecture, technology, or product strategy choices with real trade-offs
-- Comparing multiple viable options where different stakeholders would disagree
-- Stress-testing an existing decision, PRD, or Tech Spec against alternative viewpoints
-- Documenting rationale and dissent for complex decisions in planning artifacts
+- Making high-impact product, architecture, or scope decisions with real trade-offs
+- Stress-testing a V1 proposal before writing the final idea draft
+- Comparing multiple viable options where stakeholder priorities differ
+- Preserving dissent instead of collapsing tension into false consensus
 
-## Research-Backed Approach
+## Embedded Mode
 
-This council implements findings from multi-agent debate research:
+`cy-idea-factory` always runs council in embedded mode:
 
-- **Diversity of Thought**: Different perspectives elicit stronger reasoning than homogeneous viewpoints
-- **Constructive Disagreement**: Agents must change positions based on reasoning, not arbitrary contradiction
-- **Agreement Modulation**: Balance between maintaining positions and being open to persuasion
-- **Teacher-Student Dynamics**: Allow expertise to emerge naturally through debate
+- skip user-facing context confirmation because the parent workflow already established the dilemma
+- skip final decision capture because `cy-idea-factory` owns the downstream draft and ADR
+- return synthesis material that the parent workflow can extract into scope, risks, V1 exclusions, and V2 opportunities
 
-## Council Composition
+## Advisor Selection
 
-Select **3-5 advisors** based on dilemma complexity:
+Select 3-5 advisors based on dilemma complexity:
 
-- **3 advisors** — binary choices (A vs B), clear trade-off axis
-- **4 advisors** — multi-factor decisions with 2-3 competing concerns
-- **5 advisors** — complex, multi-faceted dilemmas with broad impact
+- **3 advisors** for binary choices or a narrow trade-off axis
+- **4 advisors** for multi-factor decisions with 2-3 competing concerns
+- **5 advisors** for broad, multi-faceted dilemmas
 
-### Standard Tech Council (Default for technical decisions)
+Selection rules:
 
-1. **The Pragmatic Engineer** - Focuses on "what works today", maintenance burden, team velocity
-2. **The Architect** - Long-term scalability, patterns, system boundaries, technical debt
-3. **The Security Advocate** - Attack vectors, compliance, data protection, worst-case scenarios
-4. **The Product Mind** - User impact, time-to-market, business value, opportunity cost
-5. **The Devil's Advocate** - Challenges assumptions, finds edge cases, stress-tests reasoning
+- always include `devils-advocate` when consensus forms quickly or the user explicitly wants stress-testing
+- include `the-thinker` when the framing itself may be the constraint
+- prefer the smallest roster that still produces real tension
 
-For 3-advisor sessions, pick the 3 most relevant archetypes for the dilemma.
+## Phase 1: Opening Statements
 
-### Alternative Councils
+Dispatch all selected advisors through `run_agent`. Run them in parallel when the runtime supports parallel tool calls.
 
-- **Strategy Council**: CEO, CFO, CTO, Customer Advocate, Risk Manager
-- **Innovation Council**: Innovator, Skeptic, Researcher, Practitioner, Ethicist
-- **Custom Council**: User specifies advisors (historical, fictional, or role-based)
+Each advisor receives:
 
-## Session Structure (Embedded Mode)
+1. The refined dilemma and explicit constraints from the idea workflow
+2. The roster of other advisors in the session
+3. The instruction: "Deliver your opening statement (2-3 paragraphs) ending with a one-line **Key Point**."
 
-When invoked as a sub-step by another skill, council runs in embedded mode:
-
-- **Skip Phase 1 confirmation** — the parent skill already established context; select advisors automatically
-- **Skip Phase 6 decision capture** — the parent skill owns the decision; council just delivers the analysis
-- Run Phases 2-5 (Opening Statements, Tensions, Position Evolution, Synthesis)
-- Return the synthesis output for the parent skill to extract what it needs
-
-### Phase 2: Opening Statements
-
-Each advisor presents their initial position (2-3 paragraphs each):
+Render results as:
 
 ```markdown
 ## Opening Statements
 
-### [Advisor 1 Name] — [Archetype]
+### [Advisor Name] — [Archetype]
 
-[Their initial position, reasoning, and key concerns]
+[Opening statement]
 
 **Key Point:** [One-line summary]
 ```
 
-### Phase 3: Tensions & Debate
+## Phase 2: Tensions and Rebuttals
 
-Identify the core disagreements and present them as a structured tension analysis.
-Focus on the **substance of disagreement**, not simulated dialogue.
+Read the openings and identify 2-4 genuine tensions. A real tension has Side A, Side B, and meaningful stakes.
+
+For each tension:
+
+1. Re-dispatch the opposing advisors through `run_agent`
+2. Require steel-manning first
+3. Then require a rebuttal plus one of: concede, partially concede, hold firm
+
+Use this prompt shape:
+
+```text
+Steel-man [opponent]'s position in 1-2 sentences, then deliver your rebuttal in 1 paragraph.
+State whether you concede, partially concede, or hold firm, and why.
+```
+
+Record the debate as:
 
 ```markdown
 ## Core Tensions
 
-| Tension               | Side A ([Advisor])     | Side B ([Advisor])     | Facilitator Note            |
-| --------------------- | ---------------------- | ---------------------- | --------------------------- |
-| [Core disagreement]   | [Position + reasoning] | [Position + reasoning] | [What this tension reveals] |
+| Tension | Side A (Advisor) | Side B (Advisor) | Facilitator Note |
+| ------- | ---------------- | ---------------- | ---------------- |
+| ...     | ...              | ...              | ...              |
 
 ### Key Concessions
 
-- **[Advisor A]** concedes to **[Advisor B]** on [point] because [reasoning]
-- **[Advisor C]** maintains position on [point] despite challenge because [reasoning]
+- **[Advisor A]** concedes to **[Advisor B]** on [point] because [reason]
+- **[Advisor C]** holds firm on [point] because [reason]
 ```
 
-### Phase 4: Position Evolution
+## Phase 3: Position Evolution
 
-Track how positions shift through debate:
+Track how positions moved after rebuttals:
 
 ```markdown
 ## Position Evolution
 
 | Advisor | Initial Position | Final Position | Changed? |
 | ------- | ---------------- | -------------- | -------- |
-| [Name]  | [Brief]          | [Brief]        | Yes/No   |
+| ...     | ...              | ...            | Yes/No   |
 
 **Key Shifts:**
 
 - [Who changed and why]
 ```
 
-### Phase 5: Synthesis & Recommendations
+## Phase 4: Synthesis
+
+Produce the final synthesis in this order:
 
 ```markdown
 ## Council Synthesis
 
 ### Points of Consensus
 
-- [What most/all advisors agree on]
+- ...
 
 ### Unresolved Tensions
 
-| Tension | Position A | Position B | Trade-off            |
-| ------- | ---------- | ---------- | -------------------- |
-| [Issue] | [View]     | [View]     | [What you sacrifice] |
+| Tension | Position A | Position B | Trade-off |
+| ------- | ---------- | ---------- | --------- |
+| ...     | ...        | ...        | ...       |
 
 ### Recommended Path Forward
 
-**Primary Recommendation:** [Clear recommendation]
+**Primary Recommendation:** ...
 
-**Rationale:** [Why this balances tensions]
+**Rationale:** ...
 
-**Dissenting View:** [Who disagrees and why - important to capture]
+**Dissenting View:** ...
 
 ### Risk Mitigation
 
-- [How to address concerns from dissenting advisors]
+- ...
 ```
 
-## Downstream Extraction Guide
+## Extraction Guide for `cy-idea-factory`
 
-When council is invoked by the idea creation workflow, extract:
+After synthesis, the parent workflow should extract:
 
-- Out of Scope items for V1
-- Risk factors that inform KPIs
-- Priority recommendations
-- Stretch goal (optional): a more ambitious version to consider for V2+
+- the recommended V1 scope
+- explicit out-of-scope items for V1
+- the strongest risk factors and hidden dependencies
+- priority guidance relative to other work
+- one stretch direction worth considering for V2+
 
 ## Debate Protocols
 
-### Ensuring Productive Disagreement
+- **Steel-man first**: every rebuttal starts with the strongest version of the opposing case
+- **Evidence required**: no bare assertions
+- **No false consensus**: preserve live disagreement in the synthesis
+- **Authentic voices**: each advisor argues from its real priorities
+- **Concession discipline**: if someone moves, record what changed their mind
 
-1. **Steel-Man Arguments**: Each advisor must present the strongest version of opposing views before critiquing
-2. **Evidence Required**: Claims must be supported with reasoning, not just assertions
-3. **Concession Protocol**: Advisors should acknowledge when a counter-argument has merit
-4. **No False Consensus**: If genuine disagreement exists, preserve it in synthesis
+## Failure Handling
 
-### Advisor Authenticity Rules
-
-- Each advisor must stay true to their archetype's priorities
-- The Pragmatic Engineer won't suddenly prioritize theoretical purity
-- The Security Advocate won't dismiss a risk for convenience
-- Contradictions between archetypes are expected and valuable
-
-### Facilitator Responsibilities
-
-- Ensure all advisors get adequate voice
-- Highlight when advisors talk past each other
-- Identify hidden assumptions
-- Call out false dichotomies
-- Synthesize without forcing agreement
-
-## Key Principles
-
-1. **Diversity Over Agreement**: The value is in exploring tensions, not reaching false consensus
-2. **Authentic Perspectives**: Each archetype must argue from their genuine priorities
-3. **Productive Conflict**: Disagreement should illuminate, not obstruct
-4. **Actionable Synthesis**: End with clear options and their trade-offs
-5. **Preserved Dissent**: Minority views have value and should be captured
+- If an advisor returns out-of-character content, re-dispatch once with a protocol reminder.
+- If the failure repeats, record it in the synthesis and proceed with the remaining advisors.
+- If fewer than 2 real tensions emerge, note that the dilemma may be lower-stakes than expected and continue with a condensed synthesis.

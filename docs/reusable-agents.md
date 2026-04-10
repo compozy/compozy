@@ -2,6 +2,17 @@
 
 Reusable agents let you package a prompt, runtime defaults, and optional agent-local MCP servers into a directory that Compozy can discover and execute.
 
+`compozy setup` also provisions the built-in council advisor roster globally under `~/.compozy/agents/`:
+
+- `architect-advisor`
+- `devils-advocate`
+- `pragmatic-engineer`
+- `product-mind`
+- `security-advocate`
+- `the-thinker`
+
+Those bundled council agents intentionally inherit the host runtime, which keeps council debates consistent across supported drivers.
+
 ## Discovery and Override Rules
 
 Supported discovery scopes:
@@ -105,7 +116,7 @@ Validation and merge rules:
 - `mcp.json` cannot declare a server named `compozy`
 - agent-local MCP servers are merged after the reserved host-owned `compozy` MCP server
 
-The reserved `compozy` MCP server is not configured in `mcp.json`. Compozy injects it automatically for agent-backed sessions so ACP runtimes can call the host-owned `run_agent` tool. This is the boundary to keep straight:
+The reserved `compozy` MCP server is not configured in `mcp.json`. Compozy injects it automatically into ACP sessions it creates so runtimes can call the host-owned `run_agent` tool. This is the boundary to keep straight:
 
 - `mcp.json` is for external, agent-local MCP servers that belong to one agent definition
 - the reserved `compozy` server is a host capability owned by Compozy itself
@@ -114,6 +125,8 @@ Nested execution follows the same boundary:
 
 - a child agent gets the reserved `compozy` server plus the child's own `mcp.json`
 - a child agent does not inherit the parent agent's local MCP servers implicitly
+
+That automatic host injection is what lets normal bundled skills such as `cy-idea-factory` run council advisors through `run_agent` even when the top-level session was not started with `compozy exec --agent ...`.
 
 ## Commands
 

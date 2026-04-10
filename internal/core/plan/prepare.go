@@ -171,7 +171,7 @@ func prepareExec(
 	}
 	prep.SetJournal(runJournal)
 
-	job, err := buildExecJob(prep.RunArtifacts, promptText, agentExecution, cfg.AccessMode)
+	job, err := buildExecJob(prep.RunArtifacts, promptText, agentExecution, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +271,7 @@ func buildBatchJob(
 		reusableagents.SessionMCPContext{
 			RunID:               runArtifacts.RunID,
 			EffectiveAccessMode: cfg.AccessMode,
+			BaseRuntime:         cfg,
 		},
 	)
 	if err != nil {
@@ -299,7 +300,7 @@ func buildExecJob(
 	runArtifacts model.RunArtifacts,
 	promptText string,
 	agentExecution *reusableagents.ExecutionContext,
-	effectiveAccessMode string,
+	cfg *model.RuntimeConfig,
 ) (model.Job, error) {
 	const safeName = "exec"
 
@@ -311,7 +312,8 @@ func buildExecJob(
 		agentExecution,
 		reusableagents.SessionMCPContext{
 			RunID:               runArtifacts.RunID,
-			EffectiveAccessMode: effectiveAccessMode,
+			EffectiveAccessMode: cfg.AccessMode,
+			BaseRuntime:         cfg,
 		},
 	)
 	if err != nil {

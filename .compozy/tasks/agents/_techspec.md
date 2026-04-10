@@ -273,11 +273,13 @@ The v1 surface deliberately stops here. It does not add one tool per agent and i
 - ACP session setup is the main external protocol boundary. Compozy must pass merged MCP servers on both `session/new` and `session/load` so fresh and resumed sessions retain the same capability surface.
 - Agent-local MCP configuration is read from `mcp.json` using the standard `mcpServers` schema and converted into ACP `mcpServers` entries before session setup.
 - The reserved Compozy MCP server is exactly one server in v1, named `compozy`. It is launched as a local stdio subprocess via the hidden command `compozy mcp-serve --server compozy`.
+- The reserved Compozy MCP server must be attached to every ACP session Compozy creates, including ordinary skill-driven sessions with no selected reusable agent, so bundled skills can call `run_agent` uniformly across drivers.
 - The MCP server implementation uses the official Go SDK, `github.com/modelcontextprotocol/go-sdk/mcp`.
 - The reserved Compozy MCP server does not require external authentication because it is local-only and scoped to the current command.
 - Filesystem integration is required for two roots:
   - workspace agents under `.compozy/agents/`
   - global agents under `~/.compozy/agents/`
+- `compozy setup` provisions the built-in council advisor roster into `~/.compozy/agents/` so skills such as `cy-idea-factory` can rely on a consistent cross-driver council baseline without mirroring driver-native agent directories.
 - Each agent directory may contain:
   - `AGENT.md`
   - optional `mcp.json`

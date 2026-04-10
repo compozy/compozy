@@ -142,6 +142,70 @@ func TestPreviewGlobalUniversalAgentUsesCanonicalHomeAgentsDir(t *testing.T) {
 	}
 }
 
+func TestPreviewBundledReusableAgentInstallUsesGlobalCompozyAgentsDir(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	items, err := PreviewBundledReusableAgentInstall(ResolverOptions{
+		CWD:     projectDir,
+		HomeDir: homeDir,
+	})
+	if err != nil {
+		t.Fatalf("preview bundled reusable agents: %v", err)
+	}
+	if len(items) != 6 {
+		t.Fatalf("expected 6 reusable-agent preview items, got %d", len(items))
+	}
+
+	for _, item := range items {
+		want := filepath.Join(homeDir, ".compozy", "agents", item.ReusableAgent.Name)
+		if item.TargetPath != want {
+			t.Fatalf(
+				"unexpected reusable-agent target path for %q\nwant: %s\ngot:  %s",
+				item.ReusableAgent.Name,
+				want,
+				item.TargetPath,
+			)
+		}
+	}
+}
+
+func TestInstallBundledReusableAgentsCopiesCouncilRosterIntoGlobalCompozyAgentsDir(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+
+	successes, failures, err := InstallBundledReusableAgents(ResolverOptions{
+		CWD:     projectDir,
+		HomeDir: homeDir,
+	})
+	if err != nil {
+		t.Fatalf("install bundled reusable agents: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) != 6 {
+		t.Fatalf("expected 6 reusable-agent installation successes, got %d", len(successes))
+	}
+
+	for _, success := range successes {
+		agentDir := filepath.Join(homeDir, ".compozy", "agents", success.ReusableAgent.Name)
+		if success.Path != agentDir {
+			t.Fatalf(
+				"unexpected success path for %q\nwant: %s\ngot:  %s",
+				success.ReusableAgent.Name,
+				agentDir,
+				success.Path,
+			)
+		}
+		assertFileExists(t, filepath.Join(agentDir, "AGENT.md"))
+	}
+}
+
 func newTestBundle(t *testing.T, files map[string]string) fs.FS {
 	t.Helper()
 

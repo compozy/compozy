@@ -28,7 +28,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 
 ## ✨ Highlights
 
-- **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`.
+- **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`, and provision the global council reusable-agent roster under `~/.compozy/agents`.
 - **Idea to code in a structured pipeline.** Optional Idea → PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next. Start from an idea for full research and debate, or jump straight to PRD if you already have a clear scope.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
 - **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
@@ -74,6 +74,8 @@ Then install bundled skills into your AI agents:
 compozy setup          # interactive — pick agents and skills
 compozy setup --all    # install everything to every detected agent
 ```
+
+`compozy setup` also provisions the built-in council advisors globally under `~/.compozy/agents/` so skills such as `cy-idea-factory` can dispatch the same reusable agents consistently across drivers via `run_agent`.
 
 Execution runtimes are separate from skill installation. To run `compozy exec`, `compozy start`, or `compozy fix-reviews`, install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
 
@@ -275,7 +277,7 @@ This walkthrough builds a feature called **user-auth** from idea to shipped code
 compozy setup
 ```
 
-Auto-detects installed agents and copies (or symlinks) skills into their configuration directories.
+Auto-detects installed agents, copies (or symlinks) skills into their configuration directories, and provisions the built-in council reusable agents globally under `~/.compozy/agents/`.
 `compozy start` and `compozy fix-reviews` now verify that bundled Compozy skills are installed for the selected agent before running. Missing installs block the run, and outdated installs prompt for refresh in interactive terminals.
 
 ### 2. (Optional) Create an Issue
@@ -406,7 +408,7 @@ The `cy-workflow-memory` skill handles all of this automatically when referenced
 | Pi          | `pi`           |
 | Gemini      | `gemini`       |
 
-**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. Run `compozy setup` to see all detected agents on your system.
+**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` also provisions the built-in council reusable agents globally under `~/.compozy/agents/` so nested debates use the same advisor roster across runtimes. Run `compozy setup` to see all detected agents on your system.
 
 When installing to multiple agents, Compozy offers two modes:
 
@@ -416,7 +418,7 @@ When installing to multiple agents, Compozy offers two modes:
 ## 📖 CLI Reference
 
 <details>
-<summary><code>compozy setup</code> — Install bundled skills for supported agents</summary>
+<summary><code>compozy setup</code> — Install bundled skills and global council agents</summary>
 
 ```bash
 compozy setup [flags]
@@ -428,7 +430,7 @@ compozy setup [flags]
 | `--skill`, `-s`  |         | Skill name to install (repeatable)           |
 | `--global`, `-g` | `false` | Install to user directory instead of project |
 | `--copy`         | `false` | Copy files instead of symlinking             |
-| `--list`, `-l`   | `false` | List bundled skills without installing       |
+| `--list`, `-l`   | `false` | List bundled skills and council agents without installing |
 | `--yes`, `-y`    | `false` | Skip confirmation prompts                    |
 | `--all`          | `false` | Install all skills to all agents             |
 
@@ -670,7 +672,7 @@ internal/core/           Internal facade for preparation and execution
   plan/                  Input discovery, filtering, grouping, batch prep
   prompt/                Prompt builders emitting runtime context + skill names
   run/                   Execution pipeline, logging, shutdown, Bubble Tea UI
-internal/setup/          Bundled skill installer (agent detection, symlink/copy)
+internal/setup/          Bundled skill and council-agent installer (agent detection, symlink/copy)
 internal/version/        Build metadata
 skills/                  Bundled installable skills
 .compozy/config.toml     Optional workspace defaults for CLI execution

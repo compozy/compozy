@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runtime resolution and canonical system prompt assembly
 type: backend
 complexity: high
@@ -32,11 +32,11 @@ Integrate resolved agents into Compozy's execution configuration model by mergin
 </requirements>
 
 ## Subtasks
-- [ ] 02.1 Add runtime-resolution helpers that merge selected-agent defaults with workspace config and built-in runtime defaults.
-- [ ] 02.2 Introduce an agent prompt assembler that emits the canonical ordered output defined by the TechSpec.
-- [ ] 02.3 Build compact discovery-catalog generation from the resolved agent registry for progressive agent discovery.
-- [ ] 02.4 Integrate the assembled prompt and resolved runtime into the shared execution-preparation path without regressing non-agent runs.
-- [ ] 02.5 Add focused tests for precedence ordering, zero-value flag behavior, and canonical prompt assembly output.
+- [x] 02.1 Add runtime-resolution helpers that merge selected-agent defaults with workspace config and built-in runtime defaults.
+- [x] 02.2 Introduce an agent prompt assembler that emits the canonical ordered output defined by the TechSpec.
+- [x] 02.3 Build compact discovery-catalog generation from the resolved agent registry for progressive agent discovery.
+- [x] 02.4 Integrate the assembled prompt and resolved runtime into the shared execution-preparation path without regressing non-agent runs.
+- [x] 02.5 Add focused tests for precedence ordering, zero-value flag behavior, and canonical prompt assembly output.
 
 ## Implementation Details
 See TechSpec "Runtime precedence", "Discovery catalog", and "System prompt assembly template" for the exact ordering and field set this task must implement.
@@ -69,14 +69,14 @@ This task should not attach MCP servers or implement nested execution. Its job i
 
 ## Tests
 - Unit tests:
-  - [ ] Explicit CLI `--model` wins over a different `model` value defined in `AGENT.md`.
-  - [ ] An unset CLI flag does not override an agent default just because the Cobra value is the language zero value.
-  - [ ] The assembled system prompt contains built-in framing before agent metadata, metadata before discovery, and discovery before the agent body.
-  - [ ] The discovery catalog omits unsupported rich fields and contains only the compact progressive-discovery data.
-  - [ ] When no agent is selected, prompt assembly falls back to the existing non-agent behavior.
+  - [x] Explicit CLI `--model` wins over a different `model` value defined in `AGENT.md`.
+  - [x] An unset CLI flag does not override an agent default just because the Cobra value is the language zero value.
+  - [x] The assembled system prompt contains built-in framing before agent metadata, metadata before discovery, and discovery before the agent body.
+  - [x] The discovery catalog omits unsupported rich fields and contains only the compact progressive-discovery data.
+  - [x] When no agent is selected, prompt assembly falls back to the existing non-agent behavior.
 - Integration tests:
-  - [ ] An agent-backed execution request reaches the shared ACP path with the resolved model, reasoning effort, access mode, and system prompt expected by precedence rules.
-  - [ ] A workspace config default still applies when the selected `AGENT.md` omits that runtime field.
+  - [x] An agent-backed execution request reaches the shared ACP path with the resolved model, reasoning effort, access mode, and system prompt expected by precedence rules.
+  - [x] A workspace config default still applies when the selected `AGENT.md` omits that runtime field.
 - Test coverage target: >=80%
 - All tests must pass
 

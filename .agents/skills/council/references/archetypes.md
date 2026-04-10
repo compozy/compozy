@@ -1,6 +1,6 @@
 # Archetype Catalog
 
-Each archetype is a standalone subagent at `.claude/agents/<name>.md`. The facilitator dispatches them via the Agent tool. Do not summarize or reinvent their priorities — dispatch the actual subagent so its authentic voice is preserved.
+Each archetype is a canonical reusable agent resolved by name from `.compozy/agents/<name>/` or `~/.compozy/agents/<name>/`. `compozy setup` provisions the standard council roster globally under `~/.compozy/agents/`. Dispatch these archetypes through the host-owned `run_agent` tool. Do not summarize or reinvent their priorities — dispatch the actual reusable agent so its authentic voice is preserved.
 
 ## Standard Tech Council (default)
 
@@ -57,7 +57,7 @@ If the user requests a non-tech council (Strategy, Innovation, Design), propose 
 
 ## Dispatch Format
 
-When dispatching an archetype via the Agent tool, always provide:
+When dispatching an archetype via `run_agent`, always provide:
 
 1. The confirmed dilemma and explicit constraints
 2. The roster of other advisors in the session (so they can name and engage with peers)

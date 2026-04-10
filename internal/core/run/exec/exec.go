@@ -259,7 +259,7 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 		cfg.RunID = state.runArtifacts.RunID
 	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
-	execJob, err := newExecRuntimeJob(promptText, state, agentExecution, cfg.AccessMode)
+	execJob, err := newExecRuntimeJob(promptText, state, agentExecution, cfg)
 	if err != nil {
 		state.close()
 		return "", nil, nil, job{}, err
@@ -1024,7 +1024,7 @@ func newExecRuntimeJob(
 	promptText string,
 	state *execRunState,
 	agentExecution *reusableagents.ExecutionContext,
-	effectiveAccessMode string,
+	cfg *model.RuntimeConfig,
 ) (job, error) {
 	var runID string
 	if state != nil {
@@ -1034,7 +1034,8 @@ func newExecRuntimeJob(
 		agentExecution,
 		reusableagents.SessionMCPContext{
 			RunID:               runID,
-			EffectiveAccessMode: effectiveAccessMode,
+			EffectiveAccessMode: cfg.AccessMode,
+			BaseRuntime:         cfg,
 		},
 	)
 	if err != nil {

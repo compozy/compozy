@@ -21,6 +21,56 @@ func TestBuildSessionMCPServersReturnsNilWithoutExecution(t *testing.T) {
 	}
 }
 
+func TestBuildSessionMCPServersBuildsReservedServerForBaseRuntimeOnlySessions(t *testing.T) {
+	t.Parallel()
+
+	cfg := &model.RuntimeConfig{
+		WorkspaceRoot:   "/tmp/workspace",
+		IDE:             model.IDECodex,
+		Model:           "gpt-5.4",
+		AccessMode:      model.AccessModeDefault,
+		ReasoningEffort: "medium",
+	}
+
+	servers, err := BuildSessionMCPServers(nil, SessionMCPContext{
+		RunID:                "run-root",
+		EffectiveAccessMode:  model.AccessModeDefault,
+		ReservedServerBinary: "/tmp/compozy-test",
+		BaseRuntime:          cfg,
+	})
+	if err != nil {
+		t.Fatalf("build session MCP servers: %v", err)
+	}
+	if len(servers) != 1 {
+		t.Fatalf("expected one reserved MCP server, got %#v", servers)
+	}
+
+	reserved := servers[0].Stdio
+	if reserved == nil {
+		t.Fatalf("expected reserved stdio MCP server, got %#v", servers[0])
+	}
+	if reserved.Name != ReservedMCPServerName {
+		t.Fatalf("unexpected reserved server name: %q", reserved.Name)
+	}
+
+	var runtimeContext ReservedServerRuntimeContext
+	if err := json.Unmarshal([]byte(reserved.Env[RunAgentContextEnvVar]), &runtimeContext); err != nil {
+		t.Fatalf("decode reserved server context: %v", err)
+	}
+	if runtimeContext.BaseRuntime.WorkspaceRoot != cfg.WorkspaceRoot {
+		t.Fatalf("unexpected base runtime context: %#v", runtimeContext.BaseRuntime)
+	}
+	if runtimeContext.BaseRuntime.IDE != cfg.IDE || runtimeContext.BaseRuntime.Model != cfg.Model {
+		t.Fatalf("unexpected base runtime inheritance: %#v", runtimeContext.BaseRuntime)
+	}
+	if runtimeContext.Nested.ParentAgentName != "" {
+		t.Fatalf("expected no parent agent for base-runtime-only session, got %#v", runtimeContext.Nested)
+	}
+	if runtimeContext.Nested.ParentRunID != "run-root" {
+		t.Fatalf("unexpected parent run id: %#v", runtimeContext.Nested)
+	}
+}
+
 func TestBuildSessionMCPServersPrependsReservedServerAndSerializesHostContext(t *testing.T) {
 	t.Parallel()
 

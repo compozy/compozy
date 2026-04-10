@@ -69,3 +69,25 @@ func TestSetupRunYesFailsWithoutDetectedAgents(t *testing.T) {
 		t.Fatalf("expected missing detected agents error, got %v", err)
 	}
 }
+
+func TestSetupListIncludesBundledGlobalReusableAgents(t *testing.T) {
+	t.Parallel()
+
+	output, err := executeRootCommand("setup", "--list")
+	if err != nil {
+		t.Fatalf("execute setup list: %v", err)
+	}
+
+	required := []string{
+		"Bundled Skills",
+		"Bundled Global Reusable Agents",
+		"architect-advisor",
+		"pragmatic-engineer",
+		"the-thinker",
+	}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected setup --list output to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+}

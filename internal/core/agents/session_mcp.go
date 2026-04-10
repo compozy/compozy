@@ -81,6 +81,7 @@ type SessionMCPContext struct {
 	AgentPath            []string
 	ReservedServerBinary string
 	ReservedServerArgs   []string
+	BaseRuntime          *model.RuntimeConfig
 }
 
 // BuildSessionMCPServers returns the reserved `compozy` MCP server plus the
@@ -89,7 +90,7 @@ func BuildSessionMCPServers(
 	execution *ExecutionContext,
 	ctx SessionMCPContext,
 ) ([]model.MCPServer, error) {
-	if execution == nil {
+	if execution == nil && ctx.BaseRuntime == nil {
 		return nil, nil
 	}
 
@@ -99,7 +100,7 @@ func BuildSessionMCPServers(
 	}
 
 	servers := []model.MCPServer{reserved}
-	if execution.Agent.MCP == nil || len(execution.Agent.MCP.Servers) == 0 {
+	if execution == nil || execution.Agent.MCP == nil || len(execution.Agent.MCP.Servers) == 0 {
 		return servers, nil
 	}
 
@@ -139,6 +140,13 @@ func buildReservedSessionMCPServer(
 		effectiveAccessMode = model.AccessModeDefault
 	}
 
+	baseRuntime := NestedBaseRuntime{}
+	if execution != nil {
+		baseRuntime = execution.BaseRuntime
+	} else if ctx.BaseRuntime != nil {
+		baseRuntime = captureNestedBaseRuntime(ctx.BaseRuntime)
+	}
+
 	nested := NestedExecutionContext{
 		Depth:            max(0, ctx.NestedDepth),
 		MaxDepth:         ctx.MaxNestedDepth,
@@ -150,15 +158,15 @@ func buildReservedSessionMCPServer(
 	if nested.MaxDepth <= 0 {
 		nested.MaxDepth = DefaultMaxNestedDepth
 	}
-	if nested.ParentAgentName == "" {
+	if execution != nil && nested.ParentAgentName == "" {
 		nested.ParentAgentName = execution.Agent.Name
 	}
-	if len(nested.AgentPath) == 0 {
+	if execution != nil && len(nested.AgentPath) == 0 {
 		nested.AgentPath = []string{execution.Agent.Name}
 	}
 
 	payload, err := json.Marshal(ReservedServerRuntimeContext{
-		BaseRuntime: execution.BaseRuntime,
+		BaseRuntime: baseRuntime,
 		Nested:      nested,
 	})
 	if err != nil {

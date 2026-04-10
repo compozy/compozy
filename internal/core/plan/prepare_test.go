@@ -375,6 +375,12 @@ func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
 	if !strings.HasPrefix(baseName, "internal_app_service.go-") || !strings.HasSuffix(baseName, ".prompt.md") {
 		t.Fatalf("unexpected review prompt filename: %q", baseName)
 	}
+	if len(job.MCPServers) != 1 {
+		t.Fatalf("expected reserved MCP server for review jobs without reusable agents, got %#v", job.MCPServers)
+	}
+	if job.MCPServers[0].Stdio == nil || job.MCPServers[0].Stdio.Name != reusableagents.ReservedMCPServerName {
+		t.Fatalf("unexpected reserved MCP server wiring: %#v", job.MCPServers)
+	}
 }
 
 func TestPrepareJobsWithSelectedAgentAppendsCanonicalSystemPrompt(t *testing.T) {
