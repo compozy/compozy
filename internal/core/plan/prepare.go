@@ -76,6 +76,24 @@ func prepareWorkflowRun(
 		return err
 	}
 
+	groups, err := prepareWorkflowGroups(ctx, prep, cfg, entries)
+	if err != nil {
+		return err
+	}
+	prep.Jobs, err = prepareWorkflowJobs(ctx, prep, cfg, groups, agentExecution)
+	if err != nil {
+		return err
+	}
+
+	return writeRunMetadata(prep, cfg)
+}
+
+func prepareWorkflowGroups(
+	ctx context.Context,
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+	entries []model.IssueEntry,
+) (map[string][]model.IssueEntry, error) {
 	preGroup, err := model.DispatchMutableHook(
 		ctx,
 		prep.RuntimeManager(),
@@ -86,7 +104,7 @@ func prepareWorkflowRun(
 		},
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	groupedEntries, _ := groupIssuesByCodeFile(preGroup.Entries)
@@ -100,23 +118,58 @@ func prepareWorkflowRun(
 		},
 	)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	return dispatchReviewPreBatch(ctx, prep, cfg, postGroup.Groups)
+}
+
+func dispatchReviewPreBatch(
+	ctx context.Context,
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+	groups map[string][]model.IssueEntry,
+) (map[string][]model.IssueEntry, error) {
+	if cfg.Mode != model.ExecutionModePRReview {
+		return groups, nil
 	}
 
+	reviewPreBatch, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"review.pre_batch",
+		reviewPreBatchPayload{
+			RunID:  prep.RunArtifacts.RunID,
+			PR:     cfg.PR,
+			Groups: groups,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return reviewPreBatch.Groups, nil
+}
+
+func prepareWorkflowJobs(
+	ctx context.Context,
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+	groups map[string][]model.IssueEntry,
+	agentExecution *reusableagents.ExecutionContext,
+) ([]model.Job, error) {
 	prePrepareJobs, err := model.DispatchMutableHook(
 		ctx,
 		prep.RuntimeManager(),
 		"plan.pre_prepare_jobs",
 		planGroupsPayload{
 			RunID:  prep.RunArtifacts.RunID,
-			Groups: postGroup.Groups,
+			Groups: groups,
 		},
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	prep.Jobs, err = prepareJobs(
+	jobs, err := prepareJobs(
 		ctx,
 		cfg,
 		prePrepareJobs.Groups,
@@ -125,7 +178,7 @@ func prepareWorkflowRun(
 		agentExecution,
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	postPrepareJobs, err := model.DispatchMutableHook(
 		ctx,
@@ -133,15 +186,13 @@ func prepareWorkflowRun(
 		"plan.post_prepare_jobs",
 		planJobsPayload{
 			RunID: prep.RunArtifacts.RunID,
-			Jobs:  prep.Jobs,
+			Jobs:  jobs,
 		},
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	prep.Jobs = postPrepareJobs.Jobs
-
-	return writeRunMetadata(prep, cfg)
+	return postPrepareJobs.Jobs, nil
 }
 
 func resolvePreparedEntries(
@@ -160,18 +211,11 @@ func resolvePreparedEntries(
 	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return nil, err
 	}
-
-	preDiscover, err := model.DispatchMutableHook(
-		ctx,
-		prep.RuntimeManager(),
-		"plan.pre_discover",
-		planPreDiscoverPayload{
-			RunID:    prep.RunArtifacts.RunID,
-			Workflow: prep.ResolvedName,
-			Mode:     cfg.Mode,
-		},
-	)
+	preDiscover, err := dispatchPlanPreDiscover(ctx, prep, cfg)
 	if err != nil {
+		return nil, err
+	}
+	if err := applyReviewPreFetch(ctx, prep, cfg); err != nil {
 		return nil, err
 	}
 
@@ -179,20 +223,16 @@ func resolvePreparedEntries(
 	if err != nil {
 		return nil, err
 	}
-	if len(preDiscover.ExtraSources) > 0 {
-		extraEntries, err := readExtraIssueEntries(
-			resolveExtraSourceBaseDir(prep.InputDirPath, cfg.WorkspaceRoot),
-			cfg,
-			preDiscover.ExtraSources,
-		)
-		if err != nil {
-			return nil, err
-		}
-		entries = append(entries, extraEntries...)
-		entries = dedupeIssueEntries(entries)
+	entries, err = appendPreparedExtraEntries(prep, cfg, preDiscover.ExtraSources, entries)
+	if err != nil {
+		return nil, err
 	}
 
 	entries, err = validateAndFilterEntries(entries, cfg)
+	if err != nil {
+		return nil, err
+	}
+	entries, err = dispatchReviewPostFetch(ctx, prep, cfg, entries)
 	if err != nil {
 		return nil, err
 	}
@@ -210,6 +250,110 @@ func resolvePreparedEntries(
 		return nil, err
 	}
 	return postDiscover.Entries, nil
+}
+
+func dispatchPlanPreDiscover(
+	ctx context.Context,
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+) (planPreDiscoverPayload, error) {
+	return model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"plan.pre_discover",
+		planPreDiscoverPayload{
+			RunID:    prep.RunArtifacts.RunID,
+			Workflow: prep.ResolvedName,
+			Mode:     cfg.Mode,
+		},
+	)
+}
+
+func applyReviewPreFetch(
+	ctx context.Context,
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+) error {
+	if cfg.Mode != model.ExecutionModePRReview {
+		return nil
+	}
+
+	reviewPreFetch, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"review.pre_fetch",
+		reviewPreFetchPayload{
+			RunID:    prep.RunArtifacts.RunID,
+			PR:       cfg.PR,
+			Provider: cfg.Provider,
+			FetchConfig: model.FetchConfig{
+				ReviewsDir:      prep.InputDirPath,
+				IncludeResolved: cfg.IncludeResolved,
+			},
+		},
+	)
+	if err != nil {
+		return err
+	}
+	if trimmed := strings.TrimSpace(reviewPreFetch.FetchConfig.ReviewsDir); trimmed != "" {
+		resolvedReviewsDir, err := filepath.Abs(trimmed)
+		if err != nil {
+			return fmt.Errorf("resolve review fetch directory %q: %w", trimmed, err)
+		}
+		cfg.ReviewsDir = resolvedReviewsDir
+		prep.InputDir = trimmed
+		prep.InputDirPath = resolvedReviewsDir
+	}
+	cfg.IncludeResolved = reviewPreFetch.FetchConfig.IncludeResolved
+	return nil
+}
+
+func appendPreparedExtraEntries(
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+	extraSources []string,
+	entries []model.IssueEntry,
+) ([]model.IssueEntry, error) {
+	if len(extraSources) == 0 {
+		return entries, nil
+	}
+
+	extraEntries, err := readExtraIssueEntries(
+		resolveExtraSourceBaseDir(prep.InputDirPath, cfg.WorkspaceRoot),
+		cfg,
+		extraSources,
+	)
+	if err != nil {
+		return nil, err
+	}
+	entries = append(entries, extraEntries...)
+	return dedupeIssueEntries(entries), nil
+}
+
+func dispatchReviewPostFetch(
+	ctx context.Context,
+	prep *model.SolvePreparation,
+	cfg *model.RuntimeConfig,
+	entries []model.IssueEntry,
+) ([]model.IssueEntry, error) {
+	if cfg.Mode != model.ExecutionModePRReview {
+		return entries, nil
+	}
+
+	reviewPostFetch, err := model.DispatchMutableHook(
+		ctx,
+		prep.RuntimeManager(),
+		"review.post_fetch",
+		reviewPostFetchPayload{
+			RunID:  prep.RunArtifacts.RunID,
+			PR:     cfg.PR,
+			Issues: entries,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return reviewPostFetch.Issues, nil
 }
 
 func configureWorkflowInput(prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
@@ -286,7 +430,7 @@ func prepareJobs(
 		effectiveBatchSize = 1
 	}
 
-	collected := prompt.FlattenAndSortIssues(groups, cfg.Mode)
+	collected := flattenBatchIssues(groups, cfg.Mode)
 	batches := createIssueBatches(collected, effectiveBatchSize)
 	if len(batches) == 0 {
 		return nil, errors.New("no batches created for prompt preparation")
@@ -553,6 +697,27 @@ func createIssueBatches(allIssues []model.IssueEntry, batchSize int) [][]model.I
 	return batches
 }
 
+func flattenBatchIssues(
+	groups map[string][]model.IssueEntry,
+	mode model.ExecutionMode,
+) []model.IssueEntry {
+	if len(groups) == 0 {
+		return nil
+	}
+
+	normalized := make(map[string][]model.IssueEntry, len(groups))
+	for codeFile, entries := range groups {
+		updated := make([]model.IssueEntry, len(entries))
+		for idx, entry := range entries {
+			entry.CodeFile = codeFile
+			updated[idx] = entry
+		}
+		normalized[codeFile] = updated
+	}
+
+	return prompt.FlattenAndSortIssues(normalized, mode)
+}
+
 func groupIssuesByCodeFile(issues []model.IssueEntry) (map[string][]model.IssueEntry, []string) {
 	batchGroups := make(map[string][]model.IssueEntry)
 	for _, issue := range issues {
@@ -592,6 +757,25 @@ type planGroupsPayload struct {
 type planJobsPayload struct {
 	RunID string      `json:"run_id"`
 	Jobs  []model.Job `json:"jobs,omitempty"`
+}
+
+type reviewPreFetchPayload struct {
+	RunID       string            `json:"run_id"`
+	PR          string            `json:"pr"`
+	Provider    string            `json:"provider"`
+	FetchConfig model.FetchConfig `json:"fetch_config"`
+}
+
+type reviewPostFetchPayload struct {
+	RunID  string             `json:"run_id"`
+	PR     string             `json:"pr"`
+	Issues []model.IssueEntry `json:"issues,omitempty"`
+}
+
+type reviewPreBatchPayload struct {
+	RunID  string                        `json:"run_id"`
+	PR     string                        `json:"pr"`
+	Groups map[string][]model.IssueEntry `json:"groups,omitempty"`
 }
 
 func resolveExtraSourceBaseDir(inputDir string, workspaceRoot string) string {

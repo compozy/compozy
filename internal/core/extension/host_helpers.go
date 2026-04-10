@@ -50,21 +50,23 @@ type KernelOps interface {
 }
 
 type DefaultKernelOpsConfig struct {
-	WorkspaceRoot string
-	RunID         string
-	ParentRunID   string
-	Dispatcher    *kernel.Dispatcher
-	EventBus      *events.Bus[events.Event]
-	Journal       *journal.Journal
+	WorkspaceRoot  string
+	RunID          string
+	ParentRunID    string
+	Dispatcher     *kernel.Dispatcher
+	EventBus       *events.Bus[events.Event]
+	Journal        *journal.Journal
+	RuntimeManager model.RuntimeManager
 }
 
 type defaultKernelOps struct {
-	workspaceRoot string
-	runID         string
-	parentChain   []string
-	dispatcher    *kernel.Dispatcher
-	eventBus      *events.Bus[events.Event]
-	journal       *journal.Journal
+	workspaceRoot  string
+	runID          string
+	parentChain    []string
+	dispatcher     *kernel.Dispatcher
+	eventBus       *events.Bus[events.Event]
+	journal        *journal.Journal
+	runtimeManager model.RuntimeManager
 }
 
 var _ KernelOps = (*defaultKernelOps)(nil)
@@ -264,12 +266,13 @@ func NewDefaultKernelOps(cfg DefaultKernelOpsConfig) (KernelOps, error) {
 	}
 
 	return &defaultKernelOps{
-		workspaceRoot: resolvedRoot,
-		runID:         strings.TrimSpace(cfg.RunID),
-		parentChain:   splitParentChain(parentRunID),
-		dispatcher:    dispatcher,
-		eventBus:      cfg.EventBus,
-		journal:       cfg.Journal,
+		workspaceRoot:  resolvedRoot,
+		runID:          strings.TrimSpace(cfg.RunID),
+		parentChain:    splitParentChain(parentRunID),
+		dispatcher:     dispatcher,
+		eventBus:       cfg.EventBus,
+		journal:        cfg.Journal,
+		runtimeManager: cfg.RuntimeManager,
 	}, nil
 }
 

@@ -111,9 +111,11 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 	if err != nil {
 		return nil, fmt.Errorf("format task file %s: %w", taskPath, err)
 	}
-	if err := writeHostFileAtomically(taskPath, []byte(content), 0o600); err != nil {
+	taskPath, taskContent, err := o.writeArtifactFile(ctx, "host.tasks.create", taskPath, []byte(content), 0o600)
+	if err != nil {
 		return nil, err
 	}
+	taskName = filepath.Base(taskPath)
 
 	if _, err := o.submitRuntimeEvent(ctx, events.EventKindTaskFileUpdated, kinds.TaskFileUpdatedPayload{
 		TasksDir:  tasksDir,
@@ -139,7 +141,7 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 		return nil, err
 	}
 
-	return o.GetTask(ctx, req.Workflow, number)
+	return o.parseTaskDocument(req.Workflow, tasks.ExtractTaskNumber(taskName), taskPath, string(taskContent))
 }
 
 func (o *defaultKernelOps) StartRun(ctx context.Context, req RunStartRequest) (*RunHandle, error) {
@@ -209,21 +211,19 @@ func (o *defaultKernelOps) WriteArtifact(ctx context.Context, req ArtifactWriteR
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(resolvedPath), 0o755); err != nil {
-		return nil, fmt.Errorf("create artifact parent dir: %w", err)
-	}
-	if err := writeHostFileAtomically(resolvedPath, req.Content, 0o600); err != nil {
+	resolvedPath, content, err := o.writeArtifactFile(ctx, "host.artifacts.write", resolvedPath, req.Content, 0o600)
+	if err != nil {
 		return nil, err
 	}
 	if _, err := o.submitRuntimeEvent(ctx, events.EventKindArtifactUpdated, kinds.ArtifactUpdatedPayload{
 		Path:         o.workspaceRelative(resolvedPath),
-		BytesWritten: len(req.Content),
+		BytesWritten: len(content),
 	}); err != nil {
 		return nil, err
 	}
 	return &ArtifactWriteResult{
 		Path:         o.workspaceRelative(resolvedPath),
-		BytesWritten: len(req.Content),
+		BytesWritten: len(content),
 	}, nil
 }
 
@@ -309,6 +309,89 @@ func hostGeneratedRunID(mode model.ExecutionMode) string {
 		label = "reviews"
 	}
 	return fmt.Sprintf("%s-host-%s", label, time.Now().UTC().Format("20060102-150405-000000000"))
+}
+
+func (o *defaultKernelOps) writeArtifactFile(
+	ctx context.Context,
+	method string,
+	path string,
+	content []byte,
+	perm os.FileMode,
+) (string, []byte, error) {
+	finalPath := path
+	finalContent := append([]byte(nil), content...)
+
+	payload, err := model.DispatchMutableHook(
+		ctx,
+		o.runtimeManager,
+		"artifact.pre_write",
+		artifactPreWritePayload{
+			RunID:          o.runID,
+			Path:           o.workspaceRelative(path),
+			ContentPreview: contentPreview(finalContent),
+		},
+	)
+	if err != nil {
+		return "", nil, err
+	}
+	if payload.Cancel {
+		return "", nil, NewCancelledByExtensionError(method, payload.Path)
+	}
+	if trimmed := strings.TrimSpace(payload.Path); trimmed != "" {
+		resolvedPath, err := o.resolveScopedPath(method, trimmed)
+		if err != nil {
+			return "", nil, err
+		}
+		finalPath = resolvedPath
+	}
+	if payload.Content != nil {
+		finalContent = []byte(*payload.Content)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
+		return "", nil, fmt.Errorf("create artifact parent dir: %w", err)
+	}
+	if err := writeHostFileAtomically(finalPath, finalContent, perm); err != nil {
+		return "", nil, err
+	}
+
+	model.DispatchObserverHook(
+		ctx,
+		o.runtimeManager,
+		"artifact.post_write",
+		artifactPostWritePayload{
+			RunID:        o.runID,
+			Path:         o.workspaceRelative(finalPath),
+			BytesWritten: len(finalContent),
+		},
+	)
+	return finalPath, finalContent, nil
+}
+
+type artifactPreWritePayload struct {
+	RunID          string  `json:"run_id"`
+	Path           string  `json:"path"`
+	ContentPreview string  `json:"content_preview,omitempty"`
+	Content        *string `json:"content,omitempty"`
+	Cancel         bool    `json:"cancel,omitempty"`
+}
+
+type artifactPostWritePayload struct {
+	RunID        string `json:"run_id"`
+	Path         string `json:"path"`
+	BytesWritten int    `json:"bytes_written"`
+}
+
+func contentPreview(content []byte) string {
+	if len(content) == 0 {
+		return ""
+	}
+	preview := string(content)
+	const limit = 256
+	if len(preview) <= limit {
+		return preview
+	}
+	return preview[:limit]
 }
 
 func writeHostFileAtomically(path string, content []byte, perm os.FileMode) error {

@@ -1146,6 +1146,229 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 	assertJobUsesRunArtifacts(t, runArtifacts, prep.Jobs[0])
 }
 
+func TestPrepareReviewPreFetchCanChangeIncludeResolved(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+		{
+			Title:       "Trim whitespace",
+			File:        "internal/app/service.go",
+			Line:        54,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_2,comment:RC_2",
+			Body:        "Trim the incoming value before using it.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	resolvedIssuePath := filepath.Join(reviewDir, "issue_002.md")
+	resolvedContent, err := os.ReadFile(resolvedIssuePath)
+	if err != nil {
+		t.Fatalf("read issue_002: %v", err)
+	}
+	resolvedContent = []byte(strings.Replace(string(resolvedContent), "status: pending", "status: resolved", 1))
+	if err := os.WriteFile(resolvedIssuePath, resolvedContent, 0o600); err != nil {
+		t.Fatalf("mark issue_002 resolved: %v", err)
+	}
+	if _, err := reviews.RefreshRoundMeta(reviewDir); err != nil {
+		t.Fatalf("refresh round meta: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"review.pre_fetch": func(input any) (any, error) {
+				payload := input.(reviewPreFetchPayload)
+				payload.FetchConfig.IncludeResolved = true
+				return payload, nil
+			},
+		},
+	}
+	cfg := &model.RuntimeConfig{
+		ReviewsDir:      reviewDir,
+		WorkspaceRoot:   workspaceRoot,
+		DryRun:          true,
+		IDE:             model.IDECodex,
+		BatchSize:       10,
+		Mode:            model.ExecutionModePRReview,
+		IncludeResolved: false,
+		RunID:           "review-pre-fetch",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one prepared review job, got %d", len(prep.Jobs))
+	}
+	if got := prep.Jobs[0].IssueCount(); got != 2 {
+		t.Fatalf("expected review.pre_fetch to include resolved issues, got %d", got)
+	}
+}
+
+func TestPrepareReviewHooksCanMutateFetchedIssuesAndBatchGroups(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"review.post_fetch": func(input any) (any, error) {
+				payload := input.(reviewPostFetchPayload)
+				payload.Issues = append(payload.Issues, model.IssueEntry{
+					Name:     "issue_999.md",
+					AbsPath:  filepath.Join(reviewDir, "issue_999.md"),
+					Content:  "---\nstatus: pending\nfile: internal/app/service.go\n---\n\n# Synthetic issue\n",
+					CodeFile: "internal/app/service.go",
+				})
+				return payload, nil
+			},
+			"review.pre_batch": func(input any) (any, error) {
+				payload := input.(reviewPreBatchPayload)
+				payload.Groups["internal/app/rewritten.go"] = payload.Groups["internal/app/service.go"]
+				delete(payload.Groups, "internal/app/service.go")
+				return payload, nil
+			},
+		},
+	}
+	cfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "review-post-fetch-pre-batch",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one review job, got %d", len(prep.Jobs))
+	}
+	if got := prep.Jobs[0].IssueCount(); got != 2 {
+		t.Fatalf("expected mutated review issue list to reach batching, got %d issues", got)
+	}
+	if got, want := prep.Jobs[0].CodeFiles, []string{"internal/app/rewritten.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected review.pre_batch code files\nwant: %#v\ngot:  %#v", want, got)
+	}
+}
+
+func TestPrepareReviewNilManagerMatchesNoopManagerSnapshot(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	nilCfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "review-nil-manager",
+	}
+	nilPrep, err := Prepare(context.Background(), nilCfg, openRunScopeForTest(t, nilCfg))
+	if err != nil {
+		t.Fatalf("prepare nil manager: %v", err)
+	}
+	defer closePreparedJournalForTest(t, nilPrep)
+
+	noopCfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "review-nil-manager",
+	}
+	noopPrep, err := Prepare(
+		context.Background(),
+		noopCfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, noopCfg), manager: &planHookManager{}},
+	)
+	if err != nil {
+		t.Fatalf("prepare noop manager: %v", err)
+	}
+	defer closePreparedJournalForTest(t, noopPrep)
+
+	if got, want := snapshotPreparationForTest(
+		nilPrep,
+	), snapshotPreparationForTest(
+		noopPrep,
+	); !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf("nil manager snapshot mismatch\nnil:  %#v\nnoop: %#v", got, want)
+	}
+}
+
 func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T) {
 	t.Parallel()
 

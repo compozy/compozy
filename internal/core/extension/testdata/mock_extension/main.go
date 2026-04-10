@@ -165,9 +165,16 @@ func run(transport *subprocess.Transport, rec recorder) error {
 			if err := json.Unmarshal(message.Params, &request); err != nil {
 				return err
 			}
+			payload := map[string]any{}
+			if len(request.Payload) > 0 {
+				if err := json.Unmarshal(request.Payload, &payload); err != nil {
+					payload = map[string]any{"raw": string(request.Payload)}
+				}
+			}
 			rec.write("execute_hook", map[string]any{
-				"name":  request.Hook.Name,
-				"event": request.Hook.Event,
+				"name":    request.Hook.Name,
+				"event":   request.Hook.Event,
+				"payload": payload,
 			})
 			if err := transport.WriteMessage(subprocess.Message{
 				ID:     message.ID,

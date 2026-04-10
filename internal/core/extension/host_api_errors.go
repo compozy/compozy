@@ -76,6 +76,14 @@ func NewRecursionDepthExceededError(method string, parentRunID string, depth int
 	})
 }
 
+func NewCancelledByExtensionError(method string, path string) *subprocess.RequestError {
+	return subprocess.NewInternalError(map[string]any{
+		"method": strings.TrimSpace(method),
+		"path":   strings.TrimSpace(path),
+		"reason": "canceled_by_extension",
+	})
+}
+
 func toRequestError(err error, method string) error {
 	if err == nil {
 		return nil

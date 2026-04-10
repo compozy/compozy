@@ -36,7 +36,7 @@ func newHostRuntime(
 	parentRunID string,
 ) *hostRuntime {
 	t.Helper()
-	return newHostRuntimeWithRunID(t, capabilities, dispatcher, parentRunID, "run-host-root")
+	return newHostRuntimeWithRunIDAndManager(t, capabilities, dispatcher, parentRunID, "run-host-root", nil)
 }
 
 func newHostRuntimeWithRunID(
@@ -45,6 +45,18 @@ func newHostRuntimeWithRunID(
 	dispatcher *kernel.Dispatcher,
 	parentRunID string,
 	runID string,
+) *hostRuntime {
+	t.Helper()
+	return newHostRuntimeWithRunIDAndManager(t, capabilities, dispatcher, parentRunID, runID, nil)
+}
+
+func newHostRuntimeWithRunIDAndManager(
+	t *testing.T,
+	capabilities []Capability,
+	dispatcher *kernel.Dispatcher,
+	parentRunID string,
+	runID string,
+	runtimeManager model.RuntimeManager,
 ) *hostRuntime {
 	t.Helper()
 
@@ -65,12 +77,13 @@ func newHostRuntimeWithRunID(
 	})
 
 	ops, err := NewDefaultKernelOps(DefaultKernelOpsConfig{
-		WorkspaceRoot: root,
-		RunID:         runID,
-		ParentRunID:   parentRunID,
-		Dispatcher:    dispatcher,
-		EventBus:      bus,
-		Journal:       j,
+		WorkspaceRoot:  root,
+		RunID:          runID,
+		ParentRunID:    parentRunID,
+		Dispatcher:     dispatcher,
+		EventBus:       bus,
+		Journal:        j,
+		RuntimeManager: runtimeManager,
 	})
 	if err != nil {
 		t.Fatalf("NewDefaultKernelOps() error = %v", err)

@@ -116,6 +116,20 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 	if err != nil {
 		return err
 	}
+	outcome := hookFixOutcome(nil)
+	for _, entry := range batchEntries {
+		model.DispatchObserverHook(
+			ctx,
+			j.cfg.RuntimeManager,
+			"review.post_fix",
+			reviewPostFixPayload{
+				RunID:   j.cfg.RunArtifacts.RunID,
+				PR:      j.cfg.PR,
+				Issue:   entry,
+				Outcome: outcome,
+			},
+		)
+	}
 	providerBackedIssues := filterResolvedIssuesWithProviderRefs(resolvedIssues)
 	if err := j.resolveProviderBackedIssues(ctx, providerBackedIssues); err != nil {
 		return err
@@ -168,31 +182,88 @@ func singleTaskEntry(jb *job) (model.IssueEntry, error) {
 
 func (j *jobExecutionContext) resolveProviderBackedIssues(
 	ctx context.Context,
-	providerBackedIssues []provider.ResolvedIssue,
+	providerBackedIssues []resolvedReviewIssue,
 ) error {
 	if len(providerBackedIssues) == 0 {
 		return nil
 	}
 
+	issuesToResolve, err := j.collectProviderResolutions(ctx, providerBackedIssues)
+	if err != nil {
+		return err
+	}
+	if len(issuesToResolve) == 0 {
+		return nil
+	}
+	return j.resolveIssuesWithProvider(ctx, issuesToResolve)
+}
+
+func (j *jobExecutionContext) collectProviderResolutions(
+	ctx context.Context,
+	providerBackedIssues []resolvedReviewIssue,
+) ([]provider.ResolvedIssue, error) {
+	outcome := hookFixOutcome(nil)
+	issuesToResolve := make([]provider.ResolvedIssue, 0, len(providerBackedIssues))
+	for _, issue := range providerBackedIssues {
+		payload, err := model.DispatchMutableHook(
+			ctx,
+			j.cfg.RuntimeManager,
+			"review.pre_resolve",
+			reviewPreResolvePayload{
+				RunID:   j.cfg.RunArtifacts.RunID,
+				PR:      j.cfg.PR,
+				Issue:   issue.Entry,
+				Outcome: outcome,
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+		if payload.Resolve != nil && !*payload.Resolve {
+			j.logSkippedProviderResolution(issue, payload.Message)
+			continue
+		}
+		issuesToResolve = append(issuesToResolve, provider.ResolvedIssue{
+			FilePath:    issue.Provider.FilePath,
+			ProviderRef: issue.Provider.ProviderRef,
+		})
+	}
+	return issuesToResolve, nil
+}
+
+func (j *jobExecutionContext) logSkippedProviderResolution(issue resolvedReviewIssue, message string) {
+	j.runtimeLogger().Info(
+		"skipping provider review resolution at extension request",
+		"issue",
+		issue.Entry.Name,
+		"message",
+		message,
+	)
+}
+
+func (j *jobExecutionContext) resolveIssuesWithProvider(
+	ctx context.Context,
+	issuesToResolve []provider.ResolvedIssue,
+) error {
 	startedAt := time.Now().UTC()
 	callID := fmt.Sprintf("%s-%d", strings.TrimSpace(j.cfg.Provider), startedAt.UnixNano())
-	j.emitProviderCallStarted(callID, len(providerBackedIssues))
+	j.emitProviderCallStarted(callID, len(issuesToResolve))
 
 	reviewProvider, err := j.lookupReviewProvider()
 	if err != nil {
 		return j.handleProviderResolveFailure(
 			callID,
-			providerBackedIssues,
+			issuesToResolve,
 			startedAt,
 			err,
 			"review provider integration unavailable; skipping remote issue resolution",
 		)
 	}
 
-	if err := reviewProvider.ResolveIssues(ctx, j.cfg.PR, providerBackedIssues); err != nil {
+	if err := reviewProvider.ResolveIssues(ctx, j.cfg.PR, issuesToResolve); err != nil {
 		return j.handleProviderResolveFailure(
 			callID,
-			providerBackedIssues,
+			issuesToResolve,
 			startedAt,
 			err,
 			"review provider resolution completed with warnings",
@@ -201,7 +272,7 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 
 	completedAt := time.Now().UTC()
 	j.emitProviderCallCompleted(callID, startedAt, completedAt, 0)
-	j.emitReviewIssueResolved(providerBackedIssues, true, completedAt)
+	j.emitReviewIssueResolved(issuesToResolve, true, completedAt)
 
 	j.runtimeLogger().Info(
 		"resolved review provider issues",
@@ -210,7 +281,7 @@ func (j *jobExecutionContext) resolveProviderBackedIssues(
 		"pr",
 		j.cfg.PR,
 		"resolved_issues",
-		len(providerBackedIssues),
+		len(issuesToResolve),
 	)
 	return nil
 }
@@ -314,8 +385,8 @@ func (j *jobExecutionContext) emitReviewIssueResolved(
 	}
 }
 
-func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provider.ResolvedIssue, error) {
-	resolved := make([]provider.ResolvedIssue, 0)
+func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]resolvedReviewIssue, error) {
+	resolved := make([]resolvedReviewIssue, 0)
 	for _, entries := range groups {
 		for _, entry := range entries {
 			currentBody, err := os.ReadFile(entry.AbsPath)
@@ -339,23 +410,28 @@ func collectNewlyResolvedIssues(groups map[string][]model.IssueEntry) ([]provide
 			if err != nil {
 				return nil, fmt.Errorf("parse review context for %s: %w", entry.AbsPath, err)
 			}
-			resolved = append(resolved, provider.ResolvedIssue{
-				FilePath:    entry.AbsPath,
-				ProviderRef: reviewContext.ProviderRef,
+			currentEntry := entry
+			currentEntry.Content = currentContent
+			resolved = append(resolved, resolvedReviewIssue{
+				Entry: currentEntry,
+				Provider: providerResolvedIssue{
+					FilePath:    entry.AbsPath,
+					ProviderRef: reviewContext.ProviderRef,
+				},
 			})
 		}
 	}
 
 	sort.SliceStable(resolved, func(i, j int) bool {
-		return resolved[i].FilePath < resolved[j].FilePath
+		return resolved[i].Provider.FilePath < resolved[j].Provider.FilePath
 	})
 	return resolved, nil
 }
 
-func filterResolvedIssuesWithProviderRefs(issues []provider.ResolvedIssue) []provider.ResolvedIssue {
-	filtered := make([]provider.ResolvedIssue, 0, len(issues))
+func filterResolvedIssuesWithProviderRefs(issues []resolvedReviewIssue) []resolvedReviewIssue {
+	filtered := make([]resolvedReviewIssue, 0, len(issues))
 	for _, issue := range issues {
-		if strings.TrimSpace(issue.ProviderRef) == "" {
+		if strings.TrimSpace(issue.Provider.ProviderRef) == "" {
 			continue
 		}
 		filtered = append(filtered, issue)

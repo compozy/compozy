@@ -219,12 +219,27 @@ func newRunScopeManager(
 
 	dispatcher := NewHookDispatcher(registry, audit)
 	hostAPI := NewHostAPIRouter(registry, audit)
+	manager := &Manager{
+		runID:           scope.Artifacts.RunID,
+		parentRunID:     cfg.ParentRunID,
+		workspaceRoot:   cfg.WorkspaceRoot,
+		invokingCommand: invokingCommandForMode(cfg.Mode),
+		journal:         scope.Journal,
+		eventBus:        scope.EventBus,
+		registry:        registry,
+		dispatcher:      dispatcher,
+		hostAPI:         hostAPI,
+		audit:           audit,
+		subprocs:        make(map[string]*subprocess.Process),
+		sessions:        make(map[string]*extensionSession),
+	}
 	ops, err := NewDefaultKernelOps(DefaultKernelOpsConfig{
-		WorkspaceRoot: cfg.WorkspaceRoot,
-		RunID:         scope.Artifacts.RunID,
-		ParentRunID:   cfg.ParentRunID,
-		EventBus:      scope.EventBus,
-		Journal:       scope.Journal,
+		WorkspaceRoot:  cfg.WorkspaceRoot,
+		RunID:          scope.Artifacts.RunID,
+		ParentRunID:    cfg.ParentRunID,
+		EventBus:       scope.EventBus,
+		Journal:        scope.Journal,
+		RuntimeManager: manager,
 	})
 	if err != nil {
 		if closeErr := audit.Close(context.Background()); closeErr != nil {
@@ -239,20 +254,7 @@ func newRunScopeManager(
 		return nil, fmt.Errorf("register host services: %w", err)
 	}
 
-	return &Manager{
-		runID:           scope.Artifacts.RunID,
-		parentRunID:     cfg.ParentRunID,
-		workspaceRoot:   cfg.WorkspaceRoot,
-		invokingCommand: invokingCommandForMode(cfg.Mode),
-		journal:         scope.Journal,
-		eventBus:        scope.EventBus,
-		registry:        registry,
-		dispatcher:      dispatcher,
-		hostAPI:         hostAPI,
-		audit:           audit,
-		subprocs:        make(map[string]*subprocess.Process),
-		sessions:        make(map[string]*extensionSession),
-	}, nil
+	return manager, nil
 }
 
 func runtimeExtensionFromDiscovered(discovered DiscoveredExtension) (*RuntimeExtension, error) {

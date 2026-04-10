@@ -3,6 +3,7 @@ package extensions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -384,6 +385,51 @@ func TestHostArtifactsWriteWritesScopedFileAndEmitsArtifactUpdated(t *testing.T)
 	}
 }
 
+func TestHostArtifactsWriteCancelByExtensionPreventsWrite(t *testing.T) {
+	t.Parallel()
+
+	manager := &hostHookManager{
+		mutators: map[string]func(any) (any, error){
+			"artifact.pre_write": func(input any) (any, error) {
+				payload := input.(artifactPreWritePayload)
+				payload.Cancel = true
+				return payload, nil
+			},
+		},
+	}
+	rt := newHostRuntimeWithRunIDAndManager(
+		t,
+		[]Capability{CapabilityArtifactsWrite},
+		nil,
+		"",
+		"artifact-canceled",
+		manager,
+	)
+
+	_, err := rt.router.Handle(
+		context.Background(),
+		"ext",
+		"host.artifacts.write",
+		mustJSON(t, ArtifactWriteRequest{
+			Path:    ".compozy/artifacts/note.txt",
+			Content: []byte("blocked"),
+		}),
+	)
+	assertRequestErrorReason(t, err, -32603, "canceled_by_extension")
+
+	if _, statErr := os.Stat(
+		filepath.Join(rt.root, ".compozy", "artifacts", "note.txt"),
+	); !errors.Is(
+		statErr,
+		os.ErrNotExist,
+	) {
+		t.Fatalf("expected canceled write to skip file creation, got %v", statErr)
+	}
+	if got := len(manager.observerPayloads["artifact.post_write"]); got != 0 {
+		t.Fatalf("expected no artifact.post_write payloads, got %d", got)
+	}
+}
+
 func TestHostTasksCreateThenGetReturnsCreatedTaskContent(t *testing.T) {
 	t.Parallel()
 
@@ -427,6 +473,35 @@ func TestHostTasksCreateThenGetReturnsCreatedTaskContent(t *testing.T) {
 	if !strings.Contains(got.Body, "Capture the verification output.") {
 		t.Fatalf("got.Body = %q, want created task content", got.Body)
 	}
+}
+
+type hostHookManager struct {
+	mutators         map[string]func(any) (any, error)
+	observerPayloads map[string][]any
+}
+
+func (*hostHookManager) Start(context.Context) error { return nil }
+
+func (*hostHookManager) Shutdown(context.Context) error { return nil }
+
+func (m *hostHookManager) DispatchMutableHook(_ context.Context, hook string, input any) (any, error) {
+	if m == nil || m.mutators == nil {
+		return input, nil
+	}
+	if mutate := m.mutators[hook]; mutate != nil {
+		return mutate(input)
+	}
+	return input, nil
+}
+
+func (m *hostHookManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
+	if m == nil {
+		return
+	}
+	if m.observerPayloads == nil {
+		m.observerPayloads = make(map[string][]any)
+	}
+	m.observerPayloads[hook] = append(m.observerPayloads[hook], payload)
 }
 
 func TestHostRunsStartRecursionGuardAllowsThreeNestedRunsThenRejectsFourth(t *testing.T) {
