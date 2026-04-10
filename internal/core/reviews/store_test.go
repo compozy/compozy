@@ -99,12 +99,15 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	}
 	items := []provider.ReviewItem{
 		{
-			Title:       "Add nil check",
-			File:        "internal/app/service.go",
-			Line:        42,
-			Author:      "coderabbitai[bot]",
-			ProviderRef: "thread:PRT_1,comment:RC_1",
-			Body:        "Please add a nil check before dereferencing the pointer.",
+			Title:                   "Add nil check",
+			File:                    "internal/app/service.go",
+			Line:                    42,
+			Author:                  "coderabbitai[bot]",
+			ProviderRef:             "thread:PRT_1,comment:RC_1",
+			Body:                    "Please add a nil check before dereferencing the pointer.",
+			ReviewHash:              "abc123def456",
+			SourceReviewID:          "4089982130",
+			SourceReviewSubmittedAt: "2026-04-10T13:33:25Z",
 		},
 	}
 
@@ -140,6 +143,15 @@ func TestWriteRoundAndReadBackEntries(t *testing.T) {
 	}
 	if ctx.ProviderRef != "thread:PRT_1,comment:RC_1" {
 		t.Fatalf("unexpected provider ref: %q", ctx.ProviderRef)
+	}
+	if ctx.ReviewHash != "abc123def456" {
+		t.Fatalf("unexpected review hash: %q", ctx.ReviewHash)
+	}
+	if ctx.SourceReviewID != "4089982130" {
+		t.Fatalf("unexpected source review id: %q", ctx.SourceReviewID)
+	}
+	if ctx.SourceReviewSubmittedAt != "2026-04-10T13:33:25Z" {
+		t.Fatalf("unexpected source review submitted_at: %q", ctx.SourceReviewSubmittedAt)
 	}
 }
 

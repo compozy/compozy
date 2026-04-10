@@ -29,6 +29,12 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")
+	cmd.Flags().BoolVar(
+		&state.nitpicks,
+		"nitpicks",
+		false,
+		"Include CodeRabbit nitpick comments from pull request review bodies",
+	)
 	return cmd
 }
 

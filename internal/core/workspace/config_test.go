@@ -131,6 +131,7 @@ include_resolved = false
 
 [fetch_reviews]
 provider = "coderabbit"
+nitpicks = true
 
 [exec]
 model = "gpt-5.4"
@@ -171,6 +172,9 @@ output_format = "json"
 	}
 	if cfg.FetchReviews.Provider == nil || *cfg.FetchReviews.Provider != "coderabbit" {
 		t.Fatalf("unexpected fetch_reviews.provider: %#v", cfg.FetchReviews.Provider)
+	}
+	if cfg.FetchReviews.Nitpicks == nil || !*cfg.FetchReviews.Nitpicks {
+		t.Fatalf("unexpected fetch_reviews.nitpicks: %#v", cfg.FetchReviews.Nitpicks)
 	}
 	if cfg.Exec.Model == nil || *cfg.Exec.Model != "gpt-5.4" {
 		t.Fatalf("unexpected exec.model: %#v", cfg.Exec.Model)

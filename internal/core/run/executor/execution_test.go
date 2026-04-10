@@ -25,7 +25,7 @@ type stubResolverProvider struct {
 
 func (s *stubResolverProvider) Name() string { return s.name }
 
-func (s *stubResolverProvider) FetchReviews(context.Context, string) ([]provider.ReviewItem, error) {
+func (s *stubResolverProvider) FetchReviews(context.Context, provider.FetchRequest) ([]provider.ReviewItem, error) {
 	return nil, nil
 }
 

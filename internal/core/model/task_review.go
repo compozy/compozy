@@ -16,6 +16,10 @@ type ReviewContext struct {
 	Severity    string
 	Author      string
 	ProviderRef string
+	ReviewHash  string
+
+	SourceReviewID          string
+	SourceReviewSubmittedAt string
 }
 
 type RoundMeta struct {
@@ -60,4 +64,8 @@ type ReviewFileMeta struct {
 	Severity    string `yaml:"severity,omitempty"`
 	Author      string `yaml:"author,omitempty"`
 	ProviderRef string `yaml:"provider_ref,omitempty"`
+	ReviewHash  string `yaml:"review_hash,omitempty"`
+
+	SourceReviewID          string `yaml:"source_review_id,omitempty"`
+	SourceReviewSubmittedAt string `yaml:"source_review_submitted_at,omitempty"`
 }

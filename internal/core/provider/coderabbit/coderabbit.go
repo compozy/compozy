@@ -62,8 +62,8 @@ func (p *Provider) Name() string {
 	return name
 }
 
-func (p *Provider) FetchReviews(ctx context.Context, pr string) ([]provider.ReviewItem, error) {
-	if strings.TrimSpace(pr) == "" {
+func (p *Provider) FetchReviews(ctx context.Context, req provider.FetchRequest) ([]provider.ReviewItem, error) {
+	if strings.TrimSpace(req.PR) == "" {
 		return nil, errors.New("pull request number is required")
 	}
 
@@ -72,11 +72,11 @@ func (p *Provider) FetchReviews(ctx context.Context, pr string) ([]provider.Revi
 		return nil, err
 	}
 
-	comments, err := p.fetchReviewComments(ctx, owner, repo, pr)
+	comments, err := p.fetchReviewComments(ctx, owner, repo, req.PR)
 	if err != nil {
 		return nil, err
 	}
-	threads, err := p.fetchReviewThreads(ctx, owner, repo, pr)
+	threads, err := p.fetchReviewThreads(ctx, owner, repo, req.PR)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +112,19 @@ func (p *Provider) FetchReviews(ctx context.Context, pr string) ([]provider.Revi
 		})
 	}
 
+	if req.IncludeNitpicks {
+		reviews, err := p.fetchPullRequestReviews(ctx, owner, repo, req.PR)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, parseNitpickReviewItems(reviews, p.botLogin)...)
+	}
+
+	sortReviewItems(items)
+	return items, nil
+}
+
+func sortReviewItems(items []provider.ReviewItem) {
 	sort.SliceStable(items, func(i, j int) bool {
 		if items[i].File != items[j].File {
 			return items[i].File < items[j].File
@@ -122,10 +135,11 @@ func (p *Provider) FetchReviews(ctx context.Context, pr string) ([]provider.Revi
 		if items[i].Title != items[j].Title {
 			return items[i].Title < items[j].Title
 		}
+		if items[i].ReviewHash != items[j].ReviewHash {
+			return items[i].ReviewHash < items[j].ReviewHash
+		}
 		return items[i].ProviderRef < items[j].ProviderRef
 	})
-
-	return items, nil
 }
 
 func (p *Provider) ResolveIssues(ctx context.Context, _ string, issues []provider.ResolvedIssue) error {
