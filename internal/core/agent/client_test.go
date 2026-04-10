@@ -143,6 +143,71 @@ func TestClientCreateSessionAppliesFullAccessSessionModeWhenSupported(t *testing
 	}
 }
 
+func TestClientCreateSessionForwardsMCPServersIntoNewSessionRequest(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD: t.TempDir(),
+		ExpectedNewSessionMCPServers: []acp.McpServer{
+			{
+				Stdio: &acp.McpServerStdio{
+					Name:    "compozy",
+					Command: "/tmp/compozy-test",
+					Args:    []string{"mcp-serve", "--server", "compozy"},
+					Env: []acp.EnvVariable{
+						{Name: "COMPOZY_RUN_AGENT_CONTEXT", Value: "{\"depth\":0}"},
+						{Name: "FORCE_COLOR", Value: "1"},
+					},
+				},
+			},
+		},
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("hello"),
+		MCPServers: []model.MCPServer{{
+			Stdio: &model.MCPServerStdio{
+				Name:    "compozy",
+				Command: "/tmp/compozy-test",
+				Args:    []string{"mcp-serve", "--server", "compozy"},
+				Env: map[string]string{
+					"FORCE_COLOR":               "1",
+					"COMPOZY_RUN_AGENT_CONTEXT": "{\"depth\":0}",
+				},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	_ = collectSessionUpdates(t, session)
+}
+
+func TestClientCreateSessionRejectsUnsupportedMCPTransport(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD: t.TempDir(),
+	}
+
+	client := newTestClient(t, scenario)
+	defer client.Close()
+	_, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("hello"),
+		MCPServers: []model.MCPServer{{}},
+	})
+	if err == nil {
+		t.Fatal("expected unsupported MCP transport error")
+	}
+	if !strings.Contains(err.Error(), "unsupported ACP MCP server transport at index 0") {
+		t.Fatalf("unexpected unsupported MCP transport error: %v", err)
+	}
+}
+
 func TestClientResumeSessionLoadsExistingSessionAndSuppressesReplay(t *testing.T) {
 	t.Parallel()
 
@@ -187,6 +252,76 @@ func TestClientResumeSessionLoadsExistingSessionAndSuppressesReplay(t *testing.T
 	}
 	if !identity.Resumed {
 		t.Fatal("expected resumed identity")
+	}
+}
+
+func TestClientResumeSessionForwardsMCPServersIntoLoadSessionRequest(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		SessionID:             "sess-existing",
+		ExpectedCWD:           t.TempDir(),
+		ExpectedLoadSessionID: "sess-existing",
+		SupportsLoadSession:   true,
+		ExpectedLoadSessionMCPServers: []acp.McpServer{
+			{
+				Stdio: &acp.McpServerStdio{
+					Name:    "filesystem",
+					Command: "/tmp/fs-mcp",
+					Args:    []string{"--serve"},
+					Env: []acp.EnvVariable{
+						{Name: "ROOT", Value: "/tmp/workspace"},
+					},
+				},
+			},
+		},
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("continue"),
+		MCPServers: []model.MCPServer{{
+			Stdio: &model.MCPServerStdio{
+				Name:    "filesystem",
+				Command: "/tmp/fs-mcp",
+				Args:    []string{"--serve"},
+				Env: map[string]string{
+					"ROOT": "/tmp/workspace",
+				},
+			},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("resume session: %v", err)
+	}
+
+	_ = collectSessionUpdates(t, session)
+}
+
+func TestClientResumeSessionRejectsUnsupportedMCPTransport(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		SessionID:           "sess-existing",
+		ExpectedCWD:         t.TempDir(),
+		SupportsLoadSession: true,
+	}
+
+	client := newTestClient(t, scenario)
+	defer client.Close()
+	_, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte("continue"),
+		MCPServers: []model.MCPServer{{}},
+	})
+	if err == nil {
+		t.Fatal("expected unsupported MCP transport error")
+	}
+	if !strings.Contains(err.Error(), "unsupported ACP MCP server transport at index 0") {
+		t.Fatalf("unexpected unsupported MCP transport error: %v", err)
 	}
 }
 
@@ -704,21 +839,23 @@ func TestACPHelperProcess(_ *testing.T) {
 }
 
 type helperScenario struct {
-	SessionID               string              `json:"session_id,omitempty"`
-	ExpectedCWD             string              `json:"expected_cwd,omitempty"`
-	ExpectedLoadSessionID   string              `json:"expected_load_session_id,omitempty"`
-	ExpectedPrompt          string              `json:"expected_prompt,omitempty"`
-	ExpectedSessionModeID   string              `json:"expected_session_mode_id,omitempty"`
-	UpdateIntervalMillis    int                 `json:"update_interval_millis,omitempty"`
-	SupportsLoadSession     bool                `json:"supports_load_session,omitempty"`
-	SessionMeta             map[string]any      `json:"session_meta,omitempty"`
-	ReplayUpdatesOnLoad     []acp.SessionUpdate `json:"replay_updates_on_load,omitempty"`
-	Updates                 []acp.SessionUpdate `json:"updates,omitempty"`
-	StopReason              string              `json:"stop_reason,omitempty"`
-	BlockUntilCancel        bool                `json:"block_until_cancel,omitempty"`
-	NewSessionError         *helperRequestError `json:"new_session_error,omitempty"`
-	PromptError             *helperRequestError `json:"prompt_error,omitempty"`
-	PromptErrorAfterUpdates bool                `json:"prompt_error_after_updates,omitempty"`
+	SessionID                     string              `json:"session_id,omitempty"`
+	ExpectedCWD                   string              `json:"expected_cwd,omitempty"`
+	ExpectedLoadSessionID         string              `json:"expected_load_session_id,omitempty"`
+	ExpectedNewSessionMCPServers  []acp.McpServer     `json:"expected_new_session_mcp_servers,omitempty"`
+	ExpectedLoadSessionMCPServers []acp.McpServer     `json:"expected_load_session_mcp_servers,omitempty"`
+	ExpectedPrompt                string              `json:"expected_prompt,omitempty"`
+	ExpectedSessionModeID         string              `json:"expected_session_mode_id,omitempty"`
+	UpdateIntervalMillis          int                 `json:"update_interval_millis,omitempty"`
+	SupportsLoadSession           bool                `json:"supports_load_session,omitempty"`
+	SessionMeta                   map[string]any      `json:"session_meta,omitempty"`
+	ReplayUpdatesOnLoad           []acp.SessionUpdate `json:"replay_updates_on_load,omitempty"`
+	Updates                       []acp.SessionUpdate `json:"updates,omitempty"`
+	StopReason                    string              `json:"stop_reason,omitempty"`
+	BlockUntilCancel              bool                `json:"block_until_cancel,omitempty"`
+	NewSessionError               *helperRequestError `json:"new_session_error,omitempty"`
+	PromptError                   *helperRequestError `json:"prompt_error,omitempty"`
+	PromptErrorAfterUpdates       bool                `json:"prompt_error_after_updates,omitempty"`
 }
 
 type helperRequestError struct {
@@ -752,6 +889,13 @@ func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (
 			Message: fmt.Sprintf("unexpected cwd %q", req.Cwd),
 		}
 	}
+	if a.scenario.ExpectedNewSessionMCPServers != nil &&
+		!reflect.DeepEqual(req.McpServers, a.scenario.ExpectedNewSessionMCPServers) {
+		return acp.NewSessionResponse{}, &acp.RequestError{
+			Code:    4004,
+			Message: fmt.Sprintf("unexpected new-session MCP servers %#v", req.McpServers),
+		}
+	}
 	return acp.NewSessionResponse{
 		SessionId: acp.SessionId(a.sessionID),
 		Meta:      a.scenario.SessionMeta,
@@ -769,6 +913,13 @@ func (a *helperAgent) LoadSession(ctx context.Context, req acp.LoadSessionReques
 		return acp.LoadSessionResponse{}, &acp.RequestError{
 			Code:    4003,
 			Message: fmt.Sprintf("unexpected load cwd %q", req.Cwd),
+		}
+	}
+	if a.scenario.ExpectedLoadSessionMCPServers != nil &&
+		!reflect.DeepEqual(req.McpServers, a.scenario.ExpectedLoadSessionMCPServers) {
+		return acp.LoadSessionResponse{}, &acp.RequestError{
+			Code:    4004,
+			Message: fmt.Sprintf("unexpected load-session MCP servers %#v", req.McpServers),
 		}
 	}
 	if err := a.emitUpdates(ctx, a.scenario.ReplayUpdatesOnLoad); err != nil {

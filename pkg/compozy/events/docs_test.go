@@ -30,6 +30,7 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 		EventKindSessionUpdate,
 		EventKindSessionCompleted,
 		EventKindSessionFailed,
+		EventKindReusableAgentLifecycle,
 		EventKindToolCallStarted,
 		EventKindToolCallUpdated,
 		EventKindToolCallFailed,

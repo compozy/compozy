@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/memory"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
@@ -267,7 +268,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		TasksDir:      issuesDir,
 		BatchSize:     5,
 		Mode:          model.ExecutionModePRDTasks,
-	}, groups, runArtifacts)
+	}, groups, runArtifacts, nil)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -325,6 +326,7 @@ func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
 				Content: "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
 			},
 		},
+		nil,
 	)
 	if err == nil {
 		t.Fatal("expected buildBatchJob to fail when workflow memory cannot be prepared")
@@ -359,7 +361,7 @@ func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
 		Round:         7,
 		BatchSize:     3,
 		Mode:          model.ExecutionModePRReview,
-	}, groups, runArtifacts)
+	}, groups, runArtifacts, nil)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -372,6 +374,120 @@ func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
 	baseName := filepath.Base(job.OutPromptPath)
 	if !strings.HasPrefix(baseName, "internal_app_service.go-") || !strings.HasSuffix(baseName, ".prompt.md") {
 		t.Fatalf("unexpected review prompt filename: %q", baseName)
+	}
+	if len(job.MCPServers) != 1 {
+		t.Fatalf("expected reserved MCP server for review jobs without reusable agents, got %#v", job.MCPServers)
+	}
+	if job.MCPServers[0].Stdio == nil || job.MCPServers[0].Stdio.Name != reusableagents.ReservedMCPServerName {
+		t.Fatalf("unexpected reserved MCP server wiring: %#v", job.MCPServers)
+	}
+}
+
+func TestPrepareJobsWithSelectedAgentAppendsCanonicalSystemPrompt(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-demo-agent-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+
+	tasksDir := t.TempDir()
+	groups := map[string][]model.IssueEntry{
+		"task_1": {
+			{
+				Name:     "task_1.md",
+				AbsPath:  filepath.Join(tasksDir, "task_1.md"),
+				Content:  "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
+				CodeFile: "task_1",
+			},
+		},
+	}
+
+	councilDir := filepath.Join(workspaceRoot, model.WorkflowRootDirName, "agents", "council")
+	if err := os.MkdirAll(councilDir, 0o755); err != nil {
+		t.Fatalf("mkdir council agent dir: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(councilDir, "AGENT.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"title: Council",
+			"description: Coordinates reviewers",
+			"ide: claude",
+			"model: agent-model",
+			"reasoning_effort: high",
+			"access_mode: default",
+			"---",
+			"",
+			"You are the council agent.",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write council agent: %v", err)
+	}
+
+	reviewerDir := filepath.Join(workspaceRoot, model.WorkflowRootDirName, "agents", "reviewer")
+	if err := os.MkdirAll(reviewerDir, 0o755); err != nil {
+		t.Fatalf("mkdir reviewer agent dir: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(reviewerDir, "AGENT.md"),
+		[]byte(strings.Join([]string{
+			"---",
+			"title: Reviewer",
+			"description: Reviews code",
+			"ide: codex",
+			"---",
+			"",
+			"Review the code.",
+			"",
+		}, "\n")),
+		0o600,
+	); err != nil {
+		t.Fatalf("write reviewer agent: %v", err)
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		Mode:          model.ExecutionModePRDTasks,
+		AgentName:     "council",
+	}
+
+	agentExecution, err := reusableagents.ResolveExecutionContext(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("resolve execution context: %v", err)
+	}
+
+	jobs, err := prepareJobs(cfg, groups, runArtifacts, agentExecution)
+	if err != nil {
+		t.Fatalf("prepareJobs: %v", err)
+	}
+	if len(jobs) != 1 {
+		t.Fatalf("expected one job, got %d", len(jobs))
+	}
+
+	systemPrompt := jobs[0].SystemPrompt
+	workflowIndex := strings.Index(systemPrompt, "<workflow_memory>")
+	metadataIndex := strings.Index(systemPrompt, "<agent_metadata>")
+	discoveryIndex := strings.Index(systemPrompt, "<available_agents>")
+	bodyIndex := strings.Index(systemPrompt, "You are the council agent.")
+	if workflowIndex < 0 || metadataIndex < 0 || discoveryIndex < 0 || bodyIndex < 0 {
+		t.Fatalf(
+			"expected workflow memory, metadata, discovery, and agent body in system prompt, got:\n%s",
+			systemPrompt,
+		)
+	}
+	if workflowIndex >= metadataIndex || metadataIndex >= discoveryIndex || discoveryIndex >= bodyIndex {
+		t.Fatalf("expected canonical system prompt order, got:\n%s", systemPrompt)
+	}
+	if !strings.Contains(systemPrompt, "- reviewer: Reviews code (workspace)") {
+		t.Fatalf("expected compact discovery catalog entry, got:\n%s", systemPrompt)
 	}
 }
 

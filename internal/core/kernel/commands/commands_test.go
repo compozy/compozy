@@ -366,6 +366,12 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 	if got.AccessMode != want.AccessMode {
 		t.Fatalf("unexpected access mode: %q", got.AccessMode)
 	}
+	if got.AgentName != want.AgentName {
+		t.Fatalf("unexpected agent name: %q", got.AgentName)
+	}
+	if got.ExplicitRuntime != want.ExplicitRuntime {
+		t.Fatalf("unexpected explicit runtime flags: %#v", got.ExplicitRuntime)
+	}
 	if got.Mode != model.ExecutionMode(want.Mode) {
 		t.Fatalf("unexpected mode: %q", got.Mode)
 	}
@@ -433,6 +439,8 @@ func testCoreConfig() core.Config {
 		TailLines:              25,
 		ReasoningEffort:        "high",
 		AccessMode:             core.AccessModeFull,
+		AgentName:              "planner",
+		ExplicitRuntime:        model.ExplicitRuntimeFlags{Model: true, AccessMode: true},
 		Mode:                   core.ModePRDTasks,
 		OutputFormat:           core.OutputFormatText,
 		Verbose:                true,

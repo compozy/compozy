@@ -11,6 +11,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
@@ -32,12 +33,14 @@ type runtimeConfig struct {
 	autoCommit       bool
 	concurrent       int
 	batchSize        int
+	agentName        string
 	ide              string
 	model            string
 	addDirs          []string
 	tailLines        int
 	reasoningEffort  string
 	accessMode       string
+	explicitRuntime  model.ExplicitRuntimeFlags
 	includeCompleted bool
 	includeResolved  bool
 }
@@ -279,12 +282,14 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		AutoCommit:       s.autoCommit,
 		Concurrent:       s.concurrent,
 		BatchSize:        s.batchSize,
+		AgentName:        s.agentName,
 		IDE:              core.IDE(s.ide),
 		Model:            s.model,
 		AddDirs:          core.NormalizeAddDirs(s.addDirs),
 		TailLines:        s.tailLines,
 		ReasoningEffort:  s.reasoningEffort,
 		AccessMode:       s.accessMode,
+		ExplicitRuntime:  s.explicitRuntime,
 		IncludeCompleted: s.includeCompleted,
 		IncludeResolved:  s.includeResolved,
 
@@ -327,6 +332,26 @@ func (s *commandState) applyPersistedExecConfig(cmd *cobra.Command, cfg *core.Co
 	cfg.AccessMode = record.AccessMode
 	cfg.AddDirs = core.NormalizeAddDirs(record.AddDirs)
 	return nil
+}
+
+func captureExplicitRuntimeFlags(cmd *cobra.Command) model.ExplicitRuntimeFlags {
+	return model.ExplicitRuntimeFlags{
+		IDE:             commandFlagChanged(cmd, "ide"),
+		Model:           commandFlagChanged(cmd, "model"),
+		ReasoningEffort: commandFlagChanged(cmd, "reasoning-effort"),
+		AccessMode:      commandFlagChanged(cmd, "access-mode"),
+	}
+}
+
+func commandFlagChanged(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	flags := cmd.Flags()
+	if flags == nil || flags.Lookup(name) == nil {
+		return false
+	}
+	return flags.Changed(name)
 }
 
 func (s *commandState) assertPersistedExecCompatibility(

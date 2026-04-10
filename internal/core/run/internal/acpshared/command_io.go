@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 
@@ -12,12 +13,28 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runshared"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 var newAgentClient = agent.NewClient
+
+type runtimeEventSubmitter interface {
+	Submit(context.Context, events.Event) error
+}
+
+func hasRuntimeEventSubmitter(submitter runtimeEventSubmitter) bool {
+	if submitter == nil {
+		return false
+	}
+	value := reflect.ValueOf(submitter)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return !value.IsNil()
+	default:
+		return true
+	}
+}
 
 func SwapNewAgentClientForTest(
 	fn func(context.Context, agent.ClientConfig) (agent.Client, error),
@@ -47,7 +64,7 @@ type SessionSetupRequest struct {
 	UseUI             bool
 	StreamHumanOutput bool
 	Index             int
-	RunJournal        *journal.Journal
+	RunJournal        runtimeEventSubmitter
 	AggregateUsage    *model.Usage
 	AggregateMu       *sync.Mutex
 	Activity          *activityMonitor
@@ -122,6 +139,14 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 		releaseClient()
 		return nil, err
 	}
+	if err := emitReusableAgentSetupLifecycle(
+		req.Context,
+		req.RunJournal,
+		req.Config.RunArtifacts.RunID,
+		req.Job,
+	); err != nil {
+		logger.Warn("failed to emit reusable agent setup lifecycle; continuing", "error", err)
+	}
 
 	session, err := createACPSession(req.Context, client, req.Config, req.Job, req.CWD)
 	if err != nil {
@@ -194,6 +219,7 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 		AggregateUsage: req.AggregateUsage,
 		AggregateMu:    req.AggregateMu,
 		Activity:       req.Activity,
+		ReusableAgent:  req.Job.ReusableAgent,
 	})
 	resources.logger.Info(
 		"acp session created",
@@ -217,12 +243,12 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 
 func emitSessionStartedEvent(
 	ctx context.Context,
-	runJournal *journal.Journal,
+	runJournal runtimeEventSubmitter,
 	runID string,
 	index int,
 	identity agent.SessionIdentity,
 ) error {
-	if runJournal == nil {
+	if !hasRuntimeEventSubmitter(runJournal) {
 		return nil
 	}
 	if ctx == nil {
@@ -284,6 +310,7 @@ func createACPSession(
 			Prompt:     prompt,
 			WorkingDir: cwd,
 			Model:      cfg.Model,
+			MCPServers: model.CloneMCPServers(job.MCPServers),
 			ExtraEnv:   buildSessionEnvironment(),
 		})
 	}
@@ -292,6 +319,7 @@ func createACPSession(
 		Prompt:     prompt,
 		WorkingDir: cwd,
 		Model:      cfg.Model,
+		MCPServers: model.CloneMCPServers(job.MCPServers),
 		ExtraEnv:   buildSessionEnvironment(),
 	})
 }

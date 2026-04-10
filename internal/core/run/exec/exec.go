@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -233,6 +234,10 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
+	agentExecution, err := reusableagents.ResolveExecutionContext(ctx, cfg)
+	if err != nil {
+		return "", nil, nil, job{}, err
+	}
 	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return "", nil, nil, job{}, err
 	}
@@ -254,7 +259,7 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 		cfg.RunID = state.runArtifacts.RunID
 	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
-	execJob, err := newExecRuntimeJob(promptText, state)
+	execJob, err := newExecRuntimeJob(promptText, state, agentExecution, cfg)
 	if err != nil {
 		state.close()
 		return "", nil, nil, job{}, err
@@ -1015,7 +1020,41 @@ func shouldEmitLeanSessionUpdate(update *model.SessionUpdate) bool {
 	}
 }
 
-func newExecRuntimeJob(promptText string, state *execRunState) (job, error) {
+func newExecRuntimeJob(
+	promptText string,
+	state *execRunState,
+	agentExecution *reusableagents.ExecutionContext,
+	cfg *model.RuntimeConfig,
+) (job, error) {
+	var runID string
+	if state != nil {
+		runID = state.runArtifacts.RunID
+	}
+	mcpServers, err := reusableagents.BuildSessionMCPServers(
+		agentExecution,
+		reusableagents.SessionMCPContext{
+			RunID:               runID,
+			EffectiveAccessMode: cfg.AccessMode,
+			BaseRuntime:         cfg,
+		},
+	)
+	if err != nil {
+		return job{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
+	}
+	return newExecRuntimeJobWithMCP(promptText, state, agentExecution, mcpServers)
+}
+
+func newExecRuntimeJobWithMCP(
+	promptText string,
+	state *execRunState,
+	agentExecution *reusableagents.ExecutionContext,
+	mcpServers []model.MCPServer,
+) (job, error) {
+	systemPrompt := ""
+	if agentExecution != nil {
+		systemPrompt = agentExecution.SystemPrompt("")
+	}
+
 	jb := job{
 		CodeFiles: []string{"exec"},
 		Groups: map[string][]model.IssueEntry{
@@ -1025,10 +1064,13 @@ func newExecRuntimeJob(promptText string, state *execRunState) (job, error) {
 				CodeFile: "exec",
 			}},
 		},
-		SafeName:  "exec",
-		Prompt:    []byte(promptText),
-		OutBuffer: newLineBuffer(0),
-		ErrBuffer: newLineBuffer(0),
+		SafeName:      "exec",
+		ReusableAgent: newReusableAgentExecution(agentExecution),
+		Prompt:        []byte(promptText),
+		SystemPrompt:  systemPrompt,
+		MCPServers:    model.CloneMCPServers(mcpServers),
+		OutBuffer:     newLineBuffer(0),
+		ErrBuffer:     newLineBuffer(0),
 	}
 	if state == nil {
 		return jb, nil
@@ -1044,6 +1086,26 @@ func newExecRuntimeJob(promptText string, state *execRunState) (job, error) {
 		}
 	}
 	return jb, nil
+}
+
+func newReusableAgentExecution(agentExecution *reusableagents.ExecutionContext) *reusableAgentExecution {
+	if agentExecution == nil {
+		return nil
+	}
+
+	available := 0
+	for idx := range agentExecution.Catalog.Agents {
+		if agentExecution.Catalog.Agents[idx].Name == agentExecution.Agent.Name {
+			continue
+		}
+		available++
+	}
+
+	return &reusableAgentExecution{
+		Name:                agentExecution.Agent.Name,
+		Source:              string(agentExecution.Agent.Source.Scope),
+		AvailableAgentCount: available,
+	}
 }
 
 func resolveExecPromptText(cfg *model.RuntimeConfig) (string, error) {

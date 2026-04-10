@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: User-facing documentation and example agent fixtures
 type: docs
 complexity: medium
@@ -32,10 +32,10 @@ Document how reusable agents work in Compozy and provide concrete example agent 
 </requirements>
 
 ## Subtasks
-- [ ] 06.1 Update the main user-facing docs to introduce reusable agents and show the supported command surface.
-- [ ] 06.2 Add a focused documentation page or section for agent directory structure, `AGENT.md`, and `mcp.json`.
-- [ ] 06.3 Add example fixtures or examples that demonstrate a minimal agent and an agent with external MCP dependencies.
-- [ ] 06.4 Verify the docs against implemented CLI behavior, validation errors, and nested-execution semantics before finalizing.
+- [x] 06.1 Update the main user-facing docs to introduce reusable agents and show the supported command surface.
+- [x] 06.2 Add a focused documentation page or section for agent directory structure, `AGENT.md`, and `mcp.json`.
+- [x] 06.3 Add example fixtures or examples that demonstrate a minimal agent and an agent with external MCP dependencies.
+- [x] 06.4 Verify the docs against implemented CLI behavior, validation errors, and nested-execution semantics before finalizing.
 
 ## Implementation Details
 See TechSpec "Executive Summary", "Data Models", and "Runtime precedence" for the language that the docs must stay aligned with. The documentation should clearly separate two concepts that were easy to confuse during design: agent-local MCP servers declared in `mcp.json`, and the reserved Compozy MCP server that exists only to expose host-owned tools such as `run_agent`.
@@ -68,11 +68,11 @@ Prefer updating existing top-level user docs before creating deep new documentat
 
 ## Tests
 - Unit tests:
-  - [ ] Any doc-based example fixtures parse successfully as valid agent definitions.
-  - [ ] Example `mcp.json` snippets used in docs satisfy the same validation rules as real agent config.
+  - [x] Any doc-based example fixtures parse successfully as valid agent definitions.
+  - [x] Example `mcp.json` snippets used in docs satisfy the same validation rules as real agent config.
 - Integration tests:
-  - [ ] The documented `compozy exec --agent <name>` example works against a real example fixture.
-  - [ ] The documented `compozy agents inspect <name>` example matches the implemented command output shape closely enough to stay trustworthy.
+  - [x] The documented `compozy exec --agent <name>` example works against a real example fixture.
+  - [x] The documented `compozy agents inspect <name>` example matches the implemented command output shape closely enough to stay trustworthy.
 - Test coverage target: >=80%
 - All tests must pass
 

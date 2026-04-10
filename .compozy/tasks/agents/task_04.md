@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI integration for `exec --agent`, `agents`, and hidden `mcp-serve`
 type: backend
 complexity: high
@@ -33,11 +33,11 @@ Expose reusable agents through Compozy's public CLI by adding agent-aware execut
 </requirements>
 
 ## Subtasks
-- [ ] 04.1 Extend the `exec` command state and flag parsing to accept `--agent` and pass the selected agent into the shared execution pipeline.
-- [ ] 04.2 Add the `compozy agents list` command to show resolved agents across scopes with workspace/global source attribution.
-- [ ] 04.3 Add the `compozy agents inspect` command to print agent details, validation state, and MCP-related diagnostics in a user-actionable format.
-- [ ] 04.4 Add the hidden `compozy mcp-serve` command that hosts the reserved MCP server over stdio using the internal engine from task 03.
-- [ ] 04.5 Add CLI tests for discovery, selection, inspection, and hidden-command behavior without regressing existing root help and exec usage.
+- [x] 04.1 Extend the `exec` command state and flag parsing to accept `--agent` and pass the selected agent into the shared execution pipeline.
+- [x] 04.2 Add the `compozy agents list` command to show resolved agents across scopes with workspace/global source attribution.
+- [x] 04.3 Add the `compozy agents inspect` command to print agent details, validation state, and MCP-related diagnostics in a user-actionable format.
+- [x] 04.4 Add the hidden `compozy mcp-serve` command that hosts the reserved MCP server over stdio using the internal engine from task 03.
+- [x] 04.5 Add CLI tests for discovery, selection, inspection, and hidden-command behavior without regressing existing root help and exec usage.
 
 ## Implementation Details
 See TechSpec "Component Overview" for the CLI surface and "Runtime precedence" for the rule that explicit flags win over agent defaults. The command layer should stay thin: discover and resolve agents through the new registry, then hand off to the existing execution pipeline rather than creating a second code path.
@@ -73,15 +73,15 @@ The `agents inspect` output should help a user diagnose invalid frontmatter or M
 
 ## Tests
 - Unit tests:
-  - [ ] `compozy exec --agent council "..."` resolves the selected agent and passes it into the shared execution path.
-  - [ ] An unknown agent name passed to `--agent` returns a user-actionable CLI error.
-  - [ ] `agents list` shows workspace and global sources distinctly when both are present.
-  - [ ] `agents inspect` prints validation details for an invalid `mcp.json` before returning a non-zero exit code.
-  - [ ] Root help does not expose the hidden `mcp-serve` command.
+  - [x] `compozy exec --agent council "..."` resolves the selected agent and passes it into the shared execution path.
+  - [x] An unknown agent name passed to `--agent` returns a user-actionable CLI error.
+  - [x] `agents list` shows workspace and global sources distinctly when both are present.
+  - [x] `agents inspect` prints validation details for an invalid `mcp.json` before returning a non-zero exit code.
+  - [x] Root help does not expose the hidden `mcp-serve` command.
 - Integration tests:
-  - [ ] `compozy exec --agent <name>` preserves existing stdout-mode behavior while using the selected agent's resolved prompt/runtime.
-  - [ ] `compozy agents inspect <name>` reports the resolved source, runtime metadata, and validation status for a valid agent.
-  - [ ] The hidden `mcp-serve` command can be invoked by tests as a stdio MCP host without requiring public root help exposure.
+  - [x] `compozy exec --agent <name>` preserves existing stdout-mode behavior while using the selected agent's resolved prompt/runtime.
+  - [x] `compozy agents inspect <name>` reports the resolved source, runtime metadata, and validation status for a valid agent.
+  - [x] The hidden `mcp-serve` command can be invoked by tests as a stdio MCP host without requiring public root help exposure.
 - Test coverage target: >=80%
 - All tests must pass
 

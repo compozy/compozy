@@ -259,6 +259,26 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			},
 		},
 		{
+			name: "reusable agent lifecycle",
+			payload: kinds.ReusableAgentLifecyclePayload{
+				Stage:             kinds.ReusableAgentLifecycleStageNestedBlocked,
+				AgentName:         "child",
+				AgentSource:       "workspace",
+				ParentAgentName:   "parent",
+				AvailableAgents:   2,
+				SystemPromptBytes: 512,
+				MCPServers:        []string{"compozy", "filesystem"},
+				Resumed:           true,
+				ToolCallID:        "tool-1",
+				NestedDepth:       2,
+				MaxNestedDepth:    3,
+				OutputRunID:       "run-child",
+				Blocked:           true,
+				BlockedReason:     kinds.ReusableAgentBlockedReasonCycleDetected,
+				Error:             "nested execution blocked: cycle detected",
+			},
+		},
+		{
 			name: "tool call started",
 			payload: kinds.ToolCallStartedPayload{
 				Index:      1,

@@ -120,7 +120,7 @@ func installPreviewItem(bundle fs.FS, item *PreviewItem, mode InstallMode) (*Suc
 		if err := cleanAndCreateDirectory(item.TargetPath); err != nil {
 			return nil, newFailure(item, mode, item.TargetPath, err)
 		}
-		if err := copySkillDirectory(bundle, item.Skill.Directory, item.TargetPath); err != nil {
+		if err := copyBundleDirectory(bundle, item.Skill.Directory, item.TargetPath, "bundled skill"); err != nil {
 			return nil, newFailure(item, mode, item.TargetPath, err)
 		}
 		return &SuccessItem{
@@ -133,7 +133,7 @@ func installPreviewItem(bundle fs.FS, item *PreviewItem, mode InstallMode) (*Suc
 		if err := cleanAndCreateDirectory(item.CanonicalPath); err != nil {
 			return nil, newFailure(item, mode, item.CanonicalPath, err)
 		}
-		if err := copySkillDirectory(bundle, item.Skill.Directory, item.CanonicalPath); err != nil {
+		if err := copyBundleDirectory(bundle, item.Skill.Directory, item.CanonicalPath, "bundled skill"); err != nil {
 			return nil, newFailure(item, mode, item.CanonicalPath, err)
 		}
 
@@ -145,7 +145,7 @@ func installPreviewItem(bundle fs.FS, item *PreviewItem, mode InstallMode) (*Suc
 			if err := cleanAndCreateDirectory(item.TargetPath); err != nil {
 				return nil, newFailure(item, mode, item.TargetPath, err)
 			}
-			if err := copySkillDirectory(bundle, item.Skill.Directory, item.TargetPath); err != nil {
+			if err := copyBundleDirectory(bundle, item.Skill.Directory, item.TargetPath, "bundled skill"); err != nil {
 				return nil, newFailure(item, mode, item.TargetPath, err)
 			}
 			return &SuccessItem{
@@ -265,13 +265,13 @@ func cleanAndCreateDirectory(path string) error {
 	return nil
 }
 
-func copySkillDirectory(bundle fs.FS, skillDir, dest string) error {
-	return fs.WalkDir(bundle, skillDir, func(current string, entry fs.DirEntry, err error) error {
+func copyBundleDirectory(bundle fs.FS, rootDir, dest string, subject string) error {
+	return fs.WalkDir(bundle, rootDir, func(current string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		relative := strings.TrimPrefix(current, skillDir)
+		relative := strings.TrimPrefix(current, rootDir)
 		relative = strings.TrimPrefix(relative, "/")
 
 		target := dest
@@ -281,25 +281,25 @@ func copySkillDirectory(bundle fs.FS, skillDir, dest string) error {
 
 		if entry.IsDir() {
 			if err := os.MkdirAll(target, 0o755); err != nil {
-				return fmt.Errorf("copy bundled skill %s: %w", skillDir, err)
+				return fmt.Errorf("copy %s %s: %w", subject, rootDir, err)
 			}
 			return nil
 		}
 
 		source, err := bundle.Open(current)
 		if err != nil {
-			return fmt.Errorf("copy bundled skill %s: %w", skillDir, err)
+			return fmt.Errorf("copy %s %s: %w", subject, rootDir, err)
 		}
 		defer source.Close()
 
 		file, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
 		if err != nil {
-			return fmt.Errorf("copy bundled skill %s: %w", skillDir, err)
+			return fmt.Errorf("copy %s %s: %w", subject, rootDir, err)
 		}
 		defer file.Close()
 
 		if _, err := io.Copy(file, source); err != nil {
-			return fmt.Errorf("copy bundled skill %s: %w", skillDir, err)
+			return fmt.Errorf("copy %s %s: %w", subject, rootDir, err)
 		}
 		return nil
 	})

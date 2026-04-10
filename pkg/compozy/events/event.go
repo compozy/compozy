@@ -45,6 +45,9 @@ const (
 	EventKindSessionCompleted EventKind = "session.completed"
 	EventKindSessionFailed    EventKind = "session.failed"
 
+	// Reusable-agent lifecycle events.
+	EventKindReusableAgentLifecycle EventKind = "reusable_agent.lifecycle"
+
 	// Tool call events.
 	EventKindToolCallStarted EventKind = "tool_call.started"
 	EventKindToolCallUpdated EventKind = "tool_call.updated"

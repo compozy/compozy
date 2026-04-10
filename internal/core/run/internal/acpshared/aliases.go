@@ -16,6 +16,7 @@ type failInfo = runshared.FailInfo
 type jobAttemptResult = runshared.JobAttemptResult
 type activityMonitor = runshared.ActivityMonitor
 type lineBuffer = runshared.LineBuffer
+type reusableAgentExecution = runshared.ReusableAgentExecution
 type SessionViewSnapshot = transcript.SessionViewSnapshot
 type FailInfo = runshared.FailInfo
 type JobAttemptResult = runshared.JobAttemptResult

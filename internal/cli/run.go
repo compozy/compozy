@@ -2,10 +2,13 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	core "github.com/compozy/compozy/internal/core"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/spf13/cobra"
 )
@@ -45,6 +48,7 @@ func (s *commandState) prepareAndRun(
 			return err
 		}
 	}
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	cfg, err := s.buildConfig()
 	if err != nil {
@@ -58,7 +62,7 @@ func (s *commandState) prepareAndRun(
 	}
 
 	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
-		return s.handleExecError(cmd, err)
+		return s.handleExecError(cmd, decorateReusableAgentError(cmd, cfg.AgentName, err))
 	}
 	return nil
 }
@@ -116,6 +120,39 @@ func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg 
 		runWorkflow = core.Run
 	}
 	return runWorkflow(ctx, cfg)
+}
+
+func decorateReusableAgentError(cmd *cobra.Command, agentName string, err error) error {
+	if err == nil || strings.TrimSpace(agentName) == "" {
+		return err
+	}
+
+	rootPath := "compozy"
+	if cmd != nil && cmd.Root() != nil {
+		rootPath = cmd.Root().CommandPath()
+	}
+
+	if reason, ok := reusableagents.BlockedReasonForError(err); ok {
+		err = fmt.Errorf("reusable agent blocked (%s): %w", reason, err)
+	}
+
+	switch {
+	case errors.Is(err, reusableagents.ErrAgentNotFound):
+		return fmt.Errorf("%w; run `%s agents list` to inspect available reusable agents", err, rootPath)
+	case isReusableAgentValidationError(err):
+		return fmt.Errorf(
+			"%w; run `%s agents inspect %s` to inspect the resolved definition and validation details",
+			err,
+			rootPath,
+			strings.TrimSpace(agentName),
+		)
+	default:
+		return err
+	}
+}
+
+func isReusableAgentValidationError(err error) bool {
+	return reusableagents.IsValidationError(err)
 }
 
 func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {

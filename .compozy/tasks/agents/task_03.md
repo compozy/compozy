@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: ACP MCP plumbing and nested `run_agent` execution engine
 type: backend
 complexity: critical
@@ -34,12 +34,12 @@ Extend the ACP execution path so sessions can receive a merged MCP server set co
 </requirements>
 
 ## Subtasks
-- [ ] 03.1 Extend ACP client session request models to carry resolved MCP server definitions for both new-session and load-session flows.
-- [ ] 03.2 Add MCP merge logic that combines the reserved `compozy` server with agent-local MCP servers while enforcing reserved-name protection and child-run isolation.
-- [ ] 03.3 Implement the reusable nested execution engine that resolves a child agent, computes host-owned nested context, and launches a real child ACP session.
-- [ ] 03.4 Implement the generic `run_agent` tool contract and structured result shape on top of the nested execution engine.
-- [ ] 03.5 Enforce core nested-execution safeguards for max depth, access-mode ceiling, invalid child references, and deterministic failure reporting.
-- [ ] 03.6 Add unit and integration coverage for merged MCP session setup, nested child execution, and safeguarded failure paths.
+- [x] 03.1 Extend ACP client session request models to carry resolved MCP server definitions for both new-session and load-session flows.
+- [x] 03.2 Add MCP merge logic that combines the reserved `compozy` server with agent-local MCP servers while enforcing reserved-name protection and child-run isolation.
+- [x] 03.3 Implement the reusable nested execution engine that resolves a child agent, computes host-owned nested context, and launches a real child ACP session.
+- [x] 03.4 Implement the generic `run_agent` tool contract and structured result shape on top of the nested execution engine.
+- [x] 03.5 Enforce core nested-execution safeguards for max depth, access-mode ceiling, invalid child references, and deterministic failure reporting.
+- [x] 03.6 Add unit and integration coverage for merged MCP session setup, nested child execution, and safeguarded failure paths.
 
 ## Implementation Details
 See TechSpec "Data Flow", "Core Interfaces", and "NestedExecutionContext" for the host-owned execution model, and ADR-003 for the rule that nested execution must flow through the reserved Compozy MCP capability rather than runtime-specific bespoke wiring.
@@ -75,18 +75,18 @@ Keep this task focused on execution semantics and ACP plumbing. Do not wire Cobr
 
 ## Tests
 - Unit tests:
-  - [ ] `CreateSession` forwards the merged MCP server list into `acp.NewSessionRequest`.
-  - [ ] `ResumeSession` forwards the merged MCP server list into `acp.LoadSessionRequest`.
-  - [ ] Merging agent-local MCP servers with the reserved `compozy` server rejects name collisions before session start.
-  - [ ] A child run receives its own agent-local MCP servers and does not inherit unrelated parent agent-local MCP servers.
-  - [ ] A child whose requested access mode is broader than the parent effective mode is capped instead of elevated.
-  - [ ] A missing child agent name returns a structured `run_agent` failure payload rather than a transport crash.
+  - [x] `CreateSession` forwards the merged MCP server list into `acp.NewSessionRequest`.
+  - [x] `ResumeSession` forwards the merged MCP server list into `acp.LoadSessionRequest`.
+  - [x] Merging agent-local MCP servers with the reserved `compozy` server rejects name collisions before session start.
+  - [x] A child run receives its own agent-local MCP servers and does not inherit unrelated parent agent-local MCP servers.
+  - [x] A child whose requested access mode is broader than the parent effective mode is capped instead of elevated.
+  - [x] A missing child agent name returns a structured `run_agent` failure payload rather than a transport crash.
 - Integration tests:
-  - [ ] A parent ACP-backed run can invoke `run_agent` and receive a successful structured response from a real nested child session.
-  - [ ] A resumed ACP session still reattaches the merged MCP server set before the next prompt turn.
-  - [ ] A nested call blocked by max depth surfaces a deterministic failure result without corrupting the parent session.
-- Test coverage target: >=80%
-- All tests must pass
+  - [x] A parent ACP-backed run can invoke `run_agent` and receive a successful structured response from a real nested child session.
+  - [x] A resumed ACP session still reattaches the merged MCP server set before the next prompt turn.
+  - [x] A nested call blocked by max depth surfaces a deterministic failure result without corrupting the parent session.
+- Test coverage target: >=80% (validated at 90.2% weighted coverage across task-owned files)
+- All tests pass (`make verify`)
 
 ## Success Criteria
 - All tests passing

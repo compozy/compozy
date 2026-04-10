@@ -1,23 +1,30 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/agent"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/setup"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
+
+var cliProcessIOMu sync.Mutex
 
 func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
@@ -232,6 +239,332 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 	}
 	if stderr != "" {
 		t.Fatalf("expected no stderr for resumed dry-run exec, got %q", stderr)
+	}
+}
+
+func TestExecCommandExecutePersistedAgentParentChildEmitsReusableAgentLifecycleEvents(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	writeReusableAgentForCLI(t, workspaceRoot, "parent", strings.Join([]string{
+		"---",
+		"title: Parent",
+		"description: Parent agent",
+		"ide: codex",
+		"---",
+		"",
+		"Parent prompt.",
+		"",
+	}, "\n"), `{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"]}}}`)
+	writeReusableAgentForCLI(t, workspaceRoot, "child", strings.Join([]string{
+		"---",
+		"title: Child",
+		"description: Child agent",
+		"ide: codex",
+		"---",
+		"",
+		"Child prompt.",
+		"",
+	}, "\n"), "")
+	withWorkingDir(t, workspaceRoot)
+
+	restore := coreRun.SwapNewAgentClientForTest(
+		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+			return &cliCapturingACPClient{
+				createSessionFn: func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+					return newCLIACPTestSession(
+						"sess-parent",
+						agent.SessionIdentity{ACPSessionID: "sess-parent"},
+						[]model.SessionUpdate{
+							{
+								Kind:          model.UpdateKindToolCallStarted,
+								ToolCallID:    "tool-1",
+								ToolCallState: model.ToolCallStatePending,
+								Blocks: []model.ContentBlock{mustCLIContentBlock(t, model.ToolUseBlock{
+									ID:       "tool-1",
+									Name:     "run_agent",
+									ToolName: "run_agent",
+									Input:    json.RawMessage(`{"name":"child","input":"delegate this"}`),
+								})},
+								Status: model.StatusRunning,
+							},
+							{
+								Kind:          model.UpdateKindToolCallUpdated,
+								ToolCallID:    "tool-1",
+								ToolCallState: model.ToolCallStateCompleted,
+								Blocks: []model.ContentBlock{mustCLIContentBlock(t, model.ToolResultBlock{
+									ToolUseID: "tool-1",
+									Content:   `{"name":"child","source":"workspace","run_id":"run-child","success":true,"parent_agent_name":"parent","depth":1,"max_depth":3}`,
+								})},
+								Status: model.StatusRunning,
+							},
+							{
+								Kind: model.UpdateKindAgentMessageChunk,
+								Blocks: []model.ContentBlock{
+									mustCLIContentBlock(t, model.TextBlock{Text: "parent done"}),
+								},
+								Status: model.StatusRunning,
+							},
+						},
+						nil,
+					), nil
+				},
+			}, nil
+		},
+	)
+	defer restore()
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--persist",
+		"--agent",
+		"parent",
+		"Finish the task",
+	)
+	if err != nil {
+		t.Fatalf("execute persisted agent exec: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "parent done") {
+		t.Fatalf("expected parent output on stdout, got %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for successful agent exec, got %q", stderr)
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	lifecycleEvents := cliReusableAgentLifecyclePayloads(t, filepath.Join(runDir, "events.jsonl"))
+	gotStages := make([]kinds.ReusableAgentLifecycleStage, 0, len(lifecycleEvents))
+	for _, payload := range lifecycleEvents {
+		gotStages = append(gotStages, payload.Stage)
+	}
+	wantStages := []kinds.ReusableAgentLifecycleStage{
+		kinds.ReusableAgentLifecycleStageResolved,
+		kinds.ReusableAgentLifecycleStagePromptAssembled,
+		kinds.ReusableAgentLifecycleStageMCPMerged,
+		kinds.ReusableAgentLifecycleStageNestedStarted,
+		kinds.ReusableAgentLifecycleStageNestedCompleted,
+	}
+	if !slices.Equal(gotStages, wantStages) {
+		t.Fatalf("unexpected reusable-agent lifecycle stages: got %v want %v", gotStages, wantStages)
+	}
+	if got, want := lifecycleEvents[2].MCPServers, []string{
+		reusableagents.ReservedMCPServerName,
+		"filesystem",
+	}; !slices.Equal(
+		got,
+		want,
+	) {
+		t.Fatalf("unexpected merged MCP servers: got %v want %v", got, want)
+	}
+}
+
+func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	writeReusableAgentForCLI(t, workspaceRoot, "parent", strings.Join([]string{
+		"---",
+		"title: Parent",
+		"description: Parent agent",
+		"ide: codex",
+		"---",
+		"",
+		"Parent prompt.",
+		"",
+	}, "\n"), `{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"]}}}`)
+	withWorkingDir(t, workspaceRoot)
+
+	runID := "exec-agent-resume"
+	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
+		Version:         1,
+		Mode:            model.ModeExec,
+		RunID:           runID,
+		Status:          "succeeded",
+		WorkspaceRoot:   workspaceRoot,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5-codex",
+		ReasoningEffort: "high",
+		AccessMode:      model.AccessModeDefault,
+		CreatedAt:       time.Now().UTC(),
+		UpdatedAt:       time.Now().UTC(),
+		TurnCount:       1,
+		ACPSessionID:    "sess-existing",
+	})
+
+	var capturedResume agent.ResumeSessionRequest
+	restore := coreRun.SwapNewAgentClientForTest(
+		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+			return &cliCapturingACPClient{
+				resumeSessionFn: func(_ context.Context, req agent.ResumeSessionRequest) (agent.Session, error) {
+					capturedResume = req
+					return newCLIACPTestSession(
+						"sess-existing",
+						agent.SessionIdentity{ACPSessionID: "sess-existing", Resumed: true},
+						[]model.SessionUpdate{
+							{
+								Kind: model.UpdateKindAgentMessageChunk,
+								Blocks: []model.ContentBlock{
+									mustCLIContentBlock(t, model.TextBlock{Text: "resumed parent"}),
+								},
+								Status: model.StatusRunning,
+							},
+						},
+						nil,
+					), nil
+				},
+			}, nil
+		},
+	)
+	defer restore()
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--run-id",
+		runID,
+		"--agent",
+		"parent",
+		"Continue the session",
+	)
+	if err != nil {
+		t.Fatalf("execute resumed agent exec: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "resumed parent") {
+		t.Fatalf("expected resumed output on stdout, got %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for resumed agent exec, got %q", stderr)
+	}
+
+	if got, want := len(capturedResume.MCPServers), 2; got != want {
+		t.Fatalf("expected reserved plus agent-local MCP servers on resume, got %#v", capturedResume.MCPServers)
+	}
+	if got, want := capturedResume.MCPServers[0].Stdio.Name, reusableagents.ReservedMCPServerName; got != want {
+		t.Fatalf("unexpected resumed reserved MCP server: %#v", capturedResume.MCPServers)
+	}
+	if got, want := capturedResume.MCPServers[1].Stdio.Name, "filesystem"; got != want {
+		t.Fatalf("unexpected resumed agent-local MCP server: %#v", capturedResume.MCPServers)
+	}
+
+	lifecycleEvents := cliReusableAgentLifecyclePayloads(
+		t,
+		filepath.Join(workspaceRoot, ".compozy", "runs", runID, "events.jsonl"),
+	)
+	foundResumedMerge := false
+	for _, payload := range lifecycleEvents {
+		if payload.Stage == kinds.ReusableAgentLifecycleStageMCPMerged && payload.Resumed {
+			foundResumedMerge = true
+		}
+	}
+	if !foundResumedMerge {
+		t.Fatalf("expected resumed MCP merge lifecycle event, got %#v", lifecycleEvents)
+	}
+}
+
+func TestExecCommandExecuteAgentValidationFailureReportsInvalidMCPReason(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	writeReusableAgentForCLI(t, workspaceRoot, "broken", strings.Join([]string{
+		"---",
+		"title: Broken",
+		"description: Broken agent",
+		"ide: codex",
+		"---",
+		"",
+		"Broken prompt.",
+		"",
+	}, "\n"), `{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"],"env":{"ROOT":"${MISSING_AGENT_ROOT}"}}}}`)
+	withWorkingDir(t, workspaceRoot)
+
+	_, _, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--agent", "broken", "Do work")
+	if err == nil {
+		t.Fatal("expected invalid-mcp agent execution failure")
+	}
+	if !strings.Contains(err.Error(), "reusable agent blocked (invalid-mcp)") {
+		t.Fatalf("expected invalid-mcp blocked reason in error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "MISSING_AGENT_ROOT") {
+		t.Fatalf("expected actionable env detail in error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "agents inspect broken") {
+		t.Fatalf("expected inspect follow-up in error, got %v", err)
+	}
+}
+
+func TestExecCommandExecuteAgentWorkspaceOverrideWinsOverGlobalDefinition(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	writeReusableAgentForCLI(t, workspaceRoot, "reviewer", strings.Join([]string{
+		"---",
+		"title: Workspace Reviewer",
+		"description: Workspace reviewer",
+		"ide: codex",
+		"---",
+		"",
+		"Workspace review prompt.",
+		"",
+	}, "\n"), "")
+	writeGlobalReusableAgentForCLI(t, homeDir, "reviewer", strings.Join([]string{
+		"---",
+		"title: Global Reviewer",
+		"description: Global reviewer",
+		"ide: codex",
+		"---",
+		"",
+		"Global review prompt.",
+		"",
+	}, "\n"), "")
+	withWorkingDir(t, workspaceRoot)
+
+	var capturedPrompt string
+	restore := coreRun.SwapNewAgentClientForTest(
+		func(_ context.Context, _ agent.ClientConfig) (agent.Client, error) {
+			return &cliCapturingACPClient{
+				createSessionFn: func(_ context.Context, req agent.SessionRequest) (agent.Session, error) {
+					capturedPrompt = string(req.Prompt)
+					return newCLIACPTestSession(
+						"sess-reviewer",
+						agent.SessionIdentity{ACPSessionID: "sess-reviewer"},
+						[]model.SessionUpdate{
+							{
+								Kind: model.UpdateKindAgentMessageChunk,
+								Blocks: []model.ContentBlock{
+									mustCLIContentBlock(t, model.TextBlock{Text: "review complete"}),
+								},
+								Status: model.StatusRunning,
+							},
+						},
+						nil,
+					), nil
+				},
+			}, nil
+		},
+	)
+	defer restore()
+
+	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--agent",
+		"reviewer",
+		"Review the change",
+	)
+	if err != nil {
+		t.Fatalf("execute agent override CLI run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "review complete") {
+		t.Fatalf("expected successful reviewer output, got %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for reviewer override run, got %q", stderr)
+	}
+	if !strings.Contains(capturedPrompt, "Workspace review prompt.") ||
+		strings.Contains(capturedPrompt, "Global review prompt.") {
+		t.Fatalf("expected workspace override prompt to win, got:\n%s", capturedPrompt)
 	}
 }
 
@@ -581,6 +914,9 @@ func executeCommandCapturingProcessIO(
 ) (string, string, error) {
 	t.Helper()
 
+	cliProcessIOMu.Lock()
+	defer cliProcessIOMu.Unlock()
+
 	stdoutRead, stdoutWrite, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("create stdout pipe: %v", err)
@@ -693,6 +1029,172 @@ func cliRuntimeEventKinds(t *testing.T, eventsPath string) []eventspkg.EventKind
 	}
 	return kinds
 }
+
+func cliReusableAgentLifecyclePayloads(
+	t *testing.T,
+	eventsPath string,
+) []kinds.ReusableAgentLifecyclePayload {
+	t.Helper()
+
+	events := readCLIRuntimeEvents(t, eventsPath)
+	payloads := make([]kinds.ReusableAgentLifecyclePayload, 0)
+	for _, event := range events {
+		if event.Kind != eventspkg.EventKindReusableAgentLifecycle {
+			continue
+		}
+		var payload kinds.ReusableAgentLifecyclePayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			t.Fatalf("decode reusable agent payload: %v", err)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
+}
+
+func readCLIRuntimeEvents(t *testing.T, eventsPath string) []eventspkg.Event {
+	t.Helper()
+
+	content, err := os.ReadFile(eventsPath)
+	if err != nil {
+		t.Fatalf("read events artifact %s: %v", eventsPath, err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	events := make([]eventspkg.Event, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var event eventspkg.Event
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("decode runtime event line: %v\nline:\n%s", err, line)
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+func mustCLIContentBlock(t *testing.T, payload any) model.ContentBlock {
+	t.Helper()
+
+	block, err := model.NewContentBlock(payload)
+	if err != nil {
+		t.Fatalf("new CLI content block: %v", err)
+	}
+	return block
+}
+
+func writeReusableAgentForCLI(t *testing.T, workspaceRoot, name, agentMarkdown, mcpContent string) {
+	t.Helper()
+
+	writeReusableAgentFixtureForCLI(
+		t,
+		filepath.Join(workspaceRoot, model.WorkflowRootDirName, "agents", name),
+		agentMarkdown,
+		mcpContent,
+	)
+}
+
+func writeGlobalReusableAgentForCLI(t *testing.T, homeDir, name, agentMarkdown, mcpContent string) {
+	t.Helper()
+
+	writeReusableAgentFixtureForCLI(
+		t,
+		filepath.Join(homeDir, model.WorkflowRootDirName, "agents", name),
+		agentMarkdown,
+		mcpContent,
+	)
+}
+
+func writeReusableAgentFixtureForCLI(t *testing.T, agentDir, agentMarkdown, mcpContent string) {
+	t.Helper()
+
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatalf("mkdir reusable agent dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(agentDir, "AGENT.md"), []byte(agentMarkdown), 0o600); err != nil {
+		t.Fatalf("write AGENT.md: %v", err)
+	}
+	if strings.TrimSpace(mcpContent) != "" {
+		if err := os.WriteFile(filepath.Join(agentDir, "mcp.json"), []byte(mcpContent), 0o600); err != nil {
+			t.Fatalf("write mcp.json: %v", err)
+		}
+	}
+}
+
+type cliCapturingACPClient struct {
+	createSessionFn func(context.Context, agent.SessionRequest) (agent.Session, error)
+	resumeSessionFn func(context.Context, agent.ResumeSessionRequest) (agent.Session, error)
+}
+
+func (c *cliCapturingACPClient) CreateSession(
+	ctx context.Context,
+	req agent.SessionRequest,
+) (agent.Session, error) {
+	if c.createSessionFn == nil {
+		return nil, nil
+	}
+	return c.createSessionFn(ctx, req)
+}
+
+func (c *cliCapturingACPClient) ResumeSession(
+	ctx context.Context,
+	req agent.ResumeSessionRequest,
+) (agent.Session, error) {
+	if c.resumeSessionFn == nil {
+		return nil, nil
+	}
+	return c.resumeSessionFn(ctx, req)
+}
+
+func (*cliCapturingACPClient) SupportsLoadSession() bool { return true }
+func (*cliCapturingACPClient) Close() error              { return nil }
+func (*cliCapturingACPClient) Kill() error               { return nil }
+
+type cliACPTestSession struct {
+	id       string
+	identity agent.SessionIdentity
+	updates  chan model.SessionUpdate
+	done     chan struct{}
+	err      error
+}
+
+func newCLIACPTestSession(
+	id string,
+	identity agent.SessionIdentity,
+	updates []model.SessionUpdate,
+	err error,
+) *cliACPTestSession {
+	session := &cliACPTestSession{
+		id:       id,
+		identity: identity,
+		updates:  make(chan model.SessionUpdate, len(updates)),
+		done:     make(chan struct{}),
+		err:      err,
+	}
+	go func() {
+		for i := range updates {
+			session.updates <- updates[i]
+		}
+		close(session.updates)
+		close(session.done)
+	}()
+	return session
+}
+
+func (s *cliACPTestSession) ID() string { return s.id }
+
+func (s *cliACPTestSession) Identity() agent.SessionIdentity { return s.identity }
+
+func (s *cliACPTestSession) Updates() <-chan model.SessionUpdate { return s.updates }
+
+func (s *cliACPTestSession) Done() <-chan struct{} { return s.done }
+
+func (s *cliACPTestSession) Err() error { return s.err }
+
+func (*cliACPTestSession) SlowPublishes() uint64 { return 0 }
+
+func (*cliACPTestSession) DroppedUpdates() uint64 { return 0 }
 
 func containsAll(s string, fragments ...string) bool {
 	for _, fragment := range fragments {

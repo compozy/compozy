@@ -12,7 +12,6 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -27,18 +26,20 @@ type SessionUpdateHandler struct {
 	startedAt      time.Time
 	outWriter      io.Writer
 	errWriter      io.Writer
-	journal        *journal.Journal
+	journal        runtimeEventSubmitter
 	jobUsage       *model.Usage
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
 	activity       *activityMonitor
+	reusableAgent  *reusableAgentExecution
 
-	mu          sync.Mutex
-	err         error
-	blockCounts map[model.ContentBlockType]int
-	sessionView *sessionViewModel
-	done        chan struct{}
-	doneOnce    sync.Once
+	mu              sync.Mutex
+	err             error
+	blockCounts     map[model.ContentBlockType]int
+	nestedToolCalls map[string]nestedReusableAgentCall
+	sessionView     *sessionViewModel
+	done            chan struct{}
+	doneOnce        sync.Once
 }
 
 type SessionUpdateHandlerConfig struct {
@@ -50,11 +51,12 @@ type SessionUpdateHandlerConfig struct {
 	RunID          string
 	OutWriter      io.Writer
 	ErrWriter      io.Writer
-	RunJournal     *journal.Journal
+	RunJournal     runtimeEventSubmitter
 	JobUsage       *model.Usage
 	AggregateUsage *model.Usage
 	AggregateMu    *sync.Mutex
 	Activity       *activityMonitor
+	ReusableAgent  *reusableAgentExecution
 }
 
 func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandler {
@@ -65,23 +67,25 @@ func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandl
 		cfg.Logger = silentLogger()
 	}
 	return &SessionUpdateHandler{
-		ctx:            cfg.Context,
-		index:          cfg.Index,
-		agentID:        cfg.AgentID,
-		sessionID:      cfg.SessionID,
-		logger:         cfg.Logger,
-		runID:          cfg.RunID,
-		startedAt:      time.Now(),
-		outWriter:      cfg.OutWriter,
-		errWriter:      cfg.ErrWriter,
-		journal:        cfg.RunJournal,
-		jobUsage:       cfg.JobUsage,
-		aggregateUsage: cfg.AggregateUsage,
-		aggregateMu:    cfg.AggregateMu,
-		activity:       cfg.Activity,
-		blockCounts:    make(map[model.ContentBlockType]int),
-		sessionView:    newSessionViewModel(),
-		done:           make(chan struct{}),
+		ctx:             cfg.Context,
+		index:           cfg.Index,
+		agentID:         cfg.AgentID,
+		sessionID:       cfg.SessionID,
+		logger:          cfg.Logger,
+		runID:           cfg.RunID,
+		startedAt:       time.Now(),
+		outWriter:       cfg.OutWriter,
+		errWriter:       cfg.ErrWriter,
+		journal:         cfg.RunJournal,
+		jobUsage:        cfg.JobUsage,
+		aggregateUsage:  cfg.AggregateUsage,
+		aggregateMu:     cfg.AggregateMu,
+		activity:        cfg.Activity,
+		reusableAgent:   cfg.ReusableAgent,
+		blockCounts:     make(map[model.ContentBlockType]int),
+		nestedToolCalls: make(map[string]nestedReusableAgentCall),
+		sessionView:     newSessionViewModel(),
+		done:            make(chan struct{}),
 	}
 }
 
@@ -102,6 +106,19 @@ func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 		return err
 	}
 	h.applySessionUpdate(update)
+	if err := h.emitReusableAgentLifecycleFromUpdate(update); err != nil {
+		h.logger.Warn(
+			"failed to emit reusable agent lifecycle from session update; continuing",
+			"session_id",
+			h.sessionID,
+			"update_kind",
+			update.Kind,
+			"tool_call_id",
+			strings.TrimSpace(update.ToolCallID),
+			"error",
+			err,
+		)
+	}
 	if err := h.emitSessionUpdateEvent(update); err != nil {
 		return err
 	}
@@ -269,7 +286,7 @@ func (h *SessionUpdateHandler) submitRuntimeEvent(
 	payload any,
 	description string,
 ) error {
-	if h.journal == nil {
+	if !hasRuntimeEventSubmitter(h.journal) {
 		return nil
 	}
 

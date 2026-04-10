@@ -111,6 +111,8 @@ type Config struct {
 	TailLines              int
 	ReasoningEffort        string
 	AccessMode             string
+	AgentName              string
+	ExplicitRuntime        model.ExplicitRuntimeFlags
 	Mode                   Mode
 	OutputFormat           OutputFormat
 	Verbose                bool
@@ -322,6 +324,8 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		TailLines:              cfg.TailLines,
 		ReasoningEffort:        cfg.ReasoningEffort,
 		AccessMode:             cfg.AccessMode,
+		AgentName:              cfg.AgentName,
+		ExplicitRuntime:        cfg.ExplicitRuntime,
 		Mode:                   model.ExecutionMode(cfg.Mode),
 		OutputFormat:           model.OutputFormat(cfg.OutputFormat),
 		Verbose:                cfg.Verbose,

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Observability, safeguards, and end-to-end integration hardening
 type: test
 complexity: high
@@ -32,11 +32,11 @@ Harden the reusable-agent feature by making nested execution observable, blockin
 </requirements>
 
 ## Subtasks
-- [ ] 05.1 Add structured logging or event emission for agent resolution, prompt assembly, MCP merge, nested execution start/completion, and blocked nested runs.
-- [ ] 05.2 Introduce a stable blocked-reason vocabulary and use it consistently across runtime logs, tool failures, and CLI-facing error translation.
-- [ ] 05.3 Add integration fixtures for cyclic agent calls, missing `mcp.json` environment variables, and workspace-overrides-global scenarios.
-- [ ] 05.4 Extend end-to-end ACP and CLI tests to cover success, resume, block, and validation-failure flows.
-- [ ] 05.5 Run the full verification pipeline and tighten any weak error handling, flaky assumptions, or missing instrumentation revealed by the new tests.
+- [x] 05.1 Add structured logging or event emission for agent resolution, prompt assembly, MCP merge, nested execution start/completion, and blocked nested runs.
+- [x] 05.2 Introduce a stable blocked-reason vocabulary and use it consistently across runtime logs, tool failures, and CLI-facing error translation.
+- [x] 05.3 Add integration fixtures for cyclic agent calls, missing `mcp.json` environment variables, and workspace-overrides-global scenarios.
+- [x] 05.4 Extend end-to-end ACP and CLI tests to cover success, resume, block, and validation-failure flows.
+- [x] 05.5 Run the full verification pipeline and tighten any weak error handling, flaky assumptions, or missing instrumentation revealed by the new tests.
 
 ## Implementation Details
 See TechSpec "Operational Considerations", "Error Handling", and the review-driven notes captured in the ledger for the expected blocked-reason behavior and resumed-session MCP reattachment guarantees.
@@ -69,15 +69,15 @@ Do not treat this as a pure test-only task. If the new end-to-end coverage revea
 
 ## Tests
 - Unit tests:
-  - [ ] A blocked nested run due to max depth emits the expected blocked-reason value.
-  - [ ] A cycle such as `A -> B -> A` is classified as cycle-detected instead of appearing as a generic internal error.
-  - [ ] A missing environment variable referenced by `mcp.json` surfaces as an invalid-MCP-style failure with actionable details.
-  - [ ] Resumed agent-backed sessions emit the same MCP merge observability as fresh sessions.
+  - [x] A blocked nested run due to max depth emits the expected blocked-reason value.
+  - [x] A cycle such as `A -> B -> A` is classified as cycle-detected instead of appearing as a generic internal error.
+  - [x] A missing environment variable referenced by `mcp.json` surfaces as an invalid-MCP-style failure with actionable details.
+  - [x] Resumed agent-backed sessions emit the same MCP merge observability as fresh sessions.
 - Integration tests:
-  - [ ] A successful parent-child run emits the expected resolution, prompt-assembly, MCP-merge, nested-start, and nested-complete events.
-  - [ ] A resumed persisted exec run with `--agent` reattaches MCP servers before the next nested call.
-  - [ ] Workspace override of a global agent is honored consistently in CLI execution and nested tool invocation.
-  - [ ] A cyclic nested call sequence is blocked without leaving the parent session unusable.
+  - [x] A successful parent-child run emits the expected resolution, prompt-assembly, MCP-merge, nested-start, and nested-complete events.
+  - [x] A resumed persisted exec run with `--agent` reattaches MCP servers before the next nested call.
+  - [x] Workspace override of a global agent is honored consistently in CLI execution and nested tool invocation.
+  - [x] A cyclic nested call sequence is blocked without leaving the parent session unusable.
 - Test coverage target: >=80%
 - All tests must pass
 
