@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Agent registry, parsing, validation, and override resolution
 type: backend
 complexity: high
@@ -32,12 +32,12 @@ Create the reusable agent definition core under `internal/core/agents` so Compoz
 </requirements>
 
 ## Subtasks
-- [ ] 01.1 Create the `internal/core/agents` package with models for resolved agents, metadata, source scope, and optional agent-local MCP configuration.
-- [ ] 01.2 Implement filesystem discovery for workspace and global agent roots, including whole-directory workspace override semantics when agent names collide.
-- [ ] 01.3 Implement `AGENT.md` parsing with YAML frontmatter plus markdown body and validate the supported v1 metadata fields.
-- [ ] 01.4 Implement `mcp.json` loading, placeholder expansion, reserved-name protection, and fail-closed validation for missing environment variables.
-- [ ] 01.5 Add focused validation errors for invalid slugs, reserved names, malformed frontmatter, malformed MCP config, and unsupported deferred features.
-- [ ] 01.6 Add unit tests covering successful discovery, scope override, and validation failures for the edge cases above.
+- [x] 01.1 Create the `internal/core/agents` package with models for resolved agents, metadata, source scope, and optional agent-local MCP configuration.
+- [x] 01.2 Implement filesystem discovery for workspace and global agent roots, including whole-directory workspace override semantics when agent names collide.
+- [x] 01.3 Implement `AGENT.md` parsing with YAML frontmatter plus markdown body and validate the supported v1 metadata fields.
+- [x] 01.4 Implement `mcp.json` loading, placeholder expansion, reserved-name protection, and fail-closed validation for missing environment variables.
+- [x] 01.5 Add focused validation errors for invalid slugs, reserved names, malformed frontmatter, malformed MCP config, and unsupported deferred features.
+- [x] 01.6 Add unit tests covering successful discovery, scope override, and validation failures for the edge cases above.
 
 ## Implementation Details
 See TechSpec "System Architecture", "Implementation Design", and "Data Models" for the resolved agent contract, filesystem layout, validation rules, and MCP config shape.
@@ -71,16 +71,16 @@ This task should only establish agent-definition semantics. It must not couple t
 
 ## Tests
 - Unit tests:
-  - [ ] Parsing a valid `AGENT.md` returns the expected metadata values and markdown body.
-  - [ ] An agent directory named `compozy` is rejected with a reserved-name validation error.
-  - [ ] An agent directory whose name contains uppercase letters or invalid punctuation is rejected with a slug validation error.
-  - [ ] `mcp.json` placeholder expansion fails with a descriptive validation error when a referenced environment variable is absent.
-  - [ ] `mcp.json` that declares an MCP server named `compozy` is rejected before session setup.
-  - [ ] Unsupported deferred fields such as `skills` or `memory` are rejected instead of silently ignored.
+  - [x] Parsing a valid `AGENT.md` returns the expected metadata values and markdown body.
+  - [x] An agent directory named `compozy` is rejected with a reserved-name validation error.
+  - [x] An agent directory whose name contains uppercase letters or invalid punctuation is rejected with a slug validation error.
+  - [x] `mcp.json` placeholder expansion fails with a descriptive validation error when a referenced environment variable is absent.
+  - [x] `mcp.json` that declares an MCP server named `compozy` is rejected before session setup.
+  - [x] Unsupported deferred fields such as `skills` or `memory` are rejected instead of silently ignored.
 - Integration tests:
-  - [ ] When the same agent exists in global and workspace scopes, the workspace directory wins as a whole.
-  - [ ] Discovery returns both scopes correctly when no collisions exist.
-  - [ ] A malformed agent in one directory surfaces validation failure without corrupting resolution of other valid agents.
+  - [x] When the same agent exists in global and workspace scopes, the workspace directory wins as a whole.
+  - [x] Discovery returns both scopes correctly when no collisions exist.
+  - [x] A malformed agent in one directory surfaces validation failure without corrupting resolution of other valid agents.
 - Test coverage target: >=80%
 - All tests must pass
 
