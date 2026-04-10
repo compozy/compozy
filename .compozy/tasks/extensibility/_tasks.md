@@ -4,7 +4,7 @@
 
 | # | Title | Status | Complexity | Dependencies |
 |---|-------|--------|------------|--------------|
-| 01 | Extract internal/core/subprocess package and add protocol version constant | pending | medium | — |
+| 01 | Extract internal/core/subprocess package and add protocol version constant | completed | medium | — |
 | 02 | Scaffold internal/core/extension package with manifest parser and enablement model | pending | medium | task_01 |
 | 03 | Three-level discovery pipeline with provider and skill asset extraction | pending | medium | task_02 |
 | 04 | Capability enforcement and audit log | pending | medium | task_02 |

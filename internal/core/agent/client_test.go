@@ -15,6 +15,7 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
 func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) {
@@ -744,7 +745,7 @@ func TestClientUtilityHelpers(t *testing.T) {
 		t.Fatalf("expected absolute path, got %q", absoluteDir)
 	}
 
-	buffer := &lockedBuffer{}
+	buffer := &subprocess.LockedBuffer{}
 	if _, err := buffer.Write([]byte("stderr")); err != nil {
 		t.Fatalf("write locked buffer: %v", err)
 	}

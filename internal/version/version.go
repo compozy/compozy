@@ -3,9 +3,10 @@ package version
 import "fmt"
 
 var (
-	Version = "dev"
-	Commit  = "none"
-	Date    = "unknown"
+	Version                  = "dev"
+	Commit                   = "none"
+	Date                     = "unknown"
+	ExtensionProtocolVersion = "1"
 )
 
 func String() string {

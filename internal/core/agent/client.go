@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -18,6 +16,7 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
 // Client manages an ACP agent subprocess and creates sessions.
@@ -145,23 +144,16 @@ type clientImpl struct {
 	logger          *slog.Logger
 	shutdownTimeout time.Duration
 
-	mu             sync.Mutex
-	processCancel  context.CancelFunc
-	cmd            *exec.Cmd
-	stdin          io.WriteCloser
-	conn           *acp.ClientSideConnection
-	started        bool
-	closed         bool
-	startModel     string
-	waitDone       chan struct{}
-	waitErr        error
-	sessions       map[string]*sessionImpl
-	forcedShutdown bool
-	loadSupported  bool
+	mu            sync.Mutex
+	process       *subprocess.Process
+	conn          *acp.ClientSideConnection
+	started       bool
+	closed        bool
+	startModel    string
+	sessions      map[string]*sessionImpl
+	loadSupported bool
 
-	wg             sync.WaitGroup
-	closeInputOnce sync.Once
-	forceOnce      sync.Once
+	wg sync.WaitGroup
 }
 
 var _ Client = (*clientImpl)(nil)
@@ -184,7 +176,6 @@ func NewClient(_ context.Context, cfg ClientConfig) (Client, error) {
 		cfg:             cfg,
 		logger:          cfg.Logger,
 		shutdownTimeout: shutdownTimeout,
-		waitDone:        make(chan struct{}),
 		sessions:        make(map[string]*sessionImpl),
 	}, nil
 }
@@ -324,37 +315,26 @@ func (c *clientImpl) SupportsLoadSession() bool {
 func (c *clientImpl) Close() error {
 	c.markClosed()
 
-	if !c.startedProcess() {
+	process := c.processRef()
+	if process == nil {
 		return nil
 	}
 
-	c.closeProcessInput()
-
-	timer := time.NewTimer(c.shutdownTimeout)
-	defer timer.Stop()
-
-	select {
-	case <-c.waitDone:
-	case <-timer.C:
-		c.forceProcessExit()
-		<-c.waitDone
-	}
-
-	return c.awaitBackgroundShutdown()
+	processErr := process.Shutdown(c.shutdownTimeout)
+	return c.awaitBackgroundShutdown(processErr)
 }
 
 // Kill force-terminates the agent subprocess and waits for background goroutines to exit.
 func (c *clientImpl) Kill() error {
 	c.markClosed()
 
-	if !c.startedProcess() {
+	process := c.processRef()
+	if process == nil {
 		return nil
 	}
 
-	c.closeProcessInput()
-	c.forceProcessExit()
-	<-c.waitDone
-	return c.awaitBackgroundShutdown()
+	processErr := process.Kill()
+	return c.awaitBackgroundShutdown(processErr)
 }
 
 // ReadTextFile handles ACP file read requests from the agent.
@@ -481,30 +461,26 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		return err
 	}
 
-	processCtx, processCancel := context.WithCancel(context.Background())
-	cmd, stdin, stdout, stderr, err := startACPProcess(
-		processCtx,
-		command,
-		mergeEnvironment(c.spec.EnvVars, req.ExtraEnv),
-		c.shutdownTimeout,
-	)
+	process, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+		Command:         command,
+		Env:             subprocess.MergeEnvironment(c.spec.EnvVars, req.ExtraEnv),
+		WaitDelay:       c.shutdownTimeout,
+		WaitErrorPrefix: "wait for ACP agent process",
+	})
 	if err != nil {
 		c.mu.Unlock()
-		processCancel()
 		return wrapSessionSetupError(
 			SessionSetupStageStartProcess,
 			wrapACPLaunchError(c.spec, command, "", "start ACP agent process", err),
 		)
 	}
 
-	conn := acp.NewClientSideConnection(c, stdin, stdout)
+	conn := acp.NewClientSideConnection(c, process.Stdin(), process.Stdout())
 	if c.logger != nil {
 		conn.SetLogger(c.logger)
 	}
 
-	c.processCancel = processCancel
-	c.cmd = cmd
-	c.stdin = stdin
+	c.process = process
 	c.conn = conn
 	c.started = true
 	c.startModel = startModel
@@ -530,7 +506,13 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		_ = c.Close()
 		return wrapSessionSetupError(
 			SessionSetupStageInitialize,
-			wrapACPLaunchError(c.spec, command, stderr.String(), "initialize ACP agent", wrapACPError(err)),
+			wrapACPLaunchError(
+				c.spec,
+				command,
+				process.StderrBuffer().String(),
+				"initialize ACP agent",
+				wrapACPError(err),
+			),
 		)
 	}
 
@@ -562,65 +544,24 @@ func (c *clientImpl) resolveStartCommand(ctx context.Context, req SessionRequest
 	return startModel, command, nil
 }
 
-func startACPProcess(
-	processCtx context.Context,
-	command []string,
-	env []string,
-	waitDelay time.Duration,
-) (*exec.Cmd, io.WriteCloser, io.ReadCloser, *lockedBuffer, error) {
-	cmd := exec.CommandContext(processCtx, command[0], command[1:]...)
-	cmd.Env = env
-	cmd.WaitDelay = waitDelay
-	cmd.Cancel = func() error {
-		return forceTerminateProcess(cmd)
-	}
-	if err := configureACPCommand(cmd); err != nil {
-		return nil, nil, nil, nil, err
-	}
-
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("create ACP stdin pipe: %w", err)
-	}
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		_ = stdin.Close()
-		return nil, nil, nil, nil, fmt.Errorf("create ACP stdout pipe: %w", err)
-	}
-
-	stderr := &lockedBuffer{}
-	cmd.Stderr = stderr
-	if err := cmd.Start(); err != nil {
-		_ = stdin.Close()
-		return nil, nil, nil, nil, err
-	}
-
-	return cmd, stdin, stdout, stderr, nil
-}
-
 func (c *clientImpl) waitForProcess() {
 	defer c.wg.Done()
 
-	err := c.cmd.Wait()
-
-	c.mu.Lock()
-	forced := c.forcedShutdown
-	c.waitErr = normalizeProcessWaitError(err)
-	if forced {
-		c.waitErr = nil
+	process := c.processRef()
+	if process == nil {
+		return
 	}
-	close(c.waitDone)
-	c.mu.Unlock()
+	err := process.Wait()
 
 	if err == nil {
 		c.failOpenSessions(errors.New("ACP agent process exited before all sessions completed"))
 		return
 	}
-	if forced {
+	if process.Forced() {
 		c.failOpenSessions(context.Canceled)
 		return
 	}
-	c.failOpenSessions(c.waitErr)
+	c.failOpenSessions(err)
 }
 
 func (c *clientImpl) markClosed() {
@@ -629,51 +570,19 @@ func (c *clientImpl) markClosed() {
 	c.mu.Unlock()
 }
 
-func (c *clientImpl) startedProcess() bool {
+func (c *clientImpl) processRef() *subprocess.Process {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	return c.started
+	return c.process
 }
 
-func (c *clientImpl) closeProcessInput() {
-	c.closeInputOnce.Do(func() {
-		c.mu.Lock()
-		stdin := c.stdin
-		c.mu.Unlock()
-		if stdin != nil {
-			_ = stdin.Close()
-		}
-	})
-}
-
-func (c *clientImpl) forceProcessExit() {
-	c.forceOnce.Do(func() {
-		c.mu.Lock()
-		c.forcedShutdown = true
-		processCancel := c.processCancel
-		c.mu.Unlock()
-		if processCancel != nil {
-			processCancel()
-		}
-	})
-}
-
-func (c *clientImpl) awaitBackgroundShutdown() error {
+func (c *clientImpl) awaitBackgroundShutdown(processErr error) error {
 	c.wg.Wait()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sessions = make(map[string]*sessionImpl)
-	if errors.Is(c.waitErr, exec.ErrWaitDelay) {
-		return nil
-	}
-	return c.waitErr
-}
-
-func (c *clientImpl) isForcedShutdown() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.forcedShutdown
+	return processErr
 }
 
 func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt acp.PromptRequest) {
@@ -689,7 +598,7 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 			session.finish(model.StatusFailed, cancelErr)
 			return
 		}
-		if c.isForcedShutdown() {
+		if process := c.processRef(); process != nil && process.Forced() {
 			session.finish(model.StatusFailed, context.Canceled)
 			return
 		}
@@ -847,24 +756,6 @@ func (c *clientImpl) failOpenSessions(err error) {
 	}
 }
 
-func mergeEnvironment(base map[string]string, extra map[string]string) []string {
-	env := append([]string(nil), os.Environ()...)
-	for key, value := range base {
-		env = append(env, fmt.Sprintf("%s=%s", key, value))
-	}
-	for key, value := range extra {
-		env = append(env, fmt.Sprintf("%s=%s", key, value))
-	}
-	return env
-}
-
-func normalizeProcessWaitError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("wait for ACP agent process: %w", err)
-}
-
 func resolveWorkingDir(dir string) (string, error) {
 	trimmed := filepath.Clean(dir)
 	if trimmed == "." || trimmed == "" {
@@ -989,22 +880,4 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-type lockedBuffer struct {
-	mu  sync.Mutex
-	buf []byte
-}
-
-func (b *lockedBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.buf = append(b.buf, p...)
-	return len(p), nil
-}
-
-func (b *lockedBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return string(b.buf)
 }
