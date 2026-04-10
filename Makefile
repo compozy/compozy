@@ -35,7 +35,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build deps help verify tidy test-coverage test-nocache check-go-version setup link-skills
+.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version setup link-skills
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -77,6 +77,9 @@ build: check-go-version
 	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
+
+install: build
+	$(GOCMD) install -ldflags "$(LDFLAGS)" ./cmd/compozy
 
 # -----------------------------------------------------------------------------
 # Code Quality & Formatting
@@ -129,6 +132,7 @@ test-nocache:
 help:
 	@echo "Available targets:"
 	@echo "  make build          - Build the compozy binary"
+	@echo "  make install        - Build and install to GOPATH/bin"
 	@echo "  make test           - Run tests with race detector"
 	@echo "  make lint           - Run golangci-lint"
 	@echo "  make fmt            - Format code"
