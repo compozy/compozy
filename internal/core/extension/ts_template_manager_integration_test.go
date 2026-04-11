@@ -79,6 +79,7 @@ func materializeTypeScriptLifecycleObserver(t *testing.T) string {
 	t.Helper()
 
 	repoRoot := repoRootForTest(t)
+	sdkDir := prepareTypeScriptSDKForLocalInstall(t, repoRoot)
 	targetDir := filepath.Join(t.TempDir(), "ts-lifecycle")
 	copyDir(
 		t,
@@ -89,7 +90,7 @@ func materializeTypeScriptLifecycleObserver(t *testing.T) string {
 		"__EXTENSION_NAME__":             "ts-lifecycle",
 		"__EXTENSION_VERSION__":          "0.1.0",
 		"__COMPOZY_MIN_VERSION__":        readSDKPackageVersion(t, repoRoot),
-		"__COMPOZY_EXTENSION_SDK_SPEC__": "file:" + filepath.Join(repoRoot, "sdk", "extension-sdk-ts"),
+		"__COMPOZY_EXTENSION_SDK_SPEC__": "file:" + sdkDir,
 		"__PACKAGE_NAME__":               "ts-lifecycle",
 	})
 
@@ -107,6 +108,35 @@ func materializeTypeScriptLifecycleObserver(t *testing.T) string {
 		t.Fatalf("write wrapper script: %v", err)
 	}
 	return entrypoint
+}
+
+func prepareTypeScriptSDKForLocalInstall(t *testing.T, repoRoot string) string {
+	t.Helper()
+
+	sourceDir := filepath.Join(repoRoot, "sdk", "extension-sdk-ts")
+	stageRoot := t.TempDir()
+	targetDir := filepath.Join(stageRoot, "sdk", "extension-sdk-ts")
+	typeScriptSpec := readWorkspaceDevDependencySpec(t, repoRoot, "typescript")
+	nodeTypesSpec := readWorkspaceDevDependencySpec(t, repoRoot, "@types/node")
+
+	copyFile(t, filepath.Join(repoRoot, "tsconfig.base.json"), filepath.Join(stageRoot, "tsconfig.base.json"))
+	copyFile(t, filepath.Join(sourceDir, "package.json"), filepath.Join(targetDir, "package.json"))
+	copyFile(t, filepath.Join(sourceDir, "tsconfig.json"), filepath.Join(targetDir, "tsconfig.json"))
+	copyDir(t, filepath.Join(sourceDir, "src"), filepath.Join(targetDir, "src"))
+
+	runCommandForTest(
+		t,
+		targetDir,
+		"npm",
+		"install",
+		"--no-package-lock",
+		"--no-save",
+		"typescript@"+typeScriptSpec,
+		"@types/node@"+nodeTypesSpec,
+	)
+	runCommandForTest(t, targetDir, "npm", "run", "build")
+
+	return targetDir
 }
 
 type tsRecord struct {
@@ -154,6 +184,28 @@ func copyDir(t *testing.T, source string, target string) {
 	}
 }
 
+func copyFile(t *testing.T, source string, target string) {
+	t.Helper()
+
+	content, err := os.ReadFile(source)
+	if err != nil {
+		t.Fatalf("read file %s: %v", source, err)
+	}
+
+	info, err := os.Stat(source)
+	if err != nil {
+		t.Fatalf("stat file %s: %v", source, err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", filepath.Dir(target), err)
+	}
+
+	if err := os.WriteFile(target, content, info.Mode()); err != nil {
+		t.Fatalf("write file %s: %v", target, err)
+	}
+}
+
 func rewriteTemplateTokensForTest(t *testing.T, root string, replacements map[string]string) {
 	t.Helper()
 
@@ -198,6 +250,28 @@ func readSDKPackageVersion(t *testing.T, repoRoot string) string {
 		t.Fatal("sdk package.json version is empty")
 	}
 	return pkg.Version
+}
+
+func readWorkspaceDevDependencySpec(t *testing.T, repoRoot string, name string) string {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join(repoRoot, "package.json"))
+	if err != nil {
+		t.Fatalf("read workspace package.json: %v", err)
+	}
+
+	var pkg struct {
+		DevDependencies map[string]string `json:"devDependencies"`
+	}
+	if err := json.Unmarshal(raw, &pkg); err != nil {
+		t.Fatalf("unmarshal workspace package.json: %v", err)
+	}
+
+	spec := strings.TrimSpace(pkg.DevDependencies[name])
+	if spec == "" {
+		t.Fatalf("workspace package.json devDependency %q is empty", name)
+	}
+	return spec
 }
 
 func repoRootForTest(t *testing.T) string {
