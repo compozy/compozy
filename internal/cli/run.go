@@ -57,11 +57,16 @@ func (s *commandState) prepareAndRun(
 	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
 		return s.handleExecError(cmd, err)
 	}
+	assets, cleanup, err := s.bootstrapDeclarativeAssets(ctx, cfg)
+	if err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	defer cleanup()
 	if err := cfg.Validate(); err != nil {
 		return s.handleExecError(cmd, err)
 	}
 
-	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
+	if err := s.runPrepared(ctx, cmd, cfg, assets); err != nil {
 		return s.handleExecError(cmd, decorateReusableAgentError(cmd, cfg.AgentName, err))
 	}
 	return nil
@@ -82,6 +87,11 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	_, cleanup, err := s.bootstrapDeclarativeAssets(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 
 	fetchReviewsFn := s.fetchReviewsFn
 	if fetchReviewsFn == nil {
@@ -107,8 +117,22 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
-	if err := s.preflightBundledSkills(cmd, cfg); err != nil {
+func (s *commandState) runPrepared(
+	ctx context.Context,
+	cmd *cobra.Command,
+	cfg core.Config,
+	assets ...declarativeAssets,
+) error {
+	var discovery declarativeAssets
+	if len(assets) > 0 {
+		discovery = assets[0]
+	}
+
+	if err := s.preflightBundledSkills(
+		cmd,
+		cfg,
+		extensionSkillSources(discovery.Discovery.SkillPacks.Packs),
+	); err != nil {
 		return err
 	}
 	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {

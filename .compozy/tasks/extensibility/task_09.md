@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Integrate extension bootstrap into start, fix-reviews, and exec commands
 type: backend
 complexity: medium
@@ -32,12 +32,12 @@ Wire the run-scope bootstrap from task 07 and the extension manager lifecycle fr
 </requirements>
 
 ## Subtasks
-- [ ] 09.1 Add the `--extensions` flag to the `exec` command in `internal/cli/commands.go` or the exec command file and propagate it to the command state struct.
-- [ ] 09.2 Update the `start` command handler to request `EnableExecutableExtensions = true` when calling the kernel prepare path.
-- [ ] 09.3 Update the `fix-reviews` command handler to request `EnableExecutableExtensions = true` similarly.
-- [ ] 09.4 Update the `exec` command handler to request `EnableExecutableExtensions = cmdState.extensionsEnabled` so the default stays off.
-- [ ] 09.5 Ensure `runPrepared` and the kernel handler for each command use the returned `RunScope` and call `Close(ctx)` via `defer`.
-- [ ] 09.6 Write tests for each command path covering the enabled and disabled cases.
+- [x] 09.1 Add the `--extensions` flag to the `exec` command in `internal/cli/commands.go` or the exec command file and propagate it to the command state struct.
+- [x] 09.2 Update the `start` command handler to request `EnableExecutableExtensions = true` when calling the kernel prepare path.
+- [x] 09.3 Update the `fix-reviews` command handler to request `EnableExecutableExtensions = true` similarly.
+- [x] 09.4 Update the `exec` command handler to request `EnableExecutableExtensions = cmdState.extensionsEnabled` so the default stays off.
+- [x] 09.5 Ensure `runPrepared` and the kernel handler for each command use the returned `RunScope` and call `Close(ctx)` via `defer`.
+- [x] 09.6 Write tests for each command path covering the enabled and disabled cases.
 
 ## Implementation Details
 See TechSpec "System Architecture → Data Flow → Run startup" for the activation matrix and "Impact Analysis" row on `internal/cli/commands.go` for the flag addition.
@@ -77,16 +77,16 @@ Key invariants:
 
 ## Tests
 - Unit tests:
-  - [ ] `exec` without `--extensions` records `EnableExecutableExtensions = false` in the kernel options.
-  - [ ] `exec --extensions` records `EnableExecutableExtensions = true`.
-  - [ ] `start` records `EnableExecutableExtensions = true` regardless of any flag.
-  - [ ] `fix-reviews` records `EnableExecutableExtensions = true` regardless of any flag.
-  - [ ] `RunScope.Close` is called via `defer` on normal completion, cancellation, and error paths.
+  - [x] `exec` without `--extensions` records `EnableExecutableExtensions = false` in the kernel options.
+  - [x] `exec --extensions` records `EnableExecutableExtensions = true`.
+  - [x] `start` records `EnableExecutableExtensions = true` regardless of any flag.
+  - [x] `fix-reviews` records `EnableExecutableExtensions = true` regardless of any flag.
+  - [x] `RunScope.Close` is called via `defer` on normal completion, cancellation, and error paths.
 - Integration tests:
-  - [ ] `compozy exec` on a fixture workflow with a workspace extension installed does not spawn any extension subprocess.
-  - [ ] `compozy exec --extensions` on the same fixture spawns the extension, runs hooks, and records audit entries.
-  - [ ] `compozy start` on the same fixture spawns the extension regardless of the absence of `--extensions`.
-  - [ ] SIGINT during a run with extensions active cleanly terminates all extension subprocesses via `RunScope.Close`.
+  - [x] `compozy exec` on a fixture workflow with a workspace extension installed does not spawn any extension subprocess.
+  - [x] `compozy exec --extensions` on the same fixture spawns the extension, runs hooks, and records audit entries.
+  - [x] `compozy start` on the same fixture spawns the extension regardless of the absence of `--extensions`.
+  - [x] SIGINT during a run with extensions active cleanly terminates all extension subprocesses via `RunScope.Close`.
 - Test coverage target: >=80%
 - All tests must pass
 

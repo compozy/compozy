@@ -202,6 +202,7 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 		Context:   req.Context,
 		Index:     req.Index,
 		AgentID:   req.Config.IDE,
+		JobID:     safeJobID(req.Job),
 		SessionID: resources.session.ID(),
 		Logger: resources.logger.With(
 			"component",
@@ -215,6 +216,7 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 		OutWriter:      outWriter,
 		ErrWriter:      errWriter,
 		RunJournal:     req.RunJournal,
+		RunManager:     req.Config.RuntimeManager,
 		JobUsage:       &req.Job.Usage,
 		AggregateUsage: req.AggregateUsage,
 		AggregateMu:    req.AggregateMu,
@@ -312,6 +314,9 @@ func createACPSession(
 			Model:      cfg.Model,
 			MCPServers: model.CloneMCPServers(job.MCPServers),
 			ExtraEnv:   buildSessionEnvironment(),
+			RunID:      cfg.RunArtifacts.RunID,
+			JobID:      safeJobID(job),
+			RuntimeMgr: cfg.RuntimeManager,
 		})
 	}
 	return client.ResumeSession(ctx, agent.ResumeSessionRequest{
@@ -321,6 +326,9 @@ func createACPSession(
 		Model:      cfg.Model,
 		MCPServers: model.CloneMCPServers(job.MCPServers),
 		ExtraEnv:   buildSessionEnvironment(),
+		RunID:      cfg.RunArtifacts.RunID,
+		JobID:      safeJobID(job),
+		RuntimeMgr: cfg.RuntimeManager,
 	})
 }
 
@@ -353,4 +361,11 @@ func composeSessionPrompt(prompt []byte, systemPrompt string) []byte {
 
 	combined := strings.TrimSpace(systemPrompt) + "\n\n" + string(basePrompt)
 	return []byte(combined)
+}
+
+func safeJobID(job *job) string {
+	if job == nil {
+		return ""
+	}
+	return strings.TrimSpace(job.SafeName)
 }

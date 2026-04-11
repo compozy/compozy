@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: TypeScript SDK, starter templates, and author documentation
 type: docs
 complexity: high
@@ -36,13 +36,13 @@ Ship the TypeScript SDK `@compozy/extension-sdk` for authors who want to write C
 </requirements>
 
 ## Subtasks
-- [ ] 15.1 Create the `@compozy/extension-sdk` TypeScript package with `package.json`, TypeScript config, and build setup.
-- [ ] 15.2 Implement the JSON-RPC stdio transport, initialize handshake client, and handler dispatch core.
-- [ ] 15.3 Implement the `HostAPI` client with typed interfaces for all eleven methods.
-- [ ] 15.4 Implement the scaffolding CLI `npx @compozy/create-extension` with template selection.
-- [ ] 15.5 Write four starter templates under `templates/`: `lifecycle-observer/`, `prompt-decorator/`, `review-provider/`, `skill-pack/`. Each includes a minimal working example, tests, and README.
-- [ ] 15.6 Write author documentation under `.compozy/docs/extensibility/` covering all the required topics.
-- [ ] 15.7 Write tests for the TS SDK (Vitest or Jest), the scaffolding CLI, and a smoke test that runs the lifecycle-observer template against the Go test harness from task 14.
+- [x] 15.1 Create the `@compozy/extension-sdk` TypeScript package with `package.json`, TypeScript config, and build setup.
+- [x] 15.2 Implement the JSON-RPC stdio transport, initialize handshake client, and handler dispatch core.
+- [x] 15.3 Implement the `HostAPI` client with typed interfaces for all eleven methods.
+- [x] 15.4 Implement the scaffolding CLI `npx @compozy/create-extension` with template selection.
+- [x] 15.5 Write four starter templates under `templates/`: `lifecycle-observer/`, `prompt-decorator/`, `review-provider/`, `skill-pack/`. Each includes a minimal working example, tests, and README.
+- [x] 15.6 Write author documentation under `.compozy/docs/extensibility/` covering all the required topics.
+- [x] 15.7 Write tests for the TS SDK (Vitest or Jest), the scaffolding CLI, and a smoke test that runs the lifecycle-observer template against the Go test harness from task 14.
 
 ## Implementation Details
 See TechSpec "Implementation Design → Core Interfaces" for the SDK shape, `_protocol.md` sections 4-9 for the wire contract, and ADR-001/003/006 for the subprocess/transport/host-api rationale.
@@ -127,3 +127,17 @@ Shipping decisions:
 - A new user can run `npx @compozy/create-extension my-ext` and have a working extension in under 5 minutes
 - Documentation covers every public API and every capability
 - Protocol version in the TS package matches the Go runtime version (`"1"`)
+
+## Completion Notes
+
+- Workspace packages shipped:
+  - `sdk/extension-sdk-ts` as `@compozy/extension-sdk`
+  - `sdk/create-extension` as `@compozy/create-extension`
+- Author docs shipped under `.compozy/docs/extensibility/`, including getting started, architecture, hook and Host API references, capability and trust docs, testing guidance, hello-world examples, and the migration guide.
+- Verification evidence:
+  - `npm run build --workspace @compozy/extension-sdk --workspace @compozy/create-extension`
+  - `npx vitest run sdk/extension-sdk-ts/test/*.ts sdk/create-extension/test/create-extension.test.ts`
+  - `npx vitest run sdk/extension-sdk-ts/test/transport.test.ts sdk/extension-sdk-ts/test/handlers.test.ts sdk/extension-sdk-ts/test/fluent_hooks.test.ts sdk/extension-sdk-ts/test/extension.test.ts sdk/extension-sdk-ts/test/host_api.test.ts --coverage` with `83.3%` statements and `83.23%` lines for the TS SDK package
+  - `go test ./sdk/extension -count=1`
+  - `go test ./internal/core/extension -count=1`
+  - `make verify`

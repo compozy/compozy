@@ -37,6 +37,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 - **Provider-agnostic reviews.** Fetch review comments from CodeRabbit, GitHub, or run AI-powered reviews internally. All normalize to the same format. Provider threads resolve automatically after fixes.
 - **Markdown everywhere.** PRDs, specs, tasks, reviews, and ADRs are human-readable markdown files. Version-controlled, diffable, editable between steps. No vendor lock-in.
 - **Frontmatter for machine-readable metadata.** Tasks and review issues keep parseable metadata in standard YAML frontmatter instead of custom XML tags.
+- **Executable extensions.** Intercept and modify any pipeline phase with subprocess hooks. Ship custom prompt decorators, lifecycle observers, review providers, and skill packs using the TypeScript or Go SDKs.
 - **Single binary, local-first.** Compiles to one Go binary with zero runtime dependencies. Your code and data stay on your machine.
 - **Embeddable.** Use as a standalone CLI or import as a Go package into your own tools.
 
@@ -79,16 +80,16 @@ compozy setup --all    # install everything to every detected agent
 
 Execution runtimes are separate from skill installation. To run `compozy exec`, `compozy start`, or `compozy fix-reviews`, install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
 
-| Runtime      | `--ide` flag   | Expected ACP command             |
-| ------------ | -------------- | -------------------------------- |
-| Claude Agent | `claude`       | `claude-agent-acp`               |
-| Codex CLI    | `codex`        | `codex-acp`                      |
-| GitHub Copilot CLI | `copilot` | `copilot --acp`                  |
-| Cursor       | `cursor-agent` | `cursor-agent acp`               |
-| Droid        | `droid`        | `droid exec --output-format acp` |
-| OpenCode     | `opencode`     | `opencode acp`                   |
-| pi ACP       | `pi`           | `pi-acp`                         |
-| Gemini CLI   | `gemini`       | `gemini --acp`                   |
+| Runtime            | `--ide` flag   | Expected ACP command             |
+| ------------------ | -------------- | -------------------------------- |
+| Claude Agent       | `claude`       | `claude-agent-acp`               |
+| Codex CLI          | `codex`        | `codex-acp`                      |
+| GitHub Copilot CLI | `copilot`      | `copilot --acp`                  |
+| Cursor             | `cursor-agent` | `cursor-agent acp`               |
+| Droid              | `droid`        | `droid exec --output-format acp` |
+| OpenCode           | `opencode`     | `opencode acp`                   |
+| pi ACP             | `pi`           | `pi-acp`                         |
+| Gemini CLI         | `gemini`       | `gemini --acp`                   |
 
 When the direct ACP command is not installed, Compozy can also fall back to supported launchers such as `npx @zed-industries/codex-acp` when the launcher is available locally.
 
@@ -225,6 +226,51 @@ Use these committed example fixtures as starting points:
 
 The detailed guide lives in [`docs/reusable-agents.md`](docs/reusable-agents.md).
 
+## 🔌 Extensions
+
+Compozy extensions are executable subprocess plugins that intercept and modify pipeline behavior without rebuilding the binary. Extensions communicate with the host over JSON-RPC 2.0 on stdin/stdout and can observe lifecycle events, mutate prompts, inject plan sources, modify agent sessions, gate retries, ship skill packs, and register review providers.
+
+### SDK support
+
+| Language   | Package                                           | Install                                           |
+| ---------- | ------------------------------------------------- | ------------------------------------------------- |
+| TypeScript | [`@compozy/extension-sdk`](sdk/extension-sdk-ts/) | `npm install @compozy/extension-sdk`              |
+| Go         | [`sdk/extension`](sdk/extension/)                 | `go get github.com/compozy/compozy/sdk/extension` |
+
+Scaffold a new extension project with starter templates:
+
+```bash
+npx @compozy/create-extension my-ext
+npx @compozy/create-extension my-ext --template prompt-decorator
+npx @compozy/create-extension my-ext --runtime go
+```
+
+Available templates: `lifecycle-observer`, `prompt-decorator`, `review-provider`, `skill-pack`.
+
+### Extension CLI
+
+```bash
+compozy ext list                   # discover extensions across all scopes
+compozy ext inspect <name>         # show manifest, capabilities, enablement status
+compozy ext install <path>         # install into user scope (~/.compozy/extensions/)
+compozy ext uninstall <name>       # remove a user-scoped extension
+compozy ext enable <name>          # enable on this machine
+compozy ext disable <name>         # disable on this machine
+compozy ext doctor                 # validate manifests and report health warnings
+```
+
+Extensions are discovered from three scopes with workspace > user > bundled precedence. User and workspace extensions start disabled and must be explicitly enabled by the local operator.
+
+### Learn more
+
+- [Extension author guide](.compozy/docs/extensibility/index.md)
+- [Architecture overview](.compozy/docs/extensibility/architecture.md)
+- [Hook reference](.compozy/docs/extensibility/hook-reference.md) -- 28 hooks across 6 pipeline phases
+- [Host API reference](.compozy/docs/extensibility/host-api-reference.md) -- 11 typed host methods
+- [Capability reference](.compozy/docs/extensibility/capability-reference.md) -- 19 capability grants
+- [Trust and enablement](.compozy/docs/extensibility/trust-and-enablement.md)
+- [Testing guide](.compozy/docs/extensibility/testing.md)
+
 ## ⚡ Ad Hoc Exec
 
 Use `compozy exec` when you want one prompt through the same ACP-backed execution stack without creating a full workflow first.
@@ -356,17 +402,17 @@ Repeat steps 7–8. Each cycle creates a new review round (`reviews-002/`, `revi
 
 Compozy bundles 9 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
 
-| Skill                | Purpose                                                                    |
-| -------------------- | -------------------------------------------------------------------------- |
+| Skill                | Purpose                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------- |
 | `cy-idea-factory`    | Raw idea → structured idea spec with market research, business analysis, and council debate |
-| `cy-create-prd`      | Idea → Product Requirements Document with ADRs                             |
-| `cy-create-techspec` | PRD → Technical Specification with architecture exploration                |
-| `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                    |
-| `cy-execute-task`    | Executes one task end-to-end: implement, validate, track, commit           |
-| `cy-workflow-memory` | Maintains cross-task context so agents pick up where the last one left off |
-| `cy-review-round`    | Comprehensive code review → structured issue files                         |
-| `cy-fix-reviews`     | Triage, fix, verify, and resolve review issues                             |
-| `cy-final-verify`    | Enforces verification evidence before any completion claim                 |
+| `cy-create-prd`      | Idea → Product Requirements Document with ADRs                                              |
+| `cy-create-techspec` | PRD → Technical Specification with architecture exploration                                 |
+| `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                                     |
+| `cy-execute-task`    | Executes one task end-to-end: implement, validate, track, commit                            |
+| `cy-workflow-memory` | Maintains cross-task context so agents pick up where the last one left off                  |
+| `cy-review-round`    | Comprehensive code review → structured issue files                                          |
+| `cy-fix-reviews`     | Triage, fix, verify, and resolve review issues                                              |
+| `cy-final-verify`    | Enforces verification evidence before any completion claim                                  |
 
 ### 🧠 Workflow Memory
 
@@ -397,16 +443,16 @@ The `cy-workflow-memory` skill handles all of this automatically when referenced
 
 **Execution** (`compozy exec`, `compozy start`, `compozy fix-reviews`) — ACP-capable runtimes that can run ad hoc prompts and task workflows:
 
-| Agent       | `--ide` flag   |
-| ----------- | -------------- |
-| Claude Code | `claude`       |
-| Codex       | `codex`        |
-| GitHub Copilot | `copilot`    |
-| Cursor      | `cursor-agent` |
-| Droid       | `droid`        |
-| OpenCode    | `opencode`     |
-| Pi          | `pi`           |
-| Gemini      | `gemini`       |
+| Agent          | `--ide` flag   |
+| -------------- | -------------- |
+| Claude Code    | `claude`       |
+| Codex          | `codex`        |
+| GitHub Copilot | `copilot`      |
+| Cursor         | `cursor-agent` |
+| Droid          | `droid`        |
+| OpenCode       | `opencode`     |
+| Pi             | `pi`           |
+| Gemini         | `gemini`       |
 
 **Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` also provisions the built-in council reusable agents globally under `~/.compozy/agents/` so nested debates use the same advisor roster across runtimes. Run `compozy setup` to see all detected agents on your system.
 
@@ -424,15 +470,15 @@ When installing to multiple agents, Compozy offers two modes:
 compozy setup [flags]
 ```
 
-| Flag             | Default | Description                                  |
-| ---------------- | ------- | -------------------------------------------- |
-| `--agent`, `-a`  |         | Target agent name (repeatable)               |
-| `--skill`, `-s`  |         | Skill name to install (repeatable)           |
-| `--global`, `-g` | `false` | Install to user directory instead of project |
-| `--copy`         | `false` | Copy files instead of symlinking             |
+| Flag             | Default | Description                                               |
+| ---------------- | ------- | --------------------------------------------------------- |
+| `--agent`, `-a`  |         | Target agent name (repeatable)                            |
+| `--skill`, `-s`  |         | Skill name to install (repeatable)                        |
+| `--global`, `-g` | `false` | Install to user directory instead of project              |
+| `--copy`         | `false` | Copy files instead of symlinking                          |
 | `--list`, `-l`   | `false` | List bundled skills and council agents without installing |
-| `--yes`, `-y`    | `false` | Skip confirmation prompts                    |
-| `--all`          | `false` | Install all skills to all agents             |
+| `--yes`, `-y`    | `false` | Skip confirmation prompts                                 |
+| `--all`          | `false` | Install all skills to all agents                          |
 
 </details>
 
@@ -494,26 +540,26 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 
 `compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
-| Flag                         | Default     | Description                                                                 |
-| ---------------------------- | ----------- | --------------------------------------------------------------------------- |
+| Flag                         | Default     | Description                                                                                |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
 | `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_ | Model override                                                              |
-| `--agent`                    |             | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/` |
-| `--prompt-file`              |             | Read prompt text from a file                                                |
-| `--format`                   | `text`      | Output contract: `text`, `json`, or `raw-json`                              |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                            |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                   |
-| `--timeout`                  | `10m`       | Activity timeout per job                                                    |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                      |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                     |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)               |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
-| `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes |
-| `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                         |
-| `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                  |
-| `--persist`                  | `false`     | Persist exec artifacts under `.compozy/runs/<run-id>/`                      |
-| `--run-id`                   |             | Resume a previously persisted exec session by run id                        |
-| `--dry-run`                  | `false`     | Preview prompts without executing                                           |
+| `--model`                    | _(per IDE)_ | Model override                                                                             |
+| `--agent`                    |             | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                  |
+| `--prompt-file`              |             | Read prompt text from a file                                                               |
+| `--format`                   | `text`      | Output contract: `text`, `json`, or `raw-json`                                             |
+| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
+| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
+| `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
+| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
+| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
+| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
+| `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes                |
+| `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                                        |
+| `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                                 |
+| `--persist`                  | `false`     | Persist exec artifacts under `.compozy/runs/<run-id>/`                                     |
+| `--run-id`                   |             | Resume a previously persisted exec session by run id                                       |
+| `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
 
 </details>
 
@@ -538,6 +584,25 @@ compozy agents inspect repo-copilot
 </details>
 
 <details>
+<summary><code>compozy ext</code> — Manage executable extensions</summary>
+
+```bash
+compozy ext <subcommand> [flags]
+```
+
+| Subcommand             | Description                                        |
+| ---------------------- | -------------------------------------------------- |
+| `ext list`             | List discovered extensions across all scopes       |
+| `ext inspect <name>`   | Show manifest, capabilities, and enablement status |
+| `ext install <path>`   | Install an extension into the user scope           |
+| `ext uninstall <name>` | Remove a user-scoped extension                     |
+| `ext enable <name>`    | Enable an extension on this machine                |
+| `ext disable <name>`   | Disable an extension on this machine               |
+| `ext doctor`           | Validate manifests and report health warnings      |
+
+</details>
+
+<details>
 <summary><code>compozy start</code> — Execute PRD task files</summary>
 
 ```bash
@@ -548,22 +613,22 @@ Running `compozy start` with no flags opens the interactive form automatically.
 When present, `.compozy/config.toml` can provide defaults for runtime flags such as
 `--ide`, `--model`, `--reasoning-effort`, `--access-mode`, `--timeout`, `--add-dir`, and `--auto-commit`.
 
-| Flag                         | Default     | Description                                                   |
-| ---------------------------- | ----------- | ------------------------------------------------------------- |
-| `--name`                     |             | Workflow name (`.compozy/tasks/<name>`)                       |
-| `--tasks-dir`                |             | Path to tasks directory                                       |
+| Flag                         | Default     | Description                                                                                |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `--name`                     |             | Workflow name (`.compozy/tasks/<name>`)                                                    |
+| `--tasks-dir`                |             | Path to tasks directory                                                                    |
 | `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_ | Model override                                                |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
-| `--timeout`                  | `10m`       | Activity timeout per job                                      |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
-| `--auto-commit`              | `false`     | Auto-commit after each task                                   |
-| `--include-completed`        | `false`     | Re-run completed tasks                                        |
-| `--dry-run`                  | `false`     | Preview prompts without executing                             |
+| `--model`                    | _(per IDE)_ | Model override                                                                             |
+| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
+| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
+| `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
+| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
+| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
+| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
+| `--auto-commit`              | `false`     | Auto-commit after each task                                                                |
+| `--include-completed`        | `false`     | Re-run completed tasks                                                                     |
+| `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
 
 </details>
 
@@ -597,25 +662,25 @@ Running `compozy fix-reviews` with no flags opens the interactive form automatic
 When present, `.compozy/config.toml` can provide runtime defaults as well as review workflow
 defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 
-| Flag                         | Default     | Description                                                   |
-| ---------------------------- | ----------- | ------------------------------------------------------------- |
-| `--name`                     |             | Workflow name                                                 |
-| `--round`                    | `0`         | Round number (latest if omitted)                              |
-| `--reviews-dir`              |             | Override review directory path                                |
+| Flag                         | Default     | Description                                                                                |
+| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
+| `--name`                     |             | Workflow name                                                                              |
+| `--round`                    | `0`         | Round number (latest if omitted)                                                           |
+| `--reviews-dir`              |             | Override review directory path                                                             |
 | `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_ | Model override                                                |
-| `--batch-size`               | `1`         | Issues per batch                                              |
-| `--concurrent`               | `1`         | Parallel batches                                              |
-| `--include-resolved`         | `false`     | Re-process resolved issues                                    |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
-| `--timeout`                  | `10m`       | Activity timeout per job                                      |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
-| `--auto-commit`              | `false`     | Auto-commit after each batch                                  |
-| `--dry-run`                  | `false`     | Preview prompts without executing                             |
+| `--model`                    | _(per IDE)_ | Model override                                                                             |
+| `--batch-size`               | `1`         | Issues per batch                                                                           |
+| `--concurrent`               | `1`         | Parallel batches                                                                           |
+| `--include-resolved`         | `false`     | Re-process resolved issues                                                                 |
+| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
+| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
+| `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
+| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
+| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
+| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
+| `--auto-commit`              | `false`     | Auto-commit after each batch                                                               |
+| `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
 
 </details>
 
@@ -667,6 +732,7 @@ internal/cli/            Cobra flags, interactive form, CLI glue
 internal/core/           Internal facade for preparation and execution
   agent/                 IDE command validation and process construction
   agents/                Reusable agent discovery, validation, MCP merge, nested execution
+  extension/             Extension manifest, discovery, hooks, Host API, lifecycle
   memory/                Workflow memory bootstrapping, inspection, and compaction detection
   model/                 Shared runtime data structures
   plan/                  Input discovery, filtering, grouping, batch prep
@@ -674,9 +740,13 @@ internal/core/           Internal facade for preparation and execution
   run/                   Execution pipeline, logging, shutdown, Bubble Tea UI
 internal/setup/          Bundled skill and council-agent installer (agent detection, symlink/copy)
 internal/version/        Build metadata
+sdk/extension/           Public Go SDK for extension authors
+sdk/extension-sdk-ts/    Public TypeScript SDK for extension authors
+sdk/create-extension/    CLI scaffolder for new extension projects
 skills/                  Bundled installable skills
 .compozy/config.toml     Optional workspace defaults for CLI execution
 .compozy/agents/         Optional reusable agents (`AGENT.md` + optional `mcp.json`)
+.compozy/extensions/     Workspace-scoped extensions (starts disabled)
 .compozy/runs/           Runtime artifacts for persisted executions and resumable exec sessions
 .compozy/tasks/          Default workflow artifact root (PRDs, TechSpecs, tasks, ADRs, reviews)
 ```

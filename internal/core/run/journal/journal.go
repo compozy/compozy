@@ -38,7 +38,7 @@ var (
 type Journal struct {
 	path  string
 	runID string
-	inbox chan events.Event
+	inbox chan submitRequest
 	done  chan struct{}
 
 	busMu sync.RWMutex
@@ -74,6 +74,16 @@ type writeState struct {
 	writer  *bufio.Writer
 	encoder *json.Encoder
 	pending []events.Event
+}
+
+type submitRequest struct {
+	event events.Event
+	ack   chan submitResult
+}
+
+type submitResult struct {
+	seq uint64
+	err error
 }
 
 // Owner retains explicit close ownership for a journal that is passed through
@@ -143,7 +153,7 @@ func openWithOptions(path string, bus *events.Bus[events.Event], bufCap int, opt
 	j := &Journal{
 		path:          path,
 		runID:         filepath.Base(filepath.Dir(path)),
-		inbox:         make(chan events.Event, bufCap),
+		inbox:         make(chan submitRequest, bufCap),
 		bus:           bus,
 		done:          make(chan struct{}),
 		submitTimeout: opts.submitTimeout,
@@ -158,6 +168,30 @@ func openWithOptions(path string, bus *events.Bus[events.Event], bufCap int, opt
 
 // Submit enqueues one event for durable append, respecting caller cancellation.
 func (j *Journal) Submit(ctx context.Context, ev events.Event) error {
+	return j.submit(ctx, submitRequest{event: ev})
+}
+
+// SubmitWithSeq enqueues one event and waits for the assigned journal sequence.
+func (j *Journal) SubmitWithSeq(ctx context.Context, ev events.Event) (uint64, error) {
+	ack := make(chan submitResult, 1)
+	if err := j.submit(ctx, submitRequest{event: ev, ack: ack}); err != nil {
+		return 0, err
+	}
+
+	select {
+	case result := <-ack:
+		return result.seq, result.err
+	case <-j.done:
+		if err := j.result(); err != nil {
+			return 0, err
+		}
+		return 0, ErrClosed
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
+func (j *Journal) submit(ctx context.Context, req submitRequest) error {
 	if j == nil {
 		return errors.New("submit journal: nil journal")
 	}
@@ -178,7 +212,7 @@ func (j *Journal) Submit(ctx context.Context, ev events.Event) error {
 	select {
 	case <-j.done:
 		return j.closedError()
-	case j.inbox <- ev:
+	case j.inbox <- req:
 		return nil
 	default:
 	}
@@ -189,7 +223,7 @@ func (j *Journal) Submit(ctx context.Context, ev events.Event) error {
 	select {
 	case <-j.done:
 		return j.closedError()
-	case j.inbox <- ev:
+	case j.inbox <- req:
 		return nil
 	case <-timer.C:
 		droppedTotal := j.dropsOnSubmit.Add(1)
@@ -318,11 +352,15 @@ func (j *Journal) writeLoop(file *os.File, lastSeq uint64) {
 func (j *Journal) runActiveLoop(state *writeState, seq *uint64, ticks <-chan time.Time) error {
 	for {
 		select {
-		case ev, ok := <-j.inbox:
+		case req, ok := <-j.inbox:
 			if !ok {
 				return j.flushPending(state)
 			}
-			if err := j.handleEvent(state, ev, seq); err != nil {
+			assignedSeq, err := j.handleEvent(state, req.event, seq)
+			if req.ack != nil {
+				req.ack <- submitResult{seq: assignedSeq, err: err}
+			}
+			if err != nil {
 				return err
 			}
 		case <-ticks:
@@ -336,16 +374,16 @@ func (j *Journal) runActiveLoop(state *writeState, seq *uint64, ticks <-chan tim
 	}
 }
 
-func (j *Journal) handleEvent(state *writeState, ev events.Event, seq *uint64) error {
+func (j *Journal) handleEvent(state *writeState, ev events.Event, seq *uint64) (uint64, error) {
 	enriched, err := j.encodeEvent(state.encoder, ev, seq)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	state.pending = append(state.pending, enriched)
 	if !j.shouldFlushAfterAppend(state.pending, enriched.Kind) {
-		return nil
+		return enriched.Seq, nil
 	}
-	return j.flushPending(state)
+	return enriched.Seq, j.flushPending(state)
 }
 
 func (j *Journal) shouldFlushAfterAppend(pending []events.Event, kind events.EventKind) bool {

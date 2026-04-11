@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extract internal/core/subprocess package and add protocol version constant
 type: refactor
 complexity: medium
@@ -31,12 +31,12 @@ Extract the JSON-RPC subprocess lifecycle code (spawn, transport, handshake, sig
 </requirements>
 
 ## Subtasks
-- [ ] 01.1 Create `internal/core/subprocess` package directory and move `process_unix.go` (and any pre-existing platform variants) into it verbatim, preserving `Setpgid`-based process group handling.
-- [ ] 01.2 Move the ACP-neutral subprocess helpers currently living in `internal/core/agent` (process launch, wait, kill, line-framed JSON-RPC transport plumbing, initialize handshake scaffolding, SIGTERM→SIGKILL escalation) into the new package, keeping exported names stable.
-- [ ] 01.3 Update `internal/core/agent` to import the new package and re-wire ACP-specific logic on top of the shared primitives.
-- [ ] 01.4 Add `ExtensionProtocolVersion` constant to `internal/version`.
-- [ ] 01.5 Run the existing ACP test suite to confirm no regressions, then add focused unit tests for the newly extracted package covering transport framing, handshake happy-path, and SIGTERM→SIGKILL escalation.
-- [ ] 01.6 Run `make verify` and ensure zero lint issues and all tests pass.
+- [x] 01.1 Create `internal/core/subprocess` package directory and move `process_unix.go` (and any pre-existing platform variants) into it verbatim, preserving `Setpgid`-based process group handling.
+- [x] 01.2 Move the ACP-neutral subprocess helpers currently living in `internal/core/agent` (process launch, wait, kill, line-framed JSON-RPC transport plumbing, initialize handshake scaffolding, SIGTERM→SIGKILL escalation) into the new package, keeping exported names stable.
+- [x] 01.3 Update `internal/core/agent` to import the new package and re-wire ACP-specific logic on top of the shared primitives.
+- [x] 01.4 Add `ExtensionProtocolVersion` constant to `internal/version`.
+- [x] 01.5 Run the existing ACP test suite to confirm no regressions, then add focused unit tests for the newly extracted package covering transport framing, handshake happy-path, and SIGTERM→SIGKILL escalation.
+- [x] 01.6 Run `make verify` and ensure zero lint issues and all tests pass.
 
 ## Implementation Details
 See TechSpec "System Architecture → Component Overview" for the boundary between `internal/core/subprocess` and `internal/core/extension`, and "Development Sequencing → Build Order" step 1 for the extraction sequence.
@@ -73,16 +73,16 @@ Risk: this task touches a production code path already used by ACP agents. The e
 
 ## Tests
 - Unit tests:
-  - [ ] JSON-RPC envelope encodes and decodes a well-formed request with integer and string IDs.
-  - [ ] Line-framed transport rejects messages larger than the 10 MiB limit with a structured error.
-  - [ ] Transport ignores blank lines on the read side and never emits blank lines on the write side.
-  - [ ] Spawning a trivial echo binary returns a `Process` whose `Wait` observes the child exit code.
-  - [ ] Killing a spawned Unix process group via `Setpgid` terminates all descendants within the grace window.
-  - [ ] SIGTERM escalates to SIGKILL when the child does not exit before the deadline.
-  - [ ] Handshake returns `-32602 invalid params` when the child advertises an unsupported protocol version.
+  - [x] JSON-RPC envelope encodes and decodes a well-formed request with integer and string IDs.
+  - [x] Line-framed transport rejects messages larger than the 10 MiB limit with a structured error.
+  - [x] Transport ignores blank lines on the read side and never emits blank lines on the write side.
+  - [x] Spawning a trivial echo binary returns a `Process` whose `Wait` observes the child exit code.
+  - [x] Killing a spawned Unix process group via `Setpgid` terminates all descendants within the grace window.
+  - [x] SIGTERM escalates to SIGKILL when the child does not exit before the deadline.
+  - [x] Handshake returns `-32602 invalid params` when the child advertises an unsupported protocol version.
 - Integration tests:
-  - [ ] Existing `internal/core/agent` ACP client tests still pass unchanged after the extraction.
-  - [ ] A minimal end-to-end launch of an ACP mock still completes initialize handshake against the new package.
+  - [x] Existing `internal/core/agent` ACP client tests still pass unchanged after the extraction.
+  - [x] A minimal end-to-end launch of an ACP mock still completes initialize handshake against the new package.
 - Test coverage target: >=80%
 - All tests must pass
 

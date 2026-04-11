@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Three-level discovery pipeline with provider and skill asset extraction
 type: backend
 complexity: medium
@@ -33,12 +33,12 @@ Implement the extension discovery pipeline that enumerates extensions across thr
 </requirements>
 
 ## Subtasks
-- [ ] 03.1 Create the bundled extension filesystem rooted at `internal/core/extension/builtin/` with a stub `go:embed` directive.
-- [ ] 03.2 Implement the discovery scanner that walks bundled, user, and workspace directories, loads each manifest via task 02's loader, and logs structured errors for malformed manifests without aborting the scan.
-- [ ] 03.3 Implement precedence resolution producing one effective manifest per extension name, plus an override record listing which level won and which lost.
-- [ ] 03.4 Implement the provider and skill-pack inventory extractor that produces typed `DeclaredProviders` and `DeclaredSkillPacks` values for downstream consumers.
-- [ ] 03.5 Surface the enablement filter so discovery callers can ask for "all discovered" (CLI listing) or "only enabled" (runtime startup).
-- [ ] 03.6 Write table-driven unit tests covering happy path, precedence conflict, malformed manifest handling, and provider/skill inventory extraction.
+- [x] 03.1 Create the bundled extension filesystem rooted at `internal/core/extension/builtin/` with a stub `go:embed` directive.
+- [x] 03.2 Implement the discovery scanner that walks bundled, user, and workspace directories, loads each manifest via task 02's loader, and logs structured errors for malformed manifests without aborting the scan.
+- [x] 03.3 Implement precedence resolution producing one effective manifest per extension name, plus an override record listing which level won and which lost.
+- [x] 03.4 Implement the provider and skill-pack inventory extractor that produces typed `DeclaredProviders` and `DeclaredSkillPacks` values for downstream consumers.
+- [x] 03.5 Surface the enablement filter so discovery callers can ask for "all discovered" (CLI listing) or "only enabled" (runtime startup).
+- [x] 03.6 Write table-driven unit tests covering happy path, precedence conflict, malformed manifest handling, and provider/skill inventory extraction.
 
 ## Implementation Details
 See TechSpec "System Architecture → Data Flow → Run startup" steps 3 and 4 for the discovery ordering, "Integration Points → Existing Compozy components touched" for how the declared assets feed the provider overlays and skill preflight, and ADR-007 for the precedence rules and manifest format fallback.
@@ -76,16 +76,16 @@ Bundled extensions in v1 are empty. Document this in the package doc so reviewer
 
 ## Tests
 - Unit tests:
-  - [ ] Discovery returns an empty slice when no extensions are installed at any level.
-  - [ ] Discovery returns the bundled extension when only bundled is populated.
-  - [ ] Discovery returns the user extension when the same name exists in bundled and user, with an override record pointing at the bundled loser.
-  - [ ] Discovery returns the workspace extension when the same name exists in all three levels, with override records for both losers.
-  - [ ] A malformed manifest at the workspace level does not prevent bundled and user extensions from being discovered; the error is logged and reported in a per-level failure list.
-  - [ ] Enablement filter returns bundled extensions by default and hides disabled user/workspace extensions.
-  - [ ] Asset extractor returns `DeclaredProviders` grouped by category (ide, review, model).
-  - [ ] Asset extractor returns `DeclaredSkillPacks` with the absolute paths each pack resolves to.
+  - [x] Discovery returns an empty slice when no extensions are installed at any level.
+  - [x] Discovery returns the bundled extension when only bundled is populated.
+  - [x] Discovery returns the user extension when the same name exists in bundled and user, with an override record pointing at the bundled loser.
+  - [x] Discovery returns the workspace extension when the same name exists in all three levels, with override records for both losers.
+  - [x] A malformed manifest at the workspace level does not prevent bundled and user extensions from being discovered; the error is logged and reported in a per-level failure list.
+  - [x] Enablement filter returns bundled extensions by default and hides disabled user/workspace extensions.
+  - [x] Asset extractor returns `DeclaredProviders` grouped by category (ide, review, model).
+  - [x] Asset extractor returns `DeclaredSkillPacks` with the absolute paths each pack resolves to.
 - Integration tests:
-  - [ ] End-to-end discovery over a `t.TempDir()` fixture containing one bundled stub plus one user extension plus one workspace extension yields the expected three entries, override records, and typed asset inventory.
+  - [x] End-to-end discovery over a `t.TempDir()` fixture containing one bundled stub plus one user extension plus one workspace extension yields the expected three entries, override records, and typed asset inventory.
 - Test coverage target: >=80%
 - All tests must pass
 

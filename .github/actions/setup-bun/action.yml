@@ -43,7 +43,8 @@ runs:
           ~/.bun/install/cache
           node_modules
         # Use the actual resolved Bun version and the text lockfile to bust cache correctly
-        key: ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-${{ hashFiles('**/bun.lock',
+        key:
+          ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-${{ hashFiles('**/bun.lock',
           '**/package.json') }}${{ inputs.cache-key-suffix }}
         restore-keys: |
           ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-

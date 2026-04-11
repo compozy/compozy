@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Plan, prompt, and agent phase hook dispatches
 type: backend
 complexity: high
@@ -33,13 +33,13 @@ Insert mutable and observer hook dispatch calls at the plan, prompt, and agent p
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Insert the six plan hooks in `plan.Prepare` at the boundaries before and after `resolvePreparedEntries`, `groupIssuesByCodeFile`, and `prepareJobs`.
-- [ ] 10.2 Insert the three prompt hooks in `prompt.Build` and `prompt.BuildSystemPromptAddendum`: `prompt.pre_build` before template render, `prompt.post_build` after render, `prompt.pre_system` on the system addendum path.
-- [ ] 10.3 Insert `agent.pre_session_create` and `agent.pre_session_resume` in the agent client before spawning the ACP session.
-- [ ] 10.4 Insert `agent.post_session_create` as an observer emission after session creation.
-- [ ] 10.5 Insert `agent.on_session_update` as an observer emission inside the session update channel reader loop.
-- [ ] 10.6 Insert `agent.post_session_end` as an observer emission when the session finishes.
-- [ ] 10.7 Write tests covering: nil-manager no-op path, successful mutation of plan entries, prompt text mutation, and session request mutation.
+- [x] 10.1 Insert the six plan hooks in `plan.Prepare` at the boundaries before and after `resolvePreparedEntries`, `groupIssuesByCodeFile`, and `prepareJobs`.
+- [x] 10.2 Insert the three prompt hooks in `prompt.Build` and `prompt.BuildSystemPromptAddendum`: `prompt.pre_build` before template render, `prompt.post_build` after render, `prompt.pre_system` on the system addendum path.
+- [x] 10.3 Insert `agent.pre_session_create` and `agent.pre_session_resume` in the agent client before spawning the ACP session.
+- [x] 10.4 Insert `agent.post_session_create` as an observer emission after session creation.
+- [x] 10.5 Insert `agent.on_session_update` as an observer emission inside the session update channel reader loop.
+- [x] 10.6 Insert `agent.post_session_end` as an observer emission when the session finishes.
+- [x] 10.7 Write tests covering: nil-manager no-op path, successful mutation of plan entries, prompt text mutation, and session request mutation.
 
 ## Implementation Details
 See `_protocol.md` section 6.5 for the canonical payload and patch shapes per hook, and TechSpec "System Architecture → Data Flow → Hook dispatch (mutable)" for the dispatch flow.
@@ -80,15 +80,15 @@ Key invariants:
 
 ## Tests
 - Unit tests:
-  - [ ] With the manager nil, `plan.Prepare` returns exactly the same output as before this task on a fixture workflow.
-  - [ ] With a mock extension that appends a marker to `plan.post_discover` entries, `plan.Prepare` output contains the marker.
-  - [ ] With a mock extension that mutates `plan.post_group` groups, the final `prepareJobs` input reflects the mutation.
-  - [ ] With a mock extension that appends to `prompt.post_build`, the rendered prompt contains the appended text.
-  - [ ] With a mock extension that mutates `agent.pre_session_create.session_request.prompt`, the ACP client receives the mutated prompt.
-  - [ ] `agent.on_session_update` is dispatched for every session update without blocking the update channel reader.
-  - [ ] `agent.post_session_end` is dispatched once per session termination, regardless of success or error.
+  - [x] With the manager nil, `plan.Prepare` returns exactly the same output as before this task on a fixture workflow.
+  - [x] With a mock extension that appends a marker to `plan.post_discover` entries, `plan.Prepare` output contains the marker.
+  - [x] With a mock extension that mutates `plan.post_group` groups, the final `prepareJobs` input reflects the mutation.
+  - [x] With a mock extension that appends to `prompt.post_build`, the rendered prompt contains the appended text.
+  - [x] With a mock extension that mutates `agent.pre_session_create.session_request.prompt`, the ACP client receives the mutated prompt.
+  - [x] `agent.on_session_update` is dispatched for every session update without blocking the update channel reader.
+  - [x] `agent.post_session_end` is dispatched once per session termination, regardless of success or error.
 - Integration tests:
-  - [ ] End-to-end run with a mock extension chain (priority 100, 500, 900) covering plan, prompt, and agent phases produces expected mutations at each step.
+  - [x] End-to-end run with a mock extension chain (priority 100, 500, 900) covering plan, prompt, and agent phases produces expected mutations at each step.
 - Test coverage target: >=80%
 - All tests must pass
 

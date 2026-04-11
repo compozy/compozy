@@ -11,6 +11,7 @@ import (
 	acp "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
 func TestConvertACPUpdateVariants(t *testing.T) {
@@ -571,7 +572,7 @@ func TestWrapACPErrorPassthrough(t *testing.T) {
 	if wrapped != context.Canceled {
 		t.Fatalf("expected passthrough error, got %v", wrapped)
 	}
-	if normalizeProcessWaitError(nil) != nil {
+	if subprocess.NormalizeWaitError("wait for ACP agent process", nil) != nil {
 		t.Fatal("expected nil normalized wait error")
 	}
 }

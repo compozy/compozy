@@ -48,8 +48,8 @@ linters:
       disabled-tags:
         - opinionated
       disabled-checks:
-        - evalOrder  # False positive with bubbletea Update pattern
-        - hugeParam  # Value receivers are intentional API design choices
+        - evalOrder # False positive with bubbletea Update pattern
+        - hugeParam # Value receivers are intentional API design choices
     gocyclo:
       min-complexity: 15
     lll:

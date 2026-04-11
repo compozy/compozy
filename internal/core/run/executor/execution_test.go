@@ -2,10 +2,13 @@ package executor
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -280,6 +283,92 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 	}
 }
 
+func TestAfterJobSuccessReviewPreResolveCanSkipProviderResolution(t *testing.T) {
+	tmpDir := t.TempDir()
+	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "stub",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "review-bot",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	entries, err := reviews.ReadReviewEntries(reviewDir)
+	if err != nil {
+		t.Fatalf("read review entries: %v", err)
+	}
+	issuePath := filepath.Join(reviewDir, "issue_001.md")
+	content, err := os.ReadFile(issuePath)
+	if err != nil {
+		t.Fatalf("read issue file: %v", err)
+	}
+	resolvedContent := strings.Replace(string(content), "status: pending", "status: resolved", 1)
+	if err := os.WriteFile(issuePath, []byte(resolvedContent), 0o600); err != nil {
+		t.Fatalf("write resolved issue file: %v", err)
+	}
+
+	resolver := &stubResolverProvider{name: "stub"}
+	restore := reviewProviderRegistry
+	reviewProviderRegistry = func() *provider.Registry {
+		registry := provider.NewRegistry()
+		registry.Register(resolver)
+		return registry
+	}
+	defer func() { reviewProviderRegistry = restore }()
+
+	manager := &executionHookManager{
+		mutators: map[string]func(any) (any, error){
+			"review.pre_resolve": func(input any) (any, error) {
+				payload := input.(reviewPreResolvePayload)
+				resolve := false
+				payload.Resolve = &resolve
+				payload.Message = "keep thread open"
+				return payload, nil
+			},
+		},
+	}
+
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			Mode:           model.ExecutionModePRReview,
+			Provider:       "stub",
+			PR:             "259",
+			ReviewsDir:     reviewDir,
+			RunArtifacts:   model.NewRunArtifacts(tmpDir, "review-pre-resolve"),
+			RuntimeManager: manager,
+		},
+	}
+	if err := execCtx.afterJobSuccess(context.Background(), &job{
+		Groups: map[string][]model.IssueEntry{
+			entries[0].CodeFile: {entries[0]},
+		},
+	}); err != nil {
+		t.Fatalf("afterJobSuccess: %v", err)
+	}
+
+	if len(resolver.issues) != 0 {
+		t.Fatalf("expected provider resolution to be skipped, got %d issues", len(resolver.issues))
+	}
+	if got := manager.mutableHooks; !reflect.DeepEqual(got, []string{"review.pre_resolve"}) {
+		t.Fatalf("unexpected mutable hooks: %#v", got)
+	}
+	if len(manager.observerPayloads["review.post_fix"]) != 1 {
+		t.Fatalf("expected review.post_fix once, got %d", len(manager.observerPayloads["review.post_fix"]))
+	}
+}
+
 func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 	tmpDir := t.TempDir()
 	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
@@ -548,9 +637,16 @@ func TestResolveProviderBackedIssuesWarnsAndContinuesOnProviderFailure(t *testin
 		journal: runJournal,
 	}
 
-	err := execCtx.resolveProviderBackedIssues(context.Background(), []provider.ResolvedIssue{{
-		FilePath:    "/tmp/reviews/issue_001.md",
-		ProviderRef: "thread:PRT_1,comment:RC_1",
+	err := execCtx.resolveProviderBackedIssues(context.Background(), []resolvedReviewIssue{{
+		Entry: model.IssueEntry{
+			Name:     "issue_001.md",
+			AbsPath:  "/tmp/reviews/issue_001.md",
+			CodeFile: "internal/app/service.go",
+		},
+		Provider: providerResolvedIssue{
+			FilePath:    "/tmp/reviews/issue_001.md",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+		},
 	}})
 	if err != nil {
 		t.Fatalf("resolveProviderBackedIssues: %v", err)
@@ -709,6 +805,203 @@ func TestAfterJobSuccessFailsWhenReviewIssueRemainsPending(t *testing.T) {
 	}
 }
 
+func TestJobRunnerPreRetryHookCanAbortRetry(t *testing.T) {
+	manager := &executionHookManager{
+		mutators: map[string]func(any) (any, error){
+			"job.pre_retry": func(input any) (any, error) {
+				payload := input.(jobPreRetryPayload)
+				proceed := false
+				payload.Proceed = &proceed
+				return payload, nil
+			},
+		},
+	}
+
+	tmpDir := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(tmpDir, "retry-abort")
+	jb := job{
+		SafeName:  "task_01",
+		CodeFiles: []string{"task_01.md"},
+		OutLog:    filepath.Join(tmpDir, "task_01.out.log"),
+		ErrLog:    filepath.Join(tmpDir, "task_01.err.log"),
+	}
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			MaxRetries:             1,
+			RunArtifacts:           runArtifacts,
+			RuntimeManager:         manager,
+			RetryBackoffMultiplier: 1.5,
+		},
+	}
+	runner := newJobRunner(0, &jb, execCtx)
+	_, _, continueLoop := runner.handleResult(
+		context.Background(),
+		1,
+		2,
+		time.Second,
+		jobAttemptResult{
+			ExitCode:  42,
+			Retryable: true,
+			Failure: &failInfo{
+				CodeFile: jb.CodeFileLabel(),
+				ExitCode: 42,
+				OutLog:   jb.OutLog,
+				ErrLog:   jb.ErrLog,
+				Err:      errors.New("boom"),
+			},
+		},
+	)
+	if continueLoop {
+		t.Fatal("expected retry loop to stop when extension vetoes retry")
+	}
+	if runner.lifecycle.state != jobPhaseFailed {
+		t.Fatalf("unexpected lifecycle state: %s", runner.lifecycle.state)
+	}
+	if got := jb.Failure; !strings.Contains(got, "retry canceled by extension") {
+		t.Fatalf("expected veto reason in failure, got %q", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 1 {
+		t.Fatalf("failed counter = %d, want 1", got)
+	}
+}
+
+func TestJobRunnerPostExecuteHookFiresExactlyOncePerJob(t *testing.T) {
+	manager := &executionHookManager{}
+	tmpDir := t.TempDir()
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			DryRun:         true,
+			RunArtifacts:   model.NewRunArtifacts(tmpDir, "job-post-execute"),
+			RuntimeManager: manager,
+		},
+	}
+	jb := job{
+		SafeName:      "task_01",
+		CodeFiles:     []string{"task_01.md"},
+		OutPromptPath: filepath.Join(tmpDir, "task_01.prompt.md"),
+		OutLog:        filepath.Join(tmpDir, "task_01.out.log"),
+		ErrLog:        filepath.Join(tmpDir, "task_01.err.log"),
+	}
+
+	newJobRunner(0, &jb, execCtx).run(context.Background())
+
+	if got := len(manager.observerPayloads["job.post_execute"]); got != 1 {
+		t.Fatalf("expected one job.post_execute payload, got %d", got)
+	}
+	payload, ok := manager.observerPayloads["job.post_execute"][0].(jobPostExecutePayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want jobPostExecutePayload", manager.observerPayloads["job.post_execute"][0])
+	}
+	if payload.Result.Status != runStatusSucceeded {
+		t.Fatalf("unexpected job result status: %q", payload.Result.Status)
+	}
+	if payload.Job.SafeName != "task_01" {
+		t.Fatalf("unexpected job safe name: %q", payload.Job.SafeName)
+	}
+}
+
+func TestExecuteRunPostShutdownHookFiresExactlyOnceWithFinalSummary(t *testing.T) {
+	manager := &executionHookManager{}
+	tmpDir := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(tmpDir, "run-post-shutdown")
+	jobPayload := model.Job{
+		CodeFiles: []string{"task_01.md"},
+		Groups: map[string][]model.IssueEntry{
+			"task_01.md": {{Name: "task_01.md", CodeFile: "task_01.md"}},
+		},
+		SafeName:      "task_01",
+		Prompt:        []byte("finish the task"),
+		OutPromptPath: filepath.Join(tmpDir, "task_01.prompt.md"),
+		OutLog:        filepath.Join(tmpDir, "task_01.out.log"),
+		ErrLog:        filepath.Join(tmpDir, "task_01.err.log"),
+	}
+
+	_, _, err := captureExecuteStreams(t, func() error {
+		return Execute(
+			context.Background(),
+			[]model.Job{jobPayload},
+			runArtifacts,
+			nil,
+			nil,
+			&model.RuntimeConfig{
+				WorkspaceRoot:          tmpDir,
+				Mode:                   model.ExecutionModePRDTasks,
+				DryRun:                 true,
+				OutputFormat:           model.OutputFormatJSON,
+				RetryBackoffMultiplier: 1.5,
+			},
+			manager,
+		)
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if got := len(manager.observerPayloads["run.post_shutdown"]); got != 1 {
+		t.Fatalf("expected one run.post_shutdown payload, got %d", got)
+	}
+	payload, ok := manager.observerPayloads["run.post_shutdown"][0].(runPostShutdownPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want runPostShutdownPayload", manager.observerPayloads["run.post_shutdown"][0])
+	}
+	if payload.Summary.Status != runStatusSucceeded {
+		t.Fatalf("unexpected run summary status: %q", payload.Summary.Status)
+	}
+	if payload.Summary.JobsTotal != 1 || payload.Summary.JobsSucceeded != 1 {
+		t.Fatalf("unexpected run summary: %#v", payload.Summary)
+	}
+}
+
+func TestExecuteNilManagerMatchesNoopManagerResult(t *testing.T) {
+	tmpDir := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(tmpDir, "nil-vs-noop")
+	jobs := []model.Job{{
+		CodeFiles: []string{"task_01.md"},
+		Groups: map[string][]model.IssueEntry{
+			"task_01.md": {{Name: "task_01.md", CodeFile: "task_01.md"}},
+		},
+		SafeName:      "task_01",
+		Prompt:        []byte("finish the task"),
+		OutPromptPath: filepath.Join(tmpDir, "task_01.prompt.md"),
+		OutLog:        filepath.Join(tmpDir, "task_01.out.log"),
+		ErrLog:        filepath.Join(tmpDir, "task_01.err.log"),
+	}}
+	cfg := &model.RuntimeConfig{
+		WorkspaceRoot:          tmpDir,
+		Mode:                   model.ExecutionModePRDTasks,
+		DryRun:                 true,
+		OutputFormat:           model.OutputFormatJSON,
+		RetryBackoffMultiplier: 1.5,
+	}
+
+	stdoutNil, _, err := captureExecuteStreams(t, func() error {
+		return Execute(context.Background(), jobs, runArtifacts, nil, nil, cfg, nil)
+	})
+	if err != nil {
+		t.Fatalf("Execute(nil manager) error = %v", err)
+	}
+	stdoutNoop, _, err := captureExecuteStreams(t, func() error {
+		return Execute(context.Background(), jobs, runArtifacts, nil, nil, cfg, &executionHookManager{})
+	})
+	if err != nil {
+		t.Fatalf("Execute(noop manager) error = %v", err)
+	}
+
+	var gotNil executionResult
+	if err := json.Unmarshal([]byte(stdoutNil), &gotNil); err != nil {
+		t.Fatalf("decode nil-manager stdout: %v", err)
+	}
+	var gotNoop executionResult
+	if err := json.Unmarshal([]byte(stdoutNoop), &gotNoop); err != nil {
+		t.Fatalf("decode noop-manager stdout: %v", err)
+	}
+	if !reflect.DeepEqual(gotNil, gotNoop) {
+		t.Fatalf("nil manager result mismatch\nnil:  %#v\nnoop: %#v", gotNil, gotNoop)
+	}
+}
+
 func TestRefreshTaskMetaOnExitUpdatesAggregateCounts(t *testing.T) {
 	tmpDir := t.TempDir()
 	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
@@ -758,6 +1051,46 @@ func writeRunTaskFile(t *testing.T, tasksDir, name, status string) {
 	if err := os.WriteFile(filepath.Join(tasksDir, name), []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", name, err)
 	}
+}
+
+type executionHookManager struct {
+	mutators         map[string]func(any) (any, error)
+	mutableHooks     []string
+	observerHooks    []string
+	observerPayloads map[string][]any
+}
+
+func (*executionHookManager) Start(context.Context) error { return nil }
+
+func (*executionHookManager) Shutdown(context.Context) error { return nil }
+
+func (m *executionHookManager) DispatchMutableHook(
+	_ context.Context,
+	hook string,
+	input any,
+) (any, error) {
+	if m == nil {
+		return input, nil
+	}
+	m.mutableHooks = append(m.mutableHooks, hook)
+	if m.mutators == nil {
+		return input, nil
+	}
+	if mutate := m.mutators[hook]; mutate != nil {
+		return mutate(input)
+	}
+	return input, nil
+}
+
+func (m *executionHookManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
+	if m == nil {
+		return
+	}
+	m.observerHooks = append(m.observerHooks, hook)
+	if m.observerPayloads == nil {
+		m.observerPayloads = make(map[string][]any)
+	}
+	m.observerPayloads[hook] = append(m.observerPayloads[hook], payload)
 }
 
 func assertNoRuntimeEvents(t *testing.T, ch <-chan eventspkg.Event, wait time.Duration) {

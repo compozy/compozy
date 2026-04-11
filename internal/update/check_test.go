@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -42,6 +43,8 @@ func TestCheckForUpdateSkipsWhenNotifierEnvIsSet(t *testing.T) {
 }
 
 func TestCheckForUpdateUsesFreshCacheWithoutNetworkCall(t *testing.T) {
+	unsetUpdateNotifierEnv(t)
+
 	fake := fakeUpdaterClient{
 		detectLatestFn: func(context.Context) (*ReleaseInfo, error) {
 			t.Fatal("DetectLatest should not be called on cache hit")
@@ -76,6 +79,8 @@ func TestCheckForUpdateUsesFreshCacheWithoutNetworkCall(t *testing.T) {
 }
 
 func TestCheckForUpdateQueriesWhenCacheIsStale(t *testing.T) {
+	unsetUpdateNotifierEnv(t)
+
 	fake := fakeUpdaterClient{
 		detectLatestFn: func(context.Context) (*ReleaseInfo, error) {
 			return &ReleaseInfo{
@@ -126,6 +131,8 @@ func TestCheckForUpdateQueriesWhenCacheIsStale(t *testing.T) {
 }
 
 func TestCheckForUpdateReturnsNilWhenCurrentVersionIsLatest(t *testing.T) {
+	unsetUpdateNotifierEnv(t)
+
 	restoreUpdater := stubUpdaterClient(t, fakeUpdaterClient{
 		detectLatestFn: func(context.Context) (*ReleaseInfo, error) {
 			return &ReleaseInfo{Version: "1.0.0"}, nil
@@ -146,6 +153,8 @@ func TestCheckForUpdateReturnsNilWhenCurrentVersionIsLatest(t *testing.T) {
 }
 
 func TestCheckForUpdateReturnsReleaseWhenLatestIsNewer(t *testing.T) {
+	unsetUpdateNotifierEnv(t)
+
 	restoreUpdater := stubUpdaterClient(t, fakeUpdaterClient{
 		detectLatestFn: func(context.Context) (*ReleaseInfo, error) {
 			return &ReleaseInfo{
@@ -307,6 +316,22 @@ func stubNowFunc(t *testing.T, now time.Time) func() {
 	return func() {
 		nowFunc = previous
 	}
+}
+
+func unsetUpdateNotifierEnv(t *testing.T) {
+	t.Helper()
+
+	previous, hadValue := os.LookupEnv(noUpdateNotifierEnv)
+	if err := os.Unsetenv(noUpdateNotifierEnv); err != nil {
+		t.Fatalf("unset %s: %v", noUpdateNotifierEnv, err)
+	}
+	t.Cleanup(func() {
+		if hadValue {
+			_ = os.Setenv(noUpdateNotifierEnv, previous)
+			return
+		}
+		_ = os.Unsetenv(noUpdateNotifierEnv)
+	})
 }
 
 type fakeSelfupdateSource struct {

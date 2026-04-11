@@ -28,8 +28,12 @@ func Execute(
 	runJournal *journal.Journal,
 	bus *events.Bus[events.Event],
 	cfg *model.RuntimeConfig,
+	manager model.RuntimeManager,
 ) (retErr error) {
-	internalCfg := newConfig(cfg, runArtifacts)
+	internalCfg, err := prepareExecutionConfig(ctx, cfg, runArtifacts, manager)
+	if err != nil {
+		return err
+	}
 	internalJobs := newJobs(jobs)
 	bus = ensureRuntimeEventBus(internalCfg, runJournal, bus)
 	startedAt := time.Now().UTC()
@@ -39,6 +43,78 @@ func Execute(
 		}
 	}()
 
+	if err := emitRunStart(ctx, runJournal, runArtifacts, internalCfg, internalJobs); err != nil {
+		return err
+	}
+
+	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(
+		ctx,
+		internalJobs,
+		internalCfg,
+		runJournal,
+		bus,
+	)
+	result := buildExecutionResult(internalCfg, internalJobs, failures, shutdownErr)
+	if err := finalizeExecution(
+		ctx,
+		runJournal,
+		runArtifacts,
+		internalCfg,
+		internalJobs,
+		result,
+		failed,
+		failures,
+		total,
+		startedAt,
+	); err != nil {
+		return err
+	}
+
+	if shutdownErr != nil {
+		if internalCfg.HumanOutputEnabled() {
+			fmt.Fprintf(os.Stderr, "\nShutdown interrupted: %v\n", shutdownErr)
+		}
+		return shutdownErr
+	}
+	if len(failures) > 0 {
+		return errors.New("one or more groups failed; see logs above")
+	}
+	return nil
+}
+
+func prepareExecutionConfig(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	runArtifacts model.RunArtifacts,
+	manager model.RuntimeManager,
+) (*config, error) {
+	internalCfg := newConfig(cfg, runArtifacts)
+	internalCfg.RuntimeManager = manager
+
+	preStart, err := model.DispatchMutableHook(
+		ctx,
+		internalCfg.RuntimeManager,
+		"run.pre_start",
+		runPreStartPayload{
+			RunID:     runArtifacts.RunID,
+			Config:    hookRuntimeConfig(internalCfg),
+			Artifacts: runArtifacts,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	applyHookRuntimeConfig(internalCfg, preStart.Config)
+	return internalCfg, nil
+}
+
+func emitRunStart(
+	ctx context.Context,
+	runJournal *journal.Journal,
+	runArtifacts model.RunArtifacts,
+	internalCfg *config,
+	internalJobs []job,
+) error {
 	if err := submitRunEvent(
 		ctx,
 		runJournal,
@@ -59,14 +135,40 @@ func Execute(
 		return err
 	}
 
-	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(
+	model.DispatchObserverHook(
 		ctx,
-		internalJobs,
-		internalCfg,
-		runJournal,
-		bus,
+		internalCfg.RuntimeManager,
+		"run.post_start",
+		runPostStartPayload{
+			RunID:  runArtifacts.RunID,
+			Config: hookRuntimeConfig(internalCfg),
+		},
 	)
-	result := buildExecutionResult(internalCfg, internalJobs, failures, shutdownErr)
+	return nil
+}
+
+func finalizeExecution(
+	ctx context.Context,
+	runJournal *journal.Journal,
+	runArtifacts model.RunArtifacts,
+	internalCfg *config,
+	internalJobs []job,
+	result executionResult,
+	failed int32,
+	failures []failInfo,
+	total int,
+	startedAt time.Time,
+) error {
+	reason := hookShutdownReason(result)
+	model.DispatchObserverHook(
+		ctx,
+		internalCfg.RuntimeManager,
+		"run.pre_shutdown",
+		runPreShutdownPayload{
+			RunID:  runArtifacts.RunID,
+			Reason: reason,
+		},
+	)
 	if err := emitExecutionResult(internalCfg, result); err != nil {
 		return err
 	}
@@ -77,16 +179,16 @@ func Execute(
 	if err := emitRunTerminalEvent(ctx, runJournal, result, internalJobs, startedAt); err != nil {
 		return err
 	}
-
-	if shutdownErr != nil {
-		if internalCfg.HumanOutputEnabled() {
-			fmt.Fprintf(os.Stderr, "\nShutdown interrupted: %v\n", shutdownErr)
-		}
-		return shutdownErr
-	}
-	if len(failures) > 0 {
-		return errors.New("one or more groups failed; see logs above")
-	}
+	model.DispatchObserverHook(
+		ctx,
+		internalCfg.RuntimeManager,
+		"run.post_shutdown",
+		runPostShutdownPayload{
+			RunID:   runArtifacts.RunID,
+			Reason:  reason,
+			Summary: hookRunSummary(result),
+		},
+	)
 	return nil
 }
 

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -262,13 +264,13 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		},
 	}
 
-	jobs, err := prepareJobs(&model.RuntimeConfig{
+	jobs, err := prepareJobs(context.Background(), &model.RuntimeConfig{
 		Name:          "demo",
 		WorkspaceRoot: workspaceRoot,
 		TasksDir:      issuesDir,
 		BatchSize:     5,
 		Mode:          model.ExecutionModePRDTasks,
-	}, groups, runArtifacts, nil)
+	}, groups, runArtifacts, nil, nil)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -312,12 +314,14 @@ func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
 
 	issuePath := filepath.Join(t.TempDir(), "task_01.md")
 	_, err := buildBatchJob(
+		context.Background(),
 		&model.RuntimeConfig{
 			Name:     "demo",
 			TasksDir: tasksDirFile,
 			Mode:     model.ExecutionModePRDTasks,
 		},
 		runArtifacts,
+		nil,
 		0,
 		[]model.IssueEntry{
 			{
@@ -355,13 +359,13 @@ func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
 		},
 	}
 
-	jobs, err := prepareJobs(&model.RuntimeConfig{
+	jobs, err := prepareJobs(context.Background(), &model.RuntimeConfig{
 		Name:          "demo",
 		WorkspaceRoot: workspaceRoot,
 		Round:         7,
 		BatchSize:     3,
 		Mode:          model.ExecutionModePRReview,
-	}, groups, runArtifacts, nil)
+	}, groups, runArtifacts, nil, nil)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -464,7 +468,7 @@ func TestPrepareJobsWithSelectedAgentAppendsCanonicalSystemPrompt(t *testing.T) 
 		t.Fatalf("resolve execution context: %v", err)
 	}
 
-	jobs, err := prepareJobs(cfg, groups, runArtifacts, agentExecution)
+	jobs, err := prepareJobs(context.Background(), cfg, groups, runArtifacts, nil, agentExecution)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -532,7 +536,8 @@ func TestPrepareAllowsReviewRoundsWithoutPR(t *testing.T) {
 		Mode:          model.ExecutionModePRReview,
 	}
 
-	prep, err := Prepare(context.Background(), cfg, nil)
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
@@ -582,13 +587,15 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 		}
 	}
 
-	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+	cfg := &model.RuntimeConfig{
 		Name:          "demo",
 		WorkspaceRoot: workspaceRoot,
 		DryRun:        true,
 		IDE:           model.IDECodex,
 		Mode:          model.ExecutionModePRDTasks,
-	}, nil)
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
@@ -613,6 +620,453 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 	}
 	for _, job := range prep.Jobs {
 		assertJobUsesRunArtifacts(t, runArtifacts, job)
+	}
+}
+
+func TestPrepareWithNilManagerPreservesWorkflowPreparationBehavior(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	taskFile := filepath.Join(tasksDir, "task_01.md")
+	if err := os.WriteFile(taskFile, []byte(`---
+status: pending
+title: Demo task
+type: backend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if prep.RuntimeManager() != nil {
+		t.Fatalf("expected nil runtime manager when executable extensions are disabled, got %T", prep.RuntimeManager())
+	}
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one prepared job, got %d", len(prep.Jobs))
+	}
+	assertJobUsesRunArtifacts(t, prep.RunArtifacts, prep.Jobs[0])
+	if got, want := prep.Journal().Path(), prep.RunArtifacts.EventsPath; got != want {
+		t.Fatalf("journal path = %q, want %q", got, want)
+	}
+}
+
+func TestPrepareNoOpManagerMatchesNilManagerAndDispatchesPlanHooks(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+status: pending
+title: Demo task
+type: backend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	nilCfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		RunID:         "plan-nil-manager",
+	}
+	nilScope := openRunScopeForTest(t, nilCfg)
+	nilPrep, err := Prepare(context.Background(), nilCfg, nilScope)
+	if err != nil {
+		t.Fatalf("prepare with nil manager: %v", err)
+	}
+	defer closePreparedJournalForTest(t, nilPrep)
+
+	noopManager := &planHookManager{}
+	noopCfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		RunID:         "plan-noop-manager",
+	}
+	noopPrep, err := Prepare(
+		context.Background(),
+		noopCfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, noopCfg), manager: noopManager},
+	)
+	if err != nil {
+		t.Fatalf("prepare with no-op manager: %v", err)
+	}
+	defer closePreparedJournalForTest(t, noopPrep)
+
+	if got, want := snapshotPreparationForTest(
+		noopPrep,
+	), snapshotPreparationForTest(
+		nilPrep,
+	); !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf("no-op manager changed prepare output\nwant: %#v\ngot:  %#v", want, got)
+	}
+
+	wantHooks := []string{
+		"plan.pre_discover",
+		"plan.post_discover",
+		"plan.pre_group",
+		"plan.post_group",
+		"plan.pre_prepare_jobs",
+		"plan.post_prepare_jobs",
+	}
+	if got := filterHooksByPrefix(noopManager.mutableHooks, "plan."); !reflect.DeepEqual(got, wantHooks) {
+		t.Fatalf("unexpected plan hook order\nwant: %#v\ngot:  %#v", wantHooks, got)
+	}
+}
+
+func TestPreparePlanPreDiscoverExtraSourcesMergesAndDedupesEntries(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	extraDir := filepath.Join(workspaceRoot, "extra-tasks")
+	for _, dir := range []string{tasksDir, extraDir} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+
+	writeTask := func(dir, name, title string) {
+		t.Helper()
+
+		content := fmt.Sprintf(`---
+status: pending
+title: %s
+type: backend
+complexity: low
+---
+
+# %s
+`, title, title)
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s/%s: %v", dir, name, err)
+		}
+	}
+	writeTask(tasksDir, "task_01.md", "Task 01")
+	writeTask(extraDir, "task_02.md", "Task 02")
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.pre_discover": func(input any) (any, error) {
+				payload := input.(planPreDiscoverPayload)
+				payload.ExtraSources = []string{
+					filepath.Join("extra-tasks", "task_02.md"),
+					filepath.Join(model.TasksBaseDir(), "demo", "task_01.md"),
+				}
+				return payload, nil
+			},
+		},
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		RunID:         "plan-extra-sources",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 2 {
+		t.Fatalf("expected merged and deduped entries to produce 2 jobs, got %d", len(prep.Jobs))
+	}
+
+	gotFiles := []string{prep.Jobs[0].CodeFiles[0], prep.Jobs[1].CodeFiles[0]}
+	wantFiles := []string{"task_01", "task_02"}
+	if !reflect.DeepEqual(gotFiles, wantFiles) {
+		t.Fatalf("unexpected merged task order\nwant: %#v\ngot:  %#v", wantFiles, gotFiles)
+	}
+}
+
+func TestPreparePlanPostDiscoverMutationUpdatesPromptArtifacts(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+status: pending
+title: Demo task
+type: backend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	const marker = "\nPOST-DISCOVER-MARKER\n"
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.post_discover": func(input any) (any, error) {
+				payload := input.(planPostDiscoverPayload)
+				payload.Entries[0].Content += marker
+				return payload, nil
+			},
+		},
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		RunID:         "plan-post-discover",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if got := string(prep.Jobs[0].Prompt); !strings.Contains(got, marker) {
+		t.Fatalf("expected prompt to include post-discover marker, got:\n%s", got)
+	}
+	promptArtifact, err := os.ReadFile(prep.Jobs[0].OutPromptPath)
+	if err != nil {
+		t.Fatalf("read prompt artifact: %v", err)
+	}
+	if got := string(promptArtifact); !strings.Contains(got, marker) {
+		t.Fatalf("expected prompt artifact to include post-discover marker, got:\n%s", got)
+	}
+}
+
+func TestPreparePlanPostGroupMutationChangesPrepareJobsInput(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.post_group": func(input any) (any, error) {
+				payload := input.(planGroupsPayload)
+				payload.Groups["internal/app/service.go"] = append(
+					payload.Groups["internal/app/service.go"],
+					model.IssueEntry{
+						Name:     "issue_999.md",
+						AbsPath:  filepath.Join(reviewDir, "issue_999.md"),
+						Content:  "---\nstatus: pending\nfile: internal/app/service.go\n---\n\n# Synthetic issue\n",
+						CodeFile: "internal/app/service.go",
+					},
+				)
+				return payload, nil
+			},
+		},
+	}
+
+	cfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "plan-post-group",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one review job, got %d", len(prep.Jobs))
+	}
+	if got := prep.Jobs[0].IssueCount(); got != 2 {
+		t.Fatalf("expected post-group mutation to reach prepareJobs, got %d issues", got)
+	}
+}
+
+func TestPreparePlanPreGroupMutationReassignsGroupingKey(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.pre_group": func(input any) (any, error) {
+				payload := input.(planEntriesPayload)
+				payload.Entries[0].CodeFile = "internal/app/rewritten.go"
+				return payload, nil
+			},
+		},
+	}
+
+	cfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "plan-pre-group",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one review job, got %d", len(prep.Jobs))
+	}
+	if got, want := prep.Jobs[0].CodeFiles, []string{"internal/app/rewritten.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected regrouped code files\nwant: %#v\ngot:  %#v", want, got)
+	}
+}
+
+func TestPreparePlanPostPrepareJobsMutationReplacesPreparedJobs(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+status: pending
+title: Demo task
+type: backend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	const marker = "POST-PREPARE-JOBS"
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.post_prepare_jobs": func(input any) (any, error) {
+				payload := input.(planJobsPayload)
+				payload.Jobs[0].SystemPrompt = marker
+				return payload, nil
+			},
+		},
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Mode:          model.ExecutionModePRDTasks,
+		RunID:         "plan-post-prepare-jobs",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if got := prep.Jobs[0].SystemPrompt; got != marker {
+		t.Fatalf("expected post-prepare-jobs mutation to replace system prompt, got %q", got)
 	}
 }
 
@@ -660,7 +1114,7 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 		t.Fatalf("refresh round meta: %v", err)
 	}
 
-	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+	cfg := &model.RuntimeConfig{
 		ReviewsDir:      reviewDir,
 		WorkspaceRoot:   workspaceRoot,
 		DryRun:          true,
@@ -668,7 +1122,9 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 		BatchSize:       10,
 		Mode:            model.ExecutionModePRReview,
 		IncludeResolved: false,
-	}, nil)
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
@@ -690,6 +1146,229 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 	assertJobUsesRunArtifacts(t, runArtifacts, prep.Jobs[0])
 }
 
+func TestPrepareReviewPreFetchCanChangeIncludeResolved(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+		{
+			Title:       "Trim whitespace",
+			File:        "internal/app/service.go",
+			Line:        54,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_2,comment:RC_2",
+			Body:        "Trim the incoming value before using it.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	resolvedIssuePath := filepath.Join(reviewDir, "issue_002.md")
+	resolvedContent, err := os.ReadFile(resolvedIssuePath)
+	if err != nil {
+		t.Fatalf("read issue_002: %v", err)
+	}
+	resolvedContent = []byte(strings.Replace(string(resolvedContent), "status: pending", "status: resolved", 1))
+	if err := os.WriteFile(resolvedIssuePath, resolvedContent, 0o600); err != nil {
+		t.Fatalf("mark issue_002 resolved: %v", err)
+	}
+	if _, err := reviews.RefreshRoundMeta(reviewDir); err != nil {
+		t.Fatalf("refresh round meta: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"review.pre_fetch": func(input any) (any, error) {
+				payload := input.(reviewPreFetchPayload)
+				payload.FetchConfig.IncludeResolved = true
+				return payload, nil
+			},
+		},
+	}
+	cfg := &model.RuntimeConfig{
+		ReviewsDir:      reviewDir,
+		WorkspaceRoot:   workspaceRoot,
+		DryRun:          true,
+		IDE:             model.IDECodex,
+		BatchSize:       10,
+		Mode:            model.ExecutionModePRReview,
+		IncludeResolved: false,
+		RunID:           "review-pre-fetch",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one prepared review job, got %d", len(prep.Jobs))
+	}
+	if got := prep.Jobs[0].IssueCount(); got != 2 {
+		t.Fatalf("expected review.pre_fetch to include resolved issues, got %d", got)
+	}
+}
+
+func TestPrepareReviewHooksCanMutateFetchedIssuesAndBatchGroups(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"review.post_fetch": func(input any) (any, error) {
+				payload := input.(reviewPostFetchPayload)
+				payload.Issues = append(payload.Issues, model.IssueEntry{
+					Name:     "issue_999.md",
+					AbsPath:  filepath.Join(reviewDir, "issue_999.md"),
+					Content:  "---\nstatus: pending\nfile: internal/app/service.go\n---\n\n# Synthetic issue\n",
+					CodeFile: "internal/app/service.go",
+				})
+				return payload, nil
+			},
+			"review.pre_batch": func(input any) (any, error) {
+				payload := input.(reviewPreBatchPayload)
+				payload.Groups["internal/app/rewritten.go"] = payload.Groups["internal/app/service.go"]
+				delete(payload.Groups, "internal/app/service.go")
+				return payload, nil
+			},
+		},
+	}
+	cfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "review-post-fetch-pre-batch",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if len(prep.Jobs) != 1 {
+		t.Fatalf("expected one review job, got %d", len(prep.Jobs))
+	}
+	if got := prep.Jobs[0].IssueCount(); got != 2 {
+		t.Fatalf("expected mutated review issue list to reach batching, got %d issues", got)
+	}
+	if got, want := prep.Jobs[0].CodeFiles, []string{"internal/app/rewritten.go"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected review.pre_batch code files\nwant: %#v\ngot:  %#v", want, got)
+	}
+}
+
+func TestPrepareReviewNilManagerMatchesNoopManagerSnapshot(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     7,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	nilCfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "review-nil-manager",
+	}
+	nilPrep, err := Prepare(context.Background(), nilCfg, openRunScopeForTest(t, nilCfg))
+	if err != nil {
+		t.Fatalf("prepare nil manager: %v", err)
+	}
+	defer closePreparedJournalForTest(t, nilPrep)
+
+	noopCfg := &model.RuntimeConfig{
+		ReviewsDir:    reviewDir,
+		WorkspaceRoot: workspaceRoot,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		BatchSize:     10,
+		Mode:          model.ExecutionModePRReview,
+		RunID:         "review-nil-manager",
+	}
+	noopPrep, err := Prepare(
+		context.Background(),
+		noopCfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, noopCfg), manager: &planHookManager{}},
+	)
+	if err != nil {
+		t.Fatalf("prepare noop manager: %v", err)
+	}
+	defer closePreparedJournalForTest(t, noopPrep)
+
+	if got, want := snapshotPreparationForTest(
+		nilPrep,
+	), snapshotPreparationForTest(
+		noopPrep,
+	); !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf("nil manager snapshot mismatch\nnil:  %#v\nnoop: %#v", got, want)
+	}
+}
+
 func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -699,14 +1378,16 @@ func TestPrepareExecModeBuildsSinglePromptBackedJobWithRunMetadata(t *testing.T)
 		t.Fatalf("write prompt file: %v", err)
 	}
 
-	prep, err := Prepare(context.Background(), &model.RuntimeConfig{
+	cfg := &model.RuntimeConfig{
 		WorkspaceRoot: workspaceRoot,
 		PromptFile:    promptPath,
 		DryRun:        true,
 		IDE:           model.IDECodex,
 		Mode:          model.ExecutionModeExec,
 		OutputFormat:  model.OutputFormatJSON,
-	}, nil)
+	}
+	scope := openRunScopeForTest(t, cfg)
+	prep, err := Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare exec: %v", err)
 	}
@@ -834,4 +1515,125 @@ func assertJobUsesRunArtifacts(t *testing.T, runArtifacts model.RunArtifacts, jo
 	if got, want := job.ErrLog, jobArtifacts.ErrLogPath; got != want {
 		t.Fatalf("unexpected stderr log path\nwant: %q\ngot:  %q", want, got)
 	}
+}
+
+func openRunScopeForTest(t *testing.T, cfg *model.RuntimeConfig) model.RunScope {
+	t.Helper()
+
+	scope, err := model.OpenRunScope(context.Background(), cfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		t.Fatalf("OpenRunScope() error = %v", err)
+	}
+	return scope
+}
+
+type planHookManager struct {
+	mutators     map[string]func(any) (any, error)
+	mutableHooks []string
+}
+
+func (*planHookManager) Start(context.Context) error { return nil }
+
+func (*planHookManager) Shutdown(context.Context) error { return nil }
+
+func (m *planHookManager) DispatchMutableHook(
+	_ context.Context,
+	hook string,
+	input any,
+) (any, error) {
+	if m == nil {
+		return input, nil
+	}
+	m.mutableHooks = append(m.mutableHooks, hook)
+	if m.mutators == nil {
+		return input, nil
+	}
+	if mutate := m.mutators[hook]; mutate != nil {
+		return mutate(input)
+	}
+	return input, nil
+}
+
+func (*planHookManager) DispatchObserverHook(context.Context, string, any) {}
+
+type planRunScopeWithManager struct {
+	model.RunScope
+	manager model.RuntimeManager
+}
+
+func (s *planRunScopeWithManager) RunManager() model.RuntimeManager {
+	if s == nil {
+		return nil
+	}
+	return s.manager
+}
+
+type prepareSnapshot struct {
+	ResolvedName     string
+	ResolvedProvider string
+	ResolvedPR       string
+	ResolvedRound    int
+	Jobs             []prepareJobSnapshot
+}
+
+type prepareJobSnapshot struct {
+	Prompt       string
+	SystemPrompt string
+	CodeFiles    []string
+	TaskTitle    string
+	TaskType     string
+	IssueNames   []string
+}
+
+func snapshotPreparationForTest(prep *model.SolvePreparation) prepareSnapshot {
+	if prep == nil {
+		return prepareSnapshot{}
+	}
+
+	snapshot := prepareSnapshot{
+		ResolvedName:     prep.ResolvedName,
+		ResolvedProvider: prep.ResolvedProvider,
+		ResolvedPR:       prep.ResolvedPR,
+		ResolvedRound:    prep.ResolvedRound,
+		Jobs:             make([]prepareJobSnapshot, 0, len(prep.Jobs)),
+	}
+
+	for i := range prep.Jobs {
+		job := prep.Jobs[i]
+		issueNames := make([]string, 0)
+		for _, codeFile := range sortedBatchGroupKeys(job.Groups) {
+			for _, entry := range job.Groups[codeFile] {
+				issueNames = append(issueNames, entry.Name)
+			}
+		}
+		snapshot.Jobs = append(snapshot.Jobs, prepareJobSnapshot{
+			Prompt:       string(job.Prompt),
+			SystemPrompt: job.SystemPrompt,
+			CodeFiles:    append([]string(nil), job.CodeFiles...),
+			TaskTitle:    job.TaskTitle,
+			TaskType:     job.TaskType,
+			IssueNames:   issueNames,
+		})
+	}
+
+	return snapshot
+}
+
+func sortedBatchGroupKeys(groups map[string][]model.IssueEntry) []string {
+	keys := make([]string, 0, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func filterHooksByPrefix(hooks []string, prefix string) []string {
+	filtered := make([]string, 0, len(hooks))
+	for _, hook := range hooks {
+		if strings.HasPrefix(hook, prefix) {
+			filtered = append(filtered, hook)
+		}
+	}
+	return filtered
 }

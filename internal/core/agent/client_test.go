@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	acp "github.com/coder/acp-go-sdk"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
 func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) {
@@ -45,6 +47,67 @@ func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) 
 	if session.Err() != nil {
 		t.Fatalf("unexpected session error: %v", session.Err())
 	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientCreateSessionAppliesPreSessionCreateMutationAndPostCreateObserver(t *testing.T) {
+	t.Parallel()
+
+	const promptSuffix = " ::mutated"
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_create": func(input any) (any, error) {
+				payload := input.(sessionCreateHookPayload)
+				payload.SessionRequest.Prompt = append(payload.SessionRequest.Prompt, []byte(promptSuffix)...)
+				return payload, nil
+			},
+		},
+	}
+
+	scenario := helperScenario{
+		ExpectedCWD:    t.TempDir(),
+		ExpectedPrompt: "hook me" + promptSuffix,
+		StopReason:     string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		Prompt:     []byte("hook me"),
+		WorkingDir: scenario.ExpectedCWD,
+		RunID:      "run-123",
+		JobID:      "job-123",
+		RuntimeMgr: manager,
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 1 || updates[0].Status != model.StatusCompleted {
+		t.Fatalf("unexpected updates: %#v", updates)
+	}
+
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if got, want := manager.mutableHooks, []string{"agent.pre_session_create"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected mutable hook order\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if got, want := manager.observerHooks, []string{"agent.post_session_create"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected observer hooks\nwant: %#v\ngot:  %#v", want, got)
+	}
+	if len(manager.observerPayloads) != 1 {
+		t.Fatalf("expected one post-create payload, got %d", len(manager.observerPayloads))
+	}
+	payload := manager.observerPayloads[0].(sessionCreatedHookPayload)
+	if payload.RunID != "run-123" || payload.JobID != "job-123" {
+		t.Fatalf("unexpected observer payload ids: %#v", payload)
+	}
+	if payload.SessionID == "" {
+		t.Fatalf("expected observer payload to carry session id, got %#v", payload)
+	}
+
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
 	}
@@ -325,6 +388,265 @@ func TestClientResumeSessionRejectsUnsupportedMCPTransport(t *testing.T) {
 	}
 }
 
+func TestClientResumeSessionAppliesPreSessionResumeMutation(t *testing.T) {
+	t.Parallel()
+
+	const promptSuffix = " ::resume-mutated"
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_resume": func(input any) (any, error) {
+				payload := input.(sessionResumeHookPayload)
+				payload.ResumeRequest.Prompt = append(payload.ResumeRequest.Prompt, []byte(promptSuffix)...)
+				return payload, nil
+			},
+		},
+	}
+
+	scenario := helperScenario{
+		SessionID:             "sess-existing",
+		ExpectedCWD:           t.TempDir(),
+		ExpectedLoadSessionID: "sess-existing",
+		ExpectedPrompt:        "continue" + promptSuffix,
+		SupportsLoadSession:   true,
+		Updates:               []acp.SessionUpdate{acp.UpdateAgentMessageText("fresh response")},
+		StopReason:            string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.ResumeSession(context.Background(), ResumeSessionRequest{
+		SessionID:  scenario.SessionID,
+		Prompt:     []byte("continue"),
+		WorkingDir: scenario.ExpectedCWD,
+		RunID:      "run-456",
+		JobID:      "job-456",
+		RuntimeMgr: manager,
+	})
+	if err != nil {
+		t.Fatalf("resume session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 2 {
+		t.Fatalf("unexpected update count: got %d want 2", len(updates))
+	}
+
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if got, want := manager.mutableHooks, []string{"agent.pre_session_resume"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected resume hook order\nwant: %#v\ngot:  %#v", want, got)
+	}
+
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestSessionRequestDispatchPreCreateHookWithoutManagerReturnsOriginal(t *testing.T) {
+	t.Parallel()
+
+	request := SessionRequest{
+		Prompt:     []byte("keep me"),
+		WorkingDir: t.TempDir(),
+	}
+
+	got, err := request.dispatchPreCreateHook()
+	if err != nil {
+		t.Fatalf("dispatchPreCreateHook() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, request) {
+		t.Fatalf("expected original request, got %#v", got)
+	}
+}
+
+func TestResumeSessionRequestDispatchPreResumeHookWithoutManagerReturnsOriginal(t *testing.T) {
+	t.Parallel()
+
+	request := ResumeSessionRequest{
+		SessionID:  "sess-123",
+		Prompt:     []byte("keep me"),
+		WorkingDir: t.TempDir(),
+	}
+
+	got, err := request.dispatchPreResumeHook()
+	if err != nil {
+		t.Fatalf("dispatchPreResumeHook() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, request) {
+		t.Fatalf("expected original resume request, got %#v", got)
+	}
+}
+
+func TestSessionRequestJSONUsesReadablePromptText(t *testing.T) {
+	t.Parallel()
+
+	request := SessionRequest{
+		Prompt:     []byte("plain prompt"),
+		WorkingDir: "/tmp/work",
+		Model:      "gpt-5.4",
+	}
+
+	raw, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal session request: %v", err)
+	}
+	if strings.Contains(string(raw), "cGxhaW4gcHJvbXB0") {
+		t.Fatalf("expected prompt text instead of base64 JSON, got %s", string(raw))
+	}
+	if !strings.Contains(string(raw), `"prompt":"plain prompt"`) {
+		t.Fatalf("expected readable prompt JSON, got %s", string(raw))
+	}
+
+	var roundTrip SessionRequest
+	if err := json.Unmarshal(raw, &roundTrip); err != nil {
+		t.Fatalf("unmarshal session request: %v", err)
+	}
+	if got := string(roundTrip.Prompt); got != "plain prompt" {
+		t.Fatalf("unexpected round-trip prompt: %q", got)
+	}
+}
+
+func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
+	t.Parallel()
+
+	request := ResumeSessionRequest{
+		SessionID:  "sess-123",
+		Prompt:     []byte("resume prompt"),
+		WorkingDir: "/tmp/work",
+		Model:      "gpt-5.4",
+	}
+
+	raw, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal resume session request: %v", err)
+	}
+	if strings.Contains(string(raw), "cmVzdW1lIHByb21wdA==") {
+		t.Fatalf("expected prompt text instead of base64 JSON, got %s", string(raw))
+	}
+	if !strings.Contains(string(raw), `"prompt":"resume prompt"`) {
+		t.Fatalf("expected readable resume prompt JSON, got %s", string(raw))
+	}
+
+	var roundTrip ResumeSessionRequest
+	if err := json.Unmarshal(raw, &roundTrip); err != nil {
+		t.Fatalf("unmarshal resume session request: %v", err)
+	}
+	if got := string(roundTrip.Prompt); got != "resume prompt" {
+		t.Fatalf("unexpected round-trip resume prompt: %q", got)
+	}
+}
+
+func TestDetachedContextPreservesValuesWithoutCancellation(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	parent := context.WithValue(context.Background(), contextKey("trace_id"), "trace-123")
+	withDeadline, cancel := context.WithTimeout(parent, time.Minute)
+	t.Cleanup(cancel)
+
+	detached := detachedContext(withDeadline)
+	if got := detached.Value(contextKey("trace_id")); got != "trace-123" {
+		t.Fatalf("unexpected detached context value: %#v", got)
+	}
+	if _, ok := detached.Deadline(); ok {
+		t.Fatal("expected detached context to drop the parent deadline")
+	}
+	if detached.Done() != nil {
+		t.Fatal("expected detached context to ignore parent cancellation")
+	}
+	if detached.Err() != nil {
+		t.Fatalf("expected detached context to stay uncancelled, got %v", detached.Err())
+	}
+}
+
+func TestSessionRequestDispatchPreCreateHookPreservesContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	ctx := context.WithValue(context.Background(), contextKey("request_id"), "req-123")
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_create": func(input any) (any, error) {
+				payload := input.(sessionCreateHookPayload)
+				payload.SessionRequest.Prompt = append(payload.SessionRequest.Prompt, []byte("!")...)
+				return payload, nil
+			},
+		},
+	}
+
+	request := SessionRequest{
+		Context:    ctx,
+		Prompt:     []byte("keep context"),
+		WorkingDir: t.TempDir(),
+		RunID:      "run-123",
+		JobID:      "job-123",
+		RuntimeMgr: manager,
+	}
+
+	got, err := request.dispatchPreCreateHook()
+	if err != nil {
+		t.Fatalf("dispatchPreCreateHook() error = %v", err)
+	}
+	if got.Context == nil {
+		t.Fatal("expected hook-dispatched request to retain context")
+	}
+	if got := got.Context.Value(contextKey("request_id")); got != "req-123" {
+		t.Fatalf("unexpected preserved context value: %#v", got)
+	}
+}
+
+func TestResumeSessionRequestDispatchPreResumeHookPreservesContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	ctx := context.WithValue(context.Background(), contextKey("request_id"), "req-456")
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_resume": func(input any) (any, error) {
+				payload := input.(sessionResumeHookPayload)
+				payload.ResumeRequest.Prompt = append(payload.ResumeRequest.Prompt, []byte("!")...)
+				return payload, nil
+			},
+		},
+	}
+
+	request := ResumeSessionRequest{
+		Context:    ctx,
+		SessionID:  "sess-123",
+		Prompt:     []byte("keep context"),
+		WorkingDir: t.TempDir(),
+		RunID:      "run-123",
+		JobID:      "job-123",
+		RuntimeMgr: manager,
+	}
+
+	got, err := request.dispatchPreResumeHook()
+	if err != nil {
+		t.Fatalf("dispatchPreResumeHook() error = %v", err)
+	}
+	if got.Context == nil {
+		t.Fatal("expected hook-dispatched resume request to retain context")
+	}
+	if got := got.Context.Value(contextKey("request_id")); got != "req-456" {
+		t.Fatalf("unexpected preserved resume context value: %#v", got)
+	}
+}
+
+func TestNewSessionOutcome(t *testing.T) {
+	t.Parallel()
+
+	success := newSessionOutcome(model.StatusCompleted, nil)
+	if success.Status != model.StatusCompleted || success.Error != "" {
+		t.Fatalf("unexpected success outcome: %#v", success)
+	}
+
+	failure := newSessionOutcome(model.StatusFailed, errors.New("boom"))
+	if failure.Status != model.StatusFailed || failure.Error != "boom" {
+		t.Fatalf("unexpected failure outcome: %#v", failure)
+	}
+}
 func TestSessionErrReturnsStructuredPromptError(t *testing.T) {
 	t.Parallel()
 
@@ -547,6 +869,53 @@ func TestClientKillForceTerminatesSubprocess(t *testing.T) {
 	}
 }
 
+func TestWaitForProcessTreatsForcedExitAsCancellation(t *testing.T) {
+	t.Parallel()
+
+	scenarioJSON, err := json.Marshal(helperScenario{})
+	if err != nil {
+		t.Fatalf("marshal helper scenario: %v", err)
+	}
+
+	process, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+		Command:         []string{os.Args[0], "-test.run=TestACPHelperProcess", "--"},
+		Env:             append(os.Environ(), "GO_WANT_ACP_HELPER_PROCESS=1", "GO_ACP_SCENARIO="+string(scenarioJSON)),
+		WaitErrorPrefix: "wait for process test helper",
+	})
+	if err != nil {
+		t.Fatalf("launch helper process: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = process.Kill()
+	})
+
+	workingDir := t.TempDir()
+	session := newSessionWithAccess("sess-wait", workingDir, []string{workingDir})
+	client := &clientImpl{
+		process:  process,
+		sessions: map[string]*sessionImpl{session.id: session},
+	}
+
+	client.wg.Add(1)
+	go client.waitForProcess()
+
+	if err := process.Kill(); err != nil {
+		t.Fatalf("kill helper process: %v", err)
+	}
+
+	select {
+	case <-session.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session shutdown after forced process exit")
+	}
+
+	if !errors.Is(session.Err(), context.Canceled) {
+		t.Fatalf("session.Err() = %v, want context.Canceled", session.Err())
+	}
+
+	client.wg.Wait()
+}
+
 func TestClientHelperMethods(t *testing.T) {
 	t.Parallel()
 
@@ -744,7 +1113,7 @@ func TestClientUtilityHelpers(t *testing.T) {
 		t.Fatalf("expected absolute path, got %q", absoluteDir)
 	}
 
-	buffer := &lockedBuffer{}
+	buffer := &subprocess.LockedBuffer{}
 	if _, err := buffer.Write([]byte("stderr")); err != nil {
 		t.Fatalf("write locked buffer: %v", err)
 	}
@@ -1147,4 +1516,79 @@ func firstPromptText(blocks []acp.ContentBlock) string {
 func outcomeHasVariant(outcome acp.RequestPermissionOutcome, variant string) bool {
 	field := reflect.ValueOf(outcome).FieldByName(variant)
 	return field.IsValid() && field.Kind() == reflect.Pointer && !field.IsNil()
+}
+
+type agentHookManager struct {
+	mu               sync.Mutex
+	mutators         map[string]func(any) (any, error)
+	mutableHooks     []string
+	observerHooks    []string
+	observerPayloads []any
+}
+
+func (*agentHookManager) Start(context.Context) error { return nil }
+
+func (*agentHookManager) Shutdown(context.Context) error { return nil }
+
+func (m *agentHookManager) DispatchMutableHook(
+	_ context.Context,
+	hook string,
+	input any,
+) (any, error) {
+	m.mu.Lock()
+	m.mutableHooks = append(m.mutableHooks, hook)
+	mutate := m.mutators[hook]
+	m.mu.Unlock()
+	if mutate == nil {
+		return input, nil
+	}
+
+	roundTripped, err := roundTripHookPayload(input)
+	if err != nil {
+		return nil, fmt.Errorf("round-trip hook input: %w", err)
+	}
+
+	mutated, err := mutate(roundTripped)
+	if err != nil {
+		return nil, err
+	}
+
+	roundTripped, err = roundTripHookPayload(mutated)
+	if err != nil {
+		return nil, fmt.Errorf("round-trip hook output: %w", err)
+	}
+	return roundTripped, nil
+}
+
+func (m *agentHookManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.observerHooks = append(m.observerHooks, hook)
+	m.observerPayloads = append(m.observerPayloads, payload)
+}
+
+func roundTripHookPayload(value any) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshal hook payload: %w", err)
+	}
+
+	valueType := reflect.TypeOf(value)
+	if valueType.Kind() == reflect.Ptr {
+		target := reflect.New(valueType.Elem())
+		if err := json.Unmarshal(raw, target.Interface()); err != nil {
+			return nil, fmt.Errorf("unmarshal hook payload: %w", err)
+		}
+		return target.Interface(), nil
+	}
+
+	target := reflect.New(valueType)
+	if err := json.Unmarshal(raw, target.Interface()); err != nil {
+		return nil, fmt.Errorf("unmarshal hook payload: %w", err)
+	}
+	return target.Elem().Interface(), nil
 }

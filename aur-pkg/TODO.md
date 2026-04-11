@@ -3,11 +3,14 @@
 After merging this Pull Request, the repository owner needs to perform these one-time setup steps to enable automatic updates to the Arch User Repository (AUR).
 
 ## 1. Create an AUR Account
+
 If you don't already have one, create an account at [aur.archlinux.org](https://aur.archlinux.org/).
+
 - **Username:** `compozy` (recommended) or your personal username.
 - **SSH Public Key:** You will need to add a public key here (see Step 2).
 
 ## 2. Generate and Configure SSH Keys
+
 GoReleaser needs an SSH key to push updates to the AUR.
 
 1. **Generate a new keypair** (no passphrase):
@@ -25,6 +28,7 @@ GoReleaser needs an SSH key to push updates to the AUR.
    - **Secret:** (Paste the entire private key block including BEGIN/END lines).
 
 ## 3. Claim the AUR Package (First Time Only)
+
 The automation can update existing packages but cannot create them. You must perform the initial push manually:
 
 ```bash
@@ -45,13 +49,17 @@ git push origin master
 ```
 
 ## 4. Update .goreleaser.yml (If needed)
+
 Ensure the `release.github.owner` in `.goreleaser.yml` matches the upstream organization (`compozy`).
 
 ## 5. Verify the Automation
+
 The next time you push a version tag (e.g., `v0.1.7`), the GitHub Action will:
+
 1. Build the binaries.
 2. Create the GitHub Release.
 3. Automatically update the AUR package with the new version and correct SHA256 checksums.
 
 ---
+
 **Note:** If you want someone else (like @guifavretto) to maintain the package while you handle releases, you can add them as a **Co-maintainer** in the AUR web interface.

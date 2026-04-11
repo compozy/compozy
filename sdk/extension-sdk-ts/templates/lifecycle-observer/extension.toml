@@ -1,0 +1,15 @@
+[extension]
+name = "__EXTENSION_NAME__"
+version = "__EXTENSION_VERSION__"
+description = "Lifecycle observer starter extension"
+min_compozy_version = "__COMPOZY_MIN_VERSION__"
+
+[subprocess]
+command = "node"
+args = ["dist/src/index.js"]
+
+[security]
+capabilities = ["run.mutate"]
+
+[[hooks]]
+event = "run.post_shutdown"

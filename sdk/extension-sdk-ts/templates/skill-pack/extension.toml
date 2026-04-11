@@ -1,0 +1,11 @@
+[extension]
+name = "__EXTENSION_NAME__"
+version = "__EXTENSION_VERSION__"
+description = "Declarative skill-pack starter extension"
+min_compozy_version = "__COMPOZY_MIN_VERSION__"
+
+[security]
+capabilities = ["skills.ship"]
+
+[resources]
+skills = ["skills/*"]

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Host API services for tasks, runs, memory, artifacts, prompts, and events
 type: backend
 complexity: high
@@ -34,13 +34,13 @@ Implement the eleven Host API methods defined in `_protocol.md` section 5.2 as t
 </requirements>
 
 ## Subtasks
-- [ ] 06.1 Define the `KernelOps` interface covering all eleven Host API methods with typed request/result structs.
-- [ ] 06.2 Implement `host_writes.go` containing `tasks.create`, `runs.start`, `memory.write`, and `artifacts.write` handlers, wired to existing task writer, kernel run start, memory writer, and artifact writer.
-- [ ] 06.3 Implement `host_reads.go` containing `tasks.list`, `tasks.get`, `memory.read`, and `artifacts.read` handlers with path scoping and `needs_compaction` detection.
-- [ ] 06.4 Implement `host_helpers.go` containing `prompts.render`, `events.subscribe`, and `events.publish` handlers.
-- [ ] 06.5 Register all handlers with `HostAPIRouter.RegisterService` under namespaces `host.tasks`, `host.runs`, `host.memory`, `host.artifacts`, `host.prompts`, `host.events`.
-- [ ] 06.6 Implement the recursion guard for `host.runs.start` using a parent chain with depth bound 3.
-- [ ] 06.7 Write tests covering each method's happy path, capability denial, path scoping rejection, and the recursion guard.
+- [x] 06.1 Define the `KernelOps` interface covering all eleven Host API methods with typed request/result structs.
+- [x] 06.2 Implement `host_writes.go` containing `tasks.create`, `runs.start`, `memory.write`, and `artifacts.write` handlers, wired to existing task writer, kernel run start, memory writer, and artifact writer.
+- [x] 06.3 Implement `host_reads.go` containing `tasks.list`, `tasks.get`, `memory.read`, and `artifacts.read` handlers with path scoping and `needs_compaction` detection.
+- [x] 06.4 Implement `host_helpers.go` containing `prompts.render`, `events.subscribe`, and `events.publish` handlers.
+- [x] 06.5 Register all handlers with `HostAPIRouter.RegisterService` under namespaces `host.tasks`, `host.runs`, `host.memory`, `host.artifacts`, `host.prompts`, `host.events`.
+- [x] 06.6 Implement the recursion guard for `host.runs.start` using a parent chain with depth bound 3.
+- [x] 06.7 Write tests covering each method's happy path, capability denial, path scoping rejection, and the recursion guard.
 
 ## Implementation Details
 See TechSpec "Implementation Design → Core Interfaces" for the `KernelOps` interface shape, `_protocol.md` section 5 for method signatures and response shapes, `_protocol.md` section 5.5 for the memory document model, and ADR-006 for rationale.
@@ -86,25 +86,25 @@ Key integration points that must be reached without shelling out:
 
 ## Tests
 - Unit tests:
-  - [ ] `host.tasks.create` returns a task with the next sequential number within the workflow directory.
-  - [ ] `host.tasks.create` emits `EventKindTaskFileUpdated` with the new task path.
-  - [ ] `host.tasks.list` returns tasks in filename-sorted order.
-  - [ ] `host.tasks.get` returns the parsed frontmatter and body for an existing task.
-  - [ ] `host.runs.start` returns a new run id and increments the parent chain length.
-  - [ ] `host.runs.start` returns `-32001 capability_denied` with `data.reason = "recursion_depth_exceeded"` when the chain is already at length 3.
-  - [ ] `host.memory.read` returns `{exists: false, content: ""}` when the memory file is absent.
-  - [ ] `host.memory.read` returns `needs_compaction: true` when the document exceeds the compaction threshold.
-  - [ ] `host.memory.write` in `append` mode atomically appends with a newline separator.
-  - [ ] `host.memory.write` in `replace` mode overwrites the document and emits `EventKindTaskMemoryUpdated`.
-  - [ ] `host.artifacts.write` rejects an absolute path outside the workspace root with `data.reason = "path_out_of_scope"`.
-  - [ ] `host.artifacts.write` rejects a path containing `..` traversal.
-  - [ ] `host.artifacts.read` returns bytes for a file under `.compozy/`.
-  - [ ] `host.prompts.render` returns the rendered prompt for a valid template name and params.
-  - [ ] `host.events.publish` emits `EventKindExtensionEvent` on the bus.
-  - [ ] `host.events.subscribe` returns a subscription id and accepts a filter list.
+  - [x] `host.tasks.create` returns a task with the next sequential number within the workflow directory.
+  - [x] `host.tasks.create` emits `EventKindTaskFileUpdated` with the new task path.
+  - [x] `host.tasks.list` returns tasks in filename-sorted order.
+  - [x] `host.tasks.get` returns the parsed frontmatter and body for an existing task.
+  - [x] `host.runs.start` returns a new run id and increments the parent chain length.
+  - [x] `host.runs.start` returns `-32001 capability_denied` with `data.reason = "recursion_depth_exceeded"` when the chain is already at length 3.
+  - [x] `host.memory.read` returns `{exists: false, content: ""}` when the memory file is absent.
+  - [x] `host.memory.read` returns `needs_compaction: true` when the document exceeds the compaction threshold.
+  - [x] `host.memory.write` in `append` mode atomically appends with a newline separator.
+  - [x] `host.memory.write` in `replace` mode overwrites the document and emits `EventKindTaskMemoryUpdated`.
+  - [x] `host.artifacts.write` rejects an absolute path outside the workspace root with `data.reason = "path_out_of_scope"`.
+  - [x] `host.artifacts.write` rejects a path containing `..` traversal.
+  - [x] `host.artifacts.read` returns bytes for a file under `.compozy/`.
+  - [x] `host.prompts.render` returns the rendered prompt for a valid template name and params.
+  - [x] `host.events.publish` emits `EventKindExtensionEvent` on the bus.
+  - [x] `host.events.subscribe` returns a subscription id and accepts a filter list.
 - Integration tests:
-  - [ ] End-to-end write path: extension calls `host.tasks.create`, then `host.tasks.get` returns the created task with matching content.
-  - [ ] End-to-end recursion guard: three nested `host.runs.start` calls succeed, the fourth is rejected.
+  - [x] End-to-end write path: extension calls `host.tasks.create`, then `host.tasks.get` returns the created task with matching content.
+  - [x] End-to-end recursion guard: three nested `host.runs.start` calls succeed, the fourth is rejected.
 - Test coverage target: >=80%
 - All tests must pass
 

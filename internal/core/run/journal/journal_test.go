@@ -124,6 +124,44 @@ func TestJournalFlushesOnInterval(t *testing.T) {
 	}
 }
 
+func TestJournalSubmitWithSeqReturnsAssignedSequence(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runID := "journal-submit-seq"
+	prepareRunLayout(t, workspaceRoot, runID)
+
+	bus := events.New[events.Event](16)
+	_, updates, unsubscribe := bus.Subscribe()
+	defer unsubscribe()
+
+	journal, _ := openTestJournal(t, workspaceRoot, runID, bus, 16, openOptions{
+		batchSize:     32,
+		flushInterval: time.Hour,
+	})
+
+	seq1, err := journal.SubmitWithSeq(context.Background(), testJournalEvent(runID, events.EventKindJobStarted, 1))
+	if err != nil {
+		t.Fatalf("SubmitWithSeq(first) error = %v", err)
+	}
+	seq2, err := journal.SubmitWithSeq(context.Background(), testJournalEvent(runID, events.EventKindRunCompleted, 2))
+	if err != nil {
+		t.Fatalf("SubmitWithSeq(second) error = %v", err)
+	}
+
+	if seq1 != 1 || seq2 != 2 {
+		t.Fatalf("assigned seqs = [%d %d], want [1 2]", seq1, seq2)
+	}
+
+	published := collectBusEvents(t, updates, 2, time.Second)
+	if got := collectedSeqs(published); !slices.Equal(got, []uint64{1, 2}) {
+		t.Fatalf("published seqs = %v, want [1 2]", got)
+	}
+	if err := journal.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 func TestJournalTerminalEventForcesImmediateSync(t *testing.T) {
 	t.Parallel()
 
@@ -331,11 +369,11 @@ func TestJournalSubmitReturnsContextErrorBeforeInboxAccepts(t *testing.T) {
 
 	journal := &Journal{
 		runID:         "journal-submit-context",
-		inbox:         make(chan events.Event, 1),
+		inbox:         make(chan submitRequest, 1),
 		done:          make(chan struct{}),
 		submitTimeout: time.Second,
 	}
-	journal.inbox <- testJournalEvent("journal-submit-context", events.EventKindJobStarted, 1)
+	journal.inbox <- submitRequest{event: testJournalEvent("journal-submit-context", events.EventKindJobStarted, 1)}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -356,11 +394,11 @@ func TestJournalSubmitTimeoutIncrementsDrops(t *testing.T) {
 
 	journal := &Journal{
 		runID:         "journal-submit-timeout",
-		inbox:         make(chan events.Event, 1),
+		inbox:         make(chan submitRequest, 1),
 		done:          make(chan struct{}),
 		submitTimeout: 10 * time.Millisecond,
 	}
-	journal.inbox <- testJournalEvent("journal-submit-timeout", events.EventKindJobStarted, 1)
+	journal.inbox <- submitRequest{event: testJournalEvent("journal-submit-timeout", events.EventKindJobStarted, 1)}
 
 	err := journal.Submit(
 		context.Background(),

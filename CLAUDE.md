@@ -34,9 +34,9 @@ Compozy is a Go module and CLI that drives the full lifecycle of AI-assisted dev
 | `command`                   | Public Cobra wrapper for embedding `compozy` as a command         |
 | `internal/cli`              | Cobra flags, interactive form collection, CLI glue                |
 | `internal/core`             | Internal facade for reusable preparation and execution            |
-| `internal/core/agent`       | IDE command validation and process command construction            |
-| `internal/core/kernel`      | Typed command dispatcher, handler registry, and legacy adapters    |
-| `internal/core/model`       | Shared runtime data structures                                     |
+| `internal/core/agent`       | IDE command validation and process command construction           |
+| `internal/core/kernel`      | Typed command dispatcher, handler registry, and legacy adapters   |
+| `internal/core/model`       | Shared runtime data structures                                    |
 | `internal/core/plan`        | Input discovery, filtering, grouping, and batch prep              |
 | `internal/core/prompt`      | Thin prompt builders that emit runtime context and skill names    |
 | `internal/core/run`         | Execution pipeline, logging, shutdown, and Bubble Tea UI          |
@@ -147,7 +147,7 @@ Use the `Skill` tool to activate every skill that matches the identified domains
 | Logging                 | `golang-pro`                              |                         |
 | Bug fix                 | `systematic-debugging` + `no-workarounds` | `testing-anti-patterns` |
 | Writing tests           | `testing-anti-patterns` + `golang-pro`    |                         |
-| Task completion         | `cy-final-verify`          |                         |
+| Task completion         | `cy-final-verify`                         |                         |
 | Architecture audit      | `architectural-analysis`                  | `adversarial-review`    |
 | Creative / new features | `brainstorming`                           |                         |
 | Git rebase/conflicts    | `git-rebase`                              |                         |

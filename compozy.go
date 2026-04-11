@@ -6,6 +6,8 @@ import (
 	"context"
 
 	core "github.com/compozy/compozy/internal/core"
+	// Register the extension-aware run-scope factory used by kernel/core runtime paths.
+	_ "github.com/compozy/compozy/internal/core/extension"
 	// Register dispatcher-backed adapters for the legacy public core API surface.
 	_ "github.com/compozy/compozy/internal/core/kernel"
 )

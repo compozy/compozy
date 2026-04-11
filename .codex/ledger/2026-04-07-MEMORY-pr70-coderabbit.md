@@ -1,7 +1,9 @@
 Goal (incl. success criteria):
+
 - Remediate CodeRabbit review issues for PR `#70` end-to-end: export unresolved issues, triage each as VALID or INVALID, implement all valid fixes with tests, run full verification, create one remediation commit, resolve review threads, and confirm the exported summary is fully resolved.
 
 Constraints/Assumptions:
+
 - Follow `AGENTS.md`, `CLAUDE.md`, and the explicit `fix-coderabbit-review` workflow.
 - Required skills in use: `fix-coderabbit-review`, `systematic-debugging`, `no-workarounds`, `testing-anti-patterns`, `golang-pro`; `cy-final-verify` must gate commit/completion.
 - Existing dirty worktree entries under `.agents/skills/fix-coderabbit-review/*` and `skills-lock.json` predate this task and must not be reverted or modified unless they are directly required.
@@ -9,13 +11,16 @@ Constraints/Assumptions:
 - Final task completion still requires `make verify`, even if the skill text mentions other verification commands.
 
 Key decisions:
+
 - Treat every CodeRabbit item as a hypothesis; only implement items that remain technically valid in the current tree.
 - Keep this run scoped to PR `#70` review remediation; avoid unrelated cleanup in the already-dirty skill files.
 
 State:
+
 - Completed.
 
 Done:
+
 - Read repository instructions and the required skill files.
 - Scanned existing ledgers for cross-agent awareness.
 - Confirmed existing dirty worktree entries before starting.
@@ -37,15 +42,19 @@ Done:
 - Re-ran `make verify` successfully after the post-commit review-export updates.
 
 Now:
+
 - Prepare the final handoff with verification evidence and note the remaining uncommitted review-export updates.
 
 Next:
+
 - None.
 
 Open questions (UNCONFIRMED if needed):
+
 - None.
 
 Working set (files/ids/commands):
+
 - `.codex/ledger/2026-04-07-MEMORY-pr70-coderabbit.md`
 - `ai-docs/reviews-pr-70/`
 - `.agents/skills/fix-coderabbit-review/SKILL.md`

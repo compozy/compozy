@@ -32,6 +32,7 @@ type Config struct {
 	Persist                bool
 	RunID                  string
 	RunArtifacts           model.RunArtifacts
+	RuntimeManager         model.RuntimeManager
 	IncludeCompleted       bool
 	IncludeResolved        bool
 	Timeout                time.Duration

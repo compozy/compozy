@@ -331,6 +331,7 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 
 	required := []string{
 		"--agent",
+		"--extensions",
 		"--prompt-file",
 		"--format",
 		"--dry-run",
@@ -1384,7 +1385,7 @@ func TestRunPreparedRefreshesDriftedSkillsBeforeRunningWorkflow(t *testing.T) {
 	if verifyCalls != 2 {
 		t.Fatalf("expected verify to run twice, got %d", verifyCalls)
 	}
-	if !strings.Contains(output.String(), "Updated bundled Compozy skills for Codex (project scope).") {
+	if !strings.Contains(output.String(), "Updated required Compozy skills for Codex (project scope).") {
 		t.Fatalf("expected refresh success output, got %q", output.String())
 	}
 }

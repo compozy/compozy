@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension manager lifecycle with spawn, initialize, shutdown, and health
 type: backend
 complexity: high
@@ -37,14 +37,14 @@ Implement the `extension.Manager` runtime lifecycle: spawn enabled subprocess ex
 </requirements>
 
 ## Subtasks
-- [ ] 08.1 Implement `Manager.Start(ctx)` spawning via `subprocess.Launch` with env injection and per-extension initialization workers.
-- [ ] 08.2 Implement the initialize handshake client: send request, validate response per `_protocol.md` section 4.4, reject version or capability mismatch.
-- [ ] 08.3 Wire each subprocess's reader loop to the `HostAPIRouter` so Host API calls are dispatched to service handlers.
-- [ ] 08.4 Implement the health probe loop with the interval/timeout from the initialize runtime block and the unhealthy threshold from `_protocol.md` section 8.6.
-- [ ] 08.5 Implement `Manager.Shutdown(ctx)` with cooperative shutdown, stdin close, SIGTERM, and SIGKILL escalation per `_protocol.md` section 9.4.
-- [ ] 08.6 Implement best-effort `on_event` forwarding from the event bus subscription to each subscribed extension.
-- [ ] 08.7 Emit `EventKindExtensionLoaded/Ready/Failed` during transitions and add the new event kinds to `pkg/compozy/events` with typed payloads.
-- [ ] 08.8 Write tests using a mock extension binary that the test harness builds and spawns in `t.TempDir()`.
+- [x] 08.1 Implement `Manager.Start(ctx)` spawning via `subprocess.Launch` with env injection and per-extension initialization workers.
+- [x] 08.2 Implement the initialize handshake client: send request, validate response per `_protocol.md` section 4.4, reject version or capability mismatch.
+- [x] 08.3 Wire each subprocess's reader loop to the `HostAPIRouter` so Host API calls are dispatched to service handlers.
+- [x] 08.4 Implement the health probe loop with the interval/timeout from the initialize runtime block and the unhealthy threshold from `_protocol.md` section 8.6.
+- [x] 08.5 Implement `Manager.Shutdown(ctx)` with cooperative shutdown, stdin close, SIGTERM, and SIGKILL escalation per `_protocol.md` section 9.4.
+- [x] 08.6 Implement best-effort `on_event` forwarding from the event bus subscription to each subscribed extension.
+- [x] 08.7 Emit `EventKindExtensionLoaded/Ready/Failed` during transitions and add the new event kinds to `pkg/compozy/events` with typed payloads.
+- [x] 08.8 Write tests using a mock extension binary that the test harness builds and spawns in `t.TempDir()`.
 
 ## Implementation Details
 See TechSpec "Implementation Design → Core Interfaces → Extension manager public surface", "System Architecture → Data Flow" for run startup and shutdown sequences, `_protocol.md` sections 3, 4, 5, 7, 8, 9 for the full wire contract, and ADR-002 and ADR-003 for lifecycle and transport rationale.
@@ -96,20 +96,20 @@ New event kinds to add:
 
 ## Tests
 - Unit tests:
-  - [ ] Initialize handshake client rejects an extension that returns an unsupported `protocol_version`.
-  - [ ] Initialize handshake client rejects an extension whose `accepted_capabilities` is not a subset of `granted_capabilities`.
-  - [ ] Initialize handshake client rejects an extension that accepts `events.read` but reports `supports.on_event = false`.
-  - [ ] Health probe marks an extension unhealthy after one explicit `healthy: false` response.
-  - [ ] Health probe marks an extension unhealthy after two consecutive timeout failures.
-  - [ ] `Manager.Shutdown` sends `shutdown` to every extension and waits for the deadline before escalating to SIGTERM.
-  - [ ] `Manager.Shutdown` escalates to SIGKILL when the process does not exit before the post-SIGTERM grace window.
-  - [ ] `EventKindExtensionReady` is published after a successful initialize.
-  - [ ] `EventKindExtensionFailed` is published when health marks an extension unhealthy.
-  - [ ] `on_event` forwarding drops events when the per-extension queue is full and records the drop.
+  - [x] Initialize handshake client rejects an extension that returns an unsupported `protocol_version`.
+  - [x] Initialize handshake client rejects an extension whose `accepted_capabilities` is not a subset of `granted_capabilities`.
+  - [x] Initialize handshake client rejects an extension that accepts `events.read` but reports `supports.on_event = false`.
+  - [x] Health probe marks an extension unhealthy after one explicit `healthy: false` response.
+  - [x] Health probe marks an extension unhealthy after two consecutive timeout failures.
+  - [x] `Manager.Shutdown` sends `shutdown` to every extension and waits for the deadline before escalating to SIGTERM.
+  - [x] `Manager.Shutdown` escalates to SIGKILL when the process does not exit before the post-SIGTERM grace window.
+  - [x] `EventKindExtensionReady` is published after a successful initialize.
+  - [x] `EventKindExtensionFailed` is published when health marks an extension unhealthy.
+  - [x] `on_event` forwarding drops events when the per-extension queue is full and records the drop.
 - Integration tests:
-  - [ ] A mock extension binary spawns, completes initialize, receives one hook dispatch, answers, and shuts down cleanly within the deadline.
-  - [ ] A mock extension that ignores `shutdown` is killed by SIGTERM/SIGKILL within the expected escalation window.
-  - [ ] A mock extension that calls `host.tasks.list` receives a successful response routed through the router.
+  - [x] A mock extension binary spawns, completes initialize, receives one hook dispatch, answers, and shuts down cleanly within the deadline.
+  - [x] A mock extension that ignores `shutdown` is killed by SIGTERM/SIGKILL within the expected escalation window.
+  - [x] A mock extension that calls `host.tasks.list` receives a successful response routed through the router.
 - Test coverage target: >=80%
 - All tests must pass
 
@@ -120,3 +120,7 @@ New event kinds to add:
 - A mock extension can complete its full lifecycle (spawn → init → hook dispatch → Host API call → shutdown) end to end.
 - No extension can bypass the initialize handshake or capability negotiation.
 - Shutdown always terminates the process, even when the extension misbehaves.
+
+## Verification Evidence
+- `go test ./internal/core/extension -coverprofile=/tmp/ext.cover.out` reported 80.4% statement coverage.
+- `make verify` passed end to end on 2026-04-10, including fmt, lint, tests, and build.

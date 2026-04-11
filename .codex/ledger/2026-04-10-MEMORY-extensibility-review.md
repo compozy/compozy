@@ -1,14 +1,17 @@
 Goal (incl. success criteria):
+
 - Review `.compozy/tasks/extensibility/_techspec.md` and all ADRs under `.compozy/tasks/extensibility/adrs/` to identify architectural gaps, design smells, inconsistencies, and concrete improvement opportunities.
 - Success means producing a review with severity-ranked findings backed by exact document references, plus open questions where the design is still under-specified.
 
 Constraints/Assumptions:
+
 - Follow `AGENTS.md` and `CLAUDE.md` instructions for this repository.
 - Scope stayed at design/spec level; no production code changes in this session.
 - Required skills in use: `architectural-analysis`, `brainstorming`, `cy-create-techspec`, `cy-final-verify`.
 - Existing ledgers are read-only context from other sessions; do not modify them.
 
 Key decisions:
+
 - Treat the tech spec and ADRs as the primary source of truth and evaluate cross-document consistency, operational completeness, rollout safety, and testability.
 - Focus findings on architecture-level risks, not copy edits.
 - Keep the feature scope intact while fixing coherence issues by reshaping lifecycle, enablement, and integration semantics rather than removing capabilities.
@@ -18,9 +21,11 @@ Key decisions:
 - Align Host API memory operations to Compozy's actual file-backed memory model and task creation to a typed core service instead of a nonexistent CLI command.
 
 State:
+
 - Completed after fresh `make verify`.
 
 Done:
+
 - Read repository instructions and scanned existing ledgers for cross-agent awareness.
 - Loaded the `architectural-analysis` skill to structure the audit.
 - Located the extensibility tech spec and ADR set under `.compozy/tasks/extensibility/`.
@@ -39,15 +44,19 @@ Done:
 - Ran fresh repository verification successfully with `make verify`.
 
 Now:
+
 - Prepare the final handoff with file references and verification evidence.
 
 Next:
+
 - None.
 
 Open questions (UNCONFIRMED if needed):
+
 - None currently blocking.
 
 Working set (files/ids/commands):
+
 - `.codex/ledger/2026-04-10-MEMORY-extensibility-review.md`
 - `.compozy/tasks/extensibility/_techspec.md`
 - `.compozy/tasks/extensibility/adrs/adr-001.md`

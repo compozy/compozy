@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Capability enforcement and audit log
 type: backend
 complexity: medium
@@ -33,12 +33,12 @@ Implement the capability enforcement layer and the per-run audit log writer. The
 </requirements>
 
 ## Subtasks
-- [ ] 04.1 Implement `CapabilityChecker` with its method-to-capability and hook-to-capability lookup tables derived from ADR-005.
-- [ ] 04.2 Implement `CapabilityDeniedError` as a typed error that formats a `-32001 capability_denied` JSON-RPC error payload when serialized.
-- [ ] 04.3 Implement `AuditLogger.Open(runArtifactsPath)` that creates or truncates `extensions.jsonl` under the run artifact root.
-- [ ] 04.4 Implement `AuditLogger.Record(entry)` that marshals to a single JSON line and appends atomically, safe for concurrent writers.
-- [ ] 04.5 Implement `AuditLogger.Close(ctx)` with deadline-aware flush and fsync semantics.
-- [ ] 04.6 Write table-driven tests for the checker (allowed, denied single, denied multi) and integration tests for the audit writer (concurrent writes, crash-safe append).
+- [x] 04.1 Implement `CapabilityChecker` with its method-to-capability and hook-to-capability lookup tables derived from ADR-005.
+- [x] 04.2 Implement `CapabilityDeniedError` as a typed error that formats a `-32001 capability_denied` JSON-RPC error payload when serialized.
+- [x] 04.3 Implement `AuditLogger.Open(runArtifactsPath)` that creates or truncates `extensions.jsonl` under the run artifact root.
+- [x] 04.4 Implement `AuditLogger.Record(entry)` that marshals to a single JSON line and appends atomically, safe for concurrent writers.
+- [x] 04.5 Implement `AuditLogger.Close(ctx)` with deadline-aware flush and fsync semantics.
+- [x] 04.6 Write table-driven tests for the checker (allowed, denied single, denied multi) and integration tests for the audit writer (concurrent writes, crash-safe append).
 
 ## Implementation Details
 See TechSpec "Implementation Design → Data Models" for the audit entry schema, "Monitoring and Observability" for how the audit log relates to the event bus, `_protocol.md` section 5.2 for the method-to-capability mapping, and ADR-005 for the full capability taxonomy.
@@ -77,16 +77,16 @@ Key invariants:
 
 ## Tests
 - Unit tests:
-  - [ ] Checker returns nil when the accepted set contains the exact capability a Host API method requires.
-  - [ ] Checker returns `CapabilityDeniedError` with `missing = [tasks.create]` when the set omits the required grant.
-  - [ ] Checker maps hook events to capabilities consistent with ADR-005 (e.g., `prompt.post_build` requires `prompt.mutate`).
-  - [ ] `CapabilityDeniedError` serializes to a valid `-32001` JSON-RPC error object with structured `data`.
-  - [ ] Audit writer rejects opening a run artifact directory that does not exist.
-  - [ ] Audit writer round-trips a recorded entry through JSONL parse.
-  - [ ] `AuditLogger.Close` flushes pending entries before returning.
+  - [x] Checker returns nil when the accepted set contains the exact capability a Host API method requires.
+  - [x] Checker returns `CapabilityDeniedError` with `missing = [tasks.create]` when the set omits the required grant.
+  - [x] Checker maps hook events to capabilities consistent with ADR-005 (e.g., `prompt.post_build` requires `prompt.mutate`).
+  - [x] `CapabilityDeniedError` serializes to a valid `-32001` JSON-RPC error object with structured `data`.
+  - [x] Audit writer rejects opening a run artifact directory that does not exist.
+  - [x] Audit writer round-trips a recorded entry through JSONL parse.
+  - [x] `AuditLogger.Close` flushes pending entries before returning.
 - Integration tests:
-  - [ ] 100 goroutines concurrently calling `AuditLogger.Record` produce 100 valid JSONL records with no interleaved lines.
-  - [ ] Killing the writer mid-operation leaves a readable prefix on disk (no torn records).
+  - [x] 100 goroutines concurrently calling `AuditLogger.Record` produce 100 valid JSONL records with no interleaved lines.
+  - [x] Killing the writer mid-operation leaves a readable prefix on disk (no torn records).
 - Test coverage target: >=80%
 - All tests must pass
 

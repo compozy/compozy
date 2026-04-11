@@ -3,8 +3,10 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
+	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
@@ -118,6 +121,72 @@ func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 		t.Fatalf("expected no stderr for dry-run exec, got %q", stderr)
 	}
 	assertNoRunArtifactsForCLI(t, workspaceRoot)
+}
+
+func TestExecCommandWithInstalledWorkspaceExtensionStaysEphemeralWithoutFlag(t *testing.T) {
+	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"exec",
+		"--dry-run",
+		"Summarize the repository state",
+	)
+	if err != nil {
+		t.Fatalf("execute exec without extensions: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if got := strings.TrimSpace(stdout); got != "Summarize the repository state" {
+		t.Fatalf("unexpected exec stdout: %q", got)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for exec without extensions, got %q", stderr)
+	}
+	assertNoRunArtifactsForCLI(t, workspaceRoot)
+	if _, statErr := os.Stat(recordPath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected extension record file to remain absent, got stat err=%v", statErr)
+	}
+}
+
+func TestExecCommandWithExtensionsFlagSpawnsWorkspaceExtensionAndWritesAudit(t *testing.T) {
+	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"exec",
+		"--extensions",
+		"--dry-run",
+		"Summarize the repository state",
+	)
+	if err != nil {
+		t.Fatalf("execute exec with extensions: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if got := strings.TrimSpace(stdout); got != "Summarize the repository state" {
+		t.Fatalf("unexpected exec stdout: %q", got)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for exec with extensions, got %q", stderr)
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	records := readMockExtensionRecordsForCLI(t, recordPath)
+	assertMockExtensionRecordKinds(t, records, "initialize_request", "shutdown")
+
+	auditPath := filepath.Join(runDir, extensions.AuditLogFileName)
+	auditContent, readErr := os.ReadFile(auditPath)
+	if readErr != nil {
+		t.Fatalf("read extension audit log: %v", readErr)
+	}
+	if !strings.Contains(string(auditContent), `"method":"initialize"`) {
+		t.Fatalf("expected audit log to include initialize, got:\n%s", string(auditContent))
+	}
 }
 
 func TestExecCommandExecutePromptFileJSONEmitsJSONLByDefault(t *testing.T) {
@@ -750,6 +819,46 @@ func TestStartCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 }
 
+func TestStartCommandWithInstalledWorkspaceExtensionSpawnsAndWritesAudit(t *testing.T) {
+	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"start",
+		"--name",
+		"demo",
+		"--tasks-dir",
+		".compozy/tasks/demo",
+		"--dry-run",
+	)
+	if err != nil {
+		t.Fatalf("execute start with extensions: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stdout, "Execution Summary:") {
+		t.Fatalf("expected dry-run start summary on stdout, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	records := readMockExtensionRecordsForCLI(t, recordPath)
+	assertMockExtensionRecordKinds(t, records, "initialize_request", "shutdown")
+
+	auditPath := filepath.Join(runDir, extensions.AuditLogFileName)
+	auditContent, readErr := os.ReadFile(auditPath)
+	if readErr != nil {
+		t.Fatalf("read extension audit log: %v", readErr)
+	}
+	if !strings.Contains(string(auditContent), `"method":"initialize"`) {
+		t.Fatalf("expected audit log to include initialize, got:\n%s", string(auditContent))
+	}
+}
+
 func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
@@ -1203,4 +1312,141 @@ func containsAll(s string, fragments ...string) bool {
 		}
 	}
 	return true
+}
+
+func prepareWorkspaceExtensionFixtureForCLI(t *testing.T, mode string) (string, string) {
+	t.Helper()
+
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	recordPath := filepath.Join(t.TempDir(), "mock-extension-records.jsonl")
+	binary := buildCLIMockExtensionBinary(t)
+	installWorkspaceMockExtensionForCLI(t, workspaceRoot, homeDir, binary, recordPath, mode, "demo")
+	return workspaceRoot, recordPath
+}
+
+func buildCLIMockExtensionBinary(t *testing.T) string {
+	t.Helper()
+
+	binary := filepath.Join(t.TempDir(), "mock-extension")
+	buildCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	cmd := exec.CommandContext(
+		buildCtx,
+		"go",
+		"build",
+		"-o",
+		binary,
+		"./internal/core/extension/testdata/mock_extension",
+	)
+	cmd.Dir = mustCLIRepoRootPath(t)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("build mock extension: %v\noutput:\n%s", err, string(output))
+	}
+	return binary
+}
+
+func installWorkspaceMockExtensionForCLI(
+	t *testing.T,
+	workspaceRoot string,
+	homeDir string,
+	binary string,
+	recordPath string,
+	mode string,
+	workflow string,
+) {
+	t.Helper()
+
+	extensionDir := filepath.Join(workspaceRoot, ".compozy", "extensions", "mock-ext")
+	if err := os.MkdirAll(extensionDir, 0o755); err != nil {
+		t.Fatalf("mkdir extension dir: %v", err)
+	}
+
+	manifest := fmt.Sprintf(`
+[extension]
+name = "mock-ext"
+version = "1.0.0"
+description = "Mock extension"
+min_compozy_version = "0.0.1"
+
+[subprocess]
+command = %q
+shutdown_timeout = "250ms"
+env = { COMPOZY_MOCK_RECORD_PATH = %q, COMPOZY_MOCK_MODE = %q, COMPOZY_MOCK_WORKFLOW = %q }
+
+[security]
+capabilities = ["tasks.read"]
+`, binary, recordPath, mode, workflow)
+	if err := os.WriteFile(
+		filepath.Join(extensionDir, "extension.toml"),
+		[]byte(strings.TrimSpace(manifest)+"\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("write extension manifest: %v", err)
+	}
+
+	store, err := extensions.NewEnablementStore(context.Background(), homeDir)
+	if err != nil {
+		t.Fatalf("create enablement store: %v", err)
+	}
+	if err := store.Enable(context.Background(), extensions.Ref{
+		Name:          "mock-ext",
+		Source:        extensions.SourceWorkspace,
+		WorkspaceRoot: workspaceRoot,
+	}); err != nil {
+		t.Fatalf("enable workspace extension: %v", err)
+	}
+}
+
+func readMockExtensionRecordsForCLI(t *testing.T, path string) []map[string]any {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read mock extension records: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(content)), "\n")
+	records := make([]map[string]any, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(line), &payload); err != nil {
+			t.Fatalf("decode mock extension record: %v\nline:\n%s", err, line)
+		}
+		records = append(records, payload)
+	}
+	return records
+}
+
+func assertMockExtensionRecordKinds(t *testing.T, records []map[string]any, wantKinds ...string) {
+	t.Helper()
+
+	kinds := make([]string, 0, len(records))
+	for _, record := range records {
+		kind, _ := record["type"].(string)
+		kinds = append(kinds, kind)
+	}
+	for _, want := range wantKinds {
+		if !slices.Contains(kinds, want) {
+			t.Fatalf("expected mock extension records to include %q, got %v", want, kinds)
+		}
+	}
 }
