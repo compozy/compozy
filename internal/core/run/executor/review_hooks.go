@@ -318,7 +318,7 @@ func (j *jobExecutionContext) emitProviderCallCompleted(
 }
 
 func (j *jobExecutionContext) lookupReviewProvider() (provider.Provider, error) {
-	registry := reviewProviderRegistry()
+	registry := provider.ResolveRegistry(reviewProviderRegistry())
 	return registry.Get(j.cfg.Provider)
 }
 

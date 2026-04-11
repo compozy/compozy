@@ -65,14 +65,16 @@ type retryConfig struct {
 }
 
 type commandStateCallbacks struct {
-	isInteractive        func() bool
-	collectForm          func(*cobra.Command, *commandState) error
-	listBundledSkills    func() ([]setup.Skill, error)
-	verifyBundledSkills  func(setup.VerifyConfig) (setup.VerifyResult, error)
-	installBundledSkills func(setup.InstallConfig) (*setup.Result, error)
-	confirmSkillRefresh  func(*cobra.Command, skillRefreshPrompt) (bool, error)
-	fetchReviewsFn       func(context.Context, core.Config) (*core.FetchResult, error)
-	runWorkflow          func(context.Context, core.Config) error
+	isInteractive          func() bool
+	collectForm            func(*cobra.Command, *commandState) error
+	listBundledSkills      func() ([]setup.Skill, error)
+	verifyBundledSkills    func(setup.VerifyConfig) (setup.VerifyResult, error)
+	installBundledSkills   func(setup.InstallConfig) (*setup.Result, error)
+	verifyExtensionSkills  func(setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error)
+	installExtensionSkills func(setup.ExtensionInstallConfig) (*setup.ExtensionResult, error)
+	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
+	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
+	runWorkflow            func(context.Context, core.Config) error
 }
 
 type commandState struct {
@@ -97,14 +99,16 @@ type commandStateDefaults struct {
 func defaultCommandStateDefaults() commandStateDefaults {
 	return commandStateDefaults{
 		commandStateCallbacks: commandStateCallbacks{
-			isInteractive:        isInteractiveTerminal,
-			collectForm:          collectFormParams,
-			listBundledSkills:    setup.ListBundledSkills,
-			verifyBundledSkills:  setup.VerifyBundledSkills,
-			installBundledSkills: setup.InstallBundledSkills,
-			confirmSkillRefresh:  confirmSkillRefreshPrompt,
-			fetchReviewsFn:       core.FetchReviews,
-			runWorkflow:          core.Run,
+			isInteractive:          isInteractiveTerminal,
+			collectForm:            collectFormParams,
+			listBundledSkills:      setup.ListBundledSkills,
+			verifyBundledSkills:    setup.VerifyBundledSkills,
+			installBundledSkills:   setup.InstallBundledSkills,
+			verifyExtensionSkills:  setup.VerifyExtensionSkillPacks,
+			installExtensionSkills: setup.InstallExtensionSkillPacks,
+			confirmSkillRefresh:    confirmSkillRefreshPrompt,
+			fetchReviewsFn:         core.FetchReviews,
+			runWorkflow:            core.Run,
 		},
 	}
 }
@@ -126,6 +130,12 @@ func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
 	}
 	if result.installBundledSkills == nil {
 		result.installBundledSkills = builtin.installBundledSkills
+	}
+	if result.verifyExtensionSkills == nil {
+		result.verifyExtensionSkills = builtin.verifyExtensionSkills
+	}
+	if result.installExtensionSkills == nil {
+		result.installExtensionSkills = builtin.installExtensionSkills
 	}
 	if result.confirmSkillRefresh == nil {
 		result.confirmSkillRefresh = builtin.confirmSkillRefresh

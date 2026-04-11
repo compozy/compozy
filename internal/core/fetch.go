@@ -41,7 +41,7 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		return nil, err
 	}
 
-	registry := defaultProviderRegistry()
+	registry := provider.ResolveRegistry(defaultProviderRegistry())
 	reviewProvider, err := registry.Get(cfg.Provider)
 	if err != nil {
 		return nil, err

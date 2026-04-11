@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 
 	extensions "github.com/compozy/compozy/internal/core/extension"
+	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
 
@@ -43,7 +45,7 @@ func runDoctorCommand(cmd *cobra.Command, deps commandDeps) error {
 		return err
 	}
 
-	report := buildDoctorReport(ctx, result)
+	report := buildDoctorReport(ctx, result, buildResolverOptions(env))
 	output := renderDoctorReport(report)
 	if _, err := io.WriteString(cmd.OutOrStdout(), output); err != nil {
 		return fmt.Errorf("write extension doctor report: %w", err)
@@ -54,13 +56,12 @@ func runDoctorCommand(cmd *cobra.Command, deps commandDeps) error {
 	return nil
 }
 
-func buildDoctorReport(ctx context.Context, result extensions.DiscoveryResult) doctorReport {
-	report := doctorReport{
-		Infos: []string{
-			"Skill-pack drift check is not implemented yet (task 13 placeholder).",
-			"Provider overlay drift check is not implemented yet (task 13 placeholder).",
-		},
-	}
+func buildDoctorReport(
+	ctx context.Context,
+	result extensions.DiscoveryResult,
+	resolver setup.ResolverOptions,
+) doctorReport {
+	report := doctorReport{}
 
 	for _, failure := range result.Failures {
 		report.Errors = append(
@@ -81,9 +82,16 @@ func buildDoctorReport(ctx context.Context, result extensions.DiscoveryResult) d
 		report.Warnings = append(report.Warnings, unusedCapabilityWarnings(entry)...)
 	}
 
+	report.Warnings = append(report.Warnings, providerConflictWarnings(result.Extensions, result.Providers)...)
 	report.Warnings = append(report.Warnings, priorityTieWarnings(result.Extensions)...)
+	report.Warnings = append(report.Warnings, skillPackDriftWarnings(result.SkillPacks.Packs, resolver)...)
+	report.Infos = append(report.Infos, overrideInfos(result.Overrides)...)
 	slices.Sort(report.Errors)
 	slices.Sort(report.Warnings)
+	slices.Sort(report.Infos)
+	if len(report.Infos) == 0 {
+		report.Infos = append(report.Infos, "No extension override or drift issues detected.")
+	}
 	return report
 }
 
@@ -231,5 +239,162 @@ func uniqueSortedStrings(values []string) []string {
 		result = append(result, value)
 	}
 	slices.Sort(result)
+	return result
+}
+
+func buildResolverOptions(env commandEnv) setup.ResolverOptions {
+	return setup.ResolverOptions{
+		CWD:             env.workspaceRoot,
+		HomeDir:         env.homeDir,
+		CodeXHome:       strings.TrimSpace(os.Getenv("CODEX_HOME")),
+		ClaudeConfigDir: strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")),
+		XDGConfigHome:   strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")),
+	}
+}
+
+func overrideInfos(records []extensions.OverrideRecord) []string {
+	infos := make([]string, 0, len(records))
+	for i := range records {
+		record := &records[i]
+		infos = append(infos, fmt.Sprintf(
+			"extension %q from %s overrides %s declaration from %s (%s)",
+			record.Name,
+			record.Winner.Source,
+			record.Loser.Source,
+			record.Loser.ManifestPath,
+			record.Reason,
+		))
+	}
+	return infos
+}
+
+func providerConflictWarnings(
+	entries []extensions.DiscoveredExtension,
+	providers extensions.DeclaredProviders,
+) []string {
+	enabled := enabledExtensionNames(entries)
+	conflicts := make([]string, 0)
+	conflicts = append(conflicts, appendProviderConflictWarnings("ide", providers.IDE, enabled)...)
+	conflicts = append(conflicts, appendProviderConflictWarnings("review", providers.Review, enabled)...)
+	conflicts = append(conflicts, appendProviderConflictWarnings("model", providers.Model, enabled)...)
+	return conflicts
+}
+
+func enabledExtensionNames(entries []extensions.DiscoveredExtension) map[string]struct{} {
+	enabled := make(map[string]struct{}, len(entries))
+	for i := range entries {
+		entry := &entries[i]
+		if !entry.Enabled {
+			continue
+		}
+		enabled[entry.Ref.Name] = struct{}{}
+	}
+	return enabled
+}
+
+func appendProviderConflictWarnings(
+	category string,
+	providers []extensions.DeclaredProvider,
+	enabled map[string]struct{},
+) []string {
+	grouped := make(map[string][]string)
+	for _, declared := range providers {
+		if _, ok := enabled[declared.Extension.Name]; !ok {
+			continue
+		}
+		name := strings.TrimSpace(strings.ToLower(declared.Name))
+		grouped[name] = append(grouped[name], declared.Extension.Name)
+	}
+
+	warnings := make([]string, 0)
+	for name, owners := range grouped {
+		owners = uniqueSortedStrings(owners)
+		if len(owners) < 2 {
+			continue
+		}
+		warnings = append(
+			warnings,
+			fmt.Sprintf(
+				"provider overlay conflict on %s provider %q across %s",
+				category,
+				name,
+				strings.Join(owners, ", "),
+			),
+		)
+	}
+	return warnings
+}
+
+func skillPackDriftWarnings(
+	packs []extensions.DeclaredSkillPack,
+	resolver setup.ResolverOptions,
+) []string {
+	if len(packs) == 0 {
+		return nil
+	}
+
+	agents, err := setup.DetectInstalledAgents(resolver)
+	if err != nil {
+		return []string{fmt.Sprintf("extension skill drift check skipped: %v", err)}
+	}
+	if len(agents) == 0 {
+		return []string{"extension skill drift check skipped: no supported agents detected"}
+	}
+
+	warnings := make([]string, 0)
+	for _, agent := range agents {
+		result, err := setup.VerifyExtensionSkillPacks(setup.ExtensionVerifyConfig{
+			ResolverOptions: resolver,
+			Packs:           toSetupSkillPackSources(packs),
+			AgentName:       agent.Name,
+		})
+		if err != nil {
+			warnings = append(
+				warnings,
+				fmt.Sprintf("extension skill drift check failed for %s: %v", agent.DisplayName, err),
+			)
+			continue
+		}
+		if !result.HasMissing() && !result.HasDrift() {
+			continue
+		}
+
+		parts := make([]string, 0, 2)
+		if result.HasMissing() {
+			parts = append(parts, "missing "+strings.Join(result.MissingSkillNames(), ", "))
+		}
+		if result.HasDrift() {
+			parts = append(parts, "drifted "+strings.Join(result.DriftedSkillNames(), ", "))
+		}
+		warnings = append(
+			warnings,
+			fmt.Sprintf(
+				"extension skill-pack drift for %s (%s scope): %s",
+				result.Agent.DisplayName,
+				result.Scope,
+				strings.Join(parts, "; "),
+			),
+		)
+	}
+	return warnings
+}
+
+func toSetupSkillPackSources(packs []extensions.DeclaredSkillPack) []setup.SkillPackSource {
+	if len(packs) == 0 {
+		return nil
+	}
+
+	result := make([]setup.SkillPackSource, 0, len(packs))
+	for i := range packs {
+		pack := &packs[i]
+		result = append(result, setup.SkillPackSource{
+			ExtensionName: pack.Extension.Name,
+			ManifestPath:  pack.ManifestPath,
+			Pattern:       pack.Pattern,
+			ResolvedPath:  pack.ResolvedPath,
+			SourceFS:      pack.SourceFS,
+			SourceDir:     pack.SourceDir,
+		})
+	}
 	return result
 }

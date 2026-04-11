@@ -1,6 +1,8 @@
 package extension
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -38,6 +40,61 @@ func TestDoctorWarnsOnUnusedTasksCreateCapability(t *testing.T) {
 	}
 	if !strings.Contains(output, `extension "unused-tasks-create" declares capability "tasks.create"`) {
 		t.Fatalf("expected unused capability warning\noutput:\n%s", output)
+	}
+}
+
+func TestDoctorWarnsOnReviewProviderOverlayConflict(t *testing.T) {
+	deps := newTestDeps(t)
+
+	alpha := manifestFixture("alpha-review")
+	alpha.Security.Capabilities = []extensions.Capability{extensions.CapabilityProvidersRegister}
+	alpha.Providers.Review = []extensions.ProviderEntry{{Name: "shared-review", Command: "base-review"}}
+	writeManifestJSON(t, userExtensionDir(deps.homeDir, "alpha-review"), alpha)
+	enableUserExtension(t, deps.homeDir, "alpha-review")
+
+	beta := manifestFixture("beta-review")
+	beta.Security.Capabilities = []extensions.Capability{extensions.CapabilityProvidersRegister}
+	beta.Providers.Review = []extensions.ProviderEntry{{Name: "shared-review", Command: "base-review"}}
+	writeManifestJSON(t, userExtensionDir(deps.homeDir, "beta-review"), beta)
+	enableUserExtension(t, deps.homeDir, "beta-review")
+
+	output, err := executeExtCommand(t, deps, "doctor")
+	if err != nil {
+		t.Fatalf("execute ext doctor: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(
+		output,
+		`provider overlay conflict on review provider "shared-review" across alpha-review, beta-review`,
+	) {
+		t.Fatalf("expected review provider conflict warning\noutput:\n%s", output)
+	}
+}
+
+func TestDoctorWarnsOnExtensionSkillPackDrift(t *testing.T) {
+	deps := newTestDeps(t)
+
+	if err := os.MkdirAll(filepath.Join(deps.homeDir, ".codex"), 0o755); err != nil {
+		t.Fatalf("mkdir codex config dir: %v", err)
+	}
+
+	manifest := manifestFixture("skills-ext")
+	manifest.Security.Capabilities = []extensions.Capability{extensions.CapabilitySkillsShip}
+	manifest.Resources.Skills = []string{"skills/*"}
+	extensionDir := workspaceExtensionDir(deps.workspaceRoot, "skills-ext")
+	writeManifestJSON(t, extensionDir, manifest)
+	writeTestFile(
+		t,
+		filepath.Join(extensionDir, "skills", "ext-pack", "SKILL.md"),
+		"---\nname: ext-pack\ndescription: Extension skill\n---\n",
+	)
+	enableWorkspaceExtension(t, deps.homeDir, deps.workspaceRoot, "skills-ext")
+
+	output, err := executeExtCommand(t, deps, "doctor")
+	if err != nil {
+		t.Fatalf("execute ext doctor: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, "extension skill-pack drift for Codex (unknown scope): missing ext-pack") {
+		t.Fatalf("expected extension skill-pack drift warning\noutput:\n%s", output)
 	}
 }
 

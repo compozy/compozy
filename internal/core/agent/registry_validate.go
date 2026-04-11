@@ -187,12 +187,11 @@ func hasConfiguredAddDirs(addDirs []string) bool {
 }
 
 func supportedAddDirIDEs() []string {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
+	snapshot := currentCatalogSnapshot()
 
-	ides := make([]string, 0, len(supportedRegistryIDEOrder))
-	for _, ide := range supportedRegistryIDEOrder {
-		spec, ok := registry[ide]
+	ides := make([]string, 0, len(snapshot.order))
+	for _, ide := range snapshot.order {
+		spec, ok := snapshot.specs[ide]
 		if !ok || !spec.SupportsAddDirs {
 			continue
 		}
@@ -202,8 +201,9 @@ func supportedAddDirIDEs() []string {
 }
 
 func quotedSupportedIDEs() string {
-	items := make([]string, 0, len(supportedRegistryIDEOrder))
-	for _, ide := range supportedRegistryIDEOrder {
+	snapshot := currentCatalogSnapshot()
+	items := make([]string, 0, len(snapshot.order))
+	for _, ide := range snapshot.order {
 		items = append(items, fmt.Sprintf("%q", ide))
 	}
 	return strings.Join(items, ", ")

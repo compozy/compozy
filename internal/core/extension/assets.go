@@ -30,6 +30,8 @@ type DeclaredSkillPack struct {
 	ManifestPath string
 	Pattern      string
 	ResolvedPath string
+	SourceFS     fs.FS
+	SourceDir    string
 }
 
 // DeclaredSkillPacks contains the resolved skill-pack inventory.
@@ -81,6 +83,8 @@ func ExtractDeclaredSkillPacks(entries []DiscoveredExtension) DeclaredSkillPacks
 					ManifestPath: entry.ManifestPath,
 					Pattern:      pattern,
 					ResolvedPath: resolvedPath,
+					SourceFS:     entry.skillSourceFS(),
+					SourceDir:    entry.skillSourceDir(resolvedPath),
 				})
 			}
 		}
@@ -159,4 +163,22 @@ func (e DiscoveredExtension) resolveSkillPattern(pattern string) []string {
 		resolved = append(resolved, path.Join(e.ExtensionDir, relative))
 	}
 	return resolved
+}
+
+func (e DiscoveredExtension) skillSourceFS() fs.FS {
+	if e.diskRoot != "" {
+		return nil
+	}
+	return e.rootFS
+}
+
+func (e DiscoveredExtension) skillSourceDir(resolvedPath string) string {
+	if e.diskRoot != "" {
+		return filepath.Base(filepath.Clean(resolvedPath))
+	}
+	if e.fsBase == "" {
+		return ""
+	}
+	virtualDir := strings.TrimPrefix(strings.TrimPrefix(resolvedPath, e.ExtensionDir), "/")
+	return path.Join(e.fsBase, virtualDir)
 }
