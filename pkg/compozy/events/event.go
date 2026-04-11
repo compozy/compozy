@@ -45,6 +45,9 @@ const (
 	EventKindSessionCompleted EventKind = "session.completed"
 	EventKindSessionFailed    EventKind = "session.failed"
 
+	// Reusable-agent lifecycle events.
+	EventKindReusableAgentLifecycle EventKind = "reusable_agent.lifecycle"
+
 	// Tool call events.
 	EventKindToolCallStarted EventKind = "tool_call.started"
 	EventKindToolCallUpdated EventKind = "tool_call.updated"
@@ -57,6 +60,14 @@ const (
 	// Task mutation events.
 	EventKindTaskFileUpdated       EventKind = "task.file_updated"
 	EventKindTaskMetadataRefreshed EventKind = "task.metadata_refreshed"
+	EventKindTaskMemoryUpdated     EventKind = "task.memory_updated"
+
+	// Artifact and extension events.
+	EventKindArtifactUpdated EventKind = "artifact.updated"
+	EventKindExtensionLoaded EventKind = "extension.loaded"
+	EventKindExtensionReady  EventKind = "extension.ready"
+	EventKindExtensionFailed EventKind = "extension.failed"
+	EventKindExtensionEvent  EventKind = "extension.event"
 
 	// Review mutation events.
 	EventKindReviewStatusFinalized EventKind = "review.status_finalized"

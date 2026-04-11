@@ -1,0 +1,9 @@
+{
+    "name": "__PACKAGE_NAME__",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "node --check ./bin/review-provider.mjs",
+        "test": "node --test ./test/*.test.js"
+    }
+}

@@ -89,6 +89,9 @@ func TestReviewsFetchFromConfigMapsLegacyFields(t *testing.T) {
 	if cmd.PR != cfg.PR {
 		t.Fatalf("unexpected pr: %q", cmd.PR)
 	}
+	if cmd.Nitpicks != cfg.Nitpicks {
+		t.Fatalf("unexpected nitpicks: %t", cmd.Nitpicks)
+	}
 }
 
 func TestReviewsFetchCommandCoreConfigMapsFields(t *testing.T) {
@@ -100,11 +103,15 @@ func TestReviewsFetchCommandCoreConfigMapsFields(t *testing.T) {
 		Round:         3,
 		Provider:      "coderabbit",
 		PR:            "259",
+		Nitpicks:      true,
 	}
 	cfg := cmd.CoreConfig()
 
 	if cfg.WorkspaceRoot != cmd.WorkspaceRoot || cfg.Name != cmd.Name || cfg.Round != cmd.Round {
 		t.Fatalf("unexpected fetch config: %#v", cfg)
+	}
+	if cfg.Nitpicks != cmd.Nitpicks {
+		t.Fatalf("unexpected fetch nitpicks flag: %t", cfg.Nitpicks)
 	}
 }
 
@@ -315,6 +322,9 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 	if got.PR != want.PR {
 		t.Fatalf("unexpected pr: %q", got.PR)
 	}
+	if got.Nitpicks != want.Nitpicks {
+		t.Fatalf("unexpected nitpicks: %t", got.Nitpicks)
+	}
 	if got.ReviewsDir != want.ReviewsDir {
 		t.Fatalf("unexpected reviews dir: %q", got.ReviewsDir)
 	}
@@ -359,6 +369,12 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 	if got.AccessMode != want.AccessMode {
 		t.Fatalf("unexpected access mode: %q", got.AccessMode)
 	}
+	if got.AgentName != want.AgentName {
+		t.Fatalf("unexpected agent name: %q", got.AgentName)
+	}
+	if got.ExplicitRuntime != want.ExplicitRuntime {
+		t.Fatalf("unexpected explicit runtime flags: %#v", got.ExplicitRuntime)
+	}
 	if got.Mode != model.ExecutionMode(want.Mode) {
 		t.Fatalf("unexpected mode: %q", got.Mode)
 	}
@@ -373,6 +389,9 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 	}
 	if got.Persist != want.Persist {
 		t.Fatalf("unexpected persist: %v", got.Persist)
+	}
+	if got.EnableExecutableExtensions != want.EnableExecutableExtensions {
+		t.Fatalf("unexpected executable extensions flag: %v", got.EnableExecutableExtensions)
 	}
 	if got.RunID != want.RunID {
 		t.Fatalf("unexpected run id: %q", got.RunID)
@@ -408,6 +427,7 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 
 func testCoreConfig() core.Config {
 	return core.Config{
+<<<<<<< HEAD
 		WorkspaceRoot:          "/workspace",
 		Name:                   "demo",
 		Round:                  7,
@@ -441,5 +461,43 @@ func testCoreConfig() core.Config {
 		Timeout:                90 * time.Second,
 		MaxRetries:             4,
 		RetryBackoffMultiplier: 2.5,
+=======
+		WorkspaceRoot:              "/workspace",
+		Name:                       "demo",
+		Round:                      7,
+		Provider:                   "coderabbit",
+		PR:                         "259",
+		Nitpicks:                   true,
+		ReviewsDir:                 "/workspace/.compozy/tasks/demo/reviews-007",
+		TasksDir:                   "/workspace/.compozy/tasks/demo",
+		DryRun:                     true,
+		AutoCommit:                 true,
+		Concurrent:                 2,
+		BatchSize:                  1,
+		IDE:                        core.IDECodex,
+		Model:                      "gpt-5.4",
+		AddDirs:                    []string{"docs", "src"},
+		TailLines:                  25,
+		ReasoningEffort:            "high",
+		AccessMode:                 core.AccessModeFull,
+		AgentName:                  "planner",
+		ExplicitRuntime:            model.ExplicitRuntimeFlags{Model: true, AccessMode: true},
+		Mode:                       core.ModePRDTasks,
+		OutputFormat:               core.OutputFormatText,
+		Verbose:                    true,
+		TUI:                        true,
+		Persist:                    true,
+		EnableExecutableExtensions: true,
+		RunID:                      "run-123",
+		PromptText:                 "prompt text",
+		PromptFile:                 "prompt.md",
+		ReadPromptStdin:            true,
+		ResolvedPromptText:         "resolved prompt text",
+		IncludeCompleted:           true,
+		IncludeResolved:            true,
+		Timeout:                    90 * time.Second,
+		MaxRetries:                 4,
+		RetryBackoffMultiplier:     2.5,
+>>>>>>> compozy/main
 	}
 }

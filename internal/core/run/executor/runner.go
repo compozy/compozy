@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"time"
+
+	"github.com/compozy/compozy/internal/core/model"
 )
 
 type jobRunner struct {
@@ -26,6 +28,17 @@ func newJobRunner(index int, jb *job, execCtx *jobExecutionContext) *jobRunner {
 
 func (r *jobRunner) run(ctx context.Context) {
 	r.lifecycle.schedule()
+	if err := r.dispatchPreExecuteHook(ctx); err != nil {
+		r.lifecycle.markGiveUp(failInfo{
+			CodeFile: r.job.CodeFileLabel(),
+			ExitCode: -1,
+			OutLog:   r.job.OutLog,
+			ErrLog:   r.job.ErrLog,
+			Err:      fmt.Errorf("dispatch job.pre_execute: %w", err),
+		})
+		return
+	}
+	defer r.dispatchPostExecuteHook(ctx)
 	if r.execCtx.cfg.DryRun {
 		r.lifecycle.markSuccess()
 		return
@@ -55,8 +68,12 @@ func (r *jobRunner) run(ctx context.Context) {
 			r.lifecycle.markSuccess()
 			return
 		}
-		nextTimeout, continueLoop := r.handleResult(attempt, maxAttempts, timeout, result)
+		nextTimeout, retryDelay, continueLoop := r.handleResult(ctx, attempt, maxAttempts, timeout, result)
 		if !continueLoop {
+			return
+		}
+		if retryDelay > 0 && !r.waitForRetry(ctx, retryDelay) {
+			r.lifecycle.markCanceled(exitCodeCanceled)
 			return
 		}
 		timeout = nextTimeout
@@ -68,28 +85,42 @@ func (r *jobRunner) runPostSuccessHook(ctx context.Context) error {
 }
 
 func (r *jobRunner) handleResult(
+	ctx context.Context,
 	attempt int,
 	attempts int,
 	timeout time.Duration,
 	result jobAttemptResult,
-) (time.Duration, bool) {
+) (time.Duration, time.Duration, bool) {
 	if result.Successful() {
 		r.lifecycle.markSuccess()
-		return timeout, false
+		return timeout, 0, false
 	}
 	if result.IsCanceled() {
 		r.lifecycle.markCanceled(result.ExitCode)
-		return timeout, false
+		return timeout, 0, false
 	}
 	if !result.NeedsRetry() || attempt == attempts {
 		r.lifecycle.markGiveUp(r.ensureFailure(result, "job failed"))
-		return timeout, false
+		return timeout, 0, false
+	}
+	retryDecision, err := r.dispatchPreRetryHook(ctx, attempt, result)
+	if err != nil {
+		failure := r.ensureFailure(result, "job failed")
+		failure.Err = errors.Join(failure.Err, fmt.Errorf("dispatch job.pre_retry: %w", err))
+		r.lifecycle.markGiveUp(failure)
+		return timeout, 0, false
+	}
+	if retryDecision.Proceed != nil && !*retryDecision.Proceed {
+		failure := r.ensureFailure(result, "job failed")
+		failure.Err = errors.New("retry canceled by extension")
+		r.lifecycle.markGiveUp(failure)
+		return timeout, 0, false
 	}
 	nextTimeout := r.nextTimeout(timeout)
 	nextAttempt := attempt + 1
 	r.lifecycle.markRetry(r.ensureFailure(result, "retrying job"), nextAttempt, attempts)
 	r.logRetry(nextAttempt, attempts, nextTimeout)
-	return nextTimeout, true
+	return nextTimeout, time.Duration(retryDecision.DelayMS) * time.Millisecond, true
 }
 
 func (r *jobRunner) ensureFailure(result jobAttemptResult, fallback string) failInfo {
@@ -150,4 +181,85 @@ func (r *jobRunner) logRetry(attempt int, maxAttempts int, timeout time.Duration
 		maxAttempts,
 		timeout,
 	)
+}
+
+func (r *jobRunner) dispatchPreExecuteHook(ctx context.Context) error {
+	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+		return nil
+	}
+
+	payload, err := model.DispatchMutableHook(
+		ctx,
+		r.execCtx.cfg.RuntimeManager,
+		"job.pre_execute",
+		jobPreExecutePayload{
+			RunID: r.execCtx.cfg.RunArtifacts.RunID,
+			Job:   hookModelJob(r.job),
+		},
+	)
+	if err != nil {
+		return err
+	}
+	applyHookModelJob(r.job, payload.Job)
+	return nil
+}
+
+func (r *jobRunner) dispatchPostExecuteHook(ctx context.Context) {
+	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+		return
+	}
+
+	model.DispatchObserverHook(
+		ctx,
+		r.execCtx.cfg.RuntimeManager,
+		"job.post_execute",
+		jobPostExecutePayload{
+			RunID:  r.execCtx.cfg.RunArtifacts.RunID,
+			Job:    hookModelJob(r.job),
+			Result: r.hookJobResult(),
+		},
+	)
+}
+
+func (r *jobRunner) dispatchPreRetryHook(
+	ctx context.Context,
+	attempt int,
+	result jobAttemptResult,
+) (jobPreRetryPayload, error) {
+	if r == nil || r.execCtx == nil || r.execCtx.cfg == nil {
+		return jobPreRetryPayload{}, nil
+	}
+
+	failure := r.ensureFailure(result, "job failed")
+	payload, err := model.DispatchMutableHook(
+		ctx,
+		r.execCtx.cfg.RuntimeManager,
+		"job.pre_retry",
+		jobPreRetryPayload{
+			RunID:     r.execCtx.cfg.RunArtifacts.RunID,
+			Job:       hookModelJob(r.job),
+			Attempt:   attempt,
+			LastError: failure.Err.Error(),
+		},
+	)
+	if err != nil {
+		return jobPreRetryPayload{}, err
+	}
+	return payload, nil
+}
+
+func (r *jobRunner) waitForRetry(ctx context.Context, delay time.Duration) bool {
+	if delay <= 0 {
+		return true
+	}
+
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }

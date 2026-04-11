@@ -1,6 +1,7 @@
 package prompt
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -15,30 +16,144 @@ import (
 )
 
 type BatchParams struct {
-	Name            string
-	Round           int
-	Provider        string
-	PR              string
-	ReviewsDir      string
-	BatchGroups     map[string][]model.IssueEntry
-	AutoCommit      bool
-	CloseOnComplete bool
-	Mode            model.ExecutionMode
-	Memory          *WorkflowMemoryContext
+	Name            string                        `json:"name,omitempty"`
+	Round           int                           `json:"round,omitempty"`
+	Provider        string                        `json:"provider,omitempty"`
+	PR              string                        `json:"pr,omitempty"`
+	ReviewsDir      string                        `json:"reviews_dir,omitempty"`
+	BatchGroups     map[string][]model.IssueEntry `json:"batch_groups,omitempty"`
+	AutoCommit      bool                          `json:"auto_commit,omitempty"`
+	CloseOnComplete bool                          `json:"close_on_complete,omitempty"`
+	Mode            model.ExecutionMode           `json:"mode,omitempty"`
+	Memory          *WorkflowMemoryContext        `json:"memory,omitempty"`
+	Context         context.Context               `json:"-"`
+	RunID           string                        `json:"-"`
+	JobID           string                        `json:"-"`
+	RuntimeMgr      model.RuntimeManager          `json:"-"`
 }
 
-func Build(p BatchParams) string {
+type promptPreBuildPayload struct {
+	RunID       string      `json:"run_id"`
+	JobID       string      `json:"job_id"`
+	BatchParams BatchParams `json:"batch_params"`
+}
+
+type promptPostBuildPayload struct {
+	RunID       string      `json:"run_id"`
+	JobID       string      `json:"job_id"`
+	PromptText  string      `json:"prompt_text"`
+	BatchParams BatchParams `json:"batch_params"`
+}
+
+type promptPreSystemPayload struct {
+	RunID          string      `json:"run_id"`
+	JobID          string      `json:"job_id"`
+	SystemAddendum string      `json:"system_addendum"`
+	BatchParams    BatchParams `json:"batch_params"`
+}
+
+func Build(p BatchParams) (string, error) {
+	p, err := dispatchPromptPreBuild(p)
+	if err != nil {
+		return "", err
+	}
+
+	var rendered string
 	if p.Mode == model.ExecutionModePRDTasks {
-		return buildPRDTasksPrompt(p)
+		rendered = buildPRDTasksPrompt(p)
+	} else {
+		rendered = buildCodeReviewPrompt(p)
 	}
-	return buildCodeReviewPrompt(p)
+	return dispatchPromptPostBuild(p, rendered)
 }
 
-func BuildSystemPromptAddendum(p BatchParams) string {
+func BuildSystemPromptAddendum(p BatchParams) (string, error) {
 	if p.Mode != model.ExecutionModePRDTasks {
-		return ""
+		return "", nil
 	}
-	return buildPRDSystemPromptAddendum(p.Memory)
+
+	addendum := buildPRDSystemPromptAddendum(p.Memory)
+	return dispatchPromptPreSystem(p, addendum)
+}
+
+func (p BatchParams) withHookContextFrom(src BatchParams) BatchParams {
+	p.Context = src.Context
+	p.RunID = src.RunID
+	p.JobID = src.JobID
+	p.RuntimeMgr = src.RuntimeMgr
+	return p
+}
+
+func dispatchPromptPreBuild(p BatchParams) (BatchParams, error) {
+	if p.RuntimeMgr == nil {
+		return p, nil
+	}
+
+	payload, err := model.DispatchMutableHook(
+		p.context(),
+		p.RuntimeMgr,
+		"prompt.pre_build",
+		promptPreBuildPayload{
+			RunID:       p.RunID,
+			JobID:       p.JobID,
+			BatchParams: p,
+		},
+	)
+	if err != nil {
+		return BatchParams{}, err
+	}
+	return payload.BatchParams.withHookContextFrom(p), nil
+}
+
+func dispatchPromptPostBuild(p BatchParams, promptText string) (string, error) {
+	if p.RuntimeMgr == nil {
+		return promptText, nil
+	}
+
+	payload, err := model.DispatchMutableHook(
+		p.context(),
+		p.RuntimeMgr,
+		"prompt.post_build",
+		promptPostBuildPayload{
+			RunID:       p.RunID,
+			JobID:       p.JobID,
+			PromptText:  promptText,
+			BatchParams: p,
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+	return payload.PromptText, nil
+}
+
+func dispatchPromptPreSystem(p BatchParams, systemAddendum string) (string, error) {
+	if p.RuntimeMgr == nil {
+		return systemAddendum, nil
+	}
+
+	payload, err := model.DispatchMutableHook(
+		p.context(),
+		p.RuntimeMgr,
+		"prompt.pre_system",
+		promptPreSystemPayload{
+			RunID:          p.RunID,
+			JobID:          p.JobID,
+			SystemAddendum: systemAddendum,
+			BatchParams:    p,
+		},
+	)
+	if err != nil {
+		return "", err
+	}
+	return payload.SystemAddendum, nil
+}
+
+func (p BatchParams) context() context.Context {
+	if p.Context != nil {
+		return p.Context
+	}
+	return context.Background()
 }
 
 func FlattenAndSortIssues(groups map[string][]model.IssueEntry, mode model.ExecutionMode) []model.IssueEntry {

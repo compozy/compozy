@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "sourceMap": true,
+        "declaration": true,
+        "declarationMap": true,
+        "noUncheckedIndexedAccess": true,
+        "moduleDetection": "force",
+        "verbatimModuleSyntax": true,
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true
+    }
+}

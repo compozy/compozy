@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -13,6 +14,7 @@ import (
 type Spec struct {
 	ID                 string
 	DisplayName        string
+	SetupAgentName     string
 	DefaultModel       string
 	Command            string
 	FixedArgs          []string
@@ -83,6 +85,7 @@ var (
 		model.IDEClaude: {
 			ID:              model.IDEClaude,
 			DisplayName:     "Claude",
+			SetupAgentName:  "claude-code",
 			DefaultModel:    model.DefaultClaudeModel,
 			Command:         "claude-agent-acp",
 			SupportsAddDirs: true,
@@ -102,6 +105,7 @@ var (
 		model.IDECodex: {
 			ID:              model.IDECodex,
 			DisplayName:     "Codex",
+			SetupAgentName:  "codex",
 			DefaultModel:    model.DefaultCodexModel,
 			Command:         "codex-acp",
 			SupportsAddDirs: true,
@@ -125,12 +129,13 @@ var (
 			},
 		},
 		model.IDEDroid: {
-			ID:           model.IDEDroid,
-			DisplayName:  "Droid",
-			DefaultModel: model.DefaultCodexModel,
-			Command:      "droid",
-			FixedArgs:    []string{"exec", "--output-format", "acp"},
-			ProbeArgs:    []string{"exec", "--help"},
+			ID:             model.IDEDroid,
+			DisplayName:    "Droid",
+			SetupAgentName: "droid",
+			DefaultModel:   model.DefaultCodexModel,
+			Command:        "droid",
+			FixedArgs:      []string{"exec", "--output-format", "acp"},
+			ProbeArgs:      []string{"exec", "--help"},
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
@@ -155,36 +160,39 @@ var (
 			},
 		},
 		model.IDECursor: {
-			ID:           model.IDECursor,
-			DisplayName:  "Cursor",
-			DefaultModel: model.DefaultCursorModel,
-			Command:      "cursor-agent",
-			FixedArgs:    []string{"acp"},
-			ProbeArgs:    []string{"acp", "--help"},
-			DocsURL:      "https://cursor.com/docs/cli/acp",
-			InstallHint:  "Install the Cursor agent CLI package and expose `cursor-agent` on PATH so `cursor-agent acp` works.",
+			ID:             model.IDECursor,
+			DisplayName:    "Cursor",
+			SetupAgentName: "cursor",
+			DefaultModel:   model.DefaultCursorModel,
+			Command:        "cursor-agent",
+			FixedArgs:      []string{"acp"},
+			ProbeArgs:      []string{"acp", "--help"},
+			DocsURL:        "https://cursor.com/docs/cli/acp",
+			InstallHint:    "Install the Cursor agent CLI package and expose `cursor-agent` on PATH so `cursor-agent acp` works.",
 			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
 		},
 		model.IDEOpenCode: {
-			ID:           model.IDEOpenCode,
-			DisplayName:  "OpenCode",
-			DefaultModel: model.DefaultOpenCodeModel,
-			Command:      "opencode",
-			FixedArgs:    []string{"acp"},
-			ProbeArgs:    []string{"acp", "--help"},
-			DocsURL:      "https://opencode.ai",
-			InstallHint:  "Install or upgrade OpenCode so the `opencode acp` subcommand is available.",
+			ID:             model.IDEOpenCode,
+			DisplayName:    "OpenCode",
+			SetupAgentName: "opencode",
+			DefaultModel:   model.DefaultOpenCodeModel,
+			Command:        "opencode",
+			FixedArgs:      []string{"acp"},
+			ProbeArgs:      []string{"acp", "--help"},
+			DocsURL:        "https://opencode.ai",
+			InstallHint:    "Install or upgrade OpenCode so the `opencode acp` subcommand is available.",
 			BootstrapArgs: func(_ string, _ string, _ []string, _ string) []string {
 				return nil
 			},
 		},
 		model.IDEPi: {
-			ID:           model.IDEPi,
-			DisplayName:  "Pi",
-			DefaultModel: model.DefaultPiModel,
-			Command:      "pi-acp",
+			ID:             model.IDEPi,
+			DisplayName:    "Pi",
+			SetupAgentName: "pi",
+			DefaultModel:   model.DefaultPiModel,
+			Command:        "pi-acp",
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
@@ -198,12 +206,13 @@ var (
 			},
 		},
 		model.IDEGemini: {
-			ID:           model.IDEGemini,
-			DisplayName:  "Gemini",
-			DefaultModel: model.DefaultGeminiModel,
-			Command:      "gemini",
-			FixedArgs:    []string{"--acp"},
-			ProbeArgs:    []string{"--acp", "--help"},
+			ID:             model.IDEGemini,
+			DisplayName:    "Gemini",
+			SetupAgentName: "gemini-cli",
+			DefaultModel:   model.DefaultGeminiModel,
+			Command:        "gemini",
+			FixedArgs:      []string{"--acp"},
+			ProbeArgs:      []string{"--acp", "--help"},
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
@@ -218,12 +227,13 @@ var (
 			},
 		},
 		model.IDECopilot: {
-			ID:           model.IDECopilot,
-			DisplayName:  "Copilot CLI",
-			DefaultModel: model.DefaultCopilotModel,
-			Command:      "copilot",
-			FixedArgs:    []string{"--acp"},
-			ProbeArgs:    []string{"--acp", "--help"},
+			ID:             model.IDECopilot,
+			DisplayName:    "Copilot CLI",
+			SetupAgentName: "github-copilot",
+			DefaultModel:   model.DefaultCopilotModel,
+			Command:        "copilot",
+			FixedArgs:      []string{"--acp"},
+			ProbeArgs:      []string{"--acp", "--help"},
 			Fallbacks: []Launcher{
 				{
 					Command:   "npx",
@@ -264,14 +274,25 @@ func DisplayName(ide string) string {
 	return spec.DisplayName
 }
 
+// SetupAgentName returns the setup/install agent identifier for one ACP runtime.
+func SetupAgentName(ide string) (string, error) {
+	spec, err := lookupAgentSpec(ide)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(spec.SetupAgentName) == "" {
+		return "", fmt.Errorf("agent runtime %q does not declare a setup agent", ide)
+	}
+	return spec.SetupAgentName, nil
+}
+
 // DriverCatalog returns the stable ACP driver catalog in the supported IDE order.
 func DriverCatalog() []DriverCatalogEntry {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
+	snapshot := currentCatalogSnapshot()
 
-	entries := make([]DriverCatalogEntry, 0, len(supportedRegistryIDEOrder))
-	for _, ide := range supportedRegistryIDEOrder {
-		spec, ok := registry[ide]
+	entries := make([]DriverCatalogEntry, 0, len(snapshot.order))
+	for _, ide := range snapshot.order {
+		spec, ok := snapshot.specs[ide]
 		if !ok {
 			continue
 		}
@@ -290,10 +311,8 @@ func DriverCatalogEntryForIDE(ide string) (DriverCatalogEntry, error) {
 }
 
 func lookupAgentSpec(ide string) (Spec, error) {
-	registryMu.RLock()
-	defer registryMu.RUnlock()
-
-	spec, ok := registry[ide]
+	snapshot := currentCatalogSnapshot()
+	spec, ok := snapshot.specs[strings.TrimSpace(strings.ToLower(ide))]
 	if !ok {
 		return Spec{}, fmt.Errorf("unknown agent runtime %q", ide)
 	}

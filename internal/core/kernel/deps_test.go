@@ -20,17 +20,25 @@ type executeCall struct {
 	cfg  *model.RuntimeConfig
 }
 
+type execCall struct {
+	cfg   *model.RuntimeConfig
+	scope model.RunScope
+}
+
 type fakeOperations struct {
 	validateCalls []*model.RuntimeConfig
+	openCalls     []*model.RuntimeConfig
+	openOptions   []model.OpenRunScopeOptions
 	prepareCalls  []*model.RuntimeConfig
 	executeCalls  []executeCall
-	execCalls     []*model.RuntimeConfig
+	execCalls     []execCall
 	fetchCalls    []core.Config
 	migrateCalls  []model.MigrationConfig
 	syncCalls     []model.SyncConfig
 	archiveCalls  []model.ArchiveConfig
 
 	validateErr error
+	openErr     error
 	prepareErr  error
 	executeErr  error
 	execErr     error
@@ -39,7 +47,10 @@ type fakeOperations struct {
 	syncErr     error
 	archiveErr  error
 
+	openResult model.RunScope
+
 	prepareResult *model.SolvePreparation
+	prepareHook   func(model.RunScope)
 	fetchResult   *model.FetchResult
 	migrateResult *model.MigrationResult
 	syncResult    *model.SyncResult
@@ -51,8 +62,31 @@ func (f *fakeOperations) ValidateRuntimeConfig(cfg *model.RuntimeConfig) error {
 	return f.validateErr
 }
 
-func (f *fakeOperations) Prepare(_ context.Context, cfg *model.RuntimeConfig) (*model.SolvePreparation, error) {
+func (f *fakeOperations) OpenRunScope(
+	_ context.Context,
+	cfg *model.RuntimeConfig,
+	opts model.OpenRunScopeOptions,
+) (model.RunScope, error) {
+	f.openCalls = append(f.openCalls, cloneRuntimeConfig(cfg))
+	f.openOptions = append(f.openOptions, opts)
+	if f.openErr != nil {
+		return nil, f.openErr
+	}
+	if f.openResult == nil {
+		return &model.BaseRunScope{}, nil
+	}
+	return f.openResult, nil
+}
+
+func (f *fakeOperations) Prepare(
+	_ context.Context,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+) (*model.SolvePreparation, error) {
 	f.prepareCalls = append(f.prepareCalls, cloneRuntimeConfig(cfg))
+	if f.prepareHook != nil {
+		f.prepareHook(scope)
+	}
 	if f.prepareErr != nil {
 		return nil, f.prepareErr
 	}
@@ -74,8 +108,15 @@ func (f *fakeOperations) Execute(
 	return f.executeErr
 }
 
-func (f *fakeOperations) ExecuteExec(_ context.Context, cfg *model.RuntimeConfig) error {
-	f.execCalls = append(f.execCalls, cloneRuntimeConfig(cfg))
+func (f *fakeOperations) ExecuteExec(
+	_ context.Context,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+) error {
+	f.execCalls = append(f.execCalls, execCall{
+		cfg:   cloneRuntimeConfig(cfg),
+		scope: scope,
+	})
 	return f.execErr
 }
 
@@ -241,6 +282,9 @@ func TestBuildDefaultDispatchesRunStartAndDelegatesToPrepareAndExecute(t *testin
 	}
 	if len(fake.prepareCalls) != 1 {
 		t.Fatalf("expected 1 prepare call, got %d", len(fake.prepareCalls))
+	}
+	if len(fake.openCalls) != 1 {
+		t.Fatalf("expected 1 open-run-scope call, got %d", len(fake.openCalls))
 	}
 	if len(fake.executeCalls) != 1 {
 		t.Fatalf("expected 1 execute call, got %d", len(fake.executeCalls))
@@ -649,6 +693,6 @@ func cloneSolvePreparation(prep *model.SolvePreparation) *model.SolvePreparation
 	}
 	cloned := *prep
 	cloned.Jobs = append([]model.Job(nil), prep.Jobs...)
-	cloned.JournalHandle = prep.JournalHandle
+	cloned.RunScope = prep.RunScope
 	return &cloned
 }

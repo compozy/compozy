@@ -5,9 +5,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/spf13/cobra"
 )
 
@@ -93,12 +96,22 @@ func TestStartFormFallsBackToInputWhenAllTaskDirsAreCompleted(t *testing.T) {
 
 	tmp := t.TempDir()
 	baseDir := filepath.Join(tmp, ".compozy", "tasks")
+	now := time.Now().UTC()
 	for _, name := range []string{"alpha", "beta"} {
 		workflowDir := filepath.Join(baseDir, name)
 		if err := os.MkdirAll(workflowDir, 0o755); err != nil {
 			t.Fatalf("create workflow dir: %v", err)
 		}
 		writeFormTaskFile(t, workflowDir, "task_01.md", "completed")
+		if err := tasks.WriteTaskMeta(workflowDir, model.TaskMeta{
+			CreatedAt: now,
+			UpdatedAt: now,
+			Total:     1,
+			Completed: 1,
+			Pending:   0,
+		}); err != nil {
+			t.Fatalf("write meta for %s: %v", name, err)
+		}
 	}
 
 	keys := formFieldKeysWithBaseDir(
@@ -130,6 +143,18 @@ func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
 	if builder.nameFromDirList {
 		t.Fatal("fetch-reviews should not use directory select")
 	}
+}
+
+func TestFetchReviewsFormIncludesNitpicksToggle(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include nitpicks toggle in the fetch-reviews form", func(t *testing.T) {
+		t.Parallel()
+
+		keys := formFieldKeys(newFetchReviewsCommand(nil), newCommandState(commandKindFetchReviews, core.ModePRReview))
+
+		assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round", "nitpicks")
+	})
 }
 
 func TestListTaskSubdirs(t *testing.T) {
@@ -211,7 +236,7 @@ func TestListTaskSubdirs(t *testing.T) {
 	})
 }
 
-func TestListStartTaskSubdirsFiltersCompletedWorkflowsAndBootstrapsMeta(t *testing.T) {
+func TestListStartTaskSubdirsFiltersCompletedWorkflows(t *testing.T) {
 	t.Parallel()
 
 	baseDir := filepath.Join(t.TempDir(), ".compozy", "tasks")
@@ -227,6 +252,20 @@ func TestListStartTaskSubdirsFiltersCompletedWorkflowsAndBootstrapsMeta(t *testi
 	writeFormTaskFile(t, pendingDir, "task_01.md", "pending")
 	writeFormTaskFile(t, completedDir, "task_01.md", "completed")
 
+	// Pre-create _meta.md for the completed workflow so ReadTaskMeta can
+	// detect it as fully done. In normal usage, _meta.md is kept current by
+	// prior compozy start runs or compozy sync.
+	now := time.Now().UTC()
+	if err := tasks.WriteTaskMeta(completedDir, model.TaskMeta{
+		CreatedAt: now,
+		UpdatedAt: now,
+		Total:     1,
+		Completed: 1,
+		Pending:   0,
+	}); err != nil {
+		t.Fatalf("write completed meta: %v", err)
+	}
+
 	dirs := listStartTaskSubdirs(baseDir)
 	want := []string{"alpha", "gamma"}
 	if len(dirs) != len(want) {
@@ -238,9 +277,11 @@ func TestListStartTaskSubdirsFiltersCompletedWorkflowsAndBootstrapsMeta(t *testi
 		}
 	}
 
-	for _, dir := range []string{pendingDir, completedDir, emptyDir} {
-		if _, err := os.Stat(filepath.Join(dir, "_meta.md")); err != nil {
-			t.Fatalf("expected bootstrapped meta in %s: %v", dir, err)
+	// Listing must NOT create _meta.md as a side effect in workflows that
+	// did not already have one.
+	for _, dir := range []string{pendingDir, emptyDir} {
+		if _, err := os.Stat(filepath.Join(dir, "_meta.md")); err == nil {
+			t.Fatalf("listing should not bootstrap _meta.md in %s", dir)
 		}
 	}
 }

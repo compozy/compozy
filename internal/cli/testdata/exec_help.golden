@@ -12,6 +12,7 @@ Usage:
 
 Examples:
   compozy exec "Summarize the current repository changes"
+  compozy exec --agent council "Decide between two designs"
   compozy exec --prompt-file prompt.md
   cat prompt.md | compozy exec --format json
   compozy exec --format raw-json "Inspect every streamed event"
@@ -21,8 +22,10 @@ Examples:
 Flags:
       --access-mode string               Runtime access policy: default keeps native safeguards; full requests the most permissive mode Compozy can configure (default "full")
       --add-dir strings                  Additional directory to allow for ACP runtimes that support extra writable roots (currently claude and codex; repeatable or comma-separated)
+      --agent string                     Reusable agent to execute from .compozy/agents or ~/.compozy/agents
       --auto-commit                      Include automatic commit instructions at task/batch completion
       --dry-run                          Only generate prompts; do not run IDE tool
+      --extensions                       Enable executable extensions for this exec run
       --format string                    Output format: text, json, or raw-json (default "text")
   -h, --help                             help for exec
       --ide string                       ACP runtime to use: claude, codex, copilot, cursor-agent, droid, gemini, opencode, or pi (requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx) (default "codex")

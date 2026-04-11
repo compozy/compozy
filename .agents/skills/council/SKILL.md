@@ -22,28 +22,30 @@ Facilitate a multi-advisor roundtable by dispatching archetype subagents, surfac
 **Step 2: Select Advisors**
 
 1. Read `references/archetypes.md` to review the full archetype catalog and selection heuristics.
-2. Select 3-5 advisors based on dilemma complexity:
+2. Treat each selected advisor as a canonical reusable agent id. The standard roster is provisioned by `compozy setup` under `~/.compozy/agents/<name>/` and can be overridden per workspace under `.compozy/agents/<name>/`.
+3. Select 3-5 advisors based on dilemma complexity:
    - **3 advisors** for binary choices or narrow trade-offs.
    - **4 advisors** for multi-factor decisions.
    - **5 advisors** for complex multi-faceted decisions.
-3. Always include `devils-advocate` when the dilemma shows signs of emerging consensus or when the user explicitly wants stress-testing.
-4. Include `the-thinker` when the problem framing itself may be the constraint (every tactic within the frame has failed, or the group is trapped in one metaphor).
-5. Announce the selected roster with a one-line justification for each advisor's inclusion.
+4. Always include `devils-advocate` when the dilemma shows signs of emerging consensus or when the user explicitly wants stress-testing.
+5. Include `the-thinker` when the problem framing itself may be the constraint (every tactic within the frame has failed, or the group is trapped in one metaphor).
+6. Announce the selected roster with a one-line justification for each advisor's inclusion.
 
 **Step 3: Dispatch Opening Statements (Parallel)**
 
-1. Dispatch all selected archetype subagents **in a single message with parallel Agent tool calls**. Each archetype subagent lives at `.claude/agents/<archetype-name>.md`.
-2. Each dispatched agent receives:
+1. Dispatch all selected archetypes through the host-owned `run_agent` tool. Use the canonical advisor ids directly (`pragmatic-engineer`, `architect-advisor`, `security-advocate`, `product-mind`, `devils-advocate`, `the-thinker`) rather than driver-specific agent paths.
+2. Run the opening statements in parallel when the runtime supports parallel tool calls.
+3. Each dispatched agent receives:
    - The confirmed dilemma and constraints from Step 1
    - The roster of other advisors (so they know who they're debating)
    - The instruction: "Deliver your opening statement (2-3 paragraphs) ending with a one-line **Key Point**."
-3. Collect all opening statements. Render them under the heading `## Opening Statements` using the format in `assets/synthesis-template.md`.
+4. Collect all opening statements. Render them under the heading `## Opening Statements` using the format in `assets/synthesis-template.md`.
 
 **Step 4: Extract Tensions and Run Rebuttals**
 
 1. Read all opening statements and identify 2-4 core disagreements between advisors. A genuine tension has Side A, Side B, and real stakes — not surface-level phrasing differences.
 2. Read `references/debate-protocols.md` to apply steel-manning, evidence-requirement, and concession rules.
-3. For each tension, dispatch the two opposing archetypes again (in parallel per tension) with the instruction: "Steel-man [opponent]'s position in 1-2 sentences, then deliver your rebuttal (1 paragraph). State whether you concede, partially concede, or hold firm, and why."
+3. For each tension, dispatch the two opposing archetypes again through `run_agent` (in parallel per tension when supported) with the instruction: "Steel-man [opponent]'s position in 1-2 sentences, then deliver your rebuttal (1 paragraph). State whether you concede, partially concede, or hold firm, and why."
 4. Record results in a tensions table with columns: Tension | Side A (Advisor) | Side B (Advisor) | Facilitator Note.
 5. Document key concessions beneath the table: who conceded what and why, who held firm and why.
 
@@ -89,6 +91,7 @@ If any dispatched archetype violates these protocols (e.g., Security Advocate ag
 ## Error Handling
 
 - **Archetype dispatch fails or returns out-of-character content**: re-dispatch with explicit protocol reminder and roster context. If failure repeats, note the failure in the synthesis and proceed with remaining advisors.
+- **`run_agent` is unavailable or the council archetypes are missing**: stop and tell the user to run `compozy setup` so the global council agents are provisioned under `~/.compozy/agents`.
 - **Fewer than 2 genuine tensions emerge**: the dilemma may be lower-stakes than assumed. Report this observation to the user and ask whether to continue with a condensed synthesis or abort the council.
 - **Consensus forms too quickly across all advisors**: add `devils-advocate` to the roster (if not already included) and re-run Step 4 against the emerging consensus.
 - **User asks for an archetype not in the standard catalog**: read `references/archetypes.md` for custom-council guidance, or propose the closest standard archetype and confirm with the user before proceeding.

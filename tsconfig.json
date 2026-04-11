@@ -1,0 +1,12 @@
+{
+    "extends": "./tsconfig.base.json",
+    "compilerOptions": {
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "noEmit": true,
+        "types": ["node"]
+    },
+    "include": ["vitest.config.ts"],
+    "exclude": [".resources/**", "**/node_modules/**", "**/dist/**", ".compozy/tasks/**"]
+}

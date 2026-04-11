@@ -32,6 +32,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 
 	required := []string{
 		"compozy setup",
+		"compozy agents",
 		"compozy upgrade",
 		"compozy migrate",
 		"compozy validate-tasks",
@@ -41,6 +42,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy fix-reviews",
 		"compozy start",
 		"setup",
+		"agents",
 		"upgrade",
 		"migrate",
 		"validate-tasks",
@@ -56,6 +58,10 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
 		}
+	}
+
+	if strings.Contains(output, "mcp-serve") {
+		t.Fatalf("expected root help to omit hidden mcp-serve command\noutput:\n%s", output)
 	}
 }
 
@@ -211,7 +217,7 @@ func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
 		t.Fatalf("execute fetch-reviews help: %v", err)
 	}
 
-	required := []string{"--provider", "--pr", "--name", "--round"}
+	required := []string{"--provider", "--pr", "--name", "--round", "--nitpicks"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected fetch-reviews help to include %q\noutput:\n%s", snippet, output)
@@ -334,6 +340,8 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 	}
 
 	required := []string{
+		"--agent",
+		"--extensions",
 		"--prompt-file",
 		"--format",
 		"--dry-run",
@@ -383,6 +391,23 @@ func TestExecHelpMatchesGolden(t *testing.T) {
 
 	if output != string(want) {
 		t.Fatalf("exec help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
+	}
+}
+
+func TestHiddenMCPServeCommandIsRegisteredButHidden(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "mcp-serve")
+	if !cmd.Hidden {
+		t.Fatal("expected mcp-serve command to be hidden")
+	}
+
+	output, err := executeRootCommand("mcp-serve", "--help")
+	if err != nil {
+		t.Fatalf("execute hidden mcp-serve help: %v", err)
+	}
+	if !strings.Contains(output, "--server") {
+		t.Fatalf("expected hidden mcp-serve help to remain invokable\noutput:\n%s", output)
 	}
 }
 
@@ -594,6 +619,36 @@ func TestBuildConfigUsesExecFieldsForExecWorkflow(t *testing.T) {
 	}
 	if cfg.ResolvedPromptText != "" {
 		t.Fatalf("did not expect resolved prompt text by default, got %q", cfg.ResolvedPromptText)
+	}
+}
+
+func TestCaptureExplicitRuntimeFlagsUsesCobraChangedSemantics(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+
+	unset := captureExplicitRuntimeFlags(cmd)
+	if unset.Model || unset.IDE || unset.ReasoningEffort || unset.AccessMode {
+		t.Fatalf("expected no runtime flags to be marked explicit when unset, got %#v", unset)
+	}
+
+	if err := cmd.Flags().Set("model", ""); err != nil {
+		t.Fatalf("set model flag: %v", err)
+	}
+	if err := cmd.Flags().Set("access-mode", core.AccessModeFull); err != nil {
+		t.Fatalf("set access-mode flag: %v", err)
+	}
+
+	explicit := captureExplicitRuntimeFlags(cmd)
+	if !explicit.Model {
+		t.Fatalf("expected explicit empty model flag to be preserved, got %#v", explicit)
+	}
+	if !explicit.AccessMode {
+		t.Fatalf("expected access-mode flag set to its default value to still count as explicit, got %#v", explicit)
+	}
+	if explicit.IDE || explicit.ReasoningEffort {
+		t.Fatalf("expected only changed flags to be explicit, got %#v", explicit)
 	}
 }
 
@@ -1543,7 +1598,7 @@ func TestRunPreparedRefreshesDriftedSkillsBeforeRunningWorkflow(t *testing.T) {
 	if verifyCalls != 2 {
 		t.Fatalf("expected verify to run twice, got %d", verifyCalls)
 	}
-	if !strings.Contains(output.String(), "Updated bundled Compozy skills for Codex (project scope).") {
+	if !strings.Contains(output.String(), "Updated required Compozy skills for Codex (project scope).") {
 		t.Fatalf("expected refresh success output, got %q", output.String())
 	}
 }

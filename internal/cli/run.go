@@ -2,10 +2,13 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	core "github.com/compozy/compozy/internal/core"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/spf13/cobra"
 )
@@ -45,6 +48,7 @@ func (s *commandState) prepareAndRun(
 			return err
 		}
 	}
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	cfg, err := s.buildConfig()
 	if err != nil {
@@ -53,12 +57,17 @@ func (s *commandState) prepareAndRun(
 	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
 		return s.handleExecError(cmd, err)
 	}
+	assets, cleanup, err := s.bootstrapDeclarativeAssets(ctx, cfg)
+	if err != nil {
+		return s.handleExecError(cmd, err)
+	}
+	defer cleanup()
 	if err := cfg.Validate(); err != nil {
 		return s.handleExecError(cmd, err)
 	}
 
-	if err := s.runPrepared(ctx, cmd, cfg); err != nil {
-		return s.handleExecError(cmd, err)
+	if err := s.runPrepared(ctx, cmd, cfg, assets); err != nil {
+		return s.handleExecError(cmd, decorateReusableAgentError(cmd, cfg.AgentName, err))
 	}
 	return nil
 }
@@ -78,6 +87,11 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	_, cleanup, err := s.bootstrapDeclarativeAssets(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 
 	fetchReviewsFn := s.fetchReviewsFn
 	if fetchReviewsFn == nil {
@@ -103,8 +117,22 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
-	if err := s.preflightBundledSkills(cmd, cfg); err != nil {
+func (s *commandState) runPrepared(
+	ctx context.Context,
+	cmd *cobra.Command,
+	cfg core.Config,
+	assets ...declarativeAssets,
+) error {
+	var discovery declarativeAssets
+	if len(assets) > 0 {
+		discovery = assets[0]
+	}
+
+	if err := s.preflightBundledSkills(
+		cmd,
+		cfg,
+		extensionSkillSources(discovery.Discovery.SkillPacks.Packs),
+	); err != nil {
 		return err
 	}
 	if err := s.preflightTaskMetadata(ctx, cmd, cfg); err != nil {
@@ -116,6 +144,39 @@ func (s *commandState) runPrepared(ctx context.Context, cmd *cobra.Command, cfg 
 		runWorkflow = core.Run
 	}
 	return runWorkflow(ctx, cfg)
+}
+
+func decorateReusableAgentError(cmd *cobra.Command, agentName string, err error) error {
+	if err == nil || strings.TrimSpace(agentName) == "" {
+		return err
+	}
+
+	rootPath := "compozy"
+	if cmd != nil && cmd.Root() != nil {
+		rootPath = cmd.Root().CommandPath()
+	}
+
+	if reason, ok := reusableagents.BlockedReasonForError(err); ok {
+		err = fmt.Errorf("reusable agent blocked (%s): %w", reason, err)
+	}
+
+	switch {
+	case errors.Is(err, reusableagents.ErrAgentNotFound):
+		return fmt.Errorf("%w; run `%s agents list` to inspect available reusable agents", err, rootPath)
+	case isReusableAgentValidationError(err):
+		return fmt.Errorf(
+			"%w; run `%s agents inspect %s` to inspect the resolved definition and validation details",
+			err,
+			rootPath,
+			strings.TrimSpace(agentName),
+		)
+	default:
+		return err
+	}
+}
+
+func isReusableAgentValidationError(err error) bool {
+	return reusableagents.IsValidationError(err)
 }
 
 func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {

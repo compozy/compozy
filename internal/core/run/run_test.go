@@ -25,6 +25,7 @@ func TestExecuteDelegatesToExecutorPackage(t *testing.T) {
 		_ *journal.Journal,
 		_ *events.Bus[events.Event],
 		cfg *model.RuntimeConfig,
+		_ model.RuntimeManager,
 	) error {
 		called = true
 		if len(jobs) != 1 || jobs[0].SafeName != "task_01" {
@@ -46,6 +47,7 @@ func TestExecuteDelegatesToExecutorPackage(t *testing.T) {
 		nil,
 		nil,
 		&model.RuntimeConfig{WorkspaceRoot: "/tmp/workspace"},
+		nil,
 	)
 	if !called {
 		t.Fatal("expected Execute to delegate to executor package")
@@ -63,15 +65,18 @@ func TestExecuteExecDelegatesToExecPackage(t *testing.T) {
 
 	wantErr := errors.New("exec called")
 	called := false
-	executeExec = func(_ context.Context, cfg *model.RuntimeConfig) error {
+	executeExec = func(_ context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {
 		called = true
 		if cfg == nil || cfg.PromptText != "run it" {
 			t.Fatalf("unexpected delegated config: %#v", cfg)
 		}
+		if scope != nil {
+			t.Fatalf("unexpected delegated scope: %#v", scope)
+		}
 		return wantErr
 	}
 
-	err := ExecuteExec(context.Background(), &model.RuntimeConfig{PromptText: "run it"})
+	err := ExecuteExec(context.Background(), &model.RuntimeConfig{PromptText: "run it"}, nil)
 	if !called {
 		t.Fatal("expected ExecuteExec to delegate to exec package")
 	}

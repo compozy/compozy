@@ -11,6 +11,7 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
@@ -22,6 +23,7 @@ type workflowIdentity struct {
 	name       string
 	provider   string
 	round      int
+	nitpicks   bool
 	reviewsDir string
 	tasksDir   string
 }
@@ -32,12 +34,14 @@ type runtimeConfig struct {
 	closeOnComplete  bool
 	concurrent       int
 	batchSize        int
+	agentName        string
 	ide              string
 	model            string
 	addDirs          []string
 	tailLines        int
 	reasoningEffort  string
 	accessMode       string
+	explicitRuntime  model.ExplicitRuntimeFlags
 	includeCompleted bool
 	includeResolved  bool
 }
@@ -47,6 +51,7 @@ type execConfig struct {
 	verbose            bool
 	tui                bool
 	persist            bool
+	extensionsEnabled  bool
 	runID              string
 	promptText         string
 	promptFile         string
@@ -61,14 +66,16 @@ type retryConfig struct {
 }
 
 type commandStateCallbacks struct {
-	isInteractive        func() bool
-	collectForm          func(*cobra.Command, *commandState) error
-	listBundledSkills    func() ([]setup.Skill, error)
-	verifyBundledSkills  func(setup.VerifyConfig) (setup.VerifyResult, error)
-	installBundledSkills func(setup.InstallConfig) (*setup.Result, error)
-	confirmSkillRefresh  func(*cobra.Command, skillRefreshPrompt) (bool, error)
-	fetchReviewsFn       func(context.Context, core.Config) (*core.FetchResult, error)
-	runWorkflow          func(context.Context, core.Config) error
+	isInteractive          func() bool
+	collectForm            func(*cobra.Command, *commandState) error
+	listBundledSkills      func() ([]setup.Skill, error)
+	verifyBundledSkills    func(setup.VerifyConfig) (setup.VerifyResult, error)
+	installBundledSkills   func(setup.InstallConfig) (*setup.Result, error)
+	verifyExtensionSkills  func(setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error)
+	installExtensionSkills func(setup.ExtensionInstallConfig) (*setup.ExtensionResult, error)
+	confirmSkillRefresh    func(*cobra.Command, skillRefreshPrompt) (bool, error)
+	fetchReviewsFn         func(context.Context, core.Config) (*core.FetchResult, error)
+	runWorkflow            func(context.Context, core.Config) error
 }
 
 type commandState struct {
@@ -93,14 +100,16 @@ type commandStateDefaults struct {
 func defaultCommandStateDefaults() commandStateDefaults {
 	return commandStateDefaults{
 		commandStateCallbacks: commandStateCallbacks{
-			isInteractive:        isInteractiveTerminal,
-			collectForm:          collectFormParams,
-			listBundledSkills:    setup.ListBundledSkills,
-			verifyBundledSkills:  setup.VerifyBundledSkills,
-			installBundledSkills: setup.InstallBundledSkills,
-			confirmSkillRefresh:  confirmSkillRefreshPrompt,
-			fetchReviewsFn:       core.FetchReviews,
-			runWorkflow:          core.Run,
+			isInteractive:          isInteractiveTerminal,
+			collectForm:            collectFormParams,
+			listBundledSkills:      setup.ListBundledSkills,
+			verifyBundledSkills:    setup.VerifyBundledSkills,
+			installBundledSkills:   setup.InstallBundledSkills,
+			verifyExtensionSkills:  setup.VerifyExtensionSkillPacks,
+			installExtensionSkills: setup.InstallExtensionSkillPacks,
+			confirmSkillRefresh:    confirmSkillRefreshPrompt,
+			fetchReviewsFn:         core.FetchReviews,
+			runWorkflow:            core.Run,
 		},
 	}
 }
@@ -122,6 +131,12 @@ func (defaults commandStateDefaults) withFallbacks() commandStateDefaults {
 	}
 	if result.installBundledSkills == nil {
 		result.installBundledSkills = builtin.installBundledSkills
+	}
+	if result.verifyExtensionSkills == nil {
+		result.verifyExtensionSkills = builtin.verifyExtensionSkills
+	}
+	if result.installExtensionSkills == nil {
+		result.installExtensionSkills = builtin.installExtensionSkills
 	}
 	if result.confirmSkillRefresh == nil {
 		result.confirmSkillRefresh = builtin.confirmSkillRefresh
@@ -286,6 +301,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		Round:         s.round,
 		Provider:      s.provider,
 		PR:            s.pr,
+		Nitpicks:      s.nitpicks,
 		ReviewsDir:    s.reviewsDir,
 		TasksDir:      s.tasksDir,
 
@@ -294,30 +310,48 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		CloseOnComplete:  s.closeOnComplete,
 		Concurrent:       s.concurrent,
 		BatchSize:        s.batchSize,
+		AgentName:        s.agentName,
 		IDE:              core.IDE(s.ide),
 		Model:            s.model,
 		AddDirs:          core.NormalizeAddDirs(s.addDirs),
 		TailLines:        s.tailLines,
 		ReasoningEffort:  s.reasoningEffort,
 		AccessMode:       s.accessMode,
+		ExplicitRuntime:  s.explicitRuntime,
 		IncludeCompleted: s.includeCompleted,
 		IncludeResolved:  s.includeResolved,
 
-		Mode:               s.mode,
-		OutputFormat:       core.OutputFormat(s.outputFormat),
-		Verbose:            s.verbose,
-		TUI:                s.tui,
-		Persist:            s.persist,
-		RunID:              s.runID,
-		PromptText:         s.promptText,
-		PromptFile:         s.promptFile,
-		ReadPromptStdin:    s.readPromptStdin,
-		ResolvedPromptText: s.resolvedPromptText,
+		Mode:                       s.mode,
+		OutputFormat:               core.OutputFormat(s.outputFormat),
+		Verbose:                    s.verbose,
+		TUI:                        s.tui,
+		Persist:                    s.persist,
+		EnableExecutableExtensions: s.enableExecutableExtensions(),
+		RunID:                      s.runID,
+		PromptText:                 s.promptText,
+		PromptFile:                 s.promptFile,
+		ReadPromptStdin:            s.readPromptStdin,
+		ResolvedPromptText:         s.resolvedPromptText,
 
 		Timeout:                timeoutDuration,
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,
 	}, nil
+}
+
+func (s *commandState) enableExecutableExtensions() bool {
+	if s == nil {
+		return false
+	}
+
+	switch s.kind {
+	case commandKindStart, commandKindFixReviews:
+		return true
+	case commandKindExec:
+		return s.extensionsEnabled
+	default:
+		return false
+	}
 }
 
 func (s *commandState) applyPersistedExecConfig(cmd *cobra.Command, cfg *core.Config) error {
@@ -342,6 +376,26 @@ func (s *commandState) applyPersistedExecConfig(cmd *cobra.Command, cfg *core.Co
 	cfg.AccessMode = record.AccessMode
 	cfg.AddDirs = core.NormalizeAddDirs(record.AddDirs)
 	return nil
+}
+
+func captureExplicitRuntimeFlags(cmd *cobra.Command) model.ExplicitRuntimeFlags {
+	return model.ExplicitRuntimeFlags{
+		IDE:             commandFlagChanged(cmd, "ide"),
+		Model:           commandFlagChanged(cmd, "model"),
+		ReasoningEffort: commandFlagChanged(cmd, "reasoning-effort"),
+		AccessMode:      commandFlagChanged(cmd, "access-mode"),
+	}
+}
+
+func commandFlagChanged(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	flags := cmd.Flags()
+	if flags == nil || flags.Lookup(name) == nil {
+		return false
+	}
+	return flags.Changed(name)
 }
 
 func (s *commandState) assertPersistedExecCompatibility(

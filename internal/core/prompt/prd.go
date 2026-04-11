@@ -10,11 +10,11 @@ import (
 )
 
 type WorkflowMemoryContext struct {
-	Directory               string
-	WorkflowPath            string
-	TaskPath                string
-	WorkflowNeedsCompaction bool
-	TaskNeedsCompaction     bool
+	Directory               string `json:"directory,omitempty"`
+	WorkflowPath            string `json:"workflow_path,omitempty"`
+	TaskPath                string `json:"task_path,omitempty"`
+	WorkflowNeedsCompaction bool   `json:"workflow_needs_compaction,omitempty"`
+	TaskNeedsCompaction     bool   `json:"task_needs_compaction,omitempty"`
 }
 
 func buildPRDTaskPrompt(

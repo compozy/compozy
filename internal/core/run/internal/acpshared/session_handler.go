@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -21,40 +21,47 @@ type SessionUpdateHandler struct {
 	ctx            context.Context
 	index          int
 	agentID        string
+	jobID          string
 	sessionID      string
 	logger         *slog.Logger
 	runID          string
+	runManager     model.RuntimeManager
 	startedAt      time.Time
 	outWriter      io.Writer
 	errWriter      io.Writer
-	journal        *journal.Journal
+	journal        runtimeEventSubmitter
 	jobUsage       *model.Usage
 	aggregateUsage *model.Usage
 	aggregateMu    *sync.Mutex
 	activity       *activityMonitor
+	reusableAgent  *reusableAgentExecution
 
-	mu          sync.Mutex
-	err         error
-	blockCounts map[model.ContentBlockType]int
-	sessionView *sessionViewModel
-	done        chan struct{}
-	doneOnce    sync.Once
+	mu              sync.Mutex
+	err             error
+	blockCounts     map[model.ContentBlockType]int
+	nestedToolCalls map[string]nestedReusableAgentCall
+	sessionView     *sessionViewModel
+	done            chan struct{}
+	doneOnce        sync.Once
 }
 
 type SessionUpdateHandlerConfig struct {
 	Context        context.Context
 	Index          int
 	AgentID        string
+	JobID          string
 	SessionID      string
 	Logger         *slog.Logger
 	RunID          string
 	OutWriter      io.Writer
 	ErrWriter      io.Writer
-	RunJournal     *journal.Journal
+	RunJournal     runtimeEventSubmitter
+	RunManager     model.RuntimeManager
 	JobUsage       *model.Usage
 	AggregateUsage *model.Usage
 	AggregateMu    *sync.Mutex
 	Activity       *activityMonitor
+	ReusableAgent  *reusableAgentExecution
 }
 
 func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandler {
@@ -65,23 +72,27 @@ func NewSessionUpdateHandler(cfg SessionUpdateHandlerConfig) *SessionUpdateHandl
 		cfg.Logger = silentLogger()
 	}
 	return &SessionUpdateHandler{
-		ctx:            cfg.Context,
-		index:          cfg.Index,
-		agentID:        cfg.AgentID,
-		sessionID:      cfg.SessionID,
-		logger:         cfg.Logger,
-		runID:          cfg.RunID,
-		startedAt:      time.Now(),
-		outWriter:      cfg.OutWriter,
-		errWriter:      cfg.ErrWriter,
-		journal:        cfg.RunJournal,
-		jobUsage:       cfg.JobUsage,
-		aggregateUsage: cfg.AggregateUsage,
-		aggregateMu:    cfg.AggregateMu,
-		activity:       cfg.Activity,
-		blockCounts:    make(map[model.ContentBlockType]int),
-		sessionView:    newSessionViewModel(),
-		done:           make(chan struct{}),
+		ctx:             cfg.Context,
+		index:           cfg.Index,
+		agentID:         cfg.AgentID,
+		jobID:           cfg.JobID,
+		sessionID:       cfg.SessionID,
+		logger:          cfg.Logger,
+		runID:           cfg.RunID,
+		runManager:      cfg.RunManager,
+		startedAt:       time.Now(),
+		outWriter:       cfg.OutWriter,
+		errWriter:       cfg.ErrWriter,
+		journal:         cfg.RunJournal,
+		jobUsage:        cfg.JobUsage,
+		aggregateUsage:  cfg.AggregateUsage,
+		aggregateMu:     cfg.AggregateMu,
+		activity:        cfg.Activity,
+		reusableAgent:   cfg.ReusableAgent,
+		blockCounts:     make(map[model.ContentBlockType]int),
+		nestedToolCalls: make(map[string]nestedReusableAgentCall),
+		sessionView:     newSessionViewModel(),
+		done:            make(chan struct{}),
 	}
 }
 
@@ -98,11 +109,40 @@ func (h *SessionUpdateHandler) Err() error {
 func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 	h.recordActivity()
 
+	publicUpdate, err := runtimeevents.PublicSessionUpdate(update)
+	if err != nil {
+		return fmt.Errorf("convert session update hook payload: %w", err)
+	}
+	model.DispatchObserverHook(
+		h.ctx,
+		h.runManager,
+		"agent.on_session_update",
+		sessionUpdateHookPayload{
+			RunID:     h.runID,
+			JobID:     h.jobID,
+			SessionID: h.sessionID,
+			Update:    publicUpdate,
+		},
+	)
+
 	if err := h.renderUpdateBlocks(update.Blocks); err != nil {
 		return err
 	}
 	h.applySessionUpdate(update)
-	if err := h.emitSessionUpdateEvent(update); err != nil {
+	if err := h.emitReusableAgentLifecycleFromUpdate(update); err != nil {
+		h.logger.Warn(
+			"failed to emit reusable agent lifecycle from session update; continuing",
+			"session_id",
+			h.sessionID,
+			"update_kind",
+			update.Kind,
+			"tool_call_id",
+			strings.TrimSpace(update.ToolCallID),
+			"error",
+			err,
+		)
+	}
+	if err := h.emitSessionUpdateEvent(publicUpdate); err != nil {
 		return err
 	}
 	if err := h.recordUsageUpdate(update.Usage); err != nil {
@@ -154,17 +194,12 @@ func (h *SessionUpdateHandler) applySessionUpdate(update model.SessionUpdate) {
 	h.sessionView.Apply(update)
 }
 
-func (h *SessionUpdateHandler) emitSessionUpdateEvent(update model.SessionUpdate) error {
-	publicUpdate, err := runtimeevents.PublicSessionUpdate(update)
-	if err != nil {
-		return fmt.Errorf("convert session update event payload: %w", err)
-	}
-
+func (h *SessionUpdateHandler) emitSessionUpdateEvent(update kinds.SessionUpdate) error {
 	return h.submitRuntimeEvent(
 		events.EventKindSessionUpdate,
 		kinds.SessionUpdatePayload{
 			Index:  h.index,
-			Update: publicUpdate,
+			Update: update,
 		},
 		"session update",
 	)
@@ -203,6 +238,22 @@ func (h *SessionUpdateHandler) updateCompletionStatus(status model.SessionStatus
 
 func (h *SessionUpdateHandler) HandleCompletion(err error) error {
 	h.recordActivity()
+	outcome := agent.SessionOutcome{Status: model.StatusCompleted}
+	if err != nil {
+		outcome.Status = model.StatusFailed
+		outcome.Error = err.Error()
+	}
+	model.DispatchObserverHook(
+		h.ctx,
+		h.runManager,
+		"agent.post_session_end",
+		sessionEndedHookPayload{
+			RunID:     h.runID,
+			JobID:     h.jobID,
+			SessionID: h.sessionID,
+			Outcome:   outcome,
+		},
+	)
 
 	if err != nil {
 		if emitErr := h.submitRuntimeEvent(
@@ -269,7 +320,7 @@ func (h *SessionUpdateHandler) submitRuntimeEvent(
 	payload any,
 	description string,
 ) error {
-	if h.journal == nil {
+	if !hasRuntimeEventSubmitter(h.journal) {
 		return nil
 	}
 
@@ -363,4 +414,18 @@ func formatBlockTypes(blocks []model.ContentBlock) string {
 	}
 	sort.Strings(keys)
 	return strings.Join(keys, ",")
+}
+
+type sessionUpdateHookPayload struct {
+	RunID     string              `json:"run_id"`
+	JobID     string              `json:"job_id"`
+	SessionID string              `json:"session_id"`
+	Update    kinds.SessionUpdate `json:"update"`
+}
+
+type sessionEndedHookPayload struct {
+	RunID     string               `json:"run_id"`
+	JobID     string               `json:"job_id"`
+	SessionID string               `json:"session_id"`
+	Outcome   agent.SessionOutcome `json:"outcome"`
 }

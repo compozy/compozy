@@ -1,16 +1,26 @@
 root = true
 
-[*.go]
-charset = utf-8
+[*]
 end_of_line = lf
-indent_style = tab
 insert_final_newline = true
-trim_trailing_whitespace = true
-
-[*.{md,toml,yml,yaml}]
 charset = utf-8
-end_of_line = lf
+trim_trailing_whitespace = true
 indent_style = space
 indent_size = 2
-insert_final_newline = true
-trim_trailing_whitespace = true
+tab_width = 2
+
+[*.{js,ts,jsx,tsx,json,css,scss,md}]
+max_line_length = 100
+
+[*.{json,jsonc}]
+indent_size = 4
+tab_width = 4
+
+[*.md]
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+[*.{go,proto,make}]
+indent_style = tab

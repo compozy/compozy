@@ -1,5 +1,6 @@
 name: "Setup Release Tools"
-description: "Sets up all necessary tools for release processes (GoReleaser, git-cliff, Syft, Docker,\
+description:
+  "Sets up all necessary tools for release processes (GoReleaser, git-cliff, Syft, Docker,\
   \ Cosign)"
 author: "Compozy Team"
 

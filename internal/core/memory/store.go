@@ -22,11 +22,24 @@ const (
 		"Do not duplicate facts that are obvious from the repository, task file, PRD documents, or git history."
 )
 
+type WriteMode string
+
+const (
+	WriteModeReplace WriteMode = "replace"
+	WriteModeAppend  WriteMode = "append"
+)
+
 type FileState struct {
 	Path            string
 	LineCount       int
 	ByteCount       int
 	NeedsCompaction bool
+}
+
+type Document struct {
+	FileState
+	Content string
+	Exists  bool
 }
 
 type Context struct {
@@ -45,6 +58,61 @@ func WorkflowPath(tasksDir string) string {
 
 func TaskPath(tasksDir, taskFileName string) string {
 	return filepath.Join(Directory(tasksDir), filepath.Base(taskFileName))
+}
+
+func ResolveDocumentPath(tasksDir, taskFileName string) string {
+	if strings.TrimSpace(taskFileName) == "" {
+		return WorkflowPath(tasksDir)
+	}
+	return TaskPath(tasksDir, taskFileName)
+}
+
+func ReadDocument(tasksDir, taskFileName string) (Document, error) {
+	path := ResolveDocumentPath(tasksDir, taskFileName)
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return Document{
+				FileState: FileState{Path: path},
+				Content:   "",
+				Exists:    false,
+			}, nil
+		}
+		return Document{}, fmt.Errorf("read memory document: %w", err)
+	}
+
+	state, err := inspectResolved(path)
+	if err != nil {
+		return Document{}, err
+	}
+	return Document{
+		FileState: state,
+		Content:   string(content),
+		Exists:    true,
+	}, nil
+}
+
+func WriteDocument(tasksDir, taskFileName, content string, mode WriteMode) (Document, int, error) {
+	dir := Directory(tasksDir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return Document{}, 0, fmt.Errorf("prepare memory document dir: %w", err)
+	}
+
+	path := ResolveDocumentPath(tasksDir, taskFileName)
+	finalContent, err := renderedDocumentContent(path, content, mode)
+	if err != nil {
+		return Document{}, 0, err
+	}
+
+	if err := writeAtomically(path, finalContent); err != nil {
+		return Document{}, 0, err
+	}
+
+	document, err := ReadDocument(tasksDir, taskFileName)
+	if err != nil {
+		return Document{}, 0, err
+	}
+	return document, len(finalContent), nil
 }
 
 func Prepare(tasksDir, taskFileName string) (Context, error) {
@@ -97,6 +165,65 @@ func writeIfMissing(path, content string) error {
 	return nil
 }
 
+func renderedDocumentContent(path, content string, mode WriteMode) ([]byte, error) {
+	switch normalizeWriteMode(mode) {
+	case WriteModeReplace:
+		return []byte(content), nil
+	case WriteModeAppend:
+		existing, err := os.ReadFile(path)
+		if err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read memory document for append: %w", err)
+		}
+		if len(existing) == 0 {
+			return []byte(content), nil
+		}
+		if content == "" {
+			return existing, nil
+		}
+
+		var builder strings.Builder
+		builder.Grow(len(existing) + len(content) + 1)
+		builder.WriteString(strings.TrimRight(string(existing), "\n"))
+		builder.WriteByte('\n')
+		builder.WriteString(strings.TrimLeft(content, "\n"))
+		return []byte(builder.String()), nil
+	default:
+		return nil, fmt.Errorf("write memory document: unsupported mode %q", mode)
+	}
+}
+
+func writeAtomically(path string, content []byte) error {
+	dir := filepath.Dir(path)
+	tmpFile, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return fmt.Errorf("create memory temp file: %w", err)
+	}
+
+	tmpPath := tmpFile.Name()
+	cleanup := func() {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+	}
+
+	if _, err := tmpFile.Write(content); err != nil {
+		cleanup()
+		return fmt.Errorf("write memory temp file: %w", err)
+	}
+	if err := tmpFile.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("close memory temp file: %w", err)
+	}
+	if err := os.Chmod(tmpPath, 0o600); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("chmod memory temp file: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("replace memory document: %w", err)
+	}
+	return nil
+}
+
 func inspect(path string, lineLimit, byteLimit int) (FileState, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -113,6 +240,15 @@ func inspect(path string, lineLimit, byteLimit int) (FileState, error) {
 	}, nil
 }
 
+func inspectResolved(path string) (FileState, error) {
+	switch filepath.Base(strings.TrimSpace(path)) {
+	case WorkflowFileName:
+		return inspect(path, workflowLineLimit, workflowByteLimit)
+	default:
+		return inspect(path, taskLineLimit, taskByteLimit)
+	}
+}
+
 func countLines(content string) int {
 	if content == "" {
 		return 0
@@ -123,6 +259,14 @@ func countLines(content string) int {
 		lines = lines[:len(lines)-1]
 	}
 	return len(lines)
+}
+
+func normalizeWriteMode(mode WriteMode) WriteMode {
+	normalized := WriteMode(strings.ToLower(strings.TrimSpace(string(mode))))
+	if normalized == "" {
+		return WriteModeReplace
+	}
+	return normalized
 }
 
 func workflowTemplate() string {

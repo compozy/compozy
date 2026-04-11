@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
+	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -106,6 +107,7 @@ type execRunState struct {
 	runArtifacts model.RunArtifacts
 	events       *execEventEmitter
 	journal      *journal.Journal
+	ownsJournal  bool
 	turn         int
 	turnDir      string
 	turnPaths    execTurnPaths
@@ -207,9 +209,10 @@ func IsExecErrorReported(err error) bool {
 	return errors.As(err, &reported)
 }
 
-// ExecuteExec runs one headless-or-TUI exec turn with optional persistence and ACP resume.
-func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
-	promptText, state, internalCfg, execJob, err := prepareExecExecution(ctx, cfg)
+// ExecuteExec runs one headless-or-TUI exec turn with optional persistence,
+// ACP resume, and an optional pre-opened run scope.
+func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) error {
+	promptText, state, internalCfg, execJob, err := prepareExecExecution(ctx, cfg, scope)
 	if err != nil {
 		return err
 	}
@@ -228,15 +231,23 @@ func ExecuteExec(ctx context.Context, cfg *model.RuntimeConfig) error {
 	return finalizeExecResult(state, result)
 }
 
-func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string, *execRunState, *config, job, error) {
+func prepareExecExecution(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+) (string, *execRunState, *config, job, error) {
 	promptText, err := resolveExecPromptText(cfg)
+	if err != nil {
+		return "", nil, nil, job{}, err
+	}
+	agentExecution, err := reusableagents.ResolveExecutionContext(ctx, cfg)
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
 	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return "", nil, nil, job{}, err
 	}
-	state, err := prepareExecRunState(ctx, cfg)
+	state, err := prepareExecRunState(ctx, cfg, scope)
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
@@ -254,7 +265,10 @@ func prepareExecExecution(ctx context.Context, cfg *model.RuntimeConfig) (string
 		cfg.RunID = state.runArtifacts.RunID
 	}
 	internalCfg := newConfig(cfg, state.runArtifacts)
-	execJob, err := newExecRuntimeJob(promptText, state)
+	if scope != nil {
+		internalCfg.RuntimeManager = scope.RunManager()
+	}
+	execJob, err := newExecRuntimeJob(promptText, state, agentExecution, cfg)
 	if err != nil {
 		state.close()
 		return "", nil, nil, job{}, err
@@ -468,21 +482,36 @@ func failExecAttempt(execution *sessionExecution, err error) execExecutionResult
 	}
 }
 
-func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig) (*execRunState, error) {
-	record, runID, err := resolvePersistedExecRecord(cfg)
-	if err != nil {
-		return nil, err
-	}
+func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope model.RunScope) (*execRunState, error) {
 	resolvedModel, err := agent.ResolveRuntimeModel(cfg.IDE, cfg.Model)
 	if err != nil {
 		return nil, err
 	}
 	state := &execRunState{
 		ctx:      ctx,
-		record:   record,
-		turn:     atLeastOne(record.TurnCount + 1),
 		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI,
 	}
+	if scope != nil {
+		if strings.TrimSpace(cfg.RunID) != "" {
+			record, _, err := resolvePersistedExecRecord(cfg)
+			if err != nil {
+				return nil, err
+			}
+			state.record = record
+		}
+		state.turn = atLeastOne(state.record.TurnCount + 1)
+		if err := prepareScopedExecRunState(state, cfg, scope, resolvedModel); err != nil {
+			return nil, err
+		}
+		return state, nil
+	}
+
+	record, runID, err := resolvePersistedExecRecord(cfg)
+	if err != nil {
+		return nil, err
+	}
+	state.record = record
+	state.turn = atLeastOne(record.TurnCount + 1)
 	if !cfg.Persist {
 		return prepareEphemeralExecRunState(state, cfg, runID)
 	}
@@ -535,11 +564,37 @@ func preparePersistentExecRunState(
 		return fmt.Errorf("open exec events journal: %w", err)
 	}
 	state.journal = runJournal
+	state.ownsJournal = true
 	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, runID, resolvedModel)
 	}
 	return nil
+}
+
+func prepareScopedExecRunState(
+	state *execRunState,
+	cfg *model.RuntimeConfig,
+	scope model.RunScope,
+	resolvedModel string,
+) error {
+	if state == nil {
+		return fmt.Errorf("prepare scoped exec state: missing state")
+	}
+	if scope == nil {
+		return fmt.Errorf("prepare scoped exec state: missing run scope")
+	}
+
+	state.runArtifacts = scope.RunArtifacts()
+	state.journal = scope.RunJournal()
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	if strings.TrimSpace(state.record.RunID) == "" {
+		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, state.runArtifacts.RunID, resolvedModel)
+	}
+	if !cfg.Persist {
+		return nil
+	}
+	return ensureExecRunDirectories(state)
 }
 
 func ensureExecRunDirectories(state *execRunState) error {
@@ -590,7 +645,7 @@ func (s *execRunState) close() {
 	if s == nil {
 		return
 	}
-	if s.journal != nil {
+	if s.ownsJournal && s.journal != nil {
 		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
 		_ = s.journal.Close(closeCtx)
 		cancel()
@@ -1015,7 +1070,41 @@ func shouldEmitLeanSessionUpdate(update *model.SessionUpdate) bool {
 	}
 }
 
-func newExecRuntimeJob(promptText string, state *execRunState) (job, error) {
+func newExecRuntimeJob(
+	promptText string,
+	state *execRunState,
+	agentExecution *reusableagents.ExecutionContext,
+	cfg *model.RuntimeConfig,
+) (job, error) {
+	var runID string
+	if state != nil {
+		runID = state.runArtifacts.RunID
+	}
+	mcpServers, err := reusableagents.BuildSessionMCPServers(
+		agentExecution,
+		reusableagents.SessionMCPContext{
+			RunID:               runID,
+			EffectiveAccessMode: cfg.AccessMode,
+			BaseRuntime:         cfg,
+		},
+	)
+	if err != nil {
+		return job{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
+	}
+	return newExecRuntimeJobWithMCP(promptText, state, agentExecution, mcpServers)
+}
+
+func newExecRuntimeJobWithMCP(
+	promptText string,
+	state *execRunState,
+	agentExecution *reusableagents.ExecutionContext,
+	mcpServers []model.MCPServer,
+) (job, error) {
+	systemPrompt := ""
+	if agentExecution != nil {
+		systemPrompt = agentExecution.SystemPrompt("")
+	}
+
 	jb := job{
 		CodeFiles: []string{"exec"},
 		Groups: map[string][]model.IssueEntry{
@@ -1025,10 +1114,13 @@ func newExecRuntimeJob(promptText string, state *execRunState) (job, error) {
 				CodeFile: "exec",
 			}},
 		},
-		SafeName:  "exec",
-		Prompt:    []byte(promptText),
-		OutBuffer: newLineBuffer(0),
-		ErrBuffer: newLineBuffer(0),
+		SafeName:      "exec",
+		ReusableAgent: newReusableAgentExecution(agentExecution),
+		Prompt:        []byte(promptText),
+		SystemPrompt:  systemPrompt,
+		MCPServers:    model.CloneMCPServers(mcpServers),
+		OutBuffer:     newLineBuffer(0),
+		ErrBuffer:     newLineBuffer(0),
 	}
 	if state == nil {
 		return jb, nil
@@ -1044,6 +1136,26 @@ func newExecRuntimeJob(promptText string, state *execRunState) (job, error) {
 		}
 	}
 	return jb, nil
+}
+
+func newReusableAgentExecution(agentExecution *reusableagents.ExecutionContext) *reusableAgentExecution {
+	if agentExecution == nil {
+		return nil
+	}
+
+	available := 0
+	for idx := range agentExecution.Catalog.Agents {
+		if agentExecution.Catalog.Agents[idx].Name == agentExecution.Agent.Name {
+			continue
+		}
+		available++
+	}
+
+	return &reusableAgentExecution{
+		Name:                agentExecution.Agent.Name,
+		Source:              string(agentExecution.Agent.Source.Scope),
+		AvailableAgentCount: available,
+	}
 }
 
 func resolveExecPromptText(cfg *model.RuntimeConfig) (string, error) {

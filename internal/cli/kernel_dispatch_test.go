@@ -296,6 +296,7 @@ func TestNewFetchReviewsRunnerDispatchesTypedCommand(t *testing.T) {
 		Provider:      "coderabbit",
 		PR:            "259",
 		Round:         2,
+		Nitpicks:      true,
 	})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("fetch runner error = %v, want %v", err, wantErr)
@@ -305,6 +306,9 @@ func TestNewFetchReviewsRunnerDispatchesTypedCommand(t *testing.T) {
 	}
 	if handler.got.Provider != "coderabbit" || handler.got.PR != "259" || handler.got.Round != 2 {
 		t.Fatalf("unexpected fetch command: %#v", handler.got)
+	}
+	if !handler.got.Nitpicks {
+		t.Fatal("expected nitpicks flag to pass through")
 	}
 }
 

@@ -43,6 +43,10 @@ func ParseReviewContext(content string) (model.ReviewContext, error) {
 		Severity:    strings.TrimSpace(meta.Severity),
 		Author:      strings.TrimSpace(meta.Author),
 		ProviderRef: strings.TrimSpace(meta.ProviderRef),
+		ReviewHash:  strings.TrimSpace(meta.ReviewHash),
+
+		SourceReviewID:          strings.TrimSpace(meta.SourceReviewID),
+		SourceReviewSubmittedAt: strings.TrimSpace(meta.SourceReviewSubmittedAt),
 	}
 	if ctx.Status == "" {
 		return model.ReviewContext{}, errors.New("review front matter missing status")

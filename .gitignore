@@ -17,3 +17,6 @@ ai-docs
 **/**/node_modules
 node_modules/
 .compozy/runs
+.turbo/
+coverage/
+*.tsbuildinfo

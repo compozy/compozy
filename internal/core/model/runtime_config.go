@@ -2,40 +2,54 @@ package model
 
 import "time"
 
+// ExplicitRuntimeFlags tracks which runtime fields were explicitly overridden
+// by the current caller, using CLI-compatible `Flags().Changed(...)` semantics.
+type ExplicitRuntimeFlags struct {
+	IDE             bool
+	Model           bool
+	ReasoningEffort bool
+	AccessMode      bool
+}
+
 type RuntimeConfig struct {
-	WorkspaceRoot          string
-	Name                   string
-	Round                  int
-	Provider               string
-	PR                     string
-	ReviewsDir             string
-	TasksDir               string
-	DryRun                 bool
-	AutoCommit             bool
-	CloseOnComplete        bool
-	Concurrent             int
-	BatchSize              int
-	IDE                    string
-	Model                  string
-	AddDirs                []string
-	TailLines              int
-	ReasoningEffort        string
-	AccessMode             string
-	Mode                   ExecutionMode
-	OutputFormat           OutputFormat
-	Verbose                bool
-	TUI                    bool
-	Persist                bool
-	RunID                  string
-	PromptText             string
-	PromptFile             string
-	ReadPromptStdin        bool
-	ResolvedPromptText     string
-	IncludeCompleted       bool
-	IncludeResolved        bool
-	Timeout                time.Duration
-	MaxRetries             int
-	RetryBackoffMultiplier float64
+	WorkspaceRoot              string
+	Name                       string
+	Round                      int
+	Provider                   string
+	PR                         string
+	Nitpicks                   bool
+	ReviewsDir                 string
+	TasksDir                   string
+	DryRun                     bool
+	AutoCommit                 bool
+	CloseOnComplete            bool
+	Concurrent                 int
+	BatchSize                  int
+	IDE                        string
+	Model                      string
+	AddDirs                    []string
+	TailLines                  int
+	ReasoningEffort            string
+	AccessMode                 string
+	AgentName                  string
+	ExplicitRuntime            ExplicitRuntimeFlags
+	Mode                       ExecutionMode
+	OutputFormat               OutputFormat
+	Verbose                    bool
+	TUI                        bool
+	Persist                    bool
+	EnableExecutableExtensions bool
+	RunID                      string
+	ParentRunID                string
+	PromptText                 string
+	PromptFile                 string
+	ReadPromptStdin            bool
+	ResolvedPromptText         string
+	IncludeCompleted           bool
+	IncludeResolved            bool
+	Timeout                    time.Duration
+	MaxRetries                 int
+	RetryBackoffMultiplier     float64
 }
 
 func (cfg *RuntimeConfig) ApplyDefaults() {

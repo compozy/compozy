@@ -115,6 +115,93 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	}
 }
 
+func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T) {
+	tmpDir := t.TempDir()
+	failedStatus := acp.ToolCallStatusFailed
+	installACPHelperOnPath(t, []runACPHelperScenario{{
+		Updates: []acp.SessionUpdate{
+			{
+				ToolCall: &acp.SessionUpdateToolCall{
+					ToolCallId: acp.ToolCallId("tool-1"),
+					Title:      "run_agent",
+					Status:     acp.ToolCallStatusPending,
+					RawInput:   map[string]any{"name": "child", "input": "delegate this"},
+					Meta:       map[string]any{"tool_name": "run_agent"},
+				},
+			},
+			{
+				ToolCallUpdate: &acp.SessionToolCallUpdate{
+					ToolCallId: acp.ToolCallId("tool-1"),
+					Status:     &failedStatus,
+					Content: []acp.ToolCallContent{
+						acp.ToolContent(
+							acp.TextBlock(
+								`{"name":"child","source":"workspace","success":false,"blocked":true,"blocked_reason":"cycle-detected","error":"nested execution blocked: cycle detected","depth":2,"max_depth":3}`,
+							),
+						),
+					},
+				},
+			},
+			acp.UpdateAgentMessageText("parent recovered"),
+		},
+	}})
+
+	job := newTestACPJob(tmpDir)
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	result := executeJobWithTimeout(
+		context.Background(),
+		&config{
+			IDE:                    model.IDECodex,
+			ReasoningEffort:        "medium",
+			RetryBackoffMultiplier: 2,
+			RunArtifacts:           model.RunArtifacts{RunID: runID},
+		},
+		&job,
+		tmpDir,
+		false,
+		0,
+		time.Second,
+		runJournal,
+		nil,
+		nil,
+		nil,
+	)
+	if got := result.Status; got != attemptStatusSuccess {
+		t.Fatalf("expected success despite blocked nested call, got %s (%#v)", got, result.Failure)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 7)
+	var lifecycle []kinds.ReusableAgentLifecyclePayload
+	for _, event := range events {
+		if event.Kind != eventspkg.EventKindReusableAgentLifecycle {
+			continue
+		}
+		var payload kinds.ReusableAgentLifecyclePayload
+		decodeRuntimeEventPayload(t, event, &payload)
+		lifecycle = append(lifecycle, payload)
+	}
+	if len(lifecycle) != 2 {
+		t.Fatalf("expected nested start and blocked lifecycle events, got %#v", lifecycle)
+	}
+	if lifecycle[0].Stage != kinds.ReusableAgentLifecycleStageNestedStarted {
+		t.Fatalf("unexpected nested started payload: %#v", lifecycle[0])
+	}
+	if lifecycle[1].Stage != kinds.ReusableAgentLifecycleStageNestedBlocked ||
+		lifecycle[1].BlockedReason != kinds.ReusableAgentBlockedReasonCycleDetected {
+		t.Fatalf("unexpected nested blocked payload: %#v", lifecycle[1])
+	}
+
+	outLog, err := os.ReadFile(job.OutLog)
+	if err != nil {
+		t.Fatalf("read out log: %v", err)
+	}
+	if !strings.Contains(string(outLog), "parent recovered") {
+		t.Fatalf("expected parent session to continue after blocked nested call, got %q", string(outLog))
+	}
+}
+
 func TestJobRunnerACPErrorThenSuccessRetries(t *testing.T) {
 	tmpDir := t.TempDir()
 	installACPHelperOnPath(t,
@@ -252,7 +339,7 @@ func TestExecuteACPJSONModeWritesStructuredFailureResult(t *testing.T) {
 			OutputFormat:           model.OutputFormatJSON,
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 2,
-		})
+		}, nil)
 	})
 	if execErr == nil {
 		t.Fatal("expected JSON execution failure")
@@ -330,7 +417,7 @@ func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
 			OutputFormat:           model.OutputFormatJSON,
 			ReasoningEffort:        "medium",
 			RetryBackoffMultiplier: 2,
-		})
+		}, nil)
 	})
 	if execErr != nil {
 		t.Fatalf("expected JSON execution success: %v\nstdout:\n%s\nstderr:\n%s", execErr, stdout, stderr)
@@ -401,15 +488,6 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 		},
 	}})
 
-	bus := eventspkg.New[eventspkg.Event](32)
-	defer func() {
-		if err := bus.Close(context.Background()); err != nil {
-			t.Fatalf("close bus: %v", err)
-		}
-	}()
-	_, busCh, unsubscribe := bus.Subscribe()
-	defer unsubscribe()
-
 	cfg := &model.RuntimeConfig{
 		Name:                   "demo",
 		WorkspaceRoot:          tmpDir,
@@ -420,15 +498,38 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 		RetryBackoffMultiplier: 2,
 		Concurrent:             1,
 	}
-	prep, err := plan.Prepare(context.Background(), cfg, bus)
+	scope, err := model.OpenRunScope(context.Background(), cfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		t.Fatalf("OpenRunScope() error = %v", err)
+	}
+	prep, err := plan.Prepare(context.Background(), cfg, scope)
 	if err != nil {
 		t.Fatalf("prepare: %v", err)
 	}
+	defer func() {
+		if err := prep.CloseJournal(context.Background()); err != nil {
+			t.Fatalf("close preparation scope: %v", err)
+		}
+	}()
 	if prep.Journal() == nil {
 		t.Fatal("expected prepare to return a journal")
 	}
+	bus := prep.EventBus()
+	if bus == nil {
+		t.Fatal("expected prepare to return an event bus")
+	}
+	_, busCh, unsubscribe := bus.Subscribe()
+	defer unsubscribe()
 
-	if err := Execute(context.Background(), prep.Jobs, prep.RunArtifacts, prep.Journal(), bus, cfg); err != nil {
+	if err := Execute(
+		context.Background(),
+		prep.Jobs,
+		prep.RunArtifacts,
+		prep.Journal(),
+		prep.EventBus(),
+		cfg,
+		nil,
+	); err != nil {
 		t.Fatalf("execute: %v", err)
 	}
 

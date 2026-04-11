@@ -29,6 +29,12 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")
+	cmd.Flags().BoolVar(
+		&state.nitpicks,
+		"nitpicks",
+		false,
+		"Include CodeRabbit nitpick comments from pull request review bodies",
+	)
 	return cmd
 }
 
@@ -126,6 +132,7 @@ Operational runtime logs stay silent unless you opt into --verbose. Use --tui to
 interactive TUI and --persist to save resumable artifacts under
 .compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.`,
 		Example: `  compozy exec "Summarize the current repository changes"
+  compozy exec --agent council "Decide between two designs"
   compozy exec --prompt-file prompt.md
   cat prompt.md | compozy exec --format json
   compozy exec --format raw-json "Inspect every streamed event"
@@ -135,6 +142,12 @@ interactive TUI and --persist to save resumable artifacts under
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{})
+	cmd.Flags().StringVar(
+		&state.agentName,
+		"agent",
+		"",
+		"Reusable agent to execute from .compozy/agents or ~/.compozy/agents",
+	)
 	cmd.Flags().StringVar(&state.promptFile, "prompt-file", "", "Path to a file containing the prompt text")
 	cmd.Flags().StringVar(
 		&state.outputFormat,
@@ -145,6 +158,7 @@ interactive TUI and --persist to save resumable artifacts under
 	cmd.Flags().BoolVar(&state.verbose, "verbose", false, "Emit operational runtime logs to stderr during exec")
 	cmd.Flags().BoolVar(&state.tui, "tui", false, "Open the interactive TUI instead of using headless stdout output")
 	cmd.Flags().BoolVar(&state.persist, "persist", false, "Persist exec artifacts under .compozy/runs/<run-id>/")
+	cmd.Flags().BoolVar(&state.extensionsEnabled, "extensions", false, "Enable executable extensions for this exec run")
 	cmd.Flags().StringVar(&state.runID, "run-id", "", "Resume a previously persisted exec session by run id")
 	return cmd
 }

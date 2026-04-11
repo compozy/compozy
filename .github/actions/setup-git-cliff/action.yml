@@ -6,7 +6,7 @@ inputs:
   version:
     description: "git-cliff version to install"
     required: false
-    default: "2.7.0"  # Pin to stable version for better caching
+    default: "2.7.0" # Pin to stable version for better caching
 
 outputs:
   version:

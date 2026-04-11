@@ -143,7 +143,7 @@ Use the `Skill` tool to activate every skill that matches the identified domains
 | Logging                 | `golang-pro`                              |                         |
 | Bug fix                 | `systematic-debugging` + `no-workarounds` | `testing-anti-patterns` |
 | Writing tests           | `testing-anti-patterns` + `golang-pro`    |                         |
-| Task completion         | `cy-final-verify`          |                         |
+| Task completion         | `cy-final-verify`                         |                         |
 | Architecture audit      | `architectural-analysis`                  | `adversarial-review`    |
 | Creative / new features | `brainstorming`                           |                         |
 | Git rebase/conflicts    | `git-rebase`                              |                         |

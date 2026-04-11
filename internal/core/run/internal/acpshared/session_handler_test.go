@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -337,6 +339,61 @@ func TestSessionUpdateHandlerDoesNotBlockWhenSessionStateIsTracked(t *testing.T)
 	}
 }
 
+func TestSessionUpdateHandlerDispatchesUpdateObserverWithoutBlocking(t *testing.T) {
+	t.Parallel()
+
+	runID, runJournal, _, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	manager := newAsyncObserverManager()
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		JobID:      "job-123",
+		SessionID:  "sess-observer",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+		RunManager: manager,
+	})
+
+	update := model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{mustContentBlockLoggingTest(t, model.TextBlock{Text: "observer update"})},
+		Status: model.StatusRunning,
+	}
+
+	for i := 0; i < 2; i++ {
+		done := make(chan error, 1)
+		go func() {
+			done <- handler.HandleUpdate(update)
+		}()
+
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("handle update %d: %v", i, err)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatalf("handle update %d blocked on observer dispatch", i)
+		}
+	}
+
+	manager.release()
+	calls := manager.waitForCalls(t, 2)
+	for _, call := range calls {
+		if call.hook != "agent.on_session_update" {
+			t.Fatalf("unexpected observer hook %q", call.hook)
+		}
+		payload := call.payload.(sessionUpdateHookPayload)
+		if payload.JobID != "job-123" || payload.SessionID != "sess-observer" {
+			t.Fatalf("unexpected observer payload: %#v", payload)
+		}
+	}
+}
+
 func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	t.Parallel()
 
@@ -456,6 +513,394 @@ func TestSessionUpdateHandlerCompletionWriteFailureStillSignalsDone(t *testing.T
 	}
 }
 
+func TestSessionUpdateHandlerEmitsNestedReusableAgentLifecycleEvents(t *testing.T) {
+	t.Parallel()
+
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-nested-success",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+		ReusableAgent: &reusableAgentExecution{
+			Name:   "parent",
+			Source: "workspace",
+		},
+	})
+
+	startBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
+		ID:       "tool-1",
+		Name:     "run_agent",
+		ToolName: "run_agent",
+		Input:    json.RawMessage(`{"name":"child","input":"delegate this"}`),
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallStarted,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStatePending,
+		Blocks:        []model.ContentBlock{startBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested start update: %v", err)
+	}
+
+	resultBlock := mustContentBlockLoggingTest(t, model.ToolResultBlock{
+		ToolUseID: "tool-1",
+		Content:   `{"name":"child","source":"workspace","run_id":"run-child","success":true,"parent_agent_name":"parent","depth":1,"max_depth":3}`,
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStateCompleted,
+		Blocks:        []model.ContentBlock{resultBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested completion update: %v", err)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 4)
+	if got := []eventspkg.EventKind{
+		events[0].Kind,
+		events[1].Kind,
+		events[2].Kind,
+		events[3].Kind,
+	}; !reflect.DeepEqual(
+		got,
+		[]eventspkg.EventKind{
+			eventspkg.EventKindReusableAgentLifecycle,
+			eventspkg.EventKindSessionUpdate,
+			eventspkg.EventKindReusableAgentLifecycle,
+			eventspkg.EventKindSessionUpdate,
+		},
+	) {
+		t.Fatalf("unexpected event order: %v", got)
+	}
+
+	var started kinds.ReusableAgentLifecyclePayload
+	decodeRuntimeEventPayload(t, events[0], &started)
+	if started.Stage != kinds.ReusableAgentLifecycleStageNestedStarted ||
+		started.AgentName != "child" ||
+		started.ParentAgentName != "parent" {
+		t.Fatalf("unexpected nested start payload: %#v", started)
+	}
+
+	var completed kinds.ReusableAgentLifecyclePayload
+	decodeRuntimeEventPayload(t, events[2], &completed)
+	if completed.Stage != kinds.ReusableAgentLifecycleStageNestedCompleted ||
+		completed.AgentName != "child" ||
+		completed.OutputRunID != "run-child" ||
+		!completed.Success {
+		t.Fatalf("unexpected nested completion payload: %#v", completed)
+	}
+}
+
+func TestSessionUpdateHandlerEmitsNestedBlockedLifecycleAndKeepsParentSessionUsable(t *testing.T) {
+	t.Parallel()
+
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-nested-blocked",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+		ReusableAgent: &reusableAgentExecution{
+			Name:   "parent",
+			Source: "workspace",
+		},
+	})
+
+	startBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
+		ID:       "tool-1",
+		Name:     "run_agent",
+		ToolName: "run_agent",
+		Input:    json.RawMessage(`{"name":"child","input":"delegate this"}`),
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallStarted,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStatePending,
+		Blocks:        []model.ContentBlock{startBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested start update: %v", err)
+	}
+
+	blockedBlock := mustContentBlockLoggingTest(t, model.ToolResultBlock{
+		ToolUseID: "tool-1",
+		Content:   `{"name":"child","source":"workspace","success":false,"blocked":true,"blocked_reason":"cycle-detected","error":"nested execution blocked: cycle detected","parent_agent_name":"parent","depth":2,"max_depth":3}`,
+		IsError:   true,
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStateFailed,
+		Blocks:        []model.ContentBlock{blockedBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested blocked update: %v", err)
+	}
+
+	recoveryBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "parent recovered"})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{recoveryBlock},
+		Status: model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle recovery update: %v", err)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 5)
+	if got := []eventspkg.EventKind{
+		events[0].Kind,
+		events[1].Kind,
+		events[2].Kind,
+		events[3].Kind,
+		events[4].Kind,
+	}; !reflect.DeepEqual(
+		got,
+		[]eventspkg.EventKind{
+			eventspkg.EventKindReusableAgentLifecycle,
+			eventspkg.EventKindSessionUpdate,
+			eventspkg.EventKindReusableAgentLifecycle,
+			eventspkg.EventKindSessionUpdate,
+			eventspkg.EventKindSessionUpdate,
+		},
+	) {
+		t.Fatalf("unexpected event order: %v", got)
+	}
+
+	var blocked kinds.ReusableAgentLifecyclePayload
+	decodeRuntimeEventPayload(t, events[2], &blocked)
+	if blocked.Stage != kinds.ReusableAgentLifecycleStageNestedBlocked ||
+		blocked.BlockedReason != kinds.ReusableAgentBlockedReasonCycleDetected ||
+		!blocked.Blocked {
+		t.Fatalf("unexpected nested blocked payload: %#v", blocked)
+	}
+
+	snapshot := handler.Snapshot()
+	if len(snapshot.Entries) < 2 {
+		t.Fatalf("expected blocked tool call plus recovery transcript, got %#v", snapshot.Entries)
+	}
+	text, err := snapshot.Entries[len(snapshot.Entries)-1].Blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("decode recovery text: %v", err)
+	}
+	if text.Text != "parent recovered" {
+		t.Fatalf("unexpected recovery transcript: %#v", snapshot.Entries)
+	}
+}
+
+func TestSessionUpdateHandlerSkipsNestedTrackingWhenLifecycleStartSubmitFails(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	submitter := &stubRuntimeEventSubmitter{
+		submitFn: func(ev eventspkg.Event) error {
+			if ev.Kind == eventspkg.EventKindReusableAgentLifecycle {
+				return errors.New("journal unavailable")
+			}
+			return nil
+		},
+	}
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-nested-start-failure",
+		RunID:      "run-lifecycle",
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: submitter,
+		Logger: slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{
+			Level: slog.LevelWarn,
+		})),
+		ReusableAgent: &reusableAgentExecution{
+			Name:   "parent",
+			Source: "workspace",
+		},
+	})
+
+	startBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
+		ID:       "tool-1",
+		Name:     "run_agent",
+		ToolName: "run_agent",
+		Input:    json.RawMessage(`{"name":"child","input":"delegate this"}`),
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallStarted,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStatePending,
+		Blocks:        []model.ContentBlock{startBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested start update: %v", err)
+	}
+
+	if _, exists := handler.nestedToolCalls["tool-1"]; exists {
+		t.Fatalf("expected failed lifecycle submit not to track nested tool call, got %#v", handler.nestedToolCalls)
+	}
+	if !strings.Contains(logs.String(), "failed to emit reusable agent lifecycle from session update; continuing") {
+		t.Fatalf("expected lifecycle warning log, got %q", logs.String())
+	}
+	if got := submitter.countKind(eventspkg.EventKindSessionUpdate); got != 1 {
+		t.Fatalf("expected session update event to continue, got %d", got)
+	}
+}
+
+func TestSessionUpdateHandlerRetainsNestedTrackingWhenLifecycleCompletionSubmitFails(t *testing.T) {
+	t.Parallel()
+
+	var logs bytes.Buffer
+	lifecycleAttempts := 0
+	submitter := &stubRuntimeEventSubmitter{
+		submitFn: func(ev eventspkg.Event) error {
+			if ev.Kind != eventspkg.EventKindReusableAgentLifecycle {
+				return nil
+			}
+			lifecycleAttempts++
+			if lifecycleAttempts == 2 {
+				return errors.New("journal unavailable")
+			}
+			return nil
+		},
+	}
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-nested-complete-failure",
+		RunID:      "run-lifecycle",
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: submitter,
+		Logger: slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{
+			Level: slog.LevelWarn,
+		})),
+		ReusableAgent: &reusableAgentExecution{
+			Name:   "parent",
+			Source: "workspace",
+		},
+	})
+
+	startBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
+		ID:       "tool-1",
+		Name:     "run_agent",
+		ToolName: "run_agent",
+		Input:    json.RawMessage(`{"name":"child","input":"delegate this"}`),
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallStarted,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStatePending,
+		Blocks:        []model.ContentBlock{startBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested start update: %v", err)
+	}
+
+	resultBlock := mustContentBlockLoggingTest(t, model.ToolResultBlock{
+		ToolUseID: "tool-1",
+		Content:   `{"name":"child","source":"workspace","run_id":"run-child","success":true,"parent_agent_name":"parent","depth":1,"max_depth":3}`,
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStateCompleted,
+		Blocks:        []model.ContentBlock{resultBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested completion update: %v", err)
+	}
+
+	if _, exists := handler.nestedToolCalls["tool-1"]; !exists {
+		t.Fatalf(
+			"expected failed completion lifecycle submit to preserve nested tool call, got %#v",
+			handler.nestedToolCalls,
+		)
+	}
+	if !strings.Contains(logs.String(), "failed to emit reusable agent lifecycle from session update; continuing") {
+		t.Fatalf("expected lifecycle warning log, got %q", logs.String())
+	}
+	if got := submitter.countKind(eventspkg.EventKindSessionUpdate); got != 2 {
+		t.Fatalf("expected session update events to continue, got %d", got)
+	}
+}
+
+func TestSessionUpdateHandlerDispatchesPostSessionEndOncePerCompletion(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus model.SessionStatus
+		wantError  string
+	}{
+		{
+			name:       "success",
+			wantStatus: model.StatusCompleted,
+		},
+		{
+			name:       "error",
+			err:        errors.New("boom"),
+			wantStatus: model.StatusFailed,
+			wantError:  "boom",
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runID, runJournal, _, cleanup := openRuntimeEventCapture(t)
+			defer cleanup()
+
+			manager := newAsyncObserverManager()
+			manager.release()
+			handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+				Context:    context.Background(),
+				Index:      0,
+				AgentID:    model.IDECodex,
+				JobID:      "job-456",
+				SessionID:  "sess-complete",
+				RunID:      runID,
+				OutWriter:  io.Discard,
+				ErrWriter:  io.Discard,
+				RunJournal: runJournal,
+				RunManager: manager,
+			})
+
+			if err := handler.HandleCompletion(tc.err); err != nil {
+				t.Fatalf("handle completion: %v", err)
+			}
+
+			calls := manager.waitForCalls(t, 1)
+			if len(calls) != 1 {
+				t.Fatalf("expected one observer call, got %d", len(calls))
+			}
+			if calls[0].hook != "agent.post_session_end" {
+				t.Fatalf("unexpected observer hook %q", calls[0].hook)
+			}
+
+			payload := calls[0].payload.(sessionEndedHookPayload)
+			if payload.Outcome.Status != tc.wantStatus || payload.Outcome.Error != tc.wantError {
+				t.Fatalf("unexpected completion payload: %#v", payload)
+			}
+		})
+	}
+}
 func TestRenderContentBlocksHandlesTerminalImageAndDecodeFallback(t *testing.T) {
 	t.Parallel()
 
@@ -499,6 +944,66 @@ type failingWriter struct{}
 
 func (failingWriter) Write([]byte) (int, error) {
 	return 0, errors.New("write failed")
+}
+
+type asyncObserverCall struct {
+	hook    string
+	payload any
+}
+
+type asyncObserverManager struct {
+	releaseCh chan struct{}
+	callsCh   chan asyncObserverCall
+}
+
+func newAsyncObserverManager() *asyncObserverManager {
+	return &asyncObserverManager{
+		releaseCh: make(chan struct{}),
+		callsCh:   make(chan asyncObserverCall, 16),
+	}
+}
+
+func (*asyncObserverManager) Start(context.Context) error { return nil }
+
+func (*asyncObserverManager) Shutdown(context.Context) error { return nil }
+
+func (m *asyncObserverManager) DispatchMutableHook(
+	context.Context,
+	string,
+	any,
+) (any, error) {
+	return nil, nil
+}
+
+func (m *asyncObserverManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
+	go func() {
+		<-m.releaseCh
+		m.callsCh <- asyncObserverCall{hook: hook, payload: payload}
+	}()
+}
+
+func (m *asyncObserverManager) release() {
+	select {
+	case <-m.releaseCh:
+	default:
+		close(m.releaseCh)
+	}
+}
+
+func (m *asyncObserverManager) waitForCalls(t *testing.T, count int) []asyncObserverCall {
+	t.Helper()
+
+	calls := make([]asyncObserverCall, 0, count)
+	deadline := time.After(2 * time.Second)
+	for len(calls) < count {
+		select {
+		case call := <-m.callsCh:
+			calls = append(calls, call)
+		case <-deadline:
+			t.Fatalf("timed out waiting for %d observer calls, got %d", count, len(calls))
+		}
+	}
+	return calls
 }
 
 func openRuntimeEventCapture(

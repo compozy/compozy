@@ -1,13 +1,21 @@
 package acpshared
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log/slog"
 	"os"
+	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestBuildSessionExecutionUsesSessionSetupRequest(t *testing.T) {
@@ -96,6 +104,253 @@ func TestBuildSessionExecutionUsesSessionSetupRequest(t *testing.T) {
 	}
 }
 
+func TestCreateACPSessionForwardsMCPServersOnNewSession(t *testing.T) {
+	t.Parallel()
+
+	client := &capturingCommandIOClient{}
+	servers := []model.MCPServer{{
+		Stdio: &model.MCPServerStdio{
+			Name:    "compozy",
+			Command: "/tmp/compozy-test",
+			Args:    []string{"mcp-serve", "--server", "compozy"},
+		},
+	}}
+
+	session, err := createACPSession(
+		context.Background(),
+		client,
+		&config{Model: "model-1"},
+		&job{
+			Prompt:       []byte("solve it"),
+			SystemPrompt: "system framing",
+			MCPServers:   servers,
+		},
+		t.TempDir(),
+	)
+	if err != nil {
+		t.Fatalf("create ACP session: %v", err)
+	}
+	if session == nil {
+		t.Fatal("expected session")
+	}
+	if len(client.createReq.MCPServers) != 1 {
+		t.Fatalf("expected one forwarded MCP server, got %#v", client.createReq.MCPServers)
+	}
+	if client.createReq.MCPServers[0].Stdio == nil ||
+		client.createReq.MCPServers[0].Stdio.Name != "compozy" {
+		t.Fatalf("unexpected forwarded MCP servers: %#v", client.createReq.MCPServers)
+	}
+}
+
+func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
+	t.Parallel()
+
+	client := &capturingCommandIOClient{}
+	servers := []model.MCPServer{{
+		Stdio: &model.MCPServerStdio{
+			Name:    "filesystem",
+			Command: "/tmp/fs-mcp",
+			Args:    []string{"--serve"},
+		},
+	}}
+
+	session, err := createACPSession(
+		context.Background(),
+		client,
+		&config{Model: "model-1"},
+		&job{
+			Prompt:        []byte("solve it"),
+			ResumeSession: "sess-existing",
+			MCPServers:    servers,
+		},
+		t.TempDir(),
+	)
+	if err != nil {
+		t.Fatalf("resume ACP session: %v", err)
+	}
+	if session == nil {
+		t.Fatal("expected session")
+	}
+	if client.resumeReq.SessionID != "sess-existing" {
+		t.Fatalf("unexpected resumed session id: %#v", client.resumeReq)
+	}
+	if len(client.resumeReq.MCPServers) != 1 {
+		t.Fatalf("expected one forwarded MCP server, got %#v", client.resumeReq.MCPServers)
+	}
+	if client.resumeReq.MCPServers[0].Stdio == nil ||
+		client.resumeReq.MCPServers[0].Stdio.Name != "filesystem" {
+		t.Fatalf("unexpected forwarded MCP servers: %#v", client.resumeReq.MCPServers)
+	}
+}
+
+func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {
+	tests := []struct {
+		name    string
+		resumed bool
+	}{
+		{name: "new session", resumed: false},
+		{name: "resume session", resumed: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+			defer cleanup()
+
+			restore := SwapNewAgentClientForTest(
+				func(context.Context, agent.ClientConfig) (agent.Client, error) {
+					return &lifecycleCommandIOClient{
+						session: fakeSessionExecutionSession{
+							id: "sess-lifecycle",
+							identity: agent.SessionIdentity{
+								ACPSessionID: "sess-lifecycle",
+								Resumed:      tt.resumed,
+							},
+							updates: make(chan model.SessionUpdate),
+							done:    make(chan struct{}),
+						},
+					}, nil
+				},
+			)
+			defer restore()
+
+			tmpDir := t.TempDir()
+			execution, err := SetupSessionExecution(SessionSetupRequest{
+				Context: context.Background(),
+				Config: &config{
+					IDE:          model.IDECodex,
+					RunArtifacts: model.RunArtifacts{RunID: runID},
+				},
+				Job: &job{
+					SafeName:     "exec",
+					Prompt:       []byte("finish the task"),
+					SystemPrompt: "workflow memory\n\n<agent_metadata>\nname: planner\n</agent_metadata>",
+					ReusableAgent: &reusableAgentExecution{
+						Name:                "planner",
+						Source:              "workspace",
+						AvailableAgentCount: 2,
+					},
+					MCPServers: []model.MCPServer{
+						{Stdio: &model.MCPServerStdio{Name: "compozy", Command: "/tmp/compozy-test"}},
+						{Stdio: &model.MCPServerStdio{Name: "filesystem", Command: "/tmp/fs-mcp"}},
+					},
+					ResumeSession: map[bool]string{true: "sess-existing", false: ""}[tt.resumed],
+					OutLog:        filepath.Join(tmpDir, "exec.out.log"),
+					ErrLog:        filepath.Join(tmpDir, "exec.err.log"),
+				},
+				CWD:        tmpDir,
+				RunJournal: runJournal,
+				Logger:     silentLogger(),
+			})
+			if err != nil {
+				t.Fatalf("setup session execution: %v", err)
+			}
+			execution.Close()
+
+			events := collectRuntimeEvents(t, eventsCh, 4)
+			gotKinds := []eventspkg.EventKind{events[0].Kind, events[1].Kind, events[2].Kind, events[3].Kind}
+			wantKinds := []eventspkg.EventKind{
+				eventspkg.EventKindReusableAgentLifecycle,
+				eventspkg.EventKindReusableAgentLifecycle,
+				eventspkg.EventKindReusableAgentLifecycle,
+				eventspkg.EventKindSessionStarted,
+			}
+			if !slices.Equal(gotKinds, wantKinds) {
+				t.Fatalf("unexpected runtime event kinds: got %v want %v", gotKinds, wantKinds)
+			}
+
+			var resolved kinds.ReusableAgentLifecyclePayload
+			decodeRuntimeEventPayload(t, events[0], &resolved)
+			if resolved.Stage != kinds.ReusableAgentLifecycleStageResolved || resolved.AgentName != "planner" {
+				t.Fatalf("unexpected resolved payload: %#v", resolved)
+			}
+
+			var prompt kinds.ReusableAgentLifecyclePayload
+			decodeRuntimeEventPayload(t, events[1], &prompt)
+			if prompt.Stage != kinds.ReusableAgentLifecycleStagePromptAssembled || prompt.AvailableAgents != 2 {
+				t.Fatalf("unexpected prompt payload: %#v", prompt)
+			}
+
+			var mcpMerged kinds.ReusableAgentLifecyclePayload
+			decodeRuntimeEventPayload(t, events[2], &mcpMerged)
+			if mcpMerged.Stage != kinds.ReusableAgentLifecycleStageMCPMerged {
+				t.Fatalf("unexpected mcp payload: %#v", mcpMerged)
+			}
+			if mcpMerged.Resumed != tt.resumed {
+				t.Fatalf("unexpected resumed flag: %#v", mcpMerged)
+			}
+			if got, want := mcpMerged.MCPServers, []string{"compozy", "filesystem"}; !slices.Equal(got, want) {
+				t.Fatalf("unexpected mcp server names: got %v want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestSetupSessionExecutionWarnsButContinuesWhenReusableAgentSetupLifecycleSubmitFails(t *testing.T) {
+	var logs bytes.Buffer
+	submitter := &stubRuntimeEventSubmitter{
+		submitFn: func(ev eventspkg.Event) error {
+			if ev.Kind == eventspkg.EventKindReusableAgentLifecycle {
+				return errors.New("journal unavailable")
+			}
+			return nil
+		},
+	}
+
+	restore := SwapNewAgentClientForTest(
+		func(context.Context, agent.ClientConfig) (agent.Client, error) {
+			return &lifecycleCommandIOClient{
+				session: fakeSessionExecutionSession{
+					id: "sess-lifecycle",
+					identity: agent.SessionIdentity{
+						ACPSessionID: "sess-lifecycle",
+					},
+					updates: make(chan model.SessionUpdate),
+					done:    make(chan struct{}),
+				},
+			}, nil
+		},
+	)
+	defer restore()
+
+	tmpDir := t.TempDir()
+	execution, err := SetupSessionExecution(SessionSetupRequest{
+		Context: context.Background(),
+		Config: &config{
+			IDE:          model.IDECodex,
+			RunArtifacts: model.RunArtifacts{RunID: "run-lifecycle"},
+		},
+		Job: &job{
+			SafeName:     "exec",
+			Prompt:       []byte("finish the task"),
+			SystemPrompt: "workflow memory",
+			ReusableAgent: &reusableAgentExecution{
+				Name:                "planner",
+				Source:              "workspace",
+				AvailableAgentCount: 2,
+			},
+			OutLog: filepath.Join(tmpDir, "exec.out.log"),
+			ErrLog: filepath.Join(tmpDir, "exec.err.log"),
+		},
+		CWD:        tmpDir,
+		RunJournal: submitter,
+		Logger: slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{
+			Level: slog.LevelWarn,
+		})),
+	})
+	if err != nil {
+		t.Fatalf("setup session execution: %v", err)
+	}
+	execution.Close()
+
+	if !strings.Contains(logs.String(), "failed to emit reusable agent setup lifecycle; continuing") {
+		t.Fatalf("expected reusable-agent lifecycle warning, got %q", logs.String())
+	}
+	if got := submitter.countKind(eventspkg.EventKindSessionStarted); got != 1 {
+		t.Fatalf("expected session started event to still be submitted, got %d", got)
+	}
+}
+
 type fakeSessionExecutionSession struct {
 	id       string
 	identity agent.SessionIdentity
@@ -130,3 +385,88 @@ func (s fakeSessionExecutionSession) SlowPublishes() uint64 {
 func (s fakeSessionExecutionSession) DroppedUpdates() uint64 {
 	return 0
 }
+
+type capturingCommandIOClient struct {
+	createReq agent.SessionRequest
+	resumeReq agent.ResumeSessionRequest
+}
+
+type lifecycleCommandIOClient struct {
+	session agent.Session
+}
+
+type stubRuntimeEventSubmitter struct {
+	mu       sync.Mutex
+	events   []eventspkg.Event
+	submitFn func(eventspkg.Event) error
+}
+
+func (s *stubRuntimeEventSubmitter) Submit(_ context.Context, ev eventspkg.Event) error {
+	s.mu.Lock()
+	s.events = append(s.events, ev)
+	submitFn := s.submitFn
+	s.mu.Unlock()
+	if submitFn != nil {
+		return submitFn(ev)
+	}
+	return nil
+}
+
+func (s *stubRuntimeEventSubmitter) countKind(kind eventspkg.EventKind) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	total := 0
+	for _, ev := range s.events {
+		if ev.Kind == kind {
+			total++
+		}
+	}
+	return total
+}
+
+func (c *capturingCommandIOClient) CreateSession(
+	_ context.Context,
+	req agent.SessionRequest,
+) (agent.Session, error) {
+	c.createReq = req
+	return fakeSessionExecutionSession{
+		id:      "sess-create",
+		updates: make(chan model.SessionUpdate),
+		done:    make(chan struct{}),
+	}, nil
+}
+
+func (c *capturingCommandIOClient) ResumeSession(
+	_ context.Context,
+	req agent.ResumeSessionRequest,
+) (agent.Session, error) {
+	c.resumeReq = req
+	return fakeSessionExecutionSession{
+		id:      "sess-resume",
+		updates: make(chan model.SessionUpdate),
+		done:    make(chan struct{}),
+	}, nil
+}
+
+func (*capturingCommandIOClient) SupportsLoadSession() bool { return true }
+func (*capturingCommandIOClient) Close() error              { return nil }
+func (*capturingCommandIOClient) Kill() error               { return nil }
+
+func (c *lifecycleCommandIOClient) CreateSession(
+	context.Context,
+	agent.SessionRequest,
+) (agent.Session, error) {
+	return c.session, nil
+}
+
+func (c *lifecycleCommandIOClient) ResumeSession(
+	context.Context,
+	agent.ResumeSessionRequest,
+) (agent.Session, error) {
+	return c.session, nil
+}
+
+func (*lifecycleCommandIOClient) SupportsLoadSession() bool { return true }
+func (*lifecycleCommandIOClient) Close() error              { return nil }
+func (*lifecycleCommandIOClient) Kill() error               { return nil }

@@ -1,22 +1,27 @@
 Goal (incl. success criteria):
+
 - Fix all still-valid review issues from the provided CodeRabbit dump with root-cause changes only, add/adjust tests where behavior changes, and finish with clean `make verify`.
 
 Constraints/Assumptions:
+
 - Follow `AGENTS.md` and `CLAUDE.md`.
 - Required skills in use: `no-workarounds`, `systematic-debugging`, `golang-pro`, `testing-anti-patterns`; `cy-final-verify` gates completion.
 - Do not touch unrelated files or use destructive git commands.
 - Treat each review comment as a hypothesis; only fix it if still valid in the current tree.
 
 Key decisions:
+
 - Validate each issue against current code before editing.
 - Prefer contained root-cause fixes over broad refactors unless the current code path already proves the architectural problem.
 - Treat the `ref_id`-only `OpenURL` path as intentional behavior and simplify the redundant condition without changing semantics.
 - Treat the `maybeCollectInteractiveParams` exec comment as obsolete in the current tree because `exec` already routes through `resolveExecPromptSource` instead of the interactive-form path.
 
 State:
+
 - Completed with clean verification.
 
 Done:
+
 - Read workspace instructions and required skill files.
 - Scanned existing ledgers for related work and cross-agent awareness.
 - Confirmed clean working tree at start.
@@ -33,15 +38,19 @@ Done:
 - Ran `make verify` successfully with clean fmt/lint, `DONE 1104 tests`, and a successful build.
 
 Now:
+
 - Prepare the final handoff.
 
 Next:
+
 - None.
 
 Open questions (UNCONFIRMED if needed):
+
 - None currently blocking.
 
 Working set (files/ids/commands):
+
 - `.codex/ledger/2026-04-07-MEMORY-review-fixes.md`
 - `cmd/compozy/main.go`
 - `cmd/compozy/main_test.go`

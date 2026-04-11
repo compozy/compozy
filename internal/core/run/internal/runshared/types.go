@@ -48,6 +48,14 @@ type JobAttemptResult struct {
 	Retryable bool
 }
 
+// ReusableAgentExecution carries reusable-agent metadata needed for runtime
+// observability once the job prompt and MCP servers are fully prepared.
+type ReusableAgentExecution struct {
+	Name                string
+	Source              string
+	AvailableAgentCount int
+}
+
 func (r JobAttemptResult) Successful() bool {
 	return r.Status == AttemptStatusSuccess
 }

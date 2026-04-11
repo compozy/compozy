@@ -51,6 +51,7 @@ type FixReviewsConfig struct {
 
 type FetchReviewsConfig struct {
 	Provider *string `toml:"provider"`
+	Nitpicks *bool   `toml:"nitpicks"`
 }
 
 type ExecConfig struct {

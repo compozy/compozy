@@ -93,6 +93,7 @@ const (
 // exported as the legacy translation shape used by CLI flag parsing and older
 // call sites before they move to typed kernel commands directly.
 type Config struct {
+<<<<<<< HEAD
 	WorkspaceRoot          string
 	Name                   string
 	Round                  int
@@ -126,6 +127,44 @@ type Config struct {
 	Timeout                time.Duration
 	MaxRetries             int
 	RetryBackoffMultiplier float64
+=======
+	WorkspaceRoot              string
+	Name                       string
+	Round                      int
+	Provider                   string
+	PR                         string
+	Nitpicks                   bool
+	ReviewsDir                 string
+	TasksDir                   string
+	DryRun                     bool
+	AutoCommit                 bool
+	Concurrent                 int
+	BatchSize                  int
+	IDE                        IDE
+	Model                      string
+	AddDirs                    []string
+	TailLines                  int
+	ReasoningEffort            string
+	AccessMode                 string
+	AgentName                  string
+	ExplicitRuntime            model.ExplicitRuntimeFlags
+	Mode                       Mode
+	OutputFormat               OutputFormat
+	Verbose                    bool
+	TUI                        bool
+	Persist                    bool
+	EnableExecutableExtensions bool
+	RunID                      string
+	PromptText                 string
+	PromptFile                 string
+	ReadPromptStdin            bool
+	ResolvedPromptText         string
+	IncludeCompleted           bool
+	IncludeResolved            bool
+	Timeout                    time.Duration
+	MaxRetries                 int
+	RetryBackoffMultiplier     float64
+>>>>>>> compozy/main
 }
 
 // Job is a prepared execution unit with its generated artifacts.
@@ -245,7 +284,12 @@ func prepareDirect(ctx context.Context, cfg Config) (*Preparation, error) {
 		return nil, err
 	}
 
-	prep, err := plan.Prepare(ctx, runtimeCfg, nil)
+	scope, err := model.OpenRunScope(ctx, runtimeCfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	prep, err := plan.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return nil, ErrNoWork
@@ -263,17 +307,34 @@ func runDirect(ctx context.Context, cfg Config) error {
 	}
 
 	if runtimeCfg.Mode == model.ExecutionModeExec {
-		return run.ExecuteExec(ctx, runtimeCfg)
+		return run.ExecuteExec(ctx, runtimeCfg, nil)
 	}
 
-	prep, err := plan.Prepare(ctx, runtimeCfg, nil)
+	scope, err := model.OpenRunScope(ctx, runtimeCfg, model.OpenRunScopeOptions{})
+	if err != nil {
+		return err
+	}
+
+	prep, err := plan.Prepare(ctx, runtimeCfg, scope)
 	if err != nil {
 		if errors.Is(err, plan.ErrNoWork) {
 			return nil
 		}
 		return err
 	}
-	return run.Execute(ctx, prep.Jobs, prep.RunArtifacts, prep.Journal(), nil, runtimeCfg)
+
+	runErr := run.Execute(
+		ctx,
+		prep.Jobs,
+		prep.RunArtifacts,
+		prep.Journal(),
+		prep.EventBus(),
+		runtimeCfg,
+		prep.RuntimeManager(),
+	)
+	closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer cancel()
+	return errors.Join(runErr, prep.CloseJournal(closeCtx))
 }
 
 // NormalizeAddDirs trims, de-duplicates, and normalizes repeated add-dir values.
@@ -304,6 +365,7 @@ func NormalizeAddDirs(dirs []string) []string {
 // RuntimeConfig converts the legacy core.Config shape into the shared runtime configuration.
 func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 	runtimeCfg := &model.RuntimeConfig{
+<<<<<<< HEAD
 		WorkspaceRoot:          cfg.WorkspaceRoot,
 		Name:                   cfg.Name,
 		Round:                  cfg.Round,
@@ -337,6 +399,44 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		Timeout:                cfg.Timeout,
 		MaxRetries:             cfg.MaxRetries,
 		RetryBackoffMultiplier: cfg.RetryBackoffMultiplier,
+=======
+		WorkspaceRoot:              cfg.WorkspaceRoot,
+		Name:                       cfg.Name,
+		Round:                      cfg.Round,
+		Provider:                   cfg.Provider,
+		PR:                         cfg.PR,
+		Nitpicks:                   cfg.Nitpicks,
+		ReviewsDir:                 cfg.ReviewsDir,
+		TasksDir:                   cfg.TasksDir,
+		DryRun:                     cfg.DryRun,
+		AutoCommit:                 cfg.AutoCommit,
+		Concurrent:                 cfg.Concurrent,
+		BatchSize:                  cfg.BatchSize,
+		IDE:                        string(cfg.IDE),
+		Model:                      cfg.Model,
+		AddDirs:                    NormalizeAddDirs(cfg.AddDirs),
+		TailLines:                  cfg.TailLines,
+		ReasoningEffort:            cfg.ReasoningEffort,
+		AccessMode:                 cfg.AccessMode,
+		AgentName:                  cfg.AgentName,
+		ExplicitRuntime:            cfg.ExplicitRuntime,
+		Mode:                       model.ExecutionMode(cfg.Mode),
+		OutputFormat:               model.OutputFormat(cfg.OutputFormat),
+		Verbose:                    cfg.Verbose,
+		TUI:                        cfg.TUI,
+		Persist:                    cfg.Persist,
+		EnableExecutableExtensions: cfg.EnableExecutableExtensions,
+		RunID:                      cfg.RunID,
+		PromptText:                 cfg.PromptText,
+		PromptFile:                 cfg.PromptFile,
+		ReadPromptStdin:            cfg.ReadPromptStdin,
+		ResolvedPromptText:         cfg.ResolvedPromptText,
+		IncludeCompleted:           cfg.IncludeCompleted,
+		IncludeResolved:            cfg.IncludeResolved,
+		Timeout:                    cfg.Timeout,
+		MaxRetries:                 cfg.MaxRetries,
+		RetryBackoffMultiplier:     cfg.RetryBackoffMultiplier,
+>>>>>>> compozy/main
 	}
 	runtimeCfg.ApplyDefaults()
 	return runtimeCfg

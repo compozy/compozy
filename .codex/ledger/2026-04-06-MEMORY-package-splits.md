@@ -1,7 +1,9 @@
 Goal (incl. success criteria):
+
 - Complete `task_04` Phase 3 package-level splits: add `internal/core/contentconv`, `internal/core/run/{exec,transcript,ui,executor}`, and `internal/core/migration`; keep `internal/core/run` and `internal/core` as thin facades; pass `make verify`.
 
 Constraints/Assumptions:
+
 - Follow `.compozy/tasks/refac/task_04.md`, `20260406-summary.md`, `20260406-agent-run.md`, workflow memory, `AGENTS.md`, and `CLAUDE.md`.
 - Scope is structural refactoring only; minimize logic changes.
 - Do not touch unrelated dirty files already present in `git status`.
@@ -9,6 +11,7 @@ Constraints/Assumptions:
 - Must run `make verify` before any completion claim or commit.
 
 Key decisions:
+
 - Use `internal/core/contentconv` as the single source for model<->kinds content/session update translation before moving UI/executor code.
 - Preserve `internal/core/run` shared types in-place as the dependency anchor to avoid circular imports during the split.
 - Use incremental package verification after each extraction, with `go list`/targeted tests as intermediate signals before the final `make verify`.
@@ -17,9 +20,11 @@ Key decisions:
 - Extract `run/ui` before the final `run/exec` and `run/executor` cuts because both future packages depend on the UI surface (`setupUI` / wait / quit handling) and on shared ACP/session plumbing.
 
 State:
+
 - Completed after clean `make verify`.
 
 Done:
+
 - Read repo instructions, required skill guides, workflow memory, task spec, `20260406-summary.md`, `20260406-agent-run.md`, and verification notes.
 - Captured baseline package graph with `go list ./internal/core/run/... ./internal/core/...`; current graph has only `internal/core/run` and `internal/core/run/journal`.
 - Confirmed `run` is still monolithic and `internal/core/migrate.go` still exists in root `core`.
@@ -35,17 +40,21 @@ Done:
 - Completed the final repository gate successfully: `make verify` passed with clean fmt/lint, 987 tests, and build.
 
 Now:
+
 - Tracking and verification are complete; only optional session-ledger cleanup remains.
 
 Next:
+
 - If needed, create the local task commit from the verified package split.
 
 Open questions (UNCONFIRMED if needed):
+
 - Resolved: `run/executor` and `run/exec` both depend on `run/ui` through the narrow `runshared.UISession` interface rather than through direct controller types.
 - Resolved: a small root `run` test/facade surface must remain to verify delegation and preserve CLI compatibility exports.
 - Resolved: ACP session helpers belong in `internal/core/run/internal/acpshared` alongside `runshared`, not duplicated inside `exec` or `executor`.
 
 Working set (files/ids/commands):
+
 - `.compozy/tasks/refac/task_04.md`
 - `.compozy/tasks/refac/20260406-summary.md`
 - `.compozy/tasks/refac/20260406-agent-run.md`
