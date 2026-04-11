@@ -111,13 +111,8 @@ func (s *commandState) handleBundledSkillDrift(
 	cmd *cobra.Command,
 	verifyState requiredSkillState,
 ) error {
-<<<<<<< HEAD
 	if !s.commandIsInteractive() || s.closeOnComplete {
-		printBundledSkillDriftWarning(cmd, verifyResult, "continuing without updating the installed skills")
-=======
-	if !s.commandIsInteractive() {
 		printBundledSkillDriftWarning(cmd, verifyState, "continuing without updating the installed skills")
->>>>>>> compozy/main
 		return nil
 	}
 

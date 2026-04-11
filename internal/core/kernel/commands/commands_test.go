@@ -427,41 +427,6 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 
 func testCoreConfig() core.Config {
 	return core.Config{
-<<<<<<< HEAD
-		WorkspaceRoot:          "/workspace",
-		Name:                   "demo",
-		Round:                  7,
-		Provider:               "coderabbit",
-		PR:                     "259",
-		ReviewsDir:             "/workspace/.compozy/tasks/demo/reviews-007",
-		TasksDir:               "/workspace/.compozy/tasks/demo",
-		DryRun:                 true,
-		AutoCommit:             true,
-		CloseOnComplete:        true,
-		Concurrent:             2,
-		BatchSize:              1,
-		IDE:                    core.IDECodex,
-		Model:                  "gpt-5.4",
-		AddDirs:                []string{"docs", "src"},
-		TailLines:              25,
-		ReasoningEffort:        "high",
-		AccessMode:             core.AccessModeFull,
-		Mode:                   core.ModePRDTasks,
-		OutputFormat:           core.OutputFormatText,
-		Verbose:                true,
-		TUI:                    true,
-		Persist:                true,
-		RunID:                  "run-123",
-		PromptText:             "prompt text",
-		PromptFile:             "prompt.md",
-		ReadPromptStdin:        true,
-		ResolvedPromptText:     "resolved prompt text",
-		IncludeCompleted:       true,
-		IncludeResolved:        true,
-		Timeout:                90 * time.Second,
-		MaxRetries:             4,
-		RetryBackoffMultiplier: 2.5,
-=======
 		WorkspaceRoot:              "/workspace",
 		Name:                       "demo",
 		Round:                      7,
@@ -472,6 +437,7 @@ func testCoreConfig() core.Config {
 		TasksDir:                   "/workspace/.compozy/tasks/demo",
 		DryRun:                     true,
 		AutoCommit:                 true,
+		CloseOnComplete:            true,
 		Concurrent:                 2,
 		BatchSize:                  1,
 		IDE:                        core.IDECodex,
@@ -498,6 +464,5 @@ func testCoreConfig() core.Config {
 		Timeout:                    90 * time.Second,
 		MaxRetries:                 4,
 		RetryBackoffMultiplier:     2.5,
->>>>>>> compozy/main
 	}
 }

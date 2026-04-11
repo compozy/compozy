@@ -253,6 +253,8 @@ func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {
 		return nil
 	}
 
+	// newCommandStateWithDefaults wires these callbacks, but tests and focused
+	// helpers also construct commandState directly.
 	if s.closeOnComplete {
 		return fmt.Errorf(
 			"%s requires explicit flags when --close-on-complete is enabled; "+

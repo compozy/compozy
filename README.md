@@ -635,20 +635,6 @@ When present, `.compozy/config.toml` can provide defaults for runtime flags such
 | `--name`                     |             | Workflow name (`.compozy/tasks/<name>`)                                                    |
 | `--tasks-dir`                |             | Path to tasks directory                                                                    |
 | `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-<<<<<<< HEAD
-| `--model`                    | _(per IDE)_ | Model override                                                |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
-| `--timeout`                  | `10m`       | Activity timeout per job                                      |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
-| `--auto-commit`              | `false`     | Auto-commit after each task                                   |
-| `--close-on-complete`        | `false`     | Exit automatically on completion; intended for CI pipelines and autonomous agents |
-| `--include-completed`        | `false`     | Re-run completed tasks                                        |
-| `--dry-run`                  | `false`     | Preview prompts without executing                             |
-=======
 | `--model`                    | _(per IDE)_ | Model override                                                                             |
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
@@ -658,9 +644,9 @@ When present, `.compozy/config.toml` can provide defaults for runtime flags such
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
 | `--auto-commit`              | `false`     | Auto-commit after each task                                                                |
+| `--close-on-complete`        | `false`     | Exit automatically on completion; intended for CI pipelines and autonomous agents          |
 | `--include-completed`        | `false`     | Re-run completed tasks                                                                     |
 | `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
->>>>>>> compozy/main
 
 </details>
 
@@ -700,22 +686,6 @@ defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 | `--round`                    | `0`         | Round number (latest if omitted)                                                           |
 | `--reviews-dir`              |             | Override review directory path                                                             |
 | `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-<<<<<<< HEAD
-| `--model`                    | _(per IDE)_ | Model override                                                |
-| `--batch-size`               | `1`         | Issues per batch                                              |
-| `--concurrent`               | `1`         | Parallel batches                                              |
-| `--include-resolved`         | `false`     | Re-process resolved issues                                    |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                              |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                     |
-| `--timeout`                  | `10m`       | Activity timeout per job                                      |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times        |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry       |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
-| `--auto-commit`              | `false`     | Auto-commit after each batch                                  |
-| `--close-on-complete`        | `false`     | Exit automatically on completion; intended for CI pipelines and autonomous agents |
-| `--dry-run`                  | `false`     | Preview prompts without executing                             |
-=======
 | `--model`                    | _(per IDE)_ | Model override                                                                             |
 | `--batch-size`               | `1`         | Issues per batch                                                                           |
 | `--concurrent`               | `1`         | Parallel batches                                                                           |
@@ -728,8 +698,8 @@ defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
 | `--auto-commit`              | `false`     | Auto-commit after each batch                                                               |
+| `--close-on-complete`        | `false`     | Exit automatically on completion; intended for CI pipelines and autonomous agents          |
 | `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
->>>>>>> compozy/main
 
 </details>
 
