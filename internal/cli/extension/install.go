@@ -76,7 +76,17 @@ func runInstallCommand(cmd *cobra.Command, deps commandDeps, rawPath string, yes
 		return err
 	}
 
+	installPathExisted, err := deps.pathExists(installPath)
+	if err != nil {
+		return fmt.Errorf("inspect install target %q before copy: %w", installPath, err)
+	}
 	if err := deps.copyDir(sourcePath, installPath); err != nil {
+		if !installPathExisted {
+			cleanupErr := deps.removeAll(installPath)
+			if cleanupErr != nil {
+				err = errors.Join(err, fmt.Errorf("cleanup failed at %q: %w", installPath, cleanupErr))
+			}
+		}
 		return fmt.Errorf("copy extension into user scope: %w", err)
 	}
 
@@ -298,7 +308,7 @@ func copyDirectoryEntry(sourceDir string, destDir string, path string, entry fs.
 
 	switch {
 	case entry.Type()&os.ModeSymlink != 0:
-		return copySymlink(path, targetPath)
+		return copySymlink(sourceDir, destDir, path, targetPath)
 	case entry.IsDir():
 		if err := os.MkdirAll(targetPath, info.Mode().Perm()); err != nil {
 			return fmt.Errorf("create directory %q: %w", targetPath, err)
@@ -309,18 +319,64 @@ func copyDirectoryEntry(sourceDir string, destDir string, path string, entry fs.
 	}
 }
 
-func copySymlink(sourcePath string, targetPath string) error {
+func copySymlink(sourceRoot string, destRoot string, sourcePath string, targetPath string) error {
 	linkTarget, err := os.Readlink(sourcePath)
 	if err != nil {
 		return fmt.Errorf("read symlink %q: %w", sourcePath, err)
 	}
+
+	safeTarget, err := sanitizedSymlinkTarget(sourceRoot, destRoot, sourcePath, targetPath, linkTarget)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
 		return fmt.Errorf("create symlink parent %q: %w", filepath.Dir(targetPath), err)
 	}
-	if err := os.Symlink(linkTarget, targetPath); err != nil {
+	if err := os.Symlink(safeTarget, targetPath); err != nil {
 		return fmt.Errorf("create symlink %q: %w", targetPath, err)
 	}
 	return nil
+}
+
+func sanitizedSymlinkTarget(
+	sourceRoot string,
+	destRoot string,
+	sourcePath string,
+	targetPath string,
+	linkTarget string,
+) (string, error) {
+	resolvedSourceRoot, err := filepath.EvalSymlinks(filepath.Clean(sourceRoot))
+	if err != nil {
+		return "", fmt.Errorf("resolve extension root %q: %w", sourceRoot, err)
+	}
+
+	resolvedTarget := linkTarget
+	if !filepath.IsAbs(resolvedTarget) {
+		resolvedTarget = filepath.Join(filepath.Dir(sourcePath), resolvedTarget)
+	}
+	resolvedTarget, err = filepath.EvalSymlinks(filepath.Clean(resolvedTarget))
+	if err != nil {
+		return "", fmt.Errorf("resolve symlink target %q for %q: %w", linkTarget, sourcePath, err)
+	}
+
+	relativeToRoot, err := filepath.Rel(resolvedSourceRoot, resolvedTarget)
+	if err != nil {
+		return "", fmt.Errorf("compare symlink target %q against root %q: %w", resolvedTarget, resolvedSourceRoot, err)
+	}
+	if pathEscapesRoot(relativeToRoot) {
+		return "", fmt.Errorf("symlink %q points outside extension root: %q", sourcePath, linkTarget)
+	}
+
+	destResolvedTarget := filepath.Join(destRoot, relativeToRoot)
+	safeTarget, err := filepath.Rel(filepath.Dir(targetPath), destResolvedTarget)
+	if err != nil {
+		return "", fmt.Errorf("build destination symlink target for %q: %w", targetPath, err)
+	}
+	return filepath.Clean(safeTarget), nil
+}
+
+func pathEscapesRoot(relativePath string) bool {
+	return relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator))
 }
 
 func copyRegularFile(sourcePath string, targetPath string, perm fs.FileMode) error {

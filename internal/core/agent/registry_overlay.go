@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/compozy/compozy/internal/core/model"
 )
@@ -120,8 +121,16 @@ func specFromDeclaredIDEProvider(entry OverlayEntry) (Spec, error) {
 		return Spec{}, fmt.Errorf("declare ACP runtime overlay %q: %w", entry.Name, err)
 	}
 
-	if metadataFixedArgs := parseOverlayArgs(entry.Metadata["fixed_args"]); len(metadataFixedArgs) > 0 {
+	metadataFixedArgs, err := parseOverlayArgs(entry.Metadata["fixed_args"])
+	if err != nil {
+		return Spec{}, fmt.Errorf("declare ACP runtime overlay %q fixed_args: %w", entry.Name, err)
+	}
+	if len(metadataFixedArgs) > 0 {
 		fixedArgs = metadataFixedArgs
+	}
+	probeArgs, err := parseOverlayArgs(entry.Metadata["probe_args"])
+	if err != nil {
+		return Spec{}, fmt.Errorf("declare ACP runtime overlay %q probe_args: %w", entry.Name, err)
 	}
 
 	spec := Spec{
@@ -137,7 +146,7 @@ func specFromDeclaredIDEProvider(entry OverlayEntry) (Spec, error) {
 		),
 		Command:            command,
 		FixedArgs:          fixedArgs,
-		ProbeArgs:          parseOverlayArgs(entry.Metadata["probe_args"]),
+		ProbeArgs:          probeArgs,
 		SupportsAddDirs:    parseOverlayBool(entry.Metadata["supports_add_dirs"]),
 		UsesBootstrapModel: parseOverlayBool(entry.Metadata["uses_bootstrap_model"]),
 		DocsURL:            strings.TrimSpace(entry.Metadata["docs_url"]),
@@ -156,19 +165,22 @@ func normalizeOverlayIdentifier(value string) string {
 }
 
 func splitOverlayCommand(raw string) (string, []string, error) {
-	parts := strings.Fields(strings.TrimSpace(raw))
+	parts, err := splitOverlayWords(raw)
+	if err != nil {
+		return "", nil, err
+	}
 	if len(parts) == 0 {
 		return "", nil, fmt.Errorf("command is required")
 	}
 	return parts[0], parts[1:], nil
 }
 
-func parseOverlayArgs(raw string) []string {
+func parseOverlayArgs(raw string) ([]string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return nil
+		return nil, nil
 	}
-	return strings.Fields(trimmed)
+	return splitOverlayWords(trimmed)
 }
 
 func parseOverlayBool(raw string) bool {
@@ -208,4 +220,111 @@ func overlayFirstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func splitOverlayWords(raw string) ([]string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	parser := overlayWordParser{parts: make([]string, 0)}
+	for _, r := range trimmed {
+		if parser.handleEscapedRune(r) {
+			continue
+		}
+		if parser.handleEscapeStart(r) {
+			continue
+		}
+		if parser.handleQuoteRune(r) {
+			continue
+		}
+		if parser.handleWhitespace(r) {
+			continue
+		}
+		parser.current.WriteRune(r)
+	}
+
+	return parser.finish()
+}
+
+type overlayWordParser struct {
+	parts         []string
+	current       strings.Builder
+	inSingleQuote bool
+	inDoubleQuote bool
+	escaped       bool
+}
+
+func (p *overlayWordParser) handleEscapedRune(r rune) bool {
+	if !p.escaped {
+		return false
+	}
+	p.current.WriteRune(r)
+	p.escaped = false
+	return true
+}
+
+func (p *overlayWordParser) handleEscapeStart(r rune) bool {
+	if r != '\\' {
+		return false
+	}
+	if p.inSingleQuote {
+		p.current.WriteRune(r)
+		return true
+	}
+	p.escaped = true
+	return true
+}
+
+func (p *overlayWordParser) handleQuoteRune(r rune) bool {
+	switch r {
+	case '\'':
+		if p.inDoubleQuote {
+			p.current.WriteRune(r)
+			return true
+		}
+		p.inSingleQuote = !p.inSingleQuote
+		return true
+	case '"':
+		if p.inSingleQuote {
+			p.current.WriteRune(r)
+			return true
+		}
+		p.inDoubleQuote = !p.inDoubleQuote
+		return true
+	default:
+		return false
+	}
+}
+
+func (p *overlayWordParser) handleWhitespace(r rune) bool {
+	if !unicode.IsSpace(r) {
+		return false
+	}
+	if p.inSingleQuote || p.inDoubleQuote {
+		p.current.WriteRune(r)
+		return true
+	}
+	p.flushCurrent()
+	return true
+}
+
+func (p *overlayWordParser) flushCurrent() {
+	if p.current.Len() == 0 {
+		return
+	}
+	p.parts = append(p.parts, p.current.String())
+	p.current.Reset()
+}
+
+func (p *overlayWordParser) finish() ([]string, error) {
+	if p.escaped {
+		return nil, fmt.Errorf("unterminated escape")
+	}
+	if p.inSingleQuote || p.inDoubleQuote {
+		return nil, fmt.Errorf("unterminated quote")
+	}
+	p.flushCurrent()
+	return p.parts, nil
 }

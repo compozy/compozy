@@ -96,6 +96,12 @@ func TestDoctorWarnsOnExtensionSkillPackDrift(t *testing.T) {
 	if !strings.Contains(output, "extension skill-pack drift for Codex (unknown scope): missing ext-pack") {
 		t.Fatalf("expected extension skill-pack drift warning\noutput:\n%s", output)
 	}
+	if strings.Contains(output, "No extension override or drift issues detected.") {
+		t.Fatalf("expected doctor output to avoid the misleading drift footer\noutput:\n%s", output)
+	}
+	if !strings.Contains(output, "No extension override records detected.") {
+		t.Fatalf("expected doctor output to report override-only fallback info\noutput:\n%s", output)
+	}
 }
 
 func TestDoctorReturnsErrorForUnsupportedMinCompozyVersion(t *testing.T) {

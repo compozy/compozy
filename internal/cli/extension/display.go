@@ -112,6 +112,9 @@ func runInspectCommand(cmd *cobra.Command, deps commandDeps, rawName string) err
 
 	entry, ok := findEffectiveExtension(result, name)
 	if !ok {
+		if notes := renderDiscoveryFailureNotes(result, name); notes != "" {
+			return fmt.Errorf("extension %q not available:\n%s", name, notes)
+		}
 		return fmt.Errorf("extension %q not found", name)
 	}
 
@@ -186,26 +189,51 @@ func appendDiscoveryFailureNotes(
 	result extensions.DiscoveryResult,
 	name string,
 ) {
-	matchingFailures := make([]extensions.DiscoveryFailure, 0)
-	for _, failure := range result.Failures {
-		if strings.Contains(strings.ToLower(failure.ExtensionDir), strings.ToLower(strings.TrimSpace(name))) {
-			matchingFailures = append(matchingFailures, failure)
-		}
-	}
-	if len(matchingFailures) == 0 {
+	notes := renderDiscoveryFailureNotes(result, name)
+	if notes == "" {
 		return
 	}
+	buf.WriteString("\n")
+	buf.WriteString(notes)
+	buf.WriteString("\n")
+}
 
-	buf.WriteString("\nDiscovery failures:\n")
+func renderDiscoveryFailureNotes(result extensions.DiscoveryResult, name string) string {
+	matchingFailures := matchingDiscoveryFailures(result, name)
+	if len(matchingFailures) == 0 {
+		return ""
+	}
+
+	var buf strings.Builder
+	buf.WriteString("Discovery failures:\n")
 	for _, failure := range matchingFailures {
 		fmt.Fprintf(
-			buf,
+			&buf,
 			"- source=%s manifest=%s error=%v\n",
 			failure.Source,
 			failure.ManifestPath,
 			failure.Err,
 		)
 	}
+	return strings.TrimRight(buf.String(), "\n")
+}
+
+func matchingDiscoveryFailures(
+	result extensions.DiscoveryResult,
+	name string,
+) []extensions.DiscoveryFailure {
+	normalizedName := strings.ToLower(strings.TrimSpace(name))
+	if normalizedName == "" {
+		return nil
+	}
+
+	matchingFailures := make([]extensions.DiscoveryFailure, 0)
+	for _, failure := range result.Failures {
+		if strings.Contains(strings.ToLower(failure.ExtensionDir), normalizedName) {
+			matchingFailures = append(matchingFailures, failure)
+		}
+	}
+	return matchingFailures
 }
 
 func renderHooks(hooks []extensions.HookDeclaration) []string {

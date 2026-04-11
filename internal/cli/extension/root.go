@@ -178,6 +178,65 @@ func findEffectiveExtension(
 	return extensions.DiscoveredExtension{}, false
 }
 
+func findToggleTarget(
+	result extensions.DiscoveryResult,
+	name string,
+	enable bool,
+) (extensions.DiscoveredExtension, bool) {
+	candidates := matchingDiscoveredExtensions(result, name, func(entry extensions.DiscoveredExtension) bool {
+		return entry.Enabled != enable
+	})
+	if len(candidates) == 0 {
+		return extensions.DiscoveredExtension{}, false
+	}
+
+	slices.SortFunc(candidates, compareDiscoveredByPrecedence)
+	return candidates[0], true
+}
+
+func hasAnyDiscoveredMatch(result extensions.DiscoveryResult, name string) bool {
+	return len(matchingDiscoveredExtensions(result, name, nil)) > 0
+}
+
+func matchingDiscoveredExtensions(
+	result extensions.DiscoveryResult,
+	name string,
+	include func(extensions.DiscoveredExtension) bool,
+) []extensions.DiscoveredExtension {
+	matches := make([]extensions.DiscoveredExtension, 0)
+	for index := range result.Discovered {
+		entry := result.Discovered[index]
+		if !matchingName(entry.Ref.Name, name) {
+			continue
+		}
+		if include != nil && !include(entry) {
+			continue
+		}
+		matches = append(matches, entry)
+	}
+	return matches
+}
+
+func compareDiscoveredByPrecedence(left, right extensions.DiscoveredExtension) int {
+	if diff := sourcePrecedence(right.Ref.Source) - sourcePrecedence(left.Ref.Source); diff != 0 {
+		return diff
+	}
+	return strings.Compare(left.ManifestPath, right.ManifestPath)
+}
+
+func sourcePrecedence(source extensions.Source) int {
+	switch source {
+	case extensions.SourceBundled:
+		return 0
+	case extensions.SourceUser:
+		return 1
+	case extensions.SourceWorkspace:
+		return 2
+	default:
+		return -1
+	}
+}
+
 func overrideRecordsForName(result extensions.DiscoveryResult, name string) []extensions.OverrideRecord {
 	records := make([]extensions.OverrideRecord, 0)
 	for index := range result.Overrides {

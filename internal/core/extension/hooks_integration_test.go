@@ -2,7 +2,6 @@ package extensions
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -140,7 +139,7 @@ complexity: low
 		"run_id": cfg.RunID,
 		"job_id": prep.Jobs[0].SafeName,
 		"session_request": map[string]any{
-			"prompt": base64.StdEncoding.EncodeToString([]byte("agent-base")),
+			"prompt": "agent-base",
 		},
 	}
 	mutated, err := scope.Manager.DispatchMutable(context.Background(), HookAgentPreSessionCreate, agentPayload)
@@ -156,15 +155,11 @@ complexity: low
 	if !ok {
 		t.Fatalf("session_request type = %T, want map[string]any", mutatedPayload["session_request"])
 	}
-	encodedPrompt, ok := sessionRequest["prompt"].(string)
+	prompt, ok := sessionRequest["prompt"].(string)
 	if !ok {
 		t.Fatalf("session_request.prompt type = %T, want string", sessionRequest["prompt"])
 	}
-	decodedPrompt, err := base64.StdEncoding.DecodeString(encodedPrompt)
-	if err != nil {
-		t.Fatalf("decode mutated prompt: %v", err)
-	}
-	if got, want := string(decodedPrompt), "agent-base::AGENT-100::AGENT-500::AGENT-900"; got != want {
+	if got, want := prompt, "agent-base::AGENT-100::AGENT-500::AGENT-900"; got != want {
 		t.Fatalf("unexpected mutated prompt\nwant: %q\ngot:  %q", want, got)
 	}
 

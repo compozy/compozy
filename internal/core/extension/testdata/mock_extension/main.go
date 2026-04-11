@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -455,16 +454,11 @@ func updateSessionRequestPrompt(payload map[string]any, suffix string) bool {
 	if !ok {
 		return false
 	}
-	encodedPrompt, ok := rawSessionRequest["prompt"].(string)
+	currentPrompt, ok := rawSessionRequest["prompt"].(string)
 	if !ok {
 		return false
 	}
-	decodedPrompt, err := base64.StdEncoding.DecodeString(encodedPrompt)
-	if err != nil {
-		return false
-	}
-
-	rawSessionRequest["prompt"] = base64.StdEncoding.EncodeToString(append(decodedPrompt, []byte(suffix)...))
+	rawSessionRequest["prompt"] = currentPrompt + suffix
 	payload["session_request"] = rawSessionRequest
 	return true
 }

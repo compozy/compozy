@@ -476,6 +476,164 @@ func TestResumeSessionRequestDispatchPreResumeHookWithoutManagerReturnsOriginal(
 	}
 }
 
+func TestSessionRequestJSONUsesReadablePromptText(t *testing.T) {
+	t.Parallel()
+
+	request := SessionRequest{
+		Prompt:     []byte("plain prompt"),
+		WorkingDir: "/tmp/work",
+		Model:      "gpt-5.4",
+	}
+
+	raw, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal session request: %v", err)
+	}
+	if strings.Contains(string(raw), "cGxhaW4gcHJvbXB0") {
+		t.Fatalf("expected prompt text instead of base64 JSON, got %s", string(raw))
+	}
+	if !strings.Contains(string(raw), `"prompt":"plain prompt"`) {
+		t.Fatalf("expected readable prompt JSON, got %s", string(raw))
+	}
+
+	var roundTrip SessionRequest
+	if err := json.Unmarshal(raw, &roundTrip); err != nil {
+		t.Fatalf("unmarshal session request: %v", err)
+	}
+	if got := string(roundTrip.Prompt); got != "plain prompt" {
+		t.Fatalf("unexpected round-trip prompt: %q", got)
+	}
+}
+
+func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
+	t.Parallel()
+
+	request := ResumeSessionRequest{
+		SessionID:  "sess-123",
+		Prompt:     []byte("resume prompt"),
+		WorkingDir: "/tmp/work",
+		Model:      "gpt-5.4",
+	}
+
+	raw, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("marshal resume session request: %v", err)
+	}
+	if strings.Contains(string(raw), "cmVzdW1lIHByb21wdA==") {
+		t.Fatalf("expected prompt text instead of base64 JSON, got %s", string(raw))
+	}
+	if !strings.Contains(string(raw), `"prompt":"resume prompt"`) {
+		t.Fatalf("expected readable resume prompt JSON, got %s", string(raw))
+	}
+
+	var roundTrip ResumeSessionRequest
+	if err := json.Unmarshal(raw, &roundTrip); err != nil {
+		t.Fatalf("unmarshal resume session request: %v", err)
+	}
+	if got := string(roundTrip.Prompt); got != "resume prompt" {
+		t.Fatalf("unexpected round-trip resume prompt: %q", got)
+	}
+}
+
+func TestDetachedContextPreservesValuesWithoutCancellation(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	parent := context.WithValue(context.Background(), contextKey("trace_id"), "trace-123")
+	withDeadline, cancel := context.WithTimeout(parent, time.Minute)
+	t.Cleanup(cancel)
+
+	detached := detachedContext(withDeadline)
+	if got := detached.Value(contextKey("trace_id")); got != "trace-123" {
+		t.Fatalf("unexpected detached context value: %#v", got)
+	}
+	if _, ok := detached.Deadline(); ok {
+		t.Fatal("expected detached context to drop the parent deadline")
+	}
+	if detached.Done() != nil {
+		t.Fatal("expected detached context to ignore parent cancellation")
+	}
+	if detached.Err() != nil {
+		t.Fatalf("expected detached context to stay uncancelled, got %v", detached.Err())
+	}
+}
+
+func TestSessionRequestDispatchPreCreateHookPreservesContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	ctx := context.WithValue(context.Background(), contextKey("request_id"), "req-123")
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_create": func(input any) (any, error) {
+				payload := input.(sessionCreateHookPayload)
+				payload.SessionRequest.Prompt = append(payload.SessionRequest.Prompt, []byte("!")...)
+				return payload, nil
+			},
+		},
+	}
+
+	request := SessionRequest{
+		Context:    ctx,
+		Prompt:     []byte("keep context"),
+		WorkingDir: t.TempDir(),
+		RunID:      "run-123",
+		JobID:      "job-123",
+		RuntimeMgr: manager,
+	}
+
+	got, err := request.dispatchPreCreateHook()
+	if err != nil {
+		t.Fatalf("dispatchPreCreateHook() error = %v", err)
+	}
+	if got.Context == nil {
+		t.Fatal("expected hook-dispatched request to retain context")
+	}
+	if got := got.Context.Value(contextKey("request_id")); got != "req-123" {
+		t.Fatalf("unexpected preserved context value: %#v", got)
+	}
+}
+
+func TestResumeSessionRequestDispatchPreResumeHookPreservesContext(t *testing.T) {
+	t.Parallel()
+
+	type contextKey string
+
+	ctx := context.WithValue(context.Background(), contextKey("request_id"), "req-456")
+	manager := &agentHookManager{
+		mutators: map[string]func(any) (any, error){
+			"agent.pre_session_resume": func(input any) (any, error) {
+				payload := input.(sessionResumeHookPayload)
+				payload.ResumeRequest.Prompt = append(payload.ResumeRequest.Prompt, []byte("!")...)
+				return payload, nil
+			},
+		},
+	}
+
+	request := ResumeSessionRequest{
+		Context:    ctx,
+		SessionID:  "sess-123",
+		Prompt:     []byte("keep context"),
+		WorkingDir: t.TempDir(),
+		RunID:      "run-123",
+		JobID:      "job-123",
+		RuntimeMgr: manager,
+	}
+
+	got, err := request.dispatchPreResumeHook()
+	if err != nil {
+		t.Fatalf("dispatchPreResumeHook() error = %v", err)
+	}
+	if got.Context == nil {
+		t.Fatal("expected hook-dispatched resume request to retain context")
+	}
+	if got := got.Context.Value(contextKey("request_id")); got != "req-456" {
+		t.Fatalf("unexpected preserved resume context value: %#v", got)
+	}
+}
+
 func TestNewSessionOutcome(t *testing.T) {
 	t.Parallel()
 

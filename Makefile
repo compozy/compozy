@@ -81,9 +81,9 @@ build: check-go-version
 build-extension-sdks:
 	npm run build --workspace @compozy/extension-sdk --workspace @compozy/create-extension
 
-publish-extension-sdks:
-	npm publish --workspace @compozy/extension-sdk
-	npm publish --workspace @compozy/create-extension
+publish-extension-sdks: verify build-extension-sdks
+	npm publish --workspace @compozy/extension-sdk --access public
+	npm publish --workspace @compozy/create-extension --access public
 
 install: build
 	$(GOCMD) install -ldflags "$(LDFLAGS)" ./cmd/compozy

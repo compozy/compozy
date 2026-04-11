@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -56,5 +58,49 @@ func TestActivateOverlayRegistersDeclarativeRuntimeSpec(t *testing.T) {
 	}
 	if got, err := ResolveRuntimeModel("ext-adapter", ""); err != nil || got != "mock-model" {
 		t.Fatalf("unexpected overlay runtime model: got %q err=%v", got, err)
+	}
+}
+
+func TestActivateOverlayParsesQuotedCommandAndMetadataArgs(t *testing.T) {
+	restore, err := ActivateOverlay([]OverlayEntry{
+		{
+			Name:    "quoted-adapter",
+			Command: "\"/opt/My Tool/bin/tool\" --serve",
+			Metadata: map[string]string{
+				"fixed_args": "\"two words\" --extra",
+				"probe_args": "--probe \"quoted value\"",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("activate quoted ACP overlay: %v", err)
+	}
+	defer restore()
+
+	spec, err := lookupAgentSpec("quoted-adapter")
+	if err != nil {
+		t.Fatalf("lookup quoted overlay spec: %v", err)
+	}
+	if spec.Command != "/opt/My Tool/bin/tool" {
+		t.Fatalf("unexpected quoted overlay command: %q", spec.Command)
+	}
+	if want := []string{"two words", "--extra"}; !reflect.DeepEqual(spec.FixedArgs, want) {
+		t.Fatalf("unexpected quoted fixed args\nwant: %#v\ngot:  %#v", want, spec.FixedArgs)
+	}
+	if want := []string{"--probe", "quoted value"}; !reflect.DeepEqual(spec.ProbeArgs, want) {
+		t.Fatalf("unexpected quoted probe args\nwant: %#v\ngot:  %#v", want, spec.ProbeArgs)
+	}
+}
+
+func TestActivateOverlayRejectsUnterminatedQuotedArgs(t *testing.T) {
+	_, err := ActivateOverlay([]OverlayEntry{{
+		Name:    "broken-adapter",
+		Command: "\"/opt/My Tool/bin/tool",
+	}})
+	if err == nil {
+		t.Fatal("expected quoted overlay command to fail")
+	}
+	if !strings.Contains(err.Error(), "unterminated quote") {
+		t.Fatalf("unexpected quoted overlay error: %v", err)
 	}
 }

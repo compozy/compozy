@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -153,6 +154,28 @@ func TestInspectUnknownReturnsHumanReadableError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `extension "missing-ext" not found`) {
 		t.Fatalf("unexpected inspect error: %v", err)
+	}
+}
+
+func TestInspectMalformedExtensionSurfacesDiscoveryFailureDetails(t *testing.T) {
+	deps := newTestDeps(t)
+	writeTestFile(
+		t,
+		filepath.Join(workspaceExtensionDir(deps.workspaceRoot, "broken-ext"), extensions.ManifestFileNameJSON),
+		`{"extension":`,
+	)
+
+	output, err := executeExtCommand(t, deps, "inspect", "broken-ext")
+	if err == nil {
+		t.Fatalf("expected inspect broken extension to fail\noutput:\n%s", output)
+	}
+	if !strings.Contains(err.Error(), `extension "broken-ext" not available`) {
+		t.Fatalf("unexpected broken inspect error: %v", err)
+	}
+	for _, want := range []string{"Discovery failures:", "broken-ext", extensions.ManifestFileNameJSON} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("expected inspect error to contain %q\nerror:\n%s", want, err.Error())
+		}
 	}
 }
 
@@ -368,6 +391,72 @@ func TestDisableMarksExtensionDisabled(t *testing.T) {
 		t.Fatalf("load user enablement: %v", err)
 	}
 	if enabled {
+		t.Fatal("expected user extension to be disabled")
+	}
+}
+
+func TestEnableTargetsHighestPrecedenceDisabledMatch(t *testing.T) {
+	deps := newTestDeps(t)
+	writeManifestJSON(t, bundledExtensionDir(deps.bundledRoot, "shared"), manifestFixture("shared"))
+	writeManifestJSON(t, userExtensionDir(deps.homeDir, "shared"), manifestFixture("shared"))
+	writeManifestJSON(t, workspaceExtensionDir(deps.workspaceRoot, "shared"), manifestFixture("shared"))
+
+	output, err := executeExtCommand(t, deps, "enable", "shared")
+	if err != nil {
+		t.Fatalf("execute ext enable shared: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, `(workspace)`) {
+		t.Fatalf("expected workspace toggle summary\noutput:\n%s", output)
+	}
+
+	store := mustEnablementStore(t, deps.homeDir)
+	workspaceEnabled, err := store.Enabled(context.Background(), extensions.Ref{
+		Name:          "shared",
+		Source:        extensions.SourceWorkspace,
+		WorkspaceRoot: deps.workspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("load workspace enablement: %v", err)
+	}
+	if !workspaceEnabled {
+		t.Fatal("expected workspace extension to be enabled")
+	}
+	userEnabled, err := store.Enabled(context.Background(), extensions.Ref{
+		Name:   "shared",
+		Source: extensions.SourceUser,
+	})
+	if err != nil {
+		t.Fatalf("load user enablement: %v", err)
+	}
+	if userEnabled {
+		t.Fatal("expected lower-precedence user extension to remain disabled")
+	}
+}
+
+func TestDisableTargetsHighestPrecedenceEnabledMatch(t *testing.T) {
+	deps := newTestDeps(t)
+	writeManifestJSON(t, bundledExtensionDir(deps.bundledRoot, "shared"), manifestFixture("shared"))
+	writeManifestJSON(t, userExtensionDir(deps.homeDir, "shared"), manifestFixture("shared"))
+	writeManifestJSON(t, workspaceExtensionDir(deps.workspaceRoot, "shared"), manifestFixture("shared"))
+	enableUserExtension(t, deps.homeDir, "shared")
+
+	output, err := executeExtCommand(t, deps, "disable", "shared")
+	if err != nil {
+		t.Fatalf("execute ext disable shared: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, `(user)`) {
+		t.Fatalf("expected user toggle summary\noutput:\n%s", output)
+	}
+
+	store := mustEnablementStore(t, deps.homeDir)
+	userEnabled, err := store.Enabled(context.Background(), extensions.Ref{
+		Name:   "shared",
+		Source: extensions.SourceUser,
+	})
+	if err != nil {
+		t.Fatalf("load user enablement: %v", err)
+	}
+	if userEnabled {
 		t.Fatal("expected user extension to be disabled")
 	}
 }
@@ -661,8 +750,69 @@ func TestCopyDirectoryTreeCopiesFilesAndSymlinks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read copied symlink: %v", err)
 	}
-	if linkTarget != linkSource {
-		t.Fatalf("unexpected copied symlink target: %q", linkTarget)
+	if filepath.IsAbs(linkTarget) {
+		t.Fatalf("expected copied symlink target to be sanitized to a relative path, got %q", linkTarget)
+	}
+
+	resolvedTarget, err := filepath.EvalSymlinks(filepath.Join(destDir, "link.txt"))
+	if err != nil {
+		t.Fatalf("resolve copied symlink target: %v", err)
+	}
+	expectedTarget, err := filepath.EvalSymlinks(filepath.Join(destDir, "nested", "data.txt"))
+	if err != nil {
+		t.Fatalf("resolve expected copied file target: %v", err)
+	}
+	if resolvedTarget != expectedTarget {
+		t.Fatalf("unexpected copied symlink target path: %q", resolvedTarget)
+	}
+}
+
+func TestCopyDirectoryTreeRejectsSymlinkOutsideSourceRoot(t *testing.T) {
+	sourceDir := filepath.Join(t.TempDir(), "copy-source")
+	destDir := filepath.Join(t.TempDir(), "copy-dest")
+	externalFile := filepath.Join(t.TempDir(), "external.txt")
+
+	writeTestFile(t, filepath.Join(sourceDir, "nested", "data.txt"), "hello\n")
+	writeTestFile(t, externalFile, "outside\n")
+	if err := os.Symlink(externalFile, filepath.Join(sourceDir, "external-link.txt")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+
+	err := copyDirectoryTree(sourceDir, destDir)
+	if err == nil {
+		t.Fatal("expected unsafe symlink copy to fail")
+	}
+	if !strings.Contains(err.Error(), "points outside extension root") {
+		t.Fatalf("unexpected unsafe symlink error: %v", err)
+	}
+}
+
+func TestInstallRollsBackPartialCopyOnFailure(t *testing.T) {
+	deps := newTestDeps(t)
+	sourceDir := filepath.Join(t.TempDir(), "broken-install")
+	writeManifestJSON(t, sourceDir, manifestFixture("broken-install"))
+
+	deps.copyDir = func(_ string, dest string) error {
+		if err := os.MkdirAll(dest, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(dest, "partial.txt"), []byte("partial"), 0o600); err != nil {
+			return err
+		}
+		return errors.New("copy exploded")
+	}
+
+	output, err := executeExtCommand(t, deps, "install", "--yes", sourceDir)
+	if err == nil {
+		t.Fatalf("expected partial install failure\noutput:\n%s", output)
+	}
+	if !strings.Contains(err.Error(), "copy extension into user scope") {
+		t.Fatalf("unexpected install error: %v", err)
+	}
+
+	installPath := filepath.Join(deps.homeDir, ".compozy", "extensions", "broken-install")
+	if _, statErr := os.Stat(installPath); !os.IsNotExist(statErr) {
+		t.Fatalf("expected partial install rollback, stat err=%v", statErr)
 	}
 }
 

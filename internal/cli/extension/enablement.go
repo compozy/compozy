@@ -54,8 +54,15 @@ func runToggleCommand(cmd *cobra.Command, deps commandDeps, rawName string, enab
 		return err
 	}
 
-	entry, ok := findEffectiveExtension(result, name)
+	entry, ok := findToggleTarget(result, name, enable)
 	if !ok {
+		if hasAnyDiscoveredMatch(result, name) {
+			state := "enabled"
+			if !enable {
+				state = "disabled"
+			}
+			return fmt.Errorf("extension %q is already %s in every local scope", name, state)
+		}
 		return fmt.Errorf("extension %q not found", name)
 	}
 

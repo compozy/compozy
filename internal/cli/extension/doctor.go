@@ -90,7 +90,7 @@ func buildDoctorReport(
 	slices.Sort(report.Warnings)
 	slices.Sort(report.Infos)
 	if len(report.Infos) == 0 {
-		report.Infos = append(report.Infos, "No extension override or drift issues detected.")
+		report.Infos = append(report.Infos, "No extension override records detected.")
 	}
 	return report
 }
