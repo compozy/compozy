@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newFetchReviewsCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
-	return newFetchReviewsCommandWithDefaults(dispatcher, defaultCommandStateDefaults())
+func newFetchReviewsCommand() *cobra.Command {
+	return newFetchReviewsCommandWithDefaults(nil, defaultCommandStateDefaults())
 }
 
 func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
@@ -25,7 +25,12 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 		RunE: state.fetchReviews,
 	}
 
-	cmd.Flags().StringVar(&state.provider, "provider", "", "Review provider name (for example: coderabbit)")
+	cmd.Flags().StringVar(
+		&state.provider,
+		"provider",
+		"",
+		"Review provider name. Built-in and enabled extension providers are validated against the active provider catalog.",
+	)
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")

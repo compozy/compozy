@@ -346,21 +346,96 @@ func (r rawProvidersConfig) toProvidersConfig() ProvidersConfig {
 }
 
 type rawProviderEntry struct {
-	Name     string            `toml:"name"     json:"name"`
-	Command  string            `toml:"command"  json:"command"`
-	Metadata map[string]string `toml:"metadata" json:"metadata"`
+	Name               string                `toml:"name"                 json:"name"`
+	Kind               ProviderKind          `toml:"kind"                 json:"kind"`
+	Target             string                `toml:"target"               json:"target"`
+	Command            string                `toml:"command"              json:"command"`
+	DisplayName        string                `toml:"display_name"         json:"display_name"`
+	SetupAgentName     string                `toml:"setup_agent_name"     json:"setup_agent_name"`
+	DefaultModel       string                `toml:"default_model"        json:"default_model"`
+	SupportsAddDirs    *bool                 `toml:"supports_add_dirs"    json:"supports_add_dirs"`
+	UsesBootstrapModel *bool                 `toml:"uses_bootstrap_model" json:"uses_bootstrap_model"`
+	DocsURL            string                `toml:"docs_url"             json:"docs_url"`
+	InstallHint        string                `toml:"install_hint"         json:"install_hint"`
+	FullAccessModeID   string                `toml:"full_access_mode_id"  json:"full_access_mode_id"`
+	FixedArgs          []string              `toml:"fixed_args"           json:"fixed_args"`
+	ProbeArgs          []string              `toml:"probe_args"           json:"probe_args"`
+	Env                map[string]string     `toml:"env"                  json:"env"`
+	Fallbacks          []rawProviderLauncher `toml:"fallbacks"            json:"fallbacks"`
+	Bootstrap          *rawProviderBootstrap `toml:"bootstrap"            json:"bootstrap"`
+	Metadata           map[string]string     `toml:"metadata"             json:"metadata"`
+}
+
+type rawProviderLauncher struct {
+	Command   string   `toml:"command"    json:"command"`
+	FixedArgs []string `toml:"fixed_args" json:"fixed_args"`
+	ProbeArgs []string `toml:"probe_args" json:"probe_args"`
+}
+
+type rawProviderBootstrap struct {
+	ModelFlag             string   `toml:"model_flag"               json:"model_flag"`
+	ReasoningEffortFlag   string   `toml:"reasoning_effort_flag"    json:"reasoning_effort_flag"`
+	AddDirFlag            string   `toml:"add_dir_flag"             json:"add_dir_flag"`
+	DefaultAccessModeArgs []string `toml:"default_access_mode_args" json:"default_access_mode_args"`
+	FullAccessModeArgs    []string `toml:"full_access_mode_args"    json:"full_access_mode_args"`
 }
 
 func toProviderEntries(raw []rawProviderEntry) []ProviderEntry {
 	entries := make([]ProviderEntry, 0, len(raw))
-	for _, entry := range raw {
+	for i := range raw {
+		entry := raw[i]
 		entries = append(entries, ProviderEntry{
-			Name:     strings.TrimSpace(entry.Name),
-			Command:  strings.TrimSpace(entry.Command),
-			Metadata: cloneStringMap(entry.Metadata),
+			Name:               strings.TrimSpace(entry.Name),
+			Kind:               ProviderKind(strings.TrimSpace(string(entry.Kind))),
+			Target:             strings.TrimSpace(entry.Target),
+			Command:            strings.TrimSpace(entry.Command),
+			DisplayName:        strings.TrimSpace(entry.DisplayName),
+			SetupAgentName:     strings.TrimSpace(entry.SetupAgentName),
+			DefaultModel:       strings.TrimSpace(entry.DefaultModel),
+			SupportsAddDirs:    cloneBoolPointer(entry.SupportsAddDirs),
+			UsesBootstrapModel: cloneBoolPointer(entry.UsesBootstrapModel),
+			DocsURL:            strings.TrimSpace(entry.DocsURL),
+			InstallHint:        strings.TrimSpace(entry.InstallHint),
+			FullAccessModeID:   strings.TrimSpace(entry.FullAccessModeID),
+			FixedArgs:          cloneStrings(entry.FixedArgs),
+			ProbeArgs:          cloneStrings(entry.ProbeArgs),
+			Env:                cloneStringMap(entry.Env),
+			Fallbacks:          toProviderLaunchers(entry.Fallbacks),
+			Bootstrap:          toProviderBootstrap(entry.Bootstrap),
+			Metadata:           cloneStringMap(entry.Metadata),
 		})
 	}
 	return entries
+}
+
+func toProviderLaunchers(raw []rawProviderLauncher) []ProviderLauncher {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	launchers := make([]ProviderLauncher, 0, len(raw))
+	for _, launcher := range raw {
+		launchers = append(launchers, ProviderLauncher{
+			Command:   strings.TrimSpace(launcher.Command),
+			FixedArgs: cloneStrings(launcher.FixedArgs),
+			ProbeArgs: cloneStrings(launcher.ProbeArgs),
+		})
+	}
+	return launchers
+}
+
+func toProviderBootstrap(raw *rawProviderBootstrap) *ProviderBootstrap {
+	if raw == nil {
+		return nil
+	}
+
+	return &ProviderBootstrap{
+		ModelFlag:             strings.TrimSpace(raw.ModelFlag),
+		ReasoningEffortFlag:   strings.TrimSpace(raw.ReasoningEffortFlag),
+		AddDirFlag:            strings.TrimSpace(raw.AddDirFlag),
+		DefaultAccessModeArgs: cloneStrings(raw.DefaultAccessModeArgs),
+		FullAccessModeArgs:    cloneStrings(raw.FullAccessModeArgs),
+	}
 }
 
 type durationValue struct {
@@ -437,4 +512,13 @@ func cloneStringMap(values map[string]string) map[string]string {
 		cloned[strings.TrimSpace(key)] = strings.TrimSpace(value)
 	}
 	return cloned
+}
+
+func cloneBoolPointer(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+
+	cloned := *value
+	return &cloned
 }

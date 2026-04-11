@@ -10,6 +10,10 @@ import (
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/agent"
+	extensions "github.com/compozy/compozy/internal/core/extension"
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/modelprovider"
 	"github.com/spf13/cobra"
 )
 
@@ -304,6 +308,88 @@ output_format = "json"
 
 	if state.outputFormat != "text" {
 		t.Fatalf("expected explicit format flag to win, got %q", state.outputFormat)
+	}
+}
+
+func TestPrepareWorkspaceContextBootstrapsExtensionProvidersBeforeWorkspaceValidation(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	supportsAddDirs := true
+	t.Setenv("HOME", homeDir)
+
+	startDir := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, workspaceRoot, `
+[defaults]
+ide = "ext-adapter"
+model = "ext-model"
+
+[fetch_reviews]
+provider = "ext-review"
+`)
+
+	manifest := bootstrapManifestFixture("provider-ext")
+	manifest.Security.Capabilities = []extensions.Capability{extensions.CapabilityProvidersRegister}
+	manifest.Providers.IDE = []extensions.ProviderEntry{{
+		Name:            "ext-adapter",
+		Command:         "mock-acp",
+		FixedArgs:       []string{"serve"},
+		DisplayName:     "Mock ACP",
+		DefaultModel:    "ext-model",
+		SetupAgentName:  "codex",
+		SupportsAddDirs: &supportsAddDirs,
+	}}
+	manifest.Providers.Review = []extensions.ProviderEntry{{
+		Name:        "ext-review",
+		Command:     "coderabbit",
+		DisplayName: "Extension Review",
+	}}
+	manifest.Providers.Model = []extensions.ProviderEntry{{
+		Name:        "ext-model",
+		Target:      "openai/gpt-5.4",
+		DisplayName: "Extension Model",
+	}}
+	extensionDir := filepath.Join(workspaceRoot, ".compozy", "extensions", "provider-ext")
+	writeBootstrapManifestJSON(t, extensionDir, manifest)
+	enableBootstrapWorkspaceExtension(t, homeDir, workspaceRoot, "provider-ext")
+
+	chdirCLITest(t, startDir)
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	cmd := &cobra.Command{Use: "fetch-reviews"}
+	cmd.Flags().String("ide", "", "")
+	cmd.Flags().String("model", "", "")
+	cmd.Flags().String("provider", "", "")
+
+	_, cleanup, err := state.prepareWorkspaceContext(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("prepareWorkspaceContext() error = %v", err)
+	}
+	defer cleanup()
+
+	if state.ide != "ext-adapter" {
+		t.Fatalf("state.ide = %q, want %q", state.ide, "ext-adapter")
+	}
+	if state.model != "ext-model" {
+		t.Fatalf("state.model = %q, want %q", state.model, "ext-model")
+	}
+	if state.provider != "ext-review" {
+		t.Fatalf("state.provider = %q, want %q", state.provider, "ext-review")
+	}
+	if got := modelprovider.ResolveAlias(state.model); got != "openai/gpt-5.4" {
+		t.Fatalf("ResolveAlias(%q) = %q, want %q", state.model, got, "openai/gpt-5.4")
+	}
+	if err := agent.ValidateRuntimeConfig(&model.RuntimeConfig{
+		Mode:                   model.ExecutionModePRReview,
+		IDE:                    state.ide,
+		OutputFormat:           model.OutputFormatText,
+		BatchSize:              1,
+		MaxRetries:             0,
+		RetryBackoffMultiplier: 1.5,
+	}); err != nil {
+		t.Fatalf("ValidateRuntimeConfig() error = %v", err)
 	}
 }
 

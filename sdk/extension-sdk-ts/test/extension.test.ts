@@ -174,6 +174,149 @@ describe("Extension", () => {
     });
     await expect(runPromise).resolves.toBeUndefined();
   });
+
+  it("dispatches fetch_reviews to a registered review provider", async () => {
+    const extension = new Extension("sdk-ext", "1.0.0")
+      .withCapabilities(CAPABILITIES.providersRegister)
+      .registerReviewProvider("sdk-review", {
+        async fetchReviews(context, request) {
+          expect(context.provider).toBe("sdk-review");
+          expect(request).toEqual({
+            pr: "123",
+            include_nitpicks: true,
+          });
+          return [
+            {
+              title: "issue",
+              file: "README.md",
+              body: "from provider",
+              provider_ref: "thread-1",
+            },
+          ];
+        },
+      });
+    const harness = new TestHarness({
+      granted_capabilities: [CAPABILITIES.providersRegister],
+    });
+
+    const runPromise = harness.run(extension);
+    const response = await harness.initialize({
+      name: "sdk-ext",
+      version: "1.0.0",
+      source: "workspace",
+    });
+    expect(response.registered_review_providers).toEqual(["sdk-review"]);
+
+    const invoke = (
+      harness as unknown as {
+        call<T>(method: string, params: unknown): Promise<T>;
+      }
+    ).call.bind(harness);
+    await expect(
+      invoke("fetch_reviews", {
+        provider: "sdk-review",
+        pr: "123",
+        include_nitpicks: true,
+      })
+    ).resolves.toEqual([
+      {
+        title: "issue",
+        file: "README.md",
+        body: "from provider",
+        provider_ref: "thread-1",
+      },
+    ]);
+
+    await harness.shutdown({
+      reason: "run_completed",
+      deadline_ms: 1000,
+    });
+    await expect(runPromise).resolves.toBeUndefined();
+  });
+
+  it("dispatches resolve_issues to a registered review provider", async () => {
+    const seen: unknown[] = [];
+    const extension = new Extension("sdk-ext", "1.0.0")
+      .withCapabilities(CAPABILITIES.providersRegister)
+      .registerReviewProvider("sdk-review", {
+        async resolveIssues(context, request) {
+          expect(context.provider).toBe("sdk-review");
+          seen.push(request);
+        },
+      });
+    const harness = new TestHarness({
+      granted_capabilities: [CAPABILITIES.providersRegister],
+    });
+
+    const runPromise = harness.run(extension);
+    await harness.initialize({
+      name: "sdk-ext",
+      version: "1.0.0",
+      source: "workspace",
+    });
+
+    const invoke = (
+      harness as unknown as {
+        call<T>(method: string, params: unknown): Promise<T>;
+      }
+    ).call.bind(harness);
+    await expect(
+      invoke("resolve_issues", {
+        provider: "sdk-review",
+        pr: "123",
+        issues: [{ file_path: "issue_001.md", provider_ref: "thread-1" }],
+      })
+    ).resolves.toEqual({});
+    expect(seen).toEqual([
+      {
+        pr: "123",
+        issues: [{ file_path: "issue_001.md", provider_ref: "thread-1" }],
+      },
+    ]);
+
+    await harness.shutdown({
+      reason: "run_completed",
+      deadline_ms: 1000,
+    });
+    await expect(runPromise).resolves.toBeUndefined();
+  });
+
+  it("rejects fetch_reviews when providers.register was not granted", async () => {
+    const extension = new Extension("sdk-ext", "1.0.0").registerReviewProvider("sdk-review", {});
+    const harness = new TestHarness();
+
+    const runPromise = harness.run(extension);
+    await harness.initialize({
+      name: "sdk-ext",
+      version: "1.0.0",
+      source: "workspace",
+    });
+
+    const invoke = (
+      harness as unknown as {
+        call<T>(method: string, params: unknown): Promise<T>;
+      }
+    ).call.bind(harness);
+    await expect(
+      invoke("fetch_reviews", {
+        provider: "sdk-review",
+        pr: "123",
+      })
+    ).rejects.toMatchObject<RPCError>({
+      code: -32001,
+      data: {
+        target: "fetch_reviews",
+        missing: [CAPABILITIES.providersRegister],
+        granted: [],
+      },
+    });
+
+    await harness.shutdown({
+      reason: "run_completed",
+      deadline_ms: 1000,
+    });
+    await expect(runPromise).resolves.toBeUndefined();
+  });
 });
 
 async function eventually(assertion: () => void): Promise<void> {

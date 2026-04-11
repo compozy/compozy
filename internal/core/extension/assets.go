@@ -12,9 +12,9 @@ import (
 type DeclaredProvider struct {
 	Extension    Ref
 	ManifestPath string
-	Name         string
-	Command      string
-	Metadata     map[string]string
+	ExtensionDir string
+	Manifest     *Manifest
+	ProviderEntry
 }
 
 // DeclaredProviders groups provider declarations by manifest category.
@@ -99,13 +99,13 @@ func appendDeclaredProviders(
 	entry *DiscoveredExtension,
 	providers []ProviderEntry,
 ) []DeclaredProvider {
-	for _, provider := range providers {
+	for i := range providers {
 		dst = append(dst, DeclaredProvider{
-			Extension:    entry.Ref,
-			ManifestPath: entry.ManifestPath,
-			Name:         provider.Name,
-			Command:      provider.Command,
-			Metadata:     cloneStringMap(provider.Metadata),
+			Extension:     entry.Ref,
+			ManifestPath:  entry.ManifestPath,
+			ExtensionDir:  entry.ExtensionDir,
+			Manifest:      entry.Manifest,
+			ProviderEntry: cloneProviderEntry(providers[i]),
 		})
 	}
 	return dst

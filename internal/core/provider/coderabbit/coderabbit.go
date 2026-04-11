@@ -62,6 +62,10 @@ func (p *Provider) Name() string {
 	return name
 }
 
+func (p *Provider) DisplayName() string {
+	return "CodeRabbit"
+}
+
 func (p *Provider) FetchReviews(ctx context.Context, req provider.FetchRequest) ([]provider.ReviewItem, error) {
 	if strings.TrimSpace(req.PR) == "" {
 		return nil, errors.New("pull request number is required")

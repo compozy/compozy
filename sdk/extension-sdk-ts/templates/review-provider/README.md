@@ -1,3 +1,9 @@
 # Review Provider
 
-Declarative starter for registering a review provider overlay. Replace `bin/review-provider.mjs` with the real provider entrypoint your workflow expects.
+Registers an executable review provider implemented inside the extension
+subprocess.
+
+## Scripts
+
+- `npm test` compiles the project and runs the local template test.
+- `npm run build` emits `dist/` for use as the extension subprocess entrypoint.

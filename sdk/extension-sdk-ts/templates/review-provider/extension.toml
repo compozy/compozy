@@ -1,12 +1,16 @@
 [extension]
 name = "__EXTENSION_NAME__"
 version = "__EXTENSION_VERSION__"
-description = "Declarative review provider starter extension"
+description = "Executable review provider starter extension"
 min_compozy_version = "__COMPOZY_MIN_VERSION__"
+
+[subprocess]
+command = "node"
+args = ["dist/src/index.js"]
 
 [security]
 capabilities = ["providers.register"]
 
 [[providers.review]]
 name = "__EXTENSION_NAME__-review"
-command = "./bin/review-provider.mjs"
+kind = "extension"

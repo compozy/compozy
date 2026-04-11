@@ -93,6 +93,8 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	if startErr != nil {
 		startErr = errors.Join(startErr, m.shutdownWithReason(context.Background(), shutdownReasonManagerError))
+	} else {
+		registerActiveManager(m)
 	}
 
 	m.mu.Lock()
@@ -178,6 +180,23 @@ func (m *Manager) sessionSnapshot() []*extensionSession {
 		sessions = append(sessions, session)
 	}
 	return sessions
+}
+
+func (m *Manager) sessionForExtension(name string) (*extensionSession, bool) {
+	if m == nil {
+		return nil, false
+	}
+
+	normalized := strings.TrimSpace(name)
+	if normalized == "" {
+		return nil, false
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	session, ok := m.sessions[normalized]
+	return session, ok
 }
 
 func (m *Manager) emitLifecycleEvent(ctx context.Context, kind events.EventKind, payload any) error {

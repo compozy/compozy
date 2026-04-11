@@ -290,6 +290,7 @@ export interface InitializeResponse {
   extension_info: InitializeResponseInfo;
   accepted_capabilities?: Capability[];
   supported_hook_events?: HookName[];
+  registered_review_providers?: string[];
   supports: Supports;
 }
 
@@ -333,6 +334,44 @@ export interface ShutdownRequest {
 /** Acknowledges a graceful shutdown request. */
 export interface ShutdownResponse {
   acknowledged: boolean;
+}
+
+/** Carries provider-local metadata and Host API access for review provider handlers. */
+export interface ReviewProviderContext {
+  provider: string;
+  host: HostAPI;
+}
+
+/** Mirrors the host-side review fetch request. */
+export interface FetchRequest {
+  pr: string;
+  include_nitpicks?: boolean;
+}
+
+/** Mirrors the host-side normalized review item shape. */
+export interface ReviewItem {
+  title: string;
+  file: string;
+  line?: number;
+  severity?: string;
+  author?: string;
+  body: string;
+  provider_ref?: string;
+  review_hash?: string;
+  source_review_id?: string;
+  source_review_submitted_at?: string;
+}
+
+/** Mirrors the host-side resolved issue payload. */
+export interface ResolvedIssue {
+  file_path: string;
+  provider_ref?: string;
+}
+
+/** Mirrors the host-side resolve request. */
+export interface ResolveIssuesRequest {
+  pr: string;
+  issues?: ResolvedIssue[];
 }
 
 // ---------------------------------------------------------------------------

@@ -12,7 +12,10 @@ import (
 
 	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/provider"
+	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/spf13/cobra"
 )
@@ -293,13 +296,15 @@ func (fb *formBuilder) addPRField(target *string) {
 
 func (fb *formBuilder) addProviderField(target *string) {
 	fb.addField("provider", func() huh.Field {
+		options := providerCatalogOptions()
+		if len(options) == 0 {
+			options = []huh.Option[string]{huh.NewOption("CodeRabbit", "coderabbit")}
+		}
 		return huh.NewSelect[string]().
 			Key("provider").
 			Title("Review Provider").
 			Description("Choose which review provider to fetch from").
-			Options(
-				huh.NewOption("CodeRabbit", "coderabbit"),
-			).
+			Options(options...).
 			Value(target)
 	})
 }
@@ -374,20 +379,12 @@ func (fb *formBuilder) addBatchSizeField(target *string) {
 
 func (fb *formBuilder) addIDEField(target *string) {
 	fb.addField("ide", func() huh.Field {
+		options := ideCatalogOptions()
 		return huh.NewSelect[string]().
 			Key("ide").
 			Title("IDE Tool").
 			Description("Choose which ACP runtime to use (installed directly or available via a supported launcher).").
-			Options(
-				huh.NewOption("Codex", string(core.IDECodex)),
-				huh.NewOption("Claude", string(core.IDEClaude)),
-				huh.NewOption("Cursor", string(core.IDECursor)),
-				huh.NewOption("Droid", string(core.IDEDroid)),
-				huh.NewOption("OpenCode", string(core.IDEOpenCode)),
-				huh.NewOption("Pi", string(core.IDEPi)),
-				huh.NewOption("Gemini", string(core.IDEGemini)),
-				huh.NewOption("Copilot CLI", string(core.IDECopilot)),
-			).
+			Options(options...).
 			Value(target)
 	})
 }
@@ -571,6 +568,34 @@ func listTaskSubdirs(baseDir string) []string {
 	}
 	sort.Strings(dirs)
 	return dirs
+}
+
+func ideCatalogOptions() []huh.Option[string] {
+	entries := agent.DriverCatalog()
+	options := make([]huh.Option[string], 0, len(entries))
+	for i := range entries {
+		entry := &entries[i]
+		label := strings.TrimSpace(entry.DisplayName)
+		if label == "" {
+			label = entry.IDE
+		}
+		options = append(options, huh.NewOption(label, entry.IDE))
+	}
+	return options
+}
+
+func providerCatalogOptions() []huh.Option[string] {
+	entries := provider.Catalog(providerdefaults.DefaultRegistry())
+	options := make([]huh.Option[string], 0, len(entries))
+	for i := range entries {
+		entry := &entries[i]
+		label := strings.TrimSpace(entry.DisplayName)
+		if label == "" {
+			label = entry.Name
+		}
+		options = append(options, huh.NewOption(label, entry.Name))
+	}
+	return options
 }
 
 func listStartTaskSubdirs(baseDir string) []string {

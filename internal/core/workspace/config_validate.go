@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/tasks"
 )
@@ -83,7 +84,7 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 	if name == "" {
 		return errors.New("workspace config fetch_reviews.provider cannot be empty")
 	}
-	if _, err := providerdefaults.DefaultRegistry().Get(name); err != nil {
+	if _, err := provider.ResolveRegistry(providerdefaults.DefaultRegistry()).Get(name); err != nil {
 		return fmt.Errorf("workspace config fetch_reviews.provider: %w", err)
 	}
 	return nil

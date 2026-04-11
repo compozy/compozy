@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/modelprovider"
 )
 
 func TestActivateOverlayRegistersDeclarativeRuntimeSpec(t *testing.T) {
@@ -129,5 +130,86 @@ func TestActivateOverlayRejectsUnterminatedQuotedArgs(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unterminated quote") {
 		t.Fatalf("unexpected quoted overlay error: %v", err)
+	}
+}
+
+func TestActivateOverlaySupportsTypedLauncherAndBootstrapFields(t *testing.T) {
+	supportsAddDirs := true
+	usesBootstrapModel := true
+
+	restoreModels, err := modelprovider.ActivateOverlay([]modelprovider.OverlayEntry{{
+		Name:   "ext-model",
+		Target: "openai/gpt-5.4",
+	}})
+	if err != nil {
+		t.Fatalf("activate model overlay: %v", err)
+	}
+	defer restoreModels()
+
+	restore, err := ActivateOverlay([]OverlayEntry{
+		{
+			Name:               "typed-adapter",
+			Command:            "echo",
+			DisplayName:        "Typed ACP",
+			DefaultModel:       "ext-model",
+			SetupAgentName:     "codex",
+			SupportsAddDirs:    &supportsAddDirs,
+			UsesBootstrapModel: &usesBootstrapModel,
+			FixedArgs:          []string{"serve"},
+			ProbeArgs:          []string{"--probe"},
+			EnvVars: map[string]string{
+				"MOCK_ENV": "enabled",
+			},
+			Fallbacks: []Launcher{{
+				Command:   "npx",
+				FixedArgs: []string{"-y", "mock-acp"},
+			}},
+			Bootstrap: OverlayBootstrap{
+				ModelFlag:             "--model",
+				ReasoningEffortFlag:   "--reasoning",
+				AddDirFlag:            "--add-dir",
+				DefaultAccessModeArgs: []string{"--sandbox"},
+				FullAccessModeArgs:    []string{"--danger"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("activate typed ACP overlay: %v", err)
+	}
+	defer restore()
+
+	spec, err := lookupAgentSpec("typed-adapter")
+	if err != nil {
+		t.Fatalf("lookup typed overlay spec: %v", err)
+	}
+	if spec.DisplayName != "Typed ACP" {
+		t.Fatalf("spec.DisplayName = %q, want %q", spec.DisplayName, "Typed ACP")
+	}
+	if spec.Command != "echo" {
+		t.Fatalf("spec.Command = %q, want %q", spec.Command, "echo")
+	}
+	if want := []string{"serve"}; !reflect.DeepEqual(spec.FixedArgs, want) {
+		t.Fatalf("spec.FixedArgs = %#v, want %#v", spec.FixedArgs, want)
+	}
+	if want := []string{"--probe"}; !reflect.DeepEqual(spec.ProbeArgs, want) {
+		t.Fatalf("spec.ProbeArgs = %#v, want %#v", spec.ProbeArgs, want)
+	}
+	if !spec.SupportsAddDirs || !spec.UsesBootstrapModel {
+		t.Fatalf("unexpected support flags: %#v", spec)
+	}
+	if spec.EnvVars["MOCK_ENV"] != "enabled" {
+		t.Fatalf("spec.EnvVars = %#v, want MOCK_ENV to propagate", spec.EnvVars)
+	}
+	if len(spec.Fallbacks) != 1 || spec.Fallbacks[0].Command != "npx" {
+		t.Fatalf("spec.Fallbacks = %#v, want typed fallback launcher", spec.Fallbacks)
+	}
+	if got, err := ResolveRuntimeModel("typed-adapter", ""); err != nil || got != "openai/gpt-5.4" {
+		t.Fatalf("ResolveRuntimeModel() = %q err=%v, want %q", got, err, "openai/gpt-5.4")
+	}
+	command := BuildShellCommandString("typed-adapter", "ext-model", []string{"../docs"}, "high", model.AccessModeFull)
+	for _, snippet := range []string{"echo", "serve", "--model", "openai/gpt-5.4", "--reasoning", "high", "--add-dir", "../docs", "--danger"} {
+		if !strings.Contains(command, snippet) {
+			t.Fatalf("BuildShellCommandString() = %q, want to contain %q", command, snippet)
+		}
 	}
 }
