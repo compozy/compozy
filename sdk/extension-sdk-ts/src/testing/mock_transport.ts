@@ -5,6 +5,7 @@ type PendingReader = {
   resolve: (message: Message) => void;
 };
 
+/** An in-memory message transport used by SDK tests. */
 export class MockTransport implements Transport {
   private readonly incoming: Message[] = [];
   private readonly readers: PendingReader[] = [];
@@ -12,10 +13,12 @@ export class MockTransport implements Transport {
   private closed = false;
   private peerClosed = false;
 
+  /** Connects this transport to its peer so messages written by one are readable by the other. */
   connect(peer: MockTransport): void {
     this.peer = peer;
   }
 
+  /** Reads one queued message, blocking until a message is available. */
   async readMessage(): Promise<Message> {
     if (this.incoming.length > 0) {
       const message = this.incoming.shift();
@@ -32,6 +35,7 @@ export class MockTransport implements Transport {
     });
   }
 
+  /** Enqueues one message for the peer transport. */
   async writeMessage(message: Message): Promise<void> {
     if (this.closed || this.peerClosed || this.peer?.closed) {
       throw new EOFError();
@@ -39,6 +43,7 @@ export class MockTransport implements Transport {
     this.peer?.pushIncoming(message);
   }
 
+  /** Closes this transport endpoint. */
   async close(): Promise<void> {
     if (this.closed) {
       return;
@@ -50,10 +55,12 @@ export class MockTransport implements Transport {
     this.peer?.markPeerClosed();
   }
 
+  /** Reads one queued message. Alias for {@link readMessage}. */
   async receive(): Promise<Message> {
     return this.readMessage();
   }
 
+  /** Enqueues one message for the peer transport. Alias for {@link writeMessage}. */
   async send(message: Message): Promise<void> {
     await this.writeMessage(message);
   }
@@ -75,6 +82,7 @@ export class MockTransport implements Transport {
   }
 }
 
+/** Creates a connected in-memory transport pair. */
 export function createMockTransportPair(): [MockTransport, MockTransport] {
   const left = new MockTransport();
   const right = new MockTransport();

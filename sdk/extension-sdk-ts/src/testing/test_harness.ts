@@ -16,24 +16,38 @@ import type {
 import { PROTOCOL_VERSION } from "../types.js";
 import { MockTransport, createMockTransportPair } from "./mock_transport.js";
 
+/** Configures the host-side initialize request defaults. */
 export interface HarnessOptions {
+  /** Protocol version advertised by the simulated host. */
   protocol_version?: string;
+  /** All protocol versions the simulated host claims to support. */
   supported_protocol_versions?: string[];
+  /** Compozy version reported by the simulated host. */
   compozy_version?: string;
+  /** Extension source type used in the initialize request. */
   source?: "bundled" | "user" | "workspace";
+  /** Capabilities granted to the extension by the simulated host. */
   granted_capabilities?: Capability[];
+  /** Runtime parameters sent in the initialize request. */
   runtime?: InitializeRuntime;
 }
 
+/** Records one Host API request emitted by the extension. */
 export interface HostCall {
+  /** The RPC method name of the host call. */
   method: string;
+  /** The raw parameters sent with the host call. */
   params: unknown;
 }
 
+/** Serves one Host API method inside the test harness. */
 export type HostHandler = (params: unknown) => Promise<unknown> | unknown;
 
+/** Simulates the host side of the extension subprocess protocol for in-process SDK tests. */
 export class TestHarness {
+  /** The extension-side transport to pass into the SDK. */
   readonly extensionTransport: MockTransport;
+  /** The host-side transport used internally by the harness. */
   readonly hostTransport: MockTransport;
 
   private readonly options: Required<HarnessOptions>;
@@ -45,6 +59,7 @@ export class TestHarness {
   >();
   private requestID = 0;
 
+  /** Constructs a new in-process host harness. */
   constructor(options: HarnessOptions = {}) {
     const [extensionTransport, hostTransport] = createMockTransportPair();
     this.extensionTransport = extensionTransport;
@@ -52,19 +67,23 @@ export class TestHarness {
     this.options = normalizeOptions(options);
   }
 
+  /** Starts the extension against the harness transport. */
   run(extension: Extension): Promise<void> {
     void this.hostLoop();
     return extension.withTransport(this.extensionTransport).start();
   }
 
+  /** Registers a Host API method handler. */
   handleHostMethod(method: string, handler: HostHandler): void {
     this.handlers.set(method, handler);
   }
 
+  /** Returns the Host API calls emitted by the extension so far. */
   hostCalls(): HostCall[] {
     return [...this.calls];
   }
 
+  /** Performs the host-initiated initialize handshake. */
   async initialize(identity: InitializeRequestIdentity): Promise<InitializeResponse> {
     return this.call("initialize", {
       protocol_version: this.options.protocol_version,
@@ -79,6 +98,7 @@ export class TestHarness {
     } satisfies InitializeRequest);
   }
 
+  /** Issues one execute_hook request against the running extension. */
   async dispatchHook(
     invocationID: string,
     hook: HookInfo,
@@ -91,14 +111,17 @@ export class TestHarness {
     });
   }
 
+  /** Issues one on_event request against the running extension. */
   async sendEvent(event: Event): Promise<void> {
     await this.call("on_event", { event } satisfies OnEventRequest);
   }
 
+  /** Issues one health_check request against the running extension. */
   async healthCheck(): Promise<unknown> {
     return this.call("health_check", {});
   }
 
+  /** Issues one shutdown request against the running extension. */
   async shutdown(request: ShutdownRequest): Promise<ShutdownResponse> {
     return this.call("shutdown", request);
   }

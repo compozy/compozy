@@ -53,32 +53,41 @@ import type {
   SystemAddendumPatch,
 } from "./types.js";
 
+/** Callback invoked when the host forwards a Compozy event to the extension. */
 export type EventHandler = (event: Event) => Promise<void> | void;
+/** Low-level hook handler that receives the raw JSON payload and returns a raw patch. */
 export type RawHookHandler = (context: HookContext, payload: unknown) => Promise<unknown> | unknown;
+/** Callback that overrides the default health check response. */
 export type HealthCheckHandler = (
   request: HealthCheckRequest
 ) => Promise<HealthCheckResponse> | HealthCheckResponse;
+/** Callback invoked during graceful shutdown before the process exits. */
 export type ShutdownHandler = (request: ShutdownRequest) => Promise<void> | void;
 
+/** Typed handler for mutable hooks. Receives a strongly-typed payload and returns an optional patch describing what to mutate. */
 export type MutableHookHandler<Payload, Patch> = (
   context: HookContext,
   payload: Payload
 ) => Promise<Patch | void> | Patch | void;
 
+/** Typed handler for observer-only hooks. Receives the payload for side-effects with no return value. */
 export type ObserverHookHandler<Payload> = (
   context: HookContext,
   payload: Payload
 ) => Promise<void> | void;
 
+/** Internal representation of a registered hook handler with its mutability flag. */
 export interface RegisteredHook {
   mutable: boolean;
   handler: RawHookHandler;
 }
 
+/** Minimal interface for registering raw hook handlers on an extension. */
 export interface HookRegistrationSurface {
   handle(hook: HookName, handler: RawHookHandler): this;
 }
 
+/** Type-safe mapping from each hook name to its corresponding handler signature, ensuring payload and patch types are correct at compile time. */
 export type HookHandlerMatrix = {
   "plan.pre_discover": MutableHookHandler<PlanPreDiscoverPayload, ExtraSourcesPatch>;
   "plan.post_discover": MutableHookHandler<PlanPostDiscoverPayload, EntriesPatch>;
@@ -113,6 +122,7 @@ export type HookHandlerMatrix = {
   "artifact.post_write": ObserverHookHandler<ArtifactPostWritePayload>;
 };
 
+/** Returns true if the given hook name corresponds to a mutable hook that can return a patch. */
 export function isMutableHook(hook: HookName): boolean {
   switch (hook) {
     case "agent.post_session_create":
@@ -130,6 +140,7 @@ export function isMutableHook(hook: HookName): boolean {
   }
 }
 
+/** Registers a typed mutable hook handler on the given surface, wrapping it as a raw handler. */
 export function registerMutableHook<Payload, Patch>(
   surface: HookRegistrationSurface,
   hook: HookName,
@@ -140,6 +151,7 @@ export function registerMutableHook<Payload, Patch>(
   });
 }
 
+/** Registers a typed observer hook handler on the given surface, wrapping it as a raw handler that returns undefined. */
 export function registerObserverHook<Payload>(
   surface: HookRegistrationSurface,
   hook: HookName,
@@ -151,6 +163,7 @@ export function registerObserverHook<Payload>(
   });
 }
 
+/** Builds a {@link HookContext} from an incoming execute-hook request and host metadata. */
 export function requestContext(
   request: ExecuteHookRequest,
   host: HookContext["host"]

@@ -55,9 +55,19 @@ type EventRegistration = {
   handler: EventHandler;
 };
 
+/**
+ * SDK runtime for Compozy executable extensions.
+ *
+ * Manages protocol negotiation, capability exchange, hook dispatch, event
+ * delivery, health checks, and graceful shutdown over JSON-RPC 2.0 on
+ * stdin/stdout.
+ */
 export class Extension implements HostCaller {
+  /** Extension name reported during initialize. */
   readonly name: string;
+  /** Extension version reported during initialize. */
   readonly version: string;
+  /** Host API client bound to the current extension session. */
   readonly host: HostAPI;
 
   private sdkVersion: string;
@@ -79,6 +89,7 @@ export class Extension implements HostCaller {
   private finishPromise?: Promise<unknown>;
   private finishError?: unknown;
 
+  /** Constructs a new extension runtime with the provided identity. */
   constructor(name: string, version: string) {
     this.name = name.trim();
     this.version = version.trim();
@@ -86,6 +97,7 @@ export class Extension implements HostCaller {
     this.host = new HostAPI(this);
   }
 
+  /** Declares the capabilities this extension requires from the host. */
   withCapabilities(...capabilities: Capability[]): this {
     for (const capability of capabilities) {
       if (capability.trim() !== "") {
@@ -95,49 +107,59 @@ export class Extension implements HostCaller {
     return this;
   }
 
+  /** Overrides the default stdio transport used by {@link start}. */
   withTransport(transport: Transport): this {
     this.transport = transport;
     return this;
   }
 
+  /** Overrides the sdk_version reported during initialize. */
   withSDKVersion(version: string): this {
     this.sdkVersion = version.trim();
     return this;
   }
 
+  /** Returns the last initialize request processed by the extension, or undefined before initialize. */
   initializeRequest(): InitializeRequest | undefined {
     return this.initializeRequestValue;
   }
 
+  /** Returns the last initialize response, or undefined before initialize. */
   initializeResponse(): InitializeResponse | undefined {
     return this.initializeResponseValue;
   }
 
+  /** Returns the sorted list of capabilities negotiated during initialize. */
   acceptedCapabilitiesList(): Capability[] {
     return [...this.acceptedCapabilities].sort();
   }
 
+  /** Registers a raw hook handler for one hook event. */
   handle(hook: HookName, handler: RawHookHandler): this {
     this.hooks.set(hook, handler);
     return this;
   }
 
+  /** Registers a forwarded event handler with an optional kind filter. When no kinds are specified, the handler receives all events. */
   onEvent(handler: EventHandler, ...kinds: EventKind[]): this {
     const normalizedKinds = new Set(kinds.map(kind => kind.trim()).filter(Boolean));
     this.eventHandlers.push({ kinds: normalizedKinds, handler });
     return this;
   }
 
+  /** Overrides the default healthy response returned by health checks. */
   onHealthCheck(handler: HealthCheckHandler): this {
     this.healthHandler = handler;
     return this;
   }
 
+  /** Registers a callback invoked during graceful shutdown. */
   onShutdown(handler: ShutdownHandler): this {
     this.shutdownHandler = handler;
     return this;
   }
 
+  /** Serves the extension over the configured transport until shutdown or transport termination. Blocks until the extension session ends. */
   async start(signal?: AbortSignal): Promise<void> {
     if (this.name === "") {
       throw new Error("start extension: name is required");
@@ -183,6 +205,7 @@ export class Extension implements HostCaller {
     }
   }
 
+  /** Issues one Host API JSON-RPC call to the host and awaits the typed response. */
   async call<T>(method: string, params?: unknown): Promise<T> {
     if (!this.initialized) {
       throw newNotInitializedError();
@@ -213,141 +236,169 @@ export class Extension implements HostCaller {
     return response.result as T;
   }
 
+  /** Registers the {@link HOOKS.planPreDiscover | plan.pre_discover} handler. */
   onPlanPreDiscover(handler: HookHandlerMatrix["plan.pre_discover"]): this {
     registerMutableHook(this, HOOKS.planPreDiscover, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.planPostDiscover | plan.post_discover} handler. */
   onPlanPostDiscover(handler: HookHandlerMatrix["plan.post_discover"]): this {
     registerMutableHook(this, HOOKS.planPostDiscover, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.planPreGroup | plan.pre_group} handler. */
   onPlanPreGroup(handler: HookHandlerMatrix["plan.pre_group"]): this {
     registerMutableHook(this, HOOKS.planPreGroup, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.planPostGroup | plan.post_group} handler. */
   onPlanPostGroup(handler: HookHandlerMatrix["plan.post_group"]): this {
     registerMutableHook(this, HOOKS.planPostGroup, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.planPrePrepareJobs | plan.pre_prepare_jobs} handler. */
   onPlanPrePrepareJobs(handler: HookHandlerMatrix["plan.pre_prepare_jobs"]): this {
     registerMutableHook(this, HOOKS.planPrePrepareJobs, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.planPostPrepareJobs | plan.post_prepare_jobs} handler. */
   onPlanPostPrepareJobs(handler: HookHandlerMatrix["plan.post_prepare_jobs"]): this {
     registerMutableHook(this, HOOKS.planPostPrepareJobs, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.promptPreBuild | prompt.pre_build} handler. */
   onPromptPreBuild(handler: HookHandlerMatrix["prompt.pre_build"]): this {
     registerMutableHook(this, HOOKS.promptPreBuild, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.promptPostBuild | prompt.post_build} handler. */
   onPromptPostBuild(handler: HookHandlerMatrix["prompt.post_build"]): this {
     registerMutableHook(this, HOOKS.promptPostBuild, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.promptPreSystem | prompt.pre_system} handler. */
   onPromptPreSystem(handler: HookHandlerMatrix["prompt.pre_system"]): this {
     registerMutableHook(this, HOOKS.promptPreSystem, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.agentPreSessionCreate | agent.pre_session_create} handler. */
   onAgentPreSessionCreate(handler: HookHandlerMatrix["agent.pre_session_create"]): this {
     registerMutableHook(this, HOOKS.agentPreSessionCreate, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.agentPostSessionCreate | agent.post_session_create} handler. */
   onAgentPostSessionCreate(handler: HookHandlerMatrix["agent.post_session_create"]): this {
     registerObserverHook(this, HOOKS.agentPostSessionCreate, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.agentPreSessionResume | agent.pre_session_resume} handler. */
   onAgentPreSessionResume(handler: HookHandlerMatrix["agent.pre_session_resume"]): this {
     registerMutableHook(this, HOOKS.agentPreSessionResume, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.agentOnSessionUpdate | agent.on_session_update} handler. */
   onAgentOnSessionUpdate(handler: HookHandlerMatrix["agent.on_session_update"]): this {
     registerObserverHook(this, HOOKS.agentOnSessionUpdate, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.agentPostSessionEnd | agent.post_session_end} handler. */
   onAgentPostSessionEnd(handler: HookHandlerMatrix["agent.post_session_end"]): this {
     registerObserverHook(this, HOOKS.agentPostSessionEnd, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.jobPreExecute | job.pre_execute} handler. */
   onJobPreExecute(handler: HookHandlerMatrix["job.pre_execute"]): this {
     registerMutableHook(this, HOOKS.jobPreExecute, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.jobPostExecute | job.post_execute} handler. */
   onJobPostExecute(handler: HookHandlerMatrix["job.post_execute"]): this {
     registerObserverHook(this, HOOKS.jobPostExecute, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.jobPreRetry | job.pre_retry} handler. */
   onJobPreRetry(handler: HookHandlerMatrix["job.pre_retry"]): this {
     registerMutableHook(this, HOOKS.jobPreRetry, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.runPreStart | run.pre_start} handler. */
   onRunPreStart(handler: HookHandlerMatrix["run.pre_start"]): this {
     registerMutableHook(this, HOOKS.runPreStart, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.runPostStart | run.post_start} handler. */
   onRunPostStart(handler: HookHandlerMatrix["run.post_start"]): this {
     registerObserverHook(this, HOOKS.runPostStart, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.runPreShutdown | run.pre_shutdown} handler. */
   onRunPreShutdown(handler: HookHandlerMatrix["run.pre_shutdown"]): this {
     registerObserverHook(this, HOOKS.runPreShutdown, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.runPostShutdown | run.post_shutdown} handler. */
   onRunPostShutdown(handler: HookHandlerMatrix["run.post_shutdown"]): this {
     registerObserverHook(this, HOOKS.runPostShutdown, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.reviewPreFetch | review.pre_fetch} handler. */
   onReviewPreFetch(handler: HookHandlerMatrix["review.pre_fetch"]): this {
     registerMutableHook(this, HOOKS.reviewPreFetch, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.reviewPostFetch | review.post_fetch} handler. */
   onReviewPostFetch(handler: HookHandlerMatrix["review.post_fetch"]): this {
     registerMutableHook(this, HOOKS.reviewPostFetch, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.reviewPreBatch | review.pre_batch} handler. */
   onReviewPreBatch(handler: HookHandlerMatrix["review.pre_batch"]): this {
     registerMutableHook(this, HOOKS.reviewPreBatch, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.reviewPostFix | review.post_fix} handler. */
   onReviewPostFix(handler: HookHandlerMatrix["review.post_fix"]): this {
     registerObserverHook(this, HOOKS.reviewPostFix, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.reviewPreResolve | review.pre_resolve} handler. */
   onReviewPreResolve(handler: HookHandlerMatrix["review.pre_resolve"]): this {
     registerMutableHook(this, HOOKS.reviewPreResolve, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.artifactPreWrite | artifact.pre_write} handler. */
   onArtifactPreWrite(handler: HookHandlerMatrix["artifact.pre_write"]): this {
     registerMutableHook(this, HOOKS.artifactPreWrite, handler);
     return this;
   }
 
+  /** Registers the {@link HOOKS.artifactPostWrite | artifact.post_write} handler. */
   onArtifactPostWrite(handler: HookHandlerMatrix["artifact.post_write"]): this {
     registerObserverHook(this, HOOKS.artifactPostWrite, handler);
     return this;

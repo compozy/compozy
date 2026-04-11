@@ -37,6 +37,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 - **Provider-agnostic reviews.** Fetch review comments from CodeRabbit, GitHub, or run AI-powered reviews internally. All normalize to the same format. Provider threads resolve automatically after fixes.
 - **Markdown everywhere.** PRDs, specs, tasks, reviews, and ADRs are human-readable markdown files. Version-controlled, diffable, editable between steps. No vendor lock-in.
 - **Frontmatter for machine-readable metadata.** Tasks and review issues keep parseable metadata in standard YAML frontmatter instead of custom XML tags.
+- **Executable extensions.** Intercept and modify any pipeline phase with subprocess hooks. Ship custom prompt decorators, lifecycle observers, review providers, and skill packs using the TypeScript or Go SDKs.
 - **Single binary, local-first.** Compiles to one Go binary with zero runtime dependencies. Your code and data stay on your machine.
 - **Embeddable.** Use as a standalone CLI or import as a Go package into your own tools.
 
@@ -224,6 +225,51 @@ Use these committed example fixtures as starting points:
 - [`docs/examples/agents/repo-copilot/AGENT.md`](docs/examples/agents/repo-copilot/AGENT.md) and [`docs/examples/agents/repo-copilot/mcp.json`](docs/examples/agents/repo-copilot/mcp.json) for an agent with external MCP dependencies
 
 The detailed guide lives in [`docs/reusable-agents.md`](docs/reusable-agents.md).
+
+## 🔌 Extensions
+
+Compozy extensions are executable subprocess plugins that intercept and modify pipeline behavior without rebuilding the binary. Extensions communicate with the host over JSON-RPC 2.0 on stdin/stdout and can observe lifecycle events, mutate prompts, inject plan sources, modify agent sessions, gate retries, ship skill packs, and register review providers.
+
+### SDK support
+
+| Language   | Package                                           | Install                                           |
+| ---------- | ------------------------------------------------- | ------------------------------------------------- |
+| TypeScript | [`@compozy/extension-sdk`](sdk/extension-sdk-ts/) | `npm install @compozy/extension-sdk`              |
+| Go         | [`sdk/extension`](sdk/extension/)                 | `go get github.com/compozy/compozy/sdk/extension` |
+
+Scaffold a new extension project with starter templates:
+
+```bash
+npx @compozy/create-extension my-ext
+npx @compozy/create-extension my-ext --template prompt-decorator
+npx @compozy/create-extension my-ext --runtime go
+```
+
+Available templates: `lifecycle-observer`, `prompt-decorator`, `review-provider`, `skill-pack`.
+
+### Extension CLI
+
+```bash
+compozy ext list                   # discover extensions across all scopes
+compozy ext inspect <name>         # show manifest, capabilities, enablement status
+compozy ext install <path>         # install into user scope (~/.compozy/extensions/)
+compozy ext uninstall <name>       # remove a user-scoped extension
+compozy ext enable <name>          # enable on this machine
+compozy ext disable <name>         # disable on this machine
+compozy ext doctor                 # validate manifests and report health warnings
+```
+
+Extensions are discovered from three scopes with workspace > user > bundled precedence. User and workspace extensions start disabled and must be explicitly enabled by the local operator.
+
+### Learn more
+
+- [Extension author guide](.compozy/docs/extensibility/index.md)
+- [Architecture overview](.compozy/docs/extensibility/architecture.md)
+- [Hook reference](.compozy/docs/extensibility/hook-reference.md) -- 28 hooks across 6 pipeline phases
+- [Host API reference](.compozy/docs/extensibility/host-api-reference.md) -- 11 typed host methods
+- [Capability reference](.compozy/docs/extensibility/capability-reference.md) -- 19 capability grants
+- [Trust and enablement](.compozy/docs/extensibility/trust-and-enablement.md)
+- [Testing guide](.compozy/docs/extensibility/testing.md)
 
 ## ⚡ Ad Hoc Exec
 
@@ -424,15 +470,15 @@ When installing to multiple agents, Compozy offers two modes:
 compozy setup [flags]
 ```
 
-| Flag             | Default | Description                                  |
-| ---------------- | ------- | -------------------------------------------- |
-| `--agent`, `-a`  |         | Target agent name (repeatable)               |
-| `--skill`, `-s`  |         | Skill name to install (repeatable)           |
-| `--global`, `-g` | `false` | Install to user directory instead of project |
-| `--copy`         | `false` | Copy files instead of symlinking             |
+| Flag             | Default | Description                                               |
+| ---------------- | ------- | --------------------------------------------------------- |
+| `--agent`, `-a`  |         | Target agent name (repeatable)                            |
+| `--skill`, `-s`  |         | Skill name to install (repeatable)                        |
+| `--global`, `-g` | `false` | Install to user directory instead of project              |
+| `--copy`         | `false` | Copy files instead of symlinking                          |
 | `--list`, `-l`   | `false` | List bundled skills and council agents without installing |
-| `--yes`, `-y`    | `false` | Skip confirmation prompts                    |
-| `--all`          | `false` | Install all skills to all agents             |
+| `--yes`, `-y`    | `false` | Skip confirmation prompts                                 |
+| `--all`          | `false` | Install all skills to all agents                          |
 
 </details>
 
@@ -498,7 +544,7 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
 | `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
 | `--model`                    | _(per IDE)_ | Model override                                                                             |
-| `--agent`                    |             | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/` |
+| `--agent`                    |             | Reusable agent to execute from `.compozy/agents/` or `~/.compozy/agents/`                  |
 | `--prompt-file`              |             | Read prompt text from a file                                                               |
 | `--format`                   | `text`      | Output contract: `text`, `json`, or `raw-json`                                             |
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
@@ -508,7 +554,7 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
-| `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes |
+| `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes                |
 | `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                                        |
 | `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                                 |
 | `--persist`                  | `false`     | Persist exec artifacts under `.compozy/runs/<run-id>/`                                     |
@@ -534,6 +580,25 @@ compozy agents list
 compozy agents inspect reviewer
 compozy agents inspect repo-copilot
 ```
+
+</details>
+
+<details>
+<summary><code>compozy ext</code> — Manage executable extensions</summary>
+
+```bash
+compozy ext <subcommand> [flags]
+```
+
+| Subcommand             | Description                                        |
+| ---------------------- | -------------------------------------------------- |
+| `ext list`             | List discovered extensions across all scopes       |
+| `ext inspect <name>`   | Show manifest, capabilities, and enablement status |
+| `ext install <path>`   | Install an extension into the user scope           |
+| `ext uninstall <name>` | Remove a user-scoped extension                     |
+| `ext enable <name>`    | Enable an extension on this machine                |
+| `ext disable <name>`   | Disable an extension on this machine               |
+| `ext doctor`           | Validate manifests and report health warnings      |
 
 </details>
 
@@ -667,6 +732,7 @@ internal/cli/            Cobra flags, interactive form, CLI glue
 internal/core/           Internal facade for preparation and execution
   agent/                 IDE command validation and process construction
   agents/                Reusable agent discovery, validation, MCP merge, nested execution
+  extension/             Extension manifest, discovery, hooks, Host API, lifecycle
   memory/                Workflow memory bootstrapping, inspection, and compaction detection
   model/                 Shared runtime data structures
   plan/                  Input discovery, filtering, grouping, batch prep
@@ -674,9 +740,13 @@ internal/core/           Internal facade for preparation and execution
   run/                   Execution pipeline, logging, shutdown, Bubble Tea UI
 internal/setup/          Bundled skill and council-agent installer (agent detection, symlink/copy)
 internal/version/        Build metadata
+sdk/extension/           Public Go SDK for extension authors
+sdk/extension-sdk-ts/    Public TypeScript SDK for extension authors
+sdk/create-extension/    CLI scaffolder for new extension projects
 skills/                  Bundled installable skills
 .compozy/config.toml     Optional workspace defaults for CLI execution
 .compozy/agents/         Optional reusable agents (`AGENT.md` + optional `mcp.json`)
+.compozy/extensions/     Workspace-scoped extensions (starts disabled)
 .compozy/runs/           Runtime artifacts for persisted executions and resumable exec sessions
 .compozy/tasks/          Default workflow artifact root (PRDs, TechSpecs, tasks, ADRs, reviews)
 ```

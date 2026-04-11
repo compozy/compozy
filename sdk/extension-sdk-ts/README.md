@@ -2,7 +2,7 @@
 
 TypeScript SDK for Compozy executable extensions.
 
-The package mirrors the public Go SDK in [`sdk/extension`](/Users/pedronauck/Dev/compozy/_worktrees/ext/sdk/extension) and speaks the Compozy extension protocol over line-delimited JSON-RPC 2.0 on stdin/stdout.
+The package mirrors the public Go SDK in [`sdk/extension`](../extension) and speaks the Compozy extension protocol over line-delimited JSON-RPC 2.0 on stdin/stdout.
 
 ## Install
 
@@ -47,8 +47,8 @@ The published package also ships the starter templates used by `@compozy/create-
 
 ## Documentation
 
-- [`Author docs`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/index.md)
-- [`Getting started`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/getting-started.md)
-- [`Hook reference`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/hook-reference.md)
-- [`Host API reference`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/host-api-reference.md)
-- [`Testing guide`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/testing.md)
+- [Author docs](../../.compozy/docs/extensibility/index.md)
+- [Getting started](../../.compozy/docs/extensibility/getting-started.md)
+- [Hook reference](../../.compozy/docs/extensibility/hook-reference.md)
+- [Host API reference](../../.compozy/docs/extensibility/host-api-reference.md)
+- [Testing guide](../../.compozy/docs/extensibility/testing.md)

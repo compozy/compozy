@@ -43,6 +43,6 @@ create-extension <name> [options]
 
 ## Documentation
 
-- [`Getting started`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/getting-started.md)
-- [`Hello world in TypeScript`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/hello-world-ts.md)
-- [`Hello world in Go`](/Users/pedronauck/Dev/compozy/_worktrees/ext/.compozy/docs/extensibility/hello-world-go.md)
+- [Getting started](../../.compozy/docs/extensibility/getting-started.md)
+- [Hello world in TypeScript](../../.compozy/docs/extensibility/hello-world-ts.md)
+- [Hello world in Go](../../.compozy/docs/extensibility/hello-world-go.md)
