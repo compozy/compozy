@@ -7,16 +7,62 @@ import (
 )
 
 type overlayTestProvider struct {
-	name string
+	name        string
+	displayName string
 }
 
 func (p overlayTestProvider) Name() string { return p.name }
+
+func (p overlayTestProvider) DisplayName() string {
+	if strings.TrimSpace(p.displayName) == "" {
+		return p.name
+	}
+	return p.displayName
+}
 
 func (overlayTestProvider) FetchReviews(context.Context, FetchRequest) ([]ReviewItem, error) {
 	return nil, nil
 }
 
 func (overlayTestProvider) ResolveIssues(context.Context, string, []ResolvedIssue) error {
+	return nil
+}
+
+type overlayTestBridge struct {
+	fetchProvider string
+	fetchRequest  FetchRequest
+	resolvePR     string
+	resolveIssues []ResolvedIssue
+	closeCount    int
+}
+
+func (b *overlayTestBridge) FetchReviews(
+	_ context.Context,
+	providerName string,
+	req FetchRequest,
+) ([]ReviewItem, error) {
+	b.fetchProvider = providerName
+	b.fetchRequest = req
+	return []ReviewItem{{
+		Title: "bridge-item",
+		Body:  "from extension",
+	}}, nil
+}
+
+func (b *overlayTestBridge) ResolveIssues(
+	_ context.Context,
+	providerName string,
+	pr string,
+	issues []ResolvedIssue,
+) error {
+	b.fetchProvider = providerName
+	b.resolvePR = pr
+	b.resolveIssues = append([]ResolvedIssue(nil), issues...)
+	return nil
+}
+
+func (b *overlayTestBridge) Close() error {
+	b.closeCount++
 	return nil
 }
 
@@ -165,5 +211,89 @@ func TestAliasedProviderRejectsAliasCycle(t *testing.T) {
 	_, err := first.resolveTarget(nil)
 	if err == nil || !strings.Contains(err.Error(), `alias cycle`) {
 		t.Fatalf("expected alias cycle error, got %v", err)
+	}
+}
+
+func TestActivateOverlayBuildsExtensionBackedReviewProvider(t *testing.T) {
+	base := NewRegistry()
+	base.Register(overlayTestProvider{name: "base", displayName: "Base Provider"})
+
+	bridge := &overlayTestBridge{}
+	restore, err := ActivateOverlay([]OverlayEntry{{
+		Name:        "ext-review",
+		Kind:        OverlayKindExtension,
+		DisplayName: "Extension Review",
+		Bridge:      bridge,
+	}})
+	if err != nil {
+		t.Fatalf("activate extension review overlay: %v", err)
+	}
+	defer restore()
+
+	registry := ResolveRegistry(base)
+	resolved, err := registry.Get("ext-review")
+	if err != nil {
+		t.Fatalf("resolve extension review provider: %v", err)
+	}
+	if got := resolved.Name(); got != "ext-review" {
+		t.Fatalf("resolved.Name() = %q, want %q", got, "ext-review")
+	}
+
+	items, err := resolved.FetchReviews(context.Background(), FetchRequest{
+		PR:              "123",
+		IncludeNitpicks: true,
+	})
+	if err != nil {
+		t.Fatalf("FetchReviews() error = %v", err)
+	}
+	if len(items) != 1 || items[0].Title != "bridge-item" {
+		t.Fatalf("FetchReviews() = %#v, want bridged review item", items)
+	}
+	if bridge.fetchProvider != "ext-review" {
+		t.Fatalf("bridge fetch provider = %q, want %q", bridge.fetchProvider, "ext-review")
+	}
+	if bridge.fetchRequest.PR != "123" || !bridge.fetchRequest.IncludeNitpicks {
+		t.Fatalf("bridge fetch request = %#v, want propagated request", bridge.fetchRequest)
+	}
+
+	err = resolved.ResolveIssues(context.Background(), "123", []ResolvedIssue{{
+		FilePath:    "issue_001.md",
+		ProviderRef: "thread-1",
+	}})
+	if err != nil {
+		t.Fatalf("ResolveIssues() error = %v", err)
+	}
+	if bridge.resolvePR != "123" {
+		t.Fatalf("bridge resolve PR = %q, want %q", bridge.resolvePR, "123")
+	}
+	if len(bridge.resolveIssues) != 1 || bridge.resolveIssues[0].FilePath != "issue_001.md" {
+		t.Fatalf("bridge resolve issues = %#v, want propagated issues", bridge.resolveIssues)
+	}
+
+	catalog := Catalog(base)
+	if len(catalog) != 2 {
+		t.Fatalf("Catalog() len = %d, want 2", len(catalog))
+	}
+	found := false
+	for _, entry := range catalog {
+		if entry.Name == "ext-review" {
+			found = true
+			if entry.DisplayName != "Extension Review" {
+				t.Fatalf("catalog display name = %q, want %q", entry.DisplayName, "Extension Review")
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("Catalog() missing extension-backed provider: %#v", catalog)
+	}
+}
+
+func TestActivateOverlayRejectsExtensionBackedProviderWithoutBridge(t *testing.T) {
+	_, err := ActivateOverlay([]OverlayEntry{{
+		Name: "ext-review",
+		Kind: OverlayKindExtension,
+	}})
+	if err == nil || !strings.Contains(err.Error(), "missing extension bridge") {
+		t.Fatalf("expected missing bridge error, got %v", err)
 	}
 }

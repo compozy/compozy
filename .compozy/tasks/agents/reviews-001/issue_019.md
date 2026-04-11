@@ -7,6 +7,7 @@ provider_ref: thread:PRRT_kwDORy7nkc56P5uA,comment:PRRC_kwDORy7nkc62zc8x
 ---
 
 # Issue 019: _⚠️ Potential issue_ | _🟠 Major_
+
 ## Review Comment
 
 _⚠️ Potential issue_ | _🟠 Major_
@@ -31,7 +32,7 @@ copyBundleDirectory into tempTarget; if copy succeeds, atomically replace the
 old installation by renaming tempTarget to targetPath (os.Rename) and if it
 fails remove tempTarget and append the ReusableAgentFailureItem with Error set
 to the copy error; ensure you still use reusableAgent.Directory and
-bundledagents.FS for the copy and preserve existing failure handling for cleanup
+agents.FS for the copy and preserve existing failure handling for cleanup
 and continue.
 ```
 

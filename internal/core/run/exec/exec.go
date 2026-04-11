@@ -102,17 +102,18 @@ type execTurnPaths struct {
 }
 
 type execRunState struct {
-	ctx          context.Context
-	record       PersistedExecRun
-	runArtifacts model.RunArtifacts
-	events       *execEventEmitter
-	journal      *journal.Journal
-	ownsJournal  bool
-	turn         int
-	turnDir      string
-	turnPaths    execTurnPaths
-	emitText     bool
-	cleanupDir   string
+	ctx            context.Context
+	record         PersistedExecRun
+	runArtifacts   model.RunArtifacts
+	runtimeManager model.RuntimeManager
+	events         *execEventEmitter
+	journal        *journal.Journal
+	ownsJournal    bool
+	turn           int
+	turnDir        string
+	turnPaths      execTurnPaths
+	emitText       bool
+	cleanupDir     string
 }
 
 type execEventWriter struct {
@@ -240,18 +241,32 @@ func prepareExecExecution(
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
-	agentExecution, err := reusableagents.ResolveExecutionContext(ctx, cfg)
-	if err != nil {
-		return "", nil, nil, job{}, err
-	}
-	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
-		return "", nil, nil, job{}, err
-	}
 	state, err := prepareExecRunState(ctx, cfg, scope)
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
+	if err := applyExecRunPreStartHook(ctx, state, cfg); err != nil {
+		state.close()
+		return "", nil, nil, job{}, err
+	}
+	agentExecution, err := reusableagents.ResolveExecutionContext(ctx, cfg)
+	if err != nil {
+		state.close()
+		return "", nil, nil, job{}, err
+	}
+	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
+		state.close()
+		return "", nil, nil, job{}, err
+	}
+	if strings.TrimSpace(cfg.RunID) == "" {
+		state.refreshRuntimeConfig(cfg)
+	}
 	if err := validateExecResumeCompatibility(cfg, state.record); err != nil {
+		state.close()
+		return "", nil, nil, job{}, err
+	}
+	promptText, err = applyExecPromptPostBuildHook(ctx, state, promptText)
+	if err != nil {
 		state.close()
 		return "", nil, nil, job{}, err
 	}
@@ -587,6 +602,7 @@ func prepareScopedExecRunState(
 
 	state.runArtifacts = scope.RunArtifacts()
 	state.journal = scope.RunJournal()
+	state.runtimeManager = scope.RunManager()
 	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, state.runArtifacts.RunID, resolvedModel)
@@ -684,6 +700,7 @@ func (s *execRunState) writeStarted(cfg *model.RuntimeConfig) error {
 	); err != nil {
 		return err
 	}
+	s.dispatchRunPostStart(cfg)
 	return s.emit(execEvent{
 		Type:   "run.started",
 		RunID:  s.runArtifacts.RunID,
@@ -715,6 +732,7 @@ func (s *execRunState) completeTurn(result execExecutionResult) error {
 	if s == nil {
 		return nil
 	}
+	s.dispatchRunPreShutdown(result)
 	now := time.Now().UTC()
 	turnRecord := s.buildTurnRecord(result, now)
 	if err := s.writeTurnArtifacts(turnRecord, result.output); err != nil {
@@ -730,6 +748,7 @@ func (s *execRunState) completeTurn(result execExecutionResult) error {
 	if err := s.writeTextOutput(result); err != nil {
 		return err
 	}
+	s.dispatchRunPostShutdown(result)
 	return result.err
 }
 
@@ -784,6 +803,19 @@ func (s *execRunState) applyTurnResult(result execExecutionResult, completedAt t
 	}
 	s.record.Usage.Add(result.usage)
 	s.record.LastError = errorString(result.err)
+}
+
+func (s *execRunState) refreshRuntimeConfig(cfg *model.RuntimeConfig) {
+	if s == nil || cfg == nil {
+		return
+	}
+
+	s.record.WorkspaceRoot = cfg.WorkspaceRoot
+	s.record.IDE = cfg.IDE
+	s.record.Model = resolvedExecModel(cfg)
+	s.record.ReasoningEffort = cfg.ReasoningEffort
+	s.record.AccessMode = cfg.AccessMode
+	s.record.AddDirs = append([]string(nil), cfg.AddDirs...)
 }
 
 func (s *execRunState) persistTurnResult() error {

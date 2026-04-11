@@ -1,4 +1,4 @@
-package bundledagents
+package agents
 
 import "embed"
 

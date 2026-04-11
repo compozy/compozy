@@ -17,26 +17,83 @@ func resolveWorkspaceContext(ctx context.Context) (workspace.Context, error) {
 	return workspaceCtx, nil
 }
 
+func discoverWorkspaceRoot(ctx context.Context) (string, error) {
+	root, err := workspace.Discover(ctx, "")
+	if err != nil {
+		return "", fmt.Errorf("discover workspace: %w", err)
+	}
+	return root, nil
+}
+
+func loadWorkspaceProjectConfig(ctx context.Context, root string) (workspace.ProjectConfig, error) {
+	cfg, _, err := workspace.LoadConfig(ctx, root)
+	if err != nil {
+		return workspace.ProjectConfig{}, fmt.Errorf("load workspace config: %w", err)
+	}
+	return cfg, nil
+}
+
 func (s *commandState) applyWorkspaceDefaults(ctx context.Context, cmd *cobra.Command) error {
-	workspaceCtx, err := resolveWorkspaceContext(ctx)
+	root, err := discoverWorkspaceRoot(ctx)
+	if err != nil {
+		return err
+	}
+	cfg, err := loadWorkspaceProjectConfig(ctx, root)
 	if err != nil {
 		return err
 	}
 
-	s.workspaceRoot = workspaceCtx.Root
-	s.projectConfig = workspaceCtx.Config
-	s.applyProjectConfig(cmd, workspaceCtx.Config)
+	s.workspaceRoot = root
+	s.projectConfig = cfg
+	s.applyProjectConfig(cmd, cfg)
 	return nil
 }
 
 func (s *simpleCommandBase) loadWorkspaceRoot(ctx context.Context) error {
-	workspaceCtx, err := resolveWorkspaceContext(ctx)
+	root, err := discoverWorkspaceRoot(ctx)
 	if err != nil {
 		return err
 	}
-	s.workspaceRoot = workspaceCtx.Root
-	s.projectConfig = workspaceCtx.Config
+	cfg, err := loadWorkspaceProjectConfig(ctx, root)
+	if err != nil {
+		return err
+	}
+	s.workspaceRoot = root
+	s.projectConfig = cfg
 	return nil
+}
+
+func (s *commandState) prepareWorkspaceContext(
+	ctx context.Context,
+	cmd *cobra.Command,
+) (declarativeAssets, func(), error) {
+	root, err := discoverWorkspaceRoot(ctx)
+	if err != nil {
+		return declarativeAssets{}, nil, err
+	}
+	s.workspaceRoot = root
+
+	assets, cleanup, err := s.bootstrapDeclarativeAssetsForWorkspaceRoot(ctx, root, commandPath(cmd))
+	if err != nil {
+		return declarativeAssets{}, nil, err
+	}
+
+	cfg, err := loadWorkspaceProjectConfig(ctx, root)
+	if err != nil {
+		cleanup()
+		return declarativeAssets{}, nil, err
+	}
+
+	s.projectConfig = cfg
+	s.applyProjectConfig(cmd, cfg)
+	return assets, cleanup, nil
+}
+
+func commandPath(cmd *cobra.Command) string {
+	if cmd == nil {
+		return ""
+	}
+	return cmd.CommandPath()
 }
 
 func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
@@ -61,6 +118,8 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 
 	switch s.kind {
 	case commandKindStart:
+		applyConfig(cmd, "format", cfg.Start.OutputFormat, func(val string) { s.outputFormat = val })
+		applyConfig(cmd, "tui", cfg.Start.TUI, func(val bool) { s.tui = val })
 		applyConfig(
 			cmd,
 			"include-completed",
@@ -68,6 +127,8 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			func(val bool) { s.includeCompleted = val },
 		)
 	case commandKindFixReviews:
+		applyConfig(cmd, "format", cfg.FixReviews.OutputFormat, func(val string) { s.outputFormat = val })
+		applyConfig(cmd, "tui", cfg.FixReviews.TUI, func(val bool) { s.tui = val })
 		applyConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
 		applyConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
 		applyConfig(

@@ -1,10 +1,10 @@
-import { createRequire } from "node:module";
-import { mkdir, readFile, readdir, stat, writeFile, cp } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-const require = createRequire(import.meta.url);
+const CREATE_EXTENSION_PACKAGE_NAME = "@compozy/create-extension";
+const COMPOZY_MODULE_PATH = "github.com/compozy/compozy";
 
 export const TEMPLATE_NAMES = [
   "lifecycle-observer",
@@ -23,6 +23,8 @@ export interface CreateExtensionOptions {
   runtime?: RuntimeName;
   moduleName?: string;
   sdkSpec?: string;
+  goSDKRef?: string;
+  goSDKReplace?: string;
   skipInstall?: boolean;
 }
 
@@ -66,12 +68,13 @@ export async function createExtension(
         ["mod", "init", options.moduleName ?? defaultModuleName(name)],
         targetDir
       );
+      await installGoSDK(targetDir, options);
       await runCommand("go", ["mod", "tidy"], targetDir);
     }
     return { targetDir, template, runtime };
   }
 
-  const templateRoot = resolveTemplateRoot(template);
+  const templateRoot = await resolveTemplateRoot(template);
   await cp(templateRoot, targetDir, { recursive: true, force: true });
   const tokens = await buildTokenMap(name, options.sdkSpec);
   await rewriteTemplateTokens(targetDir, tokens);
@@ -88,11 +91,13 @@ export function printHelp(): string {
     "Usage: create-extension <name> [options]",
     "",
     "Options:",
-    "  --template <name>    lifecycle-observer | prompt-decorator | review-provider | skill-pack",
-    "  --runtime <name>     typescript | go (default: typescript)",
-    "  --module <path>      Go module path when --runtime go",
-    "  --skip-install       Skip npm install / go mod init + go mod tidy",
-    "  --help               Show this help",
+    "  --template <name>      lifecycle-observer | prompt-decorator | review-provider | skill-pack",
+    "  --runtime <name>       typescript | go (default: typescript)",
+    "  --module <path>        Go module path when --runtime go",
+    "  --go-sdk-ref <ref>     Go SDK module ref (default: current version, then main fallback)",
+    "  --go-sdk-replace <dir> Local Compozy repo path to use via go.mod replace",
+    "  --skip-install         Skip npm install / go mod init + go mod tidy",
+    "  --help                 Show this help",
   ].join("\n");
 }
 
@@ -117,6 +122,12 @@ export function parseArgs(argv: string[]): CreateExtensionOptions {
         break;
       case "--module":
         options.moduleName = expectValue(args, current);
+        break;
+      case "--go-sdk-ref":
+        options.goSDKRef = expectValue(args, current);
+        break;
+      case "--go-sdk-replace":
+        options.goSDKReplace = expectValue(args, current);
         break;
       case "--skip-install":
         options.skipInstall = true;
@@ -153,20 +164,32 @@ function expectValue(args: string[], flag: string): string {
   return value;
 }
 
-function resolveTemplateRoot(template: TemplateName): string {
-  const sdkPackage = resolveSDKPackageJSONPath();
-  return join(dirname(sdkPackage), "templates", template);
+async function resolveTemplateRoot(template: TemplateName): Promise<string> {
+  const packageRoot = await resolveCreateExtensionPackageRoot();
+  const candidates = [
+    join(packageRoot, "dist", "templates", template),
+    join(packageRoot, "templates", template),
+    resolve(packageRoot, "../extension-sdk-ts/templates", template),
+  ];
+
+  for (const candidate of candidates) {
+    if (await isDirectory(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`create extension: template ${template} is unavailable`);
 }
 
 async function buildTokenMap(name: string, sdkSpec?: string): Promise<Record<string, string>> {
-  const sdkPackage = await readSDKPackageMetadata();
+  const metadata = await readCreateExtensionPackageMetadata();
 
   return {
     __EXTENSION_NAME__: name,
     __EXTENSION_VERSION__: "0.1.0",
-    __COMPOZY_MIN_VERSION__: sdkPackage.version,
+    __COMPOZY_MIN_VERSION__: metadata.version,
     __COMPOZY_EXTENSION_SDK_SPEC__:
-      sdkSpec ?? process.env.COMPOZY_EXTENSION_SDK_SPEC ?? sdkPackage.version,
+      sdkSpec ?? process.env.COMPOZY_EXTENSION_SDK_SPEC ?? metadata.version,
     __PACKAGE_NAME__: name,
   };
 }
@@ -206,7 +229,7 @@ async function materializeGoProject(options: {
   }
 
   await mkdir(options.targetDir, { recursive: true });
-  const sdkPackage = await readSDKPackageMetadata();
+  const metadata = await readCreateExtensionPackageMetadata();
 
   const hook =
     options.template === "prompt-decorator"
@@ -231,7 +254,7 @@ async function materializeGoProject(options: {
 name = "${options.name}"
 version = "0.1.0"
 description = "Scaffolded ${options.template} extension"
-min_compozy_version = "${sdkPackage.version}"
+min_compozy_version = "${metadata.version}"
 
 [subprocess]
 command = "go"
@@ -273,6 +296,65 @@ Scaffolded Compozy ${options.template} extension in Go.
   await writeFile(join(options.targetDir, "README.md"), readme, "utf8");
 }
 
+async function installGoSDK(targetDir: string, options: CreateExtensionOptions): Promise<void> {
+  const replacePath = resolveOptionalPath(
+    options.goSDKReplace ?? process.env.COMPOZY_GO_SDK_REPLACE ?? ""
+  );
+  if (replacePath !== "") {
+    await runCommand(
+      "go",
+      ["mod", "edit", `-replace=${COMPOZY_MODULE_PATH}=${replacePath}`],
+      targetDir
+    );
+    return;
+  }
+
+  const metadata = await readCreateExtensionPackageMetadata();
+  let lastError: unknown;
+  for (const ref of preferredGoSDKRefs(options.goSDKRef, metadata.version)) {
+    try {
+      await runCommand("go", ["get", `${COMPOZY_MODULE_PATH}/sdk/extension@${ref}`], targetDir);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error("create extension: failed to install Go SDK");
+}
+
+function preferredGoSDKRefs(explicitRef: string | undefined, packageVersion: string): string[] {
+  const refs = [
+    explicitRef,
+    process.env.COMPOZY_GO_SDK_REF,
+    packageVersion === "" ? "" : `v${packageVersion}`,
+    "main",
+  ];
+
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const ref of refs) {
+    const trimmed = (ref ?? "").trim();
+    if (trimmed === "" || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    ordered.push(trimmed);
+  }
+  return ordered;
+}
+
+function resolveOptionalPath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return "";
+  }
+  return resolve(trimmed);
+}
+
 function defaultModuleName(name: string): string {
   return `example.com/${name}`;
 }
@@ -295,14 +377,40 @@ async function runCommand(command: string, args: string[], cwd: string): Promise
   });
 }
 
-function resolveSDKPackageJSONPath(): string {
-  try {
-    return require.resolve("@compozy/extension-sdk/package.json");
-  } catch {
-    return resolve(dirname(fileURLToPath(import.meta.url)), "../../extension-sdk-ts/package.json");
-  }
+async function readCreateExtensionPackageMetadata(): Promise<{ version: string }> {
+  const packageRoot = await resolveCreateExtensionPackageRoot();
+  return JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8")) as {
+    version: string;
+  };
 }
 
-async function readSDKPackageMetadata(): Promise<{ version: string }> {
-  return JSON.parse(await readFile(resolveSDKPackageJSONPath(), "utf8")) as { version: string };
+async function resolveCreateExtensionPackageRoot(): Promise<string> {
+  let current = dirname(fileURLToPath(import.meta.url));
+  while (true) {
+    const candidate = join(current, "package.json");
+    try {
+      const metadata = JSON.parse(await readFile(candidate, "utf8")) as { name?: string };
+      if (metadata.name === CREATE_EXTENSION_PACKAGE_NAME) {
+        return current;
+      }
+    } catch {
+      // Keep walking.
+    }
+
+    const parent = dirname(current);
+    if (parent === current) {
+      break;
+    }
+    current = parent;
+  }
+
+  throw new Error("create extension: could not resolve package root");
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
 }

@@ -16,13 +16,15 @@ import (
 )
 
 const (
-	nitpickSeverity   = "nitpick"
-	nitpickHashLength = 12
+	reviewBodyCommentSeverityNitpick = "nitpick"
+	reviewBodyCommentSeverityMinor   = "minor"
+	reviewBodyCommentSeverityMajor   = "major"
+	reviewBodyCommentHashLength      = 12
 )
 
 var (
-	nitpickHeaderRe     = regexp.MustCompile("(?m)^`([^`]+)`:\\s*\\*\\*(.+?)\\*\\*\\s*$")
-	reviewFileSummaryRe = regexp.MustCompile(`^(.+?)\s+\(\d+\)$`)
+	reviewBodyCommentHeaderRe = regexp.MustCompile("(?m)^`([^`]+)`:\\s*\\*\\*(.+?)\\*\\*\\s*$")
+	reviewFileSummaryRe       = regexp.MustCompile(`^(.+?)\s+\(\d+\)$`)
 )
 
 type pullRequestReview struct {
@@ -68,7 +70,7 @@ func (p *Provider) fetchPullRequestReviews(
 	return reviews, nil
 }
 
-func parseNitpickReviewItems(reviews []pullRequestReview, botLogin string) []provider.ReviewItem {
+func parseReviewBodyCommentItems(reviews []pullRequestReview, botLogin string) []provider.ReviewItem {
 	if len(reviews) == 0 {
 		return nil
 	}
@@ -79,7 +81,7 @@ func parseNitpickReviewItems(reviews []pullRequestReview, botLogin string) []pro
 			continue
 		}
 
-		parsedItems := parseNitpickReview(review)
+		parsedItems := parseReviewBodyComments(review)
 		for idx := range parsedItems {
 			item := parsedItems[idx]
 			if item.ReviewHash == "" {
@@ -87,7 +89,7 @@ func parseNitpickReviewItems(reviews []pullRequestReview, botLogin string) []pro
 			}
 
 			current, ok := latestByHash[item.ReviewHash]
-			if !ok || nitpickItemIsNewer(item, *current) {
+			if !ok || reviewBodyCommentItemIsNewer(item, *current) {
 				next := item
 				latestByHash[item.ReviewHash] = &next
 			}
@@ -101,42 +103,67 @@ func parseNitpickReviewItems(reviews []pullRequestReview, botLogin string) []pro
 	return items
 }
 
-func parseNitpickReview(review pullRequestReview) []provider.ReviewItem {
-	nitpickBlock, ok := findDetailsBlock(review.Body, func(summary string) bool {
-		return strings.Contains(strings.ToLower(summary), "nitpick comments")
-	})
-	if !ok {
+func parseReviewBodyComments(review pullRequestReview) []provider.ReviewItem {
+	topLevelBlocks := extractTopLevelDetailsBlocks(review.Body)
+	if len(topLevelBlocks) == 0 {
 		return nil
 	}
 
-	fileBlocks := extractTopLevelDetailsBlocks(trimEnclosingTag(nitpickBlock.body, "blockquote"))
-	items := make([]provider.ReviewItem, 0, len(fileBlocks))
-	for _, fileBlock := range fileBlocks {
-		filePath := parseNitpickFilePath(fileBlock.summary)
-		if filePath == "" {
+	items := make([]provider.ReviewItem, 0, len(topLevelBlocks))
+	for _, block := range topLevelBlocks {
+		severity, ok := reviewBodyCommentSeverity(block.summary)
+		if !ok {
 			continue
 		}
 
-		items = append(items, parseNitpicksForFile(
-			review,
-			filePath,
-			trimEnclosingTag(fileBlock.body, "blockquote"),
-		)...)
+		fileBlocks := extractTopLevelDetailsBlocks(trimEnclosingTag(block.body, "blockquote"))
+		for _, fileBlock := range fileBlocks {
+			filePath := parseReviewBodyCommentFilePath(fileBlock.summary)
+			if filePath == "" {
+				continue
+			}
+
+			items = append(items, parseReviewBodyCommentsForFile(
+				review,
+				severity,
+				filePath,
+				trimEnclosingTag(fileBlock.body, "blockquote"),
+			)...)
+		}
 	}
 	return items
 }
 
-func parseNitpicksForFile(review pullRequestReview, filePath string, body string) []provider.ReviewItem {
+func reviewBodyCommentSeverity(summary string) (string, bool) {
+	normalized := strings.ToLower(strings.Join(strings.Fields(strings.TrimSpace(summary)), " "))
+	switch {
+	case strings.Contains(normalized, "nitpick comments"), strings.Contains(normalized, "nitpick comment"):
+		return reviewBodyCommentSeverityNitpick, true
+	case strings.Contains(normalized, "minor comments"), strings.Contains(normalized, "minor comment"):
+		return reviewBodyCommentSeverityMinor, true
+	case strings.Contains(normalized, "major comments"), strings.Contains(normalized, "major comment"):
+		return reviewBodyCommentSeverityMajor, true
+	default:
+		return "", false
+	}
+}
+
+func parseReviewBodyCommentsForFile(
+	review pullRequestReview,
+	severity string,
+	filePath string,
+	body string,
+) []provider.ReviewItem {
 	trimmed := strings.TrimSpace(stripTopLevelDetailsBlocks(body))
 	if trimmed == "" {
 		return nil
 	}
 
-	matches := nitpickHeaderRe.FindAllStringSubmatchIndex(trimmed, -1)
+	matches := reviewBodyCommentHeaderRe.FindAllStringSubmatchIndex(trimmed, -1)
 	items := make([]provider.ReviewItem, 0, len(matches))
 	for idx, match := range matches {
 		lineRange := strings.TrimSpace(trimmed[match[2]:match[3]])
-		title := normalizeNitpickText(trimmed[match[4]:match[5]])
+		title := normalizeReviewBodyCommentText(trimmed[match[4]:match[5]])
 		if title == "" {
 			continue
 		}
@@ -147,21 +174,21 @@ func parseNitpicksForFile(review pullRequestReview, filePath string, body string
 			bodyEnd = matches[idx+1][0]
 		}
 
-		nitpickBody := normalizeNitpickBody(trimmed[bodyStart:bodyEnd])
-		if nitpickBody == "" {
-			nitpickBody = title
+		commentBody := normalizeReviewBodyCommentBody(trimmed[bodyStart:bodyEnd])
+		if commentBody == "" {
+			commentBody = title
 		}
 
 		reviewID := strconv.Itoa(review.ID)
-		reviewHash := buildNitpickHash(filePath, lineRange, title, nitpickBody)
+		reviewHash := buildReviewBodyCommentHash(filePath, lineRange, title, commentBody)
 		items = append(items, provider.ReviewItem{
 			Title:                   title,
 			File:                    filePath,
-			Line:                    parseNitpickLine(lineRange),
-			Severity:                nitpickSeverity,
+			Line:                    parseReviewBodyCommentLine(lineRange),
+			Severity:                severity,
 			Author:                  review.User.Login,
-			Body:                    nitpickBody,
-			ProviderRef:             buildNitpickProviderRef(reviewID, reviewHash),
+			Body:                    commentBody,
+			ProviderRef:             buildReviewBodyCommentProviderRef(reviewID, reviewHash),
 			ReviewHash:              reviewHash,
 			SourceReviewID:          reviewID,
 			SourceReviewSubmittedAt: strings.TrimSpace(review.SubmittedAt),
@@ -169,15 +196,6 @@ func parseNitpicksForFile(review pullRequestReview, filePath string, body string
 	}
 
 	return items
-}
-
-func findDetailsBlock(text string, match func(string) bool) (detailsBlock, bool) {
-	for _, block := range extractTopLevelDetailsBlocks(text) {
-		if match(block.summary) {
-			return block, true
-		}
-	}
-	return detailsBlock{}, false
 }
 
 func extractTopLevelDetailsBlocks(text string) []detailsBlock {
@@ -286,7 +304,7 @@ func trimEnclosingTag(text string, tag string) string {
 	return trimmed
 }
 
-func parseNitpickFilePath(summary string) string {
+func parseReviewBodyCommentFilePath(summary string) string {
 	trimmed := strings.TrimSpace(summary)
 	matches := reviewFileSummaryRe.FindStringSubmatch(trimmed)
 	if len(matches) < 2 {
@@ -295,7 +313,7 @@ func parseNitpickFilePath(summary string) string {
 	return strings.TrimSpace(matches[1])
 }
 
-func parseNitpickLine(lineRange string) int {
+func parseReviewBodyCommentLine(lineRange string) int {
 	trimmed := strings.TrimSpace(lineRange)
 	if trimmed == "" {
 		return 0
@@ -315,13 +333,13 @@ func parseNitpickLine(lineRange string) int {
 	return line
 }
 
-func normalizeNitpickText(value string) string {
+func normalizeReviewBodyCommentText(value string) string {
 	trimmed := html.UnescapeString(strings.TrimSpace(value))
 	trimmed = strings.ReplaceAll(trimmed, "`", "")
 	return strings.Join(strings.Fields(trimmed), " ")
 }
 
-func normalizeNitpickBody(body string) string {
+func normalizeReviewBodyCommentBody(body string) string {
 	lines := strings.Split(html.UnescapeString(body), "\n")
 	normalized := make([]string, 0, len(lines))
 	previousBlank := true
@@ -343,7 +361,7 @@ func normalizeNitpickBody(body string) string {
 	return strings.TrimSpace(strings.Join(normalized, "\n"))
 }
 
-func buildNitpickHash(filePath string, location string, title string, body string) string {
+func buildReviewBodyCommentHash(filePath string, location string, title string, body string) string {
 	canonical := strings.Join([]string{
 		"provider:" + name,
 		"file:" + canonicalHashValue(filePath),
@@ -353,7 +371,7 @@ func buildNitpickHash(filePath string, location string, title string, body strin
 	}, "\n")
 
 	sum := sha256.Sum256([]byte(canonical))
-	return hex.EncodeToString(sum[:])[:nitpickHashLength]
+	return hex.EncodeToString(sum[:])[:reviewBodyCommentHashLength]
 }
 
 func canonicalHashValue(value string) string {
@@ -369,7 +387,7 @@ func firstParagraph(body string) string {
 	return strings.TrimSpace(body)
 }
 
-func buildNitpickProviderRef(reviewID string, reviewHash string) string {
+func buildReviewBodyCommentProviderRef(reviewID string, reviewHash string) string {
 	parts := make([]string, 0, 2)
 	if strings.TrimSpace(reviewID) != "" {
 		parts = append(parts, "review:"+strings.TrimSpace(reviewID))
@@ -380,9 +398,9 @@ func buildNitpickProviderRef(reviewID string, reviewHash string) string {
 	return strings.Join(parts, ",")
 }
 
-func nitpickItemIsNewer(candidate provider.ReviewItem, current provider.ReviewItem) bool {
-	candidateTime := parseNitpickSubmittedAt(candidate.SourceReviewSubmittedAt)
-	currentTime := parseNitpickSubmittedAt(current.SourceReviewSubmittedAt)
+func reviewBodyCommentItemIsNewer(candidate provider.ReviewItem, current provider.ReviewItem) bool {
+	candidateTime := parseReviewSubmittedAt(candidate.SourceReviewSubmittedAt)
+	currentTime := parseReviewSubmittedAt(current.SourceReviewSubmittedAt)
 	if candidateTime.After(currentTime) {
 		return true
 	}
@@ -392,7 +410,7 @@ func nitpickItemIsNewer(candidate provider.ReviewItem, current provider.ReviewIt
 	return compareReviewIDs(candidate.SourceReviewID, current.SourceReviewID) > 0
 }
 
-func parseNitpickSubmittedAt(value string) time.Time {
+func parseReviewSubmittedAt(value string) time.Time {
 	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(value))
 	if err != nil {
 		return time.Time{}

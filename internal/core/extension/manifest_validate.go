@@ -179,16 +179,18 @@ func validateResources(manifest *Manifest) error {
 
 func validateProviders(manifest *Manifest) error {
 	providerGroups := []struct {
-		name    string
-		entries []ProviderEntry
+		name     string
+		entries  []ProviderEntry
+		validate func(*Manifest, string, int, ProviderEntry) error
 	}{
-		{name: "providers.ide", entries: manifest.Providers.IDE},
-		{name: "providers.review", entries: manifest.Providers.Review},
-		{name: "providers.model", entries: manifest.Providers.Model},
+		{name: "providers.ide", entries: manifest.Providers.IDE, validate: validateIDEProvider},
+		{name: "providers.review", entries: manifest.Providers.Review, validate: validateReviewProvider},
+		{name: "providers.model", entries: manifest.Providers.Model, validate: validateModelProvider},
 	}
 
 	for _, group := range providerGroups {
-		for index, entry := range group.entries {
+		for index := range group.entries {
+			entry := group.entries[index]
 			if !hasCapability(manifest.Security, CapabilityProvidersRegister) {
 				return newManifestFieldError(
 					fmt.Sprintf("%s[%d]", group.name, index),
@@ -199,16 +201,86 @@ func validateProviders(manifest *Manifest) error {
 			if strings.TrimSpace(entry.Name) == "" {
 				return newManifestFieldError(fmt.Sprintf("%s[%d].name", group.name, index), "", "value is required")
 			}
-			if strings.TrimSpace(entry.Command) == "" {
-				return newManifestFieldError(
-					fmt.Sprintf("%s[%d].command", group.name, index),
-					"",
-					"value is required",
-				)
+			if err := group.validate(manifest, group.name, index, entry); err != nil {
+				return err
 			}
 		}
 	}
 
+	return nil
+}
+
+func validateIDEProvider(
+	_ *Manifest,
+	groupName string,
+	index int,
+	entry ProviderEntry,
+) error {
+	if strings.TrimSpace(entry.Command) == "" {
+		return newManifestFieldError(
+			fmt.Sprintf("%s[%d].command", groupName, index),
+			"",
+			"value is required",
+		)
+	}
+	for fallbackIndex, fallback := range entry.Fallbacks {
+		if strings.TrimSpace(fallback.Command) == "" {
+			return newManifestFieldError(
+				fmt.Sprintf("%s[%d].fallbacks[%d].command", groupName, index, fallbackIndex),
+				"",
+				"value is required",
+			)
+		}
+	}
+	return nil
+}
+
+func validateReviewProvider(
+	manifest *Manifest,
+	groupName string,
+	index int,
+	entry ProviderEntry,
+) error {
+	switch reviewProviderKind(entry) {
+	case ProviderKindAlias:
+		if strings.TrimSpace(reviewProviderAliasTarget(entry)) == "" {
+			return newManifestFieldError(
+				fmt.Sprintf("%s[%d].target", groupName, index),
+				"",
+				"value is required for alias providers",
+			)
+		}
+	case ProviderKindExtension:
+		if manifest == nil || manifest.Subprocess == nil {
+			return newManifestFieldError(
+				fmt.Sprintf("%s[%d].kind", groupName, index),
+				string(entry.Kind),
+				`requires a [subprocess] section`,
+			)
+		}
+	default:
+		return newManifestFieldError(
+			fmt.Sprintf("%s[%d].kind", groupName, index),
+			string(entry.Kind),
+			"unknown provider kind",
+		)
+	}
+	return nil
+}
+
+func validateModelProvider(
+	_ *Manifest,
+	groupName string,
+	index int,
+	entry ProviderEntry,
+) error {
+	if strings.TrimSpace(modelProviderTarget(entry)) == "" {
+		return newManifestFieldError(
+			fmt.Sprintf("%s[%d].target", groupName, index),
+			"",
+			"value is required",
+		)
+	}
 	return nil
 }
 

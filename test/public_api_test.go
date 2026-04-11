@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy"
-	"github.com/compozy/compozy/command"
 )
 
 func TestPrepareAndRunExposePublicAPI(t *testing.T) {
@@ -61,10 +60,10 @@ complexity: low
 	}
 }
 
-func TestCommandNewUsesCompozyRootCommand(t *testing.T) {
+func TestNewCommandUsesCompozyRootCommand(t *testing.T) {
 	t.Parallel()
 
-	cmd := command.New()
+	cmd := compozy.NewCommand()
 	if cmd == nil {
 		t.Fatal("expected command")
 	}

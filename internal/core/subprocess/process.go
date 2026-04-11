@@ -18,6 +18,7 @@ const defaultSignalGracePeriod = 100 * time.Millisecond
 type LaunchConfig struct {
 	Command           []string
 	Env               []string
+	WorkingDir        string
 	WaitDelay         time.Duration
 	WaitErrorPrefix   string
 	SignalGracePeriod time.Duration
@@ -52,6 +53,7 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 	// #nosec G204 -- this package exists to launch configured subprocess commands.
 	cmd := exec.CommandContext(ctx, cfg.Command[0], cfg.Command[1:]...)
 	cmd.Env = append([]string(nil), cfg.Env...)
+	cmd.Dir = strings.TrimSpace(cfg.WorkingDir)
 	cmd.WaitDelay = cfg.WaitDelay
 	cmd.Cancel = func() error {
 		return forceTerminateProcess(cmd)

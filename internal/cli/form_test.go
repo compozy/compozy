@@ -9,7 +9,10 @@ import (
 
 	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/provider"
+	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/spf13/cobra"
 )
@@ -123,7 +126,7 @@ func TestStartFormFallsBackToInputWhenAllTaskDirsAreCompleted(t *testing.T) {
 	assertFieldKeysPresent(t, keys, "name", "tasks-dir")
 }
 
-func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
+func TestFetchReviewsUsesSelectWhenTaskDirsExist(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
@@ -132,7 +135,7 @@ func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
 		t.Fatalf("create test dir: %v", err)
 	}
 
-	cmd := newFetchReviewsCommand(nil)
+	cmd := newFetchReviewsCommand()
 	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 	builder := newFormBuilder(cmd, state)
 	builder.tasksBaseDir = baseDir
@@ -140,9 +143,24 @@ func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
 	inputs := newFormInputs()
 	inputs.register(builder)
 
-	if builder.nameFromDirList {
-		t.Fatal("fetch-reviews should not use directory select")
+	if !builder.nameFromDirList {
+		t.Fatal("fetch-reviews should use directory select when workflows exist")
 	}
+}
+
+func TestFetchReviewsFallsBackToInputWhenNoDirs(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	baseDir := filepath.Join(tmp, ".compozy", "tasks")
+
+	keys := formFieldKeysWithBaseDir(
+		newFetchReviewsCommand(),
+		newCommandState(commandKindFetchReviews, core.ModePRReview),
+		baseDir,
+	)
+
+	assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round", "nitpicks")
 }
 
 func TestFetchReviewsFormIncludesNitpicksToggle(t *testing.T) {
@@ -151,7 +169,7 @@ func TestFetchReviewsFormIncludesNitpicksToggle(t *testing.T) {
 	t.Run("Should include nitpicks toggle in the fetch-reviews form", func(t *testing.T) {
 		t.Parallel()
 
-		keys := formFieldKeys(newFetchReviewsCommand(nil), newCommandState(commandKindFetchReviews, core.ModePRReview))
+		keys := formFieldKeys(newFetchReviewsCommand(), newCommandState(commandKindFetchReviews, core.ModePRReview))
 
 		assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round", "nitpicks")
 	})
@@ -318,6 +336,75 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 		}
 		if strings.Contains(view, "Medium (recommended)") {
 			t.Fatalf("expected reasoning selector to omit recommended suffix, got %q", view)
+		}
+	})
+}
+
+func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {
+	supportsAddDirs := true
+	restoreIDE, err := agent.ActivateOverlay([]agent.OverlayEntry{{
+		Name:            "ext-adapter",
+		Command:         "mock-acp --serve",
+		DisplayName:     "Mock ACP",
+		DefaultModel:    "ext-model",
+		SetupAgentName:  "codex",
+		SupportsAddDirs: &supportsAddDirs,
+	}})
+	if err != nil {
+		t.Fatalf("activate IDE overlay: %v", err)
+	}
+	defer restoreIDE()
+
+	restoreProvider, err := provider.ActivateOverlay([]provider.OverlayEntry{{
+		Name:        "ext-review",
+		Command:     "coderabbit",
+		DisplayName: "Extension Review",
+	}})
+	if err != nil {
+		t.Fatalf("activate provider overlay: %v", err)
+	}
+	defer restoreProvider()
+
+	t.Run("ide field", func(t *testing.T) {
+		builder := newFormBuilder(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
+		var selected string
+		builder.addIDEField(&selected)
+		if len(builder.fields) != 1 {
+			t.Fatalf("expected IDE field to be registered, got %d fields", len(builder.fields))
+		}
+		entries := agent.DriverCatalog()
+		found := false
+		for _, entry := range entries {
+			if entry.IDE == "ext-adapter" && entry.DisplayName == "Mock ACP" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected overlay IDE in driver catalog, got %#v", entries)
+		}
+	})
+
+	t.Run("provider field", func(t *testing.T) {
+		builder := newFormBuilder(
+			newFetchReviewsCommand(),
+			newCommandState(commandKindFetchReviews, core.ModePRReview),
+		)
+		var selected string
+		builder.addProviderField(&selected)
+		if len(builder.fields) != 1 {
+			t.Fatalf("expected provider field to be registered, got %d fields", len(builder.fields))
+		}
+		entries := provider.Catalog(providerdefaults.DefaultRegistry())
+		found := false
+		for _, entry := range entries {
+			if entry.Name == "ext-review" && entry.DisplayName == "Extension Review" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected overlay provider in catalog, got %#v", entries)
 		}
 	})
 }

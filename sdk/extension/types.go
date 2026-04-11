@@ -165,11 +165,12 @@ type InitializeRuntime struct {
 
 // InitializeResponse is the extension's initialize acknowledgement.
 type InitializeResponse struct {
-	ProtocolVersion      string                 `json:"protocol_version"`
-	ExtensionInfo        InitializeResponseInfo `json:"extension_info"`
-	AcceptedCapabilities []Capability           `json:"accepted_capabilities,omitempty"`
-	SupportedHookEvents  []HookName             `json:"supported_hook_events,omitempty"`
-	Supports             Supports               `json:"supports"`
+	ProtocolVersion           string                 `json:"protocol_version"`
+	ExtensionInfo             InitializeResponseInfo `json:"extension_info"`
+	AcceptedCapabilities      []Capability           `json:"accepted_capabilities,omitempty"`
+	SupportedHookEvents       []HookName             `json:"supported_hook_events,omitempty"`
+	RegisteredReviewProviders []string               `json:"registered_review_providers,omitempty"`
+	Supports                  Supports               `json:"supports"`
 }
 
 // InitializeResponseInfo describes the running SDK identity.
@@ -222,6 +223,44 @@ type ShutdownRequest struct {
 // ShutdownResponse acknowledges a graceful shutdown request.
 type ShutdownResponse struct {
 	Acknowledged bool `json:"acknowledged"`
+}
+
+// ReviewProviderContext carries provider-local metadata and Host API access.
+type ReviewProviderContext struct {
+	Provider string
+	Host     *HostAPI
+}
+
+// FetchRequest mirrors the host-side review provider fetch request.
+type FetchRequest struct {
+	PR              string `json:"pr"`
+	IncludeNitpicks bool   `json:"include_nitpicks,omitempty"`
+}
+
+// ReviewItem mirrors the host-side normalized review item shape.
+type ReviewItem struct {
+	Title                   string `json:"title"`
+	File                    string `json:"file"`
+	Line                    int    `json:"line,omitempty"`
+	Severity                string `json:"severity,omitempty"`
+	Author                  string `json:"author,omitempty"`
+	Body                    string `json:"body"`
+	ProviderRef             string `json:"provider_ref,omitempty"`
+	ReviewHash              string `json:"review_hash,omitempty"`
+	SourceReviewID          string `json:"source_review_id,omitempty"`
+	SourceReviewSubmittedAt string `json:"source_review_submitted_at,omitempty"`
+}
+
+// ResolvedIssue mirrors the host-side resolved issue payload.
+type ResolvedIssue struct {
+	FilePath    string `json:"file_path"`
+	ProviderRef string `json:"provider_ref,omitempty"`
+}
+
+// ResolveIssuesRequest mirrors the host-side review provider resolve request.
+type ResolveIssuesRequest struct {
+	PR     string          `json:"pr"`
+	Issues []ResolvedIssue `json:"issues,omitempty"`
 }
 
 // IssueEntry mirrors the issue/task entry shape used in planning hooks.

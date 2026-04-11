@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/modelprovider"
 	"github.com/compozy/compozy/internal/core/subprocess"
 )
 
@@ -153,10 +154,11 @@ func assertCommandExists(spec Spec, command []string) error {
 }
 
 func resolveModel(spec Spec, modelName string) string {
-	if strings.TrimSpace(modelName) != "" {
-		return modelName
+	selected := strings.TrimSpace(modelName)
+	if selected == "" {
+		selected = spec.DefaultModel
 	}
-	return spec.DefaultModel
+	return modelprovider.ResolveAlias(selected)
 }
 
 func sortedEnvAssignments(env map[string]string) []string {

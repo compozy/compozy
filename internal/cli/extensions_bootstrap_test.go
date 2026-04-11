@@ -10,7 +10,9 @@ import (
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/agent"
 	extensions "github.com/compozy/compozy/internal/core/extension"
+	"github.com/compozy/compozy/internal/core/modelprovider"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
@@ -263,6 +265,51 @@ func TestPrepareAndRunAcceptsEnabledExtensionACPRuntimeOverlay(t *testing.T) {
 	}
 	if !runnerCalled {
 		t.Fatal("expected workflow runner with overlay IDE")
+	}
+}
+
+func TestBootstrapDeclarativeAssetsActivatesModelAliasOverlay(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	chdirCLITest(t, workspaceRoot)
+
+	manifest := bootstrapManifestFixture("model-ext")
+	manifest.Security.Capabilities = []extensions.Capability{extensions.CapabilityProvidersRegister}
+	manifest.Providers.Model = []extensions.ProviderEntry{{
+		Name:        "ext-model",
+		Target:      "openai/gpt-5.4",
+		DisplayName: "Extension Model",
+	}}
+	manifest.Providers.IDE = []extensions.ProviderEntry{{
+		Name:         "ext-adapter",
+		Command:      "mock-acp --serve",
+		DefaultModel: "ext-model",
+		DisplayName:  "Mock ACP",
+	}}
+	extensionDir := filepath.Join(workspaceRoot, ".compozy", "extensions", "model-ext")
+	writeBootstrapManifestJSON(t, extensionDir, manifest)
+	enableBootstrapWorkspaceExtension(t, homeDir, workspaceRoot, "model-ext")
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	assets, cleanup, err := state.bootstrapDeclarativeAssetsForWorkspaceRoot(
+		context.Background(),
+		workspaceRoot,
+		"compozy start",
+	)
+	if err != nil {
+		t.Fatalf("bootstrapDeclarativeAssetsForWorkspaceRoot() error = %v", err)
+	}
+	defer cleanup()
+
+	if len(assets.Discovery.Providers.Model) != 1 || assets.Discovery.Providers.Model[0].Name != "ext-model" {
+		t.Fatalf("assets.Discovery.Providers.Model = %#v, want ext-model entry", assets.Discovery.Providers.Model)
+	}
+	if got := modelprovider.ResolveAlias("ext-model"); got != "openai/gpt-5.4" {
+		t.Fatalf("ResolveAlias(ext-model) = %q, want %q", got, "openai/gpt-5.4")
+	}
+	if got, err := agent.ResolveRuntimeModel("ext-adapter", ""); err != nil || got != "openai/gpt-5.4" {
+		t.Fatalf("ResolveRuntimeModel(ext-adapter) = %q err=%v, want %q", got, err, "openai/gpt-5.4")
 	}
 }
 

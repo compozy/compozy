@@ -989,17 +989,29 @@ func TestExecuteNilManagerMatchesNoopManagerResult(t *testing.T) {
 		t.Fatalf("Execute(noop manager) error = %v", err)
 	}
 
-	var gotNil executionResult
-	if err := json.Unmarshal([]byte(stdoutNil), &gotNil); err != nil {
-		t.Fatalf("decode nil-manager stdout: %v", err)
-	}
-	var gotNoop executionResult
-	if err := json.Unmarshal([]byte(stdoutNoop), &gotNoop); err != nil {
-		t.Fatalf("decode noop-manager stdout: %v", err)
-	}
+	gotNil := decodeWorkflowJSONLTestEvents(t, stdoutNil)
+	gotNoop := decodeWorkflowJSONLTestEvents(t, stdoutNoop)
 	if !reflect.DeepEqual(gotNil, gotNoop) {
-		t.Fatalf("nil manager result mismatch\nnil:  %#v\nnoop: %#v", gotNil, gotNoop)
+		t.Fatalf("nil manager stream mismatch\nnil:  %#v\nnoop: %#v", gotNil, gotNoop)
 	}
+}
+
+func decodeWorkflowJSONLTestEvents(t *testing.T, stdout string) []map[string]any {
+	t.Helper()
+
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	events := make([]map[string]any, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(line), &payload); err != nil {
+			t.Fatalf("decode workflow jsonl line: %v\nline:\n%s", err, line)
+		}
+		events = append(events, payload)
+	}
+	return events
 }
 
 func TestRefreshTaskMetaOnExitUpdatesAggregateCounts(t *testing.T) {
