@@ -123,11 +123,15 @@ retry_backoff_multiplier = 1.5
 
 [start]
 include_completed = false
+output_format = "json"
+tui = false
 
 [fix_reviews]
 concurrent = 2
 batch_size = 3
 include_resolved = false
+output_format = "raw-json"
+tui = false
 
 [fetch_reviews]
 provider = "coderabbit"
@@ -167,8 +171,20 @@ output_format = "json"
 	if cfg.Start.IncludeCompleted == nil || *cfg.Start.IncludeCompleted {
 		t.Fatalf("unexpected start.include_completed: %#v", cfg.Start.IncludeCompleted)
 	}
+	if cfg.Start.OutputFormat == nil || *cfg.Start.OutputFormat != "json" {
+		t.Fatalf("unexpected start.output_format: %#v", cfg.Start.OutputFormat)
+	}
+	if cfg.Start.TUI == nil || *cfg.Start.TUI {
+		t.Fatalf("unexpected start.tui: %#v", cfg.Start.TUI)
+	}
 	if cfg.FixReviews.Concurrent == nil || *cfg.FixReviews.Concurrent != 2 {
 		t.Fatalf("unexpected fix_reviews.concurrent: %#v", cfg.FixReviews.Concurrent)
+	}
+	if cfg.FixReviews.OutputFormat == nil || *cfg.FixReviews.OutputFormat != "raw-json" {
+		t.Fatalf("unexpected fix_reviews.output_format: %#v", cfg.FixReviews.OutputFormat)
+	}
+	if cfg.FixReviews.TUI == nil || *cfg.FixReviews.TUI {
+		t.Fatalf("unexpected fix_reviews.tui: %#v", cfg.FixReviews.TUI)
 	}
 	if cfg.FetchReviews.Provider == nil || *cfg.FetchReviews.Provider != "coderabbit" {
 		t.Fatalf("unexpected fetch_reviews.provider: %#v", cfg.FetchReviews.Provider)
@@ -391,6 +407,48 @@ tui = true
 		t.Fatal("expected invalid exec tui/output format combination")
 	}
 	if !strings.Contains(err.Error(), "exec.tui cannot be true") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsStartTUIWhenDefaultsOutputFormatIsJSON(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[defaults]
+output_format = "json"
+
+[start]
+tui = true
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid start tui/output format combination")
+	}
+	if !strings.Contains(err.Error(), "start.tui cannot be true") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigRejectsFixReviewsTUIWhenDefaultsOutputFormatIsJSON(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[defaults]
+output_format = "json"
+
+[fix_reviews]
+tui = true
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid fix_reviews tui/output format combination")
+	}
+	if !strings.Contains(err.Error(), "fix_reviews.tui cannot be true") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

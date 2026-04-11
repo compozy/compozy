@@ -1,15 +1,19 @@
-// Package compozy provides a reusable API for preparing and executing
-// markdown-driven AI work loops plus a public Cobra wrapper in package command.
+// Package compozy provides a reusable API for preparing, executing, and embedding
+// markdown-driven AI work loops.
 package compozy
 
 import (
 	"context"
+	"errors"
 
+	"github.com/compozy/compozy/internal/cli"
 	core "github.com/compozy/compozy/internal/core"
+
 	// Register the extension-aware run-scope factory used by kernel/core runtime paths.
 	_ "github.com/compozy/compozy/internal/core/extension"
 	// Register dispatcher-backed adapters for the legacy public core API surface.
 	_ "github.com/compozy/compozy/internal/core/kernel"
+	"github.com/spf13/cobra"
 )
 
 // ErrNoWork indicates that no unresolved issues or pending PRD tasks were found.
@@ -76,6 +80,23 @@ type ArchiveResult = core.ArchiveResult
 
 // Job is a prepared execution unit with its generated artifacts.
 type Job = core.Job
+
+// NewCommand returns the reusable compozy Cobra command for embedding in other Go CLIs.
+func NewCommand() *cobra.Command {
+	return cli.NewRootCommand()
+}
+
+// ExitCode extracts a command-specific exit code from an execution error.
+func ExitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+	var exitErr interface{ ExitCode() int }
+	if errors.As(err, &exitErr) && exitErr.ExitCode() > 0 {
+		return exitErr.ExitCode()
+	}
+	return 1
+}
 
 // Prepare resolves inputs, validates the environment, and generates batch artifacts.
 func Prepare(ctx context.Context, cfg Config) (*Preparation, error) {

@@ -104,9 +104,6 @@ func validateRuntimeOutputFormat(cfg *model.RuntimeConfig) error {
 			model.OutputFormatRawJSON,
 		)
 	}
-	if cfg.Mode != model.ExecutionModeExec && format != model.OutputFormatText {
-		return fmt.Errorf("output format %q is only supported for exec mode", format)
-	}
 	return nil
 }
 
@@ -129,19 +126,20 @@ func validateRuntimePromptSource(cfg *model.RuntimeConfig) error {
 }
 
 func validateRuntimeExecMode(cfg *model.RuntimeConfig) error {
+	format := cfg.OutputFormat
+	if format == "" {
+		format = model.OutputFormatText
+	}
+
 	if cfg.Mode != model.ExecutionModeExec {
 		switch {
-		case cfg.TUI:
-			return errors.New("tui mode is only supported for exec mode")
 		case cfg.Persist:
 			return errors.New("persist is only supported for exec mode")
 		case strings.TrimSpace(cfg.RunID) != "":
 			return errors.New("run-id is only supported for exec mode")
-		default:
-			return nil
 		}
 	}
-	if (cfg.OutputFormat == model.OutputFormatJSON || cfg.OutputFormat == model.OutputFormatRawJSON) && cfg.TUI {
+	if (format == model.OutputFormatJSON || format == model.OutputFormatRawJSON) && cfg.TUI {
 		return errors.New("tui mode is not supported with json or raw-json output")
 	}
 	return nil

@@ -716,7 +716,7 @@ _ = compozy.Run(context.Background(), compozy.Config{
 })
 
 // Embed the Cobra command in another CLI
-root := command.New()
+root := compozy.NewCommand()
 _ = root.Execute()
 ```
 
@@ -727,7 +727,7 @@ _ = root.Execute()
 
 ```
 cmd/compozy/             CLI entry point
-command/                 Public Cobra wrapper for embedding
+compozy.go               Public Go API + reusable Cobra command helpers
 internal/cli/            Cobra flags, interactive form, CLI glue
 internal/core/           Internal facade for preparation and execution
   agent/                 IDE command validation and process construction

@@ -48,6 +48,12 @@ func (s *commandState) prepareAndRun(
 			return err
 		}
 	}
+	if err := s.normalizePresentationMode(cmd); err != nil {
+		if handleSetupErrors {
+			return s.handleExecError(cmd, err)
+		}
+		return err
+	}
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	cfg, err := s.buildConfig()

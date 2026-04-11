@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"github.com/compozy/compozy/command"
+	"github.com/compozy/compozy"
 	"github.com/compozy/compozy/internal/charmtheme"
 	"github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
@@ -22,7 +22,7 @@ func main() {
 }
 
 func run() int {
-	cmd := command.New()
+	cmd := compozy.NewCommand()
 	cmd.Version = version.String()
 
 	updateResult, cancelUpdateCheck, updateDone := startUpdateCheck(context.Background(), version.Version)
@@ -42,7 +42,7 @@ func run() int {
 	<-updateDone
 
 	if err != nil {
-		return command.ExitCode(err)
+		return compozy.ExitCode(err)
 	}
 	return 0
 }

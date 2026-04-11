@@ -117,7 +117,7 @@ func (p *Provider) FetchReviews(ctx context.Context, req provider.FetchRequest) 
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, parseNitpickReviewItems(reviews, p.botLogin)...)
+		items = append(items, parseReviewBodyCommentItems(reviews, p.botLogin)...)
 	}
 
 	sortReviewItems(items)

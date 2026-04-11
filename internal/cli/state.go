@@ -337,6 +337,69 @@ func (s *commandState) enableExecutableExtensions() bool {
 	}
 }
 
+func (s *commandState) normalizePresentationMode(cmd *cobra.Command) error {
+	if s == nil || !s.isWorkflowExecutionCommand() {
+		return nil
+	}
+
+	outputFormat := strings.TrimSpace(s.outputFormat)
+	if outputFormat == "" {
+		outputFormat = string(core.OutputFormatText)
+		s.outputFormat = outputFormat
+	}
+
+	tuiExplicit := commandFlagChanged(cmd, "tui") || s.hasConfiguredWorkflowTUI()
+	if isJSONOutputFormat(outputFormat) {
+		if s.tui && tuiExplicit {
+			return errors.New("tui mode is not supported with json or raw-json output")
+		}
+		s.tui = false
+		return nil
+	}
+
+	if !isInteractiveTerminal() {
+		if s.tui && tuiExplicit {
+			return fmt.Errorf(
+				"%s requires an interactive terminal for tui mode; rerun with --tui=false",
+				cmd.CommandPath(),
+			)
+		}
+		s.tui = false
+		return nil
+	}
+
+	if !tuiExplicit {
+		s.tui = true
+	}
+	return nil
+}
+
+func (s *commandState) isWorkflowExecutionCommand() bool {
+	if s == nil {
+		return false
+	}
+	switch s.kind {
+	case commandKindStart, commandKindFixReviews:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *commandState) hasConfiguredWorkflowTUI() bool {
+	if s == nil {
+		return false
+	}
+	switch s.kind {
+	case commandKindStart:
+		return s.projectConfig.Start.TUI != nil
+	case commandKindFixReviews:
+		return s.projectConfig.FixReviews.TUI != nil
+	default:
+		return false
+	}
+}
+
 func (s *commandState) applyPersistedExecConfig(cmd *cobra.Command, cfg *core.Config) error {
 	if cfg == nil || strings.TrimSpace(s.runID) == "" {
 		return nil
@@ -413,7 +476,7 @@ func (s *commandState) handleExecError(cmd *cobra.Command, err error) error {
 	if err == nil {
 		return nil
 	}
-	if isExecJSONOutputFormatFlag(s.outputFormat) && !coreRun.IsExecErrorReported(err) {
+	if isJSONOutputFormat(s.outputFormat) && !coreRun.IsExecErrorReported(err) {
 		cmd.SilenceErrors = true
 		if root := cmd.Root(); root != nil {
 			root.SilenceErrors = true
@@ -526,7 +589,7 @@ func readPromptFromCommandInput(reader io.Reader) (string, bool, error) {
 	return string(content), true, nil
 }
 
-func isExecJSONOutputFormatFlag(value string) bool {
+func isJSONOutputFormat(value string) bool {
 	switch strings.TrimSpace(value) {
 	case string(core.OutputFormatJSON), string(core.OutputFormatRawJSON):
 		return true

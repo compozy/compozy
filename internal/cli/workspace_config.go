@@ -61,6 +61,8 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 
 	switch s.kind {
 	case commandKindStart:
+		applyConfig(cmd, "format", cfg.Start.OutputFormat, func(val string) { s.outputFormat = val })
+		applyConfig(cmd, "tui", cfg.Start.TUI, func(val bool) { s.tui = val })
 		applyConfig(
 			cmd,
 			"include-completed",
@@ -68,6 +70,8 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			func(val bool) { s.includeCompleted = val },
 		)
 	case commandKindFixReviews:
+		applyConfig(cmd, "format", cfg.FixReviews.OutputFormat, func(val string) { s.outputFormat = val })
+		applyConfig(cmd, "tui", cfg.FixReviews.TUI, func(val bool) { s.tui = val })
 		applyConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
 		applyConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
 		applyConfig(

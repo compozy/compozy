@@ -87,10 +87,68 @@ func TestEnsureRuntimeEventBusCreatesFallbackBusForUI(t *testing.T) {
 		}
 	}()
 
-	cfg := &config{OutputFormat: model.OutputFormatText}
+	cfg := &config{
+		OutputFormat: model.OutputFormatText,
+		TUI:          true,
+	}
 	bus := ensureRuntimeEventBus(cfg, runJournal, nil)
 	if bus == nil {
 		t.Fatal("expected fallback bus for UI-enabled execution")
+	}
+	defer func() {
+		if err := bus.Close(context.Background()); err != nil {
+			t.Fatalf("close bus: %v", err)
+		}
+	}()
+
+	_, ch, unsub := bus.Subscribe()
+	defer unsub()
+
+	ev, err := newRuntimeEvent(
+		runArtifacts.RunID,
+		eventspkg.EventKindRunStarted,
+		kinds.RunStartedPayload{JobsTotal: 1},
+	)
+	if err != nil {
+		t.Fatalf("new runtime event: %v", err)
+	}
+	if err := runJournal.Submit(context.Background(), ev); err != nil {
+		t.Fatalf("submit event: %v", err)
+	}
+
+	select {
+	case got := <-ch:
+		if got.Kind != eventspkg.EventKindRunStarted {
+			t.Fatalf("expected fallback bus to receive run.started, got %s", got.Kind)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for fallback bus event")
+	}
+}
+
+func TestEnsureRuntimeEventBusCreatesFallbackBusForWorkflowJSONStream(t *testing.T) {
+	t.Parallel()
+
+	runArtifacts := model.NewRunArtifacts(t.TempDir(), "json-fallback")
+	if err := os.MkdirAll(filepath.Dir(runArtifacts.EventsPath), 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	runJournal, err := journal.Open(runArtifacts.EventsPath, nil, 8)
+	if err != nil {
+		t.Fatalf("open journal: %v", err)
+	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := runJournal.Close(closeCtx); err != nil {
+			t.Fatalf("close journal: %v", err)
+		}
+	}()
+
+	cfg := &config{OutputFormat: model.OutputFormatJSON}
+	bus := ensureRuntimeEventBus(cfg, runJournal, nil)
+	if bus == nil {
+		t.Fatal("expected fallback bus for event-stream-enabled execution")
 	}
 	defer func() {
 		if err := bus.Close(context.Background()); err != nil {

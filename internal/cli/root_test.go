@@ -224,7 +224,7 @@ func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
 		}
 	}
 
-	forbidden := []string{"--reviews-dir", "--tasks-dir", "--batch-size", "--grouped", "--include-resolved", "--form"}
+	forbidden := []string{"--reviews-dir", "--tasks-dir", "--batch-size", "--grouped", "--include-resolved", "--form "}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected fetch-reviews help to omit %q\noutput:\n%s", snippet, output)
@@ -250,12 +250,14 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 	}
 
 	required := []string{
+		"--format",
 		"--name",
 		"--round",
 		"--reviews-dir",
 		"--batch-size",
 		"--concurrent",
 		"--include-resolved",
+		"--tui",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -263,7 +265,7 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		}
 	}
 
-	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--include-completed", "--form"}
+	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--include-completed", "--form "}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected fix-reviews help to omit %q\noutput:\n%s", snippet, output)
@@ -285,6 +287,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 	}
 
 	required := []string{
+		"--format",
 		"--name",
 		"--tasks-dir",
 		"--include-completed",
@@ -292,6 +295,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		"Skip task metadata preflight; use only when tasks were validated separately",
 		"--force",
 		"Continue after task metadata validation fails in non-interactive mode",
+		"--tui",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -307,7 +311,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		"--concurrent",
 		"--grouped",
 		"--include-resolved",
-		"--form",
+		"--form ",
 	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
@@ -1706,6 +1710,9 @@ func TestCommandStateDefaultsWithFallbacksPreservesExplicitFunctions(t *testing.
 func newTestCommand(state *commandState) *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: state.kind == commandKindFixReviews})
+	if state.kind == commandKindStart || state.kind == commandKindFixReviews {
+		addWorkflowOutputFlags(cmd, state)
+	}
 	return cmd
 }
 

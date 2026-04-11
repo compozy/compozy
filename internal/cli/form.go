@@ -17,6 +17,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const workflowNameTitle = "Workflow Name"
+
 func collectFormParams(cmd *cobra.Command, state *commandState) error {
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormIntro())
@@ -107,7 +109,7 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addConfirmField(
 		"nitpicks",
 		"Include Nitpicks?",
-		"Import CodeRabbit nitpick comments from pull request review bodies",
+		"Import CodeRabbit review-body comments (nitpick, minor, and major)",
 		&fi.nitpicks,
 	)
 	builder.addConfirmField(
@@ -219,40 +221,22 @@ func (fb *formBuilder) hideField(flag string) bool {
 
 func (fb *formBuilder) addNameField(target *string) {
 	fb.addField("name", func() huh.Field {
-		if fb.state.kind == commandKindStart || fb.state.kind == commandKindFixReviews {
-			var dirs []string
-			if fb.state.kind == commandKindStart {
-				dirs = listStartTaskSubdirs(fb.tasksBaseDir)
-			} else {
-				dirs = listTaskSubdirs(fb.tasksBaseDir)
+		title, description, dirs := fb.nameFieldOptions()
+		if len(dirs) > 0 {
+			fb.nameFromDirList = true
+			options := make([]huh.Option[string], 0, len(dirs))
+			for _, d := range dirs {
+				options = append(options, huh.NewOption(d, d))
 			}
-			if len(dirs) > 0 {
-				fb.nameFromDirList = true
-				title := "Task Name"
-				description := "Select the task directory to run"
-				if fb.state.kind == commandKindFixReviews {
-					title = "Workflow Name"
-					description = "Select the workflow directory for review fixes"
-				}
-				options := make([]huh.Option[string], 0, len(dirs))
-				for _, d := range dirs {
-					options = append(options, huh.NewOption(d, d))
-				}
-				return huh.NewSelect[string]().
-					Key("name").
-					Title(title).
-					Description(description).
-					Options(options...).
-					Value(target)
-			}
+			return huh.NewSelect[string]().
+				Key("name").
+				Title(title).
+				Description(description).
+				Options(options...).
+				Value(target)
 		}
 
-		title := "Workflow Name"
-		description := "Required: workflow name (for example: my-feature)"
-		if fb.state.kind == commandKindStart {
-			title = "Task Name"
-			description = "Required: task workflow name (for example: multi-repo)"
-		}
+		title, description = fb.nameInputLabels()
 		return huh.NewInput().
 			Key("name").
 			Title(title).
@@ -266,6 +250,28 @@ func (fb *formBuilder) addNameField(target *string) {
 				return nil
 			})
 	})
+}
+
+func (fb *formBuilder) nameFieldOptions() (string, string, []string) {
+	switch fb.state.kind {
+	case commandKindStart:
+		return "Task Name", "Select the task directory to run", listStartTaskSubdirs(fb.tasksBaseDir)
+	case commandKindFixReviews:
+		return workflowNameTitle, "Select the workflow directory for review fixes", listTaskSubdirs(fb.tasksBaseDir)
+	case commandKindFetchReviews:
+		return workflowNameTitle, "Select the workflow directory to fetch reviews into", listTaskSubdirs(
+			fb.tasksBaseDir,
+		)
+	default:
+		return "", "", nil
+	}
+}
+
+func (fb *formBuilder) nameInputLabels() (string, string) {
+	if fb.state.kind == commandKindStart {
+		return "Task Name", "Required: task workflow name (for example: multi-repo)"
+	}
+	return workflowNameTitle, "Required: workflow name (for example: my-feature)"
 }
 
 func (fb *formBuilder) addPRField(target *string) {

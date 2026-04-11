@@ -149,6 +149,72 @@ verbose = true
 	}
 }
 
+func TestApplyWorkspaceDefaultsUsesStartPresentationOverrides(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+output_format = "text"
+
+[start]
+output_format = "json"
+tui = false
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.outputFormat != "json" {
+		t.Fatalf("expected start.output_format to override defaults.output_format, got %q", state.outputFormat)
+	}
+	if state.tui {
+		t.Fatal("expected start.tui to disable the workflow TUI")
+	}
+}
+
+func TestApplyWorkspaceDefaultsUsesFixReviewsPresentationOverrides(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+output_format = "text"
+
+[fix_reviews]
+output_format = "raw-json"
+tui = false
+`)
+
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.outputFormat != "raw-json" {
+		t.Fatalf("expected fix_reviews.output_format to override defaults.output_format, got %q", state.outputFormat)
+	}
+	if state.tui {
+		t.Fatal("expected fix_reviews.tui to disable the workflow TUI")
+	}
+}
+
 func TestApplyWorkspaceDefaultsFetchReviewsNitpicks(t *testing.T) {
 	t.Parallel()
 

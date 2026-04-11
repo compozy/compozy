@@ -33,7 +33,9 @@ type RuntimeOverrides struct {
 type DefaultsConfig RuntimeOverrides
 
 type StartConfig struct {
-	IncludeCompleted *bool `toml:"include_completed"`
+	IncludeCompleted *bool   `toml:"include_completed"`
+	OutputFormat     *string `toml:"output_format"`
+	TUI              *bool   `toml:"tui"`
 }
 
 type TasksConfig struct {
@@ -41,9 +43,11 @@ type TasksConfig struct {
 }
 
 type FixReviewsConfig struct {
-	Concurrent      *int  `toml:"concurrent"`
-	BatchSize       *int  `toml:"batch_size"`
-	IncludeResolved *bool `toml:"include_resolved"`
+	Concurrent      *int    `toml:"concurrent"`
+	BatchSize       *int    `toml:"batch_size"`
+	IncludeResolved *bool   `toml:"include_resolved"`
+	OutputFormat    *string `toml:"output_format"`
+	TUI             *bool   `toml:"tui"`
 }
 
 type FetchReviewsConfig struct {

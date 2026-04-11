@@ -123,7 +123,7 @@ func TestStartFormFallsBackToInputWhenAllTaskDirsAreCompleted(t *testing.T) {
 	assertFieldKeysPresent(t, keys, "name", "tasks-dir")
 }
 
-func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
+func TestFetchReviewsUsesSelectWhenTaskDirsExist(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
@@ -140,9 +140,24 @@ func TestFetchReviewsAlwaysUsesTextInput(t *testing.T) {
 	inputs := newFormInputs()
 	inputs.register(builder)
 
-	if builder.nameFromDirList {
-		t.Fatal("fetch-reviews should not use directory select")
+	if !builder.nameFromDirList {
+		t.Fatal("fetch-reviews should use directory select when workflows exist")
 	}
+}
+
+func TestFetchReviewsFallsBackToInputWhenNoDirs(t *testing.T) {
+	t.Parallel()
+
+	tmp := t.TempDir()
+	baseDir := filepath.Join(tmp, ".compozy", "tasks")
+
+	keys := formFieldKeysWithBaseDir(
+		newFetchReviewsCommand(nil),
+		newCommandState(commandKindFetchReviews, core.ModePRReview),
+		baseDir,
+	)
+
+	assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round", "nitpicks")
 }
 
 func TestFetchReviewsFormIncludesNitpicksToggle(t *testing.T) {
