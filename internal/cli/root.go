@@ -5,7 +5,9 @@ import (
 	"log/slog"
 	"time"
 
+	extcli "github.com/compozy/compozy/internal/cli/extension"
 	"github.com/compozy/compozy/internal/core/agent"
+
 	// Register the extension-backed run-scope factory used by kernel dispatchers.
 	_ "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/kernel"
@@ -72,6 +74,7 @@ Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents
   compozy agents        Discover and inspect reusable agents
   compozy upgrade       Update the CLI to the latest release
+  compozy ext           Manage bundled, user, and workspace extensions
   compozy migrate       Convert legacy workflow artifacts to frontmatter
   compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy sync          Refresh task workflow metadata files
@@ -89,6 +92,7 @@ Use explicit workflow subcommands:
 		newSetupCommand(dispatcher),
 		newAgentsCommand(),
 		newUpgradeCommand(),
+		extcli.NewExtCommand(dispatcher),
 		newMigrateCommand(dispatcher),
 		newValidateTasksCommand(dispatcher),
 		newSyncCommand(dispatcher),
