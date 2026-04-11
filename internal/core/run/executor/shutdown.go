@@ -103,7 +103,11 @@ func (c *executorController) handleDone(shutdownTimer *time.Timer) (int32, []fai
 	}
 	if c.state == executorStateRunning {
 		c.state = executorStateShutdown
-		if err := c.execCtx.awaitUIAfterCompletion(); err != nil {
+		closeOnComplete := false
+		if c.execCtx.cfg != nil {
+			closeOnComplete = c.execCtx.cfg.CloseOnComplete
+		}
+		if err := c.execCtx.finalizeUIOnCompletion(closeOnComplete); err != nil {
 			c.state = executorStateTerminated
 			return c.result(err)
 		}

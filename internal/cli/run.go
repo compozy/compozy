@@ -123,10 +123,14 @@ func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Com
 		return nil
 	}
 
+	isInteractive := s.isInteractive
+	if s.closeOnComplete {
+		isInteractive = func() bool { return false }
+	}
 	preflightCfg := coreRun.PreflightConfig{
 		Force:          s.force,
 		SkipValidation: s.skipValidation,
-		IsInteractive:  s.isInteractive,
+		IsInteractive:  isInteractive,
 		Stderr:         cmd.ErrOrStderr(),
 		Logger:         slog.New(slog.NewTextHandler(cmd.ErrOrStderr(), nil)),
 	}

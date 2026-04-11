@@ -17,6 +17,7 @@ type Config struct {
 	TasksDir               string
 	DryRun                 bool
 	AutoCommit             bool
+	CloseOnComplete        bool
 	Concurrent             int
 	BatchSize              int
 	IDE                    string
@@ -86,6 +87,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		TasksDir:               src.TasksDir,
 		DryRun:                 src.DryRun,
 		AutoCommit:             src.AutoCommit,
+		CloseOnComplete:        src.CloseOnComplete,
 		Concurrent:             src.Concurrent,
 		BatchSize:              src.BatchSize,
 		IDE:                    src.IDE,

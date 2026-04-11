@@ -218,7 +218,15 @@ func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
 		}
 	}
 
-	forbidden := []string{"--reviews-dir", "--tasks-dir", "--batch-size", "--grouped", "--include-resolved", "--form"}
+	forbidden := []string{
+		"--reviews-dir",
+		"--tasks-dir",
+		"--batch-size",
+		"--grouped",
+		"--include-resolved",
+		"--form",
+		"--close-on-complete",
+	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected fetch-reviews help to omit %q\noutput:\n%s", snippet, output)
@@ -250,6 +258,7 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 		"--batch-size",
 		"--concurrent",
 		"--include-resolved",
+		"--close-on-complete",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -286,6 +295,7 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		"Skip task metadata preflight; use only when tasks were validated separately",
 		"--force",
 		"Continue after task metadata validation fails in non-interactive mode",
+		"--close-on-complete",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -348,6 +358,7 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 		"--batch-size",
 		"--concurrent",
 		"--include-resolved",
+		"--close-on-complete",
 	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
@@ -819,6 +830,80 @@ func TestResolveExecPromptSourceClearsStalePromptFileBetweenRuns(t *testing.T) {
 	}
 }
 
+func TestBuildConfigPropagatesCloseOnComplete(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name            string
+		kind            commandKind
+		mode            core.Mode
+		closeOnComplete bool
+	}{
+		{
+			name:            "start propagates closeOnComplete",
+			kind:            commandKindStart,
+			mode:            core.ModePRDTasks,
+			closeOnComplete: true,
+		},
+		{
+			name:            "fix-reviews propagates closeOnComplete",
+			kind:            commandKindFixReviews,
+			mode:            core.ModePRReview,
+			closeOnComplete: true,
+		},
+		{
+			name:            "start defaults closeOnComplete to false",
+			kind:            commandKindStart,
+			mode:            core.ModePRDTasks,
+			closeOnComplete: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			state := newCommandState(tt.kind, tt.mode)
+			state.closeOnComplete = tt.closeOnComplete
+
+			cfg, err := state.buildConfig()
+			if err != nil {
+				t.Fatalf("buildConfig: %v", err)
+			}
+			if cfg.CloseOnComplete != tt.closeOnComplete {
+				t.Fatalf("expected CloseOnComplete=%v, got %v", tt.closeOnComplete, cfg.CloseOnComplete)
+			}
+		})
+	}
+}
+
+func TestCloseOnCompleteFlagAbsentOnUnsupportedCommands(t *testing.T) {
+	t.Parallel()
+
+	unsupportedCommands := map[string]string{
+		"fetch-reviews":  "fetch-reviews",
+		"exec":           "exec [prompt]",
+		"validate-tasks": "validate-tasks",
+		"sync":           "sync",
+		"archive":        "archive",
+	}
+
+	for name, use := range unsupportedCommands {
+		name := name
+		use := use
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			root := NewRootCommand()
+			c := findCommand(t, root, use)
+			if c.Flags().Lookup("close-on-complete") != nil {
+				t.Fatalf("expected %s to omit --close-on-complete flag", name)
+			}
+		})
+	}
+}
+
 func TestFetchReviewsReturnsWriterErrors(t *testing.T) {
 	t.Parallel()
 
@@ -1072,6 +1157,134 @@ func TestMaybeCollectInteractiveParamsSkipsFormWhenAnyFlagIsProvided(t *testing.
 	}
 	if called {
 		t.Fatal("did not expect form collection when flags are provided")
+	}
+}
+
+func TestMaybeCollectInteractiveParamsRejectsFormUnderCloseOnComplete(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+	state.closeOnComplete = true
+
+	called := false
+	state.isInteractive = func() bool { return true }
+	state.collectForm = func(_ *cobra.Command, _ *commandState) error {
+		called = true
+		return nil
+	}
+
+	err := state.maybeCollectInteractiveParams(cmd)
+	if err == nil {
+		t.Fatal("expected error when closeOnComplete is enabled and no flags provided")
+	}
+	if called {
+		t.Fatal("did not expect form collection under close-on-complete")
+	}
+	if !strings.Contains(err.Error(), "requires explicit flags when --close-on-complete is enabled") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestMaybeCollectInteractiveParamsCloseOnCompleteSkipsWhenFlagsProvided(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+	state.closeOnComplete = true
+
+	if err := cmd.Flags().Set("ide", "claude"); err != nil {
+		t.Fatalf("set ide flag: %v", err)
+	}
+
+	if err := state.maybeCollectInteractiveParams(cmd); err != nil {
+		t.Fatalf("maybeCollectInteractiveParams with flags and closeOnComplete: %v", err)
+	}
+}
+
+func TestHandleBundledSkillDriftSkipsPromptUnderCloseOnComplete(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.closeOnComplete = true
+	cmd := &cobra.Command{Use: "start"}
+
+	confirmed := false
+	state.isInteractive = func() bool { return true }
+	state.confirmSkillRefresh = func(_ *cobra.Command, _ skillRefreshPrompt) (bool, error) {
+		confirmed = true
+		return true, nil
+	}
+
+	installCalled := false
+	state.installBundledSkills = func(_ setup.InstallConfig) (*setup.Result, error) {
+		installCalled = true
+		return &setup.Result{}, nil
+	}
+
+	verifyResult := setup.VerifyResult{
+		Agent:  setup.Agent{DisplayName: "Claude Code"},
+		Scope:  setup.InstallScopeProject,
+		Skills: []setup.VerifiedSkill{{State: setup.VerifyStateDrifted}},
+	}
+
+	err := state.handleBundledSkillDrift(
+		cmd,
+		"claude",
+		[]string{"cy-review-round"},
+		setup.VerifyConfig{},
+		verifyResult,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("handleBundledSkillDrift under closeOnComplete: %v", err)
+	}
+	if confirmed {
+		t.Fatal("did not expect confirmation prompt under close-on-complete")
+	}
+	if installCalled {
+		t.Fatal("did not expect skill installation under close-on-complete")
+	}
+}
+
+func TestHandleBundledSkillDriftStillPromptsWithoutCloseOnComplete(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := &cobra.Command{Use: "start"}
+
+	confirmed := false
+	state.isInteractive = func() bool { return true }
+	state.confirmSkillRefresh = func(_ *cobra.Command, _ skillRefreshPrompt) (bool, error) {
+		confirmed = true
+		return false, nil
+	}
+	state.verifyBundledSkills = func(_ setup.VerifyConfig) (setup.VerifyResult, error) {
+		return setup.VerifyResult{
+			Agent: setup.Agent{DisplayName: "Claude Code"},
+			Scope: setup.InstallScopeProject,
+		}, nil
+	}
+
+	verifyResult := setup.VerifyResult{
+		Agent:  setup.Agent{DisplayName: "Claude Code"},
+		Scope:  setup.InstallScopeProject,
+		Skills: []setup.VerifiedSkill{{State: setup.VerifyStateDrifted}},
+	}
+
+	err := state.handleBundledSkillDrift(
+		cmd,
+		"claude",
+		[]string{"cy-review-round"},
+		setup.VerifyConfig{},
+		verifyResult,
+		state.verifyBundledSkills,
+	)
+	if err != nil {
+		t.Fatalf("handleBundledSkillDrift without closeOnComplete: %v", err)
+	}
+	if !confirmed {
+		t.Fatal("expected confirmation prompt when closeOnComplete is false")
 	}
 }
 
@@ -1650,7 +1863,10 @@ func TestCommandStateDefaultsWithFallbacksPreservesExplicitFunctions(t *testing.
 
 func newTestCommand(state *commandState) *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
-	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: state.kind == commandKindFixReviews})
+	addCommonFlags(cmd, state, commonFlagOptions{
+		includeConcurrent:      state.kind == commandKindFixReviews,
+		includeCloseOnComplete: state.kind == commandKindStart || state.kind == commandKindFixReviews,
+	})
 	return cmd
 }
 

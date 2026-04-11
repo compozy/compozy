@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -274,9 +275,7 @@ func validateTasksBinary(t *testing.T) string {
 		}
 
 		validateTasksBinaryPath = filepath.Join(buildDir, "compozy")
-		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", validateTasksBinaryPath, "./cmd/compozy")
-		cmd.Dir = repoRoot
-		output, err := cmd.CombinedOutput()
+		output, err := buildValidateTasksBinary(context.Background(), repoRoot, validateTasksBinaryPath)
 		if err != nil {
 			validateTasksBinaryErr = fmt.Errorf("build compozy binary: %w\n%s", err, output)
 		}
@@ -288,12 +287,19 @@ func validateTasksBinary(t *testing.T) string {
 	return validateTasksBinaryPath
 }
 
+func buildValidateTasksBinary(ctx context.Context, repoRoot, outputPath string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-o", outputPath, "./cmd/compozy")
+	cmd.Dir = repoRoot
+	return cmd.CombinedOutput()
+}
+
 func validateTasksRepoRoot() (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("runtime.Caller: unable to determine test file path")
 	}
-	return filepath.Clean(filepath.Join(cwd, "..", "..")), nil
+	thisDir := filepath.Dir(thisFile)
+	return filepath.Clean(filepath.Join(thisDir, "..", "..")), nil
 }
 
 func makeValidateTasksWorkspace(t *testing.T, name string) (string, string) {

@@ -221,14 +221,15 @@ func buildBatchJob(
 		err      error
 	)
 	params := prompt.BatchParams{
-		Name:        cfg.Name,
-		Round:       cfg.Round,
-		Provider:    cfg.Provider,
-		PR:          cfg.PR,
-		ReviewsDir:  cfg.ReviewsDir,
-		BatchGroups: batchGroups,
-		AutoCommit:  cfg.AutoCommit,
-		Mode:        cfg.Mode,
+		Name:            cfg.Name,
+		Round:           cfg.Round,
+		Provider:        cfg.Provider,
+		PR:              cfg.PR,
+		ReviewsDir:      cfg.ReviewsDir,
+		BatchGroups:     batchGroups,
+		AutoCommit:      cfg.AutoCommit,
+		CloseOnComplete: cfg.CloseOnComplete,
+		Mode:            cfg.Mode,
 	}
 	if cfg.Mode == model.ExecutionModePRDTasks {
 		if len(batchIssues) == 0 {

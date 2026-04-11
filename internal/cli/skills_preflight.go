@@ -84,7 +84,7 @@ func (s *commandState) handleBundledSkillDrift(
 	verifyResult setup.VerifyResult,
 	verifyBundledSkills func(setup.VerifyConfig) (setup.VerifyResult, error),
 ) error {
-	if !s.commandIsInteractive() {
+	if !s.commandIsInteractive() || s.closeOnComplete {
 		printBundledSkillDriftWarning(cmd, verifyResult, "continuing without updating the installed skills")
 		return nil
 	}

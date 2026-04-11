@@ -145,6 +145,7 @@ timeout = "10m"
 tail_lines = 0
 add_dirs = ["../shared"]
 auto_commit = false
+close_on_complete = false
 max_retries = 0
 retry_backoff_multiplier = 1.5
 
@@ -168,11 +169,11 @@ provider = "coderabbit"
 
 Supported sections:
 
-- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
+- `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `close_on_complete`, `max_retries`, and `retry_backoff_multiplier`
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
-- `[start]` for `include_completed`
+- `[start]` for `include_completed` and `close_on_complete`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy validate-tasks`
-- `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
+- `[fix_reviews]` for `concurrent`, `batch_size`, `include_resolved`, and `close_on_complete`
 - `[fetch_reviews]` for `provider`
 
 Notes:
@@ -309,6 +310,22 @@ Agents triage each issue as valid or invalid, implement fixes for valid issues, 
 ### 9. Iterate and ship
 
 Repeat steps 7–8. Each cycle creates a new review round (`reviews-002/`, `reviews-003/`), preserving full history. When clean — merge and ship.
+
+### CI and Autonomous-Agent Automation
+
+`--close-on-complete` makes `compozy start` and `compozy fix-reviews` exit automatically when the run finishes or needs user input. This is intended for CI pipelines and autonomous-agent loops where holding the interactive UI open would hang the process. The default interactive workflow remains unchanged without the flag.
+
+```bash
+compozy start --name user-auth --ide claude --close-on-complete
+compozy fix-reviews --name user-auth --ide claude --close-on-complete
+```
+
+The flag can also be set in `.compozy/config.toml` under `[defaults]`, `[start]`, or `[fix_reviews]`:
+
+```toml
+[defaults]
+close_on_complete = true
+```
 
 ## 🧩 Skills
 
@@ -495,6 +512,7 @@ When present, `.compozy/config.toml` can provide defaults for runtime flags such
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
 | `--auto-commit`              | `false`     | Auto-commit after each task                                   |
+| `--close-on-complete`        | `false`     | Exit automatically on completion; intended for CI pipelines and autonomous agents |
 | `--include-completed`        | `false`     | Re-run completed tasks                                        |
 | `--dry-run`                  | `false`     | Preview prompts without executing                             |
 
@@ -548,6 +566,7 @@ defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history) |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only) |
 | `--auto-commit`              | `false`     | Auto-commit after each batch                                  |
+| `--close-on-complete`        | `false`     | Exit automatically on completion; intended for CI pipelines and autonomous agents |
 | `--dry-run`                  | `false`     | Preview prompts without executing                             |
 
 </details>

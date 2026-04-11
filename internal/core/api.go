@@ -102,6 +102,7 @@ type Config struct {
 	TasksDir               string
 	DryRun                 bool
 	AutoCommit             bool
+	CloseOnComplete        bool
 	Concurrent             int
 	BatchSize              int
 	IDE                    IDE
@@ -312,6 +313,7 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		TasksDir:               cfg.TasksDir,
 		DryRun:                 cfg.DryRun,
 		AutoCommit:             cfg.AutoCommit,
+		CloseOnComplete:        cfg.CloseOnComplete,
 		Concurrent:             cfg.Concurrent,
 		BatchSize:              cfg.BatchSize,
 		IDE:                    string(cfg.IDE),

@@ -54,7 +54,7 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 		RunE: state.run,
 	}
 
-	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
+	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true, includeCloseOnComplete: true})
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: latest existing round)")
 	cmd.Flags().
@@ -90,7 +90,7 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 		RunE: state.run,
 	}
 
-	addCommonFlags(cmd, state, commonFlagOptions{})
+	addCommonFlags(cmd, state, commonFlagOptions{includeCloseOnComplete: true})
 	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (.compozy/tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")

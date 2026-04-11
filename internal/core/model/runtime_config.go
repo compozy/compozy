@@ -12,6 +12,7 @@ type RuntimeConfig struct {
 	TasksDir               string
 	DryRun                 bool
 	AutoCommit             bool
+	CloseOnComplete        bool
 	Concurrent             int
 	BatchSize              int
 	IDE                    string

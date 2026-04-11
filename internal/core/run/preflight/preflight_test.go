@@ -91,6 +91,34 @@ func TestPreflightCheckNonInteractiveWithoutForceWritesFixPromptAndAborts(t *tes
 	}
 }
 
+func TestPreflightCheckNonInteractiveSkipsFormEvenWhenProvided(t *testing.T) {
+	t.Parallel()
+
+	formCalled := false
+	decision, err := CheckConfig(context.Background(), Config{
+		TasksDir:      "/tmp/tasks",
+		Registry:      testValidationRegistry(t),
+		IsInteractive: func() bool { return false },
+		Stderr:        &bytes.Buffer{},
+		ValidationFn: func(context.Context, string, *tasks.TypeRegistry) (tasks.Report, error) {
+			return testValidationReport(), nil
+		},
+		ValidationForm: func(tasks.Report, *tasks.TypeRegistry, io.Writer) (Decision, error) {
+			formCalled = true
+			return Continued, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("preflight non-interactive skips form: %v", err)
+	}
+	if formCalled {
+		t.Fatal("expected ValidationForm to NOT be called when IsInteractive returns false")
+	}
+	if got := decision; got != Aborted {
+		t.Fatalf("expected aborted decision, got %q", got)
+	}
+}
+
 func TestPreflightCheckNonInteractiveWithForceReturnsForced(t *testing.T) {
 	t.Parallel()
 

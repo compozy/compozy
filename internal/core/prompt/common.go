@@ -15,15 +15,16 @@ import (
 )
 
 type BatchParams struct {
-	Name        string
-	Round       int
-	Provider    string
-	PR          string
-	ReviewsDir  string
-	BatchGroups map[string][]model.IssueEntry
-	AutoCommit  bool
-	Mode        model.ExecutionMode
-	Memory      *WorkflowMemoryContext
+	Name            string
+	Round           int
+	Provider        string
+	PR              string
+	ReviewsDir      string
+	BatchGroups     map[string][]model.IssueEntry
+	AutoCommit      bool
+	CloseOnComplete bool
+	Mode            model.ExecutionMode
+	Memory          *WorkflowMemoryContext
 }
 
 func Build(p BatchParams) string {
@@ -103,7 +104,7 @@ func buildPRDTasksPrompt(p BatchParams) string {
 			break
 		}
 	}
-	return buildPRDTaskPrompt(task, p.AutoCommit, p.Memory)
+	return buildPRDTaskPrompt(task, p.AutoCommit, p.CloseOnComplete, p.Memory)
 }
 
 func batchIssueRange(batchIssues []model.IssueEntry) (int, int, bool) {

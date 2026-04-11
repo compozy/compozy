@@ -445,6 +445,209 @@ ide = "claude"
 	}
 }
 
+func TestCloseOnCompleteDefaultsAppliesWhenCLIFlagUnset(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+close_on_complete = true
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if !state.closeOnComplete {
+		t.Fatal("expected close_on_complete=true from [defaults]")
+	}
+}
+
+func TestCloseOnCompleteStartOverridesDefaults(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+close_on_complete = false
+
+[start]
+close_on_complete = true
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if !state.closeOnComplete {
+		t.Fatal("expected [start] close_on_complete=true to override [defaults]")
+	}
+}
+
+func TestCloseOnCompleteFixReviewsOverridesDefaults(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+close_on_complete = true
+
+[fix_reviews]
+close_on_complete = false
+`)
+
+	state := newCommandState(commandKindFixReviews, core.ModePRReview)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.closeOnComplete {
+		t.Fatal("expected [fix_reviews] close_on_complete=false to override [defaults]")
+	}
+}
+
+func TestCloseOnCompleteExplicitFlagWinsOverConfig(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+close_on_complete = false
+
+[start]
+close_on_complete = false
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := cmd.Flags().Set("close-on-complete", "true"); err != nil {
+		t.Fatalf("set close-on-complete: %v", err)
+	}
+	state.closeOnComplete = true
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if !state.closeOnComplete {
+		t.Fatal("expected explicit CLI flag to win over config values")
+	}
+}
+
+func TestCloseOnCompleteDefaultFalseWhenNoConfig(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+ide = "claude"
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.closeOnComplete {
+		t.Fatal("expected close_on_complete=false by default when not configured")
+	}
+}
+
+func TestCloseOnCompleteDefaultsIgnoredByFetchReviews(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+close_on_complete = true
+`)
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.closeOnComplete {
+		t.Fatal("expected [defaults].close_on_complete to be ignored for fetch-reviews")
+	}
+}
+
+func TestCloseOnCompleteDefaultsIgnoredByExec(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+close_on_complete = true
+`)
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+
+	if state.closeOnComplete {
+		t.Fatal("expected [defaults].close_on_complete to be ignored for exec")
+	}
+}
+
 func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 	t.Parallel()
 
@@ -463,6 +666,7 @@ func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 		runtimeConfig: runtimeConfig{
 			dryRun:           true,
 			autoCommit:       true,
+			closeOnComplete:  true,
 			concurrent:       2,
 			batchSize:        3,
 			ide:              "codex",
@@ -502,6 +706,9 @@ func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 	}
 	if cfg.IDE != core.IDECodex || cfg.Model != "gpt-5.4" || cfg.AccessMode != core.AccessModeDefault {
 		t.Fatalf("unexpected runtime config: %#v", cfg)
+	}
+	if !cfg.CloseOnComplete {
+		t.Fatal("expected closeOnComplete=true to propagate through buildConfig")
 	}
 	if !reflect.DeepEqual(cfg.AddDirs, []string{"../shared", "../docs"}) {
 		t.Fatalf("unexpected normalized add dirs: %#v", cfg.AddDirs)

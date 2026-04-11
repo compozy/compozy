@@ -84,6 +84,12 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 }
 
 func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
+	if cfg.CloseOnComplete != nil {
+		return fmt.Errorf(
+			"workspace config exec.close_on_complete is not supported; " +
+				"use start.close_on_complete or fix_reviews.close_on_complete instead",
+		)
+	}
 	if err := validateRuntimeOverrides("exec", cfg.RuntimeOverrides); err != nil {
 		return err
 	}

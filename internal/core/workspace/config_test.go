@@ -103,6 +103,145 @@ timeout = "not-a-duration"
 	}
 }
 
+func TestLoadConfigParsesCloseOnComplete(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		content      string
+		wantDefaults bool
+		wantStart    bool
+		wantFixRev   bool
+		wantNilDefs  bool
+		wantNilStart bool
+		wantNilFix   bool
+	}{
+		{
+			name: "close_on_complete in defaults",
+			content: `
+[defaults]
+close_on_complete = true
+`,
+			wantDefaults: true,
+			wantNilStart: true,
+			wantNilFix:   true,
+		},
+		{
+			name: "close_on_complete in start",
+			content: `
+[start]
+close_on_complete = true
+`,
+			wantStart:   true,
+			wantNilDefs: true,
+			wantNilFix:  true,
+		},
+		{
+			name: "close_on_complete in fix_reviews",
+			content: `
+[fix_reviews]
+close_on_complete = true
+`,
+			wantFixRev:   true,
+			wantNilDefs:  true,
+			wantNilStart: true,
+		},
+		{
+			name: "close_on_complete false in defaults",
+			content: `
+[defaults]
+close_on_complete = false
+`,
+			wantDefaults: false,
+			wantNilStart: true,
+			wantNilFix:   true,
+		},
+		{
+			name:         "close_on_complete absent leaves all nil",
+			content:      ``,
+			wantNilDefs:  true,
+			wantNilStart: true,
+			wantNilFix:   true,
+		},
+		{
+			name: "close_on_complete in all sections",
+			content: `
+[defaults]
+close_on_complete = false
+
+[start]
+close_on_complete = true
+
+[fix_reviews]
+close_on_complete = false
+`,
+			wantDefaults: false,
+			wantStart:    true,
+			wantFixRev:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tt.content)
+
+			cfg, _, err := LoadConfig(context.Background(), root)
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+
+			if tt.wantNilDefs {
+				if cfg.Defaults.CloseOnComplete != nil {
+					t.Fatalf("expected defaults.close_on_complete to be nil, got %#v", cfg.Defaults.CloseOnComplete)
+				}
+			} else {
+				if cfg.Defaults.CloseOnComplete == nil || *cfg.Defaults.CloseOnComplete != tt.wantDefaults {
+					t.Fatalf(
+						"unexpected defaults.close_on_complete: want %v, got %#v",
+						tt.wantDefaults,
+						cfg.Defaults.CloseOnComplete,
+					)
+				}
+			}
+
+			if tt.wantNilStart {
+				if cfg.Start.CloseOnComplete != nil {
+					t.Fatalf("expected start.close_on_complete to be nil, got %#v", cfg.Start.CloseOnComplete)
+				}
+			} else {
+				if cfg.Start.CloseOnComplete == nil || *cfg.Start.CloseOnComplete != tt.wantStart {
+					t.Fatalf(
+						"unexpected start.close_on_complete: want %v, got %#v",
+						tt.wantStart,
+						cfg.Start.CloseOnComplete,
+					)
+				}
+			}
+
+			if tt.wantNilFix {
+				if cfg.FixReviews.CloseOnComplete != nil {
+					t.Fatalf(
+						"expected fix_reviews.close_on_complete to be nil, got %#v",
+						cfg.FixReviews.CloseOnComplete,
+					)
+				}
+			} else {
+				if cfg.FixReviews.CloseOnComplete == nil || *cfg.FixReviews.CloseOnComplete != tt.wantFixRev {
+					t.Fatalf(
+						"unexpected fix_reviews.close_on_complete: want %v, got %#v",
+						tt.wantFixRev,
+						cfg.FixReviews.CloseOnComplete,
+					)
+				}
+			}
+		})
+	}
+}
+
 func TestLoadConfigParsesValidSections(t *testing.T) {
 	t.Parallel()
 
@@ -507,6 +646,27 @@ batch_size = 0
 				t.Fatalf("unexpected error\nwant substring: %q\ngot: %v", tt.wantErr, err)
 			}
 		})
+	}
+}
+
+func TestLoadConfigRejectsExecCloseOnComplete(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[exec]
+close_on_complete = true
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected error for unsupported exec.close_on_complete")
+	}
+	if !strings.Contains(err.Error(), "exec.close_on_complete") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "not supported") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

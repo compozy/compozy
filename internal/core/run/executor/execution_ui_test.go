@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -65,6 +66,46 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 	}
 	if ui.shutdownCalls != 0 {
 		t.Fatalf("expected normal completion not to force UI shutdown, got %d calls", ui.shutdownCalls)
+	}
+}
+
+func TestExecutorClosesUIOnCompleteWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	ui := newFakeUISession()
+	done := make(chan struct{})
+	close(done)
+
+	controller := &executorController{
+		ctx: context.Background(),
+		execCtx: &jobExecutionContext{
+			ctx:    context.Background(),
+			total:  1,
+			ui:     ui,
+			cfg:    &config{CloseOnComplete: true},
+			logger: slog.Default(),
+		},
+		done: done,
+	}
+
+	ui.waitRelease <- nil
+
+	_, _, _, err := controller.awaitCompletion()
+	if err != nil {
+		t.Fatalf("awaitCompletion with CloseOnComplete=true: %v", err)
+	}
+
+	if ui.closeEventsCalls != 1 {
+		t.Fatalf(
+			"expected CloseOnComplete=true to close events, got %d close calls",
+			ui.closeEventsCalls,
+		)
+	}
+	if ui.shutdownCalls != 1 {
+		t.Fatalf(
+			"expected CloseOnComplete=true to shut down UI, got %d shutdown calls",
+			ui.shutdownCalls,
+		)
 	}
 }
 

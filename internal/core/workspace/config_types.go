@@ -26,6 +26,7 @@ type RuntimeOverrides struct {
 	TailLines              *int      `toml:"tail_lines"`
 	AddDirs                *[]string `toml:"add_dirs"`
 	AutoCommit             *bool     `toml:"auto_commit"`
+	CloseOnComplete        *bool     `toml:"close_on_complete"`
 	MaxRetries             *int      `toml:"max_retries"`
 	RetryBackoffMultiplier *float64  `toml:"retry_backoff_multiplier"`
 }
@@ -34,6 +35,7 @@ type DefaultsConfig RuntimeOverrides
 
 type StartConfig struct {
 	IncludeCompleted *bool `toml:"include_completed"`
+	CloseOnComplete  *bool `toml:"close_on_complete"`
 }
 
 type TasksConfig struct {
@@ -44,6 +46,7 @@ type FixReviewsConfig struct {
 	Concurrent      *int  `toml:"concurrent"`
 	BatchSize       *int  `toml:"batch_size"`
 	IncludeResolved *bool `toml:"include_resolved"`
+	CloseOnComplete *bool `toml:"close_on_complete"`
 }
 
 type FetchReviewsConfig struct {

@@ -8,17 +8,18 @@ import (
 )
 
 type reviewPromptContext struct {
-	Name          string
-	Round         int
-	Provider      string
-	PR            string
-	ReviewsDir    string
-	CodeFiles     []string
-	BatchIssues   []model.IssueEntry
-	AutoCommit    bool
-	MinIssue      int
-	MaxIssue      int
-	HasIssueRange bool
+	Name            string
+	Round           int
+	Provider        string
+	PR              string
+	ReviewsDir      string
+	CodeFiles       []string
+	BatchIssues     []model.IssueEntry
+	AutoCommit      bool
+	CloseOnComplete bool
+	MinIssue        int
+	MaxIssue        int
+	HasIssueRange   bool
 }
 
 func buildCodeReviewPrompt(p BatchParams) string {
@@ -26,17 +27,18 @@ func buildCodeReviewPrompt(p BatchParams) string {
 	batchIssues := FlattenAndSortIssues(p.BatchGroups, model.ExecutionModePRReview)
 	minIssue, maxIssue, hasIssueRange := batchIssueRange(batchIssues)
 	ctx := reviewPromptContext{
-		Name:          p.Name,
-		Round:         p.Round,
-		Provider:      p.Provider,
-		PR:            p.PR,
-		ReviewsDir:    p.ReviewsDir,
-		CodeFiles:     codeFiles,
-		BatchIssues:   batchIssues,
-		AutoCommit:    p.AutoCommit,
-		MinIssue:      minIssue,
-		MaxIssue:      maxIssue,
-		HasIssueRange: hasIssueRange,
+		Name:            p.Name,
+		Round:           p.Round,
+		Provider:        p.Provider,
+		PR:              p.PR,
+		ReviewsDir:      p.ReviewsDir,
+		CodeFiles:       codeFiles,
+		BatchIssues:     batchIssues,
+		AutoCommit:      p.AutoCommit,
+		CloseOnComplete: p.CloseOnComplete,
+		MinIssue:        minIssue,
+		MaxIssue:        maxIssue,
+		HasIssueRange:   hasIssueRange,
 	}
 
 	sections := []string{
@@ -102,6 +104,14 @@ func buildReviewScopeSection(ctx reviewPromptContext) string {
 		fmt.Fprintf(&sb, "  - `%s`\n", codeFile)
 	}
 	sb.WriteString("</batch_scope>")
+	if ctx.CloseOnComplete {
+		sb.WriteString("\n\n<automation_mode>\n")
+		sb.WriteString("This run is operating in automation-oriented mode (--close-on-complete).\n")
+		sb.WriteString("The process will exit automatically when the run finishes or needs user input.\n")
+		sb.WriteString("This mode is intended for CI pipelines and autonomous agents.\n")
+		sb.WriteString("The default interactive workflow remains unchanged when this flag is not set.\n")
+		sb.WriteString("</automation_mode>")
+	}
 	return sb.String()
 }
 

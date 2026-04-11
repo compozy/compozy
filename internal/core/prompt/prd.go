@@ -17,7 +17,12 @@ type WorkflowMemoryContext struct {
 	TaskNeedsCompaction     bool
 }
 
-func buildPRDTaskPrompt(task model.IssueEntry, autoCommit bool, memory *WorkflowMemoryContext) string {
+func buildPRDTaskPrompt(
+	task model.IssueEntry,
+	autoCommit bool,
+	closeOnComplete bool,
+	memory *WorkflowMemoryContext,
+) string {
 	taskData, err := tasks.ParseTaskFile(task.Content)
 	if err != nil {
 		taskData = model.TaskEntry{Content: task.Content, Status: "UNCONFIRMED"}
@@ -30,6 +35,7 @@ func buildPRDTaskPrompt(task model.IssueEntry, autoCommit bool, memory *Workflow
 		buildTaskContextSection(taskData),
 		buildPRDRequiredSkillsSection(),
 		buildPRDExecutionRulesSection(prdDir, autoCommit),
+		buildAutomationModeSection(closeOnComplete),
 		buildWorkflowMemorySection(memory),
 		fmt.Sprintf("## Task Specification\n\n%s", task.Content),
 		buildTaskFilesSection(task.AbsPath, tasksFile, prdDir, autoCommit),
@@ -113,6 +119,21 @@ func buildWorkflowMemorySection(memory *WorkflowMemoryContext) string {
 			fmt.Fprintf(&sb, "- Current task memory is over its soft limit: `%s`\n", memory.TaskPath)
 		}
 	}
+	return sb.String()
+}
+
+func buildAutomationModeSection(closeOnComplete bool) string {
+	if !closeOnComplete {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<automation_mode>\n")
+	sb.WriteString("This run is operating in automation-oriented mode (--close-on-complete).\n")
+	sb.WriteString("The process will exit automatically when the run finishes or needs user input.\n")
+	sb.WriteString("This mode is intended for CI pipelines and autonomous agents.\n")
+	sb.WriteString("The default interactive workflow remains unchanged when this flag is not set.\n")
+	sb.WriteString("</automation_mode>")
 	return sb.String()
 }
 

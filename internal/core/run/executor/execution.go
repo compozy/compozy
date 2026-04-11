@@ -175,13 +175,21 @@ func (j *jobExecutionContext) runtimeLogger() *slog.Logger {
 	return runtimeLogger(false)
 }
 
+func (j *jobExecutionContext) finalizeUIOnCompletion(closeOnComplete bool) error {
+	if j.ui == nil {
+		return nil
+	}
+	if !closeOnComplete {
+		return j.ui.Wait()
+	}
+	j.logger.Debug("close-on-complete enabled, shutting down UI after normal completion")
+	return j.shutdownUI()
+}
+
 func (j *jobExecutionContext) awaitUIAfterCompletion() error {
 	if j.ui == nil {
 		return nil
 	}
-	// Normal completion must leave the event adapter running until the operator
-	// exits the completed cockpit. Closing it early can drop the final
-	// session/job completion events and leave the UI visually stuck in RUNNING.
 	return j.ui.Wait()
 }
 

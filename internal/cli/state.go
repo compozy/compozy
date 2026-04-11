@@ -29,6 +29,7 @@ type workflowIdentity struct {
 type runtimeConfig struct {
 	dryRun           bool
 	autoCommit       bool
+	closeOnComplete  bool
 	concurrent       int
 	batchSize        int
 	ide              string
@@ -149,7 +150,8 @@ func newCommandStateWithDefaults(kind commandKind, mode core.Mode, defaults comm
 }
 
 type commonFlagOptions struct {
-	includeConcurrent bool
+	includeConcurrent      bool
+	includeCloseOnComplete bool
 }
 
 func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOptions) {
@@ -221,6 +223,14 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		1.5,
 		"Multiplier applied to the next activity timeout after each retry",
 	)
+	if opts.includeCloseOnComplete {
+		cmd.Flags().BoolVar(
+			&state.closeOnComplete,
+			"close-on-complete",
+			false,
+			"Exit automatically when the run finishes or needs user input; intended for CI pipelines and autonomous agents",
+		)
+	}
 }
 
 func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {
@@ -228,8 +238,14 @@ func (s *commandState) maybeCollectInteractiveParams(cmd *cobra.Command) error {
 		return nil
 	}
 
-	// newCommandStateWithDefaults wires these callbacks, but tests and focused
-	// helpers also construct commandState directly.
+	if s.closeOnComplete {
+		return fmt.Errorf(
+			"%s requires explicit flags when --close-on-complete is enabled; "+
+				"interactive parameter collection is not available in automation mode",
+			cmd.CommandPath(),
+		)
+	}
+
 	isInteractive := s.isInteractive
 	if isInteractive == nil {
 		isInteractive = isInteractiveTerminal
@@ -275,6 +291,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 
 		DryRun:           s.dryRun,
 		AutoCommit:       s.autoCommit,
+		CloseOnComplete:  s.closeOnComplete,
 		Concurrent:       s.concurrent,
 		BatchSize:        s.batchSize,
 		IDE:              core.IDE(s.ide),

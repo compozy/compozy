@@ -142,7 +142,7 @@ complexity: low
 `,
 	}
 
-	promptText := buildPRDTaskPrompt(task, false, &WorkflowMemoryContext{
+	promptText := buildPRDTaskPrompt(task, false, false, &WorkflowMemoryContext{
 		Directory:    "/tmp/.compozy/tasks/demo/memory",
 		WorkflowPath: "/tmp/.compozy/tasks/demo/memory/MEMORY.md",
 		TaskPath:     "/tmp/.compozy/tasks/demo/memory/task_1.md",
@@ -198,7 +198,7 @@ complexity: medium
 `,
 	}
 
-	withAutoCommit := buildPRDTaskPrompt(task, true, nil)
+	withAutoCommit := buildPRDTaskPrompt(task, true, false, nil)
 	if !strings.Contains(
 		withAutoCommit,
 		"Create one local commit after clean verification, self-review, and tracking updates.",
@@ -206,7 +206,7 @@ complexity: medium
 		t.Fatalf("expected auto-commit prompt to include local commit instructions")
 	}
 
-	withoutAutoCommit := buildPRDTaskPrompt(task, false, nil)
+	withoutAutoCommit := buildPRDTaskPrompt(task, false, false, nil)
 	if strings.Contains(
 		withoutAutoCommit,
 		"Create one local commit after clean verification, self-review, and tracking updates.",
@@ -235,7 +235,7 @@ complexity: low
 `,
 	}
 
-	promptText := buildPRDTaskPrompt(task, false, &WorkflowMemoryContext{
+	promptText := buildPRDTaskPrompt(task, false, false, &WorkflowMemoryContext{
 		Directory:               "/tmp/.compozy/tasks/demo/memory",
 		WorkflowPath:            "/tmp/.compozy/tasks/demo/memory/MEMORY.md",
 		TaskPath:                "/tmp/.compozy/tasks/demo/memory/task_3.md",
@@ -410,5 +410,196 @@ func TestFlattenAndSortIssues(t *testing.T) {
 		[]string{"issue_002.md", "issue_010.md"},
 	) {
 		t.Fatalf("unexpected review ordering: %#v", got)
+	}
+}
+
+func TestPRDPromptIncludesAutomationMessagingWhenCloseOnCompleteEnabled(t *testing.T) {
+	t.Parallel()
+
+	task := model.IssueEntry{
+		Name:    "task_1.md",
+		AbsPath: "/tmp/.compozy/tasks/demo/task_1.md",
+		Content: `---
+status: pending
+title: Example
+type: backend
+complexity: low
+---
+
+# Task 1: Example
+`,
+	}
+
+	promptText := buildPRDTaskPrompt(task, false, true, nil)
+
+	requiredSnippets := []string{
+		"<automation_mode>",
+		"automation-oriented mode (--close-on-complete)",
+		"intended for CI pipelines and autonomous agents",
+		"exit automatically when the run finishes or needs user input",
+		"default interactive workflow remains unchanged",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(promptText, snippet) {
+			t.Fatalf("expected PRD prompt to include %q", snippet)
+		}
+	}
+}
+
+func TestPRDPromptOmitsAutomationMessagingWhenCloseOnCompleteDisabled(t *testing.T) {
+	t.Parallel()
+
+	task := model.IssueEntry{
+		Name:    "task_1.md",
+		AbsPath: "/tmp/.compozy/tasks/demo/task_1.md",
+		Content: `---
+status: pending
+title: Example
+type: backend
+complexity: low
+---
+
+# Task 1: Example
+`,
+	}
+
+	promptText := buildPRDTaskPrompt(task, false, false, nil)
+
+	if strings.Contains(promptText, "<automation_mode>") {
+		t.Fatalf("expected PRD prompt to omit automation_mode section when closeOnComplete is false")
+	}
+	if strings.Contains(promptText, "close-on-complete") {
+		t.Fatalf("expected PRD prompt to omit close-on-complete reference when flag is disabled")
+	}
+}
+
+func TestReviewPromptIncludesAutomationMessagingWhenCloseOnCompleteEnabled(t *testing.T) {
+	t.Parallel()
+
+	promptText := buildCodeReviewPrompt(BatchParams{
+		Name:            "my-feature",
+		Round:           1,
+		Provider:        "coderabbit",
+		PR:              "259",
+		ReviewsDir:      "/tmp/.compozy/tasks/my-feature/reviews-001",
+		AutoCommit:      true,
+		CloseOnComplete: true,
+		Mode:            model.ExecutionModePRReview,
+		BatchGroups: map[string][]model.IssueEntry{
+			"internal/app/service.go": {
+				{
+					Name:     "issue_003.md",
+					AbsPath:  "/tmp/.compozy/tasks/my-feature/reviews-001/issue_003.md",
+					CodeFile: "internal/app/service.go",
+				},
+			},
+		},
+	})
+
+	requiredSnippets := []string{
+		"<automation_mode>",
+		"automation-oriented mode (--close-on-complete)",
+		"intended for CI pipelines and autonomous agents",
+		"exit automatically when the run finishes or needs user input",
+		"default interactive workflow remains unchanged",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(promptText, snippet) {
+			t.Fatalf("expected review prompt to include %q", snippet)
+		}
+	}
+}
+
+func TestReviewPromptOmitsAutomationMessagingWhenCloseOnCompleteDisabled(t *testing.T) {
+	t.Parallel()
+
+	promptText := buildCodeReviewPrompt(BatchParams{
+		Name:       "my-feature",
+		Round:      1,
+		Provider:   "coderabbit",
+		PR:         "259",
+		ReviewsDir: "/tmp/.compozy/tasks/my-feature/reviews-001",
+		AutoCommit: true,
+		Mode:       model.ExecutionModePRReview,
+		BatchGroups: map[string][]model.IssueEntry{
+			"internal/app/service.go": {
+				{
+					Name:     "issue_003.md",
+					AbsPath:  "/tmp/.compozy/tasks/my-feature/reviews-001/issue_003.md",
+					CodeFile: "internal/app/service.go",
+				},
+			},
+		},
+	})
+
+	if strings.Contains(promptText, "<automation_mode>") {
+		t.Fatalf("expected review prompt to omit automation_mode section when closeOnComplete is false")
+	}
+	if strings.Contains(promptText, "close-on-complete") {
+		t.Fatalf("expected review prompt to omit close-on-complete reference when flag is disabled")
+	}
+}
+
+func TestPRDPromptAutomationMessagingDoesNotReintroduceLegacyWording(t *testing.T) {
+	t.Parallel()
+
+	task := model.IssueEntry{
+		Name:    "task_1.md",
+		AbsPath: "/tmp/.compozy/tasks/demo/task_1.md",
+		Content: `---
+status: pending
+title: Example
+type: backend
+complexity: low
+---
+
+# Task 1: Example
+`,
+	}
+
+	promptText := buildPRDTaskPrompt(task, false, true, nil)
+
+	forbiddenSnippets := []string{
+		"headless mode",
+		"non-interactive mode",
+		"daemon",
+		"background process",
+	}
+	for _, snippet := range forbiddenSnippets {
+		if strings.Contains(promptText, snippet) {
+			t.Fatalf("expected PRD prompt to omit legacy wording %q", snippet)
+		}
+	}
+}
+
+func TestReviewPromptAutomationMessagingDoesNotReintroduceLegacyWording(t *testing.T) {
+	t.Parallel()
+
+	promptText := buildCodeReviewPrompt(BatchParams{
+		Name:            "my-feature",
+		Round:           1,
+		CloseOnComplete: true,
+		Mode:            model.ExecutionModePRReview,
+		BatchGroups: map[string][]model.IssueEntry{
+			"internal/app/service.go": {
+				{
+					Name:     "issue_003.md",
+					AbsPath:  "/tmp/.compozy/tasks/my-feature/reviews-001/issue_003.md",
+					CodeFile: "internal/app/service.go",
+				},
+			},
+		},
+	})
+
+	forbiddenSnippets := []string{
+		"headless mode",
+		"non-interactive mode",
+		"daemon",
+		"background process",
+	}
+	for _, snippet := range forbiddenSnippets {
+		if strings.Contains(promptText, snippet) {
+			t.Fatalf("expected review prompt to omit legacy wording %q", snippet)
+		}
 	}
 }

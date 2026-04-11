@@ -628,6 +628,64 @@ func TestJobExecutionContextUICleanupHelpers(t *testing.T) {
 	}
 }
 
+func TestFinalizeUIOnCompletionCloseDisabled(t *testing.T) {
+	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
+	execCtx := &jobExecutionContext{
+		ctx:    context.Background(),
+		ui:     ui,
+		logger: slog.Default(),
+	}
+
+	if err := execCtx.finalizeUIOnCompletion(false); err != nil {
+		t.Fatalf("finalizeUIOnCompletion(false): %v", err)
+	}
+	if ui.closeEventsCalls != 0 {
+		t.Fatalf("expected no CloseEvents call when CloseOnComplete=false, got %d", ui.closeEventsCalls)
+	}
+	if ui.shutdownCalls != 0 {
+		t.Fatalf("expected no Shutdown call when CloseOnComplete=false, got %d", ui.shutdownCalls)
+	}
+	if ui.waitCalls != 1 {
+		t.Fatalf("expected exactly one Wait call when CloseOnComplete=false, got %d", ui.waitCalls)
+	}
+}
+
+func TestFinalizeUIOnCompletionCloseEnabled(t *testing.T) {
+	ui := &fakeLifecycleUISession{eventsCh: make(chan uiMsg)}
+	execCtx := &jobExecutionContext{
+		ctx:    context.Background(),
+		ui:     ui,
+		logger: slog.Default(),
+	}
+
+	if err := execCtx.finalizeUIOnCompletion(true); err != nil {
+		t.Fatalf("finalizeUIOnCompletion(true): %v", err)
+	}
+	if ui.closeEventsCalls != 1 {
+		t.Fatalf("expected CloseEvents to be called once when CloseOnComplete=true, got %d", ui.closeEventsCalls)
+	}
+	if ui.shutdownCalls != 1 {
+		t.Fatalf("expected Shutdown to be called once when CloseOnComplete=true, got %d", ui.shutdownCalls)
+	}
+	if ui.waitCalls != 1 {
+		t.Fatalf("expected exactly one Wait call when CloseOnComplete=true, got %d", ui.waitCalls)
+	}
+}
+
+func TestFinalizeUIOnCompletionNilUI(t *testing.T) {
+	execCtx := &jobExecutionContext{
+		ctx:    context.Background(),
+		logger: slog.Default(),
+	}
+
+	if err := execCtx.finalizeUIOnCompletion(false); err != nil {
+		t.Fatalf("finalizeUIOnCompletion(false) with nil UI: %v", err)
+	}
+	if err := execCtx.finalizeUIOnCompletion(true); err != nil {
+		t.Fatalf("finalizeUIOnCompletion(true) with nil UI: %v", err)
+	}
+}
+
 func TestExecutorControllerAwaitCompletionAndCancelPaths(t *testing.T) {
 	done := make(chan struct{})
 	close(done)

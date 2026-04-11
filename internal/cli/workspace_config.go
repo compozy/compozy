@@ -61,13 +61,21 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 
 	switch s.kind {
 	case commandKindStart:
+		applyConfig(cmd, "close-on-complete", cfg.Defaults.CloseOnComplete, func(val bool) { s.closeOnComplete = val })
 		applyConfig(
 			cmd,
 			"include-completed",
 			cfg.Start.IncludeCompleted,
 			func(val bool) { s.includeCompleted = val },
 		)
+		applyConfig(
+			cmd,
+			"close-on-complete",
+			cfg.Start.CloseOnComplete,
+			func(val bool) { s.closeOnComplete = val },
+		)
 	case commandKindFixReviews:
+		applyConfig(cmd, "close-on-complete", cfg.Defaults.CloseOnComplete, func(val bool) { s.closeOnComplete = val })
 		applyConfig(cmd, "concurrent", cfg.FixReviews.Concurrent, func(val int) { s.concurrent = val })
 		applyConfig(cmd, "batch-size", cfg.FixReviews.BatchSize, func(val int) { s.batchSize = val })
 		applyConfig(
@@ -75,6 +83,12 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			"include-resolved",
 			cfg.FixReviews.IncludeResolved,
 			func(val bool) { s.includeResolved = val },
+		)
+		applyConfig(
+			cmd,
+			"close-on-complete",
+			cfg.FixReviews.CloseOnComplete,
+			func(val bool) { s.closeOnComplete = val },
 		)
 	case commandKindFetchReviews:
 		applyConfig(cmd, "provider", cfg.FetchReviews.Provider, func(val string) { s.provider = val })

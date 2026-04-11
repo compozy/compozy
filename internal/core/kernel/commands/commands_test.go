@@ -327,6 +327,9 @@ func assertRuntimeConfig(t *testing.T, got *model.RuntimeConfig, want core.Confi
 	if got.AutoCommit != want.AutoCommit {
 		t.Fatalf("unexpected auto commit: %v", got.AutoCommit)
 	}
+	if got.CloseOnComplete != want.CloseOnComplete {
+		t.Fatalf("unexpected close on complete: %v", got.CloseOnComplete)
+	}
 	if got.Concurrent != want.Concurrent {
 		t.Fatalf("unexpected concurrent: %d", got.Concurrent)
 	}
@@ -414,6 +417,7 @@ func testCoreConfig() core.Config {
 		TasksDir:               "/workspace/.compozy/tasks/demo",
 		DryRun:                 true,
 		AutoCommit:             true,
+		CloseOnComplete:        true,
 		Concurrent:             2,
 		BatchSize:              1,
 		IDE:                    core.IDECodex,
