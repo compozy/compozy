@@ -41,7 +41,7 @@ func TestTypedHookRegistrationCoversAllPublicHookBuilders(t *testing.T) {
 	ext.OnRunPreShutdown(zeroObserverHandler[extension.RunPreShutdownPayload]())
 	ext.OnRunPostShutdown(zeroObserverHandler[extension.RunPostShutdownPayload]())
 	ext.OnReviewPreFetch(zeroMutableHandler[extension.ReviewPreFetchPayload, extension.FetchConfigPatch]())
-	ext.OnReviewPostFetch(zeroMutableHandler[extension.ReviewPostFetchPayload, extension.EntriesPatch]())
+	ext.OnReviewPostFetch(zeroMutableHandler[extension.ReviewPostFetchPayload, extension.IssuesPatch]())
 	ext.OnReviewPreBatch(zeroMutableHandler[extension.ReviewPreBatchPayload, extension.GroupsPatch]())
 	ext.OnReviewPostFix(zeroObserverHandler[extension.ReviewPostFixPayload]())
 	ext.OnReviewPreResolve(zeroMutableHandler[extension.ReviewPreResolvePayload, extension.ResolveDecisionPatch]())

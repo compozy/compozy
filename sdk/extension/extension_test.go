@@ -209,6 +209,81 @@ func TestOnPromptPostBuildReceivesPayloadAndReturnsPatch(t *testing.T) {
 	shutdownHarness(ctx, t, harness, errCh)
 }
 
+func TestOnReviewPostFetchReceivesIssuesAndReturnsIssuesPatch(t *testing.T) {
+	t.Parallel()
+
+	const name = "sdk-ext"
+	const version = "1.0.0"
+	seen := make(chan extension.ReviewPostFetchPayload, 1)
+	ext := extension.New(name, version).
+		WithCapabilities(extension.CapabilityReviewMutate).
+		OnReviewPostFetch(func(
+			_ context.Context,
+			_ extension.HookContext,
+			payload extension.ReviewPostFetchPayload,
+		) (extension.IssuesPatch, error) {
+			seen <- payload
+			mutated := append([]extension.IssueEntry(nil), payload.Issues...)
+			mutated = append(mutated, extension.IssueEntry{Name: "issue_002.md"})
+			return extension.IssuesPatch{Issues: &mutated}, nil
+		})
+
+	harness, ctx, cancel, errCh := runHarnessedExtension(t, ext, exttesting.HarnessOptions{
+		GrantedCapabilities: []extension.Capability{extension.CapabilityReviewMutate},
+	})
+	defer cancel()
+
+	if _, err := harness.Initialize(ctx, extension.InitializeRequestIdentity{
+		Name:    name,
+		Version: version,
+		Source:  "workspace",
+	}); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	response, err := harness.DispatchHook(
+		ctx,
+		"hook-review-001",
+		extension.HookInfo{
+			Name:      "review.post_fetch",
+			Event:     extension.HookReviewPostFetch,
+			Mutable:   true,
+			Required:  false,
+			Priority:  500,
+			TimeoutMS: 5000,
+		},
+		extension.ReviewPostFetchPayload{
+			RunID: "run-001",
+			PR:    "123",
+			Issues: []extension.IssueEntry{
+				{Name: "issue_001.md"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("DispatchHook() error = %v", err)
+	}
+
+	var patch extension.IssuesPatch
+	if err := json.Unmarshal(response.Patch, &patch); err != nil {
+		t.Fatalf("unmarshal patch: %v", err)
+	}
+	if patch.Issues == nil || len(*patch.Issues) != 2 {
+		t.Fatalf("patch issues = %#v, want 2 issues", patch.Issues)
+	}
+
+	select {
+	case payload := <-seen:
+		if len(payload.Issues) != 1 || payload.Issues[0].Name != "issue_001.md" {
+			t.Fatalf("handler payload issues = %#v, want one original issue", payload.Issues)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for review.post_fetch payload")
+	}
+
+	shutdownHarness(ctx, t, harness, errCh)
+}
+
 func TestOnEventFilterReceivesOnlyDeclaredKinds(t *testing.T) {
 	t.Parallel()
 

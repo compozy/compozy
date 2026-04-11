@@ -282,9 +282,9 @@ func invokingCommandForMode(mode model.ExecutionMode) string {
 	case model.ExecutionModeExec:
 		return executionModeLabelExec
 	case model.ExecutionModePRReview:
-		return "fix-reviews"
+		return invokingCommandFixReviews
 	default:
-		return "start"
+		return invokingCommandStart
 	}
 }
 

@@ -35,7 +35,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version setup link-skills
+.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version setup link-skills build-extension-sdks publish-extension-sdks
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -77,6 +77,13 @@ build: check-go-version
 	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
+
+build-extension-sdks:
+	npm run build --workspace @compozy/extension-sdk --workspace @compozy/create-extension
+
+publish-extension-sdks:
+	npm publish --workspace @compozy/extension-sdk
+	npm publish --workspace @compozy/create-extension
 
 install: build
 	$(GOCMD) install -ldflags "$(LDFLAGS)" ./cmd/compozy
@@ -132,6 +139,7 @@ test-nocache:
 help:
 	@echo "Available targets:"
 	@echo "  make build          - Build the compozy binary"
+	@echo "  make build-extension-sdks - Build the npm extension SDK and scaffolder packages"
 	@echo "  make install        - Build and install to GOPATH/bin"
 	@echo "  make test           - Run tests with race detector"
 	@echo "  make lint           - Run golangci-lint"
@@ -141,6 +149,7 @@ help:
 	@echo "  make tidy           - Tidy Go modules"
 	@echo "  make clean          - Remove build artifacts"
 	@echo "  make setup          - Full setup (check Go version + deps)"
+	@echo "  make publish-extension-sdks - Publish the npm extension SDK and scaffolder packages"
 	@echo "  make test-coverage  - Run tests with coverage"
 	@echo "  make test-nocache   - Run tests without cache"
 	@echo "  make help           - Show this help"

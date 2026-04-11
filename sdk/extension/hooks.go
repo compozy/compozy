@@ -209,6 +209,11 @@ type EntriesPatch struct {
 	Entries *[]IssueEntry `json:"entries,omitempty"`
 }
 
+// IssuesPatch replaces one review issue slice.
+type IssuesPatch struct {
+	Issues *[]IssueEntry `json:"issues,omitempty"`
+}
+
 // GroupsPatch replaces one grouped issue map.
 type GroupsPatch struct {
 	Groups *map[string][]IssueEntry `json:"groups,omitempty"`

@@ -1,0 +1,9 @@
+{
+    "name": "__PACKAGE_NAME__",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "node --check ./test/*.test.js",
+        "test": "node --test ./test/*.test.js"
+    }
+}

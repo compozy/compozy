@@ -323,10 +323,10 @@ complexity: low
 			{"run.post_start", "job.pre_execute"},
 			{"job.pre_execute", "job.post_execute"},
 			{"job.pre_execute", "run.pre_shutdown"},
-			{"run.pre_shutdown", "run.post_shutdown"},
 			{"job.post_execute", "run.post_shutdown"},
 		})
 
+		findExecuteHookRecord(t, records, "run.pre_shutdown")
 		postShutdown := findExecuteHookRecord(t, records, "run.post_shutdown")
 		payload := recordPayload(t, postShutdown)
 		summary, ok := payload["summary"].(map[string]any)

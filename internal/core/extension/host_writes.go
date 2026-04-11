@@ -37,11 +37,11 @@ func (s *HostServices) handleRuns(
 	if s == nil || s.ops == nil {
 		return nil, fmt.Errorf("handle host runs: missing kernel ops")
 	}
-	if verb != "start" {
+	if verb != invokingCommandStart {
 		return nil, NewMethodNotFoundError("host.runs." + verb)
 	}
 
-	req, err := decodeHostParams[RunStartRequest]("host.runs.start", params)
+	req, err := decodeHostParams[RunStartRequest]("host.runs."+invokingCommandStart, params)
 	if err != nil {
 		return nil, err
 	}

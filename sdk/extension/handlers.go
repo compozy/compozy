@@ -214,7 +214,7 @@ func (e *Extension) OnReviewPreFetch(
 
 // OnReviewPostFetch registers the review.post_fetch handler.
 func (e *Extension) OnReviewPostFetch(
-	handler func(context.Context, HookContext, ReviewPostFetchPayload) (EntriesPatch, error),
+	handler func(context.Context, HookContext, ReviewPostFetchPayload) (IssuesPatch, error),
 ) *Extension {
 	return registerMutableHook(e, HookReviewPostFetch, handler)
 }
