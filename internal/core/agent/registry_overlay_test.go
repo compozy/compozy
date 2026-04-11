@@ -92,6 +92,33 @@ func TestActivateOverlayParsesQuotedCommandAndMetadataArgs(t *testing.T) {
 	}
 }
 
+func TestActivateOverlayPreservesBackslashesInsideDoubleQuotedArgs(t *testing.T) {
+	restore, err := ActivateOverlay([]OverlayEntry{
+		{
+			Name:    "windows-adapter",
+			Command: `"C:\Program Files\Tool\tool.exe" --serve`,
+			Metadata: map[string]string{
+				"fixed_args": `"C:\Program Files\Tool\config.json"`,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("activate windows ACP overlay: %v", err)
+	}
+	defer restore()
+
+	spec, err := lookupAgentSpec("windows-adapter")
+	if err != nil {
+		t.Fatalf("lookup windows overlay spec: %v", err)
+	}
+	if spec.Command != `C:\Program Files\Tool\tool.exe` {
+		t.Fatalf("unexpected windows overlay command: %q", spec.Command)
+	}
+	if want := []string{`C:\Program Files\Tool\config.json`}; !reflect.DeepEqual(spec.FixedArgs, want) {
+		t.Fatalf("unexpected windows fixed args\nwant: %#v\ngot:  %#v", want, spec.FixedArgs)
+	}
+}
+
 func TestActivateOverlayRejectsUnterminatedQuotedArgs(t *testing.T) {
 	_, err := ActivateOverlay([]OverlayEntry{{
 		Name:    "broken-adapter",

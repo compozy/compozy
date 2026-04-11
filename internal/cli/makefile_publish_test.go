@@ -9,19 +9,83 @@ import (
 )
 
 func TestPublishExtensionSDKsTargetRequiresVerificationAndPublicAccess(t *testing.T) {
-	makefile := readRepoMakefile(t)
+	t.Parallel()
 
-	if !strings.Contains(makefile, "publish-extension-sdks: verify build-extension-sdks") {
-		t.Fatalf("expected publish target to depend on verify and build-extension-sdks\nMakefile:\n%s", makefile)
+	makefile := readRepoMakefile(t)
+	prereqs := mustMakeTargetPrereqs(t, makefile, "publish-extension-sdks")
+
+	prerequisiteTests := []struct {
+		name string
+		want string
+	}{
+		{name: "Should depend on verify", want: "verify"},
+		{name: "Should depend on build-extension-sdks", want: "build-extension-sdks"},
 	}
-	for _, want := range []string{
-		"npm publish --workspace @compozy/extension-sdk --access public",
-		"npm publish --workspace @compozy/create-extension --access public",
-	} {
-		if !strings.Contains(makefile, want) {
-			t.Fatalf("expected Makefile to contain %q\nMakefile:\n%s", want, makefile)
+	for _, tt := range prerequisiteTests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if _, ok := prereqs[tt.want]; !ok {
+				t.Fatalf(
+					"expected target %q prerequisites to include %q\nPrerequisites: %#v\nMakefile:\n%s",
+					"publish-extension-sdks",
+					tt.want,
+					prereqs,
+					makefile,
+				)
+			}
+		})
+	}
+
+	publishTests := []struct {
+		name string
+		want string
+	}{
+		{
+			name: "Should publish @compozy/extension-sdk publicly",
+			want: "npm publish --workspace @compozy/extension-sdk --access public",
+		},
+		{
+			name: "Should publish @compozy/create-extension publicly",
+			want: "npm publish --workspace @compozy/create-extension --access public",
+		},
+	}
+	for _, tt := range publishTests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if !strings.Contains(makefile, tt.want) {
+				t.Fatalf("expected Makefile to contain %q\nMakefile:\n%s", tt.want, makefile)
+			}
+		})
+	}
+}
+
+func mustMakeTargetPrereqs(t *testing.T, makefile string, target string) map[string]struct{} {
+	t.Helper()
+
+	for _, line := range strings.Split(makefile, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || strings.HasPrefix(trimmed, "\t") {
+			continue
 		}
+
+		name, deps, ok := strings.Cut(trimmed, ":")
+		if !ok || strings.TrimSpace(name) != target {
+			continue
+		}
+
+		prereqs := make(map[string]struct{})
+		for _, dep := range strings.Fields(deps) {
+			prereqs[dep] = struct{}{}
+		}
+		return prereqs
 	}
+
+	t.Fatalf("expected Makefile target %q\nMakefile:\n%s", target, makefile)
+	return nil
 }
 
 func readRepoMakefile(t *testing.T) string {

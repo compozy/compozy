@@ -686,12 +686,12 @@ func (c *clientImpl) waitForProcess() {
 	}
 	err := process.Wait()
 
-	if err == nil {
-		c.failOpenSessions(errors.New("ACP agent process exited before all sessions completed"))
-		return
-	}
 	if process.Forced() {
 		c.failOpenSessions(context.Canceled)
+		return
+	}
+	if err == nil {
+		c.failOpenSessions(errors.New("ACP agent process exited before all sessions completed"))
 		return
 	}
 	c.failOpenSessions(err)

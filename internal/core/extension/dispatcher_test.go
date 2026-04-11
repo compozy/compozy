@@ -84,10 +84,10 @@ func TestDispatchMutableFeedsMutatedPayloadThroughChain(t *testing.T) {
 		t.Fatalf("DispatchMutable() error = %v", err)
 	}
 
-	if got := <-firstSeen; got != "base" {
+	if got := mustReceiveString(t, firstSeen, time.Second, "first extension"); got != "base" {
 		t.Fatalf("first extension saw %q, want %q", got, "base")
 	}
-	if got := <-secondSeen; got != "base-one" {
+	if got := mustReceiveString(t, secondSeen, time.Second, "second extension"); got != "base-one" {
 		t.Fatalf("second extension saw %q, want %q", got, "base-one")
 	}
 	if got := promptTextFromPayload(t, result); got != "base-one-two" {
@@ -389,6 +389,20 @@ func TestApplyHookPatchRejectsInvalidPatchShape(t *testing.T) {
 	if err == nil {
 		t.Fatal("applyHookPatch() error = nil, want failure")
 	}
+	if !strings.Contains(err.Error(), "decode hook patch") {
+		t.Fatalf("applyHookPatch() error = %q, want decode hook patch context", err.Error())
+	}
+
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		t.Fatalf("applyHookPatch() error = %T, want wrapped *json.UnmarshalTypeError", err)
+	}
+	if typeErr.Value != "string" {
+		t.Fatalf("unmarshal error value = %q, want %q", typeErr.Value, "string")
+	}
+	if got := typeErr.Type.String(); got != "map[string]json.RawMessage" {
+		t.Fatalf("unmarshal error type = %q, want %q", got, "map[string]json.RawMessage")
+	}
 }
 
 func TestDecodeJSONLikeHandlesPointerAndInterfaceTemplates(t *testing.T) {
@@ -516,6 +530,21 @@ func TestDispatchMutableIntegrationOptionalMiddleFailure(t *testing.T) {
 
 type fakeExtensionCaller struct {
 	handler func(ctx context.Context, request executeHookRequest) (json.RawMessage, error)
+}
+
+func mustReceiveString(t *testing.T, ch <-chan string, timeout time.Duration, label string) string {
+	t.Helper()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case got := <-ch:
+		return got
+	case <-timer.C:
+		t.Fatalf("%s was not called", label)
+		return ""
+	}
 }
 
 func (f *fakeExtensionCaller) Call(ctx context.Context, method string, params any, result any) error {

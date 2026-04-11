@@ -869,6 +869,53 @@ func TestClientKillForceTerminatesSubprocess(t *testing.T) {
 	}
 }
 
+func TestWaitForProcessTreatsForcedExitAsCancellation(t *testing.T) {
+	t.Parallel()
+
+	scenarioJSON, err := json.Marshal(helperScenario{})
+	if err != nil {
+		t.Fatalf("marshal helper scenario: %v", err)
+	}
+
+	process, err := subprocess.Launch(context.Background(), subprocess.LaunchConfig{
+		Command:         []string{os.Args[0], "-test.run=TestACPHelperProcess", "--"},
+		Env:             append(os.Environ(), "GO_WANT_ACP_HELPER_PROCESS=1", "GO_ACP_SCENARIO="+string(scenarioJSON)),
+		WaitErrorPrefix: "wait for process test helper",
+	})
+	if err != nil {
+		t.Fatalf("launch helper process: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = process.Kill()
+	})
+
+	workingDir := t.TempDir()
+	session := newSessionWithAccess("sess-wait", workingDir, []string{workingDir})
+	client := &clientImpl{
+		process:  process,
+		sessions: map[string]*sessionImpl{session.id: session},
+	}
+
+	client.wg.Add(1)
+	go client.waitForProcess()
+
+	if err := process.Kill(); err != nil {
+		t.Fatalf("kill helper process: %v", err)
+	}
+
+	select {
+	case <-session.Done():
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for session shutdown after forced process exit")
+	}
+
+	if !errors.Is(session.Err(), context.Canceled) {
+		t.Fatalf("session.Err() = %v, want context.Canceled", session.Err())
+	}
+
+	client.wg.Wait()
+}
+
 func TestClientHelperMethods(t *testing.T) {
 	t.Parallel()
 
@@ -1495,7 +1542,22 @@ func (m *agentHookManager) DispatchMutableHook(
 	if mutate == nil {
 		return input, nil
 	}
-	return mutate(input)
+
+	roundTripped, err := roundTripHookPayload(input)
+	if err != nil {
+		return nil, fmt.Errorf("round-trip hook input: %w", err)
+	}
+
+	mutated, err := mutate(roundTripped)
+	if err != nil {
+		return nil, err
+	}
+
+	roundTripped, err = roundTripHookPayload(mutated)
+	if err != nil {
+		return nil, fmt.Errorf("round-trip hook output: %w", err)
+	}
+	return roundTripped, nil
 }
 
 func (m *agentHookManager) DispatchObserverHook(_ context.Context, hook string, payload any) {
@@ -1503,4 +1565,30 @@ func (m *agentHookManager) DispatchObserverHook(_ context.Context, hook string, 
 	defer m.mu.Unlock()
 	m.observerHooks = append(m.observerHooks, hook)
 	m.observerPayloads = append(m.observerPayloads, payload)
+}
+
+func roundTripHookPayload(value any) (any, error) {
+	if value == nil {
+		return nil, nil
+	}
+
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("marshal hook payload: %w", err)
+	}
+
+	valueType := reflect.TypeOf(value)
+	if valueType.Kind() == reflect.Ptr {
+		target := reflect.New(valueType.Elem())
+		if err := json.Unmarshal(raw, target.Interface()); err != nil {
+			return nil, fmt.Errorf("unmarshal hook payload: %w", err)
+		}
+		return target.Interface(), nil
+	}
+
+	target := reflect.New(valueType)
+	if err := json.Unmarshal(raw, target.Interface()); err != nil {
+		return nil, fmt.Errorf("unmarshal hook payload: %w", err)
+	}
+	return target.Elem().Interface(), nil
 }

@@ -249,19 +249,24 @@ func splitOverlayWords(raw string) ([]string, error) {
 }
 
 type overlayWordParser struct {
-	parts         []string
-	current       strings.Builder
-	inSingleQuote bool
-	inDoubleQuote bool
-	escaped       bool
+	parts                []string
+	current              strings.Builder
+	inSingleQuote        bool
+	inDoubleQuote        bool
+	escaped              bool
+	escapedInDoubleQuote bool
 }
 
 func (p *overlayWordParser) handleEscapedRune(r rune) bool {
 	if !p.escaped {
 		return false
 	}
+	if p.escapedInDoubleQuote && !isDoubleQuoteEscapable(r) {
+		p.current.WriteRune('\\')
+	}
 	p.current.WriteRune(r)
 	p.escaped = false
+	p.escapedInDoubleQuote = false
 	return true
 }
 
@@ -274,7 +279,17 @@ func (p *overlayWordParser) handleEscapeStart(r rune) bool {
 		return true
 	}
 	p.escaped = true
+	p.escapedInDoubleQuote = p.inDoubleQuote
 	return true
+}
+
+func isDoubleQuoteEscapable(r rune) bool {
+	switch r {
+	case '"', '\\', '$', '`':
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *overlayWordParser) handleQuoteRune(r rune) bool {
