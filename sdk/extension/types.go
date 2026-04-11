@@ -254,12 +254,26 @@ type BatchParams struct {
 	Memory      *WorkflowMemoryContext  `json:"memory,omitempty"`
 }
 
+// MCPServer mirrors one stdio-backed MCP server attachment.
+type MCPServer struct {
+	Stdio *MCPServerStdio
+}
+
+// MCPServerStdio mirrors the stdio MCP server transport fields.
+type MCPServerStdio struct {
+	Name    string
+	Command string
+	Args    []string
+	Env     map[string]string
+}
+
 // SessionRequest mirrors the mutable create-session payload delivered to agent
 // hooks.
 type SessionRequest struct {
 	Prompt     []byte            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
 
@@ -270,6 +284,7 @@ type ResumeSessionRequest struct {
 	Prompt     []byte            `json:"prompt,omitempty"`
 	WorkingDir string            `json:"working_dir,omitempty"`
 	Model      string            `json:"model,omitempty"`
+	MCPServers []MCPServer       `json:"mcp_servers,omitempty"`
 	ExtraEnv   map[string]string `json:"extra_env,omitempty"`
 }
 
@@ -295,6 +310,7 @@ type Job struct {
 	SafeName      string
 	Prompt        []byte
 	SystemPrompt  string
+	MCPServers    []MCPServer
 	OutPromptPath string
 	OutLog        string
 	ErrLog        string
@@ -321,6 +337,14 @@ type JobResult struct {
 	Error      string `json:"error,omitempty"`
 }
 
+// ExplicitRuntimeFlags mirrors which runtime flags were explicitly overridden.
+type ExplicitRuntimeFlags struct {
+	IDE             bool
+	Model           bool
+	ReasoningEffort bool
+	AccessMode      bool
+}
+
 // RuntimeConfig mirrors the run configuration payload exposed to run hooks.
 type RuntimeConfig struct {
 	WorkspaceRoot              string
@@ -341,6 +365,8 @@ type RuntimeConfig struct {
 	TailLines                  int
 	ReasoningEffort            string
 	AccessMode                 string
+	AgentName                  string
+	ExplicitRuntime            ExplicitRuntimeFlags
 	Mode                       ExecutionMode
 	OutputFormat               OutputFormat
 	Verbose                    bool

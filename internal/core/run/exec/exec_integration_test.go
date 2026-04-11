@@ -463,7 +463,7 @@ func TestExecuteExecWithSelectedAgentResolvesRuntimeAndCanonicalSystemPrompt(t *
 		ExplicitRuntime: model.ExplicitRuntimeFlags{
 			Model: true,
 		},
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("execute exec with selected agent: %v", err)
 	}

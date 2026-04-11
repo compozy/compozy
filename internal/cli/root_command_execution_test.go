@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/agent"
-	extensions "github.com/compozy/compozy/internal/core/extension"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
+	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"

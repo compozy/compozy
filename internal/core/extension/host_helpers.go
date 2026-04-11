@@ -29,10 +29,16 @@ const (
 	hostPromptTemplateBuild          = "build"
 	hostPromptTemplateSystemAddendum = "system_addendum"
 	defaultHostAPITimeout            = 30 * time.Second
+	taskStatusPending                = "pending"
 )
 
 var (
-	validTaskStatuses     = map[string]struct{}{"pending": {}, "in_progress": {}, "completed": {}, "blocked": {}}
+	validTaskStatuses = map[string]struct{}{
+		taskStatusPending: {},
+		"in_progress":     {},
+		"completed":       {},
+		"blocked":         {},
+	}
 	validTaskComplexities = map[string]struct{}{"low": {}, "medium": {}, "high": {}, "critical": {}}
 )
 
@@ -595,7 +601,7 @@ func (o *defaultKernelOps) normalizeTaskFrontmatter(
 		Dependencies: normalizeDependencies(frontmatter.Dependencies),
 	}
 	if normalized.Status == "" {
-		normalized.Status = "pending"
+		normalized.Status = taskStatusPending
 	}
 	if _, ok := validTaskStatuses[normalized.Status]; !ok {
 		return TaskFrontmatter{}, subprocess.NewInvalidParams(map[string]any{

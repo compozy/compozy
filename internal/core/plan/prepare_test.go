@@ -270,7 +270,7 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 		TasksDir:      issuesDir,
 		BatchSize:     5,
 		Mode:          model.ExecutionModePRDTasks,
-	}, groups, runArtifacts, nil)
+	}, groups, runArtifacts, nil, nil)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -365,7 +365,7 @@ func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
 		Round:         7,
 		BatchSize:     3,
 		Mode:          model.ExecutionModePRReview,
-	}, groups, runArtifacts, nil)
+	}, groups, runArtifacts, nil, nil)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}
@@ -468,7 +468,7 @@ func TestPrepareJobsWithSelectedAgentAppendsCanonicalSystemPrompt(t *testing.T) 
 		t.Fatalf("resolve execution context: %v", err)
 	}
 
-	jobs, err := prepareJobs(cfg, groups, runArtifacts, agentExecution)
+	jobs, err := prepareJobs(context.Background(), cfg, groups, runArtifacts, nil, agentExecution)
 	if err != nil {
 		t.Fatalf("prepareJobs: %v", err)
 	}

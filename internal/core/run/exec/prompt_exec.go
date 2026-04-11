@@ -43,7 +43,7 @@ func ExecutePreparedPrompt(
 		return PreparedPromptResult{}, err
 	}
 
-	state, err := prepareExecRunState(ctx, cfg)
+	state, err := prepareExecRunState(ctx, cfg, nil)
 	if err != nil {
 		return PreparedPromptResult{}, err
 	}

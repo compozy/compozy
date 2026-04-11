@@ -479,25 +479,9 @@ func buildBatchJob(
 		JobID:       safeName,
 		RuntimeMgr:  manager,
 	}
-	if cfg.Mode == model.ExecutionModePRDTasks {
-		if len(batchIssues) == 0 {
-			return model.Job{}, errors.New("prepare prd job: missing task issue")
-		}
-		taskData, err = tasks.ParseTaskFile(batchIssues[0].Content)
-		if err != nil {
-			return model.Job{}, tasks.WrapParseError(batchIssues[0].AbsPath, err)
-		}
-		memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
-		if err != nil {
-			return model.Job{}, fmt.Errorf("prepare memory for %s: %w", batchIssues[0].AbsPath, err)
-		}
-		params.Memory = &prompt.WorkflowMemoryContext{
-			Directory:               memoryCtx.Directory,
-			WorkflowPath:            memoryCtx.Workflow.Path,
-			TaskPath:                memoryCtx.Task.Path,
-			WorkflowNeedsCompaction: memoryCtx.Workflow.NeedsCompaction,
-			TaskNeedsCompaction:     memoryCtx.Task.NeedsCompaction,
-		}
+	taskData, err = prepareBatchTaskContext(cfg, batchIssues, &params)
+	if err != nil {
+		return model.Job{}, err
 	}
 
 	promptText, err := prompt.Build(params)
@@ -539,6 +523,36 @@ func buildBatchJob(
 		OutLog:        outLog,
 		ErrLog:        errLog,
 	}, nil
+}
+
+func prepareBatchTaskContext(
+	cfg *model.RuntimeConfig,
+	batchIssues []model.IssueEntry,
+	params *prompt.BatchParams,
+) (model.TaskEntry, error) {
+	if cfg.Mode != model.ExecutionModePRDTasks {
+		return model.TaskEntry{}, nil
+	}
+	if len(batchIssues) == 0 {
+		return model.TaskEntry{}, errors.New("prepare prd job: missing task issue")
+	}
+
+	taskData, err := tasks.ParseTaskFile(batchIssues[0].Content)
+	if err != nil {
+		return model.TaskEntry{}, tasks.WrapParseError(batchIssues[0].AbsPath, err)
+	}
+	memoryCtx, err := memory.Prepare(cfg.TasksDir, batchIssues[0].Name)
+	if err != nil {
+		return model.TaskEntry{}, fmt.Errorf("prepare memory for %s: %w", batchIssues[0].AbsPath, err)
+	}
+	params.Memory = &prompt.WorkflowMemoryContext{
+		Directory:               memoryCtx.Directory,
+		WorkflowPath:            memoryCtx.Workflow.Path,
+		TaskPath:                memoryCtx.Task.Path,
+		WorkflowNeedsCompaction: memoryCtx.Workflow.NeedsCompaction,
+		TaskNeedsCompaction:     memoryCtx.Task.NeedsCompaction,
+	}
+	return taskData, nil
 }
 
 func buildExecJob(
