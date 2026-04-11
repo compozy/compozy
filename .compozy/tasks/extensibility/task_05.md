@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Hook dispatcher and Host API router
 type: backend
 complexity: medium
@@ -37,12 +37,12 @@ Implement the two RPC glue layers that sit between the Compozy runtime and exten
 </requirements>
 
 ## Subtasks
-- [ ] 05.1 Implement `HookDispatcher` construction from a registry of extensions plus their declared hooks, producing a per-event priority-sorted chain.
-- [ ] 05.2 Implement `DispatchMutable` with chain-of-responsibility semantics, per-extension timeouts, capability checks, and audit entries.
-- [ ] 05.3 Implement `DispatchObserver` with fan-out concurrent dispatch and best-effort delivery (no chain, no mutation).
-- [ ] 05.4 Implement `HostAPIRouter` with `RegisterService` and `Handle` methods; `Handle` routes on the `host.<namespace>.<verb>` prefix.
-- [ ] 05.5 Implement standard error responses (`-32601 method_not_found`, `-32001 capability_denied`, `-32003 not_initialized`, `-32004 shutdown_in_progress`) per `_protocol.md` section 10.
-- [ ] 05.6 Write tests covering chain ordering, tiebreak, required/optional failure modes, observer fan-out, and router error codes.
+- [x] 05.1 Implement `HookDispatcher` construction from a registry of extensions plus their declared hooks, producing a per-event priority-sorted chain.
+- [x] 05.2 Implement `DispatchMutable` with chain-of-responsibility semantics, per-extension timeouts, capability checks, and audit entries.
+- [x] 05.3 Implement `DispatchObserver` with fan-out concurrent dispatch and best-effort delivery (no chain, no mutation).
+- [x] 05.4 Implement `HostAPIRouter` with `RegisterService` and `Handle` methods; `Handle` routes on the `host.<namespace>.<verb>` prefix.
+- [x] 05.5 Implement standard error responses (`-32601 method_not_found`, `-32001 capability_denied`, `-32003 not_initialized`, `-32004 shutdown_in_progress`) per `_protocol.md` section 10.
+- [x] 05.6 Write tests covering chain ordering, tiebreak, required/optional failure modes, observer fan-out, and router error codes.
 
 ## Implementation Details
 See TechSpec "Implementation Design → Core Interfaces" for the dispatcher type signatures, "System Architecture → Data Flow → Hook dispatch (mutable)" for the runtime flow, `_protocol.md` section 6 for the hook dispatch wire contract, `_protocol.md` section 10 for the error model, and ADR-004 for the priority ordering rationale.
@@ -83,20 +83,20 @@ The dispatcher and router must both depend on an `ExtensionCaller` interface tha
 
 ## Tests
 - Unit tests:
-  - [ ] Chain construction orders extensions ascending by priority with alphabetical tiebreak on equal priority.
-  - [ ] `DispatchMutable` passes the mutated payload from one extension to the next in chain order.
-  - [ ] `DispatchMutable` returns the final mutated payload after the last extension in the chain.
-  - [ ] A required extension returning an error aborts the chain and propagates the error with the extension name attached.
-  - [ ] An optional extension returning an error is logged and skipped; the chain continues with the value it had before the failing extension.
-  - [ ] A hook timeout produces a deadline-exceeded error wrapped with the extension name.
-  - [ ] `DispatchObserver` fans out concurrently to all subscribers and does not block when one subscriber is slow.
-  - [ ] `HostAPIRouter.Handle` returns `-32601 method_not_found` for an unregistered namespace.
-  - [ ] `HostAPIRouter.Handle` returns `-32001 capability_denied` when the capability check fails.
-  - [ ] `HostAPIRouter.Handle` returns `-32003 not_initialized` when called before the manager marks the extension Ready.
-  - [ ] Every `DispatchMutable`, `DispatchObserver`, and `HostAPIRouter.Handle` call produces an audit record.
+  - [x] Chain construction orders extensions ascending by priority with alphabetical tiebreak on equal priority.
+  - [x] `DispatchMutable` passes the mutated payload from one extension to the next in chain order.
+  - [x] `DispatchMutable` returns the final mutated payload after the last extension in the chain.
+  - [x] A required extension returning an error aborts the chain and propagates the error with the extension name attached.
+  - [x] An optional extension returning an error is logged and skipped; the chain continues with the value it had before the failing extension.
+  - [x] A hook timeout produces a deadline-exceeded error wrapped with the extension name.
+  - [x] `DispatchObserver` fans out concurrently to all subscribers and does not block when one subscriber is slow.
+  - [x] `HostAPIRouter.Handle` returns `-32601 method_not_found` for an unregistered namespace.
+  - [x] `HostAPIRouter.Handle` returns `-32001 capability_denied` when the capability check fails.
+  - [x] `HostAPIRouter.Handle` returns `-32003 not_initialized` when called before the manager marks the extension Ready.
+  - [x] Every `DispatchMutable`, `DispatchObserver`, and `HostAPIRouter.Handle` call produces an audit record.
 - Integration tests:
-  - [ ] Three-extension chain with priorities 100, 500, 900 on `prompt.post_build` produces the expected final prompt when each extension appends a suffix.
-  - [ ] The middle extension failing as optional leaves the first and third extensions' contributions in the final result.
+  - [x] Three-extension chain with priorities 100, 500, 900 on `prompt.post_build` produces the expected final prompt when each extension appends a suffix.
+  - [x] The middle extension failing as optional leaves the first and third extensions' contributions in the final result.
 - Test coverage target: >=80%
 - All tests must pass
 

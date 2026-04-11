@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Go SDK sdk/extension package
 type: backend
 complexity: high
@@ -35,13 +35,13 @@ Ship the public Go SDK that extension authors import to build Compozy extensions
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Create `sdk/extension/` package with `Extension` struct, builder API, and `Start()` entry point.
-- [ ] 14.2 Implement the initialize handshake client: send, receive, validate, track accepted capabilities.
-- [ ] 14.3 Implement handler registration for `execute_hook` with per-event typed registration (`OnPromptPostBuild`, `OnRunPostShutdown`, etc.) plus a generic `Handle(event, handler)` fallback.
-- [ ] 14.4 Implement handler registration for `on_event` with a filter API.
-- [ ] 14.5 Implement the `HostAPI` client covering all eleven Host API methods with strongly typed request/response structs.
-- [ ] 14.6 Implement `MockTransport` and an in-process `TestHarness` for author unit tests.
-- [ ] 14.7 Write tests for the SDK itself: handshake, handler dispatch, Host API client, mock transport, and test harness.
+- [x] 14.1 Create `sdk/extension/` package with `Extension` struct, builder API, and `Start()` entry point.
+- [x] 14.2 Implement the initialize handshake client: send, receive, validate, track accepted capabilities.
+- [x] 14.3 Implement handler registration for `execute_hook` with per-event typed registration (`OnPromptPostBuild`, `OnRunPostShutdown`, etc.) plus a generic `Handle(event, handler)` fallback.
+- [x] 14.4 Implement handler registration for `on_event` with a filter API.
+- [x] 14.5 Implement the `HostAPI` client covering all eleven Host API methods with strongly typed request/response structs.
+- [x] 14.6 Implement `MockTransport` and an in-process `TestHarness` for author unit tests.
+- [x] 14.7 Write tests for the SDK itself: handshake, handler dispatch, Host API client, mock transport, and test harness.
 
 ## Implementation Details
 See TechSpec "Implementation Design → Core Interfaces" for the target SDK shape and `_protocol.md` sections 4, 5, 6, 7, 8, 9 for the wire contract the SDK must implement.
@@ -87,20 +87,20 @@ Design principle: an author should be able to write a working "hello world" exte
 
 ## Tests
 - Unit tests:
-  - [ ] `Extension.Start()` sends an initialize request and processes the response.
-  - [ ] `Extension.Start()` rejects a response with an unsupported protocol version.
-  - [ ] `Extension.Start()` rejects a response whose accepted capabilities exceed the granted set.
-  - [ ] `OnPromptPostBuild` handler receives the `PromptPostBuildPayload` and its patch is sent back in the response.
-  - [ ] `OnEvent` handler filter receives only the event kinds declared in the filter list.
-  - [ ] `HostAPI.Tasks.Create` round-trips through the mock transport with the correct JSON-RPC method and params.
-  - [ ] `HostAPI.Runs.Start` returns the new run id and parent chain from a mock host response.
-  - [ ] `HostAPI.Memory.Read` returns `exists: false` and `content: ""` when the mock host says the document is absent.
-  - [ ] `HostAPI.Artifacts.Write` returns `path_out_of_scope` when the mock host rejects the path.
-  - [ ] `MockTransport` correlates requests and responses by `id` and tolerates out-of-order delivery.
-  - [ ] `TestHarness` simulates a hook dispatch and the extension's handler runs to completion.
+  - [x] `Extension.Start()` sends an initialize request and processes the response.
+  - [x] `Extension.Start()` rejects a response with an unsupported protocol version.
+  - [x] `Extension.Start()` rejects a response whose accepted capabilities exceed the granted set.
+  - [x] `OnPromptPostBuild` handler receives the `PromptPostBuildPayload` and its patch is sent back in the response.
+  - [x] `OnEvent` handler filter receives only the event kinds declared in the filter list.
+  - [x] `HostAPI.Tasks.Create` round-trips through the mock transport with the correct JSON-RPC method and params.
+  - [x] `HostAPI.Runs.Start` returns the new run id and parent chain from a mock host response.
+  - [x] `HostAPI.Memory.Read` returns `exists: false` and `content: ""` when the mock host says the document is absent.
+  - [x] `HostAPI.Artifacts.Write` returns `path_out_of_scope` when the mock host rejects the path.
+  - [x] `MockTransport` correlates requests and responses by `id` and tolerates out-of-order delivery.
+  - [x] `TestHarness` simulates a hook dispatch and the extension's handler runs to completion.
 - Integration tests:
-  - [ ] A minimal extension written against the SDK completes initialize → execute_hook → host.tasks.list → shutdown against the in-process test harness.
-  - [ ] The same extension compiled to a binary and spawned by the runtime extension manager (from task 08) completes the same lifecycle end-to-end over real stdio.
+  - [x] A minimal extension written against the SDK completes initialize → execute_hook → host.tasks.list → shutdown against the in-process test harness.
+  - [x] The same extension compiled to a binary and spawned by the runtime extension manager (from task 08) completes the same lifecycle end-to-end over real stdio.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Job, run, review, and artifact phase hook dispatches
 type: backend
 complexity: high
@@ -34,11 +34,11 @@ Insert the remaining 12 hook dispatches covering job execution, run lifetime, th
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Insert `job.pre_execute`, `job.post_execute`, and `job.pre_retry` in the executor's per-job loop in `internal/core/run/executor/execution.go`.
-- [ ] 11.2 Insert `run.pre_start`, `run.post_start`, `run.pre_shutdown`, and `run.post_shutdown` in the executor's top-level run flow.
-- [ ] 11.3 Insert the five review hooks in the fix-reviews command flow (locate the orchestration file; likely under `internal/cli` or `internal/core/run` for the fix-reviews path).
-- [ ] 11.4 Insert `artifact.pre_write` and `artifact.post_write` in the artifact writer path used by `host.artifacts.write` and other kernel writers.
-- [ ] 11.5 Add tests covering each hook with a mock extension that records or mutates payloads.
+- [x] 11.1 Insert `job.pre_execute`, `job.post_execute`, and `job.pre_retry` in the executor's per-job loop in `internal/core/run/executor/execution.go`.
+- [x] 11.2 Insert `run.pre_start`, `run.post_start`, `run.pre_shutdown`, and `run.post_shutdown` in the executor's top-level run flow.
+- [x] 11.3 Insert the five review hooks in the fix-reviews command flow (locate the orchestration file; likely under `internal/cli` or `internal/core/run` for the fix-reviews path).
+- [x] 11.4 Insert `artifact.pre_write` and `artifact.post_write` in the artifact writer path used by `host.artifacts.write` and other kernel writers.
+- [x] 11.5 Add tests covering each hook with a mock extension that records or mutates payloads.
 
 ## Implementation Details
 See `_protocol.md` section 6.5 for the canonical payload and patch shapes per hook. See TechSpec "Impact Analysis" rows on `internal/core/run/executor` and `internal/cli/commands.go` for the affected files.
@@ -78,15 +78,15 @@ Key invariants:
 
 ## Tests
 - Unit tests:
-  - [ ] With the manager nil, the executor loop and fix-reviews flow produce exactly the same output as before this task.
-  - [ ] A mock extension returning `job.pre_retry.proceed = false` cancels the retry and marks the job permanently failed.
-  - [ ] A mock extension returning `review.pre_resolve.resolve = false` prevents the resolution thread from being posted.
-  - [ ] A mock extension returning `artifact.pre_write.cancel = true` prevents the file from being written and the caller receives the documented error.
-  - [ ] `run.post_shutdown` fires exactly once per run with the final `RunSummary`.
-  - [ ] `job.post_execute` fires exactly once per job with the result payload.
+  - [x] With the manager nil, the executor loop and fix-reviews flow produce exactly the same output as before this task.
+  - [x] A mock extension returning `job.pre_retry.proceed = false` cancels the retry and marks the job permanently failed.
+  - [x] A mock extension returning `review.pre_resolve.resolve = false` prevents the resolution thread from being posted.
+  - [x] A mock extension returning `artifact.pre_write.cancel = true` prevents the file from being written and the caller receives the documented error.
+  - [x] `run.post_shutdown` fires exactly once per run with the final `RunSummary`.
+  - [x] `job.post_execute` fires exactly once per job with the result payload.
 - Integration tests:
-  - [ ] End-to-end `compozy fix-reviews` against a fixture PR with a mock extension participating in all five review hooks completes successfully and the extension's recorded payloads match the issues it should have seen.
-  - [ ] End-to-end `compozy start` run with a mock extension chain (priority 100, 500, 900) observes all `run.*` and `job.*` hook dispatches in order.
+  - [x] End-to-end `compozy fix-reviews` against a fixture PR with a mock extension participating in all five review hooks completes successfully and the extension's recorded payloads match the issues it should have seen.
+  - [x] End-to-end `compozy start` run with a mock extension chain (priority 100, 500, 900) observes all `run.*` and `job.*` hook dispatches in order.
 - Test coverage target: >=80%
 - All tests must pass
 

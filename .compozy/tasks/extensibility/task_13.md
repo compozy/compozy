@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Declarative asset integration for skill packs and provider overlays
 type: backend
 complexity: high
@@ -34,13 +34,13 @@ Wire the declarative assets discovered in task 03 into the runtime. Extension-pr
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Extend `internal/setup` with functions that materialize extension skill packs (`InstallExtensionSkillPacks`, `VerifyExtensionSkillPacks`) sharing the core install/verify abstractions.
-- [ ] 13.2 Extend `internal/cli/skills_preflight.go` so drift detection covers bundled plus extension-provided skills and handles the combined install flow.
-- [ ] 13.3 Introduce an overlay registry for `internal/core/provider` that wraps the base registry with extension-declared entries for the command's lifetime.
-- [ ] 13.4 Introduce an equivalent overlay for `internal/core/agent/registry_launch` entries so declarative ACP adapters work.
-- [ ] 13.5 Hook the overlay assembly into command bootstrap so every relevant command consumes the same overlay snapshot.
-- [ ] 13.6 Extend `compozy ext doctor` to report skill-pack drift and provider overlay conflicts.
-- [ ] 13.7 Add tests that cover skill-pack install/verify, provider overlay resolution, and doctor drift reports.
+- [x] 13.1 Extend `internal/setup` with functions that materialize extension skill packs (`InstallExtensionSkillPacks`, `VerifyExtensionSkillPacks`) sharing the core install/verify abstractions.
+- [x] 13.2 Extend `internal/cli/skills_preflight.go` so drift detection covers bundled plus extension-provided skills and handles the combined install flow.
+- [x] 13.3 Introduce an overlay registry for `internal/core/provider` that wraps the base registry with extension-declared entries for the command's lifetime.
+- [x] 13.4 Introduce an equivalent overlay for `internal/core/agent/registry_launch` entries so declarative ACP adapters work.
+- [x] 13.5 Hook the overlay assembly into command bootstrap so every relevant command consumes the same overlay snapshot.
+- [x] 13.6 Extend `compozy ext doctor` to report skill-pack drift and provider overlay conflicts.
+- [x] 13.7 Add tests that cover skill-pack install/verify, provider overlay resolution, and doctor drift reports.
 
 ## Implementation Details
 See TechSpec "Data Flow → Provider resolution (non-run and pre-run commands)" for the overlay lifecycle and "Integration Points → Existing Compozy components touched" for the affected files.
@@ -87,17 +87,17 @@ Key invariants:
 
 ## Tests
 - Unit tests:
-  - [ ] `InstallExtensionSkillPacks` copies markdown files from an enabled extension's declared skill paths into the target agent skill directory.
-  - [ ] `VerifyExtensionSkillPacks` reports drift when a file exists on disk but has different content than the manifest-declared source.
-  - [ ] Disabled extensions contribute zero skill files.
-  - [ ] Provider `OverlayRegistry.Get(name)` returns the overlay entry when present and falls back to the base registry when absent.
-  - [ ] Base provider registry is not mutated when overlays are added.
-  - [ ] ACP runtime overlay resolves an extension-declared IDE adapter for `compozy start --ide <ext-adapter>`.
-  - [ ] `doctor` reports a warning when two enabled extensions declare the same review provider name.
+  - [x] `InstallExtensionSkillPacks` copies markdown files from an enabled extension's declared skill paths into the target agent skill directory.
+  - [x] `VerifyExtensionSkillPacks` reports drift when a file exists on disk but has different content than the manifest-declared source.
+  - [x] Disabled extensions contribute zero skill files.
+  - [x] Provider `OverlayRegistry.Get(name)` returns the overlay entry when present and falls back to the base registry when absent.
+  - [x] Base provider registry is not mutated when overlays are added.
+  - [x] ACP runtime overlay resolves an extension-declared IDE adapter for `compozy start --ide <ext-adapter>`.
+  - [x] `doctor` reports a warning when two enabled extensions declare the same review provider name.
 - Integration tests:
-  - [ ] A workspace extension that declares only a skill pack (no subprocess) is discovered, marked enabled, and its skills appear in the agent's skill directory after `skills_preflight` runs.
-  - [ ] A workspace extension that declares only a review provider (no subprocess) is discovered, marked enabled, and `compozy fetch-reviews --provider <ext-provider>` resolves to it.
-  - [ ] A disabled extension with a declared skill pack contributes no files to the agent's skill directory.
+  - [x] A workspace extension that declares only a skill pack (no subprocess) is discovered, marked enabled, and its skills appear in the agent's skill directory after `skills_preflight` runs.
+  - [x] A workspace extension that declares only a review provider (no subprocess) is discovered, marked enabled, and `compozy fetch-reviews --provider <ext-provider>` resolves to it.
+  - [x] A disabled extension with a declared skill pack contributes no files to the agent's skill directory.
 - Test coverage target: >=80%
 - All tests must pass
 

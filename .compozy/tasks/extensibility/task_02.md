@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Scaffold internal/core/extension package with manifest parser and enablement model
 type: backend
 complexity: medium
@@ -34,12 +34,12 @@ Create the new `internal/core/extension` package and implement the manifest pars
 </requirements>
 
 ## Subtasks
-- [ ] 02.1 Create the `internal/core/extension` package directory with a `doc.go` describing the package's purpose.
-- [ ] 02.2 Implement the `Manifest` and related types in a dedicated `manifest.go` file with TOML and JSON struct tags.
-- [ ] 02.3 Implement the manifest loader (`LoadManifest(ctx, dir)`) with TOML-first/JSON-fallback semantics and structured errors.
-- [ ] 02.4 Implement manifest validation covering required fields, capability taxonomy, hook event taxonomy, priority range, and `min_compozy_version` checks.
-- [ ] 02.5 Implement the operator-local enablement store: loader, saver, default policy per source, and explicit enable/disable mutators.
-- [ ] 02.6 Write table-driven unit tests for parser (valid/invalid TOML and JSON) and enablement store (default, enable, disable, persistence round-trip).
+- [x] 02.1 Create the `internal/core/extension` package directory with a `doc.go` describing the package's purpose.
+- [x] 02.2 Implement the `Manifest` and related types in a dedicated `manifest.go` file with TOML and JSON struct tags.
+- [x] 02.3 Implement the manifest loader (`LoadManifest(ctx, dir)`) with TOML-first/JSON-fallback semantics and structured errors.
+- [x] 02.4 Implement manifest validation covering required fields, capability taxonomy, hook event taxonomy, priority range, and `min_compozy_version` checks.
+- [x] 02.5 Implement the operator-local enablement store: loader, saver, default policy per source, and explicit enable/disable mutators.
+- [x] 02.6 Write table-driven unit tests for parser (valid/invalid TOML and JSON) and enablement store (default, enable, disable, persistence round-trip).
 
 ## Implementation Details
 See TechSpec "Implementation Design → Core Interfaces" for the `Manifest` shape and "Integration Points" for how the enablement store relates to CLI commands added later. See ADR-005 for the capability taxonomy and ADR-007 for the discovery and manifest rules.
@@ -80,18 +80,18 @@ The capability taxonomy must be represented as a typed set so later tasks (capab
 
 ## Tests
 - Unit tests:
-  - [ ] Loader returns a parsed manifest when only `extension.toml` is present.
-  - [ ] Loader returns a parsed manifest when only `extension.json` is present.
-  - [ ] Loader prefers `extension.toml` when both files exist and logs a warning about the ignored JSON file.
-  - [ ] Loader returns a structured error when neither file is present.
-  - [ ] Validator rejects an unknown capability name with a message naming the offending capability.
-  - [ ] Validator rejects an unknown hook event name with a message naming the offending event.
-  - [ ] Validator rejects `HookDeclaration.Priority` outside `[0, 1000]`.
-  - [ ] Validator rejects a manifest whose `min_compozy_version` is newer than the current `version.Version`.
-  - [ ] Enablement store defaults bundled source to `enabled = true`, user/workspace sources to `enabled = false`.
-  - [ ] Enablement store persists explicit enable/disable across process boundaries (round-trip via `t.TempDir()`).
+  - [x] Loader returns a parsed manifest when only `extension.toml` is present.
+  - [x] Loader returns a parsed manifest when only `extension.json` is present.
+  - [x] Loader prefers `extension.toml` when both files exist and logs a warning about the ignored JSON file.
+  - [x] Loader returns a structured error when neither file is present.
+  - [x] Validator rejects an unknown capability name with a message naming the offending capability.
+  - [x] Validator rejects an unknown hook event name with a message naming the offending event.
+  - [x] Validator rejects `HookDeclaration.Priority` outside `[0, 1000]`.
+  - [x] Validator rejects a manifest whose `min_compozy_version` is newer than the current `version.Version`.
+  - [x] Enablement store defaults bundled source to `enabled = true`, user/workspace sources to `enabled = false`.
+  - [x] Enablement store persists explicit enable/disable across process boundaries (round-trip via `t.TempDir()`).
 - Integration tests:
-  - [ ] Loader plus validator produces a usable `Manifest` from a realistic fixture with subprocess, security, hooks, resources, and providers sections.
+  - [x] Loader plus validator produces a usable `Manifest` from a realistic fixture with subprocess, security, hooks, resources, and providers sections.
 - Test coverage target: >=80%
 - All tests must pass
 

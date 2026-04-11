@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Early run-scope bootstrap kernel refactor
 type: refactor
 complexity: high
@@ -35,12 +35,12 @@ Refactor `internal/core/kernel` so that run artifacts, the run journal, the even
 </requirements>
 
 ## Subtasks
-- [ ] 07.1 Define `RunScope` and `OpenRunScopeOptions` types in a new file under `internal/core/extension` (or `internal/core/kernel` if placed on the kernel side) per TechSpec Core Interfaces guidance.
-- [ ] 07.2 Implement `OpenRunScope(ctx, cfg, opts)` that allocates run artifacts, opens the journal with `bus`, and (when `opts.EnableExecutableExtensions`) constructs the extension manager from discovery, capability, and dispatcher components.
-- [ ] 07.3 Update `internal/core/kernel/handlers.go` `realOperations.Prepare` to accept the `RunScope` and pass the manager into `plan.Prepare`.
-- [ ] 07.4 Update `plan.Prepare` signature to accept the manager (nilable). When nil, plan behaves exactly as today.
-- [ ] 07.5 Implement `RunScope.Close(ctx)` with ordered teardown: manager shutdown → journal close → bus close.
-- [ ] 07.6 Write tests covering the three-way disabled/enabled/nil-manager modes and the teardown ordering under context cancellation.
+- [x] 07.1 Define `RunScope` and `OpenRunScopeOptions` types in a new file under `internal/core/extension` (or `internal/core/kernel` if placed on the kernel side) per TechSpec Core Interfaces guidance.
+- [x] 07.2 Implement `OpenRunScope(ctx, cfg, opts)` that allocates run artifacts, opens the journal with `bus`, and (when `opts.EnableExecutableExtensions`) constructs the extension manager from discovery, capability, and dispatcher components.
+- [x] 07.3 Update `internal/core/kernel/handlers.go` `realOperations.Prepare` to accept the `RunScope` and pass the manager into `plan.Prepare`.
+- [x] 07.4 Update `plan.Prepare` signature to accept the manager (nilable). When nil, plan behaves exactly as today.
+- [x] 07.5 Implement `RunScope.Close(ctx)` with ordered teardown: manager shutdown → journal close → bus close.
+- [x] 07.6 Write tests covering the three-way disabled/enabled/nil-manager modes and the teardown ordering under context cancellation.
 
 ## Implementation Details
 See TechSpec "Implementation Design → Core Interfaces → Run-scope bootstrap" for the `RunScope` and `OpenRunScopeOptions` shape, "System Architecture → Data Flow → Run startup" for the startup sequence, and "Impact Analysis" for the list of affected kernel/plan files.
@@ -84,16 +84,16 @@ Key invariants:
 
 ## Tests
 - Unit tests:
-  - [ ] `OpenRunScope` with `EnableExecutableExtensions = false` returns a scope with artifacts, journal, bus, and `Manager == nil`.
-  - [ ] `OpenRunScope` with `EnableExecutableExtensions = true` and zero enabled extensions returns a scope with a non-nil empty manager.
-  - [ ] `OpenRunScope` with discovery returning enabled extensions returns a scope whose manager has those extensions registered but not yet started.
-  - [ ] `RunScope.Close` shuts down the manager (if present), then closes the journal, then closes the bus, in that order.
-  - [ ] `RunScope.Close` is safe to call when the manager is nil.
-  - [ ] `RunScope.Close` returns context deadline exceeded when shutdown exceeds the deadline and escalates cleanup.
-  - [ ] Updated `plan.Prepare` with `manager == nil` produces exactly the same output as the current implementation on a fixture workflow.
+  - [x] `OpenRunScope` with `EnableExecutableExtensions = false` returns a scope with artifacts, journal, bus, and `Manager == nil`.
+  - [x] `OpenRunScope` with `EnableExecutableExtensions = true` and zero enabled extensions returns a scope with a non-nil empty manager.
+  - [x] `OpenRunScope` with discovery returning enabled extensions returns a scope whose manager has those extensions registered but not yet started.
+  - [x] `RunScope.Close` shuts down the manager (if present), then closes the journal, then closes the bus, in that order.
+  - [x] `RunScope.Close` is safe to call when the manager is nil.
+  - [x] `RunScope.Close` returns context deadline exceeded when shutdown exceeds the deadline and escalates cleanup.
+  - [x] Updated `plan.Prepare` with `manager == nil` produces exactly the same output as the current implementation on a fixture workflow.
 - Integration tests:
-  - [ ] `runStartHandler.Handle` on a fixture workflow with `EnableExecutableExtensions = false` still produces the same run artifacts as before this task.
-  - [ ] `runStartHandler.Handle` on a fixture workflow with `EnableExecutableExtensions = true` produces the same run artifacts plus a run-scoped audit log file.
+  - [x] `runStartHandler.Handle` on a fixture workflow with `EnableExecutableExtensions = false` still produces the same run artifacts as before this task.
+  - [x] `runStartHandler.Handle` on a fixture workflow with `EnableExecutableExtensions = true` produces the same run artifacts plus a run-scoped audit log file.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI management commands and local enablement state
 type: backend
 complexity: high
@@ -35,12 +35,12 @@ Add the `compozy ext` subcommand group that lets operators list, inspect, instal
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Create `internal/cli/extension/` package and register the `ext` subcommand group on the root command.
-- [ ] 12.2 Implement `list` and `inspect` commands in a shared `display.go` file.
-- [ ] 12.3 Implement `install` and `uninstall` commands in an `install.go` file with capability-confirmation prompt and `--yes` flag.
-- [ ] 12.4 Implement `enable` and `disable` commands in an `enablement.go` file that talk to the enablement store from task 02.
-- [ ] 12.5 Implement `doctor` in a `doctor.go` file covering manifest validation, priority tie warnings, and unused capability warnings.
-- [ ] 12.6 Add tests covering each command happy path plus the most important failure modes.
+- [x] 12.1 Create `internal/cli/extension/` package and register the `ext` subcommand group on the root command.
+- [x] 12.2 Implement `list` and `inspect` commands in a shared `display.go` file.
+- [x] 12.3 Implement `install` and `uninstall` commands in an `install.go` file with capability-confirmation prompt and `--yes` flag.
+- [x] 12.4 Implement `enable` and `disable` commands in an `enablement.go` file that talk to the enablement store from task 02.
+- [x] 12.5 Implement `doctor` in a `doctor.go` file covering manifest validation, priority tie warnings, and unused capability warnings.
+- [x] 12.6 Add tests covering each command happy path plus the most important failure modes.
 
 ## Implementation Details
 See TechSpec "Implementation Design → API Endpoints → CLI management surface" for the command table, "Integration Points → Trust/enablement" for the default-disabled policy, and ADR-007 for the discovery precedence rules.
@@ -85,21 +85,21 @@ Key invariants:
 
 ## Tests
 - Unit tests:
-  - [ ] `list` with zero extensions prints an empty table and exits zero.
-  - [ ] `list` with one bundled, one user, one workspace extension prints three rows with the correct source labels and enabled states.
-  - [ ] `inspect <name>` prints the manifest file path, parsed manifest sections, and any override records.
-  - [ ] `inspect <unknown>` returns a non-zero exit and a human-readable error.
-  - [ ] `install <path>` requires confirmation unless `--yes` is passed.
-  - [ ] `install <path>` with `--yes` copies the directory and records default-disabled state for user scope.
-  - [ ] `uninstall <bundled>` refuses with a clear message.
-  - [ ] `uninstall <workspace>` refuses with a clear message.
-  - [ ] `uninstall <user>` removes the directory and the local state entry.
-  - [ ] `enable <name>` marks the extension enabled in the local state.
-  - [ ] `disable <name>` marks the extension disabled in the local state.
-  - [ ] `doctor` warns when two extensions share the same `prompt.post_build` priority on the same hook.
-  - [ ] `doctor` warns when an extension declares `tasks.create` capability but has no hook or Host API call exercising it (detected heuristically from the manifest).
+  - [x] `list` with zero extensions prints an empty table and exits zero.
+  - [x] `list` with one bundled, one user, one workspace extension prints three rows with the correct source labels and enabled states.
+  - [x] `inspect <name>` prints the manifest file path, parsed manifest sections, and any override records.
+  - [x] `inspect <unknown>` returns a non-zero exit and a human-readable error.
+  - [x] `install <path>` requires confirmation unless `--yes` is passed.
+  - [x] `install <path>` with `--yes` copies the directory and records default-disabled state for user scope.
+  - [x] `uninstall <bundled>` refuses with a clear message.
+  - [x] `uninstall <workspace>` refuses with a clear message.
+  - [x] `uninstall <user>` removes the directory and the local state entry.
+  - [x] `enable <name>` marks the extension enabled in the local state.
+  - [x] `disable <name>` marks the extension disabled in the local state.
+  - [x] `doctor` warns when two extensions share the same `prompt.post_build` priority on the same hook.
+  - [x] `doctor` warns when an extension declares `tasks.create` capability but has no hook or Host API call exercising it (detected heuristically from the manifest).
 - Integration tests:
-  - [ ] Full round trip: `install` → `enable` → `list` shows enabled → `disable` → `list` shows disabled → `uninstall` → `list` no longer shows the extension.
+  - [x] Full round trip: `install` → `enable` → `list` shows enabled → `disable` → `list` shows disabled → `uninstall` → `list` no longer shows the extension.
 - Test coverage target: >=80%
 - All tests must pass
 
