@@ -6,6 +6,8 @@ import (
 )
 
 func TestExtractDeclaredProvidersGroupsByCategory(t *testing.T) {
+	t.Parallel()
+
 	entry := DiscoveredExtension{
 		Ref: Ref{
 			Name:   "asset-ext",
@@ -49,6 +51,8 @@ func TestExtractDeclaredProvidersGroupsByCategory(t *testing.T) {
 }
 
 func TestExtractDeclaredSkillPacksResolvesAbsolutePaths(t *testing.T) {
+	t.Parallel()
+
 	extensionDir := t.TempDir()
 	writeSkillPack(t, extensionDir, "skills", "alpha")
 	writeSkillPack(t, extensionDir, "skills", "beta")

@@ -8,6 +8,8 @@ import (
 )
 
 func TestEnablementStoreDefaults(t *testing.T) {
+	t.Parallel()
+
 	homeDir := t.TempDir()
 	workspaceRoot := t.TempDir()
 
@@ -62,6 +64,8 @@ func TestEnablementStoreDefaults(t *testing.T) {
 }
 
 func TestEnablementStorePersistsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	homeDir := t.TempDir()
 	workspaceRoot := t.TempDir()
 
@@ -135,6 +139,8 @@ func TestEnablementStorePersistsRoundTrip(t *testing.T) {
 }
 
 func TestEnablementStoreRejectsBundledMutations(t *testing.T) {
+	t.Parallel()
+
 	store, err := NewEnablementStore(context.Background(), t.TempDir())
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
@@ -170,6 +176,8 @@ func TestNewEnablementStoreResolvesHomeDir(t *testing.T) {
 }
 
 func TestEnablementStoreRejectsInvalidReferences(t *testing.T) {
+	t.Parallel()
+
 	store, err := NewEnablementStore(context.Background(), t.TempDir())
 	if err != nil {
 		t.Fatalf("NewEnablementStore() error = %v", err)
@@ -211,6 +219,8 @@ func TestEnablementStoreRejectsInvalidReferences(t *testing.T) {
 }
 
 func TestEnablementStoreRejectsCorruptState(t *testing.T) {
+	t.Parallel()
+
 	homeDir := t.TempDir()
 	workspaceRoot := t.TempDir()
 

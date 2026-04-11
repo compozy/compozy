@@ -3,7 +3,9 @@ package extensions
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -211,18 +213,24 @@ func (o *defaultKernelOps) WriteArtifact(ctx context.Context, req ArtifactWriteR
 	if err != nil {
 		return nil, err
 	}
-	resolvedPath, content, err := o.writeArtifactFile(ctx, "host.artifacts.write", resolvedPath, req.Content, 0o600)
+	resolvedPathStr, content, err := o.writeArtifactFile(
+		ctx,
+		"host.artifacts.write",
+		resolvedPath.absolute,
+		req.Content,
+		0o600,
+	)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := o.submitRuntimeEvent(ctx, events.EventKindArtifactUpdated, kinds.ArtifactUpdatedPayload{
-		Path:         o.workspaceRelative(resolvedPath),
+		Path:         o.workspaceRelative(resolvedPathStr),
 		BytesWritten: len(content),
 	}); err != nil {
 		return nil, err
 	}
 	return &ArtifactWriteResult{
-		Path:         o.workspaceRelative(resolvedPath),
+		Path:         o.workspaceRelative(resolvedPathStr),
 		BytesWritten: len(content),
 	}, nil
 }
@@ -342,18 +350,30 @@ func (o *defaultKernelOps) writeArtifactFile(
 		if err != nil {
 			return "", nil, err
 		}
-		finalPath = resolvedPath
+		finalPath = resolvedPath.absolute
 	}
 	if payload.Content != nil {
 		finalContent = []byte(*payload.Content)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(finalPath), 0o755); err != nil {
-		return "", nil, fmt.Errorf("create artifact parent dir: %w", err)
-	}
-	if err := writeHostFileAtomically(finalPath, finalContent, perm); err != nil {
+	scoped, err := o.resolveScopedPath(method, finalPath)
+	if err != nil {
 		return "", nil, err
 	}
+
+	root, err := o.openWorkspaceRoot(method)
+	if err != nil {
+		return "", nil, err
+	}
+	defer root.Close()
+
+	if err := writeHostFileAtomically(root, scoped.relative, scoped.absolute, finalContent, perm); err != nil {
+		if isRootEscapeError(err) {
+			return "", nil, o.pathOutOfScopeError(method, finalPath)
+		}
+		return "", nil, err
+	}
+	finalPath = scoped.absolute
 
 	model.DispatchObserverHook(
 		ctx,
@@ -394,34 +414,84 @@ func contentPreview(content []byte) string {
 	return preview[:limit]
 }
 
-func writeHostFileAtomically(path string, content []byte, perm os.FileMode) error {
-	dir := filepath.Dir(path)
-	tmpFile, err := os.CreateTemp(dir, filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("create temp file for %s: %w", path, err)
+func writeHostFileAtomically(
+	root *os.Root,
+	relativePath string,
+	absolutePath string,
+	content []byte,
+	perm os.FileMode,
+) error {
+	dir := filepath.Dir(relativePath)
+	if dir != "." {
+		if err := root.MkdirAll(dir, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return fmt.Errorf("create artifact parent dir for %s: %w", absolutePath, err)
+		}
 	}
-	tmpPath := tmpFile.Name()
 
-	cleanup := func() {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpPath)
+	tmpPath, tmpFile, err := createScopedTempFile(root, relativePath, perm)
+	if err != nil {
+		return fmt.Errorf("create temp file for %s: %w", absolutePath, err)
+	}
+
+	removeTemp := func() error {
+		if err := root.Remove(tmpPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("remove temp file for %s: %w", absolutePath, err)
+		}
+		return nil
+	}
+	cleanup := func() error {
+		return errors.Join(tmpFile.Close(), removeTemp())
 	}
 
 	if _, err := tmpFile.Write(content); err != nil {
-		cleanup()
-		return fmt.Errorf("write temp file for %s: %w", path, err)
+		return errors.Join(
+			fmt.Errorf("write temp file for %s: %w", absolutePath, err),
+			cleanup(),
+		)
+	}
+	if err := tmpFile.Sync(); err != nil {
+		return errors.Join(
+			fmt.Errorf("sync temp file for %s: %w", absolutePath, err),
+			cleanup(),
+		)
 	}
 	if err := tmpFile.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("close temp file for %s: %w", path, err)
+		return errors.Join(
+			fmt.Errorf("close temp file for %s: %w", absolutePath, err),
+			removeTemp(),
+		)
 	}
-	if err := os.Chmod(tmpPath, perm); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("chmod temp file for %s: %w", path, err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return fmt.Errorf("replace %s: %w", path, err)
+	if err := root.Rename(tmpPath, relativePath); err != nil {
+		return errors.Join(
+			fmt.Errorf("replace %s: %w", absolutePath, err),
+			removeTemp(),
+		)
 	}
 	return nil
+}
+
+func createScopedTempFile(root *os.Root, relativePath string, perm os.FileMode) (string, *os.File, error) {
+	dir := filepath.Dir(relativePath)
+	if dir == "." {
+		dir = ""
+	}
+
+	base := "." + filepath.Base(relativePath) + ".tmp"
+	for attempt := 0; attempt < 16; attempt++ {
+		candidate := fmt.Sprintf("%s-%d-%d", base, time.Now().UTC().UnixNano(), attempt)
+		if dir != "" {
+			candidate = filepath.Join(dir, candidate)
+		}
+
+		file, err := root.OpenFile(candidate, os.O_RDWR|os.O_CREATE|os.O_EXCL, perm)
+		if err == nil {
+			return candidate, file, nil
+		}
+		if errors.Is(err, fs.ErrExist) {
+			continue
+		}
+		return "", nil, err
+	}
+
+	return "", nil, fmt.Errorf("exhausted temp names for %s", relativePath)
 }

@@ -292,13 +292,17 @@ func TestDispatchObserverFansOutConcurrently(t *testing.T) {
 
 	dispatcher := NewHookDispatcher(registry, audit)
 
-	startedAt := time.Now()
-	dispatcher.DispatchObserver(context.Background(), HookAgentPostSessionCreate, map[string]any{
-		"session_id": "sess-1",
-	})
-	elapsed := time.Since(startedAt)
-	if elapsed > 50*time.Millisecond {
-		t.Fatalf("DispatchObserver() blocked for %v, want fast return", elapsed)
+	returned := make(chan struct{})
+	go func() {
+		dispatcher.DispatchObserver(context.Background(), HookAgentPostSessionCreate, map[string]any{
+			"session_id": "sess-1",
+		})
+		close(returned)
+	}()
+	select {
+	case <-returned:
+	case <-time.After(time.Second):
+		t.Fatal("DispatchObserver() blocked waiting for observers")
 	}
 
 	select {
@@ -318,6 +322,41 @@ func TestDispatchObserverFansOutConcurrently(t *testing.T) {
 
 	if got := len(audit.entries()); got != 2 {
 		t.Fatalf("audit entries = %d, want 2", got)
+	}
+}
+
+func TestDispatchMutableSendsEffectiveDefaultTimeoutToExtension(t *testing.T) {
+	t.Parallel()
+
+	timeoutSeen := make(chan int64, 1)
+	extension := newRuntimeExtensionWithCaller(
+		"timed",
+		[]Capability{CapabilityPromptMutate},
+		&fakeExtensionCaller{
+			handler: func(_ context.Context, request executeHookRequest) (json.RawMessage, error) {
+				timeoutSeen <- request.Hook.TimeoutMS
+				return patchPromptText(t, promptTextFromPayload(t, request.Payload)+"-timed"), nil
+			},
+		},
+		HookDeclaration{Event: HookPromptPostBuild, Priority: 100, Required: true},
+	)
+	extension.SetDefaultHookTimeout(750 * time.Millisecond)
+
+	dispatcher := NewHookDispatcher(mustRegistry(t, extension), nil)
+	_, err := dispatcher.DispatchMutable(context.Background(), HookPromptPostBuild, map[string]any{
+		"prompt_text": "base",
+	})
+	if err != nil {
+		t.Fatalf("DispatchMutable() error = %v", err)
+	}
+
+	select {
+	case got := <-timeoutSeen:
+		if got != 750 {
+			t.Fatalf("request timeout_ms = %d, want 750", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("extension caller did not observe timeout")
 	}
 }
 

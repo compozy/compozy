@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,6 +76,11 @@ type defaultKernelOps struct {
 	eventBus       *events.Bus[events.Event]
 	journal        *journal.Journal
 	runtimeManager model.RuntimeManager
+}
+
+type scopedPath struct {
+	absolute string
+	relative string
 }
 
 var _ KernelOps = (*defaultKernelOps)(nil)
@@ -374,13 +382,20 @@ func decodeHostParams[T any](method string, params json.RawMessage) (T, error) {
 			"error":  err.Error(),
 		})
 	}
-	if decoder.More() {
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != nil {
+		if errors.Is(err, io.EOF) {
+			return payload, nil
+		}
 		return zero, subprocess.NewInvalidParams(map[string]any{
 			"method": method,
 			"error":  "unexpected trailing data",
 		})
 	}
-	return payload, nil
+	return zero, subprocess.NewInvalidParams(map[string]any{
+		"method": method,
+		"error":  "unexpected trailing data",
+	})
 }
 
 func (o *defaultKernelOps) RenderPrompt(
@@ -525,14 +540,14 @@ func (o *defaultKernelOps) workspaceRelative(path string) string {
 	return filepath.ToSlash(rel)
 }
 
-func (o *defaultKernelOps) resolveScopedPath(method string, rawPath string) (string, error) {
+func (o *defaultKernelOps) resolveScopedPath(method string, rawPath string) (scopedPath, error) {
 	if o == nil {
-		return "", fmt.Errorf("resolve scoped path: kernel ops is nil")
+		return scopedPath{}, fmt.Errorf("resolve scoped path: kernel ops is nil")
 	}
 
 	trimmed := strings.TrimSpace(rawPath)
 	if trimmed == "" {
-		return "", subprocess.NewInvalidParams(map[string]any{
+		return scopedPath{}, subprocess.NewInvalidParams(map[string]any{
 			"method": method,
 			"field":  "path",
 			"error":  "path is required",
@@ -547,11 +562,50 @@ func (o *defaultKernelOps) resolveScopedPath(method string, rawPath string) (str
 	}
 
 	workspaceRoot := filepath.Clean(o.workspaceRoot)
-	compozyRoot := filepath.Clean(model.CompozyDir(o.workspaceRoot))
-	if pathWithinRoot(resolved, workspaceRoot) || pathWithinRoot(resolved, compozyRoot) {
-		return resolved, nil
+	if !pathWithinRoot(resolved, workspaceRoot) {
+		return scopedPath{}, o.pathOutOfScopeError(method, rawPath)
 	}
-	return "", NewPathOutOfScopeError(method, rawPath, []string{".compozy/", workspaceRoot})
+
+	relative, err := filepath.Rel(workspaceRoot, resolved)
+	if err != nil {
+		return scopedPath{}, fmt.Errorf("resolve scoped path relative to workspace: %w", err)
+	}
+	return scopedPath{
+		absolute: resolved,
+		relative: relative,
+	}, nil
+}
+
+func (o *defaultKernelOps) openWorkspaceRoot(method string) (*os.Root, error) {
+	if o == nil {
+		return nil, fmt.Errorf("open workspace root for %s: kernel ops is nil", method)
+	}
+
+	root, err := os.OpenRoot(filepath.Clean(o.workspaceRoot))
+	if err != nil {
+		return nil, fmt.Errorf("open workspace root for %s: %w", method, err)
+	}
+	return root, nil
+}
+
+func (o *defaultKernelOps) pathOutOfScopeError(method string, rawPath string) error {
+	workspaceRoot := ""
+	if o != nil {
+		workspaceRoot = filepath.Clean(o.workspaceRoot)
+	}
+	return NewPathOutOfScopeError(method, rawPath, []string{".compozy/", workspaceRoot})
+}
+
+func isRootEscapeError(err error) bool {
+	if strings.Contains(err.Error(), "path escapes from parent") {
+		return true
+	}
+
+	var pathErr *fs.PathError
+	if !errors.As(err, &pathErr) {
+		return false
+	}
+	return strings.Contains(pathErr.Err.Error(), "path escapes from parent")
 }
 
 func (o *defaultKernelOps) resolveTaskTypeRegistry(ctx context.Context) (*tasks.TypeRegistry, error) {

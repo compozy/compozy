@@ -2,6 +2,8 @@ package extensions
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,4 +223,65 @@ func TestHostArtifactsReadRejectsTraversal(t *testing.T) {
 		Path: "../escape.txt",
 	}))
 	assertRequestErrorReason(t, err, capabilityDeniedCode, "path_out_of_scope")
+}
+
+func TestHostArtifactsReadRejectsTrailingJSONData(t *testing.T) {
+	t.Parallel()
+
+	rt := newHostRuntime(t, []Capability{CapabilityArtifactsRead}, nil, "")
+	_, err := rt.router.Handle(
+		context.Background(),
+		"ext",
+		"host.artifacts.read",
+		json.RawMessage(`{"path":".compozy/artifacts/note.txt"}{"extra":true}`),
+	)
+	assertRequestErrorCode(t, err, -32602)
+}
+
+func TestHostArtifactsReadRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	rt := newHostRuntime(t, []Capability{CapabilityArtifactsRead}, nil, "")
+	outsidePath := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outsidePath, []byte("secret"), 0o600); err != nil {
+		t.Fatalf("WriteFile(outsidePath) error = %v", err)
+	}
+
+	linkPath := filepath.Join(rt.root, ".compozy", "artifacts", "secret-link.txt")
+	if err := os.MkdirAll(filepath.Dir(linkPath), 0o755); err != nil {
+		t.Fatalf("MkdirAll(link dir) error = %v", err)
+	}
+	if err := os.Symlink(outsidePath, linkPath); err != nil {
+		t.Skipf("Symlink() not supported in test environment: %v", err)
+	}
+
+	_, err := rt.router.Handle(context.Background(), "ext", "host.artifacts.read", mustJSON(t, ArtifactReadRequest{
+		Path: ".compozy/artifacts/secret-link.txt",
+	}))
+	assertRequestErrorReason(t, err, capabilityDeniedCode, "path_out_of_scope")
+}
+
+func TestHostArtifactsWriteRejectsSymlinkEscape(t *testing.T) {
+	t.Parallel()
+
+	rt := newHostRuntime(t, []Capability{CapabilityArtifactsWrite}, nil, "")
+	outsideDir := t.TempDir()
+	linkDir := filepath.Join(rt.root, ".compozy", "artifacts", "linked-dir")
+	if err := os.MkdirAll(filepath.Dir(linkDir), 0o755); err != nil {
+		t.Fatalf("MkdirAll(link parent) error = %v", err)
+	}
+	if err := os.Symlink(outsideDir, linkDir); err != nil {
+		t.Skipf("Symlink() not supported in test environment: %v", err)
+	}
+
+	targetPath := filepath.Join(outsideDir, "escaped.txt")
+	_, err := rt.router.Handle(context.Background(), "ext", "host.artifacts.write", mustJSON(t, ArtifactWriteRequest{
+		Path:    ".compozy/artifacts/linked-dir/escaped.txt",
+		Content: []byte("blocked"),
+	}))
+	assertRequestErrorReason(t, err, capabilityDeniedCode, "path_out_of_scope")
+
+	if _, statErr := os.Stat(targetPath); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("expected no escaped artifact write, got %v", statErr)
+	}
 }

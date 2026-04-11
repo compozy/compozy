@@ -202,7 +202,7 @@ func (d *HookDispatcher) invokeHook(
 			Mutable:   mutable,
 			Required:  entry.hook.Required,
 			Priority:  entry.hook.Priority,
-			TimeoutMS: durationMilliseconds(entry.hook.Timeout),
+			TimeoutMS: durationMilliseconds(timeout),
 		},
 		Payload: payload,
 	}

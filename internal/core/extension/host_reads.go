@@ -164,17 +164,26 @@ func (o *defaultKernelOps) ReadMemory(_ context.Context, req MemoryReadRequest) 
 }
 
 func (o *defaultKernelOps) ReadArtifact(_ context.Context, path string) (*ArtifactReadResult, error) {
-	resolvedPath, err := o.resolveScopedPath("host.artifacts.read", path)
+	scoped, err := o.resolveScopedPath("host.artifacts.read", path)
 	if err != nil {
 		return nil, err
 	}
 
-	content, err := os.ReadFile(resolvedPath)
+	root, err := o.openWorkspaceRoot("host.artifacts.read")
 	if err != nil {
-		return nil, fmt.Errorf("read artifact %s: %w", resolvedPath, err)
+		return nil, err
+	}
+	defer root.Close()
+
+	content, err := root.ReadFile(scoped.relative)
+	if err != nil {
+		if isRootEscapeError(err) {
+			return nil, o.pathOutOfScopeError("host.artifacts.read", path)
+		}
+		return nil, fmt.Errorf("read artifact %s: %w", scoped.absolute, err)
 	}
 	return &ArtifactReadResult{
-		Path:    o.workspaceRelative(resolvedPath),
+		Path:    o.workspaceRelative(scoped.absolute),
 		Content: content,
 	}, nil
 }

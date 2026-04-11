@@ -161,6 +161,7 @@ func (e *RuntimeExtension) EventSubscription() (string, []runtimeevents.EventKin
 }
 
 // WantsEvent reports whether the extension should receive one bus event.
+// An empty subscription filter means the extension receives all events.
 func (e *RuntimeExtension) WantsEvent(kind runtimeevents.EventKind) bool {
 	if e == nil {
 		return false
