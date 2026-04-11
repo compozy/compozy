@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/core/tasks"
 )
@@ -275,7 +276,9 @@ func validateTasksBinary(t *testing.T) string {
 		}
 
 		validateTasksBinaryPath = filepath.Join(buildDir, "compozy")
-		output, err := buildValidateTasksBinary(context.Background(), repoRoot, validateTasksBinaryPath)
+		buildCtx, buildCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer buildCancel()
+		output, err := buildValidateTasksBinary(buildCtx, repoRoot, validateTasksBinaryPath)
 		if err != nil {
 			validateTasksBinaryErr = fmt.Errorf("build compozy binary: %w\n%s", err, output)
 		}

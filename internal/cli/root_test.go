@@ -1277,19 +1277,17 @@ func TestHandleBundledSkillDriftSkipsPromptUnderCloseOnComplete(t *testing.T) {
 		return &setup.Result{}, nil
 	}
 
-	verifyResult := setup.VerifyResult{
-		Agent:  setup.Agent{DisplayName: "Claude Code"},
-		Scope:  setup.InstallScopeProject,
-		Skills: []setup.VerifiedSkill{{State: setup.VerifyStateDrifted}},
-	}
-
 	err := state.handleBundledSkillDrift(
 		cmd,
-		"claude",
-		[]string{"cy-review-round"},
-		setup.VerifyConfig{},
-		verifyResult,
-		nil,
+		requiredSkillState{
+			AgentName:         "claude",
+			BundledSkillNames: []string{"cy-review-round"},
+			Bundled: setup.VerifyResult{
+				Agent:  setup.Agent{DisplayName: "Claude Code"},
+				Scope:  setup.InstallScopeProject,
+				Skills: []setup.VerifiedSkill{{State: setup.VerifyStateDrifted}},
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("handleBundledSkillDrift under closeOnComplete: %v", err)
@@ -1314,26 +1312,18 @@ func TestHandleBundledSkillDriftStillPromptsWithoutCloseOnComplete(t *testing.T)
 		confirmed = true
 		return false, nil
 	}
-	state.verifyBundledSkills = func(_ setup.VerifyConfig) (setup.VerifyResult, error) {
-		return setup.VerifyResult{
-			Agent: setup.Agent{DisplayName: "Claude Code"},
-			Scope: setup.InstallScopeProject,
-		}, nil
-	}
-
-	verifyResult := setup.VerifyResult{
-		Agent:  setup.Agent{DisplayName: "Claude Code"},
-		Scope:  setup.InstallScopeProject,
-		Skills: []setup.VerifiedSkill{{State: setup.VerifyStateDrifted}},
-	}
 
 	err := state.handleBundledSkillDrift(
 		cmd,
-		"claude",
-		[]string{"cy-review-round"},
-		setup.VerifyConfig{},
-		verifyResult,
-		state.verifyBundledSkills,
+		requiredSkillState{
+			AgentName:         "claude",
+			BundledSkillNames: []string{"cy-review-round"},
+			Bundled: setup.VerifyResult{
+				Agent:  setup.Agent{DisplayName: "Claude Code"},
+				Scope:  setup.InstallScopeProject,
+				Skills: []setup.VerifiedSkill{{State: setup.VerifyStateDrifted}},
+			},
+		},
 	)
 	if err != nil {
 		t.Fatalf("handleBundledSkillDrift without closeOnComplete: %v", err)

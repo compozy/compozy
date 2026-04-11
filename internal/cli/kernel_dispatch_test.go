@@ -398,33 +398,35 @@ func TestNewArchiveRunnerDispatchesTypedCommand(t *testing.T) {
 func TestNewRunWorkflowPropagatesCloseOnComplete(t *testing.T) {
 	t.Parallel()
 
-	dispatcher := kernel.NewDispatcher()
-	handler := &runStartCaptureHandler{}
-	kernel.Register(dispatcher, handler)
+	t.Run("Should propagate CloseOnComplete to runtime config", func(t *testing.T) {
+		dispatcher := kernel.NewDispatcher()
+		handler := &runStartCaptureHandler{}
+		kernel.Register(dispatcher, handler)
 
-	runWorkflow := newRunWorkflow(dispatcher)
-	err := runWorkflow(context.Background(), core.Config{
-		WorkspaceRoot:   "/workspace",
-		Name:            "demo",
-		TasksDir:        "/workspace/.compozy/tasks/demo",
-		Mode:            core.ModePRDTasks,
-		IDE:             core.IDECodex,
-		CloseOnComplete: true,
-		Timeout:         time.Minute,
+		runWorkflow := newRunWorkflow(dispatcher)
+		err := runWorkflow(context.Background(), core.Config{
+			WorkspaceRoot:   "/workspace",
+			Name:            "demo",
+			TasksDir:        "/workspace/.compozy/tasks/demo",
+			Mode:            core.ModePRDTasks,
+			IDE:             core.IDECodex,
+			CloseOnComplete: true,
+			Timeout:         time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("runWorkflow: %v", err)
+		}
+		if !handler.called {
+			t.Fatal("expected dispatcher handler to be called")
+		}
+		runtime := handler.got.RuntimeConfig()
+		if runtime == nil {
+			t.Fatal("expected runtime config")
+		}
+		if !runtime.CloseOnComplete {
+			t.Fatal("expected CloseOnComplete=true to propagate through CLI-to-kernel dispatch")
+		}
 	})
-	if err != nil {
-		t.Fatalf("runWorkflow: %v", err)
-	}
-	if !handler.called {
-		t.Fatal("expected dispatcher handler to be called")
-	}
-	runtime := handler.got.RuntimeConfig()
-	if runtime == nil {
-		t.Fatal("expected runtime config")
-	}
-	if !runtime.CloseOnComplete {
-		t.Fatal("expected CloseOnComplete=true to propagate through CLI-to-kernel dispatch")
-	}
 }
 
 func TestNewRootCommandValidatesDispatcherAtStartup(t *testing.T) {
