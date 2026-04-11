@@ -864,6 +864,7 @@ func TestManagerStartPublishesFailureWhenProcessExitsAfterInitialize(t *testing.
 }
 
 type managerHarnessSpec struct {
+	Name            string
 	Binary          string
 	Mode            string
 	Capabilities    []Capability
@@ -878,23 +879,30 @@ type managerHarnessSpec struct {
 func newManagerHarness(t *testing.T, spec managerHarnessSpec) *managerHarness {
 	t.Helper()
 
+	name := strings.TrimSpace(spec.Name)
+	if name == "" {
+		name = "mock-ext"
+	}
+
 	recordPath := filepath.Join(t.TempDir(), "records.jsonl")
 	env := map[string]string{
 		"COMPOZY_MOCK_MODE":        spec.Mode,
 		"COMPOZY_MOCK_RECORD_PATH": recordPath,
+		"COMPOZY_SDK_RECORD_PATH":  recordPath,
 	}
 	for key, value := range spec.Env {
 		env[key] = value
 	}
 	if spec.Workflow != "" {
 		env["COMPOZY_MOCK_WORKFLOW"] = spec.Workflow
+		env["COMPOZY_SDK_WORKFLOW"] = spec.Workflow
 	}
 
 	discovered := DiscoveredExtension{
-		Ref: Ref{Name: "mock-ext", Source: SourceWorkspace},
+		Ref: Ref{Name: name, Source: SourceWorkspace},
 		Manifest: &Manifest{
 			Extension: ExtensionInfo{
-				Name:              "mock-ext",
+				Name:              name,
 				Version:           "1.0.0",
 				MinCompozyVersion: "0.0.0",
 			},
