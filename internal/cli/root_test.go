@@ -893,24 +893,28 @@ func TestBuildConfigPropagatesCloseOnComplete(t *testing.T) {
 		kind            commandKind
 		mode            core.Mode
 		closeOnComplete bool
+		setExplicit     bool
 	}{
 		{
-			name:            "start propagates closeOnComplete",
+			name:            "Should propagate closeOnComplete for start",
 			kind:            commandKindStart,
 			mode:            core.ModePRDTasks,
 			closeOnComplete: true,
+			setExplicit:     true,
 		},
 		{
-			name:            "fix-reviews propagates closeOnComplete",
+			name:            "Should propagate closeOnComplete for fix-reviews",
 			kind:            commandKindFixReviews,
 			mode:            core.ModePRReview,
 			closeOnComplete: true,
+			setExplicit:     true,
 		},
 		{
-			name:            "start defaults closeOnComplete to false",
+			name:            "Should default closeOnComplete to false for start",
 			kind:            commandKindStart,
 			mode:            core.ModePRDTasks,
 			closeOnComplete: false,
+			setExplicit:     false,
 		},
 	}
 
@@ -920,7 +924,9 @@ func TestBuildConfigPropagatesCloseOnComplete(t *testing.T) {
 			t.Parallel()
 
 			state := newCommandState(tt.kind, tt.mode)
-			state.closeOnComplete = tt.closeOnComplete
+			if tt.setExplicit {
+				state.closeOnComplete = tt.closeOnComplete
+			}
 
 			cfg, err := state.buildConfig()
 			if err != nil {
@@ -937,11 +943,11 @@ func TestCloseOnCompleteFlagAbsentOnUnsupportedCommands(t *testing.T) {
 	t.Parallel()
 
 	unsupportedCommands := map[string]string{
-		"fetch-reviews":  "fetch-reviews",
-		"exec":           "exec [prompt]",
-		"validate-tasks": "validate-tasks",
-		"sync":           "sync",
-		"archive":        "archive",
+		"Should omit --close-on-complete for fetch-reviews":  "fetch-reviews",
+		"Should omit --close-on-complete for exec":           "exec [prompt]",
+		"Should omit --close-on-complete for validate-tasks": "validate-tasks",
+		"Should omit --close-on-complete for sync":           "sync",
+		"Should omit --close-on-complete for archive":        "archive",
 	}
 
 	for name, use := range unsupportedCommands {

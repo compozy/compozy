@@ -243,15 +243,16 @@ type WorkflowMemoryContext struct {
 
 // BatchParams mirrors the prompt build input snapshot exposed to prompt hooks.
 type BatchParams struct {
-	Name        string                  `json:"name,omitempty"`
-	Round       int                     `json:"round,omitempty"`
-	Provider    string                  `json:"provider,omitempty"`
-	PR          string                  `json:"pr,omitempty"`
-	ReviewsDir  string                  `json:"reviews_dir,omitempty"`
-	BatchGroups map[string][]IssueEntry `json:"batch_groups,omitempty"`
-	AutoCommit  bool                    `json:"auto_commit,omitempty"`
-	Mode        ExecutionMode           `json:"mode,omitempty"`
-	Memory      *WorkflowMemoryContext  `json:"memory,omitempty"`
+	Name            string                  `json:"name,omitempty"`
+	Round           int                     `json:"round,omitempty"`
+	Provider        string                  `json:"provider,omitempty"`
+	PR              string                  `json:"pr,omitempty"`
+	ReviewsDir      string                  `json:"reviews_dir,omitempty"`
+	BatchGroups     map[string][]IssueEntry `json:"batch_groups,omitempty"`
+	AutoCommit      bool                    `json:"auto_commit,omitempty"`
+	CloseOnComplete bool                    `json:"close_on_complete,omitempty"`
+	Mode            ExecutionMode           `json:"mode,omitempty"`
+	Memory          *WorkflowMemoryContext  `json:"memory,omitempty"`
 }
 
 // MCPServer mirrors one stdio-backed MCP server attachment.
@@ -357,6 +358,7 @@ type RuntimeConfig struct {
 	TasksDir                   string
 	DryRun                     bool
 	AutoCommit                 bool
+	CloseOnComplete            bool
 	Concurrent                 int
 	BatchSize                  int
 	IDE                        string

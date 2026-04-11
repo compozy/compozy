@@ -143,6 +143,7 @@ func buildKernelMockExtensionBinary(t *testing.T) string {
 		buildCtx,
 		"go",
 		"build",
+		"-buildvcs=false",
 		"-o",
 		binary,
 		"./internal/core/extension/testdata/mock_extension",
