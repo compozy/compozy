@@ -241,11 +241,16 @@ func prepareExecExecution(
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
+	preparedConfig := snapshotExecPreparedStateConfig(cfg)
 	state, err := prepareExecRunState(ctx, cfg, scope)
 	if err != nil {
 		return "", nil, nil, job{}, err
 	}
 	if err := applyExecRunPreStartHook(ctx, state, cfg); err != nil {
+		state.close()
+		return "", nil, nil, job{}, err
+	}
+	if err := validateExecPreparedStateMutation(preparedConfig, cfg); err != nil {
 		state.close()
 		return "", nil, nil, job{}, err
 	}
@@ -1207,6 +1212,50 @@ func resolveExecPromptText(cfg *model.RuntimeConfig) (string, error) {
 		return string(content), nil
 	default:
 		return "", errors.New("exec prompt is empty")
+	}
+}
+
+type execPreparedStateConfig struct {
+	workspaceRoot string
+	runID         string
+	persist       bool
+	outputFormat  model.OutputFormat
+	tui           bool
+}
+
+func snapshotExecPreparedStateConfig(cfg *model.RuntimeConfig) execPreparedStateConfig {
+	if cfg == nil {
+		return execPreparedStateConfig{}
+	}
+
+	return execPreparedStateConfig{
+		workspaceRoot: cfg.WorkspaceRoot,
+		runID:         strings.TrimSpace(cfg.RunID),
+		persist:       cfg.Persist,
+		outputFormat:  cfg.OutputFormat,
+		tui:           cfg.TUI,
+	}
+}
+
+func validateExecPreparedStateMutation(
+	before execPreparedStateConfig,
+	cfg *model.RuntimeConfig,
+) error {
+	current := snapshotExecPreparedStateConfig(cfg)
+
+	switch {
+	case current.workspaceRoot != before.workspaceRoot:
+		return fmt.Errorf("run.pre_start cannot mutate workspace_root after exec state preparation")
+	case current.runID != before.runID:
+		return fmt.Errorf("run.pre_start cannot mutate run_id after exec state preparation")
+	case current.persist != before.persist:
+		return fmt.Errorf("run.pre_start cannot mutate persist after exec state preparation")
+	case current.outputFormat != before.outputFormat:
+		return fmt.Errorf("run.pre_start cannot mutate output_format after exec state preparation")
+	case current.tui != before.tui:
+		return fmt.Errorf("run.pre_start cannot mutate tui after exec state preparation")
+	default:
+		return nil
 	}
 }
 

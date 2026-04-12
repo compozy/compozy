@@ -180,6 +180,7 @@ export class Extension implements HostCaller {
     const normalized = name.trim();
     if (normalized !== "") {
       this.reviewProviders.set(normalized, handler);
+      this.declaredCapabilities.add(CAPABILITIES.providersRegister);
     }
     return this;
   }
@@ -814,13 +815,13 @@ function capabilityForHook(hook: HookName): Capability | undefined {
 }
 
 function newCapabilityDeniedError(
-  target: string,
-  missing: Capability[],
+  method: string,
+  required: Capability[],
   granted: Capability[]
 ): RPCError {
   return new RPCError(-32001, "Capability denied", {
-    target,
-    missing,
+    method,
+    required,
     granted,
   });
 }

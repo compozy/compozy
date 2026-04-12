@@ -176,25 +176,23 @@ describe("Extension", () => {
   });
 
   it("dispatches fetch_reviews to a registered review provider", async () => {
-    const extension = new Extension("sdk-ext", "1.0.0")
-      .withCapabilities(CAPABILITIES.providersRegister)
-      .registerReviewProvider("sdk-review", {
-        async fetchReviews(context, request) {
-          expect(context.provider).toBe("sdk-review");
-          expect(request).toEqual({
-            pr: "123",
-            include_nitpicks: true,
-          });
-          return [
-            {
-              title: "issue",
-              file: "README.md",
-              body: "from provider",
-              provider_ref: "thread-1",
-            },
-          ];
-        },
-      });
+    const extension = new Extension("sdk-ext", "1.0.0").registerReviewProvider("sdk-review", {
+      async fetchReviews(context, request) {
+        expect(context.provider).toBe("sdk-review");
+        expect(request).toEqual({
+          pr: "123",
+          include_nitpicks: true,
+        });
+        return [
+          {
+            title: "issue",
+            file: "README.md",
+            body: "from provider",
+            provider_ref: "thread-1",
+          },
+        ];
+      },
+    });
     const harness = new TestHarness({
       granted_capabilities: [CAPABILITIES.providersRegister],
     });
@@ -205,15 +203,11 @@ describe("Extension", () => {
       version: "1.0.0",
       source: "workspace",
     });
+    expect(response.accepted_capabilities).toEqual([CAPABILITIES.providersRegister]);
     expect(response.registered_review_providers).toEqual(["sdk-review"]);
 
-    const invoke = (
-      harness as unknown as {
-        call<T>(method: string, params: unknown): Promise<T>;
-      }
-    ).call.bind(harness);
     await expect(
-      invoke("fetch_reviews", {
+      harness.call("fetch_reviews", {
         provider: "sdk-review",
         pr: "123",
         include_nitpicks: true,
@@ -255,13 +249,8 @@ describe("Extension", () => {
       source: "workspace",
     });
 
-    const invoke = (
-      harness as unknown as {
-        call<T>(method: string, params: unknown): Promise<T>;
-      }
-    ).call.bind(harness);
     await expect(
-      invoke("resolve_issues", {
+      harness.call("resolve_issues", {
         provider: "sdk-review",
         pr: "123",
         issues: [{ file_path: "issue_001.md", provider_ref: "thread-1" }],
@@ -281,41 +270,33 @@ describe("Extension", () => {
     await expect(runPromise).resolves.toBeUndefined();
   });
 
-  it("rejects fetch_reviews when providers.register was not granted", async () => {
+  it("rejects initialize when a registered review provider was not granted providers.register", async () => {
     const extension = new Extension("sdk-ext", "1.0.0").registerReviewProvider("sdk-review", {});
     const harness = new TestHarness();
 
     const runPromise = harness.run(extension);
-    await harness.initialize({
-      name: "sdk-ext",
-      version: "1.0.0",
-      source: "workspace",
-    });
-
-    const invoke = (
-      harness as unknown as {
-        call<T>(method: string, params: unknown): Promise<T>;
-      }
-    ).call.bind(harness);
     await expect(
-      invoke("fetch_reviews", {
-        provider: "sdk-review",
-        pr: "123",
+      harness.initialize({
+        name: "sdk-ext",
+        version: "1.0.0",
+        source: "workspace",
       })
     ).rejects.toMatchObject<RPCError>({
       code: -32001,
       data: {
-        target: "fetch_reviews",
-        missing: [CAPABILITIES.providersRegister],
+        method: "initialize",
+        required: [CAPABILITIES.providersRegister],
         granted: [],
       },
     });
-
-    await harness.shutdown({
-      reason: "run_completed",
-      deadline_ms: 1000,
+    await expect(runPromise).rejects.toMatchObject<RPCError>({
+      code: -32001,
+      data: {
+        method: "initialize",
+        required: [CAPABILITIES.providersRegister],
+        granted: [],
+      },
     });
-    await expect(runPromise).resolves.toBeUndefined();
   });
 });
 

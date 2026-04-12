@@ -83,14 +83,29 @@ func (r *recorder) write(kind string, payload map[string]any) {
 
 	raw, err := json.Marshal(record{Type: strings.TrimSpace(kind), Payload: payload})
 	if err != nil {
+		r.logf("marshal record: %v", err)
 		return
 	}
 
 	file, err := os.OpenFile(r.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
+		r.logf("open record file %q: %v", r.path, err)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			r.logf("close record file %q: %v", r.path, closeErr)
+		}
+	}()
 
-	_, _ = file.Write(append(raw, '\n'))
+	if _, err := file.Write(append(raw, '\n')); err != nil {
+		r.logf("write record file %q: %v", r.path, err)
+	}
+}
+
+func (r *recorder) logf(format string, args ...any) {
+	if r == nil {
+		return
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "sdk_review_extension recorder: "+format+"\n", args...)
 }

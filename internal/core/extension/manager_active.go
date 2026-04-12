@@ -34,7 +34,7 @@ func unregisterActiveManager(manager *Manager) {
 
 func lookupActiveExtensionSession(workspaceRoot string, extensionName string) *extensionSession {
 	normalizedRoot := strings.TrimSpace(workspaceRoot)
-	normalizedName := strings.TrimSpace(extensionName)
+	normalizedName := normalizeSessionKey(extensionName)
 	if normalizedRoot == "" || normalizedName == "" {
 		return nil
 	}
@@ -42,6 +42,7 @@ func lookupActiveExtensionSession(workspaceRoot string, extensionName string) *e
 	activeManagers.mu.RLock()
 	defer activeManagers.mu.RUnlock()
 
+	var match *extensionSession
 	for manager := range activeManagers.managers {
 		if manager == nil || strings.TrimSpace(manager.workspaceRoot) != normalizedRoot {
 			continue
@@ -52,8 +53,11 @@ func lookupActiveExtensionSession(workspaceRoot string, extensionName string) *e
 		}
 		switch session.runtime.State() {
 		case ExtensionStateReady, ExtensionStateDegraded:
-			return session
+			if match != nil {
+				return nil
+			}
+			match = session
 		}
 	}
-	return nil
+	return match
 }

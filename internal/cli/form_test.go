@@ -12,7 +12,6 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/provider"
-	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/spf13/cobra"
 )
@@ -341,6 +340,8 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 }
 
 func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {
+	t.Parallel()
+
 	supportsAddDirs := true
 	restoreIDE, err := agent.ActivateOverlay([]agent.OverlayEntry{{
 		Name:            "ext-adapter",
@@ -365,48 +366,55 @@ func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {
 	}
 	defer restoreProvider()
 
-	t.Run("ide field", func(t *testing.T) {
+	t.Run("ShouldRenderOverlayIDEInTheSelectField", func(t *testing.T) {
 		builder := newFormBuilder(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
-		var selected string
+		selected := "ext-adapter"
 		builder.addIDEField(&selected)
 		if len(builder.fields) != 1 {
 			t.Fatalf("expected IDE field to be registered, got %d fields", len(builder.fields))
 		}
-		entries := agent.DriverCatalog()
-		found := false
-		for _, entry := range entries {
-			if entry.IDE == "ext-adapter" && entry.DisplayName == "Mock ACP" {
-				found = true
-				break
-			}
+		field := builder.fields[0]
+		if got := field.GetKey(); got != "ide" {
+			t.Fatalf("field key = %q, want %q", got, "ide")
 		}
-		if !found {
-			t.Fatalf("expected overlay IDE in driver catalog, got %#v", entries)
+		if got := field.GetValue(); got != selected {
+			t.Fatalf("field value = %#v, want %q", got, selected)
 		}
+		assertFieldViewContains(t, field, "Mock ACP")
 	})
 
-	t.Run("provider field", func(t *testing.T) {
+	t.Run("ShouldRenderOverlayProviderInTheSelectField", func(t *testing.T) {
 		builder := newFormBuilder(
 			newFetchReviewsCommand(),
 			newCommandState(commandKindFetchReviews, core.ModePRReview),
 		)
-		var selected string
+		selected := "ext-review"
 		builder.addProviderField(&selected)
 		if len(builder.fields) != 1 {
 			t.Fatalf("expected provider field to be registered, got %d fields", len(builder.fields))
 		}
-		entries := provider.Catalog(providerdefaults.DefaultRegistry())
-		found := false
-		for _, entry := range entries {
-			if entry.Name == "ext-review" && entry.DisplayName == "Extension Review" {
-				found = true
-				break
-			}
+		field := builder.fields[0]
+		if got := field.GetKey(); got != "provider" {
+			t.Fatalf("field key = %q, want %q", got, "provider")
 		}
-		if !found {
-			t.Fatalf("expected overlay provider in catalog, got %#v", entries)
+		if got := field.GetValue(); got != selected {
+			t.Fatalf("field value = %#v, want %q", got, selected)
 		}
+		assertFieldViewContains(t, field, "Extension Review")
 	})
+}
+
+func assertFieldViewContains(t *testing.T, field huh.Field, wants ...string) {
+	t.Helper()
+
+	field = field.WithWidth(120).WithHeight(24)
+	_ = field.Focus()
+	view := field.View()
+	for _, want := range wants {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected field view to contain %q, got:\n%s", want, view)
+		}
+	}
 }
 
 func formFieldKeys(cmd *cobra.Command, state *commandState) map[string]struct{} {

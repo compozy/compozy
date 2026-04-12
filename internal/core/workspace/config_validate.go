@@ -115,14 +115,16 @@ func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
 
 func validateWorkflowTUI(section string, defaults DefaultsConfig, outputFormat *string, tui *bool) error {
 	effectiveOutputFormat := outputFormat
+	outputField := fmt.Sprintf("%s.output_format", section)
 	if effectiveOutputFormat == nil {
 		effectiveOutputFormat = defaults.OutputFormat
+		outputField = "defaults.output_format"
 	}
 	if tui != nil && effectiveOutputFormat != nil && *tui && isExecJSONOutputFormat(*effectiveOutputFormat) {
 		return fmt.Errorf(
-			"workspace config %s.tui cannot be true when %s.output_format is %q or %q",
+			"workspace config %s.tui cannot be true when workspace config %s is %q or %q",
 			section,
-			section,
+			outputField,
 			model.OutputFormatJSONValue,
 			model.OutputFormatRawJSONValue,
 		)

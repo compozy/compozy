@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -293,7 +294,14 @@ func closeOverlayBridges(entries []OverlayEntry) {
 			continue
 		}
 		seen[entry.Bridge] = struct{}{}
-		_ = entry.Bridge.Close()
+		if err := entry.Bridge.Close(); err != nil {
+			slog.Warn(
+				"close review provider bridge",
+				"component", "provider.overlay",
+				"provider", strings.TrimSpace(entry.Name),
+				"err", err,
+			)
+		}
 	}
 }
 

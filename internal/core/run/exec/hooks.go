@@ -2,6 +2,7 @@ package exec
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -55,7 +56,7 @@ func applyExecRunPreStartHook(ctx context.Context, state *execRunState, cfg *mod
 		},
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("dispatch run.pre_start hook: %w", err)
 	}
 
 	applyExecRuntimeConfig(cfg, payload.Config)
@@ -89,7 +90,7 @@ func applyExecPromptPostBuildHook(
 		},
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("dispatch prompt.post_build hook: %w", err)
 	}
 
 	return payload.PromptText, nil

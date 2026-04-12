@@ -95,8 +95,8 @@ func agentOverlayEntries(entries []extensions.DeclaredProvider) []agent.OverlayE
 			DocsURL:            entry.DocsURL,
 			InstallHint:        entry.InstallHint,
 			FullAccessModeID:   entry.FullAccessModeID,
-			FixedArgs:          cloneStringSlice(entry.FixedArgs),
-			ProbeArgs:          cloneStringSlice(entry.ProbeArgs),
+			FixedArgs:          cloneNormalizedStringSlice(entry.FixedArgs),
+			ProbeArgs:          cloneNormalizedStringSlice(entry.ProbeArgs),
 			EnvVars:            mapsClone(entry.Env),
 			Fallbacks:          agentOverlayFallbacks(entry.Fallbacks),
 			Bootstrap: agent.OverlayBootstrap{
@@ -234,8 +234,8 @@ func agentOverlayFallbacks(values []extensions.ProviderLauncher) []agent.Launche
 	for _, value := range values {
 		launchers = append(launchers, agent.Launcher{
 			Command:   value.Command,
-			FixedArgs: cloneStringSlice(value.FixedArgs),
-			ProbeArgs: cloneStringSlice(value.ProbeArgs),
+			FixedArgs: cloneNormalizedStringSlice(value.FixedArgs),
+			ProbeArgs: cloneNormalizedStringSlice(value.ProbeArgs),
 		})
 	}
 	return launchers
@@ -256,7 +256,7 @@ func bootstrapSlice(
 	if bootstrap == nil {
 		return nil
 	}
-	return cloneStringSlice(getter(bootstrap))
+	return cloneNormalizedStringSlice(getter(bootstrap))
 }
 
 func providerEntryReviewKind(entry extensions.ProviderEntry) extensions.ProviderKind {
@@ -275,7 +275,7 @@ func providerEntryModelTarget(entry extensions.ProviderEntry) string {
 	return strings.TrimSpace(entry.Command)
 }
 
-func cloneStringSlice(values []string) []string {
+func cloneNormalizedStringSlice(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}

@@ -1,6 +1,7 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -9,8 +10,10 @@ import { describe, expect, it } from "vitest";
 import { createExtension, parseArgs } from "../src/index.js";
 
 const execFileAsync = promisify(execFile);
-const localSDKSpec = `file:${resolve("sdk/extension-sdk-ts")}`;
-const localGoSDKReplace = resolve(".");
+const repoRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+const createExtensionCLI = resolve(repoRoot, "sdk/create-extension/dist/bin/create-extension.js");
+const localSDKSpec = pathToFileURL(resolve(repoRoot, "sdk/extension-sdk-ts")).href;
+const localGoSDKReplace = repoRoot;
 
 describe("@compozy/create-extension", () => {
   it("parses CLI options", () => {
@@ -25,17 +28,13 @@ describe("@compozy/create-extension", () => {
     const root = await mkdtemp(join(tmpdir(), "compozy-create-extension-cli-"));
     await buildLocalPackages();
 
-    const result = await execFileAsync(
-      "node",
-      [resolve("sdk/create-extension/dist/bin/create-extension.js"), "cli-ext", "--skip-install"],
-      {
-        cwd: root,
-        env: {
-          ...process.env,
-          COMPOZY_EXTENSION_SDK_SPEC: localSDKSpec,
-        },
-      }
-    );
+    const result = await execFileAsync("node", [createExtensionCLI, "cli-ext", "--skip-install"], {
+      cwd: root,
+      env: {
+        ...process.env,
+        COMPOZY_EXTENSION_SDK_SPEC: localSDKSpec,
+      },
+    });
 
     expect(result.stdout).toContain("Created lifecycle-observer extension");
     expect(result.stderr ?? "").toBe("");
@@ -124,7 +123,7 @@ async function buildLocalPackages(): Promise<void> {
       "@compozy/create-extension",
     ],
     {
-      cwd: process.cwd(),
+      cwd: repoRoot,
       env: process.env,
     }
   );

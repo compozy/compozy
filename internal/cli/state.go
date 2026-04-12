@@ -355,7 +355,12 @@ func (s *commandState) normalizePresentationMode(cmd *cobra.Command) error {
 		return nil
 	}
 
-	if !isInteractiveTerminal() {
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+
+	if !isInteractive() {
 		if s.tui && tuiExplicit {
 			return fmt.Errorf(
 				"%s requires an interactive terminal for tui mode; rerun with --tui=false",

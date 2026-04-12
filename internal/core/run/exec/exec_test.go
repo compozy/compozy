@@ -504,96 +504,167 @@ func TestRuntimeEventHelperUtilities(t *testing.T) {
 func TestApplyExecPromptPostBuildHookMutatesPrompt(t *testing.T) {
 	t.Parallel()
 
-	manager := &execHookManager{
-		dispatchMutable: func(_ context.Context, hook string, payload any) (any, error) {
-			if hook != "prompt.post_build" {
-				t.Fatalf("unexpected mutable hook %q", hook)
-			}
+	t.Run("Should mutate prompt via prompt.post_build hook", func(t *testing.T) {
+		manager := &execHookManager{
+			dispatchMutable: func(_ context.Context, hook string, payload any) (any, error) {
+				if hook != "prompt.post_build" {
+					t.Fatalf("unexpected mutable hook %q", hook)
+				}
 
-			current, ok := payload.(execPromptPostBuildPayload)
-			if !ok {
-				t.Fatalf("payload type = %T, want execPromptPostBuildPayload", payload)
-			}
-			current.PromptText += "\n\nDecorated by exec hook."
-			return current, nil
-		},
-	}
-	state := &execRunState{
-		ctx:            context.Background(),
-		runArtifacts:   model.NewRunArtifacts(t.TempDir(), "exec-hook-run"),
-		runtimeManager: manager,
-	}
+				current, ok := payload.(execPromptPostBuildPayload)
+				if !ok {
+					t.Fatalf("payload type = %T, want execPromptPostBuildPayload", payload)
+				}
+				current.PromptText += "\n\nDecorated by exec hook."
+				return current, nil
+			},
+		}
+		state := &execRunState{
+			ctx:            context.Background(),
+			runArtifacts:   model.NewRunArtifacts(t.TempDir(), "exec-hook-run"),
+			runtimeManager: manager,
+		}
 
-	got, err := applyExecPromptPostBuildHook(context.Background(), state, "decorate me")
-	if err != nil {
-		t.Fatalf("applyExecPromptPostBuildHook: %v", err)
-	}
-	if got != "decorate me\n\nDecorated by exec hook." {
-		t.Fatalf("unexpected prompt mutation: %q", got)
-	}
+		got, err := applyExecPromptPostBuildHook(context.Background(), state, "decorate me")
+		if err != nil {
+			t.Fatalf("applyExecPromptPostBuildHook: %v", err)
+		}
+		if got != "decorate me\n\nDecorated by exec hook." {
+			t.Fatalf("unexpected prompt mutation: %q", got)
+		}
+	})
 }
 
 func TestExecRunStateDispatchesRunHooks(t *testing.T) {
-	manager := &execHookManager{
-		dispatchMutable: func(_ context.Context, hook string, payload any) (any, error) {
-			if hook != "run.pre_start" {
-				return payload, nil
-			}
+	t.Run("Should dispatch run hooks and allow safe config mutation", func(t *testing.T) {
+		manager := &execHookManager{
+			dispatchMutable: func(_ context.Context, hook string, payload any) (any, error) {
+				if hook != "run.pre_start" {
+					return payload, nil
+				}
 
-			current, ok := payload.(execRunPreStartPayload)
-			if !ok {
-				t.Fatalf("payload type = %T, want execRunPreStartPayload", payload)
-			}
-			current.Config.Model = "gpt-5.4-mini"
-			return current, nil
+				current, ok := payload.(execRunPreStartPayload)
+				if !ok {
+					t.Fatalf("payload type = %T, want execRunPreStartPayload", payload)
+				}
+				current.Config.Model = "gpt-5.4-mini"
+				return current, nil
+			},
+		}
+		cfg := &model.RuntimeConfig{
+			WorkspaceRoot: workspaceRootForExecTest(t),
+			IDE:           model.IDECodex,
+			Model:         "gpt-5.4",
+			AccessMode:    model.AccessModeDefault,
+		}
+		state := &execRunState{
+			ctx:            context.Background(),
+			record:         PersistedExecRun{UpdatedAt: time.Now().UTC()},
+			runArtifacts:   model.NewRunArtifacts(t.TempDir(), "exec-run-hooks"),
+			runtimeManager: manager,
+		}
+
+		if err := applyExecRunPreStartHook(context.Background(), state, cfg); err != nil {
+			t.Fatalf("applyExecRunPreStartHook: %v", err)
+		}
+		if cfg.Model != "gpt-5.4-mini" {
+			t.Fatalf("expected run.pre_start to mutate model, got %q", cfg.Model)
+		}
+
+		if err := state.writeStarted(cfg); err != nil {
+			t.Fatalf("writeStarted: %v", err)
+		}
+		if err := state.completeTurn(execExecutionResult{
+			status: runStatusSucceeded,
+			output: "done",
+		}); err != nil {
+			t.Fatalf("completeTurn: %v", err)
+		}
+
+		if got := len(manager.observerPayloads["run.post_start"]); got != 1 {
+			t.Fatalf("expected one run.post_start payload, got %d", got)
+		}
+		if got := len(manager.observerPayloads["run.pre_shutdown"]); got != 1 {
+			t.Fatalf("expected one run.pre_shutdown payload, got %d", got)
+		}
+		payloads := manager.observerPayloads["run.post_shutdown"]
+		if len(payloads) != 1 {
+			t.Fatalf("expected one run.post_shutdown payload, got %d", len(payloads))
+		}
+		payload, ok := payloads[0].(execRunPostShutdownPayload)
+		if !ok {
+			t.Fatalf("payload type = %T, want execRunPostShutdownPayload", payloads[0])
+		}
+		if payload.Summary.Status != runStatusSucceeded || payload.Summary.JobsSucceeded != 1 {
+			t.Fatalf("unexpected run.post_shutdown summary: %#v", payload.Summary)
+		}
+	})
+}
+
+func TestValidateExecPreparedStateMutationRejectsStateDefiningChanges(t *testing.T) {
+	t.Parallel()
+
+	baseCfg := &model.RuntimeConfig{
+		WorkspaceRoot: "/tmp/workspace",
+		OutputFormat:  model.OutputFormatText,
+	}
+	snapshot := snapshotExecPreparedStateConfig(baseCfg)
+
+	testCases := []struct {
+		name        string
+		mutate      func(*model.RuntimeConfig)
+		expectedErr string
+	}{
+		{
+			name: "Should reject workspace root mutations",
+			mutate: func(cfg *model.RuntimeConfig) {
+				cfg.WorkspaceRoot = "/tmp/other"
+			},
+			expectedErr: "workspace_root",
+		},
+		{
+			name: "Should reject run id mutations",
+			mutate: func(cfg *model.RuntimeConfig) {
+				cfg.RunID = "exec-123"
+			},
+			expectedErr: "run_id",
+		},
+		{
+			name: "Should reject persist mutations",
+			mutate: func(cfg *model.RuntimeConfig) {
+				cfg.Persist = true
+			},
+			expectedErr: "persist",
+		},
+		{
+			name: "Should reject output format mutations",
+			mutate: func(cfg *model.RuntimeConfig) {
+				cfg.OutputFormat = model.OutputFormatJSON
+			},
+			expectedErr: "output_format",
+		},
+		{
+			name: "Should reject tui mutations",
+			mutate: func(cfg *model.RuntimeConfig) {
+				cfg.TUI = true
+			},
+			expectedErr: "tui",
 		},
 	}
-	cfg := &model.RuntimeConfig{
-		WorkspaceRoot: workspaceRootForExecTest(t),
-		IDE:           model.IDECodex,
-		Model:         "gpt-5.4",
-		AccessMode:    model.AccessModeDefault,
-	}
-	state := &execRunState{
-		ctx:            context.Background(),
-		record:         PersistedExecRun{UpdatedAt: time.Now().UTC()},
-		runArtifacts:   model.NewRunArtifacts(t.TempDir(), "exec-run-hooks"),
-		runtimeManager: manager,
-	}
 
-	if err := applyExecRunPreStartHook(context.Background(), state, cfg); err != nil {
-		t.Fatalf("applyExecRunPreStartHook: %v", err)
-	}
-	if cfg.Model != "gpt-5.4-mini" {
-		t.Fatalf("expected run.pre_start to mutate model, got %q", cfg.Model)
-	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	if err := state.writeStarted(cfg); err != nil {
-		t.Fatalf("writeStarted: %v", err)
-	}
-	if err := state.completeTurn(execExecutionResult{
-		status: runStatusSucceeded,
-		output: "done",
-	}); err != nil {
-		t.Fatalf("completeTurn: %v", err)
-	}
+			cfg := *baseCfg
+			tc.mutate(&cfg)
 
-	if got := len(manager.observerPayloads["run.post_start"]); got != 1 {
-		t.Fatalf("expected one run.post_start payload, got %d", got)
-	}
-	if got := len(manager.observerPayloads["run.pre_shutdown"]); got != 1 {
-		t.Fatalf("expected one run.pre_shutdown payload, got %d", got)
-	}
-	payloads := manager.observerPayloads["run.post_shutdown"]
-	if len(payloads) != 1 {
-		t.Fatalf("expected one run.post_shutdown payload, got %d", len(payloads))
-	}
-	payload, ok := payloads[0].(execRunPostShutdownPayload)
-	if !ok {
-		t.Fatalf("payload type = %T, want execRunPostShutdownPayload", payloads[0])
-	}
-	if payload.Summary.Status != runStatusSucceeded || payload.Summary.JobsSucceeded != 1 {
-		t.Fatalf("unexpected run.post_shutdown summary: %#v", payload.Summary)
+			err := validateExecPreparedStateMutation(snapshot, &cfg)
+			if err == nil || !strings.Contains(err.Error(), tc.expectedErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.expectedErr, err)
+			}
+		})
 	}
 }
 
@@ -605,13 +676,16 @@ type execHookManager struct {
 func (m *execHookManager) Start(context.Context) error { return nil }
 
 func (m *execHookManager) DispatchMutableHook(ctx context.Context, hook string, payload any) (any, error) {
+	if m == nil {
+		return payload, nil
+	}
 	if hook == "run.post_shutdown" {
 		if m.observerPayloads == nil {
 			m.observerPayloads = make(map[string][]any)
 		}
 		m.observerPayloads[hook] = append(m.observerPayloads[hook], payload)
 	}
-	if m != nil && m.dispatchMutable != nil {
+	if m.dispatchMutable != nil {
 		return m.dispatchMutable(ctx, hook, payload)
 	}
 	return payload, nil

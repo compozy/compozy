@@ -52,10 +52,6 @@ func NewReviewProviderBridge(
 	if err != nil {
 		return nil, err
 	}
-	prototype.SetState(ExtensionStateLoaded)
-	if prototype.Manifest != nil && prototype.Manifest.Subprocess != nil {
-		prototype.SetShutdownDeadline(prototype.Manifest.Subprocess.ShutdownTimeout)
-	}
 
 	return &ReviewProviderBridge{
 		prototype:       prototype,
@@ -185,11 +181,7 @@ func (b *ReviewProviderBridge) startStandaloneManager(
 	}
 
 	shutdownErr := manager.Shutdown(context.Background())
-	return nil, nil, fmt.Errorf(
-		"start review provider extension %q: session was not registered: %w",
-		name,
-		shutdownErr,
-	)
+	return nil, nil, missingRegisteredSessionError(name, shutdownErr)
 }
 
 func (b *ReviewProviderBridge) replaceManager(name string, next *Manager) error {
@@ -213,4 +205,12 @@ func (b *ReviewProviderBridge) replaceManager(name string, next *Manager) error 
 		)
 	}
 	return nil
+}
+
+func missingRegisteredSessionError(name string, shutdownErr error) error {
+	err := fmt.Errorf("start review provider extension %q: session was not registered", name)
+	if shutdownErr == nil {
+		return err
+	}
+	return fmt.Errorf("%w; shutdown during cleanup: %v", err, shutdownErr)
 }

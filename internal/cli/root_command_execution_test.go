@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	extensions "github.com/compozy/compozy/internal/core/extension"
@@ -451,7 +452,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		Status:          "succeeded",
 		WorkspaceRoot:   workspaceRoot,
 		IDE:             model.IDECodex,
-		Model:           "gpt-5-codex",
+		Model:           "gpt-5.4",
 		ReasoningEffort: "high",
 		AccessMode:      model.AccessModeDefault,
 		CreatedAt:       time.Now().UTC(),
@@ -966,6 +967,33 @@ func TestStartCommandExplicitTUIFailsWithoutTTY(t *testing.T) {
 	}
 	if !strings.Contains(stderr, "requires an interactive terminal for tui mode") {
 		t.Fatalf("unexpected explicit tui error output: %q", stderr)
+	}
+}
+
+func TestNormalizePresentationModeUsesInjectedInteractiveCheck(t *testing.T) {
+	t.Parallel()
+
+	if isInteractiveTerminal() {
+		t.Skip(
+			"requires a non-interactive test terminal to distinguish the injected callback from the process terminal",
+		)
+	}
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.tui = true
+	state.isInteractive = func() bool { return true }
+
+	cmd := &cobra.Command{Use: "start"}
+	cmd.Flags().Bool("tui", true, "enable tui")
+	if err := cmd.Flags().Set("tui", "true"); err != nil {
+		t.Fatalf("set --tui: %v", err)
+	}
+
+	if err := state.normalizePresentationMode(cmd); err != nil {
+		t.Fatalf("normalizePresentationMode() error = %v", err)
+	}
+	if !state.tui {
+		t.Fatal("expected tui to remain enabled when injected interactivity reports true")
 	}
 }
 

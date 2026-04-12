@@ -276,8 +276,29 @@ func TestFetchReviewsIncludesReviewBodyCommentsWhenRequested(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("expected 2 review body comment items, got %#v", items)
 	}
-	if items[0].ReviewHash == "" || items[1].ReviewHash == "" {
-		t.Fatalf("expected review hashes for fetched review body comments, got %#v", items)
+
+	itemByTitle := make(map[string]provider.ReviewItem, len(items))
+	for _, item := range items {
+		if item.ReviewHash == "" {
+			t.Fatalf("expected review hash for fetched review body comment, got %#v", item)
+		}
+		itemByTitle[item.Title] = item
+	}
+
+	nitpickItem, ok := itemByTitle["Prefer reusing existing stop-reason helper to avoid duplicated normalization."]
+	if !ok {
+		t.Fatalf("expected nitpick review body comment, got %#v", itemByTitle)
+	}
+	if nitpickItem.Severity != reviewBodyCommentSeverityNitpick {
+		t.Fatalf("expected nitpick severity, got %#v", nitpickItem)
+	}
+
+	minorItem, ok := itemByTitle["Split the legacy-path assertions into an explicit subtest."]
+	if !ok {
+		t.Fatalf("expected minor review body comment, got %#v", itemByTitle)
+	}
+	if minorItem.Severity != reviewBodyCommentSeverityMinor {
+		t.Fatalf("expected minor severity, got %#v", minorItem)
 	}
 }
 

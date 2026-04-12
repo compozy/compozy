@@ -84,13 +84,20 @@ func TestStartAndFixReviewsCommandsDefaultTUIToTrue(t *testing.T) {
 		name string
 		cmd  *cobra.Command
 	}{
-		{name: "start", cmd: newStartCommandWithDefaults(nil, defaultCommandStateDefaults())},
-		{name: "fix-reviews", cmd: newFixReviewsCommandWithDefaults(nil, defaultCommandStateDefaults())},
+		{
+			name: "ShouldDefaultTUIToTrueForStart",
+			cmd:  newStartCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		},
+		{
+			name: "ShouldDefaultTUIToTrueForFixReviews",
+			cmd:  newFixReviewsCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		},
 	}
 
 	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			flag := tc.cmd.Flags().Lookup("tui")
 			if flag == nil {
 				t.Fatal("expected --tui flag")

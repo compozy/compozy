@@ -216,7 +216,6 @@ func TestDiscoverAcceptsOverlayIDERuntimeDefaults(t *testing.T) {
 			"title: Reviewer",
 			"description: Reviews code",
 			"ide: ext-adapter",
-			"model: ext-model",
 			"---",
 			"",
 			"Review the code carefully.",
@@ -238,6 +237,9 @@ func TestDiscoverAcceptsOverlayIDERuntimeDefaults(t *testing.T) {
 	}
 	if got := catalog.Agents[0].Runtime.IDE; got != "ext-adapter" {
 		t.Fatalf("resolved.Runtime.IDE = %q, want %q", got, "ext-adapter")
+	}
+	if got := catalog.Agents[0].Runtime.Model; got != "ext-model" {
+		t.Fatalf("resolved.Runtime.Model = %q, want %q", got, "ext-model")
 	}
 }
 

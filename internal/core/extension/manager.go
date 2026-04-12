@@ -152,7 +152,10 @@ func (m *Manager) registerSession(session *extensionSession) {
 		return
 	}
 
-	name := session.runtime.normalizedName()
+	name := sessionKeyForRuntime(session.runtime)
+	if name == "" {
+		return
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -187,7 +190,7 @@ func (m *Manager) sessionForExtension(name string) (*extensionSession, bool) {
 		return nil, false
 	}
 
-	normalized := strings.TrimSpace(name)
+	normalized := normalizeSessionKey(name)
 	if normalized == "" {
 		return nil, false
 	}
@@ -197,6 +200,17 @@ func (m *Manager) sessionForExtension(name string) (*extensionSession, bool) {
 
 	session, ok := m.sessions[normalized]
 	return session, ok
+}
+
+func sessionKeyForRuntime(extension *RuntimeExtension) string {
+	if extension == nil {
+		return ""
+	}
+	return normalizeSessionKey(extension.normalizedName())
+}
+
+func normalizeSessionKey(name string) string {
+	return strings.TrimSpace(name)
 }
 
 func (m *Manager) emitLifecycleEvent(ctx context.Context, kind events.EventKind, payload any) error {

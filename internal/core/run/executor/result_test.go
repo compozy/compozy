@@ -224,33 +224,11 @@ func TestEmitExecutionResultWritesArtifactForTextModeWithoutStdout(t *testing.T)
 		ResultPath:   runArtifacts.ResultPath,
 	}
 
-	captureExecuteStreamsMu.Lock()
-	defer captureExecuteStreamsMu.Unlock()
-
-	originalStdout := os.Stdout
-	readPipe, writePipe, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("create stdout pipe: %v", err)
-	}
-	os.Stdout = writePipe
-	t.Cleanup(func() {
-		os.Stdout = originalStdout
+	stdoutBytes := captureExecutionStdout(t, func() {
+		if err := emitExecutionResult(cfg, result); err != nil {
+			t.Fatalf("emitExecutionResult: %v", err)
+		}
 	})
-
-	if err := emitExecutionResult(cfg, result); err != nil {
-		t.Fatalf("emitExecutionResult: %v", err)
-	}
-	if err := writePipe.Close(); err != nil {
-		t.Fatalf("close stdout writer: %v", err)
-	}
-
-	stdoutBytes, err := io.ReadAll(readPipe)
-	if err != nil {
-		t.Fatalf("read stdout pipe: %v", err)
-	}
-	if err := readPipe.Close(); err != nil {
-		t.Fatalf("close stdout reader: %v", err)
-	}
 
 	resultBytes, err := os.ReadFile(runArtifacts.ResultPath)
 	if err != nil {
@@ -290,38 +268,46 @@ func TestEmitExecutionResultKeepsWorkflowJSONModesQuietOnStdout(t *testing.T) {
 			ResultPath:   runArtifacts.ResultPath,
 		}
 
-		captureExecuteStreamsMu.Lock()
-		originalStdout := os.Stdout
-		readPipe, writePipe, err := os.Pipe()
-		if err != nil {
-			captureExecuteStreamsMu.Unlock()
-			t.Fatalf("create stdout pipe: %v", err)
-		}
-		os.Stdout = writePipe
-
-		if err := emitExecutionResult(cfg, result); err != nil {
-			captureExecuteStreamsMu.Unlock()
-			t.Fatalf("emitExecutionResult: %v", err)
-		}
-		if err := writePipe.Close(); err != nil {
-			captureExecuteStreamsMu.Unlock()
-			t.Fatalf("close stdout writer: %v", err)
-		}
-
-		stdoutBytes, err := io.ReadAll(readPipe)
-		if err != nil {
-			captureExecuteStreamsMu.Unlock()
-			t.Fatalf("read stdout pipe: %v", err)
-		}
-		if err := readPipe.Close(); err != nil {
-			captureExecuteStreamsMu.Unlock()
-			t.Fatalf("close stdout reader: %v", err)
-		}
-		os.Stdout = originalStdout
-		captureExecuteStreamsMu.Unlock()
+		stdoutBytes := captureExecutionStdout(t, func() {
+			if err := emitExecutionResult(cfg, result); err != nil {
+				t.Fatalf("emitExecutionResult: %v", err)
+			}
+		})
 
 		if len(stdoutBytes) != 0 {
 			t.Fatalf("expected workflow %s mode to keep stdout quiet, got %q", format, string(stdoutBytes))
 		}
 	}
+}
+
+func captureExecutionStdout(t *testing.T, run func()) []byte {
+	t.Helper()
+
+	captureExecuteStreamsMu.Lock()
+	defer captureExecuteStreamsMu.Unlock()
+
+	originalStdout := os.Stdout
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdout pipe: %v", err)
+	}
+	os.Stdout = writePipe
+	defer func() {
+		os.Stdout = originalStdout
+	}()
+
+	run()
+
+	if err := writePipe.Close(); err != nil {
+		t.Fatalf("close stdout writer: %v", err)
+	}
+
+	stdoutBytes, err := io.ReadAll(readPipe)
+	if err != nil {
+		t.Fatalf("read stdout pipe: %v", err)
+	}
+	if err := readPipe.Close(); err != nil {
+		t.Fatalf("close stdout reader: %v", err)
+	}
+	return stdoutBytes
 }

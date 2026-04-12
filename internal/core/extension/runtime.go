@@ -254,14 +254,19 @@ func runtimeExtensionFromDeclaredProvider(provider DeclaredProvider) (*RuntimeEx
 		return nil, fmt.Errorf("register runtime extension %q: missing manifest", provider.Extension.Name)
 	}
 
-	return &RuntimeExtension{
+	extension := &RuntimeExtension{
 		Name:         strings.TrimSpace(provider.Manifest.Extension.Name),
 		Ref:          provider.Extension,
 		Manifest:     provider.Manifest,
 		ManifestPath: provider.ManifestPath,
 		ExtensionDir: provider.ExtensionDir,
 		Capabilities: NewCapabilityChecker(provider.Manifest.Security.Capabilities),
-	}, nil
+	}
+	extension.SetState(ExtensionStateLoaded)
+	if provider.Manifest.Subprocess != nil {
+		extension.SetShutdownDeadline(provider.Manifest.Subprocess.ShutdownTimeout)
+	}
+	return extension, nil
 }
 
 func cloneRuntimeExtension(extension *RuntimeExtension) (*RuntimeExtension, error) {

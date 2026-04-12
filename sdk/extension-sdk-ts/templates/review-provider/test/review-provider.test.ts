@@ -20,13 +20,7 @@ test("review provider template registers and serves executable review handlers",
   });
   assert.deepEqual(initialize.registered_review_providers, ["__EXTENSION_NAME__-review"]);
 
-  const invoke = (
-    harness as unknown as {
-      call<T>(method: string, params: unknown): Promise<T>;
-    }
-  ).call.bind(harness);
-
-  const fetched = await invoke<Array<Record<string, unknown>>>("fetch_reviews", {
+  const fetched = await harness.call<Array<Record<string, unknown>>>("fetch_reviews", {
     provider: "__EXTENSION_NAME__-review",
     pr: "123",
     include_nitpicks: true,
@@ -41,7 +35,7 @@ test("review provider template registers and serves executable review handlers",
   ]);
 
   await assert.doesNotReject(() =>
-    invoke("resolve_issues", {
+    harness.call("resolve_issues", {
       provider: "__EXTENSION_NAME__-review",
       pr: "123",
       issues: [{ file_path: "issue_001.md", provider_ref: "thread-ts-1" }],
