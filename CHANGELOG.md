@@ -4,220 +4,210 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
 ## Unreleased
-
-### ♻️ Refactoring
-
-- Improve packages (#70)- Add nitpicks for coderabbit (#75)
 
 ### 🎉 Features
 
-- Kernel refactoring (#68)
+- Agents spec (#78)- Add extensability (#80)- Add compozy skill
+### 📚 Documentation
 
+- New prds- Add auto-docs workflow (claude code on merge)
+## 0.1.10 - 2026-04-10
+
+### ♻️  Refactoring
+
+- Improve packages (#70)- Add nitpicks for coderabbit (#75)
+### 🎉 Features
+
+- Kernel refactoring (#68)
 ### 🐛 Bug Fixes
 
-- Stop rewriting all \_meta.md files when listing workflows (#73)
+- Stop rewriting all _meta.md files when listing workflows (#73)
+### 🔧 CI/CD
+
+- *(release)* Prepare release v0.1.10 (#76)
 
 ## 0.1.9 - 2026-04-06
 
 ### 🎉 Features
 
 - Exec command (#60)
-
 ### 🐛 Bug Fixes
 
 - Close issue #61 (#63)- Fail for unsupported --add-dir (#66)
-
 ### 📚 Documentation
 
 - Context7 and exa skills
-
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.9 (#67)
+- *(release)* Prepare release v0.1.9 (#67)
 
 ## 0.1.8 - 2026-04-05
 
-### ♻️ Refactoring
+### ♻️  Refactoring
 
 - Rename idea-factory artifacts from issue to idea (#56)
-
 ### 🎉 Features
 
 - Add GitHub Copilot CLI as ACP runtime (#57)
-
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.8 (#59)
+- *(release)* Prepare release v0.1.8 (#59)
 
 ## 0.1.7 - 2026-04-05
 
-### ♻️ Refactoring
+### ♻️  Refactoring
 
 - Tool calls (#48)- Task artifacts changes (#52)
-
 ### 🎉 Features
 
-- _(build)_ Add AUR support and automation via GoReleaser (#49)
+- *(build)* Add AUR support and automation via GoReleaser (#49)
 
 ### 🐛 Bug Fixes
 
 - Review round
-
 ### 📦 Build System
 
 - Comment AUR release for now
-
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.7 (#55)
+- *(release)* Prepare release v0.1.7 (#55)
 
 ## 0.1.6 - 2026-04-04
 
 ### 🐛 Bug Fixes
 
 - Improve failures
-
 ### 📦 Build System
 
 - Remove ai-docs folder
-
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.6 (#47)
+- *(release)* Prepare release v0.1.6 (#47)
 
 ## 0.1.5 - 2026-04-03
 
 ### 🎉 Features
 
 - Add config.toml (#40)
-
 ### 🐛 Bug Fixes
 
 - Check skills shift before run- Acp permission
-
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.5 (#45)
+- *(release)* Prepare release v0.1.5 (#45)
 
 ## 0.1.4 - 2026-04-03
 
 ### 🎉 Features
 
 - Add cy-idea-factory skill and improve planning skills DX (#35)
-
 ### 🐛 Bug Fixes
 
 - Failed tool call crash- Skills frontmatter
-
 ### 📦 Build System
 
 - Fix skills symlink
-
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.4 (#39)
+- *(release)* Prepare release v0.1.4 (#39)
 
 ## 0.1.3 - 2026-04-03
 
 ### 🎉 Features
 
-- _(repo)_ Add archive command
+- *(repo)* Add archive command
 - Use acp instead of stream raw json (#34)
-
 ### 📚 Documentation
 
 - Archive old prds- Update readme
-
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.3 (#36)
+- *(release)* Prepare release v0.1.3 (#36)
 
 ## 0.1.2 - 2026-04-02
 
 ### 🐛 Bug Fixes
 
-- _(repo)_ Close tui when finish
+- *(repo)* Close tui when finish
 - Correct opencode run flags and add stdin support (#25)
-
 ### 📚 Documentation
 
-- _(repo)_ Update readme
+- *(repo)* Update readme
 
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.2 (#28)
+- *(release)* Prepare release v0.1.2 (#28)
 
 ## 0.1.1 - 2026-04-02
 
 ### 🐛 Bug Fixes
 
-- _(repo)_ Automatic completion
+- *(repo)* Automatic completion
 
 ### 📚 Documentation
 
-- _(repo)_ Remove installs
+- *(repo)* Remove installs
 
 ### 📦 Build System
 
-- _(repo)_ Fix release
+- *(repo)* Fix release
 
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.1.1 (#24)
+- *(release)* Prepare release v0.1.1 (#24)
 
 ## 0.1.0 - 2026-04-01
 
-### ♻️ Refactoring
+### ♻️  Refactoring
 
-- _(repo)_ Improve commands
-- _(repo)_ Remove not needed flags
-- _(repo)_ Remove PR as required for fix-reviews
-- _(repo)_ Improve setup command
-- _(repo)_ Remove prd- tasks folder prefix
-- _(repo)_ Many improvements
-- _(repo)_ Add cy prefix for skills and memory system
+- *(repo)* Improve commands
+- *(repo)* Remove not needed flags
+- *(repo)* Remove PR as required for fix-reviews
+- *(repo)* Improve setup command
+- *(repo)* Remove prd- tasks folder prefix
+- *(repo)* Many improvements
+- *(repo)* Add cy prefix for skills and memory system
 
 ### 🎉 Features
 
-- _(repo)_ Add build and release
-- _(repo)_ Add adr support
-- _(repo)_ Add fetch reviews
-- _(repo)_ Add review-round skill
-- _(repo)_ Add setup command
-- _(repo)_ Add \_meta.md for tasks
+- *(repo)* Add build and release
+- *(repo)* Add adr support
+- *(repo)* Add fetch reviews
+- *(repo)* Add review-round skill
+- *(repo)* Add setup command
+- *(repo)* Add _meta.md for tasks
 - Main structure
-
 ### 🐛 Bug Fixes
 
-- _(repo)_ Release
-- _(repo)_ Color bugs
+- *(repo)* Release
+- *(repo)* Color bugs
 
 ### 📚 Documentation
 
-- _(repo)_ Improve readme
-- _(repo)_ Remove old templates
-- _(repo)_ Improve readme
-- _(repo)_ Readme
-- _(repo)_ Update readme
+- *(repo)* Improve readme
+- *(repo)* Remove old templates
+- *(repo)* Improve readme
+- *(repo)* Readme
+- *(repo)* Update readme
 
 ### 📦 Build System
 
-- _(repo)_ Release
-- _(repo)_ Gitignore
-- _(repo)_ Rename to compozy
-- _(repo)_ Bump tag
+- *(repo)* Release
+- *(repo)* Gitignore
+- *(repo)* Rename to compozy
+- *(repo)* Bump tag
 
 ### 🔧 CI/CD
 
-- _(release)_ Prepare release v0.0.1 (#4)
-- _(release)_ Prepare release v0.0.2 (#5)
-- _(release)_ Prepare release v0.0.3 (#11)
-- _(release)_ Prepare release v0.1.0 (#21)
-- _(repo)_ Fix tests
+- *(release)* Prepare release v0.0.1 (#4)
+- *(release)* Prepare release v0.0.2 (#5)
+- *(release)* Prepare release v0.0.3 (#11)
+- *(release)* Prepare release v0.1.0 (#21)
+- *(repo)* Fix tests
 
-[unreleased]: https://github.com///compare/v0.1.9...HEAD
+[unreleased]: https://github.com///compare/v0.1.10...HEAD
+[0.1.10]: https://github.com///compare/v0.1.9...v0.1.10
 [0.1.9]: https://github.com///compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com///compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com///compare/v0.1.6...v0.1.7
@@ -227,7 +217,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.3]: https://github.com///compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com///compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com///compare/v0.1.0...v0.1.1
-
-## [0.1.0]: https://github.com///releases/tag/v0.1.0
-
-_Generated by [git-cliff](https://git-cliff.org)_
+[0.1.0]: https://github.com///releases/tag/v0.1.0
+---
+*Generated by [git-cliff](https://git-cliff.org)*
