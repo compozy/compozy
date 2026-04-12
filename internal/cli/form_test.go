@@ -404,6 +404,7 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 		}
 		if form == nil {
 			t.Fatal("expected task runtime form")
+			return
 		}
 		if !slices.Contains(form.selectedTypes, "demo::backend") {
 			t.Fatalf("expected backend type to be preselected, got %#v", form.selectedTypes)
@@ -411,6 +412,7 @@ func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 		editor := form.typeEditors["demo::backend"]
 		if editor == nil {
 			t.Fatal("expected backend editor to be created")
+			return
 		}
 		if editor.IDE != "claude" || editor.Model != "sonnet" || editor.ReasoningEffort != "high" {
 			t.Fatalf("unexpected preseeded editor: %#v", editor)
@@ -449,6 +451,7 @@ func TestTaskRuntimeFormUsesRecursiveWalkerWhenEnabled(t *testing.T) {
 	}
 	if form == nil {
 		t.Fatal("expected task runtime form")
+		return
 	}
 	if len(form.taskOptions) != 2 {
 		t.Fatalf("expected recursive form to discover 2 tasks, got %d: %#v", len(form.taskOptions), form.taskOptions)
@@ -486,6 +489,7 @@ func TestTaskRuntimeFormUsesFlatWalkerByDefault(t *testing.T) {
 	}
 	if form == nil {
 		t.Fatal("expected task runtime form")
+		return
 	}
 	if len(form.taskOptions) != 1 {
 		t.Fatalf("expected flat form to discover 1 task, got %d: %#v", len(form.taskOptions), form.taskOptions)
@@ -585,6 +589,7 @@ func TestTaskRunRuntimeFormScopesDuplicateTaskIDsByWorkflow(t *testing.T) {
 		}
 		if form == nil {
 			t.Fatal("expected multi-workflow task runtime form")
+			return
 		}
 		if len(form.taskOptions) != 2 {
 			t.Fatalf("expected two task options, got %#v", form.taskOptions)
@@ -652,6 +657,7 @@ func TestTaskRunRuntimeFormPreservesSingleWorkflowScopedRules(t *testing.T) {
 		}
 		if form == nil {
 			t.Fatal("expected single-workflow task runtime form")
+			return
 		}
 		if !slices.Equal(form.selectedTypes, []string{"alpha::backend"}) {
 			t.Fatalf("selected types = %#v, want alpha-scoped backend", form.selectedTypes)

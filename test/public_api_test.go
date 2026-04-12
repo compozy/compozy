@@ -49,6 +49,7 @@ complexity: low
 	}
 	if prep == nil {
 		t.Fatal("expected preparation result")
+		return
 	}
 	if len(prep.Jobs) != 1 {
 		t.Fatalf("expected 1 job, got %d", len(prep.Jobs))
@@ -68,6 +69,7 @@ func TestNewCommandUsesCompozyRootCommand(t *testing.T) {
 	cmd := compozy.NewCommand()
 	if cmd == nil {
 		t.Fatal("expected command")
+		return
 	}
 	if cmd.Use != "compozy" {
 		t.Fatalf("expected use compozy, got %q", cmd.Use)
@@ -97,6 +99,7 @@ func TestMigrateExposePublicAPI(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected migration result")
+		return
 	}
 	if result.FilesMigrated != 1 {
 		t.Fatalf("expected 1 planned migration, got %d", result.FilesMigrated)
@@ -130,6 +133,7 @@ func TestSyncExposePublicAPI(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected sync result")
+		return
 	}
 	if result.WorkflowsScanned != 1 ||
 		result.TaskItemsUpserted != 1 ||
@@ -170,6 +174,7 @@ func TestArchiveExposePublicAPI(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected archive result")
+		return
 	}
 	if result.Archived != 1 || result.Skipped != 0 {
 		t.Fatalf("unexpected archive result: %#v", result)

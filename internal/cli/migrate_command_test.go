@@ -70,6 +70,11 @@ func committedACPFixtureDir(repoRoot string) (string, error) {
 		return activePath, nil
 	}
 
+	testdataPath := filepath.Join(repoRoot, "internal", "cli", "testdata", "acp-integration")
+	if info, err := os.Stat(testdataPath); err == nil && info.IsDir() {
+		return testdataPath, nil
+	}
+
 	matches, err := filepath.Glob(filepath.Join(repoRoot, ".compozy", "tasks", "_archived", "*-acp-integration"))
 	if err != nil {
 		return "", err

@@ -21,6 +21,7 @@ type skillRefreshPrompt struct {
 }
 
 type requiredSkillState struct {
+	ResolverOptions   setup.ResolverOptions
 	AgentName         string
 	BundledSkillNames []string
 	ExtensionPacks    []setup.SkillPackSource
@@ -74,9 +75,10 @@ func (s *commandState) verifyRequiredSkillState(
 	if verifyBundledSkills == nil {
 		verifyBundledSkills = setup.VerifyBundledSkills
 	}
+	resolver := preflightResolverOptions(setup.ResolverOptions{}, s.workspaceRoot)
 
 	bundledResult, err := verifyBundledSkills(setup.VerifyConfig{
-		ResolverOptions: currentResolverOptions(),
+		ResolverOptions: resolver,
 		AgentName:       agentName,
 		SkillNames:      bundledSkillNames,
 	})
@@ -89,7 +91,7 @@ func (s *commandState) verifyRequiredSkillState(
 		verifyExtensionSkills = setup.VerifyExtensionSkillPacks
 	}
 	extensionResult, err := verifyExtensionSkills(setup.ExtensionVerifyConfig{
-		ResolverOptions: currentResolverOptions(),
+		ResolverOptions: resolver,
 		AgentName:       agentName,
 		Packs:           extensionPacks,
 		ScopeHint:       bundledResult.Scope,
@@ -99,6 +101,7 @@ func (s *commandState) verifyRequiredSkillState(
 	}
 
 	return requiredSkillState{
+		ResolverOptions:   resolver,
 		AgentName:         agentName,
 		BundledSkillNames: bundledSkillNames,
 		ExtensionPacks:    append([]setup.SkillPackSource(nil), extensionPacks...),
@@ -174,8 +177,10 @@ func (s *commandState) refreshBundledSkills(verifyState requiredSkillState) erro
 	global := verifyState.Scope() == setup.InstallScopeGlobal
 	mode := verifyState.Mode()
 
+	resolver := preflightResolverOptions(verifyState.ResolverOptions, s.workspaceRoot)
+
 	installResult, err := installBundledSkills(setup.InstallConfig{
-		ResolverOptions: currentResolverOptions(),
+		ResolverOptions: resolver,
 		SkillNames:      verifyState.BundledSkillNames,
 		AgentNames:      []string{verifyState.AgentName},
 		Global:          global,
@@ -197,7 +202,7 @@ func (s *commandState) refreshBundledSkills(verifyState requiredSkillState) erro
 		installExtensionSkills = setup.InstallExtensionSkillPacks
 	}
 	extensionResult, err := installExtensionSkills(setup.ExtensionInstallConfig{
-		ResolverOptions: currentResolverOptions(),
+		ResolverOptions: resolver,
 		Packs:           verifyState.ExtensionPacks,
 		AgentNames:      []string{verifyState.AgentName},
 		Global:          global,
@@ -224,8 +229,10 @@ func ensureBundledSkillsCurrent(
 		verifyExtensionSkills = setup.VerifyExtensionSkillPacks
 	}
 
+	resolver := preflightResolverOptions(verifyState.ResolverOptions, "")
+
 	reverifiedBundled, err := verifyBundledSkills(setup.VerifyConfig{
-		ResolverOptions: currentResolverOptions(),
+		ResolverOptions: resolver,
 		AgentName:       verifyState.AgentName,
 		SkillNames:      verifyState.BundledSkillNames,
 	})
@@ -233,7 +240,7 @@ func ensureBundledSkillsCurrent(
 		return fmt.Errorf("re-verify bundled skills: %w", err)
 	}
 	reverifiedExtensions, err := verifyExtensionSkills(setup.ExtensionVerifyConfig{
-		ResolverOptions: currentResolverOptions(),
+		ResolverOptions: resolver,
 		AgentName:       verifyState.AgentName,
 		Packs:           verifyState.ExtensionPacks,
 		ScopeHint:       verifyState.Scope(),
@@ -243,6 +250,7 @@ func ensureBundledSkillsCurrent(
 	}
 
 	reverified := requiredSkillState{
+		ResolverOptions:   verifyState.ResolverOptions,
 		AgentName:         verifyState.AgentName,
 		BundledSkillNames: verifyState.BundledSkillNames,
 		ExtensionPacks:    verifyState.ExtensionPacks,
@@ -264,6 +272,26 @@ func ensureBundledSkillsCurrent(
 		)
 	}
 	return nil
+}
+
+func preflightResolverOptions(provided setup.ResolverOptions, workspaceRoot string) setup.ResolverOptions {
+	resolved := currentResolverOptions(workspaceRoot)
+	if trimmed := strings.TrimSpace(provided.CWD); trimmed != "" {
+		resolved.CWD = trimmed
+	}
+	if trimmed := strings.TrimSpace(provided.HomeDir); trimmed != "" {
+		resolved.HomeDir = trimmed
+	}
+	if trimmed := strings.TrimSpace(provided.XDGConfigHome); trimmed != "" {
+		resolved.XDGConfigHome = trimmed
+	}
+	if trimmed := strings.TrimSpace(provided.CodeXHome); trimmed != "" {
+		resolved.CodeXHome = trimmed
+	}
+	if trimmed := strings.TrimSpace(provided.ClaudeConfigDir); trimmed != "" {
+		resolved.ClaudeConfigDir = trimmed
+	}
+	return resolved
 }
 
 func (s *commandState) requiresBundledSkillPreflight() bool {

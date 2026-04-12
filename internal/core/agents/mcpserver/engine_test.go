@@ -355,6 +355,7 @@ func TestRunAgentHonorsWorkspaceOverrideDuringNestedResolution(t *testing.T) {
 			}
 			if agentExecution == nil {
 				t.Fatal("expected nested agent execution context")
+				return execpkg.PreparedPromptResult{}, nil
 			}
 			if agentExecution.Agent.Source.Scope != reusableagents.ScopeWorkspace {
 				t.Fatalf("expected workspace override source, got %#v", agentExecution.Agent.Source)

@@ -134,6 +134,7 @@ func TestMigrateV1ToV2RemapsTypesAndExtractsTitle(t *testing.T) {
 			}
 			if migrated == nil {
 				t.Fatal("expected migrated file")
+				return
 			}
 			if strings.Contains(migrated.content, "domain:") || strings.Contains(migrated.content, "scope:") {
 				t.Fatalf("expected migrated content to drop v1-only keys, got:\n%s", migrated.content)
@@ -736,6 +737,7 @@ func TestMigrateRejectsInvalidArtifactsWithoutWriting(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected migration result on error")
+		return
 	}
 	if result.FilesInvalid != 1 {
 		t.Fatalf("expected 1 invalid file, got %d", result.FilesInvalid)

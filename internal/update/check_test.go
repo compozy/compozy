@@ -121,6 +121,7 @@ func TestCheckForUpdateQueriesWhenCacheIsStale(t *testing.T) {
 	}
 	if state == nil {
 		t.Fatal("expected persisted state after cache miss")
+		return
 	}
 	if !state.CheckedForUpdateAt.Equal(now) {
 		t.Fatalf("unexpected checked time: want %s, got %s", now, state.CheckedForUpdateAt)
@@ -250,6 +251,7 @@ func TestSelfUpdaterClientDetectLatestReturnsReleaseInfo(t *testing.T) {
 	}
 	if got == nil {
 		t.Fatal("expected release info, got nil")
+		return
 	}
 	if got.Version != "1.2.3" {
 		t.Fatalf("unexpected version: %q", got.Version)

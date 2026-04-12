@@ -133,6 +133,7 @@ func TestTaskRunWizardModel(t *testing.T) {
 		editor := wizard.currentOverrideEditor()
 		if editor == nil {
 			t.Fatal("expected current override editor after selecting target")
+			return
 		}
 		editor.IDE = "claude"
 		editor.ReasoningEffort = "high"
@@ -183,6 +184,7 @@ func TestTaskRunWizardModel(t *testing.T) {
 		editor := wizard.currentOverrideEditor()
 		if editor == nil {
 			t.Fatal("expected current override editor after selecting target")
+			return
 		}
 		editor.IDE = "claude"
 
@@ -282,6 +284,7 @@ func TestTaskRunWizardModel(t *testing.T) {
 		editor := wizard.currentOverrideEditor()
 		if editor == nil {
 			t.Fatal("expected current override editor")
+			return
 		}
 		if editor.Model != "haiku" {
 			t.Fatalf("override model = %q, want haiku", editor.Model)
