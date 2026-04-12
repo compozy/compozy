@@ -228,10 +228,14 @@ func TestRefreshBundledSkillsInstallsBundledAndExtensionSkills(t *testing.T) {
 	t.Parallel()
 
 	state := &commandState{}
+	state.workspaceRoot = "/tmp/workspace-root"
 	var bundledCalled bool
 	var extensionCalled bool
 	state.installBundledSkills = func(cfg setup.InstallConfig) (*setup.Result, error) {
 		bundledCalled = true
+		if cfg.CWD != state.workspaceRoot {
+			t.Fatalf("unexpected bundled resolver cwd: %q", cfg.CWD)
+		}
 		if !cfg.Global {
 			t.Fatal("expected global bundled refresh")
 		}
@@ -245,6 +249,9 @@ func TestRefreshBundledSkillsInstallsBundledAndExtensionSkills(t *testing.T) {
 	}
 	state.installExtensionSkills = func(cfg setup.ExtensionInstallConfig) (*setup.ExtensionResult, error) {
 		extensionCalled = true
+		if cfg.CWD != state.workspaceRoot {
+			t.Fatalf("unexpected extension resolver cwd: %q", cfg.CWD)
+		}
 		if !cfg.Global {
 			t.Fatal("expected global extension refresh")
 		}
@@ -301,10 +308,14 @@ func TestVerifyRequiredSkillStateUsesSetupAgentNameAndExtensionScopeHint(t *test
 	t.Parallel()
 
 	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.workspaceRoot = "/tmp/workspace-root"
 	state.listBundledSkills = func() ([]setup.Skill, error) {
 		return []setup.Skill{{Name: "cy-execute-task"}, {Name: "cy-final-verify"}}, nil
 	}
 	state.verifyBundledSkills = func(cfg setup.VerifyConfig) (setup.VerifyResult, error) {
+		if cfg.CWD != state.workspaceRoot {
+			t.Fatalf("unexpected bundled resolver cwd: %q", cfg.CWD)
+		}
 		if cfg.AgentName != "codex" {
 			t.Fatalf("unexpected setup agent name: %q", cfg.AgentName)
 		}
@@ -321,6 +332,9 @@ func TestVerifyRequiredSkillStateUsesSetupAgentNameAndExtensionScopeHint(t *test
 		}, nil
 	}
 	state.verifyExtensionSkills = func(cfg setup.ExtensionVerifyConfig) (setup.ExtensionVerifyResult, error) {
+		if cfg.CWD != state.workspaceRoot {
+			t.Fatalf("unexpected extension resolver cwd: %q", cfg.CWD)
+		}
 		if cfg.AgentName != "codex" {
 			t.Fatalf("unexpected extension setup agent name: %q", cfg.AgentName)
 		}

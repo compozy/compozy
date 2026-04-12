@@ -133,6 +133,53 @@ types = ["mobile", "api"]
 	}
 }
 
+func TestWriteConfigRoundTripsDefaultsWithoutEmptySections(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	configPath := filepath.Join(root, ".compozy", "config.toml")
+	ide := "codex"
+	modelName := "gpt-5.4"
+	accessMode := "default"
+	cfg := ProjectConfig{
+		Defaults: DefaultsConfig{
+			IDE:        &ide,
+			Model:      &modelName,
+			AccessMode: &accessMode,
+		},
+	}
+
+	if err := WriteConfig(context.Background(), configPath, cfg); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	rendered := string(content)
+	if !strings.Contains(rendered, "[defaults]") || !strings.Contains(rendered, "ide = 'codex'") {
+		t.Fatalf("expected defaults section in rendered config, got:\n%s", rendered)
+	}
+	if strings.Contains(rendered, "[start]") || strings.Contains(rendered, "[exec]") {
+		t.Fatalf("expected empty sections to be omitted, got:\n%s", rendered)
+	}
+
+	loaded, exists, err := LoadConfigFile(context.Background(), configPath)
+	if err != nil {
+		t.Fatalf("load config file: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected written config file to exist")
+	}
+	if loaded.Defaults.IDE == nil || *loaded.Defaults.IDE != "codex" {
+		t.Fatalf("unexpected loaded defaults.ide: %#v", loaded.Defaults.IDE)
+	}
+	if loaded.Defaults.Model == nil || *loaded.Defaults.Model != "gpt-5.4" {
+		t.Fatalf("unexpected loaded defaults.model: %#v", loaded.Defaults.Model)
+	}
+}
+
 func TestLoadConfigRejectsUnknownFields(t *testing.T) {
 	t.Parallel()
 
