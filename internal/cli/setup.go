@@ -11,10 +11,20 @@ import (
 
 	"charm.land/huh/v2"
 	"charm.land/lipgloss/v2"
+	coreagent "github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/kernel"
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
+
+type runtimeDefaultsPlan struct {
+	Enabled    bool
+	ConfigPath string
+	Existing   bool
+	Defaults   workspace.DefaultsConfig
+}
 
 type setupCommandState struct {
 	agentNames []string
@@ -33,6 +43,10 @@ type setupCommandState struct {
 	installSkills         setupSkillInstallFunc
 	installReusableAgents setupReusableAgentInstallFunc
 	cleanupLegacyAssets   func(setup.LegacyAssetCleanupConfig) (setup.LegacyAssetCleanupResult, error)
+	resolveWorkspace      func(context.Context) (workspace.Context, error)
+	loadConfigFile        func(context.Context, string) (workspace.ProjectConfig, bool, error)
+	writeConfig           func(context.Context, string, workspace.ProjectConfig) error
+	promptRuntimeDefaults func(string) (bool, error)
 	isInteractive         func() bool
 }
 
@@ -62,6 +76,7 @@ type setupInstallPlan struct {
 	ReusableAgents       []setup.ReusableAgent
 	Previews             []setup.PreviewItem
 	ReusableAgentPreview []setup.ReusableAgentPreviewItem
+	RuntimePlan          runtimeDefaultsPlan
 }
 
 func newSetupCommand(_ *kernel.Dispatcher) *cobra.Command {
@@ -104,6 +119,10 @@ func newSetupCommandState() *setupCommandState {
 		installSkills:         setup.InstallSelectedSkills,
 		installReusableAgents: setup.InstallReusableAgents,
 		cleanupLegacyAssets:   setup.CleanupLegacyTransferredAssets,
+		resolveWorkspace:      resolveSetupWorkspaceContext,
+		loadConfigFile:        workspace.LoadConfigFile,
+		writeConfig:           workspace.WriteConfig,
+		promptRuntimeDefaults: promptRuntimeDefaultsOptIn,
 		isInteractive:         isInteractiveTerminal,
 	}
 }
@@ -112,7 +131,10 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
-	resolver := s.resolverOptions()
+	resolver, err := s.resolverOptions(ctx)
+	if err != nil {
+		return err
+	}
 	catalog, err := s.loadCatalog(ctx, resolver)
 	if err != nil {
 		return err
@@ -135,7 +157,8 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	cfg, previews, reusableAgentPreviews, err := s.buildInstallPlan(
+	cfg, previews, reusableAgentPreviews, runtimePlan, err := s.buildInstallPlan(
+		ctx,
 		cmd,
 		catalog,
 		resolver,
@@ -146,16 +169,17 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 	printSetupWarnings(cmd, catalog.Conflicts)
-	if err := s.confirmPlan(cmd, previews, reusableAgentPreviews, cfg.Global, cfg.Mode); err != nil {
+	if err := s.confirmPlan(cmd, previews, reusableAgentPreviews, runtimePlan, cfg.Global, cfg.Mode); err != nil {
 		return err
 	}
 
-	return s.executeInstall(cmd, setupInstallPlan{
+	return s.executeInstall(ctx, cmd, setupInstallPlan{
 		Config:               cfg,
 		Skills:               previewsToSkills(previews),
 		ReusableAgents:       append([]setup.ReusableAgent(nil), catalog.ReusableAgents...),
 		Previews:             previews,
 		ReusableAgentPreview: reusableAgentPreviews,
+		RuntimePlan:          runtimePlan,
 	})
 }
 
@@ -169,12 +193,31 @@ func (s *setupCommandState) prepareRunMode() error {
 	return nil
 }
 
-func (s *setupCommandState) resolverOptions() setup.ResolverOptions {
-	return currentResolverOptions()
+func (s *setupCommandState) resolverOptions(ctx context.Context) (setup.ResolverOptions, error) {
+	workspaceCtx, err := s.resolveWorkspace(ctx)
+	if err != nil {
+		return setup.ResolverOptions{}, err
+	}
+	return currentResolverOptions(workspaceCtx.Root), nil
 }
 
-func currentResolverOptions() setup.ResolverOptions {
+func resolveSetupWorkspaceContext(ctx context.Context) (workspace.Context, error) {
+	root, err := discoverWorkspaceRoot(ctx)
+	if err != nil {
+		return workspace.Context{}, err
+	}
+	configPath := model.ConfigPathForWorkspace(root)
+	return workspace.Context{
+		Root:                root,
+		CompozyDir:          model.CompozyDir(root),
+		ConfigPath:          configPath,
+		WorkspaceConfigPath: configPath,
+	}, nil
+}
+
+func currentResolverOptions(cwd string) setup.ResolverOptions {
 	return setup.ResolverOptions{
+		CWD:             strings.TrimSpace(cwd),
 		CodeXHome:       strings.TrimSpace(os.Getenv("CODEX_HOME")),
 		ClaudeConfigDir: strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")),
 		XDGConfigHome:   strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME")),
@@ -195,34 +238,40 @@ func (s *setupCommandState) loadAgents(resolver setup.ResolverOptions) ([]setup.
 }
 
 func (s *setupCommandState) buildInstallPlan(
+	ctx context.Context,
 	cmd *cobra.Command,
 	catalog setup.EffectiveCatalog,
 	resolver setup.ResolverOptions,
 	supportedAgents []setup.Agent,
 	detectedAgents []setup.Agent,
-) (setup.InstallConfig, []setup.PreviewItem, []setup.ReusableAgentPreviewItem, error) {
+) (setup.InstallConfig, []setup.PreviewItem, []setup.ReusableAgentPreviewItem, runtimeDefaultsPlan, error) {
 	selectedSkillNames, err := s.resolveSkillSelection(catalog.Skills)
 	if err != nil {
-		return setup.InstallConfig{}, nil, nil, err
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
 	}
 	selectedSkills, err := setup.SelectSkills(catalog.Skills, selectedSkillNames)
 	if err != nil {
-		return setup.InstallConfig{}, nil, nil, err
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
 	}
 
 	selectedAgents, err := s.resolveAgentSelection(supportedAgents, detectedAgents)
 	if err != nil {
-		return setup.InstallConfig{}, nil, nil, err
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
 	}
 
 	globalScope, err := s.resolveScope(cmd, selectedAgents)
 	if err != nil {
-		return setup.InstallConfig{}, nil, nil, err
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
 	}
 
 	mode, err := s.resolveInstallMode(cmd, supportedAgents, selectedAgents, globalScope)
 	if err != nil {
-		return setup.InstallConfig{}, nil, nil, err
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
+	}
+
+	runtimePlan, err := s.resolveRuntimeDefaultsPlan(ctx, globalScope, selectedAgents)
+	if err != nil {
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
 	}
 
 	cfg := setup.InstallConfig{
@@ -234,7 +283,7 @@ func (s *setupCommandState) buildInstallPlan(
 	}
 	previews, err := s.previewSkills(resolver, selectedSkills, selectedAgents, globalScope, mode)
 	if err != nil {
-		return setup.InstallConfig{}, nil, nil, err
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
 	}
 	reusableAgentPreviews, err := s.previewReusableAgents(setup.ReusableAgentInstallConfig{
 		ResolverOptions: resolver,
@@ -242,15 +291,16 @@ func (s *setupCommandState) buildInstallPlan(
 		Global:          globalScope,
 	})
 	if err != nil {
-		return setup.InstallConfig{}, nil, nil, err
+		return setup.InstallConfig{}, nil, nil, runtimeDefaultsPlan{}, err
 	}
-	return cfg, previews, reusableAgentPreviews, nil
+	return cfg, previews, reusableAgentPreviews, runtimePlan, nil
 }
 
 func (s *setupCommandState) confirmPlan(
 	cmd *cobra.Command,
 	previews []setup.PreviewItem,
 	reusableAgentPreviews []setup.ReusableAgentPreviewItem,
+	runtimePlan runtimeDefaultsPlan,
 	global bool,
 	mode setup.InstallMode,
 ) error {
@@ -258,7 +308,7 @@ func (s *setupCommandState) confirmPlan(
 		return nil
 	}
 
-	printPreviewSummary(cmd, previews, reusableAgentPreviews, global, mode)
+	printPreviewSummary(cmd, previews, reusableAgentPreviews, runtimePlan, global, mode)
 	confirmed, err := confirmSetup()
 	if err != nil {
 		return err
@@ -269,7 +319,11 @@ func (s *setupCommandState) confirmPlan(
 	return nil
 }
 
-func (s *setupCommandState) executeInstall(cmd *cobra.Command, plan setupInstallPlan) error {
+func (s *setupCommandState) executeInstall(
+	ctx context.Context,
+	cmd *cobra.Command,
+	plan setupInstallPlan,
+) error {
 	result, err := s.installPlan(plan)
 	printInstallResult(cmd, result)
 	if err != nil {
@@ -278,6 +332,9 @@ func (s *setupCommandState) executeInstall(cmd *cobra.Command, plan setupInstall
 	failureCount := len(result.Failed) + len(result.ReusableAgentsFailed)
 	if failureCount > 0 {
 		return fmt.Errorf("setup completed with %d failure(s)", failureCount)
+	}
+	if err := s.persistRuntimeDefaults(ctx, plan.RuntimePlan); err != nil {
+		return err
 	}
 	return nil
 }
@@ -321,6 +378,222 @@ func (s *setupCommandState) installPlan(plan setupInstallPlan) (*setup.Result, e
 	result.ReusableAgentsSuccessful = successfulReusableAgents
 	result.ReusableAgentsFailed = failedReusableAgents
 	return result, nil
+}
+
+func (s *setupCommandState) resolveRuntimeDefaultsPlan(
+	ctx context.Context,
+	global bool,
+	selectedAgents []string,
+) (runtimeDefaultsPlan, error) {
+	if s.yes || global {
+		return runtimeDefaultsPlan{}, nil
+	}
+
+	configPath, err := s.runtimeDefaultsPath(ctx)
+	if err != nil {
+		return runtimeDefaultsPlan{}, err
+	}
+	enabled, err := s.promptRuntimeDefaults(configPath)
+	if err != nil {
+		return runtimeDefaultsPlan{}, err
+	}
+	if !enabled {
+		return runtimeDefaultsPlan{}, nil
+	}
+
+	currentConfig, exists, err := s.loadConfigFile(ctx, configPath)
+	if err != nil {
+		return runtimeDefaultsPlan{}, fmt.Errorf("load workspace runtime defaults: %w", err)
+	}
+	hasExistingDefaults :=
+		(currentConfig.Defaults.IDE != nil && strings.TrimSpace(*currentConfig.Defaults.IDE) != "") ||
+			(currentConfig.Defaults.Model != nil && strings.TrimSpace(*currentConfig.Defaults.Model) != "") ||
+			(currentConfig.Defaults.ReasoningEffort != nil && strings.TrimSpace(*currentConfig.Defaults.ReasoningEffort) != "")
+	selectedIDE := preferredRuntimeIDE(currentConfig.Defaults, selectedAgents)
+	defaults, err := editRuntimeDefaultsSelection(
+		selectedIDE,
+		preferredRuntimeModel(currentConfig.Defaults, selectedIDE),
+		preferredRuntimeReasoningEffort(currentConfig.Defaults),
+		defaultModelForIDE(selectedIDE),
+	)
+	if err != nil {
+		return runtimeDefaultsPlan{}, err
+	}
+
+	return runtimeDefaultsPlan{
+		Enabled:    true,
+		ConfigPath: configPath,
+		Existing:   exists && hasExistingDefaults,
+		Defaults:   defaults,
+	}, nil
+}
+
+func promptRuntimeDefaultsOptIn(configPath string) (bool, error) {
+	writeDefaults := false
+	field := huh.NewConfirm().
+		Key("runtime-defaults").
+		Title("Write repo-level default runtime overrides?").
+		Description(fmt.Sprintf("Save workspace defaults to %s.", configPath)).
+		Value(&writeDefaults)
+	if err := runPromptField(field); err != nil {
+		return false, fmt.Errorf("select runtime defaults behavior: %w", err)
+	}
+	if !writeDefaults {
+		return false, nil
+	}
+	return true, nil
+}
+
+func editRuntimeDefaultsSelection(
+	selectedIDE string,
+	selectedModel string,
+	selectedReasoning string,
+	originalRecommendedModel string,
+) (workspace.DefaultsConfig, error) {
+	ideField := huh.NewSelect[string]().
+		Key("defaults-ide").
+		Title("Default IDE").
+		Description("Recommended workspace default from the README example.").
+		Options(runtimeIDEOptions()...).
+		Value(&selectedIDE)
+	if err := runPromptField(ideField); err != nil {
+		return workspace.DefaultsConfig{}, fmt.Errorf("select default ide: %w", err)
+	}
+	recommendedModel := defaultModelForIDE(selectedIDE)
+	if strings.TrimSpace(selectedModel) == "" || strings.TrimSpace(selectedModel) == originalRecommendedModel {
+		selectedModel = recommendedModel
+	}
+	modelField := huh.NewInput().
+		Key("defaults-model").
+		Title("Default Model").
+		Description(fmt.Sprintf("Recommended for %s: %s.", selectedIDE, recommendedModel)).
+		Value(&selectedModel).
+		Validate(func(value string) error {
+			if strings.TrimSpace(value) == "" {
+				return errors.New("model is required")
+			}
+			return nil
+		})
+	if err := runPromptField(modelField); err != nil {
+		return workspace.DefaultsConfig{}, fmt.Errorf("select default model: %w", err)
+	}
+	reasoningField := huh.NewSelect[string]().
+		Key("defaults-reasoning-effort").
+		Title("Default Reasoning Effort").
+		Description("Recommended workspace default from the README example.").
+		Options(
+			huh.NewOption("Low", "low"),
+			huh.NewOption("Medium", "medium"),
+			huh.NewOption("High", "high"),
+			huh.NewOption("Extra High", "xhigh"),
+		).
+		Value(&selectedReasoning)
+	if err := runPromptField(reasoningField); err != nil {
+		return workspace.DefaultsConfig{}, fmt.Errorf("select default reasoning effort: %w", err)
+	}
+
+	return workspace.DefaultsConfig{
+		IDE:             stringPtr(strings.TrimSpace(selectedIDE)),
+		Model:           stringPtr(strings.TrimSpace(selectedModel)),
+		ReasoningEffort: stringPtr(strings.TrimSpace(selectedReasoning)),
+	}, nil
+}
+
+func (s *setupCommandState) runtimeDefaultsPath(ctx context.Context) (string, error) {
+	workspaceCtx, err := s.resolveWorkspace(ctx)
+	if err != nil {
+		return "", err
+	}
+	return workspaceCtx.ConfigPath, nil
+}
+
+func (s *setupCommandState) persistRuntimeDefaults(ctx context.Context, plan runtimeDefaultsPlan) error {
+	if !plan.Enabled {
+		return nil
+	}
+
+	currentConfig, _, err := s.loadConfigFile(ctx, plan.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("reload runtime defaults config: %w", err)
+	}
+	currentConfig.Defaults.IDE = plan.Defaults.IDE
+	currentConfig.Defaults.Model = plan.Defaults.Model
+	currentConfig.Defaults.ReasoningEffort = plan.Defaults.ReasoningEffort
+	if err := s.writeConfig(ctx, plan.ConfigPath, currentConfig); err != nil {
+		return err
+	}
+	return nil
+}
+
+func preferredRuntimeIDE(defaults workspace.DefaultsConfig, selectedAgents []string) string {
+	if defaults.IDE != nil && strings.TrimSpace(*defaults.IDE) != "" {
+		return strings.TrimSpace(*defaults.IDE)
+	}
+	if inferredIDE := runtimeIDEFromSelectedAgents(selectedAgents); inferredIDE != "" {
+		return inferredIDE
+	}
+	return model.IDECodex
+}
+
+func preferredRuntimeModel(defaults workspace.DefaultsConfig, selectedIDE string) string {
+	if defaults.Model != nil && strings.TrimSpace(*defaults.Model) != "" {
+		return strings.TrimSpace(*defaults.Model)
+	}
+	return defaultModelForIDE(selectedIDE)
+}
+
+func preferredRuntimeReasoningEffort(defaults workspace.DefaultsConfig) string {
+	if defaults.ReasoningEffort != nil && strings.TrimSpace(*defaults.ReasoningEffort) != "" {
+		return strings.TrimSpace(*defaults.ReasoningEffort)
+	}
+	return model.DefaultReasoningEffort
+}
+
+func runtimeIDEOptions() []huh.Option[string] {
+	entries := coreagent.DriverCatalog()
+	options := make([]huh.Option[string], 0, len(entries))
+	for i := range entries {
+		entry := &entries[i]
+		label := entry.DisplayName
+		if entry.IDE == model.IDECodex {
+			label += " (recommended)"
+		}
+		options = append(options, huh.NewOption(label, entry.IDE))
+	}
+	return options
+}
+
+func defaultModelForIDE(ide string) string {
+	resolved := strings.TrimSpace(coreagent.DefaultModel(ide))
+	if resolved != "" {
+		return resolved
+	}
+	return model.DefaultCodexModel
+}
+
+func runtimeIDEFromSelectedAgents(selectedAgents []string) string {
+	entries := coreagent.DriverCatalog()
+	for _, selectedAgent := range selectedAgents {
+		normalizedAgent := strings.TrimSpace(strings.ToLower(selectedAgent))
+		if normalizedAgent == "" {
+			continue
+		}
+		for i := range entries {
+			setupAgentName, err := coreagent.SetupAgentName(entries[i].IDE)
+			if err != nil {
+				continue
+			}
+			if normalizedAgent == strings.TrimSpace(strings.ToLower(setupAgentName)) {
+				return entries[i].IDE
+			}
+		}
+	}
+	return ""
+}
+
+func stringPtr(value string) *string {
+	resolved := value
+	return &resolved
 }
 
 func (s *setupCommandState) resolveSkillSelection(skills []setup.Skill) ([]string, error) {
@@ -580,10 +853,11 @@ func printPreviewSummary(
 	cmd *cobra.Command,
 	previews []setup.PreviewItem,
 	reusableAgentPreviews []setup.ReusableAgentPreviewItem,
+	runtimePlan runtimeDefaultsPlan,
 	global bool,
 	mode setup.InstallMode,
 ) {
-	if len(previews) == 0 && len(reusableAgentPreviews) == 0 {
+	if len(previews) == 0 && len(reusableAgentPreviews) == 0 && !runtimePlan.Enabled {
 		return
 	}
 	styles := newCLIChromeStyles()
@@ -596,6 +870,7 @@ func printPreviewSummary(
 
 	lipgloss.Fprintf(w, "  %s  %s\n", styles.label.Render("Scope "), styles.value.Render(scopeLabel(global)))
 	lipgloss.Fprintf(w, "  %s  %s\n", styles.label.Render("Method"), styles.value.Render(string(mode)))
+	printRuntimeDefaultsSummary(w, styles, runtimePlan, cwd, homeDir)
 	fmt.Fprintln(w)
 	lipgloss.Fprintln(w, styles.separator.Render("  "+strings.Repeat("─", 50)))
 	fmt.Fprintln(w)
@@ -611,6 +886,57 @@ func printPreviewSummary(
 		}
 	}
 
+	printSkillPreviewItems(w, styles, previews, mode, cwd, homeDir, maxSkillLen, maxAgentLen)
+	printReusableAgentPreviewItems(w, styles, reusableAgentPreviews, global, cwd, homeDir)
+	fmt.Fprintln(w)
+}
+
+func printRuntimeDefaultsSummary(
+	w io.Writer,
+	styles cliChromeStyles,
+	runtimePlan runtimeDefaultsPlan,
+	cwd, homeDir string,
+) {
+	if !runtimePlan.Enabled {
+		return
+	}
+
+	configPath := shortenPath(runtimePlan.ConfigPath, cwd, homeDir)
+	ide := ""
+	modelName := ""
+	reasoningEffort := ""
+	if runtimePlan.Defaults.IDE != nil {
+		ide = *runtimePlan.Defaults.IDE
+	}
+	if runtimePlan.Defaults.Model != nil {
+		modelName = *runtimePlan.Defaults.Model
+	}
+	if runtimePlan.Defaults.ReasoningEffort != nil {
+		reasoningEffort = *runtimePlan.Defaults.ReasoningEffort
+	}
+	status := "new"
+	if runtimePlan.Existing {
+		status = "update"
+	}
+	lipgloss.Fprintf(w, "  %s  %s\n", styles.label.Render("Config "), styles.value.Render(configPath+" ["+status+"]"))
+	lipgloss.Fprintf(
+		w,
+		"  %s  %s / %s / %s\n",
+		styles.label.Render("Defaults"),
+		styles.value.Render(ide),
+		styles.value.Render(modelName),
+		styles.value.Render(reasoningEffort),
+	)
+}
+
+func printSkillPreviewItems(
+	w io.Writer,
+	styles cliChromeStyles,
+	previews []setup.PreviewItem,
+	mode setup.InstallMode,
+	cwd, homeDir string,
+	maxSkillLen, maxAgentLen int,
+) {
 	for i := range previews {
 		preview := &previews[i]
 		name := styles.skill.Render(padRight(preview.Skill.Name, maxSkillLen))
@@ -619,7 +945,6 @@ func printPreviewSummary(
 		path := styles.path.Render(shortenPath(preview.TargetPath, cwd, homeDir))
 
 		line := fmt.Sprintf("    %s  %s  %s  %s", name, arrow, agent, path)
-
 		if mode == setup.InstallModeSymlink && !sameInstallPath(preview.CanonicalPath, preview.TargetPath) {
 			via := styles.path.Render("via " + shortenPath(preview.CanonicalPath, cwd, homeDir))
 			line += "  " + via
@@ -629,32 +954,41 @@ func printPreviewSummary(
 		}
 		lipgloss.Fprintln(w, line)
 	}
+}
 
-	if len(reusableAgentPreviews) > 0 {
-		fmt.Fprintln(w)
-		lipgloss.Fprintln(w, styles.sectionTitle.Render(reusableAgentSectionTitle(global)))
-		fmt.Fprintln(w)
+func printReusableAgentPreviewItems(
+	w io.Writer,
+	styles cliChromeStyles,
+	reusableAgentPreviews []setup.ReusableAgentPreviewItem,
+	global bool,
+	cwd, homeDir string,
+) {
+	if len(reusableAgentPreviews) == 0 {
+		return
+	}
 
-		maxReusableAgentLen := 0
-		for i := range reusableAgentPreviews {
-			if len(reusableAgentPreviews[i].ReusableAgent.Name) > maxReusableAgentLen {
-				maxReusableAgentLen = len(reusableAgentPreviews[i].ReusableAgent.Name)
-			}
-		}
+	fmt.Fprintln(w)
+	lipgloss.Fprintln(w, styles.sectionTitle.Render(reusableAgentSectionTitle(global)))
+	fmt.Fprintln(w)
 
-		for i := range reusableAgentPreviews {
-			preview := &reusableAgentPreviews[i]
-			name := styles.agent.Render(padRight(preview.ReusableAgent.Name, maxReusableAgentLen))
-			path := styles.path.Render(shortenPath(preview.TargetPath, cwd, homeDir))
-
-			line := fmt.Sprintf("    %s  %s", name, path)
-			if preview.WillOverwrite {
-				line += "  " + styles.warn.Render("[overwrite]")
-			}
-			lipgloss.Fprintln(w, line)
+	maxReusableAgentLen := 0
+	for i := range reusableAgentPreviews {
+		if len(reusableAgentPreviews[i].ReusableAgent.Name) > maxReusableAgentLen {
+			maxReusableAgentLen = len(reusableAgentPreviews[i].ReusableAgent.Name)
 		}
 	}
-	fmt.Fprintln(w)
+
+	for i := range reusableAgentPreviews {
+		preview := &reusableAgentPreviews[i]
+		name := styles.agent.Render(padRight(preview.ReusableAgent.Name, maxReusableAgentLen))
+		path := styles.path.Render(shortenPath(preview.TargetPath, cwd, homeDir))
+
+		line := fmt.Sprintf("    %s  %s", name, path)
+		if preview.WillOverwrite {
+			line += "  " + styles.warn.Render("[overwrite]")
+		}
+		lipgloss.Fprintln(w, line)
+	}
 }
 
 func printInstallResult(cmd *cobra.Command, result *setup.Result) {
