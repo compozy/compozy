@@ -1,0 +1,107 @@
+name: Auto Docs on Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: auto-docs-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  auto-docs:
+    name: Analyze merged PR and update documentation
+
+    if: |
+      github.event.pull_request.merged == true &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-docs') &&
+      !contains(github.event.pull_request.changed_files, '.github/')
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get PR diff and context
+        id: pr-info
+        run: |
+          echo "pr_number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          echo "pr_title=${{ github.event.pull_request.title }}" >> "$GITHUB_OUTPUT"
+          echo "author=${{ github.event.pull_request.user.login }}" >> "$GITHUB_OUTPUT"
+          echo "changed_files=${{ github.event.pull_request.changed_files }}" >> "$GITHUB_OUTPUT"
+
+          gh pr diff ${{ github.event.pull_request.number }} > /tmp/pr.diff 2>/dev/null || true
+          gh pr view ${{ github.event.pull_request.number }} \
+            --json title,body,files,commits > /tmp/pr-context.json 2>/dev/null || true
+          gh pr diff ${{ github.event.pull_request.number }} --name-only \
+            | grep -vE '^docs/|^CHANGELOG\.md|^README\.md$' \
+            > /tmp/changed-files.txt 2>/dev/null || touch /tmp/changed-files.txt
+
+      - name: Generate Documentation Updates
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            MERGED PR: #${{ steps.pr-info.outputs.pr_number }}
+            PR TITLE: ${{ steps.pr-info.outputs.pr_title }}
+            AUTHOR: ${{ steps.pr-info.outputs.author }}
+            CHANGED FILES: ${{ steps.pr-info.outputs.changed_files }}
+
+            This PR was just merged to main. Analyze the full diff and determine
+            which documentation files need updating, then create a docs-only PR.
+
+            Context to read first:
+            - /tmp/pr-context.json - PR metadata (title, body, files)
+            - /tmp/pr.diff - Full unified diff of the merged PR
+            - /tmp/changed-files.txt - Changed source files (filtered)
+
+            Doc locations to check:
+            1. README.md - Features, install, CLI commands.
+               Update if new features, commands, agents, or install methods changed.
+            2. CHANGELOG.md - Only if user-facing and not handled by release workflow.
+            3. docs/events.md, reader-library.md, reusable-agents.md -
+               Update if APIs, agent specs, or event types changed.
+            4. CLAUDE.md / AGENTS.md - Project guidance.
+               Update if layout, commands, API surface, or architecture changed.
+            5. CONTRIBUTING.md - If workflows or dev processes changed.
+
+            Rules:
+            - DO update: New public API/command, removed feature, renamed config,
+              changed install process, outdated examples in README.
+            - DO NOT update: Internal refactors, tests, CI tweaks,
+              typo fixes (belong in original PR).
+            - When in doubt: be conservative.
+
+            Output:
+            If docs need updating:
+            1. Create branch: docs/update-for-pr-${{ steps.pr-info.outputs.pr_number }}
+            2. Make all doc edits using Write/Edit tools
+            3. Commit: docs: update for PR #${{ steps.pr-info.outputs.pr_number }}
+            4. Push branch
+            5. Create PR titled: docs: update docs for #${{ steps.pr-info.outputs.pr_number }}
+               Labels: documentation, auto-generated, skip-docs
+               Base: main
+
+            If NO docs need updating: Print NO_DOCS_NEEDED and exit.
+
+          claude_args: |
+            --max-turns 25
+            --model claude-sonnet-4-20250514
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(cat:*),Bash(head:*)"
+
+      - name: Check result
+        if: always()
+        run: |
+          echo "Auto-docs job completed."
