@@ -87,6 +87,37 @@ func TestCleanupLegacyTransferredAssetsRemovesGlobalScopeInstalls(t *testing.T) 
 	}
 }
 
+func TestLegacyTransferredAssetRemovalsSkipsAgentsThatDoNotSupportScope(t *testing.T) {
+	t.Parallel()
+
+	env := resolvedEnvironment{
+		cwd:     t.TempDir(),
+		homeDir: t.TempDir(),
+	}
+
+	removals, err := legacyTransferredAssetRemovals(env, []Agent{
+		{
+			Name:           "project-only",
+			DisplayName:    "Project Only",
+			ProjectRootDir: ".project/skills",
+		},
+		{
+			Name:           "claude-code",
+			DisplayName:    "Claude Code",
+			ProjectRootDir: ".claude/skills",
+			GlobalRootDir:  filepath.Join(env.homeDir, ".claude", "skills"),
+		},
+	}, true)
+	if err != nil {
+		t.Fatalf("legacyTransferredAssetRemovals() error = %v", err)
+	}
+
+	want := 2 + len(legacyTransferredReusableAgentNames)
+	if len(removals) != want {
+		t.Fatalf("expected %d removals after skipping unsupported agent, got %#v", want, removals)
+	}
+}
+
 func writeLegacyCleanupFixture(t *testing.T, path string) {
 	t.Helper()
 

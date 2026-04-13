@@ -309,38 +309,40 @@ func TestDiscoveryIntegrationThreeLevelFixture(t *testing.T) {
 }
 
 func TestDiscoveryExtractsReusableAgentsFromEnabledExtensions(t *testing.T) {
-	withVersion(t, "1.5.0")
+	t.Run("Should extract reusable agents from enabled extensions", func(t *testing.T) {
+		withVersion(t, "1.5.0")
 
-	discovery, store, _, workspaceRoot, _ := newTestDiscovery(t, false)
+		discovery, store, _, workspaceRoot, _ := newTestDiscovery(t, false)
 
-	manifest := manifestFixture("agents-ext")
-	manifest.Subprocess = nil
-	manifest.Hooks = nil
-	manifest.Providers = ProvidersConfig{}
-	manifest.Resources.Skills = nil
-	manifest.Security.Capabilities = []Capability{CapabilityAgentsShip}
-	manifest.Resources.Agents = []string{"agents/*"}
-	writeManifestJSON(t, workspaceExtensionDir(workspaceRoot, "agents-ext"), manifest)
-	writeTestFile(
-		t,
-		filepath.Join(workspaceExtensionDir(workspaceRoot, "agents-ext"), "agents", "product-scout", "AGENT.md"),
-		"---\ntitle: Product Scout\ndescription: Workspace reusable agent\n---\n",
-	)
-	enableWorkspaceExtension(t, store, workspaceRoot, "agents-ext")
+		manifest := manifestFixture("agents-ext")
+		manifest.Subprocess = nil
+		manifest.Hooks = nil
+		manifest.Providers = ProvidersConfig{}
+		manifest.Resources.Skills = nil
+		manifest.Security.Capabilities = []Capability{CapabilityAgentsShip}
+		manifest.Resources.Agents = []string{"agents/*"}
+		writeManifestJSON(t, workspaceExtensionDir(workspaceRoot, "agents-ext"), manifest)
+		writeTestFile(
+			t,
+			filepath.Join(workspaceExtensionDir(workspaceRoot, "agents-ext"), "agents", "product-scout", "AGENT.md"),
+			"---\ntitle: Product Scout\ndescription: Workspace reusable agent\n---\n",
+		)
+		enableWorkspaceExtension(t, store, workspaceRoot, "agents-ext")
 
-	result, err := discovery.Discover(context.Background())
-	if err != nil {
-		t.Fatalf("Discover() error = %v", err)
-	}
-	if len(result.ReusableAgents.Agents) != 1 {
-		t.Fatalf("len(ReusableAgents.Agents) = %d, want 1", len(result.ReusableAgents.Agents))
-	}
-	if got := result.ReusableAgents.Agents[0].Extension.Name; got != "agents-ext" {
-		t.Fatalf("ReusableAgents.Agents[0].Extension.Name = %q, want %q", got, "agents-ext")
-	}
-	if got := filepath.Base(result.ReusableAgents.Agents[0].ResolvedPath); got != "product-scout" {
-		t.Fatalf("ReusableAgents.Agents[0].ResolvedPath = %q, want product-scout", got)
-	}
+		result, err := discovery.Discover(context.Background())
+		if err != nil {
+			t.Fatalf("Discover() error = %v", err)
+		}
+		if len(result.ReusableAgents.Agents) != 1 {
+			t.Fatalf("len(ReusableAgents.Agents) = %d, want 1", len(result.ReusableAgents.Agents))
+		}
+		if got := result.ReusableAgents.Agents[0].Extension.Name; got != "agents-ext" {
+			t.Fatalf("ReusableAgents.Agents[0].Extension.Name = %q, want %q", got, "agents-ext")
+		}
+		if got := filepath.Base(result.ReusableAgents.Agents[0].ResolvedPath); got != "product-scout" {
+			t.Fatalf("ReusableAgents.Agents[0].ResolvedPath = %q, want product-scout", got)
+		}
+	})
 }
 
 func TestDiscoveryUsesDefaultStoreAndBundledFS(t *testing.T) {

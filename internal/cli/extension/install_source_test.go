@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -147,9 +148,12 @@ agents = ["agents/*"]
 		},
 	})
 
+	errCh := make(chan error, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Path, "/compozy/compozy/tar.gz/v1.2.3"; got != want {
-			t.Fatalf("unexpected archive path\nwant: %s\ngot:  %s", want, got)
+			errCh <- fmt.Errorf("unexpected archive path\nwant: %s\ngot:  %s", want, got)
+			http.Error(w, "unexpected archive path", http.StatusBadRequest)
+			return
 		}
 		w.Header().Set("Content-Type", "application/gzip")
 		_, _ = w.Write(archive)
@@ -174,6 +178,11 @@ agents = ["agents/*"]
 	)
 	if err != nil {
 		t.Fatalf("resolveInstallSourceWithFetcher() error = %v", err)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatal(err)
+	default:
 	}
 	if !strings.HasSuffix(got.SourcePath, filepath.Join("extensions", "cy-idea-factory")) {
 		t.Fatalf("unexpected github source path: %s", got.SourcePath)

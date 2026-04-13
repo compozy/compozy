@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -115,7 +116,7 @@ func TestIdeaFactoryExtensionExistsAndUsesPortableReferences(t *testing.T) {
 
 	for _, relativePath := range requiredPaths {
 		relativePath := relativePath
-		t.Run(relativePath, func(t *testing.T) {
+		t.Run(fmt.Sprintf("Should contain %s", relativePath), func(t *testing.T) {
 			t.Parallel()
 
 			if _, err := os.Stat(filepath.Join(root, relativePath)); err != nil {

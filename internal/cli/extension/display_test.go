@@ -278,6 +278,8 @@ func TestInstallWithYesCopiesDirectoryAndRecordsDisabledState(t *testing.T) {
 }
 
 func TestInstallPrintsSetupHintWhenExtensionShipsSetupAssets(t *testing.T) {
+	t.Parallel()
+
 	deps := newTestDeps(t)
 	sourceDir := filepath.Join(t.TempDir(), "idea-ext")
 	writeManifestJSON(t, sourceDir, manifestWithSetupAssets("idea-ext"))
@@ -395,6 +397,8 @@ func TestEnableMarksExtensionEnabled(t *testing.T) {
 }
 
 func TestEnablePrintsSetupHintWhenExtensionShipsSetupAssets(t *testing.T) {
+	t.Parallel()
+
 	deps := newTestDeps(t)
 	sourceDir := filepath.Join(t.TempDir(), "toggle-assets")
 	writeManifestJSON(t, sourceDir, manifestWithSetupAssets("toggle-assets"))

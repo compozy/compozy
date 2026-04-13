@@ -56,6 +56,14 @@ func TestWriteInstallOriginRejectsEmptyDirectory(t *testing.T) {
 	}
 }
 
+func TestLoadInstallOriginRejectsEmptyDirectory(t *testing.T) {
+	t.Parallel()
+
+	if _, err := LoadInstallOrigin(""); err == nil {
+		t.Fatal("expected empty directory load to fail")
+	}
+}
+
 func TestLoadInstallOriginRejectsInvalidJSON(t *testing.T) {
 	t.Parallel()
 

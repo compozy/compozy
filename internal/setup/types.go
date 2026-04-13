@@ -1,6 +1,9 @@
 package setup
 
-import "io/fs"
+import (
+	"io/fs"
+	"slices"
+)
 
 // InstallMode determines how bundled skills are materialized for agents.
 type InstallMode string
@@ -290,6 +293,7 @@ func (r ReusableAgentVerifyResult) MissingReusableAgentNames() []string {
 		}
 		names = append(names, agent.ReusableAgent.Name)
 	}
+	slices.Sort(names)
 	return names
 }
 
@@ -303,6 +307,7 @@ func (r ReusableAgentVerifyResult) DriftedReusableAgentNames() []string {
 		}
 		names = append(names, agent.ReusableAgent.Name)
 	}
+	slices.Sort(names)
 	return names
 }
 

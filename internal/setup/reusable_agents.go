@@ -70,6 +70,9 @@ func parseReusableAgent(bundle fs.FS, dir string) (ReusableAgent, error) {
 	if strings.TrimSpace(metadata.Title) == "" || strings.TrimSpace(metadata.Description) == "" {
 		return ReusableAgent{}, fmt.Errorf("read bundled reusable agent %q: missing title or description", dir)
 	}
+	if err := validateReusableAgentName(dir); err != nil {
+		return ReusableAgent{}, fmt.Errorf("read bundled reusable agent %q: %w", dir, err)
+	}
 
 	return ReusableAgent{
 		Name:        dir,
@@ -80,6 +83,26 @@ func parseReusableAgent(bundle fs.FS, dir string) (ReusableAgent, error) {
 		SourceFS:    bundle,
 		SourceDir:   dir,
 	}, nil
+}
+
+func validateReusableAgentName(name string) error {
+	trimmed := strings.TrimSpace(name)
+	switch {
+	case trimmed == "":
+		return fmt.Errorf("reusable agent name is required")
+	case trimmed == ".":
+		return fmt.Errorf("reusable agent name %q must not resolve to the current directory", name)
+	case strings.Contains(trimmed, ".."):
+		return fmt.Errorf("reusable agent name %q must not contain \"..\"", name)
+	case strings.ContainsAny(trimmed, `/\`):
+		return fmt.Errorf("reusable agent name %q must not contain path separators", name)
+	}
+
+	base := filepath.Base(trimmed)
+	if base == "." || base == "" {
+		return fmt.Errorf("reusable agent name %q is invalid", name)
+	}
+	return nil
 }
 
 // ListBundledReusableAgents returns the reusable agents bundled into the compozy binary.

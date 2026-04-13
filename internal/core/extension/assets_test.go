@@ -89,47 +89,49 @@ func TestExtractDeclaredSkillPacksResolvesAbsolutePaths(t *testing.T) {
 }
 
 func TestExtractDeclaredReusableAgentsResolvesAbsolutePaths(t *testing.T) {
-	t.Parallel()
+	t.Run("Should resolve declared reusable agents to absolute paths", func(t *testing.T) {
+		t.Parallel()
 
-	extensionDir := t.TempDir()
-	writeTestFile(
-		t,
-		filepath.Join(extensionDir, "agents", "alpha", "AGENT.md"),
-		"---\ntitle: Alpha\ndescription: Alpha reusable agent\n---\n",
-	)
-	writeTestFile(
-		t,
-		filepath.Join(extensionDir, "agents", "beta", "AGENT.md"),
-		"---\ntitle: Beta\ndescription: Beta reusable agent\n---\n",
-	)
+		extensionDir := t.TempDir()
+		writeTestFile(
+			t,
+			filepath.Join(extensionDir, "agents", "alpha", "AGENT.md"),
+			"---\ntitle: Alpha\ndescription: Alpha reusable agent\n---\n",
+		)
+		writeTestFile(
+			t,
+			filepath.Join(extensionDir, "agents", "beta", "AGENT.md"),
+			"---\ntitle: Beta\ndescription: Beta reusable agent\n---\n",
+		)
 
-	entry := DiscoveredExtension{
-		Ref: Ref{
-			Name:   "agents-ext",
-			Source: SourceWorkspace,
-		},
-		ManifestPath: filepath.Join(extensionDir, ManifestFileNameJSON),
-		Manifest: &Manifest{
-			Resources: ResourcesConfig{
-				Agents: []string{"agents/*"},
+		entry := DiscoveredExtension{
+			Ref: Ref{
+				Name:   "agents-ext",
+				Source: SourceWorkspace,
 			},
-		},
-		diskRoot: extensionDir,
-	}
-
-	agents := ExtractDeclaredReusableAgents([]DiscoveredExtension{entry})
-	if len(agents.Agents) != 2 {
-		t.Fatalf("len(Agents) = %d, want 2", len(agents.Agents))
-	}
-	for _, reusableAgent := range agents.Agents {
-		if !filepath.IsAbs(reusableAgent.ResolvedPath) {
-			t.Fatalf("ResolvedPath = %q, want absolute path", reusableAgent.ResolvedPath)
+			ManifestPath: filepath.Join(extensionDir, ManifestFileNameJSON),
+			Manifest: &Manifest{
+				Resources: ResourcesConfig{
+					Agents: []string{"agents/*"},
+				},
+			},
+			diskRoot: extensionDir,
 		}
-	}
-	if filepath.Base(agents.Agents[0].ResolvedPath) != "alpha" {
-		t.Fatalf("Agents[0].ResolvedPath = %q, want alpha first", agents.Agents[0].ResolvedPath)
-	}
-	if filepath.Base(agents.Agents[1].ResolvedPath) != "beta" {
-		t.Fatalf("Agents[1].ResolvedPath = %q, want beta second", agents.Agents[1].ResolvedPath)
-	}
+
+		agents := ExtractDeclaredReusableAgents([]DiscoveredExtension{entry})
+		if len(agents.Agents) != 2 {
+			t.Fatalf("len(Agents) = %d, want 2", len(agents.Agents))
+		}
+		for _, reusableAgent := range agents.Agents {
+			if !filepath.IsAbs(reusableAgent.ResolvedPath) {
+				t.Fatalf("ResolvedPath = %q, want absolute path", reusableAgent.ResolvedPath)
+			}
+		}
+		if filepath.Base(agents.Agents[0].ResolvedPath) != "alpha" {
+			t.Fatalf("Agents[0].ResolvedPath = %q, want alpha first", agents.Agents[0].ResolvedPath)
+		}
+		if filepath.Base(agents.Agents[1].ResolvedPath) != "beta" {
+			t.Fatalf("Agents[1].ResolvedPath = %q, want beta second", agents.Agents[1].ResolvedPath)
+		}
+	})
 }

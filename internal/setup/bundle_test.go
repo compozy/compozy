@@ -59,25 +59,29 @@ func TestBundledWorkflowMemorySkillIncludesReferenceFile(t *testing.T) {
 }
 
 func TestListBundledReusableAgentsAllowsEmptyRoster(t *testing.T) {
-	t.Parallel()
+	t.Run("Should return empty bundled reusable-agent roster when none exist", func(t *testing.T) {
+		t.Parallel()
 
-	reusableAgents, err := ListBundledReusableAgents()
-	if err != nil {
-		t.Fatalf("list bundled reusable agents: %v", err)
-	}
-	if len(reusableAgents) != 0 {
-		t.Fatalf("expected bundled reusable-agent roster to be empty, got %#v", reusableAgents)
-	}
+		reusableAgents, err := ListBundledReusableAgents()
+		if err != nil {
+			t.Fatalf("list bundled reusable agents: %v", err)
+		}
+		if len(reusableAgents) != 0 {
+			t.Fatalf("expected bundled reusable-agent roster to be empty, got %#v", reusableAgents)
+		}
+	})
 }
 
 func TestBundledReusableAgentsRootRemainsReadableWhenEmpty(t *testing.T) {
-	t.Parallel()
+	t.Run("Should keep bundled reusable agents root readable when the roster is empty", func(t *testing.T) {
+		t.Parallel()
 
-	bundle, err := bundledReusableAgentsRoot()
-	if err != nil {
-		t.Fatalf("bundled reusable agents root: %v", err)
-	}
-	if _, err := fs.ReadDir(bundle, "."); err != nil {
-		t.Fatalf("ReadDir(.) error = %v", err)
-	}
+		bundle, err := bundledReusableAgentsRoot()
+		if err != nil {
+			t.Fatalf("bundled reusable agents root: %v", err)
+		}
+		if _, err := fs.ReadDir(bundle, "."); err != nil {
+			t.Fatalf("ReadDir(.) error = %v", err)
+		}
+	})
 }

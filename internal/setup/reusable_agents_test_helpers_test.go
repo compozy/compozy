@@ -12,7 +12,7 @@ func testExtensionReusableAgents(t *testing.T, names ...string) []ReusableAgent 
 	root := t.TempDir()
 	sources := make([]ExtensionReusableAgentSource, 0, len(names))
 	for _, name := range names {
-		agentDir := filepath.Join(root, name)
+		agentDir := filepath.Join(root, "agents", name)
 		if err := os.MkdirAll(agentDir, 0o755); err != nil {
 			t.Fatalf("mkdir %s: %v", agentDir, err)
 		}

@@ -60,6 +60,7 @@ func TestBuildEffectiveCatalogPrefersCoreAndHigherPrecedenceExtensions(t *testin
 		t.Fatalf("expected workspace extension to win idea-pack, got %q", catalog.Skills[1].ExtensionName)
 	}
 	if got := reusableAgentNames(
+		t,
 		catalog.ReusableAgents,
 	); len(got) != 2 || got[0] != "architect-advisor" ||
 		got[1] != "product-scout" {
@@ -70,7 +71,9 @@ func TestBuildEffectiveCatalogPrefersCoreAndHigherPrecedenceExtensions(t *testin
 	}
 }
 
-func reusableAgentNames(reusableAgents []ReusableAgent) []string {
+func reusableAgentNames(t *testing.T, reusableAgents []ReusableAgent) []string {
+	t.Helper()
+
 	names := make([]string, 0, len(reusableAgents))
 	for i := range reusableAgents {
 		names = append(names, reusableAgents[i].Name)

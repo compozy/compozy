@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -11,6 +12,8 @@ import (
 )
 
 var invalidNamePattern = regexp.MustCompile(`[^a-z0-9._]+`)
+
+var errUnsupportedScope = errors.New("agent does not support this scope")
 
 // SelectSkills filters a discovered catalog to the requested bundled skill names.
 func SelectSkills(all []Skill, names []string) ([]Skill, error) {
@@ -208,9 +211,10 @@ func resolveInstallPaths(
 	}
 	if agentRoot == "" {
 		return "", "", fmt.Errorf(
-			"resolve install paths for %q: agent %q does not support this scope",
+			"resolve install paths for %q: agent %q does not support this scope: %w",
 			skill.Name,
 			agent.Name,
+			errUnsupportedScope,
 		)
 	}
 

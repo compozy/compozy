@@ -288,21 +288,22 @@ func loadExtensionSkillSources(packs []SkillPackSource) ([]extensionSkillSource,
 				err,
 			)
 		}
+		extensionSkill := Skill{
+			Name:            skill.Name,
+			Description:     skill.Description,
+			Directory:       skill.Directory,
+			Origin:          AssetOriginExtension,
+			ExtensionName:   pack.ExtensionName,
+			ExtensionSource: pack.ExtensionSource,
+			ManifestPath:    pack.ManifestPath,
+			ResolvedPath:    pack.ResolvedPath,
+			SourceFS:        sourceFS,
+			SourceDir:       sourceDir,
+		}
 		sources = append(sources, extensionSkillSource{
-			Pack: pack,
-			Skill: Skill{
-				Name:            skill.Name,
-				Description:     skill.Description,
-				Directory:       skill.Directory,
-				Origin:          AssetOriginExtension,
-				ExtensionName:   pack.ExtensionName,
-				ExtensionSource: pack.ExtensionSource,
-				ManifestPath:    pack.ManifestPath,
-				ResolvedPath:    pack.ResolvedPath,
-				SourceFS:        sourceFS,
-				SourceDir:       sourceDir,
-			},
-			Source: sourceFS,
+			Pack:   pack,
+			Skill:  extensionSkill,
+			Source: extensionSkill.SourceFS,
 		})
 	}
 
@@ -315,10 +316,11 @@ func resolveDeclaredSkillPackSource(pack SkillPackSource) (fs.FS, string, error)
 		return pack.SourceFS, strings.TrimSpace(pack.SourceDir), nil
 	}
 
-	resolvedPath := filepath.Clean(strings.TrimSpace(pack.ResolvedPath))
+	resolvedPath := strings.TrimSpace(pack.ResolvedPath)
 	if resolvedPath == "" {
 		return nil, "", fmt.Errorf("extension skill pack source path is required")
 	}
+	resolvedPath = filepath.Clean(resolvedPath)
 	info, err := os.Stat(resolvedPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("stat extension skill pack %q: %w", resolvedPath, err)

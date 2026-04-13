@@ -1,6 +1,7 @@
 package setup
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -97,6 +98,9 @@ func legacyTransferredAssetRemovals(
 		for j := range agents {
 			canonicalPath, targetPath, err := resolveInstallPaths(skill, agents[j], env, global)
 			if err != nil {
+				if errors.Is(err, errUnsupportedScope) {
+					continue
+				}
 				return nil, fmt.Errorf(
 					"resolve legacy skill cleanup paths for %q and agent %q: %w",
 					name,

@@ -280,14 +280,10 @@ func installResolvedSource(
 		)
 	}
 
-	writeInstallOrigin := deps.writeInstallOrigin
-	if writeInstallOrigin == nil {
-		writeInstallOrigin = extensions.WriteInstallOrigin
-	}
 	if resolvedSource.InstallOrigin == nil {
 		return nil
 	}
-	if err := writeInstallOrigin(installPath, *resolvedSource.InstallOrigin); err != nil {
+	if err := deps.writeInstallOrigin(installPath, *resolvedSource.InstallOrigin); err != nil {
 		return cleanupFailedInstall(
 			deps,
 			installPath,
