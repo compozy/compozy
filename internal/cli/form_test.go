@@ -340,8 +340,6 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 }
 
 func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {
-	t.Parallel()
-
 	supportsAddDirs := true
 	restoreIDE, err := agent.ActivateOverlay([]agent.OverlayEntry{{
 		Name:            "ext-adapter",

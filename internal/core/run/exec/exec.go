@@ -1218,6 +1218,7 @@ func resolveExecPromptText(cfg *model.RuntimeConfig) (string, error) {
 type execPreparedStateConfig struct {
 	workspaceRoot string
 	runID         string
+	dryRun        bool
 	persist       bool
 	outputFormat  model.OutputFormat
 	tui           bool
@@ -1231,6 +1232,7 @@ func snapshotExecPreparedStateConfig(cfg *model.RuntimeConfig) execPreparedState
 	return execPreparedStateConfig{
 		workspaceRoot: cfg.WorkspaceRoot,
 		runID:         strings.TrimSpace(cfg.RunID),
+		dryRun:        cfg.DryRun,
 		persist:       cfg.Persist,
 		outputFormat:  cfg.OutputFormat,
 		tui:           cfg.TUI,
@@ -1248,6 +1250,8 @@ func validateExecPreparedStateMutation(
 		return fmt.Errorf("run.pre_start cannot mutate workspace_root after exec state preparation")
 	case current.runID != before.runID:
 		return fmt.Errorf("run.pre_start cannot mutate run_id after exec state preparation")
+	case current.dryRun != before.dryRun:
+		return fmt.Errorf("run.pre_start cannot mutate dry_run after exec state preparation")
 	case current.persist != before.persist:
 		return fmt.Errorf("run.pre_start cannot mutate persist after exec state preparation")
 	case current.outputFormat != before.outputFormat:

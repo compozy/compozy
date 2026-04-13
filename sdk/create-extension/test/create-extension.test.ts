@@ -14,6 +14,7 @@ const repoRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const createExtensionCLI = resolve(repoRoot, "sdk/create-extension/dist/bin/create-extension.js");
 const localSDKSpec = pathToFileURL(resolve(repoRoot, "sdk/extension-sdk-ts")).href;
 const localGoSDKReplace = repoRoot;
+let buildLocalPackagesPromise: Promise<void> | undefined;
 
 describe("@compozy/create-extension", () => {
   it("parses CLI options", () => {
@@ -112,7 +113,7 @@ describe("@compozy/create-extension", () => {
 });
 
 async function buildLocalPackages(): Promise<void> {
-  await execFileAsync(
+  buildLocalPackagesPromise ??= execFileAsync(
     "npm",
     [
       "run",
@@ -126,7 +127,8 @@ async function buildLocalPackages(): Promise<void> {
       cwd: repoRoot,
       env: process.env,
     }
-  );
+  ).then(() => undefined);
+  await buildLocalPackagesPromise;
 }
 
 async function readProjectFile(root: string, project: string, file: string): Promise<string> {

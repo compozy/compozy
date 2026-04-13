@@ -606,6 +606,7 @@ func TestValidateExecPreparedStateMutationRejectsStateDefiningChanges(t *testing
 
 	baseCfg := &model.RuntimeConfig{
 		WorkspaceRoot: "/tmp/workspace",
+		DryRun:        true,
 		OutputFormat:  model.OutputFormatText,
 	}
 	snapshot := snapshotExecPreparedStateConfig(baseCfg)
@@ -628,6 +629,13 @@ func TestValidateExecPreparedStateMutationRejectsStateDefiningChanges(t *testing
 				cfg.RunID = "exec-123"
 			},
 			expectedErr: "run_id",
+		},
+		{
+			name: "Should reject dry run mutations",
+			mutate: func(cfg *model.RuntimeConfig) {
+				cfg.DryRun = false
+			},
+			expectedErr: "dry_run",
 		},
 		{
 			name: "Should reject persist mutations",

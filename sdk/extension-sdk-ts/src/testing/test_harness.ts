@@ -143,12 +143,24 @@ export class TestHarness {
     return response.result as T;
   }
 
+  private rejectPending(error: unknown): void {
+    const reason =
+      error instanceof Error
+        ? new Error(`test harness terminated: ${error.message}`)
+        : new Error("test harness terminated");
+    for (const [id, pending] of this.pending) {
+      this.pending.delete(id);
+      pending.reject(reason);
+    }
+  }
+
   private async hostLoop(): Promise<void> {
     while (true) {
       let message: Message;
       try {
         message = await this.hostTransport.readMessage();
-      } catch {
+      } catch (error) {
+        this.rejectPending(error);
         return;
       }
 
