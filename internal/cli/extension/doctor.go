@@ -62,6 +62,7 @@ func buildDoctorReport(
 	resolver setup.ResolverOptions,
 ) doctorReport {
 	report := doctorReport{}
+	var effectiveCatalog setup.EffectiveCatalog
 
 	for _, failure := range result.Failures {
 		report.Errors = append(
@@ -84,7 +85,15 @@ func buildDoctorReport(
 
 	report.Warnings = append(report.Warnings, providerConflictWarnings(result.Extensions, result.Providers)...)
 	report.Warnings = append(report.Warnings, priorityTieWarnings(result.Extensions)...)
-	report.Warnings = append(report.Warnings, skillPackDriftWarnings(result.SkillPacks.Packs, resolver)...)
+	catalog, err := buildDoctorEffectiveCatalog(result)
+	if err != nil {
+		report.Warnings = append(report.Warnings, fmt.Sprintf("setup asset health check skipped: %v", err))
+	} else {
+		effectiveCatalog = catalog
+		report.Warnings = append(report.Warnings, setupAssetConflictWarnings(effectiveCatalog.Conflicts)...)
+		report.Warnings = append(report.Warnings, skillPackDriftWarnings(effectiveCatalog, resolver)...)
+		report.Warnings = append(report.Warnings, reusableAgentDriftWarnings(effectiveCatalog, resolver)...)
+	}
 	report.Infos = append(report.Infos, overrideInfos(result.Overrides)...)
 	slices.Sort(report.Errors)
 	slices.Sort(report.Warnings)
@@ -203,6 +212,8 @@ func capabilityHasManifestEvidence(manifest *extensions.Manifest, capability ext
 		return len(manifest.Providers.IDE)+len(manifest.Providers.Review)+len(manifest.Providers.Model) > 0
 	case extensions.CapabilitySkillsShip:
 		return len(manifest.Resources.Skills) > 0
+	case extensions.CapabilityAgentsShip:
+		return len(manifest.Resources.Agents) > 0
 	case extensions.CapabilityEventsRead,
 		extensions.CapabilityEventsPublish,
 		extensions.CapabilityArtifactsRead,
@@ -327,9 +338,10 @@ func appendProviderConflictWarnings(
 }
 
 func skillPackDriftWarnings(
-	packs []extensions.DeclaredSkillPack,
+	catalog setup.EffectiveCatalog,
 	resolver setup.ResolverOptions,
 ) []string {
+	packs := setup.ExtensionSkillPackSources(catalog.Skills)
 	if len(packs) == 0 {
 		return nil
 	}
@@ -346,7 +358,7 @@ func skillPackDriftWarnings(
 	for _, agent := range agents {
 		result, err := setup.VerifyExtensionSkillPacks(setup.ExtensionVerifyConfig{
 			ResolverOptions: resolver,
-			Packs:           toSetupSkillPackSources(packs),
+			Packs:           packs,
 			AgentName:       agent.Name,
 		})
 		if err != nil {
@@ -380,6 +392,73 @@ func skillPackDriftWarnings(
 	return warnings
 }
 
+func reusableAgentDriftWarnings(catalog setup.EffectiveCatalog, resolver setup.ResolverOptions) []string {
+	reusableAgents := extensionReusableAgents(catalog.ReusableAgents)
+	if len(reusableAgents) == 0 {
+		return nil
+	}
+
+	result, err := setup.VerifyReusableAgents(resolver, reusableAgents)
+	if err != nil {
+		return []string{fmt.Sprintf("extension reusable-agent drift check failed: %v", err)}
+	}
+	if !result.HasMissing() && !result.HasDrift() {
+		return nil
+	}
+
+	parts := make([]string, 0, 2)
+	if result.HasMissing() {
+		parts = append(parts, "missing "+strings.Join(result.MissingReusableAgentNames(), ", "))
+	}
+	if result.HasDrift() {
+		parts = append(parts, "drifted "+strings.Join(result.DriftedReusableAgentNames(), ", "))
+	}
+
+	return []string{
+		fmt.Sprintf(
+			"extension reusable-agent drift (global scope): %s",
+			strings.Join(parts, "; "),
+		),
+	}
+}
+
+func setupAssetConflictWarnings(conflicts []setup.CatalogConflict) []string {
+	if len(conflicts) == 0 {
+		return nil
+	}
+
+	warnings := make([]string, 0, len(conflicts))
+	for i := range conflicts {
+		conflict := &conflicts[i]
+		subject := string(conflict.Kind)
+		switch conflict.Resolution {
+		case setup.CatalogConflictCoreWins:
+			warnings = append(
+				warnings,
+				fmt.Sprintf(
+					"setup %s conflict on %q: ignored %s because the core %s wins",
+					subject,
+					conflict.Name,
+					doctorAssetSourceLabel(conflict.Ignored),
+					subject,
+				),
+			)
+		case setup.CatalogConflictExtensionPrecedence:
+			warnings = append(
+				warnings,
+				fmt.Sprintf(
+					"setup %s conflict on %q: ignored %s because %s wins by precedence",
+					subject,
+					conflict.Name,
+					doctorAssetSourceLabel(conflict.Ignored),
+					doctorAssetSourceLabel(conflict.Winner),
+				),
+			)
+		}
+	}
+	return warnings
+}
+
 func toSetupSkillPackSources(packs []extensions.DeclaredSkillPack) []setup.SkillPackSource {
 	if len(packs) == 0 {
 		return nil
@@ -389,13 +468,98 @@ func toSetupSkillPackSources(packs []extensions.DeclaredSkillPack) []setup.Skill
 	for i := range packs {
 		pack := &packs[i]
 		result = append(result, setup.SkillPackSource{
-			ExtensionName: pack.Extension.Name,
-			ManifestPath:  pack.ManifestPath,
-			Pattern:       pack.Pattern,
-			ResolvedPath:  pack.ResolvedPath,
-			SourceFS:      pack.SourceFS,
-			SourceDir:     pack.SourceDir,
+			ExtensionName:   pack.Extension.Name,
+			ExtensionSource: string(pack.Extension.Source),
+			ManifestPath:    pack.ManifestPath,
+			Pattern:         pack.Pattern,
+			ResolvedPath:    pack.ResolvedPath,
+			SourceFS:        pack.SourceFS,
+			SourceDir:       pack.SourceDir,
 		})
 	}
 	return result
+}
+
+func toSetupReusableAgentSources(
+	agents []extensions.DeclaredReusableAgent,
+) []setup.ExtensionReusableAgentSource {
+	if len(agents) == 0 {
+		return nil
+	}
+
+	result := make([]setup.ExtensionReusableAgentSource, 0, len(agents))
+	for i := range agents {
+		reusableAgent := &agents[i]
+		result = append(result, setup.ExtensionReusableAgentSource{
+			ExtensionName:   reusableAgent.Extension.Name,
+			ExtensionSource: string(reusableAgent.Extension.Source),
+			ManifestPath:    reusableAgent.ManifestPath,
+			Pattern:         reusableAgent.Pattern,
+			ResolvedPath:    reusableAgent.ResolvedPath,
+			SourceFS:        reusableAgent.SourceFS,
+			SourceDir:       reusableAgent.SourceDir,
+		})
+	}
+	return result
+}
+
+func buildDoctorEffectiveCatalog(result extensions.DiscoveryResult) (setup.EffectiveCatalog, error) {
+	bundledSkills, err := setup.ListBundledSkills()
+	if err != nil {
+		return setup.EffectiveCatalog{}, err
+	}
+	bundledReusableAgents, err := setup.ListBundledReusableAgents()
+	if err != nil {
+		return setup.EffectiveCatalog{}, err
+	}
+	extensionSkills, err := setup.ListExtensionSkills(toSetupSkillPackSources(result.SkillPacks.Packs))
+	if err != nil {
+		return setup.EffectiveCatalog{}, err
+	}
+	extensionReusableAgents, err := setup.ListExtensionReusableAgents(
+		toSetupReusableAgentSources(result.ReusableAgents.Agents),
+	)
+	if err != nil {
+		return setup.EffectiveCatalog{}, err
+	}
+
+	return setup.BuildEffectiveCatalog(
+		bundledSkills,
+		extensionSkills,
+		bundledReusableAgents,
+		extensionReusableAgents,
+	), nil
+}
+
+func extensionReusableAgents(all []setup.ReusableAgent) []setup.ReusableAgent {
+	if len(all) == 0 {
+		return nil
+	}
+
+	reusableAgents := make([]setup.ReusableAgent, 0, len(all))
+	for i := range all {
+		if all[i].Origin != setup.AssetOriginExtension {
+			continue
+		}
+		reusableAgents = append(reusableAgents, all[i])
+	}
+	return reusableAgents
+}
+
+func doctorAssetSourceLabel(ref setup.AssetRef) string {
+	if ref.Origin == setup.AssetOriginBundled {
+		return "core"
+	}
+
+	parts := make([]string, 0, 2)
+	if trimmedSource := strings.TrimSpace(ref.ExtensionSource); trimmedSource != "" {
+		parts = append(parts, trimmedSource)
+	}
+	if trimmedName := strings.TrimSpace(ref.ExtensionName); trimmedName != "" {
+		parts = append(parts, trimmedName)
+	}
+	if len(parts) == 0 {
+		return "extension"
+	}
+	return strings.Join(parts, ":")
 }

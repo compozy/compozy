@@ -58,9 +58,14 @@ func Preview(cfg InstallConfig) ([]PreviewItem, error) {
 	}
 
 	items := make([]PreviewItem, 0, len(selectedSkills)*len(selectedAgents))
-	for _, skill := range selectedSkills {
-		for _, agent := range selectedAgents {
-			canonicalPath, targetPath, err := resolveInstallPaths(skill, agent, env, cfg.Global)
+	for i := range selectedSkills {
+		for j := range selectedAgents {
+			canonicalPath, targetPath, err := resolveInstallPaths(
+				selectedSkills[i],
+				selectedAgents[j],
+				env,
+				cfg.Global,
+			)
 			if err != nil {
 				return nil, err
 			}
@@ -71,8 +76,8 @@ func Preview(cfg InstallConfig) ([]PreviewItem, error) {
 			}
 
 			items = append(items, PreviewItem{
-				Skill:         skill,
-				Agent:         agent,
+				Skill:         selectedSkills[i],
+				Agent:         selectedAgents[j],
 				CanonicalPath: canonicalPath,
 				TargetPath:    targetPath,
 				WillOverwrite: willOverwrite,

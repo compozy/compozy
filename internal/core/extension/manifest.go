@@ -49,6 +49,7 @@ const (
 	CapabilityMemoryWrite       Capability = "memory.write"
 	CapabilityProvidersRegister Capability = "providers.register"
 	CapabilitySkillsShip        Capability = "skills.ship"
+	CapabilityAgentsShip        Capability = "agents.ship"
 	CapabilitySubprocessSpawn   Capability = "subprocess.spawn"
 	CapabilityNetworkEgress     Capability = "network.egress"
 )
@@ -131,6 +132,7 @@ type HookDeclaration struct {
 // ResourcesConfig declares declarative assets shipped with an extension.
 type ResourcesConfig struct {
 	Skills []string `toml:"skills" json:"skills,omitempty"`
+	Agents []string `toml:"agents" json:"agents,omitempty"`
 }
 
 // ProvidersConfig declares provider overlays exported by an extension.
@@ -210,6 +212,7 @@ var supportedCapabilities = newCapabilitySet(
 	CapabilityMemoryWrite,
 	CapabilityProvidersRegister,
 	CapabilitySkillsShip,
+	CapabilityAgentsShip,
 	CapabilitySubprocessSpawn,
 	CapabilityNetworkEgress,
 )

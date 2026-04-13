@@ -125,12 +125,14 @@ Cursor provides five distinct extensibility layers:
    - Automatic fix attempts when linting or testing fails
 
 5. **Python Scripting API** (unofficial):
+
    ```python
    from aider.coders import Coder
    from aider.models import Model
    coder = Coder.create(main_model=model, fnames=fnames)
    coder.run("instruction text")
    ```
+
    - Sequential instruction execution
    - Supports in-chat commands
    - Caveat: API is not officially supported and may change without notice
@@ -357,7 +359,9 @@ Cursor provides five distinct extensibility layers:
 These patterns appear across multiple tools and represent emerging standards in the AI coding agent ecosystem:
 
 ### 1. Instruction Files (Universal)
+
 Every tool has adopted some form of repository-level instruction file:
+
 - Cursor: `.cursor/rules/*.mdc`
 - Windsurf: Global/workspace rules + memories
 - Aider: `CONVENTIONS.md` loaded via `--read`
@@ -369,7 +373,9 @@ Every tool has adopted some form of repository-level instruction file:
 **Pattern**: Markdown files with optional YAML frontmatter, version-controlled in the repository, loaded automatically.
 
 ### 2. Model Context Protocol (MCP) as the Extension Standard
+
 MCP has become the de facto standard for tool extensibility:
+
 - All six tools support MCP in some form
 - Configuration is converging on JSON/YAML files in project directories
 - Continue explicitly supports cross-tool MCP config compatibility
@@ -379,7 +385,9 @@ MCP has become the de facto standard for tool extensibility:
 **Pattern**: MCP is the "USB port" of AI coding tools -- a universal connector for external capabilities.
 
 ### 3. Glob-Based Rule Targeting
+
 Multiple tools support activating rules only for files matching specific patterns:
+
 - Cursor: Glob patterns in rule frontmatter
 - Continue: `globs` and `regex` properties on rules
 - Aider: Language-specific lint commands via `--lint "language: cmd"`
@@ -387,7 +395,9 @@ Multiple tools support activating rules only for files matching specific pattern
 **Pattern**: Context-aware rules that only activate when relevant, reducing noise.
 
 ### 4. Lint-Test-Fix Loops
+
 Automatic quality gates after AI edits:
+
 - Aider: `--auto-lint` + `--auto-test` with automatic fix attempts
 - Windsurf: Auto-fix linting enabled by default
 - Cline: Monitors linter/compiler errors and proactively fixes
@@ -396,7 +406,9 @@ Automatic quality gates after AI edits:
 **Pattern**: Edit -> Lint -> Fix -> Test -> Fix cycle as an autonomous loop.
 
 ### 5. Checkpoint/Snapshot Systems
+
 Safe experimentation through state snapshots:
+
 - Windsurf: Named checkpoints with reversion
 - Cline: Workspace state snapshots with diff comparison
 - Aider: Git-based undo via `/undo` command
@@ -404,7 +416,9 @@ Safe experimentation through state snapshots:
 **Pattern**: Version-controlled experimentation points for safe AI-driven exploration.
 
 ### 6. Multi-Model/Multi-Provider Architecture
+
 All tools support multiple LLM providers and model selection:
+
 - Continue: Six distinct model roles (chat, autocomplete, edit, apply, embeddings, rerank)
 - Aider: Primary + weak + editor models
 - Cline: 10+ API providers + local models
@@ -413,7 +427,9 @@ All tools support multiple LLM providers and model selection:
 **Pattern**: Different models for different tasks based on capability and cost.
 
 ### 7. Community Sharing Platforms
+
 Dedicated platforms for sharing configurations:
+
 - Cursor: cursor.directory (web hub with Open Plugins standard)
 - Aider: GitHub conventions repository with structured contribution
 - Continue: Hub/Mission Control for centralized config management
@@ -422,7 +438,9 @@ Dedicated platforms for sharing configurations:
 **Pattern**: Moving from individual config files to shared, discoverable ecosystems.
 
 ### 8. Headless/Automation Modes
+
 Non-interactive execution for CI/CD:
+
 - Aider: `--message` flag for single-task execution, Python API
 - Codex: `codex exec` headless mode, `--ephemeral` sessions
 - Continue: `cn` CLI for CI-enforceable AI checks
@@ -430,7 +448,9 @@ Non-interactive execution for CI/CD:
 **Pattern**: AI coding agents as CI/CD pipeline steps, not just interactive tools.
 
 ### 9. IDE-Agnostic Design Choices
+
 Tools increasingly support multiple environments:
+
 - Codex: CLI + VS Code + Cursor + Windsurf + Desktop + Web
 - Continue: VS Code + JetBrains + CLI
 - Aider: Terminal + Browser UI + IDE watch mode
@@ -439,7 +459,9 @@ Tools increasingly support multiple environments:
 **Pattern**: Core logic separated from UI, enabling multiple frontends.
 
 ### 10. Conversational Extension Creation
+
 AI-driven creation of extensions:
+
 - Cline: "Add a tool that..." creates MCP servers via natural language
 - Cursor: Skills as packaged AI capabilities
 
@@ -450,15 +472,18 @@ AI-driven creation of extensions:
 ## Sources
 
 ### Cursor
+
 - https://github.com/pontusab/cursor-directory -- cursor.directory community hub (13k+ stars)
 - https://github.com/PatrickJS/awesome-cursorrules -- Curated .cursorrules collection
 - https://cursor.com/docs -- Official documentation
 
 ### Windsurf (Codeium)
+
 - https://docs.windsurf.com/windsurf/cascade -- Cascade agent documentation
 - https://docs.windsurf.com/windsurf/getting-started -- Getting started guide
 
 ### Aider
+
 - https://github.com/Aider-AI/aider -- Main repository (43.1k stars)
 - https://github.com/Aider-AI/conventions -- Community conventions repository (189 stars)
 - https://aider.chat/docs/config.html -- Configuration documentation
@@ -470,6 +495,7 @@ AI-driven creation of extensions:
 - https://aider.chat/docs/config/adv-model-settings.html -- Advanced model settings
 
 ### Continue.dev
+
 - https://github.com/continuedev/continue -- Main repository
 - https://docs.continue.dev/customize/overview -- Customization overview
 - https://docs.continue.dev/customize/model-roles -- Model roles
@@ -479,11 +505,13 @@ AI-driven creation of extensions:
 - https://github.com/continuedev/continue/blob/main/core/tools/index.ts -- Tool architecture
 
 ### Cline
+
 - https://github.com/cline/cline -- Main repository (60.1k stars)
 - https://github.com/saoudrizwan/claude-dev -- Original Claude Dev repository
 - https://github.com/cline/cline/tree/main/src/services/mcp -- MCP service architecture
 
 ### Codex CLI (OpenAI)
+
 - https://github.com/openai/codex -- Main repository (74.5k stars)
 - https://github.com/openai/codex/blob/main/AGENTS.md -- Agent instruction file
 - https://github.com/openai/codex/blob/main/codex-rs/README.md -- Rust core architecture
@@ -491,4 +519,5 @@ AI-driven creation of extensions:
 - https://github.com/openai/codex/blob/main/codex-rs/core/README.md -- Core sandbox architecture
 
 ### MCP Ecosystem
+
 - https://github.com/punkpeye/awesome-mcp-servers -- MCP servers directory (84.5k stars, 45+ categories)

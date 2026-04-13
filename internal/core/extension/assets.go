@@ -39,6 +39,21 @@ type DeclaredSkillPacks struct {
 	Packs []DeclaredSkillPack
 }
 
+// DeclaredReusableAgent captures one resolved reusable-agent path from a manifest.
+type DeclaredReusableAgent struct {
+	Extension    Ref
+	ManifestPath string
+	Pattern      string
+	ResolvedPath string
+	SourceFS     fs.FS
+	SourceDir    string
+}
+
+// DeclaredReusableAgents contains the resolved reusable-agent inventory.
+type DeclaredReusableAgents struct {
+	Agents []DeclaredReusableAgent
+}
+
 // ExtractDeclaredProviders converts discovered entries into a grouped provider
 // inventory for downstream overlay assembly.
 func ExtractDeclaredProviders(entries []DiscoveredExtension) DeclaredProviders {
@@ -71,7 +86,7 @@ func ExtractDeclaredSkillPacks(entries []DiscoveredExtension) DeclaredSkillPacks
 	for i := range entries {
 		entry := &entries[i]
 		for _, pattern := range entry.Manifest.Resources.Skills {
-			for _, resolvedPath := range entry.resolveSkillPattern(pattern) {
+			for _, resolvedPath := range entry.resolveResourcePattern(pattern) {
 				key := entry.ManifestPath + "\x00" + pattern + "\x00" + resolvedPath
 				if _, ok := seen[key]; ok {
 					continue
@@ -83,8 +98,8 @@ func ExtractDeclaredSkillPacks(entries []DiscoveredExtension) DeclaredSkillPacks
 					ManifestPath: entry.ManifestPath,
 					Pattern:      pattern,
 					ResolvedPath: resolvedPath,
-					SourceFS:     entry.skillSourceFS(),
-					SourceDir:    entry.skillSourceDir(resolvedPath),
+					SourceFS:     entry.resourceSourceFS(),
+					SourceDir:    entry.resourceSourceDir(resolvedPath),
 				})
 			}
 		}
@@ -92,6 +107,42 @@ func ExtractDeclaredSkillPacks(entries []DiscoveredExtension) DeclaredSkillPacks
 
 	slices.SortFunc(packs, compareDeclaredSkillPack)
 	return DeclaredSkillPacks{Packs: packs}
+}
+
+// ExtractDeclaredReusableAgents resolves reusable-agent patterns into deterministic
+// path entries for downstream installation flows.
+func ExtractDeclaredReusableAgents(entries []DiscoveredExtension) DeclaredReusableAgents {
+	if len(entries) == 0 {
+		return DeclaredReusableAgents{}
+	}
+
+	seen := make(map[string]struct{})
+	agents := make([]DeclaredReusableAgent, 0)
+
+	for i := range entries {
+		entry := &entries[i]
+		for _, pattern := range entry.Manifest.Resources.Agents {
+			for _, resolvedPath := range entry.resolveResourcePattern(pattern) {
+				key := entry.ManifestPath + "\x00" + pattern + "\x00" + resolvedPath
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+
+				agents = append(agents, DeclaredReusableAgent{
+					Extension:    entry.Ref,
+					ManifestPath: entry.ManifestPath,
+					Pattern:      pattern,
+					ResolvedPath: resolvedPath,
+					SourceFS:     entry.resourceSourceFS(),
+					SourceDir:    entry.resourceSourceDir(resolvedPath),
+				})
+			}
+		}
+	}
+
+	slices.SortFunc(agents, compareDeclaredReusableAgent)
+	return DeclaredReusableAgents{Agents: agents}
 }
 
 func appendDeclaredProviders(
@@ -131,7 +182,17 @@ func compareDeclaredSkillPack(left, right DeclaredSkillPack) int {
 	return strings.Compare(left.ResolvedPath, right.ResolvedPath)
 }
 
-func (e DiscoveredExtension) resolveSkillPattern(pattern string) []string {
+func compareDeclaredReusableAgent(left, right DeclaredReusableAgent) int {
+	if diff := strings.Compare(left.Extension.Name, right.Extension.Name); diff != 0 {
+		return diff
+	}
+	if diff := sourceRank(left.Extension.Source) - sourceRank(right.Extension.Source); diff != 0 {
+		return diff
+	}
+	return strings.Compare(left.ResolvedPath, right.ResolvedPath)
+}
+
+func (e DiscoveredExtension) resolveResourcePattern(pattern string) []string {
 	trimmed := strings.TrimSpace(pattern)
 	if trimmed == "" {
 		return nil
@@ -165,14 +226,14 @@ func (e DiscoveredExtension) resolveSkillPattern(pattern string) []string {
 	return resolved
 }
 
-func (e DiscoveredExtension) skillSourceFS() fs.FS {
+func (e DiscoveredExtension) resourceSourceFS() fs.FS {
 	if e.diskRoot != "" {
 		return nil
 	}
 	return e.rootFS
 }
 
-func (e DiscoveredExtension) skillSourceDir(resolvedPath string) string {
+func (e DiscoveredExtension) resourceSourceDir(resolvedPath string) string {
 	if e.diskRoot != "" {
 		return filepath.Base(filepath.Clean(resolvedPath))
 	}

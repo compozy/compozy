@@ -25,12 +25,13 @@ type Discovery struct {
 // DiscoveryResult captures raw discovered entries plus the effective set after
 // precedence resolution and enablement filtering.
 type DiscoveryResult struct {
-	Discovered []DiscoveredExtension
-	Extensions []DiscoveredExtension
-	Overrides  []OverrideRecord
-	Failures   []DiscoveryFailure
-	Providers  DeclaredProviders
-	SkillPacks DeclaredSkillPacks
+	Discovered     []DiscoveredExtension
+	Extensions     []DiscoveredExtension
+	Overrides      []OverrideRecord
+	Failures       []DiscoveryFailure
+	Providers      DeclaredProviders
+	SkillPacks     DeclaredSkillPacks
+	ReusableAgents DeclaredReusableAgents
 }
 
 // DiscoveredExtension describes one discovered manifest declaration.
@@ -119,6 +120,7 @@ func (d Discovery) Discover(ctx context.Context) (DiscoveryResult, error) {
 	}
 	result.Providers = ExtractDeclaredProviders(result.Extensions)
 	result.SkillPacks = ExtractDeclaredSkillPacks(result.Extensions)
+	result.ReusableAgents = ExtractDeclaredReusableAgents(result.Extensions)
 
 	return result, nil
 }

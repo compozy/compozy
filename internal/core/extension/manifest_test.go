@@ -484,6 +484,18 @@ func TestValidateManifestRejectsRequiredRelationships(t *testing.T) {
 			wantSubstr: `resources.skills[0]="skills/*": requires capability "skills.ship"`,
 		},
 		{
+			name: "agent resources require agents capability",
+			mutate: func(manifest *Manifest) {
+				manifest.Security.Capabilities = []Capability{
+					CapabilityPromptMutate,
+					CapabilityProvidersRegister,
+					CapabilitySkillsShip,
+				}
+				manifest.Resources.Agents = []string{"agents/*"}
+			},
+			wantSubstr: `resources.agents[0]="agents/*": requires capability "agents.ship"`,
+		},
+		{
 			name: "providers require register capability",
 			mutate: func(manifest *Manifest) {
 				manifest.Security.Capabilities = []Capability{

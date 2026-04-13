@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -36,8 +37,10 @@ func TestSetupRunYesFailsWithoutDetectedAgents(t *testing.T) {
 	t.Parallel()
 
 	state := newSetupCommandState()
-	state.listSkills = func() ([]setup.Skill, error) {
-		return []setup.Skill{{Name: "cy-create-prd", Description: "Create a PRD"}}, nil
+	state.loadCatalog = func(_ context.Context, _ setup.ResolverOptions) (setup.EffectiveCatalog, error) {
+		return setup.EffectiveCatalog{
+			Skills: []setup.Skill{{Name: "cy-create-prd", Description: "Create a PRD"}},
+		}, nil
 	}
 	state.listAgents = func(setup.ResolverOptions) ([]setup.Agent, error) {
 		return []setup.Agent{
@@ -70,24 +73,72 @@ func TestSetupRunYesFailsWithoutDetectedAgents(t *testing.T) {
 	}
 }
 
-func TestSetupListIncludesBundledGlobalReusableAgents(t *testing.T) {
+func TestSetupListIncludesExtensionSourcesAndConflictWarnings(t *testing.T) {
 	t.Parallel()
 
-	output, err := executeRootCommand("setup", "--list")
-	if err != nil {
-		t.Fatalf("execute setup list: %v", err)
+	state := newSetupCommandState()
+	state.loadCatalog = func(_ context.Context, _ setup.ResolverOptions) (setup.EffectiveCatalog, error) {
+		return setup.EffectiveCatalog{
+			Skills: []setup.Skill{
+				{Name: "compozy", Description: "Core workflow", Origin: setup.AssetOriginBundled},
+				{
+					Name:            "idea-pack",
+					Description:     "Extension workflow",
+					Origin:          setup.AssetOriginExtension,
+					ExtensionName:   "idea-ext",
+					ExtensionSource: "workspace",
+				},
+			},
+			ReusableAgents: []setup.ReusableAgent{
+				{Name: "architect-advisor", Description: "Core council", Origin: setup.AssetOriginBundled},
+				{
+					Name:            "product-scout",
+					Description:     "Extension reusable agent",
+					Origin:          setup.AssetOriginExtension,
+					ExtensionName:   "idea-ext",
+					ExtensionSource: "workspace",
+				},
+			},
+			Conflicts: []setup.CatalogConflict{
+				{
+					Kind:       setup.CatalogAssetKindSkill,
+					Name:       "compozy",
+					Resolution: setup.CatalogConflictCoreWins,
+					Winner:     setup.AssetRef{Origin: setup.AssetOriginBundled, Name: "compozy"},
+					Ignored: setup.AssetRef{
+						Origin:          setup.AssetOriginExtension,
+						Name:            "compozy",
+						ExtensionName:   "shadow-ext",
+						ExtensionSource: "workspace",
+					},
+				},
+			},
+		}, nil
+	}
+	state.list = true
+
+	cmd := &cobra.Command{Use: "setup"}
+	var output bytes.Buffer
+	cmd.SetOut(&output)
+	cmd.SetErr(&output)
+
+	if err := state.run(cmd, nil); err != nil {
+		t.Fatalf("run setup list: %v\noutput:\n%s", err, output.String())
 	}
 
 	required := []string{
-		"Bundled Skills",
-		"Bundled Global Reusable Agents",
+		"Setup Skills",
+		"[core]",
+		"[workspace:idea-ext]",
+		"Global Reusable Agents",
 		"architect-advisor",
-		"pragmatic-engineer",
-		"the-thinker",
+		"product-scout",
+		"Warnings",
+		`ignored extension skill "compozy" from workspace:shadow-ext because the core skill wins`,
 	}
 	for _, snippet := range required {
-		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected setup --list output to include %q\noutput:\n%s", snippet, output)
+		if !strings.Contains(output.String(), snippet) {
+			t.Fatalf("expected setup --list output to include %q\noutput:\n%s", snippet, output.String())
 		}
 	}
 }

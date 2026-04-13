@@ -363,17 +363,17 @@
 
 ### Priority Ranking for Compozy Extensions
 
-| Priority | Tool | Rationale |
-|----------|------|-----------|
-| 1 | **Langfuse** | Most natural fit. Compozy orchestrates AI agents; Langfuse traces AI agent execution. Every Compozy run should be a Langfuse trace with cost, quality, and latency metrics. OTEL-native Go support. |
-| 2 | **Sentry** | Error-aware code generation is high-value. Mature MCP server with 16+ tools. Autonomous error fixing aligns with Compozy's remediation workflow. |
-| 3 | **Datadog** | Enterprise-dominant. MCP server GA. APM data as agent context is compelling. Active work on Claude Agent SDK instrumentation. |
-| 4 | **Grafana/Prometheus** | Open-source, widely deployed. Dashboard generation and SLO-driven task prioritization are strong use cases. |
-| 5 | **PagerDuty** | Incident-to-task pipeline is a natural workflow. 60+ MCP tools. Strong AI ecosystem. |
-| 6 | **Honeycomb** | Trace-driven development is differentiated. Purpose-built for agent era. Strong MCP with Agent Skills. |
-| 7 | **PostHog** | Product analytics context for prioritization. Feature flag automation. Good MCP but narrower use case for coding agents. |
-| 8 | **New Relic** | Full-stack context is valuable. MCP still in preview. Strong NRQL capabilities. |
-| 9 | **Helicone** | Cost tracking is important but niche. Acquired by Mintlify (maintenance mode). Consider Langfuse or Datadog for cost tracking instead. |
+| Priority | Tool                   | Rationale                                                                                                                                                                                           |
+| -------- | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | **Langfuse**           | Most natural fit. Compozy orchestrates AI agents; Langfuse traces AI agent execution. Every Compozy run should be a Langfuse trace with cost, quality, and latency metrics. OTEL-native Go support. |
+| 2        | **Sentry**             | Error-aware code generation is high-value. Mature MCP server with 16+ tools. Autonomous error fixing aligns with Compozy's remediation workflow.                                                    |
+| 3        | **Datadog**            | Enterprise-dominant. MCP server GA. APM data as agent context is compelling. Active work on Claude Agent SDK instrumentation.                                                                       |
+| 4        | **Grafana/Prometheus** | Open-source, widely deployed. Dashboard generation and SLO-driven task prioritization are strong use cases.                                                                                         |
+| 5        | **PagerDuty**          | Incident-to-task pipeline is a natural workflow. 60+ MCP tools. Strong AI ecosystem.                                                                                                                |
+| 6        | **Honeycomb**          | Trace-driven development is differentiated. Purpose-built for agent era. Strong MCP with Agent Skills.                                                                                              |
+| 7        | **PostHog**            | Product analytics context for prioritization. Feature flag automation. Good MCP but narrower use case for coding agents.                                                                            |
+| 8        | **New Relic**          | Full-stack context is valuable. MCP still in preview. Strong NRQL capabilities.                                                                                                                     |
+| 9        | **Helicone**           | Cost tracking is important but niche. Acquired by Mintlify (maintenance mode). Consider Langfuse or Datadog for cost tracking instead.                                                              |
 
 ### Common Patterns Across All Tools
 
@@ -402,6 +402,7 @@
 ## Sources
 
 ### Sentry
+
 - [Sentry MCP Server Docs](https://docs.sentry.io/ai/mcp/)
 - [Sentry MCP GitHub](https://github.com/getsentry/sentry-mcp)
 - [Sentry Integration Platform](https://docs.sentry.io/organization/integrations/integration-platform/)
@@ -410,6 +411,7 @@
 - [Automated Error Analysis with Sentry MCP - Continue Docs](https://docs.continue.dev/guides/sentry-mcp-error-monitoring)
 
 ### Datadog
+
 - [Datadog MCP Server Launch](https://www.apmdigest.com/datadog-launches-mcp-server)
 - [Datadog AI Agent Directory](https://www.datadoghq.com/product/ai/agent-directory/)
 - [Datadog APM Docs](https://docs.datadoghq.com/tracing/)
@@ -418,18 +420,21 @@
 - [Datadog Experiments](https://siliconangle.com/2026/04/02/datadog-debuts-experiments-unify-product-testing-observability-data/)
 
 ### Grafana / Prometheus
+
 - [Grafana MCP Server GitHub](https://github.com/grafana/mcp-grafana)
 - [Grafana Cloud MCP for Tracing](https://grafana.com/docs/grafana-cloud/send-data/traces/mcp-server/)
 - [Grafana Agentic System Blog](https://grafana.com/blog/going-beyond-ai-chat-response-how-were-building-an-agentic-system-to-drive-grafana/)
 - [MCP Server Monitoring via Prometheus & Grafana](https://medium.com/@vishaly650/monitoring-mcp-servers-with-prometheus-and-grafana-8671292e6351)
 
 ### PagerDuty
+
 - [PagerDuty MCP Server Integration Guide](https://support.pagerduty.com/main/docs/pagerduty-mcp-server-integration-guide)
 - [PagerDuty Spring 2026 Release](https://www.businesswire.com/news/home/20260312121276/en/PagerDuty-Unveils-Next-Generation-of-the-Operations-Cloud-Platform-with-the-Spring-2026-Release)
 - [PagerDuty AI Ecosystem Expansion](https://www.pagerduty.com/newsroom/pagerduty-expands-ai-ecosystem-to-supercharge-ai-agents/)
 - [PagerDuty + Azure SRE Agent](https://techcommunity.microsoft.com/blog/appsonazureblog/get-started-with-pagerduty-mcp-server-and-pagerduty-sre-agent-in-azure-sre-agent/4497124)
 
 ### Langfuse
+
 - [Langfuse GitHub](https://github.com/langfuse/langfuse)
 - [Langfuse AI Agent Observability](https://langfuse.com/blog/2024-07-ai-agent-observability-with-langfuse)
 - [Langfuse Tracing Overview](https://langfuse.com/docs/observability/overview)
@@ -441,6 +446,7 @@
 - [AgentGateway + Langfuse](https://agentgateway.dev/blog/2026-02-17-agentgateway-langfuse-integration/)
 
 ### Helicone
+
 - [Helicone Website](https://www.helicone.ai/)
 - [Helicone GitHub](https://github.com/Helicone/helicone)
 - [Helicone Cost Tracking Guide](https://docs.helicone.ai/guides/cookbooks/cost-tracking)
@@ -449,12 +455,14 @@
 - [AI Cost Tracking Tools Compared 2026](https://finops.aivyuh.com/compare/ai-cost-tracking-tools/)
 
 ### PostHog
+
 - [PostHog MCP Docs](https://posthog.com/docs/model-context-protocol)
 - [PostHog Build Insights with MCP](https://posthog.com/docs/product-analytics/build-insights-mcp)
 - [PostHog AI Platform Handbook](https://posthog.com/handbook/engineering/ai/ai-platform)
 - [PostHog Building AI Agents](https://posthog.com/newsletter/building-ai-agents)
 
 ### New Relic
+
 - [New Relic MCP Server Launch](https://newrelic.com/blog/news/new-relic-ai-mcp-server-launch)
 - [New Relic MCP Docs](https://docs.newrelic.com/docs/agentic-ai/mcp/overview/)
 - [New Relic MCP Setup](https://docs.newrelic.com/docs/agentic-ai/mcp/setup/)
@@ -462,6 +470,7 @@
 - [New Relic Agentic AI Monitoring Launch](https://www.businesswire.com/news/home/20251104183664/en/New-Relic-Launches-Agentic-AI-Monitoring-and-MCP-Server-to-Accelerate-AI-Adoption-and-Observability-Workflows-in-the-Enterprise)
 
 ### Honeycomb
+
 - [Honeycomb AI-Powered Development Announcement](https://www.honeycomb.io/blog/honeycomb-advances-observability-for-ai-powered-software-development)
 - [Honeycomb Built for Agent Era](https://www.honeycomb.io/blog/honeycomb-is-built-for-the-agent-era-pt1)
 - [Honeycomb MCP & Agentic Workflows](https://www.honeycomb.io/blog/ai-working-for-you-mcp-canvas-agentic-workflows-pt2)
@@ -471,6 +480,7 @@
 - [Honeycomb + Stytch: Observability & SLOs for AI Agents](https://stytch.com/blog/agent-ready-ep6-honeycomb-observability-slos-ai-agent-workloads/)
 
 ### Market Analysis
+
 - [Observability Tool Market Share 2026-2033](https://www.coherentmarketinsights.com/industry-reports/observability-tool-market)
 - [IBM Observability Trends 2026](https://www.ibm.com/think/insights/observability-trends)
 - [Platform Engineering: 10 Observability Tools 2026](https://platformengineering.org/blog/10-observability-tools-platform-engineers-should-evaluate-in-2026)

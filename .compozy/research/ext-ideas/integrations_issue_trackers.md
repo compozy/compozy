@@ -11,16 +11,16 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 
 ### Developer Adoption Rankings (2026)
 
-| Tool | Position | Best For |
-|------|----------|----------|
-| Jira | #1 overall, dominant enterprise | Large orgs, 500+ engineers, compliance |
-| Linear | Fastest-growing dev tracker | Dev teams <500, speed-focused |
-| GitHub Issues | Tightly integrated with repos | Teams already on GitHub |
-| Notion | Fastest-growing PM tool overall | Cross-functional, docs + PM |
-| ClickUp | All-in-one alternative | Teams wanting unified workspace |
-| Asana | Enterprise PM leader | Marketing, ops, cross-functional |
-| Shortcut | Dev-focused mid-market | Small-mid engineering teams |
-| Plane.so | Open-source challenger | Self-hosted, privacy-first teams |
+| Tool          | Position                        | Best For                               |
+| ------------- | ------------------------------- | -------------------------------------- |
+| Jira          | #1 overall, dominant enterprise | Large orgs, 500+ engineers, compliance |
+| Linear        | Fastest-growing dev tracker     | Dev teams <500, speed-focused          |
+| GitHub Issues | Tightly integrated with repos   | Teams already on GitHub                |
+| Notion        | Fastest-growing PM tool overall | Cross-functional, docs + PM            |
+| ClickUp       | All-in-one alternative          | Teams wanting unified workspace        |
+| Asana         | Enterprise PM leader            | Marketing, ops, cross-functional       |
+| Shortcut      | Dev-focused mid-market          | Small-mid engineering teams            |
+| Plane.so      | Open-source challenger          | Self-hosted, privacy-first teams       |
 
 ---
 
@@ -35,6 +35,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Rate Limits**: 1,500 req/hr (API key), 500 req/hr (OAuth per user/app), complexity-based limiting
 
 **Key Operations**:
+
 - **Issues**: `issueCreate`, `issueUpdate`, query by ID/team/filter
 - **Projects**: Full CRUD via GraphQL
 - **Comments**: Create, update, delete on issues/projects
@@ -44,6 +45,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Teams**: Query team structure and members
 
 **Webhooks**: HTTP(S) push notifications for data changes
+
 - Supported entities: issues, issue attachments, issue comments, issue labels, comment reactions, projects, project updates, cycles, issue SLA, OAuthApp revoked
 - Scoped to Organization (all public teams or single team)
 - Security: HMAC signatures, IP address validation
@@ -52,11 +54,13 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 ### Existing AI Integrations
 
 **Official Linear MCP Server** (launched May 2025):
+
 - Remote server at `https://mcp.linear.app/sse`
 - Tools: search, create, update issues/projects/comments
 - OAuth authentication
 
 **Linear Agent Interaction Framework** (first-party, dedicated):
+
 - `AgentSession` lifecycle with 6 states: `pending`, `active`, `error`, `awaitingInput`, `complete`, `stale`
 - Agents receive work via `AgentSessionEvent` webhooks (`created`, `prompted`)
 - `promptContext` field provides formatted issue context, comments, and guidance
@@ -68,6 +72,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Critical**: Agents must respond within 5 seconds and send activity within 10 seconds
 
 **Community MCP Servers**:
+
 - [jerhadf/linear-mcp-server](https://github.com/jerhadf/linear-mcp-server) -- well-known community server (MIT)
 - [cline/linear-mcp](https://github.com/cline/linear-mcp) -- Cline's official Linear MCP
 - [dvcrn/mcp-server-linear](https://github.com/dvcrn/mcp-server-linear) -- multi-workspace support
@@ -79,6 +84,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: Bidirectional issue-to-agent lifecycle sync
 
 **How it works**:
+
 1. **plan.enriched** hook: Pull Linear issues assigned to the current user/sprint, inject as Compozy task context
 2. **agent.started** hook: Create AgentSession in Linear via `agentSessionCreateOnIssue`, report real-time progress via `agentActivityCreate`
 3. **job.completed** hook: Transition Linear issue state (e.g., "In Progress" -> "In Review"), attach PR link via `agentSessionUpdate.externalUrls`
@@ -106,6 +112,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **SDKs**: Official clients in Java, Python, Node.js; 3,000+ Marketplace integrations
 
 **Key Endpoints**:
+
 - **Issues**: `POST /issue` (create, up to 50 bulk), `PUT /issue/{id}` (update), `GET /issue/{id}`
 - **Search**: `POST /search/jql` (new, token-based pagination; legacy `/search` deprecated)
 - **Comments**: `POST /issue/{id}/comment` (body must be ADF in v3), `GET /issue/{id}/comment`
@@ -115,11 +122,13 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Boards/Sprints**: Agile API at `/rest/agile/1.0/`
 
 **Important v3 Notes**:
+
 - Rich text fields (description, comments) require Atlassian Document Format (ADF), not plain strings
 - Granular OAuth scopes: `write:issue:jira`, `write:comment:jira`, `read:issue-details:jira`, etc.
 - `/rest/api/3/search` deprecated in favor of `/rest/api/3/search/jql` (token-based pagination has known issues)
 
 **Webhooks**: HTTP callbacks on events
+
 - Events: issue created/updated/deleted, comment added/updated, sprint started/completed, project created
 - Types: Admin webhooks (UI/REST), Connect app webhooks (app descriptors), Automation webhooks
 - Retry: up to 5 retries over 25-75 minutes
@@ -129,6 +138,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 ### Existing AI Integrations
 
 **Atlassian Rovo MCP Server** (Official):
+
 - Remote MCP server at Atlassian's infrastructure
 - OAuth authentication with granular permission controls
 - Tools: Rovo Search, fetch, create Jira work items in bulk, create Confluence pages, summarize work
@@ -137,6 +147,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - No FedRAMP/HIPAA support yet
 
 **Community MCP Servers**:
+
 - [codingthefuturewithai/mcp_jira](https://github.com/codingthefuturewithai/mcp_jira) -- general Jira MCP
 - [rahulthedevil/Jira-Context-MCP](https://github.com/rahulthedevil/Jira-Context-MCP) -- provides Jira ticket context to Cursor
 - [@aashari/mcp-server-atlassian-jira](https://lobehub.com/mcp/aashari-mcp-server-atlassian-jira) -- full CRUD, supports Cloud + Server/Data Center
@@ -150,6 +161,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: Enterprise-grade issue lifecycle automation with ADF-rich reporting
 
 **How it works**:
+
 1. **plan.enriched** hook: Query Jira sprint backlog via JQL, inject issue context (including ADF descriptions) into Compozy tasks
 2. **agent.started** hook: Transition Jira issue to "In Development", add comment with agent assignment details (ADF formatted)
 3. **artifact.written** hook: Attach generated artifacts (code diffs, test results) as Jira issue attachments
@@ -179,6 +191,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Rate Limits**: REST 5,000 req/hr (authenticated), 15,000 for GitHub Apps; GraphQL 5,000 points/hr
 
 **REST API -- Issues**:
+
 - `POST /repos/{owner}/{repo}/issues` -- create issue
 - `PATCH /repos/{owner}/{repo}/issues/{number}` -- update issue
 - `GET /repos/{owner}/{repo}/issues` -- list issues
@@ -188,6 +201,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - Every PR is an issue; shared endpoints for assignees, labels, milestones
 
 **GraphQL API -- Issues & Projects**:
+
 - `createIssue` mutation: repositoryId, title, body, assigneeIds
 - `updateIssue` mutation: state, labels, milestone, assignees
 - `addLabelsToLabelable` mutation
@@ -196,10 +210,12 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - Projects v2 replaced Projects Classic (deprecated April 2025)
 
 **REST API -- Projects (September 2025)**:
+
 - New REST API for GitHub Projects alongside GraphQL
 - `projects_list`, `projects_get` tools in MCP server
 
 **Webhooks**: GitHub Apps or repository webhooks
+
 - Events: `issues` (opened, edited, closed, labeled, etc.), `issue_comment`, `pull_request`, `project_card`, `project_v2_item`
 - Delivery: HTTP POST with JSON payload, HMAC-SHA256 signature verification
 - Retry: automatic with exponential backoff
@@ -208,6 +224,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 ### Existing AI Integrations
 
 **GitHub Official MCP Server** ([github/github-mcp-server](https://github.com/github/github-mcp-server)):
+
 - Remote hosted server + local installation option
 - Toolsets: `repos`, `issues`, `pull_requests`, `actions`, `code_security`, `projects` (opt-in)
 - Key tools: `issue_read`, `create_pull_request`, `get_file_contents`, `projects_list`, `projects_get`
@@ -217,11 +234,13 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - January 2026 update: consolidated tools reduced token usage by ~23,000 tokens (50%)
 
 **GitHub Copilot Agent Mode**:
+
 - Issue-to-PR automation: Copilot can be assigned to issues and autonomously create PRs
 - `base_ref` support for feature branches and stacked PRs
 - Deep integration with GitHub Actions for CI/CD feedback loops
 
 **GitHub MCP Registry** (September 2025):
+
 - Central discovery hub for MCP servers
 - Supports private server publishing for enterprises
 
@@ -231,6 +250,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: Native issue-to-PR pipeline with full lifecycle tracking
 
 **How it works**:
+
 1. **plan.completed** hook: Create GitHub issues from task breakdown, with labels, milestones, and project board assignment
 2. **prompt.building** hook: Fetch issue context (body, comments, linked PRs) via GraphQL, inject into agent prompt
 3. **agent.completed** hook: Create PR via API, link to originating issue with "Closes #N"
@@ -259,6 +279,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Documentation**: [developer.shortcut.com/api/rest/v3](https://developer.shortcut.com/api/rest/v3)
 
 **Key Endpoints**:
+
 - **Stories**: Full CRUD (create, read, update, delete), search with pagination (max 25/page)
 - **Epics**: CRUD operations, threaded comments on epics
 - **Epic Comments**: Create, update, delete, reply (threaded)
@@ -269,6 +290,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Search**: Query endpoint returns stories with attachments, branches, commits, PRs, comments
 
 **Webhooks** (V1): [developer.shortcut.com/api/webhook/v1](https://developer.shortcut.com/api/webhook/v1)
+
 - Fire on Story/Epic create, update, delete
 - Payload includes `entity_type` ("story"/"epic"), `action` ("create"/"update"), `changes` object with old/new values
 - Security: Optional HMAC-SHA-256 via `Payload-Signature` header
@@ -277,6 +299,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 ### Existing AI Integrations
 
 **Korey** (September 2025):
+
 - Shortcut's AI-powered product development tool
 - Integrates with Shortcut and GitHub Issues
 - Automates creation of user stories, specifications, and sub-tasks from natural language
@@ -291,6 +314,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: AI-powered story refinement and sprint automation
 
 **How it works**:
+
 1. **plan.enriched** hook: Pull current iteration stories, inject context into Compozy tasks
 2. **prompt.building** hook: Fetch story details, linked branches/PRs, epic context
 3. **job.completed** hook: Update story state, add comment with agent output summary
@@ -317,6 +341,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **SDK**: Official JavaScript SDK (`@notionhq/client`)
 
 **Key Operations**:
+
 - **Pages**: Create, retrieve, update, archive; rich content via blocks
 - **Databases**: Create, query, update; new `data_source` abstraction (v2025-09-03) for multi-source databases
 - **Blocks**: Append, retrieve, update, delete children; supports 50+ block types
@@ -325,6 +350,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Search**: Full-text search across workspace
 
 **Webhooks** (v2025-09-03):
+
 - Events: `page.content_updated`, `page.properties_updated`, `page.created`, `page.deleted`, `page.undeleted`, `page.moved`, `data_source.schema_updated`
 - New `data_source_id` field in webhook payloads
 - Subscription-based model with version compatibility requirements
@@ -335,10 +361,12 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 ### Existing AI Integrations
 
 **Official Notion MCP Server** ([makenotion/notion-mcp-server](https://github.com/makenotion/notion-mcp-server)):
+
 - Hosted version at `mcp.notion.com` + open-source self-hosted
 - v2.0.0 migrated to API 2025-09-03 with data sources
 
 **Hosted MCP Tools** (14 tools):
+
 1. `notion-search` -- workspace + connected tools search (requires Notion AI plan for cross-tool)
 2. `notion-fetch` -- retrieve page/database by URL
 3. `notion-create-pages` -- create one or more pages with properties and content
@@ -365,6 +393,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: PRD-to-task pipeline with living documentation
 
 **How it works**:
+
 1. **plan.started** hook: Read PRD from Notion database/page, extract requirements and acceptance criteria
 2. **plan.completed** hook: Write task breakdown back to Notion as a linked database with status tracking
 3. **prompt.building** hook: Fetch relevant Notion docs (tech specs, ADRs, runbooks) as agent context
@@ -393,6 +422,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **SDKs**: Official clients in Python, Node.js, Java, PHP, Ruby
 
 **Key Endpoints**:
+
 - **Tasks**: Full CRUD, subtasks, dependencies, custom fields, attachments
 - **Projects**: CRUD, sections, project memberships
 - **Sections**: Organize tasks within projects
@@ -404,6 +434,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Batch API**: Multiple operations in single HTTP request
 
 **Webhooks**:
+
 - Subscribe to any resource (task, project, etc.) -- monitors resource and all contained resources
 - "Bubbling up": webhook on project receives events for all tasks, subtasks, comments within
 - Lightweight payloads: event data is compact, requires follow-up API calls for full details
@@ -416,12 +447,14 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 ### Existing AI Integrations
 
 **Official Asana MCP Server** (December 2025):
+
 - Launched as app integration
 - Access to Asana Work Graph
 - OAuth authentication
 - Had security incident June 2025 (tenant isolation bug, fixed quickly)
 
 **Community Integrations**:
+
 - [Composio Asana MCP](https://composio.dev/toolkits/asana) -- natural language task/project management
 - [MCP Market Asana Server](https://mcpmarket.com/server/asana-integration) -- full CRUD for tasks, projects, workspaces, comments
 - [Brief](https://briefhq.ai/docs/asana-integration/) -- real-time webhook updates + MCP write from IDE
@@ -434,6 +467,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: Cross-functional task orchestration with stakeholder visibility
 
 **How it works**:
+
 1. **plan.enriched** hook: Import Asana project tasks, map to Compozy task plan
 2. **job.started** hook: Update Asana task status, add agent assignment details
 3. **job.completed** hook: Mark task complete, attach deliverables
@@ -461,6 +495,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Hierarchy**: Workspace (formerly Team) > Space > Folder > List > Task
 
 **Key Endpoints**:
+
 - **Tasks**: Full CRUD, subtasks, dependencies, custom fields, time tracking
 - **Lists**: CRUD, list members
 - **Spaces**: CRUD, space features
@@ -471,6 +506,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Custom Fields**: Define and manage across hierarchy
 
 **Webhooks**:
+
 - Two types: API-created webhooks and Automation webhooks
 - Events: task created/updated/deleted, comment added, status changed, assignee changed, etc.
 - Scoping: workspace-level, optionally narrowed to space/folder/list/task
@@ -484,6 +520,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Official ClickUp MCP Server**: Available at [developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server](https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server)
 
 **Community MCP Servers**:
+
 - [taazkareem/clickup-mcp-server](https://github.com/taazkareem/clickup-mcp-server) -- "industry-standard" server
   - Multi-account/workspace support
   - OAuth 2.1 + API key auth
@@ -499,6 +536,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: Hierarchical project-to-task mapping with custom field automation
 
 **How it works**:
+
 1. **plan.enriched** hook: Map ClickUp Space/Folder/List hierarchy to Compozy plan structure
 2. **prompt.building** hook: Fetch task details including custom fields, dependencies, time estimates
 3. **job.completed** hook: Update task status, log time entries, update custom fields with metrics
@@ -526,6 +564,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Rate Limits**: 60 requests/minute per API key
 
 **Key Endpoints**:
+
 - **Work Items (Issues)**: Create, list, retrieve, search, update, advanced search
 - **Projects**: Full CRUD, archive/unarchive
 - **Comments**: Add, list, retrieve, update, delete on work items
@@ -540,6 +579,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 - **Estimates**: Story point estimation
 
 **Webhooks**:
+
 - HMAC-signed for security
 - Real-time notifications for project events, work item updates, team activities
 - OAuth 2.0 apps for custom integrations
@@ -567,6 +607,7 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 **Killer Feature**: Self-hosted, privacy-first agent orchestration for air-gapped environments
 
 **How it works**:
+
 1. **plan.enriched** hook: Read work items from self-hosted Plane instance, no data leaves network
 2. **agent.started** hook: Use @mention agent framework to create agent sessions in Plane
 3. **job.completed** hook: Update work item state, attach artifacts
@@ -585,30 +626,33 @@ The project management software market was valued at ~$9.8B in 2025, growing at 
 
 ## Integration Priority Matrix
 
-| Tool | API Maturity | AI/MCP Ecosystem | Developer Adoption | Compozy Fit | Priority |
-|------|-------------|-------------------|-------------------|-------------|----------|
-| **Linear** | Excellent (GraphQL + Agent Framework) | Best-in-class (native agent sessions) | High (fast-growing) | Perfect -- agent lifecycle maps 1:1 | **P0** |
-| **GitHub Issues** | Excellent (REST + GraphQL + MCP) | Excellent (official MCP + Copilot) | Highest (native to code) | Essential -- where code lives | **P0** |
-| **Jira** | Good (REST v3, ADF complexity) | Good (Rovo MCP, many community) | Highest (enterprise dominant) | Critical for enterprise adoption | **P1** |
-| **Notion** | Good (REST, data sources) | Excellent (14 MCP tools, Workers) | Very High (fastest growing PM) | Strong -- PRD source of truth | **P1** |
-| **Plane.so** | Good (REST, SDKs) | Good (native MCP + agent framework) | Growing (open-source niche) | Strong -- self-hosted story | **P2** |
-| **Shortcut** | Good (REST v3) | Weak (no MCP server) | Moderate (mid-market) | Moderate -- fills ecosystem gap | **P3** |
-| **Asana** | Good (REST, Batch API) | Moderate (official MCP, security concerns) | High (enterprise PM) | Moderate -- cross-functional teams | **P3** |
-| **ClickUp** | Good (REST v2/v3) | Moderate (community MCP, paid) | High (all-in-one) | Moderate -- complex hierarchy | **P3** |
+| Tool              | API Maturity                          | AI/MCP Ecosystem                           | Developer Adoption             | Compozy Fit                         | Priority |
+| ----------------- | ------------------------------------- | ------------------------------------------ | ------------------------------ | ----------------------------------- | -------- |
+| **Linear**        | Excellent (GraphQL + Agent Framework) | Best-in-class (native agent sessions)      | High (fast-growing)            | Perfect -- agent lifecycle maps 1:1 | **P0**   |
+| **GitHub Issues** | Excellent (REST + GraphQL + MCP)      | Excellent (official MCP + Copilot)         | Highest (native to code)       | Essential -- where code lives       | **P0**   |
+| **Jira**          | Good (REST v3, ADF complexity)        | Good (Rovo MCP, many community)            | Highest (enterprise dominant)  | Critical for enterprise adoption    | **P1**   |
+| **Notion**        | Good (REST, data sources)             | Excellent (14 MCP tools, Workers)          | Very High (fastest growing PM) | Strong -- PRD source of truth       | **P1**   |
+| **Plane.so**      | Good (REST, SDKs)                     | Good (native MCP + agent framework)        | Growing (open-source niche)    | Strong -- self-hosted story         | **P2**   |
+| **Shortcut**      | Good (REST v3)                        | Weak (no MCP server)                       | Moderate (mid-market)          | Moderate -- fills ecosystem gap     | **P3**   |
+| **Asana**         | Good (REST, Batch API)                | Moderate (official MCP, security concerns) | High (enterprise PM)           | Moderate -- cross-functional teams  | **P3**   |
+| **ClickUp**       | Good (REST v2/v3)                     | Moderate (community MCP, paid)             | High (all-in-one)              | Moderate -- complex hierarchy       | **P3**   |
 
 ---
 
 ## Recommended Implementation Approach
 
 ### Phase 1: Core Integrations (P0)
+
 1. **Linear** -- Leverage the Agent Interaction Framework for real-time bidirectional sync. Linear's `AgentSession` lifecycle is the most natural mapping to Compozy's event system.
 2. **GitHub Issues/Projects** -- This may already be partially built via `gh` CLI. Formalize as an extension with full Projects v2 support.
 
 ### Phase 2: Enterprise & Knowledge (P1)
+
 3. **Jira** -- Required for enterprise customers. Abstract the ADF complexity. Support both Cloud and Server/Data Center.
 4. **Notion** -- PRD import and living documentation. The 14 MCP tools provide a rich interaction surface.
 
 ### Phase 3: Ecosystem Expansion (P2-P3)
+
 5. **Plane.so** -- Self-hosted story for regulated industries.
 6. **Shortcut/Asana/ClickUp** -- Community-driven or customer-requested.
 
@@ -639,6 +683,7 @@ Common hooks:
 ## Sources
 
 ### Linear
+
 - [Linear API and Webhooks](https://linear.app/docs/api-and-webhooks)
 - [Linear Developers -- GraphQL](https://linear.app/developers/graphql)
 - [Linear Developers -- Agent Interaction](https://linear.app/developers/agent-interaction)
@@ -649,6 +694,7 @@ Common hooks:
 - [tacticlaunch/mcp-linear](https://github.com/tacticlaunch/mcp-linear)
 
 ### Jira
+
 - [Jira Cloud REST API v3 -- Issues](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/)
 - [Jira Cloud REST API v3 -- Issue Search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/)
 - [Atlassian Remote MCP Server (Rovo)](https://www.atlassian.com/platform/remote-mcp-server)
@@ -658,6 +704,7 @@ Common hooks:
 - [Composio Jira MCP](https://mcp.composio.dev/jira)
 
 ### GitHub Issues/Projects
+
 - [GitHub REST API -- Issues](https://docs.github.com/en/rest/issues)
 - [GitHub GraphQL API](https://docs.github.com/en/graphql)
 - [GitHub GraphQL Mutations](https://docs.github.com/en/graphql/reference/mutations)
@@ -668,12 +715,14 @@ Common hooks:
 - [Using the GitHub MCP Server](https://docs.github.com/en/copilot/how-tos/provide-context/use-mcp/use-the-github-mcp-server)
 
 ### Shortcut
+
 - [Shortcut REST API V3](https://developer.shortcut.com/api/rest/v3)
 - [Shortcut Webhook API V1](https://developer.shortcut.com/api/webhook/v1)
 - [Shortcut API Tips & Tricks](https://help.shortcut.com/hc/en-us/articles/28778941826836-API-Tips-Tricks-Workarounds)
 - [Registering Outgoing Webhooks](https://help.shortcut.com/hc/en-us/articles/34734717380756-Registering-Outgoing-Webhooks-API)
 
 ### Notion
+
 - [Notion MCP -- Overview](https://developers.notion.com/docs/mcp)
 - [Notion MCP -- Supported Tools](https://developers.notion.com/docs/mcp-supported-tools)
 - [Notion MCP -- Getting Started](https://developers.notion.com/docs/get-started-with-mcp)
@@ -683,6 +732,7 @@ Common hooks:
 - [Notion AI Agent Blog](https://thecrunch.io/notion-ai-agent/)
 
 ### Asana
+
 - [Asana MCP Server](https://developers.asana.com/docs/mcp-server)
 - [Asana Webhooks Guide](https://developers.asana.com/docs/webhooks-guide)
 - [Asana REST API Reference](https://developers.asana.com/reference/rest-api-reference)
@@ -690,6 +740,7 @@ Common hooks:
 - [Asana Webhooks Guide (Inventive)](https://inventivehq.com/blog/asana-webhooks-guide)
 
 ### ClickUp
+
 - [ClickUp Developer Portal](https://developer.clickup.com)
 - [ClickUp Tasks API](https://developer.clickup.com/docs/tasks)
 - [ClickUp Comments API](https://developer.clickup.com/docs/comments)
@@ -699,6 +750,7 @@ Common hooks:
 - [ClickUp MCP Tools Blog](https://clickup.com/blog/mcp-tools/)
 
 ### Plane.so
+
 - [Plane.so](https://plane.so)
 - [Plane Developer Documentation](https://developers.plane.so/)
 - [Plane API Reference](https://developers.plane.so/api-reference/introduction)
@@ -706,6 +758,7 @@ Common hooks:
 - [Plane Open Source](https://plane.so/open-source)
 
 ### Market Research
+
 - [Linear vs Jira 2026](https://tech-insider.org/linear-vs-jira-2026/)
 - [Jira vs Linear vs GitHub Issues 2025](https://medium.com/@samurai.stateless.coder/jira-vs-linear-vs-github-issues-in-2025-what-real-web-dev-teams-actually-use-and-why-d808740317e6)
 - [MCP in 2026](https://dev.to/pooyagolchian/mcp-in-2026-the-protocol-that-replaced-every-ai-tool-integration-1ipc)

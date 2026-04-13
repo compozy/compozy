@@ -154,24 +154,35 @@ func validateHooks(manifest *Manifest) error {
 }
 
 func validateResources(manifest *Manifest) error {
-	for index, pattern := range manifest.Resources.Skills {
-		trimmed := strings.TrimSpace(pattern)
-		if trimmed == "" {
-			return newManifestFieldError(fmt.Sprintf("resources.skills[%d]", index), "", "value is required")
-		}
-		if !hasCapability(manifest.Security, CapabilitySkillsShip) {
-			return newManifestFieldError(
-				fmt.Sprintf("resources.skills[%d]", index),
-				trimmed,
-				fmt.Sprintf("requires capability %q", CapabilitySkillsShip),
-			)
-		}
-		if strings.HasPrefix(trimmed, "/") {
-			return newManifestFieldError(
-				fmt.Sprintf("resources.skills[%d]", index),
-				trimmed,
-				"must be relative to the extension root",
-			)
+	resourceGroups := []struct {
+		field      string
+		patterns   []string
+		capability Capability
+	}{
+		{field: "resources.skills", patterns: manifest.Resources.Skills, capability: CapabilitySkillsShip},
+		{field: "resources.agents", patterns: manifest.Resources.Agents, capability: CapabilityAgentsShip},
+	}
+
+	for _, group := range resourceGroups {
+		for index, pattern := range group.patterns {
+			trimmed := strings.TrimSpace(pattern)
+			if trimmed == "" {
+				return newManifestFieldError(fmt.Sprintf("%s[%d]", group.field, index), "", "value is required")
+			}
+			if !hasCapability(manifest.Security, group.capability) {
+				return newManifestFieldError(
+					fmt.Sprintf("%s[%d]", group.field, index),
+					trimmed,
+					fmt.Sprintf("requires capability %q", group.capability),
+				)
+			}
+			if strings.HasPrefix(trimmed, "/") {
+				return newManifestFieldError(
+					fmt.Sprintf("%s[%d]", group.field, index),
+					trimmed,
+					"must be relative to the extension root",
+				)
+			}
 		}
 	}
 	return nil

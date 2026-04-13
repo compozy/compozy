@@ -33,6 +33,7 @@ Key methods for an extension: `chat.postMessage`, `chat.update`, `files.uploadV2
 **Post run summaries, task updates, and review notifications to Slack channels.**
 
 Core capabilities:
+
 - **Run completion alerts** -- When a Compozy run finishes (success or failure), post a rich Block Kit summary to a configured channel with: task name, agent used, duration, files changed, test results, and a link to the full run log.
 - **PR review remediation updates** -- When Compozy processes PR review feedback, post a threaded update showing issues found, fixes applied, and remaining items.
 - **Daily/weekly digest** -- Summarize all runs, tasks completed, and PRs processed over a time period.
@@ -73,6 +74,7 @@ Core capabilities:
 **Notify development teams and open-source communities about run status and task progress via Discord.**
 
 Core capabilities:
+
 - **Webhook-based notifications** -- Zero-config setup: just provide a webhook URL. Post rich embeds with run summaries (color-coded: green for success, red for failure, yellow for in-progress).
 - **Bot-based interactive mode** -- Full bot with slash commands (`/compozy status`, `/compozy runs`, `/compozy approve <task-id>`) for teams that want interactive control.
 - **Thread-per-run** -- Create a Discord thread for each Compozy run, posting incremental updates as the run progresses.
@@ -111,6 +113,7 @@ Core capabilities:
 **Deliver run reports and task updates to Microsoft Teams channels with Adaptive Cards.**
 
 Core capabilities:
+
 - **Adaptive Card run reports** -- Rich, interactive cards showing run status, files changed, test results, duration, and action buttons (view logs, re-run, approve).
 - **Channel-per-project** -- Auto-create or post to project-specific Teams channels.
 - **Meeting integration** -- Before standup meetings, post a summary of overnight automated development activity.
@@ -152,6 +155,7 @@ Core capabilities:
 **Sync PRDs, tech specs, task breakdowns, and run reports to Notion as living documents.**
 
 Core capabilities:
+
 - **PRD sync** -- When Compozy generates a PRD, create a structured Notion page with sections (overview, requirements, user stories, acceptance criteria). Keep it updated as the PRD evolves.
 - **Tech spec publishing** -- Publish tech specs to a Notion database with properties for status, author, related PRD, and review date.
 - **Task tracker database** -- Create a Notion database mirroring Compozy's task breakdown. Update task status, assignee, and completion as agents execute.
@@ -196,6 +200,7 @@ Core capabilities:
 **Publish tech specs, ADRs, and project documentation to Confluence for enterprise teams.**
 
 Core capabilities:
+
 - **Tech spec publishing** -- Create Confluence pages from Compozy-generated tech specs in the appropriate space, with proper formatting (headings, tables, code blocks, status macros).
 - **ADR database** -- Maintain a structured ADR page tree in Confluence with metadata (status, date, decision, consequences).
 - **Run report pages** -- Auto-generate a child page per run under a project space, with expandable sections for details.
@@ -240,6 +245,7 @@ Core capabilities:
 **Bridge design and code by pulling Figma design context into Compozy's task execution pipeline.**
 
 Core capabilities:
+
 - **Design-informed task enrichment** -- When a task involves UI work, automatically fetch the relevant Figma frame's design context (components, styles, variables, Code Connect mappings) and inject it into the agent's prompt.
 - **Component inventory sync** -- Pull the list of available design system components from Figma and make them available to agents as a reference, preventing component drift and duplication.
 - **Screenshot comparison** -- After code generation, export the Figma frame and the rendered component side-by-side for visual diff in the run report.
@@ -283,6 +289,7 @@ Core capabilities:
 **Leverage Storybook's component catalog and testing infrastructure during UI task execution.**
 
 Core capabilities:
+
 - **Component discovery** -- Before generating UI code, query Storybook for existing components, their props, and usage patterns. Feed this into the agent's context to maximize reuse.
 - **Story generation** -- After generating a new component, automatically generate Storybook stories with representative states (default, loading, error, edge cases).
 - **Test-driven UI development** -- Run Storybook interaction tests after code generation. If tests fail, feed failures back to the agent for self-correction (closed-loop).
@@ -324,6 +331,7 @@ Core capabilities:
 **Bidirectional sync between Compozy tasks and Linear issues with real-time status updates.**
 
 Core capabilities:
+
 - **Issue-to-task mapping** -- Import Linear issues as Compozy tasks, enriched with codebase context. Update Linear issue status as the agent progresses (In Progress -> In Review -> Done).
 - **Run-linked comments** -- Post Compozy run summaries as Linear issue comments, including files changed, test results, and PR links.
 - **Project health updates** -- Automatically update Linear project health status based on Compozy run success/failure rates.
@@ -346,6 +354,7 @@ Core capabilities:
 ### API Surface
 
 #### SendGrid (Twilio)
+
 - **v3 Mail Send API** -- Send transactional and marketing emails. Supports templates, dynamic data, attachments, scheduling, categories, and custom headers.
 - **Event Webhook** -- Real-time notifications for email events (delivered, opened, clicked, bounced, spam reported).
 - **Template Engine** -- Dynamic Handlebars templates with variable substitution.
@@ -353,6 +362,7 @@ Core capabilities:
 - **Stats API** -- Email delivery metrics and analytics.
 
 #### Resend
+
 - **Send API** -- Clean, minimal API for transactional email. API-first design with the simplest developer experience.
 - **React Email** -- Companion library for building emails with React components (JSX).
 - **Domains API** -- Manage sending domains.
@@ -360,6 +370,7 @@ Core capabilities:
 - **Webhooks** -- Delivery, bounce, and open events.
 
 #### Postmark
+
 - **Send API** -- Highest deliverability rates among the three. Structured errors, predictable rate limits with headers, idempotency keys built-in.
 - **Templates** -- Server-side templates with Mustachio syntax.
 - **Message Streams** -- Separate transactional and broadcast streams.
@@ -380,6 +391,7 @@ Core capabilities:
 **Send transactional email notifications for run completion, daily digests, and stakeholder reports.**
 
 Core capabilities:
+
 - **Run completion emails** -- Send an email summary when a Compozy run finishes. Include: task name, status (pass/fail), duration, files changed, test results, PR link. Use HTML templates with provider-specific template engines.
 - **Daily/weekly digests** -- Aggregate all run activity and send a formatted digest email to stakeholders (PMs, tech leads, executives).
 - **Error alerts** -- Immediate email notification on run failure with error context, stack trace summary, and suggested next steps.
@@ -401,17 +413,17 @@ Core capabilities:
 
 ### Priority Ranking for Compozy Extensions
 
-| Priority | Extension | Rationale |
-|----------|-----------|-----------|
-| P0 | `compozy-slack` | Most requested; largest enterprise user base; official MCP server; richest interactive capabilities |
-| P0 | `compozy-notion` | Natural fit for PRD/tech spec sync; official MCP server; strong developer adoption |
-| P0 | `compozy-linear` | Already partially covered; bidirectional task management is a core workflow |
-| P1 | `compozy-figma` | Design-to-code is a killer differentiator; official MCP server; high community excitement |
-| P1 | `compozy-storybook` | Completes the UI development loop; test-driven agent execution; unique in the market |
-| P1 | `compozy-email` | Universal fallback; reaches stakeholders regardless of chat tool preference |
-| P2 | `compozy-discord` | Important for open-source communities and small teams; simpler API than Slack |
-| P2 | `compozy-teams` | Enterprise necessity but more complex; Adaptive Cards require significant effort |
-| P2 | `compozy-confluence` | Enterprise Atlassian shops; overlaps with Notion for most use cases |
+| Priority | Extension            | Rationale                                                                                           |
+| -------- | -------------------- | --------------------------------------------------------------------------------------------------- |
+| P0       | `compozy-slack`      | Most requested; largest enterprise user base; official MCP server; richest interactive capabilities |
+| P0       | `compozy-notion`     | Natural fit for PRD/tech spec sync; official MCP server; strong developer adoption                  |
+| P0       | `compozy-linear`     | Already partially covered; bidirectional task management is a core workflow                         |
+| P1       | `compozy-figma`      | Design-to-code is a killer differentiator; official MCP server; high community excitement           |
+| P1       | `compozy-storybook`  | Completes the UI development loop; test-driven agent execution; unique in the market                |
+| P1       | `compozy-email`      | Universal fallback; reaches stakeholders regardless of chat tool preference                         |
+| P2       | `compozy-discord`    | Important for open-source communities and small teams; simpler API than Slack                       |
+| P2       | `compozy-teams`      | Enterprise necessity but more complex; Adaptive Cards require significant effort                    |
+| P2       | `compozy-confluence` | Enterprise Atlassian shops; overlaps with Notion for most use cases                                 |
 
 ### MCP Ecosystem Observations
 
@@ -435,6 +447,7 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 ## Sources
 
 ### Slack
+
 - [Slack MCP Server Setup Guide (TeamDay)](https://www.teamday.ai/blog/slack-mcp-server-guide-2026)
 - [Slack MCP Overview (Official Docs)](https://docs.slack.dev/ai/slack-mcp-server/)
 - [Slack AI Update: Slackbot as Desktop Agent (TNW)](https://thenextweb.com/news/slack-slackbot-30-ai-features-agentic)
@@ -446,6 +459,7 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 - [Events API (Official)](https://api.slack.com/events-api)
 
 ### Discord
+
 - [Claude Code Channels: Discord and Telegram (MindStudio)](https://www.mindstudio.ai/blog/claude-code-channels-telegram-discord-setup)
 - [Google ADK + Discord (Medium)](https://medium.com/google-cloud/adding-an-ai-agent-to-your-discord-server-with-agent-development-kit-48f86683bf72)
 - [AI Agent + Discord Bot (Latenode)](https://latenode.com/integrations/ai-agent/discord-bot)
@@ -453,6 +467,7 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 - [Create AI Discord Bot (Quickchat AI)](https://quickchat.ai/post/create-ai-bot-for-discord)
 
 ### Microsoft Teams
+
 - [Teams SDK with MCP Support (Microsoft Blog)](https://devblogs.microsoft.com/microsoft365dev/announcing-the-updated-teams-ai-library-and-mcp-support/)
 - [Teams Bots Overview (Microsoft Learn)](https://learn.microsoft.com/en-us/microsoftteams/platform/bots/overview)
 - [Microsoft Teams MCP (Composio)](https://composio.dev/toolkits/microsoft_teams)
@@ -460,6 +475,7 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 - [Teams SDK GitHub](https://github.com/microsoft/teams-sdk)
 
 ### Notion
+
 - [Notion MCP (Official)](https://developers.notion.com/docs/mcp)
 - [Notion MCP Getting Started](https://developers.notion.com/docs/get-started-with-mcp)
 - [Notion MCP Server GitHub](https://github.com/makenotion/notion-mcp-server)
@@ -468,12 +484,14 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 - [Notion API: Working with Databases](https://developers.notion.com/docs/working-with-databases)
 
 ### Confluence
+
 - [Atlassian MCP Server (GitHub)](https://github.com/sooperset/mcp-atlassian)
 - [Confluence MCP Server Node.js (GitHub)](https://github.com/aashari/mcp-server-atlassian-confluence)
 - [MCP Gateways for Confluence 2026 (MintMCP)](https://www.mintmcp.com/blog/mcp-gateways-confluence-integration)
 - [Confluence REST API v2 (Atlassian)](https://developer.atlassian.com/cloud/confluence/rest/v2/api-group-space/)
 
 ### Figma
+
 - [Figma MCP Server Guide (Help Center)](https://help.figma.com/hc/en-us/articles/32132100833559-Guide-to-the-Figma-MCP-server)
 - [Figma MCP Server Blog](https://www.figma.com/blog/introducing-figma-mcp-server/)
 - [Design Systems and AI: MCP Unlock (Figma Blog)](https://www.figma.com/blog/design-systems-ai-mcp/)
@@ -483,6 +501,7 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 - [Design to Code with Figma MCP (Builder.io)](https://www.builder.io/blog/figma-mcp-server)
 
 ### Storybook
+
 - [Storybook for AI](https://storybook.js.org/ai)
 - [Storybook MCP Sneak Peek (Blog)](https://storybook.js.org/blog/storybook-mcp-sneak-peek/)
 - [Using Storybook with AI (Docs)](https://storybook.js.org/docs/ai)
@@ -491,12 +510,14 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 - [Storybook MCP for React (AlternativeTo)](https://alternativeto.net/news/2026/3/storybook-mcp-arrives-for-react-with-ai-agent-integration/)
 
 ### Linear
+
 - [Linear MCP Server (Official Docs)](https://linear.app/docs/mcp)
 - [Linear MCP Server (Community - GitHub)](https://github.com/tacticlaunch/mcp-linear)
 - [Linear MCP Setup Guide (MorphLLM)](https://www.morphllm.com/linear-mcp-server)
 - [Linear MCP (Composio)](https://composio.dev/toolkits/linear)
 
 ### Email (SendGrid / Resend / Postmark)
+
 - [Email APIs for AI Agents: Resend vs SendGrid vs Postmark (DEV)](https://dev.to/supertrained/email-apis-for-ai-agents-resend-vs-sendgrid-vs-postmark-le8)
 - [Resend vs SendGrid vs Postmark for AI Agents (Rhumb)](https://rhumb.dev/blog/resend-vs-sendgrid-vs-postmark)
 - [SendGrid MCP (Composio)](https://mcp.composio.dev/sendgrid)
@@ -504,6 +525,7 @@ Since Compozy already has a subprocess-based extension system with JSON-RPC 2.0 
 - [SendGrid MCP Bundles](https://www.mcpbundles.com/skills/sendgrid)
 
 ### General MCP Ecosystem
+
 - [25 Best MCP Servers 2026 (PremAI)](https://blog.premai.io/25-best-mcp-servers-for-ai-agents-complete-setup-guide-2026/)
 - [MCP Servers Setup Guide 2026 (Fungies)](https://fungies.io/mcp-servers-setup-guide-2026/)
 - [Before and After MCP: AI Tool Integration Evolution](https://dasroot.net/posts/2026/03/before-after-mcp-ai-tool-integration-evolution/)

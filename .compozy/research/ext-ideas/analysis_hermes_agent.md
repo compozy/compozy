@@ -35,23 +35,25 @@ Plugins are the primary extension mechanism. A plugin is a directory with four f
 ```
 
 **Plugin discovery** from three sources:
+
 - User-global: `~/.hermes/plugins/`
 - Project-local: `.hermes/plugins/` (requires `HERMES_ENABLE_PROJECT_PLUGINS=true`)
 - pip entry points: auto-discovered from installed Python packages
 
 **Plugin types** with different activation rules:
+
 - General plugins: multi-select (enable/disable any combination)
 - Memory providers: single-select (one active at a time)
 - Context engines: single-select (one active at a time)
 
 **Registration API** -- the `register(ctx)` function receives a context object with:
 
-| Method | Purpose |
-|---|---|
-| `ctx.register_tool(name, schema, handler)` | Register a tool the LLM can call |
-| `ctx.register_hook(event_name, callback)` | Attach to lifecycle events |
-| `ctx.register_cli_command(name, help, setup_fn, handler_fn)` | Add CLI subcommands |
-| `ctx.inject_message(content, role)` | Queue a message into the conversation |
+| Method                                                       | Purpose                               |
+| ------------------------------------------------------------ | ------------------------------------- |
+| `ctx.register_tool(name, schema, handler)`                   | Register a tool the LLM can call      |
+| `ctx.register_hook(event_name, callback)`                    | Attach to lifecycle events            |
+| `ctx.register_cli_command(name, help, setup_fn, handler_fn)` | Add CLI subcommands                   |
+| `ctx.inject_message(content, role)`                          | Queue a message into the conversation |
 
 **Conditional tool availability**: Tools can be gated with a `check_fn` lambda that hides the tool from the LLM if prerequisites are missing.
 
@@ -63,16 +65,17 @@ Plugins are the primary extension mechanism. A plugin is a directory with four f
 
 Six lifecycle hooks allow plugins to intercept the agent loop:
 
-| Hook | Fires When | Callback Args |
-|---|---|---|
-| `pre_tool_call` | Before tool execution | `tool_name, args, task_id` |
-| `post_tool_call` | After tool execution | `tool_name, args, result, task_id` |
-| `pre_llm_call` | Before each LLM API call | Returns context injection dict |
-| `post_llm_call` | After each LLM completion | Turn data |
-| `on_session_start` | New session begins | `session_id, model, platform` |
-| `on_session_end` | Session ends | `session_id, completed, interrupted` |
+| Hook               | Fires When                | Callback Args                        |
+| ------------------ | ------------------------- | ------------------------------------ |
+| `pre_tool_call`    | Before tool execution     | `tool_name, args, task_id`           |
+| `post_tool_call`   | After tool execution      | `tool_name, args, result, task_id`   |
+| `pre_llm_call`     | Before each LLM API call  | Returns context injection dict       |
+| `post_llm_call`    | After each LLM completion | Turn data                            |
+| `on_session_start` | New session begins        | `session_id, model, platform`        |
+| `on_session_end`   | Session ends              | `session_id, completed, interrupted` |
 
 Key design decisions:
+
 - `pre_llm_call` injects context into the user message (not system prompt) to preserve prompt cache efficiency.
 - Hook crashes are logged and skipped; other hooks and the agent continue normally.
 - Hooks accept `**kwargs` for forward compatibility.
@@ -83,6 +86,7 @@ Key design decisions:
 Skills are structured markdown files stored in `~/.hermes/skills/` that follow the open agentskills.io standard (originally created by Anthropic, December 2025). The same SKILL.md format works across Claude Code, OpenAI Codex, Gemini CLI, GitHub Copilot, Cursor, VS Code, and 20+ other platforms.
 
 **Progressive disclosure** minimizes token usage:
+
 - Level 0: List of skill names/descriptions (~3,000 tokens)
 - Level 1: Full content of a specific skill
 - Level 2: Specific reference file within a skill
@@ -94,6 +98,7 @@ Skills are structured markdown files stored in `~/.hermes/skills/` that follow t
 ### 4. MCP (Model Context Protocol) Integration
 
 Hermes connects to any MCP server via stdio or HTTP transport, providing access to external tools (GitHub, databases, file systems, APIs) without writing native Hermes tools. Features include:
+
 - Per-server tool filtering
 - Sampling support
 - OAuth 2.1 PKCE authentication
@@ -107,31 +112,34 @@ Additionally, Hermes can expose **itself** as an MCP server (v0.6.0+), allowing 
 
 ### Official Integrations
 
-| Category | Integrations |
-|---|---|
-| AI Providers | OpenRouter (200+), Anthropic, OpenAI, Google Gemini, MiniMax, z.ai/GLM, Kimi/Moonshot, any OpenAI-compatible |
-| Messaging | Telegram, Discord, Slack, WhatsApp, Signal, Matrix, Mattermost, Email, SMS, DingTalk, Feishu/Lark, WeCom, Weixin, BlueBubbles, Home Assistant |
+| Category         | Integrations                                                                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI Providers     | OpenRouter (200+), Anthropic, OpenAI, Google Gemini, MiniMax, z.ai/GLM, Kimi/Moonshot, any OpenAI-compatible                                                                                    |
+| Messaging        | Telegram, Discord, Slack, WhatsApp, Signal, Matrix, Mattermost, Email, SMS, DingTalk, Feishu/Lark, WeCom, Weixin, BlueBubbles, Home Assistant                                                   |
 | Memory Providers | Honcho (dialectic reasoning), OpenViking (tiered retrieval), Mem0 (cloud extraction), Hindsight (knowledge graphs), Holographic (local SQLite), RetainDB (hybrid search), ByteRover (CLI-based) |
-| Web Search | Firecrawl (default), Parallel, Tavily, Exa |
-| Browser | Browserbase (cloud), Browser Use, local Chrome CDP, headless Chromium |
-| Voice/TTS | Edge TTS, ElevenLabs, OpenAI TTS, MiniMax, NeuTTS; STT: Whisper, Groq, OpenAI |
-| IDE | ACP-compatible editors: VS Code, Zed, JetBrains |
-| API Server | OpenAI-compatible HTTP endpoint for Open WebUI, LobeChat, LibreChat, NextChat, ChatBox |
+| Web Search       | Firecrawl (default), Parallel, Tavily, Exa                                                                                                                                                      |
+| Browser          | Browserbase (cloud), Browser Use, local Chrome CDP, headless Chromium                                                                                                                           |
+| Voice/TTS        | Edge TTS, ElevenLabs, OpenAI TTS, MiniMax, NeuTTS; STT: Whisper, Groq, OpenAI                                                                                                                   |
+| IDE              | ACP-compatible editors: VS Code, Zed, JetBrains                                                                                                                                                 |
+| API Server       | OpenAI-compatible HTTP endpoint for Open WebUI, LobeChat, LibreChat, NextChat, ChatBox                                                                                                          |
 
 ### Community Plugins (from evey/hermes-plugins -- 23 plugins)
 
 **Autonomy and Decision-Making:**
+
 - **evey-autonomy**: Autonomous decision-making, planning, and reflection
 - **evey-council**: Multi-model consensus through structured debate
 - **evey-delegate-model**: Intelligent task routing with retry logic and sensitivity filtering
 
 **Observability and Telemetry:**
+
 - **evey-telemetry**: Structured JSON logging of every tool call, delegation, and error
 - **evey-status**: Unified status aggregation across bridge, MQTT, costs, cron, and goals
 - **evey-mqtt**: Real-time event streaming with auto-subscription
 - **evey-cost-guard**: Budget enforcement via Langfuse with progressive alerts
 
 **Quality and Safety:**
+
 - **evey-reflect**: Self-correction via critique from lightweight models
 - **evey-validate**: Hallucination detection using regex + LLM scoring
 - **evey-email-guard**: Prompt injection screening (20+ regex patterns + local AI classifier)
@@ -139,6 +147,7 @@ Additionally, Hermes can expose **itself** as an MCP server (v0.6.0+), allowing 
 - **evey-session-guard**: Session lifecycle management
 
 **Learning and Memory:**
+
 - **evey-learner**: Experience-based learning with knowledge application
 - **evey-memory-adaptive**: Importance-weighted memory with decay mechanisms
 - **evey-memory-consolidate**: Nightly consolidation into MEMORY.md and vector storage
@@ -146,6 +155,7 @@ Additionally, Hermes can expose **itself** as an MCP server (v0.6.0+), allowing 
 - **evey-identity**: Self-updating SOUL.md personality evolution
 
 **Communication and Integration:**
+
 - **evey-bridge**: File-based bidirectional communication with Claude Code
 - **evey-goals**: Autonomous goal lifecycle management
 - **evey-research**: Web search and note-taking pipeline
@@ -173,6 +183,7 @@ The following patterns from Hermes Agent's ecosystem could inspire Compozy exten
 **Hermes pattern**: Six well-defined lifecycle hooks (`pre_tool_call`, `post_tool_call`, `pre_llm_call`, `post_llm_call`, `on_session_start`, `on_session_end`) that plugins register against.
 
 **Compozy mapping**: Compozy's `internal/core/extension/dispatcher.go` already has a chain/dispatcher pattern. Consider formalizing hook points around the task execution lifecycle:
+
 - `pre_task_execute` / `post_task_execute`
 - `pre_agent_dispatch` / `post_agent_dispatch`
 - `on_run_start` / `on_run_end`
@@ -185,6 +196,7 @@ Hermes's design choice to inject hook context into the user message rather than 
 **Hermes pattern**: `plugin.yaml` declares what a plugin provides (`provides_tools`, `provides_hooks`, `requires_env`) and the system does capability-based activation. Environment variable gating disables plugins gracefully when prerequisites are missing.
 
 **Compozy mapping**: Extensions could declare their capabilities in a TOML manifest:
+
 ```toml
 [extension]
 name = "cost-tracker"
@@ -257,17 +269,17 @@ requires_env = ["LANGFUSE_API_KEY"]
 
 ## Comparison: Hermes vs. Other AI Coding Agents on Extensibility
 
-| Feature | Hermes Agent | Claude Code | Aider | Mentat | SWE-agent |
-|---|---|---|---|---|---|
-| Plugin system | Full (plugin.yaml + Python) | Full (plugins marketplace, Oct 2025) | None (3rd-party editor plugins only) | None (VS Code ext only) | PR proposed, not merged |
-| Lifecycle hooks | 6 hooks (pre/post tool, LLM, session) | Pre/post-tool hooks, HTTP hooks | None | None | None |
-| Skills/SKILL.md | Yes (agentskills.io standard) | Yes (created the standard) | No | No | No |
-| MCP support | Full (stdio + HTTP + OAuth) | Full | No | No | No |
-| Sub-agents | Isolated with Python RPC | Worktrees + subagents | No | No | No |
-| Scheduled tasks | Natural-language cron | No | No | No | No |
-| Memory providers | 7 pluggable backends | Built-in | No | RAG auto-context | No |
-| IDE integration | ACP (VS Code, Zed, JetBrains) | VS Code, JetBrains | 3rd-party VS Code, JetBrains, Nova | VS Code | Browser UI |
-| Self-improvement | Built-in learning loop | No | No | No | No |
+| Feature          | Hermes Agent                          | Claude Code                          | Aider                                | Mentat                  | SWE-agent               |
+| ---------------- | ------------------------------------- | ------------------------------------ | ------------------------------------ | ----------------------- | ----------------------- |
+| Plugin system    | Full (plugin.yaml + Python)           | Full (plugins marketplace, Oct 2025) | None (3rd-party editor plugins only) | None (VS Code ext only) | PR proposed, not merged |
+| Lifecycle hooks  | 6 hooks (pre/post tool, LLM, session) | Pre/post-tool hooks, HTTP hooks      | None                                 | None                    | None                    |
+| Skills/SKILL.md  | Yes (agentskills.io standard)         | Yes (created the standard)           | No                                   | No                      | No                      |
+| MCP support      | Full (stdio + HTTP + OAuth)           | Full                                 | No                                   | No                      | No                      |
+| Sub-agents       | Isolated with Python RPC              | Worktrees + subagents                | No                                   | No                      | No                      |
+| Scheduled tasks  | Natural-language cron                 | No                                   | No                                   | No                      | No                      |
+| Memory providers | 7 pluggable backends                  | Built-in                             | No                                   | RAG auto-context        | No                      |
+| IDE integration  | ACP (VS Code, Zed, JetBrains)         | VS Code, JetBrains                   | 3rd-party VS Code, JetBrains, Nova   | VS Code                 | Browser UI              |
+| Self-improvement | Built-in learning loop                | No                                   | No                                   | No                      | No                      |
 
 ---
 

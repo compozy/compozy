@@ -27,6 +27,7 @@
 ### API Surface
 
 **REST API (v3)** -- comprehensive workflow automation:
+
 - `GET /repos/{owner}/{repo}/actions/workflows` -- list all workflows
 - `GET /repos/{owner}/{repo}/actions/workflows/{id}` -- get workflow details
 - `POST /repos/{owner}/{repo}/actions/workflows/{id}/dispatches` -- trigger manual run (workflow_dispatch)
@@ -38,6 +39,7 @@
 - `GET /repos/{owner}/{repo}/actions/artifacts` -- list/download build artifacts
 
 **Webhook Events** that trigger workflows:
+
 - `push`, `pull_request`, `pull_request_target` -- code changes
 - `workflow_dispatch` -- manual trigger with custom inputs (key for AI agent triggering)
 - `repository_dispatch` -- external system trigger with custom event types/payloads
@@ -62,6 +64,7 @@
 **Purpose**: Bi-directional GitHub Actions integration -- Compozy triggers workflows and workflows trigger Compozy.
 
 **Key Capabilities**:
+
 - **Build-on-change**: When Compozy completes a task (hook: `task.completed`), trigger a CI workflow via `workflow_dispatch` and poll for results
 - **Build-gate**: Before merging a Compozy-generated PR, wait for all required checks to pass; if a check fails, automatically read the failure logs and create a remediation task
 - **CI failure triage**: Listen for `check_suite.completed` webhooks; when builds fail, analyze logs and generate fix suggestions or auto-create Compozy tasks
@@ -69,6 +72,7 @@
 - **Status dashboard**: Expose workflow run status as Compozy events so the TUI can show CI progress alongside task execution
 
 **Key Use Cases**:
+
 1. Agent writes code -> extension triggers CI -> CI fails -> extension reads logs -> agent fixes code (closed-loop)
 2. PR created -> extension waits for all checks -> auto-merges or escalates
 3. New project scaffolded -> extension generates CI workflow YAML
@@ -81,6 +85,7 @@
 ### API Surface
 
 **REST API** -- full deployment lifecycle:
+
 - `POST /v13/deployments` -- create deployment (file-digest or direct upload)
 - `GET /v13/deployments/{id}` -- get deployment status
 - `GET /v6/deployments` -- list deployments
@@ -91,6 +96,7 @@
 - Domain management and SSL provisioning
 
 **Webhook Events** (80+ event types):
+
 - `deployment.created`, `deployment.succeeded`, `deployment.ready`, `deployment.error`, `deployment.canceled`
 - `deployment.checks.failed`, `deployment.checks.succeeded`
 - `deployment.promoted`, `deployment.rollback`
@@ -115,6 +121,7 @@
 **Purpose**: Preview-driven development -- every Compozy task gets a live preview URL.
 
 **Key Capabilities**:
+
 - **Auto-preview**: When a task branch is pushed, trigger a Vercel preview deployment and surface the URL in Compozy's TUI
 - **Deploy-on-merge**: When Compozy's PR is merged, confirm production deployment succeeded
 - **Rollback safety**: If a production deploy causes errors (detected via webhook), automatically rollback and create a fix task
@@ -122,6 +129,7 @@
 - **Build failure analysis**: When `deployment.error` webhook fires, fetch build logs and create remediation task
 
 **Key Use Cases**:
+
 1. Agent implements feature -> extension deploys preview -> team reviews live URL -> merge triggers production deploy
 2. Production deploy fails -> extension auto-rollbacks -> creates fix task with error context
 3. New project created in Compozy -> extension sets up Vercel project with correct framework detection
@@ -134,6 +142,7 @@
 ### API Surface
 
 **REST API** (OAuth2/PAT auth, base: `https://api.netlify.com/api/v1`):
+
 - `POST /sites/{id}/deploys` -- create deploy (file-digest with SHA1 or ZIP upload)
 - `PUT /deploys/{id}/files/{path}` -- upload required files
 - `GET /deploys/{id}` -- poll deploy state (`state: "ready"`)
@@ -159,6 +168,7 @@ No dedicated Netlify MCP servers found in the ecosystem. Netlify's API is well-d
 **Purpose**: JAMstack deployment automation with draft preview workflows.
 
 **Key Capabilities**:
+
 - **Draft previews**: Deploy task branches as draft deploys (non-production) for review
 - **Deploy-and-verify**: After deploy succeeds, run optional health checks or Lighthouse audits
 - **Rollback**: If production deploy causes issues, restore previous deploy via API
@@ -166,6 +176,7 @@ No dedicated Netlify MCP servers found in the ecosystem. Netlify's API is well-d
 - **Serverless function deploys**: Deploy edge functions alongside site files
 
 **Key Use Cases**:
+
 1. Agent builds static site changes -> extension creates draft deploy -> reviewer checks preview -> promote to production
 2. Deploy fails -> extension reads error, creates fix task
 3. Environment variable management synced with Compozy task configuration
@@ -177,6 +188,7 @@ No dedicated Netlify MCP servers found in the ecosystem. Netlify's API is well-d
 ### API Surface
 
 **Docker Engine REST API** (v1.53, Docker Engine 29.2):
+
 - Container lifecycle: create, start, stop, restart, kill, remove, inspect, list, logs, stats, exec
 - Image operations: build, pull, push, tag, remove, inspect, list, search
 - Network management: create, remove, connect, disconnect, inspect, list
@@ -202,6 +214,7 @@ No dedicated Netlify MCP servers found in the ecosystem. Netlify's API is well-d
 **Purpose**: Container-native development and testing environments for AI agent tasks.
 
 **Key Capabilities**:
+
 - **Sandboxed execution**: Run agent-generated code in isolated Docker containers for safe testing
 - **Dev environment provisioning**: Spin up development databases, services, and dependencies via Compose before task execution
 - **Build verification**: Build Docker images as part of the verify pipeline; report build failures with context
@@ -209,6 +222,7 @@ No dedicated Netlify MCP servers found in the ecosystem. Netlify's API is well-d
 - **Image publishing**: After successful task completion, build and push Docker images to registries
 
 **Key Use Cases**:
+
 1. Agent modifies backend code -> extension runs `docker compose up` with test database -> runs integration tests in container -> reports results
 2. New service created -> extension generates Dockerfile and docker-compose.yml
 3. Dependency update -> extension rebuilds image and runs container smoke tests
@@ -223,6 +237,7 @@ No dedicated Netlify MCP servers found in the ecosystem. Netlify's API is well-d
 #### API Surface
 
 **Terraform Cloud/Enterprise API** (JSON:API format, `/api/v2`, bearer token auth):
+
 - Workspace management: create, update, delete, list, configure variables
 - Run operations: create (trigger plan/apply), list, cancel, discard, force-cancel
 - State management: access state versions, outputs, download state files
@@ -248,6 +263,7 @@ No dedicated Netlify MCP servers found in the ecosystem. Netlify's API is well-d
 #### API Surface
 
 **Automation API** -- programmatic interface for running Pulumi without CLI:
+
 - Supported languages: TypeScript/JavaScript, Python, Go, C#/.NET, Java
 - Key operations: `up` (deploy), `preview` (plan), `destroy` (teardown), `refresh` (sync state)
 - Stack management: create, select, remove stacks
@@ -269,6 +285,7 @@ No major dedicated Pulumi MCP servers found, though Pulumi's Go Automation API m
 **Purpose**: Infrastructure-as-Code validation and deployment integrated into the development lifecycle.
 
 **Key Capabilities**:
+
 - **Plan-on-change**: When agent modifies IaC files (`.tf`, `Pulumi.*`), automatically run `terraform plan` or `pulumi preview` and surface the diff
 - **Drift detection**: Periodically check for infrastructure drift and create tasks to reconcile
 - **Cost estimation**: Before applying IaC changes, estimate cost impact and flag significant increases
@@ -277,6 +294,7 @@ No major dedicated Pulumi MCP servers found, though Pulumi's Go Automation API m
 - **Workspace management**: Create/manage Terraform Cloud workspaces for different environments
 
 **Key Use Cases**:
+
 1. Agent writes Terraform for new service -> extension runs plan -> shows resource diff -> applies on approval
 2. Infrastructure drift detected -> extension creates prioritized fix task
 3. Agent needs database -> extension helps select correct provider/module from Registry
@@ -291,6 +309,7 @@ No major dedicated Pulumi MCP servers found, though Pulumi's Go Automation API m
 #### API Surface
 
 **gRPC/REST API** (bearer token auth):
+
 - Application management: create, update, delete, list, get, sync
 - Sync operations: trigger sync, rollback, terminate operation
 - Resource tree: get resource tree for application, view resource details
@@ -314,6 +333,7 @@ No major dedicated Pulumi MCP servers found, though Pulumi's Go Automation API m
 #### API Surface
 
 **Kubernetes CRD-based** (no standalone REST API; controlled via kubectl/Kubernetes API):
+
 - Source controllers: GitRepository, OCIRepository, HelmRepository, Bucket
 - Deployment controllers: Kustomization, HelmRelease
 - Image automation: ImageRepository, ImagePolicy, ImageUpdateAutomation
@@ -331,6 +351,7 @@ No dedicated FluxCD MCP server found. The CRD-based approach means integration g
 **Purpose**: GitOps-aware deployment tracking and automated rollback for Kubernetes workloads.
 
 **Key Capabilities**:
+
 - **Deploy tracking**: After agent pushes code, monitor ArgoCD/Flux sync status and report deployment progress in Compozy TUI
 - **Sync triggers**: When task completes and code is merged, trigger ArgoCD sync and watch for healthy rollout
 - **Rollback automation**: If deployment health checks fail, automatically rollback and create fix task
@@ -338,6 +359,7 @@ No dedicated FluxCD MCP server found. The CRD-based approach means integration g
 - **Multi-cluster visibility**: Show deployment status across clusters/environments
 
 **Key Use Cases**:
+
 1. Agent updates Kubernetes manifests -> extension validates with dry-run -> pushes to Git -> monitors ArgoCD sync -> confirms healthy
 2. Deployment fails health check -> extension triggers rollback -> creates remediation task with pod logs
 3. Agent needs to deploy to staging first -> extension manages promotion pipeline (staging -> production)
@@ -352,6 +374,7 @@ No dedicated FluxCD MCP server found. The CRD-based approach means integration g
 #### API Surface
 
 **GraphQL API** (base: `https://backboard.railway.app/graphql/v2`):
+
 - Project management: create, update, delete projects
 - Service management: create, configure, deploy services
 - Deployment operations: deploy, rollback, access logs
@@ -370,6 +393,7 @@ No dedicated FluxCD MCP server found. The CRD-based approach means integration g
 #### API Surface
 
 **REST API** (base: `https://api.render.com/v1/`, bearer token auth):
+
 - Service management: create, update, list, delete services
 - Deploy operations: trigger deploys, rollback
 - Environment groups: manage shared environment variables
@@ -386,6 +410,7 @@ No dedicated FluxCD MCP server found. The CRD-based approach means integration g
 #### API Surface
 
 **Machines REST API** (manage individual Fly Machines):
+
 - Apps resource: create and manage Fly Apps
 - Machines resource: create, start, stop, restart, destroy, update machines
 - Volumes resource: create, list, manage persistent storage
@@ -405,6 +430,7 @@ No dedicated MCP servers found for Railway, Render, or Fly.io. These platforms a
 **Purpose**: Universal cloud deployment extension supporting Railway, Render, and Fly.io with a common interface.
 
 **Key Capabilities**:
+
 - **One-click deploy**: Deploy task output to any supported platform with auto-detection of project type
 - **Preview environments**: Create ephemeral preview environments for each task branch
 - **Environment sync**: Manage environment variables across platforms consistently
@@ -413,6 +439,7 @@ No dedicated MCP servers found for Railway, Render, or Fly.io. These platforms a
 - **Platform abstraction**: Common Compozy hooks (`deploy.preview`, `deploy.production`, `deploy.rollback`) that work across all platforms
 
 **Key Use Cases**:
+
 1. Agent builds new service -> extension deploys to Railway/Render/Fly.io for preview -> surfaces URL
 2. PR merged -> extension promotes to production -> monitors health
 3. Multiple environments needed -> extension provisions staging on Railway, production on Fly.io
@@ -427,6 +454,7 @@ No dedicated MCP servers found for Railway, Render, or Fly.io. These platforms a
 #### API Surface
 
 **REST API** (bearer token auth):
+
 - Pipeline management: create, update, list, archive pipelines; define step types
 - Build operations: create (trigger), list, get, cancel, retry builds
 - Job management: cancel, retry individual jobs
@@ -447,6 +475,7 @@ No dedicated MCP servers found for Railway, Render, or Fly.io. These platforms a
 #### API Surface
 
 **REST API v2** (token auth):
+
 - Pipeline operations: trigger pipelines with parameters, list, get
 - Workflow management: list, get, rerun, cancel workflows
 - Job management: list, get, cancel, retry jobs
@@ -469,6 +498,7 @@ No dedicated Buildkite or CircleCI MCP servers found. Both have well-documented 
 **Purpose**: Universal CI/CD integration supporting Buildkite and CircleCI with a common interface.
 
 **Key Capabilities**:
+
 - **Build triggering**: Trigger CI builds when agent completes tasks, with custom parameters
 - **Build monitoring**: Stream build status and logs into Compozy TUI
 - **Failure analysis**: When builds fail, fetch logs, analyze errors, and create fix tasks
@@ -477,6 +507,7 @@ No dedicated Buildkite or CircleCI MCP servers found. Both have well-documented 
 - **Parallel execution**: Trigger builds across multiple pipelines in parallel
 
 **Key Use Cases**:
+
 1. Agent pushes code -> extension triggers Buildkite pipeline -> monitors build -> reports results
 2. Build fails -> extension fetches job logs -> creates remediation task with error context
 3. New project -> extension generates `.buildkite/pipeline.yml` or `.circleci/config.yml`
@@ -491,6 +522,7 @@ No dedicated Buildkite or CircleCI MCP servers found. Both have well-documented 
 #### API Surface
 
 **CLI-based** (no standalone REST API):
+
 - `turbo run <task>` -- execute tasks with dependency awareness and caching
 - `turbo run build --filter=<package>` -- run tasks for specific packages
 - Task pipeline configuration via `turbo.json` (dependencies, inputs, outputs, caching)
@@ -507,6 +539,7 @@ No dedicated Buildkite or CircleCI MCP servers found. Both have well-documented 
 #### API Surface
 
 **CLI-based** with Nx Cloud API:
+
 - `nx run <target>` -- execute targets
 - `nx affected --target=build` -- run only for affected projects
 - `nx graph` -- visualize project dependency graph
@@ -529,6 +562,7 @@ No dedicated MCP servers found for Turborepo or Nx. These are primarily build or
 **Purpose**: Monorepo-aware task execution -- Compozy understands package boundaries and only builds/tests what changed.
 
 **Key Capabilities**:
+
 - **Affected detection**: Before running `make verify`, detect which packages were affected by agent changes and only test those
 - **Dependency awareness**: When agent modifies a shared package, automatically identify and test all dependent packages
 - **Build caching**: Leverage Turborepo/Nx remote caching to speed up verification pipelines
@@ -536,6 +570,7 @@ No dedicated MCP servers found for Turborepo or Nx. These are primarily build or
 - **Graph visualization**: Surface package dependency graph in task planning to help agents understand impact
 
 **Key Use Cases**:
+
 1. Agent modifies shared utility -> extension detects all affected packages -> runs targeted tests
 2. New package added -> extension updates Turborepo/Nx configuration
 3. CI optimization -> extension analyzes build times and suggests pipeline improvements
@@ -546,35 +581,39 @@ No dedicated MCP servers found for Turborepo or Nx. These are primarily build or
 ## 10. Cross-Cutting Themes
 
 ### Pattern: Closed-Loop CI Integration
+
 The highest-value pattern across all tools is the **closed-loop**: agent writes code -> CI runs -> if failure, agent reads logs -> agent fixes code -> CI re-runs. This is Compozy's strongest differentiator.
 
 ### Pattern: Preview-Driven Development
+
 For deployment platforms (Vercel, Netlify, Railway, Render, Fly.io), the **preview URL** pattern is universally valuable: every task branch gets a live preview URL surfaced in the Compozy TUI.
 
 ### Pattern: IaC Validation Gate
+
 For Terraform/Pulumi, the **plan-before-apply** pattern is critical: never let an agent apply infrastructure changes without showing the plan first.
 
 ### Pattern: GitOps Sync Monitoring
+
 For ArgoCD/FluxCD, the key pattern is **sync monitoring**: after code is merged, monitor the GitOps reconciliation and report deployment health.
 
 ### MCP Server Ecosystem Maturity
 
-| Tool | Dedicated MCP Server | Stars | Maturity |
-|------|---------------------|-------|----------|
-| GitHub (incl. Actions) | Official (github/github-mcp-server) | 28,800+ | Production-ready |
-| Terraform | Official (hashicorp/terraform-mcp-server) | 1,300+ | Production-ready |
-| ArgoCD | Official (argoproj-labs/mcp-for-argocd) | 397 | Stable |
-| Docker | Community (ckreiling/mcp-server-docker) | 699 | Stable |
-| Vercel | Community (nganiet/mcp-vercel) | 66 | Early |
-| Kubernetes | Community (alexei-led/k8s-mcp-server) | 207 | Stable |
-| Netlify | None | -- | Opportunity |
-| Railway | None | -- | Opportunity |
-| Render | None | -- | Opportunity |
-| Fly.io | None | -- | Opportunity |
-| Buildkite | None | -- | Opportunity |
-| CircleCI | None | -- | Opportunity |
-| Pulumi | None | -- | Opportunity |
-| Turborepo/Nx | None | -- | Opportunity |
+| Tool                   | Dedicated MCP Server                      | Stars   | Maturity         |
+| ---------------------- | ----------------------------------------- | ------- | ---------------- |
+| GitHub (incl. Actions) | Official (github/github-mcp-server)       | 28,800+ | Production-ready |
+| Terraform              | Official (hashicorp/terraform-mcp-server) | 1,300+  | Production-ready |
+| ArgoCD                 | Official (argoproj-labs/mcp-for-argocd)   | 397     | Stable           |
+| Docker                 | Community (ckreiling/mcp-server-docker)   | 699     | Stable           |
+| Vercel                 | Community (nganiet/mcp-vercel)            | 66      | Early            |
+| Kubernetes             | Community (alexei-led/k8s-mcp-server)     | 207     | Stable           |
+| Netlify                | None                                      | --      | Opportunity      |
+| Railway                | None                                      | --      | Opportunity      |
+| Render                 | None                                      | --      | Opportunity      |
+| Fly.io                 | None                                      | --      | Opportunity      |
+| Buildkite              | None                                      | --      | Opportunity      |
+| CircleCI               | None                                      | --      | Opportunity      |
+| Pulumi                 | None                                      | --      | Opportunity      |
+| Turborepo/Nx           | None                                      | --      | Opportunity      |
 
 ---
 
@@ -583,16 +622,19 @@ For ArgoCD/FluxCD, the key pattern is **sync monitoring**: after code is merged,
 Ranked by integration value for Compozy (considering API maturity, ecosystem demand, and extension impact):
 
 ### Tier 1 -- Build First
+
 1. **GitHub Actions** -- Highest value; every Compozy user has GitHub. Closed-loop CI is the killer feature. Official MCP server exists but Compozy extension adds lifecycle awareness.
 2. **Vercel** -- Huge frontend/fullstack user base. Preview deploys are the killer feature. API is excellent.
 3. **Docker** -- Universal infrastructure. Sandboxed execution environments for agents is uniquely valuable.
 
 ### Tier 2 -- Build Next
+
 4. **Terraform** -- Official MCP server exists; Compozy adds plan-gate workflow and drift detection. Large enterprise audience.
 5. **ArgoCD** -- GitOps is the standard for Kubernetes. Official MCP server exists; Compozy adds sync monitoring and rollback automation.
 6. **Netlify** -- Large JAMstack user base. No MCP server exists -- opportunity to be first.
 
 ### Tier 3 -- Build When Demanded
+
 7. **Railway/Render/Fly.io** -- Growing platforms. Universal cloud-deploy extension with platform abstraction.
 8. **Buildkite/CircleCI** -- Enterprise CI/CD. Universal CI extension pattern.
 9. **Turborepo/Nx** -- Monorepo-specific. Valuable for large codebases but niche.
@@ -604,6 +646,7 @@ Ranked by integration value for Compozy (considering API maturity, ecosystem dem
 ## 12. Sources
 
 ### Official Documentation
+
 - GitHub Actions REST API: https://docs.github.com/en/rest/actions
 - GitHub Actions Workflow Events: https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows
 - Vercel REST API: https://vercel.com/docs/rest-api
@@ -623,6 +666,7 @@ Ranked by integration value for Compozy (considering API maturity, ecosystem dem
 - Nx Cloud CI: https://nx.dev/ci/features
 
 ### MCP Servers & AI Integrations
+
 - Official GitHub MCP Server: https://github.com/github/github-mcp-server (28,800+ stars)
 - Official Terraform MCP Server: https://github.com/hashicorp/terraform-mcp-server (1,300+ stars)
 - ArgoCD MCP Server: https://github.com/argoproj-labs/mcp-for-argocd (397 stars)

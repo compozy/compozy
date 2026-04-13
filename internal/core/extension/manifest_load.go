@@ -325,10 +325,14 @@ func (r rawHookDeclaration) toHookDeclaration() HookDeclaration {
 
 type rawResourcesConfig struct {
 	Skills []string `toml:"skills" json:"skills"`
+	Agents []string `toml:"agents" json:"agents"`
 }
 
 func (r rawResourcesConfig) toResourcesConfig() ResourcesConfig {
-	return ResourcesConfig{Skills: cloneStrings(r.Skills)}
+	return ResourcesConfig{
+		Skills: cloneStrings(r.Skills),
+		Agents: cloneStrings(r.Agents),
+	}
 }
 
 type rawProvidersConfig struct {

@@ -109,8 +109,8 @@ func selectVerificationEntries(
 
 func verifyEntries(bundle fs.FS, scope InstallScope, entries []verificationEntry) ([]VerifiedSkill, error) {
 	skills := make([]VerifiedSkill, 0, len(entries))
-	for _, entry := range entries {
-		verified, err := verifyEntry(bundle, scope, entry)
+	for i := range entries {
+		verified, err := verifyEntry(bundle, scope, entries[i])
 		if err != nil {
 			return nil, err
 		}
@@ -134,7 +134,7 @@ func verifyEntry(bundle fs.FS, scope InstallScope, entry verificationEntry) (Ver
 	resolvedPath := resolveInstalledPath(entry.TargetPath)
 	verified.ResolvedPath = resolvedPath
 
-	drift, drifted, err := compareInstalledSkill(bundle, entry.Skill.Directory, resolvedPath)
+	drift, drifted, err := compareInstalledDirectory(bundle, entry.Skill.SourceDir, resolvedPath, "skill")
 	if err != nil {
 		return VerifiedSkill{}, fmt.Errorf("verify bundled skill %q: %w", entry.Skill.Name, err)
 	}
@@ -155,13 +155,13 @@ func verificationEntries(
 	global bool,
 ) ([]verificationEntry, error) {
 	items := make([]verificationEntry, 0, len(skills))
-	for _, skill := range skills {
-		canonicalPath, targetPath, err := resolveInstallPaths(skill, agent, env, global)
+	for i := range skills {
+		canonicalPath, targetPath, err := resolveInstallPaths(skills[i], agent, env, global)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, verificationEntry{
-			Skill:         skill,
+			Skill:         skills[i],
 			CanonicalPath: canonicalPath,
 			TargetPath:    targetPath,
 		})
@@ -170,8 +170,8 @@ func verificationEntries(
 }
 
 func hasAnyInstalledSkill(entries []verificationEntry) bool {
-	for _, entry := range entries {
-		if pathExists(entry.TargetPath) {
+	for i := range entries {
+		if pathExists(entries[i].TargetPath) {
 			return true
 		}
 	}
@@ -180,7 +180,8 @@ func hasAnyInstalledSkill(entries []verificationEntry) bool {
 
 func detectInstallMode(entries []verificationEntry) InstallMode {
 	sawSymlink := false
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		if !pathExists(entry.TargetPath) {
 			continue
 		}
@@ -214,13 +215,17 @@ func resolveInstalledPath(path string) string {
 	return filepath.Clean(resolved)
 }
 
-func compareInstalledSkill(bundle fs.FS, skillDir, installedRoot string) (SkillDrift, bool, error) {
-	expectedFiles, err := snapshotBundleFiles(bundle, skillDir)
+func compareInstalledDirectory(
+	bundle fs.FS,
+	sourceDir, installedRoot string,
+	subject string,
+) (SkillDrift, bool, error) {
+	expectedFiles, err := snapshotBundleFiles(bundle, sourceDir, subject)
 	if err != nil {
 		return SkillDrift{}, false, err
 	}
 
-	actualFiles, err := snapshotInstalledFiles(installedRoot)
+	actualFiles, err := snapshotInstalledFiles(installedRoot, subject)
 	if err != nil {
 		return SkillDrift{Reason: err.Error()}, true, nil
 	}
@@ -254,7 +259,7 @@ func compareInstalledSkill(bundle fs.FS, skillDir, installedRoot string) (SkillD
 		len(drift.ChangedFiles) > 0, nil
 }
 
-func snapshotBundleFiles(bundle fs.FS, root string) (map[string][]byte, error) {
+func snapshotBundleFiles(bundle fs.FS, root string, subject string) (map[string][]byte, error) {
 	files := make(map[string][]byte)
 	err := fs.WalkDir(bundle, root, func(current string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -269,7 +274,7 @@ func snapshotBundleFiles(bundle fs.FS, root string) (map[string][]byte, error) {
 
 		content, err := fs.ReadFile(bundle, current)
 		if err != nil {
-			return fmt.Errorf("read bundled skill file %q: %w", current, err)
+			return fmt.Errorf("read %s file %q: %w", subject, current, err)
 		}
 		files[relative] = content
 		return nil
@@ -280,18 +285,18 @@ func snapshotBundleFiles(bundle fs.FS, root string) (map[string][]byte, error) {
 	return files, nil
 }
 
-func snapshotInstalledFiles(root string) (map[string][]byte, error) {
+func snapshotInstalledFiles(root string, subject string) (map[string][]byte, error) {
 	info, err := os.Stat(root)
 	if err != nil {
-		return nil, fmt.Errorf("stat installed skill %q: %w", root, err)
+		return nil, fmt.Errorf("stat installed %s %q: %w", subject, root, err)
 	}
 	if !info.IsDir() {
-		return nil, fmt.Errorf("installed skill path %q is not a directory", root)
+		return nil, fmt.Errorf("installed %s path %q is not a directory", subject, root)
 	}
 
 	rootFS, err := os.OpenRoot(root)
 	if err != nil {
-		return nil, fmt.Errorf("open installed skill root %q: %w", root, err)
+		return nil, fmt.Errorf("open installed %s root %q: %w", subject, root, err)
 	}
 	defer rootFS.Close()
 
@@ -311,7 +316,7 @@ func snapshotInstalledFiles(root string) (map[string][]byte, error) {
 
 		content, err := rootFS.ReadFile(filepath.ToSlash(relative))
 		if err != nil {
-			return fmt.Errorf("read installed skill file %q: %w", current, err)
+			return fmt.Errorf("read installed %s file %q: %w", subject, current, err)
 		}
 		files[filepath.ToSlash(relative)] = content
 		return nil
@@ -324,8 +329,8 @@ func snapshotInstalledFiles(root string) (map[string][]byte, error) {
 
 func bundledSkillNames(skills []Skill) []string {
 	names := make([]string, 0, len(skills))
-	for _, skill := range skills {
-		names = append(names, skill.Name)
+	for i := range skills {
+		names = append(names, skills[i].Name)
 	}
 	return names
 }

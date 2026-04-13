@@ -76,6 +76,9 @@ func parseReusableAgent(bundle fs.FS, dir string) (ReusableAgent, error) {
 		Title:       strings.TrimSpace(metadata.Title),
 		Description: strings.TrimSpace(metadata.Description),
 		Directory:   dir,
+		Origin:      AssetOriginBundled,
+		SourceFS:    bundle,
+		SourceDir:   dir,
 	}, nil
 }
 
@@ -86,98 +89,22 @@ func ListBundledReusableAgents() ([]ReusableAgent, error) {
 
 // PreviewBundledReusableAgentInstall resolves the on-disk install plan for bundled reusable agents.
 func PreviewBundledReusableAgentInstall(options ResolverOptions) ([]ReusableAgentPreviewItem, error) {
-	env, err := resolveEnvironment(options)
-	if err != nil {
-		return nil, err
-	}
-
 	reusableAgents, err := ListBundledReusableAgents()
 	if err != nil {
 		return nil, err
 	}
-
-	items := make([]ReusableAgentPreviewItem, 0, len(reusableAgents))
-	root := filepath.Join(env.homeDir, reusableAgentsInstallDir)
-	for _, reusableAgent := range reusableAgents {
-		targetPath := filepath.Join(root, reusableAgent.Name)
-		items = append(items, ReusableAgentPreviewItem{
-			ReusableAgent: reusableAgent,
-			TargetPath:    targetPath,
-			WillOverwrite: pathExists(targetPath),
-		})
-	}
-	return items, nil
+	return PreviewReusableAgentInstall(options, reusableAgents)
 }
 
 // InstallBundledReusableAgents installs every bundled reusable agent into the canonical global root.
 func InstallBundledReusableAgents(
 	options ResolverOptions,
 ) ([]ReusableAgentSuccessItem, []ReusableAgentFailureItem, error) {
-	env, err := resolveEnvironment(options)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	reusableAgents, err := ListBundledReusableAgents()
 	if err != nil {
 		return nil, nil, err
 	}
-
-	successes := make([]ReusableAgentSuccessItem, 0, len(reusableAgents))
-	failures := make([]ReusableAgentFailureItem, 0)
-	root := filepath.Join(env.homeDir, reusableAgentsInstallDir)
-	for _, reusableAgent := range reusableAgents {
-		targetPath := filepath.Join(root, reusableAgent.Name)
-		tempTarget, err := prepareReusableAgentInstallTarget(root, reusableAgent.Name)
-		if err != nil {
-			failures = append(failures, ReusableAgentFailureItem{
-				ReusableAgent: reusableAgent,
-				Path:          targetPath,
-				Error:         err.Error(),
-			})
-			continue
-		}
-		if err := copyReusableAgentBundleDirectory(
-			agents.FS,
-			reusableAgent.Directory,
-			tempTarget,
-			"bundled reusable agent",
-		); err != nil {
-			if cleanupErr := removeReusableAgentPath(tempTarget); cleanupErr != nil {
-				err = errors.Join(
-					err,
-					fmt.Errorf("cleanup reusable agent staging directory %s: %w", tempTarget, cleanupErr),
-				)
-			}
-			failures = append(failures, ReusableAgentFailureItem{
-				ReusableAgent: reusableAgent,
-				Path:          targetPath,
-				Error:         err.Error(),
-			})
-			continue
-		}
-		if err := replaceReusableAgentInstallTarget(tempTarget, targetPath); err != nil {
-			if cleanupErr := removeReusableAgentPath(tempTarget); cleanupErr != nil {
-				err = errors.Join(
-					err,
-					fmt.Errorf("cleanup reusable agent staging directory %s: %w", tempTarget, cleanupErr),
-				)
-			}
-			failures = append(failures, ReusableAgentFailureItem{
-				ReusableAgent: reusableAgent,
-				Path:          targetPath,
-				Error:         err.Error(),
-			})
-			continue
-		}
-
-		successes = append(successes, ReusableAgentSuccessItem{
-			ReusableAgent: reusableAgent,
-			Path:          targetPath,
-		})
-	}
-
-	return successes, failures, nil
+	return InstallReusableAgents(options, reusableAgents)
 }
 
 func prepareReusableAgentInstallTarget(root, name string) (string, error) {

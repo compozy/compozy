@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -24,25 +25,54 @@ type setupCommandState struct {
 	yes        bool
 	all        bool
 
-	listSkills            func() ([]setup.Skill, error)
-	listReusableAgents    func() ([]setup.ReusableAgent, error)
+	loadCatalog           func(context.Context, setup.ResolverOptions) (setup.EffectiveCatalog, error)
 	listAgents            func(setup.ResolverOptions) ([]setup.Agent, error)
 	detectAgents          func(setup.ResolverOptions) ([]setup.Agent, error)
-	preview               func(setup.InstallConfig) ([]setup.PreviewItem, error)
-	previewReusableAgents func(setup.ResolverOptions) ([]setup.ReusableAgentPreviewItem, error)
-	install               func(setup.InstallConfig) (*setup.Result, error)
+	previewSkills         setupSkillPreviewFunc
+	previewReusableAgents func(setup.ResolverOptions, []setup.ReusableAgent) ([]setup.ReusableAgentPreviewItem, error)
+	installSkills         setupSkillInstallFunc
+	installReusableAgents setupReusableAgentInstallFunc
 	isInteractive         func() bool
+}
+
+type setupSkillPreviewFunc func(
+	setup.ResolverOptions,
+	[]setup.Skill,
+	[]string,
+	bool,
+	setup.InstallMode,
+) ([]setup.PreviewItem, error)
+
+type setupSkillInstallFunc func(
+	setup.ResolverOptions,
+	[]setup.Skill,
+	[]string,
+	bool,
+	setup.InstallMode,
+) ([]setup.SuccessItem, []setup.FailureItem, error)
+
+type setupReusableAgentInstallFunc func(
+	setup.ResolverOptions,
+	[]setup.ReusableAgent,
+) ([]setup.ReusableAgentSuccessItem, []setup.ReusableAgentFailureItem, error)
+
+type setupInstallPlan struct {
+	Config               setup.InstallConfig
+	Skills               []setup.Skill
+	ReusableAgents       []setup.ReusableAgent
+	Previews             []setup.PreviewItem
+	ReusableAgentPreview []setup.ReusableAgentPreviewItem
 }
 
 func newSetupCommand(_ *kernel.Dispatcher) *cobra.Command {
 	state := newSetupCommandState()
 	cmd := &cobra.Command{
 		Use:          "setup",
-		Short:        "Install Compozy bundled skills and global council agents",
+		Short:        "Install Compozy core assets plus setup assets shipped by enabled extensions",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
-		Long: `Install Compozy's bundled public skills without relying on an external skills installer,
-and provision the bundled global council reusable agents under ~/.compozy/agents.
+		Long: `Install Compozy's core public skills, any additional skills shipped by enabled
+extensions, and global reusable agents under ~/.compozy/agents.
 
 The command can run interactively or entirely from flags.`,
 		Example: `  compozy setup
@@ -54,40 +84,40 @@ The command can run interactively or entirely from flags.`,
 	}
 
 	cmd.Flags().StringSliceVarP(&state.agentNames, "agent", "a", nil, "Target agent/editor name (repeatable)")
-	cmd.Flags().StringSliceVarP(&state.skillNames, "skill", "s", nil, "Bundled skill name to install (repeatable)")
+	cmd.Flags().StringSliceVarP(&state.skillNames, "skill", "s", nil, "Setup skill name to install (repeatable)")
 	cmd.Flags().BoolVarP(&state.global, "global", "g", false, "Install to the user directory instead of the project")
 	cmd.Flags().BoolVar(&state.copy, "copy", false, "Copy files instead of symlinking to agent directories")
-	cmd.Flags().BoolVarP(&state.list, "list", "l", false, "List bundled setup assets without installing")
+	cmd.Flags().BoolVarP(&state.list, "list", "l", false, "List setup assets without installing")
 	cmd.Flags().BoolVarP(&state.yes, "yes", "y", false, "Skip confirmation prompts")
 	cmd.Flags().
-		BoolVar(&state.all, "all", false, "Install all bundled public skills to all supported agents without prompts")
+		BoolVar(&state.all, "all", false, "Install all available setup skills to all supported agents without prompts")
 	return cmd
 }
 
 func newSetupCommandState() *setupCommandState {
 	return &setupCommandState{
-		listSkills:            setup.ListBundledSkills,
-		listReusableAgents:    setup.ListBundledReusableAgents,
+		loadCatalog:           loadEffectiveSetupCatalog,
 		listAgents:            setup.SupportedAgents,
 		detectAgents:          setup.DetectInstalledAgents,
-		preview:               setup.PreviewBundledSkillInstall,
-		previewReusableAgents: setup.PreviewBundledReusableAgentInstall,
-		install:               setup.InstallBundledSetupAssets,
+		previewSkills:         setup.PreviewSelectedSkills,
+		previewReusableAgents: setup.PreviewReusableAgentInstall,
+		installSkills:         setup.InstallSelectedSkills,
+		installReusableAgents: setup.InstallReusableAgents,
 		isInteractive:         isInteractiveTerminal,
 	}
 }
 
 func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
-	skills, err := s.listSkills()
-	if err != nil {
-		return err
-	}
-	reusableAgents, err := s.listReusableAgents()
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	resolver := s.resolverOptions()
+	catalog, err := s.loadCatalog(ctx, resolver)
 	if err != nil {
 		return err
 	}
 	if s.list {
-		printBundledAssets(cmd, skills, reusableAgents)
+		printSetupAssets(cmd, catalog.Skills, catalog.ReusableAgents, catalog.Conflicts)
 		return nil
 	}
 
@@ -99,7 +129,6 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	resolver := s.resolverOptions()
 	supportedAgents, detectedAgents, err := s.loadAgents(resolver)
 	if err != nil {
 		return err
@@ -107,7 +136,7 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 
 	cfg, previews, reusableAgentPreviews, err := s.buildInstallPlan(
 		cmd,
-		skills,
+		catalog,
 		resolver,
 		supportedAgents,
 		detectedAgents,
@@ -115,11 +144,18 @@ func (s *setupCommandState) run(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	printSetupWarnings(cmd, catalog.Conflicts)
 	if err := s.confirmPlan(cmd, previews, reusableAgentPreviews, cfg.Global, cfg.Mode); err != nil {
 		return err
 	}
 
-	return s.executeInstall(cmd, cfg)
+	return s.executeInstall(cmd, setupInstallPlan{
+		Config:               cfg,
+		Skills:               previewsToSkills(previews),
+		ReusableAgents:       append([]setup.ReusableAgent(nil), catalog.ReusableAgents...),
+		Previews:             previews,
+		ReusableAgentPreview: reusableAgentPreviews,
+	})
 }
 
 func (s *setupCommandState) prepareRunMode() error {
@@ -159,12 +195,16 @@ func (s *setupCommandState) loadAgents(resolver setup.ResolverOptions) ([]setup.
 
 func (s *setupCommandState) buildInstallPlan(
 	cmd *cobra.Command,
-	skills []setup.Skill,
+	catalog setup.EffectiveCatalog,
 	resolver setup.ResolverOptions,
 	supportedAgents []setup.Agent,
 	detectedAgents []setup.Agent,
 ) (setup.InstallConfig, []setup.PreviewItem, []setup.ReusableAgentPreviewItem, error) {
-	selectedSkills, err := s.resolveSkillSelection(skills)
+	selectedSkillNames, err := s.resolveSkillSelection(catalog.Skills)
+	if err != nil {
+		return setup.InstallConfig{}, nil, nil, err
+	}
+	selectedSkills, err := setup.SelectSkills(catalog.Skills, selectedSkillNames)
 	if err != nil {
 		return setup.InstallConfig{}, nil, nil, err
 	}
@@ -186,16 +226,16 @@ func (s *setupCommandState) buildInstallPlan(
 
 	cfg := setup.InstallConfig{
 		ResolverOptions: resolver,
-		SkillNames:      selectedSkills,
+		SkillNames:      selectedSkillNames,
 		AgentNames:      selectedAgents,
 		Global:          globalScope,
 		Mode:            mode,
 	}
-	previews, err := s.preview(cfg)
+	previews, err := s.previewSkills(resolver, selectedSkills, selectedAgents, globalScope, mode)
 	if err != nil {
 		return setup.InstallConfig{}, nil, nil, err
 	}
-	reusableAgentPreviews, err := s.previewReusableAgents(resolver)
+	reusableAgentPreviews, err := s.previewReusableAgents(resolver, catalog.ReusableAgents)
 	if err != nil {
 		return setup.InstallConfig{}, nil, nil, err
 	}
@@ -224,18 +264,48 @@ func (s *setupCommandState) confirmPlan(
 	return nil
 }
 
-func (s *setupCommandState) executeInstall(cmd *cobra.Command, cfg setup.InstallConfig) error {
-	result, err := s.install(cfg)
+func (s *setupCommandState) executeInstall(cmd *cobra.Command, plan setupInstallPlan) error {
+	result, err := s.installPlan(plan)
+	printInstallResult(cmd, result)
 	if err != nil {
 		return err
 	}
-
-	printInstallResult(cmd, result)
 	failureCount := len(result.Failed) + len(result.ReusableAgentsFailed)
 	if failureCount > 0 {
 		return fmt.Errorf("setup completed with %d failure(s)", failureCount)
 	}
 	return nil
+}
+
+func (s *setupCommandState) installPlan(plan setupInstallPlan) (*setup.Result, error) {
+	successful, failed, err := s.installSkills(
+		plan.Config.ResolverOptions,
+		plan.Skills,
+		plan.Config.AgentNames,
+		plan.Config.Global,
+		plan.Config.Mode,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &setup.Result{
+		Global:     plan.Config.Global,
+		Mode:       plan.Config.Mode,
+		Successful: successful,
+		Failed:     failed,
+	}
+
+	successfulReusableAgents, failedReusableAgents, err := s.installReusableAgents(
+		plan.Config.ResolverOptions,
+		plan.ReusableAgents,
+	)
+	if err != nil {
+		return result, fmt.Errorf("install reusable agents: %w", err)
+	}
+	result.ReusableAgentsSuccessful = successfulReusableAgents
+	result.ReusableAgentsFailed = failedReusableAgents
+	return result, nil
 }
 
 func (s *setupCommandState) resolveSkillSelection(skills []setup.Skill) ([]string, error) {
@@ -249,22 +319,22 @@ func (s *setupCommandState) resolveSkillSelection(skills []setup.Skill) ([]strin
 	selected := skillNames(skills)
 
 	maxNameLen := 0
-	for _, skill := range skills {
-		if len(skill.Name) > maxNameLen {
-			maxNameLen = len(skill.Name)
+	for i := range skills {
+		if len(skills[i].Name) > maxNameLen {
+			maxNameLen = len(skills[i].Name)
 		}
 	}
 
 	options := make([]huh.Option[string], 0, len(skills))
-	for _, skill := range skills {
-		label := fmt.Sprintf("%-*s  %s", maxNameLen, skill.Name, shortDescription(skill.Description))
-		options = append(options, huh.NewOption(label, skill.Name))
+	for i := range skills {
+		label := fmt.Sprintf("%-*s  %s", maxNameLen, skills[i].Name, shortDescription(skills[i].Description))
+		options = append(options, huh.NewOption(label, skills[i].Name))
 	}
 
 	field := huh.NewMultiSelect[string]().
 		Key("skills").
-		Title("Bundled Skills").
-		Description("Select the public Compozy skills to install").
+		Title("Setup Skills").
+		Description("Select the Compozy skills to install, including enabled extension assets").
 		Options(options...).
 		Value(&selected).
 		Limit(len(skills)).
@@ -275,7 +345,7 @@ func (s *setupCommandState) resolveSkillSelection(skills []setup.Skill) ([]strin
 			return nil
 		})
 	if err := runPromptField(field); err != nil {
-		return nil, fmt.Errorf("select bundled skills: %w", err)
+		return nil, fmt.Errorf("select setup skills: %w", err)
 	}
 	return selected, nil
 }
@@ -407,32 +477,42 @@ func printWelcomeHeader(cmd *cobra.Command) {
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		styles.title.Render("COMPOZY // SETUP"),
-		styles.subtitle.Render("Install bundled skills and global council agents"),
+		styles.subtitle.Render("Install core and enabled extension assets plus global reusable agents"),
 	)
 
 	lipgloss.Fprintln(cmd.OutOrStdout(), styles.box.Render(content))
 }
 
-func printBundledAssets(cmd *cobra.Command, skills []setup.Skill, reusableAgents []setup.ReusableAgent) {
+func printSetupAssets(
+	cmd *cobra.Command,
+	skills []setup.Skill,
+	reusableAgents []setup.ReusableAgent,
+	conflicts []setup.CatalogConflict,
+) {
 	if len(skills) == 0 && len(reusableAgents) == 0 {
+		printSetupWarnings(cmd, conflicts)
 		return
 	}
 	styles := newCLIChromeStyles()
 
 	if len(skills) > 0 {
 		maxNameLen := 0
-		for _, skill := range skills {
-			if len(skill.Name) > maxNameLen {
-				maxNameLen = len(skill.Name)
+		for i := range skills {
+			if len(skills[i].Name) > maxNameLen {
+				maxNameLen = len(skills[i].Name)
 			}
 		}
 
-		lipgloss.Fprintln(cmd.OutOrStdout(), styles.sectionTitle.Render("Bundled Skills"))
+		lipgloss.Fprintln(cmd.OutOrStdout(), styles.sectionTitle.Render("Setup Skills"))
 
-		for _, skill := range skills {
+		for i := range skills {
+			skill := &skills[i]
 			name := styles.skill.Render(padRight(skill.Name, maxNameLen))
+			source := styles.value.Render(
+				"[" + setupAssetSourceLabel(skill.Origin, skill.ExtensionSource, skill.ExtensionName) + "]",
+			)
 			desc := styles.path.Render(skill.Description)
-			lipgloss.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", name, desc)
+			lipgloss.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s\n", name, source, desc)
 		}
 	}
 
@@ -442,18 +522,42 @@ func printBundledAssets(cmd *cobra.Command, skills []setup.Skill, reusableAgents
 		}
 
 		maxNameLen := 0
-		for _, reusableAgent := range reusableAgents {
-			if len(reusableAgent.Name) > maxNameLen {
-				maxNameLen = len(reusableAgent.Name)
+		for i := range reusableAgents {
+			if len(reusableAgents[i].Name) > maxNameLen {
+				maxNameLen = len(reusableAgents[i].Name)
 			}
 		}
 
-		lipgloss.Fprintln(cmd.OutOrStdout(), styles.sectionTitle.Render("Bundled Global Reusable Agents"))
-		for _, reusableAgent := range reusableAgents {
+		lipgloss.Fprintln(cmd.OutOrStdout(), styles.sectionTitle.Render("Global Reusable Agents"))
+		for i := range reusableAgents {
+			reusableAgent := &reusableAgents[i]
 			name := styles.agent.Render(padRight(reusableAgent.Name, maxNameLen))
+			source := styles.value.Render(
+				"[" + setupAssetSourceLabel(
+					reusableAgent.Origin,
+					reusableAgent.ExtensionSource,
+					reusableAgent.ExtensionName,
+				) + "]",
+			)
 			desc := styles.path.Render(reusableAgent.Description)
-			lipgloss.Fprintf(cmd.OutOrStdout(), "  %s  %s\n", name, desc)
+			lipgloss.Fprintf(cmd.OutOrStdout(), "  %s  %s  %s\n", name, source, desc)
 		}
+	}
+
+	printSetupWarnings(cmd, conflicts)
+}
+
+func printSetupWarnings(cmd *cobra.Command, conflicts []setup.CatalogConflict) {
+	if len(conflicts) == 0 {
+		return
+	}
+
+	styles := newCLIChromeStyles()
+	w := cmd.OutOrStdout()
+	fmt.Fprintln(w)
+	lipgloss.Fprintln(w, styles.sectionTitle.Render("Warnings"))
+	for i := range conflicts {
+		lipgloss.Fprintf(w, "  %s  %s\n", styles.warn.Render("!"), formatSetupCatalogConflict(conflicts[i]))
 	}
 }
 
@@ -758,8 +862,8 @@ func runPromptField(field huh.Field) error {
 
 func skillNames(skills []setup.Skill) []string {
 	names := make([]string, 0, len(skills))
-	for _, skill := range skills {
-		names = append(names, skill.Name)
+	for i := range skills {
+		names = append(names, skills[i].Name)
 	}
 	return names
 }
@@ -770,6 +874,86 @@ func agentNames(agents []setup.Agent) []string {
 		names = append(names, agent.Name)
 	}
 	return names
+}
+
+func previewsToSkills(previews []setup.PreviewItem) []setup.Skill {
+	if len(previews) == 0 {
+		return nil
+	}
+
+	skills := make([]setup.Skill, 0, len(previews))
+	seen := make(map[string]struct{}, len(previews))
+	for i := range previews {
+		preview := &previews[i]
+		key := strings.Join([]string{
+			preview.Skill.Name,
+			string(preview.Skill.Origin),
+			preview.Skill.ExtensionSource,
+			preview.Skill.ExtensionName,
+			preview.Skill.ManifestPath,
+			preview.Skill.ResolvedPath,
+		}, "\x00")
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		skills = append(skills, preview.Skill)
+	}
+	return skills
+}
+
+func formatSetupCatalogConflict(conflict setup.CatalogConflict) string {
+	subject := string(conflict.Kind)
+	switch conflict.Resolution {
+	case setup.CatalogConflictCoreWins:
+		return fmt.Sprintf(
+			`ignored extension %s %q from %s because the core %s wins`,
+			subject,
+			conflict.Name,
+			setupAssetSourceLabel(
+				conflict.Ignored.Origin,
+				conflict.Ignored.ExtensionSource,
+				conflict.Ignored.ExtensionName,
+			),
+			subject,
+		)
+	case setup.CatalogConflictExtensionPrecedence:
+		return fmt.Sprintf(
+			`ignored extension %s %q from %s because %s wins by precedence`,
+			subject,
+			conflict.Name,
+			setupAssetSourceLabel(
+				conflict.Ignored.Origin,
+				conflict.Ignored.ExtensionSource,
+				conflict.Ignored.ExtensionName,
+			),
+			setupAssetSourceLabel(
+				conflict.Winner.Origin,
+				conflict.Winner.ExtensionSource,
+				conflict.Winner.ExtensionName,
+			),
+		)
+	default:
+		return fmt.Sprintf(`ignored conflicting %s %q`, subject, conflict.Name)
+	}
+}
+
+func setupAssetSourceLabel(origin setup.AssetOrigin, extensionSource string, extensionName string) string {
+	if origin == setup.AssetOriginBundled {
+		return "core"
+	}
+
+	parts := make([]string, 0, 2)
+	if trimmedSource := strings.TrimSpace(extensionSource); trimmedSource != "" {
+		parts = append(parts, trimmedSource)
+	}
+	if trimmedName := strings.TrimSpace(extensionName); trimmedName != "" {
+		parts = append(parts, trimmedName)
+	}
+	if len(parts) == 0 {
+		return "extension"
+	}
+	return strings.Join(parts, ":")
 }
 
 func defaultAgentSelection(supported []setup.Agent, detected []setup.Agent) []string {

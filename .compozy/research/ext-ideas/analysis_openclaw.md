@@ -15,6 +15,7 @@ The extensibility model is layered into three primary mechanisms: **Skills** (ma
 Skills are markdown files injected into the system prompt. They give the agent context, constraints, and step-by-step guidance for using tools effectively. Instead of embedding all tool instructions in every prompt (token-expensive), OpenClaw lists skills as metadata and lets the model read them on demand -- analogous to a developer looking up documentation as needed.
 
 **Resolution priority:**
+
 1. Workspace skills (`<workspace>/.openclaw/skills/`) -- highest
 2. Managed skills (`~/.openclaw/skills/`) -- user-installed, shared across workspaces
 3. Bundled skills (`<openclaw>/dist/skills/bundled/`) -- shipped with OpenClaw
@@ -26,6 +27,7 @@ Skills can be installed from ClawHub via `openclaw skills install` or written lo
 Plugins are TypeScript modules loaded at runtime via `jiti`. They extend OpenClaw with new capabilities: channels, model providers, tools, speech, image generation, video generation, web fetch, web search, and more.
 
 **Key characteristics:**
+
 - Plugins export a `register(api)` function that calls methods like `api.registerTool`
 - Agent tools are JSON-schema functions the LLM can call during a run
 - Tools with side effects can be marked optional (never auto-enabled)
@@ -42,15 +44,18 @@ Plugins are TypeScript modules loaded at runtime via `jiti`. They extend OpenCla
 Hooks are small TypeScript functions that run when events fire inside the Gateway. They are automatically discovered from directories.
 
 **Two kinds:**
+
 - **Internal hooks:** Run inside the Gateway on agent events (`/new`, `/reset`, `/stop`, lifecycle events)
 - **Webhooks:** External HTTP endpoints that let other systems trigger work in OpenClaw
 
 **Discovery order (precedence):**
+
 1. Workspace hooks (`<workspace>/hooks/`)
 2. Managed hooks (`~/.openclaw/hooks/`)
 3. Bundled hooks (`<openclaw>/dist/hooks/bundled/`)
 
 **Bundled hooks:**
+
 - `boot-md` -- Run BOOT.md on gateway startup
 - `bootstrap-extra-files` -- Inject extra workspace bootstrap files during agent bootstrap
 - `command-logger` -- Log all command events to a centralized audit file
@@ -76,6 +81,7 @@ MCP servers are configured in `openclaw.json` by specifying server name, command
 Lobster is OpenClaw's built-in deterministic workflow orchestration engine. It turns skills/tools into composable pipelines defined in YAML.
 
 **Key design principles:**
+
 - LLMs do creative work (writing code, analyzing, testing); YAML handles plumbing (sequencing, counting, routing, retrying)
 - Workflows run in-process (no external CLI subprocess)
 - Approval gates with resume tokens (halted workflows return a token; approve and resume without re-running)
@@ -87,6 +93,7 @@ Lobster is OpenClaw's built-in deterministic workflow orchestration engine. It t
 ### 6. Webhook-Driven TaskFlows (v2026.4.7)
 
 The latest addition that closes the loop between external events and agent execution:
+
 - External services push events via webhook endpoints
 - A Webhook Session Key (`hook:<uuid>`) ties incoming requests to a specific agent session
 - Enables patterns like: GitHub PR opened -> agent reviews code -> posts comments (within seconds, no polling)
@@ -101,6 +108,7 @@ A ClawFlows agent can generate workflows from plain English descriptions, create
 ## Notable Extensions / Integrations
 
 ### Memory
+
 - **memory-lancedb** -- Vector-backed long-term memory with auto-recall/capture using LanceDB
 - **memU** -- Memory framework for 24/7 proactive agents with lower token cost
 - **MemOS Cloud** -- Cloud memory for persistent recall
@@ -108,26 +116,31 @@ A ClawFlows agent can generate workflows from plain English descriptions, create
 - **memory-wiki** (v2026.4.7) -- Persistent knowledge storage as wiki pages
 
 ### Security
+
 - **SecureClaw** -- Skill + plugin for on-demand auditing and continuous runtime security monitoring
 - **AI Security Scanner** -- Open-source scanner for agent skill packages
 - **ToxicSkills audit** found 36.82% of ClawHub skills had security flaws
 
 ### Developer Tools
+
 - **Claude Code Plugin** -- Turns Claude Code CLI into a programmable, headless coding engine
 - **Composio Plugin** -- Single plugin providing access to 850+ SaaS apps via managed MCP server with OAuth
 - **OpenClaw Foundry** -- Self-modification: observes workflows, writes new skills/extensions/hooks, validates in sandbox before deploying
 
 ### Voice & Communication
+
 - **Voice Call plugin** -- Twilio integration for making/receiving phone calls
 - **Channel plugins** for Teams, Matrix, Nostr, QQ, Feishu/Lark, DingTalk
 
 ### Dashboards
+
 - **ClawX** -- Desktop GUI
 - **clawdeck** -- Mission-control dashboard
 - **openclaw-studio** -- Polished web dashboard
 - **GMClaw Dashboard** -- Visual interface for agent orchestration
 
 ### Infrastructure
+
 - **MCP Server for OpenClaw** -- Secure bridge between Claude.ai and self-hosted OpenClaw with OAuth2
 - **ROS Bridge** -- Universal ROS1/ROS2 bridge for robot control
 - **Bitcoin Wallet** -- Bitcoin wallet for AI agents with hardware enclave key storage
@@ -139,6 +152,7 @@ A ClawFlows agent can generate workflows from plain English descriptions, create
 **What OpenClaw does:** Separates extensions into three complexity tiers -- markdown-based prompt injection (skills), runtime code modules (plugins), and event-driven scripts (hooks).
 
 **Compozy mapping:** Compozy already has skills (bundled markdown files). Consider formalizing a three-tier model:
+
 - **Skills** (existing) -- markdown prompt injection, zero code
 - **Extensions** (existing, being built) -- Go modules with typed registration
 - **Hooks** -- lightweight event-driven scripts that fire on lifecycle events (task start, task complete, PR opened, review requested, build failed)

@@ -12,15 +12,15 @@ Pi is "aggressively extensible so it doesn't have to dictate your workflow." Fea
 
 ### Monorepo Packages
 
-| Package | Purpose |
-|---|---|
-| `pi-ai` | Unified LLM API across Anthropic, OpenAI, Google, xAI, Groq, Cerebras, OpenRouter, Ollama, 300+ models |
-| `pi-agent-core` | Stateful agent runtime with tool execution, event streaming, conversation management |
+| Package           | Purpose                                                                                                                           |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `pi-ai`           | Unified LLM API across Anthropic, OpenAI, Google, xAI, Groq, Cerebras, OpenRouter, Ollama, 300+ models                            |
+| `pi-agent-core`   | Stateful agent runtime with tool execution, event streaming, conversation management                                              |
 | `pi-coding-agent` | Full interactive coding agent CLI with built-in file tools, session persistence, context compaction, skills, and extension system |
-| `pi-tui` | Minimal terminal UI framework with differential rendering |
-| `pi-web-ui` | Web components for AI chat interfaces |
-| `pi-mom` | Slack bot for message delegation |
-| `pi-pods` | CLI for managing vLLM deployments on GPU pods |
+| `pi-tui`          | Minimal terminal UI framework with differential rendering                                                                         |
+| `pi-web-ui`       | Web components for AI chat interfaces                                                                                             |
+| `pi-mom`          | Slack bot for message delegation                                                                                                  |
+| `pi-pods`         | CLI for managing vLLM deployments on GPU pods                                                                                     |
 
 ## Key Extension Mechanisms
 
@@ -31,6 +31,7 @@ Pi provides four primary extensibility layers, plus an SDK and RPC mode for prog
 Extensions are the core extensibility primitive. They are TypeScript modules (previously called "hooks") that enhance pi's behavior by handling lifecycle events, registering custom tools, adding commands, and providing UI components.
 
 **Discovery:**
+
 - Global: `~/.pi/agent/extensions/*.ts`
 - Project-local: `.pi/extensions/*.ts`
 - Explicit: `pi -e ./path.ts` (for quick tests)
@@ -51,6 +52,7 @@ export default function (pi: ExtensionAPI) {
 ```
 
 **Key capabilities:**
+
 - **Custom tools** -- `pi.registerTool()` registers tools callable by the LLM, using TypeBox schemas for parameters. Tools can be registered at load time or dynamically inside event handlers. New tools are refreshed immediately in the same session.
 - **Tool overrides** -- Extensions can override built-in tools (read, bash, edit, write, grep, find, ls) by registering a tool with the same name. Interactive mode displays a warning when this happens.
 - **Event interception** -- Block or modify tool calls, inject context, customize compaction.
@@ -62,26 +64,27 @@ export default function (pi: ExtensionAPI) {
 
 **Lifecycle events:**
 
-| Event | Description |
-|---|---|
-| `session_start` | Session begins |
-| `session_shutdown` | Session ends |
-| `session_before_compact` | Customize summarization before context compaction |
-| `session_before_fork` / `session_fork` | Session forking |
-| `session_before_tree` / `session_tree` | Session tree operations |
-| `context` | Rewrite messages before the LLM sees them (RAG, memory, filtering) |
-| `tool_call` | Intercept or gate tool invocations (e.g., block dangerous commands) |
-| `tool_result` | Modify tool results before they reach the LLM |
-| `input` | User input events |
-| `resources_discover` | Resource discovery (with reason "reload" on hot reload) |
-| `agent_start` | Agent starts (used in SDK inline extensions) |
-| `bash` / `read` / `edit` / `write` / `grep` / `find` / `ls` | Typed per-tool events with specific event interfaces |
+| Event                                                       | Description                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------- |
+| `session_start`                                             | Session begins                                                      |
+| `session_shutdown`                                          | Session ends                                                        |
+| `session_before_compact`                                    | Customize summarization before context compaction                   |
+| `session_before_fork` / `session_fork`                      | Session forking                                                     |
+| `session_before_tree` / `session_tree`                      | Session tree operations                                             |
+| `context`                                                   | Rewrite messages before the LLM sees them (RAG, memory, filtering)  |
+| `tool_call`                                                 | Intercept or gate tool invocations (e.g., block dangerous commands) |
+| `tool_result`                                               | Modify tool results before they reach the LLM                       |
+| `input`                                                     | User input events                                                   |
+| `resources_discover`                                        | Resource discovery (with reason "reload" on hot reload)             |
+| `agent_start`                                               | Agent starts (used in SDK inline extensions)                        |
+| `bash` / `read` / `edit` / `write` / `grep` / `find` / `ls` | Typed per-tool events with specific event interfaces                |
 
 ### 2. Skills (Capability Packages)
 
 Skills are Markdown-based capability packages with instructions and tools, loaded on-demand. They provide progressive disclosure without busting the prompt cache.
 
 **Discovery locations:**
+
 - Global: `~/.pi/agent/skills/`
 - Project: `.pi/skills/`
 - Explicit: `--skill path/to/skill.md`
@@ -95,6 +98,7 @@ Skills are similar to Compozy's existing skill system.
 Prompt templates are Markdown snippets that expand into full prompts. The user types `/name` in the editor to invoke a template.
 
 **Features:**
+
 - Positional argument substitution (`$1`, `$2`, `$3`, ...)
 - All arguments (`$@` or `$ARGUMENTS`)
 - Argument slicing (`${@:N}` or `${@:N:L}`)
@@ -135,34 +139,36 @@ Packages are managed with `pi update`, `pi list`, and `pi config`. A community p
 
 ### From the awesome-pi-agent List
 
-| Extension | Author | Description |
-|---|---|---|
-| **pi-notify** | ferologics | Native desktop notifications via OSC 777 |
-| **pi-ghostty-theme-sync** | - | Sync Ghostty terminal theme with pi session |
-| **pi-sketch** | - | Quick sketch pad: draw in browser, send to models |
-| **pi-dcp** | - | Dynamic context pruning for intelligent conversation optimization |
-| **pi-gui** | - | GUI extension providing visual interface for pi agent |
-| **pi-super-curl** | - | Empower curl requests with coding agent capabilities |
-| **cost-tracker** | - | Session spending analysis from pi logs |
-| **handoff** | - | Transfer context to new focused sessions |
-| **memory-mode** | - | Save instructions to AGENTS.md with AI-assisted integration |
-| **filter-output** | - | Redact sensitive data (API keys, tokens, passwords) from tool results before LLM sees them |
-| **security** | - | Block dangerous bash commands and protect sensitive paths from writes |
-| **pi-canvas** | - | Interactive TUI canvases (calendar, document, flights) rendered inline |
-| **pi-sub** | - | Usage tracking extensions with shared core and UI widget |
-| **pi-rewind-hook** | - | Rewind file changes with git-based checkpoints and conversation branching |
-| **pi-ssh-remote** | - | Redirect all file operations and commands to a remote host via SSH |
-| **plan-mode** | - | Read-only exploration mode for safe code exploration |
-| **oracle** | - | Get second opinion from alternative AI models without switching contexts |
-| **pi-mcp-adapter** | - | MCP (Model Context Protocol) support as an extension |
-| **safe-git** | - | Safe git operations |
-| **pi-cost-dashboard** | - | Cost monitoring dashboard |
-| **checkpoint** | - | Checkpoint and restore |
+| Extension                 | Author     | Description                                                                                |
+| ------------------------- | ---------- | ------------------------------------------------------------------------------------------ |
+| **pi-notify**             | ferologics | Native desktop notifications via OSC 777                                                   |
+| **pi-ghostty-theme-sync** | -          | Sync Ghostty terminal theme with pi session                                                |
+| **pi-sketch**             | -          | Quick sketch pad: draw in browser, send to models                                          |
+| **pi-dcp**                | -          | Dynamic context pruning for intelligent conversation optimization                          |
+| **pi-gui**                | -          | GUI extension providing visual interface for pi agent                                      |
+| **pi-super-curl**         | -          | Empower curl requests with coding agent capabilities                                       |
+| **cost-tracker**          | -          | Session spending analysis from pi logs                                                     |
+| **handoff**               | -          | Transfer context to new focused sessions                                                   |
+| **memory-mode**           | -          | Save instructions to AGENTS.md with AI-assisted integration                                |
+| **filter-output**         | -          | Redact sensitive data (API keys, tokens, passwords) from tool results before LLM sees them |
+| **security**              | -          | Block dangerous bash commands and protect sensitive paths from writes                      |
+| **pi-canvas**             | -          | Interactive TUI canvases (calendar, document, flights) rendered inline                     |
+| **pi-sub**                | -          | Usage tracking extensions with shared core and UI widget                                   |
+| **pi-rewind-hook**        | -          | Rewind file changes with git-based checkpoints and conversation branching                  |
+| **pi-ssh-remote**         | -          | Redirect all file operations and commands to a remote host via SSH                         |
+| **plan-mode**             | -          | Read-only exploration mode for safe code exploration                                       |
+| **oracle**                | -          | Get second opinion from alternative AI models without switching contexts                   |
+| **pi-mcp-adapter**        | -          | MCP (Model Context Protocol) support as an extension                                       |
+| **safe-git**              | -          | Safe git operations                                                                        |
+| **pi-cost-dashboard**     | -          | Cost monitoring dashboard                                                                  |
+| **checkpoint**            | -          | Checkpoint and restore                                                                     |
 
 ### Popular Community Picks (from curated list)
+
 pi-mcp-adapter, safe-git, pi-cost-dashboard, pi-notify, checkpoint, pi-canvas
 
 ### Emerging Extensions (2026 PRs)
+
 pi-aliyun (provider), pi-elixir, pi-secret-guard, pipane, pi-governance, meyhem-search (skill), pi-rewind, pi-memory
 
 ### Extension Collections
@@ -174,14 +180,14 @@ pi-aliyun (provider), pi-elixir, pi-secret-guard, pipane, pi-governance, meyhem-
 
 [oh-my-pi](https://github.com/can1357/oh-my-pi) by Can Boluk is a batteries-included fork that adds features pi deliberately omits:
 
-| Feature | Description |
-|---|---|
+| Feature                            | Description                                                                                                                                                                                                                                    |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Hash-anchored edits (Hashline)** | Every line gets a content-hash anchor; the model references anchors instead of reproducing text. Eliminates "string not found" and ambiguous match errors. If the file changed, hashes won't match and the edit is rejected before corruption. |
-| **LSP integration** | 11 LSP operations (diagnostics, definition, references, hover, symbols, rename, code_actions, etc.), format-on-write, diagnostics-on-edit, 40+ language configs out of the box |
-| **Subagents** | Spawn child agents for parallelizable subtasks with results merged back. Isolation via git worktrees, Unix fuse-overlay, or Windows ProjFS. Async background jobs with configurable concurrency (up to 100). |
-| **Browser control** | Built-in browser automation |
-| **Python kernel** | Persistent kernel with rich output (HTML, Markdown, images, Mermaid diagrams) |
-| **Custom modules** | Loadable from `.omp/modules/` and `~/.omp/agent/modules/` |
+| **LSP integration**                | 11 LSP operations (diagnostics, definition, references, hover, symbols, rename, code_actions, etc.), format-on-write, diagnostics-on-edit, 40+ language configs out of the box                                                                 |
+| **Subagents**                      | Spawn child agents for parallelizable subtasks with results merged back. Isolation via git worktrees, Unix fuse-overlay, or Windows ProjFS. Async background jobs with configurable concurrency (up to 100).                                   |
+| **Browser control**                | Built-in browser automation                                                                                                                                                                                                                    |
+| **Python kernel**                  | Persistent kernel with rich output (HTML, Markdown, images, Mermaid diagrams)                                                                                                                                                                  |
+| **Custom modules**                 | Loadable from `.omp/modules/` and `~/.omp/agent/modules/`                                                                                                                                                                                      |
 
 ## Patterns Worth Adopting
 

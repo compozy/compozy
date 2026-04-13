@@ -95,7 +95,7 @@ execution lifecycle.
 - On `pre_task_execute`: Run `snyk test --json` on the project to establish a security
   baseline before agent writes code.
 - On `post_task_execute`: Run differential scan (`snyk test --json` + `snyk code test
-  --json`) and compare with baseline. Flag new vulnerabilities introduced by the agent.
+--json`) and compare with baseline. Flag new vulnerabilities introduced by the agent.
 - On `review_finding` (security-related): Use Snyk's autofix suggestions to enrich
   remediation instructions for the agent.
 - On `pre_pr_submit`: Generate a security summary artifact showing new vs. resolved
@@ -118,6 +118,7 @@ execution lifecycle.
 ### API Surface
 
 **Codecov:**
+
 - **REST API v2**: Endpoints for commit coverage totals, file-level coverage, coverage
   report tree (hierarchical with depth control), coverage trends (1d/7d/30d intervals),
   flag list, flag coverage, line-by-line hit/miss/partial data.
@@ -129,6 +130,7 @@ execution lifecycle.
 - **Authentication**: Upload Token (CI push) + API Token (read access, from Settings).
 
 **Coveralls:**
+
 - **REST API**: Simpler endpoint set for repos, builds, source files. JSON webhook
   integration for CI services.
 - **No MCP server**: No official or community MCP integration found.
@@ -260,6 +262,7 @@ execution cycle for self-healing code.
 ### API Surface
 
 **Dependabot (GitHub-native):**
+
 - **GitHub API**: Dependabot alerts via `GET /repos/{owner}/{repo}/dependabot/alerts`.
   Security advisories, dependency graph, and automated PRs via GitHub's dependency
   management API.
@@ -269,6 +272,7 @@ execution cycle for self-healing code.
   own draft PR. Requires GitHub Code Security plan.
 
 **Renovate (by Mend):**
+
 - **CLI**: Self-hosted bot supporting 90+ package managers. Works across GitHub,
   GitLab, Bitbucket, Azure DevOps, Gitea.
 - **Config**: `renovate.json` with preset system for organization-wide shared
@@ -363,6 +367,7 @@ changes.
 ### API Surface
 
 **Playwright:**
+
 - **CLI**: `npx playwright test` with JSON/HTML reporters. Built-in parallelization,
   multi-browser support (Chromium, Firefox, WebKit).
 - **MCP Server** (official): Drop-in server for VS Code, Cursor, Claude Desktop,
@@ -373,6 +378,7 @@ changes.
   in parallel on the same flow.
 
 **Cypress:**
+
 - **CLI**: `npx cypress run` with JSON/JUnit reporters. Interactive test runner with
   time-travel debugging.
 - **Component Testing**: Stable support, but lacks WebKit and free parallelization.
@@ -445,7 +451,7 @@ and infrastructure changes.
 
 - On `post_task_execute`: Run `trivy fs --json` on changed files for dependency
   vulnerabilities. Run `trivy config --json` for IaC misconfigurations. Run `trivy
-  image` for Dockerfile changes.
+image` for Dockerfile changes.
 - On `pre_pr_submit`: Generate security report artifact with vulnerability counts
   by severity. Gate PR on critical/high vulnerability count.
 - On `review_finding` (security): Enrich findings with Trivy vulnerability details
@@ -474,6 +480,7 @@ checksums.
 ### API Surface
 
 **CodeRabbit:**
+
 - **GitHub/GitLab/Azure DevOps/Bitbucket App**: Automatic PR review with line-by-line
   suggestions, PR summaries, sequence diagrams.
 - **REST API** (Enterprise): User Management API for programmatic team management
@@ -486,12 +493,14 @@ checksums.
   Linear, Jira, GitHub Issues, GitLab issues.
 
 **Greptile:**
+
 - **API**: Full codebase knowledge graph. Supports custom style guides, compliance
   rules. Self-hosted or integrated via API, Slack, GitHub, GitLab, Zapier.
 - **Performance**: Merge time from ~20 hours to 1.8 hours. 30+ languages.
 - **Pricing**: ~$30/user/month (cloud), custom pricing (self-hosted).
 
 **Ellipsis:**
+
 - **GitHub/GitLab App**: Auto-reviews code AND applies fixes. Multi-agent architecture:
   code reading agent, error detection agent, fix generation agent. Executes fixes to
   verify they compile and pass tests.
@@ -538,14 +547,14 @@ Compozy's review pipeline.
 
 ### Compozy Lifecycle Hook Mapping
 
-| Lifecycle Event       | SonarQube | Snyk | Codecov | Semgrep | Trivy | AI Review |
-|-----------------------|-----------|------|---------|---------|-------|-----------|
-| `pre_task_execute`    |           | X    |         | X       |       |           |
-| `post_task_execute`   | X         | X    | X       | X       | X     |           |
-| `review_finding`      | X         | X    | X       | X       | X     | X         |
-| `pre_pr_submit`       | X         | X    | X       |         | X     | X         |
-| `post_review`         |           |      |         |         |       | X         |
-| `periodic_scan`       |           |      |         |         |       |           |
+| Lifecycle Event     | SonarQube | Snyk | Codecov | Semgrep | Trivy | AI Review |
+| ------------------- | --------- | ---- | ------- | ------- | ----- | --------- |
+| `pre_task_execute`  |           | X    |         | X       |       |           |
+| `post_task_execute` | X         | X    | X       | X       | X     |           |
+| `review_finding`    | X         | X    | X       | X       | X     | X         |
+| `pre_pr_submit`     | X         | X    | X       |         | X     | X         |
+| `post_review`       |           |      |         |         |       | X         |
+| `periodic_scan`     |           |      |         |         |       |           |
 
 ### Priority Ranking for Compozy Extensions
 
@@ -589,6 +598,7 @@ For maximum impact, build in this order:
 ## Sources
 
 ### SonarQube
+
 - [SonarQube MCP Server Product Page](https://www.sonarsource.com/products/sonarqube/mcp-server/)
 - [SonarQube MCP Server Documentation](https://docs.sonarsource.com/sonarqube-server/ai-capabilities/sonarqube-mcp-server)
 - [SonarQube MCP Server GitHub](https://github.com/SonarSource/sonarqube-mcp-server)
@@ -596,6 +606,7 @@ For maximum impact, build in this order:
 - [SonarQube MCP Server Usage Documentation](https://docs.sonarsource.com/sonarqube-mcp-server/using)
 
 ### Snyk
+
 - [Snyk Agent Scan GitHub](https://github.com/snyk/agent-scan)
 - [Snyk Agent Security Launch at RSAC 2026](https://securityboulevard.com/2026/03/snyk-launches-agent-security-solution-and-ships-evo-ai-spm-at-rsac-2026/)
 - [Snyk Agent Security Announcement](https://snyk.io/news/snyk-launches-agent-security-solution/)
@@ -604,6 +615,7 @@ For maximum impact, build in this order:
 - [DeepCode AI](https://snyk.io/platform/deepcode-ai/)
 
 ### Codecov / Coveralls
+
 - [Codecov MCP Server](https://mcp.aibase.com/server/1917152374478794754)
 - [Codecov MCP Server GitHub](https://github.com/egulatee/mcp-server-codecov)
 - [Getting Started with Codecov API v2](https://about.codecov.io/blog/getting-started-with-the-codecov-api-v2/)
@@ -611,11 +623,13 @@ For maximum impact, build in this order:
 - [Coveralls](https://coveralls.io/)
 
 ### CodeClimate / Qlty
+
 - [CodeClimate API Reference](https://developer.codeclimate.com/)
 - [Qlty - Code Quality and Coverage](https://codeclimate.com/quality)
 - [CodeClimate and SonarQube for Technical Debt](https://johal.in/code-quality-metrics-sonarqube-and-codeclimate-for-technical-debt-reduction-strategies-2026/)
 
 ### Semgrep
+
 - [Semgrep MCP Plugin Documentation](https://semgrep.dev/docs/mcp)
 - [Semgrep MCP GitHub](https://github.com/semgrep/mcp)
 - [Community MCP Server Semgrep](https://github.com/VetCoders/mcp-server-semgrep)
@@ -623,17 +637,20 @@ For maximum impact, build in this order:
 - [Semgrep GitHub](https://github.com/semgrep/semgrep)
 
 ### Dependabot / Renovate
+
 - [Dependabot Alerts Assignable to AI Agents (April 2026)](https://github.blog/changelog/2026-04-07-dependabot-alerts-are-now-assignable-to-ai-agents-for-remediation/)
 - [Renovate GitHub](https://github.com/renovatebot/renovate)
 - [FOSSA fossabot AI Agent](https://fossa.com/blog/fossabot-dependency-upgrade-ai-agent/)
 - [Dependabot vs Renovate 2026](https://appsecsanta.com/sca-tools/dependabot-vs-renovate)
 
 ### Chromatic
+
 - [Chromatic Product Page](https://www.chromatic.com/)
 - [Chromatic Visual Testing for Storybook](https://www.chromatic.com/storybook)
 - [Visual Regression Testing Tools Compared (2026)](https://www.getautonoma.com/blog/visual-regression-testing-tools)
 
 ### Playwright / Cypress
+
 - [Playwright MCP AI Ecosystem 2026](https://testdino.com/blog/playwright-ai-ecosystem/)
 - [Playwright MCP Explained: AI-Powered Test Automation 2026](https://www.testleaf.com/blog/playwright-mcp-ai-test-automation-2026/)
 - [Playwright Official Site](https://playwright.dev/)
@@ -641,6 +658,7 @@ For maximum impact, build in this order:
 - [E2E Testing Tools in 2026](https://www.getautonoma.com/blog/e2e-testing-tools)
 
 ### AI Code Review (CodeRabbit / Greptile / Ellipsis)
+
 - [CodeRabbit](https://www.coderabbit.ai/)
 - [CodeRabbit Documentation](https://docs.coderabbit.ai/)
 - [CodeRabbit Claude Code Integration Guide](https://lgallardo.com/2026/02/10/coderabbit-claude-code-integration/)
@@ -649,6 +667,7 @@ For maximum impact, build in this order:
 - [Best Greptile Alternatives 2026](https://www.getpanto.ai/blog/best-greptile-alternatives-6-best-ai-code-review-tools)
 
 ### Trivy
+
 - [Trivy MCP Server by Aqua Security](https://www.aquasec.com/blog/security-that-speaks-your-language-trivy-mcp-server/)
 - [Trivy MCP Server (Glama)](https://glama.ai/mcp/servers/norbinsh/cursor-mcp-trivy)
 - [Trivy Supply Chain Compromise Analysis](https://williamzujkowski.github.io/posts/2026-03-21-trivy-supply-chain-compromise-ai-assisted-investigation/)

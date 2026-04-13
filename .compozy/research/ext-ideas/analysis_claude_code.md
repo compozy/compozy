@@ -33,26 +33,27 @@ Hooks are shell commands, LLM prompts, or subagents that execute automatically a
 
 **12 Hook Events:**
 
-| Event | When it fires | Can block? |
-|-------|--------------|-----------|
-| `PreToolUse` | Before Claude performs an action (write file, run command) | Yes (exit 2) |
-| `PostToolUse` | After Claude completes an action | Yes (blocks continuation) |
-| `PostToolUseFailure` | When a tool execution fails | Yes |
-| `UserPromptSubmit` | When user submits a prompt, before processing | Yes |
-| `Stop` | When Claude tries to finish responding | Yes (exit 2 forces continuation) |
-| `SubagentStop` | When a subagent tries to finish | Yes |
-| `SubagentStart` | When a subagent starts | No |
-| `Notification` | When Claude sends alerts (permission, idle, auth) | No |
-| `PermissionRequest` | When Claude displays a permission dialog | Yes (approve/deny) |
-| `SessionStart` | On session start, resume, clear, or compact | No |
-| `SessionEnd` | On session exit, sigint, or error | No |
-| `PreCompact` | Before compaction operation | No |
+| Event                | When it fires                                              | Can block?                       |
+| -------------------- | ---------------------------------------------------------- | -------------------------------- |
+| `PreToolUse`         | Before Claude performs an action (write file, run command) | Yes (exit 2)                     |
+| `PostToolUse`        | After Claude completes an action                           | Yes (blocks continuation)        |
+| `PostToolUseFailure` | When a tool execution fails                                | Yes                              |
+| `UserPromptSubmit`   | When user submits a prompt, before processing              | Yes                              |
+| `Stop`               | When Claude tries to finish responding                     | Yes (exit 2 forces continuation) |
+| `SubagentStop`       | When a subagent tries to finish                            | Yes                              |
+| `SubagentStart`      | When a subagent starts                                     | No                               |
+| `Notification`       | When Claude sends alerts (permission, idle, auth)          | No                               |
+| `PermissionRequest`  | When Claude displays a permission dialog                   | Yes (approve/deny)               |
+| `SessionStart`       | On session start, resume, clear, or compact                | No                               |
+| `SessionEnd`         | On session exit, sigint, or error                          | No                               |
+| `PreCompact`         | Before compaction operation                                | No                               |
 
 **Handler Types**: Command (shell), HTTP (POST), Prompt (LLM evaluation), Agent (deep analysis).
 
 **Configuration**: `~/.claude/settings.json` (global) or `.claude/settings.json` (project, version-controlled).
 
 **Common Use Cases**:
+
 - Auto-format code on every file write (PostToolUse)
 - Block writes to `.env` files (PreToolUse)
 - Auto-create backup commits before big changes (PreToolUse)
@@ -71,18 +72,18 @@ MCP (Model Context Protocol) is an open-source standard for connecting AI models
 
 **Top MCP Servers (by popularity):**
 
-| Server | Purpose |
-|--------|---------|
-| GitHub MCP | Repos, issues, PRs, CI/CD without context-switching |
-| PostgreSQL MCP | Query databases, inspect schemas, write migrations |
-| Sentry MCP | Error tracking, pattern analysis, fix suggestions |
-| Playwright MCP | Browser automation -- navigate, fill forms, screenshot |
-| Memory MCP | Persistent knowledge graph across sessions |
-| Filesystem MCP | Advanced glob, file watching, batch operations, metadata |
-| Slack MCP | Read/send messages, bridge coding and communication |
-| Notion MCP | Search/create pages, sync architecture docs |
-| Brave Search MCP | Web search for current information |
-| Apidog MCP | API spec access for accurate code generation |
+| Server           | Purpose                                                  |
+| ---------------- | -------------------------------------------------------- |
+| GitHub MCP       | Repos, issues, PRs, CI/CD without context-switching      |
+| PostgreSQL MCP   | Query databases, inspect schemas, write migrations       |
+| Sentry MCP       | Error tracking, pattern analysis, fix suggestions        |
+| Playwright MCP   | Browser automation -- navigate, fill forms, screenshot   |
+| Memory MCP       | Persistent knowledge graph across sessions               |
+| Filesystem MCP   | Advanced glob, file watching, batch operations, metadata |
+| Slack MCP        | Read/send messages, bridge coding and communication      |
+| Notion MCP       | Search/create pages, sync architecture docs              |
+| Brave Search MCP | Web search for current information                       |
+| Apidog MCP       | API spec access for accurate code generation             |
 
 **Building Your Own**: Anthropic's TypeScript SDK (`@modelcontextprotocol/sdk`) handles the protocol layer. A minimal MCP server is under 50 lines of code. Python SDK also available.
 
@@ -91,6 +92,7 @@ MCP (Model Context Protocol) is an open-source standard for connecting AI models
 Plugins bundle skills, hooks, subagents, and MCP servers into a single installable unit. Installed via `/plugin` command (public beta).
 
 **Plugin Structure:**
+
 ```
 plugin-name/
   .claude-plugin/
@@ -142,24 +144,26 @@ Desktop Extensions package MCP servers into single `.dxt` files (being renamed t
 
 ### Curated Lists & Directories
 
-| Repository | Scale |
-|-----------|-------|
+| Repository                                                                                      | Scale                                                      |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | [rohitg00/awesome-claude-code-toolkit](https://github.com/rohitg00/awesome-claude-code-toolkit) | 135 agents, 35 skills, 42 commands, 176+ plugins, 20 hooks |
-| [hesreallyhim/awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code) | Skills, hooks, slash-commands, agent orchestrators |
-| [jqueryscript/awesome-claude-code](https://github.com/jqueryscript/awesome-claude-code) | Broad tools, plugins, integrations, frameworks |
-| [travisvn/awesome-claude-skills](https://github.com/travisvn/awesome-claude-skills) | Skills-focused directory |
-| [ComposioHQ/awesome-claude-plugins](https://github.com/ComposioHQ/awesome-claude-plugins) | Plugin-focused curation |
-| [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins) | 220+ skills & agent plugins with adoption metrics |
+| [hesreallyhim/awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code)         | Skills, hooks, slash-commands, agent orchestrators         |
+| [jqueryscript/awesome-claude-code](https://github.com/jqueryscript/awesome-claude-code)         | Broad tools, plugins, integrations, frameworks             |
+| [travisvn/awesome-claude-skills](https://github.com/travisvn/awesome-claude-skills)             | Skills-focused directory                                   |
+| [ComposioHQ/awesome-claude-plugins](https://github.com/ComposioHQ/awesome-claude-plugins)       | Plugin-focused curation                                    |
+| [quemsah/awesome-claude-plugins](https://github.com/quemsah/awesome-claude-plugins)             | 220+ skills & agent plugins with adoption metrics          |
 
 ### High-Impact Community Projects
 
 **Multi-Agent Orchestration:**
+
 - **Ralph for Claude Code** -- Autonomous AI development framework with intelligent exit detection, rate limiting, circuit breaker patterns, and safety guardrails. Enables Claude Code to work iteratively until completion.
 - **maestro-orchestrate** -- Multi-agent orchestration coordinating 22 specialized subagents through 4-phase workflows with native parallel execution.
 - **ruflo** (ruvnet/ruflo) -- Agent orchestration platform with distributed swarm intelligence, RAG integration, and native Claude Code / Codex integration.
 - **AgentSys** (avifenesh) -- Workflow automation automating task-to-production workflows, PR management, code cleanup, drift detection, and multi-agent code review.
 
 **Skills & Command Libraries:**
+
 - **Anthropic official skills** (37.5k stars) -- Public repository for Agent Skills.
 - **obra/superpowers** -- Core skills library with 20+ battle-tested skills including TDD, debugging, collaboration patterns; `/brainstorm`, `/write-plan`, `/execute-plan` commands.
 - **Claude Command Suite** (qdhenry) -- 216+ slash commands, 12 skills, 54 agents, automated workflows for code review, testing, deployment.
@@ -170,16 +174,19 @@ Desktop Extensions package MCP servers into single `.dxt` files (being renamed t
 - **owasp-security** -- OWASP Top 10:2025, ASVS 5.0, and Agentic AI security with code review checklists for 20+ languages.
 
 **Context & Memory:**
+
 - **MemClaw** -- Persistent project memory: stores architecture decisions, coding conventions, task progress, session history. Eliminates re-explanation at session start.
 - **Memory MCP Server** -- Knowledge graph persistence across sessions (entities, relationships, observations).
 - **context-mode** -- Processes large outputs in sandboxed subprocesses, keeping only summaries in context (98% context savings).
 
 **Integration Plugins:**
+
 - **connect-apps** -- Connects Claude to Gmail, Slack, GitHub, Notion, and 500+ services.
 - **nano-banana** -- Google Gemini image generation (text-to-image, style transfer, 4K output).
 - **OpenPaw** -- 38-skill bundle turning Claude Code into a personal assistant.
 
 **Observability:**
+
 - **claude-code-hooks-multi-agent-observability** (disler) -- Real-time monitoring for Claude Code agents through hook event tracking.
 - **claude-code-hooks-mastery** (disler) -- Comprehensive hook examples and patterns.
 
@@ -194,6 +201,7 @@ These patterns from the Claude Code ecosystem map directly to Compozy's architec
 **Claude Code pattern**: 12 lifecycle events with shell/HTTP/prompt/agent handlers, exit-code-based blocking, JSON stdin/stdout protocol.
 
 **Compozy mapping**: The `internal/core/run` execution pipeline and `internal/core/kernel` dispatcher could expose similar lifecycle hooks:
+
 - `PreTaskExecution` / `PostTaskExecution` -- before/after each task in a batch
 - `PreAgentInvocation` / `PostAgentInvocation` -- before/after spawning Claude Code, Codex, Droid, Cursor
 - `PrePRCreation` / `PostPRCreation` -- before/after PR creation
@@ -206,6 +214,7 @@ These patterns from the Claude Code ecosystem map directly to Compozy's architec
 **Claude Code pattern**: `.claude/skills/` directories with SKILL.md entrypoints, YAML frontmatter for metadata, progressive disclosure (~100 tokens scan, <5k tokens activation).
 
 **Compozy mapping**: The existing `skills/` directory already follows this pattern. Could be extended with:
+
 - Registry of community skills installable via `compozy skill install <repo>`
 - Skill auto-detection based on task domain (already partially implemented via Agent Skill Dispatch Protocol in CLAUDE.md)
 - Skill versioning and dependency resolution
@@ -215,6 +224,7 @@ These patterns from the Claude Code ecosystem map directly to Compozy's architec
 **Claude Code pattern**: `.claude-plugin/plugin.json` metadata, namespaced commands (`/plugin:command`), marketplace repos.
 
 **Compozy mapping**: Compozy extensions could follow a similar structure:
+
 ```
 compozy-ext-name/
   compozy-plugin.toml    # Metadata (matching Compozy's TOML preference)
@@ -223,6 +233,7 @@ compozy-ext-name/
   templates/             # PRD/TechSpec/ADR templates
   agents/                # Agent configurations
 ```
+
 Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 
 ### Pattern 4: MCP Server Integration for External Context
@@ -230,6 +241,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 **Claude Code pattern**: MCP servers provide tools and resources to Claude at runtime. Lazy loading via MCP Tool Search.
 
 **Compozy mapping**: During task enrichment (`internal/core/plan`), Compozy could query MCP servers for:
+
 - Codebase analysis results (architecture, dependency graphs)
 - Issue tracker context (JIRA, Linear, GitHub Issues)
 - Monitoring data (Sentry errors, performance metrics)
@@ -241,6 +253,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 **Claude Code pattern**: Subagents via Task tool (up to 10 parallel), Agent Teams (experimental, inter-agent communication), hierarchical orchestration, split-and-merge for independent subtasks.
 
 **Compozy mapping**: The `internal/core/run` pipeline already orchestrates multiple agents. Could adopt:
+
 - Agent specialization profiles (`.compozy/agents/`) defining model, tools, system prompt per agent type
 - Split-and-merge for independent tasks in a batch (already partially there)
 - Hierarchical orchestration: lead agent decomposes feature into sub-tasks, each delegated to specialized sub-agents
@@ -251,6 +264,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 **Claude Code pattern**: Memory MCP server (knowledge graph), MemClaw (project-scoped memory), `memory: user` agent frontmatter, AGENTS.md accumulating patterns.
 
 **Compozy mapping**: The `internal/core/run/journal` already provides durable event journals. Could extend with:
+
 - Cross-run knowledge accumulation (what patterns worked, what failed)
 - Architecture decision cache (from `.compozy/tasks/` ADRs)
 - Agent performance metrics per codebase (which agent handles which task types best)
@@ -260,6 +274,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 **Claude Code pattern**: `claude -p` for non-interactive use, `--output-format stream-json`, `--bare` for credential isolation, tool permission presets.
 
 **Compozy mapping**: Compozy already supports CI via CLI. Could adopt:
+
 - Structured JSON output for pipeline integration (`compozy run --output json`)
 - Event streaming for real-time dashboard integration
 - Pre-configured permission profiles for CI environments
@@ -269,6 +284,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 **Claude Code pattern**: PostToolUse hooks auto-format and lint. Stop hooks verify tests pass before declaring done. PreToolUse hooks block dangerous operations.
 
 **Compozy mapping**: The `make verify` gate is already enforced via CLAUDE.md instructions. Could be hardened with:
+
 - `PostTaskExecution` hook running `make verify` automatically
 - `PrePRCreation` hook ensuring all checks pass
 - `OnAgentOutput` hook validating generated code before writing
@@ -292,6 +308,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 ## Sources
 
 ### Official Documentation
+
 - [Extend Claude Code - Features Overview](https://code.claude.com/docs/en/features-overview)
 - [Hooks Reference](https://code.claude.com/docs/en/hooks)
 - [Skills Documentation](https://code.claude.com/docs/en/skills)
@@ -306,6 +323,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 - [Desktop Extensions Engineering Blog](https://www.anthropic.com/engineering/desktop-extensions)
 
 ### Community & Ecosystem
+
 - [awesome-claude-code-toolkit](https://github.com/rohitg00/awesome-claude-code-toolkit) -- 135 agents, 35 skills, 176+ plugins
 - [awesome-claude-code (hesreallyhim)](https://github.com/hesreallyhim/awesome-claude-code)
 - [awesome-claude-code (jqueryscript)](https://github.com/jqueryscript/awesome-claude-code)
@@ -322,6 +340,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 - [DXT toolchain (Anthropic)](https://github.com/anthropics/dxt)
 
 ### SDKs & Packages
+
 - [@anthropic-ai/claude-agent-sdk (npm)](https://www.npmjs.com/package/@anthropic-ai/claude-agent-sdk)
 - [@anthropic-ai/claude-code (npm)](https://www.npmjs.com/package/@anthropic-ai/claude-code)
 - [claude-agent-sdk-typescript (GitHub)](https://github.com/anthropics/claude-agent-sdk-typescript)
@@ -330,6 +349,7 @@ Install via `compozy ext install <repo>`. Namespace: `compozy ext:skill-name`.
 - [@modelcontextprotocol/sdk](https://modelcontextprotocol.io/docs/develop/connect-local-servers)
 
 ### Analysis & Guides
+
 - [Claude Code Extensions Guide (Morph)](https://www.morphllm.com/claude-code-extensions)
 - [Claude Code Hooks Guide (Morph)](https://www.morphllm.com/claude-code-hooks)
 - [Claude Code Hooks Guide (eesel AI)](https://www.eesel.ai/blog/hooks-in-claude-code)
