@@ -238,7 +238,7 @@ func resolveGitHubInstallSource(
 		return cleanupGitHubInstallSource(cleanup, err)
 	}
 
-	extractedRoot, err := fetchGitHubArchive(ctx, requestURL, tempRoot, fetcher)
+	extractedRoot, err := fetchGitHubArchive(ctx, requestURL, tempRoot, options.Subdir, fetcher)
 	if err != nil {
 		return cleanupGitHubInstallSource(cleanup, err)
 	}
@@ -341,6 +341,7 @@ func fetchGitHubArchive(
 	ctx context.Context,
 	requestURL string,
 	tempRoot string,
+	subdir string,
 	fetcher installSourceFetcher,
 ) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, http.NoBody)
@@ -366,7 +367,7 @@ func fetchGitHubArchive(
 	}
 
 	limitedBody := &io.LimitedReader{R: response.Body, N: fetcher.maxDownloadBytes + 1}
-	extractedRoot, err := extractTarGzArchive(limitedBody, tempRoot, fetcher.maxExtractionBytes)
+	extractedRoot, err := extractTarGzArchive(limitedBody, tempRoot, fetcher.maxExtractionBytes, subdir)
 	if err != nil {
 		return "", fmt.Errorf("extract github archive %q: %w", requestURL, err)
 	}
@@ -387,7 +388,7 @@ func readResponsePreview(reader io.Reader, limit int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(reader, limit))
 }
 
-func extractTarGzArchive(reader io.Reader, destRoot string, maxBytes int64) (string, error) {
+func extractTarGzArchive(reader io.Reader, destRoot string, maxBytes int64, includeSubdir string) (string, error) {
 	if reader == nil {
 		return "", fmt.Errorf("archive reader is nil")
 	}
@@ -400,8 +401,9 @@ func extractTarGzArchive(reader io.Reader, destRoot string, maxBytes int64) (str
 
 	tarReader := tar.NewReader(gzipReader)
 	state := archiveExtractionState{
-		destRoot: destRoot,
-		maxBytes: maxBytes,
+		destRoot:      destRoot,
+		maxBytes:      maxBytes,
+		includeSubdir: strings.TrimSpace(includeSubdir),
 	}
 
 	for {
@@ -428,6 +430,7 @@ type archiveExtractionState struct {
 	maxBytes       int64
 	extractedBytes int64
 	archiveRoot    string
+	includeSubdir  string
 }
 
 func extractTarEntry(
@@ -467,12 +470,38 @@ func (s *archiveExtractionState) targetPath(entryName string) (string, error) {
 	if err := s.trackArchiveRoot(topLevel); err != nil {
 		return "", err
 	}
+	if !s.shouldExtractPath(relativePath, topLevel) {
+		return "", nil
+	}
 
 	targetPath := filepath.Join(s.destRoot, filepath.FromSlash(relativePath))
 	if !isSafeArchivePath(s.destRoot, targetPath) {
 		return "", fmt.Errorf("archive entry %q escaped the staging directory", entryName)
 	}
 	return targetPath, nil
+}
+
+func (s *archiveExtractionState) shouldExtractPath(relativePath string, topLevel string) bool {
+	if s.includeSubdir == "" {
+		return true
+	}
+
+	archiveRelative := strings.TrimPrefix(relativePath, topLevel)
+	archiveRelative = strings.TrimPrefix(archiveRelative, "/")
+	if archiveRelative == "" {
+		return false
+	}
+
+	return archivePathHasPrefix(archiveRelative, s.includeSubdir)
+}
+
+func archivePathHasPrefix(entryPath string, prefix string) bool {
+	normalizedEntry := path.Clean(strings.TrimSpace(entryPath))
+	normalizedPrefix := path.Clean(strings.TrimSpace(prefix))
+	if normalizedEntry == "." || normalizedPrefix == "." {
+		return false
+	}
+	return normalizedEntry == normalizedPrefix || strings.HasPrefix(normalizedEntry, normalizedPrefix+"/")
 }
 
 func (s *archiveExtractionState) trackArchiveRoot(topLevel string) error {

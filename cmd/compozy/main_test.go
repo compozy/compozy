@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/update"
+	"github.com/spf13/cobra"
 )
 
 func TestWaitForUpdateResult(t *testing.T) {
@@ -101,6 +102,69 @@ func TestWriteUpdateNotification(t *testing.T) {
 			t.Fatalf("writeUpdateNotification() error = %v, want %v", err, wantErr)
 		}
 	})
+}
+
+func TestShouldWriteUpdateNotification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cmd  *cobra.Command
+		want bool
+	}{
+		{
+			name: "Should allow notification when command has no format flag",
+			cmd:  &cobra.Command{Use: "ext"},
+			want: true,
+		},
+		{
+			name: "Should allow notification for text output",
+			cmd: func() *cobra.Command {
+				cmd := &cobra.Command{Use: "exec"}
+				cmd.Flags().String("format", "text", "")
+				if err := cmd.Flags().Set("format", "text"); err != nil {
+					t.Fatalf("set format flag: %v", err)
+				}
+				return cmd
+			}(),
+			want: true,
+		},
+		{
+			name: "Should suppress notification for json output",
+			cmd: func() *cobra.Command {
+				cmd := &cobra.Command{Use: "exec"}
+				cmd.Flags().String("format", "text", "")
+				if err := cmd.Flags().Set("format", "json"); err != nil {
+					t.Fatalf("set format flag: %v", err)
+				}
+				return cmd
+			}(),
+			want: false,
+		},
+		{
+			name: "Should suppress notification for raw-json output",
+			cmd: func() *cobra.Command {
+				cmd := &cobra.Command{Use: "start"}
+				cmd.Flags().String("format", "text", "")
+				if err := cmd.Flags().Set("format", "raw-json"); err != nil {
+					t.Fatalf("set format flag: %v", err)
+				}
+				return cmd
+			}(),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := shouldWriteUpdateNotification(tt.cmd); got != tt.want {
+				t.Fatalf("shouldWriteUpdateNotification() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
 
 type capturingWriter struct {

@@ -128,6 +128,11 @@ func TestResolveInstallSourceWithFetcherGitHub(t *testing.T) {
 
 	archive := buildTarGz(t, []archiveEntry{
 		{name: "compozy-v1.2.3/", typeflag: tar.TypeDir},
+		{
+			name:     "compozy-v1.2.3/.compozy/tasks/_archived/20260410-192523-refac/_techspec.md",
+			typeflag: tar.TypeSymlink,
+			linkname: "20260406-summary.md",
+		},
 		{name: "compozy-v1.2.3/extensions/cy-idea-factory/", typeflag: tar.TypeDir},
 		{
 			name: "compozy-v1.2.3/extensions/cy-idea-factory/extension.toml",
@@ -212,7 +217,7 @@ func TestExtractTarGzArchiveRejectsTraversal(t *testing.T) {
 	archive := buildTarGz(t, []archiveEntry{
 		{name: "../escape/extension.toml", body: "bad", typeflag: tar.TypeReg},
 	})
-	if _, err := extractTarGzArchive(bytes.NewReader(archive), t.TempDir(), 1<<20); err == nil {
+	if _, err := extractTarGzArchive(bytes.NewReader(archive), t.TempDir(), 1<<20, ""); err == nil {
 		t.Fatal("expected traversal archive to fail")
 	}
 }
@@ -225,8 +230,41 @@ func TestExtractTarGzArchiveRejectsSymlink(t *testing.T) {
 		{name: "repo/extension.toml", body: "ok", typeflag: tar.TypeReg},
 		{name: "repo/link", typeflag: tar.TypeSymlink, linkname: "../outside"},
 	})
-	if _, err := extractTarGzArchive(bytes.NewReader(archive), t.TempDir(), 1<<20); err == nil {
+	if _, err := extractTarGzArchive(bytes.NewReader(archive), t.TempDir(), 1<<20, ""); err == nil {
 		t.Fatal("expected symlink archive to fail")
+	}
+}
+
+func TestExtractTarGzArchiveIgnoresSymlinkOutsideIncludedSubdir(t *testing.T) {
+	t.Parallel()
+
+	destRoot := t.TempDir()
+	archive := buildTarGz(t, []archiveEntry{
+		{name: "repo/", typeflag: tar.TypeDir},
+		{
+			name:     "repo/.compozy/tasks/_archived/20260410-192523-refac/_techspec.md",
+			typeflag: tar.TypeSymlink,
+			linkname: "20260406-summary.md",
+		},
+		{name: "repo/extensions/cy-idea-factory/extension.toml", body: "ok", typeflag: tar.TypeReg},
+	})
+
+	extractedRoot, err := extractTarGzArchive(
+		bytes.NewReader(archive),
+		destRoot,
+		1<<20,
+		"extensions/cy-idea-factory",
+	)
+	if err != nil {
+		t.Fatalf("extractTarGzArchive() error = %v", err)
+	}
+
+	manifestPath := filepath.Join(extractedRoot, "extensions", "cy-idea-factory", "extension.toml")
+	if _, err := os.Stat(manifestPath); err != nil {
+		t.Fatalf("expected extracted manifest at %q: %v", manifestPath, err)
+	}
+	if _, err := os.Lstat(filepath.Join(extractedRoot, ".compozy")); !os.IsNotExist(err) {
+		t.Fatalf("expected unrelated archive subtree to be skipped, stat err = %v", err)
 	}
 }
 

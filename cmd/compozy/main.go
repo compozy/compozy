@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/charmtheme"
 	"github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
+	"github.com/spf13/cobra"
 )
 
 const updateResultWaitTimeout = 250 * time.Millisecond
@@ -26,10 +27,10 @@ func run() int {
 	cmd.Version = version.String()
 
 	updateResult, cancelUpdateCheck, updateDone := startUpdateCheck(context.Background(), version.Version)
-	err := cmd.Execute()
+	executedCmd, err := cmd.ExecuteC()
 	cancelUpdateCheck()
 
-	if release := waitForUpdateResult(updateResult); release != nil {
+	if release := waitForUpdateResult(updateResult); release != nil && shouldWriteUpdateNotification(executedCmd) {
 		if writeErr := writeUpdateNotification(
 			cmd.ErrOrStderr(),
 			version.Version,
@@ -117,6 +118,24 @@ func writeUpdateNotification(w io.Writer, currentVersion string, release *update
 	}
 	_, err := fmt.Fprintln(w, renderUpdateNotification(currentVersion, release))
 	return err
+}
+
+func shouldWriteUpdateNotification(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return true
+	}
+
+	formatFlag := cmd.Flags().Lookup("format")
+	if formatFlag == nil {
+		return true
+	}
+
+	switch strings.TrimSpace(formatFlag.Value.String()) {
+	case "json", "raw-json":
+		return false
+	default:
+		return true
+	}
 }
 
 type updateNotificationStyles struct {

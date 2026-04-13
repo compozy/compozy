@@ -233,14 +233,16 @@ type clientImpl struct {
 	logger          *slog.Logger
 	shutdownTimeout time.Duration
 
-	mu            sync.Mutex
-	process       *subprocess.Process
-	conn          *acp.ClientSideConnection
-	started       bool
-	closed        bool
-	startModel    string
-	sessions      map[string]*sessionImpl
-	loadSupported bool
+	mu             sync.Mutex
+	process        *subprocess.Process
+	conn           *acp.ClientSideConnection
+	started        bool
+	closed         bool
+	startModel     string
+	sessions       map[string]*sessionImpl
+	pendingCreates int
+	pendingUpdates map[string][]model.SessionUpdate
+	loadSupported  bool
 
 	wg sync.WaitGroup
 }
@@ -271,21 +273,10 @@ func NewClient(_ context.Context, cfg ClientConfig) (Client, error) {
 
 // CreateSession starts a new ACP session and streams updates until the prompt turn completes.
 func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Session, error) {
-	workingDir, err := resolveWorkingDir(req.WorkingDir)
+	req, workingDir, err := prepareCreateSessionRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	req.Context = ctx
-	req.WorkingDir = workingDir
-	req, err = req.dispatchPreCreateHook()
-	if err != nil {
-		return nil, err
-	}
-	workingDir, err = resolveWorkingDir(req.WorkingDir)
-	if err != nil {
-		return nil, err
-	}
-	req.WorkingDir = workingDir
 
 	if err := c.ensureStarted(ctx, req); err != nil {
 		return nil, err
@@ -296,6 +287,8 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	if err != nil {
 		return nil, fmt.Errorf("prepare ACP MCP servers for new session: %w", err)
 	}
+	c.beginPendingCreate()
+	defer c.finishPendingCreate()
 	sessionResp, err := c.conn.NewSession(ctx, acp.NewSessionRequest{
 		Cwd:        workingDir,
 		McpServers: mcpServers,
@@ -351,6 +344,28 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 	})
 
 	return session, nil
+}
+
+func prepareCreateSessionRequest(ctx context.Context, req SessionRequest) (SessionRequest, string, error) {
+	workingDir, err := resolveWorkingDir(req.WorkingDir)
+	if err != nil {
+		return SessionRequest{}, "", err
+	}
+
+	req.Context = ctx
+	req.WorkingDir = workingDir
+	req, err = req.dispatchPreCreateHook()
+	if err != nil {
+		return SessionRequest{}, "", err
+	}
+
+	workingDir, err = resolveWorkingDir(req.WorkingDir)
+	if err != nil {
+		return SessionRequest{}, "", err
+	}
+	req.WorkingDir = workingDir
+
+	return req, workingDir, nil
 }
 
 // ResumeSession loads an existing ACP session, suppresses replayed updates, and sends a new prompt turn.
@@ -517,15 +532,20 @@ func (c *clientImpl) RequestPermission(
 
 // SessionUpdate routes streamed ACP notifications to the correct Compozy session.
 func (c *clientImpl) SessionUpdate(ctx context.Context, params acp.SessionNotification) error {
-	session := c.lookupSession(string(params.SessionId))
-	if session == nil {
-		return fmt.Errorf("received update for unknown session %q", params.SessionId)
-	}
-
 	update, err := convertACPUpdate(c.spec.ID, params.Update)
 	if err != nil {
 		return err
 	}
+
+	session, bufferPending := c.lookupSessionForUpdate(string(params.SessionId))
+	if session == nil {
+		if !bufferPending {
+			return fmt.Errorf("received update for unknown session %q", params.SessionId)
+		}
+		c.bufferPendingUpdate(string(params.SessionId), update)
+		return nil
+	}
+
 	session.publish(ctx, update)
 	return nil
 }
@@ -775,14 +795,38 @@ func shouldDowngradePromptErrorAfterToolFailure(session *sessionImpl, err error)
 
 func (c *clientImpl) storeSession(session *sessionImpl) {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.sessions[session.id] = session
+	pending := append([]model.SessionUpdate(nil), c.pendingUpdates[session.id]...)
+	delete(c.pendingUpdates, session.id)
+	c.mu.Unlock()
+
+	for i := range pending {
+		session.publish(context.Background(), pending[i])
+	}
 }
 
 func (c *clientImpl) removeSession(id string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.sessions, id)
+}
+
+func (c *clientImpl) beginPendingCreate() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.pendingCreates++
+}
+
+func (c *clientImpl) finishPendingCreate() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.pendingCreates > 0 {
+		c.pendingCreates--
+	}
+	if c.pendingCreates == 0 {
+		c.pendingUpdates = nil
+	}
 }
 
 func extractAgentSessionID(meta any) string {
@@ -811,6 +855,27 @@ func (c *clientImpl) lookupSession(id string) *sessionImpl {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.sessions[id]
+}
+
+func (c *clientImpl) lookupSessionForUpdate(id string) (*sessionImpl, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	session := c.sessions[id]
+	if session != nil {
+		return session, false
+	}
+	return nil, c.pendingCreates > 0
+}
+
+func (c *clientImpl) bufferPendingUpdate(id string, update model.SessionUpdate) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.pendingUpdates == nil {
+		c.pendingUpdates = make(map[string][]model.SessionUpdate)
+	}
+	c.pendingUpdates[id] = append(c.pendingUpdates[id], update)
 }
 
 func toACPMCPServers(src []model.MCPServer) ([]acp.McpServer, error) {

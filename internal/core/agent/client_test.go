@@ -52,6 +52,47 @@ func TestClientCreateSessionSendsWorkingDirectoryAndPromptOverACP(t *testing.T) 
 	}
 }
 
+func TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns(t *testing.T) {
+	t.Parallel()
+
+	scenario := helperScenario{
+		ExpectedCWD:       t.TempDir(),
+		ExpectedPrompt:    "hello after early update",
+		NewSessionUpdates: []acp.SessionUpdate{acp.UpdateAgentMessageText("early update")},
+		StopReason:        string(acp.StopReasonEndTurn),
+	}
+
+	client := newTestClient(t, scenario)
+	session, err := client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: scenario.ExpectedCWD,
+		Prompt:     []byte(scenario.ExpectedPrompt),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	updates := collectSessionUpdates(t, session)
+	if len(updates) != 2 {
+		t.Fatalf("unexpected updates length: got %d want 2", len(updates))
+	}
+	if updates[0].Status != model.StatusRunning {
+		t.Fatalf("unexpected first update status: %q", updates[0].Status)
+	}
+	text := mustFirstTextBlock(t, updates[0].Blocks)
+	if text.Text != "early update" {
+		t.Fatalf("unexpected early update text: %q", text.Text)
+	}
+	if updates[1].Status != model.StatusCompleted {
+		t.Fatalf("unexpected final status: %q", updates[1].Status)
+	}
+	if session.Err() != nil {
+		t.Fatalf("unexpected session error: %v", session.Err())
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close client: %v", err)
+	}
+}
+
 func TestClientCreateSessionAppliesPreSessionCreateMutationAndPostCreateObserver(t *testing.T) {
 	t.Parallel()
 
@@ -170,6 +211,23 @@ func TestSessionUpdatesStreamAndComplete(t *testing.T) {
 	}
 	if err := client.Close(); err != nil {
 		t.Fatalf("close client: %v", err)
+	}
+}
+
+func TestClientSessionUpdateRejectsUnknownSessionWhenNoCreateIsPending(t *testing.T) {
+	t.Parallel()
+
+	client := &clientImpl{
+		spec:     Spec{ID: "test-acp"},
+		sessions: make(map[string]*sessionImpl),
+	}
+
+	err := client.SessionUpdate(context.Background(), acp.SessionNotification{
+		SessionId: acp.SessionId("missing"),
+		Update:    acp.UpdateAgentMessageText("no session"),
+	})
+	if err == nil || !strings.Contains(err.Error(), "received update for unknown session") {
+		t.Fatalf("expected unknown session error, got %v", err)
 	}
 }
 
@@ -1199,9 +1257,10 @@ func TestACPHelperProcess(_ *testing.T) {
 	agent := &helperAgent{
 		scenario:  scenario,
 		sessionID: firstNonEmpty(scenario.SessionID, "sess-1"),
+		connReady: make(chan struct{}),
 	}
 	conn := acp.NewAgentSideConnection(agent, os.Stdout, os.Stdin)
-	agent.conn = conn
+	agent.setConn(conn)
 
 	<-conn.Done()
 	os.Exit(0)
@@ -1218,6 +1277,7 @@ type helperScenario struct {
 	UpdateIntervalMillis          int                 `json:"update_interval_millis,omitempty"`
 	SupportsLoadSession           bool                `json:"supports_load_session,omitempty"`
 	SessionMeta                   map[string]any      `json:"session_meta,omitempty"`
+	NewSessionUpdates             []acp.SessionUpdate `json:"new_session_updates,omitempty"`
 	ReplayUpdatesOnLoad           []acp.SessionUpdate `json:"replay_updates_on_load,omitempty"`
 	Updates                       []acp.SessionUpdate `json:"updates,omitempty"`
 	StopReason                    string              `json:"stop_reason,omitempty"`
@@ -1235,8 +1295,19 @@ type helperRequestError struct {
 
 type helperAgent struct {
 	conn      *acp.AgentSideConnection
+	connReady chan struct{}
 	scenario  helperScenario
 	sessionID string
+}
+
+func (a *helperAgent) setConn(conn *acp.AgentSideConnection) {
+	a.conn = conn
+	close(a.connReady)
+}
+
+func (a *helperAgent) connection() *acp.AgentSideConnection {
+	<-a.connReady
+	return a.conn
 }
 
 func (a *helperAgent) Initialize(context.Context, acp.InitializeRequest) (acp.InitializeResponse, error) {
@@ -1264,6 +1335,9 @@ func (a *helperAgent) NewSession(_ context.Context, req acp.NewSessionRequest) (
 			Code:    4004,
 			Message: fmt.Sprintf("unexpected new-session MCP servers %#v", req.McpServers),
 		}
+	}
+	if err := a.emitUpdates(context.Background(), a.scenario.NewSessionUpdates); err != nil {
+		return acp.NewSessionResponse{}, err
 	}
 	return acp.NewSessionResponse{
 		SessionId: acp.SessionId(a.sessionID),
@@ -1348,7 +1422,7 @@ func (a *helperAgent) emitUpdates(ctx context.Context, updates []acp.SessionUpda
 			}
 		}
 
-		if err := a.conn.SessionUpdate(ctx, acp.SessionNotification{
+		if err := a.connection().SessionUpdate(ctx, acp.SessionNotification{
 			SessionId: acp.SessionId(a.sessionID),
 			Update:    update,
 		}); err != nil {
