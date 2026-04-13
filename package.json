@@ -1,43 +1,43 @@
 {
-    "name": "compozy",
-    "version": "0.1.10",
-    "private": true,
-    "workspaces": [
-        "sdk/*"
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@types/node": "^25.5.2",
+    "@vitest/coverage-v8": "^4.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "oxfmt": "^0.43.0",
+    "oxlint": "^1.57.0",
+    "turbo": "^2.8.20",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.0"
+  },
+  "lint-staged": {
+    "*.go": "make fmt",
+    "*.{css,html,json,jsonc,yaml,yml,md}": [
+      "oxfmt --no-error-on-unmatched-pattern"
     ],
-    "scripts": {
-        "prepare": "husky",
-        "build": "turbo run build",
-        "dev": "turbo run dev",
-        "lint": "bun run format && bunx oxlint",
-        "format": "bunx oxfmt",
-        "format:check": "bunx oxfmt --check",
-        "typecheck": "turbo run typecheck",
-        "test": "bunx vitest run"
-    },
-    "devDependencies": {
-        "@commitlint/cli": "^20.5.0",
-        "@commitlint/config-conventional": "^20.5.0",
-        "@types/node": "^25.5.2",
-        "@vitest/coverage-v8": "^4.1.0",
-        "husky": "^9.1.7",
-        "lint-staged": "^16.4.0",
-        "oxfmt": "^0.43.0",
-        "oxlint": "^1.57.0",
-        "turbo": "^2.8.20",
-        "typescript": "^6.0.2",
-        "vite": "^8.0.3",
-        "vitest": "^4.1.0"
-    },
-    "lint-staged": {
-        "*.go": "make fmt",
-        "*.{js,jsx,ts,tsx}": [
-            "oxfmt --no-error-on-unmatched-pattern",
-            "oxlint"
-        ],
-        "*.{css,html,json,jsonc,yaml,yml,md}": [
-            "oxfmt --no-error-on-unmatched-pattern"
-        ]
-    },
-    "packageManager": "bun@1.3.11"
+    "*.{js,jsx,ts,tsx}": [
+      "oxfmt --no-error-on-unmatched-pattern",
+      "oxlint"
+    ]
+  },
+  "name": "compozy",
+  "packageManager": "bun@1.3.11",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "format": "bunx oxfmt",
+    "format:check": "bunx oxfmt --check",
+    "lint": "bun run format \u0026\u0026 bunx oxlint",
+    "prepare": "husky",
+    "test": "bunx vitest run",
+    "typecheck": "turbo run typecheck"
+  },
+  "version": "0.1.11",
+  "workspaces": [
+    "sdk/*"
+  ]
 }
