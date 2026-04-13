@@ -4,5 +4,5 @@ import "embed"
 
 // FS holds the bundled reusable-agent fixtures installed by `compozy setup`.
 //
-//go:embed */AGENT.md
+//go:embed *
 var FS embed.FS

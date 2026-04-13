@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/spf13/cobra"
@@ -118,7 +119,16 @@ func runInspectCommand(cmd *cobra.Command, deps commandDeps, rawName string) err
 		return fmt.Errorf("extension %q not found", name)
 	}
 
-	content, err := renderInspect(ctx, result, entry)
+	loadInstallOrigin := deps.loadInstallOrigin
+	if loadInstallOrigin == nil {
+		loadInstallOrigin = extensions.LoadInstallOrigin
+	}
+	origin, err := loadInstallOrigin(entry.ExtensionDir)
+	if err != nil {
+		return fmt.Errorf("load extension install provenance from %q: %w", entry.ExtensionDir, err)
+	}
+
+	content, err := renderInspect(ctx, result, entry, origin)
 	if err != nil {
 		return err
 	}
@@ -132,6 +142,7 @@ func renderInspect(
 	ctx context.Context,
 	result extensions.DiscoveryResult,
 	entry extensions.DiscoveredExtension,
+	origin *extensions.InstallOrigin,
 ) (string, error) {
 	manifestJSON, err := json.MarshalIndent(entry.Manifest, "", "  ")
 	if err != nil {
@@ -149,6 +160,7 @@ func renderInspect(
 	fmt.Fprintf(&buf, "Manifest path: %s\n", entry.ManifestPath)
 	fmt.Fprintf(&buf, "Extension dir: %s\n", entry.ExtensionDir)
 	fmt.Fprintf(&buf, "Capabilities: %s\n", renderCapabilities(entry.Manifest.Security.Capabilities))
+	appendInstallOrigin(&buf, origin)
 
 	buf.WriteString("\nActive hooks:\n")
 	hooks := renderHooks(entry.Manifest.Hooks)
@@ -181,6 +193,29 @@ func renderInspect(
 	buf.Write(manifestJSON)
 	buf.WriteString("\n")
 	return buf.String(), nil
+}
+
+func appendInstallOrigin(buf *strings.Builder, origin *extensions.InstallOrigin) {
+	if buf == nil || origin == nil {
+		return
+	}
+
+	fmt.Fprintf(buf, "Install remote: %s\n", origin.Remote)
+	if strings.TrimSpace(origin.Repository) != "" {
+		fmt.Fprintf(buf, "Install repository: %s\n", origin.Repository)
+	}
+	if strings.TrimSpace(origin.Ref) != "" {
+		fmt.Fprintf(buf, "Install ref: %s\n", origin.Ref)
+	}
+	if strings.TrimSpace(origin.Subdir) != "" {
+		fmt.Fprintf(buf, "Install subdir: %s\n", origin.Subdir)
+	}
+	if strings.TrimSpace(origin.ResolvedSource) != "" {
+		fmt.Fprintf(buf, "Install source: %s\n", origin.ResolvedSource)
+	}
+	if !origin.InstalledAt.IsZero() {
+		fmt.Fprintf(buf, "Installed at: %s\n", origin.InstalledAt.UTC().Format(time.RFC3339))
+	}
 }
 
 func appendDiscoveryFailureNotes(
@@ -238,7 +273,7 @@ func matchingDiscoveryFailures(
 
 func renderHooks(hooks []extensions.HookDeclaration) []string {
 	if len(hooks) == 0 {
-		return []string{"(none)"}
+		return []string{noneLabel}
 	}
 
 	lines := make([]string, 0, len(hooks))

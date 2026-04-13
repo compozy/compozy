@@ -21,15 +21,15 @@ These flags are shared by `start`, `exec`, and `fix-reviews`:
 
 ### `compozy setup`
 
-Install bundled skills into target agents and provision global council reusable agents under `~/.compozy/agents/`.
+Install core workflow skills into target agents plus any setup assets shipped by enabled extensions.
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
 | `--agent`, `-a` | string[] | | Target agent/editor name (repeatable) |
-| `--skill`, `-s` | string[] | | Bundled skill name to install (repeatable) |
+| `--skill`, `-s` | string[] | | Setup skill name to install (repeatable) |
 | `--global`, `-g` | bool | false | Install to user directory instead of project |
 | `--copy` | bool | false | Copy files instead of symlinking |
-| `--list`, `-l` | bool | false | List bundled assets without installing |
+| `--list`, `-l` | bool | false | List core skills and enabled extension assets without installing |
 | `--yes`, `-y` | bool | false | Skip confirmation prompts |
 | `--all` | bool | false | Install all skills to all agents without prompts |
 
@@ -226,9 +226,14 @@ List all extensions across all scopes. No flags.
 
 View extension details including capabilities and status.
 
-### `compozy ext install <path>`
+### `compozy ext install <source>`
 
-Install an extension from a local path.
+Install an extension from a local path or GitHub repo archive.
+
+```bash
+compozy ext install ./my-extension
+compozy ext install --yes compozy/compozy --remote github --ref v1.2.3 --subdir extensions/cy-idea-factory
+```
 
 ### `compozy ext uninstall <name>`
 

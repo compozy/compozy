@@ -123,25 +123,67 @@ func TestDoctorWarnsOnExtensionReusableAgentDrift(t *testing.T) {
 	if err != nil {
 		t.Fatalf("execute ext doctor: %v\noutput:\n%s", err, output)
 	}
-	if !strings.Contains(output, "extension reusable-agent drift (global scope): missing product-scout") {
+	if !strings.Contains(output, "extension reusable-agent drift (unknown scope): missing product-scout") {
 		t.Fatalf("expected reusable-agent drift warning\noutput:\n%s", output)
 	}
 }
 
-func TestDoctorWarnsOnCoreWinningSetupAssetConflict(t *testing.T) {
+func TestDoctorWarnsOnExtensionReusableAgentDriftInProjectScope(t *testing.T) {
 	deps := newTestDeps(t)
 
-	manifest := manifestFixture("shadow-agents")
+	manifest := manifestFixture("agents-ext")
 	manifest.Security.Capabilities = []extensions.Capability{extensions.CapabilityAgentsShip}
 	manifest.Resources.Agents = []string{"agents/*"}
-	extensionDir := workspaceExtensionDir(deps.workspaceRoot, "shadow-agents")
+	extensionDir := workspaceExtensionDir(deps.workspaceRoot, "agents-ext")
 	writeManifestJSON(t, extensionDir, manifest)
 	writeTestFile(
 		t,
-		filepath.Join(extensionDir, "agents", "architect-advisor", "AGENT.md"),
-		"---\ntitle: Architect Advisor\ndescription: Shadowed extension agent\n---\n",
+		filepath.Join(extensionDir, "agents", "product-scout", "AGENT.md"),
+		"---\ntitle: Product Scout\ndescription: Extension reusable agent\n---\n",
 	)
-	enableWorkspaceExtension(t, deps.homeDir, deps.workspaceRoot, "shadow-agents")
+	enableWorkspaceExtension(t, deps.homeDir, deps.workspaceRoot, "agents-ext")
+
+	writeTestFile(
+		t,
+		filepath.Join(deps.workspaceRoot, ".compozy", "agents", "product-scout", "AGENT.md"),
+		"drifted\n",
+	)
+
+	output, err := executeExtCommand(t, deps, "doctor")
+	if err != nil {
+		t.Fatalf("execute ext doctor: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, "extension reusable-agent drift (project scope): drifted product-scout") {
+		t.Fatalf("expected project-scope reusable-agent drift warning\noutput:\n%s", output)
+	}
+}
+
+func TestDoctorWarnsOnHigherPrecedenceSetupAssetConflict(t *testing.T) {
+	deps := newTestDeps(t)
+
+	userManifest := manifestFixture("lower-agents")
+	userManifest.Security.Capabilities = []extensions.Capability{extensions.CapabilityAgentsShip}
+	userManifest.Resources.Agents = []string{"agents/*"}
+	userDir := userExtensionDir(deps.homeDir, "lower-agents")
+	writeManifestJSON(t, userDir, userManifest)
+	writeTestFile(
+		t,
+		filepath.Join(userDir, "agents", "architect-advisor", "AGENT.md"),
+		"---\ntitle: Architect Advisor\ndescription: Lower-precedence extension agent\n---\n",
+	)
+	enableUserExtension(t, deps.homeDir, "lower-agents")
+
+	workspaceManifest := manifestFixture("higher-agents")
+	workspaceManifest.Security.Capabilities = []extensions.Capability{extensions.CapabilityAgentsShip}
+	workspaceManifest.Resources.Agents = []string{"agents/*"}
+	extensionDir := workspaceExtensionDir(deps.workspaceRoot, "higher-agents")
+	writeManifestJSON(t, extensionDir, workspaceManifest)
+	writeTestFile(
+		t,
+		filepath.Join(extensionDir, "agents", "architect-advisor", "AGENT.md"),
+		"---\ntitle: Architect Advisor\ndescription: Higher-precedence extension agent\n---\n",
+	)
+	enableWorkspaceExtension(t, deps.homeDir, deps.workspaceRoot, "higher-agents")
 
 	output, err := executeExtCommand(t, deps, "doctor")
 	if err != nil {
@@ -149,7 +191,7 @@ func TestDoctorWarnsOnCoreWinningSetupAssetConflict(t *testing.T) {
 	}
 	if !strings.Contains(
 		output,
-		`setup reusable-agent conflict on "architect-advisor": ignored workspace:shadow-agents because the core reusable-agent wins`,
+		`setup reusable-agent conflict on "architect-advisor": ignored user:lower-agents because workspace:higher-agents wins by precedence`,
 	) {
 		t.Fatalf("expected setup asset conflict warning\noutput:\n%s", output)
 	}

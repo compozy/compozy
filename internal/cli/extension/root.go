@@ -30,7 +30,10 @@ type commandDeps struct {
 	resolveWorkspaceRoot func(context.Context) (string, error)
 	isInteractive        func() bool
 	confirmInstall       func(*cobra.Command, installPrompt) (bool, error)
+	resolveInstallSource func(context.Context, string, installSourceOptions) (resolvedInstallSource, error)
 	loadManifest         func(context.Context, string) (*extensions.Manifest, error)
+	loadInstallOrigin    func(string) (*extensions.InstallOrigin, error)
+	writeInstallOrigin   func(string, extensions.InstallOrigin) error
 	newEnablementStore   func(context.Context, string) (*extensions.EnablementStore, error)
 	discover             func(context.Context, discoverRequest) (extensions.DiscoveryResult, error)
 	copyDir              func(string, string) error
@@ -46,9 +49,10 @@ type commandEnv struct {
 
 type installPrompt struct {
 	Name         string
-	SourcePath   string
+	Source       string
 	InstallPath  string
 	Capabilities []extensions.Capability
+	SetupAssets  []string
 }
 
 func defaultCommandDeps() commandDeps {
@@ -61,14 +65,17 @@ func defaultCommandDeps() commandDeps {
 			}
 			return root, nil
 		},
-		isInteractive:      isInteractiveTerminal,
-		confirmInstall:     confirmInstallPrompt,
-		loadManifest:       extensions.LoadManifest,
-		newEnablementStore: extensions.NewEnablementStore,
-		discover:           discoverExtensions,
-		copyDir:            copyDirectoryTree,
-		removeAll:          os.RemoveAll,
-		pathExists:         pathExists,
+		isInteractive:        isInteractiveTerminal,
+		confirmInstall:       confirmInstallPrompt,
+		resolveInstallSource: resolveInstallSource,
+		loadManifest:         extensions.LoadManifest,
+		loadInstallOrigin:    extensions.LoadInstallOrigin,
+		writeInstallOrigin:   extensions.WriteInstallOrigin,
+		newEnablementStore:   extensions.NewEnablementStore,
+		discover:             discoverExtensions,
+		copyDir:              copyDirectoryTree,
+		removeAll:            os.RemoveAll,
+		pathExists:           pathExists,
 	}
 }
 
@@ -259,7 +266,7 @@ func sortedCapabilities(values []extensions.Capability) []extensions.Capability 
 func renderCapabilities(values []extensions.Capability) string {
 	capabilities := sortedCapabilities(values)
 	if len(capabilities) == 0 {
-		return "(none)"
+		return noneLabel
 	}
 
 	parts := make([]string, 0, len(capabilities))

@@ -265,8 +265,47 @@ func TestInstallWithYesCopiesDirectoryAndRecordsDisabledState(t *testing.T) {
 	if _, statErr := os.Stat(statePath); statErr != nil {
 		t.Fatalf("expected recorded user state file: %v", statErr)
 	}
+	origin, err := extensions.LoadInstallOrigin(installPath)
+	if err != nil {
+		t.Fatalf("load install origin: %v", err)
+	}
+	if origin == nil || origin.Remote != "local" {
+		t.Fatalf("expected local install provenance, got %#v", origin)
+	}
 	if !strings.Contains(output, `Installed extension "sample-ext"`) || !strings.Contains(output, "disabled") {
 		t.Fatalf("unexpected install output:\n%s", output)
+	}
+}
+
+func TestInstallPrintsSetupHintWhenExtensionShipsSetupAssets(t *testing.T) {
+	deps := newTestDeps(t)
+	sourceDir := filepath.Join(t.TempDir(), "idea-ext")
+	writeManifestJSON(t, sourceDir, manifestWithSetupAssets("idea-ext"))
+
+	output, err := executeExtCommand(t, deps, "install", "--yes", sourceDir)
+	if err != nil {
+		t.Fatalf("execute ext install --yes: %v\noutput:\n%s", err, output)
+	}
+	for _, snippet := range []string{
+		"Setup assets: skills, reusable agents",
+		"This extension ships skills, reusable agents.",
+		"After enabling it, run `compozy setup` to install its setup assets.",
+	} {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected install output to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestInstallGitHubRequiresRef(t *testing.T) {
+	deps := newTestDeps(t)
+
+	output, err := executeExtCommand(t, deps, "install", "--yes", "--remote", "github", "compozy/compozy")
+	if err == nil {
+		t.Fatalf("expected github install without ref to fail\noutput:\n%s", output)
+	}
+	if !strings.Contains(err.Error(), "--ref is required with --remote github") {
+		t.Fatalf("unexpected github install error: %v", err)
 	}
 }
 
@@ -352,6 +391,23 @@ func TestEnableMarksExtensionEnabled(t *testing.T) {
 	}
 	if !enabled {
 		t.Fatal("expected user extension to be enabled")
+	}
+}
+
+func TestEnablePrintsSetupHintWhenExtensionShipsSetupAssets(t *testing.T) {
+	deps := newTestDeps(t)
+	sourceDir := filepath.Join(t.TempDir(), "toggle-assets")
+	writeManifestJSON(t, sourceDir, manifestWithSetupAssets("toggle-assets"))
+	if _, err := executeExtCommand(t, deps, "install", "--yes", sourceDir); err != nil {
+		t.Fatalf("install toggle-assets: %v", err)
+	}
+
+	output, err := executeExtCommand(t, deps, "enable", "toggle-assets")
+	if err != nil {
+		t.Fatalf("execute ext enable: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, "Run `compozy setup` to install its setup assets.") {
+		t.Fatalf("expected enable output to include setup hint\noutput:\n%s", output)
 	}
 }
 
@@ -558,7 +614,7 @@ func TestPathExistsAndRenderHooksHelpers(t *testing.T) {
 		t.Fatal("expected missing path to be reported as absent")
 	}
 
-	if hooks := renderHooks(nil); len(hooks) != 1 || hooks[0] != "(none)" {
+	if hooks := renderHooks(nil); len(hooks) != 1 || hooks[0] != noneLabel {
 		t.Fatalf("unexpected renderHooks(nil) result: %v", hooks)
 	}
 }
@@ -569,7 +625,10 @@ func TestDefaultCommandDepsAndHelperFunctions(t *testing.T) {
 		deps.resolveWorkspaceRoot == nil ||
 		deps.isInteractive == nil ||
 		deps.confirmInstall == nil ||
+		deps.resolveInstallSource == nil ||
 		deps.loadManifest == nil ||
+		deps.loadInstallOrigin == nil ||
+		deps.writeInstallOrigin == nil ||
 		deps.newEnablementStore == nil ||
 		deps.discover == nil ||
 		deps.copyDir == nil ||
@@ -613,7 +672,7 @@ func TestWriteInstallPlanAndSortedCapabilities(t *testing.T) {
 
 	if err := writeInstallPlan(cmd, installPrompt{
 		Name:         "planner",
-		SourcePath:   "/tmp/src",
+		Source:       "/tmp/src",
 		InstallPath:  "/tmp/dst",
 		Capabilities: capabilities,
 	}); err != nil {
@@ -835,6 +894,23 @@ func TestAppendDiscoveryFailureNotesMatchesName(t *testing.T) {
 	}
 }
 
+func TestInspectPrintsInstallOriginWhenPresent(t *testing.T) {
+	deps := newTestDeps(t)
+	sourceDir := filepath.Join(t.TempDir(), "inspect-origin")
+	writeManifestJSON(t, sourceDir, manifestFixture("inspect-origin"))
+	if _, err := executeExtCommand(t, deps, "install", "--yes", sourceDir); err != nil {
+		t.Fatalf("install inspect-origin: %v", err)
+	}
+
+	output, err := executeExtCommand(t, deps, "inspect", "inspect-origin")
+	if err != nil {
+		t.Fatalf("inspect inspect-origin: %v\noutput:\n%s", err, output)
+	}
+	if !strings.Contains(output, "Install remote: local") || !strings.Contains(output, "Install source:") {
+		t.Fatalf("expected inspect output to include install provenance\noutput:\n%s", output)
+	}
+}
+
 func executeExtCommand(t *testing.T, deps testDeps, args ...string) (string, error) {
 	t.Helper()
 
@@ -950,6 +1026,19 @@ func manifestWithPromptHook(name string, version string) *extensions.Manifest {
 			Event:    extensions.HookPromptPostBuild,
 			Priority: extensions.DefaultHookPriority,
 		},
+	}
+	return manifest
+}
+
+func manifestWithSetupAssets(name string) *extensions.Manifest {
+	manifest := manifestFixture(name)
+	manifest.Security.Capabilities = []extensions.Capability{
+		extensions.CapabilitySkillsShip,
+		extensions.CapabilityAgentsShip,
+	}
+	manifest.Resources = extensions.ResourcesConfig{
+		Skills: []string{"skills/*"},
+		Agents: []string{"agents/*"},
 	}
 	return manifest
 }

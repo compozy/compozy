@@ -83,6 +83,15 @@ func runToggleCommand(cmd *cobra.Command, deps commandDeps, rawName string, enab
 	); err != nil {
 		return fmt.Errorf("write toggle summary: %w", err)
 	}
+	if enable {
+		if err := writeSetupHint(
+			cmd,
+			manifestSetupAssets(entry.Manifest),
+			"Run `compozy setup` to install its setup assets.",
+		); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

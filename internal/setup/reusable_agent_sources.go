@@ -43,21 +43,18 @@ func ListExtensionReusableAgents(sources []ExtensionReusableAgentSource) ([]Reus
 }
 
 // PreviewReusableAgentInstall resolves the on-disk install plan for reusable agents.
-func PreviewReusableAgentInstall(
-	options ResolverOptions,
-	reusableAgents []ReusableAgent,
-) ([]ReusableAgentPreviewItem, error) {
-	env, err := resolveEnvironment(options)
+func PreviewReusableAgentInstall(cfg ReusableAgentInstallConfig) ([]ReusableAgentPreviewItem, error) {
+	env, err := resolveEnvironment(cfg.ResolverOptions)
 	if err != nil {
 		return nil, err
 	}
 
-	items := make([]ReusableAgentPreviewItem, 0, len(reusableAgents))
-	root := filepath.Join(env.homeDir, reusableAgentsInstallDir)
-	for i := range reusableAgents {
-		targetPath := filepath.Join(root, reusableAgents[i].Name)
+	items := make([]ReusableAgentPreviewItem, 0, len(cfg.ReusableAgents))
+	root := reusableAgentsInstallRoot(env, cfg.Global)
+	for i := range cfg.ReusableAgents {
+		targetPath := filepath.Join(root, cfg.ReusableAgents[i].Name)
 		items = append(items, ReusableAgentPreviewItem{
-			ReusableAgent: reusableAgents[i],
+			ReusableAgent: cfg.ReusableAgents[i],
 			TargetPath:    targetPath,
 			WillOverwrite: pathExists(targetPath),
 		})
@@ -65,65 +62,181 @@ func PreviewReusableAgentInstall(
 	return items, nil
 }
 
-// InstallReusableAgents installs the provided reusable agents into the canonical global root.
+// InstallReusableAgents installs the provided reusable agents into the selected setup scope.
 func InstallReusableAgents(
-	options ResolverOptions,
-	reusableAgents []ReusableAgent,
+	cfg ReusableAgentInstallConfig,
 ) ([]ReusableAgentSuccessItem, []ReusableAgentFailureItem, error) {
-	env, err := resolveEnvironment(options)
+	env, err := resolveEnvironment(cfg.ResolverOptions)
 	if err != nil {
 		return nil, nil, err
 	}
-	return installReusableAgents(filepath.Join(env.homeDir, reusableAgentsInstallDir), reusableAgents)
+	return installReusableAgents(reusableAgentsInstallRoot(env, cfg.Global), cfg.ReusableAgents)
 }
 
 // VerifyReusableAgents checks whether reusable agents are installed and current.
-func VerifyReusableAgents(
-	options ResolverOptions,
-	reusableAgents []ReusableAgent,
-) (ReusableAgentVerifyResult, error) {
-	env, err := resolveEnvironment(options)
+func VerifyReusableAgents(cfg ReusableAgentVerifyConfig) (ReusableAgentVerifyResult, error) {
+	env, err := resolveEnvironment(cfg.ResolverOptions)
 	if err != nil {
 		return ReusableAgentVerifyResult{}, err
 	}
 
-	root := filepath.Join(env.homeDir, reusableAgentsInstallDir)
-	verified := make([]VerifiedReusableAgent, 0, len(reusableAgents))
-	for i := range reusableAgents {
-		targetPath := filepath.Join(root, reusableAgentsInstallDirName(reusableAgents[i]))
-		entry := VerifiedReusableAgent{
-			ReusableAgent: reusableAgents[i],
-			TargetPath:    targetPath,
+	projectEntries := reusableAgentVerificationEntries(cfg.ReusableAgents, reusableAgentsInstallRoot(env, false))
+	globalEntries := reusableAgentVerificationEntries(cfg.ReusableAgents, reusableAgentsInstallRoot(env, true))
+	scope, entries := selectReusableAgentVerificationEntries(projectEntries, globalEntries, cfg.ScopeHint)
+
+	verified := make([]VerifiedReusableAgent, 0, len(entries))
+	for i := range entries {
+		entry := entries[i]
+		verifiedEntry := VerifiedReusableAgent{
+			ReusableAgent: entry.Entry.ReusableAgent,
+			TargetPath:    entry.Entry.TargetPath,
 		}
-		if !pathExists(targetPath) {
-			entry.State = VerifyStateMissing
-			verified = append(verified, entry)
+		if entry.Scope == InstallScopeUnknown || !pathExists(entry.Entry.TargetPath) {
+			verifiedEntry.State = VerifyStateMissing
+			verified = append(verified, verifiedEntry)
 			continue
 		}
 
-		resolvedPath := resolveInstalledPath(targetPath)
-		entry.ResolvedPath = resolvedPath
+		resolvedPath := resolveInstalledPath(entry.Entry.TargetPath)
+		verifiedEntry.ResolvedPath = resolvedPath
 
-		sourceFS, sourceDir, err := resolveReusableAgentSource(reusableAgents[i])
+		sourceFS, sourceDir, err := resolveReusableAgentSource(entry.Entry.ReusableAgent)
 		if err != nil {
-			return ReusableAgentVerifyResult{}, fmt.Errorf("verify reusable agent %q: %w", reusableAgents[i].Name, err)
+			return ReusableAgentVerifyResult{}, fmt.Errorf(
+				"verify reusable agent %q: %w",
+				entry.Entry.ReusableAgent.Name,
+				err,
+			)
 		}
 		drift, drifted, err := compareInstalledDirectory(sourceFS, sourceDir, resolvedPath, "reusable agent")
 		if err != nil {
-			return ReusableAgentVerifyResult{}, fmt.Errorf("verify reusable agent %q: %w", reusableAgents[i].Name, err)
+			return ReusableAgentVerifyResult{}, fmt.Errorf(
+				"verify reusable agent %q: %w",
+				entry.Entry.ReusableAgent.Name,
+				err,
+			)
 		}
 		if drifted {
-			entry.State = VerifyStateDrifted
-			entry.Drift = drift
-			verified = append(verified, entry)
+			verifiedEntry.State = VerifyStateDrifted
+			verifiedEntry.Drift = drift
+			verified = append(verified, verifiedEntry)
 			continue
 		}
 
-		entry.State = VerifyStateCurrent
-		verified = append(verified, entry)
+		verifiedEntry.State = VerifyStateCurrent
+		verified = append(verified, verifiedEntry)
 	}
 
-	return ReusableAgentVerifyResult{Agents: verified}, nil
+	return ReusableAgentVerifyResult{Scope: scope, Agents: verified}, nil
+}
+
+type reusableAgentVerificationEntry struct {
+	ReusableAgent ReusableAgent
+	TargetPath    string
+}
+
+type selectedReusableAgentVerificationEntry struct {
+	Scope InstallScope
+	Entry reusableAgentVerificationEntry
+}
+
+func reusableAgentVerificationEntries(
+	reusableAgents []ReusableAgent,
+	root string,
+) []reusableAgentVerificationEntry {
+	entries := make([]reusableAgentVerificationEntry, 0, len(reusableAgents))
+	for i := range reusableAgents {
+		entries = append(entries, reusableAgentVerificationEntry{
+			ReusableAgent: reusableAgents[i],
+			TargetPath:    filepath.Join(root, reusableAgentsInstallDirName(reusableAgents[i])),
+		})
+	}
+	return entries
+}
+
+func selectReusableAgentVerificationEntries(
+	projectEntries []reusableAgentVerificationEntry,
+	globalEntries []reusableAgentVerificationEntry,
+	scopeHint InstallScope,
+) (InstallScope, []selectedReusableAgentVerificationEntry) {
+	switch scopeHint {
+	case InstallScopeProject:
+		return InstallScopeProject, wrapReusableAgentVerificationEntries(InstallScopeProject, projectEntries)
+	case InstallScopeGlobal:
+		return InstallScopeGlobal, wrapReusableAgentVerificationEntries(InstallScopeGlobal, globalEntries)
+	}
+
+	scope := inferredReusableAgentVerificationScope(projectEntries, globalEntries)
+	selected := make([]selectedReusableAgentVerificationEntry, 0, len(projectEntries))
+	for i := range projectEntries {
+		switch {
+		case pathExists(projectEntries[i].TargetPath):
+			selected = append(selected, selectedReusableAgentVerificationEntry{
+				Scope: InstallScopeProject,
+				Entry: projectEntries[i],
+			})
+		case pathExists(globalEntries[i].TargetPath):
+			selected = append(selected, selectedReusableAgentVerificationEntry{
+				Scope: InstallScopeGlobal,
+				Entry: globalEntries[i],
+			})
+		default:
+			entry := projectEntries[i]
+			if scope == InstallScopeGlobal {
+				entry = globalEntries[i]
+			}
+			selected = append(selected, selectedReusableAgentVerificationEntry{
+				Scope: scope,
+				Entry: entry,
+			})
+		}
+	}
+
+	return scope, selected
+}
+
+func wrapReusableAgentVerificationEntries(
+	scope InstallScope,
+	entries []reusableAgentVerificationEntry,
+) []selectedReusableAgentVerificationEntry {
+	selected := make([]selectedReusableAgentVerificationEntry, 0, len(entries))
+	for i := range entries {
+		selected = append(selected, selectedReusableAgentVerificationEntry{
+			Scope: scope,
+			Entry: entries[i],
+		})
+	}
+	return selected
+}
+
+func inferredReusableAgentVerificationScope(
+	projectEntries []reusableAgentVerificationEntry,
+	globalEntries []reusableAgentVerificationEntry,
+) InstallScope {
+	switch {
+	case hasAnyInstalledReusableAgent(projectEntries):
+		return InstallScopeProject
+	case hasAnyInstalledReusableAgent(globalEntries):
+		return InstallScopeGlobal
+	default:
+		return InstallScopeUnknown
+	}
+}
+
+func hasAnyInstalledReusableAgent(entries []reusableAgentVerificationEntry) bool {
+	for i := range entries {
+		if pathExists(entries[i].TargetPath) {
+			return true
+		}
+	}
+	return false
+}
+
+func reusableAgentsInstallRoot(env resolvedEnvironment, global bool) string {
+	if global {
+		return filepath.Join(env.homeDir, reusableAgentsInstallDir)
+	}
+	return filepath.Join(env.cwd, reusableAgentsInstallDir)
 }
 
 func installReusableAgents(

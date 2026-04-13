@@ -49,7 +49,7 @@ type Skill struct {
 	SourceDir       string
 }
 
-// ReusableAgent describes one bundled reusable agent available for global install.
+// ReusableAgent describes one reusable agent available for setup-managed installation.
 type ReusableAgent struct {
 	Name        string
 	Title       string
@@ -206,6 +206,14 @@ type ReusableAgentPreviewItem struct {
 	WillOverwrite bool
 }
 
+// ReusableAgentInstallConfig describes one reusable-agent install or preview run.
+type ReusableAgentInstallConfig struct {
+	ResolverOptions
+
+	ReusableAgents []ReusableAgent
+	Global         bool
+}
+
 // SuccessItem captures one successful installation mapping.
 type SuccessItem struct {
 	Skill         Skill
@@ -238,6 +246,14 @@ type ReusableAgentFailureItem struct {
 	Error         string
 }
 
+// ReusableAgentVerifyConfig describes one reusable-agent verification run.
+type ReusableAgentVerifyConfig struct {
+	ResolverOptions
+
+	ReusableAgents []ReusableAgent
+	ScopeHint      InstallScope
+}
+
 // Result summarizes one bundled-skill installation run.
 type Result struct {
 	Global     bool
@@ -260,6 +276,7 @@ type VerifiedReusableAgent struct {
 
 // ReusableAgentVerifyResult summarizes one reusable-agent verification run.
 type ReusableAgentVerifyResult struct {
+	Scope  InstallScope
 	Agents []VerifiedReusableAgent
 }
 

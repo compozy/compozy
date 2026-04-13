@@ -72,6 +72,7 @@ You MUST create a task for each phase and complete them in order:
      4. **User expectations:** `"{feature} UX patterns OR user experience best practices"` (if relevant)
      5. **Pricing/cost:** `"{service/API} pricing OR cost comparison 2025 2026"` (if relevant)
    - After both agents complete, merge findings and present a research summary to the user:
+
      ```
      **Codebase findings:**
      - {Relevant existing feature/pattern}

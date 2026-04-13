@@ -8,14 +8,14 @@ Constraints/Assumptions:
 - Follow repository AGENTS/CLAUDE guidance and do not touch unrelated dirty files.
 - Core workflow skills remain bundled in this change.
 - Extension assets only influence setup when the owning extension is enabled.
-- Reusable agents shipped by extensions install globally only.
+- Reusable agents should respect the scope chosen in `compozy setup` (`project` vs `global`).
 
 Key decisions:
 
 - Keep core assets winning name conflicts over extension assets for this phase.
 - Extend manifest resources with `agents` guarded by a new `agents.ship` capability.
 - Unify setup catalogs rather than adding a parallel extension-only setup command.
-- Keep reusable-agent installation behavior automatic for eligible extension assets, matching current bundled-agent behavior.
+- Keep reusable-agent installation behavior automatic for eligible extension assets, but make the install root follow the chosen setup scope.
 
 State:
 
@@ -35,14 +35,19 @@ Done:
 - Wired workflow preflight to verify only effective extension skill packs.
 - Extended `ext doctor` with `agents.ship` capability evidence, effective setup conflict warnings, and reusable-agent drift checks.
 - Added regression tests across manifest validation, asset extraction, discovery, setup catalog/install, CLI setup list, and doctor warnings.
+- Refactored reusable-agent preview/install/verify APIs to be scope-aware with explicit configs and effective-scope detection.
+- Wired `compozy setup` to pass the chosen `project`/`global` scope through reusable-agent preview/install flows and updated CLI copy/output accordingly.
+- Updated reusable-agent verification and `ext doctor` warnings to report the effective scope instead of assuming global-only.
+- Added regression coverage for project/global reusable-agent install paths, scope precedence, scope hints, project drift, and CLI project-scope propagation.
+- Ran targeted tests: `go test ./internal/setup` and `go test ./internal/cli/...` both passed.
 
 Now:
 
-- Finish the last regression pass and run full verification.
+- Run the full verification pipeline and confirm the final state.
 
 Next:
 
-- Investigate any full-suite regressions surfaced outside the touched flows and get `make verify` green.
+- If `make verify` passes, report the scoped reusable-agent behavior change with verification evidence.
 
 Open questions (UNCONFIRMED if needed):
 

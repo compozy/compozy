@@ -398,7 +398,10 @@ func reusableAgentDriftWarnings(catalog setup.EffectiveCatalog, resolver setup.R
 		return nil
 	}
 
-	result, err := setup.VerifyReusableAgents(resolver, reusableAgents)
+	result, err := setup.VerifyReusableAgents(setup.ReusableAgentVerifyConfig{
+		ResolverOptions: resolver,
+		ReusableAgents:  reusableAgents,
+	})
 	if err != nil {
 		return []string{fmt.Sprintf("extension reusable-agent drift check failed: %v", err)}
 	}
@@ -416,7 +419,8 @@ func reusableAgentDriftWarnings(catalog setup.EffectiveCatalog, resolver setup.R
 
 	return []string{
 		fmt.Sprintf(
-			"extension reusable-agent drift (global scope): %s",
+			"extension reusable-agent drift (%s scope): %s",
+			result.Scope,
 			strings.Join(parts, "; "),
 		),
 	}

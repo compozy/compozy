@@ -29,9 +29,10 @@ type setupCommandState struct {
 	listAgents            func(setup.ResolverOptions) ([]setup.Agent, error)
 	detectAgents          func(setup.ResolverOptions) ([]setup.Agent, error)
 	previewSkills         setupSkillPreviewFunc
-	previewReusableAgents func(setup.ResolverOptions, []setup.ReusableAgent) ([]setup.ReusableAgentPreviewItem, error)
+	previewReusableAgents func(setup.ReusableAgentInstallConfig) ([]setup.ReusableAgentPreviewItem, error)
 	installSkills         setupSkillInstallFunc
 	installReusableAgents setupReusableAgentInstallFunc
+	cleanupLegacyAssets   func(setup.LegacyAssetCleanupConfig) (setup.LegacyAssetCleanupResult, error)
 	isInteractive         func() bool
 }
 
@@ -52,8 +53,7 @@ type setupSkillInstallFunc func(
 ) ([]setup.SuccessItem, []setup.FailureItem, error)
 
 type setupReusableAgentInstallFunc func(
-	setup.ResolverOptions,
-	[]setup.ReusableAgent,
+	setup.ReusableAgentInstallConfig,
 ) ([]setup.ReusableAgentSuccessItem, []setup.ReusableAgentFailureItem, error)
 
 type setupInstallPlan struct {
@@ -72,7 +72,7 @@ func newSetupCommand(_ *kernel.Dispatcher) *cobra.Command {
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		Long: `Install Compozy's core public skills, any additional skills shipped by enabled
-extensions, and global reusable agents under ~/.compozy/agents.
+extensions, and reusable agents in either the project or user scope selected during setup.
 
 The command can run interactively or entirely from flags.`,
 		Example: `  compozy setup
@@ -103,6 +103,7 @@ func newSetupCommandState() *setupCommandState {
 		previewReusableAgents: setup.PreviewReusableAgentInstall,
 		installSkills:         setup.InstallSelectedSkills,
 		installReusableAgents: setup.InstallReusableAgents,
+		cleanupLegacyAssets:   setup.CleanupLegacyTransferredAssets,
 		isInteractive:         isInteractiveTerminal,
 	}
 }
@@ -235,7 +236,11 @@ func (s *setupCommandState) buildInstallPlan(
 	if err != nil {
 		return setup.InstallConfig{}, nil, nil, err
 	}
-	reusableAgentPreviews, err := s.previewReusableAgents(resolver, catalog.ReusableAgents)
+	reusableAgentPreviews, err := s.previewReusableAgents(setup.ReusableAgentInstallConfig{
+		ResolverOptions: resolver,
+		ReusableAgents:  catalog.ReusableAgents,
+		Global:          globalScope,
+	})
 	if err != nil {
 		return setup.InstallConfig{}, nil, nil, err
 	}
@@ -278,6 +283,15 @@ func (s *setupCommandState) executeInstall(cmd *cobra.Command, plan setupInstall
 }
 
 func (s *setupCommandState) installPlan(plan setupInstallPlan) (*setup.Result, error) {
+	if s.cleanupLegacyAssets != nil {
+		if _, err := s.cleanupLegacyAssets(setup.LegacyAssetCleanupConfig{
+			ResolverOptions: plan.Config.ResolverOptions,
+			Global:          plan.Config.Global,
+		}); err != nil {
+			return nil, fmt.Errorf("cleanup legacy setup assets: %w", err)
+		}
+	}
+
 	successful, failed, err := s.installSkills(
 		plan.Config.ResolverOptions,
 		plan.Skills,
@@ -296,10 +310,11 @@ func (s *setupCommandState) installPlan(plan setupInstallPlan) (*setup.Result, e
 		Failed:     failed,
 	}
 
-	successfulReusableAgents, failedReusableAgents, err := s.installReusableAgents(
-		plan.Config.ResolverOptions,
-		plan.ReusableAgents,
-	)
+	successfulReusableAgents, failedReusableAgents, err := s.installReusableAgents(setup.ReusableAgentInstallConfig{
+		ResolverOptions: plan.Config.ResolverOptions,
+		ReusableAgents:  plan.ReusableAgents,
+		Global:          plan.Config.Global,
+	})
 	if err != nil {
 		return result, fmt.Errorf("install reusable agents: %w", err)
 	}
@@ -409,7 +424,7 @@ func (s *setupCommandState) resolveScope(cmd *cobra.Command, agents []string) (b
 	field := huh.NewSelect[string]().
 		Key("scope").
 		Title("Installation Scope").
-		Description("Choose whether skills are shared per project or available globally").
+		Description("Choose whether skills and reusable agents are shared per project or available globally").
 		Options(
 			huh.NewOption("Project (recommended)", "project"),
 			huh.NewOption("Global", "global"),
@@ -477,7 +492,7 @@ func printWelcomeHeader(cmd *cobra.Command) {
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
 		styles.title.Render("COMPOZY // SETUP"),
-		styles.subtitle.Render("Install core and enabled extension assets plus global reusable agents"),
+		styles.subtitle.Render("Install core and enabled extension assets plus scoped reusable agents"),
 	)
 
 	lipgloss.Fprintln(cmd.OutOrStdout(), styles.box.Render(content))
@@ -528,7 +543,7 @@ func printSetupAssets(
 			}
 		}
 
-		lipgloss.Fprintln(cmd.OutOrStdout(), styles.sectionTitle.Render("Global Reusable Agents"))
+		lipgloss.Fprintln(cmd.OutOrStdout(), styles.sectionTitle.Render("Reusable Agents"))
 		for i := range reusableAgents {
 			reusableAgent := &reusableAgents[i]
 			name := styles.agent.Render(padRight(reusableAgent.Name, maxNameLen))
@@ -617,7 +632,7 @@ func printPreviewSummary(
 
 	if len(reusableAgentPreviews) > 0 {
 		fmt.Fprintln(w)
-		lipgloss.Fprintln(w, styles.sectionTitle.Render("Global Reusable Agents"))
+		lipgloss.Fprintln(w, styles.sectionTitle.Render(reusableAgentSectionTitle(global)))
 		fmt.Fprintln(w)
 
 		maxReusableAgentLen := 0
@@ -749,7 +764,11 @@ func printReusableAgentInstallResults(
 
 	if len(result.ReusableAgentsSuccessful) > 0 {
 		lipgloss.Fprintln(w, styles.successHeader.Render(
-			fmt.Sprintf("  ✓ Installed Global Reusable Agents (%d)", len(result.ReusableAgentsSuccessful)),
+			fmt.Sprintf(
+				"  ✓ Installed %s (%d)",
+				reusableAgentResultTitle(result.Global),
+				len(result.ReusableAgentsSuccessful),
+			),
 		))
 		fmt.Fprintln(w)
 
@@ -770,7 +789,11 @@ func printReusableAgentInstallResults(
 	}
 
 	lipgloss.Fprintln(w, styles.failureHeader.Render(
-		fmt.Sprintf("  ✗ Failed Global Reusable Agents (%d)", len(result.ReusableAgentsFailed)),
+		fmt.Sprintf(
+			"  ✗ Failed %s (%d)",
+			reusableAgentResultTitle(result.Global),
+			len(result.ReusableAgentsFailed),
+		),
 	))
 	fmt.Fprintln(w)
 
@@ -982,6 +1005,17 @@ func scopeLabel(global bool) string {
 		return string(setup.InstallScopeGlobal)
 	}
 	return string(setup.InstallScopeProject)
+}
+
+func reusableAgentSectionTitle(global bool) string {
+	if global {
+		return "Global Reusable Agents"
+	}
+	return "Project Reusable Agents"
+}
+
+func reusableAgentResultTitle(global bool) string {
+	return reusableAgentSectionTitle(global)
 }
 
 func displayRoots() (string, string) {

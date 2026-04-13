@@ -88,23 +88,25 @@ func ListBundledReusableAgents() ([]ReusableAgent, error) {
 }
 
 // PreviewBundledReusableAgentInstall resolves the on-disk install plan for bundled reusable agents.
-func PreviewBundledReusableAgentInstall(options ResolverOptions) ([]ReusableAgentPreviewItem, error) {
+func PreviewBundledReusableAgentInstall(cfg ReusableAgentInstallConfig) ([]ReusableAgentPreviewItem, error) {
 	reusableAgents, err := ListBundledReusableAgents()
 	if err != nil {
 		return nil, err
 	}
-	return PreviewReusableAgentInstall(options, reusableAgents)
+	cfg.ReusableAgents = reusableAgents
+	return PreviewReusableAgentInstall(cfg)
 }
 
-// InstallBundledReusableAgents installs every bundled reusable agent into the canonical global root.
+// InstallBundledReusableAgents installs every bundled reusable agent into the selected setup scope.
 func InstallBundledReusableAgents(
-	options ResolverOptions,
+	cfg ReusableAgentInstallConfig,
 ) ([]ReusableAgentSuccessItem, []ReusableAgentFailureItem, error) {
 	reusableAgents, err := ListBundledReusableAgents()
 	if err != nil {
 		return nil, nil, err
 	}
-	return InstallReusableAgents(options, reusableAgents)
+	cfg.ReusableAgents = reusableAgents
+	return InstallReusableAgents(cfg)
 }
 
 func prepareReusableAgentInstallTarget(root, name string) (string, error) {

@@ -36,9 +36,7 @@ func TestBuildEffectiveCatalogPrefersCoreAndHigherPrecedenceExtensions(t *testin
 				ResolvedPath:    "/tmp/workspace/idea-pack",
 			},
 		},
-		[]ReusableAgent{
-			{Name: "architect-advisor", Origin: AssetOriginBundled},
-		},
+		nil,
 		[]ReusableAgent{
 			{
 				Name:            "architect-advisor",
@@ -67,8 +65,8 @@ func TestBuildEffectiveCatalogPrefersCoreAndHigherPrecedenceExtensions(t *testin
 		got[1] != "product-scout" {
 		t.Fatalf("unexpected effective reusable-agent names: %#v", got)
 	}
-	if len(catalog.Conflicts) != 3 {
-		t.Fatalf("len(Conflicts) = %d, want 3", len(catalog.Conflicts))
+	if len(catalog.Conflicts) != 2 {
+		t.Fatalf("len(Conflicts) = %d, want 2", len(catalog.Conflicts))
 	}
 }
 

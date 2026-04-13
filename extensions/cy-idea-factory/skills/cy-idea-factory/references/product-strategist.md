@@ -21,31 +21,31 @@ a version of this idea that changes the game?**
 
 Score every opportunity on six criteria:
 
-| Criteria            | Question                                            | Score                                    |
-| ------------------- | --------------------------------------------------- | ---------------------------------------- |
-| **Impact**          | How much more valuable does this make the product?  | Must do / Strong / Maybe / Pass          |
-| **Reach**           | What % of users would this affect?                  | Must do / Strong / Maybe / Pass          |
-| **Frequency**       | How often would users encounter this value?         | Must do / Strong / Maybe / Pass          |
-| **Differentiation** | Does this set us apart or just match competitors?   | Must do / Strong / Maybe / Pass          |
-| **Defensibility**   | Is this easy to copy or does it compound over time? | Must do / Strong / Maybe / Pass          |
-| **Feasibility**     | Can we actually build this?                         | Must do / Strong / Maybe / Pass          |
+| Criteria            | Question                                            | Score                           |
+| ------------------- | --------------------------------------------------- | ------------------------------- |
+| **Impact**          | How much more valuable does this make the product?  | Must do / Strong / Maybe / Pass |
+| **Reach**           | What % of users would this affect?                  | Must do / Strong / Maybe / Pass |
+| **Frequency**       | How often would users encounter this value?         | Must do / Strong / Maybe / Pass |
+| **Differentiation** | Does this set us apart or just match competitors?   | Must do / Strong / Maybe / Pass |
+| **Defensibility**   | Is this easy to copy or does it compound over time? | Must do / Strong / Maybe / Pass |
+| **Feasibility**     | Can we actually build this?                         | Must do / Strong / Maybe / Pass |
 
 ## Opportunity Categories
 
 Force yourself through each category when scanning for alternatives:
 
-| Category            | Question                           | Example                               |
-| ------------------- | ---------------------------------- | ------------------------------------- |
-| **Speed**           | What takes too long?               | Instant search, predictive loading    |
-| **Automation**      | What is repetitive?                | Auto-scheduling, smart defaults       |
-| **Intelligence**    | What could be smarter?             | Recommendations, anomaly detection    |
-| **Integration**     | What else do users use?            | Calendar sync, export options         |
-| **Collaboration**   | How do users work together?        | Sharing, comments, real-time          |
-| **Personalization** | How is everyone different?         | Custom views, preferences             |
-| **Visibility**      | What is hidden that should not be? | Dashboards, progress tracking         |
-| **Confidence**      | What creates anxiety?              | Confirmations, undo, previews         |
-| **Delight**         | What could spark joy?              | Animations, celebrations, polish      |
-| **Access**          | Who cannot use this yet?           | Mobile, offline, accessibility        |
+| Category            | Question                           | Example                            |
+| ------------------- | ---------------------------------- | ---------------------------------- |
+| **Speed**           | What takes too long?               | Instant search, predictive loading |
+| **Automation**      | What is repetitive?                | Auto-scheduling, smart defaults    |
+| **Intelligence**    | What could be smarter?             | Recommendations, anomaly detection |
+| **Integration**     | What else do users use?            | Calendar sync, export options      |
+| **Collaboration**   | How do users work together?        | Sharing, comments, real-time       |
+| **Personalization** | How is everyone different?         | Custom views, preferences          |
+| **Visibility**      | What is hidden that should not be? | Dashboards, progress tracking      |
+| **Confidence**      | What creates anxiety?              | Confirmations, undo, previews      |
+| **Delight**         | What could spark joy?              | Animations, celebrations, polish   |
+| **Access**          | Who cannot use this yet?           | Mobile, offline, accessibility     |
 
 ## Opportunity Scan Process
 
@@ -67,6 +67,7 @@ For each alternative, provide:
 - **Score**: Apply the evaluation framework
 
 Alternatives should span different scales:
+
 - One more ambitious version (what if we thought bigger?)
 - One simpler version (what if we stripped it to the essence?)
 - One adjacent opportunity (what related problem could we solve instead?)
@@ -79,27 +80,32 @@ Present a clear recommendation:
 ## Opportunity Scan
 
 ### Original Idea Assessment
+
 [Is this high-leverage or incremental? What is the ceiling?]
 
 ### Alternative 1: [Name] (More ambitious)
+
 **What**: ...
 **Why powerful**: ...
 **Scale**: Massive / Medium
 **Score**: [evaluation]
 
 ### Alternative 2: [Name] (Simpler version)
+
 **What**: ...
 **Why powerful**: ...
 **Scale**: Small / Medium
 **Score**: [evaluation]
 
 ### Alternative 3: [Name] (Adjacent opportunity)
+
 **What**: ...
 **Why powerful**: ...
 **Scale**: ...
 **Score**: [evaluation]
 
 ### Recommendation
+
 **Proceed with**: [Original / Alternative N / Hybrid]
 **Rationale**: [Why this is the highest-leverage move]
 ```
