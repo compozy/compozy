@@ -68,6 +68,79 @@ const extension = new Extension("demo", "0.1.0").onPromptPostBuild(async (contex
 - Omitting `task_file` targets `MEMORY.md`.
 - `mode: "append"` appends with a newline separator.
 
+## Review providers
+
+Extensions can register executable review providers that Compozy calls during `fix-reviews` workflows. The host dispatches `fetch_reviews` and `resolve_issues` JSON-RPC calls to the extension subprocess.
+
+### Registration
+
+**Go SDK:**
+
+```go
+ext := extension.New("my-provider", "0.1.0").
+    RegisterReviewProvider("my-reviews", extension.ReviewProvider{
+        FetchReviewsFunc: func(ctx context.Context, rctx extension.ReviewProviderContext, req extension.FetchRequest) ([]extension.ReviewItem, error) {
+            // fetch review items from your source
+            return items, nil
+        },
+        ResolveIssuesFunc: func(ctx context.Context, rctx extension.ReviewProviderContext, req extension.ResolveIssuesRequest) error {
+            // mark issues as resolved in your source
+            return nil
+        },
+    })
+```
+
+**TypeScript SDK:**
+
+```ts
+const extension = new Extension("my-provider", "0.1.0").registerReviewProvider("my-reviews", {
+  fetchReviews: async (ctx, req) => {
+    /* return ReviewItem[] */
+  },
+  resolveIssues: async (ctx, req) => {
+    /* mark resolved */
+  },
+});
+```
+
+### Capability requirement
+
+The manifest must declare `providers.register` and list the provider under `[[providers.review]]`:
+
+```toml
+[security]
+capabilities = ["providers.register"]
+
+[[providers.review]]
+name = "my-reviews"
+kind = "extension"
+```
+
+### Types
+
+| Type                    | Fields                                                                                                                          | Description                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `ReviewProviderContext` | `Provider string`, `Host *HostAPI`                                                                                              | Per-call context with provider name and Host API access |
+| `FetchRequest`          | `PR string`, `IncludeNitpicks bool`                                                                                             | Input for fetching review items from a PR               |
+| `ReviewItem`            | `Title`, `File`, `Line`, `Severity`, `Author`, `Body`, `ProviderRef`, `ReviewHash`, `SourceReviewID`, `SourceReviewSubmittedAt` | One normalized review comment                           |
+| `ResolvedIssue`         | `FilePath string`, `ProviderRef string`                                                                                         | One resolved issue reference                            |
+| `ResolveIssuesRequest`  | `PR string`, `Issues []ResolvedIssue`                                                                                           | Input for marking issues as resolved                    |
+
+### RPC methods
+
+| JSON-RPC method  | Direction        | Request                             | Response       | Notes                                    |
+| ---------------- | ---------------- | ----------------------------------- | -------------- | ---------------------------------------- |
+| `fetch_reviews`  | host → extension | `{provider, pr, include_nitpicks?}` | `ReviewItem[]` | Called once per provider per fetch cycle |
+| `resolve_issues` | host → extension | `{provider, pr, issues}`            | `null`         | Called after successful fix round        |
+
+### Bridge behavior
+
+When the host needs to call an extension-backed review provider:
+
+1. If an active extension session already exists for the workspace, it reuses that session.
+2. Otherwise, it starts a standalone single-extension manager for the duration of the review workflow.
+3. The bridge is closed after the workflow completes, shutting down the standalone manager if one was started.
+
 ## Error handling
 
 The SDK surfaces host failures as JSON-RPC errors. Common cases:

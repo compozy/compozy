@@ -475,3 +475,61 @@ Payload type: `kinds.ShutdownTerminatedPayload`
 - `requested_at`
 - `deadline_at`
 - `forced`
+
+## Event Streaming (CLI)
+
+Both the `exec` and workflow commands support real-time event streaming to stdout via the `--format` flag. When enabled, events are written as newline-delimited JSON (JSONL) to stdout.
+
+### Output formats
+
+| Flag value | Mode    | Description                                                             |
+| ---------- | ------- | ----------------------------------------------------------------------- |
+| `text`     | default | Human-readable TUI output. No event streaming.                          |
+| `json`     | lean    | Emits a filtered subset of high-signal events as compact JSONL objects. |
+| `raw-json` | raw     | Emits every bus event as its full `events.Event` envelope.              |
+
+### Lean mode (`--format json`)
+
+Lean mode streams only lifecycle and interactive events to keep output concise for CI pipelines and automation:
+
+**Included event kinds:**
+
+- `run.started`, `run.completed`, `run.failed`, `run.cancelled`
+- `job.started`, `job.retry_scheduled`, `job.completed`, `job.failed`, `job.cancelled`
+- `session.started`, `session.completed`, `session.failed`
+- `session.update` — only when the update kind is `user_message_chunk`, `agent_message_chunk`, `tool_call_started`, or `tool_call_updated`
+
+**Lean JSONL shape:**
+
+```json
+{"type":"run.started","run_id":"abc123","seq":1,"time":"2026-04-13T10:00:00Z","payload":{...}}
+```
+
+| Field     | Type      | Description               |
+| --------- | --------- | ------------------------- |
+| `type`    | `string`  | Event kind                |
+| `run_id`  | `string`  | Run identifier            |
+| `seq`     | `uint64`  | Monotonic sequence number |
+| `time`    | `RFC3339` | Event timestamp           |
+| `payload` | `object`  | Kind-specific payload     |
+
+### Raw mode (`--format raw-json`)
+
+Raw mode streams the full `events.Event` envelope for every bus event, including internal events not shown in lean mode. The shape matches the envelope documented in the [Envelope](#envelope) section above.
+
+### Examples
+
+```bash
+# Stream lean events for a single-prompt exec run
+compozy exec --format json "Refactor the auth middleware"
+
+# Stream all raw events for a workflow
+compozy start --format raw-json --name my-feature
+
+# Pipe lean events to jq for filtering
+compozy exec --format json "Fix the tests" | jq 'select(.type == "session.update")'
+```
+
+### Terminal event detection
+
+The streamer waits for a terminal event (`run.completed`, `run.failed`, or `run.cancelled`) before finalizing. If no terminal event arrives within 5 seconds after the bus closes, the streamer exits gracefully.
