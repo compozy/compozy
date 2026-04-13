@@ -11,6 +11,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy"
 	"github.com/compozy/compozy/internal/charmtheme"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/update"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
@@ -131,7 +132,7 @@ func shouldWriteUpdateNotification(cmd *cobra.Command) bool {
 	}
 
 	switch strings.TrimSpace(formatFlag.Value.String()) {
-	case "json", "raw-json":
+	case model.OutputFormatJSONValue, model.OutputFormatRawJSONValue:
 		return false
 	default:
 		return true

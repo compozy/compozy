@@ -702,6 +702,109 @@ func TestSessionUpdateHandlerEmitsNestedBlockedLifecycleAndKeepsParentSessionUsa
 	}
 }
 
+func TestSessionUpdateHandlerBuffersNestedBlockedLifecycleUntilStartArrives(t *testing.T) {
+	t.Parallel()
+
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      0,
+		AgentID:    model.IDECodex,
+		SessionID:  "sess-nested-buffered-blocked",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+		ReusableAgent: &reusableAgentExecution{
+			Name:   "parent",
+			Source: "workspace",
+		},
+	})
+
+	blockedBlock := mustContentBlockLoggingTest(t, model.ToolResultBlock{
+		ToolUseID: "tool-1",
+		Content:   `{"name":"child","source":"workspace","success":false,"blocked":true,"blocked_reason":"cycle-detected","error":"nested execution blocked: cycle detected","parent_agent_name":"parent","depth":2,"max_depth":3}`,
+		IsError:   true,
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStateFailed,
+		Blocks:        []model.ContentBlock{blockedBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested blocked update before start: %v", err)
+	}
+
+	startBlock := mustContentBlockLoggingTest(t, model.ToolUseBlock{
+		ID:       "tool-1",
+		Name:     "run_agent",
+		ToolName: "run_agent",
+		Input:    json.RawMessage(`{"name":"child","input":"delegate this"}`),
+	})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallStarted,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStatePending,
+		Blocks:        []model.ContentBlock{startBlock},
+		Status:        model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle nested start update after blocked result: %v", err)
+	}
+
+	recoveryBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "parent recovered"})
+	if err := handler.HandleUpdate(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{recoveryBlock},
+		Status: model.StatusRunning,
+	}); err != nil {
+		t.Fatalf("handle recovery update: %v", err)
+	}
+
+	events := collectRuntimeEvents(t, eventsCh, 5)
+	var lifecycle []kinds.ReusableAgentLifecyclePayload
+	for _, event := range events {
+		if event.Kind != eventspkg.EventKindReusableAgentLifecycle {
+			continue
+		}
+		var payload kinds.ReusableAgentLifecyclePayload
+		decodeRuntimeEventPayload(t, event, &payload)
+		lifecycle = append(lifecycle, payload)
+	}
+	if len(lifecycle) != 2 {
+		t.Fatalf("expected buffered nested lifecycle events, got %#v", lifecycle)
+	}
+	if lifecycle[0].Stage != kinds.ReusableAgentLifecycleStageNestedStarted {
+		t.Fatalf("unexpected nested started payload: %#v", lifecycle[0])
+	}
+	if lifecycle[1].Stage != kinds.ReusableAgentLifecycleStageNestedBlocked ||
+		lifecycle[1].BlockedReason != kinds.ReusableAgentBlockedReasonCycleDetected ||
+		!lifecycle[1].Blocked {
+		t.Fatalf("unexpected nested blocked payload: %#v", lifecycle[1])
+	}
+
+	if _, exists := handler.pendingNestedResults["tool-1"]; exists {
+		t.Fatalf("expected buffered nested result to be cleared, got %#v", handler.pendingNestedResults)
+	}
+	if _, exists := handler.nestedToolCalls["tool-1"]; exists {
+		t.Fatalf("expected nested tool call tracking to be cleared, got %#v", handler.nestedToolCalls)
+	}
+
+	snapshot := handler.Snapshot()
+	if len(snapshot.Entries) < 2 {
+		t.Fatalf("expected tool use plus recovery transcript, got %#v", snapshot.Entries)
+	}
+	text, err := snapshot.Entries[len(snapshot.Entries)-1].Blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("decode recovery text: %v", err)
+	}
+	if text.Text != "parent recovered" {
+		t.Fatalf("unexpected recovery transcript: %#v", snapshot.Entries)
+	}
+}
+
 func TestSessionUpdateHandlerSkipsNestedTrackingWhenLifecycleStartSubmitFails(t *testing.T) {
 	t.Parallel()
 

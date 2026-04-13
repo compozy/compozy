@@ -180,7 +180,19 @@ func (h *SessionUpdateHandler) handleNestedReusableAgentToolUse(
 	if _, exists := h.nestedToolCalls[toolCallID]; !exists {
 		h.nestedToolCalls[toolCallID] = call
 	}
+	result, hasPendingResult := h.pendingNestedResults[toolCallID]
 	h.mu.Unlock()
+
+	if !hasPendingResult {
+		return nil
+	}
+
+	if err := h.emitNestedReusableAgentResultLifecycle(toolCallID, call, result); err != nil {
+		h.mu.Lock()
+		h.pendingNestedResults[toolCallID] = result
+		h.mu.Unlock()
+		return err
+	}
 	return nil
 }
 
@@ -196,12 +208,27 @@ func (h *SessionUpdateHandler) handleNestedReusableAgentToolResult(
 	h.mu.Lock()
 	call, tracked := h.nestedToolCalls[toolCallID]
 	h.mu.Unlock()
-	if !tracked {
-		return nil
-	}
 
 	result, ok := decodeRunAgentToolResult(block.Content)
 	if !ok {
+		return nil
+	}
+	if !tracked {
+		h.mu.Lock()
+		h.pendingNestedResults[toolCallID] = result
+		h.mu.Unlock()
+		return nil
+	}
+
+	return h.emitNestedReusableAgentResultLifecycle(toolCallID, call, result)
+}
+
+func (h *SessionUpdateHandler) emitNestedReusableAgentResultLifecycle(
+	toolCallID string,
+	call nestedReusableAgentCall,
+	result runAgentToolResult,
+) error {
+	if h == nil {
 		return nil
 	}
 
@@ -229,6 +256,7 @@ func (h *SessionUpdateHandler) handleNestedReusableAgentToolResult(
 
 	h.mu.Lock()
 	delete(h.nestedToolCalls, toolCallID)
+	delete(h.pendingNestedResults, toolCallID)
 	h.mu.Unlock()
 	return nil
 }

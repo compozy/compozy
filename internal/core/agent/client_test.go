@@ -93,6 +93,61 @@ func TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns(t *tes
 	}
 }
 
+func TestClientStoreSessionReplaysPendingUpdatesAfterRequestCancellation(t *testing.T) {
+	t.Parallel()
+
+	setSessionPublishBackpressureTimeout(t, 200*time.Millisecond)
+
+	session := newTestSessionWithBuffer("session-1", 1)
+	session.updates <- model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Status: model.StatusRunning,
+	}
+
+	pending := model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStateInProgress,
+	}
+	client := &clientImpl{
+		sessions: make(map[string]*sessionImpl),
+		pendingUpdates: map[string][]model.SessionUpdate{
+			session.id: {pending},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	drained := make(chan struct{})
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		<-session.updates
+		close(drained)
+	}()
+
+	client.storeSession(ctx, session)
+
+	select {
+	case <-drained:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting to drain the pre-filled session buffer")
+	}
+
+	got := mustReceiveSessionUpdate(t, session.updates)
+	if got.Kind != pending.Kind ||
+		got.ToolCallID != pending.ToolCallID ||
+		got.ToolCallState != pending.ToolCallState {
+		t.Fatalf("unexpected replayed update: %#v", got)
+	}
+	if got.Status != model.StatusRunning {
+		t.Fatalf("unexpected replayed status: %q", got.Status)
+	}
+	if pending := client.pendingUpdates[session.id]; len(pending) != 0 {
+		t.Fatalf("expected pending updates to be cleared, got %#v", pending)
+	}
+}
+
 func TestClientCreateSessionAppliesPreSessionCreateMutationAndPostCreateObserver(t *testing.T) {
 	t.Parallel()
 

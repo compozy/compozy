@@ -304,7 +304,7 @@ func (c *clientImpl) CreateSession(ctx context.Context, req SessionRequest) (Ses
 
 	session := newSessionWithAccess(string(sessionResp.SessionId), workingDir, allowedRoots)
 	session.setAgentSessionID(extractAgentSessionID(sessionResp.Meta))
-	c.storeSession(session)
+	c.storeSession(ctx, session)
 
 	if requestedModel != c.startModel {
 		if _, err := c.conn.SetSessionModel(ctx, acp.SetSessionModelRequest{
@@ -416,7 +416,7 @@ func (c *clientImpl) ResumeSession(ctx context.Context, req ResumeSessionRequest
 
 	sessionID := strings.TrimSpace(req.SessionID)
 	session := newLoadedSession(sessionID, workingDir, allowedRoots)
-	c.storeSession(session)
+	c.storeSession(ctx, session)
 
 	mcpServers, err := toACPMCPServers(req.MCPServers)
 	if err != nil {
@@ -793,15 +793,19 @@ func shouldDowngradePromptErrorAfterToolFailure(session *sessionImpl, err error)
 	return session != nil && session.lastUpdateFailedToolCall()
 }
 
-func (c *clientImpl) storeSession(session *sessionImpl) {
+func (c *clientImpl) storeSession(ctx context.Context, session *sessionImpl) {
 	c.mu.Lock()
 	c.sessions[session.id] = session
 	pending := append([]model.SessionUpdate(nil), c.pendingUpdates[session.id]...)
 	delete(c.pendingUpdates, session.id)
 	c.mu.Unlock()
 
+	// Replay buffered updates with the request context values intact, but detach
+	// cancellation so a caller timeout does not discard already-received session
+	// updates during backpressure.
+	detached := detachedContext(ctx)
 	for i := range pending {
-		session.publish(context.Background(), pending[i])
+		session.publish(detached, pending[i])
 	}
 }
 
