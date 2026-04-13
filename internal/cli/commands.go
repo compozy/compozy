@@ -6,8 +6,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newFetchReviewsCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
-	return newFetchReviewsCommandWithDefaults(dispatcher, defaultCommandStateDefaults())
+func newFetchReviewsCommand() *cobra.Command {
+	return newFetchReviewsCommandWithDefaults(nil, defaultCommandStateDefaults())
 }
 
 func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
@@ -25,7 +25,12 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 		RunE: state.fetchReviews,
 	}
 
-	cmd.Flags().StringVar(&state.provider, "provider", "", "Review provider name (for example: coderabbit)")
+	cmd.Flags().StringVar(
+		&state.provider,
+		"provider",
+		"",
+		"Review provider name. Built-in and enabled extension providers are validated against the active provider catalog.",
+	)
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: next available round)")
@@ -33,7 +38,7 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 		&state.nitpicks,
 		"nitpicks",
 		false,
-		"Include CodeRabbit nitpick comments from pull request review bodies",
+		"Include CodeRabbit review-body comments (nitpick, minor, and major) from pull request reviews",
 	)
 	return cmd
 }
@@ -52,15 +57,18 @@ func newFixReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults co
 		Long: `Process review issue markdown files from .compozy/tasks/<name>/reviews-NNN/ and run the configured AI agent
 to remediate review feedback.
 
-Most runtime defaults can be supplied by .compozy/config.toml.`,
+Most runtime defaults can be supplied by .compozy/config.toml. In interactive terminals the command
+opens the run cockpit by default; in non-TTY environments it falls back to headless streaming.`,
 		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3
   compozy fix-reviews --name my-feature --round 2
+  compozy fix-reviews --format json --name my-feature --round 2
   compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001
   compozy fix-reviews`,
 		RunE: state.run,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
+	addWorkflowOutputFlags(cmd, state)
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: latest existing round)")
 	cmd.Flags().
@@ -90,13 +98,16 @@ func newStartCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults command
 		Long: `Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.
 
-Most runtime defaults can be supplied by .compozy/config.toml.`,
+Most runtime defaults can be supplied by .compozy/config.toml. In interactive terminals the command
+opens the run cockpit by default; in non-TTY environments it falls back to headless streaming.`,
 		Example: `  compozy start --name multi-repo --tasks-dir .compozy/tasks/multi-repo --ide claude
+  compozy start --format json --name multi-repo --tasks-dir .compozy/tasks/multi-repo
   compozy start`,
 		RunE: state.run,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{})
+	addWorkflowOutputFlags(cmd, state)
 	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (.compozy/tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")
@@ -113,6 +124,21 @@ Most runtime defaults can be supplied by .compozy/config.toml.`,
 		"Continue after task metadata validation fails in non-interactive mode",
 	)
 	return cmd
+}
+
+func addWorkflowOutputFlags(cmd *cobra.Command, state *commandState) {
+	cmd.Flags().StringVar(
+		&state.outputFormat,
+		"format",
+		string(core.OutputFormatText),
+		"Output format: text, json, or raw-json",
+	)
+	cmd.Flags().BoolVar(
+		&state.tui,
+		"tui",
+		true,
+		"Open the interactive TUI when the terminal supports it; otherwise stream headless output",
+	)
 }
 
 func newExecCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {

@@ -243,6 +243,118 @@ func TestLoadManifestRealisticFixture(t *testing.T) {
 	}
 }
 
+func TestLoadManifestSupportsTypedProviderDeclarations(t *testing.T) {
+	withVersion(t, "1.5.0")
+
+	dir := t.TempDir()
+	writeTestFile(t, filepath.Join(dir, ManifestFileNameJSON), `
+{
+  "extension": {
+    "name": "typed-ext",
+    "version": "1.2.3",
+    "description": "Typed provider extension",
+    "min_compozy_version": "1.0.0"
+  },
+  "subprocess": {
+    "command": "bin/typed-ext"
+  },
+  "security": {
+    "capabilities": ["providers.register"]
+  },
+  "providers": {
+    "ide": [
+      {
+        "name": "typed-ide",
+        "display_name": "Typed IDE",
+        "command": "mock-acp",
+        "fixed_args": ["serve"],
+        "probe_args": ["--probe"],
+        "default_model": "typed-model",
+        "setup_agent_name": "codex",
+        "supports_add_dirs": true,
+        "uses_bootstrap_model": true,
+        "docs_url": "https://example.com/docs",
+        "install_hint": "Install the typed ACP runtime",
+        "full_access_mode_id": "danger-full-access",
+        "env": {
+          "MOCK_ENV": "enabled"
+        },
+        "fallbacks": [
+          {
+            "command": "npx",
+            "fixed_args": ["-y", "mock-acp"]
+          }
+        ],
+        "bootstrap": {
+          "model_flag": "--model",
+          "reasoning_effort_flag": "--reasoning",
+          "add_dir_flag": "--add-dir",
+          "default_access_mode_args": ["--sandbox"],
+          "full_access_mode_args": ["--danger"]
+        }
+      }
+    ],
+    "review": [
+      {
+        "name": "typed-review",
+        "kind": "extension",
+        "display_name": "Typed Review"
+      }
+    ],
+    "model": [
+      {
+        "name": "typed-model",
+        "target": "openai/gpt-5.4",
+        "display_name": "Typed Model"
+      }
+    ]
+  }
+}
+`)
+
+	manifest, err := LoadManifest(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("LoadManifest() error = %v", err)
+	}
+
+	if len(manifest.Providers.IDE) != 1 {
+		t.Fatalf("len(Providers.IDE) = %d, want 1", len(manifest.Providers.IDE))
+	}
+	ide := manifest.Providers.IDE[0]
+	if ide.DisplayName != "Typed IDE" {
+		t.Fatalf("Providers.IDE[0].DisplayName = %q, want %q", ide.DisplayName, "Typed IDE")
+	}
+	if got := ide.FixedArgs; !strings.EqualFold(strings.Join(got, ","), "serve") {
+		t.Fatalf("Providers.IDE[0].FixedArgs = %#v, want [serve]", got)
+	}
+	if got := ide.ProbeArgs; !strings.EqualFold(strings.Join(got, ","), "--probe") {
+		t.Fatalf("Providers.IDE[0].ProbeArgs = %#v, want [--probe]", got)
+	}
+	if ide.Bootstrap == nil {
+		t.Fatal("Providers.IDE[0].Bootstrap = nil, want typed bootstrap config")
+	}
+	if ide.Bootstrap.ModelFlag != "--model" || ide.Bootstrap.AddDirFlag != "--add-dir" {
+		t.Fatalf("unexpected bootstrap config: %#v", ide.Bootstrap)
+	}
+	if len(ide.Fallbacks) != 1 || ide.Fallbacks[0].Command != "npx" {
+		t.Fatalf("unexpected fallback launchers: %#v", ide.Fallbacks)
+	}
+
+	if len(manifest.Providers.Review) != 1 {
+		t.Fatalf("len(Providers.Review) = %d, want 1", len(manifest.Providers.Review))
+	}
+	if got := manifest.Providers.Review[0].Kind; got != ProviderKindExtension {
+		t.Fatalf("Providers.Review[0].Kind = %q, want %q", got, ProviderKindExtension)
+	}
+
+	if len(manifest.Providers.Model) != 1 {
+		t.Fatalf("len(Providers.Model) = %d, want 1", len(manifest.Providers.Model))
+	}
+	if got := manifest.Providers.Model[0].Target; got != "openai/gpt-5.4" {
+		t.Fatalf("Providers.Model[0].Target = %q, want %q", got, "openai/gpt-5.4")
+	}
+}
+
 func TestLoadManifestDecodeAndValidationErrors(t *testing.T) {
 	withVersion(t, "1.5.0")
 
@@ -386,7 +498,19 @@ func TestValidateManifestRejectsRequiredRelationships(t *testing.T) {
 			mutate: func(manifest *Manifest) {
 				manifest.Providers.Model[0].Command = ""
 			},
-			wantSubstr: "providers.model[0].command: value is required",
+			wantSubstr: "providers.model[0].target: value is required",
+		},
+		{
+			name: "extension review provider requires subprocess",
+			mutate: func(manifest *Manifest) {
+				manifest.Providers.Review = []ProviderEntry{{
+					Name: "fixture-review",
+					Kind: ProviderKindExtension,
+				}}
+				manifest.Hooks = nil
+				manifest.Subprocess = nil
+			},
+			wantSubstr: `providers.review[0].kind="extension": requires a [subprocess] section`,
 		},
 	}
 

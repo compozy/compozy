@@ -23,9 +23,31 @@ var (
 
 // OverlayEntry captures one declarative ACP runtime overlay entry assembled during command bootstrap.
 type OverlayEntry struct {
-	Name     string
-	Command  string
-	Metadata map[string]string
+	Name               string
+	DisplayName        string
+	Command            string
+	SetupAgentName     string
+	DefaultModel       string
+	SupportsAddDirs    *bool
+	UsesBootstrapModel *bool
+	DocsURL            string
+	InstallHint        string
+	FullAccessModeID   string
+	FixedArgs          []string
+	ProbeArgs          []string
+	EnvVars            map[string]string
+	Fallbacks          []Launcher
+	Bootstrap          OverlayBootstrap
+	Metadata           map[string]string
+}
+
+// OverlayBootstrap declares typed ACP bootstrap flags for declarative IDE overlays.
+type OverlayBootstrap struct {
+	ModelFlag             string
+	ReasoningEffortFlag   string
+	AddDirFlag            string
+	DefaultAccessModeArgs []string
+	FullAccessModeArgs    []string
 }
 
 // ActivateOverlay installs one command-scoped ACP runtime overlay built from
@@ -55,8 +77,8 @@ func buildOverlayCatalog(entries []OverlayEntry) (*catalogSnapshot, error) {
 
 	snapshot := baseCatalogSnapshot()
 	added := make([]string, 0)
-	for _, entry := range entries {
-		spec, err := specFromDeclaredIDEProvider(entry)
+	for i := range entries {
+		spec, err := specFromDeclaredIDEProvider(entries[i])
 		if err != nil {
 			return nil, err
 		}
@@ -125,34 +147,66 @@ func specFromDeclaredIDEProvider(entry OverlayEntry) (Spec, error) {
 	if err != nil {
 		return Spec{}, fmt.Errorf("declare ACP runtime overlay %q fixed_args: %w", entry.Name, err)
 	}
-	if len(metadataFixedArgs) > 0 {
+	if len(entry.FixedArgs) > 0 {
+		fixedArgs = slices.Clone(entry.FixedArgs)
+	} else if len(metadataFixedArgs) > 0 {
 		fixedArgs = metadataFixedArgs
 	}
 	probeArgs, err := parseOverlayArgs(entry.Metadata["probe_args"])
 	if err != nil {
 		return Spec{}, fmt.Errorf("declare ACP runtime overlay %q probe_args: %w", entry.Name, err)
 	}
+	if len(entry.ProbeArgs) > 0 {
+		probeArgs = slices.Clone(entry.ProbeArgs)
+	}
+
+	usesBootstrapModel := overlayBoolOrDefault(
+		entry.UsesBootstrapModel,
+		entry.Metadata["uses_bootstrap_model"],
+		strings.TrimSpace(entry.Bootstrap.ModelFlag) != "",
+	)
+	supportsAddDirs := overlayBoolOrDefault(
+		entry.SupportsAddDirs,
+		entry.Metadata["supports_add_dirs"],
+		strings.TrimSpace(entry.Bootstrap.AddDirFlag) != "",
+	)
 
 	spec := Spec{
 		ID: id,
 		DisplayName: overlayFirstNonEmpty(
+			strings.TrimSpace(entry.DisplayName),
 			strings.TrimSpace(entry.Metadata["display_name"]),
 			strings.TrimSpace(entry.Name),
 		),
-		SetupAgentName: strings.TrimSpace(entry.Metadata["agent_name"]),
+		SetupAgentName: overlayFirstNonEmpty(
+			strings.TrimSpace(entry.SetupAgentName),
+			strings.TrimSpace(entry.Metadata["agent_name"]),
+		),
 		DefaultModel: overlayFirstNonEmpty(
+			strings.TrimSpace(entry.DefaultModel),
 			strings.TrimSpace(entry.Metadata["default_model"]),
 			model.DefaultCodexModel,
 		),
 		Command:            command,
 		FixedArgs:          fixedArgs,
 		ProbeArgs:          probeArgs,
-		SupportsAddDirs:    parseOverlayBool(entry.Metadata["supports_add_dirs"]),
-		UsesBootstrapModel: parseOverlayBool(entry.Metadata["uses_bootstrap_model"]),
-		DocsURL:            strings.TrimSpace(entry.Metadata["docs_url"]),
-		InstallHint:        strings.TrimSpace(entry.Metadata["install_hint"]),
-		FullAccessModeID:   strings.TrimSpace(entry.Metadata["full_access_mode_id"]),
-		EnvVars:            parseOverlayEnv(entry.Metadata),
+		SupportsAddDirs:    supportsAddDirs,
+		UsesBootstrapModel: usesBootstrapModel,
+		DocsURL: overlayFirstNonEmpty(
+			strings.TrimSpace(entry.DocsURL),
+			strings.TrimSpace(entry.Metadata["docs_url"]),
+		),
+		InstallHint: overlayFirstNonEmpty(
+			strings.TrimSpace(entry.InstallHint),
+			strings.TrimSpace(entry.Metadata["install_hint"]),
+		),
+		FullAccessModeID: overlayFirstNonEmpty(
+			strings.TrimSpace(entry.FullAccessModeID),
+			strings.TrimSpace(entry.Metadata["full_access_mode_id"]),
+		),
+		EnvVars:       overlayEnv(entry.EnvVars, entry.Metadata),
+		Fallbacks:     cloneLaunchers(entry.Fallbacks),
+		BootstrapArgs: overlayBootstrapArgs(entry.Bootstrap, usesBootstrapModel),
 	}
 	if strings.TrimSpace(spec.DisplayName) == "" {
 		spec.DisplayName = spec.ID
@@ -211,6 +265,63 @@ func parseOverlayEnv(metadata map[string]string) map[string]string {
 		return nil
 	}
 	return env
+}
+
+func overlayEnv(explicit map[string]string, metadata map[string]string) map[string]string {
+	if len(explicit) > 0 {
+		return mapsClone(explicit)
+	}
+	return parseOverlayEnv(metadata)
+}
+
+func overlayBoolOrDefault(explicit *bool, legacy string, fallback bool) bool {
+	if explicit != nil {
+		return *explicit
+	}
+	if strings.TrimSpace(legacy) != "" {
+		return parseOverlayBool(legacy)
+	}
+	return fallback
+}
+
+func overlayBootstrapArgs(
+	bootstrap OverlayBootstrap,
+	usesBootstrapModel bool,
+) func(modelName, reasoningEffort string, addDirs []string, accessMode string) []string {
+	if strings.TrimSpace(bootstrap.ModelFlag) == "" &&
+		strings.TrimSpace(bootstrap.ReasoningEffortFlag) == "" &&
+		strings.TrimSpace(bootstrap.AddDirFlag) == "" &&
+		len(bootstrap.DefaultAccessModeArgs) == 0 &&
+		len(bootstrap.FullAccessModeArgs) == 0 {
+		return nil
+	}
+
+	return func(modelName, reasoningEffort string, addDirs []string, accessMode string) []string {
+		args := make(
+			[]string,
+			0,
+			len(bootstrap.DefaultAccessModeArgs)+len(bootstrap.FullAccessModeArgs)+(len(addDirs)*2)+4,
+		)
+		args = append(args, slices.Clone(bootstrap.DefaultAccessModeArgs)...)
+		if accessMode == model.AccessModeFull {
+			args = append(args, slices.Clone(bootstrap.FullAccessModeArgs)...)
+		}
+		if usesBootstrapModel && strings.TrimSpace(bootstrap.ModelFlag) != "" && strings.TrimSpace(modelName) != "" {
+			args = append(args, strings.TrimSpace(bootstrap.ModelFlag), modelName)
+		}
+		if strings.TrimSpace(bootstrap.ReasoningEffortFlag) != "" && strings.TrimSpace(reasoningEffort) != "" {
+			args = append(args, strings.TrimSpace(bootstrap.ReasoningEffortFlag), reasoningEffort)
+		}
+		if strings.TrimSpace(bootstrap.AddDirFlag) != "" {
+			flag := strings.TrimSpace(bootstrap.AddDirFlag)
+			for _, dir := range addDirs {
+				if trimmed := strings.TrimSpace(dir); trimmed != "" {
+					args = append(args, flag, trimmed)
+				}
+			}
+		}
+		return args
+	}
 }
 
 func overlayFirstNonEmpty(values ...string) string {

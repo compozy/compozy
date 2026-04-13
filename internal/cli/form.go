@@ -12,10 +12,15 @@ import (
 
 	"charm.land/huh/v2"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/provider"
+	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/spf13/cobra"
 )
+
+const workflowNameTitle = "Workflow Name"
 
 func collectFormParams(cmd *cobra.Command, state *commandState) error {
 	fmt.Fprintln(cmd.OutOrStdout())
@@ -107,7 +112,7 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addConfirmField(
 		"nitpicks",
 		"Include Nitpicks?",
-		"Import CodeRabbit nitpick comments from pull request review bodies",
+		"Import CodeRabbit review-body comments (nitpick, minor, and major)",
 		&fi.nitpicks,
 	)
 	builder.addConfirmField(
@@ -219,40 +224,22 @@ func (fb *formBuilder) hideField(flag string) bool {
 
 func (fb *formBuilder) addNameField(target *string) {
 	fb.addField("name", func() huh.Field {
-		if fb.state.kind == commandKindStart || fb.state.kind == commandKindFixReviews {
-			var dirs []string
-			if fb.state.kind == commandKindStart {
-				dirs = listStartTaskSubdirs(fb.tasksBaseDir)
-			} else {
-				dirs = listTaskSubdirs(fb.tasksBaseDir)
+		title, description, dirs := fb.nameFieldOptions()
+		if len(dirs) > 0 {
+			fb.nameFromDirList = true
+			options := make([]huh.Option[string], 0, len(dirs))
+			for _, d := range dirs {
+				options = append(options, huh.NewOption(d, d))
 			}
-			if len(dirs) > 0 {
-				fb.nameFromDirList = true
-				title := "Task Name"
-				description := "Select the task directory to run"
-				if fb.state.kind == commandKindFixReviews {
-					title = "Workflow Name"
-					description = "Select the workflow directory for review fixes"
-				}
-				options := make([]huh.Option[string], 0, len(dirs))
-				for _, d := range dirs {
-					options = append(options, huh.NewOption(d, d))
-				}
-				return huh.NewSelect[string]().
-					Key("name").
-					Title(title).
-					Description(description).
-					Options(options...).
-					Value(target)
-			}
+			return huh.NewSelect[string]().
+				Key("name").
+				Title(title).
+				Description(description).
+				Options(options...).
+				Value(target)
 		}
 
-		title := "Workflow Name"
-		description := "Required: workflow name (for example: my-feature)"
-		if fb.state.kind == commandKindStart {
-			title = "Task Name"
-			description = "Required: task workflow name (for example: multi-repo)"
-		}
+		title, description = fb.nameInputLabels()
 		return huh.NewInput().
 			Key("name").
 			Title(title).
@@ -266,6 +253,28 @@ func (fb *formBuilder) addNameField(target *string) {
 				return nil
 			})
 	})
+}
+
+func (fb *formBuilder) nameFieldOptions() (string, string, []string) {
+	switch fb.state.kind {
+	case commandKindStart:
+		return "Task Name", "Select the task directory to run", listStartTaskSubdirs(fb.tasksBaseDir)
+	case commandKindFixReviews:
+		return workflowNameTitle, "Select the workflow directory for review fixes", listTaskSubdirs(fb.tasksBaseDir)
+	case commandKindFetchReviews:
+		return workflowNameTitle, "Select the workflow directory to fetch reviews into", listTaskSubdirs(
+			fb.tasksBaseDir,
+		)
+	default:
+		return "", "", nil
+	}
+}
+
+func (fb *formBuilder) nameInputLabels() (string, string) {
+	if fb.state.kind == commandKindStart {
+		return "Task Name", "Required: task workflow name (for example: multi-repo)"
+	}
+	return workflowNameTitle, "Required: workflow name (for example: my-feature)"
 }
 
 func (fb *formBuilder) addPRField(target *string) {
@@ -287,13 +296,15 @@ func (fb *formBuilder) addPRField(target *string) {
 
 func (fb *formBuilder) addProviderField(target *string) {
 	fb.addField("provider", func() huh.Field {
+		options := providerCatalogOptions()
+		if len(options) == 0 {
+			options = []huh.Option[string]{huh.NewOption("CodeRabbit", "coderabbit")}
+		}
 		return huh.NewSelect[string]().
 			Key("provider").
 			Title("Review Provider").
 			Description("Choose which review provider to fetch from").
-			Options(
-				huh.NewOption("CodeRabbit", "coderabbit"),
-			).
+			Options(options...).
 			Value(target)
 	})
 }
@@ -368,20 +379,12 @@ func (fb *formBuilder) addBatchSizeField(target *string) {
 
 func (fb *formBuilder) addIDEField(target *string) {
 	fb.addField("ide", func() huh.Field {
+		options := ideCatalogOptions()
 		return huh.NewSelect[string]().
 			Key("ide").
 			Title("IDE Tool").
 			Description("Choose which ACP runtime to use (installed directly or available via a supported launcher).").
-			Options(
-				huh.NewOption("Codex", string(core.IDECodex)),
-				huh.NewOption("Claude", string(core.IDEClaude)),
-				huh.NewOption("Cursor", string(core.IDECursor)),
-				huh.NewOption("Droid", string(core.IDEDroid)),
-				huh.NewOption("OpenCode", string(core.IDEOpenCode)),
-				huh.NewOption("Pi", string(core.IDEPi)),
-				huh.NewOption("Gemini", string(core.IDEGemini)),
-				huh.NewOption("Copilot CLI", string(core.IDECopilot)),
-			).
+			Options(options...).
 			Value(target)
 	})
 }
@@ -565,6 +568,34 @@ func listTaskSubdirs(baseDir string) []string {
 	}
 	sort.Strings(dirs)
 	return dirs
+}
+
+func ideCatalogOptions() []huh.Option[string] {
+	entries := agent.DriverCatalog()
+	options := make([]huh.Option[string], 0, len(entries))
+	for i := range entries {
+		entry := &entries[i]
+		label := strings.TrimSpace(entry.DisplayName)
+		if label == "" {
+			label = entry.IDE
+		}
+		options = append(options, huh.NewOption(label, entry.IDE))
+	}
+	return options
+}
+
+func providerCatalogOptions() []huh.Option[string] {
+	entries := provider.Catalog(providerdefaults.DefaultRegistry())
+	options := make([]huh.Option[string], 0, len(entries))
+	for i := range entries {
+		entry := &entries[i]
+		label := strings.TrimSpace(entry.DisplayName)
+		if label == "" {
+			label = entry.Name
+		}
+		options = append(options, huh.NewOption(label, entry.Name))
+	}
+	return options
 }
 
 func listStartTaskSubdirs(baseDir string) []string {

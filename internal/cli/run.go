@@ -33,13 +33,15 @@ func (s *commandState) prepareAndRun(
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
-	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+	assets, cleanup, err := s.prepareWorkspaceContext(ctx, cmd)
+	if err != nil {
 		wrapped := fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
 		if handleSetupErrors {
 			return s.handleExecError(cmd, wrapped)
 		}
 		return wrapped
 	}
+	defer cleanup()
 	if setupFn != nil {
 		if err := setupFn(cmd); err != nil {
 			if handleSetupErrors {
@@ -47,6 +49,12 @@ func (s *commandState) prepareAndRun(
 			}
 			return err
 		}
+	}
+	if err := s.normalizePresentationMode(cmd); err != nil {
+		if handleSetupErrors {
+			return s.handleExecError(cmd, err)
+		}
+		return err
 	}
 	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
@@ -57,11 +65,6 @@ func (s *commandState) prepareAndRun(
 	if err := s.applyPersistedExecConfig(cmd, &cfg); err != nil {
 		return s.handleExecError(cmd, err)
 	}
-	assets, cleanup, err := s.bootstrapDeclarativeAssets(ctx, cfg)
-	if err != nil {
-		return s.handleExecError(cmd, err)
-	}
-	defer cleanup()
 	if err := cfg.Validate(); err != nil {
 		return s.handleExecError(cmd, err)
 	}
@@ -76,9 +79,11 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
-	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
+	_, cleanup, err := s.prepareWorkspaceContext(ctx, cmd)
+	if err != nil {
 		return fmt.Errorf("apply workspace defaults for %s: %w", cmd.Name(), err)
 	}
+	defer cleanup()
 	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
 		return err
 	}
@@ -87,11 +92,6 @@ func (s *commandState) fetchReviews(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	_, cleanup, err := s.bootstrapDeclarativeAssets(ctx, cfg)
-	if err != nil {
-		return err
-	}
-	defer cleanup()
 
 	fetchReviewsFn := s.fetchReviewsFn
 	if fetchReviewsFn == nil {

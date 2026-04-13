@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/spf13/cobra"
 )
 
 func TestBuildConfigStartAlwaysEnablesExecutableExtensions(t *testing.T) {
@@ -73,5 +74,37 @@ func TestNewExecCommandRegistersExtensionsFlag(t *testing.T) {
 	}
 	if flag.DefValue != "false" {
 		t.Fatalf("expected --extensions default false, got %q", flag.DefValue)
+	}
+}
+
+func TestStartAndFixReviewsCommandsDefaultTUIToTrue(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{
+			name: "ShouldDefaultTUIToTrueForStart",
+			cmd:  newStartCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		},
+		{
+			name: "ShouldDefaultTUIToTrueForFixReviews",
+			cmd:  newFixReviewsCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			flag := tc.cmd.Flags().Lookup("tui")
+			if flag == nil {
+				t.Fatal("expected --tui flag")
+			}
+			if flag.DefValue != "true" {
+				t.Fatalf("expected --tui default true, got %q", flag.DefValue)
+			}
+		})
 	}
 }

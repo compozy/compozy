@@ -30,6 +30,7 @@ var captureExecuteStreamsMu sync.Mutex
 
 func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
+	timeout := 3 * time.Second
 	installACPHelperOnPath(t, []runACPHelperScenario{{
 		ExpectedPromptContains: "finish the task",
 		Updates: []acp.SessionUpdate{
@@ -64,7 +65,7 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 		tmpDir,
 		false,
 		0,
-		time.Second,
+		timeout,
 		runJournal,
 		&aggregate,
 		&aggregateMu,
@@ -117,6 +118,7 @@ func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 
 func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T) {
 	tmpDir := t.TempDir()
+	timeout := 3 * time.Second
 	failedStatus := acp.ToolCallStatusFailed
 	installACPHelperOnPath(t, []runACPHelperScenario{{
 		Updates: []acp.SessionUpdate{
@@ -162,7 +164,7 @@ func TestExecuteJobWithTimeoutACPCycleBlockKeepsParentSessionUsable(t *testing.T
 		tmpDir,
 		false,
 		0,
-		time.Second,
+		timeout,
 		runJournal,
 		nil,
 		nil,

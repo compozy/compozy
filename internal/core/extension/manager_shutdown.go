@@ -32,6 +32,8 @@ func (m *Manager) shutdownWithReason(ctx context.Context, reason string) error {
 	}
 
 	m.shutdownOnce.Do(func() {
+		unregisterActiveManager(m)
+
 		if m.shutdownHook != nil {
 			m.setAllStates(ExtensionStateDraining)
 			defer m.setAllStates(ExtensionStateStopped)

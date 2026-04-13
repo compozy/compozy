@@ -19,10 +19,7 @@
         "./package.json": "./package.json"
     },
     "scripts": {
-        "build": "tsc -p tsconfig.json",
+        "build": "tsc -p tsconfig.json && node ./scripts/copy-templates.mjs",
         "typecheck": "tsc -p tsconfig.json --noEmit"
-    },
-    "dependencies": {
-        "@compozy/extension-sdk": "0.1.10"
     }
 }

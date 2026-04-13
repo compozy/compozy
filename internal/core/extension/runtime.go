@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -57,6 +58,16 @@ type Manager struct {
 }
 
 var _ model.RuntimeManager = (*Manager)(nil)
+
+type managerConfig struct {
+	RunID           string
+	ParentRunID     string
+	WorkspaceRoot   string
+	InvokingCommand string
+	Journal         *journal.Journal
+	EventBus        *events.Bus[events.Event]
+	AuditDir        string
+}
 
 var discoverRunScopeExtensions = func(ctx context.Context, cfg *model.RuntimeConfig) (DiscoveryResult, error) {
 	return Discovery{WorkspaceRoot: cfg.WorkspaceRoot}.Discover(ctx)
@@ -207,54 +218,15 @@ func newRunScopeManager(
 		registeredExtensions = append(registeredExtensions, runtimeExtension)
 	}
 
-	registry, err := NewRegistry(registeredExtensions...)
-	if err != nil {
-		return nil, fmt.Errorf("build runtime registry: %w", err)
-	}
-
-	audit := &AuditLogger{}
-	if err := audit.Open(scope.Artifacts.RunDir); err != nil {
-		return nil, fmt.Errorf("open extension audit log: %w", err)
-	}
-
-	dispatcher := NewHookDispatcher(registry, audit)
-	hostAPI := NewHostAPIRouter(registry, audit)
-	manager := &Manager{
-		runID:           scope.Artifacts.RunID,
-		parentRunID:     cfg.ParentRunID,
-		workspaceRoot:   cfg.WorkspaceRoot,
-		invokingCommand: invokingCommandForMode(cfg.Mode),
-		journal:         scope.Journal,
-		eventBus:        scope.EventBus,
-		registry:        registry,
-		dispatcher:      dispatcher,
-		hostAPI:         hostAPI,
-		audit:           audit,
-		subprocs:        make(map[string]*subprocess.Process),
-		sessions:        make(map[string]*extensionSession),
-	}
-	ops, err := NewDefaultKernelOps(DefaultKernelOpsConfig{
-		WorkspaceRoot:  cfg.WorkspaceRoot,
-		RunID:          scope.Artifacts.RunID,
-		ParentRunID:    cfg.ParentRunID,
-		EventBus:       scope.EventBus,
-		Journal:        scope.Journal,
-		RuntimeManager: manager,
-	})
-	if err != nil {
-		if closeErr := audit.Close(context.Background()); closeErr != nil {
-			err = errors.Join(err, closeErr)
-		}
-		return nil, fmt.Errorf("build host services: %w", err)
-	}
-	if err := RegisterHostServices(hostAPI, ops); err != nil {
-		if closeErr := audit.Close(context.Background()); closeErr != nil {
-			err = errors.Join(err, closeErr)
-		}
-		return nil, fmt.Errorf("register host services: %w", err)
-	}
-
-	return manager, nil
+	return newManagerForExtensions(managerConfig{
+		RunID:           scope.Artifacts.RunID,
+		ParentRunID:     cfg.ParentRunID,
+		WorkspaceRoot:   cfg.WorkspaceRoot,
+		InvokingCommand: invokingCommandForMode(cfg.Mode),
+		Journal:         scope.Journal,
+		EventBus:        scope.EventBus,
+		AuditDir:        scope.Artifacts.RunDir,
+	}, registeredExtensions)
 }
 
 func runtimeExtensionFromDiscovered(discovered DiscoveredExtension) (*RuntimeExtension, error) {
@@ -275,6 +247,104 @@ func runtimeExtensionFromDiscovered(discovered DiscoveredExtension) (*RuntimeExt
 		extension.SetShutdownDeadline(discovered.Manifest.Subprocess.ShutdownTimeout)
 	}
 	return extension, nil
+}
+
+func runtimeExtensionFromDeclaredProvider(provider DeclaredProvider) (*RuntimeExtension, error) {
+	if provider.Manifest == nil {
+		return nil, fmt.Errorf("register runtime extension %q: missing manifest", provider.Extension.Name)
+	}
+
+	extension := &RuntimeExtension{
+		Name:         strings.TrimSpace(provider.Manifest.Extension.Name),
+		Ref:          provider.Extension,
+		Manifest:     provider.Manifest,
+		ManifestPath: provider.ManifestPath,
+		ExtensionDir: provider.ExtensionDir,
+		Capabilities: NewCapabilityChecker(provider.Manifest.Security.Capabilities),
+	}
+	extension.SetState(ExtensionStateLoaded)
+	if provider.Manifest.Subprocess != nil {
+		extension.SetShutdownDeadline(provider.Manifest.Subprocess.ShutdownTimeout)
+	}
+	return extension, nil
+}
+
+func cloneRuntimeExtension(extension *RuntimeExtension) (*RuntimeExtension, error) {
+	if extension == nil {
+		return nil, fmt.Errorf("clone runtime extension: missing runtime extension")
+	}
+	if extension.Manifest == nil {
+		return nil, fmt.Errorf("clone runtime extension %q: missing manifest", extension.normalizedName())
+	}
+
+	cloned := &RuntimeExtension{
+		Name:         extension.normalizedName(),
+		Ref:          extension.Ref,
+		Manifest:     extension.Manifest,
+		ManifestPath: extension.ManifestPath,
+		ExtensionDir: extension.ExtensionDir,
+		Capabilities: NewCapabilityChecker(extension.Manifest.Security.Capabilities),
+	}
+	cloned.SetState(ExtensionStateLoaded)
+	if extension.Manifest.Subprocess != nil {
+		cloned.SetShutdownDeadline(extension.Manifest.Subprocess.ShutdownTimeout)
+	}
+	return cloned, nil
+}
+
+func newManagerForExtensions(cfg managerConfig, extensions []*RuntimeExtension) (*Manager, error) {
+	registry, err := NewRegistry(extensions...)
+	if err != nil {
+		return nil, fmt.Errorf("build runtime registry: %w", err)
+	}
+
+	var audit *AuditLogger
+	if auditDir := strings.TrimSpace(cfg.AuditDir); auditDir != "" {
+		audit = &AuditLogger{}
+		if err := audit.Open(auditDir); err != nil {
+			return nil, fmt.Errorf("open extension audit log: %w", err)
+		}
+	}
+
+	dispatcher := NewHookDispatcher(registry, audit)
+	hostAPI := NewHostAPIRouter(registry, audit)
+	manager := &Manager{
+		runID:           strings.TrimSpace(cfg.RunID),
+		parentRunID:     strings.TrimSpace(cfg.ParentRunID),
+		workspaceRoot:   strings.TrimSpace(cfg.WorkspaceRoot),
+		invokingCommand: strings.TrimSpace(cfg.InvokingCommand),
+		journal:         cfg.Journal,
+		eventBus:        cfg.EventBus,
+		registry:        registry,
+		dispatcher:      dispatcher,
+		hostAPI:         hostAPI,
+		audit:           audit,
+		subprocs:        make(map[string]*subprocess.Process),
+		sessions:        make(map[string]*extensionSession),
+	}
+
+	ops, err := NewDefaultKernelOps(DefaultKernelOpsConfig{
+		WorkspaceRoot:  cfg.WorkspaceRoot,
+		RunID:          cfg.RunID,
+		ParentRunID:    cfg.ParentRunID,
+		EventBus:       cfg.EventBus,
+		Journal:        cfg.Journal,
+		RuntimeManager: manager,
+	})
+	if err != nil {
+		if closeErr := manager.closeAudit(context.Background()); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+		return nil, fmt.Errorf("build host services: %w", err)
+	}
+	if err := RegisterHostServices(hostAPI, ops); err != nil {
+		if closeErr := manager.closeAudit(context.Background()); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+		return nil, fmt.Errorf("register host services: %w", err)
+	}
+
+	return manager, nil
 }
 
 func (m *Manager) waitForObservers(ctx context.Context) error {

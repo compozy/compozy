@@ -298,7 +298,8 @@ func appendProviderConflictWarnings(
 	enabled map[string]struct{},
 ) []string {
 	grouped := make(map[string][]string)
-	for _, declared := range providers {
+	for i := range providers {
+		declared := providers[i]
 		if _, ok := enabled[declared.Extension.Name]; !ok {
 			continue
 		}

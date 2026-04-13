@@ -698,6 +698,19 @@ func TestResolveExtensionCommandUsesExtensionDirForRelativePath(t *testing.T) {
 	}
 }
 
+func TestExtensionWorkingDirFallsBackToBinaryDirectoryWhenExtensionDirIsMissing(t *testing.T) {
+	binaryDir := t.TempDir()
+	command := []string{filepath.Join(binaryDir, "mock-extension")}
+
+	got := extensionWorkingDir(&RuntimeExtension{
+		ExtensionDir: filepath.Join(binaryDir, "missing"),
+	}, command)
+
+	if got != binaryDir {
+		t.Fatalf("extensionWorkingDir() = %q, want %q", got, binaryDir)
+	}
+}
+
 func TestEmitLifecycleEventPublishesThroughJournal(t *testing.T) {
 	rt := newHostRuntime(t, nil, nil, "")
 	_, ch, unsubscribe := rt.bus.Subscribe()

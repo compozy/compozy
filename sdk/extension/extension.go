@@ -33,6 +33,42 @@ type HealthCheckHandler func(context.Context, HealthCheckRequest) (HealthCheckRe
 // ShutdownHandler overrides the default graceful shutdown behavior.
 type ShutdownHandler func(context.Context, ShutdownRequest) error
 
+// ReviewProviderHandler serves one registered executable review provider.
+type ReviewProviderHandler interface {
+	FetchReviews(context.Context, ReviewProviderContext, FetchRequest) ([]ReviewItem, error)
+	ResolveIssues(context.Context, ReviewProviderContext, ResolveIssuesRequest) error
+}
+
+// ReviewProvider adapts plain functions to ReviewProviderHandler.
+type ReviewProvider struct {
+	FetchReviewsFunc  func(context.Context, ReviewProviderContext, FetchRequest) ([]ReviewItem, error)
+	ResolveIssuesFunc func(context.Context, ReviewProviderContext, ResolveIssuesRequest) error
+}
+
+// FetchReviews implements ReviewProviderHandler.
+func (p ReviewProvider) FetchReviews(
+	ctx context.Context,
+	reviewCtx ReviewProviderContext,
+	req FetchRequest,
+) ([]ReviewItem, error) {
+	if p.FetchReviewsFunc == nil {
+		return nil, fmt.Errorf("review provider %q is missing FetchReviews", reviewCtx.Provider)
+	}
+	return p.FetchReviewsFunc(ctx, reviewCtx, req)
+}
+
+// ResolveIssues implements ReviewProviderHandler.
+func (p ReviewProvider) ResolveIssues(
+	ctx context.Context,
+	reviewCtx ReviewProviderContext,
+	req ResolveIssuesRequest,
+) error {
+	if p.ResolveIssuesFunc == nil {
+		return fmt.Errorf("review provider %q is missing ResolveIssues", reviewCtx.Provider)
+	}
+	return p.ResolveIssuesFunc(ctx, reviewCtx, req)
+}
+
 type eventRegistration struct {
 	kinds   map[EventKind]struct{}
 	handler EventHandler
@@ -73,8 +109,9 @@ type Extension struct {
 	acceptedCapabilities map[Capability]struct{}
 	capabilities         []Capability
 
-	hooks         map[HookName]registeredHook
-	eventHandlers []eventRegistration
+	hooks           map[HookName]registeredHook
+	reviewProviders map[string]ReviewProviderHandler
+	eventHandlers   []eventRegistration
 
 	healthHandler   HealthCheckHandler
 	shutdownHandler ShutdownHandler
@@ -91,12 +128,13 @@ type Extension struct {
 // New constructs a new extension runtime with the provided identity.
 func New(name string, version string) *Extension {
 	ext := &Extension{
-		name:       strings.TrimSpace(name),
-		version:    strings.TrimSpace(version),
-		sdkVersion: strings.TrimSpace(version),
-		hooks:      make(map[HookName]registeredHook),
-		pending:    make(map[string]chan callResult),
-		done:       make(chan struct{}),
+		name:            strings.TrimSpace(name),
+		version:         strings.TrimSpace(version),
+		sdkVersion:      strings.TrimSpace(version),
+		hooks:           make(map[HookName]registeredHook),
+		reviewProviders: make(map[string]ReviewProviderHandler),
+		pending:         make(map[string]chan callResult),
+		done:            make(chan struct{}),
 	}
 	ext.host = newHostAPI(ext)
 	return ext
@@ -209,6 +247,24 @@ func (e *Extension) OnShutdown(handler ShutdownHandler) *Extension {
 	defer e.mu.Unlock()
 
 	e.shutdownHandler = handler
+	return e
+}
+
+// RegisterReviewProvider registers one executable review provider handler by name.
+func (e *Extension) RegisterReviewProvider(name string, handler ReviewProviderHandler) *Extension {
+	if e == nil || handler == nil {
+		return e
+	}
+
+	normalized := strings.TrimSpace(name)
+	if normalized == "" {
+		return e
+	}
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.reviewProviders[normalized] = handler
 	return e
 }
 
@@ -415,8 +471,9 @@ func (e *Extension) buildInitializeResponse(request InitializeRequest) (Initiali
 			SDKName:    sdkName,
 			SDKVersion: e.reportedSDKVersion(),
 		},
-		AcceptedCapabilities: required,
-		SupportedHookEvents:  e.supportedHookEvents(),
+		AcceptedCapabilities:      required,
+		SupportedHookEvents:       e.supportedHookEvents(),
+		RegisteredReviewProviders: e.registeredReviewProviders(),
 		Supports: Supports{
 			HealthCheck: true,
 			OnEvent:     true,
@@ -474,6 +531,10 @@ func (e *Extension) handleRequest(message Message) {
 		err = e.handleOnEvent(message)
 	case "health_check":
 		err = e.handleHealthCheck(message)
+	case "fetch_reviews":
+		err = e.handleFetchReviews(message)
+	case "resolve_issues":
+		err = e.handleResolveIssues(message)
 	default:
 		err = e.writeError(message.ID, newMethodNotFoundError(message.Method))
 	}
@@ -574,6 +635,73 @@ func (e *Extension) handleHealthCheck(message Message) error {
 	return e.writeResult(message.ID, response)
 }
 
+func (e *Extension) handleFetchReviews(message Message) error {
+	if err := e.checkCapability(CapabilityProvidersRegister, "fetch_reviews"); err != nil {
+		return e.writeError(message.ID, err)
+	}
+
+	var request struct {
+		Provider string `json:"provider"`
+		FetchRequest
+	}
+	if err := unmarshalJSON(message.Params, &request); err != nil {
+		return e.writeError(message.ID, newInvalidParamsError(map[string]any{
+			"method": "fetch_reviews",
+			"error":  err.Error(),
+		}))
+	}
+
+	handler, ok := e.reviewProvider(request.Provider)
+	if !ok {
+		return e.writeError(message.ID, newInvalidParamsError(map[string]any{
+			"reason":   "unsupported_review_provider",
+			"provider": request.Provider,
+		}))
+	}
+
+	items, err := handler.FetchReviews(context.Background(), ReviewProviderContext{
+		Provider: strings.TrimSpace(request.Provider),
+		Host:     e.host,
+	}, request.FetchRequest)
+	if err != nil {
+		return e.writeError(message.ID, toRPCError(err))
+	}
+	return e.writeResult(message.ID, items)
+}
+
+func (e *Extension) handleResolveIssues(message Message) error {
+	if err := e.checkCapability(CapabilityProvidersRegister, "resolve_issues"); err != nil {
+		return e.writeError(message.ID, err)
+	}
+
+	var request struct {
+		Provider string `json:"provider"`
+		ResolveIssuesRequest
+	}
+	if err := unmarshalJSON(message.Params, &request); err != nil {
+		return e.writeError(message.ID, newInvalidParamsError(map[string]any{
+			"method": "resolve_issues",
+			"error":  err.Error(),
+		}))
+	}
+
+	handler, ok := e.reviewProvider(request.Provider)
+	if !ok {
+		return e.writeError(message.ID, newInvalidParamsError(map[string]any{
+			"reason":   "unsupported_review_provider",
+			"provider": request.Provider,
+		}))
+	}
+
+	if err := handler.ResolveIssues(context.Background(), ReviewProviderContext{
+		Provider: strings.TrimSpace(request.Provider),
+		Host:     e.host,
+	}, request.ResolveIssuesRequest); err != nil {
+		return e.writeError(message.ID, toRPCError(err))
+	}
+	return e.writeResult(message.ID, map[string]any{})
+}
+
 func (e *Extension) resolvePending(message Message) {
 	e.pendingMu.Lock()
 	ch, ok := e.pending[string(message.ID)]
@@ -668,6 +796,18 @@ func (e *Extension) supportedHookEvents() []HookName {
 	return hooks
 }
 
+func (e *Extension) registeredReviewProviders() []string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	names := make([]string, 0, len(e.reviewProviders))
+	for name := range e.reviewProviders {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
 func (e *Extension) requiredCapabilities() []Capability {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -718,6 +858,14 @@ func (e *Extension) currentShutdownHandler() ShutdownHandler {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.shutdownHandler
+}
+
+func (e *Extension) reviewProvider(name string) (ReviewProviderHandler, bool) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	handler, ok := e.reviewProviders[strings.TrimSpace(name)]
+	return handler, ok
 }
 
 func (e *Extension) currentPending() map[string]chan callResult {

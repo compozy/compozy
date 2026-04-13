@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -83,11 +84,12 @@ type initializeRuntime struct {
 }
 
 type initializeResponse struct {
-	ProtocolVersion      string                 `json:"protocol_version"`
-	ExtensionInfo        initializeResponseInfo `json:"extension_info"`
-	AcceptedCapabilities []Capability           `json:"accepted_capabilities,omitempty"`
-	SupportedHookEvents  []HookName             `json:"supported_hook_events,omitempty"`
-	Supports             initializeSupports     `json:"supports"`
+	ProtocolVersion           string                 `json:"protocol_version"`
+	ExtensionInfo             initializeResponseInfo `json:"extension_info"`
+	AcceptedCapabilities      []Capability           `json:"accepted_capabilities,omitempty"`
+	SupportedHookEvents       []HookName             `json:"supported_hook_events,omitempty"`
+	RegisteredReviewProviders []string               `json:"registered_review_providers,omitempty"`
+	Supports                  initializeSupports     `json:"supports"`
 }
 
 type initializeResponseInfo struct {
@@ -145,6 +147,7 @@ func (m *Manager) launchExtensionProcess(
 	return subprocess.Launch(contextWithoutCancel(ctx), subprocess.LaunchConfig{
 		Command:         command,
 		Env:             extensionEnvironment(m, extension),
+		WorkingDir:      extensionWorkingDir(extension, command),
 		WaitDelay:       defaultShutdownTimeout(extension),
 		WaitErrorPrefix: fmt.Sprintf("wait for extension process %q", extension.normalizedName()),
 	})
@@ -400,6 +403,22 @@ func validateInitializeContract(
 	}
 
 	accepted := NewCapabilityChecker(response.AcceptedCapabilities)
+	declaredReviewProviders := manifestDeclaredReviewProviders(extension)
+	reportedReviewProviders := normalizeProviderNames(response.RegisteredReviewProviders)
+	if len(declaredReviewProviders) > 0 && !accepted.Has(CapabilityProvidersRegister) {
+		return subprocess.NewInvalidParams(map[string]any{
+			"reason":                    "missing_provider_registration_capability",
+			"declared_review_providers": sortedSetKeys(declaredReviewProviders),
+			"accepted_capabilities":     capabilityStrings(response.AcceptedCapabilities),
+		})
+	}
+	if !equalStringSets(declaredReviewProviders, reportedReviewProviders) {
+		return subprocess.NewInvalidParams(map[string]any{
+			"reason":                    "unsupported_review_provider_contract",
+			"declared_review_providers": sortedSetKeys(declaredReviewProviders),
+			"reported_review_providers": sortedSetKeys(reportedReviewProviders),
+		})
+	}
 	if accepted.Has(CapabilityEventsRead) && !response.Supports.OnEvent {
 		return subprocess.NewInvalidParams(map[string]any{
 			"reason":                "inconsistent_event_contract",
@@ -411,6 +430,57 @@ func validateInitializeContract(
 	}
 
 	return nil
+}
+
+func manifestDeclaredReviewProviders(extension *RuntimeExtension) map[string]struct{} {
+	reported := make(map[string]struct{})
+	if extension == nil || extension.Manifest == nil {
+		return reported
+	}
+
+	for i := range extension.Manifest.Providers.Review {
+		entry := extension.Manifest.Providers.Review[i]
+		if reviewProviderKind(entry) != ProviderKindExtension {
+			continue
+		}
+		name := strings.TrimSpace(entry.Name)
+		if name != "" {
+			reported[name] = struct{}{}
+		}
+	}
+	return reported
+}
+
+func normalizeProviderNames(values []string) map[string]struct{} {
+	reported := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		name := strings.TrimSpace(value)
+		if name != "" {
+			reported[name] = struct{}{}
+		}
+	}
+	return reported
+}
+
+func equalStringSets(left, right map[string]struct{}) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for value := range left {
+		if _, ok := right[value]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func sortedSetKeys(values map[string]struct{}) []string {
+	keys := make([]string, 0, len(values))
+	for value := range values {
+		keys = append(keys, value)
+	}
+	slices.Sort(keys)
+	return keys
 }
 
 func (s *extensionSession) Call(ctx context.Context, method string, params any, result any) error {
@@ -631,6 +701,26 @@ func resolveExtensionCommand(extension *RuntimeExtension) ([]string, error) {
 
 	args := append([]string{command}, extension.Manifest.Subprocess.Args...)
 	return args, nil
+}
+
+func extensionWorkingDir(extension *RuntimeExtension, command []string) string {
+	if extension != nil {
+		dir := strings.TrimSpace(extension.ExtensionDir)
+		if dir != "" {
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				return dir
+			}
+		}
+	}
+
+	if len(command) == 0 {
+		return ""
+	}
+	first := strings.TrimSpace(command[0])
+	if filepath.IsAbs(first) {
+		return filepath.Dir(first)
+	}
+	return ""
 }
 
 func extensionEnvironment(manager *Manager, extension *RuntimeExtension) []string {

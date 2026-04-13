@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 )
 
-func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testing.T) {
+func TestParseReviewBodyCommentItemsDeduplicatesHashesAndKeepsNewestReview(t *testing.T) {
 	t.Parallel()
 
 	sharedTitle := "Prefer reusing existing stop-reason helper to avoid duplicated normalization."
@@ -18,9 +18,12 @@ func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testin
 	reviews := []pullRequestReview{
 		{
 			ID: 4089982130,
-			Body: testNitpickReviewBody(
-				testNitpickFileSection("internal/session/query.go", "213-216", sharedTitle, sharedBody),
-			),
+			Body: testReviewBodyCommentBlock("🧹 Nitpick comments", testReviewBodyCommentFileSection(
+				"internal/session/query.go",
+				"213-216",
+				sharedTitle,
+				sharedBody,
+			)),
 			SubmittedAt: "2026-04-10T13:33:25Z",
 			User: struct {
 				Login string `json:"login"`
@@ -36,9 +39,12 @@ func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testin
 		},
 		{
 			ID: 4090314487,
-			Body: testNitpickReviewBody(
-				testNitpickFileSection("internal/session/query.go", "213-216", sharedTitle, sharedBody),
-				testNitpickFileSection(
+			Body: testReviewBodyCommentBlock(
+				"🧹 Nitpick comments",
+				testReviewBodyCommentFileSection("internal/session/query.go", "213-216", sharedTitle, sharedBody),
+			) + "\n" + testReviewBodyCommentBlock(
+				"🟡 Minor comments",
+				testReviewBodyCommentFileSection(
 					"internal/session/query_test.go",
 					"358-371",
 					"Split the legacy-path assertions into an explicit subtest.",
@@ -51,8 +57,11 @@ func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testin
 			}{Login: defaultBotLogin},
 		},
 		{
-			ID:          4090314499,
-			Body:        testNitpickReviewBody("internal/session/query.go", "213-216", sharedTitle, sharedBody),
+			ID: 4090314499,
+			Body: testReviewBodyCommentBlock(
+				"🧹 Nitpick comments",
+				testReviewBodyCommentFileSection("internal/session/query.go", "213-216", sharedTitle, sharedBody),
+			),
 			SubmittedAt: "2026-04-10T14:25:00Z",
 			User: struct {
 				Login string `json:"login"`
@@ -60,12 +69,12 @@ func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testin
 		},
 	}
 
-	items := parseNitpickReviewItems(reviews, defaultBotLogin)
+	items := parseReviewBodyCommentItems(reviews, defaultBotLogin)
 	if len(items) != 2 {
-		t.Fatalf("expected 2 deduped nitpicks, got %d (%#v)", len(items), items)
+		t.Fatalf("expected 2 deduped review body comments, got %d (%#v)", len(items), items)
 	}
 
-	hash := buildNitpickHash("internal/session/query.go", "213-216", sharedTitle, sharedBody)
+	hash := buildReviewBodyCommentHash("internal/session/query.go", "213-216", sharedTitle, sharedBody)
 	itemByHash := make(map[string]provider.ReviewItem, len(items))
 	for _, item := range items {
 		itemByHash[item.ReviewHash] = item
@@ -81,15 +90,15 @@ func TestParseNitpickReviewItemsDeduplicatesHashesAndKeepsNewestReview(t *testin
 	if queryItem.ProviderRef != "review:4090314487,nitpick_hash:"+hash {
 		t.Fatalf("unexpected provider ref: %q", queryItem.ProviderRef)
 	}
-	if queryItem.Line != 213 || queryItem.Severity != nitpickSeverity {
-		t.Fatalf("unexpected query nitpick metadata: %#v", queryItem)
+	if queryItem.Line != 213 || queryItem.Severity != reviewBodyCommentSeverityNitpick {
+		t.Fatalf("unexpected query review-body metadata: %#v", queryItem)
 	}
 }
 
-func TestParseNitpickReviewItemsKeepsLocationsDistinct(t *testing.T) {
+func TestParseReviewBodyCommentItemsKeepsLocationsDistinct(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep identical nitpicks at different locations as separate items", func(t *testing.T) {
+	t.Run("Should keep identical review body comments at different locations as separate items", func(t *testing.T) {
 		t.Parallel()
 
 		sharedTitle := "Prefer reusing existing stop-reason helper to avoid duplicated normalization."
@@ -97,9 +106,10 @@ func TestParseNitpickReviewItemsKeepsLocationsDistinct(t *testing.T) {
 		reviews := []pullRequestReview{
 			{
 				ID: 4090314487,
-				Body: testNitpickReviewBody(
-					testNitpickFileSection("internal/session/query.go", "213-216", sharedTitle, sharedBody),
-					testNitpickFileSection("internal/session/query.go", "240-243", sharedTitle, sharedBody),
+				Body: testReviewBodyCommentBlock(
+					"🧹 Nitpick comments",
+					testReviewBodyCommentFileSection("internal/session/query.go", "213-216", sharedTitle, sharedBody),
+					testReviewBodyCommentFileSection("internal/session/query.go", "240-243", sharedTitle, sharedBody),
 				),
 				SubmittedAt: "2026-04-10T14:24:56Z",
 				User: struct {
@@ -108,13 +118,13 @@ func TestParseNitpickReviewItemsKeepsLocationsDistinct(t *testing.T) {
 			},
 		}
 
-		items := parseNitpickReviewItems(reviews, defaultBotLogin)
+		items := parseReviewBodyCommentItems(reviews, defaultBotLogin)
 		if len(items) != 2 {
-			t.Fatalf("expected 2 nitpick items, got %d (%#v)", len(items), items)
+			t.Fatalf("expected 2 review body comment items, got %d (%#v)", len(items), items)
 		}
 
-		firstHash := buildNitpickHash("internal/session/query.go", "213-216", sharedTitle, sharedBody)
-		secondHash := buildNitpickHash("internal/session/query.go", "240-243", sharedTitle, sharedBody)
+		firstHash := buildReviewBodyCommentHash("internal/session/query.go", "213-216", sharedTitle, sharedBody)
+		secondHash := buildReviewBodyCommentHash("internal/session/query.go", "240-243", sharedTitle, sharedBody)
 		if firstHash == secondHash {
 			t.Fatalf("expected distinct hashes for distinct locations, got %q", firstHash)
 		}
@@ -130,6 +140,53 @@ func TestParseNitpickReviewItemsKeepsLocationsDistinct(t *testing.T) {
 			t.Fatalf("expected second nitpick hash %q, got %#v", secondHash, itemByHash)
 		}
 	})
+}
+
+func TestParseReviewBodyCommentItemsRecognizesMinorAndMajorCategories(t *testing.T) {
+	t.Parallel()
+
+	reviews := []pullRequestReview{
+		{
+			ID: 4090314487,
+			Body: testReviewBodyCommentBlock(
+				"Minor comments",
+				testReviewBodyCommentFileSection(
+					"internal/session/query.go",
+					"213-216",
+					"Prefer explicit branch naming.",
+					"Use a domain-specific name instead of a generic branch variable.",
+				),
+			) + "\n" + testReviewBodyCommentBlock(
+				"🔴 Major comments",
+				testReviewBodyCommentFileSection(
+					"internal/session/query_test.go",
+					"90-120",
+					"Split transport parsing from business validation.",
+					"This mixes transport assumptions with validation flow and makes the path harder to reason about.",
+				),
+			),
+			SubmittedAt: "2026-04-10T14:24:56Z",
+			User: struct {
+				Login string `json:"login"`
+			}{Login: defaultBotLogin},
+		},
+	}
+
+	items := parseReviewBodyCommentItems(reviews, defaultBotLogin)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 categorized review body comment items, got %d (%#v)", len(items), items)
+	}
+
+	got := make(map[string]string, len(items))
+	for _, item := range items {
+		got[item.Title] = item.Severity
+	}
+	if got["Prefer explicit branch naming."] != reviewBodyCommentSeverityMinor {
+		t.Fatalf("expected minor severity, got %#v", got)
+	}
+	if got["Split transport parsing from business validation."] != reviewBodyCommentSeverityMajor {
+		t.Fatalf("expected major severity, got %#v", got)
+	}
 }
 
 func TestFetchReviewsSkipsPullRequestReviewsWhenNitpicksDisabled(t *testing.T) {
@@ -166,7 +223,7 @@ func TestFetchReviewsSkipsPullRequestReviewsWhenNitpicksDisabled(t *testing.T) {
 	}
 }
 
-func TestFetchReviewsIncludesNitpicksWhenRequested(t *testing.T) {
+func TestFetchReviewsIncludesReviewBodyCommentsWhenRequested(t *testing.T) {
 	t.Parallel()
 
 	reviewsEndpointCalled := false
@@ -184,12 +241,21 @@ func TestFetchReviewsIncludesNitpicksWhenRequested(t *testing.T) {
 			reviewsEndpointCalled = true
 			return []byte(fmt.Sprintf(`[
 				{"id":4089982130,"submitted_at":"2026-04-10T13:33:25Z","body":%q,"user":{"login":"%s"}}
-			]`, testNitpickReviewBody(
-				testNitpickFileSection(
+			]`, testReviewBodyCommentBlock(
+				"🧹 Nitpick comments",
+				testReviewBodyCommentFileSection(
 					"internal/session/query.go",
 					"213-216",
 					"Prefer reusing existing stop-reason helper to avoid duplicated normalization.",
 					"This block duplicates logic already present in the same package (`sessionMetaStopReason`). Reusing the helper keeps stop normalization behavior centralized.",
+				),
+			)+"\n"+testReviewBodyCommentBlock(
+				"🟡 Minor comments",
+				testReviewBodyCommentFileSection(
+					"internal/session/query_test.go",
+					"358-371",
+					"Split the legacy-path assertions into an explicit subtest.",
+					"This introduces a second scenario in the same test body; isolating it in `t.Run(\"Should ...\")` keeps failures scoped and aligns with the test conventions.",
 				),
 			), defaultBotLogin)), nil
 		default:
@@ -207,19 +273,40 @@ func TestFetchReviewsIncludesNitpicksWhenRequested(t *testing.T) {
 	if !reviewsEndpointCalled {
 		t.Fatal("expected pull request reviews endpoint to be used when nitpicks are enabled")
 	}
-	if len(items) != 1 {
-		t.Fatalf("expected 1 nitpick item, got %#v", items)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 review body comment items, got %#v", items)
 	}
-	if items[0].Severity != nitpickSeverity || items[0].ReviewHash == "" {
-		t.Fatalf("unexpected nitpick item metadata: %#v", items[0])
+
+	itemByTitle := make(map[string]provider.ReviewItem, len(items))
+	for _, item := range items {
+		if item.ReviewHash == "" {
+			t.Fatalf("expected review hash for fetched review body comment, got %#v", item)
+		}
+		itemByTitle[item.Title] = item
+	}
+
+	nitpickItem, ok := itemByTitle["Prefer reusing existing stop-reason helper to avoid duplicated normalization."]
+	if !ok {
+		t.Fatalf("expected nitpick review body comment, got %#v", itemByTitle)
+	}
+	if nitpickItem.Severity != reviewBodyCommentSeverityNitpick {
+		t.Fatalf("expected nitpick severity, got %#v", nitpickItem)
+	}
+
+	minorItem, ok := itemByTitle["Split the legacy-path assertions into an explicit subtest."]
+	if !ok {
+		t.Fatalf("expected minor review body comment, got %#v", itemByTitle)
+	}
+	if minorItem.Severity != reviewBodyCommentSeverityMinor {
+		t.Fatalf("expected minor severity, got %#v", minorItem)
 	}
 }
 
-func testNitpickReviewBody(fileSections ...string) string {
+func testReviewBodyCommentBlock(summary string, fileSections ...string) string {
 	joinedSections := strings.Join(fileSections, "\n\n")
 	return strings.Join([]string{
 		"<details>",
-		fmt.Sprintf("<summary>🧹 Nitpick comments (%d)</summary><blockquote>", len(fileSections)),
+		fmt.Sprintf("<summary>%s (%d)</summary><blockquote>", summary, len(fileSections)),
 		"",
 		joinedSections,
 		"",
@@ -228,7 +315,7 @@ func testNitpickReviewBody(fileSections ...string) string {
 	}, "\n")
 }
 
-func testNitpickFileSection(filePath string, lineRange string, title string, body string) string {
+func testReviewBodyCommentFileSection(filePath string, lineRange string, title string, body string) string {
 	return strings.Join([]string{
 		"<details>",
 		fmt.Sprintf("<summary>%s (1)</summary><blockquote>", filePath),

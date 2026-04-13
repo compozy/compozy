@@ -126,12 +126,41 @@ export class TestHarness {
     return this.call("shutdown", request);
   }
 
+  /** Issues one arbitrary request against the running extension. */
+  async call<T>(method: string, params: unknown): Promise<T> {
+    const id = String(++this.requestID);
+    const response = await new Promise<Message>((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      void this.hostTransport.writeMessage({ id, method, params }).catch(error => {
+        this.pending.delete(id);
+        reject(error);
+      });
+    });
+
+    if (response.error !== undefined) {
+      throw RPCError.fromShape(response.error);
+    }
+    return response.result as T;
+  }
+
+  private rejectPending(error: unknown): void {
+    const reason =
+      error instanceof Error
+        ? new Error(`test harness terminated: ${error.message}`)
+        : new Error("test harness terminated");
+    for (const [id, pending] of this.pending) {
+      this.pending.delete(id);
+      pending.reject(reason);
+    }
+  }
+
   private async hostLoop(): Promise<void> {
     while (true) {
       let message: Message;
       try {
         message = await this.hostTransport.readMessage();
-      } catch {
+      } catch (error) {
+        this.rejectPending(error);
         return;
       }
 
@@ -172,22 +201,6 @@ export class TestHarness {
         await this.hostTransport.writeMessage({ id: message.id, error: requestError.toShape() });
       }
     }
-  }
-
-  private async call<T>(method: string, params: unknown): Promise<T> {
-    const id = String(++this.requestID);
-    const response = await new Promise<Message>((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      void this.hostTransport.writeMessage({ id, method, params }).catch(error => {
-        this.pending.delete(id);
-        reject(error);
-      });
-    });
-
-    if (response.error !== undefined) {
-      throw RPCError.fromShape(response.error);
-    }
-    return response.result as T;
   }
 }
 

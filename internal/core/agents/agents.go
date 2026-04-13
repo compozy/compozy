@@ -403,6 +403,18 @@ func parseAgentDefinition(path string, content string) (Metadata, RuntimeDefault
 	if err := validateRuntimeDefaults(path, runtime); err != nil {
 		return Metadata{}, RuntimeDefaults{}, "", err
 	}
+	if strings.TrimSpace(runtime.IDE) != "" && strings.TrimSpace(runtime.Model) == "" {
+		modelName, err := runtimeagent.ResolveRuntimeModel(runtime.IDE, "")
+		if err != nil {
+			return Metadata{}, RuntimeDefaults{}, "", fmt.Errorf(
+				"%w: %s ide %q is not supported",
+				ErrInvalidRuntimeDefaults,
+				path,
+				runtime.IDE,
+			)
+		}
+		runtime.Model = strings.TrimSpace(modelName)
+	}
 
 	return metadata, runtime, body, nil
 }

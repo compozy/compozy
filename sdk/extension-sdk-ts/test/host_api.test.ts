@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { Extension } from "../src/extension.js";
 import { RPCError } from "../src/transport.js";
-import { CAPABILITIES, PROTOCOL_VERSION } from "../src/types.js";
+import { CAPABILITIES, HOOKS, PROTOCOL_VERSION } from "../src/types.js";
 import { TestHarness } from "../src/testing/test_harness.js";
 import { createMockTransportPair } from "../src/testing/mock_transport.js";
 
@@ -215,5 +215,38 @@ describe("HostAPI", () => {
 
     await harness.shutdown({ reason: "run_completed", deadline_ms: 1000 });
     await expect(runPromise).resolves.toBeUndefined();
+  });
+
+  it("rejects pending calls when the harness transport terminates", async () => {
+    const extension = new Extension("sdk-ext", "1.0.0").onPromptPostBuild(
+      () => new Promise<never>(() => {})
+    );
+    const harness = new TestHarness({
+      granted_capabilities: [CAPABILITIES.promptMutate],
+    });
+
+    void harness.run(extension).catch(() => undefined);
+    await harness.initialize({
+      name: "sdk-ext",
+      version: "1.0.0",
+      source: "workspace",
+    });
+
+    const pending = harness.dispatchHook(
+      "hook-pending",
+      {
+        name: HOOKS.promptPostBuild,
+        event: HOOKS.promptPostBuild,
+        mutable: true,
+        required: false,
+        priority: 500,
+        timeout_ms: 5000,
+      },
+      { prompt_text: "original" }
+    );
+
+    await harness.extensionTransport.close();
+
+    await expect(pending).rejects.toThrow("test harness terminated");
   });
 });

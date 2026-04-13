@@ -1,13 +1,15 @@
 Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.
 
-Most runtime defaults can be supplied by .compozy/config.toml.
+Most runtime defaults can be supplied by .compozy/config.toml. In interactive terminals the command
+opens the run cockpit by default; in non-TTY environments it falls back to headless streaming.
 
 Usage:
   compozy start [flags]
 
 Examples:
   compozy start --name multi-repo --tasks-dir .compozy/tasks/multi-repo --ide claude
+  compozy start --format json --name multi-repo --tasks-dir .compozy/tasks/multi-repo
   compozy start
 
 Flags:
@@ -16,15 +18,17 @@ Flags:
       --auto-commit                      Include automatic commit instructions at task/batch completion
       --dry-run                          Only generate prompts; do not run IDE tool
       --force                            Continue after task metadata validation fails in non-interactive mode
+      --format string                    Output format: text, json, or raw-json (default "text")
   -h, --help                             help for start
-      --ide string                       ACP runtime to use: claude, codex, copilot, cursor-agent, droid, gemini, opencode, or pi (requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx) (default "codex")
+      --ide string                       ACP runtime to use. Built-in and enabled extension runtimes are validated against the active runtime catalog. (default "codex")
       --include-completed                Include completed tasks
       --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
-      --model string                     Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)
+      --model string                     Model to use. Leave empty to use the selected runtime default.
       --name string                      Task workflow name (used for .compozy/tasks/<name>)
-      --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags, such as droid (low, medium, high, xhigh) (default "medium")
+      --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
       --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately
       --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)
       --tasks-dir string                 Path to tasks directory (.compozy/tasks/<name>)
       --timeout string                   Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period. (default "10m")
+      --tui                              Open the interactive TUI when the terminal supports it; otherwise stream headless output (default true)

@@ -25,6 +25,8 @@ create-extension <name> [options]
 --template <name>    lifecycle-observer | prompt-decorator | review-provider | skill-pack
 --runtime <name>     typescript | go
 --module <path>      Go module path when --runtime go
+--go-sdk-ref <ref>   Go SDK module ref override
+--go-sdk-replace <dir> Local Compozy repo path to use via go.mod replace
 --skip-install       Skip npm install / go mod init + go mod tidy
 --help               Show help
 ```

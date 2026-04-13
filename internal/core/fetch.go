@@ -54,7 +54,7 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 	if err != nil {
 		return nil, err
 	}
-	items, err = filterFetchedNitpicks(resolvedPRDDir, round, items)
+	items, err = filterFetchedReviewBodyComments(resolvedPRDDir, round, items)
 	if err != nil {
 		return nil, err
 	}
@@ -151,14 +151,14 @@ func ensureReviewRoundDoesNotExist(reviewsDir string) error {
 	return nil
 }
 
-type nitpickHistoryState struct {
+type reviewBodyCommentHistoryState struct {
 	Resolved                bool
 	Round                   int
 	SourceReviewID          string
 	SourceReviewSubmittedAt time.Time
 }
 
-func filterFetchedNitpicks(
+func filterFetchedReviewBodyComments(
 	prdDir string,
 	currentRound int,
 	items []provider.ReviewItem,
@@ -167,7 +167,7 @@ func filterFetchedNitpicks(
 		return nil, nil
 	}
 
-	history, err := loadNitpickHistory(prdDir, currentRound)
+	history, err := loadReviewBodyCommentHistory(prdDir, currentRound)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func filterFetchedNitpicks(
 			continue
 		}
 
-		if fetchedNitpickIsNewer(*item, record) {
+		if fetchedReviewBodyCommentIsNewer(*item, record) {
 			filtered = append(filtered, *item)
 		}
 	}
@@ -197,13 +197,16 @@ func filterFetchedNitpicks(
 	return filtered, nil
 }
 
-func loadNitpickHistory(prdDir string, currentRound int) (map[string]nitpickHistoryState, error) {
+func loadReviewBodyCommentHistory(
+	prdDir string,
+	currentRound int,
+) (map[string]reviewBodyCommentHistoryState, error) {
 	rounds, err := reviews.DiscoverRounds(prdDir)
 	if err != nil {
 		return nil, err
 	}
 
-	history := make(map[string]nitpickHistoryState)
+	history := make(map[string]reviewBodyCommentHistoryState)
 	for _, round := range rounds {
 		if round >= currentRound {
 			continue
@@ -218,21 +221,21 @@ func loadNitpickHistory(prdDir string, currentRound int) (map[string]nitpickHist
 		for _, entry := range entries {
 			ctx, err := reviews.ParseReviewContext(entry.Content)
 			if err != nil {
-				return nil, fmt.Errorf("parse nitpick history %s: %w", entry.AbsPath, err)
+				return nil, fmt.Errorf("parse review body comment history %s: %w", entry.AbsPath, err)
 			}
 			hash := strings.TrimSpace(ctx.ReviewHash)
 			if hash == "" {
 				continue
 			}
 
-			next := nitpickHistoryState{
+			next := reviewBodyCommentHistoryState{
 				Resolved:                strings.EqualFold(strings.TrimSpace(ctx.Status), "resolved"),
 				Round:                   round,
 				SourceReviewID:          strings.TrimSpace(ctx.SourceReviewID),
 				SourceReviewSubmittedAt: parseReviewSubmittedAt(ctx.SourceReviewSubmittedAt),
 			}
 			current, ok := history[hash]
-			if !ok || nitpickHistoryEntryIsNewer(next, current) {
+			if !ok || reviewBodyCommentHistoryEntryIsNewer(next, current) {
 				history[hash] = next
 			}
 		}
@@ -254,7 +257,7 @@ func parseReviewSubmittedAt(value string) time.Time {
 	return parsed
 }
 
-func fetchedNitpickIsNewer(item provider.ReviewItem, record nitpickHistoryState) bool {
+func fetchedReviewBodyCommentIsNewer(item provider.ReviewItem, record reviewBodyCommentHistoryState) bool {
 	itemTime := parseReviewSubmittedAt(item.SourceReviewSubmittedAt)
 	if itemTime.After(record.SourceReviewSubmittedAt) {
 		return true
@@ -265,7 +268,10 @@ func fetchedNitpickIsNewer(item provider.ReviewItem, record nitpickHistoryState)
 	return compareSourceReviewIDs(item.SourceReviewID, record.SourceReviewID) > 0
 }
 
-func nitpickHistoryEntryIsNewer(candidate nitpickHistoryState, current nitpickHistoryState) bool {
+func reviewBodyCommentHistoryEntryIsNewer(
+	candidate reviewBodyCommentHistoryState,
+	current reviewBodyCommentHistoryState,
+) bool {
 	if candidate.Round != current.Round {
 		return candidate.Round > current.Round
 	}

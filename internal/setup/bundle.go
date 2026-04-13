@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/compozy/compozy/bundledagents"
+	"github.com/compozy/compozy/agents"
 	"github.com/compozy/compozy/skills"
 )
 
@@ -57,5 +57,5 @@ func bundledSkillsRoot() (fs.FS, error) {
 
 // bundledReusableAgentsRoot returns the embedded reusable-agent filesystem for tests.
 func bundledReusableAgentsRoot() (fs.FS, error) {
-	return bundledagents.FS, nil
+	return agents.FS, nil
 }

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -35,4 +36,25 @@ func (r *Registry) Get(name string) (Provider, error) {
 		return nil, fmt.Errorf("unknown review provider %q", name)
 	}
 	return p, nil
+}
+
+// List returns the registered providers in deterministic name order.
+func (r *Registry) List() []Provider {
+	if r == nil {
+		return nil
+	}
+
+	names := make([]string, 0, len(r.providers))
+	for name := range r.providers {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	providers := make([]Provider, 0, len(names))
+	for _, name := range names {
+		if provider, ok := r.providers[name]; ok {
+			providers = append(providers, provider)
+		}
+	}
+	return providers
 }

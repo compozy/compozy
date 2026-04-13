@@ -3,7 +3,14 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "node --check ./bin/review-provider.mjs",
-        "test": "node --test ./test/*.test.js"
+        "build": "tsc -p tsconfig.json",
+        "test": "npm run build --silent && node --test dist/test/**/*.test.js"
+    },
+    "dependencies": {
+        "@compozy/extension-sdk": "__COMPOZY_EXTENSION_SDK_SPEC__"
+    },
+    "devDependencies": {
+        "@types/node": "^25.5.2",
+        "typescript": "^6.0.2"
     }
 }

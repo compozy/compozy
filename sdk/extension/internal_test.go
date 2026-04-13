@@ -3,6 +3,7 @@ package extension
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -362,6 +363,195 @@ func TestExtensionDirectRequestBranches(t *testing.T) {
 			t.Fatalf("call error code = %d, want -32004", requestErr.Code)
 		}
 	})
+}
+
+func TestHandleFetchReviewsDispatchesRegisteredReviewProvider(t *testing.T) {
+	t.Parallel()
+
+	extSide, hostSide := newChannelTransportPair()
+	ext := New("sdk-ext", "1.0.0").
+		WithTransport(extSide).
+		WithCapabilities(CapabilityProvidersRegister).
+		RegisterReviewProvider("sdk-review", ReviewProvider{
+			FetchReviewsFunc: func(
+				_ context.Context,
+				ctx ReviewProviderContext,
+				req FetchRequest,
+			) ([]ReviewItem, error) {
+				if ctx.Provider != "sdk-review" {
+					t.Fatalf("provider context = %q, want sdk-review", ctx.Provider)
+				}
+				if req.PR != "123" || !req.IncludeNitpicks {
+					t.Fatalf("request = %#v, want propagated fetch request", req)
+				}
+				return []ReviewItem{{
+					Title:       "issue",
+					Body:        "from provider",
+					ProviderRef: "thread-1",
+				}}, nil
+			},
+		})
+
+	errCh := runExtension(t, ext)
+	var response InitializeResponse
+	sendRequestExpectResult(t, hostSide, "1", "initialize", InitializeRequest{
+		ProtocolVersion:           ProtocolVersion,
+		SupportedProtocolVersions: []string{ProtocolVersion},
+		CompozyVersion:            "dev",
+		Extension: InitializeRequestIdentity{
+			Name:    "sdk-ext",
+			Version: "1.0.0",
+			Source:  "workspace",
+		},
+		GrantedCapabilities: []Capability{CapabilityProvidersRegister},
+		Runtime: InitializeRuntime{
+			RunID:                 "run-001",
+			WorkspaceRoot:         ".",
+			InvokingCommand:       "start",
+			ShutdownTimeoutMS:     1000,
+			DefaultHookTimeoutMS:  5000,
+			HealthCheckIntervalMS: 1000,
+		},
+	}, &response)
+	if got := response.RegisteredReviewProviders; len(got) != 1 || got[0] != "sdk-review" {
+		t.Fatalf("registered_review_providers = %#v, want [sdk-review]", got)
+	}
+
+	var items []ReviewItem
+	sendRequestExpectResult(t, hostSide, "2", "fetch_reviews", map[string]any{
+		"provider":         "sdk-review",
+		"pr":               "123",
+		"include_nitpicks": true,
+	}, &items)
+	if len(items) != 1 || items[0].Title != "issue" {
+		t.Fatalf("fetch_reviews result = %#v, want bridged review item", items)
+	}
+
+	sendRequestExpectResult(
+		t,
+		hostSide,
+		"3",
+		"shutdown",
+		ShutdownRequest{Reason: "run_completed", DeadlineMS: 1000},
+		&ShutdownResponse{},
+	)
+	waitForTerminalError(t, errCh, nil)
+}
+
+func TestHandleResolveIssuesDispatchesRegisteredReviewProvider(t *testing.T) {
+	t.Parallel()
+
+	extSide, hostSide := newChannelTransportPair()
+	seen := make(chan ResolveIssuesRequest, 1)
+	ext := New("sdk-ext", "1.0.0").
+		WithTransport(extSide).
+		WithCapabilities(CapabilityProvidersRegister).
+		RegisterReviewProvider("sdk-review", ReviewProvider{
+			ResolveIssuesFunc: func(
+				_ context.Context,
+				ctx ReviewProviderContext,
+				req ResolveIssuesRequest,
+			) error {
+				if ctx.Provider != "sdk-review" {
+					t.Fatalf("provider context = %q, want sdk-review", ctx.Provider)
+				}
+				seen <- req
+				return nil
+			},
+		})
+
+	errCh := runExtension(t, ext)
+	sendRequestExpectResult(t, hostSide, "1", "initialize", InitializeRequest{
+		ProtocolVersion:           ProtocolVersion,
+		SupportedProtocolVersions: []string{ProtocolVersion},
+		CompozyVersion:            "dev",
+		Extension: InitializeRequestIdentity{
+			Name:    "sdk-ext",
+			Version: "1.0.0",
+			Source:  "workspace",
+		},
+		GrantedCapabilities: []Capability{CapabilityProvidersRegister},
+		Runtime: InitializeRuntime{
+			RunID:                 "run-001",
+			WorkspaceRoot:         ".",
+			InvokingCommand:       "start",
+			ShutdownTimeoutMS:     1000,
+			DefaultHookTimeoutMS:  5000,
+			HealthCheckIntervalMS: 1000,
+		},
+	}, &InitializeResponse{})
+
+	sendRequestExpectResult(t, hostSide, "2", "resolve_issues", map[string]any{
+		"provider": "sdk-review",
+		"pr":       "123",
+		"issues": []map[string]any{{
+			"file_path":    "issue_001.md",
+			"provider_ref": "thread-1",
+		}},
+	}, &map[string]any{})
+
+	select {
+	case req := <-seen:
+		if req.PR != "123" || len(req.Issues) != 1 || req.Issues[0].FilePath != "issue_001.md" {
+			t.Fatalf("resolve issues request = %#v, want propagated payload", req)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for resolve issues request")
+	}
+
+	sendRequestExpectResult(
+		t,
+		hostSide,
+		"3",
+		"shutdown",
+		ShutdownRequest{Reason: "run_completed", DeadlineMS: 1000},
+		&ShutdownResponse{},
+	)
+	waitForTerminalError(t, errCh, nil)
+}
+
+func TestHandleFetchReviewsRequiresProvidersRegisterCapability(t *testing.T) {
+	t.Parallel()
+
+	extSide, hostSide := newChannelTransportPair()
+	ext := New("sdk-ext", "1.0.0").
+		WithTransport(extSide).
+		RegisterReviewProvider("sdk-review", ReviewProvider{})
+
+	errCh := runExtension(t, ext)
+	initializeExtension(t, hostSide)
+
+	requestErr := sendRequestExpectError(t, hostSide, "2", "fetch_reviews", map[string]any{
+		"provider": "sdk-review",
+		"pr":       "123",
+	})
+	if requestErr.Code != -32001 {
+		t.Fatalf("fetch_reviews error code = %d, want -32001", requestErr.Code)
+	}
+
+	var data struct {
+		Method   string       `json:"method"`
+		Required []Capability `json:"required"`
+	}
+	if err := json.Unmarshal(requestErr.Data, &data); err != nil {
+		t.Fatalf("unmarshal error data: %v", err)
+	}
+	if data.Method != "fetch_reviews" {
+		t.Fatalf("error method = %q, want fetch_reviews", data.Method)
+	}
+	if len(data.Required) != 1 || data.Required[0] != CapabilityProvidersRegister {
+		t.Fatalf("required capabilities = %#v, want [providers.register]", data.Required)
+	}
+
+	sendRequestExpectResult(
+		t,
+		hostSide,
+		"3",
+		"shutdown",
+		ShutdownRequest{Reason: "run_completed", DeadlineMS: 1000},
+		&ShutdownResponse{},
+	)
+	waitForTerminalError(t, errCh, nil)
 }
 
 func runExtension(t *testing.T, ext *Extension) <-chan error {

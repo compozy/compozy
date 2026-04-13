@@ -112,7 +112,7 @@ func TestFetchReviewsAutoIncrementsRound(t *testing.T) {
 	}
 }
 
-func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
+func TestFetchReviewsReviewBodyCommentHistoryFiltering(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
@@ -123,7 +123,7 @@ func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
 		wantTotal       int
 	}{
 		{
-			name: "filter resolved nitpicks when the fetched review is older",
+			name: "filter resolved review body comments when the fetched review is older",
 			historicalItem: provider.ReviewItem{
 				Title:                   "Keep helper reuse consistent",
 				File:                    "internal/app/service.go",
@@ -160,7 +160,7 @@ func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
 			wantTotal: 1,
 		},
 		{
-			name: "re-import unresolved nitpick hashes",
+			name: "re-import unresolved review body comment hashes",
 			historicalItem: provider.ReviewItem{
 				Title:                   "Keep helper reuse consistent",
 				File:                    "internal/app/service.go",
@@ -189,7 +189,7 @@ func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
 			wantTotal: 1,
 		},
 		{
-			name: "re-import resolved nitpicks when the fetched review has a newer timestamp",
+			name: "re-import resolved review body comments when the fetched review has a newer timestamp",
 			historicalItem: provider.ReviewItem{
 				Title:                   "Keep helper reuse consistent",
 				File:                    "internal/app/service.go",
@@ -218,7 +218,7 @@ func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
 			wantTotal: 1,
 		},
 		{
-			name: "re-import resolved nitpicks when the fetched review has the same timestamp but a newer review id",
+			name: "re-import resolved review body comments when the fetched review has the same timestamp but a newer review id",
 			historicalItem: provider.ReviewItem{
 				Title:                   "Keep helper reuse consistent",
 				File:                    "internal/app/service.go",
@@ -246,6 +246,35 @@ func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
 			},
 			wantTotal: 1,
 		},
+		{
+			name: "re-import same hash when severity changes but the fetched review is newer",
+			historicalItem: provider.ReviewItem{
+				Title:                   "Keep helper reuse consistent",
+				File:                    "internal/app/service.go",
+				Line:                    42,
+				Severity:                "major",
+				Author:                  "coderabbitai[bot]",
+				Body:                    "Use the existing helper instead of duplicating logic.",
+				ReviewHash:              "hash-severity-changed",
+				SourceReviewID:          "4001",
+				SourceReviewSubmittedAt: "2026-04-10T10:00:00Z",
+			},
+			historicalState: "resolved",
+			fetchedItems: []provider.ReviewItem{
+				{
+					Title:                   "Keep helper reuse consistent",
+					File:                    "internal/app/service.go",
+					Line:                    42,
+					Severity:                "minor",
+					Author:                  "coderabbitai[bot]",
+					Body:                    "Use the existing helper instead of duplicating logic.",
+					ReviewHash:              "hash-severity-changed",
+					SourceReviewID:          "4002",
+					SourceReviewSubmittedAt: "2026-04-10T10:30:00Z",
+				},
+			},
+			wantTotal: 1,
+		},
 	}
 
 	for _, tc := range cases {
@@ -258,7 +287,7 @@ func TestFetchReviewsNitpickHistoryFiltering(t *testing.T) {
 			if err := os.MkdirAll(prdDir, 0o755); err != nil {
 				t.Fatalf("mkdir prd dir: %v", err)
 			}
-			writeHistoricalNitpickRound(t, prdDir, 1, tc.historicalItem, tc.historicalState == "resolved")
+			writeHistoricalReviewBodyCommentRound(t, prdDir, 1, tc.historicalItem, tc.historicalState == "resolved")
 			installStubReviewProviderRegistry(t, tc.fetchedItems)
 
 			result, err := fetchReviews(context.Background(), &model.RuntimeConfig{
@@ -298,7 +327,7 @@ func installStubReviewProviderRegistry(t *testing.T, items []provider.ReviewItem
 	})
 }
 
-func writeHistoricalNitpickRound(
+func writeHistoricalReviewBodyCommentRound(
 	t *testing.T,
 	prdDir string,
 	round int,

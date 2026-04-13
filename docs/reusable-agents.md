@@ -42,14 +42,14 @@ Deferred fields and folders stay out of scope in v1:
 
 `AGENT.md` uses YAML frontmatter plus a markdown body. Compozy reads these frontmatter fields today:
 
-| Field | Purpose |
-| --- | --- |
-| `title` | Human-facing name shown in inspect output |
-| `description` | Short description shown in list output and the prompt-visible discovery catalog |
-| `ide` | Default runtime ide for this agent |
-| `model` | Default model override |
-| `reasoning_effort` | Default reasoning effort (`low`, `medium`, `high`, `xhigh`) |
-| `access_mode` | Default runtime access mode (`default` or `full`) |
+| Field              | Purpose                                                                         |
+| ------------------ | ------------------------------------------------------------------------------- |
+| `title`            | Human-facing name shown in inspect output                                       |
+| `description`      | Short description shown in list output and the prompt-visible discovery catalog |
+| `ide`              | Default runtime ide for this agent                                              |
+| `model`            | Default model override                                                          |
+| `reasoning_effort` | Default reasoning effort (`low`, `medium`, `high`, `xhigh`)                     |
+| `access_mode`      | Default runtime access mode (`default` or `full`)                               |
 
 Other frontmatter keys are not part of the supported v1 contract. Avoid relying on them.
 
@@ -83,18 +83,11 @@ Example:
   "mcpServers": {
     "filesystem": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "${PROJECT_ROOT}"
-      ]
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${PROJECT_ROOT}"]
     },
     "github": {
       "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-github"
-      ],
+      "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
         "GITHUB_TOKEN": "${GITHUB_TOKEN}"
       }
@@ -150,7 +143,7 @@ Status: valid
 Source: workspace
 Title: Reviewer
 Description: Reviews implementation plans and diffs before code lands.
-Runtime defaults: ide=codex model=- reasoning=high access=default
+Runtime defaults: ide=codex model=gpt-5.4 reasoning=high access=default
 MCP servers: none
 Validation: OK
 ```

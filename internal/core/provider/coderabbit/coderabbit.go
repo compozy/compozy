@@ -62,6 +62,10 @@ func (p *Provider) Name() string {
 	return name
 }
 
+func (p *Provider) DisplayName() string {
+	return "CodeRabbit"
+}
+
 func (p *Provider) FetchReviews(ctx context.Context, req provider.FetchRequest) ([]provider.ReviewItem, error) {
 	if strings.TrimSpace(req.PR) == "" {
 		return nil, errors.New("pull request number is required")
@@ -117,7 +121,7 @@ func (p *Provider) FetchReviews(ctx context.Context, req provider.FetchRequest) 
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, parseNitpickReviewItems(reviews, p.botLogin)...)
+		items = append(items, parseReviewBodyCommentItems(reviews, p.botLogin)...)
 	}
 
 	sortReviewItems(items)

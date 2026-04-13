@@ -7,6 +7,7 @@ provider_ref: thread:PRRT_kwDORy7nkc56P5t9,comment:PRRC_kwDORy7nkc62zc8t
 ---
 
 # Issue 017: _⚠️ Potential issue_ | _🟠 Major_
+
 ## Review Comment
 
 _⚠️ Potential issue_ | _🟠 Major_
@@ -53,8 +54,6 @@ Length of output: 1090
 
 ---
 
-
-
 </details>
 
 **Return partial phase-one results when phase-two installation fails.**
@@ -69,7 +68,7 @@ Lines 35-38 return `nil, err` even though bundled skills were already successful
 +	"fmt"
  	"io/fs"
 
- 	"github.com/compozy/compozy/bundledagents"
+ 	"github.com/compozy/compozy/agents"
  	"github.com/compozy/compozy/skills"
  )
 @@
@@ -79,6 +78,7 @@ Lines 35-38 return `nil, err` even though bundled skills were already successful
 +		return result, fmt.Errorf("install bundled reusable agents: %w", err)
  	}
 ```
+
 </details>
 
 <!-- suggestion_start -->
@@ -94,7 +94,7 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/compozy/compozy/bundledagents"
+	"github.com/compozy/compozy/agents"
 	"github.com/compozy/compozy/skills"
 )
 
