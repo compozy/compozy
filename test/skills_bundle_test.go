@@ -2,6 +2,7 @@ package test
 
 import (
 	"bytes"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -94,6 +95,57 @@ func TestBundledSkillFrontmatterParses(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIdeaFactoryExtensionExistsAndUsesPortableReferences(t *testing.T) {
+	t.Parallel()
+
+	root := repoRoot(t)
+	requiredPaths := []string{
+		"extensions/cy-idea-factory/extension.toml",
+		"extensions/cy-idea-factory/skills/cy-idea-factory/SKILL.md",
+		"extensions/cy-idea-factory/skills/cy-idea-factory/references/adr-template.md",
+		"extensions/cy-idea-factory/skills/cy-idea-factory/references/council.md",
+		"extensions/cy-idea-factory/agents/architect-advisor/AGENT.md",
+		"extensions/cy-idea-factory/agents/devils-advocate/AGENT.md",
+		"extensions/cy-idea-factory/agents/pragmatic-engineer/AGENT.md",
+		"extensions/cy-idea-factory/agents/product-mind/AGENT.md",
+		"extensions/cy-idea-factory/agents/security-advocate/AGENT.md",
+		"extensions/cy-idea-factory/agents/the-thinker/AGENT.md",
+	}
+
+	for _, relativePath := range requiredPaths {
+		relativePath := relativePath
+		t.Run(fmt.Sprintf("Should contain %s", relativePath), func(t *testing.T) {
+			t.Parallel()
+
+			if _, err := os.Stat(filepath.Join(root, relativePath)); err != nil {
+				t.Fatalf("expected %s to exist: %v", relativePath, err)
+			}
+		})
+	}
+
+	skillPath := filepath.Join(root, "extensions", "cy-idea-factory", "skills", "cy-idea-factory", "SKILL.md")
+	content, err := os.ReadFile(skillPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", skillPath, err)
+	}
+
+	var metadata struct {
+		Name        string `yaml:"name"`
+		Description string `yaml:"description"`
+	}
+	if _, err := frontmatter.Parse(string(content), &metadata); err != nil {
+		t.Fatalf("parse frontmatter %s: %v", skillPath, err)
+	}
+	if metadata.Name != "cy-idea-factory" {
+		t.Fatalf("expected extension skill name cy-idea-factory, got %q", metadata.Name)
+	}
+	if metadata.Description == "" {
+		t.Fatalf("expected non-empty description in %s", skillPath)
+	}
+
+	checkPortableContent(t, skillPath)
 }
 
 func TestCreateTasksSkillDocumentsTaskTypeRegistryAndValidation(t *testing.T) {
@@ -244,7 +296,7 @@ func TestSharedReferenceFilesAreIdentical(t *testing.T) {
 		{
 			"skills/cy-create-prd/references/adr-template.md",
 			"skills/cy-create-techspec/references/adr-template.md",
-			"skills/cy-idea-factory/references/adr-template.md",
+			"extensions/cy-idea-factory/skills/cy-idea-factory/references/adr-template.md",
 		},
 	}
 

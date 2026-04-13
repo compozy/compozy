@@ -2,7 +2,15 @@
 
 Reusable agents let you package a prompt, runtime defaults, and optional agent-local MCP servers into a directory that Compozy can discover and execute.
 
-`compozy setup` also provisions the built-in council advisor roster globally under `~/.compozy/agents/`:
+The first-party `cy-idea-factory` extension ships the council advisor roster below. Install and enable it, then run `compozy setup` to provision those reusable agents in the selected scope:
+
+```bash
+compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory
+compozy ext enable cy-idea-factory
+compozy setup
+```
+
+Council roster:
 
 - `architect-advisor`
 - `devils-advocate`
@@ -11,7 +19,7 @@ Reusable agents let you package a prompt, runtime defaults, and optional agent-l
 - `security-advocate`
 - `the-thinker`
 
-Those bundled council agents intentionally inherit the host runtime, which keeps council debates consistent across supported drivers.
+Those extension-shipped council agents intentionally inherit the host runtime, which keeps council debates consistent across supported drivers.
 
 ## Discovery and Override Rules
 
@@ -119,7 +127,7 @@ Nested execution follows the same boundary:
 - a child agent gets the reserved `compozy` server plus the child's own `mcp.json`
 - a child agent does not inherit the parent agent's local MCP servers implicitly
 
-That automatic host injection is what lets normal bundled skills such as `cy-idea-factory` run council advisors through `run_agent` even when the top-level session was not started with `compozy exec --agent ...`.
+That automatic host injection is what lets optional extension skills such as `cy-idea-factory` run council advisors through `run_agent` even when the top-level session was not started with `compozy exec --agent ...`.
 
 ## Commands
 

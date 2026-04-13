@@ -1,6 +1,7 @@
 package extension
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -15,23 +16,42 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const noneLabel = "(none)"
+
 func newInstallCommand(deps commandDeps) *cobra.Command {
 	var yes bool
+	var remote string
+	var ref string
+	var subdir string
 
 	cmd := &cobra.Command{
-		Use:          "install <path>",
+		Use:          "install <source>",
 		Short:        "Install an extension into the user scope",
 		SilenceUsage: true,
 		Args:         cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInstallCommand(cmd, deps, args[0], yes)
+			return runInstallCommand(cmd, deps, args[0], yes, installSourceOptions{
+				Remote: installRemote(remote),
+				Ref:    ref,
+				Subdir: subdir,
+			})
 		},
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "Skip the install confirmation prompt")
+	cmd.Flags().StringVar(&remote, "remote", string(installRemoteLocal), "Extension source type: local or github")
+	cmd.Flags().StringVar(&ref, "ref", "", "Git ref to install when using --remote github")
+	cmd.Flags().
+		StringVar(&subdir, "subdir", "", "Repository subdirectory containing the extension when using --remote github")
 	return cmd
 }
 
-func runInstallCommand(cmd *cobra.Command, deps commandDeps, rawPath string, yes bool) error {
+func runInstallCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	rawSource string,
+	yes bool,
+	options installSourceOptions,
+) (err error) {
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
@@ -40,76 +60,45 @@ func runInstallCommand(cmd *cobra.Command, deps commandDeps, rawPath string, yes
 		return err
 	}
 
-	sourcePath, err := resolveSourcePath(rawPath)
+	resolvedSource, err := resolveInstallSourceForCommand(ctx, deps, rawSource, options)
 	if err != nil {
 		return err
 	}
-
-	manifest, err := deps.loadManifest(ctx, sourcePath)
-	if err != nil {
-		return fmt.Errorf("load extension manifest from %q: %w", sourcePath, err)
-	}
-
-	installPath := filepath.Join(userExtensionsRoot(env.homeDir), manifest.Extension.Name)
-	if sameInstallPath(sourcePath, installPath) {
-		return fmt.Errorf("extension %q is already installed at %s", manifest.Extension.Name, installPath)
-	}
-	if err := ensureInstallTargetAvailable(deps, installPath, manifest.Extension.Name); err != nil {
-		return err
-	}
-
-	if err := writeInstallPlan(cmd, installPrompt{
-		Name:         manifest.Extension.Name,
-		SourcePath:   sourcePath,
-		InstallPath:  installPath,
-		Capabilities: manifest.Security.Capabilities,
-	}); err != nil {
-		return err
-	}
-
-	if err := confirmInstall(cmd, deps, installPrompt{
-		Name:         manifest.Extension.Name,
-		SourcePath:   sourcePath,
-		InstallPath:  installPath,
-		Capabilities: manifest.Security.Capabilities,
-	}, yes); err != nil {
-		return err
-	}
-
-	installPathExisted, err := deps.pathExists(installPath)
-	if err != nil {
-		return fmt.Errorf("inspect install target %q before copy: %w", installPath, err)
-	}
-	if err := deps.copyDir(sourcePath, installPath); err != nil {
-		if !installPathExisted {
-			cleanupErr := deps.removeAll(installPath)
-			if cleanupErr != nil {
-				err = errors.Join(err, fmt.Errorf("cleanup failed at %q: %w", installPath, cleanupErr))
+	if resolvedSource.CleanupSource != nil {
+		defer func() {
+			cleanupErr := resolvedSource.CleanupSource()
+			if cleanupErr == nil {
+				return
 			}
-		}
-		return fmt.Errorf("copy extension into user scope: %w", err)
+			wrappedErr := fmt.Errorf("cleanup install source: %w", cleanupErr)
+			if err != nil {
+				err = errors.Join(err, wrappedErr)
+				return
+			}
+			if writeErr := writeInstallCleanupWarning(cmd, cleanupErr); writeErr != nil {
+				err = writeErr
+			}
+		}()
 	}
 
-	ref := extensions.Ref{Name: manifest.Extension.Name, Source: extensions.SourceUser}
-	if err := env.store.Disable(ctx, ref); err != nil {
-		cleanupErr := deps.removeAll(installPath)
-		if cleanupErr != nil {
-			err = errors.Join(err, fmt.Errorf("cleanup failed at %q: %w", installPath, cleanupErr))
-		}
-		return fmt.Errorf("record initial disabled state for %q: %w", manifest.Extension.Name, err)
+	manifest, installPath, prompt, err := prepareInstallRequest(ctx, deps, env, resolvedSource)
+	if err != nil {
+		return err
 	}
 
-	if _, err := fmt.Fprintf(
-		cmd.OutOrStdout(),
-		"Installed extension %q into %s.\nLocal state recorded as disabled; run `compozy ext enable %s` to activate it on this machine.\n",
-		manifest.Extension.Name,
-		installPath,
-		manifest.Extension.Name,
-	); err != nil {
-		return fmt.Errorf("write install summary: %w", err)
+	if err := writeInstallPlan(cmd, prompt); err != nil {
+		return err
 	}
-
-	return nil
+	if err := confirmInstall(cmd, deps, prompt, yes); err != nil {
+		return err
+	}
+	if err := installResolvedSource(deps, resolvedSource, installPath, manifest.Extension.Name); err != nil {
+		return err
+	}
+	if err := disableInstalledUserExtension(ctx, env, installPath, manifest.Extension.Name, deps); err != nil {
+		return err
+	}
+	return writeInstallSummary(cmd, prompt, installPath)
 }
 
 func newUninstallCommand(deps commandDeps) *cobra.Command {
@@ -177,15 +166,193 @@ func runUninstallCommand(cmd *cobra.Command, deps commandDeps, rawName string) e
 func writeInstallPlan(cmd *cobra.Command, prompt installPrompt) error {
 	if _, err := fmt.Fprintf(
 		cmd.OutOrStdout(),
-		"Extension: %s\nSource path: %s\nInstall path: %s\nCapabilities: %s\n",
+		"Extension: %s\nSource: %s\nInstall path: %s\nCapabilities: %s\nSetup assets: %s\n",
 		prompt.Name,
-		prompt.SourcePath,
+		prompt.Source,
 		prompt.InstallPath,
 		renderCapabilities(prompt.Capabilities),
+		renderSetupAssets(prompt.SetupAssets),
 	); err != nil {
 		return fmt.Errorf("write install plan: %w", err)
 	}
 	return nil
+}
+
+func writeInstallCleanupWarning(cmd *cobra.Command, cleanupErr error) error {
+	if _, err := fmt.Fprintf(
+		cmd.ErrOrStderr(),
+		"Warning: failed to cleanup install source: %v\n",
+		cleanupErr,
+	); err != nil {
+		return fmt.Errorf("write install cleanup warning: %w", err)
+	}
+	return nil
+}
+
+func manifestSetupAssets(manifest *extensions.Manifest) []string {
+	if manifest == nil {
+		return nil
+	}
+
+	setupAssets := make([]string, 0, 2)
+	if len(manifest.Resources.Skills) > 0 {
+		setupAssets = append(setupAssets, "skills")
+	}
+	if len(manifest.Resources.Agents) > 0 {
+		setupAssets = append(setupAssets, "reusable agents")
+	}
+	return setupAssets
+}
+
+func renderSetupAssets(values []string) string {
+	if len(values) == 0 {
+		return noneLabel
+	}
+	return strings.Join(values, ", ")
+}
+
+func writeSetupHint(cmd *cobra.Command, setupAssets []string, message string) error {
+	if len(setupAssets) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintf(
+		cmd.OutOrStdout(),
+		"This extension ships %s.\n%s\n",
+		renderSetupAssets(setupAssets),
+		message,
+	); err != nil {
+		return fmt.Errorf("write setup hint: %w", err)
+	}
+	return nil
+}
+
+func resolveInstallSourceForCommand(
+	ctx context.Context,
+	deps commandDeps,
+	rawSource string,
+	options installSourceOptions,
+) (resolvedInstallSource, error) {
+	resolveSource := deps.resolveInstallSource
+	if resolveSource == nil {
+		resolveSource = resolveInstallSource
+	}
+	return resolveSource(ctx, rawSource, options)
+}
+
+func prepareInstallRequest(
+	ctx context.Context,
+	deps commandDeps,
+	env commandEnv,
+	resolvedSource resolvedInstallSource,
+) (*extensions.Manifest, string, installPrompt, error) {
+	manifest, err := deps.loadManifest(ctx, resolvedSource.SourcePath)
+	if err != nil {
+		return nil, "", installPrompt{}, fmt.Errorf(
+			"load extension manifest from %q: %w",
+			resolvedSource.SourcePath,
+			err,
+		)
+	}
+
+	installPath := filepath.Join(userExtensionsRoot(env.homeDir), manifest.Extension.Name)
+	if sameInstallPath(resolvedSource.SourcePath, installPath) {
+		return nil, "", installPrompt{}, fmt.Errorf(
+			"extension %q is already installed at %s",
+			manifest.Extension.Name,
+			installPath,
+		)
+	}
+	if err := ensureInstallTargetAvailable(deps, installPath, manifest.Extension.Name); err != nil {
+		return nil, "", installPrompt{}, err
+	}
+
+	return manifest, installPath, installPrompt{
+		Name:         manifest.Extension.Name,
+		Source:       resolvedSource.DisplaySource,
+		InstallPath:  installPath,
+		Capabilities: manifest.Security.Capabilities,
+		SetupAssets:  manifestSetupAssets(manifest),
+	}, nil
+}
+
+func installResolvedSource(
+	deps commandDeps,
+	resolvedSource resolvedInstallSource,
+	installPath string,
+	name string,
+) error {
+	installPathExisted, err := deps.pathExists(installPath)
+	if err != nil {
+		return fmt.Errorf("inspect install target %q before copy: %w", installPath, err)
+	}
+	if err := deps.copyDir(resolvedSource.SourcePath, installPath); err != nil {
+		return cleanupFailedInstall(
+			deps,
+			installPath,
+			!installPathExisted,
+			fmt.Errorf("copy extension into user scope: %w", err),
+		)
+	}
+
+	if resolvedSource.InstallOrigin == nil {
+		return nil
+	}
+	if err := deps.writeInstallOrigin(installPath, *resolvedSource.InstallOrigin); err != nil {
+		return cleanupFailedInstall(
+			deps,
+			installPath,
+			true,
+			fmt.Errorf("record install provenance for %q: %w", name, err),
+		)
+	}
+	return nil
+}
+
+func disableInstalledUserExtension(
+	ctx context.Context,
+	env commandEnv,
+	installPath string,
+	name string,
+	deps commandDeps,
+) error {
+	ref := extensions.Ref{Name: name, Source: extensions.SourceUser}
+	if err := env.store.Disable(ctx, ref); err != nil {
+		return cleanupFailedInstall(
+			deps,
+			installPath,
+			true,
+			fmt.Errorf("record initial disabled state for %q: %w", name, err),
+		)
+	}
+	return nil
+}
+
+func cleanupFailedInstall(deps commandDeps, installPath string, shouldRemove bool, cause error) error {
+	if !shouldRemove {
+		return cause
+	}
+	cleanupErr := deps.removeAll(installPath)
+	if cleanupErr == nil {
+		return cause
+	}
+	return errors.Join(cause, fmt.Errorf("cleanup failed at %q: %w", installPath, cleanupErr))
+}
+
+func writeInstallSummary(cmd *cobra.Command, prompt installPrompt, installPath string) error {
+	if _, err := fmt.Fprintf(
+		cmd.OutOrStdout(),
+		"Installed extension %q into %s.\nLocal state recorded as disabled; run `compozy ext enable %s` to activate it on this machine.\n",
+		prompt.Name,
+		installPath,
+		prompt.Name,
+	); err != nil {
+		return fmt.Errorf("write install summary: %w", err)
+	}
+	return writeSetupHint(
+		cmd,
+		prompt.SetupAssets,
+		"After enabling it, run `compozy setup` to install its setup assets.",
+	)
 }
 
 func confirmInstall(cmd *cobra.Command, deps commandDeps, prompt installPrompt, yes bool) error {
@@ -222,27 +389,6 @@ func confirmInstallPrompt(_ *cobra.Command, prompt installPrompt) (bool, error) 
 		return false, fmt.Errorf("confirm extension install: %w", err)
 	}
 	return confirmed, nil
-}
-
-func resolveSourcePath(rawPath string) (string, error) {
-	trimmed := strings.TrimSpace(rawPath)
-	if trimmed == "" {
-		return "", fmt.Errorf("extension path is required")
-	}
-
-	absolutePath, err := filepath.Abs(trimmed)
-	if err != nil {
-		return "", fmt.Errorf("resolve extension path %q: %w", trimmed, err)
-	}
-
-	info, err := os.Stat(absolutePath)
-	if err != nil {
-		return "", fmt.Errorf("stat extension path %q: %w", absolutePath, err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("extension path %q must be a directory", absolutePath)
-	}
-	return absolutePath, nil
 }
 
 func ensureInstallTargetAvailable(deps commandDeps, installPath string, name string) error {

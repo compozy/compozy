@@ -1,0 +1,129 @@
+- Goal (incl. success criteria):
+  - Criar uma skill genérica de QA automático que formalize o processo recém-validado e possa ser usada em qualquer projeto, não só neste repositório.
+  - Sucesso requer: metadata válida, estrutura aderente à `skill-best-practices`, instruções reutilizáveis e um utilitário determinístico para descoberta de comandos/protocolos de QA.
+- Constraints/Assumptions:
+  - Não usar comandos destrutivos de git.
+  - Seguir `skill-best-practices` para estruturar a skill e `brainstorming` para definir o desenho antes da implementação.
+  - Se a infraestrutura da própria `skill-best-practices` estiver quebrada, corrigir a causa raiz em vez de contornar.
+  - Rodar `make verify` antes de concluir.
+- Key decisions:
+  - Nome escolhido para a nova skill: `systematic-project-qa`.
+  - Manter a skill neutra em relação ao stack do projeto e focada em: descoberta do contrato de QA, baseline, fluxos como usuário real, correção de regressões e verificação final.
+  - Incluir um script determinístico (`discover-project-contract.py`) para reduzir adivinhação ao identificar comandos de verify/build/test/start em diferentes ecossistemas.
+- State:
+  - Concluído após criação da skill genérica, validação do metadata, validação do utilitário determinístico e verificação final fresca do repositório.
+- Done:
+  - Lidas instruções de workspace/AGENTS/CLAUDE.
+  - Carregadas skills `no-workarounds`, `systematic-debugging`, `golang-pro`, `testing-anti-patterns` e `cy-final-verify`.
+  - Identificada a branch atual `pn/ext-agents` e o commit-alvo `6255c56 feat: extension improvements (#83)`.
+  - Revisados ledgers anteriores de `extension-qa` e `workflow-headless` para reaproveitar cenários e riscos conhecidos.
+  - Executado `make verify` com sucesso no estado atual da branch: `fmt`, `lint`, `1796 tests` e `build` passaram; binário gerado em `bin/compozy`.
+  - Executados fluxos reais com `bin/compozy`:
+    - `exec --ide codex --format text`
+    - `exec --ide codex --format raw-json`
+    - `ext list/enable/inspect/doctor`
+    - `exec --extensions --dry-run` com extensão mock
+  - Criado projeto Node fake em `/tmp/compozy-qa-node-api` e validado fluxo real de usuário com `compozy setup` + `compozy start` usando Codex como agente.
+  - Confirmado que o task do projeto fake foi executado e gerou API/teste funcionais; `npm test` passou e o endpoint `/health` respondeu `200 {"status":"ok"}` durante a sessão.
+  - Encontrada regressão real de headless output: o banner de upgrade poluía stderr em `json/raw-json`.
+  - Registrado o problema em `.compozy/tasks/ext-imp/qa/issue_001.md`.
+  - Corrigida a causa raiz em `cmd/compozy/main.go` usando `ExecuteC()` para inspecionar o comando resolvido e suprimir o notifier em `json/raw-json`.
+  - Adicionados testes em `cmd/compozy/main_test.go` para garantir o comportamento do notifier por formato.
+  - Revalidado o cenário corrigido: `./bin/compozy exec --ide codex --format raw-json --timeout 1m 'Return exactly OKJSON'` produziu apenas JSONL válido, sem banner extra.
+  - Revalidado o fluxo de extensões: `HOME=/tmp/compozy-qa-ext-home bin/compozy exec --extensions --dry-run 'QA extension smoke'` retornou `HOOKED_BY_EXTENSION`.
+  - Validado também o ciclo completo de extensão em escopo de usuário, em ambiente limpo:
+    - `ext install --yes /tmp/compozy-qa-ext-workspace/.compozy/extensions/mock-ext`
+    - `ext list`, `ext inspect`, `ext enable`, `ext doctor`
+    - `exec --extensions --dry-run 'Install flow smoke'` com saída `HOOKED_BY_EXTENSION`
+    - registros do subprocesso confirmaram `initialize`, `execute_hook` e `shutdown`
+    - `ext uninstall mock-ext` removeu a instalação; `ext list` voltou vazio
+  - Encontrada regressão adicional em `ext install --remote github --subdir ...`: o instalador remoto falhava ao processar links irrelevantes fora da subtree pedida.
+  - Registrado o problema em `.compozy/tasks/ext-imp/qa/issue_002.md`.
+  - Corrigida a causa raiz em `internal/cli/extension/install_source.go` aplicando o filtro de `--subdir` já durante a extração do tarball do GitHub.
+  - Adicionado teste de regressão em `internal/cli/extension/install_source_test.go` cobrindo tarball com symlink fora da subtree incluída.
+  - Revalidado o fluxo remoto com `compozy/compozy@pn/ext-agents//extensions/cy-idea-factory`:
+    - `ext install --remote github --subdir extensions/cy-idea-factory` passou
+    - `ext enable`, `ext inspect` e `ext doctor` passaram
+    - `compozy setup --agent codex --yes --copy` instalou o skill `cy-idea-factory` e 6 reusable agents no workspace de teste
+    - `ext doctor` voltou com `0 error(s), 0 warning(s)` após o setup
+  - Revalidado o projeto fake gerado: `npm test` em `/tmp/compozy-qa-node-api` passou.
+  - Executado `make verify` novamente após as correções: `fmt`, `lint`, `1802 tests` e `build` passaram; `bin/compozy` recompilado com sucesso.
+  - Exercitado ciclo completo de review-provider extension com uma extensão executável local `qa-review-provider` em workspaces temporários:
+    - `setup --agent codex --yes --copy`
+    - `ext enable qa-review-provider`
+    - `ext list`, `ext doctor`
+    - `fetch-reviews --provider qa-review --pr <id> --name demo`
+    - `fix-reviews --name demo --round 1 --ide codex --tui=false --timeout 5m`
+  - Confirmado no primeiro round-trip (`/tmp/compozy-qa-review-workspace-2`) que o provider foi instalado/ativado/usado de verdade:
+    - `ext list` mostrou `qa-review-provider` ativo
+    - `fetch_reviews` e `resolve_issues` foram registrados em `/tmp/compozy-qa-review-provider-round2.jsonl`
+    - `_meta.md` marcou `Resolved: 1` e `Unresolved: 0`
+    - `README.md` recebeu `QA provider fix applied.`
+  - Encontrada regressão real no cliente ACP durante `fix-reviews`: notificações `session/update` podiam chegar antes de `CreateSession` registrar a sessão, gerando `received update for unknown session`.
+  - Registrado o problema em `.compozy/tasks/ext-imp/qa/issue_003.md`.
+  - Corrigida a causa raiz em `internal/core/agent/client.go` com buffering temporário de updates enquanto `NewSession` está em voo, drenando os updates assim que a sessão é armazenada.
+  - Adicionados testes de regressão em `internal/core/agent/client_test.go` cobrindo:
+    - update chegando antes de `NewSession` retornar
+    - manutenção do erro para sessões realmente desconhecidas sem criação pendente
+  - Executado `go test ./internal/core/agent -count=1` com sucesso após a correção.
+  - Revalidado o fluxo real de `fix-reviews` com o binário recompilado em um workspace limpo (`/tmp/compozy-qa-review-workspace-3`):
+    - o warning `received update for unknown session` não reapareceu
+    - `resolved review provider issues provider=qa-review pr=125 resolved_issues=1`
+    - `updated review round metadata provider=qa-review pr=125 round=1 resolved=1 unresolved=0`
+    - `/tmp/compozy-qa-review-provider-round3.jsonl` contém `fetch_reviews` e `resolve_issues`
+    - `_meta.md` e `issue_001.md` ficaram consistentes com a resolução aplicada
+  - Durante o `make verify` completo, o novo teste de regressão revelou uma race real no helper ACP de testes (`helperAgent.conn`) quando executado com `-race`, levando o subprocesso a sair com `exit status 66`.
+  - Registrado o problema em `.compozy/tasks/ext-imp/qa/issue_004.md`.
+  - Corrigida a causa raiz em `internal/core/agent/client_test.go` publicando a conexão do helper com sincronização via `connReady`.
+  - Reproduzido e validado o fix com `go test ./internal/core/agent -race -run TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns -count=1`.
+  - Executado `make verify` fresco após todas as correções: `fmt`, `lint`, `1804 tests` com `-race` e `build` passaram; saída final `All verification checks passed`.
+  - Lida a skill `brainstorming` para definir o formato da nova skill e a skill `skill-best-practices` para seguir sua estrutura formal.
+  - Encontrado bug real no validador de metadata de `skill-best-practices`: `.agents/skills/skill-best-practices/scripts/validate-metadata.py` terminava em `if __name__ == "__main__":` sem corpo e falhava com `IndentationError`.
+  - Corrigida a causa raiz no validador adicionando `argparse` + `main`.
+  - Validado o metadata da nova skill com sucesso:
+    - `name`: `systematic-project-qa`
+    - descrição em terceira pessoa aprovada pelo script de validação
+  - Criada a skill genérica em `.agents/skills/systematic-project-qa/` com:
+    - `SKILL.md`
+    - `scripts/discover-project-contract.py`
+    - `references/project-signals.md`
+    - `references/checklist.md`
+    - `assets/issue-template.md`
+    - `assets/verification-report-template.md`
+  - Validado o script `discover-project-contract.py` contra este repositório; ele detectou corretamente `Makefile`, `package.json`, `go.mod` e `.github/workflows`, sugerindo `make verify` como gate principal.
+  - Confirmado que `SKILL.md` da nova skill tem 59 linhas, abaixo do limite definido em `skill-best-practices`.
+- Now:
+  - Preparar o handoff final com os caminhos e a forma de usar a nova skill.
+- Next:
+  - Nenhum trabalho restante.
+- Open questions (UNCONFIRMED if needed):
+  - Nenhuma pendência conhecida.
+- Working set (files/ids/commands):
+  - `.codex/ledger/2026-04-13-MEMORY-branch-qa.md`
+  - `.compozy/tasks/ext-imp/qa/issue_001.md`
+  - `.compozy/tasks/ext-imp/qa/issue_002.md`
+  - `.compozy/tasks/ext-imp/qa/issue_003.md`
+  - `.compozy/tasks/ext-imp/qa/issue_004.md`
+  - `.agents/skills/skill-best-practices/scripts/validate-metadata.py`
+  - `.agents/skills/systematic-project-qa/SKILL.md`
+  - `.agents/skills/systematic-project-qa/scripts/discover-project-contract.py`
+  - `.agents/skills/systematic-project-qa/references/project-signals.md`
+  - `.agents/skills/systematic-project-qa/references/checklist.md`
+  - `.agents/skills/systematic-project-qa/assets/issue-template.md`
+  - `.agents/skills/systematic-project-qa/assets/verification-report-template.md`
+  - `cmd/compozy/main.go`
+  - `cmd/compozy/main_test.go`
+  - `internal/cli/extension/install_source.go`
+  - `internal/cli/extension/install_source_test.go`
+  - `internal/core/agent/client.go`
+  - `internal/core/agent/client_test.go`
+  - `git log --oneline --decorate -n 12`
+  - `git show --stat --summary 6255c560c263`
+  - `make verify`
+  - `bin/compozy`
+  - `./bin/compozy exec --ide codex --format raw-json --timeout 1m 'Return exactly OKJSON'`
+  - `HOME=/tmp/compozy-qa-ext-home bin/compozy exec --extensions --dry-run 'QA extension smoke'`
+  - `/Users/pedronauck/Dev/compozy/looper/bin/compozy start --name qa-node-api --tasks-dir .compozy/tasks/qa-node-api --ide codex --tui=false --timeout 5m`
+  - `npm test` (em `/tmp/compozy-qa-node-api`)
+  - `/tmp/compozy-qa-compozy fix-reviews --name demo --round 1 --ide codex --tui=false --timeout 5m`
+  - `go test ./internal/core/agent -count=1`

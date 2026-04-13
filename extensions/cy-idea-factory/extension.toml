@@ -1,0 +1,12 @@
+[extension]
+name = "cy-idea-factory"
+version = "1.0.0"
+description = "Idea-factory workflow skill and council reusable agents"
+min_compozy_version = "0.0.1"
+
+[security]
+capabilities = ["skills.ship", "agents.ship"]
+
+[resources]
+skills = ["skills/*"]
+agents = ["agents/*"]

@@ -120,16 +120,16 @@ func TestSupportedAgentsUseDeclarativePaths(t *testing.T) {
 
 func skillNames(skills []Skill) []string {
 	names := make([]string, 0, len(skills))
-	for _, skill := range skills {
-		names = append(names, skill.Name)
+	for i := range skills {
+		names = append(names, skills[i].Name)
 	}
 	return names
 }
 
 func agentNames(agents []Agent) []string {
 	names := make([]string, 0, len(agents))
-	for _, agent := range agents {
-		names = append(names, agent.Name)
+	for i := range agents {
+		names = append(names, agents[i].Name)
 	}
 	return names
 }

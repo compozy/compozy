@@ -8,6 +8,8 @@ Detailed catalog of all bundled Compozy skills, their inputs, outputs, and pipel
 
 **Trigger:** `/cy-idea-factory [feature-idea]`
 
+Install first: `compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory` -> `compozy ext enable cy-idea-factory` -> `compozy setup`
+
 Expands a raw feature idea into a structured, research-backed specification through interactive brainstorming, web research, business analysis, and multi-advisor council debate.
 
 - **Inputs:** Feature idea or problem description. Optional existing `_idea.md` for update mode.
@@ -145,7 +147,7 @@ Maintains workflow-scoped task memory for Compozy runs using files under `.compo
 
 **Trigger:** `/compozy`
 
-This skill. Explains Compozy capabilities, CLI commands, bundled workflow skills, configuration, artifact structure, reusable agents, and extensions.
+This skill. Explains Compozy capabilities, CLI commands, core workflow skills, optional extension skills, configuration, artifact structure, reusable agents, and extensions.
 
 - **Inputs:** None.
 - **Outputs:** Reference information presented to the agent.

@@ -28,7 +28,7 @@ One CLI to replace scattered prompts, manual task tracking, and copy-paste revie
 
 ## ✨ Highlights
 
-- **One command, 40+ agents.** Install bundled skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`, and provision the global council reusable-agent roster under `~/.compozy/agents`.
+- **One command, 40+ agents.** Install core workflow skills into Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini, and 40+ other agents and editors with `compozy setup`, plus any setup assets shipped by enabled extensions.
 - **Idea to code in a structured pipeline.** Optional Idea → PRD → TechSpec → Tasks → Execution → Review. Each phase produces plain markdown artifacts that feed into the next. Start from an idea for full research and debate, or jump straight to PRD if you already have a clear scope.
 - **Codebase-aware enrichment.** Tasks aren't generic prompts. Compozy spawns parallel agents to explore your codebase, discover patterns, and ground every task in real project context.
 - **Multi-agent execution.** Run tasks through ACP-capable runtimes like Claude Code, Codex, Cursor, Droid, OpenCode, Pi, or Gemini — just change `--ide`. Concurrent batch processing with configurable timeouts, retries, and exponential backoff, all with a live terminal UI.
@@ -69,14 +69,22 @@ git clone git@github.com:compozy/compozy.git
 cd compozy && make verify && go build ./cmd/compozy
 ```
 
-Then install bundled skills into your AI agents:
+Then install core skills into your AI agents:
 
 ```bash
 compozy setup          # interactive — pick agents and skills
 compozy setup --all    # install everything to every detected agent
 ```
 
-`compozy setup` also provisions the built-in council advisors globally under `~/.compozy/agents/` so skills such as `cy-idea-factory` can dispatch the same reusable agents consistently across drivers via `run_agent`.
+`compozy setup` installs Compozy's core workflow skills plus any setup assets shipped by enabled extensions.
+
+If you want the optional ideation workflow and council roster, install the first-party `cy-idea-factory` extension first:
+
+```bash
+compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory
+compozy ext enable cy-idea-factory
+compozy setup
+```
 
 Execution runtimes are separate from skill installation. To run `compozy exec`, `compozy start`, or `compozy fix-reviews`, install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
 
@@ -252,7 +260,7 @@ Available templates: `lifecycle-observer`, `prompt-decorator`, `review-provider`
 ```bash
 compozy ext list                   # discover extensions across all scopes
 compozy ext inspect <name>         # show manifest, capabilities, enablement status
-compozy ext install <path>         # install into user scope (~/.compozy/extensions/)
+compozy ext install <source>       # install from a local path or GitHub repo archive
 compozy ext uninstall <name>       # remove a user-scoped extension
 compozy ext enable <name>          # enable on this machine
 compozy ext disable <name>         # disable on this machine
@@ -323,12 +331,20 @@ This walkthrough builds a feature called **user-auth** from idea to shipped code
 compozy setup
 ```
 
-Auto-detects installed agents, copies (or symlinks) skills into their configuration directories, and provisions the built-in council reusable agents globally under `~/.compozy/agents/`.
+Auto-detects installed agents, copies (or symlinks) core skills into their configuration directories, and installs setup assets shipped by enabled extensions.
 `compozy start` and `compozy fix-reviews` now verify that bundled Compozy skills are installed for the selected agent before running. Missing installs block the run, and outdated installs prompt for refresh in interactive terminals.
 
 ### 2. (Optional) Create an Issue
 
 Inside your AI agent (Claude Code, Codex, Cursor, OpenCode, Pi, etc.):
+
+```bash
+compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory
+compozy ext enable cy-idea-factory
+compozy setup
+```
+
+Then:
 
 ```
 /cy-idea-factory user-auth
@@ -400,19 +416,32 @@ Repeat steps 7–8. Each cycle creates a new review round (`reviews-002/`, `revi
 
 ## 🧩 Skills
 
-Compozy bundles 9 skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
+Compozy bundles 9 core skills that its workflows depend on. They run inside your AI agent — no context switching to external tools.
 
-| Skill                | Purpose                                                                                     |
-| -------------------- | ------------------------------------------------------------------------------------------- |
-| `cy-idea-factory`    | Raw idea → structured idea spec with market research, business analysis, and council debate |
-| `cy-create-prd`      | Idea → Product Requirements Document with ADRs                                              |
-| `cy-create-techspec` | PRD → Technical Specification with architecture exploration                                 |
-| `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                                     |
-| `cy-execute-task`    | Executes one task end-to-end: implement, validate, track, commit                            |
-| `cy-workflow-memory` | Maintains cross-task context so agents pick up where the last one left off                  |
-| `cy-review-round`    | Comprehensive code review → structured issue files                                          |
-| `cy-fix-reviews`     | Triage, fix, verify, and resolve review issues                                              |
-| `cy-final-verify`    | Enforces verification evidence before any completion claim                                  |
+| Skill                | Purpose                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `cy-create-prd`      | Idea → Product Requirements Document with ADRs                             |
+| `cy-create-techspec` | PRD → Technical Specification with architecture exploration                |
+| `cy-create-tasks`    | PRD + TechSpec → Independently implementable task files                    |
+| `cy-execute-task`    | Executes one task end-to-end: implement, validate, track, commit           |
+| `cy-workflow-memory` | Maintains cross-task context so agents pick up where the last one left off |
+| `cy-review-round`    | Comprehensive code review → structured issue files                         |
+| `cy-fix-reviews`     | Triage, fix, verify, and resolve review issues                             |
+| `cy-final-verify`    | Enforces verification evidence before any completion claim                 |
+
+Optional first-party extension skills:
+
+| Skill             | Purpose                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------- |
+| `cy-idea-factory` | Raw idea → structured idea spec with market research, business analysis, and council debate |
+
+Install the optional ideation extension with:
+
+```bash
+compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory
+compozy ext enable cy-idea-factory
+compozy setup
+```
 
 ### 🧠 Workflow Memory
 
@@ -454,7 +483,7 @@ The `cy-workflow-memory` skill handles all of this automatically when referenced
 | Pi             | `pi`           |
 | Gemini         | `gemini`       |
 
-**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` also provisions the built-in council reusable agents globally under `~/.compozy/agents/` so nested debates use the same advisor roster across runtimes. Run `compozy setup` to see all detected agents on your system.
+**Skill installation** (`compozy setup`) — 40+ agents and editors, including Claude Code, Codex, Cursor, Droid, OpenCode, Pi, Gemini CLI, GitHub Copilot, Windsurf, Amp, Continue, Goose, Roo Code, Augment, Kiro CLI, Cline, and many more. `compozy setup` installs core workflow skills plus any setup assets shipped by enabled extensions. Run `compozy setup` to see all detected agents on your system.
 
 When installing to multiple agents, Compozy offers two modes:
 
@@ -464,21 +493,21 @@ When installing to multiple agents, Compozy offers two modes:
 ## 📖 CLI Reference
 
 <details>
-<summary><code>compozy setup</code> — Install bundled skills and global council agents</summary>
+<summary><code>compozy setup</code> — Install core skills and enabled extension assets</summary>
 
 ```bash
 compozy setup [flags]
 ```
 
-| Flag             | Default | Description                                               |
-| ---------------- | ------- | --------------------------------------------------------- |
-| `--agent`, `-a`  |         | Target agent name (repeatable)                            |
-| `--skill`, `-s`  |         | Skill name to install (repeatable)                        |
-| `--global`, `-g` | `false` | Install to user directory instead of project              |
-| `--copy`         | `false` | Copy files instead of symlinking                          |
-| `--list`, `-l`   | `false` | List bundled skills and council agents without installing |
-| `--yes`, `-y`    | `false` | Skip confirmation prompts                                 |
-| `--all`          | `false` | Install all skills to all agents                          |
+| Flag             | Default | Description                                                      |
+| ---------------- | ------- | ---------------------------------------------------------------- |
+| `--agent`, `-a`  |         | Target agent name (repeatable)                                   |
+| `--skill`, `-s`  |         | Skill name to install (repeatable)                               |
+| `--global`, `-g` | `false` | Install to user directory instead of project                     |
+| `--copy`         | `false` | Copy files instead of symlinking                                 |
+| `--list`, `-l`   | `false` | List core skills and enabled extension assets without installing |
+| `--yes`, `-y`    | `false` | Skip confirmation prompts                                        |
+| `--all`          | `false` | Install all skills to all agents                                 |
 
 </details>
 

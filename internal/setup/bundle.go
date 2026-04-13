@@ -27,7 +27,7 @@ func InstallBundledSkills(cfg InstallConfig) (*Result, error) {
 	return Install(cfg)
 }
 
-// InstallBundledSetupAssets materializes bundled skills and bundled council reusable agents.
+// InstallBundledSetupAssets materializes bundled skills and any bundled reusable agents.
 func InstallBundledSetupAssets(cfg InstallConfig) (*Result, error) {
 	cfg.Bundle = skills.FS
 	result, err := Install(cfg)
@@ -35,7 +35,10 @@ func InstallBundledSetupAssets(cfg InstallConfig) (*Result, error) {
 		return nil, err
 	}
 
-	successes, failures, err := installBundledReusableAgents(cfg.ResolverOptions)
+	successes, failures, err := installBundledReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: cfg.ResolverOptions,
+		Global:          cfg.Global,
+	})
 	if err != nil {
 		return result, fmt.Errorf("install bundled reusable agents: %w", err)
 	}

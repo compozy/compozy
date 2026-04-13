@@ -298,3 +298,324 @@ func TestVerifyReportsExtraFilesAsDrift(t *testing.T) {
 		t.Fatalf("expected extra notes.txt, got %#v", result.Skills[0].Drift)
 	}
 }
+
+func TestVerifyReusableAgentsPrefersProjectScopeOverGlobal(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	reusableAgents := testExtensionReusableAgents(t, "architect-advisor")
+
+	successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		Global:         true,
+	})
+	if err != nil {
+		t.Fatalf("install global reusable agents: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) == 0 {
+		t.Fatal("expected bundled reusable-agent install to produce successes")
+	}
+
+	successes, failures, err = InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		Global:         false,
+	})
+	if err != nil {
+		t.Fatalf("install project reusable agents: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) == 0 {
+		t.Fatal("expected project reusable-agent install to produce successes")
+	}
+
+	result, err := VerifyReusableAgents(ReusableAgentVerifyConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+	})
+	if err != nil {
+		t.Fatalf("verify reusable agents: %v", err)
+	}
+	if result.Scope != InstallScopeProject {
+		t.Fatalf("expected project scope, got %q", result.Scope)
+	}
+	if result.HasMissing() || result.HasDrift() {
+		t.Fatalf(
+			"expected current reusable-agent install, got missing=%#v drift=%#v",
+			result.MissingReusableAgentNames(),
+			result.DriftedReusableAgentNames(),
+		)
+	}
+}
+
+func TestVerifyReusableAgentsFallsBackToGlobalScope(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	reusableAgents := testExtensionReusableAgents(t, "architect-advisor")
+
+	successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		Global:         true,
+	})
+	if err != nil {
+		t.Fatalf("install global reusable agents: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) == 0 {
+		t.Fatal("expected bundled reusable-agent install to produce successes")
+	}
+
+	result, err := VerifyReusableAgents(ReusableAgentVerifyConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+	})
+	if err != nil {
+		t.Fatalf("verify reusable agents: %v", err)
+	}
+	if result.Scope != InstallScopeGlobal {
+		t.Fatalf("expected global scope, got %q", result.Scope)
+	}
+	if result.HasMissing() || result.HasDrift() {
+		t.Fatalf(
+			"expected current reusable-agent install, got missing=%#v drift=%#v",
+			result.MissingReusableAgentNames(),
+			result.DriftedReusableAgentNames(),
+		)
+	}
+}
+
+func TestVerifyReusableAgentsScopeHintWins(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	reusableAgents := testExtensionReusableAgents(t, "architect-advisor")
+
+	successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		Global:         true,
+	})
+	if err != nil {
+		t.Fatalf("install global reusable agents: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) == 0 {
+		t.Fatal("expected bundled reusable-agent install to produce successes")
+	}
+
+	result, err := VerifyReusableAgents(ReusableAgentVerifyConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		ScopeHint:      InstallScopeProject,
+	})
+	if err != nil {
+		t.Fatalf("verify reusable agents with scope hint: %v", err)
+	}
+	if result.Scope != InstallScopeProject {
+		t.Fatalf("expected project scope from hint, got %q", result.Scope)
+	}
+	if !result.HasMissing() {
+		t.Fatal("expected project-scope verification to report missing reusable agents")
+	}
+}
+
+func TestVerifyReusableAgentsReportsProjectDriftWhenProjectOverridesGlobal(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	reusableAgents := testExtensionReusableAgents(t, "architect-advisor")
+
+	successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		Global:         true,
+	})
+	if err != nil {
+		t.Fatalf("install global reusable agents: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) == 0 {
+		t.Fatal("expected bundled reusable-agent install to produce successes")
+	}
+
+	successes, failures, err = InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		Global:         false,
+	})
+	if err != nil {
+		t.Fatalf("install project reusable agents: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) == 0 {
+		t.Fatal("expected project reusable-agent install to produce successes")
+	}
+
+	projectAgentPath := filepath.Join(projectDir, ".compozy", "agents", "architect-advisor", "AGENT.md")
+	if err := os.WriteFile(projectAgentPath, []byte("drifted\n"), 0o644); err != nil {
+		t.Fatalf("write drifted reusable agent file: %v", err)
+	}
+
+	result, err := VerifyReusableAgents(ReusableAgentVerifyConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+	})
+	if err != nil {
+		t.Fatalf("verify reusable agents: %v", err)
+	}
+	if result.Scope != InstallScopeProject {
+		t.Fatalf("expected project scope, got %q", result.Scope)
+	}
+
+	verified := findVerifiedReusableAgent(t, result, "architect-advisor")
+	if verified.State != VerifyStateDrifted {
+		t.Fatalf("expected architect-advisor to be drifted, got %q", verified.State)
+	}
+	if !reflect.DeepEqual(verified.Drift.ChangedFiles, []string{"AGENT.md"}) {
+		t.Fatalf("expected changed AGENT.md, got %#v", verified.Drift)
+	}
+}
+
+func TestVerifyReusableAgentsUsesProjectOverridesAndGlobalFallbackPerAgent(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	reusableAgents := testExtensionReusableAgents(t, "architect-advisor", "product-mind")
+
+	successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+		Global:         true,
+	})
+	if err != nil {
+		t.Fatalf("install global reusable agents: %v", err)
+	}
+	if len(failures) != 0 || len(successes) != len(reusableAgents) {
+		t.Fatalf("unexpected global reusable-agent install result: successes=%#v failures=%#v", successes, failures)
+	}
+
+	projectOverride := make([]ReusableAgent, 0, 1)
+	for i := range reusableAgents {
+		if reusableAgents[i].Name == "architect-advisor" {
+			projectOverride = append(projectOverride, reusableAgents[i])
+		}
+	}
+	if len(projectOverride) != 1 {
+		t.Fatalf("expected one project override reusable agent, got %#v", projectOverride)
+	}
+	successes, failures, err = InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: projectOverride,
+		Global:         false,
+	})
+	if err != nil {
+		t.Fatalf("install project reusable agent override: %v", err)
+	}
+	if len(failures) != 0 || len(successes) != 1 {
+		t.Fatalf("unexpected project reusable-agent install result: successes=%#v failures=%#v", successes, failures)
+	}
+
+	result, err := VerifyReusableAgents(ReusableAgentVerifyConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: reusableAgents,
+	})
+	if err != nil {
+		t.Fatalf("verify reusable agents: %v", err)
+	}
+	if result.Scope != InstallScopeProject {
+		t.Fatalf("expected project scope, got %q", result.Scope)
+	}
+	if result.HasMissing() || result.HasDrift() {
+		t.Fatalf(
+			"expected merged reusable-agent install to be current, got missing=%#v drift=%#v",
+			result.MissingReusableAgentNames(),
+			result.DriftedReusableAgentNames(),
+		)
+	}
+
+	architect := findVerifiedReusableAgent(t, result, "architect-advisor")
+	if want := filepath.Join(projectDir, ".compozy", "agents", "architect-advisor"); architect.TargetPath != want {
+		t.Fatalf("expected project override target path\nwant: %s\ngot:  %s", want, architect.TargetPath)
+	}
+
+	product := findVerifiedReusableAgent(t, result, "product-mind")
+	if want := filepath.Join(homeDir, ".compozy", "agents", "product-mind"); product.TargetPath != want {
+		t.Fatalf("expected global fallback target path\nwant: %s\ngot:  %s", want, product.TargetPath)
+	}
+}
+
+func findVerifiedReusableAgent(
+	t *testing.T,
+	result ReusableAgentVerifyResult,
+	name string,
+) VerifiedReusableAgent {
+	t.Helper()
+
+	for i := range result.Agents {
+		if result.Agents[i].ReusableAgent.Name == name {
+			return result.Agents[i]
+		}
+	}
+	t.Fatalf("verified reusable agent %q not found", name)
+	return VerifiedReusableAgent{}
+}

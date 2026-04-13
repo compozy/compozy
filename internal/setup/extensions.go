@@ -30,12 +30,13 @@ type ExtensionVerifyConfig struct {
 
 // SkillPackSource captures one declarative skill-pack source resolved during extension discovery.
 type SkillPackSource struct {
-	ExtensionName string
-	ManifestPath  string
-	Pattern       string
-	ResolvedPath  string
-	SourceFS      fs.FS
-	SourceDir     string
+	ExtensionName   string
+	ExtensionSource string
+	ManifestPath    string
+	Pattern         string
+	ResolvedPath    string
+	SourceFS        fs.FS
+	SourceDir       string
 }
 
 // ExtensionPreviewItem describes the on-disk plan for one extension skill/agent install pair.
@@ -188,6 +189,20 @@ func InstallExtensionSkillPacks(cfg ExtensionInstallConfig) (*ExtensionResult, e
 	return result, nil
 }
 
+// ListExtensionSkills enumerates installable skill assets declared by enabled extensions.
+func ListExtensionSkills(packs []SkillPackSource) ([]Skill, error) {
+	sources, err := loadExtensionSkillSources(packs)
+	if err != nil {
+		return nil, err
+	}
+
+	skills := make([]Skill, 0, len(sources))
+	for i := range sources {
+		skills = append(skills, sources[i].Skill)
+	}
+	return skills, nil
+}
+
 // VerifyExtensionSkillPacks checks whether declared extension skill packs are installed and current.
 func VerifyExtensionSkillPacks(cfg ExtensionVerifyConfig) (ExtensionVerifyResult, error) {
 	sources, err := loadExtensionSkillSources(cfg.Packs)
@@ -273,10 +288,22 @@ func loadExtensionSkillSources(packs []SkillPackSource) ([]extensionSkillSource,
 				err,
 			)
 		}
+		extensionSkill := Skill{
+			Name:            skill.Name,
+			Description:     skill.Description,
+			Directory:       skill.Directory,
+			Origin:          AssetOriginExtension,
+			ExtensionName:   pack.ExtensionName,
+			ExtensionSource: pack.ExtensionSource,
+			ManifestPath:    pack.ManifestPath,
+			ResolvedPath:    pack.ResolvedPath,
+			SourceFS:        sourceFS,
+			SourceDir:       sourceDir,
+		}
 		sources = append(sources, extensionSkillSource{
 			Pack:   pack,
-			Skill:  skill,
-			Source: sourceFS,
+			Skill:  extensionSkill,
+			Source: extensionSkill.SourceFS,
 		})
 	}
 
@@ -289,10 +316,11 @@ func resolveDeclaredSkillPackSource(pack SkillPackSource) (fs.FS, string, error)
 		return pack.SourceFS, strings.TrimSpace(pack.SourceDir), nil
 	}
 
-	resolvedPath := filepath.Clean(strings.TrimSpace(pack.ResolvedPath))
+	resolvedPath := strings.TrimSpace(pack.ResolvedPath)
 	if resolvedPath == "" {
 		return nil, "", fmt.Errorf("extension skill pack source path is required")
 	}
+	resolvedPath = filepath.Clean(resolvedPath)
 	info, err := os.Stat(resolvedPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("stat extension skill pack %q: %w", resolvedPath, err)
@@ -438,7 +466,12 @@ func verifyExtensionEntry(scope InstallScope, entry extensionVerificationEntry) 
 	resolvedPath := resolveInstalledPath(entry.TargetPath)
 	verified.ResolvedPath = resolvedPath
 
-	drift, drifted, err := compareInstalledSkill(entry.Source.Source, entry.Source.Skill.Directory, resolvedPath)
+	drift, drifted, err := compareInstalledDirectory(
+		entry.Source.Source,
+		entry.Source.Skill.SourceDir,
+		resolvedPath,
+		"skill",
+	)
 	if err != nil {
 		return ExtensionVerifiedSkill{}, fmt.Errorf(
 			"verify extension skill %q from %q: %w",

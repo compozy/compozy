@@ -63,5 +63,8 @@ func parseSkill(bundle fs.FS, dir string) (Skill, error) {
 		Name:        metadata.Name,
 		Description: metadata.Description,
 		Directory:   dir,
+		Origin:      AssetOriginBundled,
+		SourceFS:    bundle,
+		SourceDir:   dir,
 	}, nil
 }

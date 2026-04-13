@@ -195,12 +195,36 @@ func extensionSkillSources(packs []extensions.DeclaredSkillPack) []setup.SkillPa
 	for i := range packs {
 		pack := &packs[i]
 		sources = append(sources, setup.SkillPackSource{
-			ExtensionName: pack.Extension.Name,
-			ManifestPath:  pack.ManifestPath,
-			Pattern:       pack.Pattern,
-			ResolvedPath:  pack.ResolvedPath,
-			SourceFS:      pack.SourceFS,
-			SourceDir:     pack.SourceDir,
+			ExtensionName:   pack.Extension.Name,
+			ExtensionSource: string(pack.Extension.Source),
+			ManifestPath:    pack.ManifestPath,
+			Pattern:         pack.Pattern,
+			ResolvedPath:    pack.ResolvedPath,
+			SourceFS:        pack.SourceFS,
+			SourceDir:       pack.SourceDir,
+		})
+	}
+	return sources
+}
+
+func extensionReusableAgentSources(
+	agents []extensions.DeclaredReusableAgent,
+) []setup.ExtensionReusableAgentSource {
+	if len(agents) == 0 {
+		return nil
+	}
+
+	sources := make([]setup.ExtensionReusableAgentSource, 0, len(agents))
+	for i := range agents {
+		reusableAgent := &agents[i]
+		sources = append(sources, setup.ExtensionReusableAgentSource{
+			ExtensionName:   reusableAgent.Extension.Name,
+			ExtensionSource: string(reusableAgent.Extension.Source),
+			ManifestPath:    reusableAgent.ManifestPath,
+			Pattern:         reusableAgent.Pattern,
+			ResolvedPath:    reusableAgent.ResolvedPath,
+			SourceFS:        reusableAgent.SourceFS,
+			SourceDir:       reusableAgent.SourceDir,
 		})
 	}
 	return sources

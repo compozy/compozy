@@ -143,82 +143,28 @@ func TestPreviewGlobalUniversalAgentUsesCanonicalHomeAgentsDir(t *testing.T) {
 	}
 }
 
-func TestBundledReusableAgentFlowsUseGlobalCompozyAgentsDir(t *testing.T) {
+func TestReusableAgentFlowsRespectSelectedScope(t *testing.T) {
 	t.Parallel()
 
-	reusableAgents, err := ListBundledReusableAgents()
-	if err != nil {
-		t.Fatalf("list bundled reusable agents: %v", err)
-	}
+	reusableAgents := testExtensionReusableAgents(t, "architect-advisor")
 
 	tests := []struct {
-		name string
-		run  func(t *testing.T, projectDir, homeDir string, reusableAgents []ReusableAgent)
+		name     string
+		global   bool
+		wantRoot func(projectDir, homeDir string) string
 	}{
 		{
-			name: "Should preview bundled reusable agent installs in the global Compozy agents directory",
-			run: func(t *testing.T, projectDir, homeDir string, reusableAgents []ReusableAgent) {
-				t.Helper()
-
-				items, err := PreviewBundledReusableAgentInstall(ResolverOptions{
-					CWD:     projectDir,
-					HomeDir: homeDir,
-				})
-				if err != nil {
-					t.Fatalf("preview bundled reusable agents: %v", err)
-				}
-				if len(items) != len(reusableAgents) {
-					t.Fatalf("expected %d reusable-agent preview items, got %d", len(reusableAgents), len(items))
-				}
-
-				for _, item := range items {
-					want := filepath.Join(homeDir, ".compozy", "agents", item.ReusableAgent.Name)
-					if item.TargetPath != want {
-						t.Fatalf(
-							"unexpected reusable-agent target path for %q\nwant: %s\ngot:  %s",
-							item.ReusableAgent.Name,
-							want,
-							item.TargetPath,
-						)
-					}
-				}
+			name:   "Project scope",
+			global: false,
+			wantRoot: func(projectDir, _ string) string {
+				return filepath.Join(projectDir, ".compozy", "agents")
 			},
 		},
 		{
-			name: "Should install bundled reusable agents into the global Compozy agents directory",
-			run: func(t *testing.T, projectDir, homeDir string, reusableAgents []ReusableAgent) {
-				t.Helper()
-
-				successes, failures, err := InstallBundledReusableAgents(ResolverOptions{
-					CWD:     projectDir,
-					HomeDir: homeDir,
-				})
-				if err != nil {
-					t.Fatalf("install bundled reusable agents: %v", err)
-				}
-				if len(failures) != 0 {
-					t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
-				}
-				if len(successes) != len(reusableAgents) {
-					t.Fatalf(
-						"expected %d reusable-agent installation successes, got %d",
-						len(reusableAgents),
-						len(successes),
-					)
-				}
-
-				for _, success := range successes {
-					agentDir := filepath.Join(homeDir, ".compozy", "agents", success.ReusableAgent.Name)
-					if success.Path != agentDir {
-						t.Fatalf(
-							"unexpected success path for %q\nwant: %s\ngot:  %s",
-							success.ReusableAgent.Name,
-							agentDir,
-							success.Path,
-						)
-					}
-					assertFileExists(t, filepath.Join(agentDir, "AGENT.md"))
-				}
+			name:   "Global scope",
+			global: true,
+			wantRoot: func(_ string, homeDir string) string {
+				return filepath.Join(homeDir, ".compozy", "agents")
 			},
 		},
 	}
@@ -227,7 +173,69 @@ func TestBundledReusableAgentFlowsUseGlobalCompozyAgentsDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			projectDir := t.TempDir()
 			homeDir := t.TempDir()
-			tt.run(t, projectDir, homeDir, reusableAgents)
+			wantRoot := tt.wantRoot(projectDir, homeDir)
+
+			items, err := PreviewReusableAgentInstall(ReusableAgentInstallConfig{
+				ResolverOptions: ResolverOptions{
+					CWD:     projectDir,
+					HomeDir: homeDir,
+				},
+				ReusableAgents: reusableAgents,
+				Global:         tt.global,
+			})
+			if err != nil {
+				t.Fatalf("preview reusable agents: %v", err)
+			}
+			if len(items) != len(reusableAgents) {
+				t.Fatalf("expected %d reusable-agent preview items, got %d", len(reusableAgents), len(items))
+			}
+
+			for _, item := range items {
+				want := filepath.Join(wantRoot, item.ReusableAgent.Name)
+				if item.TargetPath != want {
+					t.Fatalf(
+						"unexpected reusable-agent target path for %q\nwant: %s\ngot:  %s",
+						item.ReusableAgent.Name,
+						want,
+						item.TargetPath,
+					)
+				}
+			}
+
+			successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+				ResolverOptions: ResolverOptions{
+					CWD:     projectDir,
+					HomeDir: homeDir,
+				},
+				ReusableAgents: reusableAgents,
+				Global:         tt.global,
+			})
+			if err != nil {
+				t.Fatalf("install reusable agents: %v", err)
+			}
+			if len(failures) != 0 {
+				t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+			}
+			if len(successes) != len(reusableAgents) {
+				t.Fatalf(
+					"expected %d reusable-agent installation successes, got %d",
+					len(reusableAgents),
+					len(successes),
+				)
+			}
+
+			for _, success := range successes {
+				agentDir := filepath.Join(wantRoot, success.ReusableAgent.Name)
+				if success.Path != agentDir {
+					t.Fatalf(
+						"unexpected success path for %q\nwant: %s\ngot:  %s",
+						success.ReusableAgent.Name,
+						agentDir,
+						success.Path,
+					)
+				}
+				assertFileExists(t, filepath.Join(agentDir, "AGENT.md"))
+			}
 		})
 	}
 }
@@ -240,7 +248,9 @@ func TestInstallBundledSetupAssetsReturnsSkillResultsWhenReusableAgentInstallFai
 	homeDir := t.TempDir()
 
 	previous := installBundledReusableAgents
-	installBundledReusableAgents = func(ResolverOptions) ([]ReusableAgentSuccessItem, []ReusableAgentFailureItem, error) {
+	installBundledReusableAgents = func(
+		ReusableAgentInstallConfig,
+	) ([]ReusableAgentSuccessItem, []ReusableAgentFailureItem, error) {
 		return nil, nil, errors.New("reusable agents unavailable")
 	}
 	t.Cleanup(func() {
@@ -271,7 +281,7 @@ func TestInstallBundledSetupAssetsReturnsSkillResultsWhenReusableAgentInstallFai
 	}
 }
 
-func TestInstallBundledReusableAgentsPreservesExistingInstallWhenCopyFails(t *testing.T) {
+func TestInstallReusableAgentsPreservesExistingInstallWhenCopyFails(t *testing.T) {
 	projectDir := t.TempDir()
 	homeDir := t.TempDir()
 	existingAgentDir := filepath.Join(homeDir, ".compozy", "agents", "architect-advisor")
@@ -296,12 +306,16 @@ func TestInstallBundledReusableAgentsPreservesExistingInstallWhenCopyFails(t *te
 		copyReusableAgentBundleDirectory = previous
 	})
 
-	successes, failures, err := InstallBundledReusableAgents(ResolverOptions{
-		CWD:     projectDir,
-		HomeDir: homeDir,
+	successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: testExtensionReusableAgents(t, "architect-advisor", "product-mind"),
+		Global:         true,
 	})
 	if err != nil {
-		t.Fatalf("install bundled reusable agents: %v", err)
+		t.Fatalf("install reusable agents: %v", err)
 	}
 	if len(successes) == 0 {
 		t.Fatalf("expected unaffected reusable agents to keep installing, got %#v", successes)
@@ -323,6 +337,49 @@ func TestInstallBundledReusableAgentsPreservesExistingInstallWhenCopyFails(t *te
 	}
 	if len(stagedPaths) != 0 {
 		t.Fatalf("expected failed staged installs to be cleaned up, got %v", stagedPaths)
+	}
+}
+
+func TestInstallReusableAgentsInProjectScopePreservesGlobalInstall(t *testing.T) {
+	t.Parallel()
+
+	projectDir := t.TempDir()
+	homeDir := t.TempDir()
+	globalAgentDir := filepath.Join(homeDir, ".compozy", "agents", "architect-advisor")
+	if err := os.MkdirAll(globalAgentDir, 0o755); err != nil {
+		t.Fatalf("mkdir global reusable agent: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(globalAgentDir, "AGENT.md"), []byte("global-existing"), 0o600); err != nil {
+		t.Fatalf("write global reusable agent: %v", err)
+	}
+
+	successes, failures, err := InstallReusableAgents(ReusableAgentInstallConfig{
+		ResolverOptions: ResolverOptions{
+			CWD:     projectDir,
+			HomeDir: homeDir,
+		},
+		ReusableAgents: testExtensionReusableAgents(t, "architect-advisor"),
+		Global:         false,
+	})
+	if err != nil {
+		t.Fatalf("install reusable agents in project scope: %v", err)
+	}
+	if len(failures) != 0 {
+		t.Fatalf("expected no reusable-agent installation failures, got %#v", failures)
+	}
+	if len(successes) == 0 {
+		t.Fatal("expected reusable-agent installation successes")
+	}
+
+	projectAgentDir := filepath.Join(projectDir, ".compozy", "agents", "architect-advisor")
+	assertFileExists(t, filepath.Join(projectAgentDir, "AGENT.md"))
+
+	content, err := os.ReadFile(filepath.Join(globalAgentDir, "AGENT.md"))
+	if err != nil {
+		t.Fatalf("read preserved global reusable agent: %v", err)
+	}
+	if string(content) != "global-existing" {
+		t.Fatalf("expected global install to remain unchanged, got %q", content)
 	}
 }
 

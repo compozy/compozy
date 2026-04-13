@@ -128,10 +128,15 @@ func (s *commandState) runPrepared(
 		discovery = assets[0]
 	}
 
+	effectiveExtensionPacks, err := effectiveExtensionSkillSources(discovery.Discovery)
+	if err != nil {
+		return err
+	}
+
 	if err := s.preflightBundledSkills(
 		cmd,
 		cfg,
-		extensionSkillSources(discovery.Discovery.SkillPacks.Packs),
+		effectiveExtensionPacks,
 	); err != nil {
 		return err
 	}

@@ -1,6 +1,9 @@
 package setup
 
-import "io/fs"
+import (
+	"io/fs"
+	"slices"
+)
 
 // InstallMode determines how bundled skills are materialized for agents.
 type InstallMode string
@@ -24,19 +27,45 @@ const (
 	InstallScopeGlobal InstallScope = "global"
 )
 
+// AssetOrigin identifies where one setup asset originates.
+type AssetOrigin string
+
+const (
+	// AssetOriginBundled identifies first-party setup assets shipped with Compozy.
+	AssetOriginBundled AssetOrigin = "bundled"
+	// AssetOriginExtension identifies setup assets shipped by an enabled extension.
+	AssetOriginExtension AssetOrigin = "extension"
+)
+
 // Skill describes one bundled skill available for installation.
 type Skill struct {
 	Name        string
 	Description string
 	Directory   string
+	Origin      AssetOrigin
+
+	ExtensionName   string
+	ExtensionSource string
+	ManifestPath    string
+	ResolvedPath    string
+	SourceFS        fs.FS
+	SourceDir       string
 }
 
-// ReusableAgent describes one bundled reusable agent available for global install.
+// ReusableAgent describes one reusable agent available for setup-managed installation.
 type ReusableAgent struct {
 	Name        string
 	Title       string
 	Description string
 	Directory   string
+	Origin      AssetOrigin
+
+	ExtensionName   string
+	ExtensionSource string
+	ManifestPath    string
+	ResolvedPath    string
+	SourceFS        fs.FS
+	SourceDir       string
 }
 
 // Agent describes one supported agent/editor destination.
@@ -180,6 +209,14 @@ type ReusableAgentPreviewItem struct {
 	WillOverwrite bool
 }
 
+// ReusableAgentInstallConfig describes one reusable-agent install or preview run.
+type ReusableAgentInstallConfig struct {
+	ResolverOptions
+
+	ReusableAgents []ReusableAgent
+	Global         bool
+}
+
 // SuccessItem captures one successful installation mapping.
 type SuccessItem struct {
 	Skill         Skill
@@ -212,6 +249,14 @@ type ReusableAgentFailureItem struct {
 	Error         string
 }
 
+// ReusableAgentVerifyConfig describes one reusable-agent verification run.
+type ReusableAgentVerifyConfig struct {
+	ResolverOptions
+
+	ReusableAgents []ReusableAgent
+	ScopeHint      InstallScope
+}
+
 // Result summarizes one bundled-skill installation run.
 type Result struct {
 	Global     bool
@@ -221,4 +266,67 @@ type Result struct {
 
 	ReusableAgentsSuccessful []ReusableAgentSuccessItem
 	ReusableAgentsFailed     []ReusableAgentFailureItem
+}
+
+// VerifiedReusableAgent captures the verification result for one reusable agent.
+type VerifiedReusableAgent struct {
+	ReusableAgent ReusableAgent
+	TargetPath    string
+	ResolvedPath  string
+	State         VerifyState
+	Drift         SkillDrift
+}
+
+// ReusableAgentVerifyResult summarizes one reusable-agent verification run.
+type ReusableAgentVerifyResult struct {
+	Scope  InstallScope
+	Agents []VerifiedReusableAgent
+}
+
+// MissingReusableAgentNames returns every missing reusable-agent name in sorted order.
+func (r ReusableAgentVerifyResult) MissingReusableAgentNames() []string {
+	names := make([]string, 0, len(r.Agents))
+	for i := range r.Agents {
+		agent := &r.Agents[i]
+		if agent.State != VerifyStateMissing {
+			continue
+		}
+		names = append(names, agent.ReusableAgent.Name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// DriftedReusableAgentNames returns every drifted reusable-agent name in sorted order.
+func (r ReusableAgentVerifyResult) DriftedReusableAgentNames() []string {
+	names := make([]string, 0, len(r.Agents))
+	for i := range r.Agents {
+		agent := &r.Agents[i]
+		if agent.State != VerifyStateDrifted {
+			continue
+		}
+		names = append(names, agent.ReusableAgent.Name)
+	}
+	slices.Sort(names)
+	return names
+}
+
+// HasMissing reports whether any reusable agent is missing.
+func (r ReusableAgentVerifyResult) HasMissing() bool {
+	for i := range r.Agents {
+		if r.Agents[i].State == VerifyStateMissing {
+			return true
+		}
+	}
+	return false
+}
+
+// HasDrift reports whether any reusable agent differs from its source.
+func (r ReusableAgentVerifyResult) HasDrift() bool {
+	for i := range r.Agents {
+		if r.Agents[i].State == VerifyStateDrifted {
+			return true
+		}
+	}
+	return false
 }
