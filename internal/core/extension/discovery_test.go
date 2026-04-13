@@ -322,10 +322,28 @@ func TestDiscoveryExtractsReusableAgentsFromEnabledExtensions(t *testing.T) {
 		manifest.Security.Capabilities = []Capability{CapabilityAgentsShip}
 		manifest.Resources.Agents = []string{"agents/*"}
 		writeManifestJSON(t, workspaceExtensionDir(workspaceRoot, "agents-ext"), manifest)
+		disabledManifest := manifestFixture("agents-disabled")
+		disabledManifest.Subprocess = nil
+		disabledManifest.Hooks = nil
+		disabledManifest.Providers = ProvidersConfig{}
+		disabledManifest.Resources.Skills = nil
+		disabledManifest.Security.Capabilities = []Capability{CapabilityAgentsShip}
+		disabledManifest.Resources.Agents = []string{"agents/*"}
+		writeManifestJSON(t, workspaceExtensionDir(workspaceRoot, "agents-disabled"), disabledManifest)
 		writeTestFile(
 			t,
 			filepath.Join(workspaceExtensionDir(workspaceRoot, "agents-ext"), "agents", "product-scout", "AGENT.md"),
 			"---\ntitle: Product Scout\ndescription: Workspace reusable agent\n---\n",
+		)
+		writeTestFile(
+			t,
+			filepath.Join(
+				workspaceExtensionDir(workspaceRoot, "agents-disabled"),
+				"agents",
+				"should-not-load",
+				"AGENT.md",
+			),
+			"---\ntitle: Should Not Load\ndescription: Disabled reusable agent\n---\n",
 		)
 		enableWorkspaceExtension(t, store, workspaceRoot, "agents-ext")
 

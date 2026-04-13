@@ -54,6 +54,10 @@ func ListReusableAgents(bundle fs.FS) ([]ReusableAgent, error) {
 }
 
 func parseReusableAgent(bundle fs.FS, dir string) (ReusableAgent, error) {
+	if err := validateReusableAgentName(dir); err != nil {
+		return ReusableAgent{}, fmt.Errorf("read bundled reusable agent %q: %w", dir, err)
+	}
+
 	agentPath := path.Join(dir, "AGENT.md")
 	content, err := fs.ReadFile(bundle, agentPath)
 	if err != nil {
@@ -69,9 +73,6 @@ func parseReusableAgent(bundle fs.FS, dir string) (ReusableAgent, error) {
 	}
 	if strings.TrimSpace(metadata.Title) == "" || strings.TrimSpace(metadata.Description) == "" {
 		return ReusableAgent{}, fmt.Errorf("read bundled reusable agent %q: missing title or description", dir)
-	}
-	if err := validateReusableAgentName(dir); err != nil {
-		return ReusableAgent{}, fmt.Errorf("read bundled reusable agent %q: %w", dir, err)
 	}
 
 	return ReusableAgent{

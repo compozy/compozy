@@ -70,11 +70,14 @@ func runInstallCommand(
 			if cleanupErr == nil {
 				return
 			}
-			if err == nil {
-				err = fmt.Errorf("cleanup install source: %w", cleanupErr)
+			wrappedErr := fmt.Errorf("cleanup install source: %w", cleanupErr)
+			if err != nil {
+				err = errors.Join(err, wrappedErr)
 				return
 			}
-			err = errors.Join(err, fmt.Errorf("cleanup install source: %w", cleanupErr))
+			if writeErr := writeInstallCleanupWarning(cmd, cleanupErr); writeErr != nil {
+				err = writeErr
+			}
 		}()
 	}
 
@@ -171,6 +174,17 @@ func writeInstallPlan(cmd *cobra.Command, prompt installPrompt) error {
 		renderSetupAssets(prompt.SetupAssets),
 	); err != nil {
 		return fmt.Errorf("write install plan: %w", err)
+	}
+	return nil
+}
+
+func writeInstallCleanupWarning(cmd *cobra.Command, cleanupErr error) error {
+	if _, err := fmt.Fprintf(
+		cmd.ErrOrStderr(),
+		"Warning: failed to cleanup install source: %v\n",
+		cleanupErr,
+	); err != nil {
+		return fmt.Errorf("write install cleanup warning: %w", err)
 	}
 	return nil
 }

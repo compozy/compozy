@@ -14,6 +14,8 @@ func TestResolveDeclaredSkillPackSourceRejectsEmptyPath(t *testing.T) {
 
 	if _, _, err := resolveDeclaredSkillPackSource(SkillPackSource{ResolvedPath: "   "}); err == nil {
 		t.Fatal("expected empty skill-pack path to fail")
+	} else if !strings.Contains(err.Error(), "extension skill pack source path is required") {
+		t.Fatalf("unexpected empty skill-pack error: %v", err)
 	}
 }
 
@@ -22,6 +24,8 @@ func TestResolveExtensionReusableAgentSourceRejectsEmptyPath(t *testing.T) {
 
 	if _, _, err := resolveExtensionReusableAgentSource(ExtensionReusableAgentSource{ResolvedPath: "   "}); err == nil {
 		t.Fatal("expected empty reusable-agent path to fail")
+	} else if !strings.Contains(err.Error(), "extension reusable agent source path is required") {
+		t.Fatalf("unexpected empty reusable-agent error: %v", err)
 	}
 }
 
@@ -30,16 +34,24 @@ func TestParseReusableAgentRejectsUnsafeNames(t *testing.T) {
 
 	manifest := []byte("---\ntitle: Test Agent\ndescription: Test reusable agent\n---\n")
 	bundle := fstest.MapFS{
-		"AGENT.md":      &fstest.MapFile{Data: manifest},
-		"beta/AGENT.md": &fstest.MapFile{Data: manifest},
+		"AGENT.md": &fstest.MapFile{Data: manifest},
 	}
 
 	tests := []struct {
-		name string
-		dir  string
+		name    string
+		dir     string
+		wantErr string
 	}{
-		{name: "Current directory", dir: "."},
-		{name: "Contains traversal", dir: "alpha/../beta"},
+		{
+			name:    "Current directory",
+			dir:     ".",
+			wantErr: `must not resolve to the current directory`,
+		},
+		{
+			name:    "Contains traversal",
+			dir:     "alpha/../missing",
+			wantErr: `must not contain ".."`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -49,6 +61,8 @@ func TestParseReusableAgentRejectsUnsafeNames(t *testing.T) {
 
 			if _, err := parseReusableAgent(bundle, tt.dir); err == nil {
 				t.Fatalf("expected parseReusableAgent(%q) to fail", tt.dir)
+			} else if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("parseReusableAgent(%q) error = %v, want substring %q", tt.dir, err, tt.wantErr)
 			}
 		})
 	}
@@ -68,6 +82,9 @@ func TestPreviewReusableAgentInstallRejectsUnsafeName(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected unsafe reusable-agent name to fail preview")
+	}
+	if !strings.Contains(err.Error(), `must not contain ".."`) {
+		t.Fatalf("unexpected preview error: %v", err)
 	}
 }
 
@@ -125,6 +142,9 @@ func TestVerifyReusableAgentsRejectsUnsafeName(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected unsafe reusable-agent name to fail verification")
+	}
+	if !strings.Contains(err.Error(), `must not contain ".."`) {
+		t.Fatalf("unexpected verification error: %v", err)
 	}
 }
 

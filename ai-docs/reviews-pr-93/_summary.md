@@ -4,20 +4,19 @@ This folder contains exported issues (resolvable review threads) and outside-of-
 
 ## Summary
 
-- **Issues (resolvable review comments):** 8 (filtered from 8 total)
-- **Outside-of-diff entries:** 0
-  - **Resolved issues:** 8 ✓
+- **Issues (resolvable review comments):** 0 (filtered from 11 total)
+- **Outside-of-diff entries:** 1
+  - **Resolved issues:** 11 ✓
   - **Unresolved issues:** 0
 
-**Generated on:** 2026-04-13 18:42:42 UTC
+**Generated on:** 2026-04-13 19:16:49 UTC
 
 ## Issues
 
-- [x] [Issue 1](issues/001-issue.md) - agents/embed.go:8
-- [x] [Issue 2](issues/002-issue.md) - internal/core/extension/assets_test.go:135
-- [x] [Issue 3](issues/003-issue.md) - internal/core/extension/discovery_test.go:344
-- [x] [Issue 4](issues/004-issue.md) - internal/setup/bundle_test.go:71
-- [x] [Issue 5](issues/005-issue.md) - internal/setup/reusable_agent_sources.go:378
-- [x] [Issue 6](issues/006-issue.md) - internal/setup/reusable_agent_sources.go:418
-- [x] [Issue 7](issues/007-issue.md) - internal/setup/types.go:307
-- [x] [Issue 8](issues/008-issue.md) - test/skills_bundle_test.go:125
+
+## Outside-of-diff
+
+- Resolved: 1 ✓
+- Unresolved: 0
+
+- [x] [internal/setup/reusable_agents.go](outside/003-outside_01_internal_setup_reusable_agents.go.md)

@@ -1,50 +1,20 @@
 # Issue 1 - Review Thread Comment
 
-**File:** `agents/embed.go:8`
-**Date:** 2026-04-13 18:25:17 UTC
+**File:** `internal/cli/extension/display_test.go:300`
+**Date:** 2026-04-13 19:08:30 UTC
 **Status:** - [x] RESOLVED
 
 ## Body
 
 _⚠️ Potential issue_ | _🟡 Minor_
 
-<details>
-<summary>🧩 Analysis chain</summary>
+**Wrap these new cases in `t.Run("Should...")` subtests.**
 
-🏁 Script executed:
+The added tests are all standalone top-level cases right now, but the repo test policy requires the `Should...` subtest pattern for new test coverage. Please wrap each body in a named `t.Run(...)` and keep `t.Parallel()` inside the subtest where applicable.
 
-```shell
-#!/bin/bash
-# Description: List all files in the agents/ directory that will be embedded
+As per coding guidelines `**/*_test.go`: `MUST use t.Run("Should...") pattern for ALL test cases`.
 
-fd . agents/ --type f
-```
-
-Repository: compozy/compozy
-
-Length of output: 74
-
----
-
-🏁 Script executed:
-
-```shell
-find agents/ -type d
-```
-
-Repository: compozy/compozy
-
-Length of output: 66
-
----
-
-</details>
-
-**The embed pattern `*` will bundle the Go source file itself into the binary, which is likely unintended.**
-
-The `agents/` directory currently contains only `agents/embed.go`. Using `//go:embed *` means the Go source file gets embedded in the binary—uncommon and wasteful. Additionally, the wildcard pattern will auto-embed any future files added to this directory, which could be problematic for maintenance.
-
-Consider using a more specific pattern (e.g., `*.md` or embedding from subdirectories if that's the intent) to avoid unintended files and make the intent explicit.
+Also applies to: 302-312, 399-416, 901-916
 
 <details>
 <summary>🤖 Prompt for AI Agents</summary>
@@ -52,32 +22,32 @@ Consider using a more specific pattern (e.g., `*.md` or embedding from subdirect
 ```
 Verify each finding against the current code and only fix it if needed.
 
-In `@agents/embed.go` around lines 7 - 8, The current embed declaration var FS
-embed.FS with directive //go:embed * will unintentionally include this source
-file and any future files; change the pattern to an explicit/limited glob that
-matches only intended assets (for example use a specific extension like `*.md`,
-or a subdirectory pattern such as `assets/*` or `templates/*`) and update the
-//go:embed line above the FS variable accordingly so only the desired files are
-bundled.
+In `@internal/cli/extension/display_test.go` around lines 280 - 300, The test
+bodies (e.g., TestInstallPrintsSetupHintWhenExtensionShipsSetupAssets) must be
+wrapped in named subtests using t.Run("Should ...") with the existing assertions
+moved into the subtest body; move t.Parallel() inside each t.Run to keep
+parallelism per-subtest, and update the other indicated test blocks (around
+lines 302-312, 399-416, 901-916) the same way so every new test case follows the
+repo-required t.Run("Should...") pattern.
 ```
 
 </details>
 
-<!-- fingerprinting:phantom:poseidon:ocelot:446b1696-5718-4b30-95b3-d9273668c060 -->
+<!-- fingerprinting:phantom:medusa:grasshopper:f0410b06-af06-4312-8bf8-f831ab4cc296 -->
 
 <!-- This is an auto-generated comment by CodeRabbit -->
 
 ## Triage
 
 - Disposition: VALID
-- Resolution: narrowed the embed scope to `README.md` and added `agents/README.md` so the empty embedded filesystem remains readable without embedding Go source files.
+- Resolution: wrapped the review-targeted `display_test.go` cases in named `t.Run("Should ...")` subtests and kept the parallel execution inside the subtests.
 
 ## Resolve
 
-Thread ID: `PRRT_kwDORy7nkc56nVLo`
+Thread ID: `PRRT_kwDORy7nkc56n9hK`
 
 ```bash
-gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc56nVLo
+gh api graphql -f query='mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}' -F id=PRRT_kwDORy7nkc56n9hK
 ```
 
 ---

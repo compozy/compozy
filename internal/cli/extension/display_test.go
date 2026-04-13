@@ -278,37 +278,87 @@ func TestInstallWithYesCopiesDirectoryAndRecordsDisabledState(t *testing.T) {
 }
 
 func TestInstallPrintsSetupHintWhenExtensionShipsSetupAssets(t *testing.T) {
-	t.Parallel()
+	t.Run("Should print a setup hint when the installed extension ships setup assets", func(t *testing.T) {
+		t.Parallel()
 
-	deps := newTestDeps(t)
-	sourceDir := filepath.Join(t.TempDir(), "idea-ext")
-	writeManifestJSON(t, sourceDir, manifestWithSetupAssets("idea-ext"))
+		deps := newTestDeps(t)
+		sourceDir := filepath.Join(t.TempDir(), "idea-ext")
+		writeManifestJSON(t, sourceDir, manifestWithSetupAssets("idea-ext"))
 
-	output, err := executeExtCommand(t, deps, "install", "--yes", sourceDir)
-	if err != nil {
-		t.Fatalf("execute ext install --yes: %v\noutput:\n%s", err, output)
-	}
-	for _, snippet := range []string{
-		"Setup assets: skills, reusable agents",
-		"This extension ships skills, reusable agents.",
-		"After enabling it, run `compozy setup` to install its setup assets.",
-	} {
-		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected install output to include %q\noutput:\n%s", snippet, output)
+		output, err := executeExtCommand(t, deps, "install", "--yes", sourceDir)
+		if err != nil {
+			t.Fatalf("execute ext install --yes: %v\noutput:\n%s", err, output)
 		}
-	}
+		for _, snippet := range []string{
+			"Setup assets: skills, reusable agents",
+			"This extension ships skills, reusable agents.",
+			"After enabling it, run `compozy setup` to install its setup assets.",
+		} {
+			if !strings.Contains(output, snippet) {
+				t.Fatalf("expected install output to include %q\noutput:\n%s", snippet, output)
+			}
+		}
+	})
 }
 
 func TestInstallGitHubRequiresRef(t *testing.T) {
-	deps := newTestDeps(t)
+	t.Run("Should require --ref for GitHub installs", func(t *testing.T) {
+		t.Parallel()
 
-	output, err := executeExtCommand(t, deps, "install", "--yes", "--remote", "github", "compozy/compozy")
-	if err == nil {
-		t.Fatalf("expected github install without ref to fail\noutput:\n%s", output)
-	}
-	if !strings.Contains(err.Error(), "--ref is required with --remote github") {
-		t.Fatalf("unexpected github install error: %v", err)
-	}
+		deps := newTestDeps(t)
+
+		output, err := executeExtCommand(t, deps, "install", "--yes", "--remote", "github", "compozy/compozy")
+		if err == nil {
+			t.Fatalf("expected github install without ref to fail\noutput:\n%s", output)
+		}
+		if !strings.Contains(err.Error(), "--ref is required with --remote github") {
+			t.Fatalf("unexpected github install error: %v", err)
+		}
+	})
+}
+
+func TestInstallWarnsWhenCleanupSourceFailsAfterSuccessfulInstall(t *testing.T) {
+	t.Run(
+		"Should warn instead of failing when install-source cleanup fails after a successful install",
+		func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t)
+			sourceDir := filepath.Join(t.TempDir(), "cleanup-warning")
+			writeManifestJSON(t, sourceDir, manifestFixture("cleanup-warning"))
+
+			deps.resolveInstallSource = func(
+				ctx context.Context,
+				rawSource string,
+				options installSourceOptions,
+			) (resolvedInstallSource, error) {
+				resolved, err := resolveInstallSource(ctx, rawSource, options)
+				if err != nil {
+					return resolvedInstallSource{}, err
+				}
+				resolved.CleanupSource = func() error {
+					return errors.New("cleanup exploded")
+				}
+				return resolved, nil
+			}
+
+			output, err := executeExtCommand(t, deps, "install", "--yes", sourceDir)
+			if err != nil {
+				t.Fatalf("execute ext install --yes with cleanup warning: %v\noutput:\n%s", err, output)
+			}
+			if _, statErr := os.Stat(userExtensionDir(deps.homeDir, "cleanup-warning")); statErr != nil {
+				t.Fatalf("expected installed extension to remain present: %v", statErr)
+			}
+			for _, snippet := range []string{
+				`Installed extension "cleanup-warning"`,
+				"Warning: failed to cleanup install source: cleanup exploded",
+			} {
+				if !strings.Contains(output, snippet) {
+					t.Fatalf("expected install output to include %q\noutput:\n%s", snippet, output)
+				}
+			}
+		},
+	)
 }
 
 func TestUninstallBundledRefuses(t *testing.T) {
@@ -397,22 +447,24 @@ func TestEnableMarksExtensionEnabled(t *testing.T) {
 }
 
 func TestEnablePrintsSetupHintWhenExtensionShipsSetupAssets(t *testing.T) {
-	t.Parallel()
+	t.Run("Should print a setup hint when enabling an extension that ships setup assets", func(t *testing.T) {
+		t.Parallel()
 
-	deps := newTestDeps(t)
-	sourceDir := filepath.Join(t.TempDir(), "toggle-assets")
-	writeManifestJSON(t, sourceDir, manifestWithSetupAssets("toggle-assets"))
-	if _, err := executeExtCommand(t, deps, "install", "--yes", sourceDir); err != nil {
-		t.Fatalf("install toggle-assets: %v", err)
-	}
+		deps := newTestDeps(t)
+		sourceDir := filepath.Join(t.TempDir(), "toggle-assets")
+		writeManifestJSON(t, sourceDir, manifestWithSetupAssets("toggle-assets"))
+		if _, err := executeExtCommand(t, deps, "install", "--yes", sourceDir); err != nil {
+			t.Fatalf("install toggle-assets: %v", err)
+		}
 
-	output, err := executeExtCommand(t, deps, "enable", "toggle-assets")
-	if err != nil {
-		t.Fatalf("execute ext enable: %v\noutput:\n%s", err, output)
-	}
-	if !strings.Contains(output, "Run `compozy setup` to install its setup assets.") {
-		t.Fatalf("expected enable output to include setup hint\noutput:\n%s", output)
-	}
+		output, err := executeExtCommand(t, deps, "enable", "toggle-assets")
+		if err != nil {
+			t.Fatalf("execute ext enable: %v\noutput:\n%s", err, output)
+		}
+		if !strings.Contains(output, "Run `compozy setup` to install its setup assets.") {
+			t.Fatalf("expected enable output to include setup hint\noutput:\n%s", output)
+		}
+	})
 }
 
 func TestDisableBundledExtensionFails(t *testing.T) {
@@ -899,20 +951,24 @@ func TestAppendDiscoveryFailureNotesMatchesName(t *testing.T) {
 }
 
 func TestInspectPrintsInstallOriginWhenPresent(t *testing.T) {
-	deps := newTestDeps(t)
-	sourceDir := filepath.Join(t.TempDir(), "inspect-origin")
-	writeManifestJSON(t, sourceDir, manifestFixture("inspect-origin"))
-	if _, err := executeExtCommand(t, deps, "install", "--yes", sourceDir); err != nil {
-		t.Fatalf("install inspect-origin: %v", err)
-	}
+	t.Run("Should print install provenance when it is recorded", func(t *testing.T) {
+		t.Parallel()
 
-	output, err := executeExtCommand(t, deps, "inspect", "inspect-origin")
-	if err != nil {
-		t.Fatalf("inspect inspect-origin: %v\noutput:\n%s", err, output)
-	}
-	if !strings.Contains(output, "Install remote: local") || !strings.Contains(output, "Install source:") {
-		t.Fatalf("expected inspect output to include install provenance\noutput:\n%s", output)
-	}
+		deps := newTestDeps(t)
+		sourceDir := filepath.Join(t.TempDir(), "inspect-origin")
+		writeManifestJSON(t, sourceDir, manifestFixture("inspect-origin"))
+		if _, err := executeExtCommand(t, deps, "install", "--yes", sourceDir); err != nil {
+			t.Fatalf("install inspect-origin: %v", err)
+		}
+
+		output, err := executeExtCommand(t, deps, "inspect", "inspect-origin")
+		if err != nil {
+			t.Fatalf("inspect inspect-origin: %v\noutput:\n%s", err, output)
+		}
+		if !strings.Contains(output, "Install remote: local") || !strings.Contains(output, "Install source:") {
+			t.Fatalf("expected inspect output to include install provenance\noutput:\n%s", output)
+		}
+	})
 }
 
 func executeExtCommand(t *testing.T, deps testDeps, args ...string) (string, error) {
