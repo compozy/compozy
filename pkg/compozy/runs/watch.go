@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+
+	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
 // RunEventKind identifies the type of workspace run event.
@@ -578,7 +580,7 @@ func classifyWorkspacePath(runsDir, target string) (string, workspacePathKind) {
 	switch {
 	case len(parts) == 1 && parts[0] != "":
 		return parts[0], workspacePathRunDir
-	case len(parts) == 2 && parts[0] != "" && parts[1] == "run.json":
+	case len(parts) == 2 && parts[0] != "" && parts[1] == layout.RunMetaFileName:
 		return parts[0], workspacePathRunMeta
 	default:
 		return "", workspacePathUnknown

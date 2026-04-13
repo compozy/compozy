@@ -10,6 +10,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
 // RunSummary is the public metadata view for one persisted run.
@@ -54,7 +56,7 @@ func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
 		}
 
 		runID := entry.Name()
-		runMetaPath := filepath.Join(runsDir, runID, "run.json")
+		runMetaPath := layout.RunMetaPath(filepath.Join(runsDir, runID))
 		run, err := loadRun(cleanRoot, runID)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {

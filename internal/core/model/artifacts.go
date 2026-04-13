@@ -3,6 +3,8 @@ package model
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
 const defaultRunID = "run"
@@ -29,11 +31,11 @@ func NewRunArtifacts(workspaceRoot, runID string) RunArtifacts {
 	return RunArtifacts{
 		RunID:       safeRunID,
 		RunDir:      runDir,
-		RunMetaPath: filepath.Join(runDir, "run.json"),
-		EventsPath:  filepath.Join(runDir, "events.jsonl"),
-		TurnsDir:    filepath.Join(runDir, "turns"),
-		JobsDir:     filepath.Join(runDir, "jobs"),
-		ResultPath:  filepath.Join(runDir, "result.json"),
+		RunMetaPath: layout.RunMetaPath(runDir),
+		EventsPath:  layout.EventsLogPath(runDir),
+		TurnsDir:    layout.TurnsDir(runDir),
+		JobsDir:     layout.JobsDir(runDir),
+		ResultPath:  layout.ResultPath(runDir),
 	}
 }
 
