@@ -2,7 +2,7 @@
 
 **File:** `test/skills_bundle_test.go:125`
 **Date:** 2026-04-13 18:25:18 UTC
-**Status:** - [ ] UNRESOLVED
+**Status:** - [x] RESOLVED
 
 ## Body
 

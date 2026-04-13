@@ -2,7 +2,7 @@
 
 **File:** `internal/core/extension/assets_test.go:135`
 **Date:** 2026-04-13 18:25:17 UTC
-**Status:** - [ ] UNRESOLVED
+**Status:** - [x] RESOLVED
 
 ## Body
 

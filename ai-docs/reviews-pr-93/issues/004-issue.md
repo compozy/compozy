@@ -2,7 +2,7 @@
 
 **File:** `internal/setup/bundle_test.go:71`
 **Date:** 2026-04-13 18:25:17 UTC
-**Status:** - [ ] UNRESOLVED
+**Status:** - [x] RESOLVED
 
 ## Body
 

@@ -2,7 +2,7 @@
 
 **File:** `internal/setup/reusable_agent_sources.go:418`
 **Date:** 2026-04-13 18:25:17 UTC
-**Status:** - [ ] UNRESOLVED
+**Status:** - [x] RESOLVED
 
 ## Body
 
