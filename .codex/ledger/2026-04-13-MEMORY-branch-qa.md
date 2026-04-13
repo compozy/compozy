@@ -1,17 +1,17 @@
 - Goal (incl. success criteria):
-  - Executar QA completo da branch `pn/ext-agents`, cobrindo build, `make verify` e fluxos reais do Compozy afetados pelas mudanças estruturais introduzidas até `6255c56`.
-  - Encontrar regressões reais, corrigir a causa raiz e só finalizar com evidência fresca de verificação completa.
+  - Criar uma skill genérica de QA automático que formalize o processo recém-validado e possa ser usada em qualquer projeto, não só neste repositório.
+  - Sucesso requer: metadata válida, estrutura aderente à `skill-best-practices`, instruções reutilizáveis e um utilitário determinístico para descoberta de comandos/protocolos de QA.
 - Constraints/Assumptions:
   - Não usar comandos destrutivos de git.
-  - Seguir `no-workarounds`, `systematic-debugging`, `golang-pro`, `testing-anti-patterns` e `cy-final-verify` conforme aplicável.
-  - Se surgirem problemas de QA, registrar em `.compozy/tasks/ext-imp/qa/issue_<num>.md` e corrigir.
-  - Worktree aparenta limpo no início desta sessão.
+  - Seguir `skill-best-practices` para estruturar a skill e `brainstorming` para definir o desenho antes da implementação.
+  - Se a infraestrutura da própria `skill-best-practices` estiver quebrada, corrigir a causa raiz em vez de contornar.
+  - Rodar `make verify` antes de concluir.
 - Key decisions:
-  - Começar por baseline objetiva (`build`/`verify`) antes de fluxos manuais.
-  - Focar cenários de extensibilidade/CLI, porque `6255c56` introduziu mudanças estruturais grandes nessa área.
-  - Usar projeto Node fake para validar fluxo real de execução do Compozy como usuário.
+  - Nome escolhido para a nova skill: `systematic-project-qa`.
+  - Manter a skill neutra em relação ao stack do projeto e focada em: descoberta do contrato de QA, baseline, fluxos como usuário real, correção de regressões e verificação final.
+  - Incluir um script determinístico (`discover-project-contract.py`) para reduzir adivinhação ao identificar comandos de verify/build/test/start em diferentes ecossistemas.
 - State:
-  - Concluído após QA ampliado de extensões/review providers, correções de causa raiz e verificação final fresca do repositório.
+  - Concluído após criação da skill genérica, validação do metadata, validação do utilitário determinístico e verificação final fresca do repositório.
 - Done:
   - Lidas instruções de workspace/AGENTS/CLAUDE.
   - Carregadas skills `no-workarounds`, `systematic-debugging`, `golang-pro`, `testing-anti-patterns` e `cy-final-verify`.
@@ -77,8 +77,23 @@
   - Corrigida a causa raiz em `internal/core/agent/client_test.go` publicando a conexão do helper com sincronização via `connReady`.
   - Reproduzido e validado o fix com `go test ./internal/core/agent -race -run TestClientCreateSessionBuffersUpdatesArrivingBeforeNewSessionReturns -count=1`.
   - Executado `make verify` fresco após todas as correções: `fmt`, `lint`, `1804 tests` com `-race` e `build` passaram; saída final `All verification checks passed`.
+  - Lida a skill `brainstorming` para definir o formato da nova skill e a skill `skill-best-practices` para seguir sua estrutura formal.
+  - Encontrado bug real no validador de metadata de `skill-best-practices`: `.agents/skills/skill-best-practices/scripts/validate-metadata.py` terminava em `if __name__ == "__main__":` sem corpo e falhava com `IndentationError`.
+  - Corrigida a causa raiz no validador adicionando `argparse` + `main`.
+  - Validado o metadata da nova skill com sucesso:
+    - `name`: `systematic-project-qa`
+    - descrição em terceira pessoa aprovada pelo script de validação
+  - Criada a skill genérica em `.agents/skills/systematic-project-qa/` com:
+    - `SKILL.md`
+    - `scripts/discover-project-contract.py`
+    - `references/project-signals.md`
+    - `references/checklist.md`
+    - `assets/issue-template.md`
+    - `assets/verification-report-template.md`
+  - Validado o script `discover-project-contract.py` contra este repositório; ele detectou corretamente `Makefile`, `package.json`, `go.mod` e `.github/workflows`, sugerindo `make verify` como gate principal.
+  - Confirmado que `SKILL.md` da nova skill tem 59 linhas, abaixo do limite definido em `skill-best-practices`.
 - Now:
-  - Preparar o handoff final com os resultados e evidências.
+  - Preparar o handoff final com os caminhos e a forma de usar a nova skill.
 - Next:
   - Nenhum trabalho restante.
 - Open questions (UNCONFIRMED if needed):
@@ -89,6 +104,13 @@
   - `.compozy/tasks/ext-imp/qa/issue_002.md`
   - `.compozy/tasks/ext-imp/qa/issue_003.md`
   - `.compozy/tasks/ext-imp/qa/issue_004.md`
+  - `.agents/skills/skill-best-practices/scripts/validate-metadata.py`
+  - `.agents/skills/systematic-project-qa/SKILL.md`
+  - `.agents/skills/systematic-project-qa/scripts/discover-project-contract.py`
+  - `.agents/skills/systematic-project-qa/references/project-signals.md`
+  - `.agents/skills/systematic-project-qa/references/checklist.md`
+  - `.agents/skills/systematic-project-qa/assets/issue-template.md`
+  - `.agents/skills/systematic-project-qa/assets/verification-report-template.md`
   - `cmd/compozy/main.go`
   - `cmd/compozy/main_test.go`
   - `internal/cli/extension/install_source.go`
