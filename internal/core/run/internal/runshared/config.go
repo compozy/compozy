@@ -67,12 +67,31 @@ func (j Job) CodeFileLabel() string {
 	return strings.Join(j.CodeFiles, ", ")
 }
 
+func (cfg *Config) ResolvedOutputFormat() model.OutputFormat {
+	if cfg == nil || cfg.OutputFormat == "" {
+		return model.OutputFormatText
+	}
+	return cfg.OutputFormat
+}
+
 func (cfg *Config) HumanOutputEnabled() bool {
-	return cfg != nil && (cfg.OutputFormat == "" || cfg.OutputFormat == model.OutputFormatText)
+	return cfg != nil && cfg.ResolvedOutputFormat() == model.OutputFormatText
 }
 
 func (cfg *Config) UIEnabled() bool {
-	return cfg != nil && cfg.HumanOutputEnabled() && !cfg.DryRun
+	return cfg != nil && cfg.TUI && cfg.HumanOutputEnabled() && !cfg.DryRun
+}
+
+func (cfg *Config) EventStreamEnabled() bool {
+	if cfg == nil {
+		return false
+	}
+	switch cfg.ResolvedOutputFormat() {
+	case model.OutputFormatJSON, model.OutputFormatRawJSON:
+		return true
+	default:
+		return false
+	}
 }
 
 func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Config {

@@ -35,7 +35,16 @@ func Execute(
 		return err
 	}
 	internalJobs := newJobs(jobs)
+	var streamer *workflowEventStreamer
+	defer func() {
+		if streamer != nil {
+			if err := streamer.FinalizeAndStop(); err != nil {
+				retErr = errors.Join(retErr, err)
+			}
+		}
+	}()
 	bus = ensureRuntimeEventBus(internalCfg, runJournal, bus)
+	streamer = startWorkflowEventStreamer(bus, internalCfg, os.Stdout)
 	startedAt := time.Now().UTC()
 	defer func() {
 		if err := closeRunJournal(runJournal); err != nil {
@@ -197,7 +206,7 @@ func ensureRuntimeEventBus(
 	runJournal *journal.Journal,
 	bus *events.Bus[events.Event],
 ) *events.Bus[events.Event] {
-	if cfg != nil && cfg.UIEnabled() && bus == nil {
+	if cfg != nil && (cfg.UIEnabled() || cfg.EventStreamEnabled()) && bus == nil {
 		bus = events.New[events.Event](runtimeEventBusBufferSize)
 	}
 	if runJournal != nil && bus != nil {

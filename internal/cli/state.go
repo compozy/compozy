@@ -182,15 +182,13 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.ide,
 		"ide",
 		string(core.IDECodex),
-		"ACP runtime to use: claude, codex, copilot, cursor-agent, droid, gemini, opencode, or pi "+
-			"(requires the matching ACP adapter, ACP-capable CLI, or supported launcher such as npx)",
+		"ACP runtime to use. Built-in and enabled extension runtimes are validated against the active runtime catalog.",
 	)
 	cmd.Flags().StringVar(
 		&state.model,
 		"model",
 		"",
-		"Model to use (per-IDE defaults: codex/droid=gpt-5.4, claude=opus, copilot=claude-sonnet-4.6, "+
-			"cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro)",
+		"Model to use. Leave empty to use the selected runtime default.",
 	)
 	cmd.Flags().StringSliceVar(
 		&state.addDirs,
@@ -209,7 +207,7 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 		&state.reasoningEffort,
 		"reasoning-effort",
 		"medium",
-		"Reasoning effort for runtimes that support bootstrap reasoning flags, such as droid (low, medium, high, xhigh)",
+		"Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh).",
 	)
 	cmd.Flags().StringVar(
 		&state.accessMode,
@@ -337,6 +335,74 @@ func (s *commandState) enableExecutableExtensions() bool {
 	}
 }
 
+func (s *commandState) normalizePresentationMode(cmd *cobra.Command) error {
+	if s == nil || !s.isWorkflowExecutionCommand() {
+		return nil
+	}
+
+	outputFormat := strings.TrimSpace(s.outputFormat)
+	if outputFormat == "" {
+		outputFormat = string(core.OutputFormatText)
+		s.outputFormat = outputFormat
+	}
+
+	tuiExplicit := commandFlagChanged(cmd, "tui") || s.hasConfiguredWorkflowTUI()
+	if isJSONOutputFormat(outputFormat) {
+		if s.tui && tuiExplicit {
+			return errors.New("tui mode is not supported with json or raw-json output")
+		}
+		s.tui = false
+		return nil
+	}
+
+	isInteractive := s.isInteractive
+	if isInteractive == nil {
+		isInteractive = isInteractiveTerminal
+	}
+
+	if !isInteractive() {
+		if s.tui && tuiExplicit {
+			return fmt.Errorf(
+				"%s requires an interactive terminal for tui mode; rerun with --tui=false",
+				cmd.CommandPath(),
+			)
+		}
+		s.tui = false
+		return nil
+	}
+
+	if !tuiExplicit {
+		s.tui = true
+	}
+	return nil
+}
+
+func (s *commandState) isWorkflowExecutionCommand() bool {
+	if s == nil {
+		return false
+	}
+	switch s.kind {
+	case commandKindStart, commandKindFixReviews:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *commandState) hasConfiguredWorkflowTUI() bool {
+	if s == nil {
+		return false
+	}
+	switch s.kind {
+	case commandKindStart:
+		return s.projectConfig.Start.TUI != nil
+	case commandKindFixReviews:
+		return s.projectConfig.FixReviews.TUI != nil
+	default:
+		return false
+	}
+}
+
 func (s *commandState) applyPersistedExecConfig(cmd *cobra.Command, cfg *core.Config) error {
 	if cfg == nil || strings.TrimSpace(s.runID) == "" {
 		return nil
@@ -413,7 +479,7 @@ func (s *commandState) handleExecError(cmd *cobra.Command, err error) error {
 	if err == nil {
 		return nil
 	}
-	if isExecJSONOutputFormatFlag(s.outputFormat) && !coreRun.IsExecErrorReported(err) {
+	if isJSONOutputFormat(s.outputFormat) && !coreRun.IsExecErrorReported(err) {
 		cmd.SilenceErrors = true
 		if root := cmd.Root(); root != nil {
 			root.SilenceErrors = true
@@ -526,7 +592,7 @@ func readPromptFromCommandInput(reader io.Reader) (string, bool, error) {
 	return string(content), true, nil
 }
 
-func isExecJSONOutputFormatFlag(value string) bool {
+func isJSONOutputFormat(value string) bool {
 	switch strings.TrimSpace(value) {
 	case string(core.OutputFormatJSON), string(core.OutputFormatRawJSON):
 		return true

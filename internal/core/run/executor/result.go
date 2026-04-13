@@ -116,6 +116,9 @@ func emitExecutionResult(cfg *config, result executionResult) error {
 	if err := os.WriteFile(cfg.RunArtifacts.ResultPath, payload, 0o600); err != nil {
 		return fmt.Errorf("write exec result: %w", err)
 	}
+	if cfg.Mode != model.ExecutionModeExec {
+		return nil
+	}
 	stdoutPayload := payload
 	switch cfg.OutputFormat {
 	case model.OutputFormatJSON:

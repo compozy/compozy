@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	extensions "github.com/compozy/compozy/internal/core/extension"
@@ -451,7 +452,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		Status:          "succeeded",
 		WorkspaceRoot:   workspaceRoot,
 		IDE:             model.IDECodex,
-		Model:           "gpt-5-codex",
+		Model:           "gpt-5.4",
 		ReasoningEffort: "high",
 		AccessMode:      model.AccessModeDefault,
 		CreatedAt:       time.Now().UTC(),
@@ -819,6 +820,79 @@ func TestStartCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 }
 
+func TestStartCommandExecuteDryRunJSONStreamsJSONL(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"start",
+		"--name",
+		"demo",
+		"--tasks-dir",
+		".compozy/tasks/demo",
+		"--dry-run",
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute start json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if strings.Contains(stdout, "Execution Summary:") {
+		t.Fatalf("expected json mode to suppress human summary, got %q", stdout)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) < 3 {
+		t.Fatalf("expected multiple streamed workflow events, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if got := events[0]["type"]; got != string(eventspkg.EventKindRunStarted) {
+		t.Fatalf("unexpected first workflow event: %#v", events[0])
+	}
+	if got := events[len(events)-1]["type"]; got != string(eventspkg.EventKindRunCompleted) {
+		t.Fatalf("unexpected terminal workflow event: %#v", events[len(events)-1])
+	}
+
+	var eventTypes []string
+	for _, event := range events {
+		gotType, ok := event["type"].(string)
+		if !ok || gotType == "" {
+			t.Fatalf("expected lean workflow event type field, got %#v", event)
+		}
+		eventTypes = append(eventTypes, gotType)
+	}
+	for _, want := range []string{
+		string(eventspkg.EventKindRunStarted),
+		string(eventspkg.EventKindJobCompleted),
+		string(eventspkg.EventKindRunCompleted),
+	} {
+		if !slices.Contains(eventTypes, want) {
+			t.Fatalf("expected streamed workflow event %q, got %v", want, eventTypes)
+		}
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
+	if got := eventKinds[len(eventKinds)-1]; got != eventspkg.EventKindRunCompleted {
+		t.Fatalf("unexpected persisted terminal event: %v", eventKinds)
+	}
+}
+
 func TestStartCommandWithInstalledWorkspaceExtensionSpawnsAndWritesAudit(t *testing.T) {
 	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
 	withWorkingDir(t, workspaceRoot)
@@ -856,6 +930,70 @@ func TestStartCommandWithInstalledWorkspaceExtensionSpawnsAndWritesAudit(t *test
 	}
 	if !strings.Contains(string(auditContent), `"method":"initialize"`) {
 		t.Fatalf("expected audit log to include initialize, got:\n%s", string(auditContent))
+	}
+}
+
+func TestStartCommandExplicitTUIFailsWithoutTTY(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"start",
+		"--name",
+		"demo",
+		"--tasks-dir",
+		".compozy/tasks/demo",
+		"--dry-run",
+		"--tui",
+	)
+	if err == nil {
+		t.Fatalf("expected start explicit tui failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout on explicit tui failure, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "requires an interactive terminal for tui mode") {
+		t.Fatalf("unexpected explicit tui error output: %q", stderr)
+	}
+}
+
+func TestNormalizePresentationModeUsesInjectedInteractiveCheck(t *testing.T) {
+	t.Parallel()
+
+	if isInteractiveTerminal() {
+		t.Skip(
+			"requires a non-interactive test terminal to distinguish the injected callback from the process terminal",
+		)
+	}
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.tui = true
+	state.isInteractive = func() bool { return true }
+
+	cmd := &cobra.Command{Use: "start"}
+	cmd.Flags().Bool("tui", true, "enable tui")
+	if err := cmd.Flags().Set("tui", "true"); err != nil {
+		t.Fatalf("set --tui: %v", err)
+	}
+
+	if err := state.normalizePresentationMode(cmd); err != nil {
+		t.Fatalf("normalizePresentationMode() error = %v", err)
+	}
+	if !state.tui {
+		t.Fatal("expected tui to remain enabled when injected interactivity reports true")
 	}
 }
 
@@ -929,6 +1067,71 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 		if !slices.Contains(eventKinds, want) {
 			t.Fatalf("expected runtime events to include %s, got %v", want, eventKinds)
 		}
+	}
+}
+
+func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title:       "Add nil check",
+		File:        "internal/app/service.go",
+		Line:        42,
+		Author:      "coderabbitai[bot]",
+		ProviderRef: "thread:PRT_1,comment:RC_1",
+		Body:        "Please add a nil check before dereferencing the pointer.",
+	}}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"fix-reviews",
+		"--name",
+		"demo",
+		"--round",
+		"1",
+		"--dry-run",
+		"--format",
+		"raw-json",
+	)
+	if err != nil {
+		t.Fatalf("execute fix-reviews raw-json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for raw-json fix-reviews, got %q", stderr)
+	}
+
+	events := decodeExecJSONLEvents(t, stdout)
+	if len(events) < 3 {
+		t.Fatalf("expected multiple streamed canonical events, got %d\nstdout:\n%s", len(events), stdout)
+	}
+	if got := events[0]["kind"]; got != string(eventspkg.EventKindRunStarted) {
+		t.Fatalf("unexpected first raw event: %#v", events[0])
+	}
+	if got := events[len(events)-1]["kind"]; got != string(eventspkg.EventKindRunCompleted) {
+		t.Fatalf("unexpected terminal raw event: %#v", events[len(events)-1])
+	}
+	if got := events[0]["schema_version"]; got != eventspkg.SchemaVersion {
+		t.Fatalf("unexpected schema version in raw event: %#v", events[0])
+	}
+	if _, ok := events[0]["type"]; ok {
+		t.Fatalf("raw workflow stream should preserve canonical envelopes, got %#v", events[0])
+	}
+
+	runDir := latestRunDirForCLI(t, workspaceRoot)
+	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
+	if got := eventKinds[len(eventKinds)-1]; got != eventspkg.EventKindRunCompleted {
+		t.Fatalf("unexpected persisted terminal event: %v", eventKinds)
 	}
 }
 

@@ -32,6 +32,7 @@ import {
   type EventSubscribeRequest,
   type ExecuteHookRequest,
   type ExecuteHookResponse,
+  type FetchRequest,
   type HealthCheckRequest,
   type HealthCheckResponse,
   type HookName,
@@ -40,6 +41,9 @@ import {
   type InitializeResponseInfo,
   type JsonValue,
   type OnEventRequest,
+  type ResolveIssuesRequest,
+  type ReviewItem,
+  type ReviewProviderContext,
   type ShutdownRequest,
   type ShutdownResponse,
   type Supports,
@@ -54,6 +58,17 @@ type EventRegistration = {
   kinds: Set<EventKind>;
   handler: EventHandler;
 };
+
+export interface ReviewProviderHandler {
+  fetchReviews(
+    context: ReviewProviderContext,
+    request: FetchRequest
+  ): Promise<ReviewItem[]> | ReviewItem[];
+  resolveIssues(
+    context: ReviewProviderContext,
+    request: ResolveIssuesRequest
+  ): Promise<void> | void;
+}
 
 /**
  * SDK runtime for Compozy executable extensions.
@@ -80,6 +95,7 @@ export class Extension implements HostCaller {
   private readonly acceptedCapabilities = new Set<Capability>();
   private readonly declaredCapabilities = new Set<Capability>();
   private readonly hooks = new Map<HookName, RawHookHandler>();
+  private readonly reviewProviders = new Map<string, ReviewProviderHandler>();
   private readonly eventHandlers: EventRegistration[] = [];
   private healthHandler?: HealthCheckHandler;
   private shutdownHandler?: ShutdownHandler;
@@ -156,6 +172,16 @@ export class Extension implements HostCaller {
   /** Registers a callback invoked during graceful shutdown. */
   onShutdown(handler: ShutdownHandler): this {
     this.shutdownHandler = handler;
+    return this;
+  }
+
+  /** Registers one executable review provider handler by name. */
+  registerReviewProvider(name: string, handler: ReviewProviderHandler): this {
+    const normalized = name.trim();
+    if (normalized !== "") {
+      this.reviewProviders.set(normalized, handler);
+      this.declaredCapabilities.add(CAPABILITIES.providersRegister);
+    }
     return this;
   }
 
@@ -503,6 +529,7 @@ export class Extension implements HostCaller {
       } satisfies InitializeResponseInfo,
       accepted_capabilities: required,
       supported_hook_events: [...this.hooks.keys()].sort(),
+      registered_review_providers: [...this.reviewProviders.keys()].sort(),
       supports,
     };
   }
@@ -522,18 +549,28 @@ export class Extension implements HostCaller {
       return;
     }
 
-    switch (message.method) {
-      case "execute_hook":
-        await this.handleExecuteHook(message);
-        return;
-      case "on_event":
-        await this.handleOnEvent(message);
-        return;
-      case "health_check":
-        await this.handleHealthCheck(message);
-        return;
-      default:
-        await this.writeError(message.id!, newMethodNotFoundError(message.method ?? ""));
+    try {
+      switch (message.method) {
+        case "execute_hook":
+          await this.handleExecuteHook(message);
+          return;
+        case "on_event":
+          await this.handleOnEvent(message);
+          return;
+        case "health_check":
+          await this.handleHealthCheck(message);
+          return;
+        case "fetch_reviews":
+          await this.handleFetchReviews(message);
+          return;
+        case "resolve_issues":
+          await this.handleResolveIssues(message);
+          return;
+        default:
+          await this.writeError(message.id!, newMethodNotFoundError(message.method ?? ""));
+      }
+    } catch (error) {
+      await this.writeError(message.id!, toRPCError(error));
     }
   }
 
@@ -591,6 +628,48 @@ export class Extension implements HostCaller {
     }
 
     await this.writeResult(message.id!, response);
+  }
+
+  private async handleFetchReviews(message: Message): Promise<void> {
+    this.ensureCapability(CAPABILITIES.providersRegister, "fetch_reviews");
+
+    const request = (message.params ?? {}) as { provider?: string } & FetchRequest;
+    const providerName = (request.provider ?? "").trim();
+    const handler = this.reviewProviders.get(providerName);
+    if (handler === undefined) {
+      await this.writeError(
+        message.id!,
+        newInvalidParamsError({ reason: "unsupported_review_provider", provider: providerName })
+      );
+      return;
+    }
+
+    const items = await handler.fetchReviews({ provider: providerName, host: this.host }, {
+      pr: request.pr,
+      include_nitpicks: request.include_nitpicks,
+    } satisfies FetchRequest);
+    await this.writeResult(message.id!, items);
+  }
+
+  private async handleResolveIssues(message: Message): Promise<void> {
+    this.ensureCapability(CAPABILITIES.providersRegister, "resolve_issues");
+
+    const request = (message.params ?? {}) as { provider?: string } & ResolveIssuesRequest;
+    const providerName = (request.provider ?? "").trim();
+    const handler = this.reviewProviders.get(providerName);
+    if (handler === undefined) {
+      await this.writeError(
+        message.id!,
+        newInvalidParamsError({ reason: "unsupported_review_provider", provider: providerName })
+      );
+      return;
+    }
+
+    await handler.resolveIssues({ provider: providerName, host: this.host }, {
+      pr: request.pr,
+      issues: request.issues,
+    } satisfies ResolveIssuesRequest);
+    await this.writeResult(message.id!, {});
   }
 
   private resolvePending(message: Message): void {
@@ -736,13 +815,13 @@ function capabilityForHook(hook: HookName): Capability | undefined {
 }
 
 function newCapabilityDeniedError(
-  target: string,
-  missing: Capability[],
+  method: string,
+  required: Capability[],
   granted: Capability[]
 ): RPCError {
   return new RPCError(-32001, "Capability denied", {
-    target,
-    missing,
+    method,
+    required,
     granted,
   });
 }

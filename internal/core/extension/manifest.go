@@ -142,9 +142,24 @@ type ProvidersConfig struct {
 
 // ProviderEntry declares one provider overlay entry from a manifest.
 type ProviderEntry struct {
-	Name     string            `toml:"name"     json:"name"`
-	Command  string            `toml:"command"  json:"command"`
-	Metadata map[string]string `toml:"metadata" json:"metadata,omitempty"`
+	Name               string             `toml:"name"                 json:"name"`
+	Kind               ProviderKind       `toml:"kind"                 json:"kind,omitempty"`
+	Target             string             `toml:"target"               json:"target,omitempty"`
+	Command            string             `toml:"command"              json:"command,omitempty"`
+	DisplayName        string             `toml:"display_name"         json:"display_name,omitempty"`
+	SetupAgentName     string             `toml:"setup_agent_name"     json:"setup_agent_name,omitempty"`
+	DefaultModel       string             `toml:"default_model"        json:"default_model,omitempty"`
+	SupportsAddDirs    *bool              `toml:"supports_add_dirs"    json:"supports_add_dirs,omitempty"`
+	UsesBootstrapModel *bool              `toml:"uses_bootstrap_model" json:"uses_bootstrap_model,omitempty"`
+	DocsURL            string             `toml:"docs_url"             json:"docs_url,omitempty"`
+	InstallHint        string             `toml:"install_hint"         json:"install_hint,omitempty"`
+	FullAccessModeID   string             `toml:"full_access_mode_id"  json:"full_access_mode_id,omitempty"`
+	FixedArgs          []string           `toml:"fixed_args"           json:"fixed_args,omitempty"`
+	ProbeArgs          []string           `toml:"probe_args"           json:"probe_args,omitempty"`
+	Env                map[string]string  `toml:"env"                  json:"env,omitempty"`
+	Fallbacks          []ProviderLauncher `toml:"fallbacks"            json:"fallbacks,omitempty"`
+	Bootstrap          *ProviderBootstrap `toml:"bootstrap"            json:"bootstrap,omitempty"`
+	Metadata           map[string]string  `toml:"metadata"             json:"metadata,omitempty"`
 }
 
 type capabilitySet map[Capability]struct{}

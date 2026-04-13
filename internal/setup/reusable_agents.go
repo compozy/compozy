@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/compozy/compozy/bundledagents"
+	"github.com/compozy/compozy/agents"
 	"github.com/compozy/compozy/internal/core/frontmatter"
 )
 
@@ -81,7 +81,7 @@ func parseReusableAgent(bundle fs.FS, dir string) (ReusableAgent, error) {
 
 // ListBundledReusableAgents returns the reusable agents bundled into the compozy binary.
 func ListBundledReusableAgents() ([]ReusableAgent, error) {
-	return ListReusableAgents(bundledagents.FS)
+	return ListReusableAgents(agents.FS)
 }
 
 // PreviewBundledReusableAgentInstall resolves the on-disk install plan for bundled reusable agents.
@@ -138,7 +138,7 @@ func InstallBundledReusableAgents(
 			continue
 		}
 		if err := copyReusableAgentBundleDirectory(
-			bundledagents.FS,
+			agents.FS,
 			reusableAgent.Directory,
 			tempTarget,
 			"bundled reusable agent",

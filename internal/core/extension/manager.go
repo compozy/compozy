@@ -93,6 +93,8 @@ func (m *Manager) Start(ctx context.Context) error {
 
 	if startErr != nil {
 		startErr = errors.Join(startErr, m.shutdownWithReason(context.Background(), shutdownReasonManagerError))
+	} else {
+		registerActiveManager(m)
 	}
 
 	m.mu.Lock()
@@ -150,7 +152,10 @@ func (m *Manager) registerSession(session *extensionSession) {
 		return
 	}
 
-	name := session.runtime.normalizedName()
+	name := sessionKeyForRuntime(session.runtime)
+	if name == "" {
+		return
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -178,6 +183,34 @@ func (m *Manager) sessionSnapshot() []*extensionSession {
 		sessions = append(sessions, session)
 	}
 	return sessions
+}
+
+func (m *Manager) sessionForExtension(name string) (*extensionSession, bool) {
+	if m == nil {
+		return nil, false
+	}
+
+	normalized := normalizeSessionKey(name)
+	if normalized == "" {
+		return nil, false
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	session, ok := m.sessions[normalized]
+	return session, ok
+}
+
+func sessionKeyForRuntime(extension *RuntimeExtension) string {
+	if extension == nil {
+		return ""
+	}
+	return normalizeSessionKey(extension.normalizedName())
+}
+
+func normalizeSessionKey(name string) string {
+	return strings.TrimSpace(name)
 }
 
 func (m *Manager) emitLifecycleEvent(ctx context.Context, kind events.EventKind, payload any) error {

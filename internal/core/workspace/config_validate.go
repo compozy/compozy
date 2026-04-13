@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/providerdefaults"
 	"github.com/compozy/compozy/internal/core/tasks"
 )
@@ -16,13 +17,13 @@ func (cfg ProjectConfig) Validate() error {
 	if err := validateDefaults(cfg.Defaults); err != nil {
 		return err
 	}
-	if err := validateStart(cfg.Start); err != nil {
+	if err := validateStart(cfg.Defaults, cfg.Start); err != nil {
 		return err
 	}
 	if err := validateTasks(cfg.Tasks); err != nil {
 		return err
 	}
-	if err := validateFixReviews(cfg.FixReviews); err != nil {
+	if err := validateFixReviews(cfg.Defaults, cfg.FixReviews); err != nil {
 		return err
 	}
 	if err := validateFetchReviews(cfg.FetchReviews); err != nil {
@@ -42,8 +43,11 @@ func validateDefaults(cfg DefaultsConfig) error {
 	return validateRuntimeAddDirs("defaults", overrides, nil)
 }
 
-func validateStart(_ StartConfig) error {
-	return nil
+func validateStart(defaults DefaultsConfig, cfg StartConfig) error {
+	if err := validateOutputFormatValue("start.output_format", cfg.OutputFormat); err != nil {
+		return err
+	}
+	return validateWorkflowTUI("start", defaults, cfg.OutputFormat, cfg.TUI)
 }
 
 func validateTasks(cfg TasksConfig) error {
@@ -59,14 +63,17 @@ func validateTasks(cfg TasksConfig) error {
 	return nil
 }
 
-func validateFixReviews(cfg FixReviewsConfig) error {
+func validateFixReviews(defaults DefaultsConfig, cfg FixReviewsConfig) error {
 	if cfg.Concurrent != nil && *cfg.Concurrent <= 0 {
 		return fmt.Errorf("workspace config fix_reviews.concurrent must be greater than zero (got %d)", *cfg.Concurrent)
 	}
 	if cfg.BatchSize != nil && *cfg.BatchSize <= 0 {
 		return fmt.Errorf("workspace config fix_reviews.batch_size must be greater than zero (got %d)", *cfg.BatchSize)
 	}
-	return nil
+	if err := validateOutputFormatValue("fix_reviews.output_format", cfg.OutputFormat); err != nil {
+		return err
+	}
+	return validateWorkflowTUI("fix_reviews", defaults, cfg.OutputFormat, cfg.TUI)
 }
 
 func validateFetchReviews(cfg FetchReviewsConfig) error {
@@ -77,7 +84,7 @@ func validateFetchReviews(cfg FetchReviewsConfig) error {
 	if name == "" {
 		return errors.New("workspace config fetch_reviews.provider cannot be empty")
 	}
-	if _, err := providerdefaults.DefaultRegistry().Get(name); err != nil {
+	if _, err := provider.ResolveRegistry(providerdefaults.DefaultRegistry()).Get(name); err != nil {
 		return fmt.Errorf("workspace config fetch_reviews.provider: %w", err)
 	}
 	return nil
@@ -99,6 +106,25 @@ func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
 		isExecJSONOutputFormat(*effectiveOutputFormat) {
 		return fmt.Errorf(
 			"workspace config exec.tui cannot be true when exec.output_format is %q or %q",
+			model.OutputFormatJSONValue,
+			model.OutputFormatRawJSONValue,
+		)
+	}
+	return nil
+}
+
+func validateWorkflowTUI(section string, defaults DefaultsConfig, outputFormat *string, tui *bool) error {
+	effectiveOutputFormat := outputFormat
+	outputField := fmt.Sprintf("%s.output_format", section)
+	if effectiveOutputFormat == nil {
+		effectiveOutputFormat = defaults.OutputFormat
+		outputField = "defaults.output_format"
+	}
+	if tui != nil && effectiveOutputFormat != nil && *tui && isExecJSONOutputFormat(*effectiveOutputFormat) {
+		return fmt.Errorf(
+			"workspace config %s.tui cannot be true when workspace config %s is %q or %q",
+			section,
+			outputField,
 			model.OutputFormatJSONValue,
 			model.OutputFormatRawJSONValue,
 		)

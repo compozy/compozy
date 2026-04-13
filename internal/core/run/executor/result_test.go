@@ -224,33 +224,11 @@ func TestEmitExecutionResultWritesArtifactForTextModeWithoutStdout(t *testing.T)
 		ResultPath:   runArtifacts.ResultPath,
 	}
 
-	captureExecuteStreamsMu.Lock()
-	defer captureExecuteStreamsMu.Unlock()
-
-	originalStdout := os.Stdout
-	readPipe, writePipe, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("create stdout pipe: %v", err)
-	}
-	os.Stdout = writePipe
-	t.Cleanup(func() {
-		os.Stdout = originalStdout
+	stdoutBytes := captureExecutionStdout(t, func() {
+		if err := emitExecutionResult(cfg, result); err != nil {
+			t.Fatalf("emitExecutionResult: %v", err)
+		}
 	})
-
-	if err := emitExecutionResult(cfg, result); err != nil {
-		t.Fatalf("emitExecutionResult: %v", err)
-	}
-	if err := writePipe.Close(); err != nil {
-		t.Fatalf("close stdout writer: %v", err)
-	}
-
-	stdoutBytes, err := io.ReadAll(readPipe)
-	if err != nil {
-		t.Fatalf("read stdout pipe: %v", err)
-	}
-	if err := readPipe.Close(); err != nil {
-		t.Fatalf("close stdout reader: %v", err)
-	}
 
 	resultBytes, err := os.ReadFile(runArtifacts.ResultPath)
 	if err != nil {
@@ -264,30 +242,46 @@ func TestEmitExecutionResultWritesArtifactForTextModeWithoutStdout(t *testing.T)
 	}
 }
 
-func TestEmitExecutionResultWritesRawJSONToStdout(t *testing.T) {
+func TestEmitExecutionResultKeepsWorkflowJSONModesQuietOnStdout(t *testing.T) {
 	runArtifacts := model.NewRunArtifacts(t.TempDir(), "workflow-run")
 	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
 		t.Fatalf("mkdir run dir: %v", err)
 	}
 
-	cfg := &config{
-		Mode:         model.ExecutionModePRDTasks,
-		IDE:          model.IDECodex,
-		Model:        "gpt-5.4",
-		OutputFormat: model.OutputFormatRawJSON,
-		RunArtifacts: runArtifacts,
+	for _, format := range []model.OutputFormat{model.OutputFormatJSON, model.OutputFormatRawJSON} {
+		cfg := &config{
+			Mode:         model.ExecutionModePRDTasks,
+			IDE:          model.IDECodex,
+			Model:        "gpt-5.4",
+			OutputFormat: format,
+			RunArtifacts: runArtifacts,
+		}
+		result := executionResult{
+			RunID:        runArtifacts.RunID,
+			Mode:         string(cfg.Mode),
+			Status:       runStatusSucceeded,
+			IDE:          cfg.IDE,
+			Model:        cfg.Model,
+			OutputFormat: string(cfg.OutputFormat),
+			ArtifactsDir: runArtifacts.RunDir,
+			RunMetaPath:  runArtifacts.RunMetaPath,
+			ResultPath:   runArtifacts.ResultPath,
+		}
+
+		stdoutBytes := captureExecutionStdout(t, func() {
+			if err := emitExecutionResult(cfg, result); err != nil {
+				t.Fatalf("emitExecutionResult: %v", err)
+			}
+		})
+
+		if len(stdoutBytes) != 0 {
+			t.Fatalf("expected workflow %s mode to keep stdout quiet, got %q", format, string(stdoutBytes))
+		}
 	}
-	result := executionResult{
-		RunID:        runArtifacts.RunID,
-		Mode:         string(cfg.Mode),
-		Status:       runStatusSucceeded,
-		IDE:          cfg.IDE,
-		Model:        cfg.Model,
-		OutputFormat: string(cfg.OutputFormat),
-		ArtifactsDir: runArtifacts.RunDir,
-		RunMetaPath:  runArtifacts.RunMetaPath,
-		ResultPath:   runArtifacts.ResultPath,
-	}
+}
+
+func captureExecutionStdout(t *testing.T, run func()) []byte {
+	t.Helper()
 
 	captureExecuteStreamsMu.Lock()
 	defer captureExecuteStreamsMu.Unlock()
@@ -298,13 +292,12 @@ func TestEmitExecutionResultWritesRawJSONToStdout(t *testing.T) {
 		t.Fatalf("create stdout pipe: %v", err)
 	}
 	os.Stdout = writePipe
-	t.Cleanup(func() {
+	defer func() {
 		os.Stdout = originalStdout
-	})
+	}()
 
-	if err := emitExecutionResult(cfg, result); err != nil {
-		t.Fatalf("emitExecutionResult: %v", err)
-	}
+	run()
+
 	if err := writePipe.Close(); err != nil {
 		t.Fatalf("close stdout writer: %v", err)
 	}
@@ -316,11 +309,5 @@ func TestEmitExecutionResultWritesRawJSONToStdout(t *testing.T) {
 	if err := readPipe.Close(); err != nil {
 		t.Fatalf("close stdout reader: %v", err)
 	}
-
-	if bytes.Contains(stdoutBytes, []byte("\n  ")) {
-		t.Fatalf("expected compact raw-json stdout, got %q", string(stdoutBytes))
-	}
-	if !bytes.Contains(stdoutBytes, []byte(`"status":"succeeded"`)) {
-		t.Fatalf("expected raw-json stdout payload, got %q", string(stdoutBytes))
-	}
+	return stdoutBytes
 }

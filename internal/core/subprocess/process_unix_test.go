@@ -193,6 +193,37 @@ func TestProcessCapturesStderrAndSignalsCompletion(t *testing.T) {
 	}
 }
 
+func TestLaunchUsesConfiguredWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should use configured working dir", func(t *testing.T) {
+		t.Parallel()
+
+		workingDir := t.TempDir()
+		process, err := Launch(context.Background(), LaunchConfig{
+			Command:         shellCommand(t, "pwd"),
+			WorkingDir:      workingDir,
+			WaitErrorPrefix: "wait for test subprocess",
+		})
+		if err != nil {
+			t.Fatalf("launch process: %v", err)
+		}
+
+		output, err := io.ReadAll(process.Stdout())
+		if err != nil {
+			t.Fatalf("read stdout: %v", err)
+		}
+		if err := process.Wait(); err != nil {
+			t.Fatalf("wait process: %v", err)
+		}
+
+		got := strings.TrimSpace(string(output))
+		if got != workingDir {
+			t.Fatalf("pwd output = %q, want %q", got, workingDir)
+		}
+	})
+}
+
 func shellCommand(t *testing.T, script string) []string {
 	t.Helper()
 

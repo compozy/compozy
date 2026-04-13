@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	runtimeagent "github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 )
 
@@ -189,6 +190,56 @@ func TestDiscoverRejectsUnsupportedDeferredMetadataFields(t *testing.T) {
 	}
 	if !strings.Contains(catalog.Problems[0].Err.Error(), `"skills"`) {
 		t.Fatalf("expected field name in error, got %v", catalog.Problems[0].Err)
+	}
+}
+
+func TestDiscoverAcceptsOverlayIDERuntimeDefaults(t *testing.T) {
+	restore, err := runtimeagent.ActivateOverlay([]runtimeagent.OverlayEntry{{
+		Name:         "ext-adapter",
+		Command:      "mock-acp --serve",
+		DisplayName:  "Mock ACP",
+		DefaultModel: "ext-model",
+	}})
+	if err != nil {
+		t.Fatalf("activate ACP overlay: %v", err)
+	}
+	defer restore()
+
+	homeDir := t.TempDir()
+	workspaceRoot := t.TempDir()
+	writeWorkspaceAgent(
+		t,
+		workspaceRoot,
+		"reviewer",
+		strings.Join([]string{
+			"---",
+			"title: Reviewer",
+			"description: Reviews code",
+			"ide: ext-adapter",
+			"---",
+			"",
+			"Review the code carefully.",
+			"",
+		}, "\n"),
+		"",
+	)
+
+	registry := newTestRegistry(homeDir, nil)
+	catalog, err := registry.Discover(context.Background(), workspaceRoot)
+	if err != nil {
+		t.Fatalf("discover agents: %v", err)
+	}
+	if len(catalog.Problems) != 0 {
+		t.Fatalf("expected no discovery problems, got %#v", catalog.Problems)
+	}
+	if len(catalog.Agents) != 1 {
+		t.Fatalf("expected one resolved agent, got %d", len(catalog.Agents))
+	}
+	if got := catalog.Agents[0].Runtime.IDE; got != "ext-adapter" {
+		t.Fatalf("resolved.Runtime.IDE = %q, want %q", got, "ext-adapter")
+	}
+	if got := catalog.Agents[0].Runtime.Model; got != "ext-model" {
+		t.Fatalf("resolved.Runtime.Model = %q, want %q", got, "ext-model")
 	}
 }
 

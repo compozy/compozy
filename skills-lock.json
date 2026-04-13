@@ -1,45 +1,55 @@
 {
-  "version": 1,
-  "skills": {
-    "autoresearch": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "f8efb7dc97667bc62269aaa924ef176d50aaa11d34bd4882c6e42d6506315a27"
-    },
-    "bubbletea": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4cf3387527d25a0ef4d07d0a6b01d041f18b91151f0528c5859040dbdb1f1a55"
-    },
-    "context7": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "23f0178420043f01cd0f00745eb06eaac6f3eee4ef58f87f1ae353c2a408f79c"
-    },
-    "council": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "d4f069a475431390f46fb826fdfc1dd1e68183136f8fe58ebe252f2b90e0a8c4"
-    },
-    "drawio": {
-      "source": "jgraph/drawio-mcp",
-      "sourceType": "github",
-      "computedHash": "c0cafc1ad6a5b474d2e5c7d92c07f69298a79eb4f9ae4bd31fde0bfe039aa3c5"
-    },
-    "exa-web-search-free": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "4456756ff2cf096cc7c6d2fc9d6771e2a1ea0084868f28b69f68157757ee50c8"
-    },
-    "fix-coderabbit-review": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "9272c514c90f40059ceb9f3b504ea9f5a91fde83a6ae8471f00c8d36a95a086d"
-    },
-    "refactoring-analysis": {
-      "source": "pedronauck/skills",
-      "sourceType": "github",
-      "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
+    "version": 1,
+    "skills": {
+        "autoresearch": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "f8efb7dc97667bc62269aaa924ef176d50aaa11d34bd4882c6e42d6506315a27"
+        },
+        "bubbletea": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4cf3387527d25a0ef4d07d0a6b01d041f18b91151f0528c5859040dbdb1f1a55"
+        },
+        "context7": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "23f0178420043f01cd0f00745eb06eaac6f3eee4ef58f87f1ae353c2a408f79c"
+        },
+        "council": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "d4f069a475431390f46fb826fdfc1dd1e68183136f8fe58ebe252f2b90e0a8c4"
+        },
+        "drawio": {
+            "source": "jgraph/drawio-mcp",
+            "sourceType": "github",
+            "computedHash": "c0cafc1ad6a5b474d2e5c7d92c07f69298a79eb4f9ae4bd31fde0bfe039aa3c5"
+        },
+        "exa-web-search-free": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "4456756ff2cf096cc7c6d2fc9d6771e2a1ea0084868f28b69f68157757ee50c8"
+        },
+        "fix-coderabbit-review": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "9272c514c90f40059ceb9f3b504ea9f5a91fde83a6ae8471f00c8d36a95a086d"
+        },
+        "refactoring-analysis": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "7554393d8a4e3e103f13f244fd754b503b305afea1957ca84edf2e9ed846ea37"
+        },
+        "smux": {
+            "source": "ShawnPana/smux",
+            "sourceType": "github",
+            "computedHash": "cc6cfffb9f793c89a46f0f97bb9d20cd84ca5e170c6fd538066e7953cb69c10d"
+        },
+        "to-prompt": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "8b211cbc89c668e081db0a499d70098ac702e723cc879a6cc69a47327e01c2b1"
+        }
     }
-  }
 }
