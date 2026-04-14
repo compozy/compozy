@@ -32,28 +32,44 @@ func TestGoReleaserConfigSupportsFirstRelease(t *testing.T) {
 		t.Fatalf("read goreleaser config: %v", err)
 	}
 
-	text := string(content)
+	configText := string(content)
 
-	if strings.Contains(text, "use: github") {
+	if strings.Contains(configText, "use: github") {
 		t.Fatal(
 			"expected goreleaser changelog generation to avoid the GitHub compare API so the first release works without a previous remote tag",
 		)
 	}
 
-	if !strings.Contains(text, "use: git") {
+	if !strings.Contains(configText, "use: git") {
 		t.Fatal("expected goreleaser changelog generation to use git history for first-release compatibility")
 	}
 
-	if !strings.Contains(text, "{{- if .PreviousTag }}") {
+	footerContent, err := os.ReadFile(filepath.Join(repoRoot(t), ".goreleaser.release-footer.md.tmpl"))
+	if err != nil {
+		t.Fatalf("read goreleaser release footer template: %v", err)
+	}
+
+	footerText := string(footerContent)
+
+	if !strings.Contains(footerText, "{{- if .PreviousTag }}") {
 		t.Fatal("expected release notes to guard previous-tag links for the first release")
 	}
 
-	if !strings.Contains(text, "compare/{{ .PreviousTag }}...{{ .Tag }}") {
+	if !strings.Contains(footerText, "compare/{{ .PreviousTag }}...{{ .Tag }}") {
 		t.Fatal("expected release notes to keep the compare link when a previous tag exists")
 	}
 
-	if !strings.Contains(text, "tree/{{ .Tag }}") {
+	if !strings.Contains(footerText, "tree/{{ .Tag }}") {
 		t.Fatal("expected release notes to include a first-release fallback link when no previous tag exists")
+	}
+
+	workflowContent, err := os.ReadFile(filepath.Join(repoRoot(t), ".github", "workflows", "release.yml"))
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+
+	if !strings.Contains(string(workflowContent), "--release-footer-tmpl=.goreleaser.release-footer.md.tmpl") {
+		t.Fatal("expected the release workflow to pass the first-release footer template to goreleaser")
 	}
 }
 
