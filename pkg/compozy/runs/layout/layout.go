@@ -10,11 +10,20 @@ import "path/filepath"
 
 // File and directory names that live under one run directory.
 const (
-	RunMetaFileName   = "run.json"
+	// RunMetaFileName is the basename of the per-run metadata file written by
+	// the journal and read by the public reader.
+	RunMetaFileName = "run.json"
+	// EventsLogFileName is the basename of the append-only event log inside
+	// the run directory.
 	EventsLogFileName = "events.jsonl"
+	// RunResultFileName is the basename of the terminal run result document.
 	RunResultFileName = "result.json"
-	JobsDirName       = "jobs"
-	TurnsDirName      = "turns"
+	// JobsDirName is the basename of the subdirectory that holds per-job
+	// artifacts (prompt, stdout, stderr).
+	JobsDirName = "jobs"
+	// TurnsDirName is the basename of the subdirectory that holds per-turn
+	// transcript artifacts.
+	TurnsDirName = "turns"
 )
 
 // RunMetaPath returns the absolute path to the run metadata file inside runDir.
