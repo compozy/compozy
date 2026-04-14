@@ -58,10 +58,7 @@ func (p *osPlayer) Play(ctx context.Context, sound string) error {
 	if err != nil {
 		return err
 	}
-	if err := p.runner.Run(ctx, name, args...); err != nil {
-		return err
-	}
-	return nil
+	return p.runner.Run(ctx, name, args...)
 }
 
 // New returns the default Player for the current platform. Callers that

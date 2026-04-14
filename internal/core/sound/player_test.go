@@ -3,6 +3,8 @@ package sound
 import (
 	"context"
 	"errors"
+	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -36,11 +38,22 @@ func (r *recordingRunner) snapshot() []runCall {
 
 func TestNoop_Play_AlwaysNil(t *testing.T) {
 	t.Parallel()
-	if err := (Noop{}).Play(context.Background(), ""); err != nil {
-		t.Fatalf("expected nil error from Noop, got %v", err)
+	cases := []struct {
+		name  string
+		sound string
+	}{
+		{name: "Should return nil for empty sound", sound: ""},
+		{name: "Should return nil for preset name", sound: "glass"},
+		{name: "Should return nil for absolute path", sound: "/tmp/custom.aiff"},
+		{name: "Should return nil for whitespace-only input", sound: "   "},
 	}
-	if err := (Noop{}).Play(context.Background(), "glass"); err != nil {
-		t.Fatalf("expected nil error from Noop with preset, got %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if err := (Noop{}).Play(context.Background(), tc.sound); err != nil {
+				t.Fatalf("expected nil from Noop, got %v", err)
+			}
+		})
 	}
 }
 
@@ -113,9 +126,40 @@ func TestOSPlayer_Play_RunnerErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestNew_ReturnsNonNilPlayer(t *testing.T) {
+func TestNew_WiresPlatformPlayer(t *testing.T) {
 	t.Parallel()
-	if New() == nil {
+	// New() is a thin constructor but it IS load-bearing: it must return a
+	// player whose resolver matches the host platform so real runs get the
+	// right command. On supported unix variants we assert the resolver picks
+	// afplay/paplay for the glass preset. On anything else we only assert
+	// that it returns Noop (the documented fallback).
+	player := New()
+	if player == nil {
 		t.Fatal("New() returned nil")
+	}
+
+	switch runtime.GOOS {
+	case goosDarwin, goosLinux:
+		osp, ok := player.(*osPlayer)
+		if !ok {
+			t.Fatalf("expected *osPlayer on %s, got %T", runtime.GOOS, player)
+		}
+		name, args, err := osp.resolve(PresetGlass)
+		if err != nil {
+			t.Fatalf("resolver failed for glass preset: %v", err)
+		}
+		if runtime.GOOS == goosDarwin && name != cmdAfplay {
+			t.Errorf("darwin should use %q, got %q", cmdAfplay, name)
+		}
+		if runtime.GOOS == goosLinux && name != cmdPaplay {
+			t.Errorf("linux should use %q, got %q", cmdPaplay, name)
+		}
+		if len(args) != 1 || !filepath.IsAbs(args[0]) {
+			t.Errorf("resolver should yield a single absolute-path arg, got %#v", args)
+		}
+	default:
+		if _, ok := player.(Noop); !ok {
+			t.Fatalf("expected Noop fallback on %s, got %T", runtime.GOOS, player)
+		}
 	}
 }

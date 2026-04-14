@@ -65,7 +65,6 @@ func TestPickSound(t *testing.T) {
 		{"unrelated kind is silent", events.EventKindToolCallStarted, ""},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := pickSound(tc.kind, cfg)
@@ -99,7 +98,6 @@ func TestNotify_PlaysSoundForEachKind(t *testing.T) {
 		{"canceled", events.EventKindRunCancelled, "basso"},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			player := &fakePlayer{}

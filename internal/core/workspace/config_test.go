@@ -646,66 +646,102 @@ func TestLoadConfigReturnsContextErrorWhenCanceled(t *testing.T) {
 	}
 }
 
-func TestLoadConfigParsesSoundSection(t *testing.T) {
+func TestLoadConfigSoundSection(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	writeWorkspaceConfig(t, root, `
+	cases := []struct {
+		name          string
+		content       string
+		wantErr       string
+		wantEnabled   *bool
+		wantCompleted *string
+		wantFailed    *string
+	}{
+		{
+			name: "Should parse a fully populated [sound] section",
+			content: `
 [sound]
 enabled = true
 on_completed = "glass"
 on_failed = "basso"
-`)
-
-	cfg, _, err := LoadConfig(context.Background(), root)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if cfg.Sound.Enabled == nil || !*cfg.Sound.Enabled {
-		t.Fatalf("unexpected sound.enabled: %#v", cfg.Sound.Enabled)
-	}
-	if cfg.Sound.OnCompleted == nil || *cfg.Sound.OnCompleted != "glass" {
-		t.Fatalf("unexpected sound.on_completed: %#v", cfg.Sound.OnCompleted)
-	}
-	if cfg.Sound.OnFailed == nil || *cfg.Sound.OnFailed != "basso" {
-		t.Fatalf("unexpected sound.on_failed: %#v", cfg.Sound.OnFailed)
-	}
-}
-
-func TestLoadConfigLeavesSoundDisabledByDefault(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeWorkspaceConfig(t, root, ``)
-
-	cfg, _, err := LoadConfig(context.Background(), root)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
-	}
-	if cfg.Sound.Enabled != nil {
-		t.Fatalf("expected sound.enabled to be nil when unset, got %#v", cfg.Sound.Enabled)
-	}
-	if cfg.Sound.OnCompleted != nil || cfg.Sound.OnFailed != nil {
-		t.Fatalf("expected sound presets to be nil when unset, got %#v / %#v",
-			cfg.Sound.OnCompleted, cfg.Sound.OnFailed)
-	}
-}
-
-func TestLoadConfigRejectsEmptySoundPreset(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeWorkspaceConfig(t, root, `
+`,
+			wantEnabled:   ptrBool(true),
+			wantCompleted: ptrString("glass"),
+			wantFailed:    ptrString("basso"),
+		},
+		{
+			name:    "Should leave [sound] fields nil when the section is absent",
+			content: ``,
+		},
+		{
+			name: "Should reject whitespace-only sound.on_completed",
+			content: `
 [sound]
 on_completed = "   "
-`)
-
-	_, _, err := LoadConfig(context.Background(), root)
-	if err == nil {
-		t.Fatal("expected error for empty sound.on_completed")
+`,
+			wantErr: "sound.on_completed",
+		},
+		{
+			name: "Should reject whitespace-only sound.on_failed",
+			content: `
+[sound]
+on_failed = "\t"
+`,
+			wantErr: "sound.on_failed",
+		},
 	}
-	if !strings.Contains(err.Error(), "sound.on_completed") {
-		t.Fatalf("unexpected error: %v", err)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tc.content)
+
+			cfg, _, err := LoadConfig(context.Background(), root)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("unexpected error: got %q, want substring %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			assertOptionalBool(t, "sound.enabled", cfg.Sound.Enabled, tc.wantEnabled)
+			assertOptionalString(t, "sound.on_completed", cfg.Sound.OnCompleted, tc.wantCompleted)
+			assertOptionalString(t, "sound.on_failed", cfg.Sound.OnFailed, tc.wantFailed)
+		})
+	}
+}
+
+func ptrBool(b bool) *bool       { return &b }
+func ptrString(s string) *string { return &s }
+
+func assertOptionalBool(t *testing.T, field string, got *bool, want *bool) {
+	t.Helper()
+	switch {
+	case want == nil && got != nil:
+		t.Fatalf("%s: expected nil, got %v", field, *got)
+	case want != nil && got == nil:
+		t.Fatalf("%s: expected %v, got nil", field, *want)
+	case want != nil && got != nil && *want != *got:
+		t.Fatalf("%s: expected %v, got %v", field, *want, *got)
+	}
+}
+
+func assertOptionalString(t *testing.T, field string, got *string, want *string) {
+	t.Helper()
+	switch {
+	case want == nil && got != nil:
+		t.Fatalf("%s: expected nil, got %q", field, *got)
+	case want != nil && got == nil:
+		t.Fatalf("%s: expected %q, got nil", field, *want)
+	case want != nil && got != nil && *want != *got:
+		t.Fatalf("%s: expected %q, got %q", field, *want, *got)
 	}
 }
 

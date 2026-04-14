@@ -32,7 +32,6 @@ func TestResolvePath(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := ResolvePath(tc.input)
@@ -113,33 +112,27 @@ func TestPresetPathForOS(t *testing.T) {
 		wantPath string
 	}{
 		{
-			name:     "darwin glass resolves to System Sounds",
+			name:     "Should resolve darwin glass preset to System Sounds",
 			preset:   PresetGlass,
 			goos:     "darwin",
 			wantOK:   true,
 			wantPath: "/System/Library/Sounds/Glass.aiff",
 		},
 		{
-			name:     "linux basso resolves to freedesktop error",
+			name:     "Should resolve linux basso preset to freedesktop error sound",
 			preset:   PresetBasso,
 			goos:     "linux",
 			wantOK:   true,
 			wantPath: "/usr/share/sounds/freedesktop/stereo/dialog-error.oga",
 		},
 		{
-			name:   "windows ping resolves under C:\\Windows\\Media",
-			preset: PresetPing,
-			goos:   "windows",
-			wantOK: true,
-		},
-		{
-			name:   "unknown preset returns false",
+			name:   "Should return false for unknown preset",
 			preset: "not-a-preset",
 			goos:   "darwin",
 			wantOK: false,
 		},
 		{
-			name:   "unsupported goos returns false",
+			name:   "Should return false for unsupported goos",
 			preset: PresetGlass,
 			goos:   "plan9",
 			wantOK: false,
@@ -147,7 +140,6 @@ func TestPresetPathForOS(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got, ok := presetPathForOS(tc.preset, tc.goos)
@@ -157,11 +149,71 @@ func TestPresetPathForOS(t *testing.T) {
 			if !tc.wantOK {
 				return
 			}
-			if tc.wantPath != "" && got != tc.wantPath {
+			if got != tc.wantPath {
 				t.Fatalf("unexpected path: got %q, want %q", got, tc.wantPath)
 			}
-			if tc.wantPath == "" && !strings.Contains(strings.ToLower(got), "windows") {
-				t.Fatalf("expected windows-style path, got %q", got)
+		})
+	}
+}
+
+func TestWindowsPresetPath(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		preset  string
+		windir  string
+		wantOK  bool
+		wantOut string
+	}{
+		{
+			name:    "Should resolve glass under the provided WINDIR",
+			preset:  PresetGlass,
+			windir:  `D:\WinRoot`,
+			wantOK:  true,
+			wantOut: `D:\WinRoot\Media\tada.wav`,
+		},
+		{
+			name:    "Should trim trailing backslash from WINDIR",
+			preset:  PresetPing,
+			windir:  `D:\WinRoot\`,
+			wantOK:  true,
+			wantOut: `D:\WinRoot\Media\ding.wav`,
+		},
+		{
+			name:    "Should fall back to C:\\Windows when WINDIR is empty",
+			preset:  PresetBasso,
+			windir:  "",
+			wantOK:  true,
+			wantOut: `C:\Windows\Media\chord.wav`,
+		},
+		{
+			name:    "Should fall back to C:\\Windows when WINDIR is whitespace",
+			preset:  PresetSubmarine,
+			windir:  "   ",
+			wantOK:  true,
+			wantOut: `C:\Windows\Media\Ring01.wav`,
+		},
+		{
+			name:   "Should return false for unknown preset",
+			preset: "mystery",
+			windir: `C:\Windows`,
+			wantOK: false,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := windowsPresetPath(tc.preset, tc.windir)
+			if ok != tc.wantOK {
+				t.Fatalf("ok mismatch: got %v, want %v", ok, tc.wantOK)
+			}
+			if !tc.wantOK {
+				return
+			}
+			if got != tc.wantOut {
+				t.Fatalf("unexpected path: got %q, want %q", got, tc.wantOut)
 			}
 		})
 	}
@@ -214,7 +266,6 @@ func TestEscapePSSingleQuoted(t *testing.T) {
 		},
 	}
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := escapePSSingleQuoted(tc.in)
