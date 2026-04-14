@@ -129,6 +129,9 @@ type Config struct {
 	Timeout                    time.Duration
 	MaxRetries                 int
 	RetryBackoffMultiplier     float64
+	SoundEnabled               bool
+	SoundOnCompleted           string
+	SoundOnFailed              string
 }
 
 // Job is a prepared execution unit with its generated artifacts.
@@ -365,6 +368,9 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		Timeout:                    cfg.Timeout,
 		MaxRetries:                 cfg.MaxRetries,
 		RetryBackoffMultiplier:     cfg.RetryBackoffMultiplier,
+		SoundEnabled:               cfg.SoundEnabled,
+		SoundOnCompleted:           cfg.SoundOnCompleted,
+		SoundOnFailed:              cfg.SoundOnFailed,
 	}
 	runtimeCfg.ApplyDefaults()
 	return runtimeCfg

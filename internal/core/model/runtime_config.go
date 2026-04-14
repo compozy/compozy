@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // ExplicitRuntimeFlags tracks which runtime fields were explicitly overridden
 // by the current caller, using CLI-compatible `Flags().Changed(...)` semantics.
@@ -49,6 +52,9 @@ type RuntimeConfig struct {
 	Timeout                    time.Duration
 	MaxRetries                 int
 	RetryBackoffMultiplier     float64
+	SoundEnabled               bool
+	SoundOnCompleted           string
+	SoundOnFailed              string
 }
 
 func (cfg *RuntimeConfig) ApplyDefaults() {
@@ -82,4 +88,22 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 	if cfg.RetryBackoffMultiplier <= 0 {
 		cfg.RetryBackoffMultiplier = 1.5
 	}
+	if cfg.SoundEnabled {
+		cfg.SoundOnCompleted = strings.TrimSpace(cfg.SoundOnCompleted)
+		if cfg.SoundOnCompleted == "" {
+			cfg.SoundOnCompleted = DefaultSoundOnCompleted
+		}
+		cfg.SoundOnFailed = strings.TrimSpace(cfg.SoundOnFailed)
+		if cfg.SoundOnFailed == "" {
+			cfg.SoundOnFailed = DefaultSoundOnFailed
+		}
+	}
 }
+
+// DefaultSoundOnCompleted is the preset played on run.completed when sound is
+// enabled and the user has not set an explicit preset or path.
+const DefaultSoundOnCompleted = "glass"
+
+// DefaultSoundOnFailed is the preset played on run.failed / run.cancelled when
+// sound is enabled and the user has not set an explicit preset or path.
+const DefaultSoundOnFailed = "basso"

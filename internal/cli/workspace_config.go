@@ -97,6 +97,7 @@ func commandPath(cmd *cobra.Command) string {
 }
 
 func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.ProjectConfig) {
+	applySoundConfig(s, cfg.Sound)
 	applyConfig(cmd, "ide", cfg.Defaults.IDE, func(val string) { s.ide = val })
 	applyConfig(cmd, "model", cfg.Defaults.Model, func(val string) { s.model = val })
 	applyConfig(cmd, "format", cfg.Defaults.OutputFormat, func(val string) { s.outputFormat = val })
@@ -162,6 +163,21 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			cfg.Exec.RetryBackoffMultiplier,
 			func(val float64) { s.retryBackoffMultiplier = val },
 		)
+	}
+}
+
+// applySoundConfig copies the project-level [sound] TOML section onto the command
+// state. Sound has no CLI flags today, so this bypasses the flag-aware applyConfig
+// helper and writes straight to the state fields.
+func applySoundConfig(s *commandState, cfg workspace.SoundConfig) {
+	if cfg.Enabled != nil {
+		s.soundEnabled = *cfg.Enabled
+	}
+	if cfg.OnCompleted != nil {
+		s.soundOnCompleted = *cfg.OnCompleted
+	}
+	if cfg.OnFailed != nil {
+		s.soundOnFailed = *cfg.OnFailed
 	}
 }
 

@@ -32,6 +32,26 @@ func (cfg ProjectConfig) Validate() error {
 	if err := validateExec(cfg.Defaults, cfg.Exec); err != nil {
 		return err
 	}
+	if err := validateSound(cfg.Sound); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateSound(cfg SoundConfig) error {
+	if err := validateSoundField("sound.on_completed", cfg.OnCompleted); err != nil {
+		return err
+	}
+	return validateSoundField("sound.on_failed", cfg.OnFailed)
+}
+
+func validateSoundField(field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+	if strings.TrimSpace(*value) == "" {
+		return fmt.Errorf("workspace config %s cannot be empty", field)
+	}
 	return nil
 }
 

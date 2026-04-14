@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/internal/core/sound"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -188,6 +189,12 @@ func finalizeExecution(
 	if err := emitRunTerminalEvent(ctx, runJournal, result, internalJobs, startedAt); err != nil {
 		return err
 	}
+	notifySoundForKind(
+		ctx,
+		internalCfg,
+		terminalEventKindFor(result.Status),
+		runtimeLoggerFor(internalCfg, internalCfg.UIEnabled()),
+	)
 	model.DispatchObserverHook(
 		ctx,
 		internalCfg.RuntimeManager,
@@ -266,6 +273,34 @@ func newJobExecutionContext(
 	}
 	execCtx.ui = setupUI(ctx, execCtx.jobs, cfg, bus, cfg.UIEnabled())
 	return execCtx, nil
+}
+
+// notifySoundForKind plays the configured sound for a terminal lifecycle
+// event kind. It runs synchronously so the audio finishes before run
+// cleanup tears state down. When the [sound] feature flag is off this
+// is a no-op.
+func notifySoundForKind(ctx context.Context, cfg *config, kind events.EventKind, logger *slog.Logger) {
+	if cfg == nil || !cfg.SoundEnabled {
+		return
+	}
+	sound.Notify(ctx, sound.Config{
+		Player:      sound.New(),
+		OnCompleted: cfg.SoundOnCompleted,
+		OnFailed:    cfg.SoundOnFailed,
+	}, kind, logger)
+}
+
+// terminalEventKindFor maps an executor result status to the lifecycle event
+// kind that finalizeExecution emits. Mirrors the switch in emitRunTerminalEvent.
+func terminalEventKindFor(status string) events.EventKind {
+	switch status {
+	case runStatusSucceeded:
+		return events.EventKindRunCompleted
+	case runStatusCanceled:
+		return events.EventKindRunCancelled
+	default:
+		return events.EventKindRunFailed
+	}
 }
 
 func (j *jobExecutionContext) cleanup() {

@@ -646,6 +646,69 @@ func TestLoadConfigReturnsContextErrorWhenCanceled(t *testing.T) {
 	}
 }
 
+func TestLoadConfigParsesSoundSection(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[sound]
+enabled = true
+on_completed = "glass"
+on_failed = "basso"
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Sound.Enabled == nil || !*cfg.Sound.Enabled {
+		t.Fatalf("unexpected sound.enabled: %#v", cfg.Sound.Enabled)
+	}
+	if cfg.Sound.OnCompleted == nil || *cfg.Sound.OnCompleted != "glass" {
+		t.Fatalf("unexpected sound.on_completed: %#v", cfg.Sound.OnCompleted)
+	}
+	if cfg.Sound.OnFailed == nil || *cfg.Sound.OnFailed != "basso" {
+		t.Fatalf("unexpected sound.on_failed: %#v", cfg.Sound.OnFailed)
+	}
+}
+
+func TestLoadConfigLeavesSoundDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, ``)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Sound.Enabled != nil {
+		t.Fatalf("expected sound.enabled to be nil when unset, got %#v", cfg.Sound.Enabled)
+	}
+	if cfg.Sound.OnCompleted != nil || cfg.Sound.OnFailed != nil {
+		t.Fatalf("expected sound presets to be nil when unset, got %#v / %#v",
+			cfg.Sound.OnCompleted, cfg.Sound.OnFailed)
+	}
+}
+
+func TestLoadConfigRejectsEmptySoundPreset(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[sound]
+on_completed = "   "
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected error for empty sound.on_completed")
+	}
+	if !strings.Contains(err.Error(), "sound.on_completed") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func writeWorkspaceConfig(t *testing.T, workspaceRoot, content string) {
 	t.Helper()
 
