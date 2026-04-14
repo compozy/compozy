@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy"
+	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/pkg/compozy/runs"
+	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
 func TestPrepareAndRunExposePublicAPI(t *testing.T) {
@@ -188,5 +191,57 @@ func TestArchiveExposePublicAPI(t *testing.T) {
 	}
 	if _, err := os.Stat(result.ArchivedPaths[0]); err != nil {
 		t.Fatalf("expected archived path to exist: %v", err)
+	}
+}
+
+// TestRunsLayoutAgreesAcrossWriterAndReader proves that the canonical writer
+// (model.NewRunArtifacts) and the public reader (runs.Open) agree on the
+// on-disk layout via the shared pkg/compozy/runs/layout constants. If anyone
+// changes a literal on only one side, this test fails before the change is
+// merged.
+func TestRunsLayoutAgreesAcrossWriterAndReader(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	const runID = "agree-test"
+
+	artifacts := model.NewRunArtifacts(workspaceRoot, runID)
+	if err := os.MkdirAll(artifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+
+	meta := []byte(
+		`{"version":1,"run_id":"agree-test","status":"completed","mode":"exec","created_at":"2026-04-13T12:00:00Z","updated_at":"2026-04-13T12:00:00Z"}`,
+	)
+	if err := os.WriteFile(artifacts.RunMetaPath, meta, 0o600); err != nil {
+		t.Fatalf("write run meta: %v", err)
+	}
+
+	run, err := runs.Open(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("runs.Open after model.NewRunArtifacts: %v", err)
+	}
+	if got := run.Summary().RunID; got != runID {
+		t.Fatalf("Summary.RunID = %q, want %q", got, runID)
+	}
+
+	cases := []struct {
+		name   string
+		writer string
+		reader string
+	}{
+		{"run meta", artifacts.RunMetaPath, layout.RunMetaPath(artifacts.RunDir)},
+		{"events log", artifacts.EventsPath, layout.EventsLogPath(artifacts.RunDir)},
+		{"result", artifacts.ResultPath, layout.ResultPath(artifacts.RunDir)},
+		{"jobs dir", artifacts.JobsDir, layout.JobsDir(artifacts.RunDir)},
+		{"turns dir", artifacts.TurnsDir, layout.TurnsDir(artifacts.RunDir)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if tc.writer != tc.reader {
+				t.Errorf("writer=%q reader=%q (writer/reader disagree on layout)", tc.writer, tc.reader)
+			}
+		})
 	}
 }

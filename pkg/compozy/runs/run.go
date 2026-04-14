@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
 var (
@@ -151,11 +153,11 @@ func defaultRunPaths(workspaceRoot, runID string) runPaths {
 	runDir := filepath.Join(runsDirForWorkspace(workspaceRoot), runID)
 	return runPaths{
 		runDir:      runDir,
-		runMetaPath: filepath.Join(runDir, "run.json"),
-		eventsPath:  filepath.Join(runDir, "events.jsonl"),
-		resultPath:  filepath.Join(runDir, "result.json"),
-		jobsDir:     filepath.Join(runDir, "jobs"),
-		turnsDir:    filepath.Join(runDir, "turns"),
+		runMetaPath: layout.RunMetaPath(runDir),
+		eventsPath:  layout.EventsLogPath(runDir),
+		resultPath:  layout.ResultPath(runDir),
+		jobsDir:     layout.JobsDir(runDir),
+		turnsDir:    layout.TurnsDir(runDir),
 	}
 }
 
