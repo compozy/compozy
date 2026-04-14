@@ -237,8 +237,11 @@ func TestRunsLayoutAgreesAcrossWriterAndReader(t *testing.T) {
 		{"turns dir", artifacts.TurnsDir, layout.TurnsDir(artifacts.RunDir)},
 	}
 	for _, tc := range cases {
-		if tc.writer != tc.reader {
-			t.Errorf("%s: writer=%q reader=%q (writer/reader disagree on layout)", tc.name, tc.writer, tc.reader)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if tc.writer != tc.reader {
+				t.Errorf("writer=%q reader=%q (writer/reader disagree on layout)", tc.writer, tc.reader)
+			}
+		})
 	}
 }
