@@ -56,27 +56,39 @@ func Execute(
 		return err
 	}
 
+	normalCompletionFinalized := false
 	failed, failures, total, shutdownErr := executeJobsWithGracefulShutdown(
 		ctx,
 		internalJobs,
 		internalCfg,
 		runJournal,
 		bus,
+		buildNormalCompletionHook(
+			ctx,
+			runJournal,
+			runArtifacts,
+			internalCfg,
+			internalJobs,
+			startedAt,
+			&normalCompletionFinalized,
+		),
 	)
-	result := buildExecutionResult(internalCfg, internalJobs, failures, shutdownErr)
-	if err := finalizeExecution(
-		ctx,
-		runJournal,
-		runArtifacts,
-		internalCfg,
-		internalJobs,
-		result,
-		failed,
-		failures,
-		total,
-		startedAt,
-	); err != nil {
-		return err
+	if !normalCompletionFinalized {
+		result := buildExecutionResult(internalCfg, internalJobs, failures, shutdownErr)
+		if err := finalizeExecution(
+			ctx,
+			runJournal,
+			runArtifacts,
+			internalCfg,
+			internalJobs,
+			result,
+			failed,
+			failures,
+			total,
+			startedAt,
+		); err != nil {
+			return err
+		}
 	}
 
 	if shutdownErr != nil {
@@ -89,6 +101,38 @@ func Execute(
 		return errors.New("one or more groups failed; see logs above")
 	}
 	return nil
+}
+
+func buildNormalCompletionHook(
+	ctx context.Context,
+	runJournal *journal.Journal,
+	runArtifacts model.RunArtifacts,
+	internalCfg *config,
+	internalJobs []job,
+	startedAt time.Time,
+	finalized *bool,
+) normalCompletionHook {
+	return func(failed int32, failures []failInfo, total int) error {
+		result := buildExecutionResult(internalCfg, internalJobs, failures, nil)
+		if err := finalizeExecution(
+			ctx,
+			runJournal,
+			runArtifacts,
+			internalCfg,
+			internalJobs,
+			result,
+			failed,
+			failures,
+			total,
+			startedAt,
+		); err != nil {
+			return err
+		}
+		if finalized != nil {
+			*finalized = true
+		}
+		return nil
+	}
 }
 
 func prepareExecutionConfig(
@@ -322,8 +366,8 @@ func (j *jobExecutionContext) publishShutdownStatus(state shutdownState) {
 }
 
 func (j *jobExecutionContext) launchWorkers(jobCtx context.Context) {
-	if j.cfg.Mode == model.ExecutionModePRDTasks {
-		j.launchSequentialTaskWorkers(jobCtx)
+	if j.requiresOrderedWorkerExecution() {
+		j.launchOrderedWorkers(jobCtx)
 		return
 	}
 	for idx := range j.jobs {
@@ -333,7 +377,17 @@ func (j *jobExecutionContext) launchWorkers(jobCtx context.Context) {
 	}
 }
 
-func (j *jobExecutionContext) launchSequentialTaskWorkers(jobCtx context.Context) {
+func (j *jobExecutionContext) requiresOrderedWorkerExecution() bool {
+	if j == nil || j.cfg == nil {
+		return false
+	}
+	if j.cfg.Mode == model.ExecutionModePRDTasks {
+		return true
+	}
+	return atLeastOne(j.cfg.Concurrent) == 1
+}
+
+func (j *jobExecutionContext) launchOrderedWorkers(jobCtx context.Context) {
 	if len(j.jobs) == 0 {
 		return
 	}

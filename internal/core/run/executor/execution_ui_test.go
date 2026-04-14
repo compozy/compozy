@@ -68,6 +68,71 @@ func TestExecutorWaitsForUIQuitAfterJobsComplete(t *testing.T) {
 	}
 }
 
+func TestExecutorControllerFinalizesNormalCompletionBeforeUIExit(t *testing.T) {
+	t.Parallel()
+
+	ui := newFakeUISession()
+	done := make(chan struct{})
+	close(done)
+
+	finalized := make(chan struct{}, 1)
+	controller := &executorController{
+		ctx: context.Background(),
+		execCtx: &jobExecutionContext{
+			ctx:   context.Background(),
+			total: 2,
+			ui:    ui,
+			cfg:   &config{},
+		},
+		done: done,
+		onNormalDone: func(failed int32, failures []failInfo, total int) error {
+			if failed != 0 {
+				t.Fatalf("failed count = %d, want 0", failed)
+			}
+			if len(failures) != 0 {
+				t.Fatalf("failures = %#v, want none", failures)
+			}
+			if total != 2 {
+				t.Fatalf("total = %d, want 2", total)
+			}
+			select {
+			case finalized <- struct{}{}:
+			default:
+			}
+			return nil
+		},
+	}
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, _, _, err := controller.awaitCompletion()
+		resultCh <- err
+	}()
+
+	select {
+	case <-finalized:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for normal completion finalization")
+	}
+
+	ui.awaitWaitCall(t)
+	select {
+	case err := <-resultCh:
+		t.Fatalf("awaitCompletion returned before explicit UI exit: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	ui.releaseWait(nil)
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatalf("awaitCompletion returned unexpected error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("awaitCompletion did not finish after UI exit")
+	}
+}
+
 func TestEnsureRuntimeEventBusCreatesFallbackBusForUI(t *testing.T) {
 	t.Parallel()
 

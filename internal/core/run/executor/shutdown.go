@@ -27,6 +27,8 @@ type shutdownRequest struct {
 	source shutdownSource
 }
 
+type normalCompletionHook func(int32, []failInfo, int) error
+
 type executorController struct {
 	ctx              context.Context
 	execCtx          *jobExecutionContext
@@ -35,6 +37,7 @@ type executorController struct {
 	cancelJobs       context.CancelCauseFunc
 	done             <-chan struct{}
 	shutdownRequests chan shutdownRequest
+	onNormalDone     normalCompletionHook
 }
 
 func executeJobsWithGracefulShutdown(
@@ -43,6 +46,7 @@ func executeJobsWithGracefulShutdown(
 	cfg *config,
 	runJournal *journal.Journal,
 	bus *events.Bus[events.Event],
+	onNormalDone normalCompletionHook,
 ) (int32, []failInfo, int, error) {
 	execCtx, err := newJobExecutionContext(ctx, jobs, cfg, runJournal, bus)
 	if err != nil {
@@ -58,6 +62,7 @@ func executeJobsWithGracefulShutdown(
 		state:            executorStateInitializing,
 		cancelJobs:       cancelJobs,
 		shutdownRequests: make(chan shutdownRequest, 4),
+		onNormalDone:     onNormalDone,
 	}
 	if execCtx.ui != nil {
 		execCtx.ui.SetQuitHandler(controller.requestShutdown)
@@ -103,6 +108,15 @@ func (c *executorController) handleDone(shutdownTimer *time.Timer) (int32, []fai
 	}
 	if c.state == executorStateRunning {
 		c.state = executorStateShutdown
+		if c.onNormalDone != nil {
+			failed := atomic.LoadInt32(&c.execCtx.failed)
+			failures := c.execCtx.failures
+			total := c.execCtx.total
+			if err := c.onNormalDone(failed, failures, total); err != nil {
+				c.state = executorStateTerminated
+				return c.result(err)
+			}
+		}
 		if err := c.execCtx.awaitUIAfterCompletion(); err != nil {
 			c.state = executorStateTerminated
 			return c.result(err)

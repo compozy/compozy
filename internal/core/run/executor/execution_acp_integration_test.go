@@ -725,6 +725,94 @@ func TestJobExecutionContextLaunchWorkersRetriesRetryableSetupFailureForReviewBa
 	}
 }
 
+func TestJobExecutionContextLaunchWorkersRunsBatchesInOrderWhenConcurrencyOne(t *testing.T) {
+	tmpDir := t.TempDir()
+	started := make(chan string, 2)
+	finished := make(chan string, 2)
+	releaseFirst := make(chan struct{})
+
+	installFakeACPClients(t,
+		newPromptReportingACPClient(started, finished, releaseFirst),
+		newPromptReportingACPClient(started, finished, nil),
+	)
+
+	jobs := []job{
+		newNamedTestACPJob(tmpDir, "batch_001"),
+		newNamedTestACPJob(tmpDir, "batch_002"),
+	}
+	jobs[0].Prompt = []byte("batch_001")
+	jobs[0].SystemPrompt = ""
+	jobs[1].Prompt = []byte("batch_002")
+	jobs[1].SystemPrompt = ""
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			IDE:                    model.IDECodex,
+			Model:                  "test-model",
+			ReasoningEffort:        "medium",
+			Concurrent:             1,
+			RetryBackoffMultiplier: 2,
+			Timeout:                time.Second,
+		},
+		jobs:  jobs,
+		total: len(jobs),
+		cwd:   tmpDir,
+		sem:   make(chan struct{}, 1),
+	}
+
+	jobCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	launchDone := make(chan struct{})
+	go func() {
+		execCtx.launchWorkers(jobCtx)
+		close(launchDone)
+	}()
+
+	select {
+	case <-launchDone:
+	case <-time.After(time.Second):
+		t.Fatal("launchWorkers blocked for ordered review execution")
+	}
+
+	if got := waitForACPTaskEvent(t, started); got != "batch_001" {
+		t.Fatalf("expected batch_001 to start first, got %q", got)
+	}
+	assertNoACPTaskEvent(
+		t,
+		started,
+		150*time.Millisecond,
+		"expected batch_002 to remain pending while batch_001 was blocked",
+	)
+
+	close(releaseFirst)
+	if got := waitForACPTaskEvent(t, finished); got != "batch_001" {
+		t.Fatalf("expected batch_001 to finish before batch_002 starts, got %q", got)
+	}
+	if got := waitForACPTaskEvent(t, started); got != "batch_002" {
+		t.Fatalf("expected batch_002 to start second, got %q", got)
+	}
+
+	select {
+	case <-execCtx.waitChannel():
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for ordered review execution")
+	}
+
+	if got := waitForACPTaskEvent(t, finished); got != "batch_002" {
+		t.Fatalf("expected batch_002 to finish last, got %q", got)
+	}
+	assertNoACPTaskEvent(t, started, 50*time.Millisecond, "unexpected extra review batch start recorded")
+	assertNoACPTaskEvent(t, finished, 50*time.Millisecond, "unexpected extra review batch finish recorded")
+
+	if got := atomic.LoadInt32(&execCtx.completed); got != 2 {
+		t.Fatalf("expected 2 completed batches, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+		t.Fatalf("expected 0 failed batches, got %d", got)
+	}
+}
+
 func TestJobExecutionContextLaunchWorkersRunsPRDTasksSequentially(t *testing.T) {
 	tmpDir := t.TempDir()
 	tasksDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")

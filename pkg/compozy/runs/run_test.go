@@ -65,6 +65,41 @@ func TestOpenLoadsRunSummary(t *testing.T) {
 	_ = endedAt
 }
 
+func TestOpenTreatsResultStatusAsTerminalBeforeRunCompletedEvent(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	runID := "run-result-first"
+	startedAt := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
+	writeRunFixture(t, workspaceRoot, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":        runID,
+			"mode":          "prd-tasks",
+			"ide":           "codex",
+			"artifacts_dir": filepath.Join(workspaceRoot, ".compozy", "runs", runID),
+			"created_at":    startedAt,
+		},
+		resultJSON: map[string]any{
+			"status": "succeeded",
+		},
+		events: []events.Event{
+			testEvent(runID, 1, events.EventKindRunStarted),
+			testEvent(runID, 2, events.EventKindJobCompleted),
+		},
+	})
+
+	run, err := Open(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	summary := run.Summary()
+	if summary.Status != publicRunStatusCompleted {
+		t.Fatalf("Summary().Status = %q, want %q", summary.Status, publicRunStatusCompleted)
+	}
+	if summary.EndedAt != nil {
+		t.Fatalf("Summary().EndedAt = %v, want nil without terminal run event", summary.EndedAt)
+	}
+}
+
 func TestReplayHandlesEventLinesLargerThanOneMiB(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	runID := "run-large-line"
