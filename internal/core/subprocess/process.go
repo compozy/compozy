@@ -29,16 +29,18 @@ type Process struct {
 	cmd               *exec.Cmd
 	stdin             io.WriteCloser
 	stdout            io.ReadCloser
+	stdoutWriter      *os.File
 	stderr            *LockedBuffer
 	waitErrorPrefix   string
 	signalGracePeriod time.Duration
 
-	mu        sync.Mutex
-	waitDone  chan struct{}
-	waitErr   error
-	forced    bool
-	forceOnce sync.Once
-	closeOnce sync.Once
+	mu              sync.Mutex
+	waitDone        chan struct{}
+	waitErr         error
+	forced          bool
+	forceOnce       sync.Once
+	closeOnce       sync.Once
+	stdoutCloseOnce sync.Once
 }
 
 // Launch starts a subprocess with the provided configuration.
@@ -66,23 +68,27 @@ func Launch(ctx context.Context, cfg LaunchConfig) (*Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create subprocess stdin pipe: %w", err)
 	}
-	stdout, err := cmd.StdoutPipe()
+	stdoutRead, stdoutWrite, err := os.Pipe()
 	if err != nil {
 		_ = stdin.Close()
-		return nil, fmt.Errorf("create subprocess stdout pipe: %w", err)
+		return nil, fmt.Errorf("create subprocess stdout relay pipe: %w", err)
 	}
+	cmd.Stdout = stdoutWrite
 
 	stderr := &LockedBuffer{}
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		_ = stdin.Close()
+		_ = stdoutRead.Close()
+		_ = stdoutWrite.Close()
 		return nil, err
 	}
 
 	process := &Process{
 		cmd:               cmd,
 		stdin:             stdin,
-		stdout:            stdout,
+		stdout:            stdoutRead,
+		stdoutWriter:      stdoutWrite,
 		stderr:            stderr,
 		waitErrorPrefix:   cfg.WaitErrorPrefix,
 		signalGracePeriod: cfg.SignalGracePeriod,
@@ -205,6 +211,7 @@ func (p *Process) Kill() error {
 
 func (p *Process) waitForExit() {
 	err := p.cmd.Wait()
+	p.closeStdoutWriter()
 
 	p.mu.Lock()
 	p.waitErr = NormalizeWaitError(p.waitErrorPrefix, err)
@@ -234,6 +241,17 @@ func (p *Process) forceExit() error {
 		result = forceTerminateProcess(p.cmd)
 	})
 	return result
+}
+
+func (p *Process) closeStdoutWriter() {
+	if p == nil {
+		return
+	}
+	p.stdoutCloseOnce.Do(func() {
+		if p.stdoutWriter != nil {
+			_ = p.stdoutWriter.Close()
+		}
+	})
 }
 
 func (p *Process) waitWithin(timeout time.Duration) bool {

@@ -193,6 +193,31 @@ func TestProcessCapturesStderrAndSignalsCompletion(t *testing.T) {
 	}
 }
 
+func TestDoneDoesNotCloseStdoutBeforeReadersDrainOutput(t *testing.T) {
+	t.Parallel()
+
+	process, err := Launch(context.Background(), LaunchConfig{
+		Command:         shellCommand(t, "printf 'hello'"),
+		WaitErrorPrefix: "wait for test subprocess",
+	})
+	if err != nil {
+		t.Fatalf("launch process: %v", err)
+	}
+
+	<-process.Done()
+
+	output, err := io.ReadAll(process.Stdout())
+	if err != nil {
+		t.Fatalf("read stdout after done: %v", err)
+	}
+	if err := process.Wait(); err != nil {
+		t.Fatalf("wait process: %v", err)
+	}
+	if got := strings.TrimSpace(string(output)); got != "hello" {
+		t.Fatalf("stdout after done = %q, want %q", got, "hello")
+	}
+}
+
 func TestLaunchUsesConfiguredWorkingDir(t *testing.T) {
 	t.Parallel()
 
