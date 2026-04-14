@@ -156,9 +156,15 @@ func newCommandState(kind commandKind, mode core.Mode) *commandState {
 func newCommandStateWithDefaults(kind commandKind, mode core.Mode, defaults commandStateDefaults) *commandState {
 	defaults = defaults.withFallbacks()
 
+	workflow := workflowIdentity{}
+	if kind == commandKindFetchReviews {
+		workflow.nitpicks = true
+	}
+
 	return &commandState{
 		kind:                  kind,
 		mode:                  mode,
+		workflowIdentity:      workflow,
 		commandStateCallbacks: defaults.commandStateCallbacks,
 	}
 }

@@ -107,13 +107,15 @@ Fetch review comments from a provider and write them into `.compozy/tasks/<name>
 | `--pr` | string | | Pull request number |
 | `--name` | string | | Workflow name |
 | `--round` | int | next | Review round number (default: next available) |
-| `--nitpicks` | bool | false | Include CodeRabbit nitpick comments |
 
 ```
 compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
 compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
 compozy fetch-reviews
 ```
+
+By default, `fetch-reviews` imports CodeRabbit review-body comments for `nitpick`, `minor`, and `major`.
+Use `[fetch_reviews].nitpicks = false` in `.compozy/config.toml` to disable that import.
 
 ### `compozy fix-reviews`
 

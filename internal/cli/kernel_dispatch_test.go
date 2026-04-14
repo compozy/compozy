@@ -308,7 +308,7 @@ func TestNewFetchReviewsRunnerDispatchesTypedCommand(t *testing.T) {
 		t.Fatalf("unexpected fetch command: %#v", handler.got)
 	}
 	if !handler.got.Nitpicks {
-		t.Fatal("expected nitpicks flag to pass through")
+		t.Fatal("expected review-body comment setting to pass through")
 	}
 }
 

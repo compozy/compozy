@@ -176,6 +176,7 @@ include_resolved = false
 
 [fetch_reviews]
 provider = "coderabbit"
+nitpicks = false
 ```
 
 Supported sections:
@@ -185,7 +186,7 @@ Supported sections:
 - `[start]` for `include_completed`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy validate-tasks`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
-- `[fetch_reviews]` for `provider`
+- `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 
 Notes:
 
@@ -669,7 +670,7 @@ compozy fetch-reviews [flags]
 ```
 
 Running `compozy fetch-reviews` with no flags opens the interactive form automatically.
-When present, `.compozy/config.toml` can provide defaults such as `--provider`.
+When present, `.compozy/config.toml` can provide defaults such as `provider` and `nitpicks`.
 
 | Flag         | Default | Description                               |
 | ------------ | ------- | ----------------------------------------- |
@@ -677,6 +678,9 @@ When present, `.compozy/config.toml` can provide defaults such as `--provider`.
 | `--pr`       |         | Pull request number                       |
 | `--name`     |         | Workflow name                             |
 | `--round`    | `0`     | Round number (auto-increments if omitted) |
+
+By default, `fetch-reviews` imports CodeRabbit review-body comments for `nitpick`, `minor`, and `major`.
+Use `[fetch_reviews].nitpicks = false` in `.compozy/config.toml` to disable that import.
 
 </details>
 

@@ -52,7 +52,6 @@ type formInputs struct {
 	reasoningEffort  string
 	includeCompleted bool
 	includeResolved  bool
-	nitpicks         bool
 	dryRun           bool
 	autoCommit       bool
 }
@@ -73,7 +72,6 @@ func newFormInputsFromState(state *commandState) *formInputs {
 	if state.round > 0 {
 		inputs.round = strconv.Itoa(state.round)
 	}
-	inputs.nitpicks = state.nitpicks
 	inputs.reviewsDir = state.reviewsDir
 	inputs.tasksDir = state.tasksDir
 	if state.concurrent > 0 {
@@ -110,12 +108,6 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addAddDirsField(&fi.addDirs)
 	builder.addReasoningEffortField(&fi.reasoningEffort)
 	builder.addConfirmField(
-		"nitpicks",
-		"Include Nitpicks?",
-		"Import CodeRabbit review-body comments (nitpick, minor, and major)",
-		&fi.nitpicks,
-	)
-	builder.addConfirmField(
 		"dry-run",
 		"Dry Run?",
 		"Only generate prompts without running IDE tool",
@@ -146,7 +138,6 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 	applyInput(cmd, "pr", fi.pr, passThroughInput[string], func(val string) { state.pr = val })
 	applyInput(cmd, "provider", fi.provider, passThroughInput[string], func(val string) { state.provider = val })
 	applyInput(cmd, "round", fi.round, parseIntInput, func(val int) { state.round = val })
-	applyInput(cmd, "nitpicks", fi.nitpicks, passThroughInput[bool], func(val bool) { state.nitpicks = val })
 	applyInput(cmd, "reviews-dir", fi.reviewsDir, passThroughInput[string], func(val string) { state.reviewsDir = val })
 	applyInput(cmd, "tasks-dir", fi.tasksDir, passThroughInput[string], func(val string) { state.tasksDir = val })
 	applyInput(cmd, "concurrent", fi.concurrent, parseIntInput, func(val int) { state.concurrent = val })

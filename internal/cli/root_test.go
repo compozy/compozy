@@ -217,14 +217,22 @@ func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
 		t.Fatalf("execute fetch-reviews help: %v", err)
 	}
 
-	required := []string{"--provider", "--pr", "--name", "--round", "--nitpicks"}
+	required := []string{"--provider", "--pr", "--name", "--round"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected fetch-reviews help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
-	forbidden := []string{"--reviews-dir", "--tasks-dir", "--batch-size", "--grouped", "--include-resolved", "--form "}
+	forbidden := []string{
+		"--nitpicks",
+		"--reviews-dir",
+		"--tasks-dir",
+		"--batch-size",
+		"--grouped",
+		"--include-resolved",
+		"--form ",
+	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected fetch-reviews help to omit %q\noutput:\n%s", snippet, output)

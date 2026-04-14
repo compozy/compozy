@@ -64,6 +64,20 @@ func TestBuildConfigExecExtensionsFlagEnablesExecutableExtensions(t *testing.T) 
 	}
 }
 
+func TestBuildConfigFetchReviewsDefaultsReviewBodyCommentsEnabled(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
+
+	cfg, err := state.buildConfig()
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	if !cfg.Nitpicks {
+		t.Fatal("expected fetch-reviews config to enable CodeRabbit review-body comments by default")
+	}
+}
+
 func TestNewExecCommandRegistersExtensionsFlag(t *testing.T) {
 	t.Parallel()
 

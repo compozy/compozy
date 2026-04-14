@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -223,18 +224,29 @@ func TestApplyWorkspaceDefaultsFetchReviewsNitpicks(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name            string
-		setExplicitFlag bool
-		wantNitpicks    bool
+		name          string
+		configContent string
+		wantNitpicks  bool
 	}{
 		{
-			name:         "apply fetch-reviews nitpicks from workspace config when the flag is unset",
+			name:         "keep fetch-reviews review-body comments enabled when config is absent",
 			wantNitpicks: true,
 		},
 		{
-			name:            "preserve an explicit fetch-reviews nitpicks flag over workspace config",
-			setExplicitFlag: true,
-			wantNitpicks:    false,
+			name: "disable fetch-reviews review-body comments from workspace config",
+			configContent: `
+[fetch_reviews]
+nitpicks = false
+`,
+			wantNitpicks: false,
+		},
+		{
+			name: "enable fetch-reviews review-body comments from workspace config",
+			configContent: `
+[fetch_reviews]
+nitpicks = true
+`,
+			wantNitpicks: true,
 		},
 	}
 
@@ -248,20 +260,13 @@ func TestApplyWorkspaceDefaultsFetchReviewsNitpicks(t *testing.T) {
 			if err := os.MkdirAll(startDir, 0o755); err != nil {
 				t.Fatalf("mkdir start dir: %v", err)
 			}
-			writeCLIWorkspaceConfig(t, root, `
-[fetch_reviews]
-nitpicks = true
-`)
+			if strings.TrimSpace(tc.configContent) != "" {
+				writeCLIWorkspaceConfig(t, root, tc.configContent)
+			}
 
 			state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 			cmd := &cobra.Command{Use: "fetch-reviews"}
-			cmd.Flags().Bool("nitpicks", false, "include nitpicks")
-			if tc.setExplicitFlag {
-				if err := cmd.Flags().Set("nitpicks", "false"); err != nil {
-					t.Fatalf("set nitpicks flag: %v", err)
-				}
-				state.nitpicks = false
-			}
+			cmd.Flags().String("provider", "", "provider")
 
 			chdirCLITest(t, startDir)
 

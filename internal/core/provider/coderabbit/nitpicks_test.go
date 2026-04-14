@@ -189,7 +189,106 @@ func TestParseReviewBodyCommentItemsRecognizesMinorAndMajorCategories(t *testing
 	}
 }
 
-func TestFetchReviewsSkipsPullRequestReviewsWhenNitpicksDisabled(t *testing.T) {
+func TestParseReviewBodyCommentItemsParsesRealCodeRabbitMinorAndMajorMarkup(t *testing.T) {
+	t.Parallel()
+
+	reviews := []pullRequestReview{
+		{
+			ID: 4090314487,
+			Body: strings.Join([]string{
+				"**Actionable comments posted: 14**",
+				"",
+				"> [!NOTE]",
+				"> Due to the large number of review comments, Critical, Major severity comments were prioritized as inline comments.",
+				"",
+				"> [!CAUTION]",
+				"> Some comments are outside the diff and can’t be posted inline due to platform limitations.",
+				"",
+				"<details>",
+				"<summary>⚠️ Outside diff range comments (1)</summary><blockquote>",
+				"",
+				"<details>",
+				"<summary>web/src/routes/_app/-automation.integration.test.tsx (1)</summary><blockquote>",
+				"",
+				"`314-342`: _⚠️ Potential issue_ | _🟡 Minor_",
+				"",
+				"**Wrap all post-mutation assertions in `waitFor()` to prevent flaky tests.**",
+				"",
+				"Both `handleSubmitJob` and `handleTriggerNow` properly await `mutateAsync()` before calling side effects.",
+				"",
+				"</blockquote></details>",
+				"",
+				"</blockquote></details>",
+				"",
+				testReviewBodyCommentBlockWithRawSections(
+					"🟡 Minor comments",
+					testReviewBodyCommentFileSectionWithMetadata(
+						"web/src/systems/session/components/message-bubble.tsx-5-5",
+						"5-5",
+						"_⚠️ Potential issue_ | _🟡 Minor_",
+						"Use path alias import for `MessageMarkdown`.",
+						"Line 5 uses a relative import; this should use the `@/*` alias convention for web imports.",
+					),
+				),
+				"",
+				testReviewBodyCommentBlockWithRawSections(
+					"🔴 Major comments",
+					testReviewBodyCommentFileSectionWithMetadata(
+						"internal/api/core/network.go-259-267",
+						"259-267",
+						"_⚠️ Potential issue_ | _🔴 Major_",
+						"Keep the peer-id fallback when `display_name` is blank.",
+						"A non-nil `PeerCard.DisplayName` containing only whitespace now produces an empty `DisplayName` instead of falling back to `peer.PeerID`.",
+					),
+				),
+			}, "\n"),
+			SubmittedAt: "2026-04-10T14:24:56Z",
+			User: struct {
+				Login string `json:"login"`
+			}{Login: defaultBotLogin},
+		},
+	}
+
+	items := parseReviewBodyCommentItems(reviews, defaultBotLogin)
+	if len(items) != 2 {
+		t.Fatalf("expected 2 parsed review body comment items, got %d (%#v)", len(items), items)
+	}
+
+	itemByTitle := make(map[string]provider.ReviewItem, len(items))
+	for _, item := range items {
+		itemByTitle[item.Title] = item
+	}
+
+	minorItem, ok := itemByTitle["Use path alias import for MessageMarkdown."]
+	if !ok {
+		t.Fatalf("expected minor item, got %#v", itemByTitle)
+	}
+	if minorItem.File != "web/src/systems/session/components/message-bubble.tsx" {
+		t.Fatalf("unexpected minor file path: %#v", minorItem)
+	}
+	if minorItem.Line != 5 || minorItem.Severity != reviewBodyCommentSeverityMinor {
+		t.Fatalf("unexpected minor metadata: %#v", minorItem)
+	}
+	if strings.Contains(minorItem.Body, "Potential issue") || strings.Contains(minorItem.Body, "Prompt for AI Agents") {
+		t.Fatalf("expected minor body to exclude metadata and nested details, got %q", minorItem.Body)
+	}
+
+	majorItem, ok := itemByTitle["Keep the peer-id fallback when display_name is blank."]
+	if !ok {
+		t.Fatalf("expected major item, got %#v", itemByTitle)
+	}
+	if majorItem.File != "internal/api/core/network.go" {
+		t.Fatalf("unexpected major file path: %#v", majorItem)
+	}
+	if majorItem.Line != 259 || majorItem.Severity != reviewBodyCommentSeverityMajor {
+		t.Fatalf("unexpected major metadata: %#v", majorItem)
+	}
+	if strings.Contains(majorItem.Body, "Potential issue") || strings.Contains(majorItem.Body, "Suggested change") {
+		t.Fatalf("expected major body to exclude metadata and nested details, got %q", majorItem.Body)
+	}
+}
+
+func TestFetchReviewsSkipsPullRequestReviewsWhenReviewBodyCommentsAreDisabled(t *testing.T) {
 	t.Parallel()
 
 	reviewsEndpointCalled := false
@@ -219,7 +318,7 @@ func TestFetchReviewsSkipsPullRequestReviewsWhenNitpicksDisabled(t *testing.T) {
 		t.Fatalf("expected no items, got %#v", items)
 	}
 	if reviewsEndpointCalled {
-		t.Fatal("expected pull request reviews endpoint to be skipped without --nitpicks")
+		t.Fatal("expected pull request reviews endpoint to be skipped when review-body comments are disabled")
 	}
 }
 
@@ -271,7 +370,7 @@ func TestFetchReviewsIncludesReviewBodyCommentsWhenRequested(t *testing.T) {
 		t.Fatalf("fetch reviews: %v", err)
 	}
 	if !reviewsEndpointCalled {
-		t.Fatal("expected pull request reviews endpoint to be used when nitpicks are enabled")
+		t.Fatal("expected pull request reviews endpoint to be used when review-body comments are enabled")
 	}
 	if len(items) != 2 {
 		t.Fatalf("expected 2 review body comment items, got %#v", items)
@@ -303,10 +402,14 @@ func TestFetchReviewsIncludesReviewBodyCommentsWhenRequested(t *testing.T) {
 }
 
 func testReviewBodyCommentBlock(summary string, fileSections ...string) string {
-	joinedSections := strings.Join(fileSections, "\n\n")
+	return testReviewBodyCommentBlockWithRawSections(summary, fileSections...)
+}
+
+func testReviewBodyCommentBlockWithRawSections(summary string, sections ...string) string {
+	joinedSections := strings.Join(sections, "\n\n")
 	return strings.Join([]string{
 		"<details>",
-		fmt.Sprintf("<summary>%s (%d)</summary><blockquote>", summary, len(fileSections)),
+		fmt.Sprintf("<summary>%s (%d)</summary><blockquote>", summary, len(sections)),
 		"",
 		joinedSections,
 		"",
@@ -316,6 +419,52 @@ func testReviewBodyCommentBlock(summary string, fileSections ...string) string {
 }
 
 func testReviewBodyCommentFileSection(filePath string, lineRange string, title string, body string) string {
+	return testReviewBodyCommentLegacyFileSection(filePath, lineRange, title, body)
+}
+
+func testReviewBodyCommentFileSectionWithMetadata(
+	filePath string,
+	lineRange string,
+	metadata string,
+	title string,
+	body string,
+) string {
+	lines := []string{
+		"<details>",
+		fmt.Sprintf("<summary>%s (1)</summary><blockquote>", filePath),
+		"",
+		fmt.Sprintf("`%s`:", lineRange),
+	}
+	if strings.TrimSpace(metadata) != "" {
+		lines = append(lines, metadata, "")
+	}
+	lines = append(lines,
+		fmt.Sprintf("**%s**", title),
+		"",
+		body,
+		"",
+		"<details>",
+		"<summary>♻️ Proposed refactor</summary>",
+		"",
+		"```diff",
+		"+ ignored nested details",
+		"```",
+		"</details>",
+		"",
+		"<details>",
+		"<summary>🤖 Prompt for AI Agents</summary>",
+		"",
+		"```",
+		"ignored prompt details",
+		"```",
+		"</details>",
+		"",
+		"</blockquote></details>",
+	)
+	return strings.Join(lines, "\n")
+}
+
+func testReviewBodyCommentLegacyFileSection(filePath string, lineRange string, title string, body string) string {
 	return strings.Join([]string{
 		"<details>",
 		fmt.Sprintf("<summary>%s (1)</summary><blockquote>", filePath),

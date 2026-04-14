@@ -23,8 +23,10 @@ const (
 )
 
 var (
-	reviewBodyCommentHeaderRe = regexp.MustCompile("(?m)^`([^`]+)`:\\s*\\*\\*(.+?)\\*\\*\\s*$")
-	reviewFileSummaryRe       = regexp.MustCompile(`^(.+?)\s+\(\d+\)$`)
+	reviewBodyCommentSectionStartRe    = regexp.MustCompile("(?m)^`([0-9]+(?:-[0-9]+)?)`:")
+	reviewBodyCommentInlineTitleRe     = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	reviewBodyCommentStandaloneTitleRe = regexp.MustCompile(`^\*\*(.+?)\*\*$`)
+	reviewFileSummaryRe                = regexp.MustCompile(`^(.+?)\s+\(\d+\)$`)
 )
 
 type pullRequestReview struct {
@@ -159,31 +161,27 @@ func parseReviewBodyCommentsForFile(
 		return nil
 	}
 
-	matches := reviewBodyCommentHeaderRe.FindAllStringSubmatchIndex(trimmed, -1)
+	matches := reviewBodyCommentSectionStartRe.FindAllStringSubmatchIndex(trimmed, -1)
 	items := make([]provider.ReviewItem, 0, len(matches))
 	for idx, match := range matches {
 		lineRange := strings.TrimSpace(trimmed[match[2]:match[3]])
-		title := normalizeReviewBodyCommentText(trimmed[match[4]:match[5]])
-		if title == "" {
-			continue
-		}
-
-		bodyStart := match[1]
+		normalizedFilePath := normalizeReviewBodyCommentFilePath(filePath, lineRange)
+		sectionStart := match[0]
 		bodyEnd := len(trimmed)
 		if idx+1 < len(matches) {
 			bodyEnd = matches[idx+1][0]
 		}
 
-		commentBody := normalizeReviewBodyCommentBody(trimmed[bodyStart:bodyEnd])
-		if commentBody == "" {
-			commentBody = title
+		title, commentBody := parseReviewBodyCommentSection(trimmed[sectionStart:bodyEnd])
+		if title == "" {
+			continue
 		}
 
 		reviewID := strconv.Itoa(review.ID)
-		reviewHash := buildReviewBodyCommentHash(filePath, lineRange, title, commentBody)
+		reviewHash := buildReviewBodyCommentHash(normalizedFilePath, lineRange, title, commentBody)
 		items = append(items, provider.ReviewItem{
 			Title:                   title,
-			File:                    filePath,
+			File:                    normalizedFilePath,
 			Line:                    parseReviewBodyCommentLine(lineRange),
 			Severity:                severity,
 			Author:                  review.User.Login,
@@ -196,6 +194,75 @@ func parseReviewBodyCommentsForFile(
 	}
 
 	return items
+}
+
+func parseReviewBodyCommentSection(section string) (string, string) {
+	lines := strings.Split(strings.TrimSpace(section), "\n")
+	if len(lines) == 0 {
+		return "", ""
+	}
+
+	if title := parseInlineReviewBodyCommentTitle(lines[0]); title != "" {
+		commentBody := normalizeReviewBodyCommentBody(strings.Join(lines[1:], "\n"))
+		if commentBody == "" {
+			commentBody = title
+		}
+		return title, commentBody
+	}
+
+	titleLine := -1
+	title := ""
+	for idx := 1; idx < len(lines); idx++ {
+		line := strings.TrimSpace(lines[idx])
+		if line == "" {
+			continue
+		}
+		title = parseStandaloneReviewBodyCommentTitle(line)
+		if title == "" {
+			continue
+		}
+		titleLine = idx
+		break
+	}
+	if title == "" {
+		return "", ""
+	}
+
+	commentBody := normalizeReviewBodyCommentBody(strings.Join(lines[titleLine+1:], "\n"))
+	if commentBody == "" {
+		commentBody = title
+	}
+	return title, commentBody
+}
+
+func normalizeReviewBodyCommentFilePath(filePath string, lineRange string) string {
+	trimmedFilePath := strings.TrimSpace(filePath)
+	trimmedLineRange := strings.TrimSpace(lineRange)
+	if trimmedFilePath == "" || trimmedLineRange == "" {
+		return trimmedFilePath
+	}
+
+	suffix := "-" + trimmedLineRange
+	if strings.HasSuffix(trimmedFilePath, suffix) {
+		return strings.TrimSpace(strings.TrimSuffix(trimmedFilePath, suffix))
+	}
+	return trimmedFilePath
+}
+
+func parseInlineReviewBodyCommentTitle(line string) string {
+	matches := reviewBodyCommentInlineTitleRe.FindStringSubmatch(strings.TrimSpace(line))
+	if len(matches) < 2 {
+		return ""
+	}
+	return normalizeReviewBodyCommentText(matches[1])
+}
+
+func parseStandaloneReviewBodyCommentTitle(line string) string {
+	matches := reviewBodyCommentStandaloneTitleRe.FindStringSubmatch(strings.TrimSpace(line))
+	if len(matches) < 2 {
+		return ""
+	}
+	return normalizeReviewBodyCommentText(matches[1])
 }
 
 func extractTopLevelDetailsBlocks(text string) []detailsBlock {

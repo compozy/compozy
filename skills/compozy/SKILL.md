@@ -73,7 +73,7 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | `compozy start` | Execute PRD task files sequentially | `--name`, `--ide`, `--model`, `--auto-commit`, `--dry-run` |
 | `compozy exec` | Execute an ad hoc prompt | `--agent`, `--format`, `--prompt-file`, `--tui`, `--persist`, `--run-id` |
 | **Review** | | |
-| `compozy fetch-reviews` | Fetch provider review comments | `--provider`, `--pr`, `--name`, `--round`, `--nitpicks` |
+| `compozy fetch-reviews` | Fetch provider review comments | `--provider`, `--pr`, `--name`, `--round` |
 | `compozy fix-reviews` | Process review issue files | `--name`, `--round`, `--concurrent`, `--batch-size`, `--ide` |
 | **Utilities** | | |
 | `compozy validate-tasks` | Validate task file metadata | `--name`, `--tasks-dir`, `--format` |
@@ -177,6 +177,7 @@ batch_size = 3
 
 [fetch_reviews]
 provider = "coderabbit"
+nitpicks = false
 
 [exec]
 verbose = false

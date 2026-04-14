@@ -159,18 +159,19 @@ func TestFetchReviewsFallsBackToInputWhenNoDirs(t *testing.T) {
 		baseDir,
 	)
 
-	assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round", "nitpicks")
+	assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round")
 }
 
-func TestFetchReviewsFormIncludesNitpicksToggle(t *testing.T) {
+func TestFetchReviewsFormOmitsNitpicksToggle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should include nitpicks toggle in the fetch-reviews form", func(t *testing.T) {
+	t.Run("Should omit nitpicks toggle in the fetch-reviews form", func(t *testing.T) {
 		t.Parallel()
 
 		keys := formFieldKeys(newFetchReviewsCommand(), newCommandState(commandKindFetchReviews, core.ModePRReview))
 
-		assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round", "nitpicks")
+		assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round")
+		assertFieldKeysAbsent(t, keys, "nitpicks")
 	})
 }
 

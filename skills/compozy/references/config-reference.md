@@ -59,7 +59,7 @@ Options specific to `compozy fetch-reviews`.
 | Field | Type | Description |
 | --- | --- | --- |
 | `provider` | string | Default review provider (e.g., `coderabbit`) |
-| `nitpicks` | bool | Include CodeRabbit nitpick comments |
+| `nitpicks` | bool | Enable or disable CodeRabbit review-body comments (`nitpick`, `minor`, and `major`). Default is enabled when unset |
 
 ### `[exec]`
 
