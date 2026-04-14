@@ -9,7 +9,7 @@ rules:
   type-enum:
     - 2
     - always
-    - [build, ci, docs, feat, fix, perf, refactor, test]
+    - [build, ci, docs, feat, fix, perf, refactor, release, test]
   scope-empty:
     - 2
     - always

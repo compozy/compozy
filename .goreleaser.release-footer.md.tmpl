@@ -1,0 +1,17 @@
+### Verification
+
+All release artifacts are signed and can be verified:
+
+#### Checksums
+```bash
+cosign verify-blob \
+  --signature checksums.txt.sig \
+  --certificate checksums.txt.pem \
+  checksums.txt
+```
+
+{{- if .PreviousTag }}
+**Full Changelog**: https://github.com/compozy/compozy/compare/{{ .PreviousTag }}...{{ .Tag }}
+{{- else }}
+**Source**: https://github.com/compozy/compozy/tree/{{ .Tag }}
+{{- end }}

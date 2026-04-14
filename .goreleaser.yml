@@ -122,6 +122,7 @@ changelog:
     exclude:
       - "^(build|ci): "
       - "^ci\\(release\\): "
+      - "^release: "
       - "^chore\\(release\\): "
       - "^chore: auto-update generated files$"
       - "^chore: docs$"
@@ -148,50 +149,6 @@ release:
   mode: replace
   draft: false
   prerelease: auto
-  header: |
-    ## Compozy CLI {{ .Version }}
-
-    Welcome to the latest release of the Compozy CLI!
-
-    ### Installation
-
-    #### Homebrew
-    ```bash
-    brew tap compozy/compozy
-    brew install --cask compozy
-    ```
-
-    #### NPM
-    ```bash
-    npm install -g @compozy/cli
-    ```
-
-    #### Binary Download
-    Download the appropriate `compozy_{{ .Version }}_<os>_<arch>.tar.gz` asset for your platform and extract it.
-
-    #### Go Install
-    ```bash
-    go install github.com/compozy/compozy/cmd/compozy@{{ .Tag }}
-    ```
-
-  footer: |
-    ### Verification
-
-    All release artifacts are signed and can be verified:
-
-    #### Checksums
-    ```bash
-    cosign verify-blob \
-      --signature checksums.txt.sig \
-      --certificate checksums.txt.pem \
-      checksums.txt
-    ```
-
-    {{- if .PreviousTag }}
-    **Full Changelog**: https://github.com/compozy/compozy/compare/{{ .PreviousTag }}...{{ .Tag }}
-    {{- else }}
-    **Source**: https://github.com/compozy/compozy/tree/{{ .Tag }}
-    {{- end }}
 
 sboms:
   - artifacts: archive

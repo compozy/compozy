@@ -4,6 +4,7 @@
 .cache/
 bin/
 dist/
+RELEASE_NOTES.md
 coverage.out
 coverage.html
 .codex/CONTINUITY*

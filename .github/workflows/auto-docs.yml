@@ -13,6 +13,9 @@ concurrency:
   group: auto-docs-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
+env:
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.17
+
 jobs:
   auto-docs:
     name: Analyze merged PR and update documentation
@@ -20,7 +23,9 @@ jobs:
     if: |
       github.event.pull_request.merged == true &&
       !contains(github.event.pull_request.labels.*.name, 'skip-docs') &&
-      !contains(github.event.pull_request.changed_files, '.github/')
+      !startsWith(github.event.pull_request.title, 'release:') &&
+      !startsWith(github.event.pull_request.title, 'ci(release):') &&
+      !contains(github.event.pull_request.labels.*.name, 'auto-generated')
 
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -31,6 +36,11 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.1"
 
       - name: Get PR diff and context
         id: pr-info
@@ -47,7 +57,7 @@ jobs:
             | grep -vE '^docs/|^CHANGELOG\.md|^README\.md$' \
             > /tmp/changed-files.txt 2>/dev/null || touch /tmp/changed-files.txt
 
-      - name: Generate Documentation Updates
+      - name: Generate Release Notes and Documentation Updates
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -58,14 +68,68 @@ jobs:
             PR TITLE: ${{ steps.pr-info.outputs.pr_title }}
             AUTHOR: ${{ steps.pr-info.outputs.author }}
             CHANGED FILES: ${{ steps.pr-info.outputs.changed_files }}
+            PR_RELEASE_MODULE: ${{ env.PR_RELEASE_MODULE }}
 
-            This PR was just merged to main. Analyze the full diff and determine
-            which documentation files need updating, then create a docs-only PR.
+            This PR was just merged to main. You have TWO tasks:
+
+            ═══════════════════════════════════════════════════
+            TASK 1: RELEASE NOTES
+            ═══════════════════════════════════════════════════
+
+            Analyze the PR diff and determine if this PR contains user-facing changes
+            that warrant a release note entry.
 
             Context to read first:
             - /tmp/pr-context.json - PR metadata (title, body, files)
             - /tmp/pr.diff - Full unified diff of the merged PR
             - /tmp/changed-files.txt - Changed source files (filtered)
+
+            WHEN TO CREATE a release note:
+            - New public API, command, or feature
+            - Bug fix that users would notice
+            - Breaking changes (renamed config, removed feature, API change)
+            - Performance improvements users would notice
+            - Security fixes
+
+            WHEN NOT TO create a release note:
+            - Internal refactors with no user-facing impact
+            - Test-only changes
+            - CI/CD changes
+            - Documentation-only changes
+            - Code style/formatting changes
+
+            HOW TO CREATE a release note:
+            Use the pr-release CLI to create the release note file:
+            ```bash
+            go run $PR_RELEASE_MODULE add-note \
+              --title "<concise title describing the change>" \
+              --type "<feature|fix|breaking|highlight>" \
+              --body "<markdown description of the user-facing impact>"
+            ```
+
+            Type guidelines:
+            - `feature`: New capabilities or enhancements
+            - `fix`: Bug fixes
+            - `breaking`: Breaking changes (API, config, behavior)
+            - `highlight`: Notable improvements worth calling out
+
+            After creating the release note file, commit and push to main:
+            ```bash
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .release-notes/
+            git commit -m "docs: add release note for PR #${{ steps.pr-info.outputs.pr_number }}"
+            git push origin main
+            ```
+
+            If NO release note is needed: print SKIP_RELEASE_NOTES and continue.
+
+            ═══════════════════════════════════════════════════
+            TASK 2: DOCUMENTATION UPDATES
+            ═══════════════════════════════════════════════════
+
+            Analyze the full diff and determine which documentation files need
+            updating, then create a docs-only PR.
 
             Doc locations to check:
             1. README.md - Features, install, CLI commands.
@@ -99,7 +163,7 @@ jobs:
           claude_args: |
             --max-turns 25
             --model claude-sonnet-4-20250514
-            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(cat:*),Bash(head:*)"
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,Bash(git:*),Bash(gh:*),Bash(cat:*),Bash(head:*),Bash(go:*)"
 
       - name: Check result
         if: always()

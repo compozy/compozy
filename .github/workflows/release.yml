@@ -34,7 +34,7 @@ env:
   NODE_VERSION: "22"
   NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.15
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.17
 
 permissions:
   contents: write
@@ -91,6 +91,7 @@ jobs:
     if: |
       github.event_name == 'pull_request' &&
       (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.event.pull_request.title, 'release: Release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
     steps:
@@ -135,7 +136,8 @@ jobs:
     if: |
       github.event_name == 'push' &&
       github.ref == 'refs/heads/main' &&
-      contains(github.event.head_commit.message, 'ci(release):')
+      (contains(github.event.head_commit.message, 'ci(release):') ||
+       startsWith(github.event.head_commit.message, 'release:'))
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -199,11 +201,22 @@ jobs:
             fi
           fi
 
+      - name: Ensure release notes file exists
+        run: |
+          if [ ! -f RELEASE_NOTES.md ]; then
+            echo "No release notes found, creating empty file"
+            touch RELEASE_NOTES.md
+          fi
+
       - uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
           version: ~> v2
-          args: release --clean
+          args: >-
+            release --clean
+            --release-notes=RELEASE_NOTES.md
+            --release-header-tmpl=.goreleaser.release-header.md.tmpl
+            --release-footer-tmpl=.goreleaser.release-footer.md.tmpl
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}

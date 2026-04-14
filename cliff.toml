@@ -116,6 +116,9 @@ commit_parsers = [
   # Style
   { message = "^style", group = "💅 Style" },
 
+  # Release - skip release preparation commits
+  { message = "^release:", skip = true },
+
   # Chore - skip most of them
   { message = "^chore\\(release\\):", skip = true },
   { message = "^chore", group = "🔧 Miscellaneous Tasks" },
