@@ -18,7 +18,7 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 		Short:        "Fetch provider review comments into a PRD review round",
 		SilenceUsage: true,
 		Long: "Fetch review comments from a provider and write them into .compozy/tasks/<name>/reviews-NNN/.\n\n" +
-			"When --provider is omitted, Compozy can load its default from .compozy/config.toml.",
+			"When --provider is omitted, Compozy can load its default from ~/.compozy/config.toml or .compozy/config.toml.",
 		Example: `  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
   compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
   compozy fetch-reviews`,
@@ -51,7 +51,8 @@ func newFixReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults co
 		Long: `Process review issue markdown files from .compozy/tasks/<name>/reviews-NNN/ and run the configured AI agent
 to remediate review feedback.
 
-Most runtime defaults can be supplied by .compozy/config.toml. In interactive terminals the command
+Most runtime defaults can be supplied by ~/.compozy/config.toml and overridden by
+.compozy/config.toml. In interactive terminals the command
 opens the run cockpit by default; in non-TTY environments it falls back to headless streaming.`,
 		Example: `  compozy fix-reviews --name my-feature --ide codex --concurrent 2 --batch-size 3
   compozy fix-reviews --name my-feature --round 2
@@ -92,7 +93,8 @@ func newStartCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults command
 		Long: `Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.
 
-Most runtime defaults can be supplied by .compozy/config.toml. In interactive terminals the command
+Most runtime defaults can be supplied by ~/.compozy/config.toml and overridden by
+.compozy/config.toml. In interactive terminals the command
 opens the run cockpit by default; in non-TTY environments it falls back to headless streaming.`,
 		Example: `  compozy start --name multi-repo --tasks-dir .compozy/tasks/multi-repo --ide claude
   compozy start --format json --name multi-repo --tasks-dir .compozy/tasks/multi-repo

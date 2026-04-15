@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -13,36 +12,46 @@ import (
 	"github.com/compozy/compozy/internal/core/tasks"
 )
 
+const (
+	workspaceConfigScope = "workspace config"
+	globalConfigScope    = "global config"
+	effectiveConfigScope = "effective config"
+)
+
 func (cfg ProjectConfig) Validate() error {
-	if err := validateDefaults(cfg.Defaults); err != nil {
+	return cfg.validate(workspaceConfigScope)
+}
+
+func (cfg ProjectConfig) validate(scope string) error {
+	if err := validateDefaults(scope, cfg.Defaults); err != nil {
 		return err
 	}
-	if err := validateStart(cfg.Defaults, cfg.Start); err != nil {
+	if err := validateStart(scope, cfg.Defaults, cfg.Start); err != nil {
 		return err
 	}
-	if err := validateTasks(cfg.Tasks); err != nil {
+	if err := validateTasks(scope, cfg.Tasks); err != nil {
 		return err
 	}
-	if err := validateFixReviews(cfg.Defaults, cfg.FixReviews); err != nil {
+	if err := validateFixReviews(scope, cfg.Defaults, cfg.FixReviews); err != nil {
 		return err
 	}
-	if err := validateFetchReviews(cfg.FetchReviews); err != nil {
+	if err := validateFetchReviews(scope, cfg.FetchReviews); err != nil {
 		return err
 	}
-	if err := validateExec(cfg.Defaults, cfg.Exec); err != nil {
+	if err := validateExec(scope, cfg.Defaults, cfg.Exec); err != nil {
 		return err
 	}
-	if err := validateSound(cfg.Sound); err != nil {
+	if err := validateSound(scope, cfg.Sound); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateSound(cfg SoundConfig) error {
-	if err := validateSoundField("sound.on_completed", cfg.OnCompleted); err != nil {
+func validateSound(scope string, cfg SoundConfig) error {
+	if err := validateSoundField(configFieldName(scope, "sound.on_completed"), cfg.OnCompleted); err != nil {
 		return err
 	}
-	return validateSoundField("sound.on_failed", cfg.OnFailed)
+	return validateSoundField(configFieldName(scope, "sound.on_failed"), cfg.OnFailed)
 }
 
 func validateSoundField(field string, value *string) error {
@@ -50,71 +59,85 @@ func validateSoundField(field string, value *string) error {
 		return nil
 	}
 	if strings.TrimSpace(*value) == "" {
-		return fmt.Errorf("workspace config %s cannot be empty", field)
+		return fmt.Errorf("%s cannot be empty", field)
 	}
 	return nil
 }
 
-func validateDefaults(cfg DefaultsConfig) error {
+func validateDefaults(scope string, cfg DefaultsConfig) error {
 	overrides := RuntimeOverrides(cfg)
-	if err := validateRuntimeOverrides("defaults", overrides); err != nil {
+	if err := validateRuntimeOverrides(scope, "defaults", overrides); err != nil {
 		return err
 	}
-	return validateRuntimeAddDirs("defaults", overrides, nil)
+	return validateRuntimeAddDirs(scope, "defaults", overrides, nil)
 }
 
-func validateStart(defaults DefaultsConfig, cfg StartConfig) error {
-	if err := validateOutputFormatValue("start.output_format", cfg.OutputFormat); err != nil {
+func validateStart(scope string, defaults DefaultsConfig, cfg StartConfig) error {
+	if err := validateOutputFormatValue(configFieldName(scope, "start.output_format"), cfg.OutputFormat); err != nil {
 		return err
 	}
-	return validateWorkflowTUI("start", defaults, cfg.OutputFormat, cfg.TUI)
+	return validateWorkflowTUI(scope, "start", defaults, cfg.OutputFormat, cfg.TUI)
 }
 
-func validateTasks(cfg TasksConfig) error {
+func validateTasks(scope string, cfg TasksConfig) error {
 	if cfg.Types == nil {
 		return nil
 	}
 	if len(*cfg.Types) == 0 {
-		return errors.New("workspace config tasks.types cannot be empty; omit tasks.types to use built-in defaults")
+		return fmt.Errorf(
+			"%s cannot be empty; omit tasks.types to use built-in defaults",
+			configFieldName(scope, "tasks.types"),
+		)
 	}
 	if _, err := tasks.NewRegistry(*cfg.Types); err != nil {
-		return fmt.Errorf("workspace config tasks.types: %w", err)
+		return fmt.Errorf("%s: %w", configFieldName(scope, "tasks.types"), err)
 	}
 	return nil
 }
 
-func validateFixReviews(defaults DefaultsConfig, cfg FixReviewsConfig) error {
+func validateFixReviews(scope string, defaults DefaultsConfig, cfg FixReviewsConfig) error {
 	if cfg.Concurrent != nil && *cfg.Concurrent <= 0 {
-		return fmt.Errorf("workspace config fix_reviews.concurrent must be greater than zero (got %d)", *cfg.Concurrent)
+		return fmt.Errorf(
+			"%s must be greater than zero (got %d)",
+			configFieldName(scope, "fix_reviews.concurrent"),
+			*cfg.Concurrent,
+		)
 	}
 	if cfg.BatchSize != nil && *cfg.BatchSize <= 0 {
-		return fmt.Errorf("workspace config fix_reviews.batch_size must be greater than zero (got %d)", *cfg.BatchSize)
+		return fmt.Errorf(
+			"%s must be greater than zero (got %d)",
+			configFieldName(scope, "fix_reviews.batch_size"),
+			*cfg.BatchSize,
+		)
 	}
-	if err := validateOutputFormatValue("fix_reviews.output_format", cfg.OutputFormat); err != nil {
+	if err := validateOutputFormatValue(
+		configFieldName(scope, "fix_reviews.output_format"),
+		cfg.OutputFormat,
+	); err != nil {
 		return err
 	}
-	return validateWorkflowTUI("fix_reviews", defaults, cfg.OutputFormat, cfg.TUI)
+	return validateWorkflowTUI(scope, "fix_reviews", defaults, cfg.OutputFormat, cfg.TUI)
 }
 
-func validateFetchReviews(cfg FetchReviewsConfig) error {
+func validateFetchReviews(scope string, cfg FetchReviewsConfig) error {
 	if cfg.Provider == nil {
 		return nil
 	}
 	name := strings.TrimSpace(*cfg.Provider)
 	if name == "" {
-		return errors.New("workspace config fetch_reviews.provider cannot be empty")
+		return fmt.Errorf("%s cannot be empty", configFieldName(scope, "fetch_reviews.provider"))
 	}
 	if _, err := provider.ResolveRegistry(providerdefaults.DefaultRegistry()).Get(name); err != nil {
-		return fmt.Errorf("workspace config fetch_reviews.provider: %w", err)
+		return fmt.Errorf("%s: %w", configFieldName(scope, "fetch_reviews.provider"), err)
 	}
 	return nil
 }
 
-func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
-	if err := validateRuntimeOverrides("exec", cfg.RuntimeOverrides); err != nil {
+func validateExec(scope string, defaults DefaultsConfig, cfg ExecConfig) error {
+	if err := validateRuntimeOverrides(scope, "exec", cfg.RuntimeOverrides); err != nil {
 		return err
 	}
-	if err := validateRuntimeAddDirs("exec", cfg.RuntimeOverrides, &defaults); err != nil {
+	if err := validateRuntimeAddDirs(scope, "exec", cfg.RuntimeOverrides, &defaults); err != nil {
 		return err
 	}
 
@@ -125,7 +148,9 @@ func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
 	if cfg.TUI != nil && effectiveOutputFormat != nil && *cfg.TUI &&
 		isExecJSONOutputFormat(*effectiveOutputFormat) {
 		return fmt.Errorf(
-			"workspace config exec.tui cannot be true when exec.output_format is %q or %q",
+			"%s cannot be true when %s is %q or %q",
+			configFieldName(scope, "exec.tui"),
+			configFieldName(scope, "exec.output_format"),
 			model.OutputFormatJSONValue,
 			model.OutputFormatRawJSONValue,
 		)
@@ -133,17 +158,17 @@ func validateExec(defaults DefaultsConfig, cfg ExecConfig) error {
 	return nil
 }
 
-func validateWorkflowTUI(section string, defaults DefaultsConfig, outputFormat *string, tui *bool) error {
+func validateWorkflowTUI(scope, section string, defaults DefaultsConfig, outputFormat *string, tui *bool) error {
 	effectiveOutputFormat := outputFormat
-	outputField := fmt.Sprintf("%s.output_format", section)
+	outputField := configFieldName(scope, fmt.Sprintf("%s.output_format", section))
 	if effectiveOutputFormat == nil {
 		effectiveOutputFormat = defaults.OutputFormat
-		outputField = "defaults.output_format"
+		outputField = configFieldName(scope, "defaults.output_format")
 	}
 	if tui != nil && effectiveOutputFormat != nil && *tui && isExecJSONOutputFormat(*effectiveOutputFormat) {
 		return fmt.Errorf(
-			"workspace config %s.tui cannot be true when workspace config %s is %q or %q",
-			section,
+			"%s cannot be true when %s is %q or %q",
+			configFieldName(scope, fmt.Sprintf("%s.tui", section)),
 			outputField,
 			model.OutputFormatJSONValue,
 			model.OutputFormatRawJSONValue,
@@ -152,8 +177,8 @@ func validateWorkflowTUI(section string, defaults DefaultsConfig, outputFormat *
 	return nil
 }
 
-func validateRuntimeOverrides(section string, cfg RuntimeOverrides) error {
-	validators := []func(string, RuntimeOverrides) error{
+func validateRuntimeOverrides(scope, section string, cfg RuntimeOverrides) error {
+	validators := []func(string, string, RuntimeOverrides) error{
 		validateRuntimeIDE,
 		validateRuntimeOutputFormat,
 		validateRuntimeReasoningEffort,
@@ -164,31 +189,31 @@ func validateRuntimeOverrides(section string, cfg RuntimeOverrides) error {
 		validateRuntimeRetryBackoffMultiplier,
 	}
 	for _, validate := range validators {
-		if err := validate(section, cfg); err != nil {
+		if err := validate(scope, section, cfg); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateRuntimeIDE(section string, cfg RuntimeOverrides) error {
+func validateRuntimeIDE(scope, section string, cfg RuntimeOverrides) error {
 	if cfg.IDE == nil {
 		return nil
 	}
 	if strings.TrimSpace(*cfg.IDE) == "" {
-		return fmt.Errorf("workspace config %s.ide cannot be empty", section)
+		return fmt.Errorf("%s cannot be empty", runtimeFieldName(scope, section, "ide"))
 	}
 	if _, err := agent.DriverCatalogEntryForIDE(strings.TrimSpace(*cfg.IDE)); err != nil {
-		return fmt.Errorf("workspace config %s.ide: %w", section, err)
+		return fmt.Errorf("%s: %w", runtimeFieldName(scope, section, "ide"), err)
 	}
 	return nil
 }
 
-func validateRuntimeOutputFormat(section string, cfg RuntimeOverrides) error {
-	return validateOutputFormatValue(runtimeFieldName(section, "output_format"), cfg.OutputFormat)
+func validateRuntimeOutputFormat(scope, section string, cfg RuntimeOverrides) error {
+	return validateOutputFormatValue(runtimeFieldName(scope, section, "output_format"), cfg.OutputFormat)
 }
 
-func validateRuntimeReasoningEffort(section string, cfg RuntimeOverrides) error {
+func validateRuntimeReasoningEffort(scope, section string, cfg RuntimeOverrides) error {
 	if cfg.ReasoningEffort == nil {
 		return nil
 	}
@@ -198,13 +223,13 @@ func validateRuntimeReasoningEffort(section string, cfg RuntimeOverrides) error 
 	default:
 		return fmt.Errorf(
 			"%s must be one of low, medium, high, xhigh (got %q)",
-			runtimeFieldName(section, "reasoning_effort"),
+			runtimeFieldName(scope, section, "reasoning_effort"),
 			strings.TrimSpace(*cfg.ReasoningEffort),
 		)
 	}
 }
 
-func validateRuntimeAccessMode(section string, cfg RuntimeOverrides) error {
+func validateRuntimeAccessMode(scope, section string, cfg RuntimeOverrides) error {
 	if cfg.AccessMode == nil {
 		return nil
 	}
@@ -214,7 +239,7 @@ func validateRuntimeAccessMode(section string, cfg RuntimeOverrides) error {
 	default:
 		return fmt.Errorf(
 			"%s must be %q or %q (got %q)",
-			runtimeFieldName(section, "access_mode"),
+			runtimeFieldName(scope, section, "access_mode"),
 			model.AccessModeDefault,
 			model.AccessModeFull,
 			strings.TrimSpace(*cfg.AccessMode),
@@ -222,27 +247,27 @@ func validateRuntimeAccessMode(section string, cfg RuntimeOverrides) error {
 	}
 }
 
-func validateRuntimeTimeout(section string, cfg RuntimeOverrides) error {
+func validateRuntimeTimeout(scope, section string, cfg RuntimeOverrides) error {
 	if cfg.Timeout == nil {
 		return nil
 	}
 
 	timeout := strings.TrimSpace(*cfg.Timeout)
 	if timeout == "" {
-		return fmt.Errorf("%s cannot be empty", runtimeFieldName(section, "timeout"))
+		return fmt.Errorf("%s cannot be empty", runtimeFieldName(scope, section, "timeout"))
 	}
 	duration, err := time.ParseDuration(timeout)
 	if err != nil {
-		return fmt.Errorf("%s: %w", runtimeFieldName(section, "timeout"), err)
+		return fmt.Errorf("%s: %w", runtimeFieldName(scope, section, "timeout"), err)
 	}
 	if duration <= 0 {
-		return fmt.Errorf("%s must be greater than zero (got %s)", runtimeFieldName(section, "timeout"), timeout)
+		return fmt.Errorf("%s must be greater than zero (got %s)", runtimeFieldName(scope, section, "timeout"), timeout)
 	}
 	return nil
 }
 
-func validateRuntimeAddDirs(section string, cfg RuntimeOverrides, defaults *DefaultsConfig) error {
-	addDirs, fieldName := effectiveAddDirs(section, cfg, defaults)
+func validateRuntimeAddDirs(scope, section string, cfg RuntimeOverrides, defaults *DefaultsConfig) error {
+	addDirs, fieldName := effectiveAddDirs(scope, section, cfg, defaults)
 	if len(addDirs) == 0 {
 		return nil
 	}
@@ -260,35 +285,43 @@ func effectiveIDE(cfg RuntimeOverrides, defaults *DefaultsConfig) string {
 	return model.IDECodex
 }
 
-func effectiveAddDirs(section string, cfg RuntimeOverrides, defaults *DefaultsConfig) ([]string, string) {
+func effectiveAddDirs(scope, section string, cfg RuntimeOverrides, defaults *DefaultsConfig) ([]string, string) {
 	if cfg.AddDirs != nil {
-		return *cfg.AddDirs, runtimeFieldName(section, "add_dirs")
+		return *cfg.AddDirs, runtimeFieldName(scope, section, "add_dirs")
 	}
 	if defaults != nil && defaults.AddDirs != nil {
-		return *defaults.AddDirs, runtimeFieldName("defaults", "add_dirs")
+		return *defaults.AddDirs, runtimeFieldName(scope, "defaults", "add_dirs")
 	}
 	return nil, ""
 }
 
-func validateRuntimeTailLines(section string, cfg RuntimeOverrides) error {
+func validateRuntimeTailLines(scope, section string, cfg RuntimeOverrides) error {
 	if cfg.TailLines != nil && *cfg.TailLines < 0 {
-		return fmt.Errorf("%s must be 0 or greater (got %d)", runtimeFieldName(section, "tail_lines"), *cfg.TailLines)
+		return fmt.Errorf(
+			"%s must be 0 or greater (got %d)",
+			runtimeFieldName(scope, section, "tail_lines"),
+			*cfg.TailLines,
+		)
 	}
 	return nil
 }
 
-func validateRuntimeMaxRetries(section string, cfg RuntimeOverrides) error {
+func validateRuntimeMaxRetries(scope, section string, cfg RuntimeOverrides) error {
 	if cfg.MaxRetries != nil && *cfg.MaxRetries < 0 {
-		return fmt.Errorf("%s cannot be negative (got %d)", runtimeFieldName(section, "max_retries"), *cfg.MaxRetries)
+		return fmt.Errorf(
+			"%s cannot be negative (got %d)",
+			runtimeFieldName(scope, section, "max_retries"),
+			*cfg.MaxRetries,
+		)
 	}
 	return nil
 }
 
-func validateRuntimeRetryBackoffMultiplier(section string, cfg RuntimeOverrides) error {
+func validateRuntimeRetryBackoffMultiplier(scope, section string, cfg RuntimeOverrides) error {
 	if cfg.RetryBackoffMultiplier != nil && *cfg.RetryBackoffMultiplier <= 0 {
 		return fmt.Errorf(
 			"%s must be positive (got %.2f)",
-			runtimeFieldName(section, "retry_backoff_multiplier"),
+			runtimeFieldName(scope, section, "retry_backoff_multiplier"),
 			*cfg.RetryBackoffMultiplier,
 		)
 	}
@@ -325,6 +358,10 @@ func isExecJSONOutputFormat(value string) bool {
 	}
 }
 
-func runtimeFieldName(section, field string) string {
-	return fmt.Sprintf("workspace config %s.%s", section, field)
+func configFieldName(scope, field string) string {
+	return fmt.Sprintf("%s %s", scope, field)
+}
+
+func runtimeFieldName(scope, section, field string) string {
+	return configFieldName(scope, fmt.Sprintf("%s.%s", section, field))
 }

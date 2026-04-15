@@ -162,4 +162,4 @@ Execute an agent through the normal `exec` pipeline:
 compozy exec --agent reviewer "Review the staged changes"
 ```
 
-You can still combine `--agent` with normal exec controls such as `--model`, `--reasoning-effort`, `--format`, `--persist`, and `--run-id`. Explicit CLI flags win over `AGENT.md` defaults. When an inspected agent is invalid, `compozy agents inspect <name>` prints the validation report and exits non-zero so you can fix the definition before running it.
+You can still combine `--agent` with normal exec controls such as `--model`, `--reasoning-effort`, `--format`, `--persist`, and `--run-id`. Explicit CLI flags win over `AGENT.md` defaults, and `AGENT.md` runtime defaults still win over workspace/global config files. When an inspected agent is invalid, `compozy agents inspect <name>` prints the validation report and exits non-zero so you can fix the definition before running it.

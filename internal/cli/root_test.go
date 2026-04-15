@@ -432,7 +432,7 @@ func TestREADMEExecDocumentationMatchesCurrentContract(t *testing.T) {
 		".compozy/runs/<run-id>/events.jsonl",
 		".compozy/runs/<run-id>/turns/0001/prompt.md",
 		".compozy/runs/<run-id>/turns/0001/result.json",
-		"flags > [exec] > [defaults] > built-in defaults",
+		"flags > workspace [exec] > workspace [defaults] > global [exec] > global [defaults] > built-in defaults",
 		"[exec]",
 		"`copilot`",
 		"`cursor-agent`",
