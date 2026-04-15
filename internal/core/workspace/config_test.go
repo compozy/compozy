@@ -67,6 +67,36 @@ func TestLoadConfigReturnsZeroConfigWhenFileIsMissing(t *testing.T) {
 	}
 }
 
+func TestLoadConfigReturnsGlobalConfigWhenWorkspaceFileIsMissing(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir .compozy: %v", err)
+	}
+	writeGlobalConfig(t, homeDir, `
+[defaults]
+ide = "claude"
+model = "sonnet"
+
+[tasks]
+types = ["mobile", "api"]
+`)
+
+	cfg, path, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if path != filepath.Join(homeDir, ".compozy", "config.toml") {
+		t.Fatalf("unexpected effective config path: %q", path)
+	}
+	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
+		t.Fatalf("unexpected defaults.ide: %#v", cfg.Defaults.IDE)
+	}
+	if cfg.Tasks.Types == nil || !equalStrings(*cfg.Tasks.Types, []string{"mobile", "api"}) {
+		t.Fatalf("unexpected tasks.types: %#v", cfg.Tasks.Types)
+	}
+}
+
 func TestLoadConfigRejectsUnknownFields(t *testing.T) {
 	t.Parallel()
 
@@ -718,6 +748,161 @@ on_failed = "\t"
 	}
 }
 
+func TestLoadConfigMergesWorkspaceOverGlobalConfig(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[defaults]
+ide = "claude"
+model = "sonnet"
+access_mode = "default"
+
+[start]
+include_completed = false
+`)
+	writeWorkspaceConfig(t, root, `
+[defaults]
+model = "gpt-5.4"
+
+[start]
+include_completed = true
+`)
+
+	cfg, path, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if path != filepath.Join(root, ".compozy", "config.toml") {
+		t.Fatalf("unexpected effective config path: %q", path)
+	}
+	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
+		t.Fatalf("expected global defaults.ide fallback, got %#v", cfg.Defaults.IDE)
+	}
+	if cfg.Defaults.Model == nil || *cfg.Defaults.Model != "gpt-5.4" {
+		t.Fatalf("expected workspace defaults.model override, got %#v", cfg.Defaults.Model)
+	}
+	if cfg.Start.IncludeCompleted == nil || !*cfg.Start.IncludeCompleted {
+		t.Fatalf("expected workspace start.include_completed override, got %#v", cfg.Start.IncludeCompleted)
+	}
+}
+
+func TestLoadConfigKeepsWorkspaceDefaultsAheadOfGlobalCommandOverrides(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[defaults]
+model = "sonnet"
+output_format = "json"
+
+[start]
+output_format = "raw-json"
+tui = false
+
+[exec]
+model = "gpt-5.4"
+output_format = "raw-json"
+verbose = true
+`)
+	writeWorkspaceConfig(t, root, `
+[defaults]
+model = "o4-mini"
+output_format = "text"
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Defaults.Model == nil || *cfg.Defaults.Model != "o4-mini" {
+		t.Fatalf("expected workspace defaults.model to win, got %#v", cfg.Defaults.Model)
+	}
+	if cfg.Defaults.OutputFormat == nil || *cfg.Defaults.OutputFormat != "text" {
+		t.Fatalf("expected workspace defaults.output_format to win, got %#v", cfg.Defaults.OutputFormat)
+	}
+	if cfg.Start.OutputFormat != nil {
+		t.Fatalf("expected global start.output_format to stay shadowed, got %#v", cfg.Start.OutputFormat)
+	}
+	if cfg.Start.TUI == nil || *cfg.Start.TUI {
+		t.Fatalf("expected global start.tui to remain available, got %#v", cfg.Start.TUI)
+	}
+	if cfg.Exec.Model != nil {
+		t.Fatalf("expected global exec.model to stay shadowed, got %#v", cfg.Exec.Model)
+	}
+	if cfg.Exec.OutputFormat != nil {
+		t.Fatalf("expected global exec.output_format to stay shadowed, got %#v", cfg.Exec.OutputFormat)
+	}
+	if cfg.Exec.Verbose == nil || !*cfg.Exec.Verbose {
+		t.Fatalf("expected global exec.verbose to remain available, got %#v", cfg.Exec.Verbose)
+	}
+}
+
+func TestLoadConfigRejectsInvalidMergedCrossScopeCombination(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[defaults]
+output_format = "json"
+`)
+	writeWorkspaceConfig(t, root, `
+[start]
+tui = true
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected merged config validation error")
+	}
+	if !strings.Contains(err.Error(), "effective config start.tui cannot be true") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigResolvesGlobalAddDirsRelativeToHome(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[defaults]
+add_dirs = ["shared", "/opt/tools"]
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Defaults.AddDirs == nil {
+		t.Fatal("expected defaults.add_dirs to be populated")
+	}
+	want := []string{
+		filepath.Join(homeDir, "shared"),
+		"/opt/tools",
+	}
+	if !equalStrings(*cfg.Defaults.AddDirs, want) {
+		t.Fatalf("unexpected defaults.add_dirs\nwant: %#v\ngot:  %#v", want, *cfg.Defaults.AddDirs)
+	}
+}
+
+func TestLoadConfigDoesNotRequireGlobalConfigWhenHomeLookupFails(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[defaults]
+ide = "claude"
+`)
+	stubWorkspaceUserHomeDir(t, func() (string, error) {
+		return "", errors.New("home unavailable")
+	})
+
+	cfg, path, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if path != filepath.Join(root, ".compozy", "config.toml") {
+		t.Fatalf("unexpected effective config path: %q", path)
+	}
+	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
+		t.Fatalf("expected workspace config to load without global path, got %#v", cfg.Defaults.IDE)
+	}
+}
+
 func ptrBool(b bool) *bool       { return &b }
 func ptrString(s string) *string { return &s }
 
@@ -756,6 +941,37 @@ func writeWorkspaceConfig(t *testing.T, workspaceRoot, content string) {
 	if err := os.WriteFile(configPath, []byte(strings.TrimLeft(content, "\n")), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
+}
+
+func writeGlobalConfig(t *testing.T, homeDir, content string) {
+	t.Helper()
+
+	configDir := filepath.Join(homeDir, ".compozy")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir global config dir: %v", err)
+	}
+	configPath := filepath.Join(configDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(strings.TrimLeft(content, "\n")), 0o600); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+}
+
+func isolateWorkspaceConfigHome(t *testing.T) string {
+	t.Helper()
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	return homeDir
+}
+
+func stubWorkspaceUserHomeDir(t *testing.T, fn func() (string, error)) {
+	t.Helper()
+
+	original := osUserHomeDir
+	osUserHomeDir = fn
+	t.Cleanup(func() {
+		osUserHomeDir = original
+	})
 }
 
 func mustEvalSymlinksWorkspaceTest(t *testing.T, path string) string {

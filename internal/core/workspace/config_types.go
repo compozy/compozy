@@ -1,10 +1,12 @@
 package workspace
 
 type Context struct {
-	Root       string
-	CompozyDir string
-	ConfigPath string
-	Config     ProjectConfig
+	Root                string
+	CompozyDir          string
+	ConfigPath          string
+	WorkspaceConfigPath string
+	GlobalConfigPath    string
+	Config              ProjectConfig
 }
 
 type ProjectConfig struct {

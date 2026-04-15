@@ -67,8 +67,8 @@ func newRootCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandS
 		SilenceUsage: true,
 		Long: `Compozy manages review rounds and PRD execution workflows.
 
-Project-level defaults can be stored in .compozy/config.toml. Explicit CLI flags
-always override values loaded from the workspace config.
+Defaults can be stored in ~/.compozy/config.toml and overridden per workspace in
+.compozy/config.toml. Explicit CLI flags always override values loaded from config files.
 
 Use explicit workflow subcommands:
   compozy setup         Install bundled public skills for supported agents

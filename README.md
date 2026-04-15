@@ -130,19 +130,20 @@ dependencies:
 
 Validate task files at any time with `compozy validate-tasks --name <feature>`. `compozy start` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
 
-## ⚙️ Workspace Config
+## ⚙️ Config Files
 
-Compozy can load project defaults from `.compozy/config.toml`.
+Compozy can load global defaults from `~/.compozy/config.toml` and override them per workspace with `.compozy/config.toml`.
 
 - The CLI discovers the nearest `.compozy/` directory by walking upward from the current working directory.
-- If `.compozy/config.toml` exists, Compozy loads it once at command startup.
+- If `~/.compozy/config.toml` exists, Compozy loads it once at command startup.
+- If `.compozy/config.toml` exists in the resolved workspace, it overrides the global config field by field.
 - Interactive forms for `compozy start`, `compozy fix-reviews`, and `compozy fetch-reviews` are prefilled from the resolved config.
 - Explicit CLI flags always win over config values.
 
 Precedence is:
 
 ```text
-explicit flags > command section > [defaults] > built-in defaults
+explicit flags > workspace command section > workspace [defaults] > global command section > global [defaults] > built-in defaults
 ```
 
 Example:
@@ -187,12 +188,14 @@ Supported sections:
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy validate-tasks`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
+- `[sound]` for optional run-completion audio presets or absolute file paths
 
 Notes:
 
-- `.compozy/config.toml` is optional. If it is absent, Compozy keeps the current built-in defaults.
+- Both `~/.compozy/config.toml` and `.compozy/config.toml` are optional. If both are absent, Compozy keeps the current built-in defaults.
 - `.compozy/tasks` remains the fixed workflow root in this version; the config file does not change the workflow root path.
 - Unknown keys and invalid value types are rejected during config loading.
+- Relative `add_dirs` are resolved against the owning config scope: the user home directory for `~/.compozy/config.toml` and the workspace root for `.compozy/config.toml`.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy start`, and `compozy fix-reviews`.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
 
@@ -223,7 +226,7 @@ compozy exec --agent reviewer "Review the staged changes"
 Runtime precedence for `compozy exec --agent ...` is:
 
 ```text
-explicit CLI flags > AGENT.md runtime defaults > .compozy/config.toml > built-in defaults
+explicit CLI flags > AGENT.md runtime defaults > workspace/global config > built-in defaults
 ```
 
 `mcp.json` is only for agent-local MCP servers. The reserved Compozy MCP server is also named `compozy`, but it is injected by the host and must not appear in `mcp.json`. That reserved server exists only to expose host-owned tools such as `run_agent`. Child agent runs receive the reserved `compozy` server plus the child agent's own `mcp.json`; they do not inherit the parent agent's local MCP servers.
@@ -320,7 +323,7 @@ Persisted `exec` runs use this layout:
 .compozy/runs/<run-id>/turns/0001/result.json
 ```
 
-`compozy exec` uses the same config merge rule as the rest of the CLI: `flags > [exec] > [defaults] > built-in defaults`.
+`compozy exec` uses the same config merge rule as the rest of the CLI: `flags > workspace [exec] > workspace [defaults] > global [exec] > global [defaults] > built-in defaults`.
 
 ## 🚀 Quick Start
 
@@ -566,7 +569,7 @@ compozy archive [flags]
 compozy exec [prompt] [flags]
 ```
 
-Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `stdin`. When present, `.compozy/config.toml` can provide exec defaults through `[exec]` and shared runtime defaults through `[defaults]`.
+Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `stdin`. When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide exec defaults through `[exec]` and shared runtime defaults through `[defaults]`.
 
 `compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
@@ -640,7 +643,7 @@ compozy start [flags]
 ```
 
 Running `compozy start` with no flags opens the interactive form automatically.
-When present, `.compozy/config.toml` can provide defaults for runtime flags such as
+When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide defaults for runtime flags such as
 `--ide`, `--model`, `--reasoning-effort`, `--access-mode`, `--timeout`, `--add-dir`, and `--auto-commit`.
 
 | Flag                         | Default     | Description                                                                                |
@@ -670,7 +673,7 @@ compozy fetch-reviews [flags]
 ```
 
 Running `compozy fetch-reviews` with no flags opens the interactive form automatically.
-When present, `.compozy/config.toml` can provide defaults such as `provider` and `nitpicks`.
+When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide defaults such as `provider` and `nitpicks`.
 
 | Flag         | Default | Description                               |
 | ------------ | ------- | ----------------------------------------- |
@@ -680,7 +683,7 @@ When present, `.compozy/config.toml` can provide defaults such as `provider` and
 | `--round`    | `0`     | Round number (auto-increments if omitted) |
 
 By default, `fetch-reviews` imports CodeRabbit review-body comments for `nitpick`, `minor`, and `major`.
-Use `[fetch_reviews].nitpicks = false` in `.compozy/config.toml` to disable that import.
+Use `[fetch_reviews].nitpicks = false` in either config file to disable that import.
 
 </details>
 
@@ -692,7 +695,7 @@ compozy fix-reviews [flags]
 ```
 
 Running `compozy fix-reviews` with no flags opens the interactive form automatically.
-When present, `.compozy/config.toml` can provide runtime defaults as well as review workflow
+When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide runtime defaults as well as review workflow
 defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 
 | Flag                         | Default     | Description                                                                                |

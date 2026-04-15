@@ -1,7 +1,8 @@
 Execute task markdown files from a PRD workflow directory and dispatch them to the configured
 AI agent one task at a time.
 
-Most runtime defaults can be supplied by .compozy/config.toml. In interactive terminals the command
+Most runtime defaults can be supplied by ~/.compozy/config.toml and overridden by
+.compozy/config.toml. In interactive terminals the command
 opens the run cockpit by default; in non-TTY environments it falls back to headless streaming.
 
 Usage:

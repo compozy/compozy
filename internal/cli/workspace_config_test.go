@@ -22,6 +22,7 @@ var cliWorkingDirMu sync.Mutex
 
 func TestApplyWorkspaceDefaultsLoadsNearestWorkspaceConfig(t *testing.T) {
 	root := t.TempDir()
+	homeDir := isolateCLIConfigHome(t)
 	startDir := filepath.Join(root, "pkg", "feature")
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
 		t.Fatalf("mkdir start dir: %v", err)
@@ -62,13 +63,23 @@ include_completed = true
 	if !state.includeCompleted {
 		t.Fatalf("expected includeCompleted=true")
 	}
-	wantDirs := []string{"../shared", "../docs"}
+	resolvedRoot := mustEvalSymlinksCLITest(t, root)
+	wantDirs := []string{
+		filepath.Join(filepath.Dir(resolvedRoot), "shared"),
+		filepath.Join(filepath.Dir(resolvedRoot), "docs"),
+	}
 	if !reflect.DeepEqual(state.addDirs, wantDirs) {
 		t.Fatalf("unexpected addDirs\nwant: %#v\ngot:  %#v", wantDirs, state.addDirs)
+	}
+
+	globalConfigPath := filepath.Join(homeDir, ".compozy", "config.toml")
+	if _, err := os.Stat(globalConfigPath); !os.IsNotExist(err) {
+		t.Fatalf("expected isolated global config to be absent, got stat err=%v", err)
 	}
 }
 
 func TestApplyWorkspaceDefaultsDoesNotOverrideChangedFlags(t *testing.T) {
+	isolateCLIConfigHome(t)
 	root := t.TempDir()
 	startDir := filepath.Join(root, "pkg", "feature")
 	if err := os.MkdirAll(startDir, 0o755); err != nil {
@@ -429,6 +440,165 @@ func TestNewFormInputsFromStatePreservesResolvedDefaults(t *testing.T) {
 	}
 }
 
+func TestApplyWorkspaceDefaultsLoadsGlobalConfigWhenWorkspaceConfigIsMissing(t *testing.T) {
+	root := t.TempDir()
+	homeDir := isolateCLIConfigHome(t)
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIGlobalConfig(t, homeDir, `
+[defaults]
+ide = "claude"
+model = "sonnet"
+
+[start]
+include_completed = true
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+	cmd.Flags().Bool("include-completed", false, "include completed")
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.ide != "claude" {
+		t.Fatalf("expected global ide to apply, got %q", state.ide)
+	}
+	if state.model != "sonnet" {
+		t.Fatalf("expected global model to apply, got %q", state.model)
+	}
+	if !state.includeCompleted {
+		t.Fatal("expected global start.include_completed to apply")
+	}
+}
+
+func TestApplyWorkspaceDefaultsMergesWorkspaceOverGlobal(t *testing.T) {
+	root := t.TempDir()
+	homeDir := isolateCLIConfigHome(t)
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIGlobalConfig(t, homeDir, `
+[defaults]
+ide = "claude"
+model = "sonnet"
+access_mode = "default"
+
+[start]
+include_completed = false
+`)
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+model = "gpt-5.4"
+
+[start]
+include_completed = true
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+	cmd.Flags().Bool("include-completed", false, "include completed")
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.ide != "claude" {
+		t.Fatalf("expected global defaults.ide fallback, got %q", state.ide)
+	}
+	if state.model != "gpt-5.4" {
+		t.Fatalf("expected workspace defaults.model to override global, got %q", state.model)
+	}
+	if state.accessMode != "default" {
+		t.Fatalf("expected global access_mode fallback, got %q", state.accessMode)
+	}
+	if !state.includeCompleted {
+		t.Fatal("expected workspace start.include_completed to override global")
+	}
+}
+
+func TestApplyWorkspaceDefaultsKeepsWorkspaceDefaultsAheadOfGlobalStartOverrides(t *testing.T) {
+	root := t.TempDir()
+	homeDir := isolateCLIConfigHome(t)
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIGlobalConfig(t, homeDir, `
+[defaults]
+output_format = "json"
+
+[start]
+output_format = "raw-json"
+tui = false
+`)
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+output_format = "text"
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.outputFormat != "text" {
+		t.Fatalf(
+			"expected workspace defaults.output_format to beat global start.output_format, got %q",
+			state.outputFormat,
+		)
+	}
+	if state.tui {
+		t.Fatal("expected global start.tui to remain applied")
+	}
+}
+
+func TestApplyWorkspaceDefaultsKeepsWorkspaceDefaultsAheadOfGlobalExecOverrides(t *testing.T) {
+	root := t.TempDir()
+	homeDir := isolateCLIConfigHome(t)
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIGlobalConfig(t, homeDir, `
+[defaults]
+model = "sonnet"
+
+[exec]
+model = "gpt-5.4"
+verbose = true
+`)
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+model = "o4-mini"
+`)
+
+	state := newCommandState(commandKindExec, core.ModeExec)
+	cmd := newTestCommand(state)
+	cmd.Flags().Bool("verbose", false, "verbose logging")
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.model != "o4-mini" {
+		t.Fatalf("expected workspace defaults.model to beat global exec.model, got %q", state.model)
+	}
+	if !state.verbose {
+		t.Fatal("expected global exec.verbose to remain applied")
+	}
+}
+
 func TestNewFormInputsFromStateQuotesAddDirsContainingCommas(t *testing.T) {
 	t.Parallel()
 
@@ -742,6 +912,26 @@ func writeCLIWorkspaceConfig(t *testing.T, workspaceRoot, content string) {
 	if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
+}
+
+func writeCLIGlobalConfig(t *testing.T, homeDir, content string) {
+	t.Helper()
+
+	configDir := filepath.Join(homeDir, ".compozy")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir global .compozy: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.toml"), []byte(content), 0o600); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+}
+
+func isolateCLIConfigHome(t *testing.T) string {
+	t.Helper()
+
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	return homeDir
 }
 
 func mustEvalSymlinksCLITest(t *testing.T, path string) string {
