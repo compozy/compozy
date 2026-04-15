@@ -48,8 +48,7 @@ func TestDiscoverFallsBackToStartDirectoryWhenWorkspaceIsMissing(t *testing.T) {
 }
 
 func TestLoadConfigReturnsZeroConfigWhenFileIsMissing(t *testing.T) {
-	t.Parallel()
-
+	isolateWorkspaceConfigHome(t)
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
 		t.Fatalf("mkdir .compozy: %v", err)
@@ -677,8 +676,6 @@ func TestLoadConfigReturnsContextErrorWhenCanceled(t *testing.T) {
 }
 
 func TestLoadConfigSoundSection(t *testing.T) {
-	t.Parallel()
-
 	cases := []struct {
 		name          string
 		content       string
@@ -723,8 +720,7 @@ on_failed = "\t"
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
+			isolateWorkspaceConfigHome(t)
 			root := t.TempDir()
 			writeWorkspaceConfig(t, root, tc.content)
 
@@ -881,25 +877,48 @@ add_dirs = ["shared", "/opt/tools"]
 	}
 }
 
-func TestLoadConfigDoesNotRequireGlobalConfigWhenHomeLookupFails(t *testing.T) {
+func TestLoadConfigReturnsErrorWhenHomeLookupFails(t *testing.T) {
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[defaults]
+ide = "claude"
+`)
+	homeErr := errors.New("home unavailable")
+	stubWorkspaceUserHomeDir(t, func() (string, error) {
+		return "", homeErr
+	})
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected load config error")
+	}
+	if !errors.Is(err, homeErr) {
+		t.Fatalf("expected home lookup error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "resolve config paths: lookup user home directory") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfigReturnsErrorWhenGlobalBaseDirCannotBeResolved(t *testing.T) {
 	root := t.TempDir()
 	writeWorkspaceConfig(t, root, `
 [defaults]
 ide = "claude"
 `)
 	stubWorkspaceUserHomeDir(t, func() (string, error) {
-		return "", errors.New("home unavailable")
+		return " ", nil
 	})
 
-	cfg, path, err := LoadConfig(context.Background(), root)
-	if err != nil {
-		t.Fatalf("load config: %v", err)
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected load config error")
 	}
-	if path != filepath.Join(root, ".compozy", "config.toml") {
-		t.Fatalf("unexpected effective config path: %q", path)
+	if !strings.Contains(err.Error(), "resolve config paths: resolve global config base dir") {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
-		t.Fatalf("expected workspace config to load without global path, got %#v", cfg.Defaults.IDE)
+	if !strings.Contains(err.Error(), "base directory is empty") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

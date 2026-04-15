@@ -105,7 +105,10 @@ func loadEffectiveConfig(ctx context.Context, workspaceRoot string) (ProjectConf
 		return ProjectConfig{}, configPaths{}, fmt.Errorf("load workspace config: %w", err)
 	}
 
-	paths := resolveConfigPaths(workspaceRoot)
+	paths, err := resolveConfigPaths(workspaceRoot)
+	if err != nil {
+		return ProjectConfig{}, configPaths{}, fmt.Errorf("resolve config paths: %w", err)
+	}
 
 	globalCfg, globalSeen, err := loadConfigFile(ctx, paths.globalPath, globalConfigScope, paths.globalRoot)
 	if err != nil {
@@ -131,7 +134,7 @@ func loadEffectiveConfig(ctx context.Context, workspaceRoot string) (ProjectConf
 	return cfg, paths, nil
 }
 
-func resolveConfigPaths(workspaceRoot string) configPaths {
+func resolveConfigPaths(workspaceRoot string) (configPaths, error) {
 	paths := configPaths{
 		workspaceRoot: workspaceRoot,
 		workspacePath: model.ConfigPathForWorkspace(workspaceRoot),
@@ -139,16 +142,16 @@ func resolveConfigPaths(workspaceRoot string) configPaths {
 
 	homeDir, err := osUserHomeDir()
 	if err != nil {
-		return paths
+		return configPaths{}, fmt.Errorf("lookup user home directory: %w", err)
 	}
 	resolvedHomeDir, err := resolveConfigBaseDir(homeDir)
 	if err != nil {
-		return paths
+		return configPaths{}, fmt.Errorf("resolve global config base dir: %w", err)
 	}
 
 	paths.globalRoot = resolvedHomeDir
 	paths.globalPath = filepath.Join(resolvedHomeDir, model.WorkflowRootDirName, model.WorkflowConfigFileName)
-	return paths
+	return paths, nil
 }
 
 func loadConfigFile(
