@@ -14,6 +14,7 @@ type ProjectConfig struct {
 	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
 	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
 	Exec         ExecConfig         `toml:"exec"`
+	Sound        SoundConfig        `toml:"sound"`
 }
 
 type RuntimeOverrides struct {
@@ -60,4 +61,12 @@ type ExecConfig struct {
 	Verbose *bool `toml:"verbose"`
 	TUI     *bool `toml:"tui"`
 	Persist *bool `toml:"persist"`
+}
+
+// SoundConfig controls optional audio notifications on run lifecycle events.
+// Disabled by default; opt-in via `[sound] enabled = true` in .compozy/config.toml.
+type SoundConfig struct {
+	Enabled     *bool   `toml:"enabled"`
+	OnCompleted *string `toml:"on_completed"`
+	OnFailed    *string `toml:"on_failed"`
 }

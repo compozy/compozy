@@ -423,6 +423,9 @@ type RuntimeConfig struct {
 	Timeout                    time.Duration
 	MaxRetries                 int
 	RetryBackoffMultiplier     float64
+	SoundEnabled               bool
+	SoundOnCompleted           string
+	SoundOnFailed              string
 }
 
 // RunArtifacts mirrors the run artifact directory layout exposed to run hooks.

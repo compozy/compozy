@@ -646,6 +646,105 @@ func TestLoadConfigReturnsContextErrorWhenCanceled(t *testing.T) {
 	}
 }
 
+func TestLoadConfigSoundSection(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name          string
+		content       string
+		wantErr       string
+		wantEnabled   *bool
+		wantCompleted *string
+		wantFailed    *string
+	}{
+		{
+			name: "Should parse a fully populated [sound] section",
+			content: `
+[sound]
+enabled = true
+on_completed = "glass"
+on_failed = "basso"
+`,
+			wantEnabled:   ptrBool(true),
+			wantCompleted: ptrString("glass"),
+			wantFailed:    ptrString("basso"),
+		},
+		{
+			name:    "Should leave [sound] fields nil when the section is absent",
+			content: ``,
+		},
+		{
+			name: "Should reject whitespace-only sound.on_completed",
+			content: `
+[sound]
+on_completed = "   "
+`,
+			wantErr: "sound.on_completed",
+		},
+		{
+			name: "Should reject whitespace-only sound.on_failed",
+			content: `
+[sound]
+on_failed = "\t"
+`,
+			wantErr: "sound.on_failed",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := t.TempDir()
+			writeWorkspaceConfig(t, root, tc.content)
+
+			cfg, _, err := LoadConfig(context.Background(), root)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("unexpected error: got %q, want substring %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("load config: %v", err)
+			}
+			assertOptionalBool(t, "sound.enabled", cfg.Sound.Enabled, tc.wantEnabled)
+			assertOptionalString(t, "sound.on_completed", cfg.Sound.OnCompleted, tc.wantCompleted)
+			assertOptionalString(t, "sound.on_failed", cfg.Sound.OnFailed, tc.wantFailed)
+		})
+	}
+}
+
+func ptrBool(b bool) *bool       { return &b }
+func ptrString(s string) *string { return &s }
+
+func assertOptionalBool(t *testing.T, field string, got *bool, want *bool) {
+	t.Helper()
+	switch {
+	case want == nil && got != nil:
+		t.Fatalf("%s: expected nil, got %v", field, *got)
+	case want != nil && got == nil:
+		t.Fatalf("%s: expected %v, got nil", field, *want)
+	case want != nil && got != nil && *want != *got:
+		t.Fatalf("%s: expected %v, got %v", field, *want, *got)
+	}
+}
+
+func assertOptionalString(t *testing.T, field string, got *string, want *string) {
+	t.Helper()
+	switch {
+	case want == nil && got != nil:
+		t.Fatalf("%s: expected nil, got %q", field, *got)
+	case want != nil && got == nil:
+		t.Fatalf("%s: expected %q, got nil", field, *want)
+	case want != nil && got != nil && *want != *got:
+		t.Fatalf("%s: expected %q, got %q", field, *want, *got)
+	}
+}
+
 func writeWorkspaceConfig(t *testing.T, workspaceRoot, content string) {
 	t.Helper()
 

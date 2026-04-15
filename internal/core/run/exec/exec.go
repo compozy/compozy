@@ -12,10 +12,13 @@ import (
 	"sync"
 	"time"
 
+	"log/slog"
+
 	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/journal"
+	"github.com/compozy/compozy/internal/core/sound"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -103,6 +106,7 @@ type execTurnPaths struct {
 
 type execRunState struct {
 	ctx            context.Context
+	cfg            *model.RuntimeConfig
 	record         PersistedExecRun
 	runArtifacts   model.RunArtifacts
 	runtimeManager model.RuntimeManager
@@ -509,6 +513,7 @@ func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope mo
 	}
 	state := &execRunState{
 		ctx:      ctx,
+		cfg:      cfg,
 		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI,
 	}
 	if scope != nil {
@@ -939,18 +944,38 @@ func (s *execRunState) emit(event execEvent) error {
 }
 
 func (s *execRunState) submitRuntimeEvent(kind eventspkg.EventKind, payload any) error {
-	if s == nil || s.journal == nil {
+	if s == nil {
 		return nil
 	}
 	ctx := s.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	event, err := newRuntimeEvent(s.runArtifacts.RunID, kind, payload)
-	if err != nil {
-		return err
+	if s.journal != nil {
+		event, err := newRuntimeEvent(s.runArtifacts.RunID, kind, payload)
+		if err != nil {
+			return err
+		}
+		if err := s.journal.Submit(ctx, event); err != nil {
+			return err
+		}
 	}
-	return s.journal.Submit(ctx, event)
+	s.notifySoundForKind(ctx, kind)
+	return nil
+}
+
+// notifySoundForKind plays the configured sound for a terminal lifecycle
+// event kind. It runs synchronously so the audio finishes before the exec
+// run state is closed. When the [sound] feature flag is off this is a no-op.
+func (s *execRunState) notifySoundForKind(ctx context.Context, kind eventspkg.EventKind) {
+	if s == nil || s.cfg == nil || !s.cfg.SoundEnabled {
+		return
+	}
+	sound.Notify(ctx, sound.Config{
+		Player:      sound.New(),
+		OnCompleted: s.cfg.SoundOnCompleted,
+		OnFailed:    s.cfg.SoundOnFailed,
+	}, kind, slog.Default())
 }
 
 func stateJournal(state *execRunState) *journal.Journal {

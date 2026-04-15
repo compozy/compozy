@@ -43,6 +43,9 @@ type runtimeConfig struct {
 	explicitRuntime  model.ExplicitRuntimeFlags
 	includeCompleted bool
 	includeResolved  bool
+	soundEnabled     bool
+	soundOnCompleted string
+	soundOnFailed    string
 }
 
 type execConfig struct {
@@ -323,6 +326,10 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		Timeout:                timeoutDuration,
 		MaxRetries:             s.maxRetries,
 		RetryBackoffMultiplier: s.retryBackoffMultiplier,
+
+		SoundEnabled:     s.soundEnabled,
+		SoundOnCompleted: s.soundOnCompleted,
+		SoundOnFailed:    s.soundOnFailed,
 	}, nil
 }
 

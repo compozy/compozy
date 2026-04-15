@@ -38,6 +38,9 @@ type Config struct {
 	Timeout                time.Duration
 	MaxRetries             int
 	RetryBackoffMultiplier float64
+	SoundEnabled           bool
+	SoundOnCompleted       string
+	SoundOnFailed          string
 }
 
 type Job struct {
@@ -128,6 +131,9 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		Timeout:                src.Timeout,
 		MaxRetries:             src.MaxRetries,
 		RetryBackoffMultiplier: src.RetryBackoffMultiplier,
+		SoundEnabled:           src.SoundEnabled,
+		SoundOnCompleted:       src.SoundOnCompleted,
+		SoundOnFailed:          src.SoundOnFailed,
 	}
 }
 

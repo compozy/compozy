@@ -71,6 +71,39 @@ Options specific to `compozy exec`. Inherits all `[defaults]` fields plus:
 | `tui` | bool | Open the interactive TUI |
 | `persist` | bool | Save artifacts under `.compozy/runs/<run-id>/` |
 
+### `[sound]`
+
+Optional audio notifications that play when a run reaches a terminal state. Applies to both `compozy start` and `compozy exec`. Disabled by default — setting any field without `enabled = true` is a no-op.
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `enabled` | bool | Master switch. Default `false`. |
+| `on_completed` | string | Preset name or absolute path played on `run.completed`. Default `glass` when `enabled = true`. |
+| `on_failed` | string | Preset name or absolute path played on `run.failed` and `run.cancelled`. Default `basso` when `enabled = true`. |
+
+**Presets** (resolve to platform-native files at play time):
+
+| Preset | macOS | Linux (freedesktop) | Windows |
+| --- | --- | --- | --- |
+| `glass` | `/System/Library/Sounds/Glass.aiff` | `complete.oga` | `tada.wav` |
+| `basso` | `/System/Library/Sounds/Basso.aiff` | `dialog-error.oga` | `chord.wav` |
+| `ping` | `Ping.aiff` | `message.oga` | `ding.wav` |
+| `hero` | `Hero.aiff` | `complete.oga` | `tada.wav` |
+| `funk` | `Funk.aiff` | `bell.oga` | `notify.wav` |
+| `tink` | `Tink.aiff` | `message.oga` | `chimes.wav` |
+| `submarine` | `Submarine.aiff` | `bell.oga` | `Ring01.wav` |
+
+**Absolute paths** bypass preset lookup, so any local sound file works:
+
+```toml
+[sound]
+enabled = true
+on_completed = "/System/Library/Sounds/Hero.aiff"
+on_failed = "/Users/me/sounds/custom-fail.wav"
+```
+
+**Platform requirements**: `afplay` (bundled with macOS), `paplay` (Linux, from `pulseaudio-utils`), or `powershell` + `System.Media.SoundPlayer` (Windows). On unix variants without one of these tools the feature silently falls back to no-op; playback errors never break a run.
+
 ## Complete Example
 
 ```toml
@@ -103,4 +136,9 @@ nitpicks = false
 verbose = false
 tui = false
 persist = false
+
+[sound]
+enabled = true
+on_completed = "glass"
+on_failed = "basso"
 ```

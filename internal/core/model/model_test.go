@@ -45,6 +45,77 @@ func TestRuntimeConfigApplyDefaults(t *testing.T) {
 		if cfg.RetryBackoffMultiplier != 1.5 {
 			t.Fatalf("unexpected retry multiplier default: %f", cfg.RetryBackoffMultiplier)
 		}
+		if cfg.SoundOnCompleted != "" || cfg.SoundOnFailed != "" {
+			t.Fatalf(
+				"expected sound presets to stay empty when sound is disabled: got %q / %q",
+				cfg.SoundOnCompleted,
+				cfg.SoundOnFailed,
+			)
+		}
+	})
+
+	t.Run("Should fill sound presets only when sound is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{SoundEnabled: true}
+		cfg.ApplyDefaults()
+		if cfg.SoundOnCompleted != model.DefaultSoundOnCompleted {
+			t.Fatalf("unexpected on_completed default: %q", cfg.SoundOnCompleted)
+		}
+		if cfg.SoundOnFailed != model.DefaultSoundOnFailed {
+			t.Fatalf("unexpected on_failed default: %q", cfg.SoundOnFailed)
+		}
+	})
+
+	t.Run("Should preserve explicit sound presets over defaults", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			SoundEnabled:     true,
+			SoundOnCompleted: "/custom/done.aiff",
+			SoundOnFailed:    "/custom/fail.aiff",
+		}
+		cfg.ApplyDefaults()
+		if cfg.SoundOnCompleted != "/custom/done.aiff" {
+			t.Fatalf("explicit on_completed was overwritten: %q", cfg.SoundOnCompleted)
+		}
+		if cfg.SoundOnFailed != "/custom/fail.aiff" {
+			t.Fatalf("explicit on_failed was overwritten: %q", cfg.SoundOnFailed)
+		}
+	})
+
+	t.Run("Should treat whitespace-only sound presets as unset and apply defaults", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			SoundEnabled:     true,
+			SoundOnCompleted: "   ",
+			SoundOnFailed:    "\t\n",
+		}
+		cfg.ApplyDefaults()
+		if cfg.SoundOnCompleted != model.DefaultSoundOnCompleted {
+			t.Fatalf("whitespace on_completed was not replaced with default: %q", cfg.SoundOnCompleted)
+		}
+		if cfg.SoundOnFailed != model.DefaultSoundOnFailed {
+			t.Fatalf("whitespace on_failed was not replaced with default: %q", cfg.SoundOnFailed)
+		}
+	})
+
+	t.Run("Should trim surrounding whitespace from explicit sound presets", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			SoundEnabled:     true,
+			SoundOnCompleted: "  /custom/done.aiff  ",
+			SoundOnFailed:    "\tbasso\n",
+		}
+		cfg.ApplyDefaults()
+		if cfg.SoundOnCompleted != "/custom/done.aiff" {
+			t.Fatalf("explicit on_completed was not trimmed: %q", cfg.SoundOnCompleted)
+		}
+		if cfg.SoundOnFailed != "basso" {
+			t.Fatalf("explicit on_failed was not trimmed: %q", cfg.SoundOnFailed)
+		}
 	})
 }
 
