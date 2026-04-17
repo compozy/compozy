@@ -84,6 +84,9 @@ func prepareWorkflowRun(
 	if err != nil {
 		return err
 	}
+	if err := ensureWorkflowRuntimesAvailable(ctx, cfg, prep.Jobs); err != nil {
+		return err
+	}
 
 	return writeRunMetadata(prep, cfg)
 }
@@ -180,6 +183,7 @@ func prepareWorkflowJobs(
 	if err != nil {
 		return nil, err
 	}
+	preparedJobs := clonePreparedJobsForRuntimeGuard(jobs)
 	postPrepareJobs, err := model.DispatchMutableHook(
 		ctx,
 		prep.RuntimeManager(),
@@ -190,6 +194,9 @@ func prepareWorkflowJobs(
 		},
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := validatePreparedJobRuntimeMutation(preparedJobs, postPrepareJobs.Jobs); err != nil {
 		return nil, err
 	}
 	return postPrepareJobs.Jobs, nil
@@ -206,9 +213,6 @@ func resolvePreparedEntries(
 		return nil, err
 	}
 	if err := configureWorkflowInput(prep, cfg); err != nil {
-		return nil, err
-	}
-	if err := agent.EnsureAvailable(ctx, cfg); err != nil {
 		return nil, err
 	}
 	preDiscover, err := dispatchPlanPreDiscover(ctx, prep, cfg)
@@ -450,6 +454,34 @@ func prepareJobs(
 	return jobs, nil
 }
 
+func ensureWorkflowRuntimesAvailable(ctx context.Context, cfg *model.RuntimeConfig, jobs []model.Job) error {
+	if cfg == nil || cfg.DryRun {
+		return nil
+	}
+
+	checked := make(map[string]struct{}, len(jobs))
+	for idx := range jobs {
+		job := &jobs[idx]
+		ide := strings.TrimSpace(job.IDE)
+		if ide == "" {
+			continue
+		}
+		if _, ok := checked[ide]; ok {
+			continue
+		}
+		runtimeCfg := cfg.Clone()
+		runtimeCfg.IDE = ide
+		runtimeCfg.Model = job.Model
+		runtimeCfg.ReasoningEffort = job.ReasoningEffort
+		runtimeCfg.TaskRuntimeRules = nil
+		if err := agent.EnsureAvailable(ctx, runtimeCfg); err != nil {
+			return fmt.Errorf("ensure runtime %q for job %q: %w", ide, job.SafeName, err)
+		}
+		checked[ide] = struct{}{}
+	}
+	return nil
+}
+
 func buildBatchJob(
 	ctx context.Context,
 	cfg *model.RuntimeConfig,
@@ -483,14 +515,69 @@ func buildBatchJob(
 	if err != nil {
 		return model.Job{}, err
 	}
-
-	promptText, err := prompt.Build(params)
+	jobRuntime, err := resolveBatchJobRuntime(
+		ctx,
+		cfg,
+		batchIssues,
+		taskData,
+		safeName,
+		runArtifacts.RunID,
+		manager,
+	)
 	if err != nil {
 		return model.Job{}, err
 	}
-	systemPrompt, err := prompt.BuildSystemPromptAddendum(params)
+	generated, err := buildBatchGeneratedJobData(
+		params,
+		runArtifacts,
+		safeName,
+		jobRuntime,
+		agentExecution,
+	)
 	if err != nil {
 		return model.Job{}, err
+	}
+	return model.Job{
+		CodeFiles:       batchFiles,
+		Groups:          batchGroups,
+		TaskTitle:       taskData.Title,
+		TaskType:        taskData.TaskType,
+		SafeName:        safeName,
+		IDE:             jobRuntime.IDE,
+		Model:           jobRuntime.Model,
+		ReasoningEffort: jobRuntime.ReasoningEffort,
+		Prompt:          []byte(generated.promptText),
+		SystemPrompt:    generated.systemPrompt,
+		MCPServers:      generated.mcpServers,
+		OutPromptPath:   generated.outPromptPath,
+		OutLog:          generated.outLog,
+		ErrLog:          generated.errLog,
+	}, nil
+}
+
+type batchGeneratedJobData struct {
+	promptText    string
+	systemPrompt  string
+	mcpServers    []model.MCPServer
+	outPromptPath string
+	outLog        string
+	errLog        string
+}
+
+func buildBatchGeneratedJobData(
+	params prompt.BatchParams,
+	runArtifacts model.RunArtifacts,
+	safeName string,
+	jobRuntime *model.RuntimeConfig,
+	agentExecution *reusableagents.ExecutionContext,
+) (batchGeneratedJobData, error) {
+	promptText, err := prompt.Build(params)
+	if err != nil {
+		return batchGeneratedJobData{}, err
+	}
+	systemPrompt, err := prompt.BuildSystemPromptAddendum(params)
+	if err != nil {
+		return batchGeneratedJobData{}, err
 	}
 	if agentExecution != nil {
 		systemPrompt = agentExecution.SystemPrompt(systemPrompt)
@@ -499,30 +586,203 @@ func buildBatchJob(
 		agentExecution,
 		reusableagents.SessionMCPContext{
 			RunID:               runArtifacts.RunID,
-			EffectiveAccessMode: cfg.AccessMode,
-			BaseRuntime:         cfg,
+			EffectiveAccessMode: jobRuntime.AccessMode,
+			BaseRuntime:         jobRuntime,
 		},
 	)
 	if err != nil {
-		return model.Job{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
+		return batchGeneratedJobData{}, fmt.Errorf("build reusable-agent MCP servers: %w", err)
 	}
 	outPromptPath, outLog, errLog, err := writeBatchArtifacts(runArtifacts, safeName, promptText)
 	if err != nil {
-		return model.Job{}, err
+		return batchGeneratedJobData{}, err
 	}
-	return model.Job{
-		CodeFiles:     batchFiles,
-		Groups:        batchGroups,
-		TaskTitle:     taskData.Title,
-		TaskType:      taskData.TaskType,
-		SafeName:      safeName,
-		Prompt:        []byte(promptText),
-		SystemPrompt:  systemPrompt,
-		MCPServers:    mcpServers,
-		OutPromptPath: outPromptPath,
-		OutLog:        outLog,
-		ErrLog:        errLog,
+	return batchGeneratedJobData{
+		promptText:    promptText,
+		systemPrompt:  systemPrompt,
+		mcpServers:    mcpServers,
+		outPromptPath: outPromptPath,
+		outLog:        outLog,
+		errLog:        errLog,
 	}, nil
+}
+
+func resolveBatchJobRuntime(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	batchIssues []model.IssueEntry,
+	taskData model.TaskEntry,
+	safeName string,
+	runID string,
+	manager model.RuntimeManager,
+) (*model.RuntimeConfig, error) {
+	target := resolveTaskRuntimeTarget(cfg, batchIssues, taskData, safeName)
+	jobRuntime := cfg.RuntimeForTask(target)
+	jobRuntime.ApplyDefaults()
+	if cfg != nil && cfg.Mode == model.ExecutionModePRDTasks {
+		var err error
+		jobRuntime, err = dispatchPlanPreResolveTaskRuntime(
+			ctx,
+			manager,
+			runID,
+			model.TaskRuntimeTask{
+				ID:       target.ID,
+				SafeName: safeName,
+				Title:    taskData.Title,
+				Type:     target.Type,
+			},
+			jobRuntime,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("resolve runtime for task %q: %w", target.ID, err)
+		}
+		jobRuntime.ApplyDefaults()
+	}
+	if err := validateResolvedJobRuntime(jobRuntime); err != nil {
+		return nil, fmt.Errorf("resolve runtime for task %q: %w", target.ID, err)
+	}
+	return jobRuntime, nil
+}
+
+func dispatchPlanPreResolveTaskRuntime(
+	ctx context.Context,
+	manager model.RuntimeManager,
+	runID string,
+	task model.TaskRuntimeTask,
+	runtimeCfg *model.RuntimeConfig,
+) (*model.RuntimeConfig, error) {
+	payload, err := model.DispatchMutableHook(
+		ctx,
+		manager,
+		"plan.pre_resolve_task_runtime",
+		planPreResolveTaskRuntimePayload{
+			RunID:   runID,
+			Task:    task,
+			Runtime: model.TaskRuntimeFromConfig(runtimeCfg),
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	updated := runtimeCfg.Clone()
+	model.ApplyTaskRuntime(updated, payload.Runtime)
+	return updated, nil
+}
+
+func resolveTaskRuntimeTarget(
+	cfg *model.RuntimeConfig,
+	batchIssues []model.IssueEntry,
+	taskData model.TaskEntry,
+	safeName string,
+) model.TaskRuntimeTarget {
+	target := model.TaskRuntimeTarget{
+		ID:   safeName,
+		Type: taskData.TaskType,
+	}
+	if cfg != nil && cfg.Mode != model.ExecutionModePRDTasks {
+		target.Type = ""
+		return target
+	}
+	if len(batchIssues) > 0 {
+		target.ID = batchIssues[0].CodeFile
+	}
+	return target
+}
+
+func validateResolvedJobRuntime(cfg *model.RuntimeConfig) error {
+	if cfg == nil {
+		return agent.ErrRuntimeConfigNil
+	}
+	check := cfg.Clone()
+	check.RunID = ""
+	if check.Mode == model.ExecutionModePRDTasks {
+		check.BatchSize = 1
+	}
+	return agent.ValidateRuntimeConfig(check)
+}
+
+func validatePreparedJobRuntimeMutation(before []model.Job, after []model.Job) error {
+	beforeBySafeName := make(map[string]model.Job, len(before))
+	beforeByCodeFiles := make(map[string]model.Job, len(before))
+	beforeByPromptPath := make(map[string]model.Job, len(before))
+	for idx := range before {
+		job := before[idx]
+		if key := strings.TrimSpace(job.SafeName); key != "" {
+			beforeBySafeName[key] = job
+		}
+		if key := preparedJobCodeFilesKey(job); key != "" {
+			beforeByCodeFiles[key] = job
+		}
+		if key := strings.TrimSpace(job.OutPromptPath); key != "" {
+			beforeByPromptPath[key] = job
+		}
+	}
+
+	for idx := range after {
+		updated := after[idx]
+		original, ok := findPreparedJobForRuntimeGuard(
+			beforeBySafeName,
+			beforeByCodeFiles,
+			beforeByPromptPath,
+			updated,
+		)
+		if ok && jobRuntimeChanged(original, updated) {
+			return fmt.Errorf(
+				"plan.post_prepare_jobs cannot mutate job runtime after task runtime resolution",
+			)
+		}
+	}
+	return nil
+}
+
+func jobRuntimeChanged(before model.Job, after model.Job) bool {
+	return strings.TrimSpace(before.IDE) != strings.TrimSpace(after.IDE) ||
+		strings.TrimSpace(before.Model) != strings.TrimSpace(after.Model) ||
+		strings.TrimSpace(before.ReasoningEffort) != strings.TrimSpace(after.ReasoningEffort)
+}
+
+func findPreparedJobForRuntimeGuard(
+	bySafeName map[string]model.Job,
+	byCodeFiles map[string]model.Job,
+	byPromptPath map[string]model.Job,
+	job model.Job,
+) (model.Job, bool) {
+	if original, ok := bySafeName[strings.TrimSpace(job.SafeName)]; ok {
+		return original, true
+	}
+	if original, ok := byCodeFiles[preparedJobCodeFilesKey(job)]; ok {
+		return original, true
+	}
+	if original, ok := byPromptPath[strings.TrimSpace(job.OutPromptPath)]; ok {
+		return original, true
+	}
+	return model.Job{}, false
+}
+
+func preparedJobCodeFilesKey(job model.Job) string {
+	if len(job.CodeFiles) == 0 {
+		return ""
+	}
+	return strings.Join(job.CodeFiles, "\x00")
+}
+
+func clonePreparedJobsForRuntimeGuard(src []model.Job) []model.Job {
+	if len(src) == 0 {
+		return nil
+	}
+	cloned := make([]model.Job, 0, len(src))
+	for idx := range src {
+		job := src[idx]
+		cloned = append(cloned, model.Job{
+			CodeFiles:       append([]string(nil), job.CodeFiles...),
+			SafeName:        job.SafeName,
+			IDE:             job.IDE,
+			Model:           job.Model,
+			ReasoningEffort: job.ReasoningEffort,
+			OutPromptPath:   job.OutPromptPath,
+		})
+	}
+	return cloned
 }
 
 func prepareBatchTaskContext(
@@ -593,13 +853,16 @@ func buildExecJob(
 				CodeFile: safeName,
 			}},
 		},
-		SafeName:      safeName,
-		Prompt:        []byte(promptText),
-		SystemPrompt:  systemPrompt,
-		MCPServers:    mcpServers,
-		OutPromptPath: outPromptPath,
-		OutLog:        outLog,
-		ErrLog:        errLog,
+		SafeName:        safeName,
+		IDE:             cfg.IDE,
+		Model:           cfg.Model,
+		ReasoningEffort: cfg.ReasoningEffort,
+		Prompt:          []byte(promptText),
+		SystemPrompt:    systemPrompt,
+		MCPServers:      mcpServers,
+		OutPromptPath:   outPromptPath,
+		OutLog:          outLog,
+		ErrLog:          errLog,
 	}, nil
 }
 
@@ -766,6 +1029,12 @@ type planEntriesPayload struct {
 type planGroupsPayload struct {
 	RunID  string                        `json:"run_id"`
 	Groups map[string][]model.IssueEntry `json:"groups,omitempty"`
+}
+
+type planPreResolveTaskRuntimePayload struct {
+	RunID   string                `json:"run_id"`
+	Task    model.TaskRuntimeTask `json:"task"`
+	Runtime model.TaskRuntime     `json:"runtime"`
 }
 
 type planJobsPayload struct {

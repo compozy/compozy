@@ -76,7 +76,10 @@ func validateStart(scope string, defaults DefaultsConfig, cfg StartConfig) error
 	if err := validateOutputFormatValue(configFieldName(scope, "start.output_format"), cfg.OutputFormat); err != nil {
 		return err
 	}
-	return validateWorkflowTUI(scope, "start", defaults, cfg.OutputFormat, cfg.TUI)
+	if err := validateWorkflowTUI(scope, "start", defaults, cfg.OutputFormat, cfg.TUI); err != nil {
+		return err
+	}
+	return validateStartTaskRuntimeRules(scope, cfg.TaskRuntimeRules)
 }
 
 func validateTasks(scope string, cfg TasksConfig) error {
@@ -324,6 +327,55 @@ func validateRuntimeRetryBackoffMultiplier(scope, section string, cfg RuntimeOve
 			runtimeFieldName(scope, section, "retry_backoff_multiplier"),
 			*cfg.RetryBackoffMultiplier,
 		)
+	}
+	return nil
+}
+
+func validateStartTaskRuntimeRules(scope string, rules *[]model.TaskRuntimeRule) error {
+	if rules == nil {
+		return nil
+	}
+	for idx, rule := range *rules {
+		fieldPrefix := fmt.Sprintf("%s[%d]", configFieldName(scope, "start.task_runtime_rules"), idx)
+		if rule.ID != nil {
+			return fmt.Errorf("%s.id is not supported; use CLI --task-runtime for per-task ids", fieldPrefix)
+		}
+		if rule.Type == nil || strings.TrimSpace(*rule.Type) == "" {
+			return fmt.Errorf("%s.type is required", fieldPrefix)
+		}
+		if !rule.HasOverride() {
+			return fmt.Errorf("%s must define at least one of ide, model, or reasoning_effort", fieldPrefix)
+		}
+		if err := validateTaskRuntimeRuleRuntime(fieldPrefix, rule); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateTaskRuntimeRuleRuntime(fieldPrefix string, rule model.TaskRuntimeRule) error {
+	if rule.IDE != nil {
+		value := strings.TrimSpace(*rule.IDE)
+		if value == "" {
+			return fmt.Errorf("%s.ide cannot be empty", fieldPrefix)
+		}
+		if _, err := agent.DriverCatalogEntryForIDE(value); err != nil {
+			return fmt.Errorf("%s.ide: %w", fieldPrefix, err)
+		}
+	}
+	if rule.Model != nil && strings.TrimSpace(*rule.Model) == "" {
+		return fmt.Errorf("%s.model cannot be empty", fieldPrefix)
+	}
+	if rule.ReasoningEffort != nil {
+		switch strings.TrimSpace(*rule.ReasoningEffort) {
+		case "low", "medium", "high", "xhigh":
+		default:
+			return fmt.Errorf(
+				"%s.reasoning_effort must be one of low, medium, high, xhigh (got %q)",
+				fieldPrefix,
+				strings.TrimSpace(*rule.ReasoningEffort),
+			)
+		}
 	}
 	return nil
 }

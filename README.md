@@ -158,7 +158,7 @@ timeout = "10m"
 tail_lines = 0
 add_dirs = ["../shared"]
 auto_commit = false
-max_retries = 0
+max_retries = 2
 retry_backoff_multiplier = 1.5
 
 [start]
@@ -197,6 +197,7 @@ Notes:
 - Unknown keys and invalid value types are rejected during config loading.
 - Relative `add_dirs` are resolved against the owning config scope: the user home directory for `~/.compozy/config.toml` and the workspace root for `.compozy/config.toml`.
 - `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy start`, and `compozy fix-reviews`.
+- Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
 
 ## Reusable Agents
@@ -583,7 +584,7 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
 | `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
@@ -655,7 +656,7 @@ When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide de
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
 | `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
@@ -711,7 +712,7 @@ defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
 | `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
 | `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
 | `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
-| `--max-retries`              | `0`         | Retry execution-stage ACP failures or timeouts N times                                     |
+| `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
 | `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
 | `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
 | `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |

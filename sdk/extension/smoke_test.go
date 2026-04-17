@@ -20,6 +20,9 @@ func TestTypedHookRegistrationCoversAllPublicHookBuilders(t *testing.T) {
 	ext.OnPlanPreGroup(zeroMutableHandler[extension.PlanPreGroupPayload, extension.EntriesPatch]())
 	ext.OnPlanPostGroup(zeroMutableHandler[extension.PlanPostGroupPayload, extension.GroupsPatch]())
 	ext.OnPlanPrePrepareJobs(zeroMutableHandler[extension.PlanPrePrepareJobsPayload, extension.GroupsPatch]())
+	ext.OnPlanPreResolveTaskRuntime(
+		zeroMutableHandler[extension.PlanPreResolveTaskRuntimePayload, extension.TaskRuntimePatch](),
+	)
 	ext.OnPlanPostPrepareJobs(zeroMutableHandler[extension.PlanPostPrepareJobsPayload, extension.JobsPatch]())
 	ext.OnPromptPreBuild(zeroMutableHandler[extension.PromptPreBuildPayload, extension.BatchParamsPatch]())
 	ext.OnPromptPostBuild(zeroMutableHandler[extension.PromptPostBuildPayload, extension.PromptTextPatch]())
@@ -258,6 +261,7 @@ func expectedHookEvents() []extension.HookName {
 		extension.HookPlanPreGroup,
 		extension.HookPlanPostGroup,
 		extension.HookPlanPrePrepareJobs,
+		extension.HookPlanPreResolveTaskRuntime,
 		extension.HookPlanPostPrepareJobs,
 		extension.HookPromptPreBuild,
 		extension.HookPromptPostBuild,

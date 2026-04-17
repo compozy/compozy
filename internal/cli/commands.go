@@ -104,6 +104,11 @@ opens the run cockpit by default; in non-TTY environments it falls back to headl
 
 	addCommonFlags(cmd, state, commonFlagOptions{})
 	addWorkflowOutputFlags(cmd, state)
+	cmd.Flags().Var(
+		newTaskRuntimeFlagValue(&state.executionTaskRuntimeRules),
+		"task-runtime",
+		`Per-task runtime override rule for start (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.4 or id=task_01,reasoning-effort=xhigh`,
+	)
 	cmd.Flags().StringVar(&state.name, "name", "", "Task workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().StringVar(&state.tasksDir, "tasks-dir", "", "Path to tasks directory (.compozy/tasks/<name>)")
 	cmd.Flags().BoolVar(&state.includeCompleted, "include-completed", false, "Include completed tasks")

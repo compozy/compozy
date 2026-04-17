@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -650,6 +651,24 @@ func TestCaptureExplicitRuntimeFlagsUsesCobraChangedSemantics(t *testing.T) {
 	}
 	if explicit.IDE || explicit.ReasoningEffort {
 		t.Fatalf("expected only changed flags to be explicit, got %#v", explicit)
+	}
+}
+
+func TestAddCommonFlagsUseResilientRetryDefaults(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	if got := state.maxRetries; got != defaultMaxRetries {
+		t.Fatalf("unexpected max-retries default on command state: got %d want %d", got, defaultMaxRetries)
+	}
+	flag := cmd.Flags().Lookup("max-retries")
+	if flag == nil {
+		t.Fatal("expected max-retries flag to be registered")
+	}
+	if got, want := flag.DefValue, strconv.Itoa(defaultMaxRetries); got != want {
+		t.Fatalf("unexpected max-retries flag default: got %q want %q", got, want)
 	}
 }
 

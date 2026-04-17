@@ -34,6 +34,8 @@ func TestPublicHookAndHostTypesStayAlignedWithRuntime(t *testing.T) {
 		{name: "FetchConfig", public: extension.FetchConfig{}, runtime: model.FetchConfig{}},
 		{name: "FixOutcome", public: extension.FixOutcome{}, runtime: model.FixOutcome{}},
 		{name: "JobResult", public: extension.JobResult{}, runtime: model.JobResult{}},
+		{name: "TaskRuntime", public: extension.TaskRuntime{}, runtime: model.TaskRuntime{}},
+		{name: "TaskRuntimeTask", public: extension.TaskRuntimeTask{}, runtime: model.TaskRuntimeTask{}},
 		{name: "RuntimeConfig", public: extension.RuntimeConfig{}, runtime: model.RuntimeConfig{}},
 		{name: "RunArtifacts", public: extension.RunArtifacts{}, runtime: model.RunArtifacts{}},
 		{name: "RunSummary", public: extension.RunSummary{}, runtime: model.RunSummary{}},

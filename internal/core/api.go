@@ -113,6 +113,7 @@ type Config struct {
 	AccessMode                 string
 	AgentName                  string
 	ExplicitRuntime            model.ExplicitRuntimeFlags
+	TaskRuntimeRules           []model.TaskRuntimeRule
 	Mode                       Mode
 	OutputFormat               OutputFormat
 	Verbose                    bool
@@ -136,13 +137,16 @@ type Config struct {
 
 // Job is a prepared execution unit with its generated artifacts.
 type Job struct {
-	CodeFiles     []string
-	SafeName      string
-	Prompt        []byte
-	PromptPath    string
-	StdoutLogPath string
-	StderrLogPath string
-	IssueCount    int
+	CodeFiles       []string
+	SafeName        string
+	IDE             string
+	Model           string
+	ReasoningEffort string
+	Prompt          []byte
+	PromptPath      string
+	StdoutLogPath   string
+	StderrLogPath   string
+	IssueCount      int
 
 	groups map[string][]model.IssueEntry
 }
@@ -352,6 +356,7 @@ func (cfg Config) RuntimeConfig() *model.RuntimeConfig {
 		AccessMode:                 cfg.AccessMode,
 		AgentName:                  cfg.AgentName,
 		ExplicitRuntime:            cfg.ExplicitRuntime,
+		TaskRuntimeRules:           model.CloneTaskRuntimeRules(cfg.TaskRuntimeRules),
 		Mode:                       model.ExecutionMode(cfg.Mode),
 		OutputFormat:               model.OutputFormat(cfg.OutputFormat),
 		Verbose:                    cfg.Verbose,
@@ -407,13 +412,16 @@ func NewJob(jb model.Job) Job {
 	codeFiles := append([]string(nil), jb.CodeFiles...)
 	prompt := append([]byte(nil), jb.Prompt...)
 	return Job{
-		CodeFiles:     codeFiles,
-		SafeName:      jb.SafeName,
-		Prompt:        prompt,
-		PromptPath:    jb.OutPromptPath,
-		StdoutLogPath: jb.OutLog,
-		StderrLogPath: jb.ErrLog,
-		IssueCount:    jb.IssueCount(),
-		groups:        jb.Groups,
+		CodeFiles:       codeFiles,
+		SafeName:        jb.SafeName,
+		IDE:             jb.IDE,
+		Model:           jb.Model,
+		ReasoningEffort: jb.ReasoningEffort,
+		Prompt:          prompt,
+		PromptPath:      jb.OutPromptPath,
+		StdoutLogPath:   jb.OutLog,
+		StderrLogPath:   jb.ErrLog,
+		IssueCount:      jb.IssueCount(),
+		groups:          jb.Groups,
 	}
 }

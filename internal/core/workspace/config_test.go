@@ -358,6 +358,99 @@ ide = "claude"
 	}
 }
 
+func TestLoadConfigParsesStartTaskRuntimeRules(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[start]
+[[start.task_runtime_rules]]
+type = "frontend"
+ide = "codex"
+model = "gpt-5.4"
+reasoning_effort = "xhigh"
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Start.TaskRuntimeRules == nil || len(*cfg.Start.TaskRuntimeRules) != 1 {
+		t.Fatalf("unexpected start.task_runtime_rules: %#v", cfg.Start.TaskRuntimeRules)
+	}
+	rule := (*cfg.Start.TaskRuntimeRules)[0]
+	if rule.Type == nil || *rule.Type != "frontend" {
+		t.Fatalf("unexpected rule type: %#v", rule.Type)
+	}
+	if rule.IDE == nil || *rule.IDE != "codex" {
+		t.Fatalf("unexpected rule ide: %#v", rule.IDE)
+	}
+	if rule.Model == nil || *rule.Model != "gpt-5.4" {
+		t.Fatalf("unexpected rule model: %#v", rule.Model)
+	}
+	if rule.ReasoningEffort == nil || *rule.ReasoningEffort != "xhigh" {
+		t.Fatalf("unexpected rule reasoning: %#v", rule.ReasoningEffort)
+	}
+}
+
+func TestLoadConfigMergesStartTaskRuntimeRulesByType(t *testing.T) {
+	homeDir := isolateWorkspaceConfigHome(t)
+	root := t.TempDir()
+	writeGlobalConfig(t, homeDir, `
+[start]
+[[start.task_runtime_rules]]
+type = "frontend"
+ide = "claude"
+model = "sonnet"
+
+[[start.task_runtime_rules]]
+type = "backend"
+ide = "codex"
+`)
+	writeWorkspaceConfig(t, root, `
+[start]
+[[start.task_runtime_rules]]
+type = "frontend"
+ide = "codex"
+model = "gpt-5.4"
+`)
+
+	cfg, _, err := LoadConfig(context.Background(), root)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.Start.TaskRuntimeRules == nil || len(*cfg.Start.TaskRuntimeRules) != 2 {
+		t.Fatalf("unexpected merged start.task_runtime_rules: %#v", cfg.Start.TaskRuntimeRules)
+	}
+	rules := *cfg.Start.TaskRuntimeRules
+	if rules[0].Type == nil || *rules[0].Type != "frontend" || rules[0].IDE == nil || *rules[0].IDE != "codex" {
+		t.Fatalf("expected workspace frontend override to replace global rule, got %#v", rules[0])
+	}
+	if rules[1].Type == nil || *rules[1].Type != "backend" || rules[1].IDE == nil || *rules[1].IDE != "codex" {
+		t.Fatalf("expected backend global rule to remain, got %#v", rules[1])
+	}
+}
+
+func TestLoadConfigRejectsUnsupportedStartTaskRuntimeRuleID(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[start]
+[[start.task_runtime_rules]]
+id = "task_01"
+ide = "codex"
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected unsupported start.task_runtime_rules id error")
+	}
+	if !strings.Contains(err.Error(), "start.task_runtime_rules[0].id is not supported") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestResolveLoadsTaskTypesFromNearestWorkspace(t *testing.T) {
 	t.Parallel()
 

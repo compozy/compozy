@@ -73,17 +73,20 @@ func (p *SolvePreparation) CloseJournal(ctx context.Context) error {
 }
 
 type Job struct {
-	CodeFiles     []string
-	Groups        map[string][]IssueEntry
-	TaskTitle     string
-	TaskType      string
-	SafeName      string
-	Prompt        []byte
-	SystemPrompt  string
-	MCPServers    []MCPServer
-	OutPromptPath string
-	OutLog        string
-	ErrLog        string
+	CodeFiles       []string
+	Groups          map[string][]IssueEntry
+	TaskTitle       string
+	TaskType        string
+	SafeName        string
+	IDE             string
+	Model           string
+	ReasoningEffort string
+	Prompt          []byte
+	SystemPrompt    string
+	MCPServers      []MCPServer
+	OutPromptPath   string
+	OutLog          string
+	ErrLog          string
 }
 
 func (j Job) IssueCount() int {

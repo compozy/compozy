@@ -183,6 +183,52 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 	}
 }
 
+func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	var captured agent.ClientConfig
+	restore := SwapNewAgentClientForTest(func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
+		captured = cfg
+		return &capturingCommandIOClient{}, nil
+	})
+	defer restore()
+
+	client, err := createACPClient(
+		context.Background(),
+		&config{
+			IDE:             model.IDECodex,
+			Model:           "base-model",
+			ReasoningEffort: "medium",
+			AddDirs:         []string{"../shared"},
+			AccessMode:      model.AccessModeFull,
+		},
+		&job{
+			IDE:             model.IDEClaude,
+			Model:           "job-model",
+			ReasoningEffort: "high",
+		},
+		silentLogger(),
+	)
+	if err != nil {
+		t.Fatalf("create ACP client: %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected client")
+	}
+	if captured.IDE != model.IDEClaude {
+		t.Fatalf("expected job IDE override, got %q", captured.IDE)
+	}
+	if captured.Model != "job-model" {
+		t.Fatalf("expected job model override, got %q", captured.Model)
+	}
+	if captured.ReasoningEffort != "high" {
+		t.Fatalf("expected job reasoning override, got %q", captured.ReasoningEffort)
+	}
+	if captured.AccessMode != model.AccessModeFull {
+		t.Fatalf("expected access mode to stay global, got %q", captured.AccessMode)
+	}
+}
+
 func TestSetupSessionExecutionEmitsReusableAgentLifecycleSetupEventsOnNewAndResume(t *testing.T) {
 	tests := []struct {
 		name    string

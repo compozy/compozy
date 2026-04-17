@@ -40,6 +40,9 @@ type uiJob struct {
 	taskTitle            string
 	taskType             string
 	safeName             string
+	ide                  string
+	model                string
+	reasoningEffort      string
 	outLog               string
 	errLog               string
 	state                jobState
@@ -72,23 +75,29 @@ type uiJob struct {
 type tickMsg struct{}
 
 type jobQueuedMsg struct {
-	Index     int
-	CodeFile  string
-	CodeFiles []string
-	Issues    int
-	TaskTitle string
-	TaskType  string
-	SafeName  string
-	OutLog    string
-	ErrLog    string
-	OutBuffer *lineBuffer
-	ErrBuffer *lineBuffer
+	Index           int
+	CodeFile        string
+	CodeFiles       []string
+	Issues          int
+	TaskTitle       string
+	TaskType        string
+	SafeName        string
+	IDE             string
+	Model           string
+	ReasoningEffort string
+	OutLog          string
+	ErrLog          string
+	OutBuffer       *lineBuffer
+	ErrBuffer       *lineBuffer
 }
 
 type jobStartedMsg struct {
-	Index       int
-	Attempt     int
-	MaxAttempts int
+	Index           int
+	Attempt         int
+	MaxAttempts     int
+	IDE             string
+	Model           string
+	ReasoningEffort string
 }
 
 type jobRetryMsg struct {

@@ -29,23 +29,26 @@ type workflowIdentity struct {
 }
 
 type runtimeConfig struct {
-	dryRun           bool
-	autoCommit       bool
-	concurrent       int
-	batchSize        int
-	agentName        string
-	ide              string
-	model            string
-	addDirs          []string
-	tailLines        int
-	reasoningEffort  string
-	accessMode       string
-	explicitRuntime  model.ExplicitRuntimeFlags
-	includeCompleted bool
-	includeResolved  bool
-	soundEnabled     bool
-	soundOnCompleted string
-	soundOnFailed    string
+	dryRun                        bool
+	autoCommit                    bool
+	concurrent                    int
+	batchSize                     int
+	agentName                     string
+	ide                           string
+	model                         string
+	addDirs                       []string
+	tailLines                     int
+	reasoningEffort               string
+	accessMode                    string
+	explicitRuntime               model.ExplicitRuntimeFlags
+	configuredTaskRuntimeRules    []model.TaskRuntimeRule
+	executionTaskRuntimeRules     []model.TaskRuntimeRule
+	replaceConfiguredTaskRunRules bool
+	includeCompleted              bool
+	includeResolved               bool
+	soundEnabled                  bool
+	soundOnCompleted              string
+	soundOnFailed                 string
 }
 
 type execConfig struct {
@@ -66,6 +69,8 @@ type retryConfig struct {
 	maxRetries             int
 	retryBackoffMultiplier float64
 }
+
+const defaultMaxRetries = 2
 
 type commandStateCallbacks struct {
 	isInteractive          func() bool
@@ -234,7 +239,7 @@ func addCommonFlags(cmd *cobra.Command, state *commandState, opts commonFlagOpti
 	cmd.Flags().IntVar(
 		&state.maxRetries,
 		"max-retries",
-		0,
+		defaultMaxRetries,
 		"Retry execution-stage ACP failures or timeouts up to N times before marking them failed",
 	)
 	cmd.Flags().Float64Var(
@@ -308,6 +313,7 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		ReasoningEffort:  s.reasoningEffort,
 		AccessMode:       s.accessMode,
 		ExplicitRuntime:  s.explicitRuntime,
+		TaskRuntimeRules: s.taskRuntimeRules(),
 		IncludeCompleted: s.includeCompleted,
 		IncludeResolved:  s.includeResolved,
 
@@ -331,6 +337,22 @@ func (s *commandState) buildConfig() (core.Config, error) {
 		SoundOnCompleted: s.soundOnCompleted,
 		SoundOnFailed:    s.soundOnFailed,
 	}, nil
+}
+
+func (s *commandState) taskRuntimeRules() []model.TaskRuntimeRule {
+	if s == nil {
+		return nil
+	}
+
+	rules := make([]model.TaskRuntimeRule, 0, len(s.configuredTaskRuntimeRules)+len(s.executionTaskRuntimeRules))
+	if !s.replaceConfiguredTaskRunRules {
+		rules = append(rules, model.CloneTaskRuntimeRules(s.configuredTaskRuntimeRules)...)
+	}
+	rules = append(rules, model.CloneTaskRuntimeRules(s.executionTaskRuntimeRules)...)
+	if len(rules) == 0 {
+		return nil
+	}
+	return rules
 }
 
 func (s *commandState) enableExecutableExtensions() bool {

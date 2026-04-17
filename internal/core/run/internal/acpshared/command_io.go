@@ -124,7 +124,7 @@ func SetupSessionExecution(req SessionSetupRequest) (*SessionExecution, error) {
 	}
 	logger := resolveSessionLogger(req.Logger)
 
-	client, err := createACPClient(req.Context, req.Config, logger)
+	client, err := createACPClient(req.Context, req.Config, req.Job, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -201,14 +201,14 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 	handler := NewSessionUpdateHandler(SessionUpdateHandlerConfig{
 		Context:   req.Context,
 		Index:     req.Index,
-		AgentID:   req.Config.IDE,
+		AgentID:   jobIDE(req.Config, req.Job),
 		JobID:     safeJobID(req.Job),
 		SessionID: resources.session.ID(),
 		Logger: resources.logger.With(
 			"component",
 			"acp.session",
 			"agent_id",
-			req.Config.IDE,
+			jobIDE(req.Config, req.Job),
 			"session_id",
 			resources.session.ID(),
 		),
@@ -226,7 +226,7 @@ func buildSessionExecution(req SessionSetupRequest, resources sessionExecutionRe
 	resources.logger.Info(
 		"acp session created",
 		"agent_id",
-		req.Config.IDE,
+		jobIDE(req.Config, req.Job),
 		"session_id",
 		resources.session.ID(),
 		"job_index",
@@ -283,14 +283,15 @@ func resolveSessionLogger(logger *slog.Logger) *slog.Logger {
 	return runtimeLogger(false)
 }
 
-func createACPClient(ctx context.Context, cfg *config, logger *slog.Logger) (agent.Client, error) {
+func createACPClient(ctx context.Context, cfg *config, job *job, logger *slog.Logger) (agent.Client, error) {
+	ide := jobIDE(cfg, job)
 	client, err := newAgentClient(ctx, agent.ClientConfig{
-		IDE:             cfg.IDE,
-		Model:           cfg.Model,
+		IDE:             ide,
+		Model:           jobModel(cfg, job),
 		AddDirs:         append([]string(nil), cfg.AddDirs...),
-		ReasoningEffort: cfg.ReasoningEffort,
+		ReasoningEffort: jobReasoningEffort(cfg, job),
 		AccessMode:      cfg.AccessMode,
-		Logger:          logger.With("component", "acp.client", "agent_id", cfg.IDE),
+		Logger:          logger.With("component", "acp.client", "agent_id", ide),
 		ShutdownTimeout: runshared.ProcessTerminationGracePeriod,
 	})
 	if err != nil {
@@ -311,7 +312,7 @@ func createACPSession(
 		return client.CreateSession(ctx, agent.SessionRequest{
 			Prompt:     prompt,
 			WorkingDir: cwd,
-			Model:      cfg.Model,
+			Model:      jobModel(cfg, job),
 			MCPServers: model.CloneMCPServers(job.MCPServers),
 			ExtraEnv:   buildSessionEnvironment(),
 			RunID:      cfg.RunArtifacts.RunID,
@@ -323,13 +324,43 @@ func createACPSession(
 		SessionID:  job.ResumeSession,
 		Prompt:     prompt,
 		WorkingDir: cwd,
-		Model:      cfg.Model,
+		Model:      jobModel(cfg, job),
 		MCPServers: model.CloneMCPServers(job.MCPServers),
 		ExtraEnv:   buildSessionEnvironment(),
 		RunID:      cfg.RunArtifacts.RunID,
 		JobID:      safeJobID(job),
 		RuntimeMgr: cfg.RuntimeManager,
 	})
+}
+
+func jobIDE(cfg *config, job *job) string {
+	if job != nil && strings.TrimSpace(job.IDE) != "" {
+		return job.IDE
+	}
+	if cfg == nil {
+		return ""
+	}
+	return cfg.IDE
+}
+
+func jobModel(cfg *config, job *job) string {
+	if job != nil && strings.TrimSpace(job.Model) != "" {
+		return job.Model
+	}
+	if cfg == nil {
+		return ""
+	}
+	return cfg.Model
+}
+
+func jobReasoningEffort(cfg *config, job *job) string {
+	if job != nil && strings.TrimSpace(job.ReasoningEffort) != "" {
+		return job.ReasoningEffort
+	}
+	if cfg == nil {
+		return ""
+	}
+	return cfg.ReasoningEffort
 }
 
 func createSessionLogFiles(job *job) (*os.File, *os.File, error) {

@@ -404,6 +404,9 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		taskTitle:            v.TaskTitle,
 		taskType:             v.TaskType,
 		safeName:             v.SafeName,
+		ide:                  v.IDE,
+		model:                v.Model,
+		reasoningEffort:      v.ReasoningEffort,
 		outLog:               v.OutLog,
 		errLog:               v.ErrLog,
 		outBuffer:            v.OutBuffer,
@@ -424,6 +427,15 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 		job.state = jobRunning
 		job.attempt = max(v.Attempt, 1)
 		job.maxAttempts = max(v.MaxAttempts, job.attempt)
+		if strings.TrimSpace(v.IDE) != "" {
+			job.ide = v.IDE
+		}
+		if strings.TrimSpace(v.Model) != "" {
+			job.model = v.Model
+		}
+		if strings.TrimSpace(v.ReasoningEffort) != "" {
+			job.reasoningEffort = v.ReasoningEffort
+		}
 		job.retrying = false
 		job.retryReason = ""
 		if job.startedAt.IsZero() {

@@ -352,6 +352,75 @@ func TestJobIssueCount(t *testing.T) {
 	})
 }
 
+func TestRuntimeConfigRuntimeForTask(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply type rules before id rules", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.4",
+			ReasoningEffort: "medium",
+			TaskRuntimeRules: []model.TaskRuntimeRule{
+				{
+					Type:            testStringPointer("frontend"),
+					IDE:             testStringPointer(model.IDEClaude),
+					Model:           testStringPointer("sonnet"),
+					ReasoningEffort: testStringPointer("high"),
+				},
+				{
+					ID:              testStringPointer("task_02"),
+					IDE:             testStringPointer(model.IDECursor),
+					Model:           testStringPointer("cursor-model"),
+					ReasoningEffort: testStringPointer("xhigh"),
+				},
+			},
+		}
+
+		frontendOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_01", Type: "frontend"})
+		if frontendOnly.IDE != model.IDEClaude || frontendOnly.Model != "sonnet" ||
+			frontendOnly.ReasoningEffort != "high" {
+			t.Fatalf("unexpected type-resolved runtime: %#v", frontendOnly)
+		}
+
+		idOverride := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_02", Type: "frontend"})
+		if idOverride.IDE != model.IDECursor || idOverride.Model != "cursor-model" ||
+			idOverride.ReasoningEffort != "xhigh" {
+			t.Fatalf("unexpected id-resolved runtime: %#v", idOverride)
+		}
+
+		baseOnly := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_03", Type: "backend"})
+		if baseOnly.IDE != model.IDECodex || baseOnly.Model != "gpt-5.4" || baseOnly.ReasoningEffort != "medium" {
+			t.Fatalf("unexpected base runtime: %#v", baseOnly)
+		}
+	})
+
+	t.Run("Should clone runtime config without mutating the base", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.4",
+			ReasoningEffort: "medium",
+			TaskRuntimeRules: []model.TaskRuntimeRule{{
+				ID:    testStringPointer("task_01"),
+				Model: testStringPointer("override-model"),
+			}},
+		}
+
+		resolved := cfg.RuntimeForTask(model.TaskRuntimeTarget{ID: "task_01"})
+		resolved.Model = "mutated"
+
+		if cfg.Model != "gpt-5.4" {
+			t.Fatalf("base runtime was mutated: %#v", cfg)
+		}
+		if len(resolved.TaskRuntimeRules) != 0 {
+			t.Fatalf("expected resolved runtime to clear task rules, got %#v", resolved.TaskRuntimeRules)
+		}
+	})
+}
+
 func TestUsageTotalUsesExplicitTotalWhenPresent(t *testing.T) {
 	t.Parallel()
 
@@ -465,4 +534,8 @@ func TestTaskMetadataUsesV2Fields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testStringPointer(value string) *string {
+	return &value
 }

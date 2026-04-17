@@ -142,6 +142,7 @@ func prepareExecutionConfig(
 	runArtifacts model.RunArtifacts,
 	manager model.RuntimeManager,
 ) (*config, error) {
+	preparedConfig := snapshotWorkflowPreparedStateConfig(cfg)
 	internalCfg := newConfig(cfg, runArtifacts)
 	internalCfg.RuntimeManager = manager
 
@@ -156,6 +157,9 @@ func prepareExecutionConfig(
 		},
 	)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateWorkflowPreparedStateMutation(preparedConfig, &preStart.Config); err != nil {
 		return nil, err
 	}
 	applyHookRuntimeConfig(internalCfg, preStart.Config)
@@ -213,6 +217,9 @@ func finalizeExecution(
 	total int,
 	startedAt time.Time,
 ) error {
+	if err := model.WaitForObserverHooks(ctx, internalCfg.RuntimeManager); err != nil {
+		return fmt.Errorf("wait for pending observer hooks: %w", err)
+	}
 	reason := hookShutdownReason(result)
 	model.DispatchObserverHook(
 		ctx,
@@ -264,6 +271,127 @@ func ensureRuntimeEventBus(
 		runJournal.SetBus(bus)
 	}
 	return bus
+}
+
+type workflowPreparedStateConfig struct {
+	workspaceRoot    string
+	name             string
+	tasksDir         string
+	mode             model.ExecutionMode
+	includeCompleted bool
+	provider         string
+	pr               string
+	reviewsDir       string
+	round            int
+	autoCommit       bool
+	agentName        string
+	ide              string
+	model            string
+	reasoningEffort  string
+	accessMode       string
+	addDirs          []string
+	taskRuntimeRules []model.TaskRuntimeRule
+}
+
+func snapshotWorkflowPreparedStateConfig(cfg *model.RuntimeConfig) workflowPreparedStateConfig {
+	if cfg == nil {
+		return workflowPreparedStateConfig{}
+	}
+	return workflowPreparedStateConfig{
+		workspaceRoot:    cfg.WorkspaceRoot,
+		name:             cfg.Name,
+		tasksDir:         cfg.TasksDir,
+		mode:             cfg.Mode,
+		includeCompleted: cfg.IncludeCompleted,
+		provider:         cfg.Provider,
+		pr:               cfg.PR,
+		reviewsDir:       cfg.ReviewsDir,
+		round:            cfg.Round,
+		autoCommit:       cfg.AutoCommit,
+		agentName:        cfg.AgentName,
+		ide:              cfg.IDE,
+		model:            cfg.Model,
+		reasoningEffort:  cfg.ReasoningEffort,
+		accessMode:       cfg.AccessMode,
+		addDirs:          append([]string(nil), cfg.AddDirs...),
+		taskRuntimeRules: model.CloneTaskRuntimeRules(cfg.TaskRuntimeRules),
+	}
+}
+
+func validateWorkflowPreparedStateMutation(
+	before workflowPreparedStateConfig,
+	cfg *model.RuntimeConfig,
+) error {
+	current := snapshotWorkflowPreparedStateConfig(cfg)
+	for _, check := range []struct {
+		field   string
+		changed bool
+	}{
+		{field: "workspace_root", changed: current.workspaceRoot != before.workspaceRoot},
+		{field: "name", changed: current.name != before.name},
+		{field: "tasks_dir", changed: current.tasksDir != before.tasksDir},
+		{field: "mode", changed: current.mode != before.mode},
+		{field: "include_completed", changed: current.includeCompleted != before.includeCompleted},
+		{field: "provider", changed: current.provider != before.provider},
+		{field: "pr", changed: current.pr != before.pr},
+		{field: "reviews_dir", changed: current.reviewsDir != before.reviewsDir},
+		{field: "round", changed: current.round != before.round},
+		{field: "auto_commit", changed: current.autoCommit != before.autoCommit},
+		{field: "agent_name", changed: current.agentName != before.agentName},
+		{field: "ide", changed: current.ide != before.ide},
+		{field: "model", changed: current.model != before.model},
+		{field: "reasoning_effort", changed: current.reasoningEffort != before.reasoningEffort},
+		{field: "access_mode", changed: current.accessMode != before.accessMode},
+		{field: "add_dirs", changed: !equalStringSlices(current.addDirs, before.addDirs)},
+		{field: "task_runtime_rules", changed: !equalTaskRuntimeRules(current.taskRuntimeRules, before.taskRuntimeRules)},
+	} {
+		if check.changed {
+			return fmt.Errorf(
+				"run.pre_start cannot mutate %s after workflow state preparation",
+				check.field,
+			)
+		}
+	}
+	return nil
+}
+
+func equalStringSlices(left []string, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if left[idx] != right[idx] {
+			return false
+		}
+	}
+	return true
+}
+
+func equalTaskRuntimeRules(left []model.TaskRuntimeRule, right []model.TaskRuntimeRule) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for idx := range left {
+		if !equalOptionalString(left[idx].ID, right[idx].ID) ||
+			!equalOptionalString(left[idx].Type, right[idx].Type) ||
+			!equalOptionalString(left[idx].IDE, right[idx].IDE) ||
+			!equalOptionalString(left[idx].Model, right[idx].Model) ||
+			!equalOptionalString(left[idx].ReasoningEffort, right[idx].ReasoningEffort) {
+			return false
+		}
+	}
+	return true
+}
+
+func equalOptionalString(left *string, right *string) bool {
+	switch {
+	case left == nil && right == nil:
+		return true
+	case left == nil || right == nil:
+		return false
+	default:
+		return *left == *right
+	}
 }
 
 type jobExecutionContext struct {

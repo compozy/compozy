@@ -43,34 +43,35 @@ type HookName string
 
 // Supported hook names.
 const (
-	HookPlanPreDiscover        HookName = "plan.pre_discover"
-	HookPlanPostDiscover       HookName = "plan.post_discover"
-	HookPlanPreGroup           HookName = "plan.pre_group"
-	HookPlanPostGroup          HookName = "plan.post_group"
-	HookPlanPrePrepareJobs     HookName = "plan.pre_prepare_jobs"
-	HookPlanPostPrepareJobs    HookName = "plan.post_prepare_jobs"
-	HookPromptPreBuild         HookName = "prompt.pre_build"
-	HookPromptPostBuild        HookName = "prompt.post_build"
-	HookPromptPreSystem        HookName = "prompt.pre_system"
-	HookAgentPreSessionCreate  HookName = "agent.pre_session_create"
-	HookAgentPostSessionCreate HookName = "agent.post_session_create"
-	HookAgentPreSessionResume  HookName = "agent.pre_session_resume"
-	HookAgentOnSessionUpdate   HookName = "agent.on_session_update"
-	HookAgentPostSessionEnd    HookName = "agent.post_session_end"
-	HookJobPreExecute          HookName = "job.pre_execute"
-	HookJobPostExecute         HookName = "job.post_execute"
-	HookJobPreRetry            HookName = "job.pre_retry"
-	HookRunPreStart            HookName = "run.pre_start"
-	HookRunPostStart           HookName = "run.post_start"
-	HookRunPreShutdown         HookName = "run.pre_shutdown"
-	HookRunPostShutdown        HookName = "run.post_shutdown"
-	HookReviewPreFetch         HookName = "review.pre_fetch"
-	HookReviewPostFetch        HookName = "review.post_fetch"
-	HookReviewPreBatch         HookName = "review.pre_batch"
-	HookReviewPostFix          HookName = "review.post_fix"
-	HookReviewPreResolve       HookName = "review.pre_resolve"
-	HookArtifactPreWrite       HookName = "artifact.pre_write"
-	HookArtifactPostWrite      HookName = "artifact.post_write"
+	HookPlanPreDiscover           HookName = "plan.pre_discover"
+	HookPlanPostDiscover          HookName = "plan.post_discover"
+	HookPlanPreGroup              HookName = "plan.pre_group"
+	HookPlanPostGroup             HookName = "plan.post_group"
+	HookPlanPrePrepareJobs        HookName = "plan.pre_prepare_jobs"
+	HookPlanPreResolveTaskRuntime HookName = "plan.pre_resolve_task_runtime"
+	HookPlanPostPrepareJobs       HookName = "plan.post_prepare_jobs"
+	HookPromptPreBuild            HookName = "prompt.pre_build"
+	HookPromptPostBuild           HookName = "prompt.post_build"
+	HookPromptPreSystem           HookName = "prompt.pre_system"
+	HookAgentPreSessionCreate     HookName = "agent.pre_session_create"
+	HookAgentPostSessionCreate    HookName = "agent.post_session_create"
+	HookAgentPreSessionResume     HookName = "agent.pre_session_resume"
+	HookAgentOnSessionUpdate      HookName = "agent.on_session_update"
+	HookAgentPostSessionEnd       HookName = "agent.post_session_end"
+	HookJobPreExecute             HookName = "job.pre_execute"
+	HookJobPostExecute            HookName = "job.post_execute"
+	HookJobPreRetry               HookName = "job.pre_retry"
+	HookRunPreStart               HookName = "run.pre_start"
+	HookRunPostStart              HookName = "run.post_start"
+	HookRunPreShutdown            HookName = "run.pre_shutdown"
+	HookRunPostShutdown           HookName = "run.post_shutdown"
+	HookReviewPreFetch            HookName = "review.pre_fetch"
+	HookReviewPostFetch           HookName = "review.post_fetch"
+	HookReviewPreBatch            HookName = "review.pre_batch"
+	HookReviewPostFix             HookName = "review.post_fix"
+	HookReviewPreResolve          HookName = "review.pre_resolve"
+	HookArtifactPreWrite          HookName = "artifact.pre_write"
+	HookArtifactPostWrite         HookName = "artifact.post_write"
 )
 
 // ExecutionMode identifies the target Compozy execution mode.
@@ -342,17 +343,20 @@ type SessionOutcome struct {
 
 // Job mirrors the planned job shape exposed to run/job hooks.
 type Job struct {
-	CodeFiles     []string
-	Groups        map[string][]IssueEntry
-	TaskTitle     string
-	TaskType      string
-	SafeName      string
-	Prompt        []byte
-	SystemPrompt  string
-	MCPServers    []MCPServer
-	OutPromptPath string
-	OutLog        string
-	ErrLog        string
+	CodeFiles       []string
+	Groups          map[string][]IssueEntry
+	TaskTitle       string
+	TaskType        string
+	SafeName        string
+	IDE             string
+	Model           string
+	ReasoningEffort string
+	Prompt          []byte
+	SystemPrompt    string
+	MCPServers      []MCPServer
+	OutPromptPath   string
+	OutLog          string
+	ErrLog          string
 }
 
 // FetchConfig mirrors the review provider fetch configuration.
@@ -384,6 +388,30 @@ type ExplicitRuntimeFlags struct {
 	AccessMode      bool
 }
 
+// TaskRuntime mirrors the effective runtime fields that may vary per task.
+type TaskRuntime struct {
+	IDE             string `json:"ide,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+}
+
+// TaskRuntimeTask mirrors the PRD task whose runtime is being resolved.
+type TaskRuntimeTask struct {
+	ID       string `json:"id,omitempty"`
+	SafeName string `json:"safe_name,omitempty"`
+	Title    string `json:"title,omitempty"`
+	Type     string `json:"type,omitempty"`
+}
+
+// TaskRuntimeRule mirrors one task-scoped runtime override rule.
+type TaskRuntimeRule struct {
+	ID              *string `json:"id,omitempty"`
+	Type            *string `json:"type,omitempty"`
+	IDE             *string `json:"ide,omitempty"`
+	Model           *string `json:"model,omitempty"`
+	ReasoningEffort *string `json:"reasoning_effort,omitempty"`
+}
+
 // RuntimeConfig mirrors the run configuration payload exposed to run hooks.
 type RuntimeConfig struct {
 	WorkspaceRoot              string
@@ -406,6 +434,7 @@ type RuntimeConfig struct {
 	AccessMode                 string
 	AgentName                  string
 	ExplicitRuntime            ExplicitRuntimeFlags
+	TaskRuntimeRules           []TaskRuntimeRule
 	Mode                       ExecutionMode
 	OutputFormat               OutputFormat
 	Verbose                    bool

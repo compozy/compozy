@@ -1,5 +1,7 @@
 package workspace
 
+import "github.com/compozy/compozy/internal/core/model"
+
 type Context struct {
 	Root                string
 	CompozyDir          string
@@ -36,9 +38,10 @@ type RuntimeOverrides struct {
 type DefaultsConfig RuntimeOverrides
 
 type StartConfig struct {
-	IncludeCompleted *bool   `toml:"include_completed"`
-	OutputFormat     *string `toml:"output_format"`
-	TUI              *bool   `toml:"tui"`
+	IncludeCompleted *bool                    `toml:"include_completed"`
+	OutputFormat     *string                  `toml:"output_format"`
+	TUI              *bool                    `toml:"tui"`
+	TaskRuntimeRules *[]model.TaskRuntimeRule `toml:"task_runtime_rules"`
 }
 
 type TasksConfig struct {

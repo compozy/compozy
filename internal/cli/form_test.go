@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,7 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 		"model",
 		"add-dir",
 		"reasoning-effort",
+		"define-task-runtime",
 		"auto-commit",
 	)
 	assertFieldKeysAbsent(t, keys, "concurrent", "dry-run", "include-completed", "tail-lines", "access-mode", "timeout")
@@ -301,6 +303,47 @@ func TestListStartTaskSubdirsFiltersCompletedWorkflows(t *testing.T) {
 		if _, err := os.Stat(filepath.Join(dir, "_meta.md")); err == nil {
 			t.Fatalf("listing should not bootstrap _meta.md in %s", dir)
 		}
+	}
+}
+
+func TestStartTaskRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	writeFormTaskFile(t, tasksDir, "task_01.md", "pending")
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state.workspaceRoot = workspaceRoot
+	state.name = "demo"
+	state.ide = "codex"
+	state.reasoningEffort = "medium"
+	state.configuredTaskRuntimeRules = []model.TaskRuntimeRule{{
+		Type:            stringPointer("backend"),
+		IDE:             stringPointer("claude"),
+		Model:           stringPointer("sonnet"),
+		ReasoningEffort: stringPointer("high"),
+	}}
+
+	form, err := newStartTaskRuntimeForm(state)
+	if err != nil {
+		t.Fatalf("newStartTaskRuntimeForm() error = %v", err)
+	}
+	if form == nil {
+		t.Fatal("expected task runtime form")
+	}
+	if !slices.Contains(form.selectedTypes, "backend") {
+		t.Fatalf("expected backend type to be preselected, got %#v", form.selectedTypes)
+	}
+	editor := form.typeEditors["backend"]
+	if editor == nil {
+		t.Fatal("expected backend editor to be created")
+	}
+	if editor.IDE != "claude" || editor.Model != "sonnet" || editor.ReasoningEffort != "high" {
+		t.Fatalf("unexpected preseeded editor: %#v", editor)
 	}
 }
 

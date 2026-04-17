@@ -2,6 +2,10 @@ package model
 
 import "context"
 
+type observerHookWaiter interface {
+	WaitForObserverHooks(context.Context) error
+}
+
 func DispatchMutableHook[T any](
 	ctx context.Context,
 	manager RuntimeManager,
@@ -29,4 +33,15 @@ func DispatchObserverHook(ctx context.Context, manager RuntimeManager, hook stri
 		return
 	}
 	manager.DispatchObserverHook(ctx, hook, payload)
+}
+
+func WaitForObserverHooks(ctx context.Context, manager RuntimeManager) error {
+	if manager == nil {
+		return nil
+	}
+	waiter, ok := manager.(observerHookWaiter)
+	if !ok {
+		return nil
+	}
+	return waiter.WaitForObserverHooks(ctx)
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -188,6 +189,7 @@ func (r *jobRunner) dispatchPreExecuteHook(ctx context.Context) error {
 		return nil
 	}
 
+	before := hookModelJob(r.job)
 	payload, err := model.DispatchMutableHook(
 		ctx,
 		r.execCtx.cfg.RuntimeManager,
@@ -199,6 +201,9 @@ func (r *jobRunner) dispatchPreExecuteHook(ctx context.Context) error {
 	)
 	if err != nil {
 		return err
+	}
+	if jobRuntimeChanged(before, payload.Job) {
+		return fmt.Errorf("job.pre_execute cannot mutate job runtime after planning completed")
 	}
 	applyHookModelJob(r.job, payload.Job)
 	return nil
@@ -262,4 +267,10 @@ func (r *jobRunner) waitForRetry(ctx context.Context, delay time.Duration) bool 
 	case <-timer.C:
 		return true
 	}
+}
+
+func jobRuntimeChanged(before model.Job, after model.Job) bool {
+	return strings.TrimSpace(before.IDE) != strings.TrimSpace(after.IDE) ||
+		strings.TrimSpace(before.Model) != strings.TrimSpace(after.Model) ||
+		strings.TrimSpace(before.ReasoningEffort) != strings.TrimSpace(after.ReasoningEffort)
 }

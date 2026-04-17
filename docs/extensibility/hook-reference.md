@@ -16,14 +16,15 @@ All hook payload and patch interfaces are exported from `@compozy/extension-sdk`
 
 All `plan.*` hooks require `plan.mutate`.
 
-| Event                    | TS helper               | Payload type                                            | Patch type                                              | Notes                                                     |
-| ------------------------ | ----------------------- | ------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------------------- |
-| `plan.pre_discover`      | `onPlanPreDiscover`     | `PlanPreDiscoverPayload` `{run_id, workflow, mode}`     | `ExtraSourcesPatch` `{extra_sources?: string[]}`        | Adds extra discovery sources before issue discovery runs. |
-| `plan.post_discover`     | `onPlanPostDiscover`    | `PlanPostDiscoverPayload` `{run_id, workflow, entries}` | `EntriesPatch` `{entries?: IssueEntry[]}`               | Rewrites the discovered issue entry list.                 |
-| `plan.pre_group`         | `onPlanPreGroup`        | `PlanPreGroupPayload` `{run_id, entries}`               | `EntriesPatch`                                          | Adjusts entries before grouping.                          |
-| `plan.post_group`        | `onPlanPostGroup`       | `PlanPostGroupPayload` `{run_id, groups}`               | `GroupsPatch` `{groups?: Record<string, IssueEntry[]>}` | Rewrites grouped issue batches.                           |
-| `plan.pre_prepare_jobs`  | `onPlanPrePrepareJobs`  | `PlanPrePrepareJobsPayload` `{run_id, groups}`          | `GroupsPatch`                                           | Adjusts groups before job creation.                       |
-| `plan.post_prepare_jobs` | `onPlanPostPrepareJobs` | `PlanPostPrepareJobsPayload` `{run_id, jobs}`           | `JobsPatch` `{jobs?: Job[]}`                            | Rewrites the prepared job list.                           |
+| Event                           | TS helper                     | Payload type                                                 | Patch type                                              | Notes                                                                                    |
+| ------------------------------- | ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `plan.pre_discover`             | `onPlanPreDiscover`           | `PlanPreDiscoverPayload` `{run_id, workflow, mode}`          | `ExtraSourcesPatch` `{extra_sources?: string[]}`        | Adds extra discovery sources before issue discovery runs.                                |
+| `plan.post_discover`            | `onPlanPostDiscover`          | `PlanPostDiscoverPayload` `{run_id, workflow, entries}`      | `EntriesPatch` `{entries?: IssueEntry[]}`               | Rewrites the discovered issue entry list.                                                |
+| `plan.pre_group`                | `onPlanPreGroup`              | `PlanPreGroupPayload` `{run_id, entries}`                    | `EntriesPatch`                                          | Adjusts entries before grouping.                                                         |
+| `plan.post_group`               | `onPlanPostGroup`             | `PlanPostGroupPayload` `{run_id, groups}`                    | `GroupsPatch` `{groups?: Record<string, IssueEntry[]>}` | Rewrites grouped issue batches.                                                          |
+| `plan.pre_prepare_jobs`         | `onPlanPrePrepareJobs`        | `PlanPrePrepareJobsPayload` `{run_id, groups}`               | `GroupsPatch`                                           | Adjusts groups before job creation.                                                      |
+| `plan.pre_resolve_task_runtime` | `onPlanPreResolveTaskRuntime` | `PlanPreResolveTaskRuntimePayload` `{run_id, task, runtime}` | `TaskRuntimePatch` `{runtime?: TaskRuntime}`            | PRD-only seam for selecting one task's effective runtime before job derivation finishes. |
+| `plan.post_prepare_jobs`        | `onPlanPostPrepareJobs`       | `PlanPostPrepareJobsPayload` `{run_id, jobs}`                | `JobsPatch` `{jobs?: Job[]}`                            | Rewrites the prepared job list, but cannot mutate prepared job runtime fields.           |
 
 ## Prompt phase
 
@@ -51,15 +52,15 @@ All `agent.*` hooks require `agent.mutate`.
 
 `job.*` hooks require `job.mutate`. `run.*` hooks require `run.mutate`.
 
-| Event               | TS helper           | Payload type                                              | Patch type                                                    | Notes                                               |
-| ------------------- | ------------------- | --------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------- |
-| `job.pre_execute`   | `onJobPreExecute`   | `JobPreExecutePayload` `{run_id, job}`                    | `JobPatch` `{job?: Job}`                                      | Rewrites one job before execution.                  |
-| `job.post_execute`  | `onJobPostExecute`  | `JobPostExecutePayload` `{run_id, job, result}`           | none                                                          | Observe-only.                                       |
-| `job.pre_retry`     | `onJobPreRetry`     | `JobPreRetryPayload` `{run_id, job, attempt, last_error}` | `RetryDecisionPatch` `{proceed?: boolean, delay_ms?: number}` | Can veto or delay a retry.                          |
-| `run.pre_start`     | `onRunPreStart`     | `RunPreStartPayload` `{run_id, config, artifacts}`        | `RuntimeConfigPatch` `{config?: RuntimeConfig}`               | Rewrites run configuration before execution begins. |
-| `run.post_start`    | `onRunPostStart`    | `RunPostStartPayload` `{run_id, config}`                  | none                                                          | Observe-only.                                       |
-| `run.pre_shutdown`  | `onRunPreShutdown`  | `RunPreShutdownPayload` `{run_id, reason}`                | none                                                          | Observe-only.                                       |
-| `run.post_shutdown` | `onRunPostShutdown` | `RunPostShutdownPayload` `{run_id, reason, summary}`      | none                                                          | Observe-only. Common lifecycle observer target.     |
+| Event               | TS helper           | Payload type                                              | Patch type                                                    | Notes                                                                                                                         |
+| ------------------- | ------------------- | --------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `job.pre_execute`   | `onJobPreExecute`   | `JobPreExecutePayload` `{run_id, job}`                    | `JobPatch` `{job?: Job}`                                      | Rewrites one job before execution, but cannot mutate runtime fields chosen during planning.                                   |
+| `job.post_execute`  | `onJobPostExecute`  | `JobPostExecutePayload` `{run_id, job, result}`           | none                                                          | Observe-only.                                                                                                                 |
+| `job.pre_retry`     | `onJobPreRetry`     | `JobPreRetryPayload` `{run_id, job, attempt, last_error}` | `RetryDecisionPatch` `{proceed?: boolean, delay_ms?: number}` | Can veto or delay a retry.                                                                                                    |
+| `run.pre_start`     | `onRunPreStart`     | `RunPreStartPayload` `{run_id, config, artifacts}`        | `RuntimeConfigPatch` `{config?: RuntimeConfig}`               | Rewrites late execution settings before execution begins, but cannot change workflow planning state already consumed earlier. |
+| `run.post_start`    | `onRunPostStart`    | `RunPostStartPayload` `{run_id, config}`                  | none                                                          | Observe-only.                                                                                                                 |
+| `run.pre_shutdown`  | `onRunPreShutdown`  | `RunPreShutdownPayload` `{run_id, reason}`                | none                                                          | Observe-only.                                                                                                                 |
+| `run.post_shutdown` | `onRunPostShutdown` | `RunPostShutdownPayload` `{run_id, reason, summary}`      | none                                                          | Observe-only. Common lifecycle observer target.                                                                               |
 
 ## Review phase
 
@@ -99,3 +100,5 @@ These are not `execute_hook` events but they are part of the public author surfa
 - `{}` and `{"patch": {}}` are both treated as no-op responses.
 - Arrays are replaced wholesale, not merged.
 - Returning a patch from an observe-only hook is allowed for forward compatibility but ignored by the host.
+- `plan.pre_resolve_task_runtime` is the only supported seam for extension-driven task runtime selection. Do not change runtime in `plan.post_prepare_jobs` or `job.pre_execute`.
+- In workflow runs, `run.pre_start` is late in the pipeline. It can still tune output/runtime behavior such as timeout, retries, or sound settings, but it cannot rewrite fields already consumed by planning.

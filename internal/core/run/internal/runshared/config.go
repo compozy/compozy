@@ -25,6 +25,7 @@ type Config struct {
 	TailLines              int
 	ReasoningEffort        string
 	AccessMode             string
+	TaskRuntimeRules       []model.TaskRuntimeRule
 	Mode                   model.ExecutionMode
 	OutputFormat           model.OutputFormat
 	Verbose                bool
@@ -44,26 +45,29 @@ type Config struct {
 }
 
 type Job struct {
-	CodeFiles     []string
-	Groups        map[string][]model.IssueEntry
-	TaskTitle     string
-	TaskType      string
-	SafeName      string
-	ReusableAgent *ReusableAgentExecution
-	Prompt        []byte
-	SystemPrompt  string
-	MCPServers    []model.MCPServer
-	ResumeRunID   string
-	ResumeSession string
-	OutPromptPath string
-	OutLog        string
-	ErrLog        string
-	Status        string
-	Failure       string
-	ExitCode      int
-	Usage         model.Usage
-	OutBuffer     *LineBuffer
-	ErrBuffer     *LineBuffer
+	CodeFiles       []string
+	Groups          map[string][]model.IssueEntry
+	TaskTitle       string
+	TaskType        string
+	SafeName        string
+	IDE             string
+	Model           string
+	ReasoningEffort string
+	ReusableAgent   *ReusableAgentExecution
+	Prompt          []byte
+	SystemPrompt    string
+	MCPServers      []model.MCPServer
+	ResumeRunID     string
+	ResumeSession   string
+	OutPromptPath   string
+	OutLog          string
+	ErrLog          string
+	Status          string
+	Failure         string
+	ExitCode        int
+	Usage           model.Usage
+	OutBuffer       *LineBuffer
+	ErrBuffer       *LineBuffer
 }
 
 func (j Job) CodeFileLabel() string {
@@ -119,6 +123,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		TailLines:              src.TailLines,
 		ReasoningEffort:        src.ReasoningEffort,
 		AccessMode:             src.AccessMode,
+		TaskRuntimeRules:       model.CloneTaskRuntimeRules(src.TaskRuntimeRules),
 		Mode:                   src.Mode,
 		OutputFormat:           src.OutputFormat,
 		Verbose:                src.Verbose,
@@ -142,17 +147,20 @@ func NewJobs(src []model.Job) []Job {
 	for i := range src {
 		item := &src[i]
 		jobs = append(jobs, Job{
-			CodeFiles:     append([]string(nil), item.CodeFiles...),
-			Groups:        CloneGroups(item.Groups),
-			TaskTitle:     item.TaskTitle,
-			TaskType:      item.TaskType,
-			SafeName:      item.SafeName,
-			Prompt:        append([]byte(nil), item.Prompt...),
-			SystemPrompt:  item.SystemPrompt,
-			MCPServers:    model.CloneMCPServers(item.MCPServers),
-			OutPromptPath: item.OutPromptPath,
-			OutLog:        item.OutLog,
-			ErrLog:        item.ErrLog,
+			CodeFiles:       append([]string(nil), item.CodeFiles...),
+			Groups:          CloneGroups(item.Groups),
+			TaskTitle:       item.TaskTitle,
+			TaskType:        item.TaskType,
+			SafeName:        item.SafeName,
+			IDE:             item.IDE,
+			Model:           item.Model,
+			ReasoningEffort: item.ReasoningEffort,
+			Prompt:          append([]byte(nil), item.Prompt...),
+			SystemPrompt:    item.SystemPrompt,
+			MCPServers:      model.CloneMCPServers(item.MCPServers),
+			OutPromptPath:   item.OutPromptPath,
+			OutLog:          item.OutLog,
+			ErrLog:          item.ErrLog,
 		})
 	}
 	return jobs

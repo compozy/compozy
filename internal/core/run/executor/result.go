@@ -34,15 +34,18 @@ type executionResult struct {
 }
 
 type executionJobInfo struct {
-	SafeName      string      `json:"safe_name"`
-	CodeFiles     []string    `json:"code_files,omitempty"`
-	Status        string      `json:"status"`
-	ExitCode      int         `json:"exit_code"`
-	PromptPath    string      `json:"prompt_path"`
-	StdoutLogPath string      `json:"stdout_log_path"`
-	StderrLogPath string      `json:"stderr_log_path"`
-	Usage         model.Usage `json:"usage,omitempty"`
-	Error         string      `json:"error,omitempty"`
+	SafeName        string      `json:"safe_name"`
+	CodeFiles       []string    `json:"code_files,omitempty"`
+	IDE             string      `json:"ide,omitempty"`
+	Model           string      `json:"model,omitempty"`
+	ReasoningEffort string      `json:"reasoning_effort,omitempty"`
+	Status          string      `json:"status"`
+	ExitCode        int         `json:"exit_code"`
+	PromptPath      string      `json:"prompt_path"`
+	StdoutLogPath   string      `json:"stdout_log_path"`
+	StderrLogPath   string      `json:"stderr_log_path"`
+	Usage           model.Usage `json:"usage,omitempty"`
+	Error           string      `json:"error,omitempty"`
 }
 
 func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdownErr error) executionResult {
@@ -61,15 +64,18 @@ func buildExecutionResult(cfg *config, jobs []job, failures []failInfo, shutdown
 	for idx := range jobs {
 		item := &jobs[idx]
 		result.Jobs = append(result.Jobs, executionJobInfo{
-			SafeName:      item.SafeName,
-			CodeFiles:     append([]string(nil), item.CodeFiles...),
-			Status:        jobStatusOrDefault(item.Status),
-			ExitCode:      item.ExitCode,
-			PromptPath:    item.OutPromptPath,
-			StdoutLogPath: item.OutLog,
-			StderrLogPath: item.ErrLog,
-			Usage:         item.Usage,
-			Error:         item.Failure,
+			SafeName:        item.SafeName,
+			CodeFiles:       append([]string(nil), item.CodeFiles...),
+			IDE:             item.IDE,
+			Model:           item.Model,
+			ReasoningEffort: item.ReasoningEffort,
+			Status:          jobStatusOrDefault(item.Status),
+			ExitCode:        item.ExitCode,
+			PromptPath:      item.OutPromptPath,
+			StdoutLogPath:   item.OutLog,
+			StderrLogPath:   item.ErrLog,
+			Usage:           item.Usage,
+			Error:           item.Failure,
 		})
 		result.Usage.Add(item.Usage)
 	}

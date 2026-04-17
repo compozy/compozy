@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/spf13/cobra"
 )
@@ -121,6 +122,9 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 	case commandKindStart:
 		applyConfig(cmd, "format", cfg.Start.OutputFormat, func(val string) { s.outputFormat = val })
 		applyConfig(cmd, "tui", cfg.Start.TUI, func(val bool) { s.tui = val })
+		s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(
+			derefTaskRuntimeRulesConfig(cfg.Start.TaskRuntimeRules),
+		)
 		applyConfig(
 			cmd,
 			"include-completed",
@@ -166,6 +170,13 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 			func(val float64) { s.retryBackoffMultiplier = val },
 		)
 	}
+}
+
+func derefTaskRuntimeRulesConfig(value *[]model.TaskRuntimeRule) []model.TaskRuntimeRule {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 // applySoundConfig copies the project-level [sound] TOML section onto the command

@@ -29,7 +29,7 @@ Flags:
       --format string                    Output format: text, json, or raw-json (default "text")
   -h, --help                             help for exec
       --ide string                       ACP runtime to use. Built-in and enabled extension runtimes are validated against the active runtime catalog. (default "codex")
-      --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
+      --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed (default 2)
       --model string                     Model to use. Leave empty to use the selected runtime default.
       --persist                          Persist exec artifacts under .compozy/runs/<run-id>/
       --prompt-file string               Path to a file containing the prompt text

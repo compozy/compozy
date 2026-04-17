@@ -35,6 +35,7 @@ type RuntimeConfig struct {
 	AccessMode                 string
 	AgentName                  string
 	ExplicitRuntime            ExplicitRuntimeFlags
+	TaskRuntimeRules           []TaskRuntimeRule
 	Mode                       ExecutionMode
 	OutputFormat               OutputFormat
 	Verbose                    bool
