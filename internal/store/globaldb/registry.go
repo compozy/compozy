@@ -427,7 +427,11 @@ func (g *GlobalDB) GetRun(ctx context.Context, runID string) (Run, error) {
 	return run, nil
 }
 
-func (g *GlobalDB) registerResolvedWorkspace(ctx context.Context, rootDir string, name string) (Workspace, error) {
+func (g *GlobalDB) registerResolvedWorkspace(
+	ctx context.Context,
+	rootDir string,
+	name string,
+) (_ Workspace, retErr error) {
 	tx, err := g.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Workspace{}, fmt.Errorf("globaldb: begin register workspace transaction: %w", err)
@@ -436,7 +440,12 @@ func (g *GlobalDB) registerResolvedWorkspace(ctx context.Context, rootDir string
 	committed := false
 	defer func() {
 		if !committed {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+				retErr = errors.Join(
+					retErr,
+					fmt.Errorf("globaldb: rollback register workspace transaction: %w", rollbackErr),
+				)
+			}
 		}
 	}()
 

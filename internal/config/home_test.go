@@ -74,6 +74,42 @@ func TestResolveHomePathsUsesUserHome(t *testing.T) {
 	}
 }
 
+func TestResolveHomePathsUsesHomeIndependentlyOfWorkingDirectory(t *testing.T) {
+	homeDir := t.TempDir()
+	stubConfigUserHomeDir(t, func() (string, error) {
+		return homeDir, nil
+	})
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	nestedDir := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(nestedDir); err != nil {
+		t.Fatalf("Chdir(%s) error = %v", nestedDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(originalWD)
+	}()
+
+	paths, err := ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+
+	if got, want := paths.HomeDir, filepath.Join(homeDir, ".compozy"); got != want {
+		t.Fatalf("HomeDir = %q, want %q", got, want)
+	}
+	if got := paths.HomeDir; got == filepath.Join(workspaceRoot, ".compozy") {
+		t.Fatalf("HomeDir should not be workspace-scoped: %q", got)
+	}
+}
+
 func TestEnsureHomeLayoutCreatesDirectories(t *testing.T) {
 	t.Parallel()
 

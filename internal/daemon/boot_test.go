@@ -30,15 +30,9 @@ func TestStartRemovesStaleArtifactsAndMarksReady(t *testing.T) {
 	if err := os.WriteFile(paths.SocketPath, []byte("stale"), 0o600); err != nil {
 		t.Fatalf("write stale socket marker: %v", err)
 	}
-
-	restore := stubAcquireDaemonLock(t, func(path string, pid int, _ func(int) bool) (*Lock, error) {
-		return &Lock{
-			path:     path,
-			pid:      pid,
-			stalePID: staleInfo.PID,
-		}, nil
-	})
-	defer restore()
+	if err := os.WriteFile(paths.LockPath, []byte("999001\n"), 0o600); err != nil {
+		t.Fatalf("write stale lock file: %v", err)
+	}
 
 	startedAt := time.Unix(20, 0).UTC()
 	result, err := Start(context.Background(), StartOptions{
@@ -78,6 +72,13 @@ func TestStartRemovesStaleArtifactsAndMarksReady(t *testing.T) {
 	}
 	if currentInfo.State != ReadyStateReady {
 		t.Fatalf("current info state = %q, want %q", currentInfo.State, ReadyStateReady)
+	}
+	lockPID, err := readLockPID(paths.LockPath)
+	if err != nil {
+		t.Fatalf("readLockPID() error = %v", err)
+	}
+	if lockPID != 4242 {
+		t.Fatalf("lock pid = %d, want 4242", lockPID)
 	}
 }
 
@@ -233,6 +234,107 @@ func TestStartReturnsLockErrorWhenHealthyInfoIsUnavailable(t *testing.T) {
 	})
 	if !errors.Is(err, ErrAlreadyRunning) {
 		t.Fatalf("Start() error = %v, want ErrAlreadyRunning", err)
+	}
+}
+
+func TestStartReturnsHomeResolutionError(t *testing.T) {
+	t.Parallel()
+
+	homeErr := errors.New("home unavailable")
+	restore := stubResolveDaemonHomePaths(t, func() (compozyconfig.HomePaths, error) {
+		return compozyconfig.HomePaths{}, homeErr
+	})
+	defer restore()
+
+	_, err := Start(context.Background(), StartOptions{})
+	if !errors.Is(err, homeErr) {
+		t.Fatalf("Start() error = %v, want %v", err, homeErr)
+	}
+}
+
+func TestStartReturnsLayoutErrorWhenDaemonDirectoryCannotBeCreated(t *testing.T) {
+	t.Parallel()
+
+	paths := mustHomePaths(t)
+	if err := os.MkdirAll(filepath.Dir(paths.DaemonDir), 0o755); err != nil {
+		t.Fatalf("mkdir daemon parent: %v", err)
+	}
+	if err := os.WriteFile(paths.DaemonDir, []byte("not a dir"), 0o600); err != nil {
+		t.Fatalf("write daemon dir file: %v", err)
+	}
+
+	_, err := Start(context.Background(), StartOptions{
+		HomePaths: paths,
+		PID:       4242,
+	})
+	if err == nil {
+		t.Fatal("Start() error = nil, want non-nil")
+	}
+}
+
+func TestStartRebuildsMismatchedRuntimeArtifacts(t *testing.T) {
+	t.Parallel()
+
+	paths := mustHomePaths(t)
+	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+
+	existingInfo := Info{
+		PID:        1111,
+		Version:    "old",
+		SocketPath: paths.SocketPath,
+		StartedAt:  time.Unix(90, 0).UTC(),
+		State:      ReadyStateReady,
+	}
+	if err := WriteInfo(paths.InfoPath, existingInfo); err != nil {
+		t.Fatalf("WriteInfo(existing) error = %v", err)
+	}
+	if err := os.WriteFile(paths.LockPath, []byte("2222\n"), 0o600); err != nil {
+		t.Fatalf("write stale lock file: %v", err)
+	}
+	if err := os.WriteFile(paths.SocketPath, []byte("stale"), 0o600); err != nil {
+		t.Fatalf("write stale socket marker: %v", err)
+	}
+
+	startedAt := time.Unix(100, 0).UTC()
+	result, err := Start(context.Background(), StartOptions{
+		HomePaths: paths,
+		PID:       3333,
+		Version:   "new",
+		Now:       func() time.Time { return startedAt },
+		ProcessAlive: func(pid int) bool {
+			return pid == 3333
+		},
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		_ = result.Host.Close(context.Background())
+	}()
+
+	currentInfo, err := ReadInfo(paths.InfoPath)
+	if err != nil {
+		t.Fatalf("ReadInfo() error = %v", err)
+	}
+	if currentInfo.PID != 3333 {
+		t.Fatalf("current info pid = %d, want 3333", currentInfo.PID)
+	}
+	if currentInfo.StartedAt != startedAt {
+		t.Fatalf("current info started_at = %v, want %v", currentInfo.StartedAt, startedAt)
+	}
+
+	lockPID, err := readLockPID(paths.LockPath)
+	if err != nil {
+		t.Fatalf("readLockPID() error = %v", err)
+	}
+	if lockPID != 3333 {
+		t.Fatalf("lock pid = %d, want 3333", lockPID)
+	}
+
+	if _, err := os.Stat(paths.SocketPath); !os.IsNotExist(err) {
+		t.Fatalf("expected stale socket to be removed, stat err = %v", err)
 	}
 }
 
@@ -421,5 +523,21 @@ func stubAcquireDaemonLock(
 	})
 	return func() {
 		acquireDaemonLock = original
+	}
+}
+
+func stubResolveDaemonHomePaths(
+	t *testing.T,
+	fn func() (compozyconfig.HomePaths, error),
+) func() {
+	t.Helper()
+
+	original := resolveDaemonHomePaths
+	resolveDaemonHomePaths = fn
+	t.Cleanup(func() {
+		resolveDaemonHomePaths = original
+	})
+	return func() {
+		resolveDaemonHomePaths = original
 	}
 }

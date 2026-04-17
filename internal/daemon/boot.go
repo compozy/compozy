@@ -17,6 +17,8 @@ var acquireDaemonLock = func(path string, pid int, processAlive func(int) bool) 
 	})
 }
 
+var resolveDaemonHomePaths = compozyconfig.ResolveHomePaths
+
 // StartOutcome describes the bootstrap result for one daemon start attempt.
 type StartOutcome string
 
@@ -317,7 +319,7 @@ func normalizeProbeOptions(
 ) (compozyconfig.HomePaths, func(int) bool, func(context.Context, Info) error, error) {
 	resolvedPaths := paths
 	if strings.TrimSpace(resolvedPaths.HomeDir) == "" {
-		loadedPaths, err := compozyconfig.ResolveHomePaths()
+		loadedPaths, err := resolveDaemonHomePaths()
 		if err != nil {
 			return compozyconfig.HomePaths{}, nil, nil, err
 		}

@@ -233,7 +233,7 @@ func loadAppliedMigrations(ctx context.Context, db *sql.DB) (appliedMigrationSta
 	return state, nil
 }
 
-func applyMigration(ctx context.Context, db *sql.DB, item migration, now func() time.Time) error {
+func applyMigration(ctx context.Context, db *sql.DB, item migration, now func() time.Time) (retErr error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("globaldb: begin migration %d: %w", item.version, err)
@@ -242,7 +242,12 @@ func applyMigration(ctx context.Context, db *sql.DB, item migration, now func() 
 	committed := false
 	defer func() {
 		if !committed {
-			_ = tx.Rollback()
+			if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+				retErr = errors.Join(
+					retErr,
+					fmt.Errorf("globaldb: rollback migration %d: %w", item.version, rollbackErr),
+				)
+			}
 		}
 	}()
 

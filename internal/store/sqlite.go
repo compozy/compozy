@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	// Register the pure-Go SQLite driver used by database/sql in this package.
 	_ "modernc.org/sqlite"
 )
 

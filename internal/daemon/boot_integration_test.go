@@ -104,6 +104,110 @@ func TestStartUsesHomeScopedLayoutFromWorkspaceSubdirectory(t *testing.T) {
 	}
 }
 
+func TestStartRecoversAfterKilledDaemonLeavesStaleArtifacts(t *testing.T) {
+	paths := mustHomePaths(t)
+	helper := startDaemonHelperProcess(t, paths)
+
+	waitForHealthyDaemon(t, paths, helper.Process.Pid)
+	killDaemonHelperProcess(t, helper, syscall.SIGKILL)
+
+	if err := os.WriteFile(paths.SocketPath, []byte("stale"), 0o600); err != nil {
+		t.Fatalf("write stale socket marker: %v", err)
+	}
+
+	result, err := Start(context.Background(), StartOptions{
+		HomePaths: paths,
+		Version:   "recovery-test",
+	})
+	if err != nil {
+		t.Fatalf("Start(recovery) error = %v", err)
+	}
+	if result.Outcome != StartOutcomeStarted {
+		t.Fatalf("Outcome = %q, want %q", result.Outcome, StartOutcomeStarted)
+	}
+	defer func() {
+		_ = result.Host.Close(context.Background())
+	}()
+
+	if result.Info.PID == helper.Process.Pid {
+		t.Fatalf("Info.PID = %d, want a new pid after crash recovery", result.Info.PID)
+	}
+
+	status, err := QueryStatus(context.Background(), paths, ProbeOptions{})
+	if err != nil {
+		t.Fatalf("QueryStatus() error = %v", err)
+	}
+	if !status.Healthy || status.State != ReadyStateReady {
+		t.Fatalf("status = %#v, want ready and healthy", status)
+	}
+	if status.Info == nil || status.Info.PID != result.Info.PID {
+		t.Fatalf("status info = %#v, want pid %d", status.Info, result.Info.PID)
+	}
+
+	if _, err := os.Stat(paths.SocketPath); !os.IsNotExist(err) {
+		t.Fatalf("expected stale socket to be removed, stat err = %v", err)
+	}
+}
+
+func TestStartUsesSameHomeScopedDaemonAcrossWorkspaces(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeDir, ".compozy"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	workspaceA := filepath.Join(t.TempDir(), "workspace-a")
+	workspaceB := filepath.Join(t.TempDir(), "workspace-b")
+	nestedA := filepath.Join(workspaceA, "pkg", "feature-a")
+	nestedB := filepath.Join(workspaceB, "pkg", "feature-b")
+	for _, dir := range []string{nestedA, nestedB} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir nested dir %q: %v", dir, err)
+		}
+	}
+
+	helper := startDaemonHelperProcess(t, paths)
+	defer stopDaemonHelperProcess(t, helper)
+
+	waitForHealthyDaemon(t, paths, helper.Process.Pid)
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(nestedB); err != nil {
+		t.Fatalf("Chdir(%s) error = %v", nestedB, err)
+	}
+	defer func() {
+		_ = os.Chdir(originalWD)
+	}()
+
+	result, err := Start(context.Background(), StartOptions{
+		Version: "workspace-b",
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if result.Outcome != StartOutcomeAlreadyRunning {
+		t.Fatalf("Outcome = %q, want %q", result.Outcome, StartOutcomeAlreadyRunning)
+	}
+	if result.Info.PID != helper.Process.Pid {
+		t.Fatalf("Info.PID = %d, want %d", result.Info.PID, helper.Process.Pid)
+	}
+	if result.Paths.HomeDir != paths.HomeDir {
+		t.Fatalf("HomeDir = %q, want %q", result.Paths.HomeDir, paths.HomeDir)
+	}
+
+	for _, workspaceRoot := range []string{workspaceA, workspaceB} {
+		workspaceDaemonDir := filepath.Join(workspaceRoot, ".compozy", "daemon")
+		if _, err := os.Stat(workspaceDaemonDir); !os.IsNotExist(err) {
+			t.Fatalf("expected no workspace-scoped daemon dir at %q, stat err = %v", workspaceDaemonDir, err)
+		}
+	}
+}
+
 func TestDaemonHelperProcess(t *testing.T) {
 	if os.Getenv("COMPOZY_DAEMON_HELPER") != "1" {
 		t.Skip("helper process")
@@ -157,7 +261,16 @@ func stopDaemonHelperProcess(t *testing.T, cmd *exec.Cmd) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	_ = cmd.Process.Signal(syscall.SIGTERM)
+	killDaemonHelperProcess(t, cmd, syscall.SIGTERM)
+}
+
+func killDaemonHelperProcess(t *testing.T, cmd *exec.Cmd, sig syscall.Signal) {
+	t.Helper()
+
+	if cmd == nil || cmd.Process == nil {
+		return
+	}
+	_ = cmd.Process.Signal(sig)
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.Wait()
@@ -165,7 +278,7 @@ func stopDaemonHelperProcess(t *testing.T, cmd *exec.Cmd) {
 
 	select {
 	case err := <-done:
-		if err != nil {
+		if err != nil && sig != syscall.SIGKILL {
 			t.Fatalf("wait helper process: %v", err)
 		}
 	case <-time.After(10 * time.Second):
