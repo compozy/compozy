@@ -21,15 +21,15 @@ These flags are shared by `start`, `exec`, and `fix-reviews`:
 
 ### `compozy setup`
 
-Install bundled skills into target agents and provision global council reusable agents under `~/.compozy/agents/`.
+Install core workflow skills into target agents plus any setup assets shipped by enabled extensions.
 
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
 | `--agent`, `-a` | string[] | | Target agent/editor name (repeatable) |
-| `--skill`, `-s` | string[] | | Bundled skill name to install (repeatable) |
+| `--skill`, `-s` | string[] | | Setup skill name to install (repeatable) |
 | `--global`, `-g` | bool | false | Install to user directory instead of project |
 | `--copy` | bool | false | Copy files instead of symlinking |
-| `--list`, `-l` | bool | false | List bundled assets without installing |
+| `--list`, `-l` | bool | false | List core skills and enabled extension assets without installing |
 | `--yes`, `-y` | bool | false | Skip confirmation prompts |
 | `--all` | bool | false | Install all skills to all agents without prompts |
 
@@ -107,13 +107,15 @@ Fetch review comments from a provider and write them into `.compozy/tasks/<name>
 | `--pr` | string | | Pull request number |
 | `--name` | string | | Workflow name |
 | `--round` | int | next | Review round number (default: next available) |
-| `--nitpicks` | bool | false | Include CodeRabbit nitpick comments |
 
 ```
 compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
 compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
 compozy fetch-reviews
 ```
+
+By default, `fetch-reviews` imports CodeRabbit review-body comments for `nitpick`, `minor`, and `major`.
+Use `[fetch_reviews].nitpicks = false` in `.compozy/config.toml` to disable that import.
 
 ### `compozy fix-reviews`
 
@@ -226,9 +228,14 @@ List all extensions across all scopes. No flags.
 
 View extension details including capabilities and status.
 
-### `compozy ext install <path>`
+### `compozy ext install <source>`
 
-Install an extension from a local path.
+Install an extension from a local path or GitHub repo archive.
+
+```bash
+compozy ext install ./my-extension
+compozy ext install --yes compozy/compozy --remote github --ref v1.2.3 --subdir extensions/cy-idea-factory
+```
 
 ### `compozy ext uninstall <name>`
 
