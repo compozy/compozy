@@ -278,6 +278,51 @@ func (r *RunDB) ListEvents(ctx context.Context, fromSeq uint64) ([]events.Event,
 	return result, nil
 }
 
+// LastEvent returns the latest persisted canonical event, if any.
+func (r *RunDB) LastEvent(ctx context.Context) (*events.Event, error) {
+	if err := r.requireContext(ctx, "load last event"); err != nil {
+		return nil, err
+	}
+
+	row := r.db.QueryRowContext(
+		ctx,
+		`SELECT sequence, event_kind, payload_json, timestamp
+		 FROM events ORDER BY sequence DESC LIMIT 1`,
+	)
+
+	var (
+		sequence    int64
+		eventKind   string
+		payloadJSON string
+		timestamp   string
+	)
+	if err := row.Scan(&sequence, &eventKind, &payloadJSON, &timestamp); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("rundb: query last event: %w", err)
+	}
+
+	seq, err := sequenceValue(sequence, "event sequence")
+	if err != nil {
+		return nil, err
+	}
+	parsedTS, err := store.ParseTimestamp(timestamp)
+	if err != nil {
+		return nil, err
+	}
+
+	event := &events.Event{
+		SchemaVersion: events.SchemaVersion,
+		RunID:         r.runID,
+		Seq:           seq,
+		Kind:          events.EventKind(eventKind),
+		Payload:       json.RawMessage(payloadJSON),
+		Timestamp:     parsedTS,
+	}
+	return event, nil
+}
+
 // ListJobState returns projected job rows ordered by job id.
 func (r *RunDB) ListJobState(ctx context.Context) ([]JobStateRow, error) {
 	if err := r.requireContext(ctx, "list job state"); err != nil {

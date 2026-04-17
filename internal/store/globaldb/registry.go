@@ -67,6 +67,14 @@ type ListWorkflowsOptions struct {
 	IncludeArchived bool
 }
 
+// ListRunsOptions controls durable run listing behavior.
+type ListRunsOptions struct {
+	WorkspaceID string
+	Status      string
+	Mode        string
+	Limit       int
+}
+
 // Run captures one durable global run index row.
 type Run struct {
 	RunID            string
@@ -403,6 +411,75 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 	return g.GetRun(ctx, run.RunID)
 }
 
+// UpdateRun updates one durable run index row in place.
+func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
+	if err := g.requireContext(ctx, "update run"); err != nil {
+		return Run{}, err
+	}
+
+	run.RunID = strings.TrimSpace(run.RunID)
+	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
+	run.Mode = strings.TrimSpace(run.Mode)
+	run.Status = strings.TrimSpace(run.Status)
+	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
+	if run.RunID == "" {
+		return Run{}, errors.New("globaldb: run id is required")
+	}
+	if run.WorkspaceID == "" {
+		return Run{}, errors.New("globaldb: run workspace id is required")
+	}
+	if run.Mode == "" {
+		return Run{}, errors.New("globaldb: run mode is required")
+	}
+	if run.Status == "" {
+		return Run{}, errors.New("globaldb: run status is required")
+	}
+	if run.PresentationMode == "" {
+		return Run{}, errors.New("globaldb: run presentation mode is required")
+	}
+	if run.StartedAt.IsZero() {
+		run.StartedAt = g.now()
+	}
+
+	result, err := g.db.ExecContext(
+		ctx,
+		`UPDATE runs
+		 SET workspace_id = ?,
+		     workflow_id = ?,
+		     mode = ?,
+		     status = ?,
+		     presentation_mode = ?,
+		     started_at = ?,
+		     ended_at = ?,
+		     error_text = ?,
+		     request_id = ?
+		 WHERE run_id = ?`,
+		run.WorkspaceID,
+		store.NullableString(stringValue(run.WorkflowID)),
+		run.Mode,
+		run.Status,
+		run.PresentationMode,
+		store.FormatTimestamp(run.StartedAt),
+		nullableTimestamp(run.EndedAt),
+		strings.TrimSpace(run.ErrorText),
+		strings.TrimSpace(run.RequestID),
+		run.RunID,
+	)
+	if err != nil {
+		return Run{}, fmt.Errorf("globaldb: update run %q: %w", run.RunID, err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return Run{}, fmt.Errorf("globaldb: rows affected for run %q: %w", run.RunID, err)
+	}
+	if affected == 0 {
+		return Run{}, ErrRunNotFound
+	}
+
+	return g.GetRun(ctx, run.RunID)
+}
+
 // GetRun loads one run row by run identifier.
 func (g *GlobalDB) GetRun(ctx context.Context, runID string) (Run, error) {
 	if err := g.requireContext(ctx, "get run"); err != nil {
@@ -425,6 +502,62 @@ func (g *GlobalDB) GetRun(ctx context.Context, runID string) (Run, error) {
 		return Run{}, err
 	}
 	return run, nil
+}
+
+// ListRuns returns run rows filtered by workspace, mode, or status.
+func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, error) {
+	if err := g.requireContext(ctx, "list runs"); err != nil {
+		return nil, err
+	}
+
+	limit := opts.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+
+	query := `
+		SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
+		       started_at, ended_at, error_text, request_id
+		FROM runs
+		WHERE 1 = 1`
+	args := make([]any, 0, 4)
+
+	if workspaceID := strings.TrimSpace(opts.WorkspaceID); workspaceID != "" {
+		query += ` AND workspace_id = ?`
+		args = append(args, workspaceID)
+	}
+	if status := strings.TrimSpace(opts.Status); status != "" {
+		query += ` AND status = ?`
+		args = append(args, status)
+	}
+	if mode := strings.TrimSpace(opts.Mode); mode != "" {
+		query += ` AND mode = ?`
+		args = append(args, mode)
+	}
+	query += ` ORDER BY started_at DESC, run_id ASC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := g.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: query runs: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	runs := make([]Run, 0)
+	for rows.Next() {
+		run, scanErr := scanRun(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		runs = append(runs, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("globaldb: iterate runs: %w", err)
+	}
+
+	return runs, nil
 }
 
 func (g *GlobalDB) registerResolvedWorkspace(

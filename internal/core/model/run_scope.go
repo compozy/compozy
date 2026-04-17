@@ -177,7 +177,7 @@ func openBaseRunScope(
 }
 
 func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
-	runArtifacts, err := ResolveHomeRunArtifacts(buildRunID(cfg))
+	runArtifacts, err := ResolveHomeRunArtifacts(BuildRunID(cfg))
 	if err != nil {
 		return RunArtifacts{}, err
 	}
@@ -187,7 +187,8 @@ func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
 	return runArtifacts, nil
 }
 
-func buildRunID(cfg *RuntimeConfig) string {
+// BuildRunID returns the effective run identifier for one runtime config.
+func BuildRunID(cfg *RuntimeConfig) string {
 	if cfg != nil && strings.TrimSpace(cfg.RunID) != "" {
 		return cfg.RunID
 	}

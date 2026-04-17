@@ -517,7 +517,7 @@ func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope mo
 	state := &execRunState{
 		ctx:      ctx,
 		cfg:      cfg,
-		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI,
+		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI && !cfg.DaemonOwned,
 	}
 	if scope != nil {
 		if strings.TrimSpace(cfg.RunID) != "" {
@@ -573,7 +573,7 @@ func prepareEphemeralExecRunState(
 	}
 	state.cleanupDir = tempDir
 	state.runArtifacts = model.NewRunArtifacts(tempDir, runID)
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	return state, nil
 }
 
@@ -597,7 +597,7 @@ func preparePersistentExecRunState(
 	}
 	state.journal = runJournal
 	state.ownsJournal = true
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, runID, resolvedModel)
 	}
@@ -620,7 +620,7 @@ func prepareScopedExecRunState(
 	state.runArtifacts = scope.RunArtifacts()
 	state.journal = scope.RunJournal()
 	state.runtimeManager = scope.RunManager()
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, state.runArtifacts.RunID, resolvedModel)
 	}
@@ -1089,7 +1089,15 @@ func (e *execEventEmitter) Close() error {
 	return err
 }
 
-func execJSONStdoutMode(format model.OutputFormat) execJSONStreamMode {
+func execJSONStdoutMode(cfg *model.RuntimeConfig) execJSONStreamMode {
+	if cfg != nil && cfg.DaemonOwned {
+		return execJSONStreamDisabled
+	}
+
+	format := model.OutputFormatText
+	if cfg != nil {
+		format = cfg.OutputFormat
+	}
 	switch format {
 	case model.OutputFormatJSON:
 		return execJSONStreamLean
@@ -1098,6 +1106,13 @@ func execJSONStdoutMode(format model.OutputFormat) execJSONStreamMode {
 	default:
 		return execJSONStreamDisabled
 	}
+}
+
+func execStdoutWriter(cfg *model.RuntimeConfig) io.Writer {
+	if cfg != nil && cfg.DaemonOwned {
+		return io.Discard
+	}
+	return os.Stdout
 }
 
 func shouldEmitExecStdoutEvent(mode execJSONStreamMode, event execEvent) bool {
