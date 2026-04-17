@@ -1,9 +1,7 @@
 package cli
 
 import (
-	"context"
 	"log/slog"
-	"time"
 
 	extcli "github.com/compozy/compozy/internal/cli/extension"
 	"github.com/compozy/compozy/internal/core/agent"
@@ -33,7 +31,7 @@ func newRootDispatcher() *kernel.Dispatcher {
 	deps := kernel.KernelDeps{
 		Logger:        slog.Default(),
 		EventBus:      events.New[events.Event](0),
-		Workspace:     bestEffortRootWorkspaceContext(),
+		Workspace:     workspace.Context{},
 		AgentRegistry: agent.DefaultRegistry(),
 	}
 
@@ -42,17 +40,6 @@ func newRootDispatcher() *kernel.Dispatcher {
 		panic(err)
 	}
 	return dispatcher
-}
-
-func bestEffortRootWorkspaceContext() workspace.Context {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	workspaceCtx, err := resolveWorkspaceContext(ctx)
-	if err != nil {
-		return workspace.Context{}
-	}
-	return workspaceCtx
 }
 
 // NewRootCommand returns the reusable compozy Cobra command.
@@ -77,6 +64,7 @@ Use explicit workflow subcommands:
   compozy ext           Manage bundled, user, and workspace extensions
   compozy migrate       Convert legacy workflow artifacts to frontmatter
   compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
+  compozy daemon        Manage the home-scoped daemon bootstrap lifecycle
   compozy sync          Refresh task workflow metadata files
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
@@ -95,6 +83,7 @@ Use explicit workflow subcommands:
 		extcli.NewExtCommand(dispatcher),
 		newMigrateCommand(dispatcher),
 		newValidateTasksCommand(dispatcher),
+		newDaemonCommand(),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
 		newFetchReviewsCommandWithDefaults(dispatcher, defaults),

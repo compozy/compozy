@@ -38,6 +38,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy upgrade",
 		"compozy migrate",
 		"compozy validate-tasks",
+		"compozy daemon",
 		"compozy sync",
 		"compozy archive",
 		"compozy fetch-reviews",
@@ -48,6 +49,7 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"upgrade",
 		"migrate",
 		"validate-tasks",
+		"daemon",
 		"sync",
 		"archive",
 		"fetch-reviews",
@@ -64,6 +66,36 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 
 	if strings.Contains(output, "mcp-serve") {
 		t.Fatalf("expected root help to omit hidden mcp-serve command\noutput:\n%s", output)
+	}
+}
+
+func TestDaemonStatusDoesNotRequireWorkspaceDiscovery(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	nestedDir := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(nestedDir); err != nil {
+		t.Fatalf("Chdir(%s) error = %v", nestedDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(originalWD)
+	}()
+
+	output, err := executeRootCommand("daemon", "status")
+	if err != nil {
+		t.Fatalf("execute daemon status: %v", err)
+	}
+	if strings.TrimSpace(output) != "stopped" {
+		t.Fatalf("unexpected daemon status output: %q", output)
 	}
 }
 

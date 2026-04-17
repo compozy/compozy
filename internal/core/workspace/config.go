@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/model"
 	toml "github.com/pelletier/go-toml/v2"
 )
@@ -149,8 +150,13 @@ func resolveConfigPaths(workspaceRoot string) (configPaths, error) {
 		return configPaths{}, fmt.Errorf("resolve global config base dir: %w", err)
 	}
 
+	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(resolvedHomeDir, compozyconfig.DirName))
+	if err != nil {
+		return configPaths{}, fmt.Errorf("resolve global config base dir: %w", err)
+	}
+
 	paths.globalRoot = resolvedHomeDir
-	paths.globalPath = filepath.Join(resolvedHomeDir, model.WorkflowRootDirName, model.WorkflowConfigFileName)
+	paths.globalPath = homePaths.ConfigFile
 	return paths, nil
 }
 
