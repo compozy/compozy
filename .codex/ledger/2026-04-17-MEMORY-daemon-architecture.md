@@ -29,7 +29,7 @@ Key decisions:
   - extensions may still interact with the daemon API/control plane, but they do not become resident services across runs
 - User selected a database-first persistence model for v1:
   - SQLite becomes the primary source of truth for daemon state
-  - Markdown artifacts remain part of the product model (`_prd.md`, `_techspec.md`, `_tasks.md`, task files, reviews, etc.)
+  - Markdown artifacts remain part of the product model (`_prd.md`, `_techspec.md`, ADRs, task files, reviews, memory, protocol/prompt, QA outputs)
   - workflow execution still starts from flexible artifact generation outside the daemon
   - when `start` / review execution runs, Compozy parses the artifacts and synchronizes them into the database
   - event persistence may move from `events.jsonl` toward SQLite in a shape closer to AGH
@@ -41,18 +41,15 @@ Key decisions:
 - Artifact classification from current Compozy codebase:
   - Human-first workflow documents:
     - `_prd.md`, `_techspec.md`, ADRs, `task_XX.md`, `reviews-NNN/issue_XXX.md`, `memory/{MEMORY.md,task_XX.md}`, `_protocol.md`, `_prompt.md`, `qa/` outputs
-  - Derived/projection-style workflow metadata:
-    - `_tasks.md` should join the derived/projection group instead of remaining a first-class authored document
-    - workflow `_meta.md` under `.compozy/tasks/<name>/` is generated from task counts/status and refreshed by `compozy sync`
-    - review round `_meta.md` under `reviews-NNN/` is derived from round identity + issue resolution counts and refreshed when review status changes
+  - Current codebase still generates workflow/review `_meta.md` today; this is useful migration context but is superseded by the final daemon direction below.
   - Operational run state / audit artifacts:
     - `.compozy/runs/<run-id>/{run.json,result.json,events.jsonl,extensions.jsonl,jobs/,turns/}`
     - these are execution-state and audit-oriented, not product-planning documents
 - Current design direction sharpened:
   - keep human-first workflow documents as real Markdown artifacts
-  - move derived metadata and operational execution state behind the DB model
+  - `_tasks.md` and `_meta.md` do not survive in the daemonized model
+  - move operational execution state behind the DB model
   - allow explicit sync/import of externally edited Markdown back into the DB
-  - `_tasks.md` is now treated like `_meta.md`: a projection/materialization from DB state rather than an authored source document
   - reconciliation model is hybrid and performance-aware:
     - `compozy sync` remains an explicit reconciliation command
     - `start` and `fix-reviews` perform reconciliation automatically before execution
@@ -64,10 +61,14 @@ Key decisions:
   - subprocess/plugin boundaries should keep JSON-RPC where it already fits (extensions)
   - agent runtime communication should keep ACP as its own protocol boundary
   - user approved this contract split
+  - user approved the default transport stance for v1:
+    - UDS for CLI
+    - HTTP on localhost for local web/client surfaces
+    - TCP disabled by default and only enabled through explicit configuration
 
 State:
 
-- In progress; clarification is sufficient and design presentation has started.
+- Agora este turno está sendo usado como material de decomposição para o usuário: o pedido é um breakdown em slices implementáveis, com arquivos atuais tocados/criados, riscos de acoplamento e dependências naturais.
 
 Done:
 
@@ -86,7 +87,7 @@ Done:
 - Received completed explorer findings confirming:
   - Compozy’s strongest daemon-ready seam is the existing `RunScope` plus durable journal/event bus and `pkg/compozy/runs` readers/watchers.
   - AGH’s most portable patterns are staged daemon boot, dual transport with shared contracts, singleton lock/readiness info, and targeted reconciliation/failover ideas.
-  - The smallest viable target is a local singleton `compozyd` with UDS-first and HTTP-second control surfaces, backed by Compozy’s current run artifacts rather than a new database-first model.
+  - Early exploration considered a thinner file-backed shell over the current run artifacts, but that path was later superseded by the user-approved database-first model with `global.db` plus per-run `run.db`.
 - Closed all subagents after the relevant summaries were captured.
 - Inspected the current filesystem artifact tree under `.compozy/tasks` and `.compozy/runs`.
 - Read the main artifact ownership code paths:
@@ -99,67 +100,92 @@ Done:
   - `internal/core/model/{task_review.go,workspace_paths.go,artifacts.go}`
   - `pkg/compozy/runs/layout/layout.go`
 - Confirmed concrete artifact roles from code:
-  - workflow `_meta.md` is not authored business content; it is refreshed from task counts (`tasks.RefreshTaskMeta`)
-  - review round `_meta.md` is not authored review content; it is refreshed from issue status counts (`reviews.RefreshRoundMeta`)
+  - workflow `_meta.md` is not authored business content in the current codebase; it is refreshed from task counts (`tasks.RefreshTaskMeta`)
+  - review round `_meta.md` is not authored review content in the current codebase; it is refreshed from issue status counts (`reviews.RefreshRoundMeta`)
   - review issues and task files are frontmatter-backed Markdown records with meaningful authored body content
   - memory files are explicitly modeled as Markdown documents with append/replace semantics and compaction signals
   - run artifacts are already treated as runtime metadata, logs, and event streams rather than workflow-planning docs
 - Subagents were used for parallel exploration as requested, but the authoritative classification above is grounded in direct code/file inspection.
+- Wrote the approved design document to `docs/plans/2026-04-17-compozy-daemon-design.md`.
+- Ran a follow-up subagent audit against `~/.codex` history and tightened the AGH reference map around home layout, daemon boot, transport contracts, route parity, storage split, observer layering, and session manager lifecycle.
+- Read the `cy-create-techspec` skill instructions plus the canonical `techspec-template.md` and `adr-template.md`.
+- TechSpec exploration subagent mapped the highest-impact migration seams:
+  - likely ownership boundaries already exist around `internal/cli`, `internal/core/kernel`, `internal/core/plan`, `internal/core/tasks`, `internal/core/reviews`, `internal/core/memory`, `internal/core/run/{executor,exec,ui,transcript}`, and `pkg/compozy/runs`
+  - strongest migration pressure comes from current assumptions that `.compozy/runs` is rooted under the workspace via `internal/core/model/workspace_paths.go`, `internal/core/model/artifacts.go`, `internal/core/model/run_scope.go`, and `pkg/compozy/runs/{layout,run,watch}.go`
+  - high-risk seams to avoid breaking blindly: `core <-> kernel` adapters, `extension/runtime` `init()` ownership around `RunScope`, public run reader layout coupling, and workspace discovery logic that currently derives identity from `cwd`
+- Current code confirms the identity split in today's Compozy:
+  - workflow identity is the user-facing workflow name/slug used for `.compozy/tasks/<name>` and CLI `--name` flags
+  - run identity is a separate `run_id`, generated automatically in normal flows by `internal/core/model/run_scope.go` unless explicitly provided in runtime config
+- User selected run identity option `B` for the TechSpec:
+  - keep the current split between workflow slug and run id
+  - daemon generates `run_id` by default in normal flows
+  - explicit `run_id` remains allowed only for special flows such as replay/import/debug/advanced attach
+- User selected the feature slug `daemon` for the TechSpec output path under `.compozy/tasks/daemon/`.
+- Created accepted ADRs for the daemon effort under `.compozy/tasks/daemon/adrs/`:
+  - `adr-001.md` global home-scoped singleton daemon
+  - `adr-002.md` workspace Markdown plus home-scoped operational SQLite
+  - `adr-003.md` AGH-aligned REST transports using Gin
+  - `adr-004.md` TUI-first UX plus auto-start and explicit workspace operations
+- Updated the design doc and ADR references after the `~/.codex` audit so `_tasks.md` / `_meta.md` are fully removed from the daemonized model and AGH reuse is anchored in exact files.
+- Saved the approved TechSpec to `.compozy/tasks/daemon/_techspec.md` in English using the canonical template.
+- Resolved the remaining CLI and transport detail gaps inside the TechSpec:
+  - explicit workspace commands: `workspaces list|show|register|unregister|resolve`
+  - explicit endpoint inventory for daemon, workspaces, tasks, reviews, runs, sync, and exec
+  - run attach defaults under `[runs].default_attach_mode`
+- Reran `make verify` after saving the TechSpec; formatting, lint, tests, and build all passed.
+- Created `.codex/tmp/daemon-final-review-prompt.md` and ran:
+  - `./bin/compozy exec --ide claude --reasoning-effort high --timeout 20m --persist --add-dir /Users/pedronauck/Dev/compozy/looper --add-dir /Users/pedronauck/dev/compozy/agh --prompt-file .codex/tmp/daemon-final-review-prompt.md`
+- Captured the persisted review under run id `exec-20260417-181255-843268000`.
+- Confirmed the Claude exec used multiple subagents and produced a final review centered on four highest-risk contract gaps:
+  - startup reconciliation / post-crash recovery
+  - `run.db` lifecycle and retention
+  - explicit SSE contract copied from AGH semantics
+  - `pkg/compozy/runs` migration contract
+- Captured additional concrete follow-ups from the review:
+  - UDS `0600`, daemon dir `0700`, explicit `127.0.0.1`, port persisted in `daemon.json`
+  - `GET /runs/:run_id/snapshot`, `GET /daemon/health`, `GET /daemon/metrics`
+  - extension transport clarified as stdio JSON-RPC in the run process plus per-run UDS capability token for Host API
+  - request-id/error envelope, schema migration bookkeeping, artifact snapshot growth bounds, legacy `_meta.md` / `_tasks.md` cutover handling
+- Updated `.compozy/tasks/daemon/_techspec.md` to incorporate the review:
+  - startup reconciliation and explicit run lifecycle / retention / purge semantics
+  - daemon-backed `pkg/compozy/runs` contract instead of direct SQLite reads
+  - `GET /runs/:run_id/snapshot` plus explicit SSE contract (`Last-Event-ID`, heartbeat, overflow)
+  - transport security and error envelope contract (`X-Request-Id`, `TransportError`, UDS `0600`, daemon dir `0700`, `127.0.0.1`)
+  - `compozy exec` workspace binding semantics
+  - legacy `_meta.md` / `_tasks.md` cleanup, watcher scope/debounce, archive conflict rules, and log rotation
+- Reran `make verify` after the TechSpec update; formatting, lint, tests, and build all passed again.
+- Identificados os pontos de encaixe atuais no código local para daemonização: `internal/cli/root.go`, `cmd/compozy/main.go`, `compozy.go`, `internal/core/model/{workspace_paths.go,run_scope.go,artifacts.go,runtime_config.go}`, `internal/core/run/{journal,event_stream}`, `internal/core/migration/migrate.go`, `pkg/compozy/runs/{layout,run,watch}.go`.
+- Read the `cy-create-tasks` skill instructions and the canonical `task-template.md`.
+- Confirmed `.compozy/config.toml` is absent, so the default task types apply: `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`.
+- Presented a 16-task daemon breakdown to the user, covering daemon bootstrap, storage, transport, run manager, sync/watch/archive, extension runtime, CLI/TUI, public run readers, reviews/exec migration, and final cleanup.
+- User approved the breakdown (`pode dale`).
+- Wrote `.compozy/tasks/daemon/_tasks.md` plus enriched `task_01.md` through `task_16.md`.
+- Used two explorer subagents to validate the remaining task-file enrichment against real code seams:
+  - runtime/CLI/TUI/public-reader paths
+  - sync/archive/watcher paths
+- Incorporated those explorer findings into the final task-file relevant files, dependent files, requirements, and test guidance before validation.
+- Ran `./bin/compozy validate-tasks --name daemon` and confirmed `all tasks valid (16 scanned)`.
+- Ran `make verify` after task generation; formatting, lint, tests, and build all passed, with `DONE 1940 tests` and `All verification checks passed`.
 
 Now:
 
-- Present the proposed architecture/design sections for user validation, including the CLI/daemon execution model.
+- Entrega pronta; responder ao usuário com o resumo dos arquivos criados e as evidências de validação/verificação.
 
 Next:
 
-- Use the user’s answer to frame 2-3 architecture approaches with trade-offs and a recommendation.
-- After brainstorming approval, write the design doc and move into `cy-create-techspec`.
+- Nenhum passo obrigatório pendente neste turno.
 
 Open questions (UNCONFIRMED if needed):
 
-- UNCONFIRMED: Should the first daemonized Compozy release primarily optimize for local CLI compatibility, for a web/API control plane, or for extension-driven automation as the top priority?
-- UNCONFIRMED: Whether Compozy should embed a persistent database like AGH or continue leaning on run-artifact storage for v1 daemon mode; current evidence favors reusing run artifacts first.
-- Extensions should remain run-scoped subprocesses in v1 daemon mode.
-- SQLite is the primary source of truth in v1 daemon mode.
-- Markdown workflow artifacts remain durable product artifacts and must sync into the database during execution flows.
-- Compozy should use two SQLite databases in v1: one global DB and one per-run events DB.
-- `_tasks.md` should be treated as a derived view/materialization, not a human-authored source document.
-- Human-first workflow documents should reconcile through explicit sync plus targeted run-scoped watching rather than full-time global filesystem reconciliation.
-- UNCONFIRMED: final operator-facing daemon transport shape, but current recommendation is shared HTTP/JSON + SSE contracts over UDS/TCP instead of universal JSON-RPC.
-- Recommended operator-facing transport split has been validated conceptually by the user.
-- User correctly identified one remaining design gap: the CLI execution model and daemon lifecycle from the operator perspective still need to be specified explicitly.
-- User challenged the proposed CLI resource name `workflows`; this term may be too abstract/confusing for the daemonized CLI and should be reconsidered before freezing the command taxonomy.
-- User prefers the feature-scoped command family to live under `compozy tasks <action> <feature>` instead of introducing a separate `features` or `workflows` namespace.
-- User explicitly approved removing `compozy start`; backward-compatible aliasing is not required for this redesign.
-- User explicitly wants `compozy sync` and `compozy archive` to remain top-level commands instead of moving under `compozy tasks ...`.
-- User approved daemon `auto-start`, provided singleton handling is robust:
-  - no duplicate daemons
-  - no false failures when the daemon is already running
-  - stale/zombie daemon state must be handled explicitly
-- User selected a global singleton daemon scope, matching AGH:
-  - one daemon per user/machine
-  - the daemon manages multiple workspaces
-  - socket/lock/info/global DB live in the user-scoped runtime area, not inside each repository
-- CLI run-observation verbs still need semantic tightening, especially the distinction between `runs show`, `runs watch`, and `runs attach`.
-- User wants explicit control over run attachment behavior at launch time (for example detached/background execution versus attaching immediately).
-- Recommended CLI distinction:
-  - reserve `--foreground` / `--background` semantics for daemon process lifecycle only
-  - use run-scoped attachment semantics such as `--detach`, `--ui`, and `runs watch|attach` for execution observation behavior
-- User wants the current TUI-centric experience preserved for interactive users; the daemon/web work should not imply removing or demoting the TUI.
-- Recommended UX adjustment:
-  - keep interactive task/review run launches attached to the TUI by default, matching today's user expectation
-  - make attachment mode configurable via `config.toml` and overridable by flags
-  - web becomes an additional client of the daemon, not a replacement for the existing TUI
-  - current default recommendation:
-    - interactive TTY -> `compozy tasks run ...` / `compozy reviews fix ...` attach to TUI
-    - non-interactive/headless -> fall back to `stream` or `detach`
-    - use `--detach`, `--ui`, and `--stream`/`--watch` for run observation behavior
-    - reserve foreground/background wording for daemon lifecycle only
-  - UNCONFIRMED: choose the config namespace for attachment defaults before the techspec (`[presentation]`, `[runs]`, or command-family-specific sections)
+- None blocking.
 
 Working set (files/ids/commands):
 
 - `.codex/ledger/2026-04-17-MEMORY-daemon-architecture.md`
+- `.codex/tmp/daemon-final-review-prompt.md`
+- `.compozy/runs/exec-20260417-181255-843268000/run.json`
+- `.compozy/runs/exec-20260417-181255-843268000/events.jsonl`
+- `.compozy/runs/exec-20260417-181255-843268000/turns/0001/stdout.log`
 - `README.md`
 - `docs/extensibility/architecture.md`
 - `.codex/ledger/2026-04-10-MEMORY-compozy-agents-techspec.md`
@@ -170,8 +196,12 @@ Working set (files/ids/commands):
 - `/Users/pedronauck/dev/compozy/agh/internal/daemon/boot.go`
 - `/Users/pedronauck/dev/compozy/agh/internal/daemon/daemon.go`
 - `/Users/pedronauck/dev/compozy/agh/internal/api/core/interfaces.go`
+- `/Users/pedronauck/dev/compozy/agh/internal/api/core/handlers.go`
+- `/Users/pedronauck/dev/compozy/agh/internal/api/core/sse.go`
 - `/Users/pedronauck/dev/compozy/agh/internal/api/httpapi/server.go`
+- `/Users/pedronauck/dev/compozy/agh/internal/api/httpapi/routes.go`
 - `/Users/pedronauck/dev/compozy/agh/internal/api/udsapi/server.go`
+- `/Users/pedronauck/dev/compozy/agh/internal/api/udsapi/routes.go`
 - `/Users/pedronauck/dev/compozy/agh/internal/session/manager.go`
 - `/Users/pedronauck/dev/compozy/agh/internal/store/globaldb/global_db.go`
 - `/Users/pedronauck/dev/compozy/agh/internal/store/sessiondb/session_db.go`
@@ -184,4 +214,21 @@ Working set (files/ids/commands):
 - `internal/core/run/executor/execution.go`
 - `pkg/compozy/runs/run.go`
 - `pkg/compozy/runs/watch.go`
+- `.compozy/tasks/daemon/_tasks.md`
+- `.compozy/tasks/daemon/task_01.md`
+- `.compozy/tasks/daemon/task_02.md`
+- `.compozy/tasks/daemon/task_03.md`
+- `.compozy/tasks/daemon/task_04.md`
+- `.compozy/tasks/daemon/task_05.md`
+- `.compozy/tasks/daemon/task_06.md`
+- `.compozy/tasks/daemon/task_07.md`
+- `.compozy/tasks/daemon/task_08.md`
+- `.compozy/tasks/daemon/task_09.md`
+- `.compozy/tasks/daemon/task_10.md`
+- `.compozy/tasks/daemon/task_11.md`
+- `.compozy/tasks/daemon/task_12.md`
+- `.compozy/tasks/daemon/task_13.md`
+- `.compozy/tasks/daemon/task_14.md`
+- `.compozy/tasks/daemon/task_15.md`
+- `.compozy/tasks/daemon/task_16.md`
 - Commands: `rg`, `sed`, `find`, `git log`
