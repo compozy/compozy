@@ -263,17 +263,20 @@ func Setup(ctx context.Context, jobs []job, cfg *config, bus *events.Bus[events.
 			codeFileLabel = fmt.Sprintf("%s and %d more", strings.Join(jb.CodeFiles[:3], ", "), len(jb.CodeFiles)-3)
 		}
 		ctrl.Enqueue(jobQueuedMsg{
-			Index:     idx,
-			CodeFile:  codeFileLabel,
-			CodeFiles: jb.CodeFiles,
-			Issues:    totalIssues,
-			TaskTitle: jb.TaskTitle,
-			TaskType:  jb.TaskType,
-			SafeName:  jb.SafeName,
-			OutLog:    jb.OutLog,
-			ErrLog:    jb.ErrLog,
-			OutBuffer: jb.OutBuffer,
-			ErrBuffer: jb.ErrBuffer,
+			Index:           idx,
+			CodeFile:        codeFileLabel,
+			CodeFiles:       jb.CodeFiles,
+			Issues:          totalIssues,
+			TaskTitle:       jb.TaskTitle,
+			TaskType:        jb.TaskType,
+			SafeName:        jb.SafeName,
+			IDE:             jb.IDE,
+			Model:           jb.Model,
+			ReasoningEffort: jb.ReasoningEffort,
+			OutLog:          jb.OutLog,
+			ErrLog:          jb.ErrLog,
+			OutBuffer:       jb.OutBuffer,
+			ErrBuffer:       jb.ErrBuffer,
 		})
 	}
 	return ctrl
@@ -383,9 +386,12 @@ func (t *uiEventTranslator) translateJobEvent(ev events.Event) (uiMsg, bool) {
 			return nil, false
 		}
 		return jobStartedMsg{
-			Index:       payload.Index,
-			Attempt:     payload.Attempt,
-			MaxAttempts: payload.MaxAttempts,
+			Index:           payload.Index,
+			Attempt:         payload.Attempt,
+			MaxAttempts:     payload.MaxAttempts,
+			IDE:             payload.IDE,
+			Model:           payload.Model,
+			ReasoningEffort: payload.ReasoningEffort,
 		}, true
 	case events.EventKindJobCompleted:
 		payload, ok := decodeUIEventPayload[kinds.JobCompletedPayload](ev)

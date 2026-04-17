@@ -303,6 +303,103 @@ func TestPrepareJobsForPRDTasksForcesSingleBatchPerTask(t *testing.T) {
 	}
 }
 
+func TestPrepareJobsResolvesPerTaskRuntimeOverrides(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-runtime-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	tasksDir := t.TempDir()
+	groups := map[string][]model.IssueEntry{
+		"task_01": {{
+			Name:     "task_01.md",
+			AbsPath:  filepath.Join(tasksDir, "task_01.md"),
+			Content:  "---\nstatus: pending\ntitle: Frontend task\ntype: frontend\ncomplexity: low\n---\n\n# Task 1\n",
+			CodeFile: "task_01",
+		}},
+		"task_02": {{
+			Name:     "task_02.md",
+			AbsPath:  filepath.Join(tasksDir, "task_02.md"),
+			Content:  "---\nstatus: pending\ntitle: Backend task\ntype: backend\ncomplexity: low\n---\n\n# Task 2\n",
+			CodeFile: "task_02",
+		}},
+	}
+
+	jobs, err := prepareJobs(context.Background(), &model.RuntimeConfig{
+		Name:            "demo",
+		WorkspaceRoot:   workspaceRoot,
+		TasksDir:        tasksDir,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5.4",
+		ReasoningEffort: "medium",
+		Mode:            model.ExecutionModePRDTasks,
+		TaskRuntimeRules: []model.TaskRuntimeRule{
+			{
+				Type:            testStringPointer("frontend"),
+				IDE:             testStringPointer(model.IDEClaude),
+				Model:           testStringPointer("sonnet"),
+				ReasoningEffort: testStringPointer("high"),
+			},
+			{
+				ID:    testStringPointer("task_02"),
+				Model: testStringPointer("gpt-5.4-mini"),
+			},
+		},
+	}, groups, runArtifacts, nil, nil)
+	if err != nil {
+		t.Fatalf("prepareJobs: %v", err)
+	}
+	if len(jobs) != 2 {
+		t.Fatalf("expected 2 jobs, got %d", len(jobs))
+	}
+	if jobs[0].IDE != model.IDEClaude || jobs[0].Model != "sonnet" || jobs[0].ReasoningEffort != "high" {
+		t.Fatalf("unexpected frontend runtime: %#v", jobs[0])
+	}
+	if jobs[1].IDE != model.IDECodex || jobs[1].Model != "gpt-5.4-mini" || jobs[1].ReasoningEffort != "medium" {
+		t.Fatalf("unexpected backend runtime: %#v", jobs[1])
+	}
+}
+
+func TestPrepareJobsRejectsPerTaskRuntimeThatCannotReuseGlobalAddDirs(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-invalid-runtime-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+	tasksDir := t.TempDir()
+	groups := map[string][]model.IssueEntry{
+		"task_01": {{
+			Name:     "task_01.md",
+			AbsPath:  filepath.Join(tasksDir, "task_01.md"),
+			Content:  "---\nstatus: pending\ntitle: Frontend task\ntype: frontend\ncomplexity: low\n---\n\n# Task 1\n",
+			CodeFile: "task_01",
+		}},
+	}
+
+	_, err := prepareJobs(context.Background(), &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		IDE:           model.IDECodex,
+		AddDirs:       []string{"../shared"},
+		Mode:          model.ExecutionModePRDTasks,
+		TaskRuntimeRules: []model.TaskRuntimeRule{{
+			ID:  testStringPointer("task_01"),
+			IDE: testStringPointer(model.IDEGemini),
+		}},
+	}, groups, runArtifacts, nil, nil)
+	if err == nil {
+		t.Fatal("expected incompatible per-task runtime error")
+	}
+	if !strings.Contains(err.Error(), `resolve runtime for task "task_01"`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
 	t.Parallel()
 
@@ -744,6 +841,7 @@ complexity: low
 		"plan.pre_group",
 		"plan.post_group",
 		"plan.pre_prepare_jobs",
+		"plan.pre_resolve_task_runtime",
 		"plan.post_prepare_jobs",
 	}
 	if got := filterHooksByPrefix(noopManager.mutableHooks, "plan."); !reflect.DeepEqual(got, wantHooks) {
@@ -1067,6 +1165,131 @@ complexity: low
 
 	if got := prep.Jobs[0].SystemPrompt; got != marker {
 		t.Fatalf("expected post-prepare-jobs mutation to replace system prompt, got %q", got)
+	}
+}
+
+func TestPreparePlanPreResolveTaskRuntimeMutationUpdatesPreparedJob(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+status: pending
+title: Demo task
+type: frontend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.pre_resolve_task_runtime": func(input any) (any, error) {
+				payload := input.(planPreResolveTaskRuntimePayload)
+				if payload.Task.ID != "task_01" {
+					t.Fatalf("unexpected task id: %q", payload.Task.ID)
+				}
+				if !strings.HasPrefix(payload.Task.SafeName, "task_01") {
+					t.Fatalf("unexpected task safe name: %q", payload.Task.SafeName)
+				}
+				payload.Runtime = model.TaskRuntime{
+					IDE:             model.IDECodex,
+					Model:           "gpt-5.4",
+					ReasoningEffort: "xhigh",
+				}
+				return payload, nil
+			},
+		},
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:            "demo",
+		WorkspaceRoot:   workspaceRoot,
+		TasksDir:        tasksDir,
+		DryRun:          true,
+		IDE:             model.IDECodex,
+		Model:           "gpt-5.4-mini",
+		ReasoningEffort: "medium",
+		Mode:            model.ExecutionModePRDTasks,
+		RunID:           "plan-pre-resolve-task-runtime",
+	}
+	prep, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	defer closePreparedJournalForTest(t, prep)
+
+	if got := prep.Jobs[0].Model; got != "gpt-5.4" {
+		t.Fatalf("prepared job model = %q, want %q", got, "gpt-5.4")
+	}
+	if got := prep.Jobs[0].ReasoningEffort; got != "xhigh" {
+		t.Fatalf("prepared job reasoning = %q, want %q", got, "xhigh")
+	}
+}
+
+func TestPreparePlanPostPrepareJobsRejectsRuntimeMutation(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("mkdir tasks dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tasksDir, "task_01.md"), []byte(`---
+status: pending
+title: Demo task
+type: backend
+complexity: low
+---
+
+# Task 01: Demo task
+`), 0o600); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	manager := &planHookManager{
+		mutators: map[string]func(any) (any, error){
+			"plan.post_prepare_jobs": func(input any) (any, error) {
+				payload := input.(planJobsPayload)
+				payload.Jobs[0].Model = "gpt-5.4-mini"
+				return payload, nil
+			},
+		},
+	}
+
+	cfg := &model.RuntimeConfig{
+		Name:          "demo",
+		WorkspaceRoot: workspaceRoot,
+		TasksDir:      tasksDir,
+		DryRun:        true,
+		IDE:           model.IDECodex,
+		Model:         "gpt-5.4",
+		Mode:          model.ExecutionModePRDTasks,
+		RunID:         "plan-post-prepare-jobs-runtime-mutation",
+	}
+	_, err := Prepare(
+		context.Background(),
+		cfg,
+		&planRunScopeWithManager{RunScope: openRunScopeForTest(t, cfg), manager: manager},
+	)
+	if err == nil {
+		t.Fatal("prepare error = nil, want runtime mutation failure")
+	}
+	if !strings.Contains(
+		err.Error(),
+		"plan.post_prepare_jobs cannot mutate job runtime after task runtime resolution",
+	) {
+		t.Fatalf("prepare error = %q, want runtime mutation guard", err.Error())
 	}
 }
 
@@ -1515,6 +1738,10 @@ func assertJobUsesRunArtifacts(t *testing.T, runArtifacts model.RunArtifacts, jo
 	if got, want := job.ErrLog, jobArtifacts.ErrLogPath; got != want {
 		t.Fatalf("unexpected stderr log path\nwant: %q\ngot:  %q", want, got)
 	}
+}
+
+func testStringPointer(value string) *string {
+	return &value
 }
 
 func openRunScopeForTest(t *testing.T, cfg *model.RuntimeConfig) model.RunScope {

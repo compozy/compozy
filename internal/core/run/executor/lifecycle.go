@@ -57,6 +57,10 @@ func (l *jobLifecycle) startAttempt(attempt int, maxAttempts int, timeout time.D
 					Attempt:     attempt,
 					MaxAttempts: maxAttempts,
 				},
+				IDE:             l.configIDE(),
+				Model:           l.configModel(),
+				ReasoningEffort: l.configReasoningEffort(),
+				AccessMode:      l.configAccessMode(),
 			},
 		)
 		notifyJobStart(
@@ -224,6 +228,9 @@ func (l *jobLifecycle) humanOutputEnabled() bool {
 }
 
 func (l *jobLifecycle) configIDE() string {
+	if l != nil && l.job != nil && strings.TrimSpace(l.job.IDE) != "" {
+		return l.job.IDE
+	}
 	cfg := l.execConfig()
 	if cfg == nil {
 		return ""
@@ -232,6 +239,9 @@ func (l *jobLifecycle) configIDE() string {
 }
 
 func (l *jobLifecycle) configModel() string {
+	if l != nil && l.job != nil && strings.TrimSpace(l.job.Model) != "" {
+		return l.job.Model
+	}
 	cfg := l.execConfig()
 	if cfg == nil {
 		return ""
@@ -248,6 +258,9 @@ func (l *jobLifecycle) configAddDirs() []string {
 }
 
 func (l *jobLifecycle) configReasoningEffort() string {
+	if l != nil && l.job != nil && strings.TrimSpace(l.job.ReasoningEffort) != "" {
+		return l.job.ReasoningEffort
+	}
 	cfg := l.execConfig()
 	if cfg == nil {
 		return ""

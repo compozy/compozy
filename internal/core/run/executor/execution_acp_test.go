@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/acpshared"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 func TestComposeSessionPromptPrependsSystemPrompt(t *testing.T) {
@@ -122,6 +123,106 @@ func TestJobRunnerRetriesACPErrorThenSucceeds(t *testing.T) {
 	}
 	if !strings.Contains(string(errLog), "temporary failure") {
 		t.Fatalf("expected first failure in err log, got %q", string(errLog))
+	}
+	if err := waitForAsyncTestError(t, secondClientErrCh); err != nil {
+		t.Fatalf("new content block: %v", err)
+	}
+}
+
+func TestJobRunnerRetriesActivityTimeoutThenSucceeds(t *testing.T) {
+	tmpDir := t.TempDir()
+	firstClient := newFakeACPClient(func(ctx context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-timeout-first")
+		go func() {
+			<-ctx.Done()
+			session.finish(context.Cause(ctx))
+		}()
+		return session, nil
+	})
+	secondClientErrCh := make(chan error, 1)
+	secondClient := newFakeACPClient(func(_ context.Context, _ agent.SessionRequest) (agent.Session, error) {
+		session := newFakeACPSession("sess-timeout-retry")
+		go func() {
+			textBlock, err := model.NewContentBlock(model.TextBlock{Text: "retry after timeout succeeded"})
+			if err != nil {
+				secondClientErrCh <- err
+				return
+			}
+			session.publish(model.SessionUpdate{
+				Blocks: []model.ContentBlock{textBlock},
+				Status: model.StatusRunning,
+			})
+			session.finish(nil)
+			secondClientErrCh <- nil
+		}()
+		return session, nil
+	})
+	installFakeACPClients(t, firstClient, secondClient)
+
+	runID, runJournal, eventsCh, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	job := newTestACPJob(tmpDir)
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			IDE:                    model.IDECodex,
+			Model:                  "test-model",
+			ReasoningEffort:        "medium",
+			MaxRetries:             1,
+			RetryBackoffMultiplier: 2,
+			Timeout:                25 * time.Millisecond,
+			RunArtifacts: model.RunArtifacts{
+				RunID: runID,
+			},
+		},
+		cwd:     tmpDir,
+		journal: runJournal,
+	}
+
+	runner := newJobRunner(0, &job, execCtx)
+	runner.run(context.Background())
+
+	if got := runner.lifecycle.state; got != jobPhaseSucceeded {
+		t.Fatalf("expected succeeded lifecycle state after retry, got %s", got)
+	}
+	if got := firstClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected first timeout attempt once, got %d", got)
+	}
+	if got := secondClient.createCalls.Load(); got != 1 {
+		t.Fatalf("expected one successful retry attempt, got %d", got)
+	}
+	if got := atomic.LoadInt32(&execCtx.failed); got != 0 {
+		t.Fatalf("expected no failed jobs after timeout retry, got %d", got)
+	}
+
+	var retryEvent eventspkg.Event
+	var sawRetry bool
+	var sawCompleted bool
+	deadline := time.NewTimer(2 * time.Second)
+	defer deadline.Stop()
+	for !sawRetry || !sawCompleted {
+		select {
+		case ev := <-eventsCh:
+			switch ev.Kind {
+			case eventspkg.EventKindJobRetryScheduled:
+				retryEvent = ev
+				sawRetry = true
+			case eventspkg.EventKindJobCompleted:
+				sawCompleted = true
+			}
+		case <-deadline.C:
+			t.Fatalf(
+				"timed out waiting for retry and completion events: retry=%t completed=%t",
+				sawRetry,
+				sawCompleted,
+			)
+		}
+	}
+	var retryPayload kinds.JobRetryScheduledPayload
+	decodeRuntimeEventPayload(t, retryEvent, &retryPayload)
+	if !strings.Contains(retryPayload.Reason, "activity timeout") {
+		t.Fatalf("expected retry reason to mention activity timeout, got %#v", retryPayload)
 	}
 	if err := waitForAsyncTestError(t, secondClientErrCh); err != nil {
 		t.Fatalf("new content block: %v", err)

@@ -132,6 +132,11 @@ func (m *Manager) DispatchObserverHook(ctx context.Context, hook string, payload
 	m.DispatchObserver(ctx, HookName(strings.TrimSpace(hook)), payload)
 }
 
+// WaitForObserverHooks blocks until all queued observer hooks finish.
+func (m *Manager) WaitForObserverHooks(ctx context.Context) error {
+	return m.waitForObservers(ctx)
+}
+
 func (m *Manager) executableExtensions() []*RuntimeExtension {
 	if m == nil || m.registry == nil {
 		return nil

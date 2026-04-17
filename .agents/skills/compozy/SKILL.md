@@ -1,6 +1,6 @@
 ---
 name: compozy
-description: Explains Compozy capabilities, CLI commands, bundled workflow skills, configuration, artifact structure, reusable agents, and extensions. Use when the user asks how to use Compozy, what commands are available, how the workflow pipeline works, or how to configure a workspace. Do not use for executing workflow steps — use the specific cy- skills instead.
+description: Explains Compozy capabilities, CLI commands, core workflow skills, optional extension skills, configuration, artifact structure, reusable agents, and extensions. Use when the user asks how to use Compozy, what commands are available, how the workflow pipeline works, or how to configure a workspace. Do not use for executing workflow steps — use the specific cy- skills instead.
 ---
 
 # Compozy Reference Guide
@@ -22,8 +22,8 @@ Key characteristics:
 
 The standard development pipeline follows these phases in order. Each phase produces artifacts consumed by the next.
 
-1. **Setup** -- `compozy setup` installs bundled skills into target agents and provisions global council advisors under `~/.compozy/agents/`.
-2. **Ideation** (optional) -- `/cy-idea-factory` expands a raw idea into a structured, research-backed spec at `.compozy/tasks/<slug>/_idea.md`.
+1. **Setup** -- `compozy setup` installs core skills into target agents plus any setup assets shipped by enabled extensions.
+2. **Ideation** (optional) -- install and enable the first-party `cy-idea-factory` extension, run `compozy setup`, then use `/cy-idea-factory` to expand a raw idea into a structured, research-backed spec at `.compozy/tasks/<slug>/_idea.md`.
 3. **Requirements** -- `/cy-create-prd` creates a business-focused Product Requirements Document at `.compozy/tasks/<slug>/_prd.md` with ADRs.
 4. **Technical Design** -- `/cy-create-techspec` translates the PRD into a technical specification at `.compozy/tasks/<slug>/_techspec.md` with ADRs.
 5. **Task Decomposition** -- `/cy-create-tasks` breaks down the PRD and TechSpec into independently implementable task files (`task_01.md`, `task_02.md`, etc.) and a master list at `_tasks.md`.
@@ -67,13 +67,13 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | Command | Purpose | Key Flags |
 | --- | --- | --- |
 | **Setup & Config** | | |
-| `compozy setup` | Install bundled skills and council agents | `--agent`, `--skill`, `--global`, `--copy`, `--list`, `--all`, `--yes` |
+| `compozy setup` | Install core skills and enabled extension assets | `--agent`, `--skill`, `--global`, `--copy`, `--list`, `--all`, `--yes` |
 | `compozy upgrade` | Update CLI to latest release | |
 | **Workflow Execution** | | |
 | `compozy start` | Execute PRD task files sequentially | `--name`, `--ide`, `--model`, `--auto-commit`, `--dry-run` |
 | `compozy exec` | Execute an ad hoc prompt | `--agent`, `--format`, `--prompt-file`, `--tui`, `--persist`, `--run-id` |
 | **Review** | | |
-| `compozy fetch-reviews` | Fetch provider review comments | `--provider`, `--pr`, `--name`, `--round`, `--nitpicks` |
+| `compozy fetch-reviews` | Fetch provider review comments | `--provider`, `--pr`, `--name`, `--round` |
 | `compozy fix-reviews` | Process review issue files | `--name`, `--round`, `--concurrent`, `--batch-size`, `--ide` |
 | **Utilities** | | |
 | `compozy validate-tasks` | Validate task file metadata | `--name`, `--tasks-dir`, `--format` |
@@ -86,7 +86,7 @@ For a detailed step-by-step walkthrough of each phase, read `references/workflow
 | **Extensions** | | |
 | `compozy ext list` | List extensions | |
 | `compozy ext inspect` | View extension details | `<name>` |
-| `compozy ext install` | Install an extension | `<path>` |
+| `compozy ext install` | Install an extension from a local path or GitHub repo archive | `<source>`, `--remote`, `--ref`, `--subdir` |
 | `compozy ext uninstall` | Remove an extension | `<name>` |
 | `compozy ext enable/disable` | Toggle extension | `<name>` |
 | `compozy ext doctor` | Diagnose extension issues | |
@@ -95,11 +95,10 @@ Common flags shared by `start`, `exec`, and `fix-reviews`: `--ide`, `--model`, `
 
 For complete flag documentation, read `references/cli-reference.md`.
 
-## Bundled Skills Summary
+## Core Skills Summary
 
 | Skill | Trigger | When To Use | Do Not Use For |
 | --- | --- | --- | --- |
-| `cy-idea-factory` | `/cy-idea-factory` | Raw feature idea needs structured exploration | PRD creation, implementation |
 | `cy-create-prd` | `/cy-create-prd` | Building a Product Requirements Document | TechSpec, task breakdown, coding |
 | `cy-create-techspec` | `/cy-create-techspec` | Translating PRD into technical design | PRD creation, task execution |
 | `cy-create-tasks` | `/cy-create-tasks` | Decomposing PRD+TechSpec into task files | Execution, review |
@@ -109,6 +108,12 @@ For complete flag documentation, read `references/cli-reference.md`.
 | `cy-final-verify` | `/cy-final-verify` | Enforcing verification before completion claims | Early planning, brainstorming |
 | `cy-workflow-memory` | (internal) | Maintaining cross-task workflow memory | PR reviews, user preferences |
 | `compozy` | `/compozy` | Learning how to use Compozy | Executing workflow steps |
+
+## Optional Extension Skills
+
+| Skill | Trigger | When To Use | Install Flow |
+| --- | --- | --- | --- |
+| `cy-idea-factory` | `/cy-idea-factory` | Raw feature idea needs structured exploration before a PRD | `compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory` -> `compozy ext enable cy-idea-factory` -> `compozy setup` |
 
 For detailed skill descriptions and inputs/outputs, read `references/skills-reference.md`.
 
@@ -172,6 +177,7 @@ batch_size = 3
 
 [fetch_reviews]
 provider = "coderabbit"
+nitpicks = false
 
 [exec]
 verbose = false
@@ -189,7 +195,7 @@ Reusable agents are standalone personas that can be invoked via `compozy exec --
 
 **Agent definition:** Each agent has an `AGENT.md` with YAML frontmatter (`title`, `description`) and optional `mcp.json` for MCP server configuration.
 
-**Bundled council agents** (installed globally by `compozy setup`):
+**Council agents shipped by the optional `cy-idea-factory` extension**:
 
 | Agent | Perspective |
 | --- | --- |
@@ -199,6 +205,8 @@ Reusable agents are standalone personas that can be invoked via `compozy exec --
 | `product-mind` | User impact, business value, opportunity cost |
 | `devils-advocate` | Challenges assumptions, surfaces risks, stress-tests |
 | `the-thinker` | Cross-domain patterns, structural reframing |
+
+Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory` -> `compozy ext enable cy-idea-factory` -> `compozy setup`.
 
 The `cy-idea-factory` skill uses these agents in a council debate to challenge feature scope and surface risks. The `council` skill can also orchestrate multi-advisor debates on demand.
 
@@ -214,11 +222,11 @@ Executable plugins that extend Compozy at runtime via JSON-RPC 2.0 on stdin/stdo
 - **SDKs:** TypeScript (`@compozy/extension-sdk`), Go (`sdk/extension`).
 - **Scaffolding:** `npx @compozy/create-extension` generates extension boilerplate.
 
-Management: `compozy ext list`, `compozy ext inspect <name>`, `compozy ext install <path>`, `compozy ext uninstall <name>`, `compozy ext enable/disable <name>`, `compozy ext doctor`.
+Management: `compozy ext list`, `compozy ext inspect <name>`, `compozy ext install <source>`, `compozy ext uninstall <name>`, `compozy ext enable/disable <name>`, `compozy ext doctor`.
 
 ## Common Patterns
 
-- Run `compozy setup` before starting any workflow to ensure skills and council agents are installed.
+- Run `compozy setup` before starting any workflow to ensure core skills and enabled extension assets are installed.
 - Follow the pipeline in order: idea (optional) -> PRD -> TechSpec -> Tasks -> Start -> Review -> Fix.
 - Configure workspace defaults in `.compozy/config.toml` to reduce repetitive CLI flags.
 - Run `compozy validate-tasks --name <slug>` before `compozy start` to catch metadata issues early.

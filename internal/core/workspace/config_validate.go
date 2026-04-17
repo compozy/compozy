@@ -13,9 +13,14 @@ import (
 )
 
 const (
-	workspaceConfigScope = "workspace config"
-	globalConfigScope    = "global config"
-	effectiveConfigScope = "effective config"
+	workspaceConfigScope  = "workspace config"
+	globalConfigScope     = "global config"
+	effectiveConfigScope  = "effective config"
+	reasoningEffortLow    = "low"
+	reasoningEffortMedium = "medium"
+	reasoningEffortHigh   = "high"
+	reasoningEffortXHigh  = "xhigh"
+	reasoningEffortValues = "low, medium, high, xhigh"
 )
 
 func (cfg ProjectConfig) Validate() error {
@@ -76,7 +81,10 @@ func validateStart(scope string, defaults DefaultsConfig, cfg StartConfig) error
 	if err := validateOutputFormatValue(configFieldName(scope, "start.output_format"), cfg.OutputFormat); err != nil {
 		return err
 	}
-	return validateWorkflowTUI(scope, "start", defaults, cfg.OutputFormat, cfg.TUI)
+	if err := validateWorkflowTUI(scope, "start", defaults, cfg.OutputFormat, cfg.TUI); err != nil {
+		return err
+	}
+	return validateStartTaskRuntimeRules(scope, cfg.TaskRuntimeRules)
 }
 
 func validateTasks(scope string, cfg TasksConfig) error {
@@ -214,19 +222,7 @@ func validateRuntimeOutputFormat(scope, section string, cfg RuntimeOverrides) er
 }
 
 func validateRuntimeReasoningEffort(scope, section string, cfg RuntimeOverrides) error {
-	if cfg.ReasoningEffort == nil {
-		return nil
-	}
-	switch strings.TrimSpace(*cfg.ReasoningEffort) {
-	case "low", "medium", "high", "xhigh":
-		return nil
-	default:
-		return fmt.Errorf(
-			"%s must be one of low, medium, high, xhigh (got %q)",
-			runtimeFieldName(scope, section, "reasoning_effort"),
-			strings.TrimSpace(*cfg.ReasoningEffort),
-		)
-	}
+	return validateReasoningEffortValue(runtimeFieldName(scope, section, "reasoning_effort"), cfg.ReasoningEffort)
 }
 
 func validateRuntimeAccessMode(scope, section string, cfg RuntimeOverrides) error {
@@ -326,6 +322,61 @@ func validateRuntimeRetryBackoffMultiplier(scope, section string, cfg RuntimeOve
 		)
 	}
 	return nil
+}
+
+func validateStartTaskRuntimeRules(scope string, rules *[]model.TaskRuntimeRule) error {
+	if rules == nil {
+		return nil
+	}
+	for idx, rule := range *rules {
+		fieldPrefix := fmt.Sprintf("%s[%d]", configFieldName(scope, "start.task_runtime_rules"), idx)
+		if rule.ID != nil {
+			return fmt.Errorf("%s.id is not supported; use CLI --task-runtime for per-task ids", fieldPrefix)
+		}
+		if rule.Type == nil || strings.TrimSpace(*rule.Type) == "" {
+			return fmt.Errorf("%s.type is required", fieldPrefix)
+		}
+		if !rule.HasOverride() {
+			return fmt.Errorf("%s must define at least one of ide, model, or reasoning_effort", fieldPrefix)
+		}
+		if err := validateTaskRuntimeRuleRuntime(fieldPrefix, rule); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateTaskRuntimeRuleRuntime(fieldPrefix string, rule model.TaskRuntimeRule) error {
+	if rule.IDE != nil {
+		value := strings.TrimSpace(*rule.IDE)
+		if value == "" {
+			return fmt.Errorf("%s.ide cannot be empty", fieldPrefix)
+		}
+		if _, err := agent.DriverCatalogEntryForIDE(value); err != nil {
+			return fmt.Errorf("%s.ide: %w", fieldPrefix, err)
+		}
+	}
+	if rule.Model != nil && strings.TrimSpace(*rule.Model) == "" {
+		return fmt.Errorf("%s.model cannot be empty", fieldPrefix)
+	}
+	if err := validateReasoningEffortValue(fieldPrefix+".reasoning_effort", rule.ReasoningEffort); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateReasoningEffortValue(field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(*value)
+	switch trimmed {
+	case reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh:
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of %s (got %q)", field, reasoningEffortValues, trimmed)
+	}
 }
 
 func validateOutputFormatValue(field string, value *string) error {

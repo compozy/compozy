@@ -5,8 +5,9 @@ End-to-end walkthrough of the Compozy development pipeline from setup through ar
 ## Prerequisites
 
 1. **Install Compozy.** Ensure the `compozy` binary is available in the system PATH.
-2. **Run setup.** Execute `compozy setup` to install bundled skills into target agents and provision global council advisors. For a quick start: `compozy setup --all`.
-3. **Configure workspace (optional).** Create `.compozy/config.toml` to set default IDE, model, and other preferences. Read `config-reference.md` for all fields.
+2. **Run setup.** Execute `compozy setup` to install core skills into target agents plus setup assets from enabled extensions. For a quick start: `compozy setup --all`.
+3. **Install optional ideation extension when needed.** To use `/cy-idea-factory`, run `compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory`, then `compozy ext enable cy-idea-factory`, then `compozy setup` again.
+4. **Configure workspace (optional).** Create `.compozy/config.toml` to set default IDE, model, and other preferences. Read `config-reference.md` for all fields.
 
 ## Phase 1: Ideation (Optional)
 
@@ -14,11 +15,13 @@ End-to-end walkthrough of the Compozy development pipeline from setup through ar
 
 Use when a raw idea needs structured exploration before committing to a PRD.
 
+Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <tag> --subdir extensions/cy-idea-factory` -> `compozy ext enable cy-idea-factory` -> `compozy setup`
+
 1. Invoke `/cy-idea-factory` inside an agent session with the feature idea.
 2. Answer 3-6 clarifying questions (one per message, multiple-choice preferred).
 3. The skill runs parallel codebase exploration and web research.
 4. A business analyst persona evaluates viability with KPIs and scoring.
-5. A council debate (3-5 advisors from the bundled council agents) challenges scope and surfaces risks.
+5. A council debate (3-5 advisors from the extension-shipped council agents) challenges scope and surfaces risks.
 6. A product strategist scans for higher-leverage alternatives.
 7. Review and approve the draft idea spec.
 8. Output: `.compozy/tasks/<slug>/_idea.md` + ADRs.

@@ -32,28 +32,34 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 		return fmt.Errorf("form canceled or error: %w", err)
 	}
 	inputs.apply(cmd, state)
+	if state.kind == commandKindStart && inputs.defineTaskRuntime {
+		if err := collectStartTaskRuntimeForm(cmd, state); err != nil {
+			return err
+		}
+	}
 	fmt.Fprintln(cmd.OutOrStdout())
 	fmt.Fprintln(cmd.OutOrStdout(), renderFormSuccess())
 	return nil
 }
 
 type formInputs struct {
-	name             string
-	pr               string
-	provider         string
-	round            string
-	reviewsDir       string
-	tasksDir         string
-	concurrent       string
-	batchSize        string
-	ide              string
-	model            string
-	addDirs          string
-	reasoningEffort  string
-	includeCompleted bool
-	includeResolved  bool
-	dryRun           bool
-	autoCommit       bool
+	name              string
+	pr                string
+	provider          string
+	round             string
+	reviewsDir        string
+	tasksDir          string
+	concurrent        string
+	batchSize         string
+	ide               string
+	model             string
+	addDirs           string
+	reasoningEffort   string
+	defineTaskRuntime bool
+	includeCompleted  bool
+	includeResolved   bool
+	dryRun            bool
+	autoCommit        bool
 }
 
 func newFormInputs() *formInputs {
@@ -86,6 +92,7 @@ func newFormInputsFromState(state *commandState) *formInputs {
 		inputs.addDirs = formatAddDirInput(state.addDirs)
 	}
 	inputs.reasoningEffort = state.reasoningEffort
+	inputs.defineTaskRuntime = len(state.taskRuntimeRules()) > 0
 	inputs.includeCompleted = state.includeCompleted
 	inputs.includeResolved = state.includeResolved
 	inputs.dryRun = state.dryRun
@@ -107,6 +114,15 @@ func (fi *formInputs) register(builder *formBuilder) {
 	builder.addModelField(&fi.model)
 	builder.addAddDirsField(&fi.addDirs)
 	builder.addReasoningEffortField(&fi.reasoningEffort)
+	if builder.state != nil && builder.state.kind == commandKindStart {
+		builder.addVirtualField(func() huh.Field {
+			return huh.NewConfirm().
+				Key("define-task-runtime").
+				Title("Define Runtime Per Task?").
+				Description("Open a second round to configure runtime overrides by task type or task id.").
+				Value(&fi.defineTaskRuntime)
+		})
+	}
 	builder.addConfirmField(
 		"dry-run",
 		"Dry Run?",
@@ -186,6 +202,14 @@ func (fb *formBuilder) addField(flag string, build func() huh.Field) {
 	if !fb.hasFlag(flag) || fb.cmd.Flags().Changed(flag) || fb.hideField(flag) {
 		return
 	}
+	fb.addBuiltField(build)
+}
+
+func (fb *formBuilder) addVirtualField(build func() huh.Field) {
+	fb.addBuiltField(build)
+}
+
+func (fb *formBuilder) addBuiltField(build func() huh.Field) {
 	field := build()
 	if field != nil {
 		fb.fields = append(fb.fields, field)

@@ -36,6 +36,16 @@
             "sourceType": "github",
             "computedHash": "9272c514c90f40059ceb9f3b504ea9f5a91fde83a6ae8471f00c8d36a95a086d"
         },
+        "qa-execution": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "1e0d0aa6fea29d814d62ea5513a8f2411a560bb62acc499aa411c72eb537c8ec"
+        },
+        "qa-report": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "computedHash": "231866d5f491bb0f4dcc3c999362a942bd2e26b5b9289c1ced66bc8433a3e2c4"
+        },
         "refactoring-analysis": {
             "source": "pedronauck/skills",
             "sourceType": "github",

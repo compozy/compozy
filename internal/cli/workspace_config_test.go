@@ -119,6 +119,34 @@ batch_size = 4
 	}
 }
 
+func TestApplyWorkspaceDefaultsCanDisableAutomaticRetries(t *testing.T) {
+	isolateCLIConfigHome(t)
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[defaults]
+max_retries = 0
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+
+	chdirCLITest(t, startDir)
+
+	if state.maxRetries != defaultMaxRetries {
+		t.Fatalf("unexpected built-in retry default before config: %d", state.maxRetries)
+	}
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.maxRetries != 0 {
+		t.Fatalf("expected workspace config to disable automatic retries, got %d", state.maxRetries)
+	}
+}
+
 func TestApplyWorkspaceDefaultsUsesExecOverridesOverDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -195,6 +223,58 @@ tui = false
 	}
 	if state.tui {
 		t.Fatal("expected start.tui to disable the workflow TUI")
+	}
+}
+
+func TestApplyWorkspaceDefaultsKeepsConfiguredTaskRuntimeRulesAndBuildConfigAppendsCLIOverrides(t *testing.T) {
+	isolateCLIConfigHome(t)
+
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, `
+[start]
+[[start.task_runtime_rules]]
+type = "frontend"
+ide = "claude"
+model = "sonnet"
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := newTestCommand(state)
+	cmd.Flags().Var(
+		newTaskRuntimeFlagValue(&state.executionTaskRuntimeRules),
+		"task-runtime",
+		"task runtime",
+	)
+
+	if err := cmd.Flags().Set("task-runtime", "id=task_01,model=gpt-5.4-mini"); err != nil {
+		t.Fatalf("set task-runtime flag: %v", err)
+	}
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if len(state.configuredTaskRuntimeRules) != 1 {
+		t.Fatalf("unexpected configured task runtime rules: %#v", state.configuredTaskRuntimeRules)
+	}
+
+	cfg, err := state.buildConfig()
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	if len(cfg.TaskRuntimeRules) != 2 {
+		t.Fatalf("unexpected merged task runtime rules: %#v", cfg.TaskRuntimeRules)
+	}
+	if cfg.TaskRuntimeRules[0].Type == nil || *cfg.TaskRuntimeRules[0].Type != "frontend" {
+		t.Fatalf("expected config type rule first, got %#v", cfg.TaskRuntimeRules[0])
+	}
+	if cfg.TaskRuntimeRules[1].ID == nil || *cfg.TaskRuntimeRules[1].ID != "task_01" {
+		t.Fatalf("expected CLI id rule to append after config, got %#v", cfg.TaskRuntimeRules[1])
 	}
 }
 

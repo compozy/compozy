@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/core/model"
 )
 
 func buildEffectiveProjectConfig(global, workspace ProjectConfig) ProjectConfig {
@@ -53,7 +55,8 @@ func buildEffectiveStartConfig(
 			workspaceDefaults.OutputFormat,
 			workspace.OutputFormat,
 		),
-		TUI: cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
+		TUI:              cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
+		TaskRuntimeRules: mergeStartTaskRuntimeRules(global.TaskRuntimeRules, workspace.TaskRuntimeRules),
 	}
 }
 
@@ -166,6 +169,43 @@ func mergeSoundConfig(base, overlay SoundConfig) SoundConfig {
 	}
 }
 
+func mergeStartTaskRuntimeRules(
+	base *[]model.TaskRuntimeRule,
+	overlay *[]model.TaskRuntimeRule,
+) *[]model.TaskRuntimeRule {
+	if base == nil && overlay == nil {
+		return nil
+	}
+
+	merged := make([]model.TaskRuntimeRule, 0)
+	indexByType := make(map[string]int)
+	appendRule := func(rule model.TaskRuntimeRule) {
+		normalized := rule
+		if normalized.Type == nil {
+			merged = append(merged, normalized)
+			return
+		}
+		key := strings.TrimSpace(*normalized.Type)
+		if existing, ok := indexByType[key]; ok {
+			merged[existing] = normalized
+			return
+		}
+		indexByType[key] = len(merged)
+		merged = append(merged, normalized)
+	}
+
+	for _, rule := range model.CloneTaskRuntimeRules(derefTaskRuntimeRules(base)) {
+		appendRule(rule)
+	}
+	for _, rule := range model.CloneTaskRuntimeRules(derefTaskRuntimeRules(overlay)) {
+		appendRule(rule)
+	}
+	if len(merged) == 0 {
+		return nil
+	}
+	return &merged
+}
+
 func mergeRuntimeOverrides(base, overlay RuntimeOverrides) RuntimeOverrides {
 	return RuntimeOverrides{
 		IDE:             cloneOptionalValue(preferOverlay(base.IDE, overlay.IDE)),
@@ -182,6 +222,13 @@ func mergeRuntimeOverrides(base, overlay RuntimeOverrides) RuntimeOverrides {
 			preferOverlay(base.RetryBackoffMultiplier, overlay.RetryBackoffMultiplier),
 		),
 	}
+}
+
+func derefTaskRuntimeRules(value *[]model.TaskRuntimeRule) []model.TaskRuntimeRule {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func normalizeProjectConfigPaths(cfg ProjectConfig, baseDir string) (ProjectConfig, error) {

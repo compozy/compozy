@@ -188,6 +188,7 @@ func (r *jobRunner) dispatchPreExecuteHook(ctx context.Context) error {
 		return nil
 	}
 
+	before := hookModelJob(r.job)
 	payload, err := model.DispatchMutableHook(
 		ctx,
 		r.execCtx.cfg.RuntimeManager,
@@ -199,6 +200,9 @@ func (r *jobRunner) dispatchPreExecuteHook(ctx context.Context) error {
 	)
 	if err != nil {
 		return err
+	}
+	if jobRuntimeChanged(before, payload.Job) {
+		return fmt.Errorf("job.pre_execute cannot mutate job runtime after planning completed")
 	}
 	applyHookModelJob(r.job, payload.Job)
 	return nil
@@ -262,4 +266,10 @@ func (r *jobRunner) waitForRetry(ctx context.Context, delay time.Duration) bool 
 	case <-timer.C:
 		return true
 	}
+}
+
+func jobRuntimeChanged(before model.Job, after model.Job) bool {
+	return before.IDE != after.IDE ||
+		before.Model != after.Model ||
+		before.ReasoningEffort != after.ReasoningEffort
 }

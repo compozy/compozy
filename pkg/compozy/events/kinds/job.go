@@ -2,20 +2,28 @@ package kinds
 
 // JobQueuedPayload describes a queued job.
 type JobQueuedPayload struct {
-	Index     int      `json:"index"`
-	CodeFile  string   `json:"code_file,omitempty"`
-	CodeFiles []string `json:"code_files,omitempty"`
-	Issues    int      `json:"issues,omitempty"`
-	TaskTitle string   `json:"task_title,omitempty"`
-	TaskType  string   `json:"task_type,omitempty"`
-	SafeName  string   `json:"safe_name,omitempty"`
-	OutLog    string   `json:"out_log,omitempty"`
-	ErrLog    string   `json:"err_log,omitempty"`
+	Index           int      `json:"index"`
+	CodeFile        string   `json:"code_file,omitempty"`
+	CodeFiles       []string `json:"code_files,omitempty"`
+	Issues          int      `json:"issues,omitempty"`
+	TaskTitle       string   `json:"task_title,omitempty"`
+	TaskType        string   `json:"task_type,omitempty"`
+	SafeName        string   `json:"safe_name,omitempty"`
+	IDE             string   `json:"ide,omitempty"`
+	Model           string   `json:"model,omitempty"`
+	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
+	AccessMode      string   `json:"access_mode,omitempty"`
+	OutLog          string   `json:"out_log,omitempty"`
+	ErrLog          string   `json:"err_log,omitempty"`
 }
 
 // JobStartedPayload describes a started job.
 type JobStartedPayload struct {
 	JobAttemptInfo
+	IDE             string `json:"ide,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	AccessMode      string `json:"access_mode,omitempty"`
 }
 
 // JobAttemptInfo carries shared attempt counters for job lifecycle payloads.

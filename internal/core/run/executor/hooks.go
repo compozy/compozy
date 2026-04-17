@@ -79,16 +79,19 @@ func hookModelJob(src *job) model.Job {
 		return model.Job{}
 	}
 	return model.Job{
-		CodeFiles:     append([]string(nil), src.CodeFiles...),
-		Groups:        cloneIssueGroups(src.Groups),
-		TaskTitle:     src.TaskTitle,
-		TaskType:      src.TaskType,
-		SafeName:      src.SafeName,
-		Prompt:        append([]byte(nil), src.Prompt...),
-		SystemPrompt:  src.SystemPrompt,
-		OutPromptPath: src.OutPromptPath,
-		OutLog:        src.OutLog,
-		ErrLog:        src.ErrLog,
+		CodeFiles:       append([]string(nil), src.CodeFiles...),
+		Groups:          cloneIssueGroups(src.Groups),
+		TaskTitle:       src.TaskTitle,
+		TaskType:        src.TaskType,
+		SafeName:        src.SafeName,
+		IDE:             src.IDE,
+		Model:           src.Model,
+		ReasoningEffort: src.ReasoningEffort,
+		Prompt:          append([]byte(nil), src.Prompt...),
+		SystemPrompt:    src.SystemPrompt,
+		OutPromptPath:   src.OutPromptPath,
+		OutLog:          src.OutLog,
+		ErrLog:          src.ErrLog,
 	}
 }
 
@@ -101,6 +104,9 @@ func applyHookModelJob(dst *job, updated model.Job) {
 	dst.TaskTitle = updated.TaskTitle
 	dst.TaskType = updated.TaskType
 	dst.SafeName = updated.SafeName
+	dst.IDE = updated.IDE
+	dst.Model = updated.Model
+	dst.ReasoningEffort = updated.ReasoningEffort
 	dst.Prompt = append([]byte(nil), updated.Prompt...)
 	dst.SystemPrompt = updated.SystemPrompt
 	dst.OutPromptPath = updated.OutPromptPath
@@ -143,6 +149,7 @@ func hookRuntimeConfig(src *config) model.RuntimeConfig {
 		TailLines:              src.TailLines,
 		ReasoningEffort:        src.ReasoningEffort,
 		AccessMode:             src.AccessMode,
+		TaskRuntimeRules:       model.CloneTaskRuntimeRules(src.TaskRuntimeRules),
 		Mode:                   src.Mode,
 		OutputFormat:           src.OutputFormat,
 		Verbose:                src.Verbose,
@@ -154,6 +161,9 @@ func hookRuntimeConfig(src *config) model.RuntimeConfig {
 		Timeout:                src.Timeout,
 		MaxRetries:             src.MaxRetries,
 		RetryBackoffMultiplier: src.RetryBackoffMultiplier,
+		SoundEnabled:           src.SoundEnabled,
+		SoundOnCompleted:       src.SoundOnCompleted,
+		SoundOnFailed:          src.SoundOnFailed,
 	}
 }
 
@@ -178,6 +188,7 @@ func applyHookRuntimeConfig(dst *config, updated model.RuntimeConfig) {
 	dst.TailLines = updated.TailLines
 	dst.ReasoningEffort = updated.ReasoningEffort
 	dst.AccessMode = updated.AccessMode
+	dst.TaskRuntimeRules = model.CloneTaskRuntimeRules(updated.TaskRuntimeRules)
 	dst.Mode = updated.Mode
 	dst.OutputFormat = updated.OutputFormat
 	dst.Verbose = updated.Verbose
@@ -189,6 +200,9 @@ func applyHookRuntimeConfig(dst *config, updated model.RuntimeConfig) {
 	dst.Timeout = updated.Timeout
 	dst.MaxRetries = updated.MaxRetries
 	dst.RetryBackoffMultiplier = updated.RetryBackoffMultiplier
+	dst.SoundEnabled = updated.SoundEnabled
+	dst.SoundOnCompleted = updated.SoundOnCompleted
+	dst.SoundOnFailed = updated.SoundOnFailed
 }
 
 func hookRunSummary(result executionResult) model.RunSummary {

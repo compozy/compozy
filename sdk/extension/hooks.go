@@ -33,6 +33,13 @@ type PlanPrePrepareJobsPayload struct {
 	Groups map[string][]IssueEntry `json:"groups,omitempty"`
 }
 
+// PlanPreResolveTaskRuntimePayload is delivered for plan.pre_resolve_task_runtime.
+type PlanPreResolveTaskRuntimePayload struct {
+	RunID   string          `json:"run_id"`
+	Task    TaskRuntimeTask `json:"task"`
+	Runtime TaskRuntime     `json:"runtime"`
+}
+
 // PlanPostPrepareJobsPayload is delivered for plan.post_prepare_jobs.
 type PlanPostPrepareJobsPayload struct {
 	RunID string `json:"run_id"`
@@ -217,6 +224,11 @@ type IssuesPatch struct {
 // GroupsPatch replaces one grouped issue map.
 type GroupsPatch struct {
 	Groups *map[string][]IssueEntry `json:"groups,omitempty"`
+}
+
+// TaskRuntimePatch replaces the effective runtime for one task.
+type TaskRuntimePatch struct {
+	Runtime *TaskRuntime `json:"runtime,omitempty"`
 }
 
 // JobsPatch replaces one prepared job slice.

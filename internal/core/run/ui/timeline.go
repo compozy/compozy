@@ -91,11 +91,23 @@ func (m *uiModel) timelineEntryMeta(job *uiJob) string {
 }
 
 func (m *uiModel) timelineRuntimeMeta() string {
-	if m == nil || m.cfg == nil {
+	if m == nil {
 		return ""
 	}
-	provider := strings.TrimSpace(agent.DisplayName(m.cfg.IDE))
-	modelName := strings.TrimSpace(m.cfg.Model)
+	current := m.currentJob()
+	ide := ""
+	modelName := ""
+	if current != nil {
+		ide = strings.TrimSpace(current.ide)
+		modelName = strings.TrimSpace(current.model)
+	}
+	if ide == "" && m.cfg != nil {
+		ide = strings.TrimSpace(m.cfg.IDE)
+	}
+	if modelName == "" && m.cfg != nil {
+		modelName = strings.TrimSpace(m.cfg.Model)
+	}
+	provider := strings.TrimSpace(agent.DisplayName(ide))
 	switch {
 	case provider != "" && modelName != "":
 		return provider + " · " + modelName

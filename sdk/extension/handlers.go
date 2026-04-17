@@ -93,6 +93,13 @@ func (e *Extension) OnPlanPrePrepareJobs(
 	return registerMutableHook(e, HookPlanPrePrepareJobs, handler)
 }
 
+// OnPlanPreResolveTaskRuntime registers the plan.pre_resolve_task_runtime handler.
+func (e *Extension) OnPlanPreResolveTaskRuntime(
+	handler func(context.Context, HookContext, PlanPreResolveTaskRuntimePayload) (TaskRuntimePatch, error),
+) *Extension {
+	return registerMutableHook(e, HookPlanPreResolveTaskRuntime, handler)
+}
+
 // OnPlanPostPrepareJobs registers the plan.post_prepare_jobs handler.
 func (e *Extension) OnPlanPostPrepareJobs(
 	handler func(context.Context, HookContext, PlanPostPrepareJobsPayload) (JobsPatch, error),

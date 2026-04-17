@@ -1066,10 +1066,11 @@ func writeRunTaskFile(t *testing.T, tasksDir, name, status string) {
 }
 
 type executionHookManager struct {
-	mutators         map[string]func(any) (any, error)
-	mutableHooks     []string
-	observerHooks    []string
-	observerPayloads map[string][]any
+	mutators          map[string]func(any) (any, error)
+	mutableHooks      []string
+	observerHooks     []string
+	observerPayloads  map[string][]any
+	waitObserverHooks func(context.Context) error
 }
 
 func (*executionHookManager) Start(context.Context) error { return nil }
@@ -1103,6 +1104,68 @@ func (m *executionHookManager) DispatchObserverHook(_ context.Context, hook stri
 		m.observerPayloads = make(map[string][]any)
 	}
 	m.observerPayloads[hook] = append(m.observerPayloads[hook], payload)
+}
+
+func (m *executionHookManager) WaitForObserverHooks(ctx context.Context) error {
+	if m == nil || m.waitObserverHooks == nil {
+		return nil
+	}
+	return m.waitObserverHooks(ctx)
+}
+
+func TestFinalizeExecutionWaitsForObserverHooksWithoutCanceledRunContext(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "run-finalize")
+	waiterCalled := false
+	manager := &executionHookManager{
+		waitObserverHooks: func(ctx context.Context) error {
+			waiterCalled = true
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	internalCfg := &config{
+		WorkspaceRoot:  workspaceRoot,
+		Mode:           model.ExecutionModePRDTasks,
+		OutputFormat:   model.OutputFormatText,
+		RunArtifacts:   runArtifacts,
+		RuntimeManager: manager,
+	}
+	result := executionResult{
+		RunID:        runArtifacts.RunID,
+		Status:       runStatusSucceeded,
+		ArtifactsDir: runArtifacts.RunDir,
+		ResultPath:   runArtifacts.ResultPath,
+	}
+
+	if err := finalizeExecution(
+		ctx,
+		nil,
+		runArtifacts,
+		internalCfg,
+		nil,
+		result,
+		0,
+		nil,
+		0,
+		time.Now().Add(-time.Second),
+	); err != nil {
+		t.Fatalf("finalizeExecution: %v", err)
+	}
+	if !waiterCalled {
+		t.Fatal("expected finalizeExecution to wait for pending observer hooks")
+	}
+	if got := manager.observerHooks; !reflect.DeepEqual(got, []string{"run.pre_shutdown", "run.post_shutdown"}) {
+		t.Fatalf("unexpected observer hook order: %#v", got)
+	}
 }
 
 func assertNoRuntimeEvents(t *testing.T, ch <-chan eventspkg.Event, wait time.Duration) {
