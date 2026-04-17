@@ -15,6 +15,7 @@ func TestEventsDocumentationEnumeratesAllPublicKinds(t *testing.T) {
 	for _, kind := range []EventKind{
 		EventKindRunQueued,
 		EventKindRunStarted,
+		EventKindRunCrashed,
 		EventKindRunCompleted,
 		EventKindRunFailed,
 		EventKindRunCancelled,

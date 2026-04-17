@@ -564,36 +564,7 @@ func (g *GlobalDB) registerResolvedWorkspace(
 	ctx context.Context,
 	rootDir string,
 	name string,
-) (_ Workspace, retErr error) {
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return Workspace{}, fmt.Errorf("globaldb: begin register workspace transaction: %w", err)
-	}
-
-	committed := false
-	defer func() {
-		if !committed {
-			if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-				retErr = errors.Join(
-					retErr,
-					fmt.Errorf("globaldb: rollback register workspace transaction: %w", rollbackErr),
-				)
-			}
-		}
-	}()
-
-	existing, err := getWorkspaceByRootDir(ctx, tx, rootDir)
-	if err == nil {
-		if err := tx.Commit(); err != nil {
-			return Workspace{}, fmt.Errorf("globaldb: commit register workspace transaction: %w", err)
-		}
-		committed = true
-		return existing, nil
-	}
-	if !errors.Is(err, ErrWorkspaceNotFound) {
-		return Workspace{}, err
-	}
-
+) (Workspace, error) {
 	now := g.now()
 	inserted := Workspace{
 		ID:        g.newID("ws"),
@@ -603,7 +574,7 @@ func (g *GlobalDB) registerResolvedWorkspace(
 		UpdatedAt: now,
 	}
 
-	result, err := tx.ExecContext(
+	result, err := g.db.ExecContext(
 		ctx,
 		`INSERT OR IGNORE INTO workspaces (id, root_dir, name, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?)`,
@@ -622,21 +593,13 @@ func (g *GlobalDB) registerResolvedWorkspace(
 		return Workspace{}, fmt.Errorf("globaldb: rows affected for workspace %q: %w", inserted.ID, err)
 	}
 	if affected == 0 {
-		existing, err = getWorkspaceByRootDir(ctx, tx, rootDir)
+		existing, err := g.getWorkspaceByRootDir(ctx, rootDir)
 		if err != nil {
 			return Workspace{}, err
 		}
-		if err := tx.Commit(); err != nil {
-			return Workspace{}, fmt.Errorf("globaldb: commit register workspace transaction: %w", err)
-		}
-		committed = true
 		return existing, nil
 	}
 
-	if err := tx.Commit(); err != nil {
-		return Workspace{}, fmt.Errorf("globaldb: commit register workspace transaction: %w", err)
-	}
-	committed = true
 	return inserted, nil
 }
 

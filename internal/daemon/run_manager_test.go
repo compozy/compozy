@@ -1059,11 +1059,12 @@ type runManagerTestEnv struct {
 }
 
 type runManagerTestDeps struct {
-	now          func() time.Time
-	openRunScope func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
-	prepare      func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
-	execute      func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	executeExec  func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	now                  func() time.Time
+	openRunScope         func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
+	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
+	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	shutdownDrainTimeout time.Duration
 }
 
 func newRunManagerTestEnv(t *testing.T, deps runManagerTestDeps) *runManagerTestEnv {
@@ -1099,13 +1100,14 @@ func newRunManagerTestEnv(t *testing.T, deps runManagerTestDeps) *runManagerTest
 	}
 
 	manager, err := NewRunManager(RunManagerConfig{
-		GlobalDB:         globalDB,
-		LifecycleContext: context.Background(),
-		Now:              deps.now,
-		OpenRunScope:     firstOpenRunScope(deps.openRunScope),
-		Prepare:          firstPrepare(deps.prepare),
-		Execute:          firstExecute(deps.execute),
-		ExecuteExec:      firstExecuteExec(deps.executeExec),
+		GlobalDB:             globalDB,
+		LifecycleContext:     context.Background(),
+		ShutdownDrainTimeout: deps.shutdownDrainTimeout,
+		Now:                  deps.now,
+		OpenRunScope:         firstOpenRunScope(deps.openRunScope),
+		Prepare:              firstPrepare(deps.prepare),
+		Execute:              firstExecute(deps.execute),
+		ExecuteExec:          firstExecuteExec(deps.executeExec),
 		LoadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
 			return workspacecfg.ProjectConfig{}, nil
 		},

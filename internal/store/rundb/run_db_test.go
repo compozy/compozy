@@ -253,6 +253,49 @@ func TestRunDBRecordHookRunValidatesRequiredFields(t *testing.T) {
 	}
 }
 
+func TestRunDBAppendSyntheticEventUsesNextSequence(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-synthetic-crash"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	first := mustEvent(
+		t,
+		runID,
+		1,
+		time.Date(2026, 4, 17, 20, 0, 1, 0, time.UTC),
+		events.EventKindRunStarted,
+		kinds.RunStartedPayload{Mode: "task"},
+	)
+	if err := db.StoreEventBatch(context.Background(), []events.Event{first}); err != nil {
+		t.Fatalf("StoreEventBatch(first) error = %v", err)
+	}
+
+	appended, err := db.AppendSyntheticEvent(context.Background(), events.EventKindRunCrashed, kinds.RunCrashedPayload{
+		Error: "daemon restarted before terminal state flush",
+	})
+	if err != nil {
+		t.Fatalf("AppendSyntheticEvent() error = %v", err)
+	}
+	if appended.Seq != 2 {
+		t.Fatalf("synthetic event sequence = %d, want 2", appended.Seq)
+	}
+	if appended.Kind != events.EventKindRunCrashed {
+		t.Fatalf("synthetic event kind = %q, want %q", appended.Kind, events.EventKindRunCrashed)
+	}
+
+	lastEvent, err := db.LastEvent(context.Background())
+	if err != nil {
+		t.Fatalf("LastEvent() error = %v", err)
+	}
+	if lastEvent == nil || lastEvent.Seq != 2 || lastEvent.Kind != events.EventKindRunCrashed {
+		t.Fatalf("last event = %#v, want seq=2 kind=run.crashed", lastEvent)
+	}
+}
+
 func TestRunDBRequiresContext(t *testing.T) {
 	t.Parallel()
 

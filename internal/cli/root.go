@@ -65,6 +65,7 @@ Use explicit workflow subcommands:
   compozy migrate       Convert legacy workflow artifacts to frontmatter
   compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy daemon        Manage the home-scoped daemon bootstrap lifecycle
+  compozy runs          Inspect and clean persisted daemon run artifacts
   compozy sync          Refresh task workflow metadata files
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
@@ -84,6 +85,7 @@ Use explicit workflow subcommands:
 		newMigrateCommand(dispatcher),
 		newValidateTasksCommand(dispatcher),
 		newDaemonCommand(),
+		newRunsCommand(),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
 		newFetchReviewsCommandWithDefaults(dispatcher, defaults),

@@ -660,7 +660,10 @@ func (j *Journal) result() error {
 
 func isTerminalEvent(kind events.EventKind) bool {
 	switch kind {
-	case events.EventKindRunCompleted, events.EventKindRunFailed, events.EventKindRunCancelled:
+	case events.EventKindRunCrashed,
+		events.EventKindRunCompleted,
+		events.EventKindRunFailed,
+		events.EventKindRunCancelled:
 		return true
 	default:
 		return false

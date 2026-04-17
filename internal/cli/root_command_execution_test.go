@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -24,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/core/reviews"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	"github.com/compozy/compozy/internal/setup"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
@@ -124,6 +126,89 @@ func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 		t.Fatalf("expected no stderr for dry-run exec, got %q", stderr)
 	}
 	assertNoRunArtifactsForCLI(t, workspaceRoot)
+}
+
+func TestRunsPurgeCommandRemovesTerminalRunArtifactsOldestFirst(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	paths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	if err := os.WriteFile(
+		paths.ConfigFile,
+		[]byte("[runs]\nkeep_terminal_days = 14\nkeep_max = 1\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+
+	db, err := globaldb.Open(context.Background(), paths.GlobalDBPath)
+	if err != nil {
+		t.Fatalf("globaldb.Open() error = %v", err)
+	}
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir workspace marker: %v", err)
+	}
+	workspaceRow, err := db.Register(context.Background(), workspaceRoot, "purge-workspace")
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	now := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	for _, item := range []struct {
+		runID   string
+		status  string
+		endedAt time.Time
+	}{
+		{runID: "run-oldest", status: "completed", endedAt: now.AddDate(0, 0, -21)},
+		{runID: "run-middle", status: "failed", endedAt: now.AddDate(0, 0, -15)},
+		{runID: "run-newest", status: "crashed", endedAt: now.AddDate(0, 0, -1)},
+		{runID: "run-active", status: "running", endedAt: now},
+	} {
+		seedCLIRunForPurge(t, db, workspaceRow.ID, item.runID, item.status, item.endedAt)
+		createCLIRunArtifacts(t, item.runID)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	withWorkingDir(t, t.TempDir())
+	output, err := executeRootCommand("runs", "purge")
+	if err != nil {
+		t.Fatalf("execute runs purge: %v\noutput:\n%s", err, output)
+	}
+	if strings.TrimSpace(output) != "purged 2 run(s)" {
+		t.Fatalf("unexpected runs purge output: %q", output)
+	}
+
+	reopened, err := globaldb.Open(context.Background(), paths.GlobalDBPath)
+	if err != nil {
+		t.Fatalf("Open(reopen) error = %v", err)
+	}
+	defer func() {
+		_ = reopened.Close()
+	}()
+
+	for _, runID := range []string{"run-oldest", "run-middle"} {
+		if _, err := reopened.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+		}
+		assertCLIRunDirMissing(t, runID)
+	}
+	for _, runID := range []string{"run-newest", "run-active"} {
+		if _, err := reopened.GetRun(context.Background(), runID); err != nil {
+			t.Fatalf("GetRun(%q) error = %v", runID, err)
+		}
+		assertCLIRunDirPresent(t, runID)
+	}
 }
 
 func TestExecCommandWithInstalledWorkspaceExtensionStaysEphemeralWithoutFlag(t *testing.T) {
@@ -1159,6 +1244,71 @@ func assertNoRunArtifactsForCLI(t *testing.T, workspaceRoot string) {
 
 	if _, err := os.Stat(filepath.Join(workspaceRoot, ".compozy", "runs")); !os.IsNotExist(err) {
 		t.Fatalf("expected no persisted exec artifacts by default, got stat err=%v", err)
+	}
+}
+
+func seedCLIRunForPurge(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	runID string,
+	status string,
+	endedAt time.Time,
+) {
+	t.Helper()
+
+	run := globaldb.Run{
+		RunID:            runID,
+		WorkspaceID:      workspaceID,
+		Mode:             "task",
+		Status:           status,
+		PresentationMode: "stream",
+		StartedAt:        endedAt.Add(-time.Minute),
+	}
+	if status != "running" {
+		run.EndedAt = &endedAt
+	}
+	if _, err := db.PutRun(context.Background(), run); err != nil {
+		t.Fatalf("PutRun(%q) error = %v", runID, err)
+	}
+}
+
+func createCLIRunArtifacts(t *testing.T, runID string) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
+	}
+	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runArtifacts.RunDir, "marker.txt"), []byte(runID), 0o600); err != nil {
+		t.Fatalf("write run marker: %v", err)
+	}
+}
+
+func assertCLIRunDirMissing(t *testing.T, runID string) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
+	}
+	if _, err := os.Stat(runArtifacts.RunDir); !os.IsNotExist(err) {
+		t.Fatalf("expected run dir %q to be removed, stat err=%v", runArtifacts.RunDir, err)
+	}
+}
+
+func assertCLIRunDirPresent(t *testing.T, runID string) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
+	}
+	if _, err := os.Stat(runArtifacts.RunDir); err != nil {
+		t.Fatalf("expected run dir %q to remain, stat err=%v", runArtifacts.RunDir, err)
 	}
 }
 

@@ -25,6 +25,7 @@ const (
 	// Run lifecycle events.
 	EventKindRunQueued    EventKind = "run.queued"
 	EventKindRunStarted   EventKind = "run.started"
+	EventKindRunCrashed   EventKind = "run.crashed"
 	EventKindRunCompleted EventKind = "run.completed"
 	EventKindRunFailed    EventKind = "run.failed"
 	EventKindRunCancelled EventKind = "run.cancelled"

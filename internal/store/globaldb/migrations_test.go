@@ -6,6 +6,7 @@ import (
 	"errors"
 	"path/filepath"
 	"reflect"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -246,7 +247,7 @@ func loadSchemaSnapshot(t *testing.T, sqlDB *sql.DB) map[string]string {
 func openTestGlobalDB(t *testing.T) *GlobalDB {
 	t.Helper()
 
-	var counter int
+	var counter atomic.Int64
 	fixedNow := time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC)
 
 	db, err := openWithOptions(
@@ -257,8 +258,8 @@ func openTestGlobalDB(t *testing.T) *GlobalDB {
 				return fixedNow
 			},
 			newID: func(prefix string) string {
-				counter++
-				return prefix + "-" + time.Date(2026, 4, 17, 18, 0, 0, counter, time.UTC).Format("150405.000000000")
+				seq := counter.Add(1)
+				return prefix + "-" + time.Date(2026, 4, 17, 18, 0, 0, int(seq), time.UTC).Format("150405.000000000")
 			},
 		},
 	)

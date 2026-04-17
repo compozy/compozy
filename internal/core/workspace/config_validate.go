@@ -46,6 +46,9 @@ func (cfg ProjectConfig) validate(scope string) error {
 	if err := validateExec(scope, cfg.Defaults, cfg.Exec); err != nil {
 		return err
 	}
+	if err := validateRuns(scope, cfg.Runs); err != nil {
+		return err
+	}
 	if err := validateSound(scope, cfg.Sound); err != nil {
 		return err
 	}
@@ -162,6 +165,41 @@ func validateExec(scope string, defaults DefaultsConfig, cfg ExecConfig) error {
 			model.OutputFormatJSONValue,
 			model.OutputFormatRawJSONValue,
 		)
+	}
+	return nil
+}
+
+func validateRuns(scope string, cfg RunsConfig) error {
+	if cfg.KeepTerminalDays != nil && *cfg.KeepTerminalDays < 0 {
+		return fmt.Errorf(
+			"%s must be zero or greater (got %d)",
+			configFieldName(scope, "runs.keep_terminal_days"),
+			*cfg.KeepTerminalDays,
+		)
+	}
+	if cfg.KeepMax != nil && *cfg.KeepMax < 0 {
+		return fmt.Errorf(
+			"%s must be zero or greater (got %d)",
+			configFieldName(scope, "runs.keep_max"),
+			*cfg.KeepMax,
+		)
+	}
+	if cfg.ShutdownDrainTimeout != nil {
+		timeout := strings.TrimSpace(*cfg.ShutdownDrainTimeout)
+		if timeout == "" {
+			return fmt.Errorf("%s cannot be empty", configFieldName(scope, "runs.shutdown_drain_timeout"))
+		}
+		duration, err := time.ParseDuration(timeout)
+		if err != nil {
+			return fmt.Errorf("%s: %w", configFieldName(scope, "runs.shutdown_drain_timeout"), err)
+		}
+		if duration <= 0 {
+			return fmt.Errorf(
+				"%s must be greater than zero (got %s)",
+				configFieldName(scope, "runs.shutdown_drain_timeout"),
+				timeout,
+			)
+		}
 	}
 	return nil
 }

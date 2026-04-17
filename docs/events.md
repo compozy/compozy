@@ -14,7 +14,7 @@ Every line in `events.jsonl` is one `events.Event` object:
 | `run_id`         | `string`            | Stable identifier for the workflow or exec run that emitted the event. |
 | `seq`            | `uint64`            | Monotonic sequence number within a run.                                |
 | `ts`             | `RFC3339 timestamp` | Event timestamp in UTC.                                                |
-| `kind`           | `string`            | One of the 40 public event kinds below.                                |
+| `kind`           | `string`            | One of the 41 public event kinds below.                                |
 | `payload`        | `object`            | Kind-specific payload from `pkg/compozy/events/kinds`.                 |
 
 ## Run Events
@@ -44,6 +44,15 @@ Payload type: `kinds.RunStartedPayload`
 - `access_mode`
 - `artifacts_dir`: run artifact directory under `.compozy/runs/<run-id>`
 - `jobs_total`: number of prepared jobs
+
+### `run.crashed`
+
+Payload type: `kinds.RunCrashedPayload`
+
+- `artifacts_dir`
+- `duration_ms`
+- `error`
+- `result_path`
 
 ### `run.completed`
 

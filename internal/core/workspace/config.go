@@ -101,6 +101,23 @@ func LoadConfig(ctx context.Context, workspaceRoot string) (ProjectConfig, strin
 	return cfg, paths.effectivePath(), nil
 }
 
+func LoadGlobalConfig(ctx context.Context) (ProjectConfig, string, error) {
+	if err := context.Cause(ctx); err != nil {
+		return ProjectConfig{}, "", fmt.Errorf("load global config: %w", err)
+	}
+
+	paths, err := resolveConfigPaths(".")
+	if err != nil {
+		return ProjectConfig{}, "", fmt.Errorf("resolve global config paths: %w", err)
+	}
+
+	cfg, _, err := loadConfigFile(ctx, paths.globalPath, globalConfigScope, paths.globalRoot)
+	if err != nil {
+		return ProjectConfig{}, "", err
+	}
+	return cfg, paths.globalPath, nil
+}
+
 func loadEffectiveConfig(ctx context.Context, workspaceRoot string) (ProjectConfig, configPaths, error) {
 	if err := context.Cause(ctx); err != nil {
 		return ProjectConfig{}, configPaths{}, fmt.Errorf("load workspace config: %w", err)

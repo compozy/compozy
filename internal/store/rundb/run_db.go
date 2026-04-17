@@ -176,6 +176,42 @@ func (r *RunDB) StoreEventBatch(ctx context.Context, items []events.Event) (retE
 	return nil
 }
 
+// AppendSyntheticEvent appends one synthetic canonical event with the next
+// available sequence. It is intended for daemon-owned recovery flows that need
+// to persist a terminal event after the original writer loop is gone.
+func (r *RunDB) AppendSyntheticEvent(
+	ctx context.Context,
+	kind events.EventKind,
+	payload any,
+) (events.Event, error) {
+	if err := r.requireContext(ctx, "append synthetic event"); err != nil {
+		return events.Event{}, err
+	}
+
+	rawPayload, err := json.Marshal(payload)
+	if err != nil {
+		return events.Event{}, fmt.Errorf("rundb: marshal %s payload: %w", kind, err)
+	}
+
+	maxSeq, err := r.CurrentMaxSequence(ctx)
+	if err != nil {
+		return events.Event{}, err
+	}
+
+	item := events.Event{
+		SchemaVersion: events.SchemaVersion,
+		RunID:         r.runID,
+		Seq:           maxSeq + 1,
+		Timestamp:     r.now(),
+		Kind:          kind,
+		Payload:       rawPayload,
+	}
+	if err := r.StoreEventBatch(ctx, []events.Event{item}); err != nil {
+		return events.Event{}, err
+	}
+	return item, nil
+}
+
 // RecordHookRun persists one hook audit row.
 func (r *RunDB) RecordHookRun(ctx context.Context, record HookRunRecord) error {
 	if err := r.requireContext(ctx, "record hook run"); err != nil {

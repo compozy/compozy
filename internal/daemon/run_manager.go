@@ -38,11 +38,11 @@ const (
 	runStatusCompleted = "completed"
 	runStatusFailed    = "failed"
 	runStatusCancelled = "canceled"
+	runStatusCrashed   = "crashed"
 
 	defaultRunListLimit     = 100
 	defaultPresentationMode = "stream"
 	maxRunEventPageLimit    = 1000
-	runShutdownTimeout      = time.Second
 	runStreamBufferSize     = 64
 	defaultStreamPageLimit  = 256
 	cancelRequestedByDaemon = "daemon"
@@ -51,26 +51,28 @@ const (
 
 // RunManagerConfig wires the daemon-owned run manager dependencies.
 type RunManagerConfig struct {
-	GlobalDB          *globaldb.GlobalDB
-	LifecycleContext  context.Context
-	Now               func() time.Time
-	OpenRunScope      func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
-	Prepare           func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
-	Execute           func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	ExecuteExec       func(context.Context, *model.RuntimeConfig, model.RunScope) error
-	LoadProjectConfig func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	GlobalDB             *globaldb.GlobalDB
+	LifecycleContext     context.Context
+	ShutdownDrainTimeout time.Duration
+	Now                  func() time.Time
+	OpenRunScope         func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	Prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
+	Execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
+	ExecuteExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	LoadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
 }
 
 // RunManager owns daemon-backed task, review, and exec runs.
 type RunManager struct {
-	globalDB          *globaldb.GlobalDB
-	lifecycleCtx      context.Context
-	now               func() time.Time
-	openRunScope      func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
-	prepare           func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
-	execute           func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
-	executeExec       func(context.Context, *model.RuntimeConfig, model.RunScope) error
-	loadProjectConfig func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	globalDB             *globaldb.GlobalDB
+	lifecycleCtx         context.Context
+	now                  func() time.Time
+	openRunScope         func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error)
+	prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
+	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
+	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	loadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	shutdownDrainTimeout time.Duration
 
 	mu     sync.RWMutex
 	active map[string]*activeRun
@@ -88,6 +90,7 @@ type activeRun struct {
 
 	stateMu         sync.RWMutex
 	cancelRequested bool
+	closeTimeout    time.Duration
 }
 
 type runtimeOverrideInput struct {
@@ -209,16 +212,27 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		}
 	}
 
+	shutdownDrainTimeout := cfg.ShutdownDrainTimeout
+	if shutdownDrainTimeout <= 0 {
+		if settings, _, err := LoadRunLifecycleSettings(context.Background()); err == nil {
+			shutdownDrainTimeout = settings.ShutdownDrainTimeout
+		}
+		if shutdownDrainTimeout <= 0 {
+			shutdownDrainTimeout = defaultShutdownDrainTimeout
+		}
+	}
+
 	return &RunManager{
-		globalDB:          cfg.GlobalDB,
-		lifecycleCtx:      lifecycleCtx,
-		now:               now,
-		openRunScope:      openRunScope,
-		prepare:           prepare,
-		execute:           execute,
-		executeExec:       executeExec,
-		loadProjectConfig: loadProjectConfig,
-		active:            make(map[string]*activeRun),
+		globalDB:             cfg.GlobalDB,
+		lifecycleCtx:         lifecycleCtx,
+		now:                  now,
+		openRunScope:         openRunScope,
+		prepare:              prepare,
+		execute:              execute,
+		executeExec:          executeExec,
+		loadProjectConfig:    loadProjectConfig,
+		shutdownDrainTimeout: shutdownDrainTimeout,
+		active:               make(map[string]*activeRun),
 	}, nil
 }
 
@@ -817,7 +831,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		RequestID:        apicore.RequestIDFromContext(ctx),
 	})
 	if err != nil {
-		if closeErr := closeRunScope(scope); closeErr != nil {
+		if closeErr := closeRunScope(scope, defaultRunCloseTimeout); closeErr != nil {
 			err = errors.Join(err, closeErr)
 		}
 		cleanupRunDirectory(runArtifacts.RunDir)
@@ -840,6 +854,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		ctx:          runCtx,
 		cancel:       cancel,
 		done:         make(chan struct{}),
+		closeTimeout: defaultRunCloseTimeout,
 	}
 	m.setActive(active)
 
@@ -951,13 +966,13 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 		row.EndedAt = &endedAt
 	}
 	if _, err := m.globalDB.UpdateRun(detachContext(active.ctx), row); err != nil {
-		if closeErr := closeRunScope(scope); closeErr != nil {
+		if closeErr := closeRunScope(scope, active.currentCloseTimeout()); closeErr != nil {
 			return
 		}
 		return
 	}
 
-	if closeErr := closeRunScope(scope); closeErr != nil {
+	if closeErr := closeRunScope(scope, active.currentCloseTimeout()); closeErr != nil {
 		// Run state is already mirrored to persistent stores; close failures are cleanup-only.
 		_ = closeErr
 	}
@@ -1090,6 +1105,29 @@ func (r *activeRun) cancelWasRequested() bool {
 	return r.cancelRequested
 }
 
+func (r *activeRun) setCloseTimeout(timeout time.Duration) {
+	if r == nil || timeout <= 0 {
+		return
+	}
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	if timeout > r.closeTimeout {
+		r.closeTimeout = timeout
+	}
+}
+
+func (r *activeRun) currentCloseTimeout() time.Duration {
+	if r == nil {
+		return defaultRunCloseTimeout
+	}
+	r.stateMu.RLock()
+	defer r.stateMu.RUnlock()
+	if r.closeTimeout <= 0 {
+		return defaultRunCloseTimeout
+	}
+	return r.closeTimeout
+}
+
 func ensureHomeLayout() error {
 	homePaths, err := compozyconfig.ResolveHomePaths()
 	if err != nil {
@@ -1126,11 +1164,14 @@ func cleanupRunDirectory(runDir string) {
 	_ = os.RemoveAll(cleanRunDir)
 }
 
-func closeRunScope(scope model.RunScope) error {
+func closeRunScope(scope model.RunScope, timeout time.Duration) error {
 	if scope == nil {
 		return nil
 	}
-	closeCtx, cancel := context.WithTimeout(context.Background(), runShutdownTimeout)
+	if timeout <= 0 {
+		timeout = defaultRunCloseTimeout
+	}
+	closeCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return scope.Close(closeCtx)
 }
@@ -1286,6 +1327,17 @@ func terminalStateFromEvent(event *eventspkg.Event) (terminalState, bool, error)
 	}
 
 	switch event.Kind {
+	case eventspkg.EventKindRunCrashed:
+		var payload kinds.RunCrashedPayload
+		if err := json.Unmarshal(event.Payload, &payload); err != nil {
+			return terminalState{}, false, fmt.Errorf("daemon: decode run.crashed payload: %w", err)
+		}
+		return terminalState{
+			status:    runStatusCrashed,
+			errorText: strings.TrimSpace(payload.Error),
+			kind:      event.Kind,
+			payload:   payload,
+		}, true, nil
 	case eventspkg.EventKindRunCompleted:
 		var payload kinds.RunCompletedPayload
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
@@ -1404,7 +1456,7 @@ func cancelledTerminalState(err error) terminalState {
 
 func isTerminalRunStatus(status string) bool {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case runStatusCompleted, runStatusFailed, runStatusCancelled, "crashed":
+	case runStatusCompleted, runStatusFailed, runStatusCancelled, runStatusCrashed:
 		return true
 	default:
 		return false
@@ -1413,7 +1465,10 @@ func isTerminalRunStatus(status string) bool {
 
 func isTerminalEventKind(kind eventspkg.EventKind) bool {
 	switch kind {
-	case eventspkg.EventKindRunCompleted, eventspkg.EventKindRunFailed, eventspkg.EventKindRunCancelled:
+	case eventspkg.EventKindRunCrashed,
+		eventspkg.EventKindRunCompleted,
+		eventspkg.EventKindRunFailed,
+		eventspkg.EventKindRunCancelled:
 		return true
 	default:
 		return false
