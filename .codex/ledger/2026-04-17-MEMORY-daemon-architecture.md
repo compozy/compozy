@@ -129,6 +129,33 @@ Open questions (UNCONFIRMED if needed):
 - Recommended operator-facing transport split has been validated conceptually by the user.
 - User correctly identified one remaining design gap: the CLI execution model and daemon lifecycle from the operator perspective still need to be specified explicitly.
 - User challenged the proposed CLI resource name `workflows`; this term may be too abstract/confusing for the daemonized CLI and should be reconsidered before freezing the command taxonomy.
+- User prefers the feature-scoped command family to live under `compozy tasks <action> <feature>` instead of introducing a separate `features` or `workflows` namespace.
+- User explicitly approved removing `compozy start`; backward-compatible aliasing is not required for this redesign.
+- User explicitly wants `compozy sync` and `compozy archive` to remain top-level commands instead of moving under `compozy tasks ...`.
+- User approved daemon `auto-start`, provided singleton handling is robust:
+  - no duplicate daemons
+  - no false failures when the daemon is already running
+  - stale/zombie daemon state must be handled explicitly
+- User selected a global singleton daemon scope, matching AGH:
+  - one daemon per user/machine
+  - the daemon manages multiple workspaces
+  - socket/lock/info/global DB live in the user-scoped runtime area, not inside each repository
+- CLI run-observation verbs still need semantic tightening, especially the distinction between `runs show`, `runs watch`, and `runs attach`.
+- User wants explicit control over run attachment behavior at launch time (for example detached/background execution versus attaching immediately).
+- Recommended CLI distinction:
+  - reserve `--foreground` / `--background` semantics for daemon process lifecycle only
+  - use run-scoped attachment semantics such as `--detach`, `--ui`, and `runs watch|attach` for execution observation behavior
+- User wants the current TUI-centric experience preserved for interactive users; the daemon/web work should not imply removing or demoting the TUI.
+- Recommended UX adjustment:
+  - keep interactive task/review run launches attached to the TUI by default, matching today's user expectation
+  - make attachment mode configurable via `config.toml` and overridable by flags
+  - web becomes an additional client of the daemon, not a replacement for the existing TUI
+  - current default recommendation:
+    - interactive TTY -> `compozy tasks run ...` / `compozy reviews fix ...` attach to TUI
+    - non-interactive/headless -> fall back to `stream` or `detach`
+    - use `--detach`, `--ui`, and `--stream`/`--watch` for run observation behavior
+    - reserve foreground/background wording for daemon lifecycle only
+  - UNCONFIRMED: choose the config namespace for attachment defaults before the techspec (`[presentation]`, `[runs]`, or command-family-specific sections)
 
 Working set (files/ids/commands):
 

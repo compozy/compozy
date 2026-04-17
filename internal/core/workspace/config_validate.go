@@ -13,9 +13,14 @@ import (
 )
 
 const (
-	workspaceConfigScope = "workspace config"
-	globalConfigScope    = "global config"
-	effectiveConfigScope = "effective config"
+	workspaceConfigScope  = "workspace config"
+	globalConfigScope     = "global config"
+	effectiveConfigScope  = "effective config"
+	reasoningEffortLow    = "low"
+	reasoningEffortMedium = "medium"
+	reasoningEffortHigh   = "high"
+	reasoningEffortXHigh  = "xhigh"
+	reasoningEffortValues = "low, medium, high, xhigh"
 )
 
 func (cfg ProjectConfig) Validate() error {
@@ -217,19 +222,7 @@ func validateRuntimeOutputFormat(scope, section string, cfg RuntimeOverrides) er
 }
 
 func validateRuntimeReasoningEffort(scope, section string, cfg RuntimeOverrides) error {
-	if cfg.ReasoningEffort == nil {
-		return nil
-	}
-	switch strings.TrimSpace(*cfg.ReasoningEffort) {
-	case "low", "medium", "high", "xhigh":
-		return nil
-	default:
-		return fmt.Errorf(
-			"%s must be one of low, medium, high, xhigh (got %q)",
-			runtimeFieldName(scope, section, "reasoning_effort"),
-			strings.TrimSpace(*cfg.ReasoningEffort),
-		)
-	}
+	return validateReasoningEffortValue(runtimeFieldName(scope, section, "reasoning_effort"), cfg.ReasoningEffort)
 }
 
 func validateRuntimeAccessMode(scope, section string, cfg RuntimeOverrides) error {
@@ -366,18 +359,24 @@ func validateTaskRuntimeRuleRuntime(fieldPrefix string, rule model.TaskRuntimeRu
 	if rule.Model != nil && strings.TrimSpace(*rule.Model) == "" {
 		return fmt.Errorf("%s.model cannot be empty", fieldPrefix)
 	}
-	if rule.ReasoningEffort != nil {
-		switch strings.TrimSpace(*rule.ReasoningEffort) {
-		case "low", "medium", "high", "xhigh":
-		default:
-			return fmt.Errorf(
-				"%s.reasoning_effort must be one of low, medium, high, xhigh (got %q)",
-				fieldPrefix,
-				strings.TrimSpace(*rule.ReasoningEffort),
-			)
-		}
+	if err := validateReasoningEffortValue(fieldPrefix+".reasoning_effort", rule.ReasoningEffort); err != nil {
+		return err
 	}
 	return nil
+}
+
+func validateReasoningEffortValue(field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+
+	trimmed := strings.TrimSpace(*value)
+	switch trimmed {
+	case reasoningEffortLow, reasoningEffortMedium, reasoningEffortHigh, reasoningEffortXHigh:
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of %s (got %q)", field, reasoningEffortValues, trimmed)
+	}
 }
 
 func validateOutputFormatValue(field string, value *string) error {

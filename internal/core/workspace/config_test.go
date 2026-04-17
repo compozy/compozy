@@ -451,6 +451,26 @@ ide = "codex"
 	}
 }
 
+func TestLoadConfigRejectsInvalidStartTaskRuntimeRuleReasoningEffort(t *testing.T) {
+	isolateWorkspaceConfigHome(t)
+
+	root := t.TempDir()
+	writeWorkspaceConfig(t, root, `
+[start]
+[[start.task_runtime_rules]]
+type = "frontend"
+reasoning_effort = "turbo"
+`)
+
+	_, _, err := LoadConfig(context.Background(), root)
+	if err == nil {
+		t.Fatal("expected invalid start.task_runtime_rules reasoning_effort error")
+	}
+	if !strings.Contains(err.Error(), "start.task_runtime_rules[0].reasoning_effort") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestResolveLoadsTaskTypesFromNearestWorkspace(t *testing.T) {
 	t.Parallel()
 
