@@ -441,6 +441,7 @@ type RuntimeConfig struct {
 	TUI                        bool
 	Persist                    bool
 	EnableExecutableExtensions bool
+	DaemonOwned                bool
 	RunID                      string
 	ParentRunID                string
 	PromptText                 string

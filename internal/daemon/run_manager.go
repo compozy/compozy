@@ -37,7 +37,7 @@ const (
 	runStatusRunning   = "running"
 	runStatusCompleted = "completed"
 	runStatusFailed    = "failed"
-	runStatusCancelled = "cancelled"
+	runStatusCancelled = "canceled"
 
 	defaultRunListLimit     = 100
 	defaultPresentationMode = "stream"
@@ -139,6 +139,13 @@ type runStream struct {
 	events chan apicore.RunStreamItem
 	errors chan error
 	close  func() error
+}
+
+type liveRunSubscription struct {
+	bus         *eventspkg.Bus[eventspkg.Event]
+	ch          <-chan eventspkg.Event
+	unsubscribe func()
+	subID       eventspkg.SubID
 }
 
 var _ apicore.RunService = (*RunManager)(nil)
@@ -546,10 +553,8 @@ func (m *RunManager) prepareTaskStart(
 	); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
-	if err := applyTaskProjectConfig(runtimeCfg, projectCfg.Start); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
-	}
-	if err := applyRuntimeOverrideInput(runtimeCfg, overrides, "runtime_overrides"); err != nil {
+	applyTaskProjectConfig(runtimeCfg, projectCfg.Start)
+	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
 	runtimeCfg.ApplyDefaults()
@@ -621,10 +626,8 @@ func (m *RunManager) prepareReviewStart(
 	); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
-	if err := applyReviewProjectConfig(runtimeCfg, projectCfg.FixReviews); err != nil {
-		return globaldb.Workspace{}, nil, nil, "", err
-	}
-	if err := applyRuntimeOverrideInput(runtimeCfg, overrides, "runtime_overrides"); err != nil {
+	applyReviewProjectConfig(runtimeCfg, projectCfg.FixReviews)
+	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
 	applyReviewBatching(runtimeCfg, batching)
@@ -698,7 +701,7 @@ func (m *RunManager) prepareExecStart(
 	if err := applyExecProjectConfig(runtimeCfg, projectCfg.Exec); err != nil {
 		return globaldb.Workspace{}, nil, "", err
 	}
-	if err := applyRuntimeOverrideInput(runtimeCfg, overrides, "runtime_overrides"); err != nil {
+	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, "", err
 	}
 	runtimeCfg.ApplyDefaults()
@@ -814,12 +817,20 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		RequestID:        apicore.RequestIDFromContext(ctx),
 	})
 	if err != nil {
-		_ = closeRunScope(scope)
+		if closeErr := closeRunScope(scope); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
 		cleanupRunDirectory(runArtifacts.RunDir)
 		return apicore.Run{}, err
 	}
 
 	runCtx, cancel := context.WithCancel(withRequestID(m.lifecycleCtx, apicore.RequestIDFromContext(ctx)))
+	started := false
+	defer func() {
+		if !started {
+			cancel()
+		}
+	}()
 	active := &activeRun{
 		runID:        row.RunID,
 		workspaceID:  row.WorkspaceID,
@@ -833,6 +844,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	m.setActive(active)
 
 	go m.runAsync(active, row, runtimeCfg)
+	started = true
 
 	return m.toCoreRun(detachContext(ctx), row, active.workflowSlug)
 }
@@ -857,13 +869,13 @@ func (m *RunManager) executeWorkflowRun(active *activeRun, row globaldb.Run, run
 	)
 
 	if err := context.Cause(active.ctx); err != nil {
-		fallback = cancelledTerminalState(scope.RunArtifacts(), err)
+		fallback = cancelledTerminalState(err)
 		m.finishRun(active, row, fallback)
 		return
 	}
 
 	if err := startScopeRuntime(active.ctx, scope); err != nil {
-		fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested(), false)
+		fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested())
 		m.finishRun(active, row, fallback)
 		return
 	}
@@ -883,7 +895,7 @@ func (m *RunManager) executeWorkflowRun(active *activeRun, row globaldb.Run, run
 		case errors.Is(err, plan.ErrNoWork):
 			fallback = completedTerminalState(scope.RunArtifacts(), completedNoWorkSummary)
 		default:
-			fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested(), false)
+			fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested())
 		}
 		m.finishRun(active, row, fallback)
 		return
@@ -891,7 +903,7 @@ func (m *RunManager) executeWorkflowRun(active *activeRun, row globaldb.Run, run
 	prep.SetRunScope(scope)
 
 	executionErr = m.execute(active.ctx, prep, runtimeCfg)
-	fallback = fallbackTerminalState(scope.RunArtifacts(), executionErr, active.cancelWasRequested(), false)
+	fallback = fallbackTerminalState(scope.RunArtifacts(), executionErr, active.cancelWasRequested())
 	m.finishRun(active, row, fallback)
 }
 
@@ -900,13 +912,13 @@ func (m *RunManager) executeExecRun(active *activeRun, row globaldb.Run, runtime
 	var fallback terminalState
 
 	if err := context.Cause(active.ctx); err != nil {
-		fallback = cancelledTerminalState(scope.RunArtifacts(), err)
+		fallback = cancelledTerminalState(err)
 		m.finishRun(active, row, fallback)
 		return
 	}
 
 	if err := startScopeRuntime(active.ctx, scope); err != nil {
-		fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested(), false)
+		fallback = fallbackTerminalState(scope.RunArtifacts(), err, active.cancelWasRequested())
 		m.finishRun(active, row, fallback)
 		return
 	}
@@ -921,7 +933,7 @@ func (m *RunManager) executeExecRun(active *activeRun, row globaldb.Run, runtime
 	row = updated
 
 	executionErr := m.executeExec(active.ctx, runtimeCfg, scope)
-	fallback = fallbackTerminalState(scope.RunArtifacts(), executionErr, active.cancelWasRequested(), false)
+	fallback = fallbackTerminalState(scope.RunArtifacts(), executionErr, active.cancelWasRequested())
 	m.finishRun(active, row, fallback)
 }
 
@@ -939,11 +951,16 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 		row.EndedAt = &endedAt
 	}
 	if _, err := m.globalDB.UpdateRun(detachContext(active.ctx), row); err != nil {
-		_ = closeRunScope(scope)
+		if closeErr := closeRunScope(scope); closeErr != nil {
+			return
+		}
 		return
 	}
 
-	_ = closeRunScope(scope)
+	if closeErr := closeRunScope(scope); closeErr != nil {
+		// Run state is already mirrored to persistent stores; close failures are cleanup-only.
+		_ = closeErr
+	}
 }
 
 func (m *RunManager) streamRun(
@@ -956,71 +973,19 @@ func (m *RunManager) streamRun(
 	defer close(stream.events)
 	defer close(stream.errors)
 
-	var (
-		liveBus     *eventspkg.Bus[eventspkg.Event]
-		liveCh      <-chan eventspkg.Event
-		unsubscribe func()
-		subID       eventspkg.SubID
-		lastCursor  = after
-	)
-	if active != nil && active.scope != nil {
-		liveBus = active.scope.RunEventBus()
-		if liveBus != nil {
-			subID, liveCh, unsubscribe = liveBus.Subscribe()
-			defer unsubscribe()
-		}
-	}
+	subscription := openLiveRunSubscription(active)
+	defer subscription.close()
 
-	page, err := m.Events(ctx, row.RunID, apicore.RunEventPageQuery{
-		After: after,
-		Limit: defaultStreamPageLimit,
-	})
+	lastCursor, terminal, err := m.replayRunStream(ctx, stream, row.RunID, after)
 	if err != nil {
 		stream.errors <- err
 		return
 	}
-	for _, item := range page.Events {
-		lastCursor = apicore.CursorFromEvent(item)
-		if !sendRunStreamItem(ctx, stream.events, apicore.RunStreamItem{Event: &item}) {
-			return
-		}
-		if isTerminalEventKind(item.Kind) {
-			return
-		}
-	}
-
-	if active == nil || liveCh == nil {
+	if terminal || subscription == nil {
 		return
 	}
 
-	for {
-		if liveBus != nil && liveBus.DroppedFor(subID) > 0 {
-			overflow := apicore.RunStreamItem{
-				Overflow: &apicore.RunStreamOverflow{Reason: "subscriber_dropped_messages"},
-			}
-			_ = sendRunStreamItem(ctx, stream.events, overflow)
-			return
-		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case item, ok := <-liveCh:
-			if !ok {
-				return
-			}
-			if !apicore.EventAfterCursor(item, lastCursor) {
-				continue
-			}
-			lastCursor = apicore.CursorFromEvent(item)
-			if !sendRunStreamItem(ctx, stream.events, apicore.RunStreamItem{Event: &item}) {
-				return
-			}
-			if isTerminalEventKind(item.Kind) {
-				return
-			}
-		}
-	}
+	streamLiveRunEvents(ctx, stream, subscription, lastCursor)
 }
 
 func (m *RunManager) toCoreRun(
@@ -1096,6 +1061,13 @@ func (r *runStream) Close() error {
 	return r.close()
 }
 
+func (s *liveRunSubscription) close() {
+	if s == nil || s.unsubscribe == nil {
+		return
+	}
+	s.unsubscribe()
+}
+
 func (r *activeRun) markCancelRequested() bool {
 	if r == nil {
 		return false
@@ -1161,6 +1133,85 @@ func closeRunScope(scope model.RunScope) error {
 	closeCtx, cancel := context.WithTimeout(context.Background(), runShutdownTimeout)
 	defer cancel()
 	return scope.Close(closeCtx)
+}
+
+func openLiveRunSubscription(active *activeRun) *liveRunSubscription {
+	if active == nil || active.scope == nil {
+		return nil
+	}
+	liveBus := active.scope.RunEventBus()
+	if liveBus == nil {
+		return nil
+	}
+	subID, liveCh, unsubscribe := liveBus.Subscribe()
+	return &liveRunSubscription{
+		bus:         liveBus,
+		ch:          liveCh,
+		unsubscribe: unsubscribe,
+		subID:       subID,
+	}
+}
+
+func (m *RunManager) replayRunStream(
+	ctx context.Context,
+	stream *runStream,
+	runID string,
+	after apicore.StreamCursor,
+) (apicore.StreamCursor, bool, error) {
+	lastCursor := after
+	page, err := m.Events(ctx, runID, apicore.RunEventPageQuery{
+		After: after,
+		Limit: defaultStreamPageLimit,
+	})
+	if err != nil {
+		return lastCursor, false, err
+	}
+	for _, item := range page.Events {
+		lastCursor = apicore.CursorFromEvent(item)
+		if !sendRunStreamItem(ctx, stream.events, apicore.RunStreamItem{Event: &item}) {
+			return lastCursor, true, nil
+		}
+		if isTerminalEventKind(item.Kind) {
+			return lastCursor, true, nil
+		}
+	}
+	return lastCursor, false, nil
+}
+
+func streamLiveRunEvents(
+	ctx context.Context,
+	stream *runStream,
+	subscription *liveRunSubscription,
+	lastCursor apicore.StreamCursor,
+) {
+	for {
+		if subscription.bus != nil && subscription.bus.DroppedFor(subscription.subID) > 0 {
+			overflow := apicore.RunStreamItem{
+				Overflow: &apicore.RunStreamOverflow{Reason: "subscriber_dropped_messages"},
+			}
+			_ = sendRunStreamItem(ctx, stream.events, overflow)
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case item, ok := <-subscription.ch:
+			if !ok {
+				return
+			}
+			if !apicore.EventAfterCursor(item, lastCursor) {
+				continue
+			}
+			lastCursor = apicore.CursorFromEvent(item)
+			if !sendRunStreamItem(ctx, stream.events, apicore.RunStreamItem{Event: &item}) {
+				return
+			}
+			if isTerminalEventKind(item.Kind) {
+				return
+			}
+		}
+	}
 }
 
 func startScopeRuntime(ctx context.Context, scope model.RunScope) error {
@@ -1284,28 +1335,26 @@ func submitSyntheticEvent(
 	if err != nil {
 		return fmt.Errorf("daemon: marshal %s payload: %w", kind, err)
 	}
-	return runJournal.Submit(ctx, eventspkg.Event{
+	_, err = runJournal.SubmitWithSeq(ctx, eventspkg.Event{
 		RunID:   strings.TrimSpace(runID),
 		Kind:    kind,
 		Payload: rawPayload,
 	})
+	return err
 }
 
 type submitter interface {
-	Submit(context.Context, eventspkg.Event) error
+	SubmitWithSeq(context.Context, eventspkg.Event) (uint64, error)
 }
 
 func fallbackTerminalState(
 	runArtifacts model.RunArtifacts,
 	err error,
 	cancelRequested bool,
-	noWork bool,
 ) terminalState {
 	switch {
-	case noWork:
-		return completedTerminalState(runArtifacts, completedNoWorkSummary)
 	case cancelRequested || errors.Is(err, context.Canceled):
-		return cancelledTerminalState(runArtifacts, err)
+		return cancelledTerminalState(err)
 	case err == nil:
 		return completedTerminalState(runArtifacts, "")
 	default:
@@ -1337,10 +1386,10 @@ func failedTerminalState(runArtifacts model.RunArtifacts, err error) terminalSta
 	}
 }
 
-func cancelledTerminalState(runArtifacts model.RunArtifacts, err error) terminalState {
+func cancelledTerminalState(err error) terminalState {
 	reason := errorString(err)
 	if reason == "" {
-		reason = "cancelled"
+		reason = "canceled"
 	}
 	return terminalState{
 		status:    runStatusCancelled,
@@ -1355,7 +1404,7 @@ func cancelledTerminalState(runArtifacts model.RunArtifacts, err error) terminal
 
 func isTerminalRunStatus(status string) bool {
 	switch strings.ToLower(strings.TrimSpace(status)) {
-	case runStatusCompleted, runStatusFailed, runStatusCancelled, "canceled", "crashed":
+	case runStatusCompleted, runStatusFailed, runStatusCancelled, "crashed":
 		return true
 	default:
 		return false
@@ -1425,21 +1474,11 @@ func applyRuntimeOverridesFromProject(
 	if cfg == nil {
 		return nil
 	}
-	if err := applyOptionalString(&cfg.IDE, overrides.IDE); err != nil {
-		return overrideValueError(scope, "ide", err)
-	}
-	if err := applyOptionalString(&cfg.Model, overrides.Model); err != nil {
-		return overrideValueError(scope, "model", err)
-	}
-	if err := applyOptionalOutputFormat(cfg, overrides.OutputFormat); err != nil {
-		return overrideValueError(scope, "output_format", err)
-	}
-	if err := applyOptionalString(&cfg.ReasoningEffort, overrides.ReasoningEffort); err != nil {
-		return overrideValueError(scope, "reasoning_effort", err)
-	}
-	if err := applyOptionalString(&cfg.AccessMode, overrides.AccessMode); err != nil {
-		return overrideValueError(scope, "access_mode", err)
-	}
+	applyOptionalString(&cfg.IDE, overrides.IDE)
+	applyOptionalString(&cfg.Model, overrides.Model)
+	applyOptionalOutputFormat(cfg, overrides.OutputFormat)
+	applyOptionalString(&cfg.ReasoningEffort, overrides.ReasoningEffort)
+	applyOptionalString(&cfg.AccessMode, overrides.AccessMode)
 	if err := applyOptionalDuration(cfg, overrides.Timeout); err != nil {
 		return overrideValueError(scope, "timeout", err)
 	}
@@ -1461,27 +1500,22 @@ func applyRuntimeOverridesFromProject(
 	return nil
 }
 
-func applyTaskProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.StartConfig) error {
+func applyTaskProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.StartConfig) {
 	if cfg == nil {
-		return nil
+		return
 	}
-	if err := applyOptionalOutputFormat(cfg, projectCfg.OutputFormat); err != nil {
-		return overrideValueError("start", "output_format", err)
-	}
+	applyOptionalOutputFormat(cfg, projectCfg.OutputFormat)
 	if projectCfg.IncludeCompleted != nil {
 		cfg.IncludeCompleted = *projectCfg.IncludeCompleted
 	}
 	cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(derefTaskRuntimeRules(projectCfg.TaskRuntimeRules))
-	return nil
 }
 
-func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.FixReviewsConfig) error {
+func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.FixReviewsConfig) {
 	if cfg == nil {
-		return nil
+		return
 	}
-	if err := applyOptionalOutputFormat(cfg, projectCfg.OutputFormat); err != nil {
-		return overrideValueError("fix_reviews", "output_format", err)
-	}
+	applyOptionalOutputFormat(cfg, projectCfg.OutputFormat)
 	if projectCfg.Concurrent != nil {
 		cfg.Concurrent = *projectCfg.Concurrent
 	}
@@ -1491,7 +1525,6 @@ func applyReviewProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.
 	if projectCfg.IncludeResolved != nil {
 		cfg.IncludeResolved = *projectCfg.IncludeResolved
 	}
-	return nil
 }
 
 func applyExecProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.ExecConfig) error {
@@ -1510,32 +1543,28 @@ func applyExecProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.Ex
 	return nil
 }
 
-func applyRuntimeOverrideInput(cfg *model.RuntimeConfig, overrides runtimeOverrideInput, scope string) error {
+func applyRuntimeOverrideInput(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) error {
 	if cfg == nil {
 		return nil
 	}
-
-	if err := applyOptionalString(&cfg.RunID, overrides.RunID); err != nil {
-		return overrideValueError(scope, "run_id", err)
-	}
-	if err := applyOptionalString(&cfg.IDE, overrides.IDE); err != nil {
-		return overrideValueError(scope, "ide", err)
-	}
-	if err := applyOptionalString(&cfg.Model, overrides.Model); err != nil {
-		return overrideValueError(scope, "model", err)
-	}
-	if err := applyOptionalOutputFormat(cfg, overrides.OutputFormat); err != nil {
-		return overrideValueError(scope, "output_format", err)
-	}
-	if err := applyOptionalString(&cfg.ReasoningEffort, overrides.ReasoningEffort); err != nil {
-		return overrideValueError(scope, "reasoning_effort", err)
-	}
-	if err := applyOptionalString(&cfg.AccessMode, overrides.AccessMode); err != nil {
-		return overrideValueError(scope, "access_mode", err)
-	}
+	applyRuntimeOverrideStrings(cfg, overrides)
 	if err := applyOptionalDuration(cfg, overrides.Timeout); err != nil {
-		return overrideValueError(scope, "timeout", err)
+		return overrideValueError("runtime_overrides", "timeout", err)
 	}
+	applyRuntimeOverrideScalars(cfg, overrides)
+	return nil
+}
+
+func applyRuntimeOverrideStrings(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) {
+	applyOptionalString(&cfg.RunID, overrides.RunID)
+	applyOptionalString(&cfg.IDE, overrides.IDE)
+	applyOptionalString(&cfg.Model, overrides.Model)
+	applyOptionalOutputFormat(cfg, overrides.OutputFormat)
+	applyOptionalString(&cfg.ReasoningEffort, overrides.ReasoningEffort)
+	applyOptionalString(&cfg.AccessMode, overrides.AccessMode)
+}
+
+func applyRuntimeOverrideScalars(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) {
 	if overrides.TailLines != nil {
 		cfg.TailLines = *overrides.TailLines
 	}
@@ -1572,7 +1601,6 @@ func applyRuntimeOverrideInput(cfg *model.RuntimeConfig, overrides runtimeOverri
 	if overrides.EnableExecutableExtensions != nil {
 		cfg.EnableExecutableExtensions = *overrides.EnableExecutableExtensions
 	}
-	return nil
 }
 
 func applyReviewBatching(cfg *model.RuntimeConfig, batching reviewBatchingInput) {
@@ -1605,20 +1633,18 @@ func applySoundConfig(cfg *model.RuntimeConfig, soundCfg workspacecfg.SoundConfi
 	}
 }
 
-func applyOptionalString(dst *string, value *string) error {
+func applyOptionalString(dst *string, value *string) {
 	if value == nil {
-		return nil
+		return
 	}
 	*dst = strings.TrimSpace(*value)
-	return nil
 }
 
-func applyOptionalOutputFormat(cfg *model.RuntimeConfig, value *string) error {
+func applyOptionalOutputFormat(cfg *model.RuntimeConfig, value *string) {
 	if cfg == nil || value == nil {
-		return nil
+		return
 	}
 	cfg.OutputFormat = model.OutputFormat(strings.TrimSpace(*value))
-	return nil
 }
 
 func applyOptionalDuration(cfg *model.RuntimeConfig, value *string) error {
