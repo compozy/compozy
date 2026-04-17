@@ -29,6 +29,7 @@ This task closes the daemon migration by hardening end-to-end coverage, updating
 3. MUST remove or migrate stale references to legacy `_tasks.md`, `_meta.md`, and `compozy start` behavior.
 4. MUST finish with a clean `make verify` run as the final migration gate.
 5. SHOULD keep TechSpec, ADR, and task references internally consistent with the final implementation surface.
+6. MUST remove temporary compatibility shims and deprecated migration leftovers instead of normalizing them into the final design.
 </requirements>
 
 ## Subtasks

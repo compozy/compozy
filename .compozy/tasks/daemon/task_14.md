@@ -28,6 +28,7 @@ This task completes the explicit operator command surface around the daemon and 
 3. MUST preserve script-friendly output formats and stable exit behavior for operator automation.
 4. MUST expose workspace register, unregister, resolve, list, and show behavior consistent with the daemon registry contract.
 5. SHOULD keep help text and flags aligned with the approved daemon command model from the TechSpec.
+6. MUST ship only the approved command surface and MUST NOT add deprecated aliases for removed commands unless a follow-up ADR explicitly calls for one.
 </requirements>
 
 ## Subtasks

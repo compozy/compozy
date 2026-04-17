@@ -27,6 +27,7 @@ This task turns the CLI into a daemon client instead of a direct execution entry
 3. MUST preserve existing config precedence across home config, workspace config, and CLI flags.
 4. MUST remove the legacy `compozy start` entrypoint and route interactive execution through the new daemon-backed command families.
 5. MUST turn connection, handshake, and transport failures into stable CLI errors with readable output and deterministic exit behavior.
+6. MUST NOT introduce deprecated CLI aliases or keep a second direct-execution path unless a later ADR explicitly requires one.
 </requirements>
 
 ## Subtasks

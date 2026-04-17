@@ -27,6 +27,7 @@ This task migrates the public run-reader package away from workspace-local files
 3. MUST keep public error behavior stable for incompatible schema and partial-event edge cases where the package still exposes them.
 4. MUST avoid direct `run.db` reads from public consumers; SQLite remains an internal daemon implementation detail.
 5. SHOULD keep the public package ergonomic for callers that only know workspace root and run ID.
+6. MUST prefer one daemon-backed reader implementation and MUST NOT preserve a long-term workspace-filesystem fallback path as a compatibility layer.
 </requirements>
 
 ## Subtasks
