@@ -129,7 +129,11 @@ func TestExecutePreparedPromptReturnsBuilderAndCompletionFailure(t *testing.T) {
 		"delegate this",
 		nil,
 		func(runID string) ([]model.MCPServer, error) {
-			responsePath := filepath.Join(model.NewRunArtifacts(workspaceRoot, runID).TurnsDir, "0001", "response.txt")
+			runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+			if err != nil {
+				t.Fatalf("resolve home run artifacts: %v", err)
+			}
+			responsePath := filepath.Join(runArtifacts.TurnsDir, "0001", "response.txt")
 			if err := os.Mkdir(responsePath, 0o755); err != nil {
 				t.Fatalf("make response path unwritable: %v", err)
 			}
@@ -227,7 +231,11 @@ func TestExecutePreparedPromptReturnsCompletionFailureWhenExecAlsoFails(t *testi
 		"delegate this",
 		nil,
 		func(runID string) ([]model.MCPServer, error) {
-			responsePath := filepath.Join(model.NewRunArtifacts(workspaceRoot, runID).TurnsDir, "0001", "response.txt")
+			runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+			if err != nil {
+				t.Fatalf("resolve home run artifacts: %v", err)
+			}
+			responsePath := filepath.Join(runArtifacts.TurnsDir, "0001", "response.txt")
 			if err := os.Mkdir(responsePath, 0o755); err != nil {
 				t.Fatalf("make response path unwritable: %v", err)
 			}
@@ -715,6 +723,7 @@ func workspaceRootForExecTest(t *testing.T) string {
 	t.Helper()
 
 	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	if err := os.MkdirAll(filepath.Join(workspaceRoot, model.WorkflowRootDirName), 0o755); err != nil {
 		t.Fatalf("mkdir workflow root: %v", err)
 	}

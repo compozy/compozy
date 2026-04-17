@@ -16,7 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/store/rundb"
 	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
 const (
@@ -36,10 +38,12 @@ var (
 
 // Journal persists per-run events before forwarding them to live subscribers.
 type Journal struct {
-	path  string
-	runID string
-	inbox chan submitRequest
-	done  chan struct{}
+	path   string
+	dbPath string
+	runID  string
+	inbox  chan submitRequest
+	done   chan struct{}
+	store  *rundb.RunDB
 
 	busMu sync.RWMutex
 	bus   *events.Bus[events.Event]
@@ -70,20 +74,41 @@ type openOptions struct {
 }
 
 type writeState struct {
-	file    *os.File
-	writer  *bufio.Writer
-	encoder *json.Encoder
-	pending []events.Event
+	file         *os.File
+	writer       *bufio.Writer
+	encoder      *json.Encoder
+	pending      []events.Event
+	pendingHooks []rundb.HookRunRecord
 }
 
+type submitRequestKind uint8
+
+const (
+	submitRequestEvent submitRequestKind = iota + 1
+	submitRequestHook
+)
+
 type submitRequest struct {
+	kind  submitRequestKind
 	event events.Event
+	hook  rundb.HookRunRecord
 	ack   chan submitResult
 }
 
 type submitResult struct {
 	seq uint64
 	err error
+}
+
+// HookRunRecord carries one hook audit row into the run store.
+type HookRunRecord struct {
+	ID          string
+	HookName    string
+	Source      string
+	Outcome     string
+	Duration    time.Duration
+	PayloadJSON string
+	RecordedAt  time.Time
 }
 
 // Owner retains explicit close ownership for a journal that is passed through
@@ -145,17 +170,30 @@ func openWithOptions(path string, bus *events.Bus[events.Event], bufCap int, opt
 		opts.submitTimeout = defaultSubmitTimeout
 	}
 
-	file, lastSeq, err := openJournalFile(path)
+	dbPath := layout.RunDBPath(filepath.Dir(path))
+	store, err := rundb.Open(context.Background(), dbPath)
 	if err != nil {
+		return nil, err
+	}
+	lastSeq, err := store.CurrentMaxSequence(context.Background())
+	if err != nil {
+		_ = store.Close()
+		return nil, fmt.Errorf("open journal store sequence: %w", err)
+	}
+	file, err := openJournalFile(path)
+	if err != nil {
+		_ = store.Close()
 		return nil, err
 	}
 
 	j := &Journal{
 		path:          path,
+		dbPath:        dbPath,
 		runID:         filepath.Base(filepath.Dir(path)),
 		inbox:         make(chan submitRequest, bufCap),
 		bus:           bus,
 		done:          make(chan struct{}),
+		store:         store,
 		submitTimeout: opts.submitTimeout,
 		flushInterval: opts.flushInterval,
 		batchSize:     opts.batchSize,
@@ -168,13 +206,13 @@ func openWithOptions(path string, bus *events.Bus[events.Event], bufCap int, opt
 
 // Submit enqueues one event for durable append, respecting caller cancellation.
 func (j *Journal) Submit(ctx context.Context, ev events.Event) error {
-	return j.submit(ctx, submitRequest{event: ev})
+	return j.submit(ctx, submitRequest{kind: submitRequestEvent, event: ev})
 }
 
 // SubmitWithSeq enqueues one event and waits for the assigned journal sequence.
 func (j *Journal) SubmitWithSeq(ctx context.Context, ev events.Event) (uint64, error) {
 	ack := make(chan submitResult, 1)
-	if err := j.submit(ctx, submitRequest{event: ev, ack: ack}); err != nil {
+	if err := j.submit(ctx, submitRequest{kind: submitRequestEvent, event: ev, ack: ack}); err != nil {
 		return 0, err
 	}
 
@@ -189,6 +227,22 @@ func (j *Journal) SubmitWithSeq(ctx context.Context, ev events.Event) (uint64, e
 	case <-ctx.Done():
 		return 0, ctx.Err()
 	}
+}
+
+// RecordHookRun persists one hook audit record through the serialized journal loop.
+func (j *Journal) RecordHookRun(ctx context.Context, record HookRunRecord) error {
+	return j.submit(ctx, submitRequest{
+		kind: submitRequestHook,
+		hook: rundb.HookRunRecord{
+			ID:          record.ID,
+			HookName:    record.HookName,
+			Source:      record.Source,
+			Outcome:     record.Outcome,
+			DurationNS:  record.Duration.Nanoseconds(),
+			PayloadJSON: record.PayloadJSON,
+			RecordedAt:  record.RecordedAt,
+		},
+	})
 }
 
 func (j *Journal) submit(ctx context.Context, req submitRequest) error {
@@ -270,6 +324,14 @@ func (j *Journal) Path() string {
 	return j.path
 }
 
+// DBPath reports the run.db path owned by the journal.
+func (j *Journal) DBPath() string {
+	if j == nil {
+		return ""
+	}
+	return j.dbPath
+}
+
 // DropsOnSubmit reports the number of submits dropped after backpressure timeout.
 func (j *Journal) DropsOnSubmit() uint64 {
 	if j == nil {
@@ -330,6 +392,11 @@ func (j *Journal) writeLoop(file *os.File, lastSeq uint64) {
 		if err := file.Close(); err != nil {
 			j.storeResult(fmt.Errorf("close journal file: %w", err))
 		}
+		if j.store != nil {
+			if err := j.store.Close(); err != nil {
+				j.storeResult(fmt.Errorf("close run store: %w", err))
+			}
+		}
 		close(j.done)
 	}()
 
@@ -337,9 +404,10 @@ func (j *Journal) writeLoop(file *os.File, lastSeq uint64) {
 	defer ticker.Stop()
 
 	state := &writeState{
-		file:    file,
-		writer:  bufio.NewWriterSize(file, writerBufferSize),
-		pending: make([]events.Event, 0, j.batchSize),
+		file:         file,
+		writer:       bufio.NewWriterSize(file, writerBufferSize),
+		pending:      make([]events.Event, 0, j.batchSize),
+		pendingHooks: make([]rundb.HookRunRecord, 0, j.batchSize),
 	}
 	state.encoder = json.NewEncoder(state.writer)
 
@@ -356,7 +424,7 @@ func (j *Journal) runActiveLoop(state *writeState, seq *uint64, ticks <-chan tim
 			if !ok {
 				return j.flushPending(state)
 			}
-			assignedSeq, err := j.handleEvent(state, req.event, seq)
+			assignedSeq, err := j.handleRequest(state, req, seq)
 			if req.ack != nil {
 				req.ack <- submitResult{seq: assignedSeq, err: err}
 			}
@@ -374,6 +442,17 @@ func (j *Journal) runActiveLoop(state *writeState, seq *uint64, ticks <-chan tim
 	}
 }
 
+func (j *Journal) handleRequest(state *writeState, req submitRequest, seq *uint64) (uint64, error) {
+	switch req.kind {
+	case submitRequestHook:
+		return 0, j.handleHook(state, req.hook)
+	case submitRequestEvent:
+		return j.handleEvent(state, req.event, seq)
+	default:
+		return 0, fmt.Errorf("handle journal request: unsupported kind %d", req.kind)
+	}
+}
+
 func (j *Journal) handleEvent(state *writeState, ev events.Event, seq *uint64) (uint64, error) {
 	enriched, err := j.encodeEvent(state.encoder, ev, seq)
 	if err != nil {
@@ -386,15 +465,37 @@ func (j *Journal) handleEvent(state *writeState, ev events.Event, seq *uint64) (
 	return enriched.Seq, j.flushPending(state)
 }
 
+func (j *Journal) handleHook(state *writeState, record rundb.HookRunRecord) error {
+	state.pendingHooks = append(state.pendingHooks, record)
+	return j.flushPending(state)
+}
+
 func (j *Journal) shouldFlushAfterAppend(pending []events.Event, kind events.EventKind) bool {
 	return isTerminalEvent(kind) || len(pending) >= j.batchSize
 }
 
 func (j *Journal) flushPending(state *writeState) error {
+	if len(state.pending) == 0 && len(state.pendingHooks) == 0 {
+		return nil
+	}
+	if j.store != nil {
+		ctx := context.Background()
+		if len(state.pending) > 0 {
+			if err := j.store.StoreEventBatch(ctx, state.pending); err != nil {
+				return err
+			}
+		}
+		for _, hook := range state.pendingHooks {
+			if err := j.store.RecordHookRun(ctx, hook); err != nil {
+				return err
+			}
+		}
+	}
 	if err := j.flushBatch(state.writer, state.file, state.pending); err != nil {
 		return err
 	}
 	state.pending = state.pending[:0]
+	state.pendingHooks = state.pendingHooks[:0]
 	return nil
 }
 
@@ -407,63 +508,44 @@ func (j *Journal) beginClose() {
 	j.submitMu.Unlock()
 }
 
-func openJournalFile(path string) (*os.File, uint64, error) {
+func openJournalFile(path string) (*os.File, error) {
 	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, 0, fmt.Errorf("open journal file: %w", err)
+		return nil, fmt.Errorf("open journal file: %w", err)
 	}
 
-	lastSeq, err := recoverJournalFile(file)
-	if err != nil {
+	if err := recoverJournalFile(file); err != nil {
 		_ = file.Close()
-		return nil, 0, err
+		return nil, err
 	}
-	return file, lastSeq, nil
+	return file, nil
 }
 
-func recoverJournalFile(file *os.File) (uint64, error) {
+func recoverJournalFile(file *os.File) error {
 	info, err := file.Stat()
 	if err != nil {
-		return 0, fmt.Errorf("stat journal file: %w", err)
+		return fmt.Errorf("stat journal file: %w", err)
 	}
 	if info.Size() == 0 {
-		return 0, nil
+		return nil
 	}
 
 	truncateOffset, partialTail, err := lastCompleteLineOffset(file, info.Size())
 	if err != nil {
-		return 0, fmt.Errorf("inspect journal file: %w", err)
+		return fmt.Errorf("inspect journal file: %w", err)
 	}
 	if partialTail {
 		if err := file.Truncate(truncateOffset); err != nil {
-			return 0, fmt.Errorf("truncate journal partial tail: %w", err)
+			return fmt.Errorf("truncate journal partial tail: %w", err)
 		}
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return 0, fmt.Errorf("seek journal start: %w", err)
-	}
-
-	var lastSeq uint64
-	readErr := forEachJournalLine(file, func(rawLine []byte, lineNumber int) error {
-		line := bytes.TrimSpace(rawLine)
-		if len(line) == 0 {
-			return nil
-		}
-
-		var ev events.Event
-		if err := json.Unmarshal(line, &ev); err != nil {
-			return fmt.Errorf("decode journal history line %d: %w", lineNumber, err)
-		}
-		lastSeq = ev.Seq
-		return nil
-	})
-	if readErr != nil {
-		return 0, fmt.Errorf("recover journal history: %w", readErr)
+		return fmt.Errorf("seek journal start: %w", err)
 	}
 	if _, err := file.Seek(0, io.SeekEnd); err != nil {
-		return 0, fmt.Errorf("seek journal end: %w", err)
+		return fmt.Errorf("seek journal end: %w", err)
 	}
-	return lastSeq, nil
+	return nil
 }
 
 func lastCompleteLineOffset(file *os.File, size int64) (int64, bool, error) {
@@ -499,24 +581,6 @@ func lastCompleteLineOffset(file *os.File, size int64) (int64, bool, error) {
 		chunkEnd = chunkStart
 	}
 	return 0, true, nil
-}
-
-func forEachJournalLine(file *os.File, fn func(line []byte, lineNumber int) error) error {
-	reader := bufio.NewReader(file)
-	for lineNumber := 1; ; lineNumber++ {
-		line, err := reader.ReadBytes('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			return err
-		}
-		if len(line) > 0 {
-			if err := fn(line, lineNumber); err != nil {
-				return err
-			}
-		}
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-	}
 }
 
 func (j *Journal) encodeEvent(encoder *json.Encoder, ev events.Event, seq *uint64) (events.Event, error) {

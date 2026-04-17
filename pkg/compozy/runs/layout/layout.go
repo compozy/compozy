@@ -10,6 +10,8 @@ import "path/filepath"
 
 // File and directory names that live under one run directory.
 const (
+	// RunDBFileName is the basename of the per-run SQLite operational store.
+	RunDBFileName = "run.db"
 	// RunMetaFileName is the basename of the per-run metadata file written by
 	// the journal and read by the public reader.
 	RunMetaFileName = "run.json"
@@ -25,6 +27,9 @@ const (
 	// transcript artifacts.
 	TurnsDirName = "turns"
 )
+
+// RunDBPath returns the absolute path to the run database file inside runDir.
+func RunDBPath(runDir string) string { return filepath.Join(runDir, RunDBFileName) }
 
 // RunMetaPath returns the absolute path to the run metadata file inside runDir.
 func RunMetaPath(runDir string) string { return filepath.Join(runDir, RunMetaFileName) }

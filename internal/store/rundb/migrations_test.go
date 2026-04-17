@@ -1,4 +1,4 @@
-package globaldb
+package rundb
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 func TestApplyMigrationsIsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	db := openTestGlobalDB(t)
+	db := openTestRunDB(t, "run-migrations")
 	defer func() {
 		_ = db.Close()
 	}()
@@ -32,7 +32,6 @@ func TestApplyMigrationsIsIdempotent(t *testing.T) {
 
 	afterSchema := loadSchemaSnapshot(t, db.db)
 	afterMigrations := loadMigrationRows(t, db.db)
-
 	if !reflect.DeepEqual(afterSchema, beforeSchema) {
 		t.Fatalf("sqlite schema changed on second migration pass\nbefore: %#v\nafter:  %#v", beforeSchema, afterSchema)
 	}
@@ -45,15 +44,13 @@ func TestApplyMigrationsIsIdempotent(t *testing.T) {
 	}
 
 	requiredTables := []string{
-		"artifact_snapshots",
-		"review_issues",
-		"review_rounds",
-		"runs",
+		"artifact_sync_log",
+		"events",
+		"hook_runs",
+		"job_state",
 		"schema_migrations",
-		"sync_checkpoints",
-		"task_items",
-		"workflows",
-		"workspaces",
+		"token_usage",
+		"transcript_messages",
 	}
 	for _, tableName := range requiredTables {
 		if _, ok := beforeSchema["table:"+tableName]; !ok {
@@ -68,7 +65,7 @@ func TestApplyMigrationsRejectsSchemaTooNew(t *testing.T) {
 	fixedNow := time.Date(2026, 4, 17, 19, 0, 0, 0, time.UTC)
 	sqlDB, err := store.OpenSQLiteDatabase(
 		context.Background(),
-		filepath.Join(t.TempDir(), "future.db"),
+		filepath.Join(t.TempDir(), "future-run", "run.db"),
 		func(ctx context.Context, db *sql.DB) error {
 			if err := store.EnsureSchema(ctx, db, migrationTableStatements); err != nil {
 				return err
@@ -99,9 +96,6 @@ func TestApplyMigrationsRejectsSchemaTooNew(t *testing.T) {
 	if !errors.As(err, &schemaErr) {
 		t.Fatalf("applyMigrations() error = %v, want SchemaTooNewError details", err)
 	}
-	if got := schemaErr.Error(); got == "" {
-		t.Fatal("SchemaTooNewError.Error() returned an empty message")
-	}
 	if schemaErr.CurrentVersion != 999 {
 		t.Fatalf("SchemaTooNewError.CurrentVersion = %d, want 999", schemaErr.CurrentVersion)
 	}
@@ -117,7 +111,7 @@ func TestApplyMigrationsRejectsSchemaTooNew(t *testing.T) {
 func TestOpenUsesExportedConstructor(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "opened.db")
+	path := filepath.Join(t.TempDir(), "run-open", "run.db")
 	db, err := Open(context.Background(), path)
 	if err != nil {
 		t.Fatalf("Open(): %v", err)
@@ -147,7 +141,7 @@ func TestApplyMigrationReturnsStatementErrors(t *testing.T) {
 
 	sqlDB, err := store.OpenSQLiteDatabase(
 		context.Background(),
-		filepath.Join(t.TempDir(), "broken.db"),
+		filepath.Join(t.TempDir(), "broken-run", "run.db"),
 		func(ctx context.Context, db *sql.DB) error {
 			return store.EnsureSchema(ctx, db, migrationTableStatements)
 		},
@@ -241,29 +235,4 @@ func loadSchemaSnapshot(t *testing.T, sqlDB *sql.DB) map[string]string {
 	}
 
 	return snapshot
-}
-
-func openTestGlobalDB(t *testing.T) *GlobalDB {
-	t.Helper()
-
-	var counter int
-	fixedNow := time.Date(2026, 4, 17, 18, 0, 0, 0, time.UTC)
-
-	db, err := openWithOptions(
-		context.Background(),
-		filepath.Join(t.TempDir(), "global.db"),
-		openOptions{
-			now: func() time.Time {
-				return fixedNow
-			},
-			newID: func(prefix string) string {
-				counter++
-				return prefix + "-" + time.Date(2026, 4, 17, 18, 0, 0, counter, time.UTC).Format("150405.000000000")
-			},
-		},
-	)
-	if err != nil {
-		t.Fatalf("open test global db: %v", err)
-	}
-	return db
 }

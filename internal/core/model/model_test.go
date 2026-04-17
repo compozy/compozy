@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -210,6 +211,9 @@ func TestPathHelpers(t *testing.T) {
 		if got, want := runArtifacts.RunMetaPath, filepath.Join(runArtifacts.RunDir, "run.json"); got != want {
 			t.Fatalf("unexpected run meta path\nwant: %q\ngot:  %q", want, got)
 		}
+		if got, want := runArtifacts.RunDBPath, filepath.Join(runArtifacts.RunDir, "run.db"); got != want {
+			t.Fatalf("unexpected run db path\nwant: %q\ngot:  %q", want, got)
+		}
 		if got, want := runArtifacts.JobsDir, filepath.Join(runArtifacts.RunDir, "jobs"); got != want {
 			t.Fatalf("unexpected jobs dir\nwant: %q\ngot:  %q", want, got)
 		}
@@ -302,6 +306,46 @@ func TestPathHelpers(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestResolveHomeRunArtifactsUsesHomeScopedRunDir(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts("daemon-run-123")
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(): %v", err)
+	}
+
+	wantRunDir := filepath.Join(homeDir, ".compozy", "runs", "daemon-run-123")
+	if got := runArtifacts.RunDir; got != wantRunDir {
+		t.Fatalf("home run dir = %q, want %q", got, wantRunDir)
+	}
+	if got := runArtifacts.RunDBPath; got != filepath.Join(wantRunDir, "run.db") {
+		t.Fatalf("home run db path = %q, want %q", got, filepath.Join(wantRunDir, "run.db"))
+	}
+}
+
+func TestResolvePersistedRunArtifactsPrefersWorkspaceMetadata(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "exec-123")
+	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	if err := os.WriteFile(runArtifacts.RunMetaPath, []byte(`{}`), 0o600); err != nil {
+		t.Fatalf("write run.json: %v", err)
+	}
+
+	resolved, err := model.ResolvePersistedRunArtifacts(workspaceRoot, "exec-123")
+	if err != nil {
+		t.Fatalf("ResolvePersistedRunArtifacts(): %v", err)
+	}
+	if got, want := resolved.RunDir, runArtifacts.RunDir; got != want {
+		t.Fatalf("resolved run dir = %q, want %q", got, want)
+	}
 }
 
 func TestIsActiveWorkflowDirName(t *testing.T) {

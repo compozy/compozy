@@ -109,7 +109,7 @@ When the direct ACP command is not installed, Compozy can also fall back to supp
 
 Workflow artifacts stay in `.compozy/tasks/<name>/`. These are the PRDs, TechSpecs, ADRs, tasks, reviews, and memory files that you read and edit between steps.
 
-`compozy start` and `compozy fix-reviews` write runtime artifacts under `.compozy/runs/<run-id>/`. `compozy exec` is ephemeral by default and only writes resumable artifacts when `--persist` is enabled.
+`compozy start` and `compozy fix-reviews` write runtime artifacts under `~/.compozy/runs/<run-id>/`. `compozy exec` is ephemeral by default and only writes resumable artifacts when `--persist` is enabled.
 
 Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `title`, `type`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
 
@@ -308,20 +308,21 @@ Output modes:
 - `--format text` is headless by default and writes only the final assistant response to stdout
 - `--format json` streams the lean JSONL contract to stdout and filters ACP metadata that is mostly useful for debugging
 - `--format raw-json` streams the full raw JSONL event trace to stdout
-- when `--persist` is enabled, `.compozy/runs/<run-id>/events.jsonl` always stores the full raw event stream regardless of the selected stdout format
+- when `--persist` is enabled, `~/.compozy/runs/<run-id>/events.jsonl` always stores the full raw event stream regardless of the selected stdout format
 - operational ACP/runtime logs stay silent by default; use `--verbose` when you want lifecycle logs on stderr
 - `--tui` opts back into the Bubble Tea interface for interactive inspection
-- `--persist` stores a resumable conversation under `.compozy/runs/<run-id>/`
+- `--persist` stores a resumable conversation under `~/.compozy/runs/<run-id>/`
 - `--run-id` loads a previously persisted ACP session and appends a new turn
 
 Persisted `exec` runs use this layout:
 
 ```text
-.compozy/runs/<run-id>/run.json
-.compozy/runs/<run-id>/events.jsonl
-.compozy/runs/<run-id>/turns/0001/prompt.md
-.compozy/runs/<run-id>/turns/0001/response.txt
-.compozy/runs/<run-id>/turns/0001/result.json
+~/.compozy/runs/<run-id>/run.db
+~/.compozy/runs/<run-id>/run.json
+~/.compozy/runs/<run-id>/events.jsonl
+~/.compozy/runs/<run-id>/turns/0001/prompt.md
+~/.compozy/runs/<run-id>/turns/0001/response.txt
+~/.compozy/runs/<run-id>/turns/0001/result.json
 ```
 
 `compozy exec` uses the same config merge rule as the rest of the CLI: `flags > workspace [exec] > workspace [defaults] > global [exec] > global [defaults] > built-in defaults`.
@@ -572,7 +573,7 @@ compozy exec [prompt] [flags]
 
 Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `stdin`. When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide exec defaults through `[exec]` and shared runtime defaults through `[defaults]`.
 
-`compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
+`compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `~/.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
 | Flag                         | Default     | Description                                                                                |
 | ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
@@ -591,7 +592,7 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes                |
 | `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                                        |
 | `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                                 |
-| `--persist`                  | `false`     | Persist exec artifacts under `.compozy/runs/<run-id>/`                                     |
+| `--persist`                  | `false`     | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                   |
 | `--run-id`                   |             | Resume a previously persisted exec session by run id                                       |
 | `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
 

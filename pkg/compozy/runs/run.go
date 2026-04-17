@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
@@ -103,7 +104,10 @@ func loadRun(workspaceRoot, runID string) (*Run, error) {
 		return nil, errors.New("open run: missing run id")
 	}
 
-	paths := defaultRunPaths(cleanRoot, trimmedRunID)
+	paths, err := resolvePersistedRunPaths(cleanRoot, trimmedRunID)
+	if err != nil {
+		return nil, err
+	}
 	payload, err := os.ReadFile(paths.runMetaPath)
 	if err != nil {
 		return nil, fmt.Errorf("open run %q metadata: %w", trimmedRunID, err)
@@ -114,7 +118,7 @@ func loadRun(workspaceRoot, runID string) (*Run, error) {
 		return nil, fmt.Errorf("decode run %q metadata: %w", trimmedRunID, err)
 	}
 
-	paths = resolveRunPaths(cleanRoot, trimmedRunID, record)
+	paths = resolveRunPaths(paths, cleanRoot, record)
 	summary := normalizeRunSummary(cleanRoot, trimmedRunID, paths.runDir, record)
 	derived, err := deriveRunState(paths)
 	if err != nil {
@@ -161,8 +165,34 @@ func defaultRunPaths(workspaceRoot, runID string) runPaths {
 	}
 }
 
-func resolveRunPaths(workspaceRoot, runID string, record runRecord) runPaths {
-	paths := defaultRunPaths(workspaceRoot, runID)
+func resolvePersistedRunPaths(workspaceRoot, runID string) (runPaths, error) {
+	workspacePaths := defaultRunPaths(workspaceRoot, runID)
+	if _, err := os.Stat(workspacePaths.runMetaPath); err == nil {
+		return workspacePaths, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return runPaths{}, fmt.Errorf("stat run metadata %q: %w", runID, err)
+	}
+
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		return runPaths{}, fmt.Errorf("resolve home run paths: %w", err)
+	}
+	return runPathsForDir(filepath.Join(homePaths.RunsDir, runID)), nil
+}
+
+func runPathsForDir(runDir string) runPaths {
+	return runPaths{
+		runDir:      runDir,
+		runMetaPath: layout.RunMetaPath(runDir),
+		eventsPath:  layout.EventsLogPath(runDir),
+		resultPath:  layout.ResultPath(runDir),
+		jobsDir:     layout.JobsDir(runDir),
+		turnsDir:    layout.TurnsDir(runDir),
+	}
+}
+
+func resolveRunPaths(base runPaths, workspaceRoot string, record runRecord) runPaths {
+	paths := base
 	paths.eventsPath = resolveRunArtifactPath(workspaceRoot, paths.eventsPath, record.EventsPath)
 	paths.resultPath = resolveRunArtifactPath(workspaceRoot, paths.resultPath, record.ResultPath)
 	paths.jobsDir = resolveRunArtifactPath(workspaceRoot, paths.jobsDir, record.JobsDir)

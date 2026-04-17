@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
@@ -29,6 +30,7 @@ import (
 )
 
 var cliProcessIOMu sync.Mutex
+var originalCLIHome = os.Getenv("HOME")
 
 func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
@@ -519,7 +521,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 
 	lifecycleEvents := cliReusableAgentLifecyclePayloads(
 		t,
-		filepath.Join(workspaceRoot, ".compozy", "runs", runID, "events.jsonl"),
+		filepath.Join(persistedRunDirForCLI(t, workspaceRoot, runID), "events.jsonl"),
 	)
 	foundResumedMerge := false
 	for _, payload := range lifecycleEvents {
@@ -1135,17 +1137,21 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	}
 }
 
-func latestRunDirForCLI(t *testing.T, workspaceRoot string) string {
+func latestRunDirForCLI(t *testing.T, _ string) string {
 	t.Helper()
 
-	entries, err := os.ReadDir(filepath.Join(workspaceRoot, ".compozy", "runs"))
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("resolve home paths: %v", err)
+	}
+	entries, err := os.ReadDir(homePaths.RunsDir)
 	if err != nil {
 		t.Fatalf("read runs dir: %v", err)
 	}
 	if len(entries) != 1 {
 		t.Fatalf("expected exactly one run dir, got %d", len(entries))
 	}
-	return filepath.Join(workspaceRoot, ".compozy", "runs", entries[0].Name())
+	return filepath.Join(homePaths.RunsDir, entries[0].Name())
 }
 
 func assertNoRunArtifactsForCLI(t *testing.T, workspaceRoot string) {
@@ -1156,10 +1162,13 @@ func assertNoRunArtifactsForCLI(t *testing.T, workspaceRoot string) {
 	}
 }
 
-func writePersistedExecRunForCLI(t *testing.T, workspaceRoot string, record coreRun.PersistedExecRun) {
+func writePersistedExecRunForCLI(t *testing.T, _ string, record coreRun.PersistedExecRun) {
 	t.Helper()
 
-	runArtifacts := model.NewRunArtifacts(workspaceRoot, record.RunID)
+	runArtifacts, err := model.ResolveHomeRunArtifacts(record.RunID)
+	if err != nil {
+		t.Fatalf("resolve home run artifacts: %v", err)
+	}
 	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
 		t.Fatalf("mkdir persisted exec run dir: %v", err)
 	}
@@ -1170,6 +1179,16 @@ func writePersistedExecRunForCLI(t *testing.T, workspaceRoot string, record core
 	if err := os.WriteFile(runArtifacts.RunMetaPath, payload, 0o600); err != nil {
 		t.Fatalf("write persisted exec run: %v", err)
 	}
+}
+
+func persistedRunDirForCLI(t *testing.T, workspaceRoot, runID string) string {
+	t.Helper()
+
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("resolve persisted run artifacts: %v", err)
+	}
+	return runArtifacts.RunDir
 }
 
 func decodeExecJSONLEvents(t *testing.T, stdout string) []map[string]any {
@@ -1200,8 +1219,22 @@ func withWorkingDir(t *testing.T, dir string) {
 		cliWorkingDirMu.Unlock()
 		t.Fatalf("getwd: %v", err)
 	}
+	originalHome := os.Getenv("HOME")
+	restoreHome := false
+	if originalHome == originalCLIHome {
+		if err := os.Setenv("HOME", t.TempDir()); err != nil {
+			cliWorkingDirMu.Unlock()
+			t.Fatalf("set HOME: %v", err)
+		}
+		restoreHome = true
+	}
 	t.Cleanup(func() {
 		defer cliWorkingDirMu.Unlock()
+		if restoreHome {
+			if err := os.Setenv("HOME", originalHome); err != nil {
+				t.Fatalf("restore HOME: %v", err)
+			}
+		}
 		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
 			t.Fatalf("restore cwd: %v", chdirErr)
 		}

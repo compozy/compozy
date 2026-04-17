@@ -157,7 +157,7 @@ command is headless and ephemeral: text mode writes only the final assistant res
 json mode streams lean JSONL events to stdout, while raw-json preserves the full event stream.
 Operational runtime logs stay silent unless you opt into --verbose. Use --tui to open the
 interactive TUI and --persist to save resumable artifacts under
-.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.`,
+~/.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.`,
 		Example: `  compozy exec "Summarize the current repository changes"
   compozy exec --agent council "Decide between two designs"
   compozy exec --prompt-file prompt.md
@@ -184,7 +184,7 @@ interactive TUI and --persist to save resumable artifacts under
 	)
 	cmd.Flags().BoolVar(&state.verbose, "verbose", false, "Emit operational runtime logs to stderr during exec")
 	cmd.Flags().BoolVar(&state.tui, "tui", false, "Open the interactive TUI instead of using headless stdout output")
-	cmd.Flags().BoolVar(&state.persist, "persist", false, "Persist exec artifacts under .compozy/runs/<run-id>/")
+	cmd.Flags().BoolVar(&state.persist, "persist", false, "Persist exec artifacts under ~/.compozy/runs/<run-id>/")
 	cmd.Flags().BoolVar(&state.extensionsEnabled, "extensions", false, "Enable executable extensions for this exec run")
 	cmd.Flags().StringVar(&state.runID, "run-id", "", "Resume a previously persisted exec session by run id")
 	return cmd

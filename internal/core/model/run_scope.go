@@ -177,7 +177,10 @@ func openBaseRunScope(
 }
 
 func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
-	runArtifacts := NewRunArtifacts(cfg.WorkspaceRoot, buildRunID(cfg))
+	runArtifacts, err := ResolveHomeRunArtifacts(buildRunID(cfg))
+	if err != nil {
+		return RunArtifacts{}, err
+	}
 	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
 		return RunArtifacts{}, fmt.Errorf("mkdir run artifacts: %w", err)
 	}

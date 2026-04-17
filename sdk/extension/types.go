@@ -461,6 +461,7 @@ type RuntimeConfig struct {
 type RunArtifacts struct {
 	RunID       string
 	RunDir      string
+	RunDBPath   string
 	RunMetaPath string
 	EventsPath  string
 	TurnsDir    string

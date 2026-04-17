@@ -149,7 +149,10 @@ func (h *runStartHandler) handleFastExec(
 
 	result := commands.RunStartResult{Status: runStartStatusSucceeded}
 	if runtimeCfg.RunID != "" {
-		runArtifacts := model.NewRunArtifacts(runtimeCfg.WorkspaceRoot, runtimeCfg.RunID)
+		runArtifacts, err := model.ResolveHomeRunArtifacts(runtimeCfg.RunID)
+		if err != nil {
+			return commands.RunStartResult{}, err
+		}
 		result.RunID = runArtifacts.RunID
 		result.ArtifactsDir = runArtifacts.RunDir
 	}

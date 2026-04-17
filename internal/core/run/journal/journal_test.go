@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/store/rundb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/runs"
 )
@@ -238,6 +239,22 @@ func TestJournalCloseDrainsQueuedEvents(t *testing.T) {
 	replayed := replayRunEvents(t, workspaceRoot, runID, 0)
 	if got := collectedSeqs(replayed); !slices.Equal(got, []uint64{1, 2, 3, 4, 5}) {
 		t.Fatalf("replayed seqs = %v, want [1 2 3 4 5]", got)
+	}
+
+	store, err := rundb.Open(context.Background(), journal.DBPath())
+	if err != nil {
+		t.Fatalf("rundb.Open(): %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	storedEvents, err := store.ListEvents(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("ListEvents(): %v", err)
+	}
+	if got := collectedSeqs(storedEvents); !slices.Equal(got, []uint64{1, 2, 3, 4, 5}) {
+		t.Fatalf("stored seqs = %v, want [1 2 3 4 5]", got)
 	}
 }
 
@@ -492,6 +509,28 @@ func TestJournalConcurrentSubmitProducesGapFreeSequence(t *testing.T) {
 		want := uint64(idx + 1)
 		if ev.Seq != want {
 			t.Fatalf("event[%d].Seq = %d, want %d", idx, ev.Seq, want)
+		}
+	}
+
+	store, err := rundb.Open(context.Background(), journal.DBPath())
+	if err != nil {
+		t.Fatalf("rundb.Open(): %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	storedEvents, err := store.ListEvents(context.Background(), 1)
+	if err != nil {
+		t.Fatalf("ListEvents(): %v", err)
+	}
+	if len(storedEvents) != 200 {
+		t.Fatalf("stored events = %d, want 200", len(storedEvents))
+	}
+	for idx, ev := range storedEvents {
+		want := uint64(idx + 1)
+		if ev.Seq != want {
+			t.Fatalf("stored event[%d].Seq = %d, want %d", idx, ev.Seq, want)
 		}
 	}
 }

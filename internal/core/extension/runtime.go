@@ -300,7 +300,7 @@ func newManagerForExtensions(cfg managerConfig, extensions []*RuntimeExtension) 
 
 	var audit *AuditLogger
 	if auditDir := strings.TrimSpace(cfg.AuditDir); auditDir != "" {
-		audit = &AuditLogger{}
+		audit = &AuditLogger{journal: cfg.Journal}
 		if err := audit.Open(auditDir); err != nil {
 			return nil, fmt.Errorf("open extension audit log: %w", err)
 		}

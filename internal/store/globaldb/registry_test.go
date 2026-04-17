@@ -200,7 +200,8 @@ func TestMethodsRejectNilContextAndNilDatabase(t *testing.T) {
 	if _, err := db.GetWorkflow(nil, "wf"); err == nil {
 		t.Fatal("GetWorkflow(nil, ...) error = nil, want non-nil")
 	}
-	if _, err := db.GetRun(nil, "run"); err == nil {
+	var nilCtx context.Context
+	if _, err := db.GetRun(nilCtx, "run"); err == nil {
 		t.Fatal("GetRun(nil, ...) error = nil, want non-nil")
 	}
 

@@ -145,6 +145,45 @@ func TestOpenReturnsDescriptiveErrorForMissingRunID(t *testing.T) {
 	}
 }
 
+func TestOpenFallsBackToHomeScopedRunArtifacts(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceRoot := t.TempDir()
+	runID := "run-home-fallback"
+	homeRunDir := writeRunFixture(t, homeDir, runID, runFixture{
+		runJSON: map[string]any{
+			"run_id":         runID,
+			"mode":           "prd-tasks",
+			"workspace_root": workspaceRoot,
+			"artifacts_dir":  filepath.Join(homeDir, ".compozy", "runs", runID),
+			"created_at":     time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
+		},
+		events: []events.Event{
+			testEvent(runID, 1, events.EventKindRunStarted),
+			testEvent(runID, 2, events.EventKindRunCompleted),
+		},
+	})
+
+	run, err := Open(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("Open() error = %v", err)
+	}
+
+	summary := run.Summary()
+	if got, want := summary.ArtifactsDir, homeRunDir; got != want {
+		t.Fatalf("Summary().ArtifactsDir = %q, want %q", got, want)
+	}
+
+	gotEvents, gotErrors := collectReplay(run, 0)
+	if len(gotErrors) != 0 {
+		t.Fatalf("Replay() unexpected errors: %v", gotErrors)
+	}
+	if seqs := collectedSeqs(gotEvents); !slices.Equal(seqs, []uint64{1, 2}) {
+		t.Fatalf("Replay() seqs = %v, want [1 2]", seqs)
+	}
+}
+
 func TestReplayYieldsAllEventsFromBeginning(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	runID := "run-replay"

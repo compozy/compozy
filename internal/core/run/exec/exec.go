@@ -170,7 +170,10 @@ func (e *execReportedError) Unwrap() error {
 
 // LoadPersistedExecRun reads one persisted exec run from .compozy/runs/<run-id>/run.json.
 func LoadPersistedExecRun(workspaceRoot, runID string) (PersistedExecRun, error) {
-	runArtifacts := model.NewRunArtifacts(workspaceRoot, runID)
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, runID)
+	if err != nil {
+		return PersistedExecRun{}, fmt.Errorf("resolve persisted exec run: %w", err)
+	}
 	payload, err := os.ReadFile(runArtifacts.RunMetaPath)
 	if err != nil {
 		return PersistedExecRun{}, fmt.Errorf("read persisted exec run: %w", err)
@@ -183,7 +186,7 @@ func LoadPersistedExecRun(workspaceRoot, runID string) (PersistedExecRun, error)
 		return PersistedExecRun{}, fmt.Errorf("run %q is not an exec run", runID)
 	}
 	if strings.TrimSpace(record.RunID) == "" {
-		record.RunID = model.NewRunArtifacts(workspaceRoot, runID).RunID
+		record.RunID = runArtifacts.RunID
 	}
 	if record.EventsPath == "" {
 		record.EventsPath = runArtifacts.EventsPath
@@ -580,7 +583,11 @@ func preparePersistentExecRunState(
 	runID string,
 	resolvedModel string,
 ) error {
-	state.runArtifacts = model.NewRunArtifacts(cfg.WorkspaceRoot, runID)
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		return err
+	}
+	state.runArtifacts = runArtifacts
 	if err := ensureExecRunDirectories(state); err != nil {
 		return err
 	}

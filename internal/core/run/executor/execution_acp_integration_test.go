@@ -478,6 +478,7 @@ func TestExecuteACPJSONModeWritesStructuredSuccessResult(t *testing.T) {
 
 func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	tasksDir := filepath.Join(tmpDir, model.TasksBaseDir(), "demo")
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 		t.Fatalf("mkdir tasks dir: %v", err)
