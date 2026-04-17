@@ -23,7 +23,7 @@ Flags:
   -h, --help                             help for start
       --ide string                       ACP runtime to use. Built-in and enabled extension runtimes are validated against the active runtime catalog. (default "codex")
       --include-completed                Include completed tasks
-      --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed (default 2)
+      --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
       --model string                     Model to use. Leave empty to use the selected runtime default.
       --name string                      Task workflow name (used for .compozy/tasks/<name>)
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")

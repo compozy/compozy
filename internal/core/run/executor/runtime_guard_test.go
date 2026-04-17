@@ -139,3 +139,40 @@ func TestJobRunnerDispatchPreExecuteRejectsRuntimeMutation(t *testing.T) {
 		t.Fatalf("dispatchPreExecuteHook error = %q, want runtime mutation guard", err.Error())
 	}
 }
+
+func TestJobRunnerDispatchPreExecuteRejectsWhitespaceOnlyRuntimeMutation(t *testing.T) {
+	t.Parallel()
+
+	manager := &executionHookManager{
+		mutators: map[string]func(any) (any, error){
+			"job.pre_execute": func(input any) (any, error) {
+				payload := input.(jobPreExecutePayload)
+				payload.Job.IDE += " "
+				return payload, nil
+			},
+		},
+	}
+
+	runner := &jobRunner{
+		job: &job{
+			SafeName:        "task_01",
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.4",
+			ReasoningEffort: "medium",
+		},
+		execCtx: &jobExecutionContext{
+			cfg: &config{
+				RuntimeManager: manager,
+				RunArtifacts:   model.RunArtifacts{RunID: "run-1"},
+			},
+		},
+	}
+
+	err := runner.dispatchPreExecuteHook(context.Background())
+	if err == nil {
+		t.Fatal("dispatchPreExecuteHook error = nil, want whitespace mutation failure")
+	}
+	if !strings.Contains(err.Error(), "job.pre_execute cannot mutate job runtime after planning completed") {
+		t.Fatalf("dispatchPreExecuteHook error = %q, want runtime mutation guard", err.Error())
+	}
+}

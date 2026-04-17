@@ -227,7 +227,7 @@ tui = false
 }
 
 func TestApplyWorkspaceDefaultsKeepsConfiguredTaskRuntimeRulesAndBuildConfigAppendsCLIOverrides(t *testing.T) {
-	t.Parallel()
+	isolateCLIConfigHome(t)
 
 	root := t.TempDir()
 	startDir := filepath.Join(root, "pkg", "feature")

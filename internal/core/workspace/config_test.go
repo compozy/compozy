@@ -359,7 +359,7 @@ ide = "claude"
 }
 
 func TestLoadConfigParsesStartTaskRuntimeRules(t *testing.T) {
-	t.Parallel()
+	isolateWorkspaceConfigHome(t)
 
 	root := t.TempDir()
 	writeWorkspaceConfig(t, root, `
@@ -432,7 +432,7 @@ model = "gpt-5.4"
 }
 
 func TestLoadConfigRejectsUnsupportedStartTaskRuntimeRuleID(t *testing.T) {
-	t.Parallel()
+	isolateWorkspaceConfigHome(t)
 
 	root := t.TempDir()
 	writeWorkspaceConfig(t, root, `

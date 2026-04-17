@@ -70,7 +70,7 @@ type retryConfig struct {
 	retryBackoffMultiplier float64
 }
 
-const defaultMaxRetries = 2
+const defaultMaxRetries = 0
 
 type commandStateCallbacks struct {
 	isInteractive          func() bool

@@ -217,7 +217,9 @@ func finalizeExecution(
 	total int,
 	startedAt time.Time,
 ) error {
-	if err := model.WaitForObserverHooks(ctx, internalCfg.RuntimeManager); err != nil {
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := model.WaitForObserverHooks(waitCtx, internalCfg.RuntimeManager); err != nil {
 		return fmt.Errorf("wait for pending observer hooks: %w", err)
 	}
 	reason := hookShutdownReason(result)

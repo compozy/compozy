@@ -32,11 +32,8 @@ func collectFormParams(cmd *cobra.Command, state *commandState) error {
 		return fmt.Errorf("form canceled or error: %w", err)
 	}
 	inputs.apply(cmd, state)
-	if state.kind == commandKindStart {
-		if !inputs.defineTaskRuntime {
-			state.replaceConfiguredTaskRunRules = true
-			state.executionTaskRuntimeRules = nil
-		} else if err := collectStartTaskRuntimeForm(cmd, state); err != nil {
+	if state.kind == commandKindStart && inputs.defineTaskRuntime {
+		if err := collectStartTaskRuntimeForm(cmd, state); err != nil {
 			return err
 		}
 	}
@@ -167,7 +164,6 @@ func (fi *formInputs) apply(cmd *cobra.Command, state *commandState) {
 	applyInput(cmd, "reasoning-effort", fi.reasoningEffort, passThroughInput[string], func(val string) {
 		state.reasoningEffort = val
 	})
-	state.replaceConfiguredTaskRunRules = state.kind == commandKindStart && !fi.defineTaskRuntime
 	applyInput(cmd, "dry-run", fi.dryRun, passThroughInput[bool], func(val bool) { state.dryRun = val })
 	applyInput(cmd, "auto-commit", fi.autoCommit, passThroughInput[bool], func(val bool) { state.autoCommit = val })
 	applyInput(cmd, "include-completed", fi.includeCompleted, passThroughInput[bool], func(val bool) {

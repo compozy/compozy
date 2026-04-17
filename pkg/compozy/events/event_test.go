@@ -138,7 +138,7 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			payload: kinds.RunCancelledPayload{Reason: "sigint", RequestedBy: "signal", DurationMs: 200},
 		},
 		{
-			name: "job queued",
+			name: "Should round-trip job queued payload with runtime fields",
 			payload: kinds.JobQueuedPayload{
 				Index:           1,
 				CodeFile:        "task_01.md",
@@ -156,7 +156,7 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			},
 		},
 		{
-			name: "job started",
+			name: "Should round-trip job started payload with runtime fields",
 			payload: kinds.JobStartedPayload{
 				JobAttemptInfo:  kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 3},
 				IDE:             "codex",

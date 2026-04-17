@@ -184,8 +184,6 @@ func TestCreateACPSessionForwardsMCPServersOnResume(t *testing.T) {
 }
 
 func TestCreateACPClientUsesPerJobRuntimeWhenPresent(t *testing.T) {
-	t.Parallel()
-
 	var captured agent.ClientConfig
 	restore := SwapNewAgentClientForTest(func(_ context.Context, cfg agent.ClientConfig) (agent.Client, error) {
 		captured = cfg

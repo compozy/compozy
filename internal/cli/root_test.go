@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/spf13/cobra"
 )
@@ -654,22 +655,64 @@ func TestCaptureExplicitRuntimeFlagsUsesCobraChangedSemantics(t *testing.T) {
 	}
 }
 
-func TestAddCommonFlagsUseResilientRetryDefaults(t *testing.T) {
+func TestAddCommonFlagsUseOptInRetryDefaults(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
-	cmd := newTestCommand(state)
+	t.Run("Should default max-retries to zero", func(t *testing.T) {
+		t.Parallel()
 
-	if got := state.maxRetries; got != defaultMaxRetries {
-		t.Fatalf("unexpected max-retries default on command state: got %d want %d", got, defaultMaxRetries)
-	}
-	flag := cmd.Flags().Lookup("max-retries")
-	if flag == nil {
-		t.Fatal("expected max-retries flag to be registered")
-	}
-	if got, want := flag.DefValue, strconv.Itoa(defaultMaxRetries); got != want {
-		t.Fatalf("unexpected max-retries flag default: got %q want %q", got, want)
-	}
+		state := newCommandState(commandKindStart, core.ModePRDTasks)
+		cmd := newTestCommand(state)
+
+		if got := state.maxRetries; got != defaultMaxRetries {
+			t.Fatalf("unexpected max-retries default on command state: got %d want %d", got, defaultMaxRetries)
+		}
+		flag := cmd.Flags().Lookup("max-retries")
+		if flag == nil {
+			t.Fatal("expected max-retries flag to be registered")
+		}
+		if got, want := flag.DefValue, strconv.Itoa(defaultMaxRetries); got != want {
+			t.Fatalf("unexpected max-retries flag default: got %q want %q", got, want)
+		}
+	})
+}
+
+func TestFormInputsApplyPreservesExistingTaskRuntimeRulesWhenFormIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep configured and execution task runtime rules when the extra form is skipped", func(t *testing.T) {
+		t.Parallel()
+
+		state := newCommandState(commandKindStart, core.ModePRDTasks)
+		state.configuredTaskRuntimeRules = []model.TaskRuntimeRule{{
+			Type:  stringPointer("frontend"),
+			IDE:   stringPointer("claude"),
+			Model: stringPointer("sonnet"),
+		}}
+		state.executionTaskRuntimeRules = []model.TaskRuntimeRule{{
+			ID:    stringPointer("task_01"),
+			Model: stringPointer("gpt-5.4-mini"),
+		}}
+		cmd := newTestCommand(state)
+
+		inputs := newFormInputsFromState(state)
+		inputs.defineTaskRuntime = false
+		inputs.apply(cmd, state)
+
+		if state.replaceConfiguredTaskRunRules {
+			t.Fatal("expected configured task runtime rules to remain enabled")
+		}
+		rules := state.taskRuntimeRules()
+		if len(rules) != 2 {
+			t.Fatalf("expected configured and execution rules to be preserved, got %#v", rules)
+		}
+		if rules[0].Type == nil || *rules[0].Type != "frontend" {
+			t.Fatalf("expected configured type rule to remain first, got %#v", rules[0])
+		}
+		if rules[1].ID == nil || *rules[1].ID != "task_01" {
+			t.Fatalf("expected execution task rule to remain appended, got %#v", rules[1])
+		}
+	})
 }
 
 func TestResolveExecPromptSourceHandlesPromptVariants(t *testing.T) {

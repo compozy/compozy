@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
@@ -270,7 +269,7 @@ func (r *jobRunner) waitForRetry(ctx context.Context, delay time.Duration) bool 
 }
 
 func jobRuntimeChanged(before model.Job, after model.Job) bool {
-	return strings.TrimSpace(before.IDE) != strings.TrimSpace(after.IDE) ||
-		strings.TrimSpace(before.Model) != strings.TrimSpace(after.Model) ||
-		strings.TrimSpace(before.ReasoningEffort) != strings.TrimSpace(after.ReasoningEffort)
+	return before.IDE != after.IDE ||
+		before.Model != after.Model ||
+		before.ReasoningEffort != after.ReasoningEffort
 }

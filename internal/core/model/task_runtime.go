@@ -49,11 +49,11 @@ func CloneTaskRuntimeRules(src []TaskRuntimeRule) []TaskRuntimeRule {
 
 func (r TaskRuntimeRule) clone() TaskRuntimeRule {
 	return TaskRuntimeRule{
-		ID:              cloneOptionalString(r.ID),
-		Type:            cloneOptionalString(r.Type),
-		IDE:             cloneOptionalString(r.IDE),
-		Model:           cloneOptionalString(r.Model),
-		ReasoningEffort: cloneOptionalString(r.ReasoningEffort),
+		ID:              cloneTrimmedOptionalString(r.ID),
+		Type:            cloneTrimmedOptionalString(r.Type),
+		IDE:             cloneTrimmedOptionalString(r.IDE),
+		Model:           cloneTrimmedOptionalString(r.Model),
+		ReasoningEffort: cloneTrimmedOptionalString(r.ReasoningEffort),
 	}
 }
 
@@ -157,7 +157,7 @@ func ApplyTaskRuntime(cfg *RuntimeConfig, runtime TaskRuntime) {
 	cfg.ReasoningEffort = strings.TrimSpace(runtime.ReasoningEffort)
 }
 
-func cloneOptionalString(value *string) *string {
+func cloneTrimmedOptionalString(value *string) *string {
 	if value == nil {
 		return nil
 	}

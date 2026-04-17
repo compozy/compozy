@@ -366,12 +366,6 @@ func formatBaseTaskRuntime(state *commandState) string {
 		return ""
 	}
 	label := strings.TrimSpace(state.ide)
-	if label != "" {
-		label = strings.TrimSpace(label)
-	}
-	if display := strings.TrimSpace(label); display != "" {
-		label = display
-	}
 	modelName := strings.TrimSpace(state.model)
 	reasoning := strings.TrimSpace(state.reasoningEffort)
 	parts := make([]string, 0, 3)

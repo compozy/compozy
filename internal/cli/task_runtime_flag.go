@@ -139,6 +139,5 @@ func formatTaskRuntimeRule(rule model.TaskRuntimeRule) string {
 }
 
 func stringPointer(value string) *string {
-	cloned := value
-	return &cloned
+	return &value
 }
