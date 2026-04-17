@@ -207,6 +207,22 @@ func (h *Host) MarkReady(_ context.Context) error {
 	return nil
 }
 
+// SetHTTPPort persists the effective HTTP port once the transport listener binds.
+func (h *Host) SetHTTPPort(_ context.Context, port int) error {
+	if h == nil {
+		return errors.New("daemon: host is required")
+	}
+	if port < 0 || port > 65535 {
+		return fmt.Errorf("daemon: daemon http port must be between 0 and 65535: %d", port)
+	}
+
+	h.info.HTTPPort = port
+	if err := WriteInfo(h.paths.InfoPath, h.info); err != nil {
+		return fmt.Errorf("daemon: write daemon info with http port: %w", err)
+	}
+	return nil
+}
+
 // Close removes daemon discovery state and releases singleton ownership.
 func (h *Host) Close(_ context.Context) error {
 	if h == nil {
