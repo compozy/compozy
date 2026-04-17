@@ -38,6 +38,10 @@ This task introduces `global.db` as the durable catalog for workspaces, workflow
 ## Implementation Details
 Implement the durable registry layer described in the TechSpec "Data Models", "Identity Rules", and "Impact Analysis" sections. This task should stop short of run execution and transport wiring, but it must provide the durable read/write services those later tasks depend on.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/store/globaldb/global_db.go` — reference for global DB bootstrap, migrations, connection helpers, and durable catalog patterns.
+- `~/dev/compozy/agh/internal/observe/observer.go` — reference for query surfaces over global operational state.
+
 ### Relevant Files
 - `internal/core/workspace/config.go` — current workspace discovery and config merge logic that later registry resolution must coexist with.
 - `internal/core/workflow_target.go` — current workflow resolution seam that will later depend on registry-backed workspace identity.
@@ -66,11 +70,15 @@ Implement the durable registry layer described in the TechSpec "Data Models", "I
 ## Tests
 - Unit tests:
   - [ ] Applying `global.db` migrations twice leaves the schema unchanged and the migration history consistent.
-  - [ ] Registering the same workspace through equivalent normalized paths returns one logical workspace row.
+  - [ ] Opening a `global.db` with a newer unsupported schema returns `schema_too_new` instead of silently proceeding.
+  - [ ] Registering the same workspace through canonicalized paths and symlinked paths returns one logical workspace row.
+  - [ ] Creating an active workflow with a slug blocks creation of a second active workflow with the same `(workspace_id, slug)` pair while still allowing archived reuse.
   - [ ] Unregistering a workspace with active runs returns a conflict instead of deleting the row.
 - Integration tests:
   - [ ] Resolving then explicitly registering the same workspace path yields one stable workspace identity.
+  - [ ] Concurrent register requests for the same workspace path collapse to one durable row and one returned identity.
   - [ ] Archived and active workflows under the same workspace keep distinct query behavior without slug collisions.
+  - [ ] Restarting the daemon after registry writes preserves workspace, workflow, and run-index visibility without rerunning registration flows.
 - Test coverage target: >=80%
 - All tests must pass
 

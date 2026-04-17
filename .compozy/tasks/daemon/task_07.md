@@ -38,6 +38,10 @@ This task converts `compozy sync` from generated metadata file refresh into data
 ## Implementation Details
 Implement the reconciliation model described in the TechSpec "Artifact sync service", "global.db", and "Sync and Archive Semantics" sections. This task should convert sync into a storage-backed import path that feeds daemon queries without changing the flexible Markdown-authoring workflow users have today.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/store/globaldb/global_db.go` — reference for projection tables, migrations, and central operational storage helpers.
+- `~/dev/compozy/agh/internal/observe/observer.go` — reference for querying and projecting synced state for later clients.
+
 ### Relevant Files
 - `internal/core/sync.go` — current metadata-refresh logic that must become DB reconciliation.
 - `internal/core/tasks/parser.go` — existing task-file parsing that should feed `task_items` and snapshots.
@@ -65,11 +69,15 @@ Implement the reconciliation model described in the TechSpec "Artifact sync serv
 - Unit tests:
   - [ ] Syncing a workflow upserts task rows, review summaries, and artifact snapshots using stable checksums and source paths.
   - [ ] Re-running sync without content changes leaves snapshot checksums stable and updates only the expected checkpoint fields.
+  - [ ] Removing an authored artifact deletes or invalidates the corresponding synced snapshot rows instead of leaving stale state behind.
+  - [ ] Oversized artifact bodies follow the configured overflow strategy instead of bloating `artifact_snapshots.body_text`.
   - [ ] Legacy `_tasks.md` and `_meta.md` files are no longer written as part of sync behavior.
 - Integration tests:
   - [ ] `compozy sync --name <slug>` ingests one workflow into `global.db` without mutating authored artifact files.
   - [ ] Workspace-wide sync discovers all active workflows and persists their structured state into `global.db`.
-  - [ ] A workflow with review rounds and memory files produces consistent `review_rounds`, `review_issues`, and artifact snapshot rows.
+  - [ ] Editing task Markdown and re-running sync updates the existing workflow row instead of creating duplicate task identity.
+  - [ ] A workflow with review rounds, memory files, prompts, protocol docs, and QA artifacts produces consistent snapshot and projection rows.
+  - [ ] The first sync of a legacy workflow records one cleanup warning while removing generated `_tasks.md` and `_meta.md` artifacts.
 - Test coverage target: >=80%
 - All tests must pass
 

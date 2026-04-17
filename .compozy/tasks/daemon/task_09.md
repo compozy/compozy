@@ -39,6 +39,10 @@ This task rewrites workflow archiving to depend on synced database state instead
 ## Implementation Details
 Implement the archive behavior described in the TechSpec "Sync and Archive Semantics" and "Task workflows" sections. This task should remove the last operational dependency on workflow `_meta.md` files for archive eligibility while preserving the current archive directory move semantics users already expect.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/store/globaldb/global_db.go` — reference for DB-backed workflow status and catalog queries.
+- `~/dev/compozy/agh/internal/daemon/daemon.go` — reference for gating operator actions on active-run lifecycle state.
+
 ### Relevant Files
 - `internal/core/archive.go` — current archive flow that still depends on `_meta.md` and review metadata files.
 - `internal/core/tasks/store.go` — current task discovery helpers that archive must stop treating as the operational source of completion state.
@@ -65,11 +69,15 @@ Implement the archive behavior described in the TechSpec "Sync and Archive Seman
 - Unit tests:
   - [ ] A workflow with pending tasks is reported as non-archivable even if legacy metadata files are missing or stale.
   - [ ] A workflow with unresolved review issues is skipped with the expected reason from DB-backed state.
+  - [ ] A workflow with an active run is rejected for archive even when task and review state are otherwise complete.
   - [ ] Archived directory names include the timestamp, short ID, and slug in the expected order.
+  - [ ] Archive requests against an already archived path or archived workflow identity are rejected deterministically.
 - Integration tests:
   - [ ] `compozy archive --name <slug>` archives a fully completed workflow into the new archived path format.
   - [ ] `POST /tasks/:slug/archive` returns `409` when the workflow still has an active run.
+  - [ ] Archiving after a final sync moves the workflow and marks the archived state in the catalog before follow-up list queries run.
   - [ ] Workspace-wide archive skips incomplete workflows deterministically and archives only the eligible ones.
+  - [ ] A workflow that becomes complete only after review resolution and sync is archivable on the next archive attempt without manual metadata repair.
 - Test coverage target: >=80%
 - All tests must pass
 

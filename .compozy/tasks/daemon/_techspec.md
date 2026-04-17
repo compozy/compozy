@@ -22,6 +22,22 @@ Compatibility is retained only where it materially protects operator ergonomics 
 
 When a migration choice is ambiguous, the tie goes to the cleaner daemon-native design rather than to compatibility scaffolding.
 
+## AGH Reference Map
+
+AGH is an explicit implementation reference for this work, not just background inspiration. Developers implementing this spec should read the AGH files below before inventing new structure in Compozy.
+
+| Concern | AGH reference files | Reuse intent |
+| --- | --- | --- |
+| Daemon bootstrap and singleton lifecycle | `~/dev/compozy/agh/internal/daemon/boot.go`, `~/dev/compozy/agh/internal/daemon/daemon.go` | Reuse staged boot, singleton ownership, readiness ordering, and shutdown patterns. |
+| Shared transport contracts | `~/dev/compozy/agh/internal/api/core/interfaces.go`, `~/dev/compozy/agh/internal/api/core/handlers.go` | Reuse handler/service separation and transport-neutral contracts. |
+| SSE and live observation | `~/dev/compozy/agh/internal/api/core/sse.go`, `~/dev/compozy/agh/internal/observe/observer.go` | Reuse cursor, heartbeat, overflow, and snapshot/query patterns. |
+| HTTP and UDS servers | `~/dev/compozy/agh/internal/api/httpapi/server.go`, `~/dev/compozy/agh/internal/api/httpapi/routes.go`, `~/dev/compozy/agh/internal/api/udsapi/server.go`, `~/dev/compozy/agh/internal/api/udsapi/routes.go` | Reuse route parity, middleware shape, and UDS permission handling. |
+| Global operational storage | `~/dev/compozy/agh/internal/store/globaldb/global_db.go` | Reuse DB bootstrap, migration, WAL, busy-timeout, and helper patterns. |
+| Per-session storage split | `~/dev/compozy/agh/internal/store/sessiondb/session_db.go` | Reuse the split between global catalog state and per-run durable event state. |
+| Run/session lifecycle ownership | `~/dev/compozy/agh/internal/session/manager.go` | Reuse the manager-style ownership boundary for active sessions/runs. |
+
+These references are intentionally stronger than normal "see also" guidance. If an implementation diverges materially from these AGH patterns, that divergence should be deliberate and justified in code comments, ADRs, or task notes.
+
 ## System Architecture
 
 ### Component Overview

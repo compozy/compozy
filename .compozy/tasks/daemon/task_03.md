@@ -38,6 +38,10 @@ This task moves per-run operational state from workspace-local JSON and JSONL ar
 ## Implementation Details
 Implement the per-run storage layer described in the TechSpec "run.db", "Run Lifecycle and Recovery", and "Build Order" sections. This task should focus on durable storage and ordering guarantees, while leaving API exposure and reconciliation semantics to later tasks.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/store/sessiondb/session_db.go` — reference for the per-session DB split, writer ownership, and event-storage helpers.
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for how per-session storage and lifecycle are owned together.
+
 ### Relevant Files
 - `internal/core/model/run_scope.go` — current run artifact allocation and run ID generation seam.
 - `internal/core/run/journal/journal.go` — existing JSONL journal that must be replaced with a durable writer-loop contract.
@@ -66,11 +70,15 @@ Implement the per-run storage layer described in the TechSpec "run.db", "Run Lif
 ## Tests
 - Unit tests:
   - [ ] Applying `run.db` migrations repeatedly leaves the schema unchanged and migration history consistent.
-  - [ ] Events written through the run-store writer loop keep monotonically increasing sequence order.
+  - [ ] Events written through the run-store writer loop keep monotonically increasing sequence order under concurrent publishers.
+  - [ ] Transcript, hook audit, token usage, and artifact sync log rows round-trip through the run store without schema loss.
   - [ ] Auto-generated and explicit `run_id` values allocate the correct home-scoped run directory paths.
+  - [ ] Closing the run store flushes pending writes before the writer loop exits.
 - Integration tests:
   - [ ] Starting a run creates `~/.compozy/runs/<run-id>/run.db` before execution begins.
-  - [ ] A persisted run can be reopened for later snapshot/replay work without depending on workspace-local `events.jsonl`.
+  - [ ] A persisted run can be reopened for later snapshot and replay work without depending on workspace-local `events.jsonl`.
+  - [ ] Concurrent event producers for one run are serialized into one deterministic event sequence in `run.db`.
+  - [ ] A run with transcript, hook, and token records can be reopened after daemon restart with the same durable data available for later snapshot assembly.
 - Test coverage target: >=80%
 - All tests must pass
 

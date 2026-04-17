@@ -42,6 +42,12 @@ This task closes the daemon migration by hardening end-to-end coverage, updating
 ## Implementation Details
 Implement the closeout described in the TechSpec "Testing Approach", "CLI/TUI clients", and "Known Risks" sections. This task should focus on evidence and cleanup: broaden the changed-surface regression net, update the operator documentation, and eliminate stale references that would otherwise keep the codebase half on the old model.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/daemon/boot.go` — reference for the final documented daemon lifecycle posture.
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for the final documented stream contract.
+- `~/dev/compozy/agh/internal/store/globaldb/global_db.go` — reference for the final documented storage split and operational model.
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for the final lifecycle ownership model.
+
 ### Relevant Files
 - `README.md` — top-level user-facing documentation that must reflect the daemon runtime and command surface.
 - `docs/extensibility/architecture.md` — extension and runtime docs that must reflect daemon-managed execution ownership.
@@ -70,11 +76,15 @@ Implement the closeout described in the TechSpec "Testing Approach", "CLI/TUI cl
 ## Tests
 - Unit tests:
   - [ ] CLI and migration regression suites cover the final daemon-backed command surface without references to the removed legacy start path.
-  - [ ] Golden/help fixtures match the final command output and flag set.
+  - [ ] Golden and help fixtures match the final command output and flag set.
   - [ ] Legacy metadata cleanup logic keeps `_tasks.md` and `_meta.md` out of the final operational flow.
+  - [ ] README and daemon docs do not retain stale references to workspace-local run storage or removed commands.
+  - [ ] Regression suites cover the final daemon error envelope, attach defaults, and public run-reader compatibility surfaces.
 - Integration tests:
   - [ ] End-to-end daemon-backed runs, attach/watch, sync/archive, and exec flows remain green in the repository integration suites.
+  - [ ] End-to-end daemon-backed review-fix and extension-hook flows remain green in the repository integration suites.
   - [ ] Public `pkg/compozy/runs` integration tests prove daemon-backed run inspection end to end.
+  - [ ] Restart, reconnect, and archive-after-completion flows remain green in the final migration regression suite.
   - [ ] `make verify` passes cleanly after docs, cleanup, and regression updates.
 - Test coverage target: >=80%
 - All tests must pass

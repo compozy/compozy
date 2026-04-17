@@ -39,6 +39,11 @@ This task adds the intelligent watcher behavior discussed in the design: only ac
 ## Implementation Details
 Implement the active-run watcher model described in the TechSpec "Artifact sync service" and "Sync and Archive Semantics" sections. This task should keep live workflow state aligned with Markdown edits during execution while explicitly avoiding a daemon-wide always-on watcher that would add unnecessary load and complexity.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for lifecycle-bound ownership of active observers and session-scoped background work.
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for the stream semantics clients will observe when watcher-triggered updates are emitted.
+- `~/dev/compozy/agh/internal/observe/observer.go` — reference for projecting fresh state for attach and watch consumers.
+
 ### Relevant Files
 - `internal/daemon/watchers.go` — new watcher coordinator tied to daemon-managed runs.
 - `internal/core/sync.go` — existing sync entrypoint that watcher updates should reuse instead of bypassing.
@@ -67,11 +72,15 @@ Implement the active-run watcher model described in the TechSpec "Artifact sync 
 - Unit tests:
   - [ ] Starting a run creates a watcher only for that workflow and stopping the run tears it down cleanly.
   - [ ] Repeated writes within the debounce window collapse into one effective sync update and checkpoint.
+  - [ ] File rename and delete events inside the active workflow root update checkpoint state without leaving stale watcher bookkeeping.
   - [ ] Writes outside the active workflow root do not trigger reparsing or mutate synced state.
+  - [ ] Multiple active runs in different workflows create isolated watcher sets that do not leak events across workflows.
 - Integration tests:
   - [ ] Editing a `task_XX.md` file during an active run updates the corresponding synced task state without restarting the run.
   - [ ] Editing a review issue or memory file during an active run updates `global.db` through the watcher path.
+  - [ ] Editing prompt, protocol, ADR, or QA artifacts during an active run updates checkpoints and snapshots only for the owned workflow.
   - [ ] The first watcher-enabled sync cleans legacy `_tasks.md` and `_meta.md` once and never recreates them afterward.
+  - [ ] Stopping or cancelling a run tears down its watcher cleanly so later edits no longer emit live sync activity for that finished run.
 - Test coverage target: >=80%
 - All tests must pass
 

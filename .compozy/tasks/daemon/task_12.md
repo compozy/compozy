@@ -40,6 +40,10 @@ This task adapts the Bubble Tea UI from in-process execution to remote attach ov
 ## Implementation Details
 Implement the remote UI contract described in the TechSpec "CLI/TUI clients", "Runs", and "SSE Contract" sections. This task should keep the current Bubble Tea experience recognizable while moving all runtime state sourcing to daemon snapshots and streams.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for resume, heartbeat, and overflow stream behavior.
+- `~/dev/compozy/agh/internal/observe/observer.go` — reference for dense snapshot and observation query patterns that feed remote clients.
+
 ### Relevant Files
 - `internal/core/run/ui/model.go` — current TUI state model that must load from daemon snapshots instead of local execution state.
 - `internal/core/run/ui/update.go` — current event handling and focus updates that must adapt to remote stream events.
@@ -69,11 +73,15 @@ Implement the remote UI contract described in the TechSpec "CLI/TUI clients", "R
 - Unit tests:
   - [ ] Loading a run snapshot hydrates the expected job tree, transcript window, and navigation state before live events arrive.
   - [ ] Stream events update the active job, timeline, and summary views without regressing resize or focus behavior.
+  - [ ] Overflow or reconnect-required frames preserve the last acknowledged cursor and do not corrupt UI state.
   - [ ] Heartbeat and EOF frames do not corrupt UI state and keep reconnect logic deterministic.
+  - [ ] Attaching to a completed run snapshot renders the final state without requiring a live stream to stay open.
 - Integration tests:
   - [ ] `compozy runs attach <run_id>` restores a running daemon-managed run from snapshot and continues consuming subsequent events.
   - [ ] A disconnected TUI client can reconnect using the last known cursor and continue rendering the same run.
+  - [ ] Attaching to a completed run renders the final snapshot cleanly and exits without waiting for new stream traffic.
   - [ ] Watch-only mode streams events without launching the full TUI and keeps the attach path separate.
+  - [ ] A stream interruption during an active run resumes without duplicating already rendered events in the timeline.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -40,6 +40,15 @@ This task creates the shared daemon transport layer over UDS and localhost HTTP,
 ## Implementation Details
 Implement the transport layer described in the TechSpec "API Endpoints", "Transport Contract", "SSE Contract", and "Monitoring and Observability" sections. This task should establish the external contract only; it should rely on injected services instead of embedding run logic or storage details directly in transport code.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/api/core/interfaces.go` — reference for transport-neutral handler/service boundaries.
+- `~/dev/compozy/agh/internal/api/core/handlers.go` — reference for shared handler implementation patterns.
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for cursor, heartbeat, and overflow stream behavior.
+- `~/dev/compozy/agh/internal/api/httpapi/server.go` — reference for localhost HTTP server wiring.
+- `~/dev/compozy/agh/internal/api/httpapi/routes.go` — reference for route registration and parity.
+- `~/dev/compozy/agh/internal/api/udsapi/server.go` — reference for UDS bootstrap and socket-permission handling.
+- `~/dev/compozy/agh/internal/api/udsapi/routes.go` — reference for UDS route parity with HTTP.
+
 ### Relevant Files
 - `internal/api/core/interfaces.go` — new shared transport service contracts for handlers and clients.
 - `internal/api/core/handlers.go` — new shared handler implementations for daemon resources.
@@ -70,11 +79,15 @@ Implement the transport layer described in the TechSpec "API Endpoints", "Transp
 - Unit tests:
   - [ ] Shared handlers return the same status and payload shape for the same service result across both transports.
   - [ ] SSE helpers emit `id`, `event`, and `data` frames using the `RFC3339Nano|sequence` cursor format.
+  - [ ] Invalid `Last-Event-ID` values are rejected or normalized deterministically according to the daemon stream contract.
+  - [ ] Heartbeat and overflow frames are emitted with the expected event names and payload shape.
   - [ ] Non-2xx responses include `X-Request-Id` and serialize the `TransportError` envelope correctly.
 - Integration tests:
   - [ ] `GET /daemon/health` returns `503` before readiness and `200` once the daemon is fully ready.
   - [ ] `GET /runs/:run_id/stream` resumes from the next event after `Last-Event-ID` and emits heartbeats during idle periods.
+  - [ ] `GET /runs/:run_id/stream` returns the expected validation response for an invalid or stale cursor.
   - [ ] UDS and localhost HTTP serve matching behavior for status, snapshot, and conflict responses.
+  - [ ] Status, metrics, and stream endpoints remain observable and reconnectable when a client disconnects or when the daemon closes a stream at terminal run state.
 - Test coverage target: >=80%
 - All tests must pass
 

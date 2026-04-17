@@ -40,6 +40,11 @@ This task migrates the public run-reader package away from workspace-local files
 ## Implementation Details
 Implement the public-reader migration described in the TechSpec "Public run readers and observability", "Runs", and "Transport Contract" sections. This task should keep the exported package stable for callers while moving all operational storage and concurrency semantics behind daemon-owned APIs.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for streaming semantics that replace local file tailing.
+- `~/dev/compozy/agh/internal/observe/observer.go` — reference for list and snapshot query shapes over daemon-owned state.
+- `~/dev/compozy/agh/internal/store/sessiondb/session_db.go` — reference for keeping per-run SQLite internal and out of the public read contract.
+
 ### Relevant Files
 - `pkg/compozy/runs/run.go` — current `Open` and run-summary loading logic tied to workspace-local metadata files.
 - `pkg/compozy/runs/summary.go` — summary normalization that must stay stable after the backend switch.
@@ -70,10 +75,14 @@ Implement the public-reader migration described in the TechSpec "Public run read
   - [ ] Public run summaries preserve status normalization and timestamp behavior after moving to daemon-backed data sources.
   - [ ] Replay and tail logic preserve expected cursor ordering and partial-event handling behavior.
   - [ ] Watch helpers translate daemon stream events into the same public event surface callers already expect.
+  - [ ] Public readers surface a stable error when the daemon is unavailable instead of silently attempting filesystem fallback.
+  - [ ] Cursor pagination across replay and tail boundaries preserves ordering through resume and terminal-run edges.
 - Integration tests:
   - [ ] Opening a daemon-managed run by workspace root and run ID returns the expected summary without reading workspace-local run files.
   - [ ] Listing runs through the public package returns the same ordering and filtering behavior after the migration.
   - [ ] Public watch and tail flows continue working across reconnects against daemon-backed streams.
+  - [ ] Public readers return the expected normalized status for completed, failed, cancelled, and crashed daemon-managed runs.
+  - [ ] Replay and tail against a daemon-managed run preserve event order across snapshot pagination boundaries.
 - Test coverage target: >=80%
 - All tests must pass
 

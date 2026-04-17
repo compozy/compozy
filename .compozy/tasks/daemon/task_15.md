@@ -40,6 +40,11 @@ This task migrates review and exec workflows onto the daemon control plane. It k
 ## Implementation Details
 Implement the migration described in the TechSpec "Reviews", "Sync and exec", and "Data Flow" sections. This task should make review and exec flows first-class daemon runs while preserving the authored Markdown review model and the current exec ergonomics users already depend on.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for making review and ad hoc execution first-class daemon-managed sessions.
+- `~/dev/compozy/agh/internal/store/sessiondb/session_db.go` — reference for per-run persistence tied to non-workflow execution modes.
+- `~/dev/compozy/agh/internal/daemon/daemon.go` — reference for lifecycle ownership across different run modes.
+
 ### Relevant Files
 - `internal/core/reviews/parser.go` — review issue parsing that must continue feeding authored review artifacts.
 - `internal/core/reviews/store.go` — review round discovery and persistence seams affected by daemon-backed review flows.
@@ -70,10 +75,14 @@ Implement the migration described in the TechSpec "Reviews", "Sync and exec", an
 - Unit tests:
   - [ ] Review flows trigger sync and use daemon-backed lifecycle state before starting a review-fix run.
   - [ ] Exec requests preserve prompt-file, stdin, JSON, and raw-JSON behavior after moving under daemon lifecycle ownership.
+  - [ ] Conflicting exec input sources are resolved deterministically according to the final CLI contract.
   - [ ] Review issue and round materialization remains compatible with the authored Markdown contract.
+  - [ ] Review runs continue to batch and target the expected issue set when daemon-backed sync updates round state before execution.
 - Integration tests:
   - [ ] `compozy reviews fix` runs through the daemon, persists lifecycle state, and leaves review markdown artifacts aligned with operational status.
+  - [ ] A review round edited manually between sync and run start is re-read correctly before the daemon launches the review-fix run.
   - [ ] `compozy exec` binds to the current workspace, persists `mode=exec`, and can be inspected after the initial invocation exits.
+  - [ ] `compozy exec` auto-registers an unseen workspace and still skips workflow sync as defined in the TechSpec.
   - [ ] Review-provider and extension hooks continue to work during daemon-backed review and exec runs.
 - Test coverage target: >=80%
 - All tests must pass

@@ -39,6 +39,11 @@ This task keeps Compozy's current executable extension model while adapting runt
 ## Implementation Details
 Implement the daemon-aware extension model described in the TechSpec "Integration Points", "Run manager", and "Transport Contract" sections. This task should preserve today's extension ergonomics and runtime contract while shifting ownership of initialization, auditing, and shutdown to the daemon-managed run lifecycle.
 
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for binding runtime-owned subprocesses and hooks to session lifecycle.
+- `~/dev/compozy/agh/internal/daemon/daemon.go` — reference for coordinating subsystem ownership under daemon lifecycle.
+- `~/dev/compozy/agh/internal/store/sessiondb/session_db.go` — reference for persisting per-run audit and lifecycle records.
+
 ### Relevant Files
 - `internal/core/extension/runtime.go` — current run-scoped extension runtime that must move under daemon-owned run lifecycle.
 - `internal/core/extension/host_api.go` — host API routing that must support daemon-managed capabilities.
@@ -68,11 +73,15 @@ Implement the daemon-aware extension model described in the TechSpec "Integratio
 - Unit tests:
   - [ ] A daemon-managed run initializes extensions with the expected run-scoped capability and audit context.
   - [ ] Host API calls without a valid per-run capability token are rejected with explicit errors.
+  - [ ] Extension startup and shutdown preserve the existing hook ordering contract under daemon-owned runs.
   - [ ] Extension JSON-RPC failures are recorded in persisted hook state without aborting unrelated runs.
+  - [ ] A failing extension hook can mark its own run outcome without corrupting other active runs or the daemon process.
 - Integration tests:
   - [ ] A daemon-backed task run executes installed extension hooks and records the outcomes in run-owned storage.
   - [ ] A daemon-backed review run preserves review-provider bridge behavior through the adapted runtime.
+  - [ ] A daemon-backed exec run keeps the same extension and host API behavior as task and review runs.
   - [ ] Forced run shutdown tears down extension subprocesses cleanly without leaking background processes.
+  - [ ] An extension hook failure is visible in audit storage and the live run stream without crashing the daemon.
 - Test coverage target: >=80%
 - All tests must pass
 
