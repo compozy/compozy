@@ -71,12 +71,13 @@ func newSyncCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:          "sync",
-		Short:        "Refresh task workflow metadata files",
+		Short:        "Reconcile workflow artifacts into global.db",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
-		Long: `Refresh task workflow _meta.md files under .compozy/tasks.
+		Long: `Parse workflow artifacts under .compozy/tasks and reconcile their
+structured task, review, and snapshot state into the daemon global.db catalog.
 
-By default, the command scans the whole workflow root and creates missing task metadata files.`,
+By default, the command scans the whole workflow root and syncs every active workflow.`,
 		Example: `  compozy sync
   compozy sync --name my-feature
   compozy sync --tasks-dir .compozy/tasks/my-feature`,
@@ -219,16 +220,27 @@ func (s *syncCommandState) run(cmd *cobra.Command, _ []string) error {
 	if result != nil {
 		const summaryFormat = "Sync target: %s\n" +
 			"Workflows scanned: %d\n" +
-			"Meta created: %d\n" +
-			"Meta updated: %d\n"
+			"Artifact snapshots upserted: %d\n" +
+			"Task items upserted: %d\n" +
+			"Review rounds upserted: %d\n" +
+			"Review issues upserted: %d\n" +
+			"Checkpoints updated: %d\n" +
+			"Legacy artifacts removed: %d\n"
 		_, _ = fmt.Fprintf(
 			cmd.OutOrStdout(),
 			summaryFormat,
 			result.Target,
 			result.WorkflowsScanned,
-			result.MetaCreated,
-			result.MetaUpdated,
+			result.SnapshotsUpserted,
+			result.TaskItemsUpserted,
+			result.ReviewRoundsUpserted,
+			result.ReviewIssuesUpserted,
+			result.CheckpointsUpdated,
+			result.LegacyArtifactsRemoved,
 		)
+		for _, warning := range result.Warnings {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Warning: %s\n", warning)
+		}
 	}
 	return err
 }

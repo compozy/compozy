@@ -66,7 +66,7 @@ Use explicit workflow subcommands:
   compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy daemon        Manage the home-scoped daemon bootstrap lifecycle
   compozy runs          Inspect and clean persisted daemon run artifacts
-  compozy sync          Refresh task workflow metadata files
+  compozy sync          Reconcile workflow artifacts into global.db
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
   compozy fix-reviews   Process review issue files from a specific review round

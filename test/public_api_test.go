@@ -105,9 +105,8 @@ func TestMigrateExposePublicAPI(t *testing.T) {
 }
 
 func TestSyncExposePublicAPI(t *testing.T) {
-	t.Parallel()
-
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(tmpDir, "home"))
 	workflowDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
 	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
 		t.Fatalf("mkdir workflow dir: %v", err)
@@ -133,7 +132,10 @@ func TestSyncExposePublicAPI(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected sync result")
 	}
-	if result.WorkflowsScanned != 1 || result.MetaCreated != 1 || result.MetaUpdated != 0 {
+	if result.WorkflowsScanned != 1 ||
+		result.TaskItemsUpserted != 1 ||
+		result.SnapshotsUpserted != 1 ||
+		result.CheckpointsUpdated != 1 {
 		t.Fatalf("unexpected sync result: %#v", result)
 	}
 }

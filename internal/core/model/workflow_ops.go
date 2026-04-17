@@ -47,11 +47,18 @@ type ArchiveConfig struct {
 }
 
 type SyncResult struct {
-	Target           string
-	WorkflowsScanned int
-	MetaCreated      int
-	MetaUpdated      int
-	SyncedPaths      []string
+	Target                 string
+	WorkflowsScanned       int
+	MetaCreated            int
+	MetaUpdated            int
+	SnapshotsUpserted      int
+	TaskItemsUpserted      int
+	ReviewRoundsUpserted   int
+	ReviewIssuesUpserted   int
+	CheckpointsUpdated     int
+	LegacyArtifactsRemoved int
+	SyncedPaths            []string
+	Warnings               []string
 }
 
 type ArchiveResult struct {
