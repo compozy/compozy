@@ -39,18 +39,23 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy migrate",
 		"compozy validate-tasks",
 		"compozy daemon",
+		"compozy workspaces",
+		"compozy tasks",
+		"compozy reviews",
 		"compozy runs",
 		"compozy sync",
 		"compozy archive",
 		"compozy fetch-reviews",
 		"compozy fix-reviews",
-		"compozy start",
 		"setup",
 		"agents",
 		"upgrade",
 		"migrate",
 		"validate-tasks",
 		"daemon",
+		"workspaces",
+		"tasks",
+		"reviews",
 		"runs",
 		"sync",
 		"archive",
@@ -58,7 +63,6 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"fix-reviews",
 		"compozy exec",
 		"exec",
-		"start",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -317,33 +321,35 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 	}
 }
 
-func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
+func TestTasksRunHelpShowsDaemonTaskFlagsOnly(t *testing.T) {
 	t.Parallel()
 
-	cmd := findCommand(t, NewRootCommand(), "start")
+	cmd := findNestedCommand(t, NewRootCommand(), "tasks", "run [slug]")
 	if cmd.Flags().Lookup("mode") != nil {
-		t.Fatalf("expected start to omit mode flag")
+		t.Fatalf("expected tasks run to omit mode flag")
 	}
 
-	output, err := executeRootCommand("start", "--help")
+	output, err := executeRootCommand("tasks", "run", "--help")
 	if err != nil {
-		t.Fatalf("execute start help: %v", err)
+		t.Fatalf("execute tasks run help: %v", err)
 	}
 
 	required := []string{
-		"--format",
+		"--attach",
+		"--detach",
+		"--stream",
+		"--ui",
 		"--name",
-		"--tasks-dir",
 		"--include-completed",
 		"--skip-validation",
 		"Skip task metadata preflight; use only when tasks were validated separately",
 		"--force",
 		"Continue after task metadata validation fails in non-interactive mode",
-		"--tui",
+		"--task-runtime",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected start help to include %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected tasks run help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
@@ -353,13 +359,16 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		"--reviews-dir",
 		"--batch-size",
 		"--concurrent",
+		"--format",
 		"--grouped",
 		"--include-resolved",
+		"--tasks-dir",
 		"--form ",
+		"--tui",
 	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
-			t.Fatalf("expected start help to omit %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected tasks run help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
@@ -498,7 +507,7 @@ func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
 	paths := []string{
 		mustCLIRepoRootPath(t, "README.md"),
 		mustCLITestDataPath(t, "exec_help.golden"),
-		mustCLITestDataPath(t, "start_help.golden"),
+		mustCLITestDataPath(t, "tasks_run_help.golden"),
 	}
 	for _, path := range paths {
 		body, err := os.ReadFile(path)
@@ -511,22 +520,22 @@ func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
 	}
 }
 
-func TestStartHelpMatchesGolden(t *testing.T) {
+func TestTasksRunHelpMatchesGolden(t *testing.T) {
 	t.Parallel()
 
-	output, err := executeRootCommand("start", "--help")
+	output, err := executeRootCommand("tasks", "run", "--help")
 	if err != nil {
-		t.Fatalf("execute start help: %v", err)
+		t.Fatalf("execute tasks run help: %v", err)
 	}
 
-	goldenPath := mustCLITestDataPath(t, "start_help.golden")
+	goldenPath := mustCLITestDataPath(t, "tasks_run_help.golden")
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("read golden file %s: %v", goldenPath, err)
 	}
 
 	if output != string(want) {
-		t.Fatalf("start help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
+		t.Fatalf("tasks run help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
 	}
 }
 
@@ -1257,7 +1266,7 @@ func TestFetchReviewsWithPartialFlagsSkipsFormAndReturnsValidationError(t *testi
 	}
 }
 
-func TestStartCommandWrapsWorkspaceDefaultErrors(t *testing.T) {
+func TestTasksRunCommandWrapsWorkspaceDefaultErrors(t *testing.T) {
 	root := t.TempDir()
 	writeCLIWorkspaceConfig(t, root, `
 [defaults]
@@ -1270,11 +1279,11 @@ timeout = "not-a-duration"
 	}
 	chdirCLITest(t, startDir)
 
-	_, err := executeRootCommand("start", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	_, err := executeRootCommand("tasks", "run", "--name", "demo")
 	if err == nil {
 		t.Fatal("expected workspace default error")
 	}
-	if !strings.Contains(err.Error(), "apply workspace defaults for start") {
+	if !strings.Contains(err.Error(), "apply workspace defaults for compozy tasks run") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -1840,6 +1849,28 @@ func findCommand(t *testing.T, root *cobra.Command, use string) *cobra.Command {
 	}
 	t.Fatalf("command %q not found", use)
 	return nil
+}
+
+func findNestedCommand(t *testing.T, root *cobra.Command, path ...string) *cobra.Command {
+	t.Helper()
+
+	current := root
+	for _, use := range path {
+		found := false
+		for _, cmd := range current.Commands() {
+			if cmd.Use != use {
+				continue
+			}
+			current = cmd
+			found = true
+			break
+		}
+		if found {
+			continue
+		}
+		t.Fatalf("command path %q not found", strings.Join(path, " "))
+	}
+	return current
 }
 
 func mustCLITestDataPath(t *testing.T, name string) string {

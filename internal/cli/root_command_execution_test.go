@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	apiclient "github.com/compozy/compozy/internal/api/client"
+	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
@@ -24,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/setup"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -835,7 +838,8 @@ func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
 	assertNoRunArtifactsForCLI(t, workspaceRoot)
 }
 
-func TestStartCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
+func TestTasksRunCommandDispatchesResolvedWorkspaceAndConfiguredAttachMode(t *testing.T) {
+	homeDir := isolateCLIConfigHome(t)
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
 		[]string{
@@ -846,241 +850,331 @@ func TestStartCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 		},
 		"# Task 1: Demo Task",
 	))
-	withWorkingDir(t, workspaceRoot)
+	writeCLIGlobalConfig(t, homeDir, `
+[runs]
+default_attach_mode = "stream"
+`)
+	writeCLIWorkspaceConfig(t, workspaceRoot, `
+[runs]
+default_attach_mode = "detach"
+`)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
-		t,
-		cmd,
-		nil,
-		"start",
-		"--name",
-		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
-		"--dry-run",
-	)
-	if err != nil {
-		t.Fatalf("execute start dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	nestedDir := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
 	}
-	if !strings.Contains(stderr, "preflight=ok") {
-		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
-	}
+	chdirCLITest(t, nestedDir)
 
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	runMeta := readCLIArtifactJSON(t, filepath.Join(runDir, "run.json"))
-	if got := runMeta["mode"]; got != string(model.ModePRDTasks) {
-		t.Fatalf("unexpected run mode: %#v", runMeta)
+	staleClient := &stubDaemonCommandClient{
+		target:    apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		healthErr: errors.New("dial unix /tmp/compozy-daemon.sock: connect: no such file or directory"),
 	}
-
-	result := readCLIArtifactJSON(t, filepath.Join(runDir, "result.json"))
-	if got := result["status"]; got != "succeeded" {
-		t.Fatalf("unexpected result payload: %#v", result)
-	}
-
-	promptPath := singleCLIJobArtifact(t, runDir, "*.prompt.md")
-	outLogPath := singleCLIJobArtifact(t, runDir, "*.out.log")
-	errLogPath := singleCLIJobArtifact(t, runDir, "*.err.log")
-	for _, path := range []string{promptPath, outLogPath, errLogPath} {
-		if _, statErr := os.Stat(path); statErr != nil {
-			t.Fatalf("expected job artifact %s: %v", path, statErr)
-		}
-	}
-
-	promptBytes, err := os.ReadFile(promptPath)
-	if err != nil {
-		t.Fatalf("read prompt artifact: %v", err)
-	}
-	if !strings.Contains(string(promptBytes), "`cy-execute-task`") {
-		t.Fatalf("expected task prompt to reference cy-execute-task, got:\n%s", string(promptBytes))
-	}
-
-	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
-	for _, want := range []eventspkg.EventKind{
-		eventspkg.EventKindRunStarted,
-		eventspkg.EventKindJobCompleted,
-		eventspkg.EventKindRunCompleted,
-	} {
-		if !slices.Contains(eventKinds, want) {
-			t.Fatalf("expected runtime events to include %s, got %v", want, eventKinds)
-		}
-	}
-}
-
-func TestStartCommandExecuteDryRunJSONStreamsJSONL(t *testing.T) {
-	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
-	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
-		[]string{
-			"status: pending",
-			"title: Demo Task",
-			"type: backend",
-			"complexity: low",
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeDetach,
+			StartedAt:        time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC),
 		},
-		"# Task 1: Demo Task",
-	))
-	withWorkingDir(t, workspaceRoot)
-
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
-		t,
-		cmd,
-		nil,
-		"start",
-		"--name",
-		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
-		"--dry-run",
-		"--format",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("execute start json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
-	if !strings.Contains(stderr, "preflight=ok") {
-		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	nowSequence := []time.Time{
+		time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 0, 0, 250000000, time.UTC),
 	}
-	if strings.Contains(stdout, "Execution Summary:") {
-		t.Fatalf("expected json mode to suppress human summary, got %q", stdout)
-	}
-
-	events := decodeExecJSONLEvents(t, stdout)
-	if len(events) < 3 {
-		t.Fatalf("expected multiple streamed workflow events, got %d\nstdout:\n%s", len(events), stdout)
-	}
-	if got := events[0]["type"]; got != string(eventspkg.EventKindRunStarted) {
-		t.Fatalf("unexpected first workflow event: %#v", events[0])
-	}
-	if got := events[len(events)-1]["type"]; got != string(eventspkg.EventKindRunCompleted) {
-		t.Fatalf("unexpected terminal workflow event: %#v", events[len(events)-1])
-	}
-
-	var eventTypes []string
-	for _, event := range events {
-		gotType, ok := event["type"].(string)
-		if !ok || gotType == "" {
-			t.Fatalf("expected lean workflow event type field, got %#v", event)
+	nowIndex := 0
+	nextNow := func() time.Time {
+		if nowIndex >= len(nowSequence) {
+			return nowSequence[len(nowSequence)-1]
 		}
-		eventTypes = append(eventTypes, gotType)
-	}
-	for _, want := range []string{
-		string(eventspkg.EventKindRunStarted),
-		string(eventspkg.EventKindJobCompleted),
-		string(eventspkg.EventKindRunCompleted),
-	} {
-		if !slices.Contains(eventTypes, want) {
-			t.Fatalf("expected streamed workflow event %q, got %v", want, eventTypes)
-		}
+		value := nowSequence[nowIndex]
+		nowIndex++
+		return value
 	}
 
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
-	if got := eventKinds[len(eventKinds)-1]; got != eventspkg.EventKindRunCompleted {
-		t.Fatalf("unexpected persisted terminal event: %v", eventKinds)
-	}
-}
-
-func TestStartCommandWithInstalledWorkspaceExtensionSpawnsAndWritesAudit(t *testing.T) {
-	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
-	withWorkingDir(t, workspaceRoot)
-
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
-		t,
-		cmd,
-		nil,
-		"start",
-		"--name",
-		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
-		"--dry-run",
-	)
-	if err != nil {
-		t.Fatalf("execute start with extensions: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "Execution Summary:") {
-		t.Fatalf("expected dry-run start summary on stdout, got %q", stdout)
-	}
-	if !strings.Contains(stderr, "preflight=ok") {
-		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
-	}
-
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	records := readMockExtensionRecordsForCLI(t, recordPath)
-	assertMockExtensionRecordKinds(t, records, "initialize_request", "shutdown")
-
-	auditPath := filepath.Join(runDir, extensions.AuditLogFileName)
-	auditContent, readErr := os.ReadFile(auditPath)
-	if readErr != nil {
-		t.Fatalf("read extension audit log: %v", readErr)
-	}
-	if !strings.Contains(string(auditContent), `"method":"initialize"`) {
-		t.Fatalf("expected audit log to include initialize, got:\n%s", string(auditContent))
-	}
-}
-
-func TestStartCommandExplicitTUIFailsWithoutTTY(t *testing.T) {
-	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
-	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
-		[]string{
-			"status: pending",
-			"title: Demo Task",
-			"type: backend",
-			"complexity: low",
+	var launchCalls int
+	var clientCalls int
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
 		},
-		"# Task 1: Demo Task",
-	))
-	withWorkingDir(t, workspaceRoot)
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  nowSequence[0],
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			clientCalls++
+			if clientCalls == 1 {
+				return staleClient, nil
+			}
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			launchCalls++
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            nextNow,
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
-		"start",
-		"--name",
+		"tasks",
+		"run",
 		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
 		"--dry-run",
-		"--tui",
+		"--include-completed",
 	)
-	if err == nil {
-		t.Fatalf("expected start explicit tui failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	if err != nil {
+		t.Fatalf("execute tasks run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
-	if stdout != "" {
-		t.Fatalf("expected no stdout on explicit tui failure, got %q", stdout)
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
 	}
-	if !strings.Contains(stderr, "requires an interactive terminal for tui mode") {
-		t.Fatalf("unexpected explicit tui error output: %q", stderr)
+	if !strings.Contains(stdout, "task run started: run-task-001 (mode=detach)") {
+		t.Fatalf("unexpected tasks run stdout: %q", stdout)
 	}
-}
-
-func TestNormalizePresentationModeUsesInjectedInteractiveCheck(t *testing.T) {
-	t.Parallel()
-
-	if isInteractiveTerminal() {
-		t.Skip(
-			"requires a non-interactive test terminal to distinguish the injected callback from the process terminal",
+	if launchCalls != 1 {
+		t.Fatalf("expected one daemon auto-bootstrap launch, got %d", launchCalls)
+	}
+	if readyClient.startCalls != 1 {
+		t.Fatalf("expected one task run request, got %d", readyClient.startCalls)
+	}
+	if readyClient.startSlug != "demo" {
+		t.Fatalf("unexpected workflow slug: %q", readyClient.startSlug)
+	}
+	if mustEvalSymlinksCLITest(t, readyClient.startRequest.Workspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+		t.Fatalf(
+			"unexpected workspace root dispatched\nwant: %q\ngot:  %q",
+			workspaceRoot,
+			readyClient.startRequest.Workspace,
 		)
 	}
+	if readyClient.startRequest.PresentationMode != attachModeDetach {
+		t.Fatalf("unexpected presentation mode: %q", readyClient.startRequest.PresentationMode)
+	}
+	overrides := decodeTaskRunOverrides(t, readyClient.startRequest.RuntimeOverrides)
+	if overrides.DryRun == nil || !*overrides.DryRun {
+		t.Fatalf("expected dry-run override in request, got %#v", overrides)
+	}
+	if overrides.IncludeCompleted == nil || !*overrides.IncludeCompleted {
+		t.Fatalf("expected include-completed override in request, got %#v", overrides)
+	}
+}
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
-	state.tui = true
-	state.isInteractive = func() bool { return true }
+func TestTasksRunCommandAutoModeResolvesToStreamInNonInteractiveExecution(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
 
-	cmd := &cobra.Command{Use: "start"}
-	cmd.Flags().Bool("tui", true, "enable tui")
-	if err := cmd.Flags().Set("tui", "true"); err != nil {
-		t.Fatalf("set --tui: %v", err)
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-002",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeStream,
+			StartedAt:        time.Date(2026, 4, 17, 13, 5, 0, 0, time.UTC),
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 5, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 5, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+	)
+	if err != nil {
+		t.Fatalf("execute tasks run auto stream: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if readyClient.startRequest.PresentationMode != attachModeStream {
+		t.Fatalf("expected auto attach mode to resolve to stream, got %q", readyClient.startRequest.PresentationMode)
+	}
+	if !strings.Contains(stdout, "task run started: run-task-002 (mode=stream)") {
+		t.Fatalf("unexpected tasks run stdout: %q", stdout)
+	}
+}
+
+func TestTasksRunCommandExplicitUIFailsWithoutTTY(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+		"--ui",
+	)
+	if err == nil {
+		t.Fatalf("expected tasks run explicit ui failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout on explicit ui failure, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "requires an interactive terminal for ui mode") {
+		t.Fatalf("unexpected explicit ui error output: %q", stderr)
+	}
+}
+
+func TestTasksRunCommandBootstrapFailureReturnsStableExitCode(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	nowSequence := []time.Time{
+		time.Date(2026, 4, 17, 13, 10, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 10, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 10, 2, 0, time.UTC),
+	}
+	nowIndex := 0
+	nextNow := func() time.Time {
+		if nowIndex >= len(nowSequence) {
+			return nowSequence[len(nowSequence)-1]
+		}
+		value := nowSequence[nowIndex]
+		nowIndex++
+		return value
 	}
 
-	if err := state.normalizePresentationMode(cmd); err != nil {
-		t.Fatalf("normalizePresentationMode() error = %v", err)
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  nowSequence[0],
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return &stubDaemonCommandClient{
+				target:    apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+				healthErr: errors.New("dial unix /tmp/compozy-daemon.sock: connect: connection refused"),
+			}, nil
+		},
+		launch:         func(compozyconfig.HomePaths) error { return nil },
+		sleep:          func(time.Duration) {},
+		now:            nextNow,
+		startupTimeout: 500 * time.Millisecond,
+		pollInterval:   time.Millisecond,
+	})
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+	)
+	if err == nil {
+		t.Fatalf("expected tasks run bootstrap failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
-	if !state.tui {
-		t.Fatal("expected tui to remain enabled when injected interactivity reports true")
+	var exitErr *commandExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected commandExitError, got %T", err)
+	}
+	if exitErr.ExitCode() != 2 {
+		t.Fatalf("unexpected exit code: got %d want 2", exitErr.ExitCode())
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout on bootstrap failure, got %q", stdout)
+	}
+	if !containsAll(stderr, "wait for daemon readiness", "probe daemon health via unix:///tmp/compozy-daemon.sock") {
+		t.Fatalf("expected explicit daemon transport failure, got %q", stderr)
+	}
+}
+
+func TestLegacyStartCommandIsRemoved(t *testing.T) {
+	output, err := executeRootCommand("start", "--help")
+	if err == nil {
+		t.Fatalf("expected legacy start command removal error\noutput:\n%s", output)
+	}
+	if !strings.Contains(output, "unknown command \"start\" for \"compozy\"") {
+		t.Fatalf("unexpected legacy start output:\n%s", output)
 	}
 }
 

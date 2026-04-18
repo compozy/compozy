@@ -164,8 +164,9 @@ func buildEffectiveExecConfig(
 
 func mergeRunsConfig(base, overlay RunsConfig) RunsConfig {
 	return RunsConfig{
-		KeepTerminalDays: cloneOptionalValue(preferOverlay(base.KeepTerminalDays, overlay.KeepTerminalDays)),
-		KeepMax:          cloneOptionalValue(preferOverlay(base.KeepMax, overlay.KeepMax)),
+		DefaultAttachMode: cloneOptionalValue(preferOverlay(base.DefaultAttachMode, overlay.DefaultAttachMode)),
+		KeepTerminalDays:  cloneOptionalValue(preferOverlay(base.KeepTerminalDays, overlay.KeepTerminalDays)),
+		KeepMax:           cloneOptionalValue(preferOverlay(base.KeepMax, overlay.KeepMax)),
 		ShutdownDrainTimeout: cloneOptionalValue(
 			preferOverlay(base.ShutdownDrainTimeout, overlay.ShutdownDrainTimeout),
 		),

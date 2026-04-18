@@ -70,6 +70,7 @@ type ExecConfig struct {
 }
 
 type RunsConfig struct {
+	DefaultAttachMode    *string `toml:"default_attach_mode"`
 	KeepTerminalDays     *int    `toml:"keep_terminal_days"`
 	KeepMax              *int    `toml:"keep_max"`
 	ShutdownDrainTimeout *string `toml:"shutdown_drain_timeout"`

@@ -15,6 +15,7 @@ import (
 	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/modelprovider"
+	"github.com/compozy/compozy/internal/core/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -603,6 +604,77 @@ include_completed = true
 	}
 }
 
+func TestApplyWorkspaceDefaultsUsesWorkspaceAttachModeOverGlobalRunsDefault(t *testing.T) {
+	root := t.TempDir()
+	homeDir := isolateCLIConfigHome(t)
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIGlobalConfig(t, homeDir, `
+[runs]
+default_attach_mode = "stream"
+`)
+	writeCLIWorkspaceConfig(t, root, `
+[runs]
+default_attach_mode = "detach"
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := &cobra.Command{Use: "tasks run"}
+	cmd.Flags().StringVar(&state.attachMode, "attach", attachModeAuto, "attach mode")
+	cmd.Flags().Bool("ui", false, "ui mode")
+	cmd.Flags().Bool("stream", false, "stream mode")
+	cmd.Flags().Bool("detach", false, "detach mode")
+
+	chdirCLITest(t, startDir)
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.attachMode != attachModeDetach {
+		t.Fatalf("expected workspace runs.default_attach_mode to override global, got %q", state.attachMode)
+	}
+}
+
+func TestApplyWorkspaceDefaultsPreservesExplicitAttachFlagOverConfig(t *testing.T) {
+	root := t.TempDir()
+	homeDir := isolateCLIConfigHome(t)
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIGlobalConfig(t, homeDir, `
+[runs]
+default_attach_mode = "stream"
+`)
+	writeCLIWorkspaceConfig(t, root, `
+[runs]
+default_attach_mode = "detach"
+`)
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	cmd := &cobra.Command{Use: "tasks run"}
+	cmd.Flags().StringVar(&state.attachMode, "attach", attachModeAuto, "attach mode")
+	cmd.Flags().Bool("ui", false, "ui mode")
+	cmd.Flags().Bool("stream", false, "stream mode")
+	cmd.Flags().Bool("detach", false, "detach mode")
+
+	chdirCLITest(t, startDir)
+
+	if err := cmd.Flags().Set("attach", "ui"); err != nil {
+		t.Fatalf("set attach: %v", err)
+	}
+	state.attachMode = attachModeUI
+
+	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
+		t.Fatalf("apply workspace defaults: %v", err)
+	}
+	if state.attachMode != attachModeUI {
+		t.Fatalf("expected explicit --attach flag to win, got %q", state.attachMode)
+	}
+}
+
 func TestApplyWorkspaceDefaultsKeepsWorkspaceDefaultsAheadOfGlobalStartOverrides(t *testing.T) {
 	root := t.TempDir()
 	homeDir := isolateCLIConfigHome(t)
@@ -905,6 +977,61 @@ ide = "claude"
 				t.Fatalf("unexpected workspace root for %s: %q", tc.name, tc.base.workspaceRoot)
 			}
 		})
+	}
+}
+
+func TestResolveWorkspaceContextUsesNearestWorkspace(t *testing.T) {
+	root := t.TempDir()
+	startDir := filepath.Join(root, "pkg", "feature")
+	if err := os.MkdirAll(startDir, 0o755); err != nil {
+		t.Fatalf("mkdir start dir: %v", err)
+	}
+	writeCLIWorkspaceConfig(t, root, "")
+	chdirCLITest(t, startDir)
+
+	workspaceCtx, err := resolveWorkspaceContext(context.Background())
+	if err != nil {
+		t.Fatalf("resolveWorkspaceContext: %v", err)
+	}
+	if mustEvalSymlinksCLITest(t, workspaceCtx.Root) != mustEvalSymlinksCLITest(t, root) {
+		t.Fatalf("unexpected workspace root: got %q want %q", workspaceCtx.Root, root)
+	}
+}
+
+func TestCommandPathHandlesNilCommand(t *testing.T) {
+	t.Parallel()
+
+	if got := commandPath(nil); got != "" {
+		t.Fatalf("expected empty command path for nil command, got %q", got)
+	}
+	cmd := &cobra.Command{Use: "tasks"}
+	if got := commandPath(cmd); got != "tasks" {
+		t.Fatalf("unexpected command path: %q", got)
+	}
+}
+
+func TestApplySoundConfigCopiesConfiguredValues(t *testing.T) {
+	t.Parallel()
+
+	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	enabled := true
+	onCompleted := "done.wav"
+	onFailed := "failed.wav"
+
+	applySoundConfig(state, workspace.SoundConfig{
+		Enabled:     &enabled,
+		OnCompleted: &onCompleted,
+		OnFailed:    &onFailed,
+	})
+
+	if !state.soundEnabled {
+		t.Fatal("expected soundEnabled to be copied from config")
+	}
+	if state.soundOnCompleted != "done.wav" {
+		t.Fatalf("unexpected soundOnCompleted: %q", state.soundOnCompleted)
+	}
+	if state.soundOnFailed != "failed.wav" {
+		t.Fatalf("unexpected soundOnFailed: %q", state.soundOnFailed)
 	}
 }
 

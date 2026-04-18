@@ -33,6 +33,7 @@ type runtimeConfig struct {
 	autoCommit                    bool
 	concurrent                    int
 	batchSize                     int
+	attachMode                    string
 	agentName                     string
 	ide                           string
 	model                         string

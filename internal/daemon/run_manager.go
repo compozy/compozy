@@ -100,26 +100,28 @@ type activeRun struct {
 }
 
 type runtimeOverrideInput struct {
-	RunID                      *string   `json:"run_id"`
-	IDE                        *string   `json:"ide"`
-	Model                      *string   `json:"model"`
-	OutputFormat               *string   `json:"output_format"`
-	ReasoningEffort            *string   `json:"reasoning_effort"`
-	AccessMode                 *string   `json:"access_mode"`
-	Timeout                    *string   `json:"timeout"`
-	TailLines                  *int      `json:"tail_lines"`
-	AddDirs                    *[]string `json:"add_dirs"`
-	AutoCommit                 *bool     `json:"auto_commit"`
-	MaxRetries                 *int      `json:"max_retries"`
-	RetryBackoffMultiplier     *float64  `json:"retry_backoff_multiplier"`
-	Concurrent                 *int      `json:"concurrent"`
-	BatchSize                  *int      `json:"batch_size"`
-	Verbose                    *bool     `json:"verbose"`
-	Persist                    *bool     `json:"persist"`
-	IncludeCompleted           *bool     `json:"include_completed"`
-	IncludeResolved            *bool     `json:"include_resolved"`
-	TUI                        *bool     `json:"tui"`
-	EnableExecutableExtensions *bool     `json:"enable_executable_extensions"`
+	DryRun                     *bool                    `json:"dry_run"`
+	RunID                      *string                  `json:"run_id"`
+	IDE                        *string                  `json:"ide"`
+	Model                      *string                  `json:"model"`
+	OutputFormat               *string                  `json:"output_format"`
+	ReasoningEffort            *string                  `json:"reasoning_effort"`
+	AccessMode                 *string                  `json:"access_mode"`
+	Timeout                    *string                  `json:"timeout"`
+	TailLines                  *int                     `json:"tail_lines"`
+	AddDirs                    *[]string                `json:"add_dirs"`
+	AutoCommit                 *bool                    `json:"auto_commit"`
+	MaxRetries                 *int                     `json:"max_retries"`
+	RetryBackoffMultiplier     *float64                 `json:"retry_backoff_multiplier"`
+	Concurrent                 *int                     `json:"concurrent"`
+	BatchSize                  *int                     `json:"batch_size"`
+	Verbose                    *bool                    `json:"verbose"`
+	Persist                    *bool                    `json:"persist"`
+	IncludeCompleted           *bool                    `json:"include_completed"`
+	IncludeResolved            *bool                    `json:"include_resolved"`
+	TaskRuntimeRules           *[]model.TaskRuntimeRule `json:"task_runtime_rules"`
+	TUI                        *bool                    `json:"tui"`
+	EnableExecutableExtensions *bool                    `json:"enable_executable_extensions"`
 }
 
 type reviewBatchingInput struct {
@@ -1796,6 +1798,9 @@ func applyRuntimeOverrideStrings(cfg *model.RuntimeConfig, overrides runtimeOver
 }
 
 func applyRuntimeOverrideScalars(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) {
+	if overrides.DryRun != nil {
+		cfg.DryRun = *overrides.DryRun
+	}
 	if overrides.TailLines != nil {
 		cfg.TailLines = *overrides.TailLines
 	}
@@ -1828,6 +1833,9 @@ func applyRuntimeOverrideScalars(cfg *model.RuntimeConfig, overrides runtimeOver
 	}
 	if overrides.IncludeResolved != nil {
 		cfg.IncludeResolved = *overrides.IncludeResolved
+	}
+	if overrides.TaskRuntimeRules != nil {
+		cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(*overrides.TaskRuntimeRules)
 	}
 	if overrides.EnableExecutableExtensions != nil {
 		cfg.EnableExecutableExtensions = *overrides.EnableExecutableExtensions

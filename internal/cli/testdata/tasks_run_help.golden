@@ -1,0 +1,36 @@
+Start a task workflow through the shared home-scoped daemon.
+
+The CLI resolves the workspace root and attach mode locally, ensures the daemon
+is running, and then sends the workflow request over the daemon transport.
+
+Usage:
+  compozy tasks run [slug] [flags]
+
+Examples:
+  compozy tasks run my-feature
+  compozy tasks run my-feature --stream
+  compozy tasks run my-feature --detach
+  compozy tasks run --name my-feature --dry-run
+
+Flags:
+      --access-mode string               Runtime access policy: default keeps native safeguards; full requests the most permissive mode Compozy can configure (default "full")
+      --add-dir strings                  Additional directory to allow for ACP runtimes that support extra writable roots (currently claude and codex; repeatable or comma-separated)
+      --attach string                    Attach mode: auto, ui, stream, or detach (default "auto")
+      --auto-commit                      Include automatic commit instructions at task/batch completion
+      --detach                           Start the run without attaching a client
+      --dry-run                          Only generate prompts; do not run IDE tool
+      --force                            Continue after task metadata validation fails in non-interactive mode
+  -h, --help                             help for run
+      --ide string                       ACP runtime to use. Built-in and enabled extension runtimes are validated against the active runtime catalog. (default "codex")
+      --include-completed                Include completed tasks
+      --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
+      --model string                     Model to use. Leave empty to use the selected runtime default.
+      --name string                      Task workflow slug (defaults to the positional slug)
+      --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
+      --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)
+      --skip-validation                  Skip task metadata preflight; use only when tasks were validated separately
+      --stream                           Force textual stream attach mode
+      --tail-lines int                   Maximum number of log lines to retain in UI per job (0 = full history)
+      --task-runtime task-runtime        Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.4 or id=task_01,reasoning-effort=xhigh
+      --timeout string                   Activity timeout duration (e.g., 5m, 30s). Job canceled if no output received within this period. (default "10m")
+      --ui                               Force interactive UI attach mode

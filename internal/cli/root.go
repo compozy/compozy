@@ -65,13 +65,15 @@ Use explicit workflow subcommands:
   compozy migrate       Convert legacy workflow artifacts to frontmatter
   compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy daemon        Manage the home-scoped daemon bootstrap lifecycle
+  compozy workspaces    Inspect daemon workspace registrations
+  compozy tasks         Inspect and run task workflows
+  compozy reviews       Inspect review workflow state
   compozy runs          Inspect and clean persisted daemon run artifacts
   compozy sync          Reconcile workflow artifacts into global.db
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
   compozy fix-reviews   Process review issue files from a specific review round
-  compozy exec          Execute one ad hoc prompt through the shared ACP runtime
-  compozy start         Execute PRD task files`,
+  compozy exec          Execute one ad hoc prompt through the shared ACP runtime`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
@@ -85,13 +87,15 @@ Use explicit workflow subcommands:
 		newMigrateCommand(dispatcher),
 		newValidateTasksCommand(dispatcher),
 		newDaemonCommand(),
+		newWorkspacesCommand(),
+		newTasksCommand(dispatcher, defaults),
+		newReviewsCommand(),
 		newRunsCommand(),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
 		newFetchReviewsCommandWithDefaults(dispatcher, defaults),
 		newFixReviewsCommandWithDefaults(dispatcher, defaults),
 		newExecCommandWithDefaults(dispatcher, defaults),
-		newStartCommandWithDefaults(dispatcher, defaults),
 		newMCPServeCommand(),
 	)
 	return root

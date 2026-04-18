@@ -170,6 +170,12 @@ func validateExec(scope string, defaults DefaultsConfig, cfg ExecConfig) error {
 }
 
 func validateRuns(scope string, cfg RunsConfig) error {
+	if err := validateAttachModeValue(
+		configFieldName(scope, "runs.default_attach_mode"),
+		cfg.DefaultAttachMode,
+	); err != nil {
+		return err
+	}
 	if cfg.KeepTerminalDays != nil && *cfg.KeepTerminalDays < 0 {
 		return fmt.Errorf(
 			"%s must be zero or greater (got %d)",
@@ -202,6 +208,28 @@ func validateRuns(scope string, cfg RunsConfig) error {
 		}
 	}
 	return nil
+}
+
+func validateAttachModeValue(field string, value *string) error {
+	if value == nil {
+		return nil
+	}
+	switch strings.TrimSpace(*value) {
+	case "":
+		return fmt.Errorf("%s cannot be empty", field)
+	case "auto", "ui", "stream", "detach":
+		return nil
+	default:
+		return fmt.Errorf(
+			"%s must be %q, %q, %q, or %q (got %q)",
+			field,
+			"auto",
+			"ui",
+			"stream",
+			"detach",
+			strings.TrimSpace(*value),
+		)
+	}
 }
 
 func validateWorkflowTUI(scope, section string, defaults DefaultsConfig, outputFormat *string, tui *bool) error {

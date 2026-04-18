@@ -36,21 +36,9 @@ func newDaemonStartCommand() *cobra.Command {
 			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer stop()
 
-			result, err := daemon.Start(ctx, daemon.StartOptions{
+			return daemon.Run(ctx, daemon.RunOptions{
 				Version: version.String(),
 			})
-			if err != nil {
-				return err
-			}
-			if result.Outcome == daemon.StartOutcomeAlreadyRunning {
-				return nil
-			}
-			defer func() {
-				_ = result.Host.Close(context.Background())
-			}()
-
-			<-ctx.Done()
-			return nil
 		},
 	}
 }
