@@ -89,8 +89,8 @@ Decompose requirements into detailed, actionable task files with codebase-inform
    - Update the task file in place with enriched content.
    - If enrichment fails for one task, continue to the next and report all failures at the end.
 
-7. Run validate-tasks.
-   - Run `compozy validate-tasks --name <feature>`.
+7. Run task validation.
+   - Run `compozy tasks validate --name <feature>`.
    - If it exits non-zero, fix the reported issues and re-run.
    - Do not mark the skill complete until it exits 0.
 

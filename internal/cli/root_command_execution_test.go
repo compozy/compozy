@@ -66,7 +66,7 @@ func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 	}
 }
 
-func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) {
+func TestTasksValidateCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
 		[]string{
@@ -79,7 +79,7 @@ func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) 
 
 	withWorkingDir(t, workspaceRoot)
 
-	output, err := executeRootCommand("validate-tasks", "--tasks-dir", tasksDir)
+	output, err := executeRootCommand("tasks", "validate", "--tasks-dir", tasksDir)
 	if err == nil {
 		t.Fatalf("expected validation failure\noutput:\n%s", output)
 	}
@@ -97,7 +97,7 @@ func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) 
 		"# Task 1: Missing Title",
 	))
 
-	output, err = executeRootCommand("validate-tasks", "--tasks-dir", tasksDir)
+	output, err = executeRootCommand("tasks", "validate", "--tasks-dir", tasksDir)
 	if err != nil {
 		t.Fatalf("expected validation success: %v\noutput:\n%s", err, output)
 	}
@@ -1393,7 +1393,37 @@ func TestLegacyStartCommandIsRemoved(t *testing.T) {
 	}
 }
 
-func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
+func TestLegacyValidateTasksCommandIsRemoved(t *testing.T) {
+	output, err := executeRootCommand("validate-tasks", "--help")
+	if err == nil {
+		t.Fatalf("expected legacy validate-tasks command removal error\noutput:\n%s", output)
+	}
+	if !strings.Contains(output, "unknown command \"validate-tasks\" for \"compozy\"") {
+		t.Fatalf("unexpected legacy validate-tasks output:\n%s", output)
+	}
+}
+
+func TestLegacyFetchReviewsCommandIsRemoved(t *testing.T) {
+	output, err := executeRootCommand("fetch-reviews", "--help")
+	if err == nil {
+		t.Fatalf("expected legacy fetch-reviews command removal error\noutput:\n%s", output)
+	}
+	if !strings.Contains(output, "unknown command \"fetch-reviews\" for \"compozy\"") {
+		t.Fatalf("unexpected legacy fetch-reviews output:\n%s", output)
+	}
+}
+
+func TestLegacyFixReviewsCommandIsRemoved(t *testing.T) {
+	output, err := executeRootCommand("fix-reviews", "--help")
+	if err == nil {
+		t.Fatalf("expected legacy fix-reviews command removal error\noutput:\n%s", output)
+	}
+	if !strings.Contains(output, "unknown command \"fix-reviews\" for \"compozy\"") {
+		t.Fatalf("unexpected legacy fix-reviews output:\n%s", output)
+	}
+}
+
+func TestReviewsFixCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
@@ -1418,7 +1448,8 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 		t,
 		cmd,
 		nil,
-		"fix-reviews",
+		"reviews",
+		"fix",
 		"--name",
 		"demo",
 		"--round",
@@ -1426,10 +1457,10 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 		"--dry-run",
 	)
 	if err != nil {
-		t.Fatalf("execute fix-reviews dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute reviews fix dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if stderr != "" {
-		t.Fatalf("expected no stderr for dry-run fix-reviews, got %q", stderr)
+		t.Fatalf("expected no stderr for dry-run reviews fix, got %q", stderr)
 	}
 
 	runDir := latestRunDirForCLI(t, workspaceRoot)
@@ -1466,7 +1497,7 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 }
 
-func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.T) {
+func TestReviewsFixCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
@@ -1491,7 +1522,8 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 		t,
 		cmd,
 		nil,
-		"fix-reviews",
+		"reviews",
+		"fix",
 		"--name",
 		"demo",
 		"--round",
@@ -1501,10 +1533,10 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 		"raw-json",
 	)
 	if err != nil {
-		t.Fatalf("execute fix-reviews raw-json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute reviews fix raw-json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if stderr != "" {
-		t.Fatalf("expected no stderr for raw-json fix-reviews, got %q", stderr)
+		t.Fatalf("expected no stderr for raw-json reviews fix, got %q", stderr)
 	}
 
 	events := decodeExecJSONLEvents(t, stdout)

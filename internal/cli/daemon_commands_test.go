@@ -1373,7 +1373,7 @@ func TestHelpOnlyDaemonCommandRootsReturnHelp(t *testing.T) {
 		{
 			name: "reviews",
 			cmd:  newReviewsCommand(),
-			want: "Inspect and remediate review workflows",
+			want: "Fetch, inspect, and remediate review workflows",
 		},
 	}
 

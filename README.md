@@ -86,7 +86,7 @@ compozy ext enable cy-idea-factory
 compozy setup
 ```
 
-Execution runtimes are separate from skill installation. To run `compozy exec`, `compozy tasks run`, or `compozy reviews fix` (the top-level `fix-reviews` alias still works), install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
+Execution runtimes are separate from skill installation. To run `compozy exec`, `compozy tasks run`, or `compozy reviews fix`, install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
 
 | Runtime            | `--ide` flag   | Expected ACP command             |
 | ------------------ | -------------- | -------------------------------- |
@@ -119,7 +119,7 @@ Task and review issue files use YAML frontmatter for parseable metadata such as 
 - `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
 - `compozy tasks run <slug>` is the canonical workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
 - `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
-- `compozy reviews fetch|list|show|fix` is the canonical review command family. The legacy top-level `fetch-reviews` and `fix-reviews` commands remain as compatibility aliases.
+- `compozy reviews fetch|list|show|fix` is the canonical review command family.
 
 ### Task Schema v2
 
@@ -128,7 +128,7 @@ Task files now use the v2 frontmatter shape: `status`, `title`, `type`, `complex
 ```md
 ---
 status: pending
-title: Add validate-tasks preflight to start
+title: Add task validation preflight to tasks run
 type: backend
 complexity: medium
 dependencies:
@@ -136,7 +136,7 @@ dependencies:
 ---
 ```
 
-Validate task files at any time with `compozy validate-tasks --name <feature>`. `compozy tasks run <feature>` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
+Validate task files at any time with `compozy tasks validate --name <feature>`. `compozy tasks run <feature>` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
 
 ## ⚙️ Config Files
 
@@ -192,7 +192,7 @@ Supported sections:
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
 - `[start]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`
-- `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy validate-tasks`
+- `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 - `[sound]` for optional run-completion audio presets or absolute file paths
@@ -388,7 +388,7 @@ Reads your PRD, explores the codebase architecture, asks technical clarification
 ```
 
 Analyzes both documents, explores your codebase for relevant files and patterns, produces individually executable task files with status tracking, context, and acceptance criteria.
-Generated task files use task schema v2 (`status`, `title`, `type`, `complexity`, `dependencies`). Validate them any time with `compozy validate-tasks --name user-auth`.
+Generated task files use task schema v2 (`status`, `title`, `type`, `complexity`, `dependencies`). Validate them any time with `compozy tasks validate --name user-auth`.
 
 ### 6. Execute tasks
 
@@ -410,7 +410,7 @@ Each pending task is processed sequentially through the shared daemon — the ag
 **Option B** — Fetch from an external provider:
 
 ```bash
-compozy fetch-reviews --provider coderabbit --pr 42 --name user-auth
+compozy reviews fetch user-auth --provider coderabbit --pr 42
 ```
 
 Both produce the same output: `.compozy/tasks/user-auth/reviews-001/issue_*.md`
@@ -585,6 +585,17 @@ The daemon lazily registers workspaces on first use, but the `workspaces` family
 </details>
 
 <details>
+<summary><code>compozy tasks validate</code> — Validate task metadata before execution</summary>
+
+```bash
+compozy tasks validate [--name my-feature | --tasks-dir .compozy/tasks/my-feature] [--format text|json]
+```
+
+Use `tasks validate` to check every `task_*.md` file in a workflow directory against the v2 task metadata schema before you run `tasks run`.
+
+</details>
+
+<details>
 <summary><code>compozy tasks run</code> — Start one daemon-backed workflow run</summary>
 
 ```bash
@@ -617,7 +628,7 @@ compozy reviews show <slug> [round]
 compozy reviews fix <slug> [flags]
 ```
 
-`reviews fix` uses the same daemon-backed runtime model as `tasks run`, including `--attach`, `--ui`, `--stream`, and `--detach`. The top-level `fetch-reviews` and `fix-reviews` commands remain available as compatibility aliases.
+`reviews fetch` imports provider feedback into `.compozy/tasks/<slug>/reviews-NNN/`. `reviews fix` uses the same daemon-backed runtime model as `tasks run`, including `--attach`, `--ui`, `--stream`, and `--detach`.
 
 </details>
 
@@ -719,58 +730,6 @@ compozy ext <subcommand> [flags]
 | `ext enable <name>`    | Enable an extension on this machine                |
 | `ext disable <name>`   | Disable an extension on this machine               |
 | `ext doctor`           | Validate manifests and report health warnings      |
-
-</details>
-
-<details>
-<summary><code>compozy fetch-reviews</code> — Compatibility alias for <code>compozy reviews fetch</code></summary>
-
-```bash
-compozy fetch-reviews [flags]
-```
-
-This alias stays available for existing scripts. New operator flows should prefer `compozy reviews fetch`.
-
-| Flag         | Default | Description                               |
-| ------------ | ------- | ----------------------------------------- |
-| `--provider` |         | Review provider (`coderabbit`, etc.)      |
-| `--pr`       |         | Pull request number                       |
-| `--name`     |         | Workflow name                             |
-| `--round`    | `0`     | Round number (auto-increments if omitted) |
-
-By default, `fetch-reviews` imports CodeRabbit review-body comments for `nitpick`, `minor`, and `major`.
-Use `[fetch_reviews].nitpicks = false` in either config file to disable that import.
-
-</details>
-
-<details>
-<summary><code>compozy fix-reviews</code> — Compatibility alias for <code>compozy reviews fix</code></summary>
-
-```bash
-compozy fix-reviews [flags]
-```
-
-This alias stays available for existing scripts. New operator flows should prefer `compozy reviews fix`.
-
-| Flag                         | Default     | Description                                                                                |
-| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| `--name`                     |             | Workflow name                                                                              |
-| `--round`                    | `0`         | Round number (latest if omitted)                                                           |
-| `--reviews-dir`              |             | Override review directory path                                                             |
-| `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_ | Model override                                                                             |
-| `--batch-size`               | `1`         | Issues per batch                                                                           |
-| `--concurrent`               | `1`         | Parallel batches                                                                           |
-| `--include-resolved`         | `false`     | Re-process resolved issues                                                                 |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
-| `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
-| `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
-| `--auto-commit`              | `false`     | Auto-commit after each batch                                                               |
-| `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
 
 </details>
 

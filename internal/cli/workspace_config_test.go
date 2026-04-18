@@ -321,11 +321,11 @@ func TestApplyWorkspaceDefaultsFetchReviewsNitpicks(t *testing.T) {
 		wantNitpicks  bool
 	}{
 		{
-			name:         "keep fetch-reviews review-body comments enabled when config is absent",
+			name:         "keep reviews fetch review-body comments enabled when config is absent",
 			wantNitpicks: true,
 		},
 		{
-			name: "disable fetch-reviews review-body comments from workspace config",
+			name: "disable reviews fetch review-body comments from workspace config",
 			configContent: `
 [fetch_reviews]
 nitpicks = false
@@ -333,7 +333,7 @@ nitpicks = false
 			wantNitpicks: false,
 		},
 		{
-			name: "enable fetch-reviews review-body comments from workspace config",
+			name: "enable reviews fetch review-body comments from workspace config",
 			configContent: `
 [fetch_reviews]
 nitpicks = true
@@ -357,7 +357,7 @@ nitpicks = true
 			}
 
 			state := newCommandState(commandKindFetchReviews, core.ModePRReview)
-			cmd := &cobra.Command{Use: "fetch-reviews"}
+			cmd := &cobra.Command{Use: "reviews fetch"}
 			cmd.Flags().String("provider", "", "provider")
 
 			chdirCLITest(t, startDir)
@@ -455,7 +455,7 @@ provider = "ext-review"
 	chdirCLITest(t, startDir)
 
 	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
-	cmd := &cobra.Command{Use: "fetch-reviews"}
+	cmd := &cobra.Command{Use: "reviews fetch"}
 	cmd.Flags().String("ide", "", "")
 	cmd.Flags().String("model", "", "")
 	cmd.Flags().String("provider", "", "")

@@ -200,7 +200,7 @@ func TestFetchReviewsUsesEnabledExtensionProviderOverlay(t *testing.T) {
 		}, nil
 	}
 
-	cmd := &cobra.Command{Use: "fetch-reviews"}
+	cmd := &cobra.Command{Use: "reviews fetch"}
 	cmd.Flags().String("provider", "", "")
 	_ = cmd.Flags().Set("provider", "ext-review")
 	var output bytes.Buffer

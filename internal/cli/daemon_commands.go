@@ -234,11 +234,14 @@ func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executa
 func newTasksCommand(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "tasks",
-		Short:        "Inspect and run task workflows",
+		Short:        "Inspect, validate, and run task workflows",
 		SilenceUsage: true,
 	}
 
-	cmd.AddCommand(newTasksRunCommandWithDefaults(dispatcher, defaults))
+	cmd.AddCommand(
+		newTasksValidateCommand(),
+		newTasksRunCommandWithDefaults(dispatcher, defaults),
+	)
 	return cmd
 }
 

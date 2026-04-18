@@ -35,7 +35,7 @@ Validate a realistic operator flow against a temporary Node.js API workspace: in
 3. In the same temp workspace and temp Compozy home, run `compozy setup --agent codex --global --yes`, `compozy daemon start`, and `compozy daemon status --format json`.
    **Expected:** Required workflow skills are installed, the daemon reaches `ready`, and status reports one home-scoped daemon with zero active runs before execution.
 
-4. Run `compozy validate-tasks --name node-health`, `compozy sync --name node-health --format json`, and `compozy workspaces resolve /tmp/... --format json`.
+4. Run `compozy tasks validate --name node-health`, `compozy sync --name node-health --format json`, and `compozy workspaces resolve /tmp/... --format json`.
    **Expected:** Task metadata validates, sync reports one workflow plus one review round and one review issue upserted, and the workspace resolves into the daemon registry.
 
 5. Run `compozy tasks run node-health --dry-run --stream`.

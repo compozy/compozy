@@ -47,7 +47,8 @@ func TestValidateTasksCommandJSONMixedFixture(t *testing.T) {
 	stdout, stderr, exitCode := runValidateTasksCommand(
 		t,
 		workspaceRoot,
-		"validate-tasks",
+		"tasks",
+		"validate",
 		"--tasks-dir",
 		tasksDir,
 		"--format",
@@ -85,7 +86,7 @@ func TestValidateTasksCommandAllValid(t *testing.T) {
 		"# Task 2: Valid Two",
 	))
 
-	stdout, stderr, exitCode := runValidateTasksCommand(t, workspaceRoot, "validate-tasks", "--tasks-dir", tasksDir)
+	stdout, stderr, exitCode := runValidateTasksCommand(t, workspaceRoot, "tasks", "validate", "--tasks-dir", tasksDir)
 	if exitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
@@ -98,7 +99,14 @@ func TestValidateTasksCommandMissingDir(t *testing.T) {
 	workspaceRoot, _ := makeValidateTasksWorkspace(t, "demo")
 	missingDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "missing")
 
-	stdout, stderr, exitCode := runValidateTasksCommand(t, workspaceRoot, "validate-tasks", "--tasks-dir", missingDir)
+	stdout, stderr, exitCode := runValidateTasksCommand(
+		t,
+		workspaceRoot,
+		"tasks",
+		"validate",
+		"--tasks-dir",
+		missingDir,
+	)
 	if exitCode != 2 {
 		t.Fatalf("expected exit code 2, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
@@ -162,7 +170,8 @@ func TestValidateTasksCommandTrimsFormatBeforeSelectingJSONWriter(t *testing.T) 
 	stdout, stderr, exitCode := runValidateTasksCommand(
 		t,
 		workspaceRoot,
-		"validate-tasks",
+		"tasks",
+		"validate",
 		"--tasks-dir",
 		tasksDir,
 		"--format",
@@ -198,7 +207,8 @@ func TestValidateTasksCommandResolvesRelativeTasksDirFromWorkspaceRoot(t *testin
 	stdout, stderr, exitCode := runValidateTasksCommand(
 		t,
 		nested,
-		"validate-tasks",
+		"tasks",
+		"validate",
 		"--tasks-dir",
 		filepath.Join(".compozy", "tasks", "demo"),
 	)

@@ -63,14 +63,14 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 3. Review the proposed task breakdown.
 4. Task files are generated with YAML frontmatter: `status`, `title`, `type`, `complexity`, `dependencies`.
 5. Tasks are enriched with codebase patterns and implementation context.
-6. Validation runs via `compozy validate-tasks`.
+6. Validation runs via `compozy tasks validate`.
 7. Output: `task_01.md` through `task_N.md`, `_tasks.md` master list.
 
 **Task types:** `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`. Custom types can be registered in `.compozy/config.toml` under `[tasks].types`.
 
 ## Phase 5: Execution
 
-**Command:** `compozy start --name <slug> --ide <runtime>`
+**Command:** `compozy tasks run <slug> --ide <runtime>`
 
 1. Compozy reads task files from `.compozy/tasks/<slug>/` in order, respecting dependencies.
 2. For each pending task, Compozy constructs a prompt including the task spec, PRD, TechSpec, ADRs, and workflow memory.
@@ -83,7 +83,7 @@ Install flow: `compozy ext install --yes compozy/compozy --remote github --ref <
 - `--dry-run` -- generate prompts without running the IDE tool.
 - `--include-completed` -- re-process tasks already marked as completed.
 
-**Interactive mode:** When run without flags, an interactive TUI form collects the workflow name, IDE, and options.
+**Interactive mode:** In interactive terminals, `tasks run` attaches to the TUI by default; use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
 
 ## Phase 6: Review
 
@@ -97,7 +97,7 @@ Invoke inside an agent session. The skill performs a comprehensive code review o
 
 ### Path B: External Provider Review
 
-**Command:** `compozy fetch-reviews --provider coderabbit --pr <N> --name <slug>`
+**Command:** `compozy reviews fetch <slug> --provider coderabbit --pr <N>`
 
 Fetches review comments from an external provider (currently CodeRabbit) and writes them as issue markdown files under `reviews-NNN/`.
 
@@ -105,7 +105,7 @@ Fetches review comments from an external provider (currently CodeRabbit) and wri
 
 ## Phase 7: Remediation
 
-**Command:** `compozy fix-reviews --name <slug> --ide <runtime>`
+**Command:** `compozy reviews fix <slug> --ide <runtime>`
 
 1. Compozy reads issue files from the latest (or specified) review round.
 2. For each batch of issues, the configured ACP runtime executes the `cy-fix-reviews` skill.
