@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Run Manager
 type: backend
 complexity: critical
@@ -31,11 +31,11 @@ This task wraps Compozy's existing planner, executor, run scope, and extension r
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Introduce the daemon-owned run manager contract and wire it to the shared transport layer.
-- [ ] 5.2 Adapt the current planner and executor to start under daemon lifecycle ownership without changing workflow semantics.
-- [ ] 5.3 Persist initial run allocation, mode, presentation mode, and cancellation state before child work begins.
-- [ ] 5.4 Expose dense run snapshots and cancellation semantics for task, review, and exec flows.
-- [ ] 5.5 Add concurrency and lifecycle tests for duplicate `run_id`, parallel runs, cancellation, and terminal-state mirroring.
+- [x] 5.1 Introduce the daemon-owned run manager contract and wire it to the shared transport layer.
+- [x] 5.2 Adapt the current planner and executor to start under daemon lifecycle ownership without changing workflow semantics.
+- [x] 5.3 Persist initial run allocation, mode, presentation mode, and cancellation state before child work begins.
+- [x] 5.4 Expose dense run snapshots and cancellation semantics for task, review, and exec flows.
+- [x] 5.5 Add concurrency and lifecycle tests for duplicate `run_id`, parallel runs, cancellation, and terminal-state mirroring.
 
 ## Implementation Details
 Implement the run orchestration layer described in the TechSpec "Run manager", "Data Flow", and "Run Lifecycle and Recovery" sections. This task should make the daemon the owner of run lifecycle and persistence while keeping the current execution engine, extension hooks, and event semantics intact.
@@ -73,17 +73,17 @@ Implement the run orchestration layer described in the TechSpec "Run manager", "
 
 ## Tests
 - Unit tests:
-  - [ ] Starting a run allocates `run.db`, records the `runs` row, and rejects duplicate `run_id` creation with a conflict error.
-  - [ ] Cancelling a running task run transitions the run into the expected terminal state and persists the final status in both stores.
-  - [ ] Cancelling the same run twice remains idempotent and does not corrupt the persisted lifecycle state.
-  - [ ] Creating task, review, and exec runs produces mode-specific snapshots without changing the shared lifecycle contract.
-  - [ ] A start failure after run allocation but before child execution rolls back or marks persisted state consistently instead of leaving an orphaned `running` row.
+  - [x] Starting a run allocates `run.db`, records the `runs` row, and rejects duplicate `run_id` creation with a conflict error.
+  - [x] Cancelling a running task run transitions the run into the expected terminal state and persists the final status in both stores.
+  - [x] Cancelling the same run twice remains idempotent and does not corrupt the persisted lifecycle state.
+  - [x] Creating task, review, and exec runs produces mode-specific snapshots without changing the shared lifecycle contract.
+  - [x] A start failure after run allocation but before child execution rolls back or marks persisted state consistently instead of leaving an orphaned `running` row.
 - Integration tests:
-  - [ ] Two runs with different `run_id` values can execute concurrently in the same workspace without corrupting each other's persisted state.
-  - [ ] Starting a second run with the same explicit `run_id` returns `409` even when requested concurrently from two clients.
-  - [ ] A daemon-backed task run emits a dense snapshot that includes job tree, transcript window, and next cursor for later attach flows.
-  - [ ] A cancelled daemon-backed run mirrors the same terminal state to both `global.db` and `run.db` before clients observe completion.
-  - [ ] An exec run started through the daemon persists `mode=exec` and follows the same cancel and completion semantics as workflow runs.
+  - [x] Two runs with different `run_id` values can execute concurrently in the same workspace without corrupting each other's persisted state.
+  - [x] Starting a second run with the same explicit `run_id` returns `409` even when requested concurrently from two clients.
+  - [x] A daemon-backed task run emits a dense snapshot that includes job tree, transcript window, and next cursor for later attach flows.
+  - [x] A cancelled daemon-backed run mirrors the same terminal state to both `global.db` and `run.db` before clients observe completion.
+  - [x] An exec run started through the daemon persists `mode=exec` and follows the same cancel and completion semantics as workflow runs.
 - Test coverage target: >=80%
 - All tests must pass
 

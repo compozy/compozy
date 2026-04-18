@@ -14,10 +14,17 @@ import (
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
 	coreRun "github.com/compozy/compozy/internal/core/run"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
+)
+
+const (
+	execStatusFailed   = "failed"
+	execStatusCanceled = "canceled"
+	execStatusCrashed  = "crashed"
 )
 
 func newReviewsCommand() *cobra.Command {
@@ -99,8 +106,12 @@ func newReviewsFixCommandWithDefaults(defaults commandStateDefaults) *cobra.Comm
 	addWorkflowOutputFlags(cmd, state)
 	cmd.Flags().StringVar(&state.name, "name", "", "Workflow name (used for .compozy/tasks/<name>)")
 	cmd.Flags().IntVar(&state.round, "round", 0, "Review round number (default: latest existing round)")
-	cmd.Flags().
-		StringVar(&state.reviewsDir, "reviews-dir", "", "Path to a review round directory (.compozy/tasks/<name>/reviews-NNN)")
+	cmd.Flags().StringVar(
+		&state.reviewsDir,
+		"reviews-dir",
+		"",
+		"Path to a review round directory (.compozy/tasks/<name>/reviews-NNN)",
+	)
 	cmd.Flags().IntVar(&state.batchSize, "batch-size", 1, "Number of file groups to batch together (default: 1)")
 	cmd.Flags().BoolVar(&state.includeResolved, "include-resolved", false, "Include already-resolved review issues")
 	cmd.Flags().StringVar(&state.attachMode, "attach", attachModeAuto, "Attach mode: auto, ui, stream, or detach")
@@ -252,6 +263,7 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 	if err := s.resolveReviewRound(ctx); err != nil {
 		return withExitCode(1, err)
 	}
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	cfg, err := s.buildConfig()
 	if err != nil {
@@ -319,6 +331,7 @@ func (s *commandState) execDaemon(cmd *cobra.Command, args []string) error {
 	if err := s.resolveExecPromptSource(cmd, args); err != nil {
 		return s.handleExecError(cmd, withExitCode(1, err))
 	}
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	cfg, err := s.buildConfig()
 	if err != nil {
@@ -360,7 +373,7 @@ func (s *commandState) execDaemon(cmd *cobra.Command, args []string) error {
 		RuntimeOverrides: runtimeOverrides,
 	})
 	if err != nil {
-		return s.handleExecError(cmd, mapDaemonCommandError(err))
+		return s.handleExecError(cmd, decorateReusableAgentError(cmd, s.agentName, mapDaemonCommandError(err)))
 	}
 
 	switch strings.TrimSpace(s.outputFormat) {
@@ -371,7 +384,7 @@ func (s *commandState) execDaemon(cmd *cobra.Command, args []string) error {
 	default:
 		err = s.waitAndPrintExecResult(ctx, cmd.OutOrStdout(), client, run.RunID)
 	}
-	return s.handleExecError(cmd, err)
+	return s.handleExecError(cmd, decorateReusableAgentError(cmd, s.agentName, err))
 }
 
 func (s *commandState) resolveExecPresentationMode(cmd *cobra.Command) (string, error) {
@@ -420,6 +433,10 @@ func (s *commandState) buildReviewRunRuntimeOverrides(cmd *cobra.Command) (json.
 	set(commandFlagChanged(cmd, "retry-backoff-multiplier"), func() {
 		overrides.RetryBackoffMultiplier = float64Pointer(s.retryBackoffMultiplier)
 	})
+	if explicit := explicitRuntimeOverridesPayload(s.explicitRuntime); explicit != nil {
+		overrides.ExplicitRuntime = explicit
+		hasOverrides = true
+	}
 
 	if !hasOverrides {
 		return nil, nil
@@ -468,6 +485,7 @@ func (s *commandState) buildExecRuntimeOverrides(cmd *cobra.Command) (json.RawMe
 	set(commandFlagChanged(cmd, "auto-commit"), func() { overrides.AutoCommit = boolPointer(s.autoCommit) })
 	set(commandFlagChanged(cmd, "ide"), func() { overrides.IDE = stringPointer(s.ide) })
 	set(commandFlagChanged(cmd, "model"), func() { overrides.Model = stringPointer(s.model) })
+	set(commandFlagChanged(cmd, "agent"), func() { overrides.AgentName = stringPointer(s.agentName) })
 	set(commandFlagChanged(cmd, "format"), func() { overrides.OutputFormat = stringPointer(s.outputFormat) })
 	set(commandFlagChanged(cmd, "add-dir"), func() {
 		addDirs := core.NormalizeAddDirs(s.addDirs)
@@ -488,6 +506,10 @@ func (s *commandState) buildExecRuntimeOverrides(cmd *cobra.Command) (json.RawMe
 	set(commandFlagChanged(cmd, "extensions"), func() {
 		overrides.EnableExecutableExtensions = boolPointer(s.extensionsEnabled)
 	})
+	if explicit := explicitRuntimeOverridesPayload(s.explicitRuntime); explicit != nil {
+		overrides.ExplicitRuntime = explicit
+		hasOverrides = true
+	}
 
 	if !hasOverrides {
 		return nil, nil
@@ -497,6 +519,14 @@ func (s *commandState) buildExecRuntimeOverrides(cmd *cobra.Command) (json.RawMe
 		return nil, fmt.Errorf("encode runtime overrides: %w", err)
 	}
 	return payload, nil
+}
+
+func explicitRuntimeOverridesPayload(flags model.ExplicitRuntimeFlags) *model.ExplicitRuntimeFlags {
+	if !flags.IDE && !flags.Model && !flags.ReasoningEffort && !flags.AccessMode {
+		return nil
+	}
+	explicit := flags
+	return &explicit
 }
 
 func (s *commandState) waitAndPrintExecResult(
@@ -549,7 +579,7 @@ func (s *commandState) streamDaemonWorkflowEvents(
 				"time":   item.Event.Timestamp,
 			}
 			if len(item.Event.Payload) > 0 {
-				payload["payload"] = json.RawMessage(item.Event.Payload)
+				payload["payload"] = item.Event.Payload
 			}
 			if err := encoder.Encode(payload); err != nil {
 				return err
@@ -662,7 +692,21 @@ func waitForDaemonRunTerminal(ctx context.Context, client daemonCommandClient, r
 		terminal = snapshot.Run
 		return nil
 	})
-	return terminal, err
+	if err != nil {
+		return terminal, err
+	}
+	if isTerminalDaemonRun(terminal.Status) {
+		return terminal, nil
+	}
+
+	snapshot, snapshotErr := client.GetRunSnapshot(ctx, runID)
+	if snapshotErr != nil {
+		return terminal, snapshotErr
+	}
+	if isTerminalDaemonRun(snapshot.Run.Status) {
+		return snapshot.Run, nil
+	}
+	return terminal, nil
 }
 
 func translateDaemonExecEvent(
@@ -699,67 +743,15 @@ func translateDaemonExecEvent(
 		}
 		return []map[string]any{out}, nil
 	case eventspkg.EventKindSessionUpdate:
-		payload, err := decodeDaemonPayload[kinds.SessionUpdatePayload](event.Payload)
-		if err != nil {
-			return nil, err
-		}
-		out := map[string]any{
-			"type":   "session.update",
-			"run_id": runID,
-			"time":   event.Timestamp,
-			"turn":   1,
-			"update": payload.Update,
-			"usage":  payload.Update.Usage,
-		}
-		if raw || shouldEmitLeanExecUpdate(payload.Update) {
-			return []map[string]any{out}, nil
-		}
-		return nil, nil
+		return translateDaemonExecSessionUpdate(runID, event, raw)
 	case eventspkg.EventKindRunCompleted:
-		output, _ := loadExecResponseText(workspaceRoot, runID)
-		return []map[string]any{{
-			"type":   "run.succeeded",
-			"run_id": runID,
-			"time":   event.Timestamp,
-			"status": "succeeded",
-			"output": output,
-		}}, nil
+		return translateDaemonExecTerminalEvent(workspaceRoot, runID, event)
 	case eventspkg.EventKindRunFailed:
-		payload, err := decodeDaemonPayload[kinds.RunFailedPayload](event.Payload)
-		if err != nil {
-			return nil, err
-		}
-		return []map[string]any{{
-			"type":   "run.failed",
-			"run_id": runID,
-			"time":   event.Timestamp,
-			"status": "failed",
-			"error":  payload.Error,
-		}}, nil
+		return translateDaemonExecTerminalEvent(workspaceRoot, runID, event)
 	case eventspkg.EventKindRunCancelled:
-		payload, err := decodeDaemonPayload[kinds.RunCancelledPayload](event.Payload)
-		if err != nil {
-			return nil, err
-		}
-		return []map[string]any{{
-			"type":   "run.failed",
-			"run_id": runID,
-			"time":   event.Timestamp,
-			"status": "canceled",
-			"error":  payload.Reason,
-		}}, nil
+		return translateDaemonExecTerminalEvent(workspaceRoot, runID, event)
 	case eventspkg.EventKindRunCrashed:
-		payload, err := decodeDaemonPayload[kinds.RunCrashedPayload](event.Payload)
-		if err != nil {
-			return nil, err
-		}
-		return []map[string]any{{
-			"type":   "run.failed",
-			"run_id": runID,
-			"time":   event.Timestamp,
-			"status": "crashed",
-			"error":  payload.Error,
-		}}, nil
+		return translateDaemonExecTerminalEvent(workspaceRoot, runID, event)
 	default:
 		if raw {
 			return nil, nil
@@ -768,24 +760,127 @@ func translateDaemonExecEvent(
 	}
 }
 
+func translateDaemonExecSessionUpdate(
+	runID string,
+	event eventspkg.Event,
+	raw bool,
+) ([]map[string]any, error) {
+	payload, err := decodeDaemonPayload[kinds.SessionUpdatePayload](event.Payload)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{
+		"type":   "session.update",
+		"run_id": runID,
+		"time":   event.Timestamp,
+		"turn":   1,
+		"update": payload.Update,
+		"usage":  payload.Update.Usage,
+	}
+	if raw || shouldEmitLeanExecUpdate(payload.Update) {
+		return []map[string]any{out}, nil
+	}
+	return nil, nil
+}
+
+func translateDaemonExecTerminalEvent(
+	workspaceRoot string,
+	runID string,
+	event eventspkg.Event,
+) ([]map[string]any, error) {
+	result := map[string]any{
+		"run_id": runID,
+		"time":   event.Timestamp,
+	}
+
+	switch event.Kind {
+	case eventspkg.EventKindRunCompleted:
+		output, err := loadExecResponseText(workspaceRoot, runID)
+		if err != nil {
+			return nil, err
+		}
+		result["type"] = "run.succeeded"
+		result["status"] = "succeeded"
+		result["output"] = output
+	case eventspkg.EventKindRunFailed:
+		payload, err := decodeDaemonPayload[kinds.RunFailedPayload](event.Payload)
+		if err != nil {
+			return nil, err
+		}
+		result["type"] = "run.failed"
+		result["status"] = execStatusFailed
+		result["error"] = payload.Error
+	case eventspkg.EventKindRunCancelled:
+		payload, err := decodeDaemonPayload[kinds.RunCancelledPayload](event.Payload)
+		if err != nil {
+			return nil, err
+		}
+		result["type"] = "run.failed"
+		result["status"] = execStatusCanceled
+		result["error"] = payload.Reason
+	case eventspkg.EventKindRunCrashed:
+		payload, err := decodeDaemonPayload[kinds.RunCrashedPayload](event.Payload)
+		if err != nil {
+			return nil, err
+		}
+		result["type"] = "run.failed"
+		result["status"] = execStatusCrashed
+		result["error"] = payload.Error
+	default:
+		return nil, nil
+	}
+
+	return []map[string]any{result}, nil
+}
+
 func loadExecResponseText(workspaceRoot string, runID string) (string, error) {
 	record, err := coreRun.LoadPersistedExecRun(workspaceRoot, runID)
 	if err != nil {
 		return "", err
 	}
-	if record.TurnCount <= 0 || strings.TrimSpace(record.TurnsDir) == "" {
+	turnsDir := strings.TrimSpace(record.TurnsDir)
+	if turnsDir == "" {
 		return "", nil
 	}
-	responsePath := reviewRoundDirForWorkflow("", "", 0)
-	responsePath = ""
-	turnDir := fmt.Sprintf("%04d", record.TurnCount)
-	responsePath = strings.TrimSpace(record.TurnsDir)
-	responsePath = filepathJoin(responsePath, turnDir, "response.txt")
-	body, err := os.ReadFile(responsePath)
+
+	if record.TurnCount > 0 {
+		responsePath := filepathJoin(turnsDir, fmt.Sprintf("%04d", record.TurnCount), "response.txt")
+		body, readErr := os.ReadFile(responsePath)
+		switch {
+		case readErr == nil && strings.TrimSpace(string(body)) != "":
+			return string(body), nil
+		case readErr == nil:
+			return string(body), nil
+		case !errors.Is(readErr, os.ErrNotExist):
+			return "", readErr
+		}
+	}
+	return loadLatestExecTurnResponse(turnsDir)
+}
+
+func loadLatestExecTurnResponse(turnsDir string) (string, error) {
+	entries, err := os.ReadDir(strings.TrimSpace(turnsDir))
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", nil
+		}
 		return "", err
 	}
-	return string(body), nil
+	for idx := len(entries) - 1; idx >= 0; idx-- {
+		if !entries[idx].IsDir() {
+			continue
+		}
+		responsePath := filepathJoin(turnsDir, entries[idx].Name(), "response.txt")
+		body, readErr := os.ReadFile(responsePath)
+		if errors.Is(readErr, os.ErrNotExist) {
+			continue
+		}
+		if readErr != nil {
+			return "", readErr
+		}
+		return string(body), nil
+	}
+	return "", nil
 }
 
 func workflowTerminalError(event eventspkg.Event) error {
@@ -875,7 +970,16 @@ func isTerminalDaemonEvent(kind eventspkg.EventKind) bool {
 
 func isTerminalFailureStatus(run apicore.Run) bool {
 	switch strings.TrimSpace(run.Status) {
-	case "failed", "canceled", "cancelled", "crashed":
+	case execStatusFailed, execStatusCanceled, execStatusCrashed:
+		return true
+	default:
+		return false
+	}
+}
+
+func isTerminalDaemonRun(status string) bool {
+	switch strings.TrimSpace(status) {
+	case "completed", execStatusFailed, execStatusCanceled, execStatusCrashed:
 		return true
 	default:
 		return false
@@ -890,7 +994,12 @@ func (s *commandState) resolveWorkflowNameArg(args []string) error {
 		s.name = strings.TrimSpace(args[0])
 	}
 	if strings.TrimSpace(s.name) == "" {
-		return fmt.Errorf("%s requires a workflow slug via [slug] or --name", "reviews")
+		switch s.kind {
+		case commandKindFetchReviews, commandKindFixReviews:
+			return fmt.Errorf("%s requires --name", s.kind)
+		default:
+			return fmt.Errorf("%s requires a workflow slug via [slug] or --name", "reviews")
+		}
 	}
 	return nil
 }

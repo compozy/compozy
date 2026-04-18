@@ -100,28 +100,30 @@ type activeRun struct {
 }
 
 type runtimeOverrideInput struct {
-	DryRun                     *bool                    `json:"dry_run"`
-	RunID                      *string                  `json:"run_id"`
-	IDE                        *string                  `json:"ide"`
-	Model                      *string                  `json:"model"`
-	OutputFormat               *string                  `json:"output_format"`
-	ReasoningEffort            *string                  `json:"reasoning_effort"`
-	AccessMode                 *string                  `json:"access_mode"`
-	Timeout                    *string                  `json:"timeout"`
-	TailLines                  *int                     `json:"tail_lines"`
-	AddDirs                    *[]string                `json:"add_dirs"`
-	AutoCommit                 *bool                    `json:"auto_commit"`
-	MaxRetries                 *int                     `json:"max_retries"`
-	RetryBackoffMultiplier     *float64                 `json:"retry_backoff_multiplier"`
-	Concurrent                 *int                     `json:"concurrent"`
-	BatchSize                  *int                     `json:"batch_size"`
-	Verbose                    *bool                    `json:"verbose"`
-	Persist                    *bool                    `json:"persist"`
-	IncludeCompleted           *bool                    `json:"include_completed"`
-	IncludeResolved            *bool                    `json:"include_resolved"`
-	TaskRuntimeRules           *[]model.TaskRuntimeRule `json:"task_runtime_rules"`
-	TUI                        *bool                    `json:"tui"`
-	EnableExecutableExtensions *bool                    `json:"enable_executable_extensions"`
+	DryRun                     *bool                       `json:"dry_run"`
+	RunID                      *string                     `json:"run_id"`
+	IDE                        *string                     `json:"ide"`
+	Model                      *string                     `json:"model"`
+	AgentName                  *string                     `json:"agent_name"`
+	ExplicitRuntime            *model.ExplicitRuntimeFlags `json:"explicit_runtime"`
+	OutputFormat               *string                     `json:"output_format"`
+	ReasoningEffort            *string                     `json:"reasoning_effort"`
+	AccessMode                 *string                     `json:"access_mode"`
+	Timeout                    *string                     `json:"timeout"`
+	TailLines                  *int                        `json:"tail_lines"`
+	AddDirs                    *[]string                   `json:"add_dirs"`
+	AutoCommit                 *bool                       `json:"auto_commit"`
+	MaxRetries                 *int                        `json:"max_retries"`
+	RetryBackoffMultiplier     *float64                    `json:"retry_backoff_multiplier"`
+	Concurrent                 *int                        `json:"concurrent"`
+	BatchSize                  *int                        `json:"batch_size"`
+	Verbose                    *bool                       `json:"verbose"`
+	Persist                    *bool                       `json:"persist"`
+	IncludeCompleted           *bool                       `json:"include_completed"`
+	IncludeResolved            *bool                       `json:"include_resolved"`
+	TaskRuntimeRules           *[]model.TaskRuntimeRule    `json:"task_runtime_rules"`
+	TUI                        *bool                       `json:"tui"`
+	EnableExecutableExtensions *bool                       `json:"enable_executable_extensions"`
 }
 
 type reviewBatchingInput struct {
@@ -773,6 +775,9 @@ func (m *RunManager) prepareExecStart(
 	if err := applyExecProjectConfig(runtimeCfg, projectCfg.Exec); err != nil {
 		return globaldb.Workspace{}, nil, "", err
 	}
+	if err := applyPersistedExecRuntimeDefaults(runtimeCfg, workspaceRow.RootDir, overrides); err != nil {
+		return globaldb.Workspace{}, nil, "", err
+	}
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, "", err
 	}
@@ -878,6 +883,9 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		if createdRun {
 			if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(runID); artifactsErr == nil {
 				cleanupRunDirectory(runArtifacts.RunDir)
+			}
+			if deleteErr := m.globalDB.DeleteRun(detachContext(ctx), runID); deleteErr != nil {
+				err = errors.Join(err, deleteErr)
 			}
 		}
 		return apicore.Run{}, err
@@ -1896,6 +1904,43 @@ func applyExecProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.Ex
 	return nil
 }
 
+func applyPersistedExecRuntimeDefaults(
+	cfg *model.RuntimeConfig,
+	workspaceRoot string,
+	overrides runtimeOverrideInput,
+) error {
+	if cfg == nil || overrides.RunID == nil || strings.TrimSpace(*overrides.RunID) == "" {
+		return nil
+	}
+
+	runID := strings.TrimSpace(*overrides.RunID)
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, runID)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(runArtifacts.RunMetaPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("stat persisted exec run: %w", err)
+	}
+
+	record, err := runpkg.LoadPersistedExecRun(workspaceRoot, runID)
+	if err != nil {
+		return err
+	}
+
+	cfg.Persist = true
+	cfg.RunID = record.RunID
+	cfg.WorkspaceRoot = record.WorkspaceRoot
+	cfg.IDE = record.IDE
+	cfg.Model = record.Model
+	cfg.ReasoningEffort = record.ReasoningEffort
+	cfg.AccessMode = record.AccessMode
+	cfg.AddDirs = corepkg.NormalizeAddDirs(record.AddDirs)
+	return nil
+}
+
 func applyRuntimeOverrideInput(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) error {
 	if cfg == nil {
 		return nil
@@ -1912,12 +1957,18 @@ func applyRuntimeOverrideStrings(cfg *model.RuntimeConfig, overrides runtimeOver
 	applyOptionalString(&cfg.RunID, overrides.RunID)
 	applyOptionalString(&cfg.IDE, overrides.IDE)
 	applyOptionalString(&cfg.Model, overrides.Model)
+	applyOptionalString(&cfg.AgentName, overrides.AgentName)
 	applyOptionalOutputFormat(cfg, overrides.OutputFormat)
 	applyOptionalString(&cfg.ReasoningEffort, overrides.ReasoningEffort)
 	applyOptionalString(&cfg.AccessMode, overrides.AccessMode)
 }
 
 func applyRuntimeOverrideScalars(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) {
+	applyRuntimeOverrideExecutionScalars(cfg, overrides)
+	applyRuntimeOverrideWorkflowScalars(cfg, overrides)
+}
+
+func applyRuntimeOverrideExecutionScalars(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) {
 	if overrides.DryRun != nil {
 		cfg.DryRun = *overrides.DryRun
 	}
@@ -1936,17 +1987,26 @@ func applyRuntimeOverrideScalars(cfg *model.RuntimeConfig, overrides runtimeOver
 	if overrides.RetryBackoffMultiplier != nil {
 		cfg.RetryBackoffMultiplier = *overrides.RetryBackoffMultiplier
 	}
-	if overrides.Concurrent != nil {
-		cfg.Concurrent = *overrides.Concurrent
-	}
-	if overrides.BatchSize != nil {
-		cfg.BatchSize = *overrides.BatchSize
-	}
 	if overrides.Verbose != nil {
 		cfg.Verbose = *overrides.Verbose
 	}
 	if overrides.Persist != nil {
 		cfg.Persist = *overrides.Persist
+	}
+	if overrides.EnableExecutableExtensions != nil {
+		cfg.EnableExecutableExtensions = *overrides.EnableExecutableExtensions
+	}
+	if overrides.ExplicitRuntime != nil {
+		cfg.ExplicitRuntime = *overrides.ExplicitRuntime
+	}
+}
+
+func applyRuntimeOverrideWorkflowScalars(cfg *model.RuntimeConfig, overrides runtimeOverrideInput) {
+	if overrides.Concurrent != nil {
+		cfg.Concurrent = *overrides.Concurrent
+	}
+	if overrides.BatchSize != nil {
+		cfg.BatchSize = *overrides.BatchSize
 	}
 	if overrides.IncludeCompleted != nil {
 		cfg.IncludeCompleted = *overrides.IncludeCompleted
@@ -1956,9 +2016,6 @@ func applyRuntimeOverrideScalars(cfg *model.RuntimeConfig, overrides runtimeOver
 	}
 	if overrides.TaskRuntimeRules != nil {
 		cfg.TaskRuntimeRules = model.CloneTaskRuntimeRules(*overrides.TaskRuntimeRules)
-	}
-	if overrides.EnableExecutableExtensions != nil {
-		cfg.EnableExecutableExtensions = *overrides.EnableExecutableExtensions
 	}
 }
 

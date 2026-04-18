@@ -111,7 +111,7 @@ func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -219,7 +219,7 @@ func TestExecCommandWithInstalledWorkspaceExtensionStaysEphemeralWithoutFlag(t *
 	withWorkingDir(t, workspaceRoot)
 
 	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -247,7 +247,7 @@ func TestExecCommandWithExtensionsFlagSpawnsWorkspaceExtensionAndWritesAudit(t *
 	withWorkingDir(t, workspaceRoot)
 
 	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -289,7 +289,7 @@ func TestExecCommandExecutePromptFileJSONEmitsJSONLByDefault(t *testing.T) {
 	}
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -327,7 +327,7 @@ func TestExecCommandExecutePersistCreatesTurnArtifacts(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -361,8 +361,13 @@ func TestExecCommandExecutePersistCreatesTurnArtifacts(t *testing.T) {
 
 func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	prepareInProcessCLIDaemonHome(t)
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) error = %v", workspaceRoot, err)
+	}
 
 	runID := "exec-resume"
 	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
@@ -370,7 +375,7 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 		Mode:            model.ModeExec,
 		RunID:           runID,
 		Status:          "succeeded",
-		WorkspaceRoot:   workspaceRoot,
+		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5-codex",
 		ReasoningEffort: "high",
@@ -382,7 +387,7 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 		ACPSessionID:    "sess-existing",
 	})
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -473,7 +478,7 @@ func TestExecCommandExecutePersistedAgentParentChildEmitsReusableAgentLifecycleE
 	)
 	defer restore()
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -521,6 +526,7 @@ func TestExecCommandExecutePersistedAgentParentChildEmitsReusableAgentLifecycleE
 
 func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	prepareInProcessCLIDaemonHome(t)
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	writeReusableAgentForCLI(t, workspaceRoot, "parent", strings.Join([]string{
 		"---",
@@ -533,6 +539,10 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		"",
 	}, "\n"), `{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"]}}}`)
 	withWorkingDir(t, workspaceRoot)
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) error = %v", workspaceRoot, err)
+	}
 
 	runID := "exec-agent-resume"
 	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
@@ -540,7 +550,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		Mode:            model.ModeExec,
 		RunID:           runID,
 		Status:          "succeeded",
-		WorkspaceRoot:   workspaceRoot,
+		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5.4",
 		ReasoningEffort: "high",
@@ -577,7 +587,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 	)
 	defer restore()
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -637,7 +647,7 @@ func TestExecCommandExecuteAgentValidationFailureReportsInvalidMCPReason(t *test
 	}, "\n"), `{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"],"env":{"ROOT":"${MISSING_AGENT_ROOT}"}}}}`)
 	withWorkingDir(t, workspaceRoot)
 
-	_, _, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--agent", "broken", "Do work")
+	_, _, err := executeDaemonBackedRootCommandCapturingProcessIO(t, nil, "exec", "--agent", "broken", "Do work")
 	if err == nil {
 		t.Fatal("expected invalid-mcp agent execution failure")
 	}
@@ -705,7 +715,7 @@ func TestExecCommandExecuteAgentWorkspaceOverrideWinsOverGlobalDefinition(t *tes
 	)
 	defer restore()
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -733,7 +743,7 @@ func TestExecCommandExecuteJSONMissingPromptEmitsFailureJSON(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "json")
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(t, nil, "exec", "--format", "json")
 	if err == nil {
 		t.Fatalf("expected exec json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
@@ -759,7 +769,7 @@ func TestExecCommandExecuteRawJSONMissingPromptEmitsFailureJSON(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "raw-json")
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(t, nil, "exec", "--format", "raw-json")
 	if err == nil {
 		t.Fatalf("expected exec raw-json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
@@ -785,7 +795,7 @@ func TestExecCommandExecuteJSONValidationFailureEmitsFailureJSON(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -819,7 +829,7 @@ func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		strings.NewReader("Prompt from stdin\n"),
 		"exec",
@@ -1404,7 +1414,7 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	withWorkingDir(t, workspaceRoot)
 
 	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -1477,7 +1487,7 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	withWorkingDir(t, workspaceRoot)
 
 	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -2016,6 +2026,10 @@ func prepareWorkspaceExtensionFixtureForCLI(t *testing.T, mode string) (string, 
 
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv(testCLIDaemonHomeEnv, homeDir)
+	xdgConfigHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
 
 	recordPath := filepath.Join(t.TempDir(), "mock-extension-records.jsonl")
 	binary := buildCLIMockExtensionBinary(t)

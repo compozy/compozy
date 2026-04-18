@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: CLI Daemon Client Foundation
 type: refactor
 complexity: high
@@ -31,11 +31,11 @@ This task turns the CLI into a daemon client instead of a direct execution entry
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Introduce shared daemon bootstrap and client-handshake code for daemon-backed commands.
-- [ ] 11.2 Resolve workspace and presentation mode before request dispatch and keep config precedence explicit.
-- [ ] 11.3 Rework the command foundation to support daemon, workspaces, tasks, reviews, runs, sync, archive, and exec flows.
-- [ ] 11.4 Remove the legacy `start` command path and update CLI wiring to the new client model.
-- [ ] 11.5 Add tests covering bootstrap reuse, presentation-mode resolution, and transport failure behavior.
+- [x] 11.1 Introduce shared daemon bootstrap and client-handshake code for daemon-backed commands.
+- [x] 11.2 Resolve workspace and presentation mode before request dispatch and keep config precedence explicit.
+- [x] 11.3 Rework the command foundation to support daemon, workspaces, tasks, reviews, runs, sync, archive, and exec flows.
+- [x] 11.4 Remove the legacy `start` command path and update CLI wiring to the new client model.
+- [x] 11.5 Add tests covering bootstrap reuse, presentation-mode resolution, and transport failure behavior.
 
 ## Implementation Details
 Implement the client-side control plane described in the TechSpec "CLI/TUI clients", "Transport Contract", and "Development Sequencing" sections. This task should keep the CLI thin and deterministic: configuration, daemon bootstrap, workspace resolution, and mode selection happen in the client, while actual operational state lives behind the daemon API.
@@ -73,17 +73,17 @@ Implement the client-side control plane described in the TechSpec "CLI/TUI clien
 
 ## Tests
 - Unit tests:
-  - [ ] Config precedence across home config, workspace config, and CLI flags resolves the expected explicit presentation mode before request dispatch.
-  - [ ] `auto` presentation mode resolves to `ui` on interactive TTYs and to `stream` on non-interactive invocations before the request is sent.
-  - [ ] `ensureDaemon()` reuses an already healthy daemon instead of starting a duplicate instance.
-  - [ ] A stale socket or stale daemon info file causes bootstrap to repair the transport path instead of returning a misleading connection error.
-  - [ ] Connection and handshake failures return stable CLI errors with the expected exit behavior.
+  - [x] Config precedence across home config, workspace config, and CLI flags resolves the expected explicit presentation mode before request dispatch.
+  - [x] `auto` presentation mode resolves to `ui` on interactive TTYs and to `stream` on non-interactive invocations before the request is sent.
+  - [x] `ensureDaemon()` reuses an already healthy daemon instead of starting a duplicate instance.
+  - [x] A stale socket or stale daemon info file causes bootstrap to repair the transport path instead of returning a misleading connection error.
+  - [x] Connection and handshake failures return stable CLI errors with the expected exit behavior.
 - Integration tests:
-  - [ ] Running a daemon-backed tasks command from a workspace subdirectory resolves the correct workspace and transport target before issuing the request.
-  - [ ] Running the same daemon-backed command from a non-interactive environment resolves `auto` to the expected non-TUI mode.
-  - [ ] The legacy `compozy start` path is removed and the replacement daemon-backed command help reflects the new surface.
-  - [ ] A daemon-backed command can bootstrap the daemon automatically and continue execution without a second manual step.
-  - [ ] A command against an unhealthy daemon reports the daemon problem explicitly instead of falling back to silent local execution.
+  - [x] Running a daemon-backed tasks command from a workspace subdirectory resolves the correct workspace and transport target before issuing the request.
+  - [x] Running the same daemon-backed command from a non-interactive environment resolves `auto` to the expected non-TUI mode.
+  - [x] The legacy `compozy start` path is removed and the replacement daemon-backed command help reflects the new surface.
+  - [x] A daemon-backed command can bootstrap the daemon automatically and continue execution without a second manual step.
+  - [x] A command against an unhealthy daemon reports the daemon problem explicitly instead of falling back to silent local execution.
 - Test coverage target: >=80%
 - All tests must pass
 

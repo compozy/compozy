@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +19,16 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/spf13/cobra"
+)
+
+var (
+	cliTestGlobalOverrideMu sync.Mutex
+	cliTestGlobalOverrides  = struct {
+		sync.Mutex
+		refs map[string]int
+	}{
+		refs: make(map[string]int),
+	}
 )
 
 type stubDaemonCommandClient struct {
@@ -338,6 +350,7 @@ func (c *stubDaemonCommandClient) OpenRunStream(
 
 func installTestCLIDaemonBootstrap(t *testing.T, bootstrap cliDaemonBootstrap) {
 	t.Helper()
+	acquireCLITestGlobalOverride(t)
 
 	original := newCLIDaemonBootstrap
 	newCLIDaemonBootstrap = func() cliDaemonBootstrap { return bootstrap }
@@ -378,6 +391,7 @@ func installTestCLIRunObservers(
 	watchFn func(context.Context, io.Writer, daemonCommandClient, string) error,
 ) {
 	t.Helper()
+	acquireCLITestGlobalOverride(t)
 
 	originalAttach := attachCLIRunUI
 	originalWatch := watchCLIRun
@@ -391,6 +405,46 @@ func installTestCLIRunObservers(
 		attachCLIRunUI = originalAttach
 		watchCLIRun = originalWatch
 	})
+}
+
+func acquireCLITestGlobalOverride(t *testing.T) {
+	t.Helper()
+
+	testName := t.Name()
+
+	cliTestGlobalOverrides.Lock()
+	if refs := cliTestGlobalOverrides.refs[testName]; refs > 0 {
+		cliTestGlobalOverrides.refs[testName] = refs + 1
+		cliTestGlobalOverrides.Unlock()
+		t.Cleanup(func() {
+			releaseCLITestGlobalOverride(testName)
+		})
+		return
+	}
+	cliTestGlobalOverrides.Unlock()
+
+	cliTestGlobalOverrideMu.Lock()
+
+	cliTestGlobalOverrides.Lock()
+	cliTestGlobalOverrides.refs[testName] = 1
+	cliTestGlobalOverrides.Unlock()
+
+	t.Cleanup(func() {
+		releaseCLITestGlobalOverride(testName)
+	})
+}
+
+func releaseCLITestGlobalOverride(testName string) {
+	cliTestGlobalOverrides.Lock()
+	refs := cliTestGlobalOverrides.refs[testName]
+	if refs <= 1 {
+		delete(cliTestGlobalOverrides.refs, testName)
+		cliTestGlobalOverrides.Unlock()
+		cliTestGlobalOverrideMu.Unlock()
+		return
+	}
+	cliTestGlobalOverrides.refs[testName] = refs - 1
+	cliTestGlobalOverrides.Unlock()
 }
 
 func newTaskRunPresentationCommand(state *commandState) *cobra.Command {
@@ -413,6 +467,24 @@ func decodeTaskRunOverrides(t *testing.T, raw json.RawMessage) daemonRuntimeOver
 		t.Fatalf("decode task run overrides: %v", err)
 	}
 	return payload
+}
+
+func TestResolveLaunchCLIDaemonExecutableRejectsGoTestBinary(t *testing.T) {
+	original := resolveCLIDaemonExecutable
+	resolveCLIDaemonExecutable = func() (string, error) {
+		return filepath.Join(t.TempDir(), "cli.test"), nil
+	}
+	t.Cleanup(func() {
+		resolveCLIDaemonExecutable = original
+	})
+
+	_, err := resolveLaunchCLIDaemonExecutable()
+	if err == nil {
+		t.Fatal("expected go test binary rejection")
+	}
+	if !strings.Contains(err.Error(), "Go test binary") {
+		t.Fatalf("unexpected rejection error: %v", err)
+	}
 }
 
 func TestResolveTaskPresentationModeUsesInjectedInteractiveCheck(t *testing.T) {

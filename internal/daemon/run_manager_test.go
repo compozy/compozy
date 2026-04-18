@@ -889,9 +889,15 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			t.Fatalf("applyExecProjectConfig() error = %v", err)
 		}
 		if err := applyRuntimeOverrideInput(cfg, runtimeOverrideInput{
-			RunID:                      stringPtr("override-run"),
-			IDE:                        stringPtr("codex"),
-			Model:                      stringPtr("gpt-5-mini"),
+			RunID:     stringPtr("override-run"),
+			IDE:       stringPtr("codex"),
+			Model:     stringPtr("gpt-5-mini"),
+			AgentName: stringPtr("council"),
+			ExplicitRuntime: &model.ExplicitRuntimeFlags{
+				Model:           true,
+				ReasoningEffort: true,
+				AccessMode:      true,
+			},
 			OutputFormat:               stringPtr(string(model.OutputFormatText)),
 			ReasoningEffort:            stringPtr("medium"),
 			AccessMode:                 stringPtr(model.AccessModeFull),
@@ -922,8 +928,12 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 			OnFailed:    stringPtr("basso"),
 		})
 
-		if cfg.RunID != "override-run" || cfg.IDE != "codex" || cfg.Model != "gpt-5-mini" {
+		if cfg.RunID != "override-run" || cfg.IDE != "codex" || cfg.Model != "gpt-5-mini" ||
+			cfg.AgentName != "council" {
 			t.Fatalf("runtime override application failed: %#v", cfg)
+		}
+		if !cfg.ExplicitRuntime.Model || !cfg.ExplicitRuntime.ReasoningEffort || !cfg.ExplicitRuntime.AccessMode {
+			t.Fatalf("explicit runtime flags were not preserved: %#v", cfg.ExplicitRuntime)
 		}
 		if cfg.Concurrent != 8 || cfg.BatchSize != 9 || !cfg.IncludeResolved {
 			t.Fatalf("review batching application failed: %#v", cfg)

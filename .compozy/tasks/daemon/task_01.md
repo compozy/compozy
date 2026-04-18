@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Home-Scoped Daemon Bootstrap
 type: infra
 complexity: high
@@ -30,11 +30,11 @@ This task establishes the daemon host as a `$HOME`-scoped singleton instead of a
 
 ## Subtasks
 
-- [ ] 1.1 Define the reusable home path and layout contract for the daemon runtime.
-- [ ] 1.2 Add daemon bootstrap code that acquires singleton ownership and cleans stale runtime artifacts safely.
-- [ ] 1.3 Introduce daemon status/info state so later clients can probe readiness without guessing from the filesystem.
-- [ ] 1.4 Route daemon startup through the CLI/bootstrap layer without tying the daemon base path to workspace discovery.
-- [ ] 1.5 Add tests covering idempotent start, stale artifact cleanup, and readiness gating.
+- [x] 1.1 Define the reusable home path and layout contract for the daemon runtime.
+- [x] 1.2 Add daemon bootstrap code that acquires singleton ownership and cleans stale runtime artifacts safely.
+- [x] 1.3 Introduce daemon status/info state so later clients can probe readiness without guessing from the filesystem.
+- [x] 1.4 Route daemon startup through the CLI/bootstrap layer without tying the daemon base path to workspace discovery.
+- [x] 1.5 Add tests covering idempotent start, stale artifact cleanup, and readiness gating.
 
 ## Implementation Details
 
@@ -78,16 +78,16 @@ Establish the host-runtime foundation described in the TechSpec "Component Overv
 ## Tests
 
 - Unit tests:
-  - [ ] Resolving home paths from `$HOME` returns the expected `daemon`, `db`, `runs`, `logs`, and `cache` locations regardless of current `cwd`.
-  - [ ] Bootstrap returns a clear error when `$HOME` is missing, unusable, or cannot host the daemon directory.
-  - [ ] A stale lock, stale socket, and stale info file are removed together when no healthy daemon owns them.
-  - [ ] A healthy running daemon causes startup to reuse the existing singleton without taking over ownership.
-  - [ ] Mismatched daemon runtime artifacts are rebuilt atomically so the info file, lock state, and socket path converge to one consistent daemon identity.
+  - [x] Resolving home paths from `$HOME` returns the expected `daemon`, `db`, `runs`, `logs`, and `cache` locations regardless of current `cwd`.
+  - [x] Bootstrap returns a clear error when `$HOME` is missing, unusable, or cannot host the daemon directory.
+  - [x] A stale lock, stale socket, and stale info file are removed together when no healthy daemon owns them.
+  - [x] A healthy running daemon causes startup to reuse the existing singleton without taking over ownership.
+  - [x] Mismatched daemon runtime artifacts are rebuilt atomically so the info file, lock state, and socket path converge to one consistent daemon identity.
 - Integration tests:
-  - [ ] Starting the daemon twice from the same machine leaves exactly one healthy singleton instance and one readiness record.
-  - [ ] Bootstrapping from a workspace subdirectory still uses the same home-scoped daemon layout and readiness contract.
-  - [ ] Restarting after a killed daemon that left stale lock and socket artifacts recovers cleanly into one healthy singleton.
-  - [ ] Invoking bootstrap from two unrelated workspaces on the same machine resolves the same `~/.compozy/daemon` ownership and does not create workspace-scoped copies.
+  - [x] Starting the daemon twice from the same machine leaves exactly one healthy singleton instance and one readiness record.
+  - [x] Bootstrapping from a workspace subdirectory still uses the same home-scoped daemon layout and readiness contract.
+  - [x] Restarting after a killed daemon that left stale lock and socket artifacts recovers cleanly into one healthy singleton.
+  - [x] Invoking bootstrap from two unrelated workspaces on the same machine resolves the same `~/.compozy/daemon` ownership and does not create workspace-scoped copies.
 - Test coverage target: >=80%
 - All tests must pass
 

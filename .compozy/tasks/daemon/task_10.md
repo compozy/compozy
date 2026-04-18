@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Extension Runtime Daemon Adaptation
 type: backend
 complexity: high
@@ -30,11 +30,11 @@ This task keeps Compozy's current executable extension model while adapting runt
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Adapt extension runtime startup and teardown to daemon-owned run lifecycle instead of direct CLI ownership.
-- [ ] 10.2 Introduce per-run Host API capability token handling for daemon callbacks.
-- [ ] 10.3 Preserve review-provider and hook behavior under daemon-managed execution.
-- [ ] 10.4 Persist extension audit outcomes and transport failures into run-owned storage.
-- [ ] 10.5 Add tests covering daemon-owned hook execution, host access, and extension shutdown behavior.
+- [x] 10.1 Adapt extension runtime startup and teardown to daemon-owned run lifecycle instead of direct CLI ownership.
+- [x] 10.2 Introduce per-run Host API capability token handling for daemon callbacks.
+- [x] 10.3 Preserve review-provider and hook behavior under daemon-managed execution.
+- [x] 10.4 Persist extension audit outcomes and transport failures into run-owned storage.
+- [x] 10.5 Add tests covering daemon-owned hook execution, host access, and extension shutdown behavior.
 
 ## Implementation Details
 Implement the daemon-aware extension model described in the TechSpec "Integration Points", "Run manager", and "Transport Contract" sections. This task should preserve today's extension ergonomics and runtime contract while shifting ownership of initialization, auditing, and shutdown to the daemon-managed run lifecycle.
@@ -71,19 +71,27 @@ Implement the daemon-aware extension model described in the TechSpec "Integratio
 
 ## Tests
 - Unit tests:
-  - [ ] A daemon-managed run initializes extensions with the expected run-scoped capability and audit context.
-  - [ ] Host API calls without a valid per-run capability token are rejected with explicit errors.
-  - [ ] Extension startup and shutdown preserve the existing hook ordering contract under daemon-owned runs.
-  - [ ] Extension JSON-RPC failures are recorded in persisted hook state without aborting unrelated runs.
-  - [ ] A failing extension hook can mark its own run outcome without corrupting other active runs or the daemon process.
+  - [x] A daemon-managed run initializes extensions with the expected run-scoped capability and audit context.
+  - [x] Host API calls without a valid per-run capability token are rejected with explicit errors.
+  - [x] Extension startup and shutdown preserve the existing hook ordering contract under daemon-owned runs.
+  - [x] Extension JSON-RPC failures are recorded in persisted hook state without aborting unrelated runs.
+  - [x] A failing extension hook can mark its own run outcome without corrupting other active runs or the daemon process.
 - Integration tests:
-  - [ ] A daemon-backed task run executes installed extension hooks and records the outcomes in run-owned storage.
-  - [ ] A daemon-backed review run preserves review-provider bridge behavior through the adapted runtime.
-  - [ ] A daemon-backed exec run keeps the same extension and host API behavior as task and review runs.
-  - [ ] Forced run shutdown tears down extension subprocesses cleanly without leaking background processes.
-  - [ ] An extension hook failure is visible in audit storage and the live run stream without crashing the daemon.
+  - [x] A daemon-backed task run executes installed extension hooks and records the outcomes in run-owned storage.
+  - [x] A daemon-backed review run preserves review-provider bridge behavior through the adapted runtime.
+  - [x] A daemon-backed exec run keeps the same extension and host API behavior as task and review runs.
+  - [x] Forced run shutdown tears down extension subprocesses cleanly without leaking background processes.
+  - [x] An extension hook failure is visible in audit storage and the live run stream without crashing the daemon.
 - Test coverage target: >=80%
 - All tests must pass
+
+## Verification Evidence
+- `go test ./internal/core/extension -count=1`
+- `go test ./internal/core/run/executor -count=1`
+- `go test ./internal/daemon -count=1`
+- `go test -cover ./internal/core/extension` → `80.5%`
+- `go test -cover ./internal/daemon` → `80.1%`
+- `make verify`
 
 ## Success Criteria
 - All tests passing

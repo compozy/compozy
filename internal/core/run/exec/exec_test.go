@@ -112,6 +112,49 @@ func TestExecutePreparedPromptReturnsBuilderError(t *testing.T) {
 	}
 }
 
+func TestPrepareExecRunStateScopedFreshPersistedRunInitializesRecord(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
+	cfg := &model.RuntimeConfig{
+		WorkspaceRoot: workspaceRoot,
+		RunID:         "exec-daemon-fresh",
+		IDE:           model.IDECodex,
+		Model:         "gpt-5.4",
+		AccessMode:    model.AccessModeDefault,
+		OutputFormat:  model.OutputFormatText,
+		Persist:       true,
+		DaemonOwned:   true,
+		Mode:          model.ExecutionModeExec,
+	}
+	cfg.ApplyDefaults()
+
+	scope, err := model.OpenBaseRunScope(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("OpenBaseRunScope() error = %v", err)
+	}
+	defer func() {
+		_ = scope.Close(context.Background())
+	}()
+
+	state, err := prepareExecRunState(context.Background(), cfg, scope)
+	if err != nil {
+		t.Fatalf("prepareExecRunState() error = %v", err)
+	}
+	defer state.close()
+
+	if state.record.RunID != cfg.RunID {
+		t.Fatalf("state.record.RunID = %q, want %q", state.record.RunID, cfg.RunID)
+	}
+	if state.turn != 1 {
+		t.Fatalf("state.turn = %d, want 1", state.turn)
+	}
+	if err := state.writeStarted(cfg); err != nil {
+		t.Fatalf("state.writeStarted() error = %v", err)
+	}
+	if _, err := os.Stat(scope.RunArtifacts().RunMetaPath); err != nil {
+		t.Fatalf("stat run meta path %q: %v", scope.RunArtifacts().RunMetaPath, err)
+	}
+}
+
 func TestExecutePreparedPromptReturnsBuilderAndCompletionFailure(t *testing.T) {
 	workspaceRoot := workspaceRootForExecTest(t)
 	builderErr := errors.New("mcp builder failed")

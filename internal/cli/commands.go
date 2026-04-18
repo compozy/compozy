@@ -10,7 +10,7 @@ func newFetchReviewsCommand() *cobra.Command {
 	return newFetchReviewsCommandWithDefaults(nil, defaultCommandStateDefaults())
 }
 
-func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+func newFetchReviewsCommandWithDefaults(_ *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindFetchReviews, core.ModePRReview, defaults)
 	cmd := &cobra.Command{
 		Use:          "fetch-reviews",
@@ -40,7 +40,7 @@ func newFixReviewsCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
 	return newFixReviewsCommandWithDefaults(dispatcher, defaultCommandStateDefaults())
 }
 
-func newFixReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+func newFixReviewsCommandWithDefaults(_ *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindFixReviews, core.ModePRReview, defaults)
 	cmd := &cobra.Command{
 		Use:          "fix-reviews",
@@ -140,7 +140,7 @@ func addWorkflowOutputFlags(cmd *cobra.Command, state *commandState) {
 	)
 }
 
-func newExecCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+func newExecCommandWithDefaults(_ *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindExec, core.ModeExec, defaults)
 	cmd := &cobra.Command{
 		Use:          "exec [prompt]",

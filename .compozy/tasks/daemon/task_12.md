@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: TUI Remote Attach and Watch
 type: frontend
 complexity: high
@@ -31,11 +31,11 @@ This task adapts the Bubble Tea UI from in-process execution to remote attach ov
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Adapt the TUI boot path to load dense run snapshots before any live stream subscription starts.
-- [ ] 12.2 Replace local event sourcing with daemon stream consumption and cursor tracking.
-- [ ] 12.3 Preserve layout, navigation, summary, and timeline behavior under remote attach semantics.
-- [ ] 12.4 Add reconnect and shutdown handling for attach and watch flows.
-- [ ] 12.5 Add UI and integration tests covering snapshot restore, stream updates, and attach behavior.
+- [x] 12.1 Adapt the TUI boot path to load dense run snapshots before any live stream subscription starts.
+- [x] 12.2 Replace local event sourcing with daemon stream consumption and cursor tracking.
+- [x] 12.3 Preserve layout, navigation, summary, and timeline behavior under remote attach semantics.
+- [x] 12.4 Add reconnect and shutdown handling for attach and watch flows.
+- [x] 12.5 Add UI and integration tests covering snapshot restore, stream updates, and attach behavior.
 
 ## Implementation Details
 Implement the remote UI contract described in the TechSpec "CLI/TUI clients", "Runs", and "SSE Contract" sections. This task should keep the current Bubble Tea experience recognizable while moving all runtime state sourcing to daemon snapshots and streams.
@@ -71,17 +71,17 @@ Implement the remote UI contract described in the TechSpec "CLI/TUI clients", "R
 
 ## Tests
 - Unit tests:
-  - [ ] Loading a run snapshot hydrates the expected job tree, transcript window, and navigation state before live events arrive.
-  - [ ] Stream events update the active job, timeline, and summary views without regressing resize or focus behavior.
-  - [ ] Overflow or reconnect-required frames preserve the last acknowledged cursor and do not corrupt UI state.
-  - [ ] Heartbeat and EOF frames do not corrupt UI state and keep reconnect logic deterministic.
-  - [ ] Attaching to a completed run snapshot renders the final state without requiring a live stream to stay open.
+  - [x] Loading a run snapshot hydrates the expected job tree, transcript window, and navigation state before live events arrive.
+  - [x] Stream events update the active job, timeline, and summary views without regressing resize or focus behavior.
+  - [x] Overflow or reconnect-required frames preserve the last acknowledged cursor and do not corrupt UI state.
+  - [x] Heartbeat and EOF frames do not corrupt UI state and keep reconnect logic deterministic.
+  - [x] Attaching to a completed run snapshot renders the final state without requiring a live stream to stay open.
 - Integration tests:
-  - [ ] `compozy runs attach <run_id>` restores a running daemon-managed run from snapshot and continues consuming subsequent events.
-  - [ ] A disconnected TUI client can reconnect using the last known cursor and continue rendering the same run.
-  - [ ] Attaching to a completed run renders the final snapshot cleanly and exits without waiting for new stream traffic.
-  - [ ] Watch-only mode streams events without launching the full TUI and keeps the attach path separate.
-  - [ ] A stream interruption during an active run resumes without duplicating already rendered events in the timeline.
+  - [x] `compozy runs attach <run_id>` restores a running daemon-managed run from snapshot and continues consuming subsequent events.
+  - [x] A disconnected TUI client can reconnect using the last known cursor and continue rendering the same run.
+  - [x] Attaching to a completed run renders the final snapshot cleanly and exits without waiting for new stream traffic.
+  - [x] Watch-only mode streams events without launching the full TUI and keeps the attach path separate.
+  - [x] A stream interruption during an active run resumes without duplicating already rendered events in the timeline.
 - Test coverage target: >=80%
 - All tests must pass
 

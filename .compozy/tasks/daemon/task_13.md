@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: pkg/compozy/runs Daemon-Backed Migration
 type: refactor
 complexity: high
@@ -31,11 +31,11 @@ This task migrates the public run-reader package away from workspace-local files
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Replace filesystem-backed open and list paths with daemon-backed client queries.
-- [ ] 13.2 Adapt replay, tail, and watch behavior to snapshot, pagination, and SSE stream contracts.
-- [ ] 13.3 Preserve run summary normalization and public edge-case behavior during the migration.
-- [ ] 13.4 Remove layout assumptions that require `.compozy/runs` under the workspace root.
-- [ ] 13.5 Add compatibility tests covering list, open, replay, tail, and watch against daemon-backed runs.
+- [x] 13.1 Replace filesystem-backed open and list paths with daemon-backed client queries.
+- [x] 13.2 Adapt replay, tail, and watch behavior to snapshot, pagination, and SSE stream contracts.
+- [x] 13.3 Preserve run summary normalization and public edge-case behavior during the migration.
+- [x] 13.4 Remove layout assumptions that require `.compozy/runs` under the workspace root.
+- [x] 13.5 Add compatibility tests covering list, open, replay, tail, and watch against daemon-backed runs.
 
 ## Implementation Details
 Implement the public-reader migration described in the TechSpec "Public run readers and observability", "Runs", and "Transport Contract" sections. This task should keep the exported package stable for callers while moving all operational storage and concurrency semantics behind daemon-owned APIs.
@@ -72,19 +72,24 @@ Implement the public-reader migration described in the TechSpec "Public run read
 
 ## Tests
 - Unit tests:
-  - [ ] Public run summaries preserve status normalization and timestamp behavior after moving to daemon-backed data sources.
-  - [ ] Replay and tail logic preserve expected cursor ordering and partial-event handling behavior.
-  - [ ] Watch helpers translate daemon stream events into the same public event surface callers already expect.
-  - [ ] Public readers surface a stable error when the daemon is unavailable instead of silently attempting filesystem fallback.
-  - [ ] Cursor pagination across replay and tail boundaries preserves ordering through resume and terminal-run edges.
+  - [x] Public run summaries preserve status normalization and timestamp behavior after moving to daemon-backed data sources.
+  - [x] Replay and tail logic preserve expected cursor ordering and partial-event handling behavior.
+  - [x] Watch helpers translate daemon stream events into the same public event surface callers already expect.
+  - [x] Public readers surface a stable error when the daemon is unavailable instead of silently attempting filesystem fallback.
+  - [x] Cursor pagination across replay and tail boundaries preserves ordering through resume and terminal-run edges.
 - Integration tests:
-  - [ ] Opening a daemon-managed run by workspace root and run ID returns the expected summary without reading workspace-local run files.
-  - [ ] Listing runs through the public package returns the same ordering and filtering behavior after the migration.
-  - [ ] Public watch and tail flows continue working across reconnects against daemon-backed streams.
-  - [ ] Public readers return the expected normalized status for completed, failed, cancelled, and crashed daemon-managed runs.
-  - [ ] Replay and tail against a daemon-managed run preserve event order across snapshot pagination boundaries.
+  - [x] Opening a daemon-managed run by workspace root and run ID returns the expected summary without reading workspace-local run files.
+  - [x] Listing runs through the public package returns the same ordering and filtering behavior after the migration.
+  - [x] Public watch and tail flows continue working across reconnects against daemon-backed streams.
+  - [x] Public readers return the expected normalized status for completed, failed, cancelled, and crashed daemon-managed runs.
+  - [x] Replay and tail against a daemon-managed run preserve event order across snapshot pagination boundaries.
 - Test coverage target: >=80%
 - All tests must pass
+
+## Verification Evidence
+- `go test -cover ./pkg/compozy/runs` -> `coverage: 80.2% of statements`
+- `go test ./pkg/compozy/runs ./internal/core/run/journal ./internal/core/run/executor ./test`
+- `make verify`
 
 ## Success Criteria
 - All tests passing

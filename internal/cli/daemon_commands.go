@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,12 +33,13 @@ const (
 )
 
 var (
-	resolveCLIDaemonHomePaths = compozyconfig.ResolveHomePaths
-	readCLIDaemonInfo         = daemon.ReadInfo
-	sleepForCLIDaemonPoll     = time.Sleep
-	nowForCLIDaemonPoll       = time.Now
-	launchCLIDaemonProcess    = defaultLaunchCLIDaemonProcess
-	newCLIDaemonBootstrap     = newDefaultCLIDaemonBootstrap
+	resolveCLIDaemonHomePaths  = compozyconfig.ResolveHomePaths
+	readCLIDaemonInfo          = daemon.ReadInfo
+	sleepForCLIDaemonPoll      = time.Sleep
+	nowForCLIDaemonPoll        = time.Now
+	launchCLIDaemonProcess     = defaultLaunchCLIDaemonProcess
+	resolveCLIDaemonExecutable = os.Executable
+	newCLIDaemonBootstrap      = newDefaultCLIDaemonBootstrap
 )
 
 type daemonCommandClient interface {
@@ -77,24 +79,26 @@ type cliDaemonBootstrap struct {
 }
 
 type daemonRuntimeOverrides struct {
-	DryRun                     *bool                    `json:"dry_run,omitempty"`
-	RunID                      *string                  `json:"run_id,omitempty"`
-	AutoCommit                 *bool                    `json:"auto_commit,omitempty"`
-	IDE                        *string                  `json:"ide,omitempty"`
-	Model                      *string                  `json:"model,omitempty"`
-	OutputFormat               *string                  `json:"output_format,omitempty"`
-	AddDirs                    *[]string                `json:"add_dirs,omitempty"`
-	TailLines                  *int                     `json:"tail_lines,omitempty"`
-	ReasoningEffort            *string                  `json:"reasoning_effort,omitempty"`
-	AccessMode                 *string                  `json:"access_mode,omitempty"`
-	Timeout                    *string                  `json:"timeout,omitempty"`
-	MaxRetries                 *int                     `json:"max_retries,omitempty"`
-	RetryBackoffMultiplier     *float64                 `json:"retry_backoff_multiplier,omitempty"`
-	Verbose                    *bool                    `json:"verbose,omitempty"`
-	Persist                    *bool                    `json:"persist,omitempty"`
-	IncludeCompleted           *bool                    `json:"include_completed,omitempty"`
-	TaskRuntimeRules           *[]model.TaskRuntimeRule `json:"task_runtime_rules,omitempty"`
-	EnableExecutableExtensions *bool                    `json:"enable_executable_extensions,omitempty"`
+	DryRun                     *bool                       `json:"dry_run,omitempty"`
+	RunID                      *string                     `json:"run_id,omitempty"`
+	AutoCommit                 *bool                       `json:"auto_commit,omitempty"`
+	IDE                        *string                     `json:"ide,omitempty"`
+	Model                      *string                     `json:"model,omitempty"`
+	AgentName                  *string                     `json:"agent_name,omitempty"`
+	ExplicitRuntime            *model.ExplicitRuntimeFlags `json:"explicit_runtime,omitempty"`
+	OutputFormat               *string                     `json:"output_format,omitempty"`
+	AddDirs                    *[]string                   `json:"add_dirs,omitempty"`
+	TailLines                  *int                        `json:"tail_lines,omitempty"`
+	ReasoningEffort            *string                     `json:"reasoning_effort,omitempty"`
+	AccessMode                 *string                     `json:"access_mode,omitempty"`
+	Timeout                    *string                     `json:"timeout,omitempty"`
+	MaxRetries                 *int                        `json:"max_retries,omitempty"`
+	RetryBackoffMultiplier     *float64                    `json:"retry_backoff_multiplier,omitempty"`
+	Verbose                    *bool                       `json:"verbose,omitempty"`
+	Persist                    *bool                       `json:"persist,omitempty"`
+	IncludeCompleted           *bool                       `json:"include_completed,omitempty"`
+	TaskRuntimeRules           *[]model.TaskRuntimeRule    `json:"task_runtime_rules,omitempty"`
+	EnableExecutableExtensions *bool                       `json:"enable_executable_extensions,omitempty"`
 }
 
 func newDefaultCLIDaemonBootstrap() cliDaemonBootstrap {
@@ -170,6 +174,31 @@ func (b cliDaemonBootstrap) probe(ctx context.Context, infoPath string) (daemonC
 }
 
 func defaultLaunchCLIDaemonProcess(paths compozyconfig.HomePaths) error {
+	executable, err := resolveLaunchCLIDaemonExecutable()
+	if err != nil {
+		return err
+	}
+	return launchCLIDaemonProcessWithExecutable(paths, executable)
+}
+
+func resolveLaunchCLIDaemonExecutable() (string, error) {
+	executable, err := resolveCLIDaemonExecutable()
+	if err != nil {
+		return "", fmt.Errorf("resolve current executable: %w", err)
+	}
+
+	base := strings.ToLower(filepath.Base(strings.TrimSpace(executable)))
+	if strings.HasSuffix(base, ".test") || strings.HasSuffix(base, ".test.exe") {
+		return "", errors.New(
+			"daemon auto-start cannot relaunch a Go test binary; " +
+				"install a daemon bootstrap stub or use a real compozy executable",
+		)
+	}
+
+	return executable, nil
+}
+
+func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executable string) error {
 	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
 		return err
 	}
@@ -189,11 +218,6 @@ func defaultLaunchCLIDaemonProcess(paths compozyconfig.HomePaths) error {
 	defer func() {
 		_ = stdin.Close()
 	}()
-
-	executable, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("resolve current executable: %w", err)
-	}
 
 	command := exec.CommandContext(context.Background(), executable, "daemon", "start")
 	command.Stdin = stdin
@@ -286,6 +310,7 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 		return withExitCode(2, err)
 	}
 	s.tasksDir = resolvedTasksDir
+	s.explicitRuntime = captureExplicitRuntimeFlags(cmd)
 
 	cfg, err := s.buildConfig()
 	if err != nil {

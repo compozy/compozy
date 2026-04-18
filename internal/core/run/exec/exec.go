@@ -108,6 +108,7 @@ type execRunState struct {
 	ctx            context.Context
 	cfg            *model.RuntimeConfig
 	record         PersistedExecRun
+	resuming       bool
 	runArtifacts   model.RunArtifacts
 	runtimeManager model.RuntimeManager
 	events         *execEventEmitter
@@ -270,13 +271,13 @@ func prepareExecExecution(
 		state.close()
 		return "", nil, nil, job{}, err
 	}
-	if strings.TrimSpace(cfg.RunID) == "" {
-		state.refreshRuntimeConfig(cfg)
+	if state.resuming {
+		if err := validateExecResumeCompatibility(cfg, state.record); err != nil {
+			state.close()
+			return "", nil, nil, job{}, err
+		}
 	}
-	if err := validateExecResumeCompatibility(cfg, state.record); err != nil {
-		state.close()
-		return "", nil, nil, job{}, err
-	}
+	state.refreshRuntimeConfig(cfg)
 	promptText, err = applyExecPromptPostBuildHook(ctx, state, promptText)
 	if err != nil {
 		state.close()
@@ -521,11 +522,14 @@ func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope mo
 	}
 	if scope != nil {
 		if strings.TrimSpace(cfg.RunID) != "" {
-			record, _, err := resolvePersistedExecRecord(cfg)
+			record, found, err := loadPersistedExecRecordIfExists(cfg.WorkspaceRoot, cfg.RunID)
 			if err != nil {
 				return nil, err
 			}
-			state.record = record
+			if found {
+				state.record = record
+				state.resuming = true
+			}
 		}
 		state.turn = atLeastOne(state.record.TurnCount + 1)
 		if err := prepareScopedExecRunState(state, cfg, scope, resolvedModel); err != nil {
@@ -539,6 +543,7 @@ func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope mo
 		return nil, err
 	}
 	state.record = record
+	state.resuming = strings.TrimSpace(cfg.RunID) != ""
 	state.turn = atLeastOne(record.TurnCount + 1)
 	if !cfg.Persist {
 		return prepareEphemeralExecRunState(state, cfg, runID)
@@ -560,6 +565,30 @@ func resolvePersistedExecRecord(cfg *model.RuntimeConfig) (PersistedExecRun, str
 	}
 	cfg.Persist = true
 	return record, runID, nil
+}
+
+func loadPersistedExecRecordIfExists(workspaceRoot string, runID string) (PersistedExecRun, bool, error) {
+	resolvedRunID := strings.TrimSpace(runID)
+	if resolvedRunID == "" {
+		return PersistedExecRun{}, false, nil
+	}
+
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, resolvedRunID)
+	if err != nil {
+		return PersistedExecRun{}, false, err
+	}
+	if _, err := os.Stat(runArtifacts.RunMetaPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return PersistedExecRun{}, false, nil
+		}
+		return PersistedExecRun{}, false, fmt.Errorf("stat persisted exec run: %w", err)
+	}
+
+	record, err := LoadPersistedExecRun(workspaceRoot, resolvedRunID)
+	if err != nil {
+		return PersistedExecRun{}, false, err
+	}
+	return record, true, nil
 }
 
 func prepareEphemeralExecRunState(

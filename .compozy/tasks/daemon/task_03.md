@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Run DB and Durable Run Store
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ This task moves per-run operational state from workspace-local JSON and JSONL ar
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Define the `run.db` schema and migration bookkeeping.
-- [ ] 3.2 Introduce a serialized writer loop for run-scoped durable writes.
-- [ ] 3.3 Move run artifact allocation from workspace-local paths to the home-scoped run directory.
-- [ ] 3.4 Persist the canonical event stream and projection tables needed for later snapshots and replay.
-- [ ] 3.5 Add tests covering ordering, allocation, and migration idempotence.
+- [x] 3.1 Define the `run.db` schema and migration bookkeeping.
+- [x] 3.2 Introduce a serialized writer loop for run-scoped durable writes.
+- [x] 3.3 Move run artifact allocation from workspace-local paths to the home-scoped run directory.
+- [x] 3.4 Persist the canonical event stream and projection tables needed for later snapshots and replay.
+- [x] 3.5 Add tests covering ordering, allocation, and migration idempotence.
 
 ## Implementation Details
 Implement the per-run storage layer described in the TechSpec "run.db", "Run Lifecycle and Recovery", and "Build Order" sections. This task should focus on durable storage and ordering guarantees, while leaving API exposure and reconciliation semantics to later tasks.
@@ -69,16 +69,16 @@ Implement the per-run storage layer described in the TechSpec "run.db", "Run Lif
 
 ## Tests
 - Unit tests:
-  - [ ] Applying `run.db` migrations repeatedly leaves the schema unchanged and migration history consistent.
-  - [ ] Events written through the run-store writer loop keep monotonically increasing sequence order under concurrent publishers.
-  - [ ] Transcript, hook audit, token usage, and artifact sync log rows round-trip through the run store without schema loss.
-  - [ ] Auto-generated and explicit `run_id` values allocate the correct home-scoped run directory paths.
-  - [ ] Closing the run store flushes pending writes before the writer loop exits.
+  - [x] Applying `run.db` migrations repeatedly leaves the schema unchanged and migration history consistent.
+  - [x] Events written through the run-store writer loop keep monotonically increasing sequence order under concurrent publishers.
+  - [x] Transcript, hook audit, token usage, and artifact sync log rows round-trip through the run store without schema loss.
+  - [x] Auto-generated and explicit `run_id` values allocate the correct home-scoped run directory paths.
+  - [x] Closing the run store flushes pending writes before the writer loop exits.
 - Integration tests:
-  - [ ] Starting a run creates `~/.compozy/runs/<run-id>/run.db` before execution begins.
-  - [ ] A persisted run can be reopened for later snapshot and replay work without depending on workspace-local `events.jsonl`.
-  - [ ] Concurrent event producers for one run are serialized into one deterministic event sequence in `run.db`.
-  - [ ] A run with transcript, hook, and token records can be reopened after daemon restart with the same durable data available for later snapshot assembly.
+  - [x] Starting a run creates `~/.compozy/runs/<run-id>/run.db` before execution begins.
+  - [x] A persisted run can be reopened for later snapshot and replay work without depending on workspace-local `events.jsonl`.
+  - [x] Concurrent event producers for one run are serialized into one deterministic event sequence in `run.db`.
+  - [x] A run with transcript, hook, and token records can be reopened after daemon restart with the same durable data available for later snapshot assembly.
 - Test coverage target: >=80%
 - All tests must pass
 

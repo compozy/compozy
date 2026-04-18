@@ -10,6 +10,7 @@ import (
 	core "github.com/compozy/compozy/internal/core"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
 
@@ -163,12 +164,14 @@ func decorateReusableAgentError(cmd *cobra.Command, agentName string, err error)
 
 	if reason, ok := reusableagents.BlockedReasonForError(err); ok {
 		err = fmt.Errorf("reusable agent blocked (%s): %w", reason, err)
+	} else if reason, ok := reusableAgentBlockedReasonFromText(err); ok {
+		err = fmt.Errorf("reusable agent blocked (%s): %w", reason, err)
 	}
 
 	switch {
-	case errors.Is(err, reusableagents.ErrAgentNotFound):
+	case errors.Is(err, reusableagents.ErrAgentNotFound), isReusableAgentNotFoundText(err):
 		return fmt.Errorf("%w; run `%s agents list` to inspect available reusable agents", err, rootPath)
-	case isReusableAgentValidationError(err):
+	case isReusableAgentValidationError(err), isReusableAgentValidationText(err):
 		return fmt.Errorf(
 			"%w; run `%s agents inspect %s` to inspect the resolved definition and validation details",
 			err,
@@ -182,6 +185,34 @@ func decorateReusableAgentError(cmd *cobra.Command, agentName string, err error)
 
 func isReusableAgentValidationError(err error) bool {
 	return reusableagents.IsValidationError(err)
+}
+
+func reusableAgentBlockedReasonFromText(err error) (kinds.ReusableAgentBlockedReason, bool) {
+	if err == nil {
+		return "", false
+	}
+	message := strings.ToLower(strings.TrimSpace(err.Error()))
+	switch {
+	case strings.Contains(message, "agent not found"):
+		return kinds.ReusableAgentBlockedReasonInvalidAgent, true
+	case strings.Contains(message, "missing environment variable"),
+		strings.Contains(message, "mcp.json"):
+		return kinds.ReusableAgentBlockedReasonInvalidMCP, true
+	default:
+		return "", false
+	}
+}
+
+func isReusableAgentNotFoundText(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "agent not found")
+}
+
+func isReusableAgentValidationText(err error) bool {
+	_, ok := reusableAgentBlockedReasonFromText(err)
+	return ok
 }
 
 func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {

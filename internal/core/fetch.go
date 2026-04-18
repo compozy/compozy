@@ -37,12 +37,9 @@ func fetchReviewsWithRegistry(
 		return nil, err
 	}
 
-	round := cfg.Round
-	if round <= 0 {
-		round, err = reviews.NextRound(resolvedPRDDir)
-		if err != nil {
-			return nil, err
-		}
+	round, err := resolveFetchRound(cfg.Round, resolvedPRDDir)
+	if err != nil {
+		return nil, err
 	}
 
 	reviewsDir := reviews.ReviewDirectory(resolvedPRDDir, round)
@@ -53,7 +50,7 @@ func fetchReviewsWithRegistry(
 	if registry == nil {
 		registry = provider.ResolveRegistry(defaultProviderRegistry())
 	}
-	reviewProvider, err := registry.Get(cfg.Provider)
+	reviewProvider, err := resolveFetchReviewProvider(registry, cfg.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +103,20 @@ func fetchReviewsWithRegistry(
 		ReviewsDir: reviewsDir,
 		Total:      len(items),
 	}, nil
+}
+
+func resolveFetchReviewProvider(
+	registry provider.RegistryReader,
+	providerName string,
+) (provider.Provider, error) {
+	return registry.Get(providerName)
+}
+
+func resolveFetchRound(round int, prdDir string) (int, error) {
+	if round > 0 {
+		return round, nil
+	}
+	return reviews.NextRound(prdDir)
 }
 
 func FetchReviewsWithRegistryDirect(
