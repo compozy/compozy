@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -19,12 +18,12 @@ func (c *Client) FetchReview(
 	req apicore.ReviewFetchRequest,
 ) (apicore.ReviewFetchResult, error) {
 	if c == nil {
-		return apicore.ReviewFetchResult{}, errors.New("daemon client is required")
+		return apicore.ReviewFetchResult{}, ErrDaemonClientRequired
 	}
 
 	trimmedSlug := strings.TrimSpace(slug)
 	if trimmedSlug == "" {
-		return apicore.ReviewFetchResult{}, errors.New("workflow slug is required")
+		return apicore.ReviewFetchResult{}, ErrWorkflowSlugRequired
 	}
 
 	response := struct {
@@ -49,12 +48,12 @@ func (c *Client) FetchReview(
 // GetLatestReview loads the latest review summary for one workflow.
 func (c *Client) GetLatestReview(ctx context.Context, workspace string, slug string) (apicore.ReviewSummary, error) {
 	if c == nil {
-		return apicore.ReviewSummary{}, errors.New("daemon client is required")
+		return apicore.ReviewSummary{}, ErrDaemonClientRequired
 	}
 
 	trimmedSlug := strings.TrimSpace(slug)
 	if trimmedSlug == "" {
-		return apicore.ReviewSummary{}, errors.New("workflow slug is required")
+		return apicore.ReviewSummary{}, ErrWorkflowSlugRequired
 	}
 
 	response := struct {
@@ -79,12 +78,12 @@ func (c *Client) GetReviewRound(
 	round int,
 ) (apicore.ReviewRound, error) {
 	if c == nil {
-		return apicore.ReviewRound{}, errors.New("daemon client is required")
+		return apicore.ReviewRound{}, ErrDaemonClientRequired
 	}
 
 	trimmedSlug := strings.TrimSpace(slug)
 	if trimmedSlug == "" {
-		return apicore.ReviewRound{}, errors.New("workflow slug is required")
+		return apicore.ReviewRound{}, ErrWorkflowSlugRequired
 	}
 
 	response := struct {
@@ -106,12 +105,12 @@ func (c *Client) ListReviewIssues(
 	round int,
 ) ([]apicore.ReviewIssue, error) {
 	if c == nil {
-		return nil, errors.New("daemon client is required")
+		return nil, ErrDaemonClientRequired
 	}
 
 	trimmedSlug := strings.TrimSpace(slug)
 	if trimmedSlug == "" {
-		return nil, errors.New("workflow slug is required")
+		return nil, ErrWorkflowSlugRequired
 	}
 
 	response := struct {
@@ -134,12 +133,12 @@ func (c *Client) StartReviewRun(
 	req apicore.ReviewRunRequest,
 ) (apicore.Run, error) {
 	if c == nil {
-		return apicore.Run{}, errors.New("daemon client is required")
+		return apicore.Run{}, ErrDaemonClientRequired
 	}
 
 	trimmedSlug := strings.TrimSpace(slug)
 	if trimmedSlug == "" {
-		return apicore.Run{}, errors.New("workflow slug is required")
+		return apicore.Run{}, ErrWorkflowSlugRequired
 	}
 
 	response := struct {
@@ -160,7 +159,7 @@ func (c *Client) StartReviewRun(
 // StartExecRun starts one daemon-backed exec run.
 func (c *Client) StartExecRun(ctx context.Context, req apicore.ExecRequest) (apicore.Run, error) {
 	if c == nil {
-		return apicore.Run{}, errors.New("daemon client is required")
+		return apicore.Run{}, ErrDaemonClientRequired
 	}
 
 	response := struct {

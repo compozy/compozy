@@ -82,9 +82,10 @@ func TestShouldStartUpdateCheck(t *testing.T) {
 		args []string
 		want bool
 	}{
-		{name: "no args", args: nil, want: true},
+		{name: "no args", args: nil, want: false},
 		{name: "help flag", args: []string{"--help"}, want: false},
 		{name: "nested help flag", args: []string{"tasks", "run", "--help"}, want: false},
+		{name: "nested help command", args: []string{"tasks", "help"}, want: false},
 		{name: "version flag", args: []string{"--version"}, want: false},
 		{name: "help command", args: []string{"help"}, want: false},
 		{name: "version command", args: []string{"version"}, want: false},

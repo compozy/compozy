@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -96,6 +97,89 @@ func TestHTTPServerPersistsActualPortInDaemonInfo(t *testing.T) {
 	}
 }
 
+func TestHTTPServerRejectsConcurrentStartBeforePortPersistenceReturns(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	updater := &blockingPortUpdater{
+		entered: make(chan int, 2),
+		release: make(chan struct{}),
+	}
+	server, err := httpapi.New(
+		httpapi.WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "http"})),
+		httpapi.WithPort(0),
+		httpapi.WithPortUpdater(updater),
+	)
+	if err != nil {
+		t.Fatalf("httpapi.New() error = %v", err)
+	}
+
+	firstErrCh := make(chan error, 1)
+	go func() {
+		firstErrCh <- server.Start(context.Background())
+	}()
+
+	select {
+	case <-updater.entered:
+	case <-time.After(time.Second):
+		t.Fatal("first start did not reach port persistence")
+	}
+
+	secondErrCh := make(chan error, 1)
+	go func() {
+		secondErrCh <- server.Start(context.Background())
+	}()
+
+	select {
+	case err := <-secondErrCh:
+		if err == nil || !strings.Contains(err.Error(), "already started") {
+			t.Fatalf("second Start() error = %v, want already started", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("second Start() did not return while first start was in progress")
+	}
+
+	close(updater.release)
+
+	select {
+	case err := <-firstErrCh:
+		if err != nil {
+			t.Fatalf("first Start() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first Start() did not finish after port persistence was released")
+	}
+
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+}
+
+func TestHTTPServerStartRollsBackAfterPortPersistenceFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	updater := &flakyPortUpdater{failuresRemaining: 1}
+	server, err := httpapi.New(
+		httpapi.WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "http"})),
+		httpapi.WithPort(0),
+		httpapi.WithPortUpdater(updater),
+	)
+	if err != nil {
+		t.Fatalf("httpapi.New() error = %v", err)
+	}
+
+	err = server.Start(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "persist http port") {
+		t.Fatalf("first Start() error = %v, want persist http port failure", err)
+	}
+
+	if err := server.Start(context.Background()); err != nil {
+		t.Fatalf("second Start() error = %v", err)
+	}
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+}
+
 func TestUDSServerCreates0600Socket(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -121,6 +205,63 @@ func TestUDSServerCreates0600Socket(t *testing.T) {
 	if info.Mode().Perm() != 0o600 {
 		t.Fatalf("socket perm = %o, want 600", info.Mode().Perm())
 	}
+}
+
+func TestUDSServerNewPrefersExplicitSocketPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	socketPath := filepath.Join(t.TempDir(), "explicit.sock")
+	server, err := udsapi.New(
+		udsapi.WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "uds"})),
+		udsapi.WithSocketPath(socketPath),
+	)
+	if err != nil {
+		t.Fatalf("udsapi.New() error = %v", err)
+	}
+	if server.Path() != socketPath {
+		t.Fatalf("server.Path() = %q, want %q", server.Path(), socketPath)
+	}
+}
+
+func TestUDSServerStartRollsBackAfterParentSetupFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	blockedParentFile, err := os.CreateTemp("/tmp", "compozy-uds-blocked-*")
+	if err != nil {
+		t.Fatalf("CreateTemp(/tmp) error = %v", err)
+	}
+	blockedParent := blockedParentFile.Name()
+	if err := blockedParentFile.Close(); err != nil {
+		t.Fatalf("Close(%s) error = %v", blockedParent, err)
+	}
+
+	socketPath := filepath.Join(blockedParent, "daemon.sock")
+	server, err := udsapi.New(
+		udsapi.WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "uds"})),
+		udsapi.WithSocketPath(socketPath),
+	)
+	if err != nil {
+		t.Fatalf("udsapi.New() error = %v", err)
+	}
+
+	err = server.Start(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "create socket directory") {
+		t.Fatalf("first Start() error = %v, want socket directory failure", err)
+	}
+
+	if err := os.Remove(blockedParent); err != nil {
+		t.Fatalf("Remove(%s) error = %v", blockedParent, err)
+	}
+	if err := os.MkdirAll(blockedParent, 0o700); err != nil {
+		t.Fatalf("MkdirAll(%s) error = %v", blockedParent, err)
+	}
+
+	if err := server.Start(context.Background()); err != nil {
+		t.Fatalf("second Start() error = %v", err)
+	}
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
 }
 
 func TestHealthTransitionsOverHTTP(t *testing.T) {
@@ -366,6 +507,53 @@ func TestHTTPAndUDSServeMatchingStatusSnapshotAndConflict(t *testing.T) {
 	assertJSONEqualIgnoringRequestID(t, httpConflictBody, udsConflictBody)
 }
 
+func TestUDSShutdownDoesNotCancelHTTPStreamsWhenHandlersAreShared(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	sharedHandlers := core.NewHandlers(&core.HandlerConfig{
+		TransportName:     "shared",
+		HeartbeatInterval: 150 * time.Millisecond,
+		Runs: &fakeRunService{
+			openStreamFn: func(_ context.Context, _ string, _ core.StreamCursor) (core.RunStream, error) {
+				return newChannelRunStream(), nil
+			},
+		},
+	})
+
+	httpServer, baseURL := startHTTPServer(t, sharedHandlers)
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	socketPath := newShortSocketPath(t)
+	udsServer, _ := startUDSServer(t, sharedHandlers, socketPath)
+
+	request, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		baseURL+"/api/runs/run-1/stream",
+		http.NoBody,
+	)
+	if err != nil {
+		t.Fatalf("NewRequest() error = %v", err)
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("Do() error = %v", err)
+	}
+	defer response.Body.Close()
+
+	linesCh, errCh := startSSEScan(response.Body)
+	waitForSSELine(t, linesCh, errCh, "event: heartbeat", time.Second)
+
+	if err := udsServer.Shutdown(context.Background()); err != nil {
+		t.Fatalf("udsServer.Shutdown() error = %v", err)
+	}
+
+	waitForSSELine(t, linesCh, errCh, "event: heartbeat", time.Second)
+}
+
 func TestHTTPStreamResumesAfterLastEventIDAndEmitsHeartbeat(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -491,13 +679,13 @@ func TestHTTPStreamRejectsInvalidAndStaleCursor(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name:       "invalid",
+			name:       "Should reject invalid cursor syntax",
 			lastEvent:  "bad",
 			wantCode:   http.StatusUnprocessableEntity,
 			wantReason: "invalid_cursor",
 		},
 		{
-			name:       "stale",
+			name:       "Should reject stale cursors from trimmed history",
 			lastEvent:  staleCursor,
 			wantCode:   http.StatusUnprocessableEntity,
 			wantReason: "stale_cursor",
@@ -784,6 +972,29 @@ type channelRunStream struct {
 	errors chan error
 }
 
+type blockingPortUpdater struct {
+	entered chan int
+	release chan struct{}
+}
+
+func (u *blockingPortUpdater) SetHTTPPort(_ context.Context, port int) error {
+	u.entered <- port
+	<-u.release
+	return nil
+}
+
+type flakyPortUpdater struct {
+	failuresRemaining int
+}
+
+func (u *flakyPortUpdater) SetHTTPPort(context.Context, int) error {
+	if u.failuresRemaining > 0 {
+		u.failuresRemaining--
+		return errors.New("persist failed")
+	}
+	return nil
+}
+
 func newChannelRunStream() *channelRunStream {
 	return &channelRunStream{
 		events: make(chan core.RunStreamItem, 8),
@@ -960,6 +1171,57 @@ func readSSELinesUntil(
 			return lines
 		case <-deadline:
 			t.Fatalf("timeout reading SSE lines; collected %v", lines)
+		}
+	}
+}
+
+func startSSEScan(body io.ReadCloser) (<-chan string, <-chan error) {
+	linesCh := make(chan string, 64)
+	errCh := make(chan error, 1)
+	go func() {
+		scanner := bufio.NewScanner(body)
+		for scanner.Scan() {
+			linesCh <- scanner.Text()
+		}
+		errCh <- scanner.Err()
+		close(linesCh)
+	}()
+	return linesCh, errCh
+}
+
+func waitForSSELine(
+	t *testing.T,
+	linesCh <-chan string,
+	errCh <-chan error,
+	want string,
+	timeout time.Duration,
+) {
+	t.Helper()
+
+	deadline := time.After(timeout)
+	for {
+		select {
+		case line, ok := <-linesCh:
+			if !ok {
+				select {
+				case err := <-errCh:
+					if err != nil {
+						t.Fatalf("scanner error = %v", err)
+					}
+				default:
+				}
+				t.Fatalf("stream closed before %q was observed", want)
+			}
+			if line == want {
+				return
+			}
+		case err := <-errCh:
+			if err != nil {
+				t.Fatalf("scanner error = %v", err)
+			}
+			t.Fatalf("stream ended before %q was observed", want)
+		case <-deadline:
+			t.Fatalf("timeout waiting for SSE line %q", want)
 		}
 	}
 }

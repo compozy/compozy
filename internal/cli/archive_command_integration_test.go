@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -10,7 +11,11 @@ import (
 
 func TestArchiveCommandArchivesSyncedWorkflowIntoNewPathFormat(t *testing.T) {
 	homeDir := newShortCLITestHomeDir(t)
+	xdgConfigHome := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+	t.Setenv(testCLIDaemonHomeEnv, homeDir)
+	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
 
 	workspaceRoot := t.TempDir()
 	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
@@ -56,5 +61,24 @@ func TestArchiveCommandArchivesSyncedWorkflowIntoNewPathFormat(t *testing.T) {
 	); err != nil ||
 		!matched {
 		t.Fatalf("unexpected archived workflow path: %s", matches[0])
+	}
+}
+
+func TestArchiveViaDaemonReturnsRootResolutionErrors(t *testing.T) {
+	badWorkingDir := t.TempDir()
+	withWorkingDir(t, badWorkingDir)
+	if err := os.RemoveAll(badWorkingDir); err != nil {
+		t.Fatalf("RemoveAll(%s) error = %v", badWorkingDir, err)
+	}
+
+	state := &archiveCommandState{
+		simpleCommandBase: simpleCommandBase{
+			workspaceRoot: "",
+			rootDir:       ".",
+		},
+	}
+	result, err := state.archiveViaDaemon(context.Background(), nil)
+	if err == nil || !strings.Contains(err.Error(), "archive root") {
+		t.Fatalf("archiveViaDaemon() result=%#v err=%v, want archive root error", result, err)
 	}
 }

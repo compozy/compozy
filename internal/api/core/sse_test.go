@@ -35,6 +35,8 @@ func (w *countingFlushWriter) Flush() {
 }
 
 func TestWriteSSEFormatsFramesWithCanonicalCursor(t *testing.T) {
+	t.Parallel()
+
 	timestamp := time.Date(2026, 4, 17, 12, 0, 0, 123456789, time.UTC)
 	cursor := core.FormatCursor(timestamp, 7)
 

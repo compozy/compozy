@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -173,6 +174,38 @@ func TestClientReviewRequestsEncodeDaemonPathsAndBodies(t *testing.T) {
 			t.Fatalf("unexpected review run: %#v", run)
 		}
 	})
+
+	t.Run("start task run escapes workflow slug in request path", func(t *testing.T) {
+		client := &Client{
+			target:  Target{SocketPath: "/tmp/compozy.sock"},
+			baseURL: "http://daemon",
+			httpClient: &http.Client{
+				Timeout: time.Second,
+				Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+					if req.Method != http.MethodPost {
+						t.Fatalf("method = %s, want POST", req.Method)
+					}
+					if req.URL.EscapedPath() != "/api/tasks/demo%20alpha%2Fbeta/runs" {
+						t.Fatalf(
+							"escaped path = %s, want /api/tasks/demo%%20alpha%%2Fbeta/runs",
+							req.URL.EscapedPath(),
+						)
+					}
+					return jsonResponse(http.StatusCreated, `{"run":{"run_id":"task-run-1","mode":"task"}}`), nil
+				}),
+			},
+		}
+
+		run, err := client.StartTaskRun(context.Background(), " demo alpha/beta ", apicore.TaskRunRequest{
+			Workspace: "/tmp/workspace",
+		})
+		if err != nil {
+			t.Fatalf("StartTaskRun() error = %v", err)
+		}
+		if run.RunID != "task-run-1" || run.Mode != "task" {
+			t.Fatalf("unexpected task run: %#v", run)
+		}
+	})
 }
 
 func TestClientExecRequestAndGuardErrors(t *testing.T) {
@@ -215,24 +248,34 @@ func TestClientExecRequestAndGuardErrors(t *testing.T) {
 	}
 
 	var nilClient *Client
-	if _, err := nilClient.StartExecRun(context.Background(), apicore.ExecRequest{}); err == nil ||
-		!strings.Contains(err.Error(), "daemon client is required") {
+	if _, err := nilClient.StartExecRun(context.Background(), apicore.ExecRequest{}); !errors.Is(
+		err,
+		ErrDaemonClientRequired,
+	) {
 		t.Fatalf("nil StartExecRun() error = %v", err)
 	}
-	if _, err := nilClient.FetchReview(context.Background(), "", "", apicore.ReviewFetchRequest{}); err == nil ||
-		!strings.Contains(err.Error(), "daemon client is required") {
+	if _, err := nilClient.FetchReview(context.Background(), "", "", apicore.ReviewFetchRequest{}); !errors.Is(
+		err,
+		ErrDaemonClientRequired,
+	) {
 		t.Fatalf("nil FetchReview() error = %v", err)
 	}
-	if _, err := client.GetLatestReview(context.Background(), "/tmp/workspace", " "); err == nil ||
-		!strings.Contains(err.Error(), "workflow slug is required") {
+	if _, err := client.GetLatestReview(context.Background(), "/tmp/workspace", " "); !errors.Is(
+		err,
+		ErrWorkflowSlugRequired,
+	) {
 		t.Fatalf("blank GetLatestReview() error = %v", err)
 	}
-	if _, err := client.GetReviewRound(context.Background(), "/tmp/workspace", " ", 1); err == nil ||
-		!strings.Contains(err.Error(), "workflow slug is required") {
+	if _, err := client.GetReviewRound(context.Background(), "/tmp/workspace", " ", 1); !errors.Is(
+		err,
+		ErrWorkflowSlugRequired,
+	) {
 		t.Fatalf("blank GetReviewRound() error = %v", err)
 	}
-	if _, err := client.ListReviewIssues(context.Background(), "/tmp/workspace", " ", 1); err == nil ||
-		!strings.Contains(err.Error(), "workflow slug is required") {
+	if _, err := client.ListReviewIssues(context.Background(), "/tmp/workspace", " ", 1); !errors.Is(
+		err,
+		ErrWorkflowSlugRequired,
+	) {
 		t.Fatalf("blank ListReviewIssues() error = %v", err)
 	}
 	if _, err := client.StartReviewRun(
@@ -241,9 +284,68 @@ func TestClientExecRequestAndGuardErrors(t *testing.T) {
 		" ",
 		1,
 		apicore.ReviewRunRequest{},
-	); err == nil ||
-		!strings.Contains(err.Error(), "workflow slug is required") {
+	); !errors.Is(err, ErrWorkflowSlugRequired) {
 		t.Fatalf("blank StartReviewRun() error = %v", err)
+	}
+}
+
+func TestClientRunStreamSendItemBackpressure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	stream := &clientRunStream{
+		items: make(chan RunStreamItem, 1),
+		ctx:   ctx,
+	}
+	stream.items <- RunStreamItem{
+		Heartbeat: &RunStreamHeartbeat{Timestamp: time.Now().UTC()},
+	}
+
+	resultCh := make(chan error, 1)
+	go func() {
+		resultCh <- stream.sendItem(RunStreamItem{
+			Overflow: &RunStreamOverflow{Reason: "slow consumer"},
+		})
+	}()
+
+	select {
+	case err := <-resultCh:
+		t.Fatalf("sendItem() returned before buffer space was available: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+
+	<-stream.items
+
+	select {
+	case err := <-resultCh:
+		if err != nil {
+			t.Fatalf("sendItem() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("sendItem() did not resume after buffer space became available")
+	}
+}
+
+func TestClientRunStreamSendItemReturnsContextErrorOnCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	stream := &clientRunStream{
+		items: make(chan RunStreamItem, 1),
+		ctx:   ctx,
+	}
+	stream.items <- RunStreamItem{
+		Heartbeat: &RunStreamHeartbeat{Timestamp: time.Now().UTC()},
+	}
+	cancel()
+
+	err := stream.sendItem(RunStreamItem{
+		Overflow: &RunStreamOverflow{Reason: "slow consumer"},
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("sendItem() error = %v, want context.Canceled", err)
 	}
 }
 

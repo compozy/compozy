@@ -961,7 +961,7 @@ func TestExecCommandUsesDaemonLifecycleAcrossFormats(t *testing.T) {
 		installTestCLIReadyDaemonBootstrap(t, client)
 
 		output, err := executeCommandCombinedOutput(
-			newExecCommandWithDefaults(nil, testReviewExecCommandDefaults()),
+			newExecCommandWithDefaults(testReviewExecCommandDefaults()),
 			nil,
 			"Summarize the repository state",
 		)
@@ -1069,7 +1069,7 @@ func TestExecCommandUsesDaemonLifecycleAcrossFormats(t *testing.T) {
 		installTestCLIReadyDaemonBootstrap(t, client)
 
 		output, err := executeCommandCombinedOutput(
-			newExecCommandWithDefaults(nil, testReviewExecCommandDefaults()),
+			newExecCommandWithDefaults(testReviewExecCommandDefaults()),
 			strings.NewReader("Prompt from stdin\n"),
 			"--format",
 			"json",
@@ -1186,7 +1186,7 @@ func TestExecCommandUsesDaemonLifecycleAcrossFormats(t *testing.T) {
 		installTestCLIReadyDaemonBootstrap(t, client)
 
 		output, err := executeCommandCombinedOutput(
-			newExecCommandWithDefaults(nil, testReviewExecCommandDefaults()),
+			newExecCommandWithDefaults(testReviewExecCommandDefaults()),
 			nil,
 			"--format",
 			"raw-json",

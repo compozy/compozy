@@ -40,7 +40,7 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	t.Parallel()
 
-	keys := formFieldKeys(newFixReviewsCommand(nil), newCommandState(commandKindFixReviews, core.ModePRReview))
+	keys := formFieldKeys(newFixReviewsCommand(), newCommandState(commandKindFixReviews, core.ModePRReview))
 
 	assertFieldKeysPresent(
 		t,

@@ -13,7 +13,9 @@ import (
 )
 
 func TestSharedHandlersValidationAndServiceErrors(t *testing.T) {
+	previousMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(previousMode) })
 
 	workspaceSvc := &smokeWorkspaceService{}
 	taskSvc := &smokeTaskService{}
@@ -204,6 +206,15 @@ func TestSharedHandlersValidationAndServiceErrors(t *testing.T) {
 			"round_invalid",
 		},
 		{
+			"review fetch invalid round",
+			&core.HandlerConfig{Reviews: reviewSvc},
+			http.MethodPost,
+			"/api/reviews/daemon/fetch",
+			`{"workspace":"ws-1","round":0}`,
+			http.StatusUnprocessableEntity,
+			"round_invalid",
+		},
+		{
 			"review issues invalid round",
 			&core.HandlerConfig{Reviews: reviewSvc},
 			http.MethodGet,
@@ -226,6 +237,15 @@ func TestSharedHandlersValidationAndServiceErrors(t *testing.T) {
 			&core.HandlerConfig{Runs: runSvc},
 			http.MethodGet,
 			"/api/runs?limit=bad",
+			"",
+			http.StatusUnprocessableEntity,
+			"limit_invalid",
+		},
+		{
+			"runs list oversized limit",
+			&core.HandlerConfig{Runs: runSvc},
+			http.MethodGet,
+			"/api/runs?limit=501",
 			"",
 			http.StatusUnprocessableEntity,
 			"limit_invalid",
@@ -256,6 +276,15 @@ func TestSharedHandlersValidationAndServiceErrors(t *testing.T) {
 			"",
 			http.StatusUnprocessableEntity,
 			"invalid_cursor",
+		},
+		{
+			"run events oversized limit",
+			&core.HandlerConfig{Runs: runSvc},
+			http.MethodGet,
+			"/api/runs/run-1/events?limit=501",
+			"",
+			http.StatusUnprocessableEntity,
+			"limit_invalid",
 		},
 		{
 			"run cancel service unavailable",

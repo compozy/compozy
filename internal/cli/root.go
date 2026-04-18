@@ -98,9 +98,9 @@ Use explicit workflow subcommands:
 		newRunsCommandWithDefaults(defaults),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
-		newFetchReviewsCommandWithDefaults(nil, defaults),
-		newFixReviewsCommandWithDefaults(nil, defaults),
-		newExecCommandWithDefaults(nil, defaults),
+		newFetchReviewsCommandWithDefaults(defaults),
+		newFixReviewsCommandWithDefaults(defaults),
+		newExecCommandWithDefaults(defaults),
 		newMCPServeCommand(),
 	)
 	return root

@@ -3,9 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
@@ -45,8 +42,8 @@ func newDaemonStartCommand() *cobra.Command {
 		Use:          "start",
 		Short:        "Start the home-scoped daemon singleton in the foreground",
 		SilenceUsage: true,
-		RunE: func(_ *cobra.Command, _ []string) error {
-			ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx, stop := signalCommandContext(cmd)
 			defer stop()
 
 			return daemon.Run(ctx, daemon.RunOptions{

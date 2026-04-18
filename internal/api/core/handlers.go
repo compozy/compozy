@@ -18,6 +18,8 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+const maxPageLimit = 500
+
 // Handlers contains the shared daemon API handler logic used by both transports.
 type Handlers struct {
 	TransportName     string
@@ -35,7 +37,7 @@ type Handlers struct {
 
 	settingsMu sync.RWMutex
 	streamDone <-chan struct{}
-	httpPort   atomic.Int64
+	httpPort   *atomic.Int64
 }
 
 // NewHandlers builds the shared handler set with transport-specific defaults applied.
@@ -79,7 +81,32 @@ func NewHandlers(cfg *HandlerConfig) *Handlers {
 		Sync:              cfg.Sync,
 		Exec:              cfg.Exec,
 		streamDone:        done,
+		httpPort:          &atomic.Int64{},
 	}
+}
+
+// Clone copies the handler set so each transport can own its runtime state independently.
+func (h *Handlers) Clone() *Handlers {
+	if h == nil {
+		return nil
+	}
+
+	clone := NewHandlers(&HandlerConfig{
+		TransportName:     h.TransportName,
+		Logger:            h.Logger,
+		Now:               h.Now,
+		HeartbeatInterval: h.HeartbeatInterval,
+		StreamDone:        h.streamDoneChannel(),
+		Daemon:            h.Daemon,
+		Workspaces:        h.Workspaces,
+		Tasks:             h.Tasks,
+		Reviews:           h.Reviews,
+		Runs:              h.Runs,
+		Sync:              h.Sync,
+		Exec:              h.Exec,
+	})
+	clone.httpPort = h.httpPort
+	return clone
 }
 
 // SetStreamDone updates the transport shutdown bridge used by streaming handlers.
@@ -99,6 +126,9 @@ func (h *Handlers) SetStreamDone(done <-chan struct{}) {
 func (h *Handlers) SetHTTPPort(port int) {
 	if h == nil || port <= 0 {
 		return
+	}
+	if h.httpPort == nil {
+		h.httpPort = &atomic.Int64{}
 	}
 	h.httpPort.Store(int64(port))
 }
@@ -292,8 +322,10 @@ func (h *Handlers) DaemonStatus(c *gin.Context) {
 		return
 	}
 
-	if httpPort := int(h.httpPort.Load()); httpPort > 0 {
-		status.HTTPPort = httpPort
+	if h.httpPort != nil {
+		if httpPort := int(h.httpPort.Load()); httpPort > 0 {
+			status.HTTPPort = httpPort
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"daemon": status})
@@ -635,6 +667,14 @@ func (h *Handlers) FetchReview(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if body.Round != nil && *body.Round <= 0 {
+		h.respondError(c, validationProblem(
+			"round_invalid",
+			"round must be a positive integer",
+			map[string]any{"field": "round"},
+		))
+		return
+	}
 
 	result, err := h.Reviews.Fetch(c.Request.Context(), workspace, c.Param("slug"), ReviewFetchRequest{
 		Workspace: workspace,
@@ -773,6 +813,14 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 	if limit == 0 {
 		limit = 100
 	}
+	if limit > maxPageLimit {
+		h.respondError(c, validationProblem(
+			"limit_invalid",
+			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
+			map[string]any{"field": "limit"},
+		))
+		return
+	}
 
 	runs, err := h.Runs.List(c.Request.Context(), RunListQuery{
 		Workspace: strings.TrimSpace(c.Query("workspace")),
@@ -845,6 +893,14 @@ func (h *Handlers) ListRunEvents(c *gin.Context) {
 	if limit == 0 {
 		limit = 100
 	}
+	if limit > maxPageLimit {
+		h.respondError(c, validationProblem(
+			"limit_invalid",
+			fmt.Sprintf("limit must be less than or equal to %d", maxPageLimit),
+			map[string]any{"field": "limit"},
+		))
+		return
+	}
 
 	page, err := h.Runs.Events(c.Request.Context(), c.Param("run_id"), RunEventPageQuery{
 		After: after,
@@ -881,7 +937,9 @@ func (h *Handlers) StreamRun(c *gin.Context) {
 		return
 	}
 	defer func() {
-		_ = stream.Close()
+		if closeErr := stream.Close(); closeErr != nil && h != nil && h.Logger != nil {
+			h.Logger.Warn("close run stream", "run_id", c.Param("run_id"), "error", closeErr)
+		}
 	}()
 
 	writer, err := PrepareSSE(c)

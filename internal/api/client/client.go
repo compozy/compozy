@@ -19,6 +19,15 @@ import (
 
 const defaultRequestTimeout = 5 * time.Second
 
+var (
+	// ErrDaemonClientRequired reports that the receiver client was nil.
+	ErrDaemonClientRequired = errors.New("daemon client is required")
+	// ErrWorkflowSlugRequired reports that a workflow slug argument was blank.
+	ErrWorkflowSlugRequired = errors.New("workflow slug is required")
+	// ErrRunIDRequired reports that a run identifier argument was blank.
+	ErrRunIDRequired = errors.New("run id is required")
+)
+
 // Target identifies one daemon transport endpoint.
 type Target struct {
 	SocketPath string
@@ -120,7 +129,7 @@ func (c *Client) Target() Target {
 // health payload is treated as a successful probe result rather than a transport error.
 func (c *Client) Health(ctx context.Context) (apicore.DaemonHealth, error) {
 	if c == nil {
-		return apicore.DaemonHealth{}, errors.New("daemon client is required")
+		return apicore.DaemonHealth{}, ErrDaemonClientRequired
 	}
 	response := struct {
 		Health apicore.DaemonHealth `json:"health"`
@@ -145,11 +154,11 @@ func (c *Client) StartTaskRun(
 	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
 	if c == nil {
-		return apicore.Run{}, errors.New("daemon client is required")
+		return apicore.Run{}, ErrDaemonClientRequired
 	}
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
-		return apicore.Run{}, errors.New("workflow slug is required")
+		return apicore.Run{}, ErrWorkflowSlugRequired
 	}
 
 	body := map[string]any{
@@ -163,7 +172,7 @@ func (c *Client) StartTaskRun(
 	response := struct {
 		Run apicore.Run `json:"run"`
 	}{}
-	path := "/api/tasks/" + slug + "/runs"
+	path := "/api/tasks/" + url.PathEscape(slug) + "/runs"
 	if _, err := c.doJSON(ctx, http.MethodPost, path, body, &response); err != nil {
 		return apicore.Run{}, err
 	}
@@ -178,7 +187,7 @@ func (c *Client) doJSON(
 	responseBody any,
 ) (int, error) {
 	if c == nil {
-		return 0, errors.New("daemon client is required")
+		return 0, ErrDaemonClientRequired
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -246,7 +255,7 @@ func (c *Client) doRequest(request *http.Request) (int, []byte, error) {
 
 func (c *Client) roundTrip(request *http.Request) (*http.Response, error) {
 	if c == nil || c.httpClient == nil {
-		return nil, errors.New("daemon client is required")
+		return nil, ErrDaemonClientRequired
 	}
 
 	transport := c.httpClient.Transport

@@ -64,20 +64,20 @@ func shouldStartUpdateCheck(args []string) bool {
 		}
 	}
 
+	sawCommand := false
 	for _, arg := range args {
 		value := strings.TrimSpace(arg)
 		if value == "" || strings.HasPrefix(value, "-") {
 			continue
 		}
+		sawCommand = true
 		switch value {
 		case "help", "version", "completion", "__complete", "__completeNoDesc":
 			return false
-		default:
-			return true
 		}
 	}
 
-	return true
+	return sawCommand
 }
 
 func startUpdateCheck(

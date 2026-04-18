@@ -65,16 +65,18 @@ func WithEngine(engine *gin.Engine) Option {
 
 // New constructs a UDS API server.
 func New(opts ...Option) (*Server, error) {
-	paths, err := compozyconfig.ResolveHomePaths()
-	if err != nil {
-		return nil, fmt.Errorf("udsapi: resolve home paths: %w", err)
-	}
-
-	server := &Server{socketPath: paths.SocketPath}
+	server := &Server{}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(server)
 		}
+	}
+	if strings.TrimSpace(server.socketPath) == "" {
+		paths, err := compozyconfig.ResolveHomePaths()
+		if err != nil {
+			return nil, fmt.Errorf("udsapi: resolve home paths: %w", err)
+		}
+		server.socketPath = paths.SocketPath
 	}
 	if err := server.finalize(); err != nil {
 		return nil, err
@@ -86,6 +88,7 @@ func (s *Server) finalize() error {
 	if s.handlers == nil {
 		return errors.New("udsapi: handlers are required")
 	}
+	s.handlers = s.handlers.Clone()
 	if strings.TrimSpace(s.socketPath) == "" {
 		return errors.New("udsapi: socket path is required")
 	}
@@ -124,6 +127,44 @@ func (s *Server) Path() string {
 	return s.socketPath
 }
 
+func (s *Server) reserveStart() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.started {
+		return errors.New("udsapi: server already started")
+	}
+	s.started = true
+	return nil
+}
+
+func (s *Server) rollbackStart() {
+	s.mu.Lock()
+	s.httpServer = nil
+	s.listener = nil
+	s.serveDone = nil
+	s.serveErr = nil
+	s.streamCancel = nil
+	s.started = false
+	s.mu.Unlock()
+}
+
+func (s *Server) publishStartState(
+	streamDone <-chan struct{},
+	httpServer *http.Server,
+	ln net.Listener,
+	serveDone chan struct{},
+	streamCancel context.CancelFunc,
+) {
+	s.mu.Lock()
+	s.handlers.SetStreamDone(streamDone)
+	s.httpServer = httpServer
+	s.listener = ln
+	s.serveDone = serveDone
+	s.serveErr = nil
+	s.streamCancel = streamCancel
+	s.mu.Unlock()
+}
+
 // Start begins serving the API over the configured Unix domain socket.
 func (s *Server) Start(ctx context.Context) error {
 	if s == nil {
@@ -136,29 +177,30 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
-	s.mu.Lock()
-	if s.started {
-		s.mu.Unlock()
-		return errors.New("udsapi: server already started")
+	if err := s.reserveStart(); err != nil {
+		return err
 	}
-	s.mu.Unlock()
 
 	socketPath := strings.TrimSpace(s.socketPath)
 	if err := ensureSocketParentDir(socketPath); err != nil {
+		s.rollbackStart()
 		return err
 	}
 	if err := removeSocketPath(socketPath); err != nil {
+		s.rollbackStart()
 		return err
 	}
 
 	var listenConfig net.ListenConfig
 	ln, err := listenConfig.Listen(ctx, "unix", socketPath)
 	if err != nil {
+		s.rollbackStart()
 		return fmt.Errorf("udsapi: listen on %q: %w", socketPath, err)
 	}
 	if err := os.Chmod(socketPath, 0o600); err != nil {
 		_ = ln.Close()
 		_ = os.Remove(socketPath)
+		s.rollbackStart()
 		return fmt.Errorf("udsapi: chmod socket %q: %w", socketPath, err)
 	}
 
@@ -170,15 +212,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	serveDone := make(chan struct{})
 
-	s.mu.Lock()
-	s.handlers.SetStreamDone(streamCtx.Done())
-	s.httpServer = httpServer
-	s.listener = ln
-	s.serveDone = serveDone
-	s.serveErr = nil
-	s.streamCancel = streamCancel
-	s.started = true
-	s.mu.Unlock()
+	s.publishStartState(streamCtx.Done(), httpServer, ln, serveDone, streamCancel)
 
 	go func() {
 		defer close(serveDone)

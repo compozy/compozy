@@ -1,9 +1,13 @@
 package core_test
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
-	"io"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -105,8 +109,9 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	stream := newFakeRunStream()
+	sendOverflow := make(chan struct{})
 	go func() {
-		time.Sleep(30 * time.Millisecond)
+		<-sendOverflow
 		stream.events <- core.RunStreamItem{
 			Overflow: &core.RunStreamOverflow{Reason: "slow consumer"},
 		}
@@ -146,13 +151,50 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Do() error = %v", err)
 	}
-	defer response.Body.Close()
+	text, err := func() (string, error) {
+		defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
+		linesCh := make(chan string, 32)
+		scanErrCh := make(chan error, 1)
+		go func() {
+			scanner := bufio.NewScanner(response.Body)
+			for scanner.Scan() {
+				linesCh <- scanner.Text()
+			}
+			scanErrCh <- scanner.Err()
+			close(linesCh)
+		}()
+
+		lines := make([]string, 0, 16)
+		overflowTriggered := false
+		for {
+			select {
+			case line, ok := <-linesCh:
+				if !ok {
+					if err := <-scanErrCh; err != nil {
+						return "", fmt.Errorf("scanner error: %w", err)
+					}
+					return strings.Join(lines, "\n"), nil
+				}
+				lines = append(lines, line)
+				if line == "event: heartbeat" && !overflowTriggered {
+					overflowTriggered = true
+					close(sendOverflow)
+				}
+			case err := <-scanErrCh:
+				if err != nil {
+					return "", fmt.Errorf("scanner error: %w", err)
+				}
+				return strings.Join(lines, "\n"), nil
+			case <-time.After(time.Second):
+				return "", fmt.Errorf("timeout reading stream; collected lines=%v", lines)
+			}
+		}
+	}()
 	if err != nil {
-		t.Fatalf("ReadAll() error = %v", err)
+		t.Fatalf("read stream text: %v", err)
 	}
-	text := string(body)
+
 	if !strings.Contains(text, "event: heartbeat") {
 		t.Fatalf("stream missing heartbeat frame:\n%s", text)
 	}
@@ -161,6 +203,49 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 	}
 	if !strings.Contains(text, `"reason":"slow consumer"`) {
 		t.Fatalf("stream missing overflow payload:\n%s", text)
+	}
+}
+
+func TestStreamRunLogsCloseErrors(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
+	stream := newFakeRunStream()
+	stream.closeErr = errors.New("close failed")
+	close(stream.events)
+	close(stream.errors)
+
+	handlers := core.NewHandlers(&core.HandlerConfig{
+		TransportName: "test",
+		Logger:        logger,
+		Runs: &fakeRunService{
+			openStream: func(_ context.Context, _ string, _ core.StreamCursor) (core.RunStream, error) {
+				return stream, nil
+			},
+		},
+	})
+
+	engine := gin.New()
+	engine.Use(core.RequestIDMiddleware())
+	engine.Use(core.ErrorMiddleware())
+	core.RegisterRoutes(engine, handlers)
+
+	request := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/api/runs/run-1/stream",
+		http.NoBody,
+	)
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+
+	logs := logBuffer.String()
+	if !strings.Contains(logs, "close run stream") {
+		t.Fatalf("logs missing close warning:\n%s", logs)
+	}
+	if !strings.Contains(logs, "run_id=run-1") {
+		t.Fatalf("logs missing run id:\n%s", logs)
 	}
 }
 
@@ -201,8 +286,9 @@ func (f *fakeRunService) Cancel(context.Context, string) error {
 }
 
 type fakeRunStream struct {
-	events chan core.RunStreamItem
-	errors chan error
+	events   chan core.RunStreamItem
+	errors   chan error
+	closeErr error
 }
 
 func newFakeRunStream() *fakeRunStream {
@@ -221,7 +307,7 @@ func (f *fakeRunStream) Errors() <-chan error {
 }
 
 func (f *fakeRunStream) Close() error {
-	return nil
+	return f.closeErr
 }
 
 func decodeJSON(t *testing.T, data []byte, dst any) {

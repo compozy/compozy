@@ -40,8 +40,8 @@ const (
 	publicRunStatusCancelled = "cancel" + "led"
 	publicRunStatusCrashed   = "crashed"
 
-	defaultRunListQueryLimit = 5000
-	defaultRunEventPageLimit = 1000
+	defaultRunListQueryLimit = 500
+	defaultRunEventPageLimit = 500
 	defaultRequestTimeout    = 5 * time.Second
 )
 

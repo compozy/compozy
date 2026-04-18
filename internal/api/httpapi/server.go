@@ -115,6 +115,7 @@ func (s *Server) finalize() error {
 	if s.handlers == nil {
 		return errors.New("httpapi: handlers are required")
 	}
+	s.handlers = s.handlers.Clone()
 	if strings.TrimSpace(s.host) == "" {
 		s.host = defaultHost
 	}
@@ -164,6 +165,48 @@ func (s *Server) Port() int {
 	return s.port
 }
 
+func (s *Server) reserveStart() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.started {
+		return errors.New("httpapi: server already started")
+	}
+	s.started = true
+	return nil
+}
+
+func (s *Server) rollbackStart() {
+	s.mu.Lock()
+	s.httpServer = nil
+	s.listener = nil
+	s.serveDone = nil
+	s.serveErr = nil
+	s.streamCancel = nil
+	s.started = false
+	s.actualPort = 0
+	s.mu.Unlock()
+}
+
+func (s *Server) publishStartState(
+	streamDone <-chan struct{},
+	httpServer *http.Server,
+	ln net.Listener,
+	serveDone chan struct{},
+	streamCancel context.CancelFunc,
+	actualPort int,
+) {
+	s.mu.Lock()
+	s.handlers.SetStreamDone(streamDone)
+	s.handlers.SetHTTPPort(actualPort)
+	s.httpServer = httpServer
+	s.listener = ln
+	s.serveDone = serveDone
+	s.serveErr = nil
+	s.streamCancel = streamCancel
+	s.actualPort = actualPort
+	s.mu.Unlock()
+}
+
 // Start begins serving the API over localhost TCP.
 func (s *Server) Start(ctx context.Context) error {
 	if s == nil {
@@ -176,17 +219,15 @@ func (s *Server) Start(ctx context.Context) error {
 		return err
 	}
 
-	s.mu.Lock()
-	if s.started {
-		s.mu.Unlock()
-		return errors.New("httpapi: server already started")
+	if err := s.reserveStart(); err != nil {
+		return err
 	}
-	s.mu.Unlock()
 
 	address := net.JoinHostPort(s.host, strconv.Itoa(s.port))
 	var listenConfig net.ListenConfig
 	ln, err := listenConfig.Listen(ctx, "tcp", address)
 	if err != nil {
+		s.rollbackStart()
 		return fmt.Errorf("httpapi: listen on %q: %w", address, err)
 	}
 
@@ -197,6 +238,7 @@ func (s *Server) Start(ctx context.Context) error {
 	if s.portUpdater != nil {
 		if err := s.portUpdater.SetHTTPPort(ctx, actualPort); err != nil {
 			_ = ln.Close()
+			s.rollbackStart()
 			return fmt.Errorf("httpapi: persist http port: %w", err)
 		}
 	}
@@ -209,17 +251,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	serveDone := make(chan struct{})
 
-	s.mu.Lock()
-	s.handlers.SetStreamDone(streamCtx.Done())
-	s.handlers.SetHTTPPort(actualPort)
-	s.httpServer = httpServer
-	s.listener = ln
-	s.serveDone = serveDone
-	s.serveErr = nil
-	s.streamCancel = streamCancel
-	s.started = true
-	s.actualPort = actualPort
-	s.mu.Unlock()
+	s.publishStartState(streamCtx.Done(), httpServer, ln, serveDone, streamCancel, actualPort)
 
 	go func() {
 		defer close(serveDone)

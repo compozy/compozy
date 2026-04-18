@@ -80,7 +80,7 @@ func TestBuildConfigFetchReviewsDefaultsReviewBodyCommentsEnabled(t *testing.T) 
 func TestNewExecCommandRegistersExtensionsFlag(t *testing.T) {
 	t.Parallel()
 
-	cmd := newExecCommandWithDefaults(nil, defaultCommandStateDefaults())
+	cmd := newExecCommandWithDefaults(defaultCommandStateDefaults())
 	flag := cmd.Flags().Lookup("extensions")
 	if flag == nil {
 		t.Fatal("expected exec command to register --extensions")
@@ -109,7 +109,7 @@ func TestNewTasksRunCommandDefaultsAttachModeToAuto(t *testing.T) {
 func TestFixReviewsCommandDefaultsTUIToTrue(t *testing.T) {
 	t.Parallel()
 
-	cmd := newFixReviewsCommandWithDefaults(nil, defaultCommandStateDefaults())
+	cmd := newFixReviewsCommandWithDefaults(defaultCommandStateDefaults())
 	flag := cmd.Flags().Lookup("tui")
 	if flag == nil {
 		t.Fatal("expected --tui flag")

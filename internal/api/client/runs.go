@@ -57,6 +57,7 @@ type RunStream interface {
 type clientRunStream struct {
 	items     chan RunStreamItem
 	errors    chan error
+	ctx       context.Context
 	cancel    context.CancelFunc
 	body      io.Closer
 	closeOnce sync.Once
@@ -83,7 +84,7 @@ type overflowPayload struct {
 // ListRuns lists daemon-managed runs for the requested workspace and filters.
 func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.Run, error) {
 	if c == nil {
-		return nil, errors.New("daemon client is required")
+		return nil, ErrDaemonClientRequired
 	}
 
 	values := url.Values{}
@@ -116,12 +117,12 @@ func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.R
 // GetRun loads the latest daemon-backed run summary for one run.
 func (c *Client) GetRun(ctx context.Context, runID string) (apicore.Run, error) {
 	if c == nil {
-		return apicore.Run{}, errors.New("daemon client is required")
+		return apicore.Run{}, ErrDaemonClientRequired
 	}
 
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
-		return apicore.Run{}, errors.New("run id is required")
+		return apicore.Run{}, ErrRunIDRequired
 	}
 
 	response := struct {
@@ -137,12 +138,12 @@ func (c *Client) GetRun(ctx context.Context, runID string) (apicore.Run, error) 
 // GetRunSnapshot loads the dense attach snapshot for one run.
 func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunSnapshot, error) {
 	if c == nil {
-		return apicore.RunSnapshot{}, errors.New("daemon client is required")
+		return apicore.RunSnapshot{}, ErrDaemonClientRequired
 	}
 
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
-		return apicore.RunSnapshot{}, errors.New("run id is required")
+		return apicore.RunSnapshot{}, ErrRunIDRequired
 	}
 
 	var payload struct {
@@ -184,12 +185,12 @@ func (c *Client) ListRunEvents(
 	limit int,
 ) (apicore.RunEventPage, error) {
 	if c == nil {
-		return apicore.RunEventPage{}, errors.New("daemon client is required")
+		return apicore.RunEventPage{}, ErrDaemonClientRequired
 	}
 
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
-		return apicore.RunEventPage{}, errors.New("run id is required")
+		return apicore.RunEventPage{}, ErrRunIDRequired
 	}
 
 	values := url.Values{}
@@ -235,12 +236,12 @@ func (c *Client) OpenRunStream(
 	after apicore.StreamCursor,
 ) (RunStream, error) {
 	if c == nil {
-		return nil, errors.New("daemon client is required")
+		return nil, ErrDaemonClientRequired
 	}
 
 	trimmedRunID := strings.TrimSpace(runID)
 	if trimmedRunID == "" {
-		return nil, errors.New("run id is required")
+		return nil, ErrRunIDRequired
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -282,6 +283,7 @@ func (c *Client) OpenRunStream(
 	stream := &clientRunStream{
 		items:    make(chan RunStreamItem, 32),
 		errors:   make(chan error, 4),
+		ctx:      streamCtx,
 		cancel:   cancel,
 		body:     response.Body,
 		readDone: make(chan struct{}),
@@ -450,11 +452,18 @@ func (s *clientRunStream) dispatchEvent(raw []byte) error {
 }
 
 func (s *clientRunStream) sendItem(item RunStreamItem) error {
+	if s == nil {
+		return ErrDaemonClientRequired
+	}
+	var done <-chan struct{}
+	if s.ctx != nil {
+		done = s.ctx.Done()
+	}
 	select {
 	case s.items <- item:
 		return nil
-	default:
-		return errors.New("client run stream buffer is full")
+	case <-done:
+		return s.ctx.Err()
 	}
 }
 

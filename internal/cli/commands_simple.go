@@ -316,9 +316,10 @@ func (s *archiveCommandState) archiveViaDaemon(
 	archiveRootBase := model.TasksBaseDirForWorkspace(s.workspaceRoot)
 	if strings.TrimSpace(s.rootDir) != "" {
 		resolvedRoot, err := absoluteWorkflowPath(s.workspaceRoot, s.rootDir)
-		if err == nil {
-			archiveRootBase = resolvedRoot
+		if err != nil {
+			return nil, fmt.Errorf("resolve archive root: %w", err)
 		}
+		archiveRootBase = resolvedRoot
 	}
 	result := &core.ArchiveResult{
 		Target:         s.archiveTarget(),
