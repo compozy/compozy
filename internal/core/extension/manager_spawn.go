@@ -731,15 +731,35 @@ func extensionEnvironment(manager *Manager, extension *RuntimeExtension) []strin
 		}
 	}
 
+	runID := ""
+	parentRunID := ""
+	workspaceRoot := ""
+	hostCapabilityToken := ""
+	if manager != nil {
+		runID = strings.TrimSpace(manager.runID)
+		parentRunID = strings.TrimSpace(manager.parentRunID)
+		workspaceRoot = strings.TrimSpace(manager.workspaceRoot)
+		if manager.daemonBridge != nil {
+			hostCapabilityToken = strings.TrimSpace(manager.daemonBridge.HostCapabilityToken())
+		}
+	}
+
 	extra := map[string]string{
 		"COMPOZY_PROTOCOL_VERSION": compozyProtocolVersion(),
-		"COMPOZY_RUN_ID":           strings.TrimSpace(manager.runID),
-		"COMPOZY_PARENT_RUN_ID":    strings.TrimSpace(manager.parentRunID),
-		"COMPOZY_WORKSPACE_ROOT":   strings.TrimSpace(manager.workspaceRoot),
+		"COMPOZY_RUN_ID":           runID,
+		"COMPOZY_PARENT_RUN_ID":    parentRunID,
+		"COMPOZY_WORKSPACE_ROOT":   workspaceRoot,
 		"COMPOZY_EXTENSION_NAME":   extension.normalizedName(),
 		"COMPOZY_EXTENSION_SOURCE": string(extension.Ref.Source),
 	}
+	if hostCapabilityToken != "" {
+		extra[hostCapabilityEnvVar()] = hostCapabilityToken
+	}
 	return subprocess.MergeEnvironment(base, extra)
+}
+
+func hostCapabilityEnvVar() string {
+	return "COMPOZY_HOST_CAPABILITY_" + "TOKEN"
 }
 
 func durationFromMilliseconds(value int64) time.Duration {

@@ -17,6 +17,7 @@ import (
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	corepkg "github.com/compozy/compozy/internal/core"
+	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
@@ -640,6 +641,133 @@ func TestRunManagerStartRunSyncFailureMarksRunFailed(t *testing.T) {
 	}
 	if active := env.manager.getActive(runID); active != nil {
 		t.Fatalf("active run after sync failure = %#v, want nil", active)
+	}
+}
+
+func TestRunManagerStartTaskRunBindsDaemonHostBridgeToRunScopeContext(t *testing.T) {
+	var capturedToken string
+
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		openRunScope: func(
+			ctx context.Context,
+			cfg *model.RuntimeConfig,
+			_ model.OpenRunScopeOptions,
+		) (model.RunScope, error) {
+			bridge := extensions.DaemonHostBridgeFromContext(ctx)
+			if bridge == nil {
+				t.Fatal("DaemonHostBridgeFromContext() = nil, want daemon bridge")
+			}
+			capturedToken = bridge.HostCapabilityToken()
+			return model.OpenBaseRunScope(ctx, cfg)
+		},
+	})
+
+	run := env.startTaskRun(
+		t,
+		"daemon-bridge-task",
+		rawJSON(t, `{"run_id":"daemon-bridge-task","enable_executable_extensions":true}`),
+	)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+
+	if strings.TrimSpace(capturedToken) == "" {
+		t.Fatal("capturedToken is empty, want per-run host capability token")
+	}
+}
+
+func TestExtensionBridgeStartRunCreatesDetachedExecRun(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+
+	handle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Mode:          model.ExecutionModeExec,
+		PromptText:    "nested exec prompt",
+		ParentRunID:   "parent-run-001",
+	})
+	if err != nil {
+		t.Fatalf("StartRun() error = %v", err)
+	}
+	if handle.RunID == "" {
+		t.Fatal("handle.RunID is empty")
+	}
+	if handle.ParentRunID != "parent-run-001" {
+		t.Fatalf("handle.ParentRunID = %q, want %q", handle.ParentRunID, "parent-run-001")
+	}
+
+	row := waitForRun(t, env.globalDB, handle.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Mode != runModeExec {
+		t.Fatalf("row.Mode = %q, want %q", row.Mode, runModeExec)
+	}
+	if row.PresentationMode != daemonExtensionPresentationMode {
+		t.Fatalf("row.PresentationMode = %q, want %q", row.PresentationMode, daemonExtensionPresentationMode)
+	}
+}
+
+func TestExtensionBridgeStartRunCreatesDetachedTaskRun(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+
+	handle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Name:          env.workflowSlug,
+		Mode:          model.ExecutionModePRDTasks,
+		ParentRunID:   "parent-task-run-001",
+	})
+	if err != nil {
+		t.Fatalf("StartRun(task) error = %v", err)
+	}
+
+	row := waitForRun(t, env.globalDB, handle.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Mode != runModeTask {
+		t.Fatalf("row.Mode = %q, want %q", row.Mode, runModeTask)
+	}
+	if row.PresentationMode != daemonExtensionPresentationMode {
+		t.Fatalf("row.PresentationMode = %q, want %q", row.PresentationMode, daemonExtensionPresentationMode)
+	}
+}
+
+func TestExtensionBridgeStartRunCreatesDetachedReviewRun(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+	env.createReviewRound(t, 1)
+
+	bridge, err := newExtensionBridge(env.manager, env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("newExtensionBridge() error = %v", err)
+	}
+
+	handle, err := bridge.StartRun(context.Background(), &model.RuntimeConfig{
+		WorkspaceRoot: env.workspaceRoot,
+		Name:          env.workflowSlug,
+		Round:         1,
+		Mode:          model.ExecutionModePRReview,
+		ParentRunID:   "parent-review-run-001",
+	})
+	if err != nil {
+		t.Fatalf("StartRun(review) error = %v", err)
+	}
+
+	row := waitForRun(t, env.globalDB, handle.RunID, func(row globaldb.Run) bool {
+		return isTerminalRunStatus(row.Status)
+	})
+	if row.Mode != runModeReview {
+		t.Fatalf("row.Mode = %q, want %q", row.Mode, runModeReview)
+	}
+	if row.PresentationMode != daemonExtensionPresentationMode {
+		t.Fatalf("row.PresentationMode = %q, want %q", row.PresentationMode, daemonExtensionPresentationMode)
 	}
 }
 

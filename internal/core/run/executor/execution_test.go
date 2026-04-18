@@ -37,6 +37,50 @@ func (s *stubResolverProvider) ResolveIssues(_ context.Context, _ string, issues
 	return s.resolveErr
 }
 
+type runtimeResolverBridge struct {
+	name   string
+	issues []provider.ResolvedIssue
+}
+
+func (b *runtimeResolverBridge) FetchReviews(
+	context.Context,
+	string,
+	provider.FetchRequest,
+) ([]provider.ReviewItem, error) {
+	return nil, nil
+}
+
+func (b *runtimeResolverBridge) ResolveIssues(
+	_ context.Context,
+	providerName string,
+	_ string,
+	issues []provider.ResolvedIssue,
+) error {
+	b.name = providerName
+	b.issues = append(b.issues, issues...)
+	return nil
+}
+
+func (*runtimeResolverBridge) Close() error { return nil }
+
+type runtimeResolverManager struct {
+	bridge provider.ExtensionBridge
+}
+
+func (*runtimeResolverManager) Start(context.Context) error { return nil }
+func (*runtimeResolverManager) DispatchMutableHook(context.Context, string, any) (any, error) {
+	return nil, nil
+}
+func (*runtimeResolverManager) DispatchObserverHook(context.Context, string, any) {}
+func (*runtimeResolverManager) Shutdown(context.Context) error                    { return nil }
+
+func (m *runtimeResolverManager) ResolveReviewProviderBridge(name string) (provider.ExtensionBridge, bool) {
+	if m == nil || m.bridge == nil || strings.TrimSpace(name) == "" {
+		return nil, false
+	}
+	return m.bridge, true
+}
+
 func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T) {
 	tmpDir := t.TempDir()
 	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
@@ -112,6 +156,50 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
 		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
+	}
+}
+
+func TestLookupReviewProviderPrefersRuntimeManagerBridge(t *testing.T) {
+	bridge := &runtimeResolverBridge{}
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			Mode:           model.ExecutionModePRReview,
+			Provider:       "stub",
+			RuntimeManager: &runtimeResolverManager{bridge: bridge},
+		},
+	}
+
+	restore := reviewProviderRegistry
+	reviewProviderRegistry = func() *provider.Registry {
+		registry := provider.NewRegistry()
+		registry.Register(&stubResolverProvider{
+			name:       "stub",
+			resolveErr: errors.New("global registry should not be used"),
+		})
+		return registry
+	}
+	defer func() { reviewProviderRegistry = restore }()
+
+	resolver, err := execCtx.lookupReviewProvider()
+	if err != nil {
+		t.Fatalf("lookupReviewProvider() error = %v", err)
+	}
+	if resolver.Name() != "stub" {
+		t.Fatalf("resolver.Name() = %q, want %q", resolver.Name(), "stub")
+	}
+
+	if err := resolver.ResolveIssues(context.Background(), "259", []provider.ResolvedIssue{{
+		FilePath:    "reviews-001/issue_001.md",
+		ProviderRef: "thread:1",
+	}}); err != nil {
+		t.Fatalf("ResolveIssues() error = %v", err)
+	}
+	if bridge.name != "stub" {
+		t.Fatalf("bridge provider name = %q, want %q", bridge.name, "stub")
+	}
+	if len(bridge.issues) != 1 {
+		t.Fatalf("bridge resolved issues = %d, want 1", len(bridge.issues))
 	}
 }
 

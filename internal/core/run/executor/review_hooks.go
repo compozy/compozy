@@ -21,6 +21,10 @@ import (
 
 var reviewProviderRegistry = providerdefaults.DefaultRegistry
 
+type runtimeReviewProviderResolver interface {
+	ResolveReviewProviderBridge(name string) (provider.ExtensionBridge, bool)
+}
+
 func (j *jobExecutionContext) afterJobSuccess(ctx context.Context, jb *job) error {
 	if j.cfg.Mode == model.ExecutionModePRDTasks {
 		return j.afterTaskJobSuccess(jb)
@@ -318,6 +322,15 @@ func (j *jobExecutionContext) emitProviderCallCompleted(
 }
 
 func (j *jobExecutionContext) lookupReviewProvider() (provider.Provider, error) {
+	if resolver, ok := j.cfg.RuntimeManager.(runtimeReviewProviderResolver); ok && resolver != nil {
+		if bridge, ok := resolver.ResolveReviewProviderBridge(j.cfg.Provider); ok && bridge != nil {
+			return &runtimeReviewProvider{
+				name:   strings.TrimSpace(j.cfg.Provider),
+				bridge: bridge,
+			}, nil
+		}
+	}
+
 	registry := provider.ResolveRegistry(reviewProviderRegistry())
 	return registry.Get(j.cfg.Provider)
 }
@@ -361,6 +374,39 @@ func (j *jobExecutionContext) emitProviderCallFailed(
 			Error:      err.Error(),
 		},
 	)
+}
+
+type runtimeReviewProvider struct {
+	name   string
+	bridge provider.ExtensionBridge
+}
+
+func (p *runtimeReviewProvider) Name() string {
+	if p == nil {
+		return ""
+	}
+	return strings.TrimSpace(p.name)
+}
+
+func (p *runtimeReviewProvider) FetchReviews(
+	ctx context.Context,
+	req provider.FetchRequest,
+) ([]provider.ReviewItem, error) {
+	if p == nil || p.bridge == nil {
+		return nil, fmt.Errorf("runtime review provider %q is unavailable", p.Name())
+	}
+	return p.bridge.FetchReviews(ctx, p.Name(), req)
+}
+
+func (p *runtimeReviewProvider) ResolveIssues(
+	ctx context.Context,
+	pr string,
+	issues []provider.ResolvedIssue,
+) error {
+	if p == nil || p.bridge == nil {
+		return fmt.Errorf("runtime review provider %q is unavailable", p.Name())
+	}
+	return p.bridge.ResolveIssues(ctx, p.Name(), pr, issues)
 }
 
 func (j *jobExecutionContext) emitReviewIssueResolved(

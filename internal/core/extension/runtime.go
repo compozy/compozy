@@ -34,12 +34,14 @@ type Manager struct {
 	parentRunID     string
 	workspaceRoot   string
 	invokingCommand string
+	daemonBridge    DaemonHostBridge
 	journal         *journal.Journal
 	eventBus        *events.Bus[events.Event]
 	registry        *Registry
 	dispatcher      *HookDispatcher
 	hostAPI         *HostAPIRouter
 	audit           *AuditLogger
+	reviewProviders map[string]DeclaredProvider
 
 	mu              sync.RWMutex
 	backgroundCtx   context.Context
@@ -51,6 +53,7 @@ type Manager struct {
 	started         bool
 	startErr        error
 	backgroundGroup sync.WaitGroup
+	reviewBridges   map[string]*ReviewProviderBridge
 
 	shutdownOnce sync.Once
 	shutdownErr  error
@@ -67,6 +70,8 @@ type managerConfig struct {
 	Journal         *journal.Journal
 	EventBus        *events.Bus[events.Event]
 	AuditDir        string
+	DaemonBridge    DaemonHostBridge
+	ReviewProviders []DeclaredProvider
 }
 
 var discoverRunScopeExtensions = func(ctx context.Context, cfg *model.RuntimeConfig) (DiscoveryResult, error) {
@@ -226,6 +231,8 @@ func newRunScopeManager(
 		Journal:         scope.Journal,
 		EventBus:        scope.EventBus,
 		AuditDir:        scope.Artifacts.RunDir,
+		DaemonBridge:    daemonHostBridgeFromContext(ctx),
+		ReviewProviders: append([]DeclaredProvider(nil), discovered.Providers.Review...),
 	}, registeredExtensions)
 }
 
@@ -313,14 +320,25 @@ func newManagerForExtensions(cfg managerConfig, extensions []*RuntimeExtension) 
 		parentRunID:     strings.TrimSpace(cfg.ParentRunID),
 		workspaceRoot:   strings.TrimSpace(cfg.WorkspaceRoot),
 		invokingCommand: strings.TrimSpace(cfg.InvokingCommand),
+		daemonBridge:    cfg.DaemonBridge,
 		journal:         cfg.Journal,
 		eventBus:        cfg.EventBus,
 		registry:        registry,
 		dispatcher:      dispatcher,
 		hostAPI:         hostAPI,
 		audit:           audit,
+		reviewProviders: make(map[string]DeclaredProvider),
 		subprocs:        make(map[string]*subprocess.Process),
 		sessions:        make(map[string]*extensionSession),
+		reviewBridges:   make(map[string]*ReviewProviderBridge),
+	}
+	for i := range cfg.ReviewProviders {
+		entry := cfg.ReviewProviders[i]
+		name := reviewProviderKey(entry.Name)
+		if name == "" {
+			continue
+		}
+		manager.reviewProviders[name] = entry
 	}
 
 	ops, err := NewDefaultKernelOps(DefaultKernelOpsConfig{
@@ -330,6 +348,7 @@ func newManagerForExtensions(cfg managerConfig, extensions []*RuntimeExtension) 
 		EventBus:       cfg.EventBus,
 		Journal:        cfg.Journal,
 		RuntimeManager: manager,
+		DaemonBridge:   cfg.DaemonBridge,
 	})
 	if err != nil {
 		if closeErr := manager.closeAudit(context.Background()); closeErr != nil {

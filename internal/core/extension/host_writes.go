@@ -165,6 +165,13 @@ func (o *defaultKernelOps) StartRun(ctx context.Context, req RunStartRequest) (*
 		defer cancel()
 	}
 
+	if o.daemonBridge != nil {
+		if strings.TrimSpace(o.daemonBridge.HostCapabilityToken()) == "" {
+			return nil, NewHostCapabilityTokenInvalidError("host.runs.start", "missing")
+		}
+		return o.daemonBridge.StartRun(callCtx, runtimeCfg)
+	}
+
 	result, err := kernel.Dispatch[commands.RunStartCommand, commands.RunStartResult](
 		callCtx,
 		o.dispatcher,

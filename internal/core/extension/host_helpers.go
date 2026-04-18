@@ -58,6 +58,13 @@ type KernelOps interface {
 	PublishEvent(ctx context.Context, extensionName string, req EventPublishRequest) (*EventPublishResult, error)
 }
 
+// DaemonHostBridge routes daemon-owned Host API callbacks that must remain
+// under daemon lifecycle ownership.
+type DaemonHostBridge interface {
+	HostCapabilityToken() string
+	StartRun(ctx context.Context, runtimeCfg *model.RuntimeConfig) (*RunHandle, error)
+}
+
 type DefaultKernelOpsConfig struct {
 	WorkspaceRoot  string
 	RunID          string
@@ -66,6 +73,7 @@ type DefaultKernelOpsConfig struct {
 	EventBus       *events.Bus[events.Event]
 	Journal        *journal.Journal
 	RuntimeManager model.RuntimeManager
+	DaemonBridge   DaemonHostBridge
 }
 
 type defaultKernelOps struct {
@@ -76,6 +84,7 @@ type defaultKernelOps struct {
 	eventBus       *events.Bus[events.Event]
 	journal        *journal.Journal
 	runtimeManager model.RuntimeManager
+	daemonBridge   DaemonHostBridge
 }
 
 type scopedPath struct {
@@ -287,6 +296,7 @@ func NewDefaultKernelOps(cfg DefaultKernelOpsConfig) (KernelOps, error) {
 		eventBus:       cfg.EventBus,
 		journal:        cfg.Journal,
 		runtimeManager: cfg.RuntimeManager,
+		daemonBridge:   cfg.DaemonBridge,
 	}, nil
 }
 

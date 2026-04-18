@@ -18,6 +18,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
+	extensions "github.com/compozy/compozy/internal/core/extension"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	"github.com/compozy/compozy/internal/core/reviews"
@@ -862,9 +863,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		return apicore.Run{}, err
 	}
 
-	scope, err := m.openRunScope(detachContext(ctx), runtimeCfg, model.OpenRunScopeOptions{
-		EnableExecutableExtensions: runtimeCfg.EnableExecutableExtensions,
-	})
+	scope, err := m.openRunScopeForStart(ctx, runtimeCfg, spec.workspace.RootDir)
 	if err != nil {
 		cleanupRunDirectory(runArtifacts.RunDir)
 		return apicore.Run{}, err
@@ -911,6 +910,29 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	started = true
 
 	return m.toCoreRun(detachContext(ctx), row, active.workflowSlug)
+}
+
+func (m *RunManager) openRunScopeForStart(
+	ctx context.Context,
+	runtimeCfg *model.RuntimeConfig,
+	workspaceRoot string,
+) (model.RunScope, error) {
+	scopeCtx := detachContext(ctx)
+	if runtimeCfg != nil && runtimeCfg.EnableExecutableExtensions {
+		resolvedRoot := strings.TrimSpace(runtimeCfg.WorkspaceRoot)
+		if resolvedRoot == "" {
+			resolvedRoot = strings.TrimSpace(workspaceRoot)
+		}
+		bridge, err := newExtensionBridge(m, resolvedRoot)
+		if err != nil {
+			return nil, err
+		}
+		scopeCtx = extensions.WithDaemonHostBridge(scopeCtx, bridge)
+	}
+
+	return m.openRunScope(scopeCtx, runtimeCfg, model.OpenRunScopeOptions{
+		EnableExecutableExtensions: runtimeCfg.EnableExecutableExtensions,
+	})
 }
 
 func newActiveRun(
