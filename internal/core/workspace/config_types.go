@@ -12,27 +12,27 @@ type Context struct {
 }
 
 type ProjectConfig struct {
-	Defaults     DefaultsConfig     `toml:"defaults"`
-	Start        StartConfig        `toml:"start"`
-	Tasks        TasksConfig        `toml:"tasks"`
-	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
-	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
-	Exec         ExecConfig         `toml:"exec"`
-	Sound        SoundConfig        `toml:"sound"`
+	Defaults     DefaultsConfig     `toml:"defaults,omitempty"`
+	Start        StartConfig        `toml:"start,omitempty"`
+	Tasks        TasksConfig        `toml:"tasks,omitempty"`
+	FixReviews   FixReviewsConfig   `toml:"fix_reviews,omitempty"`
+	FetchReviews FetchReviewsConfig `toml:"fetch_reviews,omitempty"`
+	Exec         ExecConfig         `toml:"exec,omitempty"`
+	Sound        SoundConfig        `toml:"sound,omitempty"`
 }
 
 type RuntimeOverrides struct {
-	IDE                    *string   `toml:"ide"`
-	Model                  *string   `toml:"model"`
-	OutputFormat           *string   `toml:"output_format"`
-	ReasoningEffort        *string   `toml:"reasoning_effort"`
-	AccessMode             *string   `toml:"access_mode"`
-	Timeout                *string   `toml:"timeout"`
-	TailLines              *int      `toml:"tail_lines"`
-	AddDirs                *[]string `toml:"add_dirs"`
-	AutoCommit             *bool     `toml:"auto_commit"`
-	MaxRetries             *int      `toml:"max_retries"`
-	RetryBackoffMultiplier *float64  `toml:"retry_backoff_multiplier"`
+	IDE                    *string   `toml:"ide,omitempty"`
+	Model                  *string   `toml:"model,omitempty"`
+	OutputFormat           *string   `toml:"output_format,omitempty"`
+	ReasoningEffort        *string   `toml:"reasoning_effort,omitempty"`
+	AccessMode             *string   `toml:"access_mode,omitempty"`
+	Timeout                *string   `toml:"timeout,omitempty"`
+	TailLines              *int      `toml:"tail_lines,omitempty"`
+	AddDirs                *[]string `toml:"add_dirs,omitempty"`
+	AutoCommit             *bool     `toml:"auto_commit,omitempty"`
+	MaxRetries             *int      `toml:"max_retries,omitempty"`
+	RetryBackoffMultiplier *float64  `toml:"retry_backoff_multiplier,omitempty"`
 }
 
 type DefaultsConfig RuntimeOverrides
@@ -45,7 +45,7 @@ type StartConfig struct {
 }
 
 type TasksConfig struct {
-	Types *[]string `toml:"types"`
+	Types *[]string `toml:"types,omitempty"`
 }
 
 type FixReviewsConfig struct {
@@ -57,15 +57,15 @@ type FixReviewsConfig struct {
 }
 
 type FetchReviewsConfig struct {
-	Provider *string `toml:"provider"`
-	Nitpicks *bool   `toml:"nitpicks"`
+	Provider *string `toml:"provider,omitempty"`
+	Nitpicks *bool   `toml:"nitpicks,omitempty"`
 }
 
 type ExecConfig struct {
 	RuntimeOverrides
-	Verbose *bool `toml:"verbose"`
-	TUI     *bool `toml:"tui"`
-	Persist *bool `toml:"persist"`
+	Verbose *bool `toml:"verbose,omitempty"`
+	TUI     *bool `toml:"tui,omitempty"`
+	Persist *bool `toml:"persist,omitempty"`
 }
 
 // SoundConfig controls optional audio notifications on run lifecycle events.

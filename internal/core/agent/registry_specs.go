@@ -274,6 +274,15 @@ func DisplayName(ide string) string {
 	return spec.DisplayName
 }
 
+// DefaultModel returns the default model identifier for an agent runtime.
+func DefaultModel(ide string) string {
+	spec, err := lookupAgentSpec(ide)
+	if err != nil {
+		return ""
+	}
+	return spec.DefaultModel
+}
+
 // SetupAgentName returns the setup/install agent identifier for one ACP runtime.
 func SetupAgentName(ide string) (string, error) {
 	spec, err := lookupAgentSpec(ide)

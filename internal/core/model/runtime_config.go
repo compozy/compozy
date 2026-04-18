@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const DefaultReasoningEffort = "medium"
+
 // ExplicitRuntimeFlags tracks which runtime fields were explicitly overridden
 // by the current caller, using CLI-compatible `Flags().Changed(...)` semantics.
 type ExplicitRuntimeFlags struct {
@@ -72,7 +74,7 @@ func (cfg *RuntimeConfig) ApplyDefaults() {
 		cfg.TailLines = 0
 	}
 	if cfg.ReasoningEffort == "" {
-		cfg.ReasoningEffort = "medium"
+		cfg.ReasoningEffort = DefaultReasoningEffort
 	}
 	if cfg.AccessMode == "" {
 		cfg.AccessMode = AccessModeFull
