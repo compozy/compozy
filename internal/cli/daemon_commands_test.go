@@ -31,18 +31,23 @@ var (
 	}
 )
 
+type daemonCommandContextKey string
+
 type stubDaemonCommandClient struct {
 	target          apiclient.Target
 	health          apicore.DaemonHealth
 	healthErr       error
+	healthCtx       context.Context
 	healthCalls     int
 	status          apicore.DaemonStatus
 	statusErr       error
+	statusCtx       context.Context
 	startCalls      int
 	startSlug       string
 	startRequest    apicore.TaskRunRequest
 	startRun        apicore.Run
 	startErr        error
+	stopCtx         context.Context
 	stopForce       bool
 	stopErr         error
 	workspaces      []apicore.Workspace
@@ -91,10 +96,11 @@ func (c *stubDaemonCommandClient) Target() apiclient.Target {
 	return c.target
 }
 
-func (c *stubDaemonCommandClient) Health(context.Context) (apicore.DaemonHealth, error) {
+func (c *stubDaemonCommandClient) Health(ctx context.Context) (apicore.DaemonHealth, error) {
 	if c == nil {
 		return apicore.DaemonHealth{}, errors.New("stub daemon client is required")
 	}
+	c.healthCtx = ctx
 	c.healthCalls++
 	if c.healthErr != nil {
 		return apicore.DaemonHealth{}, c.healthErr
@@ -102,20 +108,22 @@ func (c *stubDaemonCommandClient) Health(context.Context) (apicore.DaemonHealth,
 	return c.health, nil
 }
 
-func (c *stubDaemonCommandClient) DaemonStatus(context.Context) (apicore.DaemonStatus, error) {
+func (c *stubDaemonCommandClient) DaemonStatus(ctx context.Context) (apicore.DaemonStatus, error) {
 	if c == nil {
 		return apicore.DaemonStatus{}, errors.New("stub daemon client is required")
 	}
+	c.statusCtx = ctx
 	if c.statusErr != nil {
 		return apicore.DaemonStatus{}, c.statusErr
 	}
 	return c.status, nil
 }
 
-func (c *stubDaemonCommandClient) StopDaemon(_ context.Context, force bool) error {
+func (c *stubDaemonCommandClient) StopDaemon(ctx context.Context, force bool) error {
 	if c == nil {
 		return errors.New("stub daemon client is required")
 	}
+	c.stopCtx = ctx
 	c.stopForce = force
 	if c.stopErr != nil {
 		return c.stopErr
@@ -791,6 +799,125 @@ func TestCLIDaemonBootstrapEnsureRepairsStaleTransportAfterLaunch(t *testing.T) 
 	}
 	if readyClient.healthCalls != 1 {
 		t.Fatalf("expected one repaired health probe, got %d", readyClient.healthCalls)
+	}
+}
+
+func TestDaemonStatusRunUsesCommandContextForProbeAndRPCs(t *testing.T) {
+	acquireCLITestGlobalOverride(t)
+
+	ctxKey := daemonCommandContextKey("status")
+	cmdCtx := context.WithValue(context.Background(), ctxKey, "status-command")
+	startedAt := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+	client := &stubDaemonCommandClient{
+		status: apicore.DaemonStatus{
+			PID:        1234,
+			Version:    "test-version",
+			StartedAt:  startedAt,
+			SocketPath: "/tmp/compozy.sock",
+		},
+		health: apicore.DaemonHealth{Ready: true},
+	}
+
+	originalQueryStatus := queryDaemonCommandStatus
+	originalNewClient := newDaemonCommandClientFromInfo
+	var probeCtx context.Context
+	queryDaemonCommandStatus = func(
+		ctx context.Context,
+		_ compozyconfig.HomePaths,
+		_ daemon.ProbeOptions,
+	) (daemon.Status, error) {
+		probeCtx = ctx
+		return daemon.Status{
+			State: daemon.ReadyStateReady,
+			Info: &daemon.Info{
+				PID:        1234,
+				SocketPath: "/tmp/compozy.sock",
+				StartedAt:  startedAt,
+				State:      daemon.ReadyStateReady,
+			},
+		}, nil
+	}
+	newDaemonCommandClientFromInfo = func(daemon.Info) (daemonCommandClient, error) {
+		return client, nil
+	}
+	t.Cleanup(func() {
+		queryDaemonCommandStatus = originalQueryStatus
+		newDaemonCommandClientFromInfo = originalNewClient
+	})
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(cmdCtx)
+	cmd.SetOut(io.Discard)
+	state := daemonStatusState{outputFormat: operatorOutputFormatJSON}
+
+	if err := state.run(cmd, nil); err != nil {
+		t.Fatalf("daemonStatusState.run() error = %v", err)
+	}
+	if probeCtx == nil || probeCtx.Value(ctxKey) != "status-command" {
+		t.Fatalf("probe context = %#v, want command context value", probeCtx)
+	}
+	if client.statusCtx == nil || client.statusCtx.Value(ctxKey) != "status-command" {
+		t.Fatalf("daemon status context = %#v, want command context value", client.statusCtx)
+	}
+	if client.healthCtx == nil || client.healthCtx.Value(ctxKey) != "status-command" {
+		t.Fatalf("health context = %#v, want command context value", client.healthCtx)
+	}
+}
+
+func TestDaemonStopRunUsesCommandContextForProbeAndRPCs(t *testing.T) {
+	acquireCLITestGlobalOverride(t)
+
+	ctxKey := daemonCommandContextKey("stop")
+	cmdCtx := context.WithValue(context.Background(), ctxKey, "stop-command")
+	startedAt := time.Date(2026, 4, 18, 12, 5, 0, 0, time.UTC)
+	client := &stubDaemonCommandClient{}
+
+	originalQueryStatus := queryDaemonCommandStatus
+	originalNewClient := newDaemonCommandClientFromInfo
+	var probeCtx context.Context
+	queryDaemonCommandStatus = func(
+		ctx context.Context,
+		_ compozyconfig.HomePaths,
+		_ daemon.ProbeOptions,
+	) (daemon.Status, error) {
+		probeCtx = ctx
+		return daemon.Status{
+			State: daemon.ReadyStateReady,
+			Info: &daemon.Info{
+				PID:        1234,
+				SocketPath: "/tmp/compozy.sock",
+				StartedAt:  startedAt,
+				State:      daemon.ReadyStateReady,
+			},
+		}, nil
+	}
+	newDaemonCommandClientFromInfo = func(daemon.Info) (daemonCommandClient, error) {
+		return client, nil
+	}
+	t.Cleanup(func() {
+		queryDaemonCommandStatus = originalQueryStatus
+		newDaemonCommandClientFromInfo = originalNewClient
+	})
+
+	cmd := &cobra.Command{}
+	cmd.SetContext(cmdCtx)
+	cmd.SetOut(io.Discard)
+	state := daemonStopState{
+		outputFormat: operatorOutputFormatJSON,
+		force:        true,
+	}
+
+	if err := state.run(cmd, nil); err != nil {
+		t.Fatalf("daemonStopState.run() error = %v", err)
+	}
+	if probeCtx == nil || probeCtx.Value(ctxKey) != "stop-command" {
+		t.Fatalf("probe context = %#v, want command context value", probeCtx)
+	}
+	if client.stopCtx == nil || client.stopCtx.Value(ctxKey) != "stop-command" {
+		t.Fatalf("stop context = %#v, want command context value", client.stopCtx)
+	}
+	if !client.stopForce {
+		t.Fatal("expected stop command to propagate force flag")
 	}
 }
 

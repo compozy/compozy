@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -11,6 +10,11 @@ import (
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
+)
+
+var (
+	queryDaemonCommandStatus       = daemon.QueryStatus
+	newDaemonCommandClientFromInfo = daemonClientFromInfo
 )
 
 type daemonStatusState struct {
@@ -94,7 +98,8 @@ func (s *daemonStatusState) run(cmd *cobra.Command, _ []string) error {
 		return withExitCode(1, err)
 	}
 
-	status, err := daemon.QueryStatus(context.Background(), compozyconfig.HomePaths{}, daemon.ProbeOptions{})
+	ctx := cmd.Context()
+	status, err := queryDaemonCommandStatus(ctx, compozyconfig.HomePaths{}, daemon.ProbeOptions{})
 	if err != nil {
 		return withExitCode(2, err)
 	}
@@ -108,15 +113,15 @@ func (s *daemonStatusState) run(cmd *cobra.Command, _ []string) error {
 		)
 	}
 
-	client, err := daemonClientFromInfo(*status.Info)
+	client, err := newDaemonCommandClientFromInfo(*status.Info)
 	if err != nil {
 		return withExitCode(2, err)
 	}
-	daemonStatus, err := client.DaemonStatus(context.Background())
+	daemonStatus, err := client.DaemonStatus(ctx)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
-	health, err := client.Health(context.Background())
+	health, err := client.Health(ctx)
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
@@ -134,7 +139,8 @@ func (s *daemonStopState) run(cmd *cobra.Command, _ []string) error {
 		return withExitCode(1, err)
 	}
 
-	status, err := daemon.QueryStatus(context.Background(), compozyconfig.HomePaths{}, daemon.ProbeOptions{})
+	ctx := cmd.Context()
+	status, err := queryDaemonCommandStatus(ctx, compozyconfig.HomePaths{}, daemon.ProbeOptions{})
 	if err != nil {
 		return withExitCode(2, err)
 	}
@@ -142,11 +148,11 @@ func (s *daemonStopState) run(cmd *cobra.Command, _ []string) error {
 		return writeDaemonStopOutput(cmd, format, false, s.force, string(daemon.ReadyStateStopped))
 	}
 
-	client, err := daemonClientFromInfo(*status.Info)
+	client, err := newDaemonCommandClientFromInfo(*status.Info)
 	if err != nil {
 		return withExitCode(2, err)
 	}
-	if err := client.StopDaemon(context.Background(), s.force); err != nil {
+	if err := client.StopDaemon(ctx, s.force); err != nil {
 		return mapDaemonCommandError(err)
 	}
 	return writeDaemonStopOutput(cmd, format, true, s.force, string(status.State))

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/spf13/cobra"
 )
 
@@ -245,14 +247,17 @@ func (c *inProcessDaemonCommandClient) OpenRunStream(
 }
 
 type inProcessClientRunStream struct {
-	items  chan apiclient.RunStreamItem
-	errors chan error
-	close  func() error
+	items         chan apiclient.RunStreamItem
+	errors        chan error
+	done          chan struct{}
+	closeUpstream func() error
+	closeOnce     sync.Once
 }
 
 func newInProcessClientRunStream(stream apicore.RunStream) apiclient.RunStream {
 	items := make(chan apiclient.RunStreamItem)
 	errs := make(chan error, 1)
+	done := make(chan struct{})
 
 	go func() {
 		defer close(items)
@@ -261,6 +266,8 @@ func newInProcessClientRunStream(stream apicore.RunStream) apiclient.RunStream {
 		errorsCh := stream.Errors()
 		for {
 			select {
+			case <-done:
+				return
 			case item, ok := <-eventsCh:
 				if !ok {
 					eventsCh = nil
@@ -275,9 +282,11 @@ func newInProcessClientRunStream(stream apicore.RunStream) apiclient.RunStream {
 						Reason: item.Overflow.Reason,
 					}
 				}
-				items <- apiclient.RunStreamItem{
+				if !sendInProcessClientRunStreamItem(done, items, apiclient.RunStreamItem{
 					Event:    item.Event,
 					Overflow: overflow,
+				}) {
+					return
 				}
 			case err, ok := <-errorsCh:
 				if !ok {
@@ -287,17 +296,18 @@ func newInProcessClientRunStream(stream apicore.RunStream) apiclient.RunStream {
 					}
 					continue
 				}
-				if err != nil {
-					errs <- err
+				if err != nil && !sendInProcessClientRunStreamError(done, errs, err) {
+					return
 				}
 			}
 		}
 	}()
 
 	return &inProcessClientRunStream{
-		items:  items,
-		errors: errs,
-		close:  stream.Close,
+		items:         items,
+		errors:        errs,
+		done:          done,
+		closeUpstream: stream.Close,
 	}
 }
 
@@ -310,8 +320,136 @@ func (s *inProcessClientRunStream) Errors() <-chan error {
 }
 
 func (s *inProcessClientRunStream) Close() error {
-	if s == nil || s.close == nil {
+	if s == nil {
 		return nil
 	}
-	return s.close()
+	var err error
+	s.closeOnce.Do(func() {
+		close(s.done)
+		if s.closeUpstream != nil {
+			err = s.closeUpstream()
+		}
+	})
+	return err
+}
+
+func sendInProcessClientRunStreamItem(
+	done <-chan struct{},
+	items chan<- apiclient.RunStreamItem,
+	item apiclient.RunStreamItem,
+) bool {
+	select {
+	case <-done:
+		return false
+	case items <- item:
+		return true
+	}
+}
+
+func sendInProcessClientRunStreamError(
+	done <-chan struct{},
+	errs chan<- error,
+	err error,
+) bool {
+	select {
+	case <-done:
+		return false
+	case errs <- err:
+		return true
+	}
+}
+
+type stubCoreRunStream struct {
+	events    chan apicore.RunStreamItem
+	errors    chan error
+	closeFunc func() error
+}
+
+var _ apicore.RunStream = (*stubCoreRunStream)(nil)
+
+func (s *stubCoreRunStream) Events() <-chan apicore.RunStreamItem {
+	if s == nil {
+		return nil
+	}
+	return s.events
+}
+
+func (s *stubCoreRunStream) Errors() <-chan error {
+	if s == nil {
+		return nil
+	}
+	return s.errors
+}
+
+func (s *stubCoreRunStream) Close() error {
+	if s == nil || s.closeFunc == nil {
+		return nil
+	}
+	return s.closeFunc()
+}
+
+func TestNewInProcessClientRunStreamStopsForwarderOnClose(t *testing.T) {
+	t.Parallel()
+
+	upstreamClosed := make(chan struct{})
+	stream := &stubCoreRunStream{
+		events: make(chan apicore.RunStreamItem, 2),
+		errors: make(chan error, 1),
+		closeFunc: func() error {
+			close(upstreamClosed)
+			return nil
+		},
+	}
+	stream.events <- apicore.RunStreamItem{
+		Event: &eventspkg.Event{
+			Kind:      eventspkg.EventKindRunStarted,
+			Timestamp: time.Date(2026, 4, 18, 12, 30, 0, 0, time.UTC),
+		},
+	}
+	stream.events <- apicore.RunStreamItem{
+		Event: &eventspkg.Event{
+			Kind:      eventspkg.EventKindRunCompleted,
+			Timestamp: time.Date(2026, 4, 18, 12, 30, 1, 0, time.UTC),
+		},
+	}
+	close(stream.events)
+	close(stream.errors)
+
+	wrapped := newInProcessClientRunStream(stream)
+	select {
+	case _, ok := <-wrapped.Items():
+		if !ok {
+			t.Fatal("expected first forwarded event before close")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for first forwarded event")
+	}
+
+	if err := wrapped.Close(); err != nil {
+		t.Fatalf("wrapped.Close() error = %v", err)
+	}
+
+	select {
+	case <-upstreamClosed:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for upstream close")
+	}
+
+	select {
+	case _, ok := <-wrapped.Items():
+		if ok {
+			t.Fatal("expected items channel to close after Close")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for items channel close")
+	}
+
+	select {
+	case _, ok := <-wrapped.Errors():
+		if ok {
+			t.Fatal("expected errors channel to close after Close")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for errors channel close")
+	}
 }
