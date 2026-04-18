@@ -64,6 +64,12 @@ func TestExecCommandPassesSelectedAgentIntoWorkflowConfig(t *testing.T) {
 
 func TestExecCommandUnknownAgentReturnsActionableError(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	xdgConfigHome := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+	t.Setenv(testCLIDaemonHomeEnv, homeDir)
+	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
