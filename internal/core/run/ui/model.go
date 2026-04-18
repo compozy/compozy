@@ -44,6 +44,7 @@ type uiModel struct {
 	failures           []failInfo
 	aggregateUsage     *model.Usage
 	cfg                *config
+	sidebarDirty       bool
 }
 
 type uiController struct {
@@ -108,6 +109,7 @@ func newUIModel(total int) *uiModel {
 		focusedPane:        uiPaneJobs,
 		failures:           []failInfo{},
 		aggregateUsage:     &model.Usage{},
+		sidebarDirty:       true,
 	}
 	layout := mdl.computeLayout(defaultWidth, defaultHeight)
 	mdl.layoutMode = layout.mode

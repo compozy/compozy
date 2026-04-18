@@ -2,6 +2,7 @@ package cli
 
 import (
 	"log/slog"
+	"sync"
 
 	extcli "github.com/compozy/compozy/internal/cli/extension"
 	"github.com/compozy/compozy/internal/core/agent"
@@ -37,17 +38,21 @@ func newRootDispatcher() *kernel.Dispatcher {
 
 	dispatcher := kernel.BuildDefault(deps)
 	if err := validateRootDispatcher(dispatcher); err != nil {
-		panic(err)
+		slog.Default().Error("kernel dispatcher validation failed", "error", err)
 	}
 	return dispatcher
 }
 
-// NewRootCommand returns the reusable compozy Cobra command.
-func NewRootCommand() *cobra.Command {
-	return newRootCommandWithDefaults(newRootDispatcher(), defaultCommandStateDefaults())
+func newLazyRootDispatcher() func() *kernel.Dispatcher {
+	return sync.OnceValue(newRootDispatcher)
 }
 
-func newRootCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+// NewRootCommand returns the reusable compozy Cobra command.
+func NewRootCommand() *cobra.Command {
+	return newRootCommandWithDefaults(newLazyRootDispatcher(), defaultCommandStateDefaults())
+}
+
+func newRootCommandWithDefaults(dispatcher func() *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	root := &cobra.Command{
 		Use:          "compozy",
 		Short:        "Run AI review remediation and PRD task workflows",
@@ -80,22 +85,22 @@ Use explicit workflow subcommands:
 	}
 
 	root.AddCommand(
-		newSetupCommand(dispatcher),
+		newSetupCommand(nil),
 		newAgentsCommand(),
 		newUpgradeCommand(),
-		extcli.NewExtCommand(dispatcher),
+		extcli.NewExtCommand(nil),
 		newMigrateCommand(dispatcher),
-		newValidateTasksCommand(dispatcher),
+		newValidateTasksCommand(nil),
 		newDaemonCommand(),
 		newWorkspacesCommand(),
-		newTasksCommand(dispatcher, defaults),
+		newTasksCommand(nil, defaults),
 		newReviewsCommandWithDefaults(defaults),
 		newRunsCommandWithDefaults(defaults),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
-		newFetchReviewsCommandWithDefaults(dispatcher, defaults),
-		newFixReviewsCommandWithDefaults(dispatcher, defaults),
-		newExecCommandWithDefaults(dispatcher, defaults),
+		newFetchReviewsCommandWithDefaults(nil, defaults),
+		newFixReviewsCommandWithDefaults(nil, defaults),
+		newExecCommandWithDefaults(nil, defaults),
 		newMCPServeCommand(),
 	)
 	return root

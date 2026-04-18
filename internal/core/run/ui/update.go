@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/model"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -15,6 +16,10 @@ const (
 	keyHome     = "home"
 	keyEnd      = "end"
 )
+
+var setSidebarViewportContent = func(vp *viewport.Model, content string) {
+	vp.SetContent(content)
+}
 
 func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch v := msg.(type) {
@@ -213,6 +218,7 @@ func (m *uiModel) moveSelectedJob(delta int) {
 		next = len(m.jobs) - 1
 	}
 	m.selectedJob = next
+	m.sidebarDirty = true
 	m.refreshViewportContent()
 }
 
@@ -315,19 +321,24 @@ func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
 	m.timelineWidth = layout.timelineWidth
 	m.contentHeight = layout.contentHeight
 	m.configureViewports(layout)
+	m.sidebarDirty = true
 	m.refreshViewportContent()
 }
 
 func (m *uiModel) refreshViewportContent() {
 	if len(m.jobs) == 0 {
-		m.sidebarViewport.SetContent("")
+		setSidebarViewportContent(&m.sidebarViewport, "")
+		m.sidebarDirty = false
 		return
 	}
 	if m.selectedJob < 0 || m.selectedJob >= len(m.jobs) {
 		m.selectedJob = 0
+		m.sidebarDirty = true
 	}
 
-	m.refreshSidebarContent()
+	if m.sidebarDirty {
+		m.refreshSidebarContent()
+	}
 	job := &m.jobs[m.selectedJob]
 	m.syncSelectedEntry(job)
 }
@@ -337,7 +348,8 @@ func (m *uiModel) refreshSidebarContent() {
 	for i := range m.jobs {
 		items = append(items, m.renderSidebarItem(&m.jobs[i], i == m.selectedJob))
 	}
-	m.sidebarViewport.SetContent(strings.Join(items, "\n"))
+	setSidebarViewportContent(&m.sidebarViewport, strings.Join(items, "\n"))
+	m.sidebarDirty = false
 
 	lineOffset := m.selectedJob * 3
 	sidebarOffset := m.sidebarViewport.YOffset()
@@ -390,7 +402,8 @@ func (m *uiModel) handleTick() tea.Cmd {
 		return nil
 	}
 	m.frame++
-	if m.currentView == uiViewJobs && len(m.jobs) > 0 {
+	if m.currentView == uiViewJobs && len(m.jobs) > 0 &&
+		(m.sidebarDirty || m.sidebarNeedsActiveRefresh()) {
 		m.refreshSidebarContent()
 	}
 	return m.tick()
@@ -423,6 +436,7 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		expandedEntryIDs:     make(map[string]bool),
 		transcriptFollowTail: true,
 	}
+	m.sidebarDirty = true
 	m.refreshViewportContent()
 	return m.waitEvent()
 }
@@ -450,6 +464,7 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 			job.duration = 0
 		}
 		m.selectedJob = v.Index
+		m.sidebarDirty = true
 	}
 	m.refreshViewportContent()
 	return m.waitEvent()
@@ -465,6 +480,7 @@ func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
 		job.retrying = true
 		job.retryReason = v.Reason
 		m.selectedJob = v.Index
+		m.sidebarDirty = true
 	}
 	m.refreshViewportContent()
 	return m.waitEvent()
@@ -489,6 +505,7 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 			job.duration = job.completedAt.Sub(job.startedAt)
 		}
 		m.selectNextRunningJob()
+		m.sidebarDirty = true
 	}
 	if m.isRunComplete() {
 		m.shutdown = shutdownState{}
@@ -535,10 +552,16 @@ func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
 
 func (m *uiModel) handleShutdownStatus(v shutdownStatusMsg) tea.Cmd {
 	m.shutdown = v.State
-	if m.currentView == uiViewJobs && len(m.jobs) > 0 {
-		m.refreshSidebarContent()
-	}
 	return m.waitEvent()
+}
+
+func (m *uiModel) sidebarNeedsActiveRefresh() bool {
+	for i := range m.jobs {
+		if m.jobs[i].state == jobRunning {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *uiModel) syncSelectedEntry(job *uiJob) {

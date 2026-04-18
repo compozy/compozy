@@ -74,6 +74,36 @@ func TestStartUpdateCheckClosesCompletionSignal(t *testing.T) {
 	}
 }
 
+func TestShouldStartUpdateCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "no args", args: nil, want: true},
+		{name: "help flag", args: []string{"--help"}, want: false},
+		{name: "nested help flag", args: []string{"tasks", "run", "--help"}, want: false},
+		{name: "version flag", args: []string{"--version"}, want: false},
+		{name: "help command", args: []string{"help"}, want: false},
+		{name: "version command", args: []string{"version"}, want: false},
+		{name: "completion command", args: []string{"completion", "bash"}, want: false},
+		{name: "shell completion probe", args: []string{"__complete", "tasks"}, want: false},
+		{name: "workflow command", args: []string{"tasks", "run", "daemon"}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := shouldStartUpdateCheck(tt.args); got != tt.want {
+				t.Fatalf("shouldStartUpdateCheck(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestWriteUpdateNotification(t *testing.T) {
 	t.Parallel()
 

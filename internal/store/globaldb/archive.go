@@ -171,7 +171,7 @@ func (g *GlobalDB) GetWorkflowArchiveEligibility(
 				SELECT COUNT(1)
 				FROM task_items
 				WHERE workflow_id = ?
-				  AND LOWER(TRIM(status)) <> 'completed'
+				  AND status <> 'completed'
 			), 0),
 			COALESCE((SELECT COUNT(1) FROM review_rounds WHERE workflow_id = ?), 0),
 			COALESCE((SELECT SUM(unresolved_count) FROM review_rounds WHERE workflow_id = ?), 0),
@@ -179,7 +179,7 @@ func (g *GlobalDB) GetWorkflowArchiveEligibility(
 				SELECT COUNT(1)
 				FROM runs
 				WHERE workflow_id = ?
-				  AND LOWER(TRIM(status)) NOT IN ('completed', 'failed', 'cancelled', 'canceled', 'crashed')
+				  AND status NOT IN ('completed', 'failed', 'canceled', 'crashed')
 			), 0)`,
 		workflow.ID,
 		workflow.ID,

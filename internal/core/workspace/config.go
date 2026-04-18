@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/model"
@@ -15,6 +16,14 @@ import (
 )
 
 var osUserHomeDir = os.UserHomeDir
+var discoverWorkspaceRoot = discoverWorkspaceRootFromStart
+var discoverCache sync.Map
+
+type discoverCacheEntry struct {
+	ready chan struct{}
+	root  string
+	err   error
+}
 
 type configPaths struct {
 	workspaceRoot string
@@ -65,6 +74,39 @@ func Discover(ctx context.Context, startDir string) (string, error) {
 		return "", fmt.Errorf("resolve workspace start dir: %w", err)
 	}
 
+	entry := &discoverCacheEntry{ready: make(chan struct{})}
+	actual, loaded := discoverCache.LoadOrStore(absStart, entry)
+	cachedEntry, ok := actual.(*discoverCacheEntry)
+	if !ok || cachedEntry == nil {
+		return "", fmt.Errorf("discover workspace: unexpected cache entry %T", actual)
+	}
+	entry = cachedEntry
+	if loaded {
+		select {
+		case <-entry.ready:
+			if entry.err != nil {
+				return "", entry.err
+			}
+			return entry.root, nil
+		case <-ctx.Done():
+			return "", fmt.Errorf("discover workspace: %w", context.Cause(ctx))
+		}
+	}
+
+	entry.root, entry.err = discoverWorkspaceRoot(ctx, resolvedStart)
+	close(entry.ready)
+	if entry.err != nil {
+		discoverCache.Delete(absStart)
+		return "", entry.err
+	}
+	return entry.root, nil
+}
+
+func discoverWorkspaceRootFromStart(ctx context.Context, startDir string) (string, error) {
+	absStart, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", fmt.Errorf("resolve workspace start dir: %w", err)
+	}
 	realStart, err := filepath.EvalSymlinks(absStart)
 	if err != nil {
 		return "", fmt.Errorf("resolve workspace start dir symlinks: %w", err)

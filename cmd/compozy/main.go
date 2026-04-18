@@ -27,7 +27,14 @@ func run() int {
 	cmd := compozy.NewCommand()
 	cmd.Version = version.String()
 
-	updateResult, cancelUpdateCheck, updateDone := startUpdateCheck(context.Background(), version.Version)
+	updateDoneCh := make(chan struct{})
+	close(updateDoneCh)
+	var updateDone <-chan struct{} = updateDoneCh
+	var updateResult <-chan *update.ReleaseInfo
+	cancelUpdateCheck := func() {}
+	if shouldStartUpdateCheck(os.Args[1:]) {
+		updateResult, cancelUpdateCheck, updateDone = startUpdateCheck(context.Background(), version.Version)
+	}
 	executedCmd, err := cmd.ExecuteC()
 	cancelUpdateCheck()
 
@@ -47,6 +54,30 @@ func run() int {
 		return compozy.ExitCode(err)
 	}
 	return 0
+}
+
+func shouldStartUpdateCheck(args []string) bool {
+	for _, arg := range args {
+		switch strings.TrimSpace(arg) {
+		case "-h", "--help", "--version":
+			return false
+		}
+	}
+
+	for _, arg := range args {
+		value := strings.TrimSpace(arg)
+		if value == "" || strings.HasPrefix(value, "-") {
+			continue
+		}
+		switch value {
+		case "help", "version", "completion", "__complete", "__completeNoDesc":
+			return false
+		default:
+			return true
+		}
+	}
+
+	return true
 }
 
 func startUpdateCheck(

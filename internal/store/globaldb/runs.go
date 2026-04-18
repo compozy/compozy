@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // RunRetentionPolicy describes the terminal-run retention rules used when
@@ -39,7 +41,7 @@ func (g *GlobalDB) CountActiveRuns(ctx context.Context) (int, error) {
 		ctx,
 		`SELECT COUNT(1)
 		 FROM runs
-		 WHERE LOWER(TRIM(status)) NOT IN ('completed', 'failed', 'cancelled', 'canceled', 'crashed')`,
+		 WHERE status NOT IN ('completed', 'failed', 'canceled', 'crashed')`,
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("globaldb: count active runs: %w", err)
 	}
@@ -58,7 +60,7 @@ func (g *GlobalDB) ListInterruptedRuns(ctx context.Context) ([]Run, error) {
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
 		        started_at, ended_at, error_text, request_id
 		 FROM runs
-		 WHERE LOWER(TRIM(status)) IN ('starting', 'running')
+		 WHERE status IN ('starting', 'running')
 		 ORDER BY started_at ASC, run_id ASC`,
 	)
 	if err != nil {
@@ -106,6 +108,82 @@ func (g *GlobalDB) MarkRunCrashed(
 	run.EndedAt = &endedAt
 	run.ErrorText = strings.TrimSpace(errorText)
 	return g.UpdateRun(ctx, run)
+}
+
+// RunCrashUpdate captures one durable crash reconciliation update.
+type RunCrashUpdate struct {
+	RunID     string
+	EndedAt   time.Time
+	ErrorText string
+}
+
+// MarkRunsCrashed updates multiple runs inside one transaction.
+func (g *GlobalDB) MarkRunsCrashed(ctx context.Context, updates []RunCrashUpdate) error {
+	if err := g.requireContext(ctx, "mark runs crashed"); err != nil {
+		return err
+	}
+	if len(updates) == 0 {
+		return nil
+	}
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("globaldb: begin mark runs crashed: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			rollbackPendingTx(tx)
+		}
+	}()
+
+	stmt, err := tx.PrepareContext(
+		ctx,
+		`UPDATE runs
+		 SET status = ?, ended_at = ?, error_text = ?
+		 WHERE run_id = ?`,
+	)
+	if err != nil {
+		return fmt.Errorf("globaldb: prepare mark runs crashed: %w", err)
+	}
+	defer func() {
+		_ = stmt.Close()
+	}()
+
+	for _, update := range updates {
+		runID := strings.TrimSpace(update.RunID)
+		if runID == "" {
+			return fmt.Errorf("globaldb: run id is required for crash update")
+		}
+		endedAt := update.EndedAt
+		if endedAt.IsZero() {
+			endedAt = g.now()
+		}
+		result, execErr := stmt.ExecContext(
+			ctx,
+			runStatusCrashed,
+			store.FormatTimestamp(endedAt.UTC()),
+			strings.TrimSpace(update.ErrorText),
+			runID,
+		)
+		if execErr != nil {
+			return fmt.Errorf("globaldb: update run %q crashed: %w", runID, execErr)
+		}
+		affected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return fmt.Errorf("globaldb: rows affected for run %q: %w", runID, rowsErr)
+		}
+		if affected == 0 {
+			return ErrRunNotFound
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("globaldb: commit mark runs crashed: %w", err)
+	}
+	committed = true
+	return nil
 }
 
 // ListTerminalRunsForPurge selects terminal runs in oldest-first order while
@@ -167,7 +245,7 @@ func (g *GlobalDB) listTerminalRuns(ctx context.Context) ([]Run, error) {
 		`SELECT run_id, workspace_id, workflow_id, mode, status, presentation_mode,
 		        started_at, ended_at, error_text, request_id
 		 FROM runs
-		 WHERE LOWER(TRIM(status)) IN ('completed', 'failed', 'cancelled', 'canceled', 'crashed')
+		 WHERE status IN ('completed', 'failed', 'canceled', 'crashed')
 		 ORDER BY COALESCE(ended_at, started_at) ASC, run_id ASC`,
 	)
 	if err != nil {
@@ -235,4 +313,117 @@ func (g *GlobalDB) DeleteRun(ctx context.Context, runID string) error {
 		return ErrRunNotFound
 	}
 	return nil
+}
+
+// DeleteRuns removes multiple durable run index rows in one transaction.
+func (g *GlobalDB) DeleteRuns(ctx context.Context, runIDs []string) error {
+	if err := g.requireContext(ctx, "delete runs"); err != nil {
+		return err
+	}
+	if len(runIDs) == 0 {
+		return nil
+	}
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("globaldb: begin delete runs: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			rollbackPendingTx(tx)
+		}
+	}()
+
+	stmt, err := tx.PrepareContext(ctx, `DELETE FROM runs WHERE run_id = ?`)
+	if err != nil {
+		return fmt.Errorf("globaldb: prepare delete runs: %w", err)
+	}
+	defer func() {
+		_ = stmt.Close()
+	}()
+
+	for _, runID := range runIDs {
+		trimmed := strings.TrimSpace(runID)
+		if trimmed == "" {
+			continue
+		}
+		if _, err := stmt.ExecContext(ctx, trimmed); err != nil {
+			return fmt.Errorf("globaldb: delete run %q: %w", trimmed, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("globaldb: commit delete runs: %w", err)
+	}
+	committed = true
+	return nil
+}
+
+// WorkflowSlugsByIDs returns workflow slugs for the supplied workflow ids.
+func (g *GlobalDB) WorkflowSlugsByIDs(ctx context.Context, ids []string) (map[string]string, error) {
+	if err := g.requireContext(ctx, "list workflow slugs"); err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return map[string]string{}, nil
+	}
+
+	seen := make(map[string]struct{}, len(ids))
+	args := make([]any, 0, len(ids))
+	placeholders := make([]string, 0, len(ids))
+	for _, id := range ids {
+		trimmed := strings.TrimSpace(id)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		args = append(args, trimmed)
+		placeholders = append(placeholders, "?")
+	}
+	if len(args) == 0 {
+		return map[string]string{}, nil
+	}
+
+	var query strings.Builder
+	query.Grow(len(`SELECT id, slug FROM workflows WHERE id IN ()`) + len(placeholders)*3)
+	query.WriteString(`SELECT id, slug FROM workflows WHERE id IN (`)
+	query.WriteString(strings.Join(placeholders, ", "))
+	query.WriteByte(')')
+	rows, err := g.db.QueryContext(ctx, query.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("globaldb: query workflow slugs: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	result := make(map[string]string, len(args))
+	for rows.Next() {
+		var (
+			id   string
+			slug string
+		)
+		if err := rows.Scan(&id, &slug); err != nil {
+			return nil, fmt.Errorf("globaldb: scan workflow slug row: %w", err)
+		}
+		result[strings.TrimSpace(id)] = strings.TrimSpace(slug)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("globaldb: iterate workflow slugs: %w", err)
+	}
+	return result, nil
+}
+
+func rollbackPendingTx(tx interface{ Rollback() error }) {
+	if tx == nil {
+		return
+	}
+	if err := tx.Rollback(); err != nil {
+		return
+	}
 }

@@ -218,7 +218,7 @@ func TestExecCommandWithInstalledWorkspaceExtensionStaysEphemeralWithoutFlag(t *
 	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
 	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -246,7 +246,7 @@ func TestExecCommandWithExtensionsFlagSpawnsWorkspaceExtensionAndWritesAudit(t *
 	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
 	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -938,7 +938,7 @@ default_attach_mode = "detach"
 
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return false }
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -1047,7 +1047,7 @@ func TestTasksRunCommandAutoModeResolvesToStreamInNonInteractiveExecution(t *tes
 
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return false }
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -1131,7 +1131,7 @@ func TestTasksRunCommandInteractiveUIModeAttachesThroughRemoteClient(t *testing.
 
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return true }
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -1172,7 +1172,7 @@ func TestTasksRunCommandExplicitUIFailsWithoutTTY(t *testing.T) {
 
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return false }
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -1248,7 +1248,7 @@ func TestTasksRunCommandBootstrapFailureReturnsStableExitCode(t *testing.T) {
 
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return false }
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -1313,7 +1313,7 @@ func TestRunsAttachCommandUsesRemoteUIAttach(t *testing.T) {
 
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return true }
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "runs", "attach", "run-attach-001")
 	if err != nil {
 		t.Fatalf("execute runs attach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
@@ -1367,7 +1367,7 @@ func TestRunsWatchCommandStreamsWithoutLaunchingUI(t *testing.T) {
 		return err
 	})
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
 	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "runs", "watch", "run-watch-001")
 	if err != nil {
 		t.Fatalf("execute runs watch: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
@@ -1413,7 +1413,7 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
 	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
@@ -1486,7 +1486,7 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	}
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
 	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,

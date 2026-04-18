@@ -281,6 +281,13 @@ func (g *GlobalDB) reconcileArtifactSnapshotsTx(
 	if err != nil {
 		return 0, err
 	}
+	stmts, err := prepareArtifactSnapshotStatements(ctx, tx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		_ = stmts.close()
+	}()
 
 	seen := make(map[string]struct{}, len(snapshots))
 	for _, input := range snapshots {
@@ -298,19 +305,8 @@ func (g *GlobalDB) reconcileArtifactSnapshotsTx(
 			prepared.BodyStorageKind = current.BodyStorageKind
 		}
 
-		if _, err := tx.ExecContext(
+		if _, err := stmts.upsert.ExecContext(
 			ctx,
-			`INSERT INTO artifact_snapshots (
-				workflow_id, artifact_kind, relative_path, checksum, frontmatter_json,
-				body_text, body_storage_kind, source_mtime, synced_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(workflow_id, artifact_kind, relative_path) DO UPDATE SET
-				checksum = excluded.checksum,
-				frontmatter_json = excluded.frontmatter_json,
-				body_text = excluded.body_text,
-				body_storage_kind = excluded.body_storage_kind,
-				source_mtime = excluded.source_mtime,
-				synced_at = excluded.synced_at`,
 			workflowID,
 			prepared.ArtifactKind,
 			prepared.RelativePath,
@@ -329,25 +325,71 @@ func (g *GlobalDB) reconcileArtifactSnapshotsTx(
 			)
 		}
 	}
+	if err := deleteStaleArtifactSnapshots(ctx, stmts.delete, workflowID, existing, seen); err != nil {
+		return 0, err
+	}
 
+	return len(snapshots), nil
+}
+
+type artifactSnapshotStatements struct {
+	upsert *sql.Stmt
+	delete *sql.Stmt
+}
+
+func prepareArtifactSnapshotStatements(ctx context.Context, tx *sql.Tx) (artifactSnapshotStatements, error) {
+	upsert, err := tx.PrepareContext(
+		ctx,
+		`INSERT INTO artifact_snapshots (
+			workflow_id, artifact_kind, relative_path, checksum, frontmatter_json,
+			body_text, body_storage_kind, source_mtime, synced_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workflow_id, artifact_kind, relative_path) DO UPDATE SET
+			checksum = excluded.checksum,
+			frontmatter_json = excluded.frontmatter_json,
+			body_text = excluded.body_text,
+			body_storage_kind = excluded.body_storage_kind,
+			source_mtime = excluded.source_mtime,
+			synced_at = excluded.synced_at`,
+	)
+	if err != nil {
+		return artifactSnapshotStatements{}, fmt.Errorf("globaldb: prepare artifact snapshot upsert: %w", err)
+	}
+
+	deleteStmt, err := tx.PrepareContext(
+		ctx,
+		`DELETE FROM artifact_snapshots
+		 WHERE workflow_id = ? AND artifact_kind = ? AND relative_path = ?`,
+	)
+	if err != nil {
+		_ = upsert.Close()
+		return artifactSnapshotStatements{}, fmt.Errorf("globaldb: prepare artifact snapshot delete: %w", err)
+	}
+
+	return artifactSnapshotStatements{upsert: upsert, delete: deleteStmt}, nil
+}
+
+func (s artifactSnapshotStatements) close() error {
+	return closeSQLStatements(s.upsert, s.delete)
+}
+
+func deleteStaleArtifactSnapshots(
+	ctx context.Context,
+	deleteStmt *sql.Stmt,
+	workflowID string,
+	existing map[string]existingArtifactSnapshot,
+	seen map[string]struct{},
+) error {
 	for key := range existing {
 		if _, ok := seen[key]; ok {
 			continue
 		}
 		artifactKind, relativePath := splitArtifactKey(key)
-		if _, err := tx.ExecContext(
-			ctx,
-			`DELETE FROM artifact_snapshots
-			 WHERE workflow_id = ? AND artifact_kind = ? AND relative_path = ?`,
-			workflowID,
-			artifactKind,
-			relativePath,
-		); err != nil {
-			return 0, fmt.Errorf("globaldb: delete stale artifact snapshot %s: %w", key, err)
+		if _, err := deleteStmt.ExecContext(ctx, workflowID, artifactKind, relativePath); err != nil {
+			return fmt.Errorf("globaldb: delete stale artifact snapshot %s: %w", key, err)
 		}
 	}
-
-	return len(snapshots), nil
+	return nil
 }
 
 func loadExistingArtifactSnapshots(
@@ -479,6 +521,13 @@ func (g *GlobalDB) reconcileTaskItemsTx(
 	if err != nil {
 		return 0, err
 	}
+	stmts, err := prepareTaskItemStatements(ctx, tx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		_ = stmts.close()
+	}()
 
 	seen := make(map[int]struct{}, len(items))
 	for _, item := range items {
@@ -501,19 +550,8 @@ func (g *GlobalDB) reconcileTaskItemsTx(
 			return 0, err
 		}
 
-		if _, err := tx.ExecContext(
+		if _, err := stmts.upsert.ExecContext(
 			ctx,
-			`INSERT INTO task_items (
-				id, workflow_id, task_number, task_id, title, status, kind, depends_on_json, source_path, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(workflow_id, task_number) DO UPDATE SET
-				task_id = excluded.task_id,
-				title = excluded.title,
-				status = excluded.status,
-				kind = excluded.kind,
-				depends_on_json = excluded.depends_on_json,
-				source_path = excluded.source_path,
-				updated_at = excluded.updated_at`,
 			id,
 			workflowID,
 			prepared.TaskNumber,
@@ -528,22 +566,66 @@ func (g *GlobalDB) reconcileTaskItemsTx(
 			return 0, fmt.Errorf("globaldb: upsert task item %d: %w", prepared.TaskNumber, err)
 		}
 	}
+	if err := deleteStaleTaskItems(ctx, stmts.delete, workflowID, existing, seen); err != nil {
+		return 0, err
+	}
 
+	return len(items), nil
+}
+
+type taskItemStatements struct {
+	upsert *sql.Stmt
+	delete *sql.Stmt
+}
+
+func prepareTaskItemStatements(ctx context.Context, tx *sql.Tx) (taskItemStatements, error) {
+	upsert, err := tx.PrepareContext(
+		ctx,
+		`INSERT INTO task_items (
+			id, workflow_id, task_number, task_id, title, status, kind, depends_on_json, source_path, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workflow_id, task_number) DO UPDATE SET
+			task_id = excluded.task_id,
+			title = excluded.title,
+			status = excluded.status,
+			kind = excluded.kind,
+			depends_on_json = excluded.depends_on_json,
+			source_path = excluded.source_path,
+			updated_at = excluded.updated_at`,
+	)
+	if err != nil {
+		return taskItemStatements{}, fmt.Errorf("globaldb: prepare task item upsert: %w", err)
+	}
+
+	deleteStmt, err := tx.PrepareContext(ctx, `DELETE FROM task_items WHERE workflow_id = ? AND task_number = ?`)
+	if err != nil {
+		_ = upsert.Close()
+		return taskItemStatements{}, fmt.Errorf("globaldb: prepare task item delete: %w", err)
+	}
+
+	return taskItemStatements{upsert: upsert, delete: deleteStmt}, nil
+}
+
+func (s taskItemStatements) close() error {
+	return closeSQLStatements(s.upsert, s.delete)
+}
+
+func deleteStaleTaskItems(
+	ctx context.Context,
+	deleteStmt *sql.Stmt,
+	workflowID string,
+	existing map[int]string,
+	seen map[int]struct{},
+) error {
 	for taskNumber := range existing {
 		if _, ok := seen[taskNumber]; ok {
 			continue
 		}
-		if _, err := tx.ExecContext(
-			ctx,
-			`DELETE FROM task_items WHERE workflow_id = ? AND task_number = ?`,
-			workflowID,
-			taskNumber,
-		); err != nil {
-			return 0, fmt.Errorf("globaldb: delete stale task item %d: %w", taskNumber, err)
+		if _, err := deleteStmt.ExecContext(ctx, workflowID, taskNumber); err != nil {
+			return fmt.Errorf("globaldb: delete stale task item %d: %w", taskNumber, err)
 		}
 	}
-
-	return len(items), nil
+	return nil
 }
 
 func loadExistingTaskItemIDs(ctx context.Context, tx *sql.Tx, workflowID string) (map[int]string, error) {
@@ -617,6 +699,13 @@ func (g *GlobalDB) reconcileReviewRoundsTx(
 	if err != nil {
 		return 0, 0, err
 	}
+	stmts, err := prepareReviewRoundStatements(ctx, tx)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer func() {
+		_ = stmts.close()
+	}()
 
 	seenRounds := make(map[int]struct{}, len(rounds))
 	totalIssues := 0
@@ -635,17 +724,8 @@ func (g *GlobalDB) reconcileReviewRoundsTx(
 			roundID = g.newID("rr")
 		}
 
-		if _, err := tx.ExecContext(
+		if _, err := stmts.upsert.ExecContext(
 			ctx,
-			`INSERT INTO review_rounds (
-				id, workflow_id, round_number, provider, pr_ref, resolved_count, unresolved_count, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(workflow_id, round_number) DO UPDATE SET
-				provider = excluded.provider,
-				pr_ref = excluded.pr_ref,
-				resolved_count = excluded.resolved_count,
-				unresolved_count = excluded.unresolved_count,
-				updated_at = excluded.updated_at`,
 			roundID,
 			workflowID,
 			prepared.RoundNumber,
@@ -664,17 +744,76 @@ func (g *GlobalDB) reconcileReviewRoundsTx(
 		}
 		totalIssues += issueCount
 	}
-
-	for roundNumber, roundID := range existingRoundIDs {
-		if _, ok := seenRounds[roundNumber]; ok {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM review_rounds WHERE id = ?`, roundID); err != nil {
-			return 0, 0, fmt.Errorf("globaldb: delete stale review round %d: %w", roundNumber, err)
-		}
+	if err := deleteStaleReviewRounds(ctx, stmts.delete, existingRoundIDs, seenRounds); err != nil {
+		return 0, 0, err
 	}
 
 	return len(rounds), totalIssues, nil
+}
+
+type reviewRoundStatements struct {
+	upsert *sql.Stmt
+	delete *sql.Stmt
+}
+
+func prepareReviewRoundStatements(ctx context.Context, tx *sql.Tx) (reviewRoundStatements, error) {
+	upsert, err := tx.PrepareContext(
+		ctx,
+		`INSERT INTO review_rounds (
+			id, workflow_id, round_number, provider, pr_ref, resolved_count, unresolved_count, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workflow_id, round_number) DO UPDATE SET
+			provider = excluded.provider,
+			pr_ref = excluded.pr_ref,
+			resolved_count = excluded.resolved_count,
+			unresolved_count = excluded.unresolved_count,
+			updated_at = excluded.updated_at`,
+	)
+	if err != nil {
+		return reviewRoundStatements{}, fmt.Errorf("globaldb: prepare review round upsert: %w", err)
+	}
+
+	deleteStmt, err := tx.PrepareContext(ctx, `DELETE FROM review_rounds WHERE id = ?`)
+	if err != nil {
+		_ = upsert.Close()
+		return reviewRoundStatements{}, fmt.Errorf("globaldb: prepare review round delete: %w", err)
+	}
+
+	return reviewRoundStatements{upsert: upsert, delete: deleteStmt}, nil
+}
+
+func (s reviewRoundStatements) close() error {
+	return closeSQLStatements(s.upsert, s.delete)
+}
+
+func deleteStaleReviewRounds(
+	ctx context.Context,
+	deleteStmt *sql.Stmt,
+	existing map[int]string,
+	seen map[int]struct{},
+) error {
+	for roundNumber, roundID := range existing {
+		if _, ok := seen[roundNumber]; ok {
+			continue
+		}
+		if _, err := deleteStmt.ExecContext(ctx, roundID); err != nil {
+			return fmt.Errorf("globaldb: delete stale review round %d: %w", roundNumber, err)
+		}
+	}
+	return nil
+}
+
+func closeSQLStatements(statements ...*sql.Stmt) error {
+	var err error
+	for _, stmt := range statements {
+		if stmt == nil {
+			continue
+		}
+		if closeErr := stmt.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}
+	return err
 }
 
 func loadExistingReviewRoundIDs(ctx context.Context, tx *sql.Tx, workflowID string) (map[int]string, error) {
@@ -741,6 +880,30 @@ func (g *GlobalDB) reconcileReviewIssuesTx(
 	if err != nil {
 		return 0, err
 	}
+	upsertStmt, err := tx.PrepareContext(
+		ctx,
+		`INSERT INTO review_issues (
+			id, round_id, issue_number, severity, status, source_path, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(round_id, issue_number) DO UPDATE SET
+			severity = excluded.severity,
+			status = excluded.status,
+			source_path = excluded.source_path,
+			updated_at = excluded.updated_at`,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("globaldb: prepare review issue upsert: %w", err)
+	}
+	defer func() {
+		_ = upsertStmt.Close()
+	}()
+	deleteStmt, err := tx.PrepareContext(ctx, `DELETE FROM review_issues WHERE round_id = ? AND issue_number = ?`)
+	if err != nil {
+		return 0, fmt.Errorf("globaldb: prepare review issue delete: %w", err)
+	}
+	defer func() {
+		_ = deleteStmt.Close()
+	}()
 
 	seenIssues := make(map[int]struct{}, len(issues))
 	for _, issue := range issues {
@@ -758,16 +921,8 @@ func (g *GlobalDB) reconcileReviewIssuesTx(
 			issueID = g.newID("ri")
 		}
 
-		if _, err := tx.ExecContext(
+		if _, err := upsertStmt.ExecContext(
 			ctx,
-			`INSERT INTO review_issues (
-				id, round_id, issue_number, severity, status, source_path, updated_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(round_id, issue_number) DO UPDATE SET
-				severity = excluded.severity,
-				status = excluded.status,
-				source_path = excluded.source_path,
-				updated_at = excluded.updated_at`,
 			issueID,
 			roundID,
 			prepared.IssueNumber,
@@ -784,9 +939,8 @@ func (g *GlobalDB) reconcileReviewIssuesTx(
 		if _, ok := seenIssues[issueNumber]; ok {
 			continue
 		}
-		if _, err := tx.ExecContext(
+		if _, err := deleteStmt.ExecContext(
 			ctx,
-			`DELETE FROM review_issues WHERE round_id = ? AND issue_number = ?`,
 			roundID,
 			issueNumber,
 		); err != nil {

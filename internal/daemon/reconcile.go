@@ -135,6 +135,7 @@ func ReconcileStartup(ctx context.Context, cfg ReconcileConfig) (ReconcileResult
 	}
 
 	result := ReconcileResult{}
+	updates := make([]globaldb.RunCrashUpdate, 0, len(interrupted))
 	for i := range interrupted {
 		row := &interrupted[i]
 		baseErrorText := buildCrashErrorText(row)
@@ -152,11 +153,16 @@ func ReconcileStartup(ctx context.Context, cfg ReconcileConfig) (ReconcileResult
 			result.CrashEventAppended++
 		}
 
-		if _, err := db.MarkRunCrashed(ctx, row.RunID, reconciledAt, errorText); err != nil {
-			return result, err
-		}
+		updates = append(updates, globaldb.RunCrashUpdate{
+			RunID:     row.RunID,
+			EndedAt:   reconciledAt,
+			ErrorText: errorText,
+		})
 		result.ReconciledRuns++
 		result.LastReconciledRunID = row.RunID
+	}
+	if err := db.MarkRunsCrashed(ctx, updates); err != nil {
+		return result, err
 	}
 	return result, nil
 }

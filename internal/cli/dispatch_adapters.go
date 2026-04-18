@@ -8,6 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/core/kernel/commands"
 )
 
+type dispatcherProvider func() *kernel.Dispatcher
+
 func newRunWorkflow(dispatcher *kernel.Dispatcher) func(context.Context, core.Config) error {
 	if dispatcher == nil {
 		return core.Run
@@ -20,6 +22,39 @@ func newRunWorkflow(dispatcher *kernel.Dispatcher) func(context.Context, core.Co
 			commands.RunStartFromConfig(cfg),
 		)
 		return err
+	}
+}
+
+func newMigrateRunnerWithProvider(
+	provider dispatcherProvider,
+) func(context.Context, core.MigrationConfig) (*core.MigrationResult, error) {
+	if provider == nil {
+		return core.Migrate
+	}
+	return func(ctx context.Context, cfg core.MigrationConfig) (*core.MigrationResult, error) {
+		return newMigrateRunner(provider())(ctx, cfg)
+	}
+}
+
+func newSyncRunnerWithProvider(
+	provider dispatcherProvider,
+) func(context.Context, core.SyncConfig) (*core.SyncResult, error) {
+	if provider == nil {
+		return core.Sync
+	}
+	return func(ctx context.Context, cfg core.SyncConfig) (*core.SyncResult, error) {
+		return newSyncRunner(provider())(ctx, cfg)
+	}
+}
+
+func newArchiveRunnerWithProvider(
+	provider dispatcherProvider,
+) func(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error) {
+	if provider == nil {
+		return core.Archive
+	}
+	return func(ctx context.Context, cfg core.ArchiveConfig) (*core.ArchiveResult, error) {
+		return newArchiveRunner(provider())(ctx, cfg)
 	}
 }
 

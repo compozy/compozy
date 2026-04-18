@@ -42,13 +42,14 @@ const (
 	runStatusCancelled = "canceled"
 	runStatusCrashed   = "crashed"
 
-	defaultRunListLimit     = 100
-	defaultPresentationMode = "stream"
-	maxRunEventPageLimit    = 1000
-	runStreamBufferSize     = 64
-	defaultStreamPageLimit  = 256
-	cancelRequestedByDaemon = "daemon"
-	completedNoWorkSummary  = "no work"
+	defaultRunListLimit      = 100
+	defaultPresentationMode  = "stream"
+	maxRunEventPageLimit     = 1000
+	defaultRunDBCacheIdleTTL = 30 * time.Second
+	runStreamBufferSize      = 64
+	defaultStreamPageLimit   = 256
+	cancelRequestedByDaemon  = "daemon"
+	completedNoWorkSummary   = "no work"
 )
 
 // RunManagerConfig wires the daemon-owned run manager dependencies.
@@ -61,8 +62,12 @@ type RunManagerConfig struct {
 	Prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	Execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	ExecuteExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	OpenRunDB            func(context.Context, string) (*rundb.RunDB, error)
 	LoadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
 	WatcherDebounce      time.Duration
+	RunDBCacheTTL        time.Duration
+	LookupWorkflowSlugs  func(context.Context, []string) (map[string]string, error)
+	GetWorkflow          func(context.Context, string) (globaldb.Workflow, error)
 }
 
 // RunManager owns daemon-backed task, review, and exec runs.
@@ -74,12 +79,20 @@ type RunManager struct {
 	prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	openRunDB            func(context.Context, string) (*rundb.RunDB, error)
 	loadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	lookupWorkflowSlugs  func(context.Context, []string) (map[string]string, error)
+	getWorkflow          func(context.Context, string) (globaldb.Workflow, error)
 	shutdownDrainTimeout time.Duration
 	watcherDebounce      time.Duration
+	runDBIdleTTL         time.Duration
 
 	mu     sync.RWMutex
 	active map[string]*activeRun
+
+	runWG   sync.WaitGroup
+	runDBMu sync.Mutex
+	runDBs  map[string]*cachedRunDB
 }
 
 type activeRun struct {
@@ -162,6 +175,19 @@ type liveRunSubscription struct {
 	subID       eventspkg.SubID
 }
 
+type cachedRunDB struct {
+	db             *rundb.RunDB
+	references     int
+	lastUsedAt     time.Time
+	evictOnRelease bool
+}
+
+type runDBLease struct {
+	manager *RunManager
+	runID   string
+	db      *rundb.RunDB
+}
+
 var _ apicore.RunService = (*RunManager)(nil)
 
 // NewRunManager constructs a daemon-owned run manager.
@@ -178,10 +204,15 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		prepare:              resolveRunManagerPrepare(cfg.Prepare),
 		execute:              resolveRunManagerExecute(cfg.Execute),
 		executeExec:          resolveRunManagerExecuteExec(cfg.ExecuteExec),
+		openRunDB:            resolveRunManagerOpenRunDB(cfg.OpenRunDB),
 		loadProjectConfig:    resolveRunManagerLoadProjectConfig(cfg.LoadProjectConfig),
+		lookupWorkflowSlugs:  resolveRunManagerWorkflowSlugLookup(cfg.GlobalDB, cfg.LookupWorkflowSlugs),
+		getWorkflow:          resolveRunManagerGetWorkflow(cfg.GlobalDB, cfg.GetWorkflow),
 		shutdownDrainTimeout: resolveRunManagerShutdownDrainTimeout(cfg.ShutdownDrainTimeout),
 		watcherDebounce:      resolveWatcherDebounce(cfg.WatcherDebounce),
+		runDBIdleTTL:         resolveRunManagerRunDBCacheTTL(cfg.RunDBCacheTTL),
 		active:               make(map[string]*activeRun),
+		runDBs:               make(map[string]*cachedRunDB),
 	}, nil
 }
 
@@ -250,6 +281,15 @@ func resolveRunManagerExecuteExec(
 	return runpkg.ExecuteExec
 }
 
+func resolveRunManagerOpenRunDB(
+	openRunDB func(context.Context, string) (*rundb.RunDB, error),
+) func(context.Context, string) (*rundb.RunDB, error) {
+	if openRunDB != nil {
+		return openRunDB
+	}
+	return openRunDBForRunID
+}
+
 func resolveRunManagerLoadProjectConfig(
 	loadProjectConfig func(context.Context, string) (workspacecfg.ProjectConfig, error),
 ) func(context.Context, string) (workspacecfg.ProjectConfig, error) {
@@ -271,6 +311,33 @@ func resolveRunManagerShutdownDrainTimeout(timeout time.Duration) time.Duration 
 		return settings.ShutdownDrainTimeout
 	}
 	return defaultShutdownDrainTimeout
+}
+
+func resolveRunManagerWorkflowSlugLookup(
+	db *globaldb.GlobalDB,
+	lookup func(context.Context, []string) (map[string]string, error),
+) func(context.Context, []string) (map[string]string, error) {
+	if lookup != nil {
+		return lookup
+	}
+	return db.WorkflowSlugsByIDs
+}
+
+func resolveRunManagerGetWorkflow(
+	db *globaldb.GlobalDB,
+	getWorkflow func(context.Context, string) (globaldb.Workflow, error),
+) func(context.Context, string) (globaldb.Workflow, error) {
+	if getWorkflow != nil {
+		return getWorkflow
+	}
+	return db.GetWorkflow
+}
+
+func resolveRunManagerRunDBCacheTTL(ttl time.Duration) time.Duration {
+	if ttl > 0 {
+		return ttl
+	}
+	return defaultRunDBCacheIdleTTL
 }
 
 func resolveWatcherDebounce(debounce time.Duration) time.Duration {
@@ -380,10 +447,14 @@ func (m *RunManager) List(ctx context.Context, query apicore.RunListQuery) ([]ap
 	if err != nil {
 		return nil, err
 	}
+	workflowSlugs, err := m.workflowSlugsForRuns(listCtx, rows)
+	if err != nil {
+		return nil, err
+	}
 
 	result := make([]apicore.Run, 0, len(rows))
 	for i := range rows {
-		run, err := m.toCoreRun(listCtx, rows[i], "")
+		run, err := m.toCoreRun(listCtx, rows[i], workflowSlugForRun(rows[i], workflowSlugs))
 		if err != nil {
 			return nil, err
 		}
@@ -413,15 +484,16 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 		return apicore.RunSnapshot{}, err
 	}
 
-	runDB, err := openRunDB(listCtx, row.RunID)
+	lease, err := m.acquireRunDB(listCtx, row.RunID)
 	if err != nil {
 		return apicore.RunSnapshot{}, err
 	}
 	defer func() {
-		_ = runDB.Close()
+		_ = lease.Close()
 	}()
+	runDB := lease.DB()
 
-	eventRows, err := runDB.ListEvents(listCtx, 0)
+	eventRows, err := runDB.ListEvents(listCtx, 0, 0)
 	if err != nil {
 		return apicore.RunSnapshot{}, err
 	}
@@ -439,7 +511,7 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 	}
 
 	builder := newRunSnapshotBuilder()
-	for _, item := range eventRows {
+	for _, item := range eventRows.Events {
 		if err := builder.applyEvent(item); err != nil {
 			return apicore.RunSnapshot{}, err
 		}
@@ -481,13 +553,14 @@ func (m *RunManager) Events(
 		return apicore.RunEventPage{}, err
 	}
 
-	runDB, err := openRunDB(listCtx, runID)
+	lease, err := m.acquireRunDB(listCtx, runID)
 	if err != nil {
 		return apicore.RunEventPage{}, err
 	}
 	defer func() {
-		_ = runDB.Close()
+		_ = lease.Close()
 	}()
+	runDB := lease.DB()
 
 	limit := query.Limit
 	if limit <= 0 {
@@ -497,30 +570,22 @@ func (m *RunManager) Events(
 		limit = maxRunEventPageLimit
 	}
 
-	events, err := runDB.ListEvents(listCtx, query.After.Sequence)
+	fromSeq := query.After.Sequence
+	if fromSeq > 0 {
+		fromSeq++
+	}
+	events, err := runDB.ListEvents(listCtx, fromSeq, limit)
 	if err != nil {
 		return apicore.RunEventPage{}, err
 	}
 
-	filtered := make([]eventspkg.Event, 0, len(events))
-	for _, item := range events {
-		if apicore.EventAfterCursor(item, query.After) {
-			filtered = append(filtered, item)
-		}
+	page := apicore.RunEventPage{
+		Events:  events.Events,
+		HasMore: events.HasMore,
 	}
-
-	page := apicore.RunEventPage{}
-	if len(filtered) <= limit {
-		page.Events = filtered
-		if len(filtered) > 0 {
-			cursor := apicore.CursorFromEvent(filtered[len(filtered)-1])
-			page.NextCursor = &cursor
-		}
-		return page, nil
+	if events.HasMore && len(page.Events) > limit {
+		page.Events = page.Events[:limit]
 	}
-
-	page.Events = append(page.Events, filtered[:limit]...)
-	page.HasMore = true
 	if len(page.Events) > 0 {
 		cursor := apicore.CursorFromEvent(page.Events[len(page.Events)-1])
 		page.NextCursor = &cursor
@@ -909,6 +974,7 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	}
 	m.setActive(active)
 
+	m.runWG.Add(1)
 	go m.runAsync(active, row, runtimeCfg)
 	started = true
 
@@ -1126,6 +1192,7 @@ func (m *RunManager) startWatcher(active *activeRun) error {
 }
 
 func (m *RunManager) runAsync(active *activeRun, row globaldb.Run, runtimeCfg *model.RuntimeConfig) {
+	defer m.runWG.Done()
 	defer close(active.done)
 	defer active.cancel()
 	defer m.removeActive(active.runID)
@@ -1218,7 +1285,7 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 	if err := active.stopWatcher(); err != nil {
 		slog.Default().Warn("daemon: stop workflow watcher", "run_id", active.runID, "error", err)
 	}
-	terminal, err := resolveTerminalState(detachContext(active.ctx), scope.RunArtifacts().RunID, fallback, scope)
+	terminal, err := m.resolveTerminalState(detachContext(active.ctx), scope.RunArtifacts().RunID, fallback, scope)
 	if err != nil {
 		terminal = failedTerminalState(scope.RunArtifacts(), err)
 	}
@@ -1229,16 +1296,13 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 		endedAt := m.now().UTC()
 		row.EndedAt = &endedAt
 	}
-	if _, err := m.globalDB.UpdateRun(detachContext(active.ctx), row); err != nil {
-		if closeErr := closeRunScope(scope, active.currentCloseTimeout()); closeErr != nil {
-			return
-		}
-		return
-	}
 
 	if closeErr := closeRunScope(scope, active.currentCloseTimeout()); closeErr != nil {
-		// Run state is already mirrored to persistent stores; close failures are cleanup-only.
+		// Best-effort teardown should not block the terminal row mirror.
 		_ = closeErr
+	}
+	if _, err := m.globalDB.UpdateRun(detachContext(active.ctx), row); err != nil {
+		return
 	}
 }
 
@@ -1287,12 +1351,15 @@ func (m *RunManager) toCoreRun(
 	if row.WorkflowID != nil {
 		workflowID := strings.TrimSpace(*row.WorkflowID)
 		run.WorkflowID = &workflowID
-		workflow, err := m.globalDB.GetWorkflow(ctx, workflowID)
-		if err != nil && !errors.Is(err, globaldb.ErrWorkflowNotFound) {
-			return apicore.Run{}, err
-		}
-		if err == nil {
-			run.WorkflowSlug = workflow.Slug
+		run.WorkflowSlug = strings.TrimSpace(fallbackWorkflowSlug)
+		if run.WorkflowSlug == "" {
+			workflow, err := m.getWorkflow(ctx, workflowID)
+			if err != nil && !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+				return apicore.Run{}, err
+			}
+			if err == nil {
+				run.WorkflowSlug = workflow.Slug
+			}
 		}
 	}
 	if run.WorkflowSlug == "" {
@@ -1314,9 +1381,13 @@ func (m *RunManager) setActive(run *activeRun) {
 }
 
 func (m *RunManager) removeActive(runID string) {
+	trimmed := strings.TrimSpace(runID)
 	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.active, strings.TrimSpace(runID))
+	delete(m.active, trimmed)
+	m.mu.Unlock()
+	if err := m.evictRunDB(trimmed); err != nil {
+		slog.Default().Warn("daemon: evict cached run db", "run_id", trimmed, "error", err)
+	}
 }
 
 func (r *runStream) Events() <-chan apicore.RunStreamItem {
@@ -1489,23 +1560,30 @@ func (m *RunManager) replayRunStream(
 	after apicore.StreamCursor,
 ) (apicore.StreamCursor, bool, error) {
 	lastCursor := after
-	page, err := m.Events(ctx, runID, apicore.RunEventPageQuery{
-		After: after,
-		Limit: defaultStreamPageLimit,
-	})
-	if err != nil {
-		return lastCursor, false, err
-	}
-	for _, item := range page.Events {
-		lastCursor = apicore.CursorFromEvent(item)
-		if !sendRunStreamItem(ctx, stream.events, apicore.RunStreamItem{Event: &item}) {
-			return lastCursor, true, nil
+	for {
+		page, err := m.Events(ctx, runID, apicore.RunEventPageQuery{
+			After: lastCursor,
+			Limit: defaultStreamPageLimit,
+		})
+		if err != nil {
+			return lastCursor, false, err
 		}
-		if isTerminalEventKind(item.Kind) {
-			return lastCursor, true, nil
+		if len(page.Events) == 0 {
+			return lastCursor, false, nil
+		}
+		for _, item := range page.Events {
+			lastCursor = apicore.CursorFromEvent(item)
+			if !sendRunStreamItem(ctx, stream.events, apicore.RunStreamItem{Event: &item}) {
+				return lastCursor, true, nil
+			}
+			if isTerminalEventKind(item.Kind) {
+				return lastCursor, true, nil
+			}
+		}
+		if !page.HasMore {
+			return lastCursor, false, nil
 		}
 	}
-	return lastCursor, false, nil
 }
 
 func streamLiveRunEvents(
@@ -1554,7 +1632,7 @@ func startScopeRuntime(ctx context.Context, scope model.RunScope) error {
 	return nil
 }
 
-func openRunDB(ctx context.Context, runID string) (*rundb.RunDB, error) {
+func openRunDBForRunID(ctx context.Context, runID string) (*rundb.RunDB, error) {
 	runArtifacts, err := model.ResolveHomeRunArtifacts(strings.TrimSpace(runID))
 	if err != nil {
 		return nil, err
@@ -1568,13 +1646,43 @@ func resolveTerminalState(
 	fallback terminalState,
 	scope model.RunScope,
 ) (terminalState, error) {
-	runDB, err := openRunDB(ctx, runID)
+	runDB, err := openRunDBForRunID(ctx, runID)
 	if err != nil {
 		return terminalState{}, err
 	}
 	defer func() {
 		_ = runDB.Close()
 	}()
+
+	return resolveTerminalStateWithRunDB(ctx, runID, fallback, scope, runDB)
+}
+
+func (m *RunManager) resolveTerminalState(
+	ctx context.Context,
+	runID string,
+	fallback terminalState,
+	scope model.RunScope,
+) (terminalState, error) {
+	lease, err := m.acquireRunDB(ctx, runID)
+	if err != nil {
+		return terminalState{}, err
+	}
+	defer func() {
+		_ = lease.Close()
+	}()
+	return resolveTerminalStateWithRunDB(ctx, runID, fallback, scope, lease.DB())
+}
+
+func resolveTerminalStateWithRunDB(
+	ctx context.Context,
+	runID string,
+	fallback terminalState,
+	scope model.RunScope,
+	runDB *rundb.RunDB,
+) (terminalState, error) {
+	if runDB == nil {
+		return terminalState{}, errors.New("daemon: run db is required")
+	}
 
 	lastEvent, err := runDB.LastEvent(ctx)
 	if err != nil {
@@ -1608,6 +1716,182 @@ func resolveTerminalState(
 		return terminalState{}, fmt.Errorf("daemon: run %q terminal event missing after fallback append", runID)
 	}
 	return terminal, nil
+}
+
+func (m *RunManager) workflowSlugsForRuns(
+	ctx context.Context,
+	rows []globaldb.Run,
+) (map[string]string, error) {
+	if len(rows) == 0 {
+		return map[string]string{}, nil
+	}
+	ids := make([]string, 0, len(rows))
+	for i := range rows {
+		if rows[i].WorkflowID == nil {
+			continue
+		}
+		ids = append(ids, strings.TrimSpace(*rows[i].WorkflowID))
+	}
+	return m.lookupWorkflowSlugs(ctx, ids)
+}
+
+func workflowSlugForRun(row globaldb.Run, slugs map[string]string) string {
+	if row.WorkflowID == nil {
+		return ""
+	}
+	return strings.TrimSpace(slugs[strings.TrimSpace(*row.WorkflowID)])
+}
+
+func (m *RunManager) acquireRunDB(ctx context.Context, runID string) (*runDBLease, error) {
+	trimmed := strings.TrimSpace(runID)
+	if trimmed == "" {
+		return nil, errors.New("daemon: run id is required")
+	}
+	if err := m.evictIdleRunDBs(m.now()); err != nil {
+		return nil, err
+	}
+
+	m.runDBMu.Lock()
+	if entry, ok := m.runDBs[trimmed]; ok {
+		entry.references++
+		entry.lastUsedAt = m.now().UTC()
+		db := entry.db
+		m.runDBMu.Unlock()
+		return &runDBLease{manager: m, runID: trimmed, db: db}, nil
+	}
+	db, err := m.openRunDB(ctx, trimmed)
+	if err != nil {
+		m.runDBMu.Unlock()
+		return nil, err
+	}
+	m.runDBs[trimmed] = &cachedRunDB{
+		db:         db,
+		references: 1,
+		lastUsedAt: m.now().UTC(),
+	}
+	m.runDBMu.Unlock()
+	return &runDBLease{manager: m, runID: trimmed, db: db}, nil
+}
+
+func (m *RunManager) releaseRunDB(runID string) error {
+	trimmed := strings.TrimSpace(runID)
+	if trimmed == "" {
+		return nil
+	}
+
+	var closeDB *rundb.RunDB
+	m.runDBMu.Lock()
+	entry, ok := m.runDBs[trimmed]
+	if ok {
+		if entry.references > 0 {
+			entry.references--
+		}
+		if entry.references == 0 {
+			entry.lastUsedAt = m.now().UTC()
+			if entry.evictOnRelease {
+				delete(m.runDBs, trimmed)
+				closeDB = entry.db
+			}
+		}
+	}
+	m.runDBMu.Unlock()
+	if closeDB != nil {
+		return closeDB.Close()
+	}
+	return nil
+}
+
+func (m *RunManager) evictRunDB(runID string) error {
+	trimmed := strings.TrimSpace(runID)
+	if trimmed == "" {
+		return nil
+	}
+
+	var closeDB *rundb.RunDB
+	m.runDBMu.Lock()
+	entry, ok := m.runDBs[trimmed]
+	if ok {
+		if entry.references == 0 {
+			delete(m.runDBs, trimmed)
+			closeDB = entry.db
+		} else {
+			entry.evictOnRelease = true
+		}
+	}
+	m.runDBMu.Unlock()
+	if closeDB != nil {
+		return closeDB.Close()
+	}
+	return nil
+}
+
+func (m *RunManager) evictIdleRunDBs(now time.Time) error {
+	if m == nil || m.runDBIdleTTL <= 0 {
+		return nil
+	}
+	cutoff := now.UTC().Add(-m.runDBIdleTTL)
+	closeList := make([]*rundb.RunDB, 0)
+
+	m.runDBMu.Lock()
+	for runID, entry := range m.runDBs {
+		if entry.references != 0 {
+			continue
+		}
+		if entry.lastUsedAt.IsZero() || entry.lastUsedAt.After(cutoff) {
+			continue
+		}
+		delete(m.runDBs, runID)
+		closeList = append(closeList, entry.db)
+	}
+	m.runDBMu.Unlock()
+
+	var err error
+	for _, db := range closeList {
+		if closeErr := db.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}
+	return err
+}
+
+func (m *RunManager) closeRunDBCache() error {
+	if m == nil {
+		return nil
+	}
+
+	closeList := make([]*rundb.RunDB, 0)
+	m.runDBMu.Lock()
+	for runID, entry := range m.runDBs {
+		if entry.references != 0 {
+			entry.evictOnRelease = true
+			continue
+		}
+		delete(m.runDBs, runID)
+		closeList = append(closeList, entry.db)
+	}
+	m.runDBMu.Unlock()
+
+	var err error
+	for _, db := range closeList {
+		if closeErr := db.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}
+	return err
+}
+
+func (l *runDBLease) Close() error {
+	if l == nil || l.manager == nil {
+		return nil
+	}
+	return l.manager.releaseRunDB(l.runID)
+}
+
+func (l *runDBLease) DB() *rundb.RunDB {
+	if l == nil {
+		return nil
+	}
+	return l.db
 }
 
 func terminalStateFromEvent(event *eventspkg.Event) (terminalState, bool, error) {

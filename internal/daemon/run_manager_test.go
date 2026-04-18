@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -259,6 +260,51 @@ func TestRunManagerModeSpecificStartsProduceSharedLifecycleContract(t *testing.T
 	}
 }
 
+func TestRunManagerListBatchesWorkflowSlugLookup(t *testing.T) {
+	var (
+		env              *runManagerTestEnv
+		lookupCalls      atomic.Int64
+		getWorkflowCalls atomic.Int64
+	)
+	env = newRunManagerTestEnv(t, runManagerTestDeps{
+		lookupWorkflowSlugs: func(ctx context.Context, ids []string) (map[string]string, error) {
+			lookupCalls.Add(1)
+			return env.globalDB.WorkflowSlugsByIDs(ctx, ids)
+		},
+		getWorkflow: func(ctx context.Context, workflowID string) (globaldb.Workflow, error) {
+			getWorkflowCalls.Add(1)
+			return env.globalDB.GetWorkflow(ctx, workflowID)
+		},
+	})
+
+	runA := env.startTaskRun(t, "task-run-list-a", nil)
+	runB := env.startTaskRun(t, "task-run-list-b", nil)
+	runC := env.startTaskRun(t, "task-run-list-c", nil)
+
+	for _, runID := range []string{runA.RunID, runB.RunID, runC.RunID} {
+		waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+			return row.Status == runStatusCompleted
+		})
+	}
+
+	runs, err := env.manager.List(context.Background(), apicore.RunListQuery{
+		Workspace: env.workspaceRoot,
+		Limit:     10,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(runs) != 3 {
+		t.Fatalf("len(runs) = %d, want 3", len(runs))
+	}
+	if got := lookupCalls.Load(); got != 1 {
+		t.Fatalf("workflow slug lookups = %d, want 1", got)
+	}
+	if got := getWorkflowCalls.Load(); got != 0 {
+		t.Fatalf("fallback workflow loads = %d, want 0", got)
+	}
+}
+
 func TestRunManagerStartFailureBeforeChildExecutionMarksRunFailed(t *testing.T) {
 	runtimeManager := &stubRuntimeManager{startErr: errors.New("runtime failed to start")}
 	var executeCalled atomic.Bool
@@ -344,6 +390,147 @@ func TestRunManagerAllowsConcurrentDistinctRunIDsAndStreamsLiveEvents(t *testing
 	second := waitForStreamItem(t, stream.Events())
 	if second.Event == nil || second.Event.Kind != eventspkg.EventKindRunCompleted {
 		t.Fatalf("second stream item = %#v, want run.completed", second)
+	}
+}
+
+func TestRunManagerRunDBCacheReusesSingleHandleAndEvictsIdleEntries(t *testing.T) {
+	now := time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC)
+	var openCalls atomic.Int64
+
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		now: func() time.Time { return now },
+		openRunDB: func(ctx context.Context, runID string) (*rundb.RunDB, error) {
+			openCalls.Add(1)
+			return openRunDBForRunID(ctx, runID)
+		},
+		runDBCacheTTL: 50 * time.Millisecond,
+	})
+
+	run := env.startTaskRun(t, "task-run-cache", nil)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+	baselineOpens := openCalls.Load()
+
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			if _, err := env.manager.Snapshot(context.Background(), run.RunID); err != nil {
+				t.Errorf("Snapshot() error = %v", err)
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			if _, err := env.manager.Events(
+				context.Background(),
+				run.RunID,
+				apicore.RunEventPageQuery{Limit: 10},
+			); err != nil {
+				t.Errorf("Events() error = %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := openCalls.Load() - baselineOpens; got != 1 {
+		t.Fatalf("run db opens after concurrent reads = %d, want 1", got)
+	}
+	if got := len(env.manager.runDBs); got != 1 {
+		t.Fatalf("cached run db count = %d, want 1", got)
+	}
+
+	now = now.Add(100 * time.Millisecond)
+	if err := env.manager.evictIdleRunDBs(now); err != nil {
+		t.Fatalf("evictIdleRunDBs() error = %v", err)
+	}
+	if got := len(env.manager.runDBs); got != 0 {
+		t.Fatalf("cached run db count after idle eviction = %d, want 0", got)
+	}
+
+	if _, err := env.manager.Snapshot(context.Background(), run.RunID); err != nil {
+		t.Fatalf("Snapshot(after eviction) error = %v", err)
+	}
+	if got := openCalls.Load() - baselineOpens; got != 2 {
+		t.Fatalf("run db opens after cache eviction = %d, want 2", got)
+	}
+}
+
+func TestRunManagerOpenStreamReplaysAllPersistedPages(t *testing.T) {
+	const totalUpdates = defaultStreamPageLimit*2 + 17
+
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, prep *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			for idx := 1; idx <= totalUpdates; idx++ {
+				block, err := kinds.NewContentBlock(kinds.TextBlock{Text: fmt.Sprintf("chunk-%03d", idx)})
+				if err != nil {
+					return err
+				}
+				submitEvent(
+					ctx,
+					t,
+					prep.Journal(),
+					cfg.RunID,
+					eventspkg.EventKindSessionUpdate,
+					kinds.SessionUpdatePayload{
+						Index: 1,
+						Update: kinds.SessionUpdate{
+							Kind:   kinds.UpdateKindAgentMessageChunk,
+							Status: kinds.StatusRunning,
+							Blocks: []kinds.ContentBlock{block},
+						},
+					},
+				)
+			}
+			return nil
+		},
+	})
+
+	run := env.startTaskRun(t, "task-run-stream-pages", nil)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+
+	stream, err := env.manager.OpenStream(context.Background(), run.RunID, apicore.StreamCursor{})
+	if err != nil {
+		t.Fatalf("OpenStream() error = %v", err)
+	}
+	defer func() {
+		_ = stream.Close()
+	}()
+
+	deadline := time.After(5 * time.Second)
+	count := 0
+	var lastEvent *eventspkg.Event
+
+	for {
+		select {
+		case item, ok := <-stream.Events():
+			if !ok {
+				if count != totalUpdates+1 {
+					t.Fatalf("replayed event count = %d, want %d", count, totalUpdates+1)
+				}
+				if lastEvent == nil || lastEvent.Kind != eventspkg.EventKindRunCompleted {
+					t.Fatalf("last replayed event = %#v, want run.completed", lastEvent)
+				}
+				return
+			}
+			if item.Event == nil {
+				t.Fatalf("stream item = %#v, want event", item)
+			}
+			count++
+			lastEvent = item.Event
+		case err, ok := <-stream.Errors():
+			if ok && err != nil {
+				t.Fatalf("stream error = %v", err)
+			}
+		case <-deadline:
+			t.Fatal("timed out draining replay stream")
+		}
 	}
 }
 
@@ -1494,40 +1681,44 @@ type runManagerTestDeps struct {
 	prepare              func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error)
 	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
+	openRunDB            func(context.Context, string) (*rundb.RunDB, error)
+	lookupWorkflowSlugs  func(context.Context, []string) (map[string]string, error)
+	getWorkflow          func(context.Context, string) (globaldb.Workflow, error)
 	shutdownDrainTimeout time.Duration
 	watcherDebounce      time.Duration
+	runDBCacheTTL        time.Duration
 }
 
-func newRunManagerTestEnv(t *testing.T, deps runManagerTestDeps) *runManagerTestEnv {
-	t.Helper()
+func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTestEnv {
+	tb.Helper()
 
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
+	homeDir := tb.TempDir()
+	tb.Setenv("HOME", homeDir)
 
 	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeDir, ".compozy"))
 	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		tb.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
-		t.Fatalf("EnsureHomeLayout() error = %v", err)
+		tb.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
 	globalDB, err := globaldb.Open(context.Background(), paths.GlobalDBPath)
 	if err != nil {
-		t.Fatalf("globaldb.Open() error = %v", err)
+		tb.Fatalf("globaldb.Open() error = %v", err)
 	}
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		_ = globalDB.Close()
 	})
 
-	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	workspaceRoot := filepath.Join(tb.TempDir(), "workspace")
 	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy"), 0o755); err != nil {
-		t.Fatalf("mkdir workspace marker: %v", err)
+		tb.Fatalf("mkdir workspace marker: %v", err)
 	}
 
 	workflowSlug := "daemon-workflow"
 	if err := os.MkdirAll(model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug), 0o755); err != nil {
-		t.Fatalf("mkdir task workflow dir: %v", err)
+		tb.Fatalf("mkdir task workflow dir: %v", err)
 	}
 
 	manager, err := NewRunManager(RunManagerConfig{
@@ -1539,13 +1730,17 @@ func newRunManagerTestEnv(t *testing.T, deps runManagerTestDeps) *runManagerTest
 		Prepare:              firstPrepare(deps.prepare),
 		Execute:              firstExecute(deps.execute),
 		ExecuteExec:          firstExecuteExec(deps.executeExec),
+		OpenRunDB:            deps.openRunDB,
 		WatcherDebounce:      deps.watcherDebounce,
+		RunDBCacheTTL:        deps.runDBCacheTTL,
+		LookupWorkflowSlugs:  deps.lookupWorkflowSlugs,
+		GetWorkflow:          deps.getWorkflow,
 		LoadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
 			return workspacecfg.ProjectConfig{}, nil
 		},
 	})
 	if err != nil {
-		t.Fatalf("NewRunManager() error = %v", err)
+		tb.Fatalf("NewRunManager() error = %v", err)
 	}
 
 	return &runManagerTestEnv{
@@ -1701,9 +1896,9 @@ func (e *runManagerTestEnv) startExecRun(t *testing.T, runID string, runtimeOver
 func (e *runManagerTestEnv) lastRunEvent(t *testing.T, runID string) *eventspkg.Event {
 	t.Helper()
 
-	runDB, err := openRunDB(context.Background(), runID)
+	runDB, err := openRunDBForRunID(context.Background(), runID)
 	if err != nil {
-		t.Fatalf("openRunDB(%q) error = %v", runID, err)
+		t.Fatalf("openRunDBForRunID(%q) error = %v", runID, err)
 	}
 	defer func() {
 		_ = runDB.Close()
@@ -2132,9 +2327,9 @@ func runArtifactSyncCount(t *testing.T, runID string) int {
 func runArtifactSyncLog(t *testing.T, runID string) []rundb.ArtifactSyncRow {
 	t.Helper()
 
-	runDB, err := openRunDB(context.Background(), runID)
+	runDB, err := openRunDBForRunID(context.Background(), runID)
 	if err != nil {
-		t.Fatalf("openRunDB(%q) error = %v", runID, err)
+		t.Fatalf("openRunDBForRunID(%q) error = %v", runID, err)
 	}
 	defer func() {
 		_ = runDB.Close()

@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -179,6 +180,132 @@ func TestCountWorkspacesAndActiveRuns(t *testing.T) {
 	}
 }
 
+func TestPutRunNormalizesStatusAndListRunsUsesWorkspaceStatusIndex(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := mustWorkspace(t, db)
+	workflow, err := db.PutWorkflow(context.Background(), Workflow{
+		WorkspaceID: workspace.ID,
+		Slug:        "demo",
+		CreatedAt:   time.Date(2026, 4, 17, 19, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 17, 19, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("PutWorkflow() error = %v", err)
+	}
+
+	for idx, status := range []string{" Running ", "canceled", "completed"} {
+		run := Run{
+			RunID: "run-status-" + time.Date(2026, 4, 17, 19, 0, 0, idx, time.UTC).
+				Format("150405.000000000"),
+			WorkspaceID:      workspace.ID,
+			WorkflowID:       &workflow.ID,
+			Mode:             "task",
+			Status:           status,
+			PresentationMode: "stream",
+			StartedAt:        time.Date(2026, 4, 17, 19, idx, 0, 0, time.UTC),
+		}
+		if _, err := db.PutRun(context.Background(), run); err != nil {
+			t.Fatalf("PutRun(%q) error = %v", run.RunID, err)
+		}
+	}
+
+	row, err := db.GetRun(context.Background(), "run-status-190000.000000001")
+	if err != nil {
+		t.Fatalf("GetRun(canceled) error = %v", err)
+	}
+	if row.Status != runStatusCanceled {
+		t.Fatalf("normalized canceled status = %q, want %q", row.Status, runStatusCanceled)
+	}
+
+	plan := explainQueryPlan(
+		t,
+		db,
+		`SELECT run_id
+		 FROM runs
+		 WHERE workspace_id = ? AND status = ?
+		 ORDER BY started_at DESC, run_id ASC
+		 LIMIT ?`,
+		workspace.ID,
+		runStatusRunning,
+		10,
+	)
+	if !strings.Contains(plan, "idx_runs_workspace_status") {
+		t.Fatalf("query plan = %q, want idx_runs_workspace_status", plan)
+	}
+}
+
+func TestMarkRunsCrashedAndDeleteRunsBatch(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspace := mustWorkspace(t, db)
+	startedAt := time.Date(2026, 4, 17, 20, 0, 0, 0, time.UTC)
+	for idx, runID := range []string{"run-batch-a", "run-batch-b", "run-batch-c"} {
+		if _, err := db.PutRun(context.Background(), Run{
+			RunID:            runID,
+			WorkspaceID:      workspace.ID,
+			Mode:             "task",
+			Status:           "running",
+			PresentationMode: "stream",
+			StartedAt:        startedAt.Add(time.Duration(idx) * time.Second),
+		}); err != nil {
+			t.Fatalf("PutRun(%q) error = %v", runID, err)
+		}
+	}
+
+	crashedAt := startedAt.Add(5 * time.Minute)
+	if err := db.MarkRunsCrashed(context.Background(), []RunCrashUpdate{
+		{RunID: "run-batch-a", EndedAt: crashedAt, ErrorText: "daemon stop"},
+		{RunID: "run-batch-b", EndedAt: crashedAt.Add(time.Second), ErrorText: "journal unavailable"},
+	}); err != nil {
+		t.Fatalf("MarkRunsCrashed() error = %v", err)
+	}
+
+	for _, tc := range []struct {
+		runID     string
+		errorText string
+	}{
+		{runID: "run-batch-a", errorText: "daemon stop"},
+		{runID: "run-batch-b", errorText: "journal unavailable"},
+	} {
+		row, err := db.GetRun(context.Background(), tc.runID)
+		if err != nil {
+			t.Fatalf("GetRun(%q) error = %v", tc.runID, err)
+		}
+		if row.Status != runStatusCrashed {
+			t.Fatalf("run %q status = %q, want crashed", tc.runID, row.Status)
+		}
+		if strings.TrimSpace(row.ErrorText) != tc.errorText {
+			t.Fatalf("run %q error_text = %q, want %q", tc.runID, row.ErrorText, tc.errorText)
+		}
+		if row.EndedAt == nil {
+			t.Fatalf("run %q EndedAt = nil, want timestamp", tc.runID)
+		}
+	}
+
+	if err := db.DeleteRuns(context.Background(), []string{"run-batch-a", "run-batch-b"}); err != nil {
+		t.Fatalf("DeleteRuns() error = %v", err)
+	}
+	for _, runID := range []string{"run-batch-a", "run-batch-b"} {
+		if _, err := db.GetRun(context.Background(), runID); err == nil {
+			t.Fatalf("GetRun(%q) error = nil, want missing row", runID)
+		}
+	}
+	if _, err := db.GetRun(context.Background(), "run-batch-c"); err != nil {
+		t.Fatalf("GetRun(run-batch-c) error = %v, want row to remain", err)
+	}
+}
+
 func mustWorkspace(t *testing.T, db *GlobalDB) Workspace {
 	t.Helper()
 
@@ -200,4 +327,34 @@ func runIDs(runs []Run) []string {
 
 func timePtr(value time.Time) *time.Time {
 	return &value
+}
+
+func explainQueryPlan(t *testing.T, db *GlobalDB, query string, args ...any) string {
+	t.Helper()
+
+	rows, err := db.db.QueryContext(context.Background(), "EXPLAIN QUERY PLAN "+query, args...)
+	if err != nil {
+		t.Fatalf("EXPLAIN QUERY PLAN error = %v", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	parts := make([]string, 0)
+	for rows.Next() {
+		var (
+			id      int
+			parent  int
+			notused int
+			detail  string
+		)
+		if err := rows.Scan(&id, &parent, &notused, &detail); err != nil {
+			t.Fatalf("scan query plan row: %v", err)
+		}
+		parts = append(parts, detail)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate query plan: %v", err)
+	}
+	return strings.Join(parts, " | ")
 }

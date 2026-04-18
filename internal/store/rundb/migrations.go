@@ -81,6 +81,18 @@ var migrations = []migration{
 			`CREATE INDEX IF NOT EXISTS idx_artifact_sync_log_path ON artifact_sync_log(relative_path);`,
 		},
 	},
+	{
+		version: 2,
+		name:    "drop_dead_secondary_indexes",
+		statements: []string{
+			`DROP INDEX IF EXISTS idx_events_kind;`,
+			`DROP INDEX IF EXISTS idx_events_timestamp;`,
+			`DROP INDEX IF EXISTS idx_events_job_id;`,
+			`DROP INDEX IF EXISTS idx_job_state_status;`,
+			`DROP INDEX IF EXISTS idx_transcript_messages_timestamp;`,
+			`DROP INDEX IF EXISTS idx_artifact_sync_log_path;`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

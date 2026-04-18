@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runshared"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -259,6 +260,29 @@ func TestHandleTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 
 	if before == after {
 		t.Fatalf("expected running sidebar content to refresh on tick, got %q", after)
+	}
+}
+
+func TestHandleTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.jobs[0].state = jobSuccess
+	m.refreshSidebarContent()
+	m.sidebarDirty = false
+
+	previous := setSidebarViewportContent
+	t.Cleanup(func() {
+		setSidebarViewportContent = previous
+	})
+
+	calls := 0
+	setSidebarViewportContent = func(vp *viewport.Model, content string) {
+		calls++
+		previous(vp, content)
+	}
+
+	m.handleTick()
+	if calls != 0 {
+		t.Fatalf("expected idle tick to skip sidebar refresh, got %d SetContent calls", calls)
 	}
 }
 

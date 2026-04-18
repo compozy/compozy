@@ -570,6 +570,27 @@ func TestSessionViewModelSkipsDuplicateVisibleState(t *testing.T) {
 	}
 }
 
+func TestSessionViewModelSnapshotSharesImmutableBlockBytes(t *testing.T) {
+	t.Parallel()
+
+	viewModel := newSessionViewModel()
+	block := mustContentBlockTranscriptTest(t, model.TextBlock{Text: "shared bytes"})
+
+	snapshot, changed := viewModel.Apply(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{block},
+	})
+	if !changed {
+		t.Fatal("expected snapshot update to change transcript")
+	}
+	if len(snapshot.Entries) != 1 || len(snapshot.Entries[0].Blocks) != 1 {
+		t.Fatalf("unexpected snapshot entries: %#v", snapshot.Entries)
+	}
+	if &snapshot.Entries[0].Blocks[0].Data[0] != &block.Data[0] {
+		t.Fatal("expected snapshot block bytes to share immutable backing data")
+	}
+}
+
 func mustContentBlockTranscriptTest(t *testing.T, payload any) model.ContentBlock {
 	t.Helper()
 

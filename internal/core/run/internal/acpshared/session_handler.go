@@ -2,6 +2,7 @@ package acpshared
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,8 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
+
+var marshalPublicSessionUpdateJSON = json.Marshal
 
 type SessionUpdateHandler struct {
 	ctx            context.Context
@@ -115,6 +118,17 @@ func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 	if err != nil {
 		return fmt.Errorf("convert session update hook payload: %w", err)
 	}
+	publicUpdateRaw, err := marshalPublicSessionUpdateJSON(publicUpdate)
+	if err != nil {
+		return fmt.Errorf("marshal public session update: %w", err)
+	}
+	eventPayload, err := json.Marshal(sessionUpdateEventPayload{
+		Index:  h.index,
+		Update: publicUpdateRaw,
+	})
+	if err != nil {
+		return fmt.Errorf("marshal session update payload: %w", err)
+	}
 	model.DispatchObserverHook(
 		h.ctx,
 		h.runManager,
@@ -123,7 +137,7 @@ func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 			RunID:     h.runID,
 			JobID:     h.jobID,
 			SessionID: h.sessionID,
-			Update:    publicUpdate,
+			Update:    publicUpdateRaw,
 		},
 	)
 
@@ -144,7 +158,7 @@ func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
 			err,
 		)
 	}
-	if err := h.emitSessionUpdateEvent(publicUpdate); err != nil {
+	if err := h.emitSessionUpdateEvent(eventPayload); err != nil {
 		return err
 	}
 	if err := h.recordUsageUpdate(update.Usage); err != nil {
@@ -196,15 +210,8 @@ func (h *SessionUpdateHandler) applySessionUpdate(update model.SessionUpdate) {
 	h.sessionView.Apply(update)
 }
 
-func (h *SessionUpdateHandler) emitSessionUpdateEvent(update kinds.SessionUpdate) error {
-	return h.submitRuntimeEvent(
-		events.EventKindSessionUpdate,
-		kinds.SessionUpdatePayload{
-			Index:  h.index,
-			Update: update,
-		},
-		"session update",
-	)
+func (h *SessionUpdateHandler) emitSessionUpdateEvent(payload json.RawMessage) error {
+	return h.submitRuntimeEventRaw(events.EventKindSessionUpdate, payload, "session update")
 }
 
 func (h *SessionUpdateHandler) recordUsageUpdate(usage model.Usage) error {
@@ -330,6 +337,23 @@ func (h *SessionUpdateHandler) submitRuntimeEvent(
 	if err != nil {
 		return err
 	}
+	return h.submitEncodedRuntimeEvent(event, description)
+}
+
+func (h *SessionUpdateHandler) submitRuntimeEventRaw(
+	kind events.EventKind,
+	payload json.RawMessage,
+	description string,
+) error {
+	if !hasRuntimeEventSubmitter(h.journal) {
+		return nil
+	}
+
+	event := runtimeevents.NewRuntimeEventRaw(h.runID, kind, payload)
+	return h.submitEncodedRuntimeEvent(event, description)
+}
+
+func (h *SessionUpdateHandler) submitEncodedRuntimeEvent(event events.Event, description string) error {
 	if err := h.journal.Submit(h.ctx, event); err != nil {
 		return fmt.Errorf("submit %s event: %w", description, err)
 	}
@@ -419,10 +443,15 @@ func formatBlockTypes(blocks []model.ContentBlock) string {
 }
 
 type sessionUpdateHookPayload struct {
-	RunID     string              `json:"run_id"`
-	JobID     string              `json:"job_id"`
-	SessionID string              `json:"session_id"`
-	Update    kinds.SessionUpdate `json:"update"`
+	RunID     string          `json:"run_id"`
+	JobID     string          `json:"job_id"`
+	SessionID string          `json:"session_id"`
+	Update    json.RawMessage `json:"update"`
+}
+
+type sessionUpdateEventPayload struct {
+	Index  int             `json:"index"`
+	Update json.RawMessage `json:"update"`
 }
 
 type sessionEndedHookPayload struct {

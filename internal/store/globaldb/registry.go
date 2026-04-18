@@ -363,7 +363,7 @@ func (g *GlobalDB) PutRun(ctx context.Context, run Run) (Run, error) {
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
 	run.Mode = strings.TrimSpace(run.Mode)
-	run.Status = strings.TrimSpace(run.Status)
+	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
 	if run.RunID == "" {
 		return Run{}, errors.New("globaldb: run id is required")
@@ -420,7 +420,7 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run Run) (Run, error) {
 	run.RunID = strings.TrimSpace(run.RunID)
 	run.WorkspaceID = strings.TrimSpace(run.WorkspaceID)
 	run.Mode = strings.TrimSpace(run.Mode)
-	run.Status = strings.TrimSpace(run.Status)
+	run.Status = normalizeRunStatus(run.Status)
 	run.PresentationMode = strings.TrimSpace(run.PresentationMode)
 	if run.RunID == "" {
 		return Run{}, errors.New("globaldb: run id is required")
@@ -527,6 +527,7 @@ func (g *GlobalDB) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, e
 		args = append(args, workspaceID)
 	}
 	if status := strings.TrimSpace(opts.Status); status != "" {
+		status = normalizeRunStatus(status)
 		query += ` AND status = ?`
 		args = append(args, status)
 	}
@@ -932,7 +933,7 @@ func (g *GlobalDB) countActiveRunsForWorkspace(ctx context.Context, workspaceID 
 		`SELECT COUNT(1)
 		 FROM runs
 		 WHERE workspace_id = ?
-		   AND LOWER(TRIM(status)) NOT IN ('completed', 'failed', 'cancelled', 'canceled', 'crashed')`,
+		   AND status NOT IN ('completed', 'failed', 'canceled', 'crashed')`,
 		strings.TrimSpace(workspaceID),
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("globaldb: count active runs for workspace %q: %w", workspaceID, err)

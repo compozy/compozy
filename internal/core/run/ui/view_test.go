@@ -12,6 +12,7 @@ import (
 	xansi "github.com/charmbracelet/x/ansi"
 	"github.com/compozy/compozy/internal/core/model"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -651,6 +652,33 @@ func TestRestoreTranscriptViewportTracksOffsets(t *testing.T) {
 	m.restoreTranscriptViewport(job, []int{0, 3, 8})
 	if got := m.transcriptViewport.YOffset(); got == 0 {
 		t.Fatalf("expected selected entry to be scrolled into view, got offset %d", got)
+	}
+}
+
+func TestRenderTimelinePanelSkipsViewportSetContentOnCacheHit(t *testing.T) {
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	job := &m.jobs[0]
+
+	previous := setTranscriptViewportContent
+	t.Cleanup(func() {
+		setTranscriptViewportContent = previous
+	})
+
+	calls := 0
+	setTranscriptViewportContent = func(vp *viewport.Model, content string) {
+		calls++
+		previous(vp, content)
+	}
+
+	_ = m.renderTimelinePanel(job, m.timelineWidth)
+	if calls != 1 {
+		t.Fatalf("expected first render to set transcript content once, got %d calls", calls)
+	}
+
+	calls = 0
+	_ = m.renderTimelinePanel(job, m.timelineWidth)
+	if calls != 0 {
+		t.Fatalf("expected cache hit to skip transcript SetContent, got %d calls", calls)
 	}
 }
 

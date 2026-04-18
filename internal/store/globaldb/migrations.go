@@ -125,6 +125,33 @@ var migrations = []migration{
 			);`,
 		},
 	},
+	{
+		version: 2,
+		name:    "runs_status_normalization",
+		statements: []string{
+			`UPDATE runs
+			 SET status = CASE LOWER(TRIM(status))
+				WHEN 'cancelled' THEN 'canceled'
+				ELSE LOWER(TRIM(status))
+			 END
+			 WHERE status <> CASE LOWER(TRIM(status))
+				WHEN 'cancelled' THEN 'canceled'
+				ELSE LOWER(TRIM(status))
+			 END;`,
+			`CREATE INDEX IF NOT EXISTS idx_runs_workflow_id
+				ON runs(workflow_id)
+				WHERE workflow_id IS NOT NULL;`,
+		},
+	},
+	{
+		version: 3,
+		name:    "runs_status_index_cover_ordering",
+		statements: []string{
+			`DROP INDEX IF EXISTS idx_runs_workspace_status;`,
+			`CREATE INDEX IF NOT EXISTS idx_runs_workspace_status
+				ON runs(workspace_id, status, started_at DESC, run_id ASC);`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

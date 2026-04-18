@@ -8,10 +8,15 @@ import (
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
 
+	"charm.land/bubbles/v2/viewport"
 	"charm.land/lipgloss/v2"
 )
 
 const timelineDetailIndent = "   "
+
+var setTranscriptViewportContent = func(vp *viewport.Model, content string) {
+	vp.SetContent(content)
+}
 
 type timelineRender struct {
 	content string
@@ -29,6 +34,7 @@ func (m *uiModel) renderMainPanels() string {
 
 func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	contentWidth := panelContentWidth(panelWidth)
+	cacheHit := m.timelineCacheHit(job, contentWidth)
 	m.transcriptViewport.SetWidth(contentWidth)
 	transcriptHeight := max(m.contentHeight-4, logViewportMinHeight)
 	if job != nil && strings.TrimSpace(job.taskTitle) != "" {
@@ -36,19 +42,21 @@ func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	}
 	m.transcriptViewport.SetHeight(transcriptHeight)
 	rendered := m.buildTimelineContent(job, contentWidth)
-	m.transcriptViewport.SetContent(rendered.content)
-	m.restoreTranscriptViewport(job, rendered.offsets)
+	if !cacheHit {
+		setTranscriptViewportContent(&m.transcriptViewport, rendered.content)
+		m.restoreTranscriptViewport(job, rendered.offsets)
+	}
 
 	lines := []string{
-		renderOwnedLine(contentWidth, colorBgSurface, m.renderTimelineHeader(job, contentWidth)),
-		renderOwnedLine(
+		renderOwnedLineKnownOwned(contentWidth, colorBgSurface, m.renderTimelineHeader(job, contentWidth)),
+		renderOwnedLineKnownOwned(
 			contentWidth,
 			colorBgSurface,
 			renderStyledOnBackground(styleDimText, colorBgSurface, m.timelineMetaForWidth(job, contentWidth)),
 		),
 	}
 	if job != nil && strings.TrimSpace(job.taskTitle) != "" {
-		lines = append(lines, renderOwnedLine(contentWidth, colorBgSurface, ""))
+		lines = append(lines, renderOwnedLineKnownOwned(contentWidth, colorBgSurface, ""))
 	}
 	lines = append(lines, renderOwnedBlock(contentWidth, colorBgSurface, m.transcriptViewport.View()))
 
@@ -57,6 +65,14 @@ func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 		borderColor = colorBorderFocus
 	}
 	return techPanelStyle(panelWidth, borderColor).Render(strings.Join(lines, "\n"))
+}
+
+func (m *uiModel) timelineCacheHit(job *uiJob, width int) bool {
+	return job != nil && job.timelineCacheValid &&
+		job.timelineCacheWidth == width &&
+		job.timelineCacheRev == job.snapshot.Revision &&
+		job.timelineCacheSel == job.selectedEntry &&
+		job.timelineCacheExpand == job.expansionRevision
 }
 
 func (m *uiModel) timelineMeta(job *uiJob) string {
@@ -172,11 +188,7 @@ func (m *uiModel) retryAttemptLabel(job *uiJob) string {
 }
 
 func (m *uiModel) buildTimelineContent(job *uiJob, width int) timelineRender {
-	if job != nil && job.timelineCacheValid &&
-		job.timelineCacheWidth == width &&
-		job.timelineCacheRev == job.snapshot.Revision &&
-		job.timelineCacheSel == job.selectedEntry &&
-		job.timelineCacheExpand == job.expansionRevision {
+	if m.timelineCacheHit(job, width) {
 		return job.timelineCache
 	}
 

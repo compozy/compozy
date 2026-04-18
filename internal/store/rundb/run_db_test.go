@@ -135,14 +135,14 @@ func TestRunDBRoundTripsEventsAndProjectionRowsAfterReopen(t *testing.T) {
 		t.Fatalf("CurrentMaxSequence() = %d, want 6", maxSeq)
 	}
 
-	storedEvents, err := reopened.ListEvents(context.Background(), 1)
+	storedEvents, err := reopened.ListEvents(context.Background(), 1, 0)
 	if err != nil {
 		t.Fatalf("ListEvents(): %v", err)
 	}
-	if got := collectedSeqs(storedEvents); !reflect.DeepEqual(got, []uint64{1, 2, 3, 4, 5, 6}) {
+	if got := collectedSeqs(storedEvents.Events); !reflect.DeepEqual(got, []uint64{1, 2, 3, 4, 5, 6}) {
 		t.Fatalf("stored event seqs = %v, want [1 2 3 4 5 6]", got)
 	}
-	for _, item := range storedEvents {
+	for _, item := range storedEvents.Events {
 		if item.RunID != runID {
 			t.Fatalf("event run id = %q, want %q", item.RunID, runID)
 		}
@@ -296,6 +296,54 @@ func TestRunDBAppendSyntheticEventUsesNextSequence(t *testing.T) {
 	}
 }
 
+func TestRunDBListEventsRespectsLimitAndHasMore(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-limit-window"
+	db := openTestRunDB(t, runID)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	items := make([]events.Event, 0, 5)
+	startedAt := time.Date(2026, 4, 17, 20, 30, 0, 0, time.UTC)
+	for seq := 1; seq <= 5; seq++ {
+		items = append(items, mustEvent(
+			t,
+			runID,
+			uint64(seq),
+			startedAt.Add(time.Duration(seq)*time.Second),
+			events.EventKindJobQueued,
+			kinds.JobQueuedPayload{Index: seq},
+		))
+	}
+	if err := db.StoreEventBatch(context.Background(), items); err != nil {
+		t.Fatalf("StoreEventBatch() error = %v", err)
+	}
+
+	window, err := db.ListEvents(context.Background(), 2, 2)
+	if err != nil {
+		t.Fatalf("ListEvents(limit) error = %v", err)
+	}
+	if !window.HasMore {
+		t.Fatal("HasMore = false, want true")
+	}
+	if got := collectedSeqs(window.Events); !reflect.DeepEqual(got, []uint64{2, 3, 4}) {
+		t.Fatalf("window seqs = %v, want [2 3 4]", got)
+	}
+
+	finalWindow, err := db.ListEvents(context.Background(), 4, 2)
+	if err != nil {
+		t.Fatalf("ListEvents(final limit) error = %v", err)
+	}
+	if finalWindow.HasMore {
+		t.Fatal("final HasMore = true, want false")
+	}
+	if got := collectedSeqs(finalWindow.Events); !reflect.DeepEqual(got, []uint64{4, 5}) {
+		t.Fatalf("final window seqs = %v, want [4 5]", got)
+	}
+}
+
 func TestRunDBRequiresContext(t *testing.T) {
 	t.Parallel()
 
@@ -308,7 +356,7 @@ func TestRunDBRequiresContext(t *testing.T) {
 	if err := db.StoreEventBatch(nilCtx, []events.Event{{Seq: 1}}); err == nil {
 		t.Fatal("StoreEventBatch(nil) error = nil, want non-nil")
 	}
-	if _, err := db.ListEvents(nilCtx, 0); err == nil {
+	if _, err := db.ListEvents(nilCtx, 0, 0); err == nil {
 		t.Fatal("ListEvents(nil) error = nil, want non-nil")
 	}
 }

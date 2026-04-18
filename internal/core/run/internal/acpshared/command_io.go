@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runshared"
 	"github.com/compozy/compozy/internal/core/run/internal/runtimeevents"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -24,13 +24,11 @@ type runtimeEventSubmitter interface {
 }
 
 func hasRuntimeEventSubmitter(submitter runtimeEventSubmitter) bool {
-	if submitter == nil {
+	switch typed := submitter.(type) {
+	case nil:
 		return false
-	}
-	value := reflect.ValueOf(submitter)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return !value.IsNil()
+	case *journal.Journal:
+		return typed != nil
 	default:
 		return true
 	}

@@ -19,6 +19,21 @@ func (f *flushBuffer) Flush() {
 	f.flushed = true
 }
 
+type countingFlushWriter struct {
+	bytes.Buffer
+	writeCalls int
+	flushCalls int
+}
+
+func (w *countingFlushWriter) Write(p []byte) (int, error) {
+	w.writeCalls++
+	return w.Buffer.Write(p)
+}
+
+func (w *countingFlushWriter) Flush() {
+	w.flushCalls++
+}
+
 func TestWriteSSEFormatsFramesWithCanonicalCursor(t *testing.T) {
 	timestamp := time.Date(2026, 4, 17, 12, 0, 0, 123456789, time.UTC)
 	cursor := core.FormatCursor(timestamp, 7)
@@ -47,6 +62,26 @@ func TestWriteSSEFormatsFramesWithCanonicalCursor(t *testing.T) {
 	}
 	if !writer.flushed {
 		t.Fatal("expected writer.Flush to be called")
+	}
+}
+
+func TestWriteSSEUsesSingleWriteAndFlushPerFrame(t *testing.T) {
+	t.Parallel()
+
+	writer := &countingFlushWriter{}
+	err := core.WriteSSE(writer, core.SSEMessage{
+		ID:    "cursor-1",
+		Event: "run.started",
+		Data:  map[string]string{"status": "started"},
+	})
+	if err != nil {
+		t.Fatalf("WriteSSE() error = %v", err)
+	}
+	if writer.writeCalls != 1 {
+		t.Fatalf("write calls = %d, want 1", writer.writeCalls)
+	}
+	if writer.flushCalls != 1 {
+		t.Fatalf("flush calls = %d, want 1", writer.flushCalls)
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/compozy/compozy/internal/core/agent"
 	"github.com/compozy/compozy/internal/core/model"
+	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -101,6 +102,20 @@ func TestBuildSessionExecutionUsesSessionSetupRequest(t *testing.T) {
 	}
 	if execution.Handler.outWriter != outFile || execution.Handler.errWriter != errFile {
 		t.Fatalf("expected UI mode to keep file writers only")
+	}
+}
+
+func TestHasRuntimeEventSubmitterRejectsTypedNilJournal(t *testing.T) {
+	t.Parallel()
+
+	var runJournal *journal.Journal
+	if hasRuntimeEventSubmitter(runJournal) {
+		t.Fatal("expected typed nil journal to be treated as absent")
+	}
+
+	submitter := &stubRuntimeEventSubmitter{}
+	if !hasRuntimeEventSubmitter(submitter) {
+		t.Fatal("expected concrete submitter to be treated as present")
 	}
 }
 

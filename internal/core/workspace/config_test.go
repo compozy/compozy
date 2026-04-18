@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -44,6 +45,42 @@ func TestDiscoverFallsBackToStartDirectoryWhenWorkspaceIsMissing(t *testing.T) {
 	}
 	if mustEvalSymlinksWorkspaceTest(t, got) != mustEvalSymlinksWorkspaceTest(t, start) {
 		t.Fatalf("unexpected fallback root\nwant: %q\ngot:  %q", start, got)
+	}
+}
+
+func TestDiscoverMemoizesSuccessfulResultPerStartDir(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "pkg", "feature", "subdir")
+	if err := os.MkdirAll(filepath.Join(root, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir .compozy: %v", err)
+	}
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested: %v", err)
+	}
+
+	previous := discoverWorkspaceRoot
+	var calls atomic.Int64
+	discoverWorkspaceRoot = func(ctx context.Context, startDir string) (string, error) {
+		calls.Add(1)
+		return previous(ctx, startDir)
+	}
+	t.Cleanup(func() {
+		discoverWorkspaceRoot = previous
+	})
+
+	first, err := Discover(context.Background(), nested)
+	if err != nil {
+		t.Fatalf("first discover workspace: %v", err)
+	}
+	second, err := Discover(context.Background(), nested)
+	if err != nil {
+		t.Fatalf("second discover workspace: %v", err)
+	}
+	if first != second {
+		t.Fatalf("memoized discover roots differ: %q vs %q", first, second)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("discoverWorkspaceRoot calls = %d, want 1", got)
 	}
 }
 

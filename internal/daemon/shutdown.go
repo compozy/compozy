@@ -53,7 +53,7 @@ func (m *RunManager) Shutdown(ctx context.Context, force bool) error {
 
 	activeRuns := m.activeSnapshot()
 	if len(activeRuns) == 0 {
-		return nil
+		return m.closeRunDBCache()
 	}
 	if !force {
 		return apicore.NewProblem(
@@ -78,14 +78,17 @@ func (m *RunManager) Shutdown(ctx context.Context, force bool) error {
 	waitCtx, cancel := context.WithTimeout(detachContext(ctx), m.shutdownDrainTimeout)
 	defer cancel()
 
-	for _, run := range activeRuns {
-		select {
-		case <-run.done:
-		case <-waitCtx.Done():
-			return nil
-		}
+	done := make(chan struct{})
+	go func() {
+		m.runWG.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-waitCtx.Done():
 	}
-	return nil
+	return m.closeRunDBCache()
 }
 
 // Purge deletes terminal run directories and their durable index rows according
@@ -106,6 +109,7 @@ func (m *RunManager) Purge(ctx context.Context, settings RunLifecycleSettings) (
 	}
 
 	result := RunPurgeResult{PurgedRunIDs: make([]string, 0, len(candidates))}
+	purgedRunIDs := make([]string, 0, len(candidates))
 	for i := range candidates {
 		run := &candidates[i]
 		if m.getActive(run.RunID) != nil {
@@ -119,11 +123,12 @@ func (m *RunManager) Purge(ctx context.Context, settings RunLifecycleSettings) (
 		if err := os.RemoveAll(runArtifacts.RunDir); err != nil {
 			return result, err
 		}
-		if err := m.globalDB.DeleteRun(listCtx, run.RunID); err != nil {
-			return result, err
-		}
-		result.PurgedRunIDs = append(result.PurgedRunIDs, run.RunID)
+		purgedRunIDs = append(purgedRunIDs, run.RunID)
 	}
+	if err := m.globalDB.DeleteRuns(listCtx, purgedRunIDs); err != nil {
+		return result, err
+	}
+	result.PurgedRunIDs = append(result.PurgedRunIDs, purgedRunIDs...)
 	return result, nil
 }
 

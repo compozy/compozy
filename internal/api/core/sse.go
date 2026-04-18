@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +34,12 @@ type SSEMessage struct {
 type FlushWriter interface {
 	io.Writer
 	http.Flusher
+}
+
+var sseBufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
 }
 
 // PrepareSSE configures one Gin response for server-sent events.
@@ -69,47 +77,34 @@ func WriteSSE(writer FlushWriter, msg SSEMessage) error {
 		payload = []byte("null")
 	}
 
+	buffer, ok := sseBufferPool.Get().(*bytes.Buffer)
+	if !ok || buffer == nil {
+		buffer = new(bytes.Buffer)
+	}
+	buffer.Reset()
+	defer sseBufferPool.Put(buffer)
+
 	if strings.TrimSpace(msg.ID) != "" {
-		if err := writeSSEString(writer, "id: "); err != nil {
-			return err
-		}
-		if err := writeSSEString(writer, strings.TrimSpace(msg.ID)); err != nil {
-			return err
-		}
-		if err := writeSSEString(writer, "\n"); err != nil {
-			return err
-		}
+		buffer.WriteString("id: ")
+		buffer.WriteString(strings.TrimSpace(msg.ID))
+		buffer.WriteByte('\n')
 	}
 
 	if strings.TrimSpace(msg.Event) != "" {
-		if err := writeSSEString(writer, "event: "); err != nil {
-			return err
-		}
-		if err := writeSSEString(writer, strings.TrimSpace(msg.Event)); err != nil {
-			return err
-		}
-		if err := writeSSEString(writer, "\n"); err != nil {
-			return err
-		}
+		buffer.WriteString("event: ")
+		buffer.WriteString(strings.TrimSpace(msg.Event))
+		buffer.WriteByte('\n')
 	}
 
-	if err := writeSSEString(writer, "data: "); err != nil {
-		return err
-	}
-	if _, err := writer.Write(payload); err != nil {
+	buffer.WriteString("data: ")
+	if _, err := buffer.Write(payload); err != nil {
 		return fmt.Errorf("write sse payload: %w", err)
 	}
-	if err := writeSSEString(writer, "\n\n"); err != nil {
-		return err
+	buffer.WriteString("\n\n")
+	if _, err := writer.Write(buffer.Bytes()); err != nil {
+		return fmt.Errorf("write sse payload: %w", err)
 	}
 	writer.Flush()
-	return nil
-}
-
-func writeSSEString(writer FlushWriter, value string) error {
-	if _, err := io.WriteString(writer, value); err != nil {
-		return fmt.Errorf("write sse message: %w", err)
-	}
 	return nil
 }
 

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -22,9 +23,17 @@ import (
 )
 
 const (
-	execStatusFailed   = "failed"
-	execStatusCanceled = "canceled"
-	execStatusCrashed  = "crashed"
+	execStatusCompleted = "completed"
+	execStatusFailed    = "failed"
+	execStatusCanceled  = "canceled"
+	execStatusCrashed   = "crashed"
+
+	execEventRunStarted      = "run.started"
+	execEventSessionAttached = "session.attached"
+	execEventRunSucceeded    = "run.succeeded"
+	execEventRunFailed       = "run.failed"
+
+	daemonRunTerminalPollInterval = 10 * time.Millisecond
 )
 
 func newReviewsCommand() *cobra.Command {
@@ -680,20 +689,21 @@ func consumeDaemonRunStream(
 }
 
 func waitForDaemonRunTerminal(ctx context.Context, client daemonCommandClient, runID string) (apicore.Run, error) {
-	var terminal apicore.Run
+	var (
+		terminal         apicore.Run
+		sawTerminalEvent bool
+	)
 	err := consumeDaemonRunStream(ctx, client, runID, func(item apiclient.RunStreamItem) error {
-		if item.Event == nil || !isTerminalDaemonEvent(item.Event.Kind) {
-			return nil
+		if item.Event != nil && isTerminalDaemonEvent(item.Event.Kind) {
+			sawTerminalEvent = true
 		}
-		snapshot, err := client.GetRunSnapshot(ctx, runID)
-		if err != nil {
-			return err
-		}
-		terminal = snapshot.Run
 		return nil
 	})
 	if err != nil {
 		return terminal, err
+	}
+	if sawTerminalEvent {
+		return waitForTerminalDaemonRunSnapshot(ctx, client, runID)
 	}
 	if isTerminalDaemonRun(terminal.Status) {
 		return terminal, nil
@@ -709,6 +719,31 @@ func waitForDaemonRunTerminal(ctx context.Context, client daemonCommandClient, r
 	return terminal, nil
 }
 
+func waitForTerminalDaemonRunSnapshot(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+) (apicore.Run, error) {
+	ticker := time.NewTicker(daemonRunTerminalPollInterval)
+	defer ticker.Stop()
+
+	for {
+		snapshot, err := client.GetRunSnapshot(ctx, runID)
+		if err != nil {
+			return apicore.Run{}, err
+		}
+		if isTerminalDaemonRun(snapshot.Run.Status) {
+			return snapshot.Run, nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return apicore.Run{}, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
 func translateDaemonExecEvent(
 	workspaceRoot string,
 	runID string,
@@ -719,7 +754,7 @@ func translateDaemonExecEvent(
 	switch event.Kind {
 	case eventspkg.EventKindRunStarted:
 		return []map[string]any{{
-			"type":    "run.started",
+			"type":    execEventRunStarted,
 			"run_id":  runID,
 			"time":    event.Timestamp,
 			"status":  "running",
@@ -731,7 +766,7 @@ func translateDaemonExecEvent(
 			return nil, err
 		}
 		out := map[string]any{
-			"type":   "session.attached",
+			"type":   execEventSessionAttached,
 			"run_id": runID,
 			"time":   event.Timestamp,
 			"turn":   1,
@@ -799,7 +834,7 @@ func translateDaemonExecTerminalEvent(
 		if err != nil {
 			return nil, err
 		}
-		result["type"] = "run.succeeded"
+		result["type"] = execEventRunSucceeded
 		result["status"] = "succeeded"
 		result["output"] = output
 	case eventspkg.EventKindRunFailed:
@@ -807,7 +842,7 @@ func translateDaemonExecTerminalEvent(
 		if err != nil {
 			return nil, err
 		}
-		result["type"] = "run.failed"
+		result["type"] = execEventRunFailed
 		result["status"] = execStatusFailed
 		result["error"] = payload.Error
 	case eventspkg.EventKindRunCancelled:
@@ -815,7 +850,7 @@ func translateDaemonExecTerminalEvent(
 		if err != nil {
 			return nil, err
 		}
-		result["type"] = "run.failed"
+		result["type"] = execEventRunFailed
 		result["status"] = execStatusCanceled
 		result["error"] = payload.Reason
 	case eventspkg.EventKindRunCrashed:
@@ -823,7 +858,7 @@ func translateDaemonExecTerminalEvent(
 		if err != nil {
 			return nil, err
 		}
-		result["type"] = "run.failed"
+		result["type"] = execEventRunFailed
 		result["status"] = execStatusCrashed
 		result["error"] = payload.Error
 	default:
@@ -979,7 +1014,7 @@ func isTerminalFailureStatus(run apicore.Run) bool {
 
 func isTerminalDaemonRun(status string) bool {
 	switch strings.TrimSpace(status) {
-	case "completed", execStatusFailed, execStatusCanceled, execStatusCrashed:
+	case execStatusCompleted, execStatusFailed, execStatusCanceled, execStatusCrashed:
 		return true
 	default:
 		return false

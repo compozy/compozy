@@ -77,6 +77,12 @@ type ArtifactSyncRow struct {
 	SyncedAt     time.Time
 }
 
+// EventListResult captures one ordered event window from the canonical log.
+type EventListResult struct {
+	Events  []events.Event
+	HasMore bool
+}
+
 // Open opens or creates one per-run operational store and applies migrations.
 func Open(ctx context.Context, path string) (*RunDB, error) {
 	return openWithOptions(ctx, path, openOptions{})
@@ -163,8 +169,16 @@ func (r *RunDB) StoreEventBatch(ctx context.Context, items []events.Event) (retE
 		}
 	}()
 
+	stmts, err := prepareEventBatchStatements(ctx, tx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = stmts.close()
+	}()
+
 	for _, item := range items {
-		if err := storeProjectedEvent(ctx, tx, item); err != nil {
+		if err := storeProjectedEventWithStatements(ctx, stmts, item); err != nil {
 			return err
 		}
 	}
@@ -262,25 +276,35 @@ func (r *RunDB) RecordHookRun(ctx context.Context, record HookRunRecord) error {
 	return nil
 }
 
-// ListEvents returns all persisted events at or after fromSeq in sequence order.
-func (r *RunDB) ListEvents(ctx context.Context, fromSeq uint64) ([]events.Event, error) {
+// ListEvents returns persisted events at or after fromSeq in sequence order.
+// When limit is greater than zero, it returns at most limit+1 rows so callers
+// can detect a following page without a second query.
+func (r *RunDB) ListEvents(ctx context.Context, fromSeq uint64, limit int) (EventListResult, error) {
 	if err := r.requireContext(ctx, "list events"); err != nil {
-		return nil, err
+		return EventListResult{}, err
 	}
 
-	rows, err := r.db.QueryContext(
-		ctx,
-		`SELECT sequence, event_kind, payload_json, timestamp FROM events WHERE sequence >= ? ORDER BY sequence ASC`,
-		fromSeq,
-	)
+	query := `SELECT sequence, event_kind, payload_json, timestamp
+		FROM events
+		WHERE sequence >= ?
+		ORDER BY sequence ASC`
+	args := []any{fromSeq}
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit+1)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("rundb: query events: %w", err)
+		return EventListResult{}, fmt.Errorf("rundb: query events: %w", err)
 	}
 	defer func() {
 		_ = rows.Close()
 	}()
 
-	result := make([]events.Event, 0)
+	result := EventListResult{
+		Events: make([]events.Event, 0, max(limit, 0)),
+	}
 	for rows.Next() {
 		var (
 			sequence    int64
@@ -289,17 +313,17 @@ func (r *RunDB) ListEvents(ctx context.Context, fromSeq uint64) ([]events.Event,
 			timestamp   string
 		)
 		if err := rows.Scan(&sequence, &eventKind, &payloadJSON, &timestamp); err != nil {
-			return nil, fmt.Errorf("rundb: scan event row: %w", err)
+			return EventListResult{}, fmt.Errorf("rundb: scan event row: %w", err)
 		}
 		seq, err := sequenceValue(sequence, "event sequence")
 		if err != nil {
-			return nil, err
+			return EventListResult{}, err
 		}
 		parsedTS, err := store.ParseTimestamp(timestamp)
 		if err != nil {
-			return nil, err
+			return EventListResult{}, err
 		}
-		result = append(result, events.Event{
+		result.Events = append(result.Events, events.Event{
 			SchemaVersion: events.SchemaVersion,
 			RunID:         r.runID,
 			Seq:           seq,
@@ -309,7 +333,10 @@ func (r *RunDB) ListEvents(ctx context.Context, fromSeq uint64) ([]events.Event,
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rundb: iterate events: %w", err)
+		return EventListResult{}, fmt.Errorf("rundb: iterate events: %w", err)
+	}
+	if limit > 0 && len(result.Events) > limit {
+		result.HasMore = true
 	}
 	return result, nil
 }
@@ -621,11 +648,107 @@ func (r *RunDB) requireContext(ctx context.Context, action string) error {
 	return nil
 }
 
-func storeEvent(ctx context.Context, tx *sql.Tx, item events.Event) error {
-	if _, err := tx.ExecContext(
+type eventBatchStatements struct {
+	insertEvent           *sql.Stmt
+	upsertJobState        *sql.Stmt
+	insertTranscript      *sql.Stmt
+	upsertTokenUsage      *sql.Stmt
+	insertArtifactSyncLog *sql.Stmt
+}
+
+type eventBatchStatementSpec struct {
+	label  string
+	query  string
+	assign func(*eventBatchStatements, *sql.Stmt)
+}
+
+func prepareEventBatchStatements(ctx context.Context, tx *sql.Tx) (eventBatchStatements, error) {
+	var statements eventBatchStatements
+	specs := []eventBatchStatementSpec{
+		{
+			label: "event insert",
+			query: `INSERT INTO events (sequence, event_kind, payload_json, timestamp, job_id, step_key)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			assign: func(dst *eventBatchStatements, stmt *sql.Stmt) { dst.insertEvent = stmt },
+		},
+		{
+			label: "job_state upsert",
+			query: `INSERT INTO job_state (job_id, task_id, status, agent_name, summary_json, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?)
+			 ON CONFLICT(job_id) DO UPDATE SET
+				task_id=excluded.task_id,
+				status=excluded.status,
+				agent_name=excluded.agent_name,
+				summary_json=excluded.summary_json,
+				updated_at=excluded.updated_at`,
+			assign: func(dst *eventBatchStatements, stmt *sql.Stmt) { dst.upsertJobState = stmt },
+		},
+		{
+			label: "transcript insert",
+			query: `INSERT OR REPLACE INTO transcript_messages (
+				sequence,
+				stream,
+				role,
+				content,
+				metadata_json,
+				timestamp
+			) VALUES (?, ?, ?, ?, ?, ?)`,
+			assign: func(dst *eventBatchStatements, stmt *sql.Stmt) { dst.insertTranscript = stmt },
+		},
+		{
+			label: "token_usage upsert",
+			query: `INSERT INTO token_usage (turn_id, input_tokens, output_tokens, total_tokens, cost_amount, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?)
+			 ON CONFLICT(turn_id) DO UPDATE SET
+				input_tokens=excluded.input_tokens,
+				output_tokens=excluded.output_tokens,
+				total_tokens=excluded.total_tokens,
+				cost_amount=excluded.cost_amount,
+				timestamp=excluded.timestamp`,
+			assign: func(dst *eventBatchStatements, stmt *sql.Stmt) { dst.upsertTokenUsage = stmt },
+		},
+		{
+			label: "artifact sync insert",
+			query: `INSERT OR REPLACE INTO artifact_sync_log (sequence, relative_path, change_kind, checksum, synced_at)
+			 VALUES (?, ?, ?, ?, ?)`,
+			assign: func(dst *eventBatchStatements, stmt *sql.Stmt) { dst.insertArtifactSyncLog = stmt },
+		},
+	}
+
+	for _, spec := range specs {
+		stmt, err := tx.PrepareContext(ctx, spec.query)
+		if err != nil {
+			_ = statements.close()
+			return eventBatchStatements{}, fmt.Errorf("rundb: prepare %s: %w", spec.label, err)
+		}
+		spec.assign(&statements, stmt)
+	}
+
+	return statements, nil
+}
+
+func (s eventBatchStatements) close() error {
+	var err error
+	for _, stmt := range []*sql.Stmt{
+		s.insertEvent,
+		s.upsertJobState,
+		s.insertTranscript,
+		s.upsertTokenUsage,
+		s.insertArtifactSyncLog,
+	} {
+		if stmt == nil {
+			continue
+		}
+		if closeErr := stmt.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
+	}
+	return err
+}
+
+func storeEventWithStatement(ctx context.Context, stmt *sql.Stmt, item events.Event) error {
+	if _, err := stmt.ExecContext(
 		ctx,
-		`INSERT INTO events (sequence, event_kind, payload_json, timestamp, job_id, step_key)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
 		item.Seq,
 		string(item.Kind),
 		string(item.Payload),
@@ -638,68 +761,64 @@ func storeEvent(ctx context.Context, tx *sql.Tx, item events.Event) error {
 	return nil
 }
 
-func storeProjectedEvent(ctx context.Context, tx *sql.Tx, item events.Event) error {
-	if err := storeEvent(ctx, tx, item); err != nil {
+func storeProjectedEventWithStatements(
+	ctx context.Context,
+	stmts eventBatchStatements,
+	item events.Event,
+) error {
+	if err := storeEventWithStatement(ctx, stmts.insertEvent, item); err != nil {
 		return err
 	}
-	if err := applyJobStateProjection(ctx, tx, item); err != nil {
+	if err := applyJobStateProjectionWithStatement(ctx, stmts.upsertJobState, item); err != nil {
 		return err
 	}
-	if err := applyTranscriptProjection(ctx, tx, item); err != nil {
+	if err := applyTranscriptProjectionWithStatement(ctx, stmts.insertTranscript, item); err != nil {
 		return err
 	}
-	if err := applyTokenUsageProjection(ctx, tx, item); err != nil {
+	if err := applyTokenUsageProjectionWithStatement(ctx, stmts.upsertTokenUsage, item); err != nil {
 		return err
 	}
-	if err := applyArtifactSyncProjection(ctx, tx, item); err != nil {
+	if err := applyArtifactSyncProjectionWithStatement(ctx, stmts.insertArtifactSyncLog, item); err != nil {
 		return err
 	}
 	return nil
 }
 
-func applyJobStateProjection(ctx context.Context, tx *sql.Tx, item events.Event) error {
+func applyJobStateProjectionWithStatement(ctx context.Context, stmt *sql.Stmt, item events.Event) error {
 	jobState, ok, err := projectJobState(item)
 	if err != nil || !ok {
 		return err
 	}
-	return upsertJobState(ctx, tx, jobState)
+	return upsertJobStateWithStatement(ctx, stmt, jobState)
 }
 
-func applyTranscriptProjection(ctx context.Context, tx *sql.Tx, item events.Event) error {
+func applyTranscriptProjectionWithStatement(ctx context.Context, stmt *sql.Stmt, item events.Event) error {
 	transcriptRow, ok, err := projectTranscriptMessage(item)
 	if err != nil || !ok {
 		return err
 	}
-	return insertTranscriptMessage(ctx, tx, transcriptRow)
+	return insertTranscriptMessageWithStatement(ctx, stmt, transcriptRow)
 }
 
-func applyTokenUsageProjection(ctx context.Context, tx *sql.Tx, item events.Event) error {
+func applyTokenUsageProjectionWithStatement(ctx context.Context, stmt *sql.Stmt, item events.Event) error {
 	usageRow, ok, err := projectTokenUsage(item)
 	if err != nil || !ok {
 		return err
 	}
-	return upsertTokenUsage(ctx, tx, usageRow)
+	return upsertTokenUsageWithStatement(ctx, stmt, usageRow)
 }
 
-func applyArtifactSyncProjection(ctx context.Context, tx *sql.Tx, item events.Event) error {
+func applyArtifactSyncProjectionWithStatement(ctx context.Context, stmt *sql.Stmt, item events.Event) error {
 	artifactRow, ok, err := projectArtifactSync(item)
 	if err != nil || !ok {
 		return err
 	}
-	return insertArtifactSync(ctx, tx, artifactRow)
+	return insertArtifactSyncWithStatement(ctx, stmt, artifactRow)
 }
 
-func upsertJobState(ctx context.Context, tx *sql.Tx, item JobStateRow) error {
-	if _, err := tx.ExecContext(
+func upsertJobStateWithStatement(ctx context.Context, stmt *sql.Stmt, item JobStateRow) error {
+	if _, err := stmt.ExecContext(
 		ctx,
-		`INSERT INTO job_state (job_id, task_id, status, agent_name, summary_json, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(job_id) DO UPDATE SET
-			task_id=excluded.task_id,
-			status=excluded.status,
-			agent_name=excluded.agent_name,
-			summary_json=excluded.summary_json,
-			updated_at=excluded.updated_at`,
 		item.JobID,
 		item.TaskID,
 		item.Status,
@@ -712,17 +831,9 @@ func upsertJobState(ctx context.Context, tx *sql.Tx, item JobStateRow) error {
 	return nil
 }
 
-func insertTranscriptMessage(ctx context.Context, tx *sql.Tx, item TranscriptMessageRow) error {
-	if _, err := tx.ExecContext(
+func insertTranscriptMessageWithStatement(ctx context.Context, stmt *sql.Stmt, item TranscriptMessageRow) error {
+	if _, err := stmt.ExecContext(
 		ctx,
-		`INSERT OR REPLACE INTO transcript_messages (
-			sequence,
-			stream,
-			role,
-			content,
-			metadata_json,
-			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?)`,
 		item.Sequence,
 		item.Stream,
 		item.Role,
@@ -735,17 +846,9 @@ func insertTranscriptMessage(ctx context.Context, tx *sql.Tx, item TranscriptMes
 	return nil
 }
 
-func upsertTokenUsage(ctx context.Context, tx *sql.Tx, item TokenUsageRow) error {
-	if _, err := tx.ExecContext(
+func upsertTokenUsageWithStatement(ctx context.Context, stmt *sql.Stmt, item TokenUsageRow) error {
+	if _, err := stmt.ExecContext(
 		ctx,
-		`INSERT INTO token_usage (turn_id, input_tokens, output_tokens, total_tokens, cost_amount, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?)
-		 ON CONFLICT(turn_id) DO UPDATE SET
-			input_tokens=excluded.input_tokens,
-			output_tokens=excluded.output_tokens,
-			total_tokens=excluded.total_tokens,
-			cost_amount=excluded.cost_amount,
-			timestamp=excluded.timestamp`,
 		item.TurnID,
 		item.InputTokens,
 		item.OutputTokens,
@@ -758,11 +861,9 @@ func upsertTokenUsage(ctx context.Context, tx *sql.Tx, item TokenUsageRow) error
 	return nil
 }
 
-func insertArtifactSync(ctx context.Context, tx *sql.Tx, item ArtifactSyncRow) error {
-	if _, err := tx.ExecContext(
+func insertArtifactSyncWithStatement(ctx context.Context, stmt *sql.Stmt, item ArtifactSyncRow) error {
+	if _, err := stmt.ExecContext(
 		ctx,
-		`INSERT OR REPLACE INTO artifact_sync_log (sequence, relative_path, change_kind, checksum, synced_at)
-		 VALUES (?, ?, ?, ?, ?)`,
 		item.Sequence,
 		item.RelativePath,
 		item.ChangeKind,

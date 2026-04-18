@@ -21,6 +21,11 @@ type Bus[T any] struct {
 	nextID  SubID
 	bufSize int
 	closed  atomic.Bool
+	steady  atomic.Pointer[subscriberSnapshot[T]]
+}
+
+type subscriberSnapshot[T any] struct {
+	subs []*subscription[T]
 }
 
 type subscription[T any] struct {
@@ -67,6 +72,7 @@ func (b *Bus[T]) Subscribe() (SubID, <-chan T, func()) {
 		ch: make(chan T, b.bufSize),
 	}
 	b.subs[id] = sub
+	b.refreshSnapshotLocked()
 	return id, sub.ch, func() {
 		b.unsubscribe(id)
 	}
@@ -111,6 +117,7 @@ func (b *Bus[T]) Close(ctx context.Context) error {
 		snapshot = append(snapshot, sub)
 	}
 	b.subs = make(map[SubID]*subscription[T])
+	b.refreshSnapshotLocked()
 	b.mu.Unlock()
 
 	var closeErr error
@@ -143,14 +150,11 @@ func (b *Bus[T]) SubscriberCount() int {
 }
 
 func (b *Bus[T]) snapshot() []*subscription[T] {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	snapshot := make([]*subscription[T], 0, len(b.subs))
-	for _, sub := range b.subs {
-		snapshot = append(snapshot, sub)
+	snapshot := b.steady.Load()
+	if snapshot == nil {
+		return nil
 	}
-	return snapshot
+	return snapshot.subs
 }
 
 func (b *Bus[T]) unsubscribe(id SubID) {
@@ -158,6 +162,7 @@ func (b *Bus[T]) unsubscribe(id SubID) {
 	sub := b.subs[id]
 	if sub != nil {
 		delete(b.subs, id)
+		b.refreshSnapshotLocked()
 	}
 	b.mu.Unlock()
 
@@ -218,4 +223,14 @@ func (s *subscription[T]) warnDrop(ctx context.Context, dropped uint64) {
 		"dropped_total",
 		dropped,
 	)
+}
+
+func (b *Bus[T]) refreshSnapshotLocked() {
+	snapshot := &subscriberSnapshot[T]{
+		subs: make([]*subscription[T], 0, len(b.subs)),
+	}
+	for _, sub := range b.subs {
+		snapshot.subs = append(snapshot.subs, sub)
+	}
+	b.steady.Store(snapshot)
 }

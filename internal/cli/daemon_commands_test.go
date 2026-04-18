@@ -79,6 +79,7 @@ type stubDaemonCommandClient struct {
 	runEventPageErr error
 	snapshot        apicore.RunSnapshot
 	snapshotErr     error
+	snapshotFunc    func(context.Context, string) (apicore.RunSnapshot, error)
 	stream          apiclient.RunStream
 	streamErr       error
 }
@@ -309,9 +310,12 @@ func (c *stubDaemonCommandClient) StartExecRun(_ context.Context, _ apicore.Exec
 	return c.execRun, nil
 }
 
-func (c *stubDaemonCommandClient) GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error) {
+func (c *stubDaemonCommandClient) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunSnapshot, error) {
 	if c == nil {
 		return apicore.RunSnapshot{}, errors.New("stub daemon client is required")
+	}
+	if c.snapshotFunc != nil {
+		return c.snapshotFunc(ctx, runID)
 	}
 	if c.snapshotErr != nil {
 		return apicore.RunSnapshot{}, c.snapshotErr
@@ -1229,7 +1233,7 @@ func TestSyncCommandUsesDaemonBackedRequestAndJSONOutput(t *testing.T) {
 	installTestCLIReadyDaemonBootstrap(t, client)
 
 	output, err := executeCommandCombinedOutput(
-		newSyncCommand(newRootDispatcher()),
+		newSyncCommand(newLazyRootDispatcher()),
 		nil,
 		"--name",
 		"demo",
@@ -1287,7 +1291,7 @@ func TestArchiveCommandWorkspaceWideSkipsConflictsDeterministically(t *testing.T
 	}
 	installTestCLIReadyDaemonBootstrap(t, client)
 
-	output, err := executeCommandCombinedOutput(newArchiveCommand(newRootDispatcher()), nil, "--format", "json")
+	output, err := executeCommandCombinedOutput(newArchiveCommand(newLazyRootDispatcher()), nil, "--format", "json")
 	if err != nil {
 		t.Fatalf("execute archive: %v\noutput:\n%s", err, output)
 	}

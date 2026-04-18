@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 )
 
 const execRunSchemaVersion = 1
+const execEventBufferSize = 16 << 10
 
 type execJSONStreamMode uint8
 
@@ -125,6 +127,7 @@ type execEventWriter struct {
 	mu     sync.Mutex
 	file   *os.File
 	output io.Writer
+	buffer *bufio.Writer
 	closed bool
 }
 
@@ -209,7 +212,11 @@ func WriteExecJSONFailure(dst io.Writer, runID string, err error) error {
 		RunID: strings.TrimSpace(runID),
 		Error: err.Error(),
 	}
-	return json.NewEncoder(dst).Encode(payload)
+	buffered := bufio.NewWriterSize(dst, execEventBufferSize)
+	if err := json.NewEncoder(buffered).Encode(payload); err != nil {
+		return err
+	}
+	return buffered.Flush()
 }
 
 // IsExecErrorReported returns true when a failed exec already emitted its JSON failure payload.
@@ -1055,8 +1062,17 @@ func (w *execEventWriter) Write(event execEvent) error {
 		}
 	}
 	if w.output != nil {
-		if _, err := w.output.Write(payload); err != nil {
+		output := w.output
+		if w.buffer != nil {
+			output = w.buffer
+		}
+		if _, err := output.Write(payload); err != nil {
 			return fmt.Errorf("write exec stdout event: %w", err)
+		}
+		if w.buffer != nil {
+			if err := w.buffer.Flush(); err != nil {
+				return fmt.Errorf("flush exec stdout event: %w", err)
+			}
 		}
 	}
 	return nil
@@ -1069,10 +1085,14 @@ func (w *execEventWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closed = true
-	if w.file != nil {
-		return w.file.Close()
+	var err error
+	if w.buffer != nil {
+		err = w.buffer.Flush()
 	}
-	return nil
+	if w.file != nil {
+		return errors.Join(err, w.file.Close())
+	}
+	return err
 }
 
 func newExecEventEmitter(eventFile *os.File, stdoutMode execJSONStreamMode, stdout io.Writer) *execEventEmitter {
@@ -1081,7 +1101,10 @@ func newExecEventEmitter(eventFile *os.File, stdoutMode execJSONStreamMode, stdo
 		emitter.rawWriter = &execEventWriter{file: eventFile}
 	}
 	if stdoutMode != execJSONStreamDisabled && stdout != nil {
-		emitter.stdoutWriter = &execEventWriter{output: stdout}
+		emitter.stdoutWriter = &execEventWriter{
+			output: stdout,
+			buffer: bufio.NewWriterSize(stdout, execEventBufferSize),
+		}
 	}
 	if emitter.rawWriter == nil && emitter.stdoutWriter == nil {
 		return nil

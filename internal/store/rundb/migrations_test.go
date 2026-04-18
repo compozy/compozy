@@ -59,6 +59,38 @@ func TestApplyMigrationsIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestApplyMigrationsDropsDeadSecondaryIndexesOnly(t *testing.T) {
+	t.Parallel()
+
+	db := openTestRunDB(t, "run-migration-indexes")
+	defer func() {
+		_ = db.Close()
+	}()
+
+	schema := loadSchemaSnapshot(t, db.db)
+	for _, dropped := range []string{
+		"index:idx_events_kind",
+		"index:idx_events_timestamp",
+		"index:idx_events_job_id",
+		"index:idx_job_state_status",
+		"index:idx_transcript_messages_timestamp",
+		"index:idx_artifact_sync_log_path",
+	} {
+		if _, ok := schema[dropped]; ok {
+			t.Fatalf("expected dead index %q to be absent after migration", dropped)
+		}
+	}
+
+	for _, retained := range []string{
+		"index:idx_hook_runs_recorded_at",
+		"index:idx_token_usage_timestamp",
+	} {
+		if _, ok := schema[retained]; !ok {
+			t.Fatalf("expected live index %q to remain after migration", retained)
+		}
+	}
+}
+
 func TestApplyMigrationsRejectsSchemaTooNew(t *testing.T) {
 	t.Parallel()
 

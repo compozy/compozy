@@ -12,7 +12,6 @@ import (
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	core "github.com/compozy/compozy/internal/core"
-	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
@@ -45,9 +44,9 @@ type archiveCommandState struct {
 	archiveFn func(context.Context, core.ArchiveConfig) (*core.ArchiveResult, error)
 }
 
-func newMigrateCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+func newMigrateCommand(dispatcher dispatcherProvider) *cobra.Command {
 	state := &migrateCommandState{
-		migrateFn: newMigrateRunner(dispatcher),
+		migrateFn: newMigrateRunnerWithProvider(dispatcher),
 	}
 	cmd := &cobra.Command{
 		Use:          "migrate",
@@ -72,9 +71,9 @@ By default, the command scans the whole project workflow root recursively.`,
 	return cmd
 }
 
-func newSyncCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+func newSyncCommand(dispatcher dispatcherProvider) *cobra.Command {
 	state := &syncCommandState{
-		syncFn: newSyncRunner(dispatcher),
+		syncFn: newSyncRunnerWithProvider(dispatcher),
 	}
 	cmd := &cobra.Command{
 		Use:          "sync",
@@ -98,9 +97,9 @@ By default, the command scans the whole workflow root and syncs every active wor
 	return cmd
 }
 
-func newArchiveCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
+func newArchiveCommand(dispatcher dispatcherProvider) *cobra.Command {
 	state := &archiveCommandState{
-		archiveFn: newArchiveRunner(dispatcher),
+		archiveFn: newArchiveRunnerWithProvider(dispatcher),
 	}
 	cmd := &cobra.Command{
 		Use:          "archive",

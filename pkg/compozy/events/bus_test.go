@@ -51,6 +51,24 @@ func TestBusPublishDeliversFanoutInOrder(t *testing.T) {
 	}
 }
 
+func TestBusPublishDoesNotAllocateSnapshotWhenTopologyIsSteady(t *testing.T) {
+	bus := New[int](8)
+	_, ch, unsub := bus.Subscribe()
+	defer unsub()
+
+	ctx := context.Background()
+	bus.Publish(ctx, 0)
+	<-ch
+
+	allocs := testing.AllocsPerRun(1000, func() {
+		bus.Publish(ctx, 1)
+		<-ch
+	})
+	if allocs != 0 {
+		t.Fatalf("publish allocs/run = %.2f, want 0", allocs)
+	}
+}
+
 func TestBusSlowSubscriberDropsWithoutBlockingFastSubscribers(t *testing.T) {
 	restore := silenceDefaultLogger(t)
 	defer restore()

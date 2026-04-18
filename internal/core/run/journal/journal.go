@@ -23,7 +23,7 @@ import (
 
 const (
 	defaultBufferCapacity = 1024
-	defaultBatchSize      = 32
+	defaultBatchSize      = 128
 	defaultFlushInterval  = 100 * time.Millisecond
 	defaultSubmitTimeout  = 5 * time.Second
 	writerBufferSize      = 16 << 10
@@ -79,6 +79,7 @@ type writeState struct {
 	encoder      *json.Encoder
 	pending      []events.Event
 	pendingHooks []rundb.HookRunRecord
+	syncPending  bool
 }
 
 type submitRequestKind uint8
@@ -422,7 +423,7 @@ func (j *Journal) runActiveLoop(state *writeState, seq *uint64, ticks <-chan tim
 		select {
 		case req, ok := <-j.inbox:
 			if !ok {
-				return j.flushPending(state)
+				return j.flushPending(state, true)
 			}
 			assignedSeq, err := j.handleRequest(state, req, seq)
 			if req.ack != nil {
@@ -432,10 +433,13 @@ func (j *Journal) runActiveLoop(state *writeState, seq *uint64, ticks <-chan tim
 				return err
 			}
 		case <-ticks:
-			if len(state.pending) == 0 {
+			if len(state.pending) > 0 {
+				if err := j.flushPending(state, false); err != nil {
+					return err
+				}
 				continue
 			}
-			if err := j.flushPending(state); err != nil {
+			if err := j.syncPendingWrites(state); err != nil {
 				return err
 			}
 		}
@@ -462,40 +466,93 @@ func (j *Journal) handleEvent(state *writeState, ev events.Event, seq *uint64) (
 	if !j.shouldFlushAfterAppend(state.pending, enriched.Kind) {
 		return enriched.Seq, nil
 	}
-	return enriched.Seq, j.flushPending(state)
+	return enriched.Seq, j.flushPending(state, false)
 }
 
 func (j *Journal) handleHook(state *writeState, record rundb.HookRunRecord) error {
 	state.pendingHooks = append(state.pendingHooks, record)
-	return j.flushPending(state)
+	return j.flushPending(state, false)
 }
 
 func (j *Journal) shouldFlushAfterAppend(pending []events.Event, kind events.EventKind) bool {
 	return isTerminalEvent(kind) || len(pending) >= j.batchSize
 }
 
-func (j *Journal) flushPending(state *writeState) error {
+func (j *Journal) flushPending(state *writeState, forceSync bool) error {
 	if len(state.pending) == 0 && len(state.pendingHooks) == 0 {
+		if forceSync {
+			return j.syncPendingWrites(state)
+		}
 		return nil
 	}
-	if j.store != nil {
-		ctx := context.Background()
-		if len(state.pending) > 0 {
-			if err := j.store.StoreEventBatch(ctx, state.pending); err != nil {
-				return err
-			}
-		}
-		for _, hook := range state.pendingHooks {
-			if err := j.store.RecordHookRun(ctx, hook); err != nil {
-				return err
-			}
-		}
+	pending := state.pending
+	if err := j.persistPendingBatch(pending, state.pendingHooks); err != nil {
+		return err
 	}
-	if err := j.flushBatch(state.writer, state.file, state.pending); err != nil {
+	if err := j.finalizePendingBatch(state, pending, forceSync); err != nil {
 		return err
 	}
 	state.pending = state.pending[:0]
 	state.pendingHooks = state.pendingHooks[:0]
+	return nil
+}
+
+func (j *Journal) persistPendingBatch(
+	pending []events.Event,
+	pendingHooks []rundb.HookRunRecord,
+) error {
+	if j.store == nil {
+		return nil
+	}
+
+	ctx := context.Background()
+	if len(pending) > 0 {
+		if err := j.store.StoreEventBatch(ctx, pending); err != nil {
+			return err
+		}
+	}
+	for _, hook := range pendingHooks {
+		if err := j.store.RecordHookRun(ctx, hook); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (j *Journal) finalizePendingBatch(
+	state *writeState,
+	pending []events.Event,
+	forceSync bool,
+) error {
+	hasEvents := len(pending) > 0
+	hasTerminal := batchContainsTerminalEvent(pending)
+	if hasEvents {
+		if err := j.flushBufferedEvents(state); err != nil {
+			return err
+		}
+		if !hasTerminal {
+			j.publishBatch(pending)
+		}
+	}
+	if forceSync || hasTerminal {
+		if err := j.syncPendingWrites(state); err != nil {
+			return err
+		}
+		if hasTerminal {
+			j.publishBatch(pending)
+		}
+	}
+	return nil
+}
+
+func (j *Journal) flushBufferedEvents(state *writeState) error {
+	if err := state.writer.Flush(); err != nil {
+		return fmt.Errorf("flush journal buffer: %w", err)
+	}
+	if j.flushHook != nil {
+		j.flushHook()
+	}
+	state.syncPending = true
 	return nil
 }
 
@@ -603,42 +660,57 @@ func (j *Journal) encodeEvent(encoder *json.Encoder, ev events.Event, seq *uint6
 	return enriched, nil
 }
 
-func (j *Journal) flushBatch(writer *bufio.Writer, file *os.File, pending []events.Event) error {
+func (j *Journal) syncPendingWrites(state *writeState) error {
+	if state == nil || !state.syncPending {
+		return nil
+	}
 	startedAt := time.Now()
-
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("flush journal buffer: %w", err)
-	}
-	if j.flushHook != nil {
-		j.flushHook()
-	}
-	if err := file.Sync(); err != nil {
+	if err := state.file.Sync(); err != nil {
 		return fmt.Errorf("sync journal file: %w", err)
 	}
+	state.syncPending = false
 	if j.afterSync != nil {
 		j.afterSync()
 	}
-
 	latency := time.Since(startedAt)
-	if len(pending) > 0 {
-		j.eventsWritten.Add(uint64(len(pending)))
-		lastSeq := pending[len(pending)-1].Seq
-		slog.Debug(
-			"journal batch flushed",
-			"component", "journal",
-			"run_id", j.runID,
-			"seq", lastSeq,
-			"flush_latency_ms", latency.Milliseconds(),
-		)
-		if bus := j.liveBus(); bus != nil {
-			ctx := context.Background()
-			for _, ev := range pending {
-				bus.Publish(ctx, ev)
-			}
+	slog.Debug(
+		"journal fsync completed",
+		"component", "journal",
+		"run_id", j.runID,
+		"flush_latency_ms", latency.Milliseconds(),
+	)
+	return nil
+}
+
+func (j *Journal) publishBatch(pending []events.Event) {
+	startedAt := time.Now()
+	if len(pending) == 0 {
+		return
+	}
+	j.eventsWritten.Add(uint64(len(pending)))
+	lastSeq := pending[len(pending)-1].Seq
+	slog.Debug(
+		"journal batch published",
+		"component", "journal",
+		"run_id", j.runID,
+		"seq", lastSeq,
+		"publish_latency_ms", time.Since(startedAt).Milliseconds(),
+	)
+	if bus := j.liveBus(); bus != nil {
+		ctx := context.Background()
+		for _, ev := range pending {
+			bus.Publish(ctx, ev)
 		}
 	}
+}
 
-	return nil
+func batchContainsTerminalEvent(pending []events.Event) bool {
+	for _, ev := range pending {
+		if isTerminalEvent(ev.Kind) {
+			return true
+		}
+	}
+	return false
 }
 
 func (j *Journal) storeResult(err error) {

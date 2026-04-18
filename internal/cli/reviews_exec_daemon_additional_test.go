@@ -1337,6 +1337,46 @@ func TestReviewsExecDaemonStreamHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("waitForDaemonRunTerminal waits for durable terminal snapshot after terminal event", func(t *testing.T) {
+		stream := newStaticClientRunStream()
+		stream.items <- apiclient.RunStreamItem{
+			Event: &eventspkg.Event{
+				Kind:      eventspkg.EventKindRunCompleted,
+				Timestamp: time.Date(2026, 4, 18, 12, 14, 30, 0, time.UTC),
+			},
+		}
+		close(stream.items)
+
+		snapshotCalls := 0
+		client := &stubDaemonCommandClient{
+			stream: stream,
+			snapshotFunc: func(context.Context, string) (apicore.RunSnapshot, error) {
+				snapshotCalls++
+				status := "running"
+				if snapshotCalls >= 3 {
+					status = "completed"
+				}
+				return apicore.RunSnapshot{
+					Run: apicore.Run{
+						RunID:  "run-terminal-late",
+						Status: status,
+					},
+				}, nil
+			},
+		}
+
+		run, err := waitForDaemonRunTerminal(context.Background(), client, "run-terminal-late")
+		if err != nil {
+			t.Fatalf("waitForDaemonRunTerminal() error = %v", err)
+		}
+		if run.Status != "completed" {
+			t.Fatalf("terminal status = %q, want completed", run.Status)
+		}
+		if snapshotCalls < 3 {
+			t.Fatalf("snapshot calls = %d, want at least 3 polls", snapshotCalls)
+		}
+	})
+
 	t.Run("waitAndPrintExecResult surfaces terminal failures", func(t *testing.T) {
 		stream := newStaticClientRunStream()
 		failedPayload, err := json.Marshal(kinds.RunFailedPayload{Error: "exec failed"})
