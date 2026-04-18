@@ -360,9 +360,19 @@ type SyncRequest struct {
 
 // SyncResult captures sync completion details.
 type SyncResult struct {
-	WorkspaceID  string     `json:"workspace_id,omitempty"`
-	WorkflowSlug string     `json:"workflow_slug,omitempty"`
-	SyncedAt     *time.Time `json:"synced_at,omitempty"`
+	WorkspaceID            string     `json:"workspace_id,omitempty"`
+	WorkflowSlug           string     `json:"workflow_slug,omitempty"`
+	SyncedAt               *time.Time `json:"synced_at,omitempty"`
+	Target                 string     `json:"target,omitempty"`
+	WorkflowsScanned       int        `json:"workflows_scanned,omitempty"`
+	SnapshotsUpserted      int        `json:"snapshots_upserted,omitempty"`
+	TaskItemsUpserted      int        `json:"task_items_upserted,omitempty"`
+	ReviewRoundsUpserted   int        `json:"review_rounds_upserted,omitempty"`
+	ReviewIssuesUpserted   int        `json:"review_issues_upserted,omitempty"`
+	CheckpointsUpdated     int        `json:"checkpoints_updated,omitempty"`
+	LegacyArtifactsRemoved int        `json:"legacy_artifacts_removed,omitempty"`
+	SyncedPaths            []string   `json:"synced_paths,omitempty"`
+	Warnings               []string   `json:"warnings,omitempty"`
 }
 
 // ExecRequest describes one ad-hoc daemon-backed exec request.

@@ -9,7 +9,7 @@ import (
 )
 
 func TestArchiveCommandArchivesSyncedWorkflowIntoNewPathFormat(t *testing.T) {
-	homeDir := filepath.Join(t.TempDir(), "home")
+	homeDir := newShortCLITestHomeDir(t)
 	t.Setenv("HOME", homeDir)
 
 	workspaceRoot := t.TempDir()
@@ -31,23 +31,13 @@ func TestArchiveCommandArchivesSyncedWorkflowIntoNewPathFormat(t *testing.T) {
 		t.Fatalf("write task file: %v", err)
 	}
 
-	originalWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd() error = %v", err)
+	stdout, stderr, exitCode := runCLICommand(t, workspaceRoot, "sync", "--name", "demo")
+	if exitCode != 0 {
+		t.Fatalf("execute sync: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
-	if err := os.Chdir(workspaceRoot); err != nil {
-		t.Fatalf("Chdir(%s) error = %v", workspaceRoot, err)
-	}
-	defer func() {
-		_ = os.Chdir(originalWD)
-	}()
-
-	if _, err := executeRootCommand("sync", "--name", "demo"); err != nil {
-		t.Fatalf("execute sync: %v", err)
-	}
-	output, err := executeRootCommand("archive", "--name", "demo")
-	if err != nil {
-		t.Fatalf("execute archive: %v\noutput:\n%s", err, output)
+	output, stderr, exitCode := runCLICommand(t, workspaceRoot, "archive", "--name", "demo")
+	if exitCode != 0 {
+		t.Fatalf("execute archive: exit=%d\nstdout:\n%s\nstderr:\n%s", exitCode, output, stderr)
 	}
 	if !strings.Contains(output, "Archived: 1") {
 		t.Fatalf("archive output missing archived count:\n%s", output)

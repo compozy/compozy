@@ -239,6 +239,7 @@ func runCLICommand(t *testing.T, dir string, args ...string) (string, string, in
 
 	cmd := exec.CommandContext(context.Background(), validateTasksBinary(t), args...)
 	cmd.Dir = dir
+	cmd.Env = os.Environ()
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -276,6 +277,7 @@ func validateTasksBinary(t *testing.T) string {
 		validateTasksBinaryPath = filepath.Join(buildDir, "compozy")
 		cmd := exec.CommandContext(context.Background(), "go", "build", "-o", validateTasksBinaryPath, "./cmd/compozy")
 		cmd.Dir = repoRoot
+		cmd.Env = buildCLITestCommandEnv()
 		output, err := cmd.CombinedOutput()
 		if err != nil {
 			validateTasksBinaryErr = fmt.Errorf("build compozy binary: %w\n%s", err, output)
@@ -286,6 +288,24 @@ func validateTasksBinary(t *testing.T) string {
 		t.Fatal(validateTasksBinaryErr)
 	}
 	return validateTasksBinaryPath
+}
+
+func buildCLITestCommandEnv() []string {
+	env := os.Environ()
+	if strings.TrimSpace(originalCLIHome) == "" {
+		return env
+	}
+
+	prefix := "HOME="
+	filtered := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	filtered = append(filtered, prefix+originalCLIHome)
+	return filtered
 }
 
 func validateTasksRepoRoot() (string, error) {

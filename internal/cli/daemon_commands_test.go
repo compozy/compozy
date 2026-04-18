@@ -6,30 +6,55 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/spf13/cobra"
 )
 
 type stubDaemonCommandClient struct {
-	target       apiclient.Target
-	health       apicore.DaemonHealth
-	healthErr    error
-	healthCalls  int
-	startCalls   int
-	startSlug    string
-	startRequest apicore.TaskRunRequest
-	startRun     apicore.Run
-	startErr     error
-	snapshot     apicore.RunSnapshot
-	snapshotErr  error
-	stream       apiclient.RunStream
-	streamErr    error
+	target        apiclient.Target
+	health        apicore.DaemonHealth
+	healthErr     error
+	healthCalls   int
+	status        apicore.DaemonStatus
+	statusErr     error
+	startCalls    int
+	startSlug     string
+	startRequest  apicore.TaskRunRequest
+	startRun      apicore.Run
+	startErr      error
+	stopForce     bool
+	stopErr       error
+	workspaces    []apicore.Workspace
+	workspace     apicore.Workspace
+	workspaceErr  error
+	register      apicore.WorkspaceRegisterResult
+	registerErr   error
+	listErr       error
+	deleteRef     string
+	deleteErr     error
+	workflows     []apicore.WorkflowSummary
+	workflowsErr  error
+	archiveCalls  []string
+	archive       apicore.ArchiveResult
+	archiveBySlug map[string]apicore.ArchiveResult
+	archiveErr    error
+	archiveErrors map[string]error
+	syncRequest   apicore.SyncRequest
+	syncResult    apicore.SyncResult
+	syncErr       error
+	snapshot      apicore.RunSnapshot
+	snapshotErr   error
+	stream        apiclient.RunStream
+	streamErr     error
 }
 
 func (c *stubDaemonCommandClient) Target() apiclient.Target {
@@ -48,6 +73,121 @@ func (c *stubDaemonCommandClient) Health(context.Context) (apicore.DaemonHealth,
 		return apicore.DaemonHealth{}, c.healthErr
 	}
 	return c.health, nil
+}
+
+func (c *stubDaemonCommandClient) DaemonStatus(context.Context) (apicore.DaemonStatus, error) {
+	if c == nil {
+		return apicore.DaemonStatus{}, errors.New("stub daemon client is required")
+	}
+	if c.statusErr != nil {
+		return apicore.DaemonStatus{}, c.statusErr
+	}
+	return c.status, nil
+}
+
+func (c *stubDaemonCommandClient) StopDaemon(_ context.Context, force bool) error {
+	if c == nil {
+		return errors.New("stub daemon client is required")
+	}
+	c.stopForce = force
+	if c.stopErr != nil {
+		return c.stopErr
+	}
+	return nil
+}
+
+func (c *stubDaemonCommandClient) RegisterWorkspace(
+	context.Context,
+	string,
+	string,
+) (apicore.WorkspaceRegisterResult, error) {
+	if c == nil {
+		return apicore.WorkspaceRegisterResult{}, errors.New("stub daemon client is required")
+	}
+	if c.registerErr != nil {
+		return apicore.WorkspaceRegisterResult{}, c.registerErr
+	}
+	return c.register, nil
+}
+
+func (c *stubDaemonCommandClient) ListWorkspaces(context.Context) ([]apicore.Workspace, error) {
+	if c == nil {
+		return nil, errors.New("stub daemon client is required")
+	}
+	if c.listErr != nil {
+		return nil, c.listErr
+	}
+	return c.workspaces, nil
+}
+
+func (c *stubDaemonCommandClient) GetWorkspace(context.Context, string) (apicore.Workspace, error) {
+	if c == nil {
+		return apicore.Workspace{}, errors.New("stub daemon client is required")
+	}
+	if c.workspaceErr != nil {
+		return apicore.Workspace{}, c.workspaceErr
+	}
+	return c.workspace, nil
+}
+
+func (c *stubDaemonCommandClient) DeleteWorkspace(_ context.Context, ref string) error {
+	if c == nil {
+		return errors.New("stub daemon client is required")
+	}
+	c.deleteRef = ref
+	return c.deleteErr
+}
+
+func (c *stubDaemonCommandClient) ResolveWorkspace(context.Context, string) (apicore.Workspace, error) {
+	if c == nil {
+		return apicore.Workspace{}, errors.New("stub daemon client is required")
+	}
+	if c.workspaceErr != nil {
+		return apicore.Workspace{}, c.workspaceErr
+	}
+	return c.workspace, nil
+}
+
+func (c *stubDaemonCommandClient) ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error) {
+	if c == nil {
+		return nil, errors.New("stub daemon client is required")
+	}
+	if c.workflowsErr != nil {
+		return nil, c.workflowsErr
+	}
+	return c.workflows, nil
+}
+
+func (c *stubDaemonCommandClient) ArchiveTaskWorkflow(
+	_ context.Context,
+	_ string,
+	slug string,
+) (apicore.ArchiveResult, error) {
+	if c == nil {
+		return apicore.ArchiveResult{}, errors.New("stub daemon client is required")
+	}
+	c.archiveCalls = append(c.archiveCalls, slug)
+	if err, ok := c.archiveErrors[slug]; ok {
+		return apicore.ArchiveResult{}, err
+	}
+	if result, ok := c.archiveBySlug[slug]; ok {
+		return result, nil
+	}
+	if c.archiveErr != nil {
+		return apicore.ArchiveResult{}, c.archiveErr
+	}
+	return c.archive, nil
+}
+
+func (c *stubDaemonCommandClient) SyncWorkflow(_ context.Context, req apicore.SyncRequest) (apicore.SyncResult, error) {
+	if c == nil {
+		return apicore.SyncResult{}, errors.New("stub daemon client is required")
+	}
+	c.syncRequest = req
+	if c.syncErr != nil {
+		return apicore.SyncResult{}, c.syncErr
+	}
+	return c.syncResult, nil
 }
 
 func (c *stubDaemonCommandClient) StartTaskRun(
@@ -98,6 +238,32 @@ func installTestCLIDaemonBootstrap(t *testing.T, bootstrap cliDaemonBootstrap) {
 	newCLIDaemonBootstrap = func() cliDaemonBootstrap { return bootstrap }
 	t.Cleanup(func() {
 		newCLIDaemonBootstrap = original
+	})
+}
+
+func installTestCLIReadyDaemonBootstrap(t *testing.T, client daemonCommandClient) {
+	t.Helper()
+
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        1234,
+				SocketPath: "/tmp/compozy.sock",
+				StartedAt:  time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return client, nil
+		},
+		launch:         func(compozyconfig.HomePaths) error { return nil },
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
 	})
 }
 
@@ -734,4 +900,240 @@ func TestMapDaemonCommandErrorUsesStableExitCodes(t *testing.T) {
 		},
 	})
 	assertExitCode(t, remoteErr, 2)
+}
+
+func TestWorkspacesCommandUsesDaemonBootstrapAndStableJSON(t *testing.T) {
+	t.Parallel()
+
+	workspace := apicore.Workspace{
+		ID:        "ws-123",
+		Name:      "demo",
+		RootDir:   "/tmp/demo",
+		CreatedAt: time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+		UpdatedAt: time.Date(2026, 4, 18, 12, 5, 0, 0, time.UTC),
+	}
+	client := &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+		register: apicore.WorkspaceRegisterResult{
+			Workspace: workspace,
+			Created:   true,
+		},
+		workspace:  workspace,
+		workspaces: []apicore.Workspace{workspace},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	output, err := executeCommandCombinedOutput(
+		newWorkspacesCommand(),
+		nil,
+		"register",
+		workspace.RootDir,
+		"--name",
+		workspace.Name,
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute workspaces register: %v\noutput:\n%s", err, output)
+	}
+	var registerPayload struct {
+		Action    string            `json:"action"`
+		Created   bool              `json:"created"`
+		Workspace apicore.Workspace `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(output), &registerPayload); err != nil {
+		t.Fatalf("decode register payload: %v\noutput:\n%s", err, output)
+	}
+	if registerPayload.Action != "registered" || !registerPayload.Created ||
+		registerPayload.Workspace.RootDir != workspace.RootDir {
+		t.Fatalf("unexpected register payload: %#v", registerPayload)
+	}
+
+	output, err = executeCommandCombinedOutput(newWorkspacesCommand(), nil, "list", "--format", "json")
+	if err != nil {
+		t.Fatalf("execute workspaces list: %v\noutput:\n%s", err, output)
+	}
+	var listPayload struct {
+		Workspaces []apicore.Workspace `json:"workspaces"`
+	}
+	if err := json.Unmarshal([]byte(output), &listPayload); err != nil {
+		t.Fatalf("decode list payload: %v\noutput:\n%s", err, output)
+	}
+	if len(listPayload.Workspaces) != 1 || listPayload.Workspaces[0].ID != workspace.ID {
+		t.Fatalf("unexpected workspace list payload: %#v", listPayload)
+	}
+
+	output, err = executeCommandCombinedOutput(newWorkspacesCommand(), nil, "show", workspace.ID, "--format", "json")
+	if err != nil {
+		t.Fatalf("execute workspaces show: %v\noutput:\n%s", err, output)
+	}
+	var showPayload struct {
+		Workspace apicore.Workspace `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(output), &showPayload); err != nil {
+		t.Fatalf("decode show payload: %v\noutput:\n%s", err, output)
+	}
+	if showPayload.Workspace.ID != workspace.ID {
+		t.Fatalf("unexpected show payload: %#v", showPayload)
+	}
+
+	output, err = executeCommandCombinedOutput(
+		newWorkspacesCommand(),
+		nil,
+		"resolve",
+		workspace.RootDir,
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute workspaces resolve: %v\noutput:\n%s", err, output)
+	}
+	var resolvePayload struct {
+		Action    string            `json:"action"`
+		Workspace apicore.Workspace `json:"workspace"`
+	}
+	if err := json.Unmarshal([]byte(output), &resolvePayload); err != nil {
+		t.Fatalf("decode resolve payload: %v\noutput:\n%s", err, output)
+	}
+	if resolvePayload.Action != "resolved" || resolvePayload.Workspace.RootDir != workspace.RootDir {
+		t.Fatalf("unexpected resolve payload: %#v", resolvePayload)
+	}
+
+	output, err = executeCommandCombinedOutput(
+		newWorkspacesCommand(),
+		nil,
+		"unregister",
+		workspace.ID,
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute workspaces unregister: %v\noutput:\n%s", err, output)
+	}
+	var deletePayload struct {
+		Action       string `json:"action"`
+		WorkspaceRef string `json:"workspace_ref"`
+	}
+	if err := json.Unmarshal([]byte(output), &deletePayload); err != nil {
+		t.Fatalf("decode unregister payload: %v\noutput:\n%s", err, output)
+	}
+	if deletePayload.Action != "unregistered" || deletePayload.WorkspaceRef != workspace.ID {
+		t.Fatalf("unexpected unregister payload: %#v", deletePayload)
+	}
+	if client.deleteRef != workspace.ID {
+		t.Fatalf("deleteRef = %q, want %q", client.deleteRef, workspace.ID)
+	}
+}
+
+func TestSyncCommandUsesDaemonBackedRequestAndJSONOutput(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
+	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	nestedDir := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+	withWorkingDir(t, nestedDir)
+
+	client := &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+		syncResult: apicore.SyncResult{
+			WorkspaceID:       "ws-123",
+			WorkflowSlug:      "demo",
+			Target:            filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"),
+			WorkflowsScanned:  1,
+			TaskItemsUpserted: 3,
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	output, err := executeCommandCombinedOutput(
+		newSyncCommand(newRootDispatcher()),
+		nil,
+		"--name",
+		"demo",
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute sync: %v\noutput:\n%s", err, output)
+	}
+	if mustEvalSymlinksCLITest(t, client.syncRequest.Workspace) != mustEvalSymlinksCLITest(t, workspaceRoot) ||
+		client.syncRequest.WorkflowSlug != "demo" ||
+		client.syncRequest.Path != "" {
+		t.Fatalf("unexpected sync request: %#v", client.syncRequest)
+	}
+
+	var payload apicore.SyncResult
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatalf("decode sync payload: %v\noutput:\n%s", err, output)
+	}
+	if payload.WorkflowSlug != "demo" || payload.WorkflowsScanned != 1 || payload.TaskItemsUpserted != 3 {
+		t.Fatalf("unexpected sync payload: %#v", payload)
+	}
+}
+
+func TestArchiveCommandWorkspaceWideSkipsConflictsDeterministically(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	for _, slug := range []string{"alpha", "beta"} {
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", slug), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir %q: %v", slug, err)
+		}
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+		workflows: []apicore.WorkflowSummary{
+			{Slug: "beta"},
+			{Slug: "alpha"},
+		},
+		archiveBySlug: map[string]apicore.ArchiveResult{
+			"alpha": {Archived: true},
+		},
+		archiveErrors: map[string]error{
+			"beta": &apiclient.RemoteError{
+				StatusCode: 409,
+				Envelope: apicore.TransportError{
+					RequestID: "req-beta",
+					Code:      "workflow_conflict",
+					Message:   "workflow \"beta\" is not archivable",
+				},
+			},
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	output, err := executeCommandCombinedOutput(newArchiveCommand(newRootDispatcher()), nil, "--format", "json")
+	if err != nil {
+		t.Fatalf("execute archive: %v\noutput:\n%s", err, output)
+	}
+	if got, want := client.archiveCalls, []string{
+		"alpha",
+		"beta",
+	}; len(got) != len(want) || got[0] != want[0] ||
+		got[1] != want[1] {
+		t.Fatalf("unexpected archive calls: got %#v want %#v", got, want)
+	}
+
+	var payload core.ArchiveResult
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatalf("decode archive payload: %v\noutput:\n%s", err, output)
+	}
+	if payload.Archived != 1 || payload.Skipped != 1 || len(payload.ArchivedPaths) != 1 ||
+		payload.ArchivedPaths[0] != "alpha" {
+		t.Fatalf("unexpected archive payload: %#v", payload)
+	}
+	if len(payload.SkippedPaths) != 1 || payload.SkippedPaths[0] != "beta" {
+		t.Fatalf("unexpected skipped payload: %#v", payload)
+	}
+	if payload.SkippedReasons["beta"] == "" {
+		t.Fatalf("expected skip reason for beta, got %#v", payload.SkippedReasons)
+	}
 }

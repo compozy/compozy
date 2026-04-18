@@ -43,6 +43,16 @@ var (
 type daemonCommandClient interface {
 	Target() apiclient.Target
 	Health(context.Context) (apicore.DaemonHealth, error)
+	DaemonStatus(context.Context) (apicore.DaemonStatus, error)
+	StopDaemon(context.Context, bool) error
+	RegisterWorkspace(context.Context, string, string) (apicore.WorkspaceRegisterResult, error)
+	ListWorkspaces(context.Context) ([]apicore.Workspace, error)
+	GetWorkspace(context.Context, string) (apicore.Workspace, error)
+	DeleteWorkspace(context.Context, string) error
+	ResolveWorkspace(context.Context, string) (apicore.Workspace, error)
+	ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error)
+	ArchiveTaskWorkflow(context.Context, string, string) (apicore.ArchiveResult, error)
+	SyncWorkflow(context.Context, apicore.SyncRequest) (apicore.SyncResult, error)
 	StartTaskRun(context.Context, string, apicore.TaskRunRequest) (apicore.Run, error)
 	GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error)
 	OpenRunStream(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
@@ -246,17 +256,6 @@ is running, and then sends the workflow request over the daemon transport.`,
 		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.4 or id=task_01,reasoning-effort=xhigh`,
 	)
 	return cmd
-}
-
-func newWorkspacesCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:          "workspaces",
-		Short:        "Manage daemon workspace registrations",
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
-	}
 }
 
 func newReviewsCommand() *cobra.Command {

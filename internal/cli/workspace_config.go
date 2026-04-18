@@ -26,6 +26,14 @@ func discoverWorkspaceRoot(ctx context.Context) (string, error) {
 	return root, nil
 }
 
+func discoverWorkspaceRootFrom(ctx context.Context, startDir string) (string, error) {
+	root, err := workspace.Discover(ctx, startDir)
+	if err != nil {
+		return "", fmt.Errorf("discover workspace: %w", err)
+	}
+	return root, nil
+}
+
 func loadWorkspaceProjectConfig(ctx context.Context, root string) (workspace.ProjectConfig, error) {
 	cfg, _, err := workspace.LoadConfig(ctx, root)
 	if err != nil {

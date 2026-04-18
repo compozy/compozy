@@ -205,7 +205,7 @@ func TestSyncHelpShowsSyncFlagsOnly(t *testing.T) {
 		t.Fatalf("execute sync help: %v", err)
 	}
 
-	required := []string{"--root-dir", "--name", "--tasks-dir"}
+	required := []string{"--root-dir", "--name", "--tasks-dir", "--format"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected sync help to include %q\noutput:\n%s", snippet, output)
@@ -233,7 +233,7 @@ func TestArchiveHelpShowsArchiveFlagsOnly(t *testing.T) {
 		t.Fatalf("execute archive help: %v", err)
 	}
 
-	required := []string{"--root-dir", "--name", "--tasks-dir"}
+	required := []string{"--root-dir", "--name", "--tasks-dir", "--format"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected archive help to include %q\noutput:\n%s", snippet, output)
@@ -244,6 +244,62 @@ func TestArchiveHelpShowsArchiveFlagsOnly(t *testing.T) {
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected archive help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestDaemonHelpShowsApprovedLifecycleSubcommands(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "daemon")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected daemon to omit mode flag")
+	}
+
+	output, err := executeRootCommand("daemon", "--help")
+	if err != nil {
+		t.Fatalf("execute daemon help: %v", err)
+	}
+
+	required := []string{"start", "status", "stop", "Manage the home-scoped daemon bootstrap lifecycle"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected daemon help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"workspaces", "validate-tasks", "fetch-reviews"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected daemon help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestWorkspacesHelpShowsApprovedSubcommands(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "workspaces")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected workspaces to omit mode flag")
+	}
+
+	output, err := executeRootCommand("workspaces", "--help")
+	if err != nil {
+		t.Fatalf("execute workspaces help: %v", err)
+	}
+
+	required := []string{"list", "show", "register", "unregister", "resolve", "Manage daemon workspace registrations"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected workspaces help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"update", "archive", "sync", "fetch-reviews"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected workspaces help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
