@@ -12,7 +12,6 @@ import (
 
 const (
 	remoteWatchReconnectDelay = 100 * time.Millisecond
-	publicRunStatusCrashed    = "crashed"
 	daemonRunStatusCanceled   = "canceled"
 )
 
@@ -59,6 +58,15 @@ type RemoteStreamClient interface {
 
 // WatchRemote follows one daemon-backed run stream with cursor resume semantics.
 func WatchRemote(ctx context.Context, client RemoteStreamClient, runID string) (<-chan events.Event, <-chan error) {
+	return watchRemoteAfter(ctx, client, runID, RemoteCursor{})
+}
+
+func watchRemoteAfter(
+	ctx context.Context,
+	client RemoteStreamClient,
+	runID string,
+	after RemoteCursor,
+) (<-chan events.Event, <-chan error) {
 	out := make(chan events.Event)
 	errs := make(chan error, 4)
 
@@ -77,7 +85,7 @@ func WatchRemote(ctx context.Context, client RemoteStreamClient, runID string) (
 			return
 		}
 
-		stream, err := client.OpenRunStream(ctx, trimmedRunID, RemoteCursor{})
+		stream, err := client.OpenRunStream(ctx, trimmedRunID, after)
 		if err != nil {
 			sendRunError(ctx, errs, fmt.Errorf("open remote run stream: %w", err))
 			return
@@ -316,7 +324,10 @@ func isTerminalRemoteRunStatus(status string) bool {
 
 func isTerminalRemoteRunEvent(kind events.EventKind) bool {
 	switch kind {
-	case events.EventKindRunCompleted, events.EventKindRunFailed, events.EventKindRunCancelled:
+	case events.EventKindRunCompleted,
+		events.EventKindRunFailed,
+		events.EventKindRunCancelled,
+		events.EventKindRunCrashed:
 		return true
 	default:
 		return false

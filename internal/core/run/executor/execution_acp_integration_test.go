@@ -1,6 +1,8 @@
 package executor
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,7 +25,6 @@ import (
 	"github.com/compozy/compozy/internal/core/plan"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
-	"github.com/compozy/compozy/pkg/compozy/runs"
 )
 
 var captureExecuteStreamsMu sync.Mutex
@@ -553,11 +554,7 @@ func TestExecutePRDTasksPublishesCanonicalEventsToBusAndJournal(t *testing.T) {
 		t.Fatalf("unexpected bus event kinds: got %v want %v", got, wantKinds)
 	}
 
-	run, err := runs.Open(tmpDir, prep.RunArtifacts.RunID)
-	if err != nil {
-		t.Fatalf("open run: %v", err)
-	}
-	replayed := replayRuntimeEvents(t, run)
+	replayed := replayRuntimeEvents(t, prep.RunArtifacts.EventsPath)
 	if got := runtimeEventKinds(replayed); !slices.Equal(got, wantKinds) {
 		t.Fatalf("unexpected replayed event kinds: got %v want %v", got, wantKinds)
 	}
@@ -1620,15 +1617,39 @@ func runtimeEventKinds(events []eventspkg.Event) []eventspkg.EventKind {
 	return kinds
 }
 
-func replayRuntimeEvents(t *testing.T, run *runs.Run) []eventspkg.Event {
+func replayRuntimeEvents(t *testing.T, eventsPath string) []eventspkg.Event {
 	t.Helper()
 
-	var replayed []eventspkg.Event
-	for event, err := range run.Replay(0) {
-		if err != nil {
-			t.Fatalf("replay runtime events: %v", err)
-		}
-		replayed = append(replayed, event)
+	file, err := os.Open(eventsPath)
+	if err != nil {
+		t.Fatalf("open runtime events: %v", err)
 	}
-	return replayed
+	defer func() {
+		_ = file.Close()
+	}()
+
+	reader := bufio.NewReader(file)
+	var replayed []eventspkg.Event
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		if len(line) == 0 && errors.Is(readErr, io.EOF) {
+			return replayed
+		}
+
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) > 0 {
+			var event eventspkg.Event
+			if err := json.Unmarshal(trimmed, &event); err != nil {
+				t.Fatalf("decode runtime event: %v", err)
+			}
+			replayed = append(replayed, event)
+		}
+
+		if errors.Is(readErr, io.EOF) {
+			return replayed
+		}
+		if readErr != nil {
+			t.Fatalf("read runtime events: %v", readErr)
+		}
+	}
 }

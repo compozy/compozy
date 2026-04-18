@@ -1,9 +1,12 @@
 package journal
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -577,22 +580,7 @@ func TestJournalFlushHookSupportsCrashRecoveryReplay(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	run, err := runs.Open(workspaceRoot, runID)
-	if err != nil {
-		t.Fatalf("runs.Open() error = %v", err)
-	}
-
-	var (
-		replayed  []events.Event
-		replayErr error
-	)
-	for ev, err := range run.Replay(0) {
-		if err != nil {
-			replayErr = err
-			break
-		}
-		replayed = append(replayed, ev)
-	}
+	replayed, replayErr := replayRunEventsWithError(t, workspaceRoot, runID, 0)
 
 	if got := collectedSeqs(replayed); !slices.Equal(got, []uint64{1, 2}) {
 		t.Fatalf("replayed seqs = %v, want [1 2]", got)
@@ -681,19 +669,59 @@ func collectBusEvents(
 func replayRunEvents(t *testing.T, workspaceRoot, runID string, fromSeq uint64) []events.Event {
 	t.Helper()
 
-	run, err := runs.Open(workspaceRoot, runID)
+	replayed, err := replayRunEventsWithError(t, workspaceRoot, runID, fromSeq)
 	if err != nil {
-		t.Fatalf("runs.Open() error = %v", err)
-	}
-
-	var replayed []events.Event
-	for ev, err := range run.Replay(fromSeq) {
-		if err != nil {
-			t.Fatalf("Replay() error = %v", err)
-		}
-		replayed = append(replayed, ev)
+		t.Fatalf("replayRunEventsWithError() error = %v", err)
 	}
 	return replayed
+}
+
+func replayRunEventsWithError(
+	t *testing.T,
+	workspaceRoot string,
+	runID string,
+	fromSeq uint64,
+) ([]events.Event, error) {
+	t.Helper()
+
+	eventsPath := filepath.Join(workspaceRoot, ".compozy", "runs", runID, "events.jsonl")
+	file, err := os.Open(eventsPath)
+	if err != nil {
+		t.Fatalf("open events mirror: %v", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	reader := bufio.NewReader(file)
+	replayed := make([]events.Event, 0)
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		if len(line) == 0 && errors.Is(readErr, io.EOF) {
+			return replayed, nil
+		}
+
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) > 0 {
+			var item events.Event
+			if err := json.Unmarshal(trimmed, &item); err != nil {
+				if errors.Is(readErr, io.EOF) {
+					return replayed, runs.ErrPartialEventLine
+				}
+				t.Fatalf("decode mirrored event: %v", err)
+			}
+			if item.Seq >= fromSeq {
+				replayed = append(replayed, item)
+			}
+		}
+
+		if errors.Is(readErr, io.EOF) {
+			return replayed, nil
+		}
+		if readErr != nil {
+			t.Fatalf("read events mirror: %v", readErr)
+		}
+	}
 }
 
 func collectedSeqs(items []events.Event) []uint64 {

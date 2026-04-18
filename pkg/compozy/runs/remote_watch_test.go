@@ -218,39 +218,3 @@ func (c *stubRemoteStreamClient) OpenRunStream(
 	c.streams = c.streams[1:]
 	return stream, nil
 }
-
-type bufferedRemoteRunStream struct {
-	items chan RemoteRunStreamItem
-	errs  chan error
-}
-
-func newBufferedRemoteRunStream(items ...RemoteRunStreamItem) *bufferedRemoteRunStream {
-	stream := &bufferedRemoteRunStream{
-		items: make(chan RemoteRunStreamItem, len(items)),
-		errs:  make(chan error),
-	}
-	for _, item := range items {
-		stream.items <- item
-	}
-	close(stream.items)
-	close(stream.errs)
-	return stream
-}
-
-func (s *bufferedRemoteRunStream) Items() <-chan RemoteRunStreamItem {
-	if s == nil {
-		return nil
-	}
-	return s.items
-}
-
-func (s *bufferedRemoteRunStream) Errors() <-chan error {
-	if s == nil {
-		return nil
-	}
-	return s.errs
-}
-
-func (s *bufferedRemoteRunStream) Close() error {
-	return nil
-}

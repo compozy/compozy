@@ -1,17 +1,11 @@
 package runs
 
 import (
-	"errors"
-	"fmt"
-	"log/slog"
-	"os"
+	"context"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strings"
 	"time"
-
-	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
 // RunSummary is the public metadata view for one persisted run.
@@ -36,58 +30,28 @@ type ListOptions struct {
 	Limit  int
 }
 
-// List enumerates runs under workspaceRoot's .compozy/runs directory.
+// List enumerates daemon-managed runs for the supplied workspace root.
 func List(workspaceRoot string, opts ListOptions) ([]RunSummary, error) {
-	cleanRoot := cleanWorkspaceRoot(workspaceRoot)
-	runsDir := runsDirForWorkspace(cleanRoot)
-
-	entries, err := os.ReadDir(runsDir)
+	client, err := resolveRunsDaemonReader()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, fmt.Errorf("list runs in %q: %w", runsDir, err)
+		return nil, err
 	}
-
-	summaries := make([]RunSummary, 0, len(entries))
-	for _, entry := range entries {
-		if !entry.IsDir() {
+	summaries, err := client.ListRuns(context.Background(), cleanWorkspaceRoot(workspaceRoot), opts)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]RunSummary, 0, len(summaries))
+	for i := range summaries {
+		if !matchesListOptions(summaries[i], opts) {
 			continue
 		}
-
-		runID := entry.Name()
-		runMetaPath := layout.RunMetaPath(filepath.Join(runsDir, runID))
-		run, err := loadRun(cleanRoot, runID)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				slog.Warn(
-					"skipping run without run.json",
-					"component", "runs",
-					"run_id", runID,
-					"path", runMetaPath,
-				)
-				continue
-			}
-			return nil, err
-		}
-		summary := run.Summary()
-		if !matchesListOptions(summary, opts) {
-			continue
-		}
-		summaries = append(summaries, summary)
+		filtered = append(filtered, summaries[i])
 	}
-
-	sort.Slice(summaries, func(i, j int) bool {
-		if summaries[i].StartedAt.Equal(summaries[j].StartedAt) {
-			return summaries[i].RunID > summaries[j].RunID
-		}
-		return summaries[i].StartedAt.After(summaries[j].StartedAt)
-	})
-
-	if opts.Limit > 0 && len(summaries) > opts.Limit {
-		summaries = summaries[:opts.Limit]
+	sortRunSummaries(filtered)
+	if opts.Limit > 0 && len(filtered) > opts.Limit {
+		filtered = filtered[:opts.Limit]
 	}
-	return summaries, nil
+	return filtered, nil
 }
 
 func matchesListOptions(summary RunSummary, opts ListOptions) bool {
@@ -120,8 +84,4 @@ func cleanWorkspaceRoot(workspaceRoot string) string {
 		return ""
 	}
 	return filepath.Clean(trimmed)
-}
-
-func runsDirForWorkspace(workspaceRoot string) string {
-	return filepath.Join(workspaceRoot, ".compozy", "runs")
 }

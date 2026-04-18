@@ -19,6 +19,14 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+// RunListOptions filters the daemon-backed run list query.
+type RunListOptions struct {
+	Workspace string
+	Status    string
+	Mode      string
+	Limit     int
+}
+
 // RunStreamHeartbeat reports one idle heartbeat frame from the daemon stream.
 type RunStreamHeartbeat struct {
 	Cursor    apicore.StreamCursor
@@ -72,6 +80,60 @@ type overflowPayload struct {
 	TS     time.Time `json:"ts"`
 }
 
+// ListRuns lists daemon-managed runs for the requested workspace and filters.
+func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.Run, error) {
+	if c == nil {
+		return nil, errors.New("daemon client is required")
+	}
+
+	values := url.Values{}
+	if workspace := strings.TrimSpace(opts.Workspace); workspace != "" {
+		values.Set("workspace", workspace)
+	}
+	if status := strings.TrimSpace(opts.Status); status != "" {
+		values.Set("status", status)
+	}
+	if mode := strings.TrimSpace(opts.Mode); mode != "" {
+		values.Set("mode", mode)
+	}
+	if opts.Limit > 0 {
+		values.Set("limit", fmt.Sprintf("%d", opts.Limit))
+	}
+
+	response := struct {
+		Runs []apicore.Run `json:"runs"`
+	}{}
+	path := "/api/runs"
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Runs, nil
+}
+
+// GetRun loads the latest daemon-backed run summary for one run.
+func (c *Client) GetRun(ctx context.Context, runID string) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, errors.New("daemon client is required")
+	}
+
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return apicore.Run{}, errors.New("run id is required")
+	}
+
+	response := struct {
+		Run apicore.Run `json:"run"`
+	}{}
+	path := "/api/runs/" + url.PathEscape(trimmedRunID)
+	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return apicore.Run{}, err
+	}
+	return response.Run, nil
+}
+
 // GetRunSnapshot loads the dense attach snapshot for one run.
 func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunSnapshot, error) {
 	if c == nil {
@@ -112,6 +174,58 @@ func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunS
 		snapshot.NextCursor = &nextCursor
 	}
 	return snapshot, nil
+}
+
+// ListRunEvents pages through persisted daemon-backed events for one run.
+func (c *Client) ListRunEvents(
+	ctx context.Context,
+	runID string,
+	after apicore.StreamCursor,
+	limit int,
+) (apicore.RunEventPage, error) {
+	if c == nil {
+		return apicore.RunEventPage{}, errors.New("daemon client is required")
+	}
+
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return apicore.RunEventPage{}, errors.New("run id is required")
+	}
+
+	values := url.Values{}
+	if after.Sequence > 0 {
+		values.Set("after", apicore.FormatCursor(after.Timestamp, after.Sequence))
+	}
+	if limit > 0 {
+		values.Set("limit", fmt.Sprintf("%d", limit))
+	}
+
+	response := struct {
+		Events     []events.Event `json:"events"`
+		NextCursor string         `json:"next_cursor,omitempty"`
+		HasMore    bool           `json:"has_more"`
+	}{}
+	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/events"
+	if encoded := values.Encode(); encoded != "" {
+		path += "?" + encoded
+	}
+	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+		return apicore.RunEventPage{}, err
+	}
+
+	nextCursor, err := apicore.ParseCursor(response.NextCursor)
+	if err != nil {
+		return apicore.RunEventPage{}, fmt.Errorf("decode events cursor: %w", err)
+	}
+
+	page := apicore.RunEventPage{
+		Events:  response.Events,
+		HasMore: response.HasMore,
+	}
+	if nextCursor.Sequence > 0 {
+		page.NextCursor = &nextCursor
+	}
+	return page, nil
 }
 
 // OpenRunStream opens the daemon SSE stream for one run after the supplied cursor.

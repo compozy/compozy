@@ -3,21 +3,11 @@ package runs
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
-	"strings"
-
-	tailpkg "github.com/nxadm/tail"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-type tailState struct {
-	fromSeq uint64
-	lastSeq uint64
-}
-
-// Tail replays historical events from fromSeq and then follows events.jsonl for
+// Tail replays historical events from fromSeq and then follows the daemon stream for
 // new events until ctx is canceled.
 func (r *Run) Tail(ctx context.Context, fromSeq uint64) (<-chan events.Event, <-chan error) {
 	out := make(chan events.Event)
@@ -27,161 +17,88 @@ func (r *Run) Tail(ctx context.Context, fromSeq uint64) (<-chan events.Event, <-
 		defer close(out)
 		defer close(errs)
 
-		if r == nil {
-			sendRunError(ctx, errs, errors.New("tail run: nil run"))
+		if err := validateTailRun(r); err != nil {
+			sendRunError(ctx, errs, err)
 			return
 		}
 
-		startOffset, ok := r.snapshotTailOffset(ctx, errs)
+		cutoff, ok := tailSnapshotCursor(ctx, r, errs)
 		if !ok {
 			return
 		}
-
-		state := &tailState{fromSeq: fromSeq}
-		if !r.replayTailHistory(ctx, errs, out, state) {
+		if !replayHistoricalWindow(ctx, r.client, r.summary.RunID, fromSeq, cutoff, out, errs) {
 			return
 		}
-
-		r.followTailStream(ctx, startOffset, errs, out, state)
+		if !followTailLiveEvents(ctx, r, cutoff, out, errs) {
+			return
+		}
 	}()
 
 	return out, errs
 }
 
-func (r *Run) snapshotTailOffset(ctx context.Context, errs chan<- error) (int64, bool) {
-	startOffset, err := liveTailOffsetSnapshot(r.eventsPath)
-	if err != nil {
-		sendRunError(ctx, errs, fmt.Errorf("snapshot run tail offset: %w", err))
-		return 0, false
+func validateTailRun(r *Run) error {
+	if r == nil {
+		return errors.New("tail run: nil run")
 	}
-	return startOffset, true
+	if r.client == nil {
+		return wrapDaemonUnavailable("tail run", errors.New("daemon client is required"))
+	}
+	return nil
 }
 
-func (r *Run) replayTailHistory(
+func tailSnapshotCursor(ctx context.Context, r *Run, errs chan<- error) (RemoteCursor, bool) {
+	snapshot, err := r.client.GetRunSnapshot(ctx, r.summary.RunID)
+	if err != nil {
+		sendRunError(ctx, errs, err)
+		return RemoteCursor{}, false
+	}
+	if snapshot.NextCursor == nil {
+		return RemoteCursor{}, true
+	}
+	return *snapshot.NextCursor, true
+}
+
+func followTailLiveEvents(
 	ctx context.Context,
-	errs chan<- error,
+	r *Run,
+	after RemoteCursor,
 	out chan<- events.Event,
-	state *tailState,
+	errs chan<- error,
 ) bool {
-	for ev, replayErr := range r.Replay(state.fromSeq) {
-		if replayErr != nil {
-			if !sendRunError(ctx, errs, replayErr) {
-				return false
-			}
-			continue
-		}
-		state.lastSeq = ev.Seq
-		if !sendRunEvent(ctx, out, ev) {
+	liveEvents, liveErrs := watchRemoteAfter(ctx, r.client, r.summary.RunID, after)
+	for liveEvents != nil || liveErrs != nil {
+		if !handleTailLiveUpdate(ctx, out, errs, &liveEvents, &liveErrs) {
 			return false
 		}
 	}
 	return true
 }
 
-func (r *Run) followTailStream(
+func handleTailLiveUpdate(
 	ctx context.Context,
-	startOffset int64,
-	errs chan<- error,
 	out chan<- events.Event,
-	state *tailState,
-) {
-	tailer, err := r.openTailFollower(startOffset)
-	if err != nil {
-		sendRunError(ctx, errs, fmt.Errorf("start run tail: %w", err))
-		return
-	}
-	defer tailer.Cleanup()
-	defer tailer.Kill(nil)
-
-	for {
-		select {
-		case <-ctx.Done():
-			tailer.Kill(ctx.Err())
-			return
-		case line, ok := <-tailer.Lines:
-			if !ok {
-				sendTailerErr(ctx, errs, tailer.Err())
-				return
-			}
-			if !handleTailLine(ctx, errs, out, state, line) {
-				return
-			}
-		}
-	}
-}
-
-func (r *Run) openTailFollower(startOffset int64) (*tailpkg.Tail, error) {
-	return tailpkg.TailFile(r.eventsPath, tailpkg.Config{
-		Location:      &tailpkg.SeekInfo{Offset: startOffset, Whence: io.SeekStart},
-		Follow:        true,
-		ReOpen:        true,
-		MustExist:     true,
-		CompleteLines: true,
-		Logger:        tailpkg.DiscardingLogger,
-	})
-}
-
-func sendTailerErr(ctx context.Context, errs chan<- error, err error) {
-	if err == nil || errors.Is(err, tailpkg.ErrStop) {
-		return
-	}
-	_ = sendRunError(ctx, errs, fmt.Errorf("tail run events: %w", err))
-}
-
-func handleTailLine(
-	ctx context.Context,
 	errs chan<- error,
-	out chan<- events.Event,
-	state *tailState,
-	line *tailpkg.Line,
+	liveEvents *<-chan events.Event,
+	liveErrs *<-chan error,
 ) bool {
-	if line == nil {
-		return true
-	}
-	if line.Err != nil {
-		return sendRunError(ctx, errs, line.Err)
-	}
-
-	text := strings.TrimSpace(line.Text)
-	if text == "" {
-		return true
-	}
-
-	ev, err := decodeEventLine([]byte(text), line.Num)
-	if err != nil {
+	select {
+	case <-ctx.Done():
+		return false
+	case err, ok := <-*liveErrs:
+		if !ok {
+			*liveErrs = nil
+			return true
+		}
+		if err == nil {
+			return true
+		}
 		return sendRunError(ctx, errs, err)
-	}
-	if ev.Seq < state.fromSeq || ev.Seq <= state.lastSeq {
-		return true
-	}
-
-	state.lastSeq = ev.Seq
-	return sendRunEvent(ctx, out, ev)
-}
-
-func sendRunEvent(ctx context.Context, dst chan<- events.Event, ev events.Event) bool {
-	if err := ctx.Err(); err != nil {
-		return false
-	}
-	select {
-	case <-ctx.Done():
-		return false
-	case dst <- ev:
-		return true
-	}
-}
-
-func sendRunError(ctx context.Context, dst chan<- error, err error) bool {
-	if err == nil {
-		return true
-	}
-	if ctxErr := ctx.Err(); ctxErr != nil {
-		return false
-	}
-	select {
-	case <-ctx.Done():
-		return false
-	case dst <- err:
-		return true
+	case ev, ok := <-*liveEvents:
+		if !ok {
+			*liveEvents = nil
+			return true
+		}
+		return sendRunEvent(ctx, out, ev)
 	}
 }

@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/pkg/compozy/runs"
 	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
@@ -183,36 +182,16 @@ func TestArchiveExposePublicAPI(t *testing.T) {
 	}
 }
 
-// TestRunsLayoutAgreesAcrossWriterAndReader proves that the canonical writer
-// (model.NewRunArtifacts) and the public reader (runs.Open) agree on the
-// on-disk layout via the shared pkg/compozy/runs/layout constants. If anyone
-// changes a literal on only one side, this test fails before the change is
-// merged.
-func TestRunsLayoutAgreesAcrossWriterAndReader(t *testing.T) {
+// TestRunsLayoutAgreesAcrossWriterAndPublicLayout proves that the canonical
+// writer (model.NewRunArtifacts) and the public compatibility layout package
+// still agree on artifact names even though run reading itself is daemon-backed.
+func TestRunsLayoutAgreesAcrossWriterAndPublicLayout(t *testing.T) {
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
 	const runID = "agree-test"
 
 	artifacts := model.NewRunArtifacts(workspaceRoot, runID)
-	if err := os.MkdirAll(artifacts.RunDir, 0o755); err != nil {
-		t.Fatalf("mkdir run dir: %v", err)
-	}
-
-	meta := []byte(
-		`{"version":1,"run_id":"agree-test","status":"completed","mode":"exec","created_at":"2026-04-13T12:00:00Z","updated_at":"2026-04-13T12:00:00Z"}`,
-	)
-	if err := os.WriteFile(artifacts.RunMetaPath, meta, 0o600); err != nil {
-		t.Fatalf("write run meta: %v", err)
-	}
-
-	run, err := runs.Open(workspaceRoot, runID)
-	if err != nil {
-		t.Fatalf("runs.Open after model.NewRunArtifacts: %v", err)
-	}
-	if got := run.Summary().RunID; got != runID {
-		t.Fatalf("Summary.RunID = %q, want %q", got, runID)
-	}
 
 	cases := []struct {
 		name   string

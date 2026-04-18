@@ -1,9 +1,9 @@
-// Package layout exports the on-disk layout for one persisted Compozy run.
+// Package layout exports the compatibility on-disk layout for one persisted
+// Compozy run.
 //
-// Both the internal writer ([github.com/compozy/compozy/internal/core/model])
-// and the public reader ([github.com/compozy/compozy/pkg/compozy/runs])
-// depend on these constants so that renaming a run artifact is a single-place
-// change visible to the type checker, not an agree-by-string contract.
+// Internal writers still use these constants, and the public package continues
+// to expose them for callers that need the compatibility artifact names, even
+// though run reading itself is now daemon-backed.
 package layout
 
 import "path/filepath"

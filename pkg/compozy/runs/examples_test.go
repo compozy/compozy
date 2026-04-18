@@ -2,39 +2,33 @@ package runs
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
 func ExampleList() {
-	workspaceRoot := mustExampleWorkspaceRoot()
-	defer os.RemoveAll(workspaceRoot)
+	previous := resolveRunsDaemonReader
+	resolveRunsDaemonReader = func() (daemonRunReader, error) {
+		return &stubDaemonRunReader{
+			listSummaries: [][]RunSummary{{
+				{
+					RunID:     "run-early",
+					Status:    "failed",
+					StartedAt: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
+				},
+				{
+					RunID:     "run-late",
+					Status:    "completed",
+					StartedAt: time.Date(2026, 4, 6, 13, 0, 0, 0, time.UTC),
+				},
+			}},
+		}, nil
+	}
+	defer func() { resolveRunsDaemonReader = previous }()
 
-	mustWriteExampleRun(workspaceRoot, "run-early", exampleRunFixture{
-		runJSON: map[string]any{
-			"run_id":         "run-early",
-			"mode":           "prd-tasks",
-			"workspace_root": workspaceRoot,
-			"created_at":     time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
-		},
-		resultJSON: map[string]any{"status": "failed"},
-	})
-	mustWriteExampleRun(workspaceRoot, "run-late", exampleRunFixture{
-		runJSON: map[string]any{
-			"run_id":         "run-late",
-			"mode":           "exec",
-			"status":         "succeeded",
-			"workspace_root": workspaceRoot,
-			"created_at":     time.Date(2026, 4, 6, 13, 0, 0, 0, time.UTC),
-		},
-	})
-
-	summaries, err := List(workspaceRoot, ListOptions{})
+	summaries, err := List("/workspace", ListOptions{})
 	if err != nil {
 		panic(err)
 	}
@@ -48,20 +42,19 @@ func ExampleList() {
 }
 
 func ExampleOpen() {
-	workspaceRoot := mustExampleWorkspaceRoot()
-	defer os.RemoveAll(workspaceRoot)
+	previous := resolveRunsDaemonReader
+	resolveRunsDaemonReader = func() (daemonRunReader, error) {
+		return &stubDaemonRunReader{
+			openSummary: RunSummary{
+				RunID:  "run-open",
+				Mode:   "exec",
+				Status: "completed",
+			},
+		}, nil
+	}
+	defer func() { resolveRunsDaemonReader = previous }()
 
-	mustWriteExampleRun(workspaceRoot, "run-open", exampleRunFixture{
-		runJSON: map[string]any{
-			"run_id":         "run-open",
-			"mode":           "exec",
-			"status":         "succeeded",
-			"workspace_root": workspaceRoot,
-			"created_at":     time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
-		},
-	})
-
-	run, err := Open(workspaceRoot, "run-open")
+	run, err := Open("/workspace", "run-open")
 	if err != nil {
 		panic(err)
 	}
@@ -74,24 +67,22 @@ func ExampleOpen() {
 }
 
 func ExampleRun_Replay() {
-	workspaceRoot := mustExampleWorkspaceRoot()
-	defer os.RemoveAll(workspaceRoot)
+	previous := resolveRunsDaemonReader
+	resolveRunsDaemonReader = func() (daemonRunReader, error) {
+		return &stubDaemonRunReader{
+			openSummary: RunSummary{RunID: "run-replay"},
+			eventPages: []remoteRunEventPage{{
+				Events: []events.Event{
+					exampleEvent("run-replay", 1, events.EventKindRunStarted),
+					exampleEvent("run-replay", 2, events.EventKindJobCompleted),
+					exampleEvent("run-replay", 3, events.EventKindRunCompleted),
+				},
+			}},
+		}, nil
+	}
+	defer func() { resolveRunsDaemonReader = previous }()
 
-	mustWriteExampleRun(workspaceRoot, "run-replay", exampleRunFixture{
-		runJSON: map[string]any{
-			"run_id":         "run-replay",
-			"mode":           "exec",
-			"workspace_root": workspaceRoot,
-			"created_at":     time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
-		},
-		events: []events.Event{
-			exampleEvent("run-replay", 1, events.EventKindRunStarted),
-			exampleEvent("run-replay", 2, events.EventKindJobCompleted),
-			exampleEvent("run-replay", 3, events.EventKindRunCompleted),
-		},
-	})
-
-	run, err := Open(workspaceRoot, "run-replay")
+	run, err := Open("/workspace", "run-replay")
 	if err != nil {
 		panic(err)
 	}
@@ -109,22 +100,37 @@ func ExampleRun_Replay() {
 }
 
 func ExampleRun_Tail() {
-	workspaceRoot := mustExampleWorkspaceRoot()
-	defer os.RemoveAll(workspaceRoot)
+	previous := resolveRunsDaemonReader
+	resolveRunsDaemonReader = func() (daemonRunReader, error) {
+		now := time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC)
+		return &stubDaemonRunReader{
+			openSummary: RunSummary{RunID: "run-tail"},
+			snapshot: RemoteRunSnapshot{
+				Status:     publicRunStatusRunning,
+				NextCursor: remoteCursor(now, 1),
+			},
+			eventPages: []remoteRunEventPage{{
+				Events: []events.Event{
+					exampleEvent("run-tail", 1, events.EventKindRunStarted),
+				},
+				NextCursor: remoteCursor(now, 1),
+			}},
+			streams: []RemoteRunStream{
+				newBufferedRemoteRunStream(
+					RemoteRunStreamItem{Event: &events.Event{
+						SchemaVersion: events.SchemaVersion,
+						RunID:         "run-tail",
+						Seq:           2,
+						Timestamp:     now.Add(time.Second),
+						Kind:          events.EventKindRunCompleted,
+					}},
+				),
+			},
+		}, nil
+	}
+	defer func() { resolveRunsDaemonReader = previous }()
 
-	runDir := mustWriteExampleRun(workspaceRoot, "run-tail", exampleRunFixture{
-		runJSON: map[string]any{
-			"run_id":         "run-tail",
-			"mode":           "exec",
-			"workspace_root": workspaceRoot,
-			"created_at":     time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
-		},
-		events: []events.Event{
-			exampleEvent("run-tail", 1, events.EventKindRunStarted),
-		},
-	})
-
-	run, err := Open(workspaceRoot, "run-tail")
+	run, err := Open("/workspace", "run-tail")
 	if err != nil {
 		panic(err)
 	}
@@ -133,10 +139,6 @@ func ExampleRun_Tail() {
 	defer cancel()
 
 	eventsCh, errsCh := run.Tail(ctx, 2)
-	mustAppendExampleEvents(filepath.Join(runDir, "events.jsonl"), []events.Event{
-		exampleEvent("run-tail", 2, events.EventKindRunCompleted),
-	})
-
 	event := mustReadExampleTailEvent(eventsCh, errsCh)
 	fmt.Printf("%d %s\n", event.Seq, event.Kind)
 
@@ -145,106 +147,30 @@ func ExampleRun_Tail() {
 }
 
 func ExampleWatchWorkspace() {
-	workspaceRoot := mustExampleWorkspaceRoot()
-	defer os.RemoveAll(workspaceRoot)
-
-	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "runs"), 0o755); err != nil {
-		panic(err)
+	previous := resolveRunsDaemonReader
+	resolveRunsDaemonReader = func() (daemonRunReader, error) {
+		return &stubDaemonRunReader{
+			listSummaries: [][]RunSummary{
+				nil,
+				{{
+					RunID:     "run-created",
+					Status:    "running",
+					StartedAt: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
+				}},
+			},
+		}, nil
 	}
+	defer func() { resolveRunsDaemonReader = previous }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	eventsCh, errsCh := WatchWorkspace(ctx, workspaceRoot)
-	mustWriteExampleRun(workspaceRoot, "run-created", exampleRunFixture{
-		runJSON: map[string]any{
-			"run_id":         "run-created",
-			"mode":           "exec",
-			"status":         "running",
-			"workspace_root": workspaceRoot,
-			"created_at":     time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
-		},
-	})
-
+	eventsCh, errsCh := WatchWorkspace(ctx, "/workspace")
 	event := mustReadExampleRunEvent(eventsCh, errsCh)
 	fmt.Printf("%s %s %s\n", event.Kind, event.RunID, event.Summary.Status)
 
 	// Output:
 	// created run-created running
-}
-
-type exampleRunFixture struct {
-	runJSON    map[string]any
-	resultJSON map[string]any
-	events     []events.Event
-}
-
-func mustExampleWorkspaceRoot() string {
-	workspaceRoot, err := os.MkdirTemp("", "compozy-runs-example-*")
-	if err != nil {
-		panic(err)
-	}
-	return workspaceRoot
-}
-
-func mustWriteExampleRun(workspaceRoot, runID string, fixture exampleRunFixture) string {
-	runDir := filepath.Join(workspaceRoot, ".compozy", "runs", runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		panic(err)
-	}
-
-	if fixture.runJSON != nil {
-		payload, err := json.Marshal(fixture.runJSON)
-		if err != nil {
-			panic(err)
-		}
-		if err := os.WriteFile(filepath.Join(runDir, "run.json"), payload, 0o600); err != nil {
-			panic(err)
-		}
-	}
-	if fixture.resultJSON != nil {
-		payload, err := json.Marshal(fixture.resultJSON)
-		if err != nil {
-			panic(err)
-		}
-		if err := os.WriteFile(filepath.Join(runDir, "result.json"), payload, 0o600); err != nil {
-			panic(err)
-		}
-	}
-	if len(fixture.events) > 0 {
-		file, err := os.OpenFile(filepath.Join(runDir, "events.jsonl"), os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600)
-		if err != nil {
-			panic(err)
-		}
-		encoder := json.NewEncoder(file)
-		for _, event := range fixture.events {
-			if err := encoder.Encode(event); err != nil {
-				file.Close()
-				panic(err)
-			}
-		}
-		if err := file.Close(); err != nil {
-			panic(err)
-		}
-	}
-	return runDir
-}
-
-func mustAppendExampleEvents(eventsPath string, items []events.Event) {
-	file, err := os.OpenFile(eventsPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o600)
-	if err != nil {
-		panic(err)
-	}
-	encoder := json.NewEncoder(file)
-	for _, event := range items {
-		if err := encoder.Encode(event); err != nil {
-			file.Close()
-			panic(err)
-		}
-	}
-	if err := file.Close(); err != nil {
-		panic(err)
-	}
 }
 
 func mustReadExampleTailEvent(eventsCh <-chan events.Event, errsCh <-chan error) events.Event {
@@ -296,6 +222,5 @@ func exampleEvent(runID string, seq uint64, kind events.EventKind) events.Event 
 		Seq:           seq,
 		Timestamp:     time.Unix(int64(seq), 0).UTC(),
 		Kind:          kind,
-		Payload:       json.RawMessage(fmt.Sprintf(`{"seq":%d}`, seq)),
 	}
 }
