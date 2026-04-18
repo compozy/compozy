@@ -37,8 +37,13 @@ func TestRunStartHandleWithoutExecutableExtensionsPreservesArtifactsWithoutAudit
 	) {
 		t.Fatalf("expected disabled run to skip audit log, got %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "_meta.md")); err != nil {
-		t.Fatalf("expected task metadata refresh artifact: %v", err)
+	if _, err := os.Stat(
+		filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "_meta.md"),
+	); !errors.Is(
+		err,
+		os.ErrNotExist,
+	) {
+		t.Fatalf("expected task metadata artifact to remain absent, got %v", err)
 	}
 }
 

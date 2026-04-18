@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,10 +16,13 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/plan"
 	workspacecfg "github.com/compozy/compozy/internal/core/workspace"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/rundb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -593,6 +597,52 @@ func TestRunManagerOpenRunScopeFailureCleansReservedDirectory(t *testing.T) {
 	}
 }
 
+func TestRunManagerStartRunSyncFailureMarksRunFailed(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+
+	runID := "sync-failure-run"
+	workflowRoot := filepath.Join(env.workspaceRoot, ".compozy", "tasks", "missing-workflow")
+	_, err = env.manager.startRun(context.Background(), startRunSpec{
+		workspace:        workspace,
+		workflowSlug:     "missing-workflow",
+		workflowRoot:     workflowRoot,
+		mode:             runModeTask,
+		presentationMode: defaultPresentationMode,
+		runtimeCfg: &model.RuntimeConfig{
+			RunID:         runID,
+			WorkspaceRoot: env.workspaceRoot,
+			Name:          "missing-workflow",
+			TasksDir:      workflowRoot,
+			Mode:          model.ExecutionModePRDTasks,
+			DaemonOwned:   true,
+		},
+	})
+	if err == nil {
+		t.Fatal("startRun(sync failure) error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "sync workflow") {
+		t.Fatalf("startRun(sync failure) error = %v, want sync workflow context", err)
+	}
+
+	row := waitForRun(t, env.globalDB, runID, func(row globaldb.Run) bool {
+		return row.Status == runStatusFailed
+	})
+	if row.EndedAt == nil {
+		t.Fatal("EndedAt = nil, want terminal timestamp")
+	}
+	if !strings.Contains(row.ErrorText, "sync workflow") {
+		t.Fatalf("row.ErrorText = %q, want sync workflow context", row.ErrorText)
+	}
+	if active := env.manager.getActive(runID); active != nil {
+		t.Fatalf("active run after sync failure = %#v, want nil", active)
+	}
+}
+
 func TestRunManagerExecRunCompletesAndReplaysPersistedStream(t *testing.T) {
 	executed := make(chan string, 1)
 	env := newRunManagerTestEnv(t, runManagerTestDeps{
@@ -640,6 +690,31 @@ func TestRunManagerExecRunCompletesAndReplaysPersistedStream(t *testing.T) {
 		t.Fatalf("stream item = %#v, want run.completed", item)
 	}
 	waitForClosedRunStream(t, stream)
+}
+
+func TestRunManagerExecRunFailureMarksRunFailed(t *testing.T) {
+	execErr := errors.New("exec exploded")
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		executeExec: func(context.Context, *model.RuntimeConfig, model.RunScope) error {
+			return execErr
+		},
+	})
+
+	run := env.startExecRun(t, "exec-run-failed", nil)
+	terminal := waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusFailed
+	})
+	if terminal.EndedAt == nil {
+		t.Fatal("EndedAt = nil, want terminal timestamp")
+	}
+	if !strings.Contains(terminal.ErrorText, execErr.Error()) {
+		t.Fatalf("terminal.ErrorText = %q, want %q", terminal.ErrorText, execErr.Error())
+	}
+
+	lastEvent := env.lastRunEvent(t, run.RunID)
+	if lastEvent == nil || lastEvent.Kind != eventspkg.EventKindRunFailed {
+		t.Fatalf("last event = %#v, want run.failed", lastEvent)
+	}
 }
 
 func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
@@ -1049,6 +1124,223 @@ func TestRunManagerHelperEdgeCases(t *testing.T) {
 	}
 }
 
+func TestRunManagerTaskRunWatcherSyncsTaskEditsAndStopsOnCancel(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		watcherDebounce: 40 * time.Millisecond,
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, _ *model.RuntimeConfig) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Watcher task"))
+	env.writeWorkflowFile(t, env.workflowSlug, "_meta.md", daemonLegacyWorkflowMetaBody())
+	env.writeWorkflowFile(t, env.workflowSlug, "_tasks.md", "Legacy generated summary\n")
+
+	run := env.startTaskRun(t, "task-run-watch", nil)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusRunning
+	})
+
+	if _, err := os.Stat(
+		filepath.Join(env.workflowDir(env.workflowSlug), "_meta.md"),
+	); !errors.Is(
+		err,
+		os.ErrNotExist,
+	) {
+		t.Fatalf("expected pre-run sync to remove workflow _meta.md, got %v", err)
+	}
+	if _, err := os.Stat(
+		filepath.Join(env.workflowDir(env.workflowSlug), "_tasks.md"),
+	); !errors.Is(
+		err,
+		os.ErrNotExist,
+	) {
+		t.Fatalf("expected pre-run sync to remove generated _tasks.md, got %v", err)
+	}
+
+	checkpointBefore := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, env.workflowSlug)
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Watcher task updated"))
+
+	waitForCondition(t, 5*time.Second, "task watcher sync", func() bool {
+		title, status, ok := queryTaskItem(t, env.paths.GlobalDBPath, env.workflowSlug, 1)
+		return ok &&
+			title == "Watcher task updated" &&
+			status == "completed" &&
+			queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, env.workflowSlug) != checkpointBefore &&
+			runArtifactSyncCount(t, run.RunID) >= 1
+	})
+
+	if err := env.manager.Cancel(context.Background(), run.RunID); err != nil {
+		t.Fatalf("Cancel(%q) error = %v", run.RunID, err)
+	}
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCancelled
+	})
+
+	rowsBeforeStop := runArtifactSyncCount(t, run.RunID)
+	checkpointAfterStop := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, env.workflowSlug)
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "post-cancel change"))
+	time.Sleep(200 * time.Millisecond)
+
+	if got := runArtifactSyncCount(t, run.RunID); got != rowsBeforeStop {
+		t.Fatalf("artifact sync rows after cancel = %d, want %d", got, rowsBeforeStop)
+	}
+	if got := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, env.workflowSlug); got != checkpointAfterStop {
+		t.Fatalf("checkpoint after cancel change = %q, want %q", got, checkpointAfterStop)
+	}
+	if title, status, ok := queryTaskItem(t, env.paths.GlobalDBPath, env.workflowSlug, 1); !ok ||
+		title != "Watcher task updated" || status != "completed" {
+		t.Fatalf("task row after cancel change = title:%q status:%q ok:%v", title, status, ok)
+	}
+	if _, err := os.Stat(
+		filepath.Join(env.workflowDir(env.workflowSlug), "_meta.md"),
+	); !errors.Is(
+		err,
+		os.ErrNotExist,
+	) {
+		t.Fatalf("expected workflow _meta.md to stay absent after run shutdown, got %v", err)
+	}
+}
+
+func TestRunManagerReviewRunWatcherSyncsOwnedWorkflowArtifacts(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		watcherDebounce: 40 * time.Millisecond,
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, _ *model.RuntimeConfig) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+
+	writeOwnedWorkflowArtifacts(t, env, env.workflowSlug)
+	otherSlug := "other-workflow"
+	writeOwnedWorkflowArtifacts(t, env, otherSlug)
+	if _, err := corepkg.SyncDirect(context.Background(), corepkg.SyncConfig{
+		TasksDir: env.workflowDir(otherSlug),
+	}); err != nil {
+		t.Fatalf("SyncDirect(other workflow) error = %v", err)
+	}
+
+	run := env.startReviewRunForWorkflow(t, env.workflowSlug, "review-run-watch", 1, nil, nil)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusRunning
+	})
+
+	otherCheckpoint := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, otherSlug)
+	otherMemoryBody, _ := queryArtifactSnapshotBody(
+		t,
+		env.paths.GlobalDBPath,
+		otherSlug,
+		"memory/MEMORY.md",
+	)
+
+	env.writeWorkflowFile(
+		t,
+		env.workflowSlug,
+		filepath.Join("reviews-001", "issue_001.md"),
+		daemonReviewIssueBody("resolved", "high"),
+	)
+	env.writeWorkflowFile(t, env.workflowSlug, filepath.Join("memory", "MEMORY.md"), "# Workflow Memory\nupdated\n")
+	env.writeWorkflowFile(t, env.workflowSlug, filepath.Join("prompts", "task-run.md"), "# Prompt\nupdated\n")
+	env.writeWorkflowFile(t, env.workflowSlug, filepath.Join("protocol", "handoff.md"), "# Protocol\nupdated\n")
+	env.writeWorkflowFile(t, env.workflowSlug, filepath.Join("adrs", "adr-001.md"), "# ADR 001\nupdated\n")
+	env.writeWorkflowFile(t, env.workflowSlug, filepath.Join("qa", "verification-report.md"), "# QA\nupdated\n")
+
+	waitForCondition(t, 5*time.Second, "review watcher sync", func() bool {
+		reviewStatus, ok := queryReviewIssueStatus(t, env.paths.GlobalDBPath, env.workflowSlug, 1, 1)
+		memoryBody, _ := queryArtifactSnapshotBody(t, env.paths.GlobalDBPath, env.workflowSlug, "memory/MEMORY.md")
+		promptBody, _ := queryArtifactSnapshotBody(t, env.paths.GlobalDBPath, env.workflowSlug, "prompts/task-run.md")
+		protocolBody, _ := queryArtifactSnapshotBody(t, env.paths.GlobalDBPath, env.workflowSlug, "protocol/handoff.md")
+		adrBody, _ := queryArtifactSnapshotBody(t, env.paths.GlobalDBPath, env.workflowSlug, "adrs/adr-001.md")
+		qaBody, _ := queryArtifactSnapshotBody(t, env.paths.GlobalDBPath, env.workflowSlug, "qa/verification-report.md")
+		return ok &&
+			reviewStatus == "resolved" &&
+			strings.Contains(memoryBody, "updated") &&
+			strings.Contains(promptBody, "updated") &&
+			strings.Contains(protocolBody, "updated") &&
+			strings.Contains(adrBody, "updated") &&
+			strings.Contains(qaBody, "updated") &&
+			runArtifactSyncCount(t, run.RunID) >= 6
+	})
+
+	if got := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, otherSlug); got != otherCheckpoint {
+		t.Fatalf("other workflow checkpoint = %q, want %q", got, otherCheckpoint)
+	}
+	if got, _ := queryArtifactSnapshotBody(
+		t,
+		env.paths.GlobalDBPath,
+		otherSlug,
+		"memory/MEMORY.md",
+	); got != otherMemoryBody {
+		t.Fatalf("other workflow memory body changed unexpectedly\nwant:\n%s\ngot:\n%s", otherMemoryBody, got)
+	}
+
+	if err := env.manager.Cancel(context.Background(), run.RunID); err != nil {
+		t.Fatalf("Cancel(%q) error = %v", run.RunID, err)
+	}
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCancelled
+	})
+}
+
+func TestRunManagerTaskRunWatchersStayIsolatedAcrossWorkflows(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		watcherDebounce: 40 * time.Millisecond,
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{}, nil
+		},
+		execute: func(ctx context.Context, _ *model.SolvePreparation, _ *model.RuntimeConfig) error {
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("pending", "Primary workflow"))
+	otherSlug := "other-workflow"
+	env.writeWorkflowFile(t, otherSlug, "task_01.md", daemonTaskBody("pending", "Secondary workflow"))
+
+	runA := env.startTaskRunForWorkflow(t, env.workflowSlug, "task-run-a-watch", nil)
+	runB := env.startTaskRunForWorkflow(t, otherSlug, "task-run-b-watch", nil)
+	waitForRun(t, env.globalDB, runA.RunID, func(row globaldb.Run) bool { return row.Status == runStatusRunning })
+	waitForRun(t, env.globalDB, runB.RunID, func(row globaldb.Run) bool { return row.Status == runStatusRunning })
+
+	secondaryCheckpoint := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, otherSlug)
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Primary workflow updated"))
+
+	waitForCondition(t, 5*time.Second, "primary workflow watcher sync", func() bool {
+		title, status, ok := queryTaskItem(t, env.paths.GlobalDBPath, env.workflowSlug, 1)
+		return ok && title == "Primary workflow updated" && status == "completed" &&
+			runArtifactSyncCount(t, runA.RunID) >= 1
+	})
+
+	time.Sleep(200 * time.Millisecond)
+	if got := runArtifactSyncCount(t, runB.RunID); got != 0 {
+		t.Fatalf("secondary run artifact sync rows = %d, want 0", got)
+	}
+	if got := queryWorkflowCheckpointChecksum(t, env.paths.GlobalDBPath, otherSlug); got != secondaryCheckpoint {
+		t.Fatalf("secondary workflow checkpoint = %q, want %q", got, secondaryCheckpoint)
+	}
+	if title, status, ok := queryTaskItem(t, env.paths.GlobalDBPath, otherSlug, 1); !ok ||
+		title != "Secondary workflow" || status != "pending" {
+		t.Fatalf("secondary workflow row = title:%q status:%q ok:%v", title, status, ok)
+	}
+
+	if err := env.manager.Cancel(context.Background(), runA.RunID); err != nil {
+		t.Fatalf("Cancel(runA) error = %v", err)
+	}
+	if err := env.manager.Cancel(context.Background(), runB.RunID); err != nil {
+		t.Fatalf("Cancel(runB) error = %v", err)
+	}
+	waitForRun(t, env.globalDB, runA.RunID, func(row globaldb.Run) bool { return row.Status == runStatusCancelled })
+	waitForRun(t, env.globalDB, runB.RunID, func(row globaldb.Run) bool { return row.Status == runStatusCancelled })
+}
+
 type runManagerTestEnv struct {
 	homeDir       string
 	paths         compozyconfig.HomePaths
@@ -1065,6 +1357,7 @@ type runManagerTestDeps struct {
 	execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
 	shutdownDrainTimeout time.Duration
+	watcherDebounce      time.Duration
 }
 
 func newRunManagerTestEnv(t *testing.T, deps runManagerTestDeps) *runManagerTestEnv {
@@ -1108,6 +1401,7 @@ func newRunManagerTestEnv(t *testing.T, deps runManagerTestDeps) *runManagerTest
 		Prepare:              firstPrepare(deps.prepare),
 		Execute:              firstExecute(deps.execute),
 		ExecuteExec:          firstExecuteExec(deps.executeExec),
+		WatcherDebounce:      deps.watcherDebounce,
 		LoadProjectConfig: func(context.Context, string) (workspacecfg.ProjectConfig, error) {
 			return workspacecfg.ProjectConfig{}, nil
 		},
@@ -1126,39 +1420,98 @@ func newRunManagerTestEnv(t *testing.T, deps runManagerTestDeps) *runManagerTest
 	}
 }
 
+func (e *runManagerTestEnv) workflowDir(slug string) string {
+	return model.TaskDirectoryForWorkspace(e.workspaceRoot, slug)
+}
+
+func (e *runManagerTestEnv) writeWorkflowFile(t *testing.T, slug, relativePath, content string) string {
+	t.Helper()
+
+	workflowDir := e.workflowDir(slug)
+	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+
+	path := filepath.Join(workflowDir, filepath.FromSlash(relativePath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir workflow file parent: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write workflow file %s: %v", path, err)
+	}
+	return path
+}
+
 func (e *runManagerTestEnv) createReviewRound(t *testing.T, round int) string {
 	t.Helper()
 
-	reviewDir := filepath.Join(
-		model.TaskDirectoryForWorkspace(e.workspaceRoot, e.workflowSlug),
-		fmt.Sprintf("reviews-%03d", round),
-	)
+	reviewDir := filepath.Join(e.workflowDir(e.workflowSlug), fmt.Sprintf("reviews-%03d", round))
 	if err := os.MkdirAll(reviewDir, 0o755); err != nil {
 		t.Fatalf("mkdir review round dir: %v", err)
 	}
+	e.writeWorkflowFile(
+		t,
+		e.workflowSlug,
+		filepath.Join(fmt.Sprintf("reviews-%03d", round), "_meta.md"),
+		daemonReviewRoundMetaBody("coderabbit", "123", round),
+	)
+	e.writeWorkflowFile(
+		t,
+		e.workflowSlug,
+		filepath.Join(fmt.Sprintf("reviews-%03d", round), "issue_001.md"),
+		daemonReviewIssueBody("pending", "medium"),
+	)
 	return reviewDir
 }
 
-func (e *runManagerTestEnv) startTaskRun(t *testing.T, runID string, runtimeOverrides json.RawMessage) apicore.Run {
+func (e *runManagerTestEnv) startTaskRunForWorkflow(
+	t *testing.T,
+	workflowSlug string,
+	runID string,
+	runtimeOverrides json.RawMessage,
+) apicore.Run {
 	t.Helper()
 
 	if len(runtimeOverrides) == 0 {
 		runtimeOverrides = rawJSON(t, fmt.Sprintf(`{"run_id":%q}`, runID))
 	}
 
-	run, err := e.manager.StartTaskRun(context.Background(), e.workspaceRoot, e.workflowSlug, apicore.TaskRunRequest{
-		Workspace:        e.workspaceRoot,
-		PresentationMode: defaultPresentationMode,
-		RuntimeOverrides: runtimeOverrides,
-	})
+	run, err := e.manager.StartTaskRun(
+		context.Background(),
+		e.workspaceRoot,
+		workflowSlug,
+		apicore.TaskRunRequest{
+			Workspace:        e.workspaceRoot,
+			PresentationMode: defaultPresentationMode,
+			RuntimeOverrides: runtimeOverrides,
+		},
+	)
 	if err != nil {
-		t.Fatalf("StartTaskRun(%q) error = %v", runID, err)
+		t.Fatalf("StartTaskRun(%q, %q) error = %v", workflowSlug, runID, err)
 	}
 	return run
 }
 
+func (e *runManagerTestEnv) startTaskRun(t *testing.T, runID string, runtimeOverrides json.RawMessage) apicore.Run {
+	t.Helper()
+	return e.startTaskRunForWorkflow(t, e.workflowSlug, runID, runtimeOverrides)
+}
+
 func (e *runManagerTestEnv) startReviewRun(
 	t *testing.T,
+	runID string,
+	round int,
+	runtimeOverrides json.RawMessage,
+	batching json.RawMessage,
+) apicore.Run {
+	t.Helper()
+
+	return e.startReviewRunForWorkflow(t, e.workflowSlug, runID, round, runtimeOverrides, batching)
+}
+
+func (e *runManagerTestEnv) startReviewRunForWorkflow(
+	t *testing.T,
+	workflowSlug string,
 	runID string,
 	round int,
 	runtimeOverrides json.RawMessage,
@@ -1173,7 +1526,7 @@ func (e *runManagerTestEnv) startReviewRun(
 	run, err := e.manager.StartReviewRun(
 		context.Background(),
 		e.workspaceRoot,
-		e.workflowSlug,
+		workflowSlug,
 		round,
 		apicore.ReviewRunRequest{
 			Workspace:        e.workspaceRoot,
@@ -1183,7 +1536,7 @@ func (e *runManagerTestEnv) startReviewRun(
 		},
 	)
 	if err != nil {
-		t.Fatalf("StartReviewRun(%q) error = %v", runID, err)
+		t.Fatalf("StartReviewRun(%q, %q) error = %v", workflowSlug, runID, err)
 	}
 	return run
 }
@@ -1441,6 +1794,27 @@ func waitForString(t *testing.T, ch <-chan string, want string) {
 	}
 }
 
+func waitForCondition(t *testing.T, timeout time.Duration, label string, fn func() bool) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if fn() {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("timed out waiting for %s", label)
+		case <-ticker.C:
+		}
+	}
+}
+
 func waitForStreamItem(t *testing.T, ch <-chan apicore.RunStreamItem) apicore.RunStreamItem {
 	t.Helper()
 
@@ -1485,6 +1859,239 @@ func assertProblemStatus(t *testing.T, err error, want int) {
 	if problem.Status != want {
 		t.Fatalf("problem status = %d, want %d", problem.Status, want)
 	}
+}
+
+func openGlobalCatalog(t *testing.T, path string) *sql.DB {
+	t.Helper()
+
+	db, err := store.OpenSQLiteDatabase(context.Background(), path, nil)
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(%q) error = %v", path, err)
+	}
+	return db
+}
+
+func queryWorkflowCheckpointChecksum(t *testing.T, dbPath string, workflowSlug string) string {
+	t.Helper()
+
+	db := openGlobalCatalog(t, dbPath)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	var checksum string
+	if err := db.QueryRowContext(
+		context.Background(),
+		`SELECT sc.checksum
+		 FROM sync_checkpoints sc
+		 JOIN workflows w ON w.id = sc.workflow_id
+		 WHERE w.slug = ? AND sc.scope = 'workflow' AND w.archived_at IS NULL`,
+		workflowSlug,
+	).Scan(&checksum); err != nil {
+		t.Fatalf("query checkpoint checksum for %q: %v", workflowSlug, err)
+	}
+	return checksum
+}
+
+func queryTaskItem(t *testing.T, dbPath string, workflowSlug string, taskNumber int) (string, string, bool) {
+	t.Helper()
+
+	db := openGlobalCatalog(t, dbPath)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	var (
+		title  string
+		status string
+	)
+	err := db.QueryRowContext(
+		context.Background(),
+		`SELECT ti.title, ti.status
+		 FROM task_items ti
+		 JOIN workflows w ON w.id = ti.workflow_id
+		 WHERE w.slug = ? AND ti.task_number = ? AND w.archived_at IS NULL`,
+		workflowSlug,
+		taskNumber,
+	).Scan(&title, &status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", false
+	}
+	if err != nil {
+		t.Fatalf("query task item %q/%d: %v", workflowSlug, taskNumber, err)
+	}
+	return title, status, true
+}
+
+func queryReviewIssueStatus(
+	t *testing.T,
+	dbPath string,
+	workflowSlug string,
+	roundNumber int,
+	issueNumber int,
+) (string, bool) {
+	t.Helper()
+
+	db := openGlobalCatalog(t, dbPath)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	var status string
+	err := db.QueryRowContext(
+		context.Background(),
+		`SELECT ri.status
+		 FROM review_issues ri
+		 JOIN review_rounds rr ON rr.id = ri.round_id
+		 JOIN workflows w ON w.id = rr.workflow_id
+		 WHERE w.slug = ? AND rr.round_number = ? AND ri.issue_number = ? AND w.archived_at IS NULL`,
+		workflowSlug,
+		roundNumber,
+		issueNumber,
+	).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false
+	}
+	if err != nil {
+		t.Fatalf("query review issue %q/%d/%d: %v", workflowSlug, roundNumber, issueNumber, err)
+	}
+	return status, true
+}
+
+func queryArtifactSnapshotBody(t *testing.T, dbPath string, workflowSlug string, relativePath string) (string, bool) {
+	t.Helper()
+
+	db := openGlobalCatalog(t, dbPath)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	var body sql.NullString
+	err := db.QueryRowContext(
+		context.Background(),
+		`SELECT a.body_text
+		 FROM artifact_snapshots a
+		 JOIN workflows w ON w.id = a.workflow_id
+		 WHERE w.slug = ? AND a.relative_path = ? AND w.archived_at IS NULL`,
+		workflowSlug,
+		relativePath,
+	).Scan(&body)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false
+	}
+	if err != nil {
+		t.Fatalf("query artifact body %q/%s: %v", workflowSlug, relativePath, err)
+	}
+	return body.String, true
+}
+
+func runArtifactSyncCount(t *testing.T, runID string) int {
+	t.Helper()
+
+	return len(runArtifactSyncLog(t, runID))
+}
+
+func runArtifactSyncLog(t *testing.T, runID string) []rundb.ArtifactSyncRow {
+	t.Helper()
+
+	runDB, err := openRunDB(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("openRunDB(%q) error = %v", runID, err)
+	}
+	defer func() {
+		_ = runDB.Close()
+	}()
+
+	rows, err := runDB.ListArtifactSyncLog(context.Background())
+	if err != nil {
+		t.Fatalf("ListArtifactSyncLog(%q) error = %v", runID, err)
+	}
+	return rows
+}
+
+func writeOwnedWorkflowArtifacts(t *testing.T, env *runManagerTestEnv, workflowSlug string) {
+	t.Helper()
+
+	env.writeWorkflowFile(t, workflowSlug, "task_01.md", daemonTaskBody("pending", "Workflow task"))
+	env.writeWorkflowFile(t, workflowSlug, filepath.Join("memory", "MEMORY.md"), "# Workflow Memory\n")
+	env.writeWorkflowFile(t, workflowSlug, filepath.Join("prompts", "task-run.md"), "# Prompt\n")
+	env.writeWorkflowFile(t, workflowSlug, filepath.Join("protocol", "handoff.md"), "# Protocol\n")
+	env.writeWorkflowFile(t, workflowSlug, filepath.Join("adrs", "adr-001.md"), "# ADR 001\n")
+	env.writeWorkflowFile(t, workflowSlug, filepath.Join("qa", "verification-report.md"), "# QA\n")
+	env.writeWorkflowFile(
+		t,
+		workflowSlug,
+		filepath.Join("reviews-001", "_meta.md"),
+		daemonReviewRoundMetaBody("coderabbit", "123", 1),
+	)
+	env.writeWorkflowFile(
+		t,
+		workflowSlug,
+		filepath.Join("reviews-001", "issue_001.md"),
+		daemonReviewIssueBody("pending", "medium"),
+	)
+}
+
+func daemonTaskBody(status string, title string) string {
+	return strings.Join([]string{
+		"---",
+		"status: " + status,
+		"title: " + title,
+		"type: backend",
+		"complexity: low",
+		"---",
+		"",
+		"# " + title,
+		"",
+	}, "\n")
+}
+
+func daemonLegacyWorkflowMetaBody() string {
+	return strings.Join([]string{
+		"---",
+		"created_at: 2026-04-17T20:00:00Z",
+		"updated_at: 2026-04-17T20:05:00Z",
+		"---",
+		"",
+		"## Summary",
+		"- Total: 1",
+		"- Completed: 0",
+		"- Pending: 1",
+		"",
+	}, "\n")
+}
+
+func daemonReviewRoundMetaBody(provider string, pr string, round int) string {
+	return strings.Join([]string{
+		"---",
+		"provider: " + provider,
+		"pr: " + pr,
+		fmt.Sprintf("round: %d", round),
+		"created_at: 2026-04-17T20:00:00Z",
+		"---",
+		"",
+		"## Summary",
+		"- Total: 1",
+		"- Resolved: 0",
+		"- Unresolved: 1",
+		"",
+	}, "\n")
+}
+
+func daemonReviewIssueBody(status string, severity string) string {
+	return strings.Join([]string{
+		"---",
+		"status: " + status,
+		"file: internal/app/service.go",
+		"line: 42",
+		"severity: " + severity,
+		"author: coderabbitai[bot]",
+		"provider_ref: thread:PRT_1,comment:RC_1",
+		"---",
+		"",
+		"# Issue 001: Example",
+		"",
+	}, "\n")
 }
 
 func stringPtr(value string) *string {

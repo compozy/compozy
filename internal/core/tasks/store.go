@@ -40,6 +40,18 @@ func WriteTaskMeta(tasksDir string, meta model.TaskMeta) error {
 }
 
 func RefreshTaskMeta(tasksDir string) (model.TaskMeta, error) {
+	meta, err := SnapshotTaskMeta(tasksDir)
+	if err != nil {
+		return model.TaskMeta{}, err
+	}
+
+	if err := WriteTaskMeta(tasksDir, meta); err != nil {
+		return model.TaskMeta{}, err
+	}
+	return meta, nil
+}
+
+func SnapshotTaskMeta(tasksDir string) (model.TaskMeta, error) {
 	now := time.Now().UTC()
 	meta := model.TaskMeta{
 		CreatedAt: now,
@@ -65,9 +77,6 @@ func RefreshTaskMeta(tasksDir string) (model.TaskMeta, error) {
 	meta.Completed = completed
 	meta.Pending = total - completed
 
-	if err := WriteTaskMeta(tasksDir, meta); err != nil {
-		return model.TaskMeta{}, err
-	}
 	return meta, nil
 }
 

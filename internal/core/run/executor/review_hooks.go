@@ -59,7 +59,7 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 		},
 	)
 
-	meta, err := tasks.RefreshTaskMeta(j.cfg.TasksDir)
+	meta, err := tasks.SnapshotTaskMeta(j.cfg.TasksDir)
 	if err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (j *jobExecutionContext) afterTaskJobSuccess(jb *job) error {
 		},
 	)
 	j.runtimeLogger().Info(
-		"updated task workflow metadata",
+		"refreshed task workflow summary",
 		"tasks_dir",
 		j.cfg.TasksDir,
 		"completed",
@@ -135,7 +135,7 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 		return err
 	}
 
-	meta, err := reviews.RefreshRoundMeta(j.cfg.ReviewsDir)
+	meta, err := reviews.SnapshotRoundMeta(j.cfg.ReviewsDir)
 	if err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (j *jobExecutionContext) afterReviewJobSuccess(ctx context.Context, jb *job
 		},
 	)
 	j.runtimeLogger().Info(
-		"updated review round metadata",
+		"refreshed review round summary",
 		"provider",
 		meta.Provider,
 		"pr",

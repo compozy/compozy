@@ -365,7 +365,7 @@ func configureWorkflowInput(prep *model.SolvePreparation, cfg *model.RuntimeConf
 		return configureReviewInput(prep, cfg)
 	}
 
-	if _, err := tasks.RefreshTaskMeta(prep.InputDirPath); err != nil {
+	if _, err := tasks.SnapshotTaskMeta(prep.InputDirPath); err != nil {
 		return err
 	}
 	cfg.TasksDir = prep.InputDirPath

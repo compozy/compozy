@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -60,6 +61,7 @@ type RunManagerConfig struct {
 	Execute              func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error
 	ExecuteExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
 	LoadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
+	WatcherDebounce      time.Duration
 }
 
 // RunManager owns daemon-backed task, review, and exec runs.
@@ -73,6 +75,7 @@ type RunManager struct {
 	executeExec          func(context.Context, *model.RuntimeConfig, model.RunScope) error
 	loadProjectConfig    func(context.Context, string) (workspacecfg.ProjectConfig, error)
 	shutdownDrainTimeout time.Duration
+	watcherDebounce      time.Duration
 
 	mu     sync.RWMutex
 	active map[string]*activeRun
@@ -87,6 +90,8 @@ type activeRun struct {
 	ctx          context.Context
 	cancel       context.CancelFunc
 	done         chan struct{}
+	workflowRoot string
+	watcher      *workflowWatcher
 
 	stateMu         sync.RWMutex
 	cancelRequested bool
@@ -126,6 +131,7 @@ type startRunSpec struct {
 	workspace        globaldb.Workspace
 	workflowID       *string
 	workflowSlug     string
+	workflowRoot     string
 	mode             string
 	presentationMode string
 	runtimeCfg       *model.RuntimeConfig
@@ -159,81 +165,114 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		return nil, errors.New("daemon: run manager global db is required")
 	}
 
-	lifecycleCtx := cfg.LifecycleContext
-	if lifecycleCtx == nil {
-		lifecycleCtx = context.Background()
-	}
-
-	now := cfg.Now
-	if now == nil {
-		now = func() time.Time {
-			return time.Now().UTC()
-		}
-	}
-
-	openRunScope := cfg.OpenRunScope
-	if openRunScope == nil {
-		openRunScope = model.OpenRunScope
-	}
-
-	prepare := cfg.Prepare
-	if prepare == nil {
-		prepare = plan.Prepare
-	}
-
-	execute := cfg.Execute
-	if execute == nil {
-		execute = func(ctx context.Context, prep *model.SolvePreparation, runtimeCfg *model.RuntimeConfig) error {
-			if prep == nil {
-				return errors.New("daemon: workflow preparation is required")
-			}
-			return runpkg.Execute(
-				ctx,
-				prep.Jobs,
-				prep.RunArtifacts,
-				prep.Journal(),
-				prep.EventBus(),
-				runtimeCfg,
-				prep.RuntimeManager(),
-			)
-		}
-	}
-
-	executeExec := cfg.ExecuteExec
-	if executeExec == nil {
-		executeExec = runpkg.ExecuteExec
-	}
-
-	loadProjectConfig := cfg.LoadProjectConfig
-	if loadProjectConfig == nil {
-		loadProjectConfig = func(ctx context.Context, root string) (workspacecfg.ProjectConfig, error) {
-			projectCfg, _, err := workspacecfg.LoadConfig(ctx, root)
-			return projectCfg, err
-		}
-	}
-
-	shutdownDrainTimeout := cfg.ShutdownDrainTimeout
-	if shutdownDrainTimeout <= 0 {
-		if settings, _, err := LoadRunLifecycleSettings(context.Background()); err == nil {
-			shutdownDrainTimeout = settings.ShutdownDrainTimeout
-		}
-		if shutdownDrainTimeout <= 0 {
-			shutdownDrainTimeout = defaultShutdownDrainTimeout
-		}
-	}
-
 	return &RunManager{
 		globalDB:             cfg.GlobalDB,
-		lifecycleCtx:         lifecycleCtx,
-		now:                  now,
-		openRunScope:         openRunScope,
-		prepare:              prepare,
-		execute:              execute,
-		executeExec:          executeExec,
-		loadProjectConfig:    loadProjectConfig,
-		shutdownDrainTimeout: shutdownDrainTimeout,
+		lifecycleCtx:         resolveRunManagerLifecycleContext(cfg.LifecycleContext),
+		now:                  resolveRunManagerNow(cfg.Now),
+		openRunScope:         resolveRunManagerOpenRunScope(cfg.OpenRunScope),
+		prepare:              resolveRunManagerPrepare(cfg.Prepare),
+		execute:              resolveRunManagerExecute(cfg.Execute),
+		executeExec:          resolveRunManagerExecuteExec(cfg.ExecuteExec),
+		loadProjectConfig:    resolveRunManagerLoadProjectConfig(cfg.LoadProjectConfig),
+		shutdownDrainTimeout: resolveRunManagerShutdownDrainTimeout(cfg.ShutdownDrainTimeout),
+		watcherDebounce:      resolveWatcherDebounce(cfg.WatcherDebounce),
 		active:               make(map[string]*activeRun),
 	}, nil
+}
+
+func resolveRunManagerLifecycleContext(ctx context.Context) context.Context {
+	if ctx != nil {
+		return ctx
+	}
+	return context.Background()
+}
+
+func resolveRunManagerNow(now func() time.Time) func() time.Time {
+	if now != nil {
+		return now
+	}
+	return func() time.Time {
+		return time.Now().UTC()
+	}
+}
+
+func resolveRunManagerOpenRunScope(
+	openRunScope func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error),
+) func(context.Context, *model.RuntimeConfig, model.OpenRunScopeOptions) (model.RunScope, error) {
+	if openRunScope != nil {
+		return openRunScope
+	}
+	return model.OpenRunScope
+}
+
+func resolveRunManagerPrepare(
+	prepare func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error),
+) func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+	if prepare != nil {
+		return prepare
+	}
+	return plan.Prepare
+}
+
+func resolveRunManagerExecute(
+	execute func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error,
+) func(context.Context, *model.SolvePreparation, *model.RuntimeConfig) error {
+	if execute != nil {
+		return execute
+	}
+	return func(ctx context.Context, prep *model.SolvePreparation, runtimeCfg *model.RuntimeConfig) error {
+		if prep == nil {
+			return errors.New("daemon: workflow preparation is required")
+		}
+		return runpkg.Execute(
+			ctx,
+			prep.Jobs,
+			prep.RunArtifacts,
+			prep.Journal(),
+			prep.EventBus(),
+			runtimeCfg,
+			prep.RuntimeManager(),
+		)
+	}
+}
+
+func resolveRunManagerExecuteExec(
+	executeExec func(context.Context, *model.RuntimeConfig, model.RunScope) error,
+) func(context.Context, *model.RuntimeConfig, model.RunScope) error {
+	if executeExec != nil {
+		return executeExec
+	}
+	return runpkg.ExecuteExec
+}
+
+func resolveRunManagerLoadProjectConfig(
+	loadProjectConfig func(context.Context, string) (workspacecfg.ProjectConfig, error),
+) func(context.Context, string) (workspacecfg.ProjectConfig, error) {
+	if loadProjectConfig != nil {
+		return loadProjectConfig
+	}
+	return func(ctx context.Context, root string) (workspacecfg.ProjectConfig, error) {
+		projectCfg, _, err := workspacecfg.LoadConfig(ctx, root)
+		return projectCfg, err
+	}
+}
+
+func resolveRunManagerShutdownDrainTimeout(timeout time.Duration) time.Duration {
+	if timeout > 0 {
+		return timeout
+	}
+	if settings, _, err := LoadRunLifecycleSettings(context.Background()); err == nil &&
+		settings.ShutdownDrainTimeout > 0 {
+		return settings.ShutdownDrainTimeout
+	}
+	return defaultShutdownDrainTimeout
+}
+
+func resolveWatcherDebounce(debounce time.Duration) time.Duration {
+	if debounce > 0 {
+		return debounce
+	}
+	return defaultWatcherDebounce
 }
 
 // StartTaskRun starts one daemon-owned task workflow run.
@@ -257,6 +296,7 @@ func (m *RunManager) StartTaskRun(
 		workspace:        workspaceRow,
 		workflowID:       workflowID,
 		workflowSlug:     strings.TrimSpace(workflowSlug),
+		workflowRoot:     strings.TrimSpace(runtimeCfg.TasksDir),
 		mode:             runModeTask,
 		presentationMode: presentationMode,
 		runtimeCfg:       runtimeCfg,
@@ -286,6 +326,7 @@ func (m *RunManager) StartReviewRun(
 		workspace:        workspaceRow,
 		workflowID:       workflowID,
 		workflowSlug:     strings.TrimSpace(workflowSlug),
+		workflowRoot:     filepath.Dir(strings.TrimSpace(runtimeCfg.ReviewsDir)),
 		mode:             runModeReview,
 		presentationMode: presentationMode,
 		runtimeCfg:       runtimeCfg,
@@ -655,6 +696,16 @@ func (m *RunManager) prepareReviewStart(
 	return workspaceRow, workflowID, runtimeCfg, presentationMode, nil
 }
 
+func (m *RunManager) syncWorkflowBeforeRun(ctx context.Context, workflowRoot string) error {
+	if strings.TrimSpace(workflowRoot) == "" {
+		return nil
+	}
+	if _, err := corepkg.SyncDirect(ctx, model.SyncConfig{TasksDir: workflowRoot}); err != nil {
+		return fmt.Errorf("daemon: sync workflow %s before run: %w", workflowRoot, err)
+	}
+	return nil
+}
+
 func (m *RunManager) prepareExecStart(
 	ctx context.Context,
 	req apicore.ExecRequest,
@@ -845,7 +896,31 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 			cancel()
 		}
 	}()
-	active := &activeRun{
+	active := newActiveRun(runCtx, cancel, row, spec, scope)
+	if err := m.syncWorkflowBeforeRun(runCtx, active.workflowRoot); err != nil {
+		active.cancel()
+		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, err)
+	}
+	if err := m.startWatcher(active); err != nil {
+		active.cancel()
+		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, err)
+	}
+	m.setActive(active)
+
+	go m.runAsync(active, row, runtimeCfg)
+	started = true
+
+	return m.toCoreRun(detachContext(ctx), row, active.workflowSlug)
+}
+
+func newActiveRun(
+	runCtx context.Context,
+	cancel context.CancelFunc,
+	row globaldb.Run,
+	spec startRunSpec,
+	scope model.RunScope,
+) *activeRun {
+	return &activeRun{
 		runID:        row.RunID,
 		workspaceID:  row.WorkspaceID,
 		workflowSlug: strings.TrimSpace(spec.workflowSlug),
@@ -855,13 +930,47 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 		cancel:       cancel,
 		done:         make(chan struct{}),
 		closeTimeout: defaultRunCloseTimeout,
+		workflowRoot: strings.TrimSpace(spec.workflowRoot),
 	}
-	m.setActive(active)
+}
 
-	go m.runAsync(active, row, runtimeCfg)
-	started = true
+func (m *RunManager) failStartRun(
+	ctx context.Context,
+	row globaldb.Run,
+	closeTimeout time.Duration,
+	scope model.RunScope,
+	err error,
+) error {
+	failedAt := m.now().UTC()
+	row.Status = runStatusFailed
+	row.ErrorText = err.Error()
+	row.EndedAt = &failedAt
+	_, updateErr := m.globalDB.UpdateRun(detachContext(ctx), row)
+	closeErr := closeRunScope(scope, closeTimeout)
+	return errors.Join(err, updateErr, closeErr)
+}
 
-	return m.toCoreRun(detachContext(ctx), row, active.workflowSlug)
+func (m *RunManager) startWatcher(active *activeRun) error {
+	if active == nil || strings.TrimSpace(active.workflowRoot) == "" {
+		return nil
+	}
+	watcher, err := startWorkflowWatcher(active.ctx, workflowWatcherConfig{
+		WorkflowRoot: active.workflowRoot,
+		Debounce:     m.watcherDebounce,
+		Sync: func(ctx context.Context, workflowRoot string) error {
+			_, err := corepkg.SyncDirect(ctx, model.SyncConfig{TasksDir: workflowRoot})
+			return err
+		},
+		Emit: func(ctx context.Context, item artifactSyncEvent) error {
+			return emitArtifactUpdatedEvent(ctx, active.scope, active.runID, item)
+		},
+		Logger: slog.Default(),
+	})
+	if err != nil {
+		return err
+	}
+	active.setWatcher(watcher)
+	return nil
 }
 
 func (m *RunManager) runAsync(active *activeRun, row globaldb.Run, runtimeCfg *model.RuntimeConfig) {
@@ -954,6 +1063,9 @@ func (m *RunManager) executeExecRun(active *activeRun, row globaldb.Run, runtime
 
 func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback terminalState) {
 	scope := active.scope
+	if err := active.stopWatcher(); err != nil {
+		slog.Default().Warn("daemon: stop workflow watcher", "run_id", active.runID, "error", err)
+	}
 	terminal, err := resolveTerminalState(detachContext(active.ctx), scope.RunArtifacts().RunID, fallback, scope)
 	if err != nil {
 		terminal = failedTerminalState(scope.RunArtifacts(), err)
@@ -1126,6 +1238,31 @@ func (r *activeRun) currentCloseTimeout() time.Duration {
 		return defaultRunCloseTimeout
 	}
 	return r.closeTimeout
+}
+
+func (r *activeRun) setWatcher(watcher *workflowWatcher) {
+	if r == nil {
+		return
+	}
+	r.stateMu.Lock()
+	defer r.stateMu.Unlock()
+	r.watcher = watcher
+}
+
+func (r *activeRun) stopWatcher() error {
+	if r == nil {
+		return nil
+	}
+
+	r.stateMu.Lock()
+	watcher := r.watcher
+	r.watcher = nil
+	r.stateMu.Unlock()
+
+	if watcher == nil {
+		return nil
+	}
+	return watcher.Stop()
 }
 
 func ensureHomeLayout() error {
@@ -1397,6 +1534,23 @@ func submitSyntheticEvent(
 
 type submitter interface {
 	SubmitWithSeq(context.Context, eventspkg.Event) (uint64, error)
+}
+
+func emitArtifactUpdatedEvent(
+	ctx context.Context,
+	scope model.RunScope,
+	runID string,
+	item artifactSyncEvent,
+) error {
+	if scope == nil || scope.RunJournal() == nil {
+		return nil
+	}
+	payload := kinds.ArtifactUpdatedPayload{
+		Path:       strings.TrimSpace(item.RelativePath),
+		ChangeKind: strings.TrimSpace(item.ChangeKind),
+		Checksum:   strings.TrimSpace(item.Checksum),
+	}
+	return submitSyntheticEvent(ctx, scope.RunJournal(), runID, eventspkg.EventKindArtifactUpdated, payload)
 }
 
 func fallbackTerminalState(

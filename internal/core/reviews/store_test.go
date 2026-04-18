@@ -1,6 +1,7 @@
 package reviews
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -196,6 +197,58 @@ func TestRefreshRoundMetaCountsResolvedIssues(t *testing.T) {
 	}
 }
 
+func TestSnapshotRoundMetaCountsResolvedIssuesWithoutWriting(t *testing.T) {
+	t.Parallel()
+
+	reviewDir := filepath.Join(t.TempDir(), ".compozy", "tasks", "demo", "reviews-001")
+	if err := WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 3, 28, 10, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add nil check",
+			File:        "internal/app/service.go",
+			Line:        42,
+			Author:      "coderabbitai[bot]",
+			ProviderRef: "thread:PRT_1,comment:RC_1",
+			Body:        "Please add a nil check before dereferencing the pointer.",
+		},
+	}); err != nil {
+		t.Fatalf("write round: %v", err)
+	}
+
+	metaPath := MetaPath(reviewDir)
+	before, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read meta before snapshot: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(reviewDir, "issue_001.md"),
+		[]byte(strings.Replace(reviewIssueContent("pending"), "status: pending", "status: resolved", 1)),
+		0o600,
+	); err != nil {
+		t.Fatalf("rewrite issue file: %v", err)
+	}
+
+	meta, err := SnapshotRoundMeta(reviewDir)
+	if err != nil {
+		t.Fatalf("snapshot round meta: %v", err)
+	}
+	if meta.Resolved != 1 || meta.Unresolved != 0 {
+		t.Fatalf("unexpected snapshot counts: %#v", meta)
+	}
+
+	after, err := os.ReadFile(metaPath)
+	if err != nil {
+		t.Fatalf("read meta after snapshot: %v", err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Fatalf("expected snapshot to avoid rewriting round meta\nbefore:\n%s\nafter:\n%s", before, after)
+	}
+}
+
 func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 	t.Parallel()
 
@@ -305,6 +358,22 @@ func TestRefreshRoundMetaAllowsOptionalPR(t *testing.T) {
 			}
 		})
 	}
+}
+
+func reviewIssueContent(status string) string {
+	return strings.Join([]string{
+		"---",
+		"status: " + status,
+		"file: internal/app/service.go",
+		"line: 42",
+		"severity: medium",
+		"author: coderabbitai[bot]",
+		"provider_ref: thread:PRT_1,comment:RC_1",
+		"---",
+		"",
+		"# Issue 001: Example",
+		"",
+	}, "\n")
 }
 
 func TestDiscoverRoundsAndNextRound(t *testing.T) {

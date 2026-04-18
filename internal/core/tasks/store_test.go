@@ -128,6 +128,25 @@ func TestRefreshTaskMetaRejectsV1TaskArtifacts(t *testing.T) {
 	}
 }
 
+func TestSnapshotTaskMetaDoesNotCreateMetadataFile(t *testing.T) {
+	t.Parallel()
+
+	tasksDir := t.TempDir()
+	writeTaskFile(t, tasksDir, "task_01.md", "pending")
+	writeTaskFile(t, tasksDir, "task_02.md", "completed")
+
+	meta, err := SnapshotTaskMeta(tasksDir)
+	if err != nil {
+		t.Fatalf("snapshot task meta: %v", err)
+	}
+	if meta.Total != 2 || meta.Completed != 1 || meta.Pending != 1 {
+		t.Fatalf("unexpected snapshot counts: %#v", meta)
+	}
+	if _, err := os.Stat(MetaPath(tasksDir)); !os.IsNotExist(err) {
+		t.Fatalf("expected snapshot to avoid writing _meta.md, got %v", err)
+	}
+}
+
 func TestMarkTaskCompletedRewritesStatusAndPreservesBody(t *testing.T) {
 	t.Parallel()
 

@@ -106,12 +106,12 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 		t.Fatalf("expected 1 resolved issue sent to provider, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
 	}
 }
 
@@ -183,12 +183,12 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 		t.Fatalf("expected no provider-backed issues to be resolved, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
 	}
 }
 
@@ -271,15 +271,15 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 		t.Fatalf("expected 1 resolved issue sent to provider, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.PR != "" {
 		t.Fatalf("expected empty pr after refresh, got %q", meta.PR)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
 	}
 }
 
@@ -420,12 +420,12 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 		t.Fatalf("expected updated task file to be completed, got:\n%s", string(updatedTask))
 	}
 
-	meta, err := tasks.ReadTaskMeta(tasksDir)
+	meta, err := tasks.SnapshotTaskMeta(tasksDir)
 	if err != nil {
-		t.Fatalf("read task meta: %v", err)
+		t.Fatalf("snapshot task meta: %v", err)
 	}
 	if meta.Total != 1 || meta.Completed != 1 || meta.Pending != 0 {
-		t.Fatalf("unexpected refreshed task meta: %#v", meta)
+		t.Fatalf("unexpected refreshed task snapshot: %#v", meta)
 	}
 
 	events := collectRuntimeEvents(t, eventsCh, 2)
@@ -532,12 +532,12 @@ func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
 		t.Fatalf("expected 1 resolved issue sent to provider, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
 	}
 
 	events := collectRuntimeEvents(t, eventsCh, 5)
@@ -1036,12 +1036,12 @@ func TestRefreshTaskMetaOnExitUpdatesAggregateCounts(t *testing.T) {
 		TasksDir: tasksDir,
 	})
 
-	meta, err := tasks.ReadTaskMeta(tasksDir)
+	meta, err := tasks.SnapshotTaskMeta(tasksDir)
 	if err != nil {
-		t.Fatalf("read task meta: %v", err)
+		t.Fatalf("snapshot task meta: %v", err)
 	}
 	if meta.Total != 1 || meta.Completed != 0 || meta.Pending != 1 {
-		t.Fatalf("unexpected exit-refreshed task meta: %#v", meta)
+		t.Fatalf("unexpected exit-refreshed task snapshot: %#v", meta)
 	}
 }
 

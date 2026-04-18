@@ -128,7 +128,7 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 		return nil, err
 	}
 
-	refreshedMeta, err := tasks.RefreshTaskMeta(tasksDir)
+	refreshedMeta, err := tasks.SnapshotTaskMeta(tasksDir)
 	if err != nil {
 		return nil, err
 	}

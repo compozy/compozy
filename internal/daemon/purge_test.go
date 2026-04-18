@@ -91,6 +91,36 @@ func TestRunManagerPurgeRemovesTerminalRunsOldestFirstWithoutTouchingActiveRuns(
 	}
 }
 
+func TestPurgeTerminalRunsDelegatesToManagerPurge(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister(%q) error = %v", env.workspaceRoot, err)
+	}
+
+	runID := "purge-wrapper-old"
+	seedTerminalRunForPurge(
+		t,
+		env.globalDB,
+		workspace.ID,
+		runID,
+		runStatusCompleted,
+		time.Now().UTC().AddDate(0, 0, -30),
+	)
+
+	result, err := PurgeTerminalRuns(context.Background(), env.globalDB, RunLifecycleSettings{
+		KeepTerminalDays: 0,
+		KeepMax:          0,
+	})
+	if err != nil {
+		t.Fatalf("PurgeTerminalRuns() error = %v", err)
+	}
+	if got, want := result.PurgedRunIDs, []string{runID}; !equalStrings(got, want) {
+		t.Fatalf("purged run ids = %v, want %v", got, want)
+	}
+}
+
 func seedTerminalRunForPurge(
 	t *testing.T,
 	db *globaldb.GlobalDB,

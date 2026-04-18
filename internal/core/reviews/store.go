@@ -192,6 +192,18 @@ func ReadRoundMeta(reviewDir string) (model.RoundMeta, error) {
 }
 
 func RefreshRoundMeta(reviewDir string) (model.RoundMeta, error) {
+	meta, err := SnapshotRoundMeta(reviewDir)
+	if err != nil {
+		return model.RoundMeta{}, err
+	}
+
+	if err := WriteRoundMeta(reviewDir, meta); err != nil {
+		return model.RoundMeta{}, err
+	}
+	return meta, nil
+}
+
+func SnapshotRoundMeta(reviewDir string) (model.RoundMeta, error) {
 	meta, err := ReadRoundMeta(reviewDir)
 	if err != nil {
 		return model.RoundMeta{}, err
@@ -215,9 +227,6 @@ func RefreshRoundMeta(reviewDir string) (model.RoundMeta, error) {
 	}
 	meta.Unresolved = meta.Total - meta.Resolved
 
-	if err := WriteRoundMeta(reviewDir, meta); err != nil {
-		return model.RoundMeta{}, err
-	}
 	return meta, nil
 }
 

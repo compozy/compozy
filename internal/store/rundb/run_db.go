@@ -907,8 +907,8 @@ func projectArtifactSync(item events.Event) (ArtifactSyncRow, bool, error) {
 		return ArtifactSyncRow{
 			Sequence:     item.Seq,
 			RelativePath: strings.TrimSpace(payload.Path),
-			ChangeKind:   "artifact_updated",
-			Checksum:     "",
+			ChangeKind:   firstNonEmpty(strings.TrimSpace(payload.ChangeKind), "artifact_updated"),
+			Checksum:     strings.TrimSpace(payload.Checksum),
 			SyncedAt:     item.Timestamp.UTC(),
 		}, true, nil
 	default:
