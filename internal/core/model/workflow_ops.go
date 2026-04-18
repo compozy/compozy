@@ -68,5 +68,6 @@ type ArchiveResult struct {
 	Archived         int
 	Skipped          int
 	ArchivedPaths    []string
+	SkippedPaths     []string
 	SkippedReasons   map[string]string
 }

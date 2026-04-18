@@ -31,7 +31,7 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 		return result, err
 	}
 
-	db, workspace, err := openSyncGlobalDB(ctx, target)
+	db, workspace, err := openWorkflowGlobalDB(ctx, target)
 	if err != nil {
 		return result, err
 	}
@@ -67,7 +67,7 @@ func syncTaskMetadata(ctx context.Context, cfg SyncConfig) (*SyncResult, error) 
 	return result, nil
 }
 
-func openSyncGlobalDB(
+func openWorkflowGlobalDB(
 	ctx context.Context,
 	targetPath string,
 ) (*globaldb.GlobalDB, globaldb.Workspace, error) {

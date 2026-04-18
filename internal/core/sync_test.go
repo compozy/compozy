@@ -472,16 +472,16 @@ func TestSyncHelpersClassifyKindsAndSortResults(t *testing.T) {
 	sortSyncResult(nil)
 }
 
-func TestOpenSyncGlobalDBRegistersWorkspaceAndRejectsMissingTargets(t *testing.T) {
+func TestOpenWorkflowGlobalDBRegistersWorkspaceAndRejectsMissingTargets(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	setSyncTestHome(t)
 
 	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
 	writeSyncWorkflowFile(t, workflowDir, "task_01.md", taskBody("pending", "Demo"))
 
-	db, workspace, err := openSyncGlobalDB(context.Background(), workflowDir)
+	db, workspace, err := openWorkflowGlobalDB(context.Background(), workflowDir)
 	if err != nil {
-		t.Fatalf("openSyncGlobalDB(valid): %v", err)
+		t.Fatalf("openWorkflowGlobalDB(valid): %v", err)
 	}
 	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
 	if err != nil {
@@ -494,7 +494,7 @@ func TestOpenSyncGlobalDBRegistersWorkspaceAndRejectsMissingTargets(t *testing.T
 		t.Fatalf("Close(): %v", err)
 	}
 
-	if _, _, err := openSyncGlobalDB(context.Background(), filepath.Join(workspaceRoot, "missing")); err == nil {
+	if _, _, err := openWorkflowGlobalDB(context.Background(), filepath.Join(workspaceRoot, "missing")); err == nil {
 		t.Fatal("expected missing sync target to fail workspace resolution")
 	}
 }
@@ -508,9 +508,9 @@ func TestSyncWorkflowRejectsNilInputs(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")
 	writeSyncWorkflowFile(t, workflowDir, "task_01.md", taskBody("pending", "Demo"))
-	db, _, err := openSyncGlobalDB(context.Background(), workflowDir)
+	db, _, err := openWorkflowGlobalDB(context.Background(), workflowDir)
 	if err != nil {
-		t.Fatalf("openSyncGlobalDB(): %v", err)
+		t.Fatalf("openWorkflowGlobalDB(): %v", err)
 	}
 	defer func() {
 		_ = db.Close()

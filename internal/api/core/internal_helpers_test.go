@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +109,22 @@ func TestProblemAndHelperFunctions(t *testing.T) {
 	}
 	if details := detailsForError(runSchemaErr); details["database"] != "rundb" {
 		t.Fatalf("detailsForError(run schema too new) database = %v, want rundb", details["database"])
+	}
+
+	archiveConflict := globaldb.WorkflowActiveRunsError{Slug: "daemon", ActiveRuns: 1}
+	if got := statusForError(archiveConflict); got != http.StatusConflict {
+		t.Fatalf("statusForError(active run archive conflict) = %d, want 409", got)
+	}
+	if got := messageForError(http.StatusConflict, archiveConflict); !strings.Contains(got, "active run") {
+		t.Fatalf("messageForError(active run archive conflict) = %q, want active run detail", got)
+	}
+
+	notArchivable := globaldb.WorkflowNotArchivableError{
+		Slug:   "daemon",
+		Reason: "task workflow not fully completed",
+	}
+	if got := statusForError(notArchivable); got != http.StatusConflict {
+		t.Fatalf("statusForError(not archivable) = %d, want 409", got)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

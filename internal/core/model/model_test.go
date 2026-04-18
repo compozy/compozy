@@ -195,6 +195,17 @@ func TestPathHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should build the archived workflow name with timestamp millis and short id", func(t *testing.T) {
+		t.Parallel()
+
+		archivedAt := time.Date(2026, 4, 17, 18, 45, 12, 345000000, time.UTC)
+		got := model.ArchivedWorkflowName("daemon", "wf-a1b2c3d4e5f60708", archivedAt)
+		want := "1776451512345-a1b2c3d4-daemon"
+		if got != want {
+			t.Fatalf("ArchivedWorkflowName() = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should build run artifact paths under the workspace runs directory", func(t *testing.T) {
 		t.Parallel()
 

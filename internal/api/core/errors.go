@@ -82,6 +82,9 @@ func statusForError(err error) int {
 		errors.Is(err, globaldb.ErrRunNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, globaldb.ErrWorkspaceHasActiveRuns),
+		errors.Is(err, globaldb.ErrWorkflowArchived),
+		errors.Is(err, globaldb.ErrWorkflowHasActiveRuns),
+		errors.Is(err, globaldb.ErrWorkflowNotArchivable),
 		errors.Is(err, globaldb.ErrWorkflowSlugConflict),
 		errors.Is(err, globaldb.ErrRunAlreadyExists),
 		errors.Is(err, globaldb.ErrSchemaTooNew),

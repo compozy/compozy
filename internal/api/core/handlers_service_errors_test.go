@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
@@ -175,6 +176,20 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			`{"workspace":"ws-1"}`,
 			http.StatusInternalServerError,
 			"internal_error",
+		},
+		{
+			"task archive active run conflict",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: globaldb.WorkflowActiveRunsError{
+				WorkspaceID: "ws-1",
+				WorkflowID:  "wf-1",
+				Slug:        "daemon",
+				ActiveRuns:  1,
+			}}},
+			http.MethodPost,
+			"/api/tasks/daemon/archive",
+			`{"workspace":"ws-1"}`,
+			http.StatusConflict,
+			"conflict",
 		},
 		{
 			"review fetch service error",

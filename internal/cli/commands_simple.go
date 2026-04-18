@@ -100,10 +100,11 @@ func newArchiveCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		Long: `Archive fully completed workflows under .compozy/tasks by moving them into
-.compozy/tasks/_archived/<timestamp>-<name>.
+.compozy/tasks/_archived/<timestamp-ms>-<shortid>-<slug>.
 
-Eligible workflows must already have task _meta.md present, all task files completed, and all
-review round _meta.md files fully resolved when review rounds exist.`,
+Archive eligibility is determined from synced global.db task and review state rather than
+filesystem metadata files. Single-workflow archive requests reject active runs and incomplete
+workflow state; workspace-wide archive requests skip ineligible workflows deterministically.`,
 		Example: `  compozy archive
   compozy archive --name my-feature
   compozy archive --tasks-dir .compozy/tasks/my-feature`,
@@ -279,6 +280,12 @@ func (s *archiveCommandState) run(cmd *cobra.Command, _ []string) error {
 			result.Archived,
 			result.Skipped,
 		)
+		for _, path := range result.ArchivedPaths {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Archived path: %s\n", path)
+		}
+		for _, path := range result.SkippedPaths {
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Skipped workflow: %s (%s)\n", path, result.SkippedReasons[path])
+		}
 	}
 	return err
 }

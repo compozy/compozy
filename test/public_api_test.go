@@ -141,9 +141,8 @@ func TestSyncExposePublicAPI(t *testing.T) {
 }
 
 func TestArchiveExposePublicAPI(t *testing.T) {
-	t.Parallel()
-
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(tmpDir, "home"))
 	workflowDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
 	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
 		t.Fatalf("mkdir workflow dir: %v", err)
@@ -162,20 +161,8 @@ func TestArchiveExposePublicAPI(t *testing.T) {
 		t.Fatalf("write task file: %v", err)
 	}
 
-	metaContent := strings.Join([]string{
-		"---",
-		"created_at: 2026-04-01T12:00:00Z",
-		"updated_at: 2026-04-01T12:00:00Z",
-		"---",
-		"",
-		"## Summary",
-		"- Total: 1",
-		"- Completed: 1",
-		"- Pending: 0",
-		"",
-	}, "\n")
-	if err := os.WriteFile(filepath.Join(workflowDir, "_meta.md"), []byte(metaContent), 0o600); err != nil {
-		t.Fatalf("write task meta: %v", err)
+	if _, err := compozy.Sync(context.Background(), compozy.SyncConfig{TasksDir: workflowDir}); err != nil {
+		t.Fatalf("sync before archive: %v", err)
 	}
 
 	result, err := compozy.Archive(context.Background(), compozy.ArchiveConfig{TasksDir: workflowDir})
