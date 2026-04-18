@@ -11,7 +11,7 @@ dependencies:
 
 ## Overview
 
-Execute the full QA pass for the daemon migration using the artifacts from `task_18`, and leave fresh evidence for the CLI, API, TUI, sync/archive, review, exec, and `pkg/compozy/runs` surfaces. This task is responsible for turning the daemon QA plan into real validation, fixing root-cause regressions when they appear, and publishing a verification report backed by current repository evidence.
+Execute the full QA pass for the daemon migration using the artifacts from `task_18`, and leave fresh evidence for the CLI, API, TUI, sync/archive, review, exec, and `pkg/compozy/runs` surfaces. This task is responsible for turning the daemon QA plan into real validation, fixing root-cause regressions when they appear, and publishing a verification report backed by current repository evidence. The execution matrix must also prove that daemon-backed `tasks` and `reviews` still work against a realistic temporary external workspace by creating and exercising a minimal Node.js API project with `.compozy/tasks/<slug>/` artifacts and review rounds.
 
 <critical>
 - ALWAYS READ `_techspec.md`, ADRs, and the QA artifacts from `task_18` before running any validation
@@ -27,16 +27,17 @@ Execute the full QA pass for the daemon migration using the artifacts from `task
 1. MUST use the `/qa-execution` skill with `qa-output-path=.compozy/tasks/daemon`.
 2. MUST consume `.compozy/tasks/daemon/qa/test-plans/` and `.compozy/tasks/daemon/qa/test-cases/` from `task_18` as the execution matrix seed.
 3. MUST validate daemon bootstrap/recovery, workspace registry flows, task runs, review runs, exec runs, sync/archive behavior, attach/watch behavior, UDS/HTTP parity, and `pkg/compozy/runs` compatibility using real repository entrypoints.
-4. MUST write fresh QA evidence to `.compozy/tasks/daemon/qa/verification-report.md` and capture bugs/screenshots/logs under the same artifact root when relevant.
-5. MUST add or update regression coverage for any daemon regression discovered during execution using the narrowest durable test surface that matches the failing behavior.
-6. MUST rerun the repository verification gates after the last fix, including `make verify`, and include the executed commands in the final verification report.
-7. SHOULD record browser or TUI flows as `Blocked` or `Manual-only` only when the repository truly lacks a stable automation harness for that surface.
+4. MUST validate at least one daemon-backed operator flow against a temporary external workspace, using a minimal Node.js API project plus `.compozy/tasks/<slug>/` and `reviews-NNN/` artifacts, and capture the exact commands and evidence under `.compozy/tasks/daemon/qa/`.
+5. MUST write fresh QA evidence to `.compozy/tasks/daemon/qa/verification-report.md` and capture bugs/screenshots/logs under the same artifact root when relevant.
+6. MUST add or update regression coverage for any daemon regression discovered during execution using the narrowest durable test surface that matches the failing behavior.
+7. MUST rerun the repository verification gates after the last fix, including `make verify`, and include the executed commands in the final verification report.
+8. SHOULD record browser or TUI flows as `Blocked` or `Manual-only` only when the repository truly lacks a stable automation harness for that surface.
 </requirements>
 
 ## Subtasks
 - [x] 19.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/daemon` and derive the execution matrix from `task_18` artifacts
 - [x] 19.2 Discover the repository QA contract, establish the daemon baseline, and document any existing blockers before scenario testing
-- [x] 19.3 Execute CLI, API, transport-parity, sync/archive, review, exec, attach/watch, and `pkg/compozy/runs` scenarios with durable evidence capture
+- [x] 19.3 Execute CLI, API, transport-parity, sync/archive, review, exec, attach/watch, `pkg/compozy/runs`, and temporary external-workspace scenarios with durable evidence capture
 - [x] 19.4 Fix root-cause regressions with matching regression coverage and rerun the impacted daemon scenarios
 - [x] 19.5 Rerun `make verify`, finalize `.compozy/tasks/daemon/qa/verification-report.md`, and publish any bug artifacts or blockers
 
@@ -53,6 +54,7 @@ See TechSpec sections "Testing Approach", "Known Risks", "Development Sequencing
 - `.agents/skills/qa-execution/assets/issue-template.md` — required bug report template shared with `qa-report`
 - `.compozy/tasks/daemon/qa/test-plans/` — planning artifacts that seed the execution matrix
 - `.compozy/tasks/daemon/qa/test-cases/` — test cases and automation annotations that the execution pass must honor
+- `.compozy/tasks/daemon/qa/test-cases/TC-INT-004.md` — temporary Node.js workspace operator-flow case for daemon-backed `tasks` and `reviews`
 - `Makefile` — repository-defined verification gate that must pass before completion
 - `internal/cli/root_command_execution_test.go` — broad CLI regression suite for daemon-backed command behavior
 - `internal/core/run/executor/execution_ui_test.go` — integration seam for attach/watch and UI-oriented daemon execution behavior
@@ -78,7 +80,7 @@ See TechSpec sections "Testing Approach", "Known Risks", "Development Sequencing
 - Fresh `.compozy/tasks/daemon/qa/verification-report.md` produced by `/qa-execution`
 - Fresh issue reports and supporting artifacts under `.compozy/tasks/daemon/qa/` for any regressions found **(REQUIRED)**
 - Root-cause bug fixes plus matching regression tests for any issues discovered during execution **(REQUIRED)**
-- Fresh evidence for daemon bootstrap, workspace, sync/archive, review, exec, attach/watch, transport parity, and public run-reader flows **(REQUIRED)**
+- Fresh evidence for daemon bootstrap, workspace, sync/archive, review, exec, attach/watch, transport parity, public run-reader flows, and one temporary external-workspace operator flow **(REQUIRED)**
 - Passing `make verify` after the final QA fixes **(REQUIRED)**
 
 ## Tests

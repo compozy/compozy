@@ -1531,6 +1531,188 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	}
 }
 
+func TestTaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLINodeWorkflowFixture(t, workspaceRoot, "node-health")
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	chdirCLITest(t, workspaceRoot)
+
+	installInProcessCLIDaemonBootstrap(t)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+
+	syncStdout, syncStderr, err := executeCommandCapturingProcessIO(
+		t,
+		newRootCommandWithDefaults(newLazyRootDispatcher(), defaults),
+		nil,
+		"sync",
+		"--name",
+		"node-health",
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute sync for review fixture: %v\nstdout:\n%s\nstderr:\n%s", err, syncStdout, syncStderr)
+	}
+	var syncPayload struct {
+		WorkflowSlug         string `json:"workflow_slug"`
+		ReviewRoundsUpserted int    `json:"review_rounds_upserted"`
+		ReviewIssuesUpserted int    `json:"review_issues_upserted"`
+	}
+	if err := json.Unmarshal([]byte(syncStdout), &syncPayload); err != nil {
+		t.Fatalf("decode sync payload: %v\nstdout:\n%s", err, syncStdout)
+	}
+	if syncPayload.WorkflowSlug != "node-health" ||
+		syncPayload.ReviewRoundsUpserted != 1 ||
+		syncPayload.ReviewIssuesUpserted != 1 {
+		t.Fatalf("unexpected sync payload: %#v", syncPayload)
+	}
+
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		newRootCommandWithDefaults(newLazyRootDispatcher(), defaults),
+		nil,
+		"tasks",
+		"run",
+		"node-health",
+		"--dry-run",
+		"--stream",
+	)
+	if err != nil {
+		t.Fatalf("execute tasks run dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected task preflight success on stderr, got %q", stderr)
+	}
+	if !strings.Contains(stdout, "task run started:") || !strings.Contains(stdout, "(mode=stream)") {
+		t.Fatalf("unexpected tasks run stdout: %q", stdout)
+	}
+
+	runDirs := runDirsForCLI(t)
+	if len(runDirs) != 1 {
+		t.Fatalf("expected one run dir after task dry-run, got %d (%v)", len(runDirs), runDirs)
+	}
+	taskRunDir := runDirs[0]
+	taskRunMeta := readCLIArtifactJSON(t, filepath.Join(taskRunDir, "run.json"))
+	if got := taskRunMeta["mode"]; got != string(model.ExecutionModePRDTasks) {
+		t.Fatalf("unexpected task run mode: %#v", taskRunMeta)
+	}
+	taskResult := readCLIArtifactJSON(t, filepath.Join(taskRunDir, "result.json"))
+	if got := taskResult["status"]; got != "succeeded" {
+		t.Fatalf("unexpected task result payload: %#v", taskResult)
+	}
+	taskPromptPath := singleCLIJobArtifact(t, taskRunDir, "*.prompt.md")
+	taskPromptBytes, err := os.ReadFile(taskPromptPath)
+	if err != nil {
+		t.Fatalf("read task prompt artifact: %v", err)
+	}
+	for _, want := range []string{"Add Ready Endpoint", "GET /ready", "src/server.js"} {
+		if !strings.Contains(string(taskPromptBytes), want) {
+			t.Fatalf("expected task prompt to contain %q, got:\n%s", want, string(taskPromptBytes))
+		}
+	}
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobCompleted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(cliRuntimeEventKinds(t, filepath.Join(taskRunDir, "events.jsonl")), want) {
+			t.Fatalf("expected task runtime events to include %s", want)
+		}
+	}
+
+	listOutput, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(defaults),
+		nil,
+		"list",
+		"node-health",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews list: %v\noutput:\n%s", err, listOutput)
+	}
+	if !containsAll(
+		listOutput,
+		"node-health round 001",
+		"provider=manual",
+		"pr=fixture",
+		"unresolved=1",
+		"resolved=0",
+	) {
+		t.Fatalf("unexpected reviews list output:\n%s", listOutput)
+	}
+
+	showOutput, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(defaults),
+		nil,
+		"show",
+		"node-health",
+		"1",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews show: %v\noutput:\n%s", err, showOutput)
+	}
+	if !containsAll(
+		showOutput,
+		"node-health round 001",
+		"- issue_001 | status=pending severity=warning path=reviews-001/issue_001.md",
+	) {
+		t.Fatalf("unexpected reviews show output:\n%s", showOutput)
+	}
+
+	stdout, stderr, err = executeCommandCapturingProcessIO(
+		t,
+		newRootCommandWithDefaults(newLazyRootDispatcher(), defaults),
+		nil,
+		"reviews",
+		"fix",
+		"node-health",
+		"--round",
+		"1",
+		"--dry-run",
+		"--stream",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews fix dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if stdout == "" || !strings.Contains(stdout, "task run started:") || !strings.Contains(stdout, "(mode=stream)") {
+		t.Fatalf("unexpected reviews fix stdout: %q", stdout)
+	}
+
+	runDirsAfterReview := runDirsForCLI(t)
+	if len(runDirsAfterReview) != 2 {
+		t.Fatalf("expected two run dirs after review dry-run, got %d (%v)", len(runDirsAfterReview), runDirsAfterReview)
+	}
+	reviewRunDir := newCLIRunDir(t, runDirs, runDirsAfterReview)
+	reviewRunMeta := readCLIArtifactJSON(t, filepath.Join(reviewRunDir, "run.json"))
+	if got := reviewRunMeta["mode"]; got != string(model.ModeCodeReview) {
+		t.Fatalf("unexpected review run mode: %#v", reviewRunMeta)
+	}
+	reviewResult := readCLIArtifactJSON(t, filepath.Join(reviewRunDir, "result.json"))
+	if got := reviewResult["status"]; got != "succeeded" {
+		t.Fatalf("unexpected review result payload: %#v", reviewResult)
+	}
+	reviewPromptPath := singleCLIJobArtifact(t, reviewRunDir, "*.prompt.md")
+	reviewPromptBytes, err := os.ReadFile(reviewPromptPath)
+	if err != nil {
+		t.Fatalf("read review prompt artifact: %v", err)
+	}
+	for _, want := range []string{"`cy-fix-reviews`", "issue_001.md", "src/server.js"} {
+		if !strings.Contains(string(reviewPromptBytes), want) {
+			t.Fatalf("expected review prompt to contain %q, got:\n%s", want, string(reviewPromptBytes))
+		}
+	}
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobCompleted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(cliRuntimeEventKinds(t, filepath.Join(reviewRunDir, "events.jsonl")), want) {
+			t.Fatalf("expected review runtime events to include %s", want)
+		}
+	}
+}
+
 func latestRunDirForCLI(t *testing.T, _ string) string {
 	t.Helper()
 
@@ -1832,6 +2014,281 @@ func cliRuntimeEventKinds(t *testing.T, eventsPath string) []eventspkg.EventKind
 		kinds = append(kinds, event.Kind)
 	}
 	return kinds
+}
+
+func runDirsForCLI(t *testing.T) []string {
+	t.Helper()
+
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("resolve home paths: %v", err)
+	}
+	entries, err := os.ReadDir(homePaths.RunsDir)
+	if err != nil {
+		t.Fatalf("read runs dir: %v", err)
+	}
+	dirs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dirs = append(dirs, filepath.Join(homePaths.RunsDir, entry.Name()))
+	}
+	slices.Sort(dirs)
+	return dirs
+}
+
+func newCLIRunDir(t *testing.T, before []string, after []string) string {
+	t.Helper()
+
+	beforeSet := make(map[string]struct{}, len(before))
+	for _, path := range before {
+		beforeSet[path] = struct{}{}
+	}
+	for _, path := range after {
+		if _, ok := beforeSet[path]; !ok {
+			return path
+		}
+	}
+	t.Fatalf("expected one new run dir\nbefore: %v\nafter:  %v", before, after)
+	return ""
+}
+
+func writeCLINodeWorkflowFixture(t *testing.T, workspaceRoot string, slug string) {
+	t.Helper()
+
+	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", slug)
+	if err := os.MkdirAll(filepath.Join(workflowDir, "adrs"), 0o755); err != nil {
+		t.Fatalf("mkdir ADR dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, "src"), 0o755); err != nil {
+		t.Fatalf("mkdir src dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, "test"), 0o755); err != nil {
+		t.Fatalf("mkdir test dir: %v", err)
+	}
+
+	files := map[string]string{
+		filepath.Join(workspaceRoot, "package.json"): `{
+  "name": "node-health-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}
+`,
+		filepath.Join(workspaceRoot, "src", "server.js"): `import http from 'node:http';
+
+export function createServer() {
+  return http.createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/health') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'not_found' }));
+  });
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  const server = createServer();
+  server.listen(process.env.PORT || 3000);
+}
+`,
+		filepath.Join(workspaceRoot, "test", "server.test.js"): `import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from '../src/server.js';
+
+test('GET /health returns ok', async () => {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+  const response = await fetch(` + "`http://127.0.0.1:${port}/health`" + `);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, { ok: true });
+  await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+});
+`,
+		filepath.Join(workflowDir, "_techspec.md"): `# Node Health API TechSpec
+
+## Executive Summary
+This fixture adds a small readiness endpoint to a minimal Node.js API so daemon-backed Compozy task and review flows have realistic files to inspect. The goal is deterministic operator-flow validation, not production feature depth.
+
+## System Architecture
+### Component Overview
+- ` + "`src/server.js`" + ` owns HTTP routing.
+- ` + "`test/server.test.js`" + ` validates public HTTP behavior.
+
+## Implementation Design
+### Core Interfaces
+` + "```js" + `
+export function createServer() {
+  return http.createServer((req, res) => {
+    // route handling
+  });
+}
+` + "```" + `
+
+### Data Models
+- Success payloads use ` + "`{ ok: boolean }`" + `.
+- Error payloads use ` + "`{ error: string }`" + `.
+
+### API Endpoints
+- ` + "`GET /health`" + ` returns readiness.
+- ` + "`GET /ready`" + ` should return readiness metadata.
+
+## Impact Analysis
+| Component | Impact Type | Description and Risk | Required Action |
+|-----------|-------------|---------------------|-----------------|
+| ` + "`src/server.js`" + ` | modified | Add ` + "`GET /ready`" + ` behavior. Low risk. | Edit route handling. |
+| ` + "`test/server.test.js`" + ` | modified | Add coverage for ` + "`GET /ready`" + `. Low risk. | Add test. |
+
+## Testing Approach
+### Unit Tests
+- Validate route dispatch and JSON payloads.
+
+### Integration Tests
+- Run ` + "`node --test`" + ` against the HTTP server behavior.
+
+## Development Sequencing
+### Build Order
+1. Extend routing in ` + "`src/server.js`" + ` - no dependencies.
+2. Add ` + "`node --test`" + ` coverage for ` + "`/ready`" + ` - depends on step 1.
+
+### Technical Dependencies
+- None.
+
+## Technical Considerations
+### Key Decisions
+- Keep the fixture dependency-free and use Node built-ins only.
+
+### Known Risks
+- The task/review flow must stay dry-run to avoid nesting an external ACP runtime during daemon QA.
+
+## Architecture Decision Records
+- [ADR-001: Keep the fixture dependency-free](adrs/adr-001.md) — Use built-in Node modules so daemon QA remains deterministic.
+`,
+		filepath.Join(workflowDir, "adrs", "adr-001.md"): `# ADR-001: Keep the fixture dependency-free
+
+- Status: Accepted
+- Date: 2026-04-18
+
+## Context
+The daemon QA fixture should stay small and deterministic.
+
+## Decision
+Use only built-in Node.js modules.
+
+## Consequences
+The fixture is easy to bootstrap but intentionally simple.
+`,
+		filepath.Join(workflowDir, "_tasks.md"): `# Node Health API — Task List
+
+## Tasks
+
+| # | Title | Status | Complexity | Dependencies |
+|---|-------|--------|------------|--------------|
+| 01 | Add Ready Endpoint | pending | low | — |
+`,
+		filepath.Join(workflowDir, "task_01.md"): `---
+status: pending
+title: Add Ready Endpoint
+type: backend
+complexity: low
+dependencies: []
+---
+
+# Task 1: Add Ready Endpoint
+
+## Overview
+Add a ` + "`GET /ready`" + ` endpoint to the temporary Node.js API so the workflow has a concrete implementation target. Keep the change limited to the existing server and test files.
+
+<critical>
+- ALWAYS READ the TechSpec before starting
+- REFERENCE TECHSPEC for implementation details — do not duplicate here
+- FOCUS ON "WHAT" — describe what needs to be accomplished, not how
+- MINIMIZE CODE — show code only to illustrate current structure or problem areas
+- TESTS REQUIRED — every task MUST include tests in deliverables
+</critical>
+
+<requirements>
+1. MUST add ` + "`GET /ready`" + ` to the HTTP server.
+2. MUST return JSON with a stable readiness payload.
+3. MUST add test coverage in ` + "`test/server.test.js`" + `.
+</requirements>
+
+## Subtasks
+- [ ] 1.1 Add the ` + "`GET /ready`" + ` route.
+- [ ] 1.2 Return a JSON readiness response.
+- [ ] 1.3 Add automated test coverage.
+
+## Implementation Details
+Update the existing server and test files. See ` + "`_techspec.md`" + ` sections "API Endpoints" and "Testing Approach".
+
+### Relevant Files
+- ` + "`src/server.js`" + ` — current HTTP route implementation.
+- ` + "`test/server.test.js`" + ` — public HTTP behavior tests.
+
+### Dependent Files
+- ` + "`_techspec.md`" + ` — approved technical direction for the fixture.
+
+### Related ADRs
+- [ADR-001: Keep the fixture dependency-free](adrs/adr-001.md) — Avoid external packages in the temporary fixture.
+
+## Deliverables
+- Updated ` + "`src/server.js`" + `
+- Updated ` + "`test/server.test.js`" + `
+- Unit tests with 80%+ coverage **(REQUIRED)**
+- Integration tests for the readiness endpoint **(REQUIRED)**
+
+## Tests
+- Unit tests:
+  - [ ] ` + "`GET /ready`" + ` returns HTTP 200.
+  - [ ] ` + "`GET /ready`" + ` returns the expected JSON payload.
+- Integration tests:
+  - [ ] ` + "`node --test`" + ` passes with the new endpoint.
+- Test coverage target: >=80%
+- All tests must pass
+
+## Success Criteria
+- All tests passing
+- Test coverage >=80%
+- ` + "`GET /ready`" + ` is documented in the fixture techspec
+- The task is independently executable through Compozy
+`,
+	}
+
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write fixture file %s: %v", path, err)
+		}
+	}
+
+	reviewDir := filepath.Join(workflowDir, "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "manual",
+		PR:        "fixture",
+		Round:     1,
+		CreatedAt: time.Date(2026, 4, 18, 0, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add a readiness endpoint for operator probes",
+			File:        "src/server.js",
+			Line:        5,
+			Severity:    "warning",
+			Author:      "qa-bot",
+			ProviderRef: "local:issue-001",
+			Body:        "The temporary API exposes `GET /health` but not a stable `GET /ready` endpoint. Add a dedicated readiness route and protect it with test coverage.",
+		},
+	}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
 }
 
 func cliReusableAgentLifecyclePayloads(

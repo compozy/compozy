@@ -10,6 +10,7 @@ The planning posture is intentionally evidence-driven. The repository already ha
 
 - Prove the home-scoped singleton daemon starts, recovers stale artifacts, and reconciles interrupted runs safely.
 - Prove the operator-facing CLI control plane is stable for workspace registry, task runs, sync/archive, reviews, exec, attach, and watch.
+- Prove the daemon-backed task and review commands still work against a realistic temporary Node.js workspace fixture, not only repository-owned Go fixtures.
 - Prove UDS and localhost HTTP remain contract-equivalent for status, health, conflicts, snapshot access, and SSE resume.
 - Prove `pkg/compozy/runs` remains daemon-backed and compatible for list/open/tail/watch consumers.
 - Give `task_19` a fixed artifact layout under `.compozy/tasks/daemon/qa/` with stable case IDs, priorities, and automation annotations.
@@ -23,6 +24,7 @@ The planning posture is intentionally evidence-driven. The repository already ha
 - `compozy tasks run` bootstrap, attach-mode resolution, watcher-driven sync, and duplicate run protection.
 - `compozy sync` and `compozy archive` behavior from daemon-backed state, including subdirectory invocation and archive gating.
 - `compozy reviews ...` and `compozy exec` daemon-backed lifecycle, persisted state, and authored workspace artifacts.
+- Temporary external-workspace validation using a minimal Node.js API project plus `.compozy/tasks/<slug>/` and `reviews-NNN/` artifacts.
 - `compozy runs attach` and `compozy runs watch` snapshot bootstrap, reconnect, heartbeat, overflow, and terminal EOF handling.
 - UDS/HTTP parity, SSE cursor behavior, and daemon error/conflict envelopes.
 - `pkg/compozy/runs` list/open/replay/tail/watch compatibility over daemon transport.
@@ -54,6 +56,7 @@ The planning posture is intentionally evidence-driven. The repository already ha
 | Sync and archive | `TC-FUNC-003` | TechSpec Sync rules, ADR-002/004, task_14/task_17 | E2E | Existing | `internal/cli/operator_commands_integration_test.go`, `internal/cli/archive_command_integration_test.go`, `internal/core/{sync,archive}_test.go` |
 | Review runs | `TC-FUNC-004` | TechSpec Reviews, ADR-002/003, task_15 | E2E | Existing | `internal/cli/reviews_exec_daemon_additional_test.go`, `internal/daemon/review_exec_transport_service_test.go` |
 | Exec runs | `TC-FUNC-005` | TechSpec Sync and exec, ADR-002/004, task_15 | E2E | Existing | `internal/cli/reviews_exec_daemon_additional_test.go`, `internal/daemon/run_manager_test.go`, `internal/api/client/reviews_exec_test.go` |
+| Temporary Node workspace task/review operator flow | `TC-INT-004` | User-requested daemon QA follow-up, task_19 artifact expansion | E2E | Existing | `internal/cli/root_command_execution_test.go`, live CLI evidence in `.compozy/tasks/daemon/qa/logs/node-e2e-*.log` |
 | Attach/watch operator flows | `TC-FUNC-006`, `TC-UI-001` | TechSpec CLI/TUI clients + SSE, ADR-004, task_12 | E2E + Manual-only | Existing + N/A | `internal/cli/root_command_execution_test.go`, `internal/core/run/ui/remote_test.go`, `pkg/compozy/runs/remote_watch_test.go` |
 | UDS/HTTP parity and SSE resume | `TC-INT-002` | TechSpec Transport Contract, ADR-003 | Integration | Existing | `internal/api/httpapi/transport_integration_test.go`, `internal/api/core/*handlers*_test.go` |
 | `pkg/compozy/runs` compatibility | `TC-INT-003` | TechSpec Public run readers, ADR-002/003, task_13 | Integration | Existing | `pkg/compozy/runs/{integration,transport,watch,tail,run}_test.go` |
@@ -76,6 +79,7 @@ The planning posture is intentionally evidence-driven. The repository already ha
 | Terminal | Real TTY required for `TC-UI-001`; non-interactive shells are sufficient for the automated suite |
 | Runtime root | Isolated `$HOME` per execution slice when tests need daemon singleton or persisted run isolation |
 | Fixture workspace | Minimal daemon workflow workspace rooted under `.compozy/tasks/daemon` or temporary test fixtures created by the existing Go suites |
+| External fixture | Temporary Node.js workspace with `.compozy/tasks/node-health/` plus `reviews-001/` |
 | Transport | UDS is primary; localhost HTTP must bind to `127.0.0.1` only |
 | Browser | Not required for this branch; browser lane is blocked/out of scope |
 
@@ -102,6 +106,7 @@ The planning posture is intentionally evidence-driven. The repository already ha
 | Singleton bootstrap leaves stale socket/info artifacts and blocks startup | Medium | High | Prioritize daemon bootstrap/recovery checks before all other flows | `TC-INT-001` |
 | Workspace registry resolves the wrong workspace or allows unregister during active runs | Medium | High | Run real-daemon workspace CLI coverage early in smoke | `TC-FUNC-001` |
 | Task runs or review/exec flows drift from daemon lifecycle ownership | Medium | High | Keep public CLI flow tests in smoke/targeted suites and verify persisted-state semantics | `TC-FUNC-002`, `TC-FUNC-004`, `TC-FUNC-005` |
+| Public daemon commands only work against repository-native fixtures and fail on a realistic external workspace | Medium | High | Keep one temp-workspace E2E case with a non-Go project fixture and daemon-backed command logs | `TC-INT-004` |
 | Sync/archive regresses to metadata-file heuristics or archives incomplete workflows | Medium | High | Pair public CLI checks with core sync/archive integration tests | `TC-FUNC-003` |
 | Attach/watch breaks snapshot bootstrap, reconnect, or terminal EOF handling | Medium | High | Run attach/watch lane before any manual TUI judgment call | `TC-FUNC-006`, `TC-UI-001` |
 | UDS and HTTP diverge on status/error/SSE behavior | Medium | High | Keep transport parity as a P0 integration lane | `TC-INT-002` |

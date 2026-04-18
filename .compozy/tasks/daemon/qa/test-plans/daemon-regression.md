@@ -15,7 +15,7 @@ This suite turns the daemon QA plan into an execution order for `task_19`. It gr
 ## Priority Bands
 
 - `P0`: daemon bootstrap/recovery, workspace registry, task runs, sync/archive, attach/watch, transport parity.
-- `P1`: review runs, exec runs, public `pkg/compozy/runs`, performance guardrails, manual TUI operator confirmation.
+- `P1`: review runs, exec runs, external temp-workspace operator flow, public `pkg/compozy/runs`, performance guardrails, manual TUI operator confirmation.
 - `P2`: any future daemon web/browser surface once it exists.
 
 ## Smoke Suite
@@ -42,10 +42,11 @@ This suite turns the daemon QA plan into an execution order for `task_19`. It gr
 | Order | Case ID | Priority | Flow | Lane | Command / Spec |
 |---|---|---|---|---|---|
 | 1 | `TC-FUNC-004` | P1 | Review runs | E2E | `go test ./internal/cli -run 'Test(ReviewsCommandFetchListShowUseDaemonRequests|ReviewsFixCommandResolvesLatestRoundAndBuildsDaemonRequest|ReviewsFixCommandAutoAttachStreamsWhenNonInteractive)' -count=1` |
-| 2 | `TC-FUNC-005` | P1 | Exec runs | E2E | `go test ./internal/cli -run 'Test(ExecCommandUsesDaemonLifecycleAcrossFormats|ExecCommandExecuteStdinWorksEndToEnd|ExecCommandExecutePromptFileJSONEmitsJSONLByDefault|ExecCommandExecuteRunIDUsesPersistedRuntimeDefaults)' -count=1` |
-| 3 | `TC-INT-003` | P1 | Public `pkg/compozy/runs` compatibility | Integration | `go test ./pkg/compozy/runs -run 'Test(OpenAndListUseDaemonBackedHTTPTransport|TailAndWatchWorkspaceUseDaemonBackedHTTPTransport|OpenLoadsDaemonBackedRunSummary|ListReturnsRunsSortedAndFiltered|WatchWorkspaceEmitsCreatedStatusChangedAndRemoved|WatchWorkspaceSurfacesInitialDaemonError|OpenSurfacesStableDaemonUnavailableError)' -count=1` |
-| 4 | `TC-PERF-001` | P1 | Performance-sensitive daemon seams | Integration | `go test ./internal/store/rundb ./internal/daemon -run '^$' -bench 'BenchmarkRunDBListEventsFromCursor|BenchmarkRunManagerListWorkspaceRuns' -benchmem -count=1` |
-| 5 | `TC-UI-001` | P1 | Manual TUI operator confirmation | Manual-only | Real-terminal execution of `compozy tasks run <slug> --ui` plus `compozy runs attach <run-id>` against a fixture workflow |
+| 2 | `TC-INT-004` | P1 | Temporary Node workspace task/review operator flow | E2E | `go test ./internal/cli -run 'TestTaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace' -count=1` plus live CLI logs under `.compozy/tasks/daemon/qa/logs/node-e2e-*.log` |
+| 3 | `TC-FUNC-005` | P1 | Exec runs | E2E | `go test ./internal/cli -run 'Test(ExecCommandUsesDaemonLifecycleAcrossFormats|ExecCommandExecuteStdinWorksEndToEnd|ExecCommandExecutePromptFileJSONEmitsJSONLByDefault|ExecCommandExecuteRunIDUsesPersistedRuntimeDefaults)' -count=1` |
+| 4 | `TC-INT-003` | P1 | Public `pkg/compozy/runs` compatibility | Integration | `go test ./pkg/compozy/runs -run 'Test(OpenAndListUseDaemonBackedHTTPTransport|TailAndWatchWorkspaceUseDaemonBackedHTTPTransport|OpenLoadsDaemonBackedRunSummary|ListReturnsRunsSortedAndFiltered|WatchWorkspaceEmitsCreatedStatusChangedAndRemoved|WatchWorkspaceSurfacesInitialDaemonError|OpenSurfacesStableDaemonUnavailableError)' -count=1` |
+| 5 | `TC-PERF-001` | P1 | Performance-sensitive daemon seams | Integration | `go test ./internal/store/rundb ./internal/daemon -run '^$' -bench 'BenchmarkRunDBListEventsFromCursor|BenchmarkRunManagerListWorkspaceRuns' -benchmem -count=1` |
+| 6 | `TC-UI-001` | P1 | Manual TUI operator confirmation | Manual-only | Real-terminal execution of `compozy tasks run <slug> --ui` plus `compozy runs attach <run-id>` against a fixture workflow |
 
 ## Full Suite
 
@@ -74,6 +75,7 @@ This suite turns the daemon QA plan into an execution order for `task_19`. It gr
 | `TC-FUNC-006` | P0 | Attach/watch is the operator-facing observation contract |
 | `TC-INT-002` | P0 | Transport divergence invalidates CLI/TUI/API parity claims |
 | `TC-FUNC-004` | P1 | Review flows are critical, but not the first blocker ahead of core run lifecycle |
+| `TC-INT-004` | P1 | External temp-workspace proof catches regressions that repository-native fixtures can miss |
 | `TC-FUNC-005` | P1 | Exec compatibility matters after core task-run health is proven |
 | `TC-INT-003` | P1 | Public run readers are a compatibility surface rather than the main operator entrypoint |
 | `TC-PERF-001` | P1 | Performance must not regress silently after functional health is green |

@@ -13,6 +13,7 @@ import (
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	corepkg "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
@@ -20,8 +21,9 @@ import (
 )
 
 type inProcessDaemonCommandClient struct {
-	manager *daemon.RunManager
-	target  apiclient.Target
+	globalDB *globaldb.GlobalDB
+	manager  *daemon.RunManager
+	target   apiclient.Target
 }
 
 const (
@@ -65,8 +67,9 @@ func installInProcessCLIDaemonBootstrap(t *testing.T) {
 	}
 
 	installTestCLIReadyDaemonBootstrap(t, &inProcessDaemonCommandClient{
-		manager: manager,
-		target:  apiclient.Target{SocketPath: "in-process://daemon"},
+		globalDB: db,
+		manager:  manager,
+		target:   apiclient.Target{SocketPath: "in-process://daemon"},
 	})
 }
 
@@ -163,8 +166,51 @@ func (*inProcessDaemonCommandClient) ArchiveTaskWorkflow(
 	return apicore.ArchiveResult{}, errors.New("ArchiveTaskWorkflow not implemented for in-process exec tests")
 }
 
-func (*inProcessDaemonCommandClient) SyncWorkflow(context.Context, apicore.SyncRequest) (apicore.SyncResult, error) {
-	return apicore.SyncResult{}, errors.New("SyncWorkflow not implemented for in-process exec tests")
+func (c *inProcessDaemonCommandClient) SyncWorkflow(
+	ctx context.Context,
+	req apicore.SyncRequest,
+) (apicore.SyncResult, error) {
+	if c == nil || c.globalDB == nil {
+		return apicore.SyncResult{}, errors.New("SyncWorkflow requires an in-process global DB")
+	}
+
+	workspaceRef := strings.TrimSpace(req.Workspace)
+	if workspaceRef == "" {
+		workspaceRef = strings.TrimSpace(req.Path)
+	}
+	if workspaceRef == "" {
+		return apicore.SyncResult{}, errors.New("SyncWorkflow requires workspace or path")
+	}
+
+	workspaceRow, err := c.globalDB.ResolveOrRegister(ctx, workspaceRef)
+	if err != nil {
+		return apicore.SyncResult{}, err
+	}
+
+	result, err := corepkg.SyncDirect(ctx, corepkg.SyncConfig{
+		WorkspaceRoot: workspaceRow.RootDir,
+		Name:          strings.TrimSpace(req.WorkflowSlug),
+	})
+	if err != nil {
+		return apicore.SyncResult{}, err
+	}
+
+	syncedAt := time.Now().UTC()
+	return apicore.SyncResult{
+		WorkspaceID:            workspaceRow.ID,
+		WorkflowSlug:           strings.TrimSpace(req.WorkflowSlug),
+		SyncedAt:               &syncedAt,
+		Target:                 result.Target,
+		WorkflowsScanned:       result.WorkflowsScanned,
+		SnapshotsUpserted:      result.SnapshotsUpserted,
+		TaskItemsUpserted:      result.TaskItemsUpserted,
+		ReviewRoundsUpserted:   result.ReviewRoundsUpserted,
+		ReviewIssuesUpserted:   result.ReviewIssuesUpserted,
+		CheckpointsUpdated:     result.CheckpointsUpdated,
+		LegacyArtifactsRemoved: result.LegacyArtifactsRemoved,
+		SyncedPaths:            append([]string(nil), result.SyncedPaths...),
+		Warnings:               append([]string(nil), result.Warnings...),
+	}, nil
 }
 
 func (*inProcessDaemonCommandClient) FetchReview(
@@ -176,29 +222,94 @@ func (*inProcessDaemonCommandClient) FetchReview(
 	return apicore.ReviewFetchResult{}, errors.New("FetchReview not implemented for in-process exec tests")
 }
 
-func (*inProcessDaemonCommandClient) GetLatestReview(context.Context, string, string) (apicore.ReviewSummary, error) {
-	return apicore.ReviewSummary{}, errors.New("GetLatestReview not implemented for in-process exec tests")
+func (c *inProcessDaemonCommandClient) GetLatestReview(
+	ctx context.Context,
+	workspace string,
+	slug string,
+) (apicore.ReviewSummary, error) {
+	workflow, err := c.resolveWorkflow(ctx, workspace, slug)
+	if err != nil {
+		return apicore.ReviewSummary{}, err
+	}
+	row, err := c.globalDB.GetLatestReviewRound(ctx, workflow.ID)
+	if err != nil {
+		return apicore.ReviewSummary{}, err
+	}
+	return apicore.ReviewSummary{
+		WorkflowSlug:    strings.TrimSpace(slug),
+		RoundNumber:     row.RoundNumber,
+		Provider:        row.Provider,
+		PRRef:           row.PRRef,
+		ResolvedCount:   row.ResolvedCount,
+		UnresolvedCount: row.UnresolvedCount,
+		UpdatedAt:       row.UpdatedAt,
+	}, nil
 }
 
-func (*inProcessDaemonCommandClient) GetReviewRound(context.Context, string, string, int) (apicore.ReviewRound, error) {
-	return apicore.ReviewRound{}, errors.New("GetReviewRound not implemented for in-process exec tests")
+func (c *inProcessDaemonCommandClient) GetReviewRound(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	round int,
+) (apicore.ReviewRound, error) {
+	workflow, err := c.resolveWorkflow(ctx, workspace, slug)
+	if err != nil {
+		return apicore.ReviewRound{}, err
+	}
+	row, err := c.globalDB.GetReviewRound(ctx, workflow.ID, round)
+	if err != nil {
+		return apicore.ReviewRound{}, err
+	}
+	return apicore.ReviewRound{
+		ID:              row.ID,
+		WorkflowSlug:    strings.TrimSpace(slug),
+		RoundNumber:     row.RoundNumber,
+		Provider:        row.Provider,
+		PRRef:           row.PRRef,
+		ResolvedCount:   row.ResolvedCount,
+		UnresolvedCount: row.UnresolvedCount,
+		UpdatedAt:       row.UpdatedAt,
+	}, nil
 }
 
-func (*inProcessDaemonCommandClient) ListReviewIssues(
-	context.Context,
-	string,
-	string,
-	int,
+func (c *inProcessDaemonCommandClient) ListReviewIssues(
+	ctx context.Context,
+	workspace string,
+	slug string,
+	round int,
 ) ([]apicore.ReviewIssue, error) {
-	return nil, errors.New("ListReviewIssues not implemented for in-process exec tests")
+	workflow, err := c.resolveWorkflow(ctx, workspace, slug)
+	if err != nil {
+		return nil, err
+	}
+	roundRow, err := c.globalDB.GetReviewRound(ctx, workflow.ID, round)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := c.globalDB.ListReviewIssues(ctx, roundRow.ID)
+	if err != nil {
+		return nil, err
+	}
+	issues := make([]apicore.ReviewIssue, 0, len(rows))
+	for _, row := range rows {
+		issues = append(issues, apicore.ReviewIssue{
+			ID:          row.ID,
+			IssueNumber: row.IssueNumber,
+			Severity:    row.Severity,
+			Status:      row.Status,
+			SourcePath:  row.SourcePath,
+			UpdatedAt:   row.UpdatedAt,
+		})
+	}
+	return issues, nil
 }
 
 func (c *inProcessDaemonCommandClient) StartTaskRun(
-	context.Context,
-	string,
-	apicore.TaskRunRequest,
+	ctx context.Context,
+	slug string,
+	req apicore.TaskRunRequest,
 ) (apicore.Run, error) {
-	return apicore.Run{}, errors.New("StartTaskRun not implemented for in-process exec tests")
+	return c.manager.StartTaskRun(ctx, req.Workspace, slug, req)
 }
 
 func (c *inProcessDaemonCommandClient) StartReviewRun(
@@ -357,6 +468,21 @@ func sendInProcessClientRunStreamError(
 	case errs <- err:
 		return true
 	}
+}
+
+func (c *inProcessDaemonCommandClient) resolveWorkflow(
+	ctx context.Context,
+	workspace string,
+	slug string,
+) (globaldb.Workflow, error) {
+	if c == nil || c.globalDB == nil {
+		return globaldb.Workflow{}, errors.New("workflow resolution requires an in-process global DB")
+	}
+	workspaceRow, err := c.globalDB.ResolveOrRegister(ctx, workspace)
+	if err != nil {
+		return globaldb.Workflow{}, err
+	}
+	return c.globalDB.GetActiveWorkflowBySlug(ctx, workspaceRow.ID, strings.TrimSpace(slug))
 }
 
 type stubCoreRunStream struct {
