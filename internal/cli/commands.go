@@ -12,7 +12,6 @@ func newFetchReviewsCommand() *cobra.Command {
 
 func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindFetchReviews, core.ModePRReview, defaults)
-	state.fetchReviewsFn = newFetchReviewsRunner(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "fetch-reviews",
 		Short:        "Fetch provider review comments into a PRD review round",
@@ -22,7 +21,7 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 		Example: `  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
   compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
   compozy fetch-reviews`,
-		RunE: state.fetchReviews,
+		RunE: state.fetchReviewsDaemon,
 	}
 
 	cmd.Flags().StringVar(
@@ -43,7 +42,6 @@ func newFixReviewsCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
 
 func newFixReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindFixReviews, core.ModePRReview, defaults)
-	state.runWorkflow = newRunWorkflow(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "fix-reviews",
 		Short:        "Process review issue files from a PRD review round",
@@ -59,7 +57,7 @@ opens the run cockpit by default; in non-TTY environments it falls back to headl
   compozy fix-reviews --format json --name my-feature --round 2
   compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001
   compozy fix-reviews`,
-		RunE: state.run,
+		RunE: state.runReviewWorkflowDaemon,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
@@ -144,7 +142,6 @@ func addWorkflowOutputFlags(cmd *cobra.Command, state *commandState) {
 
 func newExecCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindExec, core.ModeExec, defaults)
-	state.runWorkflow = newRunWorkflow(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "exec [prompt]",
 		Short:        "Execute one ad hoc prompt through the shared ACP runtime",
@@ -165,7 +162,7 @@ interactive TUI and --persist to save resumable artifacts under
   compozy exec --format raw-json "Inspect every streamed event"
   compozy exec --persist "Review the latest changes"
   compozy exec --run-id exec-20260405-120000-000000000 "Continue from the previous session"`,
-		RunE: state.exec,
+		RunE: state.execDaemon,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{})

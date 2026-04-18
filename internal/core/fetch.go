@@ -19,6 +19,15 @@ import (
 var defaultProviderRegistry = providerdefaults.DefaultRegistry
 
 func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, error) {
+	registry := provider.ResolveRegistry(defaultProviderRegistry())
+	return fetchReviewsWithRegistry(ctx, cfg, registry)
+}
+
+func fetchReviewsWithRegistry(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	registry provider.RegistryReader,
+) (*FetchResult, error) {
 	if err := validateFetchConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -41,7 +50,9 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		return nil, err
 	}
 
-	registry := provider.ResolveRegistry(defaultProviderRegistry())
+	if registry == nil {
+		registry = provider.ResolveRegistry(defaultProviderRegistry())
+	}
 	reviewProvider, err := registry.Get(cfg.Provider)
 	if err != nil {
 		return nil, err
@@ -95,6 +106,14 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		ReviewsDir: reviewsDir,
 		Total:      len(items),
 	}, nil
+}
+
+func FetchReviewsWithRegistryDirect(
+	ctx context.Context,
+	cfg Config,
+	registry provider.RegistryReader,
+) (*FetchResult, error) {
+	return fetchReviewsWithRegistry(ctx, cfg.runtime(), registry)
 }
 
 func resolveFetchPRDDirectory(cfg *model.RuntimeConfig) (string, error) {

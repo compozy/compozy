@@ -165,8 +165,10 @@ func buildHostHandlers(
 		Daemon:        daemonService,
 		Workspaces:    newTransportWorkspaceService(persistence.db),
 		Tasks:         newTransportTaskService(persistence.db, runManager),
+		Reviews:       newTransportReviewService(persistence.db, runManager),
 		Runs:          runManager,
 		Sync:          newTransportSyncService(persistence.db),
+		Exec:          newTransportExecService(runManager),
 	})
 }
 

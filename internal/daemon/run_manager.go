@@ -861,36 +861,25 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	runtimeCfg.RunID = model.BuildRunID(runtimeCfg)
 	runID := runtimeCfg.RunID
 
-	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	startedAt := m.now().UTC()
+	row, createdRun, err := m.prepareRunRow(
+		detachContext(ctx),
+		spec,
+		runID,
+		startedAt,
+		apicore.RequestIDFromContext(ctx),
+	)
 	if err != nil {
-		return apicore.Run{}, err
-	}
-	if err := reserveRunDirectory(runArtifacts.RunDir); err != nil {
 		return apicore.Run{}, err
 	}
 
 	scope, err := m.openRunScopeForStart(ctx, runtimeCfg, spec.workspace.RootDir)
 	if err != nil {
-		cleanupRunDirectory(runArtifacts.RunDir)
-		return apicore.Run{}, err
-	}
-
-	startedAt := m.now().UTC()
-	row, err := m.globalDB.PutRun(detachContext(ctx), globaldb.Run{
-		RunID:            runID,
-		WorkspaceID:      spec.workspace.ID,
-		WorkflowID:       spec.workflowID,
-		Mode:             spec.mode,
-		Status:           runStatusStarting,
-		PresentationMode: spec.presentationMode,
-		StartedAt:        startedAt,
-		RequestID:        apicore.RequestIDFromContext(ctx),
-	})
-	if err != nil {
-		if closeErr := closeRunScope(scope, defaultRunCloseTimeout); closeErr != nil {
-			err = errors.Join(err, closeErr)
+		if createdRun {
+			if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(runID); artifactsErr == nil {
+				cleanupRunDirectory(runArtifacts.RunDir)
+			}
 		}
-		cleanupRunDirectory(runArtifacts.RunDir)
 		return apicore.Run{}, err
 	}
 
@@ -904,11 +893,11 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	active := newActiveRun(runCtx, cancel, row, spec, scope)
 	if err := m.syncWorkflowBeforeRun(runCtx, active.workflowRoot); err != nil {
 		active.cancel()
-		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, err)
+		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, createdRun, err)
 	}
 	if err := m.startWatcher(active); err != nil {
 		active.cancel()
-		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, err)
+		return apicore.Run{}, m.failStartRun(ctx, row, active.currentCloseTimeout(), scope, createdRun, err)
 	}
 	m.setActive(active)
 
@@ -916,6 +905,127 @@ func (m *RunManager) startRun(ctx context.Context, spec startRunSpec) (apicore.R
 	started = true
 
 	return m.toCoreRun(detachContext(ctx), row, active.workflowSlug)
+}
+
+func (m *RunManager) prepareRunRow(
+	ctx context.Context,
+	spec startRunSpec,
+	runID string,
+	startedAt time.Time,
+	requestID string,
+) (globaldb.Run, bool, error) {
+	if spec.mode == runModeExec && strings.TrimSpace(spec.runtimeCfg.RunID) != "" {
+		row, ok, err := m.resumeExistingExecRun(ctx, spec, runID, startedAt, requestID)
+		if err != nil {
+			return globaldb.Run{}, false, err
+		}
+		if ok {
+			return row, false, nil
+		}
+	}
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		return globaldb.Run{}, false, err
+	}
+	if err := reserveRunDirectory(runArtifacts.RunDir); err != nil {
+		return globaldb.Run{}, false, err
+	}
+
+	row, err := m.globalDB.PutRun(ctx, globaldb.Run{
+		RunID:            runID,
+		WorkspaceID:      spec.workspace.ID,
+		WorkflowID:       spec.workflowID,
+		Mode:             spec.mode,
+		Status:           runStatusStarting,
+		PresentationMode: spec.presentationMode,
+		StartedAt:        startedAt,
+		RequestID:        requestID,
+	})
+	if err != nil {
+		cleanupRunDirectory(runArtifacts.RunDir)
+		return globaldb.Run{}, false, err
+	}
+	return row, true, nil
+}
+
+func (m *RunManager) resumeExistingExecRun(
+	ctx context.Context,
+	spec startRunSpec,
+	runID string,
+	startedAt time.Time,
+	requestID string,
+) (globaldb.Run, bool, error) {
+	if active := m.getActive(runID); active != nil {
+		return globaldb.Run{}, false, globaldb.ErrRunAlreadyExists
+	}
+
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(spec.workspace.RootDir, runID)
+	if err != nil {
+		return globaldb.Run{}, false, err
+	}
+	if _, err := os.Stat(runArtifacts.RunMetaPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return globaldb.Run{}, false, nil
+		}
+		return globaldb.Run{}, false, fmt.Errorf("stat persisted exec run %q: %w", runID, err)
+	}
+
+	record, err := runpkg.LoadPersistedExecRun(spec.workspace.RootDir, runID)
+	if err != nil {
+		return globaldb.Run{}, false, err
+	}
+	if record.Mode != model.ModeExec {
+		return globaldb.Run{}, false, fmt.Errorf("run %q is not an exec run", runID)
+	}
+
+	row, err := m.globalDB.GetRun(ctx, runID)
+	if err != nil {
+		if !errors.Is(err, globaldb.ErrRunNotFound) {
+			return globaldb.Run{}, false, err
+		}
+		if record.CreatedAt.IsZero() {
+			record.CreatedAt = startedAt
+		}
+		row, err = m.globalDB.PutRun(ctx, globaldb.Run{
+			RunID:            runID,
+			WorkspaceID:      spec.workspace.ID,
+			Mode:             runModeExec,
+			Status:           runStatusStarting,
+			PresentationMode: spec.presentationMode,
+			StartedAt:        record.CreatedAt.UTC(),
+			RequestID:        requestID,
+		})
+		if err != nil {
+			return globaldb.Run{}, false, err
+		}
+		return row, true, nil
+	}
+
+	if row.Mode != runModeExec {
+		return globaldb.Run{}, false, fmt.Errorf("run %q is not an exec run", runID)
+	}
+
+	row.WorkspaceID = spec.workspace.ID
+	row.WorkflowID = nil
+	row.Status = runStatusStarting
+	row.PresentationMode = spec.presentationMode
+	if row.StartedAt.IsZero() {
+		if record.CreatedAt.IsZero() {
+			row.StartedAt = startedAt
+		} else {
+			row.StartedAt = record.CreatedAt.UTC()
+		}
+	}
+	row.EndedAt = nil
+	row.ErrorText = ""
+	row.RequestID = requestID
+
+	updatedRow, err := m.globalDB.UpdateRun(ctx, row)
+	if err != nil {
+		return globaldb.Run{}, false, err
+	}
+	return updatedRow, true, nil
 }
 
 func (m *RunManager) openRunScopeForStart(
@@ -967,6 +1077,7 @@ func (m *RunManager) failStartRun(
 	row globaldb.Run,
 	closeTimeout time.Duration,
 	scope model.RunScope,
+	createdRun bool,
 	err error,
 ) error {
 	failedAt := m.now().UTC()
@@ -975,6 +1086,11 @@ func (m *RunManager) failStartRun(
 	row.EndedAt = &failedAt
 	_, updateErr := m.globalDB.UpdateRun(detachContext(ctx), row)
 	closeErr := closeRunScope(scope, closeTimeout)
+	if createdRun {
+		if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(row.RunID); artifactsErr == nil {
+			cleanupRunDirectory(runArtifacts.RunDir)
+		}
+	}
 	return errors.Join(err, updateErr, closeErr)
 }
 

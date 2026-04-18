@@ -53,8 +53,15 @@ type daemonCommandClient interface {
 	ListTaskWorkflows(context.Context, string) ([]apicore.WorkflowSummary, error)
 	ArchiveTaskWorkflow(context.Context, string, string) (apicore.ArchiveResult, error)
 	SyncWorkflow(context.Context, apicore.SyncRequest) (apicore.SyncResult, error)
+	FetchReview(context.Context, string, string, apicore.ReviewFetchRequest) (apicore.ReviewFetchResult, error)
+	GetLatestReview(context.Context, string, string) (apicore.ReviewSummary, error)
+	GetReviewRound(context.Context, string, string, int) (apicore.ReviewRound, error)
+	ListReviewIssues(context.Context, string, string, int) ([]apicore.ReviewIssue, error)
 	StartTaskRun(context.Context, string, apicore.TaskRunRequest) (apicore.Run, error)
+	StartReviewRun(context.Context, string, string, int, apicore.ReviewRunRequest) (apicore.Run, error)
+	StartExecRun(context.Context, apicore.ExecRequest) (apicore.Run, error)
 	GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error)
+	ListRunEvents(context.Context, string, apicore.StreamCursor, int) (apicore.RunEventPage, error)
 	OpenRunStream(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
 }
 
@@ -70,19 +77,24 @@ type cliDaemonBootstrap struct {
 }
 
 type daemonRuntimeOverrides struct {
-	DryRun                 *bool                    `json:"dry_run,omitempty"`
-	AutoCommit             *bool                    `json:"auto_commit,omitempty"`
-	IDE                    *string                  `json:"ide,omitempty"`
-	Model                  *string                  `json:"model,omitempty"`
-	AddDirs                *[]string                `json:"add_dirs,omitempty"`
-	TailLines              *int                     `json:"tail_lines,omitempty"`
-	ReasoningEffort        *string                  `json:"reasoning_effort,omitempty"`
-	AccessMode             *string                  `json:"access_mode,omitempty"`
-	Timeout                *string                  `json:"timeout,omitempty"`
-	MaxRetries             *int                     `json:"max_retries,omitempty"`
-	RetryBackoffMultiplier *float64                 `json:"retry_backoff_multiplier,omitempty"`
-	IncludeCompleted       *bool                    `json:"include_completed,omitempty"`
-	TaskRuntimeRules       *[]model.TaskRuntimeRule `json:"task_runtime_rules,omitempty"`
+	DryRun                     *bool                    `json:"dry_run,omitempty"`
+	RunID                      *string                  `json:"run_id,omitempty"`
+	AutoCommit                 *bool                    `json:"auto_commit,omitempty"`
+	IDE                        *string                  `json:"ide,omitempty"`
+	Model                      *string                  `json:"model,omitempty"`
+	OutputFormat               *string                  `json:"output_format,omitempty"`
+	AddDirs                    *[]string                `json:"add_dirs,omitempty"`
+	TailLines                  *int                     `json:"tail_lines,omitempty"`
+	ReasoningEffort            *string                  `json:"reasoning_effort,omitempty"`
+	AccessMode                 *string                  `json:"access_mode,omitempty"`
+	Timeout                    *string                  `json:"timeout,omitempty"`
+	MaxRetries                 *int                     `json:"max_retries,omitempty"`
+	RetryBackoffMultiplier     *float64                 `json:"retry_backoff_multiplier,omitempty"`
+	Verbose                    *bool                    `json:"verbose,omitempty"`
+	Persist                    *bool                    `json:"persist,omitempty"`
+	IncludeCompleted           *bool                    `json:"include_completed,omitempty"`
+	TaskRuntimeRules           *[]model.TaskRuntimeRule `json:"task_runtime_rules,omitempty"`
+	EnableExecutableExtensions *bool                    `json:"enable_executable_extensions,omitempty"`
 }
 
 func newDefaultCLIDaemonBootstrap() cliDaemonBootstrap {
@@ -256,17 +268,6 @@ is running, and then sends the workflow request over the daemon transport.`,
 		`Per-task runtime override rule for task runs (repeatable). Use key=value pairs such as type=frontend,ide=codex,model=gpt-5.4 or id=task_01,reasoning-effort=xhigh`,
 	)
 	return cmd
-}
-
-func newReviewsCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:          "reviews",
-		Short:        "Inspect and remediate review workflows",
-		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
-		},
-	}
 }
 
 func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error {

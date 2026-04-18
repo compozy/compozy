@@ -20,41 +20,55 @@ import (
 )
 
 type stubDaemonCommandClient struct {
-	target        apiclient.Target
-	health        apicore.DaemonHealth
-	healthErr     error
-	healthCalls   int
-	status        apicore.DaemonStatus
-	statusErr     error
-	startCalls    int
-	startSlug     string
-	startRequest  apicore.TaskRunRequest
-	startRun      apicore.Run
-	startErr      error
-	stopForce     bool
-	stopErr       error
-	workspaces    []apicore.Workspace
-	workspace     apicore.Workspace
-	workspaceErr  error
-	register      apicore.WorkspaceRegisterResult
-	registerErr   error
-	listErr       error
-	deleteRef     string
-	deleteErr     error
-	workflows     []apicore.WorkflowSummary
-	workflowsErr  error
-	archiveCalls  []string
-	archive       apicore.ArchiveResult
-	archiveBySlug map[string]apicore.ArchiveResult
-	archiveErr    error
-	archiveErrors map[string]error
-	syncRequest   apicore.SyncRequest
-	syncResult    apicore.SyncResult
-	syncErr       error
-	snapshot      apicore.RunSnapshot
-	snapshotErr   error
-	stream        apiclient.RunStream
-	streamErr     error
+	target          apiclient.Target
+	health          apicore.DaemonHealth
+	healthErr       error
+	healthCalls     int
+	status          apicore.DaemonStatus
+	statusErr       error
+	startCalls      int
+	startSlug       string
+	startRequest    apicore.TaskRunRequest
+	startRun        apicore.Run
+	startErr        error
+	stopForce       bool
+	stopErr         error
+	workspaces      []apicore.Workspace
+	workspace       apicore.Workspace
+	workspaceErr    error
+	register        apicore.WorkspaceRegisterResult
+	registerErr     error
+	listErr         error
+	deleteRef       string
+	deleteErr       error
+	workflows       []apicore.WorkflowSummary
+	workflowsErr    error
+	archiveCalls    []string
+	archive         apicore.ArchiveResult
+	archiveBySlug   map[string]apicore.ArchiveResult
+	archiveErr      error
+	archiveErrors   map[string]error
+	syncRequest     apicore.SyncRequest
+	syncResult      apicore.SyncResult
+	syncErr         error
+	reviewFetch     apicore.ReviewFetchResult
+	reviewFetchErr  error
+	reviewLatest    apicore.ReviewSummary
+	reviewLatestErr error
+	reviewRound     apicore.ReviewRound
+	reviewRoundErr  error
+	reviewIssues    []apicore.ReviewIssue
+	reviewIssuesErr error
+	reviewRun       apicore.Run
+	reviewRunErr    error
+	execRun         apicore.Run
+	execRunErr      error
+	runEventPage    apicore.RunEventPage
+	runEventPageErr error
+	snapshot        apicore.RunSnapshot
+	snapshotErr     error
+	stream          apiclient.RunStream
+	streamErr       error
 }
 
 func (c *stubDaemonCommandClient) Target() apiclient.Target {
@@ -190,6 +204,56 @@ func (c *stubDaemonCommandClient) SyncWorkflow(_ context.Context, req apicore.Sy
 	return c.syncResult, nil
 }
 
+func (c *stubDaemonCommandClient) FetchReview(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ apicore.ReviewFetchRequest,
+) (apicore.ReviewFetchResult, error) {
+	if c == nil {
+		return apicore.ReviewFetchResult{}, errors.New("stub daemon client is required")
+	}
+	if c.reviewFetchErr != nil {
+		return apicore.ReviewFetchResult{}, c.reviewFetchErr
+	}
+	return c.reviewFetch, nil
+}
+
+func (c *stubDaemonCommandClient) GetLatestReview(context.Context, string, string) (apicore.ReviewSummary, error) {
+	if c == nil {
+		return apicore.ReviewSummary{}, errors.New("stub daemon client is required")
+	}
+	if c.reviewLatestErr != nil {
+		return apicore.ReviewSummary{}, c.reviewLatestErr
+	}
+	return c.reviewLatest, nil
+}
+
+func (c *stubDaemonCommandClient) GetReviewRound(context.Context, string, string, int) (apicore.ReviewRound, error) {
+	if c == nil {
+		return apicore.ReviewRound{}, errors.New("stub daemon client is required")
+	}
+	if c.reviewRoundErr != nil {
+		return apicore.ReviewRound{}, c.reviewRoundErr
+	}
+	return c.reviewRound, nil
+}
+
+func (c *stubDaemonCommandClient) ListReviewIssues(
+	context.Context,
+	string,
+	string,
+	int,
+) ([]apicore.ReviewIssue, error) {
+	if c == nil {
+		return nil, errors.New("stub daemon client is required")
+	}
+	if c.reviewIssuesErr != nil {
+		return nil, c.reviewIssuesErr
+	}
+	return c.reviewIssues, nil
+}
+
 func (c *stubDaemonCommandClient) StartTaskRun(
 	_ context.Context,
 	slug string,
@@ -207,6 +271,32 @@ func (c *stubDaemonCommandClient) StartTaskRun(
 	return c.startRun, nil
 }
 
+func (c *stubDaemonCommandClient) StartReviewRun(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ int,
+	_ apicore.ReviewRunRequest,
+) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, errors.New("stub daemon client is required")
+	}
+	if c.reviewRunErr != nil {
+		return apicore.Run{}, c.reviewRunErr
+	}
+	return c.reviewRun, nil
+}
+
+func (c *stubDaemonCommandClient) StartExecRun(_ context.Context, _ apicore.ExecRequest) (apicore.Run, error) {
+	if c == nil {
+		return apicore.Run{}, errors.New("stub daemon client is required")
+	}
+	if c.execRunErr != nil {
+		return apicore.Run{}, c.execRunErr
+	}
+	return c.execRun, nil
+}
+
 func (c *stubDaemonCommandClient) GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error) {
 	if c == nil {
 		return apicore.RunSnapshot{}, errors.New("stub daemon client is required")
@@ -215,6 +305,21 @@ func (c *stubDaemonCommandClient) GetRunSnapshot(context.Context, string) (apico
 		return apicore.RunSnapshot{}, c.snapshotErr
 	}
 	return c.snapshot, nil
+}
+
+func (c *stubDaemonCommandClient) ListRunEvents(
+	context.Context,
+	string,
+	apicore.StreamCursor,
+	int,
+) (apicore.RunEventPage, error) {
+	if c == nil {
+		return apicore.RunEventPage{}, errors.New("stub daemon client is required")
+	}
+	if c.runEventPageErr != nil {
+		return apicore.RunEventPage{}, c.runEventPageErr
+	}
+	return c.runEventPage, nil
 }
 
 func (c *stubDaemonCommandClient) OpenRunStream(
