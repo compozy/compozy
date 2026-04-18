@@ -18,7 +18,8 @@
 | 12 | TUI Remote Attach and Watch | completed | high | task_04, task_05, task_11 |
 | 13 | pkg/compozy/runs Daemon-Backed Migration | completed | high | task_04, task_05 |
 | 14 | Workspace, Daemon, Sync, and Archive Command Completion | completed | high | task_06, task_09, task_11 |
-| 15 | Reviews and Exec Flow Migration | pending | high | task_05, task_10, task_11 |
-| 16 | Regression Coverage, Docs, and Migration Cleanup | pending | medium | task_12, task_13, task_14, task_15 |
-| 17 | Daemon QA plan and regression artifacts | pending | high | task_12, task_13, task_14, task_15, task_16 |
-| 18 | Daemon QA execution and operator-flow validation | pending | critical | task_17 |
+| 15 | Reviews and Exec Flow Migration | completed | high | task_05, task_10, task_11 |
+| 16 | Daemon Performance Optimizations | completed | critical | task_05, task_06, task_08, task_12, task_13, task_15 |
+| 17 | Regression Coverage, Docs, and Migration Cleanup | completed | medium | task_12, task_13, task_14, task_15 |
+| 18 | Daemon QA plan and regression artifacts | completed | high | task_12, task_13, task_14, task_15, task_16, task_17 |
+| 19 | Daemon QA execution and operator-flow validation | completed | critical | task_18 |

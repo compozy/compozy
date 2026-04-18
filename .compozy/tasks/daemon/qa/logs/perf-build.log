@@ -1,0 +1,5 @@
+Checking Go version...
+[0;32mGo version 1.26.1 is compatible[0m 
+mkdir -p bin
+/Users/pedronauck/.local/share/mise/installs/go/1.26.1/bin/go build -ldflags "-X github.com/compozy/compozy/internal/version.Version=v0.1.12-32-ge7eb8a8 -X github.com/compozy/compozy/internal/version.Commit=e7eb8a8 -X github.com/compozy/compozy/internal/version.Date=2026-04-18T18:30:08Z" -o bin/compozy ./cmd/compozy
+chmod +x bin/compozy

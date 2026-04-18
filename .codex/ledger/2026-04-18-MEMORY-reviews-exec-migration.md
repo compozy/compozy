@@ -18,25 +18,31 @@ Key decisions:
 
 State:
 
-- In progress.
+- Completed after focused coverage expansion, full `make verify`, and task/memory updates.
 
 Done:
 
 - Read workspace instructions, required skill docs, workflow memory, task docs, techspec, ADRs, and relevant daemon ledgers from tasks 05/10/11/14.
 - Reconciled current worktree state with `git status --short`.
-- Captured pre-change signal:
-  - `internal/cli/run.go` still executes `fetch-reviews`, `fix-reviews`, and `exec` through local CLI-owned flows.
-  - `internal/daemon/host.go` wires `Daemon`, `Workspaces`, `Tasks`, `Runs`, and `Sync`, but not `Reviews` or `Exec`.
-  - `internal/api/client` currently exposes task/run/workspace/sync calls but not review/exec calls.
+- Verified the daemon-backed review/exec surfaces that were already present in the worktree and closed the remaining task-15 gap by adding focused coverage:
+  - `internal/cli/reviews_exec_daemon_additional_test.go`
+  - `internal/daemon/review_exec_transport_service_test.go`
+  - `internal/api/client/reviews_exec_test.go`
+- Hardened `internal/cli/agents_commands_test.go` so unknown-agent validation no longer inherits ambient daemon-home env during parallel package runs.
+- Refreshed coverprofiles and confirmed migration-seam coverage above the task target:
+  - `internal/cli/reviews_exec_daemon.go` 81.4%
+  - `internal/daemon/review_exec_transport_service.go` 83.5%
+  - `internal/api/client/reviews_exec.go` 80.7%
+- Ran focused package validation plus `make verify` successfully.
+- Updated workflow memory, task memory, and task tracking for task 15 completion.
 
 Now:
 
-- Implement review/exec transport services and client methods, then route CLI review/exec commands through them while preserving output contracts.
+- Prepare the required local commit, excluding tracking-only workflow files.
 
 Next:
 
-- Extend tests for daemon-backed review/exec start flows and CLI compatibility behavior.
-- Run focused validation and full `make verify`, then update task tracking and create the local commit.
+- None after the commit is created.
 
 Open questions (UNCONFIRMED if needed):
 

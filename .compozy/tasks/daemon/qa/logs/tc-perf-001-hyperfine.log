@@ -1,0 +1,16 @@
+Benchmark 1: ./bin/compozy --help > /dev/null
+  Time (mean ± σ):       8.5 ms ±   0.4 ms    [User: 6.8 ms, System: 3.0 ms]
+  Range (min … max):     7.9 ms …   9.1 ms    10 runs
+ 
+Benchmark 2: ./bin/compozy --version > /dev/null
+  Time (mean ± σ):       8.4 ms ±   0.3 ms    [User: 6.7 ms, System: 2.9 ms]
+  Range (min … max):     8.1 ms …   8.8 ms    10 runs
+ 
+Benchmark 3: ./bin/compozy completion bash > /dev/null
+  Time (mean ± σ):       8.2 ms ±   0.2 ms    [User: 6.6 ms, System: 2.7 ms]
+  Range (min … max):     7.8 ms …   8.5 ms    10 runs
+ 
+Summary
+  ./bin/compozy completion bash > /dev/null ran
+    1.02 ± 0.04 times faster than ./bin/compozy --version > /dev/null
+    1.04 ± 0.05 times faster than ./bin/compozy --help > /dev/null

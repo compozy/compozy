@@ -1,0 +1,14 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/compozy/compozy/internal/store/rundb
+cpu: Apple M4 Max
+BenchmarkRunDBListEventsFromCursor-16    	    6502	    165288 ns/op	  241640 B/op	    4134 allocs/op
+PASS
+ok  	github.com/compozy/compozy/internal/store/rundb	1.453s
+goos: darwin
+goarch: arm64
+pkg: github.com/compozy/compozy/internal/daemon
+cpu: Apple M4 Max
+BenchmarkRunManagerListWorkspaceRuns-16    	    3390	    341317 ns/op	  179314 B/op	    4491 allocs/op
+PASS
+ok  	github.com/compozy/compozy/internal/daemon	1.251s

@@ -9,20 +9,20 @@ Keep only task-local execution context here. Do not duplicate facts that are obv
 - Reuse `internal/daemon.RunManager` plus daemon transport/client layers instead of adding new local review/exec execution paths.
 - Keep existing top-level `fetch-reviews` and `fix-reviews` command surfaces working while introducing the daemon-backed `reviews` command family required by the TechSpec.
 - Preserve current CLI-owned prompt-source resolution and JSON/raw-JSON error emission for `exec`; daemon start requests should receive already-resolved prompt text.
+- Treat task completion for this pass as proving the existing daemon-backed review/exec surfaces with focused unit and integration coverage rather than widening scope beyond task 15.
 
 ## Learnings
-- The daemon manager already implements `StartReviewRun` and `StartExecRun`, but the daemon host does not yet expose `Reviews` or `Exec` services in `buildHostHandlers`.
-- `internal/api/client` currently covers daemon/workspace/task/run/sync APIs, but not review fetch/list/show/fix or exec start calls.
-- `internal/cli/run.go` still owns local `fetch-reviews`, `fix-reviews`, and `exec` execution, which is the concrete pre-change gap against task 15.
+- The daemon-backed review/exec transport and CLI surfaces were already present in the worktree; the missing task-15 gap was verification depth around review sync, exec output compatibility, and the new client/transport seams.
+- Exact statement coverage from the refreshed coverprofiles is now above the task target for the migration seams: `internal/cli/reviews_exec_daemon.go` 81.4%, `internal/daemon/review_exec_transport_service.go` 83.5%, and `internal/api/client/reviews_exec.go` 80.7%.
+- `TestExecCommandUnknownAgentReturnsActionableError` needed explicit daemon-home/XDG isolation to stay stable under the full parallel `internal/cli` package run.
 
 ## Files / Surfaces
-- `internal/daemon/{host.go,run_manager.go}`
-- `internal/api/{core,client}`
-- `internal/cli/{commands.go,daemon_commands.go,run.go,root.go,state.go}`
-- `internal/core/{fetch.go,reviews,run/exec,extension}`
-- `internal/store/globaldb`
+- `internal/api/client/reviews_exec_test.go`
+- `internal/cli/{agents_commands_test.go,reviews_exec_daemon_additional_test.go}`
+- `internal/daemon/review_exec_transport_service_test.go`
 
 ## Errors / Corrections
+- Full-package `internal/cli` verification initially flaked because the unknown-agent test inherited ambient daemon-home env under parallel package execution; fixing the test to set explicit `HOME`/XDG daemon paths removed the false green path.
 
 ## Ready for Next Run
-- Start from the daemon transport layer: add review/exec services and client methods first, then rewire CLI commands and refresh tests around command output compatibility.
+- Task 15 is verified complete; the next daemon task can assume review/exec daemon surfaces are in place and covered, then build on them for task 16 follow-up cleanup.

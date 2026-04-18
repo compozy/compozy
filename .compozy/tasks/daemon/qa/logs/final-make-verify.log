@@ -1,0 +1,82 @@
+Formatting code...
+golangci-lint fmt
+Formatting completed successfully
+golangci-lint run --fix --allow-parallel-runners
+level=warning msg="[runner] Changes related to \"staticcheck\" are skipped for the file \"/Users/pedronauck/dev/compozy/looper/internal/store/globaldb/registry_test.go\": conflicting edits from staticcheck and staticcheck on /Users/pedronauck/dev/compozy/looper/internal/store/globaldb/registry_test.go\nfirst edits:\n--- base\n+++ staticcheck\n@@ -197,7 +197,7 @@\n \tif _, err := db.List(nil); err == nil {\n \t\tt.Fatal(\"List(nil) error = nil, want non-nil\")\n \t}\n-\tif _, err := db.GetWorkflow(nil, \"wf\"); err == nil {\n+\tif _, err := db.GetWorkflow(context.TODO(), \"wf\"); err == nil {\n \t\tt.Fatal(\"GetWorkflow(nil, ...) error = nil, want non-nil\")\n \t}\n \tvar nilCtx context.Context\n\nsecond edits:\n--- base\n+++ staticcheck\n@@ -197,7 +197,7 @@\n \tif _, err := db.List(nil); err == nil {\n \t\tt.Fatal(\"List(nil) error = nil, want non-nil\")\n \t}\n-\tif _, err := db.GetWorkflow(nil, \"wf\"); err == nil {\n+\tif _, err := db.GetWorkflow(context.Background(), \"wf\"); err == nil {\n \t\tt.Fatal(\"GetWorkflow(nil, ...) error = nil, want non-nil\")\n \t}\n \tvar nilCtx context.Context\n"
+level=warning msg="[runner] Changes related to \"staticcheck\" are skipped for the file \"/Users/pedronauck/dev/compozy/looper/pkg/compozy/runs/transport_test.go\": conflicting edits from staticcheck and staticcheck on /Users/pedronauck/dev/compozy/looper/pkg/compozy/runs/transport_test.go\nfirst edits:\n--- base\n+++ staticcheck\n@@ -336,7 +336,7 @@\n \tif item := <-eventsCh; item.Seq != 8 {\n \t\tt.Fatalf(\"sendRunEvent(nil) item.Seq = %d, want 8\", item.Seq)\n \t}\n-\tif !sendRunError(nil, errsCh, nil) {\n+\tif !sendRunError(context.TODO(), errsCh, nil) {\n \t\tt.Fatal(\"sendRunError(nil, nil) returned false, want true\")\n \t}\n }\n\nsecond edits:\n--- base\n+++ staticcheck\n@@ -336,7 +336,7 @@\n \tif item := <-eventsCh; item.Seq != 8 {\n \t\tt.Fatalf(\"sendRunEvent(nil) item.Seq = %d, want 8\", item.Seq)\n \t}\n-\tif !sendRunError(nil, errsCh, nil) {\n+\tif !sendRunError(context.Background(), errsCh, nil) {\n \t\tt.Fatal(\"sendRunError(nil, nil) returned false, want true\")\n \t}\n }\n"
+0 issues.
+Linting completed successfully
+∅  .
+∅  agents
+✓  internal/api/client (cached)
+✓  internal/charmtheme (cached)
+∅  internal/api/udsapi
+✓  internal/api/core (cached)
+✓  internal/api/httpapi (1.142s)
+✓  cmd/compozy (1.329s)
+∅  internal/core/extension/builtin
+✓  internal/config (cached)
+✓  internal/core/frontmatter (cached)
+✓  internal/contentblock (cached)
+✓  internal/core/memory (cached)
+✓  internal/core/agents/mcpserver (cached)
+✓  internal/core/contentconv (cached)
+✓  internal/core/kernel/commands (cached)
+✓  internal/core/migration (cached)
+✓  internal/core/modelprovider (cached)
+✓  internal/core/agents (cached)
+∅  internal/core/providerdefaults
+✓  internal/core/provider/coderabbit (cached)
+✓  internal/core/provider (cached)
+✓  internal/core/run/internal/runshared (cached)
+∅  internal/core/run/internal/runtimeevents
+✓  internal/core/run/journal (cached)
+✓  internal/core/run/preflight (cached)
+✓  internal/core/run/internal/acpshared (cached)
+✓  internal/core/run/exec (cached)
+✓  internal/core/prompt (cached)
+✓  internal/core/subprocess (cached)
+✓  internal/core/agent (cached)
+✓  internal/core/run/transcript (cached)
+✓  internal/core/reviews (cached)
+∅  internal/store (1ms)
+✓  internal/core/tasks (cached)
+✓  internal/core/plan (cached)
+✓  internal/core/model (cached)
+∅  internal/version
+✓  internal/update (cached)
+✓  internal/store/rundb (cached)
+✓  internal/core/sound (cached)
+✓  pkg/compozy/events/kinds (cached)
+✓  pkg/compozy/events (cached)
+✓  internal/core/workspace (cached)
+∅  scripts
+∅  skills (1ms)
+✓  sdk/extension/testing (cached)
+✓  internal/store/globaldb (cached)
+✓  pkg/compozy/runs/layout (cached)
+✓  internal/setup (cached)
+✓  internal/core/run/ui (cached)
+✓  internal/core/run (1.036s)
+✓  sdk/extension (1.056s)
+✓  test (1.244s)
+✓  internal/cli/extension (1.336s)
+✓  pkg/compozy/runs (1.808s)
+✓  internal/core (1.859s)
+✓  internal/core/kernel (3.521s)
+✓  internal/daemon (12.743s)
+✓  internal/cli (13.174s)
+✓  internal/core/extension (13.574s)
+✓  internal/core/run/executor (40.373s)
+
+=== Skipped
+=== SKIP: internal/daemon TestDaemonHelperProcess (0.00s)
+    boot_integration_test.go:213: helper process
+
+DONE 2337 tests, 1 skipped in 42.378s
+Checking Go version...
+[0;32mGo version 1.26.1 is compatible[0m 
+mkdir -p bin
+/Users/pedronauck/.local/share/mise/installs/go/1.26.1/bin/go build -ldflags "-X github.com/compozy/compozy/internal/version.Version=v0.1.12-32-ge7eb8a8 -X github.com/compozy/compozy/internal/version.Commit=e7eb8a8 -X github.com/compozy/compozy/internal/version.Date=2026-04-18T18:30:45Z" -o bin/compozy ./cmd/compozy
+chmod +x bin/compozy
+[0;32mAll verification checks passed[0m 

@@ -1,99 +1,97 @@
 ---
-status: pending
-title: Daemon QA plan and regression artifacts
-type: docs
-complexity: high
+status: completed
+title: Regression Coverage, Docs, and Migration Cleanup
+type: chore
+complexity: medium
 dependencies:
   - task_12
   - task_13
   - task_14
   - task_15
-  - task_16
 ---
 
-# Task 17: Daemon QA plan and regression artifacts
+# Regression Coverage, Docs, and Migration Cleanup
 
 ## Overview
-
-Generate the reusable QA planning artifacts for the daemon migration before live execution begins, with coverage centered on operator-visible CLI, API, TUI, sync/archive, and public run-reader behavior. This task should leave the repo with a concrete daemon test plan, traceable execution cases, and regression-suite definitions that the follow-up execution task can consume without redefining scope or output paths.
+This task closes the daemon migration by hardening end-to-end coverage, updating the user-facing documentation, and removing stale references to the pre-daemon model. It is the cleanup pass that turns the implementation from a working migration into a maintainable, documented product surface.
 
 <critical>
-- ALWAYS READ `_techspec.md`, ADRs, and `task_12.md` through `task_16.md` before planning coverage
-- ACTIVATE `/qa-report` with `qa-output-path=.compozy/tasks/daemon` before writing or revising any QA artifact
-- KEEP THE SAME `qa-output-path` FOR `/qa-execution` — all planning and execution artifacts must live under `.compozy/tasks/daemon/qa/`
-- FOCUS ON "WHAT" — define coverage, risks, and evidence layout; do not execute daemon flows or pre-emptively fix bugs in this task
-- DO NOT INVENT A BROWSER SURFACE — if no daemon web UI exists on the execution branch, mark browser validation as blocked or out of scope explicitly
-- GREENFIELD: the regression matrix must cover the final daemon-native control plane, not legacy `compozy start`, `_tasks.md`, or `_meta.md` assumptions
+- ALWAYS READ the TechSpec before starting; there is no PRD for this feature
+- REFERENCE the TechSpec sections "Testing Approach", "CLI/TUI clients", and "Known Risks" instead of duplicating them here
+- FOCUS ON "WHAT" — close the migration with real regression evidence and clear docs, not just partial cleanup
+- MINIMIZE CODE — prefer deleting stale references and extending existing regression suites over inventing new test harnesses unless coverage truly requires it
+- TESTS REQUIRED — unit and integration coverage are mandatory, and `make verify` is a hard gate
 </critical>
 
 <requirements>
-1. MUST use the `/qa-report` skill with `qa-output-path=.compozy/tasks/daemon`.
-2. MUST generate a feature-level test plan under `.compozy/tasks/daemon/qa/test-plans/`.
-3. MUST generate test cases covering daemon bootstrap and recovery, workspace registry flows, task runs, review runs, exec runs, sync and archive behavior, attach/watch behavior, transport parity, and `pkg/compozy/runs` compatibility.
-4. MUST classify each critical daemon flow as `E2E`, `Integration`, `Manual-only`, or `Blocked` according to the repository’s real harnesses; do not invent browser or TUI automation commands when the harness does not exist.
-5. MUST produce at least one regression-suite document defining smoke, targeted, and full execution priorities for daemon-critical flows, including `make verify` and any explicit CLI/API parity checks.
-6. SHOULD call out browser validation as blocked or out of scope unless a real daemon web surface exists on the execution branch.
+1. MUST add or update regression coverage for the daemon, CLI, TUI, sync, archive, reviews, exec, and public run-reader paths changed by this migration.
+2. MUST update user-facing docs to reflect the new daemon commands, attach/watch semantics, transport model, and home-scoped runtime layout.
+3. MUST remove or migrate stale references to legacy `_tasks.md`, `_meta.md`, and `compozy start` behavior.
+4. MUST finish with a clean `make verify` run as the final migration gate.
+5. SHOULD keep TechSpec, ADR, and task references internally consistent with the final implementation surface.
+6. MUST remove temporary compatibility shims and deprecated migration leftovers instead of normalizing them into the final design.
 </requirements>
 
 ## Subtasks
-- [ ] 17.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/daemon`.
-- [ ] 17.2 Write the daemon feature test plan with scope, risks, environments, and entry/exit criteria.
-- [ ] 17.3 Generate traceable test cases for daemon bootstrap, workspace, sync/archive, run lifecycle, attach/watch, review, exec, and public run-reader flows.
-- [ ] 17.4 Build regression-suite definitions and identify the P0/P1 flows that `/qa-execution` must run first.
-- [ ] 17.5 Validate artifact completeness, traceability, and handoff readiness for `task_18`.
+- [x] 17.1 Extend regression suites for the daemon-backed CLI, TUI, sync, archive, review, exec, and public-reader flows.
+- [x] 17.2 Update README and project docs for the daemon runtime, commands, and operational model.
+- [x] 17.3 Remove stale migration leftovers and obsolete references to generated metadata and legacy start behavior.
+- [x] 17.4 Verify all golden/help/test artifacts still match the final command surface.
+- [x] 17.5 Run the full repository verification gate and fix any remaining regressions before closing the feature.
 
 ## Implementation Details
+Implement the closeout described in the TechSpec "Testing Approach", "CLI/TUI clients", and "Known Risks" sections. This task should focus on evidence and cleanup: broaden the changed-surface regression net, update the operator documentation, and eliminate stale references that would otherwise keep the codebase half on the old model.
 
-See TechSpec sections "Testing Approach", "Development Sequencing", "Known Risks", "CLI/TUI clients", and "Transport Contract". This task is the formal handoff from daemon implementation to QA execution: it should capture what must be proven for the daemon migration, which flows are automation candidates, and where all evidence must live.
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/daemon/boot.go` — reference for the final documented daemon lifecycle posture.
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for the final documented stream contract.
+- `~/dev/compozy/agh/internal/store/globaldb/global_db.go` — reference for the final documented storage split and operational model.
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for the final lifecycle ownership model.
 
 ### Relevant Files
-- `.agents/skills/qa-report/SKILL.md` — required planning workflow, artifact structure, and naming rules
-- `.agents/skills/qa-report/references/test_case_templates.md` — source template for feature test plans and case structure
-- `.agents/skills/qa-report/references/regression_testing.md` — source template for smoke, targeted, and full regression suites
-- `.compozy/tasks/daemon/_techspec.md` — source of truth for daemon testing scope, sequence, and risks
-- `.compozy/tasks/daemon/task_12.md` — defines TUI attach/watch behavior that QA must classify correctly
-- `.compozy/tasks/daemon/task_13.md` — defines `pkg/compozy/runs` migration behavior that QA must cover
-- `.compozy/tasks/daemon/task_14.md` — defines daemon, workspace, sync, and archive command flows that QA must cover
-- `.compozy/tasks/daemon/task_15.md` — defines review and exec flows that QA must cover
-- `.compozy/tasks/daemon/task_16.md` — defines migration-closeout expectations that the QA plan must turn into executable evidence
+- `README.md` — top-level user-facing documentation that must reflect the daemon runtime and command surface.
+- `docs/extensibility/architecture.md` — extension and runtime docs that must reflect daemon-managed execution ownership.
+- `internal/cli/root_command_execution_test.go` — broad CLI regression suite for the new command surface.
+- `pkg/compozy/runs/integration_test.go` — public run-reader integration coverage that must prove daemon-backed behavior end to end.
+- `internal/core/migration/migrate_test.go` — migration cleanup coverage for legacy metadata and workflow transitions.
+- `internal/core/run/executor/execution_acp_integration_test.go` — execution integration coverage that should protect daemon-backed runtime behavior.
 
 ### Dependent Files
-- `.compozy/tasks/daemon/qa/test-plans/daemon-test-plan.md` — feature-level QA plan created by this task
-- `.compozy/tasks/daemon/qa/test-plans/*-regression.md` — regression-suite document(s) consumed by the execution task
-- `.compozy/tasks/daemon/qa/test-cases/TC-*.md` — execution-ready test cases with priorities and automation annotations
-- `.compozy/tasks/daemon/qa/issues/BUG-*.md` — only created if planning uncovers a concrete documented discrepancy
-- `.compozy/tasks/daemon/task_18.md` — execution task that must consume this artifact set unchanged
+- `internal/cli/testdata/start_help.golden` — stale golden data must be removed or replaced to match the final CLI.
+- `internal/cli/testdata/exec_help.golden` — help output must remain aligned with the daemon-backed exec surface.
+- `.compozy/tasks/daemon/_techspec.md` — final implementation and docs should stay aligned with the approved technical design.
+- `.compozy/tasks/daemon/_tasks.md` — task tracking should remain consistent with the actual migration closeout.
 
 ### Related ADRs
-- [ADR-001: Adopt a Global Home-Scoped Singleton Daemon](adrs/adr-001.md) — QA planning must cover singleton boot, recovery, and workspace coordination
-- [ADR-002: Keep Human Artifacts in the Workspace and Move Operational State to Home-Scoped SQLite](adrs/adr-002.md) — QA planning must distinguish workspace artifacts from daemon-owned operational state
-- [ADR-003: Expose the Daemon Through AGH-Aligned REST Transports Using Gin](adrs/adr-003.md) — QA planning must include UDS/HTTP parity and SSE behavior
-- [ADR-004: Preserve TUI-First UX While Introducing Auto-Start and Explicit Workspace Operations](adrs/adr-004.md) — QA planning must cover attach-mode defaults, `tasks run`, and explicit workspace operations
+- [ADR-003: Expose the Daemon Through AGH-Aligned REST Transports Using Gin](adrs/adr-003.md) — docs and tests must reflect the finalized transport contract.
+- [ADR-004: Preserve TUI-First UX While Introducing Auto-Start and Explicit Workspace Operations](adrs/adr-004.md) — final UX and docs should match the approved direction.
 
 ## Deliverables
-- `.compozy/tasks/daemon/qa/test-plans/daemon-test-plan.md`
-- One or more `.compozy/tasks/daemon/qa/test-plans/*-regression.md` documents reusable by `/qa-execution`
-- Traceable test cases under `.compozy/tasks/daemon/qa/test-cases/` **(REQUIRED)**
-- Explicit P0/P1 regression coverage for daemon bootstrap, CLI/API parity, workspace flows, sync/archive, attach/watch, review, exec, and public run readers **(REQUIRED)**
-- A stable artifact layout under `.compozy/tasks/daemon/qa/` that the execution task can consume without path changes **(REQUIRED)**
+- Expanded regression coverage for the daemon migration's highest-risk surfaces.
+- Updated user-facing documentation for commands, runtime layout, and attach/watch behavior.
+- Cleanup of stale references to legacy metadata files and removed commands.
+- Unit tests with 80%+ coverage for changed cleanup surfaces **(REQUIRED)**
+- Integration tests plus a passing `make verify` run **(REQUIRED)**
 
 ## Tests
 - Unit tests:
-  - [ ] `daemon-test-plan.md` includes objectives, scope, environment matrix, entry/exit criteria, risk assessment, and explicit artifact ownership
-  - [ ] Test cases exist for daemon bootstrap/recovery, workspace registration, task runs, review runs, exec, sync/archive, attach/watch, transport parity, and `pkg/compozy/runs`
-  - [ ] Each test case includes preconditions, steps, expected results, priority, and automation annotations suitable for `/qa-execution`
-  - [ ] Regression-suite documents identify smoke, targeted, and full coverage, including execution order and blocker expectations for P0/P1 daemon flows
-  - [ ] Browser validation is explicitly marked as blocked or out of scope when no daemon web surface is available
+  - [x] CLI and migration regression suites cover the final daemon-backed command surface without references to the removed legacy start path.
+  - [x] Golden and help fixtures match the final command output and flag set.
+  - [x] Legacy metadata cleanup logic keeps `_tasks.md` and `_meta.md` out of the final operational flow.
+  - [x] README and daemon docs do not retain stale references to workspace-local run storage or removed commands.
+  - [x] Regression suites cover the final daemon error envelope, attach defaults, and public run-reader compatibility surfaces.
 - Integration tests:
-  - [ ] All generated artifacts land under `.compozy/tasks/daemon/qa/` and can be consumed directly by `/qa-execution`
-  - [ ] Test cases trace back to the relevant daemon tasks, TechSpec sections, or ADR decisions clearly
-  - [ ] Regression-suite and test-plan documents reference the same case IDs, priorities, and artifact paths without naming drift
-  - [ ] Any bug report created during planning references the originating test case or documented discrepancy clearly
+  - [x] End-to-end daemon-backed runs, attach/watch, sync/archive, and exec flows remain green in the repository integration suites.
+  - [x] End-to-end daemon-backed review-fix and extension-hook flows remain green in the repository integration suites.
+  - [x] Public `pkg/compozy/runs` integration tests prove daemon-backed run inspection end to end.
+  - [x] Restart, reconnect, and archive-after-completion flows remain green in the final migration regression suite.
+  - [x] `make verify` passes cleanly after docs, cleanup, and regression updates.
 - Test coverage target: >=80%
 - All tests must pass
 
 ## Success Criteria
-- The `/qa-report` workflow has been executed explicitly and its artifacts are stored under `.compozy/tasks/daemon/qa/`
-- Every daemon-critical operator flow has at least one traceable QA artifact
-- `task_18` can start execution without redefining scope, output paths, or risk priorities
-- The daemon feature has a concrete regression plan instead of ad hoc QA notes
+- All tests passing
+- Test coverage >=80%
+- Documentation reflects the final daemon runtime and command model accurately
+- Stale references to the legacy execution model are removed
+- The full repository verification gate passes at the end of the migration
