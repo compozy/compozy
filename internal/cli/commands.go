@@ -7,12 +7,11 @@ import (
 )
 
 func newFetchReviewsCommand() *cobra.Command {
-	return newFetchReviewsCommandWithDefaults(nil, defaultCommandStateDefaults())
+	return newFetchReviewsCommandWithDefaults(defaultCommandStateDefaults())
 }
 
-func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+func newFetchReviewsCommandWithDefaults(defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindFetchReviews, core.ModePRReview, defaults)
-	state.fetchReviewsFn = newFetchReviewsRunner(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "fetch-reviews",
 		Short:        "Fetch provider review comments into a PRD review round",
@@ -22,7 +21,7 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 		Example: `  compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature
   compozy fetch-reviews --provider coderabbit --pr 259 --name my-feature --round 2
   compozy fetch-reviews`,
-		RunE: state.fetchReviews,
+		RunE: state.fetchReviewsDaemon,
 	}
 
 	cmd.Flags().StringVar(
@@ -37,13 +36,12 @@ func newFetchReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults 
 	return cmd
 }
 
-func newFixReviewsCommand(dispatcher *kernel.Dispatcher) *cobra.Command {
-	return newFixReviewsCommandWithDefaults(dispatcher, defaultCommandStateDefaults())
+func newFixReviewsCommand() *cobra.Command {
+	return newFixReviewsCommandWithDefaults(defaultCommandStateDefaults())
 }
 
-func newFixReviewsCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+func newFixReviewsCommandWithDefaults(defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindFixReviews, core.ModePRReview, defaults)
-	state.runWorkflow = newRunWorkflow(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "fix-reviews",
 		Short:        "Process review issue files from a PRD review round",
@@ -59,7 +57,7 @@ opens the run cockpit by default; in non-TTY environments it falls back to headl
   compozy fix-reviews --format json --name my-feature --round 2
   compozy fix-reviews --reviews-dir .compozy/tasks/my-feature/reviews-001
   compozy fix-reviews`,
-		RunE: state.run,
+		RunE: state.runReviewWorkflowDaemon,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
@@ -142,9 +140,8 @@ func addWorkflowOutputFlags(cmd *cobra.Command, state *commandState) {
 	)
 }
 
-func newExecCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+func newExecCommandWithDefaults(defaults commandStateDefaults) *cobra.Command {
 	state := newCommandStateWithDefaults(commandKindExec, core.ModeExec, defaults)
-	state.runWorkflow = newRunWorkflow(dispatcher)
 	cmd := &cobra.Command{
 		Use:          "exec [prompt]",
 		Short:        "Execute one ad hoc prompt through the shared ACP runtime",
@@ -157,7 +154,7 @@ command is headless and ephemeral: text mode writes only the final assistant res
 json mode streams lean JSONL events to stdout, while raw-json preserves the full event stream.
 Operational runtime logs stay silent unless you opt into --verbose. Use --tui to open the
 interactive TUI and --persist to save resumable artifacts under
-.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.`,
+~/.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.`,
 		Example: `  compozy exec "Summarize the current repository changes"
   compozy exec --agent council "Decide between two designs"
   compozy exec --prompt-file prompt.md
@@ -165,7 +162,7 @@ interactive TUI and --persist to save resumable artifacts under
   compozy exec --format raw-json "Inspect every streamed event"
   compozy exec --persist "Review the latest changes"
   compozy exec --run-id exec-20260405-120000-000000000 "Continue from the previous session"`,
-		RunE: state.exec,
+		RunE: state.execDaemon,
 	}
 
 	addCommonFlags(cmd, state, commonFlagOptions{})
@@ -184,7 +181,7 @@ interactive TUI and --persist to save resumable artifacts under
 	)
 	cmd.Flags().BoolVar(&state.verbose, "verbose", false, "Emit operational runtime logs to stderr during exec")
 	cmd.Flags().BoolVar(&state.tui, "tui", false, "Open the interactive TUI instead of using headless stdout output")
-	cmd.Flags().BoolVar(&state.persist, "persist", false, "Persist exec artifacts under .compozy/runs/<run-id>/")
+	cmd.Flags().BoolVar(&state.persist, "persist", false, "Persist exec artifacts under ~/.compozy/runs/<run-id>/")
 	cmd.Flags().BoolVar(&state.extensionsEnabled, "extensions", false, "Enable executable extensions for this exec run")
 	cmd.Flags().StringVar(&state.runID, "run-id", "", "Resume a previously persisted exec session by run id")
 	return cmd

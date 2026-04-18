@@ -432,15 +432,9 @@ func cloneContentBlocks(blocks []model.ContentBlock) []model.ContentBlock {
 	if len(blocks) == 0 {
 		return nil
 	}
-
-	cloned := make([]model.ContentBlock, len(blocks))
-	for i, block := range blocks {
-		cloned[i] = model.ContentBlock{
-			Type: block.Type,
-			Data: append([]byte(nil), block.Data...),
-		}
-	}
-	return cloned
+	// ContentBlock.Data is immutable once constructed, so snapshots only need a
+	// slice clone to prevent entry-level slice mutation from leaking.
+	return slices.Clone(blocks)
 }
 
 func clonePlanEntries(entries []model.SessionPlanEntry) []model.SessionPlanEntry {

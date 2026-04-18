@@ -709,11 +709,12 @@ func TestPreparePRDTasksUsesSharedRunArtifactsWithoutChangingTaskOrder(t *testin
 	}
 
 	runArtifacts := prep.RunArtifacts
-	if !strings.HasPrefix(
-		runArtifacts.RunDir,
-		filepath.Join(workspaceRoot, ".compozy", "runs")+string(filepath.Separator),
-	) {
-		t.Fatalf("expected run dir under workspace runs root, got %q", runArtifacts.RunDir)
+	expectedRunArtifacts, err := model.ResolveHomeRunArtifacts(runArtifacts.RunID)
+	if err != nil {
+		t.Fatalf("resolve home run artifacts: %v", err)
+	}
+	if got, want := runArtifacts.RunDir, expectedRunArtifacts.RunDir; got != want {
+		t.Fatalf("expected home-scoped run dir %q, got %q", want, got)
 	}
 	for _, job := range prep.Jobs {
 		assertJobUsesRunArtifacts(t, runArtifacts, job)
@@ -1360,11 +1361,12 @@ func TestPrepareReviewModeUsesSharedRunArtifactsWithoutChangingFilterBehavior(t 
 	}
 
 	runArtifacts := prep.RunArtifacts
-	if !strings.HasPrefix(
-		runArtifacts.RunDir,
-		filepath.Join(workspaceRoot, ".compozy", "runs")+string(filepath.Separator),
-	) {
-		t.Fatalf("expected run dir under workspace runs root, got %q", runArtifacts.RunDir)
+	expectedRunArtifacts, err := model.ResolveHomeRunArtifacts(runArtifacts.RunID)
+	if err != nil {
+		t.Fatalf("resolve home run artifacts: %v", err)
+	}
+	if got, want := runArtifacts.RunDir, expectedRunArtifacts.RunDir; got != want {
+		t.Fatalf("expected home-scoped run dir %q, got %q", want, got)
 	}
 	assertJobUsesRunArtifacts(t, runArtifacts, prep.Jobs[0])
 }
@@ -1746,6 +1748,12 @@ func testStringPointer(value string) *string {
 
 func openRunScopeForTest(t *testing.T, cfg *model.RuntimeConfig) model.RunScope {
 	t.Helper()
+
+	if cfg != nil && strings.TrimSpace(cfg.RunID) == "" {
+		cfgCopy := *cfg
+		cfgCopy.RunID = strings.NewReplacer("/", "-", " ", "-").Replace(strings.TrimSpace(t.Name()))
+		cfg = &cfgCopy
+	}
 
 	scope, err := model.OpenRunScope(context.Background(), cfg, model.OpenRunScopeOptions{})
 	if err != nil {

@@ -5,7 +5,7 @@ command is headless and ephemeral: text mode writes only the final assistant res
 json mode streams lean JSONL events to stdout, while raw-json preserves the full event stream.
 Operational runtime logs stay silent unless you opt into --verbose. Use --tui to open the
 interactive TUI and --persist to save resumable artifacts under
-.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.
+~/.compozy/runs/<run-id>/. Use --run-id to resume a previously persisted exec session.
 
 Usage:
   compozy exec [prompt] [flags]
@@ -31,7 +31,7 @@ Flags:
       --ide string                       ACP runtime to use. Built-in and enabled extension runtimes are validated against the active runtime catalog. (default "codex")
       --max-retries int                  Retry execution-stage ACP failures or timeouts up to N times before marking them failed
       --model string                     Model to use. Leave empty to use the selected runtime default.
-      --persist                          Persist exec artifacts under .compozy/runs/<run-id>/
+      --persist                          Persist exec artifacts under ~/.compozy/runs/<run-id>/
       --prompt-file string               Path to a file containing the prompt text
       --reasoning-effort string          Reasoning effort for runtimes that support bootstrap reasoning flags (low, medium, high, xhigh). (default "medium")
       --retry-backoff-multiplier float   Multiplier applied to the next activity timeout after each retry (default 1.5)

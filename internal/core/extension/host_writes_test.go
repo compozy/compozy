@@ -222,6 +222,75 @@ func TestHostRunsStartRejectsRecursionDepthExceeded(t *testing.T) {
 	}
 }
 
+func TestHostRunsStartUsesDaemonBridgeForDaemonOwnedCallbacks(t *testing.T) {
+	t.Parallel()
+
+	bridge := &stubDaemonHostBridge{
+		token:     "daemon-token-001",
+		runHandle: &RunHandle{RunID: "daemon-child-run", ParentRunID: "run-host-root"},
+	}
+	rt := newHostRuntimeWithDaemonBridge(
+		t,
+		[]Capability{CapabilityRunsStart},
+		nil,
+		"",
+		"run-host-root",
+		bridge,
+	)
+
+	result, err := rt.router.Handle(context.Background(), "ext", "host.runs.start", mustJSON(t, RunStartRequest{
+		Runtime: RunConfig{
+			Mode:       model.ExecutionModeExec,
+			PromptText: "daemon nested prompt",
+			IDE:        model.IDECodex,
+		},
+	}))
+	if err != nil {
+		t.Fatalf("Handle() error = %v", err)
+	}
+
+	runHandle, ok := result.(*RunHandle)
+	if !ok {
+		t.Fatalf("result type = %T, want *RunHandle", result)
+	}
+	if runHandle.RunID != "daemon-child-run" {
+		t.Fatalf("runHandle.RunID = %q, want %q", runHandle.RunID, "daemon-child-run")
+	}
+	if bridge.runtime == nil {
+		t.Fatal("bridge.runtime = nil, want cloned runtime config")
+	}
+	if got := bridge.runtime.ParentRunID; got != rt.runID {
+		t.Fatalf("bridge runtime ParentRunID = %q, want %q", got, rt.runID)
+	}
+	if got := bridge.runtime.WorkspaceRoot; got != rt.root {
+		t.Fatalf("bridge runtime WorkspaceRoot = %q, want %q", got, rt.root)
+	}
+}
+
+func TestHostRunsStartRejectsMissingDaemonCapabilityToken(t *testing.T) {
+	t.Parallel()
+
+	rt := newHostRuntimeWithDaemonBridge(
+		t,
+		[]Capability{CapabilityRunsStart},
+		nil,
+		"",
+		"run-host-root",
+		&stubDaemonHostBridge{},
+	)
+
+	_, err := rt.router.Handle(context.Background(), "ext", "host.runs.start", mustJSON(t, RunStartRequest{
+		Runtime: RunConfig{
+			Mode:       model.ExecutionModeExec,
+			PromptText: "daemon nested prompt",
+		},
+	}))
+	data := assertRequestErrorReason(t, err, hostCapabilityTokenInvalidCode, "missing")
+	if got := data["method"]; got != "host.runs.start" {
+		t.Fatalf("error method = %#v, want %q", got, "host.runs.start")
+	}
+}
+
 func TestHostMemoryWriteAppendModeAppendsWithSingleNewlineSeparator(t *testing.T) {
 	t.Parallel()
 

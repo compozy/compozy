@@ -109,12 +109,13 @@ func run(transport *subprocess.Transport, rec recorder) error {
 		return err
 	}
 	rec.write("initialize_env", map[string]any{
-		"protocol_version": os.Getenv("COMPOZY_PROTOCOL_VERSION"),
-		"run_id":           os.Getenv("COMPOZY_RUN_ID"),
-		"parent_run_id":    os.Getenv("COMPOZY_PARENT_RUN_ID"),
-		"workspace_root":   os.Getenv("COMPOZY_WORKSPACE_ROOT"),
-		"extension_name":   os.Getenv("COMPOZY_EXTENSION_NAME"),
-		"extension_source": os.Getenv("COMPOZY_EXTENSION_SOURCE"),
+		"protocol_version":      os.Getenv("COMPOZY_PROTOCOL_VERSION"),
+		"run_id":                os.Getenv("COMPOZY_RUN_ID"),
+		"parent_run_id":         os.Getenv("COMPOZY_PARENT_RUN_ID"),
+		"workspace_root":        os.Getenv("COMPOZY_WORKSPACE_ROOT"),
+		"extension_name":        os.Getenv("COMPOZY_EXTENSION_NAME"),
+		"extension_source":      os.Getenv("COMPOZY_EXTENSION_SOURCE"),
+		"host_capability_token": os.Getenv("COMPOZY_HOST_CAPABILITY_TOKEN"),
 	})
 	rec.write("initialize_request", map[string]any{
 		"protocol_version":      request.ProtocolVersion,

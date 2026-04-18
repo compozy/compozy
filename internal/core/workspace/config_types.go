@@ -18,6 +18,7 @@ type ProjectConfig struct {
 	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
 	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
 	Exec         ExecConfig         `toml:"exec"`
+	Runs         RunsConfig         `toml:"runs"`
 	Sound        SoundConfig        `toml:"sound"`
 }
 
@@ -66,6 +67,13 @@ type ExecConfig struct {
 	Verbose *bool `toml:"verbose"`
 	TUI     *bool `toml:"tui"`
 	Persist *bool `toml:"persist"`
+}
+
+type RunsConfig struct {
+	DefaultAttachMode    *string `toml:"default_attach_mode"`
+	KeepTerminalDays     *int    `toml:"keep_terminal_days"`
+	KeepMax              *int    `toml:"keep_max"`
+	ShutdownDrainTimeout *string `toml:"shutdown_drain_timeout"`
 }
 
 // SoundConfig controls optional audio notifications on run lifecycle events.

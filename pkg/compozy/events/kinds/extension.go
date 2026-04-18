@@ -6,6 +6,8 @@ import "encoding/json"
 type ArtifactUpdatedPayload struct {
 	Path         string `json:"path"`
 	BytesWritten int    `json:"bytes_written,omitempty"`
+	ChangeKind   string `json:"change_kind,omitempty"`
+	Checksum     string `json:"checksum,omitempty"`
 }
 
 // ExtensionLoadedPayload describes an extension entering the manager lifecycle.

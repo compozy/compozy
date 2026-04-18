@@ -1,6 +1,7 @@
 package exec
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 )
 
 const execRunSchemaVersion = 1
+const execEventBufferSize = 16 << 10
 
 type execJSONStreamMode uint8
 
@@ -108,6 +110,7 @@ type execRunState struct {
 	ctx            context.Context
 	cfg            *model.RuntimeConfig
 	record         PersistedExecRun
+	resuming       bool
 	runArtifacts   model.RunArtifacts
 	runtimeManager model.RuntimeManager
 	events         *execEventEmitter
@@ -124,6 +127,7 @@ type execEventWriter struct {
 	mu     sync.Mutex
 	file   *os.File
 	output io.Writer
+	buffer *bufio.Writer
 	closed bool
 }
 
@@ -170,7 +174,10 @@ func (e *execReportedError) Unwrap() error {
 
 // LoadPersistedExecRun reads one persisted exec run from .compozy/runs/<run-id>/run.json.
 func LoadPersistedExecRun(workspaceRoot, runID string) (PersistedExecRun, error) {
-	runArtifacts := model.NewRunArtifacts(workspaceRoot, runID)
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, runID)
+	if err != nil {
+		return PersistedExecRun{}, fmt.Errorf("resolve persisted exec run: %w", err)
+	}
 	payload, err := os.ReadFile(runArtifacts.RunMetaPath)
 	if err != nil {
 		return PersistedExecRun{}, fmt.Errorf("read persisted exec run: %w", err)
@@ -183,7 +190,7 @@ func LoadPersistedExecRun(workspaceRoot, runID string) (PersistedExecRun, error)
 		return PersistedExecRun{}, fmt.Errorf("run %q is not an exec run", runID)
 	}
 	if strings.TrimSpace(record.RunID) == "" {
-		record.RunID = model.NewRunArtifacts(workspaceRoot, runID).RunID
+		record.RunID = runArtifacts.RunID
 	}
 	if record.EventsPath == "" {
 		record.EventsPath = runArtifacts.EventsPath
@@ -205,7 +212,11 @@ func WriteExecJSONFailure(dst io.Writer, runID string, err error) error {
 		RunID: strings.TrimSpace(runID),
 		Error: err.Error(),
 	}
-	return json.NewEncoder(dst).Encode(payload)
+	buffered := bufio.NewWriterSize(dst, execEventBufferSize)
+	if err := json.NewEncoder(buffered).Encode(payload); err != nil {
+		return err
+	}
+	return buffered.Flush()
 }
 
 // IsExecErrorReported returns true when a failed exec already emitted its JSON failure payload.
@@ -267,13 +278,13 @@ func prepareExecExecution(
 		state.close()
 		return "", nil, nil, job{}, err
 	}
-	if strings.TrimSpace(cfg.RunID) == "" {
-		state.refreshRuntimeConfig(cfg)
+	if state.resuming {
+		if err := validateExecResumeCompatibility(cfg, state.record); err != nil {
+			state.close()
+			return "", nil, nil, job{}, err
+		}
 	}
-	if err := validateExecResumeCompatibility(cfg, state.record); err != nil {
-		state.close()
-		return "", nil, nil, job{}, err
-	}
+	state.refreshRuntimeConfig(cfg)
 	promptText, err = applyExecPromptPostBuildHook(ctx, state, promptText)
 	if err != nil {
 		state.close()
@@ -514,15 +525,18 @@ func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope mo
 	state := &execRunState{
 		ctx:      ctx,
 		cfg:      cfg,
-		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI,
+		emitText: cfg.OutputFormat == model.OutputFormatText && !cfg.TUI && !cfg.DaemonOwned,
 	}
 	if scope != nil {
 		if strings.TrimSpace(cfg.RunID) != "" {
-			record, _, err := resolvePersistedExecRecord(cfg)
+			record, found, err := loadPersistedExecRecordIfExists(cfg.WorkspaceRoot, cfg.RunID)
 			if err != nil {
 				return nil, err
 			}
-			state.record = record
+			if found {
+				state.record = record
+				state.resuming = true
+			}
 		}
 		state.turn = atLeastOne(state.record.TurnCount + 1)
 		if err := prepareScopedExecRunState(state, cfg, scope, resolvedModel); err != nil {
@@ -536,6 +550,7 @@ func prepareExecRunState(ctx context.Context, cfg *model.RuntimeConfig, scope mo
 		return nil, err
 	}
 	state.record = record
+	state.resuming = strings.TrimSpace(cfg.RunID) != ""
 	state.turn = atLeastOne(record.TurnCount + 1)
 	if !cfg.Persist {
 		return prepareEphemeralExecRunState(state, cfg, runID)
@@ -559,6 +574,30 @@ func resolvePersistedExecRecord(cfg *model.RuntimeConfig) (PersistedExecRun, str
 	return record, runID, nil
 }
 
+func loadPersistedExecRecordIfExists(workspaceRoot string, runID string) (PersistedExecRun, bool, error) {
+	resolvedRunID := strings.TrimSpace(runID)
+	if resolvedRunID == "" {
+		return PersistedExecRun{}, false, nil
+	}
+
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, resolvedRunID)
+	if err != nil {
+		return PersistedExecRun{}, false, err
+	}
+	if _, err := os.Stat(runArtifacts.RunMetaPath); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return PersistedExecRun{}, false, nil
+		}
+		return PersistedExecRun{}, false, fmt.Errorf("stat persisted exec run: %w", err)
+	}
+
+	record, err := LoadPersistedExecRun(workspaceRoot, resolvedRunID)
+	if err != nil {
+		return PersistedExecRun{}, false, err
+	}
+	return record, true, nil
+}
+
 func prepareEphemeralExecRunState(
 	state *execRunState,
 	cfg *model.RuntimeConfig,
@@ -570,7 +609,7 @@ func prepareEphemeralExecRunState(
 	}
 	state.cleanupDir = tempDir
 	state.runArtifacts = model.NewRunArtifacts(tempDir, runID)
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	return state, nil
 }
 
@@ -580,7 +619,11 @@ func preparePersistentExecRunState(
 	runID string,
 	resolvedModel string,
 ) error {
-	state.runArtifacts = model.NewRunArtifacts(cfg.WorkspaceRoot, runID)
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		return err
+	}
+	state.runArtifacts = runArtifacts
 	if err := ensureExecRunDirectories(state); err != nil {
 		return err
 	}
@@ -590,7 +633,7 @@ func preparePersistentExecRunState(
 	}
 	state.journal = runJournal
 	state.ownsJournal = true
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, runID, resolvedModel)
 	}
@@ -613,7 +656,7 @@ func prepareScopedExecRunState(
 	state.runArtifacts = scope.RunArtifacts()
 	state.journal = scope.RunJournal()
 	state.runtimeManager = scope.RunManager()
-	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg.OutputFormat), os.Stdout)
+	state.events = newExecEventEmitter(nil, execJSONStdoutMode(cfg), execStdoutWriter(cfg))
 	if strings.TrimSpace(state.record.RunID) == "" {
 		state.record = newPersistedExecRunRecord(cfg, state.runArtifacts, state.runArtifacts.RunID, resolvedModel)
 	}
@@ -1019,8 +1062,17 @@ func (w *execEventWriter) Write(event execEvent) error {
 		}
 	}
 	if w.output != nil {
-		if _, err := w.output.Write(payload); err != nil {
+		output := w.output
+		if w.buffer != nil {
+			output = w.buffer
+		}
+		if _, err := output.Write(payload); err != nil {
 			return fmt.Errorf("write exec stdout event: %w", err)
+		}
+		if w.buffer != nil {
+			if err := w.buffer.Flush(); err != nil {
+				return fmt.Errorf("flush exec stdout event: %w", err)
+			}
 		}
 	}
 	return nil
@@ -1033,10 +1085,14 @@ func (w *execEventWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.closed = true
-	if w.file != nil {
-		return w.file.Close()
+	var err error
+	if w.buffer != nil {
+		err = w.buffer.Flush()
 	}
-	return nil
+	if w.file != nil {
+		return errors.Join(err, w.file.Close())
+	}
+	return err
 }
 
 func newExecEventEmitter(eventFile *os.File, stdoutMode execJSONStreamMode, stdout io.Writer) *execEventEmitter {
@@ -1045,7 +1101,10 @@ func newExecEventEmitter(eventFile *os.File, stdoutMode execJSONStreamMode, stdo
 		emitter.rawWriter = &execEventWriter{file: eventFile}
 	}
 	if stdoutMode != execJSONStreamDisabled && stdout != nil {
-		emitter.stdoutWriter = &execEventWriter{output: stdout}
+		emitter.stdoutWriter = &execEventWriter{
+			output: stdout,
+			buffer: bufio.NewWriterSize(stdout, execEventBufferSize),
+		}
 	}
 	if emitter.rawWriter == nil && emitter.stdoutWriter == nil {
 		return nil
@@ -1082,7 +1141,15 @@ func (e *execEventEmitter) Close() error {
 	return err
 }
 
-func execJSONStdoutMode(format model.OutputFormat) execJSONStreamMode {
+func execJSONStdoutMode(cfg *model.RuntimeConfig) execJSONStreamMode {
+	if cfg != nil && cfg.DaemonOwned {
+		return execJSONStreamDisabled
+	}
+
+	format := model.OutputFormatText
+	if cfg != nil {
+		format = cfg.OutputFormat
+	}
 	switch format {
 	case model.OutputFormatJSON:
 		return execJSONStreamLean
@@ -1091,6 +1158,13 @@ func execJSONStdoutMode(format model.OutputFormat) execJSONStreamMode {
 	default:
 		return execJSONStreamDisabled
 	}
+}
+
+func execStdoutWriter(cfg *model.RuntimeConfig) io.Writer {
+	if cfg != nil && cfg.DaemonOwned {
+		return io.Discard
+	}
+	return os.Stdout
 }
 
 func shouldEmitExecStdoutEvent(mode execJSONStreamMode, event execEvent) bool {

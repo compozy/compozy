@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	core "github.com/compozy/compozy/internal/core"
-	"github.com/spf13/cobra"
 )
 
 func TestBuildConfigStartAlwaysEnablesExecutableExtensions(t *testing.T) {
@@ -81,7 +80,7 @@ func TestBuildConfigFetchReviewsDefaultsReviewBodyCommentsEnabled(t *testing.T) 
 func TestNewExecCommandRegistersExtensionsFlag(t *testing.T) {
 	t.Parallel()
 
-	cmd := newExecCommandWithDefaults(nil, defaultCommandStateDefaults())
+	cmd := newExecCommandWithDefaults(defaultCommandStateDefaults())
 	flag := cmd.Flags().Lookup("extensions")
 	if flag == nil {
 		t.Fatal("expected exec command to register --extensions")
@@ -91,34 +90,31 @@ func TestNewExecCommandRegistersExtensionsFlag(t *testing.T) {
 	}
 }
 
-func TestStartAndFixReviewsCommandsDefaultTUIToTrue(t *testing.T) {
+func TestNewTasksRunCommandDefaultsAttachModeToAuto(t *testing.T) {
 	t.Parallel()
 
-	cases := []struct {
-		name string
-		cmd  *cobra.Command
-	}{
-		{
-			name: "ShouldDefaultTUIToTrueForStart",
-			cmd:  newStartCommandWithDefaults(nil, defaultCommandStateDefaults()),
-		},
-		{
-			name: "ShouldDefaultTUIToTrueForFixReviews",
-			cmd:  newFixReviewsCommandWithDefaults(nil, defaultCommandStateDefaults()),
-		},
+	cmd := newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults())
+	flag := cmd.Flags().Lookup("attach")
+	if flag == nil {
+		t.Fatal("expected --attach flag")
 	}
+	if flag.DefValue != attachModeAuto {
+		t.Fatalf("expected --attach default %q, got %q", attachModeAuto, flag.DefValue)
+	}
+	if cmd.Flags().Lookup("tui") != nil {
+		t.Fatal("expected tasks run to omit legacy --tui flag")
+	}
+}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			flag := tc.cmd.Flags().Lookup("tui")
-			if flag == nil {
-				t.Fatal("expected --tui flag")
-			}
-			if flag.DefValue != "true" {
-				t.Fatalf("expected --tui default true, got %q", flag.DefValue)
-			}
-		})
+func TestFixReviewsCommandDefaultsTUIToTrue(t *testing.T) {
+	t.Parallel()
+
+	cmd := newFixReviewsCommandWithDefaults(defaultCommandStateDefaults())
+	flag := cmd.Flags().Lookup("tui")
+	if flag == nil {
+		t.Fatal("expected --tui flag")
+	}
+	if flag.DefValue != "true" {
+		t.Fatalf("expected --tui default true, got %q", flag.DefValue)
 	}
 }

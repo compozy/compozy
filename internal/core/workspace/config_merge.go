@@ -22,6 +22,7 @@ func buildEffectiveProjectConfig(global, workspace ProjectConfig) ProjectConfig 
 		),
 		FetchReviews: mergeFetchReviewsConfig(global.FetchReviews, workspace.FetchReviews),
 		Exec:         buildEffectiveExecConfig(global.Defaults, global.Exec, workspace.Defaults, workspace.Exec),
+		Runs:         mergeRunsConfig(global.Runs, workspace.Runs),
 		Sound:        mergeSoundConfig(global.Sound, workspace.Sound),
 	}
 }
@@ -158,6 +159,17 @@ func buildEffectiveExecConfig(
 		Verbose: cloneOptionalValue(preferOverlay(global.Verbose, workspace.Verbose)),
 		TUI:     cloneOptionalValue(preferOverlay(global.TUI, workspace.TUI)),
 		Persist: cloneOptionalValue(preferOverlay(global.Persist, workspace.Persist)),
+	}
+}
+
+func mergeRunsConfig(base, overlay RunsConfig) RunsConfig {
+	return RunsConfig{
+		DefaultAttachMode: cloneOptionalValue(preferOverlay(base.DefaultAttachMode, overlay.DefaultAttachMode)),
+		KeepTerminalDays:  cloneOptionalValue(preferOverlay(base.KeepTerminalDays, overlay.KeepTerminalDays)),
+		KeepMax:           cloneOptionalValue(preferOverlay(base.KeepMax, overlay.KeepMax)),
+		ShutdownDrainTimeout: cloneOptionalValue(
+			preferOverlay(base.ShutdownDrainTimeout, overlay.ShutdownDrainTimeout),
+		),
 	}
 }
 

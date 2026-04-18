@@ -1,9 +1,13 @@
 package model
 
 import (
+	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
@@ -12,6 +16,7 @@ const defaultRunID = "run"
 type RunArtifacts struct {
 	RunID       string
 	RunDir      string
+	RunDBPath   string
 	RunMetaPath string
 	EventsPath  string
 	TurnsDir    string
@@ -26,17 +31,45 @@ type JobArtifacts struct {
 }
 
 func NewRunArtifacts(workspaceRoot, runID string) RunArtifacts {
+	return NewRunArtifactsForRunsDir(RunsBaseDirForWorkspace(workspaceRoot), runID)
+}
+
+func NewRunArtifactsForRunsDir(runsDir, runID string) RunArtifacts {
 	safeRunID := sanitizeRunID(runID)
-	runDir := filepath.Join(RunsBaseDirForWorkspace(workspaceRoot), safeRunID)
+	runDir := filepath.Join(strings.TrimSpace(runsDir), safeRunID)
 	return RunArtifacts{
 		RunID:       safeRunID,
 		RunDir:      runDir,
+		RunDBPath:   layout.RunDBPath(runDir),
 		RunMetaPath: layout.RunMetaPath(runDir),
 		EventsPath:  layout.EventsLogPath(runDir),
 		TurnsDir:    layout.TurnsDir(runDir),
 		JobsDir:     layout.JobsDir(runDir),
 		ResultPath:  layout.ResultPath(runDir),
 	}
+}
+
+func ResolveHomeRunArtifacts(runID string) (RunArtifacts, error) {
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		return RunArtifacts{}, fmt.Errorf("resolve home run artifacts: %w", err)
+	}
+	return NewRunArtifactsForRunsDir(homePaths.RunsDir, runID), nil
+}
+
+func ResolvePersistedRunArtifacts(workspaceRoot, runID string) (RunArtifacts, error) {
+	workspaceArtifacts := NewRunArtifacts(workspaceRoot, runID)
+	if _, err := os.Stat(workspaceArtifacts.RunMetaPath); err == nil {
+		return workspaceArtifacts, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return RunArtifacts{}, fmt.Errorf("stat workspace run metadata: %w", err)
+	}
+
+	homeArtifacts, err := ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		return RunArtifacts{}, err
+	}
+	return homeArtifacts, nil
 }
 
 func sanitizeRunID(runID string) string {

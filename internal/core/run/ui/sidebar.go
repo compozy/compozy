@@ -99,14 +99,14 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 		gap := max(maxW-lipgloss.Width(line1)-lipgloss.Width(timeStyled), 1)
 		line1 += renderGap(bg, gap) + timeStyled
 	}
-	line1 = renderOwnedLine(maxW, bg, line1)
+	line1 = renderOwnedLineKnownOwned(maxW, bg, line1)
 
 	line2Raw := truncateString(m.sidebarMeta(job), maxW)
 	metaStyle := styleDimText
 	if selected {
 		metaStyle = styleMutedText
 	}
-	line2 := renderOwnedLine(maxW, bg, renderStyledOnBackground(metaStyle, bg, line2Raw))
+	line2 := renderOwnedLineKnownOwned(maxW, bg, renderStyledOnBackground(metaStyle, bg, line2Raw))
 	row := line1 + "\n" + line2
 	if selected {
 		return selectedSidebarRowStyle(maxW).Render(row)

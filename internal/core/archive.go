@@ -11,14 +11,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/reviews"
-	"github.com/compozy/compozy/internal/core/tasks"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
-const archiveTimestampFormat = "20060102-150405"
+const workflowStateNotSyncedReason = "workflow state not synced"
 
 func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResult, error) {
-	target, rootDir, singleWorkflow, err := resolveArchiveTarget(cfg)
+	target, rootDir, singleWorkflow, err := resolveArchiveTarget(ctx, cfg)
 	result := &ArchiveResult{
 		Target:         target,
 		ArchiveRoot:    model.ArchivedTasksDir(rootDir),
@@ -28,8 +27,16 @@ func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResul
 		return result, err
 	}
 
+	db, workspace, err := openWorkflowGlobalDB(ctx, target)
+	if err != nil {
+		return result, err
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
 	if singleWorkflow {
-		if err := archiveWorkflow(target, result); err != nil {
+		if err := archiveWorkflow(ctx, db, workspace.ID, target, result, true); err != nil {
 			return result, err
 		}
 		sortArchiveResult(result)
@@ -47,7 +54,14 @@ func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResul
 		if !entry.IsDir() || !model.IsActiveWorkflowDirName(entry.Name()) {
 			continue
 		}
-		if err := archiveWorkflow(filepath.Join(target, entry.Name()), result); err != nil {
+		if err := archiveWorkflow(
+			ctx,
+			db,
+			workspace.ID,
+			filepath.Join(target, entry.Name()),
+			result,
+			false,
+		); err != nil {
 			return result, err
 		}
 	}
@@ -56,43 +70,177 @@ func archiveTaskWorkflows(ctx context.Context, cfg ArchiveConfig) (*ArchiveResul
 	return result, nil
 }
 
-func resolveArchiveTarget(cfg ArchiveConfig) (string, string, bool, error) {
+func resolveArchiveTarget(ctx context.Context, cfg ArchiveConfig) (string, string, bool, error) {
 	name := strings.TrimSpace(cfg.Name)
 	if name == model.ArchivedWorkflowDirName {
 		return "", "", false, fmt.Errorf("archive target cannot be %s", model.ArchivedWorkflowDirName)
 	}
 
-	resolved, err := resolveWorkflowTarget(workflowTargetOptions{
-		command:       "archive",
-		workspaceRoot: cfg.WorkspaceRoot,
-		rootDir:       cfg.RootDir,
-		name:          name,
-		tasksDir:      cfg.TasksDir,
-		selectorFlags: "--name or --tasks-dir",
-	})
+	resolvedTarget, rootDir, specificTarget, slug, err := resolveArchiveSelection(cfg, name)
 	if err != nil {
 		return "", "", false, err
 	}
-	if pathContainsArchivedComponent(resolved.target) {
-		return "", "", false, fmt.Errorf("archive target cannot be inside %s", model.ArchivedWorkflowDirName)
+	if err := validateArchiveTarget(ctx, resolvedTarget, rootDir, slug, specificTarget); err != nil {
+		return "", "", false, err
 	}
-	return resolved.target, resolved.rootDir, resolved.specificTarget, nil
+	return resolvedTarget, rootDir, specificTarget, nil
 }
 
-func archiveWorkflow(tasksDir string, result *ArchiveResult) error {
+func archiveSlugForTarget(name string, target string) string {
+	if trimmed := strings.TrimSpace(name); trimmed != "" {
+		return trimmed
+	}
+	return filepath.Base(strings.TrimSpace(target))
+}
+
+func resolveArchiveSelection(
+	cfg ArchiveConfig,
+	name string,
+) (target string, rootDir string, specificTarget bool, slug string, err error) {
+	if countArchiveSelectors(cfg) > 1 {
+		return "", "", false, "", fmt.Errorf("archive accepts only one of --name or --tasks-dir")
+	}
+
+	rootDir = strings.TrimSpace(cfg.RootDir)
+	if rootDir == "" {
+		rootDir = model.TasksBaseDirForWorkspace(cfg.WorkspaceRoot)
+	}
+	rootDir, err = filepath.Abs(rootDir)
+	if err != nil {
+		return "", "", false, "", fmt.Errorf("resolve archive root: %w", err)
+	}
+
+	target = rootDir
+	switch {
+	case strings.TrimSpace(cfg.TasksDir) != "":
+		target = strings.TrimSpace(cfg.TasksDir)
+		specificTarget = true
+	case name != "":
+		target = filepath.Join(rootDir, name)
+		specificTarget = true
+	}
+
+	target, err = filepath.Abs(target)
+	if err != nil {
+		return "", "", false, "", fmt.Errorf("resolve archive target: %w", err)
+	}
+	if specificTarget {
+		rootDir = filepath.Dir(target)
+	}
+	return target, rootDir, specificTarget, archiveSlugForTarget(name, target), nil
+}
+
+func countArchiveSelectors(cfg ArchiveConfig) int {
+	selectors := 0
+	if strings.TrimSpace(cfg.Name) != "" {
+		selectors++
+	}
+	if strings.TrimSpace(cfg.TasksDir) != "" {
+		selectors++
+	}
+	return selectors
+}
+
+func validateArchiveTarget(
+	ctx context.Context,
+	target string,
+	rootDir string,
+	slug string,
+	specificTarget bool,
+) error {
+	if pathContainsArchivedComponent(target) {
+		return fmt.Errorf("archive target cannot be inside %s", model.ArchivedWorkflowDirName)
+	}
+
+	info, err := os.Stat(target)
+	if err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("archive target is not a directory: %s", target)
+		}
+		return nil
+	}
+
+	if specificTarget && errors.Is(err, os.ErrNotExist) {
+		archiveRoot := model.ArchivedTasksDir(rootDir)
+		if archivedWorkflowExists(archiveRoot, slug) || archivedWorkflowIdentityExists(ctx, rootDir, slug) {
+			return globaldb.WorkflowArchivedError{Slug: slug}
+		}
+	}
+	return fmt.Errorf("stat archive target: %w", err)
+}
+
+func archivedWorkflowIdentityExists(ctx context.Context, rootDir string, slug string) bool {
+	if strings.TrimSpace(rootDir) == "" || strings.TrimSpace(slug) == "" {
+		return false
+	}
+
+	db, workspace, err := openWorkflowGlobalDB(ctx, rootDir)
+	if err != nil {
+		return false
+	}
+	defer func() {
+		_ = db.Close()
+	}()
+
+	_, err = db.GetLatestArchivedWorkflowBySlug(ctx, workspace.ID, slug)
+	return err == nil
+}
+
+func archivedWorkflowExists(archiveRoot string, slug string) bool {
+	entries, err := os.ReadDir(strings.TrimSpace(archiveRoot))
+	if err != nil {
+		return false
+	}
+
+	suffix := "-" + strings.TrimSpace(slug)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+func archiveWorkflow(
+	ctx context.Context,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	tasksDir string,
+	result *ArchiveResult,
+	conflictOnSkip bool,
+) error {
 	if result == nil {
 		return errors.New("archive result is required")
 	}
 
 	result.WorkflowsScanned++
 
-	reason, err := archiveSkipReason(tasksDir)
+	slug := filepath.Base(tasksDir)
+	eligibility, err := db.GetWorkflowArchiveEligibility(ctx, workspaceID, slug)
 	if err != nil {
+		if errors.Is(err, globaldb.ErrWorkflowNotFound) {
+			reason := workflowStateNotSyncedReason
+			if conflictOnSkip {
+				return globaldb.WorkflowNotArchivableError{
+					WorkspaceID: workspaceID,
+					Slug:        slug,
+					Reason:      reason,
+				}
+			}
+			recordArchiveSkip(result, tasksDir, reason)
+			return nil
+		}
 		return err
 	}
-	if reason != "" {
-		result.Skipped++
-		result.SkippedReasons[tasksDir] = reason
+
+	if reason := eligibility.SkipReason(); reason != "" {
+		if conflictOnSkip {
+			return eligibility.ConflictError()
+		}
+		recordArchiveSkip(result, tasksDir, reason)
 		return nil
 	}
 
@@ -100,9 +248,23 @@ func archiveWorkflow(tasksDir string, result *ArchiveResult) error {
 		return fmt.Errorf("mkdir archive root: %w", err)
 	}
 
-	archivedDir := filepath.Join(result.ArchiveRoot, archivedWorkflowName(filepath.Base(tasksDir), time.Now().UTC()))
+	archivedAt := time.Now().UTC()
+	archivedDir := filepath.Join(
+		result.ArchiveRoot,
+		model.ArchivedWorkflowName(slug, eligibility.Workflow.ID, archivedAt),
+	)
 	if err := os.Rename(tasksDir, archivedDir); err != nil {
 		return fmt.Errorf("archive workflow %s: %w", tasksDir, err)
+	}
+
+	if _, err := db.MarkWorkflowArchived(ctx, eligibility.Workflow.ID, archivedAt); err != nil {
+		if rollbackErr := os.Rename(archivedDir, tasksDir); rollbackErr != nil {
+			return errors.Join(
+				fmt.Errorf("persist archived workflow state %s: %w", eligibility.Workflow.ID, err),
+				fmt.Errorf("rollback archived workflow rename %s: %w", archivedDir, rollbackErr),
+			)
+		}
+		return fmt.Errorf("persist archived workflow state %s: %w", eligibility.Workflow.ID, err)
 	}
 
 	result.Archived++
@@ -110,52 +272,13 @@ func archiveWorkflow(tasksDir string, result *ArchiveResult) error {
 	return nil
 }
 
-func archiveSkipReason(tasksDir string) (string, error) {
-	if _, err := os.Stat(tasks.MetaPath(tasksDir)); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return "missing task _meta.md", nil
-		}
-		return "", fmt.Errorf("stat task meta for %s: %w", tasksDir, err)
+func recordArchiveSkip(result *ArchiveResult, tasksDir string, reason string) {
+	if result == nil {
+		return
 	}
-
-	taskMeta, err := tasks.RefreshTaskMeta(tasksDir)
-	if err != nil {
-		return "", err
-	}
-	if taskMeta.Total == 0 {
-		return "no task files present", nil
-	}
-	if taskMeta.Pending > 0 {
-		return "task workflow not fully completed", nil
-	}
-
-	rounds, err := reviews.DiscoverRounds(tasksDir)
-	if err != nil {
-		return "", err
-	}
-	for _, round := range rounds {
-		reviewDir := reviews.ReviewDirectory(tasksDir, round)
-		if _, err := os.Stat(reviews.MetaPath(reviewDir)); err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return "missing review _meta.md", nil
-			}
-			return "", fmt.Errorf("stat review meta for %s: %w", reviewDir, err)
-		}
-
-		reviewMeta, err := reviews.RefreshRoundMeta(reviewDir)
-		if err != nil {
-			return "", err
-		}
-		if reviewMeta.Unresolved > 0 {
-			return "review rounds not fully resolved", nil
-		}
-	}
-
-	return "", nil
-}
-
-func archivedWorkflowName(name string, now time.Time) string {
-	return fmt.Sprintf("%s-%s", now.UTC().Format(archiveTimestampFormat), name)
+	result.Skipped++
+	result.SkippedPaths = append(result.SkippedPaths, tasksDir)
+	result.SkippedReasons[tasksDir] = reason
 }
 
 func pathContainsArchivedComponent(path string) bool {
@@ -177,4 +300,5 @@ func sortArchiveResult(result *ArchiveResult) {
 		return
 	}
 	sort.Strings(result.ArchivedPaths)
+	sort.Strings(result.SkippedPaths)
 }

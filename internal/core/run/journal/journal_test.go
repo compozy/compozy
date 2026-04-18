@@ -1,9 +1,12 @@
 package journal
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/store/rundb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/runs"
 )
@@ -124,6 +128,55 @@ func TestJournalFlushesOnInterval(t *testing.T) {
 	}
 }
 
+func TestJournalPublishesNonTerminalEventsBeforePeriodicSync(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runID := "journal-publish-before-sync"
+	prepareRunLayout(t, workspaceRoot, runID)
+
+	bus := events.New[events.Event](16)
+	_, updates, unsubscribe := bus.Subscribe()
+	defer unsubscribe()
+
+	synced := make(chan struct{}, 1)
+	journal, _ := openTestJournal(t, workspaceRoot, runID, bus, 16, openOptions{
+		batchSize:     1,
+		flushInterval: 40 * time.Millisecond,
+		afterSync: func() {
+			select {
+			case synced <- struct{}{}:
+			default:
+			}
+		},
+	})
+
+	if err := journal.Submit(context.Background(), testJournalEvent(runID, events.EventKindJobStarted, 1)); err != nil {
+		t.Fatalf("Submit() error = %v", err)
+	}
+
+	published := collectBusEvents(t, updates, 1, time.Second)
+	if got := collectedSeqs(published); !slices.Equal(got, []uint64{1}) {
+		t.Fatalf("published seqs = %v, want [1]", got)
+	}
+
+	select {
+	case <-synced:
+		t.Fatal("expected non-terminal event to publish before periodic sync")
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	select {
+	case <-synced:
+	case <-time.After(time.Second):
+		t.Fatal("expected periodic sync after non-terminal publish")
+	}
+
+	if err := journal.Close(context.Background()); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+}
+
 func TestJournalSubmitWithSeqReturnsAssignedSequence(t *testing.T) {
 	t.Parallel()
 
@@ -174,6 +227,7 @@ func TestJournalTerminalEventForcesImmediateSync(t *testing.T) {
 	defer unsubscribe()
 
 	synced := make(chan struct{}, 2)
+	releaseSync := make(chan struct{})
 	journal, _ := openTestJournal(t, workspaceRoot, runID, bus, 16, openOptions{
 		batchSize:     32,
 		flushInterval: time.Hour,
@@ -182,23 +236,36 @@ func TestJournalTerminalEventForcesImmediateSync(t *testing.T) {
 			case synced <- struct{}{}:
 			default:
 			}
+			<-releaseSync
 		},
 	})
 
 	if err := journal.Submit(context.Background(), testJournalEvent(runID, events.EventKindJobStarted, 1)); err != nil {
 		t.Fatalf("Submit(started) error = %v", err)
 	}
-	if err := journal.Submit(
-		context.Background(),
-		testJournalEvent(runID, events.EventKindRunCompleted, 2),
-	); err != nil {
-		t.Fatalf("Submit(completed) error = %v", err)
-	}
+	submitDone := make(chan error, 1)
+	go func() {
+		submitDone <- journal.Submit(
+			context.Background(),
+			testJournalEvent(runID, events.EventKindRunCompleted, 2),
+		)
+	}()
 
 	select {
 	case <-synced:
 	case <-time.After(time.Second):
 		t.Fatal("expected terminal submit to force sync")
+	}
+
+	select {
+	case event := <-updates:
+		t.Fatalf("expected terminal publish after sync, got seq %d early", event.Seq)
+	case <-time.After(10 * time.Millisecond):
+	}
+
+	close(releaseSync)
+	if err := <-submitDone; err != nil {
+		t.Fatalf("Submit(completed) error = %v", err)
 	}
 
 	published := collectBusEvents(t, updates, 2, time.Second)
@@ -238,6 +305,22 @@ func TestJournalCloseDrainsQueuedEvents(t *testing.T) {
 	replayed := replayRunEvents(t, workspaceRoot, runID, 0)
 	if got := collectedSeqs(replayed); !slices.Equal(got, []uint64{1, 2, 3, 4, 5}) {
 		t.Fatalf("replayed seqs = %v, want [1 2 3 4 5]", got)
+	}
+
+	store, err := rundb.Open(context.Background(), journal.DBPath())
+	if err != nil {
+		t.Fatalf("rundb.Open(): %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	storedEvents, err := store.ListEvents(context.Background(), 1, 0)
+	if err != nil {
+		t.Fatalf("ListEvents(): %v", err)
+	}
+	if got := collectedSeqs(storedEvents.Events); !slices.Equal(got, []uint64{1, 2, 3, 4, 5}) {
+		t.Fatalf("stored seqs = %v, want [1 2 3 4 5]", got)
 	}
 }
 
@@ -494,6 +577,28 @@ func TestJournalConcurrentSubmitProducesGapFreeSequence(t *testing.T) {
 			t.Fatalf("event[%d].Seq = %d, want %d", idx, ev.Seq, want)
 		}
 	}
+
+	store, err := rundb.Open(context.Background(), journal.DBPath())
+	if err != nil {
+		t.Fatalf("rundb.Open(): %v", err)
+	}
+	defer func() {
+		_ = store.Close()
+	}()
+
+	storedEvents, err := store.ListEvents(context.Background(), 1, 0)
+	if err != nil {
+		t.Fatalf("ListEvents(): %v", err)
+	}
+	if len(storedEvents.Events) != 200 {
+		t.Fatalf("stored events = %d, want 200", len(storedEvents.Events))
+	}
+	for idx, ev := range storedEvents.Events {
+		want := uint64(idx + 1)
+		if ev.Seq != want {
+			t.Fatalf("stored event[%d].Seq = %d, want %d", idx, ev.Seq, want)
+		}
+	}
 }
 
 func TestJournalFlushHookSupportsCrashRecoveryReplay(t *testing.T) {
@@ -538,22 +643,7 @@ func TestJournalFlushHookSupportsCrashRecoveryReplay(t *testing.T) {
 		t.Fatalf("Close() error = %v", err)
 	}
 
-	run, err := runs.Open(workspaceRoot, runID)
-	if err != nil {
-		t.Fatalf("runs.Open() error = %v", err)
-	}
-
-	var (
-		replayed  []events.Event
-		replayErr error
-	)
-	for ev, err := range run.Replay(0) {
-		if err != nil {
-			replayErr = err
-			break
-		}
-		replayed = append(replayed, ev)
-	}
+	replayed, replayErr := replayRunEventsWithError(t, workspaceRoot, runID, 0)
 
 	if got := collectedSeqs(replayed); !slices.Equal(got, []uint64{1, 2}) {
 		t.Fatalf("replayed seqs = %v, want [1 2]", got)
@@ -642,19 +732,59 @@ func collectBusEvents(
 func replayRunEvents(t *testing.T, workspaceRoot, runID string, fromSeq uint64) []events.Event {
 	t.Helper()
 
-	run, err := runs.Open(workspaceRoot, runID)
+	replayed, err := replayRunEventsWithError(t, workspaceRoot, runID, fromSeq)
 	if err != nil {
-		t.Fatalf("runs.Open() error = %v", err)
-	}
-
-	var replayed []events.Event
-	for ev, err := range run.Replay(fromSeq) {
-		if err != nil {
-			t.Fatalf("Replay() error = %v", err)
-		}
-		replayed = append(replayed, ev)
+		t.Fatalf("replayRunEventsWithError() error = %v", err)
 	}
 	return replayed
+}
+
+func replayRunEventsWithError(
+	t *testing.T,
+	workspaceRoot string,
+	runID string,
+	fromSeq uint64,
+) ([]events.Event, error) {
+	t.Helper()
+
+	eventsPath := filepath.Join(workspaceRoot, ".compozy", "runs", runID, "events.jsonl")
+	file, err := os.Open(eventsPath)
+	if err != nil {
+		t.Fatalf("open events mirror: %v", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	reader := bufio.NewReader(file)
+	replayed := make([]events.Event, 0)
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		if len(line) == 0 && errors.Is(readErr, io.EOF) {
+			return replayed, nil
+		}
+
+		trimmed := bytes.TrimSpace(line)
+		if len(trimmed) > 0 {
+			var item events.Event
+			if err := json.Unmarshal(trimmed, &item); err != nil {
+				if errors.Is(readErr, io.EOF) {
+					return replayed, runs.ErrPartialEventLine
+				}
+				t.Fatalf("decode mirrored event: %v", err)
+			}
+			if item.Seq >= fromSeq {
+				replayed = append(replayed, item)
+			}
+		}
+
+		if errors.Is(readErr, io.EOF) {
+			return replayed, nil
+		}
+		if readErr != nil {
+			t.Fatalf("read events mirror: %v", readErr)
+		}
+	}
 }
 
 func collectedSeqs(items []events.Event) []uint64 {

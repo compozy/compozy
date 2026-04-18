@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/pkg/compozy/runs"
 	"github.com/compozy/compozy/pkg/compozy/runs/layout"
 )
 
@@ -105,9 +104,8 @@ func TestMigrateExposePublicAPI(t *testing.T) {
 }
 
 func TestSyncExposePublicAPI(t *testing.T) {
-	t.Parallel()
-
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(tmpDir, "home"))
 	workflowDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
 	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
 		t.Fatalf("mkdir workflow dir: %v", err)
@@ -133,15 +131,17 @@ func TestSyncExposePublicAPI(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected sync result")
 	}
-	if result.WorkflowsScanned != 1 || result.MetaCreated != 1 || result.MetaUpdated != 0 {
+	if result.WorkflowsScanned != 1 ||
+		result.TaskItemsUpserted != 1 ||
+		result.SnapshotsUpserted != 1 ||
+		result.CheckpointsUpdated != 1 {
 		t.Fatalf("unexpected sync result: %#v", result)
 	}
 }
 
 func TestArchiveExposePublicAPI(t *testing.T) {
-	t.Parallel()
-
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", filepath.Join(tmpDir, "home"))
 	workflowDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo")
 	if err := os.MkdirAll(workflowDir, 0o755); err != nil {
 		t.Fatalf("mkdir workflow dir: %v", err)
@@ -160,20 +160,8 @@ func TestArchiveExposePublicAPI(t *testing.T) {
 		t.Fatalf("write task file: %v", err)
 	}
 
-	metaContent := strings.Join([]string{
-		"---",
-		"created_at: 2026-04-01T12:00:00Z",
-		"updated_at: 2026-04-01T12:00:00Z",
-		"---",
-		"",
-		"## Summary",
-		"- Total: 1",
-		"- Completed: 1",
-		"- Pending: 0",
-		"",
-	}, "\n")
-	if err := os.WriteFile(filepath.Join(workflowDir, "_meta.md"), []byte(metaContent), 0o600); err != nil {
-		t.Fatalf("write task meta: %v", err)
+	if _, err := compozy.Sync(context.Background(), compozy.SyncConfig{TasksDir: workflowDir}); err != nil {
+		t.Fatalf("sync before archive: %v", err)
 	}
 
 	result, err := compozy.Archive(context.Background(), compozy.ArchiveConfig{TasksDir: workflowDir})
@@ -194,36 +182,16 @@ func TestArchiveExposePublicAPI(t *testing.T) {
 	}
 }
 
-// TestRunsLayoutAgreesAcrossWriterAndReader proves that the canonical writer
-// (model.NewRunArtifacts) and the public reader (runs.Open) agree on the
-// on-disk layout via the shared pkg/compozy/runs/layout constants. If anyone
-// changes a literal on only one side, this test fails before the change is
-// merged.
-func TestRunsLayoutAgreesAcrossWriterAndReader(t *testing.T) {
+// TestRunsLayoutAgreesAcrossWriterAndPublicLayout proves that the canonical
+// writer (model.NewRunArtifacts) and the public compatibility layout package
+// still agree on artifact names even though run reading itself is daemon-backed.
+func TestRunsLayoutAgreesAcrossWriterAndPublicLayout(t *testing.T) {
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
 	const runID = "agree-test"
 
 	artifacts := model.NewRunArtifacts(workspaceRoot, runID)
-	if err := os.MkdirAll(artifacts.RunDir, 0o755); err != nil {
-		t.Fatalf("mkdir run dir: %v", err)
-	}
-
-	meta := []byte(
-		`{"version":1,"run_id":"agree-test","status":"completed","mode":"exec","created_at":"2026-04-13T12:00:00Z","updated_at":"2026-04-13T12:00:00Z"}`,
-	)
-	if err := os.WriteFile(artifacts.RunMetaPath, meta, 0o600); err != nil {
-		t.Fatalf("write run meta: %v", err)
-	}
-
-	run, err := runs.Open(workspaceRoot, runID)
-	if err != nil {
-		t.Fatalf("runs.Open after model.NewRunArtifacts: %v", err)
-	}
-	if got := run.Summary().RunID; got != runID {
-		t.Fatalf("Summary.RunID = %q, want %q", got, runID)
-	}
 
 	cases := []struct {
 		name   string

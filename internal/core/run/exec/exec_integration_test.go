@@ -13,6 +13,7 @@ import (
 
 	acp "github.com/coder/acp-go-sdk"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
 	"github.com/compozy/compozy/internal/core/model"
@@ -128,6 +129,7 @@ func TestExecuteExecVerboseEmitsOperationalLogsToStderr(t *testing.T) {
 
 func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	plannerDir := filepath.Join(tmpDir, model.WorkflowRootDirName, "agents", "planner")
 	if err := os.MkdirAll(plannerDir, 0o755); err != nil {
 		t.Fatalf("mkdir planner agent dir: %v", err)
@@ -231,7 +233,7 @@ func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 	if runRecord.AgentSessionID != "agent-1" {
 		t.Fatalf("unexpected persisted agent session id: %q", runRecord.AgentSessionID)
 	}
-	responseBytes, err := os.ReadFile(filepath.Join(tmpDir, ".compozy", "runs", runID, "turns", "0002", "response.txt"))
+	responseBytes, err := os.ReadFile(filepath.Join(runRecord.TurnsDir, "0002", "response.txt"))
 	if err != nil {
 		t.Fatalf("read resumed response: %v", err)
 	}
@@ -242,6 +244,7 @@ func TestExecuteExecPersistedRunCanResumeSameSession(t *testing.T) {
 
 func TestExecuteExecJSONModeEmitsLeanJSONLAndPersistsRawEvents(t *testing.T) {
 	tmpDir := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	installACPHelperOnPath(t, []runACPHelperScenario{{
 		ExpectedPromptContains: "stream the session",
 		Updates:                execJSONProjectionScenarioUpdates(),
@@ -281,7 +284,11 @@ func TestExecuteExecJSONModeEmitsLeanJSONLAndPersistsRawEvents(t *testing.T) {
 	)
 
 	runID := latestPersistedExecRunID(t, tmpDir)
-	rawEvents := readRuntimeEventFile(t, filepath.Join(tmpDir, ".compozy", "runs", runID, "events.jsonl"))
+	runRecord, err := LoadPersistedExecRun(tmpDir, runID)
+	if err != nil {
+		t.Fatalf("load persisted exec run: %v", err)
+	}
+	rawEvents := readRuntimeEventFile(t, runRecord.EventsPath)
 	assertRuntimeSessionUpdateKindsPresent(t, rawEvents,
 		string(model.UpdateKindUserMessageChunk),
 		string(model.UpdateKindAgentThoughtChunk),
@@ -519,10 +526,14 @@ func TestExecuteExecWithSelectedAgentResolvesRuntimeAndCanonicalSystemPrompt(t *
 	}
 }
 
-func latestPersistedExecRunID(t *testing.T, workspaceRoot string) string {
+func latestPersistedExecRunID(t *testing.T, _ string) string {
 	t.Helper()
 
-	entries, err := os.ReadDir(filepath.Join(workspaceRoot, ".compozy", "runs"))
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("resolve persisted exec runs dir: %v", err)
+	}
+	entries, err := os.ReadDir(homePaths.RunsDir)
 	if err != nil {
 		t.Fatalf("read persisted exec runs: %v", err)
 	}

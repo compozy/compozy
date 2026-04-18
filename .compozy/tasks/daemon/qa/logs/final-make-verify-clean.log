@@ -1,0 +1,80 @@
+Formatting code...
+golangci-lint fmt
+Formatting completed successfully
+golangci-lint run --fix --allow-parallel-runners
+0 issues.
+Linting completed successfully
+∅  .
+∅  agents
+✓  internal/api/client (cached)
+∅  internal/api/udsapi
+✓  internal/api/httpapi (cached)
+✓  cmd/compozy (cached)
+✓  internal/api/core (cached)
+✓  internal/charmtheme (cached)
+∅  internal/core/extension/builtin
+✓  internal/contentblock (cached)
+✓  internal/core/frontmatter (cached)
+✓  internal/config (cached)
+✓  internal/core/agents/mcpserver (cached)
+✓  internal/cli/extension (cached)
+✓  internal/core/contentconv (cached)
+✓  internal/core/agents (cached)
+✓  internal/core (cached)
+✓  internal/core/kernel (cached)
+✓  internal/core/agent (cached)
+✓  internal/core/extension (cached)
+✓  internal/cli (cached)
+✓  internal/core/memory (cached)
+∅  internal/core/providerdefaults
+✓  internal/core/modelprovider (cached)
+✓  internal/core/run (cached)
+∅  internal/core/run/internal/runtimeevents
+✓  internal/core/provider/coderabbit (cached)
+✓  internal/core/run/internal/runshared (cached)
+✓  internal/core/run/preflight (cached)
+✓  internal/core/provider (cached)
+✓  internal/core/prompt (cached)
+✓  internal/core/run/journal (cached)
+✓  internal/core/kernel/commands (cached)
+✓  internal/core/run/transcript (cached)
+✓  internal/core/run/internal/acpshared (cached)
+✓  internal/core/run/exec (cached)
+✓  internal/core/migration (cached)
+∅  internal/store
+✓  internal/core/plan (cached)
+✓  internal/core/subprocess (cached)
+✓  internal/core/reviews (cached)
+✓  internal/core/model (cached)
+✓  internal/core/run/executor (cached)
+✓  internal/core/workspace (cached)
+✓  internal/setup (cached)
+✓  internal/core/sound (cached)
+✓  internal/daemon (cached)
+✓  internal/core/tasks (cached)
+✓  internal/core/run/ui (cached)
+∅  internal/version
+✓  internal/store/rundb (cached)
+✓  internal/update (cached)
+✓  pkg/compozy/events/kinds (cached)
+✓  pkg/compozy/events (cached)
+∅  scripts
+∅  skills
+✓  pkg/compozy/runs/layout (cached)
+✓  sdk/extension/testing (cached)
+✓  sdk/extension (cached)
+✓  test (cached)
+✓  internal/store/globaldb (1.387s)
+✓  pkg/compozy/runs (1.793s)
+
+=== Skipped
+=== SKIP: internal/daemon TestDaemonHelperProcess (0.00s)
+    boot_integration_test.go:213: helper process
+
+DONE 2337 tests, 1 skipped in 2.573s
+Checking Go version...
+[0;32mGo version 1.26.1 is compatible[0m 
+mkdir -p bin
+/Users/pedronauck/.local/share/mise/installs/go/1.26.1/bin/go build -ldflags "-X github.com/compozy/compozy/internal/version.Version=v0.1.12-32-ge7eb8a8 -X github.com/compozy/compozy/internal/version.Commit=e7eb8a8 -X github.com/compozy/compozy/internal/version.Date=2026-04-18T18:33:41Z" -o bin/compozy ./cmd/compozy
+chmod +x bin/compozy
+[0;32mAll verification checks passed[0m 

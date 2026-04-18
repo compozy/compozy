@@ -48,9 +48,9 @@ func (m *uiModel) renderJobsBody() string {
 
 func (m *uiModel) renderResizeGate() string {
 	message := []string{
-		renderOwnedLine(m.width-4, colorBgSurface, renderTechLabel("ui.resize", colorBgSurface)),
-		renderOwnedLine(m.width-4, colorBgSurface, "ACP cockpit needs at least 80x24."),
-		renderOwnedLine(m.width-4, colorBgSurface, fmt.Sprintf("Current size: %dx%d", m.width, m.height)),
+		renderOwnedLineKnownOwned(m.width-4, colorBgSurface, renderTechLabel("ui.resize", colorBgSurface)),
+		renderOwnedLineKnownOwned(m.width-4, colorBgSurface, "ACP cockpit needs at least 80x24."),
+		renderOwnedLineKnownOwned(m.width-4, colorBgSurface, fmt.Sprintf("Current size: %dx%d", m.width, m.height)),
 	}
 	return lipgloss.NewStyle().
 		Width(m.width).
@@ -68,7 +68,7 @@ func (m *uiModel) renderTitleBar() string {
 
 	gap := max(m.width-lipgloss.Width(title)-lipgloss.Width(status)-2, 1)
 	titleLine := renderGap(bg, 1) + title + renderGap(bg, gap) + status
-	titleLine = renderOwnedLine(m.width, bg, titleLine)
+	titleLine = renderOwnedLineKnownOwned(m.width, bg, titleLine)
 
 	pct := 0.0
 	if m.total > 0 {
@@ -81,9 +81,9 @@ func (m *uiModel) renderTitleBar() string {
 		pipelineLabel +
 		renderGap(bg, 1) +
 		renderOwnedBlock(progressWidth, bg, m.progressBar.ViewAs(pct))
-	progressLine = renderOwnedLine(m.width, bg, progressLine)
+	progressLine = renderOwnedLineKnownOwned(m.width, bg, progressLine)
 
-	return renderOwnedLine(m.width, bg, "") + "\n" + titleLine + "\n" + progressLine
+	return renderOwnedLineKnownOwned(m.width, bg, "") + "\n" + titleLine + "\n" + progressLine
 }
 
 func (m *uiModel) headerStatusText(bg color.Color) string {
@@ -140,7 +140,7 @@ func (m *uiModel) shutdownCountdownLabel() string {
 }
 
 func (m *uiModel) renderSeparator() string {
-	return renderOwnedLine(
+	return renderOwnedLineKnownOwned(
 		m.width,
 		colorBgBase,
 		renderStyledOnBackground(styleSeparator, colorBgBase, strings.Repeat("─", m.width)),
@@ -185,5 +185,5 @@ func (m *uiModel) renderHelp() string {
 
 	label := renderStyledOnBackground(styleDimText, bg, "FOCUS "+paneLabel)
 	line := renderGap(bg, 1) + label + renderGap(bg, 2) + strings.Join(pairs, renderGap(bg, 2))
-	return renderOwnedLine(m.width, bg, line) + "\n" + renderOwnedLine(m.width, bg, "")
+	return renderOwnedLineKnownOwned(m.width, bg, line) + "\n" + renderOwnedLineKnownOwned(m.width, bg, "")
 }

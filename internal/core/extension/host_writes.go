@@ -128,7 +128,7 @@ func (o *defaultKernelOps) CreateTask(ctx context.Context, req TaskCreateRequest
 		return nil, err
 	}
 
-	refreshedMeta, err := tasks.RefreshTaskMeta(tasksDir)
+	refreshedMeta, err := tasks.SnapshotTaskMeta(tasksDir)
 	if err != nil {
 		return nil, err
 	}
@@ -163,6 +163,13 @@ func (o *defaultKernelOps) StartRun(ctx context.Context, req RunStartRequest) (*
 		var cancel context.CancelFunc
 		callCtx, cancel = context.WithTimeout(ctx, defaultHostAPITimeout)
 		defer cancel()
+	}
+
+	if o.daemonBridge != nil {
+		if strings.TrimSpace(o.daemonBridge.HostCapabilityToken()) == "" {
+			return nil, NewHostCapabilityTokenInvalidError("host.runs.start", "missing")
+		}
+		return o.daemonBridge.StartRun(callCtx, runtimeCfg)
 	}
 
 	result, err := kernel.Dispatch[commands.RunStartCommand, commands.RunStartResult](

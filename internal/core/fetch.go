@@ -19,6 +19,15 @@ import (
 var defaultProviderRegistry = providerdefaults.DefaultRegistry
 
 func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, error) {
+	registry := provider.ResolveRegistry(defaultProviderRegistry())
+	return fetchReviewsWithRegistry(ctx, cfg, registry)
+}
+
+func fetchReviewsWithRegistry(
+	ctx context.Context,
+	cfg *model.RuntimeConfig,
+	registry provider.RegistryReader,
+) (*FetchResult, error) {
 	if err := validateFetchConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -28,12 +37,9 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		return nil, err
 	}
 
-	round := cfg.Round
-	if round <= 0 {
-		round, err = reviews.NextRound(resolvedPRDDir)
-		if err != nil {
-			return nil, err
-		}
+	round, err := resolveFetchRound(cfg.Round, resolvedPRDDir)
+	if err != nil {
+		return nil, err
 	}
 
 	reviewsDir := reviews.ReviewDirectory(resolvedPRDDir, round)
@@ -41,8 +47,10 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		return nil, err
 	}
 
-	registry := provider.ResolveRegistry(defaultProviderRegistry())
-	reviewProvider, err := registry.Get(cfg.Provider)
+	if registry == nil {
+		registry = provider.ResolveRegistry(defaultProviderRegistry())
+	}
+	reviewProvider, err := resolveFetchReviewProvider(registry, cfg.Provider)
 	if err != nil {
 		return nil, err
 	}
@@ -95,6 +103,28 @@ func fetchReviews(ctx context.Context, cfg *model.RuntimeConfig) (*FetchResult, 
 		ReviewsDir: reviewsDir,
 		Total:      len(items),
 	}, nil
+}
+
+func resolveFetchReviewProvider(
+	registry provider.RegistryReader,
+	providerName string,
+) (provider.Provider, error) {
+	return registry.Get(providerName)
+}
+
+func resolveFetchRound(round int, prdDir string) (int, error) {
+	if round > 0 {
+		return round, nil
+	}
+	return reviews.NextRound(prdDir)
+}
+
+func FetchReviewsWithRegistryDirect(
+	ctx context.Context,
+	cfg Config,
+	registry provider.RegistryReader,
+) (*FetchResult, error) {
+	return fetchReviewsWithRegistry(ctx, cfg.runtime(), registry)
 }
 
 func resolveFetchPRDDirectory(cfg *model.RuntimeConfig) (string, error) {

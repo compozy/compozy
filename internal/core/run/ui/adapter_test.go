@@ -44,6 +44,32 @@ func TestTranslateEventJobStarted(t *testing.T) {
 	}
 }
 
+func TestTranslateEventJobQueued(t *testing.T) {
+	t.Parallel()
+
+	msg, ok := translateEventForTest(t, mustRuntimeEventUITest(
+		t,
+		eventspkg.EventKindJobQueued,
+		kinds.JobQueuedPayload{
+			Index:     1,
+			CodeFile:  "task_02.md",
+			CodeFiles: []string{"task_02.md"},
+			TaskTitle: "Remote Queue",
+		},
+	))
+	if !ok {
+		t.Fatal("expected job.queued to translate")
+	}
+
+	queued, ok := msg.(jobQueuedMsg)
+	if !ok {
+		t.Fatalf("expected jobQueuedMsg, got %T", msg)
+	}
+	if queued.Index != 1 || queued.CodeFile != "task_02.md" || queued.TaskTitle != "Remote Queue" {
+		t.Fatalf("unexpected queued payload: %#v", queued)
+	}
+}
+
 func TestTranslateEventSessionUpdateProducesSnapshot(t *testing.T) {
 	t.Parallel()
 

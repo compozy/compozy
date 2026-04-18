@@ -76,7 +76,7 @@ func TestDocumentedExecAgentExampleWorksWithReviewerFixture(t *testing.T) {
 	)
 	defer restore()
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",

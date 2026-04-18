@@ -47,19 +47,27 @@ type ArchiveConfig struct {
 }
 
 type SyncResult struct {
-	Target           string
-	WorkflowsScanned int
-	MetaCreated      int
-	MetaUpdated      int
-	SyncedPaths      []string
+	Target                 string
+	WorkflowsScanned       int
+	MetaCreated            int
+	MetaUpdated            int
+	SnapshotsUpserted      int
+	TaskItemsUpserted      int
+	ReviewRoundsUpserted   int
+	ReviewIssuesUpserted   int
+	CheckpointsUpdated     int
+	LegacyArtifactsRemoved int
+	SyncedPaths            []string
+	Warnings               []string
 }
 
 type ArchiveResult struct {
-	Target           string
-	ArchiveRoot      string
-	WorkflowsScanned int
-	Archived         int
-	Skipped          int
-	ArchivedPaths    []string
-	SkippedReasons   map[string]string
+	Target           string            `json:"target"`
+	ArchiveRoot      string            `json:"archive_root"`
+	WorkflowsScanned int               `json:"workflows_scanned"`
+	Archived         int               `json:"archived"`
+	Skipped          int               `json:"skipped"`
+	ArchivedPaths    []string          `json:"archived_paths,omitempty"`
+	SkippedPaths     []string          `json:"skipped_paths,omitempty"`
+	SkippedReasons   map[string]string `json:"skipped_reasons,omitempty"`
 }

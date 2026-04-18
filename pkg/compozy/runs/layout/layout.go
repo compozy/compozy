@@ -1,15 +1,17 @@
-// Package layout exports the on-disk layout for one persisted Compozy run.
+// Package layout exports the compatibility on-disk layout for one persisted
+// Compozy run.
 //
-// Both the internal writer ([github.com/compozy/compozy/internal/core/model])
-// and the public reader ([github.com/compozy/compozy/pkg/compozy/runs])
-// depend on these constants so that renaming a run artifact is a single-place
-// change visible to the type checker, not an agree-by-string contract.
+// Internal writers still use these constants, and the public package continues
+// to expose them for callers that need the compatibility artifact names, even
+// though run reading itself is now daemon-backed.
 package layout
 
 import "path/filepath"
 
 // File and directory names that live under one run directory.
 const (
+	// RunDBFileName is the basename of the per-run SQLite operational store.
+	RunDBFileName = "run.db"
 	// RunMetaFileName is the basename of the per-run metadata file written by
 	// the journal and read by the public reader.
 	RunMetaFileName = "run.json"
@@ -25,6 +27,9 @@ const (
 	// transcript artifacts.
 	TurnsDirName = "turns"
 )
+
+// RunDBPath returns the absolute path to the run database file inside runDir.
+func RunDBPath(runDir string) string { return filepath.Join(runDir, RunDBFileName) }
 
 // RunMetaPath returns the absolute path to the run metadata file inside runDir.
 func RunMetaPath(runDir string) string { return filepath.Join(runDir, RunMetaFileName) }

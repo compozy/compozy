@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Shared Transport Core
 type: backend
 complexity: critical
@@ -31,14 +31,23 @@ This task creates the shared daemon transport layer over UDS and localhost HTTP,
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Create the shared transport interfaces and handler core used by both UDS and HTTP.
-- [ ] 4.2 Register daemon, workspace, task, review, run, sync, and exec routes with one resource model.
-- [ ] 4.3 Add request-ID propagation and the uniform JSON error envelope.
-- [ ] 4.4 Implement the SSE stream contract, including cursor resume, heartbeat, and overflow behavior.
-- [ ] 4.5 Add parity tests for UDS, HTTP, health, metrics, and streaming behavior.
+- [x] 4.1 Create the shared transport interfaces and handler core used by both UDS and HTTP.
+- [x] 4.2 Register daemon, workspace, task, review, run, sync, and exec routes with one resource model.
+- [x] 4.3 Add request-ID propagation and the uniform JSON error envelope.
+- [x] 4.4 Implement the SSE stream contract, including cursor resume, heartbeat, and overflow behavior.
+- [x] 4.5 Add parity tests for UDS, HTTP, health, metrics, and streaming behavior.
 
 ## Implementation Details
 Implement the transport layer described in the TechSpec "API Endpoints", "Transport Contract", "SSE Contract", and "Monitoring and Observability" sections. This task should establish the external contract only; it should rely on injected services instead of embedding run logic or storage details directly in transport code.
+
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/api/core/interfaces.go` — reference for transport-neutral handler/service boundaries.
+- `~/dev/compozy/agh/internal/api/core/handlers.go` — reference for shared handler implementation patterns.
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for cursor, heartbeat, and overflow stream behavior.
+- `~/dev/compozy/agh/internal/api/httpapi/server.go` — reference for localhost HTTP server wiring.
+- `~/dev/compozy/agh/internal/api/httpapi/routes.go` — reference for route registration and parity.
+- `~/dev/compozy/agh/internal/api/udsapi/server.go` — reference for UDS bootstrap and socket-permission handling.
+- `~/dev/compozy/agh/internal/api/udsapi/routes.go` — reference for UDS route parity with HTTP.
 
 ### Relevant Files
 - `internal/api/core/interfaces.go` — new shared transport service contracts for handlers and clients.
@@ -68,13 +77,17 @@ Implement the transport layer described in the TechSpec "API Endpoints", "Transp
 
 ## Tests
 - Unit tests:
-  - [ ] Shared handlers return the same status and payload shape for the same service result across both transports.
-  - [ ] SSE helpers emit `id`, `event`, and `data` frames using the `RFC3339Nano|sequence` cursor format.
-  - [ ] Non-2xx responses include `X-Request-Id` and serialize the `TransportError` envelope correctly.
+  - [x] Shared handlers return the same status and payload shape for the same service result across both transports.
+  - [x] SSE helpers emit `id`, `event`, and `data` frames using the `RFC3339Nano|sequence` cursor format.
+  - [x] Invalid `Last-Event-ID` values are rejected or normalized deterministically according to the daemon stream contract.
+  - [x] Heartbeat and overflow frames are emitted with the expected event names and payload shape.
+  - [x] Non-2xx responses include `X-Request-Id` and serialize the `TransportError` envelope correctly.
 - Integration tests:
-  - [ ] `GET /daemon/health` returns `503` before readiness and `200` once the daemon is fully ready.
-  - [ ] `GET /runs/:run_id/stream` resumes from the next event after `Last-Event-ID` and emits heartbeats during idle periods.
-  - [ ] UDS and localhost HTTP serve matching behavior for status, snapshot, and conflict responses.
+  - [x] `GET /daemon/health` returns `503` before readiness and `200` once the daemon is fully ready.
+  - [x] `GET /runs/:run_id/stream` resumes from the next event after `Last-Event-ID` and emits heartbeats during idle periods.
+  - [x] `GET /runs/:run_id/stream` returns the expected validation response for an invalid or stale cursor.
+  - [x] UDS and localhost HTTP serve matching behavior for status, snapshot, and conflict responses.
+  - [x] Status, metrics, and stream endpoints remain observable and reconnectable when a client disconnects or when the daemon closes a stream at terminal run state.
 - Test coverage target: >=80%
 - All tests must pass
 

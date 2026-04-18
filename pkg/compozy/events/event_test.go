@@ -114,6 +114,15 @@ func TestPayloadStructsRoundTripJSON(t *testing.T) {
 			},
 		},
 		{
+			name: "run crashed",
+			payload: kinds.RunCrashedPayload{
+				ArtifactsDir: "/repo/.compozy/runs/run-1",
+				DurationMs:   75,
+				Error:        "daemon restarted before terminal event flush",
+				ResultPath:   "/repo/.compozy/runs/run-1/result.json",
+			},
+		},
+		{
 			name: "run completed",
 			payload: kinds.RunCompletedPayload{
 				ArtifactsDir:   "/repo/.compozy/runs/run-1",

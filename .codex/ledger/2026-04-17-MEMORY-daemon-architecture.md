@@ -166,14 +166,34 @@ Done:
 - Incorporated those explorer findings into the final task-file relevant files, dependent files, requirements, and test guidance before validation.
 - Ran `./bin/compozy validate-tasks --name daemon` and confirmed `all tasks valid (16 scanned)`.
 - Ran `make verify` after task generation; formatting, lint, tests, and build all passed, with `DONE 1940 tests` and `All verification checks passed`.
+- User asked for the greenfield-vs-compatibility posture to be made explicit; updated the TechSpec with `Compatibility Posture` and added stronger anti-compat-shim requirements to tasks `11`, `13`, `14`, and `16`.
+- User then asked for explicit AGH file references; updated the TechSpec with an `AGH Reference Map` section and added `### AGH Reference Files` subsections to all daemon task files.
+- Re-ran `./bin/compozy validate-tasks --name daemon`; it still passed with `all tasks valid (16 scanned)`.
+- Re-ran `make verify` after the documentation/task updates. It no longer fails on the earlier missing `go.sum` hint after `go get github.com/charmbracelet/ultraviolet@v0.0.0-20260205113103-524a6607adb8`, but it is currently blocked by unrelated lint failures in:
+  - `internal/store/globaldb/migrations.go` (`tx.Rollback` errcheck)
+  - `internal/store/globaldb/registry.go` (`tx.Rollback` errcheck)
+  - `internal/store/sqlite.go` (blank import justification)
+- User judged the generated task test matrices too weak and asked to strengthen tests for every daemon task and reset all tasks to `pending` so the feature can be restarted cleanly.
+- Updated `.compozy/tasks/daemon/_tasks.md` to reset task `01` from `completed` to `pending`, leaving the whole daemon backlog uniformly pending again.
+- Rewrote the `## Tests` sections in `.compozy/tasks/daemon/task_01.md` through `.compozy/tasks/daemon/task_16.md` to add broader coverage for:
+  - crash/restart and reconciliation
+  - concurrency and duplicate-run conflicts
+  - daemon bootstrap edge cases
+  - sync/watch/archive error paths
+  - extension runtime failures
+  - CLI/TUI attach/reconnect behavior
+  - public run-reader compatibility
+  - final end-to-end regression and docs cleanup
+- Re-ran `./bin/compozy validate-tasks --name daemon`; it passed again with `all tasks valid (16 scanned)`.
+- Re-ran `make verify` after the task rewrites; it is still blocked by the same unrelated lint failures in `internal/store/globaldb/{migrations.go,registry.go}` and `internal/store/sqlite.go`.
 
 Now:
 
-- Entrega pronta; responder ao usuário com o resumo dos arquivos criados e as evidências de validação/verificação.
+- Responder ao usuário com o resumo das task updates, including the fact that the backlog is reset to `pending` and the current repo verification is still blocked by unrelated lint issues.
 
 Next:
 
-- Nenhum passo obrigatório pendente neste turno.
+- Se o usuário quiser, tratar separadamente os lint failures atuais do pacote `internal/store`.
 
 Open questions (UNCONFIRMED if needed):
 

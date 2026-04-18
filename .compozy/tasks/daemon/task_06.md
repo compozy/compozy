@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Reconciliation, Retention, and Graceful Shutdown
 type: backend
 complexity: high
@@ -30,14 +30,19 @@ This task closes the run lifecycle by defining what happens when the daemon cras
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Add daemon startup reconciliation for runs left in `starting` or `running`.
-- [ ] 6.2 Persist synthetic crash information consistently across `global.db` and `run.db`.
-- [ ] 6.3 Implement configurable retention windows and explicit run purge behavior.
-- [ ] 6.4 Introduce graceful and forced daemon shutdown behavior, including active-run conflicts.
-- [ ] 6.5 Add recovery, purge, and shutdown tests that exercise real temp databases and child-run shutdown paths.
+- [x] 6.1 Add daemon startup reconciliation for runs left in `starting` or `running`.
+- [x] 6.2 Persist synthetic crash information consistently across `global.db` and `run.db`.
+- [x] 6.3 Implement configurable retention windows and explicit run purge behavior.
+- [x] 6.4 Introduce graceful and forced daemon shutdown behavior, including active-run conflicts.
+- [x] 6.5 Add recovery, purge, and shutdown tests that exercise real temp databases and child-run shutdown paths.
 
 ## Implementation Details
 Implement the recovery and retention model described in the TechSpec "Run Lifecycle and Recovery", "Transport Contract", and "Monitoring and Observability" sections. This task should centralize all post-crash and shutdown logic so later commands and transports only observe one consistent lifecycle contract.
+
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/daemon/boot.go` — reference for startup reconciliation timing before readiness.
+- `~/dev/compozy/agh/internal/daemon/daemon.go` — reference for graceful and forced shutdown behavior.
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for draining active sessions and runs during stop and recovery.
 
 ### Relevant Files
 - `internal/daemon/reconcile.go` — new startup reconciliation logic for interrupted runs.
@@ -65,13 +70,17 @@ Implement the recovery and retention model described in the TechSpec "Run Lifecy
 
 ## Tests
 - Unit tests:
-  - [ ] Reconciliation marks `starting` and `running` rows as `crashed` before readiness is reported.
-  - [ ] Purge selects terminal runs in oldest-first order and respects configured keep-count and keep-days limits.
-  - [ ] A forced stop cancels active runs and preserves the final terminal state before daemon exit.
+  - [x] Reconciliation marks `starting` and `running` rows as `crashed` before readiness is reported.
+  - [x] Reconciliation preserves a best-effort `error_text` summary when `run.db` cannot be reopened for synthetic crash-event append.
+  - [x] Purge selects terminal runs in oldest-first order and respects configured keep-count and keep-days limits.
+  - [x] Forced stop cancels active runs and preserves the final terminal state before daemon exit.
+  - [x] Forced stop waits for writer loops and extension subprocess cleanup only up to the configured drain timeout before exiting.
 - Integration tests:
-  - [ ] Restarting the daemon after a simulated crash leaves the interrupted run in `crashed` and emits a synthetic recovery event when `run.db` is still openable.
-  - [ ] `POST /daemon/stop` returns `409` while active runs exist and succeeds when `force=true` is explicitly provided.
-  - [ ] `compozy runs purge` removes terminal run directories and index rows without touching active runs.
+  - [x] Restarting the daemon after a simulated crash leaves the interrupted run in `crashed` and emits a synthetic recovery event when `run.db` is still openable.
+  - [x] Restarting the daemon after a simulated crash with a missing or corrupt `run.db` still marks the global run row `crashed` and keeps the daemon healthy.
+  - [x] `POST /daemon/stop` returns `409` while active runs exist and succeeds when `force=true` is explicitly provided.
+  - [x] Forced stop cancels a real active run, terminates child work, and leaves no run stuck in `starting` or `running`.
+  - [x] `compozy runs purge` removes terminal run directories and index rows without touching active runs.
 - Test coverage target: >=80%
 - All tests must pass
 

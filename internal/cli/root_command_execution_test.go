@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +15,9 @@ import (
 	"testing"
 	"time"
 
+	apiclient "github.com/compozy/compozy/internal/api/client"
+	apicore "github.com/compozy/compozy/internal/api/core"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	core "github.com/compozy/compozy/internal/core"
 	"github.com/compozy/compozy/internal/core/agent"
 	reusableagents "github.com/compozy/compozy/internal/core/agents"
@@ -22,13 +26,16 @@ import (
 	"github.com/compozy/compozy/internal/core/provider"
 	"github.com/compozy/compozy/internal/core/reviews"
 	coreRun "github.com/compozy/compozy/internal/core/run"
+	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/setup"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 	"github.com/spf13/cobra"
 )
 
 var cliProcessIOMu sync.Mutex
+var originalCLIHome = os.Getenv("HOME")
 
 func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
@@ -104,7 +111,7 @@ func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -124,12 +131,95 @@ func TestExecCommandExecuteDirectPromptIsEphemeralByDefault(t *testing.T) {
 	assertNoRunArtifactsForCLI(t, workspaceRoot)
 }
 
+func TestRunsPurgeCommandRemovesTerminalRunArtifactsOldestFirst(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	paths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("ResolveHomePaths() error = %v", err)
+	}
+	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
+		t.Fatalf("EnsureHomeLayout() error = %v", err)
+	}
+	if err := os.WriteFile(
+		paths.ConfigFile,
+		[]byte("[runs]\nkeep_terminal_days = 14\nkeep_max = 1\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+
+	db, err := globaldb.Open(context.Background(), paths.GlobalDBPath)
+	if err != nil {
+		t.Fatalf("globaldb.Open() error = %v", err)
+	}
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir workspace marker: %v", err)
+	}
+	workspaceRow, err := db.Register(context.Background(), workspaceRoot, "purge-workspace")
+	if err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	now := time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)
+	for _, item := range []struct {
+		runID   string
+		status  string
+		endedAt time.Time
+	}{
+		{runID: "run-oldest", status: "completed", endedAt: now.AddDate(0, 0, -21)},
+		{runID: "run-middle", status: "failed", endedAt: now.AddDate(0, 0, -15)},
+		{runID: "run-newest", status: "crashed", endedAt: now.AddDate(0, 0, -1)},
+		{runID: "run-active", status: "running", endedAt: now},
+	} {
+		seedCLIRunForPurge(t, db, workspaceRow.ID, item.runID, item.status, item.endedAt)
+		createCLIRunArtifacts(t, item.runID)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	withWorkingDir(t, t.TempDir())
+	output, err := executeRootCommand("runs", "purge")
+	if err != nil {
+		t.Fatalf("execute runs purge: %v\noutput:\n%s", err, output)
+	}
+	if strings.TrimSpace(output) != "purged 2 run(s)" {
+		t.Fatalf("unexpected runs purge output: %q", output)
+	}
+
+	reopened, err := globaldb.Open(context.Background(), paths.GlobalDBPath)
+	if err != nil {
+		t.Fatalf("Open(reopen) error = %v", err)
+	}
+	defer func() {
+		_ = reopened.Close()
+	}()
+
+	for _, runID := range []string{"run-oldest", "run-middle"} {
+		if _, err := reopened.GetRun(context.Background(), runID); !errors.Is(err, globaldb.ErrRunNotFound) {
+			t.Fatalf("GetRun(%q) error = %v, want ErrRunNotFound", runID, err)
+		}
+		assertCLIRunDirMissing(t, runID)
+	}
+	for _, runID := range []string{"run-newest", "run-active"} {
+		if _, err := reopened.GetRun(context.Background(), runID); err != nil {
+			t.Fatalf("GetRun(%q) error = %v", runID, err)
+		}
+		assertCLIRunDirPresent(t, runID)
+	}
+}
+
 func TestExecCommandWithInstalledWorkspaceExtensionStaysEphemeralWithoutFlag(t *testing.T) {
 	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -156,8 +246,8 @@ func TestExecCommandWithExtensionsFlagSpawnsWorkspaceExtensionAndWritesAudit(t *
 	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -199,7 +289,7 @@ func TestExecCommandExecutePromptFileJSONEmitsJSONLByDefault(t *testing.T) {
 	}
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -237,7 +327,7 @@ func TestExecCommandExecutePersistCreatesTurnArtifacts(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -271,8 +361,13 @@ func TestExecCommandExecutePersistCreatesTurnArtifacts(t *testing.T) {
 
 func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	prepareInProcessCLIDaemonHome(t)
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) error = %v", workspaceRoot, err)
+	}
 
 	runID := "exec-resume"
 	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
@@ -280,7 +375,7 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 		Mode:            model.ModeExec,
 		RunID:           runID,
 		Status:          "succeeded",
-		WorkspaceRoot:   workspaceRoot,
+		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5-codex",
 		ReasoningEffort: "high",
@@ -292,7 +387,7 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 		ACPSessionID:    "sess-existing",
 	})
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -383,7 +478,7 @@ func TestExecCommandExecutePersistedAgentParentChildEmitsReusableAgentLifecycleE
 	)
 	defer restore()
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -431,6 +526,7 @@ func TestExecCommandExecutePersistedAgentParentChildEmitsReusableAgentLifecycleE
 
 func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(t *testing.T) {
 	workspaceRoot := t.TempDir()
+	prepareInProcessCLIDaemonHome(t)
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	writeReusableAgentForCLI(t, workspaceRoot, "parent", strings.Join([]string{
 		"---",
@@ -443,6 +539,10 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		"",
 	}, "\n"), `{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"]}}}`)
 	withWorkingDir(t, workspaceRoot)
+	resolvedWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q) error = %v", workspaceRoot, err)
+	}
 
 	runID := "exec-agent-resume"
 	writePersistedExecRunForCLI(t, workspaceRoot, coreRun.PersistedExecRun{
@@ -450,7 +550,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		Mode:            model.ModeExec,
 		RunID:           runID,
 		Status:          "succeeded",
-		WorkspaceRoot:   workspaceRoot,
+		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5.4",
 		ReasoningEffort: "high",
@@ -487,7 +587,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 	)
 	defer restore()
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -519,7 +619,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 
 	lifecycleEvents := cliReusableAgentLifecyclePayloads(
 		t,
-		filepath.Join(workspaceRoot, ".compozy", "runs", runID, "events.jsonl"),
+		filepath.Join(persistedRunDirForCLI(t, workspaceRoot, runID), "events.jsonl"),
 	)
 	foundResumedMerge := false
 	for _, payload := range lifecycleEvents {
@@ -547,7 +647,7 @@ func TestExecCommandExecuteAgentValidationFailureReportsInvalidMCPReason(t *test
 	}, "\n"), `{"mcpServers":{"filesystem":{"command":"/tmp/fs-mcp","args":["--serve"],"env":{"ROOT":"${MISSING_AGENT_ROOT}"}}}}`)
 	withWorkingDir(t, workspaceRoot)
 
-	_, _, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--agent", "broken", "Do work")
+	_, _, err := executeDaemonBackedRootCommandCapturingProcessIO(t, nil, "exec", "--agent", "broken", "Do work")
 	if err == nil {
 		t.Fatal("expected invalid-mcp agent execution failure")
 	}
@@ -615,7 +715,7 @@ func TestExecCommandExecuteAgentWorkspaceOverrideWinsOverGlobalDefinition(t *tes
 	)
 	defer restore()
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -643,7 +743,7 @@ func TestExecCommandExecuteJSONMissingPromptEmitsFailureJSON(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "json")
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(t, nil, "exec", "--format", "json")
 	if err == nil {
 		t.Fatalf("expected exec json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
@@ -669,7 +769,7 @@ func TestExecCommandExecuteRawJSONMissingPromptEmitsFailureJSON(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(t, nil, "exec", "--format", "raw-json")
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(t, nil, "exec", "--format", "raw-json")
 	if err == nil {
 		t.Fatalf("expected exec raw-json missing-prompt failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
@@ -695,7 +795,7 @@ func TestExecCommandExecuteJSONValidationFailureEmitsFailureJSON(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -729,7 +829,7 @@ func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		strings.NewReader("Prompt from stdin\n"),
 		"exec",
@@ -748,7 +848,8 @@ func TestExecCommandExecuteStdinWorksEndToEnd(t *testing.T) {
 	assertNoRunArtifactsForCLI(t, workspaceRoot)
 }
 
-func TestStartCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
+func TestTasksRunCommandDispatchesResolvedWorkspaceAndConfiguredAttachMode(t *testing.T) {
+	homeDir := isolateCLIConfigHome(t)
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
 		[]string{
@@ -759,241 +860,536 @@ func TestStartCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 		},
 		"# Task 1: Demo Task",
 	))
-	withWorkingDir(t, workspaceRoot)
+	writeCLIGlobalConfig(t, homeDir, `
+[runs]
+default_attach_mode = "stream"
+`)
+	writeCLIWorkspaceConfig(t, workspaceRoot, `
+[runs]
+default_attach_mode = "detach"
+`)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
-		t,
-		cmd,
-		nil,
-		"start",
-		"--name",
-		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
-		"--dry-run",
-	)
-	if err != nil {
-		t.Fatalf("execute start dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	nestedDir := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
 	}
-	if !strings.Contains(stderr, "preflight=ok") {
-		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
-	}
+	chdirCLITest(t, nestedDir)
 
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	runMeta := readCLIArtifactJSON(t, filepath.Join(runDir, "run.json"))
-	if got := runMeta["mode"]; got != string(model.ModePRDTasks) {
-		t.Fatalf("unexpected run mode: %#v", runMeta)
+	staleClient := &stubDaemonCommandClient{
+		target:    apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		healthErr: errors.New("dial unix /tmp/compozy-daemon.sock: connect: no such file or directory"),
 	}
-
-	result := readCLIArtifactJSON(t, filepath.Join(runDir, "result.json"))
-	if got := result["status"]; got != "succeeded" {
-		t.Fatalf("unexpected result payload: %#v", result)
-	}
-
-	promptPath := singleCLIJobArtifact(t, runDir, "*.prompt.md")
-	outLogPath := singleCLIJobArtifact(t, runDir, "*.out.log")
-	errLogPath := singleCLIJobArtifact(t, runDir, "*.err.log")
-	for _, path := range []string{promptPath, outLogPath, errLogPath} {
-		if _, statErr := os.Stat(path); statErr != nil {
-			t.Fatalf("expected job artifact %s: %v", path, statErr)
-		}
-	}
-
-	promptBytes, err := os.ReadFile(promptPath)
-	if err != nil {
-		t.Fatalf("read prompt artifact: %v", err)
-	}
-	if !strings.Contains(string(promptBytes), "`cy-execute-task`") {
-		t.Fatalf("expected task prompt to reference cy-execute-task, got:\n%s", string(promptBytes))
-	}
-
-	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
-	for _, want := range []eventspkg.EventKind{
-		eventspkg.EventKindRunStarted,
-		eventspkg.EventKindJobCompleted,
-		eventspkg.EventKindRunCompleted,
-	} {
-		if !slices.Contains(eventKinds, want) {
-			t.Fatalf("expected runtime events to include %s, got %v", want, eventKinds)
-		}
-	}
-}
-
-func TestStartCommandExecuteDryRunJSONStreamsJSONL(t *testing.T) {
-	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
-	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
-		[]string{
-			"status: pending",
-			"title: Demo Task",
-			"type: backend",
-			"complexity: low",
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeDetach,
+			StartedAt:        time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC),
 		},
-		"# Task 1: Demo Task",
-	))
-	withWorkingDir(t, workspaceRoot)
-
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
-		t,
-		cmd,
-		nil,
-		"start",
-		"--name",
-		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
-		"--dry-run",
-		"--format",
-		"json",
-	)
-	if err != nil {
-		t.Fatalf("execute start json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
-	if !strings.Contains(stderr, "preflight=ok") {
-		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	nowSequence := []time.Time{
+		time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 0, 0, 250000000, time.UTC),
 	}
-	if strings.Contains(stdout, "Execution Summary:") {
-		t.Fatalf("expected json mode to suppress human summary, got %q", stdout)
-	}
-
-	events := decodeExecJSONLEvents(t, stdout)
-	if len(events) < 3 {
-		t.Fatalf("expected multiple streamed workflow events, got %d\nstdout:\n%s", len(events), stdout)
-	}
-	if got := events[0]["type"]; got != string(eventspkg.EventKindRunStarted) {
-		t.Fatalf("unexpected first workflow event: %#v", events[0])
-	}
-	if got := events[len(events)-1]["type"]; got != string(eventspkg.EventKindRunCompleted) {
-		t.Fatalf("unexpected terminal workflow event: %#v", events[len(events)-1])
-	}
-
-	var eventTypes []string
-	for _, event := range events {
-		gotType, ok := event["type"].(string)
-		if !ok || gotType == "" {
-			t.Fatalf("expected lean workflow event type field, got %#v", event)
+	nowIndex := 0
+	nextNow := func() time.Time {
+		if nowIndex >= len(nowSequence) {
+			return nowSequence[len(nowSequence)-1]
 		}
-		eventTypes = append(eventTypes, gotType)
-	}
-	for _, want := range []string{
-		string(eventspkg.EventKindRunStarted),
-		string(eventspkg.EventKindJobCompleted),
-		string(eventspkg.EventKindRunCompleted),
-	} {
-		if !slices.Contains(eventTypes, want) {
-			t.Fatalf("expected streamed workflow event %q, got %v", want, eventTypes)
-		}
+		value := nowSequence[nowIndex]
+		nowIndex++
+		return value
 	}
 
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	eventKinds := cliRuntimeEventKinds(t, filepath.Join(runDir, "events.jsonl"))
-	if got := eventKinds[len(eventKinds)-1]; got != eventspkg.EventKindRunCompleted {
-		t.Fatalf("unexpected persisted terminal event: %v", eventKinds)
-	}
-}
-
-func TestStartCommandWithInstalledWorkspaceExtensionSpawnsAndWritesAudit(t *testing.T) {
-	workspaceRoot, recordPath := prepareWorkspaceExtensionFixtureForCLI(t, "normal")
-	withWorkingDir(t, workspaceRoot)
-
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
-		t,
-		cmd,
-		nil,
-		"start",
-		"--name",
-		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
-		"--dry-run",
-	)
-	if err != nil {
-		t.Fatalf("execute start with extensions: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
-	}
-	if !strings.Contains(stdout, "Execution Summary:") {
-		t.Fatalf("expected dry-run start summary on stdout, got %q", stdout)
-	}
-	if !strings.Contains(stderr, "preflight=ok") {
-		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
-	}
-
-	runDir := latestRunDirForCLI(t, workspaceRoot)
-	records := readMockExtensionRecordsForCLI(t, recordPath)
-	assertMockExtensionRecordKinds(t, records, "initialize_request", "shutdown")
-
-	auditPath := filepath.Join(runDir, extensions.AuditLogFileName)
-	auditContent, readErr := os.ReadFile(auditPath)
-	if readErr != nil {
-		t.Fatalf("read extension audit log: %v", readErr)
-	}
-	if !strings.Contains(string(auditContent), `"method":"initialize"`) {
-		t.Fatalf("expected audit log to include initialize, got:\n%s", string(auditContent))
-	}
-}
-
-func TestStartCommandExplicitTUIFailsWithoutTTY(t *testing.T) {
-	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
-	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
-		[]string{
-			"status: pending",
-			"title: Demo Task",
-			"type: backend",
-			"complexity: low",
+	var launchCalls int
+	var clientCalls int
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
 		},
-		"# Task 1: Demo Task",
-	))
-	withWorkingDir(t, workspaceRoot)
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  nowSequence[0],
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			clientCalls++
+			if clientCalls == 1 {
+				return staleClient, nil
+			}
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			launchCalls++
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            nextNow,
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
 	stdout, stderr, err := executeCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
-		"start",
-		"--name",
+		"tasks",
+		"run",
 		"demo",
-		"--tasks-dir",
-		".compozy/tasks/demo",
 		"--dry-run",
-		"--tui",
+		"--include-completed",
 	)
-	if err == nil {
-		t.Fatalf("expected start explicit tui failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	if err != nil {
+		t.Fatalf("execute tasks run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
-	if stdout != "" {
-		t.Fatalf("expected no stdout on explicit tui failure, got %q", stdout)
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
 	}
-	if !strings.Contains(stderr, "requires an interactive terminal for tui mode") {
-		t.Fatalf("unexpected explicit tui error output: %q", stderr)
+	if !strings.Contains(stdout, "task run started: run-task-001 (mode=detach)") {
+		t.Fatalf("unexpected tasks run stdout: %q", stdout)
 	}
-}
-
-func TestNormalizePresentationModeUsesInjectedInteractiveCheck(t *testing.T) {
-	t.Parallel()
-
-	if isInteractiveTerminal() {
-		t.Skip(
-			"requires a non-interactive test terminal to distinguish the injected callback from the process terminal",
+	if launchCalls != 1 {
+		t.Fatalf("expected one daemon auto-bootstrap launch, got %d", launchCalls)
+	}
+	if readyClient.startCalls != 1 {
+		t.Fatalf("expected one task run request, got %d", readyClient.startCalls)
+	}
+	if readyClient.startSlug != "demo" {
+		t.Fatalf("unexpected workflow slug: %q", readyClient.startSlug)
+	}
+	if mustEvalSymlinksCLITest(t, readyClient.startRequest.Workspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+		t.Fatalf(
+			"unexpected workspace root dispatched\nwant: %q\ngot:  %q",
+			workspaceRoot,
+			readyClient.startRequest.Workspace,
 		)
 	}
+	if readyClient.startRequest.PresentationMode != attachModeDetach {
+		t.Fatalf("unexpected presentation mode: %q", readyClient.startRequest.PresentationMode)
+	}
+	overrides := decodeTaskRunOverrides(t, readyClient.startRequest.RuntimeOverrides)
+	if overrides.DryRun == nil || !*overrides.DryRun {
+		t.Fatalf("expected dry-run override in request, got %#v", overrides)
+	}
+	if overrides.IncludeCompleted == nil || !*overrides.IncludeCompleted {
+		t.Fatalf("expected include-completed override in request, got %#v", overrides)
+	}
+}
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
-	state.tui = true
-	state.isInteractive = func() bool { return true }
+func TestTasksRunCommandAutoModeResolvesToStreamInNonInteractiveExecution(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
 
-	cmd := &cobra.Command{Use: "start"}
-	cmd.Flags().Bool("tui", true, "enable tui")
-	if err := cmd.Flags().Set("tui", "true"); err != nil {
-		t.Fatalf("set --tui: %v", err)
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-002",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeStream,
+			StartedAt:        time.Date(2026, 4, 17, 13, 5, 0, 0, time.UTC),
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 5, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 5, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+	var watchedRunID string
+	installTestCLIRunObservers(
+		t,
+		nil,
+		func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+			watchedRunID = runID
+			_, err := io.WriteString(dst, "run completed | succeeded=1 failed=0 canceled=0\n")
+			return err
+		},
+	)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+	)
+	if err != nil {
+		t.Fatalf("execute tasks run auto stream: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if readyClient.startRequest.PresentationMode != attachModeStream {
+		t.Fatalf("expected auto attach mode to resolve to stream, got %q", readyClient.startRequest.PresentationMode)
+	}
+	if watchedRunID != "run-task-002" {
+		t.Fatalf("expected stream watch to attach to run-task-002, got %q", watchedRunID)
+	}
+	if !strings.Contains(stdout, "task run started: run-task-002 (mode=stream)") ||
+		!strings.Contains(stdout, "run completed | succeeded=1 failed=0 canceled=0") {
+		t.Fatalf("unexpected tasks run stdout: %q", stdout)
+	}
+}
+
+func TestTasksRunCommandInteractiveUIModeAttachesThroughRemoteClient(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-ui-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeUI,
+			StartedAt:        time.Date(2026, 4, 17, 13, 6, 0, 0, time.UTC),
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 6, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 6, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var attachedRunID string
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		attachedRunID = runID
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+	)
+	if err != nil {
+		t.Fatalf("execute tasks run interactive ui: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if readyClient.startRequest.PresentationMode != attachModeUI {
+		t.Fatalf("expected interactive attach mode to resolve to ui, got %q", readyClient.startRequest.PresentationMode)
+	}
+	if attachedRunID != "run-task-ui-001" {
+		t.Fatalf("expected ui attach for run-task-ui-001, got %q", attachedRunID)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout before ui attach, got %q", stdout)
+	}
+}
+
+func TestTasksRunCommandExplicitUIFailsWithoutTTY(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+		"--ui",
+	)
+	if err == nil {
+		t.Fatalf("expected tasks run explicit ui failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout on explicit ui failure, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "requires an interactive terminal for ui mode") {
+		t.Fatalf("unexpected explicit ui error output: %q", stderr)
+	}
+}
+
+func TestTasksRunCommandBootstrapFailureReturnsStableExitCode(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	nowSequence := []time.Time{
+		time.Date(2026, 4, 17, 13, 10, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 10, 0, 0, time.UTC),
+		time.Date(2026, 4, 17, 13, 10, 2, 0, time.UTC),
+	}
+	nowIndex := 0
+	nextNow := func() time.Time {
+		if nowIndex >= len(nowSequence) {
+			return nowSequence[len(nowSequence)-1]
+		}
+		value := nowSequence[nowIndex]
+		nowIndex++
+		return value
 	}
 
-	if err := state.normalizePresentationMode(cmd); err != nil {
-		t.Fatalf("normalizePresentationMode() error = %v", err)
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  nowSequence[0],
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return &stubDaemonCommandClient{
+				target:    apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+				healthErr: errors.New("dial unix /tmp/compozy-daemon.sock: connect: connection refused"),
+			}, nil
+		},
+		launch:         func(compozyconfig.HomePaths) error { return nil },
+		sleep:          func(time.Duration) {},
+		now:            nextNow,
+		startupTimeout: 500 * time.Millisecond,
+		pollInterval:   time.Millisecond,
+	})
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+	)
+	if err == nil {
+		t.Fatalf("expected tasks run bootstrap failure\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
 	}
-	if !state.tui {
-		t.Fatal("expected tui to remain enabled when injected interactivity reports true")
+	var exitErr *commandExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("expected commandExitError, got %T", err)
+	}
+	if exitErr.ExitCode() != 2 {
+		t.Fatalf("unexpected exit code: got %d want 2", exitErr.ExitCode())
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout on bootstrap failure, got %q", stdout)
+	}
+	if !containsAll(stderr, "wait for daemon readiness", "probe daemon health via unix:///tmp/compozy-daemon.sock") {
+		t.Fatalf("expected explicit daemon transport failure, got %q", stderr)
+	}
+}
+
+func TestRunsAttachCommandUsesRemoteUIAttach(t *testing.T) {
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 20, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 20, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var attachedRunID string
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		attachedRunID = runID
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "runs", "attach", "run-attach-001")
+	if err != nil {
+		t.Fatalf("execute runs attach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if attachedRunID != "run-attach-001" {
+		t.Fatalf("expected attach for run-attach-001, got %q", attachedRunID)
+	}
+	if stdout != "" || stderr != "" {
+		t.Fatalf("expected quiet attach command, got stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+func TestRunsWatchCommandStreamsWithoutLaunchingUI(t *testing.T) {
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 21, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 21, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var watchedRunID string
+	var attachCalls int
+	installTestCLIRunObservers(t, func(context.Context, daemonCommandClient, string) error {
+		attachCalls++
+		return nil
+	}, func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+		watchedRunID = runID
+		_, err := io.WriteString(dst, "run completed | all good\n")
+		return err
+	})
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "runs", "watch", "run-watch-001")
+	if err != nil {
+		t.Fatalf("execute runs watch: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if attachCalls != 0 {
+		t.Fatalf("expected watch path to avoid ui attach, got %d attach calls", attachCalls)
+	}
+	if watchedRunID != "run-watch-001" {
+		t.Fatalf("expected watch for run-watch-001, got %q", watchedRunID)
+	}
+	if stdout != "run completed | all good\n" || stderr != "" {
+		t.Fatalf("unexpected runs watch output: stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+func TestLegacyStartCommandIsRemoved(t *testing.T) {
+	output, err := executeRootCommand("start", "--help")
+	if err == nil {
+		t.Fatalf("expected legacy start command removal error\noutput:\n%s", output)
+	}
+	if !strings.Contains(output, "unknown command \"start\" for \"compozy\"") {
+		t.Fatalf("unexpected legacy start output:\n%s", output)
 	}
 }
 
@@ -1017,8 +1413,8 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -1090,8 +1486,8 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	}
 	withWorkingDir(t, workspaceRoot)
 
-	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
-	stdout, stderr, err := executeCommandCapturingProcessIO(
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeDaemonBackedCommandCapturingProcessIO(
 		t,
 		cmd,
 		nil,
@@ -1135,17 +1531,203 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	}
 }
 
-func latestRunDirForCLI(t *testing.T, workspaceRoot string) string {
+func TestTaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	writeCLINodeWorkflowFixture(t, workspaceRoot, "node-health")
+	writeCLIWorkspaceConfig(t, workspaceRoot, "")
+	chdirCLITest(t, workspaceRoot)
+
+	installInProcessCLIDaemonBootstrap(t)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+
+	syncStdout, syncStderr, err := executeCommandCapturingProcessIO(
+		t,
+		newRootCommandWithDefaults(newLazyRootDispatcher(), defaults),
+		nil,
+		"sync",
+		"--name",
+		"node-health",
+		"--format",
+		"json",
+	)
+	if err != nil {
+		t.Fatalf("execute sync for review fixture: %v\nstdout:\n%s\nstderr:\n%s", err, syncStdout, syncStderr)
+	}
+	var syncPayload struct {
+		WorkflowSlug         string `json:"workflow_slug"`
+		ReviewRoundsUpserted int    `json:"review_rounds_upserted"`
+		ReviewIssuesUpserted int    `json:"review_issues_upserted"`
+	}
+	if err := json.Unmarshal([]byte(syncStdout), &syncPayload); err != nil {
+		t.Fatalf("decode sync payload: %v\nstdout:\n%s", err, syncStdout)
+	}
+	if syncPayload.WorkflowSlug != "node-health" ||
+		syncPayload.ReviewRoundsUpserted != 1 ||
+		syncPayload.ReviewIssuesUpserted != 1 {
+		t.Fatalf("unexpected sync payload: %#v", syncPayload)
+	}
+
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		newRootCommandWithDefaults(newLazyRootDispatcher(), defaults),
+		nil,
+		"tasks",
+		"run",
+		"node-health",
+		"--dry-run",
+		"--stream",
+	)
+	if err != nil {
+		t.Fatalf("execute tasks run dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected task preflight success on stderr, got %q", stderr)
+	}
+	if !strings.Contains(stdout, "task run started:") || !strings.Contains(stdout, "(mode=stream)") {
+		t.Fatalf("unexpected tasks run stdout: %q", stdout)
+	}
+
+	runDirs := runDirsForCLI(t)
+	if len(runDirs) != 1 {
+		t.Fatalf("expected one run dir after task dry-run, got %d (%v)", len(runDirs), runDirs)
+	}
+	taskRunDir := runDirs[0]
+	taskRunMeta := readCLIArtifactJSON(t, filepath.Join(taskRunDir, "run.json"))
+	if got := taskRunMeta["mode"]; got != string(model.ExecutionModePRDTasks) {
+		t.Fatalf("unexpected task run mode: %#v", taskRunMeta)
+	}
+	taskResult := readCLIArtifactJSON(t, filepath.Join(taskRunDir, "result.json"))
+	if got := taskResult["status"]; got != "succeeded" {
+		t.Fatalf("unexpected task result payload: %#v", taskResult)
+	}
+	taskPromptPath := singleCLIJobArtifact(t, taskRunDir, "*.prompt.md")
+	taskPromptBytes, err := os.ReadFile(taskPromptPath)
+	if err != nil {
+		t.Fatalf("read task prompt artifact: %v", err)
+	}
+	for _, want := range []string{"Add Ready Endpoint", "GET /ready", "src/server.js"} {
+		if !strings.Contains(string(taskPromptBytes), want) {
+			t.Fatalf("expected task prompt to contain %q, got:\n%s", want, string(taskPromptBytes))
+		}
+	}
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobCompleted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(cliRuntimeEventKinds(t, filepath.Join(taskRunDir, "events.jsonl")), want) {
+			t.Fatalf("expected task runtime events to include %s", want)
+		}
+	}
+
+	listOutput, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(defaults),
+		nil,
+		"list",
+		"node-health",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews list: %v\noutput:\n%s", err, listOutput)
+	}
+	if !containsAll(
+		listOutput,
+		"node-health round 001",
+		"provider=manual",
+		"pr=fixture",
+		"unresolved=1",
+		"resolved=0",
+	) {
+		t.Fatalf("unexpected reviews list output:\n%s", listOutput)
+	}
+
+	showOutput, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(defaults),
+		nil,
+		"show",
+		"node-health",
+		"1",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews show: %v\noutput:\n%s", err, showOutput)
+	}
+	if !containsAll(
+		showOutput,
+		"node-health round 001",
+		"- issue_001 | status=pending severity=warning path=reviews-001/issue_001.md",
+	) {
+		t.Fatalf("unexpected reviews show output:\n%s", showOutput)
+	}
+
+	stdout, stderr, err = executeCommandCapturingProcessIO(
+		t,
+		newRootCommandWithDefaults(newLazyRootDispatcher(), defaults),
+		nil,
+		"reviews",
+		"fix",
+		"node-health",
+		"--round",
+		"1",
+		"--dry-run",
+		"--stream",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews fix dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if stdout == "" || !strings.Contains(stdout, "task run started:") || !strings.Contains(stdout, "(mode=stream)") {
+		t.Fatalf("unexpected reviews fix stdout: %q", stdout)
+	}
+
+	runDirsAfterReview := runDirsForCLI(t)
+	if len(runDirsAfterReview) != 2 {
+		t.Fatalf("expected two run dirs after review dry-run, got %d (%v)", len(runDirsAfterReview), runDirsAfterReview)
+	}
+	reviewRunDir := newCLIRunDir(t, runDirs, runDirsAfterReview)
+	reviewRunMeta := readCLIArtifactJSON(t, filepath.Join(reviewRunDir, "run.json"))
+	if got := reviewRunMeta["mode"]; got != string(model.ModeCodeReview) {
+		t.Fatalf("unexpected review run mode: %#v", reviewRunMeta)
+	}
+	reviewResult := readCLIArtifactJSON(t, filepath.Join(reviewRunDir, "result.json"))
+	if got := reviewResult["status"]; got != "succeeded" {
+		t.Fatalf("unexpected review result payload: %#v", reviewResult)
+	}
+	reviewPromptPath := singleCLIJobArtifact(t, reviewRunDir, "*.prompt.md")
+	reviewPromptBytes, err := os.ReadFile(reviewPromptPath)
+	if err != nil {
+		t.Fatalf("read review prompt artifact: %v", err)
+	}
+	for _, want := range []string{"`cy-fix-reviews`", "issue_001.md", "src/server.js"} {
+		if !strings.Contains(string(reviewPromptBytes), want) {
+			t.Fatalf("expected review prompt to contain %q, got:\n%s", want, string(reviewPromptBytes))
+		}
+	}
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindJobCompleted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(cliRuntimeEventKinds(t, filepath.Join(reviewRunDir, "events.jsonl")), want) {
+			t.Fatalf("expected review runtime events to include %s", want)
+		}
+	}
+}
+
+func latestRunDirForCLI(t *testing.T, _ string) string {
 	t.Helper()
 
-	entries, err := os.ReadDir(filepath.Join(workspaceRoot, ".compozy", "runs"))
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("resolve home paths: %v", err)
+	}
+	entries, err := os.ReadDir(homePaths.RunsDir)
 	if err != nil {
 		t.Fatalf("read runs dir: %v", err)
 	}
 	if len(entries) != 1 {
 		t.Fatalf("expected exactly one run dir, got %d", len(entries))
 	}
-	return filepath.Join(workspaceRoot, ".compozy", "runs", entries[0].Name())
+	return filepath.Join(homePaths.RunsDir, entries[0].Name())
 }
 
 func assertNoRunArtifactsForCLI(t *testing.T, workspaceRoot string) {
@@ -1156,10 +1738,78 @@ func assertNoRunArtifactsForCLI(t *testing.T, workspaceRoot string) {
 	}
 }
 
-func writePersistedExecRunForCLI(t *testing.T, workspaceRoot string, record coreRun.PersistedExecRun) {
+func seedCLIRunForPurge(
+	t *testing.T,
+	db *globaldb.GlobalDB,
+	workspaceID string,
+	runID string,
+	status string,
+	endedAt time.Time,
+) {
 	t.Helper()
 
-	runArtifacts := model.NewRunArtifacts(workspaceRoot, record.RunID)
+	run := globaldb.Run{
+		RunID:            runID,
+		WorkspaceID:      workspaceID,
+		Mode:             "task",
+		Status:           status,
+		PresentationMode: "stream",
+		StartedAt:        endedAt.Add(-time.Minute),
+	}
+	if status != "running" {
+		run.EndedAt = &endedAt
+	}
+	if _, err := db.PutRun(context.Background(), run); err != nil {
+		t.Fatalf("PutRun(%q) error = %v", runID, err)
+	}
+}
+
+func createCLIRunArtifacts(t *testing.T, runID string) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
+	}
+	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(runArtifacts.RunDir, "marker.txt"), []byte(runID), 0o600); err != nil {
+		t.Fatalf("write run marker: %v", err)
+	}
+}
+
+func assertCLIRunDirMissing(t *testing.T, runID string) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
+	}
+	if _, err := os.Stat(runArtifacts.RunDir); !os.IsNotExist(err) {
+		t.Fatalf("expected run dir %q to be removed, stat err=%v", runArtifacts.RunDir, err)
+	}
+}
+
+func assertCLIRunDirPresent(t *testing.T, runID string) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+	if err != nil {
+		t.Fatalf("ResolveHomeRunArtifacts(%q) error = %v", runID, err)
+	}
+	if _, err := os.Stat(runArtifacts.RunDir); err != nil {
+		t.Fatalf("expected run dir %q to remain, stat err=%v", runArtifacts.RunDir, err)
+	}
+}
+
+func writePersistedExecRunForCLI(t *testing.T, _ string, record coreRun.PersistedExecRun) {
+	t.Helper()
+
+	runArtifacts, err := model.ResolveHomeRunArtifacts(record.RunID)
+	if err != nil {
+		t.Fatalf("resolve home run artifacts: %v", err)
+	}
 	if err := os.MkdirAll(runArtifacts.RunDir, 0o755); err != nil {
 		t.Fatalf("mkdir persisted exec run dir: %v", err)
 	}
@@ -1170,6 +1820,16 @@ func writePersistedExecRunForCLI(t *testing.T, workspaceRoot string, record core
 	if err := os.WriteFile(runArtifacts.RunMetaPath, payload, 0o600); err != nil {
 		t.Fatalf("write persisted exec run: %v", err)
 	}
+}
+
+func persistedRunDirForCLI(t *testing.T, workspaceRoot, runID string) string {
+	t.Helper()
+
+	runArtifacts, err := model.ResolvePersistedRunArtifacts(workspaceRoot, runID)
+	if err != nil {
+		t.Fatalf("resolve persisted run artifacts: %v", err)
+	}
+	return runArtifacts.RunDir
 }
 
 func decodeExecJSONLEvents(t *testing.T, stdout string) []map[string]any {
@@ -1200,8 +1860,22 @@ func withWorkingDir(t *testing.T, dir string) {
 		cliWorkingDirMu.Unlock()
 		t.Fatalf("getwd: %v", err)
 	}
+	originalHome := os.Getenv("HOME")
+	restoreHome := false
+	if originalHome == originalCLIHome {
+		if err := os.Setenv("HOME", t.TempDir()); err != nil {
+			cliWorkingDirMu.Unlock()
+			t.Fatalf("set HOME: %v", err)
+		}
+		restoreHome = true
+	}
 	t.Cleanup(func() {
 		defer cliWorkingDirMu.Unlock()
+		if restoreHome {
+			if err := os.Setenv("HOME", originalHome); err != nil {
+				t.Fatalf("restore HOME: %v", err)
+			}
+		}
 		if chdirErr := os.Chdir(originalWD); chdirErr != nil {
 			t.Fatalf("restore cwd: %v", chdirErr)
 		}
@@ -1340,6 +2014,281 @@ func cliRuntimeEventKinds(t *testing.T, eventsPath string) []eventspkg.EventKind
 		kinds = append(kinds, event.Kind)
 	}
 	return kinds
+}
+
+func runDirsForCLI(t *testing.T) []string {
+	t.Helper()
+
+	homePaths, err := compozyconfig.ResolveHomePaths()
+	if err != nil {
+		t.Fatalf("resolve home paths: %v", err)
+	}
+	entries, err := os.ReadDir(homePaths.RunsDir)
+	if err != nil {
+		t.Fatalf("read runs dir: %v", err)
+	}
+	dirs := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dirs = append(dirs, filepath.Join(homePaths.RunsDir, entry.Name()))
+	}
+	slices.Sort(dirs)
+	return dirs
+}
+
+func newCLIRunDir(t *testing.T, before []string, after []string) string {
+	t.Helper()
+
+	beforeSet := make(map[string]struct{}, len(before))
+	for _, path := range before {
+		beforeSet[path] = struct{}{}
+	}
+	for _, path := range after {
+		if _, ok := beforeSet[path]; !ok {
+			return path
+		}
+	}
+	t.Fatalf("expected one new run dir\nbefore: %v\nafter:  %v", before, after)
+	return ""
+}
+
+func writeCLINodeWorkflowFixture(t *testing.T, workspaceRoot string, slug string) {
+	t.Helper()
+
+	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", slug)
+	if err := os.MkdirAll(filepath.Join(workflowDir, "adrs"), 0o755); err != nil {
+		t.Fatalf("mkdir ADR dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, "src"), 0o755); err != nil {
+		t.Fatalf("mkdir src dir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, "test"), 0o755); err != nil {
+		t.Fatalf("mkdir test dir: %v", err)
+	}
+
+	files := map[string]string{
+		filepath.Join(workspaceRoot, "package.json"): `{
+  "name": "node-health-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}
+`,
+		filepath.Join(workspaceRoot, "src", "server.js"): `import http from 'node:http';
+
+export function createServer() {
+  return http.createServer((req, res) => {
+    if (req.method === 'GET' && req.url === '/health') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: 'not_found' }));
+  });
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  const server = createServer();
+  server.listen(process.env.PORT || 3000);
+}
+`,
+		filepath.Join(workspaceRoot, "test", "server.test.js"): `import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from '../src/server.js';
+
+test('GET /health returns ok', async () => {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, resolve));
+  const port = server.address().port;
+  const response = await fetch(` + "`http://127.0.0.1:${port}/health`" + `);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.deepEqual(body, { ok: true });
+  await new Promise((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
+});
+`,
+		filepath.Join(workflowDir, "_techspec.md"): `# Node Health API TechSpec
+
+## Executive Summary
+This fixture adds a small readiness endpoint to a minimal Node.js API so daemon-backed Compozy task and review flows have realistic files to inspect. The goal is deterministic operator-flow validation, not production feature depth.
+
+## System Architecture
+### Component Overview
+- ` + "`src/server.js`" + ` owns HTTP routing.
+- ` + "`test/server.test.js`" + ` validates public HTTP behavior.
+
+## Implementation Design
+### Core Interfaces
+` + "```js" + `
+export function createServer() {
+  return http.createServer((req, res) => {
+    // route handling
+  });
+}
+` + "```" + `
+
+### Data Models
+- Success payloads use ` + "`{ ok: boolean }`" + `.
+- Error payloads use ` + "`{ error: string }`" + `.
+
+### API Endpoints
+- ` + "`GET /health`" + ` returns readiness.
+- ` + "`GET /ready`" + ` should return readiness metadata.
+
+## Impact Analysis
+| Component | Impact Type | Description and Risk | Required Action |
+|-----------|-------------|---------------------|-----------------|
+| ` + "`src/server.js`" + ` | modified | Add ` + "`GET /ready`" + ` behavior. Low risk. | Edit route handling. |
+| ` + "`test/server.test.js`" + ` | modified | Add coverage for ` + "`GET /ready`" + `. Low risk. | Add test. |
+
+## Testing Approach
+### Unit Tests
+- Validate route dispatch and JSON payloads.
+
+### Integration Tests
+- Run ` + "`node --test`" + ` against the HTTP server behavior.
+
+## Development Sequencing
+### Build Order
+1. Extend routing in ` + "`src/server.js`" + ` - no dependencies.
+2. Add ` + "`node --test`" + ` coverage for ` + "`/ready`" + ` - depends on step 1.
+
+### Technical Dependencies
+- None.
+
+## Technical Considerations
+### Key Decisions
+- Keep the fixture dependency-free and use Node built-ins only.
+
+### Known Risks
+- The task/review flow must stay dry-run to avoid nesting an external ACP runtime during daemon QA.
+
+## Architecture Decision Records
+- [ADR-001: Keep the fixture dependency-free](adrs/adr-001.md) — Use built-in Node modules so daemon QA remains deterministic.
+`,
+		filepath.Join(workflowDir, "adrs", "adr-001.md"): `# ADR-001: Keep the fixture dependency-free
+
+- Status: Accepted
+- Date: 2026-04-18
+
+## Context
+The daemon QA fixture should stay small and deterministic.
+
+## Decision
+Use only built-in Node.js modules.
+
+## Consequences
+The fixture is easy to bootstrap but intentionally simple.
+`,
+		filepath.Join(workflowDir, "_tasks.md"): `# Node Health API — Task List
+
+## Tasks
+
+| # | Title | Status | Complexity | Dependencies |
+|---|-------|--------|------------|--------------|
+| 01 | Add Ready Endpoint | pending | low | — |
+`,
+		filepath.Join(workflowDir, "task_01.md"): `---
+status: pending
+title: Add Ready Endpoint
+type: backend
+complexity: low
+dependencies: []
+---
+
+# Task 1: Add Ready Endpoint
+
+## Overview
+Add a ` + "`GET /ready`" + ` endpoint to the temporary Node.js API so the workflow has a concrete implementation target. Keep the change limited to the existing server and test files.
+
+<critical>
+- ALWAYS READ the TechSpec before starting
+- REFERENCE TECHSPEC for implementation details — do not duplicate here
+- FOCUS ON "WHAT" — describe what needs to be accomplished, not how
+- MINIMIZE CODE — show code only to illustrate current structure or problem areas
+- TESTS REQUIRED — every task MUST include tests in deliverables
+</critical>
+
+<requirements>
+1. MUST add ` + "`GET /ready`" + ` to the HTTP server.
+2. MUST return JSON with a stable readiness payload.
+3. MUST add test coverage in ` + "`test/server.test.js`" + `.
+</requirements>
+
+## Subtasks
+- [ ] 1.1 Add the ` + "`GET /ready`" + ` route.
+- [ ] 1.2 Return a JSON readiness response.
+- [ ] 1.3 Add automated test coverage.
+
+## Implementation Details
+Update the existing server and test files. See ` + "`_techspec.md`" + ` sections "API Endpoints" and "Testing Approach".
+
+### Relevant Files
+- ` + "`src/server.js`" + ` — current HTTP route implementation.
+- ` + "`test/server.test.js`" + ` — public HTTP behavior tests.
+
+### Dependent Files
+- ` + "`_techspec.md`" + ` — approved technical direction for the fixture.
+
+### Related ADRs
+- [ADR-001: Keep the fixture dependency-free](adrs/adr-001.md) — Avoid external packages in the temporary fixture.
+
+## Deliverables
+- Updated ` + "`src/server.js`" + `
+- Updated ` + "`test/server.test.js`" + `
+- Unit tests with 80%+ coverage **(REQUIRED)**
+- Integration tests for the readiness endpoint **(REQUIRED)**
+
+## Tests
+- Unit tests:
+  - [ ] ` + "`GET /ready`" + ` returns HTTP 200.
+  - [ ] ` + "`GET /ready`" + ` returns the expected JSON payload.
+- Integration tests:
+  - [ ] ` + "`node --test`" + ` passes with the new endpoint.
+- Test coverage target: >=80%
+- All tests must pass
+
+## Success Criteria
+- All tests passing
+- Test coverage >=80%
+- ` + "`GET /ready`" + ` is documented in the fixture techspec
+- The task is independently executable through Compozy
+`,
+	}
+
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write fixture file %s: %v", path, err)
+		}
+	}
+
+	reviewDir := filepath.Join(workflowDir, "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "manual",
+		PR:        "fixture",
+		Round:     1,
+		CreatedAt: time.Date(2026, 4, 18, 0, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{
+		{
+			Title:       "Add a readiness endpoint for operator probes",
+			File:        "src/server.js",
+			Line:        5,
+			Severity:    "warning",
+			Author:      "qa-bot",
+			ProviderRef: "local:issue-001",
+			Body:        "The temporary API exposes `GET /health` but not a stable `GET /ready` endpoint. Add a dedicated readiness route and protect it with test coverage.",
+		},
+	}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
 }
 
 func cliReusableAgentLifecyclePayloads(
@@ -1534,6 +2483,10 @@ func prepareWorkspaceExtensionFixtureForCLI(t *testing.T, mode string) (string, 
 
 	homeDir := t.TempDir()
 	t.Setenv("HOME", homeDir)
+	t.Setenv(testCLIDaemonHomeEnv, homeDir)
+	xdgConfigHome := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
 
 	recordPath := filepath.Join(t.TempDir(), "mock-extension-records.jsonl")
 	binary := buildCLIMockExtensionBinary(t)

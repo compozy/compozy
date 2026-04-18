@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Workspace, Daemon, Sync, and Archive Command Completion
 type: refactor
 complexity: high
@@ -28,17 +28,24 @@ This task completes the explicit operator command surface around the daemon and 
 3. MUST preserve script-friendly output formats and stable exit behavior for operator automation.
 4. MUST expose workspace register, unregister, resolve, list, and show behavior consistent with the daemon registry contract.
 5. SHOULD keep help text and flags aligned with the approved daemon command model from the TechSpec.
+6. MUST ship only the approved command surface and MUST NOT add deprecated aliases for removed commands unless a follow-up ADR explicitly calls for one.
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Complete daemon status and stop commands over the shared daemon-client transport.
-- [ ] 14.2 Complete workspace register, unregister, resolve, list, and show command behavior.
-- [ ] 14.3 Finish daemon-backed sync and archive command execution paths.
-- [ ] 14.4 Align CLI help text, flags, and output formatting with the new command surface.
-- [ ] 14.5 Add tests covering command execution, output, and exit behavior for all completed command families.
+- [x] 14.1 Complete daemon status and stop commands over the shared daemon-client transport.
+- [x] 14.2 Complete workspace register, unregister, resolve, list, and show command behavior.
+- [x] 14.3 Finish daemon-backed sync and archive command execution paths.
+- [x] 14.4 Align CLI help text, flags, and output formatting with the new command surface.
+- [x] 14.5 Add tests covering command execution, output, and exit behavior for all completed command families.
 
 ## Implementation Details
 Implement the operator surface described in the TechSpec "CLI/TUI clients", "Workspaces", "Task workflows", and "Transport Contract" sections. This task should make the daemon-backed operational commands feel complete and scriptable without reintroducing hidden filesystem heuristics behind the scenes.
+
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/api/core/handlers.go` — reference for action-oriented handler shapes over shared services.
+- `~/dev/compozy/agh/internal/api/httpapi/routes.go` — reference for HTTP route organization and parity.
+- `~/dev/compozy/agh/internal/api/udsapi/routes.go` — reference for UDS route organization and parity.
+- `~/dev/compozy/agh/internal/daemon/boot.go` — reference for daemon status and stop command bootstrap assumptions.
 
 ### Relevant Files
 - `internal/cli/root.go` — root command registration for the explicit daemon and workspace families.
@@ -68,13 +75,17 @@ Implement the operator surface described in the TechSpec "CLI/TUI clients", "Wor
 
 ## Tests
 - Unit tests:
-  - [ ] Help text and flags for daemon and workspace commands match the approved command surface and do not expose the removed `start` path.
-  - [ ] Command output formatting and exit behavior remain stable for success, validation, and conflict cases.
-  - [ ] Workspace targeting resolves explicit path, current workspace, and daemon-registry lookups consistently.
+  - [x] Help text and flags for daemon and workspace commands match the approved command surface and do not expose the removed `start` path.
+  - [x] Command output formatting and exit behavior remain stable for success, validation, and conflict cases.
+  - [x] Workspace targeting resolves explicit path, current workspace, and daemon-registry lookups consistently.
+  - [x] Conflict responses for unregister, archive, and daemon stop map to stable CLI exit behavior and operator-readable output.
+  - [x] JSON and text output modes remain stable for daemon, workspace, sync, and archive commands.
 - Integration tests:
-  - [ ] `compozy daemon status` and `compozy daemon stop` operate correctly against a real daemon instance.
-  - [ ] `compozy workspaces register|show|list|unregister` reflects the daemon registry accurately and rejects unregister with active runs.
-  - [ ] `compozy sync` and `compozy archive` operate through daemon-backed state rather than direct metadata-file heuristics.
+  - [x] `compozy daemon status` and `compozy daemon stop` operate correctly against a real daemon instance.
+  - [x] `compozy workspaces register|show|list|unregister` reflects the daemon registry accurately and rejects unregister with active runs.
+  - [x] `compozy sync --name <slug>` and workspace-wide `compozy sync` operate through daemon-backed state rather than direct metadata-file heuristics.
+  - [x] `compozy archive --name <slug>` and workspace-wide archive surface deterministic skip and conflict behavior from daemon state.
+  - [x] Validation, sync, and archive commands behave correctly when invoked from a workspace subdirectory instead of the workspace root.
 - Test coverage target: >=80%
 - All tests must pass
 

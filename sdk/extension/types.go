@@ -441,6 +441,7 @@ type RuntimeConfig struct {
 	TUI                        bool
 	Persist                    bool
 	EnableExecutableExtensions bool
+	DaemonOwned                bool
 	RunID                      string
 	ParentRunID                string
 	PromptText                 string
@@ -461,6 +462,7 @@ type RuntimeConfig struct {
 type RunArtifacts struct {
 	RunID       string
 	RunDir      string
+	RunDBPath   string
 	RunMetaPath string
 	EventsPath  string
 	TurnsDir    string

@@ -111,10 +111,8 @@ func ActivateOverlay(entries []OverlayEntry) (func(), error) {
 		return func() {}, nil
 	}
 
-	for _, entry := range entries {
-		if overlayKind(entry) == OverlayKindExtension && entry.Bridge == nil {
-			return nil, fmt.Errorf("activate review provider overlay %q: missing extension bridge", entry.Name)
-		}
+	if err := validateOverlayEntries(entries); err != nil {
+		return nil, err
 	}
 
 	factory := func(base RegistryReader) RegistryReader {
@@ -143,6 +141,18 @@ func ResolveRegistry(base RegistryReader) RegistryReader {
 		return base
 	}
 	return factory(base)
+}
+
+// BuildOverlayRegistry applies the supplied overlay entries to the provided base
+// registry without mutating the process-global overlay state.
+func BuildOverlayRegistry(base RegistryReader, entries []OverlayEntry) (RegistryReader, error) {
+	if len(entries) == 0 {
+		return base, nil
+	}
+	if err := validateOverlayEntries(entries); err != nil {
+		return nil, err
+	}
+	return buildDeclaredReviewOverlay(base, entries), nil
 }
 
 // Catalog returns the active provider catalog layered on top of the supplied base registry.
@@ -193,6 +203,15 @@ func buildDeclaredReviewOverlay(base RegistryReader, entries []OverlayEntry) Reg
 		}
 	}
 	return overlay
+}
+
+func validateOverlayEntries(entries []OverlayEntry) error {
+	for _, entry := range entries {
+		if overlayKind(entry) == OverlayKindExtension && entry.Bridge == nil {
+			return fmt.Errorf("activate review provider overlay %q: missing extension bridge", entry.Name)
+		}
+	}
+	return nil
 }
 
 type aliasedProvider struct {

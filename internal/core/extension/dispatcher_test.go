@@ -1,13 +1,18 @@
 package extensions
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+	"unsafe"
 )
 
 func TestHookDispatcherBuildsPriorityOrderedChains(t *testing.T) {
@@ -322,6 +327,107 @@ func TestDispatchObserverFansOutConcurrently(t *testing.T) {
 
 	if got := len(audit.entries()); got != 2 {
 		t.Fatalf("audit entries = %d, want 2", got)
+	}
+}
+
+func TestDispatchObserverUsesBoundedWorkersAndSharedRawPayload(t *testing.T) {
+	t.Parallel()
+
+	workerLimit := max(runtime.GOMAXPROCS(0), 1)
+	totalObservers := workerLimit + 4
+	payload := map[string]any{
+		"session_id": "sess-1",
+		"status":     "running",
+	}
+	expected, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal(payload) error = %v", err)
+	}
+
+	release := make(chan struct{})
+	started := make(chan struct{}, totalObservers)
+	errs := make(chan error, totalObservers)
+	var (
+		active         atomic.Int32
+		maxActive      atomic.Int32
+		sharedPayload  atomic.Uintptr
+		observerStarts atomic.Int32
+	)
+
+	extensions := make([]*RuntimeExtension, 0, totalObservers)
+	for i := 0; i < totalObservers; i++ {
+		extensions = append(extensions, newRuntimeExtensionWithCaller(
+			observerExtensionName(i),
+			[]Capability{CapabilityAgentMutate},
+			&fakeExtensionCaller{
+				handler: func(_ context.Context, request executeHookRequest) (json.RawMessage, error) {
+					raw, ok := request.Payload.(json.RawMessage)
+					if !ok {
+						errs <- errors.New("observer payload is not json.RawMessage")
+						return nil, nil
+					}
+					if !bytes.Equal(raw, expected) {
+						errs <- errors.New("observer payload bytes changed")
+						return nil, nil
+					}
+					if len(raw) > 0 {
+						ptr := uintptr(unsafe.Pointer(&raw[0]))
+						if prior := sharedPayload.Load(); prior == 0 {
+							sharedPayload.CompareAndSwap(0, ptr)
+						} else if prior != ptr {
+							errs <- errors.New("observer payload did not reuse the same raw bytes")
+							return nil, nil
+						}
+					}
+
+					current := active.Add(1)
+					observerStarts.Add(1)
+					for {
+						seen := maxActive.Load()
+						if current <= seen || maxActive.CompareAndSwap(seen, current) {
+							break
+						}
+					}
+					started <- struct{}{}
+					<-release
+					active.Add(-1)
+					return nil, nil
+				},
+			},
+			HookDeclaration{
+				Event:    HookAgentPostSessionCreate,
+				Priority: 100 + i,
+				Required: false,
+				Timeout:  time.Second,
+			},
+		))
+	}
+
+	dispatcher := NewHookDispatcher(mustRegistry(t, extensions...), &auditSpy{})
+	dispatcher.DispatchObserver(context.Background(), HookAgentPostSessionCreate, payload)
+
+	for range workerLimit {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatalf("expected %d observer workers to start", workerLimit)
+		}
+	}
+
+	close(release)
+	dispatcher.waitForObservers()
+
+	if got := int(maxActive.Load()); got > workerLimit {
+		t.Fatalf("max concurrent observer calls = %d, want <= %d", got, workerLimit)
+	}
+	if got := int(observerStarts.Load()); got != totalObservers {
+		t.Fatalf("observer starts = %d, want %d", got, totalObservers)
+	}
+
+	select {
+	case err := <-errs:
+		t.Fatal(err)
+	default:
 	}
 }
 
@@ -680,4 +786,8 @@ func patchPromptText(t *testing.T, promptText string) json.RawMessage {
 		t.Fatalf("json.Marshal(patch) error = %v", err)
 	}
 	return patch
+}
+
+func observerExtensionName(index int) string {
+	return fmt.Sprintf("observer-%02d", index)
 }

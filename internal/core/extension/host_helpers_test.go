@@ -36,7 +36,7 @@ func newHostRuntime(
 	parentRunID string,
 ) *hostRuntime {
 	t.Helper()
-	return newHostRuntimeWithRunIDAndManager(t, capabilities, dispatcher, parentRunID, "run-host-root", nil)
+	return newHostRuntimeWithOptions(t, capabilities, dispatcher, parentRunID, "run-host-root", nil, nil)
 }
 
 func newHostRuntimeWithRunID(
@@ -47,7 +47,7 @@ func newHostRuntimeWithRunID(
 	runID string,
 ) *hostRuntime {
 	t.Helper()
-	return newHostRuntimeWithRunIDAndManager(t, capabilities, dispatcher, parentRunID, runID, nil)
+	return newHostRuntimeWithOptions(t, capabilities, dispatcher, parentRunID, runID, nil, nil)
 }
 
 func newHostRuntimeWithRunIDAndManager(
@@ -57,6 +57,31 @@ func newHostRuntimeWithRunIDAndManager(
 	parentRunID string,
 	runID string,
 	runtimeManager model.RuntimeManager,
+) *hostRuntime {
+	t.Helper()
+	return newHostRuntimeWithOptions(t, capabilities, dispatcher, parentRunID, runID, runtimeManager, nil)
+}
+
+func newHostRuntimeWithDaemonBridge(
+	t *testing.T,
+	capabilities []Capability,
+	dispatcher *kernel.Dispatcher,
+	parentRunID string,
+	runID string,
+	daemonBridge DaemonHostBridge,
+) *hostRuntime {
+	t.Helper()
+	return newHostRuntimeWithOptions(t, capabilities, dispatcher, parentRunID, runID, nil, daemonBridge)
+}
+
+func newHostRuntimeWithOptions(
+	t *testing.T,
+	capabilities []Capability,
+	dispatcher *kernel.Dispatcher,
+	parentRunID string,
+	runID string,
+	runtimeManager model.RuntimeManager,
+	daemonBridge DaemonHostBridge,
 ) *hostRuntime {
 	t.Helper()
 
@@ -84,6 +109,7 @@ func newHostRuntimeWithRunIDAndManager(
 		EventBus:       bus,
 		Journal:        j,
 		RuntimeManager: runtimeManager,
+		DaemonBridge:   daemonBridge,
 	})
 	if err != nil {
 		t.Fatalf("NewDefaultKernelOps() error = %v", err)
@@ -103,6 +129,40 @@ func newHostRuntimeWithRunIDAndManager(
 		extension: extension,
 		runID:     runID,
 	}
+}
+
+type stubDaemonHostBridge struct {
+	token     string
+	runtime   *model.RuntimeConfig
+	runHandle *RunHandle
+	startErr  error
+}
+
+func (b *stubDaemonHostBridge) HostCapabilityToken() string {
+	if b == nil {
+		return ""
+	}
+	return strings.TrimSpace(b.token)
+}
+
+func (b *stubDaemonHostBridge) StartRun(
+	_ context.Context,
+	runtimeCfg *model.RuntimeConfig,
+) (*RunHandle, error) {
+	if b == nil {
+		return nil, errors.New("missing daemon host bridge")
+	}
+	if runtimeCfg != nil {
+		b.runtime = runtimeCfg.Clone()
+	}
+	if b.startErr != nil {
+		return nil, b.startErr
+	}
+	if b.runHandle != nil {
+		handle := *b.runHandle
+		return &handle, nil
+	}
+	return &RunHandle{RunID: "daemon-run", ParentRunID: strings.TrimSpace(runtimeCfg.ParentRunID)}, nil
 }
 
 func mustJSON(t *testing.T, value any) json.RawMessage {

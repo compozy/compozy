@@ -1,9 +1,8 @@
 package cli
 
 import (
-	"context"
 	"log/slog"
-	"time"
+	"sync"
 
 	extcli "github.com/compozy/compozy/internal/cli/extension"
 	"github.com/compozy/compozy/internal/core/agent"
@@ -33,34 +32,27 @@ func newRootDispatcher() *kernel.Dispatcher {
 	deps := kernel.KernelDeps{
 		Logger:        slog.Default(),
 		EventBus:      events.New[events.Event](0),
-		Workspace:     bestEffortRootWorkspaceContext(),
+		Workspace:     workspace.Context{},
 		AgentRegistry: agent.DefaultRegistry(),
 	}
 
 	dispatcher := kernel.BuildDefault(deps)
 	if err := validateRootDispatcher(dispatcher); err != nil {
-		panic(err)
+		slog.Default().Error("kernel dispatcher validation failed", "error", err)
 	}
 	return dispatcher
 }
 
-func bestEffortRootWorkspaceContext() workspace.Context {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-
-	workspaceCtx, err := resolveWorkspaceContext(ctx)
-	if err != nil {
-		return workspace.Context{}
-	}
-	return workspaceCtx
+func newLazyRootDispatcher() func() *kernel.Dispatcher {
+	return sync.OnceValue(newRootDispatcher)
 }
 
 // NewRootCommand returns the reusable compozy Cobra command.
 func NewRootCommand() *cobra.Command {
-	return newRootCommandWithDefaults(newRootDispatcher(), defaultCommandStateDefaults())
+	return newRootCommandWithDefaults(newLazyRootDispatcher(), defaultCommandStateDefaults())
 }
 
-func newRootCommandWithDefaults(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
+func newRootCommandWithDefaults(dispatcher func() *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	root := &cobra.Command{
 		Use:          "compozy",
 		Short:        "Run AI review remediation and PRD task workflows",
@@ -77,30 +69,38 @@ Use explicit workflow subcommands:
   compozy ext           Manage bundled, user, and workspace extensions
   compozy migrate       Convert legacy workflow artifacts to frontmatter
   compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
-  compozy sync          Refresh task workflow metadata files
+  compozy daemon        Manage the home-scoped daemon bootstrap lifecycle
+  compozy workspaces    Inspect daemon workspace registrations
+  compozy tasks         Inspect and run task workflows
+  compozy reviews       Inspect review workflow state
+  compozy runs          Inspect and clean persisted daemon run artifacts
+  compozy sync          Reconcile workflow artifacts into global.db
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
   compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
   compozy fix-reviews   Process review issue files from a specific review round
-  compozy exec          Execute one ad hoc prompt through the shared ACP runtime
-  compozy start         Execute PRD task files`,
+  compozy exec          Execute one ad hoc prompt through the shared ACP runtime`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},
 	}
 
 	root.AddCommand(
-		newSetupCommand(dispatcher),
+		newSetupCommand(nil),
 		newAgentsCommand(),
 		newUpgradeCommand(),
-		extcli.NewExtCommand(dispatcher),
+		extcli.NewExtCommand(nil),
 		newMigrateCommand(dispatcher),
-		newValidateTasksCommand(dispatcher),
+		newValidateTasksCommand(nil),
+		newDaemonCommand(),
+		newWorkspacesCommand(),
+		newTasksCommand(nil, defaults),
+		newReviewsCommandWithDefaults(defaults),
+		newRunsCommandWithDefaults(defaults),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
-		newFetchReviewsCommandWithDefaults(dispatcher, defaults),
-		newFixReviewsCommandWithDefaults(dispatcher, defaults),
-		newExecCommandWithDefaults(dispatcher, defaults),
-		newStartCommandWithDefaults(dispatcher, defaults),
+		newFetchReviewsCommandWithDefaults(defaults),
+		newFixReviewsCommandWithDefaults(defaults),
+		newExecCommandWithDefaults(defaults),
 		newMCPServeCommand(),
 	)
 	return root

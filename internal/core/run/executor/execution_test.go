@@ -37,6 +37,50 @@ func (s *stubResolverProvider) ResolveIssues(_ context.Context, _ string, issues
 	return s.resolveErr
 }
 
+type runtimeResolverBridge struct {
+	name   string
+	issues []provider.ResolvedIssue
+}
+
+func (b *runtimeResolverBridge) FetchReviews(
+	context.Context,
+	string,
+	provider.FetchRequest,
+) ([]provider.ReviewItem, error) {
+	return nil, nil
+}
+
+func (b *runtimeResolverBridge) ResolveIssues(
+	_ context.Context,
+	providerName string,
+	_ string,
+	issues []provider.ResolvedIssue,
+) error {
+	b.name = providerName
+	b.issues = append(b.issues, issues...)
+	return nil
+}
+
+func (*runtimeResolverBridge) Close() error { return nil }
+
+type runtimeResolverManager struct {
+	bridge provider.ExtensionBridge
+}
+
+func (*runtimeResolverManager) Start(context.Context) error { return nil }
+func (*runtimeResolverManager) DispatchMutableHook(context.Context, string, any) (any, error) {
+	return nil, nil
+}
+func (*runtimeResolverManager) DispatchObserverHook(context.Context, string, any) {}
+func (*runtimeResolverManager) Shutdown(context.Context) error                    { return nil }
+
+func (m *runtimeResolverManager) ResolveReviewProviderBridge(name string) (provider.ExtensionBridge, bool) {
+	if m == nil || m.bridge == nil || strings.TrimSpace(name) == "" {
+		return nil, false
+	}
+	return m.bridge, true
+}
+
 func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T) {
 	tmpDir := t.TempDir()
 	reviewDir := filepath.Join(tmpDir, ".compozy", "tasks", "demo", "reviews-001")
@@ -106,12 +150,56 @@ func TestAfterJobSuccessResolvesNewlyResolvedIssuesAndRefreshesMeta(t *testing.T
 		t.Fatalf("expected 1 resolved issue sent to provider, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
+	}
+}
+
+func TestLookupReviewProviderPrefersRuntimeManagerBridge(t *testing.T) {
+	bridge := &runtimeResolverBridge{}
+	execCtx := &jobExecutionContext{
+		ctx: context.Background(),
+		cfg: &config{
+			Mode:           model.ExecutionModePRReview,
+			Provider:       "stub",
+			RuntimeManager: &runtimeResolverManager{bridge: bridge},
+		},
+	}
+
+	restore := reviewProviderRegistry
+	reviewProviderRegistry = func() *provider.Registry {
+		registry := provider.NewRegistry()
+		registry.Register(&stubResolverProvider{
+			name:       "stub",
+			resolveErr: errors.New("global registry should not be used"),
+		})
+		return registry
+	}
+	defer func() { reviewProviderRegistry = restore }()
+
+	resolver, err := execCtx.lookupReviewProvider()
+	if err != nil {
+		t.Fatalf("lookupReviewProvider() error = %v", err)
+	}
+	if resolver.Name() != "stub" {
+		t.Fatalf("resolver.Name() = %q, want %q", resolver.Name(), "stub")
+	}
+
+	if err := resolver.ResolveIssues(context.Background(), "259", []provider.ResolvedIssue{{
+		FilePath:    "reviews-001/issue_001.md",
+		ProviderRef: "thread:1",
+	}}); err != nil {
+		t.Fatalf("ResolveIssues() error = %v", err)
+	}
+	if bridge.name != "stub" {
+		t.Fatalf("bridge provider name = %q, want %q", bridge.name, "stub")
+	}
+	if len(bridge.issues) != 1 {
+		t.Fatalf("bridge resolved issues = %d, want 1", len(bridge.issues))
 	}
 }
 
@@ -183,12 +271,12 @@ func TestAfterJobSuccessSkipsProviderResolutionWithoutProviderRefs(t *testing.T)
 		t.Fatalf("expected no provider-backed issues to be resolved, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
 	}
 }
 
@@ -271,15 +359,15 @@ func TestAfterJobSuccessAllowsRoundMetaWithoutPR(t *testing.T) {
 		t.Fatalf("expected 1 resolved issue sent to provider, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.PR != "" {
 		t.Fatalf("expected empty pr after refresh, got %q", meta.PR)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
 	}
 }
 
@@ -420,12 +508,12 @@ func TestAfterJobSuccessRefreshesTaskMetaForPRDTasks(t *testing.T) {
 		t.Fatalf("expected updated task file to be completed, got:\n%s", string(updatedTask))
 	}
 
-	meta, err := tasks.ReadTaskMeta(tasksDir)
+	meta, err := tasks.SnapshotTaskMeta(tasksDir)
 	if err != nil {
-		t.Fatalf("read task meta: %v", err)
+		t.Fatalf("snapshot task meta: %v", err)
 	}
 	if meta.Total != 1 || meta.Completed != 1 || meta.Pending != 0 {
-		t.Fatalf("unexpected refreshed task meta: %#v", meta)
+		t.Fatalf("unexpected refreshed task snapshot: %#v", meta)
 	}
 
 	events := collectRuntimeEvents(t, eventsCh, 2)
@@ -532,12 +620,12 @@ func TestAfterJobSuccessFinalizesTriagedIssuesAndRefreshesMeta(t *testing.T) {
 		t.Fatalf("expected 1 resolved issue sent to provider, got %d", len(resolver.issues))
 	}
 
-	meta, err := reviews.ReadRoundMeta(reviewDir)
+	meta, err := reviews.SnapshotRoundMeta(reviewDir)
 	if err != nil {
-		t.Fatalf("read round meta: %v", err)
+		t.Fatalf("snapshot round meta: %v", err)
 	}
 	if meta.Resolved != 1 || meta.Unresolved != 0 {
-		t.Fatalf("unexpected refreshed meta: %#v", meta)
+		t.Fatalf("unexpected refreshed round snapshot: %#v", meta)
 	}
 
 	events := collectRuntimeEvents(t, eventsCh, 5)
@@ -1036,12 +1124,12 @@ func TestRefreshTaskMetaOnExitUpdatesAggregateCounts(t *testing.T) {
 		TasksDir: tasksDir,
 	})
 
-	meta, err := tasks.ReadTaskMeta(tasksDir)
+	meta, err := tasks.SnapshotTaskMeta(tasksDir)
 	if err != nil {
-		t.Fatalf("read task meta: %v", err)
+		t.Fatalf("snapshot task meta: %v", err)
 	}
 	if meta.Total != 1 || meta.Completed != 0 || meta.Pending != 1 {
-		t.Fatalf("unexpected exit-refreshed task meta: %#v", meta)
+		t.Fatalf("unexpected exit-refreshed task snapshot: %#v", meta)
 	}
 }
 
@@ -1111,6 +1199,80 @@ func (m *executionHookManager) WaitForObserverHooks(ctx context.Context) error {
 		return nil
 	}
 	return m.waitObserverHooks(ctx)
+}
+
+func TestEmitRunStartWaitsForObserverHooksBeforeReturning(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "run-start")
+	waitCh := make(chan struct{})
+	waiterCalled := make(chan struct{}, 1)
+	done := make(chan error, 1)
+	manager := &executionHookManager{
+		waitObserverHooks: func(ctx context.Context) error {
+			select {
+			case waiterCalled <- struct{}{}:
+			default:
+			}
+			select {
+			case <-waitCh:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+
+	internalCfg := &config{
+		WorkspaceRoot:  workspaceRoot,
+		Mode:           model.ExecutionModePRDTasks,
+		OutputFormat:   model.OutputFormatText,
+		RunArtifacts:   runArtifacts,
+		RuntimeManager: manager,
+	}
+
+	go func() {
+		done <- emitRunStart(context.Background(), nil, runArtifacts, internalCfg, nil)
+	}()
+
+	select {
+	case <-waiterCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected emitRunStart to wait for observer hooks")
+	}
+
+	select {
+	case err := <-done:
+		t.Fatalf("emitRunStart returned before observer hooks completed: %v", err)
+	default:
+	}
+
+	close(waitCh)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("emitRunStart() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("emitRunStart did not return after observer hooks completed")
+	}
+
+	if got := manager.observerHooks; !reflect.DeepEqual(got, []string{"run.post_start"}) {
+		t.Fatalf("unexpected observer hook order: %#v", got)
+	}
+	payloads := manager.observerPayloads["run.post_start"]
+	if len(payloads) != 1 {
+		t.Fatalf("expected one run.post_start payload, got %d", len(payloads))
+	}
+	payload, ok := payloads[0].(runPostStartPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want runPostStartPayload", payloads[0])
+	}
+	if payload.RunID != runArtifacts.RunID {
+		t.Fatalf("run.post_start run_id = %q, want %q", payload.RunID, runArtifacts.RunID)
+	}
 }
 
 func TestFinalizeExecutionWaitsForObserverHooksWithoutCanceledRunContext(t *testing.T) {

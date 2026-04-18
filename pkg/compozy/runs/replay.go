@@ -1,118 +1,117 @@
 package runs
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"fmt"
-	"io"
 	"iter"
-	"os"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-// Replay yields all events from fromSeq to EOF, tolerating a truncated final line.
+var errStopReplay = errors.New("stop replay")
+
+// Replay yields all persisted events from fromSeq forward through the daemon-backed event page API.
 func (r *Run) Replay(fromSeq uint64) iter.Seq2[events.Event, error] {
 	return func(yield func(events.Event, error) bool) {
 		if r == nil {
 			yield(events.Event{}, errors.New("replay run: nil run"))
 			return
 		}
-
-		file, err := os.Open(r.eventsPath)
-		if err != nil {
-			yield(events.Event{}, fmt.Errorf("open run events: %w", err))
-			return
-		}
-		defer func() {
-			_ = file.Close()
-		}()
-
-		partialFinalLine, err := fileHasPartialFinalLine(file)
-		if err != nil {
-			yield(events.Event{}, fmt.Errorf("inspect run events: %w", err))
+		if r.client == nil {
+			yield(events.Event{}, wrapDaemonUnavailable("replay run", errors.New("daemon client is required")))
 			return
 		}
 
-		stopReplay := errors.New("stop replay")
-		stopPendingDecode := errors.New("stop pending decode")
-		var pendingDecodeErr error
-		var pendingLine int
+		if err := replayRemoteEvents(
+			context.Background(),
+			r.client,
+			r.summary.RunID,
+			fromSeq,
+			RemoteCursor{},
+			yield,
+		); err != nil {
+			yield(events.Event{}, err)
+		}
+	}
+}
 
-		readErr := forEachEventLine(file, func(rawLine []byte, lineNumber int) error {
-			line := bytesTrimSpace(rawLine)
-			if len(line) == 0 {
+func replayRemoteEvents(
+	ctx context.Context,
+	client daemonRunReader,
+	runID string,
+	fromSeq uint64,
+	stopAfter RemoteCursor,
+	yield func(events.Event, error) bool,
+) error {
+	after := RemoteCursor{}
+
+	for {
+		page, err := client.ListRunEvents(ctx, runID, after, defaultRunEventPageLimit)
+		if err != nil {
+			return err
+		}
+		if len(page.Events) == 0 {
+			return nil
+		}
+
+		for i := range page.Events {
+			ev := page.Events[i]
+			if cursorAfter(remoteCursorFromEvent(ev), stopAfter) {
 				return nil
 			}
-
-			ev, err := decodeEventLine(line, lineNumber)
-			if err != nil {
-				pendingDecodeErr = err
-				pendingLine = lineNumber
-				return nil
-			}
-			if pendingDecodeErr != nil {
-				return stopPendingDecode
+			if err := validateSchemaVersion(ev.SchemaVersion); err != nil {
+				return err
 			}
 			if ev.Seq < fromSeq {
-				return nil
+				continue
 			}
 			if !yield(ev, nil) {
-				return stopReplay
+				return errStopReplay
 			}
+		}
+
+		if !page.HasMore || page.NextCursor == nil {
 			return nil
-		})
-		switch {
-		case errors.Is(readErr, stopReplay):
-			return
-		case errors.Is(readErr, stopPendingDecode):
-			yield(events.Event{}, pendingDecodeErr)
-			return
-		case readErr != nil:
-			yield(events.Event{}, fmt.Errorf("scan run events: %w", readErr))
-			return
 		}
-		if pendingDecodeErr == nil {
-			return
-		}
-		if partialFinalLine {
-			yield(events.Event{}, fmt.Errorf("%w: line %d", ErrPartialEventLine, pendingLine))
-			return
-		}
-		yield(events.Event{}, pendingDecodeErr)
+		after = *page.NextCursor
 	}
 }
 
-func decodeEventLine(line []byte, lineNumber int) (events.Event, error) {
-	var ev events.Event
-	if err := json.Unmarshal(line, &ev); err != nil {
-		return events.Event{}, fmt.Errorf("decode run event line %d: %w", lineNumber, err)
+func cursorAfter(left RemoteCursor, right RemoteCursor) bool {
+	if right.Sequence == 0 || right.Timestamp.IsZero() {
+		return false
 	}
-	if err := validateSchemaVersion(ev.SchemaVersion); err != nil {
-		return events.Event{}, err
+	switch {
+	case left.Timestamp.After(right.Timestamp):
+		return true
+	case left.Timestamp.Before(right.Timestamp):
+		return false
+	default:
+		return left.Sequence > right.Sequence
 	}
-	return ev, nil
 }
 
-func fileHasPartialFinalLine(file *os.File) (bool, error) {
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return false, err
+func replayHistoricalWindow(
+	ctx context.Context,
+	client daemonRunReader,
+	runID string,
+	fromSeq uint64,
+	cutoff RemoteCursor,
+	out chan<- events.Event,
+	errs chan<- error,
+) bool {
+	replayErr := replayRemoteEvents(ctx, client, runID, fromSeq, cutoff, func(ev events.Event, err error) bool {
+		if err != nil {
+			return sendRunError(ctx, errs, err)
+		}
+		return sendRunEvent(ctx, out, ev)
+	})
+	switch {
+	case replayErr == nil:
+		return true
+	case errors.Is(replayErr, errStopReplay):
+		return false
+	default:
+		return sendRunError(ctx, errs, replayErr)
 	}
-
-	info, err := file.Stat()
-	if err != nil {
-		return false, err
-	}
-	if info.Size() == 0 {
-		return false, nil
-	}
-
-	var tail [1]byte
-	if _, err := file.ReadAt(tail[:], info.Size()-1); err != nil {
-		return false, err
-	}
-	if _, err := file.Seek(0, io.SeekStart); err != nil {
-		return false, err
-	}
-	return tail[0] != '\n', nil
 }

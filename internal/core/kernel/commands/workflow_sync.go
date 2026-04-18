@@ -5,7 +5,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 )
 
-// WorkflowSyncCommand refreshes task workflow metadata.
+// WorkflowSyncCommand reconciles workflow artifacts into the durable sync store.
 type WorkflowSyncCommand struct {
 	WorkspaceRoot string
 	RootDir       string

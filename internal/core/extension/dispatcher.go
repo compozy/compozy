@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -109,38 +110,53 @@ func (d *HookDispatcher) DispatchObserver(ctx context.Context, hook HookName, pa
 		ctx = context.Background()
 	}
 
-	for _, entry := range d.chainEntries(hook) {
-		snapshot, err := cloneJSONValue(payload)
-		if err != nil {
-			d.recordHookAudit(entry, hook, time.Now(), err)
-			slog.Warn(
-				"observer hook snapshot failed",
-				"component", "extension.dispatcher",
-				"extension", entry.extension.normalizedName(),
-				"hook", hook,
-				"err", err,
-			)
-			continue
-		}
-
-		d.pending.Add(1)
-		go func(entry hookChainEntry, payloadCopy any) {
-			defer d.pending.Done()
-
-			startedAt := time.Now()
-			err := d.invokeHook(ctx, entry, hook, false, payloadCopy, nil)
-			d.recordHookAudit(entry, hook, startedAt, err)
-			if err != nil {
-				slog.Warn(
-					"observer hook delivery failed",
-					"component", "extension.dispatcher",
-					"extension", entry.extension.normalizedName(),
-					"hook", hook,
-					"err", err,
-				)
-			}
-		}(entry, snapshot)
+	entries := d.chainEntries(hook)
+	if len(entries) == 0 {
+		return
 	}
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		for _, entry := range entries {
+			d.recordHookAudit(entry, hook, time.Now(), err)
+		}
+		slog.Warn(
+			"observer hook snapshot failed",
+			"component", "extension.dispatcher",
+			"hook", hook,
+			"err", err,
+		)
+		return
+	}
+
+	workerCount := min(len(entries), max(runtime.GOMAXPROCS(0), 1))
+	jobs := make(chan hookChainEntry, len(entries))
+	payloadRaw := json.RawMessage(encoded)
+
+	d.pending.Add(len(entries))
+	for range workerCount {
+		go func(payloadCopy any) {
+			for entry := range jobs {
+				startedAt := time.Now()
+				err := d.invokeHook(ctx, entry, hook, false, payloadCopy, nil)
+				d.recordHookAudit(entry, hook, startedAt, err)
+				if err != nil {
+					slog.Warn(
+						"observer hook delivery failed",
+						"component", "extension.dispatcher",
+						"extension", entry.extension.normalizedName(),
+						"hook", hook,
+						"err", err,
+					)
+				}
+				d.pending.Done()
+			}
+		}(payloadRaw)
+	}
+	for _, entry := range entries {
+		jobs <- entry
+	}
+	close(jobs)
 }
 
 func (d *HookDispatcher) waitForObservers() {
@@ -301,19 +317,6 @@ func applyHookPatch(current any, patch json.RawMessage) (any, error) {
 	}
 
 	return decodeJSONLike(current, mergedBytes)
-}
-
-func cloneJSONValue(value any) (any, error) {
-	if value == nil {
-		return nil, nil
-	}
-
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		return nil, fmt.Errorf("clone json value: %w", err)
-	}
-
-	return decodeJSONLike(value, encoded)
 }
 
 func decodeJSONLike(template any, data []byte) (any, error) {

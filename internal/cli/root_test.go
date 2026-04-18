@@ -38,23 +38,31 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy upgrade",
 		"compozy migrate",
 		"compozy validate-tasks",
+		"compozy daemon",
+		"compozy workspaces",
+		"compozy tasks",
+		"compozy reviews",
+		"compozy runs",
 		"compozy sync",
 		"compozy archive",
 		"compozy fetch-reviews",
 		"compozy fix-reviews",
-		"compozy start",
 		"setup",
 		"agents",
 		"upgrade",
 		"migrate",
 		"validate-tasks",
+		"daemon",
+		"workspaces",
+		"tasks",
+		"reviews",
+		"runs",
 		"sync",
 		"archive",
 		"fetch-reviews",
 		"fix-reviews",
 		"compozy exec",
 		"exec",
-		"start",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
@@ -64,6 +72,36 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 
 	if strings.Contains(output, "mcp-serve") {
 		t.Fatalf("expected root help to omit hidden mcp-serve command\noutput:\n%s", output)
+	}
+}
+
+func TestDaemonStatusDoesNotRequireWorkspaceDiscovery(t *testing.T) {
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+
+	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
+	nestedDir := filepath.Join(workspaceRoot, "pkg", "feature")
+	if err := os.MkdirAll(nestedDir, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+
+	originalWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	if err := os.Chdir(nestedDir); err != nil {
+		t.Fatalf("Chdir(%s) error = %v", nestedDir, err)
+	}
+	defer func() {
+		_ = os.Chdir(originalWD)
+	}()
+
+	output, err := executeRootCommand("daemon", "status")
+	if err != nil {
+		t.Fatalf("execute daemon status: %v", err)
+	}
+	if strings.TrimSpace(output) != "stopped" {
+		t.Fatalf("unexpected daemon status output: %q", output)
 	}
 }
 
@@ -167,7 +205,7 @@ func TestSyncHelpShowsSyncFlagsOnly(t *testing.T) {
 		t.Fatalf("execute sync help: %v", err)
 	}
 
-	required := []string{"--root-dir", "--name", "--tasks-dir"}
+	required := []string{"--root-dir", "--name", "--tasks-dir", "--format"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected sync help to include %q\noutput:\n%s", snippet, output)
@@ -195,7 +233,7 @@ func TestArchiveHelpShowsArchiveFlagsOnly(t *testing.T) {
 		t.Fatalf("execute archive help: %v", err)
 	}
 
-	required := []string{"--root-dir", "--name", "--tasks-dir"}
+	required := []string{"--root-dir", "--name", "--tasks-dir", "--format"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected archive help to include %q\noutput:\n%s", snippet, output)
@@ -206,6 +244,62 @@ func TestArchiveHelpShowsArchiveFlagsOnly(t *testing.T) {
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
 			t.Fatalf("expected archive help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestDaemonHelpShowsApprovedLifecycleSubcommands(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "daemon")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected daemon to omit mode flag")
+	}
+
+	output, err := executeRootCommand("daemon", "--help")
+	if err != nil {
+		t.Fatalf("execute daemon help: %v", err)
+	}
+
+	required := []string{"start", "status", "stop", "Manage the home-scoped daemon bootstrap lifecycle"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected daemon help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"workspaces", "validate-tasks", "fetch-reviews"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected daemon help to omit %q\noutput:\n%s", snippet, output)
+		}
+	}
+}
+
+func TestWorkspacesHelpShowsApprovedSubcommands(t *testing.T) {
+	t.Parallel()
+
+	cmd := findCommand(t, NewRootCommand(), "workspaces")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected workspaces to omit mode flag")
+	}
+
+	output, err := executeRootCommand("workspaces", "--help")
+	if err != nil {
+		t.Fatalf("execute workspaces help: %v", err)
+	}
+
+	required := []string{"list", "show", "register", "unregister", "resolve", "Manage daemon workspace registrations"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected workspaces help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	forbidden := []string{"update", "archive", "sync", "fetch-reviews"}
+	for _, snippet := range forbidden {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected workspaces help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
@@ -283,33 +377,35 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 	}
 }
 
-func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
+func TestTasksRunHelpShowsDaemonTaskFlagsOnly(t *testing.T) {
 	t.Parallel()
 
-	cmd := findCommand(t, NewRootCommand(), "start")
+	cmd := findNestedCommand(t, NewRootCommand(), "tasks", "run [slug]")
 	if cmd.Flags().Lookup("mode") != nil {
-		t.Fatalf("expected start to omit mode flag")
+		t.Fatalf("expected tasks run to omit mode flag")
 	}
 
-	output, err := executeRootCommand("start", "--help")
+	output, err := executeRootCommand("tasks", "run", "--help")
 	if err != nil {
-		t.Fatalf("execute start help: %v", err)
+		t.Fatalf("execute tasks run help: %v", err)
 	}
 
 	required := []string{
-		"--format",
+		"--attach",
+		"--detach",
+		"--stream",
+		"--ui",
 		"--name",
-		"--tasks-dir",
 		"--include-completed",
 		"--skip-validation",
 		"Skip task metadata preflight; use only when tasks were validated separately",
 		"--force",
 		"Continue after task metadata validation fails in non-interactive mode",
-		"--tui",
+		"--task-runtime",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected start help to include %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected tasks run help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
@@ -319,13 +415,16 @@ func TestStartHelpShowsTaskFlagsOnly(t *testing.T) {
 		"--reviews-dir",
 		"--batch-size",
 		"--concurrent",
+		"--format",
 		"--grouped",
 		"--include-resolved",
+		"--tasks-dir",
 		"--form ",
+		"--tui",
 	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
-			t.Fatalf("expected start help to omit %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected tasks run help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
@@ -354,7 +453,7 @@ func TestExecHelpShowsExecFlagsOnly(t *testing.T) {
 		"--run-id",
 		"--tui",
 		"--verbose",
-		".compozy/runs/<run-id>/",
+		"~/.compozy/runs/<run-id>/",
 		"JSONL events",
 	}
 	for _, snippet := range required {
@@ -430,10 +529,11 @@ func TestREADMEExecDocumentationMatchesCurrentContract(t *testing.T) {
 		"compozy exec --prompt-file prompt.md",
 		"cat prompt.md | compozy exec --format json",
 		"compozy exec --persist \"Review the latest changes\"",
-		".compozy/runs/<run-id>/run.json",
-		".compozy/runs/<run-id>/events.jsonl",
-		".compozy/runs/<run-id>/turns/0001/prompt.md",
-		".compozy/runs/<run-id>/turns/0001/result.json",
+		"~/.compozy/runs/<run-id>/run.db",
+		"~/.compozy/runs/<run-id>/run.json",
+		"~/.compozy/runs/<run-id>/events.jsonl",
+		"~/.compozy/runs/<run-id>/turns/0001/prompt.md",
+		"~/.compozy/runs/<run-id>/turns/0001/result.json",
 		"flags > workspace [exec] > workspace [defaults] > global [exec] > global [defaults] > built-in defaults",
 		"[exec]",
 		"`copilot`",
@@ -463,7 +563,7 @@ func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
 	paths := []string{
 		mustCLIRepoRootPath(t, "README.md"),
 		mustCLITestDataPath(t, "exec_help.golden"),
-		mustCLITestDataPath(t, "start_help.golden"),
+		mustCLITestDataPath(t, "tasks_run_help.golden"),
 	}
 	for _, path := range paths {
 		body, err := os.ReadFile(path)
@@ -476,22 +576,92 @@ func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
 	}
 }
 
-func TestStartHelpMatchesGolden(t *testing.T) {
+func TestDaemonDocsUseCurrentCommandSurface(t *testing.T) {
 	t.Parallel()
 
-	output, err := executeRootCommand("start", "--help")
-	if err != nil {
-		t.Fatalf("execute start help: %v", err)
+	paths := []string{
+		mustCLIRepoRootPath(t, "README.md"),
+		mustCLIRepoRootPath(t, "docs", "reader-library.md"),
+		mustCLIRepoRootPath(t, "docs", "events.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "architecture.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "host-api-reference.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "trust-and-enablement.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "getting-started.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "hello-world-go.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "hello-world-ts.md"),
 	}
 
-	goldenPath := mustCLITestDataPath(t, "start_help.golden")
+	forbidden := []string{
+		"compozy start",
+		".compozy/runs/<run-id>/extensions.jsonl",
+		"Refresh task workflow metadata files",
+	}
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		content := string(body)
+		for _, snippet := range forbidden {
+			if strings.Contains(content, snippet) {
+				t.Fatalf("expected %s to omit stale snippet %q", path, snippet)
+			}
+		}
+	}
+
+	readme, err := os.ReadFile(mustCLIRepoRootPath(t, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	readmeContent := string(readme)
+	requiredREADME := []string{
+		"compozy tasks run user-auth --ide claude",
+		"compozy reviews fix user-auth --ide claude --concurrent 2 --batch-size 3",
+		"compozy daemon start",
+		"compozy daemon status",
+		"compozy runs attach <run-id>",
+		"compozy runs watch <run-id>",
+		"~/.compozy/runs/",
+	}
+	for _, snippet := range requiredREADME {
+		if !strings.Contains(readmeContent, snippet) {
+			t.Fatalf("expected README.md to include %q", snippet)
+		}
+	}
+
+	architecture, err := os.ReadFile(mustCLIRepoRootPath(t, "docs", "extensibility", "architecture.md"))
+	if err != nil {
+		t.Fatalf("read architecture doc: %v", err)
+	}
+	if !containsAll(string(architecture), "~/.compozy/runs/<run-id>/run.db", "hook_runs") {
+		t.Fatalf("expected architecture doc to describe daemon run audit storage")
+	}
+
+	readerDoc, err := os.ReadFile(mustCLIRepoRootPath(t, "docs", "reader-library.md"))
+	if err != nil {
+		t.Fatalf("read reader-library doc: %v", err)
+	}
+	if !containsAll(string(readerDoc), "daemon-managed runs", "daemon transport") {
+		t.Fatalf("expected reader-library doc to describe daemon-backed readers")
+	}
+}
+
+func TestTasksRunHelpMatchesGolden(t *testing.T) {
+	t.Parallel()
+
+	output, err := executeRootCommand("tasks", "run", "--help")
+	if err != nil {
+		t.Fatalf("execute tasks run help: %v", err)
+	}
+
+	goldenPath := mustCLITestDataPath(t, "tasks_run_help.golden")
 	want, err := os.ReadFile(goldenPath)
 	if err != nil {
 		t.Fatalf("read golden file %s: %v", goldenPath, err)
 	}
 
 	if output != string(want) {
-		t.Fatalf("start help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
+		t.Fatalf("tasks run help output mismatch\nwant:\n%s\n\ngot:\n%s", string(want), output)
 	}
 }
 
@@ -1222,7 +1392,7 @@ func TestFetchReviewsWithPartialFlagsSkipsFormAndReturnsValidationError(t *testi
 	}
 }
 
-func TestStartCommandWrapsWorkspaceDefaultErrors(t *testing.T) {
+func TestTasksRunCommandWrapsWorkspaceDefaultErrors(t *testing.T) {
 	root := t.TempDir()
 	writeCLIWorkspaceConfig(t, root, `
 [defaults]
@@ -1235,11 +1405,11 @@ timeout = "not-a-duration"
 	}
 	chdirCLITest(t, startDir)
 
-	_, err := executeRootCommand("start", "--name", "demo", "--tasks-dir", ".compozy/tasks/demo")
+	_, err := executeRootCommand("tasks", "run", "--name", "demo")
 	if err == nil {
 		t.Fatal("expected workspace default error")
 	}
-	if !strings.Contains(err.Error(), "apply workspace defaults for start") {
+	if !strings.Contains(err.Error(), "apply workspace defaults for compozy tasks run") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -1805,6 +1975,28 @@ func findCommand(t *testing.T, root *cobra.Command, use string) *cobra.Command {
 	}
 	t.Fatalf("command %q not found", use)
 	return nil
+}
+
+func findNestedCommand(t *testing.T, root *cobra.Command, path ...string) *cobra.Command {
+	t.Helper()
+
+	current := root
+	for _, use := range path {
+		found := false
+		for _, cmd := range current.Commands() {
+			if cmd.Use != use {
+				continue
+			}
+			current = cmd
+			found = true
+			break
+		}
+		if found {
+			continue
+		}
+		t.Fatalf("command path %q not found", strings.Join(path, " "))
+	}
+	return current
 }
 
 func mustCLITestDataPath(t *testing.T, name string) string {

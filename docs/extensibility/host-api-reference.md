@@ -16,7 +16,7 @@ const extension = new Extension("demo", "0.1.0").onPromptPostBuild(async (contex
 - Calls are allowed only after `initialize` succeeds.
 - Calls are denied if the accepted capability set does not authorize the method.
 - Calls are rejected during shutdown draining with `shutdown_in_progress`.
-- Every call is written to `.compozy/runs/<run-id>/extensions.jsonl`.
+- Every call is recorded in `~/.compozy/runs/<run-id>/run.db` (`hook_runs`).
 - `host.artifacts.*` is scoped to the workspace root and `.compozy/`.
 
 ## Methods

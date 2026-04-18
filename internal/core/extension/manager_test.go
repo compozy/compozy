@@ -107,6 +107,29 @@ func TestManagerStartInitializesExtensionsPublishesReadyAndDispatchesHooks(t *te
 	}
 }
 
+func TestManagerStartInjectsDaemonHostCapabilityTokenIntoExtensionEnvironment(t *testing.T) {
+	binary := buildMockExtensionBinary(t)
+	harness := newManagerHarness(t, managerHarnessSpec{
+		Binary:       binary,
+		Mode:         "normal",
+		Capabilities: []Capability{CapabilityPromptMutate},
+		Hooks:        []HookDeclaration{{Event: HookPromptPostBuild}},
+		Env:          map[string]string{"COMPOZY_MOCK_SUPPORTED_HOOKS": "prompt.post_build"},
+		DaemonBridge: &stubDaemonHostBridge{token: "daemon-token-001"},
+	})
+	defer harness.Close(t)
+
+	if err := harness.manager.Start(context.Background()); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+
+	records := waitForRecords(t, harness.recordPath, 2)
+	envRecord := findRecord(t, records, "initialize_env")
+	if got := envRecord.Payload["host_capability_token"]; got != "daemon-token-001" {
+		t.Fatalf("env host_capability_token = %#v, want %q", got, "daemon-token-001")
+	}
+}
+
 func TestManagerStartRejectsUnsupportedProtocolVersion(t *testing.T) {
 	binary := buildMockExtensionBinary(t)
 	harness := newManagerHarness(t, managerHarnessSpec{
@@ -887,6 +910,7 @@ type managerHarnessSpec struct {
 	ShutdownTimeout time.Duration
 	ParentRunID     string
 	Workflow        string
+	DaemonBridge    DaemonHostBridge
 }
 
 func newManagerHarness(t *testing.T, spec managerHarnessSpec) *managerHarness {
@@ -938,7 +962,12 @@ func newManagerHarness(t *testing.T, spec managerHarnessSpec) *managerHarness {
 	restoreDiscovery := stubRunScopeDiscovery(t, DiscoveryResult{Extensions: []DiscoveredExtension{discovered}})
 	defer restoreDiscovery()
 
-	scope, err := OpenRunScope(context.Background(), cfg, OpenRunScopeOptions{EnableExecutableExtensions: true})
+	scopeCtx := context.Background()
+	if spec.DaemonBridge != nil {
+		scopeCtx = WithDaemonHostBridge(scopeCtx, spec.DaemonBridge)
+	}
+
+	scope, err := OpenRunScope(scopeCtx, cfg, OpenRunScopeOptions{EnableExecutableExtensions: true})
 	if err != nil {
 		t.Fatalf("OpenRunScope() error = %v", err)
 	}

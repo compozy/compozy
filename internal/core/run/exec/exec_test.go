@@ -112,6 +112,49 @@ func TestExecutePreparedPromptReturnsBuilderError(t *testing.T) {
 	}
 }
 
+func TestPrepareExecRunStateScopedFreshPersistedRunInitializesRecord(t *testing.T) {
+	workspaceRoot := workspaceRootForExecTest(t)
+	cfg := &model.RuntimeConfig{
+		WorkspaceRoot: workspaceRoot,
+		RunID:         "exec-daemon-fresh",
+		IDE:           model.IDECodex,
+		Model:         "gpt-5.4",
+		AccessMode:    model.AccessModeDefault,
+		OutputFormat:  model.OutputFormatText,
+		Persist:       true,
+		DaemonOwned:   true,
+		Mode:          model.ExecutionModeExec,
+	}
+	cfg.ApplyDefaults()
+
+	scope, err := model.OpenBaseRunScope(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("OpenBaseRunScope() error = %v", err)
+	}
+	defer func() {
+		_ = scope.Close(context.Background())
+	}()
+
+	state, err := prepareExecRunState(context.Background(), cfg, scope)
+	if err != nil {
+		t.Fatalf("prepareExecRunState() error = %v", err)
+	}
+	defer state.close()
+
+	if state.record.RunID != cfg.RunID {
+		t.Fatalf("state.record.RunID = %q, want %q", state.record.RunID, cfg.RunID)
+	}
+	if state.turn != 1 {
+		t.Fatalf("state.turn = %d, want 1", state.turn)
+	}
+	if err := state.writeStarted(cfg); err != nil {
+		t.Fatalf("state.writeStarted() error = %v", err)
+	}
+	if _, err := os.Stat(scope.RunArtifacts().RunMetaPath); err != nil {
+		t.Fatalf("stat run meta path %q: %v", scope.RunArtifacts().RunMetaPath, err)
+	}
+}
+
 func TestExecutePreparedPromptReturnsBuilderAndCompletionFailure(t *testing.T) {
 	workspaceRoot := workspaceRootForExecTest(t)
 	builderErr := errors.New("mcp builder failed")
@@ -129,7 +172,11 @@ func TestExecutePreparedPromptReturnsBuilderAndCompletionFailure(t *testing.T) {
 		"delegate this",
 		nil,
 		func(runID string) ([]model.MCPServer, error) {
-			responsePath := filepath.Join(model.NewRunArtifacts(workspaceRoot, runID).TurnsDir, "0001", "response.txt")
+			runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+			if err != nil {
+				t.Fatalf("resolve home run artifacts: %v", err)
+			}
+			responsePath := filepath.Join(runArtifacts.TurnsDir, "0001", "response.txt")
 			if err := os.Mkdir(responsePath, 0o755); err != nil {
 				t.Fatalf("make response path unwritable: %v", err)
 			}
@@ -227,7 +274,11 @@ func TestExecutePreparedPromptReturnsCompletionFailureWhenExecAlsoFails(t *testi
 		"delegate this",
 		nil,
 		func(runID string) ([]model.MCPServer, error) {
-			responsePath := filepath.Join(model.NewRunArtifacts(workspaceRoot, runID).TurnsDir, "0001", "response.txt")
+			runArtifacts, err := model.ResolveHomeRunArtifacts(runID)
+			if err != nil {
+				t.Fatalf("resolve home run artifacts: %v", err)
+			}
+			responsePath := filepath.Join(runArtifacts.TurnsDir, "0001", "response.txt")
 			if err := os.Mkdir(responsePath, 0o755); err != nil {
 				t.Fatalf("make response path unwritable: %v", err)
 			}
@@ -715,6 +766,7 @@ func workspaceRootForExecTest(t *testing.T) string {
 	t.Helper()
 
 	workspaceRoot := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
 	if err := os.MkdirAll(filepath.Join(workspaceRoot, model.WorkflowRootDirName), 0o755); err != nil {
 		t.Fatalf("mkdir workflow root: %v", err)
 	}

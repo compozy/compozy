@@ -67,7 +67,11 @@ func (m *Manager) shutdownWithReason(ctx context.Context, reason string) error {
 
 		m.setAllStates(ExtensionStateStopped)
 		m.backgroundGroup.Wait()
-		m.shutdownErr = errors.Join(combined, m.closeAudit(contextWithoutCancel(ctx)))
+		m.shutdownErr = errors.Join(
+			combined,
+			m.closeReviewProviderBridges(),
+			m.closeAudit(contextWithoutCancel(ctx)),
+		)
 		if err := ctx.Err(); err != nil {
 			m.shutdownErr = errors.Join(m.shutdownErr, err)
 		}

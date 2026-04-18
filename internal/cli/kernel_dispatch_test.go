@@ -395,7 +395,7 @@ func TestNewArchiveRunnerDispatchesTypedCommand(t *testing.T) {
 	}
 }
 
-func TestNewRootCommandValidatesDispatcherAtStartup(t *testing.T) {
+func TestNewRootCommandDefersDispatcherValidationUntilFirstUse(t *testing.T) {
 	previous := validateRootDispatcher
 	t.Cleanup(func() {
 		validateRootDispatcher = previous
@@ -408,7 +408,15 @@ func TestNewRootCommandValidatesDispatcherAtStartup(t *testing.T) {
 	}
 
 	_ = NewRootCommand()
+	if called {
+		t.Fatal("expected root command construction to defer dispatcher validation")
+	}
+
+	dispatcher := newLazyRootDispatcher()()
+	if dispatcher == nil {
+		t.Fatal("expected lazy dispatcher to be constructed")
+	}
 	if !called {
-		t.Fatal("expected root command construction to validate the dispatcher")
+		t.Fatal("expected lazy dispatcher construction to validate the dispatcher")
 	}
 }

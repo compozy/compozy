@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Home-Scoped Daemon Bootstrap
 type: infra
 complexity: high
@@ -9,6 +9,7 @@ dependencies: []
 # Home-Scoped Daemon Bootstrap
 
 ## Overview
+
 This task establishes the daemon host as a `$HOME`-scoped singleton instead of a workspace-scoped process. It creates the reusable path resolution, layout creation, lock/info handling, and boot lifecycle needed before any transport or persistence work can rely on a stable daemon runtime.
 
 <critical>
@@ -28,16 +29,24 @@ This task establishes the daemon host as a `$HOME`-scoped singleton instead of a
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Define the reusable home path and layout contract for the daemon runtime.
-- [ ] 1.2 Add daemon bootstrap code that acquires singleton ownership and cleans stale runtime artifacts safely.
-- [ ] 1.3 Introduce daemon status/info state so later clients can probe readiness without guessing from the filesystem.
-- [ ] 1.4 Route daemon startup through the CLI/bootstrap layer without tying the daemon base path to workspace discovery.
-- [ ] 1.5 Add tests covering idempotent start, stale artifact cleanup, and readiness gating.
+
+- [x] 1.1 Define the reusable home path and layout contract for the daemon runtime.
+- [x] 1.2 Add daemon bootstrap code that acquires singleton ownership and cleans stale runtime artifacts safely.
+- [x] 1.3 Introduce daemon status/info state so later clients can probe readiness without guessing from the filesystem.
+- [x] 1.4 Route daemon startup through the CLI/bootstrap layer without tying the daemon base path to workspace discovery.
+- [x] 1.5 Add tests covering idempotent start, stale artifact cleanup, and readiness gating.
 
 ## Implementation Details
+
 Establish the host-runtime foundation described in the TechSpec "Component Overview", "Stable Home Layout", and "Development Sequencing" sections. This task should create the path/bootstrap layer that every later task depends on; it should not yet implement transports, storage schemas, or run lifecycle orchestration beyond the minimal readiness contract.
 
+### AGH Reference Files
+
+- `~/dev/compozy/agh/internal/daemon/boot.go` — reference for staged bootstrap, lock handling, stale-artifact cleanup, and readiness ordering.
+- `~/dev/compozy/agh/internal/daemon/daemon.go` — reference for daemon lifecycle ownership and graceful shutdown boundaries.
+
 ### Relevant Files
+
 - `cmd/compozy/main.go` — current binary entrypoint and natural place to wire daemon-aware startup.
 - `compozy.go` — public embedding surface that currently assumes direct CLI execution.
 - `internal/cli/root.go` — current root command registration and best-effort workspace boot path.
@@ -47,16 +56,19 @@ Establish the host-runtime foundation described in the TechSpec "Component Overv
 - `internal/daemon/boot.go` — new daemon bootstrap flow for lock, info, readiness, and stale-artifact handling.
 
 ### Dependent Files
+
 - `internal/api/udsapi/server.go` — will need the socket path and daemon directory contract from this task.
 - `internal/api/httpapi/server.go` — will depend on the daemon readiness and info-file semantics introduced here.
 - `internal/store/globaldb/global_db.go` — will rely on the home layout and DB directory contract created here.
 - `internal/cli/state.go` — later daemon client work will depend on the startup and readiness behavior defined here.
 
 ### Related ADRs
+
 - [ADR-001: Adopt a Global Home-Scoped Singleton Daemon](adrs/adr-001.md) — establishes the singleton daemon posture and `$HOME` base.
 - [ADR-004: Preserve TUI-First UX While Introducing Auto-Start and Explicit Workspace Operations](adrs/adr-004.md) — requires auto-start without visible UX regression.
 
 ## Deliverables
+
 - Reusable home path resolution and layout creation for `~/.compozy`.
 - Singleton daemon bootstrap with lock/info/socket cleanup and explicit readiness state.
 - CLI/bootstrap integration for idempotent daemon start behavior.
@@ -64,17 +76,23 @@ Establish the host-runtime foundation described in the TechSpec "Component Overv
 - Integration tests covering idempotent start and stale-artifact recovery **(REQUIRED)**
 
 ## Tests
+
 - Unit tests:
-  - [ ] Resolving home paths from `$HOME` returns the expected `daemon`, `db`, `runs`, `logs`, and `cache` locations.
-  - [ ] A stale lock or stale socket is removed during bootstrap when no healthy daemon owns it.
-  - [ ] A healthy running daemon causes startup to exit successfully without taking over ownership.
+  - [x] Resolving home paths from `$HOME` returns the expected `daemon`, `db`, `runs`, `logs`, and `cache` locations regardless of current `cwd`.
+  - [x] Bootstrap returns a clear error when `$HOME` is missing, unusable, or cannot host the daemon directory.
+  - [x] A stale lock, stale socket, and stale info file are removed together when no healthy daemon owns them.
+  - [x] A healthy running daemon causes startup to reuse the existing singleton without taking over ownership.
+  - [x] Mismatched daemon runtime artifacts are rebuilt atomically so the info file, lock state, and socket path converge to one consistent daemon identity.
 - Integration tests:
-  - [ ] Starting the daemon twice from the same machine leaves exactly one healthy singleton instance.
-  - [ ] Bootstrapping from a workspace subdirectory still uses the same home-scoped daemon layout and readiness contract.
+  - [x] Starting the daemon twice from the same machine leaves exactly one healthy singleton instance and one readiness record.
+  - [x] Bootstrapping from a workspace subdirectory still uses the same home-scoped daemon layout and readiness contract.
+  - [x] Restarting after a killed daemon that left stale lock and socket artifacts recovers cleanly into one healthy singleton.
+  - [x] Invoking bootstrap from two unrelated workspaces on the same machine resolves the same `~/.compozy/daemon` ownership and does not create workspace-scoped copies.
 - Test coverage target: >=80%
 - All tests must pass
 
 ## Success Criteria
+
 - All tests passing
 - Test coverage >=80%
 - The daemon resolves and creates its runtime layout entirely under `$HOME`

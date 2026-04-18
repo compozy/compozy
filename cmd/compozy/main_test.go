@@ -3,12 +3,15 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/update"
 	"github.com/spf13/cobra"
 )
+
+type testRunContextKey string
 
 func TestWaitForUpdateResult(t *testing.T) {
 	t.Parallel()
@@ -71,6 +74,93 @@ func TestStartUpdateCheckClosesCompletionSignal(t *testing.T) {
 
 	if got := waitForUpdateResult(result); got != nil {
 		t.Fatalf("waitForUpdateResult() = %#v, want nil", got)
+	}
+}
+
+func TestRunPropagatesCallerContextToUpdateCheck(t *testing.T) {
+	originalArgs := os.Args
+	originalNewMainCommand := newMainCommand
+	originalStartUpdateCheckFn := startUpdateCheckFn
+	t.Cleanup(func() {
+		os.Args = originalArgs
+		newMainCommand = originalNewMainCommand
+		startUpdateCheckFn = originalStartUpdateCheckFn
+	})
+
+	os.Args = []string{"compozy", "tasks", "run", "demo"}
+
+	var gotCtx context.Context
+	startUpdateCheckFn = func(
+		ctx context.Context,
+		_ string,
+	) (<-chan *update.ReleaseInfo, context.CancelFunc, <-chan struct{}) {
+		gotCtx = ctx
+
+		result := make(chan *update.ReleaseInfo)
+		close(result)
+
+		done := make(chan struct{})
+		close(done)
+		return result, func() {}, done
+	}
+	newMainCommand = func() *cobra.Command {
+		return &cobra.Command{
+			Use: "compozy",
+			RunE: func(*cobra.Command, []string) error {
+				return nil
+			},
+		}
+	}
+
+	ctxKey := testRunContextKey("run")
+	ctx := context.WithValue(context.Background(), ctxKey, "caller-context")
+
+	if got := run(ctx); got != 0 {
+		t.Fatalf("run() exit code = %d, want 0", got)
+	}
+	if gotCtx == nil || gotCtx.Value(ctxKey) != "caller-context" {
+		t.Fatalf("startUpdateCheck context = %#v, want propagated caller context", gotCtx)
+	}
+}
+
+func TestShouldStartUpdateCheck(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "Should skip update check when no args are provided", args: nil, want: false},
+		{name: "Should skip update check for help flag", args: []string{"--help"}, want: false},
+		{name: "Should skip update check for nested help flag", args: []string{"tasks", "run", "--help"}, want: false},
+		{name: "Should skip update check for nested help command", args: []string{"tasks", "help"}, want: false},
+		{name: "Should skip update check for version flag", args: []string{"--version"}, want: false},
+		{name: "Should skip update check for help command", args: []string{"help"}, want: false},
+		{name: "Should skip update check for version command", args: []string{"version"}, want: false},
+		{name: "Should skip update check for completion command", args: []string{"completion", "bash"}, want: false},
+		{
+			name: "Should skip update check for shell completion probe",
+			args: []string{"__complete", "tasks"},
+			want: false,
+		},
+		{
+			name: "Should skip update check for shell completion probe without descriptions",
+			args: []string{"__completeNoDesc", "tasks"},
+			want: false,
+		},
+		{name: "Should start update check for workflow command", args: []string{"tasks", "run", "daemon"}, want: true},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := shouldStartUpdateCheck(tt.args); got != tt.want {
+				t.Fatalf("shouldStartUpdateCheck(%v) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
 	}
 }
 

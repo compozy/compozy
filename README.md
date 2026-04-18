@@ -86,7 +86,7 @@ compozy ext enable cy-idea-factory
 compozy setup
 ```
 
-Execution runtimes are separate from skill installation. To run `compozy exec`, `compozy start`, or `compozy fix-reviews`, install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
+Execution runtimes are separate from skill installation. To run `compozy exec`, `compozy tasks run`, or `compozy reviews fix` (the top-level `fix-reviews` alias still works), install an ACP-capable runtime or adapter on `PATH` for the `--ide` you choose:
 
 | Runtime            | `--ide` flag   | Expected ACP command             |
 | ------------------ | -------------- | -------------------------------- |
@@ -109,9 +109,17 @@ When the direct ACP command is not installed, Compozy can also fall back to supp
 
 Workflow artifacts stay in `.compozy/tasks/<name>/`. These are the PRDs, TechSpecs, ADRs, tasks, reviews, and memory files that you read and edit between steps.
 
-`compozy start` and `compozy fix-reviews` write runtime artifacts under `.compozy/runs/<run-id>/`. `compozy exec` is ephemeral by default and only writes resumable artifacts when `--persist` is enabled.
+The daemon owns runtime state under `~/.compozy/`. Daemon-managed task runs, review-fix runs, and persisted exec sessions allocate `~/.compozy/runs/<run-id>/`, while attach and watch clients reconnect through daemon snapshots and streams instead of reading workspace-local run files directly.
 
-Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `title`, `type`, `severity`, and `provider_ref`. Task workflow `_meta.md` files can be refreshed explicitly with `compozy sync`. Fully completed workflows can be moved out of the active task root with `compozy archive`. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using `start` or `fix-reviews`.
+Task and review issue files use YAML frontmatter for parseable metadata such as `status`, `title`, `type`, `severity`, and `provider_ref`. `compozy sync` now reconciles authored workflow artifacts into the daemon `global.db` catalog and performs one-time cleanup for legacy generated `_meta.md` / `_tasks.md` artifacts when they are encountered. `compozy archive` moves completed workflows only after synced daemon state says they are eligible. If you have an older project with XML-tagged artifacts, run `compozy migrate` once before using daemon-backed workflow commands.
+
+### Daemon Runtime Model
+
+- `compozy daemon start|status|stop` manages the home-scoped daemon lifecycle. `daemon start` is idempotent, and task/review/exec commands auto-start the daemon when needed.
+- `compozy workspaces list|show|register|unregister|resolve` exposes the daemon workspace registry. Workspaces are also lazily registered when you run daemon-backed commands inside them.
+- `compozy tasks run <slug>` is the canonical workflow runner. In interactive terminals it attaches to the TUI by default; in non-interactive environments it falls back to streaming. Use `--ui`, `--stream`, `--detach`, or `--attach` to override that behavior.
+- `compozy runs attach <run-id>` restores the interactive TUI for an existing daemon-managed run, while `compozy runs watch <run-id>` streams textual observation from the same snapshot-plus-stream transport.
+- `compozy reviews fetch|list|show|fix` is the canonical review command family. The legacy top-level `fetch-reviews` and `fix-reviews` commands remain as compatibility aliases.
 
 ### Task Schema v2
 
@@ -128,7 +136,7 @@ dependencies:
 ---
 ```
 
-Validate task files at any time with `compozy validate-tasks --name <feature>`. `compozy start` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
+Validate task files at any time with `compozy validate-tasks --name <feature>`. `compozy tasks run <feature>` runs the same preflight automatically; use `--skip-validation` only when tasks were validated elsewhere, or `--force` to continue after validation failures in non-interactive runs.
 
 ## ⚙️ Config Files
 
@@ -137,7 +145,6 @@ Compozy can load global defaults from `~/.compozy/config.toml` and override them
 - The CLI discovers the nearest `.compozy/` directory by walking upward from the current working directory.
 - If `~/.compozy/config.toml` exists, Compozy loads it once at command startup.
 - If `.compozy/config.toml` exists in the resolved workspace, it overrides the global config field by field.
-- Interactive forms for `compozy start`, `compozy fix-reviews`, and `compozy fetch-reviews` are prefilled from the resolved config.
 - Explicit CLI flags always win over config values.
 
 Precedence is:
@@ -184,7 +191,7 @@ Supported sections:
 
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
-- `[start]` for `include_completed`
+- `[start]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy validate-tasks`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
@@ -196,7 +203,7 @@ Notes:
 - `.compozy/tasks` remains the fixed workflow root in this version; the config file does not change the workflow root path.
 - Unknown keys and invalid value types are rejected during config loading.
 - Relative `add_dirs` are resolved against the owning config scope: the user home directory for `~/.compozy/config.toml` and the workspace root for `.compozy/config.toml`.
-- `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy start`, and `compozy fix-reviews`.
+- `max_retries` applies to execution-stage ACP failures and inactivity timeouts for `compozy exec`, `compozy tasks run`, and `compozy reviews fix`.
 - Built-in CLI defaults retry timed-out or transient ACP failures twice; set `max_retries = 0` or pass `--max-retries 0` to opt out.
 - `retry_backoff_multiplier` only increases the next attempt timeout; retries restart immediately and do not add a sleep delay.
 
@@ -308,20 +315,21 @@ Output modes:
 - `--format text` is headless by default and writes only the final assistant response to stdout
 - `--format json` streams the lean JSONL contract to stdout and filters ACP metadata that is mostly useful for debugging
 - `--format raw-json` streams the full raw JSONL event trace to stdout
-- when `--persist` is enabled, `.compozy/runs/<run-id>/events.jsonl` always stores the full raw event stream regardless of the selected stdout format
+- when `--persist` is enabled, `~/.compozy/runs/<run-id>/events.jsonl` always stores the full raw event stream regardless of the selected stdout format
 - operational ACP/runtime logs stay silent by default; use `--verbose` when you want lifecycle logs on stderr
 - `--tui` opts back into the Bubble Tea interface for interactive inspection
-- `--persist` stores a resumable conversation under `.compozy/runs/<run-id>/`
+- `--persist` stores a resumable conversation under `~/.compozy/runs/<run-id>/`
 - `--run-id` loads a previously persisted ACP session and appends a new turn
 
 Persisted `exec` runs use this layout:
 
 ```text
-.compozy/runs/<run-id>/run.json
-.compozy/runs/<run-id>/events.jsonl
-.compozy/runs/<run-id>/turns/0001/prompt.md
-.compozy/runs/<run-id>/turns/0001/response.txt
-.compozy/runs/<run-id>/turns/0001/result.json
+~/.compozy/runs/<run-id>/run.db
+~/.compozy/runs/<run-id>/run.json
+~/.compozy/runs/<run-id>/events.jsonl
+~/.compozy/runs/<run-id>/turns/0001/prompt.md
+~/.compozy/runs/<run-id>/turns/0001/response.txt
+~/.compozy/runs/<run-id>/turns/0001/result.json
 ```
 
 `compozy exec` uses the same config merge rule as the rest of the CLI: `flags > workspace [exec] > workspace [defaults] > global [exec] > global [defaults] > built-in defaults`.
@@ -337,7 +345,7 @@ compozy setup
 ```
 
 Auto-detects installed agents, copies (or symlinks) core skills into their configuration directories, and installs setup assets shipped by enabled extensions.
-`compozy start` and `compozy fix-reviews` now verify that bundled Compozy skills are installed for the selected agent before running. Missing installs block the run, and outdated installs prompt for refresh in interactive terminals.
+`compozy tasks run` and `compozy reviews fix` now verify that bundled Compozy skills are installed for the selected agent before running. Missing installs block the run, and outdated installs prompt for refresh in interactive terminals.
 
 ### 2. (Optional) Create an Issue
 
@@ -385,11 +393,11 @@ Generated task files use task schema v2 (`status`, `title`, `type`, `complexity`
 ### 6. Execute tasks
 
 ```bash
-compozy start --name user-auth --ide claude
+compozy tasks run user-auth --ide claude
 ```
 
-Each pending task is processed sequentially — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
-`compozy start` validates task metadata before execution. Use `--skip-validation` when validation already ran elsewhere, or `--force` to continue after validation failures in non-interactive environments.
+Each pending task is processed sequentially through the shared daemon — the agent reads the spec, implements the code, validates it, and updates the task status. Use `--dry-run` to preview prompts without executing.
+`compozy tasks run` validates task metadata before execution. Use `--skip-validation` when validation already ran elsewhere, or `--force` to continue after validation failures in non-interactive environments.
 
 ### 7. Review
 
@@ -410,7 +418,7 @@ Both produce the same output: `.compozy/tasks/user-auth/reviews-001/issue_*.md`
 ### 8. Fix review issues
 
 ```bash
-compozy fix-reviews --name user-auth --ide claude --concurrent 2 --batch-size 3
+compozy reviews fix user-auth --ide claude --concurrent 2 --batch-size 3
 ```
 
 Agents triage each issue as valid or invalid, implement fixes for valid issues, and update statuses. Provider threads are resolved automatically.
@@ -471,11 +479,11 @@ Every task execution automatically bootstraps two markdown files inside `.compoz
 
 **No duplication.** Memory files don't copy what's already in the repo, git history, PRD, or task specs. They capture only what would otherwise be lost between runs: the _why_ behind decisions, surprising findings, and context that makes the next agent immediately productive.
 
-The `cy-workflow-memory` skill handles all of this automatically when referenced in task prompts. No manual setup required — just run `compozy start` and agents inherit context from every previous run.
+The `cy-workflow-memory` skill handles all of this automatically when referenced in task prompts. No manual setup required — run `compozy tasks run <workflow>` and agents inherit context from every previous run.
 
 ### 🤖 Supported Agents
 
-**Execution** (`compozy exec`, `compozy start`, `compozy fix-reviews`) — ACP-capable runtimes that can run ad hoc prompts and task workflows:
+**Execution** (`compozy exec`, `compozy tasks run`, `compozy reviews fix`) — ACP-capable runtimes that can run ad hoc prompts and daemon-backed workflow tasks:
 
 | Agent          | `--ide` flag   |
 | -------------- | -------------- |
@@ -534,7 +542,7 @@ compozy migrate [flags]
 </details>
 
 <details>
-<summary><code>compozy sync</code> — Refresh task workflow metadata files</summary>
+<summary><code>compozy sync</code> — Reconcile workflow artifacts into daemon state</summary>
 
 ```bash
 compozy sync [flags]
@@ -545,6 +553,84 @@ compozy sync [flags]
 | `--root-dir`  | `.compozy/tasks` | Workflow root to scan                        |
 | `--name`      |                  | Restrict sync to one workflow name           |
 | `--tasks-dir` |                  | Restrict sync to one task workflow directory |
+
+</details>
+
+<details>
+<summary><code>compozy daemon</code> — Manage the shared home-scoped daemon</summary>
+
+```bash
+compozy daemon start
+compozy daemon status
+compozy daemon stop [--force]
+```
+
+Use `daemon start` for an explicit bootstrap, `daemon status` for health and transport info, and `daemon stop` for graceful shutdown. Most workflow commands auto-start the daemon for you.
+
+</details>
+
+<details>
+<summary><code>compozy workspaces</code> — Manage daemon workspace registrations</summary>
+
+```bash
+compozy workspaces list [--format text|json]
+compozy workspaces show <id-or-path> [--format text|json]
+compozy workspaces register <path> [--name display-name] [--format text|json]
+compozy workspaces unregister <id-or-path> [--format text|json]
+compozy workspaces resolve <path> [--format text|json]
+```
+
+The daemon lazily registers workspaces on first use, but the `workspaces` family gives operators explicit control over the registry.
+
+</details>
+
+<details>
+<summary><code>compozy tasks run</code> — Start one daemon-backed workflow run</summary>
+
+```bash
+compozy tasks run <slug> [flags]
+```
+
+The CLI resolves workspace defaults locally, validates the task metadata, auto-starts the daemon when needed, and then starts the workflow through the daemon transport.
+
+| Flag                  | Default | Description                                                                         |
+| --------------------- | ------- | ----------------------------------------------------------------------------------- |
+| `--name`              |         | Workflow slug (defaults to the positional slug)                                     |
+| `--include-completed` | `false` | Re-run completed tasks                                                              |
+| `--skip-validation`   | `false` | Skip task metadata preflight; use only when validation already ran elsewhere        |
+| `--force`             | `false` | Continue after task metadata validation fails in non-interactive mode               |
+| `--attach`            | `auto`  | Attach mode: `auto`, `ui`, `stream`, or `detach`                                    |
+| `--ui`                | `false` | Force interactive TUI attach mode                                                   |
+| `--stream`            | `false` | Force textual stream attach mode                                                    |
+| `--detach`            | `false` | Start the run without attaching a client                                            |
+| `--task-runtime`      |         | Per-task runtime override rule (`type=...`, `id=...`, `ide=...`, `model=...`, etc.) |
+
+</details>
+
+<details>
+<summary><code>compozy reviews</code> — Inspect and remediate review workflows</summary>
+
+```bash
+compozy reviews fetch <slug> [--provider coderabbit --pr 42 --round N]
+compozy reviews list <slug>
+compozy reviews show <slug> [round]
+compozy reviews fix <slug> [flags]
+```
+
+`reviews fix` uses the same daemon-backed runtime model as `tasks run`, including `--attach`, `--ui`, `--stream`, and `--detach`. The top-level `fetch-reviews` and `fix-reviews` commands remain available as compatibility aliases.
+
+</details>
+
+<details>
+<summary><code>compozy runs</code> — Reattach, observe, and clean daemon-managed runs</summary>
+
+```bash
+compozy runs attach <run-id>
+compozy runs watch <run-id>
+compozy runs purge
+```
+
+Use `runs attach` to restore the interactive TUI for an existing run, `runs watch` for textual streaming observation, and `runs purge` to delete terminal run artifacts according to the configured retention policy.
 
 </details>
 
@@ -572,7 +658,7 @@ compozy exec [prompt] [flags]
 
 Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `stdin`. When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide exec defaults through `[exec]` and shared runtime defaults through `[defaults]`.
 
-`compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
+`compozy exec` is headless and ephemeral by default. Use `--agent <name>` to execute a reusable agent from `.compozy/agents/` or `~/.compozy/agents/`, `--persist` to create `~/.compozy/runs/<run-id>/` for resumable sessions, `--run-id` to continue a persisted session, `--format json` for lean JSONL, `--format raw-json` for the full raw event stream, and `--tui` to opt back into the interactive UI.
 
 | Flag                         | Default     | Description                                                                                |
 | ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
@@ -591,7 +677,7 @@ Provide exactly one prompt source: a positional prompt, `--prompt-file`, or `std
 | `--auto-commit`              | `false`     | Include automatic commit instructions when the prompt asks for code changes                |
 | `--verbose`                  | `false`     | Emit operational runtime logs to stderr during exec                                        |
 | `--tui`                      | `false`     | Open the interactive TUI instead of headless stdout output                                 |
-| `--persist`                  | `false`     | Persist exec artifacts under `.compozy/runs/<run-id>/`                                     |
+| `--persist`                  | `false`     | Persist exec artifacts under `~/.compozy/runs/<run-id>/`                                   |
 | `--run-id`                   |             | Resume a previously persisted exec session by run id                                       |
 | `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
 
@@ -637,44 +723,13 @@ compozy ext <subcommand> [flags]
 </details>
 
 <details>
-<summary><code>compozy start</code> — Execute PRD task files</summary>
-
-```bash
-compozy start [flags]
-```
-
-Running `compozy start` with no flags opens the interactive form automatically.
-When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide defaults for runtime flags such as
-`--ide`, `--model`, `--reasoning-effort`, `--access-mode`, `--timeout`, `--add-dir`, and `--auto-commit`.
-
-| Flag                         | Default     | Description                                                                                |
-| ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
-| `--name`                     |             | Workflow name (`.compozy/tasks/<name>`)                                                    |
-| `--tasks-dir`                |             | Path to tasks directory                                                                    |
-| `--ide`                      | `codex`     | Runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `--model`                    | _(per IDE)_ | Model override                                                                             |
-| `--reasoning-effort`         | `medium`    | `low`, `medium`, `high`, `xhigh`                                                           |
-| `--access-mode`              | `full`      | `default` or `full` runtime access policy                                                  |
-| `--timeout`                  | `10m`       | Activity timeout per job                                                                   |
-| `--max-retries`              | `2`         | Retry execution-stage ACP failures or timeouts N times                                     |
-| `--retry-backoff-multiplier` | `1.5`       | Multiplier applied to the next timeout after each retry                                    |
-| `--tail-lines`               | `0`         | Maximum log lines retained per job in UI (`0` = full history)                              |
-| `--add-dir`                  |             | Additional directories to allow (repeatable; currently `claude` and `codex` only)          |
-| `--auto-commit`              | `false`     | Auto-commit after each task                                                                |
-| `--include-completed`        | `false`     | Re-run completed tasks                                                                     |
-| `--dry-run`                  | `false`     | Preview prompts without executing                                                          |
-
-</details>
-
-<details>
-<summary><code>compozy fetch-reviews</code> — Fetch review comments into a review round</summary>
+<summary><code>compozy fetch-reviews</code> — Compatibility alias for <code>compozy reviews fetch</code></summary>
 
 ```bash
 compozy fetch-reviews [flags]
 ```
 
-Running `compozy fetch-reviews` with no flags opens the interactive form automatically.
-When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide defaults such as `provider` and `nitpicks`.
+This alias stays available for existing scripts. New operator flows should prefer `compozy reviews fetch`.
 
 | Flag         | Default | Description                               |
 | ------------ | ------- | ----------------------------------------- |
@@ -689,15 +744,13 @@ Use `[fetch_reviews].nitpicks = false` in either config file to disable that imp
 </details>
 
 <details>
-<summary><code>compozy fix-reviews</code> — Dispatch AI agents to remediate review issues</summary>
+<summary><code>compozy fix-reviews</code> — Compatibility alias for <code>compozy reviews fix</code></summary>
 
 ```bash
 compozy fix-reviews [flags]
 ```
 
-Running `compozy fix-reviews` with no flags opens the interactive form automatically.
-When present, `~/.compozy/config.toml` and `.compozy/config.toml` can provide runtime defaults as well as review workflow
-defaults such as `--concurrent`, `--batch-size`, and `--include-resolved`.
+This alias stays available for existing scripts. New operator flows should prefer `compozy reviews fix`.
 
 | Flag                         | Default     | Description                                                                                |
 | ---------------------------- | ----------- | ------------------------------------------------------------------------------------------ |
@@ -784,7 +837,7 @@ skills/                  Bundled installable skills
 .compozy/config.toml     Optional workspace defaults for CLI execution
 .compozy/agents/         Optional reusable agents (`AGENT.md` + optional `mcp.json`)
 .compozy/extensions/     Workspace-scoped extensions (starts disabled)
-.compozy/runs/           Runtime artifacts for persisted executions and resumable exec sessions
+~/.compozy/runs/         Home-scoped runtime artifacts for daemon-managed and persisted exec runs
 .compozy/tasks/          Default workflow artifact root (PRDs, TechSpecs, tasks, ADRs, reviews)
 ```
 

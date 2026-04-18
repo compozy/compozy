@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Active-Run Watchers and Legacy Metadata Cleanup
 type: refactor
 complexity: high
@@ -30,14 +30,19 @@ This task adds the intelligent watcher behavior discussed in the design: only ac
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add active-run watcher lifecycle management tied directly to run start and run shutdown.
-- [ ] 8.2 Limit watcher scope to the active workflow root and debounce repeated writes before reparsing.
-- [ ] 8.3 Route watcher-triggered updates through the sync persistence layer instead of bespoke patch logic.
-- [ ] 8.4 Implement one-time cleanup or rename behavior for generated `_tasks.md` and `_meta.md`.
-- [ ] 8.5 Add tests covering watcher scope, debounce, checkpoint persistence, and legacy metadata migration.
+- [x] 8.1 Add active-run watcher lifecycle management tied directly to run start and run shutdown.
+- [x] 8.2 Limit watcher scope to the active workflow root and debounce repeated writes before reparsing.
+- [x] 8.3 Route watcher-triggered updates through the sync persistence layer instead of bespoke patch logic.
+- [x] 8.4 Implement one-time cleanup or rename behavior for generated `_tasks.md` and `_meta.md`.
+- [x] 8.5 Add tests covering watcher scope, debounce, checkpoint persistence, and legacy metadata migration.
 
 ## Implementation Details
 Implement the active-run watcher model described in the TechSpec "Artifact sync service" and "Sync and Archive Semantics" sections. This task should keep live workflow state aligned with Markdown edits during execution while explicitly avoiding a daemon-wide always-on watcher that would add unnecessary load and complexity.
+
+### AGH Reference Files
+- `~/dev/compozy/agh/internal/session/manager.go` — reference for lifecycle-bound ownership of active observers and session-scoped background work.
+- `~/dev/compozy/agh/internal/api/core/sse.go` — reference for the stream semantics clients will observe when watcher-triggered updates are emitted.
+- `~/dev/compozy/agh/internal/observe/observer.go` — reference for projecting fresh state for attach and watch consumers.
 
 ### Relevant Files
 - `internal/daemon/watchers.go` — new watcher coordinator tied to daemon-managed runs.
@@ -65,13 +70,17 @@ Implement the active-run watcher model described in the TechSpec "Artifact sync 
 
 ## Tests
 - Unit tests:
-  - [ ] Starting a run creates a watcher only for that workflow and stopping the run tears it down cleanly.
-  - [ ] Repeated writes within the debounce window collapse into one effective sync update and checkpoint.
-  - [ ] Writes outside the active workflow root do not trigger reparsing or mutate synced state.
+  - [x] Starting a run creates a watcher only for that workflow and stopping the run tears it down cleanly.
+  - [x] Repeated writes within the debounce window collapse into one effective sync update and checkpoint.
+  - [x] File rename and delete events inside the active workflow root update checkpoint state without leaving stale watcher bookkeeping.
+  - [x] Writes outside the active workflow root do not trigger reparsing or mutate synced state.
+  - [x] Multiple active runs in different workflows create isolated watcher sets that do not leak events across workflows.
 - Integration tests:
-  - [ ] Editing a `task_XX.md` file during an active run updates the corresponding synced task state without restarting the run.
-  - [ ] Editing a review issue or memory file during an active run updates `global.db` through the watcher path.
-  - [ ] The first watcher-enabled sync cleans legacy `_tasks.md` and `_meta.md` once and never recreates them afterward.
+  - [x] Editing a `task_XX.md` file during an active run updates the corresponding synced task state without restarting the run.
+  - [x] Editing a review issue or memory file during an active run updates `global.db` through the watcher path.
+  - [x] Editing prompt, protocol, ADR, or QA artifacts during an active run updates checkpoints and snapshots only for the owned workflow.
+  - [x] The first watcher-enabled sync cleans legacy `_tasks.md` and `_meta.md` once and never recreates them afterward.
+  - [x] Stopping or cancelling a run tears down its watcher cleanly so later edits no longer emit live sync activity for that finished run.
 - Test coverage target: >=80%
 - All tests must pass
 

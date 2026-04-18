@@ -177,14 +177,18 @@ func openBaseRunScope(
 }
 
 func allocateRunArtifacts(cfg *RuntimeConfig) (RunArtifacts, error) {
-	runArtifacts := NewRunArtifacts(cfg.WorkspaceRoot, buildRunID(cfg))
+	runArtifacts, err := ResolveHomeRunArtifacts(BuildRunID(cfg))
+	if err != nil {
+		return RunArtifacts{}, err
+	}
 	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
 		return RunArtifacts{}, fmt.Errorf("mkdir run artifacts: %w", err)
 	}
 	return runArtifacts, nil
 }
 
-func buildRunID(cfg *RuntimeConfig) string {
+// BuildRunID returns the effective run identifier for one runtime config.
+func BuildRunID(cfg *RuntimeConfig) string {
 	if cfg != nil && strings.TrimSpace(cfg.RunID) != "" {
 		return cfg.RunID
 	}

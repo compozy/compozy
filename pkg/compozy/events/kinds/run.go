@@ -36,6 +36,15 @@ type RunCompletedPayload struct {
 	SummaryMessage string `json:"summary_message,omitempty"`
 }
 
+// RunCrashedPayload describes a run that was interrupted before it reached a
+// terminal state and had to be reconciled after daemon restart or shutdown.
+type RunCrashedPayload struct {
+	ArtifactsDir string `json:"artifacts_dir,omitempty"`
+	DurationMs   int64  `json:"duration_ms,omitempty"`
+	Error        string `json:"error,omitempty"`
+	ResultPath   string `json:"result_path,omitempty"`
+}
+
 // RunFailedPayload describes a failed run.
 type RunFailedPayload struct {
 	ArtifactsDir string `json:"artifacts_dir,omitempty"`

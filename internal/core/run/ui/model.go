@@ -44,6 +44,7 @@ type uiModel struct {
 	failures           []failInfo
 	aggregateUsage     *model.Usage
 	cfg                *config
+	sidebarDirty       bool
 }
 
 type uiController struct {
@@ -108,6 +109,7 @@ func newUIModel(total int) *uiModel {
 		focusedPane:        uiPaneJobs,
 		failures:           []failInfo{},
 		aggregateUsage:     &model.Usage{},
+		sidebarDirty:       true,
 	}
 	layout := mdl.computeLayout(defaultWidth, defaultHeight)
 	mdl.layoutMode = layout.mode
@@ -380,6 +382,29 @@ func (t *uiEventTranslator) translateEvent(ev events.Event) (uiMsg, bool) {
 
 func (t *uiEventTranslator) translateJobEvent(ev events.Event) (uiMsg, bool) {
 	switch ev.Kind {
+	case events.EventKindJobQueued:
+		payload, ok := decodeUIEventPayload[kinds.JobQueuedPayload](ev)
+		if !ok {
+			return nil, false
+		}
+		codeFile := strings.TrimSpace(payload.CodeFile)
+		if codeFile == "" && len(payload.CodeFiles) > 0 {
+			codeFile = payload.CodeFiles[0]
+		}
+		return jobQueuedMsg{
+			Index:           payload.Index,
+			CodeFile:        codeFile,
+			CodeFiles:       append([]string(nil), payload.CodeFiles...),
+			Issues:          payload.Issues,
+			TaskTitle:       payload.TaskTitle,
+			TaskType:        payload.TaskType,
+			SafeName:        payload.SafeName,
+			IDE:             payload.IDE,
+			Model:           payload.Model,
+			ReasoningEffort: payload.ReasoningEffort,
+			OutLog:          payload.OutLog,
+			ErrLog:          payload.ErrLog,
+		}, true
 	case events.EventKindJobStarted:
 		payload, ok := decodeUIEventPayload[kinds.JobStartedPayload](ev)
 		if !ok {

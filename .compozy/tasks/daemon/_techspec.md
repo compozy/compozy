@@ -6,6 +6,38 @@ This specification moves Compozy from per-command execution to a single home-sco
 
 The implementation reuses AGH's mature operational patterns where they fit: home path resolution, staged daemon boot, singleton lock and readiness handling, shared Gin-based HTTP and UDS transports, global-plus-per-run SQLite storage, and observer-style status queries. The primary trade-off is deliberate migration work across CLI, persistence, and public run readers in exchange for a stronger local platform: better failover, durable attach and watch behavior, richer extension hooks, and a clean path for a future web client without introducing AGH's automation domain into Compozy.
 
+## Compatibility Posture
+
+This migration is explicitly greenfield-first, not backward-compatibility-maximizing. Compozy is still in active development, so the default posture is to prefer the clean daemon model over preserving legacy execution paths, generated metadata files, workspace-local operational state, or deprecated command aliases.
+
+Compatibility is retained only where it materially protects operator ergonomics or authored workflow content without forcing dual models. In practice, that means:
+
+- keep human-authored Markdown artifacts (`_prd.md`, `_techspec.md`, ADRs, task files, review issues, memory, prompt/protocol, QA outputs)
+- keep TUI-first interactive ergonomics where low-cost
+- keep extension subprocess and ACP protocol boundaries where they already fit
+- do not preserve `compozy start`
+- do not preserve generated `_tasks.md` or `_meta.md`
+- do not preserve workspace-local `.compozy/runs` as the source of truth
+- do not add deprecated aliases, shadow command trees, dual storage backends, or compatibility shims unless a later ADR or follow-up TechSpec explicitly justifies one
+
+When a migration choice is ambiguous, the tie goes to the cleaner daemon-native design rather than to compatibility scaffolding.
+
+## AGH Reference Map
+
+AGH is an explicit implementation reference for this work, not just background inspiration. Developers implementing this spec should read the AGH files below before inventing new structure in Compozy.
+
+| Concern | AGH reference files | Reuse intent |
+| --- | --- | --- |
+| Daemon bootstrap and singleton lifecycle | `~/dev/compozy/agh/internal/daemon/boot.go`, `~/dev/compozy/agh/internal/daemon/daemon.go` | Reuse staged boot, singleton ownership, readiness ordering, and shutdown patterns. |
+| Shared transport contracts | `~/dev/compozy/agh/internal/api/core/interfaces.go`, `~/dev/compozy/agh/internal/api/core/handlers.go` | Reuse handler/service separation and transport-neutral contracts. |
+| SSE and live observation | `~/dev/compozy/agh/internal/api/core/sse.go`, `~/dev/compozy/agh/internal/observe/observer.go` | Reuse cursor, heartbeat, overflow, and snapshot/query patterns. |
+| HTTP and UDS servers | `~/dev/compozy/agh/internal/api/httpapi/server.go`, `~/dev/compozy/agh/internal/api/httpapi/routes.go`, `~/dev/compozy/agh/internal/api/udsapi/server.go`, `~/dev/compozy/agh/internal/api/udsapi/routes.go` | Reuse route parity, middleware shape, and UDS permission handling. |
+| Global operational storage | `~/dev/compozy/agh/internal/store/globaldb/global_db.go` | Reuse DB bootstrap, migration, WAL, busy-timeout, and helper patterns. |
+| Per-session storage split | `~/dev/compozy/agh/internal/store/sessiondb/session_db.go` | Reuse the split between global catalog state and per-run durable event state. |
+| Run/session lifecycle ownership | `~/dev/compozy/agh/internal/session/manager.go` | Reuse the manager-style ownership boundary for active sessions/runs. |
+
+These references are intentionally stronger than normal "see also" guidance. If an implementation diverges materially from these AGH patterns, that divergence should be deliberate and justified in code comments, ADRs, or task notes.
+
 ## System Architecture
 
 ### Component Overview
@@ -505,6 +537,11 @@ Tests should prefer real temporary SQLite databases and temp directories over mo
   - Rationale: interactive users should not experience the daemon as a regression.
   - Trade-offs: attach mode defaults and detached behavior need careful documentation and testing.
   - Alternatives rejected: stream-first default output and explicit attach-only workflows.
+
+- Decision: use a greenfield-first compatibility posture.
+  - Rationale: the project is still in development and this migration is the right time to remove legacy execution and metadata models instead of carrying them forward behind deprecated shims.
+  - Trade-offs: some current commands, filesystem assumptions, and transitional internals will break more directly during rollout.
+  - Alternatives rejected: broad backward-compatibility layers, deprecated aliases by default, and dual daemon/filesystem execution paths.
 
 - Decision: no auth for localhost HTTP in v1.
   - Rationale: local-only binding is enough for the first release and keeps the transport model simple.

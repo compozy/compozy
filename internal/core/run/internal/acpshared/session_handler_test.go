@@ -394,6 +394,70 @@ func TestSessionUpdateHandlerDispatchesUpdateObserverWithoutBlocking(t *testing.
 	}
 }
 
+func TestSessionUpdateHandlerMarshalsPublicUpdateOnceAndReusesRawPayload(t *testing.T) {
+	runID, runJournal, updates, cleanup := openRuntimeEventCapture(t)
+	defer cleanup()
+
+	manager := newAsyncObserverManager()
+	handler := newSessionUpdateHandler(SessionUpdateHandlerConfig{
+		Context:    context.Background(),
+		Index:      4,
+		AgentID:    model.IDECodex,
+		JobID:      "job-raw",
+		SessionID:  "sess-raw",
+		RunID:      runID,
+		OutWriter:  io.Discard,
+		ErrWriter:  io.Discard,
+		RunJournal: runJournal,
+		RunManager: manager,
+	})
+
+	originalMarshal := marshalPublicSessionUpdateJSON
+	marshalCalls := 0
+	marshalPublicSessionUpdateJSON = func(v any) ([]byte, error) {
+		marshalCalls++
+		return json.Marshal(v)
+	}
+	defer func() {
+		marshalPublicSessionUpdateJSON = originalMarshal
+	}()
+
+	update := model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Status: model.StatusRunning,
+		Blocks: []model.ContentBlock{mustContentBlockLoggingTest(t, model.TextBlock{Text: "raw update"})},
+	}
+
+	if err := handler.HandleUpdate(update); err != nil {
+		t.Fatalf("handle update: %v", err)
+	}
+
+	manager.release()
+	calls := manager.waitForCalls(t, 1)
+	if marshalCalls != 1 {
+		t.Fatalf("public update marshal calls = %d, want 1", marshalCalls)
+	}
+
+	payload := calls[0].payload.(sessionUpdateHookPayload)
+	if len(payload.Update) == 0 {
+		t.Fatal("expected observer hook payload to include raw update bytes")
+	}
+
+	runtimeEvents := collectRuntimeEvents(t, updates, 1)
+	if runtimeEvents[0].Kind != eventspkg.EventKindSessionUpdate {
+		t.Fatalf("runtime event kind = %s, want %s", runtimeEvents[0].Kind, eventspkg.EventKindSessionUpdate)
+	}
+
+	var eventPayload sessionUpdateEventPayload
+	decodeRuntimeEventPayload(t, runtimeEvents[0], &eventPayload)
+	if eventPayload.Index != 4 {
+		t.Fatalf("runtime payload index = %d, want 4", eventPayload.Index)
+	}
+	if string(eventPayload.Update) != string(payload.Update) {
+		t.Fatal("raw update bytes differ between runtime event and observer hook")
+	}
+}
+
 func TestSessionUpdateHandlerCompletionSignalsDone(t *testing.T) {
 	t.Parallel()
 

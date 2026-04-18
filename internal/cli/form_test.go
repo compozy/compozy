@@ -40,7 +40,7 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	t.Parallel()
 
-	keys := formFieldKeys(newFixReviewsCommand(nil), newCommandState(commandKindFixReviews, core.ModePRReview))
+	keys := formFieldKeys(newFixReviewsCommand(), newCommandState(commandKindFixReviews, core.ModePRReview))
 
 	assertFieldKeysPresent(
 		t,
@@ -272,9 +272,8 @@ func TestListStartTaskSubdirsFiltersCompletedWorkflows(t *testing.T) {
 	writeFormTaskFile(t, pendingDir, "task_01.md", "pending")
 	writeFormTaskFile(t, completedDir, "task_01.md", "completed")
 
-	// Pre-create _meta.md for the completed workflow so ReadTaskMeta can
-	// detect it as fully done. In normal usage, _meta.md is kept current by
-	// prior compozy start runs or compozy sync.
+	// Pre-create a legacy _meta.md fixture so ReadTaskMeta can detect the
+	// completed workflow. Daemon-backed sync no longer keeps this file current.
 	now := time.Now().UTC()
 	if err := tasks.WriteTaskMeta(completedDir, model.TaskMeta{
 		CreatedAt: now,

@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -57,7 +58,8 @@ func startWorkflowEventStreamer(
 	go func() {
 		defer close(streamer.done)
 
-		encoder := json.NewEncoder(dst)
+		buffered := bufio.NewWriterSize(dst, 16<<10)
+		encoder := json.NewEncoder(buffered)
 		terminalSeen := false
 		for ev := range updates {
 			if !shouldStreamWorkflowEvent(mode, ev) {
@@ -65,6 +67,10 @@ func startWorkflowEventStreamer(
 			}
 			if err := encodeWorkflowEvent(encoder, mode, ev); err != nil {
 				streamer.errCh <- err
+				return
+			}
+			if err := buffered.Flush(); err != nil {
+				streamer.errCh <- fmt.Errorf("flush workflow event stream: %w", err)
 				return
 			}
 			if isTerminalWorkflowEvent(ev.Kind) && !terminalSeen {

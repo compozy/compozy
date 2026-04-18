@@ -69,13 +69,13 @@ func (m *uiModel) renderSummaryMainBox(boxW int) string {
 
 	progress := renderOwnedBlock(innerW, bg, m.progressBar.ViewAs(pct))
 	lines := []string{
-		renderOwnedLine(innerW, bg, renderTechLabel("run.status", bg)),
-		renderOwnedLine(innerW, bg, title),
+		renderOwnedLineKnownOwned(innerW, bg, renderTechLabel("run.status", bg)),
+		renderOwnedLineKnownOwned(innerW, bg, title),
 		progress,
-		renderOwnedLine(innerW, bg, ""),
+		renderOwnedLineKnownOwned(innerW, bg, ""),
 	}
 	for _, stat := range stats {
-		lines = append(lines, renderOwnedLine(innerW, bg, stat))
+		lines = append(lines, renderOwnedLineKnownOwned(innerW, bg, stat))
 	}
 
 	return techPanelStyle(boxW, borderColor).Render(strings.Join(lines, "\n"))
@@ -83,7 +83,7 @@ func (m *uiModel) renderSummaryMainBox(boxW int) string {
 
 func (m *uiModel) renderSummaryFailBox(boxW int) string {
 	bg := colorBgSurface
-	lines := []string{renderOwnedLine(panelContentWidth(boxW), bg, renderTechLabel("run.failures", bg))}
+	lines := []string{renderOwnedLineKnownOwned(panelContentWidth(boxW), bg, renderTechLabel("run.failures", bg))}
 	for _, f := range m.failures {
 		entry := lipgloss.NewStyle().
 			Bold(true).
@@ -91,11 +91,11 @@ func (m *uiModel) renderSummaryFailBox(boxW int) string {
 			Background(bg).
 			Render("FAIL " + f.CodeFile)
 		entry += renderStyledOnBackground(styleDimText, bg, fmt.Sprintf("  EXIT %d", f.ExitCode))
-		lines = append(lines, renderOwnedLine(panelContentWidth(boxW), bg, entry))
+		lines = append(lines, renderOwnedLineKnownOwned(panelContentWidth(boxW), bg, entry))
 		if f.OutLog != "" {
 			lines = append(
 				lines,
-				renderOwnedLine(
+				renderOwnedLineKnownOwned(
 					panelContentWidth(boxW),
 					bg,
 					renderStyledOnBackground(styleMutedText, bg, "  "+f.OutLog),
@@ -114,29 +114,29 @@ func (m *uiModel) renderSummaryTokenBox(boxW int) string {
 	innerW := panelContentWidth(boxW)
 
 	lines := []string{
-		renderOwnedLine(innerW, bg, renderTechLabel("usage.tokens", bg)),
-		renderOwnedLine(
+		renderOwnedLineKnownOwned(innerW, bg, renderTechLabel("usage.tokens", bg)),
+		renderOwnedLineKnownOwned(
 			innerW,
 			bg,
 			renderStyledOnBackground(label, bg, "INPUT  ")+
 				renderGap(bg, 1)+
 				renderStyledOnBackground(value, bg, formatNumber(u.InputTokens)),
 		),
-		renderOwnedLine(
+		renderOwnedLineKnownOwned(
 			innerW,
 			bg,
 			renderStyledOnBackground(label, bg, "OUTPUT ")+
 				renderGap(bg, 1)+
 				renderStyledOnBackground(value, bg, formatNumber(u.OutputTokens)),
 		),
-		renderOwnedLine(
+		renderOwnedLineKnownOwned(
 			innerW,
 			bg,
 			renderStyledOnBackground(label, bg, "CACHER ")+
 				renderGap(bg, 1)+
 				renderStyledOnBackground(value, bg, formatNumber(u.CacheReads)),
 		),
-		renderOwnedLine(
+		renderOwnedLineKnownOwned(
 			innerW,
 			bg,
 			renderStyledOnBackground(label, bg, "CACHEW ")+
@@ -147,7 +147,7 @@ func (m *uiModel) renderSummaryTokenBox(boxW int) string {
 	totalValue := lipgloss.NewStyle().Bold(true).Foreground(colorBrand).Background(bg).Render(formatNumber(u.Total()))
 	lines = append(
 		lines,
-		renderOwnedLine(
+		renderOwnedLineKnownOwned(
 			innerW,
 			bg,
 			renderStyledOnBackground(label, bg, "TOTAL  ")+renderGap(bg, 1)+totalValue,
@@ -164,7 +164,7 @@ func (m *uiModel) renderSummaryHelp(width int) string {
 		renderKeycap("q", bg) + renderGap(bg, 1) + renderStyledOnBackground(styleMutedText, bg, "QUIT"),
 	}
 	line := renderGap(bg, 1) + strings.Join(parts, renderGap(bg, 2))
-	return lipgloss.NewStyle().MarginTop(1).Render(renderOwnedLine(width, bg, line))
+	return lipgloss.NewStyle().MarginTop(1).Render(renderOwnedLineKnownOwned(width, bg, line))
 }
 
 func formatNumber(n int) string {

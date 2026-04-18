@@ -281,10 +281,10 @@ func refreshTaskMetaOnExit(cfg *config) {
 		return
 	}
 
-	meta, err := tasks.RefreshTaskMeta(cfg.TasksDir)
+	meta, err := tasks.SnapshotTaskMeta(cfg.TasksDir)
 	if err != nil {
 		runtimeLoggerFor(cfg, cfg != nil && cfg.UIEnabled()).Warn(
-			"failed to refresh task workflow metadata at command exit",
+			"failed to refresh task workflow summary at command exit",
 			"tasks_dir",
 			cfg.TasksDir,
 			"error",
@@ -294,7 +294,7 @@ func refreshTaskMetaOnExit(cfg *config) {
 	}
 
 	runtimeLoggerFor(cfg, cfg != nil && cfg.UIEnabled()).Info(
-		"refreshed task workflow metadata at command exit",
+		"refreshed task workflow summary at command exit",
 		"tasks_dir",
 		cfg.TasksDir,
 		"completed",

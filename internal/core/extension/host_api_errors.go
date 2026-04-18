@@ -14,6 +14,9 @@ const (
 
 	shutdownInProgressCode    = -32004
 	shutdownInProgressMessage = "Shutdown in progress"
+
+	hostCapabilityTokenInvalidCode    = -32005
+	hostCapabilityTokenInvalidMessage = "Host capability token invalid"
 )
 
 // NewMethodNotFoundError creates the standard method-not-found response.
@@ -39,6 +42,20 @@ func NewShutdownInProgressError(deadline time.Duration) *subprocess.RequestError
 		Message: shutdownInProgressMessage,
 		Data: map[string]any{
 			"deadline_ms": durationMilliseconds(deadline),
+		},
+	}
+}
+
+// NewHostCapabilityTokenInvalidError reports that a daemon-owned Host API call
+// cannot proceed because the run-scoped capability token context is absent or
+// invalid.
+func NewHostCapabilityTokenInvalidError(method string, reason string) *subprocess.RequestError {
+	return &subprocess.RequestError{
+		Code:    hostCapabilityTokenInvalidCode,
+		Message: hostCapabilityTokenInvalidMessage,
+		Data: map[string]any{
+			"method": strings.TrimSpace(method),
+			"reason": strings.TrimSpace(reason),
 		},
 	}
 }

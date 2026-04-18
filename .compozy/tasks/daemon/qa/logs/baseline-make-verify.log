@@ -1,0 +1,86 @@
+Formatting code...
+golangci-lint fmt
+Formatting completed successfully
+golangci-lint run --fix --allow-parallel-runners
+level=warning msg="[runner] Changes related to \"staticcheck\" are skipped for the file \"/Users/pedronauck/dev/compozy/looper/internal/store/globaldb/registry_test.go\": conflicting edits from staticcheck and staticcheck on /Users/pedronauck/dev/compozy/looper/internal/store/globaldb/registry_test.go\nfirst edits:\n--- base\n+++ staticcheck\n@@ -197,7 +197,7 @@\n \tif _, err := db.List(nil); err == nil {\n \t\tt.Fatal(\"List(nil) error = nil, want non-nil\")\n \t}\n-\tif _, err := db.GetWorkflow(nil, \"wf\"); err == nil {\n+\tif _, err := db.GetWorkflow(context.TODO(), \"wf\"); err == nil {\n \t\tt.Fatal(\"GetWorkflow(nil, ...) error = nil, want non-nil\")\n \t}\n \tvar nilCtx context.Context\n\nsecond edits:\n--- base\n+++ staticcheck\n@@ -197,7 +197,7 @@\n \tif _, err := db.List(nil); err == nil {\n \t\tt.Fatal(\"List(nil) error = nil, want non-nil\")\n \t}\n-\tif _, err := db.GetWorkflow(nil, \"wf\"); err == nil {\n+\tif _, err := db.GetWorkflow(context.Background(), \"wf\"); err == nil {\n \t\tt.Fatal(\"GetWorkflow(nil, ...) error = nil, want non-nil\")\n \t}\n \tvar nilCtx context.Context\n"
+level=warning msg="[runner] Changes related to \"staticcheck\" are skipped for the file \"/Users/pedronauck/dev/compozy/looper/pkg/compozy/runs/transport_test.go\": conflicting edits from staticcheck and staticcheck on /Users/pedronauck/dev/compozy/looper/pkg/compozy/runs/transport_test.go\nfirst edits:\n--- base\n+++ staticcheck\n@@ -336,7 +336,7 @@\n \tif item := <-eventsCh; item.Seq != 8 {\n \t\tt.Fatalf(\"sendRunEvent(nil) item.Seq = %d, want 8\", item.Seq)\n \t}\n-\tif !sendRunError(nil, errsCh, nil) {\n+\tif !sendRunError(context.TODO(), errsCh, nil) {\n \t\tt.Fatal(\"sendRunError(nil, nil) returned false, want true\")\n \t}\n }\n\nsecond edits:\n--- base\n+++ staticcheck\n@@ -336,7 +336,7 @@\n \tif item := <-eventsCh; item.Seq != 8 {\n \t\tt.Fatalf(\"sendRunEvent(nil) item.Seq = %d, want 8\", item.Seq)\n \t}\n-\tif !sendRunError(nil, errsCh, nil) {\n+\tif !sendRunError(context.Background(), errsCh, nil) {\n \t\tt.Fatal(\"sendRunError(nil, nil) returned false, want true\")\n \t}\n }\n"
+0 issues.
+Linting completed successfully
+∅  .
+∅  agents
+✓  internal/api/client (cached)
+✓  cmd/compozy (cached)
+✓  internal/api/httpapi (cached)
+∅  internal/api/udsapi
+✓  internal/api/core (cached)
+✓  internal/charmtheme (cached)
+∅  internal/core/extension/builtin
+✓  internal/core/frontmatter (cached)
+✓  internal/contentblock (cached)
+✓  internal/core/memory (cached)
+✓  internal/config (cached)
+✓  internal/core/contentconv (cached)
+✓  internal/core/agents/mcpserver (cached)
+✓  internal/core/kernel/commands (cached)
+✓  internal/core/migration (cached)
+✓  internal/core/agents (cached)
+✓  internal/cli/extension (cached)
+✓  internal/core (cached)
+✓  internal/core/model (cached)
+✓  internal/core/modelprovider (cached)
+✓  internal/core/plan (cached)
+✓  internal/core/prompt (cached)
+✓  internal/core/provider (cached)
+✓  internal/core/provider/coderabbit (cached)
+∅  internal/core/providerdefaults
+✓  internal/core/reviews (cached)
+✓  internal/core/run (cached)
+✓  internal/core/run/internal/acpshared (cached)
+✓  internal/core/run/internal/runshared (cached)
+∅  internal/core/run/internal/runtimeevents
+✓  internal/core/run/journal (cached)
+✓  internal/core/run/preflight (cached)
+✓  internal/core/run/transcript (cached)
+✓  internal/core/sound (cached)
+✓  internal/core/run/ui (cached)
+✓  internal/core/tasks (cached)
+✓  internal/core/workspace (cached)
+✓  internal/setup (cached)
+∅  internal/store
+✓  internal/store/globaldb (cached)
+✓  internal/store/rundb (cached)
+✓  internal/update (cached)
+∅  internal/version
+✓  pkg/compozy/events (cached)
+✓  pkg/compozy/events/kinds (cached)
+✓  pkg/compozy/runs (cached)
+✓  pkg/compozy/runs/layout (cached)
+∅  scripts
+✓  sdk/extension (cached)
+✓  sdk/extension/testing (cached)
+∅  skills
+✓  test (cached)
+✓  internal/core/subprocess (247ms)
+✓  internal/core/kernel (3.852s)
+✓  internal/cli (11.387s)
+✓  internal/daemon (11.413s)
+✖  internal/core/extension (12.151s)
+✓  internal/core/agent (13.697s)
+✓  internal/core/run/exec (16.739s)
+✓  internal/core/run/executor (40.638s)
+
+=== Skipped
+=== SKIP: internal/daemon TestDaemonHelperProcess (0.00s)
+    boot_integration_test.go:213: helper process
+
+=== Failed
+=== FAIL: internal/core/extension TestHookDispatchIntegrationAcrossRunAndJobPhases (0.05s)
+
+Execution Summary:
+- Total Groups: 1
+- Success: 1
+- Failed: 0
+    hooks_integration_test.go:316: hook-100 hook order mismatch: expected "run.post_start" before "job.pre_execute" in []string{"run.pre_start", "job.pre_execute", "run.post_start", "job.post_execute", "run.pre_shutdown", "run.post_shutdown"}
+
+DONE 2336 tests, 1 skipped, 1 failure in 41.558s
+make: *** [test] Error 1

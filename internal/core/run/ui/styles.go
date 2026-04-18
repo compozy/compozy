@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/compozy/compozy/internal/charmtheme"
@@ -41,6 +42,21 @@ var techBorder = charmtheme.TechBorder
 
 // Pre-built styles reused across the UI.
 var (
+	styleRootScreenBase = lipgloss.NewStyle().
+				Background(colorBgBase).
+				Foreground(colorFgBright)
+	styleTechPanelBase = lipgloss.NewStyle().
+				BorderStyle(techBorder).
+				BorderBackground(colorBgSurface).
+				Background(colorBgSurface).
+				Foreground(colorFgBright).
+				Padding(0, 1)
+	styleTechSidebarBase = lipgloss.NewStyle().
+				BorderStyle(techBorder).
+				BorderBackground(colorBgSurface).
+				Background(colorBgSurface).
+				Foreground(colorFgBright).
+				Padding(0, 1)
 	styleSeparator     = lipgloss.NewStyle().Foreground(colorBorder)
 	styleTitle         = lipgloss.NewStyle().Bold(true).Foreground(colorBrand)
 	styleTitleMeta     = lipgloss.NewStyle().Foreground(colorMuted)
@@ -51,36 +67,23 @@ var (
 	styleTimelineTitle = lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep)
 	styleTimelineBadge = lipgloss.NewStyle().Bold(true).Foreground(colorSuccess)
 	styleKeycap        = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
+	panelFrameWidth    = styleTechPanelBase.GetHorizontalFrameSize()
+	sidebarFrameWidth  = styleTechSidebarBase.GetHorizontalFrameSize()
+	sidebarFrameHeight = styleTechSidebarBase.GetVerticalFrameSize()
 )
 
 func rootScreenStyle(width, height int) lipgloss.Style {
-	return lipgloss.NewStyle().
+	return styleRootScreenBase.
 		Width(max(width, 1)).
-		Height(max(height, 1)).
-		Background(colorBgBase).
-		Foreground(colorFgBright)
+		Height(max(height, 1))
 }
 
 func techPanelStyle(renderWidth int, borderColor color.Color) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Width(renderWidth).
-		BorderStyle(techBorder).
-		BorderForeground(borderColor).
-		BorderBackground(colorBgSurface).
-		Background(colorBgSurface).
-		Foreground(colorFgBright).
-		Padding(0, 1)
+	return styleTechPanelBase.Width(renderWidth).BorderForeground(borderColor)
 }
 
 func techSidebarStyle(width int, borderColor color.Color) lipgloss.Style {
-	return lipgloss.NewStyle().
-		Width(width).
-		BorderStyle(techBorder).
-		BorderForeground(borderColor).
-		BorderBackground(colorBgSurface).
-		Background(colorBgSurface).
-		Foreground(colorFgBright).
-		Padding(0, 1)
+	return styleTechSidebarBase.Width(width).BorderForeground(borderColor)
 }
 
 func selectedSidebarRowStyle(width int) lipgloss.Style {
@@ -88,15 +91,15 @@ func selectedSidebarRowStyle(width int) lipgloss.Style {
 }
 
 func panelContentWidth(width int) int {
-	return max(width-techPanelStyle(width, colorBorder).GetHorizontalFrameSize(), 1)
+	return max(width-panelFrameWidth, 1)
 }
 
 func sidebarContentWidth(width int) int {
-	return max(width-techSidebarStyle(width, colorBorder).GetHorizontalFrameSize(), 1)
+	return max(width-sidebarFrameWidth, 1)
 }
 
 func sidebarContentHeight(height int) int {
-	return max(height-techSidebarStyle(1, colorBorder).GetVerticalFrameSize(), 1)
+	return max(height-sidebarFrameHeight, 1)
 }
 
 func renderStyledOnBackground(style lipgloss.Style, bg color.Color, text string) string {
@@ -113,7 +116,17 @@ func renderGap(bg color.Color, width int) string {
 }
 
 func renderOwnedLine(width int, bg color.Color, content string) string {
-	content = reapplyOwnedBackground(content, bg)
+	return renderOwnedLineWithOwnership(width, bg, content, false)
+}
+
+func renderOwnedLineKnownOwned(width int, bg color.Color, content string) string {
+	return renderOwnedLineWithOwnership(width, bg, content, true)
+}
+
+func renderOwnedLineWithOwnership(width int, bg color.Color, content string, owned bool) string {
+	if !owned {
+		content = reapplyOwnedBackground(content, bg)
+	}
 	return lipgloss.NewStyle().
 		Width(max(width, 1)).
 		Foreground(colorFgBright).
@@ -122,7 +135,7 @@ func renderOwnedLine(width int, bg color.Color, content string) string {
 }
 
 func renderStyledOwnedLine(width int, style lipgloss.Style, bg color.Color, text string) string {
-	return renderOwnedLine(width, bg, renderStyledOnBackground(style, bg, text))
+	return renderOwnedLineKnownOwned(width, bg, renderStyledOnBackground(style, bg, text))
 }
 
 func renderOwnedBlock(width int, bg color.Color, content string) string {
@@ -178,19 +191,39 @@ func reapplyOwnedBackground(content string, bg color.Color) string {
 	return builder.String()
 }
 
+var ansiBackgroundSequenceCache sync.Map
+
 func ansiBackgroundSequence(bg color.Color) string {
 	r, g, b, _ := bg.RGBA()
-	return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r>>8, g>>8, b>>8)
+	key := r>>8<<16 | g>>8<<8 | b>>8
+	if cached, ok := ansiBackgroundSequenceCache.Load(key); ok {
+		if sequence, ok := cached.(string); ok {
+			return sequence
+		}
+	}
+	sequence := fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r>>8, g>>8, b>>8)
+	actual, _ := ansiBackgroundSequenceCache.LoadOrStore(key, sequence)
+	if cached, ok := actual.(string); ok {
+		return cached
+	}
+	return sequence
 }
 
 func sgrClearsBackground(params string) bool {
 	if params == "" {
 		return true
 	}
-	for _, part := range strings.Split(params, ";") {
+	start := 0
+	for start <= len(params) {
+		end := start
+		for end < len(params) && params[end] != ';' {
+			end++
+		}
+		part := params[start:end]
 		if part == "" || part == "0" || part == "49" {
 			return true
 		}
+		start = end + 1
 	}
 	return false
 }

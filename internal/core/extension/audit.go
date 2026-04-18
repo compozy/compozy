@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/core/run/journal"
 )
 
 const AuditLogFileName = "extensions.jsonl"
@@ -76,6 +78,7 @@ type AuditHandler interface {
 type AuditLogger struct {
 	mu        sync.Mutex
 	file      *os.File
+	journal   *journal.Journal
 	path      string
 	closed    bool
 	closeDone chan struct{}
@@ -172,6 +175,19 @@ func (l *AuditLogger) Record(entry AuditEntry) error {
 
 	if err := writeAll(l.file, line); err != nil {
 		return fmt.Errorf("record audit entry: %w", err)
+	}
+	if l.journal != nil {
+		payloadJSON := strings.TrimSpace(string(line))
+		if err := l.journal.RecordHookRun(context.Background(), journal.HookRunRecord{
+			HookName:    strings.TrimSpace(entry.Method),
+			Source:      strings.TrimSpace(entry.Extension),
+			Outcome:     string(entry.Result),
+			Duration:    entry.Latency,
+			PayloadJSON: payloadJSON,
+			RecordedAt:  entry.Timestamp,
+		}); err != nil {
+			return fmt.Errorf("record audit entry: %w", err)
+		}
 	}
 	return nil
 }

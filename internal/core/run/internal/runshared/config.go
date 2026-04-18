@@ -31,6 +31,8 @@ type Config struct {
 	Verbose                bool
 	TUI                    bool
 	Persist                bool
+	DaemonOwned            bool
+	DetachOnly             bool
 	RunID                  string
 	RunArtifacts           model.RunArtifacts
 	RuntimeManager         model.RuntimeManager
@@ -82,7 +84,7 @@ func (cfg *Config) ResolvedOutputFormat() model.OutputFormat {
 }
 
 func (cfg *Config) HumanOutputEnabled() bool {
-	return cfg != nil && cfg.ResolvedOutputFormat() == model.OutputFormatText
+	return cfg != nil && !cfg.DaemonOwned && cfg.ResolvedOutputFormat() == model.OutputFormatText
 }
 
 func (cfg *Config) UIEnabled() bool {
@@ -91,6 +93,9 @@ func (cfg *Config) UIEnabled() bool {
 
 func (cfg *Config) EventStreamEnabled() bool {
 	if cfg == nil {
+		return false
+	}
+	if cfg.DaemonOwned {
 		return false
 	}
 	switch cfg.ResolvedOutputFormat() {
@@ -129,6 +134,8 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		Verbose:                src.Verbose,
 		TUI:                    src.TUI,
 		Persist:                src.Persist,
+		DaemonOwned:            src.DaemonOwned,
+		DetachOnly:             false,
 		RunID:                  src.RunID,
 		RunArtifacts:           runArtifacts,
 		IncludeCompleted:       src.IncludeCompleted,

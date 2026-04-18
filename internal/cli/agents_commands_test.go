@@ -63,13 +63,25 @@ func TestExecCommandPassesSelectedAgentIntoWorkflowConfig(t *testing.T) {
 }
 
 func TestExecCommandUnknownAgentReturnsActionableError(t *testing.T) {
-	t.Parallel()
-
 	workspaceRoot := t.TempDir()
+	homeDir := t.TempDir()
+	xdgConfigHome := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
+	t.Setenv(testCLIDaemonHomeEnv, homeDir)
+	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
 	writeCLIWorkspaceConfig(t, workspaceRoot, "")
 	withWorkingDir(t, workspaceRoot)
 
-	_, err := executeRootCommand("exec", "--dry-run", "--agent", "missing-agent", "Summarize the repository state")
+	_, _, err := executeDaemonBackedRootCommandCapturingProcessIO(
+		t,
+		nil,
+		"exec",
+		"--dry-run",
+		"--agent",
+		"missing-agent",
+		"Summarize the repository state",
+	)
 	if err == nil {
 		t.Fatal("expected unknown reusable agent error")
 	}
@@ -101,7 +113,7 @@ func TestExecCommandExecuteWithAgentUsesResolvedRuntimeAndPreservesStdout(t *tes
 	)
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",
@@ -153,7 +165,7 @@ func TestExecCommandExecuteWithAgentPreservesExplicitRuntimeOverrides(t *testing
 	)
 	withWorkingDir(t, workspaceRoot)
 
-	stdout, stderr, err := executeRootCommandCapturingProcessIO(
+	stdout, stderr, err := executeDaemonBackedRootCommandCapturingProcessIO(
 		t,
 		nil,
 		"exec",

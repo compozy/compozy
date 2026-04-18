@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/internal/runshared"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -262,6 +263,29 @@ func TestHandleTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 	}
 }
 
+func TestHandleTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.jobs[0].state = jobSuccess
+	m.refreshSidebarContent()
+	m.sidebarDirty = false
+
+	previous := setSidebarViewportContent
+	t.Cleanup(func() {
+		setSidebarViewportContent = previous
+	})
+
+	calls := 0
+	setSidebarViewportContent = func(vp *viewport.Model, content string) {
+		calls++
+		previous(vp, content)
+	}
+
+	m.handleTick()
+	if calls != 0 {
+		t.Fatalf("expected idle tick to skip sidebar refresh, got %d SetContent calls", calls)
+	}
+}
+
 func TestCurrentJobHandlesSelectionBounds(t *testing.T) {
 	t.Parallel()
 
@@ -479,6 +503,26 @@ func TestHandleJobQueuedStoresTaskMetadata(t *testing.T) {
 	}
 	if got, want := m.jobs[0].taskType, "backend"; got != want {
 		t.Fatalf("expected task type %q, got %q", want, got)
+	}
+}
+
+func TestHandleJobQueuedExpandsTotalForRemoteAttach(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(0)
+	m.handleJobQueued(&jobQueuedMsg{
+		Index:     2,
+		CodeFile:  "task_03",
+		CodeFiles: []string{"task_03"},
+		OutBuffer: runshared.NewLineBuffer(0),
+		ErrBuffer: runshared.NewLineBuffer(0),
+	})
+
+	if got := m.total; got != 3 {
+		t.Fatalf("expected total jobs to expand to 3, got %d", got)
+	}
+	if got := len(m.jobs); got != 3 {
+		t.Fatalf("expected job slice to expand to 3, got %d", got)
 	}
 }
 

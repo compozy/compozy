@@ -22,11 +22,15 @@ func NewRuntimeEvent(runID string, kind events.EventKind, payload any) (events.E
 	if err != nil {
 		return events.Event{}, fmt.Errorf("marshal %s payload: %w", kind, err)
 	}
+	return NewRuntimeEventRaw(runID, kind, raw), nil
+}
+
+func NewRuntimeEventRaw(runID string, kind events.EventKind, payload json.RawMessage) events.Event {
 	return events.Event{
 		RunID:   runID,
 		Kind:    kind,
-		Payload: raw,
-	}, nil
+		Payload: payload,
+	}
 }
 
 func UsagePayload(index int, usage model.Usage) kinds.UsageUpdatedPayload {
