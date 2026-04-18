@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -919,6 +920,237 @@ func TestDaemonStopRunUsesCommandContextForProbeAndRPCs(t *testing.T) {
 	if !client.stopForce {
 		t.Fatal("expected stop command to propagate force flag")
 	}
+}
+
+func TestDaemonStatusAndStopWrapSetupErrors(t *testing.T) {
+	acquireCLITestGlobalOverride(t)
+
+	assertExitCode := func(t *testing.T, err error, want int) {
+		t.Helper()
+
+		var exitErr *commandExitError
+		if !errors.As(err, &exitErr) {
+			t.Fatalf("expected commandExitError, got %T", err)
+		}
+		if exitErr.ExitCode() != want {
+			t.Fatalf("unexpected exit code: got %d want %d", exitErr.ExitCode(), want)
+		}
+	}
+
+	readyInfo := daemon.Info{
+		PID:        1234,
+		SocketPath: "/tmp/compozy.sock",
+		StartedAt:  time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+		State:      daemon.ReadyStateReady,
+	}
+
+	tests := []struct {
+		name          string
+		run           func(*cobra.Command) error
+		configure     func()
+		wantErrSubstr []string
+	}{
+		{
+			name: "status query error includes probe context",
+			run: func(cmd *cobra.Command) error {
+				state := daemonStatusState{outputFormat: operatorOutputFormatText}
+				return state.run(cmd, nil)
+			},
+			configure: func() {
+				queryDaemonCommandStatus = func(
+					context.Context,
+					compozyconfig.HomePaths,
+					daemon.ProbeOptions,
+				) (daemon.Status, error) {
+					return daemon.Status{}, errors.New("status backend down")
+				}
+			},
+			wantErrSubstr: []string{"query daemon status", "status backend down"},
+		},
+		{
+			name: "status client error includes build context",
+			run: func(cmd *cobra.Command) error {
+				state := daemonStatusState{outputFormat: operatorOutputFormatText}
+				return state.run(cmd, nil)
+			},
+			configure: func() {
+				queryDaemonCommandStatus = func(
+					context.Context,
+					compozyconfig.HomePaths,
+					daemon.ProbeOptions,
+				) (daemon.Status, error) {
+					return daemon.Status{State: daemon.ReadyStateReady, Info: &readyInfo}, nil
+				}
+				newDaemonCommandClientFromInfo = func(daemon.Info) (daemonCommandClient, error) {
+					return nil, errors.New("target rejected")
+				}
+			},
+			wantErrSubstr: []string{"build daemon status client", "target rejected"},
+		},
+		{
+			name: "stop query error includes stop context",
+			run: func(cmd *cobra.Command) error {
+				state := daemonStopState{outputFormat: operatorOutputFormatText}
+				return state.run(cmd, nil)
+			},
+			configure: func() {
+				queryDaemonCommandStatus = func(
+					context.Context,
+					compozyconfig.HomePaths,
+					daemon.ProbeOptions,
+				) (daemon.Status, error) {
+					return daemon.Status{}, errors.New("status backend down")
+				}
+			},
+			wantErrSubstr: []string{"query daemon status before stop", "status backend down"},
+		},
+		{
+			name: "stop client error includes build context",
+			run: func(cmd *cobra.Command) error {
+				state := daemonStopState{outputFormat: operatorOutputFormatText}
+				return state.run(cmd, nil)
+			},
+			configure: func() {
+				queryDaemonCommandStatus = func(
+					context.Context,
+					compozyconfig.HomePaths,
+					daemon.ProbeOptions,
+				) (daemon.Status, error) {
+					return daemon.Status{State: daemon.ReadyStateReady, Info: &readyInfo}, nil
+				}
+				newDaemonCommandClientFromInfo = func(daemon.Info) (daemonCommandClient, error) {
+					return nil, errors.New("target rejected")
+				}
+			},
+			wantErrSubstr: []string{"build daemon stop client", "target rejected"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			originalQueryStatus := queryDaemonCommandStatus
+			originalNewClient := newDaemonCommandClientFromInfo
+			t.Cleanup(func() {
+				queryDaemonCommandStatus = originalQueryStatus
+				newDaemonCommandClientFromInfo = originalNewClient
+			})
+
+			queryDaemonCommandStatus = originalQueryStatus
+			newDaemonCommandClientFromInfo = originalNewClient
+			tt.configure()
+
+			cmd := &cobra.Command{}
+			cmd.SetContext(context.Background())
+			cmd.SetOut(io.Discard)
+
+			err := tt.run(cmd)
+			if err == nil {
+				t.Fatal("expected setup error")
+			}
+			assertExitCode(t, err, 2)
+			if !containsAll(err.Error(), tt.wantErrSubstr...) {
+				t.Fatalf("unexpected wrapped error: %v", err)
+			}
+		})
+	}
+}
+
+func TestWriteDaemonOutputsUseStableJSONSchema(t *testing.T) {
+	t.Parallel()
+
+	t.Run("status omits daemon when nil", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		var stdout bytes.Buffer
+		cmd.SetOut(&stdout)
+
+		if err := writeDaemonStatusOutput(
+			cmd,
+			operatorOutputFormatJSON,
+			nil,
+			apicore.DaemonHealth{Ready: false},
+			string(daemon.ReadyStateStopped),
+		); err != nil {
+			t.Fatalf("writeDaemonStatusOutput(nil daemon) error = %v", err)
+		}
+
+		var payload map[string]json.RawMessage
+		if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+			t.Fatalf("decode daemon status json: %v", err)
+		}
+		if _, ok := payload["daemon"]; ok {
+			t.Fatalf("daemon field should be omitted when status is nil: %s", stdout.String())
+		}
+		if _, ok := payload["state"]; !ok {
+			t.Fatalf("status json missing state: %s", stdout.String())
+		}
+		if _, ok := payload["health"]; !ok {
+			t.Fatalf("status json missing health: %s", stdout.String())
+		}
+	})
+
+	t.Run("status includes daemon payload when present", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		var stdout bytes.Buffer
+		cmd.SetOut(&stdout)
+
+		status := &apicore.DaemonStatus{
+			PID:        1234,
+			Version:    "test-version",
+			StartedAt:  time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+			SocketPath: "/tmp/compozy.sock",
+		}
+		health := apicore.DaemonHealth{Ready: true}
+		if err := writeDaemonStatusOutput(
+			cmd,
+			operatorOutputFormatJSON,
+			status,
+			health,
+			string(daemon.ReadyStateReady),
+		); err != nil {
+			t.Fatalf("writeDaemonStatusOutput(status daemon) error = %v", err)
+		}
+
+		var payload daemonStatusOutput
+		if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+			t.Fatalf("decode daemon status output: %v", err)
+		}
+		if payload.State != string(daemon.ReadyStateReady) || !payload.Health.Ready {
+			t.Fatalf("unexpected daemon status payload: %#v", payload)
+		}
+		if payload.Daemon == nil || payload.Daemon.PID != 1234 || payload.Daemon.Version != "test-version" {
+			t.Fatalf("unexpected daemon payload: %#v", payload)
+		}
+	})
+
+	t.Run("stop emits accepted force and state fields", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &cobra.Command{}
+		var stdout bytes.Buffer
+		cmd.SetOut(&stdout)
+
+		if err := writeDaemonStopOutput(
+			cmd,
+			operatorOutputFormatJSON,
+			true,
+			true,
+			string(daemon.ReadyStateReady),
+		); err != nil {
+			t.Fatalf("writeDaemonStopOutput() error = %v", err)
+		}
+
+		var payload daemonStopOutput
+		if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+			t.Fatalf("decode daemon stop output: %v", err)
+		}
+		if !payload.Accepted || !payload.Force || payload.State != string(daemon.ReadyStateReady) {
+			t.Fatalf("unexpected daemon stop payload: %#v", payload)
+		}
+	})
 }
 
 func TestResolveTaskWorkflowName(t *testing.T) {

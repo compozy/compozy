@@ -101,8 +101,10 @@ func WriteSSE(writer FlushWriter, msg SSEMessage) error {
 		return fmt.Errorf("write sse payload: %w", err)
 	}
 	buffer.WriteString("\n\n")
-	if _, err := writer.Write(buffer.Bytes()); err != nil {
+	if written, err := writer.Write(buffer.Bytes()); err != nil {
 		return fmt.Errorf("write sse payload: %w", err)
+	} else if written != buffer.Len() {
+		return fmt.Errorf("write sse payload: %w", io.ErrShortWrite)
 	}
 	writer.Flush()
 	return nil

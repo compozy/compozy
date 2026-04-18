@@ -26,6 +26,18 @@ type daemonStopState struct {
 	force        bool
 }
 
+type daemonStatusOutput struct {
+	State  string                `json:"state"`
+	Health apicore.DaemonHealth  `json:"health"`
+	Daemon *apicore.DaemonStatus `json:"daemon,omitempty"`
+}
+
+type daemonStopOutput struct {
+	Accepted bool   `json:"accepted"`
+	Force    bool   `json:"force"`
+	State    string `json:"state"`
+}
+
 func newDaemonCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "daemon",
@@ -101,7 +113,7 @@ func (s *daemonStatusState) run(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	status, err := queryDaemonCommandStatus(ctx, compozyconfig.HomePaths{}, daemon.ProbeOptions{})
 	if err != nil {
-		return withExitCode(2, err)
+		return withExitCode(2, fmt.Errorf("query daemon status: %w", err))
 	}
 	if status.Info == nil || status.State == daemon.ReadyStateStopped {
 		return writeDaemonStatusOutput(
@@ -115,7 +127,7 @@ func (s *daemonStatusState) run(cmd *cobra.Command, _ []string) error {
 
 	client, err := newDaemonCommandClientFromInfo(*status.Info)
 	if err != nil {
-		return withExitCode(2, err)
+		return withExitCode(2, fmt.Errorf("build daemon status client: %w", err))
 	}
 	daemonStatus, err := client.DaemonStatus(ctx)
 	if err != nil {
@@ -142,7 +154,7 @@ func (s *daemonStopState) run(cmd *cobra.Command, _ []string) error {
 	ctx := cmd.Context()
 	status, err := queryDaemonCommandStatus(ctx, compozyconfig.HomePaths{}, daemon.ProbeOptions{})
 	if err != nil {
-		return withExitCode(2, err)
+		return withExitCode(2, fmt.Errorf("query daemon status before stop: %w", err))
 	}
 	if status.Info == nil || status.State == daemon.ReadyStateStopped {
 		return writeDaemonStopOutput(cmd, format, false, s.force, string(daemon.ReadyStateStopped))
@@ -150,7 +162,7 @@ func (s *daemonStopState) run(cmd *cobra.Command, _ []string) error {
 
 	client, err := newDaemonCommandClientFromInfo(*status.Info)
 	if err != nil {
-		return withExitCode(2, err)
+		return withExitCode(2, fmt.Errorf("build daemon stop client: %w", err))
 	}
 	if err := client.StopDaemon(ctx, s.force); err != nil {
 		return mapDaemonCommandError(err)
@@ -174,12 +186,10 @@ func writeDaemonStatusOutput(
 	state string,
 ) error {
 	if format == operatorOutputFormatJSON {
-		payload := map[string]any{
-			"state":  state,
-			"health": health,
-		}
-		if status != nil {
-			payload["daemon"] = status
+		payload := daemonStatusOutput{
+			State:  state,
+			Health: health,
+			Daemon: status,
 		}
 		if err := writeOperatorJSON(cmd.OutOrStdout(), payload); err != nil {
 			return withExitCode(2, fmt.Errorf("write daemon status json: %w", err))
@@ -245,10 +255,10 @@ func writeDaemonStopOutput(
 	state string,
 ) error {
 	if format == operatorOutputFormatJSON {
-		if err := writeOperatorJSON(cmd.OutOrStdout(), map[string]any{
-			"accepted": accepted,
-			"force":    force,
-			"state":    state,
+		if err := writeOperatorJSON(cmd.OutOrStdout(), daemonStopOutput{
+			Accepted: accepted,
+			Force:    force,
+			State:    state,
 		}); err != nil {
 			return withExitCode(2, fmt.Errorf("write daemon stop json: %w", err))
 		}

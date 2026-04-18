@@ -202,6 +202,8 @@ func TestHandlerInternalHelpers(t *testing.T) {
 }
 
 func TestCursorHelpersAndTerminalEvents(t *testing.T) {
+	t.Parallel()
+
 	timestamp := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
 	event := events.Event{
 		Seq:       2,
@@ -226,10 +228,29 @@ func TestCursorHelpersAndTerminalEvents(t *testing.T) {
 	if EventAfterCursor(event, StreamCursor{Timestamp: timestamp.Add(time.Second), Sequence: 1}) {
 		t.Fatal("EventAfterCursor(older event) = true, want false")
 	}
-	if !isTerminalRunEvent(events.EventKindRunCompleted) {
-		t.Fatal("isTerminalRunEvent(run.completed) = false, want true")
+
+	testCases := []struct {
+		name string
+		kind events.EventKind
+		want bool
+	}{
+		{name: "Should mark run.completed as terminal", kind: events.EventKindRunCompleted, want: true},
+		{name: "Should mark run.failed as terminal", kind: events.EventKindRunFailed, want: true},
+		{name: "Should mark run.cancelled as terminal", kind: events.EventKindRunCancelled, want: true},
+		{name: "Should mark shutdown.requested as terminal", kind: events.EventKindShutdownRequested, want: true},
+		{name: "Should mark shutdown.draining as terminal", kind: events.EventKindShutdownDraining, want: true},
+		{name: "Should mark shutdown.terminated as terminal", kind: events.EventKindShutdownTerminated, want: true},
+		{name: "Should leave session.update non-terminal", kind: events.EventKindSessionUpdate, want: false},
+		{name: "Should leave run.started non-terminal", kind: events.EventKindRunStarted, want: false},
 	}
-	if isTerminalRunEvent(events.EventKindSessionUpdate) {
-		t.Fatal("isTerminalRunEvent(session.update) = true, want false")
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := isTerminalRunEvent(tt.kind); got != tt.want {
+				t.Fatalf("isTerminalRunEvent(%s) = %v, want %v", tt.kind, got, tt.want)
+			}
+		})
 	}
 }

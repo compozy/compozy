@@ -22,6 +22,8 @@ const defaultRequestTimeout = 5 * time.Second
 var (
 	// ErrDaemonClientRequired reports that the receiver client was nil.
 	ErrDaemonClientRequired = errors.New("daemon client is required")
+	// ErrDaemonContextRequired reports that the caller did not provide a request context.
+	ErrDaemonContextRequired = errors.New("daemon request context is required")
 	// ErrWorkflowSlugRequired reports that a workflow slug argument was blank.
 	ErrWorkflowSlugRequired = errors.New("workflow slug is required")
 	// ErrRunIDRequired reports that a run identifier argument was blank.
@@ -190,7 +192,7 @@ func (c *Client) doJSON(
 		return 0, ErrDaemonClientRequired
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return 0, ErrDaemonContextRequired
 	}
 	ctx, cancel := withRequestTimeout(ctx, c.httpClient.Timeout)
 	defer cancel()

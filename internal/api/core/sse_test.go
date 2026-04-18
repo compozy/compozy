@@ -3,12 +3,15 @@ package core_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/core"
 )
+
+var errFailingFlushWrite = errors.New("write failed")
 
 type flushBuffer struct {
 	bytes.Buffer
@@ -108,6 +111,8 @@ func TestParseCursorRejectsInvalidShapes(t *testing.T) {
 }
 
 func TestHeartbeatAndOverflowMessagesUseExpectedEventNames(t *testing.T) {
+	t.Parallel()
+
 	timestamp := time.Date(2026, 4, 17, 12, 1, 0, 0, time.UTC)
 	cursor := core.StreamCursor{Timestamp: timestamp, Sequence: 11}
 
@@ -131,6 +136,7 @@ func TestHeartbeatAndOverflowMessagesUseExpectedEventNames(t *testing.T) {
 			want: []string{
 				"event: overflow",
 				`"run_id":"run-1"`,
+				`"cursor":"` + core.FormatCursor(cursor.Timestamp, cursor.Sequence) + `"`,
 				`"reason":"slow consumer"`,
 			},
 		},
@@ -187,8 +193,25 @@ func TestWriteSSEErrorPaths(t *testing.T) {
 		if err == nil {
 			t.Fatal("WriteSSE(write failure) error = nil, want error")
 		}
-		if !strings.Contains(err.Error(), "write sse message") && !strings.Contains(err.Error(), "write sse payload") {
-			t.Fatalf("WriteSSE(write failure) error = %q, want wrapped write error", err)
+		if !errors.Is(err, errFailingFlushWrite) {
+			t.Fatalf("WriteSSE(write failure) error = %v, want sentinel %v", err, errFailingFlushWrite)
+		}
+		if err == errFailingFlushWrite {
+			t.Fatal("WriteSSE(write failure) returned sentinel directly, want wrapped error")
+		}
+	})
+
+	t.Run("short write failure", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &shortWriteFlushWriter{}
+		err := core.WriteSSE(writer, core.SSEMessage{
+			ID:    "cursor",
+			Event: "run.started",
+			Data:  map[string]string{"status": "started"},
+		})
+		if !errors.Is(err, io.ErrShortWrite) {
+			t.Fatalf("WriteSSE(short write) error = %v, want %v", err, io.ErrShortWrite)
 		}
 	})
 }
@@ -196,7 +219,18 @@ func TestWriteSSEErrorPaths(t *testing.T) {
 type failingFlushWriter struct{}
 
 func (*failingFlushWriter) Write([]byte) (int, error) {
-	return 0, errors.New("write failed")
+	return 0, errFailingFlushWrite
 }
 
 func (*failingFlushWriter) Flush() {}
+
+type shortWriteFlushWriter struct{}
+
+func (*shortWriteFlushWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	return len(p) - 1, nil
+}
+
+func (*shortWriteFlushWriter) Flush() {}

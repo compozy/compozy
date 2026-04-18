@@ -19,12 +19,17 @@ import (
 
 const updateResultWaitTimeout = 250 * time.Millisecond
 
+var (
+	newMainCommand     = compozy.NewCommand
+	startUpdateCheckFn = startUpdateCheck
+)
+
 func main() {
-	os.Exit(run())
+	os.Exit(run(context.Background()))
 }
 
-func run() int {
-	cmd := compozy.NewCommand()
+func run(ctx context.Context) int {
+	cmd := newMainCommand()
 	cmd.Version = version.String()
 
 	updateDoneCh := make(chan struct{})
@@ -33,7 +38,7 @@ func run() int {
 	var updateResult <-chan *update.ReleaseInfo
 	cancelUpdateCheck := func() {}
 	if shouldStartUpdateCheck(os.Args[1:]) {
-		updateResult, cancelUpdateCheck, updateDone = startUpdateCheck(context.Background(), version.Version)
+		updateResult, cancelUpdateCheck, updateDone = startUpdateCheckFn(ctx, version.Version)
 	}
 	executedCmd, err := cmd.ExecuteC()
 	cancelUpdateCheck()

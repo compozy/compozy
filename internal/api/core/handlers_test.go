@@ -201,9 +201,6 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 	if !strings.Contains(text, "event: overflow") {
 		t.Fatalf("stream missing overflow frame:\n%s", text)
 	}
-	if !strings.Contains(text, `"reason":"slow consumer"`) {
-		t.Fatalf("stream missing overflow payload:\n%s", text)
-	}
 }
 
 func TestStreamRunLogsCloseErrors(t *testing.T) {

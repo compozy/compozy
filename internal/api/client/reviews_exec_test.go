@@ -289,6 +289,28 @@ func TestClientExecRequestAndGuardErrors(t *testing.T) {
 	}
 }
 
+func TestClientStartTaskRunRejectsNilContext(t *testing.T) {
+	t.Parallel()
+
+	client := &Client{
+		target:  Target{SocketPath: "/tmp/compozy.sock"},
+		baseURL: "http://daemon",
+		httpClient: &http.Client{
+			Timeout: time.Second,
+			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("unexpected transport call for nil context")
+				return nil, nil
+			}),
+		},
+	}
+
+	var nilCtx context.Context
+	_, err := client.StartTaskRun(nilCtx, "demo", apicore.TaskRunRequest{Workspace: "/tmp/workspace"})
+	if !errors.Is(err, ErrDaemonContextRequired) {
+		t.Fatalf("StartTaskRun(nil) error = %v, want %v", err, ErrDaemonContextRequired)
+	}
+}
+
 func TestClientRunStreamSendItemBackpressure(t *testing.T) {
 	t.Parallel()
 
