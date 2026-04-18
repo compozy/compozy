@@ -139,13 +139,14 @@ func TestRegistryValidationBranches(t *testing.T) {
 	t.Parallel()
 
 	var nilDB *GlobalDB
+	var nilCtx context.Context
 	if got := nilDB.Path(); got != "" {
 		t.Fatalf("nil GlobalDB Path() = %q, want empty string", got)
 	}
 	if err := nilDB.Close(); err != nil {
 		t.Fatalf("nil GlobalDB Close() error = %v, want nil", err)
 	}
-	if _, err := Open(nil, filepath.Join(t.TempDir(), "invalid.db")); err == nil {
+	if _, err := Open(nilCtx, filepath.Join(t.TempDir(), "invalid.db")); err == nil {
 		t.Fatal("Open(nil, path) error = nil, want non-nil")
 	}
 
@@ -191,16 +192,16 @@ func TestMethodsRejectNilContextAndNilDatabase(t *testing.T) {
 	}()
 
 	workspaceRoot := t.TempDir()
-	if _, err := db.Register(nil, workspaceRoot, ""); err == nil {
+	var nilCtx context.Context
+	if _, err := db.Register(nilCtx, workspaceRoot, ""); err == nil {
 		t.Fatal("Register(nil, ...) error = nil, want non-nil")
 	}
-	if _, err := db.List(nil); err == nil {
+	if _, err := db.List(nilCtx); err == nil {
 		t.Fatal("List(nil) error = nil, want non-nil")
 	}
-	if _, err := db.GetWorkflow(nil, "wf"); err == nil {
+	if _, err := db.GetWorkflow(nilCtx, "wf"); err == nil {
 		t.Fatal("GetWorkflow(nil, ...) error = nil, want non-nil")
 	}
-	var nilCtx context.Context
 	if _, err := db.GetRun(nilCtx, "run"); err == nil {
 		t.Fatal("GetRun(nil, ...) error = nil, want non-nil")
 	}

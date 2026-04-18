@@ -1201,6 +1201,80 @@ func (m *executionHookManager) WaitForObserverHooks(ctx context.Context) error {
 	return m.waitObserverHooks(ctx)
 }
 
+func TestEmitRunStartWaitsForObserverHooksBeforeReturning(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "run-start")
+	waitCh := make(chan struct{})
+	waiterCalled := make(chan struct{}, 1)
+	done := make(chan error, 1)
+	manager := &executionHookManager{
+		waitObserverHooks: func(ctx context.Context) error {
+			select {
+			case waiterCalled <- struct{}{}:
+			default:
+			}
+			select {
+			case <-waitCh:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		},
+	}
+
+	internalCfg := &config{
+		WorkspaceRoot:  workspaceRoot,
+		Mode:           model.ExecutionModePRDTasks,
+		OutputFormat:   model.OutputFormatText,
+		RunArtifacts:   runArtifacts,
+		RuntimeManager: manager,
+	}
+
+	go func() {
+		done <- emitRunStart(context.Background(), nil, runArtifacts, internalCfg, nil)
+	}()
+
+	select {
+	case <-waiterCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected emitRunStart to wait for observer hooks")
+	}
+
+	select {
+	case err := <-done:
+		t.Fatalf("emitRunStart returned before observer hooks completed: %v", err)
+	default:
+	}
+
+	close(waitCh)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("emitRunStart() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("emitRunStart did not return after observer hooks completed")
+	}
+
+	if got := manager.observerHooks; !reflect.DeepEqual(got, []string{"run.post_start"}) {
+		t.Fatalf("unexpected observer hook order: %#v", got)
+	}
+	payloads := manager.observerPayloads["run.post_start"]
+	if len(payloads) != 1 {
+		t.Fatalf("expected one run.post_start payload, got %d", len(payloads))
+	}
+	payload, ok := payloads[0].(runPostStartPayload)
+	if !ok {
+		t.Fatalf("payload type = %T, want runPostStartPayload", payloads[0])
+	}
+	if payload.RunID != runArtifacts.RunID {
+		t.Fatalf("run.post_start run_id = %q, want %q", payload.RunID, runArtifacts.RunID)
+	}
+}
+
 func TestFinalizeExecutionWaitsForObserverHooksWithoutCanceledRunContext(t *testing.T) {
 	t.Parallel()
 

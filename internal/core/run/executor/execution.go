@@ -19,7 +19,10 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
-const runtimeEventBusBufferSize = 64
+const (
+	runtimeEventBusBufferSize = 64
+	observerHookWaitTimeout   = 5 * time.Second
+)
 
 // Execute runs the prepared jobs and manages shutdown, retries, and summaries.
 func Execute(
@@ -202,7 +205,7 @@ func emitRunStart(
 			Config: hookRuntimeConfig(internalCfg),
 		},
 	)
-	return nil
+	return waitForPendingObserverHooks(ctx, internalCfg.RuntimeManager)
 }
 
 func finalizeExecution(
@@ -217,10 +220,8 @@ func finalizeExecution(
 	total int,
 	startedAt time.Time,
 ) error {
-	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	if err := model.WaitForObserverHooks(waitCtx, internalCfg.RuntimeManager); err != nil {
-		return fmt.Errorf("wait for pending observer hooks: %w", err)
+	if err := waitForPendingObserverHooks(ctx, internalCfg.RuntimeManager); err != nil {
+		return err
 	}
 	reason := hookShutdownReason(result)
 	model.DispatchObserverHook(
@@ -258,6 +259,15 @@ func finalizeExecution(
 			Summary: hookRunSummary(result),
 		},
 	)
+	return nil
+}
+
+func waitForPendingObserverHooks(ctx context.Context, manager model.RuntimeManager) error {
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), observerHookWaitTimeout)
+	defer cancel()
+	if err := model.WaitForObserverHooks(waitCtx, manager); err != nil {
+		return fmt.Errorf("wait for pending observer hooks: %w", err)
+	}
 	return nil
 }
 

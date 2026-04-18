@@ -330,13 +330,14 @@ func TestRunChannelHelpersRespectContextCancellation(t *testing.T) {
 		t.Fatalf("sendRunError() error = %q, want boom", got)
 	}
 
-	if !sendRunEvent(nil, eventsCh, events.Event{Seq: 8}) {
+	var nilCtx context.Context
+	if !sendRunEvent(nilCtx, eventsCh, events.Event{Seq: 8}) {
 		t.Fatal("sendRunEvent(nil) returned false, want true")
 	}
 	if item := <-eventsCh; item.Seq != 8 {
 		t.Fatalf("sendRunEvent(nil) item.Seq = %d, want 8", item.Seq)
 	}
-	if !sendRunError(nil, errsCh, nil) {
+	if !sendRunError(nilCtx, errsCh, nil) {
 		t.Fatal("sendRunError(nil, nil) returned false, want true")
 	}
 }
