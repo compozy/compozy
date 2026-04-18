@@ -42,7 +42,7 @@ Payload type: `kinds.RunStartedPayload`
 - `model`
 - `reasoning_effort`
 - `access_mode`
-- `artifacts_dir`: run artifact directory under `.compozy/runs/<run-id>`
+- `artifacts_dir`: run artifact directory under `~/.compozy/runs/<run-id>`
 - `jobs_total`: number of prepared jobs
 
 ### `run.crashed`
@@ -532,8 +532,8 @@ Raw mode streams the full `events.Event` envelope for every bus event, including
 # Stream lean events for a single-prompt exec run
 compozy exec --format json "Refactor the auth middleware"
 
-# Stream all raw events for a workflow
-compozy start --format raw-json --name my-feature
+# Stream all raw events for a daemon-backed review-fix workflow
+compozy reviews fix my-feature --format raw-json
 
 # Pipe lean events to jq for filtering
 compozy exec --format json "Fix the tests" | jq 'select(.type == "session.update")'

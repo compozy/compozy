@@ -118,7 +118,7 @@ func TestBuildMissingSkillErrorUsesScopeSpecificGuidance(t *testing.T) {
 
 			state := base
 			state.Bundled.Scope = tc.scope
-			err := buildMissingSkillError("compozy start", "codex", state)
+			err := buildMissingSkillError("compozy tasks run", "codex", state)
 			if err == nil || !strings.Contains(err.Error(), tc.wantSnippet) {
 				t.Fatalf("expected error containing %q, got %v", tc.wantSnippet, err)
 			}

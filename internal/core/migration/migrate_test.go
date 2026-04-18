@@ -469,6 +469,54 @@ func TestMigrateMixedDirectoryCountsV1ToV2AndTracksUnmappedTypes(t *testing.T) {
 	}
 }
 
+func TestMigrateSkipsLegacyMetadataAndMasterTaskArtifacts(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot, workflowDir := makeMigrationWorkspace(t, "demo")
+	legacyMetaPath := filepath.Join(workflowDir, "_meta.md")
+	legacyTasksPath := filepath.Join(workflowDir, "_tasks.md")
+	taskPath := filepath.Join(workflowDir, "task_01.md")
+
+	writeMigrationFile(t, legacyMetaPath, "legacy workflow metadata\n")
+	writeMigrationFile(t, legacyTasksPath, "# Master task list\n")
+	v2Task := taskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo",
+			"type: backend",
+			"complexity: low",
+			"dependencies: []",
+		},
+		"# Task 1: Demo",
+		"Body.",
+	)
+	writeMigrationFile(t, taskPath, v2Task)
+
+	result, err := Migrate(context.Background(), Config{WorkspaceRoot: workspaceRoot, TasksDir: workflowDir})
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if result.FilesMigrated != 0 {
+		t.Fatalf("expected no migrated files, got %d", result.FilesMigrated)
+	}
+	if result.FilesAlreadyFrontmatter != 1 {
+		t.Fatalf("expected v2 task to count as already frontmatter, got %#v", result)
+	}
+	if result.FilesSkipped < 2 {
+		t.Fatalf("expected legacy metadata and master task list to be skipped, got %#v", result)
+	}
+
+	if got := readMigrationFile(t, legacyMetaPath); got != "legacy workflow metadata\n" {
+		t.Fatalf("expected legacy workflow metadata to remain untouched, got:\n%s", got)
+	}
+	if got := readMigrationFile(t, legacyTasksPath); got != "# Master task list\n" {
+		t.Fatalf("expected legacy master task list to remain untouched, got:\n%s", got)
+	}
+	if got := readMigrationFile(t, taskPath); got != v2Task {
+		t.Fatalf("expected v2 task to remain untouched\nwant:\n%s\ngot:\n%s", v2Task, got)
+	}
+}
+
 func TestMigrateUsesConfiguredTaskRegistryForLegacyTypeRemap(t *testing.T) {
 	t.Parallel()
 

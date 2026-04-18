@@ -73,7 +73,7 @@ compozy ext enable hello-go
 ## 5. Run Compozy
 
 ```bash
-compozy start
+compozy exec "hello from the Go extension"
 ```
 
 You should see the final run status on stderr when the run shuts down.

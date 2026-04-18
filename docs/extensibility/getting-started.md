@@ -37,14 +37,14 @@ Important behavior:
 The lifecycle-observer template listens for `run.post_shutdown`, so any normal run path works:
 
 ```bash
-compozy start
+compozy exec "Summarize the repository state"
 ```
 
 If you want a visible side effect while iterating, set a record file and run Compozy from the same shell:
 
 ```bash
 export COMPOZY_TS_RECORD_PATH="$PWD/records.jsonl"
-compozy start
+compozy exec "Summarize the repository state"
 cat records.jsonl
 ```
 

@@ -77,7 +77,7 @@ compozy ext enable hello-ts
 ## 6. Run Compozy
 
 ```bash
-compozy start
+compozy exec "hello from the TypeScript extension"
 ```
 
 You should see the final run status on stderr when the run shuts down.

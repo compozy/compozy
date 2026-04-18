@@ -576,6 +576,76 @@ func TestActiveDocsAndHelpFixturesOmitLegacyArtifactRoot(t *testing.T) {
 	}
 }
 
+func TestDaemonDocsUseCurrentCommandSurface(t *testing.T) {
+	t.Parallel()
+
+	paths := []string{
+		mustCLIRepoRootPath(t, "README.md"),
+		mustCLIRepoRootPath(t, "docs", "reader-library.md"),
+		mustCLIRepoRootPath(t, "docs", "events.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "architecture.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "host-api-reference.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "trust-and-enablement.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "getting-started.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "hello-world-go.md"),
+		mustCLIRepoRootPath(t, "docs", "extensibility", "hello-world-ts.md"),
+	}
+
+	forbidden := []string{
+		"compozy start",
+		".compozy/runs/<run-id>/extensions.jsonl",
+		"Refresh task workflow metadata files",
+	}
+	for _, path := range paths {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		content := string(body)
+		for _, snippet := range forbidden {
+			if strings.Contains(content, snippet) {
+				t.Fatalf("expected %s to omit stale snippet %q", path, snippet)
+			}
+		}
+	}
+
+	readme, err := os.ReadFile(mustCLIRepoRootPath(t, "README.md"))
+	if err != nil {
+		t.Fatalf("read README.md: %v", err)
+	}
+	readmeContent := string(readme)
+	requiredREADME := []string{
+		"compozy tasks run user-auth --ide claude",
+		"compozy reviews fix user-auth --ide claude --concurrent 2 --batch-size 3",
+		"compozy daemon start",
+		"compozy daemon status",
+		"compozy runs attach <run-id>",
+		"compozy runs watch <run-id>",
+		"~/.compozy/runs/",
+	}
+	for _, snippet := range requiredREADME {
+		if !strings.Contains(readmeContent, snippet) {
+			t.Fatalf("expected README.md to include %q", snippet)
+		}
+	}
+
+	architecture, err := os.ReadFile(mustCLIRepoRootPath(t, "docs", "extensibility", "architecture.md"))
+	if err != nil {
+		t.Fatalf("read architecture doc: %v", err)
+	}
+	if !containsAll(string(architecture), "~/.compozy/runs/<run-id>/run.db", "hook_runs") {
+		t.Fatalf("expected architecture doc to describe daemon run audit storage")
+	}
+
+	readerDoc, err := os.ReadFile(mustCLIRepoRootPath(t, "docs", "reader-library.md"))
+	if err != nil {
+		t.Fatalf("read reader-library doc: %v", err)
+	}
+	if !containsAll(string(readerDoc), "daemon-managed runs", "daemon transport") {
+		t.Fatalf("expected reader-library doc to describe daemon-backed readers")
+	}
+}
+
 func TestTasksRunHelpMatchesGolden(t *testing.T) {
 	t.Parallel()
 

@@ -1,6 +1,6 @@
 # Reader Library
 
-`pkg/compozy/runs` is the public read-only library for inspecting persisted runs under `.compozy/runs`.
+`pkg/compozy/runs` is the public read-only library for inspecting daemon-managed runs through the shared snapshot, pagination, and stream APIs.
 
 The snippets below are mirrored by executable examples in `pkg/compozy/runs/examples_test.go`, so `go test ./pkg/compozy/runs` compiles and runs the same usage patterns.
 
@@ -12,7 +12,7 @@ import "github.com/compozy/compozy/pkg/compozy/runs"
 
 ## List
 
-Use `List` to enumerate persisted runs under one workspace.
+Use `List` to enumerate daemon-managed runs for one workspace.
 
 ```go
 workspaceRoot := "/path/to/workspace"
@@ -33,7 +33,7 @@ for _, summary := range summaries {
 
 ## Open
 
-Use `Open` when you already know the run id and want the resolved metadata plus replay/tail access.
+Use `Open` when you already know the run id and want the resolved metadata plus replay/tail access through the daemon transport.
 
 ```go
 workspaceRoot := "/path/to/workspace"
@@ -68,8 +68,6 @@ for event, replayErr := range run.Replay(0) {
 	fmt.Printf("%d %s\n", event.Seq, event.Kind)
 }
 ```
-
-`Replay` tolerates a truncated final line in `events.jsonl` and reports `runs.ErrPartialEventLine` when it encounters one.
 
 ## Tail
 
@@ -135,6 +133,6 @@ for {
 
 `WatchWorkspace` emits:
 
-- `created` when a new run directory becomes readable
-- `status_changed` when `run.json` changes enough to alter the normalized `RunSummary`
-- `removed` when a run directory disappears
+- `created` when the daemon reports a new run for the workspace
+- `status_changed` when the daemon-backed `RunSummary` changes
+- `removed` when a run disappears from the daemon-backed workspace listing

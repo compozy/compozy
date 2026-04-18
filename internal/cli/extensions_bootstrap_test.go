@@ -295,7 +295,7 @@ func TestBootstrapDeclarativeAssetsActivatesModelAliasOverlay(t *testing.T) {
 	assets, cleanup, err := state.bootstrapDeclarativeAssetsForWorkspaceRoot(
 		context.Background(),
 		workspaceRoot,
-		"compozy start",
+		"compozy tasks run",
 	)
 	if err != nil {
 		t.Fatalf("bootstrapDeclarativeAssetsForWorkspaceRoot() error = %v", err)

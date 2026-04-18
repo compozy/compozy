@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -415,6 +416,64 @@ func TestReviewsFixCommandResolvesLatestRoundAndBuildsDaemonRequest(t *testing.T
 	}
 	if batching.BatchSize != 2 || batching.Concurrent != 4 || !batching.IncludeResolved {
 		t.Fatalf("unexpected batching overrides: %#v", batching)
+	}
+}
+
+func TestReviewsFixCommandAutoAttachStreamsWhenNonInteractive(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &reviewExecCaptureClient{
+		stubDaemonCommandClient: &stubDaemonCommandClient{
+			health: apicore.DaemonHealth{Ready: true},
+			reviewLatest: apicore.ReviewSummary{
+				WorkflowSlug: "demo",
+				RoundNumber:  7,
+				Provider:     "ext-review",
+				PRRef:        "259",
+			},
+			reviewRun: apicore.Run{
+				RunID:            "review-run-stream-007",
+				Mode:             "review",
+				Status:           "starting",
+				PresentationMode: attachModeStream,
+				StartedAt:        time.Date(2026, 4, 18, 12, 3, 0, 0, time.UTC),
+			},
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	var watchedRunID string
+	installTestCLIRunObservers(
+		t,
+		nil,
+		func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+			watchedRunID = runID
+			_, _ = io.WriteString(dst, "watching "+runID+"\n")
+			return nil
+		},
+	)
+
+	output, err := executeCommandCombinedOutput(
+		newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
+		nil,
+		"fix",
+		"demo",
+	)
+	if err != nil {
+		t.Fatalf("execute reviews fix auto stream: %v\noutput:\n%s", err, output)
+	}
+	if client.startReviewReq.PresentationMode != attachModeStream {
+		t.Fatalf("presentation mode = %q, want %q", client.startReviewReq.PresentationMode, attachModeStream)
+	}
+	if watchedRunID != "review-run-stream-007" {
+		t.Fatalf("expected watch for review-run-stream-007, got %q", watchedRunID)
+	}
+	if !containsAll(output, "task run started: review-run-stream-007 (mode=stream)", "watching review-run-stream-007") {
+		t.Fatalf("unexpected reviews fix auto stream output:\n%s", output)
 	}
 }
 

@@ -62,10 +62,10 @@ Pay special attention to:
 Every run records extension activity in:
 
 ```text
-.compozy/runs/<run-id>/extensions.jsonl
+~/.compozy/runs/<run-id>/run.db
 ```
 
-That file is the first place to inspect when you need to answer:
+Inspect the `hook_runs` table first when you need to answer:
 
 - which hooks ran
 - which Host API methods were called

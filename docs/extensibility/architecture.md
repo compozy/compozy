@@ -81,13 +81,13 @@ Notable guarantees:
 
 ## Observability
 
-Every hook dispatch and Host API call is recorded in:
+Every hook dispatch and Host API call is recorded in the run audit log inside:
 
 ```text
-.compozy/runs/<run-id>/extensions.jsonl
+~/.compozy/runs/<run-id>/run.db
 ```
 
-The event bus also emits extension lifecycle events such as `extension.loaded`, `extension.ready`, and `extension.failed`.
+The `hook_runs` table is the durable audit surface for extension activity in daemon-managed runs. The event bus also emits extension lifecycle events such as `extension.loaded`, `extension.ready`, and `extension.failed`.
 
 ## Design references
 
