@@ -229,14 +229,9 @@ func marshalRequestBody(requestBody any) (io.Reader, bool, error) {
 }
 
 func (c *Client) doRequest(request *http.Request) (int, []byte, error) {
-	transport := c.httpClient.Transport
-	if transport == nil {
-		transport = http.DefaultTransport
-	}
-
-	response, err := transport.RoundTrip(request)
+	response, err := c.roundTrip(request)
 	if err != nil {
-		return 0, nil, fmt.Errorf("dial %s: %w", c.target.String(), err)
+		return 0, nil, err
 	}
 	defer func() {
 		_ = response.Body.Close()
@@ -247,6 +242,23 @@ func (c *Client) doRequest(request *http.Request) (int, []byte, error) {
 		return response.StatusCode, nil, fmt.Errorf("read daemon response: %w", err)
 	}
 	return response.StatusCode, payload, nil
+}
+
+func (c *Client) roundTrip(request *http.Request) (*http.Response, error) {
+	if c == nil || c.httpClient == nil {
+		return nil, errors.New("daemon client is required")
+	}
+
+	transport := c.httpClient.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+
+	response, err := transport.RoundTrip(request)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s: %w", c.target.String(), err)
+	}
+	return response, nil
 }
 
 func (c *Client) handleStatus(

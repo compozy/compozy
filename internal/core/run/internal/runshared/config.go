@@ -32,6 +32,7 @@ type Config struct {
 	TUI                    bool
 	Persist                bool
 	DaemonOwned            bool
+	DetachOnly             bool
 	RunID                  string
 	RunArtifacts           model.RunArtifacts
 	RuntimeManager         model.RuntimeManager
@@ -134,6 +135,7 @@ func NewConfig(src *model.RuntimeConfig, runArtifacts model.RunArtifacts) *Confi
 		TUI:                    src.TUI,
 		Persist:                src.Persist,
 		DaemonOwned:            src.DaemonOwned,
+		DetachOnly:             false,
 		RunID:                  src.RunID,
 		RunArtifacts:           runArtifacts,
 		IncludeCompleted:       src.IncludeCompleted,

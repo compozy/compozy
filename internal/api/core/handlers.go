@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 // Handlers contains the shared daemon API handler logic used by both transports.
@@ -267,6 +268,8 @@ type runSnapshotPayload struct {
 	Run        Run                    `json:"run"`
 	Jobs       []RunJobState          `json:"jobs,omitempty"`
 	Transcript []RunTranscriptMessage `json:"transcript,omitempty"`
+	Usage      kinds.Usage            `json:"usage,omitempty"`
+	Shutdown   *RunShutdownState      `json:"shutdown,omitempty"`
 	NextCursor string                 `json:"next_cursor,omitempty"`
 }
 
@@ -816,6 +819,8 @@ func (h *Handlers) GetRunSnapshot(c *gin.Context) {
 		Run:        snapshot.Run,
 		Jobs:       snapshot.Jobs,
 		Transcript: snapshot.Transcript,
+		Usage:      snapshot.Usage,
+		Shutdown:   snapshot.Shutdown,
 		NextCursor: formatCursorPtr(snapshot.NextCursor),
 	})
 }

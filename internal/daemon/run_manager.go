@@ -419,11 +419,15 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 		_ = runDB.Close()
 	}()
 
-	jobRows, err := runDB.ListJobState(listCtx)
+	eventRows, err := runDB.ListEvents(listCtx, 0)
 	if err != nil {
 		return apicore.RunSnapshot{}, err
 	}
 	transcriptRows, err := runDB.ListTranscriptMessages(listCtx)
+	if err != nil {
+		return apicore.RunSnapshot{}, err
+	}
+	tokenUsageRows, err := runDB.ListTokenUsage(listCtx)
 	if err != nil {
 		return apicore.RunSnapshot{}, err
 	}
@@ -432,20 +436,20 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 		return apicore.RunSnapshot{}, err
 	}
 
+	builder := newRunSnapshotBuilder()
+	for _, item := range eventRows {
+		if err := builder.applyEvent(item); err != nil {
+			return apicore.RunSnapshot{}, err
+		}
+	}
+	builder.applyTokenUsageRows(tokenUsageRows)
+
 	snapshot := apicore.RunSnapshot{
 		Run:        runView,
-		Jobs:       make([]apicore.RunJobState, 0, len(jobRows)),
+		Jobs:       builder.jobStates(),
 		Transcript: make([]apicore.RunTranscriptMessage, 0, len(transcriptRows)),
-	}
-	for i := range jobRows {
-		snapshot.Jobs = append(snapshot.Jobs, apicore.RunJobState{
-			JobID:      jobRows[i].JobID,
-			TaskID:     jobRows[i].TaskID,
-			Status:     jobRows[i].Status,
-			AgentName:  jobRows[i].AgentName,
-			SummaryRaw: rawMessageOrNil(jobRows[i].SummaryJSON),
-			UpdatedAt:  jobRows[i].UpdatedAt,
-		})
+		Usage:      builder.usage,
+		Shutdown:   builder.shutdown,
 	}
 	for i := range transcriptRows {
 		snapshot.Transcript = append(snapshot.Transcript, apicore.RunTranscriptMessage{

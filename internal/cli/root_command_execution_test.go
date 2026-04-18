@@ -1024,6 +1024,16 @@ func TestTasksRunCommandAutoModeResolvesToStreamInNonInteractiveExecution(t *tes
 		startupTimeout: time.Second,
 		pollInterval:   time.Millisecond,
 	})
+	var watchedRunID string
+	installTestCLIRunObservers(
+		t,
+		nil,
+		func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+			watchedRunID = runID
+			_, err := io.WriteString(dst, "run completed | succeeded=1 failed=0 canceled=0\n")
+			return err
+		},
+	)
 
 	defaults := allowBundledSkillsForExecutionTests()
 	defaults.isInteractive = func() bool { return false }
@@ -1045,8 +1055,95 @@ func TestTasksRunCommandAutoModeResolvesToStreamInNonInteractiveExecution(t *tes
 	if readyClient.startRequest.PresentationMode != attachModeStream {
 		t.Fatalf("expected auto attach mode to resolve to stream, got %q", readyClient.startRequest.PresentationMode)
 	}
-	if !strings.Contains(stdout, "task run started: run-task-002 (mode=stream)") {
+	if watchedRunID != "run-task-002" {
+		t.Fatalf("expected stream watch to attach to run-task-002, got %q", watchedRunID)
+	}
+	if !strings.Contains(stdout, "task run started: run-task-002 (mode=stream)") ||
+		!strings.Contains(stdout, "run completed | succeeded=1 failed=0 canceled=0") {
 		t.Fatalf("unexpected tasks run stdout: %q", stdout)
+	}
+}
+
+func TestTasksRunCommandInteractiveUIModeAttachesThroughRemoteClient(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-ui-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeUI,
+			StartedAt:        time.Date(2026, 4, 17, 13, 6, 0, 0, time.UTC),
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 6, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 6, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var attachedRunID string
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		attachedRunID = runID
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+	)
+	if err != nil {
+		t.Fatalf("execute tasks run interactive ui: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if readyClient.startRequest.PresentationMode != attachModeUI {
+		t.Fatalf("expected interactive attach mode to resolve to ui, got %q", readyClient.startRequest.PresentationMode)
+	}
+	if attachedRunID != "run-task-ui-001" {
+		t.Fatalf("expected ui attach for run-task-ui-001, got %q", attachedRunID)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout before ui attach, got %q", stdout)
 	}
 }
 
@@ -1165,6 +1262,114 @@ func TestTasksRunCommandBootstrapFailureReturnsStableExitCode(t *testing.T) {
 	}
 	if !containsAll(stderr, "wait for daemon readiness", "probe daemon health via unix:///tmp/compozy-daemon.sock") {
 		t.Fatalf("expected explicit daemon transport failure, got %q", stderr)
+	}
+}
+
+func TestRunsAttachCommandUsesRemoteUIAttach(t *testing.T) {
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 20, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 20, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var attachedRunID string
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		attachedRunID = runID
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "runs", "attach", "run-attach-001")
+	if err != nil {
+		t.Fatalf("execute runs attach: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if attachedRunID != "run-attach-001" {
+		t.Fatalf("expected attach for run-attach-001, got %q", attachedRunID)
+	}
+	if stdout != "" || stderr != "" {
+		t.Fatalf("expected quiet attach command, got stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+func TestRunsWatchCommandStreamsWithoutLaunchingUI(t *testing.T) {
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 21, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 21, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var watchedRunID string
+	var attachCalls int
+	installTestCLIRunObservers(t, func(context.Context, daemonCommandClient, string) error {
+		attachCalls++
+		return nil
+	}, func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+		watchedRunID = runID
+		_, err := io.WriteString(dst, "run completed | all good\n")
+		return err
+	})
+
+	cmd := newRootCommandWithDefaults(newRootDispatcher(), allowBundledSkillsForExecutionTests())
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "runs", "watch", "run-watch-001")
+	if err != nil {
+		t.Fatalf("execute runs watch: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if attachCalls != 0 {
+		t.Fatalf("expected watch path to avoid ui attach, got %d attach calls", attachCalls)
+	}
+	if watchedRunID != "run-watch-001" {
+		t.Fatalf("expected watch for run-watch-001, got %q", watchedRunID)
+	}
+	if stdout != "run completed | all good\n" || stderr != "" {
+		t.Fatalf("unexpected runs watch output: stdout=%q stderr=%q", stdout, stderr)
 	}
 }
 

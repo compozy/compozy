@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
@@ -10,15 +11,81 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newRunsCommand() *cobra.Command {
+func newRunsCommandWithDefaults(defaults commandStateDefaults) *cobra.Command {
+	defaults = defaults.withFallbacks()
+
 	cmd := &cobra.Command{
 		Use:          "runs",
-		Short:        "Inspect and clean persisted run artifacts",
+		Short:        "Inspect, attach, watch, and clean persisted daemon run artifacts",
 		SilenceUsage: true,
 	}
 
-	cmd.AddCommand(newRunsPurgeCommand())
+	cmd.AddCommand(
+		newRunsAttachCommand(defaults),
+		newRunsWatchCommand(),
+		newRunsPurgeCommand(),
+	)
 	return cmd
+}
+
+func newRunsAttachCommand(defaults commandStateDefaults) *cobra.Command {
+	return &cobra.Command{
+		Use:          "attach <run-id>",
+		Short:        "Attach the interactive TUI to one daemon-managed run",
+		SilenceUsage: true,
+		Args:         cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID := strings.TrimSpace(args[0])
+			isInteractive := defaults.isInteractive
+			if isInteractive == nil {
+				isInteractive = isInteractiveTerminal
+			}
+			if !isInteractive() {
+				return withExitCode(
+					1,
+					fmt.Errorf(
+						"%s requires an interactive terminal for ui attach; rerun with `compozy runs watch %s`",
+						cmd.CommandPath(),
+						runID,
+					),
+				)
+			}
+
+			ctx, stop := signalCommandContext(cmd)
+			defer stop()
+
+			client, err := newCLIDaemonBootstrap().ensure(ctx)
+			if err != nil {
+				return withExitCode(2, err)
+			}
+			if err := attachCLIRunUI(ctx, client, runID); err != nil {
+				return mapDaemonCommandError(err)
+			}
+			return nil
+		},
+	}
+}
+
+func newRunsWatchCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:          "watch <run-id>",
+		Short:        "Stream textual observation for one daemon-managed run",
+		SilenceUsage: true,
+		Args:         cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, stop := signalCommandContext(cmd)
+			defer stop()
+
+			client, err := newCLIDaemonBootstrap().ensure(ctx)
+			if err != nil {
+				return withExitCode(2, err)
+			}
+			if err := watchCLIRun(ctx, cmd.OutOrStdout(), client, strings.TrimSpace(args[0])); err != nil {
+				return mapDaemonCommandError(err)
+			}
+			return nil
+		},
+	}
 }
 
 func newRunsPurgeCommand() *cobra.Command {

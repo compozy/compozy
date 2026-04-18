@@ -90,7 +90,7 @@ Use explicit workflow subcommands:
 		newWorkspacesCommand(),
 		newTasksCommand(dispatcher, defaults),
 		newReviewsCommand(),
-		newRunsCommand(),
+		newRunsCommandWithDefaults(defaults),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
 		newFetchReviewsCommandWithDefaults(dispatcher, defaults),

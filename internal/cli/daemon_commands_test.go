@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -25,6 +26,10 @@ type stubDaemonCommandClient struct {
 	startRequest apicore.TaskRunRequest
 	startRun     apicore.Run
 	startErr     error
+	snapshot     apicore.RunSnapshot
+	snapshotErr  error
+	stream       apiclient.RunStream
+	streamErr    error
 }
 
 func (c *stubDaemonCommandClient) Target() apiclient.Target {
@@ -62,6 +67,30 @@ func (c *stubDaemonCommandClient) StartTaskRun(
 	return c.startRun, nil
 }
 
+func (c *stubDaemonCommandClient) GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error) {
+	if c == nil {
+		return apicore.RunSnapshot{}, errors.New("stub daemon client is required")
+	}
+	if c.snapshotErr != nil {
+		return apicore.RunSnapshot{}, c.snapshotErr
+	}
+	return c.snapshot, nil
+}
+
+func (c *stubDaemonCommandClient) OpenRunStream(
+	context.Context,
+	string,
+	apicore.StreamCursor,
+) (apiclient.RunStream, error) {
+	if c == nil {
+		return nil, errors.New("stub daemon client is required")
+	}
+	if c.streamErr != nil {
+		return nil, c.streamErr
+	}
+	return c.stream, nil
+}
+
 func installTestCLIDaemonBootstrap(t *testing.T, bootstrap cliDaemonBootstrap) {
 	t.Helper()
 
@@ -69,6 +98,27 @@ func installTestCLIDaemonBootstrap(t *testing.T, bootstrap cliDaemonBootstrap) {
 	newCLIDaemonBootstrap = func() cliDaemonBootstrap { return bootstrap }
 	t.Cleanup(func() {
 		newCLIDaemonBootstrap = original
+	})
+}
+
+func installTestCLIRunObservers(
+	t *testing.T,
+	attachFn func(context.Context, daemonCommandClient, string) error,
+	watchFn func(context.Context, io.Writer, daemonCommandClient, string) error,
+) {
+	t.Helper()
+
+	originalAttach := attachCLIRunUI
+	originalWatch := watchCLIRun
+	if attachFn != nil {
+		attachCLIRunUI = attachFn
+	}
+	if watchFn != nil {
+		watchCLIRun = watchFn
+	}
+	t.Cleanup(func() {
+		attachCLIRunUI = originalAttach
+		watchCLIRun = originalWatch
 	})
 }
 

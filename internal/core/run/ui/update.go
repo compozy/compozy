@@ -85,6 +85,10 @@ func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleQuitKey() tea.Cmd {
+	if m.cfg != nil && m.cfg.DetachOnly {
+		return tea.Quit
+	}
+
 	if m.isRunComplete() {
 		return tea.Quit
 	}
@@ -396,6 +400,9 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 	if v.Index >= len(m.jobs) {
 		grow := v.Index - len(m.jobs) + 1
 		m.jobs = append(m.jobs, make([]uiJob, grow)...)
+	}
+	if v.Index+1 > m.total {
+		m.total = v.Index + 1
 	}
 	m.jobs[v.Index] = uiJob{
 		codeFile:             v.CodeFile,

@@ -482,6 +482,26 @@ func TestHandleJobQueuedStoresTaskMetadata(t *testing.T) {
 	}
 }
 
+func TestHandleJobQueuedExpandsTotalForRemoteAttach(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(0)
+	m.handleJobQueued(&jobQueuedMsg{
+		Index:     2,
+		CodeFile:  "task_03",
+		CodeFiles: []string{"task_03"},
+		OutBuffer: runshared.NewLineBuffer(0),
+		ErrBuffer: runshared.NewLineBuffer(0),
+	})
+
+	if got := m.total; got != 3 {
+		t.Fatalf("expected total jobs to expand to 3, got %d", got)
+	}
+	if got := len(m.jobs); got != 3 {
+		t.Fatalf("expected job slice to expand to 3, got %d", got)
+	}
+}
+
 func newTestUIModelWithSnapshot(t *testing.T, size tea.WindowSizeMsg) *uiModel {
 	t.Helper()
 

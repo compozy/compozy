@@ -44,6 +44,8 @@ type daemonCommandClient interface {
 	Target() apiclient.Target
 	Health(context.Context) (apicore.DaemonHealth, error)
 	StartTaskRun(context.Context, string, apicore.TaskRunRequest) (apicore.Run, error)
+	GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error)
+	OpenRunStream(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
 }
 
 type cliDaemonBootstrap struct {
@@ -315,14 +317,40 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if err != nil {
 		return mapDaemonCommandError(err)
 	}
+	return handleStartedTaskRun(ctx, cmd, client, run)
+}
 
-	_, err = fmt.Fprintf(
+func handleStartedTaskRun(
+	ctx context.Context,
+	cmd *cobra.Command,
+	client daemonCommandClient,
+	run apicore.Run,
+) error {
+	if run.PresentationMode == attachModeUI {
+		if err := attachCLIRunUI(ctx, client, run.RunID); err != nil {
+			return mapDaemonCommandError(err)
+		}
+		return nil
+	}
+	if err := writeStartedTaskRun(cmd, run); err != nil {
+		return err
+	}
+	if run.PresentationMode != attachModeStream {
+		return nil
+	}
+	if err := watchCLIRun(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
+		return mapDaemonCommandError(err)
+	}
+	return nil
+}
+
+func writeStartedTaskRun(cmd *cobra.Command, run apicore.Run) error {
+	if _, err := fmt.Fprintf(
 		cmd.OutOrStdout(),
 		"task run started: %s (mode=%s)\n",
 		run.RunID,
 		run.PresentationMode,
-	)
-	if err != nil {
+	); err != nil {
 		return withExitCode(2, fmt.Errorf("write task run summary: %w", err))
 	}
 	return nil

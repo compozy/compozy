@@ -6,7 +6,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/compozy/compozy/internal/core/run/transcript"
 	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const defaultHeartbeatInterval = 15 * time.Second
@@ -250,14 +252,39 @@ type Run struct {
 	RequestID        string     `json:"request_id,omitempty"`
 }
 
+// RunJobSummary is the dense per-job snapshot used by attach clients.
+type RunJobSummary struct {
+	Index           int                            `json:"index"`
+	CodeFile        string                         `json:"code_file,omitempty"`
+	CodeFiles       []string                       `json:"code_files,omitempty"`
+	Issues          int                            `json:"issues,omitempty"`
+	TaskTitle       string                         `json:"task_title,omitempty"`
+	TaskType        string                         `json:"task_type,omitempty"`
+	SafeName        string                         `json:"safe_name,omitempty"`
+	IDE             string                         `json:"ide,omitempty"`
+	Model           string                         `json:"model,omitempty"`
+	ReasoningEffort string                         `json:"reasoning_effort,omitempty"`
+	AccessMode      string                         `json:"access_mode,omitempty"`
+	OutLog          string                         `json:"out_log,omitempty"`
+	ErrLog          string                         `json:"err_log,omitempty"`
+	Attempt         int                            `json:"attempt,omitempty"`
+	MaxAttempts     int                            `json:"max_attempts,omitempty"`
+	RetryReason     string                         `json:"retry_reason,omitempty"`
+	ExitCode        int                            `json:"exit_code,omitempty"`
+	ErrorText       string                         `json:"error_text,omitempty"`
+	Session         transcript.SessionViewSnapshot `json:"session,omitempty"`
+	Usage           kinds.Usage                    `json:"usage,omitempty"`
+}
+
 // RunJobState is the dense job-state snapshot used by attach clients.
 type RunJobState struct {
-	JobID      string          `json:"job_id"`
-	TaskID     string          `json:"task_id,omitempty"`
-	Status     string          `json:"status"`
-	AgentName  string          `json:"agent_name,omitempty"`
-	SummaryRaw json.RawMessage `json:"summary,omitempty"`
-	UpdatedAt  time.Time       `json:"updated_at"`
+	Index     int            `json:"index"`
+	JobID     string         `json:"job_id"`
+	TaskID    string         `json:"task_id,omitempty"`
+	Status    string         `json:"status"`
+	AgentName string         `json:"agent_name,omitempty"`
+	Summary   *RunJobSummary `json:"summary,omitempty"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 // RunTranscriptMessage is one dense transcript row for snapshot rendering.
@@ -270,11 +297,21 @@ type RunTranscriptMessage struct {
 	Timestamp   time.Time       `json:"timestamp"`
 }
 
+// RunShutdownState captures a client-visible shutdown state for remote attach.
+type RunShutdownState struct {
+	Phase       string    `json:"phase,omitempty"`
+	Source      string    `json:"source,omitempty"`
+	RequestedAt time.Time `json:"requested_at,omitempty"`
+	DeadlineAt  time.Time `json:"deadline_at,omitempty"`
+}
+
 // RunSnapshot captures the attach snapshot plus the next cursor.
 type RunSnapshot struct {
 	Run        Run                    `json:"run"`
 	Jobs       []RunJobState          `json:"jobs,omitempty"`
 	Transcript []RunTranscriptMessage `json:"transcript,omitempty"`
+	Usage      kinds.Usage            `json:"usage,omitempty"`
+	Shutdown   *RunShutdownState      `json:"shutdown,omitempty"`
 	NextCursor *StreamCursor          `json:"-"`
 }
 
