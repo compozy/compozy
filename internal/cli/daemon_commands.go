@@ -202,6 +202,9 @@ func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executa
 	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
 		return err
 	}
+	if _, err := cliDaemonHTTPPortFromEnv(); err != nil {
+		return fmt.Errorf("resolve daemon http port: %w", err)
+	}
 
 	logFile, err := os.OpenFile(paths.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {

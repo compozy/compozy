@@ -374,7 +374,7 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 		Version:         1,
 		Mode:            model.ModeExec,
 		RunID:           runID,
-		Status:          "succeeded",
+		Status:          execStatusSucceeded,
 		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5-codex",
@@ -549,7 +549,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		Version:         1,
 		Mode:            model.ModeExec,
 		RunID:           runID,
-		Status:          "succeeded",
+		Status:          execStatusSucceeded,
 		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5.4",
@@ -1470,7 +1470,7 @@ func TestReviewsFixCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 
 	result := readCLIArtifactJSON(t, filepath.Join(runDir, "result.json"))
-	if got := result["status"]; got != "succeeded" {
+	if got := result["status"]; got != execStatusSucceeded {
 		t.Fatalf("unexpected review result payload: %#v", result)
 	}
 
@@ -1631,7 +1631,7 @@ func TestTaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace(t *testing.T
 		t.Fatalf("unexpected task run mode: %#v", taskRunMeta)
 	}
 	taskResult := readCLIArtifactJSON(t, filepath.Join(taskRunDir, "result.json"))
-	if got := taskResult["status"]; got != "succeeded" {
+	if got := taskResult["status"]; got != execStatusSucceeded {
 		t.Fatalf("unexpected task result payload: %#v", taskResult)
 	}
 	taskPromptPath := singleCLIJobArtifact(t, taskRunDir, "*.prompt.md")
@@ -1721,7 +1721,7 @@ func TestTaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace(t *testing.T
 		t.Fatalf("unexpected review run mode: %#v", reviewRunMeta)
 	}
 	reviewResult := readCLIArtifactJSON(t, filepath.Join(reviewRunDir, "result.json"))
-	if got := reviewResult["status"]; got != "succeeded" {
+	if got := reviewResult["status"]; got != execStatusSucceeded {
 		t.Fatalf("unexpected review result payload: %#v", reviewResult)
 	}
 	reviewPromptPath := singleCLIJobArtifact(t, reviewRunDir, "*.prompt.md")

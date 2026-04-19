@@ -2,6 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
@@ -16,6 +19,8 @@ var (
 	queryDaemonCommandStatus       = daemon.QueryStatus
 	newDaemonCommandClientFromInfo = daemonClientFromInfo
 )
+
+const daemonHTTPPortEnv = "COMPOZY_DAEMON_HTTP_PORT"
 
 type daemonStatusState struct {
 	outputFormat string
@@ -62,9 +67,11 @@ func newDaemonStartCommand() *cobra.Command {
 			ctx, stop := signalCommandContext(cmd)
 			defer stop()
 
-			return daemon.Run(ctx, daemon.RunOptions{
-				Version: version.String(),
-			})
+			runOptions, err := cliDaemonRunOptionsFromEnv()
+			if err != nil {
+				return err
+			}
+			return daemon.Run(ctx, runOptions)
 		},
 	}
 }
@@ -176,6 +183,32 @@ func daemonClientFromInfo(info daemon.Info) (daemonCommandClient, error) {
 		HTTPPort:   info.HTTPPort,
 	}
 	return apiclient.New(target)
+}
+
+func cliDaemonRunOptionsFromEnv() (daemon.RunOptions, error) {
+	httpPort, err := cliDaemonHTTPPortFromEnv()
+	if err != nil {
+		return daemon.RunOptions{}, err
+	}
+	return daemon.RunOptions{Version: version.String(), HTTPPort: httpPort}, nil
+}
+
+func cliDaemonHTTPPortFromEnv() (int, error) {
+	rawValue, ok := os.LookupEnv(daemonHTTPPortEnv)
+	if !ok {
+		return 0, nil
+	}
+
+	value := strings.TrimSpace(rawValue)
+	if value == "" {
+		return 0, nil
+	}
+
+	port, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s=%q: %w", daemonHTTPPortEnv, rawValue, err)
+	}
+	return port, nil
 }
 
 func writeDaemonStatusOutput(

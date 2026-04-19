@@ -24,6 +24,7 @@ import (
 
 const (
 	execStatusCompleted = "completed"
+	execStatusSucceeded = "succeeded"
 	execStatusFailed    = "failed"
 	execStatusCanceled  = "canceled"
 	execStatusCrashed   = "crashed"
@@ -851,7 +852,7 @@ func translateDaemonExecTerminalEvent(
 			return nil, err
 		}
 		result["type"] = execEventRunSucceeded
-		result["status"] = "succeeded"
+		result["status"] = execStatusSucceeded
 		result["output"] = output
 	case eventspkg.EventKindRunFailed:
 		payload, err := decodeDaemonPayload[kinds.RunFailedPayload](event.Payload)

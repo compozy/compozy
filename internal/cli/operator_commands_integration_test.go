@@ -3,9 +3,11 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 func TestDaemonStatusAndStopCommandsOperateAgainstRealDaemon(t *testing.T) {
 	homeDir := newShortCLITestHomeDir(t)
 	t.Setenv("HOME", homeDir)
+	wantHTTPPort := configureCLITestDaemonHTTPPort(t)
 
 	paths := mustCLITestHomePaths(t)
 	commandDir := t.TempDir()
@@ -58,14 +61,15 @@ func TestDaemonStatusAndStopCommandsOperateAgainstRealDaemon(t *testing.T) {
 			Ready bool `json:"ready"`
 		} `json:"health"`
 		Daemon struct {
-			PID int `json:"pid"`
+			PID      int `json:"pid"`
+			HTTPPort int `json:"http_port"`
 		} `json:"daemon"`
 	}
 	if err := json.Unmarshal([]byte(stdout), &readyPayload); err != nil {
 		t.Fatalf("decode ready daemon status: %v\nstdout:\n%s", err, stdout)
 	}
 	if readyPayload.State != string(daemon.ReadyStateReady) || !readyPayload.Health.Ready ||
-		readyPayload.Daemon.PID <= 0 {
+		readyPayload.Daemon.PID <= 0 || readyPayload.Daemon.HTTPPort != wantHTTPPort {
 		t.Fatalf("unexpected ready daemon payload: %#v", readyPayload)
 	}
 
@@ -96,6 +100,7 @@ func TestDaemonStatusAndStopCommandsOperateAgainstRealDaemon(t *testing.T) {
 func TestWorkspaceCommandsReflectDaemonRegistryAgainstRealDaemon(t *testing.T) {
 	homeDir := newShortCLITestHomeDir(t)
 	t.Setenv("HOME", homeDir)
+	configureCLITestDaemonHTTPPort(t)
 
 	paths := mustCLITestHomePaths(t)
 	commandDir := t.TempDir()
@@ -254,6 +259,7 @@ func TestWorkspaceCommandsReflectDaemonRegistryAgainstRealDaemon(t *testing.T) {
 func TestWorkspacesUnregisterRejectsActiveRunsAgainstRealDaemon(t *testing.T) {
 	homeDir := newShortCLITestHomeDir(t)
 	t.Setenv("HOME", homeDir)
+	configureCLITestDaemonHTTPPort(t)
 
 	paths := mustCLITestHomePaths(t)
 	commandDir := t.TempDir()
@@ -314,6 +320,7 @@ func TestWorkspacesUnregisterRejectsActiveRunsAgainstRealDaemon(t *testing.T) {
 func TestSyncAndArchiveCommandsUseDaemonStateFromWorkspaceSubdirectory(t *testing.T) {
 	homeDir := newShortCLITestHomeDir(t)
 	t.Setenv("HOME", homeDir)
+	configureCLITestDaemonHTTPPort(t)
 
 	paths := mustCLITestHomePaths(t)
 	commandDir := t.TempDir()
@@ -456,6 +463,29 @@ func newShortCLITestHomeDir(t *testing.T) string {
 		_ = os.RemoveAll(homeDir)
 	})
 	return homeDir
+}
+
+func configureCLITestDaemonHTTPPort(t *testing.T) int {
+	t.Helper()
+
+	listenConfig := net.ListenConfig{}
+	listener, err := listenConfig.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Listen(default daemon port override) error = %v", err)
+	}
+
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok || tcpAddr.Port <= 0 {
+		_ = listener.Close()
+		t.Fatalf("listener.Addr() = %#v, want TCP port", listener.Addr())
+	}
+	port := tcpAddr.Port
+	if err := listener.Close(); err != nil {
+		t.Fatalf("Close(listener) error = %v", err)
+	}
+
+	t.Setenv(daemonHTTPPortEnv, strconv.Itoa(port))
+	return port
 }
 
 func openCLITestGlobalDB(t *testing.T, paths compozyconfig.HomePaths) *globaldb.GlobalDB {
