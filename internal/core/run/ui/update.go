@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -410,20 +411,14 @@ func (m *uiModel) handleTick() tea.Cmd {
 }
 
 func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
-	if v.Index >= len(m.jobs) {
-		grow := v.Index - len(m.jobs) + 1
-		m.jobs = append(m.jobs, make([]uiJob, grow)...)
-	}
-	if v.Index+1 > m.total {
-		m.total = v.Index + 1
-	}
-	m.jobs[v.Index] = uiJob{
+	existing, _ := m.ensureJobSlot(v.Index)
+	m.jobs[v.Index] = mergeQueuedJobState(existing, uiJob{
 		codeFile:             v.CodeFile,
 		codeFiles:            v.CodeFiles,
 		issues:               v.Issues,
 		taskTitle:            v.TaskTitle,
 		taskType:             v.TaskType,
-		safeName:             v.SafeName,
+		safeName:             firstNonEmpty(v.SafeName, placeholderJobSafeName(v.Index)),
 		ide:                  v.IDE,
 		model:                v.Model,
 		reasoningEffort:      v.ReasoningEffort,
@@ -435,16 +430,15 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 		selectedEntry:        -1,
 		expandedEntryIDs:     make(map[string]bool),
 		transcriptFollowTail: true,
-	}
+	})
 	m.sidebarDirty = true
 	m.refreshViewportContent()
 	return m.waitEvent()
 }
 
 func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
-	if v.Index < len(m.jobs) {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
-		job := &m.jobs[v.Index]
 		job.state = jobRunning
 		job.attempt = max(v.Attempt, 1)
 		job.maxAttempts = max(v.MaxAttempts, job.attempt)
@@ -471,9 +465,8 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
-	if v.Index < len(m.jobs) {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
-		job := &m.jobs[v.Index]
 		job.state = jobRetrying
 		job.attempt = max(v.Attempt, 1)
 		job.maxAttempts = max(v.MaxAttempts, job.attempt)
@@ -487,9 +480,8 @@ func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
-	if v.Index < len(m.jobs) {
+	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
-		job := &m.jobs[v.Index]
 		job.retrying = false
 		job.retryReason = ""
 		if v.Success {
@@ -518,10 +510,18 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleJobUpdate(v jobUpdateMsg) tea.Cmd {
-	if v.Index < len(m.jobs) {
-		job := &m.jobs[v.Index]
+	if job, created := m.ensureJobSlot(v.Index); job != nil {
 		wasAtEnd := job.selectedEntry >= len(job.snapshot.Entries)-1
 		job.snapshot = v.Snapshot
+		if (created || job.state == jobPending) && v.Snapshot.Session.Status == model.StatusRunning {
+			job.state = jobRunning
+			if job.startedAt.IsZero() {
+				job.startedAt = time.Now()
+				job.duration = 0
+			}
+			m.selectedJob = v.Index
+			m.sidebarDirty = true
+		}
 		job.timelineCacheValid = false
 		if m.applyDefaultExpandedEntries(job) {
 			job.expansionRevision++
@@ -537,11 +537,14 @@ func (m *uiModel) handleJobUpdate(v jobUpdateMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
-	if v.Index < len(m.jobs) {
-		if m.jobs[v.Index].tokenUsage == nil {
-			m.jobs[v.Index].tokenUsage = &model.Usage{}
+	if job, created := m.ensureJobSlot(v.Index); job != nil {
+		if job.tokenUsage == nil {
+			job.tokenUsage = &model.Usage{}
 		}
-		m.jobs[v.Index].tokenUsage.Add(v.Usage)
+		job.tokenUsage.Add(v.Usage)
+		if created {
+			m.sidebarDirty = true
+		}
 	}
 	if m.aggregateUsage != nil {
 		m.aggregateUsage.Add(v.Usage)
@@ -562,6 +565,126 @@ func (m *uiModel) sidebarNeedsActiveRefresh() bool {
 		}
 	}
 	return false
+}
+
+func (m *uiModel) ensureJobSlot(index int) (*uiJob, bool) {
+	if index < 0 {
+		return nil, false
+	}
+
+	created := false
+	if index >= len(m.jobs) {
+		start := len(m.jobs)
+		m.jobs = append(m.jobs, make([]uiJob, index-len(m.jobs)+1)...)
+		for i := start; i <= index; i++ {
+			m.jobs[i] = newPlaceholderUIJob(i)
+		}
+		created = true
+	}
+	if index+1 > m.total {
+		m.total = index + 1
+	}
+
+	job := &m.jobs[index]
+	if strings.TrimSpace(job.safeName) == "" {
+		job.safeName = placeholderJobSafeName(index)
+		created = true
+	}
+	if job.expandedEntryIDs == nil {
+		job.expandedEntryIDs = make(map[string]bool)
+	}
+	if !job.transcriptFollowTail && len(job.snapshot.Entries) == 0 && job.selectedEntry == 0 &&
+		job.startedAt.IsZero() && job.completedAt.IsZero() {
+		job.selectedEntry = -1
+		job.transcriptFollowTail = true
+	}
+	return job, created
+}
+
+func newPlaceholderUIJob(index int) uiJob {
+	return uiJob{
+		safeName:             placeholderJobSafeName(index),
+		state:                jobPending,
+		selectedEntry:        -1,
+		expandedEntryIDs:     make(map[string]bool),
+		transcriptFollowTail: true,
+	}
+}
+
+func placeholderJobSafeName(index int) string {
+	return fmt.Sprintf("job-%03d", index)
+}
+
+func mergeQueuedJobState(existing *uiJob, queued uiJob) uiJob {
+	if existing == nil {
+		return queued
+	}
+	mergeQueuedSnapshotState(existing, &queued)
+	mergeQueuedTranscriptState(existing, &queued)
+	mergeQueuedRuntimeState(existing, &queued)
+	return queued
+}
+
+func mergeQueuedSnapshotState(existing *uiJob, queued *uiJob) {
+	if existing == nil || queued == nil {
+		return
+	}
+	if len(existing.snapshot.Entries) > 0 || existing.snapshot.Session.Status != "" ||
+		len(existing.snapshot.Plan.Entries) > 0 {
+		queued.snapshot = existing.snapshot
+	}
+	if existing.selectedEntry >= 0 {
+		queued.selectedEntry = existing.selectedEntry
+	}
+	if len(existing.expandedEntryIDs) > 0 {
+		queued.expandedEntryIDs = existing.expandedEntryIDs
+	}
+	if existing.expansionRevision > 0 {
+		queued.expansionRevision = existing.expansionRevision
+	}
+	if existing.tokenUsage != nil {
+		queued.tokenUsage = existing.tokenUsage
+	}
+}
+
+func mergeQueuedTranscriptState(existing *uiJob, queued *uiJob) {
+	if existing == nil || queued == nil {
+		return
+	}
+	if existing.transcriptYOffset != 0 {
+		queued.transcriptYOffset = existing.transcriptYOffset
+	}
+	if existing.transcriptXOffset != 0 {
+		queued.transcriptXOffset = existing.transcriptXOffset
+	}
+}
+
+func mergeQueuedRuntimeState(existing *uiJob, queued *uiJob) {
+	if existing == nil || queued == nil {
+		return
+	}
+	if existing.startedAt != (time.Time{}) {
+		queued.startedAt = existing.startedAt
+	}
+	if existing.completedAt != (time.Time{}) {
+		queued.completedAt = existing.completedAt
+	}
+	if existing.duration != 0 {
+		queued.duration = existing.duration
+	}
+	if existing.attempt > 0 {
+		queued.attempt = existing.attempt
+	}
+	if existing.maxAttempts > 0 {
+		queued.maxAttempts = existing.maxAttempts
+	}
+	if existing.retrying {
+		queued.retrying = true
+		queued.retryReason = existing.retryReason
+	}
+	if existing.state != jobPending {
+		queued.state = existing.state
+	}
 }
 
 func (m *uiModel) syncSelectedEntry(job *uiJob) {

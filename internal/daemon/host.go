@@ -203,7 +203,7 @@ func startHostTransports(
 
 	httpServer, err := httpapi.New(
 		httpapi.WithHandlers(handlers),
-		httpapi.WithPort(normalizedDaemonHTTPPort(currentHost.Info().HTTPPort)),
+		httpapi.WithPort(currentHost.Info().HTTPPort),
 		httpapi.WithPortUpdater(currentHost),
 	)
 	if err != nil {

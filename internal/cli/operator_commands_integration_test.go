@@ -3,11 +3,9 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,7 +18,7 @@ import (
 func TestDaemonStatusAndStopCommandsOperateAgainstRealDaemon(t *testing.T) {
 	homeDir := newShortCLITestHomeDir(t)
 	t.Setenv("HOME", homeDir)
-	wantHTTPPort := configureCLITestDaemonHTTPPort(t)
+	configureCLITestDaemonHTTPPort(t)
 
 	paths := mustCLITestHomePaths(t)
 	commandDir := t.TempDir()
@@ -64,7 +62,8 @@ func TestDaemonStatusAndStopCommandsOperateAgainstRealDaemon(t *testing.T) {
 		t.Fatalf("decode daemon start payload: %v\nstdout:\n%s", err, stdout)
 	}
 	if startPayload.State != string(daemon.ReadyStateReady) || !startPayload.Health.Ready ||
-		startPayload.Daemon.PID <= 0 || startPayload.Daemon.HTTPPort != wantHTTPPort {
+		startPayload.Daemon.PID <= 0 || startPayload.Daemon.HTTPPort <= 0 ||
+		startPayload.Daemon.HTTPPort == daemon.DefaultHTTPPort {
 		t.Fatalf("unexpected daemon start payload: %#v", startPayload)
 	}
 
@@ -86,7 +85,7 @@ func TestDaemonStatusAndStopCommandsOperateAgainstRealDaemon(t *testing.T) {
 		t.Fatalf("decode ready daemon status: %v\nstdout:\n%s", err, stdout)
 	}
 	if readyPayload.State != string(daemon.ReadyStateReady) || !readyPayload.Health.Ready ||
-		readyPayload.Daemon.PID <= 0 || readyPayload.Daemon.HTTPPort != wantHTTPPort {
+		readyPayload.Daemon.PID <= 0 || readyPayload.Daemon.HTTPPort != startPayload.Daemon.HTTPPort {
 		t.Fatalf("unexpected ready daemon payload: %#v", readyPayload)
 	}
 
@@ -482,27 +481,10 @@ func newShortCLITestHomeDir(t *testing.T) string {
 	return homeDir
 }
 
-func configureCLITestDaemonHTTPPort(t *testing.T) int {
+func configureCLITestDaemonHTTPPort(t *testing.T) {
 	t.Helper()
 
-	listenConfig := net.ListenConfig{}
-	listener, err := listenConfig.Listen(context.Background(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatalf("Listen(default daemon port override) error = %v", err)
-	}
-
-	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-	if !ok || tcpAddr.Port <= 0 {
-		_ = listener.Close()
-		t.Fatalf("listener.Addr() = %#v, want TCP port", listener.Addr())
-	}
-	port := tcpAddr.Port
-	if err := listener.Close(); err != nil {
-		t.Fatalf("Close(listener) error = %v", err)
-	}
-
-	t.Setenv(daemonHTTPPortEnv, strconv.Itoa(port))
-	return port
+	t.Setenv(daemonHTTPPortEnv, "0")
 }
 
 func openCLITestGlobalDB(t *testing.T, paths compozyconfig.HomePaths) *globaldb.GlobalDB {

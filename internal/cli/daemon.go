@@ -116,14 +116,17 @@ func newDaemonStatusCommand() *cobra.Command {
 }
 
 func newDaemonStopCommand() *cobra.Command {
-	state := &daemonStopState{outputFormat: operatorOutputFormatText}
+	state := &daemonStopState{
+		outputFormat: operatorOutputFormatText,
+		force:        true,
+	}
 	cmd := &cobra.Command{
 		Use:          "stop",
 		Short:        "Request graceful shutdown of the running daemon",
 		SilenceUsage: true,
 		RunE:         state.run,
 	}
-	cmd.Flags().BoolVar(&state.force, "force", false, "Cancel active runs before stopping the daemon")
+	cmd.Flags().BoolVar(&state.force, "force", state.force, "Cancel active runs before stopping the daemon")
 	cmd.Flags().StringVar(
 		&state.outputFormat,
 		"format",
@@ -137,17 +140,17 @@ func (s *daemonStartState) run(cmd *cobra.Command, _ []string) error {
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
 
+	format, err := normalizeOperatorOutputFormat(s.outputFormat)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+
 	if s.foreground || s.internalChild {
 		runOptions, err := cliDaemonRunOptionsFromEnv()
 		if err != nil {
 			return err
 		}
 		return runCLIDaemonForeground(ctx, runOptions)
-	}
-
-	format, err := normalizeOperatorOutputFormat(s.outputFormat)
-	if err != nil {
-		return withExitCode(1, err)
 	}
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
@@ -261,6 +264,9 @@ func cliDaemonHTTPPortFromEnv() (int, error) {
 	port, err := strconv.Atoi(value)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s=%q: %w", daemonHTTPPortEnv, rawValue, err)
+	}
+	if port == 0 {
+		return daemon.EphemeralHTTPPort, nil
 	}
 	return port, nil
 }

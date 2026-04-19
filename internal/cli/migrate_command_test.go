@@ -36,10 +36,10 @@ func TestMigrateCommandPrintsUnmappedTypeSummaryAndValidateFailsUntilFixed(t *te
 
 	stdout, stderr, exitCode = runCLICommand(t, workspaceRoot, "tasks", "validate", "--tasks-dir", tasksDir)
 	if exitCode != 1 {
-		t.Fatalf("expected validate-tasks exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
+		t.Fatalf("expected tasks validate exit code 1, got %d\nstdout:\n%s\nstderr:\n%s", exitCode, stdout, stderr)
 	}
 	if !strings.Contains(stdout, "Fix prompt:") {
-		t.Fatalf("expected validate-tasks output to include fix prompt, got:\n%s", stdout)
+		t.Fatalf("expected tasks validate output to include fix prompt, got:\n%s", stdout)
 	}
 
 	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
@@ -55,14 +55,14 @@ func TestMigrateCommandPrintsUnmappedTypeSummaryAndValidateFailsUntilFixed(t *te
 	stdout, stderr, exitCode = runCLICommand(t, workspaceRoot, "tasks", "validate", "--tasks-dir", tasksDir)
 	if exitCode != 0 {
 		t.Fatalf(
-			"expected validate-tasks exit code 0 after fix, got %d\nstdout:\n%s\nstderr:\n%s",
+			"expected tasks validate exit code 0 after fix, got %d\nstdout:\n%s\nstderr:\n%s",
 			exitCode,
 			stdout,
 			stderr,
 		)
 	}
 	if !strings.Contains(stdout, "all tasks valid") {
-		t.Fatalf("expected validate-tasks success output, got:\n%s", stdout)
+		t.Fatalf("expected tasks validate success output, got:\n%s", stdout)
 	}
 }
 

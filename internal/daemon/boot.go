@@ -330,10 +330,14 @@ func normalizeStartOptions(opts StartOptions) (StartOptions, error) {
 }
 
 func normalizedDaemonHTTPPort(port int) int {
-	if port == 0 {
+	switch port {
+	case EphemeralHTTPPort:
+		return 0
+	case 0:
 		return DefaultHTTPPort
+	default:
+		return port
 	}
-	return port
 }
 
 func normalizeProbeOptions(

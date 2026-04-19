@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -59,6 +60,12 @@ func newRunsAttachCommand(defaults commandStateDefaults) *cobra.Command {
 				return withExitCode(2, err)
 			}
 			if err := attachCLIRunUI(ctx, client, runID); err != nil {
+				if errors.Is(err, errRunSettledBeforeUIAttach) {
+					if err := watchCLIRun(ctx, cmd.OutOrStdout(), client, runID); err != nil {
+						return mapDaemonCommandError(err)
+					}
+					return nil
+				}
 				return mapDaemonCommandError(err)
 			}
 			return nil

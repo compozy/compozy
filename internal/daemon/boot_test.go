@@ -45,9 +45,7 @@ func TestStartRemovesStaleArtifactsAndMarksReady(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	defer func() {
-		_ = result.Host.Close(context.Background())
-	}()
+	closeHostOnCleanup(t, result.Host)
 
 	if result.Outcome != StartOutcomeStarted {
 		t.Fatalf("Outcome = %q, want %q", result.Outcome, StartOutcomeStarted)
@@ -145,9 +143,7 @@ func TestStartDefaultsHTTPPortWhenUnset(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	defer func() {
-		_ = result.Host.Close(context.Background())
-	}()
+	closeHostOnCleanup(t, result.Host)
 
 	if result.Info.HTTPPort != DefaultHTTPPort {
 		t.Fatalf("Info.HTTPPort = %d, want %d", result.Info.HTTPPort, DefaultHTTPPort)
@@ -159,6 +155,23 @@ func TestStartDefaultsHTTPPortWhenUnset(t *testing.T) {
 	}
 	if currentInfo.HTTPPort != DefaultHTTPPort {
 		t.Fatalf("currentInfo.HTTPPort = %d, want %d", currentInfo.HTTPPort, DefaultHTTPPort)
+	}
+}
+
+func TestNormalizeStartOptionsUsesEphemeralHTTPPortWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	paths := mustHomePaths(t)
+	result, err := normalizeStartOptions(StartOptions{
+		HomePaths: paths,
+		HTTPPort:  EphemeralHTTPPort,
+		PID:       5151,
+	})
+	if err != nil {
+		t.Fatalf("normalizeStartOptions() error = %v", err)
+	}
+	if result.HTTPPort != 0 {
+		t.Fatalf("result.HTTPPort = %d, want 0", result.HTTPPort)
 	}
 }
 
@@ -343,9 +356,7 @@ func TestStartRebuildsMismatchedRuntimeArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	defer func() {
-		_ = result.Host.Close(context.Background())
-	}()
+	closeHostOnCleanup(t, result.Host)
 
 	currentInfo, err := ReadInfo(paths.InfoPath)
 	if err != nil {
@@ -541,6 +552,16 @@ func mustHomePaths(t *testing.T) compozyconfig.HomePaths {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	return paths
+}
+
+func closeHostOnCleanup(t *testing.T, host *Host) {
+	t.Helper()
+
+	t.Cleanup(func() {
+		if err := host.Close(context.Background()); err != nil {
+			t.Errorf("Host.Close() error = %v", err)
+		}
+	})
 }
 
 func stubAcquireDaemonLock(

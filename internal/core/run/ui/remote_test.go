@@ -184,6 +184,51 @@ func TestAttachRemoteSkipsLiveStreamForCompletedSnapshot(t *testing.T) {
 	}
 }
 
+func TestAttachRemoteKeepsOwnerSessionsCancelableFromLocalQuit(t *testing.T) {
+	originalSetup := setupRemoteUISession
+	defer func() {
+		setupRemoteUISession = originalSetup
+	}()
+
+	detachOnly := true
+	setupRemoteUISession = func(
+		_ context.Context,
+		_ []job,
+		cfg *config,
+		_ *eventspkg.Bus[eventspkg.Event],
+		enabled bool,
+	) Session {
+		if !enabled {
+			t.Fatal("expected remote attach to enable the ui session")
+		}
+		if cfg == nil {
+			t.Fatal("expected remote attach config")
+		}
+		detachOnly = cfg.DetachOnly
+		return &recordingUISession{}
+	}
+
+	session, err := AttachRemote(context.Background(), RemoteAttachOptions{
+		Snapshot: apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-remote-owner-001", Status: "running"},
+			Jobs: []apicore.RunJobState{{
+				Index:  0,
+				Status: "running",
+			}},
+		},
+		OwnerSession: true,
+	})
+	if err != nil {
+		t.Fatalf("AttachRemote(owner): %v", err)
+	}
+	if session == nil {
+		t.Fatal("expected AttachRemote(owner) to return a session")
+	}
+	if detachOnly {
+		t.Fatal("expected owner remote attach to preserve local quit handling")
+	}
+}
+
 func TestAttachRemoteOpensStreamFromSnapshotCursorForRunningRun(t *testing.T) {
 	t.Parallel()
 

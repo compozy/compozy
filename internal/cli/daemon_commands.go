@@ -62,6 +62,7 @@ type daemonCommandClient interface {
 	StartTaskRun(context.Context, string, apicore.TaskRunRequest) (apicore.Run, error)
 	StartReviewRun(context.Context, string, string, int, apicore.ReviewRunRequest) (apicore.Run, error)
 	StartExecRun(context.Context, apicore.ExecRequest) (apicore.Run, error)
+	CancelRun(context.Context, string) error
 	GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error)
 	ListRunEvents(context.Context, string, apicore.StreamCursor, int) (apicore.RunEventPage, error)
 	OpenRunStream(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
@@ -313,8 +314,10 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
-		return err
+	if len(args) == 0 && strings.TrimSpace(s.name) == "" {
+		if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+			return err
+		}
 	}
 	if err := s.resolveTaskWorkflowName(args); err != nil {
 		return withExitCode(1, err)
@@ -367,7 +370,13 @@ func handleStartedTaskRun(
 	run apicore.Run,
 ) error {
 	if run.PresentationMode == attachModeUI {
-		if err := attachCLIRunUI(ctx, client, run.RunID); err != nil {
+		if err := attachStartedCLIRunUI(ctx, client, run.RunID); err != nil {
+			if errors.Is(err, errRunSettledBeforeUIAttach) {
+				if err := watchCLIRun(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
+					return mapDaemonCommandError(err)
+				}
+				return nil
+			}
 			return mapDaemonCommandError(err)
 		}
 		return nil

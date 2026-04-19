@@ -38,6 +38,7 @@ type remoteFollowState struct {
 type RemoteAttachOptions struct {
 	Snapshot     apicore.RunSnapshot
 	Config       *config
+	OwnerSession bool
 	LoadSnapshot func(context.Context) (apicore.RunSnapshot, error)
 	OpenStream   func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error)
 }
@@ -51,7 +52,7 @@ func AttachRemote(ctx context.Context, opts RemoteAttachOptions) (Session, error
 		cfg = &config{}
 	}
 	localCfg := *cfg
-	localCfg.DetachOnly = true
+	localCfg.DetachOnly = !opts.OwnerSession
 	localCfg.DaemonOwned = true
 
 	session := setupRemoteUISession(ctx, jobs, &localCfg, nil, true)

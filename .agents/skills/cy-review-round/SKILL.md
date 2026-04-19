@@ -107,7 +107,7 @@ Perform a structured code review of a PRD implementation and produce a review ro
      - The review round directory path.
      - The full list of generated issue file names.
      - Well-implemented aspects observed during the review.
-   - Suggest running `compozy fix-reviews --name <name>` to process the review round.
+   - Suggest running `compozy reviews fix <name>` to process the review round.
 
 7. Verify before completion.
    - Use installed `cy-final-verify` before claiming the review round is complete.
