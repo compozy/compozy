@@ -32,29 +32,82 @@ func (m *uiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.handleWindowSize(v)
 		return m, nil
-	case tickMsg:
-		return m, m.handleTick()
-	case jobQueuedMsg:
-		return m, m.handleJobQueued(&v)
-	case jobStartedMsg:
-		return m, m.handleJobStarted(v)
-	case jobRetryMsg:
-		return m, m.handleJobRetry(v)
-	case jobFinishedMsg:
-		return m, m.handleJobFinished(v)
-	case jobUpdateMsg:
-		return m, m.handleJobUpdate(v)
-	case usageUpdateMsg:
-		return m, m.handleUsageUpdate(v)
-	case shutdownStatusMsg:
-		return m, m.handleShutdownStatus(v)
-	case jobFailureMsg:
-		m.failures = append(m.failures, v.Failure)
-		return m, nil
+	case clockTickMsg:
+		return m, m.handleClockTick(v)
+	case spinnerTickMsg:
+		return m, m.handleSpinnerTick(v)
+	case dispatchBatchMsg:
+		return m, m.handleDispatchBatch(v)
 	case drainMsg:
 		return m, nil
 	default:
+		if cmd, ok := m.dispatchSingleUIMsg(msg); ok {
+			return m, cmd
+		}
 		return m, nil
+	}
+}
+
+func (m *uiModel) dispatchSingleUIMsg(msg tea.Msg) (tea.Cmd, bool) {
+	switch v := msg.(type) {
+	case jobQueuedMsg:
+		return m.applyUIMsg(v), true
+	case jobStartedMsg:
+		return m.applyUIMsg(v), true
+	case jobRetryMsg:
+		return m.applyUIMsg(v), true
+	case jobFinishedMsg:
+		return m.applyUIMsg(v), true
+	case jobUpdateMsg:
+		return m.applyUIMsg(v), true
+	case usageUpdateMsg:
+		return m.applyUIMsg(v), true
+	case shutdownStatusMsg:
+		return m.applyUIMsg(v), true
+	case jobFailureMsg:
+		return m.applyUIMsg(v), true
+	default:
+		return nil, false
+	}
+}
+
+func (m *uiModel) handleDispatchBatch(v dispatchBatchMsg) tea.Cmd {
+	if len(v.msgs) == 0 {
+		return nil
+	}
+	cmds := make([]tea.Cmd, 0, len(v.msgs))
+	for _, msg := range v.msgs {
+		if cmd := m.applyUIMsg(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Batch(cmds...)
+}
+
+func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
+	switch value := msg.(type) {
+	case jobQueuedMsg:
+		return m.handleJobQueued(&value)
+	case jobStartedMsg:
+		return m.handleJobStarted(value)
+	case jobRetryMsg:
+		return m.handleJobRetry(value)
+	case jobFinishedMsg:
+		return m.handleJobFinished(value)
+	case jobUpdateMsg:
+		return m.handleJobUpdate(value)
+	case usageUpdateMsg:
+		return m.handleUsageUpdate(value)
+	case shutdownStatusMsg:
+		return m.handleShutdownStatus(value)
+	case jobFailureMsg:
+		m.failures = append(m.failures, value.Failure)
+		return nil
+	default:
+		return nil
 	}
 }
 
@@ -114,6 +167,7 @@ func (m *uiModel) handleQuitKey() tea.Cmd {
 
 func (m *uiModel) nextQuitRequest() (uiQuitRequest, bool) {
 	now := time.Now()
+	m.now = now
 	switch m.shutdown.Phase {
 	case shutdownPhaseIdle:
 		m.shutdown = shutdownState{
@@ -328,7 +382,10 @@ func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
 
 func (m *uiModel) refreshViewportContent() {
 	if len(m.jobs) == 0 {
-		setSidebarViewportContent(&m.sidebarViewport, "")
+		if m.sidebarContent != "" {
+			setSidebarViewportContent(&m.sidebarViewport, "")
+			m.sidebarContent = ""
+		}
 		m.sidebarDirty = false
 		return
 	}
@@ -345,11 +402,15 @@ func (m *uiModel) refreshViewportContent() {
 }
 
 func (m *uiModel) refreshSidebarContent() {
-	var items []string
+	items := make([]string, 0, len(m.jobs))
 	for i := range m.jobs {
 		items = append(items, m.renderSidebarItem(&m.jobs[i], i == m.selectedJob))
 	}
-	setSidebarViewportContent(&m.sidebarViewport, strings.Join(items, "\n"))
+	content := strings.Join(items, "\n")
+	if content != m.sidebarContent {
+		setSidebarViewportContent(&m.sidebarViewport, content)
+		m.sidebarContent = content
+	}
 	m.sidebarDirty = false
 
 	lineOffset := m.selectedJob * 3
@@ -398,16 +459,39 @@ func (m *uiModel) selectNextRunningJob() {
 	}
 }
 
-func (m *uiModel) handleTick() tea.Cmd {
-	if m.isRunComplete() {
+func (m *uiModel) handleClockTick(v clockTickMsg) tea.Cmd {
+	if !v.at.IsZero() {
+		m.now = v.at
+	}
+	if m.currentView == uiViewJobs && len(m.jobs) > 0 &&
+		(m.sidebarDirty || m.sidebarNeedsClockRefresh()) {
+		m.refreshSidebarContent()
+	}
+	return m.clockTick()
+}
+
+func (m *uiModel) handleSpinnerTick(v spinnerTickMsg) tea.Cmd {
+	if !m.hasActiveJobs() {
+		m.spinnerRunning = false
 		return nil
+	}
+	if !v.at.IsZero() && v.at.After(m.now) {
+		m.now = v.at
 	}
 	m.frame++
 	if m.currentView == uiViewJobs && len(m.jobs) > 0 &&
 		(m.sidebarDirty || m.sidebarNeedsActiveRefresh()) {
 		m.refreshSidebarContent()
 	}
-	return m.tick()
+	return m.spinnerTick()
+}
+
+func (m *uiModel) ensureSpinnerTick() tea.Cmd {
+	if m.spinnerRunning || !m.hasActiveJobs() {
+		return nil
+	}
+	m.spinnerRunning = true
+	return m.spinnerTick()
 }
 
 func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
@@ -433,10 +517,11 @@ func (m *uiModel) handleJobQueued(v *jobQueuedMsg) tea.Cmd {
 	})
 	m.sidebarDirty = true
 	m.refreshViewportContent()
-	return m.waitEvent()
+	return nil
 }
 
 func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
+	startedAt := time.Now()
 	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
 		job.state = jobRunning
@@ -454,17 +539,21 @@ func (m *uiModel) handleJobStarted(v jobStartedMsg) tea.Cmd {
 		job.retrying = false
 		job.retryReason = ""
 		if job.startedAt.IsZero() {
-			job.startedAt = time.Now()
+			job.startedAt = startedAt
 			job.duration = 0
+		}
+		if startedAt.After(m.now) {
+			m.now = startedAt
 		}
 		m.selectedJob = v.Index
 		m.sidebarDirty = true
 	}
 	m.refreshViewportContent()
-	return m.waitEvent()
+	return m.ensureSpinnerTick()
 }
 
 func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
+	retryAt := time.Now()
 	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
 		job.state = jobRetrying
@@ -472,14 +561,18 @@ func (m *uiModel) handleJobRetry(v jobRetryMsg) tea.Cmd {
 		job.maxAttempts = max(v.MaxAttempts, job.attempt)
 		job.retrying = true
 		job.retryReason = v.Reason
+		if retryAt.After(m.now) {
+			m.now = retryAt
+		}
 		m.selectedJob = v.Index
 		m.sidebarDirty = true
 	}
 	m.refreshViewportContent()
-	return m.waitEvent()
+	return nil
 }
 
 func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
+	finishedAt := time.Now()
 	if job, _ := m.ensureJobSlot(v.Index); job != nil {
 		m.persistSelectedViewportState()
 		job.retrying = false
@@ -493,8 +586,11 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 			m.failed++
 		}
 		if !job.startedAt.IsZero() {
-			job.completedAt = time.Now()
+			job.completedAt = finishedAt
 			job.duration = job.completedAt.Sub(job.startedAt)
+		}
+		if finishedAt.After(m.now) {
+			m.now = finishedAt
 		}
 		m.selectNextRunningJob()
 		m.sidebarDirty = true
@@ -506,18 +602,26 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 		m.showSummaryView()
 	}
 	m.refreshViewportContent()
-	return m.waitEvent()
+	if m.hasActiveJobs() {
+		return m.ensureSpinnerTick()
+	}
+	m.spinnerRunning = false
+	return nil
 }
 
 func (m *uiModel) handleJobUpdate(v jobUpdateMsg) tea.Cmd {
+	updatedAt := time.Now()
 	if job, created := m.ensureJobSlot(v.Index); job != nil {
 		wasAtEnd := job.selectedEntry >= len(job.snapshot.Entries)-1
 		job.snapshot = v.Snapshot
 		if (created || job.state == jobPending) && v.Snapshot.Session.Status == model.StatusRunning {
 			job.state = jobRunning
 			if job.startedAt.IsZero() {
-				job.startedAt = time.Now()
+				job.startedAt = updatedAt
 				job.duration = 0
+			}
+			if updatedAt.After(m.now) {
+				m.now = updatedAt
 			}
 			m.selectedJob = v.Index
 			m.sidebarDirty = true
@@ -533,7 +637,7 @@ func (m *uiModel) handleJobUpdate(v jobUpdateMsg) tea.Cmd {
 		}
 	}
 	m.refreshViewportContent()
-	return m.waitEvent()
+	return m.ensureSpinnerTick()
 }
 
 func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
@@ -550,17 +654,39 @@ func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
 		m.aggregateUsage.Add(v.Usage)
 	}
 	m.refreshViewportContent()
-	return m.waitEvent()
+	return nil
 }
 
 func (m *uiModel) handleShutdownStatus(v shutdownStatusMsg) tea.Cmd {
 	m.shutdown = v.State
-	return m.waitEvent()
+	if !v.State.RequestedAt.IsZero() && v.State.RequestedAt.After(m.now) {
+		m.now = v.State.RequestedAt
+	}
+	return nil
 }
 
 func (m *uiModel) sidebarNeedsActiveRefresh() bool {
 	for i := range m.jobs {
 		if m.jobs[i].state == jobRunning {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *uiModel) sidebarNeedsClockRefresh() bool {
+	for i := range m.jobs {
+		if m.jobs[i].state == jobRunning {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *uiModel) hasActiveJobs() bool {
+	for i := range m.jobs {
+		switch m.jobs[i].state {
+		case jobRunning, jobRetrying:
 			return true
 		}
 	}

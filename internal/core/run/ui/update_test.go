@@ -246,16 +246,17 @@ func TestMoveFocusedSelectionNavigatesTimelineEntries(t *testing.T) {
 	}
 }
 
-func TestHandleTickRefreshesSidebarWhileJobRunning(t *testing.T) {
+func TestHandleClockTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 	t.Parallel()
 
 	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.jobs[0].state = jobRunning
-	m.jobs[0].startedAt = time.Now().Add(-65 * time.Second)
+	m.jobs[0].startedAt = time.Unix(0, 0)
+	m.now = time.Unix(65, 0)
 	m.refreshSidebarContent()
 	before := m.sidebarViewport.View()
 
-	m.handleTick()
+	m.handleClockTick(clockTickMsg{at: time.Unix(66, 0)})
 	after := m.sidebarViewport.View()
 
 	if before == after {
@@ -263,7 +264,7 @@ func TestHandleTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 	}
 }
 
-func TestHandleTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
+func TestHandleClockTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
 	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.jobs[0].state = jobSuccess
 	m.refreshSidebarContent()
@@ -280,9 +281,24 @@ func TestHandleTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
 		previous(vp, content)
 	}
 
-	m.handleTick()
+	m.handleClockTick(clockTickMsg{at: time.Unix(66, 0)})
 	if calls != 0 {
 		t.Fatalf("expected idle tick to skip sidebar refresh, got %d SetContent calls", calls)
+	}
+}
+
+func TestHandleSpinnerTickStopsWhenNoActiveJobsRemain(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.spinnerRunning = true
+	m.jobs[0].state = jobSuccess
+
+	if cmd := m.handleSpinnerTick(spinnerTickMsg{at: time.Unix(10, 0)}); cmd != nil {
+		t.Fatalf("expected no follow-up spinner command without active jobs, got %v", cmd)
+	}
+	if m.spinnerRunning {
+		t.Fatal("expected spinner loop to stop without active jobs")
 	}
 }
 

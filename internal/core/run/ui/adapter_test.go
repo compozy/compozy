@@ -3,15 +3,12 @@ package ui
 import (
 	"context"
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/core/contentconv"
 	"github.com/compozy/compozy/internal/core/model"
-	"github.com/compozy/compozy/internal/core/run/journal"
 	eventspkg "github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
@@ -269,7 +266,7 @@ func TestUIEventTranslatorAddsFailureTerminalMessage(t *testing.T) {
 	}
 }
 
-func TestUIEventAdapterStopClosesSinkAndUnsubscribes(t *testing.T) {
+func TestUIEventAdapterStopUnsubscribes(t *testing.T) {
 	bus := eventspkg.New[eventspkg.Event](8)
 	defer func() {
 		if err := bus.Close(context.Background()); err != nil {
@@ -277,8 +274,10 @@ func TestUIEventAdapterStopClosesSinkAndUnsubscribes(t *testing.T) {
 		}
 	}()
 
-	sink := make(chan uiMsg, 4)
-	stop, done := startUIEventAdapter(context.Background(), bus, sink)
+	delivered := make(chan eventspkg.Event, 1)
+	stop, done := startUIEventAdapter(context.Background(), bus, func(ev eventspkg.Event) {
+		delivered <- ev
+	})
 
 	waitForCondition(t, time.Second, func() bool {
 		return bus.SubscriberCount() == 1
@@ -293,16 +292,18 @@ func TestUIEventAdapterStopClosesSinkAndUnsubscribes(t *testing.T) {
 		t.Fatal("timed out waiting for adapter shutdown")
 	}
 
-	if _, ok := <-sink; ok {
-		t.Fatal("expected adapter sink to be closed")
-	}
-
 	waitForCondition(t, time.Second, func() bool {
 		return bus.SubscriberCount() == 0
 	})
+
+	select {
+	case ev := <-delivered:
+		t.Fatalf("expected no delivery after immediate stop, got %s", ev.Kind)
+	default:
+	}
 }
 
-func TestUIEventAdapterDropsMessagesWhenSinkIsFull(t *testing.T) {
+func TestUIEventAdapterForwardsRawEvents(t *testing.T) {
 	t.Parallel()
 
 	bus := eventspkg.New[eventspkg.Event](8)
@@ -312,47 +313,31 @@ func TestUIEventAdapterDropsMessagesWhenSinkIsFull(t *testing.T) {
 		}
 	}()
 
-	sink := make(chan uiMsg, 1)
-	stop, done := startUIEventAdapter(context.Background(), bus, sink)
+	delivered := make(chan eventspkg.Event, 1)
+	stop, done := startUIEventAdapter(context.Background(), bus, func(ev eventspkg.Event) {
+		delivered <- ev
+	})
 	defer func() {
 		stop()
 		<-done
 	}()
 
-	bus.Publish(context.Background(), mustRuntimeEventUITest(
+	want := mustRuntimeEventUITest(
 		t,
 		eventspkg.EventKindJobStarted,
 		kinds.JobStartedPayload{
 			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
 		},
-	))
-	waitForCondition(t, time.Second, func() bool {
-		return len(sink) == 1
-	})
+	)
+	bus.Publish(context.Background(), want)
 
-	bus.Publish(context.Background(), mustRuntimeEventUITest(
-		t,
-		eventspkg.EventKindUsageUpdated,
-		kinds.UsageUpdatedPayload{Index: 0, Usage: kinds.Usage{TotalTokens: 9}},
-	))
-	bus.Publish(context.Background(), mustRuntimeEventUITest(
-		t,
-		eventspkg.EventKindJobCompleted,
-		kinds.JobCompletedPayload{
-			JobAttemptInfo: kinds.JobAttemptInfo{Index: 0},
-			ExitCode:       0,
-		},
-	))
-
-	stop()
-	<-done
-
-	got := drainClosedUIMessages(sink)
-	if len(got) != 1 {
-		t.Fatalf("expected exactly one retained UI message, got %#v", got)
-	}
-	if _, ok := got[0].(jobStartedMsg); !ok {
-		t.Fatalf("expected retained message to be the first jobStartedMsg, got %T", got[0])
+	select {
+	case got := <-delivered:
+		if got.Kind != want.Kind {
+			t.Fatalf("expected delivered event kind %s, got %s", want.Kind, got.Kind)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for forwarded raw event")
 	}
 }
 
@@ -414,14 +399,109 @@ func TestInternalContentBlockConvertsAllPublicBlockTypes(t *testing.T) {
 	}
 }
 
+func TestPrepareDispatchBatchCoalescesBurstAndPreservesLifecycleOrder(t *testing.T) {
+	t.Parallel()
+
+	updateOne, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: "hello"})},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate: %v", err)
+	}
+	updateTwo, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind:   model.UpdateKindAgentMessageChunk,
+		Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: " world"})},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate: %v", err)
+	}
+
+	ctrl := &uiController{translator: newUIEventTranslator()}
+	batch := ctrl.prepareDispatchBatch([]any{
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindJobStarted,
+			kinds.JobStartedPayload{JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1}},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: updateOne},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: updateTwo},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindUsageUpdated,
+			kinds.UsageUpdatedPayload{Index: 0, Usage: kinds.Usage{InputTokens: 4, OutputTokens: 3, TotalTokens: 7}},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindUsageUpdated,
+			kinds.UsageUpdatedPayload{Index: 0, Usage: kinds.Usage{InputTokens: 1, OutputTokens: 1, TotalTokens: 2}},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindJobCompleted,
+			kinds.JobCompletedPayload{
+				JobAttemptInfo: kinds.JobAttemptInfo{Index: 0, Attempt: 1, MaxAttempts: 1},
+				ExitCode:       0,
+			},
+		),
+	})
+
+	if got := len(batch.msgs); got != 4 {
+		t.Fatalf("expected started + coalesced update + coalesced usage + finished, got %#v", batch.msgs)
+	}
+	if _, ok := batch.msgs[0].(jobStartedMsg); !ok {
+		t.Fatalf("expected first message to preserve jobStarted lifecycle, got %T", batch.msgs[0])
+	}
+	updateMsg, ok := batch.msgs[1].(jobUpdateMsg)
+	if !ok {
+		t.Fatalf("expected second message to be coalesced jobUpdateMsg, got %T", batch.msgs[1])
+	}
+	if got := len(updateMsg.Snapshot.Entries); got != 1 {
+		t.Fatalf("expected one merged transcript entry, got %#v", updateMsg.Snapshot.Entries)
+	}
+	text, err := updateMsg.Snapshot.Entries[0].Blocks[0].AsText()
+	if err != nil {
+		t.Fatalf("AsText: %v", err)
+	}
+	if got := text.Text; got != "hello world" {
+		t.Fatalf("expected coalesced transcript text, got %q", got)
+	}
+	usageMsg, ok := batch.msgs[2].(usageUpdateMsg)
+	if !ok {
+		t.Fatalf("expected third message to be coalesced usageUpdateMsg, got %T", batch.msgs[2])
+	}
+	if usageMsg.Usage.TotalTokens != 9 || usageMsg.Usage.InputTokens != 5 || usageMsg.Usage.OutputTokens != 4 {
+		t.Fatalf("unexpected aggregated usage payload: %#v", usageMsg)
+	}
+	if _, ok := batch.msgs[3].(jobFinishedMsg); !ok {
+		t.Fatalf("expected terminal lifecycle to stay last, got %T", batch.msgs[3])
+	}
+}
+
 func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 	t.Parallel()
 
-	_, _, bus, cleanup := openUIAdapterRuntime(t)
-	defer cleanup()
+	bus := eventspkg.New[eventspkg.Event](16)
+	defer func() {
+		if err := bus.Close(context.Background()); err != nil {
+			t.Fatalf("close bus: %v", err)
+		}
+	}()
 
-	sink := make(chan uiMsg, 16)
-	stop, done := startUIEventAdapter(context.Background(), bus, sink)
+	eventsCh := make(chan eventspkg.Event, 8)
+	stop, done := startUIEventAdapter(context.Background(), bus, func(ev eventspkg.Event) {
+		eventsCh <- ev
+	})
 	defer func() {
 		stop()
 		<-done
@@ -477,7 +557,13 @@ func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 		},
 	))
 
-	applyUIMsgs(mdl, collectUIMessages(t, sink, 4)...)
+	ctrl := &uiController{translator: newUIEventTranslator()}
+	rawEvents := collectEvents(t, eventsCh, 4)
+	inputs := make([]any, 0, len(rawEvents))
+	for _, ev := range rawEvents {
+		inputs = append(inputs, ev)
+	}
+	applyUIMsgs(mdl, ctrl.prepareDispatchBatch(inputs).msgs...)
 
 	if got := mdl.jobs[0].state; got != jobSuccess {
 		t.Fatalf("expected job state success, got %v", got)
@@ -575,10 +661,10 @@ func applyUIMsgs(mdl *uiModel, msgs ...uiMsg) {
 	}
 }
 
-func collectUIMessages(t *testing.T, ch <-chan uiMsg, want int) []uiMsg {
+func collectEvents(t *testing.T, ch <-chan eventspkg.Event, want int) []eventspkg.Event {
 	t.Helper()
 
-	got := make([]uiMsg, 0, want)
+	got := make([]eventspkg.Event, 0, want)
 	deadline := time.NewTimer(2 * time.Second)
 	defer deadline.Stop()
 
@@ -594,14 +680,6 @@ func collectUIMessages(t *testing.T, ch <-chan uiMsg, want int) []uiMsg {
 		}
 	}
 
-	return got
-}
-
-func drainClosedUIMessages(ch <-chan uiMsg) []uiMsg {
-	var got []uiMsg
-	for msg := range ch {
-		got = append(got, msg)
-	}
 	return got
 }
 
@@ -623,33 +701,4 @@ func waitForCondition(t *testing.T, timeout time.Duration, fn func() bool) {
 			t.Fatal("condition not met before timeout")
 		}
 	}
-}
-
-func openUIAdapterRuntime(t *testing.T) (string, *journal.Journal, *eventspkg.Bus[eventspkg.Event], func()) {
-	t.Helper()
-
-	workspaceRoot := t.TempDir()
-	runArtifacts := model.NewRunArtifacts(workspaceRoot, "ui-adapter-run")
-	if err := os.MkdirAll(filepath.Dir(runArtifacts.EventsPath), 0o755); err != nil {
-		t.Fatalf("mkdir run dir: %v", err)
-	}
-
-	bus := eventspkg.New[eventspkg.Event](16)
-	runJournal, err := journal.Open(runArtifacts.EventsPath, bus, 16)
-	if err != nil {
-		t.Fatalf("open journal: %v", err)
-	}
-
-	cleanup := func() {
-		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		if err := runJournal.Close(closeCtx); err != nil {
-			t.Fatalf("close journal: %v", err)
-		}
-		if err := bus.Close(context.Background()); err != nil {
-			t.Fatalf("close bus: %v", err)
-		}
-	}
-
-	return runArtifacts.RunID, runJournal, bus, cleanup
 }

@@ -7,7 +7,9 @@ import (
 )
 
 const (
-	uiTickInterval         = 120 * time.Millisecond
+	uiDispatchInterval     = time.Second / 60
+	uiSpinnerTickInterval  = 100 * time.Millisecond
+	uiClockTickInterval    = time.Second
 	sidebarWidthRatio      = 0.25
 	sidebarMinWidth        = 30
 	sidebarMaxWidth        = 50
@@ -70,9 +72,33 @@ type uiJob struct {
 	timelineCacheSel     int
 	timelineCacheExpand  int
 	timelineCacheValid   bool
+	sidebarCacheKey      sidebarRowCacheKey
+	sidebarCacheRow      string
+	sidebarCacheValid    bool
 }
 
-type tickMsg struct{}
+type sidebarRowCacheKey struct {
+	selected       bool
+	width          int
+	state          jobState
+	safeName       string
+	issues         int
+	fileCount      int
+	attempt        int
+	maxAttempts    int
+	retrying       bool
+	retryReason    string
+	elapsedSeconds int64
+	spinnerFrame   int
+}
+
+type clockTickMsg struct {
+	at time.Time
+}
+
+type spinnerTickMsg struct {
+	at time.Time
+}
 
 type jobQueuedMsg struct {
 	Index           int
@@ -131,6 +157,10 @@ type shutdownStatusMsg struct {
 
 type jobFailureMsg struct {
 	Failure failInfo
+}
+
+type dispatchBatchMsg struct {
+	msgs []uiMsg
 }
 
 type uiViewState string

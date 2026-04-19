@@ -132,11 +132,11 @@ func (m *uiModel) shutdownCountdownLabel() string {
 	if m.shutdown.DeadlineAt.IsZero() {
 		return ""
 	}
-	remaining := time.Until(m.shutdown.DeadlineAt)
+	remaining := m.shutdown.DeadlineAt.Sub(m.currentTime())
 	if remaining < 0 {
 		remaining = 0
 	}
-	return remaining.Round(100 * time.Millisecond).String()
+	return remaining.Truncate(time.Second).String()
 }
 
 func (m *uiModel) renderSeparator() string {

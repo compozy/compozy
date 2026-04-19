@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -26,7 +27,7 @@ type uiModel struct {
 	completed          int
 	failed             int
 	frame              int
-	events             <-chan uiMsg
+	now                time.Time
 	onQuit             func(uiQuitRequest)
 	transcriptViewport viewport.Model
 	sidebarViewport    viewport.Model
@@ -45,10 +46,11 @@ type uiModel struct {
 	aggregateUsage     *model.Usage
 	cfg                *config
 	sidebarDirty       bool
+	sidebarContent     string
+	spinnerRunning     bool
 }
 
 type uiController struct {
-	ch              chan uiMsg
 	model           *uiModel
 	prog            *tea.Program
 	done            chan error
@@ -58,6 +60,14 @@ type uiController struct {
 	adapterDone     <-chan struct{}
 	closeEventsOnce sync.Once
 	shutdownOnce    sync.Once
+	dispatchWake    chan struct{}
+	dispatchDone    chan struct{}
+	dispatchCtx     context.Context
+	cancelDispatch  context.CancelFunc
+	pendingMu       sync.Mutex
+	pendingInputs   []any
+	pendingUrgent   bool
+	translator      *uiEventTranslator
 }
 
 func newUIModel(total int) *uiModel {
@@ -110,6 +120,7 @@ func newUIModel(total int) *uiModel {
 		failures:           []failInfo{},
 		aggregateUsage:     &model.Usage{},
 		sidebarDirty:       true,
+		now:                time.Now(),
 	}
 	layout := mdl.computeLayout(defaultWidth, defaultHeight)
 	mdl.layoutMode = layout.mode
@@ -120,46 +131,44 @@ func newUIModel(total int) *uiModel {
 	return mdl
 }
 
-func (m *uiModel) setEventSource(ch <-chan uiMsg) {
-	m.events = ch
-}
-
 func (m *uiModel) Init() tea.Cmd {
-	return tea.Batch(m.waitEvent(), m.tick())
+	return m.clockTick()
 }
 
-func (m *uiModel) waitEvent() tea.Cmd {
-	if m.events == nil {
-		return nil
-	}
-	return func() tea.Msg {
-		if ev, ok := <-m.events; ok {
-			return ev
-		}
-		return drainMsg{}
-	}
+func (m *uiModel) clockTick() tea.Cmd {
+	return tea.Every(uiClockTickInterval, func(at time.Time) tea.Msg {
+		return clockTickMsg{at: at}
+	})
 }
 
-func (m *uiModel) tick() tea.Cmd {
-	return tea.Tick(uiTickInterval, func(time.Time) tea.Msg { return tickMsg{} })
+func (m *uiModel) spinnerTick() tea.Cmd {
+	return tea.Tick(uiSpinnerTickInterval, func(at time.Time) tea.Msg {
+		return spinnerTickMsg{at: at}
+	})
 }
 
 func newUIController(ctx context.Context, total int, cfg *config, bus *events.Bus[events.Event]) *uiController {
-	uiCh := make(chan uiMsg, max(total*4, 4))
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	dispatchCtx, cancelDispatch := context.WithCancel(ctx)
 	mdl := newUIModel(total)
 	mdl.cfg = cfg
-	mdl.setEventSource(uiCh)
-	stopEvents, adapterDone := startUIEventAdapter(ctx, bus, uiCh)
-
 	ctrl := &uiController{
-		ch:          uiCh,
-		model:       mdl,
-		done:        make(chan error, 1),
-		stopEvents:  stopEvents,
-		adapterDone: adapterDone,
+		model:          mdl,
+		done:           make(chan error, 1),
+		dispatchWake:   make(chan struct{}, 1),
+		dispatchDone:   make(chan struct{}),
+		dispatchCtx:    dispatchCtx,
+		cancelDispatch: cancelDispatch,
+		translator:     newUIEventTranslator(),
 	}
 	mdl.onQuit = ctrl.requestQuit
 	ctrl.prog = tea.NewProgram(mdl, tea.WithoutSignalHandler())
+	stopEvents, adapterDone := startUIEventAdapter(ctx, bus, ctrl.EnqueueEvent)
+	ctrl.stopEvents = stopEvents
+	ctrl.adapterDone = adapterDone
+	go ctrl.dispatchLoop()
 	go func() {
 		_, runErr := ctrl.prog.Run()
 		if runErr != nil {
@@ -174,15 +183,35 @@ func (c *uiController) Enqueue(msg any) {
 	if c == nil {
 		return
 	}
-	typed, ok := msg.(uiMsg)
-	if !ok {
+	c.pendingMu.Lock()
+	if c.dispatchCtx != nil && c.dispatchCtx.Err() != nil {
+		c.pendingMu.Unlock()
 		return
 	}
-	c.ch <- typed
+	c.pendingInputs = append(c.pendingInputs, msg)
+	if inputRequiresImmediateDispatch(msg) {
+		c.pendingUrgent = true
+	}
+	c.pendingMu.Unlock()
+	c.signalDispatch()
 }
 
 func (c *uiController) enqueue(msg uiMsg) {
 	c.Enqueue(msg)
+}
+
+func (c *uiController) EnqueueEvent(ev events.Event) {
+	c.Enqueue(ev)
+}
+
+func (c *uiController) signalDispatch() {
+	if c == nil {
+		return
+	}
+	select {
+	case c.dispatchWake <- struct{}{}:
+	default:
+	}
 }
 
 func (c *uiController) SetQuitHandler(fn func(uiQuitRequest)) {
@@ -219,6 +248,9 @@ func (c *uiController) closeEvents() {
 func (c *uiController) Shutdown() {
 	c.shutdownOnce.Do(func() {
 		c.CloseEvents()
+		if c.cancelDispatch != nil {
+			c.cancelDispatch()
+		}
 		if c.prog != nil {
 			c.prog.Quit()
 		}
@@ -231,6 +263,12 @@ func (c *uiController) shutdown() {
 
 func (c *uiController) Wait() error {
 	err, ok := <-c.done
+	if c.cancelDispatch != nil {
+		c.cancelDispatch()
+	}
+	if c.dispatchDone != nil {
+		<-c.dispatchDone
+	}
 	if !ok {
 		if c.adapterDone != nil {
 			c.CloseEvents()
@@ -288,6 +326,176 @@ func setupUI(ctx context.Context, jobs []job, cfg *config, bus *events.Bus[event
 	return Setup(ctx, jobs, cfg, bus, enabled)
 }
 
+func (c *uiController) dispatchLoop() {
+	ticker := time.NewTicker(uiDispatchInterval)
+	defer ticker.Stop()
+	defer close(c.dispatchDone)
+
+	for {
+		select {
+		case <-c.dispatchCtx.Done():
+			return
+		case <-c.dispatchWake:
+			if c.hasUrgentDispatch() {
+				c.flushDispatch()
+			}
+		case <-ticker.C:
+			c.flushDispatch()
+		}
+	}
+}
+
+func (c *uiController) hasUrgentDispatch() bool {
+	if c == nil {
+		return false
+	}
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	return c.pendingUrgent && len(c.pendingInputs) > 0
+}
+
+func (c *uiController) flushDispatch() {
+	if c == nil || c.prog == nil {
+		return
+	}
+	inputs := c.takePendingInputs()
+	if len(inputs) == 0 {
+		return
+	}
+
+	msg := c.prepareDispatchBatch(inputs)
+	if len(msg.msgs) == 0 {
+		return
+	}
+	c.prog.Send(msg)
+}
+
+func (c *uiController) takePendingInputs() []any {
+	c.pendingMu.Lock()
+	defer c.pendingMu.Unlock()
+	if len(c.pendingInputs) == 0 {
+		return nil
+	}
+	inputs := c.pendingInputs
+	c.pendingInputs = nil
+	c.pendingUrgent = false
+	return inputs
+}
+
+func (c *uiController) prepareDispatchBatch(inputs []any) dispatchBatchMsg {
+	accumulator := newUIDispatchAccumulator()
+	for _, input := range inputs {
+		switch value := input.(type) {
+		case events.Event:
+			for _, msg := range c.translator.translateMessages(value) {
+				accumulator.add(msg)
+			}
+		case *events.Event:
+			if value == nil {
+				continue
+			}
+			for _, msg := range c.translator.translateMessages(*value) {
+				accumulator.add(msg)
+			}
+		case uiMsg:
+			accumulator.add(value)
+		}
+	}
+	return accumulator.batch()
+}
+
+type uiDispatchAccumulator struct {
+	jobUpdates map[int]jobUpdateMsg
+	usages     map[int]model.Usage
+	msgs       []uiMsg
+}
+
+func newUIDispatchAccumulator() *uiDispatchAccumulator {
+	return &uiDispatchAccumulator{
+		jobUpdates: make(map[int]jobUpdateMsg),
+		usages:     make(map[int]model.Usage),
+	}
+}
+
+func (a *uiDispatchAccumulator) add(msg uiMsg) {
+	switch value := msg.(type) {
+	case jobUpdateMsg:
+		a.jobUpdates[value.Index] = value
+	case usageUpdateMsg:
+		current := a.usages[value.Index]
+		current.Add(value.Usage)
+		a.usages[value.Index] = current
+	default:
+		a.flushCoalesced()
+		a.msgs = append(a.msgs, msg)
+	}
+}
+
+func (a *uiDispatchAccumulator) flushCoalesced() {
+	if len(a.jobUpdates) > 0 {
+		indexes := make([]int, 0, len(a.jobUpdates))
+		for index := range a.jobUpdates {
+			indexes = append(indexes, index)
+		}
+		sort.Ints(indexes)
+		for _, index := range indexes {
+			a.msgs = append(a.msgs, a.jobUpdates[index])
+		}
+		clear(a.jobUpdates)
+	}
+	if len(a.usages) > 0 {
+		indexes := make([]int, 0, len(a.usages))
+		for index := range a.usages {
+			indexes = append(indexes, index)
+		}
+		sort.Ints(indexes)
+		for _, index := range indexes {
+			a.msgs = append(a.msgs, usageUpdateMsg{
+				Index: index,
+				Usage: a.usages[index],
+			})
+		}
+		clear(a.usages)
+	}
+}
+
+func (a *uiDispatchAccumulator) batch() dispatchBatchMsg {
+	a.flushCoalesced()
+	if len(a.msgs) == 0 {
+		return dispatchBatchMsg{}
+	}
+	return dispatchBatchMsg{msgs: append([]uiMsg(nil), a.msgs...)}
+}
+
+func inputRequiresImmediateDispatch(msg any) bool {
+	switch value := msg.(type) {
+	case jobQueuedMsg, jobStartedMsg, jobRetryMsg, jobFinishedMsg, shutdownStatusMsg, jobFailureMsg:
+		return true
+	case events.Event:
+		switch value.Kind {
+		case events.EventKindJobQueued,
+			events.EventKindJobStarted,
+			events.EventKindJobCompleted,
+			events.EventKindJobRetryScheduled,
+			events.EventKindJobFailed,
+			events.EventKindJobCancelled,
+			events.EventKindShutdownRequested,
+			events.EventKindShutdownDraining,
+			events.EventKindShutdownTerminated:
+			return true
+		default:
+			return false
+		}
+	case *events.Event:
+		if value == nil {
+			return false
+		}
+		return inputRequiresImmediateDispatch(*value)
+	default:
+		return false
+	}
+}
+
 type uiEventTranslator struct {
 	sessionViews map[int]*sessionViewModel
 }
@@ -301,18 +509,17 @@ func newUIEventTranslator() *uiEventTranslator {
 func startUIEventAdapter(
 	parent context.Context,
 	bus *events.Bus[events.Event],
-	sink chan uiMsg,
+	deliver func(events.Event),
 ) (func(), <-chan struct{}) {
 	done := make(chan struct{})
-	var closeSinkOnce sync.Once
-	closeSink := func() {
-		closeSinkOnce.Do(func() {
-			close(sink)
+	var closeDoneOnce sync.Once
+	closeDone := func() {
+		closeDoneOnce.Do(func() {
 			close(done)
 		})
 	}
 	if bus == nil {
-		return closeSink, done
+		return closeDone, done
 	}
 
 	_, updates, unsubscribe := bus.Subscribe()
@@ -321,10 +528,8 @@ func startUIEventAdapter(
 	}
 	ctx, cancel := context.WithCancel(parent)
 	go func() {
-		defer closeSink()
+		defer closeDone()
 		defer unsubscribe()
-
-		translator := newUIEventTranslator()
 		for {
 			select {
 			case <-ctx.Done():
@@ -333,12 +538,8 @@ func startUIEventAdapter(
 				if !ok {
 					return
 				}
-				for _, msg := range translator.translateMessages(ev) {
-					select {
-					case <-ctx.Done():
-						return
-					case sink <- msg:
-					}
+				if deliver != nil {
+					deliver(ev)
 				}
 			}
 		}
