@@ -18,11 +18,11 @@ import (
 type commandKind string
 
 const (
-	commandKindFetchReviews commandKind = "fetch-reviews"
-	commandKindFixReviews   commandKind = "fix-reviews"
+	commandKindFetchReviews commandKind = "reviews fetch"
+	commandKindFixReviews   commandKind = "reviews fix"
 	commandKindExec         commandKind = "exec"
 	commandKindArchive      commandKind = "archive"
-	commandKindStart        commandKind = "start"
+	commandKindStart        commandKind = "tasks run"
 	commandKindSync         commandKind = "sync"
 )
 
@@ -68,16 +68,13 @@ Use explicit workflow subcommands:
   compozy upgrade       Update the CLI to the latest release
   compozy ext           Manage bundled, user, and workspace extensions
   compozy migrate       Convert legacy workflow artifacts to frontmatter
-  compozy validate-tasks Validate task metadata under .compozy/tasks/<name>
   compozy daemon        Manage the home-scoped daemon bootstrap lifecycle
   compozy workspaces    Inspect daemon workspace registrations
-  compozy tasks         Inspect and run task workflows
-  compozy reviews       Inspect review workflow state
+  compozy tasks         Inspect, validate, and run task workflows
+  compozy reviews       Fetch, inspect, and remediate review workflows
   compozy runs          Inspect and clean persisted daemon run artifacts
   compozy sync          Reconcile workflow artifacts into global.db
   compozy archive       Move fully completed workflows into .compozy/tasks/_archived/
-  compozy fetch-reviews Fetch provider review comments into .compozy/tasks/<name>/reviews-NNN/
-  compozy fix-reviews   Process review issue files from a specific review round
   compozy exec          Execute one ad hoc prompt through the shared ACP runtime`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -90,7 +87,6 @@ Use explicit workflow subcommands:
 		newUpgradeCommand(),
 		extcli.NewExtCommand(nil),
 		newMigrateCommand(dispatcher),
-		newValidateTasksCommand(nil),
 		newDaemonCommand(),
 		newWorkspacesCommand(),
 		newTasksCommand(nil, defaults),
@@ -98,8 +94,6 @@ Use explicit workflow subcommands:
 		newRunsCommandWithDefaults(defaults),
 		newSyncCommand(dispatcher),
 		newArchiveCommand(dispatcher),
-		newFetchReviewsCommandWithDefaults(defaults),
-		newFixReviewsCommandWithDefaults(defaults),
 		newExecCommandWithDefaults(defaults),
 		newMCPServeCommand(),
 	)

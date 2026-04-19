@@ -40,7 +40,10 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	t.Parallel()
 
-	keys := formFieldKeys(newFixReviewsCommand(), newCommandState(commandKindFixReviews, core.ModePRReview))
+	keys := formFieldKeys(
+		newReviewsFixCommandWithDefaults(defaultCommandStateDefaults()),
+		newCommandState(commandKindFixReviews, core.ModePRReview),
+	)
 
 	assertFieldKeysPresent(
 		t,
@@ -136,7 +139,7 @@ func TestFetchReviewsUsesSelectWhenTaskDirsExist(t *testing.T) {
 		t.Fatalf("create test dir: %v", err)
 	}
 
-	cmd := newFetchReviewsCommand()
+	cmd := newReviewsFetchCommandWithDefaults(defaultCommandStateDefaults())
 	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
 	builder := newFormBuilder(cmd, state)
 	builder.tasksBaseDir = baseDir
@@ -145,7 +148,7 @@ func TestFetchReviewsUsesSelectWhenTaskDirsExist(t *testing.T) {
 	inputs.register(builder)
 
 	if !builder.nameFromDirList {
-		t.Fatal("fetch-reviews should use directory select when workflows exist")
+		t.Fatal("reviews fetch should use directory select when workflows exist")
 	}
 }
 
@@ -156,7 +159,7 @@ func TestFetchReviewsFallsBackToInputWhenNoDirs(t *testing.T) {
 	baseDir := filepath.Join(tmp, ".compozy", "tasks")
 
 	keys := formFieldKeysWithBaseDir(
-		newFetchReviewsCommand(),
+		newReviewsFetchCommandWithDefaults(defaultCommandStateDefaults()),
 		newCommandState(commandKindFetchReviews, core.ModePRReview),
 		baseDir,
 	)
@@ -167,10 +170,13 @@ func TestFetchReviewsFallsBackToInputWhenNoDirs(t *testing.T) {
 func TestFetchReviewsFormOmitsNitpicksToggle(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should omit nitpicks toggle in the fetch-reviews form", func(t *testing.T) {
+	t.Run("Should omit nitpicks toggle in the reviews fetch form", func(t *testing.T) {
 		t.Parallel()
 
-		keys := formFieldKeys(newFetchReviewsCommand(), newCommandState(commandKindFetchReviews, core.ModePRReview))
+		keys := formFieldKeys(
+			newReviewsFetchCommandWithDefaults(defaultCommandStateDefaults()),
+			newCommandState(commandKindFetchReviews, core.ModePRReview),
+		)
 
 		assertFieldKeysPresent(t, keys, "name", "provider", "pr", "round")
 		assertFieldKeysAbsent(t, keys, "nitpicks")
@@ -426,7 +432,7 @@ func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {
 
 	t.Run("ShouldRenderOverlayProviderInTheSelectField", func(t *testing.T) {
 		builder := newFormBuilder(
-			newFetchReviewsCommand(),
+			newReviewsFetchCommandWithDefaults(defaultCommandStateDefaults()),
 			newCommandState(commandKindFetchReviews, core.ModePRReview),
 		)
 		selected := "ext-review"

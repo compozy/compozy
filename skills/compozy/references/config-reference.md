@@ -28,16 +28,16 @@ Runtime defaults applied to all commands unless overridden.
 
 ### `[start]`
 
-Options specific to `compozy start`.
+Options specific to `compozy tasks run`.
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `include_completed` | bool | Include tasks already marked as completed |
-| `task_runtime_rules` | `array<table>` | Type-scoped runtime overrides applied after `[defaults]` for `compozy start` |
+| `task_runtime_rules` | `array<table>` | Type-scoped runtime overrides applied after `[defaults]` for `compozy tasks run` |
 
 #### `[[start.task_runtime_rules]]`
 
-Per-task runtime rules let `compozy start` change the runtime for tasks that match a given task `type`. This v1 config surface is intentionally bulk-oriented: config supports `type` selectors only, while one-off task `id` overrides are available from the CLI and TUI for the current run.
+Per-task runtime rules let `compozy tasks run` change the runtime for tasks that match a given task `type`. This v1 config surface is intentionally bulk-oriented: config supports `type` selectors only, while one-off task `id` overrides are available from the CLI and TUI for the current run.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -82,7 +82,7 @@ Task type registry.
 
 ### `[fix_reviews]`
 
-Options specific to `compozy fix-reviews`.
+Options specific to `compozy reviews fix`.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ Options specific to `compozy fix-reviews`.
 
 ### `[fetch_reviews]`
 
-Options specific to `compozy fetch-reviews`.
+Options specific to `compozy reviews fetch`.
 
 | Field | Type | Description |
 | --- | --- | --- |
@@ -111,7 +111,7 @@ Options specific to `compozy exec`. Inherits all `[defaults]` fields plus:
 
 ### `[sound]`
 
-Optional audio notifications that play when a run reaches a terminal state. Applies to both `compozy start` and `compozy exec`. Disabled by default — setting any field without `enabled = true` is a no-op.
+Optional audio notifications that play when a run reaches a terminal state. Applies to both `compozy tasks run` and `compozy exec`. Disabled by default — setting any field without `enabled = true` is a no-op.
 
 | Field | Type | Description |
 | --- | --- | --- |

@@ -37,7 +37,6 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy agents",
 		"compozy upgrade",
 		"compozy migrate",
-		"compozy validate-tasks",
 		"compozy daemon",
 		"compozy workspaces",
 		"compozy tasks",
@@ -45,13 +44,10 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"compozy runs",
 		"compozy sync",
 		"compozy archive",
-		"compozy fetch-reviews",
-		"compozy fix-reviews",
 		"setup",
 		"agents",
 		"upgrade",
 		"migrate",
-		"validate-tasks",
 		"daemon",
 		"workspaces",
 		"tasks",
@@ -59,14 +55,18 @@ func TestRootCommandShowsHelpAndWorkflowSubcommands(t *testing.T) {
 		"runs",
 		"sync",
 		"archive",
-		"fetch-reviews",
-		"fix-reviews",
 		"compozy exec",
 		"exec",
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
 			t.Fatalf("expected root help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	for _, snippet := range []string{"validate-tasks", "fetch-reviews", "fix-reviews"} {
+		if strings.Contains(output, snippet) {
+			t.Fatalf("expected root help to omit legacy command %q\noutput:\n%s", snippet, output)
 		}
 	}
 
@@ -136,30 +136,51 @@ func TestUpgradeHelpShowsNoUnexpectedFlags(t *testing.T) {
 	}
 }
 
-func TestValidateTasksHelpShowsValidationFlagsOnly(t *testing.T) {
+func TestTasksHelpShowsApprovedSubcommands(t *testing.T) {
 	t.Parallel()
 
-	cmd := findCommand(t, NewRootCommand(), "validate-tasks")
-	if cmd.Flags().Lookup("mode") != nil {
-		t.Fatalf("expected validate-tasks to omit mode flag")
+	cmd := findCommand(t, NewRootCommand(), "tasks")
+	output, err := executeRootCommand("tasks", "--help")
+	if err != nil {
+		t.Fatalf("execute tasks help: %v", err)
 	}
 
-	output, err := executeRootCommand("validate-tasks", "--help")
+	required := []string{"validate", "run", "Inspect, validate, and run task workflows"}
+	for _, snippet := range required {
+		if !strings.Contains(output, snippet) {
+			t.Fatalf("expected tasks help to include %q\noutput:\n%s", snippet, output)
+		}
+	}
+
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected tasks to omit mode flag")
+	}
+}
+
+func TestTasksValidateHelpShowsValidationFlagsOnly(t *testing.T) {
+	t.Parallel()
+
+	cmd := findNestedCommand(t, NewRootCommand(), "tasks", "validate")
+	if cmd.Flags().Lookup("mode") != nil {
+		t.Fatalf("expected tasks validate to omit mode flag")
+	}
+
+	output, err := executeRootCommand("tasks", "validate", "--help")
 	if err != nil {
-		t.Fatalf("execute validate-tasks help: %v", err)
+		t.Fatalf("execute tasks validate help: %v", err)
 	}
 
 	required := []string{"--name", "--tasks-dir", "--format"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected validate-tasks help to include %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected tasks validate help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
 	forbidden := []string{"--pr", "--provider", "--reviews-dir", "--batch-size", "--concurrent", "--include-completed"}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
-			t.Fatalf("expected validate-tasks help to omit %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected tasks validate help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
@@ -304,19 +325,19 @@ func TestWorkspacesHelpShowsApprovedSubcommands(t *testing.T) {
 	}
 }
 
-func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
+func TestReviewsFetchHelpShowsFetchFlagsOnly(t *testing.T) {
 	t.Parallel()
 
-	cmd := findCommand(t, NewRootCommand(), "fetch-reviews")
-	output, err := executeRootCommand("fetch-reviews", "--help")
+	cmd := findNestedCommand(t, NewRootCommand(), "reviews", "fetch [slug]")
+	output, err := executeRootCommand("reviews", "fetch", "--help")
 	if err != nil {
-		t.Fatalf("execute fetch-reviews help: %v", err)
+		t.Fatalf("execute reviews fetch help: %v", err)
 	}
 
 	required := []string{"--provider", "--pr", "--name", "--round"}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected fetch-reviews help to include %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected reviews fetch help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
@@ -331,26 +352,26 @@ func TestFetchReviewsHelpShowsFetchFlagsOnly(t *testing.T) {
 	}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
-			t.Fatalf("expected fetch-reviews help to omit %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected reviews fetch help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 
 	if cmd.Flags().Lookup("mode") != nil {
-		t.Fatalf("expected fetch-reviews to omit mode flag")
+		t.Fatalf("expected reviews fetch to omit mode flag")
 	}
 }
 
-func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
+func TestReviewsFixHelpShowsReviewFlagsOnly(t *testing.T) {
 	t.Parallel()
 
-	cmd := findCommand(t, NewRootCommand(), "fix-reviews")
+	cmd := findNestedCommand(t, NewRootCommand(), "reviews", "fix [slug]")
 	if cmd.Flags().Lookup("mode") != nil {
-		t.Fatalf("expected fix-reviews to omit mode flag")
+		t.Fatalf("expected reviews fix to omit mode flag")
 	}
 
-	output, err := executeRootCommand("fix-reviews", "--help")
+	output, err := executeRootCommand("reviews", "fix", "--help")
 	if err != nil {
-		t.Fatalf("execute fix-reviews help: %v", err)
+		t.Fatalf("execute reviews fix help: %v", err)
 	}
 
 	required := []string{
@@ -365,14 +386,14 @@ func TestFixReviewsHelpShowsReviewFlagsOnly(t *testing.T) {
 	}
 	for _, snippet := range required {
 		if !strings.Contains(output, snippet) {
-			t.Fatalf("expected fix-reviews help to include %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected reviews fix help to include %q\noutput:\n%s", snippet, output)
 		}
 	}
 
 	forbidden := []string{"--provider", "--pr", "--tasks-dir", "--include-completed", "--form "}
 	for _, snippet := range forbidden {
 		if strings.Contains(output, snippet) {
-			t.Fatalf("expected fix-reviews help to omit %q\noutput:\n%s", snippet, output)
+			t.Fatalf("expected reviews fix help to omit %q\noutput:\n%s", snippet, output)
 		}
 	}
 }
@@ -593,6 +614,9 @@ func TestDaemonDocsUseCurrentCommandSurface(t *testing.T) {
 
 	forbidden := []string{
 		"compozy start",
+		"compozy validate-tasks",
+		"compozy fetch-reviews",
+		"compozy fix-reviews",
 		".compozy/runs/<run-id>/extensions.jsonl",
 		"Refresh task workflow metadata files",
 	}
@@ -615,7 +639,9 @@ func TestDaemonDocsUseCurrentCommandSurface(t *testing.T) {
 	}
 	readmeContent := string(readme)
 	requiredREADME := []string{
+		"compozy tasks validate --name user-auth",
 		"compozy tasks run user-auth --ide claude",
+		"compozy reviews fetch user-auth --provider coderabbit --pr 42",
 		"compozy reviews fix user-auth --ide claude --concurrent 2 --batch-size 3",
 		"compozy daemon start",
 		"compozy daemon status",
@@ -1377,17 +1403,17 @@ func TestMaybeCollectInteractiveParamsSkipsFormWhenAnyFlagIsProvided(t *testing.
 func TestFetchReviewsWithPartialFlagsSkipsFormAndReturnsValidationError(t *testing.T) {
 	t.Parallel()
 
-	output, err := executeRootCommand("fetch-reviews", "--provider", "coderabbit")
+	output, err := executeRootCommand("reviews", "fetch", "--provider", "coderabbit")
 	if err == nil {
 		t.Fatal("expected validation error")
 	}
 	if strings.Contains(err.Error(), "interactive terminal when called without flags") {
 		t.Fatalf("unexpected interactive-terminal error: %v", err)
 	}
-	if !strings.Contains(err.Error(), "fetch-reviews requires --name") {
+	if !strings.Contains(err.Error(), "compozy reviews fetch requires --name") {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(output, "Error: fetch-reviews requires --name") {
+	if !strings.Contains(output, "Error: compozy reviews fetch requires --name") {
 		t.Fatalf("unexpected command output: %q", output)
 	}
 }
@@ -1509,7 +1535,7 @@ func TestRunPreparedBlocksFixReviewsWhenBundledSkillsAreMissing(t *testing.T) {
 	}
 
 	cmd := newTestCommand(state)
-	cmd.Use = "fix-reviews"
+	cmd.Use = "reviews fix"
 
 	err := state.runPrepared(context.Background(), cmd, core.Config{IDE: core.IDEClaude, Mode: core.ModePRReview})
 	if err == nil {

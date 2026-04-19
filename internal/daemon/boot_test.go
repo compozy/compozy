@@ -129,6 +129,39 @@ func TestStartReturnsAlreadyRunningWhenHealthyDaemonExists(t *testing.T) {
 	}
 }
 
+func TestStartDefaultsHTTPPortWhenUnset(t *testing.T) {
+	t.Parallel()
+
+	paths := mustHomePaths(t)
+	result, err := Start(context.Background(), StartOptions{
+		HomePaths: paths,
+		PID:       5151,
+		Version:   "default-http-port",
+		Now: func() time.Time {
+			return time.Unix(50, 0).UTC()
+		},
+		ProcessAlive: func(pid int) bool { return pid == 5151 },
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		_ = result.Host.Close(context.Background())
+	}()
+
+	if result.Info.HTTPPort != DefaultHTTPPort {
+		t.Fatalf("Info.HTTPPort = %d, want %d", result.Info.HTTPPort, DefaultHTTPPort)
+	}
+
+	currentInfo, err := ReadInfo(paths.InfoPath)
+	if err != nil {
+		t.Fatalf("ReadInfo() error = %v", err)
+	}
+	if currentInfo.HTTPPort != DefaultHTTPPort {
+		t.Fatalf("currentInfo.HTTPPort = %d, want %d", currentInfo.HTTPPort, DefaultHTTPPort)
+	}
+}
+
 func TestQueryStatusReportsStoppedWhenInfoIsMissing(t *testing.T) {
 	paths := mustHomePaths(t)
 

@@ -16,6 +16,7 @@ func TestArchiveCommandArchivesSyncedWorkflowIntoNewPathFormat(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", xdgConfigHome)
 	t.Setenv(testCLIDaemonHomeEnv, homeDir)
 	t.Setenv(testCLIXDGHomeEnv, xdgConfigHome)
+	configureCLITestDaemonHTTPPort(t)
 
 	workspaceRoot := t.TempDir()
 	workflowDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo")

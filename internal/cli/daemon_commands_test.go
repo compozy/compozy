@@ -482,6 +482,113 @@ func decodeTaskRunOverrides(t *testing.T, raw json.RawMessage) daemonRuntimeOver
 	return payload
 }
 
+func TestDaemonStartCommandDetachedReturnsReadyStatus(t *testing.T) {
+	acquireCLITestGlobalOverride(t)
+
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-ready.sock"},
+		status: apicore.DaemonStatus{
+			PID:            4242,
+			Version:        "test-version",
+			StartedAt:      time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+			SocketPath:     "/tmp/compozy-ready.sock",
+			HTTPPort:       2323,
+			ActiveRunCount: 2,
+			WorkspaceCount: 3,
+		},
+		health: apicore.DaemonHealth{Ready: true},
+	}
+	var launchCalls int
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-ready.sock",
+				StartedAt:  time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			launchCalls++
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 18, 12, 0, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	output, err := executeCommandCombinedOutput(newDaemonStartCommand(), nil, "--format", "json")
+	if err != nil {
+		t.Fatalf("execute daemon start: %v\noutput:\n%s", err, output)
+	}
+	if launchCalls != 0 {
+		t.Fatalf("expected healthy daemon reuse without launch, got %d launch attempts", launchCalls)
+	}
+
+	var payload daemonStatusOutput
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatalf("decode daemon start payload: %v\noutput:\n%s", err, output)
+	}
+	if payload.State != string(daemon.ReadyStateReady) || !payload.Health.Ready {
+		t.Fatalf("unexpected daemon start payload: %#v", payload)
+	}
+	if payload.Daemon == nil || payload.Daemon.PID != 4242 || payload.Daemon.WorkspaceCount != 3 {
+		t.Fatalf("unexpected daemon start status payload: %#v", payload)
+	}
+}
+
+func TestDaemonStartCommandForegroundUsesDaemonRunner(t *testing.T) {
+	acquireCLITestGlobalOverride(t)
+
+	originalRunner := runCLIDaemonForeground
+	t.Cleanup(func() {
+		runCLIDaemonForeground = originalRunner
+	})
+
+	ctxKey := daemonCommandContextKey("foreground")
+	var (
+		called bool
+		gotCtx context.Context
+		gotRun daemon.RunOptions
+	)
+	runCLIDaemonForeground = func(ctx context.Context, opts daemon.RunOptions) error {
+		called = true
+		gotCtx = ctx
+		gotRun = opts
+		return nil
+	}
+	t.Setenv(daemonHTTPPortEnv, "43123")
+
+	cmd := newDaemonStartCommand()
+	cmd.SetContext(context.WithValue(context.Background(), ctxKey, "foreground-start"))
+	output, err := executeCommandCombinedOutput(cmd, nil, "--foreground")
+	if err != nil {
+		t.Fatalf("execute daemon start --foreground: %v\noutput:\n%s", err, output)
+	}
+	if !called {
+		t.Fatal("expected foreground daemon runner to be called")
+	}
+	if gotCtx == nil || gotCtx.Value(ctxKey) != "foreground-start" {
+		t.Fatalf("foreground daemon context = %#v, want command context value", gotCtx)
+	}
+	if gotRun.HTTPPort != 43123 {
+		t.Fatalf("foreground daemon http port = %d, want 43123", gotRun.HTTPPort)
+	}
+	if strings.TrimSpace(gotRun.Version) == "" {
+		t.Fatalf("expected foreground daemon version to be populated, got %#v", gotRun)
+	}
+	if output != "" {
+		t.Fatalf("expected foreground daemon start to stay quiet, got %q", output)
+	}
+}
+
 func TestResolveLaunchCLIDaemonExecutableRejectsGoTestBinary(t *testing.T) {
 	original := resolveCLIDaemonExecutable
 	resolveCLIDaemonExecutable = func() (string, error) {
@@ -1373,7 +1480,7 @@ func TestHelpOnlyDaemonCommandRootsReturnHelp(t *testing.T) {
 		{
 			name: "reviews",
 			cmd:  newReviewsCommand(),
-			want: "Inspect and remediate review workflows",
+			want: "Fetch, inspect, and remediate review workflows",
 		},
 	}
 
