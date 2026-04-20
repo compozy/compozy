@@ -14,8 +14,8 @@ var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "�
 func (m *uiModel) elapsedStr(job *uiJob, bg color.Color) string {
 	switch job.state {
 	case jobRunning:
-		if !job.startedAt.IsZero() {
-			return renderStyledOnBackground(styleDimText, bg, formatDuration(time.Since(job.startedAt)))
+		if d := m.jobElapsedDuration(job); d > 0 {
+			return renderStyledOnBackground(styleDimText, bg, formatDuration(d))
 		}
 	case jobRetrying:
 		if label := m.retryAttemptLabel(job); label != "" {
@@ -23,19 +23,11 @@ func (m *uiModel) elapsedStr(job *uiJob, bg color.Color) string {
 		}
 		return lipgloss.NewStyle().Foreground(colorWarning).Background(bg).Render("RETRY")
 	case jobSuccess:
-		d := job.duration
-		if d == 0 && !job.startedAt.IsZero() {
-			d = time.Since(job.startedAt)
-		}
-		if d > 0 {
+		if d := m.jobElapsedDuration(job); d > 0 {
 			return lipgloss.NewStyle().Foreground(colorSuccess).Background(bg).Render("OK " + formatDuration(d))
 		}
 	case jobFailed:
-		d := job.duration
-		if d == 0 && !job.startedAt.IsZero() {
-			d = time.Since(job.startedAt)
-		}
-		if d > 0 {
+		if d := m.jobElapsedDuration(job); d > 0 {
 			return lipgloss.NewStyle().Foreground(colorError).Background(bg).Render("FAIL " + formatDuration(d))
 		}
 	}
@@ -52,6 +44,11 @@ func (m *uiModel) renderSidebar() string {
 }
 
 func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
+	key := m.sidebarRowKey(job, selected)
+	if job.sidebarCacheValid && job.sidebarCacheKey == key {
+		return job.sidebarCacheRow
+	}
+
 	bg := colorBgSurface
 	statusColor := m.jobStateColor(job.state)
 	icon := m.jobStateIcon(job.state)
@@ -65,19 +62,7 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 	}
 	iconRendered := lipgloss.NewStyle().Foreground(statusColor).Background(bg).Render(icon)
 
-	var timeStr string
-	switch job.state {
-	case jobRunning:
-		if !job.startedAt.IsZero() {
-			timeStr = formatDuration(time.Since(job.startedAt))
-		}
-	case jobRetrying:
-		timeStr = m.retryAttemptLabel(job)
-	case jobSuccess, jobFailed:
-		if job.duration > 0 {
-			timeStr = formatDuration(job.duration)
-		}
-	}
+	timeStr := m.sidebarTimeString(job)
 
 	leadWidth := lipgloss.Width(marker + icon + " ")
 	nameWidth := maxW - leadWidth
@@ -109,8 +94,12 @@ func (m *uiModel) renderSidebarItem(job *uiJob, selected bool) string {
 	line2 := renderOwnedLineKnownOwned(maxW, bg, renderStyledOnBackground(metaStyle, bg, line2Raw))
 	row := line1 + "\n" + line2
 	if selected {
-		return selectedSidebarRowStyle(maxW).Render(row)
+		row = selectedSidebarRowStyle(maxW).Render(row)
 	}
+
+	job.sidebarCacheKey = key
+	job.sidebarCacheRow = row
+	job.sidebarCacheValid = true
 	return row
 }
 
@@ -195,11 +184,79 @@ func (m *uiModel) jobBorderColor(job *uiJob) color.Color {
 	}
 }
 
+func (m *uiModel) currentTime() time.Time {
+	if m != nil && !m.now.IsZero() {
+		return m.now
+	}
+	return time.Now()
+}
+
+func (m *uiModel) jobElapsedDuration(job *uiJob) time.Duration {
+	if job == nil {
+		return 0
+	}
+	switch job.state {
+	case jobRunning:
+		if job.startedAt.IsZero() {
+			return 0
+		}
+		return m.currentTime().Sub(job.startedAt)
+	case jobSuccess, jobFailed:
+		if job.duration > 0 {
+			return job.duration
+		}
+		if job.startedAt.IsZero() {
+			return 0
+		}
+		return m.currentTime().Sub(job.startedAt)
+	default:
+		return 0
+	}
+}
+
+func (m *uiModel) sidebarTimeString(job *uiJob) string {
+	switch job.state {
+	case jobRunning:
+		if d := m.jobElapsedDuration(job); d > 0 {
+			return formatDuration(d)
+		}
+	case jobRetrying:
+		return m.retryAttemptLabel(job)
+	case jobSuccess, jobFailed:
+		if d := m.jobElapsedDuration(job); d > 0 {
+			return formatDuration(d)
+		}
+	}
+	return ""
+}
+
+func (m *uiModel) sidebarRowKey(job *uiJob, selected bool) sidebarRowCacheKey {
+	key := sidebarRowCacheKey{
+		selected:    selected,
+		width:       m.sidebarViewport.Width(),
+		state:       job.state,
+		safeName:    job.safeName,
+		issues:      job.issues,
+		fileCount:   len(job.codeFiles),
+		attempt:     job.attempt,
+		maxAttempts: job.maxAttempts,
+		retrying:    job.retrying,
+		retryReason: job.retryReason,
+	}
+	if d := m.jobElapsedDuration(job); d > 0 {
+		key.elapsedSeconds = int64(d / time.Second)
+	}
+	if job.state == jobRunning && len(spinnerFrames) > 0 {
+		key.spinnerFrame = m.frame % len(spinnerFrames)
+	}
+	return key
+}
+
 func formatDuration(d time.Duration) string {
 	if d < 0 {
 		d = 0
 	}
-	d = d.Round(time.Second)
+	d = d.Truncate(time.Second)
 	hours := int(d / time.Hour)
 	minutes := int((d % time.Hour) / time.Minute)
 	seconds := int((d % time.Minute) / time.Second)

@@ -12,8 +12,6 @@ func TestUIModelInitReturnsCommands(t *testing.T) {
 	t.Parallel()
 
 	m := newUIModel(1)
-	events := make(chan uiMsg, 1)
-	m.setEventSource(events)
 
 	if cmd := m.Init(); cmd == nil {
 		t.Fatal("expected Init to return a command")
@@ -25,15 +23,33 @@ func TestUIControllerHelpers(t *testing.T) {
 
 	done := make(chan error)
 	close(done)
+	dispatchDone := make(chan struct{})
+	close(dispatchDone)
+	dispatchCtx, cancelDispatch := context.WithCancel(context.Background())
+	cancelDispatch()
 
 	ctrl := &uiController{
-		ch:   make(chan uiMsg, 1),
-		done: done,
+		done:           done,
+		dispatchDone:   dispatchDone,
+		dispatchCtx:    dispatchCtx,
+		cancelDispatch: cancelDispatch,
 	}
 	ctrl.enqueue(jobStartedMsg{Index: 0})
-	if got := <-ctrl.ch; got != (jobStartedMsg{Index: 0}) {
-		t.Fatalf("unexpected enqueued message: %#v", got)
+	if got := len(ctrl.pendingInputs); got != 0 {
+		t.Fatalf("expected canceled controller to reject pending inputs, got %d", got)
 	}
+
+	dispatchCtx, cancelDispatch = context.WithCancel(context.Background())
+	ctrl.dispatchCtx = dispatchCtx
+	ctrl.cancelDispatch = cancelDispatch
+	ctrl.enqueue(jobStartedMsg{Index: 0})
+	if got := len(ctrl.pendingInputs); got != 1 {
+		t.Fatalf("expected one pending input, got %d", got)
+	}
+	if got, ok := ctrl.pendingInputs[0].(jobStartedMsg); !ok || got.Index != 0 {
+		t.Fatalf("unexpected pending input: %#v", ctrl.pendingInputs[0])
+	}
+	cancelDispatch()
 
 	called := 0
 	ctrl.setQuitHandler(func(uiQuitRequest) {
@@ -67,6 +83,9 @@ func TestFormattingAndStateHelpersCoverBranches(t *testing.T) {
 	}
 	if got := formatDuration(2*time.Hour + 3*time.Minute + 4*time.Second); got != "02:03:04" {
 		t.Fatalf("unexpected long duration format %q", got)
+	}
+	if got := formatDuration(90*time.Second + 950*time.Millisecond); got != "01:30" {
+		t.Fatalf("expected duration formatting to truncate fractional seconds, got %q", got)
 	}
 
 	m := newUIModel(1)

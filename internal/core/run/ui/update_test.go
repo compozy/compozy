@@ -13,7 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-func TestHandleKeyRequestsShutdownWithoutQuittingWhileRunActive(t *testing.T) {
+func TestHandleKeyOpensQuitDialogWhileRunActive(t *testing.T) {
 	t.Parallel()
 
 	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
@@ -24,23 +24,104 @@ func TestHandleKeyRequestsShutdownWithoutQuittingWhileRunActive(t *testing.T) {
 
 	cmd := m.handleKey(keyText("q"))
 	if cmd != nil {
-		if _, ok := cmd().(tea.QuitMsg); ok {
-			t.Fatal("expected active run to request shutdown without quitting the UI")
-		}
+		t.Fatalf("expected active run quit to open the quit dialog, got %T", cmd())
 	}
-	if got := len(quitRequests); got != 1 {
-		t.Fatalf("expected first shutdown callback to be invoked once, got %d", got)
+	if got := len(quitRequests); got != 0 {
+		t.Fatalf("expected active run quit not to call the quit callback, got %d calls", got)
 	}
-	if got := quitRequests[0]; got != uiQuitRequestDrain {
-		t.Fatalf("expected first quit request to start draining, got %v", got)
+	if !m.quitDialog.Active {
+		t.Fatal("expected active run quit to open the quit dialog")
 	}
-	if got := m.shutdown.Phase; got != shutdownPhaseDraining {
-		t.Fatalf("expected active quit request to mark the UI as draining, got %s", got)
+	if got := m.quitDialog.Selected; got != quitDialogActionClose {
+		t.Fatalf("expected quit dialog default selection to close the TUI, got %v", got)
+	}
+	if m.shutdown.Active() {
+		t.Fatalf("expected active run quit not to start shutdown yet, got %#v", m.shutdown)
+	}
+}
+
+func TestHandleKeyQuitDialogClosesTUIByDefault(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	quitCalls := 0
+	m.onQuit = func(uiQuitRequest) {
+		quitCalls++
+	}
+	m.quitDialog.Open()
+
+	cmd := m.handleKey(keyCode(tea.KeyEnter))
+	if cmd == nil {
+		t.Fatal("expected enter to confirm the default quit action")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("expected default quit action to close the TUI, got %T", cmd())
+	}
+	if quitCalls != 0 {
+		t.Fatalf("expected default quit action not to stop the run, got %d quit callback calls", quitCalls)
+	}
+	if m.quitDialog.Active {
+		t.Fatal("expected quit dialog to close after confirming the default action")
+	}
+	if m.shutdown.Active() {
+		t.Fatalf("expected default quit action to leave shutdown idle, got %#v", m.shutdown)
+	}
+}
+
+func TestHandleKeyQuitDialogExplicitlyStopsRun(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	var quitRequests []uiQuitRequest
+	m.onQuit = func(req uiQuitRequest) {
+		quitRequests = append(quitRequests, req)
 	}
 
 	m.handleKey(keyText("q"))
+	if !m.quitDialog.Active {
+		t.Fatal("expected active run quit to open the quit dialog")
+	}
+	if cmd := m.handleKey(keyText("right")); cmd != nil {
+		t.Fatalf("expected action selection to stay local to the dialog, got %T", cmd())
+	}
+	if got := m.quitDialog.Selected; got != quitDialogActionStop {
+		t.Fatalf("expected dialog selection to move to stop, got %v", got)
+	}
+
+	cmd := m.handleKey(keyCode(tea.KeyEnter))
+	if cmd == nil {
+		t.Fatal("expected stop confirmation to return a command")
+	}
+	if got := len(quitRequests); got != 0 {
+		t.Fatalf("expected stop confirmation to defer the quit callback until command execution, got %d calls", got)
+	}
+	msg := cmd()
+	if _, ok := msg.(drainMsg); !ok {
+		t.Fatalf("expected stop confirmation to emit drainMsg, got %T", msg)
+	}
+	if got := len(quitRequests); got != 1 {
+		t.Fatalf("expected explicit stop to invoke one quit request, got %d", got)
+	}
+	if got := quitRequests[0]; got != uiQuitRequestDrain {
+		t.Fatalf("expected explicit stop to start draining, got %v", got)
+	}
+	if got := m.shutdown.Phase; got != shutdownPhaseDraining {
+		t.Fatalf("expected explicit stop to mark the UI as draining, got %s", got)
+	}
+	if m.quitDialog.Active {
+		t.Fatal("expected quit dialog to close after explicit stop")
+	}
+
+	cmd = m.handleKey(keyText("q"))
+	if cmd == nil {
+		t.Fatal("expected second quit attempt during shutdown to escalate")
+	}
+	msg = cmd()
+	if _, ok := msg.(drainMsg); !ok {
+		t.Fatalf("expected force-quit escalation to emit drainMsg, got %T", msg)
+	}
 	if got := len(quitRequests); got != 2 {
-		t.Fatalf("expected second quit request to escalate force shutdown, got %d calls", got)
+		t.Fatalf("expected second quit request to escalate force shutdown, got %d", got)
 	}
 	if got := quitRequests[1]; got != uiQuitRequestForce {
 		t.Fatalf("expected second quit request to force shutdown, got %v", got)
@@ -58,7 +139,11 @@ func TestHandleKeyQuitsOnceRunCompletes(t *testing.T) {
 	m.onQuit = func(uiQuitRequest) {
 		quitCalls++
 	}
+	m.quitDialog.Open()
 	m.handleJobFinished(jobFinishedMsg{Index: 0, Success: true})
+	if m.quitDialog.Active {
+		t.Fatal("expected completion to close the quit dialog")
+	}
 
 	cmd := m.handleKey(keyText("q"))
 	if cmd == nil {
@@ -72,11 +157,37 @@ func TestHandleKeyQuitsOnceRunCompletes(t *testing.T) {
 	}
 }
 
+func TestHandleKeyDetachOnlySessionQuitsImmediately(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.cfg.DetachOnly = true
+	quitCalls := 0
+	m.onQuit = func(uiQuitRequest) {
+		quitCalls++
+	}
+
+	cmd := m.handleKey(keyText("q"))
+	if cmd == nil {
+		t.Fatal("expected detach-only quit to return a command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("expected detach-only quit to close the TUI immediately, got %T", cmd())
+	}
+	if m.quitDialog.Active {
+		t.Fatal("expected detach-only quit not to open the quit dialog")
+	}
+	if quitCalls != 0 {
+		t.Fatalf("expected detach-only quit not to call the stop callback, got %d calls", quitCalls)
+	}
+}
+
 func TestHandleShutdownStatusUpdatesCountdownState(t *testing.T) {
 	t.Parallel()
 
 	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
 	deadline := time.Now().Add(2 * time.Second)
+	m.quitDialog.Open()
 
 	m.handleShutdownStatus(shutdownStatusMsg{
 		State: shutdownState{
@@ -92,6 +203,9 @@ func TestHandleShutdownStatusUpdatesCountdownState(t *testing.T) {
 	}
 	if !m.shutdown.DeadlineAt.Equal(deadline) {
 		t.Fatalf("expected shutdown deadline to be stored, got %v", m.shutdown.DeadlineAt)
+	}
+	if m.quitDialog.Active {
+		t.Fatal("expected incoming shutdown status to dismiss the quit dialog")
 	}
 }
 
@@ -246,16 +360,17 @@ func TestMoveFocusedSelectionNavigatesTimelineEntries(t *testing.T) {
 	}
 }
 
-func TestHandleTickRefreshesSidebarWhileJobRunning(t *testing.T) {
+func TestHandleClockTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 	t.Parallel()
 
 	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.jobs[0].state = jobRunning
-	m.jobs[0].startedAt = time.Now().Add(-65 * time.Second)
+	m.jobs[0].startedAt = time.Unix(0, 0)
+	m.now = time.Unix(65, 0)
 	m.refreshSidebarContent()
 	before := m.sidebarViewport.View()
 
-	m.handleTick()
+	m.handleClockTick(clockTickMsg{at: time.Unix(66, 0)})
 	after := m.sidebarViewport.View()
 
 	if before == after {
@@ -263,7 +378,7 @@ func TestHandleTickRefreshesSidebarWhileJobRunning(t *testing.T) {
 	}
 }
 
-func TestHandleTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
+func TestHandleClockTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
 	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
 	m.jobs[0].state = jobSuccess
 	m.refreshSidebarContent()
@@ -280,9 +395,24 @@ func TestHandleTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
 		previous(vp, content)
 	}
 
-	m.handleTick()
+	m.handleClockTick(clockTickMsg{at: time.Unix(66, 0)})
 	if calls != 0 {
 		t.Fatalf("expected idle tick to skip sidebar refresh, got %d SetContent calls", calls)
+	}
+}
+
+func TestHandleSpinnerTickStopsWhenNoActiveJobsRemain(t *testing.T) {
+	t.Parallel()
+
+	m := newTestUIModelWithSnapshot(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.spinnerRunning = true
+	m.jobs[0].state = jobSuccess
+
+	if cmd := m.handleSpinnerTick(spinnerTickMsg{at: time.Unix(10, 0)}); cmd != nil {
+		t.Fatalf("expected no follow-up spinner command without active jobs, got %v", cmd)
+	}
+	if m.spinnerRunning {
+		t.Fatal("expected spinner loop to stop without active jobs")
 	}
 }
 
@@ -331,6 +461,40 @@ func TestHandleJobStartedMarksRunningState(t *testing.T) {
 	}
 	if job.startedAt.IsZero() {
 		t.Fatal("expected startedAt to be set")
+	}
+}
+
+func TestHandleJobStartedCreatesPlaceholderForRemoteAttachGap(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(0)
+	m.handleJobStarted(jobStartedMsg{
+		Index:           0,
+		Attempt:         1,
+		MaxAttempts:     1,
+		IDE:             "codex",
+		Model:           "gpt-5.4",
+		ReasoningEffort: "medium",
+	})
+
+	if got := len(m.jobs); got != 1 {
+		t.Fatalf("expected placeholder job slice length 1, got %d", got)
+	}
+	if got := m.total; got != 1 {
+		t.Fatalf("expected total 1, got %d", got)
+	}
+	job := &m.jobs[0]
+	if got := job.safeName; got != "job-000" {
+		t.Fatalf("expected placeholder safe name job-000, got %q", got)
+	}
+	if got := job.state; got != jobRunning {
+		t.Fatalf("expected running placeholder job, got %v", got)
+	}
+	if job.startedAt.IsZero() {
+		t.Fatal("expected placeholder startedAt to be set")
+	}
+	if got := job.ide; got != "codex" {
+		t.Fatalf("expected ide codex, got %q", got)
 	}
 }
 
@@ -523,6 +687,48 @@ func TestHandleJobQueuedExpandsTotalForRemoteAttach(t *testing.T) {
 	}
 	if got := len(m.jobs); got != 3 {
 		t.Fatalf("expected job slice to expand to 3, got %d", got)
+	}
+}
+
+func TestHandleJobUpdateCreatesRunningPlaceholderForRemoteAttachGap(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(0)
+	snapshot := buildSnapshotWithEntries(t,
+		TranscriptEntry{
+			ID:    "assistant-1",
+			Kind:  transcriptEntryAssistantMessage,
+			Title: "Assistant",
+			Blocks: []model.ContentBlock{
+				mustContentBlockUITest(t, model.TextBlock{Text: "recover from session update"}),
+			},
+		},
+	)
+	snapshot.Session.Status = model.StatusRunning
+
+	m.handleJobUpdate(jobUpdateMsg{
+		Index:    0,
+		Snapshot: snapshot,
+	})
+
+	if got := len(m.jobs); got != 1 {
+		t.Fatalf("expected placeholder job slice length 1, got %d", got)
+	}
+	if got := m.total; got != 1 {
+		t.Fatalf("expected total 1, got %d", got)
+	}
+	job := &m.jobs[0]
+	if got := job.safeName; got != "job-000" {
+		t.Fatalf("expected placeholder safe name job-000, got %q", got)
+	}
+	if got := job.state; got != jobRunning {
+		t.Fatalf("expected running state from session snapshot, got %v", got)
+	}
+	if job.startedAt.IsZero() {
+		t.Fatal("expected placeholder startedAt to be set from session snapshot")
+	}
+	if got := len(job.snapshot.Entries); got != 1 {
+		t.Fatalf("expected one restored transcript entry, got %#v", job.snapshot.Entries)
 	}
 }
 

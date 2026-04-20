@@ -64,7 +64,7 @@ All `agent.*` hooks require `agent.mutate`.
 
 ## Review phase
 
-All `review.*` hooks require `review.mutate`. They are only active under `compozy fix-reviews`.
+All `review.*` hooks require `review.mutate`. They are only active under `compozy reviews fix`.
 
 | Event                | TS helper            | Payload type                                                   | Patch type                                                     | Notes                               |
 | -------------------- | -------------------- | -------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------- |

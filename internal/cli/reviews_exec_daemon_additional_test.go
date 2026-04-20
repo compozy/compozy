@@ -461,6 +461,7 @@ func TestReviewsFixCommandAutoAttachStreamsWhenNonInteractive(t *testing.T) {
 		newReviewsCommandWithDefaults(testReviewExecCommandDefaults()),
 		nil,
 		"fix",
+		"--name",
 		"demo",
 	)
 	if err != nil {
@@ -491,7 +492,8 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 
 	t.Run("resolve workflow name and round args validates positionals", func(t *testing.T) {
 		state := newCommandState(commandKindFetchReviews, core.ModePRReview)
-		if err := state.resolveWorkflowNameAndRoundArgs([]string{"demo", "3"}); err != nil {
+		cmd := &cobra.Command{Use: "reviews fetch"}
+		if err := state.resolveWorkflowNameAndRoundArgs(cmd, []string{"demo", "3"}); err != nil {
 			t.Fatalf("resolveWorkflowNameAndRoundArgs() error = %v", err)
 		}
 		if state.name != "demo" || state.round != 3 {
@@ -877,24 +879,31 @@ func TestReviewsExecDaemonHelperFunctions(t *testing.T) {
 
 	t.Run("workflow argument parsing reports invalid combinations", func(t *testing.T) {
 		state := newCommandState(commandKindFetchReviews, core.ModePRReview)
-		if err := state.resolveWorkflowNameArg(nil); err == nil || !strings.Contains(err.Error(), "requires --name") {
+		cmd := &cobra.Command{Use: "reviews fetch"}
+		if err := state.resolveWorkflowNameArg(
+			cmd,
+			nil,
+		); err == nil ||
+			!strings.Contains(err.Error(), "requires --name") {
 			t.Fatalf("resolveWorkflowNameArg(fetch) error = %v, want requires --name", err)
 		}
 
 		state = newCommandState(commandKindExec, core.ModeExec)
-		if err := state.resolveWorkflowNameArg(nil); err == nil ||
+		cmd = &cobra.Command{Use: "reviews"}
+		if err := state.resolveWorkflowNameArg(cmd, nil); err == nil ||
 			!strings.Contains(err.Error(), "requires a workflow slug") {
 			t.Fatalf("resolveWorkflowNameArg(default) error = %v, want workflow slug error", err)
 		}
 
 		state = newCommandState(commandKindFetchReviews, core.ModePRReview)
-		if err := state.resolveWorkflowNameAndRoundArgs([]string{"demo", "zero"}); err == nil ||
+		cmd = &cobra.Command{Use: "reviews fetch"}
+		if err := state.resolveWorkflowNameAndRoundArgs(cmd, []string{"demo", "zero"}); err == nil ||
 			!strings.Contains(err.Error(), "positive integer") {
 			t.Fatalf("resolveWorkflowNameAndRoundArgs(invalid) error = %v, want positive integer error", err)
 		}
 
 		state = newCommandState(commandKindFetchReviews, core.ModePRReview)
-		if err := state.resolveWorkflowNameAndRoundArgs([]string{"demo"}); err == nil ||
+		if err := state.resolveWorkflowNameAndRoundArgs(cmd, []string{"demo"}); err == nil ||
 			!strings.Contains(err.Error(), "review round is required") {
 			t.Fatalf("resolveWorkflowNameAndRoundArgs(missing round) error = %v, want review round required", err)
 		}

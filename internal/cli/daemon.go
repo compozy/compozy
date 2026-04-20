@@ -2,6 +2,9 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
@@ -15,7 +18,19 @@ import (
 var (
 	queryDaemonCommandStatus       = daemon.QueryStatus
 	newDaemonCommandClientFromInfo = daemonClientFromInfo
+	runCLIDaemonForeground         = daemon.Run
 )
+
+const (
+	daemonHTTPPortEnv            = "COMPOZY_DAEMON_HTTP_PORT"
+	daemonStartInternalChildFlag = "internal-child"
+)
+
+type daemonStartState struct {
+	outputFormat  string
+	foreground    bool
+	internalChild bool
+}
 
 type daemonStatusState struct {
 	outputFormat string
@@ -54,19 +69,33 @@ func newDaemonCommand() *cobra.Command {
 }
 
 func newDaemonStartCommand() *cobra.Command {
-	return &cobra.Command{
+	state := &daemonStartState{outputFormat: operatorOutputFormatText}
+	cmd := &cobra.Command{
 		Use:          "start",
-		Short:        "Start the home-scoped daemon singleton in the foreground",
+		Short:        "Start the home-scoped daemon singleton in the background",
 		SilenceUsage: true,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx, stop := signalCommandContext(cmd)
-			defer stop()
+		Long: `Start the shared home-scoped daemon singleton.
 
-			return daemon.Run(ctx, daemon.RunOptions{
-				Version: version.String(),
-			})
-		},
+By default this command detaches, waits for daemon readiness, and returns the
+same status view exposed by "compozy daemon status". Use --foreground to keep
+the daemon attached to the current terminal.`,
+		Example: `  compozy daemon start
+  compozy daemon start --format json
+  compozy daemon start --foreground`,
+		RunE: state.run,
 	}
+	cmd.Flags().BoolVar(&state.foreground, "foreground", false, "Run the daemon in the foreground")
+	cmd.Flags().StringVar(
+		&state.outputFormat,
+		"format",
+		operatorOutputFormatText,
+		"Output format: text or json",
+	)
+	cmd.Flags().BoolVar(&state.internalChild, daemonStartInternalChildFlag, false, "Internal detached child mode")
+	if err := cmd.Flags().MarkHidden(daemonStartInternalChildFlag); err != nil {
+		panic(err)
+	}
+	return cmd
 }
 
 func newDaemonStatusCommand() *cobra.Command {
@@ -87,14 +116,17 @@ func newDaemonStatusCommand() *cobra.Command {
 }
 
 func newDaemonStopCommand() *cobra.Command {
-	state := &daemonStopState{outputFormat: operatorOutputFormatText}
+	state := &daemonStopState{
+		outputFormat: operatorOutputFormatText,
+		force:        true,
+	}
 	cmd := &cobra.Command{
 		Use:          "stop",
 		Short:        "Request graceful shutdown of the running daemon",
 		SilenceUsage: true,
 		RunE:         state.run,
 	}
-	cmd.Flags().BoolVar(&state.force, "force", false, "Cancel active runs before stopping the daemon")
+	cmd.Flags().BoolVar(&state.force, "force", state.force, "Cancel active runs before stopping the daemon")
 	cmd.Flags().StringVar(
 		&state.outputFormat,
 		"format",
@@ -102,6 +134,38 @@ func newDaemonStopCommand() *cobra.Command {
 		"Output format: text or json",
 	)
 	return cmd
+}
+
+func (s *daemonStartState) run(cmd *cobra.Command, _ []string) error {
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
+
+	format, err := normalizeOperatorOutputFormat(s.outputFormat)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+
+	if s.foreground || s.internalChild {
+		runOptions, err := cliDaemonRunOptionsFromEnv()
+		if err != nil {
+			return err
+		}
+		return runCLIDaemonForeground(ctx, runOptions)
+	}
+
+	client, err := newCLIDaemonBootstrap().ensure(ctx)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+	daemonStatus, err := client.DaemonStatus(ctx)
+	if err != nil {
+		return mapDaemonCommandError(err)
+	}
+	health, err := client.Health(ctx)
+	if err != nil {
+		return mapDaemonCommandError(err)
+	}
+	return writeDaemonStatusOutput(cmd, format, &daemonStatus, health, string(daemon.ReadyStateReady))
 }
 
 func (s *daemonStatusState) run(cmd *cobra.Command, _ []string) error {
@@ -176,6 +240,35 @@ func daemonClientFromInfo(info daemon.Info) (daemonCommandClient, error) {
 		HTTPPort:   info.HTTPPort,
 	}
 	return apiclient.New(target)
+}
+
+func cliDaemonRunOptionsFromEnv() (daemon.RunOptions, error) {
+	httpPort, err := cliDaemonHTTPPortFromEnv()
+	if err != nil {
+		return daemon.RunOptions{}, err
+	}
+	return daemon.RunOptions{Version: version.String(), HTTPPort: httpPort}, nil
+}
+
+func cliDaemonHTTPPortFromEnv() (int, error) {
+	rawValue, ok := os.LookupEnv(daemonHTTPPortEnv)
+	if !ok {
+		return 0, nil
+	}
+
+	value := strings.TrimSpace(rawValue)
+	if value == "" {
+		return 0, nil
+	}
+
+	port, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s=%q: %w", daemonHTTPPortEnv, rawValue, err)
+	}
+	if port == 0 {
+		return daemon.EphemeralHTTPPort, nil
+	}
+	return port, nil
 }
 
 func writeDaemonStatusOutput(

@@ -144,16 +144,16 @@ func validateFetchConfig(cfg *model.RuntimeConfig) error {
 		return fmt.Errorf("runtime config is nil")
 	}
 	if strings.TrimSpace(cfg.Name) == "" {
-		return fmt.Errorf("fetch-reviews requires --name")
+		return fmt.Errorf("reviews fetch requires --name")
 	}
 	if strings.TrimSpace(cfg.Provider) == "" {
-		return fmt.Errorf("fetch-reviews requires --provider")
+		return fmt.Errorf("reviews fetch requires --provider")
 	}
 	if strings.TrimSpace(cfg.PR) == "" {
-		return fmt.Errorf("fetch-reviews requires --pr")
+		return fmt.Errorf("reviews fetch requires --pr")
 	}
 	if cfg.Round < 0 {
-		return fmt.Errorf("fetch-reviews round cannot be negative (got %d)", cfg.Round)
+		return fmt.Errorf("reviews fetch round cannot be negative (got %d)", cfg.Round)
 	}
 	return nil
 }

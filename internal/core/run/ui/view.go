@@ -18,6 +18,9 @@ func (m *uiModel) renderRoot(content string) tea.View {
 }
 
 func (m *uiModel) View() tea.View {
+	if m.quitDialog.Active {
+		return m.renderQuitDialogView()
+	}
 	switch m.currentView {
 	case uiViewSummary, uiViewFailures:
 		return m.renderSummaryView()
@@ -132,11 +135,11 @@ func (m *uiModel) shutdownCountdownLabel() string {
 	if m.shutdown.DeadlineAt.IsZero() {
 		return ""
 	}
-	remaining := time.Until(m.shutdown.DeadlineAt)
+	remaining := m.shutdown.DeadlineAt.Sub(m.currentTime())
 	if remaining < 0 {
 		remaining = 0
 	}
-	return remaining.Round(100 * time.Millisecond).String()
+	return remaining.Truncate(time.Second).String()
 }
 
 func (m *uiModel) renderSeparator() string {
@@ -172,6 +175,9 @@ func (m *uiModel) renderHelp() string {
 		)
 	}
 	quitLabel := "QUIT"
+	if !m.isRunComplete() {
+		quitLabel = "EXIT"
+	}
 	switch m.shutdown.Phase {
 	case shutdownPhaseDraining:
 		quitLabel = "FORCE QUIT"
@@ -186,4 +192,95 @@ func (m *uiModel) renderHelp() string {
 	label := renderStyledOnBackground(styleDimText, bg, "FOCUS "+paneLabel)
 	line := renderGap(bg, 1) + label + renderGap(bg, 2) + strings.Join(pairs, renderGap(bg, 2))
 	return renderOwnedLineKnownOwned(m.width, bg, line) + "\n" + renderOwnedLineKnownOwned(m.width, bg, "")
+}
+
+func (m *uiModel) renderQuitDialogView() tea.View {
+	panel := m.renderQuitDialogPanel()
+	content := lipgloss.Place(
+		max(m.width, 1),
+		max(m.height, 1),
+		lipgloss.Center,
+		lipgloss.Center,
+		panel,
+		lipgloss.WithWhitespaceStyle(lipgloss.NewStyle().Background(colorBgBase)),
+	)
+	return m.renderRoot(content)
+}
+
+func (m *uiModel) renderQuitDialogPanel() string {
+	availableWidth := max(m.width-4, 1)
+	panelWidth := min(availableWidth, quitDialogMaxWidth)
+	panelStyle := techPanelStyle(panelWidth, colorBorderFocus).Padding(1, 2)
+	innerWidth := max(panelWidth-panelStyle.GetHorizontalFrameSize(), 1)
+	bg := colorBgSurface
+
+	lines := []string{
+		renderOwnedLineKnownOwned(
+			innerWidth,
+			bg,
+			renderStyledOnBackground(
+				lipgloss.NewStyle().Bold(true).Foreground(colorAccentDeep),
+				bg,
+				truncateString("Leave Active Run?", innerWidth),
+			),
+		),
+		renderOwnedLineKnownOwned(innerWidth, bg, ""),
+		renderOwnedLineKnownOwned(
+			innerWidth,
+			bg,
+			renderStyledOnBackground(styleBodyText, bg, truncateString("This run is still active.", innerWidth)),
+		),
+		renderOwnedLineKnownOwned(
+			innerWidth,
+			bg,
+			renderStyledOnBackground(
+				styleMutedText,
+				bg,
+				truncateString("Close the TUI and keep the run running.", innerWidth),
+			),
+		),
+		renderOwnedLineKnownOwned(
+			innerWidth,
+			bg,
+			renderStyledOnBackground(
+				styleMutedText,
+				bg,
+				truncateString("Choose Stop Run only if you want to end it now.", innerWidth),
+			),
+		),
+		renderOwnedLineKnownOwned(innerWidth, bg, ""),
+		renderOwnedBlock(innerWidth, bg, m.renderQuitDialogActions(innerWidth, bg)),
+		renderOwnedLineKnownOwned(innerWidth, bg, ""),
+		renderOwnedLineKnownOwned(
+			innerWidth,
+			bg,
+			renderStyledOnBackground(
+				styleDimText,
+				bg,
+				truncateString("[enter/q] confirm  [tab/left/right] choice  [esc] back", innerWidth),
+			),
+		),
+	}
+
+	return panelStyle.Render(strings.Join(lines, "\n"))
+}
+
+func (m *uiModel) renderQuitDialogActions(width int, bg color.Color) string {
+	actions := []string{
+		m.renderQuitDialogAction("Close TUI", quitDialogActionClose),
+		m.renderQuitDialogAction("Stop Run", quitDialogActionStop),
+		m.renderQuitDialogAction("Cancel", quitDialogActionCancel),
+	}
+	if width < 44 {
+		return strings.Join(actions, "\n")
+	}
+	return strings.Join(actions, renderGap(bg, 1))
+}
+
+func (m *uiModel) renderQuitDialogAction(label string, action quitDialogAction) string {
+	baseStyle := lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	if m.quitDialog.Selected == action {
+		return baseStyle.Foreground(colorBgSurface).Background(colorAccent).Render(label)
+	}
+	return baseStyle.Foreground(colorFgBright).Background(colorBgBase).Render(label)
 }

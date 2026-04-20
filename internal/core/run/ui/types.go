@@ -7,7 +7,10 @@ import (
 )
 
 const (
-	uiTickInterval         = 120 * time.Millisecond
+	uiDispatchInterval     = time.Second / 60
+	uiSpinnerTickInterval  = 100 * time.Millisecond
+	uiClockTickInterval    = time.Second
+	quitDialogMaxWidth     = 72
 	sidebarWidthRatio      = 0.25
 	sidebarMinWidth        = 30
 	sidebarMaxWidth        = 50
@@ -70,9 +73,33 @@ type uiJob struct {
 	timelineCacheSel     int
 	timelineCacheExpand  int
 	timelineCacheValid   bool
+	sidebarCacheKey      sidebarRowCacheKey
+	sidebarCacheRow      string
+	sidebarCacheValid    bool
 }
 
-type tickMsg struct{}
+type sidebarRowCacheKey struct {
+	selected       bool
+	width          int
+	state          jobState
+	safeName       string
+	issues         int
+	fileCount      int
+	attempt        int
+	maxAttempts    int
+	retrying       bool
+	retryReason    string
+	elapsedSeconds int64
+	spinnerFrame   int
+}
+
+type clockTickMsg struct {
+	at time.Time
+}
+
+type spinnerTickMsg struct {
+	at time.Time
+}
 
 type jobQueuedMsg struct {
 	Index           int
@@ -133,6 +160,10 @@ type jobFailureMsg struct {
 	Failure failInfo
 }
 
+type dispatchBatchMsg struct {
+	msgs []uiMsg
+}
+
 type uiViewState string
 
 const (
@@ -156,3 +187,56 @@ const (
 	uiLayoutSplit         uiLayoutMode = "split"
 	uiLayoutResizeBlocked uiLayoutMode = "resize_blocked"
 )
+
+type quitDialogAction int
+
+const (
+	quitDialogActionClose quitDialogAction = iota
+	quitDialogActionStop
+	quitDialogActionCancel
+)
+
+type quitDialogState struct {
+	Active   bool
+	Selected quitDialogAction
+}
+
+func newQuitDialogState() quitDialogState {
+	return quitDialogState{Selected: quitDialogActionClose}
+}
+
+func (s *quitDialogState) Open() {
+	if s == nil {
+		return
+	}
+	s.Active = true
+	s.Selected = quitDialogActionClose
+}
+
+func (s *quitDialogState) Close() {
+	if s == nil {
+		return
+	}
+	s.Active = false
+	s.Selected = quitDialogActionClose
+}
+
+func (s *quitDialogState) Move(delta int) {
+	if s == nil {
+		return
+	}
+	actions := []quitDialogAction{
+		quitDialogActionClose,
+		quitDialogActionStop,
+		quitDialogActionCancel,
+	}
+	current := 0
+	for idx, action := range actions {
+		if action == s.Selected {
+			current = idx
+			break
+		}
+	}
+	next := (current + delta + len(actions)) % len(actions)
+	s.Selected = actions[next]
+}

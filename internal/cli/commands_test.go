@@ -30,7 +30,7 @@ func TestBuildConfigFixReviewsAlwaysEnablesExecutableExtensions(t *testing.T) {
 		t.Fatalf("buildConfig: %v", err)
 	}
 	if !cfg.EnableExecutableExtensions {
-		t.Fatal("expected fix-reviews config to enable executable extensions")
+		t.Fatal("expected reviews fix config to enable executable extensions")
 	}
 }
 
@@ -73,7 +73,7 @@ func TestBuildConfigFetchReviewsDefaultsReviewBodyCommentsEnabled(t *testing.T) 
 		t.Fatalf("buildConfig: %v", err)
 	}
 	if !cfg.Nitpicks {
-		t.Fatal("expected fetch-reviews config to enable CodeRabbit review-body comments by default")
+		t.Fatal("expected reviews fetch config to enable CodeRabbit review-body comments by default")
 	}
 }
 
@@ -106,10 +106,10 @@ func TestNewTasksRunCommandDefaultsAttachModeToAuto(t *testing.T) {
 	}
 }
 
-func TestFixReviewsCommandDefaultsTUIToTrue(t *testing.T) {
+func TestReviewsFixCommandDefaultsTUIToTrue(t *testing.T) {
 	t.Parallel()
 
-	cmd := newFixReviewsCommandWithDefaults(defaultCommandStateDefaults())
+	cmd := newReviewsFixCommandWithDefaults(defaultCommandStateDefaults())
 	flag := cmd.Flags().Lookup("tui")
 	if flag == nil {
 		t.Fatal("expected --tui flag")

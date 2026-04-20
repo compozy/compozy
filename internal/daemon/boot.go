@@ -321,12 +321,23 @@ func normalizeStartOptions(opts StartOptions) (StartOptions, error) {
 		HomePaths:    resolvedPaths,
 		Version:      opts.Version,
 		PID:          pid,
-		HTTPPort:     opts.HTTPPort,
+		HTTPPort:     normalizedDaemonHTTPPort(opts.HTTPPort),
 		Now:          now,
 		ProcessAlive: processAlive,
 		Healthy:      healthy,
 		Prepare:      opts.Prepare,
 	}, nil
+}
+
+func normalizedDaemonHTTPPort(port int) int {
+	switch port {
+	case EphemeralHTTPPort:
+		return 0
+	case 0:
+		return DefaultHTTPPort
+	default:
+		return port
+	}
 }
 
 func normalizeProbeOptions(

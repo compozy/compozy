@@ -16,7 +16,8 @@ import (
 
 // RunOptions control the long-lived daemon host process.
 type RunOptions struct {
-	Version string
+	Version  string
+	HTTPPort int
 }
 
 type hostRuntime struct {
@@ -44,8 +45,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 	var host *Host
 
 	result, err := Start(runCtx, StartOptions{
-		Version: opts.Version,
-		Healthy: ProbeReady,
+		Version:  opts.Version,
+		HTTPPort: opts.HTTPPort,
+		Healthy:  ProbeReady,
 		Prepare: func(startCtx context.Context, currentHost *Host) error {
 			host = currentHost
 			preparedRuntime, err := prepareHostRuntime(startCtx, runCtx, currentHost, stop)
@@ -201,6 +203,7 @@ func startHostTransports(
 
 	httpServer, err := httpapi.New(
 		httpapi.WithHandlers(handlers),
+		httpapi.WithPort(currentHost.Info().HTTPPort),
 		httpapi.WithPortUpdater(currentHost),
 	)
 	if err != nil {

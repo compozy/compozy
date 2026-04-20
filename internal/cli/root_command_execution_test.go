@@ -66,7 +66,7 @@ func TestMigrateCommandExecuteDirectReportsUnmappedTypeFollowUp(t *testing.T) {
 	}
 }
 
-func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) {
+func TestTasksValidateCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) {
 	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
 	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
 		[]string{
@@ -79,7 +79,7 @@ func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) 
 
 	withWorkingDir(t, workspaceRoot)
 
-	output, err := executeRootCommand("validate-tasks", "--tasks-dir", tasksDir)
+	output, err := executeRootCommand("tasks", "validate", "--tasks-dir", tasksDir)
 	if err == nil {
 		t.Fatalf("expected validation failure\noutput:\n%s", output)
 	}
@@ -97,7 +97,7 @@ func TestValidateTasksCommandExecuteDirectCoversFailureAndSuccess(t *testing.T) 
 		"# Task 1: Missing Title",
 	))
 
-	output, err = executeRootCommand("validate-tasks", "--tasks-dir", tasksDir)
+	output, err = executeRootCommand("tasks", "validate", "--tasks-dir", tasksDir)
 	if err != nil {
 		t.Fatalf("expected validation success: %v\noutput:\n%s", err, output)
 	}
@@ -374,7 +374,7 @@ func TestExecCommandExecuteRunIDUsesPersistedRuntimeDefaults(t *testing.T) {
 		Version:         1,
 		Mode:            model.ModeExec,
 		RunID:           runID,
-		Status:          "succeeded",
+		Status:          execStatusSucceeded,
 		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5-codex",
@@ -549,7 +549,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		Version:         1,
 		Mode:            model.ModeExec,
 		RunID:           runID,
-		Status:          "succeeded",
+		Status:          execStatusSucceeded,
 		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
 		Model:           "gpt-5.4",
@@ -1054,6 +1054,7 @@ func TestTasksRunCommandAutoModeResolvesToStreamInNonInteractiveExecution(t *tes
 		nil,
 		"tasks",
 		"run",
+		"--name",
 		"demo",
 	)
 	if err != nil {
@@ -1071,6 +1072,192 @@ func TestTasksRunCommandAutoModeResolvesToStreamInNonInteractiveExecution(t *tes
 	if !strings.Contains(stdout, "task run started: run-task-002 (mode=stream)") ||
 		!strings.Contains(stdout, "run completed | succeeded=1 failed=0 canceled=0") {
 		t.Fatalf("unexpected tasks run stdout: %q", stdout)
+	}
+}
+
+func TestTasksRunCommandPositionalSlugSkipsInteractiveFormWithoutTTY(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-slug-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeStream,
+			StartedAt:        time.Date(2026, 4, 17, 13, 5, 15, 0, time.UTC),
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 5, 15, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 5, 15, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var watchedRunID string
+	installTestCLIRunObservers(
+		t,
+		nil,
+		func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+			watchedRunID = runID
+			_, err := io.WriteString(dst, "run completed | succeeded=1 failed=0 canceled=0\n")
+			return err
+		},
+	)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return false }
+	defaults.collectForm = func(_ *cobra.Command, _ *commandState) error {
+		t.Fatal("did not expect interactive form collection for positional task slug")
+		return nil
+	}
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(
+		t,
+		cmd,
+		nil,
+		"tasks",
+		"run",
+		"demo",
+	)
+	if err != nil {
+		t.Fatalf("execute tasks run positional slug: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if readyClient.startSlug != "demo" {
+		t.Fatalf("unexpected workflow slug: %q", readyClient.startSlug)
+	}
+	if readyClient.startRequest.PresentationMode != attachModeStream {
+		t.Fatalf("expected auto attach mode to resolve to stream, got %q", readyClient.startRequest.PresentationMode)
+	}
+	if watchedRunID != "run-task-slug-001" {
+		t.Fatalf("expected stream watch to attach to run-task-slug-001, got %q", watchedRunID)
+	}
+	if !strings.Contains(stdout, "task run started: run-task-slug-001 (mode=stream)") ||
+		!strings.Contains(stdout, "run completed | succeeded=1 failed=0 canceled=0") {
+		t.Fatalf("unexpected tasks run stdout: %q", stdout)
+	}
+}
+
+func TestTasksRunCommandNoFlagsUsesInteractiveForm(t *testing.T) {
+	workspaceRoot, tasksDir := makeValidateTasksWorkspace(t, "demo")
+	writeRawTaskFileForCLI(t, tasksDir, "task_01.md", cliTaskMarkdown(
+		[]string{
+			"status: pending",
+			"title: Demo Task",
+			"type: backend",
+			"complexity: low",
+		},
+		"# Task 1: Demo Task",
+	))
+	withWorkingDir(t, workspaceRoot)
+
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-form-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeUI,
+			StartedAt:        time.Date(2026, 4, 17, 13, 5, 30, 0, time.UTC),
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 5, 30, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 5, 30, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var attachedRunID string
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		attachedRunID = runID
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	var collectFormCalls int
+	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
+		collectFormCalls++
+		state.name = "demo"
+		return nil
+	}
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "tasks", "run")
+	if err != nil {
+		t.Fatalf("execute tasks run no-flags form flow: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if collectFormCalls != 1 {
+		t.Fatalf("expected one interactive form call, got %d", collectFormCalls)
+	}
+	if readyClient.startSlug != "demo" {
+		t.Fatalf("unexpected workflow slug from form: %q", readyClient.startSlug)
+	}
+	if readyClient.startRequest.PresentationMode != attachModeUI {
+		t.Fatalf("expected interactive attach mode to resolve to ui, got %q", readyClient.startRequest.PresentationMode)
+	}
+	if attachedRunID != "run-task-form-001" {
+		t.Fatalf("expected ui attach for run-task-form-001, got %q", attachedRunID)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout before ui attach, got %q", stdout)
 	}
 }
 
@@ -1138,6 +1325,7 @@ func TestTasksRunCommandInteractiveUIModeAttachesThroughRemoteClient(t *testing.
 		nil,
 		"tasks",
 		"run",
+		"--name",
 		"demo",
 	)
 	if err != nil {
@@ -1255,6 +1443,7 @@ func TestTasksRunCommandBootstrapFailureReturnsStableExitCode(t *testing.T) {
 		nil,
 		"tasks",
 		"run",
+		"--name",
 		"demo",
 	)
 	if err == nil {
@@ -1326,6 +1515,71 @@ func TestRunsAttachCommandUsesRemoteUIAttach(t *testing.T) {
 	}
 }
 
+func TestRunsAttachCommandFallsBackToWatchWhenRunIsAlreadySettled(t *testing.T) {
+	readyClient := &stubDaemonCommandClient{
+		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+		health: apicore.DaemonHealth{Ready: true},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 20, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return readyClient, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 20, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var (
+		attachedRunID string
+		watchedRunID  string
+	)
+	installTestCLIRunObservers(
+		t,
+		func(_ context.Context, _ daemonCommandClient, runID string) error {
+			attachedRunID = runID
+			return errRunSettledBeforeUIAttach
+		},
+		func(_ context.Context, dst io.Writer, _ daemonCommandClient, runID string) error {
+			watchedRunID = runID
+			_, err := io.WriteString(dst, "run completed | completed\n")
+			return err
+		},
+	)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "runs", "attach", "run-attach-001")
+	if err != nil {
+		t.Fatalf("execute runs attach settled fallback: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if attachedRunID != "run-attach-001" {
+		t.Fatalf("expected attach attempt for run-attach-001, got %q", attachedRunID)
+	}
+	if watchedRunID != "run-attach-001" {
+		t.Fatalf("expected watch fallback for run-attach-001, got %q", watchedRunID)
+	}
+	if stdout != "run completed | completed\n" || stderr != "" {
+		t.Fatalf("expected replay stdout only, got stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
 func TestRunsWatchCommandStreamsWithoutLaunchingUI(t *testing.T) {
 	readyClient := &stubDaemonCommandClient{
 		target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
@@ -1383,17 +1637,33 @@ func TestRunsWatchCommandStreamsWithoutLaunchingUI(t *testing.T) {
 	}
 }
 
-func TestLegacyStartCommandIsRemoved(t *testing.T) {
-	output, err := executeRootCommand("start", "--help")
-	if err == nil {
-		t.Fatalf("expected legacy start command removal error\noutput:\n%s", output)
+func TestLegacyCommandsAreRemoved(t *testing.T) {
+	testCases := []struct {
+		name    string
+		command string
+	}{
+		{name: "start", command: "start"},
+		{name: "validate-tasks", command: "validate-tasks"},
+		{name: "fetch-reviews", command: "fetch-reviews"},
+		{name: "fix-reviews", command: "fix-reviews"},
 	}
-	if !strings.Contains(output, "unknown command \"start\" for \"compozy\"") {
-		t.Fatalf("unexpected legacy start output:\n%s", output)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			output, err := executeRootCommand(tc.command, "--help")
+			if err == nil {
+				t.Fatalf("expected legacy %s command removal error\noutput:\n%s", tc.command, output)
+			}
+
+			expected := fmt.Sprintf("unknown command %q for %q", tc.command, "compozy")
+			if !strings.Contains(output, expected) {
+				t.Fatalf("unexpected legacy %s output:\n%s", tc.command, output)
+			}
+		})
 	}
 }
 
-func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
+func TestReviewsFixCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
@@ -1418,7 +1688,8 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 		t,
 		cmd,
 		nil,
-		"fix-reviews",
+		"reviews",
+		"fix",
 		"--name",
 		"demo",
 		"--round",
@@ -1426,10 +1697,10 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 		"--dry-run",
 	)
 	if err != nil {
-		t.Fatalf("execute fix-reviews dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute reviews fix dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if stderr != "" {
-		t.Fatalf("expected no stderr for dry-run fix-reviews, got %q", stderr)
+		t.Fatalf("expected no stderr for dry-run reviews fix, got %q", stderr)
 	}
 
 	runDir := latestRunDirForCLI(t, workspaceRoot)
@@ -1439,7 +1710,7 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 
 	result := readCLIArtifactJSON(t, filepath.Join(runDir, "result.json"))
-	if got := result["status"]; got != "succeeded" {
+	if got := result["status"]; got != execStatusSucceeded {
 		t.Fatalf("unexpected review result payload: %#v", result)
 	}
 
@@ -1466,7 +1737,202 @@ func TestFixReviewsCommandExecuteDryRunPersistsKernelArtifacts(t *testing.T) {
 	}
 }
 
-func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.T) {
+func TestReviewsFetchCommandNoFlagsUsesInteractiveForm(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", "demo"), 0o755); err != nil {
+		t.Fatalf("mkdir workflow dir: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &reviewExecCaptureClient{
+		stubDaemonCommandClient: &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			reviewFetch: apicore.ReviewFetchResult{
+				Summary: apicore.ReviewSummary{
+					WorkflowSlug:    "demo",
+					RoundNumber:     1,
+					Provider:        "coderabbit",
+					PRRef:           "259",
+					ResolvedCount:   0,
+					UnresolvedCount: 1,
+				},
+			},
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 40, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return client, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 40, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	var collectFormCalls int
+	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
+		collectFormCalls++
+		state.name = "demo"
+		state.provider = "coderabbit"
+		state.pr = "259"
+		state.round = 1
+		return nil
+	}
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "reviews", "fetch")
+	if err != nil {
+		t.Fatalf("execute reviews fetch no-flags form flow: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if collectFormCalls != 1 {
+		t.Fatalf("expected one interactive form call, got %d", collectFormCalls)
+	}
+	if mustEvalSymlinksCLITest(t, client.fetchWorkspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+		t.Fatalf("fetch workspace = %q, want %q", client.fetchWorkspace, workspaceRoot)
+	}
+	if mustEvalSymlinksCLITest(t, client.fetchReq.Workspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+		t.Fatalf("fetch request workspace = %q, want %q", client.fetchReq.Workspace, workspaceRoot)
+	}
+	if client.fetchSlug != "demo" {
+		t.Fatalf("fetch slug = %q, want demo", client.fetchSlug)
+	}
+	if client.fetchReq.Provider != "coderabbit" || client.fetchReq.PRRef != "259" ||
+		client.fetchReq.Round == nil || *client.fetchReq.Round != 1 {
+		t.Fatalf("unexpected fetch request: %#v", client.fetchReq)
+	}
+	if !containsAll(stdout, "Fetched review issues from coderabbit", "PR 259", "round 001") {
+		t.Fatalf("unexpected reviews fetch stdout: %q", stdout)
+	}
+	if stderr != "" {
+		t.Fatalf("expected no stderr for reviews fetch form flow, got %q", stderr)
+	}
+}
+
+func TestReviewsFixCommandNoFlagsUsesInteractiveForm(t *testing.T) {
+	workspaceRoot := t.TempDir()
+	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
+	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
+		Provider:  "coderabbit",
+		PR:        "259",
+		Round:     1,
+		CreatedAt: time.Date(2026, 4, 6, 12, 0, 0, 0, time.UTC),
+	}, []provider.ReviewItem{{
+		Title:       "Add nil check",
+		File:        "internal/app/service.go",
+		Line:        42,
+		Author:      "coderabbitai[bot]",
+		ProviderRef: "thread:PRT_1,comment:RC_1",
+		Body:        "Please add a nil check before dereferencing the pointer.",
+	}}); err != nil {
+		t.Fatalf("write review round: %v", err)
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &reviewExecCaptureClient{
+		stubDaemonCommandClient: &stubDaemonCommandClient{
+			target: apiclient.Target{SocketPath: "/tmp/compozy-daemon.sock"},
+			health: apicore.DaemonHealth{Ready: true},
+			reviewRun: apicore.Run{
+				RunID:            "run-review-form-001",
+				Mode:             string(core.ModePRReview),
+				Status:           "running",
+				PresentationMode: attachModeUI,
+				StartedAt:        time.Date(2026, 4, 17, 13, 41, 0, 0, time.UTC),
+			},
+		},
+	}
+	installTestCLIDaemonBootstrap(t, cliDaemonBootstrap{
+		resolveHomePaths: func() (compozyconfig.HomePaths, error) {
+			return compozyconfig.HomePaths{InfoPath: "/tmp/compozy-home/daemon.json"}, nil
+		},
+		readInfo: func(string) (daemon.Info, error) {
+			return daemon.Info{
+				PID:        4242,
+				SocketPath: "/tmp/compozy-daemon.sock",
+				StartedAt:  time.Date(2026, 4, 17, 13, 41, 0, 0, time.UTC),
+				State:      daemon.ReadyStateReady,
+			}, nil
+		},
+		newClient: func(apiclient.Target) (daemonCommandClient, error) {
+			return client, nil
+		},
+		launch: func(compozyconfig.HomePaths) error {
+			t.Fatal("expected healthy daemon probe to avoid launch")
+			return nil
+		},
+		sleep:          func(time.Duration) {},
+		now:            func() time.Time { return time.Date(2026, 4, 17, 13, 41, 0, 0, time.UTC) },
+		startupTimeout: time.Second,
+		pollInterval:   time.Millisecond,
+	})
+
+	var attachedRunID string
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		attachedRunID = runID
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	var collectFormCalls int
+	defaults.collectForm = func(_ *cobra.Command, state *commandState) error {
+		collectFormCalls++
+		state.name = "demo"
+		state.round = 1
+		return nil
+	}
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "reviews", "fix")
+	if err != nil {
+		t.Fatalf("execute reviews fix no-flags form flow: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	if collectFormCalls != 1 {
+		t.Fatalf("expected one interactive form call, got %d", collectFormCalls)
+	}
+	if mustEvalSymlinksCLITest(t, client.startReviewWorkspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+		t.Fatalf("review run workspace = %q, want %q", client.startReviewWorkspace, workspaceRoot)
+	}
+	if mustEvalSymlinksCLITest(t, client.startReviewReq.Workspace) != mustEvalSymlinksCLITest(t, workspaceRoot) {
+		t.Fatalf("review run request workspace = %q, want %q", client.startReviewReq.Workspace, workspaceRoot)
+	}
+	if client.startReviewSlug != "demo" || client.startReviewRound != 1 {
+		t.Fatalf(
+			"unexpected review run target: slug=%q round=%d",
+			client.startReviewSlug,
+			client.startReviewRound,
+		)
+	}
+	if client.startReviewReq.PresentationMode != attachModeUI {
+		t.Fatalf("expected interactive attach mode to resolve to ui, got %q", client.startReviewReq.PresentationMode)
+	}
+	if attachedRunID != "run-review-form-001" {
+		t.Fatalf("expected ui attach for run-review-form-001, got %q", attachedRunID)
+	}
+	if stdout != "" || stderr != "" {
+		t.Fatalf("expected quiet reviews fix form flow before ui attach, got stdout=%q stderr=%q", stdout, stderr)
+	}
+}
+
+func TestReviewsFixCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.T) {
 	workspaceRoot := t.TempDir()
 	reviewDir := filepath.Join(workspaceRoot, ".compozy", "tasks", "demo", "reviews-001")
 	if err := reviews.WriteRound(reviewDir, model.RoundMeta{
@@ -1491,7 +1957,8 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 		t,
 		cmd,
 		nil,
-		"fix-reviews",
+		"reviews",
+		"fix",
 		"--name",
 		"demo",
 		"--round",
@@ -1501,18 +1968,15 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 		"raw-json",
 	)
 	if err != nil {
-		t.Fatalf("execute fix-reviews raw-json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		t.Fatalf("execute reviews fix raw-json dry-run: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
 	}
 	if stderr != "" {
-		t.Fatalf("expected no stderr for raw-json fix-reviews, got %q", stderr)
+		t.Fatalf("expected no stderr for raw-json reviews fix, got %q", stderr)
 	}
 
 	events := decodeExecJSONLEvents(t, stdout)
 	if len(events) < 3 {
 		t.Fatalf("expected multiple streamed canonical events, got %d\nstdout:\n%s", len(events), stdout)
-	}
-	if got := events[0]["kind"]; got != string(eventspkg.EventKindRunStarted) {
-		t.Fatalf("unexpected first raw event: %#v", events[0])
 	}
 	if got := events[len(events)-1]["kind"]; got != string(eventspkg.EventKindRunCompleted) {
 		t.Fatalf("unexpected terminal raw event: %#v", events[len(events)-1])
@@ -1522,6 +1986,20 @@ func TestFixReviewsCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	}
 	if _, ok := events[0]["type"]; ok {
 		t.Fatalf("raw workflow stream should preserve canonical envelopes, got %#v", events[0])
+	}
+	var streamedKinds []eventspkg.EventKind
+	for _, event := range events {
+		kind, _ := event["kind"].(string)
+		streamedKinds = append(streamedKinds, eventspkg.EventKind(kind))
+	}
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindJobQueued,
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(streamedKinds, want) {
+			t.Fatalf("expected raw workflow stream to include %s, got %v", want, streamedKinds)
+		}
 	}
 
 	runDir := latestRunDirForCLI(t, workspaceRoot)
@@ -1599,7 +2077,7 @@ func TestTaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace(t *testing.T
 		t.Fatalf("unexpected task run mode: %#v", taskRunMeta)
 	}
 	taskResult := readCLIArtifactJSON(t, filepath.Join(taskRunDir, "result.json"))
-	if got := taskResult["status"]; got != "succeeded" {
+	if got := taskResult["status"]; got != execStatusSucceeded {
 		t.Fatalf("unexpected task result payload: %#v", taskResult)
 	}
 	taskPromptPath := singleCLIJobArtifact(t, taskRunDir, "*.prompt.md")
@@ -1689,7 +2167,7 @@ func TestTaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace(t *testing.T
 		t.Fatalf("unexpected review run mode: %#v", reviewRunMeta)
 	}
 	reviewResult := readCLIArtifactJSON(t, filepath.Join(reviewRunDir, "result.json"))
-	if got := reviewResult["status"]; got != "succeeded" {
+	if got := reviewResult["status"]; got != execStatusSucceeded {
 		t.Fatalf("unexpected review result payload: %#v", reviewResult)
 	}
 	reviewPromptPath := singleCLIJobArtifact(t, reviewRunDir, "*.prompt.md")

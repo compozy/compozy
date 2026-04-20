@@ -24,6 +24,7 @@ import (
 
 const (
 	execStatusCompleted = "completed"
+	execStatusSucceeded = "succeeded"
 	execStatusFailed    = "failed"
 	execStatusCanceled  = "canceled"
 	execStatusCrashed   = "crashed"
@@ -43,7 +44,7 @@ func newReviewsCommand() *cobra.Command {
 func newReviewsCommandWithDefaults(defaults commandStateDefaults) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "reviews",
-		Short:        "Inspect and remediate review workflows",
+		Short:        "Fetch, inspect, and remediate review workflows",
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -66,7 +67,12 @@ func newReviewsFetchCommandWithDefaults(defaults commandStateDefaults) *cobra.Co
 		Short:        "Import provider feedback into a review round",
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
-		RunE:         state.fetchReviewsDaemon,
+		Long: "Fetch review comments from a provider and write them into .compozy/tasks/<name>/reviews-NNN/.\n\n" +
+			"When --provider is omitted, Compozy can load its default from ~/.compozy/config.toml or .compozy/config.toml.",
+		Example: `  compozy reviews fetch my-feature --provider coderabbit --pr 259
+  compozy reviews fetch --name my-feature --provider coderabbit --pr 259 --round 2
+  compozy reviews fetch --name my-feature`,
+		RunE: state.fetchReviewsDaemon,
 	}
 	cmd.Flags().StringVar(&state.provider, "provider", "", "Review provider name")
 	cmd.Flags().StringVar(&state.pr, "pr", "", "Pull request number")
@@ -109,7 +115,18 @@ func newReviewsFixCommandWithDefaults(defaults commandStateDefaults) *cobra.Comm
 		Short:        "Start a daemon-backed review-fix run",
 		SilenceUsage: true,
 		Args:         cobra.MaximumNArgs(1),
-		RunE:         state.runReviewWorkflowDaemon,
+		Long: `Process review issue markdown files from .compozy/tasks/<name>/reviews-NNN/ and run the configured AI agent
+to remediate review feedback.
+
+Most runtime defaults can be supplied by ~/.compozy/config.toml and overridden by
+.compozy/config.toml. In interactive terminals the command
+opens the run cockpit by default; in non-TTY environments it falls back to headless streaming.`,
+		Example: `  compozy reviews fix my-feature --ide codex --concurrent 2 --batch-size 3
+  compozy reviews fix --name my-feature --round 2
+  compozy reviews fix my-feature --format json --round 2
+  compozy reviews fix --reviews-dir .compozy/tasks/my-feature/reviews-001
+  compozy reviews fix --name my-feature`,
+		RunE: state.runReviewWorkflowDaemon,
 	}
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: true})
 	addWorkflowOutputFlags(cmd, state)
@@ -137,7 +154,10 @@ func (s *commandState) fetchReviewsDaemon(cmd *cobra.Command, args []string) err
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-	if err := s.resolveWorkflowNameArg(args); err != nil {
+	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+		return err
+	}
+	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -176,7 +196,7 @@ func (s *commandState) listReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-	if err := s.resolveWorkflowNameArg(args); err != nil {
+	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -212,7 +232,7 @@ func (s *commandState) showReviewsDaemon(cmd *cobra.Command, args []string) erro
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
-	if err := s.resolveWorkflowNameAndRoundArgs(args); err != nil {
+	if err := s.resolveWorkflowNameAndRoundArgs(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
 
@@ -266,7 +286,10 @@ func (s *commandState) runReviewWorkflowDaemon(cmd *cobra.Command, args []string
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
 	defer cleanup()
-	if err := s.resolveWorkflowNameArg(args); err != nil {
+	if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+		return err
+	}
+	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return withExitCode(1, err)
 	}
 	if err := s.resolveReviewRound(ctx); err != nil {
@@ -835,7 +858,7 @@ func translateDaemonExecTerminalEvent(
 			return nil, err
 		}
 		result["type"] = execEventRunSucceeded
-		result["status"] = "succeeded"
+		result["status"] = execStatusSucceeded
 		result["output"] = output
 	case eventspkg.EventKindRunFailed:
 		payload, err := decodeDaemonPayload[kinds.RunFailedPayload](event.Payload)
@@ -1021,7 +1044,7 @@ func isTerminalDaemonRun(status string) bool {
 	}
 }
 
-func (s *commandState) resolveWorkflowNameArg(args []string) error {
+func (s *commandState) resolveWorkflowNameArg(cmd *cobra.Command, args []string) error {
 	if strings.TrimSpace(s.name) != "" {
 		return nil
 	}
@@ -1029,18 +1052,22 @@ func (s *commandState) resolveWorkflowNameArg(args []string) error {
 		s.name = strings.TrimSpace(args[0])
 	}
 	if strings.TrimSpace(s.name) == "" {
+		commandLabel := "reviews"
+		if cmd != nil {
+			commandLabel = strings.TrimSpace(cmd.CommandPath())
+		}
 		switch s.kind {
 		case commandKindFetchReviews, commandKindFixReviews:
-			return fmt.Errorf("%s requires --name", s.kind)
+			return fmt.Errorf("%s requires --name", commandLabel)
 		default:
-			return fmt.Errorf("%s requires a workflow slug via [slug] or --name", "reviews")
+			return fmt.Errorf("%s requires a workflow slug via [slug] or --name", commandLabel)
 		}
 	}
 	return nil
 }
 
-func (s *commandState) resolveWorkflowNameAndRoundArgs(args []string) error {
-	if err := s.resolveWorkflowNameArg(args); err != nil {
+func (s *commandState) resolveWorkflowNameAndRoundArgs(cmd *cobra.Command, args []string) error {
+	if err := s.resolveWorkflowNameArg(cmd, args); err != nil {
 		return err
 	}
 	if s.round > 0 {

@@ -62,6 +62,7 @@ type daemonCommandClient interface {
 	StartTaskRun(context.Context, string, apicore.TaskRunRequest) (apicore.Run, error)
 	StartReviewRun(context.Context, string, string, int, apicore.ReviewRunRequest) (apicore.Run, error)
 	StartExecRun(context.Context, apicore.ExecRequest) (apicore.Run, error)
+	CancelRun(context.Context, string) error
 	GetRunSnapshot(context.Context, string) (apicore.RunSnapshot, error)
 	ListRunEvents(context.Context, string, apicore.StreamCursor, int) (apicore.RunEventPage, error)
 	OpenRunStream(context.Context, string, apicore.StreamCursor) (apiclient.RunStream, error)
@@ -202,6 +203,9 @@ func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executa
 	if err := compozyconfig.EnsureHomeLayout(paths); err != nil {
 		return err
 	}
+	if _, err := cliDaemonHTTPPortFromEnv(); err != nil {
+		return fmt.Errorf("resolve daemon http port: %w", err)
+	}
 
 	logFile, err := os.OpenFile(paths.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
@@ -219,7 +223,13 @@ func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executa
 		_ = stdin.Close()
 	}()
 
-	command := exec.CommandContext(context.Background(), executable, "daemon", "start")
+	command := exec.CommandContext(
+		context.Background(),
+		executable,
+		"daemon",
+		"start",
+		"--"+daemonStartInternalChildFlag,
+	)
 	command.Stdin = stdin
 	command.Stdout = logFile
 	command.Stderr = logFile
@@ -234,11 +244,14 @@ func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executa
 func newTasksCommand(dispatcher *kernel.Dispatcher, defaults commandStateDefaults) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:          "tasks",
-		Short:        "Inspect and run task workflows",
+		Short:        "Inspect, validate, and run task workflows",
 		SilenceUsage: true,
 	}
 
-	cmd.AddCommand(newTasksRunCommandWithDefaults(dispatcher, defaults))
+	cmd.AddCommand(
+		newTasksValidateCommand(),
+		newTasksRunCommandWithDefaults(dispatcher, defaults),
+	)
 	return cmd
 }
 
@@ -301,6 +314,11 @@ func (s *commandState) runTaskWorkflow(cmd *cobra.Command, args []string) error 
 	if err := s.applyWorkspaceDefaults(ctx, cmd); err != nil {
 		return withExitCode(2, fmt.Errorf("apply workspace defaults for %s: %w", cmd.CommandPath(), err))
 	}
+	if len(args) == 0 && strings.TrimSpace(s.name) == "" {
+		if err := s.maybeCollectInteractiveParams(cmd); err != nil {
+			return err
+		}
+	}
 	if err := s.resolveTaskWorkflowName(args); err != nil {
 		return withExitCode(1, err)
 	}
@@ -352,7 +370,13 @@ func handleStartedTaskRun(
 	run apicore.Run,
 ) error {
 	if run.PresentationMode == attachModeUI {
-		if err := attachCLIRunUI(ctx, client, run.RunID); err != nil {
+		if err := attachStartedCLIRunUI(ctx, client, run.RunID); err != nil {
+			if errors.Is(err, errRunSettledBeforeUIAttach) {
+				if err := watchCLIRun(ctx, cmd.OutOrStdout(), client, run.RunID); err != nil {
+					return mapDaemonCommandError(err)
+				}
+				return nil
+			}
 			return mapDaemonCommandError(err)
 		}
 		return nil

@@ -163,7 +163,7 @@ func TestCreateTasksSkillDocumentsTaskTypeRegistryAndValidation(t *testing.T) {
 		"Read `.compozy/config.toml`.",
 		"[tasks].types",
 		"`frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`",
-		"Run `compozy validate-tasks --name <feature>`.",
+		"Run `compozy tasks validate --name <feature>`.",
 		"Do not mark the skill complete until it exits 0.",
 	}
 	for _, snippet := range required {

@@ -1,0 +1,64 @@
+- Goal (incl. success criteria):
+  - Restore correct batching for interactive `compozy reviews fix` after the daemon migration.
+  - Success means interactive form values such as `batch-size=10` reach the daemon, review jobs are grouped correctly again, focused regressions pass, and fresh `make verify` passes.
+- Constraints/Assumptions:
+  - Follow `AGENTS.md` and `CLAUDE.md`.
+  - Required skills in use: `no-workarounds`, `systematic-debugging`, `bubbletea`, `golang-pro`, `testing-anti-patterns`; use `cy-final-verify` before completion.
+  - Do not touch unrelated dirty files already present in the worktree.
+  - Root-cause fix is preferred over patching daemon batching or TUI symptoms.
+- Key decisions:
+  - Treat the regression as a shared CLI explicit-input propagation bug in daemon-backed interactive commands.
+  - Generalize the fix instead of special-casing `reviews fix`.
+  - Preserve explicit CLI flags as authoritative over interactive form inputs.
+- State:
+  - Completed.
+- Done:
+  - Compared daemon vs pre-daemon review-fix flow.
+  - Confirmed `internal/core/plan/prepare.go` still honors `cfg.BatchSize`.
+  - Confirmed daemon request builders depend on `commandFlagChanged(...)`.
+  - Confirmed `applyInput` mutates `commandState` without marking flags changed, which drops interactive form values from daemon override payloads.
+  - Persisted the accepted implementation plan under `.codex/plans/2026-04-20-reviews-fix-batching.md`.
+  - Patched `internal/cli/form.go` so successful form-applied values mark their flags as changed.
+  - Added focused regressions in `internal/cli/form_daemon_overrides_test.go` for:
+    - shared `applyInput` explicitness behavior,
+    - interactive `reviews fix` daemon batching/runtime override propagation,
+    - interactive `tasks run` daemon runtime override propagation.
+  - Ran focused validation successfully:
+    - `go test ./internal/cli -run 'Test(ApplyInputMarksFormValuesAsExplicitOverrides|ReviewsFixInteractiveFormPropagatesDaemonBatchingOverrides|TasksRunInteractiveFormPropagatesDaemonRuntimeOverrides)$' -count=1`
+  - Ran full verification successfully:
+    - `make verify`
+    - key evidence: `0 issues.`, `DONE 2422 tests, 1 skipped in 41.369s`, `All verification checks passed`
+  - Investigated review feedback on blank form fields becoming explicit daemon overrides.
+  - Identified the refined root cause: `applyInput` was treating parse-success as explicit intent, so blank string-backed optional fields mutated state and marked flags changed.
+  - Updated `internal/cli/form.go` so only explicit nonblank string-backed inputs mark flags changed and mutate state; blank string-backed inputs now preserve the preloaded state.
+  - Expanded `internal/cli/form_daemon_overrides_test.go` to cover:
+    - blank optional numeric inputs staying implicit,
+    - blank interactive review batching preserving workspace defaults for `batch_size` and `concurrent`,
+    - blank interactive `add-dir` preserving workspace defaults by omitting the daemon override.
+  - Updated `internal/cli/root_test.go` to reflect the corrected contract: blank optional form inputs preserve prefilled state instead of clearing it.
+  - Ran focused validation successfully after the review fix:
+    - `go test ./internal/cli -run 'Test(FormInputsApplyPreservesPrefilledOptionalValuesWhenLeftBlank|ApplyInputMarksFormValuesAsExplicitOverrides|ReviewsFixInteractiveFormPropagatesDaemonBatchingOverrides|TasksRunInteractiveFormPropagatesDaemonRuntimeOverrides|ReviewsFixInteractiveFormBlankBatchingPreservesWorkspaceDefaults|TasksRunInteractiveFormBlankAddDirsPreservesWorkspaceDefaults)$' -count=1`
+  - Re-ran full verification successfully after the review fix:
+    - `make verify`
+    - key evidence: `0 issues.`, `DONE 2425 tests, 1 skipped in 20.131s`, `All verification checks passed`
+  - Reconfirmed the reviewed regression coverage on the current tree:
+    - `go test ./internal/cli -run 'Test(FormInputsApplyPreservesPrefilledOptionalValuesWhenLeftBlank|ApplyInputMarksFormValuesAsExplicitOverrides|ReviewsFixInteractiveFormPropagatesDaemonBatchingOverrides|TasksRunInteractiveFormPropagatesDaemonRuntimeOverrides|ReviewsFixInteractiveFormBlankBatchingPreservesWorkspaceDefaults|TasksRunInteractiveFormBlankAddDirsPreservesWorkspaceDefaults)$' -count=1`
+    - key evidence: `ok github.com/compozy/compozy/internal/cli 0.024s`
+  - Re-ran the full verification gate on the current tree before handoff:
+    - `make verify`
+    - key evidence: `0 issues.`, `DONE 2425 tests, 1 skipped in 0.421s`, `All verification checks passed`
+- Now:
+  - No technical work remains; prepare final handoff.
+- Next:
+  - None.
+- Open questions (UNCONFIRMED if needed):
+  - None.
+- Working set (files/ids/commands):
+  - `.codex/ledger/2026-04-20-MEMORY-reviews-fix-batching.md`
+  - `.codex/plans/2026-04-20-reviews-fix-batching.md`
+  - `internal/cli/form.go`
+  - `internal/cli/form_daemon_overrides_test.go`
+  - `git status --short`
+  - `go test ./internal/cli -run 'Test(ApplyInputMarksFormValuesAsExplicitOverrides|ReviewsFixInteractiveFormPropagatesDaemonBatchingOverrides|TasksRunInteractiveFormPropagatesDaemonRuntimeOverrides)$' -count=1`
+  - `go test ./internal/cli -run 'Test(FormInputsApplyPreservesPrefilledOptionalValuesWhenLeftBlank|ApplyInputMarksFormValuesAsExplicitOverrides|ReviewsFixInteractiveFormPropagatesDaemonBatchingOverrides|TasksRunInteractiveFormPropagatesDaemonRuntimeOverrides|ReviewsFixInteractiveFormBlankBatchingPreservesWorkspaceDefaults|TasksRunInteractiveFormBlankAddDirsPreservesWorkspaceDefaults)$' -count=1`
+  - `make verify`

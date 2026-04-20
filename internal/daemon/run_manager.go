@@ -1244,6 +1244,21 @@ func (m *RunManager) executeWorkflowRun(active *activeRun, row globaldb.Run, run
 		return
 	}
 	prep.SetRunScope(scope)
+	if err := emitPreparedJobQueuedEvents(
+		active.ctx,
+		prep.Journal(),
+		runtimeCfg.RunID,
+		prep.Jobs,
+		runtimeCfg.AccessMode,
+	); err != nil {
+		fallback = fallbackTerminalState(
+			scope.RunArtifacts(),
+			fmt.Errorf("publish prepared queued jobs: %w", err),
+			active.cancelWasRequested(),
+		)
+		m.finishRun(active, row, fallback)
+		return
+	}
 
 	executionErr = m.execute(active.ctx, prep, runtimeCfg)
 	fallback = fallbackTerminalState(scope.RunArtifacts(), executionErr, active.cancelWasRequested())
@@ -1966,6 +1981,55 @@ func submitSyntheticEvent(
 		Payload: rawPayload,
 	})
 	return err
+}
+
+func emitPreparedJobQueuedEvents(
+	ctx context.Context,
+	runJournal submitter,
+	runID string,
+	jobs []model.Job,
+	accessMode string,
+) error {
+	if runJournal == nil || len(jobs) == 0 {
+		return nil
+	}
+
+	for index := range jobs {
+		job := jobs[index]
+		payload := kinds.JobQueuedPayload{
+			Index:           index,
+			CodeFile:        queuedJobCodeFileLabel(job),
+			CodeFiles:       append([]string(nil), job.CodeFiles...),
+			Issues:          job.IssueCount(),
+			TaskTitle:       strings.TrimSpace(job.TaskTitle),
+			TaskType:        strings.TrimSpace(job.TaskType),
+			SafeName:        strings.TrimSpace(job.SafeName),
+			IDE:             strings.TrimSpace(job.IDE),
+			Model:           strings.TrimSpace(job.Model),
+			ReasoningEffort: strings.TrimSpace(job.ReasoningEffort),
+			AccessMode:      strings.TrimSpace(accessMode),
+			OutLog:          strings.TrimSpace(job.OutLog),
+			ErrLog:          strings.TrimSpace(job.ErrLog),
+		}
+		if err := submitSyntheticEvent(ctx, runJournal, runID, eventspkg.EventKindJobQueued, payload); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func queuedJobCodeFileLabel(job model.Job) string {
+	if len(job.CodeFiles) == 0 {
+		return ""
+	}
+	if len(job.CodeFiles) > 3 {
+		return fmt.Sprintf(
+			"%s and %d more",
+			strings.Join(job.CodeFiles[:3], ", "),
+			len(job.CodeFiles)-3,
+		)
+	}
+	return strings.Join(job.CodeFiles, ", ")
 }
 
 type submitter interface {

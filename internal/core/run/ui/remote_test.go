@@ -128,8 +128,12 @@ func TestFollowRemoteRunReconnectsFromOverflowCursor(t *testing.T) {
 
 	followRemoteRun(context.Background(), session, opts, firstStream, apicore.StreamCursor{})
 
-	if got := session.messageTypes(); !reflect.DeepEqual(got, []string{"jobQueuedMsg", "jobStartedMsg"}) {
-		t.Fatalf("unexpected translated UI messages: %v", got)
+	if got := session.messageTypes(); !reflect.DeepEqual(got, []string{
+		"event:job.queued",
+		"event:job.started",
+		"event:run.completed",
+	}) {
+		t.Fatalf("unexpected streamed remote messages: %v", got)
 	}
 	if len(afterCursors) != 1 || afterCursors[0].Sequence != 1 {
 		t.Fatalf("expected reconnect from cursor sequence 1, got %#v", afterCursors)
@@ -181,6 +185,51 @@ func TestAttachRemoteSkipsLiveStreamForCompletedSnapshot(t *testing.T) {
 	}
 	if session == nil {
 		t.Fatal("expected AttachRemote to return a session")
+	}
+}
+
+func TestAttachRemoteKeepsOwnerSessionsCancelableFromLocalQuit(t *testing.T) {
+	originalSetup := setupRemoteUISession
+	defer func() {
+		setupRemoteUISession = originalSetup
+	}()
+
+	detachOnly := true
+	setupRemoteUISession = func(
+		_ context.Context,
+		_ []job,
+		cfg *config,
+		_ *eventspkg.Bus[eventspkg.Event],
+		enabled bool,
+	) Session {
+		if !enabled {
+			t.Fatal("expected remote attach to enable the ui session")
+		}
+		if cfg == nil {
+			t.Fatal("expected remote attach config")
+		}
+		detachOnly = cfg.DetachOnly
+		return &recordingUISession{}
+	}
+
+	session, err := AttachRemote(context.Background(), RemoteAttachOptions{
+		Snapshot: apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-remote-owner-001", Status: "running"},
+			Jobs: []apicore.RunJobState{{
+				Index:  0,
+				Status: "running",
+			}},
+		},
+		OwnerSession: true,
+	})
+	if err != nil {
+		t.Fatalf("AttachRemote(owner): %v", err)
+	}
+	if session == nil {
+		t.Fatal("expected AttachRemote(owner) to return a session")
+	}
+	if detachOnly {
+		t.Fatal("expected owner remote attach to preserve local quit handling")
 	}
 }
 
@@ -307,17 +356,13 @@ func applyRemoteQueuedJobs(mdl *uiModel, jobs []job) {
 
 type recordingUISession struct {
 	mu   sync.Mutex
-	msgs []uiMsg
+	msgs []any
 }
 
 func (s *recordingUISession) Enqueue(msg any) {
-	typed, ok := msg.(uiMsg)
-	if !ok {
-		return
-	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.msgs = append(s.msgs, typed)
+	s.msgs = append(s.msgs, msg)
 }
 
 func (s *recordingUISession) SetQuitHandler(func(uiQuitRequest)) {}
@@ -330,7 +375,7 @@ func (s *recordingUISession) messageTypes() []string {
 	defer s.mu.Unlock()
 	result := make([]string, 0, len(s.msgs))
 	for _, msg := range s.msgs {
-		switch msg.(type) {
+		switch msg := msg.(type) {
 		case jobQueuedMsg:
 			result = append(result, "jobQueuedMsg")
 		case jobStartedMsg:
@@ -339,6 +384,8 @@ func (s *recordingUISession) messageTypes() []string {
 			result = append(result, "jobUpdateMsg")
 		case jobFinishedMsg:
 			result = append(result, "jobFinishedMsg")
+		case eventspkg.Event:
+			result = append(result, "event:"+string(msg.Kind))
 		default:
 			result = append(result, "unknown")
 		}

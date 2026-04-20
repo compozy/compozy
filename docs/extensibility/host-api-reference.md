@@ -70,7 +70,7 @@ const extension = new Extension("demo", "0.1.0").onPromptPostBuild(async (contex
 
 ## Review providers
 
-Extensions can register executable review providers that Compozy calls during `fix-reviews` workflows. The host dispatches `fetch_reviews` and `resolve_issues` JSON-RPC calls to the extension subprocess.
+Extensions can register executable review providers that Compozy calls during `reviews fetch` and `reviews fix` workflows. The host dispatches `fetch_reviews` and `resolve_issues` JSON-RPC calls to the extension subprocess.
 
 ### Registration
 

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/tasks"
 	"github.com/compozy/compozy/internal/core/workspace"
@@ -37,19 +36,19 @@ type validateTasksOutput struct {
 	FixPrompt string        `json:"fix_prompt,omitempty"`
 }
 
-func newValidateTasksCommand(_ *kernel.Dispatcher) *cobra.Command {
+func newTasksValidateCommand() *cobra.Command {
 	state := &validateTasksCommandState{format: validateTasksFormatText}
 	cmd := &cobra.Command{
-		Use:          "validate-tasks",
-		Short:        "Validate task metadata under a PRD workflow tasks directory",
+		Use:          "validate",
+		Short:        "Validate task metadata under a workflow tasks directory",
 		SilenceUsage: true,
 		Args:         cobra.NoArgs,
 		Long: `Validate every task_*.md file in a PRD workflow directory against the metadata v2 schema.
 
 Validation failures return exit code 1. Filesystem, config, or flag errors return exit code 2.`,
-		Example: `  compozy validate-tasks --name my-feature
-  compozy validate-tasks --tasks-dir .compozy/tasks/my-feature
-  compozy validate-tasks --tasks-dir .compozy/tasks/my-feature --format json`,
+		Example: `  compozy tasks validate --name my-feature
+  compozy tasks validate --tasks-dir .compozy/tasks/my-feature
+  compozy tasks validate --tasks-dir .compozy/tasks/my-feature --format json`,
 		RunE: state.run,
 	}
 
@@ -111,7 +110,7 @@ func (s *validateTasksCommandState) validateFormat() error {
 		return nil
 	default:
 		return fmt.Errorf(
-			"validate-tasks format must be one of %q or %q (got %q)",
+			"tasks validate format must be one of %q or %q (got %q)",
 			validateTasksFormatText,
 			validateTasksFormatJSON,
 			s.format,

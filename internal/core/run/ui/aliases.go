@@ -26,10 +26,14 @@ const (
 )
 
 type uiQuitRequest = runshared.UIQuitRequest
+type QuitRequest = runshared.UIQuitRequest
 
 const (
 	uiQuitRequestDrain = runshared.UIQuitRequestDrain
 	uiQuitRequestForce = runshared.UIQuitRequestForce
+
+	QuitRequestDrain = runshared.UIQuitRequestDrain
+	QuitRequestForce = runshared.UIQuitRequestForce
 )
 
 type uiSession = runshared.UISession

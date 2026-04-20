@@ -17,6 +17,12 @@ const (
 	ReadyStateStarting ReadyState = "starting"
 	ReadyStateReady    ReadyState = "ready"
 	ReadyStateStopped  ReadyState = "stopped"
+
+	// DefaultHTTPPort is the daemon's default localhost HTTP transport port.
+	DefaultHTTPPort = 2323
+	// EphemeralHTTPPort requests an OS-assigned localhost HTTP port during startup.
+	// The effective port is persisted after the listener binds.
+	EphemeralHTTPPort = -1
 )
 
 // Info is the persisted daemon discovery record written to daemon.json.

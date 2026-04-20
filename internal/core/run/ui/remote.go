@@ -38,6 +38,7 @@ type remoteFollowState struct {
 type RemoteAttachOptions struct {
 	Snapshot     apicore.RunSnapshot
 	Config       *config
+	OwnerSession bool
 	LoadSnapshot func(context.Context) (apicore.RunSnapshot, error)
 	OpenStream   func(context.Context, apicore.StreamCursor) (apiclient.RunStream, error)
 }
@@ -51,7 +52,7 @@ func AttachRemote(ctx context.Context, opts RemoteAttachOptions) (Session, error
 		cfg = &config{}
 	}
 	localCfg := *cfg
-	localCfg.DetachOnly = true
+	localCfg.DetachOnly = !opts.OwnerSession
 	localCfg.DaemonOwned = true
 
 	session := setupRemoteUISession(ctx, jobs, &localCfg, nil, true)
@@ -91,7 +92,6 @@ func followRemoteRun(
 	cursor apicore.StreamCursor,
 ) {
 	state := newRemoteFollowState(stream, cursor)
-	translator := newUIEventTranslator()
 	defer func() {
 		closeRemoteRunStream(state.currentStream)
 	}()
@@ -106,7 +106,7 @@ func followRemoteRun(
 			continue
 		}
 
-		state, stop = waitForRemoteRunUpdate(ctx, session, opts, translator, state)
+		state, stop = waitForRemoteRunUpdate(ctx, session, opts, state)
 		if stop {
 			return
 		}
@@ -148,7 +148,6 @@ func waitForRemoteRunUpdate(
 	ctx context.Context,
 	session Session,
 	opts RemoteAttachOptions,
-	translator *uiEventTranslator,
 	state remoteFollowState,
 ) (remoteFollowState, bool) {
 	select {
@@ -157,7 +156,7 @@ func waitForRemoteRunUpdate(
 	case err, ok := <-state.errCh:
 		return handleRemoteRunStreamError(ctx, opts, state, err, ok)
 	case item, ok := <-state.itemCh:
-		return handleRemoteRunStreamItem(ctx, session, opts, translator, state, item, ok)
+		return handleRemoteRunStreamItem(ctx, session, opts, state, item, ok)
 	}
 }
 
@@ -185,7 +184,6 @@ func handleRemoteRunStreamItem(
 	ctx context.Context,
 	session Session,
 	opts RemoteAttachOptions,
-	translator *uiEventTranslator,
 	state remoteFollowState,
 	item apiclient.RunStreamItem,
 	ok bool,
@@ -211,9 +209,7 @@ func handleRemoteRunStreamItem(
 	}
 
 	state.lastCursor = apicore.CursorFromEvent(*item.Event)
-	for _, msg := range translator.translateMessages(*item.Event) {
-		session.Enqueue(msg)
-	}
+	session.Enqueue(*item.Event)
 	if isTerminalRunEvent(item.Event.Kind) {
 		return state, true
 	}

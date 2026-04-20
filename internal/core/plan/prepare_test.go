@@ -437,6 +437,53 @@ func TestBuildBatchJobWrapsMemoryPreparationErrorWithTaskPath(t *testing.T) {
 	}
 }
 
+func TestPrepareJobsWrapsBatchBuildFailuresWithBatchIndex(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	runArtifacts := model.NewRunArtifacts(workspaceRoot, "tasks-demo-batch-error-test-run")
+	if err := os.MkdirAll(runArtifacts.JobsDir, 0o755); err != nil {
+		t.Fatalf("mkdir jobs dir: %v", err)
+	}
+
+	tasksDir := t.TempDir()
+	taskOnePath := filepath.Join(tasksDir, "task_1.md")
+	taskTwoPath := filepath.Join(tasksDir, "task_2.md")
+	groups := map[string][]model.IssueEntry{
+		"task_1": {
+			{
+				Name:     "task_1.md",
+				AbsPath:  taskOnePath,
+				Content:  "---\nstatus: pending\ntitle: Task 1\ntype: backend\ncomplexity: low\n---\n\n# Task 1\n",
+				CodeFile: "task_1",
+			},
+		},
+		"task_2": {
+			{
+				Name:     "task_2.md",
+				AbsPath:  taskTwoPath,
+				Content:  "---\ntitle: Task 2\ntype: backend\ncomplexity: low\n---\n\n# Task 2\n",
+				CodeFile: "task_2",
+			},
+		},
+	}
+
+	_, err := prepareJobs(context.Background(), &model.RuntimeConfig{
+		Name:     "demo",
+		TasksDir: tasksDir,
+		Mode:     model.ExecutionModePRDTasks,
+	}, groups, runArtifacts, nil, nil)
+	if err == nil {
+		t.Fatal("expected prepareJobs to fail when the second batch task is invalid")
+	}
+	if !strings.Contains(err.Error(), "build batch 2/2:") {
+		t.Fatalf("expected batch index wrapper in error, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "parse task artifact "+taskTwoPath) {
+		t.Fatalf("expected wrapped task parse error for second batch, got %v", err)
+	}
+}
+
 func TestPrepareJobsForReviewModeUsesSharedRunArtifactsLayout(t *testing.T) {
 	t.Parallel()
 

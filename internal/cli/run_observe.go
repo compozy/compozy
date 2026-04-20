@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync/atomic"
+	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -17,11 +19,101 @@ import (
 )
 
 var (
-	attachCLIRunUI = defaultAttachCLIRunUI
-	watchCLIRun    = defaultWatchCLIRun
+	attachCLIRunUI         = newAttachCLIRunUI()
+	attachStartedCLIRunUI  = newAttachStartedCLIRunUI()
+	watchCLIRun            = defaultWatchCLIRun
+	openCLIRemoteUISession = uipkg.AttachRemote
 )
 
+var errRunSettledBeforeUIAttach = errors.New("run settled before ui attach")
+
+const (
+	defaultUIAttachSnapshotTimeout      = 300 * time.Millisecond
+	defaultUIAttachSnapshotPollInterval = 10 * time.Millisecond
+	defaultOwnedRunCancelTimeout        = 5 * time.Second
+)
+
+type cliRunObserveConfig struct {
+	attachSnapshotTimeout      time.Duration
+	attachSnapshotPollInterval time.Duration
+	ownedRunCancelTimeout      time.Duration
+}
+
+type cliRunObserveOption func(*cliRunObserveConfig)
+
+func defaultCLIRunObserveConfig() cliRunObserveConfig {
+	return cliRunObserveConfig{
+		attachSnapshotTimeout:      defaultUIAttachSnapshotTimeout,
+		attachSnapshotPollInterval: defaultUIAttachSnapshotPollInterval,
+		ownedRunCancelTimeout:      defaultOwnedRunCancelTimeout,
+	}
+}
+
+func newCLIRunObserveConfig(options ...cliRunObserveOption) cliRunObserveConfig {
+	cfg := defaultCLIRunObserveConfig()
+	for _, option := range options {
+		if option != nil {
+			option(&cfg)
+		}
+	}
+	return cfg
+}
+
+func withUIAttachSnapshotTimeout(timeout time.Duration) cliRunObserveOption {
+	return func(cfg *cliRunObserveConfig) {
+		cfg.attachSnapshotTimeout = timeout
+	}
+}
+
+func withUIAttachSnapshotPollInterval(interval time.Duration) cliRunObserveOption {
+	return func(cfg *cliRunObserveConfig) {
+		cfg.attachSnapshotPollInterval = interval
+	}
+}
+
+func withOwnedRunCancelTimeout(timeout time.Duration) cliRunObserveOption {
+	return func(cfg *cliRunObserveConfig) {
+		cfg.ownedRunCancelTimeout = timeout
+	}
+}
+
+func newAttachCLIRunUI(options ...cliRunObserveOption) func(context.Context, daemonCommandClient, string) error {
+	cfg := newCLIRunObserveConfig(options...)
+	return func(ctx context.Context, client daemonCommandClient, runID string) error {
+		return attachRemoteCLIRunUI(ctx, client, runID, false, cfg)
+	}
+}
+
+func newAttachStartedCLIRunUI(options ...cliRunObserveOption) func(context.Context, daemonCommandClient, string) error {
+	cfg := newCLIRunObserveConfig(options...)
+	return func(ctx context.Context, client daemonCommandClient, runID string) error {
+		return attachRemoteCLIRunUI(ctx, client, runID, true, cfg)
+	}
+}
+
+func defaultCLIRunObserveOptions() []cliRunObserveOption {
+	return []cliRunObserveOption{
+		withUIAttachSnapshotTimeout(defaultUIAttachSnapshotTimeout),
+		withUIAttachSnapshotPollInterval(defaultUIAttachSnapshotPollInterval),
+		withOwnedRunCancelTimeout(defaultOwnedRunCancelTimeout),
+	}
+}
+
 func defaultAttachCLIRunUI(ctx context.Context, client daemonCommandClient, runID string) error {
+	return newAttachCLIRunUI(defaultCLIRunObserveOptions()...)(ctx, client, runID)
+}
+
+func defaultAttachStartedCLIRunUI(ctx context.Context, client daemonCommandClient, runID string) error {
+	return newAttachStartedCLIRunUI(defaultCLIRunObserveOptions()...)(ctx, client, runID)
+}
+
+func attachRemoteCLIRunUI(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+	cancelOwnedRunOnExit bool,
+	cfg cliRunObserveConfig,
+) error {
 	trimmedRunID := strings.TrimSpace(runID)
 	if client == nil {
 		return errors.New("daemon client is required")
@@ -30,13 +122,23 @@ func defaultAttachCLIRunUI(ctx context.Context, client daemonCommandClient, runI
 		return errors.New("run id is required")
 	}
 
-	snapshot, err := client.GetRunSnapshot(ctx, trimmedRunID)
+	snapshot, err := loadUIAttachSnapshot(
+		ctx,
+		client,
+		trimmedRunID,
+		cfg.attachSnapshotTimeout,
+		cfg.attachSnapshotPollInterval,
+	)
 	if err != nil {
 		return err
 	}
+	if runSnapshotSettledBeforeUIAttach(snapshot) {
+		return errRunSettledBeforeUIAttach
+	}
 
-	session, err := uipkg.AttachRemote(ctx, uipkg.RemoteAttachOptions{
-		Snapshot: snapshot,
+	session, err := openCLIRemoteUISession(ctx, uipkg.RemoteAttachOptions{
+		Snapshot:     snapshot,
+		OwnerSession: cancelOwnedRunOnExit,
 		LoadSnapshot: func(loadCtx context.Context) (apicore.RunSnapshot, error) {
 			return client.GetRunSnapshot(loadCtx, trimmedRunID)
 		},
@@ -47,11 +149,21 @@ func defaultAttachCLIRunUI(ctx context.Context, client daemonCommandClient, runI
 	if err != nil {
 		return err
 	}
+	var cancelRequested atomic.Bool
+	if cancelOwnedRunOnExit {
+		session.SetQuitHandler(func(uipkg.QuitRequest) {
+			cancelRequested.Store(true)
+			session.Shutdown()
+		})
+	}
 
 	done := make(chan struct{})
 	go func() {
 		select {
 		case <-ctx.Done():
+			if cancelOwnedRunOnExit {
+				cancelRequested.Store(true)
+			}
 			session.Shutdown()
 		case <-done:
 		}
@@ -62,10 +174,97 @@ func defaultAttachCLIRunUI(ctx context.Context, client daemonCommandClient, runI
 	if waitErr != nil {
 		return waitErr
 	}
+	if cancelOwnedRunOnExit && cancelRequested.Load() {
+		if err := cancelOwnedDaemonRun(ctx, client, trimmedRunID, cfg.ownedRunCancelTimeout); err != nil {
+			return err
+		}
+	}
 	if errors.Is(ctx.Err(), context.Canceled) {
 		return nil
 	}
 	return nil
+}
+
+func cancelOwnedDaemonRun(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+	timeout time.Duration,
+) error {
+	if client == nil {
+		return errors.New("daemon client is required")
+	}
+	detachedCtx := context.Background()
+	if ctx != nil {
+		detachedCtx = context.WithoutCancel(ctx)
+	}
+	cancelCtx, cancel := context.WithTimeout(detachedCtx, timeout)
+	defer cancel()
+	if err := client.CancelRun(cancelCtx, runID); err != nil {
+		return fmt.Errorf("cancel daemon run after ui exit: %w", err)
+	}
+	return nil
+}
+
+func loadUIAttachSnapshot(
+	ctx context.Context,
+	client daemonCommandClient,
+	runID string,
+	timeout time.Duration,
+	pollInterval time.Duration,
+) (apicore.RunSnapshot, error) {
+	snapshot, err := client.GetRunSnapshot(ctx, runID)
+	if err != nil {
+		return apicore.RunSnapshot{}, err
+	}
+	if !runSnapshotNeedsWarmup(snapshot) || timeout <= 0 || pollInterval <= 0 {
+		return snapshot, nil
+	}
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return snapshot, ctx.Err()
+		case <-timer.C:
+			return snapshot, nil
+		case <-ticker.C:
+			snapshot, err = client.GetRunSnapshot(ctx, runID)
+			if err != nil {
+				return apicore.RunSnapshot{}, err
+			}
+			if !runSnapshotNeedsWarmup(snapshot) {
+				return snapshot, nil
+			}
+		}
+	}
+}
+
+func runSnapshotNeedsWarmup(snapshot apicore.RunSnapshot) bool {
+	if runSnapshotSettledBeforeUIAttach(snapshot) {
+		return false
+	}
+	return len(snapshot.Jobs) == 0
+}
+
+func runSnapshotSettledBeforeUIAttach(snapshot apicore.RunSnapshot) bool {
+	if isTerminalObservedRunStatus(snapshot.Run.Status) {
+		return true
+	}
+	if len(snapshot.Jobs) == 0 {
+		return false
+	}
+	for _, job := range snapshot.Jobs {
+		if !isTerminalObservedJobStatus(job.Status) {
+			return false
+		}
+	}
+	return true
 }
 
 func defaultWatchCLIRun(ctx context.Context, dst io.Writer, client daemonCommandClient, runID string) error {
@@ -114,6 +313,24 @@ func renderObservedRunEvent(event eventspkg.Event) string {
 		return line
 	}
 	return ""
+}
+
+func isTerminalObservedRunStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case execStatusCompleted, execStatusFailed, execStatusCanceled, execStatusCrashed:
+		return true
+	default:
+		return false
+	}
+}
+
+func isTerminalObservedJobStatus(status string) bool {
+	switch strings.TrimSpace(status) {
+	case execStatusCompleted, execStatusFailed, execStatusCanceled:
+		return true
+	default:
+		return false
+	}
 }
 
 func renderObservedRunLifecycle(event eventspkg.Event) (string, bool) {

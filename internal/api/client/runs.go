@@ -135,6 +135,22 @@ func (c *Client) GetRun(ctx context.Context, runID string) (apicore.Run, error) 
 	return response.Run, nil
 }
 
+// CancelRun requests cancellation for one daemon-backed run.
+func (c *Client) CancelRun(ctx context.Context, runID string) error {
+	if c == nil {
+		return ErrDaemonClientRequired
+	}
+
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return ErrRunIDRequired
+	}
+
+	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/cancel"
+	_, err := c.doJSON(ctx, http.MethodPost, path, nil, nil)
+	return err
+}
+
 // GetRunSnapshot loads the dense attach snapshot for one run.
 func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunSnapshot, error) {
 	if c == nil {

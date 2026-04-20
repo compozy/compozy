@@ -96,7 +96,7 @@ batch_size = 4
 
 	state := newCommandState(commandKindFixReviews, core.ModePRReview)
 	cmd := newTestCommand(state)
-	cmd.Flags().Int("batch-size", 1, "batch size")
+	cmd.Flags().IntVar(&state.batchSize, "batch-size", 1, "batch size")
 
 	chdirCLITest(t, startDir)
 
@@ -106,7 +106,6 @@ batch_size = 4
 	if err := cmd.Flags().Set("batch-size", "2"); err != nil {
 		t.Fatalf("set batch-size: %v", err)
 	}
-	state.batchSize = 2
 
 	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
 		t.Fatalf("apply workspace defaults: %v", err)
@@ -321,11 +320,11 @@ func TestApplyWorkspaceDefaultsFetchReviewsNitpicks(t *testing.T) {
 		wantNitpicks  bool
 	}{
 		{
-			name:         "keep fetch-reviews review-body comments enabled when config is absent",
+			name:         "keep reviews fetch review-body comments enabled when config is absent",
 			wantNitpicks: true,
 		},
 		{
-			name: "disable fetch-reviews review-body comments from workspace config",
+			name: "disable reviews fetch review-body comments from workspace config",
 			configContent: `
 [fetch_reviews]
 nitpicks = false
@@ -333,7 +332,7 @@ nitpicks = false
 			wantNitpicks: false,
 		},
 		{
-			name: "enable fetch-reviews review-body comments from workspace config",
+			name: "enable reviews fetch review-body comments from workspace config",
 			configContent: `
 [fetch_reviews]
 nitpicks = true
@@ -357,7 +356,7 @@ nitpicks = true
 			}
 
 			state := newCommandState(commandKindFetchReviews, core.ModePRReview)
-			cmd := &cobra.Command{Use: "fetch-reviews"}
+			cmd := &cobra.Command{Use: "reviews fetch"}
 			cmd.Flags().String("provider", "", "provider")
 
 			chdirCLITest(t, startDir)
@@ -455,7 +454,7 @@ provider = "ext-review"
 	chdirCLITest(t, startDir)
 
 	state := newCommandState(commandKindFetchReviews, core.ModePRReview)
-	cmd := &cobra.Command{Use: "fetch-reviews"}
+	cmd := &cobra.Command{Use: "reviews fetch"}
 	cmd.Flags().String("ide", "", "")
 	cmd.Flags().String("model", "", "")
 	cmd.Flags().String("provider", "", "")

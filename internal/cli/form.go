@@ -498,11 +498,41 @@ func applyInput[T any, V any](
 	if cmd.Flags().Lookup(flagName) == nil || cmd.Flags().Changed(flagName) {
 		return
 	}
+	if !inputValueIsExplicit(value) {
+		return
+	}
 	resolved, ok := parse(value)
 	if !ok {
 		return
 	}
 	setter(resolved)
+	markInputFlagChanged(cmd, flagName)
+}
+
+func inputValueIsExplicit[V any](value V) bool {
+	switch typed := any(value).(type) {
+	case string:
+		return strings.TrimSpace(typed) != ""
+	case []string:
+		return len(core.NormalizeAddDirs(typed)) > 0
+	default:
+		return true
+	}
+}
+
+func markInputFlagChanged(cmd *cobra.Command, flagName string) {
+	if cmd == nil {
+		return
+	}
+	flags := cmd.Flags()
+	if flags == nil {
+		return
+	}
+	flag := flags.Lookup(flagName)
+	if flag == nil {
+		return
+	}
+	flag.Changed = true
 }
 
 func passThroughInput[T any](value T) (T, bool) {

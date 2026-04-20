@@ -130,6 +130,13 @@ func (*inProcessDaemonCommandClient) DaemonStatus(context.Context) (apicore.Daem
 
 func (*inProcessDaemonCommandClient) StopDaemon(context.Context, bool) error { return nil }
 
+func (c *inProcessDaemonCommandClient) CancelRun(ctx context.Context, runID string) error {
+	if c == nil || c.manager == nil {
+		return errors.New("CancelRun requires an in-process run manager")
+	}
+	return c.manager.Cancel(ctx, runID)
+}
+
 func (*inProcessDaemonCommandClient) RegisterWorkspace(
 	context.Context,
 	string,
