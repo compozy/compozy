@@ -445,6 +445,7 @@ type fakeCLIUISession struct {
 	quitHandler  func(uipkg.QuitRequest)
 	shutdownCh   chan struct{}
 	shutdownOnce sync.Once
+	waitFn       func(*fakeCLIUISession) error
 }
 
 func newFakeCLIUISession() *fakeCLIUISession {
@@ -468,6 +469,9 @@ func (s *fakeCLIUISession) Shutdown() {
 }
 
 func (s *fakeCLIUISession) Wait() error {
+	if s.waitFn != nil {
+		return s.waitFn(s)
+	}
 	if s.quitHandler != nil {
 		s.quitHandler(uipkg.QuitRequestDrain)
 	}
@@ -590,6 +594,46 @@ func TestDefaultAttachStartedCLIRunUICancelsOwnedRunOnLocalExit(t *testing.T) {
 	}
 	if client.cancelRunID != "run-ui-owned" {
 		t.Fatalf("cancel run id = %q, want run-ui-owned", client.cancelRunID)
+	}
+}
+
+func TestDefaultAttachStartedCLIRunUIDoesNotCancelOwnedRunWhenUICloseDoesNotRequestStop(t *testing.T) {
+	t.Parallel()
+
+	acquireCLITestGlobalOverride(t)
+
+	client := &stubDaemonCommandClient{
+		snapshot: apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-ui-owned-close-only", Status: "running"},
+			Jobs: []apicore.RunJobState{
+				{Index: 0, Status: "running"},
+			},
+		},
+	}
+	session := newFakeCLIUISession()
+	session.waitFn = func(*fakeCLIUISession) error {
+		return nil
+	}
+
+	originalOpenRemoteUI := openCLIRemoteUISession
+	t.Cleanup(func() {
+		openCLIRemoteUISession = originalOpenRemoteUI
+	})
+	openCLIRemoteUISession = func(
+		_ context.Context,
+		opts uipkg.RemoteAttachOptions,
+	) (uipkg.Session, error) {
+		if !opts.OwnerSession {
+			t.Fatal("expected owner remote attach session for started run ui")
+		}
+		return session, nil
+	}
+
+	if err := defaultAttachStartedCLIRunUI(context.Background(), client, "run-ui-owned-close-only"); err != nil {
+		t.Fatalf("defaultAttachStartedCLIRunUI() close-only error = %v", err)
+	}
+	if client.cancelCalls != 0 {
+		t.Fatalf("cancel calls = %d, want 0 when the UI closes without an explicit stop request", client.cancelCalls)
 	}
 }
 

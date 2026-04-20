@@ -41,6 +41,7 @@ type uiModel struct {
 	layoutMode         uiLayoutMode
 	currentView        uiViewState
 	focusedPane        uiPane
+	quitDialog         quitDialogState
 	shutdown           shutdownState
 	failures           []failInfo
 	aggregateUsage     *model.Usage
@@ -117,6 +118,7 @@ func newUIModel(total int) *uiModel {
 		layoutMode:         uiLayoutSplit,
 		currentView:        uiViewJobs,
 		focusedPane:        uiPaneJobs,
+		quitDialog:         newQuitDialogState(),
 		failures:           []failInfo{},
 		aggregateUsage:     &model.Usage{},
 		sidebarDirty:       true,

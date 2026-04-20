@@ -16,6 +16,8 @@ const (
 	keyPageDown = "pgdown"
 	keyHome     = "home"
 	keyEnd      = "end"
+	keyCtrlC    = "ctrl+c"
+	keyEscape   = "esc"
 )
 
 var setSidebarViewportContent = func(vp *viewport.Model, content string) {
@@ -112,13 +114,16 @@ func (m *uiModel) applyUIMsg(msg uiMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleKey(v tea.KeyPressMsg) tea.Cmd {
+	if m.quitDialog.Active {
+		return m.handleQuitDialogKey(v)
+	}
 	key := v.String()
 	switch key {
-	case "ctrl+c", "q":
+	case keyCtrlC, "q":
 		return m.handleQuitKey()
 	case "s":
 		return m.handleSummaryToggle()
-	case "esc":
+	case keyEscape:
 		return m.handleEscape()
 	case "tab":
 		m.cycleFocusedPane(1)
@@ -152,6 +157,15 @@ func (m *uiModel) handleQuitKey() tea.Cmd {
 		return tea.Quit
 	}
 
+	if !m.shutdown.Active() {
+		m.openQuitDialog()
+		return nil
+	}
+
+	return m.requestRunStopFromQuit()
+}
+
+func (m *uiModel) requestRunStopFromQuit() tea.Cmd {
 	req, ok := m.nextQuitRequest()
 	if !ok {
 		return nil
@@ -159,10 +173,54 @@ func (m *uiModel) handleQuitKey() tea.Cmd {
 	if m.currentView == uiViewJobs {
 		m.refreshSidebarContent()
 	}
-	if m.onQuit != nil {
-		m.onQuit(req)
+	if m.onQuit == nil {
+		return nil
 	}
-	return nil
+	// Run quit callbacks as a Bubble Tea command so handlers that close the
+	// session do not synchronously call Program.Quit from inside Update.
+	return func() tea.Msg {
+		m.onQuit(req)
+		return drainMsg{}
+	}
+}
+
+func (m *uiModel) handleQuitDialogKey(v tea.KeyPressMsg) tea.Cmd {
+	switch strings.ToLower(v.String()) {
+	case "left", "h", "shift+tab":
+		m.quitDialog.Move(-1)
+		return nil
+	case "right", "l", "tab":
+		m.quitDialog.Move(1)
+		return nil
+	case "enter", "q", keyCtrlC:
+		return m.confirmQuitDialog()
+	case keyEscape:
+		m.closeQuitDialog()
+		return nil
+	default:
+		return nil
+	}
+}
+
+func (m *uiModel) confirmQuitDialog() tea.Cmd {
+	selected := m.quitDialog.Selected
+	m.closeQuitDialog()
+	switch selected {
+	case quitDialogActionClose:
+		return tea.Quit
+	case quitDialogActionStop:
+		return m.requestRunStopFromQuit()
+	default:
+		return nil
+	}
+}
+
+func (m *uiModel) openQuitDialog() {
+	m.quitDialog.Open()
+}
+
+func (m *uiModel) closeQuitDialog() {
+	m.quitDialog.Close()
 }
 
 func (m *uiModel) nextQuitRequest() (uiQuitRequest, bool) {
@@ -596,6 +654,7 @@ func (m *uiModel) handleJobFinished(v jobFinishedMsg) tea.Cmd {
 		m.sidebarDirty = true
 	}
 	if m.isRunComplete() {
+		m.closeQuitDialog()
 		m.shutdown = shutdownState{}
 	}
 	if m.total > 0 && m.completed+m.failed >= m.total && m.failed > 0 && m.currentView != uiViewSummary {
@@ -658,6 +717,9 @@ func (m *uiModel) handleUsageUpdate(v usageUpdateMsg) tea.Cmd {
 }
 
 func (m *uiModel) handleShutdownStatus(v shutdownStatusMsg) tea.Cmd {
+	if v.State.Active() {
+		m.closeQuitDialog()
+	}
 	m.shutdown = v.State
 	if !v.State.RequestedAt.IsZero() && v.State.RequestedAt.After(m.now) {
 		m.now = v.State.RequestedAt

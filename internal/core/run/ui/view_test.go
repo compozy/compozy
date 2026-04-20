@@ -722,6 +722,41 @@ func TestHelpOwnsBaseBackground(t *testing.T) {
 	assertRenderedCellsUseBackground(t, m.renderHelp(), colorBgBase)
 }
 
+func TestActiveRunHelpUsesExitLabel(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+
+	help := m.renderHelp()
+	if !strings.Contains(help, "EXIT") {
+		t.Fatalf("expected active-run help to advertise EXIT, got %q", help)
+	}
+	if strings.Contains(help, "FORCE QUIT") {
+		t.Fatalf("expected active-run help not to advertise force quit before shutdown, got %q", help)
+	}
+}
+
+func TestQuitDialogViewContainsChoices(t *testing.T) {
+	t.Parallel()
+
+	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.quitDialog.Open()
+
+	view := m.View().Content
+	for _, want := range []string{
+		"Leave Active Run?",
+		"This run is still active.",
+		"Close TUI",
+		"Stop Run",
+		"Cancel",
+		"[enter/q] confirm",
+	} {
+		if !strings.Contains(view, want) {
+			t.Fatalf("expected quit dialog view to contain %q, got %q", want, view)
+		}
+	}
+}
+
 func TestTimelineContentOwnsSurfaceBackgroundAcrossWrappedRows(t *testing.T) {
 	t.Parallel()
 
