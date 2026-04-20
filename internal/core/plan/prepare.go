@@ -444,7 +444,7 @@ func prepareJobs(
 	for idx, batchIssues := range batches {
 		job, err := buildBatchJob(ctx, cfg, runArtifacts, manager, idx, batchIssues, agentExecution)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("build batch %d/%d: %w", idx+1, len(batches), err)
 		}
 		jobs = append(jobs, job)
 	}

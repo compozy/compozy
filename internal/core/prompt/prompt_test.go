@@ -66,6 +66,7 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 		"Review round: `001`",
 		"Issue range: `issue_003.md` → `issue_004.md`",
 		"Compozy resolves provider threads after the batch succeeds.",
+		"Do not edit issue files outside this batch.",
 		"Create exactly one local commit for this batch after clean verification.",
 	}
 	for _, snippet := range requiredSnippets {
@@ -80,6 +81,7 @@ func TestBuildCodeReviewPromptUsesInstalledSkillsAndAvoidsLegacyDependencies(t *
 		"resolve_pr_issues.sh",
 		"pnpm run",
 		"fix-coderabbit-review",
+		"Update only the issue files that belong to this batch.",
 	}
 	for _, snippet := range forbiddenSnippets {
 		if strings.Contains(promptText, snippet) {

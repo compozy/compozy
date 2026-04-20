@@ -65,7 +65,7 @@ func buildReviewScopeSection(ctx reviewPromptContext) string {
 	sb.WriteString(
 		"- Do not call provider-specific scripts, `gh` mutations, or other external resolution commands. Compozy resolves provider threads after the batch succeeds.\n",
 	)
-	sb.WriteString("- Update only the issue files that belong to this batch.\n")
+	sb.WriteString("- Do not edit issue files outside this batch.\n")
 	sb.WriteString(
 		"- Use installed `cy-final-verify` before claiming this batch is complete or creating an automatic commit.\n",
 	)

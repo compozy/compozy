@@ -593,6 +593,54 @@ func TestDefaultAttachStartedCLIRunUICancelsOwnedRunOnLocalExit(t *testing.T) {
 	}
 }
 
+func TestNewAttachStartedCLIRunUIUsesConfiguredOwnedRunCancelTimeout(t *testing.T) {
+	t.Parallel()
+
+	acquireCLITestGlobalOverride(t)
+
+	client := &stubDaemonCommandClient{
+		snapshot: apicore.RunSnapshot{
+			Run: apicore.Run{RunID: "run-ui-owned-timeout", Status: "running"},
+			Jobs: []apicore.RunJobState{
+				{Index: 0, Status: "running"},
+			},
+		},
+	}
+	session := newFakeCLIUISession()
+
+	originalOpenRemoteUI := openCLIRemoteUISession
+	t.Cleanup(func() {
+		openCLIRemoteUISession = originalOpenRemoteUI
+	})
+	openCLIRemoteUISession = func(
+		_ context.Context,
+		opts uipkg.RemoteAttachOptions,
+	) (uipkg.Session, error) {
+		if !opts.OwnerSession {
+			t.Fatal("expected owner session when attaching started run")
+		}
+		return session, nil
+	}
+
+	timeout := 1500 * time.Millisecond
+	start := time.Now()
+	attachFn := newAttachStartedCLIRunUI(withOwnedRunCancelTimeout(timeout))
+	if err := attachFn(context.Background(), client, "run-ui-owned-timeout"); err != nil {
+		t.Fatalf("configured attach started ui error = %v", err)
+	}
+	if client.cancelCalls != 1 {
+		t.Fatalf("cancel calls = %d, want 1", client.cancelCalls)
+	}
+	deadline, ok := client.cancelCtx.Deadline()
+	if !ok {
+		t.Fatal("expected configured cancel context deadline")
+	}
+	got := deadline.Sub(start)
+	if got < time.Second || got > 2*time.Second {
+		t.Fatalf("cancel deadline offset = %s, want ~%s", got, timeout)
+	}
+}
+
 func TestLoadUIAttachSnapshotWaitsForJobsWhenInitialSnapshotIsEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -632,6 +680,103 @@ func TestLoadUIAttachSnapshotWaitsForJobsWhenInitialSnapshotIsEmpty(t *testing.T
 	}
 	if snapshot.Jobs[0].Status != "running" {
 		t.Fatalf("snapshot job status = %q, want running", snapshot.Jobs[0].Status)
+	}
+}
+
+func TestLoadUIAttachSnapshotReturnsPromptlyWhenContextCanceledDuringWarmup(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	var calls int
+	client := &stubDaemonCommandClient{
+		snapshotFunc: func(context.Context, string) (apicore.RunSnapshot, error) {
+			calls++
+			if calls == 1 {
+				time.AfterFunc(20*time.Millisecond, cancel)
+			}
+			return apicore.RunSnapshot{
+				Run: apicore.Run{RunID: "run-ui-canceled", Status: "running"},
+			}, nil
+		},
+	}
+
+	pollInterval := 500 * time.Millisecond
+	start := time.Now()
+	snapshot, err := loadUIAttachSnapshot(
+		ctx,
+		client,
+		"run-ui-canceled",
+		2*time.Second,
+		pollInterval,
+	)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("loadUIAttachSnapshot() error = %v, want context.Canceled", err)
+	}
+	if calls != 1 {
+		t.Fatalf("snapshot calls = %d, want 1", calls)
+	}
+	if elapsed := time.Since(start); elapsed >= pollInterval/2 {
+		t.Fatalf("loadUIAttachSnapshot() elapsed = %s, want less than %s", elapsed, pollInterval/2)
+	}
+	if got := len(snapshot.Jobs); got != 0 {
+		t.Fatalf("snapshot jobs = %d, want 0", got)
+	}
+}
+
+func TestNewAttachCLIRunUIDisablesWarmupWhenConfiguredTimeoutIsZero(t *testing.T) {
+	t.Parallel()
+
+	acquireCLITestGlobalOverride(t)
+
+	var (
+		calls            int
+		capturedSnapshot apicore.RunSnapshot
+	)
+	client := &stubDaemonCommandClient{
+		snapshotFunc: func(context.Context, string) (apicore.RunSnapshot, error) {
+			calls++
+			if calls == 1 {
+				return apicore.RunSnapshot{
+					Run: apicore.Run{RunID: "run-ui-no-warmup", Status: "running"},
+				}, nil
+			}
+			return apicore.RunSnapshot{
+				Run: apicore.Run{RunID: "run-ui-no-warmup", Status: "running"},
+				Jobs: []apicore.RunJobState{
+					{Index: 0, Status: "running"},
+				},
+			}, nil
+		},
+	}
+	session := newFakeCLIUISession()
+	session.Shutdown()
+
+	originalOpenRemoteUI := openCLIRemoteUISession
+	t.Cleanup(func() {
+		openCLIRemoteUISession = originalOpenRemoteUI
+	})
+	openCLIRemoteUISession = func(
+		_ context.Context,
+		opts uipkg.RemoteAttachOptions,
+	) (uipkg.Session, error) {
+		capturedSnapshot = opts.Snapshot
+		return session, nil
+	}
+
+	attachFn := newAttachCLIRunUI(
+		withUIAttachSnapshotTimeout(0),
+		withUIAttachSnapshotPollInterval(time.Millisecond),
+	)
+	if err := attachFn(context.Background(), client, "run-ui-no-warmup"); err != nil {
+		t.Fatalf("configured attach ui error = %v", err)
+	}
+	if calls != 1 {
+		t.Fatalf("snapshot calls = %d, want 1", calls)
+	}
+	if got := len(capturedSnapshot.Jobs); got != 0 {
+		t.Fatalf("captured snapshot jobs = %d, want 0", got)
 	}
 }
 

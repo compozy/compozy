@@ -1978,9 +1978,6 @@ func TestReviewsFixCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	if len(events) < 3 {
 		t.Fatalf("expected multiple streamed canonical events, got %d\nstdout:\n%s", len(events), stdout)
 	}
-	if got := events[0]["kind"]; got != string(eventspkg.EventKindRunStarted) {
-		t.Fatalf("unexpected first raw event: %#v", events[0])
-	}
 	if got := events[len(events)-1]["kind"]; got != string(eventspkg.EventKindRunCompleted) {
 		t.Fatalf("unexpected terminal raw event: %#v", events[len(events)-1])
 	}
@@ -1989,6 +1986,20 @@ func TestReviewsFixCommandExecuteDryRunRawJSONStreamsCanonicalEvents(t *testing.
 	}
 	if _, ok := events[0]["type"]; ok {
 		t.Fatalf("raw workflow stream should preserve canonical envelopes, got %#v", events[0])
+	}
+	var streamedKinds []eventspkg.EventKind
+	for _, event := range events {
+		kind, _ := event["kind"].(string)
+		streamedKinds = append(streamedKinds, eventspkg.EventKind(kind))
+	}
+	for _, want := range []eventspkg.EventKind{
+		eventspkg.EventKindJobQueued,
+		eventspkg.EventKindRunStarted,
+		eventspkg.EventKindRunCompleted,
+	} {
+		if !slices.Contains(streamedKinds, want) {
+			t.Fatalf("expected raw workflow stream to include %s, got %v", want, streamedKinds)
+		}
 	}
 
 	runDir := latestRunDirForCLI(t, workspaceRoot)

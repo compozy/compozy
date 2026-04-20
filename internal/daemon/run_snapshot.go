@@ -23,6 +23,8 @@ type runSnapshotBuilder struct {
 	shutdown *apicore.RunShutdownState
 }
 
+const snapshotJobStatusQueued = "queued"
+
 type runSnapshotJob struct {
 	state   apicore.RunJobState
 	summary apicore.RunJobSummary
@@ -115,7 +117,7 @@ func (b *runSnapshotBuilder) ensureJob(index int) *runSnapshotJob {
 		state: apicore.RunJobState{
 			Index:     index,
 			JobID:     jobID,
-			Status:    "queued",
+			Status:    snapshotJobStatusQueued,
 			UpdatedAt: time.Time{},
 		},
 		summary: apicore.RunJobSummary{
@@ -142,7 +144,7 @@ func (b *runSnapshotBuilder) applyJobQueued(item events.Event) error {
 		strings.TrimSpace(payload.TaskTitle),
 		strings.TrimSpace(payload.CodeFile),
 	)
-	job.state.Status = "queued"
+	job.state.Status = snapshotJobStatusQueued
 	job.state.AgentName = strings.TrimSpace(payload.IDE)
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
@@ -262,7 +264,7 @@ func (b *runSnapshotBuilder) applySessionUpdate(item events.Event) error {
 	if _, changed := job.session.Apply(update); !changed {
 		return nil
 	}
-	if job.state.Status == "queued" {
+	if job.state.Status == snapshotJobStatusQueued {
 		job.state.Status = "running"
 	}
 	return nil

@@ -1240,7 +1240,7 @@ func TestFormInputsApplyForReviewWorkflow(t *testing.T) {
 	}
 }
 
-func TestFormInputsApplyClearsPrefilledOptionalValues(t *testing.T) {
+func TestFormInputsApplyPreservesPrefilledOptionalValuesWhenLeftBlank(t *testing.T) {
 	t.Parallel()
 
 	state := newCommandState(commandKindFixReviews, core.ModePRReview)
@@ -1258,20 +1258,21 @@ func TestFormInputsApplyClearsPrefilledOptionalValues(t *testing.T) {
 	fi := &formInputs{}
 	fi.apply(cmd, state)
 
-	if state.round != 0 {
-		t.Fatalf("expected round to clear, got %d", state.round)
+	if state.round != 2 {
+		t.Fatalf("expected round to remain prefilled, got %d", state.round)
 	}
-	if state.reviewsDir != "" {
-		t.Fatalf("expected reviewsDir to clear, got %q", state.reviewsDir)
+	if state.reviewsDir != ".compozy/tasks/my-feature/reviews-001" {
+		t.Fatalf("expected reviewsDir to remain prefilled, got %q", state.reviewsDir)
 	}
-	if state.model != "" {
-		t.Fatalf("expected model to clear, got %q", state.model)
+	if state.model != "gpt-5.4" {
+		t.Fatalf("expected model to remain prefilled, got %q", state.model)
 	}
 	if state.timeout != "5m" {
 		t.Fatalf("expected timeout to remain config-only, got %q", state.timeout)
 	}
-	if state.addDirs != nil {
-		t.Fatalf("expected addDirs to clear, got %#v", state.addDirs)
+	wantAddDirs := []string{"../shared", "../docs,archive"}
+	if !reflect.DeepEqual(state.addDirs, wantAddDirs) {
+		t.Fatalf("expected addDirs to remain prefilled, got %#v", state.addDirs)
 	}
 	if state.tailLines != 25 {
 		t.Fatalf("expected tailLines to remain config-only, got %d", state.tailLines)

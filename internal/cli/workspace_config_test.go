@@ -96,7 +96,7 @@ batch_size = 4
 
 	state := newCommandState(commandKindFixReviews, core.ModePRReview)
 	cmd := newTestCommand(state)
-	cmd.Flags().Int("batch-size", 1, "batch size")
+	cmd.Flags().IntVar(&state.batchSize, "batch-size", 1, "batch size")
 
 	chdirCLITest(t, startDir)
 
@@ -106,7 +106,6 @@ batch_size = 4
 	if err := cmd.Flags().Set("batch-size", "2"); err != nil {
 		t.Fatalf("set batch-size: %v", err)
 	}
-	state.batchSize = 2
 
 	if err := state.applyWorkspaceDefaults(context.Background(), cmd); err != nil {
 		t.Fatalf("apply workspace defaults: %v", err)

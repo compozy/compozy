@@ -260,6 +260,110 @@ func TestRunManagerModeSpecificStartsProduceSharedLifecycleContract(t *testing.T
 	}
 }
 
+func TestRunManagerSnapshotBootstrapsPreparedQueuedReviewJobs(t *testing.T) {
+	ready := make(chan string, 1)
+	release := make(chan struct{})
+	env := newRunManagerTestEnv(t, runManagerTestDeps{
+		prepare: func(context.Context, *model.RuntimeConfig, model.RunScope) (*model.SolvePreparation, error) {
+			return &model.SolvePreparation{
+				Jobs: []model.Job{
+					{
+						CodeFiles:       []string{"issue_001.md", "issue_002.md", "issue_003.md", "issue_004.md"},
+						Groups:          map[string][]model.IssueEntry{"batch-a": make([]model.IssueEntry, 20)},
+						TaskTitle:       "review batch 001",
+						TaskType:        "review",
+						SafeName:        "job-000",
+						IDE:             "codex",
+						Model:           "gpt-5.4",
+						ReasoningEffort: "high",
+						OutLog:          "/tmp/job-000.out.log",
+						ErrLog:          "/tmp/job-000.err.log",
+					},
+					{
+						CodeFiles:       []string{"issue_021.md", "issue_022.md"},
+						Groups:          map[string][]model.IssueEntry{"batch-b": make([]model.IssueEntry, 15)},
+						TaskTitle:       "review batch 002",
+						TaskType:        "review",
+						SafeName:        "job-001",
+						IDE:             "codex",
+						Model:           "gpt-5.4",
+						ReasoningEffort: "high",
+						OutLog:          "/tmp/job-001.out.log",
+						ErrLog:          "/tmp/job-001.err.log",
+					},
+				},
+			}, nil
+		},
+		execute: func(_ context.Context, _ *model.SolvePreparation, cfg *model.RuntimeConfig) error {
+			ready <- cfg.RunID
+			<-release
+			return context.Canceled
+		},
+	})
+	env.createReviewRound(t, 1)
+
+	run := env.startReviewRun(
+		t,
+		"review-run-queued-snapshot",
+		1,
+		nil,
+		rawJSON(t, `{"batch_size":20,"concurrent":1}`),
+	)
+	waitForString(t, ready, run.RunID)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusRunning
+	})
+
+	var snapshot apicore.RunSnapshot
+	waitForCondition(t, 5*time.Second, "prepared queued review jobs in snapshot", func() bool {
+		var err error
+		snapshot, err = env.manager.Snapshot(context.Background(), run.RunID)
+		if err != nil {
+			t.Fatalf("Snapshot(%q) error = %v", run.RunID, err)
+		}
+		return len(snapshot.Jobs) == 2
+	})
+
+	first := snapshot.Jobs[0]
+	if first.Status != "queued" {
+		t.Fatalf("first queued status = %q, want queued", first.Status)
+	}
+	if first.Summary == nil {
+		t.Fatal("first queued summary = nil, want populated batch metadata")
+	}
+	if first.Summary.Issues != 20 {
+		t.Fatalf("first queued issues = %d, want 20", first.Summary.Issues)
+	}
+	if got := len(first.Summary.CodeFiles); got != 4 {
+		t.Fatalf("first queued file count = %d, want 4", got)
+	}
+	if first.Summary.TaskTitle != "review batch 001" || first.Summary.SafeName != "job-000" {
+		t.Fatalf("unexpected first queued summary: %#v", first.Summary)
+	}
+
+	second := snapshot.Jobs[1]
+	if second.Status != "queued" {
+		t.Fatalf("second queued status = %q, want queued", second.Status)
+	}
+	if second.Summary == nil {
+		t.Fatal("second queued summary = nil, want populated batch metadata")
+	}
+	if second.Summary.Issues != 15 {
+		t.Fatalf("second queued issues = %d, want 15", second.Summary.Issues)
+	}
+	if got := len(second.Summary.CodeFiles); got != 2 {
+		t.Fatalf("second queued file count = %d, want 2", got)
+	}
+	if second.Summary.TaskTitle != "review batch 002" || second.Summary.SafeName != "job-001" {
+		t.Fatalf("unexpected second queued summary: %#v", second.Summary)
+	}
+
+	close(release)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCancelled
+	})
+}
+
 func TestRunManagerListBatchesWorkflowSlugLookup(t *testing.T) {
 	var (
 		env              *runManagerTestEnv
