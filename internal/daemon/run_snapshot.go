@@ -170,7 +170,7 @@ func (b *runSnapshotBuilder) applyJobStarted(item events.Event) error {
 	}
 
 	job := b.ensureJob(payload.Index)
-	job.state.Status = "running"
+	job.state.Status = runStatusRunning
 	job.state.AgentName = firstNonEmpty(strings.TrimSpace(payload.IDE), job.state.AgentName)
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
@@ -206,7 +206,7 @@ func (b *runSnapshotBuilder) applyJobCompleted(item events.Event) error {
 	}
 
 	job := b.ensureJob(payload.Index)
-	job.state.Status = "completed"
+	job.state.Status = runStatusCompleted
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
 	job.summary.Attempt = payload.Attempt
@@ -222,7 +222,7 @@ func (b *runSnapshotBuilder) applyJobFailed(item events.Event) error {
 	}
 
 	job := b.ensureJob(payload.Index)
-	job.state.Status = "failed"
+	job.state.Status = runStatusFailed
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
 	job.summary.CodeFile = firstNonEmpty(strings.TrimSpace(payload.CodeFile), job.summary.CodeFile)
@@ -242,7 +242,7 @@ func (b *runSnapshotBuilder) applyJobCancelled(item events.Event) error {
 	}
 
 	job := b.ensureJob(payload.Index)
-	job.state.Status = "canceled"
+	job.state.Status = runStatusCancelled
 	job.state.UpdatedAt = item.Timestamp.UTC()
 
 	job.summary.ErrorText = strings.TrimSpace(payload.Reason)
@@ -265,7 +265,7 @@ func (b *runSnapshotBuilder) applySessionUpdate(item events.Event) error {
 		return nil
 	}
 	if job.state.Status == snapshotJobStatusQueued {
-		job.state.Status = "running"
+		job.state.Status = runStatusRunning
 	}
 	return nil
 }
