@@ -15,5 +15,6 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
     exclude: ["**/node_modules/**", "**/dist/**"],
     passWithNoTests: true,
+    setupFiles: ["./src/test/setup.ts"],
   },
 });

@@ -9,6 +9,8 @@
     ],
     "scripts": {
         "build": "turbo run build",
+        "codegen": "node scripts/codegen.mjs",
+        "codegen-check": "node scripts/codegen.mjs --check",
         "dev": "turbo run dev",
         "format": "bunx oxfmt",
         "format:check": "bunx oxfmt --check",

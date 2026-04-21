@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Web App Shell, Workspace Selection, and Dashboard
 type: frontend
 complexity: high
@@ -33,11 +33,11 @@ This task builds the first real browser-facing slice of the daemon web UI: the g
 </requirements>
 
 ## Subtasks
-- [ ] 9.1 Create the root and app-shell route structure aligned with the TechSpec.
-- [ ] 9.2 Implement workspace bootstrap, selection, empty state, and stale-workspace recovery.
-- [ ] 9.3 Build the dashboard and workflow inventory views using the typed client and shared UI package.
-- [ ] 9.4 Add supported workflow-level operational actions exposed from the shell/dashboard surface.
-- [ ] 9.5 Add route, loader, and component tests for the shell and dashboard flows.
+- [x] 9.1 Create the root and app-shell route structure aligned with the TechSpec.
+- [x] 9.2 Implement workspace bootstrap, selection, empty state, and stale-workspace recovery.
+- [x] 9.3 Build the dashboard and workflow inventory views using the typed client and shared UI package.
+- [x] 9.4 Add supported workflow-level operational actions exposed from the shell/dashboard surface.
+- [x] 9.5 Add route, loader, and component tests for the shell and dashboard flows.
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See the TechSpec sections "Route Model", "Active Workspace Model", "Data Flow", 
 
 ## Tests
 - Unit tests:
-  - [ ] Root and app-shell routes render the expected layout and boundaries.
-  - [ ] Workspace bootstrap handles zero, one, many, and stale-workspace cases correctly.
-  - [ ] Dashboard and workflow inventory view models consume the typed client data correctly.
+  - [x] Root and app-shell routes render the expected layout and boundaries.
+  - [x] Workspace bootstrap handles zero, one, many, and stale-workspace cases correctly.
+  - [x] Dashboard and workflow inventory view models consume the typed client data correctly.
 - Integration tests:
-  - [ ] A fresh browser session can select or resolve an active workspace through the shell.
-  - [ ] Dashboard and workflow inventory routes render correctly against real daemon responses.
-  - [ ] Supported shell-level sync/archive actions trigger the expected mutations and state refresh behavior.
+  - [x] A fresh browser session can select or resolve an active workspace through the shell.
+  - [x] Dashboard and workflow inventory routes render correctly against real daemon responses.
+  - [x] Supported shell-level sync/archive actions trigger the expected mutations and state refresh behavior.
 - Test coverage target: >=80%
 - All tests must pass
 

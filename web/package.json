@@ -3,23 +3,43 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "vite build && node ./scripts/restore-dist-placeholder.mjs",
-        "dev": "vite --port 3000",
+        "codegen": "bun run --cwd .. codegen && node ./scripts/tsr-generate.mjs",
+        "codegen-check": "bun run --cwd .. codegen-check && node ./scripts/tsr-generate.mjs",
+        "build": "bun run codegen-check && vite build && node ./scripts/restore-dist-placeholder.mjs",
+        "dev": "bun run codegen && vite --port 3000",
         "preview": "vite preview",
-        "test": "vitest run --config vitest.config.ts",
-        "typecheck": "tsc -p tsconfig.json --noEmit"
+        "test": "bun run codegen-check && vitest run --config vitest.config.ts",
+        "typecheck": "bun run codegen-check && tsc -p tsconfig.json --noEmit"
     },
     "dependencies": {
         "@compozy/ui": "workspace:*",
+        "@tanstack/react-query": "^5.99.0",
+        "@tanstack/react-router": "^1.168.22",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "lucide-react": "^1.8.0",
+        "openapi-fetch": "^0.17.0",
         "react": "^19.2.0",
-        "react-dom": "^19.2.0"
+        "react-dom": "^19.2.0",
+        "sonner": "^2.0.7",
+        "tailwind-merge": "^3.5.0",
+        "zod": "^4.3.0",
+        "zustand": "^5.0.11"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.2.3",
+        "@tanstack/react-query-devtools": "^5.99.0",
+        "@tanstack/react-router-devtools": "^1.166.13",
+        "@tanstack/router-generator": "^1.166.32",
+        "@tanstack/router-plugin": "^1.167.22",
+        "@testing-library/jest-dom": "^6.9.1",
+        "@testing-library/react": "^16.3.0",
+        "@testing-library/user-event": "^14.6.1",
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.0.0",
         "jsdom": "^27.1.0",
+        "openapi-typescript": "^7.9.1",
         "tailwindcss": "^4.2.3"
     }
 }

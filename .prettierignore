@@ -1,0 +1,2 @@
+web/src/generated/**
+web/src/routeTree.gen.ts
