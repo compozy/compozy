@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Active Workspace, Browser Security, and SSE Compatibility
 type: backend
 complexity: critical
@@ -30,11 +30,11 @@ This task hardens the browser-facing daemon API by formalizing active-workspace 
 </requirements>
 
 ## Subtasks
-- [ ] 7.1 Add active-workspace resolution and stale-workspace failure handling for browser requests.
-- [ ] 7.2 Preserve current CLI/UDS workspace-scoping flows while introducing the browser header contract.
-- [ ] 7.3 Add Host/Origin validation and CSRF protection to the browser-facing HTTP transport.
-- [ ] 7.4 Implement the explicit SSE heartbeat, overflow, and reconnect semantics defined by the TechSpec.
-- [ ] 7.5 Add compatibility and security tests covering browser, client, and run-reader behaviors.
+- [x] 7.1 Add active-workspace resolution and stale-workspace failure handling for browser requests.
+- [x] 7.2 Preserve current CLI/UDS workspace-scoping flows while introducing the browser header contract.
+- [x] 7.3 Add Host/Origin validation and CSRF protection to the browser-facing HTTP transport.
+- [x] 7.4 Implement the explicit SSE heartbeat, overflow, and reconnect semantics defined by the TechSpec.
+- [x] 7.5 Add compatibility and security tests covering browser, client, and run-reader behaviors.
 
 ## Implementation Details
 
@@ -67,14 +67,14 @@ See the TechSpec sections "Active Workspace Model", "Streaming Contract", "Secur
 
 ## Tests
 - Unit tests:
-  - [ ] Missing or stale `X-Compozy-Workspace-ID` produces the expected typed `412` failure for browser routes.
-  - [ ] Unexpected Host or Origin headers are rejected on the HTTP transport.
-  - [ ] Mutating browser endpoints enforce the expected CSRF contract.
-  - [ ] SSE streams emit the expected heartbeat, cursor, and overflow semantics.
+  - [x] Missing or stale `X-Compozy-Workspace-ID` produces the expected typed `412` failure for browser routes.
+  - [x] Unexpected Host or Origin headers are rejected on the HTTP transport.
+  - [x] Mutating browser endpoints enforce the expected CSRF contract.
+  - [x] SSE streams emit the expected heartbeat, cursor, and overflow semantics.
 - Integration tests:
-  - [ ] Existing daemon clients that do not use the browser header continue to function correctly.
-  - [ ] `pkg/compozy/runs` consumers can reconnect and replay correctly after the stream contract changes.
-  - [ ] Browser mutation and streaming flows work through the HTTP transport without leaking browser-only policy into UDS.
+  - [x] Existing daemon clients that do not use the browser header continue to function correctly.
+  - [x] `pkg/compozy/runs` consumers can reconnect and replay correctly after the stream contract changes.
+  - [x] Browser mutation and streaming flows work through the HTTP transport without leaking browser-only policy into UDS.
 - Test coverage target: >=80%
 - All tests must pass
 

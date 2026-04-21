@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Web UI QA Execution and Browser/Operator Validation
 type: test
 complexity: critical
@@ -33,11 +33,11 @@ Execute the full QA pass for the daemon web UI using the artifacts from `task_15
 </requirements>
 
 ## Subtasks
-- [ ] 16.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/daemon-web-ui` and derive the execution matrix from the planning artifacts.
-- [ ] 16.2 Discover the repository QA contract, establish the baseline, and document any blockers before scenario testing.
-- [ ] 16.3 Execute browser, API, and operator flows against the embedded daemon-served UI with durable evidence capture.
-- [ ] 16.4 Fix root-cause regressions with matching durable coverage and rerun the impacted flows.
-- [ ] 16.5 Rerun `make verify`, finalize the verification report, and publish any issue artifacts or blockers.
+- [x] 16.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/daemon-web-ui` and derive the execution matrix from the planning artifacts.
+- [x] 16.2 Discover the repository QA contract, establish the baseline, and document any blockers before scenario testing.
+- [x] 16.3 Execute browser, API, and operator flows against the embedded daemon-served UI with durable evidence capture.
+- [x] 16.4 Fix root-cause regressions with matching durable coverage and rerun the impacted flows.
+- [x] 16.5 Rerun `make verify`, finalize the verification report, and publish any issue artifacts or blockers.
 
 ## Implementation Details
 
@@ -87,3 +87,9 @@ See the TechSpec sections "Testing Approach", "Development Sequencing", "Technic
 - The daemon web UI has fresh QA evidence for its critical browser and operator surfaces
 - Any QA failures were fixed at the source and documented with new evidence
 - The repository verification gate passes from the current daemon-web-ui branch state
+
+## Completion Notes
+
+- Fresh QA evidence was written under `.compozy/tasks/daemon-web-ui/qa/`, including `verification-report.md`, `issues/BUG-001.md`, focused/final command logs, and browser screenshots.
+- `TC-FUNC-008` was reclassified from blocked planning coverage to executable E2E after wiring the workflow inventory start action, correcting the browser request to `presentation_mode: "detach"`, and fixing the Playwright seed conflict.
+- Final verification passed with `make verify` on the current branch state.

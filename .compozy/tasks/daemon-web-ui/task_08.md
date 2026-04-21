@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Embedded SPA Serving and HTTP Fallback
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ This task makes the web UI a real daemon-served runtime app by embedding the bui
 </requirements>
 
 ## Subtasks
-- [ ] 8.1 Add the embedded web asset package and binary embed contract for `web/dist`.
-- [ ] 8.2 Implement HTTP static serving and SPA fallback behavior that bypasses `/api`.
-- [ ] 8.3 Wire the daemon host/runtime so the embedded SPA is served from the existing HTTP listener.
-- [ ] 8.4 Keep the UDS server explicitly API-only while the browser UI lives on HTTP.
-- [ ] 8.5 Add integration tests covering asset resolution, fallback, and `/api` preservation.
+- [x] 8.1 Add the embedded web asset package and binary embed contract for `web/dist`.
+- [x] 8.2 Implement HTTP static serving and SPA fallback behavior that bypasses `/api`.
+- [x] 8.3 Wire the daemon host/runtime so the embedded SPA is served from the existing HTTP listener.
+- [x] 8.4 Keep the UDS server explicitly API-only while the browser UI lives on HTTP.
+- [x] 8.5 Add integration tests covering asset resolution, fallback, and `/api` preservation.
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ See the TechSpec sections "Embedded asset serving", "Data Flow", "Impact Analysi
 
 ## Tests
 - Unit tests:
-  - [ ] Embedded asset resolution finds built files and returns a clear failure when the bundle contract is broken.
-  - [ ] Static routing bypasses `/api` and other explicit daemon paths before applying SPA fallback.
-  - [ ] SPA fallback serves `index.html` only for non-asset browser routes.
+  - [x] Embedded asset resolution finds built files and returns a clear failure when the bundle contract is broken.
+  - [x] Static routing bypasses `/api` and other explicit daemon paths before applying SPA fallback.
+  - [x] SPA fallback serves `index.html` only for non-asset browser routes.
 - Integration tests:
-  - [ ] The daemon HTTP listener serves the embedded UI and still responds correctly on `/api`.
-  - [ ] Deep-link browser routes resolve through SPA fallback without shadowing API endpoints.
-  - [ ] UDS continues to expose only the daemon API surface and not web assets.
+  - [x] The daemon HTTP listener serves the embedded UI and still responds correctly on `/api`.
+  - [x] Deep-link browser routes resolve through SPA fallback without shadowing API endpoints.
+  - [x] UDS continues to expose only the daemon API surface and not web assets.
 - Test coverage target: >=80%
 - All tests must pass
 

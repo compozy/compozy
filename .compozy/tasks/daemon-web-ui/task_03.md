@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Shared UI Package and Mockup Theme Foundations
 type: frontend
 complexity: high
@@ -30,11 +30,11 @@ This task creates the shared design-system layer for the daemon web UI inside `p
 </requirements>
 
 ## Subtasks
-- [ ] 3.1 Create the `packages/ui/` source, export, and build structure expected by the daemon SPA.
-- [ ] 3.2 Port the initial token, typography, and font-loading strategy from the daemon mockup into reusable CSS/theme assets.
-- [ ] 3.3 Add the first shared primitives and shell helpers needed by the app shell and domain routes.
-- [ ] 3.4 Wire the package exports and local consumption path from `web/`.
-- [ ] 3.5 Add tests proving token loading, package exports, and primitive rendering behavior.
+- [x] 3.1 Create the `packages/ui/` source, export, and build structure expected by the daemon SPA.
+- [x] 3.2 Port the initial token, typography, and font-loading strategy from the daemon mockup into reusable CSS/theme assets.
+- [x] 3.3 Add the first shared primitives and shell helpers needed by the app shell and domain routes.
+- [x] 3.4 Wire the package exports and local consumption path from `web/`.
+- [x] 3.5 Add tests proving token loading, package exports, and primitive rendering behavior.
 
 ## Implementation Details
 
@@ -69,13 +69,13 @@ See the TechSpec sections "Theme and visual system", "Frontend Module Structure"
 
 ## Tests
 - Unit tests:
-  - [ ] Token and typography assets load with the expected package export paths.
-  - [ ] Shared primitives render correctly under the daemon theme foundation.
-  - [ ] Package exports resolve without leaking route-specific implementation details.
+  - [x] Token and typography assets load with the expected package export paths.
+  - [x] Shared primitives render correctly under the daemon theme foundation.
+  - [x] Package exports resolve without leaking route-specific implementation details.
 - Integration tests:
-  - [ ] `web/` can import and render the shared UI package successfully.
-  - [ ] Shared token CSS is applied consistently across package and app consumers.
-  - [ ] Theme and primitive changes do not require route-level style duplication.
+  - [x] `web/` can import and render the shared UI package successfully.
+  - [x] Shared token CSS is applied consistently across package and app consumers.
+  - [x] Theme and primitive changes do not require route-level style duplication.
 - Test coverage target: >=80%
 - All tests must pass
 

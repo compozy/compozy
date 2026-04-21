@@ -16,7 +16,7 @@
 | 10 | Runs Console and Operational Run Controls | completed | high | task_02, task_03, task_06, task_07 |
 | 11 | Workflow Task Board and Task Detail Surfaces | completed | high | task_02, task_03, task_06, task_07 |
 | 12 | Reviews, Spec, and Memory Read Surfaces | completed | high | task_02, task_03, task_06, task_07 |
-| 13 | Storybook, MSW, and Mocked Route-State Coverage | pending | high | task_03, task_09, task_10, task_11, task_12 |
-| 14 | Bun-Aware Verify/CI Wiring and Daemon-Served Playwright E2E | pending | critical | task_01, task_02, task_08, task_09, task_10, task_11, task_12, task_13 |
-| 15 | Daemon Web UI QA Plan and Regression Artifacts | pending | high | task_08, task_09, task_10, task_11, task_12, task_13, task_14 |
-| 16 | Daemon Web UI QA Execution and Browser/Operator Validation | pending | critical | task_15 |
+| 13 | Storybook, MSW, and Mocked Route-State Coverage | completed | high | task_03, task_09, task_10, task_11, task_12 |
+| 14 | Bun-Aware Verify/CI Wiring and Daemon-Served Playwright E2E | completed | critical | task_01, task_02, task_08, task_09, task_10, task_11, task_12, task_13 |
+| 15 | Daemon Web UI QA Plan and Regression Artifacts | completed | high | task_08, task_09, task_10, task_11, task_12, task_13, task_14 |
+| 16 | Daemon Web UI QA Execution and Browser/Operator Validation | completed | critical | task_15 |
