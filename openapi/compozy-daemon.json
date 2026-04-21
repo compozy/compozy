@@ -1,0 +1,2624 @@
+{
+    "components": {
+        "parameters": {
+            "FileID": {
+                "description": "Opaque daemon-issued workflow memory file identifier.",
+                "in": "path",
+                "name": "file_id",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "IssueID": {
+                "description": "Review issue identifier.",
+                "in": "path",
+                "name": "issue_id",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "LastEventID": {
+                "description": "Stable SSE cursor for resumable run streaming.",
+                "in": "header",
+                "name": "Last-Event-ID",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "Limit": {
+                "description": "Maximum number of runs to return.",
+                "in": "query",
+                "name": "limit",
+                "schema": {
+                    "default": 100,
+                    "maximum": 500,
+                    "minimum": 1,
+                    "type": "integer"
+                }
+            },
+            "Round": {
+                "description": "Review round number.",
+                "in": "path",
+                "name": "round",
+                "required": true,
+                "schema": {
+                    "minimum": 1,
+                    "type": "integer"
+                }
+            },
+            "RunID": {
+                "description": "Run identifier.",
+                "in": "path",
+                "name": "run_id",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "RunMode": {
+                "description": "Optional run mode filter.",
+                "in": "query",
+                "name": "mode",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "RunStatus": {
+                "description": "Optional run status filter.",
+                "in": "query",
+                "name": "status",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "Slug": {
+                "description": "Workflow slug.",
+                "in": "path",
+                "name": "slug",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "TaskID": {
+                "description": "Workflow task identifier.",
+                "in": "path",
+                "name": "task_id",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "WorkspaceFilterQuery": {
+                "description": "Optional workspace filter for run inventory reads.",
+                "in": "query",
+                "name": "workspace",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "WorkspaceQuery": {
+                "description": "Active workspace identifier for browser-scoped daemon requests.",
+                "in": "query",
+                "name": "workspace",
+                "required": true,
+                "schema": {
+                    "type": "string"
+                }
+            }
+        },
+        "responses": {
+            "Conflict": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/TransportError"
+                        }
+                    }
+                },
+                "description": "Requested operation conflicts with current daemon state."
+            },
+            "InternalError": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/TransportError"
+                        }
+                    }
+                },
+                "description": "Unexpected daemon failure."
+            },
+            "InvalidRequest": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/TransportError"
+                        }
+                    }
+                },
+                "description": "Request body or parameters were malformed."
+            },
+            "NotFound": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/TransportError"
+                        }
+                    }
+                },
+                "description": "Requested resource was not found."
+            },
+            "StaleWorkspace": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/TransportError"
+                        }
+                    }
+                },
+                "description": "Active workspace context is missing or stale."
+            },
+            "ValidationError": {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/TransportError"
+                        }
+                    }
+                },
+                "description": "Request validation failed."
+            }
+        },
+        "schemas": {
+            "AcceptedResponse": {
+                "properties": {
+                    "accepted": {
+                        "type": "boolean"
+                    }
+                },
+                "required": ["accepted"],
+                "type": "object"
+            },
+            "ArchiveResult": {
+                "properties": {
+                    "archived": {
+                        "type": "boolean"
+                    },
+                    "archived_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["archived"],
+                "type": "object"
+            },
+            "ContentBlock": {
+                "properties": {
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "required": ["type"],
+                "type": "object"
+            },
+            "DaemonHealth": {
+                "properties": {
+                    "degraded": {
+                        "type": "boolean"
+                    },
+                    "details": {
+                        "items": {
+                            "$ref": "#/components/schemas/HealthDetail"
+                        },
+                        "type": "array"
+                    },
+                    "ready": {
+                        "type": "boolean"
+                    }
+                },
+                "required": ["ready"],
+                "type": "object"
+            },
+            "DaemonHealthResponse": {
+                "properties": {
+                    "health": {
+                        "$ref": "#/components/schemas/DaemonHealth"
+                    }
+                },
+                "required": ["health"],
+                "type": "object"
+            },
+            "DaemonStatus": {
+                "properties": {
+                    "active_run_count": {
+                        "type": "integer"
+                    },
+                    "http_port": {
+                        "type": "integer"
+                    },
+                    "pid": {
+                        "type": "integer"
+                    },
+                    "socket_path": {
+                        "type": "string"
+                    },
+                    "started_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    },
+                    "workspace_count": {
+                        "type": "integer"
+                    }
+                },
+                "required": ["active_run_count", "pid", "started_at", "workspace_count"],
+                "type": "object"
+            },
+            "DaemonStatusResponse": {
+                "properties": {
+                    "daemon": {
+                        "$ref": "#/components/schemas/DaemonStatus"
+                    }
+                },
+                "required": ["daemon"],
+                "type": "object"
+            },
+            "DashboardPayload": {
+                "properties": {
+                    "active_runs": {
+                        "items": {
+                            "$ref": "#/components/schemas/Run"
+                        },
+                        "type": "array"
+                    },
+                    "daemon": {
+                        "$ref": "#/components/schemas/DaemonStatus"
+                    },
+                    "health": {
+                        "$ref": "#/components/schemas/DaemonHealth"
+                    },
+                    "pending_reviews": {
+                        "type": "integer"
+                    },
+                    "queue": {
+                        "$ref": "#/components/schemas/DashboardQueueSummary"
+                    },
+                    "workflows": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkflowCard"
+                        },
+                        "type": "array"
+                    },
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["daemon", "health", "pending_reviews", "queue", "workspace"],
+                "type": "object"
+            },
+            "DashboardQueueSummary": {
+                "properties": {
+                    "active": {
+                        "type": "integer"
+                    },
+                    "canceled": {
+                        "type": "integer"
+                    },
+                    "completed": {
+                        "type": "integer"
+                    },
+                    "failed": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "required": ["active", "canceled", "completed", "failed", "total"],
+                "type": "object"
+            },
+            "DashboardResponse": {
+                "properties": {
+                    "dashboard": {
+                        "$ref": "#/components/schemas/DashboardPayload"
+                    }
+                },
+                "required": ["dashboard"],
+                "type": "object"
+            },
+            "Entry": {
+                "properties": {
+                    "Blocks": {
+                        "items": {
+                            "$ref": "#/components/schemas/ContentBlock"
+                        },
+                        "type": "array"
+                    },
+                    "ID": {
+                        "type": "string"
+                    },
+                    "Kind": {
+                        "type": "string"
+                    },
+                    "Preview": {
+                        "type": "string"
+                    },
+                    "Title": {
+                        "type": "string"
+                    },
+                    "ToolCallID": {
+                        "type": "string"
+                    },
+                    "ToolCallState": {
+                        "type": "string"
+                    }
+                },
+                "required": ["ID", "Kind", "Preview", "Title", "ToolCallID", "ToolCallState"],
+                "type": "object"
+            },
+            "Event": {
+                "properties": {
+                    "kind": {
+                        "type": "string"
+                    },
+                    "payload": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "run_id": {
+                        "type": "string"
+                    },
+                    "schema_version": {
+                        "type": "string"
+                    },
+                    "seq": {
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "ts": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["kind", "run_id", "schema_version", "seq", "ts"],
+                "type": "object"
+            },
+            "HealthDetail": {
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "severity": {
+                        "type": "string"
+                    }
+                },
+                "required": ["code", "message"],
+                "type": "object"
+            },
+            "MarkdownDocument": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "markdown": {
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "additionalProperties": {
+                            "additionalProperties": true,
+                            "type": "object"
+                        },
+                        "type": "object"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["id", "kind", "markdown", "title", "updated_at"],
+                "type": "object"
+            },
+            "MarkdownDocumentResponse": {
+                "properties": {
+                    "document": {
+                        "$ref": "#/components/schemas/MarkdownDocument"
+                    }
+                },
+                "required": ["document"],
+                "type": "object"
+            },
+            "ReviewDetailPayload": {
+                "properties": {
+                    "document": {
+                        "$ref": "#/components/schemas/MarkdownDocument"
+                    },
+                    "issue": {
+                        "$ref": "#/components/schemas/ReviewIssueDetail"
+                    },
+                    "related_runs": {
+                        "items": {
+                            "$ref": "#/components/schemas/Run"
+                        },
+                        "type": "array"
+                    },
+                    "round": {
+                        "$ref": "#/components/schemas/ReviewRound"
+                    },
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                    },
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["document", "issue", "round", "workflow", "workspace"],
+                "type": "object"
+            },
+            "ReviewDetailResponse": {
+                "properties": {
+                    "review": {
+                        "$ref": "#/components/schemas/ReviewDetailPayload"
+                    }
+                },
+                "required": ["review"],
+                "type": "object"
+            },
+            "ReviewIssue": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "issue_number": {
+                        "type": "integer"
+                    },
+                    "severity": {
+                        "type": "string"
+                    },
+                    "source_path": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "issue_number",
+                    "severity",
+                    "source_path",
+                    "status",
+                    "updated_at"
+                ],
+                "type": "object"
+            },
+            "ReviewIssueDetail": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "issue_number": {
+                        "type": "integer"
+                    },
+                    "severity": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["id", "issue_number", "severity", "status", "updated_at"],
+                "type": "object"
+            },
+            "ReviewIssuesResponse": {
+                "properties": {
+                    "issues": {
+                        "items": {
+                            "$ref": "#/components/schemas/ReviewIssue"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["issues"],
+                "type": "object"
+            },
+            "ReviewRound": {
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "pr_ref": {
+                        "type": "string"
+                    },
+                    "provider": {
+                        "type": "string"
+                    },
+                    "resolved_count": {
+                        "type": "integer"
+                    },
+                    "round_number": {
+                        "type": "integer"
+                    },
+                    "unresolved_count": {
+                        "type": "integer"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "workflow_slug": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "resolved_count",
+                    "round_number",
+                    "unresolved_count",
+                    "updated_at",
+                    "workflow_slug"
+                ],
+                "type": "object"
+            },
+            "ReviewRunRequest": {
+                "properties": {
+                    "batching": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "presentation_mode": {
+                        "type": "string"
+                    },
+                    "runtime_overrides": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "workspace": {
+                        "type": "string"
+                    }
+                },
+                "required": ["workspace"],
+                "type": "object"
+            },
+            "ReviewSummary": {
+                "properties": {
+                    "pr_ref": {
+                        "type": "string"
+                    },
+                    "provider": {
+                        "type": "string"
+                    },
+                    "resolved_count": {
+                        "type": "integer"
+                    },
+                    "round_number": {
+                        "type": "integer"
+                    },
+                    "unresolved_count": {
+                        "type": "integer"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "workflow_slug": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "resolved_count",
+                    "round_number",
+                    "unresolved_count",
+                    "updated_at",
+                    "workflow_slug"
+                ],
+                "type": "object"
+            },
+            "ReviewSummaryResponse": {
+                "properties": {
+                    "review": {
+                        "$ref": "#/components/schemas/ReviewSummary"
+                    }
+                },
+                "required": ["review"],
+                "type": "object"
+            },
+            "Run": {
+                "properties": {
+                    "ended_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "error_text": {
+                        "type": "string"
+                    },
+                    "mode": {
+                        "type": "string"
+                    },
+                    "presentation_mode": {
+                        "type": "string"
+                    },
+                    "request_id": {
+                        "type": "string"
+                    },
+                    "run_id": {
+                        "type": "string"
+                    },
+                    "started_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "workflow_id": {
+                        "type": "string"
+                    },
+                    "workflow_slug": {
+                        "type": "string"
+                    },
+                    "workspace_id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "mode",
+                    "presentation_mode",
+                    "run_id",
+                    "started_at",
+                    "status",
+                    "workspace_id"
+                ],
+                "type": "object"
+            },
+            "RunArtifactSyncEntry": {
+                "properties": {
+                    "change_kind": {
+                        "type": "string"
+                    },
+                    "checksum": {
+                        "type": "string"
+                    },
+                    "relative_path": {
+                        "type": "string"
+                    },
+                    "sequence": {
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "synced_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["change_kind", "relative_path", "sequence", "synced_at"],
+                "type": "object"
+            },
+            "RunDetailPayload": {
+                "properties": {
+                    "artifact_sync": {
+                        "items": {
+                            "$ref": "#/components/schemas/RunArtifactSyncEntry"
+                        },
+                        "type": "array"
+                    },
+                    "job_counts": {
+                        "$ref": "#/components/schemas/RunJobCounts"
+                    },
+                    "run": {
+                        "$ref": "#/components/schemas/Run"
+                    },
+                    "runtime": {
+                        "$ref": "#/components/schemas/RunRuntimeSummary"
+                    },
+                    "snapshot": {
+                        "$ref": "#/components/schemas/RunSnapshot"
+                    },
+                    "timeline": {
+                        "items": {
+                            "$ref": "#/components/schemas/Event"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["job_counts", "run", "runtime", "snapshot"],
+                "type": "object"
+            },
+            "RunJobCounts": {
+                "properties": {
+                    "canceled": {
+                        "type": "integer"
+                    },
+                    "completed": {
+                        "type": "integer"
+                    },
+                    "failed": {
+                        "type": "integer"
+                    },
+                    "queued": {
+                        "type": "integer"
+                    },
+                    "retrying": {
+                        "type": "integer"
+                    },
+                    "running": {
+                        "type": "integer"
+                    }
+                },
+                "required": ["canceled", "completed", "failed", "queued", "retrying", "running"],
+                "type": "object"
+            },
+            "RunJobState": {
+                "properties": {
+                    "agent_name": {
+                        "type": "string"
+                    },
+                    "index": {
+                        "type": "integer"
+                    },
+                    "job_id": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "$ref": "#/components/schemas/RunJobSummary"
+                    },
+                    "task_id": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["index", "job_id", "status", "updated_at"],
+                "type": "object"
+            },
+            "RunJobSummary": {
+                "properties": {
+                    "access_mode": {
+                        "type": "string"
+                    },
+                    "attempt": {
+                        "type": "integer"
+                    },
+                    "code_file": {
+                        "type": "string"
+                    },
+                    "code_files": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "err_log": {
+                        "type": "string"
+                    },
+                    "error_text": {
+                        "type": "string"
+                    },
+                    "exit_code": {
+                        "type": "integer"
+                    },
+                    "ide": {
+                        "type": "string"
+                    },
+                    "index": {
+                        "type": "integer"
+                    },
+                    "issues": {
+                        "type": "integer"
+                    },
+                    "max_attempts": {
+                        "type": "integer"
+                    },
+                    "model": {
+                        "type": "string"
+                    },
+                    "out_log": {
+                        "type": "string"
+                    },
+                    "reasoning_effort": {
+                        "type": "string"
+                    },
+                    "retry_reason": {
+                        "type": "string"
+                    },
+                    "safe_name": {
+                        "type": "string"
+                    },
+                    "session": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "task_title": {
+                        "type": "string"
+                    },
+                    "task_type": {
+                        "type": "string"
+                    },
+                    "usage": {
+                        "$ref": "#/components/schemas/Usage"
+                    }
+                },
+                "required": ["index"],
+                "type": "object"
+            },
+            "RunResponse": {
+                "properties": {
+                    "run": {
+                        "$ref": "#/components/schemas/Run"
+                    }
+                },
+                "required": ["run"],
+                "type": "object"
+            },
+            "RunRuntimeSummary": {
+                "properties": {
+                    "access_modes": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "ides": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "models": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "presentation_modes": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "reasoning_efforts": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "type": "object"
+            },
+            "RunShutdownState": {
+                "properties": {
+                    "deadline_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "phase": {
+                        "type": "string"
+                    },
+                    "requested_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "source": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "RunSnapshot": {
+                "properties": {
+                    "jobs": {
+                        "items": {
+                            "$ref": "#/components/schemas/RunJobState"
+                        },
+                        "type": "array"
+                    },
+                    "run": {
+                        "$ref": "#/components/schemas/Run"
+                    },
+                    "shutdown": {
+                        "$ref": "#/components/schemas/RunShutdownState"
+                    },
+                    "transcript": {
+                        "items": {
+                            "$ref": "#/components/schemas/RunTranscriptMessage"
+                        },
+                        "type": "array"
+                    },
+                    "usage": {
+                        "$ref": "#/components/schemas/Usage"
+                    }
+                },
+                "required": ["run"],
+                "type": "object"
+            },
+            "RunSnapshotPayload": {
+                "properties": {
+                    "jobs": {
+                        "items": {
+                            "$ref": "#/components/schemas/RunJobState"
+                        },
+                        "type": "array"
+                    },
+                    "next_cursor": {
+                        "type": "string"
+                    },
+                    "run": {
+                        "$ref": "#/components/schemas/Run"
+                    },
+                    "shutdown": {
+                        "$ref": "#/components/schemas/RunShutdownState"
+                    },
+                    "transcript": {
+                        "items": {
+                            "$ref": "#/components/schemas/RunTranscriptMessage"
+                        },
+                        "type": "array"
+                    },
+                    "usage": {
+                        "$ref": "#/components/schemas/Usage"
+                    }
+                },
+                "required": ["run"],
+                "type": "object"
+            },
+            "RunTranscriptMessage": {
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    },
+                    "metadata": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "sequence": {
+                        "minimum": 0,
+                        "type": "integer"
+                    },
+                    "stream": {
+                        "type": "string"
+                    },
+                    "timestamp": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["content", "role", "sequence", "stream", "timestamp"],
+                "type": "object"
+            },
+            "RunsResponse": {
+                "properties": {
+                    "runs": {
+                        "items": {
+                            "$ref": "#/components/schemas/Run"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["runs"],
+                "type": "object"
+            },
+            "SessionAvailableCommand": {
+                "properties": {
+                    "argumentHint": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": ["name"],
+                "type": "object"
+            },
+            "SessionMetaState": {
+                "properties": {
+                    "AvailableCommands": {
+                        "items": {
+                            "$ref": "#/components/schemas/SessionAvailableCommand"
+                        },
+                        "type": "array"
+                    },
+                    "CurrentModeID": {
+                        "type": "string"
+                    },
+                    "Status": {
+                        "type": "string"
+                    }
+                },
+                "required": ["CurrentModeID", "Status"],
+                "type": "object"
+            },
+            "SessionPlanEntry": {
+                "properties": {
+                    "content": {
+                        "type": "string"
+                    },
+                    "priority": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                },
+                "required": ["content", "priority", "status"],
+                "type": "object"
+            },
+            "SessionPlanState": {
+                "properties": {
+                    "DoneCount": {
+                        "type": "integer"
+                    },
+                    "Entries": {
+                        "items": {
+                            "$ref": "#/components/schemas/SessionPlanEntry"
+                        },
+                        "type": "array"
+                    },
+                    "PendingCount": {
+                        "type": "integer"
+                    },
+                    "RunningCount": {
+                        "type": "integer"
+                    }
+                },
+                "required": ["DoneCount", "PendingCount", "RunningCount"],
+                "type": "object"
+            },
+            "SessionViewSnapshot": {
+                "properties": {
+                    "Entries": {
+                        "items": {
+                            "$ref": "#/components/schemas/Entry"
+                        },
+                        "type": "array"
+                    },
+                    "Plan": {
+                        "$ref": "#/components/schemas/SessionPlanState"
+                    },
+                    "Revision": {
+                        "type": "integer"
+                    },
+                    "Session": {
+                        "$ref": "#/components/schemas/SessionMetaState"
+                    }
+                },
+                "required": ["Plan", "Revision", "Session"],
+                "type": "object"
+            },
+            "SyncRequest": {
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    },
+                    "workflow_slug": {
+                        "type": "string"
+                    },
+                    "workspace": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "SyncResult": {
+                "properties": {
+                    "checkpoints_updated": {
+                        "type": "integer"
+                    },
+                    "legacy_artifacts_removed": {
+                        "type": "integer"
+                    },
+                    "review_issues_upserted": {
+                        "type": "integer"
+                    },
+                    "review_rounds_upserted": {
+                        "type": "integer"
+                    },
+                    "snapshots_upserted": {
+                        "type": "integer"
+                    },
+                    "synced_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "synced_paths": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "target": {
+                        "type": "string"
+                    },
+                    "task_items_upserted": {
+                        "type": "integer"
+                    },
+                    "warnings": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "workflow_slug": {
+                        "type": "string"
+                    },
+                    "workflows_scanned": {
+                        "type": "integer"
+                    },
+                    "workspace_id": {
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "TaskBoardPayload": {
+                "properties": {
+                    "lanes": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskLane"
+                        },
+                        "type": "array"
+                    },
+                    "task_counts": {
+                        "$ref": "#/components/schemas/WorkflowTaskCounts"
+                    },
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                    },
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["task_counts", "workflow", "workspace"],
+                "type": "object"
+            },
+            "TaskBoardResponse": {
+                "properties": {
+                    "board": {
+                        "$ref": "#/components/schemas/TaskBoardPayload"
+                    }
+                },
+                "required": ["board"],
+                "type": "object"
+            },
+            "TaskCard": {
+                "properties": {
+                    "depends_on": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "task_id": {
+                        "type": "string"
+                    },
+                    "task_number": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["status", "task_id", "task_number", "title", "type", "updated_at"],
+                "type": "object"
+            },
+            "TaskDetailPayload": {
+                "properties": {
+                    "document": {
+                        "$ref": "#/components/schemas/MarkdownDocument"
+                    },
+                    "live_tail_available": {
+                        "type": "boolean"
+                    },
+                    "memory_entries": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkflowMemoryEntry"
+                        },
+                        "type": "array"
+                    },
+                    "related_runs": {
+                        "items": {
+                            "$ref": "#/components/schemas/Run"
+                        },
+                        "type": "array"
+                    },
+                    "task": {
+                        "$ref": "#/components/schemas/TaskCard"
+                    },
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                    },
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["document", "live_tail_available", "task", "workflow", "workspace"],
+                "type": "object"
+            },
+            "TaskDetailResponse": {
+                "properties": {
+                    "task": {
+                        "$ref": "#/components/schemas/TaskDetailPayload"
+                    }
+                },
+                "required": ["task"],
+                "type": "object"
+            },
+            "TaskItem": {
+                "properties": {
+                    "depends_on": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "source_path": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "task_id": {
+                        "type": "string"
+                    },
+                    "task_number": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "source_path",
+                    "status",
+                    "task_id",
+                    "task_number",
+                    "title",
+                    "type",
+                    "updated_at"
+                ],
+                "type": "object"
+            },
+            "TaskLane": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/TaskCard"
+                        },
+                        "type": "array"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                },
+                "required": ["status", "title"],
+                "type": "object"
+            },
+            "TaskRunRequest": {
+                "properties": {
+                    "presentation_mode": {
+                        "type": "string"
+                    },
+                    "runtime_overrides": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "workspace": {
+                        "type": "string"
+                    }
+                },
+                "required": ["workspace"],
+                "type": "object"
+            },
+            "TransportError": {
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "details": {
+                        "additionalProperties": true,
+                        "type": "object"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "request_id": {
+                        "type": "string"
+                    }
+                },
+                "required": ["request_id", "code", "message"],
+                "type": "object"
+            },
+            "Usage": {
+                "properties": {
+                    "cache_reads": {
+                        "type": "integer"
+                    },
+                    "cache_writes": {
+                        "type": "integer"
+                    },
+                    "input_tokens": {
+                        "type": "integer"
+                    },
+                    "output_tokens": {
+                        "type": "integer"
+                    },
+                    "total_tokens": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
+            "ValidationSuccess": {
+                "properties": {
+                    "checked_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "valid": {
+                        "type": "boolean"
+                    }
+                },
+                "required": ["valid"],
+                "type": "object"
+            },
+            "WorkflowCard": {
+                "properties": {
+                    "active_runs": {
+                        "type": "integer"
+                    },
+                    "latest_review": {
+                        "$ref": "#/components/schemas/ReviewSummary"
+                    },
+                    "review_round_count": {
+                        "type": "integer"
+                    },
+                    "task_completed": {
+                        "type": "integer"
+                    },
+                    "task_pending": {
+                        "type": "integer"
+                    },
+                    "task_total": {
+                        "type": "integer"
+                    },
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                    }
+                },
+                "required": [
+                    "active_runs",
+                    "review_round_count",
+                    "task_completed",
+                    "task_pending",
+                    "task_total",
+                    "workflow"
+                ],
+                "type": "object"
+            },
+            "WorkflowMemoryEntry": {
+                "properties": {
+                    "display_path": {
+                        "type": "string"
+                    },
+                    "file_id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "size_bytes": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "display_path",
+                    "file_id",
+                    "kind",
+                    "size_bytes",
+                    "title",
+                    "updated_at"
+                ],
+                "type": "object"
+            },
+            "WorkflowMemoryIndex": {
+                "properties": {
+                    "entries": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkflowMemoryEntry"
+                        },
+                        "type": "array"
+                    },
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                    },
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["workflow", "workspace"],
+                "type": "object"
+            },
+            "WorkflowMemoryResponse": {
+                "properties": {
+                    "memory": {
+                        "$ref": "#/components/schemas/WorkflowMemoryIndex"
+                    }
+                },
+                "required": ["memory"],
+                "type": "object"
+            },
+            "WorkflowOverviewPayload": {
+                "properties": {
+                    "archive_eligible": {
+                        "type": "boolean"
+                    },
+                    "archive_reason": {
+                        "type": "string"
+                    },
+                    "latest_review": {
+                        "$ref": "#/components/schemas/ReviewSummary"
+                    },
+                    "recent_runs": {
+                        "items": {
+                            "$ref": "#/components/schemas/Run"
+                        },
+                        "type": "array"
+                    },
+                    "task_counts": {
+                        "$ref": "#/components/schemas/WorkflowTaskCounts"
+                    },
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                    },
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["archive_eligible", "task_counts", "workflow", "workspace"],
+                "type": "object"
+            },
+            "WorkflowOverviewResponse": {
+                "properties": {
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowOverviewPayload"
+                    }
+                },
+                "required": ["workflow"],
+                "type": "object"
+            },
+            "WorkflowRefRequest": {
+                "properties": {
+                    "workspace": {
+                        "type": "string"
+                    }
+                },
+                "required": ["workspace"],
+                "type": "object"
+            },
+            "WorkflowSpecDocument": {
+                "properties": {
+                    "adrs": {
+                        "items": {
+                            "$ref": "#/components/schemas/MarkdownDocument"
+                        },
+                        "type": "array"
+                    },
+                    "prd": {
+                        "$ref": "#/components/schemas/MarkdownDocument"
+                    },
+                    "techspec": {
+                        "$ref": "#/components/schemas/MarkdownDocument"
+                    },
+                    "workflow": {
+                        "$ref": "#/components/schemas/WorkflowSummary"
+                    },
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["workflow", "workspace"],
+                "type": "object"
+            },
+            "WorkflowSpecResponse": {
+                "properties": {
+                    "spec": {
+                        "$ref": "#/components/schemas/WorkflowSpecDocument"
+                    }
+                },
+                "required": ["spec"],
+                "type": "object"
+            },
+            "WorkflowSummary": {
+                "properties": {
+                    "archived_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "last_synced_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "workspace_id": {
+                        "type": "string"
+                    }
+                },
+                "required": ["id", "slug", "workspace_id"],
+                "type": "object"
+            },
+            "WorkflowTaskCounts": {
+                "properties": {
+                    "completed": {
+                        "type": "integer"
+                    },
+                    "pending": {
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "required": ["completed", "pending", "total"],
+                "type": "object"
+            },
+            "WorkflowsResponse": {
+                "properties": {
+                    "workflows": {
+                        "items": {
+                            "$ref": "#/components/schemas/WorkflowSummary"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["workflows"],
+                "type": "object"
+            },
+            "Workspace": {
+                "properties": {
+                    "created_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "root_dir": {
+                        "type": "string"
+                    },
+                    "updated_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    }
+                },
+                "required": ["created_at", "id", "name", "root_dir", "updated_at"],
+                "type": "object"
+            },
+            "WorkspaceResolveRequest": {
+                "properties": {
+                    "path": {
+                        "type": "string"
+                    }
+                },
+                "required": ["path"],
+                "type": "object"
+            },
+            "WorkspaceResponse": {
+                "properties": {
+                    "workspace": {
+                        "$ref": "#/components/schemas/Workspace"
+                    }
+                },
+                "required": ["workspace"],
+                "type": "object"
+            },
+            "WorkspacesResponse": {
+                "properties": {
+                    "workspaces": {
+                        "items": {
+                            "$ref": "#/components/schemas/Workspace"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["workspaces"],
+                "type": "object"
+            }
+        }
+    },
+    "info": {
+        "title": "Compozy Daemon Browser API",
+        "version": "0.1.0"
+    },
+    "openapi": "3.0.3",
+    "paths": {
+        "/api/daemon/health": {
+            "get": {
+                "operationId": "getDaemonHealth",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DaemonHealthResponse"
+                                }
+                            }
+                        },
+                        "description": "Ready"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DaemonHealthResponse"
+                                }
+                            }
+                        },
+                        "description": "Daemon not ready"
+                    }
+                },
+                "summary": "Read daemon readiness and degraded-state details.",
+                "tags": ["daemon"]
+            }
+        },
+        "/api/daemon/metrics": {
+            "get": {
+                "operationId": "getDaemonMetrics",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Metrics payload."
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read daemon metrics in Prometheus text format.",
+                "tags": ["daemon"]
+            }
+        },
+        "/api/daemon/status": {
+            "get": {
+                "operationId": "getDaemonStatus",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DaemonStatusResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read daemon identity and listener status.",
+                "tags": ["daemon"]
+            }
+        },
+        "/api/reviews/{slug}": {
+            "get": {
+                "operationId": "getLatestReview",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReviewSummaryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read the latest review summary for one workflow.",
+                "tags": ["reviews"]
+            }
+        },
+        "/api/reviews/{slug}/rounds/{round}/issues": {
+            "get": {
+                "operationId": "listReviewIssues",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Round"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReviewIssuesResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "List review issues for one workflow round.",
+                "tags": ["reviews"]
+            }
+        },
+        "/api/reviews/{slug}/rounds/{round}/issues/{issue_id}": {
+            "get": {
+                "operationId": "getReviewIssue",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Round"
+                    },
+                    {
+                        "$ref": "#/components/parameters/IssueID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReviewDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one review issue detail payload.",
+                "tags": ["reviews"]
+            }
+        },
+        "/api/reviews/{slug}/rounds/{round}/runs": {
+            "post": {
+                "operationId": "startReviewRun",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Round"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReviewRunRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Start one review-fix run.",
+                "tags": ["reviews"]
+            }
+        },
+        "/api/runs": {
+            "get": {
+                "operationId": "listRuns",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceFilterQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/RunStatus"
+                    },
+                    {
+                        "$ref": "#/components/parameters/RunMode"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Limit"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "List runs across workspaces or for one workspace.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/runs/{run_id}": {
+            "get": {
+                "operationId": "getRun",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one run summary.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/runs/{run_id}/cancel": {
+            "post": {
+                "operationId": "cancelRun",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AcceptedResponse"
+                                }
+                            }
+                        },
+                        "description": "Accepted"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Request cancellation for one run.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/runs/{run_id}/snapshot": {
+            "get": {
+                "operationId": "getRunSnapshot",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunSnapshotPayload"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one run snapshot payload for detail views.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/runs/{run_id}/stream": {
+            "get": {
+                "operationId": "streamRun",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/RunID"
+                    },
+                    {
+                        "$ref": "#/components/parameters/LastEventID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Run event stream."
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Stream live run events with resumable cursors.",
+                "tags": ["runs"]
+            }
+        },
+        "/api/sync": {
+            "post": {
+                "operationId": "syncWorkflow",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SyncRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SyncResult"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Run explicit daemon reconciliation for a workspace or workflow.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks": {
+            "get": {
+                "operationId": "listWorkflows",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkflowsResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "List workflow summaries for the active workspace.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}": {
+            "get": {
+                "operationId": "getWorkflow",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkflowOverviewResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one workflow overview payload.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}/archive": {
+            "post": {
+                "operationId": "archiveWorkflow",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WorkflowRefRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ArchiveResult"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Archive a workflow in the active workspace.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}/board": {
+            "get": {
+                "operationId": "getWorkflowBoard",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TaskBoardResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read the workflow task board payload.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}/items/{task_id}": {
+            "get": {
+                "operationId": "getWorkflowTask",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/TaskID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TaskDetailResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one workflow task detail payload.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}/memory": {
+            "get": {
+                "operationId": "listWorkflowMemoryFiles",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkflowMemoryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "List workflow memory files using daemon-issued file identifiers.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}/memory/files/{file_id}": {
+            "get": {
+                "operationId": "getWorkflowMemoryFile",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    },
+                    {
+                        "$ref": "#/components/parameters/FileID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MarkdownDocumentResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read one workflow memory document by opaque daemon-issued identifier.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}/runs": {
+            "post": {
+                "operationId": "startWorkflowRun",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TaskRunRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "201": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RunResponse"
+                                }
+                            }
+                        },
+                        "description": "Created"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Start one workflow run for the active workspace.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/tasks/{slug}/spec": {
+            "get": {
+                "operationId": "getWorkflowSpec",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    },
+                    {
+                        "$ref": "#/components/parameters/Slug"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkflowSpecResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read PRD, TechSpec, and ADR documents for one workflow.",
+                "tags": ["workflows"]
+            }
+        },
+        "/api/ui/dashboard": {
+            "get": {
+                "operationId": "getDashboard",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/WorkspaceQuery"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DashboardResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "412": {
+                        "$ref": "#/components/responses/StaleWorkspace"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Read the active-workspace dashboard aggregate payload.",
+                "tags": ["dashboard"]
+            }
+        },
+        "/api/workspaces": {
+            "get": {
+                "operationId": "listWorkspaces",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkspacesResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "List registered workspaces for browser workspace selection.",
+                "tags": ["workspaces"]
+            }
+        },
+        "/api/workspaces/resolve": {
+            "post": {
+                "operationId": "resolveWorkspace",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WorkspaceResolveRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/WorkspaceResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/InvalidRequest"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationError"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/InternalError"
+                    }
+                },
+                "summary": "Resolve or lazily register a workspace by path.",
+                "tags": ["workspaces"]
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "daemon"
+        },
+        {
+            "name": "workspaces"
+        },
+        {
+            "name": "dashboard"
+        },
+        {
+            "name": "workflows"
+        },
+        {
+            "name": "reviews"
+        },
+        {
+            "name": "runs"
+        }
+    ]
+}

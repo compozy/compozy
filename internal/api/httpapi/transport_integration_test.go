@@ -52,6 +52,44 @@ func TestHTTPAndUDSRegisterMatchingRoutes(t *testing.T) {
 	}
 }
 
+func TestSharedRouteRegistrationIncludesBrowserEndpoints(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	handlers := core.NewHandlers(&core.HandlerConfig{TransportName: "test"})
+	httpEngine := gin.New()
+	httpapi.RegisterRoutes(httpEngine, handlers)
+
+	routes := routeKeys(httpEngine.Routes())
+	required := []string{
+		"GET /api/ui/dashboard",
+		"GET /api/tasks",
+		"GET /api/tasks/:slug",
+		"GET /api/tasks/:slug/spec",
+		"GET /api/tasks/:slug/memory",
+		"GET /api/tasks/:slug/memory/files/:file_id",
+		"GET /api/tasks/:slug/board",
+		"GET /api/tasks/:slug/items/:task_id",
+		"GET /api/reviews/:slug/rounds/:round/issues/:issue_id",
+		"POST /api/tasks/:slug/runs",
+		"POST /api/tasks/:slug/archive",
+		"POST /api/reviews/:slug/rounds/:round/runs",
+		"POST /api/sync",
+		"GET /api/workspaces",
+	}
+
+	routeSet := make(map[string]struct{}, len(routes))
+	for _, route := range routes {
+		routeSet[route] = struct{}{}
+	}
+	for _, route := range required {
+		if _, ok := routeSet[route]; !ok {
+			t.Fatalf("required route %q missing from registration", route)
+		}
+	}
+}
+
 func TestHTTPServerPersistsActualPortInDaemonInfo(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

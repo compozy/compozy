@@ -220,8 +220,55 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			http.StatusOK,
 			`"workspace":{"id":"ws-1"`,
 		},
+		{
+			"dashboard",
+			http.MethodGet,
+			"/api/ui/dashboard?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"dashboard":{"workspace":`,
+		},
 		{"task workflows", http.MethodGet, "/api/tasks?workspace=ws-1", "", http.StatusOK, `"workflows":[`},
-		{"task workflow", http.MethodGet, "/api/tasks/daemon?workspace=ws-1", "", http.StatusOK, `"slug":"daemon"`},
+		{
+			"task workflow",
+			http.MethodGet,
+			"/api/tasks/daemon?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"workflow":{"workspace":`,
+		},
+		{
+			"task workflow spec",
+			http.MethodGet,
+			"/api/tasks/daemon/spec?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"spec":{"workspace":`,
+		},
+		{
+			"task workflow memory",
+			http.MethodGet,
+			"/api/tasks/daemon/memory?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"memory":{"workspace":`,
+		},
+		{
+			"task workflow memory file",
+			http.MethodGet,
+			"/api/tasks/daemon/memory/files/file-1?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"document":{"id":"`,
+		},
+		{
+			"task workflow board",
+			http.MethodGet,
+			"/api/tasks/daemon/board?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"board":{"workspace":`,
+		},
 		{
 			"task items",
 			http.MethodGet,
@@ -229,6 +276,14 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			"",
 			http.StatusOK,
 			`"task_id":"task_01"`,
+		},
+		{
+			"task item detail",
+			http.MethodGet,
+			"/api/tasks/daemon/items/task_01?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"task":{"workspace":`,
 		},
 		{
 			"task validate",
@@ -285,6 +340,14 @@ func TestSharedHandlersSmokeSuccessPaths(t *testing.T) {
 			"",
 			http.StatusOK,
 			`"issues":[`,
+		},
+		{
+			"review issue detail",
+			http.MethodGet,
+			"/api/reviews/daemon/rounds/1/issues/issue-1?workspace=ws-1",
+			"",
+			http.StatusOK,
+			`"review":{"workspace":`,
 		},
 		{
 			"review run",
@@ -434,7 +497,7 @@ func (s *smokeTaskService) WorkflowMemoryIndex(context.Context, string, string) 
 }
 
 func (s *smokeTaskService) WorkflowMemoryFile(context.Context, string, string, string) (core.MarkdownDocument, error) {
-	return core.MarkdownDocument{}, nil
+	return core.MarkdownDocument{ID: "file-1"}, nil
 }
 
 func (s *smokeTaskService) TaskDetail(context.Context, string, string, string) (core.TaskDetailPayload, error) {

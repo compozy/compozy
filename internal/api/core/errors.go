@@ -15,6 +15,8 @@ import (
 	"github.com/compozy/compozy/internal/store/rundb"
 )
 
+const codeSchemaTooNew = string(contract.CodeSchemaTooNew)
+
 type TransportError = contract.TransportError
 type Problem = contract.Problem
 
@@ -100,7 +102,12 @@ func messageForError(status int, err error) string {
 }
 
 func defaultCodeForStatus(status int) string {
-	return contract.DefaultCodeForStatus(status)
+	switch status {
+	case http.StatusPreconditionFailed:
+		return "precondition_failed"
+	default:
+		return contract.DefaultCodeForStatus(status)
+	}
 }
 
 // RespondError writes a transport error response for one request.
@@ -134,6 +141,10 @@ func invalidJSONProblem(transportName string, action string, err error) error {
 
 func validationProblem(code string, message string, details map[string]any) error {
 	return NewProblem(http.StatusUnprocessableEntity, code, message, details, nil)
+}
+
+func workspaceContextProblem(code string, message string, details map[string]any, err error) error {
+	return NewProblem(http.StatusPreconditionFailed, code, message, details, err)
 }
 
 func serviceUnavailableProblem(resource string) error {

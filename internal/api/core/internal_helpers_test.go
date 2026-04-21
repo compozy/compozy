@@ -102,16 +102,16 @@ func TestProblemAndHelperFunctions(t *testing.T) {
 		}
 
 		globalSchemaErr := globaldb.SchemaTooNewError{CurrentVersion: 5, KnownVersion: 4}
-		if got := codeForError(statusForError(globalSchemaErr), globalSchemaErr); got != "schema_too_new" {
-			t.Fatalf("codeForError(global schema too new) = %q, want schema_too_new", got)
+		if got := codeForError(statusForError(globalSchemaErr), globalSchemaErr); got != codeSchemaTooNew {
+			t.Fatalf("codeForError(global schema too new) = %q, want %s", got, codeSchemaTooNew)
 		}
 		if details := detailsForError(globalSchemaErr); details["database"] != "globaldb" {
 			t.Fatalf("detailsForError(global schema too new) database = %v, want globaldb", details["database"])
 		}
 
 		runSchemaErr := rundb.SchemaTooNewError{CurrentVersion: 5, KnownVersion: 4}
-		if got := codeForError(statusForError(runSchemaErr), runSchemaErr); got != "schema_too_new" {
-			t.Fatalf("codeForError(run schema too new) = %q, want schema_too_new", got)
+		if got := codeForError(statusForError(runSchemaErr), runSchemaErr); got != codeSchemaTooNew {
+			t.Fatalf("codeForError(run schema too new) = %q, want %s", got, codeSchemaTooNew)
 		}
 		if details := detailsForError(runSchemaErr); details["database"] != "rundb" {
 			t.Fatalf("detailsForError(run schema too new) database = %v, want rundb", details["database"])
