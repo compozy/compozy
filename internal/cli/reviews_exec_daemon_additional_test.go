@@ -1386,7 +1386,9 @@ func TestReviewsExecDaemonStreamHelpers(t *testing.T) {
 		}
 	})
 
-	t.Run("defaultWatchCLIRun waits for durable terminal snapshot after terminal event", func(t *testing.T) {
+	t.Run("Should wait for a durable terminal snapshot after a terminal watch event", func(t *testing.T) {
+		t.Parallel()
+
 		stream := newStaticClientRunStream()
 		stream.items <- apiclient.RunStreamItem{
 			Event: &eventspkg.Event{

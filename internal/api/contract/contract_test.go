@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -266,6 +267,14 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 
 		var wire contract.RunSnapshotResponse
 		roundTripJSON(t, contract.RunSnapshotResponseFromSnapshot(snapshot), &wire)
+		wireJSON, err := json.Marshal(contract.RunSnapshotResponseFromSnapshot(snapshot))
+		if err != nil {
+			t.Fatalf("Marshal(run snapshot wire) error = %v", err)
+		}
+		var wirePayload map[string]any
+		if err := json.Unmarshal(wireJSON, &wirePayload); err != nil {
+			t.Fatalf("Unmarshal(run snapshot wire) error = %v", err)
+		}
 
 		decoded, err := wire.Decode()
 		if err != nil {
@@ -288,6 +297,60 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 		}
 		if got := decoded.Jobs[0].Summary.Session.Entries[0].Blocks[0].Type; got != contract.ContentBlockType("text") {
 			t.Fatalf("decoded snapshot session block type = %q, want text", got)
+		}
+		jobs, ok := wirePayload["jobs"].([]any)
+		if !ok || len(jobs) != 1 {
+			t.Fatalf("wire jobs payload = %#v, want one job", wirePayload["jobs"])
+		}
+		job, ok := jobs[0].(map[string]any)
+		if !ok {
+			t.Fatalf("wire job payload = %#v, want object", jobs[0])
+		}
+		summary, ok := job["summary"].(map[string]any)
+		if !ok {
+			t.Fatalf("wire summary payload = %#v, want object", job["summary"])
+		}
+		session, ok := summary["session"].(map[string]any)
+		if !ok {
+			t.Fatalf("wire session payload = %#v, want object", summary["session"])
+		}
+		if _, ok := session["Revision"]; ok {
+			t.Fatalf("wire session payload leaked Go field names: %#v", session)
+		}
+		if _, ok := session["revision"]; !ok {
+			t.Fatalf("wire session payload missing revision: %#v", session)
+		}
+		entries, ok := session["entries"].([]any)
+		if !ok || len(entries) != 1 {
+			t.Fatalf("wire session entries = %#v, want one entry", session["entries"])
+		}
+		entry, ok := entries[0].(map[string]any)
+		if !ok {
+			t.Fatalf("wire session entry = %#v, want object", entries[0])
+		}
+		if _, ok := entry["ID"]; ok {
+			t.Fatalf("wire session entry leaked Go field names: %#v", entry)
+		}
+		for _, field := range []string{"id", "kind", "tool_call_state", "blocks"} {
+			if _, ok := entry[field]; !ok {
+				t.Fatalf("wire session entry missing %q: %#v", field, entry)
+			}
+		}
+		plan, ok := session["plan"].(map[string]any)
+		if !ok {
+			t.Fatalf("wire session plan = %#v, want object", session["plan"])
+		}
+		if _, ok := plan["done_count"]; !ok {
+			t.Fatalf("wire session plan missing done_count: %#v", plan)
+		}
+		meta, ok := session["session"].(map[string]any)
+		if !ok {
+			t.Fatalf("wire session meta = %#v, want object", session["session"])
+		}
+		for _, field := range []string{"current_mode_id", "available_commands", "status"} {
+			if _, ok := meta[field]; !ok {
+				t.Fatalf("wire session meta missing %q: %#v", field, meta)
+			}
 		}
 	})
 
@@ -321,6 +384,25 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 			t.Fatalf("decoded page cursor = %#v, want seq=5", decoded.NextCursor)
 		}
 	})
+
+	t.Run("run event page rejects has_more without next cursor", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := (contract.RunEventPageResponse{
+			Events: []events.Event{{
+				SchemaVersion: events.SchemaVersion,
+				RunID:         "run-1",
+				Seq:           5,
+				Timestamp:     now,
+				Kind:          events.EventKindRunStarted,
+				Payload:       json.RawMessage(`{"status":"started"}`),
+			}},
+			HasMore: true,
+		}).Decode()
+		if err == nil || !strings.Contains(err.Error(), "missing next_cursor") {
+			t.Fatalf("Decode() error = %v, want missing next_cursor", err)
+		}
+	})
 }
 
 func TestCursorFormattingParsingAndOrderingRemainStable(t *testing.T) {
@@ -344,6 +426,15 @@ func TestCursorFormattingParsingAndOrderingRemainStable(t *testing.T) {
 	eventBefore := events.Event{Timestamp: now, Seq: 41}
 	if contract.EventAfterCursor(eventBefore, parsed) {
 		t.Fatal("EventAfterCursor() = true, want false for lower sequence at same timestamp")
+	}
+
+	_, err = contract.ParseCursor(now.UTC().Format(time.RFC3339Nano) + "|not-a-number")
+	if err == nil {
+		t.Fatal("ParseCursor(invalid sequence) error = nil, want wrapped parse error")
+	}
+	var numErr *strconv.NumError
+	if !errors.As(err, &numErr) {
+		t.Fatalf("ParseCursor(invalid sequence) error = %T %v, want strconv.NumError in chain", err, err)
 	}
 }
 

@@ -3,15 +3,12 @@
 package contract_test
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +16,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
@@ -195,46 +193,46 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 		}
 		defer response.Body.Close()
 
-		framesCh := make(chan integrationSSEFrame, 8)
-		errCh := make(chan error, 1)
-		go collectIntegrationSSE(response.Body, framesCh, errCh)
-
 		var heartbeat *contract.HeartbeatPayload
 		var overflow *contract.OverflowPayload
-		timeout := time.NewTimer(2 * time.Second)
-		defer timeout.Stop()
-
-		for heartbeat == nil || overflow == nil {
-			select {
-			case frame, ok := <-framesCh:
-				if !ok {
-					if err := <-errCh; err != nil {
-						t.Fatalf("collectIntegrationSSE() error = %v", err)
-					}
-					t.Fatalf("stream closed before required frames; heartbeat=%#v overflow=%#v", heartbeat, overflow)
-				}
+		overflowRequested := false
+		frames, err := testutil.ReadSSEFramesUntil(response.Body, 2*time.Second, func(frames []testutil.SSEFrame) bool {
+			for _, frame := range frames {
 				switch frame.Event {
 				case "heartbeat":
-					var payload contract.HeartbeatPayload
-					if err := json.Unmarshal(frame.Data, &payload); err != nil {
-						t.Fatalf("decode heartbeat payload: %v", err)
+					if heartbeat == nil {
+						var payload contract.HeartbeatPayload
+						if err := json.Unmarshal(frame.Data, &payload); err != nil {
+							t.Fatalf("decode heartbeat payload: %v", err)
+						}
+						heartbeat = &payload
 					}
-					heartbeat = &payload
-					close(sendOverflow)
+					if !overflowRequested {
+						close(sendOverflow)
+						overflowRequested = true
+					}
 				case "overflow":
-					var payload contract.OverflowPayload
-					if err := json.Unmarshal(frame.Data, &payload); err != nil {
-						t.Fatalf("decode overflow payload: %v", err)
+					if overflow == nil {
+						var payload contract.OverflowPayload
+						if err := json.Unmarshal(frame.Data, &payload); err != nil {
+							t.Fatalf("decode overflow payload: %v", err)
+						}
+						overflow = &payload
 					}
-					overflow = &payload
 				}
-			case err := <-errCh:
-				if err != nil {
-					t.Fatalf("collectIntegrationSSE() error = %v", err)
-				}
-			case <-timeout.C:
-				t.Fatalf("timed out waiting for heartbeat/overflow; heartbeat=%#v overflow=%#v", heartbeat, overflow)
 			}
+			return heartbeat != nil && overflow != nil
+		})
+		if err != nil {
+			t.Fatalf("ReadSSEFramesUntil() error = %v", err)
+		}
+		if heartbeat == nil || overflow == nil {
+			t.Fatalf(
+				"stream closed before required frames; heartbeat=%#v overflow=%#v frames=%#v",
+				heartbeat,
+				overflow,
+				frames,
+			)
 		}
 
 		if heartbeat.RunID != "run-1" || overflow.RunID != "run-1" || overflow.Reason != "slow consumer" {
@@ -321,31 +319,4 @@ func (s *integrationRunStream) Errors() <-chan error {
 
 func (s *integrationRunStream) Close() error {
 	return nil
-}
-
-type integrationSSEFrame struct {
-	Event string
-	Data  []byte
-}
-
-func collectIntegrationSSE(body io.Reader, out chan<- integrationSSEFrame, errs chan<- error) {
-	defer close(out)
-
-	scanner := bufio.NewScanner(body)
-	frame := integrationSSEFrame{}
-	for scanner.Scan() {
-		line := scanner.Text()
-		switch {
-		case line == "":
-			if frame.Event != "" || len(frame.Data) > 0 {
-				out <- frame
-			}
-			frame = integrationSSEFrame{}
-		case strings.HasPrefix(line, "event:"):
-			frame.Event = strings.TrimSpace(strings.TrimPrefix(line, "event:"))
-		case strings.HasPrefix(line, "data:"):
-			frame.Data = []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:")))
-		}
-	}
-	errs <- scanner.Err()
 }

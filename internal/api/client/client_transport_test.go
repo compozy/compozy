@@ -194,6 +194,7 @@ func TestClientOperatorRequestsUseCanonicalContract(t *testing.T) {
 	syncedAt := now.Add(time.Minute)
 
 	registerCalls := 0
+	stopCalls := 0
 	client := &Client{
 		target:  Target{SocketPath: "/tmp/compozy.sock"},
 		baseURL: "http://daemon",
@@ -210,6 +211,20 @@ func TestClientOperatorRequestsUseCanonicalContract(t *testing.T) {
 						},
 					}), nil
 				case http.MethodPost + " /api/daemon/stop":
+					stopCalls++
+					force := req.URL.Query().Get("force")
+					switch stopCalls {
+					case 1:
+						if force != "" {
+							t.Fatalf("StopDaemon(false) force query = %q, want empty", force)
+						}
+					case 2:
+						if force != "true" {
+							t.Fatalf("StopDaemon(true) force query = %q, want true", force)
+						}
+					default:
+						t.Fatalf("unexpected stop call count %d", stopCalls)
+					}
 					return jsonResponse(http.StatusAccepted, `{"accepted":true}`), nil
 				case http.MethodPost + " /api/workspaces":
 					var payload contract.WorkspaceRegisterRequest
@@ -301,6 +316,9 @@ func TestClientOperatorRequestsUseCanonicalContract(t *testing.T) {
 	}
 	if err := client.StopDaemon(context.Background(), true); err != nil {
 		t.Fatalf("StopDaemon(true) error = %v", err)
+	}
+	if stopCalls != 2 {
+		t.Fatalf("stop calls = %d, want 2", stopCalls)
 	}
 
 	registered, err := client.RegisterWorkspace(context.Background(), " /tmp/workspace ", " Demo ")

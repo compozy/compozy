@@ -394,23 +394,11 @@ func (j *Journal) recordDroppedSubmit(req submitRequest) {
 	if j == nil || req.kind != submitRequestEvent {
 		return
 	}
-	if isTerminalJournalEvent(req.event.Kind) {
+	if isTerminalEvent(req.event.Kind) {
 		j.terminalDrops.Add(1)
 		return
 	}
 	j.nonTerminalDrops.Add(1)
-}
-
-func isTerminalJournalEvent(kind events.EventKind) bool {
-	switch kind {
-	case events.EventKindRunCompleted,
-		events.EventKindRunFailed,
-		events.EventKindRunCancelled,
-		events.EventKindRunCrashed:
-		return true
-	default:
-		return false
-	}
 }
 
 func (j *Journal) liveBus() *events.Bus[events.Event] {

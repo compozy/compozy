@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
@@ -978,16 +979,28 @@ func TestHTTPAndUDSEmitEquivalentCanonicalSSEStreams(t *testing.T) {
 	)
 	defer udsResponse.Body.Close()
 
-	httpFrames := normalizeCanonicalSSEFrames(
-		readSSEFramesUntil(t, httpResponse.Body, 2*time.Second, func(frames []canonicalSSEFrame) bool {
+	httpFrames, err := testutil.ReadSSEFramesUntil(
+		httpResponse.Body,
+		2*time.Second,
+		func(frames []testutil.SSEFrame) bool {
 			return hasCanonicalSSEFrame(frames, "overflow")
-		}),
+		},
 	)
-	udsFrames := normalizeCanonicalSSEFrames(
-		readSSEFramesUntil(t, udsResponse.Body, 2*time.Second, func(frames []canonicalSSEFrame) bool {
+	if err != nil {
+		t.Fatalf("ReadSSEFramesUntil(http) error = %v", err)
+	}
+	udsFrames, err := testutil.ReadSSEFramesUntil(
+		udsResponse.Body,
+		2*time.Second,
+		func(frames []testutil.SSEFrame) bool {
 			return hasCanonicalSSEFrame(frames, "overflow")
-		}),
+		},
 	)
+	if err != nil {
+		t.Fatalf("ReadSSEFramesUntil(uds) error = %v", err)
+	}
+	httpFrames = normalizeCanonicalSSEFrames(httpFrames)
+	udsFrames = normalizeCanonicalSSEFrames(udsFrames)
 
 	if len(httpFrames) != 3 || len(udsFrames) != 3 {
 		t.Fatalf("unexpected normalized frames\nhttp: %#v\nuds:  %#v", httpFrames, udsFrames)
@@ -1780,77 +1793,7 @@ func startSSEScan(body io.ReadCloser) (<-chan string, <-chan error) {
 	return linesCh, errCh
 }
 
-type canonicalSSEFrame struct {
-	ID    string
-	Event string
-	Data  []byte
-}
-
-func readSSEFramesUntil(
-	t *testing.T,
-	body io.Reader,
-	timeout time.Duration,
-	stop func([]canonicalSSEFrame) bool,
-) []canonicalSSEFrame {
-	t.Helper()
-
-	linesCh := make(chan string, 64)
-	errCh := make(chan error, 1)
-	go func() {
-		scanner := bufio.NewScanner(body)
-		for scanner.Scan() {
-			linesCh <- scanner.Text()
-		}
-		errCh <- scanner.Err()
-		close(linesCh)
-	}()
-
-	deadline := time.After(timeout)
-	frames := make([]canonicalSSEFrame, 0, 8)
-	current := canonicalSSEFrame{}
-
-	flush := func() {
-		if current.ID == "" && current.Event == "" && len(current.Data) == 0 {
-			return
-		}
-		if len(current.Data) > 0 && current.Data[len(current.Data)-1] == '\n' {
-			current.Data = current.Data[:len(current.Data)-1]
-		}
-		frames = append(frames, current)
-		current = canonicalSSEFrame{}
-	}
-
-	for {
-		select {
-		case line, ok := <-linesCh:
-			if !ok {
-				flush()
-				if err := <-errCh; err != nil {
-					t.Fatalf("scanner error = %v", err)
-				}
-				return frames
-			}
-			switch {
-			case line == "":
-				flush()
-				if stop(frames) {
-					return frames
-				}
-			case strings.HasPrefix(line, "id: "):
-				current.ID = strings.TrimPrefix(line, "id: ")
-			case strings.HasPrefix(line, "event: "):
-				current.Event = strings.TrimPrefix(line, "event: ")
-			case strings.HasPrefix(line, "data: "):
-				current.Data = append(current.Data, strings.TrimPrefix(line, "data: ")...)
-				current.Data = append(current.Data, '\n')
-			}
-		case <-deadline:
-			t.Fatalf("timeout reading SSE frames; collected %#v", frames)
-		}
-	}
-}
-
-func hasCanonicalSSEFrame(frames []canonicalSSEFrame, event string) bool {
+func hasCanonicalSSEFrame(frames []testutil.SSEFrame, event string) bool {
 	for _, frame := range frames {
 		if frame.Event == event {
 			return true
@@ -1859,9 +1802,9 @@ func hasCanonicalSSEFrame(frames []canonicalSSEFrame, event string) bool {
 	return false
 }
 
-func normalizeCanonicalSSEFrames(frames []canonicalSSEFrame) []canonicalSSEFrame {
+func normalizeCanonicalSSEFrames(frames []testutil.SSEFrame) []testutil.SSEFrame {
 	eventsOfInterest := []string{string(events.EventKindSessionUpdate), "heartbeat", "overflow"}
-	normalized := make([]canonicalSSEFrame, 0, len(eventsOfInterest))
+	normalized := make([]testutil.SSEFrame, 0, len(eventsOfInterest))
 	for _, eventName := range eventsOfInterest {
 		for _, frame := range frames {
 			if frame.Event == eventName {
@@ -1888,7 +1831,10 @@ func mustStreamRequest(t *testing.T, client *http.Client, rawURL string, request
 	}
 	if response.StatusCode != http.StatusOK {
 		defer response.Body.Close()
-		body, _ := io.ReadAll(response.Body)
+		body, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			t.Fatalf("ReadAll(%s) error = %v", rawURL, readErr)
+		}
 		t.Fatalf("status = %d, want 200; body=%s", response.StatusCode, body)
 	}
 	if got := strings.TrimSpace(response.Header.Get(core.HeaderRequestID)); got != requestID {

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -30,7 +31,7 @@ func (m *RunManager) persistRuntimeIntegrity(ctx context.Context, runID string, 
 
 	lease, err := m.acquireRunDB(ctx, runID)
 	if err != nil {
-		return err
+		return fmt.Errorf("daemon: acquire run db for runtime integrity %q: %w", runID, err)
 	}
 	defer func() {
 		_ = lease.Close()
@@ -38,7 +39,7 @@ func (m *RunManager) persistRuntimeIntegrity(ctx context.Context, runID string, 
 
 	state, err := lease.DB().UpsertIntegrity(ctx, update)
 	if err != nil {
-		return err
+		return fmt.Errorf("daemon: upsert runtime integrity for %q: %w", runID, err)
 	}
 	if state.Incomplete {
 		m.recordIncompleteRun(runID)
@@ -69,7 +70,7 @@ func (m *RunManager) loadRunIntegrity(
 
 	state, err := runDB.GetIntegrity(ctx)
 	if err != nil {
-		return rundb.RunIntegrityState{}, err
+		return rundb.RunIntegrityState{}, fmt.Errorf("daemon: get run integrity for %q: %w", runID, err)
 	}
 	if state.Incomplete {
 		m.recordIncompleteRun(runID)
@@ -82,7 +83,7 @@ func (m *RunManager) loadRunIntegrity(
 
 	state, err = runDB.UpsertIntegrity(ctx, update)
 	if err != nil {
-		return rundb.RunIntegrityState{}, err
+		return rundb.RunIntegrityState{}, fmt.Errorf("daemon: upsert run integrity for %q: %w", runID, err)
 	}
 	if state.Incomplete {
 		m.recordIncompleteRun(runID)

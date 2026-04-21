@@ -243,33 +243,33 @@ type SessionAvailableCommand struct {
 }
 
 type SessionEntry struct {
-	ID            string
-	Kind          SessionEntryKind
-	Title         string
-	Preview       string
-	ToolCallID    string
-	ToolCallState ToolCallState
-	Blocks        []ContentBlock
+	ID            string           `json:"id"`
+	Kind          SessionEntryKind `json:"kind"`
+	Title         string           `json:"title,omitempty"`
+	Preview       string           `json:"preview,omitempty"`
+	ToolCallID    string           `json:"tool_call_id,omitempty"`
+	ToolCallState ToolCallState    `json:"tool_call_state,omitempty"`
+	Blocks        []ContentBlock   `json:"blocks,omitempty"`
 }
 
 type SessionPlanState struct {
-	Entries      []SessionPlanEntry
-	PendingCount int
-	RunningCount int
-	DoneCount    int
+	Entries      []SessionPlanEntry `json:"entries,omitempty"`
+	PendingCount int                `json:"pending_count,omitempty"`
+	RunningCount int                `json:"running_count,omitempty"`
+	DoneCount    int                `json:"done_count,omitempty"`
 }
 
 type SessionMetaState struct {
-	CurrentModeID     string
-	AvailableCommands []SessionAvailableCommand
-	Status            SessionStatus
+	CurrentModeID     string                    `json:"current_mode_id,omitempty"`
+	AvailableCommands []SessionAvailableCommand `json:"available_commands,omitempty"`
+	Status            SessionStatus             `json:"status,omitempty"`
 }
 
 type SessionViewSnapshot struct {
-	Revision int
-	Entries  []SessionEntry
-	Plan     SessionPlanState
-	Session  SessionMetaState
+	Revision int              `json:"revision"`
+	Entries  []SessionEntry   `json:"entries,omitempty"`
+	Plan     SessionPlanState `json:"plan,omitempty"`
+	Session  SessionMetaState `json:"session,omitempty"`
 }
 
 type Run struct {
@@ -501,6 +501,9 @@ func (r RunEventPageResponse) Decode() (RunEventPage, error) {
 	nextCursor, err := ParseCursor(r.NextCursor)
 	if err != nil {
 		return RunEventPage{}, fmt.Errorf("decode events cursor: %w", err)
+	}
+	if r.HasMore && nextCursor.Sequence == 0 {
+		return RunEventPage{}, fmt.Errorf("decode events cursor: missing next_cursor when has_more=true")
 	}
 
 	page := RunEventPage{

@@ -1130,6 +1130,8 @@ func TestDaemonStartCommandInternalChildUsesDetachedRunMode(t *testing.T) {
 }
 
 func TestLaunchCLIDaemonProcessFailsWhenDaemonLogFileCannotBeOpened(t *testing.T) {
+	t.Parallel()
+
 	paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)

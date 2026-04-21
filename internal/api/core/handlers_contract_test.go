@@ -1,10 +1,8 @@
 package core_test
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -17,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
@@ -249,7 +248,7 @@ func TestStreamRunEmitsCanonicalEventHeartbeatAndOverflowPayloads(t *testing.T) 
 	}
 	defer response.Body.Close()
 
-	frames := readSSEFramesUntil(t, response.Body, 2*time.Second, func(items []canonicalSSEFrame) bool {
+	frames, err := testutil.ReadSSEFramesUntil(response.Body, 2*time.Second, func(items []testutil.SSEFrame) bool {
 		for _, item := range items {
 			if item.Event == "heartbeat" {
 				overflowOnce.Do(func() { close(sendOverflow) })
@@ -257,6 +256,9 @@ func TestStreamRunEmitsCanonicalEventHeartbeatAndOverflowPayloads(t *testing.T) 
 		}
 		return hasSSEFrame(items, "overflow")
 	})
+	if err != nil {
+		t.Fatalf("ReadSSEFramesUntil() error = %v", err)
+	}
 
 	eventFrame, ok := firstSSEFrame(frames, string(events.EventKindSessionUpdate))
 	if !ok {
@@ -395,12 +397,6 @@ func TestTransportErrorsUseCanonicalCodeAndRequestIDFields(t *testing.T) {
 	}
 }
 
-type canonicalSSEFrame struct {
-	ID    string
-	Event string
-	Data  []byte
-}
-
 func newCanonicalHandlersEngine(handlers *core.Handlers) *gin.Engine {
 	engine := gin.New()
 	engine.Use(core.RequestIDMiddleware())
@@ -408,72 +404,7 @@ func newCanonicalHandlersEngine(handlers *core.Handlers) *gin.Engine {
 	core.RegisterRoutes(engine, handlers)
 	return engine
 }
-
-func readSSEFramesUntil(
-	t *testing.T,
-	body io.Reader,
-	timeout time.Duration,
-	stop func([]canonicalSSEFrame) bool,
-) []canonicalSSEFrame {
-	t.Helper()
-
-	linesCh := make(chan string, 64)
-	errCh := make(chan error, 1)
-	go func() {
-		scanner := bufio.NewScanner(body)
-		for scanner.Scan() {
-			linesCh <- scanner.Text()
-		}
-		errCh <- scanner.Err()
-		close(linesCh)
-	}()
-
-	deadline := time.After(timeout)
-	frames := make([]canonicalSSEFrame, 0, 8)
-	current := canonicalSSEFrame{}
-
-	flush := func() {
-		if current.Event == "" && len(current.Data) == 0 && current.ID == "" {
-			return
-		}
-		if len(current.Data) > 0 && current.Data[len(current.Data)-1] == '\n' {
-			current.Data = current.Data[:len(current.Data)-1]
-		}
-		frames = append(frames, current)
-		current = canonicalSSEFrame{}
-	}
-
-	for {
-		select {
-		case line, ok := <-linesCh:
-			if !ok {
-				flush()
-				if err := <-errCh; err != nil {
-					t.Fatalf("scanner error = %v", err)
-				}
-				return frames
-			}
-			switch {
-			case line == "":
-				flush()
-				if stop(frames) {
-					return frames
-				}
-			case strings.HasPrefix(line, "id: "):
-				current.ID = strings.TrimPrefix(line, "id: ")
-			case strings.HasPrefix(line, "event: "):
-				current.Event = strings.TrimPrefix(line, "event: ")
-			case strings.HasPrefix(line, "data: "):
-				current.Data = append(current.Data, strings.TrimPrefix(line, "data: ")...)
-				current.Data = append(current.Data, '\n')
-			}
-		case <-deadline:
-			t.Fatalf("timeout reading SSE frames; collected %#v", frames)
-		}
-	}
-}
-
-func hasSSEFrame(frames []canonicalSSEFrame, event string) bool {
+func hasSSEFrame(frames []testutil.SSEFrame, event string) bool {
 	for _, frame := range frames {
 		if frame.Event == event {
 			return true
@@ -482,11 +413,11 @@ func hasSSEFrame(frames []canonicalSSEFrame, event string) bool {
 	return false
 }
 
-func firstSSEFrame(frames []canonicalSSEFrame, event string) (canonicalSSEFrame, bool) {
+func firstSSEFrame(frames []testutil.SSEFrame, event string) (testutil.SSEFrame, bool) {
 	for _, frame := range frames {
 		if frame.Event == event {
 			return frame, true
 		}
 	}
-	return canonicalSSEFrame{}, false
+	return testutil.SSEFrame{}, false
 }

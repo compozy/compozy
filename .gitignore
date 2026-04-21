@@ -18,6 +18,7 @@ ai-docs
 **/**/node_modules
 node_modules/
 .compozy/runs
+.compozy/tasks/daemon-improvs/analysis/qa/logs/live-daemon-run-id.txt
 .turbo/
 coverage/
 *.tsbuildinfo

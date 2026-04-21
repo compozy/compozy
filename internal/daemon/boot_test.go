@@ -547,6 +547,8 @@ func TestExistingHealthyDaemonInfoRejectsUnhealthyInfo(t *testing.T) {
 func mustHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
+	// Keep the daemon home path short so the derived Unix socket path stays
+	// under platform limits during boot tests.
 	baseDir := os.TempDir()
 	if _, err := os.Stat("/tmp"); err == nil {
 		baseDir = "/tmp"
@@ -556,7 +558,9 @@ func mustHomePaths(t *testing.T) compozyconfig.HomePaths {
 		t.Fatalf("MkdirTemp() error = %v", err)
 	}
 	t.Cleanup(func() {
-		_ = os.RemoveAll(homeRoot)
+		if err := os.RemoveAll(homeRoot); err != nil {
+			t.Errorf("RemoveAll(%s) error = %v", homeRoot, err)
+		}
 	})
 
 	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeRoot, ".compozy"))

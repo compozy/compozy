@@ -244,8 +244,6 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 }
 
 func TestOpenRunStreamReconnectsFromLastAcknowledgedCursorAfterHeartbeatGap(t *testing.T) {
-	t.Parallel()
-
 	previousGap := streamHeartbeatGapTolerance
 	streamHeartbeatGapTolerance = 20 * time.Millisecond
 	t.Cleanup(func() {

@@ -76,7 +76,10 @@ func ParseCursor(raw string) (StreamCursor, error) {
 	}
 
 	sequence, err := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, 64)
-	if err != nil || sequence == 0 {
+	if err != nil {
+		return StreamCursor{}, fmt.Errorf("invalid cursor sequence %q: %w", parts[1], err)
+	}
+	if sequence == 0 {
 		return StreamCursor{}, fmt.Errorf("invalid cursor sequence %q", parts[1])
 	}
 

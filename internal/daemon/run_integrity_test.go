@@ -95,6 +95,38 @@ func TestLoadRunIntegrityMergesNewReasonsIntoStickyState(t *testing.T) {
 	}
 }
 
+func TestLoadRunIntegrityWrapsGetFailuresWithRunID(t *testing.T) {
+	t.Parallel()
+
+	runDB, err := rundb.Open(context.Background(), filepath.Join(t.TempDir(), "run-wrap", "run.db"))
+	if err != nil {
+		t.Fatalf("rundb.Open() error = %v", err)
+	}
+	if err := runDB.Close(); err != nil {
+		t.Fatalf("runDB.Close() error = %v", err)
+	}
+
+	manager := &RunManager{
+		incompleteRunIDs: make(map[string]struct{}),
+	}
+
+	_, err = manager.loadRunIntegrity(
+		context.Background(),
+		"run-wrap",
+		apicore.Run{Status: runStatusCompleted},
+		runDB,
+		nil,
+		nil,
+		nil,
+	)
+	if err == nil {
+		t.Fatal("loadRunIntegrity() error = nil, want wrapped get failure")
+	}
+	if !strings.Contains(err.Error(), `get run integrity for "run-wrap"`) {
+		t.Fatalf("loadRunIntegrity() error = %v, want run id context", err)
+	}
+}
+
 func TestAuditSnapshotIntegrityDetectsEventGapAndMissingTerminalEvent(t *testing.T) {
 	t.Parallel()
 

@@ -511,15 +511,23 @@ func waitForDaemonProcessExit(t *testing.T, cmd *exec.Cmd) {
 func waitForDaemonState(t *testing.T, paths compozyconfig.HomePaths, want ReadyState) {
 	t.Helper()
 
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		status, err := QueryStatus(context.Background(), paths, ProbeOptions{})
-		if err == nil && status.State == want {
-			return
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			status, err := QueryStatus(context.Background(), paths, ProbeOptions{})
+			if err == nil && status.State == want {
+				return
+			}
+		case <-timeout.C:
+			t.Fatalf("daemon did not reach state %q within timeout", want)
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
-	t.Fatalf("daemon did not reach state %q within timeout", want)
 }
 
 func waitForLogContains(t *testing.T, path string, pattern string) {

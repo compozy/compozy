@@ -1,5 +1,7 @@
 package contract
 
+// CompatibilityNote documents one stable daemon transport surface and the
+// categories of changes that would require a compatibility adapter.
 type CompatibilityNote struct {
 	Surface            string
 	StableJSONFields   []string
@@ -7,6 +9,8 @@ type CompatibilityNote struct {
 	Notes              []string
 }
 
+// RunCompatibilityNotes captures the current daemon run-oriented wire surfaces
+// that downstream readers depend on remaining stable.
 var RunCompatibilityNotes = []CompatibilityNote{
 	{
 		Surface: "RunSnapshotResponse",
