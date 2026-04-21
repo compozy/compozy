@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
@@ -72,7 +73,7 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 			},
 		},
 	}
-	withIntegrationDaemonServer(t, service, func() {
+	withIntegrationDaemonServer(t, service, func(_ int) {
 		got, err := List("/workspace", ListOptions{})
 		if err != nil {
 			t.Fatalf("List() error = %v", err)
@@ -158,7 +159,7 @@ func TestTailAndWatchWorkspaceUseDaemonBackedHTTPTransport(t *testing.T) {
 			}},
 		},
 	}
-	withIntegrationDaemonServer(t, service, func() {
+	withIntegrationDaemonServer(t, service, func(_ int) {
 		run, err := Open("/workspace", "run-tail")
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
@@ -188,14 +189,147 @@ func TestTailAndWatchWorkspaceUseDaemonBackedHTTPTransport(t *testing.T) {
 	})
 }
 
-func withIntegrationDaemonServer(t *testing.T, runs apicore.RunService, fn func()) {
+func TestOpenMatchesInternalClientSnapshotMetadata(t *testing.T) {
+	base := time.Date(2026, 4, 17, 14, 0, 0, 0, time.UTC)
+	service := &integrationRunService{
+		snapshots: map[string]apicore.RunSnapshot{
+			"run-compare": {
+				Run: apicore.Run{
+					RunID:     "run-compare",
+					Mode:      "review",
+					Status:    "completed",
+					StartedAt: base,
+					EndedAt:   timePointer(base.Add(2 * time.Minute)),
+				},
+				Jobs: []apicore.RunJobState{{
+					Summary: &apicore.RunJobSummary{
+						IDE:   "codex",
+						Model: "gpt-5.4",
+					},
+				}},
+			},
+		},
+		events: map[string]apicore.RunEventPage{
+			"run-compare": {
+				Events: []events.Event{{
+					SchemaVersion: events.SchemaVersion,
+					RunID:         "run-compare",
+					Seq:           1,
+					Timestamp:     base,
+					Kind:          events.EventKindRunStarted,
+					Payload: []byte(
+						`{"workspace_root":"/workspace","artifacts_dir":"/tmp/home/.compozy/runs/run-compare","ide":"codex","model":"gpt-5.4"}`,
+					),
+				}},
+			},
+		},
+	}
+
+	withIntegrationDaemonServer(t, service, func(port int) {
+		client, err := apiclient.New(apiclient.Target{HTTPPort: port})
+		if err != nil {
+			t.Fatalf("apiclient.New() error = %v", err)
+		}
+
+		snapshot, err := client.GetRunSnapshot(context.Background(), "run-compare")
+		if err != nil {
+			t.Fatalf("client.GetRunSnapshot() error = %v", err)
+		}
+
+		run, err := Open("/workspace", "run-compare")
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+
+		summary := run.Summary()
+		if summary.RunID != snapshot.Run.RunID || summary.Status != snapshot.Run.Status ||
+			summary.Mode != snapshot.Run.Mode {
+			t.Fatalf("summary = %#v, snapshot run = %#v", summary, snapshot.Run)
+		}
+		if !summary.StartedAt.Equal(snapshot.Run.StartedAt) {
+			t.Fatalf("summary.StartedAt = %v, want %v", summary.StartedAt, snapshot.Run.StartedAt)
+		}
+		if summary.IDE != "codex" || summary.Model != "gpt-5.4" {
+			t.Fatalf("summary IDE/model = %q/%q, want codex/gpt-5.4", summary.IDE, summary.Model)
+		}
+	})
+}
+
+func TestRemoteWatchAndClientStreamSurviveHeartbeatIdlePeriod(t *testing.T) {
+	now := time.Date(2026, 4, 17, 15, 0, 0, 0, time.UTC)
+	service := &integrationRunService{
+		snapshots: map[string]apicore.RunSnapshot{
+			"run-heartbeat": {
+				Run: apicore.Run{
+					RunID:     "run-heartbeat",
+					Mode:      "exec",
+					Status:    "running",
+					StartedAt: now,
+				},
+			},
+		},
+		streamFactory: func(runID string, _ apicore.StreamCursor) apicore.RunStream {
+			stream := newIntegrationRunStream()
+			go func() {
+				time.Sleep(40 * time.Millisecond)
+				stream.events <- apicore.RunStreamItem{
+					Event: &events.Event{
+						SchemaVersion: events.SchemaVersion,
+						RunID:         runID,
+						Seq:           1,
+						Timestamp:     now.Add(time.Second),
+						Kind:          events.EventKindRunCompleted,
+					},
+				}
+				close(stream.events)
+			}()
+			return stream
+		},
+	}
+
+	withIntegrationDaemonServer(t, service, func(port int) {
+		client, err := apiclient.New(apiclient.Target{HTTPPort: port})
+		if err != nil {
+			t.Fatalf("apiclient.New() error = %v", err)
+		}
+
+		stream, err := client.OpenRunStream(context.Background(), "run-heartbeat", apicore.StreamCursor{})
+		if err != nil {
+			t.Fatalf("client.OpenRunStream() error = %v", err)
+		}
+		clientEvent := awaitClientStreamEvent(t, stream.Items(), stream.Errors(), time.Second)
+		if clientEvent.Seq != 1 || clientEvent.Kind != events.EventKindRunCompleted {
+			t.Fatalf("client stream event = %#v, want completed seq 1", clientEvent)
+		}
+		if err := stream.Close(); err != nil {
+			t.Fatalf("client stream close error = %v", err)
+		}
+
+		reader, err := newDefaultDaemonRunReader()
+		if err != nil {
+			t.Fatalf("newDefaultDaemonRunReader() error = %v", err)
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		runEvents, runErrs := WatchRemote(ctx, reader, "run-heartbeat")
+		publicEvent := awaitRunEventPayload(t, runEvents, runErrs, time.Second)
+		if publicEvent.Seq != 1 || publicEvent.Kind != events.EventKindRunCompleted {
+			t.Fatalf("WatchRemote() event = %#v, want completed seq 1", publicEvent)
+		}
+	})
+}
+
+func withIntegrationDaemonServer(t *testing.T, runs apicore.RunService, fn func(port int)) {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	apicore.RegisterRoutes(engine, apicore.NewHandlers(&apicore.HandlerConfig{
-		TransportName: "http-test",
-		Runs:          runs,
+		TransportName:     "http-test",
+		HeartbeatInterval: 10 * time.Millisecond,
+		Runs:              runs,
 	}))
 
 	server := httptest.NewServer(engine)
@@ -232,7 +366,7 @@ func withIntegrationDaemonServer(t *testing.T, runs apicore.RunService, fn func(
 		resolveRunsDaemonReader = previous
 	}()
 
-	fn()
+	fn(port)
 }
 
 type integrationRunService struct {
@@ -328,4 +462,52 @@ func (s *integrationRunStream) Errors() <-chan error                 { return s.
 func (s *integrationRunStream) Close() error {
 	close(s.errs)
 	return nil
+}
+
+func awaitClientStreamEvent(
+	t *testing.T,
+	items <-chan apiclient.RunStreamItem,
+	errs <-chan error,
+	timeout time.Duration,
+) events.Event {
+	t.Helper()
+
+	deadline := time.After(timeout)
+	for {
+		select {
+		case item, ok := <-items:
+			if !ok {
+				t.Fatal("client stream closed before delivering an event")
+			}
+			if item.Event != nil {
+				return *item.Event
+			}
+		case err, ok := <-errs:
+			if ok && err != nil {
+				t.Fatalf("client stream error = %v", err)
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for client stream event")
+		}
+	}
+}
+
+func awaitRunEventPayload(
+	t *testing.T,
+	eventsCh <-chan events.Event,
+	errsCh <-chan error,
+	timeout time.Duration,
+) events.Event {
+	t.Helper()
+
+	select {
+	case event := <-eventsCh:
+		return event
+	case err := <-errsCh:
+		t.Fatalf("WatchRemote() error = %v", err)
+		return events.Event{}
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for WatchRemote event")
+		return events.Event{}
+	}
 }

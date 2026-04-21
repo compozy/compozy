@@ -17,8 +17,9 @@ import (
 
 	"github.com/compozy/compozy/internal/store/rundb"
 	"github.com/compozy/compozy/pkg/compozy/events"
-	"github.com/compozy/compozy/pkg/compozy/runs"
 )
+
+var errPartialEventLine = errors.New("runs: partial final event line")
 
 func TestJournalAssignsGapFreeSequencesAndPublishesMatchingBusEvents(t *testing.T) {
 	t.Parallel()
@@ -648,7 +649,7 @@ func TestJournalFlushHookSupportsCrashRecoveryReplay(t *testing.T) {
 	if got := collectedSeqs(replayed); !slices.Equal(got, []uint64{1, 2}) {
 		t.Fatalf("replayed seqs = %v, want [1 2]", got)
 	}
-	if !errors.Is(replayErr, runs.ErrPartialEventLine) {
+	if !errors.Is(replayErr, errPartialEventLine) {
 		t.Fatalf("replay error = %v, want partial-final-line error", replayErr)
 	}
 	if _, err := os.Stat(filepath.Join(runDir, "events.jsonl")); err != nil {
@@ -769,7 +770,7 @@ func replayRunEventsWithError(
 			var item events.Event
 			if err := json.Unmarshal(trimmed, &item); err != nil {
 				if errors.Is(readErr, io.EOF) {
-					return replayed, runs.ErrPartialEventLine
+					return replayed, errPartialEventLine
 				}
 				t.Fatalf("decode mirrored event: %v", err)
 			}
