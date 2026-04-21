@@ -206,6 +206,22 @@ function WorkflowRow({
           >
             Open task board
           </Link>
+          <Link
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-border bg-black/10 px-3 py-1 text-sm text-foreground hover:underline"
+            data-testid={`workflow-view-spec-${workflow.slug}`}
+            params={{ slug: workflow.slug }}
+            to="/workflows/$slug/spec"
+          >
+            Spec
+          </Link>
+          <Link
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-border bg-black/10 px-3 py-1 text-sm text-foreground hover:underline"
+            data-testid={`workflow-view-memory-${workflow.slug}`}
+            params={{ slug: workflow.slug }}
+            to="/memory/$slug"
+          >
+            Memory
+          </Link>
           <Button
             data-testid={`workflow-sync-${workflow.slug}`}
             disabled={pendingSync}

@@ -1,7 +1,14 @@
 import type { ReactElement, ReactNode } from "react";
 
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Activity, ChevronsUpDown, LayoutDashboard, ListOrdered } from "lucide-react";
+import {
+  Activity,
+  Brain,
+  ChevronsUpDown,
+  LayoutDashboard,
+  ListOrdered,
+  MessageSquareWarning,
+} from "lucide-react";
 
 import {
   AppShell,
@@ -57,6 +64,20 @@ const acrossWorkflowsNav: NavEntry[] = [
     matchPrefix: "/runs",
     icon: <Activity className="size-3.5" aria-hidden />,
     testId: "app-nav-runs",
+  },
+  {
+    href: "/reviews",
+    label: "Reviews",
+    matchPrefix: "/reviews",
+    icon: <MessageSquareWarning className="size-3.5" aria-hidden />,
+    testId: "app-nav-reviews",
+  },
+  {
+    href: "/memory",
+    label: "Memory",
+    matchPrefix: "/memory",
+    icon: <Brain className="size-3.5" aria-hidden />,
+    testId: "app-nav-memory",
   },
 ];
 
