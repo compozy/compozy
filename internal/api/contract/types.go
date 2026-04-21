@@ -75,15 +75,40 @@ type DaemonStatus struct {
 }
 
 type DaemonHealth struct {
-	Ready    bool           `json:"ready"`
-	Degraded bool           `json:"degraded,omitempty"`
-	Details  []HealthDetail `json:"details,omitempty"`
+	Ready               bool                       `json:"ready"`
+	Degraded            bool                       `json:"degraded,omitempty"`
+	StartedAt           time.Time                  `json:"started_at,omitempty"`
+	UptimeSeconds       int64                      `json:"uptime_seconds,omitempty"`
+	ActiveRunCount      int                        `json:"active_run_count,omitempty"`
+	ActiveRunsByMode    []DaemonModeCount          `json:"active_runs_by_mode,omitempty"`
+	WorkspaceCount      int                        `json:"workspace_count,omitempty"`
+	IntegrityIssueCount int                        `json:"integrity_issue_count,omitempty"`
+	Databases           DaemonDatabaseDiagnostics  `json:"databases,omitempty"`
+	Reconcile           DaemonReconcileDiagnostics `json:"reconcile,omitempty"`
+	Details             []HealthDetail             `json:"details,omitempty"`
 }
 
 type HealthDetail struct {
 	Code     string `json:"code"`
 	Message  string `json:"message"`
 	Severity string `json:"severity,omitempty"`
+}
+
+type DaemonModeCount struct {
+	Mode  string `json:"mode"`
+	Count int    `json:"count"`
+}
+
+type DaemonDatabaseDiagnostics struct {
+	GlobalBytes int64 `json:"global_bytes,omitempty"`
+	RunDBBytes  int64 `json:"run_db_bytes,omitempty"`
+}
+
+type DaemonReconcileDiagnostics struct {
+	ReconciledRuns     int    `json:"reconciled_runs,omitempty"`
+	CrashEventAppended int    `json:"crash_event_appended,omitempty"`
+	CrashEventMissing  int    `json:"crash_event_missing,omitempty"`
+	LastRunID          string `json:"last_run_id,omitempty"`
 }
 
 type Workspace struct {
@@ -311,13 +336,14 @@ type RunShutdownState struct {
 }
 
 type RunSnapshot struct {
-	Run        Run                    `json:"run"`
-	Jobs       []RunJobState          `json:"jobs,omitempty"`
-	Transcript []RunTranscriptMessage `json:"transcript,omitempty"`
-	Usage      kinds.Usage            `json:"usage,omitempty"`
-	Shutdown   *RunShutdownState      `json:"shutdown,omitempty"`
-	Incomplete bool                   `json:"incomplete,omitempty"`
-	NextCursor *StreamCursor          `json:"-"`
+	Run               Run                    `json:"run"`
+	Jobs              []RunJobState          `json:"jobs,omitempty"`
+	Transcript        []RunTranscriptMessage `json:"transcript,omitempty"`
+	Usage             kinds.Usage            `json:"usage,omitempty"`
+	Shutdown          *RunShutdownState      `json:"shutdown,omitempty"`
+	Incomplete        bool                   `json:"incomplete,omitempty"`
+	IncompleteReasons []string               `json:"incomplete_reasons,omitempty"`
+	NextCursor        *StreamCursor          `json:"-"`
 }
 
 type RunListQuery struct {
@@ -411,13 +437,14 @@ type RunResponse struct {
 }
 
 type RunSnapshotResponse struct {
-	Run        Run                    `json:"run"`
-	Jobs       []RunJobState          `json:"jobs,omitempty"`
-	Transcript []RunTranscriptMessage `json:"transcript,omitempty"`
-	Usage      kinds.Usage            `json:"usage,omitempty"`
-	Shutdown   *RunShutdownState      `json:"shutdown,omitempty"`
-	Incomplete bool                   `json:"incomplete,omitempty"`
-	NextCursor string                 `json:"next_cursor,omitempty"`
+	Run               Run                    `json:"run"`
+	Jobs              []RunJobState          `json:"jobs,omitempty"`
+	Transcript        []RunTranscriptMessage `json:"transcript,omitempty"`
+	Usage             kinds.Usage            `json:"usage,omitempty"`
+	Shutdown          *RunShutdownState      `json:"shutdown,omitempty"`
+	Incomplete        bool                   `json:"incomplete,omitempty"`
+	IncompleteReasons []string               `json:"incomplete_reasons,omitempty"`
+	NextCursor        string                 `json:"next_cursor,omitempty"`
 }
 
 type RunEventPageResponse struct {
@@ -430,13 +457,14 @@ type SyncResponse = SyncResult
 
 func RunSnapshotResponseFromSnapshot(snapshot RunSnapshot) RunSnapshotResponse {
 	return RunSnapshotResponse{
-		Run:        snapshot.Run,
-		Jobs:       snapshot.Jobs,
-		Transcript: snapshot.Transcript,
-		Usage:      snapshot.Usage,
-		Shutdown:   snapshot.Shutdown,
-		Incomplete: snapshot.Incomplete,
-		NextCursor: FormatCursorPointer(snapshot.NextCursor),
+		Run:               snapshot.Run,
+		Jobs:              snapshot.Jobs,
+		Transcript:        snapshot.Transcript,
+		Usage:             snapshot.Usage,
+		Shutdown:          snapshot.Shutdown,
+		Incomplete:        snapshot.Incomplete,
+		IncompleteReasons: append([]string(nil), snapshot.IncompleteReasons...),
+		NextCursor:        FormatCursorPointer(snapshot.NextCursor),
 	}
 }
 
@@ -447,12 +475,13 @@ func (r RunSnapshotResponse) Decode() (RunSnapshot, error) {
 	}
 
 	snapshot := RunSnapshot{
-		Run:        r.Run,
-		Jobs:       r.Jobs,
-		Transcript: r.Transcript,
-		Usage:      r.Usage,
-		Shutdown:   r.Shutdown,
-		Incomplete: r.Incomplete,
+		Run:               r.Run,
+		Jobs:              r.Jobs,
+		Transcript:        r.Transcript,
+		Usage:             r.Usage,
+		Shutdown:          r.Shutdown,
+		Incomplete:        r.Incomplete,
+		IncompleteReasons: append([]string(nil), r.IncompleteReasons...),
 	}
 	if nextCursor.Sequence > 0 {
 		snapshot.NextCursor = &nextCursor

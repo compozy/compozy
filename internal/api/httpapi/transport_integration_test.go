@@ -380,8 +380,36 @@ func TestHTTPAndUDSServeMatchingStatusSnapshotAndConflict(t *testing.T) {
 			ActiveRunCount: 1,
 			WorkspaceCount: 2,
 		},
-		health:  core.DaemonHealth{Ready: true},
-		metrics: core.MetricsPayload{Body: "daemon_active_runs 1\n"},
+		health: core.DaemonHealth{
+			Ready:               true,
+			Degraded:            true,
+			UptimeSeconds:       30,
+			ActiveRunCount:      1,
+			ActiveRunsByMode:    []core.DaemonModeCount{{Mode: "task", Count: 1}},
+			WorkspaceCount:      2,
+			IntegrityIssueCount: 1,
+			Databases: core.DaemonDatabaseDiagnostics{
+				GlobalBytes: 64,
+				RunDBBytes:  128,
+			},
+			Reconcile: core.DaemonReconcileDiagnostics{
+				ReconciledRuns:     2,
+				CrashEventAppended: 1,
+				CrashEventMissing:  1,
+				LastRunID:          runID,
+			},
+			Details: []core.HealthDetail{{
+				Code:     "run_integrity_issues",
+				Message:  "1 run(s) have persisted integrity issues",
+				Severity: "warning",
+			}},
+		},
+		metrics: core.MetricsPayload{Body: strings.Join([]string{
+			"# HELP daemon_active_runs Current live runs owned by the daemon",
+			"# TYPE daemon_active_runs gauge",
+			"daemon_active_runs 1",
+			`daemon_run_terminal_total{mode="task",status="completed"} 1`,
+		}, "\n") + "\n"},
 	}
 	runSvc := &fakeRunService{
 		runs: map[string]core.Run{
@@ -416,7 +444,9 @@ func TestHTTPAndUDSServeMatchingStatusSnapshotAndConflict(t *testing.T) {
 					Content:   "hello",
 					Timestamp: startedAt.Add(time.Second),
 				}},
-				NextCursor: &nextCursor,
+				Incomplete:        true,
+				IncompleteReasons: []string{"transcript_gap"},
+				NextCursor:        &nextCursor,
 			},
 		},
 		eventPages: map[string]core.RunEventPage{
@@ -643,7 +673,9 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 						Content:   "hello",
 						Timestamp: now.Add(time.Second),
 					}},
-					NextCursor: &nextCursor,
+					Incomplete:        true,
+					IncompleteReasons: []string{"transcript_gap"},
+					NextCursor:        &nextCursor,
 				},
 			},
 		},
@@ -695,6 +727,20 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 				decodeJSON(t, udsBody, &udsPayload)
 				if !reflect.DeepEqual(httpPayload, udsPayload) {
 					t.Fatalf("health payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+			},
+		},
+		{
+			name:       "daemon metrics",
+			method:     http.MethodGet,
+			path:       "/api/daemon/metrics",
+			requestID:  "req-daemon-metrics",
+			wantStatus: http.StatusOK,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				if !bytes.Equal(httpBody, udsBody) {
+					t.Fatalf("metrics payload mismatch\nhttp: %s\nuds:  %s", httpBody, udsBody)
 				}
 			},
 		},
@@ -769,6 +815,14 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 				decodeJSON(t, udsBody, &udsPayload)
 				if !reflect.DeepEqual(httpPayload, udsPayload) {
 					t.Fatalf("snapshot payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+				if got, want := httpPayload.IncompleteReasons, []string{
+					"transcript_gap",
+				}; !reflect.DeepEqual(
+					got,
+					want,
+				) {
+					t.Fatalf("snapshot incomplete reasons = %#v, want %#v", got, want)
 				}
 			},
 		},

@@ -17,6 +17,7 @@ var RunCompatibilityNotes = []CompatibilityNote{
 			"usage",
 			"shutdown",
 			"incomplete",
+			"incomplete_reasons",
 			"next_cursor",
 		},
 		AdapterRequiredFor: []string{
@@ -48,6 +49,8 @@ var RunCompatibilityNotes = []CompatibilityNote{
 		StableJSONFields: []string{
 			"run",
 			"jobs",
+			"incomplete",
+			"incomplete_reasons",
 			"next_cursor",
 		},
 		AdapterRequiredFor: []string{
@@ -55,7 +58,7 @@ var RunCompatibilityNotes = []CompatibilityNote{
 			"changing run summary field names such as `run_id`, `status`, or `presentation_mode`",
 		},
 		Notes: []string{
-			"public run-reader consumers currently rely on snapshot compatibility and must tolerate additive fields like `usage`, `shutdown`, and `incomplete`",
+			"public run-reader consumers currently rely on snapshot compatibility and must tolerate additive fields like `usage`, `shutdown`, `incomplete`, and `incomplete_reasons`",
 		},
 	},
 }

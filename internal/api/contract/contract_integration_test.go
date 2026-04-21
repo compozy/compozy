@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -33,8 +34,23 @@ func TestDaemonHealthRouteDecodesIntoCanonicalContract(t *testing.T) {
 		TransportName: "integration",
 		Daemon: integrationDaemonService{
 			health: core.DaemonHealth{
-				Ready:    false,
-				Degraded: true,
+				Ready:               false,
+				Degraded:            true,
+				UptimeSeconds:       12,
+				ActiveRunCount:      1,
+				ActiveRunsByMode:    []core.DaemonModeCount{{Mode: "task", Count: 1}},
+				WorkspaceCount:      2,
+				IntegrityIssueCount: 1,
+				Databases: core.DaemonDatabaseDiagnostics{
+					GlobalBytes: 100,
+					RunDBBytes:  200,
+				},
+				Reconcile: core.DaemonReconcileDiagnostics{
+					ReconciledRuns:     3,
+					CrashEventAppended: 2,
+					CrashEventMissing:  1,
+					LastRunID:          "run-last",
+				},
 				Details: []core.HealthDetail{{
 					Code:     "daemon_not_ready",
 					Message:  "replay still in progress",
@@ -56,7 +72,8 @@ func TestDaemonHealthRouteDecodesIntoCanonicalContract(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if payload.Health.Ready || !payload.Health.Degraded || len(payload.Health.Details) != 1 {
+	if payload.Health.Ready || !payload.Health.Degraded || payload.Health.IntegrityIssueCount != 1 ||
+		len(payload.Health.ActiveRunsByMode) != 1 || len(payload.Health.Details) != 1 {
 		t.Fatalf("decoded health payload = %#v", payload.Health)
 	}
 }
@@ -122,7 +139,9 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 					RequestedAt: now,
 					DeadlineAt:  now.Add(30 * time.Second),
 				},
-				NextCursor: &nextCursor,
+				Incomplete:        true,
+				IncompleteReasons: []string{"transcript_gap"},
+				NextCursor:        &nextCursor,
 			},
 			openStream: func(context.Context, string, core.StreamCursor) (core.RunStream, error) {
 				return stream, nil
@@ -151,6 +170,9 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 		}
 		if len(snapshot.Jobs) != 1 || snapshot.Usage.TotalTokens != 10 || snapshot.Shutdown == nil {
 			t.Fatalf("decoded snapshot = %#v", snapshot)
+		}
+		if got, want := snapshot.IncompleteReasons, []string{"transcript_gap"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("decoded snapshot incomplete reasons = %#v, want %#v", got, want)
 		}
 	})
 

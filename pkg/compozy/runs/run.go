@@ -456,8 +456,10 @@ func remoteCursorPointerFromCore(cursor *apicore.StreamCursor) *RemoteCursor {
 
 func adaptRemoteRunSnapshot(snapshot apicore.RunSnapshot) RemoteRunSnapshot {
 	return RemoteRunSnapshot{
-		Status:     strings.TrimSpace(snapshot.Run.Status),
-		NextCursor: remoteCursorPointerFromCore(snapshot.NextCursor),
+		Status:            strings.TrimSpace(snapshot.Run.Status),
+		Incomplete:        snapshot.Incomplete,
+		IncompleteReasons: append([]string(nil), snapshot.IncompleteReasons...),
+		NextCursor:        remoteCursorPointerFromCore(snapshot.NextCursor),
 	}
 }
 

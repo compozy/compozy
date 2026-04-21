@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -180,7 +181,8 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 		Shutdown: &contract.RunShutdownState{
 			Phase: "draining",
 		},
-		Incomplete: true,
+		Incomplete:        true,
+		IncompleteReasons: []string{"transcript_gap", "event_gap"},
 		NextCursor: &contract.StreamCursor{
 			Timestamp: now.Add(time.Second),
 			Sequence:  9,
@@ -232,6 +234,9 @@ func TestGetRunSnapshotPreservesCanonicalFields(t *testing.T) {
 	}
 	if !got.Incomplete {
 		t.Fatal("snapshot incomplete = false, want true")
+	}
+	if want := []string{"transcript_gap", "event_gap"}; !reflect.DeepEqual(got.IncompleteReasons, want) {
+		t.Fatalf("snapshot incomplete reasons = %#v, want %#v", got.IncompleteReasons, want)
 	}
 	if got.NextCursor == nil || got.NextCursor.Sequence != 9 || !got.NextCursor.Timestamp.Equal(now.Add(time.Second)) {
 		t.Fatalf("snapshot next cursor = %#v, want seq 9", got.NextCursor)

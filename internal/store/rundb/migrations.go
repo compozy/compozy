@@ -93,6 +93,21 @@ var migrations = []migration{
 			`DROP INDEX IF EXISTS idx_artifact_sync_log_path;`,
 		},
 	},
+	{
+		version: 3,
+		name:    "add_run_integrity_state",
+		statements: []string{
+			`CREATE TABLE IF NOT EXISTS run_integrity (
+				singleton_id              INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+				incomplete                INTEGER NOT NULL DEFAULT 0,
+				reasons_json              TEXT NOT NULL DEFAULT '[]',
+				journal_terminal_drops    INTEGER NOT NULL DEFAULT 0,
+				journal_non_terminal_drops INTEGER NOT NULL DEFAULT 0,
+				first_detected_at         TEXT NOT NULL,
+				updated_at                TEXT NOT NULL
+			);`,
+		},
+	},
 }
 
 var migrationTableStatements = []string{

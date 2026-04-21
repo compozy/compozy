@@ -58,8 +58,10 @@ type Journal struct {
 	flushHook     func()
 	afterSync     func()
 
-	eventsWritten atomic.Uint64
-	dropsOnSubmit atomic.Uint64
+	eventsWritten    atomic.Uint64
+	dropsOnSubmit    atomic.Uint64
+	terminalDrops    atomic.Uint64
+	nonTerminalDrops atomic.Uint64
 
 	resultMu  sync.RWMutex
 	resultErr error
@@ -282,6 +284,7 @@ func (j *Journal) submit(ctx context.Context, req submitRequest) error {
 		return nil
 	case <-timer.C:
 		droppedTotal := j.dropsOnSubmit.Add(1)
+		j.recordDroppedSubmit(req)
 		slog.Warn(
 			"journal submit timed out",
 			"component", "journal",
@@ -341,6 +344,15 @@ func (j *Journal) DropsOnSubmit() uint64 {
 	return j.dropsOnSubmit.Load()
 }
 
+// DroppedEventCounts reports dropped event submissions grouped by whether the
+// dropped event was terminal.
+func (j *Journal) DroppedEventCounts() (uint64, uint64) {
+	if j == nil {
+		return 0, 0
+	}
+	return j.terminalDrops.Load(), j.nonTerminalDrops.Load()
+}
+
 // SetBus updates the live fan-out bus used for published journal events.
 func (j *Journal) SetBus(bus *events.Bus[events.Event]) {
 	if j == nil {
@@ -375,6 +387,29 @@ func (j *Journal) closedError() error {
 			return ErrClosed
 		}
 		return nil
+	}
+}
+
+func (j *Journal) recordDroppedSubmit(req submitRequest) {
+	if j == nil || req.kind != submitRequestEvent {
+		return
+	}
+	if isTerminalJournalEvent(req.event.Kind) {
+		j.terminalDrops.Add(1)
+		return
+	}
+	j.nonTerminalDrops.Add(1)
+}
+
+func isTerminalJournalEvent(kind events.EventKind) bool {
+	switch kind {
+	case events.EventKindRunCompleted,
+		events.EventKindRunFailed,
+		events.EventKindRunCancelled,
+		events.EventKindRunCrashed:
+		return true
+	default:
+		return false
 	}
 }
 

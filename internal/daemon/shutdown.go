@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	apicore "github.com/compozy/compozy/internal/api/core"
@@ -17,6 +18,11 @@ type RunPurgeResult struct {
 	PurgedRunIDs []string
 }
 
+type journalDropTotals struct {
+	terminal    uint64
+	nonTerminal uint64
+}
+
 // ActiveRunCount returns the number of runs still owned by the live daemon.
 func (m *RunManager) ActiveRunCount() int {
 	if m == nil {
@@ -25,6 +31,155 @@ func (m *RunManager) ActiveRunCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.active)
+}
+
+// ActiveRunCountsByMode returns the current active-run breakdown by run mode.
+func (m *RunManager) ActiveRunCountsByMode() map[string]int {
+	if m == nil {
+		return nil
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	counts := make(map[string]int, len(m.active))
+	for _, active := range m.active {
+		if active == nil {
+			continue
+		}
+		counts[strings.TrimSpace(active.mode)]++
+	}
+	return counts
+}
+
+// TerminalTotalsByModeAndStatus reports daemon-lifetime terminal outcome totals
+// keyed by mode then status.
+func (m *RunManager) TerminalTotalsByModeAndStatus() map[string]map[string]uint64 {
+	if m == nil {
+		return nil
+	}
+	m.metricsMu.RLock()
+	defer m.metricsMu.RUnlock()
+
+	out := make(map[string]map[string]uint64)
+	for key, total := range m.terminalTotals {
+		mode, status, ok := splitRunManagerMetricKey(key)
+		if !ok {
+			continue
+		}
+		if out[mode] == nil {
+			out[mode] = make(map[string]uint64)
+		}
+		out[mode][status] = total
+	}
+	return out
+}
+
+// ACPStallTotalsByMode reports daemon-lifetime ACP stall counts keyed by mode.
+func (m *RunManager) ACPStallTotalsByMode() map[string]uint64 {
+	if m == nil {
+		return nil
+	}
+	m.metricsMu.RLock()
+	defer m.metricsMu.RUnlock()
+
+	out := make(map[string]uint64, len(m.acpStallTotals))
+	for mode, total := range m.acpStallTotals {
+		out[mode] = total
+	}
+	return out
+}
+
+// JournalSubmitDropTotals reports daemon-lifetime journal submit drop counts
+// grouped by dropped event kind.
+func (m *RunManager) JournalSubmitDropTotals() (uint64, uint64) {
+	if m == nil {
+		return 0, 0
+	}
+	m.metricsMu.RLock()
+	defer m.metricsMu.RUnlock()
+	return m.journalTerminalDrops, m.journalNonTerminalDrops
+}
+
+// IncompleteRunCount reports how many runs this daemon has observed with sticky
+// persisted integrity issues.
+func (m *RunManager) IncompleteRunCount() int {
+	if m == nil {
+		return 0
+	}
+	m.metricsMu.RLock()
+	defer m.metricsMu.RUnlock()
+	return len(m.incompleteRunIDs)
+}
+
+func (m *RunManager) recordTerminalOutcome(mode string, status string) {
+	if m == nil {
+		return
+	}
+	metricKey := joinRunManagerMetricKey(mode, status)
+	if metricKey == "" {
+		return
+	}
+	m.metricsMu.Lock()
+	defer m.metricsMu.Unlock()
+	m.terminalTotals[metricKey]++
+}
+
+func (m *RunManager) recordJournalDropTotals(runID string, terminal uint64, nonTerminal uint64) {
+	if m == nil || (terminal == 0 && nonTerminal == 0) {
+		return
+	}
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return
+	}
+	m.metricsMu.Lock()
+	defer m.metricsMu.Unlock()
+	if m.journalDropsByRun == nil {
+		m.journalDropsByRun = make(map[string]journalDropTotals)
+	}
+	previous := m.journalDropsByRun[trimmedRunID]
+	if terminal > previous.terminal {
+		m.journalTerminalDrops += terminal - previous.terminal
+		previous.terminal = terminal
+	}
+	if nonTerminal > previous.nonTerminal {
+		m.journalNonTerminalDrops += nonTerminal - previous.nonTerminal
+		previous.nonTerminal = nonTerminal
+	}
+	m.journalDropsByRun[trimmedRunID] = previous
+}
+
+func (m *RunManager) recordIncompleteRun(runID string) {
+	if m == nil {
+		return
+	}
+	trimmedRunID := strings.TrimSpace(runID)
+	if trimmedRunID == "" {
+		return
+	}
+	m.metricsMu.Lock()
+	defer m.metricsMu.Unlock()
+	m.incompleteRunIDs[trimmedRunID] = struct{}{}
+}
+
+func joinRunManagerMetricKey(left string, right string) string {
+	left = strings.TrimSpace(left)
+	right = strings.TrimSpace(right)
+	if left == "" || right == "" {
+		return ""
+	}
+	return left + "\x00" + right
+}
+
+func splitRunManagerMetricKey(raw string) (string, string, bool) {
+	parts := strings.SplitN(raw, "\x00", 2)
+	if len(parts) != 2 {
+		return "", "", false
+	}
+	if parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
 }
 
 // PurgeTerminalRuns deletes terminal run directories and durable index rows
@@ -53,7 +208,7 @@ func (m *RunManager) Shutdown(ctx context.Context, force bool) error {
 
 	activeRuns := m.activeSnapshot()
 	if len(activeRuns) == 0 {
-		return m.closeRunDBCache()
+		return m.closeRunDBCache(ctx)
 	}
 	if !force {
 		return apicore.NewProblem(
@@ -75,7 +230,7 @@ func (m *RunManager) Shutdown(ctx context.Context, force bool) error {
 		}
 	}
 
-	waitCtx, cancel := context.WithTimeout(detachContext(ctx), m.shutdownDrainTimeout)
+	waitCtx, cancel := boundedLifecycleContext(ctx, m.shutdownDrainTimeout)
 	defer cancel()
 
 	done := make(chan struct{})
@@ -88,7 +243,7 @@ func (m *RunManager) Shutdown(ctx context.Context, force bool) error {
 	case <-done:
 	case <-waitCtx.Done():
 	}
-	return m.closeRunDBCache()
+	return m.closeRunDBCache(ctx)
 }
 
 // Purge deletes terminal run directories and their durable index rows according

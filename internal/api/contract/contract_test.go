@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -128,8 +129,23 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 
 		resp := contract.DaemonHealthResponse{
 			Health: contract.DaemonHealth{
-				Ready:    false,
-				Degraded: true,
+				Ready:               false,
+				Degraded:            true,
+				UptimeSeconds:       42,
+				ActiveRunCount:      2,
+				ActiveRunsByMode:    []contract.DaemonModeCount{{Mode: "exec", Count: 1}, {Mode: "task", Count: 1}},
+				WorkspaceCount:      3,
+				IntegrityIssueCount: 1,
+				Databases: contract.DaemonDatabaseDiagnostics{
+					GlobalBytes: 12,
+					RunDBBytes:  34,
+				},
+				Reconcile: contract.DaemonReconcileDiagnostics{
+					ReconciledRuns:     5,
+					CrashEventAppended: 4,
+					CrashEventMissing:  1,
+					LastRunID:          "run-9",
+				},
 				Details: []contract.HealthDetail{{
 					Code:     "daemon_not_ready",
 					Message:  "daemon still reconciling",
@@ -141,7 +157,10 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 		var decoded contract.DaemonHealthResponse
 		roundTripJSON(t, resp, &decoded)
 
-		if decoded.Health.Ready != resp.Health.Ready || len(decoded.Health.Details) != 1 {
+		if decoded.Health.Ready != resp.Health.Ready ||
+			decoded.Health.IntegrityIssueCount != 1 ||
+			len(decoded.Health.ActiveRunsByMode) != 2 ||
+			len(decoded.Health.Details) != 1 {
 			t.Fatalf("decoded daemon health = %#v, want %#v", decoded.Health, resp.Health)
 		}
 	})
@@ -240,8 +259,9 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 				RequestedAt: now,
 				DeadlineAt:  now.Add(30 * time.Second),
 			},
-			Incomplete: true,
-			NextCursor: &contract.StreamCursor{Timestamp: now, Sequence: 9},
+			Incomplete:        true,
+			IncompleteReasons: []string{"event_gap", "transcript_gap"},
+			NextCursor:        &contract.StreamCursor{Timestamp: now, Sequence: 9},
 		}
 
 		var wire contract.RunSnapshotResponse
@@ -253,6 +273,15 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 		}
 		if len(decoded.Jobs) != 1 || decoded.Usage.TotalTokens != 18 || decoded.Shutdown == nil {
 			t.Fatalf("decoded snapshot = %#v", decoded)
+		}
+		if got, want := decoded.IncompleteReasons, []string{
+			"event_gap",
+			"transcript_gap",
+		}; !reflect.DeepEqual(
+			got,
+			want,
+		) {
+			t.Fatalf("decoded incomplete reasons = %#v, want %#v", got, want)
 		}
 		if decoded.NextCursor == nil || decoded.NextCursor.Sequence != 9 {
 			t.Fatalf("decoded snapshot cursor = %#v, want seq=9", decoded.NextCursor)

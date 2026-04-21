@@ -65,6 +65,11 @@ func installInProcessCLIDaemonBootstrap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("daemon.NewRunManager() error = %v", err)
 	}
+	t.Cleanup(func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer shutdownCancel()
+		_ = manager.Shutdown(shutdownCtx, true)
+	})
 
 	installTestCLIReadyDaemonBootstrap(t, &inProcessDaemonCommandClient{
 		globalDB: db,

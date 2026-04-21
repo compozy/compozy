@@ -15,6 +15,11 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+var (
+	checkpointSQLiteWAL = Checkpoint
+	closeSQLiteHandle   = func(db *sql.DB) error { return db.Close() }
+)
+
 // OpenSQLiteDatabase opens a SQLite database, applies shared configuration,
 // and retries once after moving aside a corrupt file.
 func OpenSQLiteDatabase(
@@ -161,6 +166,29 @@ func Checkpoint(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("store: checkpoint sqlite wal: %w", err)
 	}
 	return nil
+}
+
+// CloseSQLiteDatabase checkpoints the WAL before closing the database handle.
+func CloseSQLiteDatabase(ctx context.Context, db *sql.DB) error {
+	if db == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("store: close context is required")
+	}
+
+	checkpointErr := checkpointSQLiteWAL(ctx, db)
+	closeErr := closeSQLiteHandle(db)
+	switch {
+	case checkpointErr == nil && closeErr == nil:
+		return nil
+	case checkpointErr == nil:
+		return fmt.Errorf("store: close sqlite database: %w", closeErr)
+	case closeErr == nil:
+		return checkpointErr
+	default:
+		return errors.Join(checkpointErr, fmt.Errorf("store: close sqlite database: %w", closeErr))
+	}
 }
 
 func recoverSQLiteDatabase(path string) (string, error) {

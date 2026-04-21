@@ -1073,11 +1073,75 @@ func TestDaemonStartCommandForegroundUsesDaemonRunner(t *testing.T) {
 	if gotRun.HTTPPort != 43123 {
 		t.Fatalf("foreground daemon http port = %d, want 43123", gotRun.HTTPPort)
 	}
+	if gotRun.Mode != daemon.RunModeForeground {
+		t.Fatalf("foreground daemon mode = %q, want %q", gotRun.Mode, daemon.RunModeForeground)
+	}
 	if strings.TrimSpace(gotRun.Version) == "" {
 		t.Fatalf("expected foreground daemon version to be populated, got %#v", gotRun)
 	}
 	if output != "" {
 		t.Fatalf("expected foreground daemon start to stay quiet, got %q", output)
+	}
+}
+
+func TestDaemonStartCommandInternalChildUsesDetachedRunMode(t *testing.T) {
+	acquireCLITestGlobalOverride(t)
+
+	originalRunner := runCLIDaemonForeground
+	t.Cleanup(func() {
+		runCLIDaemonForeground = originalRunner
+	})
+
+	ctxKey := daemonCommandContextKey("internal-child")
+	var (
+		called bool
+		gotCtx context.Context
+		gotRun daemon.RunOptions
+	)
+	runCLIDaemonForeground = func(ctx context.Context, opts daemon.RunOptions) error {
+		called = true
+		gotCtx = ctx
+		gotRun = opts
+		return nil
+	}
+	t.Setenv(daemonHTTPPortEnv, "43124")
+
+	cmd := newDaemonStartCommand()
+	cmd.SetContext(context.WithValue(context.Background(), ctxKey, "detached-child"))
+	output, err := executeCommandCombinedOutput(cmd, nil, "--"+daemonStartInternalChildFlag)
+	if err != nil {
+		t.Fatalf("execute daemon start --internal-child: %v\noutput:\n%s", err, output)
+	}
+	if !called {
+		t.Fatal("expected detached daemon runner to be called")
+	}
+	if gotCtx == nil || gotCtx.Value(ctxKey) != "detached-child" {
+		t.Fatalf("detached daemon context = %#v, want command context value", gotCtx)
+	}
+	if gotRun.HTTPPort != 43124 {
+		t.Fatalf("detached daemon http port = %d, want 43124", gotRun.HTTPPort)
+	}
+	if gotRun.Mode != daemon.RunModeDetached {
+		t.Fatalf("detached daemon mode = %q, want %q", gotRun.Mode, daemon.RunModeDetached)
+	}
+	if output != "" {
+		t.Fatalf("expected internal child daemon start to stay quiet, got %q", output)
+	}
+}
+
+func TestLaunchCLIDaemonProcessFailsWhenDaemonLogFileCannotBeOpened(t *testing.T) {
+	paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	paths.LogFile = paths.LogsDir
+
+	err = launchCLIDaemonProcessWithExecutable(paths, filepath.Join(t.TempDir(), "unused-compozy"))
+	if err == nil {
+		t.Fatal("expected launchCLIDaemonProcessWithExecutable to fail when the daemon log file path is a directory")
+	}
+	if !strings.Contains(err.Error(), "open daemon log file") {
+		t.Fatalf("unexpected detached launch error: %v", err)
 	}
 }
 

@@ -112,6 +112,9 @@ type MetricsPayload struct {
 type DaemonStatus = contract.DaemonStatus
 type DaemonHealth = contract.DaemonHealth
 type HealthDetail = contract.HealthDetail
+type DaemonModeCount = contract.DaemonModeCount
+type DaemonDatabaseDiagnostics = contract.DaemonDatabaseDiagnostics
+type DaemonReconcileDiagnostics = contract.DaemonReconcileDiagnostics
 type Workspace = contract.Workspace
 type WorkspaceRegisterResult = contract.WorkspaceRegisterResult
 type WorkspaceUpdateInput = contract.WorkspaceUpdateInput

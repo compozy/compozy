@@ -547,7 +547,19 @@ func TestExistingHealthyDaemonInfoRejectsUnhealthyInfo(t *testing.T) {
 func mustHomePaths(t *testing.T) compozyconfig.HomePaths {
 	t.Helper()
 
-	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), ".compozy"))
+	baseDir := os.TempDir()
+	if _, err := os.Stat("/tmp"); err == nil {
+		baseDir = "/tmp"
+	}
+	homeRoot, err := os.MkdirTemp(baseDir, "compozy-daemon-*")
+	if err != nil {
+		t.Fatalf("MkdirTemp() error = %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(homeRoot)
+	})
+
+	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeRoot, ".compozy"))
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}

@@ -2,9 +2,12 @@ package runs
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	apicore "github.com/compozy/compozy/internal/api/core"
 )
 
 func TestOpenLoadsDaemonBackedRunSummary(t *testing.T) {
@@ -53,5 +56,27 @@ func TestOpenSurfacesStableDaemonUnavailableError(t *testing.T) {
 	_, err := Open("/workspace", "run-unavailable")
 	if err == nil || !errors.Is(err, ErrDaemonUnavailable) {
 		t.Fatalf("Open() error = %v, want ErrDaemonUnavailable", err)
+	}
+}
+
+func TestAdaptRemoteRunSnapshotPreservesIncompleteReasons(t *testing.T) {
+	got := adaptRemoteRunSnapshot(apicore.RunSnapshot{
+		Run:               apicore.Run{Status: publicRunStatusFailed},
+		Incomplete:        true,
+		IncompleteReasons: []string{"event_gap", "transcript_gap"},
+		NextCursor: &apicore.StreamCursor{
+			Timestamp: time.Date(2026, 4, 21, 7, 0, 0, 0, time.UTC),
+			Sequence:  7,
+		},
+	})
+
+	if !got.Incomplete {
+		t.Fatal("Incomplete = false, want true")
+	}
+	if want := []string{"event_gap", "transcript_gap"}; !reflect.DeepEqual(got.IncompleteReasons, want) {
+		t.Fatalf("IncompleteReasons = %#v, want %#v", got.IncompleteReasons, want)
+	}
+	if got.NextCursor == nil || got.NextCursor.Sequence != 7 {
+		t.Fatalf("NextCursor = %#v, want sequence 7", got.NextCursor)
 	}
 }

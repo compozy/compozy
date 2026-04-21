@@ -576,8 +576,10 @@ func (c cliRemoteWatchClient) GetRunSnapshot(ctx context.Context, runID string) 
 		return runspkg.RemoteRunSnapshot{}, err
 	}
 	return runspkg.RemoteRunSnapshot{
-		Status:     snapshot.Run.Status,
-		NextCursor: remoteCursorPointer(snapshot.NextCursor),
+		Status:            snapshot.Run.Status,
+		Incomplete:        snapshot.Incomplete,
+		IncompleteReasons: append([]string(nil), snapshot.IncompleteReasons...),
+		NextCursor:        remoteCursorPointer(snapshot.NextCursor),
 	}, nil
 }
 

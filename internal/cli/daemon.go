@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -137,21 +138,32 @@ func newDaemonStopCommand() *cobra.Command {
 }
 
 func (s *daemonStartState) run(cmd *cobra.Command, _ []string) error {
-	ctx, stop := signalCommandContext(cmd)
-	defer stop()
-
 	format, err := normalizeOperatorOutputFormat(s.outputFormat)
 	if err != nil {
 		return withExitCode(1, err)
 	}
 
-	if s.foreground || s.internalChild {
-		runOptions, err := cliDaemonRunOptionsFromEnv()
+	if s.foreground {
+		ctx, stop := signalCommandContext(cmd)
+		defer stop()
+
+		runOptions, err := cliDaemonRunOptionsFromEnv(daemon.RunModeForeground)
 		if err != nil {
 			return err
 		}
 		return runCLIDaemonForeground(ctx, runOptions)
 	}
+
+	if s.internalChild {
+		runOptions, err := cliDaemonRunOptionsFromEnv(daemon.RunModeDetached)
+		if err != nil {
+			return err
+		}
+		return runCLIDaemonForeground(commandContextOrBackground(cmd), runOptions)
+	}
+
+	ctx, stop := signalCommandContext(cmd)
+	defer stop()
 
 	client, err := newCLIDaemonBootstrap().ensure(ctx)
 	if err != nil {
@@ -242,12 +254,23 @@ func daemonClientFromInfo(info daemon.Info) (daemonCommandClient, error) {
 	return apiclient.New(target)
 }
 
-func cliDaemonRunOptionsFromEnv() (daemon.RunOptions, error) {
+func cliDaemonRunOptionsFromEnv(mode daemon.RunMode) (daemon.RunOptions, error) {
 	httpPort, err := cliDaemonHTTPPortFromEnv()
 	if err != nil {
 		return daemon.RunOptions{}, err
 	}
-	return daemon.RunOptions{Version: version.String(), HTTPPort: httpPort}, nil
+	return daemon.RunOptions{
+		Version:  version.String(),
+		HTTPPort: httpPort,
+		Mode:     mode,
+	}, nil
+}
+
+func commandContextOrBackground(cmd *cobra.Command) context.Context {
+	if cmd != nil && cmd.Context() != nil {
+		return cmd.Context()
+	}
+	return context.Background()
 }
 
 func cliDaemonHTTPPortFromEnv() (int, error) {
