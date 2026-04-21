@@ -132,6 +132,7 @@ type WorkflowSummary = contract.WorkflowSummary
 type TaskItem = contract.TaskItem
 type ValidationSuccess = contract.ValidationSuccess
 type ArchiveResult = contract.ArchiveResult
+
 // DashboardPayload is the workspace-scoped dashboard aggregate for the daemon web UI.
 type DashboardPayload struct {
 	Workspace      Workspace             `json:"workspace"`

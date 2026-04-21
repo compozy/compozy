@@ -120,10 +120,10 @@ func TestHostRuntimeBehaviors(t *testing.T) {
 			Details: []apicore.HealthDetail{
 				{Code: "degraded", Message: "database warming"},
 			},
-	})
-	if err == nil {
-		t.Fatal("daemonHealthProblem() error = nil, want non-nil")
-	}
+		})
+		if err == nil {
+			t.Fatal("daemonHealthProblem() error = nil, want non-nil")
+		}
 		if !strings.Contains(err.Error(), "database warming") {
 			t.Fatalf("daemonHealthProblem() = %v, want detailed message", err)
 		}
@@ -135,11 +135,11 @@ func TestHostRuntimeBehaviors(t *testing.T) {
 		stopped := false
 		handlers := buildHostHandlers(&Host{}, hostPersistence{db: env.globalDB}, nil, func() {
 			stopped = true
-	})
-	if handlers == nil || handlers.Daemon == nil || handlers.Workspaces == nil || handlers.Tasks == nil ||
-		handlers.Reviews == nil || handlers.Sync == nil || handlers.Exec == nil {
-		t.Fatalf("buildHostHandlers() returned incomplete handlers: %#v", handlers)
-	}
+		})
+		if handlers == nil || handlers.Daemon == nil || handlers.Workspaces == nil || handlers.Tasks == nil ||
+			handlers.Reviews == nil || handlers.Sync == nil || handlers.Exec == nil {
+			t.Fatalf("buildHostHandlers() returned incomplete handlers: %#v", handlers)
+		}
 
 		if err := handlers.Daemon.Stop(context.Background(), false); err != nil {
 			t.Fatalf("handlers.Daemon.Stop() error = %v", err)

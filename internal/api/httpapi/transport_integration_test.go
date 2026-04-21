@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log/slog"
 	"io/fs"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -1841,9 +1841,9 @@ func (f *fakeDaemonService) setStatus(update func(core.DaemonStatus) core.Daemon
 type fakeWorkspaceService struct {
 	workspaces []core.Workspace
 	workspace  core.Workspace
-	items     map[string]core.Workspace
-	deleteErr error
-	getErr    error
+	items      map[string]core.Workspace
+	deleteErr  error
+	getErr     error
 }
 
 func (f *fakeWorkspaceService) Register(context.Context, string, string) (core.WorkspaceRegisterResult, error) {
@@ -1986,14 +1986,15 @@ func (f *fakeReviewService) StartRun(context.Context, string, string, int, core.
 type fakeSyncService struct {
 	mu      sync.Mutex
 	lastReq core.SyncRequest
-	result core.SyncResult
+	result  core.SyncResult
 }
 
 func (f *fakeSyncService) Sync(_ context.Context, req core.SyncRequest) (core.SyncResult, error) {
 	f.mu.Lock()
 	f.lastReq = req
 	f.mu.Unlock()
-	if f.result.WorkspaceID == "" && f.result.WorkflowSlug == "" && len(f.result.SyncedPaths) == 0 && f.result.SyncedAt == nil {
+	if f.result.WorkspaceID == "" && f.result.WorkflowSlug == "" && len(f.result.SyncedPaths) == 0 &&
+		f.result.SyncedAt == nil {
 		return core.SyncResult{WorkspaceID: req.Workspace, WorkflowSlug: req.WorkflowSlug}, nil
 	}
 	return f.result, nil

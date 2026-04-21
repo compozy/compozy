@@ -96,6 +96,7 @@ type streamConnection struct {
 
 type heartbeatPayload = contract.HeartbeatPayload
 type overflowPayload = contract.OverflowPayload
+
 // ListRuns lists daemon-managed runs for the requested workspace and filters.
 func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.Run, error) {
 	if c == nil {
