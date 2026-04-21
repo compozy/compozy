@@ -20,6 +20,12 @@
             "@/*": ["./src/*"]
         }
     },
-    "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "vitest.config.ts"],
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.tsx",
+        ".storybook/**/*.ts",
+        "vite.config.ts",
+        "vitest.config.ts"
+    ],
     "exclude": ["dist", "coverage", "node_modules"]
 }

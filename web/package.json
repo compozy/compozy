@@ -7,6 +7,8 @@
         "codegen-check": "bun run --cwd .. codegen-check && node ./scripts/tsr-generate.mjs",
         "build": "bun run codegen-check && vite build && node ./scripts/restore-dist-placeholder.mjs",
         "dev": "bun run codegen && vite --port 3000",
+        "storybook": "storybook dev -p 6006",
+        "build-storybook": "storybook build",
         "preview": "vite preview",
         "test": "bun run codegen-check && vitest run --config vitest.config.ts",
         "typecheck": "bun run codegen-check && tsc -p tsconfig.json --noEmit"
@@ -27,6 +29,10 @@
         "zustand": "^5.0.11"
     },
     "devDependencies": {
+        "@storybook/addon-a11y": "^10.3.5",
+        "@storybook/addon-docs": "^10.3.5",
+        "@storybook/addon-themes": "^10.3.5",
+        "@storybook/react-vite": "^10.3.5",
         "@tailwindcss/vite": "^4.2.3",
         "@tanstack/react-query-devtools": "^5.99.0",
         "@tanstack/react-router-devtools": "^1.166.13",
@@ -39,7 +45,10 @@
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.0.0",
         "jsdom": "^27.1.0",
+        "msw": "^2.13.4",
+        "msw-storybook-addon": "^2",
         "openapi-typescript": "^7.9.1",
+        "storybook": "^10.3.5",
         "tailwindcss": "^4.2.3"
     }
 }
