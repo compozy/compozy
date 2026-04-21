@@ -250,6 +250,16 @@ func (w *workflowWatcher) flushPendingChanges(
 	refreshNeeded := state.refreshWatches
 	state.refreshWatches = false
 
+	// When a directory moves, newly written files inside the renamed tree can race
+	// with the next sync if the backend watch list is refreshed only afterward.
+	// Refresh the watch set before syncing so follow-up writes land on a watched
+	// path, then reconcile once more after sync to converge with the final tree.
+	if refreshNeeded {
+		if !w.reconcileWatchState(watcher, state, "daemon: refresh workflow watch list before sync") {
+			return
+		}
+	}
+
 	if err := w.syncFn(flushCtx, w.workflowRoot); err != nil {
 		w.logWarn("daemon: workflow watcher sync failed", "root", w.workflowRoot, "error", err)
 		if refreshNeeded {
