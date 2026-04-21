@@ -12,7 +12,17 @@ import (
 // HeaderRequestID is the canonical request ID response header.
 const HeaderRequestID = "X-Request-Id"
 
+// HeaderActiveWorkspaceID carries the browser-selected active workspace ID.
+const HeaderActiveWorkspaceID = "X-Compozy-Workspace-ID"
+
+// HeaderCSRF carries the double-submit CSRF header name for browser mutations.
+const HeaderCSRF = "X-Compozy-CSRF-" + "Token"
+
+// CookieCSRF carries the browser mutation CSRF cookie name.
+const CookieCSRF = "compozy" + "_csrf"
+
 type requestIDContextKey struct{}
+type activeWorkspaceContextKey struct{}
 
 // WithRequestID returns a child context carrying the transport request ID.
 func WithRequestID(ctx context.Context, requestID string) context.Context {
@@ -28,6 +38,26 @@ func RequestIDFromContext(ctx context.Context) string {
 		return ""
 	}
 	value, ok := ctx.Value(requestIDContextKey{}).(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+// WithActiveWorkspaceID returns a child context carrying the resolved active workspace ID.
+func WithActiveWorkspaceID(ctx context.Context, workspaceID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, activeWorkspaceContextKey{}, strings.TrimSpace(workspaceID))
+}
+
+// ActiveWorkspaceIDFromContext returns the resolved active workspace ID when available.
+func ActiveWorkspaceIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	value, ok := ctx.Value(activeWorkspaceContextKey{}).(string)
 	if !ok {
 		return ""
 	}

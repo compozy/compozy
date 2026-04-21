@@ -178,8 +178,19 @@ func (h *Handlers) requireWorkspaceRef(c *gin.Context, value string) (string, bo
 	return workspace, true
 }
 
-func (h *Handlers) requireWorkspaceContext(c *gin.Context, value string) (string, bool) {
+func (h *Handlers) optionalWorkspaceContext(c *gin.Context, value string) string {
 	workspace := strings.TrimSpace(value)
+	if c == nil || c.Request == nil {
+		return workspace
+	}
+	if active := ActiveWorkspaceIDFromContext(c.Request.Context()); active != "" {
+		return active
+	}
+	return workspace
+}
+
+func (h *Handlers) requireWorkspaceContext(c *gin.Context, value string) (string, bool) {
+	workspace := h.optionalWorkspaceContext(c, value)
 	if workspace == "" {
 		h.respondError(c, workspaceContextProblem(
 			"workspace_context_missing",
@@ -267,6 +278,18 @@ func parseCursorQuery(raw string) (StreamCursor, error) {
 			"invalid_cursor",
 			err.Error(),
 			map[string]any{"field": "after"},
+		)
+	}
+	return cursor, nil
+}
+
+func parseStreamCursorQuery(raw string) (StreamCursor, error) {
+	cursor, err := ParseCursor(raw)
+	if err != nil {
+		return StreamCursor{}, validationProblem(
+			"invalid_cursor",
+			err.Error(),
+			map[string]any{"field": "cursor"},
 		)
 	}
 	return cursor, nil
@@ -957,7 +980,7 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 	}
 
 	runs, err := h.Runs.List(c.Request.Context(), RunListQuery{
-		Workspace: strings.TrimSpace(c.Query("workspace")),
+		Workspace: h.optionalWorkspaceContext(c, c.Query("workspace")),
 		Status:    strings.TrimSpace(c.Query("status")),
 		Mode:      strings.TrimSpace(c.Query("mode")),
 		Limit:     limit,
@@ -1052,6 +1075,13 @@ func (h *Handlers) StreamRun(c *gin.Context) {
 	if err != nil {
 		h.respondError(c, err)
 		return
+	}
+	if after.Sequence == 0 {
+		after, err = parseStreamCursorQuery(c.Query("cursor"))
+		if err != nil {
+			h.respondError(c, err)
+			return
+		}
 	}
 
 	stream, err := h.Runs.OpenStream(c.Request.Context(), c.Param("run_id"), after)
@@ -1151,17 +1181,19 @@ func (h *Handlers) SyncWorkflow(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(body.Workspace) == "" && strings.TrimSpace(body.Path) == "" {
-		h.respondError(c, validationProblem(
-			"sync_target_required",
-			"workspace or path is required",
+	workspace := h.optionalWorkspaceContext(c, body.Workspace)
+	if workspace == "" && strings.TrimSpace(body.Path) == "" {
+		h.respondError(c, workspaceContextProblem(
+			"workspace_context_missing",
+			"active workspace context is required",
+			nil,
 			nil,
 		))
 		return
 	}
 
 	result, err := h.Sync.Sync(c.Request.Context(), SyncRequest{
-		Workspace:    strings.TrimSpace(body.Workspace),
+		Workspace:    workspace,
 		Path:         strings.TrimSpace(body.Path),
 		WorkflowSlug: strings.TrimSpace(body.WorkflowSlug),
 	})
@@ -1241,11 +1273,7 @@ func (h *Handlers) writeStreamItem(
 		return streamItemOutcome{Cursor: lastCursor}, nil
 	default:
 		cursor := CursorFromEvent(*item.Event)
-		message := SSEMessage{
-			ID:    FormatCursor(item.Event.Timestamp, item.Event.Seq),
-			Event: string(item.Event.Kind),
-			Data:  item.Event,
-		}
+		message := EventMessage(*item.Event)
 		if err := WriteSSE(writer, message); err != nil {
 			return streamItemOutcome{}, err
 		}

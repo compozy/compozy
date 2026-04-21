@@ -72,15 +72,15 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	spec := loadBrowserOpenAPISpec(t)
 	components := getMap(t, spec, "components")
 	parameters := getMap(t, components, "parameters")
-	workspaceQuery := getMap(t, parameters, "WorkspaceQuery")
-	if workspaceQuery["in"] != "query" {
-		t.Fatalf("WorkspaceQuery.in = %v, want query", workspaceQuery["in"])
+	activeWorkspaceHeader := getMap(t, parameters, "ActiveWorkspaceHeader")
+	if activeWorkspaceHeader["in"] != "header" {
+		t.Fatalf("ActiveWorkspaceHeader.in = %v, want header", activeWorkspaceHeader["in"])
 	}
-	if workspaceQuery["required"] != true {
-		t.Fatalf("WorkspaceQuery.required = %v, want true", workspaceQuery["required"])
+	if activeWorkspaceHeader["required"] != true {
+		t.Fatalf("ActiveWorkspaceHeader.required = %v, want true", activeWorkspaceHeader["required"])
 	}
 
-	workspaceReads := []string{
+	workspaceScopedRoutes := []string{
 		"GET /api/ui/dashboard",
 		"GET /api/tasks",
 		"GET /api/tasks/{slug}",
@@ -92,14 +92,18 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"GET /api/reviews/{slug}",
 		"GET /api/reviews/{slug}/rounds/{round}/issues",
 		"GET /api/reviews/{slug}/rounds/{round}/issues/{issue_id}",
+		"POST /api/tasks/{slug}/runs",
+		"POST /api/tasks/{slug}/archive",
+		"POST /api/reviews/{slug}/rounds/{round}/runs",
+		"POST /api/sync",
 	}
-	for _, routeKey := range workspaceReads {
+	for _, routeKey := range workspaceScopedRoutes {
 		operation := getOperation(t, spec, routeKey)
-		if !hasParameterRef(operation, "#/components/parameters/WorkspaceQuery") {
-			t.Fatalf("%s is missing WorkspaceQuery", routeKey)
+		if !hasParameterRef(operation, "#/components/parameters/ActiveWorkspaceHeader") {
+			t.Fatalf("%s is missing ActiveWorkspaceHeader", routeKey)
 		}
-		if hasHeaderParameter(operation, "X-Compozy-Workspace-ID") {
-			t.Fatalf("%s unexpectedly advertises X-Compozy-Workspace-ID", routeKey)
+		if hasParameterRef(operation, "#/components/parameters/WorkspaceQuery") {
+			t.Fatalf("%s unexpectedly advertises WorkspaceQuery", routeKey)
 		}
 		if !hasResponse(operation, "412") {
 			t.Fatalf("%s is missing 412 stale-workspace response", routeKey)
@@ -110,6 +114,7 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/tasks/{slug}/runs":                  "#/components/schemas/TaskRunRequest",
 		"POST /api/tasks/{slug}/archive":               "#/components/schemas/WorkflowRefRequest",
 		"POST /api/reviews/{slug}/rounds/{round}/runs": "#/components/schemas/ReviewRunRequest",
+		"POST /api/sync":                               "#/components/schemas/SyncRequest",
 		"POST /api/workspaces/resolve":                 "#/components/schemas/WorkspaceResolveRequest",
 	}
 	for routeKey, wantRef := range postBodies {
@@ -120,12 +125,16 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	}
 
 	taskRunSchema := getSchema(t, spec, "TaskRunRequest")
-	if !schemaRequires(taskRunSchema, "workspace") {
-		t.Fatal("TaskRunRequest must require workspace")
+	if schemaRequires(taskRunSchema, "workspace") {
+		t.Fatal("TaskRunRequest must not require workspace")
 	}
 	reviewRunSchema := getSchema(t, spec, "ReviewRunRequest")
-	if !schemaRequires(reviewRunSchema, "workspace") {
-		t.Fatal("ReviewRunRequest must require workspace")
+	if schemaRequires(reviewRunSchema, "workspace") {
+		t.Fatal("ReviewRunRequest must not require workspace")
+	}
+	workflowRefSchema := getSchema(t, spec, "WorkflowRefRequest")
+	if schemaRequires(workflowRefSchema, "workspace") {
+		t.Fatal("WorkflowRefRequest must not require workspace")
 	}
 
 	runSnapshot := getSchema(t, spec, "RunSnapshotPayload")
@@ -144,6 +153,20 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 	for _, field := range []string{"request_id", "code", "message"} {
 		if !schemaRequires(transportError, field) {
 			t.Fatalf("TransportError must require %s", field)
+		}
+	}
+
+	for _, routeKey := range []string{
+		"POST /api/tasks/{slug}/runs",
+		"POST /api/tasks/{slug}/archive",
+		"POST /api/reviews/{slug}/rounds/{round}/runs",
+		"POST /api/sync",
+		"POST /api/runs/{run_id}/cancel",
+		"POST /api/workspaces/resolve",
+	} {
+		operation := getOperation(t, spec, routeKey)
+		if !hasResponse(operation, "403") {
+			t.Fatalf("%s is missing 403 browser security response", routeKey)
 		}
 	}
 }
@@ -243,15 +266,6 @@ func getMap(t *testing.T, from map[string]any, key string) map[string]any {
 func hasParameterRef(operation map[string]any, wantRef string) bool {
 	for _, parameter := range getParameters(operation) {
 		if parameter["$ref"] == wantRef {
-			return true
-		}
-	}
-	return false
-}
-
-func hasHeaderParameter(operation map[string]any, name string) bool {
-	for _, parameter := range getParameters(operation) {
-		if parameter["name"] == name && parameter["in"] == "header" {
 			return true
 		}
 	}

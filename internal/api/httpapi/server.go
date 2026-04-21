@@ -149,6 +149,10 @@ func (s *Server) ensureEngine() {
 		)
 	}))
 	s.engine.Use(core.ErrorMiddleware())
+	s.engine.Use(s.hostValidationMiddleware())
+	s.engine.Use(s.originValidationMiddleware())
+	s.engine.Use(s.activeWorkspaceMiddleware())
+	s.engine.Use(s.csrfMiddleware())
 	RegisterRoutes(s.engine, s.handlers)
 }
 

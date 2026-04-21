@@ -364,8 +364,8 @@ func TestSharedHandlersValidationAndServiceErrors(t *testing.T) {
 			http.MethodPost,
 			"/api/sync",
 			`{}`,
-			http.StatusUnprocessableEntity,
-			"sync_target_required",
+			http.StatusPreconditionFailed,
+			"workspace_context_missing",
 		},
 		{
 			"exec missing prompt",

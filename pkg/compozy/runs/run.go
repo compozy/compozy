@@ -561,6 +561,15 @@ func (s *daemonRunStream) forward() {
 			converted := RemoteRunStreamItem{
 				Event: item.Event,
 			}
+			if item.Snapshot != nil {
+				snapshot := RemoteRunSnapshot{
+					Status:            normalizeStatus(item.Snapshot.Snapshot.Run.Status),
+					Incomplete:        item.Snapshot.Snapshot.Incomplete,
+					IncompleteReasons: append([]string(nil), item.Snapshot.Snapshot.IncompleteReasons...),
+					NextCursor:        remoteCursorPointerFromCore(item.Snapshot.Snapshot.NextCursor),
+				}
+				converted.Snapshot = &snapshot
+			}
 			if item.Heartbeat != nil {
 				cursor := remoteCursorFromCore(item.Heartbeat.Cursor)
 				converted.HeartbeatCursor = &cursor

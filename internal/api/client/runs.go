@@ -35,6 +35,11 @@ type RunStreamHeartbeat struct {
 	Timestamp time.Time
 }
 
+// RunStreamSnapshot reports one snapshot frame from the daemon stream contract.
+type RunStreamSnapshot struct {
+	Snapshot apicore.RunSnapshot
+}
+
 // RunStreamOverflow reports that the client must reconnect from the last acknowledged cursor.
 type RunStreamOverflow struct {
 	Cursor    apicore.StreamCursor
@@ -45,6 +50,7 @@ type RunStreamOverflow struct {
 // RunStreamItem is one parsed SSE delivery from the daemon.
 type RunStreamItem struct {
 	Event     *events.Event
+	Snapshot  *RunStreamSnapshot
 	Heartbeat *RunStreamHeartbeat
 	Overflow  *RunStreamOverflow
 }
@@ -90,7 +96,6 @@ type streamConnection struct {
 
 type heartbeatPayload = contract.HeartbeatPayload
 type overflowPayload = contract.OverflowPayload
-
 // ListRuns lists daemon-managed runs for the requested workspace and filters.
 func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.Run, error) {
 	if c == nil {
@@ -474,15 +479,38 @@ func (c *streamConnection) consumeLine(frame *sseFrame, line string) (bool, erro
 
 func (c *streamConnection) dispatchFrame(frame sseFrame) error {
 	switch strings.TrimSpace(frame.event) {
-	case "heartbeat":
+	case apicore.RunHeartbeatSSEEvent, "heartbeat":
 		return c.dispatchHeartbeat(frame.data.Bytes())
-	case "overflow":
+	case apicore.RunOverflowSSEEvent, "overflow":
 		return c.dispatchOverflow(frame.data.Bytes())
+	case apicore.RunSnapshotSSEEvent:
+		return c.dispatchSnapshot(frame.data.Bytes())
 	case "error":
 		return c.dispatchStreamError(frame.data.Bytes())
 	default:
 		return c.dispatchEvent(frame.data.Bytes())
 	}
+}
+
+func (c *streamConnection) dispatchSnapshot(raw []byte) error {
+	var payload contract.RunSnapshotResponse
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("decode snapshot frame: %w", err)
+	}
+	snapshot, err := payload.Decode()
+	if err != nil {
+		return fmt.Errorf("decode snapshot cursor: %w", err)
+	}
+
+	envelope := streamEnvelope{
+		item: RunStreamItem{
+			Snapshot: &RunStreamSnapshot{Snapshot: snapshot},
+		},
+	}
+	if snapshot.NextCursor != nil {
+		envelope.cursor = *snapshot.NextCursor
+	}
+	return c.sendItem(envelope)
 }
 
 func (c *streamConnection) dispatchHeartbeat(raw []byte) error {

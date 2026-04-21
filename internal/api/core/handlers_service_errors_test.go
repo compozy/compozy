@@ -552,13 +552,13 @@ func TestStreamRunAdditionalBranches(t *testing.T) {
 		defer response.Body.Close()
 
 		body := readAllString(t, response.Body)
-		if strings.Contains(body, "event: heartbeat") {
+		if strings.Contains(body, "event: "+core.RunHeartbeatSSEEvent) {
 			t.Fatalf("stream unexpectedly emitted a heartbeat:\n%s", body)
 		}
-		if !strings.Contains(body, "event: run.completed") {
-			t.Fatalf("stream missing terminal event:\n%s", body)
+		if !strings.Contains(body, "event: "+core.RunEventSSEEvent) {
+			t.Fatalf("stream missing terminal stream event:\n%s", body)
 		}
-		if !strings.Contains(body, `"seq":9`) {
+		if !strings.Contains(body, `"kind":"run.completed"`) || !strings.Contains(body, `"seq":9`) {
 			t.Fatalf("stream missing terminal payload:\n%s", body)
 		}
 	})

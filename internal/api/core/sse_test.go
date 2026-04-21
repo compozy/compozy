@@ -46,7 +46,7 @@ func TestWriteSSEFormatsFramesWithCanonicalCursor(t *testing.T) {
 	writer := &flushBuffer{}
 	err := core.WriteSSE(writer, core.SSEMessage{
 		ID:    cursor,
-		Event: "run.started",
+		Event: core.RunEventSSEEvent,
 		Data: struct {
 			Status string `json:"status"`
 		}{Status: "started"},
@@ -59,7 +59,7 @@ func TestWriteSSEFormatsFramesWithCanonicalCursor(t *testing.T) {
 	if !strings.Contains(text, "id: "+cursor+"\n") {
 		t.Fatalf("SSE output missing canonical cursor:\n%s", text)
 	}
-	if !strings.Contains(text, "event: run.started\n") {
+	if !strings.Contains(text, "event: "+core.RunEventSSEEvent+"\n") {
 		t.Fatalf("SSE output missing event name:\n%s", text)
 	}
 	if !strings.Contains(text, `data: {"status":"started"}`) {
@@ -125,7 +125,7 @@ func TestHeartbeatAndOverflowMessagesUseExpectedEventNames(t *testing.T) {
 			name:    "heartbeat",
 			message: core.HeartbeatMessage("run-1", cursor, timestamp.Add(time.Second)),
 			want: []string{
-				"event: heartbeat",
+				"event: " + core.RunHeartbeatSSEEvent,
 				`"run_id":"run-1"`,
 				`"cursor":"` + core.FormatCursor(cursor.Timestamp, cursor.Sequence) + `"`,
 			},
@@ -134,7 +134,7 @@ func TestHeartbeatAndOverflowMessagesUseExpectedEventNames(t *testing.T) {
 			name:    "overflow",
 			message: core.OverflowMessage("run-1", cursor, timestamp.Add(2*time.Second), "slow consumer"),
 			want: []string{
-				"event: overflow",
+				"event: " + core.RunOverflowSSEEvent,
 				`"run_id":"run-1"`,
 				`"cursor":"` + core.FormatCursor(cursor.Timestamp, cursor.Sequence) + `"`,
 				`"reason":"slow consumer"`,

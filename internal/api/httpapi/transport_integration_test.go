@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -247,6 +248,244 @@ func TestHTTPServerStartRejectsCancelledContext(t *testing.T) {
 	}
 }
 
+func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	taskSvc := &capturingTaskService{}
+	syncSvc := &fakeSyncService{}
+	workspaces := &fakeWorkspaceService{
+		items: map[string]core.Workspace{
+			"ws-header": {ID: "ws-header", RootDir: "/tmp/ws-header", Name: "Header"},
+		},
+	}
+
+	httpServer, baseURL := startHTTPServer(t, core.NewHandlers(&core.HandlerConfig{
+		Tasks:      taskSvc,
+		Sync:       syncSvc,
+		Workspaces: workspaces,
+	}))
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	statusCode, _, _ := mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/api/ui/dashboard",
+		nil,
+		map[string]string{core.HeaderActiveWorkspaceID: "ws-header"},
+	)
+	if statusCode != http.StatusOK {
+		t.Fatalf("header dashboard status = %d, want 200", statusCode)
+	}
+	if got := taskSvc.dashboardWorkspace(); got != "ws-header" {
+		t.Fatalf("dashboard workspace = %q, want ws-header", got)
+	}
+
+	statusCode, _, _ = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/api/ui/dashboard?workspace=ws-legacy",
+		nil,
+		nil,
+	)
+	if statusCode != http.StatusOK {
+		t.Fatalf("legacy dashboard status = %d, want 200", statusCode)
+	}
+	if got := taskSvc.dashboardWorkspace(); got != "ws-legacy" {
+		t.Fatalf("legacy dashboard workspace = %q, want ws-legacy", got)
+	}
+
+	statusCode, _, body := mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/api/ui/dashboard",
+		nil,
+		nil,
+	)
+	if statusCode != http.StatusPreconditionFailed {
+		t.Fatalf("missing workspace status = %d, want 412", statusCode)
+	}
+	assertTransportCode(t, body, "workspace_context_missing")
+
+	statusCode, _, body = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/api/ui/dashboard",
+		nil,
+		map[string]string{core.HeaderActiveWorkspaceID: "ws-stale"},
+	)
+	if statusCode != http.StatusPreconditionFailed {
+		t.Fatalf("stale workspace status = %d, want 412", statusCode)
+	}
+	assertTransportCode(t, body, "workspace_context_stale")
+
+	statusCode, _, _ = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodPost,
+		baseURL+"/api/sync",
+		[]byte(`{"workflow_slug":"wf-1"}`),
+		map[string]string{
+			"Content-Type":               "application/json",
+			core.HeaderActiveWorkspaceID: "ws-header",
+		},
+	)
+	if statusCode != http.StatusOK {
+		t.Fatalf("header sync status = %d, want 200", statusCode)
+	}
+	if got := syncSvc.workspace(); got != "ws-header" {
+		t.Fatalf("sync workspace = %q, want ws-header", got)
+	}
+
+	statusCode, _, body = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodPost,
+		baseURL+"/api/sync",
+		[]byte(`{"workflow_slug":"wf-1"}`),
+		map[string]string{"Content-Type": "application/json"},
+	)
+	if statusCode != http.StatusPreconditionFailed {
+		t.Fatalf("missing sync target status = %d, want 412", statusCode)
+	}
+	assertTransportCode(t, body, "workspace_context_missing")
+}
+
+func TestHTTPBrowserSecurityAndUDSCompatibility(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	daemonSvc := &fakeDaemonService{
+		status: core.DaemonStatus{
+			PID:       7,
+			StartedAt: time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC),
+		},
+		health: core.DaemonHealth{Ready: true},
+	}
+	runSvc := &fakeRunService{
+		runs: map[string]core.Run{
+			"run-1": {RunID: "run-1", Status: "running"},
+		},
+	}
+	handlers := core.NewHandlers(&core.HandlerConfig{
+		Daemon: daemonSvc,
+		Runs:   runSvc,
+	})
+
+	httpServer, baseURL := startHTTPServer(t, handlers)
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	evilHostRequest, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		baseURL+"/api/daemon/status",
+		http.NoBody,
+	)
+	if err != nil {
+		t.Fatalf("NewRequest(invalid host) error = %v", err)
+	}
+	evilHostRequest.Host = "evil.example:" + strconv.Itoa(httpServer.Port())
+	evilHostResponse, err := http.DefaultClient.Do(evilHostRequest)
+	if err != nil {
+		t.Fatalf("Do(invalid host) error = %v", err)
+	}
+	defer evilHostResponse.Body.Close()
+	evilHostBody, err := io.ReadAll(evilHostResponse.Body)
+	if err != nil {
+		t.Fatalf("ReadAll(invalid host) error = %v", err)
+	}
+	if evilHostResponse.StatusCode != http.StatusForbidden {
+		t.Fatalf("invalid host status = %d, want 403", evilHostResponse.StatusCode)
+	}
+	assertTransportCode(t, evilHostBody, "host_invalid")
+
+	statusCode, _, originBody := mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/api/daemon/status",
+		nil,
+		map[string]string{"Origin": "http://evil.example:" + strconv.Itoa(httpServer.Port())},
+	)
+	if statusCode != http.StatusForbidden {
+		t.Fatalf("invalid origin status = %d, want 403", statusCode)
+	}
+	assertTransportCode(t, originBody, "origin_invalid")
+
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatalf("cookiejar.New() error = %v", err)
+	}
+	browserClient := &http.Client{Jar: jar}
+
+	statusCode, headers, _ := mustRequest(
+		t,
+		browserClient,
+		http.MethodGet,
+		baseURL+"/api/daemon/status",
+		nil,
+		nil,
+	)
+	if statusCode != http.StatusOK {
+		t.Fatalf("csrf bootstrap status = %d, want 200", statusCode)
+	}
+	csrfToken := strings.TrimSpace(headers.Get(core.HeaderCSRF))
+	if csrfToken == "" {
+		t.Fatal("csrf bootstrap header = empty, want token")
+	}
+
+	statusCode, _, csrfMissingBody := mustRequest(
+		t,
+		browserClient,
+		http.MethodPost,
+		baseURL+"/api/runs/run-1/cancel",
+		nil,
+		map[string]string{"Origin": baseURL},
+	)
+	if statusCode != http.StatusForbidden {
+		t.Fatalf("missing csrf status = %d, want 403", statusCode)
+	}
+	assertTransportCode(t, csrfMissingBody, "csrf_missing")
+
+	statusCode, _, _ = mustRequest(
+		t,
+		browserClient,
+		http.MethodPost,
+		baseURL+"/api/runs/run-1/cancel",
+		nil,
+		map[string]string{
+			"Origin":        baseURL,
+			core.HeaderCSRF: csrfToken,
+		},
+	)
+	if statusCode != http.StatusAccepted {
+		t.Fatalf("valid csrf status = %d, want 202", statusCode)
+	}
+
+	socketPath := newShortSocketPath(t)
+	udsServer, udsClient := startUDSServer(t, handlers, socketPath)
+	defer func() {
+		_ = udsServer.Shutdown(context.Background())
+	}()
+
+	statusCode, _, _ = mustRequest(
+		t,
+		udsClient,
+		http.MethodPost,
+		"http://unix/api/runs/run-1/cancel",
+		nil,
+		nil,
+	)
+	if statusCode != http.StatusAccepted {
+		t.Fatalf("uds cancel status = %d, want 202", statusCode)
+	}
+}
 func TestHTTPServerStartRollsBackAfterPortPersistenceFailure(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1021,7 +1260,7 @@ func TestHTTPAndUDSEmitEquivalentCanonicalSSEStreams(t *testing.T) {
 		httpResponse.Body,
 		2*time.Second,
 		func(frames []testutil.SSEFrame) bool {
-			return hasCanonicalSSEFrame(frames, "overflow")
+			return hasCanonicalSSEFrame(frames, core.RunOverflowSSEEvent)
 		},
 	)
 	if err != nil {
@@ -1031,7 +1270,7 @@ func TestHTTPAndUDSEmitEquivalentCanonicalSSEStreams(t *testing.T) {
 		udsResponse.Body,
 		2*time.Second,
 		func(frames []testutil.SSEFrame) bool {
-			return hasCanonicalSSEFrame(frames, "overflow")
+			return hasCanonicalSSEFrame(frames, core.RunOverflowSSEEvent)
 		},
 	)
 	if err != nil {
@@ -1112,13 +1351,13 @@ func TestUDSShutdownDoesNotCancelHTTPStreamsWhenHandlersAreShared(t *testing.T) 
 	defer response.Body.Close()
 
 	linesCh, errCh := startSSEScan(response.Body)
-	waitForSSELine(t, linesCh, errCh, "event: heartbeat", time.Second)
+	waitForSSELine(t, linesCh, errCh, "event: "+core.RunHeartbeatSSEEvent, time.Second)
 
 	if err := udsServer.Shutdown(context.Background()); err != nil {
 		t.Fatalf("udsServer.Shutdown() error = %v", err)
 	}
 
-	waitForSSELine(t, linesCh, errCh, "event: heartbeat", time.Second)
+	waitForSSELine(t, linesCh, errCh, "event: "+core.RunHeartbeatSSEEvent, time.Second)
 }
 
 func TestHTTPStreamResumesAfterLastEventIDAndEmitsHeartbeat(t *testing.T) {
@@ -1173,7 +1412,8 @@ func TestHTTPStreamResumesAfterLastEventIDAndEmitsHeartbeat(t *testing.T) {
 		t.Fatalf("Do(first stream) error = %v", err)
 	}
 	firstLines := readSSELinesUntil(t, response.Body, 500*time.Millisecond, func(lines []string) bool {
-		return containsLine(lines, "event: run.started")
+		return containsLine(lines, "event: "+core.RunEventSSEEvent) &&
+			containsSubstring(lines, `"kind":"run.started"`)
 	})
 	firstID := firstEventID(firstLines)
 	if firstID == "" {
@@ -1196,17 +1436,18 @@ func TestHTTPStreamResumesAfterLastEventIDAndEmitsHeartbeat(t *testing.T) {
 		t.Fatalf("Do(second stream) error = %v", err)
 	}
 	secondLines := readSSELinesUntil(t, secondResponse.Body, 750*time.Millisecond, func(lines []string) bool {
-		return containsLine(lines, "event: session.update") && containsLine(lines, "event: heartbeat")
+		return containsSubstring(lines, `"kind":"session.update"`) &&
+			containsLine(lines, "event: "+core.RunHeartbeatSSEEvent)
 	})
 	_ = secondResponse.Body.Close()
 
-	if containsLine(secondLines, "event: run.started") {
+	if containsSubstring(secondLines, `"kind":"run.started"`) {
 		t.Fatalf("second stream replayed the acknowledged event:\n%v", secondLines)
 	}
-	if !containsLine(secondLines, "event: session.update") {
+	if !containsSubstring(secondLines, `"kind":"session.update"`) {
 		t.Fatalf("second stream missing resumed event:\n%v", secondLines)
 	}
-	if !containsLine(secondLines, "event: heartbeat") {
+	if !containsLine(secondLines, "event: "+core.RunHeartbeatSSEEvent) {
 		t.Fatalf("second stream missing heartbeat:\n%v", secondLines)
 	}
 }
@@ -1381,8 +1622,9 @@ func TestMetricsAndTerminalStreamRemainObservable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadAll(terminal stream) error = %v", err)
 	}
-	if !strings.Contains(string(streamBody), "event: run.completed") {
-		t.Fatalf("terminal stream missing run.completed event:\n%s", streamBody)
+	if !strings.Contains(string(streamBody), "event: "+core.RunEventSSEEvent) ||
+		!strings.Contains(string(streamBody), `"kind":"run.completed"`) {
+		t.Fatalf("terminal stream missing run.event completed payload:\n%s", streamBody)
 	}
 
 	statusCode, _, statusBody := mustRequest(
@@ -1448,7 +1690,9 @@ func (f *fakeDaemonService) setStatus(update func(core.DaemonStatus) core.Daemon
 type fakeWorkspaceService struct {
 	workspaces []core.Workspace
 	workspace  core.Workspace
-	deleteErr  error
+	items     map[string]core.Workspace
+	deleteErr error
+	getErr    error
 }
 
 func (f *fakeWorkspaceService) Register(context.Context, string, string) (core.WorkspaceRegisterResult, error) {
@@ -1456,11 +1700,35 @@ func (f *fakeWorkspaceService) Register(context.Context, string, string) (core.W
 }
 
 func (f *fakeWorkspaceService) List(context.Context) ([]core.Workspace, error) {
-	return append([]core.Workspace(nil), f.workspaces...), nil
+	if len(f.workspaces) > 0 {
+		return append([]core.Workspace(nil), f.workspaces...), nil
+	}
+	if len(f.items) == 0 {
+		return nil, nil
+	}
+	items := make([]core.Workspace, 0, len(f.items))
+	ids := make([]string, 0, len(f.items))
+	for id := range f.items {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		items = append(items, f.items[id])
+	}
+	return items, nil
 }
 
-func (f *fakeWorkspaceService) Get(context.Context, string) (core.Workspace, error) {
-	return f.workspace, nil
+func (f *fakeWorkspaceService) Get(_ context.Context, workspaceID string) (core.Workspace, error) {
+	if f.getErr != nil {
+		return core.Workspace{}, f.getErr
+	}
+	if item, ok := f.items[workspaceID]; ok {
+		return item, nil
+	}
+	if f.workspace.ID != "" {
+		return f.workspace, nil
+	}
+	return core.Workspace{}, globaldb.ErrWorkspaceNotFound
 }
 
 func (f *fakeWorkspaceService) Update(context.Context, string, core.WorkspaceUpdateInput) (core.Workspace, error) {
@@ -1479,6 +1747,10 @@ type fakeTaskService struct {
 	run core.Run
 }
 
+func (*fakeTaskService) Dashboard(context.Context, string) (core.DashboardPayload, error) {
+	return core.DashboardPayload{}, nil
+}
+
 func (*fakeTaskService) ListWorkflows(context.Context, string) ([]core.WorkflowSummary, error) {
 	return nil, nil
 }
@@ -1487,8 +1759,32 @@ func (*fakeTaskService) GetWorkflow(context.Context, string, string) (core.Workf
 	return core.WorkflowSummary{}, nil
 }
 
+func (*fakeTaskService) WorkflowOverview(context.Context, string, string) (core.WorkflowOverviewPayload, error) {
+	return core.WorkflowOverviewPayload{}, nil
+}
+
 func (*fakeTaskService) ListItems(context.Context, string, string) ([]core.TaskItem, error) {
 	return nil, nil
+}
+
+func (*fakeTaskService) TaskBoard(context.Context, string, string) (core.TaskBoardPayload, error) {
+	return core.TaskBoardPayload{}, nil
+}
+
+func (*fakeTaskService) WorkflowSpec(context.Context, string, string) (core.WorkflowSpecDocument, error) {
+	return core.WorkflowSpecDocument{}, nil
+}
+
+func (*fakeTaskService) WorkflowMemoryIndex(context.Context, string, string) (core.WorkflowMemoryIndex, error) {
+	return core.WorkflowMemoryIndex{}, nil
+}
+
+func (*fakeTaskService) WorkflowMemoryFile(context.Context, string, string, string) (core.MarkdownDocument, error) {
+	return core.MarkdownDocument{}, nil
+}
+
+func (*fakeTaskService) TaskDetail(context.Context, string, string, string) (core.TaskDetailPayload, error) {
+	return core.TaskDetailPayload{}, nil
 }
 
 func (*fakeTaskService) Validate(context.Context, string, string) (core.ValidationSuccess, error) {
@@ -1528,16 +1824,34 @@ func (*fakeReviewService) ListIssues(context.Context, string, string, int) ([]co
 	return nil, nil
 }
 
+func (*fakeReviewService) ReviewDetail(context.Context, string, string, int, string) (core.ReviewDetailPayload, error) {
+	return core.ReviewDetailPayload{}, nil
+}
+
 func (f *fakeReviewService) StartRun(context.Context, string, string, int, core.ReviewRunRequest) (core.Run, error) {
 	return f.run, nil
 }
 
 type fakeSyncService struct {
+	mu      sync.Mutex
+	lastReq core.SyncRequest
 	result core.SyncResult
 }
 
-func (f *fakeSyncService) Sync(context.Context, core.SyncRequest) (core.SyncResult, error) {
+func (f *fakeSyncService) Sync(_ context.Context, req core.SyncRequest) (core.SyncResult, error) {
+	f.mu.Lock()
+	f.lastReq = req
+	f.mu.Unlock()
+	if f.result.WorkspaceID == "" && f.result.WorkflowSlug == "" && len(f.result.SyncedPaths) == 0 && f.result.SyncedAt == nil {
+		return core.SyncResult{WorkspaceID: req.Workspace, WorkflowSlug: req.WorkflowSlug}, nil
+	}
 	return f.result, nil
+}
+
+func (f *fakeSyncService) workspace() string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.lastReq.Workspace
 }
 
 type fakeExecService struct {
@@ -1546,6 +1860,77 @@ type fakeExecService struct {
 
 func (f *fakeExecService) Start(context.Context, core.ExecRequest) (core.Run, error) {
 	return f.run, nil
+}
+
+type capturingTaskService struct {
+	mu                sync.Mutex
+	lastDashboardWork string
+}
+
+func (s *capturingTaskService) Dashboard(_ context.Context, workspace string) (core.DashboardPayload, error) {
+	s.mu.Lock()
+	s.lastDashboardWork = workspace
+	s.mu.Unlock()
+	return core.DashboardPayload{}, nil
+}
+
+func (s *capturingTaskService) dashboardWorkspace() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastDashboardWork
+}
+
+func (*capturingTaskService) ListWorkflows(context.Context, string) ([]core.WorkflowSummary, error) {
+	return nil, nil
+}
+
+func (*capturingTaskService) GetWorkflow(context.Context, string, string) (core.WorkflowSummary, error) {
+	return core.WorkflowSummary{}, nil
+}
+
+func (*capturingTaskService) WorkflowOverview(context.Context, string, string) (core.WorkflowOverviewPayload, error) {
+	return core.WorkflowOverviewPayload{}, nil
+}
+
+func (*capturingTaskService) ListItems(context.Context, string, string) ([]core.TaskItem, error) {
+	return nil, nil
+}
+
+func (*capturingTaskService) TaskBoard(context.Context, string, string) (core.TaskBoardPayload, error) {
+	return core.TaskBoardPayload{}, nil
+}
+
+func (*capturingTaskService) WorkflowSpec(context.Context, string, string) (core.WorkflowSpecDocument, error) {
+	return core.WorkflowSpecDocument{}, nil
+}
+
+func (*capturingTaskService) WorkflowMemoryIndex(context.Context, string, string) (core.WorkflowMemoryIndex, error) {
+	return core.WorkflowMemoryIndex{}, nil
+}
+
+func (*capturingTaskService) WorkflowMemoryFile(
+	context.Context,
+	string,
+	string,
+	string,
+) (core.MarkdownDocument, error) {
+	return core.MarkdownDocument{}, nil
+}
+
+func (*capturingTaskService) TaskDetail(context.Context, string, string, string) (core.TaskDetailPayload, error) {
+	return core.TaskDetailPayload{}, nil
+}
+
+func (*capturingTaskService) Validate(context.Context, string, string) (core.ValidationSuccess, error) {
+	return core.ValidationSuccess{Valid: true}, nil
+}
+
+func (*capturingTaskService) StartRun(context.Context, string, string, core.TaskRunRequest) (core.Run, error) {
+	return core.Run{}, nil
+}
+
+func (*capturingTaskService) Archive(context.Context, string, string) (core.ArchiveResult, error) {
+	return core.ArchiveResult{}, nil
 }
 
 type fakeRunService struct {
@@ -1780,6 +2165,16 @@ func mustRequest(
 	return response.StatusCode, response.Header.Clone(), responseBody
 }
 
+func assertTransportCode(t *testing.T, body []byte, want string) {
+	t.Helper()
+
+	var payload core.TransportError
+	decodeJSON(t, body, &payload)
+	if payload.Code != want {
+		t.Fatalf("payload.Code = %q, want %q (body=%s)", payload.Code, want, body)
+	}
+}
+
 func readSSELinesUntil(
 	t *testing.T,
 	body io.ReadCloser,
@@ -1853,7 +2248,7 @@ func hasCanonicalSSEFrame(frames []testutil.SSEFrame, event string) bool {
 }
 
 func normalizeCanonicalSSEFrames(frames []testutil.SSEFrame) []testutil.SSEFrame {
-	eventsOfInterest := []string{string(events.EventKindSessionUpdate), "heartbeat", "overflow"}
+	eventsOfInterest := []string{core.RunEventSSEEvent, core.RunHeartbeatSSEEvent, core.RunOverflowSSEEvent}
 	normalized := make([]testutil.SSEFrame, 0, len(eventsOfInterest))
 	for _, eventName := range eventsOfInterest {
 		for _, frame := range frames {
@@ -1938,6 +2333,15 @@ func waitForSSELine(
 func containsLine(lines []string, want string) bool {
 	for _, line := range lines {
 		if line == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsSubstring(lines []string, want string) bool {
+	for _, line := range lines {
+		if strings.Contains(line, want) {
 			return true
 		}
 	}

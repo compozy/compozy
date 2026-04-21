@@ -181,8 +181,21 @@ func TestDaemonRunStreamAdapterConvertsClientItemsAndErrors(t *testing.T) {
 
 	now := time.Date(2026, 4, 18, 3, 0, 0, 0, time.UTC)
 	inner := &stubAPIClientRunStream{
-		items:  make(chan apiclient.RunStreamItem, 3),
+		items:  make(chan apiclient.RunStreamItem, 4),
 		errors: make(chan error, 1),
+	}
+	inner.items <- apiclient.RunStreamItem{
+		Snapshot: &apiclient.RunStreamSnapshot{
+			Snapshot: apicore.RunSnapshot{
+				Run: apicore.Run{
+					RunID:  "run-stream",
+					Status: publicRunStatusRunning,
+				},
+				Incomplete:        true,
+				IncompleteReasons: []string{"transcript_gap"},
+				NextCursor:        &apicore.StreamCursor{Timestamp: now, Sequence: 3},
+			},
+		},
 	}
 	inner.items <- apiclient.RunStreamItem{
 		Heartbeat: &apiclient.RunStreamHeartbeat{
@@ -220,17 +233,26 @@ func TestDaemonRunStreamAdapterConvertsClientItemsAndErrors(t *testing.T) {
 		streamErr = err
 	}
 
-	if len(got) != 3 {
-		t.Fatalf("stream items = %d, want 3", len(got))
+	if len(got) != 4 {
+		t.Fatalf("stream items = %d, want 4", len(got))
 	}
-	if got[0].HeartbeatCursor == nil || got[0].HeartbeatCursor.Sequence != 4 {
-		t.Fatalf("heartbeat item = %#v, want cursor seq 4", got[0])
+	if got[0].Snapshot == nil || got[0].Snapshot.Status != publicRunStatusRunning {
+		t.Fatalf("snapshot item = %#v, want running snapshot", got[0])
 	}
-	if got[1].OverflowCursor == nil || got[1].OverflowCursor.Sequence != 5 {
-		t.Fatalf("overflow item = %#v, want cursor seq 5", got[1])
+	if got[0].Snapshot.NextCursor == nil || got[0].Snapshot.NextCursor.Sequence != 3 {
+		t.Fatalf("snapshot cursor = %#v, want seq 3", got[0].Snapshot)
 	}
-	if got[2].Event == nil || got[2].Event.Seq != 6 || got[2].Event.Kind != events.EventKindRunCompleted {
-		t.Fatalf("event item = %#v, want completed event seq 6", got[2])
+	if !got[0].Snapshot.Incomplete || len(got[0].Snapshot.IncompleteReasons) != 1 {
+		t.Fatalf("snapshot completeness = %#v, want incomplete snapshot metadata", got[0].Snapshot)
+	}
+	if got[1].HeartbeatCursor == nil || got[1].HeartbeatCursor.Sequence != 4 {
+		t.Fatalf("heartbeat item = %#v, want cursor seq 4", got[1])
+	}
+	if got[2].OverflowCursor == nil || got[2].OverflowCursor.Sequence != 5 {
+		t.Fatalf("overflow item = %#v, want cursor seq 5", got[2])
+	}
+	if got[3].Event == nil || got[3].Event.Seq != 6 || got[3].Event.Kind != events.EventKindRunCompleted {
+		t.Fatalf("event item = %#v, want completed event seq 6", got[3])
 	}
 	if streamErr == nil || streamErr.Error() != "boom" {
 		t.Fatalf("stream.Errors() = %v, want boom", streamErr)

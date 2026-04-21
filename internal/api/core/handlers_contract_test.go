@@ -261,27 +261,27 @@ func TestStreamRunEmitsCanonicalEventHeartbeatAndOverflowPayloads(t *testing.T) 
 
 	frames, err := testutil.ReadSSEFramesUntil(response.Body, 2*time.Second, func(items []testutil.SSEFrame) bool {
 		for _, item := range items {
-			if item.Event == "heartbeat" {
+			if item.Event == core.RunHeartbeatSSEEvent {
 				overflowOnce.Do(func() { close(sendOverflow) })
 			}
 		}
-		return hasSSEFrame(items, "overflow")
+		return hasSSEFrame(items, core.RunOverflowSSEEvent)
 	})
 	if err != nil {
 		t.Fatalf("ReadSSEFramesUntil() error = %v", err)
 	}
 
-	eventFrame, ok := firstSSEFrame(frames, string(events.EventKindSessionUpdate))
+	eventFrame, ok := firstSSEFrame(frames, core.RunEventSSEEvent)
 	if !ok {
-		t.Fatalf("stream frames missing %q: %#v", events.EventKindSessionUpdate, frames)
+		t.Fatalf("stream frames missing %q: %#v", core.RunEventSSEEvent, frames)
 	}
-	heartbeatFrame, ok := firstSSEFrame(frames, "heartbeat")
+	heartbeatFrame, ok := firstSSEFrame(frames, core.RunHeartbeatSSEEvent)
 	if !ok {
-		t.Fatalf("stream frames missing heartbeat: %#v", frames)
+		t.Fatalf("stream frames missing %q: %#v", core.RunHeartbeatSSEEvent, frames)
 	}
-	overflowFrame, ok := firstSSEFrame(frames, "overflow")
+	overflowFrame, ok := firstSSEFrame(frames, core.RunOverflowSSEEvent)
 	if !ok {
-		t.Fatalf("stream frames missing overflow: %#v", frames)
+		t.Fatalf("stream frames missing %q: %#v", core.RunOverflowSSEEvent, frames)
 	}
 
 	var eventPayload events.Event
