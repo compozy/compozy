@@ -100,17 +100,12 @@ The switch is controlled by a development-only daemon option and environment var
 
 ### Development orchestration
 
-The repository gets a local dev workflow that runs:
+The repository gets a local dev workflow where the developer runs:
 
-- `web` via Vite on `127.0.0.1:3000`
-- the compiled daemon binary via `./bin/compozy daemon start --foreground`
+- `make dev`, which starts `./bin/compozy daemon start --foreground --web-dev-proxy http://127.0.0.1:3000`
+- `bun run --cwd web dev` in a separate terminal
 
-The daemon process sets:
-
-- `COMPOZY_DAEMON_HTTP_PORT=2123`
-- `COMPOZY_WEB_DEV_PROXY=http://127.0.0.1:3000`
-
-To avoid colliding with the user's normal home-scoped daemon, the default dev flow runs the daemon with an isolated `HOME` rooted under the repository `.tmp/`, while `make dev-global` reuses the user's real `HOME`.
+This keeps the browser pointed at the daemon URL while the daemon proxies UI requests to the Vite dev server.
 
 ### Validation
 

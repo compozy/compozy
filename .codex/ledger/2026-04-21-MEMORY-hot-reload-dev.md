@@ -17,6 +17,7 @@ Key decisions:
 - Prioridade de DX confirmada pelo usuário: preservar experiência de URL única também no desenvolvimento local.
 - Manter `make dev` como default seguro com `HOME` isolado e expor `make dev-global` como variante explícita que reaproveita o mesmo fluxo Turbo+Vite apontando para o `HOME` real do usuário.
 - Simplificar a orquestração local removendo o workspace `dev/daemon`: `make dev` e `make dev-global` passam a usar `./bin/compozy` diretamente e deixam o hot reload apenas no frontend via Vite.
+- Simplificar ainda mais a UX local: remover também o wrapper shell e `dev-global`, deixando apenas `make dev` com `./bin/compozy daemon start --foreground --web-dev-proxy http://127.0.0.1:3000`; o Vite roda separado em outro terminal.
 
 State:
 
@@ -55,6 +56,11 @@ Done:
   - adicionei `scripts/dev-web-proxy.sh`
   - `Makefile` agora chama `./bin/compozy` diretamente
   - `package.json` não precisa mais do workspace `dev/*` nem scripts de daemon dev
+- Simplifiquei mais uma vez para um único target de daemon:
+  - removi `scripts/dev-web-proxy.sh`
+  - removi `dev-global`
+  - `Makefile` mantém apenas `make dev` com a flag `--web-dev-proxy`
+  - o Vite agora é executado manualmente em outro terminal
 - Adicionei/ajustei testes:
   - `internal/api/httpapi/dev_proxy_test.go`
   - `internal/cli/daemon_commands_test.go`
@@ -70,6 +76,7 @@ Done:
 - Regenerado `bun.lock` para refletir a remoção do workspace `dev/*`; isso era necessário para `bun ci` voltar a aceitar o lockfile congelado.
 - Atualizei `docs/plans/2026-04-21-hot-reload-dev-design.md` para refletir a implementação final baseada em `./bin/compozy`.
 - Reexecutei `make verify` após o sync documental; passou novamente.
+- Reexecutei `bunx vitest run --config vitest.config.ts test/frontend-workspace-config.test.ts` e `make verify` após a simplificação final para `make dev`; ambos passaram.
 - Corrigi falhas latentes expostas pela suíte completa:
   - helper de teste do daemon agora serializa o override de `HOME`
   - testes de `internal/core/extension` agora isolam `HOME`
@@ -98,7 +105,6 @@ Working set (files/ids/commands):
 - `Makefile`
 - `package.json`
 - `bun.lock`
-- `scripts/dev-web-proxy.sh`
 - `test/frontend-workspace-config.test.ts`
 - `web/package.json`
 - `web/vite.config.ts`

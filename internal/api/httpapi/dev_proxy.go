@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/compozy/compozy/internal/api/core"
 )
 
 type devProxyHandler struct {
@@ -28,6 +30,9 @@ func newDevProxyHandler(rawTarget string) (*devProxyHandler, error) {
 				request.SetURL(target)
 				request.Out.Host = request.In.Host
 				request.SetXForwarded()
+				request.Out.Header.Del("Authorization")
+				request.Out.Header.Del("Cookie")
+				request.Out.Header.Del(core.HeaderCSRF)
 			},
 			ErrorHandler: func(writer http.ResponseWriter, _ *http.Request, err error) {
 				http.Error(

@@ -37,7 +37,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev dev-global
+.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -67,12 +67,19 @@ check-bun-version:
 		echo "Please install Bun $(BUN_VERSION) before running frontend verification"; \
 		exit 1; \
 	fi
-	@BUN_VERSION=$$($(BUNCMD) --version 2>/dev/null); \
-	if [ -z "$$BUN_VERSION" ]; then \
+	@REQUIRED_VERSION=$(BUN_VERSION); \
+	CURRENT_VERSION=$$($(BUNCMD) --version 2>/dev/null); \
+	if [ -z "$$CURRENT_VERSION" ]; then \
 		echo "$(RED)Error: Unable to determine Bun version$(NC)"; \
 		exit 1; \
+	elif CURRENT_NUM=$$(echo "$$CURRENT_VERSION" | awk -F. '{maj=$$1; min=$$2; pat=$$3; gsub(/[^0-9]/, "", maj); gsub(/[^0-9]/, "", min); gsub(/[^0-9]/, "", pat); printf "%03d%03d%03d", (maj==""?0:maj)+0, (min==""?0:min)+0, (pat==""?0:pat)+0}'); \
+	REQUIRED_NUM=$$(echo "$$REQUIRED_VERSION" | awk -F. '{maj=$$1; min=$$2; pat=$$3; gsub(/[^0-9]/, "", maj); gsub(/[^0-9]/, "", min); gsub(/[^0-9]/, "", pat); printf "%03d%03d%03d", (maj==""?0:maj)+0, (min==""?0:min)+0, (pat==""?0:pat)+0}'); \
+	[ "$$CURRENT_NUM" != "$$REQUIRED_NUM" ]; then \
+		echo "$(YELLOW)Warning: Bun version $$CURRENT_VERSION found, but $$REQUIRED_VERSION is required$(NC)"; \
+		echo "Please install Bun $$REQUIRED_VERSION before running frontend verification"; \
+		exit 1; \
 	else \
-		echo "$(GREEN)Bun version $$BUN_VERSION detected$(NC)"; \
+		echo "$(GREEN)Bun version $$CURRENT_VERSION matches $$REQUIRED_VERSION$(NC)"; \
 	fi
 
 link-skills:
@@ -151,11 +158,8 @@ verify: frontend-verify fmt lint test go-build frontend-e2e
 # -----------------------------------------------------------------------------
 # Development & Dependencies
 # -----------------------------------------------------------------------------
-dev: frontend-bootstrap go-build
-	COMPOZY_DEV_HOME="$(CURDIR)/.tmp/dev-home" bash scripts/dev-web-proxy.sh
-
-dev-global: frontend-bootstrap go-build
-	COMPOZY_DEV_HOME="$$HOME" bash scripts/dev-web-proxy.sh
+dev: go-build
+	./bin/compozy daemon start --foreground --web-dev-proxy http://127.0.0.1:3000
 
 tidy:
 	@echo "Tidying modules..."
@@ -195,8 +199,7 @@ help:
 	@echo "  make frontend-test  - Run frontend workspace tests"
 	@echo "  make frontend-build - Build frontend workspaces and restore web/dist placeholder"
 	@echo "  make frontend-e2e   - Run Playwright against the daemon-served embedded UI"
-	@echo "  make dev            - Start ./bin/compozy with an isolated daemon HOME and proxy to Vite HMR"
-	@echo "  make dev-global     - Start ./bin/compozy with your real HOME and proxy to Vite HMR"
+	@echo "  make dev            - Start ./bin/compozy with the Vite dev proxy; run `bun run --cwd web dev` separately"
 	@echo "  make test           - Run tests with race detector"
 	@echo "  make lint           - Run golangci-lint"
 	@echo "  make fmt            - Format code"

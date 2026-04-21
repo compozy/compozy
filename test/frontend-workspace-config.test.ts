@@ -36,7 +36,6 @@ describe("frontend workspace configuration", () => {
     expect(packageJSON.scripts?.build).toBe("turbo run build");
     expect(packageJSON.scripts?.typecheck).toBe("turbo run typecheck");
     expect(packageJSON.scripts?.dev).toBeUndefined();
-    expect(packageJSON.scripts?.["dev:global"]).toBeUndefined();
     expect(packageJSON.scripts?.["dev:daemon"]).toBeUndefined();
   });
 
@@ -77,15 +76,16 @@ describe("frontend workspace configuration", () => {
     });
   });
 
-  it("keeps a direct binary-based daemon entrypoint for the single-url hot reload flow", async () => {
-    const daemonDevScript = await readFile(path.join(rootDir, "scripts/dev-web-proxy.sh"), "utf8");
+  it("keeps a direct Makefile daemon entrypoint for the single-url hot reload flow", async () => {
+    const makefile = await readFile(path.join(rootDir, "Makefile"), "utf8");
     const viteConfig = await readFile(path.join(rootDir, "web/vite.config.ts"), "utf8");
 
-    expect(daemonDevScript).toContain("./bin/compozy daemon start --foreground");
-    expect(daemonDevScript).toContain("bun run --cwd web dev");
-    expect(daemonDevScript).toContain("COMPOZY_WEB_DEV_PROXY");
-    expect(daemonDevScript).toContain("COMPOZY_DAEMON_HTTP_PORT");
-    expect(daemonDevScript).toContain("COMPOZY_DEV_HOME");
+    expect(makefile).toContain("dev: go-build");
+    expect(makefile).toContain(
+      "./bin/compozy daemon start --foreground --web-dev-proxy http://127.0.0.1:3000"
+    );
+    expect(makefile).not.toContain("scripts/dev-web-proxy.sh");
+    expect(makefile).not.toContain("dev-global:");
     expect(viteConfig).toContain('host: "127.0.0.1"');
     expect(viteConfig).toContain("port: 3000");
     expect(viteConfig).toContain("strictPort: true");

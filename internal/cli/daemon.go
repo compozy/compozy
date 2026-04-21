@@ -158,15 +158,19 @@ func (s *daemonStartState) run(cmd *cobra.Command, _ []string) error {
 		mode = daemon.RunModeForeground
 	}
 
-	runOptions, err := cliDaemonRunOptionsFromEnv(mode)
+	httpPort, err := cliDaemonHTTPPortFromEnv()
 	if err != nil {
 		return withExitCode(1, err)
 	}
-	if strings.TrimSpace(s.webDevProxyTarget) != "" {
-		runOptions.WebDevProxyTarget, err = normalizeDaemonWebDevProxyTarget(s.webDevProxyTarget)
-		if err != nil {
-			return withExitCode(1, err)
-		}
+	webDevProxyTarget, err := resolveDaemonWebDevProxyTarget(s.webDevProxyTarget)
+	if err != nil {
+		return withExitCode(1, err)
+	}
+	runOptions := daemon.RunOptions{
+		Version:           version.String(),
+		HTTPPort:          httpPort,
+		Mode:              mode,
+		WebDevProxyTarget: webDevProxyTarget,
 	}
 
 	if s.foreground {
@@ -278,7 +282,7 @@ func cliDaemonRunOptionsFromEnv(mode daemon.RunMode) (daemon.RunOptions, error) 
 	if err != nil {
 		return daemon.RunOptions{}, err
 	}
-	webDevProxyTarget, err := cliDaemonWebDevProxyFromEnv()
+	webDevProxyTarget, err := resolveDaemonWebDevProxyTarget("")
 	if err != nil {
 		return daemon.RunOptions{}, err
 	}
@@ -297,6 +301,12 @@ func commandContextOrBackground(cmd *cobra.Command) context.Context {
 	return context.Background()
 }
 
+func resolveDaemonWebDevProxyTarget(flagValue string) (string, error) {
+	if strings.TrimSpace(flagValue) != "" {
+		return normalizeDaemonWebDevProxyTarget(flagValue)
+	}
+	return cliDaemonWebDevProxyFromEnv()
+}
 func cliDaemonHTTPPortFromEnv() (int, error) {
 	rawValue, ok := os.LookupEnv(daemonHTTPPortEnv)
 	if !ok {

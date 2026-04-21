@@ -259,7 +259,7 @@ func isOpenAPIOperationMethod(method string) bool {
 func getOperation(t *testing.T, spec map[string]any, routeKey string) map[string]any {
 	t.Helper()
 
-	parts := stringsSplitN(routeKey, " ", 2)
+	parts := strings.SplitN(routeKey, " ", 2)
 	if len(parts) != 2 {
 		t.Fatalf("invalid route key %q", routeKey)
 	}
@@ -269,10 +269,6 @@ func getOperation(t *testing.T, spec map[string]any, routeKey string) map[string
 	paths := getMap(t, spec, "paths")
 	pathItem := getMap(t, paths, path)
 	return getMap(t, pathItem, method)
-}
-
-func stringsSplitN(s string, sep string, n int) []string {
-	return strings.SplitN(s, sep, n)
 }
 
 func getSchema(t *testing.T, spec map[string]any, name string) map[string]any {

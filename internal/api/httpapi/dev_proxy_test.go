@@ -140,6 +140,54 @@ func TestDevProxyRoutesServeFrontendRequests(t *testing.T) {
 	}
 }
 
+func TestDevProxyRoutesStripDaemonCredentialsBeforeForwarding(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	var (
+		gotAuthorization string
+		gotCookie        string
+		gotCSRF          string
+	)
+	upstream := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		gotAuthorization = request.Header.Get("Authorization")
+		gotCookie = request.Header.Get("Cookie")
+		gotCSRF = request.Header.Get(core.HeaderCSRF)
+		writer.WriteHeader(http.StatusOK)
+		_, _ = writer.Write([]byte("ok"))
+	}))
+	t.Cleanup(upstream.Close)
+
+	engine := newDevProxyTestEngine(t, upstream.URL)
+
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/assets/app.js", http.NoBody)
+	request.Host = "example.com"
+	request.Header.Set("Authorization", "Bearer daemon-token")
+	request.Header.Set("Cookie", "compozy_session=secret; compozy_csrf=token")
+	request.Header.Set(core.HeaderCSRF, "csrf-token")
+
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf(
+			"GET /assets/app.js status = %d, want %d; body=%s",
+			response.Code,
+			http.StatusOK,
+			response.Body.String(),
+		)
+	}
+	if gotAuthorization != "" || gotCookie != "" || gotCSRF != "" {
+		t.Fatalf(
+			"forwarded credentials = authorization=%q cookie=%q csrf=%q, want all empty",
+			gotAuthorization,
+			gotCookie,
+			gotCSRF,
+		)
+	}
+}
+
 func TestDevProxyRoutesBypassAPIAndUnsupportedMethods(t *testing.T) {
 	t.Parallel()
 
