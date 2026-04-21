@@ -32,6 +32,10 @@ export function toTransportError(error: unknown): TransportErrorShape | undefine
   const code = Reflect.get(error, "code");
   const message = Reflect.get(error, "message");
   if (typeof code !== "string" || typeof message !== "string") {
+    const cause = Reflect.get(error, "cause");
+    if (cause !== undefined && cause !== error) {
+      return toTransportError(cause);
+    }
     return undefined;
   }
   const request_id = Reflect.get(error, "request_id");

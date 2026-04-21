@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Workflow Task Board and Task Detail Surfaces
 type: frontend
 complexity: high
@@ -33,11 +33,11 @@ This task implements the workflow-oriented task board and task detail views desc
 </requirements>
 
 ## Subtasks
-- [ ] 11.1 Build the workflow task-board route and the task-detail route structure.
-- [ ] 11.2 Render the board/list view using the daemon's task board payload.
-- [ ] 11.3 Render task detail metadata, dependency context, and related run information.
-- [ ] 11.4 Integrate workflow/task navigation cleanly into the shared shell and workspace context.
-- [ ] 11.5 Add route and component tests covering success, empty, and invalid task states.
+- [x] 11.1 Build the workflow task-board route and the task-detail route structure.
+- [x] 11.2 Render the board/list view using the daemon's task board payload.
+- [x] 11.3 Render task detail metadata, dependency context, and related run information.
+- [x] 11.4 Integrate workflow/task navigation cleanly into the shared shell and workspace context.
+- [x] 11.5 Add route and component tests covering success, empty, and invalid task states.
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See the TechSpec sections "Route Model", "Backend Read Models", "Data Flow", and
 
 ## Tests
 - Unit tests:
-  - [ ] Task-board and task-detail routes load the expected payloads through the typed client.
-  - [ ] Workflow/task view models render status, dependencies, and related-run data correctly.
-  - [ ] Invalid or stale task identifiers surface clear not-found/error states.
+  - [x] Task-board and task-detail routes load the expected payloads through the typed client.
+  - [x] Workflow/task view models render status, dependencies, and related-run data correctly.
+  - [x] Invalid or stale task identifiers surface clear not-found/error states.
 - Integration tests:
-  - [ ] `/workflows/$slug/tasks` renders the daemon task board correctly.
-  - [ ] `/workflows/$slug/tasks/$taskId` renders detail and related-run context correctly.
-  - [ ] Workflow/task navigation works correctly from the shell and workflow inventory surface.
+  - [x] `/workflows/$slug/tasks` renders the daemon task board correctly.
+  - [x] `/workflows/$slug/tasks/$taskId` renders detail and related-run context correctly.
+  - [x] Workflow/task navigation works correctly from the shell and workflow inventory surface.
 - Test coverage target: >=80%
 - All tests must pass
 

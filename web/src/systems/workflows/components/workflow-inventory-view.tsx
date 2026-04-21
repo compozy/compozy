@@ -11,6 +11,7 @@ import {
   SurfaceCardHeader,
   SurfaceCardTitle,
 } from "@compozy/ui";
+import { Link } from "@tanstack/react-router";
 
 import type { WorkflowSummary } from "../types";
 
@@ -178,7 +179,16 @@ function WorkflowRow({
         <SurfaceCardHeader>
           <div>
             <SurfaceCardEyebrow>Workflow</SurfaceCardEyebrow>
-            <SurfaceCardTitle>{workflow.slug}</SurfaceCardTitle>
+            <SurfaceCardTitle>
+              <Link
+                className="text-foreground hover:underline"
+                data-testid={`workflow-open-${workflow.slug}`}
+                params={{ slug: workflow.slug }}
+                to="/workflows/$slug/tasks"
+              >
+                {workflow.slug}
+              </Link>
+            </SurfaceCardTitle>
             <SurfaceCardDescription>
               {workflow.last_synced_at
                 ? `Last synced ${new Date(workflow.last_synced_at).toLocaleString()}`
@@ -188,6 +198,14 @@ function WorkflowRow({
           <StatusBadge tone="info">active</StatusBadge>
         </SurfaceCardHeader>
         <SurfaceCardBody className="flex flex-wrap gap-2">
+          <Link
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-border bg-black/10 px-3 py-1 text-sm text-foreground hover:underline"
+            data-testid={`workflow-view-board-${workflow.slug}`}
+            params={{ slug: workflow.slug }}
+            to="/workflows/$slug/tasks"
+          >
+            Open task board
+          </Link>
           <Button
             data-testid={`workflow-sync-${workflow.slug}`}
             disabled={pendingSync}
