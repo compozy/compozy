@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronsUpDown, LayoutDashboard, ListOrdered } from "lucide-react";
+import { Activity, ChevronsUpDown, LayoutDashboard, ListOrdered } from "lucide-react";
 
 import {
   AppShell,
@@ -50,6 +50,13 @@ const acrossWorkflowsNav: NavEntry[] = [
     matchPrefix: "/workflows",
     icon: <ListOrdered className="size-3.5" aria-hidden />,
     testId: "app-nav-workflows",
+  },
+  {
+    href: "/runs",
+    label: "Runs",
+    matchPrefix: "/runs",
+    icon: <Activity className="size-3.5" aria-hidden />,
+    testId: "app-nav-runs",
   },
 ];
 

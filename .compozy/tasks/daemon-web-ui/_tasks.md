@@ -13,7 +13,7 @@
 | 07 | Active Workspace, Browser Security, and SSE Compatibility | completed | critical | task_06 |
 | 08 | Embedded SPA Serving and HTTP Fallback | completed | high | task_01, task_07 |
 | 09 | Web App Shell, Workspace Selection, and Dashboard | completed | high | task_02, task_03, task_06, task_07 |
-| 10 | Runs Console and Operational Run Controls | pending | high | task_02, task_03, task_06, task_07 |
+| 10 | Runs Console and Operational Run Controls | completed | high | task_02, task_03, task_06, task_07 |
 | 11 | Workflow Task Board and Task Detail Surfaces | pending | high | task_02, task_03, task_06, task_07 |
 | 12 | Reviews, Spec, and Memory Read Surfaces | pending | high | task_02, task_03, task_06, task_07 |
 | 13 | Storybook, MSW, and Mocked Route-State Coverage | pending | high | task_03, task_09, task_10, task_11, task_12 |

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Runs Console and Operational Run Controls
 type: frontend
 complexity: high
@@ -33,11 +33,11 @@ This task implements the run-centric operator surfaces of the daemon web UI, inc
 </requirements>
 
 ## Subtasks
-- [ ] 10.1 Build the run list and run detail routes with typed loader/query behavior.
-- [ ] 10.2 Implement live run streaming with reconnect and overflow handling.
-- [ ] 10.3 Add the supported operator actions for starting and canceling runs from the browser.
-- [ ] 10.4 Render loading, degraded, empty, and error states for run-centric views.
-- [ ] 10.5 Add route, hook, and integration tests for run rendering and stream behavior.
+- [x] 10.1 Build the run list and run detail routes with typed loader/query behavior.
+- [x] 10.2 Implement live run streaming with reconnect and overflow handling.
+- [x] 10.3 Add the supported operator actions for starting and canceling runs from the browser.
+- [x] 10.4 Render loading, degraded, empty, and error states for run-centric views.
+- [x] 10.5 Add route, hook, and integration tests for run rendering and stream behavior.
 
 ## Implementation Details
 
