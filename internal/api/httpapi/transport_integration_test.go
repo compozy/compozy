@@ -8,10 +8,12 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -32,6 +34,7 @@ import (
 	"github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/pkg/compozy/events"
+	webassets "github.com/compozy/compozy/web"
 )
 
 func TestHTTPAndUDSRegisterMatchingRoutes(t *testing.T) {
@@ -88,6 +91,146 @@ func TestSharedRouteRegistrationIncludesBrowserEndpoints(t *testing.T) {
 		if _, ok := routeSet[route]; !ok {
 			t.Fatalf("required route %q missing from registration", route)
 		}
+	}
+}
+
+func TestHTTPServesEmbeddedSPAAndPreservesAPI(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	daemonSvc := &fakeDaemonService{
+		status: core.DaemonStatus{
+			PID:       42,
+			Version:   "transport-test",
+			StartedAt: time.Date(2026, 4, 21, 12, 0, 0, 0, time.UTC),
+		},
+		health: core.DaemonHealth{Ready: true},
+	}
+
+	httpServer, baseURL := startHTTPServer(t, core.NewHandlers(&core.HandlerConfig{
+		TransportName: "http",
+		Daemon:        daemonSvc,
+	}))
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	statusCode, _, rootBody := mustRequest(t, http.DefaultClient, http.MethodGet, baseURL+"/", nil, nil)
+	if statusCode != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", statusCode, http.StatusOK)
+	}
+	assertSPAShell(t, rootBody)
+
+	assetPath, expectedAsset := firstEmbeddedBundleAsset(t)
+	statusCode, _, assetBody := mustRequest(t, http.DefaultClient, http.MethodGet, baseURL+assetPath, nil, nil)
+	if statusCode != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want %d", assetPath, statusCode, http.StatusOK)
+	}
+	if !bytes.Equal(assetBody, expectedAsset) {
+		t.Fatalf("GET %s body mismatch", assetPath)
+	}
+
+	statusCode, _, apiBody := mustRequest(t, http.DefaultClient, http.MethodGet, baseURL+"/api/daemon/status", nil, nil)
+	if statusCode != http.StatusOK {
+		t.Fatalf("GET /api/daemon/status status = %d, want %d", statusCode, http.StatusOK)
+	}
+	if !bytes.Contains(apiBody, []byte(`"pid":42`)) {
+		t.Fatalf("daemon status body = %s, want pid field", apiBody)
+	}
+}
+
+func TestHTTPFallbackServesDeepLinksWithoutShadowingAPI(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	httpServer, baseURL := startHTTPServer(t, core.NewHandlers(&core.HandlerConfig{
+		TransportName: "http",
+		Daemon: &fakeDaemonService{
+			status: core.DaemonStatus{PID: 42},
+			health: core.DaemonHealth{Ready: true},
+		},
+	}))
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	statusCode, _, deepLinkBody := mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/workflows/daemon/tasks/task_08",
+		nil,
+		nil,
+	)
+	if statusCode != http.StatusOK {
+		t.Fatalf("GET deep link status = %d, want %d", statusCode, http.StatusOK)
+	}
+	assertSPAShell(t, deepLinkBody)
+
+	statusCode, _, apiBody := mustRequest(t, http.DefaultClient, http.MethodGet, baseURL+"/api/missing", nil, nil)
+	if statusCode != http.StatusNotFound {
+		t.Fatalf("GET /api/missing status = %d, want %d", statusCode, http.StatusNotFound)
+	}
+	assertNotSPAHTML(t, apiBody)
+
+	statusCode, _, assetBody := mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/assets/does-not-exist.js",
+		nil,
+		nil,
+	)
+	if statusCode != http.StatusNotFound {
+		t.Fatalf("GET missing asset status = %d, want %d", statusCode, http.StatusNotFound)
+	}
+	assertNotSPAHTML(t, assetBody)
+}
+
+func TestUDSRemainsAPIOnlyWhileHTTPServesSPA(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	handlers := core.NewHandlers(&core.HandlerConfig{
+		TransportName: "transport",
+		Daemon: &fakeDaemonService{
+			status: core.DaemonStatus{PID: 42},
+			health: core.DaemonHealth{Ready: true},
+		},
+	})
+
+	httpServer, baseURL := startHTTPServer(t, handlers)
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	socketPath := newShortSocketPath(t)
+	udsServer, udsClient := startUDSServer(t, handlers, socketPath)
+	defer func() {
+		_ = udsServer.Shutdown(context.Background())
+	}()
+
+	statusCode, _, httpRootBody := mustRequest(t, http.DefaultClient, http.MethodGet, baseURL+"/", nil, nil)
+	if statusCode != http.StatusOK {
+		t.Fatalf("HTTP GET / status = %d, want %d", statusCode, http.StatusOK)
+	}
+	assertSPAShell(t, httpRootBody)
+
+	statusCode, _, udsRootBody := mustRequest(t, udsClient, http.MethodGet, "http://unix/", nil, nil)
+	if statusCode != http.StatusNotFound {
+		t.Fatalf("UDS GET / status = %d, want %d", statusCode, http.StatusNotFound)
+	}
+	assertNotSPAHTML(t, udsRootBody)
+
+	statusCode, _, udsAPIBody := mustRequest(t, udsClient, http.MethodGet, "http://unix/api/daemon/status", nil, nil)
+	if statusCode != http.StatusOK {
+		t.Fatalf("UDS GET /api/daemon/status status = %d, want %d", statusCode, http.StatusOK)
+	}
+	if !bytes.Contains(udsAPIBody, []byte(`"pid":42`)) {
+		t.Fatalf("UDS daemon status body = %s, want pid field", udsAPIBody)
 	}
 }
 
@@ -2173,6 +2316,54 @@ func assertTransportCode(t *testing.T, body []byte, want string) {
 	if payload.Code != want {
 		t.Fatalf("payload.Code = %q, want %q (body=%s)", payload.Code, want, body)
 	}
+}
+
+func assertSPAShell(t *testing.T, body []byte) {
+	t.Helper()
+
+	if !bytes.Contains(body, []byte(`<div id="app"></div>`)) {
+		t.Fatalf("body = %q, want SPA shell", body)
+	}
+}
+
+func assertNotSPAHTML(t *testing.T, body []byte) {
+	t.Helper()
+
+	if bytes.Contains(body, []byte("<!doctype html>")) || bytes.Contains(body, []byte(`<div id="app"></div>`)) {
+		t.Fatalf("body = %q, want non-SPA response", body)
+	}
+}
+
+func firstEmbeddedBundleAsset(t *testing.T) (string, []byte) {
+	t.Helper()
+
+	staticFS, err := fs.Sub(webassets.DistFS, "dist")
+	if err != nil {
+		t.Fatalf("fs.Sub(dist) error = %v", err)
+	}
+
+	entries, err := fs.ReadDir(staticFS, "assets")
+	if err != nil {
+		t.Fatalf("ReadDir(assets) error = %v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		switch path.Ext(entry.Name()) {
+		case ".js", ".css":
+			assetPath := path.Join("assets", entry.Name())
+			assetBody, err := fs.ReadFile(staticFS, assetPath)
+			if err != nil {
+				t.Fatalf("ReadFile(%s) error = %v", assetPath, err)
+			}
+			return "/" + assetPath, assetBody
+		}
+	}
+
+	t.Fatal("expected at least one embedded .js or .css asset")
+	return "", nil
 }
 
 func readSSELinesUntil(

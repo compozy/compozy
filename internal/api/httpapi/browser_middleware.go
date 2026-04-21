@@ -19,6 +19,8 @@ import (
 
 const csrfCookieLifetime = 24 * time.Hour
 
+const localhostHost = "localhost"
+
 func (s *Server) hostValidationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !s.hostAllowed(c.Request.Host) {
@@ -271,17 +273,17 @@ func (s *Server) hostAllowed(authority string) bool {
 
 func (s *Server) allowedHostnames() map[string]bool {
 	allowed := map[string]bool{
-		"localhost": true,
-		defaultHost: true,
+		localhostHost: true,
+		defaultHost:   true,
 	}
 	bindHost := normalizeAuthorityHost(s.host)
 	if bindHost != "" {
 		allowed[bindHost] = true
-		if bindHost == "localhost" {
+		if bindHost == localhostHost {
 			allowed[defaultHost] = true
 		}
 		if ip := net.ParseIP(bindHost); ip != nil && ip.IsLoopback() {
-			allowed["localhost"] = true
+			allowed[localhostHost] = true
 		}
 	}
 	return allowed

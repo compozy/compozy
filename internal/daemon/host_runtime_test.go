@@ -1,10 +1,14 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -62,7 +66,35 @@ func TestPrepareHostRuntimeStartsTransportsAndProbeReady(t *testing.T) {
 		return info.State == ReadyStateReady && info.HTTPPort > 0 && ProbeReady(context.Background(), info) == nil
 	})
 
-	if err := closeHostRuntime(runtime, result.Host); err != nil {
+	rootRequest, err := http.NewRequestWithContext(
+		t.Context(),
+		http.MethodGet,
+		"http://127.0.0.1:"+strconv.Itoa(result.Host.Info().HTTPPort)+"/",
+		http.NoBody,
+	)
+	if err != nil {
+		t.Fatalf("NewRequestWithContext(/) error = %v", err)
+	}
+	rootResponse, err := (&http.Client{Timeout: time.Second}).Do(rootRequest)
+	if err != nil {
+		t.Fatalf("GET / error = %v", err)
+	}
+	rootBody, err := io.ReadAll(rootResponse.Body)
+	if err != nil {
+		_ = rootResponse.Body.Close()
+		t.Fatalf("ReadAll(/) error = %v", err)
+	}
+	if err := rootResponse.Body.Close(); err != nil {
+		t.Fatalf("Close(/) body error = %v", err)
+	}
+	if rootResponse.StatusCode != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", rootResponse.StatusCode, http.StatusOK)
+	}
+	if !bytes.Contains(rootBody, []byte(`<div id="app"></div>`)) {
+		t.Fatalf("GET / body = %q, want SPA shell", rootBody)
+	}
+
+	if err := closeHostRuntime(context.Background(), runtime, result.Host); err != nil {
 		t.Fatalf("closeHostRuntime() error = %v", err)
 	}
 	if _, err := ReadInfo(paths.InfoPath); !errors.Is(err, os.ErrNotExist) {
