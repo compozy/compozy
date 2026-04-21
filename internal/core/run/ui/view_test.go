@@ -659,14 +659,12 @@ func TestRenderTimelinePanelSkipsViewportSetContentOnCacheHit(t *testing.T) {
 	m := newPopulatedUIModelForTest(t, tea.WindowSizeMsg{Width: 120, Height: 30})
 	job := &m.jobs[0]
 
-	previous := setTranscriptViewportContent
-	t.Cleanup(func() {
-		setTranscriptViewportContent = previous
-	})
-
 	calls := 0
-	setTranscriptViewportContent = func(vp *viewport.Model, content string) {
-		calls++
+	previous := m.setTranscriptViewportContent
+	m.setTranscriptViewportContent = func(vp *viewport.Model, content string) {
+		if vp == &m.transcriptViewport {
+			calls++
+		}
 		previous(vp, content)
 	}
 
@@ -679,6 +677,75 @@ func TestRenderTimelinePanelSkipsViewportSetContentOnCacheHit(t *testing.T) {
 	_ = m.renderTimelinePanel(job, m.timelineWidth)
 	if calls != 0 {
 		t.Fatalf("expected cache hit to skip transcript SetContent, got %d calls", calls)
+	}
+}
+
+func TestRenderTimelinePanelRemountsCachedTranscriptWhenSelectedJobChanges(t *testing.T) {
+	t.Parallel()
+
+	m := newUIModel(2)
+	m.handleJobQueued(&jobQueuedMsg{
+		Index:     0,
+		CodeFile:  "task_01",
+		CodeFiles: []string{"task_01"},
+		Issues:    1,
+		SafeName:  "task_01-safe",
+	})
+	m.handleJobQueued(&jobQueuedMsg{
+		Index:     1,
+		CodeFile:  "task_02",
+		CodeFiles: []string{"task_02"},
+		Issues:    1,
+		SafeName:  "task_02-safe",
+	})
+	m.handleWindowSize(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m.handleJobUpdate(jobUpdateMsg{
+		Index: 0,
+		Snapshot: buildSnapshotWithEntries(t, TranscriptEntry{
+			ID:     "assistant-1",
+			Kind:   transcriptEntryAssistantMessage,
+			Title:  "Assistant",
+			Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: "first transcript"})},
+		}),
+	})
+	m.handleJobUpdate(jobUpdateMsg{
+		Index: 1,
+		Snapshot: buildSnapshotWithEntries(t, TranscriptEntry{
+			ID:     "assistant-2",
+			Kind:   transcriptEntryAssistantMessage,
+			Title:  "Assistant",
+			Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: "second transcript"})},
+		}),
+	})
+	m.selectedJob = 0
+
+	var mounted []string
+	previous := m.setTranscriptViewportContent
+	m.setTranscriptViewportContent = func(vp *viewport.Model, content string) {
+		if vp == &m.transcriptViewport {
+			mounted = append(mounted, xansi.Strip(content))
+		}
+		previous(vp, content)
+	}
+
+	_ = m.renderTimelinePanel(&m.jobs[0], m.timelineWidth)
+	mounted = mounted[:0]
+
+	_ = m.buildTimelineContent(&m.jobs[1], panelContentWidth(m.timelineWidth))
+	m.selectedJob = 1
+
+	panel := normalizedStrippedPanelText(m.renderTimelinePanel(&m.jobs[1], m.timelineWidth))
+	if got := len(mounted); got != 1 {
+		t.Fatalf("expected selected-job switch to remount cached transcript content once, got %d", got)
+	}
+	if !strings.Contains(mounted[0], "second transcript") || strings.Contains(mounted[0], "first transcript") {
+		t.Fatalf("expected remounted transcript to belong to job 2, got %q", mounted[0])
+	}
+	if !strings.Contains(panel, "second transcript") {
+		t.Fatalf("expected selected panel to show job 2 transcript, got %q", panel)
+	}
+	if strings.Contains(panel, "first transcript") {
+		t.Fatalf("expected selected panel to stop showing job 1 transcript, got %q", panel)
 	}
 }
 

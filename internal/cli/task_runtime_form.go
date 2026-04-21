@@ -38,7 +38,7 @@ type startTaskRuntimeForm struct {
 	baseRuntime   string
 }
 
-func collectStartTaskRuntimeForm(_ *cobra.Command, state *commandState) error {
+func collectStartTaskRuntimeForm(cmd *cobra.Command, state *commandState) error {
 	if state == nil || state.kind != commandKindStart {
 		return nil
 	}
@@ -51,6 +51,7 @@ func collectStartTaskRuntimeForm(_ *cobra.Command, state *commandState) error {
 		return fmt.Errorf("task runtime form canceled or error: %w", err)
 	}
 	form.apply(state)
+	markInputFlagChanged(cmd, "task-runtime")
 	return nil
 }
 

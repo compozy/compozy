@@ -395,7 +395,11 @@ func remoteBootstrapSummaryMsgs(index int, summary *apicore.RunJobSummary) []uiM
 	if snapshot := summary.Session; len(snapshot.Entries) > 0 || len(snapshot.Plan.Entries) > 0 ||
 		snapshot.Session.Status != "" || snapshot.Session.CurrentModeID != "" ||
 		len(snapshot.Session.AvailableCommands) > 0 {
-		msgs = append(msgs, jobUpdateMsg{Index: index, Snapshot: snapshot})
+		msgs = append(msgs, jobUpdateMsg{
+			Index:             index,
+			Snapshot:          snapshot,
+			HydrateTranslator: true,
+		})
 	}
 	if usage := usageFromSnapshot(summary.Usage); usage.Total() > 0 {
 		msgs = append(msgs, usageUpdateMsg{Index: index, Usage: usage})

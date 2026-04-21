@@ -117,6 +117,7 @@
         ".agents/skills/**",
         ".compozy/tasks/**",
         ".compozy/runs/**",
+        "docs/design/**",
         "skills/**"
     ]
 }

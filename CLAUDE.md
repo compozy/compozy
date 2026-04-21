@@ -144,22 +144,33 @@ Scan the task description and target files to determine which domains are involv
 - **Task completion** keywords: done, complete, finished, ship
 - **Architecture audit** keywords: architecture, dead code, code smell, anti-pattern, duplication
 - **Creative / new features** keywords: new, feature, design, add, create, implement
+- **Frontend / React** keywords: react, component, jsx, tsx, hook, props, state, render, virtual DOM
+- **Frontend stack** keywords: shadcn, tailwind, tanstack, router, query, vitest, storybook, zod, zustand, vite, ai-sdk
+- **TypeScript** keywords: typescript, type, generic, interface, utility type, tsx, ts
+- **UI / UX design** keywords: design, layout, spacing, typography, color, visual, hierarchy, mockup, interface, minimalist, redesign, logo, brand
 
 ### Step 2: Activate All Matching Skills
 
 Use the `Skill` tool to activate every skill that matches the identified domains:
 
-| Domain                  | Required Skills                           | Conditional Skills      |
-| ----------------------- | ----------------------------------------- | ----------------------- |
-| Go / Runtime            | `golang-pro`                              | `find-docs`             |
-| Config                  | `golang-pro`                              |                         |
-| Logging                 | `golang-pro`                              |                         |
-| Bug fix                 | `systematic-debugging` + `no-workarounds` | `testing-anti-patterns` |
-| Writing tests           | `testing-anti-patterns` + `golang-pro`    |                         |
-| Task completion         | `cy-final-verify`                         |                         |
-| Architecture audit      | `architectural-analysis`                  | `adversarial-review`    |
-| Creative / new features | `brainstorming`                           |                         |
-| Git rebase/conflicts    | `git-rebase`                              |                         |
+| Domain                  | Required Skills                                                                 | Conditional Skills                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Go / Runtime            | `golang-pro`                                                                    | `find-docs`                                                                          |
+| Config                  | `golang-pro`                                                                    |                                                                                      |
+| Logging                 | `golang-pro`                                                                    |                                                                                      |
+| Bug fix                 | `systematic-debugging` + `no-workarounds`                                       | `testing-anti-patterns`                                                              |
+| Writing tests           | `testing-anti-patterns` + `golang-pro`                                          | `vitest` (frontend)                                                                  |
+| Task completion         | `cy-final-verify`                                                               |                                                                                      |
+| Architecture audit      | `architectural-analysis`                                                        | `adversarial-review`                                                                 |
+| Creative / new features | `brainstorming`                                                                 |                                                                                      |
+| Git rebase/conflicts    | `git-rebase`                                                                    |                                                                                      |
+| Frontend / React        | `react` + `typescript-advanced`                                                 | `vercel-react-best-practices`, `vercel-composition-patterns`, `app-renderer-systems` |
+| shadcn / Tailwind UI    | `shadcn` + `shadcn-ui` + `tailwindcss`                                          | `storybook-stories`                                                                  |
+| TanStack stack          | `tanstack` + `tanstack-query-best-practices` + `tanstack-router-best-practices` | `tanstack-start-best-practices`                                                      |
+| Frontend state / schema | `zustand` + `zod`                                                               |                                                                                      |
+| Frontend testing        | `vitest` + `testing-anti-patterns`                                              | `storybook-stories`                                                                  |
+| AI-powered UI           | `ai-sdk`                                                                        | `react`                                                                              |
+| UI / UX design          | `frontend-design` + `design-taste-frontend` + `interface-design`                | `minimalist-ui`, `redesign-existing-projects`, `tech-logos`, `ubs`                   |
 
 ### Step 3: Verify Before Completion
 

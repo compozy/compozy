@@ -384,13 +384,9 @@ func TestHandleClockTickSkipsSidebarRefreshWhenIdleAndClean(t *testing.T) {
 	m.refreshSidebarContent()
 	m.sidebarDirty = false
 
-	previous := setSidebarViewportContent
-	t.Cleanup(func() {
-		setSidebarViewportContent = previous
-	})
-
 	calls := 0
-	setSidebarViewportContent = func(vp *viewport.Model, content string) {
+	previous := m.setSidebarViewportContent
+	m.setSidebarViewportContent = func(vp *viewport.Model, content string) {
 		calls++
 		previous(vp, content)
 	}

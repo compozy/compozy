@@ -78,6 +78,15 @@ type uiJob struct {
 	sidebarCacheValid    bool
 }
 
+type timelineMountState struct {
+	jobIndex          int
+	width             int
+	revision          int
+	selectedEntry     int
+	expansionRevision int
+	valid             bool
+}
+
 type sidebarRowCacheKey struct {
 	selected       bool
 	width          int
@@ -141,8 +150,13 @@ type jobFinishedMsg struct {
 }
 
 type jobUpdateMsg struct {
-	Index    int
-	Snapshot SessionViewSnapshot
+	Index             int
+	Snapshot          SessionViewSnapshot
+	UpdateKind        model.SessionUpdateKind
+	ToolCallID        string
+	ToolCallState     model.ToolCallState
+	SessionStatus     model.SessionStatus
+	HydrateTranslator bool
 }
 
 type drainMsg struct{}
