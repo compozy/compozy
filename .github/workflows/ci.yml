@@ -22,11 +22,10 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Detect file changes to conditionally run jobs
   changes:
     runs-on: ubuntu-latest
     outputs:
-      backend: ${{ steps.filter.outputs.backend }}
+      verify: ${{ steps.filter.outputs.verify }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,23 +36,35 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            backend:
+            verify:
               - '**/*.go'
               - 'go.mod'
               - 'go.sum'
               - 'Makefile'
+              - '.bun-version'
+              - 'bun.lock'
+              - 'package.json'
+              - 'packages/ui/**'
+              - 'web/**'
+              - 'openapi/**'
+              - 'scripts/**'
+              - 'tsconfig.json'
+              - 'tsconfig.base.json'
+              - 'turbo.json'
               - '.goreleaser.yml'
+              - '.github/actions/setup-bun/**'
+              - '.github/actions/setup-go/**'
+              - '.github/workflows/ci.yml'
               - 'cmd/**'
               - 'command/**'
               - 'internal/**'
               - 'skills/**'
 
-  # Go backend testing
-  test:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.verify == 'true'
 
     steps:
       - name: Checkout code
@@ -65,6 +76,13 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           install-tools: "true"
 
+      - name: Set up Bun with caching
+        uses: ./.github/actions/setup-bun
+
+      - name: Install Playwright browser
+        working-directory: web
+        run: bunx playwright install --with-deps chromium
+
       - name: Run verification pipeline
         run: make verify
         continue-on-error: false
@@ -75,8 +93,9 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results-go-${{ env.GO_VERSION }}
+          name: verify-results-go-${{ env.GO_VERSION }}
           path: |
             coverage.out
             test-results.xml
+            .tmp/playwright/**
           retention-days: 7

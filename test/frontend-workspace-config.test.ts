@@ -23,6 +23,8 @@ interface PackageJSON {
 interface TsConfig {
   extends?: string;
   compilerOptions?: Record<string, unknown>;
+  include?: string[];
+  exclude?: string[];
 }
 
 describe("frontend workspace configuration", () => {
@@ -48,12 +50,22 @@ describe("frontend workspace configuration", () => {
   it("keeps both new workspaces on the repository strict tsconfig base", async () => {
     const webTSConfig = await readJSON<TsConfig>("web/tsconfig.json");
     const uiTSConfig = await readJSON<TsConfig>("packages/ui/tsconfig.json");
+    const uiBuildTSConfig = await readJSON<TsConfig>("packages/ui/tsconfig.build.json");
     const uiPackage = await readJSON<PackageJSON>("packages/ui/package.json");
 
     expect(webTSConfig.extends).toBe("../tsconfig.base.json");
     expect(uiTSConfig.extends).toBe("../../tsconfig.base.json");
+    expect(uiBuildTSConfig.extends).toBe("./tsconfig.json");
     expect(webTSConfig.compilerOptions?.strict).toBe(true);
     expect(uiTSConfig.compilerOptions?.strict).toBe(true);
+    expect(uiBuildTSConfig.include).toEqual(["src/**/*.ts", "src/**/*.tsx"]);
+    expect(uiBuildTSConfig.exclude).toEqual([
+      "tests",
+      ".storybook",
+      "dist",
+      "node_modules",
+      "coverage",
+    ]);
     expect(uiPackage.exports).toEqual({
       ".": "./src/index.ts",
       "./tokens.css": "./src/tokens.css",

@@ -57,7 +57,8 @@ func (s *transportTaskService) ListWorkflows(
 		return nil, err
 	}
 	rows, err := s.globalDB.ListWorkflows(ctx, globaldb.ListWorkflowsOptions{
-		WorkspaceID: workspaceRow.ID,
+		WorkspaceID:     workspaceRow.ID,
+		IncludeArchived: true,
 	})
 	if err != nil {
 		return nil, err

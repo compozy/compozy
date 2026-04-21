@@ -11,6 +11,7 @@
         "build-storybook": "storybook build",
         "preview": "vite preview",
         "test": "bun run codegen-check && vitest run --config vitest.config.ts",
+        "test:e2e": "playwright test --config playwright.config.ts",
         "typecheck": "bun run codegen-check && tsc -p tsconfig.json --noEmit"
     },
     "dependencies": {
@@ -29,6 +30,7 @@
         "zustand": "^5.0.11"
     },
     "devDependencies": {
+        "@playwright/test": "^1.55.0",
         "@storybook/addon-a11y": "^10.3.5",
         "@storybook/addon-docs": "^10.3.5",
         "@storybook/addon-themes": "^10.3.5",

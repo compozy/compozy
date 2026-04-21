@@ -898,7 +898,7 @@ func (m *RunManager) resolveWorkflowContext(
 	workspaceRef string,
 	workflowSlug string,
 ) (globaldb.Workspace, *string, workspacecfg.ProjectConfig, error) {
-	workspaceRow, err := m.globalDB.ResolveOrRegister(ctx, workspaceRef)
+	workspaceRow, err := resolveWorkspaceReference(ctx, m.globalDB, workspaceRef)
 	if err != nil {
 		return globaldb.Workspace{}, nil, workspacecfg.ProjectConfig{}, err
 	}

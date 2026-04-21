@@ -1383,6 +1383,20 @@ func TestRunManagerEnsureWorkflowIdentityValidatesAndReusesRows(t *testing.T) {
 	if workflowID == nil || *workflowID != *firstID {
 		t.Fatalf("workflowID = %v, want %v", workflowID, firstID)
 	}
+	workspaceByID, workflowIDByID, _, err := env.manager.resolveWorkflowContext(
+		context.Background(),
+		workspace.ID,
+		env.workflowSlug,
+	)
+	if err != nil {
+		t.Fatalf("resolveWorkflowContext(workspace id) error = %v", err)
+	}
+	if workspaceByID.ID != workspace.ID {
+		t.Fatalf("workspaceByID.ID = %q, want %q", workspaceByID.ID, workspace.ID)
+	}
+	if workflowIDByID == nil || *workflowIDByID != *firstID {
+		t.Fatalf("workflowIDByID = %v, want %v", workflowIDByID, firstID)
+	}
 	if projectCfg != (workspacecfg.ProjectConfig{}) {
 		t.Fatalf("projectCfg = %#v, want zero-value defaults", projectCfg)
 	}

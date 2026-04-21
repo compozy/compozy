@@ -138,6 +138,13 @@ func TestTaskTransportServiceWorkflowReadsStartRunAndUnavailableBranches(t *test
 	if !archiveResult.Archived {
 		t.Fatalf("Archive().Archived = %v, want true", archiveResult.Archived)
 	}
+	workflowsAfterArchive, err := service.ListWorkflows(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ListWorkflows(after archive) error = %v", err)
+	}
+	if len(workflowsAfterArchive) != 1 || workflowsAfterArchive[0].ArchivedAt == nil {
+		t.Fatalf("unexpected workflows after archive: %#v", workflowsAfterArchive)
+	}
 
 	nilDBService := newTransportTaskService(nil, env.manager)
 	if _, err := nilDBService.ListWorkflows(context.Background(), env.workspaceRoot); err == nil ||

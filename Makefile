@@ -6,6 +6,8 @@
 # -----------------------------------------------------------------------------
 GOCMD=$(shell which go)
 GOVERSION ?= $(shell awk '/^go /{print $$2}' go.mod 2>/dev/null || echo "1.26")
+BUN_VERSION ?= $(shell cat .bun-version 2>/dev/null || echo "1.3.11")
+BUNCMD=$(shell which bun)
 GOBUILD=$(GOCMD) build
 GOTEST=$(GOCMD) test
 GOFMT=gofmt -s -w
@@ -35,7 +37,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version setup link-skills build-extension-sdks publish-extension-sdks
+.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -58,6 +60,21 @@ check-go-version:
 		echo "$(GREEN)Go version $$GO_VERSION is compatible$(NC)"; \
 	fi
 
+check-bun-version:
+	@echo "Checking Bun version..."
+	@if [ -z "$(BUNCMD)" ]; then \
+		echo "$(RED)Error: Bun is not available$(NC)"; \
+		echo "Please install Bun $(BUN_VERSION) before running frontend verification"; \
+		exit 1; \
+	fi
+	@BUN_VERSION=$$($(BUNCMD) --version 2>/dev/null); \
+	if [ -z "$$BUN_VERSION" ]; then \
+		echo "$(RED)Error: Unable to determine Bun version$(NC)"; \
+		exit 1; \
+	else \
+		echo "$(GREEN)Bun version $$BUN_VERSION detected$(NC)"; \
+	fi
+
 link-skills:
 	@bash scripts/link-skills.sh
 
@@ -73,7 +90,9 @@ clean:
 	rm -rf $(BINARY_DIR)/
 	$(GOCMD) clean
 
-build: check-go-version
+build: frontend-build go-build
+
+go-build: check-go-version
 	mkdir -p $(BINARY_DIR)
 	$(GOBUILD) -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(BINARY_NAME) ./cmd/compozy
 	chmod +x $(BINARY_DIR)/$(BINARY_NAME)
@@ -101,9 +120,32 @@ fmt:
 	@echo "Formatting completed successfully"
 
 # -----------------------------------------------------------------------------
+# Frontend Verification
+# -----------------------------------------------------------------------------
+frontend-bootstrap: check-bun-version
+	$(BUNCMD) run frontend:bootstrap
+
+frontend-lint: frontend-bootstrap
+	$(BUNCMD) run frontend:lint
+
+frontend-typecheck: frontend-bootstrap
+	$(BUNCMD) run frontend:typecheck
+
+frontend-test: frontend-bootstrap
+	$(BUNCMD) run frontend:test
+
+frontend-build: frontend-bootstrap
+	$(BUNCMD) run frontend:build
+
+frontend-e2e: frontend-build go-build
+	$(BUNCMD) run frontend:e2e
+
+frontend-verify: frontend-lint frontend-typecheck frontend-test frontend-build
+
+# -----------------------------------------------------------------------------
 # Verification Pipeline (BLOCKING GATE for any change)
 # -----------------------------------------------------------------------------
-verify: fmt lint test build
+verify: frontend-verify fmt lint test go-build frontend-e2e
 	@echo "$(GREEN)All verification checks passed$(NC)"
 
 # -----------------------------------------------------------------------------
@@ -141,10 +183,16 @@ help:
 	@echo "  make build          - Build the compozy binary"
 	@echo "  make build-extension-sdks - Build the npm extension SDK and scaffolder packages"
 	@echo "  make install        - Build and install to GOPATH/bin"
+	@echo "  make frontend-bootstrap - Install Bun dependencies for the frontend workspaces"
+	@echo "  make frontend-lint  - Run frontend lint/format checks"
+	@echo "  make frontend-typecheck - Run frontend workspace typechecks"
+	@echo "  make frontend-test  - Run frontend workspace tests"
+	@echo "  make frontend-build - Build frontend workspaces and restore web/dist placeholder"
+	@echo "  make frontend-e2e   - Run Playwright against the daemon-served embedded UI"
 	@echo "  make test           - Run tests with race detector"
 	@echo "  make lint           - Run golangci-lint"
 	@echo "  make fmt            - Format code"
-	@echo "  make verify         - Run full verification pipeline (fmt + lint + test + build)"
+	@echo "  make verify         - Run frontend verification, Go verification, and daemon-served Playwright"
 	@echo "  make deps           - Install development dependencies"
 	@echo "  make tidy           - Tidy Go modules"
 	@echo "  make clean          - Remove build artifacts"
