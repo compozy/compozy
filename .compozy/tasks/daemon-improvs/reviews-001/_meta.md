@@ -7,5 +7,5 @@ created_at: 2026-04-21T14:38:12.486504Z
 
 ## Summary
 - Total: 31
-- Resolved: 20
-- Unresolved: 11
+- Resolved: 31
+- Unresolved: 0
