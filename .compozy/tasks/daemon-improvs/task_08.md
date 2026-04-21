@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Improvements QA plan and regression artifacts
 type: docs
 complexity: high
@@ -37,11 +37,11 @@ Generate the reusable QA planning artifacts for the daemon hardening and contrac
 
 ## Subtasks
 
-- [ ] 8.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/daemon-improvs/analysis`.
-- [ ] 8.2 Write the feature test plan with scope, risks, environments, automation strategy, and entry or exit criteria.
-- [ ] 8.3 Generate traceable test cases for transport parity, client and run-reader compatibility, lifecycle hardening, ACP fault handling, and observability flows.
-- [ ] 8.4 Build regression-suite definitions and identify the P0 or P1 flows that `/qa-execution` must run first, including explicit E2E follow-up where the harness supports it.
-- [ ] 8.5 Validate artifact completeness, traceability, and handoff readiness for `task_09`.
+- [x] 8.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/daemon-improvs/analysis`.
+- [x] 8.2 Write the feature test plan with scope, risks, environments, automation strategy, and entry or exit criteria.
+- [x] 8.3 Generate traceable test cases for transport parity, client and run-reader compatibility, lifecycle hardening, ACP fault handling, and observability flows.
+- [x] 8.4 Build regression-suite definitions and identify the P0 or P1 flows that `/qa-execution` must run first, including explicit E2E follow-up where the harness supports it.
+- [x] 8.5 Validate artifact completeness, traceability, and handoff readiness for `task_09`.
 
 ## Implementation Details
 
@@ -85,16 +85,16 @@ See TechSpec sections "Testing Approach", "Test Lanes", "Monitoring and Observab
 ## Tests
 
 - Unit tests:
-  - [ ] `daemon-improvs-analysis-test-plan.md` includes objectives, scope, environment matrix, automation strategy, entry or exit criteria, risk assessment, and explicit artifact ownership.
-  - [ ] Test cases exist for transport parity, timeout-class behavior, run snapshot and replay behavior, shutdown and checkpoint discipline, ACP stall and fault scenarios, and observability surfaces.
-  - [ ] Each test case includes preconditions, steps, expected results, priority, and automation annotations suitable for `/qa-execution`.
-  - [ ] Regression-suite documents identify smoke, targeted, and full coverage, including execution order and E2E follow-up expectations for P0 or P1 public flows.
-  - [ ] Browser validation is explicitly marked as blocked or out of scope when no daemon web surface is available.
+  - [x] `daemon-improvs-analysis-test-plan.md` includes objectives, scope, environment matrix, automation strategy, entry or exit criteria, risk assessment, and explicit artifact ownership.
+  - [x] Test cases exist for transport parity, timeout-class behavior, run snapshot and replay behavior, shutdown and checkpoint discipline, ACP stall and fault scenarios, and observability surfaces.
+  - [x] Each test case includes preconditions, steps, expected results, priority, and automation annotations suitable for `/qa-execution`.
+  - [x] Regression-suite documents identify smoke, targeted, and full coverage, including execution order and E2E follow-up expectations for P0 or P1 public flows.
+  - [x] Browser validation is explicitly marked as blocked or out of scope when no daemon web surface is available.
 - Integration tests:
-  - [ ] All generated artifacts land under `.compozy/tasks/daemon-improvs/analysis/qa/` and can be consumed directly by `/qa-execution`.
-  - [ ] Test cases trace back to the relevant daemon-improvement tasks, TechSpec sections, or ADR decisions clearly.
-  - [ ] Regression-suite and test-plan documents reference the same case IDs, priorities, artifact paths, and E2E classifications without naming drift.
-  - [ ] Any bug report created during planning references the originating test case or documented discrepancy clearly.
+  - [x] All generated artifacts land under `.compozy/tasks/daemon-improvs/analysis/qa/` and can be consumed directly by `/qa-execution`.
+  - [x] Test cases trace back to the relevant daemon-improvement tasks, TechSpec sections, or ADR decisions clearly.
+  - [x] Regression-suite and test-plan documents reference the same case IDs, priorities, artifact paths, and E2E classifications without naming drift.
+  - [x] Any bug report created during planning references the originating test case or documented discrepancy clearly.
 - Test coverage target: >=80%
 - All tests must pass
 

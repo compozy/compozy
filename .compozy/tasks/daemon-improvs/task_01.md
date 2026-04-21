@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Canonical Daemon Contract Foundation
 type: refactor
 complexity: high
@@ -30,11 +30,11 @@ This task establishes `internal/api/contract` as the canonical daemon transport 
 
 ## Subtasks
 
-- [ ] 1.1 Extract transport-facing DTOs, envelopes, and cursor types from `internal/api/core` into `internal/api/contract`.
-- [ ] 1.2 Define canonical SSE frame, heartbeat, overflow, and cursor semantics in the new contract package.
-- [ ] 1.3 Freeze the route inventory, transport error vocabulary, and timeout class taxonomy in contract-owned types and helpers.
-- [ ] 1.4 Add compatibility notes for `RunSnapshot`, `RunEventPage`, and run-reader-facing payloads so later migrations know what must remain stable.
-- [ ] 1.5 Add contract-focused tests that lock JSON serialization, cursor parsing, and error-envelope behavior before transport migration begins.
+- [x] 1.1 Extract transport-facing DTOs, envelopes, and cursor types from `internal/api/core` into `internal/api/contract`.
+- [x] 1.2 Define canonical SSE frame, heartbeat, overflow, and cursor semantics in the new contract package.
+- [x] 1.3 Freeze the route inventory, transport error vocabulary, and timeout class taxonomy in contract-owned types and helpers.
+- [x] 1.4 Add compatibility notes for `RunSnapshot`, `RunEventPage`, and run-reader-facing payloads so later migrations know what must remain stable.
+- [x] 1.5 Add contract-focused tests that lock JSON serialization, cursor parsing, and error-envelope behavior before transport migration begins.
 
 ## Implementation Details
 
@@ -75,13 +75,13 @@ Implement the boundary described in the TechSpec sections "Component Overview", 
 ## Tests
 
 - Unit tests:
-  - [ ] Serializing and deserializing a daemon status, health, run, snapshot, and event-page payload round-trips without dropping required fields.
-  - [ ] Parsing and formatting a stream cursor with timestamp and sequence preserves ordering semantics across repeated round-trips.
-  - [ ] Emitting a transport error with `daemon_not_ready`, `conflict`, and `schema_too_new` returns the expected code, message, and request ID fields.
-  - [ ] Encoding heartbeat and overflow SSE payloads preserves the canonical field names and timestamp semantics defined by the contract.
+  - [x] Serializing and deserializing a daemon status, health, run, snapshot, and event-page payload round-trips without dropping required fields.
+  - [x] Parsing and formatting a stream cursor with timestamp and sequence preserves ordering semantics across repeated round-trips.
+  - [x] Emitting a transport error with `daemon_not_ready`, `conflict`, and `schema_too_new` returns the expected code, message, and request ID fields.
+  - [x] Encoding heartbeat and overflow SSE payloads preserves the canonical field names and timestamp semantics defined by the contract.
 - Integration tests:
-  - [ ] Existing handler and SSE tests can consume the new contract types without changing route semantics for `GET /api/daemon/health` and `GET /api/runs/:run_id/stream`.
-  - [ ] Snapshot payloads generated from current fixtures still decode into the canonical `RunSnapshot` shape without losing `jobs`, `usage`, or `shutdown`.
+  - [x] Existing handler and SSE tests can consume the new contract types without changing route semantics for `GET /api/daemon/health` and `GET /api/runs/:run_id/stream`.
+  - [x] Snapshot payloads generated from current fixtures still decode into the canonical `RunSnapshot` shape without losing `jobs`, `usage`, or `shutdown`.
 - Test coverage target: >=80%
 - All tests must pass
 

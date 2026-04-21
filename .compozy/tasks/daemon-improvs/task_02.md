@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Integration Harness and Validation Lane
 type: infra
 complexity: high
@@ -31,11 +31,11 @@ This task creates the reusable real-daemon harness and integration lane required
 
 ## Subtasks
 
-- [ ] 2.1 Create `internal/testutil/e2e` helpers for isolated home layout, workspace fixtures, daemon boot, and teardown.
-- [ ] 2.2 Add shared HTTP, UDS, and CLI client accessors plus artifact manifest helpers to the harness.
-- [ ] 2.3 Introduce build tags and Makefile support for a dedicated integration lane that does not slow the default verification loop.
-- [ ] 2.4 Refactor at least one existing daemon integration surface to use the shared harness instead of bespoke boot wiring.
-- [ ] 2.5 Add tests that prove repeated harness start/stop and artifact collection are deterministic across runs.
+- [x] 2.1 Create `internal/testutil/e2e` helpers for isolated home layout, workspace fixtures, daemon boot, and teardown.
+- [x] 2.2 Add shared HTTP, UDS, and CLI client accessors plus artifact manifest helpers to the harness.
+- [x] 2.3 Introduce build tags and Makefile support for a dedicated integration lane that does not slow the default verification loop.
+- [x] 2.4 Refactor at least one existing daemon integration surface to use the shared harness instead of bespoke boot wiring.
+- [x] 2.5 Add tests that prove repeated harness start/stop and artifact collection are deterministic across runs.
 
 ## Implementation Details
 
@@ -73,13 +73,13 @@ Implement the infrastructure described in the TechSpec sections "RuntimeHarness"
 ## Tests
 
 - Unit tests:
-  - [ ] Building a harness with an isolated `$HOME` returns stable daemon, log, database, and run artifact paths without leaking caller environment state.
-  - [ ] Artifact manifest generation returns the expected daemon log, run directory, and socket or HTTP metadata for a started harness.
-  - [ ] Harness cleanup closes transport clients and removes temporary state without leaving stale daemon info or sockets behind.
+  - [x] Building a harness with an isolated `$HOME` returns stable daemon, log, database, and run artifact paths without leaking caller environment state.
+  - [x] Artifact manifest generation returns the expected daemon log, run directory, and socket or HTTP metadata for a started harness.
+  - [x] Harness cleanup closes transport clients and removes temporary state without leaving stale daemon info or sockets behind.
 - Integration tests:
-  - [ ] Starting a harnessed daemon and probing `GET /api/daemon/status` succeeds over both HTTP and UDS using the shared clients.
-  - [ ] Repeated harness start/stop cycles do not leave stale singleton artifacts and can be rerun in the same CI process without flaking.
-  - [ ] A CLI command executed through the harness can locate the same daemon instance and record artifacts in the shared manifest.
+  - [x] Starting a harnessed daemon and probing `GET /api/daemon/status` succeeds over both HTTP and UDS using the shared clients.
+  - [x] Repeated harness start/stop cycles do not leave stale singleton artifacts and can be rerun in the same CI process without flaking.
+  - [x] A CLI command executed through the harness can locate the same daemon instance and record artifacts in the shared manifest.
 - Test coverage target: >=80%
 - All tests must pass
 

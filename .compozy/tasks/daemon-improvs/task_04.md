@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Client and Run-Reader Contract Adoption
 type: refactor
 complexity: high
@@ -33,11 +33,11 @@ This task moves daemon-facing clients onto the canonical contract after transpor
 
 ## Subtasks
 
-- [ ] 4.1 Rework `internal/api/client` to use canonical request, response, error, cursor, and timeout helpers.
-- [ ] 4.2 Implement operation-class timeouts and stream reconnect rules in the daemon client.
-- [ ] 4.3 Update `pkg/compozy/runs` to decode canonical snapshot, event-page, and stream payloads through explicit adapters.
-- [ ] 4.4 Align CLI-facing consumers of run and daemon client behavior with the updated timeout and payload semantics.
-- [ ] 4.5 Add regression coverage for snapshot compatibility, run watch behavior, and remote error handling.
+- [x] 4.1 Rework `internal/api/client` to use canonical request, response, error, cursor, and timeout helpers.
+- [x] 4.2 Implement operation-class timeouts and stream reconnect rules in the daemon client.
+- [x] 4.3 Update `pkg/compozy/runs` to decode canonical snapshot, event-page, and stream payloads through explicit adapters.
+- [x] 4.4 Align CLI-facing consumers of run and daemon client behavior with the updated timeout and payload semantics.
+- [x] 4.5 Add regression coverage for snapshot compatibility, run watch behavior, and remote error handling.
 
 ## Implementation Details
 
@@ -78,14 +78,14 @@ Implement the consumer migration described in the TechSpec sections "Timeout Pol
 ## Tests
 
 - Unit tests:
-  - [ ] A `GET /api/daemon/health` probe uses the `probe` timeout class while `POST /api/tasks/:slug/runs` uses `long_mutate` and `POST /api/runs/:run_id/cancel` uses `mutate`.
-  - [ ] A remote error envelope containing `conflict` or `schema_too_new` decodes to the expected client error with request ID preserved.
-  - [ ] `GetRunSnapshot` preserves current snapshot fields and only adds explicit compatibility handling where the canonical payload differs.
-  - [ ] Stream reconnect logic resumes from the last acknowledged cursor when no frame arrives within the configured heartbeat gap.
+  - [x] A `GET /api/daemon/health` probe uses the `probe` timeout class while `POST /api/tasks/:slug/runs` uses `long_mutate` and `POST /api/runs/:run_id/cancel` uses `mutate`.
+  - [x] A remote error envelope containing `conflict` or `schema_too_new` decodes to the expected client error with request ID preserved.
+  - [x] `GetRunSnapshot` preserves current snapshot fields and only adds explicit compatibility handling where the canonical payload differs.
+  - [x] Stream reconnect logic resumes from the last acknowledged cursor when no frame arrives within the configured heartbeat gap.
 - Integration tests:
-  - [ ] `pkg/compozy/runs.Open` and internal client snapshot calls return consistent run metadata for the same harnessed daemon run.
-  - [ ] `pkg/compozy/runs` remote watch and daemon client stream consumption both survive a heartbeat-only idle period and resume correctly on subsequent events.
-  - [ ] CLI-facing run list or show commands still present stable output after the client contract migration.
+  - [x] `pkg/compozy/runs.Open` and internal client snapshot calls return consistent run metadata for the same harnessed daemon run.
+  - [x] `pkg/compozy/runs` remote watch and daemon client stream consumption both survive a heartbeat-only idle period and resume correctly on subsequent events.
+  - [x] CLI-facing run list or show commands still present stable output after the client contract migration.
 - Test coverage target: >=80%
 - All tests must pass
 

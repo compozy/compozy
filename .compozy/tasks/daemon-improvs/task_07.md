@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Observability, Snapshot Integrity, and Transcript Assembly
 type: backend
 complexity: critical
@@ -34,11 +34,11 @@ This task completes the operator-facing side of the daemon hardening effort by m
 
 ## Subtasks
 
-- [ ] 7.1 Expand daemon health and metrics surfaces to match the richer operational contract from the TechSpec.
-- [ ] 7.2 Persist run integrity state and reason codes needed for sticky `Incomplete` snapshot semantics.
-- [ ] 7.3 Upgrade snapshot assembly to surface integrity state, shutdown details, and canonical cursor behavior from durable projections.
-- [ ] 7.4 Assemble canonical transcript output from persisted transcript and event projections for cold readers.
-- [ ] 7.5 Add parity and integration coverage for health, metrics, snapshot integrity, and transcript replay behavior.
+- [x] 7.1 Expand daemon health and metrics surfaces to match the richer operational contract from the TechSpec.
+- [x] 7.2 Persist run integrity state and reason codes needed for sticky `Incomplete` snapshot semantics.
+- [x] 7.3 Upgrade snapshot assembly to surface integrity state, shutdown details, and canonical cursor behavior from durable projections.
+- [x] 7.4 Assemble canonical transcript output from persisted transcript and event projections for cold readers.
+- [x] 7.5 Add parity and integration coverage for health, metrics, snapshot integrity, and transcript replay behavior.
 
 ## Implementation Details
 
@@ -79,15 +79,15 @@ Implement the observability work described in the TechSpec sections "Snapshot In
 ## Tests
 
 - Unit tests:
-  - [ ] `GET /api/daemon/health` returns structured degraded details when reconcile warnings or integrity issues exist, and returns ready state when they do not.
-  - [ ] Metrics rendering includes the required counters and gauges such as `daemon_active_runs`, `daemon_shutdown_conflicts_total`, and `daemon_acp_stall_total` with the expected labels.
-  - [ ] Snapshot assembly marks `Incomplete` when journal drops, event gaps, or unrecoverable transcript gaps are persisted for a run and keeps the flag sticky on later reads.
-  - [ ] Transcript assembly from persisted projections returns messages in deterministic order with bounded payload behavior.
+  - [x] `GET /api/daemon/health` returns structured degraded details when reconcile warnings or integrity issues exist, and returns ready state when they do not.
+  - [x] Metrics rendering includes the required counters and gauges such as `daemon_active_runs`, `daemon_shutdown_conflicts_total`, and `daemon_acp_stall_total` with the expected labels.
+  - [x] Snapshot assembly marks `Incomplete` when journal drops, event gaps, or unrecoverable transcript gaps are persisted for a run and keeps the flag sticky on later reads.
+  - [x] Transcript assembly from persisted projections returns messages in deterministic order with bounded payload behavior.
 - Integration tests:
-  - [ ] A harnessed daemon exposes richer health and metrics output over both HTTP and UDS after startup and after a degraded runtime scenario.
-  - [ ] A run with persisted integrity issues surfaces `Incomplete` and reason-aware snapshot behavior consistently through daemon client and public run-reader access.
-  - [ ] Replaying a completed run after daemon restart reconstructs a stable transcript view from persisted data rather than relying on live in-memory state.
-  - [ ] CLI-facing run inspection commands reflect the stronger snapshot and transcript behavior without diverging from transport responses.
+  - [x] A harnessed daemon exposes richer health and metrics output over both HTTP and UDS after startup and after a degraded runtime scenario.
+  - [x] A run with persisted integrity issues surfaces `Incomplete` and reason-aware snapshot behavior consistently through daemon client and public run-reader access.
+  - [x] Replaying a completed run after daemon restart reconstructs a stable transcript view from persisted data rather than relying on live in-memory state.
+  - [x] CLI-facing run inspection commands reflect the stronger snapshot and transcript behavior without diverging from transport responses.
 - Test coverage target: >=80%
 - All tests must pass
 
