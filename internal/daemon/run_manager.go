@@ -2122,7 +2122,7 @@ func failedTerminalState(runArtifacts model.RunArtifacts, err error) terminalSta
 func cancelledTerminalState(err error) terminalState {
 	reason := errorString(err)
 	if reason == "" {
-		reason = "canceled"
+		reason = runStatusCancelled
 	}
 	return terminalState{
 		status:    runStatusCancelled,
