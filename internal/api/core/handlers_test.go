@@ -263,6 +263,10 @@ func (f *fakeRunService) Snapshot(context.Context, string) (core.RunSnapshot, er
 	return core.RunSnapshot{}, nil
 }
 
+func (f *fakeRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
+	return core.RunDetailPayload{}, nil
+}
+
 func (f *fakeRunService) Events(context.Context, string, core.RunEventPageQuery) (core.RunEventPage, error) {
 	return core.RunEventPage{}, nil
 }

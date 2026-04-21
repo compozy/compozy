@@ -264,13 +264,18 @@ func buildHostHandlers(
 			return nil
 		},
 	})
+	queryService := NewQueryService(QueryServiceConfig{
+		GlobalDB:   persistence.db,
+		RunManager: runManager,
+		Daemon:     daemonService,
+	})
 
 	return apicore.NewHandlers(&apicore.HandlerConfig{
 		TransportName: "daemon",
 		Daemon:        daemonService,
 		Workspaces:    newTransportWorkspaceService(persistence.db),
-		Tasks:         newTransportTaskService(persistence.db, runManager),
-		Reviews:       newTransportReviewService(persistence.db, runManager),
+		Tasks:         newTransportTaskService(persistence.db, runManager, queryService),
+		Reviews:       newTransportReviewService(persistence.db, runManager, queryService),
 		Runs:          runManager,
 		Sync:          newTransportSyncService(persistence.db),
 		Exec:          newTransportExecService(runManager),

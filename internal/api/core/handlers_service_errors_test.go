@@ -544,6 +544,10 @@ type errorTaskService struct {
 	err error
 }
 
+func (s *errorTaskService) Dashboard(context.Context, string) (core.DashboardPayload, error) {
+	return core.DashboardPayload{}, s.err
+}
+
 func (s *errorTaskService) ListWorkflows(context.Context, string) ([]core.WorkflowSummary, error) {
 	return nil, s.err
 }
@@ -552,8 +556,32 @@ func (s *errorTaskService) GetWorkflow(context.Context, string, string) (core.Wo
 	return core.WorkflowSummary{}, s.err
 }
 
+func (s *errorTaskService) WorkflowOverview(context.Context, string, string) (core.WorkflowOverviewPayload, error) {
+	return core.WorkflowOverviewPayload{}, s.err
+}
+
 func (s *errorTaskService) ListItems(context.Context, string, string) ([]core.TaskItem, error) {
 	return nil, s.err
+}
+
+func (s *errorTaskService) TaskBoard(context.Context, string, string) (core.TaskBoardPayload, error) {
+	return core.TaskBoardPayload{}, s.err
+}
+
+func (s *errorTaskService) WorkflowSpec(context.Context, string, string) (core.WorkflowSpecDocument, error) {
+	return core.WorkflowSpecDocument{}, s.err
+}
+
+func (s *errorTaskService) WorkflowMemoryIndex(context.Context, string, string) (core.WorkflowMemoryIndex, error) {
+	return core.WorkflowMemoryIndex{}, s.err
+}
+
+func (s *errorTaskService) WorkflowMemoryFile(context.Context, string, string, string) (core.MarkdownDocument, error) {
+	return core.MarkdownDocument{}, s.err
+}
+
+func (s *errorTaskService) TaskDetail(context.Context, string, string, string) (core.TaskDetailPayload, error) {
+	return core.TaskDetailPayload{}, s.err
 }
 
 func (s *errorTaskService) Validate(context.Context, string, string) (core.ValidationSuccess, error) {
@@ -593,6 +621,16 @@ func (s *errorReviewService) ListIssues(context.Context, string, string, int) ([
 	return nil, s.err
 }
 
+func (s *errorReviewService) ReviewDetail(
+	context.Context,
+	string,
+	string,
+	int,
+	string,
+) (core.ReviewDetailPayload, error) {
+	return core.ReviewDetailPayload{}, s.err
+}
+
 func (s *errorReviewService) StartRun(context.Context, string, string, int, core.ReviewRunRequest) (core.Run, error) {
 	return core.Run{}, s.err
 }
@@ -611,6 +649,10 @@ func (s *errorRunService) Get(context.Context, string) (core.Run, error) {
 
 func (s *errorRunService) Snapshot(context.Context, string) (core.RunSnapshot, error) {
 	return core.RunSnapshot{}, s.err
+}
+
+func (s *errorRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
+	return core.RunDetailPayload{}, s.err
 }
 
 func (s *errorRunService) Events(context.Context, string, core.RunEventPageQuery) (core.RunEventPage, error) {

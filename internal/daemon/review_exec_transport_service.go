@@ -18,6 +18,7 @@ import (
 type transportReviewService struct {
 	globalDB   *globaldb.GlobalDB
 	runManager *RunManager
+	query      QueryService
 }
 
 type transportExecService struct {
@@ -27,10 +28,15 @@ type transportExecService struct {
 var _ apicore.ReviewService = (*transportReviewService)(nil)
 var _ apicore.ExecService = (*transportExecService)(nil)
 
-func newTransportReviewService(globalDB *globaldb.GlobalDB, runManager *RunManager) *transportReviewService {
+func newTransportReviewService(
+	globalDB *globaldb.GlobalDB,
+	runManager *RunManager,
+	query ...QueryService,
+) *transportReviewService {
 	return &transportReviewService{
 		globalDB:   globalDB,
 		runManager: runManager,
+		query:      resolveTransportQueryService(globalDB, runManager, nil, query),
 	}
 }
 
@@ -159,6 +165,24 @@ func (s *transportReviewService) ListIssues(
 		issues = append(issues, transportReviewIssue(row))
 	}
 	return issues, nil
+}
+
+func (s *transportReviewService) ReviewDetail(
+	ctx context.Context,
+	workspaceRef string,
+	workflowSlug string,
+	round int,
+	issueRef string,
+) (apicore.ReviewDetailPayload, error) {
+	if s == nil || s.query == nil {
+		return apicore.ReviewDetailPayload{}, reviewTransportUnavailable("review detail")
+	}
+
+	payload, err := s.query.ReviewDetail(ctx, workspaceRef, workflowSlug, round, issueRef)
+	if err != nil {
+		return apicore.ReviewDetailPayload{}, mapQueryTransportError(err)
+	}
+	return transportReviewDetail(payload), nil
 }
 
 func (s *transportReviewService) StartRun(

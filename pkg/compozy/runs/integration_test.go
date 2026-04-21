@@ -416,6 +416,30 @@ func (s *integrationRunService) Snapshot(_ context.Context, runID string) (apico
 	return snapshot, nil
 }
 
+func (s *integrationRunService) RunDetail(_ context.Context, runID string) (apicore.RunDetailPayload, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	snapshot, ok := s.snapshots[runID]
+	if !ok {
+		return apicore.RunDetailPayload{}, apicore.NewProblem(404, "run_not_found", "run not found", nil, nil)
+	}
+
+	for i := range s.runs {
+		if s.runs[i].RunID == runID {
+			return apicore.RunDetailPayload{
+				Run:      s.runs[i],
+				Snapshot: snapshot,
+			}, nil
+		}
+	}
+
+	return apicore.RunDetailPayload{
+		Run:      snapshot.Run,
+		Snapshot: snapshot,
+	}, nil
+}
+
 func (s *integrationRunService) Events(
 	_ context.Context,
 	runID string,

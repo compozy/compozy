@@ -1549,6 +1549,18 @@ func (f *fakeRunService) Snapshot(_ context.Context, runID string) (core.RunSnap
 	return item, nil
 }
 
+func (f *fakeRunService) RunDetail(_ context.Context, runID string) (core.RunDetailPayload, error) {
+	item, ok := f.snapshots[runID]
+	if !ok {
+		return core.RunDetailPayload{}, globaldb.ErrRunNotFound
+	}
+	run, ok := f.runs[runID]
+	if !ok {
+		return core.RunDetailPayload{}, globaldb.ErrRunNotFound
+	}
+	return core.RunDetailPayload{Run: run, Snapshot: item}, nil
+}
+
 func (f *fakeRunService) Events(_ context.Context, runID string, _ core.RunEventPageQuery) (core.RunEventPage, error) {
 	if item, ok := f.eventPages[runID]; ok {
 		return item, nil

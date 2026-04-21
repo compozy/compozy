@@ -401,6 +401,10 @@ type smokeTaskService struct {
 	run      core.Run
 }
 
+func (s *smokeTaskService) Dashboard(context.Context, string) (core.DashboardPayload, error) {
+	return core.DashboardPayload{}, nil
+}
+
 func (s *smokeTaskService) ListWorkflows(context.Context, string) ([]core.WorkflowSummary, error) {
 	return []core.WorkflowSummary{s.workflow}, nil
 }
@@ -409,8 +413,32 @@ func (s *smokeTaskService) GetWorkflow(context.Context, string, string) (core.Wo
 	return s.workflow, nil
 }
 
+func (s *smokeTaskService) WorkflowOverview(context.Context, string, string) (core.WorkflowOverviewPayload, error) {
+	return core.WorkflowOverviewPayload{Workflow: s.workflow}, nil
+}
+
 func (s *smokeTaskService) ListItems(context.Context, string, string) ([]core.TaskItem, error) {
 	return []core.TaskItem{s.item}, nil
+}
+
+func (s *smokeTaskService) TaskBoard(context.Context, string, string) (core.TaskBoardPayload, error) {
+	return core.TaskBoardPayload{}, nil
+}
+
+func (s *smokeTaskService) WorkflowSpec(context.Context, string, string) (core.WorkflowSpecDocument, error) {
+	return core.WorkflowSpecDocument{}, nil
+}
+
+func (s *smokeTaskService) WorkflowMemoryIndex(context.Context, string, string) (core.WorkflowMemoryIndex, error) {
+	return core.WorkflowMemoryIndex{}, nil
+}
+
+func (s *smokeTaskService) WorkflowMemoryFile(context.Context, string, string, string) (core.MarkdownDocument, error) {
+	return core.MarkdownDocument{}, nil
+}
+
+func (s *smokeTaskService) TaskDetail(context.Context, string, string, string) (core.TaskDetailPayload, error) {
+	return core.TaskDetailPayload{}, nil
 }
 
 func (*smokeTaskService) Validate(context.Context, string, string) (core.ValidationSuccess, error) {
@@ -453,6 +481,16 @@ func (s *smokeReviewService) ListIssues(context.Context, string, string, int) ([
 	return []core.ReviewIssue{s.issue}, nil
 }
 
+func (s *smokeReviewService) ReviewDetail(
+	context.Context,
+	string,
+	string,
+	int,
+	string,
+) (core.ReviewDetailPayload, error) {
+	return core.ReviewDetailPayload{}, nil
+}
+
 func (s *smokeReviewService) StartRun(context.Context, string, string, int, core.ReviewRunRequest) (core.Run, error) {
 	return s.run, nil
 }
@@ -473,6 +511,10 @@ func (s *smokeRunService) Get(context.Context, string) (core.Run, error) {
 
 func (s *smokeRunService) Snapshot(context.Context, string) (core.RunSnapshot, error) {
 	return s.snapshot, nil
+}
+
+func (s *smokeRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
+	return core.RunDetailPayload{Run: s.run, Snapshot: s.snapshot}, nil
 }
 
 func (s *smokeRunService) Events(context.Context, string, core.RunEventPageQuery) (core.RunEventPage, error) {

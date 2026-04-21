@@ -561,6 +561,24 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 	return snapshot, nil
 }
 
+// RunDetail returns the richer browser-facing run detail payload.
+func (m *RunManager) RunDetail(ctx context.Context, runID string) (apicore.RunDetailPayload, error) {
+	if m == nil {
+		return apicore.RunDetailPayload{}, errors.New("daemon: run manager is required")
+	}
+
+	query := resolveTransportQueryService(nil, m, nil, nil)
+	if query == nil {
+		return apicore.RunDetailPayload{}, errors.New("daemon: run detail query service is unavailable")
+	}
+
+	payload, err := query.RunDetail(detachContext(ctx), strings.TrimSpace(runID))
+	if err != nil {
+		return apicore.RunDetailPayload{}, mapQueryTransportError(err)
+	}
+	return transportRunDetail(payload), nil
+}
+
 // Events returns persisted run events after the supplied cursor.
 func (m *RunManager) Events(
 	ctx context.Context,
