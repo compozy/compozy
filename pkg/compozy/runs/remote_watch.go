@@ -33,6 +33,7 @@ type RemoteRunSnapshot struct {
 // RemoteRunStreamItem is one parsed stream delivery from a daemon-backed watch.
 type RemoteRunStreamItem struct {
 	Event           *events.Event
+	Snapshot        *RemoteRunSnapshot
 	HeartbeatCursor *RemoteCursor
 	OverflowCursor  *RemoteCursor
 }
@@ -222,6 +223,12 @@ func handleRemoteWatchItem(
 
 	if item.HeartbeatCursor != nil {
 		state.lastCursor = maxRemoteWatchCursor(state.lastCursor, *item.HeartbeatCursor)
+		return state, false
+	}
+	if item.Snapshot != nil {
+		if item.Snapshot.NextCursor != nil {
+			state.lastCursor = maxRemoteWatchCursor(state.lastCursor, *item.Snapshot.NextCursor)
+		}
 		return state, false
 	}
 	if item.OverflowCursor != nil {

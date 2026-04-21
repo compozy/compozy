@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Reviews, Spec, and Memory Read Surfaces
 type: frontend
 complexity: high
@@ -33,11 +33,11 @@ This task implements the remaining rich-read operator surfaces for v1: reviews, 
 </requirements>
 
 ## Subtasks
-- [ ] 12.1 Build the review, spec, and memory route tree required by the TechSpec.
-- [ ] 12.2 Render review list/detail surfaces and wire the supported review-fix action flow.
-- [ ] 12.3 Render spec and memory read surfaces using the typed daemon document payloads.
-- [ ] 12.4 Ensure opaque memory file IDs and stale-workspace handling are respected in the browser.
-- [ ] 12.5 Add route, component, and interaction tests for all review/spec/memory states.
+- [x] 12.1 Build the review, spec, and memory route tree required by the TechSpec.
+- [x] 12.2 Render review list/detail surfaces and wire the supported review-fix action flow.
+- [x] 12.3 Render spec and memory read surfaces using the typed daemon document payloads.
+- [x] 12.4 Ensure opaque memory file IDs and stale-workspace handling are respected in the browser.
+- [x] 12.5 Add route, component, and interaction tests for all review/spec/memory states.
 
 ## Implementation Details
 
@@ -70,13 +70,13 @@ See the TechSpec sections "Route Model", "Document Read and Cache Strategy", "Da
 
 ## Tests
 - Unit tests:
-  - [ ] Review, spec, and memory routes load their typed payloads correctly.
-  - [ ] Memory detail rendering uses opaque file IDs rather than path-derived browser state.
-  - [ ] Review issue detail and review-fix action state render correctly across loading and error paths.
+  - [x] Review, spec, and memory routes load their typed payloads correctly.
+  - [x] Memory detail rendering uses opaque file IDs rather than path-derived browser state.
+  - [x] Review issue detail and review-fix action state render correctly across loading and error paths.
 - Integration tests:
-  - [ ] Review list and issue detail routes render and dispatch review-fix actions correctly.
-  - [ ] Spec routes display PRD, TechSpec, and ADR content correctly from daemon responses.
-  - [ ] Memory index/detail routes render correctly and recover from stale workspace state cleanly.
+  - [x] Review list and issue detail routes render and dispatch review-fix actions correctly.
+  - [x] Spec routes display PRD, TechSpec, and ADR content correctly from daemon responses.
+  - [x] Memory index/detail routes render correctly and recover from stale workspace state cleanly.
 - Test coverage target: >=80%
 - All tests must pass
 

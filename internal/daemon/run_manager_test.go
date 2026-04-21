@@ -1383,6 +1383,20 @@ func TestRunManagerEnsureWorkflowIdentityValidatesAndReusesRows(t *testing.T) {
 	if workflowID == nil || *workflowID != *firstID {
 		t.Fatalf("workflowID = %v, want %v", workflowID, firstID)
 	}
+	workspaceByID, workflowIDByID, _, err := env.manager.resolveWorkflowContext(
+		context.Background(),
+		workspace.ID,
+		env.workflowSlug,
+	)
+	if err != nil {
+		t.Fatalf("resolveWorkflowContext(workspace id) error = %v", err)
+	}
+	if workspaceByID.ID != workspace.ID {
+		t.Fatalf("workspaceByID.ID = %q, want %q", workspaceByID.ID, workspace.ID)
+	}
+	if workflowIDByID == nil || *workflowIDByID != *firstID {
+		t.Fatalf("workflowIDByID = %v, want %v", workflowIDByID, firstID)
+	}
 	if projectCfg != (workspacecfg.ProjectConfig{}) {
 		t.Fatalf("projectCfg = %#v, want zero-value defaults", projectCfg)
 	}
@@ -1793,11 +1807,31 @@ type runManagerTestDeps struct {
 	runDBCacheTTL        time.Duration
 }
 
+var runManagerTestHomeMu sync.Mutex
+
 func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTestEnv {
 	tb.Helper()
 
-	homeDir := tb.TempDir()
-	tb.Setenv("HOME", homeDir)
+	homeDir, err := os.MkdirTemp("", "cmp-home-")
+	if err != nil {
+		tb.Fatalf("MkdirTemp() error = %v", err)
+	}
+	runManagerTestHomeMu.Lock()
+	previousHome, hadPreviousHome := os.LookupEnv("HOME")
+	if err := os.Setenv("HOME", homeDir); err != nil {
+		runManagerTestHomeMu.Unlock()
+		_ = os.RemoveAll(homeDir)
+		tb.Fatalf("Setenv(HOME) error = %v", err)
+	}
+	tb.Cleanup(func() {
+		if hadPreviousHome {
+			_ = os.Setenv("HOME", previousHome)
+		} else {
+			_ = os.Unsetenv("HOME")
+		}
+		runManagerTestHomeMu.Unlock()
+		_ = os.RemoveAll(homeDir)
+	})
 
 	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeDir, ".compozy"))
 	if err != nil {

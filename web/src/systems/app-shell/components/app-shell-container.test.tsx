@@ -1,0 +1,117 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactElement } from "react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { createTestQueryClient, installFetchStub, matchPath, withQuery } from "@/test/utils";
+
+import { resetActiveWorkspaceStoreForTests } from "../stores/active-workspace-store";
+import type { Workspace } from "../types";
+import { AppShellContainer } from "./app-shell-container";
+import { useActiveWorkspaceContext } from "../lib/active-workspace-context";
+
+const workspaceOne: Workspace = {
+  id: "ws-1",
+  name: "one",
+  root_dir: "/tmp/one",
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+};
+
+const workspaceTwo: Workspace = {
+  id: "ws-2",
+  name: "two",
+  root_dir: "/tmp/two",
+  created_at: "2026-01-01T00:00:00Z",
+  updated_at: "2026-01-01T00:00:00Z",
+};
+
+function ContextProbe(): ReactElement {
+  const context = useActiveWorkspaceContext();
+  return <p data-testid="probe-active">{context.activeWorkspace.id}</p>;
+}
+
+describe("AppShellContainer", () => {
+  let restore: (() => void) | null = null;
+
+  beforeEach(() => {
+    resetActiveWorkspaceStoreForTests();
+    window.sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    restore?.();
+    restore = null;
+    resetActiveWorkspaceStoreForTests();
+  });
+
+  it("Should render the onboarding surface for zero workspaces", async () => {
+    const stub = installFetchStub([
+      { matcher: matchPath("/api/workspaces"), status: 200, body: { workspaces: [] } },
+    ]);
+    restore = stub.restore;
+    render(
+      <AppShellContainer>
+        <ContextProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+    expect(await screen.findByTestId("workspace-onboarding")).toBeInTheDocument();
+  });
+
+  it("Should render children when exactly one workspace resolves", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+    ]);
+    restore = stub.restore;
+    render(
+      <AppShellContainer>
+        <ContextProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+    expect(await screen.findByTestId("probe-active")).toHaveTextContent("ws-1");
+  });
+
+  it("Should render the workspace picker when many workspaces exist", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+    render(
+      <AppShellContainer>
+        <ContextProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+    expect(await screen.findByTestId("workspace-picker-list")).toBeInTheDocument();
+    await userEvent.click(await screen.findByTestId("workspace-picker-select-ws-2"));
+    await waitFor(() => expect(screen.getByTestId("probe-active")).toHaveTextContent("ws-2"));
+  });
+
+  it("Should display the error boundary when the workspaces request fails", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 500,
+        body: { code: "server_error", message: "down", request_id: "r" },
+      },
+    ]);
+    restore = stub.restore;
+    render(
+      <AppShellContainer>
+        <ContextProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+    expect(await screen.findByTestId("app-shell-error")).toBeInTheDocument();
+  });
+});

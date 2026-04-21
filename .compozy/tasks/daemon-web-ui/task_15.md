@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Web UI QA Plan and Regression Artifacts
 type: docs
 complexity: high
@@ -38,11 +38,11 @@ Generate the reusable QA planning artifacts for the daemon web UI before live ex
 </requirements>
 
 ## Subtasks
-- [ ] 15.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/daemon-web-ui`.
-- [ ] 15.2 Write the feature test plan with scope, environments, risks, and entry/exit criteria for the daemon web UI.
-- [ ] 15.3 Generate traceable test cases for the critical browser/operator flows and route states.
-- [ ] 15.4 Build regression-suite definitions and identify the P0/P1 flows that execution must validate first.
-- [ ] 15.5 Validate artifact completeness, traceability, and handoff readiness for the execution task.
+- [x] 15.1 Activate `/qa-report` with `qa-output-path=.compozy/tasks/daemon-web-ui`.
+- [x] 15.2 Write the feature test plan with scope, environments, risks, and entry/exit criteria for the daemon web UI.
+- [x] 15.3 Generate traceable test cases for the critical browser/operator flows and route states.
+- [x] 15.4 Build regression-suite definitions and identify the P0/P1 flows that execution must validate first.
+- [x] 15.5 Validate artifact completeness, traceability, and handoff readiness for the execution task.
 
 ## Implementation Details
 
@@ -75,14 +75,14 @@ See the TechSpec sections "Testing Approach", "Development Sequencing", "Known R
 
 ## Tests
 - Unit tests:
-  - [ ] The test plan includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment for the daemon web UI.
-  - [ ] Test cases exist for dashboard, workflows, task detail, runs/live watch, reviews, spec, memory, workspace selection, sync/archive, and run/review operations.
-  - [ ] Each test case includes preconditions, steps, expected results, priority, and automation annotations.
-  - [ ] Regression-suite documents identify smoke, targeted, and full coverage with clear P0/P1 priorities.
+  - [x] The test plan includes objectives, scope, environment matrix, entry/exit criteria, and risk assessment for the daemon web UI.
+  - [x] Test cases exist for dashboard, workflows, task detail, runs/live watch, reviews, spec, memory, workspace selection, sync/archive, and run/review operations.
+  - [x] Each test case includes preconditions, steps, expected results, priority, and automation annotations.
+  - [x] Regression-suite documents identify smoke, targeted, and full coverage with clear P0/P1 priorities.
 - Integration tests:
-  - [ ] All generated artifacts land under `.compozy/tasks/daemon-web-ui/qa/` and can be consumed directly by `/qa-execution`.
-  - [ ] Test cases trace back to relevant TechSpec sections, ADRs, or task deliverables clearly.
-  - [ ] Regression suites and test plans reference the same case IDs, priorities, and artifact paths without naming drift.
+  - [x] All generated artifacts land under `.compozy/tasks/daemon-web-ui/qa/` and can be consumed directly by `/qa-execution`.
+  - [x] Test cases trace back to relevant TechSpec sections, ADRs, or task deliverables clearly.
+  - [x] Regression suites and test plans reference the same case IDs, priorities, and artifact paths without naming drift.
 - Test coverage target: >=80%
 - All tests must pass
 

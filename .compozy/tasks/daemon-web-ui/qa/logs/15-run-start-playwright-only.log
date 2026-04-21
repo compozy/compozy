@@ -1,0 +1,40 @@
+(node:36212) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36212) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m1[2m test using [22m1[2m worker[22m
+
+(node:36243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:36243) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [31m✘[39m  [2m1 [22m[31me2e/daemon-ui.smoke.spec.ts:88:3 › daemon-served web UI smoke flows › starts a workflow run from the workflow inventory[39m[2m (2.0m)[22m
+
+
+[31m  1) e2e/daemon-ui.smoke.spec.ts:88:3 › daemon-served web UI smoke flows › starts a workflow run from the workflow inventory [39m
+
+    [31mTest timeout of 120000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 120000ms exceeded.
+    Call log:
+    [2m  - waiting for getByTestId('workflow-start-daemon-web-ui')[22m
+
+
+      92 |     await expect(page.getByTestId("workflow-inventory-view")).toBeVisible();
+      93 |
+    > 94 |     await page.getByTestId("workflow-start-daemon-web-ui").click();
+         |                                                            ^
+      95 |     await expect(page.getByTestId("workflow-inventory-start-success")).toContainText(
+      96 |       "Started run"
+      97 |     );
+    [2m    at /Users/pedronauck/Dev/compozy/_worktrees/daemon-web-ui/web/e2e/daemon-ui.smoke.spec.ts:94:60[22m
+
+[2m    attachment #1: [1mscreenshot[2m (image/png) [2m──────────────────────────────────────────────────────────[2m[22m
+[2m    ../.tmp/playwright/test-results/daemon-ui.smoke-daemon-ser-2d103-from-the-workflow-inventory/test-failed-1.png[22m
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/daemon-ui.smoke-daemon-ser-2d103-from-the-workflow-inventory/error-context.md[22m
+
+[31m  1 failed[39m
+[31m    e2e/daemon-ui.smoke.spec.ts:88:3 › daemon-served web UI smoke flows › starts a workflow run from the workflow inventory [39m

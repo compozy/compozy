@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Storybook, MSW, and Mocked Route-State Coverage
 type: frontend
 complexity: high
@@ -34,11 +34,11 @@ This task adds the full mocked review surface the user asked for: Storybook acro
 </requirements>
 
 ## Subtasks
-- [ ] 13.1 Add Storybook configuration for `web/` and `packages/ui/`.
-- [ ] 13.2 Add MSW setup and route-state helpers for mocked daemon responses.
-- [ ] 13.3 Create route stories for dashboard, workflows, runs, reviews, spec, and memory states.
-- [ ] 13.4 Create or expand shared component stories in `packages/ui/` for reusable primitives and shell pieces.
-- [ ] 13.5 Add configuration and contract tests covering Storybook/MSW behavior.
+- [x] 13.1 Add Storybook configuration for `web/` and `packages/ui/`.
+- [x] 13.2 Add MSW setup and route-state helpers for mocked daemon responses.
+- [x] 13.3 Create route stories for dashboard, workflows, runs, reviews, spec, and memory states.
+- [x] 13.4 Create or expand shared component stories in `packages/ui/` for reusable primitives and shell pieces.
+- [x] 13.5 Add configuration and contract tests covering Storybook/MSW behavior.
 
 ## Implementation Details
 
@@ -72,13 +72,13 @@ See the TechSpec sections "Testing Approach", "Frontend Module Structure", and "
 
 ## Tests
 - Unit tests:
-  - [ ] Storybook configuration resolves stories and shared package imports correctly.
-  - [ ] MSW handlers and route-state helpers provide the expected mocked daemon responses.
-  - [ ] Representative route stories cover loading, empty, success, degraded, and error states.
+  - [x] Storybook configuration resolves stories and shared package imports correctly.
+  - [x] MSW handlers and route-state helpers provide the expected mocked daemon responses.
+  - [x] Representative route stories cover loading, empty, success, degraded, and error states.
 - Integration tests:
-  - [ ] Route stories render correctly for dashboard, workflows, runs, reviews, spec, and memory.
-  - [ ] Shared component stories render cleanly from `packages/ui/`.
-  - [ ] Storybook/MSW wiring remains aligned with the actual route and component structure.
+  - [x] Route stories render correctly for dashboard, workflows, runs, reviews, spec, and memory.
+  - [x] Shared component stories render cleanly from `packages/ui/`.
+  - [x] Storybook/MSW wiring remains aligned with the actual route and component structure.
 - Test coverage target: >=80%
 - All tests must pass
 

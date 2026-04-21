@@ -34,6 +34,17 @@ var sseBufferPool = sync.Pool{
 	},
 }
 
+const (
+	// RunSnapshotSSEEvent is the canonical snapshot event name for daemon run streams.
+	RunSnapshotSSEEvent = "run.snapshot"
+	// RunEventSSEEvent is the canonical live event name for daemon run streams.
+	RunEventSSEEvent = "run.event"
+	// RunHeartbeatSSEEvent is the canonical heartbeat event name for daemon run streams.
+	RunHeartbeatSSEEvent = "run.heartbeat"
+	// RunOverflowSSEEvent is the canonical overflow event name for daemon run streams.
+	RunOverflowSSEEvent = "run.overflow"
+)
+
 // PrepareSSE configures one Gin response for server-sent events.
 func PrepareSSE(c *gin.Context) (FlushWriter, error) {
 	if c == nil {
@@ -122,14 +133,38 @@ func EventAfterCursor(event events.Event, cursor StreamCursor) bool {
 	return contract.EventAfterCursor(event, cursor)
 }
 
+// EventMessage builds the canonical live-event SSE frame.
+func EventMessage(event events.Event) SSEMessage {
+	return SSEMessage{
+		ID:    FormatCursor(event.Timestamp, event.Seq),
+		Event: RunEventSSEEvent,
+		Data:  event,
+	}
+}
+
 // HeartbeatMessage builds the canonical heartbeat SSE event.
 func HeartbeatMessage(runID string, cursor StreamCursor, now time.Time) SSEMessage {
-	return contract.HeartbeatMessage(runID, cursor, now)
+	return SSEMessage{
+		Event: RunHeartbeatSSEEvent,
+		Data: HeartbeatPayload{
+			RunID:  strings.TrimSpace(runID),
+			Cursor: FormatCursor(cursor.Timestamp, cursor.Sequence),
+			TS:     now.UTC(),
+		},
+	}
 }
 
 // OverflowMessage builds the canonical overflow SSE event.
 func OverflowMessage(runID string, cursor StreamCursor, now time.Time, reason string) SSEMessage {
-	return contract.OverflowMessage(runID, cursor, now, reason)
+	return SSEMessage{
+		Event: RunOverflowSSEEvent,
+		Data: OverflowPayload{
+			RunID:  strings.TrimSpace(runID),
+			Cursor: FormatCursor(cursor.Timestamp, cursor.Sequence),
+			Reason: strings.TrimSpace(reason),
+			TS:     now.UTC(),
+		},
+	}
 }
 
 func resetTimer(timer *time.Timer, interval time.Duration) {

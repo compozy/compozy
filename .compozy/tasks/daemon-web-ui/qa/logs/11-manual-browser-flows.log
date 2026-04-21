@@ -1,0 +1,317 @@
+$ agent-browser open http://127.0.0.1:49769
+✓ Compozy Web UI
+  http://127.0.0.1:49769/
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- heading "Operator dashboard" [level=1, ref=e7]
+- button "Sync all workflows" [ref=e8]
+- heading "0" [level=2, ref=e9]
+- heading "3" [level=2, ref=e10]
+- heading "0" [level=2, ref=e11]
+- heading "ready" [level=2, ref=e12]
+- heading "Workflow inventory" [level=2, ref=e13]
+- link "VIEW ALL WORKFLOWS →" [ref=e14]
+- heading "Run queue" [level=2, ref=e15]
+$ agent-browser screenshot .compozy/tasks/daemon-web-ui/qa/screenshots/dashboard-root.png
+✓ Screenshot saved to /Users/pedronauck/.agent-browser/tmp/screenshots/screenshot-1776758274564.png
+
+$ agent-browser click @e14
+✓ Done
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- heading "Operator dashboard" [level=1, ref=e7]
+- button "Sync all workflows" [ref=e8]
+- heading "0" [level=2, ref=e9]
+- heading "3" [level=2, ref=e10]
+- heading "0" [level=2, ref=e11]
+- heading "ready" [level=2, ref=e12]
+- heading "Workflow inventory" [level=2, ref=e13]
+- link "VIEW ALL WORKFLOWS →" [ref=e14]
+- heading "Run queue" [level=2, ref=e15]
+$ agent-browser open http://127.0.0.1:49769/workflows
+✓ Compozy Web UI
+  http://127.0.0.1:49769/workflows
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- heading "Workflow inventory" [level=1, ref=e7]
+- button "Sync all" [ref=e8]
+- heading "archive-ready" [level=2, ref=e9]
+  - link "archive-ready" [ref=e27]
+- link "Open task board" [ref=e10]
+- link "Spec" [ref=e11]
+- link "Memory" [ref=e12]
+- button "Sync" [ref=e13]
+- button "Archive" [ref=e14]
+- heading "daemon" [level=2, ref=e15]
+  - link "daemon" [ref=e28]
+- link "Open task board" [ref=e16]
+- link "Spec" [ref=e17]
+- link "Memory" [ref=e18]
+- button "Sync" [ref=e19]
+- button "Archive" [ref=e20]
+- heading "daemon-web-ui" [level=2, ref=e21]
+  - link "daemon-web-ui" [ref=e29]
+- link "Open task board" [ref=e22]
+- link "Spec" [ref=e23]
+- link "Memory" [ref=e24]
+- button "Sync" [ref=e25]
+- button "Archive" [ref=e26]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/workflows-inventory.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/workflows-inventory.png
+
+$ agent-browser get url
+http://127.0.0.1:49769/workflows
+$ agent-browser open http://127.0.0.1:49769/workflows/daemon-web-ui/tasks
+✓ Compozy Web UI
+  http://127.0.0.1:49769/workflows/daemon-web-ui/tasks
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- button "← Back to workflows" [ref=e7]
+- heading "daemon-web-ui" [level=1, ref=e8]
+- heading "Pending" [level=2, ref=e9]
+- link "Daemon Web UI QA Execution and Browser/Operator Validation" [ref=e11]
+- heading "Completed" [level=2, ref=e10]
+- link "Bun Workspace Expansion and Web Package Skeletons" [ref=e12]
+- link "OpenAPI Contract Artifact and Typed Client Codegen" [ref=e13]
+- link "Shared UI Package and Mockup Theme Foundations" [ref=e14]
+- link "Daemon Projection and Document Query Layer" [ref=e15]
+- link "Daemon Web Read-Model Transport Services" [ref=e16]
+- link "Additive Browser REST Endpoints and OpenAPI Wiring" [ref=e17]
+- link "Active Workspace, Browser Security, and SSE Compatibility" [ref=e18]
+- link "Embedded SPA Serving and HTTP Fallback" [ref=e19]
+- link "Web App Shell, Workspace Selection, and Dashboard" [ref=e20]
+- link "Runs Console and Operational Run Controls" [ref=e21]
+- link "Workflow Task Board and Task Detail Surfaces" [ref=e22]
+- link "Reviews, Spec, and Memory Read Surfaces" [ref=e23]
+- link "Storybook, MSW, and Mocked Route-State Coverage" [ref=e24]
+- link "Bun-Aware Verify/CI Wiring and Daemon-Served Playwright E2E" [ref=e25]
+- link "Daemon Web UI QA Plan and Regression Artifacts" [ref=e26]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/task-board.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/task-board.png
+$ agent-browser click @e11
+✓ Done
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- button "← Back to daemon-web-ui board" [ref=e7]
+- heading "Daemon Web UI QA Execution and Browser/Operator Validation PENDING" [level=1, ref=e8]
+- link "Back to daemon-web-ui board" [ref=e10]
+- heading "Daemon Web UI QA Execution and Browser/Operator Validation" [level=2, ref=e9]
+- heading "depends_on" [level=2, ref=e11]
+- heading "Recent task runs" [level=2, ref=e12]
+- link "tasks-daemon-web-ui-4586a7-20260421-075734-000000000" [ref=e14]
+- heading "Related memory files" [level=2, ref=e13]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/task-detail.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/task-detail.png
+$ agent-browser open http://127.0.0.1:49769/workflows/daemon-web-ui/spec
+✓ Compozy Web UI
+  http://127.0.0.1:49769/workflows/daemon-web-ui/spec
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- button "← Back to workflows" [ref=e7]
+- heading "daemon-web-ui" [level=1, ref=e8]
+- link "Back to workflows" [ref=e13]
+- tab "PRD" [disabled, ref=e9]
+- tab "TechSpec" [selected, ref=e10]
+- tab "ADRs 5" [ref=e11]
+- heading "Technical Specification: Daemon Web UI Runtime App for Compozy" [level=2, ref=e12]
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/spec-techspec.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/spec-techspec.png
+
+$ agent-browser get url
+http://127.0.0.1:49769/workflows/daemon-web-ui/spec
+$ agent-browser open http://127.0.0.1:49769/memory/daemon-web-ui
+✓ Compozy Web UI
+  http://127.0.0.1:49769/memory/daemon-web-ui
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- button "← Back to memory" [ref=e7]
+- heading "daemon-web-ui" [level=1, ref=e8]
+- link "Back to memory" [ref=e10]
+- button "Workflow Memory memory/MEMORY.md 16.7 KB · 4/21/2026, 4:49:34 AM" [ref=e11]
+- button "Task Memory: task_01.md memory/task_01.md 2.3 KB · 4/20/2026, 10:54:27 PM" [ref=e12]
+- button "Task Memory: task_02.md memory/task_02.md 3.1 KB · 4/20/2026, 11:18:52 PM" [ref=e13]
+- button "Task Memory: task_03.md memory/task_03.md 3.2 KB · 4/20/2026, 11:35:16 PM" [ref=e14]
+- button "Task Memory: task_04.md memory/task_04.md 3.5 KB · 4/21/2026, 12:15:40 AM" [ref=e15]
+- button "Task Memory: task_05.md memory/task_05.md 3.8 KB · 4/21/2026, 12:38:48 AM" [ref=e16]
+- button "Task Memory: task_06.md memory/task_06.md 3.3 KB · 4/21/2026, 1:03:45 AM" [ref=e17]
+- button "Task Memory: task_07.md memory/task_07.md 3.6 KB · 4/21/2026, 1:32:02 AM" [ref=e18]
+- button "Task Memory: task_08.md memory/task_08.md 2.1 KB · 4/21/2026, 1:47:46 AM" [ref=e19]
+- button "Task Memory: task_09.md memory/task_09.md 5.7 KB · 4/21/2026, 2:22:14 AM" [ref=e20]
+- button "Task Memory: task_10.md memory/task_10.md 4.0 KB · 4/21/2026, 2:45:18 AM" [ref=e21]
+- button "Task Memory: task_11.md memory/task_11.md 4.1 KB · 4/21/2026, 3:01:17 AM" [ref=e22]
+- button "Task Memory: task_12.md memory/task_12.md 3.5 KB · 4/21/2026, 3:26:23 AM" [ref=e23]
+- button "Task Memory: task_13.md memory/task_13.md 4.2 KB · 4/21/2026, 3:58:38 AM" [ref=e24]
+- button "Task Memory: task_14.md memory/task_14.md 3.3 KB · 4/21/2026, 4:35:51 AM" [ref=e25]
+- button "Task Memory: task_15.md memory/task_15.md 2.8 KB · 4/21/2026, 4:49:34 AM" [ref=e26]
+- button "Task Memory: task_16.md memory/task_16.md 305 B · 4/20/2026, 10:38:09 PM" [ref=e27]
+- heading "Workflow Memory" [level=2, ref=e9]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/memory-detail.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/memory-detail.png
+$ agent-browser open http://127.0.0.1:49769/reviews
+✓ Compozy Web UI
+  http://127.0.0.1:49769/reviews
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- heading "Reviews" [level=1, ref=e7]
+- heading "daemon" [level=2, ref=e8]
+- link "reviews-005/issue_001.md" [ref=e9]
+- link "reviews-005/issue_002.md" [ref=e10]
+- link "reviews-005/issue_003.md" [ref=e11]
+- link "reviews-005/issue_004.md" [ref=e12]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/reviews-index.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/reviews-index.png
+$ agent-browser click @e9
+✓ Done
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- button "← Back to reviews" [ref=e7]
+- heading "Issue 001: _🛠️ Refactor suggestion_ | _🟠 Major_ RESOLVED" [level=1, ref=e8]
+- link "Back to reviews" [ref=e11]
+- button "Dispatch fix" [ref=e9]
+- heading "Reviewer comment & patch" [level=2, ref=e10]
+- heading "Round context" [level=2, ref=e12]
+- heading "Review fix runs" [level=2, ref=e13]
+- link "reviews-daemon-f77b12-round-001-20260421-075734-000000000" [ref=e14]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/review-detail.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/review-detail.png
+$ agent-browser click @e14
+✓ Done
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- button "← Back to reviews" [ref=e7]
+- heading "Issue 001: _🛠️ Refactor suggestion_ | _🟠 Major_ RESOLVED" [level=1, ref=e8]
+- link "Back to reviews" [ref=e11]
+- button "Dispatch fix" [ref=e9]
+- heading "Reviewer comment & patch" [level=2, ref=e10]
+- heading "Round context" [level=2, ref=e12]
+- heading "Review fix runs" [level=2, ref=e13]
+- link "reviews-daemon-f77b12-round-001-20260421-075734-000000000" [ref=e14]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/run-detail.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/run-detail.png
+$ agent-browser open http://127.0.0.1:49769/runs/reviews-daemon-f77b12-round-001-20260421-075734-000000000
+✓ Compozy Web UI
+  http://127.0.0.1:49769/runs/reviews-daemon-f77b12-round-001-20260421-075734-000000000
+
+$ agent-browser wait --load networkidle
+✓ Done
+
+$ agent-browser snapshot -i
+- heading "Compozy" [level=2, ref=e1]
+- link "Dashboard" [ref=e2]
+- link "Workflows" [ref=e3]
+- link "Runs" [ref=e4]
+- link "Reviews" [ref=e5]
+- link "Memory" [ref=e6]
+- button "← Back to runs" [ref=e7]
+- heading "daemon FAILED" [level=1, ref=e8]
+- link "daemon" [ref=e14]
+- button "Reconnect stream" [ref=e9]
+- button "Cancel run" [disabled, ref=e10]
+- heading "Run jobs" [level=2, ref=e11]
+- heading "Token usage" [level=2, ref=e12]
+- heading "Recent messages" [level=2, ref=e13]
+
+$ agent-browser screenshot ./.compozy/tasks/daemon-web-ui/qa/screenshots/run-detail-direct.png
+✓ Screenshot saved to ./.compozy/tasks/daemon-web-ui/qa/screenshots/run-detail-direct.png
+
+$ agent-browser get url
+http://127.0.0.1:49769/runs/reviews-daemon-f77b12-round-001-20260421-075734-000000000
+$ agent-browser close
+✓ Browser closed

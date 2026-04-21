@@ -1,0 +1,53 @@
+[0m[2m[35m$[0m [2m[1mbun run --cwd web test:e2e[0m
+[0m[2m[35m$[0m [2m[1mplaywright test --config playwright.config.ts[0m
+(node:30405) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:30405) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m5[2m tests using [22m1[2m worker[22m
+
+(node:30436) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:30436) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m1 [22me2e/daemon-ui.smoke.spec.ts:9:3 › daemon-served web UI smoke flows › loads the embedded dashboard and drills into workflows and tasks[2m (658ms)[22m
+  [32m✓[39m  [2m2 [22me2e/daemon-ui.smoke.spec.ts:32:3 › daemon-served web UI smoke flows › serves deep-linked spec and memory routes through the daemon HTTP listener[2m (405ms)[22m
+  [32m✓[39m  [2m3 [22me2e/daemon-ui.smoke.spec.ts:49:3 › daemon-served web UI smoke flows › renders reviews and runs from daemon-seeded data[2m (576ms)[22m
+  [32m✓[39m  [2m4 [22me2e/daemon-ui.smoke.spec.ts:67:3 › daemon-served web UI smoke flows › archives a workflow through the daemon API surface[2m (465ms)[22m
+  [31m✘[39m  [2m5 [22m[31me2e/daemon-ui.smoke.spec.ts:88:3 › daemon-served web UI smoke flows › starts a workflow run from the workflow inventory[39m[2m (2.0m)[22m
+
+
+[31m  1) e2e/daemon-ui.smoke.spec.ts:88:3 › daemon-served web UI smoke flows › starts a workflow run from the workflow inventory [39m
+
+    [31mTest timeout of 120000ms exceeded.[39m
+
+    Error: locator.click: Test timeout of 120000ms exceeded.
+    Call log:
+    [2m  - waiting for getByTestId('workflow-start-daemon-web-ui')[22m
+
+
+      92 |     await expect(page.getByTestId("workflow-inventory-view")).toBeVisible();
+      93 |
+    > 94 |     await page.getByTestId("workflow-start-daemon-web-ui").click();
+         |                                                            ^
+      95 |     await expect(page.getByTestId("workflow-inventory-start-success")).toContainText(
+      96 |       "Started run"
+      97 |     );
+    [2m    at /Users/pedronauck/Dev/compozy/_worktrees/daemon-web-ui/web/e2e/daemon-ui.smoke.spec.ts:94:60[22m
+
+[2m    attachment #1: [1mscreenshot[2m (image/png) [2m──────────────────────────────────────────────────────────[2m[22m
+[2m    ../.tmp/playwright/test-results/daemon-ui.smoke-daemon-ser-2d103-from-the-workflow-inventory/test-failed-1.png[22m
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[2m    attachment #2: [1mvideo[2m (video/webm) [2m──────────────────────────────────────────────────────────────[2m[22m
+[2m    ../.tmp/playwright/test-results/daemon-ui.smoke-daemon-ser-2d103-from-the-workflow-inventory/video.webm[22m
+[2m    [2m────────────────────────────────────────────────────────────────────────────────────────────────[2m[22m
+
+[2m    Error Context: ../.tmp/playwright/test-results/daemon-ui.smoke-daemon-ser-2d103-from-the-workflow-inventory/error-context.md[22m
+
+[31m  1 failed[39m
+[31m    e2e/daemon-ui.smoke.spec.ts:88:3 › daemon-served web UI smoke flows › starts a workflow run from the workflow inventory [39m
+[32m  4 passed[39m[2m (2.1m)[22m
+[0m[31merror[0m[2m:[0m script [1m"test:e2e"[0m exited with code 1[0m
+[0m[31merror[0m[2m:[0m script [1m"frontend:e2e"[0m exited with code 1[0m

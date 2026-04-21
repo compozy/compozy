@@ -54,12 +54,48 @@ var RouteInventory = []RouteSpec{
 		ResponseType: "WorkspaceResponse",
 		TimeoutClass: TimeoutRead,
 	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/ui/dashboard",
+		ResponseType: "DashboardPayload",
+		TimeoutClass: TimeoutRead,
+	},
 	{Method: http.MethodGet, Path: "/api/tasks", ResponseType: "TaskWorkflowListResponse", TimeoutClass: TimeoutRead},
 	{Method: http.MethodGet, Path: "/api/tasks/:slug", ResponseType: "TaskWorkflowResponse", TimeoutClass: TimeoutRead},
 	{
 		Method:       http.MethodGet,
+		Path:         "/api/tasks/:slug/spec",
+		ResponseType: "WorkflowSpecDocument",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/tasks/:slug/memory",
+		ResponseType: "WorkflowMemoryIndex",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/tasks/:slug/memory/files/:file_id",
+		ResponseType: "MarkdownDocument",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/tasks/:slug/board",
+		ResponseType: "TaskBoardPayload",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodGet,
 		Path:         "/api/tasks/:slug/items",
 		ResponseType: "TaskItemsResponse",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/tasks/:slug/items/:task_id",
+		ResponseType: "TaskDetailPayload",
 		TimeoutClass: TimeoutRead,
 	},
 	{
@@ -102,6 +138,12 @@ var RouteInventory = []RouteSpec{
 		Method:       http.MethodGet,
 		Path:         "/api/reviews/:slug/rounds/:round/issues",
 		ResponseType: "ReviewIssuesResponse",
+		TimeoutClass: TimeoutRead,
+	},
+	{
+		Method:       http.MethodGet,
+		Path:         "/api/reviews/:slug/rounds/:round/issues/:issue_id",
+		ResponseType: "ReviewDetailPayload",
 		TimeoutClass: TimeoutRead,
 	},
 	{

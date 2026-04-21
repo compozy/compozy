@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Bun Workspace Expansion and Web Package Skeletons
 type: infra
 complexity: high
@@ -29,11 +29,11 @@ This task expands the repository's existing Bun/Turbo tooling so the daemon web 
 </requirements>
 
 ## Subtasks
-- [ ] 1.1 Expand the root Bun workspace and Turbo configuration to include `web/` and `packages/ui/`.
-- [ ] 1.2 Create the initial package manifests and TypeScript config files for the daemon SPA and shared UI package.
-- [ ] 1.3 Add the basic Vite/bootstrap files required for later route and component work.
-- [ ] 1.4 Introduce the initial `web/dist/` placeholder and package-level build entrypoints expected by later embed work.
-- [ ] 1.5 Add checks proving the new workspaces install and resolve correctly without regressing existing SDK packages.
+- [x] 1.1 Expand the root Bun workspace and Turbo configuration to include `web/` and `packages/ui/`.
+- [x] 1.2 Create the initial package manifests and TypeScript config files for the daemon SPA and shared UI package.
+- [x] 1.3 Add the basic Vite/bootstrap files required for later route and component work.
+- [x] 1.4 Introduce the initial `web/dist/` placeholder and package-level build entrypoints expected by later embed work.
+- [x] 1.5 Add checks proving the new workspaces install and resolve correctly without regressing existing SDK packages.
 
 ## Implementation Details
 
@@ -66,13 +66,13 @@ See the TechSpec sections "Component Overview", "Data Models", "Impact Analysis"
 
 ## Tests
 - Unit tests:
-  - [ ] Root workspace configuration includes `web/` and `packages/ui/` without dropping the current `sdk/*` entries.
-  - [ ] `web/` and `packages/ui/` inherit the repository's strict TypeScript defaults cleanly.
-  - [ ] Package entrypoints and exports resolve correctly from the root workspace graph.
+  - [x] Root workspace configuration includes `web/` and `packages/ui/` without dropping the current `sdk/*` entries.
+  - [x] `web/` and `packages/ui/` inherit the repository's strict TypeScript defaults cleanly.
+  - [x] Package entrypoints and exports resolve correctly from the root workspace graph.
 - Integration tests:
-  - [ ] Fresh Bun install succeeds with the expanded workspace layout.
-  - [ ] Root build/typecheck commands can discover the new packages without regressing the existing SDK packages.
-  - [ ] Fresh checkout `go build` is not blocked by a missing `web/dist/` path.
+  - [x] Fresh Bun install succeeds with the expanded workspace layout.
+  - [x] Root build/typecheck commands can discover the new packages without regressing the existing SDK packages.
+  - [x] Fresh checkout `go build` is not blocked by a missing `web/dist/` path.
 - Test coverage target: >=80%
 - All tests must pass
 

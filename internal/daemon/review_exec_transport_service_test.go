@@ -81,6 +81,17 @@ func TestTransportReviewServiceFetchQueriesAndStartRunUseDaemonState(t *testing.
 	if len(issues) != 1 || issues[0].IssueNumber != 1 || issues[0].Status != "pending" {
 		t.Fatalf("unexpected review issues: %#v", issues)
 	}
+	workspace, err := env.globalDB.ResolveOrRegister(context.Background(), env.workspaceRoot)
+	if err != nil {
+		t.Fatalf("ResolveOrRegister() error = %v", err)
+	}
+	issuesByID, err := service.ListIssues(context.Background(), workspace.ID, env.workflowSlug, 1)
+	if err != nil {
+		t.Fatalf("ListIssues(workspace id) error = %v", err)
+	}
+	if len(issuesByID) != 1 || issuesByID[0].ID != issues[0].ID {
+		t.Fatalf("unexpected review issues by workspace id: %#v", issuesByID)
+	}
 
 	env.writeWorkflowFile(
 		t,

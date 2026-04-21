@@ -1,0 +1,137 @@
+$ rg -n "useStartWorkflowRun|startWorkflowRun" web/src
+web/src/generated/compozy-openapi.d.ts:357:        post: operations["startWorkflowRun"];
+web/src/generated/compozy-openapi.d.ts:1606:    startWorkflowRun: {
+web/src/systems/runs/index.ts:8:  useStartWorkflowRun,
+web/src/systems/runs/index.ts:38:  startWorkflowRun,
+web/src/systems/runs/hooks/use-runs.ts:10:  startWorkflowRun,
+web/src/systems/runs/hooks/use-runs.ts:65:export function useStartWorkflowRun() {
+web/src/systems/runs/hooks/use-runs.ts:68:    mutationFn: params => startWorkflowRun(params),
+web/src/systems/runs/adapters/runs-api.ts:82:export async function startWorkflowRun(params: StartWorkflowRunParams): Promise<Run> {
+web/src/systems/runs/adapters/runs-api.test.ts:5:import { cancelRun, getRun, getRunSnapshot, listRuns, startWorkflowRun } from "./runs-api";
+web/src/systems/runs/adapters/runs-api.test.ts:178:    const started = await startWorkflowRun({
+
+$ find web/src/routes -maxdepth 2 -type f | sort
+web/src/routes/-app-shell.integration.test.tsx
+web/src/routes/-reviews-flow.integration.test.tsx
+web/src/routes/-runs.integration.test.tsx
+web/src/routes/-spec-memory-flow.integration.test.tsx
+web/src/routes/-workflow-tasks.integration.test.tsx
+web/src/routes/__root.tsx
+web/src/routes/_app.tsx
+web/src/routes/_app/index.tsx
+web/src/routes/_app/memory.tsx
+web/src/routes/_app/memory_.$slug.tsx
+web/src/routes/_app/reviews.tsx
+web/src/routes/_app/reviews_.$slug.$round.$issueId.tsx
+web/src/routes/_app/runs.tsx
+web/src/routes/_app/runs_.$runId.tsx
+web/src/routes/_app/workflows.tsx
+web/src/routes/_app/workflows_.$slug.spec.tsx
+web/src/routes/_app/workflows_.$slug.tasks.tsx
+web/src/routes/_app/workflows_.$slug.tasks_.$taskId.tsx
+
+$ rg -n "start.*run|run.*start|dispatch fix|cancel" web/src/routes web/src/systems
+web/src/systems/reviews/components/review-detail-view.tsx:247:                    {run.mode} · started {formatTimestamp(run.started_at)}
+web/src/systems/reviews/adapters/reviews-api.test.ts:158:    const run = await startReviewRun({
+web/src/routes/_app/runs_.$runId.tsx:27:  const cancelMutation = useCancelRun();
+web/src/routes/_app/runs_.$runId.tsx:28:  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
+web/src/routes/_app/runs_.$runId.tsx:29:  const [cancelError, setCancelError] = useState<string | null>(null);
+web/src/routes/_app/runs_.$runId.tsx:51:      await cancelMutation.mutateAsync({ runId });
+web/src/routes/_app/runs_.$runId.tsx:54:      setCancelError(apiErrorMessage(error, "Failed to cancel run"));
+web/src/routes/_app/runs_.$runId.tsx:95:          cancelDisabled={runTerminated || !snapshotQuery.data}
+web/src/routes/_app/runs_.$runId.tsx:96:          cancelError={cancelError}
+web/src/routes/_app/runs_.$runId.tsx:97:          cancelSuccess={cancelMessage}
+web/src/routes/_app/runs_.$runId.tsx:98:          isCancelling={cancelMutation.isPending}
+web/src/routes/_app/runs_.$runId.tsx:127:    normalized === "canceled" ||
+web/src/routes/_app/runs_.$runId.tsx:128:    normalized === "cancelled"
+web/src/routes/-runs.integration.test.tsx:194:  it("Should cancel a running run through the daemon contract", async () => {
+web/src/routes/-runs.integration.test.tsx:208:        matcher: matchUrl("/api/runs/run-1/cancel", "POST"),
+web/src/routes/-runs.integration.test.tsx:216:    await userEvent.click(screen.getByTestId("run-detail-cancel"));
+web/src/routes/-runs.integration.test.tsx:218:      const cancelCalls = stub.calls.filter(
+web/src/routes/-runs.integration.test.tsx:219:        call => call.url.includes("/api/runs/run-1/cancel") && call.method === "POST"
+web/src/routes/-runs.integration.test.tsx:221:      expect(cancelCalls).toHaveLength(1);
+web/src/routes/-runs.integration.test.tsx:223:    await screen.findByTestId("run-detail-cancel-success");
+web/src/systems/runs/index.ts:34:  cancelRun,
+web/src/routes/-reviews-flow.integration.test.tsx:44:    queue: { active: 0, completed: 0, failed: 0, canceled: 0, total: 0 },
+web/src/routes/-app-shell.integration.test.tsx:41:    queue: { active: 0, canceled: 0, completed: 4, failed: 0, total: 4 },
+web/src/systems/runs/hooks/use-runs.ts:6:  cancelRun,
+web/src/systems/runs/hooks/use-runs.ts:54:    mutationFn: params => cancelRun(params),
+web/src/systems/runs/hooks/use-run-stream.ts:96:  const cancelReconnectRef = useRef<(() => void) | null>(null);
+web/src/systems/runs/hooks/use-run-stream.ts:111:    cancelReconnectRef.current?.();
+web/src/systems/runs/hooks/use-run-stream.ts:112:    cancelReconnectRef.current = null;
+web/src/systems/runs/hooks/use-run-stream.ts:129:      cancelReconnectRef.current?.();
+web/src/systems/runs/hooks/use-run-stream.ts:130:      cancelReconnectRef.current = null;
+web/src/systems/runs/hooks/use-run-stream.ts:189:          cancelReconnectRef.current?.();
+web/src/systems/runs/hooks/use-run-stream.ts:190:          cancelReconnectRef.current = scheduleReconnect(() => {
+web/src/systems/runs/hooks/use-run-stream.ts:191:            cancelReconnectRef.current = null;
+web/src/systems/runs/hooks/use-run-stream.ts:204:      cancelReconnectRef.current?.();
+web/src/systems/runs/hooks/use-run-stream.ts:205:      cancelReconnectRef.current = null;
+web/src/systems/runs/mocks/handlers.ts:19:    http.get("/api/runs/:run_id", () => HttpResponse.json({ run: runs[0] ?? startRun })),
+web/src/systems/runs/mocks/handlers.ts:21:    http.post("/api/runs/:run_id/cancel", () => HttpResponse.json({ canceled: true })),
+web/src/systems/runs/mocks/handlers.ts:22:    http.post("/api/tasks/:slug/runs", () => HttpResponse.json({ run: startRun }, { status: 201 })),
+web/src/systems/runs/hooks/use-run-stream.test.tsx:38:  const cancels: Array<() => void> = [];
+web/src/systems/runs/hooks/use-run-stream.test.tsx:41:    const cancel = vi.fn();
+web/src/systems/runs/hooks/use-run-stream.test.tsx:42:    cancels.push(cancel);
+web/src/systems/runs/hooks/use-run-stream.test.tsx:43:    return cancel;
+web/src/systems/runs/hooks/use-run-stream.test.tsx:45:  return { schedule, scheduled, cancels };
+web/src/systems/runs/hooks/use-run-stream.test.tsx:80:        payload: { kind: "run.started" },
+web/src/systems/runs/mocks/fixtures.ts:85:  run_id: "run-task-started",
+web/src/systems/runs/components/run-detail-view.tsx:38:  cancelDisabled: boolean;
+web/src/systems/runs/components/run-detail-view.tsx:40:  cancelError?: string | null;
+web/src/systems/runs/components/run-detail-view.tsx:41:  cancelSuccess?: string | null;
+web/src/systems/runs/components/run-detail-view.tsx:55:    cancelDisabled,
+web/src/systems/runs/components/run-detail-view.tsx:57:    cancelError,
+web/src/systems/runs/components/run-detail-view.tsx:58:    cancelSuccess,
+web/src/systems/runs/components/run-detail-view.tsx:79:              data-testid="run-detail-cancel"
+web/src/systems/runs/components/run-detail-view.tsx:80:              disabled={cancelDisabled || isCancelling}
+web/src/systems/runs/components/run-detail-view.tsx:103:            {run.mode} · started {formatTimestamp(run.started_at)}
+web/src/systems/runs/components/run-detail-view.tsx:126:      {cancelError ? (
+web/src/systems/runs/components/run-detail-view.tsx:129:          data-testid="run-detail-cancel-error"
+web/src/systems/runs/components/run-detail-view.tsx:132:          {cancelError}
+web/src/systems/runs/components/run-detail-view.tsx:135:      {cancelSuccess ? (
+web/src/systems/runs/components/run-detail-view.tsx:138:          data-testid="run-detail-cancel-success"
+web/src/systems/runs/components/run-detail-view.tsx:140:          {cancelSuccess}
+web/src/systems/runs/components/run-detail-view.test.tsx:57:  cancelDisabled?: boolean;
+web/src/systems/runs/components/run-detail-view.test.tsx:59:  cancelError?: string | null;
+web/src/systems/runs/components/run-detail-view.test.tsx:60:  cancelSuccess?: string | null;
+web/src/systems/runs/components/run-detail-view.test.tsx:74:          cancelDisabled={props.cancelDisabled ?? false}
+web/src/systems/runs/components/run-detail-view.test.tsx:75:          cancelError={props.cancelError ?? null}
+web/src/systems/runs/components/run-detail-view.test.tsx:76:          cancelSuccess={props.cancelSuccess ?? null}
+web/src/systems/runs/components/run-detail-view.test.tsx:145:  it("Should call the reconnect and cancel handlers", async () => {
+web/src/systems/runs/components/run-detail-view.test.tsx:150:    await userEvent.click(screen.getByTestId("run-detail-cancel"));
+web/src/systems/runs/components/run-detail-view.test.tsx:155:  it("Should disable the cancel action when requested", async () => {
+web/src/systems/runs/components/run-detail-view.test.tsx:156:    await renderRunDetail({ cancelDisabled: true });
+web/src/systems/runs/components/run-detail-view.test.tsx:157:    expect(screen.getByTestId("run-detail-cancel")).toBeDisabled();
+web/src/systems/runs/components/run-detail-view.test.tsx:160:  it("Should render the cancel success banner", async () => {
+web/src/systems/runs/components/run-detail-view.test.tsx:161:    await renderRunDetail({ cancelSuccess: "Cancellation requested" });
+web/src/systems/runs/components/run-detail-view.test.tsx:162:    expect(screen.getByTestId("run-detail-cancel-success")).toHaveTextContent(
+web/src/systems/runs/components/run-detail-view.test.tsx:167:  it("Should render the cancel error banner", async () => {
+web/src/systems/runs/components/run-detail-view.test.tsx:168:    await renderRunDetail({ cancelError: "could not cancel" });
+web/src/systems/runs/components/run-detail-view.test.tsx:169:    expect(screen.getByTestId("run-detail-cancel-error")).toHaveTextContent("could not cancel");
+web/src/systems/runs/components/runs-list-view.tsx:36:  { value: "canceled", label: "Canceled" },
+web/src/systems/runs/components/runs-list-view.tsx:166:              started {formatTimestamp(run.started_at)}
+web/src/systems/runs/components/runs-list-view.tsx:235:    case "canceled":
+web/src/systems/runs/components/runs-list-view.tsx:236:    case "cancelled":
+web/src/systems/runs/components/runs-list-view.test.tsx:137:    expect(resolveStatusTone("canceled")).toBe("warning");
+web/src/systems/runs/adapters/runs-api.ts:64:export async function cancelRun(params: CancelRunParams): Promise<void> {
+web/src/systems/runs/adapters/runs-api.ts:65:  const { data, error, response } = await daemonApiClient.POST("/api/runs/{run_id}/cancel", {
+web/src/systems/runs/adapters/runs-api.ts:69:    throw new Error(apiErrorMessage(error, `Failed to cancel run ${params.runId}`));
+web/src/systems/runs/adapters/runs-api.ts:72:    throw new Error(`Failed to cancel run ${params.runId}: empty response`);
+web/src/systems/runs/adapters/runs-api.ts:94:    throw new Error(apiErrorMessage(error, `Failed to start run for ${params.slug}`));
+web/src/systems/runs/adapters/runs-api.ts:96:  const payload = requireData(data, response, `Failed to start run for ${params.slug}`, error);
+web/src/systems/runs/adapters/runs-api.test.ts:5:import { cancelRun, getRun, getRunSnapshot, listRuns, startWorkflowRun } from "./runs-api";
+web/src/systems/runs/adapters/runs-api.test.ts:135:  it("Should POST run cancellation", async () => {
+web/src/systems/runs/adapters/runs-api.test.ts:138:        matcher: matchPath("/api/runs/run-3/cancel", "POST"),
+web/src/systems/runs/adapters/runs-api.test.ts:144:    await expect(cancelRun({ runId: "run-3" })).resolves.toBeUndefined();
+web/src/systems/runs/adapters/runs-api.test.ts:148:  it("Should surface transport errors from cancellation", async () => {
+web/src/systems/runs/adapters/runs-api.test.ts:151:        matcher: matchPath("/api/runs/run-gone/cancel", "POST"),
+web/src/systems/runs/adapters/runs-api.test.ts:157:    await expect(cancelRun({ runId: "run-gone" })).rejects.toThrow(/unknown run/);
+web/src/systems/runs/adapters/runs-api.test.ts:160:  it("Should POST workflow run start with workspace header and body", async () => {
+web/src/systems/runs/adapters/runs-api.test.ts:183:    expect(started.run_id).toBe("run-new");
+web/src/systems/runs/types.ts:12:export type RunListStatusFilter = "active" | "completed" | "failed" | "canceled" | "all";
+web/src/systems/dashboard/components/dashboard-view.test.tsx:35:    queue: { active: 1, canceled: 0, completed: 5, failed: 2, total: 8 },
+web/src/systems/dashboard/components/dashboard-view.tsx:181:    { label: "Canceled", value: queue.canceled, tone: "warning" },
+web/src/systems/dashboard/adapters/dashboard-api.test.ts:24:    queue: { active: 0, canceled: 0, completed: 0, failed: 0, total: 0 },
+web/src/systems/dashboard/mocks/fixtures.ts:38:      canceled: 0,
+web/src/systems/dashboard/mocks/fixtures.ts:57:    canceled: 0,
+web/src/systems/workflows/components/task-detail-view.tsx:199:          {run.mode} · started {formatTimestamp(run.started_at)}

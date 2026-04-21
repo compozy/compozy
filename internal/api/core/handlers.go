@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
@@ -176,6 +178,44 @@ func (h *Handlers) requireWorkspaceRef(c *gin.Context, value string) (string, bo
 	return workspace, true
 }
 
+func (h *Handlers) optionalWorkspaceContext(c *gin.Context, value string) string {
+	workspace := strings.TrimSpace(value)
+	if c == nil || c.Request == nil {
+		return workspace
+	}
+	if active := ActiveWorkspaceIDFromContext(c.Request.Context()); active != "" {
+		return active
+	}
+	return workspace
+}
+
+func (h *Handlers) requireWorkspaceContext(c *gin.Context, value string) (string, bool) {
+	workspace := h.optionalWorkspaceContext(c, value)
+	if workspace == "" {
+		h.respondError(c, workspaceContextProblem(
+			"workspace_context_missing",
+			"active workspace context is required",
+			nil,
+			nil,
+		))
+		return "", false
+	}
+	return workspace, true
+}
+
+func (h *Handlers) respondWorkspaceContextError(c *gin.Context, workspaceRef string, err error) {
+	if errors.Is(err, globaldb.ErrWorkspaceNotFound) {
+		h.respondError(c, workspaceContextProblem(
+			"workspace_context_stale",
+			"active workspace context is stale",
+			map[string]any{"workspace": strings.TrimSpace(workspaceRef)},
+			err,
+		))
+		return
+	}
+	h.respondError(c, err)
+}
+
 func requireNonEmptyString(field string, value string) error {
 	if strings.TrimSpace(value) == "" {
 		return validationProblem(
@@ -238,6 +278,18 @@ func parseCursorQuery(raw string) (StreamCursor, error) {
 			"invalid_cursor",
 			err.Error(),
 			map[string]any{"field": "after"},
+		)
+	}
+	return cursor, nil
+}
+
+func parseStreamCursorQuery(raw string) (StreamCursor, error) {
+	cursor, err := ParseCursor(raw)
+	if err != nil {
+		return StreamCursor{}, validationProblem(
+			"invalid_cursor",
+			err.Error(),
+			map[string]any{"field": "cursor"},
 		)
 	}
 	return cursor, nil
@@ -460,6 +512,26 @@ func (h *Handlers) ResolveWorkspace(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.WorkspaceResponse{Workspace: workspace})
 }
 
+// GetDashboard returns the active-workspace dashboard aggregate.
+func (h *Handlers) GetDashboard(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+	if !ok {
+		return
+	}
+
+	dashboard, err := h.Tasks.Dashboard(c.Request.Context(), workspace)
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"dashboard": dashboard})
+}
+
 // ListTaskWorkflows lists task workflows for one workspace.
 func (h *Handlers) ListTaskWorkflows(c *gin.Context) {
 	if h.Tasks == nil {
@@ -467,37 +539,37 @@ func (h *Handlers) ListTaskWorkflows(c *gin.Context) {
 		return
 	}
 
-	workspace, ok := h.requireWorkspaceRef(c, c.Query("workspace"))
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
 	if !ok {
 		return
 	}
 
 	workflows, err := h.Tasks.ListWorkflows(c.Request.Context(), workspace)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.TaskWorkflowListResponse{Workflows: workflows})
 }
 
-// GetTaskWorkflow returns one workflow summary.
+// GetTaskWorkflow returns the richer workflow overview payload.
 func (h *Handlers) GetTaskWorkflow(c *gin.Context) {
 	if h.Tasks == nil {
 		h.respondError(c, serviceUnavailableProblem("task service"))
 		return
 	}
 
-	workspace, ok := h.requireWorkspaceRef(c, c.Query("workspace"))
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
 	if !ok {
 		return
 	}
 
-	workflow, err := h.Tasks.GetWorkflow(c.Request.Context(), workspace, c.Param("slug"))
+	workflow, err := h.Tasks.WorkflowOverview(c.Request.Context(), workspace, c.Param("slug"))
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.TaskWorkflowResponse{Workflow: workflow})
+	c.JSON(http.StatusOK, gin.H{"workflow": workflow})
 }
 
 // ListTaskItems lists parsed task items for one workflow.
@@ -507,17 +579,127 @@ func (h *Handlers) ListTaskItems(c *gin.Context) {
 		return
 	}
 
-	workspace, ok := h.requireWorkspaceRef(c, c.Query("workspace"))
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
 	if !ok {
 		return
 	}
 
 	items, err := h.Tasks.ListItems(c.Request.Context(), workspace, c.Param("slug"))
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.TaskItemsResponse{Items: items})
+}
+
+// GetTaskBoard returns the workflow task-board read model.
+func (h *Handlers) GetTaskBoard(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+	if !ok {
+		return
+	}
+
+	board, err := h.Tasks.TaskBoard(c.Request.Context(), workspace, c.Param("slug"))
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"board": board})
+}
+
+// GetWorkflowSpec returns the workflow PRD, TechSpec, and ADR documents.
+func (h *Handlers) GetWorkflowSpec(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+	if !ok {
+		return
+	}
+
+	spec, err := h.Tasks.WorkflowSpec(c.Request.Context(), workspace, c.Param("slug"))
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"spec": spec})
+}
+
+// GetWorkflowMemory returns the memory index for one workflow.
+func (h *Handlers) GetWorkflowMemory(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+	if !ok {
+		return
+	}
+
+	memory, err := h.Tasks.WorkflowMemoryIndex(c.Request.Context(), workspace, c.Param("slug"))
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"memory": memory})
+}
+
+// GetWorkflowMemoryFile returns one workflow memory document by opaque daemon-issued ID.
+func (h *Handlers) GetWorkflowMemoryFile(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+	if !ok {
+		return
+	}
+
+	document, err := h.Tasks.WorkflowMemoryFile(
+		c.Request.Context(),
+		workspace,
+		c.Param("slug"),
+		c.Param("file_id"),
+	)
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"document": document})
+}
+
+// GetTaskItemDetail returns the richer workflow task detail payload.
+func (h *Handlers) GetTaskItemDetail(c *gin.Context) {
+	if h.Tasks == nil {
+		h.respondError(c, serviceUnavailableProblem("task service"))
+		return
+	}
+
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+	if !ok {
+		return
+	}
+
+	taskDetail, err := h.Tasks.TaskDetail(
+		c.Request.Context(),
+		workspace,
+		c.Param("slug"),
+		c.Param("task_id"),
+	)
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"task": taskDetail})
 }
 
 // ValidateTaskWorkflow validates task files for one workflow.
@@ -555,7 +737,7 @@ func (h *Handlers) StartTaskRun(c *gin.Context) {
 	if !h.bindJSON(c, "decode task run request", &body) {
 		return
 	}
-	workspace, ok := h.requireWorkspaceRef(c, body.Workspace)
+	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
 	if !ok {
 		return
 	}
@@ -566,7 +748,7 @@ func (h *Handlers) StartTaskRun(c *gin.Context) {
 		RuntimeOverrides: body.RuntimeOverrides,
 	})
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
@@ -583,14 +765,14 @@ func (h *Handlers) ArchiveTaskWorkflow(c *gin.Context) {
 	if !h.bindJSON(c, "decode archive workflow request", &body) {
 		return
 	}
-	workspace, ok := h.requireWorkspaceRef(c, body.Workspace)
+	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
 	if !ok {
 		return
 	}
 
 	result, err := h.Tasks.Archive(c.Request.Context(), workspace, c.Param("slug"))
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -645,14 +827,14 @@ func (h *Handlers) GetLatestReview(c *gin.Context) {
 		return
 	}
 
-	workspace, ok := h.requireWorkspaceRef(c, c.Query("workspace"))
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
 	if !ok {
 		return
 	}
 
 	review, err := h.Reviews.GetLatest(c.Request.Context(), workspace, c.Param("slug"))
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ReviewSummaryResponse{Review: review})
@@ -665,7 +847,7 @@ func (h *Handlers) GetReviewRound(c *gin.Context) {
 		return
 	}
 
-	workspace, ok := h.requireWorkspaceRef(c, c.Query("workspace"))
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
 	if !ok {
 		return
 	}
@@ -677,7 +859,7 @@ func (h *Handlers) GetReviewRound(c *gin.Context) {
 
 	reviewRound, err := h.Reviews.GetRound(c.Request.Context(), workspace, c.Param("slug"), round)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ReviewRoundResponse{Round: reviewRound})
@@ -690,7 +872,7 @@ func (h *Handlers) ListReviewIssues(c *gin.Context) {
 		return
 	}
 
-	workspace, ok := h.requireWorkspaceRef(c, c.Query("workspace"))
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
 	if !ok {
 		return
 	}
@@ -702,10 +884,41 @@ func (h *Handlers) ListReviewIssues(c *gin.Context) {
 
 	issues, err := h.Reviews.ListIssues(c.Request.Context(), workspace, c.Param("slug"), round)
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ReviewIssuesResponse{Issues: issues})
+}
+
+// GetReviewIssue returns the richer review issue detail payload.
+func (h *Handlers) GetReviewIssue(c *gin.Context) {
+	if h.Reviews == nil {
+		h.respondError(c, serviceUnavailableProblem("review service"))
+		return
+	}
+
+	workspace, ok := h.requireWorkspaceContext(c, c.Query("workspace"))
+	if !ok {
+		return
+	}
+	round, err := parsePositiveInt(c.Param("round"), "round")
+	if err != nil {
+		h.respondError(c, err)
+		return
+	}
+
+	review, err := h.Reviews.ReviewDetail(
+		c.Request.Context(),
+		workspace,
+		c.Param("slug"),
+		round,
+		c.Param("issue_id"),
+	)
+	if err != nil {
+		h.respondWorkspaceContextError(c, workspace, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"review": review})
 }
 
 // StartReviewRun starts one review-fix run.
@@ -719,7 +932,7 @@ func (h *Handlers) StartReviewRun(c *gin.Context) {
 	if !h.bindJSON(c, "decode review run request", &body) {
 		return
 	}
-	workspace, ok := h.requireWorkspaceRef(c, body.Workspace)
+	workspace, ok := h.requireWorkspaceContext(c, body.Workspace)
 	if !ok {
 		return
 	}
@@ -736,7 +949,7 @@ func (h *Handlers) StartReviewRun(c *gin.Context) {
 		Batching:         body.Batching,
 	})
 	if err != nil {
-		h.respondError(c, err)
+		h.respondWorkspaceContextError(c, workspace, err)
 		return
 	}
 	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
@@ -767,7 +980,7 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 	}
 
 	runs, err := h.Runs.List(c.Request.Context(), RunListQuery{
-		Workspace: strings.TrimSpace(c.Query("workspace")),
+		Workspace: h.optionalWorkspaceContext(c, c.Query("workspace")),
 		Status:    strings.TrimSpace(c.Query("status")),
 		Mode:      strings.TrimSpace(c.Query("mode")),
 		Limit:     limit,
@@ -862,6 +1075,13 @@ func (h *Handlers) StreamRun(c *gin.Context) {
 	if err != nil {
 		h.respondError(c, err)
 		return
+	}
+	if after.Sequence == 0 {
+		after, err = parseStreamCursorQuery(c.Query("cursor"))
+		if err != nil {
+			h.respondError(c, err)
+			return
+		}
 	}
 
 	stream, err := h.Runs.OpenStream(c.Request.Context(), c.Param("run_id"), after)
@@ -961,17 +1181,19 @@ func (h *Handlers) SyncWorkflow(c *gin.Context) {
 		return
 	}
 
-	if strings.TrimSpace(body.Workspace) == "" && strings.TrimSpace(body.Path) == "" {
-		h.respondError(c, validationProblem(
-			"sync_target_required",
-			"workspace or path is required",
+	workspace := h.optionalWorkspaceContext(c, body.Workspace)
+	if workspace == "" && strings.TrimSpace(body.Path) == "" {
+		h.respondError(c, workspaceContextProblem(
+			"workspace_context_missing",
+			"active workspace context is required",
+			nil,
 			nil,
 		))
 		return
 	}
 
 	result, err := h.Sync.Sync(c.Request.Context(), SyncRequest{
-		Workspace:    strings.TrimSpace(body.Workspace),
+		Workspace:    workspace,
 		Path:         strings.TrimSpace(body.Path),
 		WorkflowSlug: strings.TrimSpace(body.WorkflowSlug),
 	})
@@ -1051,11 +1273,7 @@ func (h *Handlers) writeStreamItem(
 		return streamItemOutcome{Cursor: lastCursor}, nil
 	default:
 		cursor := CursorFromEvent(*item.Event)
-		message := SSEMessage{
-			ID:    FormatCursor(item.Event.Timestamp, item.Event.Seq),
-			Event: string(item.Event.Kind),
-			Data:  item.Event,
-		}
+		message := EventMessage(*item.Event)
 		if err := WriteSSE(writer, message); err != nil {
 			return streamItemOutcome{}, err
 		}

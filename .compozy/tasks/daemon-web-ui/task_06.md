@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Additive Browser REST Endpoints and OpenAPI Wiring
 type: backend
 complexity: high
@@ -31,11 +31,11 @@ This task exposes the new browser-oriented daemon reads and actions through addi
 </requirements>
 
 ## Subtasks
-- [ ] 6.1 Extend the shared route registration with the additive browser endpoints required by the TechSpec.
-- [ ] 6.2 Add or extend handler methods and DTOs so the new browser routes are fully implemented.
-- [ ] 6.3 Keep the existing root-scoped daemon routes intact and compatible while adding the new surfaces.
-- [ ] 6.4 Update the OpenAPI artifact so it matches the real browser-facing route and payload behavior.
-- [ ] 6.5 Add handler and contract tests for the new web routes and problem responses.
+- [x] 6.1 Extend the shared route registration with the additive browser endpoints required by the TechSpec.
+- [x] 6.2 Add or extend handler methods and DTOs so the new browser routes are fully implemented.
+- [x] 6.3 Keep the existing root-scoped daemon routes intact and compatible while adding the new surfaces.
+- [x] 6.4 Update the OpenAPI artifact so it matches the real browser-facing route and payload behavior.
+- [x] 6.5 Add handler and contract tests for the new web routes and problem responses.
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ See the TechSpec sections "API Endpoints", "OpenAPI Generation Contract", "Impac
 
 ## Tests
 - Unit tests:
-  - [ ] New browser routes register under the expected root-scoped API families without removing existing routes.
-  - [ ] Handlers return the expected payloads and problem envelopes for success and failure paths.
-  - [ ] Stale or missing workspace context returns the expected typed problem response.
+  - [x] New browser routes register under the expected root-scoped API families without removing existing routes.
+  - [x] Handlers return the expected payloads and problem envelopes for success and failure paths.
+  - [x] Stale or missing workspace context returns the expected typed problem response.
 - Integration tests:
-  - [ ] Existing `/api/tasks`, `/api/reviews`, `/api/runs`, `/api/sync`, and `/api/workspaces` flows still behave correctly after the new routes are added.
-  - [ ] The additive browser routes return payloads compatible with the checked-in OpenAPI document.
-  - [ ] Shared HTTP/UDS route registration stays coherent after the browser routes are introduced.
+  - [x] Existing `/api/tasks`, `/api/reviews`, `/api/runs`, `/api/sync`, and `/api/workspaces` flows still behave correctly after the new routes are added.
+  - [x] The additive browser routes return payloads compatible with the checked-in OpenAPI document.
+  - [x] Shared HTTP/UDS route registration stays coherent after the browser routes are introduced.
 - Test coverage target: >=80%
 - All tests must pass
 

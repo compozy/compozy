@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Web Read-Model Transport Services
 type: backend
 complexity: high
@@ -30,11 +30,11 @@ This task wires the new internal read-model/query layer into the daemon transpor
 </requirements>
 
 ## Subtasks
-- [ ] 5.1 Extend or add transport services that expose the new read-model surfaces required by the web UI.
-- [ ] 5.2 Centralize transport mapping logic for the new dashboard, detail, spec, and memory payloads.
-- [ ] 5.3 Remove or replace unsupported transport stubs relied on by the new browser flows.
-- [ ] 5.4 Keep current daemon runtime consumers compatible while adding the new read surfaces.
-- [ ] 5.5 Add service and mapper tests covering success and failure paths.
+- [x] 5.1 Extend or add transport services that expose the new read-model surfaces required by the web UI.
+- [x] 5.2 Centralize transport mapping logic for the new dashboard, detail, spec, and memory payloads.
+- [x] 5.3 Remove or replace unsupported transport stubs relied on by the new browser flows.
+- [x] 5.4 Keep current daemon runtime consumers compatible while adding the new read surfaces.
+- [x] 5.5 Add service and mapper tests covering success and failure paths.
 
 ## Implementation Details
 
@@ -67,13 +67,13 @@ See the TechSpec sections "Daemon read-model services", "Core Interfaces", and "
 
 ## Tests
 - Unit tests:
-  - [ ] Transport services return the expected dashboard, detail, spec, and memory payload shapes.
-  - [ ] Unsupported paths that the browser depends on are replaced with real service behavior.
-  - [ ] Mapper helpers preserve IDs, timestamps, and status data correctly across the new payloads.
+  - [x] Transport services return the expected dashboard, detail, spec, and memory payload shapes.
+  - [x] Unsupported paths that the browser depends on are replaced with real service behavior.
+  - [x] Mapper helpers preserve IDs, timestamps, and status data correctly across the new payloads.
 - Integration tests:
-  - [ ] Shared transport services can assemble the new payloads from real daemon DB/document fixtures.
-  - [ ] Failure paths from missing workspace, workflow, review, or document data are surfaced as transport-level errors.
-  - [ ] Existing operational run surfaces remain compatible while the new reads are added.
+  - [x] Shared transport services can assemble the new payloads from real daemon DB/document fixtures.
+  - [x] Failure paths from missing workspace, workflow, review, or document data are surfaced as transport-level errors.
+  - [x] Existing operational run surfaces remain compatible while the new reads are added.
 - Test coverage target: >=80%
 - All tests must pass
 

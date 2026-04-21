@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Bun-Aware Verify/CI Wiring and Daemon-Served Playwright E2E
 type: test
 complexity: critical
@@ -37,11 +37,11 @@ This task turns the new frontend stack into a real repository contract by extend
 </requirements>
 
 ## Subtasks
-- [ ] 14.1 Extend the local repository gate with Bun-aware build and verify behavior.
-- [ ] 14.2 Update CI path filters and job steps so frontend and contract changes are validated automatically.
-- [ ] 14.3 Add Playwright configuration and daemon-served browser harness setup.
-- [ ] 14.4 Implement or update critical smoke E2E specs for the public browser flows.
-- [ ] 14.5 Add checks proving fresh-checkout build and embedded-asset assumptions still hold.
+- [x] 14.1 Extend the local repository gate with Bun-aware build and verify behavior.
+- [x] 14.2 Update CI path filters and job steps so frontend and contract changes are validated automatically.
+- [x] 14.3 Add Playwright configuration and daemon-served browser harness setup.
+- [x] 14.4 Implement or update critical smoke E2E specs for the public browser flows.
+- [x] 14.5 Add checks proving fresh-checkout build and embedded-asset assumptions still hold.
 
 ## Implementation Details
 
@@ -77,13 +77,13 @@ See the TechSpec sections "Testing Approach", "Development Sequencing", "Technic
 
 ## Tests
 - Unit tests:
-  - [ ] Root scripts and Makefile steps run the expected frontend verification commands in the correct order.
-  - [ ] CI path filters include the frontend, OpenAPI, and workspace-config surfaces introduced by this feature.
-  - [ ] Playwright configuration targets the daemon-served runtime assumptions correctly.
+  - [x] Root scripts and Makefile steps run the expected frontend verification commands in the correct order.
+  - [x] CI path filters include the frontend, OpenAPI, and workspace-config surfaces introduced by this feature.
+  - [x] Playwright configuration targets the daemon-served runtime assumptions correctly.
 - Integration tests:
-  - [ ] `make verify` runs the Bun-aware frontend and Go verification lanes end to end.
-  - [ ] CI can detect and run the correct verification lane when frontend or OpenAPI files change.
-  - [ ] Playwright smoke specs pass against daemon-served embedded assets for the critical browser flows.
+  - [x] `make verify` runs the Bun-aware frontend and Go verification lanes end to end.
+  - [x] CI can detect and run the correct verification lane when frontend or OpenAPI files change.
+  - [x] Playwright smoke specs pass against daemon-served embedded assets for the critical browser flows.
 - Test coverage target: >=80%
 - All tests must pass
 

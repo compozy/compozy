@@ -1,0 +1,83 @@
+Checking Bun version...
+[0;32mBun version 1.3.11 detected[0m 
+/opt/homebrew/bin/bun run frontend:bootstrap
+[0m[2m[35m$[0m [2m[1mbun ci[0m
+[0m[1mbun install [0m[2mv1.3.11 (af24e281)[0m
+
+[0m[2m[35m$[0m [2m[1mbash scripts/link-skills.sh[0m
+Linking skills into .claude/skills:
+Symlink setup complete!
+[0m[2m[35m$[0m [2m[1mhusky[0m
+
+Checked [32m482 installs[0m across 585 packages [2m(no changes)[0m [0m[2m[[1m308.00ms[0m[2m][0m[0m
+/opt/homebrew/bin/bun run frontend:build
+[0m[2m[35m$[0m [2m[1mbun run build[0m
+[0m[2m[35m$[0m [2m[1mturbo run build[0m
+[2m• turbo 2.9.6[0m
+
+   • Packages in scope: @compozy/create-extension, @compozy/extension-sdk, @compozy/ui, compozy-web
+   • Running build in 4 packages
+   • Remote caching disabled, using shared worktree cache
+
+[35m@compozy/ui:build: [0mcache hit, replaying logs [2m62817edfdd28f3f6[0m
+[35m@compozy/ui:build: [0m[0m[2m[35m$[0m [2m[1mtsc -p tsconfig.build.json[0m
+[33mcompozy-web:build: [0mcache miss, executing [2me53e0a3078008e64[0m
+[32m@compozy/extension-sdk:build: [0mcache hit, replaying logs [2m5d094771411c1825[0m
+[36m@compozy/create-extension:build: [0mcache hit, replaying logs [2m0b2141f8d75a801c[0m
+[32m@compozy/extension-sdk:build: [0m[0m[2m[35m$[0m [2m[1mtsc -p tsconfig.json[0m
+[36m@compozy/create-extension:build: [0m[0m[2m[35m$[0m [2m[1mtsc -p tsconfig.json && node ./scripts/copy-templates.mjs[0m
+[33mcompozy-web:build: [0m
+[33mcompozy-web:build: [0m[0m[2m[35m$[0m [2m[1mbun run codegen-check && vite build && node ./scripts/restore-dist-placeholder.mjs[0m
+[33mcompozy-web:build: [0m[0m[2m[35m$[0m [2m[1mbun run --cwd .. codegen-check && node ./scripts/tsr-generate.mjs[0m
+[33mcompozy-web:build: [0m[0m[2m[35m$[0m [2m[1mnode scripts/codegen.mjs --check[0m
+[33mcompozy-web:build: [0m(node:50420) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[33mcompozy-web:build: [0m(Use `node --trace-warnings ...` to show where the warning was created)
+[33mcompozy-web:build: [0m✨ [1mopenapi-typescript 7.13.0[22m
+[33mcompozy-web:build: [0m🚀 [32m/Users/pedronauck/Dev/compozy/_worktrees/daemon-web-ui/openapi/compozy-daemon.json → [1m/tmp/compozy-codegen-VLF6TA/compozy-openapi.d.ts[22m[39m [2m[31.3ms][22m
+[33mcompozy-web:build: [0m(node:50421) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[33mcompozy-web:build: [0m(Use `node --trace-warnings ...` to show where the warning was created)
+[33mcompozy-web:build: [0m(node:50442) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[33mcompozy-web:build: [0m(Use `node --trace-warnings ...` to show where the warning was created)
+[33mcompozy-web:build: [0mvite v8.0.8 building client environment for production...
+[33mcompozy-web:build: [0m[2K[33mcompozy-web:build: [0mtransforming (246) [2m../node_modules/.bun/lucide-react@1.8.0+3f10a4be4e334a9b/[2K[33mcompozy-web:build: [0mtransforming (247) [2m../node_modules/.bun/lucide-react@1.8.0+3f10a4be4e334a9b/[2K[33mcompozy-web:build: [0m[32m✓[39m 1951 modules transformed.
+[33mcompozy-web:build: [0m[2K[33mcompozy-web:build: [0mrendering chunks (1)...[2K[33mcompozy-web:build: [0mrendering chunks (2)...[2K[33mcompozy-web:build: [0mrendering chunks (3)...[2K[33mcompozy-web:build: [0mrendering chunks (4)...[2K[33mcompozy-web:build: [0mrendering chunks (5)...[2K[33mcompozy-web:build: [0mrendering chunks (6)...[2K[33mcompozy-web:build: [0mrendering chunks (7)...[2K[33mcompozy-web:build: [0mrendering chunks (8)...[2K[33mcompozy-web:build: [0mrendering chunks (9)...[2K[33mcompozy-web:build: [0mrendering chunks (10)...[2K[33mcompozy-web:build: [0mrendering chunks (11)...[2K[33mcompozy-web:build: [0mrendering chunks (12)...[2K[33mcompozy-web:build: [0mrendering chunks (13)...[2K[33mcompozy-web:build: [0mrendering chunks (14)...[2K[33mcompozy-web:build: [0mrendering chunks (15)...[2K[33mcompozy-web:build: [0mrendering chunks (16)...[2K[33mcompozy-web:build: [0mrendering chunks (17)...[2K[33mcompozy-web:build: [0mrendering chunks (18)...[2K[33mcompozy-web:build: [0mrendering chunks (19)...[2K[33mcompozy-web:build: [0mrendering chunks (20)...[2K[33mcompozy-web:build: [0mrendering chunks (21)...[2K[33mcompozy-web:build: [0mrendering chunks (22)...[2K[33mcompozy-web:build: [0mrendering chunks (23)...[2K[33mcompozy-web:build: [0mcomputing gzip size...
+[33mcompozy-web:build: [0m[2K[33mcompozy-web:build: [0m[2mdist/[0m[32mindex.html                                          [39m[2m[1m  0.79 kB[0m[0m[2m │ gzip:  0.38 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[32mNippo-Variable-B2wPshg8.woff2                [39m[2m[1m 29.10 kB[0m[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[32mDisket-Mono-Regular-fYDQgH15.ttf             [39m[2m[1m 84.20 kB[0m[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[32mDisket-Mono-Bold-HFjWFgHd.ttf                [39m[2m[1m 90.66 kB[0m[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[35mindex-Cw4vpGp8.css                           [39m[2m[1m 25.35 kB[0m[0m[2m │ gzip:  5.84 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mmatchContext-D5v6NDIQ.js                     [39m[2m[1m  0.14 kB[0m[0m[2m │ gzip:  0.12 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36m_app-17C8Uvv0.js                             [39m[2m[1m  0.17 kB[0m[0m[2m │ gzip:  0.16 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36m_app-DSrh03Fk.js                             [39m[2m[1m  0.21 kB[0m[0m[2m │ gzip:  0.19 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36m_app-DXOSuv4r.js                             [39m[2m[1m  0.27 kB[0m[0m[2m │ gzip:  0.22 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mmemory-CWwRiriy.js                           [39m[2m[1m  0.52 kB[0m[0m[2m │ gzip:  0.33 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mruns-DhtDKkHg.js                             [39m[2m[1m  0.63 kB[0m[0m[2m │ gzip:  0.38 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36museNavigate-DbxSz2T9.js                      [39m[2m[1m  0.91 kB[0m[0m[2m │ gzip:  0.50 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mworkflows_._slug.tasks-Cca8E5qO.js           [39m[2m[1m  1.02 kB[0m[0m[2m │ gzip:  0.59 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36m_app-DyeZT2yc.js                             [39m[2m[1m  1.14 kB[0m[0m[2m │ gzip:  0.62 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mworkflows_._slug.tasks_._taskId-C59akpWB.js  [39m[2m[1m  1.41 kB[0m[0m[2m │ gzip:  0.73 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mmemory_._slug-DXnkMNes.js                    [39m[2m[1m  1.85 kB[0m[0m[2m │ gzip:  0.93 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mworkflows-BHoNR3LW.js                        [39m[2m[1m  1.85 kB[0m[0m[2m │ gzip:  0.81 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mreviews_._slug._round._issueId---IdzThG.js   [39m[2m[1m  2.15 kB[0m[0m[2m │ gzip:  0.96 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mruns_._runId-DrEyQdFT.js                     [39m[2m[1m  2.30 kB[0m[0m[2m │ gzip:  1.20 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mreviews-DwxQc9oq.js                          [39m[2m[1m  4.32 kB[0m[0m[2m │ gzip:  1.85 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mworkflows_._slug.spec-qBhJqwLO.js            [39m[2m[1m  6.25 kB[0m[0m[2m │ gzip:  2.19 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mmemory-DKaElFx5.js                           [39m[2m[1m  8.97 kB[0m[0m[2m │ gzip:  2.61 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mreviews-D2o8ylzu.js                          [39m[2m[1m 13.98 kB[0m[0m[2m │ gzip:  3.54 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mworkflows-Bx1zjKXP.js                        [39m[2m[1m 18.37 kB[0m[0m[2m │ gzip:  4.26 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mruns-jLhq02cA.js                             [39m[2m[1m 23.16 kB[0m[0m[2m │ gzip:  6.21 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mMatch-8bw7LUf2.js                            [39m[2m[1m 49.16 kB[0m[0m[2m │ gzip: 15.87 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mapp-shell-BIRELBTx.js                        [39m[2m[1m120.10 kB[0m[0m[2m │ gzip: 38.40 kB[0m
+[33mcompozy-web:build: [0m[2mdist/[0m[2massets/[0m[36mindex-l2zpbf_4.js                            [39m[2m[1m203.72 kB[0m[0m[2m │ gzip: 64.67 kB[0m
+[33mcompozy-web:build: [0m
+[33mcompozy-web:build: [0m✓ built in 224ms
+
+[1m Tasks:    [32m[1m4 successful[0m, 4 total[0m
+[1mCached:    [1m3 cached[0m, 4 total[0m
+[1m  Time:    [1m1.146s[0m [0m
+
+    ...Finishing writing to cache...                                            [2K[2m>  [0m ...Finishing writing to cache...                                            [2KChecking Go version...
+[0;32mGo version 1.26.1 is compatible[0m 
+mkdir -p bin
+/Users/pedronauck/.local/share/mise/installs/go/1.26.1/bin/go build -ldflags "-X github.com/compozy/compozy/internal/version.Version=v0.1.12-25-g7cb682b -X github.com/compozy/compozy/internal/version.Commit=7cb682b -X github.com/compozy/compozy/internal/version.Date=2026-04-21T08:11:09Z" -o bin/compozy ./cmd/compozy
+chmod +x bin/compozy

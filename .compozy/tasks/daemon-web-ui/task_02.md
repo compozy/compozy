@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: OpenAPI Contract Artifact and Typed Client Codegen
 type: infra
 complexity: high
@@ -30,11 +30,11 @@ This task creates the checked-in browser contract for the daemon web UI and wire
 </requirements>
 
 ## Subtasks
-- [ ] 2.1 Add the checked-in OpenAPI document at the repository root for the daemon browser contract.
-- [ ] 2.2 Wire root and package-level codegen commands for generate and drift-check workflows.
-- [ ] 2.3 Create the generated typings output path and the typed web API client wrapper.
-- [ ] 2.4 Add automated checks proving the generated output stays in sync with the checked-in contract.
-- [ ] 2.5 Document the codegen contract in the package/build scripts expected by later tasks.
+- [x] 2.1 Add the checked-in OpenAPI document at the repository root for the daemon browser contract.
+- [x] 2.2 Wire root and package-level codegen commands for generate and drift-check workflows.
+- [x] 2.3 Create the generated typings output path and the typed web API client wrapper.
+- [x] 2.4 Add automated checks proving the generated output stays in sync with the checked-in contract.
+- [x] 2.5 Document the codegen contract in the package/build scripts expected by later tasks.
 
 ## Implementation Details
 
@@ -68,13 +68,13 @@ See the TechSpec sections "API Endpoints", "OpenAPI Generation Contract", and "T
 
 ## Tests
 - Unit tests:
-  - [ ] OpenAPI generation produces the expected typings output under `web/src/generated/`.
-  - [ ] `codegen-check` fails when the generated types would differ from the checked-in output.
-  - [ ] The typed client wrapper exposes the expected base configuration for later route/domain consumers.
+  - [x] OpenAPI generation produces the expected typings output under `web/src/generated/`.
+  - [x] `codegen-check` fails when the generated types would differ from the checked-in output.
+  - [x] The typed client wrapper exposes the expected base configuration for later route/domain consumers.
 - Integration tests:
-  - [ ] Running the codegen workflow from the repository root succeeds on a clean checkout.
-  - [ ] Web package scripts that depend on codegen can run without manual presteps.
-  - [ ] Contract drift is detected automatically instead of relying on manual inspection.
+  - [x] Running the codegen workflow from the repository root succeeds on a clean checkout.
+  - [x] Web package scripts that depend on codegen can run without manual presteps.
+  - [x] Contract drift is detected automatically instead of relying on manual inspection.
 - Test coverage target: >=80%
 - All tests must pass
 

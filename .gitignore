@@ -4,6 +4,9 @@
 .cache/
 bin/
 dist/
+!web/dist/
+web/dist/*
+!web/dist/.keep
 RELEASE_NOTES.md
 coverage.out
 coverage.html
@@ -22,3 +25,6 @@ node_modules/
 .turbo/
 coverage/
 *.tsbuildinfo
+
+# TanStack Router generated tree — regenerated at build/dev time.
+web/src/routeTree.gen.ts

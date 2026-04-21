@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Projection and Document Query Layer
 type: backend
 complexity: high
@@ -29,11 +29,11 @@ This task builds the internal read-model layer for the daemon web UI before any 
 </requirements>
 
 ## Subtasks
-- [ ] 4.1 Define the internal read models needed by dashboard, spec, memory, task detail, and review detail views.
-- [ ] 4.2 Implement server-side document readers for spec and memory artifacts with normalized payload shapes.
-- [ ] 4.3 Assemble workflow, task, review, and run projections from the existing daemon databases.
-- [ ] 4.4 Add opaque memory file identity handling suitable for later transport exposure.
-- [ ] 4.5 Add tests covering query assembly, document normalization, and path-hiding behavior.
+- [x] 4.1 Define the internal read models needed by dashboard, spec, memory, task detail, and review detail views.
+- [x] 4.2 Implement server-side document readers for spec and memory artifacts with normalized payload shapes.
+- [x] 4.3 Assemble workflow, task, review, and run projections from the existing daemon databases.
+- [x] 4.4 Add opaque memory file identity handling suitable for later transport exposure.
+- [x] 4.5 Add tests covering query assembly, document normalization, and path-hiding behavior.
 
 ## Implementation Details
 
@@ -66,13 +66,13 @@ See the TechSpec sections "Daemon read-model services", "Backend Read Models", "
 
 ## Tests
 - Unit tests:
-  - [ ] Dashboard projections assemble daemon, workflow, and run summary data into the expected internal shape.
-  - [ ] Spec and memory document readers normalize markdown artifacts without exposing raw filesystem paths.
-  - [ ] Memory index generation returns stable opaque file IDs rather than browser-visible relative paths.
+  - [x] Dashboard projections assemble daemon, workflow, and run summary data into the expected internal shape.
+  - [x] Spec and memory document readers normalize markdown artifacts without exposing raw filesystem paths.
+  - [x] Memory index generation returns stable opaque file IDs rather than browser-visible relative paths.
 - Integration tests:
-  - [ ] Workflow/task/review/run data can be assembled from real daemon database fixtures.
-  - [ ] Missing or stale workspace documents return typed failures suitable for later problem-envelope translation.
-  - [ ] Run-related read models compose cleanly with persisted daemon snapshots and event data.
+  - [x] Workflow/task/review/run data can be assembled from real daemon database fixtures.
+  - [x] Missing or stale workspace documents return typed failures suitable for later problem-envelope translation.
+  - [x] Run-related read models compose cleanly with persisted daemon snapshots and event data.
 - Test coverage target: >=80%
 - All tests must pass
 

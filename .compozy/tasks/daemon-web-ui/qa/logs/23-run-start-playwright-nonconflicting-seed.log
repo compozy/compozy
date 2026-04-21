@@ -1,0 +1,19 @@
+(node:71695) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:71695) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m1[2m test using [22m1[2m worker[22m
+
+(node:71726) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:71726) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+     [2m1 [22m[2m…d web UI smoke flows › starts a workflow run from the workflow inventory[22m
+[1A[2K[0G  [32m✓[39m  [2m1 [22m… smoke flows › starts a workflow run from the workflow inventory[2m (196ms)[22m[1E
+[32m  1 passed[39m[2m (1.2s)[22m
+
+To open last HTML report run:
+[36m[39m
+[36m  npx playwright show-report ../.tmp/playwright/report[39m
+[36m[39m

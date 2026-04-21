@@ -375,6 +375,7 @@ type inProcessClientRunStream struct {
 	items         chan apiclient.RunStreamItem
 	errors        chan error
 	done          chan struct{}
+	stopped       chan struct{}
 	closeUpstream func() error
 	closeOnce     sync.Once
 }
@@ -383,8 +384,10 @@ func newInProcessClientRunStream(stream apicore.RunStream) apiclient.RunStream {
 	items := make(chan apiclient.RunStreamItem)
 	errs := make(chan error, 1)
 	done := make(chan struct{})
+	stopped := make(chan struct{})
 
 	go func() {
+		defer close(stopped)
 		defer close(items)
 		defer close(errs)
 		eventsCh := stream.Events()
@@ -432,6 +435,7 @@ func newInProcessClientRunStream(stream apicore.RunStream) apiclient.RunStream {
 		items:         items,
 		errors:        errs,
 		done:          done,
+		stopped:       stopped,
 		closeUpstream: stream.Close,
 	}
 }
@@ -453,6 +457,9 @@ func (s *inProcessClientRunStream) Close() error {
 		close(s.done)
 		if s.closeUpstream != nil {
 			err = s.closeUpstream()
+		}
+		if s.stopped != nil {
+			<-s.stopped
 		}
 	})
 	return err

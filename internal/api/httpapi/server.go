@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -41,6 +42,9 @@ type Server struct {
 	handlers    *core.Handlers
 	engine      *gin.Engine
 	portUpdater PortUpdater
+	staticFS    fs.FS
+	devProxy    *devProxyHandler
+	devProxyURL string
 
 	httpServer   *http.Server
 	listener     net.Listener
@@ -93,6 +97,13 @@ func WithPortUpdater(updater PortUpdater) Option {
 	}
 }
 
+// WithDevProxyTarget enables development fallback proxying to a Vite server.
+func WithDevProxyTarget(target string) Option {
+	return func(server *Server) {
+		server.devProxyURL = strings.TrimSpace(target)
+	}
+}
+
 // New constructs a localhost HTTP API server.
 func New(opts ...Option) (*Server, error) {
 	server := &Server{
@@ -125,6 +136,19 @@ func (s *Server) finalize() error {
 	if s.port < 0 || s.port > 65535 {
 		return fmt.Errorf("httpapi: invalid port %d", s.port)
 	}
+	if s.devProxyURL != "" {
+		devProxy, err := newDevProxyHandler(s.devProxyURL)
+		if err != nil {
+			return fmt.Errorf("httpapi: configure development frontend proxy: %w", err)
+		}
+		s.devProxy = devProxy
+	} else {
+		staticFS, err := newStaticFS()
+		if err != nil {
+			return fmt.Errorf("httpapi: load embedded frontend bundle: %w", err)
+		}
+		s.staticFS = staticFS
+	}
 	s.ensureEngine()
 	return nil
 }
@@ -149,6 +173,19 @@ func (s *Server) ensureEngine() {
 		)
 	}))
 	s.engine.Use(core.ErrorMiddleware())
+	s.engine.Use(s.hostValidationMiddleware())
+	s.engine.Use(s.originValidationMiddleware())
+	s.engine.Use(s.activeWorkspaceMiddleware())
+	s.engine.Use(s.csrfMiddleware())
+	if s.devProxy != nil {
+		RegisterRoutes(s.engine, s.handlers, s.devProxy.serve)
+		return
+	}
+	staticHandler := newStaticHandler(s.staticFS, s.handlers.Now())
+	if staticHandler != nil {
+		RegisterRoutes(s.engine, s.handlers, staticHandler.serve)
+		return
+	}
 	RegisterRoutes(s.engine, s.handlers)
 }
 

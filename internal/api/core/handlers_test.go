@@ -177,7 +177,7 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 					return strings.Join(lines, "\n"), nil
 				}
 				lines = append(lines, line)
-				if line == "event: heartbeat" && !overflowTriggered {
+				if line == "event: "+core.RunHeartbeatSSEEvent && !overflowTriggered {
 					overflowTriggered = true
 					close(sendOverflow)
 				}
@@ -195,10 +195,10 @@ func TestStreamRunEmitsHeartbeatAndOverflowFrames(t *testing.T) {
 		t.Fatalf("read stream text: %v", err)
 	}
 
-	if !strings.Contains(text, "event: heartbeat") {
+	if !strings.Contains(text, "event: "+core.RunHeartbeatSSEEvent) {
 		t.Fatalf("stream missing heartbeat frame:\n%s", text)
 	}
-	if !strings.Contains(text, "event: overflow") {
+	if !strings.Contains(text, "event: "+core.RunOverflowSSEEvent) {
 		t.Fatalf("stream missing overflow frame:\n%s", text)
 	}
 }
@@ -261,6 +261,10 @@ func (f *fakeRunService) Get(context.Context, string) (core.Run, error) {
 
 func (f *fakeRunService) Snapshot(context.Context, string) (core.RunSnapshot, error) {
 	return core.RunSnapshot{}, nil
+}
+
+func (f *fakeRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
+	return core.RunDetailPayload{}, nil
 }
 
 func (f *fakeRunService) Events(context.Context, string, core.RunEventPageQuery) (core.RunEventPage, error) {

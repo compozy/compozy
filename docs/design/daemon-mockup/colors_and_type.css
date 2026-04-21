@@ -4,14 +4,9 @@
  * Tailwind-less flat version of the same tokens for use in static HTML artifacts.
  */
 
-/** Fonts (self-hosted) **/
-@font-face {
-  font-family: "Nippo";
-  src: url("./fonts/Nippo-Variable.woff2") format("woff2");
-  font-weight: 200 700;
-  font-style: normal;
-  font-display: swap;
-}
+/** Fonts **/
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap");
+
 @font-face {
   font-family: "Disket Mono";
   src: url("./fonts/Disket-Mono-Regular.ttf") format("truetype");
@@ -29,11 +24,11 @@
 
 :root {
   /* Brand */
-  --brand: #caea28;              /* lime brand — signature Compozy accent */
+  --brand: #caea28; /* lime brand — signature Compozy accent */
   --brand-950: #1a2e05;
 
   /* Stone neutrals (Tailwind stone) */
-  --stone-50:  #fafaf9;
+  --stone-50: #fafaf9;
   --stone-100: #f5f5f4;
   --stone-200: #e7e5e4;
   --stone-300: #d6d3d1;
@@ -46,17 +41,17 @@
   --stone-950: #0c0a09;
 
   /* Status colors */
-  --red-500:     #ef4444;
-  --red-50:      #fef2f2;
+  --red-500: #ef4444;
+  --red-50: #fef2f2;
   --emerald-500: #10b981;
   --emerald-700: #047857;
-  --amber-500:   #f59e0b;
-  --amber-700:   #b45309;
-  --blue-500:    #3b82f6;
-  --blue-700:    #1d4ed8;
+  --amber-500: #f59e0b;
+  --amber-700: #b45309;
+  --blue-500: #3b82f6;
+  --blue-700: #1d4ed8;
 
   /* Semantic (DARK — default theme) */
-  --background: #1a1918;                    /* stone-900 mixed w/ black */
+  --background: #1a1918; /* stone-900 mixed w/ black */
   --foreground: var(--stone-200);
   --card: #1d1c1a;
   --card-foreground: var(--stone-200);
@@ -84,11 +79,11 @@
 
   --sidebar: #0d0c0b;
   --sidebar-foreground: var(--stone-200);
-  --sidebar-primary: #bef264;               /* lime-400 */
+  --sidebar-primary: #bef264; /* lime-400 */
   --sidebar-primary-foreground: var(--stone-900);
   --sidebar-accent: #2a2725;
   --sidebar-accent-foreground: var(--stone-200);
-  --sidebar-border: rgba(255, 255, 255, 0.10);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
 
   --chart-1: #8c7c6b;
   --chart-2: #a09384;
@@ -97,18 +92,20 @@
   --chart-5: #75675b;
 
   /* Typography stacks */
-  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-sans:
+    "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-display: "Nippo", "Disket Mono", var(--font-mono);   /* marketing / hero text */
-  --font-disket: "Disket Mono", "JetBrains Mono", monospace;
+  --font-display: "Playfair Display", Georgia, serif; /* marketing / hero text */
+  --font-eyebrow: var(--font-mono);
 
   /* Geometry */
-  --radius: 0.75rem;                         /* 12px base — shadcn default */
-  --radius-sm: calc(var(--radius) - 4px);    /* 8px */
-  --radius-md: calc(var(--radius) - 2px);    /* 10px */
-  --radius-lg: var(--radius);                /* 12px */
-  --radius-xl: calc(var(--radius) + 4px);    /* 16px */
+  --radius: 0.75rem; /* 12px base — shadcn default */
+  --radius-sm: calc(var(--radius) - 4px); /* 8px */
+  --radius-md: calc(var(--radius) - 2px); /* 10px */
+  --radius-lg: var(--radius); /* 12px */
+  --radius-xl: calc(var(--radius) + 4px); /* 16px */
 
   /* Spacing scale (0.2rem base = 3.2px) */
   --spacing: 0.2rem;
@@ -123,12 +120,12 @@
   /* Shadows — soft warm stone, never black */
   --shadow-color: hsl(30 10% 20%);
   --shadow-2xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
-  --shadow-xs:  0 3px 8px 0 hsl(30 10% 20% / 0.04);
-  --shadow-sm:  0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
-  --shadow:     0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
-  --shadow-md:  0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 2px 4px -1px hsl(30 10% 20% / 0.08);
-  --shadow-lg:  0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 4px 6px -1px hsl(30 10% 20% / 0.08);
-  --shadow-xl:  0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 8px 10px -1px hsl(30 10% 20% / 0.08);
+  --shadow-xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
+  --shadow-sm: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
+  --shadow: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
+  --shadow-md: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 2px 4px -1px hsl(30 10% 20% / 0.08);
+  --shadow-lg: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 4px 6px -1px hsl(30 10% 20% / 0.08);
+  --shadow-xl: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 8px 10px -1px hsl(30 10% 20% / 0.08);
   --shadow-2xl: 0 3px 8px 0 hsl(30 10% 20% / 0.2);
 
   --tracking-normal: 0em;
@@ -162,7 +159,7 @@
   --sidebar-primary-foreground: var(--brand-950);
   --sidebar-accent: var(--stone-200);
   --sidebar-accent-foreground: var(--stone-800);
-  --sidebar-border: rgba(0, 0, 0, 0.10);
+  --sidebar-border: rgba(0, 0, 0, 0.1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -243,5 +240,14 @@
 }
 
 /* Resets for card preview environment */
-html, body { background: var(--background); color: var(--foreground); margin: 0; font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
-* { box-sizing: border-box; }
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  margin: 0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}

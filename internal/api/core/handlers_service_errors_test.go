@@ -124,6 +124,15 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"internal_error",
 		},
 		{
+			"dashboard service error",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
+			http.MethodGet,
+			"/api/ui/dashboard?workspace=ws-1",
+			"",
+			http.StatusInternalServerError,
+			"internal_error",
+		},
+		{
 			"task workflows service error",
 			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
 			http.MethodGet,
@@ -142,10 +151,55 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"internal_error",
 		},
 		{
+			"task spec service error",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
+			http.MethodGet,
+			"/api/tasks/daemon/spec?workspace=ws-1",
+			"",
+			http.StatusInternalServerError,
+			"internal_error",
+		},
+		{
+			"task memory service error",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
+			http.MethodGet,
+			"/api/tasks/daemon/memory?workspace=ws-1",
+			"",
+			http.StatusInternalServerError,
+			"internal_error",
+		},
+		{
+			"task memory file service error",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
+			http.MethodGet,
+			"/api/tasks/daemon/memory/files/file-1?workspace=ws-1",
+			"",
+			http.StatusInternalServerError,
+			"internal_error",
+		},
+		{
+			"task board service error",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
+			http.MethodGet,
+			"/api/tasks/daemon/board?workspace=ws-1",
+			"",
+			http.StatusInternalServerError,
+			"internal_error",
+		},
+		{
 			"task items service error",
 			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
 			http.MethodGet,
 			"/api/tasks/daemon/items?workspace=ws-1",
+			"",
+			http.StatusInternalServerError,
+			"internal_error",
+		},
+		{
+			"task item detail service error",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: boom}},
+			http.MethodGet,
+			"/api/tasks/daemon/items/task_01?workspace=ws-1",
 			"",
 			http.StatusInternalServerError,
 			"internal_error",
@@ -228,6 +282,15 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"internal_error",
 		},
 		{
+			"review issue detail service error",
+			&core.HandlerConfig{Reviews: &errorReviewService{err: boom}},
+			http.MethodGet,
+			"/api/reviews/daemon/rounds/1/issues/issue-1?workspace=ws-1",
+			"",
+			http.StatusInternalServerError,
+			"internal_error",
+		},
+		{
 			"review run service error",
 			&core.HandlerConfig{Reviews: &errorReviewService{err: boom}},
 			http.MethodPost,
@@ -253,6 +316,15 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"",
 			http.StatusInternalServerError,
 			"internal_error",
+		},
+		{
+			"stale workspace context returns precondition failed",
+			&core.HandlerConfig{Tasks: &errorTaskService{err: globaldb.ErrWorkspaceNotFound}},
+			http.MethodGet,
+			"/api/ui/dashboard?workspace=ws-stale",
+			"",
+			http.StatusPreconditionFailed,
+			"workspace_context_stale",
 		},
 		{
 			"run events service error",
@@ -480,13 +552,13 @@ func TestStreamRunAdditionalBranches(t *testing.T) {
 		defer response.Body.Close()
 
 		body := readAllString(t, response.Body)
-		if strings.Contains(body, "event: heartbeat") {
+		if strings.Contains(body, "event: "+core.RunHeartbeatSSEEvent) {
 			t.Fatalf("stream unexpectedly emitted a heartbeat:\n%s", body)
 		}
-		if !strings.Contains(body, "event: run.completed") {
-			t.Fatalf("stream missing terminal event:\n%s", body)
+		if !strings.Contains(body, "event: "+core.RunEventSSEEvent) {
+			t.Fatalf("stream missing terminal stream event:\n%s", body)
 		}
-		if !strings.Contains(body, `"seq":9`) {
+		if !strings.Contains(body, `"kind":"run.completed"`) || !strings.Contains(body, `"seq":9`) {
 			t.Fatalf("stream missing terminal payload:\n%s", body)
 		}
 	})
@@ -544,6 +616,10 @@ type errorTaskService struct {
 	err error
 }
 
+func (s *errorTaskService) Dashboard(context.Context, string) (core.DashboardPayload, error) {
+	return core.DashboardPayload{}, s.err
+}
+
 func (s *errorTaskService) ListWorkflows(context.Context, string) ([]core.WorkflowSummary, error) {
 	return nil, s.err
 }
@@ -552,8 +628,32 @@ func (s *errorTaskService) GetWorkflow(context.Context, string, string) (core.Wo
 	return core.WorkflowSummary{}, s.err
 }
 
+func (s *errorTaskService) WorkflowOverview(context.Context, string, string) (core.WorkflowOverviewPayload, error) {
+	return core.WorkflowOverviewPayload{}, s.err
+}
+
 func (s *errorTaskService) ListItems(context.Context, string, string) ([]core.TaskItem, error) {
 	return nil, s.err
+}
+
+func (s *errorTaskService) TaskBoard(context.Context, string, string) (core.TaskBoardPayload, error) {
+	return core.TaskBoardPayload{}, s.err
+}
+
+func (s *errorTaskService) WorkflowSpec(context.Context, string, string) (core.WorkflowSpecDocument, error) {
+	return core.WorkflowSpecDocument{}, s.err
+}
+
+func (s *errorTaskService) WorkflowMemoryIndex(context.Context, string, string) (core.WorkflowMemoryIndex, error) {
+	return core.WorkflowMemoryIndex{}, s.err
+}
+
+func (s *errorTaskService) WorkflowMemoryFile(context.Context, string, string, string) (core.MarkdownDocument, error) {
+	return core.MarkdownDocument{}, s.err
+}
+
+func (s *errorTaskService) TaskDetail(context.Context, string, string, string) (core.TaskDetailPayload, error) {
+	return core.TaskDetailPayload{}, s.err
 }
 
 func (s *errorTaskService) Validate(context.Context, string, string) (core.ValidationSuccess, error) {
@@ -593,6 +693,16 @@ func (s *errorReviewService) ListIssues(context.Context, string, string, int) ([
 	return nil, s.err
 }
 
+func (s *errorReviewService) ReviewDetail(
+	context.Context,
+	string,
+	string,
+	int,
+	string,
+) (core.ReviewDetailPayload, error) {
+	return core.ReviewDetailPayload{}, s.err
+}
+
 func (s *errorReviewService) StartRun(context.Context, string, string, int, core.ReviewRunRequest) (core.Run, error) {
 	return core.Run{}, s.err
 }
@@ -611,6 +721,10 @@ func (s *errorRunService) Get(context.Context, string) (core.Run, error) {
 
 func (s *errorRunService) Snapshot(context.Context, string) (core.RunSnapshot, error) {
 	return core.RunSnapshot{}, s.err
+}
+
+func (s *errorRunService) RunDetail(context.Context, string) (core.RunDetailPayload, error) {
+	return core.RunDetailPayload{}, s.err
 }
 
 func (s *errorRunService) Events(context.Context, string, core.RunEventPageQuery) (core.RunEventPage, error) {
