@@ -239,9 +239,7 @@ function MemoryCard({
                 data-testid={`task-detail-memory-row-${entry.file_id}`}
                 key={entry.file_id}
               >
-                <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  {entry.kind}
-                </p>
+                <p className="eyebrow text-muted-foreground">{entry.kind}</p>
                 <p className="mt-1 truncate text-sm text-foreground" title={entry.display_path}>
                   {entry.title}
                 </p>

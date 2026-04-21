@@ -31,9 +31,7 @@ function WorkflowTasksBoardRoute(): ReactElement {
           >
             ← Back to workflows
           </button>
-          <span className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            task board
-          </span>
+          <span className="eyebrow text-muted-foreground">task board</span>
         </div>
       }
     >

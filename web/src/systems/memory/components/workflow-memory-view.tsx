@@ -139,9 +139,7 @@ function EntryGroup({
 }): ReactElement {
   return (
     <div className="space-y-2" data-testid={testId}>
-      <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        {label}
-      </p>
+      <p className="eyebrow text-muted-foreground">{label}</p>
       <ul className="space-y-1">
         {entries.map(entry => (
           <li key={entry.file_id}>
@@ -162,7 +160,7 @@ function EntryGroup({
               <span className="truncate font-mono text-[10px] text-muted-foreground">
                 {entry.display_path}
               </span>
-              <span className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="eyebrow text-muted-foreground">
                 {formatBytes(entry.size_bytes)} · {formatTimestamp(entry.updated_at)}
               </span>
             </button>

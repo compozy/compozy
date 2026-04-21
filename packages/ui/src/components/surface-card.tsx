@@ -33,15 +33,7 @@ export function SurfaceCardEyebrow({
   className,
   ...props
 }: HTMLAttributes<HTMLParagraphElement>): ReactElement {
-  return (
-    <p
-      className={cn(
-        "mb-1 font-disket text-[10px] uppercase tracking-[0.18em] text-muted-foreground",
-        className
-      )}
-      {...props}
-    />
-  );
+  return <p className={cn("mb-1 eyebrow text-muted-foreground", className)} {...props} />;
 }
 
 export function SurfaceCardTitle({

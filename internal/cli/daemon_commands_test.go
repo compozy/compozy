@@ -1057,10 +1057,17 @@ func TestDaemonStartCommandForegroundUsesDaemonRunner(t *testing.T) {
 		return nil
 	}
 	t.Setenv(daemonHTTPPortEnv, "43123")
+	t.Setenv(daemonWebDevProxyEnv, "http://127.0.0.1:3000")
 
 	cmd := newDaemonStartCommand()
 	cmd.SetContext(context.WithValue(context.Background(), ctxKey, "foreground-start"))
-	output, err := executeCommandCombinedOutput(cmd, nil, "--foreground")
+	output, err := executeCommandCombinedOutput(
+		cmd,
+		nil,
+		"--foreground",
+		"--web-dev-proxy",
+		"http://127.0.0.1:3100",
+	)
 	if err != nil {
 		t.Fatalf("execute daemon start --foreground: %v\noutput:\n%s", err, output)
 	}
@@ -1075,6 +1082,9 @@ func TestDaemonStartCommandForegroundUsesDaemonRunner(t *testing.T) {
 	}
 	if gotRun.Mode != daemon.RunModeForeground {
 		t.Fatalf("foreground daemon mode = %q, want %q", gotRun.Mode, daemon.RunModeForeground)
+	}
+	if gotRun.WebDevProxyTarget != "http://127.0.0.1:3100" {
+		t.Fatalf("foreground daemon web dev proxy = %q, want %q", gotRun.WebDevProxyTarget, "http://127.0.0.1:3100")
 	}
 	if strings.TrimSpace(gotRun.Version) == "" {
 		t.Fatalf("expected foreground daemon version to be populated, got %#v", gotRun)
@@ -1147,6 +1157,17 @@ func TestLaunchCLIDaemonProcessFailsWhenDaemonLogFileCannotBeOpened(t *testing.T
 	}
 }
 
+func TestCLIDaemonRunOptionsFromEnvRejectsInvalidWebDevProxyTarget(t *testing.T) {
+	t.Setenv(daemonWebDevProxyEnv, "ws://127.0.0.1:3000")
+
+	_, err := cliDaemonRunOptionsFromEnv(daemon.RunModeDetached)
+	if err == nil {
+		t.Fatal("expected invalid web dev proxy target to fail")
+	}
+	if !strings.Contains(err.Error(), "must use http or https") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
 func TestDaemonStartCommandRejectsInvalidFormatBeforeEarlyReturn(t *testing.T) {
 	acquireCLITestGlobalOverride(t)
 

@@ -201,7 +201,7 @@ function FilterSelect<T extends string>({
 }): ReactElement {
   return (
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
-      <span className="font-disket uppercase tracking-[0.14em]">{label}</span>
+      <span className="font-eyebrow uppercase tracking-[0.14em]">{label}</span>
       <select
         className="rounded-[var(--radius-sm)] border border-border bg-transparent px-2 py-1 text-sm text-foreground focus:outline-none"
         data-testid={testId}

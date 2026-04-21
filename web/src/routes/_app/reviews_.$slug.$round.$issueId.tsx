@@ -46,9 +46,7 @@ function ReviewIssueDetailRoute(): ReactElement {
       >
         ← Back to reviews
       </button>
-      <span className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        review issue
-      </span>
+      <span className="eyebrow text-muted-foreground">review issue</span>
     </div>
   );
 

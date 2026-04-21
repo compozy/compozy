@@ -70,9 +70,7 @@ function RunDetailRoute(): ReactElement {
           >
             ← Back to runs
           </button>
-          <span className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            run detail
-          </span>
+          <span className="eyebrow text-muted-foreground">run detail</span>
         </div>
       }
     >

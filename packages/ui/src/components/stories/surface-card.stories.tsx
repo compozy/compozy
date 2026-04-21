@@ -48,15 +48,11 @@ export const Default: Story = {
       <SurfaceCardBody>
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2">
-            <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              active
-            </p>
+            <p className="eyebrow text-muted-foreground">active</p>
             <p className="mt-1 font-display text-2xl tracking-[-0.02em] text-foreground">1</p>
           </div>
           <div className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2">
-            <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              failed
-            </p>
+            <p className="eyebrow text-muted-foreground">failed</p>
             <p className="mt-1 font-display text-2xl tracking-[-0.02em] text-foreground">1</p>
           </div>
         </div>

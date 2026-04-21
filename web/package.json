@@ -6,7 +6,7 @@
         "codegen": "bun run --cwd .. codegen && node ./scripts/tsr-generate.mjs",
         "codegen-check": "bun run --cwd .. codegen-check && node ./scripts/tsr-generate.mjs",
         "build": "bun run codegen-check && vite build && node ./scripts/restore-dist-placeholder.mjs",
-        "dev": "bun run codegen && vite --port 3000",
+        "dev": "bun run codegen && vite",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
         "preview": "vite preview",

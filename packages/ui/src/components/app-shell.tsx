@@ -57,11 +57,7 @@ export function AppShellBrand({
           </h2>
           {badge}
         </div>
-        {detail ? (
-          <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            {detail}
-          </p>
-        ) : null}
+        {detail ? <p className="eyebrow text-muted-foreground">{detail}</p> : null}
       </div>
     </div>
   );
@@ -79,11 +75,7 @@ export function AppShellNavSection({
 }: AppShellNavSectionProps): ReactElement {
   return (
     <div className={cn("space-y-2", className)} {...props}>
-      {title ? (
-        <p className="px-3 font-disket text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          {title}
-        </p>
-      ) : null}
+      {title ? <p className="px-3 eyebrow text-muted-foreground">{title}</p> : null}
       <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
@@ -128,11 +120,7 @@ export function AppShellNavItem({
         {icon}
       </span>
       <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-      {badge ? (
-        <span className="font-disket text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-          {badge}
-        </span>
-      ) : null}
+      {badge ? <span className="eyebrow text-muted-foreground">{badge}</span> : null}
     </button>
   );
 }

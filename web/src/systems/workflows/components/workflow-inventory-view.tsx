@@ -145,9 +145,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
 
       {active.length > 0 ? (
         <div className="space-y-3" data-testid="workflow-inventory-active">
-          <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            Active · {active.length}
-          </p>
+          <p className="eyebrow text-muted-foreground">Active · {active.length}</p>
           <ul className="grid gap-3">
             {active.map(workflow => (
               <WorkflowRow
@@ -167,9 +165,7 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
 
       {archived.length > 0 ? (
         <div className="space-y-3" data-testid="workflow-inventory-archived">
-          <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            Archived · {archived.length}
-          </p>
+          <p className="eyebrow text-muted-foreground">Archived · {archived.length}</p>
           <ul className="grid gap-3">
             {archived.map(workflow => (
               <ArchivedRow key={workflow.id} workflow={workflow} />

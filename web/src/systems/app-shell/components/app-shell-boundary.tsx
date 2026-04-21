@@ -36,9 +36,7 @@ export function AppShellBoundary({
   return (
     <AppShell>
       <AppShellSidebar>
-        <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-          Daemon
-        </p>
+        <p className="eyebrow text-muted-foreground">Daemon</p>
         <p className="text-sm leading-6 text-muted-foreground">{description}</p>
       </AppShellSidebar>
       <AppShellMain>

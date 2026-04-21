@@ -52,7 +52,7 @@ export function StatusBadge({
     <span
       className={cn(
         "inline-flex items-center rounded-[calc(var(--radius)-2px)] border px-2.5 py-1",
-        "font-disket text-[10px] uppercase tracking-[0.12em] whitespace-nowrap",
+        "eyebrow whitespace-nowrap",
         className
       )}
       style={{ ...toneStyles[tone], ...style }}

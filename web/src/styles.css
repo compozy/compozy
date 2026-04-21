@@ -10,3 +10,7 @@
       linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent 18%), var(--background);
   }
 }
+
+@utility eyebrow {
+  @apply font-eyebrow text-[10px] uppercase;
+}

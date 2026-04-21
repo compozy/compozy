@@ -91,7 +91,7 @@ export function WorkspaceOnboarding({
                 onSubmit={handleSubmit}
               >
                 <label className="block space-y-1 text-sm">
-                  <span className="font-disket text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  <span className="font-eyebrow text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
                     Absolute workspace path
                   </span>
                   <input

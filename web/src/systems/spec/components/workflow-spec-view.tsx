@@ -85,11 +85,7 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
             type="button"
           >
             <span>{tab.label}</span>
-            {tab.badge ? (
-              <span className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                {tab.badge}
-              </span>
-            ) : null}
+            {tab.badge ? <span className="eyebrow text-muted-foreground">{tab.badge}</span> : null}
           </button>
         ))}
       </div>

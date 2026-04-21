@@ -199,9 +199,7 @@ function QueueCard({ queue }: { queue: DashboardQueueSummary }): ReactElement {
             data-testid={`dashboard-queue-${entry.label.toLowerCase()}`}
             key={entry.label}
           >
-            <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              {entry.label}
-            </p>
+            <p className="eyebrow text-muted-foreground">{entry.label}</p>
             <div className="mt-1 flex items-center gap-2">
               <span className="font-display text-2xl leading-none tracking-[-0.02em] text-foreground">
                 {entry.value}
@@ -239,9 +237,7 @@ function StatCard({
         {badge ?? null}
       </SurfaceCardHeader>
       <SurfaceCardBody>
-        <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-          {subtitle}
-        </p>
+        <p className="eyebrow text-muted-foreground">{subtitle}</p>
       </SurfaceCardBody>
     </SurfaceCard>
   );

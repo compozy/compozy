@@ -212,9 +212,7 @@ function ReviewIssueRow({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            issue #{issue.issue_number}
-          </p>
+          <p className="eyebrow text-muted-foreground">issue #{issue.issue_number}</p>
           <Link
             className="truncate text-sm font-medium text-foreground hover:underline"
             data-testid={`reviews-index-issue-link-${slug}-${issue.id}`}
@@ -260,9 +258,7 @@ function Stat({
       className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
       data-testid={testId}
     >
-      <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-        {label}
-      </p>
+      <p className="eyebrow text-muted-foreground">{label}</p>
       <p className="mt-1 font-display text-lg tracking-[-0.02em] text-foreground">{value}</p>
     </div>
   );

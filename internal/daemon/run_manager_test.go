@@ -1807,11 +1807,31 @@ type runManagerTestDeps struct {
 	runDBCacheTTL        time.Duration
 }
 
+var runManagerTestHomeMu sync.Mutex
+
 func newRunManagerTestEnv(tb testing.TB, deps runManagerTestDeps) *runManagerTestEnv {
 	tb.Helper()
 
-	homeDir := tb.TempDir()
-	tb.Setenv("HOME", homeDir)
+	homeDir, err := os.MkdirTemp("", "cmp-home-")
+	if err != nil {
+		tb.Fatalf("MkdirTemp() error = %v", err)
+	}
+	runManagerTestHomeMu.Lock()
+	previousHome, hadPreviousHome := os.LookupEnv("HOME")
+	if err := os.Setenv("HOME", homeDir); err != nil {
+		runManagerTestHomeMu.Unlock()
+		_ = os.RemoveAll(homeDir)
+		tb.Fatalf("Setenv(HOME) error = %v", err)
+	}
+	tb.Cleanup(func() {
+		if hadPreviousHome {
+			_ = os.Setenv("HOME", previousHome)
+		} else {
+			_ = os.Unsetenv("HOME")
+		}
+		runManagerTestHomeMu.Unlock()
+		_ = os.RemoveAll(homeDir)
+	})
 
 	paths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(homeDir, ".compozy"))
 	if err != nil {

@@ -31,9 +31,7 @@ function WorkflowSpecRoute(): ReactElement {
           >
             ← Back to workflows
           </button>
-          <span className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            workflow spec
-          </span>
+          <span className="eyebrow text-muted-foreground">workflow spec</span>
         </div>
       }
     >

@@ -101,9 +101,7 @@ function CountsSummary({ counts }: { counts: WorkflowTaskCounts }): ReactElement
           data-testid={entry.testId}
           key={entry.label}
         >
-          <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            {entry.label}
-          </p>
+          <p className="eyebrow text-muted-foreground">{entry.label}</p>
           <p className="mt-1 font-display text-lg tracking-[-0.02em] text-foreground">
             {entry.value}
           </p>
@@ -162,7 +160,7 @@ function TaskRow({ slug, task }: { slug: string; task: TaskCard }): ReactElement
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+          <p className="eyebrow text-muted-foreground">
             #{task.task_number} · {task.type}
           </p>
           <Link

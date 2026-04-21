@@ -37,7 +37,7 @@ MODULE_PATH := github.com/compozy/compozy
 endif
 LDFLAGS := -X $(MODULE_PATH)/internal/version.Version=$(VERSION) -X $(MODULE_PATH)/internal/version.Commit=$(GIT_COMMIT) -X $(MODULE_PATH)/internal/version.Date=$(BUILD_DATE)
 
-.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify
+.PHONY: all test lint fmt clean build install deps help verify tidy test-coverage test-nocache check-go-version check-bun-version setup link-skills build-extension-sdks publish-extension-sdks go-build frontend-bootstrap frontend-lint frontend-typecheck frontend-test frontend-build frontend-e2e frontend-verify dev dev-global
 
 # -----------------------------------------------------------------------------
 # Setup & Version Checks
@@ -151,6 +151,12 @@ verify: frontend-verify fmt lint test go-build frontend-e2e
 # -----------------------------------------------------------------------------
 # Development & Dependencies
 # -----------------------------------------------------------------------------
+dev: frontend-bootstrap go-build
+	COMPOZY_DEV_HOME="$(CURDIR)/.tmp/dev-home" bash scripts/dev-web-proxy.sh
+
+dev-global: frontend-bootstrap go-build
+	COMPOZY_DEV_HOME="$$HOME" bash scripts/dev-web-proxy.sh
+
 tidy:
 	@echo "Tidying modules..."
 	$(GOCMD) mod tidy
@@ -189,6 +195,8 @@ help:
 	@echo "  make frontend-test  - Run frontend workspace tests"
 	@echo "  make frontend-build - Build frontend workspaces and restore web/dist placeholder"
 	@echo "  make frontend-e2e   - Run Playwright against the daemon-served embedded UI"
+	@echo "  make dev            - Start ./bin/compozy with an isolated daemon HOME and proxy to Vite HMR"
+	@echo "  make dev-global     - Start ./bin/compozy with your real HOME and proxy to Vite HMR"
 	@echo "  make test           - Run tests with race detector"
 	@echo "  make lint           - Run golangci-lint"
 	@echo "  make fmt            - Format code"

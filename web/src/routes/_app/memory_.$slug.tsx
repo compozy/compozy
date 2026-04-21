@@ -55,9 +55,7 @@ function WorkflowMemoryRoute(): ReactElement {
           >
             ← Back to memory
           </button>
-          <span className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            workflow memory
-          </span>
+          <span className="eyebrow text-muted-foreground">workflow memory</span>
         </div>
       }
     >

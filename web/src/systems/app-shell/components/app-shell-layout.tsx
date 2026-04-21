@@ -118,9 +118,7 @@ export function AppShellLayout({
           className="mt-auto rounded-[var(--radius-md)] border border-border bg-black/10 p-3"
           data-testid="app-shell-workspace-card"
         >
-          <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-            Active workspace
-          </p>
+          <p className="eyebrow text-muted-foreground">Active workspace</p>
           <p
             className="mt-1 truncate font-display text-lg tracking-[-0.01em] text-foreground"
             data-testid="app-shell-active-workspace-name"

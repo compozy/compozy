@@ -19,9 +19,10 @@ import (
 
 // RunOptions control the long-lived daemon host process.
 type RunOptions struct {
-	Version  string
-	HTTPPort int
-	Mode     RunMode
+	Version           string
+	HTTPPort          int
+	Mode              RunMode
+	WebDevProxyTarget string
 }
 
 type hostRuntime struct {
@@ -83,7 +84,14 @@ func Run(ctx context.Context, opts RunOptions) (retErr error) {
 		Healthy:  ProbeReady,
 		Prepare: func(startCtx context.Context, currentHost *Host) error {
 			host = currentHost
-			preparedRuntime, preparedLogger, err := prepareRuntimeForRun(startCtx, runCtx, currentHost, stop, mode)
+			preparedRuntime, preparedLogger, err := prepareRuntimeForRun(
+				startCtx,
+				runCtx,
+				currentHost,
+				stop,
+				mode,
+				opts,
+			)
 			if err != nil {
 				return err
 			}
@@ -109,6 +117,7 @@ func prepareRuntimeForRun(
 	currentHost *Host,
 	stop context.CancelFunc,
 	mode RunMode,
+	opts RunOptions,
 ) (hostRuntime, *logger.Runtime, error) {
 	daemonLogger, err := logger.InstallDaemonLogger(logger.DaemonConfig{
 		FilePath: currentHost.Paths().LogFile,
@@ -119,7 +128,7 @@ func prepareRuntimeForRun(
 	}
 	logDaemonStarting(mode, currentHost)
 
-	runtime, err := prepareHostRuntime(startCtx, runCtx, currentHost, stop)
+	runtime, err := prepareHostRuntime(startCtx, runCtx, currentHost, stop, opts)
 	if err != nil {
 		_ = daemonLogger.Close()
 		return hostRuntime{}, nil, err
@@ -175,6 +184,7 @@ func prepareHostRuntime(
 	runCtx context.Context,
 	currentHost *Host,
 	stop context.CancelFunc,
+	opts RunOptions,
 ) (_ hostRuntime, err error) {
 	persistence, err := loadHostPersistence(startCtx, currentHost)
 	if err != nil {
@@ -203,7 +213,13 @@ func prepareHostRuntime(
 	runtime.runManager = runManager
 
 	handlers := buildHostHandlers(currentHost, persistence, runManager, stop)
-	servers, err := startHostTransports(startCtx, persistence.settings.ShutdownDrainTimeout, currentHost, handlers)
+	servers, err := startHostTransports(
+		startCtx,
+		persistence.settings.ShutdownDrainTimeout,
+		currentHost,
+		handlers,
+		opts,
+	)
 	if err != nil {
 		return hostRuntime{}, err
 	}
@@ -292,6 +308,7 @@ func startHostTransports(
 	shutdownTimeout time.Duration,
 	currentHost *Host,
 	handlers *apicore.Handlers,
+	opts RunOptions,
 ) (_ hostServers, err error) {
 	udsServer, err := udsapi.New(
 		udsapi.WithHandlers(handlers),
@@ -316,6 +333,7 @@ func startHostTransports(
 		httpapi.WithHandlers(handlers),
 		httpapi.WithPort(currentHost.Info().HTTPPort),
 		httpapi.WithPortUpdater(currentHost),
+		httpapi.WithDevProxyTarget(opts.WebDevProxyTarget),
 	)
 	if err != nil {
 		return hostServers{}, err

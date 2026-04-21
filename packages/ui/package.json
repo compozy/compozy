@@ -17,6 +17,7 @@
         "test:coverage": "vitest run --config vitest.config.ts --coverage"
     },
     "dependencies": {
+        "@fontsource/playfair-display": "^5.2.8",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "tailwind-merge": "^3.5.0"

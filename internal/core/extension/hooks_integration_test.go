@@ -20,6 +20,8 @@ import (
 )
 
 func TestHookDispatchIntegrationAcrossPlanPromptAndAgentPhases(t *testing.T) {
+	isolateRunScopeHome(t)
+
 	binary := buildMockExtensionBinary(t)
 	workspaceRoot := t.TempDir()
 	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
@@ -188,6 +190,8 @@ complexity: low
 }
 
 func TestHookDispatchIntegrationAcrossRunAndJobPhases(t *testing.T) {
+	isolateRunScopeHome(t)
+
 	binary := buildMockExtensionBinary(t)
 	workspaceRoot := t.TempDir()
 	tasksDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo")
@@ -335,6 +339,8 @@ complexity: low
 }
 
 func TestHookDispatchIntegrationAcrossReviewPhases(t *testing.T) {
+	isolateRunScopeHome(t)
+
 	binary := buildMockExtensionBinary(t)
 	workspaceRoot := t.TempDir()
 	reviewDir := filepath.Join(workspaceRoot, model.TasksBaseDir(), "demo", "reviews-007")
@@ -509,6 +515,8 @@ func TestHookDispatchIntegrationAcrossReviewPhases(t *testing.T) {
 }
 
 func TestHookDispatchIntegrationAcrossArtifactWritePhases(t *testing.T) {
+	isolateRunScopeHome(t)
+
 	binary := buildMockExtensionBinary(t)
 	recordPath := filepath.Join(t.TempDir(), "artifact-hooks.jsonl")
 	restoreDiscovery := stubRunScopeDiscovery(t, DiscoveryResult{Extensions: []DiscoveredExtension{

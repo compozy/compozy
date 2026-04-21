@@ -160,35 +160,35 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
             </SurfaceCardHeader>
             <SurfaceCardBody>
               <dl className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-xs">
-                <dt className="font-disket uppercase tracking-[0.14em] text-muted-foreground">
+                <dt className="font-eyebrow uppercase tracking-[0.14em] text-muted-foreground">
                   Workflow
                 </dt>
                 <dd className="truncate text-foreground">{workflow.slug}</dd>
-                <dt className="font-disket uppercase tracking-[0.14em] text-muted-foreground">
+                <dt className="font-eyebrow uppercase tracking-[0.14em] text-muted-foreground">
                   Round
                 </dt>
                 <dd className="text-foreground" data-testid="review-detail-round-number">
                   {round.round_number}
                 </dd>
-                <dt className="font-disket uppercase tracking-[0.14em] text-muted-foreground">
+                <dt className="font-eyebrow uppercase tracking-[0.14em] text-muted-foreground">
                   PR
                 </dt>
                 <dd className="truncate text-foreground" data-testid="review-detail-pr">
                   {round.pr_ref ?? "—"}
                 </dd>
-                <dt className="font-disket uppercase tracking-[0.14em] text-muted-foreground">
+                <dt className="font-eyebrow uppercase tracking-[0.14em] text-muted-foreground">
                   Provider
                 </dt>
                 <dd className="truncate text-foreground" data-testid="review-detail-provider">
                   {round.provider ?? "—"}
                 </dd>
-                <dt className="font-disket uppercase tracking-[0.14em] text-muted-foreground">
+                <dt className="font-eyebrow uppercase tracking-[0.14em] text-muted-foreground">
                   Unresolved
                 </dt>
                 <dd className="text-foreground" data-testid="review-detail-unresolved">
                   {round.unresolved_count}
                 </dd>
-                <dt className="font-disket uppercase tracking-[0.14em] text-muted-foreground">
+                <dt className="font-eyebrow uppercase tracking-[0.14em] text-muted-foreground">
                   Resolved
                 </dt>
                 <dd className="text-foreground" data-testid="review-detail-resolved">

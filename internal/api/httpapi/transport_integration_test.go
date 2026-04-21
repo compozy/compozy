@@ -1126,6 +1126,7 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 		method     string
 		path       string
 		body       []byte
+		headers    map[string]string
 		requestID  string
 		wantStatus int
 		assertBody func(*testing.T, []byte, []byte)
@@ -1185,6 +1186,7 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/api/tasks/daemon/runs",
 			body:       []byte(`{"workspace":"ws-1","presentation_mode":"stream"}`),
+			headers:    map[string]string{core.HeaderActiveWorkspaceID: workspace.ID},
 			requestID:  "req-task-run",
 			wantStatus: http.StatusCreated,
 			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
@@ -1204,6 +1206,7 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/api/reviews/daemon/rounds/1/runs",
 			body:       []byte(`{"workspace":"ws-1","presentation_mode":"stream"}`),
+			headers:    map[string]string{core.HeaderActiveWorkspaceID: workspace.ID},
 			requestID:  "req-review-run",
 			wantStatus: http.StatusCreated,
 			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
@@ -1249,6 +1252,7 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 			method:     http.MethodPost,
 			path:       "/api/sync",
 			body:       []byte(`{"workspace":"ws-1","workflow_slug":"daemon"}`),
+			headers:    map[string]string{core.HeaderActiveWorkspaceID: workspace.ID},
 			requestID:  "req-sync",
 			wantStatus: http.StatusOK,
 			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
@@ -1287,13 +1291,20 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
+			httpHeadersMap := map[string]string{core.HeaderRequestID: tc.requestID}
+			udsHeadersMap := map[string]string{core.HeaderRequestID: tc.requestID}
+			for key, value := range tc.headers {
+				httpHeadersMap[key] = value
+				udsHeadersMap[key] = value
+			}
+
 			httpStatus, httpHeaders, httpBody := mustRequest(
 				t,
 				http.DefaultClient,
 				tc.method,
 				baseURL+tc.path,
 				tc.body,
-				map[string]string{core.HeaderRequestID: tc.requestID},
+				httpHeadersMap,
 			)
 			udsStatus, udsHeaders, udsBody := mustRequest(
 				t,
@@ -1301,7 +1312,7 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 				tc.method,
 				"http://unix"+tc.path,
 				tc.body,
-				map[string]string{core.HeaderRequestID: tc.requestID},
+				udsHeadersMap,
 			)
 
 			if httpStatus != tc.wantStatus || udsStatus != tc.wantStatus {

@@ -348,9 +348,7 @@ function UsageCard({ usage }: { usage?: RunUsage }): ReactElement {
             data-testid={`run-detail-usage-${entry.label.toLowerCase().replace(/\s+/g, "-")}`}
             key={entry.label}
           >
-            <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-              {entry.label}
-            </p>
+            <p className="eyebrow text-muted-foreground">{entry.label}</p>
             <p className="mt-1 font-display text-lg tracking-[-0.02em] text-foreground">
               {entry.value}
             </p>
@@ -387,7 +385,7 @@ function TranscriptCard({ transcript }: { transcript: RunTranscriptMessage[] }):
                 data-testid={`run-detail-transcript-${entry.sequence}`}
                 key={`${entry.sequence}-${entry.timestamp}`}
               >
-                <p className="font-disket text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                <p className="eyebrow text-muted-foreground">
                   {entry.role} · {formatTimestamp(entry.timestamp)}
                 </p>
                 <p className="text-sm text-foreground whitespace-pre-wrap">{entry.content}</p>

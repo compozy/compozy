@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/compozy/compozy/internal/core/run/journal"
 	runtimeevents "github.com/compozy/compozy/pkg/compozy/events"
 )
+
+var runScopeTestHomeMu sync.Mutex
 
 func TestOpenRunScopeDisabledReturnsArtifactsJournalAndBusWithoutManager(t *testing.T) {
 	cfg := runtimeConfigForTest(t)
@@ -344,6 +347,7 @@ func TestRuntimeHelpersHandleNilAndInvalidInputs(t *testing.T) {
 
 func runtimeConfigForTest(t *testing.T) *model.RuntimeConfig {
 	t.Helper()
+	isolateRunScopeHome(t)
 
 	return &model.RuntimeConfig{
 		WorkspaceRoot: t.TempDir(),
@@ -352,6 +356,31 @@ func runtimeConfigForTest(t *testing.T) *model.RuntimeConfig {
 		IDE:           model.IDECodex,
 		DryRun:        true,
 	}
+}
+
+func isolateRunScopeHome(t testing.TB) {
+	t.Helper()
+
+	homeDir, err := os.MkdirTemp("", "cmp-ext-home-")
+	if err != nil {
+		t.Fatalf("MkdirTemp() error = %v", err)
+	}
+	runScopeTestHomeMu.Lock()
+	previousHome, hadPreviousHome := os.LookupEnv("HOME")
+	if err := os.Setenv("HOME", homeDir); err != nil {
+		runScopeTestHomeMu.Unlock()
+		_ = os.RemoveAll(homeDir)
+		t.Fatalf("Setenv(HOME) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if hadPreviousHome {
+			_ = os.Setenv("HOME", previousHome)
+		} else {
+			_ = os.Unsetenv("HOME")
+		}
+		runScopeTestHomeMu.Unlock()
+		_ = os.RemoveAll(homeDir)
+	})
 }
 
 func discoveredExtensionForTest(name string, capabilities ...Capability) DiscoveredExtension {

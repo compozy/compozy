@@ -11,7 +11,7 @@
         "build": "turbo run build",
         "codegen": "node scripts/codegen.mjs",
         "codegen-check": "node scripts/codegen.mjs --check",
-        "dev": "turbo run dev",
+        "dev:web": "bun run --cwd web dev",
         "frontend:bootstrap": "bun ci",
         "frontend:build": "bun run build",
         "frontend:e2e": "bun run --cwd web test:e2e",

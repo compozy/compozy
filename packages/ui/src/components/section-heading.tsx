@@ -23,11 +23,7 @@ export function SectionHeading({
       {...props}
     >
       <div className="space-y-2">
-        {eyebrow ? (
-          <p className="font-disket text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            {eyebrow}
-          </p>
-        ) : null}
+        {eyebrow ? <p className="eyebrow text-muted-foreground">{eyebrow}</p> : null}
         <div className="space-y-2">
           <h1 className="font-display text-[clamp(2rem,4vw,3rem)] leading-none tracking-[-0.03em] text-foreground">
             {title}
