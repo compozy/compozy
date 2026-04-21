@@ -107,7 +107,7 @@ func TestDecodeTransportErrorAndWrapDaemonRequestError(t *testing.T) {
 	err := reader.decodeTransportError(
 		"/api/runs",
 		http.StatusServiceUnavailable,
-		[]byte(`{"error":{"message":"daemon warming"}}`),
+		[]byte(`{"code":"service_unavailable","message":"daemon warming"}`),
 	)
 	if !errors.Is(err, ErrDaemonUnavailable) {
 		t.Fatalf("decodeTransportError(503) error = %v, want ErrDaemonUnavailable", err)
@@ -116,7 +116,7 @@ func TestDecodeTransportErrorAndWrapDaemonRequestError(t *testing.T) {
 	err = reader.decodeTransportError(
 		"/api/runs",
 		http.StatusBadRequest,
-		[]byte(`{"error":{"code":"bad_request","message":"invalid filter"}}`),
+		[]byte(`{"code":"bad_request","message":"invalid filter"}`),
 	)
 	if err == nil || !strings.Contains(err.Error(), "invalid filter") {
 		t.Fatalf("decodeTransportError(400) error = %v, want message", err)
@@ -291,7 +291,7 @@ func TestOpenRunStreamAndSendHelpersHandleFailures(t *testing.T) {
 	}
 
 	if err := testStream.dispatchStreamError(
-		[]byte(`{"error":{"message":"boom"}}`),
+		[]byte(`{"code":"internal_error","message":"boom"}`),
 	); err == nil ||
 		err.Error() != "boom" {
 		t.Fatalf("dispatchStreamError() error = %v, want boom", err)

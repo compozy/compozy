@@ -1,0 +1,485 @@
+package contract
+
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/compozy/compozy/internal/contentblock"
+	"github.com/compozy/compozy/pkg/compozy/events"
+	"github.com/compozy/compozy/pkg/compozy/events/kinds"
+)
+
+type MutationAcceptedResponse struct {
+	Accepted bool `json:"accepted"`
+}
+
+type WorkspaceRegisterRequest struct {
+	Path string `json:"path"`
+	Name string `json:"name,omitempty"`
+}
+
+type WorkspaceUpdateRequest struct {
+	Name string `json:"name"`
+}
+
+type WorkspaceResolveRequest struct {
+	Path string `json:"path"`
+}
+
+type WorkflowRefRequest struct {
+	Workspace string `json:"workspace"`
+}
+
+type TaskRunRequest struct {
+	Workspace        string          `json:"workspace"`
+	PresentationMode string          `json:"presentation_mode,omitempty"`
+	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+}
+
+type ReviewFetchRequest struct {
+	Workspace string `json:"workspace"`
+	Provider  string `json:"provider,omitempty"`
+	PRRef     string `json:"pr_ref,omitempty"`
+	Round     *int   `json:"round,omitempty"`
+}
+
+type ReviewRunRequest struct {
+	Workspace        string          `json:"workspace"`
+	PresentationMode string          `json:"presentation_mode,omitempty"`
+	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+	Batching         json.RawMessage `json:"batching,omitempty"`
+}
+
+type SyncRequest struct {
+	Workspace    string `json:"workspace,omitempty"`
+	Path         string `json:"path,omitempty"`
+	WorkflowSlug string `json:"workflow_slug,omitempty"`
+}
+
+type ExecRequest struct {
+	WorkspacePath    string          `json:"workspace_path"`
+	Prompt           string          `json:"prompt"`
+	PresentationMode string          `json:"presentation_mode,omitempty"`
+	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
+}
+
+type DaemonStatus struct {
+	PID            int       `json:"pid"`
+	Version        string    `json:"version,omitempty"`
+	StartedAt      time.Time `json:"started_at"`
+	SocketPath     string    `json:"socket_path,omitempty"`
+	HTTPPort       int       `json:"http_port,omitempty"`
+	ActiveRunCount int       `json:"active_run_count"`
+	WorkspaceCount int       `json:"workspace_count"`
+}
+
+type DaemonHealth struct {
+	Ready    bool           `json:"ready"`
+	Degraded bool           `json:"degraded,omitempty"`
+	Details  []HealthDetail `json:"details,omitempty"`
+}
+
+type HealthDetail struct {
+	Code     string `json:"code"`
+	Message  string `json:"message"`
+	Severity string `json:"severity,omitempty"`
+}
+
+type Workspace struct {
+	ID        string    `json:"id"`
+	RootDir   string    `json:"root_dir"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type WorkspaceRegisterResult struct {
+	Workspace Workspace
+	Created   bool
+}
+
+type WorkspaceUpdateInput struct {
+	Name string `json:"name,omitempty"`
+}
+
+type WorkflowSummary struct {
+	ID           string     `json:"id"`
+	WorkspaceID  string     `json:"workspace_id"`
+	Slug         string     `json:"slug"`
+	ArchivedAt   *time.Time `json:"archived_at,omitempty"`
+	LastSyncedAt *time.Time `json:"last_synced_at,omitempty"`
+}
+
+type TaskItem struct {
+	ID         string    `json:"id"`
+	TaskNumber int       `json:"task_number"`
+	TaskID     string    `json:"task_id"`
+	Title      string    `json:"title"`
+	Status     string    `json:"status"`
+	Type       string    `json:"type"`
+	DependsOn  []string  `json:"depends_on,omitempty"`
+	SourcePath string    `json:"source_path"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+type ValidationSuccess struct {
+	Valid     bool      `json:"valid"`
+	CheckedAt time.Time `json:"checked_at,omitempty"`
+}
+
+type ArchiveResult struct {
+	Archived   bool       `json:"archived"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+}
+
+type ReviewFetchResult struct {
+	Summary ReviewSummary
+	Created bool
+}
+
+type ReviewSummary struct {
+	WorkflowSlug    string    `json:"workflow_slug"`
+	RoundNumber     int       `json:"round_number"`
+	Provider        string    `json:"provider,omitempty"`
+	PRRef           string    `json:"pr_ref,omitempty"`
+	ResolvedCount   int       `json:"resolved_count"`
+	UnresolvedCount int       `json:"unresolved_count"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type ReviewRound struct {
+	ID              string    `json:"id"`
+	WorkflowSlug    string    `json:"workflow_slug"`
+	RoundNumber     int       `json:"round_number"`
+	Provider        string    `json:"provider,omitempty"`
+	PRRef           string    `json:"pr_ref,omitempty"`
+	ResolvedCount   int       `json:"resolved_count"`
+	UnresolvedCount int       `json:"unresolved_count"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
+type ReviewIssue struct {
+	ID          string    `json:"id"`
+	IssueNumber int       `json:"issue_number"`
+	Severity    string    `json:"severity"`
+	Status      string    `json:"status"`
+	SourcePath  string    `json:"source_path"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type SessionEntryKind string
+
+const (
+	SessionEntryKindAssistantMessage  SessionEntryKind = "assistant_message"
+	SessionEntryKindAssistantThinking SessionEntryKind = "assistant_thinking"
+	SessionEntryKindToolCall          SessionEntryKind = "tool_call"
+	SessionEntryKindStderrEvent       SessionEntryKind = "stderr_event"
+	SessionEntryKindRuntimeNotice     SessionEntryKind = "runtime_notice"
+)
+
+type SessionStatus string
+
+type ToolCallState string
+
+type ContentBlockType string
+
+type ContentBlock struct {
+	Type ContentBlockType `json:"type"`
+	Data json.RawMessage  `json:"-"`
+}
+
+func (b ContentBlock) MarshalJSON() ([]byte, error) {
+	return contentblock.MarshalEnvelopeJSON(b.Type, b.Data)
+}
+
+func (b *ContentBlock) UnmarshalJSON(data []byte) error {
+	envelope, err := contentblock.UnmarshalEnvelopeJSON(data, func(ContentBlockType, []byte) error {
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	b.Type = envelope.Type
+	b.Data = envelope.Data
+	return nil
+}
+
+type SessionPlanEntry struct {
+	Content  string `json:"content"`
+	Priority string `json:"priority"`
+	Status   string `json:"status"`
+}
+
+type SessionAvailableCommand struct {
+	Name         string `json:"name"`
+	Description  string `json:"description,omitempty"`
+	ArgumentHint string `json:"argumentHint,omitempty"`
+}
+
+type SessionEntry struct {
+	ID            string
+	Kind          SessionEntryKind
+	Title         string
+	Preview       string
+	ToolCallID    string
+	ToolCallState ToolCallState
+	Blocks        []ContentBlock
+}
+
+type SessionPlanState struct {
+	Entries      []SessionPlanEntry
+	PendingCount int
+	RunningCount int
+	DoneCount    int
+}
+
+type SessionMetaState struct {
+	CurrentModeID     string
+	AvailableCommands []SessionAvailableCommand
+	Status            SessionStatus
+}
+
+type SessionViewSnapshot struct {
+	Revision int
+	Entries  []SessionEntry
+	Plan     SessionPlanState
+	Session  SessionMetaState
+}
+
+type Run struct {
+	RunID            string     `json:"run_id"`
+	WorkspaceID      string     `json:"workspace_id"`
+	WorkflowID       *string    `json:"workflow_id,omitempty"`
+	WorkflowSlug     string     `json:"workflow_slug,omitempty"`
+	Mode             string     `json:"mode"`
+	Status           string     `json:"status"`
+	PresentationMode string     `json:"presentation_mode"`
+	StartedAt        time.Time  `json:"started_at"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	ErrorText        string     `json:"error_text,omitempty"`
+	RequestID        string     `json:"request_id,omitempty"`
+}
+
+type RunJobSummary struct {
+	Index           int                 `json:"index"`
+	CodeFile        string              `json:"code_file,omitempty"`
+	CodeFiles       []string            `json:"code_files,omitempty"`
+	Issues          int                 `json:"issues,omitempty"`
+	TaskTitle       string              `json:"task_title,omitempty"`
+	TaskType        string              `json:"task_type,omitempty"`
+	SafeName        string              `json:"safe_name,omitempty"`
+	IDE             string              `json:"ide,omitempty"`
+	Model           string              `json:"model,omitempty"`
+	ReasoningEffort string              `json:"reasoning_effort,omitempty"`
+	AccessMode      string              `json:"access_mode,omitempty"`
+	OutLog          string              `json:"out_log,omitempty"`
+	ErrLog          string              `json:"err_log,omitempty"`
+	Attempt         int                 `json:"attempt,omitempty"`
+	MaxAttempts     int                 `json:"max_attempts,omitempty"`
+	RetryReason     string              `json:"retry_reason,omitempty"`
+	ExitCode        int                 `json:"exit_code,omitempty"`
+	ErrorText       string              `json:"error_text,omitempty"`
+	Session         SessionViewSnapshot `json:"session,omitempty"`
+	Usage           kinds.Usage         `json:"usage,omitempty"`
+}
+
+type RunJobState struct {
+	Index     int            `json:"index"`
+	JobID     string         `json:"job_id"`
+	TaskID    string         `json:"task_id,omitempty"`
+	Status    string         `json:"status"`
+	AgentName string         `json:"agent_name,omitempty"`
+	Summary   *RunJobSummary `json:"summary,omitempty"`
+	UpdatedAt time.Time      `json:"updated_at"`
+}
+
+type RunTranscriptMessage struct {
+	Sequence    uint64          `json:"sequence"`
+	Stream      string          `json:"stream"`
+	Role        string          `json:"role"`
+	Content     string          `json:"content"`
+	MetadataRaw json.RawMessage `json:"metadata,omitempty"`
+	Timestamp   time.Time       `json:"timestamp"`
+}
+
+type RunShutdownState struct {
+	Phase       string    `json:"phase,omitempty"`
+	Source      string    `json:"source,omitempty"`
+	RequestedAt time.Time `json:"requested_at,omitempty"`
+	DeadlineAt  time.Time `json:"deadline_at,omitempty"`
+}
+
+type RunSnapshot struct {
+	Run        Run                    `json:"run"`
+	Jobs       []RunJobState          `json:"jobs,omitempty"`
+	Transcript []RunTranscriptMessage `json:"transcript,omitempty"`
+	Usage      kinds.Usage            `json:"usage,omitempty"`
+	Shutdown   *RunShutdownState      `json:"shutdown,omitempty"`
+	Incomplete bool                   `json:"incomplete,omitempty"`
+	NextCursor *StreamCursor          `json:"-"`
+}
+
+type RunListQuery struct {
+	Workspace string
+	Status    string
+	Mode      string
+	Limit     int
+}
+
+type RunEventPageQuery struct {
+	After StreamCursor
+	Limit int
+}
+
+type RunEventPage struct {
+	Events     []events.Event
+	NextCursor *StreamCursor
+	HasMore    bool
+}
+
+type SyncResult struct {
+	WorkspaceID            string     `json:"workspace_id,omitempty"`
+	WorkflowSlug           string     `json:"workflow_slug,omitempty"`
+	SyncedAt               *time.Time `json:"synced_at,omitempty"`
+	Target                 string     `json:"target,omitempty"`
+	WorkflowsScanned       int        `json:"workflows_scanned,omitempty"`
+	SnapshotsUpserted      int        `json:"snapshots_upserted,omitempty"`
+	TaskItemsUpserted      int        `json:"task_items_upserted,omitempty"`
+	ReviewRoundsUpserted   int        `json:"review_rounds_upserted,omitempty"`
+	ReviewIssuesUpserted   int        `json:"review_issues_upserted,omitempty"`
+	CheckpointsUpdated     int        `json:"checkpoints_updated,omitempty"`
+	LegacyArtifactsRemoved int        `json:"legacy_artifacts_removed,omitempty"`
+	SyncedPaths            []string   `json:"synced_paths,omitempty"`
+	Warnings               []string   `json:"warnings,omitempty"`
+}
+
+type DaemonStatusResponse struct {
+	Daemon DaemonStatus `json:"daemon"`
+}
+
+type DaemonHealthResponse struct {
+	Health DaemonHealth `json:"health"`
+}
+
+type WorkspaceResponse struct {
+	Workspace Workspace `json:"workspace"`
+}
+
+type WorkspaceListResponse struct {
+	Workspaces []Workspace `json:"workspaces"`
+}
+
+type TaskWorkflowListResponse struct {
+	Workflows []WorkflowSummary `json:"workflows"`
+}
+
+type TaskWorkflowResponse struct {
+	Workflow WorkflowSummary `json:"workflow"`
+}
+
+type TaskItemsResponse struct {
+	Items []TaskItem `json:"items"`
+}
+
+type ValidationResponse = ValidationSuccess
+
+type ArchiveResponse = ArchiveResult
+
+type ReviewFetchResponse struct {
+	Review ReviewSummary `json:"review"`
+}
+
+type ReviewSummaryResponse struct {
+	Review ReviewSummary `json:"review"`
+}
+
+type ReviewRoundResponse struct {
+	Round ReviewRound `json:"round"`
+}
+
+type ReviewIssuesResponse struct {
+	Issues []ReviewIssue `json:"issues"`
+}
+
+type RunListResponse struct {
+	Runs []Run `json:"runs"`
+}
+
+type RunResponse struct {
+	Run Run `json:"run"`
+}
+
+type RunSnapshotResponse struct {
+	Run        Run                    `json:"run"`
+	Jobs       []RunJobState          `json:"jobs,omitempty"`
+	Transcript []RunTranscriptMessage `json:"transcript,omitempty"`
+	Usage      kinds.Usage            `json:"usage,omitempty"`
+	Shutdown   *RunShutdownState      `json:"shutdown,omitempty"`
+	Incomplete bool                   `json:"incomplete,omitempty"`
+	NextCursor string                 `json:"next_cursor,omitempty"`
+}
+
+type RunEventPageResponse struct {
+	Events     []events.Event `json:"events"`
+	NextCursor string         `json:"next_cursor,omitempty"`
+	HasMore    bool           `json:"has_more"`
+}
+
+type SyncResponse = SyncResult
+
+func RunSnapshotResponseFromSnapshot(snapshot RunSnapshot) RunSnapshotResponse {
+	return RunSnapshotResponse{
+		Run:        snapshot.Run,
+		Jobs:       snapshot.Jobs,
+		Transcript: snapshot.Transcript,
+		Usage:      snapshot.Usage,
+		Shutdown:   snapshot.Shutdown,
+		Incomplete: snapshot.Incomplete,
+		NextCursor: FormatCursorPointer(snapshot.NextCursor),
+	}
+}
+
+func (r RunSnapshotResponse) Decode() (RunSnapshot, error) {
+	nextCursor, err := ParseCursor(r.NextCursor)
+	if err != nil {
+		return RunSnapshot{}, fmt.Errorf("decode snapshot cursor: %w", err)
+	}
+
+	snapshot := RunSnapshot{
+		Run:        r.Run,
+		Jobs:       r.Jobs,
+		Transcript: r.Transcript,
+		Usage:      r.Usage,
+		Shutdown:   r.Shutdown,
+		Incomplete: r.Incomplete,
+	}
+	if nextCursor.Sequence > 0 {
+		snapshot.NextCursor = &nextCursor
+	}
+	return snapshot, nil
+}
+
+func RunEventPageResponseFromPage(page RunEventPage) RunEventPageResponse {
+	return RunEventPageResponse{
+		Events:     page.Events,
+		NextCursor: FormatCursorPointer(page.NextCursor),
+		HasMore:    page.HasMore,
+	}
+}
+
+func (r RunEventPageResponse) Decode() (RunEventPage, error) {
+	nextCursor, err := ParseCursor(r.NextCursor)
+	if err != nil {
+		return RunEventPage{}, fmt.Errorf("decode events cursor: %w", err)
+	}
+
+	page := RunEventPage{
+		Events:  r.Events,
+		HasMore: r.HasMore,
+	}
+	if nextCursor.Sequence > 0 {
+		page.NextCursor = &nextCursor
+	}
+	return page, nil
+}

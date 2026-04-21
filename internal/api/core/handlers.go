@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,8 +13,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/pkg/compozy/events"
-	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 const maxPageLimit = 500
@@ -244,70 +243,15 @@ func parseCursorQuery(raw string) (StreamCursor, error) {
 	return cursor, nil
 }
 
-type workspaceRegisterBody struct {
-	Path string `json:"path"`
-	Name string `json:"name,omitempty"`
-}
-
-type workspaceUpdateBody struct {
-	Name string `json:"name"`
-}
-
-type workspaceResolveBody struct {
-	Path string `json:"path"`
-}
-
-type workflowRefBody struct {
-	Workspace string `json:"workspace"`
-}
-
-type taskRunBody struct {
-	Workspace        string          `json:"workspace"`
-	PresentationMode string          `json:"presentation_mode,omitempty"`
-	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
-}
-
-type reviewFetchBody struct {
-	Workspace string `json:"workspace"`
-	Provider  string `json:"provider,omitempty"`
-	PRRef     string `json:"pr_ref,omitempty"`
-	Round     *int   `json:"round,omitempty"`
-}
-
-type reviewRunBody struct {
-	Workspace        string          `json:"workspace"`
-	PresentationMode string          `json:"presentation_mode,omitempty"`
-	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
-	Batching         json.RawMessage `json:"batching,omitempty"`
-}
-
-type syncBody struct {
-	Workspace    string `json:"workspace,omitempty"`
-	Path         string `json:"path,omitempty"`
-	WorkflowSlug string `json:"workflow_slug,omitempty"`
-}
-
-type execBody struct {
-	WorkspacePath    string          `json:"workspace_path"`
-	Prompt           string          `json:"prompt"`
-	PresentationMode string          `json:"presentation_mode,omitempty"`
-	RuntimeOverrides json.RawMessage `json:"runtime_overrides,omitempty"`
-}
-
-type runSnapshotPayload struct {
-	Run        Run                    `json:"run"`
-	Jobs       []RunJobState          `json:"jobs,omitempty"`
-	Transcript []RunTranscriptMessage `json:"transcript,omitempty"`
-	Usage      kinds.Usage            `json:"usage,omitempty"`
-	Shutdown   *RunShutdownState      `json:"shutdown,omitempty"`
-	NextCursor string                 `json:"next_cursor,omitempty"`
-}
-
-type runEventPagePayload struct {
-	Events     []events.Event `json:"events"`
-	NextCursor string         `json:"next_cursor,omitempty"`
-	HasMore    bool           `json:"has_more"`
-}
+type workspaceRegisterBody = contract.WorkspaceRegisterRequest
+type workspaceUpdateBody = contract.WorkspaceUpdateRequest
+type workspaceResolveBody = contract.WorkspaceResolveRequest
+type workflowRefBody = contract.WorkflowRefRequest
+type taskRunBody = contract.TaskRunRequest
+type reviewFetchBody = contract.ReviewFetchRequest
+type reviewRunBody = contract.ReviewRunRequest
+type syncBody = contract.SyncRequest
+type execBody = contract.ExecRequest
 
 // DaemonStatus returns the primary daemon status view.
 func (h *Handlers) DaemonStatus(c *gin.Context) {
@@ -328,7 +272,7 @@ func (h *Handlers) DaemonStatus(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, gin.H{"daemon": status})
+	c.JSON(http.StatusOK, contract.DaemonStatusResponse{Daemon: status})
 }
 
 // DaemonHealth returns daemon readiness and degraded-state details.
@@ -348,7 +292,7 @@ func (h *Handlers) DaemonHealth(c *gin.Context) {
 	if !health.Ready {
 		status = http.StatusServiceUnavailable
 	}
-	c.JSON(status, gin.H{"health": health})
+	c.JSON(status, contract.DaemonHealthResponse{Health: health})
 }
 
 // DaemonMetrics returns the daemon metrics in Prometheus text format.
@@ -388,7 +332,7 @@ func (h *Handlers) StopDaemon(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"accepted": true})
+	c.JSON(http.StatusAccepted, contract.MutationAcceptedResponse{Accepted: true})
 }
 
 // RegisterWorkspace registers a workspace explicitly.
@@ -417,7 +361,7 @@ func (h *Handlers) RegisterWorkspace(c *gin.Context) {
 	if result.Created {
 		status = http.StatusCreated
 	}
-	c.JSON(status, gin.H{"workspace": result.Workspace})
+	c.JSON(status, contract.WorkspaceResponse{Workspace: result.Workspace})
 }
 
 // ListWorkspaces lists registered workspaces.
@@ -432,7 +376,7 @@ func (h *Handlers) ListWorkspaces(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"workspaces": workspaces})
+	c.JSON(http.StatusOK, contract.WorkspaceListResponse{Workspaces: workspaces})
 }
 
 // GetWorkspace returns one workspace by ID or normalized path key.
@@ -447,7 +391,7 @@ func (h *Handlers) GetWorkspace(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"workspace": workspace})
+	c.JSON(http.StatusOK, contract.WorkspaceResponse{Workspace: workspace})
 }
 
 // UpdateWorkspace updates mutable workspace metadata.
@@ -475,7 +419,7 @@ func (h *Handlers) UpdateWorkspace(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"workspace": workspace})
+	c.JSON(http.StatusOK, contract.WorkspaceResponse{Workspace: workspace})
 }
 
 // DeleteWorkspace unregisters one workspace.
@@ -513,7 +457,7 @@ func (h *Handlers) ResolveWorkspace(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"workspace": workspace})
+	c.JSON(http.StatusOK, contract.WorkspaceResponse{Workspace: workspace})
 }
 
 // ListTaskWorkflows lists task workflows for one workspace.
@@ -533,7 +477,7 @@ func (h *Handlers) ListTaskWorkflows(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"workflows": workflows})
+	c.JSON(http.StatusOK, contract.TaskWorkflowListResponse{Workflows: workflows})
 }
 
 // GetTaskWorkflow returns one workflow summary.
@@ -553,7 +497,7 @@ func (h *Handlers) GetTaskWorkflow(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"workflow": workflow})
+	c.JSON(http.StatusOK, contract.TaskWorkflowResponse{Workflow: workflow})
 }
 
 // ListTaskItems lists parsed task items for one workflow.
@@ -573,7 +517,7 @@ func (h *Handlers) ListTaskItems(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"items": items})
+	c.JSON(http.StatusOK, contract.TaskItemsResponse{Items: items})
 }
 
 // ValidateTaskWorkflow validates task files for one workflow.
@@ -625,7 +569,7 @@ func (h *Handlers) StartTaskRun(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"run": run})
+	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
 }
 
 // ArchiveTaskWorkflow archives a completed workflow.
@@ -691,7 +635,7 @@ func (h *Handlers) FetchReview(c *gin.Context) {
 	if result.Created {
 		status = http.StatusCreated
 	}
-	c.JSON(status, gin.H{"review": result.Summary})
+	c.JSON(status, contract.ReviewFetchResponse{Review: result.Summary})
 }
 
 // GetLatestReview returns the latest review summary for one workflow.
@@ -711,7 +655,7 @@ func (h *Handlers) GetLatestReview(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"review": review})
+	c.JSON(http.StatusOK, contract.ReviewSummaryResponse{Review: review})
 }
 
 // GetReviewRound returns one review round summary.
@@ -736,7 +680,7 @@ func (h *Handlers) GetReviewRound(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"round": reviewRound})
+	c.JSON(http.StatusOK, contract.ReviewRoundResponse{Round: reviewRound})
 }
 
 // ListReviewIssues returns one review round issue list.
@@ -761,7 +705,7 @@ func (h *Handlers) ListReviewIssues(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"issues": issues})
+	c.JSON(http.StatusOK, contract.ReviewIssuesResponse{Issues: issues})
 }
 
 // StartReviewRun starts one review-fix run.
@@ -795,7 +739,7 @@ func (h *Handlers) StartReviewRun(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"run": run})
+	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
 }
 
 // ListRuns lists runs across workspaces or for one workspace.
@@ -832,7 +776,7 @@ func (h *Handlers) ListRuns(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"runs": runs})
+	c.JSON(http.StatusOK, contract.RunListResponse{Runs: runs})
 }
 
 // GetRun returns one run summary.
@@ -847,7 +791,7 @@ func (h *Handlers) GetRun(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"run": run})
+	c.JSON(http.StatusOK, contract.RunResponse{Run: run})
 }
 
 // GetRunSnapshot returns the attach snapshot for one run.
@@ -863,14 +807,7 @@ func (h *Handlers) GetRunSnapshot(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, runSnapshotPayload{
-		Run:        snapshot.Run,
-		Jobs:       snapshot.Jobs,
-		Transcript: snapshot.Transcript,
-		Usage:      snapshot.Usage,
-		Shutdown:   snapshot.Shutdown,
-		NextCursor: formatCursorPtr(snapshot.NextCursor),
-	})
+	c.JSON(http.StatusOK, contract.RunSnapshotResponseFromSnapshot(snapshot))
 }
 
 // ListRunEvents pages through persisted run events.
@@ -911,11 +848,7 @@ func (h *Handlers) ListRunEvents(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, runEventPagePayload{
-		Events:     page.Events,
-		NextCursor: formatCursorPtr(page.NextCursor),
-		HasMore:    page.HasMore,
-	})
+	c.JSON(http.StatusOK, contract.RunEventPageResponseFromPage(page))
 }
 
 // StreamRun streams live run events with cursor resume, heartbeat, and overflow semantics.
@@ -1013,7 +946,7 @@ func (h *Handlers) CancelRun(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusAccepted, gin.H{"accepted": true})
+	c.JSON(http.StatusAccepted, contract.MutationAcceptedResponse{Accepted: true})
 }
 
 // SyncWorkflow runs explicit daemon reconciliation for a workspace or workflow.
@@ -1079,26 +1012,20 @@ func (h *Handlers) StartExecRun(c *gin.Context) {
 		h.respondError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"run": run})
-}
-
-func formatCursorPtr(cursor *StreamCursor) string {
-	if cursor == nil {
-		return ""
-	}
-	return FormatCursor(cursor.Timestamp, cursor.Sequence)
+	c.JSON(http.StatusCreated, contract.RunResponse{Run: run})
 }
 
 func (h *Handlers) writeStreamError(ctx context.Context, writer FlushWriter, err error) error {
 	status := statusForError(err)
 	return WriteSSE(writer, SSEMessage{
 		Event: "error",
-		Data: TransportError{
-			RequestID: RequestIDFromContext(ctx),
-			Code:      codeForError(status, err),
-			Message:   messageForError(status, err),
-			Details:   detailsForError(err),
-		},
+		Data: contract.TransportErrorEnvelope(
+			RequestIDFromContext(ctx),
+			status,
+			err,
+			detailsForError(err),
+			true,
+		),
 	})
 }
 

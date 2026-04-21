@@ -14,10 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 )
-
-const defaultRequestTimeout = 5 * time.Second
 
 var (
 	// ErrDaemonClientRequired reports that the receiver client was nil.
@@ -105,7 +104,6 @@ func New(target Target) (*Client, error) {
 			target:  target,
 			baseURL: "http://daemon",
 			httpClient: &http.Client{
-				Timeout:   defaultRequestTimeout,
 				Transport: transport,
 			},
 		}, nil
@@ -115,7 +113,7 @@ func New(target Target) (*Client, error) {
 	return &Client{
 		target:     target,
 		baseURL:    baseURL,
-		httpClient: &http.Client{Timeout: defaultRequestTimeout},
+		httpClient: &http.Client{},
 	}, nil
 }
 
@@ -194,7 +192,7 @@ func (c *Client) doJSON(
 	if ctx == nil {
 		return 0, ErrDaemonContextRequired
 	}
-	ctx, cancel := withRequestTimeout(ctx, c.httpClient.Timeout)
+	ctx, cancel := withRequestTimeout(ctx, c.requestTimeout(method, path))
 	defer cancel()
 
 	bodyReader, hasBody, err := marshalRequestBody(requestBody)
@@ -326,6 +324,10 @@ func applyRequestPath(request *http.Request, requestPath string) error {
 	request.URL.RawPath = parsed.EscapedPath()
 	request.URL.RawQuery = parsed.RawQuery
 	return nil
+}
+
+func (c *Client) requestTimeout(method string, path string) time.Duration {
+	return contract.DefaultTimeout(contract.TimeoutClassForRoute(method, path))
 }
 
 func withRequestTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

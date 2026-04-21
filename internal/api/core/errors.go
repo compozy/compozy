@@ -10,59 +10,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/rundb"
 )
 
-// TransportError is the canonical non-2xx JSON error envelope.
-type TransportError struct {
-	RequestID string         `json:"request_id"`
-	Code      string         `json:"code"`
-	Message   string         `json:"message"`
-	Details   map[string]any `json:"details,omitempty"`
-}
+type TransportError = contract.TransportError
+type Problem = contract.Problem
 
-// Problem carries a transport status, code, and detail payload for one failure.
-type Problem struct {
-	Status  int
-	Code    string
-	Message string
-	Details map[string]any
-	Err     error
-}
-
-// NewProblem returns a transport-aware error wrapper.
 func NewProblem(status int, code string, message string, details map[string]any, err error) *Problem {
-	return &Problem{
-		Status:  status,
-		Code:    strings.TrimSpace(code),
-		Message: strings.TrimSpace(message),
-		Details: details,
-		Err:     err,
-	}
-}
-
-func (p *Problem) Error() string {
-	if p == nil {
-		return ""
-	}
-	if strings.TrimSpace(p.Message) != "" {
-		return p.Message
-	}
-	if p.Err != nil {
-		return p.Err.Error()
-	}
-	if text := http.StatusText(p.Status); text != "" {
-		return text
-	}
-	return "transport error"
-}
-
-func (p *Problem) Unwrap() error {
-	if p == nil {
-		return nil
-	}
-	return p.Err
+	return contract.NewProblem(status, code, message, details, err)
 }
 
 func statusForError(err error) int {
@@ -103,7 +60,7 @@ func codeForError(status int, err error) string {
 
 	switch {
 	case errors.Is(err, globaldb.ErrSchemaTooNew), errors.Is(err, rundb.ErrSchemaTooNew):
-		return "schema_too_new"
+		return string(contract.CodeSchemaTooNew)
 	default:
 		return defaultCodeForStatus(status)
 	}
@@ -139,39 +96,11 @@ func detailsForError(err error) map[string]any {
 }
 
 func messageForError(status int, err error) string {
-	var problem *Problem
-	if errors.As(err, &problem) && problem != nil && strings.TrimSpace(problem.Message) != "" {
-		return problem.Message
-	}
-
-	switch {
-	case err == nil:
-		return http.StatusText(status)
-	case status >= http.StatusInternalServerError:
-		if text := http.StatusText(status); text != "" {
-			return text
-		}
-		return "internal server error"
-	default:
-		return err.Error()
-	}
+	return contract.MessageForStatus(status, err, true)
 }
 
 func defaultCodeForStatus(status int) string {
-	switch status {
-	case http.StatusBadRequest:
-		return "invalid_request"
-	case http.StatusNotFound:
-		return "not_found"
-	case http.StatusConflict:
-		return "conflict"
-	case http.StatusUnprocessableEntity:
-		return "validation_error"
-	case http.StatusServiceUnavailable:
-		return "service_unavailable"
-	default:
-		return "internal_error"
-	}
+	return contract.DefaultCodeForStatus(status)
 }
 
 // RespondError writes a transport error response for one request.
@@ -181,18 +110,22 @@ func RespondError(c *gin.Context, err error) {
 	}
 
 	status := statusForError(err)
-	c.AbortWithStatusJSON(status, TransportError{
-		RequestID: RequestIDFromContext(c.Request.Context()),
-		Code:      codeForError(status, err),
-		Message:   messageForError(status, err),
-		Details:   detailsForError(err),
-	})
+	c.AbortWithStatusJSON(
+		status,
+		contract.TransportErrorEnvelope(
+			RequestIDFromContext(c.Request.Context()),
+			status,
+			err,
+			detailsForError(err),
+			true,
+		),
+	)
 }
 
 func invalidJSONProblem(transportName string, action string, err error) error {
 	return NewProblem(
 		http.StatusBadRequest,
-		"invalid_request",
+		string(contract.CodeInvalidRequest),
 		fmt.Sprintf("%s: %s: %v", transportName, strings.TrimSpace(action), err),
 		nil,
 		err,
@@ -210,7 +143,7 @@ func serviceUnavailableProblem(resource string) error {
 	}
 	return NewProblem(
 		http.StatusServiceUnavailable,
-		"service_unavailable",
+		string(contract.CodeServiceUnavailable),
 		fmt.Sprintf("%s unavailable", message),
 		nil,
 		nil,

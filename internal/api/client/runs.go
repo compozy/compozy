@@ -14,9 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/pkg/compozy/events"
-	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
 // RunListOptions filters the daemon-backed run list query.
@@ -70,16 +70,8 @@ type sseFrame struct {
 	data  bytes.Buffer
 }
 
-type heartbeatPayload struct {
-	Cursor string    `json:"cursor"`
-	TS     time.Time `json:"ts"`
-}
-
-type overflowPayload struct {
-	Cursor string    `json:"cursor"`
-	Reason string    `json:"reason"`
-	TS     time.Time `json:"ts"`
-}
+type heartbeatPayload = contract.HeartbeatPayload
+type overflowPayload = contract.OverflowPayload
 
 // ListRuns lists daemon-managed runs for the requested workspace and filters.
 func (c *Client) ListRuns(ctx context.Context, opts RunListOptions) ([]apicore.Run, error) {
@@ -162,33 +154,15 @@ func (c *Client) GetRunSnapshot(ctx context.Context, runID string) (apicore.RunS
 		return apicore.RunSnapshot{}, ErrRunIDRequired
 	}
 
-	var payload struct {
-		Run        apicore.Run                    `json:"run"`
-		Jobs       []apicore.RunJobState          `json:"jobs,omitempty"`
-		Transcript []apicore.RunTranscriptMessage `json:"transcript,omitempty"`
-		Usage      kinds.Usage                    `json:"usage,omitempty"`
-		Shutdown   *apicore.RunShutdownState      `json:"shutdown,omitempty"`
-		NextCursor string                         `json:"next_cursor,omitempty"`
-	}
+	var payload contract.RunSnapshotResponse
 	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/snapshot"
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &payload); err != nil {
 		return apicore.RunSnapshot{}, err
 	}
 
-	nextCursor, err := apicore.ParseCursor(payload.NextCursor)
+	snapshot, err := payload.Decode()
 	if err != nil {
-		return apicore.RunSnapshot{}, fmt.Errorf("decode snapshot cursor: %w", err)
-	}
-
-	snapshot := apicore.RunSnapshot{
-		Run:        payload.Run,
-		Jobs:       payload.Jobs,
-		Transcript: payload.Transcript,
-		Usage:      payload.Usage,
-		Shutdown:   payload.Shutdown,
-	}
-	if nextCursor.Sequence > 0 {
-		snapshot.NextCursor = &nextCursor
+		return apicore.RunSnapshot{}, err
 	}
 	return snapshot, nil
 }
@@ -217,11 +191,7 @@ func (c *Client) ListRunEvents(
 		values.Set("limit", fmt.Sprintf("%d", limit))
 	}
 
-	response := struct {
-		Events     []events.Event `json:"events"`
-		NextCursor string         `json:"next_cursor,omitempty"`
-		HasMore    bool           `json:"has_more"`
-	}{}
+	var response contract.RunEventPageResponse
 	path := "/api/runs/" + url.PathEscape(trimmedRunID) + "/events"
 	if encoded := values.Encode(); encoded != "" {
 		path += "?" + encoded
@@ -230,17 +200,9 @@ func (c *Client) ListRunEvents(
 		return apicore.RunEventPage{}, err
 	}
 
-	nextCursor, err := apicore.ParseCursor(response.NextCursor)
+	page, err := response.Decode()
 	if err != nil {
-		return apicore.RunEventPage{}, fmt.Errorf("decode events cursor: %w", err)
-	}
-
-	page := apicore.RunEventPage{
-		Events:  response.Events,
-		HasMore: response.HasMore,
-	}
-	if nextCursor.Sequence > 0 {
-		page.NextCursor = &nextCursor
+		return apicore.RunEventPage{}, err
 	}
 	return page, nil
 }
@@ -445,7 +407,7 @@ func (s *clientRunStream) dispatchOverflow(raw []byte) error {
 }
 
 func (s *clientRunStream) dispatchStreamError(raw []byte) error {
-	var payload apicore.TransportError
+	var payload contract.TransportError
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return fmt.Errorf("decode stream error frame: %w", err)
 	}
