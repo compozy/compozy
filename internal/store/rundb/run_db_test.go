@@ -457,30 +457,35 @@ func TestRunDBUpsertIntegritySerializesConcurrentMerges(t *testing.T) {
 	releaseNow := make(chan struct{})
 	nowEntered := make(chan struct{}, 8)
 	db.now = func() time.Time {
-		select {
-		case nowEntered <- struct{}{}:
-		default:
-		}
+		nowEntered <- struct{}{}
 		<-releaseNow
 		return time.Date(2026, 4, 17, 18, 5, 0, 0, time.UTC)
 	}
 
-	updates := []RunIntegrityUpdate{
-		{Incomplete: true, Reasons: []string{"event_gap"}},
-		{Incomplete: true, Reasons: []string{"transcript_gap"}},
-	}
-	errs := make(chan error, len(updates))
-	var wg sync.WaitGroup
-	for _, update := range updates {
-		wg.Add(1)
-		go func(update RunIntegrityUpdate) {
-			defer wg.Done()
-			_, err := db.UpsertIntegrity(context.Background(), update)
-			errs <- err
-		}(update)
-	}
+	errs := make(chan error, 2)
+	firstUpdate := RunIntegrityUpdate{Incomplete: true, Reasons: []string{"event_gap"}}
+	secondUpdate := RunIntegrityUpdate{Incomplete: true, Reasons: []string{"transcript_gap"}}
 
-	waitForConcurrentIntegrityRead(t, nowEntered, len(updates))
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := db.UpsertIntegrity(context.Background(), firstUpdate)
+		errs <- err
+	}()
+
+	<-nowEntered
+
+	secondStarted := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		close(secondStarted)
+		_, err := db.UpsertIntegrity(context.Background(), secondUpdate)
+		errs <- err
+	}()
+
+	<-secondStarted
 	close(releaseNow)
 	wg.Wait()
 	close(errs)
@@ -524,21 +529,6 @@ func openTestRunDBAtPath(t *testing.T, path string) *RunDB {
 		t.Fatalf("openWithOptions(): %v", err)
 	}
 	return db
-}
-
-func waitForConcurrentIntegrityRead(t *testing.T, entered <-chan struct{}, want int) {
-	t.Helper()
-
-	deadline := time.NewTimer(500 * time.Millisecond)
-	defer deadline.Stop()
-
-	for count := 0; count < want; count++ {
-		select {
-		case <-entered:
-		case <-deadline.C:
-			return
-		}
-	}
 }
 
 func mustEvent(

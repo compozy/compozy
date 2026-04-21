@@ -218,11 +218,10 @@ func (r *rotatingFile) rotateIfNeededLocked(writeSize int64) error {
 		return nil
 	}
 
-	if err := r.file.Sync(); err != nil {
+	currentFile := r.file
+
+	if err := currentFile.Sync(); err != nil {
 		return fmt.Errorf("logger: sync daemon log before rotation %q: %w", r.path, err)
-	}
-	if err := r.file.Close(); err != nil {
-		return fmt.Errorf("logger: close daemon log before rotation %q: %w", r.path, err)
 	}
 	if err := rotateLogFiles(r.path, r.maxRetainedFiles); err != nil {
 		return err
@@ -234,6 +233,9 @@ func (r *rotatingFile) rotateIfNeededLocked(writeSize int64) error {
 	}
 	r.file = file
 	r.size = size
+	if err := currentFile.Close(); err != nil {
+		return fmt.Errorf("logger: close daemon log after rotation %q: %w", r.path, err)
+	}
 	return nil
 }
 

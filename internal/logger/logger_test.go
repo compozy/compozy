@@ -104,6 +104,60 @@ func TestOpenRotatingFileRotatesAtConfiguredSize(t *testing.T) {
 	}
 }
 
+func TestOpenRotatingFileKeepsWritingAfterRotationFailure(t *testing.T) {
+	logPath := filepath.Join(t.TempDir(), "daemon.log")
+	writer, err := openRotatingFile(rotatingFileConfig{
+		path:             logPath,
+		maxFileSizeBytes: 16,
+		maxRetainedFiles: 2,
+		filePerm:         defaultDaemonLogPerm,
+	})
+	if err != nil {
+		t.Fatalf("openRotatingFile() error = %v", err)
+	}
+	defer func() {
+		_ = writer.Close()
+	}()
+
+	if _, err := writer.Write([]byte("seed-entry\n")); err != nil {
+		t.Fatalf("Write(seed) error = %v", err)
+	}
+
+	blocker := logPath + ".2"
+	if err := os.Mkdir(blocker, 0o755); err != nil {
+		t.Fatalf("Mkdir(%q) error = %v", blocker, err)
+	}
+	if err := os.WriteFile(filepath.Join(blocker, "keep"), []byte("block"), 0o600); err != nil {
+		t.Fatalf("WriteFile(blocker) error = %v", err)
+	}
+
+	if _, err := writer.Write([]byte("rotate-now\n")); err == nil {
+		t.Fatal("Write(rotation failure) error = nil, want non-nil")
+	}
+
+	if err := os.Remove(filepath.Join(blocker, "keep")); err != nil {
+		t.Fatalf("Remove(blocker file) error = %v", err)
+	}
+	if err := os.Remove(blocker); err != nil {
+		t.Fatalf("Remove(%q) error = %v", blocker, err)
+	}
+
+	if _, err := writer.Write([]byte("rotate-ok\n")); err != nil {
+		t.Fatalf("Write(after blocker removed) error = %v", err)
+	}
+
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	if _, err := os.Stat(logPath); err != nil {
+		t.Fatalf("Stat(%q) error = %v", logPath, err)
+	}
+	if _, err := os.Stat(logPath + ".1"); err != nil {
+		t.Fatalf("Stat(%q) error = %v", logPath+".1", err)
+	}
+}
+
 func TestValidateDaemonFilePathRejectsEmptyPath(t *testing.T) {
 	if err := ValidateDaemonFilePath(" "); err == nil {
 		t.Fatal("ValidateDaemonFilePath(empty) error = nil, want non-nil")

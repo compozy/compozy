@@ -43,7 +43,7 @@ func TestRunDBCloseContext(t *testing.T) {
 		}
 	})
 
-	t.Run("Should preserve the handle for retry when SQLite close fails", func(t *testing.T) {
+	t.Run("Should clear the cached handle even when SQLite close fails", func(t *testing.T) {
 		originalCloser := closeRunSQLiteDatabase
 		t.Cleanup(func() {
 			closeRunSQLiteDatabase = originalCloser
@@ -64,17 +64,14 @@ func TestRunDBCloseContext(t *testing.T) {
 		if err := runDB.CloseContext(context.Background()); !errors.Is(err, expectedErr) {
 			t.Fatalf("CloseContext(first) error = %v, want %v", err, expectedErr)
 		}
-		if runDB.db != db {
-			t.Fatal("expected failed close to preserve the cached sql.DB handle")
+		if runDB.db != nil {
+			t.Fatal("expected failed close to clear the cached sql.DB handle")
 		}
 		if err := runDB.CloseContext(context.Background()); err != nil {
 			t.Fatalf("CloseContext(second) error = %v", err)
 		}
-		if runDB.db != nil {
-			t.Fatal("expected successful retry to clear the cached sql.DB handle")
-		}
-		if attempts != 2 {
-			t.Fatalf("close attempts = %d, want 2", attempts)
+		if attempts != 1 {
+			t.Fatalf("close attempts = %d, want 1", attempts)
 		}
 	})
 }

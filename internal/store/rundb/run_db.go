@@ -161,11 +161,8 @@ func (r *RunDB) CloseContext(ctx context.Context) error {
 		return nil
 	}
 	db := r.db
-	if err := closeRunSQLiteDatabase(ctx, db); err != nil {
-		return err
-	}
 	r.db = nil
-	return nil
+	return closeRunSQLiteDatabase(ctx, db)
 }
 
 // Path reports the on-disk database path.

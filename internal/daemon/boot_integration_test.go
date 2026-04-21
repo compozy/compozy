@@ -282,7 +282,7 @@ func TestManagedDaemonHelperProcess(t *testing.T) {
 
 func TestManagedDaemonStopEndpointShutsDownAndRemovesSocket(t *testing.T) {
 	for _, force := range []bool{false, true} {
-		t.Run("force="+strconv.FormatBool(force), func(t *testing.T) {
+		t.Run("Should stop and remove socket when force="+strconv.FormatBool(force), func(t *testing.T) {
 			paths := mustHomePaths(t)
 			helper, output := startManagedDaemonHelperProcess(t, paths, RunModeDetached)
 
@@ -325,7 +325,7 @@ func TestManagedDaemonStopEndpointShutsDownAndRemovesSocket(t *testing.T) {
 }
 
 func TestManagedDaemonRunModesControlLogging(t *testing.T) {
-	t.Run("foreground mirrors to stderr", func(t *testing.T) {
+	t.Run("Should mirror logs to stderr in foreground mode", func(t *testing.T) {
 		paths := mustHomePaths(t)
 		helper, output := startManagedDaemonHelperProcess(t, paths, RunModeForeground)
 
@@ -337,7 +337,7 @@ func TestManagedDaemonRunModesControlLogging(t *testing.T) {
 		waitForLogContains(t, paths.LogFile, `"mode":"foreground"`)
 	})
 
-	t.Run("detached writes only file", func(t *testing.T) {
+	t.Run("Should write logs only to file in detached mode", func(t *testing.T) {
 		paths := mustHomePaths(t)
 		helper, output := startManagedDaemonHelperProcess(t, paths, RunModeDetached)
 
@@ -533,32 +533,49 @@ func waitForDaemonState(t *testing.T, paths compozyconfig.HomePaths, want ReadyS
 func waitForLogContains(t *testing.T, path string, pattern string) {
 	t.Helper()
 
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+
+	for {
 		data, err := os.ReadFile(path)
 		if err == nil && strings.Contains(string(data), pattern) {
 			return
 		}
-		time.Sleep(50 * time.Millisecond)
+		select {
+		case <-ticker.C:
+		case <-timeout.C:
+			data, _ := os.ReadFile(path)
+			t.Fatalf("log %q did not contain %q within timeout\n%s", path, pattern, data)
+		}
 	}
-	data, _ := os.ReadFile(path)
-	t.Fatalf("log %q did not contain %q within timeout\n%s", path, pattern, data)
 }
 
 func waitForStderrContains(t *testing.T, stderr *synchronizedBuffer, pattern string) {
 	t.Helper()
 
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if stderr != nil && strings.Contains(stderr.String(), pattern) {
-			return
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
 	if stderr == nil {
 		t.Fatalf("stderr buffer = nil, want output containing %q", pattern)
 	}
-	t.Fatalf("stderr did not contain %q within timeout\n%s", pattern, stderr.String())
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		if strings.Contains(stderr.String(), pattern) {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-timeout.C:
+			t.Fatalf("stderr did not contain %q within timeout\n%s", pattern, stderr.String())
+		}
+	}
 }
 
 type managedHelperOutput struct {
