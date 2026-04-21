@@ -100,7 +100,7 @@ type RunStreamItem struct {
 
 // RunStreamOverflow notifies the transport that the client must reconnect from the last cursor.
 type RunStreamOverflow struct {
-	Reason string `json:"reason,omitempty"`
+	Reason string
 }
 
 // MetricsPayload carries pre-rendered metrics text.
