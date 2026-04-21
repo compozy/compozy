@@ -273,6 +273,7 @@ func defaultWatchCLIRun(ctx context.Context, dst io.Writer, client daemonCommand
 	}
 
 	eventsCh, errsCh := runspkg.WatchRemote(ctx, cliRemoteWatchClient{daemon: client}, runID)
+	sawTerminalEvent := false
 	for eventsCh != nil || errsCh != nil {
 		select {
 		case <-ctx.Done():
@@ -290,6 +291,9 @@ func defaultWatchCLIRun(ctx context.Context, dst io.Writer, client daemonCommand
 				eventsCh = nil
 				continue
 			}
+			if isTerminalDaemonEvent(event.Kind) {
+				sawTerminalEvent = true
+			}
 			line := renderObservedRunEvent(event)
 			if strings.TrimSpace(line) == "" {
 				continue
@@ -298,6 +302,10 @@ func defaultWatchCLIRun(ctx context.Context, dst io.Writer, client daemonCommand
 				return fmt.Errorf("write run watch output: %w", err)
 			}
 		}
+	}
+	if sawTerminalEvent {
+		_, err := waitForTerminalDaemonRunSnapshot(ctx, client, runID)
+		return err
 	}
 	return nil
 }

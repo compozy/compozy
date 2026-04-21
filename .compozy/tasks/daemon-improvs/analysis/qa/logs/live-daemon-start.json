@@ -1,0 +1,20 @@
+{
+  "state": "ready",
+  "health": {
+    "ready": true,
+    "started_at": "2026-04-21T05:41:30.062319Z",
+    "databases": {
+      "global_bytes": 167936
+    },
+    "reconcile": {}
+  },
+  "daemon": {
+    "pid": 83380,
+    "version": "v0.1.12-16-g1c8fe24 (commit=1c8fe24 date=2026-04-21T05:35:06Z)",
+    "started_at": "2026-04-21T05:41:30.062319Z",
+    "socket_path": "/tmp/compozy-daemon-qa-home-live.if17Js/.compozy/daemon/daemon.sock",
+    "http_port": 52494,
+    "active_run_count": 0,
+    "workspace_count": 0
+  }
+}

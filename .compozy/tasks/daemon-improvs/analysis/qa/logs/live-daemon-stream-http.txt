@@ -1,0 +1,16 @@
+id: 2026-04-21T05:41:30.266189Z|00000000000000000001
+event: job.queued
+data: {"schema_version":"1.0","run_id":"tasks-node-health-8904e3-20260421-054130-000000000","seq":1,"ts":"2026-04-21T05:41:30.266189Z","kind":"job.queued","payload":{"index":0,"code_file":"task_01","code_files":["task_01"],"issues":1,"task_title":"Add Ready Endpoint","task_type":"backend","safe_name":"task_01-c05bd2","ide":"codex","reasoning_effort":"medium","access_mode":"full","out_log":"/tmp/compozy-daemon-qa-home-live.if17Js/.compozy/runs/tasks-node-health-8904e3-20260421-054130-000000000/jobs/task_01-c05bd2.out.log","err_log":"/tmp/compozy-daemon-qa-home-live.if17Js/.compozy/runs/tasks-node-health-8904e3-20260421-054130-000000000/jobs/task_01-c05bd2.err.log"}}
+
+id: 2026-04-21T05:41:30.266299Z|00000000000000000002
+event: run.started
+data: {"schema_version":"1.0","run_id":"tasks-node-health-8904e3-20260421-054130-000000000","seq":2,"ts":"2026-04-21T05:41:30.266299Z","kind":"run.started","payload":{"mode":"prd-tasks","name":"node-health","workspace_root":"/private/tmp/compozy-daemon-qa-workspace.qWoIBd","ide":"codex","reasoning_effort":"medium","access_mode":"full","artifacts_dir":"/tmp/compozy-daemon-qa-home-live.if17Js/.compozy/runs/tasks-node-health-8904e3-20260421-054130-000000000","jobs_total":1}}
+
+id: 2026-04-21T05:41:30.266377Z|00000000000000000003
+event: job.completed
+data: {"schema_version":"1.0","run_id":"tasks-node-health-8904e3-20260421-054130-000000000","seq":3,"ts":"2026-04-21T05:41:30.266377Z","kind":"job.completed","payload":{"index":0,"max_attempts":1}}
+
+id: 2026-04-21T05:41:30.266843Z|00000000000000000004
+event: run.completed
+data: {"schema_version":"1.0","run_id":"tasks-node-health-8904e3-20260421-054130-000000000","seq":4,"ts":"2026-04-21T05:41:30.266843Z","kind":"run.completed","payload":{"artifacts_dir":"/tmp/compozy-daemon-qa-home-live.if17Js/.compozy/runs/tasks-node-health-8904e3-20260421-054130-000000000","jobs_total":1,"jobs_succeeded":1,"result_path":"/tmp/compozy-daemon-qa-home-live.if17Js/.compozy/runs/tasks-node-health-8904e3-20260421-054130-000000000/result.json","summary_message":"completed"}}
+

@@ -2,7 +2,7 @@
 
 **Priority:** P1 (High)
 **Type:** Functional
-**Status:** Not Run
+**Status:** Passed
 **Estimated Time:** 18 minutes
 **Created:** 2026-04-21
 **Last Updated:** 2026-04-21
@@ -10,7 +10,8 @@
 **Automation Status:** Existing
 **Automation Command/Spec:**
 - `go test ./internal/cli -run 'Test(TaskAndReviewCommandsExecuteDryRunAgainstTempNodeWorkspace|ReviewsFixCommandExecuteDryRunRawJSONStreamsCanonicalEvents|RunsAttachCommandUsesRemoteUIAttach|RunsAttachCommandFallsBackToWatchWhenRunIsAlreadySettled|RunsWatchCommandStreamsWithoutLaunchingUI)' -count=1`
-**Automation Notes:** This is the required realistic operator-flow proof outside the repository’s own Go fixtures. It uses the existing temp Node.js workspace fixture plus daemon-backed run-inspection paths.
+- `go test ./internal/cli -run 'TestDaemonPublicSnapshotAndStreamMatchAcrossHTTPAndUDSForTempWorkspaceRun' -count=1`
+**Automation Notes:** This is the required realistic operator-flow proof outside the repository’s own Go fixtures. It uses the existing temp Node.js workspace fixture plus daemon-backed run-inspection paths. `task_09` added a real-daemon dual-transport proof for immediate post-run snapshot and replay inspection.
 
 ### Objective
 
