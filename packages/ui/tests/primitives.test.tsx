@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
   AppShell,
@@ -12,6 +12,7 @@ import {
   AppShellNavSection,
   AppShellSidebar,
   Button,
+  type ButtonProps,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -119,5 +120,27 @@ describe("shared primitives", () => {
     expect(html).toContain("Runs console");
     expect(html).toContain("Run now");
     expect(html).not.toContain('aria-current="page"');
+  });
+
+  it("requires an accessible name for icon-only buttons", () => {
+    const labeledIconOnly = {
+      icon: <DotMark />,
+      "aria-label": "Refresh runs",
+    } satisfies ButtonProps;
+    const labelledByIconOnly = {
+      icon: <DotMark />,
+      "aria-labelledby": "refresh-runs-label",
+    } satisfies ButtonProps;
+
+    expectTypeOf(labeledIconOnly).toMatchTypeOf<ButtonProps>();
+    expectTypeOf(labelledByIconOnly).toMatchTypeOf<ButtonProps>();
+
+    // @ts-expect-error icon-only buttons require aria-label or aria-labelledby
+    const unlabeledIconOnly: ButtonProps = { icon: <DotMark /> };
+
+    const html = renderToStaticMarkup(<Button {...labeledIconOnly} />);
+
+    expect(html).toContain('aria-label="Refresh runs"');
+    expect(unlabeledIconOnly.icon).toBeDefined();
   });
 });

@@ -46,7 +46,7 @@ func TestPrepareHostRuntimeStartsTransportsAndProbeReady(t *testing.T) {
 		},
 		Healthy: ProbeReady,
 		Prepare: func(startCtx context.Context, currentHost *Host) error {
-			preparedRuntime, err := prepareHostRuntime(startCtx, runCtx, currentHost, func() {}, RunOptions{})
+			preparedRuntime, err := prepareHostRuntime(startCtx, runCtx, currentHost, func() {})
 			if err != nil {
 				return err
 			}

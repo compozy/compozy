@@ -12,7 +12,9 @@ func TestReadQueriesListStructuredWorkflowRows(t *testing.T) {
 
 	db := openTestGlobalDB(t)
 	defer func() {
-		_ = db.Close()
+		if err := db.Close(); err != nil {
+			t.Errorf("close test global db: %v", err)
+		}
 	}()
 
 	workspace := registerSyncTestWorkspace(t, db)
@@ -140,7 +142,9 @@ func TestReadQueriesHandleNotFoundAndInvalidJSONBranches(t *testing.T) {
 
 	db := openTestGlobalDB(t)
 	defer func() {
-		_ = db.Close()
+		if err := db.Close(); err != nil {
+			t.Errorf("close test global db: %v", err)
+		}
 	}()
 
 	workspace := registerSyncTestWorkspace(t, db)

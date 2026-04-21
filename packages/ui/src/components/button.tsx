@@ -32,10 +32,30 @@ export const buttonVariants = cva(
   }
 );
 
-export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
-  icon?: ReactNode;
-}
+type ButtonBaseProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> &
+  VariantProps<typeof buttonVariants> & {
+    icon?: ReactNode;
+  };
+
+type ButtonWithChildrenProps = ButtonBaseProps & {
+  children: ReactNode;
+};
+
+type IconOnlyButtonProps = ButtonBaseProps &
+  (
+    | {
+        children?: undefined;
+        "aria-label": string;
+        "aria-labelledby"?: string;
+      }
+    | {
+        children?: undefined;
+        "aria-label"?: string;
+        "aria-labelledby": string;
+      }
+  );
+
+export type ButtonProps = ButtonWithChildrenProps | IconOnlyButtonProps;
 
 export function Button({
   children,

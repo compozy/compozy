@@ -10,7 +10,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,11 +68,10 @@ try {
     current = "";
   }
   if (next !== current) {
-    writeFileSync(target, next);
     console.error(
       [
         "codegen-check: web/src/generated/compozy-openapi.d.ts is out of date.",
-        "The file was regenerated — re-run the build and commit the change.",
+        "Run `bun run codegen` and commit the updated generated file.",
       ].join("\n")
     );
     process.exit(1);

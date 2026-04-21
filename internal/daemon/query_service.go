@@ -630,7 +630,7 @@ func (s *queryService) readWorkflowDocument(
 	id string,
 ) (MarkdownDocument, bool, error) {
 	absPath := filepath.Join(workflowRoot, filepath.FromSlash(relativePath))
-	if _, err := fileInfo(absPath); err != nil {
+	if err := fileInfo(absPath); err != nil {
 		if errors.Is(err, ErrDocumentMissing) {
 			return MarkdownDocument{}, false, nil
 		}

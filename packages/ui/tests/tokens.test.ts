@@ -8,14 +8,16 @@ describe("tokens.css", () => {
   const css = readFileSync(tokensPath, "utf8");
 
   it("ships the mockup font faces and dark theme defaults", () => {
-    expect(css).toContain('font-family: "Nippo"');
-    expect(css).toContain('font-family: "Disket Mono"');
+    expect(css).toContain('@import "@fontsource/playfair-display/400.css"');
+    expect(css).toContain('@import "@fontsource/playfair-display/500.css"');
     expect(css).toContain("--background: #1a1918");
     expect(css).toContain("--sidebar: #0d0c0b");
-    expect(css).toContain('--font-display: "Nippo", "Disket Mono", var(--font-mono)');
+    expect(css).toContain('--font-display: "Playfair Display", Georgia, serif');
+    expect(css).toContain("color-scheme: dark;");
   });
 
   it("defines shadcn-compatible theme tokens and tone styles", () => {
+    expect(css).toContain(".light {\n  color-scheme: light;");
     expect(css).toContain("--color-background: var(--background)");
     expect(css).toContain("--color-sidebar-border: var(--sidebar-border)");
     expect(css).toContain("--tone-accent-bg");

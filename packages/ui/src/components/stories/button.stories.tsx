@@ -24,10 +24,10 @@ type Story = StoryObj<typeof meta>;
  */
 export const Primary: Story = {
   args: {
-    children: "Sync all workflows",
     size: "md",
     variant: "primary",
   },
+  render: args => <Button {...args}>Sync all workflows</Button>,
 };
 
 /**
@@ -35,8 +35,8 @@ export const Primary: Story = {
  */
 export const SecondarySmall: Story = {
   args: {
-    children: "Archive",
     size: "sm",
     variant: "secondary",
   },
+  render: args => <Button {...args}>Archive</Button>,
 };
