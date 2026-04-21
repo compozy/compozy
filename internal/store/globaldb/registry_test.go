@@ -230,12 +230,15 @@ func TestRegistryValidationBranches(t *testing.T) {
 	if got, err := normalizeWorkspaceRoot(filePath); err == nil || got != "" {
 		t.Fatalf("normalizeWorkspaceRoot(file) = %q, %v; want empty string and error", got, err)
 	}
+	if got, err := canonicalizeExistingPathCaseWith("   ", nil); err == nil || got != "" {
+		t.Fatalf("canonicalizeExistingPathCaseWith(whitespace) = %q, %v; want empty string and error", got, err)
+	}
 }
 
 func TestCanonicalizeExistingPathCaseWithUsesOnDiskNames(t *testing.T) {
 	t.Parallel()
 
-	root := string(filepath.Separator)
+	root := testAbsoluteRoot(t)
 	usersDir := filepath.Join(root, "Users")
 	homeDir := filepath.Join(usersDir, "pedronauck")
 	devDir := filepath.Join(homeDir, "Dev")
@@ -263,6 +266,26 @@ func TestCanonicalizeExistingPathCaseWithUsesOnDiskNames(t *testing.T) {
 	}
 	if got != want {
 		t.Fatalf("canonicalizeExistingPathCaseWith() = %q, want %q", got, want)
+	}
+}
+
+func TestCanonicalizeExistingPathCaseWithFallsBackToCleanPathWhenParentsCannotBeRead(t *testing.T) {
+	t.Parallel()
+
+	root := testAbsoluteRoot(t)
+	input := filepath.Join(root, "Users", "pedronauck", "Dev", "compozy", "agh")
+
+	got, err := canonicalizeExistingPathCaseWith(input, func(path string) ([]os.DirEntry, error) {
+		if path == root {
+			return nil, fs.ErrPermission
+		}
+		return nil, fs.ErrNotExist
+	})
+	if err != nil {
+		t.Fatalf("canonicalizeExistingPathCaseWith() error = %v", err)
+	}
+	if got != filepath.Clean(input) {
+		t.Fatalf("canonicalizeExistingPathCaseWith() = %q, want %q", got, filepath.Clean(input))
 	}
 }
 
@@ -527,6 +550,16 @@ func TestPutRunValidationAndWorkflowUpdateNotFoundBranches(t *testing.T) {
 	}); !errors.Is(err, ErrWorkflowNotFound) {
 		t.Fatalf("PutWorkflow(update missing) error = %v, want ErrWorkflowNotFound", err)
 	}
+}
+
+func testAbsoluteRoot(t *testing.T) string {
+	t.Helper()
+
+	root := string(filepath.Separator)
+	if volume := filepath.VolumeName(t.TempDir()); volume != "" {
+		root = volume + string(filepath.Separator)
+	}
+	return root
 }
 
 type fakeDirEntry struct {

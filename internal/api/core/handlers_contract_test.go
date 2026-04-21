@@ -189,6 +189,8 @@ func TestRunStartEndpointsReturnCanonicalRunEnvelopes(t *testing.T) {
 }
 
 func TestStreamRunEmitsCanonicalEventHeartbeatAndOverflowPayloads(t *testing.T) {
+	t.Parallel()
+
 	gin.SetMode(gin.TestMode)
 
 	stream := newFakeRunStream()
@@ -196,6 +198,8 @@ func TestStreamRunEmitsCanonicalEventHeartbeatAndOverflowPayloads(t *testing.T) 
 	runID := "run-1"
 	sendOverflow := make(chan struct{})
 	var overflowOnce sync.Once
+	producerCtx, cancelProducer := context.WithCancel(context.Background())
+	defer cancelProducer()
 
 	go func() {
 		event := events.Event{
@@ -207,7 +211,13 @@ func TestStreamRunEmitsCanonicalEventHeartbeatAndOverflowPayloads(t *testing.T) 
 			Payload:       json.RawMessage(`{"delta":"hello"}`),
 		}
 		stream.events <- core.RunStreamItem{Event: &event}
-		<-sendOverflow
+		select {
+		case <-sendOverflow:
+		case <-producerCtx.Done():
+			close(stream.events)
+			close(stream.errors)
+			return
+		}
 		stream.events <- core.RunStreamItem{Overflow: &core.RunStreamOverflow{Reason: "slow consumer"}}
 		close(stream.events)
 		close(stream.errors)

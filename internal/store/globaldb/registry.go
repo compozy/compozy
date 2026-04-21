@@ -919,10 +919,11 @@ func canonicalizeExistingPathCaseWith(
 	path string,
 	readDir func(string) ([]os.DirEntry, error),
 ) (string, error) {
-	cleanPath := filepath.Clean(strings.TrimSpace(path))
-	if cleanPath == "" {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
 		return "", errors.New("globaldb: workspace path is required")
 	}
+	cleanPath := filepath.Clean(trimmed)
 	if !filepath.IsAbs(cleanPath) {
 		return cleanPath, nil
 	}
@@ -945,12 +946,13 @@ func canonicalizeExistingPathCaseWith(
 
 		entries, err := readDir(current)
 		if err != nil {
-			return "", err
+			// Case normalization is best-effort once callers have a real path.
+			return cleanPath, nil
 		}
 
 		matchedName, ok := matchPathComponentCase(component, entries)
 		if !ok {
-			return "", fmt.Errorf("path component %q not found under %q", component, current)
+			return cleanPath, nil
 		}
 		current = filepath.Join(current, matchedName)
 	}
