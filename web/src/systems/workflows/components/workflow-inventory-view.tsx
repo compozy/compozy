@@ -13,6 +13,8 @@ import {
 } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
 
+import type { Run } from "@/systems/runs";
+
 import type { WorkflowSummary } from "../types";
 
 export interface WorkflowInventoryViewProps {
@@ -23,10 +25,13 @@ export interface WorkflowInventoryViewProps {
   workspaceName: string;
   onSyncAll: () => void;
   onSyncOne: (slug: string) => void;
+  onStartRun: (slug: string) => void;
   onArchive: (slug: string) => void;
   isSyncingAll: boolean;
   pendingSyncSlug: string | null;
+  pendingStartSlug: string | null;
   pendingArchiveSlug: string | null;
+  startedRun?: Run | null;
   lastActionMessage?: string | null;
   lastActionError?: string | null;
 }
@@ -40,10 +45,13 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
     workspaceName,
     onSyncAll,
     onSyncOne,
+    onStartRun,
     onArchive,
     isSyncingAll,
     pendingSyncSlug,
+    pendingStartSlug,
     pendingArchiveSlug,
+    startedRun,
     lastActionMessage,
     lastActionError,
   } = props;
@@ -84,6 +92,23 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
           data-testid="workflow-inventory-action-success"
         >
           {lastActionMessage}
+        </p>
+      ) : null}
+      {startedRun ? (
+        <p
+          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3 text-sm text-muted-foreground"
+          data-testid="workflow-inventory-start-success"
+        >
+          Started run{" "}
+          <Link
+            className="font-mono text-accent hover:underline"
+            data-testid="workflow-inventory-start-success-link"
+            params={{ runId: startedRun.run_id }}
+            to="/runs/$runId"
+          >
+            {startedRun.run_id}
+          </Link>{" "}
+          for {startedRun.workflow_slug ?? "the workflow"}.
         </p>
       ) : null}
 
@@ -128,8 +153,10 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
               <WorkflowRow
                 key={workflow.id}
                 onArchive={() => onArchive(workflow.slug)}
+                onStartRun={() => onStartRun(workflow.slug)}
                 onSync={() => onSyncOne(workflow.slug)}
                 pendingArchive={pendingArchiveSlug === workflow.slug}
+                pendingStart={pendingStartSlug === workflow.slug}
                 pendingSync={pendingSyncSlug === workflow.slug}
                 workflow={workflow}
               />
@@ -163,14 +190,18 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
 function WorkflowRow({
   workflow,
   onSync,
+  onStartRun,
   onArchive,
   pendingSync,
+  pendingStart,
   pendingArchive,
 }: {
   workflow: WorkflowSummary;
   onSync: () => void;
+  onStartRun: () => void;
   onArchive: () => void;
   pendingSync: boolean;
+  pendingStart: boolean;
   pendingArchive: boolean;
 }): ReactElement {
   return (
@@ -222,6 +253,14 @@ function WorkflowRow({
           >
             Memory
           </Link>
+          <Button
+            data-testid={`workflow-start-${workflow.slug}`}
+            disabled={pendingStart}
+            onClick={onStartRun}
+            size="sm"
+          >
+            {pendingStart ? "Starting…" : "Start run"}
+          </Button>
           <Button
             data-testid={`workflow-sync-${workflow.slug}`}
             disabled={pendingSync}

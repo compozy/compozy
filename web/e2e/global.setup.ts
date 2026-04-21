@@ -113,7 +113,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
     paths.binaryPath,
     fixtureRoot,
     env,
-    ["tasks", "run", "daemon-web-ui", "--dry-run", "--detach"]
+    ["tasks", "run", "daemon", "--dry-run", "--detach"]
   );
   const seededReviewRunId = await seedDryRun(
     paths.commandLogFile,

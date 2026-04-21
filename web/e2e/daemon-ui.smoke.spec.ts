@@ -84,4 +84,22 @@ test.describe.serial("daemon-served web UI smoke flows", () => {
       page.getByTestId(`workflow-archived-${PLAYWRIGHT_ARCHIVE_WORKFLOW_SLUG}`)
     ).toBeVisible();
   });
+
+  test("starts a workflow run from the workflow inventory", async ({ page }) => {
+    const env = await loadDaemonUIEnvironment();
+
+    await page.goto(`${env.baseUrl}/workflows`);
+    await expect(page.getByTestId("workflow-inventory-view")).toBeVisible();
+
+    const startResponse = page.waitForResponse(
+      response =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/tasks/daemon-web-ui/runs")
+    );
+
+    await page.getByTestId("workflow-start-daemon-web-ui").click();
+    await expect((await startResponse).status()).toBe(201);
+    await expect(page.getByTestId("workflow-inventory-start-success")).toContainText("Started run");
+    await expect(page.getByTestId("workflow-inventory-start-success-link")).toBeVisible();
+  });
 });

@@ -10,7 +10,7 @@ This suite turns the daemon web UI QA plan into an execution order for `task_16`
 2. Run the targeted suite next for action depth, stale/error branches, and route-state harness coverage.
 3. Run the full suite before closing `task_16`, including a fresh `make verify`.
 4. After any bug fix, rerun the narrow failing case, then the affected suite, then the full gate.
-5. Do not downgrade blocked flows to manual without a concrete blocker. `TC-FUNC-008` stays blocked until a real browser run-start control exists or the requirement changes explicitly.
+5. Do not downgrade browser action flows without a concrete blocker. `TC-FUNC-008` is now executable E2E and must stay in the targeted/final rerun set.
 
 ## Pass / Fail Criteria
 
@@ -62,7 +62,7 @@ This suite turns the daemon web UI QA plan into an execution order for `task_16`
 | 2 | `TC-FUNC-006`, `TC-INT-002` | P1 | Spec deep links, memory index/detail, opaque file IDs, stale recovery | E2E + Integration | `bunx vitest run --config web/vitest.config.ts web/src/routes/-spec-memory-flow.integration.test.tsx web/src/systems/memory/adapters/memory-api.test.ts web/src/systems/memory/components/workflow-memory-view.test.tsx` plus spec checkpoints from `bun run frontend:e2e` if the document surfaces changed |
 | 3 | `TC-INT-003`, `TC-INT-004` | P1 | Run reconnect/overflow semantics and cancel action | Integration | `bunx vitest run --config web/vitest.config.ts web/src/routes/-runs.integration.test.tsx web/src/systems/runs/hooks/use-run-stream.test.tsx web/src/systems/runs/lib/stream.test.ts web/src/systems/runs/adapters/runs-api.test.ts web/src/systems/runs/components/run-detail-view.test.tsx` |
 | 4 | `TC-INT-005` | P1 | Mocked route-state parity across loading, empty, degraded, partial, and error branches | Integration | `bunx vitest run --config web/vitest.config.ts web/src/storybook/route-stories.test.tsx` |
-| 5 | `TC-FUNC-008` | P1 | Workflow run start from the browser surface | Blocked | Confirm whether a real browser control now exists. If not, record a blocker/bug instead of counting the flow as passed. Supporting inspection: `rg -n "useStartWorkflowRun|startWorkflowRun" web/src` |
+| 5 | `TC-FUNC-008` | P1 | Workflow run start from the browser surface | E2E + Integration | `bunx playwright test --config playwright.config.ts -g 'starts a workflow run from the workflow inventory'` plus `bunx vitest run --config web/vitest.config.ts web/src/routes/-workflow-tasks.integration.test.tsx web/src/systems/workflows/components/workflow-inventory-view.test.tsx` |
 
 ## Full Suite
 
@@ -92,13 +92,13 @@ This suite turns the daemon web UI QA plan into an execution order for `task_16`
 | `TC-INT-002` | P1 | Memory opaque-file behavior is critical enough for targeted coverage |
 | `TC-INT-003` | P1 | Reconnect/overflow semantics matter after baseline run visibility is proven |
 | `TC-INT-004` | P1 | Cancel behavior is an operational action validated after smoke |
-| `TC-FUNC-008` | P1 | Explicit blocker until a browser run-start entrypoint exists |
+| `TC-FUNC-008` | P1 | Browser operator start-run flow with dedicated smoke and integration coverage |
 | `TC-INT-005` | P1 | Route-state parity protects degraded/error branches not seeded by the live harness |
 
 ## Blocked and Manual-Only Notes
 
-- `TC-FUNC-008` is intentionally **Blocked**, not manual. The adapter and hook for `POST /api/tasks/{slug}/runs` exist, but no browser control was found in the current route tree.
-- No other critical flow currently requires a `Manual-only` label. If `task_16` adds responsive or visual review beyond the existing harness, record it as supplemental evidence rather than reclassifying the core flows.
+- No critical daemon web UI flow remains blocked after `task_16`.
+- No critical flow currently requires a `Manual-only` label. Supplemental browser screenshots can still be captured when the execution report benefits from them.
 
 ## Evidence Output
 

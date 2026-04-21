@@ -1,0 +1,8 @@
+HTTP/1.1 201 Created
+Content-Type: application/json; charset=utf-8
+Set-Cookie: compozy_csrf=365206d358e232152d7359ad0c27b74fa744cc868d1c696e385003c678a3828d; Path=/; Max-Age=86400; SameSite=Strict
+X-Compozy-Csrf-Token: 365206d358e232152d7359ad0c27b74fa744cc868d1c696e385003c678a3828d
+X-Request-Id: req-b95be4cd1033f7f5
+Date: Tue, 21 Apr 2026 08:12:57 GMT
+Content-Length: 320
+

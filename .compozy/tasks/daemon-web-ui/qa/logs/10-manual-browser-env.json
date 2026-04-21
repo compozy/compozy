@@ -1,0 +1,9 @@
+{
+  "baseUrl": "http://127.0.0.1:49769",
+  "workspaceId": "ws-67e888b8b66fc9b5",
+  "workspaceName": "workspace",
+  "fixtureRoot": "/Users/pedronauck/Dev/compozy/_worktrees/daemon-web-ui/.tmp/playwright/workspace",
+  "homeDir": "/Users/pedronauck/Dev/compozy/_worktrees/daemon-web-ui/.tmp/playwright/home",
+  "seededTaskRunId": "tasks-daemon-web-ui-4586a7-20260421-075734-000000000",
+  "seededReviewRunId": "reviews-daemon-f77b12-round-001-20260421-075734-000000000"
+}

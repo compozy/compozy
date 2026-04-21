@@ -1,0 +1,19 @@
+[0m[2m[35m$[0m [2m[1mbun run --cwd web test:e2e[0m
+[0m[2m[35m$[0m [2m[1mplaywright test --config playwright.config.ts[0m
+(node:14904) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14904) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[2mRunning [22m4[2m tests using [22m1[2m worker[22m
+
+(node:14915) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14915) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  [32m✓[39m  [2m1 [22me2e/daemon-ui.smoke.spec.ts:9:3 › daemon-served web UI smoke flows › loads the embedded dashboard and drills into workflows and tasks[2m (660ms)[22m
+  [32m✓[39m  [2m2 [22me2e/daemon-ui.smoke.spec.ts:32:3 › daemon-served web UI smoke flows › serves deep-linked spec and memory routes through the daemon HTTP listener[2m (397ms)[22m
+  [32m✓[39m  [2m3 [22me2e/daemon-ui.smoke.spec.ts:49:3 › daemon-served web UI smoke flows › renders reviews and runs from daemon-seeded data[2m (587ms)[22m
+  [32m✓[39m  [2m4 [22me2e/daemon-ui.smoke.spec.ts:67:3 › daemon-served web UI smoke flows › archives a workflow through the daemon API surface[2m (462ms)[22m
+
+[32m  4 passed[39m[2m (2.9s)[22m

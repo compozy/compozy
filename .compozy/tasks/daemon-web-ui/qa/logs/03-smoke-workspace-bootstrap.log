@@ -1,0 +1,36 @@
+(node:14261) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v4.1.4 /Users/pedronauck/Dev/compozy/_worktrees/daemon-web-ui
+
+No test files found, exiting with code 0
+
+filter: web/src/routes/-app-shell.integration.test.tsx, web/src/systems/app-shell/components/app-shell-container.test.tsx, web/src/systems/app-shell/hooks/use-active-workspace.test.tsx
+include: src/**/*.{test,spec}.{ts,tsx}
+exclude:  **/node_modules/**, **/dist/**
+
+
+# corrected invocation: run from web/ so include globs resolve
+(node:14737) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ RUN  v4.1.4 /Users/pedronauck/Dev/compozy/_worktrees/daemon-web-ui/web
+
+(node:14739) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14741) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:14740) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+
+ Test Files  3 passed (3)
+      Tests  15 passed (15)
+   Start at  04:56:16
+   Duration  938ms (transform 258ms, setup 165ms, import 592ms, tests 642ms, environment 751ms)
+

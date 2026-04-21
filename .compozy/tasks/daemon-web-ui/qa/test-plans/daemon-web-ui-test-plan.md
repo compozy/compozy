@@ -4,7 +4,7 @@
 
 This plan defines the reusable QA handoff for the daemon web UI before live execution begins in `task_16`. It fixes the artifact root at `.compozy/tasks/daemon-web-ui/qa/`, assigns stable test-case IDs, and maps each critical browser/operator flow to the real harness that exists in this worktree: the daemon-served Playwright smoke lane from `task_14`, the route/system integration suites from `task_09` through `task_12`, and the Storybook/MSW route-state harness from `task_13`.
 
-The planning posture is evidence-driven. The browser is **not optional** for this feature, so the primary execution lane is the daemon-served embedded SPA at `/`, not Vite dev mode. At the same time, not every operator action is currently covered by Playwright. Workspace bootstrap, review-fix dispatch, memory-file selection, run cancel, and stream reconnect/overflow are currently validated through integration tests. One critical gap remains explicit: the browser workflow-run start contract exists at the adapter/hook layer, but no route/component entrypoint was found in the delivered UI, so that flow is currently classified as **Blocked** until task execution confirms or fixes it.
+The planning posture is evidence-driven. The browser is **not optional** for this feature, so the primary execution lane is the daemon-served embedded SPA at `/`, not Vite dev mode. Workspace bootstrap, review-fix dispatch, memory-file selection, run cancel, and stream reconnect/overflow are currently validated through integration tests. `task_16` closed the final browser gap by wiring workflow run start into `/workflows`, validating the daemon-served POST path, and promoting `TC-FUNC-008` from blocked coverage to executable E2E.
 
 ## Objectives
 
@@ -60,7 +60,7 @@ The planning posture is evidence-driven. The browser is **not optional** for thi
 | Run inventory, run detail, and live-watch baseline | `TC-FUNC-007` | TechSpec "Streaming Contract", task `10`, task `14` | E2E | Existing | `web/e2e/daemon-ui.smoke.spec.ts`, `web/src/routes/-runs.integration.test.tsx` |
 | Run stream overflow and reconnect semantics | `TC-INT-003` | TechSpec "Streaming Contract", task `10` | Integration | Existing | `web/src/routes/-runs.integration.test.tsx`, `web/src/systems/runs/hooks/use-run-stream.test.tsx`, `web/src/systems/runs/lib/stream.test.ts` |
 | Run cancel action | `TC-INT-004` | TechSpec `/api/runs/:run_id/cancel`, task `10` | Integration | Existing | `web/src/routes/-runs.integration.test.tsx`, run adapter/component tests |
-| Workflow run start from the browser surface | `TC-FUNC-008` | TechSpec `/api/tasks/:slug/runs`, task `10`, task `15` requirement 3 | Blocked | Gap | `web/src/systems/runs/{adapters,runs-api.ts,hooks/use-runs.ts}` exposes the POST contract, but no route/component wiring or visible browser control was found in `web/src/routes` / `web/src/systems` |
+| Workflow run start from the browser surface | `TC-FUNC-008` | TechSpec `/api/tasks/:slug/runs`, task `10`, task `15` requirement 3 | E2E | Existing | `web/e2e/daemon-ui.smoke.spec.ts`, `web/src/routes/-workflow-tasks.integration.test.tsx`, and `web/src/systems/workflows/components/workflow-inventory-view.test.tsx` protect the browser run-start path |
 | Mocked route-state parity (loading, empty, degraded, partial, error) | `TC-INT-005` | ADR-005, task `13` | Integration | Existing | `web/src/storybook/route-stories.test.tsx` and stories under `web/src/routes/_app/stories/` |
 
 ## Environment Requirements
@@ -103,7 +103,7 @@ The planning posture is evidence-driven. The browser is **not optional** for thi
 | Stream overflow or reconnect behavior regresses even if the run detail page still loads | Medium | High | Keep reconnect/overflow semantics as a separate integration lane, not implied by smoke | `TC-INT-003` |
 | Memory routing regresses back to path-based fetches or stale-workspace handling drifts | Medium | High | Validate opaque `file_id` behavior and stale `412` handling explicitly through the memory flow suite | `TC-INT-002` |
 | Route-state harness drifts from the real route tree and stops catching degraded/error branches | Medium | Medium | Keep Storybook/MSW route-state coverage in the full pass and tie it to the same case IDs | `TC-INT-005` |
-| Workflow run start remains absent from the browser surface even though the contract/hook exists | High | High | Carry an explicit blocked case so execution must confirm or file a bug instead of silently skipping it | `TC-FUNC-008` |
+| Workflow run start can regress if inventory wiring, `detach` mode, or non-conflicting Playwright seed data drift | Medium | High | Keep the browser smoke + route integration coverage in the full pass and preserve the non-conflicting seeded task run in `web/e2e/global.setup.ts` | `TC-FUNC-008` |
 
 ## Artifact Layout and Handoff
 

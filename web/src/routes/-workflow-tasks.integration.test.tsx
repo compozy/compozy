@@ -272,4 +272,52 @@ describe("workflow tasks integration", () => {
       expect(screen.getByTestId("task-board-view")).toBeInTheDocument();
     });
   });
+
+  it("Should start a workflow run from the workflow inventory", async () => {
+    const stub = installFetchStub([
+      {
+        matcher: matchUrl("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne] },
+      },
+      {
+        matcher: matchUrl("/api/tasks", "GET"),
+        status: 200,
+        body: { workflows: [workflow] },
+      },
+      {
+        matcher: matchUrl("/api/tasks/alpha/runs", "POST"),
+        status: 201,
+        body: {
+          run: {
+            run_id: "run-new",
+            mode: "task",
+            presentation_mode: "text",
+            workspace_id: "ws-1",
+            started_at: "2026-01-01T00:00:00Z",
+            status: "queued",
+            workflow_slug: "alpha",
+          },
+        },
+      },
+    ]);
+    restore = stub.restore;
+    await renderApp("/workflows");
+    await screen.findByTestId("workflow-row-alpha");
+    await userEvent.click(screen.getByTestId("workflow-start-alpha"));
+    await screen.findByTestId("workflow-inventory-start-success");
+    const startCalls = stub.calls.filter(
+      call => call.url.includes("/api/tasks/alpha/runs") && call.method === "POST"
+    );
+    expect(startCalls).toHaveLength(1);
+    expect(startCalls[0]?.headers["x-compozy-workspace-id"]).toBe("ws-1");
+    expect(JSON.parse(startCalls[0]?.body ?? "{}")).toMatchObject({
+      workspace: "ws-1",
+      presentation_mode: "detach",
+    });
+    const runLink = screen.getByTestId(
+      "workflow-inventory-start-success-link"
+    ) as HTMLAnchorElement;
+    expect(runLink.getAttribute("href")).toBe("/runs/run-new");
+  });
 });

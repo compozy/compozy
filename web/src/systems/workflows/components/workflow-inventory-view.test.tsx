@@ -29,7 +29,9 @@ const defaults = {
   workspaceName: "one",
   isSyncingAll: false,
   pendingSyncSlug: null,
+  pendingStartSlug: null,
   pendingArchiveSlug: null,
+  startedRun: null,
 };
 
 type ViewProps = Parameters<typeof WorkflowInventoryView>[0];
@@ -50,8 +52,15 @@ async function renderInventory(props: ViewProps) {
       return <div data-testid="board-stub" />;
     },
   });
+  const runRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/runs/$runId",
+    component: function RunStub(): ReactElement {
+      return <div data-testid="run-stub" />;
+    },
+  });
   const router = createRouter({
-    routeTree: rootRoute.addChildren([indexRoute, boardRoute]),
+    routeTree: rootRoute.addChildren([indexRoute, boardRoute, runRoute]),
     history: createMemoryHistory({ initialEntries: ["/"] }),
     defaultPreload: false,
   });
@@ -67,6 +76,7 @@ describe("WorkflowInventoryView", () => {
     await renderInventory({
       ...defaults,
       onArchive: () => {},
+      onStartRun: () => {},
       onSyncAll: () => {},
       onSyncOne: () => {},
       workflows,
@@ -81,6 +91,7 @@ describe("WorkflowInventoryView", () => {
     await renderInventory({
       ...defaults,
       onArchive: () => {},
+      onStartRun: () => {},
       onSyncAll: () => {},
       onSyncOne: () => {},
       workflows: [],
@@ -88,21 +99,25 @@ describe("WorkflowInventoryView", () => {
     expect(screen.getByTestId("workflow-inventory-empty")).toBeInTheDocument();
   });
 
-  it("Should fire sync-all, sync-one, and archive handlers", async () => {
+  it("Should fire sync-all, start-run, sync-one, and archive handlers", async () => {
     const onSyncAll = vi.fn();
+    const onStartRun = vi.fn();
     const onSyncOne = vi.fn();
     const onArchive = vi.fn();
     await renderInventory({
       ...defaults,
       onArchive,
+      onStartRun,
       onSyncAll,
       onSyncOne,
       workflows: [workflows[0]!],
     });
     await userEvent.click(screen.getByTestId("workflow-inventory-sync-all"));
+    await userEvent.click(screen.getByTestId("workflow-start-alpha"));
     await userEvent.click(screen.getByTestId("workflow-sync-alpha"));
     await userEvent.click(screen.getByTestId("workflow-archive-alpha"));
     expect(onSyncAll).toHaveBeenCalledTimes(1);
+    expect(onStartRun).toHaveBeenCalledWith("alpha");
     expect(onSyncOne).toHaveBeenCalledWith("alpha");
     expect(onArchive).toHaveBeenCalledWith("alpha");
   });
@@ -113,11 +128,35 @@ describe("WorkflowInventoryView", () => {
       error: "load failed",
       lastActionError: "sync blew up",
       onArchive: () => {},
+      onStartRun: () => {},
       onSyncAll: () => {},
       onSyncOne: () => {},
       workflows,
     });
     expect(screen.getByTestId("workflow-inventory-load-error")).toHaveTextContent("load failed");
     expect(screen.getByTestId("workflow-inventory-error")).toHaveTextContent("sync blew up");
+  });
+
+  it("Should render the started run banner with a run detail link", async () => {
+    await renderInventory({
+      ...defaults,
+      onArchive: () => {},
+      onStartRun: () => {},
+      onSyncAll: () => {},
+      onSyncOne: () => {},
+      startedRun: {
+        run_id: "run-42",
+        mode: "task",
+        presentation_mode: "text",
+        workspace_id: "ws-1",
+        started_at: "2026-01-01T00:00:00Z",
+        status: "queued",
+        workflow_slug: "alpha",
+      },
+      workflows: [workflows[0]!],
+    });
+    expect(screen.getByTestId("workflow-inventory-start-success")).toHaveTextContent("run-42");
+    const link = screen.getByTestId("workflow-inventory-start-success-link") as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toBe("/runs/run-42");
   });
 });

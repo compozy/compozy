@@ -2,20 +2,20 @@
 
 **Priority:** P1 (High)
 **Type:** Functional
-**Status:** Blocked
+**Status:** Active
 **Estimated Time:** 10 minutes
 **Created:** 2026-04-21
 **Last Updated:** 2026-04-21
-**Automation Target:** Blocked
-**Automation Status:** Gap
+**Automation Target:** E2E
+**Automation Status:** Existing
 **Automation Command/Spec:**
-- Inspection command: `rg -n "useStartWorkflowRun|startWorkflowRun" web/src`
-- Supporting seam: `bunx vitest run --config web/vitest.config.ts web/src/systems/runs/adapters/runs-api.test.ts`
-**Automation Notes:** The browser POST contract for `/api/tasks/{slug}/runs` exists in the adapter and hook layer, but no route/component wiring or visible control was found in `web/src/routes` or `web/src/systems` for a real operator to trigger it in the delivered UI.
+- E2E smoke: `bun run frontend:e2e` (`web/e2e/daemon-ui.smoke.spec.ts`)
+- Supporting integration seam: `bunx vitest run --config web/vitest.config.ts web/src/routes/-workflow-tasks.integration.test.tsx web/src/systems/workflows/components/workflow-inventory-view.test.tsx`
+**Automation Notes:** `task_16` wired the workflow inventory to `useStartWorkflowRun`, validated the browser request against the daemon-served UI, and corrected the Playwright fixture so the smoke case no longer collides with a seeded `daemon-web-ui` run.
 
 ### Objective
 
-Determine whether a real browser operator can start a workflow run from the current daemon web UI, and if not, preserve that absence as an explicit blocker rather than silently omitting the flow.
+Validate that a real browser operator can start a workflow run from the daemon-served workflow inventory and reach a visible success state without leaving `/workflows`.
 
 ### Preconditions
 
@@ -34,15 +34,15 @@ Determine whether a real browser operator can start a workflow run from the curr
 3. Run the supporting adapter test.
    **Expected:** The POST contract itself is still valid even if the browser entrypoint is absent.
 
-4. If no browser entrypoint exists at execution time, create a bug/blocker artifact instead of marking the flow passed.
-   **Expected:** The verification report records this case as blocked with concrete evidence.
+4. Verify the success banner and run link after the POST succeeds.
+   **Expected:** The UI reports `Started run ...` and exposes a link to `/runs/$runId`.
 
 ### Edge Cases & Variations
 
 | Variation | Input | Expected Result |
 |---|---|---|
-| UI control exists after later fixes | Route/component wires `useStartWorkflowRun` | Reclassify this case to `E2E` or `Integration` during `task_16` and execute it |
-| Adapter-only support | POST contract exists without UI | Case remains blocked and becomes an issue candidate |
+| UI control exists after later fixes | Route/component wires `useStartWorkflowRun` | Execute the browser flow through the embedded daemon-served UI |
+| Adapter-only support | POST contract exists without UI | File a bug; the case does not pass without a real operator control |
 | Hidden/conditional control | Feature-flagged or context-specific action | Execution must document the enabling condition before claiming coverage |
 
 ### Related Test Cases
@@ -58,4 +58,4 @@ Determine whether a real browser operator can start a workflow run from the curr
 
 ### Notes
 
-- This is a blocker case, not a manual-only case. The current evidence says the contract exists but the browser entrypoint does not.
+- `task_16` promoted this case from blocked to executable E2E after wiring the workflow inventory action, switching the browser payload to `presentation_mode: "detach"`, and protecting the path with Playwright plus route/component regression coverage.
