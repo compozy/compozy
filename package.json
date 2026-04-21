@@ -3,6 +3,8 @@
     "version": "0.1.12",
     "private": true,
     "workspaces": [
+        "packages/ui",
+        "web",
         "sdk/*"
     ],
     "scripts": {

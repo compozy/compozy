@@ -1,0 +1,23 @@
+{
+    "name": "compozy-web",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "vite build && node ./scripts/restore-dist-placeholder.mjs",
+        "dev": "vite --port 3000",
+        "preview": "vite preview",
+        "test": "vitest run --config vitest.config.ts",
+        "typecheck": "tsc -p tsconfig.json --noEmit"
+    },
+    "dependencies": {
+        "@compozy/ui": "workspace:*",
+        "react": "^19.2.0",
+        "react-dom": "^19.2.0"
+    },
+    "devDependencies": {
+        "@types/react": "^19.2.0",
+        "@types/react-dom": "^19.2.0",
+        "@vitejs/plugin-react": "^6.0.0",
+        "jsdom": "^27.1.0"
+    }
+}

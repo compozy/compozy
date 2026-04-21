@@ -4,6 +4,9 @@
 .cache/
 bin/
 dist/
+!web/dist/
+web/dist/*
+!web/dist/.keep
 RELEASE_NOTES.md
 coverage.out
 coverage.html
