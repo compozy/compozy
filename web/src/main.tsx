@@ -3,8 +3,6 @@ import ReactDOM from "react-dom/client";
 
 import { UIProvider } from "@compozy/ui";
 
-import "@compozy/ui/tokens.css";
-
 import { App } from "./app";
 import "./styles.css";
 

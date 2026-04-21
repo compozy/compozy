@@ -5,12 +5,19 @@
     "type": "module",
     "exports": {
         ".": "./src/index.ts",
-        "./tokens.css": "./src/tokens.css"
+        "./tokens.css": "./src/tokens.css",
+        "./utils": "./src/lib/utils.ts"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "typecheck": "tsc -p tsconfig.json --noEmit",
-        "test": "vitest run --passWithNoTests"
+        "test": "vitest run --config vitest.config.ts",
+        "test:coverage": "vitest run --config vitest.config.ts --coverage"
+    },
+    "dependencies": {
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "tailwind-merge": "^3.5.0"
     },
     "devDependencies": {
         "@types/react": "^19.2.0",

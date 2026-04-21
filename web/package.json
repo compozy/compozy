@@ -15,9 +15,11 @@
         "react-dom": "^19.2.0"
     },
     "devDependencies": {
+        "@tailwindcss/vite": "^4.2.3",
         "@types/react": "^19.2.0",
         "@types/react-dom": "^19.2.0",
         "@vitejs/plugin-react": "^6.0.0",
-        "jsdom": "^27.1.0"
+        "jsdom": "^27.1.0",
+        "tailwindcss": "^4.2.3"
     }
 }

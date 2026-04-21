@@ -1,18 +1,241 @@
+@font-face {
+  font-family: "Nippo";
+  src: url("./assets/fonts/Nippo-Variable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Disket Mono";
+  src: url("./assets/fonts/Disket-Mono-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Disket Mono";
+  src: url("./assets/fonts/Disket-Mono-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 :root {
   color-scheme: dark;
-  --ui-bg: #0e1116;
-  --ui-surface: #151a21;
-  --ui-surface-strong: #1d242d;
-  --ui-border: #2a333d;
-  --ui-text: #f3f6fb;
-  --ui-text-muted: #98a4b3;
-  --ui-accent: #84cc16;
-  --ui-accent-strong: #a3e635;
-  --ui-radius: 20px;
-  --ui-shadow: none;
-  --ui-font-sans:
-    "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --ui-font-mono:
-    "JetBrains Mono", ui-monospace, SFMono-Regular, SFMono-Regular, Consolas, "Liberation Mono",
-    monospace;
+
+  --brand: #caea28;
+  --brand-950: #1a2e05;
+
+  --stone-50: #fafaf9;
+  --stone-100: #f5f5f4;
+  --stone-200: #e7e5e4;
+  --stone-300: #d6d3d1;
+  --stone-400: #a8a29e;
+  --stone-500: #78716c;
+  --stone-600: #57534e;
+  --stone-700: #44403c;
+  --stone-800: #292524;
+  --stone-900: #1c1917;
+  --stone-950: #0c0a09;
+
+  --red-500: #ef4444;
+  --red-50: #fef2f2;
+  --emerald-500: #10b981;
+  --emerald-700: #047857;
+  --amber-500: #f59e0b;
+  --amber-700: #b45309;
+  --blue-500: #3b82f6;
+  --blue-700: #1d4ed8;
+
+  --background: #1a1918;
+  --foreground: var(--stone-200);
+  --card: #1d1c1a;
+  --card-foreground: var(--stone-200);
+  --popover: #222120;
+  --popover-foreground: var(--stone-200);
+  --primary: var(--brand);
+  --primary-foreground: var(--stone-800);
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: var(--stone-200);
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: #857e77;
+  --accent: rgba(255, 255, 255, 0.06);
+  --accent-foreground: var(--stone-200);
+  --destructive: var(--red-500);
+  --destructive-foreground: var(--red-50);
+  --success: var(--emerald-500);
+  --success-foreground: var(--emerald-700);
+  --warning: var(--amber-500);
+  --warning-foreground: var(--amber-700);
+  --info: var(--blue-500);
+  --info-foreground: var(--blue-700);
+  --border: rgba(255, 255, 255, 0.12);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: var(--stone-500);
+
+  --sidebar: #0d0c0b;
+  --sidebar-foreground: var(--stone-200);
+  --sidebar-primary: #bef264;
+  --sidebar-primary-foreground: var(--stone-900);
+  --sidebar-accent: #2a2725;
+  --sidebar-accent-foreground: var(--stone-200);
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+
+  --chart-1: #8c7c6b;
+  --chart-2: #a09384;
+  --chart-3: #b4a99d;
+  --chart-4: #c8c0b6;
+  --chart-5: #75675b;
+
+  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-display: "Nippo", "Disket Mono", var(--font-mono);
+  --font-disket: "Disket Mono", "JetBrains Mono", monospace;
+
+  --radius: 0.75rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --spacing: 0.2rem;
+  --space-1: calc(var(--spacing) * 1);
+  --space-2: calc(var(--spacing) * 2);
+  --space-3: calc(var(--spacing) * 3);
+  --space-4: calc(var(--spacing) * 4);
+  --space-6: calc(var(--spacing) * 6);
+  --space-8: calc(var(--spacing) * 8);
+  --space-12: calc(var(--spacing) * 12);
+
+  --shadow-color: hsl(30 10% 20%);
+  --shadow-2xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
+  --shadow-xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
+  --shadow-sm: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
+  --shadow: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
+  --shadow-md: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 2px 4px -1px hsl(30 10% 20% / 0.08);
+  --shadow-lg: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 4px 6px -1px hsl(30 10% 20% / 0.08);
+  --shadow-xl: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 8px 10px -1px hsl(30 10% 20% / 0.08);
+  --shadow-2xl: 0 3px 8px 0 hsl(30 10% 20% / 0.2);
+
+  --tone-accent-bg: rgba(202, 234, 40, 0.12);
+  --tone-accent-border: rgba(202, 234, 40, 0.24);
+  --tone-accent-text: var(--primary);
+  --tone-success-bg: rgba(16, 185, 129, 0.12);
+  --tone-success-border: rgba(16, 185, 129, 0.24);
+  --tone-success-text: var(--success);
+  --tone-warning-bg: rgba(245, 158, 11, 0.12);
+  --tone-warning-border: rgba(245, 158, 11, 0.24);
+  --tone-warning-text: var(--warning);
+  --tone-info-bg: rgba(59, 130, 246, 0.12);
+  --tone-info-border: rgba(59, 130, 246, 0.24);
+  --tone-info-text: var(--info);
+  --tone-danger-bg: rgba(239, 68, 68, 0.12);
+  --tone-danger-border: rgba(239, 68, 68, 0.24);
+  --tone-danger-text: var(--destructive);
+  --tone-neutral-bg: rgba(255, 255, 255, 0.06);
+  --tone-neutral-border: rgba(255, 255, 255, 0.1);
+  --tone-neutral-text: var(--muted-foreground);
+}
+
+.light {
+  --background: #ffffff;
+  --foreground: var(--stone-800);
+  --card: #ffffff;
+  --card-foreground: var(--stone-800);
+  --popover: #ffffff;
+  --popover-foreground: var(--stone-800);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-950);
+  --secondary: rgba(0, 0, 0, 0.04);
+  --secondary-foreground: var(--stone-800);
+  --muted: rgba(0, 0, 0, 0.04);
+  --muted-foreground: #6f6862;
+  --accent: rgba(0, 0, 0, 0.04);
+  --accent-foreground: var(--stone-800);
+  --destructive: var(--red-500);
+  --destructive-foreground: var(--red-50);
+  --border: rgba(0, 0, 0, 0.12);
+  --input: rgba(0, 0, 0, 0.12);
+  --ring: var(--stone-400);
+
+  --sidebar: var(--stone-100);
+  --sidebar-foreground: var(--stone-800);
+  --sidebar-primary: #bef264;
+  --sidebar-primary-foreground: var(--brand-950);
+  --sidebar-accent: var(--stone-200);
+  --sidebar-accent-foreground: var(--stone-800);
+  --sidebar-border: rgba(0, 0, 0, 0.1);
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+  --font-disket: var(--font-disket);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #app {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+    margin: 0;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: rgba(202, 234, 40, 0.2);
+    color: var(--foreground);
+  }
 }

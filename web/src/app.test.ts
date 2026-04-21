@@ -6,12 +6,15 @@ import { UIProvider } from "@compozy/ui";
 
 import { App } from "./app";
 
-describe("web workspace bootstrap", () => {
-  it("renders the placeholder app through the shared ui provider", () => {
+describe("web shell foundation", () => {
+  it("renders the shared shell preview through the shared ui package", () => {
     const html = renderToStaticMarkup(createElement(UIProvider, null, createElement(App)));
 
-    expect(html).toContain("Web workspace bootstrap is ready");
-    expect(html).toContain("later tasks add the routed operator shell");
-    expect(html).toContain('aria-label="Web UI bootstrap status"');
+    expect(html).toContain("Workflow operator console");
+    expect(html).toContain("@compozy/ui");
+    expect(html).toContain("Web imports the package directly");
+    expect(html).toContain("Sync all");
+    expect(html).toContain('aria-current="page"');
+    expect(html).not.toContain("Web workspace bootstrap is ready");
   });
 });

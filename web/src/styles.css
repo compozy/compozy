@@ -1,54 +1,12 @@
-html,
-body,
-#app {
-  min-height: 100%;
-}
+@import "tailwindcss";
+@import "@compozy/ui/tokens.css";
 
-body {
-  margin: 0;
-  background:
-    radial-gradient(circle at top, rgba(132, 204, 22, 0.12), transparent 32%), var(--ui-bg);
-  color: var(--ui-text);
-  font-family: var(--ui-font-sans);
-}
+@source "../../packages/ui/src";
 
-* {
-  box-sizing: border-box;
-}
-
-.app-shell {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-  padding: 2rem;
-}
-
-.app-card {
-  max-width: 42rem;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: linear-gradient(180deg, rgba(29, 36, 45, 0.96), rgba(21, 26, 33, 0.92));
-  padding: 2rem;
-}
-
-.app-eyebrow {
-  margin: 0 0 0.75rem;
-  color: var(--ui-accent-strong);
-  font-family: var(--ui-font-mono);
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.app-card h1 {
-  margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
-  line-height: 1.05;
-}
-
-.app-copy {
-  margin: 1rem 0 0;
-  color: var(--ui-text-muted);
-  font-size: 1rem;
-  line-height: 1.6;
+@layer base {
+  body {
+    background:
+      radial-gradient(circle at top left, rgba(202, 234, 40, 0.09), transparent 26%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent 18%), var(--background);
+  }
 }

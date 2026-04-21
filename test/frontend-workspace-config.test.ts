@@ -57,6 +57,7 @@ describe("frontend workspace configuration", () => {
     expect(uiPackage.exports).toEqual({
       ".": "./src/index.ts",
       "./tokens.css": "./src/tokens.css",
+      "./utils": "./src/lib/utils.ts",
     });
   });
 });
