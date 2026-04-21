@@ -1,0 +1,41 @@
+# HELP daemon_active_runs Current live runs owned by the daemon
+# TYPE daemon_active_runs gauge
+daemon_active_runs 0
+# HELP daemon_registered_workspaces Current registered workspaces
+# TYPE daemon_registered_workspaces gauge
+daemon_registered_workspaces 0
+# HELP daemon_shutdown_conflicts_total Stop requests rejected due to active runs
+# TYPE daemon_shutdown_conflicts_total counter
+daemon_shutdown_conflicts_total 0
+# HELP daemon_reconcile_runs_total Runs processed by reconcile logic
+# TYPE daemon_reconcile_runs_total counter
+daemon_reconcile_runs_total{crash_event="appended",classification="crashed"} 0
+daemon_reconcile_runs_total{crash_event="missing",classification="crashed"} 0
+daemon_reconcile_runs_total{crash_event="appended",classification="orphaned"} 0
+daemon_reconcile_runs_total{crash_event="missing",classification="orphaned"} 0
+# HELP daemon_journal_submit_drops_total Event submissions dropped by journal backpressure
+# TYPE daemon_journal_submit_drops_total counter
+daemon_journal_submit_drops_total{kind="terminal"} 0
+daemon_journal_submit_drops_total{kind="non_terminal"} 0
+# HELP daemon_run_terminal_total Terminal run outcomes
+# TYPE daemon_run_terminal_total counter
+daemon_run_terminal_total{mode="exec",status="canceled"} 0
+daemon_run_terminal_total{mode="exec",status="completed"} 0
+daemon_run_terminal_total{mode="exec",status="crashed"} 0
+daemon_run_terminal_total{mode="exec",status="failed"} 0
+daemon_run_terminal_total{mode="review",status="canceled"} 0
+daemon_run_terminal_total{mode="review",status="completed"} 0
+daemon_run_terminal_total{mode="review",status="crashed"} 0
+daemon_run_terminal_total{mode="review",status="failed"} 0
+daemon_run_terminal_total{mode="task",status="canceled"} 0
+daemon_run_terminal_total{mode="task",status="completed"} 0
+daemon_run_terminal_total{mode="task",status="crashed"} 0
+daemon_run_terminal_total{mode="task",status="failed"} 0
+# HELP daemon_acp_stall_total Jobs classified as stalled by liveness monitoring
+# TYPE daemon_acp_stall_total counter
+daemon_acp_stall_total{mode="exec"} 0
+daemon_acp_stall_total{mode="review"} 0
+daemon_acp_stall_total{mode="task"} 0
+# HELP daemon_uptime_seconds Uptime since daemon start
+# TYPE daemon_uptime_seconds gauge
+daemon_uptime_seconds 0

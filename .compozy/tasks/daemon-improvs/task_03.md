@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Shared Transport Contract Migration
 type: refactor
 complexity: critical
@@ -32,11 +32,11 @@ This task migrates the shared daemon transport layer to the canonical contract w
 
 ## Subtasks
 
-- [ ] 3.1 Rewire core handlers and shared transport helpers to consume the canonical contract package.
-- [ ] 3.2 Remove or replace inline DTOs and anonymous response bodies that now belong to the canonical contract.
-- [ ] 3.3 Align HTTP and UDS transports so route registration, error rendering, and SSE semantics stay in parity.
-- [ ] 3.4 Update handler and transport tests to assert canonical envelopes and full route coverage.
-- [ ] 3.5 Verify that parity failures are caught through the shared integration harness before downstream client migration begins.
+- [x] 3.1 Rewire core handlers and shared transport helpers to consume the canonical contract package.
+- [x] 3.2 Remove or replace inline DTOs and anonymous response bodies that now belong to the canonical contract.
+- [x] 3.3 Align HTTP and UDS transports so route registration, error rendering, and SSE semantics stay in parity.
+- [x] 3.4 Update handler and transport tests to assert canonical envelopes and full route coverage.
+- [x] 3.5 Verify that parity failures are caught through the shared integration harness before downstream client migration begins.
 
 ## Implementation Details
 

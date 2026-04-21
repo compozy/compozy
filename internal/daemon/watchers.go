@@ -22,6 +22,8 @@ import (
 
 const defaultWatcherDebounce = 500 * time.Millisecond
 
+const artifactChangeWrite = "write"
+
 type artifactSyncEvent struct {
 	RelativePath string
 	ChangeKind   string
@@ -246,12 +248,35 @@ func (w *workflowWatcher) flushPendingChanges(
 	}
 
 	changes := sortArtifactSyncEvents(state.pending)
-	state.pending = make(map[string]artifactSyncEvent)
 	refreshNeeded := state.refreshWatches
+	restorePendingState := func() {
+		if state.pending == nil {
+			state.pending = make(map[string]artifactSyncEvent, len(changes))
+		}
+		for _, change := range changes {
+			state.pending[change.RelativePath] = change
+		}
+		if refreshNeeded {
+			state.refreshWatches = true
+		}
+	}
+	state.pending = make(map[string]artifactSyncEvent)
 	state.refreshWatches = false
+
+	// When a directory moves, newly written files inside the renamed tree can race
+	// with the next sync if the backend watch list is refreshed only afterward.
+	// Refresh the watch set before syncing so follow-up writes land on a watched
+	// path, then reconcile once more after sync to converge with the final tree.
+	if refreshNeeded {
+		if !w.reconcileWatchState(watcher, state, "daemon: refresh workflow watch list before sync") {
+			restorePendingState()
+			return
+		}
+	}
 
 	if err := w.syncFn(flushCtx, w.workflowRoot); err != nil {
 		w.logWarn("daemon: workflow watcher sync failed", "root", w.workflowRoot, "error", err)
+		restorePendingState()
 		if refreshNeeded {
 			w.reconcileWatchState(watcher, state, "daemon: reconcile workflow watch list after sync failure")
 		}
@@ -259,6 +284,7 @@ func (w *workflowWatcher) flushPendingChanges(
 	}
 
 	if !w.reconcileWatchState(watcher, state, "daemon: reconcile workflow watch list") {
+		restorePendingState()
 		return
 	}
 	w.emitPendingChanges(flushCtx, changes)
@@ -430,7 +456,7 @@ func classifyWatchChangeKind(event fsnotify.Event) string {
 	case event.Has(fsnotify.Create):
 		return "create"
 	case event.Has(fsnotify.Write):
-		return "write"
+		return artifactChangeWrite
 	case event.Has(fsnotify.Chmod):
 		return "chmod"
 	default:

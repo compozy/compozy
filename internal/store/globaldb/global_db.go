@@ -6,10 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
+
+var closeGlobalSQLiteDatabase = store.CloseSQLiteDatabase
 
 type openOptions struct {
 	now   func() time.Time
@@ -18,10 +22,12 @@ type openOptions struct {
 
 // GlobalDB owns the durable home-scoped catalog used by the daemon.
 type GlobalDB struct {
-	db    *sql.DB
-	path  string
-	now   func() time.Time
-	newID func(string) string
+	db      *sql.DB
+	path    string
+	now     func() time.Time
+	newID   func(string) string
+	closeMu sync.Mutex
+	closed  atomic.Bool
 }
 
 // Open opens or creates the daemon global catalog at path and applies migrations.
@@ -60,10 +66,30 @@ func openWithOptions(ctx context.Context, path string, opts openOptions) (*Globa
 
 // Close releases the underlying SQLite handle.
 func (g *GlobalDB) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), store.DefaultDrainTimeout)
+	defer cancel()
+	return g.CloseContext(ctx)
+}
+
+// CloseContext checkpoints the SQLite WAL and closes the underlying handle.
+func (g *GlobalDB) CloseContext(ctx context.Context) error {
 	if g == nil || g.db == nil {
 		return nil
 	}
-	return g.db.Close()
+	if ctx == nil {
+		return errors.New("globaldb: close context is required")
+	}
+	g.closeMu.Lock()
+	defer g.closeMu.Unlock()
+
+	if g.closed.Load() {
+		return nil
+	}
+	if err := closeGlobalSQLiteDatabase(ctx, g.db); err != nil {
+		return err
+	}
+	g.closed.Store(true)
+	return nil
 }
 
 // Path reports the on-disk database path.
@@ -75,7 +101,7 @@ func (g *GlobalDB) Path() string {
 }
 
 func (g *GlobalDB) requireContext(ctx context.Context, action string) error {
-	if g == nil || g.db == nil {
+	if g == nil || g.db == nil || g.closed.Load() {
 		return errors.New("globaldb: database is required")
 	}
 	if ctx == nil {

@@ -43,7 +43,7 @@ func TestRemoteSnapshotBootstrapHydratesUIStateBeforeLiveEvents(t *testing.T) {
 				MaxAttempts:     1,
 				ExitCode:        0,
 				Usage:           kinds.Usage{InputTokens: 7, OutputTokens: 3, TotalTokens: 10},
-				Session:         summarySnapshot,
+				Session:         apiSessionSnapshot(summarySnapshot),
 			},
 		}},
 	}
@@ -69,6 +69,64 @@ func TestRemoteSnapshotBootstrapHydratesUIStateBeforeLiveEvents(t *testing.T) {
 	if len(mdl.jobs[0].snapshot.Entries) != 1 {
 		t.Fatalf("expected restored transcript snapshot entry, got %#v", mdl.jobs[0].snapshot.Entries)
 	}
+}
+
+func apiSessionSnapshot(snapshot SessionViewSnapshot) apicore.SessionViewSnapshot {
+	result := apicore.SessionViewSnapshot{
+		Revision: snapshot.Revision,
+		Entries:  make([]apicore.SessionEntry, 0, len(snapshot.Entries)),
+		Plan: apicore.SessionPlanState{
+			Entries:      make([]apicore.SessionPlanEntry, 0, len(snapshot.Plan.Entries)),
+			PendingCount: snapshot.Plan.PendingCount,
+			RunningCount: snapshot.Plan.RunningCount,
+			DoneCount:    snapshot.Plan.DoneCount,
+		},
+		Session: apicore.SessionMetaState{
+			CurrentModeID:     snapshot.Session.CurrentModeID,
+			AvailableCommands: make([]apicore.SessionAvailableCommand, 0, len(snapshot.Session.AvailableCommands)),
+			Status:            apicore.SessionStatus(snapshot.Session.Status),
+		},
+	}
+	for _, entry := range snapshot.Entries {
+		result.Entries = append(result.Entries, apicore.SessionEntry{
+			ID:            entry.ID,
+			Kind:          apicore.SessionEntryKind(entry.Kind),
+			Title:         entry.Title,
+			Preview:       entry.Preview,
+			ToolCallID:    entry.ToolCallID,
+			ToolCallState: apicore.ToolCallState(entry.ToolCallState),
+			Blocks:        apiContentBlocks(entry.Blocks),
+		})
+	}
+	for _, entry := range snapshot.Plan.Entries {
+		result.Plan.Entries = append(result.Plan.Entries, apicore.SessionPlanEntry{
+			Content:  entry.Content,
+			Priority: entry.Priority,
+			Status:   entry.Status,
+		})
+	}
+	for _, cmd := range snapshot.Session.AvailableCommands {
+		result.Session.AvailableCommands = append(result.Session.AvailableCommands, apicore.SessionAvailableCommand{
+			Name:         cmd.Name,
+			Description:  cmd.Description,
+			ArgumentHint: cmd.ArgumentHint,
+		})
+	}
+	return result
+}
+
+func apiContentBlocks(blocks []model.ContentBlock) []apicore.ContentBlock {
+	if len(blocks) == 0 {
+		return nil
+	}
+	result := make([]apicore.ContentBlock, 0, len(blocks))
+	for _, block := range blocks {
+		result = append(result, apicore.ContentBlock{
+			Type: apicore.ContentBlockType(block.Type),
+			Data: append([]byte(nil), block.Data...),
+		})
+	}
+	return result
 }
 
 func TestFollowRemoteRunReconnectsFromOverflowCursor(t *testing.T) {

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: Daemon Improvements QA execution and operator-flow validation
 type: test
 complexity: critical
@@ -36,11 +36,11 @@ Execute the full QA pass for the daemon hardening workflow using the artifacts f
 
 ## Subtasks
 
-- [ ] 9.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/daemon-improvs/analysis` and derive the execution matrix from `task_08` artifacts.
-- [ ] 9.2 Discover the repository QA contract, establish the daemon baseline, and document any existing blockers before scenario testing.
-- [ ] 9.3 Execute CLI, API, transport-parity, runtime hardening, snapshot or replay, ACP fault, and external-workspace scenarios with durable evidence capture.
-- [ ] 9.4 Fix root-cause regressions with matching regression or E2E coverage and rerun the impacted scenarios.
-- [ ] 9.5 Rerun `make verify`, finalize `.compozy/tasks/daemon-improvs/analysis/qa/verification-report.md`, and publish any bug artifacts or blockers.
+- [x] 9.1 Activate `/qa-execution` with `qa-output-path=.compozy/tasks/daemon-improvs/analysis` and derive the execution matrix from `task_08` artifacts.
+- [x] 9.2 Discover the repository QA contract, establish the daemon baseline, and document any existing blockers before scenario testing.
+- [x] 9.3 Execute CLI, API, transport-parity, runtime hardening, snapshot or replay, ACP fault, and external-workspace scenarios with durable evidence capture.
+- [x] 9.4 Fix root-cause regressions with matching regression or E2E coverage and rerun the impacted scenarios.
+- [x] 9.5 Rerun `make verify`, finalize `.compozy/tasks/daemon-improvs/analysis/qa/verification-report.md`, and publish any bug artifacts or blockers.
 
 ## Implementation Details
 
@@ -89,16 +89,16 @@ See TechSpec sections "Testing Approach", "Test Lanes", "Known Risks", "Monitori
 ## Tests
 
 - Unit tests:
-  - [ ] Contract discovery, execution notes, and verification artifacts capture the repository-defined daemon verification lane without command drift.
-  - [ ] Bug reports and verification-report entries use the shared QA templates and point to real daemon-improvement scenarios.
-  - [ ] Any new or updated regression or E2E tests target the specific public regression discovered during execution instead of broad brittle rewrites.
-  - [ ] Test-case annotations are updated when execution proves a flow is `Existing`, `Missing`, `Manual-only`, or `Blocked`.
+  - [x] Contract discovery, execution notes, and verification artifacts capture the repository-defined daemon verification lane without command drift.
+  - [x] Bug reports and verification-report entries use the shared QA templates and point to real daemon-improvement scenarios.
+  - [x] Any new or updated regression or E2E tests target the specific public regression discovered during execution instead of broad brittle rewrites.
+  - [x] Test-case annotations are updated when execution proves a flow is `Existing`, `Missing`, `Manual-only`, or `Blocked`.
 - Integration tests:
-  - [ ] Transport parity, client timeout behavior, snapshot or replay, ACP supervision, and observability scenarios are exercised through real CLI or API entrypoints and the shared daemon harness.
-  - [ ] At least one external-workspace operator flow is exercised end to end against the hardened daemon surface.
-  - [ ] Any daemon-improvement regression found during execution is reproduced, fixed at the root, and protected by durable automated coverage, including E2E where the harness supports it.
-  - [ ] Browser validation is either executed against a real daemon web surface or reported explicitly as blocked or out of scope with the exact reason.
-  - [ ] `make verify` passes cleanly after the final QA fix set.
+  - [x] Transport parity, client timeout behavior, snapshot or replay, ACP supervision, and observability scenarios are exercised through real CLI or API entrypoints and the shared daemon harness.
+  - [x] At least one external-workspace operator flow is exercised end to end against the hardened daemon surface.
+  - [x] Any daemon-improvement regression found during execution is reproduced, fixed at the root, and protected by durable automated coverage, including E2E where the harness supports it.
+  - [x] Browser validation is either executed against a real daemon web surface or reported explicitly as blocked or out of scope with the exact reason.
+  - [x] `make verify` passes cleanly after the final QA fix set.
 - Test coverage target: >=80%
 - All tests must pass
 

@@ -1,0 +1,13 @@
+{
+  "workspace_id": "ws-41951ad5ae69eb78",
+  "workflow_slug": "node-health",
+  "synced_at": "2026-04-21T05:41:30.247609Z",
+  "target": "/private/tmp/compozy-daemon-qa-workspace.qWoIBd/.compozy/tasks/node-health",
+  "workflows_scanned": 1,
+  "snapshots_upserted": 4,
+  "task_items_upserted": 1,
+  "checkpoints_updated": 1,
+  "synced_paths": [
+    "/private/tmp/compozy-daemon-qa-workspace.qWoIBd/.compozy/tasks/node-health"
+  ]
+}

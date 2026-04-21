@@ -1073,11 +1073,77 @@ func TestDaemonStartCommandForegroundUsesDaemonRunner(t *testing.T) {
 	if gotRun.HTTPPort != 43123 {
 		t.Fatalf("foreground daemon http port = %d, want 43123", gotRun.HTTPPort)
 	}
+	if gotRun.Mode != daemon.RunModeForeground {
+		t.Fatalf("foreground daemon mode = %q, want %q", gotRun.Mode, daemon.RunModeForeground)
+	}
 	if strings.TrimSpace(gotRun.Version) == "" {
 		t.Fatalf("expected foreground daemon version to be populated, got %#v", gotRun)
 	}
 	if output != "" {
 		t.Fatalf("expected foreground daemon start to stay quiet, got %q", output)
+	}
+}
+
+func TestDaemonStartCommandInternalChildUsesDetachedRunMode(t *testing.T) {
+	acquireCLITestGlobalOverride(t)
+
+	originalRunner := runCLIDaemonForeground
+	t.Cleanup(func() {
+		runCLIDaemonForeground = originalRunner
+	})
+
+	ctxKey := daemonCommandContextKey("internal-child")
+	var (
+		called bool
+		gotCtx context.Context
+		gotRun daemon.RunOptions
+	)
+	runCLIDaemonForeground = func(ctx context.Context, opts daemon.RunOptions) error {
+		called = true
+		gotCtx = ctx
+		gotRun = opts
+		return nil
+	}
+	t.Setenv(daemonHTTPPortEnv, "43124")
+
+	cmd := newDaemonStartCommand()
+	cmd.SetContext(context.WithValue(context.Background(), ctxKey, "detached-child"))
+	output, err := executeCommandCombinedOutput(cmd, nil, "--"+daemonStartInternalChildFlag)
+	if err != nil {
+		t.Fatalf("execute daemon start --internal-child: %v\noutput:\n%s", err, output)
+	}
+	if !called {
+		t.Fatal("expected detached daemon runner to be called")
+	}
+	if gotCtx == nil || gotCtx.Value(ctxKey) != "detached-child" {
+		t.Fatalf("detached daemon context = %#v, want command context value", gotCtx)
+	}
+	if gotRun.HTTPPort != 43124 {
+		t.Fatalf("detached daemon http port = %d, want 43124", gotRun.HTTPPort)
+	}
+	if gotRun.Mode != daemon.RunModeDetached {
+		t.Fatalf("detached daemon mode = %q, want %q", gotRun.Mode, daemon.RunModeDetached)
+	}
+	if output != "" {
+		t.Fatalf("expected internal child daemon start to stay quiet, got %q", output)
+	}
+}
+
+func TestLaunchCLIDaemonProcessFailsWhenDaemonLogFileCannotBeOpened(t *testing.T) {
+	t.Parallel()
+
+	paths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	paths.LogFile = paths.LogsDir
+
+	err = launchCLIDaemonProcessWithExecutable(paths, filepath.Join(t.TempDir(), "unused-compozy"))
+	if err == nil {
+		t.Fatal("expected launchCLIDaemonProcessWithExecutable to fail when the daemon log file path is a directory")
+	}
+	if !strings.Contains(err.Error(), "open daemon log file") {
+		t.Fatalf("unexpected detached launch error: %v", err)
 	}
 }
 
@@ -2322,6 +2388,62 @@ func TestArchiveCommandWorkspaceWideSkipsConflictsDeterministically(t *testing.T
 	if payload.Archived != 1 || payload.Skipped != 1 || len(payload.ArchivedPaths) != 1 ||
 		payload.ArchivedPaths[0] != "alpha" {
 		t.Fatalf("unexpected archive payload: %#v", payload)
+	}
+	if len(payload.SkippedPaths) != 1 || payload.SkippedPaths[0] != "beta" {
+		t.Fatalf("unexpected skipped payload: %#v", payload)
+	}
+	if payload.SkippedReasons["beta"] == "" {
+		t.Fatalf("expected skip reason for beta, got %#v", payload.SkippedReasons)
+	}
+}
+
+func TestArchiveCommandWorkspaceWideUsesFilesystemWhenDaemonCatalogIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	for _, slug := range []string{"alpha", "beta"} {
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", slug), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir %q: %v", slug, err)
+		}
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+		archiveBySlug: map[string]apicore.ArchiveResult{
+			"alpha": {Archived: true},
+		},
+		archiveErrors: map[string]error{
+			"beta": &apiclient.RemoteError{
+				StatusCode: 409,
+				Envelope: apicore.TransportError{
+					RequestID: "req-beta",
+					Code:      "workflow_conflict",
+					Message:   "workflow \"beta\" is not archivable: workflow state not synced",
+				},
+			},
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	output, err := executeCommandCombinedOutput(newArchiveCommand(newLazyRootDispatcher()), nil, "--format", "json")
+	if err != nil {
+		t.Fatalf("execute archive: %v\noutput:\n%s", err, output)
+	}
+	if got, want := client.archiveCalls, []string{"alpha", "beta"}; len(got) != len(want) ||
+		got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("unexpected archive calls: got %#v want %#v", got, want)
+	}
+
+	var payload core.ArchiveResult
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatalf("decode archive payload: %v\noutput:\n%s", err, output)
+	}
+	if payload.WorkflowsScanned != 2 || payload.Archived != 1 || payload.Skipped != 1 {
+		t.Fatalf("unexpected archive counts: %#v", payload)
+	}
+	if len(payload.ArchivedPaths) != 1 || payload.ArchivedPaths[0] != "alpha" {
+		t.Fatalf("unexpected archived payload: %#v", payload)
 	}
 	if len(payload.SkippedPaths) != 1 || payload.SkippedPaths[0] != "beta" {
 		t.Fatalf("unexpected skipped payload: %#v", payload)

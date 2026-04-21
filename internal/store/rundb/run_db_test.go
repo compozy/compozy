@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -358,6 +359,151 @@ func TestRunDBRequiresContext(t *testing.T) {
 	}
 	if _, err := db.ListEvents(nilCtx, 0, 0); err == nil {
 		t.Fatal("ListEvents(nil) error = nil, want non-nil")
+	}
+}
+
+func TestRunDBUpsertIntegrityIsStickyAndSurvivesReopen(t *testing.T) {
+	t.Parallel()
+
+	runID := "run-integrity-sticky"
+	db := openTestRunDB(t, runID)
+	path := db.Path()
+
+	first, err := db.UpsertIntegrity(context.Background(), RunIntegrityUpdate{
+		Incomplete:           true,
+		Reasons:              []string{"journal_submit_drops"},
+		JournalTerminalDrops: 2,
+	})
+	if err != nil {
+		t.Fatalf("UpsertIntegrity(first) error = %v", err)
+	}
+	if !first.Incomplete {
+		t.Fatal("first.Incomplete = false, want true")
+	}
+	if got, want := first.Reasons, []string{"journal_submit_drops"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("first.Reasons = %#v, want %#v", got, want)
+	}
+	if first.JournalTerminalDrops != 2 || first.JournalNonTerminalDrops != 0 {
+		t.Fatalf("first drop counts = %#v, want terminal=2 non_terminal=0", first)
+	}
+	if first.FirstDetectedAt.IsZero() || first.UpdatedAt.IsZero() {
+		t.Fatalf("first timestamps = %#v, want non-zero", first)
+	}
+
+	second, err := db.UpsertIntegrity(context.Background(), RunIntegrityUpdate{
+		Reasons:                 []string{"event_gap", "transcript_gap"},
+		JournalTerminalDrops:    1,
+		JournalNonTerminalDrops: 3,
+	})
+	if err != nil {
+		t.Fatalf("UpsertIntegrity(second) error = %v", err)
+	}
+	if got, want := second.Reasons, []string{
+		"event_gap",
+		"journal_submit_drops",
+		"transcript_gap",
+	}; !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf("second.Reasons = %#v, want %#v", got, want)
+	}
+	if second.JournalTerminalDrops != 2 || second.JournalNonTerminalDrops != 3 {
+		t.Fatalf("second drop counts = %#v, want terminal=2 non_terminal=3", second)
+	}
+	if !second.FirstDetectedAt.Equal(first.FirstDetectedAt) {
+		t.Fatalf("FirstDetectedAt = %v, want %v", second.FirstDetectedAt, first.FirstDetectedAt)
+	}
+
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close(): %v", err)
+	}
+
+	reopened, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatalf("Open(reopen): %v", err)
+	}
+	defer func() {
+		_ = reopened.Close()
+	}()
+
+	persisted, err := reopened.GetIntegrity(context.Background())
+	if err != nil {
+		t.Fatalf("GetIntegrity(reopen): %v", err)
+	}
+	if got, want := persisted.Reasons, []string{
+		"event_gap",
+		"journal_submit_drops",
+		"transcript_gap",
+	}; !reflect.DeepEqual(
+		got,
+		want,
+	) {
+		t.Fatalf("persisted.Reasons = %#v, want %#v", got, want)
+	}
+	if persisted.JournalTerminalDrops != 2 || persisted.JournalNonTerminalDrops != 3 {
+		t.Fatalf("persisted drop counts = %#v, want terminal=2 non_terminal=3", persisted)
+	}
+}
+
+func TestRunDBUpsertIntegritySerializesConcurrentMerges(t *testing.T) {
+	t.Parallel()
+
+	db := openTestRunDB(t, "run-integrity-concurrent")
+	defer func() {
+		_ = db.Close()
+	}()
+
+	releaseNow := make(chan struct{})
+	nowEntered := make(chan struct{}, 8)
+	db.now = func() time.Time {
+		nowEntered <- struct{}{}
+		<-releaseNow
+		return time.Date(2026, 4, 17, 18, 5, 0, 0, time.UTC)
+	}
+
+	errs := make(chan error, 2)
+	firstUpdate := RunIntegrityUpdate{Incomplete: true, Reasons: []string{"event_gap"}}
+	secondUpdate := RunIntegrityUpdate{Incomplete: true, Reasons: []string{"transcript_gap"}}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		_, err := db.UpsertIntegrity(context.Background(), firstUpdate)
+		errs <- err
+	}()
+
+	<-nowEntered
+
+	secondStarted := make(chan struct{})
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		close(secondStarted)
+		_, err := db.UpsertIntegrity(context.Background(), secondUpdate)
+		errs <- err
+	}()
+
+	<-secondStarted
+	close(releaseNow)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("UpsertIntegrity(concurrent) error = %v", err)
+		}
+	}
+
+	state, err := db.GetIntegrity(context.Background())
+	if err != nil {
+		t.Fatalf("GetIntegrity() error = %v", err)
+	}
+	if !state.Incomplete {
+		t.Fatal("state.Incomplete = false, want true")
+	}
+	if got, want := state.Reasons, []string{"event_gap", "transcript_gap"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("state.Reasons = %#v, want %#v", got, want)
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/core/contentconv"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/core/run/transcript"
 	"github.com/compozy/compozy/internal/store/rundb"
 	"github.com/compozy/compozy/pkg/compozy/events"
@@ -99,7 +100,7 @@ func (b *runSnapshotBuilder) jobStates() []apicore.RunJobState {
 		if snapshot := job.session.Snapshot(); snapshot.Revision != 0 || len(snapshot.Entries) > 0 ||
 			len(snapshot.Plan.Entries) > 0 || snapshot.Session.Status != "" ||
 			snapshot.Session.CurrentModeID != "" || len(snapshot.Session.AvailableCommands) > 0 {
-			job.summary.Session = snapshot
+			job.summary.Session = contractSessionSnapshot(snapshot)
 		}
 		job.state.Summary = cloneRunJobSummary(job.summary)
 		result = append(result, job.state)
@@ -338,6 +339,64 @@ func shutdownStateFromPayload(
 		RequestedAt: requestedAt,
 		DeadlineAt:  deadlineAt,
 	}
+}
+
+func contractSessionSnapshot(snapshot transcript.SessionViewSnapshot) apicore.SessionViewSnapshot {
+	result := apicore.SessionViewSnapshot{
+		Revision: snapshot.Revision,
+		Entries:  make([]apicore.SessionEntry, 0, len(snapshot.Entries)),
+		Plan: apicore.SessionPlanState{
+			Entries:      make([]apicore.SessionPlanEntry, 0, len(snapshot.Plan.Entries)),
+			PendingCount: snapshot.Plan.PendingCount,
+			RunningCount: snapshot.Plan.RunningCount,
+			DoneCount:    snapshot.Plan.DoneCount,
+		},
+		Session: apicore.SessionMetaState{
+			CurrentModeID:     snapshot.Session.CurrentModeID,
+			AvailableCommands: make([]apicore.SessionAvailableCommand, 0, len(snapshot.Session.AvailableCommands)),
+			Status:            apicore.SessionStatus(snapshot.Session.Status),
+		},
+	}
+	for _, entry := range snapshot.Entries {
+		result.Entries = append(result.Entries, apicore.SessionEntry{
+			ID:            entry.ID,
+			Kind:          apicore.SessionEntryKind(entry.Kind),
+			Title:         entry.Title,
+			Preview:       entry.Preview,
+			ToolCallID:    entry.ToolCallID,
+			ToolCallState: apicore.ToolCallState(entry.ToolCallState),
+			Blocks:        contractContentBlocks(entry.Blocks),
+		})
+	}
+	for _, entry := range snapshot.Plan.Entries {
+		result.Plan.Entries = append(result.Plan.Entries, apicore.SessionPlanEntry{
+			Content:  entry.Content,
+			Priority: entry.Priority,
+			Status:   entry.Status,
+		})
+	}
+	for _, cmd := range snapshot.Session.AvailableCommands {
+		result.Session.AvailableCommands = append(result.Session.AvailableCommands, apicore.SessionAvailableCommand{
+			Name:         cmd.Name,
+			Description:  cmd.Description,
+			ArgumentHint: cmd.ArgumentHint,
+		})
+	}
+	return result
+}
+
+func contractContentBlocks(blocks []model.ContentBlock) []apicore.ContentBlock {
+	if len(blocks) == 0 {
+		return nil
+	}
+	result := make([]apicore.ContentBlock, 0, len(blocks))
+	for _, block := range blocks {
+		result = append(result, apicore.ContentBlock{
+			Type: apicore.ContentBlockType(block.Type),
+			Data: append(json.RawMessage(nil), block.Data...),
+		})
+	}
+	return result
 }
 
 func firstNonEmpty(values ...string) string {

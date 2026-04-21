@@ -24,8 +24,10 @@ type RemoteCursor struct {
 // RemoteRunSnapshot is the minimal snapshot state needed to decide whether a
 // watch should reconnect after EOF.
 type RemoteRunSnapshot struct {
-	Status     string
-	NextCursor *RemoteCursor
+	Status            string
+	Incomplete        bool
+	IncompleteReasons []string
+	NextCursor        *RemoteCursor
 }
 
 // RemoteRunStreamItem is one parsed stream delivery from a daemon-backed watch.

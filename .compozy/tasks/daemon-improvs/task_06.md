@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 title: ACP Liveness, Subprocess Supervision, and Reconcile Hardening
 type: backend
 complexity: critical
@@ -33,11 +33,11 @@ This task hardens the daemon's runtime supervision of ACP-backed work without ch
 
 ## Subtasks
 
-- [ ] 6.1 Extend executor and run-state persistence with liveness metadata needed for startup and periodic recovery.
-- [ ] 6.2 Add liveness monitoring hooks for ACP session updates, job starts, exits, and stall detection.
-- [ ] 6.3 Strengthen subprocess supervision with Unix process-group termination and explicit Windows fallback semantics.
-- [ ] 6.4 Upgrade reconcile classification and recovery reporting to use the new liveness and subprocess state.
-- [ ] 6.5 Add ACP fault-injection coverage for disconnect, malformed frame, blocked cancel, and timeout escalation scenarios.
+- [x] 6.1 Extend executor and run-state persistence with liveness metadata needed for startup and periodic recovery.
+- [x] 6.2 Add liveness monitoring hooks for ACP session updates, job starts, exits, and stall detection.
+- [x] 6.3 Strengthen subprocess supervision with Unix process-group termination and explicit Windows fallback semantics.
+- [x] 6.4 Upgrade reconcile classification and recovery reporting to use the new liveness and subprocess state.
+- [x] 6.5 Add ACP fault-injection coverage for disconnect, malformed frame, blocked cancel, and timeout escalation scenarios.
 
 ## Implementation Details
 
@@ -77,15 +77,15 @@ Implement the hardening described in the TechSpec sections "AgentLivenessMonitor
 ## Tests
 
 - Unit tests:
-  - [ ] Receiving ACP session updates records the latest liveness timestamp and session identity for the owning job state.
-  - [ ] Detecting a stalled job marks the persisted stall state and reason without corrupting terminal job status.
-  - [ ] Unix subprocess supervision escalates from cooperative shutdown to process-group termination when the child does not exit in time.
-  - [ ] Reconcile classification distinguishes crashed, orphaned, and stalled runs based on persisted liveness and subprocess metadata.
+  - [x] Receiving ACP session updates records the latest liveness timestamp and session identity for the owning job state.
+  - [x] Detecting a stalled job marks the persisted stall state and reason without corrupting terminal job status.
+  - [x] Unix subprocess supervision escalates from cooperative shutdown to process-group termination when the child does not exit in time.
+  - [x] Reconcile classification distinguishes crashed, orphaned, and stalled runs based on persisted liveness and subprocess metadata.
 - Integration tests:
-  - [ ] An ACP mid-stream disconnect produces the expected liveness or reconcile classification and does not leave an untracked running child.
-  - [ ] A malformed ACP frame causes the run to fail with honest persisted recovery details instead of silently hanging.
-  - [ ] A blocked cancellation path escalates through the configured supervision path and records the expected shutdown outcome.
-  - [ ] Restarting the daemon after an interrupted ACP-backed run classifies the run correctly and reports synthetic crash-event persistence failures honestly when they occur.
+  - [x] An ACP mid-stream disconnect produces the expected liveness or reconcile classification and does not leave an untracked running child.
+  - [x] A malformed ACP frame causes the run to fail with honest persisted recovery details instead of silently hanging.
+  - [x] A blocked cancellation path escalates through the configured supervision path and records the expected shutdown outcome.
+  - [x] Restarting the daemon after an interrupted ACP-backed run classifies the run correctly and reports synthetic crash-event persistence failures honestly when they occur.
 - Test coverage target: >=80%
 - All tests must pass
 

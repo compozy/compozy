@@ -397,7 +397,7 @@ func remoteBootstrapSummaryMsgs(index int, summary *apicore.RunJobSummary) []uiM
 		len(snapshot.Session.AvailableCommands) > 0 {
 		msgs = append(msgs, jobUpdateMsg{
 			Index:             index,
-			Snapshot:          snapshot,
+			Snapshot:          uiSessionSnapshot(snapshot),
 			HydrateTranslator: true,
 		})
 	}
@@ -433,6 +433,64 @@ func remoteBootstrapTerminalMsgs(index int, status string, summary *apicore.RunJ
 	default:
 		return nil
 	}
+}
+
+func uiSessionSnapshot(snapshot apicore.SessionViewSnapshot) SessionViewSnapshot {
+	result := SessionViewSnapshot{
+		Revision: snapshot.Revision,
+		Entries:  make([]TranscriptEntry, 0, len(snapshot.Entries)),
+		Plan: SessionPlanState{
+			Entries:      make([]model.SessionPlanEntry, 0, len(snapshot.Plan.Entries)),
+			PendingCount: snapshot.Plan.PendingCount,
+			RunningCount: snapshot.Plan.RunningCount,
+			DoneCount:    snapshot.Plan.DoneCount,
+		},
+		Session: SessionMetaState{
+			CurrentModeID:     snapshot.Session.CurrentModeID,
+			AvailableCommands: make([]model.SessionAvailableCommand, 0, len(snapshot.Session.AvailableCommands)),
+			Status:            model.SessionStatus(snapshot.Session.Status),
+		},
+	}
+	for _, entry := range snapshot.Entries {
+		result.Entries = append(result.Entries, TranscriptEntry{
+			ID:            entry.ID,
+			Kind:          transcriptEntryKind(entry.Kind),
+			Title:         entry.Title,
+			Preview:       entry.Preview,
+			ToolCallID:    entry.ToolCallID,
+			ToolCallState: model.ToolCallState(entry.ToolCallState),
+			Blocks:        uiContentBlocks(entry.Blocks),
+		})
+	}
+	for _, entry := range snapshot.Plan.Entries {
+		result.Plan.Entries = append(result.Plan.Entries, model.SessionPlanEntry{
+			Content:  entry.Content,
+			Priority: entry.Priority,
+			Status:   entry.Status,
+		})
+	}
+	for _, cmd := range snapshot.Session.AvailableCommands {
+		result.Session.AvailableCommands = append(result.Session.AvailableCommands, model.SessionAvailableCommand{
+			Name:         cmd.Name,
+			Description:  cmd.Description,
+			ArgumentHint: cmd.ArgumentHint,
+		})
+	}
+	return result
+}
+
+func uiContentBlocks(blocks []apicore.ContentBlock) []model.ContentBlock {
+	if len(blocks) == 0 {
+		return nil
+	}
+	result := make([]model.ContentBlock, 0, len(blocks))
+	for _, block := range blocks {
+		result = append(result, model.ContentBlock{
+			Type: model.ContentBlockType(block.Type),
+			Data: append([]byte(nil), block.Data...),
+		})
+	}
+	return result
 }
 
 func remoteFailureInfo(summary *apicore.RunJobSummary) failInfo {

@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	apiclient "github.com/compozy/compozy/internal/api/client"
 	apicore "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
 	"github.com/compozy/compozy/internal/api/udsapi"
+	"github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
@@ -18,12 +21,15 @@ import (
 type RunOptions struct {
 	Version  string
 	HTTPPort int
+	Mode     RunMode
 }
 
 type hostRuntime struct {
-	db         *globaldb.GlobalDB
-	udsServer  *udsapi.Server
-	httpServer *httpapi.Server
+	runManager      *RunManager
+	db              *globaldb.GlobalDB
+	udsServer       *udsapi.Server
+	httpServer      *httpapi.Server
+	shutdownTimeout time.Duration
 }
 
 type hostPersistence struct {
@@ -32,29 +38,57 @@ type hostPersistence struct {
 	reconcileResult ReconcileResult
 }
 
-// Run starts the singleton daemon host, including persistence, transports, and services.
-func Run(ctx context.Context, opts RunOptions) error {
-	if ctx == nil {
-		return errors.New("daemon: run context is required")
+var (
+	shutdownRunManager = func(ctx context.Context, manager *RunManager) error {
+		return manager.Shutdown(ctx, true)
 	}
+	shutdownHTTPServer = func(ctx context.Context, server *httpapi.Server) error {
+		return server.Shutdown(ctx)
+	}
+	shutdownUDSServer = func(ctx context.Context, server *udsapi.Server) error {
+		return server.Shutdown(ctx)
+	}
+	closeHostGlobalDB = func(ctx context.Context, db *globaldb.GlobalDB) error {
+		return db.CloseContext(ctx)
+	}
+	closeDaemonHost = func(ctx context.Context, host *Host) error {
+		return host.Close(ctx)
+	}
+)
 
-	runCtx, stop := context.WithCancel(ctx)
+// Run starts the singleton daemon host, including persistence, transports, and services.
+func Run(ctx context.Context, opts RunOptions) (retErr error) {
+	signalCtx, stopSignals, err := daemonRunSignalContext(ctx, opts.Mode)
+	if err != nil {
+		return err
+	}
+	defer stopSignals()
+
+	runCtx, stop := context.WithCancel(signalCtx)
 	defer stop()
 
 	var runtime hostRuntime
 	var host *Host
+	var daemonLogger *logger.Runtime
+	defer func() {
+		if daemonLogger != nil {
+			retErr = errors.Join(retErr, daemonLogger.Close())
+		}
+	}()
 
+	mode := resolveRunMode(opts.Mode)
 	result, err := Start(runCtx, StartOptions{
 		Version:  opts.Version,
 		HTTPPort: opts.HTTPPort,
 		Healthy:  ProbeReady,
 		Prepare: func(startCtx context.Context, currentHost *Host) error {
 			host = currentHost
-			preparedRuntime, err := prepareHostRuntime(startCtx, runCtx, currentHost, stop)
+			preparedRuntime, preparedLogger, err := prepareRuntimeForRun(startCtx, runCtx, currentHost, stop, mode)
 			if err != nil {
 				return err
 			}
 			runtime = preparedRuntime
+			daemonLogger = preparedLogger
 			return nil
 		},
 	})
@@ -65,8 +99,75 @@ func Run(ctx context.Context, opts RunOptions) error {
 		return nil
 	}
 
+	logDaemonStarted(mode, result.Info)
+	return waitForRunShutdown(runCtx, runtime, host, mode)
+}
+
+func prepareRuntimeForRun(
+	startCtx context.Context,
+	runCtx context.Context,
+	currentHost *Host,
+	stop context.CancelFunc,
+	mode RunMode,
+) (hostRuntime, *logger.Runtime, error) {
+	daemonLogger, err := logger.InstallDaemonLogger(logger.DaemonConfig{
+		FilePath: currentHost.Paths().LogFile,
+		Mode:     logger.Mode(mode),
+	})
+	if err != nil {
+		return hostRuntime{}, nil, fmt.Errorf("daemon: configure logger: %w", err)
+	}
+	logDaemonStarting(mode, currentHost)
+
+	runtime, err := prepareHostRuntime(startCtx, runCtx, currentHost, stop)
+	if err != nil {
+		_ = daemonLogger.Close()
+		return hostRuntime{}, nil, err
+	}
+	return runtime, daemonLogger, nil
+}
+
+func logDaemonStarting(mode RunMode, currentHost *Host) {
+	slog.Info(
+		"daemon starting",
+		"mode",
+		mode,
+		"pid",
+		currentHost.Info().PID,
+		"socket_path",
+		currentHost.Paths().SocketPath,
+		"log_path",
+		currentHost.Paths().LogFile,
+	)
+}
+
+func logDaemonStarted(mode RunMode, info Info) {
+	slog.Info(
+		"daemon started",
+		"mode",
+		mode,
+		"pid",
+		info.PID,
+		"http_port",
+		info.HTTPPort,
+		"socket_path",
+		info.SocketPath,
+	)
+}
+
+func waitForRunShutdown(runCtx context.Context, runtime hostRuntime, host *Host, mode RunMode) error {
 	<-runCtx.Done()
-	return closeHostRuntime(runtime, host)
+	if cause := context.Cause(runCtx); cause != nil {
+		slog.Info("daemon shutdown requested", "mode", mode, "reason", cause.Error())
+	} else {
+		slog.Info("daemon shutdown requested", "mode", mode)
+	}
+	if err := closeHostRuntime(runCtx, runtime, host); err != nil {
+		slog.Error("daemon shutdown failed", "mode", mode, "error", err)
+		return err
+	}
+	slog.Info("daemon stopped", "mode", mode)
+	return nil
 }
 
 func prepareHostRuntime(
@@ -81,13 +182,14 @@ func prepareHostRuntime(
 	}
 
 	runtime := hostRuntime{
-		db: persistence.db,
+		db:              persistence.db,
+		shutdownTimeout: persistence.settings.ShutdownDrainTimeout,
 	}
 	defer func() {
 		if err == nil {
 			return
 		}
-		err = errors.Join(err, closeHostRuntime(runtime, nil))
+		err = errors.Join(err, closeHostRuntime(startCtx, runtime, nil))
 	}()
 
 	runManager, err := NewRunManager(RunManagerConfig{
@@ -98,9 +200,10 @@ func prepareHostRuntime(
 	if err != nil {
 		return hostRuntime{}, err
 	}
+	runtime.runManager = runManager
 
 	handlers := buildHostHandlers(currentHost, persistence, runManager, stop)
-	servers, err := startHostTransports(startCtx, currentHost, handlers)
+	servers, err := startHostTransports(startCtx, persistence.settings.ShutdownDrainTimeout, currentHost, handlers)
 	if err != nil {
 		return hostRuntime{}, err
 	}
@@ -181,6 +284,7 @@ type hostServers struct {
 
 func startHostTransports(
 	ctx context.Context,
+	shutdownTimeout time.Duration,
 	currentHost *Host,
 	handlers *apicore.Handlers,
 ) (_ hostServers, err error) {
@@ -195,7 +299,9 @@ func startHostTransports(
 		if err == nil {
 			return
 		}
-		err = errors.Join(err, udsServer.Shutdown(context.Background()))
+		shutdownCtx, cancel := boundedLifecycleContext(ctx, shutdownTimeout)
+		defer cancel()
+		err = errors.Join(err, shutdownUDSServer(shutdownCtx, udsServer))
 	}()
 	if err := udsServer.Start(ctx); err != nil {
 		return hostServers{}, err
@@ -213,7 +319,9 @@ func startHostTransports(
 		if err == nil {
 			return
 		}
-		err = errors.Join(err, httpServer.Shutdown(context.Background()))
+		shutdownCtx, cancel := boundedLifecycleContext(ctx, shutdownTimeout)
+		defer cancel()
+		err = errors.Join(err, shutdownHTTPServer(shutdownCtx, httpServer))
 	}()
 	if err := httpServer.Start(ctx); err != nil {
 		return hostServers{}, err
@@ -225,19 +333,36 @@ func startHostTransports(
 	}, nil
 }
 
-func closeHostRuntime(runtime hostRuntime, host *Host) error {
+func closeHostRuntime(ctx context.Context, runtime hostRuntime, host *Host) error {
+	shutdownTimeout := runtime.shutdownTimeout
+	if shutdownTimeout <= 0 {
+		shutdownTimeout = defaultShutdownDrainTimeout
+	}
 	var errs []error
+	if runtime.runManager != nil {
+		shutdownCtx, cancel := boundedLifecycleContext(ctx, shutdownTimeout)
+		errs = append(errs, shutdownRunManager(shutdownCtx, runtime.runManager))
+		cancel()
+	}
 	if runtime.httpServer != nil {
-		errs = append(errs, runtime.httpServer.Shutdown(context.Background()))
+		shutdownCtx, cancel := boundedLifecycleContext(ctx, shutdownTimeout)
+		errs = append(errs, shutdownHTTPServer(shutdownCtx, runtime.httpServer))
+		cancel()
 	}
 	if runtime.udsServer != nil {
-		errs = append(errs, runtime.udsServer.Shutdown(context.Background()))
+		shutdownCtx, cancel := boundedLifecycleContext(ctx, shutdownTimeout)
+		errs = append(errs, shutdownUDSServer(shutdownCtx, runtime.udsServer))
+		cancel()
 	}
 	if runtime.db != nil {
-		errs = append(errs, runtime.db.Close())
+		shutdownCtx, cancel := boundedLifecycleContext(ctx, shutdownTimeout)
+		errs = append(errs, closeHostGlobalDB(shutdownCtx, runtime.db))
+		cancel()
 	}
 	if host != nil {
-		errs = append(errs, host.Close(context.Background()))
+		shutdownCtx, cancel := boundedLifecycleContext(ctx, shutdownTimeout)
+		errs = append(errs, closeDaemonHost(shutdownCtx, host))
+		cancel()
 	}
 	return errors.Join(errs...)
 }

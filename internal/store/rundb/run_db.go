@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -15,16 +17,20 @@ import (
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
 )
 
+var closeRunSQLiteDatabase = store.CloseSQLiteDatabase
+
 type openOptions struct {
 	now func() time.Time
 }
 
 // RunDB owns one per-run SQLite store.
 type RunDB struct {
-	db    *sql.DB
-	path  string
-	runID string
-	now   func() time.Time
+	db          *sql.DB
+	path        string
+	runID       string
+	now         func() time.Time
+	closeMu     sync.Mutex
+	integrityMu sync.Mutex
 }
 
 // HookRunRecord captures one hook audit row persisted independently of the canonical event stream.
@@ -77,6 +83,25 @@ type ArtifactSyncRow struct {
 	SyncedAt     time.Time
 }
 
+// RunIntegrityState is the durable sticky integrity state for one run.
+type RunIntegrityState struct {
+	Incomplete              bool
+	Reasons                 []string
+	JournalTerminalDrops    uint64
+	JournalNonTerminalDrops uint64
+	FirstDetectedAt         time.Time
+	UpdatedAt               time.Time
+}
+
+// RunIntegrityUpdate captures one integrity-state update that should merge with
+// any existing sticky run-integrity row.
+type RunIntegrityUpdate struct {
+	Incomplete              bool
+	Reasons                 []string
+	JournalTerminalDrops    uint64
+	JournalNonTerminalDrops uint64
+}
+
 // EventListResult captures one ordered event window from the canonical log.
 type EventListResult struct {
 	Events  []events.Event
@@ -116,10 +141,28 @@ func openWithOptions(ctx context.Context, path string, opts openOptions) (*RunDB
 
 // Close releases the underlying SQLite handle.
 func (r *RunDB) Close() error {
-	if r == nil || r.db == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), store.DefaultDrainTimeout)
+	defer cancel()
+	return r.CloseContext(ctx)
+}
+
+// CloseContext checkpoints the SQLite WAL and closes the underlying handle.
+func (r *RunDB) CloseContext(ctx context.Context) error {
+	if r == nil {
 		return nil
 	}
-	return r.db.Close()
+	if ctx == nil {
+		return errors.New("rundb: close context is required")
+	}
+	r.closeMu.Lock()
+	defer r.closeMu.Unlock()
+
+	if r.db == nil {
+		return nil
+	}
+	db := r.db
+	r.db = nil
+	return closeRunSQLiteDatabase(ctx, db)
 }
 
 // Path reports the on-disk database path.
@@ -638,6 +681,97 @@ func (r *RunDB) ListArtifactSyncLog(ctx context.Context) ([]ArtifactSyncRow, err
 	return items, nil
 }
 
+// GetIntegrity returns the durable sticky integrity state for this run.
+func (r *RunDB) GetIntegrity(ctx context.Context) (RunIntegrityState, error) {
+	if err := r.requireContext(ctx, "load run integrity"); err != nil {
+		return RunIntegrityState{}, err
+	}
+	return queryIntegrityState(ctx, r.db)
+}
+
+// UpsertIntegrity merges the supplied integrity update into the sticky durable
+// run-integrity row and returns the merged result.
+func (r *RunDB) UpsertIntegrity(ctx context.Context, update RunIntegrityUpdate) (RunIntegrityState, error) {
+	if err := r.requireContext(ctx, "upsert run integrity"); err != nil {
+		return RunIntegrityState{}, err
+	}
+	if isNoopIntegrityUpdate(update) {
+		return r.GetIntegrity(ctx)
+	}
+
+	r.integrityMu.Lock()
+	defer r.integrityMu.Unlock()
+
+	return r.upsertIntegrityLocked(ctx, update)
+}
+
+func (r *RunDB) upsertIntegrityLocked(
+	ctx context.Context,
+	update RunIntegrityUpdate,
+) (state RunIntegrityState, retErr error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return RunIntegrityState{}, fmt.Errorf("rundb: begin run integrity transaction: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			retErr = errors.Join(retErr, fmt.Errorf("rundb: rollback run integrity transaction: %w", rollbackErr))
+		}
+	}()
+
+	existing, err := queryIntegrityState(ctx, tx)
+	if err != nil {
+		return RunIntegrityState{}, err
+	}
+	merged := mergeRunIntegrityState(existing, update, r.now)
+
+	reasonsJSON, err := encodeIntegrityReasons(merged.Reasons)
+	if err != nil {
+		return RunIntegrityState{}, err
+	}
+
+	if err := upsertIntegrityState(ctx, tx, merged, reasonsJSON); err != nil {
+		return RunIntegrityState{}, fmt.Errorf("rundb: upsert run integrity: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return RunIntegrityState{}, fmt.Errorf("rundb: commit run integrity transaction: %w", err)
+	}
+	committed = true
+	return merged, nil
+}
+
+func isNoopIntegrityUpdate(update RunIntegrityUpdate) bool {
+	return !update.Incomplete && len(update.Reasons) == 0 &&
+		update.JournalTerminalDrops == 0 && update.JournalNonTerminalDrops == 0
+}
+
+func mergeRunIntegrityState(
+	existing RunIntegrityState,
+	update RunIntegrityUpdate,
+	now func() time.Time,
+) RunIntegrityState {
+	merged := RunIntegrityState{
+		Incomplete:              existing.Incomplete || update.Incomplete,
+		Reasons:                 mergeIntegrityReasons(existing.Reasons, update.Reasons),
+		JournalTerminalDrops:    max(existing.JournalTerminalDrops, update.JournalTerminalDrops),
+		JournalNonTerminalDrops: max(existing.JournalNonTerminalDrops, update.JournalNonTerminalDrops),
+		FirstDetectedAt:         existing.FirstDetectedAt,
+	}
+	if len(merged.Reasons) > 0 || merged.JournalTerminalDrops > 0 || merged.JournalNonTerminalDrops > 0 {
+		merged.Incomplete = true
+	}
+	if merged.Incomplete && merged.FirstDetectedAt.IsZero() {
+		merged.FirstDetectedAt = now()
+	}
+	merged.UpdatedAt = now()
+	return merged
+}
+
 func (r *RunDB) requireContext(ctx context.Context, action string) error {
 	if r == nil || r.db == nil {
 		return errors.New("rundb: database is required")
@@ -654,6 +788,117 @@ type eventBatchStatements struct {
 	insertTranscript      *sql.Stmt
 	upsertTokenUsage      *sql.Stmt
 	insertArtifactSyncLog *sql.Stmt
+}
+
+type integrityQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+type integrityExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func queryIntegrityState(ctx context.Context, queryer integrityQuerier) (RunIntegrityState, error) {
+	row := queryer.QueryRowContext(
+		ctx,
+		`SELECT incomplete, reasons_json, journal_terminal_drops, journal_non_terminal_drops,
+		        first_detected_at, updated_at
+		 FROM run_integrity
+		 WHERE singleton_id = 1`,
+	)
+
+	var (
+		state                   RunIntegrityState
+		incomplete              bool
+		reasonsJSON             string
+		journalTerminalDrops    int64
+		journalNonTerminalDrops int64
+		firstDetectedAt         string
+		updatedAt               string
+	)
+	if err := row.Scan(
+		&incomplete,
+		&reasonsJSON,
+		&journalTerminalDrops,
+		&journalNonTerminalDrops,
+		&firstDetectedAt,
+		&updatedAt,
+	); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return RunIntegrityState{}, nil
+		}
+		return RunIntegrityState{}, fmt.Errorf("rundb: query run integrity: %w", err)
+	}
+
+	reasons, err := decodeIntegrityReasons(reasonsJSON)
+	if err != nil {
+		return RunIntegrityState{}, err
+	}
+	terminalDrops, err := sequenceValue(journalTerminalDrops, "journal terminal drops")
+	if err != nil {
+		return RunIntegrityState{}, err
+	}
+	nonTerminalDrops, err := sequenceValue(journalNonTerminalDrops, "journal non-terminal drops")
+	if err != nil {
+		return RunIntegrityState{}, err
+	}
+
+	state = RunIntegrityState{
+		Incomplete:              incomplete,
+		Reasons:                 reasons,
+		JournalTerminalDrops:    terminalDrops,
+		JournalNonTerminalDrops: nonTerminalDrops,
+	}
+	if firstDetectedAt != "" {
+		parsed, parseErr := store.ParseTimestamp(firstDetectedAt)
+		if parseErr != nil {
+			return RunIntegrityState{}, parseErr
+		}
+		state.FirstDetectedAt = parsed
+	}
+	if updatedAt != "" {
+		parsed, parseErr := store.ParseTimestamp(updatedAt)
+		if parseErr != nil {
+			return RunIntegrityState{}, parseErr
+		}
+		state.UpdatedAt = parsed
+	}
+	return state, nil
+}
+
+func upsertIntegrityState(
+	ctx context.Context,
+	execer integrityExecer,
+	merged RunIntegrityState,
+	reasonsJSON string,
+) error {
+	_, err := execer.ExecContext(
+		ctx,
+		`INSERT INTO run_integrity (
+			singleton_id,
+			incomplete,
+			reasons_json,
+			journal_terminal_drops,
+			journal_non_terminal_drops,
+			first_detected_at,
+			updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(singleton_id) DO UPDATE SET
+			incomplete=excluded.incomplete,
+			reasons_json=excluded.reasons_json,
+			journal_terminal_drops=excluded.journal_terminal_drops,
+			journal_non_terminal_drops=excluded.journal_non_terminal_drops,
+			first_detected_at=excluded.first_detected_at,
+			updated_at=excluded.updated_at`,
+		1,
+		merged.Incomplete,
+		reasonsJSON,
+		merged.JournalTerminalDrops,
+		merged.JournalNonTerminalDrops,
+		store.FormatTimestamp(merged.FirstDetectedAt),
+		store.FormatTimestamp(merged.UpdatedAt),
+	)
+	return err
 }
 
 type eventBatchStatementSpec struct {
@@ -793,7 +1038,7 @@ func applyJobStateProjectionWithStatement(ctx context.Context, stmt *sql.Stmt, i
 }
 
 func applyTranscriptProjectionWithStatement(ctx context.Context, stmt *sql.Stmt, item events.Event) error {
-	transcriptRow, ok, err := projectTranscriptMessage(item)
+	transcriptRow, ok, err := ProjectTranscriptMessage(item)
 	if err != nil || !ok {
 		return err
 	}
@@ -898,7 +1143,9 @@ func projectJobState(item events.Event) (JobStateRow, bool, error) {
 	}
 }
 
-func projectTranscriptMessage(item events.Event) (TranscriptMessageRow, bool, error) {
+// ProjectTranscriptMessage projects one canonical event into the persisted
+// transcript read model used for cold snapshots and replay.
+func ProjectTranscriptMessage(item events.Event) (TranscriptMessageRow, bool, error) {
 	if item.Kind != events.EventKindSessionUpdate {
 		return TranscriptMessageRow{}, false, nil
 	}
@@ -922,7 +1169,7 @@ func projectTranscriptMessage(item events.Event) (TranscriptMessageRow, bool, er
 		role = "runtime_notice"
 	}
 
-	content := strings.TrimSpace(renderContentBlocks(blocks))
+	content := strings.TrimSpace(renderProjectedContentBlocks(blocks))
 	if content == "" && strings.TrimSpace(payload.Update.ToolCallID) != "" {
 		content = fmt.Sprintf("tool_call:%s", strings.TrimSpace(payload.Update.ToolCallID))
 	}
@@ -1189,61 +1436,173 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func renderContentBlocks(blocks []kinds.ContentBlock) string {
-	if len(blocks) == 0 {
-		return ""
-	}
-
-	parts := make([]string, 0, len(blocks))
-	for _, block := range blocks {
-		if rendered := renderContentBlock(block); rendered != "" {
-			parts = append(parts, rendered)
-		}
-	}
-
-	return strings.TrimSpace(strings.Join(parts, "\n"))
-}
-
-func renderContentBlock(block kinds.ContentBlock) string {
-	switch block.Type {
-	case kinds.BlockText:
-		text, err := block.AsText()
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(text.Text)
-	case kinds.BlockToolUse:
-		toolUse, err := block.AsToolUse()
-		if err != nil {
-			return ""
-		}
-		return firstNonEmpty(toolUse.Title, toolUse.ToolName, toolUse.Name, toolUse.ID)
-	case kinds.BlockToolResult:
-		result, err := block.AsToolResult()
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(result.Content)
-	case kinds.BlockDiff:
-		diff, err := block.AsDiff()
-		if err != nil {
-			return ""
-		}
-		return firstNonEmpty(diff.NewText, diff.Diff, diff.FilePath)
-	case kinds.BlockTerminalOutput:
-		output, err := block.AsTerminalOutput()
-		if err != nil {
-			return ""
-		}
-		return strings.TrimSpace(output.Output)
-	default:
-		return ""
-	}
-}
-
 func sequenceValue(raw int64, field string) (uint64, error) {
 	if raw < 0 {
 		return 0, fmt.Errorf("rundb: %s must be non-negative", strings.TrimSpace(field))
 	}
 	return uint64(raw), nil
+}
+
+func encodeIntegrityReasons(reasons []string) (string, error) {
+	normalized := mergeIntegrityReasons(nil, reasons)
+	payload, err := json.Marshal(normalized)
+	if err != nil {
+		return "", fmt.Errorf("rundb: encode integrity reasons: %w", err)
+	}
+	return string(payload), nil
+}
+
+func decodeIntegrityReasons(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var reasons []string
+	if err := json.Unmarshal([]byte(raw), &reasons); err != nil {
+		return nil, fmt.Errorf("rundb: decode integrity reasons: %w", err)
+	}
+	return mergeIntegrityReasons(nil, reasons), nil
+}
+
+func mergeIntegrityReasons(left []string, right []string) []string {
+	if len(left) == 0 && len(right) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(left)+len(right))
+	merged := make([]string, 0, len(left)+len(right))
+	for _, candidate := range append(append([]string(nil), left...), right...) {
+		trimmed := strings.TrimSpace(candidate)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		merged = append(merged, trimmed)
+	}
+	slices.Sort(merged)
+	return merged
+}
+
+func renderProjectedContentBlocks(blocks []kinds.ContentBlock) string {
+	if len(blocks) == 0 {
+		return ""
+	}
+
+	lines := make([]string, 0, len(blocks))
+	for _, block := range blocks {
+		rendered := renderProjectedContentBlock(block)
+		if rendered == "" {
+			continue
+		}
+		lines = append(lines, rendered)
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func renderProjectedContentBlock(block kinds.ContentBlock) string {
+	switch block.Type {
+	case kinds.BlockText:
+		return renderProjectedTextBlock(block)
+	case kinds.BlockToolUse:
+		return renderProjectedToolUseBlock(block)
+	case kinds.BlockToolResult:
+		return renderProjectedToolResultBlock(block)
+	case kinds.BlockDiff:
+		return renderProjectedDiffBlock(block)
+	case kinds.BlockTerminalOutput:
+		return renderProjectedTerminalOutputBlock(block)
+	case kinds.BlockImage:
+		return renderProjectedImageBlock(block)
+	default:
+		return strings.TrimSpace(string(block.Data))
+	}
+}
+
+func renderProjectedTextBlock(block kinds.ContentBlock) string {
+	text, err := block.AsText()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(text.Text)
+}
+
+func renderProjectedToolUseBlock(block kinds.ContentBlock) string {
+	toolUse, err := block.AsToolUse()
+	if err != nil {
+		return ""
+	}
+	header := fmt.Sprintf(
+		"[TOOL] %s (%s)",
+		firstNonEmpty(toolUse.Title, toolUse.ToolName, toolUse.Name, toolUse.ID),
+		toolUse.ID,
+	)
+	payload := strings.TrimSpace(string(toolUse.Input))
+	if payload == "" {
+		payload = strings.TrimSpace(string(toolUse.RawInput))
+	}
+	return strings.TrimSpace(strings.Join(compactProjectedLines(header, payload), "\n"))
+}
+
+func renderProjectedToolResultBlock(block kinds.ContentBlock) string {
+	result, err := block.AsToolResult()
+	if err != nil {
+		return ""
+	}
+	content := strings.TrimSpace(result.Content)
+	if content == "" {
+		content = fmt.Sprintf("[TOOL RESULT] %s", strings.TrimSpace(result.ToolUseID))
+	}
+	return content
+}
+
+func renderProjectedDiffBlock(block kinds.ContentBlock) string {
+	diff, err := block.AsDiff()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(firstNonEmpty(diff.Diff, diff.NewText, diff.FilePath))
+}
+
+func renderProjectedTerminalOutputBlock(block kinds.ContentBlock) string {
+	output, err := block.AsTerminalOutput()
+	if err != nil {
+		return ""
+	}
+	lines := make([]string, 0, 3)
+	if command := strings.TrimSpace(output.Command); command != "" {
+		lines = append(lines, "$ "+command)
+	}
+	if rendered := strings.TrimSpace(output.Output); rendered != "" {
+		lines = append(lines, rendered)
+	}
+	if output.ExitCode != 0 {
+		lines = append(lines, fmt.Sprintf("[exit code: %d]", output.ExitCode))
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
+
+func renderProjectedImageBlock(block kinds.ContentBlock) string {
+	image, err := block.AsImage()
+	if err != nil {
+		return ""
+	}
+	location := "inline"
+	if image.URI != nil && strings.TrimSpace(*image.URI) != "" {
+		location = strings.TrimSpace(*image.URI)
+	}
+	return fmt.Sprintf("[IMAGE] %s %s", strings.TrimSpace(image.MimeType), location)
+}
+
+func compactProjectedLines(lines ...string) []string {
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		result = append(result, trimmed)
+	}
+	return result
 }

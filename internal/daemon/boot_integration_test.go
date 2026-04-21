@@ -1,15 +1,22 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	apiclient "github.com/compozy/compozy/internal/api/client"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
@@ -241,6 +248,112 @@ func TestDaemonHelperProcess(t *testing.T) {
 	<-ctx.Done()
 }
 
+func TestManagedDaemonHelperProcess(t *testing.T) {
+	if os.Getenv("COMPOZY_MANAGED_DAEMON_HELPER") != "1" {
+		t.Skip("managed helper process")
+	}
+
+	homeRoot := os.Getenv("COMPOZY_DAEMON_HOME")
+	if strings.TrimSpace(homeRoot) == "" {
+		t.Fatal("COMPOZY_DAEMON_HOME is required")
+	}
+	t.Setenv("HOME", filepath.Dir(homeRoot))
+
+	mode := RunMode(os.Getenv("COMPOZY_MANAGED_DAEMON_MODE"))
+	if resolveRunMode(mode) == RunModeForeground {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+		if err := Run(ctx, RunOptions{
+			Version:  "managed-helper",
+			HTTPPort: EphemeralHTTPPort,
+			Mode:     RunModeForeground,
+		}); err != nil {
+			t.Fatalf("Run(foreground) error = %v", err)
+		}
+		return
+	}
+
+	if err := Run(context.Background(), RunOptions{
+		Version:  "managed-helper",
+		HTTPPort: EphemeralHTTPPort,
+		Mode:     RunModeDetached,
+	}); err != nil {
+		t.Fatalf("Run(detached) error = %v", err)
+	}
+}
+
+func TestManagedDaemonStopEndpointShutsDownAndRemovesSocket(t *testing.T) {
+	for _, force := range []bool{false, true} {
+		t.Run("Should stop and remove socket when force="+strconv.FormatBool(force), func(t *testing.T) {
+			paths := mustHomePaths(t)
+			helper, output := startManagedDaemonHelperProcess(t, paths, RunModeDetached)
+
+			waitForManagedDaemonReady(t, paths, helper.Process.Pid, output)
+
+			status, err := QueryStatus(context.Background(), paths, ProbeOptions{Healthy: ProbeReady})
+			if err != nil {
+				t.Fatalf("QueryStatus() error = %v", err)
+			}
+			if status.Info == nil {
+				t.Fatal("status.Info = nil, want running daemon info")
+			}
+
+			client, err := apiclient.New(apiclient.Target{
+				SocketPath: status.Info.SocketPath,
+				HTTPPort:   status.Info.HTTPPort,
+			})
+			if err != nil {
+				t.Fatalf("apiclient.New() error = %v", err)
+			}
+
+			start := time.Now()
+			if err := client.StopDaemon(context.Background(), force); err != nil {
+				t.Fatalf("StopDaemon(force=%t) error = %v", force, err)
+			}
+			waitForDaemonProcessExit(t, helper)
+			elapsed := time.Since(start)
+			if elapsed > defaultShutdownDrainTimeout {
+				t.Fatalf("StopDaemon(force=%t) elapsed = %v, want <= %v", force, elapsed, defaultShutdownDrainTimeout)
+			}
+
+			waitForDaemonState(t, paths, ReadyStateStopped)
+			if _, err := os.Stat(paths.SocketPath); !os.IsNotExist(err) {
+				t.Fatalf("expected socket path to be removed after stop, stat err = %v", err)
+			}
+			waitForLogContains(t, paths.LogFile, `"msg":"daemon stop accepted"`)
+			waitForLogContains(t, paths.LogFile, `"force":`+strconv.FormatBool(force))
+		})
+	}
+}
+
+func TestManagedDaemonRunModesControlLogging(t *testing.T) {
+	t.Run("Should mirror logs to stderr in foreground mode", func(t *testing.T) {
+		paths := mustHomePaths(t)
+		helper, output := startManagedDaemonHelperProcess(t, paths, RunModeForeground)
+
+		waitForManagedDaemonReady(t, paths, helper.Process.Pid, output)
+		waitForLogContains(t, paths.LogFile, `"msg":"daemon started"`)
+		waitForStderrContains(t, &output.stderr, `"msg":"daemon started"`)
+
+		stopDaemonHelperProcess(t, helper)
+		waitForLogContains(t, paths.LogFile, `"mode":"foreground"`)
+	})
+
+	t.Run("Should write logs only to file in detached mode", func(t *testing.T) {
+		paths := mustHomePaths(t)
+		helper, output := startManagedDaemonHelperProcess(t, paths, RunModeDetached)
+
+		waitForManagedDaemonReady(t, paths, helper.Process.Pid, output)
+		waitForLogContains(t, paths.LogFile, `"msg":"daemon started"`)
+		stopDaemonHelperProcess(t, helper)
+
+		if strings.Contains(output.stderr.String(), `"msg":"daemon started"`) {
+			t.Fatalf("expected detached mode to avoid stderr mirroring, got %q", output.stderr.String())
+		}
+		waitForLogContains(t, paths.LogFile, `"mode":"detached"`)
+	})
+}
+
 func startDaemonHelperProcess(t *testing.T, paths compozyconfig.HomePaths) *exec.Cmd {
 	t.Helper()
 
@@ -253,6 +366,39 @@ func startDaemonHelperProcess(t *testing.T, paths compozyconfig.HomePaths) *exec
 		t.Fatalf("start helper process: %v", err)
 	}
 	return cmd
+}
+
+func startManagedDaemonHelperProcess(
+	t *testing.T,
+	paths compozyconfig.HomePaths,
+	mode RunMode,
+) (*exec.Cmd, *managedHelperOutput) {
+	t.Helper()
+
+	cmd := exec.CommandContext(context.Background(), os.Args[0], "-test.run", "^TestManagedDaemonHelperProcess$")
+	cmd.Env = append(os.Environ(),
+		"COMPOZY_MANAGED_DAEMON_HELPER=1",
+		"COMPOZY_MANAGED_DAEMON_MODE="+string(resolveRunMode(mode)),
+		"COMPOZY_DAEMON_HOME="+paths.HomeDir,
+	)
+	output := &managedHelperOutput{}
+	cmd.Stdout = &output.stdout
+	cmd.Stderr = &output.stderr
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start managed helper process: %v", err)
+	}
+	t.Cleanup(func() {
+		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+			if err := killTestProcess(cmd); err != nil {
+				t.Errorf("kill managed helper process during cleanup: %v", err)
+				return
+			}
+			if err := waitTestProcess(cmd); err != nil {
+				t.Errorf("wait managed helper process during cleanup: %v", err)
+			}
+		}
+	})
+	return cmd, output
 }
 
 func stopDaemonHelperProcess(t *testing.T, cmd *exec.Cmd) {
@@ -270,7 +416,9 @@ func killDaemonHelperProcess(t *testing.T, cmd *exec.Cmd, sig syscall.Signal) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	_ = cmd.Process.Signal(sig)
+	if err := signalTestProcess(cmd, sig); err != nil {
+		t.Fatalf("signal helper process with %s: %v", sig, err)
+	}
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.Wait()
@@ -282,7 +430,9 @@ func killDaemonHelperProcess(t *testing.T, cmd *exec.Cmd, sig syscall.Signal) {
 			t.Fatalf("wait helper process: %v", err)
 		}
 	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
+		if err := killTestProcess(cmd); err != nil {
+			t.Fatalf("timed out waiting for helper process shutdown; Kill() error = %v", err)
+		}
 		t.Fatal("timed out waiting for helper process shutdown")
 	}
 }
@@ -305,4 +455,211 @@ func waitForHealthyDaemon(t *testing.T, paths compozyconfig.HomePaths, wantPID i
 		<-ticker.C
 	}
 	t.Fatalf("daemon did not become healthy for pid %d within timeout", wantPID)
+}
+
+func waitForManagedDaemonReady(
+	t *testing.T,
+	paths compozyconfig.HomePaths,
+	wantPID int,
+	output *managedHelperOutput,
+) {
+	t.Helper()
+
+	deadline := time.Now().Add(10 * time.Second)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		status, err := QueryStatus(context.Background(), paths, ProbeOptions{Healthy: ProbeReady})
+		if err == nil && status.Healthy && status.Info != nil && status.Info.PID == wantPID {
+			return
+		}
+		if time.Now().After(deadline) {
+			break
+		}
+		<-ticker.C
+	}
+
+	infoSummary := describeDaemonInfoForFailure(paths.InfoPath)
+	logSummary := readDiagnosticFileForFailure(paths.LogFile)
+	if output == nil {
+		t.Fatalf(
+			"managed daemon did not become transport-healthy for pid %d within timeout\ninfo=%s\nlog=%s",
+			wantPID,
+			infoSummary,
+			logSummary,
+		)
+	}
+	t.Fatalf(
+		"managed daemon did not become transport-healthy for pid %d within timeout\ninfo=%s\nstdout=%s\nstderr=%s\nlog=%s",
+		wantPID,
+		infoSummary,
+		output.stdout.String(),
+		output.stderr.String(),
+		logSummary,
+	)
+}
+
+func waitForDaemonProcessExit(t *testing.T, cmd *exec.Cmd) {
+	t.Helper()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("wait daemon process: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		if err := killTestProcess(cmd); err != nil {
+			t.Fatalf("timed out waiting for daemon process exit; Kill() error = %v", err)
+		}
+		t.Fatal("timed out waiting for daemon process exit")
+	}
+}
+
+func waitForDaemonState(t *testing.T, paths compozyconfig.HomePaths, want ReadyState) {
+	t.Helper()
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			status, err := QueryStatus(context.Background(), paths, ProbeOptions{})
+			if err == nil && status.State == want {
+				return
+			}
+		case <-timeout.C:
+			t.Fatalf("daemon did not reach state %q within timeout", want)
+		}
+	}
+}
+
+func waitForLogContains(t *testing.T, path string, pattern string) {
+	t.Helper()
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		data, err := os.ReadFile(path)
+		if err == nil && strings.Contains(string(data), pattern) {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-timeout.C:
+			t.Fatalf(
+				"log %q did not contain %q within timeout\n%s",
+				path,
+				pattern,
+				readDiagnosticFileForFailure(path),
+			)
+		}
+	}
+}
+
+func signalTestProcess(cmd *exec.Cmd, sig os.Signal) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	if err := cmd.Process.Signal(sig); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	return nil
+}
+
+func killTestProcess(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	return nil
+}
+
+func waitTestProcess(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	_, err := cmd.Process.Wait()
+	if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ECHILD) {
+		return err
+	}
+	return nil
+}
+
+func describeDaemonInfoForFailure(path string) string {
+	info, err := ReadInfo(path)
+	if err != nil {
+		return fmt.Sprintf("read daemon info %q: %v", path, err)
+	}
+	return fmt.Sprintf("%#v", info)
+}
+
+func readDiagnosticFileForFailure(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("read file %q: %v", path, err)
+	}
+	return string(data)
+}
+
+func waitForStderrContains(t *testing.T, stderr *synchronizedBuffer, pattern string) {
+	t.Helper()
+
+	if stderr == nil {
+		t.Fatalf("stderr buffer = nil, want output containing %q", pattern)
+	}
+
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	timeout := time.NewTimer(10 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		if strings.Contains(stderr.String(), pattern) {
+			return
+		}
+		select {
+		case <-ticker.C:
+		case <-timeout.C:
+			t.Fatalf("stderr did not contain %q within timeout\n%s", pattern, stderr.String())
+		}
+	}
+}
+
+type managedHelperOutput struct {
+	stdout synchronizedBuffer
+	stderr synchronizedBuffer
+}
+
+type synchronizedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *synchronizedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *synchronizedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }

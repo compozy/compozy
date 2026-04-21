@@ -7,18 +7,17 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 )
 
 // DaemonStatus loads the primary daemon status payload.
 func (c *Client) DaemonStatus(ctx context.Context) (apicore.DaemonStatus, error) {
 	if c == nil {
-		return apicore.DaemonStatus{}, errors.New("daemon client is required")
+		return apicore.DaemonStatus{}, ErrDaemonClientRequired
 	}
 
-	response := struct {
-		Daemon apicore.DaemonStatus `json:"daemon"`
-	}{}
+	var response contract.DaemonStatusResponse
 	if _, err := c.doJSON(ctx, http.MethodGet, "/api/daemon/status", nil, &response); err != nil {
 		return apicore.DaemonStatus{}, err
 	}
@@ -28,7 +27,7 @@ func (c *Client) DaemonStatus(ctx context.Context) (apicore.DaemonStatus, error)
 // StopDaemon requests daemon shutdown.
 func (c *Client) StopDaemon(ctx context.Context, force bool) error {
 	if c == nil {
-		return errors.New("daemon client is required")
+		return ErrDaemonClientRequired
 	}
 
 	path := "/api/daemon/stop"
@@ -46,15 +45,13 @@ func (c *Client) RegisterWorkspace(
 	name string,
 ) (apicore.WorkspaceRegisterResult, error) {
 	if c == nil {
-		return apicore.WorkspaceRegisterResult{}, errors.New("daemon client is required")
+		return apicore.WorkspaceRegisterResult{}, ErrDaemonClientRequired
 	}
 
-	response := struct {
-		Workspace apicore.Workspace `json:"workspace"`
-	}{}
-	statusCode, err := c.doJSON(ctx, http.MethodPost, "/api/workspaces", map[string]any{
-		"path": strings.TrimSpace(path),
-		"name": strings.TrimSpace(name),
+	var response contract.WorkspaceResponse
+	statusCode, err := c.doJSON(ctx, http.MethodPost, "/api/workspaces", contract.WorkspaceRegisterRequest{
+		Path: strings.TrimSpace(path),
+		Name: strings.TrimSpace(name),
 	}, &response)
 	if err != nil {
 		return apicore.WorkspaceRegisterResult{}, err
@@ -68,12 +65,10 @@ func (c *Client) RegisterWorkspace(
 // ListWorkspaces loads registered workspaces.
 func (c *Client) ListWorkspaces(ctx context.Context) ([]apicore.Workspace, error) {
 	if c == nil {
-		return nil, errors.New("daemon client is required")
+		return nil, ErrDaemonClientRequired
 	}
 
-	response := struct {
-		Workspaces []apicore.Workspace `json:"workspaces"`
-	}{}
+	var response contract.WorkspaceListResponse
 	if _, err := c.doJSON(ctx, http.MethodGet, "/api/workspaces", nil, &response); err != nil {
 		return nil, err
 	}
@@ -83,7 +78,7 @@ func (c *Client) ListWorkspaces(ctx context.Context) ([]apicore.Workspace, error
 // GetWorkspace loads one workspace by id or path key.
 func (c *Client) GetWorkspace(ctx context.Context, ref string) (apicore.Workspace, error) {
 	if c == nil {
-		return apicore.Workspace{}, errors.New("daemon client is required")
+		return apicore.Workspace{}, ErrDaemonClientRequired
 	}
 
 	trimmedRef := strings.TrimSpace(ref)
@@ -91,9 +86,7 @@ func (c *Client) GetWorkspace(ctx context.Context, ref string) (apicore.Workspac
 		return apicore.Workspace{}, errors.New("workspace ref is required")
 	}
 
-	response := struct {
-		Workspace apicore.Workspace `json:"workspace"`
-	}{}
+	var response contract.WorkspaceResponse
 	path := "/api/workspaces/" + url.PathEscape(trimmedRef)
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return apicore.Workspace{}, err
@@ -104,7 +97,7 @@ func (c *Client) GetWorkspace(ctx context.Context, ref string) (apicore.Workspac
 // DeleteWorkspace unregisters one workspace.
 func (c *Client) DeleteWorkspace(ctx context.Context, ref string) error {
 	if c == nil {
-		return errors.New("daemon client is required")
+		return ErrDaemonClientRequired
 	}
 
 	trimmedRef := strings.TrimSpace(ref)
@@ -120,14 +113,12 @@ func (c *Client) DeleteWorkspace(ctx context.Context, ref string) error {
 // ResolveWorkspace resolves or lazily registers one workspace path.
 func (c *Client) ResolveWorkspace(ctx context.Context, path string) (apicore.Workspace, error) {
 	if c == nil {
-		return apicore.Workspace{}, errors.New("daemon client is required")
+		return apicore.Workspace{}, ErrDaemonClientRequired
 	}
 
-	response := struct {
-		Workspace apicore.Workspace `json:"workspace"`
-	}{}
-	if _, err := c.doJSON(ctx, http.MethodPost, "/api/workspaces/resolve", map[string]any{
-		"path": strings.TrimSpace(path),
+	var response contract.WorkspaceResponse
+	if _, err := c.doJSON(ctx, http.MethodPost, "/api/workspaces/resolve", contract.WorkspaceResolveRequest{
+		Path: strings.TrimSpace(path),
 	}, &response); err != nil {
 		return apicore.Workspace{}, err
 	}
@@ -137,7 +128,7 @@ func (c *Client) ResolveWorkspace(ctx context.Context, path string) (apicore.Wor
 // ListTaskWorkflows loads synced workflow summaries for one workspace.
 func (c *Client) ListTaskWorkflows(ctx context.Context, workspace string) ([]apicore.WorkflowSummary, error) {
 	if c == nil {
-		return nil, errors.New("daemon client is required")
+		return nil, ErrDaemonClientRequired
 	}
 
 	values := url.Values{}
@@ -145,9 +136,7 @@ func (c *Client) ListTaskWorkflows(ctx context.Context, workspace string) ([]api
 		values.Set("workspace", trimmedWorkspace)
 	}
 
-	response := struct {
-		Workflows []apicore.WorkflowSummary `json:"workflows"`
-	}{}
+	var response contract.TaskWorkflowListResponse
 	path := "/api/tasks"
 	if encoded := values.Encode(); encoded != "" {
 		path += "?" + encoded
@@ -165,18 +154,18 @@ func (c *Client) ArchiveTaskWorkflow(
 	slug string,
 ) (apicore.ArchiveResult, error) {
 	if c == nil {
-		return apicore.ArchiveResult{}, errors.New("daemon client is required")
+		return apicore.ArchiveResult{}, ErrDaemonClientRequired
 	}
 
 	trimmedSlug := strings.TrimSpace(slug)
 	if trimmedSlug == "" {
-		return apicore.ArchiveResult{}, errors.New("workflow slug is required")
+		return apicore.ArchiveResult{}, ErrWorkflowSlugRequired
 	}
 
-	var response apicore.ArchiveResult
+	var response contract.ArchiveResponse
 	path := "/api/tasks/" + url.PathEscape(trimmedSlug) + "/archive"
-	if _, err := c.doJSON(ctx, http.MethodPost, path, map[string]any{
-		"workspace": strings.TrimSpace(workspace),
+	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.WorkflowRefRequest{
+		Workspace: strings.TrimSpace(workspace),
 	}, &response); err != nil {
 		return apicore.ArchiveResult{}, err
 	}
@@ -186,10 +175,10 @@ func (c *Client) ArchiveTaskWorkflow(
 // SyncWorkflow runs explicit daemon-backed reconciliation.
 func (c *Client) SyncWorkflow(ctx context.Context, req apicore.SyncRequest) (apicore.SyncResult, error) {
 	if c == nil {
-		return apicore.SyncResult{}, errors.New("daemon client is required")
+		return apicore.SyncResult{}, ErrDaemonClientRequired
 	}
 
-	var response apicore.SyncResult
+	var response contract.SyncResponse
 	if _, err := c.doJSON(ctx, http.MethodPost, "/api/sync", req, &response); err != nil {
 		return apicore.SyncResult{}, err
 	}

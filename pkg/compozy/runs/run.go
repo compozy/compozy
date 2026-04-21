@@ -1,24 +1,20 @@
 package runs
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
-	"sync"
 	"time"
 
+	apiclient "github.com/compozy/compozy/internal/api/client"
+	"github.com/compozy/compozy/internal/api/contract"
+	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/pkg/compozy/events"
 	"github.com/compozy/compozy/pkg/compozy/events/kinds"
@@ -42,7 +38,6 @@ const (
 
 	defaultRunListQueryLimit = 500
 	defaultRunEventPageLimit = 500
-	defaultRequestTimeout    = 5 * time.Second
 )
 
 var resolveRunsDaemonReader = newDefaultDaemonRunReader
@@ -90,79 +85,12 @@ type daemonInfoRecord struct {
 	HTTPPort   int    `json:"http_port,omitempty"`
 }
 
-type daemonRunPayload struct {
-	RunID            string     `json:"run_id"`
-	WorkspaceID      string     `json:"workspace_id,omitempty"`
-	WorkflowID       *string    `json:"workflow_id,omitempty"`
-	WorkflowSlug     string     `json:"workflow_slug,omitempty"`
-	Mode             string     `json:"mode,omitempty"`
-	Status           string     `json:"status,omitempty"`
-	PresentationMode string     `json:"presentation_mode,omitempty"`
-	StartedAt        time.Time  `json:"started_at"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	ErrorText        string     `json:"error_text,omitempty"`
-	RequestID        string     `json:"request_id,omitempty"`
-}
-
-type daemonRunJobSummary struct {
-	IDE   string `json:"ide,omitempty"`
-	Model string `json:"model,omitempty"`
-}
-
-type daemonRunJobState struct {
-	Summary *daemonRunJobSummary `json:"summary,omitempty"`
-}
-
-type daemonRunSnapshotPayload struct {
-	Run        daemonRunPayload    `json:"run"`
-	Jobs       []daemonRunJobState `json:"jobs,omitempty"`
-	NextCursor string              `json:"next_cursor,omitempty"`
-}
-
-type daemonRunEventPagePayload struct {
-	Events     []events.Event `json:"events"`
-	NextCursor string         `json:"next_cursor,omitempty"`
-	HasMore    bool           `json:"has_more"`
-}
-
-type transportErrorPayload struct {
-	Error struct {
-		Code    string `json:"code,omitempty"`
-		Message string `json:"message,omitempty"`
-	} `json:"error"`
-	RequestID string `json:"request_id,omitempty"`
-}
+type daemonRunPayload = apicore.Run
+type daemonRunJobState = apicore.RunJobState
 
 type defaultDaemonRunReader struct {
-	baseURL    string
-	httpClient *http.Client
-	homePaths  compozyconfig.HomePaths
-}
-
-type sseFrame struct {
-	id    string
-	event string
-	data  bytes.Buffer
-}
-
-type heartbeatPayload struct {
-	Cursor string    `json:"cursor"`
-	TS     time.Time `json:"ts"`
-}
-
-type overflowPayload struct {
-	Cursor string    `json:"cursor"`
-	Reason string    `json:"reason"`
-	TS     time.Time `json:"ts"`
-}
-
-type daemonRunStream struct {
-	items     chan RemoteRunStreamItem
-	errors    chan error
-	cancel    context.CancelFunc
-	body      io.Closer
-	closeOnce sync.Once
-	readDone  chan struct{}
+	daemon    *apiclient.Client
+	homePaths compozyconfig.HomePaths
 }
 
 // Open loads one run and prepares replay access through the daemon transport.
@@ -208,38 +136,22 @@ func newDefaultDaemonRunReader() (daemonRunReader, error) {
 		return nil, wrapDaemonUnavailable("resolve daemon info", err)
 	}
 
-	client, baseURL, err := newDaemonHTTPClient(info)
+	client, err := newDaemonClient(info)
 	if err != nil {
 		return nil, wrapDaemonUnavailable("build daemon client", err)
 	}
 
 	return &defaultDaemonRunReader{
-		baseURL:    baseURL,
-		httpClient: client,
-		homePaths:  homePaths,
+		daemon:    client,
+		homePaths: homePaths,
 	}, nil
 }
 
-func newDaemonHTTPClient(info daemonInfoRecord) (*http.Client, string, error) {
-	socketPath := strings.TrimSpace(info.SocketPath)
-	if socketPath != "" {
-		transport := &http.Transport{
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				var dialer net.Dialer
-				return dialer.DialContext(ctx, "unix", socketPath)
-			},
-		}
-		return &http.Client{
-			Timeout:   defaultRequestTimeout,
-			Transport: transport,
-		}, "http://daemon", nil
-	}
-	if info.HTTPPort <= 0 || info.HTTPPort > 65535 {
-		return nil, "", errors.New("daemon transport target is invalid")
-	}
-	return &http.Client{
-		Timeout: defaultRequestTimeout,
-	}, "http://127.0.0.1:" + strconv.Itoa(info.HTTPPort), nil
+func newDaemonClient(info daemonInfoRecord) (*apiclient.Client, error) {
+	return apiclient.New(apiclient.Target{
+		SocketPath: strings.TrimSpace(info.SocketPath),
+		HTTPPort:   info.HTTPPort,
+	})
 }
 
 func (d *defaultDaemonRunReader) OpenRun(
@@ -247,9 +159,9 @@ func (d *defaultDaemonRunReader) OpenRun(
 	workspaceRoot string,
 	runID string,
 ) (RunSummary, error) {
-	snapshot, err := d.getRunSnapshotPayload(ctx, strings.TrimSpace(runID))
+	snapshot, err := d.daemon.GetRunSnapshot(ctx, strings.TrimSpace(runID))
 	if err != nil {
-		return RunSummary{}, err
+		return RunSummary{}, adaptDaemonClientError("open run", err)
 	}
 
 	summary := d.summaryFromRun(workspaceRoot, snapshot.Run, snapshot.Jobs)
@@ -268,11 +180,6 @@ func (d *defaultDaemonRunReader) ListRuns(
 	workspaceRoot string,
 	opts ListOptions,
 ) ([]RunSummary, error) {
-	values := url.Values{}
-	if workspace := strings.TrimSpace(workspaceRoot); workspace != "" {
-		values.Set("workspace", workspace)
-	}
-
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = defaultRunListQueryLimit
@@ -280,18 +187,18 @@ func (d *defaultDaemonRunReader) ListRuns(
 	if limit < defaultRunListQueryLimit {
 		limit = defaultRunListQueryLimit
 	}
-	values.Set("limit", strconv.Itoa(limit))
 
-	var payload struct {
-		Runs []daemonRunPayload `json:"runs"`
-	}
-	if err := d.doJSON(ctx, "/api/runs?"+values.Encode(), &payload); err != nil {
-		return nil, err
+	runs, err := d.daemon.ListRuns(ctx, apiclient.RunListOptions{
+		Workspace: strings.TrimSpace(workspaceRoot),
+		Limit:     limit,
+	})
+	if err != nil {
+		return nil, adaptDaemonClientError("/api/runs", err)
 	}
 
-	summaries := make([]RunSummary, 0, len(payload.Runs))
-	for i := range payload.Runs {
-		summaries = append(summaries, d.summaryFromRun(workspaceRoot, payload.Runs[i], nil))
+	summaries := make([]RunSummary, 0, len(runs))
+	for i := range runs {
+		summaries = append(summaries, d.summaryFromRun(workspaceRoot, runs[i], nil))
 	}
 	return summaries, nil
 }
@@ -300,18 +207,11 @@ func (d *defaultDaemonRunReader) GetRunSnapshot(
 	ctx context.Context,
 	runID string,
 ) (RemoteRunSnapshot, error) {
-	snapshot, err := d.getRunSnapshotPayload(ctx, strings.TrimSpace(runID))
+	snapshot, err := d.daemon.GetRunSnapshot(ctx, strings.TrimSpace(runID))
 	if err != nil {
-		return RemoteRunSnapshot{}, err
+		return RemoteRunSnapshot{}, adaptDaemonClientError("/api/runs/"+strings.TrimSpace(runID)+"/snapshot", err)
 	}
-
-	result := RemoteRunSnapshot{
-		Status: strings.TrimSpace(snapshot.Run.Status),
-	}
-	if cursor, err := parseRemoteCursor(snapshot.NextCursor); err == nil && cursor.Sequence > 0 {
-		result.NextCursor = &cursor
-	}
-	return result, nil
+	return adaptRemoteRunSnapshot(snapshot), nil
 }
 
 func (d *defaultDaemonRunReader) ListRunEvents(
@@ -320,32 +220,14 @@ func (d *defaultDaemonRunReader) ListRunEvents(
 	after RemoteCursor,
 	limit int,
 ) (remoteRunEventPage, error) {
-	values := url.Values{}
-	if after.Sequence > 0 {
-		values.Set("after", formatRemoteCursor(after))
+	page, err := d.daemon.ListRunEvents(ctx, strings.TrimSpace(runID), apicore.StreamCursor{
+		Timestamp: after.Timestamp,
+		Sequence:  after.Sequence,
+	}, limit)
+	if err != nil {
+		return remoteRunEventPage{}, adaptDaemonClientError("/api/runs/"+strings.TrimSpace(runID)+"/events", err)
 	}
-	if limit > 0 {
-		values.Set("limit", strconv.Itoa(limit))
-	}
-
-	path := "/api/runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/events"
-	if encoded := values.Encode(); encoded != "" {
-		path += "?" + encoded
-	}
-
-	var payload daemonRunEventPagePayload
-	if err := d.doJSON(ctx, path, &payload); err != nil {
-		return remoteRunEventPage{}, err
-	}
-
-	result := remoteRunEventPage{
-		Events:  payload.Events,
-		HasMore: payload.HasMore,
-	}
-	if cursor, err := parseRemoteCursor(payload.NextCursor); err == nil && cursor.Sequence > 0 {
-		result.NextCursor = &cursor
-	}
-	return result, nil
+	return adaptRemoteRunEventPage(page), nil
 }
 
 func (d *defaultDaemonRunReader) OpenRunStream(
@@ -353,47 +235,17 @@ func (d *defaultDaemonRunReader) OpenRunStream(
 	runID string,
 	after RemoteCursor,
 ) (RemoteRunStream, error) {
-	request, err := d.newRequest(ctx, "/api/runs/"+url.PathEscape(strings.TrimSpace(runID))+"/stream")
+	stream, err := d.daemon.OpenRunStream(ctx, strings.TrimSpace(runID), apicore.StreamCursor{
+		Timestamp: after.Timestamp,
+		Sequence:  after.Sequence,
+	})
 	if err != nil {
-		return nil, err
+		return nil, adaptDaemonClientError("open remote run stream", err)
 	}
-	if after.Sequence > 0 {
-		request.Header.Set("Last-Event-ID", formatRemoteCursor(after))
+	if stream == nil {
+		return nil, nil
 	}
-
-	response, err := d.httpClient.Do(request)
-	if err != nil {
-		return nil, wrapDaemonRequestError("open remote run stream", err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		defer response.Body.Close()
-		payload, readErr := io.ReadAll(response.Body)
-		if readErr != nil {
-			return nil, wrapDaemonRequestError("open remote run stream", readErr)
-		}
-		return nil, d.decodeTransportError("open remote run stream", response.StatusCode, payload)
-	}
-
-	stream := &daemonRunStream{
-		items:    make(chan RemoteRunStreamItem, 32),
-		errors:   make(chan error, 4),
-		body:     response.Body,
-		readDone: make(chan struct{}),
-	}
-	go stream.read(ctx, response.Body)
-	return stream, nil
-}
-
-func (d *defaultDaemonRunReader) getRunSnapshotPayload(
-	ctx context.Context,
-	runID string,
-) (daemonRunSnapshotPayload, error) {
-	var payload daemonRunSnapshotPayload
-	path := "/api/runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/snapshot"
-	if err := d.doJSON(ctx, path, &payload); err != nil {
-		return daemonRunSnapshotPayload{}, err
-	}
-	return payload, nil
+	return newDaemonRunStreamAdapter(stream), nil
 }
 
 func (d *defaultDaemonRunReader) summaryFromRun(
@@ -422,88 +274,6 @@ func (d *defaultDaemonRunReader) summaryFromRun(
 		summary.Status = defaultRunStatus()
 	}
 	return summary
-}
-
-func (d *defaultDaemonRunReader) doJSON(ctx context.Context, path string, dst any) error {
-	request, err := d.newRequest(ctx, path)
-	if err != nil {
-		return err
-	}
-
-	response, err := d.httpClient.Do(request)
-	if err != nil {
-		return wrapDaemonRequestError(path, err)
-	}
-	defer response.Body.Close()
-
-	payload, err := io.ReadAll(response.Body)
-	if err != nil {
-		return wrapDaemonRequestError(path, err)
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return d.decodeTransportError(path, response.StatusCode, payload)
-	}
-	if len(payload) == 0 || dst == nil {
-		return nil
-	}
-	if err := json.Unmarshal(payload, dst); err != nil {
-		return fmt.Errorf("%s: decode daemon response: %w", path, err)
-	}
-	return nil
-}
-
-func (d *defaultDaemonRunReader) newRequest(ctx context.Context, path string) (*http.Request, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, d.baseURL, http.NoBody)
-	if err != nil {
-		return nil, fmt.Errorf("build daemon request: %w", err)
-	}
-	targetPath := strings.TrimSpace(path)
-	if !strings.HasPrefix(targetPath, "/") {
-		targetPath = "/" + targetPath
-	}
-	parsedPath, err := url.ParseRequestURI(targetPath)
-	if err != nil {
-		return nil, fmt.Errorf("validate daemon request path: %w", err)
-	}
-	if parsedPath.IsAbs() || parsedPath.Host != "" || !strings.HasPrefix(parsedPath.Path, "/api/") {
-		return nil, fmt.Errorf("validate daemon request path: %q is not a daemon API path", path)
-	}
-
-	targetURL, err := url.Parse(d.baseURL)
-	if err != nil {
-		return nil, fmt.Errorf("parse daemon base URL: %w", err)
-	}
-	targetURL.Path = parsedPath.Path
-	targetURL.RawPath = parsedPath.EscapedPath()
-	targetURL.RawQuery = parsedPath.RawQuery
-	request.URL = targetURL
-	request.Host = targetURL.Host
-	return request, nil
-}
-
-func (d *defaultDaemonRunReader) decodeTransportError(path string, statusCode int, payload []byte) error {
-	var transport transportErrorPayload
-	if err := json.Unmarshal(payload, &transport); err == nil {
-		message := strings.TrimSpace(transport.Error.Message)
-		if message == "" {
-			message = strings.TrimSpace(transport.Error.Code)
-		}
-		if message == "" {
-			message = http.StatusText(statusCode)
-		}
-		err := errors.New(message)
-		if statusCode == http.StatusServiceUnavailable {
-			return wrapDaemonUnavailable(path, err)
-		}
-		return fmt.Errorf("%s: %w", path, err)
-	}
-	if statusCode == http.StatusServiceUnavailable {
-		return wrapDaemonUnavailable(path, errors.New(http.StatusText(statusCode)))
-	}
-	return fmt.Errorf("%s: daemon request failed with status %d", path, statusCode)
 }
 
 func readRunsDaemonInfo(path string) (daemonInfoRecord, error) {
@@ -614,25 +384,6 @@ func applyJobStartedSummary(summary *RunSummary, payloadJSON []byte) {
 	summary.Model = firstNonEmpty(summary.Model, payload.Model)
 }
 
-func wrapDaemonUnavailable(op string, err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %w: %v", op, ErrDaemonUnavailable, err)
-}
-
-func wrapDaemonRequestError(op string, err error) error {
-	if err == nil {
-		return nil
-	}
-
-	var netErr *net.OpError
-	if errors.As(err, &netErr) || errors.Is(err, context.DeadlineExceeded) {
-		return wrapDaemonUnavailable(op, err)
-	}
-	return err
-}
-
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
@@ -670,41 +421,103 @@ func sortRunSummaries(items []RunSummary) {
 }
 
 func parseRemoteCursor(raw string) (RemoteCursor, error) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return RemoteCursor{}, nil
-	}
-	parts := strings.Split(value, "|")
-	if len(parts) != 2 {
-		return RemoteCursor{}, fmt.Errorf("invalid cursor %q", value)
-	}
-	timestamp, err := time.Parse(time.RFC3339Nano, parts[0])
+	cursor, err := contract.ParseCursor(raw)
 	if err != nil {
-		return RemoteCursor{}, fmt.Errorf("invalid cursor timestamp %q: %w", parts[0], err)
+		return RemoteCursor{}, err
 	}
-	sequence, err := strconv.ParseUint(parts[1], 10, 64)
-	if err != nil {
-		return RemoteCursor{}, fmt.Errorf("invalid cursor sequence %q", parts[1])
-	}
-	return RemoteCursor{
-		Timestamp: timestamp.UTC(),
-		Sequence:  sequence,
-	}, nil
+	return remoteCursorFromContract(cursor), nil
 }
 
 func formatRemoteCursor(cursor RemoteCursor) string {
-	if cursor.Sequence == 0 || cursor.Timestamp.IsZero() {
-		return ""
+	return contract.FormatCursor(cursor.Timestamp, cursor.Sequence)
+}
+
+func remoteCursorFromContract(cursor contract.StreamCursor) RemoteCursor {
+	return RemoteCursor{
+		Timestamp: cursor.Timestamp,
+		Sequence:  cursor.Sequence,
 	}
-	return cursor.Timestamp.UTC().Format(time.RFC3339Nano) + "|" + strconv.FormatUint(cursor.Sequence, 10)
 }
 
-type daemonRunStreamError struct {
-	message string
+func remoteCursorFromCore(cursor apicore.StreamCursor) RemoteCursor {
+	return RemoteCursor{
+		Timestamp: cursor.Timestamp,
+		Sequence:  cursor.Sequence,
+	}
 }
 
-func (e daemonRunStreamError) Error() string {
-	return strings.TrimSpace(e.message)
+func remoteCursorPointerFromCore(cursor *apicore.StreamCursor) *RemoteCursor {
+	if cursor == nil || cursor.Sequence == 0 || cursor.Timestamp.IsZero() {
+		return nil
+	}
+	value := remoteCursorFromCore(*cursor)
+	return &value
+}
+
+func adaptRemoteRunSnapshot(snapshot apicore.RunSnapshot) RemoteRunSnapshot {
+	return RemoteRunSnapshot{
+		Status:            strings.TrimSpace(snapshot.Run.Status),
+		Incomplete:        snapshot.Incomplete,
+		IncompleteReasons: append([]string(nil), snapshot.IncompleteReasons...),
+		NextCursor:        remoteCursorPointerFromCore(snapshot.NextCursor),
+	}
+}
+
+func adaptRemoteRunEventPage(page apicore.RunEventPage) remoteRunEventPage {
+	return remoteRunEventPage{
+		Events:     page.Events,
+		NextCursor: remoteCursorPointerFromCore(page.NextCursor),
+		HasMore:    page.HasMore,
+	}
+}
+
+func wrapDaemonUnavailable(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %w: %v", op, ErrDaemonUnavailable, err)
+}
+
+func adaptDaemonClientError(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var remoteErr *apiclient.RemoteError
+	if errors.As(err, &remoteErr) {
+		remoteMessage := errors.New(remoteErr.Error())
+		if remoteErr.StatusCode == 0 || remoteErr.StatusCode == 503 {
+			return wrapDaemonUnavailable(op, remoteMessage)
+		}
+		return fmt.Errorf("%s: %w", op, remoteMessage)
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return wrapDaemonUnavailable(op, err)
+	}
+
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		return wrapDaemonUnavailable(op, err)
+	}
+
+	return fmt.Errorf("%s: %w", op, err)
+}
+
+type daemonRunStream struct {
+	inner  apiclient.RunStream
+	items  chan RemoteRunStreamItem
+	errors chan error
+}
+
+func newDaemonRunStreamAdapter(inner apiclient.RunStream) *daemonRunStream {
+	stream := &daemonRunStream{
+		inner:  inner,
+		items:  make(chan RemoteRunStreamItem, 32),
+		errors: make(chan error, 4),
+	}
+	go stream.forward()
+	return stream
 }
 
 func (s *daemonRunStream) Items() <-chan RemoteRunStreamItem {
@@ -722,161 +535,49 @@ func (s *daemonRunStream) Errors() <-chan error {
 }
 
 func (s *daemonRunStream) Close() error {
-	if s == nil {
+	if s == nil || s.inner == nil {
 		return nil
 	}
-
-	s.closeOnce.Do(func() {
-		if s.cancel != nil {
-			s.cancel()
-		}
-		if s.body != nil {
-			_ = s.body.Close()
-		}
-		<-s.readDone
-	})
-	return nil
+	return s.inner.Close()
 }
 
-func (s *daemonRunStream) read(ctx context.Context, body io.Reader) {
-	defer close(s.readDone)
+func (s *daemonRunStream) forward() {
+	if s == nil || s.inner == nil {
+		return
+	}
+
 	defer close(s.items)
 	defer close(s.errors)
 
-	reader := bufio.NewReader(body)
-	frame := sseFrame{}
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			s.sendError(fmt.Errorf("read daemon stream: %w", err))
-			return
-		}
-
-		if line != "" {
-			if consumed, dispatchErr := s.consumeLine(&frame, line); dispatchErr != nil {
-				s.sendError(dispatchErr)
-				return
-			} else if consumed {
-				frame = sseFrame{}
+	itemCh := s.inner.Items()
+	errCh := s.inner.Errors()
+	for itemCh != nil || errCh != nil {
+		select {
+		case item, ok := <-itemCh:
+			if !ok {
+				itemCh = nil
+				continue
+			}
+			converted := RemoteRunStreamItem{
+				Event: item.Event,
+			}
+			if item.Heartbeat != nil {
+				cursor := remoteCursorFromCore(item.Heartbeat.Cursor)
+				converted.HeartbeatCursor = &cursor
+			}
+			if item.Overflow != nil {
+				cursor := remoteCursorFromCore(item.Overflow.Cursor)
+				converted.OverflowCursor = &cursor
+			}
+			s.items <- converted
+		case err, ok := <-errCh:
+			if !ok {
+				errCh = nil
+				continue
+			}
+			if err != nil {
+				s.errors <- err
 			}
 		}
-
-		if errors.Is(err, io.EOF) {
-			if frame.data.Len() > 0 || frame.event != "" || frame.id != "" {
-				if dispatchErr := s.dispatchFrame(frame); dispatchErr != nil {
-					s.sendError(dispatchErr)
-				}
-			}
-			return
-		}
-		if ctx.Err() != nil {
-			return
-		}
-	}
-}
-
-func (s *daemonRunStream) consumeLine(frame *sseFrame, line string) (bool, error) {
-	trimmed := strings.TrimRight(line, "\r\n")
-	if trimmed == "" {
-		if frame == nil || (frame.data.Len() == 0 && frame.event == "" && frame.id == "") {
-			return true, nil
-		}
-		return true, s.dispatchFrame(*frame)
-	}
-
-	switch {
-	case strings.HasPrefix(trimmed, "id:"):
-		frame.id = strings.TrimSpace(strings.TrimPrefix(trimmed, "id:"))
-	case strings.HasPrefix(trimmed, "event:"):
-		frame.event = strings.TrimSpace(strings.TrimPrefix(trimmed, "event:"))
-	case strings.HasPrefix(trimmed, "data:"):
-		if frame.data.Len() > 0 {
-			frame.data.WriteByte('\n')
-		}
-		frame.data.WriteString(strings.TrimSpace(strings.TrimPrefix(trimmed, "data:")))
-	}
-	return false, nil
-}
-
-func (s *daemonRunStream) dispatchFrame(frame sseFrame) error {
-	switch strings.TrimSpace(frame.event) {
-	case "heartbeat":
-		return s.dispatchHeartbeat(frame.data.Bytes())
-	case "overflow":
-		return s.dispatchOverflow(frame.data.Bytes())
-	case "error":
-		return s.dispatchStreamError(frame.data.Bytes())
-	default:
-		return s.dispatchEvent(frame.data.Bytes())
-	}
-}
-
-func (s *daemonRunStream) dispatchHeartbeat(raw []byte) error {
-	var payload heartbeatPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("decode heartbeat frame: %w", err)
-	}
-	cursor, err := parseRemoteCursor(payload.Cursor)
-	if err != nil {
-		return fmt.Errorf("decode heartbeat cursor: %w", err)
-	}
-	return s.sendItem(RemoteRunStreamItem{
-		HeartbeatCursor: &cursor,
-	})
-}
-
-func (s *daemonRunStream) dispatchOverflow(raw []byte) error {
-	var payload overflowPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("decode overflow frame: %w", err)
-	}
-	cursor, err := parseRemoteCursor(payload.Cursor)
-	if err != nil {
-		return fmt.Errorf("decode overflow cursor: %w", err)
-	}
-	return s.sendItem(RemoteRunStreamItem{
-		OverflowCursor: &cursor,
-	})
-}
-
-func (s *daemonRunStream) dispatchStreamError(raw []byte) error {
-	var payload transportErrorPayload
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return fmt.Errorf("decode stream error frame: %w", err)
-	}
-	message := strings.TrimSpace(payload.Error.Message)
-	if message == "" {
-		message = strings.TrimSpace(payload.Error.Code)
-	}
-	if message == "" {
-		message = "daemon stream error"
-	}
-	return daemonRunStreamError{message: message}
-}
-
-func (s *daemonRunStream) dispatchEvent(raw []byte) error {
-	var item events.Event
-	if err := json.Unmarshal(raw, &item); err != nil {
-		return fmt.Errorf("decode daemon event frame: %w", err)
-	}
-	return s.sendItem(RemoteRunStreamItem{Event: &item})
-}
-
-func (s *daemonRunStream) sendItem(item RemoteRunStreamItem) error {
-	select {
-	case s.items <- item:
-		return nil
-	default:
-		return errors.New("client run stream buffer is full")
-	}
-}
-
-func (s *daemonRunStream) sendError(err error) {
-	if err == nil {
-		return
-	}
-	select {
-	case s.errors <- err:
-	default:
 	}
 }

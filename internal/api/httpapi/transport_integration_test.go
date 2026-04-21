@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -21,8 +22,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/daemon"
@@ -152,6 +155,58 @@ func TestHTTPServerRejectsConcurrentStartBeforePortPersistenceReturns(t *testing
 	defer func() {
 		_ = server.Shutdown(context.Background())
 	}()
+}
+
+func TestHTTPServerNewHonorsInjectedLoggerAndEngine(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	engine := gin.New()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	server, err := httpapi.New(
+		httpapi.WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "http"})),
+		httpapi.WithLogger(logger),
+		httpapi.WithEngine(engine),
+	)
+	if err != nil {
+		t.Fatalf("httpapi.New() error = %v", err)
+	}
+	if err := server.Start(context.Background()); err != nil {
+		t.Fatalf("server.Start() error = %v", err)
+	}
+	defer func() {
+		_ = server.Shutdown(context.Background())
+	}()
+}
+
+func TestHTTPServerRejectsNonLoopbackHost(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	_, err := httpapi.New(
+		httpapi.WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "http"})),
+		httpapi.WithHost("0.0.0.0"),
+	)
+	if err == nil || !strings.Contains(err.Error(), "host must be 127.0.0.1") {
+		t.Fatalf("httpapi.New() error = %v, want loopback host validation", err)
+	}
+}
+
+func TestHTTPServerStartRejectsCancelledContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	server, err := httpapi.New(
+		httpapi.WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "http"})),
+	)
+	if err != nil {
+		t.Fatalf("httpapi.New() error = %v", err)
+	}
+
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := server.Start(cancelledCtx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("server.Start() error = %v, want context.Canceled", err)
+	}
 }
 
 func TestHTTPServerStartRollsBackAfterPortPersistenceFailure(t *testing.T) {
@@ -326,8 +381,36 @@ func TestHTTPAndUDSServeMatchingStatusSnapshotAndConflict(t *testing.T) {
 			ActiveRunCount: 1,
 			WorkspaceCount: 2,
 		},
-		health:  core.DaemonHealth{Ready: true},
-		metrics: core.MetricsPayload{Body: "daemon_active_runs 1\n"},
+		health: core.DaemonHealth{
+			Ready:               true,
+			Degraded:            true,
+			UptimeSeconds:       30,
+			ActiveRunCount:      1,
+			ActiveRunsByMode:    []core.DaemonModeCount{{Mode: "task", Count: 1}},
+			WorkspaceCount:      2,
+			IntegrityIssueCount: 1,
+			Databases: core.DaemonDatabaseDiagnostics{
+				GlobalBytes: 64,
+				RunDBBytes:  128,
+			},
+			Reconcile: core.DaemonReconcileDiagnostics{
+				ReconciledRuns:     2,
+				CrashEventAppended: 1,
+				CrashEventMissing:  1,
+				LastRunID:          runID,
+			},
+			Details: []core.HealthDetail{{
+				Code:     "run_integrity_issues",
+				Message:  "1 run(s) have persisted integrity issues",
+				Severity: "warning",
+			}},
+		},
+		metrics: core.MetricsPayload{Body: strings.Join([]string{
+			"# HELP daemon_active_runs Current live runs owned by the daemon",
+			"# TYPE daemon_active_runs gauge",
+			"daemon_active_runs 1",
+			`daemon_run_terminal_total{mode="task",status="completed"} 1`,
+		}, "\n") + "\n"},
 	}
 	runSvc := &fakeRunService{
 		runs: map[string]core.Run{
@@ -362,7 +445,9 @@ func TestHTTPAndUDSServeMatchingStatusSnapshotAndConflict(t *testing.T) {
 					Content:   "hello",
 					Timestamp: startedAt.Add(time.Second),
 				}},
-				NextCursor: &nextCursor,
+				Incomplete:        true,
+				IncompleteReasons: []string{"transcript_gap"},
+				NextCursor:        &nextCursor,
 			},
 		},
 		eventPages: map[string]core.RunEventPage{
@@ -505,6 +590,450 @@ func TestHTTPAndUDSServeMatchingStatusSnapshotAndConflict(t *testing.T) {
 		t.Fatalf("conflict codes = (%d, %d), want (409, 409)", httpConflictCode, udsConflictCode)
 	}
 	assertJSONEqualIgnoringRequestID(t, httpConflictBody, udsConflictBody)
+}
+
+func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 4, 20, 19, 0, 0, 0, time.UTC)
+	workspace := core.Workspace{
+		ID:        "ws-1",
+		RootDir:   "/tmp/workspace",
+		Name:      "workspace",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	taskRun := core.Run{
+		RunID:            "task-run-1",
+		WorkspaceID:      workspace.ID,
+		WorkflowSlug:     "daemon",
+		Mode:             "task",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        now,
+		RequestID:        "run-req-task",
+	}
+	reviewRun := core.Run{
+		RunID:            "review-run-1",
+		WorkspaceID:      workspace.ID,
+		WorkflowSlug:     "daemon",
+		Mode:             "review",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        now,
+		RequestID:        "run-req-review",
+	}
+	execRun := core.Run{
+		RunID:            "exec-run-1",
+		WorkspaceID:      workspace.ID,
+		Mode:             "exec",
+		Status:           "running",
+		PresentationMode: "stream",
+		StartedAt:        now,
+		RequestID:        "run-req-exec",
+	}
+	nextCursor := core.StreamCursor{Timestamp: now.Add(time.Second), Sequence: 2}
+
+	handlers := core.NewHandlers(&core.HandlerConfig{
+		TransportName: "shared",
+		Daemon: &fakeDaemonService{
+			health: core.DaemonHealth{
+				Ready: true,
+				Details: []core.HealthDetail{{
+					Code:    "healthy",
+					Message: "daemon is ready",
+				}},
+			},
+		},
+		Workspaces: &fakeWorkspaceService{
+			workspaces: []core.Workspace{workspace},
+			workspace:  workspace,
+		},
+		Tasks: &fakeTaskService{
+			run: taskRun,
+		},
+		Reviews: &fakeReviewService{
+			run: reviewRun,
+		},
+		Runs: &fakeRunService{
+			runs: map[string]core.Run{
+				taskRun.RunID: taskRun,
+			},
+			snapshots: map[string]core.RunSnapshot{
+				taskRun.RunID: {
+					Run: taskRun,
+					Jobs: []core.RunJobState{{
+						JobID:     "job-1",
+						Status:    "running",
+						UpdatedAt: now.Add(time.Second),
+					}},
+					Transcript: []core.RunTranscriptMessage{{
+						Sequence:  1,
+						Stream:    "session",
+						Role:      "assistant",
+						Content:   "hello",
+						Timestamp: now.Add(time.Second),
+					}},
+					Incomplete:        true,
+					IncompleteReasons: []string{"transcript_gap"},
+					NextCursor:        &nextCursor,
+				},
+			},
+		},
+		Sync: &fakeSyncService{
+			result: core.SyncResult{
+				WorkspaceID:  workspace.ID,
+				WorkflowSlug: "daemon",
+				SyncedAt:     ptrTimeHTTP(now),
+				SyncedPaths:  []string{workspace.RootDir},
+			},
+		},
+		Exec: &fakeExecService{
+			run: execRun,
+		},
+	})
+
+	httpServer, baseURL := startHTTPServer(t, handlers)
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	socketPath := newShortSocketPath(t)
+	udsServer, udsClient := startUDSServer(t, handlers, socketPath)
+	defer func() {
+		_ = udsServer.Shutdown(context.Background())
+	}()
+
+	testCases := []struct {
+		name       string
+		method     string
+		path       string
+		body       []byte
+		requestID  string
+		wantStatus int
+		assertBody func(*testing.T, []byte, []byte)
+	}{
+		{
+			name:       "daemon health",
+			method:     http.MethodGet,
+			path:       "/api/daemon/health",
+			requestID:  "req-daemon-health",
+			wantStatus: http.StatusOK,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				var httpPayload contract.DaemonHealthResponse
+				var udsPayload contract.DaemonHealthResponse
+				decodeJSON(t, httpBody, &httpPayload)
+				decodeJSON(t, udsBody, &udsPayload)
+				if !reflect.DeepEqual(httpPayload, udsPayload) {
+					t.Fatalf("health payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+			},
+		},
+		{
+			name:       "daemon metrics",
+			method:     http.MethodGet,
+			path:       "/api/daemon/metrics",
+			requestID:  "req-daemon-metrics",
+			wantStatus: http.StatusOK,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				if !bytes.Equal(httpBody, udsBody) {
+					t.Fatalf("metrics payload mismatch\nhttp: %s\nuds:  %s", httpBody, udsBody)
+				}
+			},
+		},
+		{
+			name:       "workspace list",
+			method:     http.MethodGet,
+			path:       "/api/workspaces",
+			requestID:  "req-workspaces",
+			wantStatus: http.StatusOK,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				var httpPayload contract.WorkspaceListResponse
+				var udsPayload contract.WorkspaceListResponse
+				decodeJSON(t, httpBody, &httpPayload)
+				decodeJSON(t, udsBody, &udsPayload)
+				if !reflect.DeepEqual(httpPayload, udsPayload) {
+					t.Fatalf("workspace payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+			},
+		},
+		{
+			name:       "task run",
+			method:     http.MethodPost,
+			path:       "/api/tasks/daemon/runs",
+			body:       []byte(`{"workspace":"ws-1","presentation_mode":"stream"}`),
+			requestID:  "req-task-run",
+			wantStatus: http.StatusCreated,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				var httpPayload contract.RunResponse
+				var udsPayload contract.RunResponse
+				decodeJSON(t, httpBody, &httpPayload)
+				decodeJSON(t, udsBody, &udsPayload)
+				if !reflect.DeepEqual(httpPayload, udsPayload) {
+					t.Fatalf("task run payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+			},
+		},
+		{
+			name:       "review run",
+			method:     http.MethodPost,
+			path:       "/api/reviews/daemon/rounds/1/runs",
+			body:       []byte(`{"workspace":"ws-1","presentation_mode":"stream"}`),
+			requestID:  "req-review-run",
+			wantStatus: http.StatusCreated,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				var httpPayload contract.RunResponse
+				var udsPayload contract.RunResponse
+				decodeJSON(t, httpBody, &httpPayload)
+				decodeJSON(t, udsBody, &udsPayload)
+				if !reflect.DeepEqual(httpPayload, udsPayload) {
+					t.Fatalf("review run payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+			},
+		},
+		{
+			name:       "run snapshot",
+			method:     http.MethodGet,
+			path:       "/api/runs/" + taskRun.RunID + "/snapshot",
+			requestID:  "req-run-snapshot",
+			wantStatus: http.StatusOK,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				var httpPayload contract.RunSnapshotResponse
+				var udsPayload contract.RunSnapshotResponse
+				decodeJSON(t, httpBody, &httpPayload)
+				decodeJSON(t, udsBody, &udsPayload)
+				if !reflect.DeepEqual(httpPayload, udsPayload) {
+					t.Fatalf("snapshot payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+				if got, want := httpPayload.IncompleteReasons, []string{
+					"transcript_gap",
+				}; !reflect.DeepEqual(
+					got,
+					want,
+				) {
+					t.Fatalf("snapshot incomplete reasons = %#v, want %#v", got, want)
+				}
+			},
+		},
+		{
+			name:       "sync",
+			method:     http.MethodPost,
+			path:       "/api/sync",
+			body:       []byte(`{"workspace":"ws-1","workflow_slug":"daemon"}`),
+			requestID:  "req-sync",
+			wantStatus: http.StatusOK,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				var httpPayload contract.SyncResponse
+				var udsPayload contract.SyncResponse
+				decodeJSON(t, httpBody, &httpPayload)
+				decodeJSON(t, udsBody, &udsPayload)
+				if !reflect.DeepEqual(httpPayload, udsPayload) {
+					t.Fatalf("sync payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+			},
+		},
+		{
+			name:       "exec",
+			method:     http.MethodPost,
+			path:       "/api/exec",
+			body:       []byte(`{"workspace_path":"/tmp/workspace","prompt":"run","presentation_mode":"stream"}`),
+			requestID:  "req-exec",
+			wantStatus: http.StatusCreated,
+			assertBody: func(t *testing.T, httpBody []byte, udsBody []byte) {
+				t.Helper()
+
+				var httpPayload contract.RunResponse
+				var udsPayload contract.RunResponse
+				decodeJSON(t, httpBody, &httpPayload)
+				decodeJSON(t, udsBody, &udsPayload)
+				if !reflect.DeepEqual(httpPayload, udsPayload) {
+					t.Fatalf("exec payload mismatch\nhttp: %#v\nuds:  %#v", httpPayload, udsPayload)
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			httpStatus, httpHeaders, httpBody := mustRequest(
+				t,
+				http.DefaultClient,
+				tc.method,
+				baseURL+tc.path,
+				tc.body,
+				map[string]string{core.HeaderRequestID: tc.requestID},
+			)
+			udsStatus, udsHeaders, udsBody := mustRequest(
+				t,
+				udsClient,
+				tc.method,
+				"http://unix"+tc.path,
+				tc.body,
+				map[string]string{core.HeaderRequestID: tc.requestID},
+			)
+
+			if httpStatus != tc.wantStatus || udsStatus != tc.wantStatus {
+				t.Fatalf(
+					"status codes = (%d, %d), want (%d, %d)",
+					httpStatus,
+					udsStatus,
+					tc.wantStatus,
+					tc.wantStatus,
+				)
+			}
+			if got := strings.TrimSpace(httpHeaders.Get(core.HeaderRequestID)); got != tc.requestID {
+				t.Fatalf("http X-Request-Id = %q, want %q", got, tc.requestID)
+			}
+			if got := strings.TrimSpace(udsHeaders.Get(core.HeaderRequestID)); got != tc.requestID {
+				t.Fatalf("uds X-Request-Id = %q, want %q", got, tc.requestID)
+			}
+
+			tc.assertBody(t, httpBody, udsBody)
+		})
+	}
+}
+
+func TestHTTPAndUDSEmitEquivalentCanonicalSSEStreams(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	now := time.Date(2026, 4, 20, 19, 30, 0, 0, time.UTC)
+	runID := "run-1"
+	handlers := core.NewHandlers(&core.HandlerConfig{
+		TransportName:     "shared",
+		HeartbeatInterval: 15 * time.Millisecond,
+		Now: func() time.Time {
+			return now.Add(2 * time.Second)
+		},
+		Runs: &fakeRunService{
+			openStreamFn: func(ctx context.Context, gotRunID string, after core.StreamCursor) (core.RunStream, error) {
+				if gotRunID != runID {
+					return nil, globaldb.ErrRunNotFound
+				}
+				stream := newChannelRunStream()
+				go func() {
+					defer close(stream.events)
+					defer close(stream.errors)
+
+					event := newRunEvent(runID, 1, events.EventKindSessionUpdate, now, `{"delta":"hello"}`)
+					if core.EventAfterCursor(event, after) {
+						item := event
+						stream.events <- core.RunStreamItem{Event: &item}
+					}
+
+					timer := time.NewTimer(35 * time.Millisecond)
+					defer timer.Stop()
+					select {
+					case <-ctx.Done():
+						return
+					case <-timer.C:
+					}
+
+					stream.events <- core.RunStreamItem{
+						Overflow: &core.RunStreamOverflow{Reason: "subscriber_dropped_messages"},
+					}
+				}()
+				return stream, nil
+			},
+		},
+	})
+
+	httpServer, baseURL := startHTTPServer(t, handlers)
+	defer func() {
+		_ = httpServer.Shutdown(context.Background())
+	}()
+
+	socketPath := newShortSocketPath(t)
+	udsServer, udsClient := startUDSServer(t, handlers, socketPath)
+	defer func() {
+		_ = udsServer.Shutdown(context.Background())
+	}()
+
+	httpResponse := mustStreamRequest(
+		t,
+		http.DefaultClient,
+		baseURL+"/api/runs/"+runID+"/stream",
+		"req-http-stream",
+	)
+	defer httpResponse.Body.Close()
+
+	udsResponse := mustStreamRequest(
+		t,
+		udsClient,
+		"http://unix/api/runs/"+runID+"/stream",
+		"req-uds-stream",
+	)
+	defer udsResponse.Body.Close()
+
+	httpFrames, err := testutil.ReadSSEFramesUntil(
+		httpResponse.Body,
+		2*time.Second,
+		func(frames []testutil.SSEFrame) bool {
+			return hasCanonicalSSEFrame(frames, "overflow")
+		},
+	)
+	if err != nil {
+		t.Fatalf("ReadSSEFramesUntil(http) error = %v", err)
+	}
+	udsFrames, err := testutil.ReadSSEFramesUntil(
+		udsResponse.Body,
+		2*time.Second,
+		func(frames []testutil.SSEFrame) bool {
+			return hasCanonicalSSEFrame(frames, "overflow")
+		},
+	)
+	if err != nil {
+		t.Fatalf("ReadSSEFramesUntil(uds) error = %v", err)
+	}
+	httpFrames = normalizeCanonicalSSEFrames(httpFrames)
+	udsFrames = normalizeCanonicalSSEFrames(udsFrames)
+
+	if len(httpFrames) != 3 || len(udsFrames) != 3 {
+		t.Fatalf("unexpected normalized frames\nhttp: %#v\nuds:  %#v", httpFrames, udsFrames)
+	}
+	if !reflect.DeepEqual(httpFrames, udsFrames) {
+		t.Fatalf("stream frame mismatch\nhttp: %#v\nuds:  %#v", httpFrames, udsFrames)
+	}
+
+	var eventPayload events.Event
+	if err := json.Unmarshal(httpFrames[0].Data, &eventPayload); err != nil {
+		t.Fatalf("json.Unmarshal(event) error = %v", err)
+	}
+	if eventPayload.Kind != events.EventKindSessionUpdate || eventPayload.RunID != runID {
+		t.Fatalf("event payload = %#v", eventPayload)
+	}
+
+	var heartbeatPayload contract.HeartbeatPayload
+	if err := json.Unmarshal(httpFrames[1].Data, &heartbeatPayload); err != nil {
+		t.Fatalf("json.Unmarshal(heartbeat) error = %v", err)
+	}
+	if heartbeatPayload.RunID != runID || heartbeatPayload.Cursor != core.FormatCursor(now, 1) {
+		t.Fatalf("heartbeat payload = %#v", heartbeatPayload)
+	}
+
+	var overflowPayload contract.OverflowPayload
+	if err := json.Unmarshal(httpFrames[2].Data, &overflowPayload); err != nil {
+		t.Fatalf("json.Unmarshal(overflow) error = %v", err)
+	}
+	if overflowPayload.RunID != runID ||
+		overflowPayload.Cursor != core.FormatCursor(now, 1) ||
+		overflowPayload.Reason != "subscriber_dropped_messages" {
+		t.Fatalf("overflow payload = %#v", overflowPayload)
+	}
 }
 
 func TestUDSShutdownDoesNotCancelHTTPStreamsWhenHandlersAreShared(t *testing.T) {
@@ -879,23 +1408,25 @@ func (f *fakeDaemonService) setStatus(update func(core.DaemonStatus) core.Daemon
 }
 
 type fakeWorkspaceService struct {
-	deleteErr error
+	workspaces []core.Workspace
+	workspace  core.Workspace
+	deleteErr  error
 }
 
 func (f *fakeWorkspaceService) Register(context.Context, string, string) (core.WorkspaceRegisterResult, error) {
-	return core.WorkspaceRegisterResult{}, nil
+	return core.WorkspaceRegisterResult{Workspace: f.workspace, Created: true}, nil
 }
 
 func (f *fakeWorkspaceService) List(context.Context) ([]core.Workspace, error) {
-	return nil, nil
+	return append([]core.Workspace(nil), f.workspaces...), nil
 }
 
 func (f *fakeWorkspaceService) Get(context.Context, string) (core.Workspace, error) {
-	return core.Workspace{}, nil
+	return f.workspace, nil
 }
 
 func (f *fakeWorkspaceService) Update(context.Context, string, core.WorkspaceUpdateInput) (core.Workspace, error) {
-	return core.Workspace{}, nil
+	return f.workspace, nil
 }
 
 func (f *fakeWorkspaceService) Delete(context.Context, string) error {
@@ -903,7 +1434,80 @@ func (f *fakeWorkspaceService) Delete(context.Context, string) error {
 }
 
 func (f *fakeWorkspaceService) Resolve(context.Context, string) (core.Workspace, error) {
-	return core.Workspace{}, nil
+	return f.workspace, nil
+}
+
+type fakeTaskService struct {
+	run core.Run
+}
+
+func (*fakeTaskService) ListWorkflows(context.Context, string) ([]core.WorkflowSummary, error) {
+	return nil, nil
+}
+
+func (*fakeTaskService) GetWorkflow(context.Context, string, string) (core.WorkflowSummary, error) {
+	return core.WorkflowSummary{}, nil
+}
+
+func (*fakeTaskService) ListItems(context.Context, string, string) ([]core.TaskItem, error) {
+	return nil, nil
+}
+
+func (*fakeTaskService) Validate(context.Context, string, string) (core.ValidationSuccess, error) {
+	return core.ValidationSuccess{Valid: true}, nil
+}
+
+func (f *fakeTaskService) StartRun(context.Context, string, string, core.TaskRunRequest) (core.Run, error) {
+	return f.run, nil
+}
+
+func (*fakeTaskService) Archive(context.Context, string, string) (core.ArchiveResult, error) {
+	return core.ArchiveResult{Archived: true}, nil
+}
+
+type fakeReviewService struct {
+	run core.Run
+}
+
+func (*fakeReviewService) Fetch(
+	context.Context,
+	string,
+	string,
+	core.ReviewFetchRequest,
+) (core.ReviewFetchResult, error) {
+	return core.ReviewFetchResult{}, nil
+}
+
+func (*fakeReviewService) GetLatest(context.Context, string, string) (core.ReviewSummary, error) {
+	return core.ReviewSummary{}, nil
+}
+
+func (*fakeReviewService) GetRound(context.Context, string, string, int) (core.ReviewRound, error) {
+	return core.ReviewRound{}, nil
+}
+
+func (*fakeReviewService) ListIssues(context.Context, string, string, int) ([]core.ReviewIssue, error) {
+	return nil, nil
+}
+
+func (f *fakeReviewService) StartRun(context.Context, string, string, int, core.ReviewRunRequest) (core.Run, error) {
+	return f.run, nil
+}
+
+type fakeSyncService struct {
+	result core.SyncResult
+}
+
+func (f *fakeSyncService) Sync(context.Context, core.SyncRequest) (core.SyncResult, error) {
+	return f.result, nil
+}
+
+type fakeExecService struct {
+	run core.Run
+}
+
+func (f *fakeExecService) Start(context.Context, core.ExecRequest) (core.Run, error) {
+	return f.run, nil
 }
 
 type fakeRunService struct {
@@ -1187,6 +1791,61 @@ func startSSEScan(body io.ReadCloser) (<-chan string, <-chan error) {
 		close(linesCh)
 	}()
 	return linesCh, errCh
+}
+
+func hasCanonicalSSEFrame(frames []testutil.SSEFrame, event string) bool {
+	for _, frame := range frames {
+		if frame.Event == event {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeCanonicalSSEFrames(frames []testutil.SSEFrame) []testutil.SSEFrame {
+	eventsOfInterest := []string{string(events.EventKindSessionUpdate), "heartbeat", "overflow"}
+	normalized := make([]testutil.SSEFrame, 0, len(eventsOfInterest))
+	for _, eventName := range eventsOfInterest {
+		for _, frame := range frames {
+			if frame.Event == eventName {
+				normalized = append(normalized, frame)
+				break
+			}
+		}
+	}
+	return normalized
+}
+
+func mustStreamRequest(t *testing.T, client *http.Client, rawURL string, requestID string) *http.Response {
+	t.Helper()
+
+	request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, http.NoBody)
+	if err != nil {
+		t.Fatalf("NewRequest(%s) error = %v", rawURL, err)
+	}
+	request.Header.Set(core.HeaderRequestID, requestID)
+
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatalf("Do(%s) error = %v", rawURL, err)
+	}
+	if response.StatusCode != http.StatusOK {
+		defer response.Body.Close()
+		body, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			t.Fatalf("ReadAll(%s) error = %v", rawURL, readErr)
+		}
+		t.Fatalf("status = %d, want 200; body=%s", response.StatusCode, body)
+	}
+	if got := strings.TrimSpace(response.Header.Get(core.HeaderRequestID)); got != requestID {
+		defer response.Body.Close()
+		t.Fatalf("X-Request-Id = %q, want %q", got, requestID)
+	}
+	return response
+}
+
+func ptrTimeHTTP(value time.Time) *time.Time {
+	return &value
 }
 
 func waitForSSELine(

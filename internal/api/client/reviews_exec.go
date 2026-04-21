@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 )
 
@@ -26,15 +27,13 @@ func (c *Client) FetchReview(
 		return apicore.ReviewFetchResult{}, ErrWorkflowSlugRequired
 	}
 
-	response := struct {
-		Review apicore.ReviewSummary `json:"review"`
-	}{}
+	var response contract.ReviewFetchResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/fetch"
-	statusCode, err := c.doJSON(ctx, http.MethodPost, path, map[string]any{
-		"workspace": strings.TrimSpace(workspace),
-		"provider":  strings.TrimSpace(req.Provider),
-		"pr_ref":    strings.TrimSpace(req.PRRef),
-		"round":     req.Round,
+	statusCode, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewFetchRequest{
+		Workspace: strings.TrimSpace(workspace),
+		Provider:  strings.TrimSpace(req.Provider),
+		PRRef:     strings.TrimSpace(req.PRRef),
+		Round:     req.Round,
 	}, &response)
 	if err != nil {
 		return apicore.ReviewFetchResult{}, err
@@ -56,9 +55,7 @@ func (c *Client) GetLatestReview(ctx context.Context, workspace string, slug str
 		return apicore.ReviewSummary{}, ErrWorkflowSlugRequired
 	}
 
-	response := struct {
-		Review apicore.ReviewSummary `json:"review"`
-	}{}
+	var response contract.ReviewSummaryResponse
 	path := "/api/reviews/" + url.PathEscape(
 		trimmedSlug,
 	) + "?workspace=" + url.QueryEscape(
@@ -86,9 +83,7 @@ func (c *Client) GetReviewRound(
 		return apicore.ReviewRound{}, ErrWorkflowSlugRequired
 	}
 
-	response := struct {
-		Round apicore.ReviewRound `json:"round"`
-	}{}
+	var response contract.ReviewRoundResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) +
 		"?workspace=" + url.QueryEscape(strings.TrimSpace(workspace))
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
@@ -113,9 +108,7 @@ func (c *Client) ListReviewIssues(
 		return nil, ErrWorkflowSlugRequired
 	}
 
-	response := struct {
-		Issues []apicore.ReviewIssue `json:"issues"`
-	}{}
+	var response contract.ReviewIssuesResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) +
 		"/issues?workspace=" + url.QueryEscape(strings.TrimSpace(workspace))
 	if _, err := c.doJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
@@ -141,15 +134,13 @@ func (c *Client) StartReviewRun(
 		return apicore.Run{}, ErrWorkflowSlugRequired
 	}
 
-	response := struct {
-		Run apicore.Run `json:"run"`
-	}{}
+	var response contract.RunResponse
 	path := "/api/reviews/" + url.PathEscape(trimmedSlug) + "/rounds/" + strconv.Itoa(round) + "/runs"
-	if _, err := c.doJSON(ctx, http.MethodPost, path, map[string]any{
-		"workspace":         strings.TrimSpace(workspace),
-		"presentation_mode": strings.TrimSpace(req.PresentationMode),
-		"runtime_overrides": req.RuntimeOverrides,
-		"batching":          req.Batching,
+	if _, err := c.doJSON(ctx, http.MethodPost, path, contract.ReviewRunRequest{
+		Workspace:        strings.TrimSpace(workspace),
+		PresentationMode: strings.TrimSpace(req.PresentationMode),
+		RuntimeOverrides: req.RuntimeOverrides,
+		Batching:         req.Batching,
 	}, &response); err != nil {
 		return apicore.Run{}, err
 	}
@@ -162,9 +153,7 @@ func (c *Client) StartExecRun(ctx context.Context, req apicore.ExecRequest) (api
 		return apicore.Run{}, ErrDaemonClientRequired
 	}
 
-	response := struct {
-		Run apicore.Run `json:"run"`
-	}{}
+	var response contract.RunResponse
 	if _, err := c.doJSON(ctx, http.MethodPost, "/api/exec", req, &response); err != nil {
 		return apicore.Run{}, err
 	}

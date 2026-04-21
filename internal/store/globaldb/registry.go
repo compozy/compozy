@@ -167,6 +167,17 @@ func (g *GlobalDB) Get(ctx context.Context, idOrPath string) (Workspace, error) 
 		return Workspace{}, err
 	}
 
+	rootDir, resolveErr := discoverWorkspaceRoot(ctx, trimmed)
+	if resolveErr == nil {
+		workspace, err = g.getWorkspaceByRootDir(ctx, rootDir)
+		if err == nil {
+			return workspace, nil
+		}
+		if !errors.Is(err, ErrWorkspaceNotFound) {
+			return Workspace{}, err
+		}
+	}
+
 	workspace, err = g.getWorkspaceByRootDir(ctx, filepath.Clean(trimmed))
 	if err == nil {
 		return workspace, nil
@@ -175,11 +186,10 @@ func (g *GlobalDB) Get(ctx context.Context, idOrPath string) (Workspace, error) 
 		return Workspace{}, err
 	}
 
-	rootDir, resolveErr := discoverWorkspaceRoot(ctx, trimmed)
 	if resolveErr != nil {
 		return Workspace{}, ErrWorkspaceNotFound
 	}
-	return g.getWorkspaceByRootDir(ctx, rootDir)
+	return Workspace{}, ErrWorkspaceNotFound
 }
 
 // List returns all registered workspaces in stable root order.
@@ -894,7 +904,74 @@ func normalizeWorkspaceRoot(path string) (string, error) {
 		return "", fmt.Errorf("globaldb: workspace path %q is not a directory", resolvedPath)
 	}
 
-	return filepath.Clean(resolvedPath), nil
+	canonicalPath, err := canonicalizeExistingPathCase(resolvedPath)
+	if err != nil {
+		return "", fmt.Errorf("globaldb: canonicalize workspace path %q: %w", resolvedPath, err)
+	}
+	return filepath.Clean(canonicalPath), nil
+}
+
+func canonicalizeExistingPathCase(path string) (string, error) {
+	return canonicalizeExistingPathCaseWith(path, os.ReadDir)
+}
+
+func canonicalizeExistingPathCaseWith(
+	path string,
+	readDir func(string) ([]os.DirEntry, error),
+) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", errors.New("globaldb: workspace path is required")
+	}
+	cleanPath := filepath.Clean(trimmed)
+	if !filepath.IsAbs(cleanPath) {
+		return cleanPath, nil
+	}
+
+	volume := filepath.VolumeName(cleanPath)
+	current := string(filepath.Separator)
+	remainder := strings.TrimPrefix(cleanPath, current)
+	if volume != "" {
+		current = volume + string(filepath.Separator)
+		remainder = strings.TrimPrefix(cleanPath, current)
+	}
+	if remainder == "" {
+		return filepath.Clean(current), nil
+	}
+
+	for _, component := range strings.Split(remainder, string(filepath.Separator)) {
+		if component == "" || component == "." {
+			continue
+		}
+
+		entries, err := readDir(current)
+		if err != nil {
+			// Case normalization is best-effort once callers have a real path.
+			return cleanPath, nil
+		}
+
+		matchedName, ok := matchPathComponentCase(component, entries)
+		if !ok {
+			return cleanPath, nil
+		}
+		current = filepath.Join(current, matchedName)
+	}
+
+	return filepath.Clean(current), nil
+}
+
+func matchPathComponentCase(component string, entries []os.DirEntry) (string, bool) {
+	for _, entry := range entries {
+		if entry.Name() == component {
+			return entry.Name(), true
+		}
+	}
+	for _, entry := range entries {
+		if strings.EqualFold(entry.Name(), component) {
+			return entry.Name(), true
+		}
+	}
+	return "", false
 }
 
 func normalizeWorkspaceName(name string, rootDir string) string {

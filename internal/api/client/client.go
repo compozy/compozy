@@ -14,10 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 )
-
-const defaultRequestTimeout = 5 * time.Second
 
 var (
 	// ErrDaemonClientRequired reports that the receiver client was nil.
@@ -70,7 +69,7 @@ type Client struct {
 // RemoteError captures the daemon's non-2xx transport error envelope.
 type RemoteError struct {
 	StatusCode int
-	Envelope   apicore.TransportError
+	Envelope   contract.TransportError
 }
 
 func (e *RemoteError) Error() string {
@@ -105,7 +104,6 @@ func New(target Target) (*Client, error) {
 			target:  target,
 			baseURL: "http://daemon",
 			httpClient: &http.Client{
-				Timeout:   defaultRequestTimeout,
 				Transport: transport,
 			},
 		}, nil
@@ -115,7 +113,7 @@ func New(target Target) (*Client, error) {
 	return &Client{
 		target:     target,
 		baseURL:    baseURL,
-		httpClient: &http.Client{Timeout: defaultRequestTimeout},
+		httpClient: &http.Client{},
 	}, nil
 }
 
@@ -133,9 +131,7 @@ func (c *Client) Health(ctx context.Context) (apicore.DaemonHealth, error) {
 	if c == nil {
 		return apicore.DaemonHealth{}, ErrDaemonClientRequired
 	}
-	response := struct {
-		Health apicore.DaemonHealth `json:"health"`
-	}{}
+	var response contract.DaemonHealthResponse
 
 	statusCode, err := c.doJSON(ctx, http.MethodGet, "/api/daemon/health", nil, &response)
 	if err != nil {
@@ -163,17 +159,13 @@ func (c *Client) StartTaskRun(
 		return apicore.Run{}, ErrWorkflowSlugRequired
 	}
 
-	body := map[string]any{
-		"workspace":         strings.TrimSpace(req.Workspace),
-		"presentation_mode": strings.TrimSpace(req.PresentationMode),
-	}
-	if len(req.RuntimeOverrides) > 0 {
-		body["runtime_overrides"] = req.RuntimeOverrides
+	body := contract.TaskRunRequest{
+		Workspace:        strings.TrimSpace(req.Workspace),
+		PresentationMode: strings.TrimSpace(req.PresentationMode),
+		RuntimeOverrides: req.RuntimeOverrides,
 	}
 
-	response := struct {
-		Run apicore.Run `json:"run"`
-	}{}
+	var response contract.RunResponse
 	path := "/api/tasks/" + url.PathEscape(slug) + "/runs"
 	if _, err := c.doJSON(ctx, http.MethodPost, path, body, &response); err != nil {
 		return apicore.Run{}, err
@@ -194,7 +186,7 @@ func (c *Client) doJSON(
 	if ctx == nil {
 		return 0, ErrDaemonContextRequired
 	}
-	ctx, cancel := withRequestTimeout(ctx, c.httpClient.Timeout)
+	ctx, cancel := withRequestTimeout(ctx, c.requestTimeout(method, path))
 	defer cancel()
 
 	bodyReader, hasBody, err := marshalRequestBody(requestBody)
@@ -289,7 +281,7 @@ func (c *Client) handleStatus(
 		}
 	}
 
-	var envelope apicore.TransportError
+	var envelope contract.TransportError
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return fmt.Errorf("daemon request failed with status %d", statusCode)
 	}
@@ -326,6 +318,10 @@ func applyRequestPath(request *http.Request, requestPath string) error {
 	request.URL.RawPath = parsed.EscapedPath()
 	request.URL.RawQuery = parsed.RawQuery
 	return nil
+}
+
+func (c *Client) requestTimeout(method string, path string) time.Duration {
+	return contract.DefaultTimeout(contract.TimeoutClassForRoute(method, path))
 }
 
 func withRequestTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

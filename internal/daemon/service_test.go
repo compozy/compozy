@@ -2,10 +2,12 @@ package daemon
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	apicore "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
@@ -28,15 +30,31 @@ func TestServiceStatusHealthAndMetricsReflectRuntimeState(t *testing.T) {
 	}
 	manager := &RunManager{
 		active: map[string]*activeRun{
-			"run-a": {runID: "run-a"},
-			"run-b": {runID: "run-b"},
+			"run-a": {runID: "run-a", mode: runModeTask},
+			"run-b": {runID: "run-b", mode: runModeReview},
+		},
+		terminalTotals: map[string]uint64{
+			joinRunManagerMetricKey(runModeTask, runStatusCompleted): 2,
+			joinRunManagerMetricKey(runModeExec, runStatusFailed):    1,
+		},
+		acpStallTotals: map[string]uint64{
+			runModeReview: 4,
+		},
+		journalTerminalDrops:    2,
+		journalNonTerminalDrops: 3,
+		journalDropsByRun: map[string]journalDropTotals{
+			"run-gap": {terminal: 2, nonTerminal: 3},
+		},
+		incompleteRunIDs: map[string]struct{}{
+			"run-gap": {},
 		},
 	}
 	service := NewService(ServiceConfig{
 		Host:            host,
 		GlobalDB:        db,
 		RunManager:      manager,
-		ReconcileResult: ReconcileResult{ReconciledRuns: 3, CrashEventFailures: 1},
+		ReconcileResult: ReconcileResult{ReconciledRuns: 3, CrashEventAppended: 2, CrashEventFailures: 1},
+		Now:             func() time.Time { return now.Add(5 * time.Minute) },
 	})
 
 	status, err := service.Status(context.Background())
@@ -69,8 +87,42 @@ func TestServiceStatusHealthAndMetricsReflectRuntimeState(t *testing.T) {
 	if !health.Degraded {
 		t.Fatalf("health.Degraded = false, want true")
 	}
-	if len(health.Details) != 1 || health.Details[0].Code != "startup_reconcile_warnings" {
-		t.Fatalf("health.Details = %#v, want startup reconcile warning", health.Details)
+	if !health.StartedAt.Equal(now) {
+		t.Fatalf("health.StartedAt = %v, want %v", health.StartedAt, now)
+	}
+	if health.UptimeSeconds != 300 {
+		t.Fatalf("health.UptimeSeconds = %d, want 300", health.UptimeSeconds)
+	}
+	if health.ActiveRunCount != 2 {
+		t.Fatalf("health.ActiveRunCount = %d, want 2", health.ActiveRunCount)
+	}
+	if got := health.ActiveRunsByMode; !slices.Equal(got, []apicore.DaemonModeCount{
+		{Mode: runModeReview, Count: 1},
+		{Mode: runModeTask, Count: 1},
+	}) {
+		t.Fatalf("health.ActiveRunsByMode = %#v, want review/task counts", got)
+	}
+	if health.WorkspaceCount != 1 {
+		t.Fatalf("health.WorkspaceCount = %d, want 1", health.WorkspaceCount)
+	}
+	if health.IntegrityIssueCount != 1 {
+		t.Fatalf("health.IntegrityIssueCount = %d, want 1", health.IntegrityIssueCount)
+	}
+	if health.Databases.GlobalBytes < 0 {
+		t.Fatalf("health.Databases.GlobalBytes = %d, want >= 0", health.Databases.GlobalBytes)
+	}
+	if health.Databases.RunDBBytes != 0 {
+		t.Fatalf("health.Databases.RunDBBytes = %d, want 0", health.Databases.RunDBBytes)
+	}
+	if health.Reconcile.ReconciledRuns != 3 || health.Reconcile.CrashEventAppended != 2 ||
+		health.Reconcile.CrashEventMissing != 1 {
+		t.Fatalf("health.Reconcile = %#v, want 3/2/1 counters", health.Reconcile)
+	}
+	if got := []string{health.Details[0].Code, health.Details[1].Code}; !slices.Equal(
+		got,
+		[]string{"startup_reconcile_warnings", "run_integrity_issues"},
+	) {
+		t.Fatalf("health.Details = %#v, want reconcile/integrity warnings", health.Details)
 	}
 
 	metrics, err := service.Metrics(context.Background())
@@ -84,7 +136,14 @@ func TestServiceStatusHealthAndMetricsReflectRuntimeState(t *testing.T) {
 		"daemon_active_runs 2",
 		"daemon_registered_workspaces 1",
 		"daemon_shutdown_conflicts_total 0",
-		"runs_reconciled_crashed_total 3",
+		`daemon_reconcile_runs_total{crash_event="appended",classification="crashed"} 2`,
+		`daemon_reconcile_runs_total{crash_event="missing",classification="crashed"} 1`,
+		`daemon_journal_submit_drops_total{kind="terminal"} 2`,
+		`daemon_journal_submit_drops_total{kind="non_terminal"} 3`,
+		`daemon_run_terminal_total{mode="task",status="completed"} 2`,
+		`daemon_run_terminal_total{mode="exec",status="failed"} 1`,
+		`daemon_acp_stall_total{mode="review"} 4`,
+		"daemon_uptime_seconds 300",
 	} {
 		if !strings.Contains(metrics.Body, fragment) {
 			t.Fatalf("metrics.Body missing %q in %q", fragment, metrics.Body)
@@ -124,6 +183,16 @@ func TestServiceDefaultsReportStoppedAndZeroCounts(t *testing.T) {
 	if len(health.Details) != 1 || health.Details[0].Code != "daemon_not_ready" {
 		t.Fatalf("health.Details = %#v, want daemon_not_ready", health.Details)
 	}
+	if health.UptimeSeconds != 0 || health.ActiveRunCount != 0 || health.WorkspaceCount != 0 ||
+		health.IntegrityIssueCount != 0 {
+		t.Fatalf("health counts = %#v, want zeros", health)
+	}
+	if len(health.ActiveRunsByMode) != 0 {
+		t.Fatalf("health.ActiveRunsByMode = %#v, want empty", health.ActiveRunsByMode)
+	}
+	if health.Databases.GlobalBytes != 0 || health.Databases.RunDBBytes != 0 {
+		t.Fatalf("health.Databases = %#v, want zero diagnostics", health.Databases)
+	}
 
 	metrics, err := service.Metrics(context.Background())
 	if err != nil {
@@ -133,7 +202,11 @@ func TestServiceDefaultsReportStoppedAndZeroCounts(t *testing.T) {
 		"daemon_active_runs 0",
 		"daemon_registered_workspaces 0",
 		"daemon_shutdown_conflicts_total 0",
-		"runs_reconciled_crashed_total 0",
+		`daemon_reconcile_runs_total{crash_event="missing",classification="crashed"} 0`,
+		`daemon_journal_submit_drops_total{kind="terminal"} 0`,
+		`daemon_run_terminal_total{mode="task",status="completed"} 0`,
+		`daemon_acp_stall_total{mode="task"} 0`,
+		"daemon_uptime_seconds 0",
 	} {
 		if !strings.Contains(metrics.Body, fragment) {
 			t.Fatalf("metrics.Body missing %q in %q", fragment, metrics.Body)

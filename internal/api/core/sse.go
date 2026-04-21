@@ -7,28 +7,20 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/pkg/compozy/events"
 )
 
-// StreamCursor is the canonical run-stream cursor.
-type StreamCursor struct {
-	Timestamp time.Time
-	Sequence  uint64
-}
-
-// SSEMessage is one transport-level server-sent event.
-type SSEMessage struct {
-	ID    string
-	Event string
-	Data  any
-}
+type StreamCursor = contract.StreamCursor
+type SSEMessage = contract.SSEMessage
+type HeartbeatPayload = contract.HeartbeatPayload
+type OverflowPayload = contract.OverflowPayload
 
 // FlushWriter is the subset of the response writer needed for streaming.
 type FlushWriter interface {
@@ -112,88 +104,32 @@ func WriteSSE(writer FlushWriter, msg SSEMessage) error {
 
 // FormatCursor renders the canonical cursor form.
 func FormatCursor(timestamp time.Time, sequence uint64) string {
-	if timestamp.IsZero() || sequence == 0 {
-		return ""
-	}
-	return fmt.Sprintf("%s|%020d", timestamp.UTC().Format(time.RFC3339Nano), sequence)
+	return contract.FormatCursor(timestamp, sequence)
 }
 
 // CursorFromEvent builds the canonical cursor for one persisted event.
 func CursorFromEvent(event events.Event) StreamCursor {
-	return StreamCursor{
-		Timestamp: event.Timestamp.UTC(),
-		Sequence:  event.Seq,
-	}
+	return contract.CursorFromEvent(event)
 }
 
 // ParseCursor parses a Last-Event-ID or pagination cursor.
 func ParseCursor(raw string) (StreamCursor, error) {
-	value := strings.TrimSpace(raw)
-	if value == "" {
-		return StreamCursor{}, nil
-	}
-
-	parts := strings.SplitN(value, "|", 2)
-	if len(parts) != 2 {
-		return StreamCursor{}, fmt.Errorf("invalid cursor %q", value)
-	}
-
-	timestamp, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(parts[0]))
-	if err != nil {
-		return StreamCursor{}, fmt.Errorf("invalid cursor timestamp %q: %w", parts[0], err)
-	}
-
-	sequence, err := strconv.ParseUint(strings.TrimSpace(parts[1]), 10, 64)
-	if err != nil || sequence == 0 {
-		return StreamCursor{}, fmt.Errorf("invalid cursor sequence %q", parts[1])
-	}
-
-	return StreamCursor{
-		Timestamp: timestamp.UTC(),
-		Sequence:  sequence,
-	}, nil
+	return contract.ParseCursor(raw)
 }
 
 // EventAfterCursor reports whether an event should be emitted after the given cursor.
 func EventAfterCursor(event events.Event, cursor StreamCursor) bool {
-	if cursor.Timestamp.IsZero() || cursor.Sequence == 0 {
-		return true
-	}
-
-	timestamp := event.Timestamp.UTC()
-	switch {
-	case timestamp.After(cursor.Timestamp):
-		return true
-	case timestamp.Before(cursor.Timestamp):
-		return false
-	default:
-		return event.Seq > cursor.Sequence
-	}
+	return contract.EventAfterCursor(event, cursor)
 }
 
 // HeartbeatMessage builds the canonical heartbeat SSE event.
 func HeartbeatMessage(runID string, cursor StreamCursor, now time.Time) SSEMessage {
-	return SSEMessage{
-		Event: "heartbeat",
-		Data: map[string]any{
-			"run_id": runID,
-			"cursor": FormatCursor(cursor.Timestamp, cursor.Sequence),
-			"ts":     now.UTC(),
-		},
-	}
+	return contract.HeartbeatMessage(runID, cursor, now)
 }
 
 // OverflowMessage builds the canonical overflow SSE event.
 func OverflowMessage(runID string, cursor StreamCursor, now time.Time, reason string) SSEMessage {
-	return SSEMessage{
-		Event: "overflow",
-		Data: map[string]any{
-			"run_id": runID,
-			"cursor": FormatCursor(cursor.Timestamp, cursor.Sequence),
-			"reason": strings.TrimSpace(reason),
-			"ts":     now.UTC(),
-		},
-	}
+	return contract.OverflowMessage(runID, cursor, now, reason)
 }
 
 func resetTimer(timer *time.Timer, interval time.Duration) {

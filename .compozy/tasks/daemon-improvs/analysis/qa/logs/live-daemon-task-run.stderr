@@ -1,0 +1,1 @@
+time=2026-04-21T02:41:30.260-03:00 level=INFO msg="task metadata preflight" preflight=ok tasks_dir=/private/tmp/compozy-daemon-qa-workspace.qWoIBd/.compozy/tasks/node-health issues=0 scanned=1

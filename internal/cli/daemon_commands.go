@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/core/kernel"
 	"github.com/compozy/compozy/internal/core/model"
 	"github.com/compozy/compozy/internal/daemon"
+	daemonlogger "github.com/compozy/compozy/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -207,20 +208,16 @@ func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executa
 		return fmt.Errorf("resolve daemon http port: %w", err)
 	}
 
-	logFile, err := os.OpenFile(paths.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
+	if err := daemonlogger.ValidateDaemonFilePath(paths.LogFile); err != nil {
 		return fmt.Errorf("open daemon log file: %w", err)
 	}
-	defer func() {
-		_ = logFile.Close()
-	}()
 
-	stdin, err := os.Open(os.DevNull)
+	nullFile, err := os.OpenFile(os.DevNull, os.O_RDWR, 0)
 	if err != nil {
 		return fmt.Errorf("open %s: %w", os.DevNull, err)
 	}
 	defer func() {
-		_ = stdin.Close()
+		_ = nullFile.Close()
 	}()
 
 	command := exec.CommandContext(
@@ -230,9 +227,9 @@ func launchCLIDaemonProcessWithExecutable(paths compozyconfig.HomePaths, executa
 		"start",
 		"--"+daemonStartInternalChildFlag,
 	)
-	command.Stdin = stdin
-	command.Stdout = logFile
-	command.Stderr = logFile
+	command.Stdin = nullFile
+	command.Stdout = nullFile
+	command.Stderr = nullFile
 	command.SysProcAttr = daemonLaunchSysProcAttr()
 
 	if err := command.Start(); err != nil {

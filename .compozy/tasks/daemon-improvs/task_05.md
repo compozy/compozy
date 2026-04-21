@@ -1,11 +1,11 @@
 ---
-status: pending
+status: completed
 title: Runtime Shutdown, Logging, and Storage Discipline
 type: infra
 complexity: critical
 dependencies:
-  - task_02
-  - task_03
+    - task_02
+    - task_03
 ---
 
 # Runtime Shutdown, Logging, and Storage Discipline

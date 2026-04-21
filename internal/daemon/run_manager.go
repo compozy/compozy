@@ -93,6 +93,14 @@ type RunManager struct {
 	runWG   sync.WaitGroup
 	runDBMu sync.Mutex
 	runDBs  map[string]*cachedRunDB
+
+	metricsMu               sync.RWMutex
+	terminalTotals          map[string]uint64
+	acpStallTotals          map[string]uint64
+	journalTerminalDrops    uint64
+	journalNonTerminalDrops uint64
+	journalDropsByRun       map[string]journalDropTotals
+	incompleteRunIDs        map[string]struct{}
 }
 
 type activeRun struct {
@@ -213,6 +221,10 @@ func NewRunManager(cfg RunManagerConfig) (*RunManager, error) {
 		runDBIdleTTL:         resolveRunManagerRunDBCacheTTL(cfg.RunDBCacheTTL),
 		active:               make(map[string]*activeRun),
 		runDBs:               make(map[string]*cachedRunDB),
+		terminalTotals:       make(map[string]uint64),
+		acpStallTotals:       make(map[string]uint64),
+		journalDropsByRun:    make(map[string]journalDropTotals),
+		incompleteRunIDs:     make(map[string]struct{}),
 	}, nil
 }
 
@@ -509,6 +521,21 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 	if err != nil {
 		return apicore.RunSnapshot{}, err
 	}
+	if err := m.persistRuntimeIntegrity(listCtx, row.RunID, m.scopeForRun(row.RunID)); err != nil {
+		slog.Default().Warn("daemon snapshot runtime integrity persistence failed", "run_id", row.RunID, "error", err)
+	}
+	integrity, err := m.loadRunIntegrity(
+		listCtx,
+		row.RunID,
+		runView,
+		runDB,
+		eventRows.Events,
+		transcriptRows,
+		lastEvent,
+	)
+	if err != nil {
+		return apicore.RunSnapshot{}, err
+	}
 
 	builder := newRunSnapshotBuilder()
 	for _, item := range eventRows.Events {
@@ -519,21 +546,13 @@ func (m *RunManager) Snapshot(ctx context.Context, runID string) (apicore.RunSna
 	builder.applyTokenUsageRows(tokenUsageRows)
 
 	snapshot := apicore.RunSnapshot{
-		Run:        runView,
-		Jobs:       builder.jobStates(),
-		Transcript: make([]apicore.RunTranscriptMessage, 0, len(transcriptRows)),
-		Usage:      builder.usage,
-		Shutdown:   builder.shutdown,
-	}
-	for i := range transcriptRows {
-		snapshot.Transcript = append(snapshot.Transcript, apicore.RunTranscriptMessage{
-			Sequence:    transcriptRows[i].Sequence,
-			Stream:      transcriptRows[i].Stream,
-			Role:        transcriptRows[i].Role,
-			Content:     transcriptRows[i].Content,
-			MetadataRaw: rawMessageOrNil(transcriptRows[i].MetadataJSON),
-			Timestamp:   transcriptRows[i].Timestamp,
-		})
+		Run:               runView,
+		Jobs:              builder.jobStates(),
+		Transcript:        assembleSnapshotTranscript(transcriptRows),
+		Usage:             builder.usage,
+		Shutdown:          builder.shutdown,
+		Incomplete:        integrity.Incomplete,
+		IncompleteReasons: append([]string(nil), integrity.Reasons...),
 	}
 	if lastEvent != nil {
 		cursor := apicore.CursorFromEvent(*lastEvent)
@@ -1158,8 +1177,9 @@ func (m *RunManager) failStartRun(
 	row.Status = runStatusFailed
 	row.ErrorText = err.Error()
 	row.EndedAt = &failedAt
+	m.recordTerminalOutcome(row.Mode, row.Status)
 	_, updateErr := m.globalDB.UpdateRun(detachContext(ctx), row)
-	closeErr := closeRunScope(scope, closeTimeout)
+	closeErr := closeRunScope(ctx, scope, closeTimeout)
 	if createdRun {
 		if runArtifacts, artifactsErr := model.ResolveHomeRunArtifacts(row.RunID); artifactsErr == nil {
 			cleanupRunDirectory(runArtifacts.RunDir)
@@ -1312,10 +1332,14 @@ func (m *RunManager) finishRun(active *activeRun, row globaldb.Run, fallback ter
 		row.EndedAt = &endedAt
 	}
 
-	if closeErr := closeRunScope(scope, active.currentCloseTimeout()); closeErr != nil {
+	if err := m.persistRuntimeIntegrity(detachContext(active.ctx), row.RunID, scope); err != nil {
+		slog.Default().Warn("daemon run integrity persistence failed", "run_id", row.RunID, "error", err)
+	}
+	if closeErr := closeRunScope(active.ctx, scope, active.currentCloseTimeout()); closeErr != nil {
 		// Best-effort teardown should not block the terminal row mirror.
 		_ = closeErr
 	}
+	m.recordTerminalOutcome(row.Mode, row.Status)
 	if _, err := m.globalDB.UpdateRun(detachContext(active.ctx), row); err != nil {
 		return
 	}
@@ -1539,14 +1563,14 @@ func cleanupRunDirectory(runDir string) {
 	_ = os.RemoveAll(cleanRunDir)
 }
 
-func closeRunScope(scope model.RunScope, timeout time.Duration) error {
+func closeRunScope(ctx context.Context, scope model.RunScope, timeout time.Duration) error {
 	if scope == nil {
 		return nil
 	}
 	if timeout <= 0 {
 		timeout = defaultRunCloseTimeout
 	}
-	closeCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	closeCtx, cancel := boundedLifecycleContext(ctx, timeout)
 	defer cancel()
 	return scope.Close(closeCtx)
 }
@@ -1869,7 +1893,7 @@ func (m *RunManager) evictIdleRunDBs(now time.Time) error {
 	return err
 }
 
-func (m *RunManager) closeRunDBCache() error {
+func (m *RunManager) closeRunDBCache(ctx context.Context) error {
 	if m == nil {
 		return nil
 	}
@@ -1888,7 +1912,10 @@ func (m *RunManager) closeRunDBCache() error {
 
 	var err error
 	for _, db := range closeList {
-		if closeErr := db.Close(); closeErr != nil {
+		closeCtx, cancel := boundedLifecycleContext(ctx, m.shutdownDrainTimeout)
+		closeErr := db.CloseContext(closeCtx)
+		cancel()
+		if closeErr != nil {
 			err = errors.Join(err, closeErr)
 		}
 	}
