@@ -42,9 +42,10 @@ func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 	}
 	m.transcriptViewport.SetHeight(transcriptHeight)
 	rendered := m.buildTimelineContent(job, contentWidth)
-	if !cacheHit {
-		setTranscriptViewportContent(&m.transcriptViewport, rendered.content)
+	if !cacheHit || !m.timelineViewportMounted(job, contentWidth) {
+		m.applyTranscriptViewportContent(rendered.content)
 		m.restoreTranscriptViewport(job, rendered.offsets)
+		m.timelineMounted = m.newTimelineMountState(job, contentWidth)
 	}
 
 	lines := []string{
@@ -65,6 +66,39 @@ func (m *uiModel) renderTimelinePanel(job *uiJob, panelWidth int) string {
 		borderColor = colorBorderFocus
 	}
 	return techPanelStyle(panelWidth, borderColor).Render(strings.Join(lines, "\n"))
+}
+
+func invalidTimelineMountState() timelineMountState {
+	return timelineMountState{
+		jobIndex:          -1,
+		selectedEntry:     -1,
+		expansionRevision: -1,
+	}
+}
+
+func (m *uiModel) newTimelineMountState(job *uiJob, width int) timelineMountState {
+	if job == nil {
+		return invalidTimelineMountState()
+	}
+	return timelineMountState{
+		jobIndex:          m.selectedJob,
+		width:             width,
+		revision:          job.snapshot.Revision,
+		selectedEntry:     job.selectedEntry,
+		expansionRevision: job.expansionRevision,
+		valid:             true,
+	}
+}
+
+func (m *uiModel) timelineViewportMounted(job *uiJob, width int) bool {
+	if m == nil || job == nil || !m.timelineMounted.valid {
+		return false
+	}
+	return m.timelineMounted.jobIndex == m.selectedJob &&
+		m.timelineMounted.width == width &&
+		m.timelineMounted.revision == job.snapshot.Revision &&
+		m.timelineMounted.selectedEntry == job.selectedEntry &&
+		m.timelineMounted.expansionRevision == job.expansionRevision
 }
 
 func (m *uiModel) timelineCacheHit(job *uiJob, width int) bool {

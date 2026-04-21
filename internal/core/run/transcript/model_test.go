@@ -163,6 +163,77 @@ func TestSessionViewModelUpsertsToolCallByIDWithoutSyntheticSummary(t *testing.T
 	}
 }
 
+func TestSessionViewModelLoadSnapshotRestoresIncrementalBaseline(t *testing.T) {
+	t.Parallel()
+
+	viewModel := newSessionViewModel()
+	snapshot := SessionViewSnapshot{
+		Revision: 7,
+		Entries: []Entry{
+			{
+				ID:   "assistant-1",
+				Kind: EntryKindAssistantMessage,
+				Blocks: []model.ContentBlock{
+					mustContentBlockTranscriptTest(t, model.TextBlock{Text: "hello from snapshot"}),
+				},
+			},
+		},
+		Plan: SessionPlanState{
+			Entries: []model.SessionPlanEntry{{
+				Content:  "Ship parity fix",
+				Priority: "high",
+				Status:   "in_progress",
+			}},
+			RunningCount: 1,
+		},
+		Session: SessionMetaState{
+			CurrentModeID: "review",
+			AvailableCommands: []model.SessionAvailableCommand{{
+				Name:         "run",
+				Description:  "Run the task",
+				ArgumentHint: "--fast",
+			}},
+			Status: model.StatusRunning,
+		},
+	}
+
+	viewModel.LoadSnapshot(snapshot)
+	nextSnapshot, changed := viewModel.Apply(model.SessionUpdate{
+		Kind: model.UpdateKindAgentThoughtChunk,
+		ThoughtBlocks: []model.ContentBlock{
+			mustContentBlockTranscriptTest(t, model.TextBlock{Text: "thinking after attach"}),
+		},
+		Status: model.StatusRunning,
+	})
+	if !changed {
+		t.Fatal("expected post-hydration update to extend the restored baseline")
+	}
+	if got := nextSnapshot.Revision; got != 8 {
+		t.Fatalf("expected hydrated revision to increment from 7 to 8, got %d", got)
+	}
+	if got := len(nextSnapshot.Entries); got != 2 {
+		t.Fatalf("expected restored assistant entry plus appended thinking entry, got %#v", nextSnapshot.Entries)
+	}
+	if nextSnapshot.Entries[0].Kind != EntryKindAssistantMessage {
+		t.Fatalf("expected restored assistant entry first, got %#v", nextSnapshot.Entries)
+	}
+	if nextSnapshot.Entries[1].Kind != EntryKindAssistantThinking {
+		t.Fatalf("expected appended thinking entry second, got %#v", nextSnapshot.Entries)
+	}
+	if nextSnapshot.Session.CurrentModeID != "review" {
+		t.Fatalf("expected restored mode to remain review, got %#v", nextSnapshot.Session)
+	}
+	if got := len(
+		nextSnapshot.Session.AvailableCommands,
+	); got != 1 ||
+		nextSnapshot.Session.AvailableCommands[0].Name != "run" {
+		t.Fatalf("expected restored available commands, got %#v", nextSnapshot.Session.AvailableCommands)
+	}
+	if got := len(nextSnapshot.Plan.Entries); got != 1 || nextSnapshot.Plan.Entries[0].Content != "Ship parity fix" {
+		t.Fatalf("expected restored plan entries, got %#v", nextSnapshot.Plan.Entries)
+	}
+}
+
 func TestSessionViewModelToolCallScenarios(t *testing.T) {
 	t.Parallel()
 

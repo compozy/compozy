@@ -11,6 +11,7 @@ import (
 
 	apicore "github.com/compozy/compozy/internal/api/core"
 	core "github.com/compozy/compozy/internal/core"
+	"github.com/compozy/compozy/internal/core/model"
 	"github.com/spf13/cobra"
 )
 
@@ -240,6 +241,182 @@ func TestTasksRunInteractiveFormPropagatesDaemonRuntimeOverrides(t *testing.T) {
 	}
 	if overrides.ReasoningEffort == nil || *overrides.ReasoningEffort != "high" {
 		t.Fatalf("expected reasoning-effort form override, got %#v", overrides)
+	}
+}
+
+func TestTasksRunInteractiveFormPropagatesTaskRuntimeRulesWithoutExplicitFlagMutation(t *testing.T) {
+	workspaceRoot, _ := makeValidateTasksWorkspace(t, "demo")
+	withWorkingDir(t, workspaceRoot)
+
+	client := &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-form-task-runtime-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeUI,
+			StartedAt:        time.Date(2026, 4, 20, 12, 6, 0, 0, time.UTC),
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		if runID != "run-task-form-task-runtime-001" {
+			t.Fatalf("unexpected attached run id: %q", runID)
+		}
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	defaults.collectForm = func(cmd *cobra.Command, state *commandState) error {
+		inputs := &formInputs{
+			name:            "demo",
+			ide:             "codex",
+			model:           "gpt-5.4",
+			reasoningEffort: "medium",
+		}
+		inputs.apply(cmd, state)
+		if cmd.Flags().Changed("task-runtime") {
+			t.Fatal("expected task-runtime flag to remain implicit in the simulated interactive flow")
+		}
+		state.replaceConfiguredTaskRunRules = true
+		state.executionTaskRuntimeRules = []model.TaskRuntimeRule{
+			{
+				Type:            stringPointer("backend"),
+				IDE:             stringPointer("claude"),
+				Model:           stringPointer("sonnet-4.5"),
+				ReasoningEffort: stringPointer("high"),
+			},
+			{
+				ID:    stringPointer("task_02"),
+				IDE:   stringPointer("codex"),
+				Model: stringPointer("gpt-5.4-mini"),
+			},
+		}
+		return nil
+	}
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "tasks", "run")
+	if err != nil {
+		t.Fatalf(
+			"execute interactive tasks run with task runtime rules: %v\nstdout:\n%s\nstderr:\n%s",
+			err,
+			stdout,
+			stderr,
+		)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout before ui attach, got %q", stdout)
+	}
+
+	var overrides daemonRuntimeOverrides
+	if err := json.Unmarshal(client.startRequest.RuntimeOverrides, &overrides); err != nil {
+		t.Fatalf("decode task runtime overrides: %v", err)
+	}
+	if overrides.TaskRuntimeRules == nil || len(*overrides.TaskRuntimeRules) != 2 {
+		t.Fatalf("expected two task runtime rules from interactive form state, got %#v", overrides.TaskRuntimeRules)
+	}
+
+	typeRule := (*overrides.TaskRuntimeRules)[0]
+	if typeRule.Type == nil || *typeRule.Type != "backend" {
+		t.Fatalf("expected first task runtime rule to target backend, got %#v", typeRule)
+	}
+	if typeRule.IDE == nil || *typeRule.IDE != "claude" || typeRule.Model == nil || *typeRule.Model != "sonnet-4.5" {
+		t.Fatalf("expected first task runtime rule to preserve interactive overrides, got %#v", typeRule)
+	}
+
+	taskRule := (*overrides.TaskRuntimeRules)[1]
+	if taskRule.ID == nil || *taskRule.ID != "task_02" {
+		t.Fatalf("expected second task runtime rule to target task_02, got %#v", taskRule)
+	}
+	if taskRule.Model == nil || *taskRule.Model != "gpt-5.4-mini" {
+		t.Fatalf("expected second task runtime rule to preserve task-specific model override, got %#v", taskRule)
+	}
+}
+
+func TestTasksRunInteractiveFormClearsConfiguredTaskRuntimeRulesExplicitly(t *testing.T) {
+	workspaceRoot, _ := makeValidateTasksWorkspace(t, "demo")
+	writeCLIWorkspaceConfig(t, workspaceRoot, `
+[start]
+  [[start.task_runtime_rules]]
+  type = "backend"
+  ide = "claude"
+  model = "sonnet-4.5"
+`)
+	withWorkingDir(t, workspaceRoot)
+
+	client := &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+		startRun: apicore.Run{
+			RunID:            "run-task-form-task-runtime-clear-001",
+			Mode:             string(core.ModePRDTasks),
+			Status:           "running",
+			PresentationMode: attachModeUI,
+			StartedAt:        time.Date(2026, 4, 20, 12, 7, 0, 0, time.UTC),
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	installTestCLIRunObservers(t, func(_ context.Context, _ daemonCommandClient, runID string) error {
+		if runID != "run-task-form-task-runtime-clear-001" {
+			t.Fatalf("unexpected attached run id: %q", runID)
+		}
+		return nil
+	}, nil)
+
+	defaults := allowBundledSkillsForExecutionTests()
+	defaults.isInteractive = func() bool { return true }
+	defaults.collectForm = func(cmd *cobra.Command, state *commandState) error {
+		inputs := &formInputs{name: "demo"}
+		inputs.apply(cmd, state)
+		if cmd.Flags().Changed("task-runtime") {
+			t.Fatal("expected task-runtime flag to remain implicit in the simulated interactive clear flow")
+		}
+		state.replaceConfiguredTaskRunRules = true
+		state.executionTaskRuntimeRules = nil
+		return nil
+	}
+
+	cmd := newRootCommandWithDefaults(newLazyRootDispatcher(), defaults)
+	stdout, stderr, err := executeCommandCapturingProcessIO(t, cmd, nil, "tasks", "run")
+	if err != nil {
+		t.Fatalf(
+			"execute interactive tasks run with cleared task runtime rules: %v\nstdout:\n%s\nstderr:\n%s",
+			err,
+			stdout,
+			stderr,
+		)
+	}
+	if !strings.Contains(stderr, "preflight=ok") {
+		t.Fatalf("expected preflight success log on stderr, got %q", stderr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout before ui attach, got %q", stdout)
+	}
+	if !strings.Contains(string(client.startRequest.RuntimeOverrides), `"task_runtime_rules":[]`) {
+		t.Fatalf(
+			"expected interactive clear to send an explicit empty task_runtime_rules override, got %s",
+			client.startRequest.RuntimeOverrides,
+		)
+	}
+
+	var overrides daemonRuntimeOverrides
+	if err := json.Unmarshal(client.startRequest.RuntimeOverrides, &overrides); err != nil {
+		t.Fatalf("decode task runtime overrides: %v", err)
+	}
+	if overrides.TaskRuntimeRules == nil {
+		t.Fatalf("expected cleared interactive task runtime selection to remain explicit, got %#v", overrides)
+	}
+	if len(*overrides.TaskRuntimeRules) != 0 {
+		t.Fatalf(
+			"expected cleared interactive task runtime selection to send zero rules, got %#v",
+			*overrides.TaskRuntimeRules,
+		)
 	}
 }
 

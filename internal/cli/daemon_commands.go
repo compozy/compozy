@@ -512,8 +512,11 @@ func (s *commandState) buildTaskRunRuntimeOverrides(cmd *cobra.Command) (json.Ra
 	set(commandFlagChanged(cmd, "include-completed"), func() {
 		overrides.IncludeCompleted = boolPointer(s.includeCompleted)
 	})
-	set(commandFlagChanged(cmd, "task-runtime"), func() {
+	set(commandFlagChanged(cmd, "task-runtime") || s.replaceConfiguredTaskRunRules, func() {
 		rules := model.CloneTaskRuntimeRules(s.taskRuntimeRules())
+		if rules == nil {
+			rules = []model.TaskRuntimeRule{}
+		}
 		overrides.TaskRuntimeRules = &rules
 	})
 

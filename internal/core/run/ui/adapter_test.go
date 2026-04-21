@@ -488,6 +488,232 @@ func TestPrepareDispatchBatchCoalescesBurstAndPreservesLifecycleOrder(t *testing
 	}
 }
 
+func TestPrepareDispatchBatchPreservesToolCallLifecycleStatesWithinBurst(t *testing.T) {
+	t.Parallel()
+
+	startUpdate, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallStarted,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStatePending,
+		Blocks: []model.ContentBlock{
+			mustContentBlockUITest(t, model.ToolUseBlock{
+				ID:   "tool-1",
+				Name: "Read",
+			}),
+		},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate(start): %v", err)
+	}
+	progressUpdate, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStateInProgress,
+		Blocks: []model.ContentBlock{
+			mustContentBlockUITest(t, model.ToolUseBlock{
+				ID:    "tool-1",
+				Name:  "Read",
+				Input: []byte(`{"path":"README.md"}`),
+			}),
+		},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate(progress): %v", err)
+	}
+	completedUpdate, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallUpdated,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStateCompleted,
+		Blocks: []model.ContentBlock{
+			mustContentBlockUITest(t, model.ToolUseBlock{
+				ID:    "tool-1",
+				Name:  "Read",
+				Input: []byte(`{"path":"README.md"}`),
+			}),
+			mustContentBlockUITest(t, model.ToolResultBlock{
+				ToolUseID: "tool-1",
+				Content:   "loaded README.md",
+			}),
+		},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate(completed): %v", err)
+	}
+
+	ctrl := &uiController{translator: newUIEventTranslator()}
+	batch := ctrl.prepareDispatchBatch([]any{
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: startUpdate},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: progressUpdate},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: completedUpdate},
+		),
+	})
+
+	if got := len(batch.msgs); got != 3 {
+		t.Fatalf("expected three visible tool lifecycle updates, got %#v", batch.msgs)
+	}
+
+	wantStates := []model.ToolCallState{
+		model.ToolCallStatePending,
+		model.ToolCallStateInProgress,
+		model.ToolCallStateCompleted,
+	}
+	for idx, wantState := range wantStates {
+		updateMsg, ok := batch.msgs[idx].(jobUpdateMsg)
+		if !ok {
+			t.Fatalf("expected batch item %d to be jobUpdateMsg, got %T", idx, batch.msgs[idx])
+		}
+		if got := len(updateMsg.Snapshot.Entries); got != 1 {
+			t.Fatalf("expected one tool entry at batch item %d, got %#v", idx, updateMsg.Snapshot.Entries)
+		}
+		entry := updateMsg.Snapshot.Entries[0]
+		if entry.Kind != transcriptEntryToolCall {
+			t.Fatalf("expected tool call entry at batch item %d, got %#v", idx, entry)
+		}
+		if entry.ToolCallState != wantState {
+			t.Fatalf("expected tool call state %q at batch item %d, got %#v", wantState, idx, entry)
+		}
+	}
+}
+
+func TestPrepareDispatchBatchPreservesThinkingBeforeToolActivityWithinBurst(t *testing.T) {
+	t.Parallel()
+
+	thinkingUpdate, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind: model.UpdateKindAgentThoughtChunk,
+		ThoughtBlocks: []model.ContentBlock{
+			mustContentBlockUITest(t, model.TextBlock{Text: "reasoning about README.md"}),
+		},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate(thinking): %v", err)
+	}
+	toolUpdate, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind:          model.UpdateKindToolCallStarted,
+		ToolCallID:    "tool-1",
+		ToolCallState: model.ToolCallStatePending,
+		Blocks: []model.ContentBlock{
+			mustContentBlockUITest(t, model.ToolUseBlock{
+				ID:   "tool-1",
+				Name: "Read",
+			}),
+		},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate(tool): %v", err)
+	}
+
+	ctrl := &uiController{translator: newUIEventTranslator()}
+	batch := ctrl.prepareDispatchBatch([]any{
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: thinkingUpdate},
+		),
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: toolUpdate},
+		),
+	})
+
+	if got := len(batch.msgs); got != 2 {
+		t.Fatalf("expected thinking and tool snapshots to remain distinct, got %#v", batch.msgs)
+	}
+
+	first, ok := batch.msgs[0].(jobUpdateMsg)
+	if !ok {
+		t.Fatalf("expected first batch item to be jobUpdateMsg, got %T", batch.msgs[0])
+	}
+	if got := len(first.Snapshot.Entries); got != 1 {
+		t.Fatalf("expected one thinking entry in first snapshot, got %#v", first.Snapshot.Entries)
+	}
+	if first.Snapshot.Entries[0].Kind != transcriptEntryAssistantThinking {
+		t.Fatalf("expected thinking entry first, got %#v", first.Snapshot.Entries[0])
+	}
+
+	second, ok := batch.msgs[1].(jobUpdateMsg)
+	if !ok {
+		t.Fatalf("expected second batch item to be jobUpdateMsg, got %T", batch.msgs[1])
+	}
+	if got := len(second.Snapshot.Entries); got != 2 {
+		t.Fatalf("expected second snapshot to retain thinking and append tool entry, got %#v", second.Snapshot.Entries)
+	}
+	if second.Snapshot.Entries[0].Kind != transcriptEntryAssistantThinking {
+		t.Fatalf("expected thinking entry to remain visible in second snapshot, got %#v", second.Snapshot.Entries)
+	}
+	if second.Snapshot.Entries[1].Kind != transcriptEntryToolCall {
+		t.Fatalf("expected tool entry to be appended after thinking, got %#v", second.Snapshot.Entries)
+	}
+}
+
+func TestPrepareDispatchBatchHydratesTranslatorFromBootstrapSnapshot(t *testing.T) {
+	t.Parallel()
+
+	liveUpdate, err := contentconv.PublicSessionUpdate(model.SessionUpdate{
+		Kind: model.UpdateKindAgentThoughtChunk,
+		ThoughtBlocks: []model.ContentBlock{
+			mustContentBlockUITest(t, model.TextBlock{Text: "thinking after attach"}),
+		},
+		Status: model.StatusRunning,
+	})
+	if err != nil {
+		t.Fatalf("contentconv.PublicSessionUpdate(live): %v", err)
+	}
+
+	ctrl := &uiController{translator: newUIEventTranslator()}
+	batch := ctrl.prepareDispatchBatch([]any{
+		jobUpdateMsg{
+			Index: 0,
+			Snapshot: buildSnapshotWithEntries(t, TranscriptEntry{
+				ID:     "assistant-1",
+				Kind:   transcriptEntryAssistantMessage,
+				Title:  "Assistant",
+				Blocks: []model.ContentBlock{mustContentBlockUITest(t, model.TextBlock{Text: "hello from snapshot"})},
+			}),
+			HydrateTranslator: true,
+		},
+		mustRuntimeEventUITest(
+			t,
+			eventspkg.EventKindSessionUpdate,
+			kinds.SessionUpdatePayload{Index: 0, Update: liveUpdate},
+		),
+	})
+
+	if got := len(batch.msgs); got != 2 {
+		t.Fatalf("expected bootstrap snapshot and live update snapshots, got %#v", batch.msgs)
+	}
+
+	liveMsg, ok := batch.msgs[1].(jobUpdateMsg)
+	if !ok {
+		t.Fatalf("expected second batch item to be jobUpdateMsg, got %T", batch.msgs[1])
+	}
+	if got := len(liveMsg.Snapshot.Entries); got != 2 {
+		t.Fatalf("expected live snapshot to extend bootstrap baseline, got %#v", liveMsg.Snapshot.Entries)
+	}
+	if liveMsg.Snapshot.Entries[0].Kind != transcriptEntryAssistantMessage {
+		t.Fatalf("expected bootstrap assistant entry to remain first, got %#v", liveMsg.Snapshot.Entries)
+	}
+	if liveMsg.Snapshot.Entries[1].Kind != transcriptEntryAssistantThinking {
+		t.Fatalf("expected live thinking entry to append after bootstrap baseline, got %#v", liveMsg.Snapshot.Entries)
+	}
+}
+
 func TestUIEventAdapterPipelineUpdatesModelAndView(t *testing.T) {
 	t.Parallel()
 

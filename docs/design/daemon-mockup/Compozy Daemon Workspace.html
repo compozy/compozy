@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Compozy Daemon — Workspace</title>
+  <link rel="icon" type="image/png" href="assets/compozy-icon.png"/>
+  <link rel="stylesheet" href="colors_and_type.css"/>
+  <style>
+    html, body, #root { height: 100%; margin: 0; padding: 0; }
+    body { background: var(--background); color: var(--foreground); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+    * { box-sizing: border-box; }
+    button { font-family: inherit; }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 999px; border: 2px solid var(--background); }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.12); }
+    ::-webkit-scrollbar-corner { background: transparent; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.35;} }
+    @keyframes shimmer { 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
+    @keyframes barber  { 0%{background-position:0 0;} 100%{background-position:24px 0;} }
+    @keyframes blink   { 50%{opacity:0;} }
+    a { color: inherit; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="src/data.jsx"></script>
+  <script type="text/babel" src="src/icons.jsx"></script>
+  <script type="text/babel" src="src/shell.jsx"></script>
+  <script type="text/babel" src="src/dashboard.jsx"></script>
+  <script type="text/babel" src="src/workflows.jsx"></script>
+  <script type="text/babel" src="src/spec.jsx"></script>
+  <script type="text/babel" src="src/tasks.jsx"></script>
+  <script type="text/babel" src="src/task_detail.jsx"></script>
+  <script type="text/babel" src="src/runs.jsx"></script>
+  <script type="text/babel" src="src/reviews.jsx"></script>
+  <script type="text/babel" src="src/memory.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function App() {
+      const initial = (() => {
+        try {
+          const raw = localStorage.getItem("compozy-route");
+          if (raw) return JSON.parse(raw);
+        } catch {}
+        return { view: "dashboard", params: {} };
+      })();
+      const [route, setRoute] = useState(initial);
+
+      useEffect(() => {
+        try { localStorage.setItem("compozy-route", JSON.stringify(route)); } catch {}
+      }, [route]);
+
+      const go = (view, params = {}) => setRoute({ view, params });
+
+      let content;
+      switch (route.view) {
+        case "dashboard":     content = <DashboardView   go={go}/>; break;
+        case "workflows":     content = <WorkflowsView   go={go}/>; break;
+        case "runs":          content = <RunsView        go={go}/>; break;
+        case "reviews":       content = <ReviewsView     go={go}/>; break;
+        case "memory":        content = route.params.workflow
+                                ? <MemoryView      go={go} workflow={route.params.workflow}/>
+                                : <MemoryIndexView go={go}/>; break;
+        case "memory-index":  content = <MemoryIndexView go={go}/>; break;
+        case "spec":          content = <SpecView        go={go} workflow={route.params.workflow}/>; break;
+        case "tasks":         content = <TasksView       go={go} workflow={route.params.workflow}/>; break;
+        case "task-detail":   content = <TaskDetailView  go={go} workflow={route.params.workflow} taskId={route.params.task}/>; break;
+        case "run-detail":    content = <RunDetailView   go={go} runId={route.params.run}/>; break;
+        case "review-detail": content = <ReviewDetailView go={go} issueId={route.params.issue}/>; break;
+        default:              content = <DashboardView   go={go}/>;
+      }
+
+      // When inside a workflow-scoped subview, the workflow item in "Active workflows" is highlighted instead.
+      const scopedToWorkflow = !!(route.params && route.params.workflow);
+      const topKey = scopedToWorkflow ? "" :
+                    route.view === "run-detail" ? "runs" :
+                    route.view === "review-detail" ? "reviews" :
+                    route.view === "memory-index" ? "memory" :
+                    route.view;
+
+      const handleSetView = (v) => {
+        if (v.startsWith("workflow:")) {
+          const wf = v.split(":")[1];
+          go("spec", { workflow: wf });
+        } else {
+          go(v);
+        }
+      };
+
+      return (
+        <AppShell view={topKey} setView={handleSetView} params={route.params}>
+          {content}
+        </AppShell>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(<App/>);
+  </script>
+</body>
+</html>

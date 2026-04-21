@@ -72,6 +72,19 @@ func NewViewModel() *ViewModel {
 	return &ViewModel{}
 }
 
+func (m *ViewModel) LoadSnapshot(snapshot SessionViewSnapshot) {
+	if m == nil {
+		return
+	}
+	m.entries = restoreEntries(snapshot.Entries)
+	m.planEntries = clonePlanEntries(snapshot.Plan.Entries)
+	m.commands = cloneAvailableCommands(snapshot.Session.AvailableCommands)
+	m.currentModeID = snapshot.Session.CurrentModeID
+	m.status = snapshot.Session.Status
+	m.runtimeNoticeN = countRuntimeNotices(snapshot.Entries)
+	m.revision = snapshot.Revision
+}
+
 func (m *ViewModel) Apply(update model.SessionUpdate) (SessionViewSnapshot, bool) {
 	if !m.apply(update) {
 		return SessionViewSnapshot{}, false
@@ -334,6 +347,33 @@ func buildVisibleEntries(entries []sessionViewEntry) []Entry {
 	}
 
 	return visible
+}
+
+func restoreEntries(entries []Entry) []sessionViewEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	restored := make([]sessionViewEntry, 0, len(entries))
+	for _, entry := range entries {
+		restored = append(restored, sessionViewEntry{
+			ID:            entry.ID,
+			Kind:          entry.Kind,
+			ToolCallID:    entry.ToolCallID,
+			ToolCallState: entry.ToolCallState,
+			Blocks:        cloneContentBlocks(entry.Blocks),
+		})
+	}
+	return restored
+}
+
+func countRuntimeNotices(entries []Entry) int {
+	total := 0
+	for _, entry := range entries {
+		if entry.Kind == EntryKindRuntimeNotice {
+			total++
+		}
+	}
+	return total
 }
 
 func buildVisibleEntry(entry sessionViewEntry) Entry {

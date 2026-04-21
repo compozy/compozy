@@ -441,9 +441,10 @@ func (m *uiModel) handleWindowSize(v tea.WindowSizeMsg) {
 func (m *uiModel) refreshViewportContent() {
 	if len(m.jobs) == 0 {
 		if m.sidebarContent != "" {
-			setSidebarViewportContent(&m.sidebarViewport, "")
+			m.applySidebarViewportContent("")
 			m.sidebarContent = ""
 		}
+		m.timelineMounted = invalidTimelineMountState()
 		m.sidebarDirty = false
 		return
 	}
@@ -466,7 +467,7 @@ func (m *uiModel) refreshSidebarContent() {
 	}
 	content := strings.Join(items, "\n")
 	if content != m.sidebarContent {
-		setSidebarViewportContent(&m.sidebarViewport, content)
+		m.applySidebarViewportContent(content)
 		m.sidebarContent = content
 	}
 	m.sidebarDirty = false

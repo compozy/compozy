@@ -22,33 +22,36 @@ import (
 )
 
 type uiModel struct {
-	jobs               []uiJob
-	total              int
-	completed          int
-	failed             int
-	frame              int
-	now                time.Time
-	onQuit             func(uiQuitRequest)
-	transcriptViewport viewport.Model
-	sidebarViewport    viewport.Model
-	progressBar        progress.Model
-	selectedJob        int
-	width              int
-	height             int
-	sidebarWidth       int
-	timelineWidth      int
-	contentHeight      int
-	layoutMode         uiLayoutMode
-	currentView        uiViewState
-	focusedPane        uiPane
-	quitDialog         quitDialogState
-	shutdown           shutdownState
-	failures           []failInfo
-	aggregateUsage     *model.Usage
-	cfg                *config
-	sidebarDirty       bool
-	sidebarContent     string
-	spinnerRunning     bool
+	jobs                         []uiJob
+	total                        int
+	completed                    int
+	failed                       int
+	frame                        int
+	now                          time.Time
+	onQuit                       func(uiQuitRequest)
+	transcriptViewport           viewport.Model
+	sidebarViewport              viewport.Model
+	progressBar                  progress.Model
+	selectedJob                  int
+	width                        int
+	height                       int
+	sidebarWidth                 int
+	timelineWidth                int
+	contentHeight                int
+	layoutMode                   uiLayoutMode
+	currentView                  uiViewState
+	focusedPane                  uiPane
+	quitDialog                   quitDialogState
+	shutdown                     shutdownState
+	failures                     []failInfo
+	aggregateUsage               *model.Usage
+	cfg                          *config
+	sidebarDirty                 bool
+	sidebarContent               string
+	spinnerRunning               bool
+	timelineMounted              timelineMountState
+	setTranscriptViewportContent func(vp *viewport.Model, content string)
+	setSidebarViewportContent    func(vp *viewport.Model, content string)
 }
 
 type uiController struct {
@@ -105,24 +108,27 @@ func newUIModel(total int) *uiModel {
 		initialContentHeight = minContentHeight
 	}
 	mdl := &uiModel{
-		total:              total,
-		transcriptViewport: transcriptVp,
-		sidebarViewport:    sidebarVp,
-		progressBar:        pb,
-		selectedJob:        0,
-		width:              defaultWidth,
-		height:             defaultHeight,
-		sidebarWidth:       initialSidebarWidth,
-		timelineWidth:      initialMainWidth,
-		contentHeight:      initialContentHeight,
-		layoutMode:         uiLayoutSplit,
-		currentView:        uiViewJobs,
-		focusedPane:        uiPaneJobs,
-		quitDialog:         newQuitDialogState(),
-		failures:           []failInfo{},
-		aggregateUsage:     &model.Usage{},
-		sidebarDirty:       true,
-		now:                time.Now(),
+		total:                        total,
+		transcriptViewport:           transcriptVp,
+		sidebarViewport:              sidebarVp,
+		progressBar:                  pb,
+		selectedJob:                  0,
+		width:                        defaultWidth,
+		height:                       defaultHeight,
+		sidebarWidth:                 initialSidebarWidth,
+		timelineWidth:                initialMainWidth,
+		contentHeight:                initialContentHeight,
+		layoutMode:                   uiLayoutSplit,
+		currentView:                  uiViewJobs,
+		focusedPane:                  uiPaneJobs,
+		quitDialog:                   newQuitDialogState(),
+		failures:                     []failInfo{},
+		aggregateUsage:               &model.Usage{},
+		sidebarDirty:                 true,
+		now:                          time.Now(),
+		timelineMounted:              invalidTimelineMountState(),
+		setTranscriptViewportContent: setTranscriptViewportContent,
+		setSidebarViewportContent:    setSidebarViewportContent,
 	}
 	layout := mdl.computeLayout(defaultWidth, defaultHeight)
 	mdl.layoutMode = layout.mode
@@ -131,6 +137,28 @@ func newUIModel(total int) *uiModel {
 	mdl.contentHeight = layout.contentHeight
 	mdl.configureViewports(layout)
 	return mdl
+}
+
+func (m *uiModel) applyTranscriptViewportContent(content string) {
+	if m == nil {
+		return
+	}
+	setter := m.setTranscriptViewportContent
+	if setter == nil {
+		setter = setTranscriptViewportContent
+	}
+	setter(&m.transcriptViewport, content)
+}
+
+func (m *uiModel) applySidebarViewportContent(content string) {
+	if m == nil {
+		return
+	}
+	setter := m.setSidebarViewportContent
+	if setter == nil {
+		setter = setSidebarViewportContent
+	}
+	setter(&m.sidebarViewport, content)
 }
 
 func (m *uiModel) Init() tea.Cmd {
@@ -385,21 +413,29 @@ func (c *uiController) takePendingInputs() []any {
 }
 
 func (c *uiController) prepareDispatchBatch(inputs []any) dispatchBatchMsg {
+	translator := c.translator
+	if translator == nil {
+		translator = newUIEventTranslator()
+		c.translator = translator
+	}
 	accumulator := newUIDispatchAccumulator()
 	for _, input := range inputs {
 		switch value := input.(type) {
 		case events.Event:
-			for _, msg := range c.translator.translateMessages(value) {
+			for _, msg := range translator.translateMessages(value) {
 				accumulator.add(msg)
 			}
 		case *events.Event:
 			if value == nil {
 				continue
 			}
-			for _, msg := range c.translator.translateMessages(*value) {
+			for _, msg := range translator.translateMessages(*value) {
 				accumulator.add(msg)
 			}
 		case uiMsg:
+			if update, ok := value.(jobUpdateMsg); ok && update.HydrateTranslator {
+				translator.hydrateSessionView(update.Index, update.Snapshot)
+			}
 			accumulator.add(value)
 		}
 	}
@@ -407,22 +443,21 @@ func (c *uiController) prepareDispatchBatch(inputs []any) dispatchBatchMsg {
 }
 
 type uiDispatchAccumulator struct {
-	jobUpdates map[int]jobUpdateMsg
+	jobUpdates []jobUpdateMsg
 	usages     map[int]model.Usage
 	msgs       []uiMsg
 }
 
 func newUIDispatchAccumulator() *uiDispatchAccumulator {
 	return &uiDispatchAccumulator{
-		jobUpdates: make(map[int]jobUpdateMsg),
-		usages:     make(map[int]model.Usage),
+		usages: make(map[int]model.Usage),
 	}
 }
 
 func (a *uiDispatchAccumulator) add(msg uiMsg) {
 	switch value := msg.(type) {
 	case jobUpdateMsg:
-		a.jobUpdates[value.Index] = value
+		a.addJobUpdate(value)
 	case usageUpdateMsg:
 		current := a.usages[value.Index]
 		current.Add(value.Usage)
@@ -433,17 +468,23 @@ func (a *uiDispatchAccumulator) add(msg uiMsg) {
 	}
 }
 
+func (a *uiDispatchAccumulator) addJobUpdate(msg jobUpdateMsg) {
+	if len(a.jobUpdates) == 0 {
+		a.jobUpdates = append(a.jobUpdates, msg)
+		return
+	}
+	last := &a.jobUpdates[len(a.jobUpdates)-1]
+	if canCoalesceJobUpdate(*last, msg) {
+		*last = msg
+		return
+	}
+	a.jobUpdates = append(a.jobUpdates, msg)
+}
+
 func (a *uiDispatchAccumulator) flushCoalesced() {
 	if len(a.jobUpdates) > 0 {
-		indexes := make([]int, 0, len(a.jobUpdates))
-		for index := range a.jobUpdates {
-			indexes = append(indexes, index)
-		}
-		sort.Ints(indexes)
-		for _, index := range indexes {
-			a.msgs = append(a.msgs, a.jobUpdates[index])
-		}
-		clear(a.jobUpdates)
+		a.msgs = append(a.msgs, a.jobUpdatesAsUI()...)
+		a.jobUpdates = nil
 	}
 	if len(a.usages) > 0 {
 		indexes := make([]int, 0, len(a.usages))
@@ -461,6 +502,17 @@ func (a *uiDispatchAccumulator) flushCoalesced() {
 	}
 }
 
+func (a *uiDispatchAccumulator) jobUpdatesAsUI() []uiMsg {
+	if len(a.jobUpdates) == 0 {
+		return nil
+	}
+	msgs := make([]uiMsg, 0, len(a.jobUpdates))
+	for idx := range a.jobUpdates {
+		msgs = append(msgs, a.jobUpdates[idx])
+	}
+	return msgs
+}
+
 func (a *uiDispatchAccumulator) batch() dispatchBatchMsg {
 	a.flushCoalesced()
 	if len(a.msgs) == 0 {
@@ -469,9 +521,65 @@ func (a *uiDispatchAccumulator) batch() dispatchBatchMsg {
 	return dispatchBatchMsg{msgs: append([]uiMsg(nil), a.msgs...)}
 }
 
+func canCoalesceJobUpdate(previous jobUpdateMsg, next jobUpdateMsg) bool {
+	if !sameJobUpdateSurface(previous, next) {
+		return false
+	}
+	previousTail, ok := snapshotTailEntry(previous.Snapshot)
+	if !ok {
+		return false
+	}
+	nextTail, ok := snapshotTailEntry(next.Snapshot)
+	if !ok {
+		return false
+	}
+	if previousTail.ID == "" || previousTail.ID != nextTail.ID || previousTail.Kind != nextTail.Kind {
+		return false
+	}
+
+	switch next.UpdateKind {
+	case model.UpdateKindAgentMessageChunk:
+		return tailMatchesTranscriptKind(nextTail, transcriptEntryAssistantMessage)
+	case model.UpdateKindAgentThoughtChunk:
+		return tailMatchesTranscriptKind(nextTail, transcriptEntryAssistantThinking)
+	case model.UpdateKindToolCallUpdated:
+		return sameToolCallProgressUpdate(previous, next) &&
+			tailMatchesTranscriptKind(nextTail, transcriptEntryToolCall)
+	default:
+		return false
+	}
+}
+
+func sameJobUpdateSurface(previous jobUpdateMsg, next jobUpdateMsg) bool {
+	if previous.Index != next.Index || previous.HydrateTranslator || next.HydrateTranslator {
+		return false
+	}
+	if previous.UpdateKind != next.UpdateKind || next.UpdateKind == model.UpdateKindUnknown {
+		return false
+	}
+	return previous.SessionStatus == next.SessionStatus
+}
+
+func sameToolCallProgressUpdate(previous jobUpdateMsg, next jobUpdateMsg) bool {
+	return previous.ToolCallID != "" &&
+		previous.ToolCallID == next.ToolCallID &&
+		previous.ToolCallState == next.ToolCallState
+}
+
+func tailMatchesTranscriptKind(entry TranscriptEntry, kind transcriptEntryKind) bool {
+	return entry.Kind == kind
+}
+
+func snapshotTailEntry(snapshot SessionViewSnapshot) (TranscriptEntry, bool) {
+	if len(snapshot.Entries) == 0 {
+		return TranscriptEntry{}, false
+	}
+	return snapshot.Entries[len(snapshot.Entries)-1], true
+}
+
 func inputRequiresImmediateDispatch(msg any) bool {
 	switch value := msg.(type) {
-	case jobQueuedMsg, jobStartedMsg, jobRetryMsg, jobFinishedMsg, shutdownStatusMsg, jobFailureMsg:
+	case jobQueuedMsg, jobStartedMsg, jobRetryMsg, jobFinishedMsg, jobUpdateMsg, shutdownStatusMsg, jobFailureMsg:
 		return true
 	case events.Event:
 		switch value.Kind {
@@ -481,6 +589,7 @@ func inputRequiresImmediateDispatch(msg any) bool {
 			events.EventKindJobRetryScheduled,
 			events.EventKindJobFailed,
 			events.EventKindJobCancelled,
+			events.EventKindSessionUpdate,
 			events.EventKindShutdownRequested,
 			events.EventKindShutdownDraining,
 			events.EventKindShutdownTerminated:
@@ -750,9 +859,17 @@ func (t *uiEventTranslator) translateSessionUpdate(ev events.Event) (uiMsg, bool
 		snapshot = viewModel.Snapshot()
 	}
 	return jobUpdateMsg{
-		Index:    payload.Index,
-		Snapshot: snapshot,
+		Index:         payload.Index,
+		Snapshot:      snapshot,
+		UpdateKind:    update.Kind,
+		ToolCallID:    update.ToolCallID,
+		ToolCallState: update.ToolCallState,
+		SessionStatus: update.Status,
 	}, true
+}
+
+func (t *uiEventTranslator) hydrateSessionView(index int, snapshot SessionViewSnapshot) {
+	t.sessionView(index).LoadSnapshot(snapshot)
 }
 
 func (t *uiEventTranslator) sessionView(index int) *sessionViewModel {
