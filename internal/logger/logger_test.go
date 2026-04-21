@@ -2,6 +2,7 @@ package logger
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -115,9 +116,15 @@ func TestOpenRotatingFileKeepsWritingAfterRotationFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openRotatingFile() error = %v", err)
 	}
-	defer func() {
-		_ = writer.Close()
-	}()
+	closed := false
+	t.Cleanup(func() {
+		if closed {
+			return
+		}
+		if err := writer.Close(); err != nil {
+			t.Errorf("Cleanup Close() error = %v", err)
+		}
+	})
 
 	if _, err := writer.Write([]byte("seed-entry\n")); err != nil {
 		t.Fatalf("Write(seed) error = %v", err)
@@ -133,6 +140,11 @@ func TestOpenRotatingFileKeepsWritingAfterRotationFailure(t *testing.T) {
 
 	if _, err := writer.Write([]byte("rotate-now\n")); err == nil {
 		t.Fatal("Write(rotation failure) error = nil, want non-nil")
+	} else {
+		var pathErr *os.PathError
+		if !errors.As(err, &pathErr) {
+			t.Fatalf("Write(rotation failure) error = %v, want wrapped *os.PathError", err)
+		}
 	}
 
 	if err := os.Remove(filepath.Join(blocker, "keep")); err != nil {
@@ -149,6 +161,7 @@ func TestOpenRotatingFileKeepsWritingAfterRotationFailure(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatalf("Close() error = %v", err)
 	}
+	closed = true
 
 	if _, err := os.Stat(logPath); err != nil {
 		t.Fatalf("Stat(%q) error = %v", logPath, err)
@@ -159,8 +172,12 @@ func TestOpenRotatingFileKeepsWritingAfterRotationFailure(t *testing.T) {
 }
 
 func TestValidateDaemonFilePathRejectsEmptyPath(t *testing.T) {
-	if err := ValidateDaemonFilePath(" "); err == nil {
+	err := ValidateDaemonFilePath(" ")
+	if err == nil {
 		t.Fatal("ValidateDaemonFilePath(empty) error = nil, want non-nil")
+	}
+	if got, want := err.Error(), "logger: daemon log file path is required"; got != want {
+		t.Fatalf("ValidateDaemonFilePath(empty) error = %q, want %q", got, want)
 	}
 }
 

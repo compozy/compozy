@@ -240,7 +240,10 @@ func TestStreamRunEmitsCanonicalEventHeartbeatAndOverflowPayloads(t *testing.T) 
 	}
 	request.Header.Set(core.HeaderRequestID, "req-stream")
 
-	response, err := http.DefaultClient.Do(request)
+	client := server.Client()
+	client.Timeout = 5 * time.Second
+
+	response, err := client.Do(request)
 	if err != nil {
 		t.Fatalf("Do() error = %v", err)
 	}

@@ -3,6 +3,8 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -387,8 +389,13 @@ func startManagedDaemonHelperProcess(
 	}
 	t.Cleanup(func() {
 		if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
-			_ = cmd.Process.Kill()
-			_, _ = cmd.Process.Wait()
+			if err := killTestProcess(cmd); err != nil {
+				t.Errorf("kill managed helper process during cleanup: %v", err)
+				return
+			}
+			if err := waitTestProcess(cmd); err != nil {
+				t.Errorf("wait managed helper process during cleanup: %v", err)
+			}
 		}
 	})
 	return cmd, output
@@ -409,7 +416,9 @@ func killDaemonHelperProcess(t *testing.T, cmd *exec.Cmd, sig syscall.Signal) {
 	if cmd == nil || cmd.Process == nil {
 		return
 	}
-	_ = cmd.Process.Signal(sig)
+	if err := signalTestProcess(cmd, sig); err != nil {
+		t.Fatalf("signal helper process with %s: %v", sig, err)
+	}
 	done := make(chan error, 1)
 	go func() {
 		done <- cmd.Wait()
@@ -421,7 +430,9 @@ func killDaemonHelperProcess(t *testing.T, cmd *exec.Cmd, sig syscall.Signal) {
 			t.Fatalf("wait helper process: %v", err)
 		}
 	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
+		if err := killTestProcess(cmd); err != nil {
+			t.Fatalf("timed out waiting for helper process shutdown; Kill() error = %v", err)
+		}
 		t.Fatal("timed out waiting for helper process shutdown")
 	}
 }
@@ -469,23 +480,23 @@ func waitForManagedDaemonReady(
 		<-ticker.C
 	}
 
-	info, _ := ReadInfo(paths.InfoPath)
-	logData, _ := os.ReadFile(paths.LogFile)
+	infoSummary := describeDaemonInfoForFailure(paths.InfoPath)
+	logSummary := readDiagnosticFileForFailure(paths.LogFile)
 	if output == nil {
 		t.Fatalf(
-			"managed daemon did not become transport-healthy for pid %d within timeout\ninfo=%#v\nlog=%s",
+			"managed daemon did not become transport-healthy for pid %d within timeout\ninfo=%s\nlog=%s",
 			wantPID,
-			info,
-			logData,
+			infoSummary,
+			logSummary,
 		)
 	}
 	t.Fatalf(
-		"managed daemon did not become transport-healthy for pid %d within timeout\ninfo=%#v\nstdout=%s\nstderr=%s\nlog=%s",
+		"managed daemon did not become transport-healthy for pid %d within timeout\ninfo=%s\nstdout=%s\nstderr=%s\nlog=%s",
 		wantPID,
-		info,
+		infoSummary,
 		output.stdout.String(),
 		output.stderr.String(),
-		logData,
+		logSummary,
 	)
 }
 
@@ -503,7 +514,9 @@ func waitForDaemonProcessExit(t *testing.T, cmd *exec.Cmd) {
 			t.Fatalf("wait daemon process: %v", err)
 		}
 	case <-time.After(10 * time.Second):
-		_ = cmd.Process.Kill()
+		if err := killTestProcess(cmd); err != nil {
+			t.Fatalf("timed out waiting for daemon process exit; Kill() error = %v", err)
+		}
 		t.Fatal("timed out waiting for daemon process exit")
 	}
 }
@@ -547,10 +560,61 @@ func waitForLogContains(t *testing.T, path string, pattern string) {
 		select {
 		case <-ticker.C:
 		case <-timeout.C:
-			data, _ := os.ReadFile(path)
-			t.Fatalf("log %q did not contain %q within timeout\n%s", path, pattern, data)
+			t.Fatalf(
+				"log %q did not contain %q within timeout\n%s",
+				path,
+				pattern,
+				readDiagnosticFileForFailure(path),
+			)
 		}
 	}
+}
+
+func signalTestProcess(cmd *exec.Cmd, sig os.Signal) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	if err := cmd.Process.Signal(sig); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	return nil
+}
+
+func killTestProcess(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return err
+	}
+	return nil
+}
+
+func waitTestProcess(cmd *exec.Cmd) error {
+	if cmd == nil || cmd.Process == nil {
+		return nil
+	}
+	_, err := cmd.Process.Wait()
+	if err != nil && !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ECHILD) {
+		return err
+	}
+	return nil
+}
+
+func describeDaemonInfoForFailure(path string) string {
+	info, err := ReadInfo(path)
+	if err != nil {
+		return fmt.Sprintf("read daemon info %q: %v", path, err)
+	}
+	return fmt.Sprintf("%#v", info)
+}
+
+func readDiagnosticFileForFailure(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Sprintf("read file %q: %v", path, err)
+	}
+	return string(data)
 }
 
 func waitForStderrContains(t *testing.T, stderr *synchronizedBuffer, pattern string) {
