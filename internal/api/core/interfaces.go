@@ -214,12 +214,12 @@ type TaskCard struct {
 
 // MarkdownDocument is the normalized daemon-served markdown payload.
 type MarkdownDocument struct {
-	ID        string         `json:"id"`
-	Kind      string         `json:"kind"`
-	Title     string         `json:"title"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	Markdown  string         `json:"markdown"`
-	Metadata  map[string]any `json:"metadata,omitempty"`
+	ID        string          `json:"id"`
+	Kind      string          `json:"kind"`
+	Title     string          `json:"title"`
+	UpdatedAt time.Time       `json:"updated_at"`
+	Markdown  string          `json:"markdown"`
+	Metadata  json.RawMessage `json:"metadata,omitempty"`
 }
 
 // WorkflowSpecDocument captures the canonical workflow spec artifacts.

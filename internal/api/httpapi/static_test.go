@@ -119,6 +119,19 @@ func TestStaticRoutesBypassAPIAndMissingAssets(t *testing.T) {
 		t.Fatalf("GET missing asset body = %q, want plain 404", missingAssetResponse.Body.String())
 	}
 
+	directoryResponse := performStaticRequest(t, engine, http.MethodGet, "/assets")
+	if directoryResponse.Code != http.StatusNotFound {
+		t.Fatalf(
+			"GET /assets status = %d, want %d; body=%s",
+			directoryResponse.Code,
+			http.StatusNotFound,
+			directoryResponse.Body.String(),
+		)
+	}
+	if strings.Contains(directoryResponse.Body.String(), "<!doctype html>") {
+		t.Fatalf("GET /assets body = %q, want plain 404", directoryResponse.Body.String())
+	}
+
 	missingAPIResponse := performStaticRequest(t, engine, http.MethodGet, "/api/missing")
 	if missingAPIResponse.Code != http.StatusNotFound {
 		t.Fatalf(
@@ -146,6 +159,7 @@ func performStaticRequest(t *testing.T, engine http.Handler, method string, targ
 	t.Helper()
 
 	request := httptest.NewRequestWithContext(t.Context(), method, target, http.NoBody)
+	request.Host = "example.com"
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
 	return recorder

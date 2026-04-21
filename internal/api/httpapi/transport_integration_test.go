@@ -434,11 +434,8 @@ func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
 		nil,
 		nil,
 	)
-	if statusCode != http.StatusOK {
-		t.Fatalf("legacy dashboard status = %d, want 200", statusCode)
-	}
-	if got := taskSvc.dashboardWorkspace(); got != "ws-legacy" {
-		t.Fatalf("legacy dashboard workspace = %q, want ws-legacy", got)
+	if statusCode != http.StatusPreconditionFailed {
+		t.Fatalf("legacy dashboard status = %d, want 412", statusCode)
 	}
 
 	statusCode, _, body := mustRequest(

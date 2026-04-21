@@ -53,7 +53,7 @@ func (r *documentReader) Read(
 		return MarkdownDocument{}, errors.New("daemon: document path is required")
 	}
 
-	info, err := fileInfo(cleanPath)
+	info, err := regularMarkdownFileInfo(cleanPath)
 	if err != nil {
 		return MarkdownDocument{}, err
 	}
@@ -145,7 +145,7 @@ func readMarkdownDir(root string) ([]markdownDirEntry, error) {
 	if cleanRoot == "." || cleanRoot == "" {
 		return nil, errors.New("daemon: markdown directory is required")
 	}
-	if _, err := fileInfo(cleanRoot); err != nil {
+	if err := fileInfo(cleanRoot); err != nil {
 		return nil, err
 	}
 
@@ -162,6 +162,9 @@ func readMarkdownDir(root string) ([]markdownDirEntry, error) {
 		}
 		if !strings.EqualFold(filepath.Ext(entry.Name()), ".md") {
 			return nil
+		}
+		if entry.Type()&fs.ModeSymlink != 0 {
+			return fmt.Errorf("daemon: symlinked markdown file %q is not allowed", path)
 		}
 
 		info, err := entry.Info()
@@ -200,13 +203,27 @@ func sortMarkdownDirEntries(entries []markdownDirEntry) {
 	})
 }
 
-func fileInfo(path string) (fs.FileInfo, error) {
-	info, err := os.Stat(strings.TrimSpace(path))
+func fileInfo(path string) error {
+	_, err := os.Stat(strings.TrimSpace(path))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrDocumentMissing
+		}
+		return fmt.Errorf("daemon: stat %q: %w", path, err)
+	}
+	return nil
+}
+
+func regularMarkdownFileInfo(path string) (fs.FileInfo, error) {
+	info, err := os.Lstat(strings.TrimSpace(path))
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrDocumentMissing
 		}
 		return nil, fmt.Errorf("daemon: stat %q: %w", path, err)
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return nil, fmt.Errorf("daemon: symlinked markdown file %q is not allowed", path)
 	}
 	return info, nil
 }
@@ -281,9 +298,24 @@ func cloneMetadataMap(src map[string]any) map[string]any {
 	}
 	dst := make(map[string]any, len(src))
 	for key, value := range src {
-		dst[key] = value
+		dst[key] = cloneMetadataValue(value)
 	}
 	return dst
+}
+
+func cloneMetadataValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneMetadataMap(typed)
+	case []any:
+		cloned := make([]any, len(typed))
+		for i := range typed {
+			cloned[i] = cloneMetadataValue(typed[i])
+		}
+		return cloned
+	default:
+		return typed
+	}
 }
 
 func cloneMarkdownDocument(doc MarkdownDocument) MarkdownDocument {

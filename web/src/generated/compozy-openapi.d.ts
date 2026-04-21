@@ -514,9 +514,7 @@ export interface components {
             kind: string;
             markdown: string;
             metadata?: {
-                [key: string]: {
-                    [key: string]: unknown;
-                };
+                [key: string]: unknown;
             };
             title: string;
             /** Format: date-time */

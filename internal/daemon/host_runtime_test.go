@@ -18,9 +18,9 @@ import (
 )
 
 func TestPrepareHostRuntimeStartsTransportsAndProbeReady(t *testing.T) {
-	homeDir, err := os.MkdirTemp("/tmp", "daemon-host-*")
+	homeDir, err := os.MkdirTemp("", "cmp-home-")
 	if err != nil {
-		t.Fatalf("MkdirTemp(/tmp) error = %v", err)
+		t.Fatalf("MkdirTemp() error = %v", err)
 	}
 	t.Cleanup(func() {
 		_ = os.RemoveAll(homeDir)
@@ -46,7 +46,7 @@ func TestPrepareHostRuntimeStartsTransportsAndProbeReady(t *testing.T) {
 		},
 		Healthy: ProbeReady,
 		Prepare: func(startCtx context.Context, currentHost *Host) error {
-			preparedRuntime, err := prepareHostRuntime(startCtx, runCtx, currentHost, func() {})
+			preparedRuntime, err := prepareHostRuntime(startCtx, runCtx, currentHost, func() {}, RunOptions{})
 			if err != nil {
 				return err
 			}

@@ -424,10 +424,7 @@
                         "type": "string"
                     },
                     "metadata": {
-                        "additionalProperties": {
-                            "additionalProperties": true,
-                            "type": "object"
-                        },
+                        "additionalProperties": true,
                         "type": "object"
                     },
                     "title": {

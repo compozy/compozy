@@ -202,31 +202,50 @@ func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 		t.Fatalf("shutdown state = %#v, want forcing/operator", builder.shutdown)
 	}
 
-	if summary := cloneRunJobSummary(
-		apicore.RunJobSummary{CodeFiles: []string{"a.go", "b.go"}},
-	); len(
-		summary.CodeFiles,
-	) != 2 {
-		t.Fatalf("cloneRunJobSummary() = %#v, want copied code files", summary)
-	}
-	if usage := tokenUsageRowToKinds(
-		rundb.TokenUsageRow{InputTokens: 2, OutputTokens: 3, TotalTokens: 5},
-	); usage.TotalTokens != 5 {
-		t.Fatalf("tokenUsageRowToKinds() = %#v, want total 5", usage)
-	}
-	if index, ok := tokenUsageIndex("session-12"); !ok || index != 12 {
-		t.Fatalf("tokenUsageIndex(session-12) = %d, %v; want 12, true", index, ok)
-	}
-	if index, ok := tokenUsageIndex("bad"); ok || index != 0 {
-		t.Fatalf("tokenUsageIndex(bad) = %d, %v; want 0, false", index, ok)
-	}
-	if state := shutdownStateFromPayload(
-		" draining ",
-		" operator ",
-		baseTime,
-		baseTime.Add(time.Second),
-	); state.Phase != "draining" ||
-		state.Source != "operator" {
-		t.Fatalf("shutdownStateFromPayload() = %#v, want trimmed phase/source", state)
-	}
+	t.Run("Should clone run job summary code files", func(t *testing.T) {
+		t.Parallel()
+
+		summary := cloneRunJobSummary(apicore.RunJobSummary{CodeFiles: []string{"a.go", "b.go"}})
+		if len(summary.CodeFiles) != 2 {
+			t.Fatalf("cloneRunJobSummary() = %#v, want copied code files", summary)
+		}
+	})
+
+	t.Run("Should convert token usage rows to usage totals", func(t *testing.T) {
+		t.Parallel()
+
+		usage := tokenUsageRowToKinds(rundb.TokenUsageRow{
+			InputTokens:  2,
+			OutputTokens: 3,
+			TotalTokens:  5,
+		})
+		if usage.TotalTokens != 5 {
+			t.Fatalf("tokenUsageRowToKinds() = %#v, want total 5", usage)
+		}
+	})
+
+	t.Run("Should parse token usage indexes from valid and invalid turn ids", func(t *testing.T) {
+		t.Parallel()
+
+		if index, ok := tokenUsageIndex("session-12"); !ok || index != 12 {
+			t.Fatalf("tokenUsageIndex(session-12) = %d, %v; want 12, true", index, ok)
+		}
+		if index, ok := tokenUsageIndex("bad"); ok || index != 0 {
+			t.Fatalf("tokenUsageIndex(bad) = %d, %v; want 0, false", index, ok)
+		}
+	})
+
+	t.Run("Should trim shutdown payload phase and source", func(t *testing.T) {
+		t.Parallel()
+
+		state := shutdownStateFromPayload(
+			" draining ",
+			" operator ",
+			baseTime,
+			baseTime.Add(time.Second),
+		)
+		if state.Phase != "draining" || state.Source != "operator" {
+			t.Fatalf("shutdownStateFromPayload() = %#v, want trimmed phase/source", state)
+		}
+	})
 }

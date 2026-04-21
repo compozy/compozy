@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"os"
@@ -317,24 +318,43 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 			Title:     "PRD",
 			UpdatedAt: now,
 			Markdown:  "body",
-			Metadata:  map[string]any{"owner": "daemon"},
+			Metadata: map[string]any{
+				"owner": "daemon",
+				"nested": map[string]any{
+					"stage": "draft",
+				},
+			},
 		},
 		ADRs: []MarkdownDocument{{
 			ID:        "adr-001",
 			Kind:      "adr",
 			Title:     "ADR 001",
 			UpdatedAt: now,
-			Metadata:  map[string]any{"stage": "draft"},
+			Metadata: map[string]any{
+				"stage":  "draft",
+				"labels": []any{"rfc"},
+			},
 		}},
 	}
 	specMapped := transportWorkflowSpec(specSource)
-	specMapped.PRD.Metadata["owner"] = "browser"
-	specMapped.ADRs[0].Metadata["stage"] = "accepted"
-	if got := specSource.PRD.Metadata["owner"]; got != "daemon" {
-		t.Fatalf("source PRD metadata mutated = %#v, want daemon", got)
+	specSource.PRD.Metadata["owner"] = "browser"
+	specSource.PRD.Metadata["nested"].(map[string]any)["stage"] = "accepted"
+	specSource.ADRs[0].Metadata["stage"] = "final"
+	specSource.ADRs[0].Metadata["labels"].([]any)[0] = "accepted"
+
+	prdMetadata := mustTransportMetadataMap(t, specMapped.PRD.Metadata)
+	if got := prdMetadata["owner"]; got != "daemon" {
+		t.Fatalf("mapped PRD metadata owner = %#v, want daemon", got)
 	}
-	if got := specSource.ADRs[0].Metadata["stage"]; got != "draft" {
-		t.Fatalf("source ADR metadata mutated = %#v, want draft", got)
+	if got := prdMetadata["nested"].(map[string]any)["stage"]; got != "draft" {
+		t.Fatalf("mapped PRD nested stage = %#v, want draft", got)
+	}
+	adrMetadata := mustTransportMetadataMap(t, specMapped.ADRs[0].Metadata)
+	if got := adrMetadata["stage"]; got != "draft" {
+		t.Fatalf("mapped ADR metadata stage = %#v, want draft", got)
+	}
+	if got := adrMetadata["labels"].([]any)[0]; got != "rfc" {
+		t.Fatalf("mapped ADR metadata label = %#v, want rfc", got)
 	}
 
 	taskSource := TaskDetailPayload{
@@ -343,24 +363,34 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 			DependsOn: []string{"task_0"},
 		},
 		Document: MarkdownDocument{
-			ID:       "task_1",
-			Kind:     "task",
-			Title:    "Task 1",
-			Metadata: map[string]any{"status": "pending"},
+			ID:    "task_1",
+			Kind:  "task",
+			Title: "Task 1",
+			Metadata: map[string]any{
+				"status": "pending",
+				"details": map[string]any{
+					"owner": "daemon",
+				},
+			},
 		},
 		MemoryEntries: []WorkflowMemoryEntry{{FileID: "mem_1"}},
 		RelatedRuns:   []apicore.Run{{RunID: "run-1"}},
 	}
 	taskMapped := transportTaskDetail(taskSource)
 	taskMapped.Task.DependsOn[0] = "task_x"
-	taskMapped.Document.Metadata["status"] = "completed"
 	taskMapped.MemoryEntries[0].FileID = "mem_x"
 	taskMapped.RelatedRuns[0].RunID = "run-x"
+	taskSource.Document.Metadata["status"] = "completed"
+	taskSource.Document.Metadata["details"].(map[string]any)["owner"] = "browser"
 	if got := taskSource.Task.DependsOn[0]; got != "task_0" {
 		t.Fatalf("source task depends_on mutated = %q, want task_0", got)
 	}
-	if got := taskSource.Document.Metadata["status"]; got != "pending" {
-		t.Fatalf("source task document metadata mutated = %#v, want pending", got)
+	taskMetadata := mustTransportMetadataMap(t, taskMapped.Document.Metadata)
+	if got := taskMetadata["status"]; got != "pending" {
+		t.Fatalf("mapped task document status = %#v, want pending", got)
+	}
+	if got := taskMetadata["details"].(map[string]any)["owner"]; got != "daemon" {
+		t.Fatalf("mapped task document owner = %#v, want daemon", got)
 	}
 	if got := taskSource.MemoryEntries[0].FileID; got != "mem_1" {
 		t.Fatalf("source task memory entry mutated = %q, want mem_1", got)
@@ -394,6 +424,19 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 	if got := runSource.ArtifactSync[0].RelativePath; got != "task_01.md" {
 		t.Fatalf("source run artifact sync mutated = %q, want task_01.md", got)
 	}
+}
+
+func mustTransportMetadataMap(t *testing.T, raw json.RawMessage) map[string]any {
+	t.Helper()
+
+	if len(raw) == 0 {
+		return nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+	}
+	return out
 }
 
 func TestMapQueryTransportErrorReturnsTransportProblems(t *testing.T) {

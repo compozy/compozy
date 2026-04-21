@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -195,7 +196,7 @@ func transportMarkdownDocument(doc MarkdownDocument) apicore.MarkdownDocument {
 		Title:     doc.Title,
 		UpdatedAt: doc.UpdatedAt,
 		Markdown:  doc.Markdown,
-		Metadata:  cloneTransportMetadataMap(doc.Metadata),
+		Metadata:  marshalTransportMetadata(doc.Metadata),
 	}
 }
 
@@ -412,9 +413,35 @@ func cloneTransportMetadataMap(metadata map[string]any) map[string]any {
 	}
 	cloned := make(map[string]any, len(metadata))
 	for key, value := range metadata {
-		cloned[key] = value
+		cloned[key] = cloneTransportMetadataValue(value)
 	}
 	return cloned
+}
+
+func cloneTransportMetadataValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneTransportMetadataMap(typed)
+	case []any:
+		cloned := make([]any, len(typed))
+		for i := range typed {
+			cloned[i] = cloneTransportMetadataValue(typed[i])
+		}
+		return cloned
+	default:
+		return typed
+	}
+}
+
+func marshalTransportMetadata(metadata map[string]any) json.RawMessage {
+	if len(metadata) == 0 {
+		return nil
+	}
+	body, err := json.Marshal(cloneTransportMetadataMap(metadata))
+	if err != nil {
+		return nil
+	}
+	return json.RawMessage(body)
 }
 
 func resolveTransportQueryService(

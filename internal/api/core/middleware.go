@@ -26,9 +26,6 @@ type activeWorkspaceContextKey struct{}
 
 // WithRequestID returns a child context carrying the transport request ID.
 func WithRequestID(ctx context.Context, requestID string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, requestIDContextKey{}, strings.TrimSpace(requestID))
 }
 
@@ -46,9 +43,6 @@ func RequestIDFromContext(ctx context.Context) string {
 
 // WithActiveWorkspaceID returns a child context carrying the resolved active workspace ID.
 func WithActiveWorkspaceID(ctx context.Context, workspaceID string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	return context.WithValue(ctx, activeWorkspaceContextKey{}, strings.TrimSpace(workspaceID))
 }
 

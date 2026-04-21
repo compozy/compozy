@@ -44,9 +44,10 @@ func TestBrowserMiddlewareWorkspaceRoutingHelpers(t *testing.T) {
 }
 
 func TestBrowserMiddlewareRequestDetectionAndCSRFCookies(t *testing.T) {
-	t.Parallel()
-
+	previousMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(previousMode) })
+	t.Parallel()
 
 	t.Run("Should detect browser requests from Origin and fetch headers", func(t *testing.T) {
 		t.Parallel()

@@ -155,6 +155,82 @@ func TestQueryHelperDirectoryAndStatusBranches(t *testing.T) {
 	}
 }
 
+func TestQueryHelpersProtectMarkdownDocumentsFromSymlinkAndMetadataAliasing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject symlinked markdown entries during directory scans", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		target := filepath.Join(t.TempDir(), "secret.md")
+		if err := os.WriteFile(target, []byte("# Secret\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(secret.md) error = %v", err)
+		}
+
+		linkPath := filepath.Join(root, "linked.md")
+		if err := os.Symlink(target, linkPath); err != nil {
+			t.Skipf("os.Symlink() unavailable: %v", err)
+		}
+
+		if _, err := readMarkdownDir(root); err == nil || !strings.Contains(err.Error(), "symlinked markdown file") {
+			t.Fatalf("readMarkdownDir(symlink) error = %v, want symlink rejection", err)
+		}
+	})
+
+	t.Run("Should reject direct reads of symlinked markdown files", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		target := filepath.Join(t.TempDir(), "secret.md")
+		if err := os.WriteFile(target, []byte("# Secret\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(secret.md) error = %v", err)
+		}
+
+		linkPath := filepath.Join(root, "linked.md")
+		if err := os.Symlink(target, linkPath); err != nil {
+			t.Skipf("os.Symlink() unavailable: %v", err)
+		}
+
+		reader := newDocumentReader()
+		if _, err := reader.Read(context.Background(), linkPath, "memory", "mem_1"); err == nil ||
+			!strings.Contains(err.Error(), "symlinked markdown file") {
+			t.Fatalf("Read(symlink) error = %v, want symlink rejection", err)
+		}
+	})
+
+	t.Run("Should deep clone nested metadata collections", func(t *testing.T) {
+		t.Parallel()
+
+		source := map[string]any{
+			"owner": "daemon",
+			"nested": map[string]any{
+				"state": "draft",
+				"items": []any{
+					map[string]any{"label": "first"},
+				},
+			},
+		}
+
+		cloned := cloneMetadataMap(source)
+		cloned["owner"] = "browser"
+		clonedNested := cloned["nested"].(map[string]any)
+		clonedNested["state"] = "accepted"
+		clonedItems := clonedNested["items"].([]any)
+		clonedItems[0].(map[string]any)["label"] = "changed"
+
+		if got := source["owner"]; got != "daemon" {
+			t.Fatalf("source owner = %#v, want daemon", got)
+		}
+		sourceNested := source["nested"].(map[string]any)
+		if got := sourceNested["state"]; got != "draft" {
+			t.Fatalf("source nested state = %#v, want draft", got)
+		}
+		if got := sourceNested["items"].([]any)[0].(map[string]any)["label"]; got != "first" {
+			t.Fatalf("source nested label = %#v, want first", got)
+		}
+	})
+}
+
 func TestQueryServiceReadHelpersHandleOptionalAndErrorBranches(t *testing.T) {
 	env := newRunManagerTestEnv(t, runManagerTestDeps{})
 

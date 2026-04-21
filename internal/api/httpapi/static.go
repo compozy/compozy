@@ -60,6 +60,10 @@ func (h *staticHandler) serve(c *gin.Context) {
 	}
 
 	if assetPath, ok := h.resolveAsset(requestPath); ok {
+		if assetPath == "" {
+			respondStaticNotFound(c)
+			return
+		}
 		h.serveAsset(c, assetPath)
 		return
 	}
@@ -81,8 +85,11 @@ func (h *staticHandler) resolveAsset(requestPath string) (string, bool) {
 		return "index.html", true
 	}
 	info, err := fs.Stat(h.staticFS, assetPath)
-	if err != nil || info.IsDir() {
+	if err != nil {
 		return "", false
+	}
+	if info.IsDir() {
+		return "", true
 	}
 	return assetPath, true
 }

@@ -73,7 +73,14 @@ func (s *Server) activeWorkspaceMiddleware() gin.HandlerFunc {
 
 		workspaceID := strings.TrimSpace(c.GetHeader(core.HeaderActiveWorkspaceID))
 		if workspaceID == "" {
-			c.Next()
+			core.RespondError(c, core.NewProblem(
+				http.StatusPreconditionFailed,
+				"workspace_context_missing",
+				"active workspace context is required",
+				map[string]any{"header": core.HeaderActiveWorkspaceID},
+				nil,
+			))
+			c.Abort()
 			return
 		}
 		if s.handlers == nil || s.handlers.Workspaces == nil {
@@ -298,7 +305,8 @@ func splitAuthority(authority string) (string, string) {
 	if err == nil {
 		return normalizeAuthorityHost(host), strings.TrimSpace(port)
 	}
-	if strings.Contains(err.Error(), "missing port in address") {
+	var addrErr *net.AddrError
+	if errors.As(err, &addrErr) && strings.EqualFold(strings.TrimSpace(addrErr.Err), "missing port in address") {
 		return normalizeAuthorityHost(trimmed), ""
 	}
 	return "", ""

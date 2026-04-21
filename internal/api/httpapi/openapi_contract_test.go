@@ -17,6 +17,31 @@ import (
 
 var ginPathParamPattern = regexp.MustCompile(`:([A-Za-z_][A-Za-z0-9_]*)`)
 
+var openAPIOperationMethods = map[string]struct{}{
+	"delete":  {},
+	"get":     {},
+	"head":    {},
+	"options": {},
+	"patch":   {},
+	"post":    {},
+	"put":     {},
+	"trace":   {},
+}
+
+var browserRouteExclusions = map[string]struct{}{
+	"DELETE /api/workspaces/{id}":            {},
+	"GET /api/reviews/{slug}/rounds/{round}": {},
+	"GET /api/runs/{run_id}/events":          {},
+	"GET /api/tasks/{slug}/items":            {},
+	"GET /api/workspaces/{id}":               {},
+	"PATCH /api/workspaces/{id}":             {},
+	"POST /api/daemon/stop":                  {},
+	"POST /api/exec":                         {},
+	"POST /api/reviews/{slug}/fetch":         {},
+	"POST /api/tasks/{slug}/validate":        {},
+	"POST /api/workspaces":                   {},
+}
+
 func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 	t.Parallel()
 
@@ -60,7 +85,7 @@ func TestBrowserOpenAPIContractMatchesRegisteredBrowserRoutes(t *testing.T) {
 	engine := gin.New()
 	httpapi.RegisterRoutes(engine, handlers)
 
-	registered := registeredBrowserRouteKeys(engine.Routes(), expected)
+	registered := registeredBrowserRouteKeys(engine.Routes())
 	if diff := diffRoutes(expected, registered); diff != "" {
 		t.Fatalf("registered browser route set drifted:\n%s", diff)
 	}
@@ -198,6 +223,9 @@ func openAPIContractRouteKeys(t *testing.T, spec map[string]any) []string {
 			t.Fatalf("paths[%s] = %T, want object", path, rawPathItem)
 		}
 		for method := range pathItem {
+			if !isOpenAPIOperationMethod(method) {
+				continue
+			}
 			keys = append(keys, strings.ToUpper(method)+" "+path)
 		}
 	}
@@ -205,21 +233,27 @@ func openAPIContractRouteKeys(t *testing.T, spec map[string]any) []string {
 	return keys
 }
 
-func registeredBrowserRouteKeys(routes gin.RoutesInfo, expected []string) []string {
-	expectedSet := make(map[string]struct{}, len(expected))
-	for _, route := range expected {
-		expectedSet[route] = struct{}{}
-	}
-
-	keys := make([]string, 0, len(expected))
+func registeredBrowserRouteKeys(routes gin.RoutesInfo) []string {
+	keys := make([]string, 0, len(routes))
+	seen := make(map[string]struct{}, len(routes))
 	for _, route := range routes {
 		key := route.Method + " " + ginPathParamPattern.ReplaceAllString(route.Path, "{$1}")
-		if _, ok := expectedSet[key]; ok {
-			keys = append(keys, key)
+		if _, skip := browserRouteExclusions[key]; skip {
+			continue
 		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func isOpenAPIOperationMethod(method string) bool {
+	_, ok := openAPIOperationMethods[strings.ToLower(strings.TrimSpace(method))]
+	return ok
 }
 
 func getOperation(t *testing.T, spec map[string]any, routeKey string) map[string]any {
