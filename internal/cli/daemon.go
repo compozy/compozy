@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"strconv"
@@ -26,6 +27,7 @@ var (
 const (
 	daemonHTTPPortEnv            = "COMPOZY_DAEMON_HTTP_PORT"
 	daemonWebDevProxyEnv         = "COMPOZY_WEB_DEV_PROXY"
+	daemonWebDevProxyFlag        = "--web-dev-proxy"
 	daemonStartInternalChildFlag = "internal-child"
 )
 
@@ -183,8 +185,21 @@ func (s *daemonStartState) run(cmd *cobra.Command, _ []string) error {
 		return runCLIDaemonForeground(commandContextOrBackground(cmd), runOptions)
 	}
 
-	restoreEnv := overrideDaemonWebDevProxyEnv(runOptions.WebDevProxyTarget)
-	defer restoreEnv()
+	restoreEnv, err := overrideDaemonWebDevProxyEnv(runOptions.WebDevProxyTarget)
+	if err != nil {
+		return withExitCode(2, err)
+	}
+	defer func() {
+		if restoreErr := restoreEnv(); restoreErr != nil {
+			slog.Warn(
+				"failed to restore daemon web dev proxy override",
+				"env",
+				daemonWebDevProxyEnv,
+				"error",
+				restoreErr,
+			)
+		}
+	}()
 
 	ctx, stop := signalCommandContext(cmd)
 	defer stop()
@@ -303,7 +318,7 @@ func commandContextOrBackground(cmd *cobra.Command) context.Context {
 
 func resolveDaemonWebDevProxyTarget(flagValue string) (string, error) {
 	if strings.TrimSpace(flagValue) != "" {
-		return normalizeDaemonWebDevProxyTarget(flagValue)
+		return normalizeDaemonWebDevProxyTarget(flagValue, daemonWebDevProxyFlag)
 	}
 	return cliDaemonWebDevProxyFromEnv()
 }
@@ -333,44 +348,52 @@ func cliDaemonWebDevProxyFromEnv() (string, error) {
 	if !ok {
 		return "", nil
 	}
-	return normalizeDaemonWebDevProxyTarget(rawValue)
+	return normalizeDaemonWebDevProxyTarget(rawValue, daemonWebDevProxyEnv)
 }
 
-func normalizeDaemonWebDevProxyTarget(rawValue string) (string, error) {
+func normalizeDaemonWebDevProxyTarget(rawValue string, source string) (string, error) {
 	value := strings.TrimSpace(rawValue)
 	if value == "" {
 		return "", nil
 	}
+	sourceValue := fmt.Sprintf("%s=%q", source, rawValue)
 	if !strings.Contains(value, "://") {
-		return "", fmt.Errorf("%s=%q must use http or https", daemonWebDevProxyEnv, rawValue)
+		return "", fmt.Errorf("%s must use http or https", sourceValue)
 	}
 
 	target, err := url.Parse(value)
 	if err != nil {
-		return "", fmt.Errorf("parse %s=%q: %w", daemonWebDevProxyEnv, rawValue, err)
+		return "", fmt.Errorf("parse %s: %w", sourceValue, err)
 	}
 	if target.Scheme != "http" && target.Scheme != "https" {
-		return "", fmt.Errorf("%s=%q must use http or https", daemonWebDevProxyEnv, rawValue)
+		return "", fmt.Errorf("%s must use http or https", sourceValue)
 	}
 	if strings.TrimSpace(target.Host) == "" {
-		return "", fmt.Errorf("%s=%q must include a host", daemonWebDevProxyEnv, rawValue)
+		return "", fmt.Errorf("%s must include a host", sourceValue)
 	}
 	return target.String(), nil
 }
 
-func overrideDaemonWebDevProxyEnv(value string) func() {
+func overrideDaemonWebDevProxyEnv(value string) (func() error, error) {
 	previousValue, hadPrevious := os.LookupEnv(daemonWebDevProxyEnv)
 	if strings.TrimSpace(value) == "" {
-		return func() {}
+		return func() error { return nil }, nil
 	}
-	_ = os.Setenv(daemonWebDevProxyEnv, value)
-	return func() {
+	if err := os.Setenv(daemonWebDevProxyEnv, value); err != nil {
+		return nil, fmt.Errorf("set %s=%q: %w", daemonWebDevProxyEnv, value, err)
+	}
+	return func() error {
 		if hadPrevious {
-			_ = os.Setenv(daemonWebDevProxyEnv, previousValue)
-			return
+			if err := os.Setenv(daemonWebDevProxyEnv, previousValue); err != nil {
+				return fmt.Errorf("restore %s=%q: %w", daemonWebDevProxyEnv, previousValue, err)
+			}
+			return nil
 		}
-		_ = os.Unsetenv(daemonWebDevProxyEnv)
-	}
+		if err := os.Unsetenv(daemonWebDevProxyEnv); err != nil {
+			return fmt.Errorf("unset %s: %w", daemonWebDevProxyEnv, err)
+		}
+		return nil
+	}, nil
 }
 
 func writeDaemonStatusOutput(

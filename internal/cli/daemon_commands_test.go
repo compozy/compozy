@@ -1169,6 +1169,57 @@ func TestCLIDaemonRunOptionsFromEnvRejectsInvalidWebDevProxyTarget(t *testing.T)
 	}
 }
 
+func TestResolveDaemonWebDevProxyTargetRejectsInvalidFlagValueWithFlagContext(t *testing.T) {
+	_, err := resolveDaemonWebDevProxyTarget("ws://127.0.0.1:3000")
+	if err == nil {
+		t.Fatal("expected invalid web dev proxy flag to fail")
+	}
+	if !strings.Contains(err.Error(), daemonWebDevProxyFlag) {
+		t.Fatalf("resolveDaemonWebDevProxyTarget() error = %v, want %s context", err, daemonWebDevProxyFlag)
+	}
+	if strings.Contains(err.Error(), daemonWebDevProxyEnv) {
+		t.Fatalf("resolveDaemonWebDevProxyTarget() error = %v, do not want %s context", err, daemonWebDevProxyEnv)
+	}
+}
+
+func TestOverrideDaemonWebDevProxyEnv(t *testing.T) {
+	t.Run("Should apply and restore a valid override", func(t *testing.T) {
+		t.Setenv(daemonWebDevProxyEnv, "http://127.0.0.1:3000")
+
+		restore, err := overrideDaemonWebDevProxyEnv("http://127.0.0.1:3100")
+		if err != nil {
+			t.Fatalf("overrideDaemonWebDevProxyEnv() error = %v", err)
+		}
+		currentValue, ok := os.LookupEnv(daemonWebDevProxyEnv)
+		if !ok || currentValue != "http://127.0.0.1:3100" {
+			t.Fatalf(
+				"overrideDaemonWebDevProxyEnv() env = (%t, %q), want (%t, %q)",
+				ok,
+				currentValue,
+				true,
+				"http://127.0.0.1:3100",
+			)
+		}
+		if err := restore(); err != nil {
+			t.Fatalf("restore() error = %v", err)
+		}
+		restoredValue, ok := os.LookupEnv(daemonWebDevProxyEnv)
+		if !ok || restoredValue != "http://127.0.0.1:3000" {
+			t.Fatalf("restore() env = (%t, %q), want (%t, %q)", ok, restoredValue, true, "http://127.0.0.1:3000")
+		}
+	})
+
+	t.Run("Should reject values os.Setenv cannot store", func(t *testing.T) {
+		restore, err := overrideDaemonWebDevProxyEnv("http://127.0.0.1:3100\x00")
+		if err == nil {
+			t.Fatal("overrideDaemonWebDevProxyEnv() error = nil, want non-nil")
+		}
+		if restore != nil {
+			t.Fatal("overrideDaemonWebDevProxyEnv() restore should be nil on failure")
+		}
+	})
+}
+
 func TestDaemonStartCommandFlagOverridesInvalidWebDevProxyEnv(t *testing.T) {
 	acquireCLITestGlobalOverride(t)
 

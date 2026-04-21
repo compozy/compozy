@@ -159,7 +159,7 @@ verify: frontend-verify fmt lint test go-build frontend-e2e
 # Development & Dependencies
 # -----------------------------------------------------------------------------
 dev: go-build
-	./bin/compozy daemon start --foreground --web-dev-proxy http://127.0.0.1:3000
+	./$(BINARY_DIR)/$(BINARY_NAME) daemon start --foreground --web-dev-proxy http://127.0.0.1:3000
 
 tidy:
 	@echo "Tidying modules..."

@@ -114,7 +114,7 @@ func TestQueryHelperErrorsAndDocumentTitles(t *testing.T) {
 			want: "Memory",
 		},
 		{
-			name: "Should fall back to a title-cased filename",
+			name: "Should fall back to the normalized filename",
 			path: "design_notes.md",
 			kind: "doc",
 			body: "no heading",
@@ -185,8 +185,11 @@ func TestQueryHelperDirectoryAndStatusBranches(t *testing.T) {
 	t.Run("Should reject empty markdown directory paths", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := readMarkdownDir(" "); err == nil {
-			t.Fatal("readMarkdownDir(empty) error = nil, want non-nil")
+		if _, err := readMarkdownDir(
+			" ",
+		); err == nil ||
+			!strings.Contains(err.Error(), "markdown directory is required") {
+			t.Fatalf("readMarkdownDir(empty) error = %v, want markdown directory required", err)
 		}
 	})
 

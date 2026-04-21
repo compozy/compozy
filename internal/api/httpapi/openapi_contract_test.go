@@ -123,16 +123,21 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/sync",
 	}
 	for _, routeKey := range workspaceScopedRoutes {
-		operation := getOperation(t, spec, routeKey)
-		if !hasParameterRef(operation, "#/components/parameters/ActiveWorkspaceHeader") {
-			t.Fatalf("%s is missing ActiveWorkspaceHeader", routeKey)
-		}
-		if hasParameterRef(operation, "#/components/parameters/WorkspaceQuery") {
-			t.Fatalf("%s unexpectedly advertises WorkspaceQuery", routeKey)
-		}
-		if !hasResponse(operation, "412") {
-			t.Fatalf("%s is missing 412 stale-workspace response", routeKey)
-		}
+		routeKey := routeKey
+		t.Run("Should enforce workspace context for "+routeKey, func(t *testing.T) {
+			t.Parallel()
+
+			operation := getOperation(t, spec, routeKey)
+			if !hasParameterRef(operation, "#/components/parameters/ActiveWorkspaceHeader") {
+				t.Fatalf("%s is missing ActiveWorkspaceHeader", routeKey)
+			}
+			if hasParameterRef(operation, "#/components/parameters/WorkspaceQuery") {
+				t.Fatalf("%s unexpectedly advertises WorkspaceQuery", routeKey)
+			}
+			if !hasResponse(operation, "412") {
+				t.Fatalf("%s is missing 412 stale-workspace response", routeKey)
+			}
+		})
 	}
 
 	postBodies := map[string]string{
@@ -143,10 +148,16 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/workspaces/resolve":                 "#/components/schemas/WorkspaceResolveRequest",
 	}
 	for routeKey, wantRef := range postBodies {
-		operation := getOperation(t, spec, routeKey)
-		if got := requestBodySchemaRef(t, operation); got != wantRef {
-			t.Fatalf("%s request body ref = %q, want %q", routeKey, got, wantRef)
-		}
+		routeKey := routeKey
+		wantRef := wantRef
+		t.Run("Should use the documented request schema for "+routeKey, func(t *testing.T) {
+			t.Parallel()
+
+			operation := getOperation(t, spec, routeKey)
+			if got := requestBodySchemaRef(t, operation); got != wantRef {
+				t.Fatalf("%s request body ref = %q, want %q", routeKey, got, wantRef)
+			}
+		})
 	}
 
 	taskRunSchema := getSchema(t, spec, "TaskRunRequest")
@@ -176,9 +187,14 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 
 	transportError := getSchema(t, spec, "TransportError")
 	for _, field := range []string{"request_id", "code", "message"} {
-		if !schemaRequires(transportError, field) {
-			t.Fatalf("TransportError must require %s", field)
-		}
+		field := field
+		t.Run("Should require TransportError field "+field, func(t *testing.T) {
+			t.Parallel()
+
+			if !schemaRequires(transportError, field) {
+				t.Fatalf("TransportError must require %s", field)
+			}
+		})
 	}
 
 	for _, routeKey := range []string{
@@ -189,10 +205,15 @@ func TestBrowserOpenAPIContractKeepsWorkspaceContextAndProblemSemantics(t *testi
 		"POST /api/runs/{run_id}/cancel",
 		"POST /api/workspaces/resolve",
 	} {
-		operation := getOperation(t, spec, routeKey)
-		if !hasResponse(operation, "403") {
-			t.Fatalf("%s is missing 403 browser security response", routeKey)
-		}
+		routeKey := routeKey
+		t.Run("Should advertise browser security for "+routeKey, func(t *testing.T) {
+			t.Parallel()
+
+			operation := getOperation(t, spec, routeKey)
+			if !hasResponse(operation, "403") {
+				t.Fatalf("%s is missing 403 browser security response", routeKey)
+			}
+		})
 	}
 }
 

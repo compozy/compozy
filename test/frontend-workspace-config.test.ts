@@ -82,7 +82,7 @@ describe("frontend workspace configuration", () => {
 
     expect(makefile).toContain("dev: go-build");
     expect(makefile).toContain(
-      "./bin/compozy daemon start --foreground --web-dev-proxy http://127.0.0.1:3000"
+      "./$(BINARY_DIR)/$(BINARY_NAME) daemon start --foreground --web-dev-proxy http://127.0.0.1:3000"
     );
     expect(makefile).not.toContain("scripts/dev-web-proxy.sh");
     expect(makefile).not.toContain("dev-global:");
