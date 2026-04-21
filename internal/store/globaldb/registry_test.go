@@ -3,10 +3,13 @@ package globaldb
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestRegisterSameWorkspaceThroughEquivalentPathsReturnsOneLogicalRow(t *testing.T) {
@@ -79,6 +82,52 @@ func TestResolveOrRegisterUsesDefaultNameAndReturnsExistingRow(t *testing.T) {
 	}
 	if first.Name != "demo-workspace" {
 		t.Fatalf("workspace default name = %q, want demo-workspace", first.Name)
+	}
+}
+
+func TestGetByPathPrefersResolvedCanonicalWorkspaceRow(t *testing.T) {
+	t.Parallel()
+
+	db := openTestGlobalDB(t)
+	defer func() {
+		_ = db.Close()
+	}()
+
+	workspaceRoot := filepath.Join(t.TempDir(), "demo-workspace")
+	if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy"), 0o755); err != nil {
+		t.Fatalf("mkdir workflow marker: %v", err)
+	}
+
+	aliasRoot := filepath.Join(t.TempDir(), "workspace-link")
+	if err := os.Symlink(workspaceRoot, aliasRoot); err != nil {
+		t.Fatalf("symlink workspace root: %v", err)
+	}
+
+	canonical, err := db.Register(context.Background(), workspaceRoot, "demo")
+	if err != nil {
+		t.Fatalf("Register(canonical): %v", err)
+	}
+
+	aliasNow := db.now()
+	if _, err := db.db.ExecContext(
+		context.Background(),
+		`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?)`,
+		db.newID("ws"),
+		aliasRoot,
+		"demo-alias",
+		store.FormatTimestamp(aliasNow),
+		store.FormatTimestamp(aliasNow),
+	); err != nil {
+		t.Fatalf("insert alias workspace row: %v", err)
+	}
+
+	got, err := db.Get(context.Background(), aliasRoot)
+	if err != nil {
+		t.Fatalf("Get(alias path): %v", err)
+	}
+	if got.ID != canonical.ID {
+		t.Fatalf("Get(alias path) = %#v, want canonical workspace %#v", got, canonical)
 	}
 }
 
@@ -180,6 +229,40 @@ func TestRegistryValidationBranches(t *testing.T) {
 	}
 	if got, err := normalizeWorkspaceRoot(filePath); err == nil || got != "" {
 		t.Fatalf("normalizeWorkspaceRoot(file) = %q, %v; want empty string and error", got, err)
+	}
+}
+
+func TestCanonicalizeExistingPathCaseWithUsesOnDiskNames(t *testing.T) {
+	t.Parallel()
+
+	root := string(filepath.Separator)
+	usersDir := filepath.Join(root, "Users")
+	homeDir := filepath.Join(usersDir, "pedronauck")
+	devDir := filepath.Join(homeDir, "Dev")
+	compozyDir := filepath.Join(devDir, "compozy")
+	want := filepath.Join(compozyDir, "agh")
+	input := filepath.Join(homeDir, "dev", "compozy", "agh")
+
+	dirs := map[string][]os.DirEntry{
+		root:       {fakeDirEntry{name: "Users"}},
+		usersDir:   {fakeDirEntry{name: "pedronauck"}},
+		homeDir:    {fakeDirEntry{name: "Dev"}},
+		devDir:     {fakeDirEntry{name: "compozy"}},
+		compozyDir: {fakeDirEntry{name: "agh"}},
+	}
+
+	got, err := canonicalizeExistingPathCaseWith(input, func(path string) ([]os.DirEntry, error) {
+		entries, ok := dirs[path]
+		if !ok {
+			return nil, fs.ErrNotExist
+		}
+		return entries, nil
+	})
+	if err != nil {
+		t.Fatalf("canonicalizeExistingPathCaseWith() error = %v", err)
+	}
+	if got != want {
+		t.Fatalf("canonicalizeExistingPathCaseWith() = %q, want %q", got, want)
 	}
 }
 
@@ -445,3 +528,23 @@ func TestPutRunValidationAndWorkflowUpdateNotFoundBranches(t *testing.T) {
 		t.Fatalf("PutWorkflow(update missing) error = %v, want ErrWorkflowNotFound", err)
 	}
 }
+
+type fakeDirEntry struct {
+	name string
+}
+
+func (e fakeDirEntry) Name() string               { return e.name }
+func (e fakeDirEntry) IsDir() bool                { return true }
+func (e fakeDirEntry) Type() fs.FileMode          { return fs.ModeDir }
+func (e fakeDirEntry) Info() (fs.FileInfo, error) { return fakeFileInfo(e), nil }
+
+type fakeFileInfo struct {
+	name string
+}
+
+func (i fakeFileInfo) Name() string       { return i.name }
+func (i fakeFileInfo) Size() int64        { return 0 }
+func (i fakeFileInfo) Mode() fs.FileMode  { return fs.ModeDir }
+func (i fakeFileInfo) ModTime() time.Time { return time.Time{} }
+func (i fakeFileInfo) IsDir() bool        { return true }
+func (i fakeFileInfo) Sys() any           { return nil }

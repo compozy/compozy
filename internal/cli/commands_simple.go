@@ -327,7 +327,7 @@ func (s *archiveCommandState) archiveViaDaemon(
 		SkippedReasons: make(map[string]string),
 	}
 
-	slugs, err := s.archiveWorkflowSlugs(ctx, client)
+	slugs, err := s.archiveWorkflowSlugs()
 	if err != nil {
 		return nil, err
 	}
@@ -357,10 +357,7 @@ func (s *archiveCommandState) archiveViaDaemon(
 	return result, nil
 }
 
-func (s *archiveCommandState) archiveWorkflowSlugs(
-	ctx context.Context,
-	client daemonCommandClient,
-) ([]string, error) {
+func (s *archiveCommandState) archiveWorkflowSlugs() ([]string, error) {
 	if strings.TrimSpace(s.name) != "" {
 		return []string{strings.TrimSpace(s.name)}, nil
 	}
@@ -378,20 +375,7 @@ func (s *archiveCommandState) archiveWorkflowSlugs(
 		}
 		return listWorkflowSlugsFromRoot(rootDir)
 	}
-
-	workflows, err := client.ListTaskWorkflows(ctx, s.workspaceRoot)
-	if err != nil {
-		return nil, mapDaemonCommandError(err)
-	}
-	slugs := make([]string, 0, len(workflows))
-	for _, workflow := range workflows {
-		if workflow.ArchivedAt != nil {
-			continue
-		}
-		slugs = append(slugs, workflow.Slug)
-	}
-	sort.Strings(slugs)
-	return slugs, nil
+	return listWorkflowSlugsFromRoot(model.TasksBaseDirForWorkspace(s.workspaceRoot))
 }
 
 func (s *archiveCommandState) archiveTarget() string {

@@ -2396,3 +2396,59 @@ func TestArchiveCommandWorkspaceWideSkipsConflictsDeterministically(t *testing.T
 		t.Fatalf("expected skip reason for beta, got %#v", payload.SkippedReasons)
 	}
 }
+
+func TestArchiveCommandWorkspaceWideUsesFilesystemWhenDaemonCatalogIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	for _, slug := range []string{"alpha", "beta"} {
+		if err := os.MkdirAll(filepath.Join(workspaceRoot, ".compozy", "tasks", slug), 0o755); err != nil {
+			t.Fatalf("mkdir workflow dir %q: %v", slug, err)
+		}
+	}
+	withWorkingDir(t, workspaceRoot)
+
+	client := &stubDaemonCommandClient{
+		health: apicore.DaemonHealth{Ready: true},
+		archiveBySlug: map[string]apicore.ArchiveResult{
+			"alpha": {Archived: true},
+		},
+		archiveErrors: map[string]error{
+			"beta": &apiclient.RemoteError{
+				StatusCode: 409,
+				Envelope: apicore.TransportError{
+					RequestID: "req-beta",
+					Code:      "workflow_conflict",
+					Message:   "workflow \"beta\" is not archivable: workflow state not synced",
+				},
+			},
+		},
+	}
+	installTestCLIReadyDaemonBootstrap(t, client)
+
+	output, err := executeCommandCombinedOutput(newArchiveCommand(newLazyRootDispatcher()), nil, "--format", "json")
+	if err != nil {
+		t.Fatalf("execute archive: %v\noutput:\n%s", err, output)
+	}
+	if got, want := client.archiveCalls, []string{"alpha", "beta"}; len(got) != len(want) ||
+		got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("unexpected archive calls: got %#v want %#v", got, want)
+	}
+
+	var payload core.ArchiveResult
+	if err := json.Unmarshal([]byte(output), &payload); err != nil {
+		t.Fatalf("decode archive payload: %v\noutput:\n%s", err, output)
+	}
+	if payload.WorkflowsScanned != 2 || payload.Archived != 1 || payload.Skipped != 1 {
+		t.Fatalf("unexpected archive counts: %#v", payload)
+	}
+	if len(payload.ArchivedPaths) != 1 || payload.ArchivedPaths[0] != "alpha" {
+		t.Fatalf("unexpected archived payload: %#v", payload)
+	}
+	if len(payload.SkippedPaths) != 1 || payload.SkippedPaths[0] != "beta" {
+		t.Fatalf("unexpected skipped payload: %#v", payload)
+	}
+	if payload.SkippedReasons["beta"] == "" {
+		t.Fatalf("expected skip reason for beta, got %#v", payload.SkippedReasons)
+	}
+}
