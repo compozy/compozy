@@ -285,7 +285,7 @@ func normalizeFilePath(path string) (string, error) {
 	if cleanPath == "" {
 		return "", errors.New("logger: daemon log file path is required")
 	}
-	return cleanPath, nil
+	return filepath.Clean(cleanPath), nil
 }
 
 func resolveMode(mode Mode) Mode {

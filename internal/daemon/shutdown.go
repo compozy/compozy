@@ -168,6 +168,9 @@ func joinRunManagerMetricKey(left string, right string) string {
 	if left == "" || right == "" {
 		return ""
 	}
+	// Use NUL as the separator because daemon run modes and statuses are
+	// normalized identifiers, so this avoids delimiter collisions without
+	// needing extra escaping or tuple allocations.
 	return left + "\x00" + right
 }
 

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -24,10 +25,12 @@ type openOptions struct {
 
 // RunDB owns one per-run SQLite store.
 type RunDB struct {
-	db    *sql.DB
-	path  string
-	runID string
-	now   func() time.Time
+	db          *sql.DB
+	path        string
+	runID       string
+	now         func() time.Time
+	closeMu     sync.Mutex
+	integrityMu sync.Mutex
 }
 
 // HookRunRecord captures one hook audit row persisted independently of the canonical event stream.
@@ -145,15 +148,24 @@ func (r *RunDB) Close() error {
 
 // CloseContext checkpoints the SQLite WAL and closes the underlying handle.
 func (r *RunDB) CloseContext(ctx context.Context) error {
-	if r == nil || r.db == nil {
+	if r == nil {
 		return nil
 	}
 	if ctx == nil {
 		return errors.New("rundb: close context is required")
 	}
+	r.closeMu.Lock()
+	defer r.closeMu.Unlock()
+
+	if r.db == nil {
+		return nil
+	}
 	db := r.db
+	if err := closeRunSQLiteDatabase(ctx, db); err != nil {
+		return err
+	}
 	r.db = nil
-	return closeRunSQLiteDatabase(ctx, db)
+	return nil
 }
 
 // Path reports the on-disk database path.
@@ -677,8 +689,120 @@ func (r *RunDB) GetIntegrity(ctx context.Context) (RunIntegrityState, error) {
 	if err := r.requireContext(ctx, "load run integrity"); err != nil {
 		return RunIntegrityState{}, err
 	}
+	return queryIntegrityState(ctx, r.db)
+}
 
-	row := r.db.QueryRowContext(
+// UpsertIntegrity merges the supplied integrity update into the sticky durable
+// run-integrity row and returns the merged result.
+func (r *RunDB) UpsertIntegrity(ctx context.Context, update RunIntegrityUpdate) (RunIntegrityState, error) {
+	if err := r.requireContext(ctx, "upsert run integrity"); err != nil {
+		return RunIntegrityState{}, err
+	}
+	if isNoopIntegrityUpdate(update) {
+		return r.GetIntegrity(ctx)
+	}
+
+	r.integrityMu.Lock()
+	defer r.integrityMu.Unlock()
+
+	return r.upsertIntegrityLocked(ctx, update)
+}
+
+func (r *RunDB) upsertIntegrityLocked(
+	ctx context.Context,
+	update RunIntegrityUpdate,
+) (state RunIntegrityState, retErr error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return RunIntegrityState{}, fmt.Errorf("rundb: begin run integrity transaction: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			retErr = errors.Join(retErr, fmt.Errorf("rundb: rollback run integrity transaction: %w", rollbackErr))
+		}
+	}()
+
+	existing, err := queryIntegrityState(ctx, tx)
+	if err != nil {
+		return RunIntegrityState{}, err
+	}
+	merged := mergeRunIntegrityState(existing, update, r.now)
+
+	reasonsJSON, err := encodeIntegrityReasons(merged.Reasons)
+	if err != nil {
+		return RunIntegrityState{}, err
+	}
+
+	if err := upsertIntegrityState(ctx, tx, merged, reasonsJSON); err != nil {
+		return RunIntegrityState{}, fmt.Errorf("rundb: upsert run integrity: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return RunIntegrityState{}, fmt.Errorf("rundb: commit run integrity transaction: %w", err)
+	}
+	committed = true
+	return merged, nil
+}
+
+func isNoopIntegrityUpdate(update RunIntegrityUpdate) bool {
+	return !update.Incomplete && len(update.Reasons) == 0 &&
+		update.JournalTerminalDrops == 0 && update.JournalNonTerminalDrops == 0
+}
+
+func mergeRunIntegrityState(
+	existing RunIntegrityState,
+	update RunIntegrityUpdate,
+	now func() time.Time,
+) RunIntegrityState {
+	merged := RunIntegrityState{
+		Incomplete:              existing.Incomplete || update.Incomplete,
+		Reasons:                 mergeIntegrityReasons(existing.Reasons, update.Reasons),
+		JournalTerminalDrops:    max(existing.JournalTerminalDrops, update.JournalTerminalDrops),
+		JournalNonTerminalDrops: max(existing.JournalNonTerminalDrops, update.JournalNonTerminalDrops),
+		FirstDetectedAt:         existing.FirstDetectedAt,
+	}
+	if len(merged.Reasons) > 0 || merged.JournalTerminalDrops > 0 || merged.JournalNonTerminalDrops > 0 {
+		merged.Incomplete = true
+	}
+	if merged.Incomplete && merged.FirstDetectedAt.IsZero() {
+		merged.FirstDetectedAt = now()
+	}
+	merged.UpdatedAt = now()
+	return merged
+}
+
+func (r *RunDB) requireContext(ctx context.Context, action string) error {
+	if r == nil || r.db == nil {
+		return errors.New("rundb: database is required")
+	}
+	if ctx == nil {
+		return fmt.Errorf("rundb: %s context is required", strings.TrimSpace(action))
+	}
+	return nil
+}
+
+type eventBatchStatements struct {
+	insertEvent           *sql.Stmt
+	upsertJobState        *sql.Stmt
+	insertTranscript      *sql.Stmt
+	upsertTokenUsage      *sql.Stmt
+	insertArtifactSyncLog *sql.Stmt
+}
+
+type integrityQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+type integrityExecer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func queryIntegrityState(ctx context.Context, queryer integrityQuerier) (RunIntegrityState, error) {
+	row := queryer.QueryRowContext(
 		ctx,
 		`SELECT incomplete, reasons_json, journal_terminal_drops, journal_non_terminal_drops,
 		        first_detected_at, updated_at
@@ -745,43 +869,13 @@ func (r *RunDB) GetIntegrity(ctx context.Context) (RunIntegrityState, error) {
 	return state, nil
 }
 
-// UpsertIntegrity merges the supplied integrity update into the sticky durable
-// run-integrity row and returns the merged result.
-func (r *RunDB) UpsertIntegrity(ctx context.Context, update RunIntegrityUpdate) (RunIntegrityState, error) {
-	if err := r.requireContext(ctx, "upsert run integrity"); err != nil {
-		return RunIntegrityState{}, err
-	}
-	if !update.Incomplete && len(update.Reasons) == 0 &&
-		update.JournalTerminalDrops == 0 && update.JournalNonTerminalDrops == 0 {
-		return r.GetIntegrity(ctx)
-	}
-
-	existing, err := r.GetIntegrity(ctx)
-	if err != nil {
-		return RunIntegrityState{}, err
-	}
-
-	merged := RunIntegrityState{
-		Incomplete:              existing.Incomplete || update.Incomplete,
-		Reasons:                 mergeIntegrityReasons(existing.Reasons, update.Reasons),
-		JournalTerminalDrops:    max(existing.JournalTerminalDrops, update.JournalTerminalDrops),
-		JournalNonTerminalDrops: max(existing.JournalNonTerminalDrops, update.JournalNonTerminalDrops),
-		FirstDetectedAt:         existing.FirstDetectedAt,
-	}
-	if len(merged.Reasons) > 0 || merged.JournalTerminalDrops > 0 || merged.JournalNonTerminalDrops > 0 {
-		merged.Incomplete = true
-	}
-	if merged.Incomplete && merged.FirstDetectedAt.IsZero() {
-		merged.FirstDetectedAt = r.now()
-	}
-	merged.UpdatedAt = r.now()
-
-	reasonsJSON, err := encodeIntegrityReasons(merged.Reasons)
-	if err != nil {
-		return RunIntegrityState{}, err
-	}
-
-	if _, err := r.db.ExecContext(
+func upsertIntegrityState(
+	ctx context.Context,
+	execer integrityExecer,
+	merged RunIntegrityState,
+	reasonsJSON string,
+) error {
+	_, err := execer.ExecContext(
 		ctx,
 		`INSERT INTO run_integrity (
 			singleton_id,
@@ -806,28 +900,8 @@ func (r *RunDB) UpsertIntegrity(ctx context.Context, update RunIntegrityUpdate) 
 		merged.JournalNonTerminalDrops,
 		store.FormatTimestamp(merged.FirstDetectedAt),
 		store.FormatTimestamp(merged.UpdatedAt),
-	); err != nil {
-		return RunIntegrityState{}, fmt.Errorf("rundb: upsert run integrity: %w", err)
-	}
-	return merged, nil
-}
-
-func (r *RunDB) requireContext(ctx context.Context, action string) error {
-	if r == nil || r.db == nil {
-		return errors.New("rundb: database is required")
-	}
-	if ctx == nil {
-		return fmt.Errorf("rundb: %s context is required", strings.TrimSpace(action))
-	}
-	return nil
-}
-
-type eventBatchStatements struct {
-	insertEvent           *sql.Stmt
-	upsertJobState        *sql.Stmt
-	insertTranscript      *sql.Stmt
-	upsertTokenUsage      *sql.Stmt
-	insertArtifactSyncLog *sql.Stmt
+	)
+	return err
 }
 
 type eventBatchStatementSpec struct {

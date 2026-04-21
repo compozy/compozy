@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,11 +22,12 @@ type openOptions struct {
 
 // GlobalDB owns the durable home-scoped catalog used by the daemon.
 type GlobalDB struct {
-	db     *sql.DB
-	path   string
-	now    func() time.Time
-	newID  func(string) string
-	closed atomic.Bool
+	db      *sql.DB
+	path    string
+	now     func() time.Time
+	newID   func(string) string
+	closeMu sync.Mutex
+	closed  atomic.Bool
 }
 
 // Open opens or creates the daemon global catalog at path and applies migrations.
@@ -77,10 +79,17 @@ func (g *GlobalDB) CloseContext(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("globaldb: close context is required")
 	}
-	if !g.closed.CompareAndSwap(false, true) {
+	g.closeMu.Lock()
+	defer g.closeMu.Unlock()
+
+	if g.closed.Load() {
 		return nil
 	}
-	return closeGlobalSQLiteDatabase(ctx, g.db)
+	if err := closeGlobalSQLiteDatabase(ctx, g.db); err != nil {
+		return err
+	}
+	g.closed.Store(true)
+	return nil
 }
 
 // Path reports the on-disk database path.

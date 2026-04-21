@@ -109,3 +109,15 @@ func TestValidateDaemonFilePathRejectsEmptyPath(t *testing.T) {
 		t.Fatal("ValidateDaemonFilePath(empty) error = nil, want non-nil")
 	}
 }
+
+func TestNormalizeFilePathCleansRelativeSegments(t *testing.T) {
+	t.Parallel()
+
+	got, err := normalizeFilePath("  " + filepath.Join("logs", "..", "daemon.log") + "  ")
+	if err != nil {
+		t.Fatalf("normalizeFilePath() error = %v", err)
+	}
+	if want := filepath.Clean(filepath.Join("logs", "..", "daemon.log")); got != want {
+		t.Fatalf("normalizeFilePath() = %q, want %q", got, want)
+	}
+}

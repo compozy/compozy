@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -445,6 +446,62 @@ func TestRunDBUpsertIntegrityIsStickyAndSurvivesReopen(t *testing.T) {
 	}
 }
 
+func TestRunDBUpsertIntegritySerializesConcurrentMerges(t *testing.T) {
+	t.Parallel()
+
+	db := openTestRunDB(t, "run-integrity-concurrent")
+	defer func() {
+		_ = db.Close()
+	}()
+
+	releaseNow := make(chan struct{})
+	nowEntered := make(chan struct{}, 8)
+	db.now = func() time.Time {
+		select {
+		case nowEntered <- struct{}{}:
+		default:
+		}
+		<-releaseNow
+		return time.Date(2026, 4, 17, 18, 5, 0, 0, time.UTC)
+	}
+
+	updates := []RunIntegrityUpdate{
+		{Incomplete: true, Reasons: []string{"event_gap"}},
+		{Incomplete: true, Reasons: []string{"transcript_gap"}},
+	}
+	errs := make(chan error, len(updates))
+	var wg sync.WaitGroup
+	for _, update := range updates {
+		wg.Add(1)
+		go func(update RunIntegrityUpdate) {
+			defer wg.Done()
+			_, err := db.UpsertIntegrity(context.Background(), update)
+			errs <- err
+		}(update)
+	}
+
+	waitForConcurrentIntegrityRead(t, nowEntered, len(updates))
+	close(releaseNow)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("UpsertIntegrity(concurrent) error = %v", err)
+		}
+	}
+
+	state, err := db.GetIntegrity(context.Background())
+	if err != nil {
+		t.Fatalf("GetIntegrity() error = %v", err)
+	}
+	if !state.Incomplete {
+		t.Fatal("state.Incomplete = false, want true")
+	}
+	if got, want := state.Reasons, []string{"event_gap", "transcript_gap"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("state.Reasons = %#v, want %#v", got, want)
+	}
+}
+
 func openTestRunDB(t *testing.T, runID string) *RunDB {
 	t.Helper()
 
@@ -467,6 +524,21 @@ func openTestRunDBAtPath(t *testing.T, path string) *RunDB {
 		t.Fatalf("openWithOptions(): %v", err)
 	}
 	return db
+}
+
+func waitForConcurrentIntegrityRead(t *testing.T, entered <-chan struct{}, want int) {
+	t.Helper()
+
+	deadline := time.NewTimer(500 * time.Millisecond)
+	defer deadline.Stop()
+
+	for count := 0; count < want; count++ {
+		select {
+		case <-entered:
+		case <-deadline.C:
+			return
+		}
+	}
 }
 
 func mustEvent(

@@ -215,6 +215,66 @@ func TestWorkflowWatcherRefreshesWatchedDirectoriesAfterRenameAndDelete(t *testi
 	})
 }
 
+func TestWorkflowWatcherFlushPendingChangesPreservesStateWhenPreSyncReconcileFails(t *testing.T) {
+	t.Parallel()
+
+	backendWatcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("fsnotify.NewWatcher() error = %v", err)
+	}
+	if err := backendWatcher.Close(); err != nil {
+		t.Fatalf("backendWatcher.Close() error = %v", err)
+	}
+
+	var (
+		syncCount atomic.Int64
+		emitCount atomic.Int64
+	)
+	watcher := &workflowWatcher{
+		workflowRoot: t.TempDir(),
+		syncFn: func(context.Context, string) error {
+			syncCount.Add(1)
+			return nil
+		},
+		emitFn: func(context.Context, artifactSyncEvent) error {
+			emitCount.Add(1)
+			return nil
+		},
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	state := &workflowWatchState{
+		pending: map[string]artifactSyncEvent{
+			"task_01.md": {
+				RelativePath: "task_01.md",
+				ChangeKind:   artifactChangeWrite,
+			},
+		},
+		refreshWatches: true,
+	}
+
+	watcher.flushPendingChanges(context.Background(), backendWatcher, state)
+
+	if got := syncCount.Load(); got != 0 {
+		t.Fatalf("sync count = %d, want 0", got)
+	}
+	if got := emitCount.Load(); got != 0 {
+		t.Fatalf("emit count = %d, want 0", got)
+	}
+	if !state.refreshWatches {
+		t.Fatal("state.refreshWatches = false, want true after failed pre-sync reconcile")
+	}
+	change, ok := state.pending["task_01.md"]
+	if !ok {
+		t.Fatal("pending changes missing task_01.md after failed pre-sync reconcile")
+	}
+	if change.ChangeKind != artifactChangeWrite {
+		t.Fatalf("pending change kind = %q, want %s", change.ChangeKind, artifactChangeWrite)
+	}
+	if watcher.stopError() == nil {
+		t.Fatal("stopError() = nil, want reconcile failure recorded")
+	}
+}
+
 func TestWorkflowWatcherValidatesConfigAndClassifiesArtifacts(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
