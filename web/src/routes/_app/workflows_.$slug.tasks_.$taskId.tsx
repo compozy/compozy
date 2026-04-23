@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
@@ -24,7 +25,7 @@ function WorkflowTaskDetailRoute(): ReactElement {
       header={
         <div className="flex w-full items-center justify-between gap-3">
           <button
-            className="text-xs text-accent hover:underline"
+            className="text-xs font-medium text-primary transition-colors hover:text-foreground"
             data-testid="task-detail-back"
             onClick={() => void navigate({ to: "/workflows/$slug/tasks", params: { slug } })}
             type="button"
@@ -36,18 +37,16 @@ function WorkflowTaskDetailRoute(): ReactElement {
       }
     >
       {taskQuery.isLoading && !taskQuery.data ? (
-        <p className="text-sm text-muted-foreground" data-testid="task-detail-loading">
-          Loading task detail…
-        </p>
+        <div className="space-y-3" data-testid="task-detail-loading">
+          <p className="sr-only">Loading task detail…</p>
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
       {taskQuery.isError && !taskQuery.data ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="task-detail-load-error"
-          role="alert"
-        >
+        <Alert data-testid="task-detail-load-error" variant="error">
           {apiErrorMessage(taskQuery.error, `Failed to load task ${taskId} for ${slug}`)}
-        </p>
+        </Alert>
       ) : null}
       {taskQuery.data ? (
         <TaskDetailView isRefreshing={taskQuery.isRefetching} payload={taskQuery.data} />

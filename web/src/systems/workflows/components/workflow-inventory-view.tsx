@@ -1,8 +1,13 @@
 import type { ReactElement } from "react";
 
+import { Archive, BookOpen, FileText, Play, RefreshCw } from "lucide-react";
+
 import {
+  Alert,
   Button,
+  EmptyState,
   SectionHeading,
+  SkeletonRow,
   StatusBadge,
   SurfaceCard,
   SurfaceCardBody,
@@ -66,10 +71,12 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
           <Button
             data-testid="workflow-inventory-sync-all"
             disabled={isSyncingAll}
+            icon={<RefreshCw className="size-4" />}
+            loading={isSyncingAll}
             onClick={onSyncAll}
             size="sm"
           >
-            {isSyncingAll ? "Syncing…" : "Sync all"}
+            Sync all
           </Button>
         }
         description={`Workflows registered with ${workspaceName}.`}
@@ -78,30 +85,20 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
       />
 
       {lastActionError ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="workflow-inventory-error"
-          role="alert"
-        >
+        <Alert data-testid="workflow-inventory-error" variant="error">
           {lastActionError}
-        </p>
+        </Alert>
       ) : null}
       {lastActionMessage ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3 text-sm text-muted-foreground"
-          data-testid="workflow-inventory-action-success"
-        >
+        <Alert data-testid="workflow-inventory-action-success" variant="success">
           {lastActionMessage}
-        </p>
+        </Alert>
       ) : null}
       {startedRun ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3 text-sm text-muted-foreground"
-          data-testid="workflow-inventory-start-success"
-        >
+        <Alert data-testid="workflow-inventory-start-success" variant="success">
           Started run{" "}
           <Link
-            className="font-mono text-accent hover:underline"
+            className="font-mono text-primary hover:underline"
             data-testid="workflow-inventory-start-success-link"
             params={{ runId: startedRun.run_id }}
             to="/runs/$runId"
@@ -109,38 +106,46 @@ export function WorkflowInventoryView(props: WorkflowInventoryViewProps): ReactE
             {startedRun.run_id}
           </Link>{" "}
           for {startedRun.workflow_slug ?? "the workflow"}.
-        </p>
+        </Alert>
       ) : null}
 
       {error ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="workflow-inventory-load-error"
-          role="alert"
-        >
+        <Alert data-testid="workflow-inventory-load-error" variant="error">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground" data-testid="workflow-inventory-loading">
-          Loading workflows…
-        </p>
+        <div className="space-y-2" data-testid="workflow-inventory-loading">
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
 
       {!isLoading && workflows.length === 0 ? (
-        <SurfaceCard data-testid="workflow-inventory-empty">
-          <SurfaceCardHeader>
-            <div>
-              <SurfaceCardEyebrow>Empty</SurfaceCardEyebrow>
-              <SurfaceCardTitle>No workflows yet</SurfaceCardTitle>
-              <SurfaceCardDescription>
-                Register a workflow through <code>compozy sync</code> or run the sync action above
-                to let the daemon pick up workflow artifacts from this workspace.
-              </SurfaceCardDescription>
-            </div>
-          </SurfaceCardHeader>
-        </SurfaceCard>
+        <EmptyState
+          action={
+            <Button
+              disabled={isSyncingAll}
+              icon={<RefreshCw className="size-4" />}
+              loading={isSyncingAll}
+              onClick={onSyncAll}
+              size="sm"
+            >
+              Sync all
+            </Button>
+          }
+          data-testid="workflow-inventory-empty"
+          description={
+            <>
+              Register a workflow through <code>compozy sync</code> or run sync here to let the
+              daemon pick up workflow artifacts from this workspace.
+            </>
+          }
+          icon={<FileText className="size-4" aria-hidden />}
+          title="No workflows yet"
+        />
       ) : null}
 
       {active.length > 0 ? (
@@ -202,7 +207,7 @@ function WorkflowRow({
 }): ReactElement {
   return (
     <li>
-      <SurfaceCard data-testid={`workflow-row-${workflow.slug}`}>
+      <SurfaceCard data-interactive="true" data-testid={`workflow-row-${workflow.slug}`}>
         <SurfaceCardHeader>
           <div>
             <SurfaceCardEyebrow>Workflow</SurfaceCardEyebrow>
@@ -226,54 +231,63 @@ function WorkflowRow({
         </SurfaceCardHeader>
         <SurfaceCardBody className="flex flex-wrap gap-2">
           <Link
-            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-border bg-black/10 px-3 py-1 text-sm text-foreground hover:underline"
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 py-1.5 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
             data-testid={`workflow-view-board-${workflow.slug}`}
             params={{ slug: workflow.slug }}
             to="/workflows/$slug/tasks"
           >
+            <BookOpen className="size-3.5" aria-hidden />
             Open task board
           </Link>
           <Link
-            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-border bg-black/10 px-3 py-1 text-sm text-foreground hover:underline"
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 py-1.5 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
             data-testid={`workflow-view-spec-${workflow.slug}`}
             params={{ slug: workflow.slug }}
             to="/workflows/$slug/spec"
           >
+            <FileText className="size-3.5" aria-hidden />
             Spec
           </Link>
           <Link
-            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-border bg-black/10 px-3 py-1 text-sm text-foreground hover:underline"
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-border bg-[color:var(--surface-inset)] px-3 py-1.5 text-sm text-foreground transition-colors hover:border-border-strong hover:bg-surface-hover"
             data-testid={`workflow-view-memory-${workflow.slug}`}
             params={{ slug: workflow.slug }}
             to="/memory/$slug"
           >
+            <BookOpen className="size-3.5" aria-hidden />
             Memory
           </Link>
           <Button
             data-testid={`workflow-start-${workflow.slug}`}
             disabled={pendingStart}
+            icon={<Play className="size-4" />}
+            loading={pendingStart}
             onClick={onStartRun}
             size="sm"
           >
-            {pendingStart ? "Starting…" : "Start run"}
+            Start run
           </Button>
           <Button
             data-testid={`workflow-sync-${workflow.slug}`}
             disabled={pendingSync}
+            icon={<RefreshCw className="size-4" />}
+            loading={pendingSync}
             onClick={onSync}
             size="sm"
             variant="secondary"
           >
-            {pendingSync ? "Syncing…" : "Sync"}
+            Sync
           </Button>
           <Button
             data-testid={`workflow-archive-${workflow.slug}`}
             disabled={pendingArchive}
+            icon={<Archive className="size-4" />}
+            loading={pendingArchive}
             onClick={onArchive}
             size="sm"
             variant="ghost"
           >
-            {pendingArchive ? "Archiving…" : "Archive"}
+            Archive
           </Button>
         </SurfaceCardBody>
       </SurfaceCard>
@@ -295,7 +309,7 @@ function ArchivedRow({ workflow }: { workflow: WorkflowSummary }): ReactElement 
                 : "Archived"}
             </SurfaceCardDescription>
           </div>
-          <StatusBadge tone="warning">archived</StatusBadge>
+          <StatusBadge tone="neutral">archived</StatusBadge>
         </SurfaceCardHeader>
       </SurfaceCard>
     </li>

@@ -20,7 +20,8 @@ export function Metric({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col justify-between gap-3 rounded-[var(--radius-lg)] border border-border bg-card px-5 py-4 shadow-[var(--shadow-xs)]",
+        "flex min-w-0 flex-col justify-between gap-4 rounded-[var(--radius-xl)] border border-border-subtle bg-card px-5 py-4 shadow-[var(--shadow-sm)]",
+        "transition-[border-color,background-color,box-shadow,transform] duration-200 ease-out hover:-translate-y-px hover:border-border-strong hover:shadow-[var(--shadow-md)]",
         className
       )}
       {...props}
@@ -30,9 +31,7 @@ export function Metric({
         {trailing ? <div className="flex shrink-0 items-center gap-2">{trailing}</div> : null}
       </div>
       <div className="min-w-0 space-y-1">
-        <p className="font-display text-4xl leading-none tracking-[-0.02em] text-foreground">
-          {value}
-        </p>
+        <p className="font-mono text-3xl leading-none text-foreground tabular-nums">{value}</p>
         {hint ? <p className="truncate text-xs text-muted-foreground">{hint}</p> : null}
       </div>
     </div>

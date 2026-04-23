@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import {
+  EmptyState,
   StatusBadge,
   SurfaceCard,
   SurfaceCardBody,
@@ -37,11 +38,16 @@ export function RunEventFeed({ events, maxRows = MAX_ROWS }: RunEventFeedProps):
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {visible.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="run-event-feed-empty">
-            No events received yet. New events stream in as the daemon emits them.
-          </p>
+          <EmptyState
+            data-testid="run-event-feed-empty"
+            description="New events will stream in as the daemon emits run, job, tool, and provider updates."
+            title="No events received yet"
+          />
         ) : (
-          <ul className="space-y-2" data-testid="run-event-feed-list">
+          <ul
+            className="relative space-y-0 before:absolute before:bottom-0 before:left-[0.8rem] before:top-0 before:w-px before:bg-border-subtle"
+            data-testid="run-event-feed-list"
+          >
             {visible.map(event => (
               <EventRow event={event} key={event.id} />
             ))}
@@ -58,11 +64,16 @@ function EventRow({ event }: { event: RunFeedEvent }): ReactElement {
   const summary = summarizePayload(event.kind, event.payload);
   return (
     <li
-      className="flex items-start justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="relative grid grid-cols-[1.6rem_minmax(0,1fr)] gap-3 py-2"
       data-kind={event.kind}
       data-testid={`run-event-feed-row-${event.id}`}
     >
-      <div className="min-w-0 flex-1 space-y-1">
+      <span
+        aria-hidden
+        className="relative z-[1] mt-1 size-3 rounded-full border border-card bg-current"
+        style={{ color: `var(--tone-${tone}-text)` }}
+      />
+      <div className="min-w-0 space-y-2 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover">
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge tone={tone}>{event.kind}</StatusBadge>
           <span className="font-mono text-[11px] text-muted-foreground">
@@ -77,9 +88,28 @@ function EventRow({ event }: { event: RunFeedEvent }): ReactElement {
             {summary}
           </p>
         ) : null}
+        <details className="group">
+          <summary className="cursor-pointer text-xs text-muted-foreground transition-colors hover:text-foreground">
+            payload
+          </summary>
+          <pre className="mt-2 max-h-56 overflow-auto rounded-[var(--radius-sm)] border border-border-subtle bg-background/40 p-3 text-xs text-foreground">
+            {formatPayload(event.payload)}
+          </pre>
+        </details>
       </div>
     </li>
   );
+}
+
+function formatPayload(payload: unknown): string {
+  if (payload === undefined || payload === null) {
+    return "{}";
+  }
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch {
+    return String(payload);
+  }
 }
 
 function toneForKind(kind: string): StatusBadgeTone {

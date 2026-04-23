@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactElement } from "rea
 
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
@@ -91,7 +92,7 @@ function RunDetailRoute(): ReactElement {
       header={
         <div className="flex w-full items-center justify-between gap-3">
           <button
-            className="text-xs text-accent hover:underline"
+            className="text-xs font-medium text-primary transition-colors hover:text-foreground"
             data-testid="run-detail-back"
             onClick={() => void navigate({ to: "/runs" })}
             type="button"
@@ -103,18 +104,17 @@ function RunDetailRoute(): ReactElement {
       }
     >
       {snapshotQuery.isLoading && !snapshotQuery.data ? (
-        <p className="text-sm text-muted-foreground" data-testid="run-detail-loading">
-          Loading run snapshot…
-        </p>
+        <div className="space-y-3" data-testid="run-detail-loading">
+          <p className="sr-only">Loading run snapshot…</p>
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
       {snapshotQuery.isError && !snapshotQuery.data ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="run-detail-load-error"
-          role="alert"
-        >
+        <Alert data-testid="run-detail-load-error" variant="error">
           {apiErrorMessage(snapshotQuery.error, "Failed to load run snapshot")}
-        </p>
+        </Alert>
       ) : null}
       {snapshotQuery.data ? (
         <RunDetailView

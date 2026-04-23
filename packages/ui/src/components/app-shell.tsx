@@ -6,7 +6,7 @@ export function AppShell({ className, ...props }: HTMLAttributes<HTMLDivElement>
   return (
     <div
       className={cn(
-        "grid min-h-[100dvh] bg-background text-foreground lg:grid-cols-[240px_minmax(0,1fr)]",
+        "grid min-h-[100dvh] bg-background text-foreground lg:h-dvh lg:grid-cols-[248px_minmax(0,1fr)] lg:overflow-hidden",
         className
       )}
       {...props}
@@ -21,8 +21,8 @@ export function AppShellSidebar({
   return (
     <aside
       className={cn(
-        "flex min-h-full flex-col gap-6 border-b border-sidebar-border bg-sidebar px-4 py-5",
-        "lg:border-b-0 lg:border-r",
+        "flex flex-col gap-5 border-b border-sidebar-border bg-sidebar px-4 py-4",
+        "lg:sticky lg:top-0 lg:h-dvh lg:border-b-0 lg:border-r lg:py-5",
         className
       )}
       {...props}
@@ -47,7 +47,7 @@ export function AppShellBrand({
 }: AppShellBrandProps): ReactElement {
   return (
     <div className={cn("flex items-start gap-3", className)} {...props}>
-      <div className="grid size-10 shrink-0 place-items-center rounded-[calc(var(--radius)-2px)] bg-primary text-primary-foreground font-display text-lg">
+      <div className="grid size-10 shrink-0 place-items-center rounded-[var(--radius-md)] border border-primary/30 bg-primary text-primary-foreground font-mono text-sm font-bold shadow-[0_1px_0_rgba(255,255,255,0.25)_inset]">
         {mark}
       </div>
       <div className="min-w-0 space-y-1">
@@ -101,10 +101,10 @@ export function AppShellNavItem({
     <button
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full items-center gap-3 rounded-[calc(var(--radius)-2px)] px-3 py-2 text-left transition-colors",
+        "relative flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-left transition-[background-color,color,box-shadow,transform] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground",
+          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]"
+          : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
         className
       )}
       type={type}
@@ -126,7 +126,7 @@ export function AppShellNavItem({
 }
 
 export function AppShellMain({ className, ...props }: HTMLAttributes<HTMLElement>): ReactElement {
-  return <main className={cn("flex min-w-0 flex-col", className)} {...props} />;
+  return <main className={cn("flex min-h-0 min-w-0 flex-col", className)} {...props} />;
 }
 
 export function AppShellHeader({
@@ -135,7 +135,10 @@ export function AppShellHeader({
 }: HTMLAttributes<HTMLDivElement>): ReactElement {
   return (
     <div
-      className={cn("border-b border-border bg-background px-5 py-5 lg:px-6", className)}
+      className={cn(
+        "sticky top-0 z-10 border-b border-border-subtle bg-background/92 px-5 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/82 lg:px-6",
+        className
+      )}
       {...props}
     />
   );
@@ -145,5 +148,5 @@ export function AppShellContent({
   className,
   ...props
 }: HTMLAttributes<HTMLDivElement>): ReactElement {
-  return <div className={cn("flex-1 overflow-auto p-5 lg:p-6", className)} {...props} />;
+  return <div className={cn("min-h-0 flex-1 overflow-auto p-5 lg:p-6", className)} {...props} />;
 }

@@ -2,6 +2,7 @@ import type { ReactElement } from "react";
 
 import {
   Alert,
+  EmptyState,
   Markdown,
   SectionHeading,
   StatusBadge,
@@ -63,22 +64,15 @@ export function WorkflowMemoryView(props: WorkflowMemoryViewProps): ReactElement
       />
 
       {safeEntries.length === 0 ? (
-        <SurfaceCard data-testid="workflow-memory-empty">
-          <SurfaceCardHeader>
-            <div>
-              <SurfaceCardEyebrow>Empty</SurfaceCardEyebrow>
-              <SurfaceCardTitle>No memory notebooks yet</SurfaceCardTitle>
-              <SurfaceCardDescription>
-                This workflow does not have any memory files on disk. Agents will write their first
-                notebook after the next completed task.
-              </SurfaceCardDescription>
-            </div>
-          </SurfaceCardHeader>
-        </SurfaceCard>
+        <EmptyState
+          data-testid="workflow-memory-empty"
+          description="This workflow does not have any memory files on disk. Agents will write their first notebook after the next completed task."
+          title="No memory notebooks yet"
+        />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <aside
-            className="space-y-4 rounded-[var(--radius-md)] border border-border bg-black/10 p-3"
+            className="space-y-4 rounded-[var(--radius-xl)] border border-border-subtle bg-card p-3 shadow-[var(--shadow-sm)] lg:sticky lg:top-24 lg:self-start"
             data-testid="workflow-memory-sidebar"
           >
             {shared.length > 0 ? (
@@ -146,12 +140,12 @@ function EntryGroup({
         {entries.map(entry => (
           <li key={entry.file_id}>
             <button
-              aria-pressed={selectedFileId === entry.file_id}
+              aria-current={selectedFileId === entry.file_id ? "true" : undefined}
               className={cn(
-                "flex w-full flex-col items-start gap-0.5 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors",
+                "flex w-full flex-col items-start gap-0.5 rounded-[var(--radius-md)] px-2.5 py-2 text-left transition-[background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                 selectedFileId === entry.file_id
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "hover:bg-accent hover:text-foreground"
+                  ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]"
+                  : "hover:bg-surface-hover hover:text-foreground"
               )}
               data-testid={`workflow-memory-entry-${entry.file_id}`}
               onClick={() => onSelectFileId(entry.file_id)}
@@ -216,12 +210,11 @@ function DocumentBody({
           </div>
         </SurfaceCardHeader>
         <SurfaceCardBody>
-          <p
-            className="text-sm text-muted-foreground"
+          <EmptyState
             data-testid="workflow-memory-document-loading"
-          >
-            Loading…
-          </p>
+            description="Fetching content from the daemon."
+            title="Loading memory document"
+          />
         </SurfaceCardBody>
       </>
     );
@@ -229,12 +222,11 @@ function DocumentBody({
   if (!document) {
     return (
       <SurfaceCardBody>
-        <p
-          className="text-sm text-muted-foreground"
+        <EmptyState
           data-testid="workflow-memory-document-placeholder"
-        >
-          Select a memory entry from the sidebar to view it.
-        </p>
+          description="Choose a shared memory file or task notebook from the sidebar."
+          title="Select a memory entry"
+        />
       </SurfaceCardBody>
     );
   }
@@ -260,12 +252,10 @@ function DocumentBody({
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {markdown.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="workflow-memory-document-empty">
-            Document body is empty.
-          </p>
+          <EmptyState data-testid="workflow-memory-document-empty" title="Document body is empty" />
         ) : (
           <div
-            className="max-h-[640px] overflow-auto rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3"
+            className="max-h-[min(72dvh,820px)] overflow-auto rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-5 py-4 shadow-[var(--shadow-xs)]"
             data-testid="workflow-memory-document-body"
           >
             <Markdown>{markdown}</Markdown>

@@ -13,6 +13,7 @@ import {
   AppShellSidebar,
   Button,
   type ButtonProps,
+  EmptyState,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -60,6 +61,10 @@ describe("shared primitives", () => {
               />
             </AppShellHeader>
             <AppShellContent>
+              <EmptyState
+                description="Run sync to populate this workspace."
+                title="Nothing to show yet"
+              />
               <SurfaceCard>
                 <SurfaceCardHeader>
                   <div>
@@ -88,6 +93,7 @@ describe("shared primitives", () => {
     expect(html).toContain("operator runtime");
     expect(html).toContain("Shared foundation ready");
     expect(html).toContain("Mockup-derived theme");
+    expect(html).toContain("Nothing to show yet");
     expect(html).toContain("Search commands");
     expect(html).toContain("stable");
     expect(html).toContain('aria-current="page"');
@@ -142,5 +148,13 @@ describe("shared primitives", () => {
 
     expect(html).toContain('aria-label="Refresh runs"');
     expect(unlabeledIconOnly.icon).toBeDefined();
+  });
+
+  it("renders loading buttons as busy and disabled", () => {
+    const html = renderToStaticMarkup(<Button loading>Resolve workspace</Button>);
+
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain("disabled");
+    expect(html).toContain("Resolve workspace");
   });
 });

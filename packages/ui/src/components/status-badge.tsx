@@ -5,6 +5,8 @@ import { cn } from "../lib/utils";
 export type StatusBadgeTone = "accent" | "success" | "warning" | "info" | "danger" | "neutral";
 
 export interface StatusBadgeProps extends HTMLAttributes<HTMLSpanElement> {
+  pulse?: boolean;
+  showDot?: boolean;
   tone?: StatusBadgeTone;
 }
 
@@ -44,6 +46,8 @@ const toneStyles: Record<StatusBadgeTone, CSSProperties> = {
 export function StatusBadge({
   children,
   className,
+  pulse = false,
+  showDot = true,
   style,
   tone = "neutral",
   ...props
@@ -51,13 +55,23 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-[calc(var(--radius)-2px)] border px-2.5 py-1",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1",
         "eyebrow whitespace-nowrap",
         className
       )}
       style={{ ...toneStyles[tone], ...style }}
       {...props}
     >
+      {showDot ? (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "size-1.5 rounded-full bg-current",
+            pulse &&
+              "animate-pulse shadow-[0_0_0_3px_color-mix(in_srgb,currentColor_18%,transparent)]"
+          )}
+        />
+      ) : null}
       {children}
     </span>
   );

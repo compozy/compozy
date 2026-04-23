@@ -6,6 +6,8 @@ export { Alert, alertVariants, type AlertProps } from "./components/alert";
 
 export { Skeleton, SkeletonRow, SkeletonText, type SkeletonProps } from "./components/skeleton";
 
+export { EmptyState, type EmptyStateProps } from "./components/empty-state";
+
 export { Metric, type MetricProps } from "./components/metric";
 
 export { Markdown, type MarkdownProps } from "./components/markdown";

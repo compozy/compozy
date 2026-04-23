@@ -1,8 +1,18 @@
 import type { ReactElement } from "react";
 
 import {
+  Activity,
+  AlertTriangle,
+  GitPullRequest,
+  ListOrdered,
+  RefreshCw,
+  Server,
+} from "lucide-react";
+
+import {
   Alert,
   Button,
+  EmptyState,
   Metric,
   SectionHeading,
   StatusBadge,
@@ -21,6 +31,8 @@ import { resolveStatusTone } from "@/systems/runs";
 import type { Run } from "@/systems/runs";
 
 import type { DashboardPayload, DashboardQueueSummary, WorkflowCard } from "../types";
+
+type HealthDetail = NonNullable<DashboardPayload["health"]["details"]>[number];
 
 export interface DashboardViewProps {
   dashboard: DashboardPayload;
@@ -53,10 +65,12 @@ export function DashboardView({
           <Button
             data-testid="dashboard-sync-all"
             disabled={isSyncing}
+            icon={<RefreshCw className="size-4" />}
+            loading={isSyncing}
             onClick={onSyncAll}
             size="sm"
           >
-            {isSyncing ? "Syncing…" : "Sync all workflows"}
+            Sync all workflows
           </Button>
         }
         description={`Daemon ${daemonVersion} · ${daemonLocator} · ${workspace.name}`}
@@ -75,30 +89,39 @@ export function DashboardView({
         </Alert>
       ) : null}
 
+      <HealthDiagnostics degraded={Boolean(health.degraded)} details={health.details ?? []} />
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric
           data-testid="dashboard-stat-reviews"
           hint="awaiting review"
           label="Reviews"
+          trailing={<GitPullRequest className="size-4 text-muted-foreground" aria-hidden />}
           value={pending_reviews}
         />
         <Metric
           data-testid="dashboard-stat-workflows"
           hint="tracked in workspace"
           label="Workflows"
+          trailing={<ListOrdered className="size-4 text-muted-foreground" aria-hidden />}
           value={safeWorkflows.length}
         />
         <Metric
           data-testid="dashboard-stat-active-runs"
           hint={safeRuns.length === 1 ? "run in flight" : "runs in flight"}
           label="Active runs"
+          trailing={<Activity className="size-4 text-muted-foreground" aria-hidden />}
           value={safeRuns.length}
         />
         <Metric
           data-testid="dashboard-stat-daemon"
           hint={daemonLocator}
           label="Daemon"
-          trailing={<StatusBadge tone={healthTone}>{healthLabel}</StatusBadge>}
+          trailing={
+            <StatusBadge pulse={health.ready && !health.degraded} tone={healthTone}>
+              {healthLabel}
+            </StatusBadge>
+          }
           value={healthLabel}
         />
       </div>
@@ -117,10 +140,17 @@ export function DashboardView({
           </SurfaceCardHeader>
           <SurfaceCardBody>
             {safeWorkflows.length === 0 ? (
-              <p className="text-sm text-muted-foreground" data-testid="dashboard-workflows-empty">
-                No workflows yet. Register one through <code>compozy sync</code> or{" "}
-                <code>compozy workspace register</code>.
-              </p>
+              <EmptyState
+                data-testid="dashboard-workflows-empty"
+                description={
+                  <>
+                    Register one with <code>compozy sync</code> or{" "}
+                    <code>compozy workspace register</code>.
+                  </>
+                }
+                icon={<ListOrdered className="size-4" aria-hidden />}
+                title="No workflows yet"
+              />
             ) : (
               <ul className="space-y-3" data-testid="dashboard-workflows-list">
                 {safeWorkflows.slice(0, 6).map(card => (
@@ -131,7 +161,7 @@ export function DashboardView({
           </SurfaceCardBody>
           <SurfaceCardFooter>
             <Link
-              className="text-xs font-semibold uppercase tracking-[0.12em] text-accent hover:underline"
+              className="text-xs font-semibold uppercase tracking-[0.12em] text-primary transition-colors hover:text-foreground"
               data-testid="dashboard-view-all-workflows"
               to="/workflows"
             >
@@ -149,10 +179,46 @@ export function DashboardView({
   );
 }
 
+function HealthDiagnostics({
+  degraded,
+  details,
+}: {
+  degraded: boolean;
+  details: HealthDetail[];
+}): ReactElement | null {
+  if (!degraded && details.length === 0) {
+    return null;
+  }
+  return (
+    <Alert
+      data-testid="dashboard-health-diagnostics"
+      icon={degraded ? <AlertTriangle className="size-4" /> : <Server className="size-4" />}
+      title={degraded ? "Daemon health is degraded" : "Daemon health details"}
+      variant={degraded ? "warning" : "neutral"}
+    >
+      {details.length === 0 ? (
+        <span>The daemon reported a degraded state without additional detail.</span>
+      ) : (
+        <ul className="space-y-1">
+          {details.map(detail => (
+            <li className="flex flex-wrap gap-2" key={`${detail.code}-${detail.message}`}>
+              <span className="font-mono text-xs text-current/90">{detail.code}</span>
+              <span>{detail.message}</span>
+              {detail.severity ? (
+                <span className="text-current/70">({detail.severity})</span>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Alert>
+  );
+}
+
 function DashboardWorkflowRow({ card }: { card: WorkflowCard }): ReactElement {
   return (
     <li
-      className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={`dashboard-workflow-row-${card.workflow.slug}`}
     >
       <div className="min-w-0 space-y-1">
@@ -163,7 +229,7 @@ function DashboardWorkflowRow({ card }: { card: WorkflowCard }): ReactElement {
         </p>
       </div>
       <div className="flex items-center gap-2">
-        <StatusBadge tone={card.active_runs > 0 ? "accent" : "info"}>
+        <StatusBadge pulse={card.active_runs > 0} tone={card.active_runs > 0 ? "accent" : "info"}>
           {card.active_runs > 0 ? "running" : "idle"}
         </StatusBadge>
       </div>
@@ -193,9 +259,12 @@ function ActiveRunsCard({
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {visible.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="dashboard-active-runs-empty">
-            No active runs — the daemon is idle.
-          </p>
+          <EmptyState
+            data-testid="dashboard-active-runs-empty"
+            description="No active runs are streaming from the daemon."
+            icon={<Activity className="size-4" aria-hidden />}
+            title="Daemon is idle"
+          />
         ) : (
           <ul className="space-y-2" data-testid="dashboard-active-runs-list">
             {visible.map(run => (
@@ -207,7 +276,7 @@ function ActiveRunsCard({
       <SurfaceCardFooter>
         <QueueSummaryChips queue={queue} />
         <Link
-          className="text-xs font-semibold uppercase tracking-[0.12em] text-accent hover:underline"
+          className="text-xs font-semibold uppercase tracking-[0.12em] text-primary transition-colors hover:text-foreground"
           data-testid="dashboard-view-all-runs"
           to="/runs"
         >
@@ -222,7 +291,7 @@ function ActiveRunRow({ run }: { run: Run }): ReactElement {
   const tone = resolveStatusTone(run.status);
   return (
     <li
-      className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={`dashboard-active-run-${run.run_id}`}
     >
       <div className="min-w-0 space-y-1">
@@ -238,7 +307,9 @@ function ActiveRunRow({ run }: { run: Run }): ReactElement {
           {run.mode} · started {formatTimestamp(run.started_at)}
         </p>
       </div>
-      <StatusBadge tone={tone}>{run.status}</StatusBadge>
+      <StatusBadge pulse={tone === "accent"} tone={tone}>
+        {run.status}
+      </StatusBadge>
     </li>
   );
 }

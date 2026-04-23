@@ -1,8 +1,11 @@
 import type { ReactElement } from "react";
 
+import { RefreshCw, XCircle } from "lucide-react";
+
 import {
   Alert,
   Button,
+  EmptyState,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -70,10 +73,11 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
     <div className="space-y-6" data-testid="run-detail-view">
       <SectionHeading
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <StreamBadge status={streamStatus} />
             <Button
               data-testid="run-detail-reconnect"
+              icon={<RefreshCw className="size-4" />}
               onClick={onReconnectStream}
               size="sm"
               variant="ghost"
@@ -83,11 +87,13 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
             <Button
               data-testid="run-detail-cancel"
               disabled={cancelDisabled || isCancelling}
+              icon={<XCircle className="size-4" />}
+              loading={isCancelling}
               onClick={onCancelRun}
               size="sm"
               variant="secondary"
             >
-              {isCancelling ? "Cancelling…" : "Cancel run"}
+              Cancel run
             </Button>
           </div>
         }
@@ -134,7 +140,7 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
         </Alert>
       ) : null}
       {cancelSuccess ? (
-        <Alert data-testid="run-detail-cancel-success" variant="neutral">
+        <Alert data-testid="run-detail-cancel-success" variant="success">
           {cancelSuccess}
         </Alert>
       ) : null}
@@ -162,7 +168,11 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
 function StreamBadge({ status }: { status: RunStreamStatus }): ReactElement {
   const tone = statusToStreamTone(status);
   return (
-    <StatusBadge data-testid="run-detail-stream-status" tone={tone}>
+    <StatusBadge
+      data-testid="run-detail-stream-status"
+      pulse={tone === "accent" || tone === "success"}
+      tone={tone}
+    >
       stream {status}
     </StatusBadge>
   );
@@ -199,14 +209,16 @@ function StreamNotices({
 }): ReactElement {
   return (
     <div
-      className="grid gap-2 text-xs text-muted-foreground"
+      className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
       data-testid="run-detail-stream-notices"
     >
-      <p data-testid="run-detail-stream-events">events received · {eventCount}</p>
+      <StatusBadge data-testid="run-detail-stream-events" tone="neutral">
+        {eventCount} events
+      </StatusBadge>
       {heartbeatAt ? (
-        <p data-testid="run-detail-stream-heartbeat">
-          last heartbeat · {new Date(heartbeatAt).toLocaleTimeString()}
-        </p>
+        <StatusBadge data-testid="run-detail-stream-heartbeat" tone="neutral">
+          heartbeat {new Date(heartbeatAt).toLocaleTimeString()}
+        </StatusBadge>
       ) : null}
       {status === "overflowed" ? (
         <Alert data-testid="run-detail-stream-overflow" variant="warning">
@@ -264,9 +276,11 @@ function JobsCard({
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {jobs.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="run-detail-jobs-empty">
-            No jobs reported yet.
-          </p>
+          <EmptyState
+            data-testid="run-detail-jobs-empty"
+            description="The daemon has not reported a job snapshot for this run yet."
+            title="No jobs reported yet"
+          />
         ) : (
           <ul className="space-y-3" data-testid="run-detail-jobs-list">
             {jobs.map(job => (
@@ -291,7 +305,7 @@ function JobRow({ job }: { job: RunJobState }): ReactElement {
   const tone = resolveStatusTone(job.status);
   return (
     <li
-      className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={`run-detail-job-row-${job.job_id}`}
     >
       <div className="min-w-0 space-y-1">
@@ -303,7 +317,11 @@ function JobRow({ job }: { job: RunJobState }): ReactElement {
           {job.agent_name ? ` · ${job.agent_name}` : null}
         </p>
       </div>
-      <StatusBadge data-testid={`run-detail-job-status-${job.job_id}`} tone={tone}>
+      <StatusBadge
+        data-testid={`run-detail-job-status-${job.job_id}`}
+        pulse={tone === "accent"}
+        tone={tone}
+      >
         {job.status}
       </StatusBadge>
     </li>
@@ -329,17 +347,15 @@ function UsageCard({ usage }: { usage?: RunUsage }): ReactElement {
         </div>
         <StatusBadge tone="info">{usage?.total_tokens ?? 0}</StatusBadge>
       </SurfaceCardHeader>
-      <SurfaceCardBody className="grid grid-cols-2 gap-3">
+      <SurfaceCardBody className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {entries.map(entry => (
           <div
-            className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+            className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2"
             data-testid={`run-detail-usage-${entry.label.toLowerCase().replace(/\s+/g, "-")}`}
             key={entry.label}
           >
             <p className="eyebrow text-muted-foreground">{entry.label}</p>
-            <p className="mt-1 font-display text-lg tracking-[-0.02em] text-foreground">
-              {entry.value}
-            </p>
+            <p className="mt-1 font-mono text-lg text-foreground tabular-nums">{entry.value}</p>
           </div>
         ))}
       </SurfaceCardBody>
@@ -362,14 +378,16 @@ function TranscriptCard({ transcript }: { transcript: RunTranscriptMessage[] }):
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {transcript.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="run-detail-transcript-empty">
-            Transcript is empty.
-          </p>
+          <EmptyState
+            data-testid="run-detail-transcript-empty"
+            description="Persisted transcript messages will appear here after the agent writes output."
+            title="Transcript is empty"
+          />
         ) : (
           <ul className="space-y-3" data-testid="run-detail-transcript-list">
             {transcript.slice(-8).map(entry => (
               <li
-                className="space-y-1 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+                className="space-y-1 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2"
                 data-testid={`run-detail-transcript-${entry.sequence}`}
                 key={`${entry.sequence}-${entry.timestamp}`}
               >

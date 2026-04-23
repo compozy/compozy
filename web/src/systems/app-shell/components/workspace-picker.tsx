@@ -1,21 +1,17 @@
 import type { ReactElement } from "react";
 
+import { ChevronRight } from "lucide-react";
+
 import {
+  Alert,
   AppShell,
   AppShellBrand,
   AppShellContent,
   AppShellHeader,
   AppShellMain,
   AppShellSidebar,
-  Button,
   SectionHeading,
   StatusBadge,
-  SurfaceCard,
-  SurfaceCardBody,
-  SurfaceCardDescription,
-  SurfaceCardEyebrow,
-  SurfaceCardHeader,
-  SurfaceCardTitle,
 } from "@compozy/ui";
 
 import type { Workspace } from "../types";
@@ -56,39 +52,44 @@ export function WorkspacePicker({
 
         <AppShellContent>
           {staleWorkspaceId ? (
-            <p
-              className="rounded-[var(--radius-md)] border border-[color:var(--color-warning)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-warning)]"
-              data-testid="workspace-picker-stale"
-              role="alert"
-            >
+            <Alert data-testid="workspace-picker-stale" variant="warning">
               Your previously selected workspace is no longer registered with the daemon. Pick a new
               one to continue.
-            </p>
+            </Alert>
           ) : null}
 
-          <ul className="grid gap-3 md:grid-cols-2" data-testid="workspace-picker-list">
+          <ul
+            className="overflow-hidden rounded-[var(--radius-xl)] border border-border-subtle bg-card shadow-[var(--shadow-sm)]"
+            data-testid="workspace-picker-list"
+          >
             {workspaces.map(workspace => (
-              <li key={workspace.id}>
-                <SurfaceCard>
-                  <SurfaceCardHeader>
-                    <div>
-                      <SurfaceCardEyebrow>workspace</SurfaceCardEyebrow>
-                      <SurfaceCardTitle>{workspace.name}</SurfaceCardTitle>
-                      <SurfaceCardDescription>{workspace.root_dir}</SurfaceCardDescription>
-                    </div>
-                    <StatusBadge tone="info">select</StatusBadge>
-                  </SurfaceCardHeader>
-                  <SurfaceCardBody>
-                    <Button
-                      data-testid={`workspace-picker-select-${workspace.id}`}
-                      onClick={() => onSelect(workspace.id)}
-                      size="sm"
-                      type="button"
+              <li className="border-b border-border-subtle last:border-b-0" key={workspace.id}>
+                <button
+                  className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-5 py-4 text-left transition-[background-color,color] duration-200 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
+                  data-testid={`workspace-picker-select-${workspace.id}`}
+                  onClick={() => onSelect(workspace.id)}
+                  type="button"
+                >
+                  <span className="min-w-0">
+                    <span className="eyebrow text-muted-foreground">workspace</span>
+                    <span className="mt-1 block truncate text-sm font-semibold text-foreground">
+                      {workspace.name}
+                    </span>
+                    <span
+                      className="mt-1 block truncate font-mono text-xs text-muted-foreground"
+                      title={workspace.root_dir}
                     >
-                      Use this workspace
-                    </Button>
-                  </SurfaceCardBody>
-                </SurfaceCard>
+                      {workspace.root_dir}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <StatusBadge tone="info">select</StatusBadge>
+                    <ChevronRight
+                      aria-hidden
+                      className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary"
+                    />
+                  </span>
+                </button>
               </li>
             ))}
           </ul>

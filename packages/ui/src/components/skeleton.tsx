@@ -9,7 +9,8 @@ export function Skeleton({ className, ...props }: SkeletonProps): ReactElement {
     <div
       aria-hidden="true"
       className={cn(
-        "animate-pulse rounded-[var(--radius-sm)] bg-[color:var(--tone-neutral-bg)]",
+        "relative overflow-hidden rounded-[var(--radius-sm)] bg-[color:var(--surface-inset)]",
+        "after:absolute after:inset-0 after:-translate-x-full after:bg-linear-to-r after:from-transparent after:via-foreground/10 after:to-transparent after:animate-[skeleton-shimmer_1.4s_infinite]",
         className
       )}
       {...props}
@@ -36,7 +37,7 @@ export function SkeletonRow({ className, ...props }: HTMLAttributes<HTMLDivEleme
     <div
       aria-hidden="true"
       className={cn(
-        "flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-[color:var(--tone-neutral-bg)] px-3 py-2",
+        "flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-card px-3 py-2 shadow-[var(--shadow-xs)]",
         className
       )}
       {...props}

@@ -120,4 +120,19 @@ describe("DashboardView", () => {
     await renderDashboardView({ dashboard: buildDashboard({ workflows: [] }) });
     expect(await screen.findByTestId("dashboard-workflows-empty")).toBeInTheDocument();
   });
+
+  it("Should show daemon health diagnostics when degraded", async () => {
+    await renderDashboardView({
+      dashboard: buildDashboard({
+        health: {
+          ready: true,
+          degraded: true,
+          details: [{ code: "stream_backlog", message: "SSE backlog is above threshold" }],
+        },
+      }),
+    });
+    expect(screen.getByTestId("dashboard-health-diagnostics")).toHaveTextContent(
+      "SSE backlog is above threshold"
+    );
+  });
 });

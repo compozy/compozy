@@ -1,7 +1,10 @@
 import type { ReactElement } from "react";
 
 import {
+  Alert,
+  EmptyState,
   SectionHeading,
+  SkeletonRow,
   StatusBadge,
   SurfaceCard,
   SurfaceCardBody,
@@ -34,41 +37,38 @@ export function MemoryIndexView(props: MemoryIndexViewProps): ReactElement {
       />
 
       {error ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="memory-index-error"
-          role="alert"
-        >
+        <Alert data-testid="memory-index-error" variant="error">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground" data-testid="memory-index-loading">
-          Loading workflows…
-        </p>
+        <div
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+          data-testid="memory-index-loading"
+        >
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
 
       {!isLoading && workflows.length === 0 && !error ? (
-        <SurfaceCard data-testid="memory-index-empty">
-          <SurfaceCardHeader>
-            <div>
-              <SurfaceCardEyebrow>Empty</SurfaceCardEyebrow>
-              <SurfaceCardTitle>No workflows yet</SurfaceCardTitle>
-              <SurfaceCardDescription>
-                No workflows are registered in this workspace, so there are no memory notebooks to
-                browse yet.
-              </SurfaceCardDescription>
-            </div>
-          </SurfaceCardHeader>
-        </SurfaceCard>
+        <EmptyState
+          data-testid="memory-index-empty"
+          description="No workflows are registered in this workspace, so there are no memory notebooks to browse yet."
+          title="No workflows yet"
+        />
       ) : null}
 
       {workflows.length > 0 ? (
         <ul className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="memory-index-list">
           {workflows.map(workflow => (
             <li key={workflow.id}>
-              <SurfaceCard data-testid={`memory-index-card-${workflow.slug}`}>
+              <SurfaceCard
+                data-interactive="true"
+                data-testid={`memory-index-card-${workflow.slug}`}
+              >
                 <SurfaceCardHeader>
                   <div>
                     <SurfaceCardEyebrow>Workflow</SurfaceCardEyebrow>
@@ -77,7 +77,7 @@ export function MemoryIndexView(props: MemoryIndexViewProps): ReactElement {
                       last synced {formatTimestamp(workflow.last_synced_at)}
                     </SurfaceCardDescription>
                   </div>
-                  <StatusBadge tone={workflow.archived_at ? "neutral" : "info"}>
+                  <StatusBadge tone={workflow.archived_at ? "neutral" : "success"}>
                     {workflow.archived_at ? "archived" : "live"}
                   </StatusBadge>
                 </SurfaceCardHeader>
@@ -89,7 +89,7 @@ export function MemoryIndexView(props: MemoryIndexViewProps): ReactElement {
                 </SurfaceCardBody>
                 <SurfaceCardFooter>
                   <Link
-                    className="text-xs font-semibold uppercase tracking-[0.12em] text-accent hover:underline"
+                    className="text-xs font-semibold uppercase tracking-[0.12em] text-primary transition-colors hover:text-foreground"
                     data-testid={`memory-index-open-${workflow.slug}`}
                     params={{ slug: workflow.slug }}
                     to="/memory/$slug"
