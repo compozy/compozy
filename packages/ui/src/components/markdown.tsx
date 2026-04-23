@@ -11,7 +11,7 @@ export interface MarkdownProps extends Omit<HTMLAttributes<HTMLDivElement>, "chi
 }
 
 const proseClasses = [
-  "prose prose-sm prose-invert max-w-none",
+  "max-w-none",
   "text-foreground [&_*]:leading-relaxed",
   "[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:font-display [&_h1]:text-2xl [&_h1]:tracking-[-0.02em] [&_h1]:text-foreground",
   "[&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:font-display [&_h2]:text-xl [&_h2]:tracking-[-0.02em] [&_h2]:text-foreground",
@@ -26,7 +26,7 @@ const proseClasses = [
   "[&_li]:my-1 [&_li]:text-foreground/90",
   "[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-[color:var(--primary)]/60 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground",
   "[&_code]:rounded [&_code]:bg-[color:var(--tone-neutral-bg)] [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-foreground",
-  "[&_pre]:my-3 [&_pre]:overflow-auto [&_pre]:rounded-[var(--radius-md)] [&_pre]:border [&_pre]:border-border [&_pre]:bg-black/30 [&_pre]:p-3 [&_pre]:text-xs [&_pre]:leading-snug",
+  "[&_pre]:my-3 [&_pre]:overflow-auto [&_pre]:rounded-[var(--radius-md)] [&_pre]:border [&_pre]:border-border [&_pre]:bg-[color:var(--tone-neutral-bg)] [&_pre]:p-3 [&_pre]:text-xs [&_pre]:leading-snug",
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-foreground",
   "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:text-left [&_table]:text-sm",
   "[&_th]:border-b [&_th]:border-border [&_th]:px-2 [&_th]:py-1.5 [&_th]:font-semibold [&_th]:text-foreground",

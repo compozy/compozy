@@ -1,4 +1,4 @@
-import { useMemo, useRef, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 
 import { createRunEventStore, type RunEventStore, type RunFeedEvent } from "../lib/event-store";
 
@@ -9,17 +9,9 @@ export interface UseRunEventFeedResult {
 }
 
 export function useRunEventFeed(runId: string | null): UseRunEventFeedResult {
-  const storeRef = useRef<RunEventStore | null>(null);
-  const activeRunIdRef = useRef<string | null>(null);
-  if (!storeRef.current) {
-    storeRef.current = createRunEventStore();
-  }
-  if (activeRunIdRef.current !== runId) {
-    storeRef.current.reset();
-    activeRunIdRef.current = runId;
-  }
-  const store = storeRef.current;
+  const store: RunEventStore = useMemo(() => createRunEventStore(), [runId]);
   const events = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
+
   return useMemo(
     () => ({
       events,

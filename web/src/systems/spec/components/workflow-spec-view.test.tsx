@@ -6,8 +6,9 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { act, render, screen } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
+import { createContext, useContext, type ReactElement } from "react";
 import { describe, expect, it } from "vitest";
 
 import { WorkflowSpecView } from "./workflow-spec-view";
@@ -51,13 +52,26 @@ const fullSpec: WorkflowSpecDocument = {
   ],
 };
 
+interface SpecTestContextValue {
+  isRefreshing: boolean;
+  spec: WorkflowSpecDocument;
+}
+
+const SpecTestContext = createContext<SpecTestContextValue | null>(null);
+
 async function renderSpec(spec: WorkflowSpecDocument, isRefreshing: boolean = false) {
+  let currentSpec = spec;
+  let currentRefreshing = isRefreshing;
   const rootRoute = createRootRoute();
   const specRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
     component: function SpecRoute(): ReactElement {
-      return <WorkflowSpecView isRefreshing={isRefreshing} spec={spec} />;
+      const value = useContext(SpecTestContext);
+      if (!value) {
+        throw new Error("expected spec test context");
+      }
+      return <WorkflowSpecView isRefreshing={value.isRefreshing} spec={value.spec} />;
     },
   });
   const workflowsRoute = createRoute({
@@ -73,10 +87,32 @@ async function renderSpec(spec: WorkflowSpecDocument, isRefreshing: boolean = fa
     defaultPreload: false,
   });
   await router.load();
+  let renderResult: RenderResult | null = null;
   await act(async () => {
-    render(<RouterProvider router={router} />);
+    renderResult = render(
+      <SpecTestContext.Provider value={{ isRefreshing: currentRefreshing, spec: currentSpec }}>
+        <RouterProvider router={router} />
+      </SpecTestContext.Provider>
+    );
     await Promise.resolve();
   });
+  return {
+    rerender(nextSpec: WorkflowSpecDocument, nextRefreshing: boolean = currentRefreshing) {
+      if (renderResult === null) {
+        throw new Error("expected render result to be available");
+      }
+      const mounted = renderResult;
+      currentSpec = nextSpec;
+      currentRefreshing = nextRefreshing;
+      act(() => {
+        mounted.rerender(
+          <SpecTestContext.Provider value={{ isRefreshing: currentRefreshing, spec: currentSpec }}>
+            <RouterProvider router={router} />
+          </SpecTestContext.Provider>
+        );
+      });
+    },
+  };
 }
 
 describe("WorkflowSpecView", () => {
@@ -121,5 +157,27 @@ describe("WorkflowSpecView", () => {
   it("Should render the refreshing indicator", async () => {
     await renderSpec(fullSpec, true);
     expect(screen.getByTestId("workflow-spec-refreshing")).toBeInTheDocument();
+  });
+
+  it("Should reset the active tab when the workflow changes", async () => {
+    const view = await renderSpec(fullSpec);
+    await userEvent.click(screen.getByTestId("workflow-spec-tab-adrs"));
+    expect(screen.getByTestId("workflow-spec-adrs-list")).toBeInTheDocument();
+
+    view.rerender({
+      ...fullSpec,
+      workflow: { ...workflow, id: "wf-2", slug: "beta" },
+      prd: {
+        id: "prd-beta",
+        kind: "prd",
+        title: "PRD: beta",
+        updated_at: "2026-01-01T00:00:00Z",
+        markdown: "# Beta PRD body",
+      },
+      techspec: undefined,
+      adrs: [],
+    });
+
+    expect(screen.getByTestId("workflow-spec-prd-body")).toHaveTextContent("Beta PRD body");
   });
 });

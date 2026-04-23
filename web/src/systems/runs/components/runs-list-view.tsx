@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from "react";
+import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import {
   Alert,
@@ -78,12 +78,22 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
     ];
   }, [runs]);
 
+  const selectedWorkflowFilter = workflowOptions.some(option => option.value === workflowFilter)
+    ? workflowFilter
+    : WORKFLOW_ALL;
+
+  useEffect(() => {
+    if (workflowFilter !== selectedWorkflowFilter) {
+      setWorkflowFilter(selectedWorkflowFilter);
+    }
+  }, [selectedWorkflowFilter, workflowFilter]);
+
   const visibleRuns = useMemo(() => {
-    if (workflowFilter === WORKFLOW_ALL) {
+    if (selectedWorkflowFilter === WORKFLOW_ALL) {
       return runs;
     }
-    return runs.filter(run => run.workflow_slug === workflowFilter);
-  }, [runs, workflowFilter]);
+    return runs.filter(run => run.workflow_slug === selectedWorkflowFilter);
+  }, [runs, selectedWorkflowFilter]);
 
   return (
     <div className="space-y-6" data-testid="runs-list-view">
@@ -114,7 +124,7 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
         <FilterSelect<string>
           label="Workflow"
           options={workflowOptions}
-          value={workflowFilter}
+          value={selectedWorkflowFilter}
           onChange={setWorkflowFilter}
           testId="runs-filter-workflow"
         />
@@ -138,7 +148,10 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
       ) : null}
 
       {isLoading ? (
-        <div className="space-y-2" data-testid="runs-list-loading">
+        <div aria-live="polite" className="space-y-2" data-testid="runs-list-loading" role="status">
+          <p className="sr-only" data-testid="runs-list-loading-status">
+            Loading runs…
+          </p>
           <SkeletonRow />
           <SkeletonRow />
           <SkeletonRow />
@@ -272,6 +285,7 @@ export function resolveStatusTone(status: string): StatusBadgeTone {
     case "success":
       return "success";
     case "failed":
+    case "crashed":
       return "danger";
     case "canceled":
     case "cancelled":

@@ -95,6 +95,7 @@ export function useRunStream(options: UseRunStreamOptions): UseRunStreamResult {
   const controllerRef = useRef<RunStreamController | null>(null);
   const cancelReconnectRef = useRef<(() => void) | null>(null);
   const cursorRef = useRef<string | null>(initialCursor);
+  const manualCloseRef = useRef(false);
 
   const handlersRef = useRef({ onEvent, onOverflow, onTerminal });
   useEffect(() => {
@@ -102,14 +103,17 @@ export function useRunStream(options: UseRunStreamOptions): UseRunStreamResult {
   }, [onEvent, onOverflow, onTerminal]);
 
   const reconnect = useCallback(() => {
+    manualCloseRef.current = false;
     setReconnectKey(key => key + 1);
   }, []);
 
   const close = useCallback(() => {
+    manualCloseRef.current = true;
     controllerRef.current?.close();
     controllerRef.current = null;
     cancelReconnectRef.current?.();
     cancelReconnectRef.current = null;
+    setError(null);
     setStatus("closed");
   }, []);
 
@@ -124,6 +128,7 @@ export function useRunStream(options: UseRunStreamOptions): UseRunStreamResult {
 
   useEffect(() => {
     if (!enabled || !runId) {
+      manualCloseRef.current = true;
       controllerRef.current?.close();
       controllerRef.current = null;
       cancelReconnectRef.current?.();
@@ -137,9 +142,14 @@ export function useRunStream(options: UseRunStreamOptions): UseRunStreamResult {
       setLastCursor(initialCursor);
     }
 
+    manualCloseRef.current = false;
     setStatus(prev => (prev === "idle" || prev === "closed" ? "connecting" : "reconnecting"));
 
+    let active = true;
     const controller = factory({ runId, baseUrl, lastEventId: cursorRef.current }, signal => {
+      if (!active) {
+        return;
+      }
       const snapshot = handlersRef.current;
       switch (signal.type) {
         case "open":
@@ -177,6 +187,9 @@ export function useRunStream(options: UseRunStreamOptions): UseRunStreamResult {
           return;
         }
         case "error": {
+          if (manualCloseRef.current) {
+            return;
+          }
           setError(signal.error);
           snapshot.onTerminal?.(signal.error);
           if (reconnectCount >= maxReconnectAttempts) {
@@ -199,6 +212,8 @@ export function useRunStream(options: UseRunStreamOptions): UseRunStreamResult {
     controllerRef.current = controller;
 
     return () => {
+      active = false;
+      manualCloseRef.current = true;
       controllerRef.current?.close();
       controllerRef.current = null;
       cancelReconnectRef.current?.();

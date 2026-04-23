@@ -79,6 +79,15 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
+  --spacing: 0.25rem;
+  --space-1: calc(var(--spacing) * 1);
+  --space-2: calc(var(--spacing) * 2);
+  --space-3: calc(var(--spacing) * 3);
+  --space-4: calc(var(--spacing) * 4);
+  --space-6: calc(var(--spacing) * 6);
+  --space-8: calc(var(--spacing) * 8);
+  --space-12: calc(var(--spacing) * 12);
+
   --shadow-color: hsl(30 10% 20%);
   --shadow-2xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
   --shadow-xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
@@ -130,7 +139,7 @@
   --destructive-foreground: var(--red-50);
   --border: rgba(0, 0, 0, 0.12);
   --input: rgba(0, 0, 0, 0.12);
-  --ring: var(--stone-400);
+  --ring: var(--brand);
 
   --sidebar: var(--stone-100);
   --sidebar-foreground: var(--stone-800);
@@ -139,6 +148,10 @@
   --sidebar-accent: var(--stone-200);
   --sidebar-accent-foreground: var(--stone-800);
   --sidebar-border: rgba(0, 0, 0, 0.1);
+
+  --tone-neutral-bg: rgba(0, 0, 0, 0.04);
+  --tone-neutral-border: rgba(0, 0, 0, 0.08);
+  --tone-neutral-text: var(--muted-foreground);
 }
 
 @theme inline {

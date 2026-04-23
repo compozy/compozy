@@ -36,7 +36,7 @@ export function SkeletonRow({ className, ...props }: HTMLAttributes<HTMLDivEleme
     <div
       aria-hidden="true"
       className={cn(
-        "flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2",
+        "flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-[color:var(--tone-neutral-bg)] px-3 py-2",
         className
       )}
       {...props}

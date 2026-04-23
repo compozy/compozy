@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 import {
   Markdown,
@@ -36,6 +36,16 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
   const { workflow, workspace, prd, techspec, adrs } = spec;
   const tabs = buildTabs(spec);
   const [active, setActive] = useState<SpecTabKey>(initialTab(tabs));
+
+  useEffect(() => {
+    setActive(initialTab(tabs));
+  }, [workflow.slug]);
+
+  useEffect(() => {
+    if (!tabs.some(tab => tab.key === active && tab.present)) {
+      setActive(initialTab(tabs));
+    }
+  }, [active, tabs]);
 
   return (
     <div className="space-y-6" data-testid="workflow-spec-view">

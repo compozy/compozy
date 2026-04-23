@@ -12,6 +12,7 @@ describe("tokens.css", () => {
     expect(css).toContain('@import "@fontsource/playfair-display/500.css"');
     expect(css).toContain("--background: #131211");
     expect(css).toContain("--sidebar: #0b0a09");
+    expect(css).toContain("--spacing: 0.25rem");
     expect(css).toContain('--font-display: "Playfair Display", Georgia, serif');
     expect(css).toContain("color-scheme: dark;");
   });
