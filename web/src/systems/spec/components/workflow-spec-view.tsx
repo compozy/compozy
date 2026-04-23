@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from "react";
 
 import {
+  Markdown,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -149,12 +150,12 @@ function DocumentCard({
             Document body is empty.
           </p>
         ) : (
-          <pre
-            className="max-h-[640px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+          <div
+            className="max-h-[640px] overflow-auto rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3"
             data-testid={`${testId}-body`}
           >
-            {markdown}
-          </pre>
+            <Markdown>{markdown}</Markdown>
+          </div>
         )}
       </SurfaceCardBody>
     </SurfaceCard>
@@ -192,12 +193,16 @@ function AdrList({ adrs }: { adrs: MarkdownDocument[] }): ReactElement {
             <StatusBadge tone="info">{adr.id}</StatusBadge>
           </SurfaceCardHeader>
           <SurfaceCardBody>
-            <pre
-              className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+            <div
+              className="max-h-[400px] overflow-auto rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3"
               data-testid={`workflow-spec-adr-body-${adr.id}`}
             >
-              {adr.markdown?.trim().length ? adr.markdown.trim() : "(empty)"}
-            </pre>
+              {adr.markdown?.trim().length ? (
+                <Markdown>{adr.markdown.trim()}</Markdown>
+              ) : (
+                <p className="text-sm text-muted-foreground">(empty)</p>
+              )}
+            </div>
           </SurfaceCardBody>
         </SurfaceCard>
       ))}

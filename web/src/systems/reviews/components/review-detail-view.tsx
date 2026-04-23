@@ -1,7 +1,9 @@
 import type { ReactElement } from "react";
 
 import {
+  Alert,
   Button,
+  Markdown,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -79,23 +81,16 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
       />
 
       {dispatchError ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="review-detail-dispatch-error"
-          role="alert"
-        >
+        <Alert data-testid="review-detail-dispatch-error" variant="error">
           {dispatchError}
-        </p>
+        </Alert>
       ) : null}
 
       {dispatchedRun ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3 text-sm text-muted-foreground"
-          data-testid="review-detail-dispatch-success"
-        >
+        <Alert data-testid="review-detail-dispatch-success" variant="success">
           Dispatched run{" "}
           <Link
-            className="font-mono text-accent hover:underline"
+            className="font-mono underline"
             data-testid="review-detail-dispatch-success-link"
             params={{ runId: dispatchedRun.run_id }}
             to="/runs/$runId"
@@ -103,7 +98,7 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
             {dispatchedRun.run_id}
           </Link>{" "}
           — check the runs console for live progress.
-        </p>
+        </Alert>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
@@ -126,12 +121,12 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
                 No review document body available.
               </p>
             ) : (
-              <pre
-                className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+              <div
+                className="max-h-[520px] overflow-auto rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3"
                 data-testid="review-detail-document-body"
               >
-                {markdown}
-              </pre>
+                <Markdown>{markdown}</Markdown>
+              </div>
             )}
           </SurfaceCardBody>
           <SurfaceCardFooter>

@@ -19,6 +19,8 @@ export function useRuns(params: RunListParams) {
     queryKey: runKeys.list(params) as QueryKey,
     queryFn: () => listRuns(params),
     enabled: Boolean(params.workspaceId),
+    refetchInterval: 3_000,
+    refetchIntervalInBackground: false,
   });
 }
 

@@ -1,7 +1,9 @@
-import type { ReactElement } from "react";
+import { useMemo, useState, type ReactElement } from "react";
 
 import {
+  Alert,
   SectionHeading,
+  SkeletonRow,
   StatusBadge,
   SurfaceCard,
   SurfaceCardBody,
@@ -43,6 +45,8 @@ const MODE_OPTIONS: { value: RunListModeFilter; label: string }[] = [
   { value: "exec", label: "Exec" },
 ];
 
+const WORKFLOW_ALL = "all";
+
 export function RunsListView(props: RunsListViewProps): ReactElement {
   const {
     runs,
@@ -56,6 +60,30 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
     onModeChange,
     degradedReason,
   } = props;
+
+  const [workflowFilter, setWorkflowFilter] = useState<string>(WORKFLOW_ALL);
+
+  const workflowOptions = useMemo(() => {
+    const slugs = new Set<string>();
+    for (const run of runs) {
+      if (run.workflow_slug) {
+        slugs.add(run.workflow_slug);
+      }
+    }
+    return [
+      { value: WORKFLOW_ALL, label: "Any workflow" },
+      ...Array.from(slugs)
+        .sort()
+        .map(slug => ({ value: slug, label: slug })),
+    ];
+  }, [runs]);
+
+  const visibleRuns = useMemo(() => {
+    if (workflowFilter === WORKFLOW_ALL) {
+      return runs;
+    }
+    return runs.filter(run => run.workflow_slug === workflowFilter);
+  }, [runs, workflowFilter]);
 
   return (
     <div className="space-y-6" data-testid="runs-list-view">
@@ -83,6 +111,13 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
           onChange={onModeChange}
           testId="runs-filter-mode"
         />
+        <FilterSelect<string>
+          label="Workflow"
+          options={workflowOptions}
+          value={workflowFilter}
+          onChange={setWorkflowFilter}
+          testId="runs-filter-workflow"
+        />
         {isRefetching ? (
           <span className="text-xs text-muted-foreground" data-testid="runs-list-refreshing">
             refreshing…
@@ -91,32 +126,26 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
       </div>
 
       {degradedReason ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-warning)] bg-black/10 px-4 py-3 text-sm text-[color:var(--color-warning)]"
-          data-testid="runs-list-degraded"
-          role="status"
-        >
+        <Alert data-testid="runs-list-degraded" variant="warning">
           {degradedReason}
-        </p>
+        </Alert>
       ) : null}
 
       {error ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="runs-list-error"
-          role="alert"
-        >
+        <Alert data-testid="runs-list-error" variant="error">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground" data-testid="runs-list-loading">
-          Loading runs…
-        </p>
+        <div className="space-y-2" data-testid="runs-list-loading">
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
 
-      {!isLoading && runs.length === 0 && !error ? (
+      {!isLoading && visibleRuns.length === 0 && !error ? (
         <SurfaceCard data-testid="runs-list-empty">
           <SurfaceCardHeader>
             <div>
@@ -131,9 +160,9 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
         </SurfaceCard>
       ) : null}
 
-      {runs.length > 0 ? (
+      {visibleRuns.length > 0 ? (
         <ul className="grid gap-3" data-testid="runs-list-items">
-          {runs.map(run => (
+          {visibleRuns.map(run => (
             <RunRow key={run.run_id} run={run} />
           ))}
         </ul>
@@ -144,11 +173,12 @@ export function RunsListView(props: RunsListViewProps): ReactElement {
 
 function RunRow({ run }: { run: Run }): ReactElement {
   const tone = resolveStatusTone(run.status);
+  const duration = computeDuration(run.started_at, run.ended_at);
   return (
     <li>
       <SurfaceCard data-testid={`runs-list-row-${run.run_id}`}>
         <SurfaceCardHeader>
-          <div>
+          <div className="min-w-0">
             <SurfaceCardEyebrow>
               {run.mode} · {run.workflow_slug ?? "unknown workflow"}
             </SurfaceCardEyebrow>
@@ -165,16 +195,27 @@ function RunRow({ run }: { run: Run }): ReactElement {
             <SurfaceCardDescription>
               started {formatTimestamp(run.started_at)}
               {run.ended_at ? ` · ended ${formatTimestamp(run.ended_at)}` : " · in flight"}
+              {duration ? ` · ${duration}` : ""}
             </SurfaceCardDescription>
           </div>
-          <StatusBadge data-testid={`runs-list-status-${run.run_id}`} tone={tone}>
-            {run.status}
-          </StatusBadge>
+          <div className="flex shrink-0 items-center gap-2">
+            {duration ? (
+              <span
+                className="font-mono text-xs text-muted-foreground"
+                data-testid={`runs-list-duration-${run.run_id}`}
+              >
+                {duration}
+              </span>
+            ) : null}
+            <StatusBadge data-testid={`runs-list-status-${run.run_id}`} tone={tone}>
+              {run.status}
+            </StatusBadge>
+          </div>
         </SurfaceCardHeader>
         {run.error_text ? (
           <SurfaceCardBody>
             <p
-              className="text-sm text-[color:var(--color-danger)]"
+              className="text-sm text-[color:var(--tone-danger-text)]"
               data-testid={`runs-list-error-${run.run_id}`}
             >
               {run.error_text}
@@ -203,7 +244,7 @@ function FilterSelect<T extends string>({
     <label className="flex items-center gap-2 text-xs text-muted-foreground">
       <span className="font-eyebrow uppercase tracking-[0.14em]">{label}</span>
       <select
-        className="rounded-[var(--radius-sm)] border border-border bg-transparent px-2 py-1 text-sm text-foreground focus:outline-none"
+        className="rounded-[var(--radius-sm)] border border-border bg-card px-2 py-1 text-sm text-foreground shadow-[var(--shadow-xs)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
         data-testid={testId}
         onChange={event => onChange(event.target.value as T)}
         value={value}
@@ -249,4 +290,33 @@ function formatTimestamp(raw: string | undefined): string {
   } catch {
     return raw;
   }
+}
+
+function computeDuration(
+  startedAt: string | undefined,
+  endedAt: string | undefined
+): string | null {
+  if (!startedAt) {
+    return null;
+  }
+  const start = Date.parse(startedAt);
+  if (Number.isNaN(start)) {
+    return null;
+  }
+  const end = endedAt ? Date.parse(endedAt) : Date.now();
+  if (Number.isNaN(end) || end < start) {
+    return null;
+  }
+  const elapsed = Math.max(0, Math.round((end - start) / 1000));
+  if (elapsed < 60) {
+    return `${elapsed}s`;
+  }
+  if (elapsed < 3600) {
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+  }
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
 }

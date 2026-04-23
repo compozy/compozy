@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import {
+  Markdown,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -29,7 +30,7 @@ export interface TaskDetailViewProps {
 
 export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
   const { payload, isRefreshing } = props;
-  const { task, workflow, document, memory_entries, related_runs, live_tail_available } = payload;
+  const { task, workflow, document, memory_entries, related_runs } = payload;
   const tone = resolveStatusTone(task.status);
   const deps = task.depends_on ?? [];
   const memory = memory_entries ?? [];
@@ -50,7 +51,6 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
             </Link>
             {" · "}
             {task.type} · updated {formatTimestamp(task.updated_at)}
-            {live_tail_available ? " · live tail available" : " · live tail unavailable"}
           </span>
         }
         eyebrow={`Task #${task.task_number} · ${task.task_id}`}
@@ -101,12 +101,12 @@ function DocumentCard({ document }: { document: MarkdownDocument }): ReactElemen
             Document body is empty.
           </p>
         ) : (
-          <pre
-            className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+          <div
+            className="max-h-[480px] overflow-auto rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3"
             data-testid="task-detail-document-body"
           >
-            {markdown}
-          </pre>
+            <Markdown>{markdown}</Markdown>
+          </div>
         )}
       </SurfaceCardBody>
     </SurfaceCard>

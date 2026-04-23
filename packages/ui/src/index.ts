@@ -2,6 +2,14 @@ export { cn } from "./lib/utils";
 
 export { UIProvider, type UIProviderProps } from "./components/ui-provider";
 
+export { Alert, alertVariants, type AlertProps } from "./components/alert";
+
+export { Skeleton, SkeletonRow, SkeletonText, type SkeletonProps } from "./components/skeleton";
+
+export { Metric, type MetricProps } from "./components/metric";
+
+export { Markdown, type MarkdownProps } from "./components/markdown";
+
 export { Button, buttonVariants, type ButtonProps } from "./components/button";
 
 export {

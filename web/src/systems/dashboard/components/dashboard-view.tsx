@@ -1,7 +1,9 @@
 import type { ReactElement } from "react";
 
 import {
+  Alert,
   Button,
+  Metric,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -14,6 +16,9 @@ import {
   type StatusBadgeTone,
 } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
+
+import { resolveStatusTone } from "@/systems/runs";
+import type { Run } from "@/systems/runs";
 
 import type { DashboardPayload, DashboardQueueSummary, WorkflowCard } from "../types";
 
@@ -36,7 +41,7 @@ export function DashboardView({
 }: DashboardViewProps): ReactElement {
   const { workspace, daemon, health, queue, pending_reviews, workflows, active_runs } = dashboard;
   const safeWorkflows = workflows ?? [];
-  const safeRuns = active_runs ?? [];
+  const safeRuns = (active_runs ?? []) as Run[];
   const healthTone = resolveHealthTone(health.ready, Boolean(health.degraded));
   const healthLabel = health.ready ? (health.degraded ? "degraded" : "ready") : "down";
   const daemonVersion = daemon.version ?? "unversioned";
@@ -60,48 +65,41 @@ export function DashboardView({
       />
 
       {lastSyncError ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="dashboard-sync-error"
-          role="alert"
-        >
+        <Alert data-testid="dashboard-sync-error" variant="error">
           {lastSyncError}
-        </p>
+        </Alert>
       ) : null}
       {lastSyncMessage ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3 text-sm text-muted-foreground"
-          data-testid="dashboard-sync-success"
-        >
+        <Alert data-testid="dashboard-sync-success" variant="success">
           {lastSyncMessage}
-        </p>
+        </Alert>
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          description="Reviews awaiting operator attention."
-          eyebrow="Reviews"
-          title={pending_reviews.toString()}
-          subtitle="pending"
+        <Metric
+          data-testid="dashboard-stat-reviews"
+          hint="awaiting review"
+          label="Reviews"
+          value={pending_reviews}
         />
-        <StatCard
-          description="Workflows visible to the active workspace."
-          eyebrow="Workflows"
-          title={safeWorkflows.length.toString()}
-          subtitle="tracked"
+        <Metric
+          data-testid="dashboard-stat-workflows"
+          hint="tracked in workspace"
+          label="Workflows"
+          value={safeWorkflows.length}
         />
-        <StatCard
-          description="Live runs currently in flight."
-          eyebrow="Active runs"
-          title={safeRuns.length.toString()}
-          subtitle="running"
+        <Metric
+          data-testid="dashboard-stat-active-runs"
+          hint={safeRuns.length === 1 ? "run in flight" : "runs in flight"}
+          label="Active runs"
+          value={safeRuns.length}
         />
-        <StatCard
-          description="Overall daemon readiness."
-          eyebrow="Daemon"
-          title={healthLabel}
-          subtitle={daemonLocator}
-          badge={<StatusBadge tone={healthTone}>{healthLabel}</StatusBadge>}
+        <Metric
+          data-testid="dashboard-stat-daemon"
+          hint={daemonLocator}
+          label="Daemon"
+          trailing={<StatusBadge tone={healthTone}>{healthLabel}</StatusBadge>}
+          value={healthLabel}
         />
       </div>
 
@@ -145,7 +143,7 @@ export function DashboardView({
           </SurfaceCardFooter>
         </SurfaceCard>
 
-        <QueueCard queue={queue} />
+        <ActiveRunsCard queue={queue} runs={safeRuns} />
       </div>
     </div>
   );
@@ -173,73 +171,97 @@ function DashboardWorkflowRow({ card }: { card: WorkflowCard }): ReactElement {
   );
 }
 
-function QueueCard({ queue }: { queue: DashboardQueueSummary }): ReactElement {
-  const entries: { label: string; value: number; tone: StatusBadgeTone }[] = [
-    { label: "Active", value: queue.active, tone: "accent" },
-    { label: "Completed", value: queue.completed, tone: "success" },
-    { label: "Failed", value: queue.failed, tone: "danger" },
-    { label: "Canceled", value: queue.canceled, tone: "warning" },
-  ];
+function ActiveRunsCard({
+  queue,
+  runs,
+}: {
+  queue: DashboardQueueSummary;
+  runs: Run[];
+}): ReactElement {
+  const visible = runs.slice(0, 5);
   return (
-    <SurfaceCard data-testid="dashboard-queue">
+    <SurfaceCard data-testid="dashboard-active-runs">
       <SurfaceCardHeader>
         <div>
-          <SurfaceCardEyebrow>Queue</SurfaceCardEyebrow>
-          <SurfaceCardTitle>Run queue</SurfaceCardTitle>
+          <SurfaceCardEyebrow>Active runs</SurfaceCardEyebrow>
+          <SurfaceCardTitle>Runs in flight</SurfaceCardTitle>
           <SurfaceCardDescription>
-            Snapshot of queued and completed runs across this workspace.
+            Live view of currently-executing runs. Updates every few seconds.
           </SurfaceCardDescription>
         </div>
-        <StatusBadge tone="info">total {queue.total}</StatusBadge>
+        <StatusBadge tone={runs.length > 0 ? "accent" : "info"}>{runs.length}</StatusBadge>
       </SurfaceCardHeader>
-      <SurfaceCardBody className="grid grid-cols-2 gap-3">
-        {entries.map(entry => (
-          <div
-            className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
-            data-testid={`dashboard-queue-${entry.label.toLowerCase()}`}
-            key={entry.label}
-          >
-            <p className="eyebrow text-muted-foreground">{entry.label}</p>
-            <div className="mt-1 flex items-center gap-2">
-              <span className="font-display text-2xl leading-none tracking-[-0.02em] text-foreground">
-                {entry.value}
-              </span>
-              <StatusBadge tone={entry.tone}>{entry.label.toLowerCase()}</StatusBadge>
-            </div>
-          </div>
-        ))}
+      <SurfaceCardBody>
+        {visible.length === 0 ? (
+          <p className="text-sm text-muted-foreground" data-testid="dashboard-active-runs-empty">
+            No active runs — the daemon is idle.
+          </p>
+        ) : (
+          <ul className="space-y-2" data-testid="dashboard-active-runs-list">
+            {visible.map(run => (
+              <ActiveRunRow key={run.run_id} run={run} />
+            ))}
+          </ul>
+        )}
       </SurfaceCardBody>
+      <SurfaceCardFooter>
+        <QueueSummaryChips queue={queue} />
+        <Link
+          className="text-xs font-semibold uppercase tracking-[0.12em] text-accent hover:underline"
+          data-testid="dashboard-view-all-runs"
+          to="/runs"
+        >
+          All runs →
+        </Link>
+      </SurfaceCardFooter>
     </SurfaceCard>
   );
 }
 
-function StatCard({
-  description,
-  eyebrow,
-  title,
-  subtitle,
-  badge,
-}: {
-  description: string;
-  eyebrow: string;
-  title: string;
-  subtitle: string;
-  badge?: ReactElement;
-}): ReactElement {
+function ActiveRunRow({ run }: { run: Run }): ReactElement {
+  const tone = resolveStatusTone(run.status);
   return (
-    <SurfaceCard data-testid={`dashboard-stat-${eyebrow.toLowerCase().replace(/\s+/g, "-")}`}>
-      <SurfaceCardHeader>
-        <div>
-          <SurfaceCardEyebrow>{eyebrow}</SurfaceCardEyebrow>
-          <SurfaceCardTitle className="font-display tracking-[-0.02em]">{title}</SurfaceCardTitle>
-          <SurfaceCardDescription>{description}</SurfaceCardDescription>
-        </div>
-        {badge ?? null}
-      </SurfaceCardHeader>
-      <SurfaceCardBody>
-        <p className="eyebrow text-muted-foreground">{subtitle}</p>
-      </SurfaceCardBody>
-    </SurfaceCard>
+    <li
+      className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      data-testid={`dashboard-active-run-${run.run_id}`}
+    >
+      <div className="min-w-0 space-y-1">
+        <Link
+          className="block truncate text-sm font-medium text-foreground hover:underline"
+          data-testid={`dashboard-active-run-link-${run.run_id}`}
+          params={{ runId: run.run_id }}
+          to="/runs/$runId"
+        >
+          {run.workflow_slug ?? run.run_id}
+        </Link>
+        <p className="truncate text-xs text-muted-foreground">
+          {run.mode} · started {formatTimestamp(run.started_at)}
+        </p>
+      </div>
+      <StatusBadge tone={tone}>{run.status}</StatusBadge>
+    </li>
+  );
+}
+
+function QueueSummaryChips({ queue }: { queue: DashboardQueueSummary }): ReactElement {
+  const entries: { label: string; value: number; tone: StatusBadgeTone }[] = [
+    { label: "active", value: queue.active, tone: "accent" },
+    { label: "completed", value: queue.completed, tone: "success" },
+    { label: "failed", value: queue.failed, tone: "danger" },
+    { label: "canceled", value: queue.canceled, tone: "warning" },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid="dashboard-queue-summary">
+      {entries.map(entry => (
+        <StatusBadge
+          data-testid={`dashboard-queue-${entry.label}`}
+          key={entry.label}
+          tone={entry.tone}
+        >
+          {entry.value} {entry.label}
+        </StatusBadge>
+      ))}
+    </div>
   );
 }
 
@@ -251,4 +273,15 @@ function resolveHealthTone(ready: boolean, degraded: boolean): StatusBadgeTone {
     return "warning";
   }
   return "success";
+}
+
+function formatTimestamp(raw: string | undefined): string {
+  if (!raw) {
+    return "unknown";
+  }
+  try {
+    return new Date(raw).toLocaleString();
+  } catch {
+    return raw;
+  }
 }

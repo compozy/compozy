@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import {
+  Alert,
   Button,
   SectionHeading,
   StatusBadge,
@@ -15,6 +16,8 @@ import {
 import { Link } from "@tanstack/react-router";
 
 import { resolveStatusTone } from "./runs-list-view";
+import { RunEventFeed } from "./run-event-feed";
+import type { RunFeedEvent } from "../lib/event-store";
 
 import type {
   RunJobState,
@@ -39,6 +42,7 @@ export interface RunDetailViewProps {
   isCancelling: boolean;
   cancelError?: string | null;
   cancelSuccess?: string | null;
+  liveEvents?: readonly RunFeedEvent[];
 }
 
 export function RunDetailView(props: RunDetailViewProps): ReactElement {
@@ -56,6 +60,7 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
     isCancelling,
     cancelError,
     cancelSuccess,
+    liveEvents = [],
   } = props;
 
   const { run, jobs, transcript, shutdown, usage } = snapshot;
@@ -124,31 +129,20 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
       />
 
       {cancelError ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="run-detail-cancel-error"
-          role="alert"
-        >
+        <Alert data-testid="run-detail-cancel-error" variant="error">
           {cancelError}
-        </p>
+        </Alert>
       ) : null}
       {cancelSuccess ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3 text-sm text-muted-foreground"
-          data-testid="run-detail-cancel-success"
-        >
+        <Alert data-testid="run-detail-cancel-success" variant="neutral">
           {cancelSuccess}
-        </p>
+        </Alert>
       ) : null}
 
       {run.error_text ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="run-detail-error-text"
-          role="alert"
-        >
+        <Alert data-testid="run-detail-error-text" title="Run failed" variant="error">
           {run.error_text}
-        </p>
+        </Alert>
       ) : null}
 
       {shutdown ? <ShutdownCard shutdown={shutdown} /> : null}
@@ -157,6 +151,8 @@ export function RunDetailView(props: RunDetailViewProps): ReactElement {
         <JobsCard isRefreshing={isRefreshingSnapshot} jobs={jobs ?? []} />
         <UsageCard usage={usage} />
       </div>
+
+      <RunEventFeed events={liveEvents} />
 
       <TranscriptCard transcript={transcript ?? []} />
     </div>
@@ -213,22 +209,14 @@ function StreamNotices({
         </p>
       ) : null}
       {status === "overflowed" ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-warning)] bg-black/10 px-3 py-2 text-[color:var(--color-warning)]"
-          data-testid="run-detail-stream-overflow"
-          role="status"
-        >
+        <Alert data-testid="run-detail-stream-overflow" variant="warning">
           Stream overflowed — snapshot was refreshed. {overflowReason ?? "Resume to continue."}
-        </p>
+        </Alert>
       ) : null}
       {streamError ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/10 px-3 py-2 text-[color:var(--color-danger)]"
-          data-testid="run-detail-stream-error"
-          role="alert"
-        >
+        <Alert data-testid="run-detail-stream-error" variant="error">
           {streamError}
-        </p>
+        </Alert>
       ) : null}
     </div>
   );

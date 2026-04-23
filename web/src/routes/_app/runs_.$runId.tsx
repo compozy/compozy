@@ -7,8 +7,10 @@ import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
 import {
   RunDetailView,
+  isTerminalKind,
   runKeys,
   useCancelRun,
+  useRunEventFeed,
   useRunSnapshot,
   useRunStream,
   type RunStreamOverflow,
@@ -27,12 +29,24 @@ function RunDetailRoute(): ReactElement {
   const cancelMutation = useCancelRun();
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const feed = useRunEventFeed(runId);
 
   const handleOverflow = useCallback(
     (_overflow: RunStreamOverflow) => {
       void queryClient.invalidateQueries({ queryKey: runKeys.snapshot(runId) });
     },
     [queryClient, runId]
+  );
+
+  const handleStreamEvent = useCallback(
+    (signal: { eventId: string | null; payload: unknown }) => {
+      const normalized = feed.append(signal.eventId, signal.payload);
+      if (normalized && isTerminalKind(normalized.kind)) {
+        void queryClient.invalidateQueries({ queryKey: runKeys.snapshot(runId) });
+        void queryClient.invalidateQueries({ queryKey: runKeys.lists() });
+      }
+    },
+    [feed, queryClient, runId]
   );
 
   const initialCursor = snapshotQuery.data?.next_cursor ?? null;
@@ -42,6 +56,7 @@ function RunDetailRoute(): ReactElement {
     enabled: Boolean(snapshotQuery.data) && !runTerminated,
     initialCursor,
     onOverflow: handleOverflow,
+    onEvent: handleStreamEvent,
   });
 
   async function handleCancel() {
@@ -96,6 +111,7 @@ function RunDetailRoute(): ReactElement {
           isCancelling={cancelMutation.isPending}
           isRefreshingSnapshot={snapshotQuery.isRefetching}
           lastHeartbeatAt={runStream.lastHeartbeat?.receivedAt ?? null}
+          liveEvents={feed.events}
           onCancelRun={handleCancel}
           onReconnectStream={runStream.reconnect}
           overflowReason={runStream.lastOverflow?.reason ?? null}

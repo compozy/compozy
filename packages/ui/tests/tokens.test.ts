@@ -10,8 +10,8 @@ describe("tokens.css", () => {
   it("ships the mockup font faces and dark theme defaults", () => {
     expect(css).toContain('@import "@fontsource/playfair-display/400.css"');
     expect(css).toContain('@import "@fontsource/playfair-display/500.css"');
-    expect(css).toContain("--background: #1a1918");
-    expect(css).toContain("--sidebar: #0d0c0b");
+    expect(css).toContain("--background: #131211");
+    expect(css).toContain("--sidebar: #0b0a09");
     expect(css).toContain('--font-display: "Playfair Display", Georgia, serif');
     expect(css).toContain("color-scheme: dark;");
   });

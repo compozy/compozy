@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { Toaster } from "sonner";
 
 import { UIProvider } from "@compozy/ui";
 
@@ -33,6 +34,18 @@ if (rootElement && !rootElement.innerHTML) {
       <UIProvider>
         <QueryClientProvider client={queryClient}>
           <RouterProvider router={router} />
+          <Toaster
+            closeButton
+            position="bottom-right"
+            richColors
+            theme="dark"
+            toastOptions={{
+              classNames: {
+                toast:
+                  "border border-border bg-popover text-popover-foreground shadow-[var(--shadow-lg)]",
+              },
+            }}
+          />
         </QueryClientProvider>
       </UIProvider>
     </StrictMode>

@@ -2,11 +2,14 @@ package httpapi
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io/fs"
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -17,6 +20,9 @@ import (
 type staticHandler struct {
 	staticFS  fs.FS
 	startedAt time.Time
+
+	etagMu sync.RWMutex
+	etags  map[string]string
 }
 
 func newStaticFS() (fs.FS, error) {
@@ -41,6 +47,7 @@ func newStaticHandler(staticFS fs.FS, startedAt time.Time) *staticHandler {
 	return &staticHandler{
 		staticFS:  staticFS,
 		startedAt: startedAt,
+		etags:     make(map[string]string),
 	}
 }
 
@@ -95,13 +102,75 @@ func (h *staticHandler) resolveAsset(requestPath string) (string, bool) {
 }
 
 func (h *staticHandler) serveAsset(c *gin.Context, assetPath string) {
-	data, err := fs.ReadFile(h.staticFS, strings.TrimPrefix(assetPath, "/"))
+	clean := strings.TrimPrefix(assetPath, "/")
+	data, err := fs.ReadFile(h.staticFS, clean)
 	if err != nil {
 		respondStaticNotFound(c)
 		return
 	}
 
+	etag := h.etagFor(clean, data)
+	applyStaticCacheHeaders(c, clean, etag)
+	if match := c.Request.Header.Get("If-None-Match"); match != "" && etagMatches(match, etag) {
+		c.Status(http.StatusNotModified)
+		return
+	}
+
 	http.ServeContent(c.Writer, c.Request, path.Base(assetPath), h.startedAt, bytes.NewReader(data))
+}
+
+func (h *staticHandler) etagFor(assetPath string, data []byte) string {
+	h.etagMu.RLock()
+	if tag, ok := h.etags[assetPath]; ok {
+		h.etagMu.RUnlock()
+		return tag
+	}
+	h.etagMu.RUnlock()
+
+	sum := sha256.Sum256(data)
+	tag := fmt.Sprintf("%q", hex.EncodeToString(sum[:16]))
+
+	h.etagMu.Lock()
+	h.etags[assetPath] = tag
+	h.etagMu.Unlock()
+	return tag
+}
+
+func applyStaticCacheHeaders(c *gin.Context, assetPath string, etag string) {
+	header := c.Writer.Header()
+	header.Set("ETag", etag)
+	header.Set("X-Content-Type-Options", "nosniff")
+	if isImmutableAsset(assetPath) {
+		header.Set("Cache-Control", "public, max-age=31536000, immutable")
+		return
+	}
+	header.Set("Cache-Control", "no-cache")
+}
+
+func isImmutableAsset(assetPath string) bool {
+	clean := strings.TrimPrefix(strings.TrimSpace(assetPath), "/")
+	if clean == "" {
+		return false
+	}
+	if strings.HasPrefix(clean, "assets/") {
+		return true
+	}
+	return false
+}
+
+func etagMatches(ifNoneMatch string, etag string) bool {
+	if ifNoneMatch == "*" {
+		return true
+	}
+	candidates := strings.Split(ifNoneMatch, ",")
+	for _, candidate := range candidates {
+		trimmed := strings.TrimSpace(candidate)
+		trimmed = strings.TrimPrefix(trimmed, "W/")
+		if trimmed == etag {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizedRequestPath(rawPath string) string {

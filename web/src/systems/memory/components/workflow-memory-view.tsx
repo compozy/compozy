@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 
 import {
+  Alert,
+  Markdown,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -196,13 +198,9 @@ function DocumentBody({
           <StatusBadge tone="danger">error</StatusBadge>
         </SurfaceCardHeader>
         <SurfaceCardBody>
-          <p
-            className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-3 py-2 text-sm text-[color:var(--color-danger)]"
-            data-testid="workflow-memory-document-error"
-            role="alert"
-          >
+          <Alert data-testid="workflow-memory-document-error" variant="error">
             {error}
-          </p>
+          </Alert>
         </SurfaceCardBody>
       </>
     );
@@ -266,12 +264,12 @@ function DocumentBody({
             Document body is empty.
           </p>
         ) : (
-          <pre
-            className="max-h-[640px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+          <div
+            className="max-h-[640px] overflow-auto rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3"
             data-testid="workflow-memory-document-body"
           >
-            {markdown}
-          </pre>
+            <Markdown>{markdown}</Markdown>
+          </div>
         )}
       </SurfaceCardBody>
     </>
