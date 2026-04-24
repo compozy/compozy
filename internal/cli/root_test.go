@@ -908,6 +908,9 @@ func TestFormInputsApplyPreservesExistingTaskRuntimeRulesWhenFormIsSkipped(t *te
 		if rules[1].ID == nil || *rules[1].ID != "task_01" {
 			t.Fatalf("expected execution task rule to remain appended, got %#v", rules[1])
 		}
+		if rules[1].Model == nil || *rules[1].Model != "codex-fast" {
+			t.Fatalf("expected execution task model to remain preserved, got %#v", rules[1])
+		}
 	})
 }
 

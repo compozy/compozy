@@ -188,30 +188,46 @@ func readNPMVersion(path string, packageName string) (string, bool) {
 }
 
 func compareSemver(left, right string) int {
-	leftParts := semverParts(left)
-	rightParts := semverParts(right)
-	for i := range leftParts {
-		if leftParts[i] < rightParts[i] {
+	leftVersion := parseSemver(left)
+	rightVersion := parseSemver(right)
+	for i := range leftVersion.parts {
+		if leftVersion.parts[i] < rightVersion.parts[i] {
 			return -1
 		}
-		if leftParts[i] > rightParts[i] {
+		if leftVersion.parts[i] > rightVersion.parts[i] {
 			return 1
 		}
+	}
+	if leftVersion.hasPrerelease && !rightVersion.hasPrerelease {
+		return -1
+	}
+	if !leftVersion.hasPrerelease && rightVersion.hasPrerelease {
+		return 1
 	}
 	return 0
 }
 
-func semverParts(version string) [3]int {
+type semverVersion struct {
+	parts         [3]int
+	hasPrerelease bool
+}
+
+func parseSemver(version string) semverVersion {
 	version = strings.TrimPrefix(strings.TrimSpace(version), "v")
-	version = strings.SplitN(version, "-", 2)[0]
+	version = strings.SplitN(version, "+", 2)[0]
+	core, prerelease, hasPrerelease := strings.Cut(version, "-")
 	rawParts := strings.Split(version, ".")
-	var parts [3]int
-	for i := 0; i < len(parts) && i < len(rawParts); i++ {
-		parsed, err := strconv.Atoi(rawParts[i])
+	if hasPrerelease {
+		rawParts = strings.Split(core, ".")
+	}
+	var parsed semverVersion
+	parsed.hasPrerelease = hasPrerelease && strings.TrimSpace(prerelease) != ""
+	for i := 0; i < len(parsed.parts) && i < len(rawParts); i++ {
+		value, err := strconv.Atoi(rawParts[i])
 		if err != nil {
 			continue
 		}
-		parts[i] = parsed
+		parsed.parts[i] = value
 	}
-	return parts
+	return parsed
 }

@@ -178,6 +178,12 @@ func normalizeRuntimeModel(spec Spec, modelName string) string {
 	if unprefixed, ok := strings.CutPrefix(trimmed, model.IDECodex+"/"); ok {
 		return strings.TrimSpace(unprefixed)
 	}
+	if provider, unprefixed, ok := strings.Cut(trimmed, "/"); ok && strings.TrimSpace(provider) != "" {
+		candidate := strings.TrimSpace(unprefixed)
+		if candidate != "" && !strings.Contains(candidate, "/") {
+			return candidate
+		}
+	}
 	return trimmed
 }
 

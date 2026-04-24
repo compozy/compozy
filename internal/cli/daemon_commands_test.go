@@ -2198,6 +2198,13 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	if overrides.TaskRuntimeRules == nil || len(*overrides.TaskRuntimeRules) != 1 {
 		t.Fatalf("expected task-runtime override, got %#v", overrides)
 	}
+	taskRuntimeRule := (*overrides.TaskRuntimeRules)[0]
+	if taskRuntimeRule.ID == nil || *taskRuntimeRule.ID != "task_01" {
+		t.Fatalf("expected task-runtime id override, got %#v", taskRuntimeRule)
+	}
+	if taskRuntimeRule.Model == nil || *taskRuntimeRule.Model != "codex-fast" {
+		t.Fatalf("expected task-runtime model override, got %#v", taskRuntimeRule)
+	}
 }
 
 func TestHelpOnlyDaemonCommandRootsReturnHelp(t *testing.T) {

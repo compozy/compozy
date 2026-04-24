@@ -49,9 +49,28 @@ func TestLiveCodexModelAvailability(t *testing.T) {
 			t.Fatalf("create codex session with model %q: %v", modelName, err)
 		}
 
-		_ = collectSessionUpdates(t, session)
+		updates := collectSessionUpdates(t, session)
 		if err := session.Err(); err != nil {
 			t.Fatalf("codex session with model %q failed: %v", modelName, err)
+		}
+		var output strings.Builder
+		for _, block := range flattenBlocks(updates) {
+			if block.Type != model.BlockText {
+				continue
+			}
+			text, err := block.AsText()
+			if err != nil {
+				t.Fatalf("decode codex text response: %v", err)
+			}
+			output.WriteString(text.Text)
+		}
+		if !strings.Contains(output.String(), "compozy-model-ok") {
+			t.Fatalf(
+				"codex session with model %q response = %q, want %q",
+				modelName,
+				output.String(),
+				"compozy-model-ok",
+			)
 		}
 	})
 }

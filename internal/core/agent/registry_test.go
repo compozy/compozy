@@ -265,6 +265,26 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject gpt-5.5 when codex acp is only a prerelease of the minimum", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.12.0-beta.1")
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "low",
+		})
+		if err == nil {
+			t.Fatal("expected codex-acp prerelease compatibility error")
+		}
+		for _, want := range []string{
+			"gpt-5.5 requires codex-acp >= 0.12.0",
+			"found 0.12.0-beta.1",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("compatibility error = %q, want %q", err, want)
+			}
+		}
+	})
+
 	t.Run("Should allow gpt-5.5 when codex acp version is unknown", func(t *testing.T) {
 		installExecutableOnPath(t, "codex-acp", "#!/bin/sh\nexit 0\n")
 		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
@@ -325,6 +345,44 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 			t.Fatalf("unavailable model error = %q, should not recommend rerunning with a fixed fallback model", err)
 		}
 	})
+}
+
+func TestCompareSemver(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		left  string
+		right string
+		want  int
+	}{
+		{
+			name:  "Should treat prerelease as lower than matching stable",
+			left:  "0.12.0-beta.1",
+			right: "0.12.0",
+			want:  -1,
+		},
+		{
+			name:  "Should treat stable as higher than matching prerelease",
+			left:  "0.12.0",
+			right: "0.12.0-beta.1",
+			want:  1,
+		},
+		{name: "Should ignore build metadata", left: "v0.12.0+build.1", right: "0.12.0", want: 0},
+		{name: "Should compare numeric parts first", left: "0.13.0-beta.1", right: "0.12.9", want: 1},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := compareSemver(tc.left, tc.right)
+			if got != tc.want {
+				t.Fatalf("compareSemver(%q, %q) = %d, want %d", tc.left, tc.right, got, tc.want)
+			}
+		})
+	}
 }
 
 func TestCodexModelCompatibilityHint(t *testing.T) {
