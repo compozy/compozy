@@ -421,10 +421,6 @@ func (e *Extension) handleInitialize(message Message) error {
 		return err
 	}
 
-	if err := e.writeResult(message.ID, response); err != nil {
-		return err
-	}
-
 	e.mu.Lock()
 	e.initialized = true
 	e.initializeRequest = request
@@ -434,6 +430,10 @@ func (e *Extension) handleInitialize(message Message) error {
 		e.acceptedCapabilities[capability] = struct{}{}
 	}
 	e.mu.Unlock()
+
+	if err := e.writeResult(message.ID, response); err != nil {
+		return err
+	}
 
 	go e.subscribeFilteredEvents()
 	return nil

@@ -78,6 +78,23 @@ func (t *channelTransport) Close() error {
 	return nil
 }
 
+type observeInitializeResponseTransport struct {
+	onWrite func()
+}
+
+func (t observeInitializeResponseTransport) ReadMessage() (Message, error) {
+	return Message{}, io.EOF
+}
+
+func (t observeInitializeResponseTransport) WriteMessage(Message) error {
+	t.onWrite()
+	return nil
+}
+
+func (t observeInitializeResponseTransport) Close() error {
+	return nil
+}
+
 func TestStdIOTransportAndHelperErrors(t *testing.T) {
 	t.Parallel()
 
@@ -201,6 +218,56 @@ func TestStdIOTransportAndHelperErrors(t *testing.T) {
 		close(open)
 		if !isClosed(open) {
 			t.Fatal("isClosed(closed) = false, want true")
+		}
+	})
+}
+
+func TestHandleInitializePublishesInitializedStateBeforeResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should mark initialized before initialize response is observable", func(t *testing.T) {
+		t.Parallel()
+
+		ext := New("sdk-ext", "1.0.0").WithCapabilities(CapabilityRunsStart)
+		observedInitialized := make(chan bool, 1)
+		ext.transport = observeInitializeResponseTransport{
+			onWrite: func() {
+				observedInitialized <- ext.isInitialized()
+			},
+		}
+
+		err := ext.handleInitialize(Message{
+			ID: json.RawMessage("1"),
+			Params: MustJSON(InitializeRequest{
+				ProtocolVersion:           ProtocolVersion,
+				SupportedProtocolVersions: []string{ProtocolVersion},
+				CompozyVersion:            "dev",
+				Extension: InitializeRequestIdentity{
+					Name:    "sdk-ext",
+					Version: "1.0.0",
+					Source:  "workspace",
+				},
+				GrantedCapabilities: []Capability{CapabilityRunsStart},
+				Runtime: InitializeRuntime{
+					RunID:                "run-test",
+					WorkspaceRoot:        ".",
+					InvokingCommand:      "start",
+					ShutdownTimeoutMS:    1000,
+					DefaultHookTimeoutMS: 5000,
+				},
+			}),
+		})
+		if err != nil {
+			t.Fatalf("handleInitialize() error = %v", err)
+		}
+
+		select {
+		case initialized := <-observedInitialized:
+			if !initialized {
+				t.Fatal("extension was not initialized before initialize response write")
+			}
+		default:
+			t.Fatal("initialize response was not written")
 		}
 	})
 }
