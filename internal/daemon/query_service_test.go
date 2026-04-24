@@ -306,7 +306,7 @@ func TestQueryServiceAssemblesReadModelsFromRealDaemonState(t *testing.T) {
 		t.Fatalf("memoryDoc.Title = %q, want Task 01 Memory", memoryDoc.Title)
 	}
 
-	taskDetail, err := service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_1")
+	taskDetail, err := service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_01")
 	if err != nil {
 		t.Fatalf("TaskDetail() error = %v", err)
 	}
@@ -393,7 +393,7 @@ func TestQueryServiceReportsTypedMissingAndStaleDocumentFailures(t *testing.T) {
 		t.Fatalf("Remove(task_01.md) error = %v", err)
 	}
 
-	_, err = service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_1")
+	_, err = service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_01")
 	if !errors.Is(err, ErrDocumentMissing) {
 		t.Fatalf("TaskDetail() error = %v, want ErrDocumentMissing", err)
 	}
@@ -420,5 +420,48 @@ func TestQueryServiceReportsTypedMissingAndStaleDocumentFailures(t *testing.T) {
 	}
 	if staleErr.Reference != fileID {
 		t.Fatalf("staleErr.Reference = %q, want %q", staleErr.Reference, fileID)
+	}
+}
+
+func TestQueryServiceReadsArchivedFilesystemWhenActiveProjectionIsStale(t *testing.T) {
+	env := newRunManagerTestEnv(t, runManagerTestDeps{})
+
+	env.writeWorkflowFile(t, env.workflowSlug, "task_01.md", daemonTaskBody("completed", "Archived stale task"))
+	run := env.startTaskRun(t, "query-service-stale-archive-001", nil)
+	waitForRun(t, env.globalDB, run.RunID, func(row globaldb.Run) bool {
+		return row.Status == runStatusCompleted
+	})
+
+	workflow, err := env.globalDB.GetActiveWorkflowBySlug(
+		context.Background(),
+		mustWorkspaceID(t, env.globalDB, env.workspaceRoot),
+		env.workflowSlug,
+	)
+	if err != nil {
+		t.Fatalf("GetActiveWorkflowBySlug() error = %v", err)
+	}
+	archivedAt := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	archiveRoot := model.ArchivedTasksDir(model.TasksBaseDirForWorkspace(env.workspaceRoot))
+	if err := os.MkdirAll(archiveRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll(archiveRoot) error = %v", err)
+	}
+	archivedDir := filepath.Join(
+		archiveRoot,
+		model.ArchivedWorkflowName(env.workflowSlug, workflow.ID, archivedAt),
+	)
+	if err := os.Rename(env.workflowDir(env.workflowSlug), archivedDir); err != nil {
+		t.Fatalf("Rename(workflow -> archived) error = %v", err)
+	}
+
+	service := NewQueryService(QueryServiceConfig{
+		GlobalDB:   env.globalDB,
+		RunManager: env.manager,
+	})
+	detail, err := service.TaskDetail(context.Background(), env.workspaceRoot, env.workflowSlug, "task_01")
+	if err != nil {
+		t.Fatalf("TaskDetail(stale active projection) error = %v", err)
+	}
+	if detail.Task.Title != "Archived stale task" || detail.Document.Title != "Archived stale task" {
+		t.Fatalf("unexpected stale archived task detail: %#v", detail)
 	}
 }

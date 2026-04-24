@@ -94,11 +94,7 @@ export function AppShellLayout({
   return (
     <AppShell data-testid="app-shell-layout">
       <AppShellSidebar>
-        <AppShellBrand
-          badge={<StatusBadge tone="accent">daemon</StatusBadge>}
-          detail="localhost · operator runtime"
-          title="Compozy"
-        />
+        <AppShellBrand badge={<StatusBadge tone="accent">daemon</StatusBadge>} title="Compozy" />
 
         <div className="space-y-5">
           <AppShellNavSection title="Workspace">

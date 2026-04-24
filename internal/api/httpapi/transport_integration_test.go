@@ -396,9 +396,12 @@ func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
 
 	taskSvc := &capturingTaskService{}
 	syncSvc := &fakeSyncService{}
+	validRoot := t.TempDir()
+	missingRoot := filepath.Join(t.TempDir(), "missing")
 	workspaces := &fakeWorkspaceService{
 		items: map[string]core.Workspace{
-			"ws-header": {ID: "ws-header", RootDir: "/tmp/ws-header", Name: "Header"},
+			"ws-header":  {ID: "ws-header", RootDir: validRoot, Name: "Header"},
+			"ws-missing": {ID: "ws-missing", RootDir: missingRoot, Name: "Missing"},
 		},
 	}
 
@@ -461,6 +464,19 @@ func TestHTTPBrowserWorkspaceHeaderSemantics(t *testing.T) {
 	)
 	if statusCode != http.StatusPreconditionFailed {
 		t.Fatalf("stale workspace status = %d, want 412", statusCode)
+	}
+	assertTransportCode(t, body, "workspace_context_stale")
+
+	statusCode, _, body = mustRequest(
+		t,
+		http.DefaultClient,
+		http.MethodGet,
+		baseURL+"/api/ui/dashboard",
+		nil,
+		map[string]string{core.HeaderActiveWorkspaceID: "ws-missing"},
+	)
+	if statusCode != http.StatusPreconditionFailed {
+		t.Fatalf("missing root workspace status = %d, want 412", statusCode)
 	}
 	assertTransportCode(t, body, "workspace_context_stale")
 
@@ -1013,9 +1029,10 @@ func TestHTTPAndUDSServeCanonicalParityAcrossRouteGroups(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	now := time.Date(2026, 4, 20, 19, 0, 0, 0, time.UTC)
+	workspaceRoot := t.TempDir()
 	workspace := core.Workspace{
 		ID:        "ws-1",
-		RootDir:   "/tmp/workspace",
+		RootDir:   workspaceRoot,
 		Name:      "workspace",
 		CreatedAt: now,
 		UpdatedAt: now,

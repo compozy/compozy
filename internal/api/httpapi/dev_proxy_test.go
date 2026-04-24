@@ -140,6 +140,49 @@ func TestDevProxyRoutesServeFrontendRequests(t *testing.T) {
 	}
 }
 
+func TestDevProxyServerAllowsViteReactRefreshPreamble(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = writer.Write([]byte(`<!doctype html>
+<html>
+  <head>
+    <script type="module">import { injectIntoGlobalHook } from "/@react-refresh";</script>
+    <script type="module" src="/@vite/client"></script>
+  </head>
+  <body><div id="app"></div></body>
+</html>`))
+	}))
+	t.Cleanup(upstream.Close)
+
+	server, err := New(
+		WithHandlers(core.NewHandlers(&core.HandlerConfig{TransportName: "test"})),
+		WithDevProxyTarget(upstream.URL),
+	)
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody)
+	request.Host = "127.0.0.1"
+	response := httptest.NewRecorder()
+	server.engine.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+	}
+	csp := response.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "script-src 'self' 'unsafe-inline';") {
+		t.Fatalf(
+			"Content-Security-Policy = %q, want dev proxy CSP to allow Vite React Refresh inline preamble",
+			csp,
+		)
+	}
+}
+
 func TestDevProxyRoutesStripDaemonCredentialsBeforeForwarding(t *testing.T) {
 	t.Parallel()
 

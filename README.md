@@ -104,7 +104,7 @@ When the direct ACP command is not installed, Compozy can also fall back to supp
 ## 🔄 How It Works
 
 <div align="center">
-  <img src="imgs/how-it-works-flow.png" alt="Compozy workflow from setup to ship with markdown artifacts at each step" width="100%">
+  <img src="imgs/how-it-works-flow.png" alt="Compozy daemon-first workflow showing workspace artifacts, daemon runtime, and persisted run state" width="100%">
 </div>
 
 Workflow artifacts stay in `.compozy/tasks/<name>/`. These are the PRDs, TechSpecs, ADRs, tasks, reviews, and memory files that you read and edit between steps.

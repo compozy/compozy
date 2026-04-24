@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -95,18 +97,18 @@ func (s *Server) activeWorkspaceMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if _, err := s.handlers.Workspaces.Get(c.Request.Context(), workspaceID); err != nil {
+		workspace, err := s.handlers.Workspaces.Get(c.Request.Context(), workspaceID)
+		if err != nil {
 			if errors.Is(err, globaldb.ErrWorkspaceNotFound) {
-				core.RespondError(c, core.NewProblem(
-					http.StatusPreconditionFailed,
-					"workspace_context_stale",
-					"active workspace context is stale",
-					map[string]any{"workspace": workspaceID},
-					err,
-				))
+				respondStaleWorkspace(c, workspaceID, "", err)
 			} else {
 				core.RespondError(c, err)
 			}
+			c.Abort()
+			return
+		}
+		if err := validateWorkspaceRoot(workspace.RootDir); err != nil {
+			respondStaleWorkspace(c, workspaceID, workspace.RootDir, err)
 			c.Abort()
 			return
 		}
@@ -114,6 +116,35 @@ func (s *Server) activeWorkspaceMiddleware() gin.HandlerFunc {
 		c.Request = c.Request.WithContext(core.WithActiveWorkspaceID(c.Request.Context(), workspaceID))
 		c.Next()
 	}
+}
+
+func validateWorkspaceRoot(rootDir string) error {
+	normalized := strings.TrimSpace(rootDir)
+	if normalized == "" {
+		return errors.New("workspace root is empty")
+	}
+	info, err := os.Stat(normalized)
+	if err != nil {
+		return fmt.Errorf("stat workspace root %q: %w", normalized, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("workspace root %q is not a directory", normalized)
+	}
+	return nil
+}
+
+func respondStaleWorkspace(c *gin.Context, workspaceID string, rootDir string, err error) {
+	details := map[string]any{"workspace": workspaceID}
+	if strings.TrimSpace(rootDir) != "" {
+		details["root_dir"] = strings.TrimSpace(rootDir)
+	}
+	core.RespondError(c, core.NewProblem(
+		http.StatusPreconditionFailed,
+		"workspace_context_stale",
+		"active workspace context is stale",
+		details,
+		err,
+	))
 }
 
 func (s *Server) csrfMiddleware() gin.HandlerFunc {

@@ -30,11 +30,7 @@ export function WorkspacePicker({
   return (
     <AppShell>
       <AppShellSidebar>
-        <AppShellBrand
-          badge={<StatusBadge tone="accent">daemon</StatusBadge>}
-          detail="localhost · operator runtime"
-          title="Compozy"
-        />
+        <AppShellBrand badge={<StatusBadge tone="accent">daemon</StatusBadge>} title="Compozy" />
         <p className="text-sm leading-6 text-muted-foreground">
           The shell is single-workspace-per-tab. Pick one to attach and the rest of the navigation
           will unlock for this browser tab.

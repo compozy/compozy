@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1050" viewBox="0 0 1600 1050" role="img" aria-labelledby="title desc">
+  <title id="title">Compozy daemon runtime model</title>
+  <desc id="desc">A daemon-first workflow diagram showing clients, daemon transport, runtime services, persistent state, and the author to archive lifecycle.</desc>
+  <defs>
+    <radialGradient id="bgAccent" cx="15%" cy="8%" r="75%">
+      <stop offset="0%" stop-color="#d6f24a" stop-opacity="0.12"/>
+      <stop offset="34%" stop-color="#2f3520" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#11100f" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="heroLine" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#d6f24a" stop-opacity="0"/>
+      <stop offset="48%" stop-color="#d6f24a" stop-opacity="0.78"/>
+      <stop offset="100%" stop-color="#d6f24a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="panelEdge" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.04"/>
+    </linearGradient>
+    <filter id="softShadow" x="-15%" y="-20%" width="130%" height="150%">
+      <feDropShadow dx="0" dy="28" stdDeviation="28" flood-color="#080706" flood-opacity="0.48"/>
+    </filter>
+    <marker id="arrowLime" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#d6f24a"/>
+    </marker>
+    <marker id="arrowMuted" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#857e77"/>
+    </marker>
+    <style>
+      .bg { fill: #11100f; }
+      .shell { fill: #151311; stroke: url(#panelEdge); stroke-width: 1.2; }
+      .panel { fill: #1b1917; stroke: rgba(255,255,255,0.13); stroke-width: 1; }
+      .panel-soft { fill: rgba(255,255,255,0.045); stroke: rgba(255,255,255,0.1); stroke-width: 1; }
+      .panel-lime { fill: rgba(214,242,74,0.105); stroke: rgba(214,242,74,0.42); stroke-width: 1.2; }
+      .panel-amber { fill: rgba(240,184,74,0.11); stroke: rgba(240,184,74,0.34); stroke-width: 1; }
+      .panel-blue { fill: rgba(117,167,255,0.10); stroke: rgba(117,167,255,0.32); stroke-width: 1; }
+      .panel-green { fill: rgba(49,213,139,0.105); stroke: rgba(49,213,139,0.32); stroke-width: 1; }
+      .headline { fill: #e7e5e4; font: 650 42px "Nippo", "Geist", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; }
+      .subhead { fill: #a8a29e; font: 400 17px "Geist", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; }
+      .eyebrow { fill: #857e77; font: 700 12px "Disket Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 2px; }
+      .label { fill: #e7e5e4; font: 650 21px "Geist", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; }
+      .body { fill: #a8a29e; font: 400 14px "Geist", ui-sans-serif, system-ui, sans-serif; letter-spacing: 0; }
+      .mono { fill: #d6d3d1; font: 600 14px "Disket Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0; }
+      .mono-muted { fill: #857e77; font: 500 13px "Disket Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0; }
+      .accent { fill: #d6f24a; }
+      .stroke-lime { stroke: #d6f24a; stroke-width: 2.2; fill: none; marker-end: url(#arrowLime); }
+      .stroke-muted { stroke: #857e77; stroke-width: 1.5; fill: none; marker-end: url(#arrowMuted); }
+      .stroke-dash { stroke: rgba(214,242,74,0.58); stroke-width: 1.6; fill: none; stroke-dasharray: 8 8; marker-end: url(#arrowLime); }
+      .divider { stroke: rgba(255,255,255,0.1); stroke-width: 1; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1050"/>
+  <rect width="1600" height="1050" fill="url(#bgAccent)"/>
+  <path d="M80 96H1520" stroke="url(#heroLine)" stroke-width="1.4"/>
+  <path d="M80 953H1520" stroke="url(#heroLine)" stroke-width="1.2" opacity="0.72"/>
+
+  <g transform="translate(80 60)">
+    <text class="eyebrow" x="0" y="0">COMPOZY // DAEMON-FIRST FLOW</text>
+    <text class="headline" x="0" y="54">One local daemon owns runtime state.</text>
+    <text class="subhead" x="0" y="88">Markdown stays human-editable in the workspace. Execution, snapshots, streams, and run history move through ~/.compozy.</text>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <rect class="shell" x="62" y="178" width="1476" height="680" rx="26"/>
+  </g>
+
+  <g transform="translate(100 218)">
+    <rect class="panel" width="310" height="598" rx="16"/>
+    <text class="eyebrow" x="24" y="38">01 CLIENTS + WORKSPACE</text>
+    <text class="label" x="24" y="76">Author and request work</text>
+    <line class="divider" x1="24" y1="102" x2="286" y2="102"/>
+
+    <g transform="translate(24 132)">
+      <rect class="panel-lime" width="262" height="88" rx="13"/>
+      <text class="mono" x="18" y="34">compozy setup</text>
+      <text class="body" x="18" y="60">Install skills and project assets</text>
+    </g>
+    <g transform="translate(24 246)">
+      <rect class="panel-soft" width="262" height="112" rx="13"/>
+      <text class="mono" x="18" y="31">.compozy/tasks/&lt;slug&gt;/</text>
+      <text class="body" x="18" y="58">PRD, TechSpec, ADRs</text>
+      <text class="body" x="18" y="82">task files, reviews, memory</text>
+    </g>
+    <g transform="translate(24 384)">
+      <rect class="panel-soft" width="262" height="86" rx="13"/>
+      <text class="mono" x="18" y="34">CLI + Web console</text>
+      <text class="body" x="18" y="60">Submit commands and attach views</text>
+    </g>
+    <g transform="translate(24 502)">
+      <rect class="panel-amber" width="262" height="70" rx="13"/>
+      <text class="mono" x="18" y="31">compozy sync</text>
+      <text class="body" x="18" y="54">Reconcile authored files</text>
+    </g>
+  </g>
+
+  <g transform="translate(462 218)">
+    <rect class="panel" width="676" height="598" rx="16"/>
+    <text class="eyebrow" x="24" y="38">02 HOME-SCOPED DAEMON</text>
+    <text class="label" x="24" y="76">Transport, validation, execution</text>
+    <line class="divider" x1="24" y1="102" x2="652" y2="102"/>
+
+    <g transform="translate(34 132)">
+      <rect class="panel-lime" width="608" height="116" rx="18"/>
+      <text class="eyebrow accent" x="24" y="32">AUTO-STARTED SINGLETON</text>
+      <text class="label" x="24" y="66">compozy daemon start</text>
+      <text class="body" x="24" y="92">Lifecycle lock, daemon.json, health, metrics, and workspace registry under ~/.compozy.</text>
+    </g>
+
+    <g transform="translate(34 286)">
+      <rect class="panel-soft" width="280" height="116" rx="16"/>
+      <text class="eyebrow" x="20" y="30">TRANSPORT CONTRACT</text>
+      <text class="mono" x="20" y="61">UDS for CLI</text>
+      <text class="mono" x="20" y="87">localhost HTTP + SSE for Web</text>
+    </g>
+    <g transform="translate(362 286)">
+      <rect class="panel-soft" width="280" height="116" rx="16"/>
+      <text class="eyebrow" x="20" y="30">WORKSPACE REGISTRY</text>
+      <text class="mono" x="20" y="61">workspaces resolve/register</text>
+      <text class="body" x="20" y="87">Stable IDs for local roots</text>
+    </g>
+
+    <g transform="translate(34 440)">
+      <rect class="panel-blue" width="280" height="116" rx="16"/>
+      <text class="eyebrow" x="20" y="30">RUN MANAGER</text>
+      <text class="mono" x="20" y="61">tasks run &lt;slug&gt;</text>
+      <text class="body" x="20" y="87">Validate, schedule, supervise agents</text>
+    </g>
+    <g transform="translate(362 440)">
+      <rect class="panel-green" width="280" height="116" rx="16"/>
+      <text class="eyebrow" x="20" y="30">EXTENSION HOOKS</text>
+      <text class="mono" x="20" y="61">run-scoped subprocesses</text>
+      <text class="body" x="20" y="87">Prompt, lifecycle, review providers</text>
+    </g>
+  </g>
+
+  <g transform="translate(1190 218)">
+    <rect class="panel" width="310" height="598" rx="16"/>
+    <text class="eyebrow" x="24" y="38">03 STATE + OBSERVATION</text>
+    <text class="label" x="24" y="76">Persist and reconnect</text>
+    <line class="divider" x1="24" y1="102" x2="286" y2="102"/>
+
+    <g transform="translate(24 132)">
+      <rect class="panel-lime" width="262" height="94" rx="13"/>
+      <text class="mono" x="18" y="34">~/.compozy/global.db</text>
+      <text class="body" x="18" y="60">Workspaces, workflow catalog,</text>
+      <text class="body" x="18" y="80">tasks, reviews, run index</text>
+    </g>
+    <g transform="translate(24 252)">
+      <rect class="panel-soft" width="262" height="112" rx="13"/>
+      <text class="mono" x="18" y="31">runs/&lt;run-id&gt;/run.db</text>
+      <text class="body" x="18" y="58">Events, transcript, snapshots,</text>
+      <text class="body" x="18" y="82">agent outputs, terminal status</text>
+    </g>
+    <g transform="translate(24 392)">
+      <rect class="panel-blue" width="262" height="88" rx="13"/>
+      <text class="mono" x="18" y="34">runs attach / watch</text>
+      <text class="body" x="18" y="60">Snapshot + stream reconnect</text>
+    </g>
+    <g transform="translate(24 512)">
+      <rect class="panel-amber" width="262" height="60" rx="13"/>
+      <text class="mono" x="18" y="37">archive after synced completion</text>
+    </g>
+  </g>
+
+  <path class="stroke-lime" d="M410 520 C430 520 438 520 462 520"/>
+  <path class="stroke-lime" d="M1138 520 C1160 520 1168 520 1190 520"/>
+  <path class="stroke-dash" d="M410 760 C430 760 438 640 462 640"/>
+  <path class="stroke-dash" d="M1138 640 C1160 640 1168 760 1190 760"/>
+
+  <g transform="translate(112 888)">
+    <rect class="panel" width="1376" height="100" rx="18"/>
+    <text class="eyebrow" x="24" y="32">RUNTIME SEQUENCE</text>
+    <g transform="translate(24 50)">
+      <rect class="panel-soft" x="0" y="0" width="176" height="34" rx="17"/>
+      <text class="mono" x="20" y="23">author markdown</text>
+      <path class="stroke-muted" d="M188 17 H236"/>
+      <rect class="panel-soft" x="250" y="0" width="132" height="34" rx="17"/>
+      <text class="mono" x="275" y="23">sync DB</text>
+      <path class="stroke-muted" d="M394 17 H442"/>
+      <rect class="panel-lime" x="456" y="0" width="168" height="34" rx="17"/>
+      <text class="mono" x="480" y="23">start run</text>
+      <path class="stroke-muted" d="M636 17 H684"/>
+      <rect class="panel-soft" x="698" y="0" width="202" height="34" rx="17"/>
+      <text class="mono" x="719" y="23">attach or stream</text>
+      <path class="stroke-muted" d="M912 17 H960"/>
+      <rect class="panel-soft" x="974" y="0" width="172" height="34" rx="17"/>
+      <text class="mono" x="995" y="23">review/fix loop</text>
+      <path class="stroke-muted" d="M1158 17 H1206"/>
+      <rect class="panel-amber" x="1220" y="0" width="108" height="34" rx="17"/>
+      <text class="mono" x="1240" y="23">archive</text>
+    </g>
+  </g>
+
+  <g transform="translate(1260 72)">
+    <rect class="panel-soft" width="230" height="54" rx="14"/>
+    <circle cx="30" cy="27" r="7" fill="#31d58b"/>
+    <text class="mono" x="52" y="23">daemon-backed</text>
+    <text class="mono-muted" x="52" y="42">local-first runtime</text>
+  </g>
+</svg>

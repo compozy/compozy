@@ -133,15 +133,16 @@ func TestSyncTaskMetadataResyncUpdatesExistingWorkflowAndTaskIdentity(t *testing
 		workflowID string
 		taskRowID  string
 		taskID     string
+		sourcePath string
 	)
 	if err := sqlDB.QueryRowContext(
 		context.Background(),
-		`SELECT w.id, t.id, t.task_id
+		`SELECT w.id, t.id, t.task_id, t.source_path
 		 FROM workflows w
 		 JOIN task_items t ON t.workflow_id = w.id
 		 WHERE w.slug = ? AND t.task_number = 1`,
 		"identity-demo",
-	).Scan(&workflowID, &taskRowID, &taskID); err != nil {
+	).Scan(&workflowID, &taskRowID, &taskID, &sourcePath); err != nil {
 		t.Fatalf("query first sync identity rows: %v", err)
 	}
 
@@ -175,8 +176,11 @@ func TestSyncTaskMetadataResyncUpdatesExistingWorkflowAndTaskIdentity(t *testing
 	if taskRowIDAfter != taskRowID {
 		t.Fatalf("task row id changed across resync: before=%q after=%q", taskRowID, taskRowIDAfter)
 	}
-	if taskID != "task_1" {
-		t.Fatalf("task_id = %q, want task_1", taskID)
+	if taskID != "task_01" {
+		t.Fatalf("task_id = %q, want task_01", taskID)
+	}
+	if sourcePath != "task_01.md" {
+		t.Fatalf("source_path = %q, want task_01.md", sourcePath)
 	}
 	if taskTitleAfter != "Updated title" || taskStatusAfter != "completed" {
 		t.Fatalf("unexpected task row after resync: title=%q status=%q", taskTitleAfter, taskStatusAfter)

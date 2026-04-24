@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 
-import { useActiveWorkspace } from "../hooks/use-active-workspace";
+import {
+  useQueryClient,
+  type MutationCacheNotifyEvent,
+  type QueryCacheNotifyEvent,
+} from "@tanstack/react-query";
+
+import { isStaleWorkspaceError } from "@/lib/api-client";
+
 import { ActiveWorkspaceContext } from "../lib/active-workspace-context";
+import { useActiveWorkspace } from "../hooks/use-active-workspace";
 import { AppShellBoundary } from "./app-shell-boundary";
 import { WorkspaceOnboarding } from "./workspace-onboarding";
 import { WorkspacePicker } from "./workspace-picker";
@@ -11,10 +19,19 @@ export interface AppShellContainerProps {
 }
 
 export function AppShellContainer({ children }: AppShellContainerProps): ReactElement {
+  const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
+  const clearActiveWorkspaceSelection = workspace.clearActiveWorkspaceSelection;
   const [showPicker, setShowPicker] = useState(false);
   const [staleSignal, setStaleSignal] = useState<string | null>(null);
   const lastResolvedRef = useRef<string | null>(null);
+  const activeWorkspaceIdRef = useRef<string | null>(workspace.activeWorkspaceId);
+  const selectedWorkspaceIdRef = useRef<string | null>(workspace.selectedWorkspaceId);
+
+  useEffect(() => {
+    activeWorkspaceIdRef.current = workspace.activeWorkspaceId;
+    selectedWorkspaceIdRef.current = workspace.selectedWorkspaceId;
+  }, [workspace.activeWorkspaceId, workspace.selectedWorkspaceId]);
 
   useEffect(() => {
     if (workspace.isStaleSelection && workspace.selectedWorkspaceId) {
@@ -28,6 +45,38 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
       setStaleSignal(null);
     }
   }, [workspace.activeWorkspaceId]);
+
+  useEffect(() => {
+    const handlePossibleStaleWorkspace = (error: unknown) => {
+      if (!isStaleWorkspaceError(error)) {
+        return;
+      }
+      const staleWorkspaceId = selectedWorkspaceIdRef.current ?? activeWorkspaceIdRef.current;
+      setStaleSignal(staleWorkspaceId ?? "unknown");
+      clearActiveWorkspaceSelection();
+      setShowPicker(true);
+    };
+
+    const unsubscribeQueries = queryClient
+      .getQueryCache()
+      .subscribe((event: QueryCacheNotifyEvent) => {
+        if (event.type === "updated") {
+          handlePossibleStaleWorkspace(event.query.state.error);
+        }
+      });
+    const unsubscribeMutations = queryClient
+      .getMutationCache()
+      .subscribe((event: MutationCacheNotifyEvent) => {
+        if (event.type === "updated") {
+          handlePossibleStaleWorkspace(event.mutation.state.error);
+        }
+      });
+
+    return () => {
+      unsubscribeQueries();
+      unsubscribeMutations();
+    };
+  }, [clearActiveWorkspaceSelection, queryClient]);
 
   const handleSwitchWorkspace = useCallback(() => {
     setShowPicker(true);
@@ -71,7 +120,9 @@ export function AppShellContainer({ children }: AppShellContainerProps): ReactEl
   }
 
   const shouldShowPicker =
-    workspace.status === "many" || (showPicker && workspace.workspaces.length > 1);
+    staleSignal !== null ||
+    workspace.status === "many" ||
+    (showPicker && workspace.workspaces.length > 1);
   if (shouldShowPicker) {
     return (
       <WorkspacePicker

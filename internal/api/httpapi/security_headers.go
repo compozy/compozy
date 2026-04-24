@@ -2,22 +2,42 @@ package httpapi
 
 import "github.com/gin-gonic/gin"
 
+const productionContentSecurityPolicy = "default-src 'self'; " +
+	"base-uri 'self'; " +
+	"frame-ancestors 'none'; " +
+	"form-action 'self'; " +
+	"img-src 'self' data:; " +
+	"font-src 'self' data:; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"script-src 'self'; " +
+	"connect-src 'self'; " +
+	"object-src 'none'"
+
+const devProxyContentSecurityPolicy = "default-src 'self'; " +
+	"base-uri 'self'; " +
+	"frame-ancestors 'none'; " +
+	"form-action 'self'; " +
+	"img-src 'self' data:; " +
+	"font-src 'self' data:; " +
+	"style-src 'self' 'unsafe-inline'; " +
+	"script-src 'self' 'unsafe-inline'; " +
+	"connect-src 'self'; " +
+	"object-src 'none'"
+
 // securityHeadersMiddleware applies baseline security headers to every response
 // served by the daemon HTTP API. These defaults suit a local-first operator
 // console: strict framing and MIME sniffing protection, conservative referrer
 // leakage, and a default CSP that keeps the embedded SPA working while blocking
 // unexpected network or plugin origins.
 func securityHeadersMiddleware() gin.HandlerFunc {
-	const csp = "default-src 'self'; " +
-		"base-uri 'self'; " +
-		"frame-ancestors 'none'; " +
-		"form-action 'self'; " +
-		"img-src 'self' data:; " +
-		"font-src 'self' data:; " +
-		"style-src 'self' 'unsafe-inline'; " +
-		"script-src 'self'; " +
-		"connect-src 'self'; " +
-		"object-src 'none'"
+	return securityHeadersMiddlewareWithCSP(productionContentSecurityPolicy)
+}
+
+func devProxySecurityHeadersMiddleware() gin.HandlerFunc {
+	return securityHeadersMiddlewareWithCSP(devProxyContentSecurityPolicy)
+}
+
+func securityHeadersMiddlewareWithCSP(csp string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		header := c.Writer.Header()
 		if header.Get("X-Content-Type-Options") == "" {

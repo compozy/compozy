@@ -54,11 +54,7 @@ export function WorkspaceOnboarding({
   return (
     <AppShell>
       <AppShellSidebar>
-        <AppShellBrand
-          badge={<StatusBadge tone="accent">daemon</StatusBadge>}
-          detail="localhost · operator runtime"
-          title="Compozy"
-        />
+        <AppShellBrand badge={<StatusBadge tone="accent">daemon</StatusBadge>} title="Compozy" />
         <p className="text-sm leading-6 text-muted-foreground">
           The operator console needs a workspace before it can show any dashboard, workflow, or run
           data. Register one and the shell will unlock the rest of the navigation.

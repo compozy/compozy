@@ -1,0 +1,38 @@
+- Goal (incl. success criteria):
+  - Replace the first README image/diagram with an updated daemon-based architecture flow.
+  - New asset should follow the repository web/design-system visual style and be referenced from README.
+- Constraints/Assumptions:
+  - Must not run destructive git commands (`restore`, `checkout`, `reset`, `clean`, `rm`) without explicit permission.
+  - Use `imagegen` because user explicitly requested it.
+  - Use `drawio` guidance because the requested asset is a diagram/flowchart.
+  - Preserve unrelated working tree changes.
+  - Project policy requires `make verify` and `cy-final-verify` before claiming completion.
+- Key decisions:
+  - Treat `imgs/how-it-works-flow.png` as the target image because it is the README flowchart and is outdated for the daemon model.
+  - Use a deterministic diagram source for exact text instead of relying on generated text inside an image model.
+  - Keep `imgs/how-it-works.drawio` as editable source and render the README bitmap from project-owned assets.
+- State:
+  - In progress.
+- Done:
+  - Read/acknowledged repository instructions and skill requirements from prompt.
+  - Scanned `.codex/ledger/` for cross-agent awareness.
+  - Inspected README image references, existing flow image, `imgs/how-it-works.drawio`, web styles, UI tokens, and daemon context ledgers.
+  - Confirmed existing flow references legacy commands/artifacts and should be replaced.
+  - Added `imgs/how-it-works-flow.svg` and rendered it to `imgs/how-it-works-flow.png` at 1600x1050.
+  - Replaced `imgs/how-it-works.drawio` with a daemon-first editable diagram source.
+  - Updated the README image alt text to describe the daemon-first workflow.
+  - Validated SVG and draw.io XML with `xmllint --noout`.
+- Now:
+  - Run formatting/verification checks and inspect final repository diff.
+- Next:
+  - Use `cy-final-verify`, run `make verify`, then finalize if clean.
+- Open questions (UNCONFIRMED if needed):
+  - None.
+- Working set (files/ids/commands):
+  - `.codex/ledger/2026-04-24-MEMORY-readme-daemon-diagram.md`
+  - `README.md`
+  - `imgs/how-it-works-flow.png`
+  - `imgs/how-it-works-flow.svg`
+  - `imgs/how-it-works.drawio`
+  - `rsvg-convert --width 1600 --height 1050 --format png --output imgs/how-it-works-flow.png imgs/how-it-works-flow.svg`
+  - `xmllint --noout imgs/how-it-works-flow.svg imgs/how-it-works.drawio`

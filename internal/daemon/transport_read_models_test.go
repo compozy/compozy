@@ -141,7 +141,7 @@ func TestTaskTransportServiceExposesRichReadModelsFromRealDaemonState(t *testing
 		context.Background(),
 		fixture.env.workspaceRoot,
 		fixture.env.workflowSlug,
-		"task_1",
+		"task_01",
 	)
 	if err != nil {
 		t.Fatalf("TaskDetail() error = %v", err)
@@ -206,7 +206,7 @@ func TestTaskTransportServiceMapsRichReadFailuresToTransportProblems(t *testing.
 		context.Background(),
 		fixture.env.workspaceRoot,
 		fixture.env.workflowSlug,
-		"task_1",
+		"task_01",
 	)
 	missingProblem := mustProblem(t, err)
 	if missingProblem.Status != http.StatusNotFound || missingProblem.Code != "document_not_found" {
@@ -359,11 +359,11 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 
 	taskSource := TaskDetailPayload{
 		Task: TaskCard{
-			TaskID:    "task_1",
-			DependsOn: []string{"task_0"},
+			TaskID:    "task_01",
+			DependsOn: []string{"task_00"},
 		},
 		Document: MarkdownDocument{
-			ID:    "task_1",
+			ID:    "task_01",
 			Kind:  "task",
 			Title: "Task 1",
 			Metadata: map[string]any{
@@ -382,8 +382,8 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 	taskMapped.RelatedRuns[0].RunID = "run-x"
 	taskSource.Document.Metadata["status"] = "completed"
 	taskSource.Document.Metadata["details"].(map[string]any)["owner"] = "browser"
-	if got := taskSource.Task.DependsOn[0]; got != "task_0" {
-		t.Fatalf("source task depends_on mutated = %q, want task_0", got)
+	if got := taskSource.Task.DependsOn[0]; got != "task_00" {
+		t.Fatalf("source task depends_on mutated = %q, want task_00", got)
 	}
 	taskMetadata := mustTransportMetadataMap(t, taskMapped.Document.Metadata)
 	if got := taskMetadata["status"]; got != "pending" {

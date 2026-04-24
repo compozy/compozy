@@ -3,6 +3,8 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -42,6 +44,12 @@ type queryService struct {
 type memoryDocumentRef struct {
 	entry   WorkflowMemoryEntry
 	absPath string
+}
+
+type workflowReadTarget struct {
+	workspace globaldb.Workspace
+	workflow  globaldb.Workflow
+	rootDir   string
 }
 
 var _ QueryService = (*queryService)(nil)
@@ -111,10 +119,12 @@ func (s *queryService) WorkflowOverview(
 	workspaceRef string,
 	workflowSlug string,
 ) (WorkflowOverviewPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return WorkflowOverviewPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	taskItems, counts, err := s.taskCardsForWorkflow(ctx, workflow.ID)
 	if err != nil {
@@ -132,9 +142,15 @@ func (s *queryService) WorkflowOverview(
 		latestReview = &summary
 	}
 
-	eligibility, err := s.globalDB.GetWorkflowArchiveEligibility(ctx, workspace.ID, workflow.Slug)
-	if err != nil {
-		return WorkflowOverviewPayload{}, err
+	archiveReason := "workflow archived"
+	archiveEligible := false
+	if workflow.ArchivedAt == nil {
+		eligibility, eligibilityErr := s.globalDB.GetWorkflowArchiveEligibility(ctx, workspace.ID, workflow.Slug)
+		if eligibilityErr != nil {
+			return WorkflowOverviewPayload{}, eligibilityErr
+		}
+		archiveEligible = eligibility.Archivable()
+		archiveReason = eligibility.SkipReason()
 	}
 
 	_ = taskItems
@@ -144,8 +160,8 @@ func (s *queryService) WorkflowOverview(
 		TaskCounts:      counts,
 		LatestReview:    latestReview,
 		RecentRuns:      recentRuns,
-		ArchiveEligible: eligibility.Archivable(),
-		ArchiveReason:   eligibility.SkipReason(),
+		ArchiveEligible: archiveEligible,
+		ArchiveReason:   archiveReason,
 	}, nil
 }
 
@@ -154,10 +170,12 @@ func (s *queryService) TaskBoard(
 	workspaceRef string,
 	workflowSlug string,
 ) (TaskBoardPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return TaskBoardPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	cards, counts, err := s.taskCardsForWorkflow(ctx, workflow.ID)
 	if err != nil {
@@ -177,12 +195,13 @@ func (s *queryService) WorkflowSpec(
 	workspaceRef string,
 	workflowSlug string,
 ) (WorkflowSpecDocument, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return WorkflowSpecDocument{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
-	workflowRoot := workflowRootDir(workspace.RootDir, workflow.Slug)
 	spec := WorkflowSpecDocument{
 		Workspace: transportWorkspace(workspace),
 		Workflow:  transportWorkflowSummary(workflow),
@@ -190,7 +209,7 @@ func (s *queryService) WorkflowSpec(
 
 	if prdDoc, ok, err := s.readWorkflowDocument(
 		ctx,
-		workflowRoot,
+		target.rootDir,
 		"_prd.md",
 		markdownDocumentKindPRD,
 		markdownDocumentKindPRD,
@@ -201,7 +220,7 @@ func (s *queryService) WorkflowSpec(
 	}
 	if techspecDoc, ok, err := s.readWorkflowDocument(
 		ctx,
-		workflowRoot,
+		target.rootDir,
 		"_techspec.md",
 		markdownDocumentKindTechSpec,
 		markdownDocumentKindTechSpec,
@@ -211,7 +230,7 @@ func (s *queryService) WorkflowSpec(
 		spec.TechSpec = &techspecDoc
 	}
 
-	adrsDir := filepath.Join(workflowRoot, "adrs")
+	adrsDir := filepath.Join(target.rootDir, "adrs")
 	entries, err := readMarkdownDir(adrsDir)
 	if err != nil {
 		if !errors.Is(err, ErrDocumentMissing) {
@@ -239,12 +258,14 @@ func (s *queryService) WorkflowMemoryIndex(
 	workspaceRef string,
 	workflowSlug string,
 ) (WorkflowMemoryIndex, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return WorkflowMemoryIndex{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
-	entries, err := s.listMemoryDocuments(ctx, workspace, workflow)
+	entries, err := s.listMemoryDocuments(ctx, workspace, workflow, target.rootDir)
 	if err != nil {
 		return WorkflowMemoryIndex{}, err
 	}
@@ -266,12 +287,14 @@ func (s *queryService) WorkflowMemoryFile(
 	workflowSlug string,
 	fileID string,
 ) (MarkdownDocument, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return MarkdownDocument{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
-	entries, err := s.listMemoryDocuments(ctx, workspace, workflow)
+	entries, err := s.listMemoryDocuments(ctx, workspace, workflow, target.rootDir)
 	if err != nil {
 		return MarkdownDocument{}, err
 	}
@@ -296,10 +319,12 @@ func (s *queryService) TaskDetail(
 	workflowSlug string,
 	taskID string,
 ) (TaskDetailPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return TaskDetailPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	taskRow, err := s.globalDB.GetTaskItemByTaskID(ctx, workflow.ID, taskID)
 	if err != nil {
@@ -308,7 +333,7 @@ func (s *queryService) TaskDetail(
 
 	document, err := s.readRequiredWorkflowDocument(
 		ctx,
-		workflowRootDir(workspace.RootDir, workflow.Slug),
+		target.rootDir,
 		workflow.Slug,
 		taskRow.SourcePath,
 		markdownDocumentKindTask,
@@ -318,7 +343,7 @@ func (s *queryService) TaskDetail(
 		return TaskDetailPayload{}, err
 	}
 
-	memoryEntries, err := s.listMemoryDocuments(ctx, workspace, workflow)
+	memoryEntries, err := s.listMemoryDocuments(ctx, workspace, workflow, target.rootDir)
 	if err != nil {
 		return TaskDetailPayload{}, err
 	}
@@ -352,10 +377,12 @@ func (s *queryService) ReviewDetail(
 	round int,
 	issueRef string,
 ) (ReviewDetailPayload, error) {
-	workspace, workflow, err := s.resolveWorkflow(ctx, workspaceRef, workflowSlug)
+	target, err := s.resolveWorkflowReadTarget(ctx, workspaceRef, workflowSlug)
 	if err != nil {
 		return ReviewDetailPayload{}, err
 	}
+	workspace := target.workspace
+	workflow := target.workflow
 
 	roundRow, err := s.globalDB.GetReviewRound(ctx, workflow.ID, round)
 	if err != nil {
@@ -368,7 +395,7 @@ func (s *queryService) ReviewDetail(
 
 	document, err := s.readRequiredWorkflowDocument(
 		ctx,
-		workflowRootDir(workspace.RootDir, workflow.Slug),
+		target.rootDir,
 		workflow.Slug,
 		issueRow.SourcePath,
 		markdownDocumentKindReviewIssue,
@@ -447,20 +474,46 @@ func (s *queryService) resolveWorkspace(ctx context.Context, workspaceRef string
 	return resolveWorkspaceReference(ctx, s.globalDB, workspaceRef)
 }
 
-func (s *queryService) resolveWorkflow(
+func (s *queryService) resolveWorkflowReadTarget(
 	ctx context.Context,
 	workspaceRef string,
 	workflowSlug string,
-) (globaldb.Workspace, globaldb.Workflow, error) {
+) (workflowReadTarget, error) {
 	workspace, err := s.resolveWorkspace(ctx, workspaceRef)
 	if err != nil {
-		return globaldb.Workspace{}, globaldb.Workflow{}, err
+		return workflowReadTarget{}, err
 	}
-	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, strings.TrimSpace(workflowSlug))
+	slug := strings.TrimSpace(workflowSlug)
+
+	workflow, err := s.globalDB.GetActiveWorkflowBySlug(ctx, workspace.ID, slug)
+	if err == nil {
+		rootDir, rootErr := readableWorkflowRootDir(workspace.RootDir, workflow)
+		if rootErr != nil {
+			return workflowReadTarget{}, rootErr
+		}
+		return workflowReadTarget{
+			workspace: workspace,
+			workflow:  workflow,
+			rootDir:   rootDir,
+		}, nil
+	}
+	if !errors.Is(err, globaldb.ErrWorkflowNotFound) {
+		return workflowReadTarget{}, err
+	}
+
+	workflow, err = s.globalDB.GetLatestArchivedWorkflowBySlug(ctx, workspace.ID, slug)
 	if err != nil {
-		return globaldb.Workspace{}, globaldb.Workflow{}, err
+		return workflowReadTarget{}, err
 	}
-	return workspace, workflow, nil
+	rootDir, err := readableWorkflowRootDir(workspace.RootDir, workflow)
+	if err != nil {
+		return workflowReadTarget{}, err
+	}
+	return workflowReadTarget{
+		workspace: workspace,
+		workflow:  workflow,
+		rootDir:   rootDir,
+	}, nil
 }
 
 func (s *queryService) buildWorkflowCard(
@@ -596,8 +649,9 @@ func (s *queryService) listMemoryDocuments(
 	ctx context.Context,
 	workspace globaldb.Workspace,
 	workflow globaldb.Workflow,
+	workflowRoot string,
 ) ([]memoryDocumentRef, error) {
-	memoryDir := filepath.Join(workflowRootDir(workspace.RootDir, workflow.Slug), "memory")
+	memoryDir := filepath.Join(workflowRoot, "memory")
 	entries, err := readMarkdownDir(memoryDir)
 	if err != nil {
 		if errors.Is(err, ErrDocumentMissing) {
@@ -706,6 +760,100 @@ func (s *queryService) requireRunManager() error {
 
 func workflowRootDir(workspaceRoot string, workflowSlug string) string {
 	return model.TaskDirectoryForWorkspace(workspaceRoot, workflowSlug)
+}
+
+func readableWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) (string, error) {
+	if workflow.ArchivedAt != nil {
+		root := archivedWorkflowRootDir(workspaceRoot, workflow)
+		if err := fileInfo(root); err == nil {
+			return root, nil
+		} else if !errors.Is(err, ErrDocumentMissing) {
+			return "", err
+		}
+		if fallback, ok, err := latestArchivedWorkflowRootDir(workspaceRoot, workflow.Slug); err != nil {
+			return "", err
+		} else if ok {
+			return fallback, nil
+		}
+		return root, nil
+	}
+
+	root := workflowRootDir(workspaceRoot, workflow.Slug)
+	if err := fileInfo(root); err == nil {
+		return root, nil
+	} else if !errors.Is(err, ErrDocumentMissing) {
+		return "", err
+	}
+	if fallback, ok, err := latestArchivedWorkflowRootDir(workspaceRoot, workflow.Slug); err != nil {
+		return "", err
+	} else if ok {
+		return fallback, nil
+	}
+	return root, nil
+}
+
+func archivedWorkflowRootDir(workspaceRoot string, workflow globaldb.Workflow) string {
+	if workflow.ArchivedAt == nil {
+		return workflowRootDir(workspaceRoot, workflow.Slug)
+	}
+	return filepath.Join(
+		model.ArchivedTasksDir(model.TasksBaseDirForWorkspace(workspaceRoot)),
+		model.ArchivedWorkflowName(workflow.Slug, workflow.ID, *workflow.ArchivedAt),
+	)
+}
+
+func latestArchivedWorkflowRootDir(workspaceRoot string, workflowSlug string) (string, bool, error) {
+	archiveRoot := model.ArchivedTasksDir(model.TasksBaseDirForWorkspace(workspaceRoot))
+	entries, err := os.ReadDir(archiveRoot)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("daemon: read archived workflow directory %q: %w", archiveRoot, err)
+	}
+
+	type candidate struct {
+		name      string
+		path      string
+		timestamp int64
+	}
+	candidates := make([]candidate, 0)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		timestamp, ok := archivedWorkflowTimestampForSlug(entry.Name(), workflowSlug)
+		if !ok {
+			continue
+		}
+		candidates = append(candidates, candidate{
+			name:      entry.Name(),
+			path:      filepath.Join(archiveRoot, entry.Name()),
+			timestamp: timestamp,
+		})
+	}
+	if len(candidates) == 0 {
+		return "", false, nil
+	}
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].timestamp == candidates[j].timestamp {
+			return candidates[i].name < candidates[j].name
+		}
+		return candidates[i].timestamp < candidates[j].timestamp
+	})
+	return candidates[len(candidates)-1].path, true, nil
+}
+
+func archivedWorkflowTimestampForSlug(name string, workflowSlug string) (int64, bool) {
+	parts := strings.SplitN(strings.TrimSpace(name), "-", 3)
+	if len(parts) != 3 || parts[2] != strings.TrimSpace(workflowSlug) {
+		return 0, false
+	}
+	timestamp, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return timestamp, true
 }
 
 func taskCardFromRow(row globaldb.TaskItemRow) TaskCard {

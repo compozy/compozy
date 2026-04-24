@@ -1,11 +1,14 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { useQuery } from "@tanstack/react-query";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createTestQueryClient, installFetchStub, matchPath, withQuery } from "@/test/utils";
+import { WORKSPACE_STORAGE_KEY } from "@/lib/session-storage";
 
 import { resetActiveWorkspaceStoreForTests } from "../stores/active-workspace-store";
+import { useActiveWorkspaceStore } from "../stores/active-workspace-store";
 import type { Workspace } from "../types";
 import { AppShellContainer } from "./app-shell-container";
 import { useActiveWorkspaceContext } from "../lib/active-workspace-context";
@@ -29,6 +32,16 @@ const workspaceTwo: Workspace = {
 function ContextProbe(): ReactElement {
   const context = useActiveWorkspaceContext();
   return <p data-testid="probe-active">{context.activeWorkspace.id}</p>;
+}
+
+function StaleWorkspaceQueryProbe(): ReactElement {
+  useQuery({
+    queryKey: ["stale-workspace-probe"],
+    queryFn: async (): Promise<string> => {
+      throw { code: "workspace_context_stale", message: "stale" };
+    },
+  });
+  return <ContextProbe />;
 }
 
 describe("AppShellContainer", () => {
@@ -113,5 +126,29 @@ describe("AppShellContainer", () => {
       { wrapper: withQuery(createTestQueryClient()) }
     );
     expect(await screen.findByTestId("app-shell-error")).toBeInTheDocument();
+  });
+
+  it("Should clear the active workspace when a child query reports stale workspace context", async () => {
+    window.sessionStorage.setItem(WORKSPACE_STORAGE_KEY, "ws-1");
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: "ws-1" });
+    const stub = installFetchStub([
+      {
+        matcher: matchPath("/api/workspaces"),
+        status: 200,
+        body: { workspaces: [workspaceOne, workspaceTwo] },
+      },
+    ]);
+    restore = stub.restore;
+
+    render(
+      <AppShellContainer>
+        <StaleWorkspaceQueryProbe />
+      </AppShellContainer>,
+      { wrapper: withQuery(createTestQueryClient()) }
+    );
+
+    expect(await screen.findByTestId("workspace-picker-stale")).toBeInTheDocument();
+    expect(screen.queryByTestId("probe-active")).not.toBeInTheDocument();
+    expect(window.sessionStorage.getItem(WORKSPACE_STORAGE_KEY)).toBeNull();
   });
 });

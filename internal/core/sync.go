@@ -332,14 +332,16 @@ func collectTaskItems(tasksDir string) ([]globaldb.TaskItemInput, error) {
 		if taskNumber == 0 {
 			return nil, fmt.Errorf("invalid task file name %q", entry.Name)
 		}
+		sourcePath := filepath.ToSlash(entry.Name)
+		taskID := strings.TrimSuffix(filepath.Base(sourcePath), filepath.Ext(sourcePath))
 		taskItems = append(taskItems, globaldb.TaskItemInput{
 			TaskNumber: taskNumber,
-			TaskID:     fmt.Sprintf("task_%d", taskNumber),
+			TaskID:     taskID,
 			Title:      task.Title,
 			Status:     strings.ToLower(strings.TrimSpace(task.Status)),
 			Kind:       task.TaskType,
 			DependsOn:  append([]string(nil), task.Dependencies...),
-			SourcePath: filepath.ToSlash(entry.Name),
+			SourcePath: sourcePath,
 		})
 	}
 	return taskItems, nil
