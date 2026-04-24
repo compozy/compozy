@@ -297,6 +297,18 @@ func TestNewerReleaseComparesGitDescribeVersionByBaseRelease(t *testing.T) {
 			t.Fatalf("expected newer release info, got %#v", got)
 		}
 	})
+
+	t.Run("Should preserve prerelease segments that are not git describe hashes", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := newerRelease("1.2.3-1-gamma", &ReleaseInfo{Version: "1.2.3"})
+		if err != nil {
+			t.Fatalf("newerRelease returned error: %v", err)
+		}
+		if got == nil || got.Version != "1.2.3" {
+			t.Fatalf("expected stable release to be newer than prerelease, got %#v", got)
+		}
+	})
 }
 
 func TestReleaseInfoPtrReturnsNilForEmptyInfo(t *testing.T) {

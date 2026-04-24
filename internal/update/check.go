@@ -180,6 +180,10 @@ func trimGitDescribeSuffix(raw string) string {
 	if commitSep < 0 || commitSep+2 >= len(trimmed) {
 		return trimmed
 	}
+	commit := trimmed[commitSep+2:]
+	if !isGitShortSHA(commit) {
+		return trimmed
+	}
 	beforeCommit := trimmed[:commitSep]
 	countSep := strings.LastIndex(beforeCommit, "-")
 	if countSep < 0 || countSep+1 >= len(beforeCommit) {
@@ -191,6 +195,18 @@ func trimGitDescribeSuffix(raw string) string {
 		}
 	}
 	return beforeCommit[:countSep]
+}
+
+func isGitShortSHA(value string) bool {
+	if len(value) < 7 {
+		return false
+	}
+	for _, char := range value {
+		if (char < '0' || char > '9') && (char < 'a' || char > 'f') && (char < 'A' || char > 'F') {
+			return false
+		}
+	}
+	return true
 }
 
 func releaseInfoPtr(info ReleaseInfo) *ReleaseInfo {
