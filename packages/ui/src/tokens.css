@@ -6,6 +6,22 @@
   src: url("./assets/fonts/Nippo-Variable.woff2") format("woff2");
 }
 
+@font-face {
+  font-display: swap;
+  font-family: "Disket Mono";
+  font-style: normal;
+  font-weight: 400;
+  src: url("./assets/fonts/Disket-Mono-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Disket Mono";
+  font-style: normal;
+  font-weight: 700;
+  src: url("./assets/fonts/Disket-Mono-Bold.ttf") format("truetype");
+}
+
 :root {
   color-scheme: dark;
 
