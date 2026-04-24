@@ -133,6 +133,23 @@ func TestSessionUpdateHandlerKeepsActivityActiveWhileSubmittingUpdate(t *testing
 
 		textBlock := mustContentBlockLoggingTest(t, model.TextBlock{Text: "active"})
 		errCh := make(chan error, 1)
+		var releaseOnce sync.Once
+		releaseSubmitter := func() {
+			releaseOnce.Do(func() {
+				close(submitter.release)
+			})
+		}
+		drained := false
+		defer func() {
+			releaseSubmitter()
+			if drained {
+				return
+			}
+			select {
+			case <-errCh:
+			case <-time.After(time.Second):
+			}
+		}()
 		go func() {
 			errCh <- handler.HandleUpdate(model.SessionUpdate{
 				Kind:   model.UpdateKindAgentMessageChunk,
@@ -150,9 +167,10 @@ func TestSessionUpdateHandlerKeepsActivityActiveWhileSubmittingUpdate(t *testing
 			t.Fatalf("expected in-flight update handling to report active work, got %v", got)
 		}
 
-		close(submitter.release)
+		releaseSubmitter()
 		select {
 		case err := <-errCh:
+			drained = true
 			if err != nil {
 				t.Fatalf("handle update: %v", err)
 			}
