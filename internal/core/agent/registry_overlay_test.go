@@ -216,8 +216,6 @@ func TestActivateOverlaySupportsTypedLauncherAndBootstrapFields(t *testing.T) {
 
 func TestResolveRuntimeModelNormalizesCodexAliasTargetPrefix(t *testing.T) {
 	t.Run("Should normalize codex alias target prefix", func(t *testing.T) {
-		t.Parallel()
-
 		restoreModels, err := modelprovider.ActivateOverlay([]modelprovider.OverlayEntry{{
 			Name:   "frontier-codex",
 			Target: "codex/gpt-5.5",
