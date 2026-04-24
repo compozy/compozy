@@ -278,7 +278,7 @@ func TestReviewTransportAndRunDetailExposeReadModelsAndTypedFailures(t *testing.
 	if runDetail.JobCounts.Completed != 1 {
 		t.Fatalf("runDetail.JobCounts.Completed = %d, want 1", runDetail.JobCounts.Completed)
 	}
-	if len(runDetail.Runtime.Models) == 0 || runDetail.Runtime.Models[0] != "gpt-5.4" {
+	if len(runDetail.Runtime.Models) == 0 || runDetail.Runtime.Models[0] != "gpt-5.5" {
 		t.Fatalf("unexpected run detail runtime summary: %#v", runDetail.Runtime)
 	}
 
@@ -401,7 +401,7 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 
 	runSource := RunDetailPayload{
 		Runtime: RunRuntimeSummary{
-			Models:            []string{"gpt-5.4"},
+			Models:            []string{"gpt-5.5"},
 			AccessModes:       []string{"workspace-write"},
 			PresentationModes: []string{"stream"},
 		},
@@ -415,8 +415,8 @@ func TestTransportReadModelMappersCloneMutableCollections(t *testing.T) {
 	runMapped.Runtime.Models[0] = "changed"
 	runMapped.Timeline[0].Seq = 7
 	runMapped.ArtifactSync[0].RelativePath = "changed.md"
-	if got := runSource.Runtime.Models[0]; got != "gpt-5.4" {
-		t.Fatalf("source run runtime models mutated = %q, want gpt-5.4", got)
+	if got := runSource.Runtime.Models[0]; got != "gpt-5.5" {
+		t.Fatalf("source run runtime models mutated = %q, want gpt-5.5", got)
 	}
 	if got := runSource.Timeline[0].Seq; got != 1 {
 		t.Fatalf("source run timeline mutated = %d, want 1", got)
@@ -533,14 +533,14 @@ func newTransportReadModelFixture(t *testing.T) transportReadModelFixture {
 				TaskTitle:       "Transport task A",
 				TaskType:        "backend",
 				IDE:             "codex",
-				Model:           "gpt-5.4",
+				Model:           "gpt-5.5",
 				ReasoningEffort: "high",
 				AccessMode:      "workspace-write",
 			})
 			submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
 				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
 				IDE:            "codex",
-				Model:          "gpt-5.4",
+				Model:          "gpt-5.5",
 			})
 			textBlock, err := kinds.NewContentBlock(kinds.TextBlock{Text: "hello from transport service"})
 			if err != nil {

@@ -304,7 +304,7 @@ func TestLoadManifestSupportsTypedProviderDeclarations(t *testing.T) {
     "model": [
       {
         "name": "typed-model",
-        "target": "openai/gpt-5.4",
+        "target": "openai/gpt-5.5",
         "display_name": "Typed Model"
       }
     ]
@@ -350,8 +350,8 @@ func TestLoadManifestSupportsTypedProviderDeclarations(t *testing.T) {
 	if len(manifest.Providers.Model) != 1 {
 		t.Fatalf("len(Providers.Model) = %d, want 1", len(manifest.Providers.Model))
 	}
-	if got := manifest.Providers.Model[0].Target; got != "openai/gpt-5.4" {
-		t.Fatalf("Providers.Model[0].Target = %q, want %q", got, "openai/gpt-5.4")
+	if got := manifest.Providers.Model[0].Target; got != "openai/gpt-5.5" {
+		t.Fatalf("Providers.Model[0].Target = %q, want %q", got, "openai/gpt-5.5")
 	}
 }
 

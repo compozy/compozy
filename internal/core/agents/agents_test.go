@@ -26,7 +26,7 @@ func TestDiscoverParsesValidAgentDefinition(t *testing.T) {
 			"title: Council",
 			"description: Multi-advisor decision agent",
 			"ide: codex",
-			"model: gpt-5.4",
+			"model: gpt-5.5",
 			"reasoning_effort: high",
 			"access_mode: full",
 			"---",
@@ -75,7 +75,7 @@ func TestDiscoverParsesValidAgentDefinition(t *testing.T) {
 	if resolved.Metadata.Title != "Council" || resolved.Metadata.Description != "Multi-advisor decision agent" {
 		t.Fatalf("unexpected metadata: %#v", resolved.Metadata)
 	}
-	if resolved.Runtime.IDE != "codex" || resolved.Runtime.Model != "gpt-5.4" {
+	if resolved.Runtime.IDE != "codex" || resolved.Runtime.Model != "gpt-5.5" {
 		t.Fatalf("unexpected runtime defaults: %#v", resolved.Runtime)
 	}
 	if resolved.Runtime.ReasoningEffort != "high" || resolved.Runtime.AccessMode != "full" {

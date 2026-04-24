@@ -9,7 +9,7 @@ These flags are shared by `tasks run`, `exec`, and `reviews fix`:
 | Flag | Type | Default | Description |
 | --- | --- | --- | --- |
 | `--ide` | string | `codex` | ACP runtime: claude, codex, copilot, cursor-agent, droid, gemini, opencode, pi |
-| `--model` | string | per-IDE | Model override (codex/droid=gpt-5.4, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro) |
+| `--model` | string | per-IDE | Model override (codex/droid=gpt-5.5, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro) |
 | `--reasoning-effort` | string | | Reasoning effort: low, medium, high, xhigh |
 | `--add-dir` | string[] | | Additional directories for ACP runtimes (claude and codex only; repeatable or comma-separated) |
 | `--auto-commit` | bool | false | Include automatic commit instructions at task/batch completion |

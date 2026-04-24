@@ -552,7 +552,7 @@ func TestExecCommandExecuteRunIDWithAgentReattachesMCPServersAndLifecycleEvents(
 		Status:          execStatusSucceeded,
 		WorkspaceRoot:   resolvedWorkspaceRoot,
 		IDE:             model.IDECodex,
-		Model:           "gpt-5.4",
+		Model:           model.DefaultCodexModel,
 		ReasoningEffort: "high",
 		AccessMode:      model.AccessModeDefault,
 		CreatedAt:       time.Now().UTC(),

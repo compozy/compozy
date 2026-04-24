@@ -289,9 +289,9 @@ func TestTimelineRuntimeMetaFallbacks(t *testing.T) {
 		t.Fatalf("expected provider-only runtime meta, got %q", got)
 	}
 
-	m.jobs = []uiJob{{ide: model.IDECodex, model: "gpt-5.4"}}
+	m.jobs = []uiJob{{ide: model.IDECodex, model: "gpt-5.5"}}
 	m.selectedJob = 0
-	if got := m.timelineRuntimeMeta(); got != "Codex · gpt-5.4" {
+	if got := m.timelineRuntimeMeta(); got != "Codex · gpt-5.5" {
 		t.Fatalf("expected current job runtime meta to override cfg, got %q", got)
 	}
 }

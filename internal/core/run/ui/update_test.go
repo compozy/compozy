@@ -469,7 +469,7 @@ func TestHandleJobStartedCreatesPlaceholderForRemoteAttachGap(t *testing.T) {
 		Attempt:         1,
 		MaxAttempts:     1,
 		IDE:             "codex",
-		Model:           "gpt-5.4",
+		Model:           "gpt-5.5",
 		ReasoningEffort: "medium",
 	})
 

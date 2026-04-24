@@ -108,7 +108,7 @@ func TestNewRunWorkflowDispatchesStartCommand(t *testing.T) {
 		IncludeCompleted:       true,
 		Mode:                   core.ModePRDTasks,
 		IDE:                    core.IDECodex,
-		Model:                  "gpt-5.4",
+		Model:                  "gpt-5.5",
 		Concurrent:             2,
 		BatchSize:              1,
 		ReasoningEffort:        "high",
@@ -145,7 +145,7 @@ func TestNewRunWorkflowDispatchesStartCommand(t *testing.T) {
 	if runtime.IDE != model.IDECodex {
 		t.Fatalf("unexpected ide: %q", runtime.IDE)
 	}
-	if runtime.Model != "gpt-5.4" {
+	if runtime.Model != "gpt-5.5" {
 		t.Fatalf("unexpected model: %q", runtime.Model)
 	}
 }

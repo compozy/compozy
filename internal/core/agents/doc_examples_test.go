@@ -65,7 +65,7 @@ func TestDocumentedRepoCopilotMCPConfigValidatesWithRealRegistryRules(t *testing
 	}
 	if resolved.Runtime != (RuntimeDefaults{
 		IDE:             model.IDECodex,
-		Model:           "gpt-5.4",
+		Model:           "gpt-5.5",
 		ReasoningEffort: "medium",
 		AccessMode:      model.AccessModeFull,
 	}) {

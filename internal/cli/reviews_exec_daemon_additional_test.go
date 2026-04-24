@@ -331,7 +331,7 @@ func TestReviewsFixCommandResolvesLatestRoundAndBuildsDaemonRequest(t *testing.T
 		"--ide",
 		"codex",
 		"--model",
-		"gpt-5.4",
+		"gpt-5.5",
 		"--reasoning-effort",
 		"high",
 		"--access-mode",
@@ -387,7 +387,7 @@ func TestReviewsFixCommandResolvesLatestRoundAndBuildsDaemonRequest(t *testing.T
 	if overrides.IDE == nil || *overrides.IDE != "codex" {
 		t.Fatalf("expected IDE override, got %#v", overrides)
 	}
-	if overrides.Model == nil || *overrides.Model != "gpt-5.4" {
+	if overrides.Model == nil || *overrides.Model != "gpt-5.5" {
 		t.Fatalf("expected model override, got %#v", overrides)
 	}
 	if overrides.ReasoningEffort == nil || *overrides.ReasoningEffort != "high" {

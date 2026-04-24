@@ -151,7 +151,7 @@ Status: valid
 Source: workspace
 Title: Reviewer
 Description: Reviews implementation plans and diffs before code lands.
-Runtime defaults: ide=codex model=gpt-5.4 reasoning=high access=default
+Runtime defaults: ide=codex model=gpt-5.5 reasoning=high access=default
 MCP servers: none
 Validation: OK
 ```

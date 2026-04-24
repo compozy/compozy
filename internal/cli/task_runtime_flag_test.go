@@ -11,7 +11,7 @@ func TestParseTaskRuntimeRule(t *testing.T) {
 	t.Run("Should parse a type-based rule", func(t *testing.T) {
 		t.Parallel()
 
-		rule, err := parseTaskRuntimeRule("type=frontend,ide=codex,model=gpt-5.4,reasoning-effort=xhigh")
+		rule, err := parseTaskRuntimeRule("type=frontend,ide=codex,model=gpt-5.5,reasoning-effort=xhigh")
 		if err != nil {
 			t.Fatalf("parseTaskRuntimeRule() error = %v", err)
 		}
@@ -21,7 +21,7 @@ func TestParseTaskRuntimeRule(t *testing.T) {
 		if rule.IDE == nil || *rule.IDE != "codex" {
 			t.Fatalf("unexpected ide override: %#v", rule.IDE)
 		}
-		if rule.Model == nil || *rule.Model != "gpt-5.4" {
+		if rule.Model == nil || *rule.Model != "gpt-5.5" {
 			t.Fatalf("unexpected model override: %#v", rule.Model)
 		}
 		if rule.ReasoningEffort == nil || *rule.ReasoningEffort != "xhigh" {
@@ -32,14 +32,14 @@ func TestParseTaskRuntimeRule(t *testing.T) {
 	t.Run("Should parse quoted CSV values", func(t *testing.T) {
 		t.Parallel()
 
-		rule, err := parseTaskRuntimeRule(`id=task_01,"model=gpt-5.4,preview"`)
+		rule, err := parseTaskRuntimeRule(`id=task_01,"model=gpt-5.5,preview"`)
 		if err != nil {
 			t.Fatalf("parseTaskRuntimeRule() error = %v", err)
 		}
 		if rule.ID == nil || *rule.ID != "task_01" {
 			t.Fatalf("unexpected id selector: %#v", rule.ID)
 		}
-		if rule.Model == nil || *rule.Model != "gpt-5.4,preview" {
+		if rule.Model == nil || *rule.Model != "gpt-5.5,preview" {
 			t.Fatalf("unexpected model override: %#v", rule.Model)
 		}
 	})
@@ -51,12 +51,12 @@ func TestParseTaskRuntimeRule(t *testing.T) {
 	}{
 		{
 			name:    "rejects missing selector",
-			input:   "model=gpt-5.4",
+			input:   "model=gpt-5.5",
 			wantErr: "selector id=... or type=... is required",
 		},
 		{
 			name:    "rejects both selectors",
-			input:   "id=task_01,type=frontend,model=gpt-5.4",
+			input:   "id=task_01,type=frontend,model=gpt-5.5",
 			wantErr: "id and type cannot be combined",
 		},
 		{

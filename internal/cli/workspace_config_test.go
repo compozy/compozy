@@ -163,7 +163,7 @@ output_format = "text"
 
 [exec]
 ide = "codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 output_format = "raw-json"
 verbose = true
 `)
@@ -182,7 +182,7 @@ verbose = true
 	if state.ide != "codex" {
 		t.Fatalf("expected exec.ide to override defaults.ide, got %q", state.ide)
 	}
-	if state.model != "gpt-5.4" {
+	if state.model != "gpt-5.5" {
 		t.Fatalf("expected exec.model to override defaults.model, got %q", state.model)
 	}
 	if state.outputFormat != "raw-json" {
@@ -250,7 +250,7 @@ model = "sonnet"
 		"task runtime",
 	)
 
-	if err := cmd.Flags().Set("task-runtime", "id=task_01,model=gpt-5.4-mini"); err != nil {
+	if err := cmd.Flags().Set("task-runtime", "id=task_01,model=codex-fast"); err != nil {
 		t.Fatalf("set task-runtime flag: %v", err)
 	}
 
@@ -444,7 +444,7 @@ provider = "ext-review"
 	}}
 	manifest.Providers.Model = []extensions.ProviderEntry{{
 		Name:        "ext-model",
-		Target:      "openai/gpt-5.4",
+		Target:      "openai/gpt-5.5",
 		DisplayName: "Extension Model",
 	}}
 	extensionDir := filepath.Join(workspaceRoot, ".compozy", "extensions", "provider-ext")
@@ -474,8 +474,8 @@ provider = "ext-review"
 	if state.provider != "ext-review" {
 		t.Fatalf("state.provider = %q, want %q", state.provider, "ext-review")
 	}
-	if got := modelprovider.ResolveAlias(state.model); got != "openai/gpt-5.4" {
-		t.Fatalf("ResolveAlias(%q) = %q, want %q", state.model, got, "openai/gpt-5.4")
+	if got := modelprovider.ResolveAlias(state.model); got != "openai/gpt-5.5" {
+		t.Fatalf("ResolveAlias(%q) = %q, want %q", state.model, got, "openai/gpt-5.5")
 	}
 	if err := agent.ValidateRuntimeConfig(&model.RuntimeConfig{
 		Mode:                   model.ExecutionModePRReview,
@@ -574,7 +574,7 @@ include_completed = false
 `)
 	writeCLIWorkspaceConfig(t, root, `
 [defaults]
-model = "gpt-5.4"
+model = "gpt-5.5"
 
 [start]
 include_completed = true
@@ -592,7 +592,7 @@ include_completed = true
 	if state.ide != "claude" {
 		t.Fatalf("expected global defaults.ide fallback, got %q", state.ide)
 	}
-	if state.model != "gpt-5.4" {
+	if state.model != "gpt-5.5" {
 		t.Fatalf("expected workspace defaults.model to override global, got %q", state.model)
 	}
 	if state.accessMode != "default" {
@@ -725,7 +725,7 @@ func TestApplyWorkspaceDefaultsKeepsWorkspaceDefaultsAheadOfGlobalExecOverrides(
 model = "sonnet"
 
 [exec]
-model = "gpt-5.4"
+model = "gpt-5.5"
 verbose = true
 `)
 	writeCLIWorkspaceConfig(t, root, `
@@ -1056,7 +1056,7 @@ func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 			concurrent:       2,
 			batchSize:        3,
 			ide:              "codex",
-			model:            "gpt-5.4",
+			model:            "gpt-5.5",
 			addDirs:          []string{"../shared", "../docs", "../shared"},
 			tailLines:        40,
 			reasoningEffort:  "high",
@@ -1093,7 +1093,7 @@ func TestBuildConfigMapsEmbeddedStateGroups(t *testing.T) {
 	if !cfg.Nitpicks {
 		t.Fatal("expected nitpicks to pass through buildConfig")
 	}
-	if cfg.IDE != core.IDECodex || cfg.Model != "gpt-5.4" || cfg.AccessMode != core.AccessModeDefault {
+	if cfg.IDE != core.IDECodex || cfg.Model != "gpt-5.5" || cfg.AccessMode != core.AccessModeDefault {
 		t.Fatalf("unexpected runtime config: %#v", cfg)
 	}
 	if !reflect.DeepEqual(cfg.AddDirs, []string{"../shared", "../docs"}) {

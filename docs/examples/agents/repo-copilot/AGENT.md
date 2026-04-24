@@ -2,7 +2,7 @@
 title: Repo Copilot
 description: Repo-aware agent with GitHub and local context MCP servers.
 ide: codex
-model: gpt-5.4
+model: gpt-5.5
 reasoning_effort: medium
 access_mode: full
 ---

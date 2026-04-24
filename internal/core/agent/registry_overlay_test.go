@@ -139,7 +139,7 @@ func TestActivateOverlaySupportsTypedLauncherAndBootstrapFields(t *testing.T) {
 
 	restoreModels, err := modelprovider.ActivateOverlay([]modelprovider.OverlayEntry{{
 		Name:   "ext-model",
-		Target: "openai/gpt-5.4",
+		Target: "openai/gpt-5.5",
 	}})
 	if err != nil {
 		t.Fatalf("activate model overlay: %v", err)
@@ -203,11 +203,11 @@ func TestActivateOverlaySupportsTypedLauncherAndBootstrapFields(t *testing.T) {
 	if len(spec.Fallbacks) != 1 || spec.Fallbacks[0].Command != "npx" {
 		t.Fatalf("spec.Fallbacks = %#v, want typed fallback launcher", spec.Fallbacks)
 	}
-	if got, err := ResolveRuntimeModel("typed-adapter", ""); err != nil || got != "openai/gpt-5.4" {
-		t.Fatalf("ResolveRuntimeModel() = %q err=%v, want %q", got, err, "openai/gpt-5.4")
+	if got, err := ResolveRuntimeModel("typed-adapter", ""); err != nil || got != "openai/gpt-5.5" {
+		t.Fatalf("ResolveRuntimeModel() = %q err=%v, want %q", got, err, "openai/gpt-5.5")
 	}
 	command := BuildShellCommandString("typed-adapter", "ext-model", []string{"../docs"}, "high", model.AccessModeFull)
-	for _, snippet := range []string{"echo", "serve", "--model", "openai/gpt-5.4", "--reasoning", "high", "--add-dir", "../docs", "--danger"} {
+	for _, snippet := range []string{"echo", "serve", "--model", "openai/gpt-5.5", "--reasoning", "high", "--add-dir", "../docs", "--danger"} {
 		if !strings.Contains(command, snippet) {
 			t.Fatalf("BuildShellCommandString() = %q, want to contain %q", command, snippet)
 		}
@@ -216,8 +216,6 @@ func TestActivateOverlaySupportsTypedLauncherAndBootstrapFields(t *testing.T) {
 
 func TestResolveRuntimeModelNormalizesCodexAliasTargetPrefix(t *testing.T) {
 	t.Run("Should normalize codex alias target prefix", func(t *testing.T) {
-		t.Parallel()
-
 		restoreModels, err := modelprovider.ActivateOverlay([]modelprovider.OverlayEntry{{
 			Name:   "frontier-codex",
 			Target: "codex/gpt-5.5",
@@ -228,6 +226,25 @@ func TestResolveRuntimeModelNormalizesCodexAliasTargetPrefix(t *testing.T) {
 		defer restoreModels()
 
 		got, err := ResolveRuntimeModel(model.IDECodex, "frontier-codex")
+		if err != nil {
+			t.Fatalf("resolve runtime model: %v", err)
+		}
+		if got != "gpt-5.5" {
+			t.Fatalf("ResolveRuntimeModel() = %q, want %q", got, "gpt-5.5")
+		}
+	})
+
+	t.Run("Should normalize provider qualified codex alias target", func(t *testing.T) {
+		restoreModels, err := modelprovider.ActivateOverlay([]modelprovider.OverlayEntry{{
+			Name:   "frontier-openai-codex",
+			Target: "openai/gpt-5.5",
+		}})
+		if err != nil {
+			t.Fatalf("activate model overlay: %v", err)
+		}
+		defer restoreModels()
+
+		got, err := ResolveRuntimeModel(model.IDECodex, "frontier-openai-codex")
 		if err != nil {
 			t.Fatalf("resolve runtime model: %v", err)
 		}

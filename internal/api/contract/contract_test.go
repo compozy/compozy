@@ -209,7 +209,7 @@ func TestContractRoundTripsCanonicalResponses(t *testing.T) {
 				UpdatedAt: now,
 				Summary: &contract.RunJobSummary{
 					IDE:   "codex",
-					Model: "gpt-5.4",
+					Model: "gpt-5.5",
 					Session: contract.SessionViewSnapshot{
 						Revision: 1,
 						Entries: []contract.SessionEntry{{

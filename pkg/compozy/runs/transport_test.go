@@ -277,7 +277,7 @@ func TestApplySummaryEventDetailsCoversQueuedAndJobPayloads(t *testing.T) {
 			Seq:           1,
 			Timestamp:     time.Unix(1, 0).UTC(),
 			Kind:          events.EventKindRunQueued,
-			Payload:       []byte(`{"workspace_root":"/workspace","ide":"codex","model":"gpt-5.4"}`),
+			Payload:       []byte(`{"workspace_root":"/workspace","ide":"codex","model":"gpt-5.5"}`),
 		},
 		{
 			SchemaVersion: events.SchemaVersion,
@@ -300,8 +300,8 @@ func TestApplySummaryEventDetailsCoversQueuedAndJobPayloads(t *testing.T) {
 	if summary.WorkspaceRoot != "/workspace" {
 		t.Fatalf("summary.WorkspaceRoot = %q, want /workspace", summary.WorkspaceRoot)
 	}
-	if summary.IDE != "codex" || summary.Model != "gpt-5.4" {
-		t.Fatalf("summary IDE/model = %q/%q, want first non-empty codex/gpt-5.4", summary.IDE, summary.Model)
+	if summary.IDE != "codex" || summary.Model != "gpt-5.5" {
+		t.Fatalf("summary IDE/model = %q/%q, want first non-empty codex/gpt-5.5", summary.IDE, summary.Model)
 	}
 }
 
