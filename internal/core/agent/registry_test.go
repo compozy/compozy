@@ -45,6 +45,10 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantLaunch: []string{
 				"codex-acp",
 				"-c",
+				`model="gpt-5.4"`,
+				"-c",
+				`model_reasoning_effort="medium"`,
+				"-c",
 				`approval_policy="never"`,
 				"-c",
 				`sandbox_mode="danger-full-access"`,
@@ -189,6 +193,37 @@ func TestResolveRuntimeModelNormalizesCodexProviderPrefix(t *testing.T) {
 		}
 		if got != "gpt-5.5" {
 			t.Fatalf("ResolveRuntimeModel() = %q, want %q", got, "gpt-5.5")
+		}
+	})
+}
+
+func TestCodexBootstrapArgsSetModelAndReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass model and reasoning through codex config overrides", func(t *testing.T) {
+		t.Parallel()
+
+		spec, err := lookupAgentSpec(model.IDECodex)
+		if err != nil {
+			t.Fatalf("lookup codex spec: %v", err)
+		}
+		if !spec.UsesBootstrapModel {
+			t.Fatal("expected codex to use bootstrap model configuration")
+		}
+
+		command := spec.launchCommand("gpt-5.5", "high", nil, model.AccessModeFull)
+		for _, want := range []string{
+			"codex-acp",
+			"-c",
+			`model="gpt-5.5"`,
+			`model_reasoning_effort="high"`,
+			`approval_policy="never"`,
+			`sandbox_mode="danger-full-access"`,
+			`web_search="live"`,
+		} {
+			if !slices.Contains(command, want) {
+				t.Fatalf("codex launch command = %#v, want %q", command, want)
+			}
 		}
 	})
 }
