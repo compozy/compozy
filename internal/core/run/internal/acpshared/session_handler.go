@@ -112,7 +112,8 @@ func (h *SessionUpdateHandler) Err() error {
 }
 
 func (h *SessionUpdateHandler) HandleUpdate(update model.SessionUpdate) error {
-	h.recordActivity()
+	h.beginActivity()
+	defer h.endActivity()
 
 	publicUpdate, err := runtimeevents.PublicSessionUpdate(update)
 	if err != nil {
@@ -246,7 +247,9 @@ func (h *SessionUpdateHandler) updateCompletionStatus(status model.SessionStatus
 }
 
 func (h *SessionUpdateHandler) HandleCompletion(err error) error {
-	h.recordActivity()
+	h.beginActivity()
+	defer h.endActivity()
+
 	outcome := agent.SessionOutcome{Status: model.StatusCompleted}
 	if err != nil {
 		outcome.Status = model.StatusFailed
@@ -360,9 +363,15 @@ func (h *SessionUpdateHandler) submitEncodedRuntimeEvent(event events.Event, des
 	return nil
 }
 
-func (h *SessionUpdateHandler) recordActivity() {
+func (h *SessionUpdateHandler) beginActivity() {
 	if h.activity != nil {
-		h.activity.RecordActivity()
+		h.activity.BeginActivity()
+	}
+}
+
+func (h *SessionUpdateHandler) endActivity() {
+	if h.activity != nil {
+		h.activity.EndActivity()
 	}
 }
 
