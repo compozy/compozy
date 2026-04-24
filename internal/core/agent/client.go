@@ -606,10 +606,6 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		c.mu.Unlock()
 		return err
 	}
-	if err := validateRuntimeModelCompatibility(c.spec, startModel, command); err != nil {
-		c.mu.Unlock()
-		return wrapSessionSetupError(SessionSetupStageStartProcess, err)
-	}
 
 	process, err := subprocess.Launch(detachedContext(ctx), subprocess.LaunchConfig{
 		Command:         command,
@@ -697,6 +693,9 @@ func (c *clientImpl) resolveStartCommand(ctx context.Context, req SessionRequest
 	)
 	if err != nil {
 		return "", nil, err
+	}
+	if err := validateRuntimeModelCompatibility(c.spec, requestedModel, command); err != nil {
+		return "", nil, wrapSessionSetupError(SessionSetupStageStartProcess, err)
 	}
 	return startModel, command, nil
 }

@@ -1298,6 +1298,43 @@ func TestClientCreateSessionSurfacesStartupCommandAndStderr(t *testing.T) {
 	}
 }
 
+func TestClientCreateSessionChecksCodexModelCompatibilityBeforeLaunch(t *testing.T) {
+	installCodexACPNPMPackage(t, "0.11.1")
+
+	client, err := NewClient(context.Background(), ClientConfig{
+		IDE:             model.IDECodex,
+		Model:           "gpt-5.5",
+		ReasoningEffort: "low",
+		ShutdownTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+
+	_, err = client.CreateSession(context.Background(), SessionRequest{
+		WorkingDir: t.TempDir(),
+		Prompt:     []byte("hello"),
+	})
+	if err == nil {
+		t.Fatal("expected codex-acp compatibility error")
+	}
+	var setupErr *SessionSetupError
+	if !errors.As(err, &setupErr) {
+		t.Fatalf("expected SessionSetupError, got %T", err)
+	}
+	if setupErr.Stage != SessionSetupStageStartProcess {
+		t.Fatalf("setup stage = %q, want %q", setupErr.Stage, SessionSetupStageStartProcess)
+	}
+	for _, want := range []string{
+		"gpt-5.5 requires codex-acp >= 0.12.0",
+		"found 0.11.1",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("compatibility error = %q, want %q", err, want)
+		}
+	}
+}
+
 func TestACPHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_ACP_HELPER_PROCESS") != "1" {
 		return

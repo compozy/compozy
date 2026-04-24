@@ -213,18 +213,16 @@ func TestCodexBootstrapArgsSetModelAndReasoningEffort(t *testing.T) {
 		}
 
 		command := spec.launchCommand("gpt-5.5", "high", nil, model.AccessModeFull)
-		for _, want := range []string{
+		want := []string{
 			"codex-acp",
-			"-c",
-			`model="gpt-5.5"`,
-			`model_reasoning_effort="high"`,
-			`approval_policy="never"`,
-			`sandbox_mode="danger-full-access"`,
-			`web_search="live"`,
-		} {
-			if !slices.Contains(command, want) {
-				t.Fatalf("codex launch command = %#v, want %q", command, want)
-			}
+			"-c", `model="gpt-5.5"`,
+			"-c", `model_reasoning_effort="high"`,
+			"-c", `approval_policy="never"`,
+			"-c", `sandbox_mode="danger-full-access"`,
+			"-c", `web_search="live"`,
+		}
+		if !slices.Equal(command, want) {
+			t.Fatalf("codex launch command = %#v, want %#v", command, want)
 		}
 	})
 }
