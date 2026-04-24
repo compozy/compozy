@@ -63,4 +63,25 @@ describe("WorkspaceOnboarding", () => {
       "path is not a valid workspace"
     );
   });
+
+  it("Should generate unique assistive-text ids for each rendered instance", () => {
+    render(
+      <>
+        <WorkspaceOnboarding />
+        <WorkspaceOnboarding />
+      </>,
+      {
+        wrapper: withQuery(createTestQueryClient()),
+      }
+    );
+
+    const inputs = screen.getAllByTestId("workspace-onboarding-input");
+    const helpText = screen.getAllByTestId("workspace-onboarding-input-help");
+
+    expect(inputs).toHaveLength(2);
+    expect(helpText).toHaveLength(2);
+    expect(new Set(helpText.map(element => element.id)).size).toBe(2);
+    expect(inputs[0]?.getAttribute("aria-describedby")).toBe(helpText[0]?.id);
+    expect(inputs[1]?.getAttribute("aria-describedby")).toBe(helpText[1]?.id);
+  });
 });

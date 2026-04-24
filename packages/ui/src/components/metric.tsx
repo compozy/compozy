@@ -27,12 +27,12 @@ export function Metric({
       {...props}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="eyebrow text-muted-foreground">{label}</p>
+        <div className="eyebrow text-muted-foreground">{label}</div>
         {trailing ? <div className="flex shrink-0 items-center gap-2">{trailing}</div> : null}
       </div>
       <div className="min-w-0 space-y-1">
-        <p className="font-mono text-3xl leading-none text-foreground tabular-nums">{value}</p>
-        {hint ? <p className="truncate text-xs text-muted-foreground">{hint}</p> : null}
+        <div className="font-mono text-3xl leading-none text-foreground tabular-nums">{value}</div>
+        {hint ? <div className="truncate text-xs text-muted-foreground">{hint}</div> : null}
       </div>
     </div>
   );

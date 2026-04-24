@@ -68,7 +68,7 @@ export function StatusBadge({
           className={cn(
             "size-1.5 rounded-full bg-current",
             pulse &&
-              "animate-pulse shadow-[0_0_0_3px_color-mix(in_srgb,currentColor_18%,transparent)]"
+              "motion-safe:animate-pulse shadow-[0_0_0_3px_color-mix(in_srgb,currentColor_18%,transparent)]"
           )}
         />
       ) : null}

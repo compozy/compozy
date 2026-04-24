@@ -18,7 +18,7 @@ const proseClasses = [
   "[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-foreground",
   "[&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:text-foreground",
   "[&_p]:my-2 [&_p]:text-sm [&_p]:text-foreground/90",
-  "[&_a]:text-[color:var(--primary)] [&_a]:underline [&_a]:underline-offset-2 hover:[&_a]:brightness-110",
+  "[&_a]:text-[color:var(--primary)] [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:brightness-110",
   "[&_strong]:font-semibold [&_strong]:text-foreground",
   "[&_em]:italic",
   "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:text-sm",

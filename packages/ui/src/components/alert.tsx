@@ -39,7 +39,7 @@ export function Alert({
   variant,
   ...props
 }: AlertProps): ReactElement {
-  const resolvedRole = role ?? (variant === "error" ? "alert" : "status");
+  const resolvedRole = role ?? (variant === "error" ? "alert" : undefined);
   return (
     <div className={cn(alertVariants({ variant }), className)} role={resolvedRole} {...props}>
       {icon ? (

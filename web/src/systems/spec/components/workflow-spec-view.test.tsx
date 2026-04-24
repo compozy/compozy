@@ -180,4 +180,17 @@ describe("WorkflowSpecView", () => {
 
     expect(screen.getByTestId("workflow-spec-prd-body")).toHaveTextContent("Beta PRD body");
   });
+
+  it("Should fall back to the first present tab when the active document disappears", async () => {
+    const view = await renderSpec(fullSpec);
+    await userEvent.click(screen.getByTestId("workflow-spec-tab-techspec"));
+    expect(screen.getByTestId("workflow-spec-techspec-body")).toHaveTextContent("TechSpec body");
+
+    view.rerender({
+      ...fullSpec,
+      techspec: undefined,
+    });
+
+    expect(screen.getByTestId("workflow-spec-prd-body")).toHaveTextContent("PRD body");
+  });
 });

@@ -23,10 +23,14 @@ export function SkeletonText({
   lines = 3,
   ...props
 }: HTMLAttributes<HTMLDivElement> & { lines?: number }): ReactElement {
+  const normalizedLines = Number.isFinite(lines) ? Math.max(1, Math.floor(lines)) : 1;
   return (
     <div className={cn("space-y-2", className)} aria-hidden="true" {...props}>
-      {Array.from({ length: Math.max(1, lines) }).map((_, index) => (
-        <Skeleton className={cn("h-3", index === lines - 1 ? "w-2/3" : "w-full")} key={index} />
+      {Array.from({ length: normalizedLines }).map((_, index) => (
+        <Skeleton
+          className={cn("h-3", index === normalizedLines - 1 ? "w-2/3" : "w-full")}
+          key={index}
+        />
       ))}
     </div>
   );

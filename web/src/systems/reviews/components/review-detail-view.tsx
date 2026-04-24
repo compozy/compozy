@@ -19,6 +19,8 @@ import {
 } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
 
+import { resolveStatusTone as resolveRunStatusTone } from "@/systems/runs";
+
 import type { ReviewDetailPayload, Run } from "../types";
 
 import { resolveSeverityTone, resolveStatusTone } from "./reviews-index-view";
@@ -245,7 +247,12 @@ function RelatedRunsCard({ runs }: { runs: Run[] }): ReactElement {
                     {run.ended_at ? ` · ended ${formatTimestamp(run.ended_at)}` : " · in flight"}
                   </p>
                 </div>
-                <StatusBadge tone={resolveStatusTone(run.status)}>{run.status}</StatusBadge>
+                <StatusBadge
+                  data-testid={`review-detail-run-status-${run.run_id}`}
+                  tone={resolveRunStatusTone(run.status)}
+                >
+                  {run.status}
+                </StatusBadge>
               </li>
             ))}
           </ul>

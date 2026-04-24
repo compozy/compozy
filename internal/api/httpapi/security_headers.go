@@ -15,7 +15,7 @@ func securityHeadersMiddleware() gin.HandlerFunc {
 		"img-src 'self' data:; " +
 		"font-src 'self' data:; " +
 		"style-src 'self' 'unsafe-inline'; " +
-		"script-src 'self' 'unsafe-inline'; " +
+		"script-src 'self'; " +
 		"connect-src 'self'; " +
 		"object-src 'none'"
 	return func(c *gin.Context) {

@@ -164,5 +164,8 @@ describe("ReviewDetailView", () => {
     await renderDetail();
     const runLink = screen.getByTestId("review-detail-run-link-run-review-1") as HTMLAnchorElement;
     expect(runLink.getAttribute("href")).toBe("/runs/run-review-1");
+    expect(
+      screen.getByTestId("review-detail-run-status-run-review-1").getAttribute("style")
+    ).toContain("var(--tone-accent-bg)");
   });
 });

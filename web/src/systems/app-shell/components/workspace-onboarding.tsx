@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type FormEvent } from "react";
+import { useId, useState, type ReactElement, type FormEvent } from "react";
 
 import {
   Alert,
@@ -30,6 +30,7 @@ export function WorkspaceOnboarding({
 }: WorkspaceOnboardingProps): ReactElement {
   const [path, setPath] = useState("");
   const resolve = useResolveWorkspace();
+  const inputIds = useId();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,8 +48,8 @@ export function WorkspaceOnboarding({
   }
 
   const errorMessage = resolve.error ? resolve.error.message : null;
-  const inputDescriptionId = "workspace-onboarding-input-help";
-  const inputErrorId = "workspace-onboarding-input-error";
+  const inputDescriptionId = `${inputIds}-help`;
+  const inputErrorId = `${inputIds}-error`;
 
   return (
     <AppShell>
