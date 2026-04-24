@@ -23,7 +23,6 @@ type runtimeModelRequirement struct {
 	PackageName        string
 	MinVersion         string
 	UpgradeCommand     string
-	FallbackModel      string
 	UnavailableReason  string
 }
 
@@ -34,7 +33,6 @@ var codexModelRequirements = map[string]runtimeModelRequirement{
 		PackageName:        codexACPNPMPackageName,
 		MinVersion:         "0.12.0",
 		UpgradeCommand:     "npm install -g @zed-industries/codex-acp@latest",
-		FallbackModel:      "gpt-5.4",
 	},
 }
 
@@ -50,7 +48,7 @@ func validateRuntimeModelCompatibility(spec Spec, modelName string, command []st
 			resolvedModel,
 			spec.DisplayName,
 			req.UnavailableReason,
-			fallbackModelMessage(req),
+			supportedModelMessage(req),
 		)
 	}
 	if len(command) == 0 || command[0] != req.RuntimeCommand {
@@ -71,7 +69,7 @@ func validateRuntimeModelCompatibility(spec Spec, modelName string, command []st
 		req.MinVersion,
 		version,
 		req.UpgradeCommand,
-		fallbackModelMessage(req),
+		supportedModelMessage(req),
 	)
 }
 
@@ -96,7 +94,7 @@ func codexModelCompatibilityHint(spec Spec, modelName string, err error) error {
 		req.PackageName,
 		req.MinVersion,
 		req.UpgradeCommand,
-		fallbackModelMessage(req),
+		supportedModelMessage(req),
 	)
 }
 
@@ -108,11 +106,12 @@ func runtimeModelRequirementFor(ide string, modelName string) (runtimeModelRequi
 	return req, ok
 }
 
-func fallbackModelMessage(req runtimeModelRequirement) string {
-	if strings.TrimSpace(req.FallbackModel) == "" {
-		return ""
+func supportedModelMessage(req runtimeModelRequirement) string {
+	displayName := strings.TrimSpace(req.RuntimeDisplayName)
+	if displayName == "" {
+		displayName = "the selected runtime"
 	}
-	return fmt.Sprintf("To continue without updating, rerun with --model %s", req.FallbackModel)
+	return fmt.Sprintf("Choose a model supported by your installed %s.", displayName)
 }
 
 func detectCodexACPVersion(command string) (string, bool) {

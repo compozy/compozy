@@ -36,7 +36,7 @@ func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 				TaskTitle:       "Task One",
 				TaskType:        "backend",
 				IDE:             "codex",
-				Model:           "gpt-5.4",
+				Model:           "gpt-5.5",
 				ReasoningEffort: "high",
 				AccessMode:      "workspace-write",
 				CodeFiles:       []string{"a.go"},
@@ -48,7 +48,7 @@ func TestRunSnapshotBuilderCoversLifecycleBranches(t *testing.T) {
 			payload: kinds.JobStartedPayload{
 				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 3},
 				IDE:            "codex",
-				Model:          "gpt-5.4",
+				Model:          "gpt-5.5",
 			},
 		},
 		{

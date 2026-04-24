@@ -240,10 +240,17 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected codex-acp compatibility error")
 		}
-		for _, want := range []string{"gpt-5.5 requires codex-acp >= 0.12.0", "found 0.11.1", "--model gpt-5.4"} {
+		for _, want := range []string{
+			"gpt-5.5 requires codex-acp >= 0.12.0",
+			"found 0.11.1",
+			"Choose a model supported by your installed codex-acp",
+		} {
 			if !strings.Contains(err.Error(), want) {
 				t.Fatalf("compatibility error = %q, want %q", err, want)
 			}
+		}
+		if strings.Contains(err.Error(), "--model ") {
+			t.Fatalf("compatibility error = %q, should not recommend rerunning with a fixed fallback model", err)
 		}
 	})
 
@@ -269,11 +276,11 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 		}
 	})
 
-	t.Run("Should allow gpt-5.4 with an older codex acp", func(t *testing.T) {
+	t.Run("Should allow models without compatibility requirements with an older codex acp", func(t *testing.T) {
 		installCodexACPNPMPackage(t, "0.11.1")
 		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
 			IDE:             model.IDECodex,
-			Model:           "gpt-5.4",
+			Model:           "legacy-codex-model",
 			ReasoningEffort: "low",
 		}); err != nil {
 			t.Fatalf("ensure available: %v", err)
@@ -288,7 +295,6 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 			RuntimeCommand:     "codex-acp",
 			RuntimeDisplayName: "codex-acp",
 			UnavailableReason:  "the provider deprecated this model",
-			FallbackModel:      "gpt-5.4",
 		}
 		t.Cleanup(func() {
 			if hadPrevious {
@@ -306,10 +312,17 @@ func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected unavailable model error")
 		}
-		for _, want := range []string{modelName, "provider deprecated this model", "--model gpt-5.4"} {
+		for _, want := range []string{
+			modelName,
+			"provider deprecated this model",
+			"Choose a model supported by your installed codex-acp",
+		} {
 			if !strings.Contains(err.Error(), want) {
 				t.Fatalf("unavailable model error = %q, want %q", err, want)
 			}
+		}
+		if strings.Contains(err.Error(), "--model ") {
+			t.Fatalf("unavailable model error = %q, should not recommend rerunning with a fixed fallback model", err)
 		}
 	})
 }
@@ -328,10 +341,17 @@ func TestCodexModelCompatibilityHint(t *testing.T) {
 				"The model `gpt-5.5` does not exist or you do not have access to it",
 			),
 		)
-		for _, want := range []string{codexACPNPMPackageName, codexModelRequirements["gpt-5.5"].MinVersion, "--model gpt-5.4"} {
+		for _, want := range []string{
+			codexACPNPMPackageName,
+			codexModelRequirements["gpt-5.5"].MinVersion,
+			"Choose a model supported by your installed codex-acp",
+		} {
 			if !strings.Contains(err.Error(), want) {
 				t.Fatalf("hint error = %q, want %q", err, want)
 			}
+		}
+		if strings.Contains(err.Error(), "--model ") {
+			t.Fatalf("hint error = %q, should not recommend rerunning with a fixed fallback model", err)
 		}
 	})
 }

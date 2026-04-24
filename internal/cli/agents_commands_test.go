@@ -446,7 +446,7 @@ func TestBuildInspectAgentReportAndListHelpers(t *testing.T) {
 		},
 		Runtime: reusableagents.RuntimeDefaults{
 			IDE:             "codex",
-			Model:           "gpt-5.4",
+			Model:           "gpt-5.5",
 			ReasoningEffort: "high",
 			AccessMode:      model.AccessModeDefault,
 		},
@@ -514,7 +514,7 @@ func TestBuildInspectAgentReportAndListHelpers(t *testing.T) {
 	}
 	for _, want := range []string{
 		"resolved reusable agents: 1",
-		"runtime: ide=codex model=gpt-5.4 reasoning=high access=default",
+		"runtime: ide=codex model=gpt-5.5 reasoning=high access=default",
 		"mcp: 1 server(s): github",
 		"invalid reusable agent definitions: 1",
 		"planner (global)",

@@ -78,7 +78,7 @@ func TestApplySummaryEventDetailsUsesRunAndJobPayloads(t *testing.T) {
 			Timestamp:     time.Unix(1, 0).UTC(),
 			Kind:          events.EventKindRunStarted,
 			Payload: []byte(
-				`{"workspace_root":"/workspace","artifacts_dir":"/home/example/.compozy/runs/run-123","ide":"codex","model":"gpt-5.4"}`,
+				`{"workspace_root":"/workspace","artifacts_dir":"/home/example/.compozy/runs/run-123","ide":"codex","model":"gpt-5.5"}`,
 			),
 		},
 		{
@@ -94,8 +94,8 @@ func TestApplySummaryEventDetailsUsesRunAndJobPayloads(t *testing.T) {
 	if summary.WorkspaceRoot != "/workspace" {
 		t.Fatalf("summary.WorkspaceRoot = %q, want /workspace", summary.WorkspaceRoot)
 	}
-	if summary.IDE != "codex" || summary.Model != "gpt-5.4" {
-		t.Fatalf("summary IDE/model = %q/%q, want codex/gpt-5.4", summary.IDE, summary.Model)
+	if summary.IDE != "codex" || summary.Model != "gpt-5.5" {
+		t.Fatalf("summary IDE/model = %q/%q, want codex/gpt-5.5", summary.IDE, summary.Model)
 	}
 	if summary.EndedAt == nil || !summary.EndedAt.Equal(time.Unix(2, 0).UTC()) {
 		t.Fatalf("summary.EndedAt = %v, want failure timestamp", summary.EndedAt)

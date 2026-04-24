@@ -79,7 +79,7 @@ func TestExecutePreparedPromptReturnsBuilderError(t *testing.T) {
 	cfg := &model.RuntimeConfig{
 		WorkspaceRoot: workspaceRoot,
 		IDE:           model.IDECodex,
-		Model:         "gpt-5.4",
+		Model:         "gpt-5.5",
 		AccessMode:    model.AccessModeDefault,
 		OutputFormat:  model.OutputFormatText,
 		Persist:       true,
@@ -118,7 +118,7 @@ func TestPrepareExecRunStateScopedFreshPersistedRunInitializesRecord(t *testing.
 		WorkspaceRoot: workspaceRoot,
 		RunID:         "exec-daemon-fresh",
 		IDE:           model.IDECodex,
-		Model:         "gpt-5.4",
+		Model:         "gpt-5.5",
 		AccessMode:    model.AccessModeDefault,
 		OutputFormat:  model.OutputFormatText,
 		Persist:       true,
@@ -164,7 +164,7 @@ func TestExecutePreparedPromptReturnsBuilderAndCompletionFailure(t *testing.T) {
 		&model.RuntimeConfig{
 			WorkspaceRoot: workspaceRoot,
 			IDE:           model.IDECodex,
-			Model:         "gpt-5.4",
+			Model:         "gpt-5.5",
 			AccessMode:    model.AccessModeDefault,
 			OutputFormat:  model.OutputFormatText,
 			Persist:       true,
@@ -225,7 +225,7 @@ func TestExecutePreparedPromptSucceedsWithoutMCPBuilder(t *testing.T) {
 		&model.RuntimeConfig{
 			WorkspaceRoot: workspaceRoot,
 			IDE:           model.IDECodex,
-			Model:         "gpt-5.4",
+			Model:         "gpt-5.5",
 			AccessMode:    model.AccessModeDefault,
 			OutputFormat:  model.OutputFormatText,
 		},
@@ -266,7 +266,7 @@ func TestExecutePreparedPromptReturnsCompletionFailureWhenExecAlsoFails(t *testi
 		&model.RuntimeConfig{
 			WorkspaceRoot: workspaceRoot,
 			IDE:           model.IDECodex,
-			Model:         "gpt-5.4",
+			Model:         "gpt-5.5",
 			AccessMode:    model.AccessModeDefault,
 			OutputFormat:  model.OutputFormatText,
 			Persist:       true,
@@ -307,7 +307,7 @@ func TestNewExecRuntimeJobAttachesReservedServerWithoutReusableAgent(t *testing.
 		&model.RuntimeConfig{
 			WorkspaceRoot: workspaceRootForExecTest(t),
 			IDE:           model.IDECodex,
-			Model:         "gpt-5.4",
+			Model:         "gpt-5.5",
 			AccessMode:    model.AccessModeDefault,
 		},
 	)
@@ -489,7 +489,7 @@ func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
 		Status:          "running",
 		WorkspaceRoot:   tmpDir,
 		IDE:             model.IDECodex,
-		Model:           "gpt-5.4",
+		Model:           "gpt-5.5",
 		ReasoningEffort: "medium",
 		AccessMode:      "workspace-write",
 		CreatedAt:       time.Now().UTC(),
@@ -519,7 +519,7 @@ func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
 		RunID:           "exec-123",
 		WorkspaceRoot:   tmpDir,
 		IDE:             model.IDECodex,
-		Model:           "gpt-5.4",
+		Model:           "gpt-5.5",
 		ReasoningEffort: "medium",
 		AccessMode:      "workspace-write",
 	}, loaded)
@@ -531,7 +531,7 @@ func TestLoadPersistedExecRunDefaultsPathsAndResumeValidation(t *testing.T) {
 		RunID:         "exec-123",
 		WorkspaceRoot: filepath.Join(tmpDir, "other"),
 		IDE:           model.IDECodex,
-		Model:         "gpt-5.4",
+		Model:         "gpt-5.5",
 	}, loaded)
 	if err == nil || !strings.Contains(err.Error(), "belongs to workspace") {
 		t.Fatalf("expected workspace mismatch error, got %v", err)
@@ -598,14 +598,14 @@ func TestExecRunStateDispatchesRunHooks(t *testing.T) {
 				if !ok {
 					t.Fatalf("payload type = %T, want execRunPreStartPayload", payload)
 				}
-				current.Config.Model = "gpt-5.4-mini"
+				current.Config.Model = "codex-fast"
 				return current, nil
 			},
 		}
 		cfg := &model.RuntimeConfig{
 			WorkspaceRoot: workspaceRootForExecTest(t),
 			IDE:           model.IDECodex,
-			Model:         "gpt-5.4",
+			Model:         "gpt-5.5",
 			AccessMode:    model.AccessModeDefault,
 		}
 		state := &execRunState{
@@ -618,7 +618,7 @@ func TestExecRunStateDispatchesRunHooks(t *testing.T) {
 		if err := applyExecRunPreStartHook(context.Background(), state, cfg); err != nil {
 			t.Fatalf("applyExecRunPreStartHook: %v", err)
 		}
-		if cfg.Model != "gpt-5.4-mini" {
+		if cfg.Model != "codex-fast" {
 			t.Fatalf("expected run.pre_start to mutate model, got %q", cfg.Model)
 		}
 

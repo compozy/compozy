@@ -204,7 +204,7 @@ provider = "coderabbit"
 nitpicks = true
 
 [exec]
-model = "gpt-5.4"
+model = "gpt-5.5"
 output_format = "json"
 `)
 
@@ -258,7 +258,7 @@ output_format = "json"
 	if cfg.FetchReviews.Nitpicks == nil || !*cfg.FetchReviews.Nitpicks {
 		t.Fatalf("unexpected fetch_reviews.nitpicks: %#v", cfg.FetchReviews.Nitpicks)
 	}
-	if cfg.Exec.Model == nil || *cfg.Exec.Model != "gpt-5.4" {
+	if cfg.Exec.Model == nil || *cfg.Exec.Model != "gpt-5.5" {
 		t.Fatalf("unexpected exec.model: %#v", cfg.Exec.Model)
 	}
 	if cfg.Exec.OutputFormat == nil || *cfg.Exec.OutputFormat != "json" {
@@ -404,7 +404,7 @@ func TestLoadConfigParsesStartTaskRuntimeRules(t *testing.T) {
 [[start.task_runtime_rules]]
 type = "frontend"
 ide = "codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 reasoning_effort = "xhigh"
 `)
 
@@ -422,7 +422,7 @@ reasoning_effort = "xhigh"
 	if rule.IDE == nil || *rule.IDE != "codex" {
 		t.Fatalf("unexpected rule ide: %#v", rule.IDE)
 	}
-	if rule.Model == nil || *rule.Model != "gpt-5.4" {
+	if rule.Model == nil || *rule.Model != "gpt-5.5" {
 		t.Fatalf("unexpected rule model: %#v", rule.Model)
 	}
 	if rule.ReasoningEffort == nil || *rule.ReasoningEffort != "xhigh" {
@@ -449,7 +449,7 @@ ide = "codex"
 [[start.task_runtime_rules]]
 type = "frontend"
 ide = "codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 `)
 
 	cfg, _, err := LoadConfig(context.Background(), root)
@@ -908,7 +908,7 @@ include_completed = false
 `)
 	writeWorkspaceConfig(t, root, `
 [defaults]
-model = "gpt-5.4"
+model = "gpt-5.5"
 
 [start]
 include_completed = true
@@ -924,7 +924,7 @@ include_completed = true
 	if cfg.Defaults.IDE == nil || *cfg.Defaults.IDE != "claude" {
 		t.Fatalf("expected global defaults.ide fallback, got %#v", cfg.Defaults.IDE)
 	}
-	if cfg.Defaults.Model == nil || *cfg.Defaults.Model != "gpt-5.4" {
+	if cfg.Defaults.Model == nil || *cfg.Defaults.Model != "gpt-5.5" {
 		t.Fatalf("expected workspace defaults.model override, got %#v", cfg.Defaults.Model)
 	}
 	if cfg.Start.IncludeCompleted == nil || !*cfg.Start.IncludeCompleted {
@@ -945,7 +945,7 @@ output_format = "raw-json"
 tui = false
 
 [exec]
-model = "gpt-5.4"
+model = "gpt-5.5"
 output_format = "raw-json"
 verbose = true
 `)

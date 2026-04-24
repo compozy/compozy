@@ -7,12 +7,12 @@ func TestActivateOverlayResolvesAliasesAndExposesCatalog(t *testing.T) {
 		{
 			Name:        "ext-fast",
 			DisplayName: "Extension Fast",
-			Target:      "openai/gpt-5.4-mini",
+			Target:      "openai/codex-fast",
 		},
 		{
 			Name:        "ext-smart",
 			DisplayName: "Extension Smart",
-			Target:      "openai/gpt-5.4",
+			Target:      "openai/gpt-5.5",
 		},
 	})
 	if err != nil {
@@ -20,14 +20,14 @@ func TestActivateOverlayResolvesAliasesAndExposesCatalog(t *testing.T) {
 	}
 	defer restore()
 
-	if got := ResolveAlias("ext-smart"); got != "openai/gpt-5.4" {
-		t.Fatalf("ResolveAlias(ext-smart) = %q, want %q", got, "openai/gpt-5.4")
+	if got := ResolveAlias("ext-smart"); got != "openai/gpt-5.5" {
+		t.Fatalf("ResolveAlias(ext-smart) = %q, want %q", got, "openai/gpt-5.5")
 	}
-	if got := ResolveAlias("EXT-FAST"); got != "openai/gpt-5.4-mini" {
-		t.Fatalf("ResolveAlias(EXT-FAST) = %q, want %q", got, "openai/gpt-5.4-mini")
+	if got := ResolveAlias("EXT-FAST"); got != "openai/codex-fast" {
+		t.Fatalf("ResolveAlias(EXT-FAST) = %q, want %q", got, "openai/codex-fast")
 	}
-	if got := ResolveAlias("gpt-5.4"); got != "gpt-5.4" {
-		t.Fatalf("ResolveAlias(gpt-5.4) = %q, want passthrough", got)
+	if got := ResolveAlias("gpt-5.5"); got != "gpt-5.5" {
+		t.Fatalf("ResolveAlias(gpt-5.5) = %q, want passthrough", got)
 	}
 
 	catalog := Catalog()

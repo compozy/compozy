@@ -595,7 +595,7 @@ func TestSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 	request := SessionRequest{
 		Prompt:     []byte("plain prompt"),
 		WorkingDir: "/tmp/work",
-		Model:      "gpt-5.4",
+		Model:      "gpt-5.5",
 	}
 
 	raw, err := json.Marshal(request)
@@ -625,7 +625,7 @@ func TestResumeSessionRequestJSONUsesReadablePromptText(t *testing.T) {
 		SessionID:  "sess-123",
 		Prompt:     []byte("resume prompt"),
 		WorkingDir: "/tmp/work",
-		Model:      "gpt-5.4",
+		Model:      "gpt-5.5",
 	}
 
 	raw, err := json.Marshal(request)

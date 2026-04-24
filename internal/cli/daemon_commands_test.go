@@ -2141,8 +2141,8 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	state.autoCommit = true
 	mustSetFlag("ide", "claude")
 	state.ide = "claude"
-	mustSetFlag("model", "gpt-5.4")
-	state.model = "gpt-5.4"
+	mustSetFlag("model", "gpt-5.5")
+	state.model = "gpt-5.5"
 	mustSetFlag("add-dir", "../shared")
 	state.addDirs = []string{"../shared"}
 	mustSetFlag("tail-lines", "42")
@@ -2157,7 +2157,7 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	state.maxRetries = 3
 	mustSetFlag("retry-backoff-multiplier", "2.5")
 	state.retryBackoffMultiplier = 2.5
-	mustSetFlag("task-runtime", "id=task_01,model=gpt-5.4-mini")
+	mustSetFlag("task-runtime", "id=task_01,model=codex-fast")
 
 	raw, err := state.buildTaskRunRuntimeOverrides(cmd)
 	if err != nil {
@@ -2171,7 +2171,7 @@ func TestBuildTaskRunRuntimeOverridesIncludesAllExplicitRuntimeFlags(t *testing.
 	if overrides.IDE == nil || *overrides.IDE != "claude" {
 		t.Fatalf("expected ide override, got %#v", overrides)
 	}
-	if overrides.Model == nil || *overrides.Model != "gpt-5.4" {
+	if overrides.Model == nil || *overrides.Model != "gpt-5.5" {
 		t.Fatalf("expected model override, got %#v", overrides)
 	}
 	if overrides.AddDirs == nil || len(*overrides.AddDirs) != 1 || (*overrides.AddDirs)[0] != "../shared" {
