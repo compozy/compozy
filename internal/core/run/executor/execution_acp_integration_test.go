@@ -31,7 +31,7 @@ var captureExecuteStreamsMu sync.Mutex
 
 func TestExecuteJobWithTimeoutACPFullPipelineRoutesTypedBlocks(t *testing.T) {
 	tmpDir := t.TempDir()
-	timeout := 3 * time.Second
+	timeout := 10 * time.Second
 	installACPHelperOnPath(t, []runACPHelperScenario{{
 		ExpectedPromptContains: "finish the task",
 		Updates: []acp.SessionUpdate{

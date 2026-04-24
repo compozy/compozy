@@ -117,7 +117,7 @@ var (
 				},
 			},
 			DocsURL:            "https://github.com/zed-industries/codex-acp",
-			InstallHint:        "Install the Codex ACP adapter from the GitHub releases or via `npx @zed-industries/codex-acp`, then expose `codex-acp` on PATH.",
+			InstallHint:        "Install or update the Codex ACP adapter with `npm install -g @zed-industries/codex-acp@latest`, then expose `codex-acp` on PATH.",
 			UsesBootstrapModel: true,
 			BootstrapArgs: func(modelName, reasoningEffort string, _ []string, accessMode string) []string {
 				args := make([]string, 0, 10)

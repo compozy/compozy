@@ -606,6 +606,10 @@ func (c *clientImpl) ensureStarted(ctx context.Context, req SessionRequest) erro
 		c.mu.Unlock()
 		return err
 	}
+	if err := validateRuntimeModelCompatibility(c.spec, startModel, command); err != nil {
+		c.mu.Unlock()
+		return wrapSessionSetupError(SessionSetupStageStartProcess, err)
+	}
 
 	process, err := subprocess.Launch(detachedContext(ctx), subprocess.LaunchConfig{
 		Command:         command,
@@ -755,7 +759,7 @@ func (c *clientImpl) runPrompt(ctx context.Context, session *sessionImpl, prompt
 			session.finish(model.StatusFailed, context.Canceled)
 			return
 		}
-		wrappedErr := wrapACPError(err)
+		wrappedErr := codexModelCompatibilityHint(c.spec, c.startModel, wrapACPError(err))
 		session.waitForIdle(ctx, 15*time.Millisecond)
 		if shouldDowngradePromptErrorAfterToolFailure(session, wrappedErr) {
 			session.finish(model.StatusCompleted, nil)
