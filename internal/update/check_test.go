@@ -271,6 +271,34 @@ func TestNewerReleaseRejectsInvalidVersions(t *testing.T) {
 	}
 }
 
+func TestNewerReleaseComparesGitDescribeVersionByBaseRelease(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not report update when current build is ahead of latest release tag", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := newerRelease("v0.1.12-15-g834fec6", &ReleaseInfo{Version: "0.1.12"})
+		if err != nil {
+			t.Fatalf("newerRelease returned error: %v", err)
+		}
+		if got != nil {
+			t.Fatalf("expected no update for matching base release, got %#v", got)
+		}
+	})
+
+	t.Run("Should report update when latest release is newer than current base tag", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := newerRelease("v0.1.12-15-g834fec6", &ReleaseInfo{Version: "0.1.13"})
+		if err != nil {
+			t.Fatalf("newerRelease returned error: %v", err)
+		}
+		if got == nil || got.Version != "0.1.13" {
+			t.Fatalf("expected newer release info, got %#v", got)
+		}
+	})
+}
+
 func TestReleaseInfoPtrReturnsNilForEmptyInfo(t *testing.T) {
 	if got := releaseInfoPtr(ReleaseInfo{}); got != nil {
 		t.Fatalf("expected nil pointer, got %#v", got)

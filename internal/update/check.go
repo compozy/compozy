@@ -171,7 +171,26 @@ func newerRelease(currentVersion string, latest *ReleaseInfo) (*ReleaseInfo, err
 }
 
 func parseVersion(raw string) (*semver.Version, error) {
-	return semver.NewVersion(strings.TrimPrefix(strings.TrimSpace(raw), "v"))
+	return semver.NewVersion(strings.TrimPrefix(trimGitDescribeSuffix(raw), "v"))
+}
+
+func trimGitDescribeSuffix(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	commitSep := strings.LastIndex(trimmed, "-g")
+	if commitSep < 0 || commitSep+2 >= len(trimmed) {
+		return trimmed
+	}
+	beforeCommit := trimmed[:commitSep]
+	countSep := strings.LastIndex(beforeCommit, "-")
+	if countSep < 0 || countSep+1 >= len(beforeCommit) {
+		return trimmed
+	}
+	for _, char := range beforeCommit[countSep+1:] {
+		if char < '0' || char > '9' {
+			return trimmed
+		}
+	}
+	return beforeCommit[:countSep]
 }
 
 func releaseInfoPtr(info ReleaseInfo) *ReleaseInfo {
