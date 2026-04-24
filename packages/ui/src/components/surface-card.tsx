@@ -6,7 +6,9 @@ export function SurfaceCard({ className, ...props }: HTMLAttributes<HTMLElement>
   return (
     <section
       className={cn(
-        "rounded-[calc(var(--radius)+4px)] border border-border bg-card text-card-foreground",
+        "overflow-hidden rounded-[var(--radius-xl)] border border-border-subtle bg-card text-card-foreground shadow-[var(--shadow-sm)]",
+        "transition-[border-color,background-color,box-shadow,transform] duration-200 ease-out",
+        "data-[interactive=true]:hover:-translate-y-px data-[interactive=true]:hover:border-border-strong data-[interactive=true]:hover:shadow-[var(--shadow-md)]",
         className
       )}
       {...props}
@@ -21,7 +23,7 @@ export function SurfaceCardHeader({
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 border-b border-border px-5 py-4",
+        "flex items-start justify-between gap-4 border-b border-border-subtle px-5 py-4",
         className
       )}
       {...props}
@@ -40,12 +42,7 @@ export function SurfaceCardTitle({
   className,
   ...props
 }: HTMLAttributes<HTMLHeadingElement>): ReactElement {
-  return (
-    <h2
-      className={cn("text-sm font-semibold tracking-[-0.01em] text-foreground", className)}
-      {...props}
-    />
-  );
+  return <h2 className={cn("text-sm font-semibold text-foreground", className)} {...props} />;
 }
 
 export function SurfaceCardDescription({
@@ -69,7 +66,7 @@ export function SurfaceCardFooter({
   return (
     <div
       className={cn(
-        "flex items-center justify-between gap-3 border-t border-border px-5 py-4",
+        "flex items-center justify-between gap-3 border-t border-border-subtle px-5 py-4",
         className
       )}
       {...props}

@@ -19,17 +19,20 @@ export function SectionHeading({
 }: SectionHeadingProps): ReactElement {
   return (
     <header
-      className={cn("flex flex-col gap-5 md:flex-row md:items-end md:justify-between", className)}
+      className={cn(
+        "flex min-w-0 flex-col gap-4 md:flex-row md:items-end md:justify-between",
+        className
+      )}
       {...props}
     >
-      <div className="space-y-2">
+      <div className="min-w-0 space-y-2">
         {eyebrow ? <p className="eyebrow text-muted-foreground">{eyebrow}</p> : null}
         <div className="space-y-2">
-          <h1 className="font-display text-[clamp(2rem,4vw,3rem)] leading-none tracking-[-0.03em] text-foreground">
+          <h1 className="text-[clamp(1.75rem,3vw,2.5rem)] font-semibold leading-tight text-foreground">
             {title}
           </h1>
           {description ? (
-            <p className="max-w-3xl text-sm leading-7 text-muted-foreground">{description}</p>
+            <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{description}</p>
           ) : null}
         </div>
       </div>

@@ -14,5 +14,7 @@ export function useDashboard(workspaceId: string | null) {
       return fetchDashboard(workspaceId);
     },
     enabled: Boolean(workspaceId),
+    refetchInterval: 3_000,
+    refetchIntervalInBackground: false,
   });
 }

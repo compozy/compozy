@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from "react";
 
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
@@ -39,7 +40,7 @@ function ReviewIssueDetailRoute(): ReactElement {
   const header = (
     <div className="flex w-full items-center justify-between gap-3">
       <button
-        className="text-xs text-accent hover:underline"
+        className="text-xs font-medium text-primary transition-colors hover:text-foreground"
         data-testid="review-detail-header-back"
         onClick={() => void navigate({ to: "/reviews" })}
         type="button"
@@ -58,13 +59,9 @@ function ReviewIssueDetailRoute(): ReactElement {
         workspaces={workspaces}
         header={header}
       >
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="review-detail-round-invalid"
-          role="alert"
-        >
+        <Alert data-testid="review-detail-round-invalid" variant="error">
           Invalid review round: {round}
-        </p>
+        </Alert>
       </AppShellLayout>
     );
   }
@@ -77,21 +74,19 @@ function ReviewIssueDetailRoute(): ReactElement {
       header={header}
     >
       {issueQuery.isLoading && !issueQuery.data ? (
-        <p className="text-sm text-muted-foreground" data-testid="review-detail-loading">
-          Loading review issue…
-        </p>
+        <div className="space-y-3" data-testid="review-detail-loading">
+          <p className="sr-only">Loading review issue…</p>
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
       {issueQuery.isError && !issueQuery.data ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="review-detail-load-error"
-          role="alert"
-        >
+        <Alert data-testid="review-detail-load-error" variant="error">
           {apiErrorMessage(
             issueQuery.error,
             `Failed to load review issue ${issueId} for ${slug} round ${round}`
           )}
-        </p>
+        </Alert>
       ) : null}
       {issueQuery.data ? (
         <ReviewDetailView

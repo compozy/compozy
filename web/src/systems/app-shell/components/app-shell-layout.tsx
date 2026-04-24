@@ -115,12 +115,12 @@ export function AppShellLayout({
         </div>
 
         <div
-          className="mt-auto rounded-[var(--radius-md)] border border-border bg-black/10 p-3"
+          className="mt-auto rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] p-3 shadow-[var(--shadow-xs)]"
           data-testid="app-shell-workspace-card"
         >
           <p className="eyebrow text-muted-foreground">Active workspace</p>
           <p
-            className="mt-1 truncate font-display text-lg tracking-[-0.01em] text-foreground"
+            className="mt-1 truncate text-base font-semibold text-foreground"
             data-testid="app-shell-active-workspace-name"
             title={activeWorkspace.name}
           >
@@ -135,7 +135,7 @@ export function AppShellLayout({
           </p>
           {canSwitch ? (
             <button
-              className="mt-3 inline-flex items-center gap-1 text-xs text-accent hover:underline"
+              className="mt-3 inline-flex items-center gap-1 rounded-[var(--radius-sm)] text-xs font-medium text-primary transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
               data-testid="app-shell-switch-workspace"
               onClick={onSwitchWorkspace}
               type="button"
@@ -167,10 +167,10 @@ function NavLinkItem({ active, entry }: { active: boolean; entry: NavEntry }): R
     <Link
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full items-center gap-3 rounded-[calc(var(--radius)-2px)] px-3 py-2 text-left transition-colors",
+        "relative flex w-full items-center gap-3 rounded-[var(--radius-md)] px-3 py-2 text-left transition-[background-color,color,box-shadow,transform] duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
         active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--primary)]"
+          : "text-muted-foreground hover:bg-surface-hover hover:text-foreground"
       )}
       data-testid={entry.testId}
       to={entry.href}

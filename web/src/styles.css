@@ -6,11 +6,11 @@
 @layer base {
   body {
     background:
-      radial-gradient(circle at top left, rgba(202, 234, 40, 0.09), transparent 26%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.01), transparent 18%), var(--background);
+      radial-gradient(circle at top left, rgba(214, 242, 74, 0.045), transparent 24%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 18%), var(--background);
   }
 }
 
 @utility eyebrow {
-  @apply font-eyebrow text-[10px] uppercase;
+  @apply font-eyebrow text-[10px] leading-4 font-medium tracking-[0.14em] uppercase;
 }

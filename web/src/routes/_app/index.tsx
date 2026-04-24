@@ -1,6 +1,7 @@
 import { useState, type ReactElement } from "react";
 
 import { createFileRoute } from "@tanstack/react-router";
+import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
@@ -38,18 +39,17 @@ function DashboardRoute(): ReactElement {
       workspaces={workspaces}
     >
       {dashboardQuery.isLoading && !dashboardQuery.data ? (
-        <p className="text-sm text-muted-foreground" data-testid="dashboard-loading">
-          Loading dashboard…
-        </p>
+        <div className="space-y-3" data-testid="dashboard-loading">
+          <p className="sr-only">Loading dashboard…</p>
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
       {dashboardQuery.isError && !dashboardQuery.data ? (
-        <p
-          className="text-sm text-[color:var(--color-danger)]"
-          data-testid="dashboard-load-error"
-          role="alert"
-        >
+        <Alert data-testid="dashboard-load-error" variant="error">
           {apiErrorMessage(dashboardQuery.error, "Failed to load dashboard")}
-        </p>
+        </Alert>
       ) : null}
       {dashboardQuery.data ? (
         <DashboardView

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import {
+  Alert,
   AppShell,
   AppShellBrand,
   AppShellContent,
@@ -11,9 +12,13 @@ import {
   AppShellNavItem,
   AppShellNavSection,
   AppShellSidebar,
+  Markdown,
+  Metric,
   Button,
   type ButtonProps,
+  EmptyState,
   SectionHeading,
+  SkeletonText,
   StatusBadge,
   SurfaceCard,
   SurfaceCardBody,
@@ -60,6 +65,10 @@ describe("shared primitives", () => {
               />
             </AppShellHeader>
             <AppShellContent>
+              <EmptyState
+                description="Run sync to populate this workspace."
+                title="Nothing to show yet"
+              />
               <SurfaceCard>
                 <SurfaceCardHeader>
                   <div>
@@ -88,6 +97,7 @@ describe("shared primitives", () => {
     expect(html).toContain("operator runtime");
     expect(html).toContain("Shared foundation ready");
     expect(html).toContain("Mockup-derived theme");
+    expect(html).toContain("Nothing to show yet");
     expect(html).toContain("Search commands");
     expect(html).toContain("stable");
     expect(html).toContain('aria-current="page"');
@@ -142,5 +152,52 @@ describe("shared primitives", () => {
 
     expect(html).toContain('aria-label="Refresh runs"');
     expect(unlabeledIconOnly.icon).toBeDefined();
+  });
+
+  it("renders loading buttons as busy and disabled", () => {
+    const html = renderToStaticMarkup(<Button loading>Resolve workspace</Button>);
+
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toMatch(/<button[^>]*disabled=""/);
+    expect(html).toContain("Resolve workspace");
+  });
+
+  it("only makes error alerts live regions by default", () => {
+    const infoHtml = renderToStaticMarkup(<Alert variant="info">Heads up</Alert>);
+    const errorHtml = renderToStaticMarkup(<Alert variant="error">Broken</Alert>);
+
+    expect(infoHtml).not.toContain('role="status"');
+    expect(infoHtml).not.toContain('role="alert"');
+    expect(errorHtml).toContain('role="alert"');
+  });
+
+  it("targets markdown link hover styles on the anchor itself", () => {
+    const html = renderToStaticMarkup(<Markdown>[Docs](https://example.com)</Markdown>);
+
+    expect(html).toContain("[&amp;_a:hover]:brightness-110");
+    expect(html).not.toContain("hover:[&amp;_a]:brightness-110");
+  });
+
+  it("renders metric slots without paragraph wrappers", () => {
+    const html = renderToStaticMarkup(
+      <Metric hint={<div>delta</div>} label={<div>throughput</div>} value={<div>42</div>} />
+    );
+
+    expect(html).toContain("<div>throughput</div>");
+    expect(html).toContain("<div>42</div>");
+    expect(html).toContain("<div>delta</div>");
+    expect(html).not.toContain("<p");
+  });
+
+  it("normalizes skeleton text underflow so the last row keeps its width treatment", () => {
+    const html = renderToStaticMarkup(<SkeletonText lines={0} />);
+
+    expect(html).toContain("w-2/3");
+  });
+
+  it("gates pulsing status dots behind motion-safe", () => {
+    const html = renderToStaticMarkup(<StatusBadge pulse>running</StatusBadge>);
+
+    expect(html).toContain("motion-safe:animate-pulse");
   });
 });

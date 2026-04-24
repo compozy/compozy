@@ -1,7 +1,12 @@
 import type { ReactElement } from "react";
 
+import { Wrench } from "lucide-react";
+
 import {
+  Alert,
   Button,
+  EmptyState,
+  Markdown,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -13,6 +18,8 @@ import {
   SurfaceCardTitle,
 } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
+
+import { resolveStatusTone as resolveRunStatusTone } from "@/systems/runs";
 
 import type { ReviewDetailPayload, Run } from "../types";
 
@@ -43,6 +50,8 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
             <Button
               data-testid="review-detail-dispatch-fix"
               disabled={isDispatching}
+              icon={<Wrench className="size-4" />}
+              loading={isDispatching}
               onClick={onDispatchFix}
               size="sm"
             >
@@ -79,23 +88,16 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
       />
 
       {dispatchError ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="review-detail-dispatch-error"
-          role="alert"
-        >
+        <Alert data-testid="review-detail-dispatch-error" variant="error">
           {dispatchError}
-        </p>
+        </Alert>
       ) : null}
 
       {dispatchedRun ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-4 py-3 text-sm text-muted-foreground"
-          data-testid="review-detail-dispatch-success"
-        >
+        <Alert data-testid="review-detail-dispatch-success" variant="success">
           Dispatched run{" "}
           <Link
-            className="font-mono text-accent hover:underline"
+            className="font-mono underline"
             data-testid="review-detail-dispatch-success-link"
             params={{ runId: dispatchedRun.run_id }}
             to="/runs/$runId"
@@ -103,7 +105,7 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
             {dispatchedRun.run_id}
           </Link>{" "}
           — check the runs console for live progress.
-        </p>
+        </Alert>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,0.9fr)]">
@@ -119,19 +121,17 @@ export function ReviewDetailView(props: ReviewDetailViewProps): ReactElement {
           </SurfaceCardHeader>
           <SurfaceCardBody>
             {markdown.length === 0 ? (
-              <p
-                className="text-sm text-muted-foreground"
+              <EmptyState
                 data-testid="review-detail-document-empty"
-              >
-                No review document body available.
-              </p>
+                title="No review document body available"
+              />
             ) : (
-              <pre
-                className="max-h-[520px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+              <div
+                className="max-h-[min(72dvh,820px)] overflow-auto rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-5 py-4 shadow-[var(--shadow-xs)]"
                 data-testid="review-detail-document-body"
               >
-                {markdown}
-              </pre>
+                <Markdown>{markdown}</Markdown>
+              </div>
             )}
           </SurfaceCardBody>
           <SurfaceCardFooter>
@@ -220,17 +220,16 @@ function RelatedRunsCard({ runs }: { runs: Run[] }): ReactElement {
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {runs.length === 0 ? (
-          <p
-            className="text-sm text-muted-foreground"
+          <EmptyState
+            className="py-5"
             data-testid="review-detail-related-runs-empty"
-          >
-            No related runs yet.
-          </p>
+            title="No related runs yet"
+          />
         ) : (
           <ul className="space-y-2" data-testid="review-detail-related-runs-list">
             {runs.map(run => (
               <li
-                className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
                 data-testid={`review-detail-run-row-${run.run_id}`}
                 key={run.run_id}
               >
@@ -248,7 +247,12 @@ function RelatedRunsCard({ runs }: { runs: Run[] }): ReactElement {
                     {run.ended_at ? ` · ended ${formatTimestamp(run.ended_at)}` : " · in flight"}
                   </p>
                 </div>
-                <StatusBadge tone="info">{run.status}</StatusBadge>
+                <StatusBadge
+                  data-testid={`review-detail-run-status-${run.run_id}`}
+                  tone={resolveRunStatusTone(run.status)}
+                >
+                  {run.status}
+                </StatusBadge>
               </li>
             ))}
           </ul>

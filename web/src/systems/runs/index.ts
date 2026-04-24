@@ -1,5 +1,14 @@
 export { RunsListView, resolveStatusTone } from "./components/runs-list-view";
 export { RunDetailView } from "./components/run-detail-view";
+export { RunEventFeed } from "./components/run-event-feed";
+export {
+  createRunEventStore,
+  isTerminalKind,
+  normalizeFeedEvent,
+  type RunEventStore,
+  type RunFeedEvent,
+} from "./lib/event-store";
+export { useRunEventFeed } from "./hooks/use-run-event-feed";
 export {
   useCancelRun,
   useRun,

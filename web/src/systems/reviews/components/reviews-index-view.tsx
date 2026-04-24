@@ -1,7 +1,10 @@
 import type { ReactElement } from "react";
 
 import {
+  Alert,
+  EmptyState,
   SectionHeading,
+  SkeletonRow,
   StatusBadge,
   SurfaceCard,
   SurfaceCardBody,
@@ -44,34 +47,25 @@ export function ReviewsIndexView(props: ReviewsIndexViewProps): ReactElement {
       />
 
       {error ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="reviews-index-error"
-          role="alert"
-        >
+        <Alert data-testid="reviews-index-error" variant="error">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground" data-testid="reviews-index-loading">
-          Loading reviews…
-        </p>
+        <div className="space-y-2" data-testid="reviews-index-loading">
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
 
       {!isLoading && cards.length === 0 && !error ? (
-        <SurfaceCard data-testid="reviews-index-empty">
-          <SurfaceCardHeader>
-            <div>
-              <SurfaceCardEyebrow>Empty</SurfaceCardEyebrow>
-              <SurfaceCardTitle>No review rounds</SurfaceCardTitle>
-              <SurfaceCardDescription>
-                No workflow in this workspace has an active review round yet. Sync a workspace or
-                push a fresh PR review to see rounds here.
-              </SurfaceCardDescription>
-            </div>
-          </SurfaceCardHeader>
-        </SurfaceCard>
+        <EmptyState
+          data-testid="reviews-index-empty"
+          description="No workflow in this workspace has an active review round yet. Sync a workspace or push a fresh PR review to see rounds here."
+          title="No review rounds"
+        />
       ) : null}
 
       {cards.length > 0 ? (
@@ -135,31 +129,24 @@ function ReviewRoundSection({ card }: { card: ReviewRoundCard }): ReactElement {
         </div>
 
         {issuesError ? (
-          <p
-            className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-3 py-2 text-sm text-[color:var(--color-danger)]"
-            data-testid={`reviews-index-card-issues-error-${slug}`}
-            role="alert"
-          >
+          <Alert data-testid={`reviews-index-card-issues-error-${slug}`} variant="error">
             {issuesError}
-          </p>
+          </Alert>
         ) : null}
 
         {isIssuesLoading && issues.length === 0 ? (
-          <p
-            className="text-sm text-muted-foreground"
-            data-testid={`reviews-index-card-issues-loading-${slug}`}
-          >
-            Loading issues…
-          </p>
+          <div className="space-y-2" data-testid={`reviews-index-card-issues-loading-${slug}`}>
+            <SkeletonRow />
+            <SkeletonRow />
+          </div>
         ) : null}
 
         {!isIssuesLoading && issues.length === 0 && !issuesError ? (
-          <p
-            className="text-sm text-muted-foreground"
+          <EmptyState
+            className="py-5"
             data-testid={`reviews-index-card-issues-empty-${slug}`}
-          >
-            No issues in this round.
-          </p>
+            title="No issues in this round"
+          />
         ) : null}
 
         {issues.length > 0 ? (
@@ -207,7 +194,7 @@ function ReviewIssueRow({
   const statusTone = resolveStatusTone(issue.status);
   return (
     <li
-      className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={`reviews-index-issue-${slug}-${issue.id}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -255,11 +242,11 @@ function Stat({
 }): ReactElement {
   return (
     <div
-      className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2"
       data-testid={testId}
     >
       <p className="eyebrow text-muted-foreground">{label}</p>
-      <p className="mt-1 font-display text-lg tracking-[-0.02em] text-foreground">{value}</p>
+      <p className="mt-1 font-mono text-lg text-foreground tabular-nums">{value}</p>
     </div>
   );
 }

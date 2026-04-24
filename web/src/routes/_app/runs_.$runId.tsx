@@ -1,14 +1,18 @@
-import { useCallback, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
+import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
+import { dashboardKeys } from "@/systems/dashboard";
 import {
   RunDetailView,
+  isTerminalKind,
   runKeys,
   useCancelRun,
+  useRunEventFeed,
   useRunSnapshot,
   useRunStream,
   type RunStreamOverflow,
@@ -27,6 +31,13 @@ function RunDetailRoute(): ReactElement {
   const cancelMutation = useCancelRun();
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [terminalEventSeen, setTerminalEventSeen] = useState(false);
+  const { append, events } = useRunEventFeed(runId);
+  const closeStreamRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    setTerminalEventSeen(false);
+  }, [runId]);
 
   const handleOverflow = useCallback(
     (_overflow: RunStreamOverflow) => {
@@ -35,14 +46,32 @@ function RunDetailRoute(): ReactElement {
     [queryClient, runId]
   );
 
+  const handleStreamEvent = useCallback(
+    (signal: { eventId: string | null; payload: unknown }) => {
+      const normalized = append(signal.eventId, signal.payload);
+      if (normalized && isTerminalKind(normalized.kind)) {
+        closeStreamRef.current();
+        setTerminalEventSeen(true);
+        void queryClient.invalidateQueries({ queryKey: runKeys.snapshot(runId) });
+        void queryClient.invalidateQueries({ queryKey: runKeys.lists() });
+        void queryClient.invalidateQueries({
+          queryKey: dashboardKeys.byWorkspace(activeWorkspace.id),
+        });
+      }
+    },
+    [activeWorkspace.id, append, queryClient, runId]
+  );
+
   const initialCursor = snapshotQuery.data?.next_cursor ?? null;
-  const runTerminated = isTerminalStatus(snapshotQuery.data?.run?.status);
+  const runTerminated = terminalEventSeen || isTerminalStatus(snapshotQuery.data?.run?.status);
   const runStream = useRunStream({
     runId,
     enabled: Boolean(snapshotQuery.data) && !runTerminated,
     initialCursor,
     onOverflow: handleOverflow,
+    onEvent: handleStreamEvent,
   });
+  closeStreamRef.current = runStream.close;
 
   async function handleCancel() {
     setCancelMessage(null);
@@ -63,7 +92,7 @@ function RunDetailRoute(): ReactElement {
       header={
         <div className="flex w-full items-center justify-between gap-3">
           <button
-            className="text-xs text-accent hover:underline"
+            className="text-xs font-medium text-primary transition-colors hover:text-foreground"
             data-testid="run-detail-back"
             onClick={() => void navigate({ to: "/runs" })}
             type="button"
@@ -75,18 +104,17 @@ function RunDetailRoute(): ReactElement {
       }
     >
       {snapshotQuery.isLoading && !snapshotQuery.data ? (
-        <p className="text-sm text-muted-foreground" data-testid="run-detail-loading">
-          Loading run snapshot…
-        </p>
+        <div className="space-y-3" data-testid="run-detail-loading">
+          <p className="sr-only">Loading run snapshot…</p>
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
       {snapshotQuery.isError && !snapshotQuery.data ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="run-detail-load-error"
-          role="alert"
-        >
+        <Alert data-testid="run-detail-load-error" variant="error">
           {apiErrorMessage(snapshotQuery.error, "Failed to load run snapshot")}
-        </p>
+        </Alert>
       ) : null}
       {snapshotQuery.data ? (
         <RunDetailView
@@ -96,6 +124,7 @@ function RunDetailRoute(): ReactElement {
           isCancelling={cancelMutation.isPending}
           isRefreshingSnapshot={snapshotQuery.isRefetching}
           lastHeartbeatAt={runStream.lastHeartbeat?.receivedAt ?? null}
+          liveEvents={events}
           onCancelRun={handleCancel}
           onReconnectStream={runStream.reconnect}
           overflowReason={runStream.lastOverflow?.reason ?? null}
@@ -122,6 +151,7 @@ function isTerminalStatus(status: string | undefined): boolean {
     normalized === "completed" ||
     normalized === "succeeded" ||
     normalized === "failed" ||
+    normalized === "crashed" ||
     normalized === "canceled" ||
     normalized === "cancelled"
   );

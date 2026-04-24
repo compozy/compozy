@@ -1,6 +1,8 @@
-import { useState, type ReactElement } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 import {
+  EmptyState,
+  Markdown,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -36,6 +38,16 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
   const tabs = buildTabs(spec);
   const [active, setActive] = useState<SpecTabKey>(initialTab(tabs));
 
+  useEffect(() => {
+    setActive(initialTab(tabs));
+  }, [workflow.slug]);
+
+  useEffect(() => {
+    if (!tabs.some(tab => tab.key === active && tab.present)) {
+      setActive(initialTab(tabs));
+    }
+  }, [active, tabs]);
+
   return (
     <div className="space-y-6" data-testid="workflow-spec-view">
       <SectionHeading
@@ -64,6 +76,7 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
         {tabs.map(tab => (
           <button
             aria-selected={active === tab.key}
+            aria-controls={`workflow-spec-panel-${tab.key}`}
             className={cn(
               "-mb-px flex items-center gap-2 border-b-2 px-3 py-2 text-sm transition-colors",
               tab.present
@@ -75,6 +88,7 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
             )}
             data-testid={tab.testId}
             disabled={!tab.present}
+            id={`workflow-spec-tab-${tab.key}`}
             key={tab.key}
             onClick={() => {
               if (tab.present) {
@@ -91,12 +105,24 @@ export function WorkflowSpecView(props: WorkflowSpecViewProps): ReactElement {
       </div>
 
       {active === "prd" ? (
-        <DocumentCard document={prd} kind="PRD" testId="workflow-spec-prd" />
+        <div aria-labelledby="workflow-spec-tab-prd" id="workflow-spec-panel-prd" role="tabpanel">
+          <DocumentCard document={prd} kind="PRD" testId="workflow-spec-prd" />
+        </div>
       ) : null}
       {active === "techspec" ? (
-        <DocumentCard document={techspec} kind="TechSpec" testId="workflow-spec-techspec" />
+        <div
+          aria-labelledby="workflow-spec-tab-techspec"
+          id="workflow-spec-panel-techspec"
+          role="tabpanel"
+        >
+          <DocumentCard document={techspec} kind="TechSpec" testId="workflow-spec-techspec" />
+        </div>
       ) : null}
-      {active === "adrs" ? <AdrList adrs={adrs ?? []} /> : null}
+      {active === "adrs" ? (
+        <div aria-labelledby="workflow-spec-tab-adrs" id="workflow-spec-panel-adrs" role="tabpanel">
+          <AdrList adrs={adrs ?? []} />
+        </div>
+      ) : null}
 
       {isRefreshing ? (
         <p className="text-xs text-muted-foreground" data-testid="workflow-spec-refreshing">
@@ -145,16 +171,14 @@ function DocumentCard({
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {markdown.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid={`${testId}-empty`}>
-            Document body is empty.
-          </p>
+          <EmptyState data-testid={`${testId}-empty`} title="Document body is empty" />
         ) : (
-          <pre
-            className="max-h-[640px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+          <div
+            className="max-h-[min(72dvh,820px)] overflow-auto rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-5 py-4 shadow-[var(--shadow-xs)]"
             data-testid={`${testId}-body`}
           >
-            {markdown}
-          </pre>
+            <Markdown>{markdown}</Markdown>
+          </div>
         )}
       </SurfaceCardBody>
     </SurfaceCard>
@@ -164,17 +188,11 @@ function DocumentCard({
 function AdrList({ adrs }: { adrs: MarkdownDocument[] }): ReactElement {
   if (adrs.length === 0) {
     return (
-      <SurfaceCard data-testid="workflow-spec-adrs-empty">
-        <SurfaceCardHeader>
-          <div>
-            <SurfaceCardEyebrow>ADRs</SurfaceCardEyebrow>
-            <SurfaceCardTitle>No ADRs yet</SurfaceCardTitle>
-            <SurfaceCardDescription>
-              This workflow does not have any ADRs on disk yet.
-            </SurfaceCardDescription>
-          </div>
-        </SurfaceCardHeader>
-      </SurfaceCard>
+      <EmptyState
+        data-testid="workflow-spec-adrs-empty"
+        description="This workflow does not have any ADRs on disk yet."
+        title="No ADRs yet"
+      />
     );
   }
   return (
@@ -192,12 +210,16 @@ function AdrList({ adrs }: { adrs: MarkdownDocument[] }): ReactElement {
             <StatusBadge tone="info">{adr.id}</StatusBadge>
           </SurfaceCardHeader>
           <SurfaceCardBody>
-            <pre
-              className="max-h-[400px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+            <div
+              className="max-h-[min(62dvh,620px)] overflow-auto rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-5 py-4 shadow-[var(--shadow-xs)]"
               data-testid={`workflow-spec-adr-body-${adr.id}`}
             >
-              {adr.markdown?.trim().length ? adr.markdown.trim() : "(empty)"}
-            </pre>
+              {adr.markdown?.trim().length ? (
+                <Markdown>{adr.markdown.trim()}</Markdown>
+              ) : (
+                <EmptyState className="py-5" title="Document body is empty" />
+              )}
+            </div>
           </SurfaceCardBody>
         </SurfaceCard>
       ))}

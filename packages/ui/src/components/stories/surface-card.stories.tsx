@@ -47,13 +47,13 @@ export const Default: Story = {
       </SurfaceCardHeader>
       <SurfaceCardBody>
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2">
+          <div className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2">
             <p className="eyebrow text-muted-foreground">active</p>
-            <p className="mt-1 font-display text-2xl tracking-[-0.02em] text-foreground">1</p>
+            <p className="mt-1 font-mono text-2xl text-foreground tabular-nums">1</p>
           </div>
-          <div className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2">
+          <div className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2">
             <p className="eyebrow text-muted-foreground">failed</p>
-            <p className="mt-1 font-display text-2xl tracking-[-0.02em] text-foreground">1</p>
+            <p className="mt-1 font-mono text-2xl text-foreground tabular-nums">1</p>
           </div>
         </div>
       </SurfaceCardBody>

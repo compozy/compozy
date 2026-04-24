@@ -1,7 +1,10 @@
 import type { ReactElement } from "react";
 
 import {
+  Alert,
+  EmptyState,
   SectionHeading,
+  SkeletonRow,
   StatusBadge,
   SurfaceCard,
   SurfaceCardBody,
@@ -38,36 +41,27 @@ export function TaskBoardView(props: TaskBoardViewProps): ReactElement {
       />
 
       {error ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="task-board-error"
-          role="alert"
-        >
+        <Alert data-testid="task-board-error" variant="error">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground" data-testid="task-board-loading">
-          Loading task board…
-        </p>
+        <div className="grid gap-3 md:grid-cols-3" data-testid="task-board-loading">
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
 
       {board ? <CountsSummary counts={board.task_counts} /> : null}
 
       {!isLoading && board && totalTasks === 0 ? (
-        <SurfaceCard data-testid="task-board-empty">
-          <SurfaceCardHeader>
-            <div>
-              <SurfaceCardEyebrow>Empty</SurfaceCardEyebrow>
-              <SurfaceCardTitle>No tasks yet</SurfaceCardTitle>
-              <SurfaceCardDescription>
-                This workflow does not have any tasks registered with the daemon yet. Sync the
-                workspace from the workflow inventory to pick up task artifacts on disk.
-              </SurfaceCardDescription>
-            </div>
-          </SurfaceCardHeader>
-        </SurfaceCard>
+        <EmptyState
+          data-testid="task-board-empty"
+          description="This workflow has no tasks registered with the daemon yet. Sync the workspace from the workflow inventory to pick up task artifacts on disk."
+          title="No tasks yet"
+        />
       ) : null}
 
       {lanes.length > 0 ? (
@@ -97,14 +91,12 @@ function CountsSummary({ counts }: { counts: WorkflowTaskCounts }): ReactElement
     <div className="grid gap-3 sm:grid-cols-3" data-testid="task-board-counts">
       {entries.map(entry => (
         <div
-          className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+          className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2"
           data-testid={entry.testId}
           key={entry.label}
         >
           <p className="eyebrow text-muted-foreground">{entry.label}</p>
-          <p className="mt-1 font-display text-lg tracking-[-0.02em] text-foreground">
-            {entry.value}
-          </p>
+          <p className="mt-1 font-mono text-lg text-foreground tabular-nums">{entry.value}</p>
         </div>
       ))}
     </div>
@@ -132,12 +124,12 @@ function BoardLane({ lane, slug }: { lane: TaskLane; slug: string }): ReactEleme
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {items.length === 0 ? (
-          <p
-            className="text-sm text-muted-foreground"
+          <EmptyState
+            className="py-5"
             data-testid={`task-board-lane-empty-${lane.status}`}
-          >
-            Lane is empty.
-          </p>
+            description="Tasks will appear here when their status changes."
+            title="Lane is empty"
+          />
         ) : (
           <ul className="space-y-2" data-testid={`task-board-lane-items-${lane.status}`}>
             {items.map(task => (
@@ -155,7 +147,7 @@ function TaskRow({ slug, task }: { slug: string; task: TaskCard }): ReactElement
   const deps = task.depends_on ?? [];
   return (
     <li
-      className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={`task-board-row-${task.task_id}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -176,7 +168,11 @@ function TaskRow({ slug, task }: { slug: string; task: TaskCard }): ReactElement
             {deps.length > 0 ? ` · depends on ${deps.join(", ")}` : null}
           </p>
         </div>
-        <StatusBadge data-testid={`task-board-status-${task.task_id}`} tone={tone}>
+        <StatusBadge
+          data-testid={`task-board-status-${task.task_id}`}
+          pulse={tone === "accent"}
+          tone={tone}
+        >
           {task.status}
         </StatusBadge>
       </div>

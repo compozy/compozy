@@ -1,11 +1,33 @@
-@import "@fontsource/playfair-display/400.css";
-@import "@fontsource/playfair-display/500.css";
+@font-face {
+  font-display: swap;
+  font-family: "Nippo";
+  font-style: normal;
+  font-weight: 200 700;
+  src: url("./assets/fonts/Nippo-Variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Disket Mono";
+  font-style: normal;
+  font-weight: 400;
+  src: url("./assets/fonts/Disket-Mono-Regular.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Disket Mono";
+  font-style: normal;
+  font-weight: 700;
+  src: url("./assets/fonts/Disket-Mono-Bold.ttf") format("truetype");
+}
 
 :root {
   color-scheme: dark;
 
-  --brand: #caea28;
-  --brand-950: #1a2e05;
+  --brand: #d6f24a;
+  --brand-700: #9fb526;
+  --brand-950: #17220a;
 
   --stone-50: #fafaf9;
   --stone-100: #f5f5f4;
@@ -19,20 +41,24 @@
   --stone-900: #1c1917;
   --stone-950: #0c0a09;
 
-  --red-500: #ef4444;
+  --red-500: #ff6b63;
   --red-50: #fef2f2;
-  --emerald-500: #10b981;
+  --emerald-500: #31d58b;
   --emerald-700: #047857;
-  --amber-500: #f59e0b;
+  --amber-500: #f0b84a;
   --amber-700: #b45309;
-  --blue-500: #3b82f6;
+  --blue-500: #75a7ff;
   --blue-700: #1d4ed8;
 
-  --background: #1a1918;
+  --background: #11100f;
   --foreground: var(--stone-200);
-  --card: #1d1c1a;
+  --surface-base: #11100f;
+  --surface-raised: #1b1917;
+  --surface-inset: rgba(255, 255, 255, 0.045);
+  --surface-hover: rgba(255, 255, 255, 0.075);
+  --card: var(--surface-raised);
   --card-foreground: var(--stone-200);
-  --popover: #222120;
+  --popover: #23211f;
   --popover-foreground: var(--stone-200);
   --primary: var(--brand);
   --primary-foreground: var(--stone-800);
@@ -43,6 +69,7 @@
   --accent: rgba(255, 255, 255, 0.06);
   --accent-foreground: var(--stone-200);
   --destructive: var(--red-500);
+  --danger: var(--destructive);
   --destructive-foreground: var(--red-50);
   --success: var(--emerald-500);
   --success-foreground: var(--emerald-700);
@@ -50,15 +77,17 @@
   --warning-foreground: var(--amber-700);
   --info: var(--blue-500);
   --info-foreground: var(--blue-700);
-  --border: rgba(255, 255, 255, 0.12);
-  --input: rgba(255, 255, 255, 0.12);
-  --ring: var(--stone-500);
+  --border: rgba(255, 255, 255, 0.13);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: var(--brand);
 
-  --sidebar: #0d0c0b;
+  --sidebar: var(--surface-base);
   --sidebar-foreground: var(--stone-200);
-  --sidebar-primary: #bef264;
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--stone-900);
-  --sidebar-accent: #2a2725;
+  --sidebar-accent: rgba(214, 242, 74, 0.1);
   --sidebar-accent-foreground: var(--stone-200);
   --sidebar-border: rgba(255, 255, 255, 0.1);
 
@@ -68,10 +97,12 @@
   --chart-4: #c8c0b6;
   --chart-5: #75675b;
 
-  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --font-display: "Playfair Display", Georgia, serif;
-  --font-eyebrow: var(--font-mono);
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "Disket Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    monospace;
+  --font-display: "Nippo", var(--font-sans);
+  --font-eyebrow: "Disket Mono", var(--font-mono);
 
   --radius: 0.75rem;
   --radius-sm: calc(var(--radius) - 4px);
@@ -79,7 +110,7 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  --spacing: 0.2rem;
+  --spacing: 0.25rem;
   --space-1: calc(var(--spacing) * 1);
   --space-2: calc(var(--spacing) * 2);
   --space-3: calc(var(--spacing) * 3);
@@ -88,15 +119,15 @@
   --space-8: calc(var(--spacing) * 8);
   --space-12: calc(var(--spacing) * 12);
 
-  --shadow-color: hsl(30 10% 20%);
-  --shadow-2xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
-  --shadow-xs: 0 3px 8px 0 hsl(30 10% 20% / 0.04);
-  --shadow-sm: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
-  --shadow: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 1px 2px -1px hsl(30 10% 20% / 0.08);
-  --shadow-md: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 2px 4px -1px hsl(30 10% 20% / 0.08);
-  --shadow-lg: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 4px 6px -1px hsl(30 10% 20% / 0.08);
-  --shadow-xl: 0 3px 8px 0 hsl(30 10% 20% / 0.08), 0 8px 10px -1px hsl(30 10% 20% / 0.08);
-  --shadow-2xl: 0 3px 8px 0 hsl(30 10% 20% / 0.2);
+  --shadow-color: hsl(38 12% 4%);
+  --shadow-2xs: 0 1px 2px 0 hsl(38 12% 4% / 0.18);
+  --shadow-xs: 0 1px 2px 0 hsl(38 12% 4% / 0.18);
+  --shadow-sm: 0 10px 24px -18px hsl(38 12% 4% / 0.72);
+  --shadow: 0 18px 44px -30px hsl(38 12% 4% / 0.86);
+  --shadow-md: 0 24px 54px -34px hsl(38 12% 4% / 0.92);
+  --shadow-lg: 0 30px 70px -42px hsl(38 12% 4% / 0.95);
+  --shadow-xl: 0 38px 90px -48px hsl(38 12% 4% / 0.98);
+  --shadow-2xl: 0 48px 120px -56px hsl(38 12% 4% / 1);
 
   --tone-accent-bg: rgba(202, 234, 40, 0.12);
   --tone-accent-border: rgba(202, 234, 40, 0.24);
@@ -121,9 +152,13 @@
 .light {
   color-scheme: light;
 
-  --background: #ffffff;
+  --background: #fbfaf7;
   --foreground: var(--stone-800);
-  --card: #ffffff;
+  --surface-base: #fbfaf7;
+  --surface-raised: #ffffff;
+  --surface-inset: rgba(28, 25, 23, 0.035);
+  --surface-hover: rgba(28, 25, 23, 0.055);
+  --card: var(--surface-raised);
   --card-foreground: var(--stone-800);
   --popover: #ffffff;
   --popover-foreground: var(--stone-800);
@@ -135,19 +170,26 @@
   --muted-foreground: #6f6862;
   --accent: rgba(0, 0, 0, 0.04);
   --accent-foreground: var(--stone-800);
-  --destructive: var(--red-500);
+  --destructive: #d63b36;
+  --danger: var(--destructive);
   --destructive-foreground: var(--red-50);
   --border: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgba(0, 0, 0, 0.075);
+  --border-strong: rgba(0, 0, 0, 0.18);
   --input: rgba(0, 0, 0, 0.12);
-  --ring: var(--stone-400);
+  --ring: var(--brand);
 
-  --sidebar: var(--stone-100);
+  --sidebar: var(--surface-base);
   --sidebar-foreground: var(--stone-800);
-  --sidebar-primary: #bef264;
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: var(--brand-950);
   --sidebar-accent: var(--stone-200);
   --sidebar-accent-foreground: var(--stone-800);
   --sidebar-border: rgba(0, 0, 0, 0.1);
+
+  --tone-neutral-bg: rgba(0, 0, 0, 0.04);
+  --tone-neutral-border: rgba(0, 0, 0, 0.08);
+  --tone-neutral-text: var(--muted-foreground);
 }
 
 @theme inline {
@@ -160,6 +202,10 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-inset: var(--surface-inset);
+  --color-surface-hover: var(--surface-hover);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
@@ -171,8 +217,11 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-danger: var(--danger);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
@@ -215,8 +264,42 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  * {
+    scrollbar-color: var(--border-strong) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    height: 11px;
+    width: 11px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: padding-box;
+  }
+
   ::selection {
     background: rgba(202, 234, 40, 0.2);
     color: var(--foreground);
+  }
+}
+
+@keyframes surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }

@@ -1,6 +1,7 @@
-import { useState, type ReactElement, type FormEvent } from "react";
+import { useId, useState, type ReactElement, type FormEvent } from "react";
 
 import {
+  Alert,
   AppShell,
   AppShellBrand,
   AppShellContent,
@@ -29,6 +30,7 @@ export function WorkspaceOnboarding({
 }: WorkspaceOnboardingProps): ReactElement {
   const [path, setPath] = useState("");
   const resolve = useResolveWorkspace();
+  const inputIds = useId();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,6 +48,8 @@ export function WorkspaceOnboarding({
   }
 
   const errorMessage = resolve.error ? resolve.error.message : null;
+  const inputDescriptionId = `${inputIds}-help`;
+  const inputErrorId = `${inputIds}-error`;
 
   return (
     <AppShell>
@@ -91,11 +95,13 @@ export function WorkspaceOnboarding({
                 onSubmit={handleSubmit}
               >
                 <label className="block space-y-1 text-sm">
-                  <span className="font-eyebrow text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    Absolute workspace path
-                  </span>
+                  <span className="eyebrow text-muted-foreground">Absolute workspace path</span>
                   <input
-                    className="w-full rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/70 focus:outline-none focus:ring-1 focus:ring-accent"
+                    aria-describedby={
+                      errorMessage ? `${inputDescriptionId} ${inputErrorId}` : inputDescriptionId
+                    }
+                    aria-invalid={Boolean(errorMessage)}
+                    className="w-full rounded-[var(--radius-md)] border border-input bg-[color:var(--surface-inset)] px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/70 shadow-[var(--shadow-xs)] transition-[border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                     data-testid="workspace-onboarding-input"
                     name="workspace-path"
                     onChange={event => setPath(event.target.value)}
@@ -105,25 +111,34 @@ export function WorkspaceOnboarding({
                     value={path}
                   />
                 </label>
+                <p
+                  className="text-xs leading-5 text-muted-foreground"
+                  data-testid="workspace-onboarding-input-help"
+                  id={inputDescriptionId}
+                >
+                  Use an absolute path the daemon can read.
+                </p>
 
                 {errorMessage ? (
-                  <p
-                    className="text-sm text-[color:var(--color-danger)]"
+                  <Alert
                     data-testid="workspace-onboarding-error"
+                    id={inputErrorId}
                     role="alert"
+                    variant="error"
                   >
                     {errorMessage}
-                  </p>
+                  </Alert>
                 ) : null}
 
                 <div className="flex items-center gap-2">
                   <Button
                     data-testid="workspace-onboarding-submit"
                     disabled={resolve.isPending || path.trim().length === 0}
+                    loading={resolve.isPending}
                     size="sm"
                     type="submit"
                   >
-                    {resolve.isPending ? "Resolving…" : "Resolve workspace"}
+                    Resolve workspace
                   </Button>
                 </div>
               </form>

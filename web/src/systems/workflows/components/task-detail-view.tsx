@@ -1,6 +1,8 @@
 import type { ReactElement } from "react";
 
 import {
+  EmptyState,
+  Markdown,
   SectionHeading,
   StatusBadge,
   SurfaceCard,
@@ -29,7 +31,7 @@ export interface TaskDetailViewProps {
 
 export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
   const { payload, isRefreshing } = props;
-  const { task, workflow, document, memory_entries, related_runs, live_tail_available } = payload;
+  const { task, workflow, document, memory_entries, related_runs } = payload;
   const tone = resolveStatusTone(task.status);
   const deps = task.depends_on ?? [];
   const memory = memory_entries ?? [];
@@ -50,7 +52,6 @@ export function TaskDetailView(props: TaskDetailViewProps): ReactElement {
             </Link>
             {" · "}
             {task.type} · updated {formatTimestamp(task.updated_at)}
-            {live_tail_available ? " · live tail available" : " · live tail unavailable"}
           </span>
         }
         eyebrow={`Task #${task.task_number} · ${task.task_id}`}
@@ -97,16 +98,14 @@ function DocumentCard({ document }: { document: MarkdownDocument }): ReactElemen
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {markdown.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="task-detail-document-empty">
-            Document body is empty.
-          </p>
+          <EmptyState data-testid="task-detail-document-empty" title="Document body is empty" />
         ) : (
-          <pre
-            className="max-h-[480px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2 text-sm text-foreground"
+          <div
+            className="max-h-[min(70dvh,760px)] overflow-auto rounded-[var(--radius-lg)] border border-border-subtle bg-[color:var(--surface-inset)] px-5 py-4 shadow-[var(--shadow-xs)]"
             data-testid="task-detail-document-body"
           >
-            {markdown}
-          </pre>
+            <Markdown>{markdown}</Markdown>
+          </div>
         )}
       </SurfaceCardBody>
     </SurfaceCard>
@@ -128,14 +127,16 @@ function DependenciesCard({ deps }: { deps: string[] }): ReactElement {
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {deps.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="task-detail-dependencies-empty">
-            No declared dependencies.
-          </p>
+          <EmptyState
+            className="py-5"
+            data-testid="task-detail-dependencies-empty"
+            title="No declared dependencies"
+          />
         ) : (
           <ul className="flex flex-wrap gap-2" data-testid="task-detail-dependencies-list">
             {deps.map(dep => (
               <li
-                className="rounded-[var(--radius-sm)] border border-border bg-black/10 px-2 py-1 text-xs text-muted-foreground"
+                className="rounded-[var(--radius-sm)] border border-border-subtle bg-[color:var(--surface-inset)] px-2 py-1 font-mono text-xs text-muted-foreground"
                 data-testid={`task-detail-dependency-${dep}`}
                 key={dep}
               >
@@ -164,9 +165,11 @@ function RelatedRunsCard({ runs }: { runs: TaskRelatedRun[] }): ReactElement {
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {runs.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="task-detail-related-runs-empty">
-            No related runs yet.
-          </p>
+          <EmptyState
+            className="py-5"
+            data-testid="task-detail-related-runs-empty"
+            title="No related runs yet"
+          />
         ) : (
           <ul className="space-y-2" data-testid="task-detail-related-runs-list">
             {runs.map(run => (
@@ -183,7 +186,7 @@ function RelatedRunRow({ run }: { run: TaskRelatedRun }): ReactElement {
   const tone = resolveRunStatusTone(run.status);
   return (
     <li
-      className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
       data-testid={`task-detail-run-row-${run.run_id}`}
     >
       <div className="min-w-0 space-y-1">
@@ -228,14 +231,16 @@ function MemoryCard({
       </SurfaceCardHeader>
       <SurfaceCardBody>
         {entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground" data-testid="task-detail-memory-empty">
-            No related memory entries.
-          </p>
+          <EmptyState
+            className="py-5"
+            data-testid="task-detail-memory-empty"
+            title="No related memory entries"
+          />
         ) : (
           <ul className="space-y-2" data-testid="task-detail-memory-list">
             {entries.map(entry => (
               <li
-                className="rounded-[var(--radius-md)] border border-border bg-black/10 px-3 py-2"
+                className="rounded-[var(--radius-md)] border border-border-subtle bg-[color:var(--surface-inset)] px-3 py-2 transition-colors hover:border-border-strong hover:bg-surface-hover"
                 data-testid={`task-detail-memory-row-${entry.file_id}`}
                 key={entry.file_id}
               >

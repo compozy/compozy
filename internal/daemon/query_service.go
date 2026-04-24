@@ -17,6 +17,7 @@ import (
 )
 
 const dashboardRunLimit = 500
+const runStatusPending = "pending"
 const runStatusRetrying = "retrying"
 
 type daemonStatusReader interface {
@@ -735,7 +736,7 @@ func buildTaskLanes(cards []TaskCard) []TaskLane {
 
 	orderedStatuses := make([]string, 0, len(grouped))
 	seen := make(map[string]struct{}, len(grouped))
-	for _, status := range []string{"pending", "running", "retrying", "completed", "failed", "canceled"} {
+	for _, status := range []string{runStatusPending, "running", "retrying", runStatusCompleted, "failed", "canceled"} {
 		if _, ok := grouped[status]; ok {
 			orderedStatuses = append(orderedStatuses, status)
 			seen[status] = struct{}{}
@@ -766,7 +767,7 @@ func buildTaskLanes(cards []TaskCard) []TaskLane {
 func normalizeLaneStatus(status string) string {
 	trimmed := strings.ToLower(strings.TrimSpace(status))
 	if trimmed == "" {
-		return "pending"
+		return runStatusPending
 	}
 	if trimmed == "canceled" {
 		return runStatusCancelled
@@ -776,13 +777,13 @@ func normalizeLaneStatus(status string) string {
 
 func laneTitle(status string) string {
 	switch normalizeLaneStatus(status) {
-	case "pending":
+	case runStatusPending:
 		return "Pending"
 	case "running", "in_progress", "in-progress":
 		return "In Progress"
 	case runStatusRetrying:
 		return "Retrying"
-	case "completed", "done", "finished":
+	case runStatusCompleted, "done", "finished":
 		return "Completed"
 	case "failed":
 		return "Failed"

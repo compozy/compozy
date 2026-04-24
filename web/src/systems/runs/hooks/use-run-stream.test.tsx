@@ -190,4 +190,25 @@ describe("useRunStream", () => {
     act(() => harness.controllers[1]!.emit({ type: "error", error: new Error("2") }));
     expect(result.current.status).toBe("closed");
   });
+
+  it("Should ignore error signals after an explicit close", () => {
+    const harness = createStreamHarness();
+    const schedule = collectReconnects();
+    const { result } = renderHook(() =>
+      useRunStream({
+        runId: "r-1",
+        factory: harness.factory,
+        scheduleReconnect: schedule.schedule,
+      })
+    );
+
+    const controller = harness.controllers[0]!;
+    act(() => controller.emit({ type: "open" }));
+    act(() => result.current.close());
+    act(() => controller.emit({ type: "error", error: new Error("closed by server") }));
+
+    expect(result.current.status).toBe("closed");
+    expect(result.current.error).toBeNull();
+    expect(schedule.schedule).not.toHaveBeenCalled();
+  });
 });

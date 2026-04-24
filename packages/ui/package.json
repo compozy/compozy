@@ -20,6 +20,9 @@
         "@fontsource/playfair-display": "^5.2.8",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "react-markdown": "^10.1.0",
+        "rehype-sanitize": "^6.0.0",
+        "remark-gfm": "^4.0.1",
         "tailwind-merge": "^3.5.0"
     },
     "devDependencies": {

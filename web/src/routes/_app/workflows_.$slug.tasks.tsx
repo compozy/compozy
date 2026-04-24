@@ -24,7 +24,7 @@ function WorkflowTasksBoardRoute(): ReactElement {
       header={
         <div className="flex w-full items-center justify-between gap-3">
           <button
-            className="text-xs text-accent hover:underline"
+            className="text-xs font-medium text-primary transition-colors hover:text-foreground"
             data-testid="task-board-back"
             onClick={() => void navigate({ to: "/workflows" })}
             type="button"

@@ -6,8 +6,9 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { act, render, screen } from "@testing-library/react";
+import type { RenderResult } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
+import { createContext, useContext, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { RunsListView, resolveStatusTone } from "./runs-list-view";
@@ -25,23 +26,30 @@ interface RenderProps {
   onModeChange?: (next: RunListModeFilter) => void;
 }
 
+const RunsListTestContext = createContext<RenderProps | null>(null);
+
 async function renderRunsList(props: RenderProps = {}) {
+  let currentProps: RenderProps = props;
   const rootRoute = createRootRoute();
   const indexRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/",
     component: function IndexRouteComponent(): ReactElement {
+      const value = useContext(RunsListTestContext);
+      if (!value) {
+        throw new Error("expected runs list test context");
+      }
       return (
         <RunsListView
-          degradedReason={props.degradedReason ?? null}
-          error={props.error ?? null}
-          isLoading={props.isLoading ?? false}
-          isRefetching={props.isRefetching ?? false}
-          modeFilter={props.modeFilter ?? "all"}
-          onModeChange={props.onModeChange ?? (() => {})}
-          onStatusChange={props.onStatusChange ?? (() => {})}
-          runs={props.runs ?? []}
-          statusFilter={props.statusFilter ?? "all"}
+          degradedReason={value.degradedReason ?? null}
+          error={value.error ?? null}
+          isLoading={value.isLoading ?? false}
+          isRefetching={value.isRefetching ?? false}
+          modeFilter={value.modeFilter ?? "all"}
+          onModeChange={value.onModeChange ?? (() => {})}
+          onStatusChange={value.onStatusChange ?? (() => {})}
+          runs={value.runs ?? []}
+          statusFilter={value.statusFilter ?? "all"}
           workspaceName="one"
         />
       );
@@ -60,10 +68,31 @@ async function renderRunsList(props: RenderProps = {}) {
     defaultPreload: false,
   });
   await router.load();
+  let renderResult: RenderResult | null = null;
   await act(async () => {
-    render(<RouterProvider router={router} />);
+    renderResult = render(
+      <RunsListTestContext.Provider value={currentProps}>
+        <RouterProvider router={router} />
+      </RunsListTestContext.Provider>
+    );
     await Promise.resolve();
   });
+  return {
+    rerender(nextProps: Partial<RenderProps>) {
+      if (renderResult === null) {
+        throw new Error("expected render result to be available");
+      }
+      const mounted = renderResult;
+      currentProps = { ...currentProps, ...nextProps };
+      act(() => {
+        mounted.rerender(
+          <RunsListTestContext.Provider value={currentProps}>
+            <RouterProvider router={router} />
+          </RunsListTestContext.Provider>
+        );
+      });
+    },
+  };
 }
 
 const runs: Run[] = [
@@ -106,6 +135,7 @@ describe("RunsListView", () => {
   it("Should render the loading state without rows", async () => {
     await renderRunsList({ runs: [], isLoading: true });
     expect(screen.getByTestId("runs-list-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("runs-list-loading-status")).toHaveTextContent("Loading runs");
   });
 
   it("Should render an error alert when the query fails", async () => {
@@ -127,6 +157,22 @@ describe("RunsListView", () => {
     expect(onStatusChange).toHaveBeenCalledWith("active");
     expect(onModeChange).toHaveBeenCalledWith("task");
   });
+
+  it("Should reset the workflow filter when the selected workflow disappears", async () => {
+    const view = await renderRunsList({ runs });
+    const firstRun = runs[0];
+    if (!firstRun) {
+      throw new Error("expected first run fixture");
+    }
+
+    await userEvent.selectOptions(screen.getByTestId("runs-filter-workflow"), "beta");
+    expect(screen.getByTestId("runs-list-row-run-2")).toBeInTheDocument();
+
+    view.rerender({ runs: [firstRun] });
+
+    expect((screen.getByTestId("runs-filter-workflow") as HTMLSelectElement).value).toBe("all");
+    expect(screen.getByTestId("runs-list-row-run-1")).toBeInTheDocument();
+  });
 });
 
 describe("resolveStatusTone", () => {
@@ -134,6 +180,7 @@ describe("resolveStatusTone", () => {
     expect(resolveStatusTone("running")).toBe("accent");
     expect(resolveStatusTone("completed")).toBe("success");
     expect(resolveStatusTone("failed")).toBe("danger");
+    expect(resolveStatusTone("crashed")).toBe("danger");
     expect(resolveStatusTone("canceled")).toBe("warning");
     expect(resolveStatusTone("unknown")).toBe("info");
   });

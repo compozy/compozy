@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 
 import { createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { Alert, SkeletonRow } from "@compozy/ui";
 
 import { apiErrorMessage } from "@/lib/api-client";
 import { AppShellLayout, useActiveWorkspaceContext } from "@/systems/app-shell";
@@ -24,7 +25,7 @@ function WorkflowSpecRoute(): ReactElement {
       header={
         <div className="flex w-full items-center justify-between gap-3">
           <button
-            className="text-xs text-accent hover:underline"
+            className="text-xs font-medium text-primary transition-colors hover:text-foreground"
             data-testid="workflow-spec-header-back"
             onClick={() => void navigate({ to: "/workflows" })}
             type="button"
@@ -36,18 +37,16 @@ function WorkflowSpecRoute(): ReactElement {
       }
     >
       {specQuery.isLoading && !specQuery.data ? (
-        <p className="text-sm text-muted-foreground" data-testid="workflow-spec-loading">
-          Loading workflow spec…
-        </p>
+        <div className="space-y-3" data-testid="workflow-spec-loading">
+          <p className="sr-only">Loading workflow spec…</p>
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
       ) : null}
       {specQuery.isError && !specQuery.data ? (
-        <p
-          className="rounded-[var(--radius-md)] border border-[color:var(--color-danger)] bg-black/20 px-4 py-3 text-sm text-[color:var(--color-danger)]"
-          data-testid="workflow-spec-load-error"
-          role="alert"
-        >
+        <Alert data-testid="workflow-spec-load-error" variant="error">
           {apiErrorMessage(specQuery.error, `Failed to load spec for ${slug}`)}
-        </p>
+        </Alert>
       ) : null}
       {specQuery.data ? (
         <WorkflowSpecView isRefreshing={specQuery.isRefetching} spec={specQuery.data} />
