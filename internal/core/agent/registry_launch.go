@@ -158,7 +158,18 @@ func resolveModel(spec Spec, modelName string) string {
 	if selected == "" {
 		selected = spec.DefaultModel
 	}
-	return modelprovider.ResolveAlias(selected)
+	return normalizeRuntimeModel(spec, modelprovider.ResolveAlias(selected))
+}
+
+func normalizeRuntimeModel(spec Spec, modelName string) string {
+	trimmed := strings.TrimSpace(modelName)
+	if spec.ID != model.IDECodex {
+		return trimmed
+	}
+	if unprefixed, ok := strings.CutPrefix(trimmed, model.IDECodex+"/"); ok {
+		return strings.TrimSpace(unprefixed)
+	}
+	return trimmed
 }
 
 func sortedEnvAssignments(env map[string]string) []string {

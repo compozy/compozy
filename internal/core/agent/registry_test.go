@@ -179,6 +179,18 @@ func TestValidateRuntimeConfigAcceptsAddDirsForSupportedIDE(t *testing.T) {
 	}
 }
 
+func TestResolveRuntimeModelNormalizesCodexProviderPrefix(t *testing.T) {
+	t.Parallel()
+
+	got, err := ResolveRuntimeModel(model.IDECodex, " codex/gpt-5.5 ")
+	if err != nil {
+		t.Fatalf("resolve runtime model: %v", err)
+	}
+	if got != "gpt-5.5" {
+		t.Fatalf("ResolveRuntimeModel() = %q, want %q", got, "gpt-5.5")
+	}
+}
+
 func TestBuildShellCommandStringUsesFallbackLauncherWhenPrimaryMissing(t *testing.T) {
 	tmpDir := t.TempDir()
 	npxPath := filepath.Join(tmpDir, "npx")
