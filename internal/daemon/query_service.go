@@ -305,7 +305,7 @@ func (s *queryService) TaskDetail(
 		workflowRootDir(workspace.RootDir, workflow.Slug),
 		workflow.Slug,
 		taskRow.SourcePath,
-		"task",
+		runModeTask,
 		taskRow.TaskID,
 	)
 	if err != nil {
@@ -850,7 +850,7 @@ func classifyMemoryEntry(displayPath string) string {
 	case strings.EqualFold(base, "MEMORY.md"):
 		return "workflow"
 	case taskscore.ExtractTaskNumber(base) > 0:
-		return "task"
+		return runModeTask
 	default:
 		return "memory"
 	}

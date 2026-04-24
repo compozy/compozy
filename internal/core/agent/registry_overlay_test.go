@@ -213,3 +213,24 @@ func TestActivateOverlaySupportsTypedLauncherAndBootstrapFields(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveRuntimeModelNormalizesCodexAliasTargetPrefix(t *testing.T) {
+	t.Run("Should normalize codex alias target prefix", func(t *testing.T) {
+		restoreModels, err := modelprovider.ActivateOverlay([]modelprovider.OverlayEntry{{
+			Name:   "frontier-codex",
+			Target: "codex/gpt-5.5",
+		}})
+		if err != nil {
+			t.Fatalf("activate model overlay: %v", err)
+		}
+		defer restoreModels()
+
+		got, err := ResolveRuntimeModel(model.IDECodex, "frontier-codex")
+		if err != nil {
+			t.Fatalf("resolve runtime model: %v", err)
+		}
+		if got != "gpt-5.5" {
+			t.Fatalf("ResolveRuntimeModel() = %q, want %q", got, "gpt-5.5")
+		}
+	})
+}

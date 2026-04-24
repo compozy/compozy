@@ -64,22 +64,22 @@ check-bun-version:
 	@echo "Checking Bun version..."
 	@if [ -z "$(BUNCMD)" ]; then \
 		echo "$(RED)Error: Bun is not available$(NC)"; \
-		echo "Please install Bun $(BUN_VERSION) before running frontend verification"; \
+		echo "Please install Bun $(BUN_VERSION) or newer before running frontend verification"; \
 		exit 1; \
 	fi
 	@REQUIRED_VERSION=$(BUN_VERSION); \
-	CURRENT_VERSION=$$($(BUNCMD) --version 2>/dev/null); \
+	CURRENT_VERSION=$$($(BUNCMD) --version 2>/dev/null | tr -d '\n'); \
 	if [ -z "$$CURRENT_VERSION" ]; then \
 		echo "$(RED)Error: Unable to determine Bun version$(NC)"; \
 		exit 1; \
 	elif CURRENT_NUM=$$(echo "$$CURRENT_VERSION" | awk -F. '{maj=$$1; min=$$2; pat=$$3; gsub(/[^0-9]/, "", maj); gsub(/[^0-9]/, "", min); gsub(/[^0-9]/, "", pat); printf "%03d%03d%03d", (maj==""?0:maj)+0, (min==""?0:min)+0, (pat==""?0:pat)+0}'); \
 	REQUIRED_NUM=$$(echo "$$REQUIRED_VERSION" | awk -F. '{maj=$$1; min=$$2; pat=$$3; gsub(/[^0-9]/, "", maj); gsub(/[^0-9]/, "", min); gsub(/[^0-9]/, "", pat); printf "%03d%03d%03d", (maj==""?0:maj)+0, (min==""?0:min)+0, (pat==""?0:pat)+0}'); \
-	[ "$$CURRENT_NUM" != "$$REQUIRED_NUM" ]; then \
-		echo "$(YELLOW)Warning: Bun version $$CURRENT_VERSION found, but $$REQUIRED_VERSION is required$(NC)"; \
-		echo "Please install Bun $$REQUIRED_VERSION before running frontend verification"; \
+	[ "$$CURRENT_NUM" -lt "$$REQUIRED_NUM" ]; then \
+		echo "$(YELLOW)Warning: Bun version $$CURRENT_VERSION found, but $$REQUIRED_VERSION or newer is required$(NC)"; \
+		echo "Please upgrade Bun to at least $$REQUIRED_VERSION before running frontend verification"; \
 		exit 1; \
 	else \
-		echo "$(GREEN)Bun version $$CURRENT_VERSION matches $$REQUIRED_VERSION$(NC)"; \
+		echo "$(GREEN)Bun version $$CURRENT_VERSION is compatible (minimum $$REQUIRED_VERSION)$(NC)"; \
 	fi
 
 link-skills:
