@@ -241,7 +241,7 @@ func documentTitle(path string, kind string, metadata map[string]any, markdown s
 	if title := metadataString(metadata, "title"); title != "" {
 		return title
 	}
-	if strings.EqualFold(strings.TrimSpace(kind), runModeTask) {
+	if strings.EqualFold(strings.TrimSpace(kind), markdownDocumentKindTask) {
 		if title := taskscore.ExtractTaskBodyTitle(markdown); title != "" {
 			return title
 		}

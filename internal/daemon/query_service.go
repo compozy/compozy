@@ -188,7 +188,13 @@ func (s *queryService) WorkflowSpec(
 		Workflow:  transportWorkflowSummary(workflow),
 	}
 
-	if prdDoc, ok, err := s.readWorkflowDocument(ctx, workflowRoot, "_prd.md", "prd", "prd"); err != nil {
+	if prdDoc, ok, err := s.readWorkflowDocument(
+		ctx,
+		workflowRoot,
+		"_prd.md",
+		markdownDocumentKindPRD,
+		markdownDocumentKindPRD,
+	); err != nil {
 		return WorkflowSpecDocument{}, err
 	} else if ok {
 		spec.PRD = &prdDoc
@@ -197,8 +203,8 @@ func (s *queryService) WorkflowSpec(
 		ctx,
 		workflowRoot,
 		"_techspec.md",
-		"techspec",
-		"techspec",
+		markdownDocumentKindTechSpec,
+		markdownDocumentKindTechSpec,
 	); err != nil {
 		return WorkflowSpecDocument{}, err
 	} else if ok {
@@ -217,7 +223,7 @@ func (s *queryService) WorkflowSpec(
 		doc, err := s.documents.Read(
 			ctx,
 			entry.absPath,
-			"adr",
+			markdownDocumentKindADR,
 			strings.TrimSuffix(filepath.Base(entry.displayPath), filepath.Ext(entry.displayPath)),
 		)
 		if err != nil {
@@ -275,10 +281,10 @@ func (s *queryService) WorkflowMemoryFile(
 		if entry.entry.FileID != trimmedID {
 			continue
 		}
-		return s.documents.Read(ctx, entry.absPath, "memory", entry.entry.FileID)
+		return s.documents.Read(ctx, entry.absPath, markdownDocumentKindMemory, entry.entry.FileID)
 	}
 	return MarkdownDocument{}, StaleDocumentReferenceError{
-		Kind:         "memory",
+		Kind:         markdownDocumentKindMemory,
 		WorkflowSlug: workflow.Slug,
 		Reference:    trimmedID,
 	}
@@ -305,7 +311,7 @@ func (s *queryService) TaskDetail(
 		workflowRootDir(workspace.RootDir, workflow.Slug),
 		workflow.Slug,
 		taskRow.SourcePath,
-		runModeTask,
+		markdownDocumentKindTask,
 		taskRow.TaskID,
 	)
 	if err != nil {
@@ -365,7 +371,7 @@ func (s *queryService) ReviewDetail(
 		workflowRootDir(workspace.RootDir, workflow.Slug),
 		workflow.Slug,
 		issueRow.SourcePath,
-		"review_issue",
+		markdownDocumentKindReviewIssue,
 		issueRow.ID,
 	)
 	if err != nil {
@@ -604,7 +610,7 @@ func (s *queryService) listMemoryDocuments(
 	for _, entry := range entries {
 		displayPath := filepath.ToSlash(filepath.Join("memory", entry.displayPath))
 		fileID := memoryFileID(workspace.ID, workflow.Slug, displayPath)
-		doc, err := s.documents.Read(ctx, entry.absPath, "memory", fileID)
+		doc, err := s.documents.Read(ctx, entry.absPath, markdownDocumentKindMemory, fileID)
 		if err != nil {
 			return nil, err
 		}
@@ -848,11 +854,11 @@ func classifyMemoryEntry(displayPath string) string {
 	base := filepath.Base(filepath.ToSlash(strings.TrimSpace(displayPath)))
 	switch {
 	case strings.EqualFold(base, "MEMORY.md"):
-		return "workflow"
+		return memoryEntryKindWorkflow
 	case taskscore.ExtractTaskNumber(base) > 0:
-		return runModeTask
+		return memoryEntryKindTask
 	default:
-		return "memory"
+		return memoryEntryKindMemory
 	}
 }
 

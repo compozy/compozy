@@ -362,7 +362,7 @@ func (s *commandState) enableExecutableExtensions() bool {
 	}
 
 	switch s.kind {
-	case commandKindStart, commandKindFixReviews:
+	case commandKindTasksRun, commandKindFixReviews:
 		return true
 	case commandKindExec:
 		return s.extensionsEnabled
@@ -418,7 +418,7 @@ func (s *commandState) isWorkflowExecutionCommand() bool {
 		return false
 	}
 	switch s.kind {
-	case commandKindStart, commandKindFixReviews:
+	case commandKindTasksRun, commandKindFixReviews:
 		return true
 	default:
 		return false
@@ -430,8 +430,8 @@ func (s *commandState) hasConfiguredWorkflowTUI() bool {
 		return false
 	}
 	switch s.kind {
-	case commandKindStart:
-		return s.projectConfig.Start.TUI != nil
+	case commandKindTasksRun:
+		return s.projectConfig.Tasks.Run.TUI != nil
 	case commandKindFixReviews:
 		return s.projectConfig.FixReviews.TUI != nil
 	default:

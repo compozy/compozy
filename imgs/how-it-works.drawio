@@ -25,7 +25,7 @@
         <mxCell id="sync" value="5. compozy sync --name user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Refresh workflow metadata before execution&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#7c3aed;strokeColor=#6d28d9;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
           <mxGeometry x="80" y="750" width="300" height="84" as="geometry" />
         </mxCell>
-        <mxCell id="start" value="6. compozy start --name user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;AI agents execute tasks with shared workflow memory&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#db2777;strokeColor=#be185d;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
+        <mxCell id="start" value="6. compozy tasks run user-auth&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;AI agents execute tasks with shared workflow memory&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#db2777;strokeColor=#be185d;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">
           <mxGeometry x="80" y="900" width="300" height="84" as="geometry" />
         </mxCell>
         <mxCell id="reviews" value="7. fetch-reviews or /cy-review-round&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Normalize review feedback into issue files&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ea580c;strokeColor=#c2410c;fontColor=#ffffff;fontStyle=1;arcSize=14;" vertex="1" parent="1">

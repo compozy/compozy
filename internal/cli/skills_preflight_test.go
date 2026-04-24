@@ -300,7 +300,7 @@ func TestScopeInstallFlagAndInstallScopeLabel(t *testing.T) {
 func TestVerifyRequiredSkillStateUsesSetupAgentNameAndExtensionScopeHint(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.listBundledSkills = func() ([]setup.Skill, error) {
 		return []setup.Skill{{Name: "cy-execute-task"}, {Name: "cy-final-verify"}}, nil
 	}

@@ -127,17 +127,17 @@ func (s *commandState) applyProjectConfig(cmd *cobra.Command, cfg workspace.Proj
 	)
 
 	switch s.kind {
-	case commandKindStart:
+	case commandKindTasksRun:
 		applyConfig(cmd, "attach", cfg.Runs.DefaultAttachMode, func(val string) { s.attachMode = val })
-		applyConfig(cmd, "format", cfg.Start.OutputFormat, func(val string) { s.outputFormat = val })
-		applyConfig(cmd, "tui", cfg.Start.TUI, func(val bool) { s.tui = val })
+		applyConfig(cmd, "format", cfg.Tasks.Run.OutputFormat, func(val string) { s.outputFormat = val })
+		applyConfig(cmd, "tui", cfg.Tasks.Run.TUI, func(val bool) { s.tui = val })
 		s.configuredTaskRuntimeRules = model.CloneTaskRuntimeRules(
-			derefTaskRuntimeRulesConfig(cfg.Start.TaskRuntimeRules),
+			derefTaskRuntimeRulesConfig(cfg.Tasks.Run.TaskRuntimeRules),
 		)
 		applyConfig(
 			cmd,
 			"include-completed",
-			cfg.Start.IncludeCompleted,
+			cfg.Tasks.Run.IncludeCompleted,
 			func(val bool) { s.includeCompleted = val },
 		)
 	case commandKindFixReviews:

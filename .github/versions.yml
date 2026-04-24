@@ -11,10 +11,12 @@ versions:
   bun: "1.2.22"
 
   # GitHub Actions versions
-  actions_checkout: "v4"
-  actions_cache: "v4"
-  actions_setup_go: "v5"
-  actions_upload_artifact: "v4"
+  actions_checkout: "v6"
+  actions_cache: "v5"
+  actions_setup_go: "v6"
+  actions_setup_node: "v6"
+  actions_upload_artifact: "v7"
+  dorny_paths_filter: "v4"
 
   # Security scanning tools
   cosign: "v2.2.4"

@@ -22,7 +22,7 @@ const (
 	commandKindFixReviews   commandKind = "reviews fix"
 	commandKindExec         commandKind = "exec"
 	commandKindArchive      commandKind = "archive"
-	commandKindStart        commandKind = "tasks run"
+	commandKindTasksRun     commandKind = "tasks run"
 	commandKindSync         commandKind = "sync"
 )
 

@@ -234,7 +234,7 @@ func TestShouldWriteUpdateNotification(t *testing.T) {
 		{
 			name: "Should suppress notification for raw-json output",
 			cmd: func() *cobra.Command {
-				cmd := &cobra.Command{Use: "start"}
+				cmd := &cobra.Command{Use: "exec"}
 				cmd.Flags().String("format", "text", "")
 				if err := cmd.Flags().Set("format", "raw-json"); err != nil {
 					t.Fatalf("set format flag: %v", err)

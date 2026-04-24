@@ -215,7 +215,7 @@ function normalizeOptions(options: HarnessOptions): Required<HarnessOptions> {
       run_id: options.runtime?.run_id ?? "run-test",
       parent_run_id: options.runtime?.parent_run_id ?? "",
       workspace_root: options.runtime?.workspace_root ?? ".",
-      invoking_command: options.runtime?.invoking_command ?? "start",
+      invoking_command: options.runtime?.invoking_command ?? "tasks run",
       shutdown_timeout_ms: options.runtime?.shutdown_timeout_ms ?? 1000,
       default_hook_timeout_ms: options.runtime?.default_hook_timeout_ms ?? 5000,
       health_check_interval_ms: options.runtime?.health_check_interval_ms ?? 0,

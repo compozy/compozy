@@ -168,14 +168,14 @@ auto_commit = false
 max_retries = 2
 retry_backoff_multiplier = 1.5
 
-[start]
+[tasks]
+types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "bugfix"]
+
+[tasks.run]
 include_completed = false
 
 [exec]
 output_format = "text"
-
-[tasks]
-types = ["frontend", "backend", "docs", "test", "infra", "refactor", "chore", "bugfix"]
 
 [fix_reviews]
 concurrent = 2
@@ -191,8 +191,8 @@ Supported sections:
 
 - `[defaults]` for shared execution defaults such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `auto_commit`, `max_retries`, and `retry_backoff_multiplier`
 - `[exec]` for `output_format` plus exec-specific runtime overrides such as `ide`, `model`, `reasoning_effort`, `access_mode`, `timeout`, `tail_lines`, `add_dirs`, `max_retries`, and `retry_backoff_multiplier`
-- `[start]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`
 - `[tasks]` for the allowed task `type` list used by `cy-create-tasks` and `compozy tasks validate`
+- `[tasks.run]` for workflow-run defaults used by `compozy tasks run`, such as `include_completed`
 - `[fix_reviews]` for `concurrent`, `batch_size`, and `include_resolved`
 - `[fetch_reviews]` for `provider` and `nitpicks` (controls CodeRabbit review-body comments; default is enabled when unset)
 - `[sound]` for optional run-completion audio presets or absolute file paths

@@ -27,13 +27,13 @@ jobs:
     outputs:
       verify: ${{ steps.filter.outputs.verify }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Filter paths
         id: filter
-        uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v4
         with:
           filters: |
             verify:
@@ -68,7 +68,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go with caching
         uses: ./.github/actions/setup-go
@@ -90,7 +90,7 @@ jobs:
           CGO_ENABLED: 1
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: verify-results-go-${{ env.GO_VERSION }}
@@ -98,4 +98,5 @@ jobs:
             coverage.out
             test-results.xml
             .tmp/playwright/**
+          if-no-files-found: ignore
           retention-days: 7

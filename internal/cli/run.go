@@ -14,12 +14,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func (s *commandState) run(cmd *cobra.Command, _ []string) error {
-	return s.prepareAndRun(cmd, func(cmd *cobra.Command) error {
-		return s.maybeCollectInteractiveParams(cmd)
-	}, false)
-}
-
 func (s *commandState) exec(cmd *cobra.Command, args []string) error {
 	return s.prepareAndRun(cmd, func(cmd *cobra.Command) error {
 		return s.resolveExecPromptSource(cmd, args)
@@ -216,7 +210,7 @@ func isReusableAgentValidationText(err error) bool {
 }
 
 func (s *commandState) preflightTaskMetadata(ctx context.Context, cmd *cobra.Command, cfg core.Config) error {
-	if s.kind != commandKindStart || cfg.Mode != core.ModePRDTasks {
+	if s.kind != commandKindTasksRun || cfg.Mode != core.ModePRDTasks {
 		return nil
 	}
 

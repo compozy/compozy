@@ -322,7 +322,7 @@ func invokingCommandForMode(mode model.ExecutionMode) string {
 	case model.ExecutionModePRReview:
 		return invokingCommandFixReviews
 	default:
-		return invokingCommandStart
+		return invokingCommandTasksRun
 	}
 }
 

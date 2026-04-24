@@ -50,7 +50,7 @@ func TestPrepareAndRunInstallsEnabledExtensionSkillPackDuringPreflight(t *testin
 	)
 	enableBootstrapWorkspaceExtension(t, homeDir, workspaceRoot, "skills-ext")
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.ide = string(core.IDECodex)
 	state.skipValidation = true
 	state.isInteractive = func() bool { return true }
@@ -117,7 +117,7 @@ func TestPrepareAndRunIgnoresDisabledExtensionSkillPack(t *testing.T) {
 		"---\nname: ext-pack\ndescription: Extension skill\n---\n",
 	)
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.ide = string(core.IDECodex)
 	state.skipValidation = true
 	state.isInteractive = func() bool { return true }
@@ -236,7 +236,7 @@ func TestPrepareAndRunAcceptsEnabledExtensionACPRuntimeOverlay(t *testing.T) {
 	writeBootstrapManifestJSON(t, extensionDir, manifest)
 	enableBootstrapWorkspaceExtension(t, homeDir, workspaceRoot, "runtime-ext")
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.ide = "ext-adapter"
 	state.skipValidation = true
 	state.listBundledSkills = func() ([]setup.Skill, error) { return nil, nil }
@@ -291,7 +291,7 @@ func TestBootstrapDeclarativeAssetsActivatesModelAliasOverlay(t *testing.T) {
 	writeBootstrapManifestJSON(t, extensionDir, manifest)
 	enableBootstrapWorkspaceExtension(t, homeDir, workspaceRoot, "model-ext")
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	assets, cleanup, err := state.bootstrapDeclarativeAssetsForWorkspaceRoot(
 		context.Background(),
 		workspaceRoot,

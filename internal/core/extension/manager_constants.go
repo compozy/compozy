@@ -1,6 +1,7 @@
 package extensions
 
 const (
-	invokingCommandFixReviews = "fix-reviews"
-	invokingCommandStart      = "start"
+	hostRunStartVerb          = "start"
+	invokingCommandFixReviews = "reviews fix"
+	invokingCommandTasksRun   = "tasks run"
 )

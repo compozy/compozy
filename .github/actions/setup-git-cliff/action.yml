@@ -26,7 +26,7 @@ runs:
 
     - name: Cache git-cliff installation
       id: cache-cliff
-      uses: actions/cache@v4
+      uses: actions/cache@v5
       with:
         path: |
           ~/.bun/install/global

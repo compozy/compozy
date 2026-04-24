@@ -6,22 +6,6 @@
   src: url("./assets/fonts/Nippo-Variable.woff2") format("woff2");
 }
 
-@font-face {
-  font-display: swap;
-  font-family: "Disket Mono";
-  font-style: normal;
-  font-weight: 400;
-  src: url("./assets/fonts/Disket-Mono-Regular.ttf") format("truetype");
-}
-
-@font-face {
-  font-display: swap;
-  font-family: "Disket Mono";
-  font-style: normal;
-  font-weight: 700;
-  src: url("./assets/fonts/Disket-Mono-Bold.ttf") format("truetype");
-}
-
 :root {
   color-scheme: dark;
 
@@ -98,11 +82,9 @@
   --chart-5: #75675b;
 
   --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono:
-    "Disket Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-display: "Nippo", var(--font-sans);
-  --font-eyebrow: "Disket Mono", var(--font-mono);
+  --font-eyebrow: var(--font-mono);
 
   --radius: 0.75rem;
   --radius-sm: calc(var(--radius) - 4px);

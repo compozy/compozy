@@ -28,7 +28,7 @@ type taskRuntimeTaskOption struct {
 	Label string
 }
 
-type startTaskRuntimeForm struct {
+type taskRunRuntimeForm struct {
 	selectedTypes []string
 	selectedTasks []string
 	typeOptions   []taskRuntimeTypeOption
@@ -38,12 +38,12 @@ type startTaskRuntimeForm struct {
 	baseRuntime   string
 }
 
-func collectStartTaskRuntimeForm(cmd *cobra.Command, state *commandState) error {
-	if state == nil || state.kind != commandKindStart {
+func collectTaskRunRuntimeForm(cmd *cobra.Command, state *commandState) error {
+	if state == nil || state.kind != commandKindTasksRun {
 		return nil
 	}
 
-	form, err := newStartTaskRuntimeForm(state)
+	form, err := newTaskRunRuntimeForm(state)
 	if err != nil || form == nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func collectStartTaskRuntimeForm(cmd *cobra.Command, state *commandState) error 
 	return nil
 }
 
-func newStartTaskRuntimeForm(state *commandState) (*startTaskRuntimeForm, error) {
+func newTaskRunRuntimeForm(state *commandState) (*taskRunRuntimeForm, error) {
 	tasksDir, err := resolveTaskWorkflowDir(state.workspaceRoot, state.name, state.tasksDir)
 	if err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func newStartTaskRuntimeForm(state *commandState) (*startTaskRuntimeForm, error)
 		return nil, nil
 	}
 
-	form := &startTaskRuntimeForm{
+	form := &taskRunRuntimeForm{
 		typeEditors: make(map[string]*taskRuntimeEditor),
 		taskEditors: make(map[string]*taskRuntimeEditor),
 		baseRuntime: formatBaseTaskRuntime(state),
@@ -81,7 +81,7 @@ func newStartTaskRuntimeForm(state *commandState) (*startTaskRuntimeForm, error)
 	return form, nil
 }
 
-func (f *startTaskRuntimeForm) build() *huh.Form {
+func (f *taskRunRuntimeForm) build() *huh.Form {
 	groups := []*huh.Group{
 		huh.NewGroup(f.selectorFields()...).Title("Per-Task Runtime"),
 	}
@@ -130,7 +130,7 @@ func (f *startTaskRuntimeForm) build() *huh.Form {
 	return huh.NewForm(groups...).WithTheme(darkHuhTheme())
 }
 
-func (f *startTaskRuntimeForm) selectorFields() []huh.Field {
+func (f *taskRunRuntimeForm) selectorFields() []huh.Field {
 	fields := []huh.Field{
 		huh.NewNote().
 			Title("Task Runtime Overrides").
@@ -180,7 +180,7 @@ func indexTaskRuntimeRules(
 	return typeRuleByValue, taskRuleByID
 }
 
-func (f *startTaskRuntimeForm) populate(
+func (f *taskRunRuntimeForm) populate(
 	entries []model.IssueEntry,
 	typeRuleByValue map[string]model.TaskRuntimeRule,
 	taskRuleByID map[string]model.TaskRuntimeRule,
@@ -194,7 +194,7 @@ func (f *startTaskRuntimeForm) populate(
 	return nil
 }
 
-func (f *startTaskRuntimeForm) addEntry(
+func (f *taskRunRuntimeForm) addEntry(
 	entry model.IssueEntry,
 	seenTypes map[string]struct{},
 	typeRuleByValue map[string]model.TaskRuntimeRule,
@@ -221,7 +221,7 @@ func (f *startTaskRuntimeForm) addEntry(
 	return nil
 }
 
-func (f *startTaskRuntimeForm) addTypeOption(
+func (f *taskRunRuntimeForm) addTypeOption(
 	taskType string,
 	seenTypes map[string]struct{},
 	typeRuleByValue map[string]model.TaskRuntimeRule,
@@ -242,7 +242,7 @@ func (f *startTaskRuntimeForm) addTypeOption(
 	}
 }
 
-func (f *startTaskRuntimeForm) ensureEditors() {
+func (f *taskRunRuntimeForm) ensureEditors() {
 	for _, opt := range f.typeOptions {
 		if _, ok := f.typeEditors[opt.Value]; !ok {
 			f.typeEditors[opt.Value] = &taskRuntimeEditor{}
@@ -255,7 +255,7 @@ func (f *startTaskRuntimeForm) ensureEditors() {
 	}
 }
 
-func (f *startTaskRuntimeForm) apply(state *commandState) {
+func (f *taskRunRuntimeForm) apply(state *commandState) {
 	state.replaceConfiguredTaskRunRules = true
 	state.executionTaskRuntimeRules = nil
 

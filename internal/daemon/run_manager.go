@@ -719,7 +719,7 @@ func (m *RunManager) prepareTaskStart(
 	); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
-	applyTaskProjectConfig(runtimeCfg, projectCfg.Start)
+	applyTaskProjectConfig(runtimeCfg, projectCfg.Tasks.Run)
 	if err := applyRuntimeOverrideInput(runtimeCfg, overrides); err != nil {
 		return globaldb.Workspace{}, nil, nil, "", err
 	}
@@ -2254,7 +2254,7 @@ func applyRuntimeOverridesFromProject(
 	return nil
 }
 
-func applyTaskProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.StartConfig) {
+func applyTaskProjectConfig(cfg *model.RuntimeConfig, projectCfg workspacecfg.TaskRunConfig) {
 	if cfg == nil {
 		return
 	}

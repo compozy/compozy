@@ -1159,7 +1159,7 @@ func TestRunManagerHelperOverridesAndUtilities(t *testing.T) {
 		}, "defaults"); err != nil {
 			t.Fatalf("applyRuntimeOverridesFromProject() error = %v", err)
 		}
-		applyTaskProjectConfig(cfg, workspacecfg.StartConfig{
+		applyTaskProjectConfig(cfg, workspacecfg.TaskRunConfig{
 			IncludeCompleted: boolPtr(true),
 			OutputFormat:     stringPtr(string(model.OutputFormatRawJSON)),
 			TaskRuntimeRules: &rules,

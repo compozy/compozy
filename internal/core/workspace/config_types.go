@@ -13,7 +13,6 @@ type Context struct {
 
 type ProjectConfig struct {
 	Defaults     DefaultsConfig     `toml:"defaults"`
-	Start        StartConfig        `toml:"start"`
 	Tasks        TasksConfig        `toml:"tasks"`
 	FixReviews   FixReviewsConfig   `toml:"fix_reviews"`
 	FetchReviews FetchReviewsConfig `toml:"fetch_reviews"`
@@ -38,7 +37,7 @@ type RuntimeOverrides struct {
 
 type DefaultsConfig RuntimeOverrides
 
-type StartConfig struct {
+type TaskRunConfig struct {
 	IncludeCompleted *bool                    `toml:"include_completed"`
 	OutputFormat     *string                  `toml:"output_format"`
 	TUI              *bool                    `toml:"tui"`
@@ -46,7 +45,8 @@ type StartConfig struct {
 }
 
 type TasksConfig struct {
-	Types *[]string `toml:"types"`
+	Types *[]string     `toml:"types"`
+	Run   TaskRunConfig `toml:"run"`
 }
 
 type FixReviewsConfig struct {

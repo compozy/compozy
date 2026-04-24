@@ -134,7 +134,7 @@ const RUNS = [
     jobs_total: 12, jobs_done: 7, jobs_running: 2, jobs_failed: 1, jobs_pending: 2,
     model: "Sonnet 4.5", reasoning: "medium", concurrent: 2, batch: 3,
     tokens_in: "284.2k", tokens_out: "38.7k",
-    command: "compozy start --name user-auth --ide claude --concurrent 2 --batch-size 3",
+    command: "compozy tasks run user-auth --ide claude",
   },
   {
     id: "run_18b3",
@@ -146,7 +146,7 @@ const RUNS = [
     jobs_total: 6, jobs_done: 6, jobs_running: 0, jobs_failed: 0, jobs_pending: 0,
     model: "Sonnet 4.5", reasoning: "medium", concurrent: 1, batch: 1,
     tokens_in: "142.1k", tokens_out: "17.4k",
-    command: "compozy start --name manifest-v2 --ide claude",
+    command: "compozy tasks run manifest-v2 --ide claude",
   },
   {
     id: "run_3c2e",
@@ -158,7 +158,7 @@ const RUNS = [
     jobs_total: 5, jobs_done: 2, jobs_running: 0, jobs_failed: 1, jobs_pending: 2,
     model: "2.5 Pro", reasoning: "medium", concurrent: 1, batch: 1,
     tokens_in: "88.3k", tokens_out: "9.2k",
-    command: "compozy start --name skill-banner --ide gemini",
+    command: "compozy tasks run skill-banner --ide gemini",
   },
   {
     id: "run_5d1a",
@@ -170,7 +170,7 @@ const RUNS = [
     jobs_total: 8, jobs_done: 3, jobs_running: 0, jobs_failed: 0, jobs_pending: 5,
     model: "gpt-5-codex", reasoning: "high", concurrent: 1, batch: 1,
     tokens_in: "61.0k", tokens_out: "6.8k",
-    command: "compozy start --name multi-repo --ide codex --reasoning-effort high",
+    command: "compozy tasks run multi-repo --ide codex --reasoning-effort high",
   },
   {
     id: "run_11a8",
@@ -182,7 +182,7 @@ const RUNS = [
     jobs_total: 9, jobs_done: 9, jobs_running: 0, jobs_failed: 0, jobs_pending: 0,
     model: "Sonnet 4.5", reasoning: "medium", concurrent: 2, batch: 2,
     tokens_in: "312.5k", tokens_out: "44.1k",
-    command: "compozy start --name stream-chunks --ide claude --concurrent 2",
+    command: "compozy tasks run stream-chunks --ide claude --stream",
   },
 ];
 

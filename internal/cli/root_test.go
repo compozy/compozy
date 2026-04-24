@@ -721,7 +721,7 @@ func TestBuildConfigNormalizesReviewAddDirs(t *testing.T) {
 func TestBuildConfigUsesTaskFlagsForStartWorkflow(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.name = "multi-repo"
 	state.tasksDir = ".compozy/tasks/multi-repo"
 	state.includeCompleted = true
@@ -760,7 +760,7 @@ func TestBuildConfigRejectsNonPositiveTimeout(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			state := newCommandState(commandKindStart, core.ModePRDTasks)
+			state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 			state.timeout = tt.timeout
 
 			_, err := state.buildConfig()
@@ -857,7 +857,7 @@ func TestAddCommonFlagsUseOptInRetryDefaults(t *testing.T) {
 	t.Run("Should default max-retries to zero", func(t *testing.T) {
 		t.Parallel()
 
-		state := newCommandState(commandKindStart, core.ModePRDTasks)
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 		cmd := newTestCommand(state)
 
 		if got := state.maxRetries; got != defaultMaxRetries {
@@ -879,7 +879,7 @@ func TestFormInputsApplyPreservesExistingTaskRuntimeRulesWhenFormIsSkipped(t *te
 	t.Run("Should keep configured and execution task runtime rules when the extra form is skipped", func(t *testing.T) {
 		t.Parallel()
 
-		state := newCommandState(commandKindStart, core.ModePRDTasks)
+		state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 		state.configuredTaskRuntimeRules = []model.TaskRuntimeRule{{
 			Type:  stringPointer("frontend"),
 			IDE:   stringPointer("claude"),
@@ -1305,7 +1305,7 @@ func TestFormInputsApplyParsesQuotedAddDirs(t *testing.T) {
 func TestFormInputsApplyForStartWorkflow(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 	cmd.Flags().String("name", "", "task name")
 	cmd.Flags().String("tasks-dir", "", "tasks dir")
@@ -1333,7 +1333,7 @@ func TestFormInputsApplyForStartWorkflow(t *testing.T) {
 func TestMaybeCollectInteractiveParamsUsesFormWhenNoFlags(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 
 	called := false
@@ -1357,7 +1357,7 @@ func TestMaybeCollectInteractiveParamsUsesFormWhenNoFlags(t *testing.T) {
 func TestMaybeCollectInteractiveParamsReturnsClearErrorWithoutTTY(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 
 	called := false
@@ -1382,7 +1382,7 @@ func TestMaybeCollectInteractiveParamsReturnsClearErrorWithoutTTY(t *testing.T) 
 func TestMaybeCollectInteractiveParamsSkipsFormWhenAnyFlagIsProvided(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	cmd := newTestCommand(state)
 
 	called := false
@@ -1469,7 +1469,7 @@ timeout = "not-a-duration"
 func TestRunPreparedBlocksStartWhenBundledSkillsAreMissing(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.listBundledSkills = func() ([]setup.Skill, error) {
 		return []setup.Skill{
 			{Name: "cy-execute-task", Description: "Execute a task"},
@@ -1559,7 +1559,7 @@ func TestRunPreparedBlocksFixReviewsWhenBundledSkillsAreMissing(t *testing.T) {
 func TestRunPreparedRefreshesDriftedSkillsBeforeRunningWorkflow(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.isInteractive = func() bool { return true }
 	state.skipValidation = true
 	state.listBundledSkills = func() ([]setup.Skill, error) {
@@ -1667,7 +1667,7 @@ func TestRunPreparedRefreshesDriftedSkillsBeforeRunningWorkflow(t *testing.T) {
 func TestRunPreparedContinuesWhenInteractiveRefreshIsDeclined(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.isInteractive = func() bool { return true }
 	state.skipValidation = true
 	state.listBundledSkills = func() ([]setup.Skill, error) {
@@ -1725,7 +1725,7 @@ func TestRunPreparedContinuesWhenInteractiveRefreshIsDeclined(t *testing.T) {
 func TestRunPreparedWarnsAndContinuesOnNonInteractiveDrift(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.isInteractive = func() bool { return false }
 	state.skipValidation = true
 	state.listBundledSkills = func() ([]setup.Skill, error) {
@@ -1779,7 +1779,7 @@ func TestRunPreparedWarnsAndContinuesOnNonInteractiveDrift(t *testing.T) {
 func TestRunPreparedStartSkipValidationBypassesTaskValidation(t *testing.T) {
 	t.Parallel()
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	allowBundledSkillsForStartTest(state)
 	state.skipValidation = true
 	state.workspaceRoot = t.TempDir()
@@ -1817,7 +1817,7 @@ func TestRunPreparedStartNonInteractiveValidationFailureBlocksWorkflow(t *testin
 		"# Task 1: Missing Title",
 	))
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	allowBundledSkillsForStartTest(state)
 	state.isInteractive = func() bool { return false }
 	state.workspaceRoot = workspaceRoot
@@ -1868,7 +1868,7 @@ func TestRunPreparedStartNonInteractiveForceContinuesPastValidationFailure(t *te
 		"# Task 1: Missing Title",
 	))
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	allowBundledSkillsForStartTest(state)
 	state.isInteractive = func() bool { return false }
 	state.workspaceRoot = workspaceRoot
@@ -1980,7 +1980,7 @@ func TestCommandStateDefaultsWithFallbacksPreservesExplicitFunctions(t *testing.
 func newTestCommand(state *commandState) *cobra.Command {
 	cmd := &cobra.Command{Use: "test"}
 	addCommonFlags(cmd, state, commonFlagOptions{includeConcurrent: state.kind == commandKindFixReviews})
-	if state.kind == commandKindStart || state.kind == commandKindFixReviews {
+	if state.kind == commandKindTasksRun || state.kind == commandKindFixReviews {
 		addWorkflowOutputFlags(cmd, state)
 	}
 	return cmd

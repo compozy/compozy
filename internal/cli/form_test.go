@@ -17,16 +17,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
+func TestTasksRunFormHidesSequentialOnlyFields(t *testing.T) {
 	t.Parallel()
 
-	keys := formFieldKeys(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
+	keys := formFieldKeys(
+		newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		newCommandState(commandKindTasksRun, core.ModePRDTasks),
+	)
 
 	assertFieldKeysPresent(
 		t,
 		keys,
 		"name",
-		"tasks-dir",
 		"ide",
 		"model",
 		"add-dir",
@@ -34,7 +36,17 @@ func TestStartFormHidesSequentialOnlyFields(t *testing.T) {
 		"define-task-runtime",
 		"auto-commit",
 	)
-	assertFieldKeysAbsent(t, keys, "concurrent", "dry-run", "include-completed", "tail-lines", "access-mode", "timeout")
+	assertFieldKeysAbsent(
+		t,
+		keys,
+		"tasks-dir",
+		"concurrent",
+		"dry-run",
+		"include-completed",
+		"tail-lines",
+		"access-mode",
+		"timeout",
+	)
 }
 
 func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
@@ -62,7 +74,7 @@ func TestFixReviewsFormKeepsConcurrentButHidesUnneededFields(t *testing.T) {
 	assertFieldKeysAbsent(t, keys, "dry-run", "include-resolved", "tail-lines", "access-mode", "timeout")
 }
 
-func TestStartFormUsesSelectWhenTaskDirsExist(t *testing.T) {
+func TestTasksRunFormUsesSelectWhenTaskDirsExist(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
@@ -74,8 +86,8 @@ func TestStartFormUsesSelectWhenTaskDirsExist(t *testing.T) {
 	}
 
 	keys := formFieldKeysWithBaseDir(
-		newStartCommand(),
-		newCommandState(commandKindStart, core.ModePRDTasks),
+		newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		newCommandState(commandKindTasksRun, core.ModePRDTasks),
 		baseDir,
 	)
 
@@ -83,22 +95,23 @@ func TestStartFormUsesSelectWhenTaskDirsExist(t *testing.T) {
 	assertFieldKeysAbsent(t, keys, "tasks-dir")
 }
 
-func TestStartFormFallsBackToInputWhenNoDirs(t *testing.T) {
+func TestTasksRunFormFallsBackToInputWhenNoDirs(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
 	baseDir := filepath.Join(tmp, ".compozy", "tasks")
 
 	keys := formFieldKeysWithBaseDir(
-		newStartCommand(),
-		newCommandState(commandKindStart, core.ModePRDTasks),
+		newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		newCommandState(commandKindTasksRun, core.ModePRDTasks),
 		baseDir,
 	)
 
-	assertFieldKeysPresent(t, keys, "name", "tasks-dir")
+	assertFieldKeysPresent(t, keys, "name")
+	assertFieldKeysAbsent(t, keys, "tasks-dir")
 }
 
-func TestStartFormFallsBackToInputWhenAllTaskDirsAreCompleted(t *testing.T) {
+func TestTasksRunFormFallsBackToInputWhenAllTaskDirsAreCompleted(t *testing.T) {
 	t.Parallel()
 
 	tmp := t.TempDir()
@@ -122,12 +135,13 @@ func TestStartFormFallsBackToInputWhenAllTaskDirsAreCompleted(t *testing.T) {
 	}
 
 	keys := formFieldKeysWithBaseDir(
-		newStartCommand(),
-		newCommandState(commandKindStart, core.ModePRDTasks),
+		newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+		newCommandState(commandKindTasksRun, core.ModePRDTasks),
 		baseDir,
 	)
 
-	assertFieldKeysPresent(t, keys, "name", "tasks-dir")
+	assertFieldKeysPresent(t, keys, "name")
+	assertFieldKeysAbsent(t, keys, "tasks-dir")
 }
 
 func TestFetchReviewsUsesSelectWhenTaskDirsExist(t *testing.T) {
@@ -291,7 +305,7 @@ func TestListStartTaskSubdirsFiltersCompletedWorkflows(t *testing.T) {
 		t.Fatalf("write completed meta: %v", err)
 	}
 
-	dirs := listStartTaskSubdirs(baseDir)
+	dirs := listTaskRunSubdirs(baseDir)
 	want := []string{"alpha", "gamma"}
 	if len(dirs) != len(want) {
 		t.Fatalf("got %v, want %v", dirs, want)
@@ -311,7 +325,7 @@ func TestListStartTaskSubdirsFiltersCompletedWorkflows(t *testing.T) {
 	}
 }
 
-func TestStartTaskRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
+func TestTaskRunRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 	t.Parallel()
 
 	workspaceRoot := t.TempDir()
@@ -321,7 +335,7 @@ func TestStartTaskRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 	}
 	writeFormTaskFile(t, tasksDir, "task_01.md", "pending")
 
-	state := newCommandState(commandKindStart, core.ModePRDTasks)
+	state := newCommandState(commandKindTasksRun, core.ModePRDTasks)
 	state.workspaceRoot = workspaceRoot
 	state.name = "demo"
 	state.ide = "codex"
@@ -333,9 +347,9 @@ func TestStartTaskRuntimeFormPreseedsConfiguredTypeRules(t *testing.T) {
 		ReasoningEffort: stringPointer("high"),
 	}}
 
-	form, err := newStartTaskRuntimeForm(state)
+	form, err := newTaskRunRuntimeForm(state)
 	if err != nil {
-		t.Fatalf("newStartTaskRuntimeForm() error = %v", err)
+		t.Fatalf("newTaskRunRuntimeForm() error = %v", err)
 	}
 	if form == nil {
 		t.Fatal("expected task runtime form")
@@ -359,7 +373,10 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 		t.Parallel()
 
 		var selected string
-		builder := newFormBuilder(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
+		builder := newFormBuilder(
+			newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+			newCommandState(commandKindTasksRun, core.ModePRDTasks),
+		)
 		builder.addIDEField(&selected)
 
 		view := renderSingleFormFieldForTest(t, builder.fields, "ide")
@@ -375,7 +392,10 @@ func TestFormSelectOptionsOmitRecommendedSuffixes(t *testing.T) {
 		t.Parallel()
 
 		var selected string
-		builder := newFormBuilder(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
+		builder := newFormBuilder(
+			newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+			newCommandState(commandKindTasksRun, core.ModePRDTasks),
+		)
 		builder.addReasoningEffortField(&selected)
 
 		view := renderSingleFormFieldForTest(t, builder.fields, "reasoning-effort")
@@ -414,7 +434,10 @@ func TestFormSelectOptionsIncludeExtensionCatalogEntries(t *testing.T) {
 	defer restoreProvider()
 
 	t.Run("ShouldRenderOverlayIDEInTheSelectField", func(t *testing.T) {
-		builder := newFormBuilder(newStartCommand(), newCommandState(commandKindStart, core.ModePRDTasks))
+		builder := newFormBuilder(
+			newTasksRunCommandWithDefaults(nil, defaultCommandStateDefaults()),
+			newCommandState(commandKindTasksRun, core.ModePRDTasks),
+		)
 		selected := "ext-adapter"
 		builder.addIDEField(&selected)
 		if len(builder.fields) != 1 {
