@@ -589,6 +589,67 @@ func TestMigrateV1ToV2InfersInfraForFeatureImplementationWhenDomainMatches(t *te
 	}
 }
 
+func TestInferTaskTypeFromLegacyDomainUsesTokenBoundaries(t *testing.T) {
+	t.Parallel()
+
+	registry := mustMigrationRegistry(t)
+	tests := []struct {
+		name   string
+		domain string
+		want   string
+	}{
+		{
+			name:   "ui token maps to frontend",
+			domain: "UI, Runtime",
+			want:   "frontend",
+		},
+		{
+			name:   "substring build does not match ui",
+			domain: "Build Runtime",
+			want:   "backend",
+		},
+		{
+			name:   "substring linux does not match ux",
+			domain: "Linux Runtime",
+			want:   "backend",
+		},
+		{
+			name:   "substring devops token maps to infra",
+			domain: "DevOps",
+			want:   "infra",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := inferTaskTypeFromLegacyDomain(tt.domain, registry); got != tt.want {
+				t.Fatalf("inferTaskTypeFromLegacyDomain(%q) = %q, want %q", tt.domain, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractLegacyXMLTagPrefersTaskContextBlock(t *testing.T) {
+	t.Parallel()
+
+	content := strings.Join([]string{
+		"## status: pending",
+		"",
+		"<task_context>",
+		"  <type>Feature Implementation</type>",
+		"</task_context>",
+		"",
+		"Example body with <type>docs</type> that must be ignored.",
+		"",
+	}, "\n")
+
+	if got := extractLegacyXMLTag(content, "type"); got != "Feature Implementation" {
+		t.Fatalf("extractLegacyXMLTag(type) = %q, want Feature Implementation", got)
+	}
+}
+
 func TestMigrateRejectsInvalidArtifactsWithoutWriting(t *testing.T) {
 	t.Parallel()
 

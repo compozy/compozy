@@ -201,4 +201,8 @@ func TestWrapParseErrorProvidesMigrationGuidance(t *testing.T) {
 			}
 		})
 	}
+
+	if err := WrapParseError("/tmp/issue_001.md", nil); err != nil {
+		t.Fatalf("WrapParseError(nil) = %v, want nil", err)
+	}
 }

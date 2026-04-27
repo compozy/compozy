@@ -463,24 +463,24 @@ func manualTaskTypeNeedsDomainInference(raw string) bool {
 }
 
 func inferTaskTypeFromLegacyDomain(domain string, registry *tasks.TypeRegistry) string {
-	normalized := strings.ToLower(strings.TrimSpace(domain))
-	if normalized == "" || registry == nil {
+	tokens := tokenizeLegacyDomain(domain)
+	if len(tokens) == 0 || registry == nil {
 		return ""
 	}
 
 	switch {
-	case registry.IsAllowed("frontend") && containsAny(normalized, "frontend", "ui", "ux", "web", "tui"):
+	case registry.IsAllowed("frontend") && hasAnyToken(tokens, "frontend", "ui", "ux", "web", "tui"):
 		return "frontend"
-	case registry.IsAllowed("docs") && containsAny(normalized, "doc"):
+	case registry.IsAllowed("docs") && hasAnyTokenPrefix(tokens, "doc"):
 		return "docs"
-	case registry.IsAllowed("test") && containsAny(normalized, "test", "qa", "validation"):
+	case registry.IsAllowed("test") && hasAnyToken(tokens, "test", "qa", "validation"):
 		return "test"
 	case registry.IsAllowed("infra") &&
-		containsAny(normalized, "infra", "infrastructure", "config", "configuration", "devops", "ops", "platform"):
+		hasAnyToken(tokens, "infra", "infrastructure", "config", "configuration", "devops", "ops", "platform"):
 		return "infra"
 	case registry.IsAllowed("backend") &&
-		containsAny(
-			normalized,
+		hasAnyToken(
+			tokens,
 			"backend",
 			"api",
 			"application",
@@ -504,25 +504,62 @@ func inferTaskTypeFromLegacyDomain(domain string, registry *tasks.TypeRegistry) 
 	}
 }
 
-func containsAny(value string, needles ...string) bool {
-	for _, needle := range needles {
-		if strings.Contains(value, needle) {
-			return true
+func tokenizeLegacyDomain(domain string) []string {
+	normalized := strings.ToLower(strings.TrimSpace(domain))
+	if normalized == "" {
+		return nil
+	}
+	return strings.FieldsFunc(normalized, func(r rune) bool {
+		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
+	})
+}
+
+func hasAnyToken(tokens []string, needles ...string) bool {
+	for _, token := range tokens {
+		for _, needle := range needles {
+			if token == needle {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasAnyTokenPrefix(tokens []string, prefixes ...string) bool {
+	for _, token := range tokens {
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(token, prefix) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
 func extractLegacyXMLTag(content, tag string) string {
+	target := content
+	const (
+		openContextTag  = "<task_context>"
+		closeContextTag = "</task_context>"
+	)
+	startContext := strings.Index(target, openContextTag)
+	if startContext >= 0 {
+		startContext += len(openContextTag)
+		endContext := strings.Index(target[startContext:], closeContextTag)
+		if endContext >= 0 {
+			target = target[startContext : startContext+endContext]
+		}
+	}
+
 	openTag := "<" + tag + ">"
-	start := strings.Index(content, openTag)
+	start := strings.Index(target, openTag)
 	if start < 0 {
 		return ""
 	}
 	start += len(openTag)
-	end := strings.Index(content[start:], "</"+tag+">")
+	end := strings.Index(target[start:], "</"+tag+">")
 	if end < 0 {
 		return ""
 	}
-	return strings.TrimSpace(content[start : start+end])
+	return strings.TrimSpace(target[start : start+end])
 }

@@ -355,7 +355,7 @@ func TestSharedHandlersServiceErrorPaths(t *testing.T) {
 			"internal_error",
 		},
 		{
-			"sync validation error",
+			"Should return validation_error for wrapped task parse failures",
 			&core.HandlerConfig{Sync: &errorSyncService{
 				err: tasks.WrapParseError("/tmp/task_01.md", tasks.ErrV1TaskMetadata),
 			}},

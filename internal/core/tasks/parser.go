@@ -147,6 +147,9 @@ func ExtractLegacyTaskBody(content string) (string, error) {
 }
 
 func WrapParseError(path string, err error) error {
+	if err == nil {
+		return nil
+	}
 	return &ArtifactParseError{Path: path, Err: err}
 }
 
