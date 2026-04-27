@@ -12,7 +12,7 @@ const (
 	IDEPi                    = "pi"
 	IDEGemini                = "gemini"
 	IDECopilot               = "copilot"
-	DefaultCodexModel        = "gpt-5.4"
+	DefaultCodexModel        = "gpt-5.5"
 	DefaultClaudeModel       = "opus"
 	DefaultCursorModel       = "composer-1"
 	DefaultOpenCodeModel     = "anthropic/claude-opus-4-6"

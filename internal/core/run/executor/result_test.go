@@ -18,7 +18,7 @@ func TestBuildExecutionResultIncludesStatusUsageAndArtifactPaths(t *testing.T) {
 	cfg := &config{
 		Mode:         model.ExecutionModeExec,
 		IDE:          model.IDECodex,
-		Model:        "gpt-5.4",
+		Model:        "gpt-5.5",
 		OutputFormat: model.OutputFormatJSON,
 		RunArtifacts: runArtifacts,
 	}
@@ -63,7 +63,7 @@ func TestBuildExecutionResultDoesNotInventSuccessForBlankJobStatus(t *testing.T)
 	cfg := &config{
 		Mode:         model.ExecutionModeExec,
 		IDE:          model.IDECodex,
-		Model:        "gpt-5.4",
+		Model:        "gpt-5.5",
 		OutputFormat: model.OutputFormatJSON,
 		RunArtifacts: runArtifacts,
 	}
@@ -94,7 +94,7 @@ func TestBuildExecutionResultKeepsPrimaryFailureWhenTeardownAlsoFails(t *testing
 	cfg := &config{
 		Mode:         model.ExecutionModeExec,
 		IDE:          model.IDECodex,
-		Model:        "gpt-5.4",
+		Model:        "gpt-5.5",
 		OutputFormat: model.OutputFormatJSON,
 		RunArtifacts: runArtifacts,
 	}
@@ -133,7 +133,7 @@ func TestBuildExecutionResultDoesNotCancelSuccessfulJobsOnTeardownFailure(t *tes
 	cfg := &config{
 		Mode:         model.ExecutionModeExec,
 		IDE:          model.IDECodex,
-		Model:        "gpt-5.4",
+		Model:        "gpt-5.5",
 		OutputFormat: model.OutputFormatJSON,
 		RunArtifacts: runArtifacts,
 	}
@@ -167,7 +167,7 @@ func TestBuildExecutionResultKeepsCanceledStatusWhenFailuresArePresent(t *testin
 	cfg := &config{
 		Mode:         model.ExecutionModeExec,
 		IDE:          model.IDECodex,
-		Model:        "gpt-5.4",
+		Model:        "gpt-5.5",
 		OutputFormat: model.OutputFormatJSON,
 		RunArtifacts: runArtifacts,
 	}
@@ -208,7 +208,7 @@ func TestEmitExecutionResultWritesArtifactForTextModeWithoutStdout(t *testing.T)
 	cfg := &config{
 		Mode:         model.ExecutionModePRDTasks,
 		IDE:          model.IDECodex,
-		Model:        "gpt-5.4",
+		Model:        "gpt-5.5",
 		OutputFormat: model.OutputFormatText,
 		RunArtifacts: runArtifacts,
 	}
@@ -252,7 +252,7 @@ func TestEmitExecutionResultKeepsWorkflowJSONModesQuietOnStdout(t *testing.T) {
 		cfg := &config{
 			Mode:         model.ExecutionModePRDTasks,
 			IDE:          model.IDECodex,
-			Model:        "gpt-5.4",
+			Model:        "gpt-5.5",
 			OutputFormat: format,
 			RunArtifacts: runArtifacts,
 		}

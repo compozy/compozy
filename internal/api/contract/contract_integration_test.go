@@ -116,7 +116,7 @@ func TestRunSnapshotAndStreamDecodeIntoCanonicalContract(t *testing.T) {
 					UpdatedAt: now,
 					Summary: &core.RunJobSummary{
 						IDE:   "codex",
-						Model: "gpt-5.4",
+						Model: "gpt-5.5",
 					},
 				}},
 				Transcript: []core.RunTranscriptMessage{{

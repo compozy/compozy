@@ -116,14 +116,14 @@ func TestQueryServiceAssemblesReadModelsFromRealDaemonState(t *testing.T) {
 				TaskTitle:       "Query task A",
 				TaskType:        "backend",
 				IDE:             "codex",
-				Model:           "gpt-5.4",
+				Model:           "gpt-5.5",
 				ReasoningEffort: "high",
 				AccessMode:      "workspace-write",
 			})
 			submitEvent(ctx, t, prep.Journal(), cfg.RunID, eventspkg.EventKindJobStarted, kinds.JobStartedPayload{
 				JobAttemptInfo: kinds.JobAttemptInfo{Index: 1, Attempt: 1, MaxAttempts: 1},
 				IDE:            "codex",
-				Model:          "gpt-5.4",
+				Model:          "gpt-5.5",
 			})
 			textBlock, err := kinds.NewContentBlock(kinds.TextBlock{Text: "hello from query service"})
 			if err != nil {
@@ -353,7 +353,7 @@ func TestQueryServiceAssemblesReadModelsFromRealDaemonState(t *testing.T) {
 			runDetail.Snapshot.Jobs[0].Summary.Usage.TotalTokens,
 		)
 	}
-	if len(runDetail.Runtime.Models) == 0 || runDetail.Runtime.Models[0] != "gpt-5.4" {
+	if len(runDetail.Runtime.Models) == 0 || runDetail.Runtime.Models[0] != "gpt-5.5" {
 		t.Fatalf("unexpected run runtime summary: %#v", runDetail.Runtime)
 	}
 }

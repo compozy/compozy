@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -115,17 +116,25 @@ var (
 					FixedArgs: []string{"--yes", "@zed-industries/codex-acp"},
 				},
 			},
-			DocsURL:     "https://github.com/zed-industries/codex-acp",
-			InstallHint: "Install the Codex ACP adapter from the GitHub releases or via `npx @zed-industries/codex-acp`, then expose `codex-acp` on PATH.",
-			BootstrapArgs: func(_ string, _ string, _ []string, accessMode string) []string {
-				if accessMode != model.AccessModeFull {
-					return nil
+			DocsURL:            "https://github.com/zed-industries/codex-acp",
+			InstallHint:        "Install or update the Codex ACP adapter with `npm install -g @zed-industries/codex-acp@latest`, then expose `codex-acp` on PATH.",
+			UsesBootstrapModel: true,
+			BootstrapArgs: func(modelName, reasoningEffort string, _ []string, accessMode string) []string {
+				args := make([]string, 0, 10)
+				if strings.TrimSpace(modelName) != "" {
+					args = append(args, "-c", codexConfigOverride("model", modelName))
 				}
-				return []string{
+				if strings.TrimSpace(reasoningEffort) != "" {
+					args = append(args, "-c", codexConfigOverride("model_reasoning_effort", reasoningEffort))
+				}
+				if accessMode != model.AccessModeFull {
+					return args
+				}
+				return append(args,
 					"-c", `approval_policy="never"`,
 					"-c", `sandbox_mode="danger-full-access"`,
 					"-c", `web_search="live"`,
-				}
+				)
 			},
 		},
 		model.IDEDroid: {
@@ -284,6 +293,10 @@ func SetupAgentName(ide string) (string, error) {
 		return "", fmt.Errorf("agent runtime %q does not declare a setup agent", ide)
 	}
 	return spec.SetupAgentName, nil
+}
+
+func codexConfigOverride(key, value string) string {
+	return strings.TrimSpace(key) + "=" + strconv.Quote(strings.TrimSpace(value))
 }
 
 // DriverCatalog returns the stable ACP driver catalog in the supported IDE order.

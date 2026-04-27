@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -44,6 +45,10 @@ func TestAgentRegistryEntries(t *testing.T) {
 			wantSupportsAddDirs: true,
 			wantLaunch: []string{
 				"codex-acp",
+				"-c",
+				`model="gpt-5.5"`,
+				"-c",
+				`model_reasoning_effort="medium"`,
 				"-c",
 				`approval_policy="never"`,
 				"-c",
@@ -189,6 +194,220 @@ func TestResolveRuntimeModelNormalizesCodexProviderPrefix(t *testing.T) {
 		}
 		if got != "gpt-5.5" {
 			t.Fatalf("ResolveRuntimeModel() = %q, want %q", got, "gpt-5.5")
+		}
+	})
+}
+
+func TestCodexBootstrapArgsSetModelAndReasoningEffort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should pass model and reasoning through codex config overrides", func(t *testing.T) {
+		t.Parallel()
+
+		spec, err := lookupAgentSpec(model.IDECodex)
+		if err != nil {
+			t.Fatalf("lookup codex spec: %v", err)
+		}
+		if !spec.UsesBootstrapModel {
+			t.Fatal("expected codex to use bootstrap model configuration")
+		}
+
+		command := spec.launchCommand("gpt-5.5", "high", nil, model.AccessModeFull)
+		want := []string{
+			"codex-acp",
+			"-c", `model="gpt-5.5"`,
+			"-c", `model_reasoning_effort="high"`,
+			"-c", `approval_policy="never"`,
+			"-c", `sandbox_mode="danger-full-access"`,
+			"-c", `web_search="live"`,
+		}
+		if !slices.Equal(command, want) {
+			t.Fatalf("codex launch command = %#v, want %#v", command, want)
+		}
+	})
+}
+
+func TestEnsureAvailableChecksCodexModelCompatibility(t *testing.T) {
+	t.Run("Should reject gpt-5.5 when codex acp is too old", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.11.1")
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "low",
+		})
+		if err == nil {
+			t.Fatal("expected codex-acp compatibility error")
+		}
+		for _, want := range []string{
+			"gpt-5.5 requires codex-acp >= 0.12.0",
+			"found 0.11.1",
+			"Choose a model supported by your installed codex-acp",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("compatibility error = %q, want %q", err, want)
+			}
+		}
+		if strings.Contains(err.Error(), "--model ") {
+			t.Fatalf("compatibility error = %q, should not recommend rerunning with a fixed fallback model", err)
+		}
+	})
+
+	t.Run("Should accept gpt-5.5 when codex acp is compatible", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.12.0")
+		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "low",
+		}); err != nil {
+			t.Fatalf("ensure available: %v", err)
+		}
+	})
+
+	t.Run("Should reject gpt-5.5 when codex acp is only a prerelease of the minimum", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.12.0-beta.1")
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "low",
+		})
+		if err == nil {
+			t.Fatal("expected codex-acp prerelease compatibility error")
+		}
+		for _, want := range []string{
+			"gpt-5.5 requires codex-acp >= 0.12.0",
+			"found 0.12.0-beta.1",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("compatibility error = %q, want %q", err, want)
+			}
+		}
+	})
+
+	t.Run("Should allow gpt-5.5 when codex acp version is unknown", func(t *testing.T) {
+		installExecutableOnPath(t, "codex-acp", "#!/bin/sh\nexit 0\n")
+		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "gpt-5.5",
+			ReasoningEffort: "low",
+		}); err != nil {
+			t.Fatalf("ensure available: %v", err)
+		}
+	})
+
+	t.Run("Should allow models without compatibility requirements with an older codex acp", func(t *testing.T) {
+		installCodexACPNPMPackage(t, "0.11.1")
+		if err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           "legacy-codex-model",
+			ReasoningEffort: "low",
+		}); err != nil {
+			t.Fatalf("ensure available: %v", err)
+		}
+	})
+
+	t.Run("Should reject codex models marked unavailable", func(t *testing.T) {
+		installExecutableOnPath(t, "codex-acp", "#!/bin/sh\nexit 0\n")
+		modelName := "retired-codex-model"
+		previous, hadPrevious := codexModelRequirements[modelName]
+		codexModelRequirements[modelName] = runtimeModelRequirement{
+			RuntimeCommand:     "codex-acp",
+			RuntimeDisplayName: "codex-acp",
+			UnavailableReason:  "the provider deprecated this model",
+		}
+		t.Cleanup(func() {
+			if hadPrevious {
+				codexModelRequirements[modelName] = previous
+				return
+			}
+			delete(codexModelRequirements, modelName)
+		})
+
+		err := EnsureAvailable(context.Background(), &model.RuntimeConfig{
+			IDE:             model.IDECodex,
+			Model:           modelName,
+			ReasoningEffort: "low",
+		})
+		if err == nil {
+			t.Fatal("expected unavailable model error")
+		}
+		for _, want := range []string{
+			modelName,
+			"provider deprecated this model",
+			"Choose a model supported by your installed codex-acp",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("unavailable model error = %q, want %q", err, want)
+			}
+		}
+		if strings.Contains(err.Error(), "--model ") {
+			t.Fatalf("unavailable model error = %q, should not recommend rerunning with a fixed fallback model", err)
+		}
+	})
+}
+
+func TestCompareSemver(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		left  string
+		right string
+		want  int
+	}{
+		{
+			name:  "Should treat prerelease as lower than matching stable",
+			left:  "0.12.0-beta.1",
+			right: "0.12.0",
+			want:  -1,
+		},
+		{
+			name:  "Should treat stable as higher than matching prerelease",
+			left:  "0.12.0",
+			right: "0.12.0-beta.1",
+			want:  1,
+		},
+		{name: "Should ignore build metadata", left: "v0.12.0+build.1", right: "0.12.0", want: 0},
+		{name: "Should compare numeric parts first", left: "0.13.0-beta.1", right: "0.12.9", want: 1},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := compareSemver(tc.left, tc.right)
+			if got != tc.want {
+				t.Fatalf("compareSemver(%q, %q) = %d, want %d", tc.left, tc.right, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestCodexModelCompatibilityHint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should explain codex acp upgrade path for gpt-5.5 model access errors", func(t *testing.T) {
+		t.Parallel()
+
+		err := codexModelCompatibilityHint(
+			Spec{ID: model.IDECodex},
+			"gpt-5.5",
+			fmt.Errorf(
+				"stream disconnected before completion: %s",
+				"The model `gpt-5.5` does not exist or you do not have access to it",
+			),
+		)
+		for _, want := range []string{
+			codexACPNPMPackageName,
+			codexModelRequirements["gpt-5.5"].MinVersion,
+			"Choose a model supported by your installed codex-acp",
+		} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("hint error = %q, want %q", err, want)
+			}
+		}
+		if strings.Contains(err.Error(), "--model ") {
+			t.Fatalf("hint error = %q, should not recommend rerunning with a fixed fallback model", err)
 		}
 	})
 }
@@ -732,6 +951,50 @@ func TestDisplayNameReturnsCorrectDisplayNames(t *testing.T) {
 			t.Fatalf("unexpected display name for %s: got %q want %q", ide, got, want)
 		}
 	}
+}
+
+func installCodexACPNPMPackage(t *testing.T, version string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	packageDir := filepath.Join(
+		tmpDir,
+		"lib",
+		"node_modules",
+		"@zed-industries",
+		"codex-acp",
+	)
+	binDir := filepath.Join(packageDir, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("create codex-acp package dir: %v", err)
+	}
+	packageJSON := fmt.Sprintf(`{"name":%q,"version":%q}`, codexACPNPMPackageName, version)
+	if err := os.WriteFile(filepath.Join(packageDir, "package.json"), []byte(packageJSON), 0o600); err != nil {
+		t.Fatalf("write codex-acp package json: %v", err)
+	}
+	target := filepath.Join(binDir, "codex-acp.js")
+	if err := os.WriteFile(target, []byte("#!/bin/sh\nexit 0\n"), 0o700); err != nil {
+		t.Fatalf("write codex-acp package bin: %v", err)
+	}
+	pathDir := filepath.Join(tmpDir, "bin")
+	if err := os.MkdirAll(pathDir, 0o755); err != nil {
+		t.Fatalf("create path dir: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(pathDir, "codex-acp")); err != nil {
+		t.Fatalf("symlink codex-acp: %v", err)
+	}
+	t.Setenv("PATH", pathDir)
+}
+
+func installExecutableOnPath(t *testing.T, name string, script string) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, name)
+	if err := os.WriteFile(path, []byte(script), 0o700); err != nil {
+		t.Fatalf("write executable %s: %v", name, err)
+	}
+	t.Setenv("PATH", tmpDir)
 }
 
 func TestDriverCatalogExposesCanonicalCommandsAndFallbacks(t *testing.T) {

@@ -15,7 +15,7 @@ Runtime defaults applied to all commands unless overridden.
 | Field | Type | Description |
 | --- | --- | --- |
 | `ide` | string | ACP runtime: `claude`, `codex`, `copilot`, `cursor-agent`, `droid`, `gemini`, `opencode`, `pi` |
-| `model` | string | Model override. Per-IDE defaults: codex/droid=gpt-5.4, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro |
+| `model` | string | Model override. Per-IDE defaults: codex/droid=gpt-5.5, claude=opus, copilot=claude-sonnet-4.6, cursor-agent=composer-1, opencode/pi=anthropic/claude-opus-4-6, gemini=gemini-2.5-pro |
 | `output_format` | string | Output format: `text`, `json`, `raw-json` |
 | `reasoning_effort` | string | Reasoning effort level: `low`, `medium`, `high`, `xhigh` |
 | `access_mode` | string | Access mode: `default`, `full` |
@@ -58,12 +58,12 @@ Example:
 ```toml
 [defaults]
 ide = "codex"
-model = "gpt-5.4"
+model = "gpt-5.5"
 reasoning_effort = "medium"
 
 [[start.task_runtime_rules]]
 type = "frontend"
-model = "gpt-5.4"
+model = "gpt-5.5"
 reasoning_effort = "high"
 
 [[start.task_runtime_rules]]

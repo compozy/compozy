@@ -91,7 +91,7 @@ def main() -> int:
             repo_root,
             "--no-alt-screen",
             "--model",
-            "gpt-5.4",
+            "gpt-5.5",
             "-c",
             'reasoning_effort="xhigh"',
             "-c",
@@ -120,7 +120,7 @@ def main() -> int:
             "--ide",
             "codex",
             "--model",
-            "gpt-5.4",
+            "gpt-5.5",
             "--reasoning-effort",
             "xhigh",
         ]

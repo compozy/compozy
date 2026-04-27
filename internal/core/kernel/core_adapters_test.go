@@ -25,7 +25,7 @@ func TestDispatchRunAdapterBuildsRunStartCommand(t *testing.T) {
 		TasksDir:               "/workspace/.compozy/tasks/demo",
 		Mode:                   core.ModePRReview,
 		IDE:                    core.IDECodex,
-		Model:                  "gpt-5.4",
+		Model:                  "gpt-5.5",
 		ReviewsDir:             "/workspace/.compozy/tasks/demo/reviews-001",
 		IncludeResolved:        true,
 		Timeout:                time.Minute,

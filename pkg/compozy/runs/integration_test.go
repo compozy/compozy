@@ -51,7 +51,7 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 				Jobs: []apicore.RunJobState{{
 					Summary: &apicore.RunJobSummary{
 						IDE:   "codex",
-						Model: "gpt-5.4",
+						Model: "gpt-5.5",
 					},
 				}},
 			},
@@ -66,7 +66,7 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 						Timestamp:     base.Add(time.Hour),
 						Kind:          events.EventKindRunStarted,
 						Payload: []byte(
-							`{"workspace_root":"/workspace","artifacts_dir":"/tmp/home/.compozy/runs/run-2","ide":"codex","model":"gpt-5.4"}`,
+							`{"workspace_root":"/workspace","artifacts_dir":"/tmp/home/.compozy/runs/run-2","ide":"codex","model":"gpt-5.5"}`,
 						),
 					},
 				},
@@ -90,8 +90,8 @@ func TestOpenAndListUseDaemonBackedHTTPTransport(t *testing.T) {
 		if summary.WorkspaceRoot != "/workspace" {
 			t.Fatalf("Summary().WorkspaceRoot = %q, want /workspace", summary.WorkspaceRoot)
 		}
-		if summary.IDE != "codex" || summary.Model != "gpt-5.4" {
-			t.Fatalf("Summary() IDE/model = %q/%q, want codex/gpt-5.4", summary.IDE, summary.Model)
+		if summary.IDE != "codex" || summary.Model != "gpt-5.5" {
+			t.Fatalf("Summary() IDE/model = %q/%q, want codex/gpt-5.5", summary.IDE, summary.Model)
 		}
 	})
 }
@@ -204,7 +204,7 @@ func TestOpenMatchesInternalClientSnapshotMetadata(t *testing.T) {
 				Jobs: []apicore.RunJobState{{
 					Summary: &apicore.RunJobSummary{
 						IDE:   "codex",
-						Model: "gpt-5.4",
+						Model: "gpt-5.5",
 					},
 				}},
 			},
@@ -218,7 +218,7 @@ func TestOpenMatchesInternalClientSnapshotMetadata(t *testing.T) {
 					Timestamp:     base,
 					Kind:          events.EventKindRunStarted,
 					Payload: []byte(
-						`{"workspace_root":"/workspace","artifacts_dir":"/tmp/home/.compozy/runs/run-compare","ide":"codex","model":"gpt-5.4"}`,
+						`{"workspace_root":"/workspace","artifacts_dir":"/tmp/home/.compozy/runs/run-compare","ide":"codex","model":"gpt-5.5"}`,
 					),
 				}},
 			},
@@ -249,8 +249,8 @@ func TestOpenMatchesInternalClientSnapshotMetadata(t *testing.T) {
 		if !summary.StartedAt.Equal(snapshot.Run.StartedAt) {
 			t.Fatalf("summary.StartedAt = %v, want %v", summary.StartedAt, snapshot.Run.StartedAt)
 		}
-		if summary.IDE != "codex" || summary.Model != "gpt-5.4" {
-			t.Fatalf("summary IDE/model = %q/%q, want codex/gpt-5.4", summary.IDE, summary.Model)
+		if summary.IDE != "codex" || summary.Model != "gpt-5.5" {
+			t.Fatalf("summary IDE/model = %q/%q, want codex/gpt-5.5", summary.IDE, summary.Model)
 		}
 	})
 }

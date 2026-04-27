@@ -21,7 +21,7 @@ on_completed = "glass"
 on_failed = "basso"
 
 [exec]
-model = "gpt-5.4"
+model = "gpt-5.5"
 verbose = true
 ```
 
@@ -42,7 +42,7 @@ With both files above the effective config resolves to:
 | `defaults.model`          | `"o4-mini"` | project wins |
 | `defaults.auto_commit`    | `true`      | global       |
 | `sound.enabled`           | `true`      | global       |
-| `exec.model`              | `"gpt-5.4"` | global       |
+| `exec.model`              | `"gpt-5.5"` | global       |
 | `start.include_completed` | `true`      | project      |
 
 All sections supported in project config (`[defaults]`, `[start]`, `[exec]`, `[fix_reviews]`, `[fetch_reviews]`, `[tasks]`, `[sound]`) work in the global file with the same schema.

@@ -17,7 +17,7 @@ func TestOpenLoadsDaemonBackedRunSummary(t *testing.T) {
 			Status:        publicRunStatusCompleted,
 			Mode:          "prd-tasks",
 			IDE:           "codex",
-			Model:         "gpt-5.4",
+			Model:         "gpt-5.5",
 			WorkspaceRoot: "/workspace",
 			StartedAt:     time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC),
 			EndedAt:       timePointer(time.Date(2026, 4, 17, 12, 3, 0, 0, time.UTC)),

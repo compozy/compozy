@@ -887,7 +887,7 @@ func TestFormInputsApplyPreservesExistingTaskRuntimeRulesWhenFormIsSkipped(t *te
 		}}
 		state.executionTaskRuntimeRules = []model.TaskRuntimeRule{{
 			ID:    stringPointer("task_01"),
-			Model: stringPointer("gpt-5.4-mini"),
+			Model: stringPointer("codex-fast"),
 		}}
 		cmd := newTestCommand(state)
 
@@ -907,6 +907,9 @@ func TestFormInputsApplyPreservesExistingTaskRuntimeRulesWhenFormIsSkipped(t *te
 		}
 		if rules[1].ID == nil || *rules[1].ID != "task_01" {
 			t.Fatalf("expected execution task rule to remain appended, got %#v", rules[1])
+		}
+		if rules[1].Model == nil || *rules[1].Model != "codex-fast" {
+			t.Fatalf("expected execution task model to remain preserved, got %#v", rules[1])
 		}
 	})
 }
@@ -1247,7 +1250,7 @@ func TestFormInputsApplyPreservesPrefilledOptionalValuesWhenLeftBlank(t *testing
 	cmd := newTestCommand(state)
 	state.round = 2
 	state.reviewsDir = ".compozy/tasks/my-feature/reviews-001"
-	state.model = "gpt-5.4"
+	state.model = "gpt-5.5"
 	state.addDirs = []string{"../shared", "../docs,archive"}
 	state.tailLines = 25
 	state.accessMode = core.AccessModeFull
@@ -1264,7 +1267,7 @@ func TestFormInputsApplyPreservesPrefilledOptionalValuesWhenLeftBlank(t *testing
 	if state.reviewsDir != ".compozy/tasks/my-feature/reviews-001" {
 		t.Fatalf("expected reviewsDir to remain prefilled, got %q", state.reviewsDir)
 	}
-	if state.model != "gpt-5.4" {
+	if state.model != "gpt-5.5" {
 		t.Fatalf("expected model to remain prefilled, got %q", state.model)
 	}
 	if state.timeout != "5m" {
